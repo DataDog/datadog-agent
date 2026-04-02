@@ -51,43 +51,19 @@ func RetrieveUnifiedServiceTags(labels map[string]string) []string {
 	return tags
 }
 
-func RetrieveMetadataTags(
-	labels map[string]string,
-	annotations map[string]string,
-	labelsAsTags map[string]string,
-	annotationsAsTags map[string]string,
-) []string {
-	tags := []string{}
-
-	teamLabelCollected := false
-	for name, value := range labels {
-		if tagKey, ok := labelsAsTags[name]; ok {
-			if tagKey == tagKeyTeam {
-				teamLabelCollected = true
-			}
-			tags = append(tags, fmt.Sprintf("%s:%s", tagKey, value))
-		}
+// RetrieveTeamTag extracts the team tag from labels or annotations when
+// auto_team_tag_collection is enabled. Labels take precedence over annotations.
+func RetrieveTeamTag(labels map[string]string, annotations map[string]string) []string {
+	if !pkgconfigsetup.Datadog().GetBool("auto_team_tag_collection") {
+		return nil
 	}
 
-	teamAnnotationCollected := false
-	for name, value := range annotations {
-		if tagKey, ok := annotationsAsTags[name]; ok {
-			if tagKey == tagKeyTeam {
-				teamAnnotationCollected = true
-			}
-			tags = append(tags, fmt.Sprintf("%s:%s", tagKey, value))
-		}
+	if teamLabel, ok := labels[tagKeyTeam]; ok {
+		return []string{fmt.Sprintf("%s:%s", tagKeyTeam, teamLabel)}
+	}
+	if teamAnnotation, ok := annotations[tagKeyTeam]; ok {
+		return []string{fmt.Sprintf("%s:%s", tagKeyTeam, teamAnnotation)}
 	}
 
-	if pkgconfigsetup.Datadog().GetBool("auto_team_tag_collection") && !teamLabelCollected && !teamAnnotationCollected {
-		// try to collect team tag from labels first
-		if teamLabel, ok := labels[tagKeyTeam]; ok {
-			tags = append(tags, fmt.Sprintf("%s:%s", tagKeyTeam, teamLabel))
-		} else if teamAnnotation, ok := annotations[tagKeyTeam]; ok {
-			// fallback to collect team tag from annotations
-			tags = append(tags, fmt.Sprintf("%s:%s", tagKeyTeam, teamAnnotation))
-		}
-	}
-
-	return tags
+	return nil
 }

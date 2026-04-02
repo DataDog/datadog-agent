@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "fips",
+    srcs = [
+        "fips.go",
+        "fips_disabled.go",
+        "fips_goboring.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/fips",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "fips_test",
+    srcs = ["fips_test.go"],
+    embed = [":fips"],
+)

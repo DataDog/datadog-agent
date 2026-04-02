@@ -43,7 +43,7 @@ Probes:
             - JSON: {Ref: a}
               DSL: a
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testAnyPtr
       version: 0
       type: LOG_PROBE
@@ -68,7 +68,7 @@ Probes:
             - JSON: {Ref: a}
               DSL: a
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testArrayArgAndReturn
       version: 0
       type: LOG_PROBE
@@ -92,7 +92,7 @@ Probes:
             - JSON: {Ref: arg}
               DSL: arg
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testArrayEmptyStructs
       version: 0
       type: LOG_PROBE
@@ -113,7 +113,7 @@ Probes:
             - JSON: {Ref: a}
               DSL: a
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testArrayOfArrays
       version: 0
       type: LOG_PROBE
@@ -134,7 +134,7 @@ Probes:
             - JSON: {Ref: a}
               DSL: a
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testArrayOfArraysOfArrays
       version: 0
       type: LOG_PROBE
@@ -155,7 +155,7 @@ Probes:
             - JSON: {Ref: b}
               DSL: b
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testArrayOfMaps
       version: 0
       type: LOG_PROBE
@@ -176,7 +176,7 @@ Probes:
             - JSON: {Ref: m}
               DSL: m
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testArrayOfStrings
       version: 0
       type: LOG_PROBE
@@ -197,7 +197,7 @@ Probes:
             - JSON: {Ref: a}
               DSL: a
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testArrayOfStructs
       version: 0
       type: LOG_PROBE
@@ -217,7 +217,7 @@ Probes:
             - JSON: {Ref: a}
               DSL: a
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testAtomicAdd
       version: 0
       type: LOG_PROBE
@@ -242,7 +242,7 @@ Probes:
             - JSON: {Ref: x}
               DSL: x
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testBigStruct
       version: 0
       type: LOG_PROBE
@@ -267,7 +267,7 @@ Probes:
             - JSON: {Ref: b}
               DSL: b
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testBoolArray
       version: 0
       type: LOG_PROBE
@@ -288,7 +288,7 @@ Probes:
             - JSON: {Ref: x}
               DSL: x
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testByteArray
       version: 0
       type: LOG_PROBE
@@ -309,7 +309,7 @@ Probes:
             - JSON: {Ref: x}
               DSL: x
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testCaptureExprGetmember
       version: 0
       type: LOG_PROBE
@@ -390,7 +390,7 @@ Probes:
             - PC: "0xcda64f"
               Frameless: false
           Condition:
-            Type: 7 BaseType int
+            Type: 4 BaseType bool
             Operations:
                 - __kind: LocationOp
                   Variable: {subprogram: 160, index: 0, name: x}
@@ -500,7 +500,7 @@ Probes:
           Type: 1555 EventRootType Probe[main.testTenStrings]
           InjectionPoints: [{PC: "0xce0800", Frameless: true}]
           Condition:
-            Type: 9 GoStringHeaderType string
+            Type: 4 BaseType bool
             Operations:
                 - __kind: LocationOp
                   Variable: {subprogram: 157, index: 0, name: x}
@@ -540,7 +540,7 @@ Probes:
             - JSON: {Ref: c}
               DSL: c
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testCombinedByte
       version: 0
       type: LOG_PROBE
@@ -569,12 +569,12 @@ Probes:
             - JSON: {Ref: w}
               DSL: w
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
             - ', '
             - JSON: {Ref: x}
               DSL: x
               EventKind: Entry
-              EventExpressionIndex: 3
+              EventExpressionIndex: 1
             - ', '
             - Error: failed to resolve reference "y"
               DSL: y
@@ -598,7 +598,7 @@ Probes:
             - JSON: {Ref: t}
               DSL: t
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testDeepMap1
       version: 0
       type: LOG_PROBE
@@ -619,7 +619,7 @@ Probes:
             - JSON: {Ref: a}
               DSL: a
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testDeepMap7
       version: 0
       type: LOG_PROBE
@@ -640,7 +640,7 @@ Probes:
             - JSON: {Ref: a}
               DSL: a
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testDeepPtr1
       version: 0
       type: LOG_PROBE
@@ -661,7 +661,7 @@ Probes:
             - JSON: {Ref: a}
               DSL: a
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testDeepPtr7
       version: 0
       type: LOG_PROBE
@@ -682,7 +682,7 @@ Probes:
             - JSON: {Ref: a}
               DSL: a
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testDeepSlice1
       version: 0
       type: LOG_PROBE
@@ -703,7 +703,7 @@ Probes:
             - JSON: {Ref: a}
               DSL: a
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testDeepSlice7
       version: 0
       type: LOG_PROBE
@@ -724,7 +724,7 @@ Probes:
             - JSON: {Ref: a}
               DSL: a
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testEmptySlice
       version: 0
       type: LOG_PROBE
@@ -745,7 +745,7 @@ Probes:
             - JSON: {Ref: u}
               DSL: u
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testEmptySliceOfStructs
       version: 0
       type: LOG_PROBE
@@ -771,12 +771,12 @@ Probes:
             - JSON: {Ref: xs}
               DSL: xs
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
             - ', '
             - JSON: {Ref: a}
               DSL: a
               EventKind: Entry
-              EventExpressionIndex: 3
+              EventExpressionIndex: 1
     - id: testEmptyString
       version: 0
       type: LOG_PROBE
@@ -798,7 +798,7 @@ Probes:
             - JSON: {Ref: x}
               DSL: x
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testEmptyStruct
       version: 0
       type: LOG_PROBE
@@ -819,7 +819,7 @@ Probes:
             - JSON: {Ref: e}
               DSL: e
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testEmptyStructPointer
       version: 0
       type: LOG_PROBE
@@ -839,7 +839,7 @@ Probes:
             - JSON: {Ref: e}
               DSL: e
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testError
       version: 0
       type: LOG_PROBE
@@ -860,7 +860,7 @@ Probes:
             - JSON: {Ref: e}
               DSL: e
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testErrorAtLine
       version: 0
       type: LOG_PROBE
@@ -894,12 +894,12 @@ Probes:
             - JSON: {Ref: x}
               DSL: x
               EventKind: Line
-              EventExpressionIndex: 2
+              EventExpressionIndex: 0
             - ', err='
             - JSON: {Ref: err}
               DSL: err
               EventKind: Line
-              EventExpressionIndex: 4
+              EventExpressionIndex: 1
     - id: testEsotericHeap
       version: 0
       type: LOG_PROBE
@@ -924,7 +924,7 @@ Probes:
             - JSON: {Ref: e}
               DSL: e
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testEsotericStack
       version: 0
       type: LOG_PROBE
@@ -949,7 +949,7 @@ Probes:
             - JSON: {Ref: e}
               DSL: e
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testFrameless
       version: 0
       type: LOG_PROBE
@@ -974,7 +974,7 @@ Probes:
             - JSON: {Ref: x}
               DSL: x
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testFramelessArray
       version: 0
       type: LOG_PROBE
@@ -999,7 +999,7 @@ Probes:
             - JSON: {Ref: a}
               DSL: a
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testFramelessArrayLine
       version: 0
       type: LOG_PROBE
@@ -1023,7 +1023,7 @@ Probes:
             - JSON: {Ref: a}
               DSL: a
               EventKind: Line
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testInlinedBA
       version: 0
       type: LOG_PROBE
@@ -1048,7 +1048,7 @@ Probes:
             - JSON: {Ref: x}
               DSL: x
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testInlinedBB
       version: 0
       type: LOG_PROBE
@@ -1078,12 +1078,12 @@ Probes:
             - JSON: {Ref: x}
               DSL: x
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
             - ', '
             - JSON: {Ref: y}
               DSL: y
               EventKind: Entry
-              EventExpressionIndex: 3
+              EventExpressionIndex: 1
     - id: testInlinedBBA
       version: 0
       type: LOG_PROBE
@@ -1108,7 +1108,7 @@ Probes:
             - JSON: {Ref: x}
               DSL: x
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testInlinedBBB
       version: 0
       type: LOG_PROBE
@@ -1277,7 +1277,7 @@ Probes:
             - JSON: {Ref: x}
               DSL: x
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testInlinedPrintLine
       version: 0
       type: LOG_PROBE
@@ -1311,7 +1311,7 @@ Probes:
             - JSON: {Ref: x}
               DSL: x
               EventKind: Line
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testInlinedSq
       version: 0
       type: LOG_PROBE
@@ -1332,7 +1332,7 @@ Probes:
             - JSON: {Ref: x}
               DSL: x
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testInlinedSqLine
       version: 0
       type: LOG_PROBE
@@ -1356,7 +1356,7 @@ Probes:
             - JSON: {Ref: x}
               DSL: x
               EventKind: Line
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testInlinedSumArray
       version: 0
       type: LOG_PROBE
@@ -1382,7 +1382,7 @@ Probes:
             - JSON: {Ref: a}
               DSL: a
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testInt16Array
       version: 0
       type: LOG_PROBE
@@ -1403,7 +1403,7 @@ Probes:
             - JSON: {Ref: x}
               DSL: x
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testInt32Array
       version: 0
       type: LOG_PROBE
@@ -1424,7 +1424,7 @@ Probes:
             - JSON: {Ref: x}
               DSL: x
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testInt64Array
       version: 0
       type: LOG_PROBE
@@ -1445,7 +1445,7 @@ Probes:
             - JSON: {Ref: x}
               DSL: x
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testInt8Array
       version: 0
       type: LOG_PROBE
@@ -1466,7 +1466,7 @@ Probes:
             - JSON: {Ref: x}
               DSL: x
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testIntArray
       version: 0
       type: LOG_PROBE
@@ -1487,7 +1487,7 @@ Probes:
             - JSON: {Ref: x}
               DSL: x
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testInterface
       version: 0
       type: LOG_PROBE
@@ -1508,7 +1508,7 @@ Probes:
             - JSON: {Ref: b}
               DSL: b
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testLargeArgAndReturn
       version: 0
       type: LOG_PROBE
@@ -1532,7 +1532,7 @@ Probes:
             - JSON: {Ref: arg}
               DSL: arg
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testLinkedList
       version: 0
       type: LOG_PROBE
@@ -1553,7 +1553,7 @@ Probes:
             - JSON: {Ref: a}
               DSL: a
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testLongFunctionWithChangingStateLineA
       version: 0
       type: LOG_PROBE
@@ -1665,47 +1665,47 @@ Probes:
             - JSON: {Ref: a}
               DSL: a
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
             - ', '
             - JSON: {Ref: b}
               DSL: b
               EventKind: Entry
-              EventExpressionIndex: 3
+              EventExpressionIndex: 1
             - ', '
             - JSON: {Ref: c}
               DSL: c
               EventKind: Entry
-              EventExpressionIndex: 5
+              EventExpressionIndex: 2
             - ', '
             - JSON: {Ref: d}
               DSL: d
               EventKind: Entry
-              EventExpressionIndex: 7
+              EventExpressionIndex: 3
             - ', '
             - JSON: {Ref: e}
               DSL: e
               EventKind: Entry
-              EventExpressionIndex: 9
+              EventExpressionIndex: 4
             - ', '
             - JSON: {Ref: f}
               DSL: f
               EventKind: Entry
-              EventExpressionIndex: 11
+              EventExpressionIndex: 5
             - ', '
             - JSON: {Ref: g}
               DSL: g
               EventKind: Entry
-              EventExpressionIndex: 13
+              EventExpressionIndex: 6
             - ', '
             - JSON: {Ref: h}
               DSL: h
               EventKind: Entry
-              EventExpressionIndex: 15
+              EventExpressionIndex: 7
             - ', '
             - JSON: {Ref: i}
               DSL: i
               EventKind: Entry
-              EventExpressionIndex: 17
+              EventExpressionIndex: 8
     - id: testMapArrayToArray
       version: 0
       type: LOG_PROBE
@@ -1726,7 +1726,7 @@ Probes:
             - JSON: {Ref: m}
               DSL: m
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testMapEmbeddedMaps
       version: 0
       type: LOG_PROBE
@@ -1747,7 +1747,7 @@ Probes:
             - JSON: {Ref: m}
               DSL: m
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testMapEmptyKey
       version: 0
       type: LOG_PROBE
@@ -1768,7 +1768,7 @@ Probes:
             - JSON: {Ref: m}
               DSL: m
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testMapEmptyKeyAndValue
       version: 0
       type: LOG_PROBE
@@ -1789,7 +1789,7 @@ Probes:
             - JSON: {Ref: m}
               DSL: m
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testMapEmptyValue
       version: 0
       type: LOG_PROBE
@@ -1810,7 +1810,7 @@ Probes:
             - JSON: {Ref: m}
               DSL: m
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testMapIntToInt
       version: 0
       type: LOG_PROBE
@@ -1831,7 +1831,7 @@ Probes:
             - JSON: {Ref: m}
               DSL: m
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testMapLargeKeyLargeValue
       version: 0
       type: LOG_PROBE
@@ -1852,7 +1852,7 @@ Probes:
             - JSON: {Ref: m}
               DSL: m
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testMapLargeKeySmallValue
       version: 0
       type: LOG_PROBE
@@ -1873,7 +1873,7 @@ Probes:
             - JSON: {Ref: m}
               DSL: m
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testMapMassive
       version: 0
       type: LOG_PROBE
@@ -1896,7 +1896,7 @@ Probes:
             - JSON: {Ref: redactMyEntries}
               DSL: redactMyEntries
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testMapMassiveWithSizeLimit
       version: 0
       type: LOG_PROBE
@@ -1919,7 +1919,7 @@ Probes:
             - JSON: {Ref: redactMyEntries}
               DSL: redactMyEntries
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testMapSmallKeyLargeValue
       version: 0
       type: LOG_PROBE
@@ -1940,7 +1940,7 @@ Probes:
             - JSON: {Ref: m}
               DSL: m
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testMapSmallKeySmallValue
       version: 0
       type: LOG_PROBE
@@ -1961,7 +1961,7 @@ Probes:
             - JSON: {Ref: m}
               DSL: m
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testMapStringToInt
       version: 0
       type: LOG_PROBE
@@ -1982,7 +1982,7 @@ Probes:
             - JSON: {Ref: m}
               DSL: m
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testMapStringToSlice
       version: 0
       type: LOG_PROBE
@@ -2003,7 +2003,7 @@ Probes:
             - JSON: {Ref: m}
               DSL: m
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testMapStringToStruct
       version: 0
       type: LOG_PROBE
@@ -2024,7 +2024,7 @@ Probes:
             - JSON: {Ref: m}
               DSL: m
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testMapWithLinkedList
       version: 0
       type: LOG_PROBE
@@ -2045,7 +2045,7 @@ Probes:
             - JSON: {Ref: m}
               DSL: m
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testMapWithSmallKeyAndValue
       version: 0
       type: LOG_PROBE
@@ -2066,7 +2066,7 @@ Probes:
             - JSON: {Ref: m}
               DSL: m
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testMapWithSmallKeyAndValueMassive
       version: 0
       type: LOG_PROBE
@@ -2087,7 +2087,7 @@ Probes:
             - JSON: {Ref: m}
               DSL: m
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testMapWithSmallValue
       version: 0
       type: LOG_PROBE
@@ -2108,7 +2108,7 @@ Probes:
             - JSON: {Ref: m}
               DSL: m
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testMapWithSmallValueMassive
       version: 0
       type: LOG_PROBE
@@ -2131,7 +2131,7 @@ Probes:
             - JSON: {Ref: redactMyEntries}
               DSL: redactMyEntries
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testMassiveString
       version: 0
       type: LOG_PROBE
@@ -2152,7 +2152,7 @@ Probes:
             - JSON: {Ref: x}
               DSL: x
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testMassiveStringWithSizeLimit
       version: 0
       type: LOG_PROBE
@@ -2174,7 +2174,7 @@ Probes:
             - JSON: {Ref: x}
               DSL: x
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testMixedArgsStackReturn
       version: 0
       type: LOG_PROBE
@@ -2224,47 +2224,47 @@ Probes:
             - JSON: {Ref: a}
               DSL: a
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
             - ', '
             - JSON: {Ref: b}
               DSL: b
               EventKind: Entry
-              EventExpressionIndex: 3
+              EventExpressionIndex: 1
             - ', '
             - JSON: {Ref: c}
               DSL: c
               EventKind: Entry
-              EventExpressionIndex: 5
+              EventExpressionIndex: 2
             - ', '
             - JSON: {Ref: d}
               DSL: d
               EventKind: Entry
-              EventExpressionIndex: 7
+              EventExpressionIndex: 3
             - ', '
             - JSON: {Ref: e}
               DSL: e
               EventKind: Entry
-              EventExpressionIndex: 9
+              EventExpressionIndex: 4
             - ', '
             - JSON: {Ref: f}
               DSL: f
               EventKind: Entry
-              EventExpressionIndex: 11
+              EventExpressionIndex: 5
             - ', '
             - JSON: {Ref: g}
               DSL: g
               EventKind: Entry
-              EventExpressionIndex: 13
+              EventExpressionIndex: 6
             - ', '
             - JSON: {Ref: h}
               DSL: h
               EventKind: Entry
-              EventExpressionIndex: 15
+              EventExpressionIndex: 7
             - ', '
             - JSON: {Ref: s}
               DSL: s
               EventKind: Entry
-              EventExpressionIndex: 17
+              EventExpressionIndex: 8
     - id: testMultipleArrayArgs
       version: 0
       type: LOG_PROBE
@@ -2293,12 +2293,12 @@ Probes:
             - JSON: {Ref: a}
               DSL: a
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
             - ', '
             - JSON: {Ref: b}
               DSL: b
               EventKind: Entry
-              EventExpressionIndex: 3
+              EventExpressionIndex: 1
     - id: testMultipleLargeArgs
       version: 0
       type: LOG_PROBE
@@ -2327,12 +2327,12 @@ Probes:
             - JSON: {Ref: s1}
               DSL: s1
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
             - ', '
             - JSON: {Ref: s2}
               DSL: s2
               EventKind: Entry
-              EventExpressionIndex: 3
+              EventExpressionIndex: 1
     - id: testMultipleNamedReturn
       version: 0
       type: LOG_PROBE
@@ -2356,7 +2356,7 @@ Probes:
             - JSON: {Ref: i}
               DSL: i
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testMultipleSimpleParams
       version: 0
       type: LOG_PROBE
@@ -2391,27 +2391,27 @@ Probes:
             - JSON: {Ref: a}
               DSL: a
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
             - ', '
             - JSON: {Ref: b}
               DSL: b
               EventKind: Entry
-              EventExpressionIndex: 3
+              EventExpressionIndex: 1
             - ', '
             - JSON: {Ref: c}
               DSL: c
               EventKind: Entry
-              EventExpressionIndex: 5
+              EventExpressionIndex: 2
             - ', '
             - JSON: {Ref: d}
               DSL: d
               EventKind: Entry
-              EventExpressionIndex: 7
+              EventExpressionIndex: 3
             - ', '
             - JSON: {Ref: e}
               DSL: e
               EventKind: Entry
-              EventExpressionIndex: 9
+              EventExpressionIndex: 4
     - id: testNamedReturn
       version: 0
       type: LOG_PROBE
@@ -2435,7 +2435,7 @@ Probes:
             - JSON: {Ref: i}
               DSL: i
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testNamedReturnWithTemplate
       version: 0
       type: LOG_PROBE
@@ -2466,12 +2466,12 @@ Probes:
             - JSON: {Ref: i}
               DSL: i
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
             - ' * 2 = result '
             - JSON: {Ref: result}
               DSL: result
               EventKind: Return
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testNestedPointer
       version: 0
       type: LOG_PROBE
@@ -2492,7 +2492,7 @@ Probes:
             - JSON: {Ref: x}
               DSL: x
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testNestedPointer_expression_with_dots
       version: 0
       type: LOG_PROBE
@@ -2596,12 +2596,12 @@ Probes:
             - JSON: {Ref: z}
               DSL: z
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
             - ', '
             - JSON: {Ref: a}
               DSL: a
               EventKind: Entry
-              EventExpressionIndex: 3
+              EventExpressionIndex: 1
     - id: testNilSlice
       version: 0
       type: LOG_PROBE
@@ -2622,7 +2622,7 @@ Probes:
             - JSON: {Ref: xs}
               DSL: xs
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testNilSliceOfStructs
       version: 0
       type: LOG_PROBE
@@ -2648,12 +2648,12 @@ Probes:
             - JSON: {Ref: xs}
               DSL: xs
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
             - ', '
             - JSON: {Ref: a}
               DSL: a
               EventKind: Entry
-              EventExpressionIndex: 3
+              EventExpressionIndex: 1
     - id: testNilSliceWithOtherParams
       version: 0
       type: LOG_PROBE
@@ -2682,17 +2682,17 @@ Probes:
             - JSON: {Ref: a}
               DSL: a
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
             - ', '
             - JSON: {Ref: s}
               DSL: s
               EventKind: Entry
-              EventExpressionIndex: 3
+              EventExpressionIndex: 1
             - ', '
             - JSON: {Ref: x}
               DSL: x
               EventKind: Entry
-              EventExpressionIndex: 5
+              EventExpressionIndex: 2
     - id: testOneStringInStructPointer
       version: 0
       type: LOG_PROBE
@@ -2713,7 +2713,7 @@ Probes:
             - JSON: {Ref: a}
               DSL: a
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testPointerLoop
       version: 0
       type: LOG_PROBE
@@ -2734,7 +2734,7 @@ Probes:
             - JSON: {Ref: a}
               DSL: a
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testPointerToMap
       version: 0
       type: LOG_PROBE
@@ -2755,7 +2755,7 @@ Probes:
             - JSON: {Ref: m}
               DSL: m
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testPointerToSimpleStruct
       version: 0
       type: LOG_PROBE
@@ -2776,7 +2776,7 @@ Probes:
             - JSON: {Ref: a}
               DSL: a
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testReturnsAny
       version: 0
       type: LOG_PROBE
@@ -2809,7 +2809,7 @@ Probes:
             - JSON: {Ref: v}
               DSL: v
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testReturnsAnyAndError
       version: 0
       type: LOG_PROBE
@@ -2847,12 +2847,12 @@ Probes:
             - JSON: {Ref: v}
               DSL: v
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
             - ', '
             - JSON: {Ref: failed}
               DSL: failed
               EventKind: Entry
-              EventExpressionIndex: 3
+              EventExpressionIndex: 1
     - id: testReturnsArray
       version: 0
       type: LOG_PROBE
@@ -3001,7 +3001,7 @@ Probes:
             - JSON: {Ref: failed}
               DSL: failed
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testReturnsInt
       version: 0
       type: LOG_PROBE
@@ -3025,7 +3025,7 @@ Probes:
             - JSON: {Ref: i}
               DSL: i
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testReturnsIntAndFloat
       version: 0
       type: LOG_PROBE
@@ -3049,7 +3049,7 @@ Probes:
             - JSON: {Ref: i}
               DSL: i
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testReturnsIntPointer
       version: 0
       type: LOG_PROBE
@@ -3073,7 +3073,7 @@ Probes:
             - JSON: {Ref: i}
               DSL: i
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testReturnsInterface
       version: 0
       type: LOG_PROBE
@@ -3102,7 +3102,7 @@ Probes:
             - JSON: {Ref: v}
               DSL: v
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testReturnsLargeStruct
       version: 0
       type: LOG_PROBE
@@ -3303,7 +3303,7 @@ Probes:
             - JSON: {Ref: x}
               DSL: x
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testSegmentsForParamsAndReturnsOutOfOrder
       version: 0
       type: LOG_PROBE
@@ -3341,31 +3341,31 @@ Probes:
             - JSON: {Ref: result2}
               DSL: result2
               EventKind: Return
-              EventExpressionIndex: 4
+              EventExpressionIndex: 2
             - JSON: {Ref: i}
               DSL: i
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
             - JSON: {Ref: result}
               DSL: result
               EventKind: Return
+              EventExpressionIndex: 0
+            - JSON: {Ref: i}
+              DSL: i
+              EventKind: Entry
               EventExpressionIndex: 1
             - JSON: {Ref: i}
               DSL: i
               EventKind: Entry
               EventExpressionIndex: 2
-            - JSON: {Ref: i}
-              DSL: i
-              EventKind: Entry
-              EventExpressionIndex: 3
             - JSON: {Ref: result2}
               DSL: result2
               EventKind: Return
-              EventExpressionIndex: 5
+              EventExpressionIndex: 3
             - JSON: {Ref: result}
               DSL: result
               EventKind: Return
-              EventExpressionIndex: 2
+              EventExpressionIndex: 1
     - id: testSingleBool
       version: 0
       type: LOG_PROBE
@@ -3386,7 +3386,7 @@ Probes:
             - JSON: {Ref: x}
               DSL: x
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testSingleByte
       version: 0
       type: LOG_PROBE
@@ -3407,7 +3407,7 @@ Probes:
             - JSON: {Ref: x}
               DSL: x
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testSingleFloat32
       version: 0
       type: LOG_PROBE
@@ -3462,7 +3462,7 @@ Probes:
             - JSON: {Ref: x}
               DSL: x
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testSingleInt16
       version: 0
       type: LOG_PROBE
@@ -3484,7 +3484,7 @@ Probes:
             - JSON: {Ref: x}
               DSL: x
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testSingleInt32
       version: 0
       type: LOG_PROBE
@@ -3505,7 +3505,7 @@ Probes:
             - JSON: {Ref: x}
               DSL: x
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testSingleInt64
       version: 0
       type: LOG_PROBE
@@ -3526,7 +3526,7 @@ Probes:
             - JSON: {Ref: x}
               DSL: x
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testSingleInt8
       version: 0
       type: LOG_PROBE
@@ -3555,15 +3555,15 @@ Probes:
             - JSON: {Ref: x}
               DSL: x
               EventKind: Entry
+              EventExpressionIndex: 0
+            - JSON: {Ref: x}
+              DSL: x
+              EventKind: Entry
               EventExpressionIndex: 1
             - JSON: {Ref: x}
               DSL: x
               EventKind: Entry
               EventExpressionIndex: 2
-            - JSON: {Ref: x}
-              DSL: x
-              EventKind: Entry
-              EventExpressionIndex: 3
     - id: testSingleRune
       version: 0
       type: LOG_PROBE
@@ -3584,7 +3584,7 @@ Probes:
             - JSON: {Ref: x}
               DSL: x
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testSingleString
       version: 0
       type: LOG_PROBE
@@ -3605,7 +3605,7 @@ Probes:
             - JSON: {Ref: x}
               DSL: x
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testSingleUint
       version: 0
       type: LOG_PROBE
@@ -3626,7 +3626,7 @@ Probes:
             - JSON: {Ref: x}
               DSL: x
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testSingleUint16
       version: 0
       type: LOG_PROBE
@@ -3647,7 +3647,7 @@ Probes:
             - JSON: {Ref: x}
               DSL: x
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testSingleUint32
       version: 0
       type: LOG_PROBE
@@ -3668,7 +3668,7 @@ Probes:
             - JSON: {Ref: x}
               DSL: x
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testSingleUint64
       version: 0
       type: LOG_PROBE
@@ -3689,7 +3689,7 @@ Probes:
             - JSON: {Ref: x}
               DSL: x
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testSingleUint8
       version: 0
       type: LOG_PROBE
@@ -3710,7 +3710,7 @@ Probes:
             - JSON: {Ref: x}
               DSL: x
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testSliceEmptyStructs
       version: 0
       type: LOG_PROBE
@@ -3731,7 +3731,7 @@ Probes:
             - JSON: {Ref: xs}
               DSL: xs
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testSliceOfSlices
       version: 0
       type: LOG_PROBE
@@ -3752,7 +3752,7 @@ Probes:
             - JSON: {Ref: u}
               DSL: u
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testSmallMap
       version: 0
       type: LOG_PROBE
@@ -3773,7 +3773,7 @@ Probes:
             - JSON: {Ref: m}
               DSL: m
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testSomeNamedReturn
       version: 0
       type: LOG_PROBE
@@ -3797,7 +3797,7 @@ Probes:
             - JSON: {Ref: i}
               DSL: i
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testStackArgRegReturns
       version: 0
       type: LOG_PROBE
@@ -3821,7 +3821,7 @@ Probes:
             - JSON: {Ref: arg}
               DSL: arg
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testStringArray
       version: 0
       type: LOG_PROBE
@@ -3842,7 +3842,7 @@ Probes:
             - JSON: {Ref: x}
               DSL: x
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testStringPointer
       version: 0
       type: LOG_PROBE
@@ -3863,7 +3863,7 @@ Probes:
             - JSON: {Ref: z}
               DSL: z
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testStringSlice
       version: 0
       type: LOG_PROBE
@@ -3884,7 +3884,7 @@ Probes:
             - JSON: {Ref: s}
               DSL: s
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testStringType1
       version: 0
       type: LOG_PROBE
@@ -3905,7 +3905,7 @@ Probes:
             - JSON: {Ref: a}
               DSL: a
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testStringType2
       version: 0
       type: LOG_PROBE
@@ -3926,7 +3926,7 @@ Probes:
             - JSON: {Ref: a}
               DSL: a
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testStruct
       version: 0
       type: LOG_PROBE
@@ -3951,7 +3951,7 @@ Probes:
             - JSON: {Ref: x}
               DSL: x
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testStructSlice
       version: 0
       type: LOG_PROBE
@@ -3977,12 +3977,12 @@ Probes:
             - JSON: {Ref: xs}
               DSL: xs
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
             - ', '
             - JSON: {Ref: a}
               DSL: a
               EventKind: Entry
-              EventExpressionIndex: 3
+              EventExpressionIndex: 1
     - id: testStructWithAny
       version: 0
       type: LOG_PROBE
@@ -4003,7 +4003,7 @@ Probes:
             - JSON: {Ref: s}
               DSL: s
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testStructWithArrayArg
       version: 0
       type: LOG_PROBE
@@ -4027,7 +4027,7 @@ Probes:
             - JSON: {Ref: arg}
               DSL: arg
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testStructWithCyclicMaps
       version: 0
       type: LOG_PROBE
@@ -4052,7 +4052,7 @@ Probes:
             - JSON: {Ref: a}
               DSL: a
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testStructWithCyclicSlices
       version: 0
       type: LOG_PROBE
@@ -4072,7 +4072,7 @@ Probes:
             - JSON: {Ref: a}
               DSL: a
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testStructWithMap
       version: 0
       type: LOG_PROBE
@@ -4098,7 +4098,7 @@ Probes:
             - JSON: {Ref: s}
               DSL: s
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
             - ' '
             - '@duration'
     - id: testSubslices
@@ -4129,17 +4129,17 @@ Probes:
             - JSON: {Ref: as}
               DSL: as
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
             - ', '
             - JSON: {Ref: bs}
               DSL: bs
               EventKind: Entry
-              EventExpressionIndex: 3
+              EventExpressionIndex: 1
             - ', '
             - JSON: {Ref: cs}
               DSL: cs
               EventKind: Entry
-              EventExpressionIndex: 5
+              EventExpressionIndex: 2
     - id: testSubstrings
       version: 0
       type: LOG_PROBE
@@ -4168,17 +4168,17 @@ Probes:
             - JSON: {Ref: a}
               DSL: a
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
             - ', '
             - JSON: {Ref: b}
               DSL: b
               EventKind: Entry
-              EventExpressionIndex: 3
+              EventExpressionIndex: 1
             - ', '
             - JSON: {Ref: c}
               DSL: c
               EventKind: Entry
-              EventExpressionIndex: 5
+              EventExpressionIndex: 2
     - id: testTemplateWithNonexistantVariableName
       version: 0
       type: LOG_PROBE
@@ -4282,17 +4282,17 @@ Probes:
             - JSON: {Ref: x}
               DSL: x
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
             - ', '
             - JSON: {Ref: y}
               DSL: y
               EventKind: Entry
-              EventExpressionIndex: 3
+              EventExpressionIndex: 1
             - ', '
             - JSON: {Ref: z}
               DSL: z
               EventKind: Entry
-              EventExpressionIndex: 5
+              EventExpressionIndex: 2
     - id: testThreeStringsInStruct
       version: 0
       type: LOG_PROBE
@@ -4317,7 +4317,7 @@ Probes:
             - JSON: {Ref: a}
               DSL: a
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testThreeStringsInStructExpr
       version: 0
       type: LOG_PROBE
@@ -4381,7 +4381,7 @@ Probes:
             - JSON: {Ref: a}
               DSL: a
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testThreeStringsInStructPointer_expression_with_dots
       version: 0
       type: LOG_PROBE
@@ -4441,7 +4441,7 @@ Probes:
             - JSON: {Ref: x}
               DSL: x
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testUint16Array
       version: 0
       type: LOG_PROBE
@@ -4462,7 +4462,7 @@ Probes:
             - JSON: {Ref: x}
               DSL: x
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testUint32Array
       version: 0
       type: LOG_PROBE
@@ -4483,7 +4483,7 @@ Probes:
             - JSON: {Ref: x}
               DSL: x
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testUint64Array
       version: 0
       type: LOG_PROBE
@@ -4504,7 +4504,7 @@ Probes:
             - JSON: {Ref: x}
               DSL: x
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testUint8Array
       version: 0
       type: LOG_PROBE
@@ -4525,7 +4525,7 @@ Probes:
             - JSON: {Ref: x}
               DSL: x
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testUintArray
       version: 0
       type: LOG_PROBE
@@ -4546,7 +4546,7 @@ Probes:
             - JSON: {Ref: x}
               DSL: x
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testUintPointer
       version: 0
       type: LOG_PROBE
@@ -4567,7 +4567,7 @@ Probes:
             - JSON: {Ref: x}
               DSL: x
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testUintSlice
       version: 0
       type: LOG_PROBE
@@ -4588,7 +4588,7 @@ Probes:
             - JSON: {Ref: u}
               DSL: u
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testUnitializedString
       version: 0
       type: LOG_PROBE
@@ -4609,7 +4609,7 @@ Probes:
             - JSON: {Ref: x}
               DSL: x
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testUnsafePointer
       version: 0
       type: LOG_PROBE
@@ -4630,7 +4630,7 @@ Probes:
             - JSON: {Ref: x}
               DSL: x
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testVeryLargeArray
       version: 0
       type: LOG_PROBE
@@ -4651,7 +4651,7 @@ Probes:
             - JSON: {Ref: a}
               DSL: a
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testVeryLargeSlice
       version: 0
       type: LOG_PROBE
@@ -4672,7 +4672,7 @@ Probes:
             - JSON: {Ref: xs}
               DSL: xs
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testVeryLargeSliceWithSizeLimit
       version: 0
       type: LOG_PROBE
@@ -4693,7 +4693,7 @@ Probes:
             - JSON: {Ref: xs}
               DSL: xs
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
     - id: testWhollyInlinedSubroutine
       version: 0
       type: LOG_PROBE
@@ -4746,12 +4746,12 @@ Probes:
             - JSON: {Ref: a}
               DSL: a
               EventKind: Entry
-              EventExpressionIndex: 1
+              EventExpressionIndex: 0
             - ', '
             - JSON: {Ref: b}
               DSL: b
               EventKind: Entry
-              EventExpressionIndex: 3
+              EventExpressionIndex: 1
 Subprograms:
     - ID: 1
       Name: main.testByteArray
@@ -11580,7 +11580,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 163 PointerType *interface {}
             Operations:
@@ -11590,7 +11590,7 @@ Types:
                   ByteSize: 8
         - Name: a
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 163 PointerType *interface {}
             Operations:
@@ -11622,7 +11622,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 157 GoEmptyInterfaceType interface {}
             Operations:
@@ -11632,7 +11632,7 @@ Types:
                   ByteSize: 16
         - Name: a
           Offset: 17
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 157 GoEmptyInterfaceType interface {}
             Operations:
@@ -11664,7 +11664,7 @@ Types:
       Expressions:
         - Name: arg
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 251 ArrayType [3]int
             Operations:
@@ -11674,7 +11674,7 @@ Types:
                   ByteSize: 24
         - Name: arg
           Offset: 25
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 251 ArrayType [3]int
             Operations:
@@ -11706,7 +11706,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 124 ArrayType [2]struct {}
             Operations:
@@ -11716,7 +11716,7 @@ Types:
                   ByteSize: 0
         - Name: a
           Offset: 1
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 124 ArrayType [2]struct {}
             Operations:
@@ -11732,7 +11732,7 @@ Types:
       Expressions:
         - Name: b
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 121 ArrayType [2][2][2]int
             Operations:
@@ -11742,7 +11742,7 @@ Types:
                   ByteSize: 64
         - Name: b
           Offset: 65
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 121 ArrayType [2][2][2]int
             Operations:
@@ -11758,7 +11758,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 120 ArrayType [2][2]int
             Operations:
@@ -11768,7 +11768,7 @@ Types:
                   ByteSize: 32
         - Name: a
           Offset: 33
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 120 ArrayType [2][2]int
             Operations:
@@ -11784,7 +11784,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 191 ArrayType [2]map[string]int
             Operations:
@@ -11794,7 +11794,7 @@ Types:
                   ByteSize: 16
         - Name: m
           Offset: 17
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 191 ArrayType [2]map[string]int
             Operations:
@@ -11810,7 +11810,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 111 ArrayType [2]string
             Operations:
@@ -11820,7 +11820,7 @@ Types:
                   ByteSize: 32
         - Name: a
           Offset: 33
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 111 ArrayType [2]string
             Operations:
@@ -11836,7 +11836,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 122 ArrayType [2]main.nestedStruct
             Operations:
@@ -11846,7 +11846,7 @@ Types:
                   ByteSize: 48
         - Name: a
           Offset: 49
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 122 ArrayType [2]main.nestedStruct
             Operations:
@@ -11862,7 +11862,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 8 BaseType uint64
             Operations:
@@ -11872,7 +11872,7 @@ Types:
                   ByteSize: 8
         - Name: x
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 8 BaseType uint64
             Operations:
@@ -11904,7 +11904,7 @@ Types:
       Expressions:
         - Name: b
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 128 StructureType main.bigStruct
             Operations:
@@ -11914,7 +11914,7 @@ Types:
                   ByteSize: 48
         - Name: b
           Offset: 49
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 128 StructureType main.bigStruct
             Operations:
@@ -11933,7 +11933,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 112 ArrayType [2]bool
             Operations:
@@ -11943,7 +11943,7 @@ Types:
                   ByteSize: 2
         - Name: x
           Offset: 3
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 112 ArrayType [2]bool
             Operations:
@@ -11959,7 +11959,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 109 ArrayType [2]uint8
             Operations:
@@ -11969,7 +11969,7 @@ Types:
                   ByteSize: 2
         - Name: x
           Offset: 3
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 109 ArrayType [2]uint8
             Operations:
@@ -11985,7 +11985,7 @@ Types:
       Expressions:
         - Name: c
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 243 GoChannelType chan bool
             Operations:
@@ -11995,7 +11995,7 @@ Types:
                   ByteSize: 0
         - Name: c
           Offset: 1
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 243 GoChannelType chan bool
             Operations:
@@ -12011,16 +12011,6 @@ Types:
       Expressions:
         - Name: w
           Offset: 1
-          Kind: argument
-          Expression:
-            Type: 3 BaseType uint8
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 84, index: 0, name: w}
-                  Offset: 0
-                  ByteSize: 1
-        - Name: w
-          Offset: 2
           Kind: template_segment
           Expression:
             Type: 3 BaseType uint8
@@ -12030,8 +12020,8 @@ Types:
                   Offset: 0
                   ByteSize: 1
         - Name: x
-          Offset: 3
-          Kind: argument
+          Offset: 2
+          Kind: template_segment
           Expression:
             Type: 3 BaseType uint8
             Operations:
@@ -12039,9 +12029,19 @@ Types:
                   Variable: {subprogram: 84, index: 1, name: x}
                   Offset: 0
                   ByteSize: 1
+        - Name: w
+          Offset: 3
+          Kind: argument
+          Expression:
+            Type: 3 BaseType uint8
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 84, index: 0, name: w}
+                  Offset: 0
+                  ByteSize: 1
         - Name: x
           Offset: 4
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 3 BaseType uint8
             Operations:
@@ -12119,7 +12119,7 @@ Types:
       Expressions:
         - Name: t
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 248 PointerType *main.t
             Operations:
@@ -12129,7 +12129,7 @@ Types:
                   ByteSize: 8
         - Name: t
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 248 PointerType *main.t
             Operations:
@@ -12145,7 +12145,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 143 StructureType main.deepMap1
             Operations:
@@ -12155,7 +12155,7 @@ Types:
                   ByteSize: 8
         - Name: a
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 143 StructureType main.deepMap1
             Operations:
@@ -12171,7 +12171,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 149 PointerType *main.deepMap7
             Operations:
@@ -12181,7 +12181,7 @@ Types:
                   ByteSize: 8
         - Name: a
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 149 PointerType *main.deepMap7
             Operations:
@@ -12197,7 +12197,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 132 StructureType main.deepPtr1
             Operations:
@@ -12207,7 +12207,7 @@ Types:
                   ByteSize: 8
         - Name: a
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 132 StructureType main.deepPtr1
             Operations:
@@ -12223,7 +12223,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 135 PointerType *main.deepPtr7
             Operations:
@@ -12233,7 +12233,7 @@ Types:
                   ByteSize: 8
         - Name: a
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 135 PointerType *main.deepPtr7
             Operations:
@@ -12249,7 +12249,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 137 StructureType main.deepSlice1
             Operations:
@@ -12259,7 +12259,7 @@ Types:
                   ByteSize: 24
         - Name: a
           Offset: 25
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 137 StructureType main.deepSlice1
             Operations:
@@ -12275,7 +12275,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 141 PointerType *main.deepSlice7
             Operations:
@@ -12285,7 +12285,7 @@ Types:
                   ByteSize: 8
         - Name: a
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 141 PointerType *main.deepSlice7
             Operations:
@@ -12301,16 +12301,6 @@ Types:
       Expressions:
         - Name: xs
           Offset: 1
-          Kind: argument
-          Expression:
-            Type: 260 GoSliceHeaderType []main.structWithNoStrings
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 135, index: 0, name: xs}
-                  Offset: 0
-                  ByteSize: 24
-        - Name: xs
-          Offset: 25
           Kind: template_segment
           Expression:
             Type: 260 GoSliceHeaderType []main.structWithNoStrings
@@ -12320,8 +12310,8 @@ Types:
                   Offset: 0
                   ByteSize: 24
         - Name: a
-          Offset: 49
-          Kind: argument
+          Offset: 25
+          Kind: template_segment
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -12329,9 +12319,19 @@ Types:
                   Variable: {subprogram: 135, index: 1, name: a}
                   Offset: 0
                   ByteSize: 8
+        - Name: xs
+          Offset: 33
+          Kind: argument
+          Expression:
+            Type: 260 GoSliceHeaderType []main.structWithNoStrings
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 135, index: 0, name: xs}
+                  Offset: 0
+                  ByteSize: 24
         - Name: a
           Offset: 57
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -12347,7 +12347,7 @@ Types:
       Expressions:
         - Name: u
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 257 GoSliceHeaderType []uint
             Operations:
@@ -12357,7 +12357,7 @@ Types:
                   ByteSize: 24
         - Name: u
           Offset: 25
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 257 GoSliceHeaderType []uint
             Operations:
@@ -12373,7 +12373,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 9 GoStringHeaderType string
             Operations:
@@ -12383,7 +12383,7 @@ Types:
                   ByteSize: 16
         - Name: x
           Offset: 17
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 9 GoStringHeaderType string
             Operations:
@@ -12399,7 +12399,7 @@ Types:
       Expressions:
         - Name: e
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 321 PointerType *main.emptyStruct
             Operations:
@@ -12409,7 +12409,7 @@ Types:
                   ByteSize: 8
         - Name: e
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 321 PointerType *main.emptyStruct
             Operations:
@@ -12425,7 +12425,7 @@ Types:
       Expressions:
         - Name: e
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 320 StructureType main.emptyStruct
             Operations:
@@ -12435,7 +12435,7 @@ Types:
                   ByteSize: 0
         - Name: e
           Offset: 1
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 320 StructureType main.emptyStruct
             Operations:
@@ -12446,11 +12446,31 @@ Types:
     - __kind: EventRootType
       ID: 1362
       Name: Probe[main.testErrorAtLine]Line
-      ByteSize: 57
-      PresenceBitsetSize: 1
+      ByteSize: 58
+      PresenceBitsetSize: 2
       Expressions:
+        - Name: x
+          Offset: 2
+          Kind: template_segment
+          Expression:
+            Type: 7 BaseType int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 38, index: 2, name: x}
+                  Offset: 0
+                  ByteSize: 8
+        - Name: err
+          Offset: 10
+          Kind: template_segment
+          Expression:
+            Type: 13 GoInterfaceType error
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 38, index: 3, name: err}
+                  Offset: 0
+                  ByteSize: 16
         - Name: ~r0
-          Offset: 1
+          Offset: 26
           Kind: local
           Expression:
             Type: 7 BaseType int
@@ -12460,7 +12480,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: x
-          Offset: 9
+          Offset: 34
           Kind: local
           Expression:
             Type: 7 BaseType int
@@ -12469,29 +12489,9 @@ Types:
                   Variable: {subprogram: 38, index: 2, name: x}
                   Offset: 0
                   ByteSize: 8
-        - Name: x
-          Offset: 17
-          Kind: template_segment
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 38, index: 2, name: x}
-                  Offset: 0
-                  ByteSize: 8
         - Name: err
-          Offset: 25
+          Offset: 42
           Kind: local
-          Expression:
-            Type: 13 GoInterfaceType error
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 38, index: 3, name: err}
-                  Offset: 0
-                  ByteSize: 16
-        - Name: err
-          Offset: 41
-          Kind: template_segment
           Expression:
             Type: 13 GoInterfaceType error
             Operations:
@@ -12507,7 +12507,7 @@ Types:
       Expressions:
         - Name: e
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 13 GoInterfaceType error
             Operations:
@@ -12517,7 +12517,7 @@ Types:
                   ByteSize: 16
         - Name: e
           Offset: 17
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 13 GoInterfaceType error
             Operations:
@@ -12533,7 +12533,7 @@ Types:
       Expressions:
         - Name: e
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 159 PointerType *main.esotericHeap
             Operations:
@@ -12543,7 +12543,7 @@ Types:
                   ByteSize: 8
         - Name: e
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 159 PointerType *main.esotericHeap
             Operations:
@@ -12562,7 +12562,7 @@ Types:
       Expressions:
         - Name: e
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 155 StructureType main.esotericStack
             Operations:
@@ -12572,7 +12572,7 @@ Types:
                   ByteSize: 64
         - Name: e
           Offset: 65
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 155 StructureType main.esotericStack
             Operations:
@@ -12591,7 +12591,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 161 ArrayType [5]int
             Operations:
@@ -12601,7 +12601,7 @@ Types:
                   ByteSize: 40
         - Name: a
           Offset: 41
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 161 ArrayType [5]int
             Operations:
@@ -12617,7 +12617,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
-          Kind: local
+          Kind: template_segment
           Expression:
             Type: 161 ArrayType [5]int
             Operations:
@@ -12627,7 +12627,7 @@ Types:
                   ByteSize: 40
         - Name: a
           Offset: 41
-          Kind: template_segment
+          Kind: local
           Expression:
             Type: 161 ArrayType [5]int
             Operations:
@@ -12669,7 +12669,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -12679,7 +12679,7 @@ Types:
                   ByteSize: 8
         - Name: x
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -12711,7 +12711,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -12721,7 +12721,7 @@ Types:
                   ByteSize: 8
         - Name: x
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -12740,7 +12740,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -12750,7 +12750,7 @@ Types:
                   ByteSize: 8
         - Name: x
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -12772,16 +12772,6 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
-          Kind: argument
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 51, index: 0, name: x}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: x
-          Offset: 9
           Kind: template_segment
           Expression:
             Type: 7 BaseType int
@@ -12791,8 +12781,8 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: y
-          Offset: 17
-          Kind: argument
+          Offset: 9
+          Kind: template_segment
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -12800,9 +12790,19 @@ Types:
                   Variable: {subprogram: 51, index: 1, name: y}
                   Offset: 0
                   ByteSize: 8
+        - Name: x
+          Offset: 17
+          Kind: argument
+          Expression:
+            Type: 7 BaseType int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 51, index: 0, name: x}
+                  Offset: 0
+                  ByteSize: 8
         - Name: y
           Offset: 25
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -12839,7 +12839,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -12849,7 +12849,7 @@ Types:
                   ByteSize: 8
         - Name: x
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -12923,7 +12923,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
-          Kind: local
+          Kind: template_segment
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -12933,7 +12933,7 @@ Types:
                   ByteSize: 8
         - Name: x
           Offset: 9
-          Kind: template_segment
+          Kind: local
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -12952,7 +12952,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -12962,7 +12962,7 @@ Types:
                   ByteSize: 8
         - Name: x
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -12978,7 +12978,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
-          Kind: local
+          Kind: template_segment
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -12988,7 +12988,7 @@ Types:
                   ByteSize: 8
         - Name: x
           Offset: 9
-          Kind: template_segment
+          Kind: local
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -13004,7 +13004,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 161 ArrayType [5]int
             Operations:
@@ -13014,7 +13014,7 @@ Types:
                   ByteSize: 40
         - Name: a
           Offset: 41
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 161 ArrayType [5]int
             Operations:
@@ -13030,7 +13030,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 115 ArrayType [2]int16
             Operations:
@@ -13040,7 +13040,7 @@ Types:
                   ByteSize: 4
         - Name: x
           Offset: 5
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 115 ArrayType [2]int16
             Operations:
@@ -13056,7 +13056,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 110 ArrayType [2]int32
             Operations:
@@ -13066,7 +13066,7 @@ Types:
                   ByteSize: 8
         - Name: x
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 110 ArrayType [2]int32
             Operations:
@@ -13082,7 +13082,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 116 ArrayType [2]int64
             Operations:
@@ -13092,7 +13092,7 @@ Types:
                   ByteSize: 16
         - Name: x
           Offset: 17
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 116 ArrayType [2]int64
             Operations:
@@ -13108,7 +13108,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 114 ArrayType [2]int8
             Operations:
@@ -13118,7 +13118,7 @@ Types:
                   ByteSize: 2
         - Name: x
           Offset: 3
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 114 ArrayType [2]int8
             Operations:
@@ -13134,7 +13134,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 113 ArrayType [2]int
             Operations:
@@ -13144,7 +13144,7 @@ Types:
                   ByteSize: 16
         - Name: x
           Offset: 17
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 113 ArrayType [2]int
             Operations:
@@ -13160,7 +13160,7 @@ Types:
       Expressions:
         - Name: b
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 162 GoInterfaceType main.behavior
             Operations:
@@ -13170,7 +13170,7 @@ Types:
                   ByteSize: 16
         - Name: b
           Offset: 17
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 162 GoInterfaceType main.behavior
             Operations:
@@ -13186,7 +13186,7 @@ Types:
       Expressions:
         - Name: arg
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 250 StructureType main.largeStruct
             Operations:
@@ -13196,7 +13196,7 @@ Types:
                   ByteSize: 80
         - Name: arg
           Offset: 81
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 250 StructureType main.largeStruct
             Operations:
@@ -13228,7 +13228,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 246 StructureType main.node
             Operations:
@@ -13238,7 +13238,7 @@ Types:
                   ByteSize: 16
         - Name: a
           Offset: 17
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 246 StructureType main.node
             Operations:
@@ -13304,21 +13304,11 @@ Types:
     - __kind: EventRootType
       ID: 1503
       Name: Probe[main.testManyArgsArrayReturn]
-      ByteSize: 147
-      PresenceBitsetSize: 3
+      ByteSize: 149
+      PresenceBitsetSize: 5
       Expressions:
         - Name: a
-          Offset: 3
-          Kind: argument
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 125, index: 0, name: a}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: a
-          Offset: 11
+          Offset: 5
           Kind: template_segment
           Expression:
             Type: 7 BaseType int
@@ -13328,17 +13318,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: b
-          Offset: 19
-          Kind: argument
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 125, index: 1, name: b}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: b
-          Offset: 27
+          Offset: 13
           Kind: template_segment
           Expression:
             Type: 7 BaseType int
@@ -13348,17 +13328,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: c
-          Offset: 35
-          Kind: argument
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 125, index: 2, name: c}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: c
-          Offset: 43
+          Offset: 21
           Kind: template_segment
           Expression:
             Type: 7 BaseType int
@@ -13368,17 +13338,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: d
-          Offset: 51
-          Kind: argument
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 125, index: 3, name: d}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: d
-          Offset: 59
+          Offset: 29
           Kind: template_segment
           Expression:
             Type: 7 BaseType int
@@ -13388,17 +13348,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: e
-          Offset: 67
-          Kind: argument
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 125, index: 4, name: e}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: e
-          Offset: 75
+          Offset: 37
           Kind: template_segment
           Expression:
             Type: 7 BaseType int
@@ -13408,17 +13358,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: f
-          Offset: 83
-          Kind: argument
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 125, index: 5, name: f}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: f
-          Offset: 91
+          Offset: 45
           Kind: template_segment
           Expression:
             Type: 7 BaseType int
@@ -13428,17 +13368,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: g
-          Offset: 99
-          Kind: argument
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 125, index: 6, name: g}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: g
-          Offset: 107
+          Offset: 53
           Kind: template_segment
           Expression:
             Type: 7 BaseType int
@@ -13448,17 +13378,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: h
-          Offset: 115
-          Kind: argument
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 125, index: 7, name: h}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: h
-          Offset: 123
+          Offset: 61
           Kind: template_segment
           Expression:
             Type: 7 BaseType int
@@ -13468,8 +13388,8 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: i
-          Offset: 131
-          Kind: argument
+          Offset: 69
+          Kind: template_segment
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -13477,9 +13397,89 @@ Types:
                   Variable: {subprogram: 125, index: 8, name: i}
                   Offset: 0
                   ByteSize: 8
+        - Name: a
+          Offset: 77
+          Kind: argument
+          Expression:
+            Type: 7 BaseType int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 125, index: 0, name: a}
+                  Offset: 0
+                  ByteSize: 8
+        - Name: b
+          Offset: 85
+          Kind: argument
+          Expression:
+            Type: 7 BaseType int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 125, index: 1, name: b}
+                  Offset: 0
+                  ByteSize: 8
+        - Name: c
+          Offset: 93
+          Kind: argument
+          Expression:
+            Type: 7 BaseType int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 125, index: 2, name: c}
+                  Offset: 0
+                  ByteSize: 8
+        - Name: d
+          Offset: 101
+          Kind: argument
+          Expression:
+            Type: 7 BaseType int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 125, index: 3, name: d}
+                  Offset: 0
+                  ByteSize: 8
+        - Name: e
+          Offset: 109
+          Kind: argument
+          Expression:
+            Type: 7 BaseType int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 125, index: 4, name: e}
+                  Offset: 0
+                  ByteSize: 8
+        - Name: f
+          Offset: 117
+          Kind: argument
+          Expression:
+            Type: 7 BaseType int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 125, index: 5, name: f}
+                  Offset: 0
+                  ByteSize: 8
+        - Name: g
+          Offset: 125
+          Kind: argument
+          Expression:
+            Type: 7 BaseType int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 125, index: 6, name: g}
+                  Offset: 0
+                  ByteSize: 8
+        - Name: h
+          Offset: 133
+          Kind: argument
+          Expression:
+            Type: 7 BaseType int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 125, index: 7, name: h}
+                  Offset: 0
+                  ByteSize: 8
         - Name: i
-          Offset: 139
-          Kind: template_segment
+          Offset: 141
+          Kind: argument
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -13511,7 +13511,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 186 GoMapType map[[4]string][2]int
             Operations:
@@ -13521,7 +13521,7 @@ Types:
                   ByteSize: 8
         - Name: m
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 186 GoMapType map[[4]string][2]int
             Operations:
@@ -13537,7 +13537,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 193 GoMapType map[string][]main.structWithMap
             Operations:
@@ -13547,7 +13547,7 @@ Types:
                   ByteSize: 8
         - Name: m
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 193 GoMapType map[string][]main.structWithMap
             Operations:
@@ -13563,7 +13563,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 238 GoMapType map[struct {}]struct {}
             Operations:
@@ -13573,7 +13573,7 @@ Types:
                   ByteSize: 8
         - Name: m
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 238 GoMapType map[struct {}]struct {}
             Operations:
@@ -13589,7 +13589,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 228 GoMapType map[struct {}]int
             Operations:
@@ -13599,7 +13599,7 @@ Types:
                   ByteSize: 8
         - Name: m
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 228 GoMapType map[struct {}]int
             Operations:
@@ -13615,7 +13615,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 233 GoMapType map[int]struct {}
             Operations:
@@ -13625,7 +13625,7 @@ Types:
                   ByteSize: 8
         - Name: m
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 233 GoMapType map[int]struct {}
             Operations:
@@ -13641,7 +13641,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 166 GoMapType map[int]int
             Operations:
@@ -13651,7 +13651,7 @@ Types:
                   ByteSize: 8
         - Name: m
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 166 GoMapType map[int]int
             Operations:
@@ -13667,7 +13667,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 223 GoMapType map[[4]int][4]int
             Operations:
@@ -13677,7 +13677,7 @@ Types:
                   ByteSize: 8
         - Name: m
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 223 GoMapType map[[4]int][4]int
             Operations:
@@ -13693,7 +13693,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 218 GoMapType map[[4]int]uint8
             Operations:
@@ -13703,7 +13703,7 @@ Types:
                   ByteSize: 8
         - Name: m
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 218 GoMapType map[[4]int]uint8
             Operations:
@@ -13719,7 +13719,7 @@ Types:
       Expressions:
         - Name: redactMyEntries
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 193 GoMapType map[string][]main.structWithMap
             Operations:
@@ -13729,7 +13729,7 @@ Types:
                   ByteSize: 8
         - Name: redactMyEntries
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 193 GoMapType map[string][]main.structWithMap
             Operations:
@@ -13745,7 +13745,7 @@ Types:
       Expressions:
         - Name: redactMyEntries
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 193 GoMapType map[string][]main.structWithMap
             Operations:
@@ -13755,7 +13755,7 @@ Types:
                   ByteSize: 8
         - Name: redactMyEntries
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 193 GoMapType map[string][]main.structWithMap
             Operations:
@@ -13771,7 +13771,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 213 GoMapType map[uint8][4]int
             Operations:
@@ -13781,7 +13781,7 @@ Types:
                   ByteSize: 8
         - Name: m
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 213 GoMapType map[uint8][4]int
             Operations:
@@ -13797,7 +13797,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 208 GoMapType map[uint8]uint8
             Operations:
@@ -13807,7 +13807,7 @@ Types:
                   ByteSize: 8
         - Name: m
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 208 GoMapType map[uint8]uint8
             Operations:
@@ -13823,7 +13823,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 176 GoMapType map[string]int
             Operations:
@@ -13833,7 +13833,7 @@ Types:
                   ByteSize: 8
         - Name: m
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 176 GoMapType map[string]int
             Operations:
@@ -13849,7 +13849,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 181 GoMapType map[string][]string
             Operations:
@@ -13859,7 +13859,7 @@ Types:
                   ByteSize: 8
         - Name: m
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 181 GoMapType map[string][]string
             Operations:
@@ -13875,7 +13875,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 171 GoMapType map[string]main.nestedStruct
             Operations:
@@ -13885,7 +13885,7 @@ Types:
                   ByteSize: 8
         - Name: m
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 171 GoMapType map[string]main.nestedStruct
             Operations:
@@ -13901,7 +13901,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 198 GoMapType map[bool]main.node
             Operations:
@@ -13911,7 +13911,7 @@ Types:
                   ByteSize: 8
         - Name: m
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 198 GoMapType map[bool]main.node
             Operations:
@@ -13927,7 +13927,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 208 GoMapType map[uint8]uint8
             Operations:
@@ -13937,7 +13937,7 @@ Types:
                   ByteSize: 8
         - Name: m
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 208 GoMapType map[uint8]uint8
             Operations:
@@ -13953,7 +13953,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 208 GoMapType map[uint8]uint8
             Operations:
@@ -13963,7 +13963,7 @@ Types:
                   ByteSize: 8
         - Name: m
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 208 GoMapType map[uint8]uint8
             Operations:
@@ -13979,7 +13979,7 @@ Types:
       Expressions:
         - Name: redactMyEntries
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 203 GoMapType map[int]uint8
             Operations:
@@ -13989,7 +13989,7 @@ Types:
                   ByteSize: 8
         - Name: redactMyEntries
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 203 GoMapType map[int]uint8
             Operations:
@@ -14005,7 +14005,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 203 GoMapType map[int]uint8
             Operations:
@@ -14015,7 +14015,7 @@ Types:
                   ByteSize: 8
         - Name: m
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 203 GoMapType map[int]uint8
             Operations:
@@ -14031,7 +14031,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 9 GoStringHeaderType string
             Operations:
@@ -14041,7 +14041,7 @@ Types:
                   ByteSize: 16
         - Name: x
           Offset: 17
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 9 GoStringHeaderType string
             Operations:
@@ -14057,7 +14057,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 9 GoStringHeaderType string
             Operations:
@@ -14067,7 +14067,7 @@ Types:
                   ByteSize: 16
         - Name: x
           Offset: 17
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 9 GoStringHeaderType string
             Operations:
@@ -14078,21 +14078,11 @@ Types:
     - __kind: EventRootType
       ID: 1505
       Name: Probe[main.testMixedArgsStackReturn]
-      ByteSize: 163
-      PresenceBitsetSize: 3
+      ByteSize: 165
+      PresenceBitsetSize: 5
       Expressions:
         - Name: a
-          Offset: 3
-          Kind: argument
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 126, index: 0, name: a}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: a
-          Offset: 11
+          Offset: 5
           Kind: template_segment
           Expression:
             Type: 7 BaseType int
@@ -14102,17 +14092,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: b
-          Offset: 19
-          Kind: argument
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 126, index: 1, name: b}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: b
-          Offset: 27
+          Offset: 13
           Kind: template_segment
           Expression:
             Type: 7 BaseType int
@@ -14122,17 +14102,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: c
-          Offset: 35
-          Kind: argument
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 126, index: 2, name: c}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: c
-          Offset: 43
+          Offset: 21
           Kind: template_segment
           Expression:
             Type: 7 BaseType int
@@ -14142,17 +14112,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: d
-          Offset: 51
-          Kind: argument
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 126, index: 3, name: d}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: d
-          Offset: 59
+          Offset: 29
           Kind: template_segment
           Expression:
             Type: 7 BaseType int
@@ -14162,17 +14122,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: e
-          Offset: 67
-          Kind: argument
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 126, index: 4, name: e}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: e
-          Offset: 75
+          Offset: 37
           Kind: template_segment
           Expression:
             Type: 7 BaseType int
@@ -14182,17 +14132,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: f
-          Offset: 83
-          Kind: argument
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 126, index: 5, name: f}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: f
-          Offset: 91
+          Offset: 45
           Kind: template_segment
           Expression:
             Type: 7 BaseType int
@@ -14202,17 +14142,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: g
-          Offset: 99
-          Kind: argument
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 126, index: 6, name: g}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: g
-          Offset: 107
+          Offset: 53
           Kind: template_segment
           Expression:
             Type: 7 BaseType int
@@ -14222,17 +14152,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: h
-          Offset: 115
-          Kind: argument
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 126, index: 7, name: h}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: h
-          Offset: 123
+          Offset: 61
           Kind: template_segment
           Expression:
             Type: 7 BaseType int
@@ -14242,8 +14162,8 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: s
-          Offset: 131
-          Kind: argument
+          Offset: 69
+          Kind: template_segment
           Expression:
             Type: 9 GoStringHeaderType string
             Operations:
@@ -14251,9 +14171,89 @@ Types:
                   Variable: {subprogram: 126, index: 8, name: s}
                   Offset: 0
                   ByteSize: 16
+        - Name: a
+          Offset: 85
+          Kind: argument
+          Expression:
+            Type: 7 BaseType int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 126, index: 0, name: a}
+                  Offset: 0
+                  ByteSize: 8
+        - Name: b
+          Offset: 93
+          Kind: argument
+          Expression:
+            Type: 7 BaseType int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 126, index: 1, name: b}
+                  Offset: 0
+                  ByteSize: 8
+        - Name: c
+          Offset: 101
+          Kind: argument
+          Expression:
+            Type: 7 BaseType int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 126, index: 2, name: c}
+                  Offset: 0
+                  ByteSize: 8
+        - Name: d
+          Offset: 109
+          Kind: argument
+          Expression:
+            Type: 7 BaseType int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 126, index: 3, name: d}
+                  Offset: 0
+                  ByteSize: 8
+        - Name: e
+          Offset: 117
+          Kind: argument
+          Expression:
+            Type: 7 BaseType int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 126, index: 4, name: e}
+                  Offset: 0
+                  ByteSize: 8
+        - Name: f
+          Offset: 125
+          Kind: argument
+          Expression:
+            Type: 7 BaseType int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 126, index: 5, name: f}
+                  Offset: 0
+                  ByteSize: 8
+        - Name: g
+          Offset: 133
+          Kind: argument
+          Expression:
+            Type: 7 BaseType int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 126, index: 6, name: g}
+                  Offset: 0
+                  ByteSize: 8
+        - Name: h
+          Offset: 141
+          Kind: argument
+          Expression:
+            Type: 7 BaseType int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 126, index: 7, name: h}
+                  Offset: 0
+                  ByteSize: 8
         - Name: s
-          Offset: 147
-          Kind: template_segment
+          Offset: 149
+          Kind: argument
           Expression:
             Type: 9 GoStringHeaderType string
             Operations:
@@ -14285,16 +14285,6 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
-          Kind: argument
-          Expression:
-            Type: 113 ArrayType [2]int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 128, index: 0, name: a}
-                  Offset: 0
-                  ByteSize: 16
-        - Name: a
-          Offset: 17
           Kind: template_segment
           Expression:
             Type: 113 ArrayType [2]int
@@ -14304,8 +14294,8 @@ Types:
                   Offset: 0
                   ByteSize: 16
         - Name: b
-          Offset: 33
-          Kind: argument
+          Offset: 17
+          Kind: template_segment
           Expression:
             Type: 251 ArrayType [3]int
             Operations:
@@ -14313,9 +14303,19 @@ Types:
                   Variable: {subprogram: 128, index: 1, name: b}
                   Offset: 0
                   ByteSize: 24
+        - Name: a
+          Offset: 41
+          Kind: argument
+          Expression:
+            Type: 113 ArrayType [2]int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 128, index: 0, name: a}
+                  Offset: 0
+                  ByteSize: 16
         - Name: b
           Offset: 57
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 251 ArrayType [3]int
             Operations:
@@ -14357,16 +14357,6 @@ Types:
       Expressions:
         - Name: s1
           Offset: 1
-          Kind: argument
-          Expression:
-            Type: 250 StructureType main.largeStruct
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 124, index: 0, name: s1}
-                  Offset: 0
-                  ByteSize: 80
-        - Name: s1
-          Offset: 81
           Kind: template_segment
           Expression:
             Type: 250 StructureType main.largeStruct
@@ -14376,8 +14366,8 @@ Types:
                   Offset: 0
                   ByteSize: 80
         - Name: s2
-          Offset: 161
-          Kind: argument
+          Offset: 81
+          Kind: template_segment
           Expression:
             Type: 250 StructureType main.largeStruct
             Operations:
@@ -14385,9 +14375,19 @@ Types:
                   Variable: {subprogram: 124, index: 1, name: s2}
                   Offset: 0
                   ByteSize: 80
+        - Name: s1
+          Offset: 161
+          Kind: argument
+          Expression:
+            Type: 250 StructureType main.largeStruct
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 124, index: 0, name: s1}
+                  Offset: 0
+                  ByteSize: 80
         - Name: s2
           Offset: 241
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 250 StructureType main.largeStruct
             Operations:
@@ -14419,7 +14419,7 @@ Types:
       Expressions:
         - Name: i
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -14429,7 +14429,7 @@ Types:
                   ByteSize: 8
         - Name: i
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -14445,7 +14445,7 @@ Types:
       Expressions:
         - Name: i
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -14475,7 +14475,7 @@ Types:
                   ByteSize: 8
         - Name: i
           Offset: 25
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -14560,21 +14560,11 @@ Types:
     - __kind: EventRootType
       ID: 1458
       Name: Probe[main.testMultipleNamedReturn]Return
-      ByteSize: 49
-      PresenceBitsetSize: 1
+      ByteSize: 50
+      PresenceBitsetSize: 2
       Expressions:
         - Name: result
-          Offset: 1
-          Kind: local
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 105, index: 1, name: result}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: result
-          Offset: 9
+          Offset: 2
           Kind: template_segment
           Expression:
             Type: 7 BaseType int
@@ -14584,7 +14574,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: result
-          Offset: 17
+          Offset: 10
           Kind: template_segment
           Expression:
             Type: 7 BaseType int
@@ -14594,28 +14584,38 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: result2
-          Offset: 25
+          Offset: 18
+          Kind: template_segment
+          Expression:
+            Type: 7 BaseType int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 105, index: 2, name: result2}
+                  Offset: 0
+                  ByteSize: 8
+        - Name: result2
+          Offset: 26
+          Kind: template_segment
+          Expression:
+            Type: 7 BaseType int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 105, index: 2, name: result2}
+                  Offset: 0
+                  ByteSize: 8
+        - Name: result
+          Offset: 34
           Kind: local
           Expression:
             Type: 7 BaseType int
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 105, index: 2, name: result2}
+                  Variable: {subprogram: 105, index: 1, name: result}
                   Offset: 0
                   ByteSize: 8
         - Name: result2
-          Offset: 33
-          Kind: template_segment
-          Expression:
-            Type: 7 BaseType int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 105, index: 2, name: result2}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: result2
-          Offset: 41
-          Kind: template_segment
+          Offset: 42
+          Kind: local
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -14704,19 +14704,9 @@ Types:
     - __kind: EventRootType
       ID: 1425
       Name: Probe[main.testMultipleSimpleParams]
-      ByteSize: 62
-      PresenceBitsetSize: 2
+      ByteSize: 63
+      PresenceBitsetSize: 3
       Expressions:
-        - Name: a
-          Offset: 2
-          Kind: argument
-          Expression:
-            Type: 4 BaseType bool
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 86, index: 0, name: a}
-                  Offset: 0
-                  ByteSize: 1
         - Name: a
           Offset: 3
           Kind: template_segment
@@ -14729,7 +14719,7 @@ Types:
                   ByteSize: 1
         - Name: b
           Offset: 4
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 3 BaseType uint8
             Operations:
@@ -14737,30 +14727,10 @@ Types:
                   Variable: {subprogram: 86, index: 1, name: b}
                   Offset: 0
                   ByteSize: 1
-        - Name: b
+        - Name: c
           Offset: 5
           Kind: template_segment
           Expression:
-            Type: 3 BaseType uint8
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 86, index: 1, name: b}
-                  Offset: 0
-                  ByteSize: 1
-        - Name: c
-          Offset: 6
-          Kind: argument
-          Expression:
-            Type: 10 BaseType int32
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 86, index: 2, name: c}
-                  Offset: 0
-                  ByteSize: 4
-        - Name: c
-          Offset: 10
-          Kind: template_segment
-          Expression:
             Type: 10 BaseType int32
             Operations:
                 - __kind: LocationOp
@@ -14768,17 +14738,7 @@ Types:
                   Offset: 0
                   ByteSize: 4
         - Name: d
-          Offset: 14
-          Kind: argument
-          Expression:
-            Type: 17 BaseType uint
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 86, index: 3, name: d}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: d
-          Offset: 22
+          Offset: 9
           Kind: template_segment
           Expression:
             Type: 17 BaseType uint
@@ -14788,8 +14748,8 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: e
-          Offset: 30
-          Kind: argument
+          Offset: 17
+          Kind: template_segment
           Expression:
             Type: 9 GoStringHeaderType string
             Operations:
@@ -14797,9 +14757,49 @@ Types:
                   Variable: {subprogram: 86, index: 4, name: e}
                   Offset: 0
                   ByteSize: 16
+        - Name: a
+          Offset: 33
+          Kind: argument
+          Expression:
+            Type: 4 BaseType bool
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 86, index: 0, name: a}
+                  Offset: 0
+                  ByteSize: 1
+        - Name: b
+          Offset: 34
+          Kind: argument
+          Expression:
+            Type: 3 BaseType uint8
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 86, index: 1, name: b}
+                  Offset: 0
+                  ByteSize: 1
+        - Name: c
+          Offset: 35
+          Kind: argument
+          Expression:
+            Type: 10 BaseType int32
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 86, index: 2, name: c}
+                  Offset: 0
+                  ByteSize: 4
+        - Name: d
+          Offset: 39
+          Kind: argument
+          Expression:
+            Type: 17 BaseType uint
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 86, index: 3, name: d}
+                  Offset: 0
+                  ByteSize: 8
         - Name: e
-          Offset: 46
-          Kind: template_segment
+          Offset: 47
+          Kind: argument
           Expression:
             Type: 9 GoStringHeaderType string
             Operations:
@@ -14815,7 +14815,7 @@ Types:
       Expressions:
         - Name: i
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -14825,7 +14825,7 @@ Types:
                   ByteSize: 8
         - Name: i
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -14841,7 +14841,7 @@ Types:
       Expressions:
         - Name: i
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -14851,7 +14851,7 @@ Types:
                   ByteSize: 8
         - Name: i
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -14883,7 +14883,7 @@ Types:
       Expressions:
         - Name: result
           Offset: 1
-          Kind: local
+          Kind: template_segment
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -14893,7 +14893,7 @@ Types:
                   ByteSize: 8
         - Name: result
           Offset: 9
-          Kind: template_segment
+          Kind: local
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -14909,7 +14909,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 317 PointerType *main.anotherStruct
             Operations:
@@ -14919,7 +14919,7 @@ Types:
                   ByteSize: 8
         - Name: x
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 317 PointerType *main.anotherStruct
             Operations:
@@ -14982,16 +14982,6 @@ Types:
       Expressions:
         - Name: z
           Offset: 1
-          Kind: argument
-          Expression:
-            Type: 11 PointerType *bool
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 95, index: 0, name: z}
-                  Offset: 0
-                  ByteSize: 8
-        - Name: z
-          Offset: 9
           Kind: template_segment
           Expression:
             Type: 11 PointerType *bool
@@ -15001,8 +14991,8 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: a
-          Offset: 17
-          Kind: argument
+          Offset: 9
+          Kind: template_segment
           Expression:
             Type: 17 BaseType uint
             Operations:
@@ -15010,9 +15000,19 @@ Types:
                   Variable: {subprogram: 95, index: 1, name: a}
                   Offset: 0
                   ByteSize: 8
+        - Name: z
+          Offset: 17
+          Kind: argument
+          Expression:
+            Type: 11 PointerType *bool
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 95, index: 0, name: z}
+                  Offset: 0
+                  ByteSize: 8
         - Name: a
           Offset: 25
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 17 BaseType uint
             Operations:
@@ -15028,16 +15028,6 @@ Types:
       Expressions:
         - Name: xs
           Offset: 1
-          Kind: argument
-          Expression:
-            Type: 260 GoSliceHeaderType []main.structWithNoStrings
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 136, index: 0, name: xs}
-                  Offset: 0
-                  ByteSize: 24
-        - Name: xs
-          Offset: 25
           Kind: template_segment
           Expression:
             Type: 260 GoSliceHeaderType []main.structWithNoStrings
@@ -15047,8 +15037,8 @@ Types:
                   Offset: 0
                   ByteSize: 24
         - Name: a
-          Offset: 49
-          Kind: argument
+          Offset: 25
+          Kind: template_segment
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -15056,9 +15046,19 @@ Types:
                   Variable: {subprogram: 136, index: 1, name: a}
                   Offset: 0
                   ByteSize: 8
+        - Name: xs
+          Offset: 33
+          Kind: argument
+          Expression:
+            Type: 260 GoSliceHeaderType []main.structWithNoStrings
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 136, index: 0, name: xs}
+                  Offset: 0
+                  ByteSize: 24
         - Name: a
           Offset: 57
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -15069,19 +15069,9 @@ Types:
     - __kind: EventRootType
       ID: 1522
       Name: Probe[main.testNilSliceWithOtherParams]
-      ByteSize: 67
-      PresenceBitsetSize: 1
+      ByteSize: 68
+      PresenceBitsetSize: 2
       Expressions:
-        - Name: a
-          Offset: 1
-          Kind: argument
-          Expression:
-            Type: 16 BaseType int8
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 138, index: 0, name: a}
-                  Offset: 0
-                  ByteSize: 1
         - Name: a
           Offset: 2
           Kind: template_segment
@@ -15094,16 +15084,6 @@ Types:
                   ByteSize: 1
         - Name: s
           Offset: 3
-          Kind: argument
-          Expression:
-            Type: 264 GoSliceHeaderType []bool
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 138, index: 1, name: s}
-                  Offset: 0
-                  ByteSize: 24
-        - Name: s
-          Offset: 27
           Kind: template_segment
           Expression:
             Type: 264 GoSliceHeaderType []bool
@@ -15113,8 +15093,8 @@ Types:
                   Offset: 0
                   ByteSize: 24
         - Name: x
-          Offset: 51
-          Kind: argument
+          Offset: 27
+          Kind: template_segment
           Expression:
             Type: 17 BaseType uint
             Operations:
@@ -15122,9 +15102,29 @@ Types:
                   Variable: {subprogram: 138, index: 2, name: x}
                   Offset: 0
                   ByteSize: 8
+        - Name: a
+          Offset: 35
+          Kind: argument
+          Expression:
+            Type: 16 BaseType int8
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 138, index: 0, name: a}
+                  Offset: 0
+                  ByteSize: 1
+        - Name: s
+          Offset: 36
+          Kind: argument
+          Expression:
+            Type: 264 GoSliceHeaderType []bool
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 138, index: 1, name: s}
+                  Offset: 0
+                  ByteSize: 24
         - Name: x
-          Offset: 59
-          Kind: template_segment
+          Offset: 60
+          Kind: argument
           Expression:
             Type: 17 BaseType uint
             Operations:
@@ -15140,7 +15140,7 @@ Types:
       Expressions:
         - Name: xs
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 265 GoSliceHeaderType []uint16
             Operations:
@@ -15150,7 +15150,7 @@ Types:
                   ByteSize: 24
         - Name: xs
           Offset: 25
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 265 GoSliceHeaderType []uint16
             Operations:
@@ -15166,7 +15166,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 270 PointerType *main.oneStringStruct
             Operations:
@@ -15176,7 +15176,7 @@ Types:
                   ByteSize: 8
         - Name: a
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 270 PointerType *main.oneStringStruct
             Operations:
@@ -15192,7 +15192,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 247 PointerType *main.node
             Operations:
@@ -15202,7 +15202,7 @@ Types:
                   ByteSize: 8
         - Name: a
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 247 PointerType *main.node
             Operations:
@@ -15218,7 +15218,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 192 PointerType *map[string]int
             Operations:
@@ -15228,7 +15228,7 @@ Types:
                   ByteSize: 8
         - Name: m
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 192 PointerType *map[string]int
             Operations:
@@ -15244,7 +15244,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 244 PointerType *main.structWithTwoValues
             Operations:
@@ -15254,7 +15254,7 @@ Types:
                   ByteSize: 8
         - Name: a
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 244 PointerType *main.structWithTwoValues
             Operations:
@@ -15270,16 +15270,6 @@ Types:
       Expressions:
         - Name: v
           Offset: 1
-          Kind: argument
-          Expression:
-            Type: 157 GoEmptyInterfaceType interface {}
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 101, index: 0, name: v}
-                  Offset: 0
-                  ByteSize: 16
-        - Name: v
-          Offset: 17
           Kind: template_segment
           Expression:
             Type: 157 GoEmptyInterfaceType interface {}
@@ -15289,8 +15279,8 @@ Types:
                   Offset: 0
                   ByteSize: 16
         - Name: failed
-          Offset: 33
-          Kind: argument
+          Offset: 17
+          Kind: template_segment
           Expression:
             Type: 4 BaseType bool
             Operations:
@@ -15298,9 +15288,19 @@ Types:
                   Variable: {subprogram: 101, index: 1, name: failed}
                   Offset: 0
                   ByteSize: 1
+        - Name: v
+          Offset: 18
+          Kind: argument
+          Expression:
+            Type: 157 GoEmptyInterfaceType interface {}
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 101, index: 0, name: v}
+                  Offset: 0
+                  ByteSize: 16
         - Name: failed
           Offset: 34
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 4 BaseType bool
             Operations:
@@ -15342,7 +15342,7 @@ Types:
       Expressions:
         - Name: v
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 157 GoEmptyInterfaceType interface {}
             Operations:
@@ -15352,7 +15352,7 @@ Types:
                   ByteSize: 16
         - Name: v
           Offset: 17
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 157 GoEmptyInterfaceType interface {}
             Operations:
@@ -15439,11 +15439,11 @@ Types:
     - __kind: EventRootType
       ID: 1484
       Name: Probe[main.testReturnsBacktrackInt]Return
-      ByteSize: 82
-      PresenceBitsetSize: 2
+      ByteSize: 83
+      PresenceBitsetSize: 3
       Expressions:
         - Name: ~r0
-          Offset: 2
+          Offset: 3
           Kind: local
           Expression:
             Type: 7 BaseType int
@@ -15453,7 +15453,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r1
-          Offset: 10
+          Offset: 11
           Kind: local
           Expression:
             Type: 7 BaseType int
@@ -15463,7 +15463,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r2
-          Offset: 18
+          Offset: 19
           Kind: local
           Expression:
             Type: 7 BaseType int
@@ -15473,7 +15473,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r3
-          Offset: 26
+          Offset: 27
           Kind: local
           Expression:
             Type: 7 BaseType int
@@ -15483,7 +15483,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r4
-          Offset: 34
+          Offset: 35
           Kind: local
           Expression:
             Type: 7 BaseType int
@@ -15493,7 +15493,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r5
-          Offset: 42
+          Offset: 43
           Kind: local
           Expression:
             Type: 7 BaseType int
@@ -15503,7 +15503,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r6
-          Offset: 50
+          Offset: 51
           Kind: local
           Expression:
             Type: 7 BaseType int
@@ -15513,7 +15513,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r7
-          Offset: 58
+          Offset: 59
           Kind: local
           Expression:
             Type: 7 BaseType int
@@ -15523,7 +15523,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r8
-          Offset: 66
+          Offset: 67
           Kind: local
           Expression:
             Type: 9 GoStringHeaderType string
@@ -15598,7 +15598,7 @@ Types:
       Expressions:
         - Name: failed
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 4 BaseType bool
             Operations:
@@ -15608,7 +15608,7 @@ Types:
                   ByteSize: 1
         - Name: failed
           Offset: 2
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 4 BaseType bool
             Operations:
@@ -15640,7 +15640,7 @@ Types:
       Expressions:
         - Name: i
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -15650,7 +15650,7 @@ Types:
                   ByteSize: 8
         - Name: i
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -15692,7 +15692,7 @@ Types:
       Expressions:
         - Name: i
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -15702,7 +15702,7 @@ Types:
                   ByteSize: 8
         - Name: i
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -15734,7 +15734,7 @@ Types:
       Expressions:
         - Name: i
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -15744,7 +15744,7 @@ Types:
                   ByteSize: 8
         - Name: i
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -15776,7 +15776,7 @@ Types:
       Expressions:
         - Name: v
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 157 GoEmptyInterfaceType interface {}
             Operations:
@@ -15786,7 +15786,7 @@ Types:
                   ByteSize: 16
         - Name: v
           Offset: 17
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 157 GoEmptyInterfaceType interface {}
             Operations:
@@ -15835,11 +15835,11 @@ Types:
     - __kind: EventRootType
       ID: 1470
       Name: Probe[main.testReturnsManyFloats]Return
-      ByteSize: 139
-      PresenceBitsetSize: 3
+      ByteSize: 141
+      PresenceBitsetSize: 5
       Expressions:
         - Name: ~r0
-          Offset: 3
+          Offset: 5
           Kind: local
           Expression:
             Type: 15 BaseType float64
@@ -15849,7 +15849,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r1
-          Offset: 11
+          Offset: 13
           Kind: local
           Expression:
             Type: 15 BaseType float64
@@ -15859,7 +15859,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r2
-          Offset: 19
+          Offset: 21
           Kind: local
           Expression:
             Type: 15 BaseType float64
@@ -15869,7 +15869,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r3
-          Offset: 27
+          Offset: 29
           Kind: local
           Expression:
             Type: 15 BaseType float64
@@ -15879,7 +15879,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r4
-          Offset: 35
+          Offset: 37
           Kind: local
           Expression:
             Type: 15 BaseType float64
@@ -15889,7 +15889,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r5
-          Offset: 43
+          Offset: 45
           Kind: local
           Expression:
             Type: 15 BaseType float64
@@ -15899,7 +15899,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r6
-          Offset: 51
+          Offset: 53
           Kind: local
           Expression:
             Type: 15 BaseType float64
@@ -15909,7 +15909,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r7
-          Offset: 59
+          Offset: 61
           Kind: local
           Expression:
             Type: 15 BaseType float64
@@ -15919,7 +15919,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r8
-          Offset: 67
+          Offset: 69
           Kind: local
           Expression:
             Type: 15 BaseType float64
@@ -15929,7 +15929,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r9
-          Offset: 75
+          Offset: 77
           Kind: local
           Expression:
             Type: 15 BaseType float64
@@ -15939,7 +15939,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r10
-          Offset: 83
+          Offset: 85
           Kind: local
           Expression:
             Type: 15 BaseType float64
@@ -15949,7 +15949,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r11
-          Offset: 91
+          Offset: 93
           Kind: local
           Expression:
             Type: 15 BaseType float64
@@ -15959,7 +15959,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r12
-          Offset: 99
+          Offset: 101
           Kind: local
           Expression:
             Type: 15 BaseType float64
@@ -15969,7 +15969,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r13
-          Offset: 107
+          Offset: 109
           Kind: local
           Expression:
             Type: 15 BaseType float64
@@ -15979,7 +15979,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r14
-          Offset: 115
+          Offset: 117
           Kind: local
           Expression:
             Type: 15 BaseType float64
@@ -15989,7 +15989,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: onlyOnAmd64_16
-          Offset: 123
+          Offset: 125
           Kind: local
           Expression:
             Type: 15 BaseType float64
@@ -15999,7 +15999,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: bothArmAndAmd64
-          Offset: 131
+          Offset: 133
           Kind: local
           Expression:
             Type: 15 BaseType float64
@@ -16033,11 +16033,11 @@ Types:
     - __kind: EventRootType
       ID: 1488
       Name: Probe[main.testReturnsMixed]Return
-      ByteSize: 49
-      PresenceBitsetSize: 1
+      ByteSize: 50
+      PresenceBitsetSize: 2
       Expressions:
         - Name: ~r0
-          Offset: 1
+          Offset: 2
           Kind: local
           Expression:
             Type: 7 BaseType int
@@ -16047,7 +16047,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r1
-          Offset: 9
+          Offset: 10
           Kind: local
           Expression:
             Type: 15 BaseType float64
@@ -16057,7 +16057,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r2
-          Offset: 17
+          Offset: 18
           Kind: local
           Expression:
             Type: 7 BaseType int
@@ -16067,7 +16067,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r3
-          Offset: 25
+          Offset: 26
           Kind: local
           Expression:
             Type: 15 BaseType float64
@@ -16077,7 +16077,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r4
-          Offset: 33
+          Offset: 34
           Kind: local
           Expression:
             Type: 9 GoStringHeaderType string
@@ -16140,11 +16140,11 @@ Types:
     - __kind: EventRootType
       ID: 1468
       Name: Probe[main.testReturnsPrimitives]Return
-      ByteSize: 31
-      PresenceBitsetSize: 1
+      ByteSize: 32
+      PresenceBitsetSize: 2
       Expressions:
         - Name: ~r0
-          Offset: 1
+          Offset: 2
           Kind: local
           Expression:
             Type: 16 BaseType int8
@@ -16154,7 +16154,7 @@ Types:
                   Offset: 0
                   ByteSize: 1
         - Name: ~r1
-          Offset: 2
+          Offset: 3
           Kind: local
           Expression:
             Type: 104 BaseType int16
@@ -16164,7 +16164,7 @@ Types:
                   Offset: 0
                   ByteSize: 2
         - Name: ~r2
-          Offset: 4
+          Offset: 5
           Kind: local
           Expression:
             Type: 10 BaseType int32
@@ -16174,7 +16174,7 @@ Types:
                   Offset: 0
                   ByteSize: 4
         - Name: ~r3
-          Offset: 8
+          Offset: 9
           Kind: local
           Expression:
             Type: 12 BaseType int64
@@ -16184,7 +16184,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
         - Name: ~r4
-          Offset: 16
+          Offset: 17
           Kind: local
           Expression:
             Type: 3 BaseType uint8
@@ -16194,7 +16194,7 @@ Types:
                   Offset: 0
                   ByteSize: 1
         - Name: ~r5
-          Offset: 17
+          Offset: 18
           Kind: local
           Expression:
             Type: 6 BaseType uint16
@@ -16204,7 +16204,7 @@ Types:
                   Offset: 0
                   ByteSize: 2
         - Name: ~r6
-          Offset: 19
+          Offset: 20
           Kind: local
           Expression:
             Type: 2 BaseType uint32
@@ -16214,7 +16214,7 @@ Types:
                   Offset: 0
                   ByteSize: 4
         - Name: ~r7
-          Offset: 23
+          Offset: 24
           Kind: local
           Expression:
             Type: 8 BaseType uint64
@@ -16269,7 +16269,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 110 ArrayType [2]int32
             Operations:
@@ -16279,7 +16279,7 @@ Types:
                   ByteSize: 8
         - Name: x
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 110 ArrayType [2]int32
             Operations:
@@ -16295,7 +16295,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 4 BaseType bool
             Operations:
@@ -16305,7 +16305,7 @@ Types:
                   ByteSize: 1
         - Name: x
           Offset: 2
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 4 BaseType bool
             Operations:
@@ -16321,7 +16321,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 3 BaseType uint8
             Operations:
@@ -16331,7 +16331,7 @@ Types:
                   ByteSize: 1
         - Name: x
           Offset: 2
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 3 BaseType uint8
             Operations:
@@ -16353,7 +16353,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 104 BaseType int16
             Operations:
@@ -16363,7 +16363,7 @@ Types:
                   ByteSize: 2
         - Name: x
           Offset: 3
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 104 BaseType int16
             Operations:
@@ -16379,7 +16379,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 10 BaseType int32
             Operations:
@@ -16389,7 +16389,7 @@ Types:
                   ByteSize: 4
         - Name: x
           Offset: 5
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 10 BaseType int32
             Operations:
@@ -16405,7 +16405,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 12 BaseType int64
             Operations:
@@ -16415,7 +16415,7 @@ Types:
                   ByteSize: 8
         - Name: x
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 12 BaseType int64
             Operations:
@@ -16431,7 +16431,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 16 BaseType int8
             Operations:
@@ -16461,7 +16461,7 @@ Types:
                   ByteSize: 1
         - Name: x
           Offset: 4
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 16 BaseType int8
             Operations:
@@ -16477,7 +16477,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -16487,7 +16487,7 @@ Types:
                   ByteSize: 8
         - Name: x
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -16503,7 +16503,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 10 BaseType int32
             Operations:
@@ -16513,7 +16513,7 @@ Types:
                   ByteSize: 4
         - Name: x
           Offset: 5
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 10 BaseType int32
             Operations:
@@ -16529,7 +16529,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 9 GoStringHeaderType string
             Operations:
@@ -16539,7 +16539,7 @@ Types:
                   ByteSize: 16
         - Name: x
           Offset: 17
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 9 GoStringHeaderType string
             Operations:
@@ -16555,7 +16555,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 6 BaseType uint16
             Operations:
@@ -16565,7 +16565,7 @@ Types:
                   ByteSize: 2
         - Name: x
           Offset: 3
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 6 BaseType uint16
             Operations:
@@ -16581,7 +16581,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 2 BaseType uint32
             Operations:
@@ -16591,7 +16591,7 @@ Types:
                   ByteSize: 4
         - Name: x
           Offset: 5
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 2 BaseType uint32
             Operations:
@@ -16607,7 +16607,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 8 BaseType uint64
             Operations:
@@ -16617,7 +16617,7 @@ Types:
                   ByteSize: 8
         - Name: x
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 8 BaseType uint64
             Operations:
@@ -16633,7 +16633,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 3 BaseType uint8
             Operations:
@@ -16643,7 +16643,7 @@ Types:
                   ByteSize: 1
         - Name: x
           Offset: 2
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 3 BaseType uint8
             Operations:
@@ -16659,7 +16659,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 17 BaseType uint
             Operations:
@@ -16669,7 +16669,7 @@ Types:
                   ByteSize: 8
         - Name: x
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 17 BaseType uint
             Operations:
@@ -16685,7 +16685,7 @@ Types:
       Expressions:
         - Name: xs
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 266 GoSliceHeaderType []struct {}
             Operations:
@@ -16695,7 +16695,7 @@ Types:
                   ByteSize: 24
         - Name: xs
           Offset: 25
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 266 GoSliceHeaderType []struct {}
             Operations:
@@ -16711,7 +16711,7 @@ Types:
       Expressions:
         - Name: u
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 258 GoSliceHeaderType [][]uint
             Operations:
@@ -16721,7 +16721,7 @@ Types:
                   ByteSize: 24
         - Name: u
           Offset: 25
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 258 GoSliceHeaderType [][]uint
             Operations:
@@ -16737,7 +16737,7 @@ Types:
       Expressions:
         - Name: m
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 176 GoMapType map[string]int
             Operations:
@@ -16747,7 +16747,7 @@ Types:
                   ByteSize: 8
         - Name: m
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 176 GoMapType map[string]int
             Operations:
@@ -16763,7 +16763,7 @@ Types:
       Expressions:
         - Name: i
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -16773,7 +16773,7 @@ Types:
                   ByteSize: 8
         - Name: i
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -16825,7 +16825,7 @@ Types:
       Expressions:
         - Name: arg
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 161 ArrayType [5]int
             Operations:
@@ -16835,7 +16835,7 @@ Types:
                   ByteSize: 40
         - Name: arg
           Offset: 41
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 161 ArrayType [5]int
             Operations:
@@ -16887,7 +16887,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 111 ArrayType [2]string
             Operations:
@@ -16897,7 +16897,7 @@ Types:
                   ByteSize: 32
         - Name: x
           Offset: 33
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 111 ArrayType [2]string
             Operations:
@@ -16913,7 +16913,7 @@ Types:
       Expressions:
         - Name: z
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 95 PointerType *string
             Operations:
@@ -16923,7 +16923,7 @@ Types:
                   ByteSize: 8
         - Name: z
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 95 PointerType *string
             Operations:
@@ -16939,7 +16939,7 @@ Types:
       Expressions:
         - Name: s
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 263 GoSliceHeaderType []string
             Operations:
@@ -16949,7 +16949,7 @@ Types:
                   ByteSize: 24
         - Name: s
           Offset: 25
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 263 GoSliceHeaderType []string
             Operations:
@@ -16965,7 +16965,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 151 PointerType *main.stringType1
             Operations:
@@ -16975,7 +16975,7 @@ Types:
                   ByteSize: 8
         - Name: a
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 151 PointerType *main.stringType1
             Operations:
@@ -16991,7 +16991,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 153 PointerType **main.stringType2
             Operations:
@@ -17001,7 +17001,7 @@ Types:
                   ByteSize: 8
         - Name: a
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 153 PointerType **main.stringType2
             Operations:
@@ -17017,16 +17017,6 @@ Types:
       Expressions:
         - Name: xs
           Offset: 1
-          Kind: argument
-          Expression:
-            Type: 260 GoSliceHeaderType []main.structWithNoStrings
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 134, index: 0, name: xs}
-                  Offset: 0
-                  ByteSize: 24
-        - Name: xs
-          Offset: 25
           Kind: template_segment
           Expression:
             Type: 260 GoSliceHeaderType []main.structWithNoStrings
@@ -17036,8 +17026,8 @@ Types:
                   Offset: 0
                   ByteSize: 24
         - Name: a
-          Offset: 49
-          Kind: argument
+          Offset: 25
+          Kind: template_segment
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -17045,9 +17035,19 @@ Types:
                   Variable: {subprogram: 134, index: 1, name: a}
                   Offset: 0
                   ByteSize: 8
+        - Name: xs
+          Offset: 33
+          Kind: argument
+          Expression:
+            Type: 260 GoSliceHeaderType []main.structWithNoStrings
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 134, index: 0, name: xs}
+                  Offset: 0
+                  ByteSize: 24
         - Name: a
           Offset: 57
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -17063,7 +17063,7 @@ Types:
       Expressions:
         - Name: s
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 164 StructureType main.structWithAny
             Operations:
@@ -17073,7 +17073,7 @@ Types:
                   ByteSize: 16
         - Name: s
           Offset: 17
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 164 StructureType main.structWithAny
             Operations:
@@ -17089,7 +17089,7 @@ Types:
       Expressions:
         - Name: arg
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 256 StructureType main.structWithArray
             Operations:
@@ -17099,7 +17099,7 @@ Types:
                   ByteSize: 24
         - Name: arg
           Offset: 25
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 256 StructureType main.structWithArray
             Operations:
@@ -17141,7 +17141,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 285 StructureType main.structWithCyclicMaps
             Operations:
@@ -17151,7 +17151,7 @@ Types:
                   ByteSize: 48
         - Name: a
           Offset: 49
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 285 StructureType main.structWithCyclicMaps
             Operations:
@@ -17170,7 +17170,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 272 StructureType main.structWithCyclicSlices
             Operations:
@@ -17180,7 +17180,7 @@ Types:
                   ByteSize: 144
         - Name: a
           Offset: 145
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 272 StructureType main.structWithCyclicSlices
             Operations:
@@ -17196,7 +17196,7 @@ Types:
       Expressions:
         - Name: s
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 165 StructureType main.structWithMap
             Operations:
@@ -17206,7 +17206,7 @@ Types:
                   ByteSize: 8
         - Name: s
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 165 StructureType main.structWithMap
             Operations:
@@ -17238,7 +17238,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 316 StructureType main.aStruct
             Operations:
@@ -17248,7 +17248,7 @@ Types:
                   ByteSize: 56
         - Name: x
           Offset: 57
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 316 StructureType main.aStruct
             Operations:
@@ -17265,21 +17265,11 @@ Types:
     - __kind: EventRootType
       ID: 1527
       Name: Probe[main.testSubslices]
-      ByteSize: 145
-      PresenceBitsetSize: 1
+      ByteSize: 146
+      PresenceBitsetSize: 2
       Expressions:
         - Name: as
-          Offset: 1
-          Kind: argument
-          Expression:
-            Type: 257 GoSliceHeaderType []uint
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 142, index: 0, name: as}
-                  Offset: 0
-                  ByteSize: 24
-        - Name: as
-          Offset: 25
+          Offset: 2
           Kind: template_segment
           Expression:
             Type: 257 GoSliceHeaderType []uint
@@ -17289,17 +17279,7 @@ Types:
                   Offset: 0
                   ByteSize: 24
         - Name: bs
-          Offset: 49
-          Kind: argument
-          Expression:
-            Type: 257 GoSliceHeaderType []uint
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 142, index: 1, name: bs}
-                  Offset: 0
-                  ByteSize: 24
-        - Name: bs
-          Offset: 73
+          Offset: 26
           Kind: template_segment
           Expression:
             Type: 257 GoSliceHeaderType []uint
@@ -17309,8 +17289,8 @@ Types:
                   Offset: 0
                   ByteSize: 24
         - Name: cs
-          Offset: 97
-          Kind: argument
+          Offset: 50
+          Kind: template_segment
           Expression:
             Type: 257 GoSliceHeaderType []uint
             Operations:
@@ -17318,9 +17298,29 @@ Types:
                   Variable: {subprogram: 142, index: 2, name: cs}
                   Offset: 0
                   ByteSize: 24
+        - Name: as
+          Offset: 74
+          Kind: argument
+          Expression:
+            Type: 257 GoSliceHeaderType []uint
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 142, index: 0, name: as}
+                  Offset: 0
+                  ByteSize: 24
+        - Name: bs
+          Offset: 98
+          Kind: argument
+          Expression:
+            Type: 257 GoSliceHeaderType []uint
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 142, index: 1, name: bs}
+                  Offset: 0
+                  ByteSize: 24
         - Name: cs
-          Offset: 121
-          Kind: template_segment
+          Offset: 122
+          Kind: argument
           Expression:
             Type: 257 GoSliceHeaderType []uint
             Operations:
@@ -17331,21 +17331,11 @@ Types:
     - __kind: EventRootType
       ID: 1543
       Name: Probe[main.testSubstrings]
-      ByteSize: 97
-      PresenceBitsetSize: 1
+      ByteSize: 98
+      PresenceBitsetSize: 2
       Expressions:
         - Name: a
-          Offset: 1
-          Kind: argument
-          Expression:
-            Type: 9 GoStringHeaderType string
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 152, index: 0, name: a}
-                  Offset: 0
-                  ByteSize: 16
-        - Name: a
-          Offset: 17
+          Offset: 2
           Kind: template_segment
           Expression:
             Type: 9 GoStringHeaderType string
@@ -17355,17 +17345,7 @@ Types:
                   Offset: 0
                   ByteSize: 16
         - Name: b
-          Offset: 33
-          Kind: argument
-          Expression:
-            Type: 9 GoStringHeaderType string
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 152, index: 1, name: b}
-                  Offset: 0
-                  ByteSize: 16
-        - Name: b
-          Offset: 49
+          Offset: 18
           Kind: template_segment
           Expression:
             Type: 9 GoStringHeaderType string
@@ -17375,8 +17355,8 @@ Types:
                   Offset: 0
                   ByteSize: 16
         - Name: c
-          Offset: 65
-          Kind: argument
+          Offset: 34
+          Kind: template_segment
           Expression:
             Type: 9 GoStringHeaderType string
             Operations:
@@ -17384,9 +17364,29 @@ Types:
                   Variable: {subprogram: 152, index: 2, name: c}
                   Offset: 0
                   ByteSize: 16
+        - Name: a
+          Offset: 50
+          Kind: argument
+          Expression:
+            Type: 9 GoStringHeaderType string
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 152, index: 0, name: a}
+                  Offset: 0
+                  ByteSize: 16
+        - Name: b
+          Offset: 66
+          Kind: argument
+          Expression:
+            Type: 9 GoStringHeaderType string
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 152, index: 1, name: b}
+                  Offset: 0
+                  ByteSize: 16
         - Name: c
-          Offset: 81
-          Kind: template_segment
+          Offset: 82
+          Kind: argument
           Expression:
             Type: 9 GoStringHeaderType string
             Operations:
@@ -17418,7 +17418,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 269 PointerType *main.threeStringStruct
             Operations:
@@ -17428,7 +17428,7 @@ Types:
                   ByteSize: 8
         - Name: a
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 269 PointerType *main.threeStringStruct
             Operations:
@@ -17489,7 +17489,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 268 StructureType main.threeStringStruct
             Operations:
@@ -17499,7 +17499,7 @@ Types:
                   ByteSize: 48
         - Name: a
           Offset: 49
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 268 StructureType main.threeStringStruct
             Operations:
@@ -17552,21 +17552,11 @@ Types:
     - __kind: EventRootType
       ID: 1531
       Name: Probe[main.testThreeStrings]
-      ByteSize: 97
-      PresenceBitsetSize: 1
+      ByteSize: 98
+      PresenceBitsetSize: 2
       Expressions:
         - Name: x
-          Offset: 1
-          Kind: argument
-          Expression:
-            Type: 9 GoStringHeaderType string
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 145, index: 0, name: x}
-                  Offset: 0
-                  ByteSize: 16
-        - Name: x
-          Offset: 17
+          Offset: 2
           Kind: template_segment
           Expression:
             Type: 9 GoStringHeaderType string
@@ -17576,17 +17566,7 @@ Types:
                   Offset: 0
                   ByteSize: 16
         - Name: y
-          Offset: 33
-          Kind: argument
-          Expression:
-            Type: 9 GoStringHeaderType string
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 145, index: 1, name: y}
-                  Offset: 0
-                  ByteSize: 16
-        - Name: y
-          Offset: 49
+          Offset: 18
           Kind: template_segment
           Expression:
             Type: 9 GoStringHeaderType string
@@ -17596,8 +17576,8 @@ Types:
                   Offset: 0
                   ByteSize: 16
         - Name: z
-          Offset: 65
-          Kind: argument
+          Offset: 34
+          Kind: template_segment
           Expression:
             Type: 9 GoStringHeaderType string
             Operations:
@@ -17605,9 +17585,29 @@ Types:
                   Variable: {subprogram: 145, index: 2, name: z}
                   Offset: 0
                   ByteSize: 16
+        - Name: x
+          Offset: 50
+          Kind: argument
+          Expression:
+            Type: 9 GoStringHeaderType string
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 145, index: 0, name: x}
+                  Offset: 0
+                  ByteSize: 16
+        - Name: y
+          Offset: 66
+          Kind: argument
+          Expression:
+            Type: 9 GoStringHeaderType string
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 145, index: 1, name: y}
+                  Offset: 0
+                  ByteSize: 16
         - Name: z
-          Offset: 81
-          Kind: template_segment
+          Offset: 82
+          Kind: argument
           Expression:
             Type: 9 GoStringHeaderType string
             Operations:
@@ -17623,7 +17623,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 127 BaseType main.typeAlias
             Operations:
@@ -17633,7 +17633,7 @@ Types:
                   ByteSize: 2
         - Name: x
           Offset: 3
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 127 BaseType main.typeAlias
             Operations:
@@ -17649,7 +17649,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 118 ArrayType [2]uint16
             Operations:
@@ -17659,7 +17659,7 @@ Types:
                   ByteSize: 4
         - Name: x
           Offset: 5
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 118 ArrayType [2]uint16
             Operations:
@@ -17675,7 +17675,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 119 ArrayType [2]uint32
             Operations:
@@ -17685,7 +17685,7 @@ Types:
                   ByteSize: 8
         - Name: x
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 119 ArrayType [2]uint32
             Operations:
@@ -17701,7 +17701,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 54 ArrayType [2]uint64
             Operations:
@@ -17711,7 +17711,7 @@ Types:
                   ByteSize: 16
         - Name: x
           Offset: 17
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 54 ArrayType [2]uint64
             Operations:
@@ -17727,7 +17727,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 109 ArrayType [2]uint8
             Operations:
@@ -17737,7 +17737,7 @@ Types:
                   ByteSize: 2
         - Name: x
           Offset: 3
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 109 ArrayType [2]uint8
             Operations:
@@ -17753,7 +17753,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 117 ArrayType [2]uint
             Operations:
@@ -17763,7 +17763,7 @@ Types:
                   ByteSize: 16
         - Name: x
           Offset: 17
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 117 ArrayType [2]uint
             Operations:
@@ -17779,7 +17779,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 107 PointerType *uint
             Operations:
@@ -17789,7 +17789,7 @@ Types:
                   ByteSize: 8
         - Name: x
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 107 PointerType *uint
             Operations:
@@ -17805,7 +17805,7 @@ Types:
       Expressions:
         - Name: u
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 257 GoSliceHeaderType []uint
             Operations:
@@ -17815,7 +17815,7 @@ Types:
                   ByteSize: 24
         - Name: u
           Offset: 25
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 257 GoSliceHeaderType []uint
             Operations:
@@ -17831,7 +17831,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 9 GoStringHeaderType string
             Operations:
@@ -17841,7 +17841,7 @@ Types:
                   ByteSize: 16
         - Name: x
           Offset: 17
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 9 GoStringHeaderType string
             Operations:
@@ -17857,7 +17857,7 @@ Types:
       Expressions:
         - Name: x
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 14 VoidPointerType unsafe.Pointer
             Operations:
@@ -17867,7 +17867,7 @@ Types:
                   ByteSize: 8
         - Name: x
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 14 VoidPointerType unsafe.Pointer
             Operations:
@@ -17883,7 +17883,7 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 126 ArrayType [100]uint
             Operations:
@@ -17893,7 +17893,7 @@ Types:
                   ByteSize: 800
         - Name: a
           Offset: 801
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 126 ArrayType [100]uint
             Operations:
@@ -17909,7 +17909,7 @@ Types:
       Expressions:
         - Name: xs
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 257 GoSliceHeaderType []uint
             Operations:
@@ -17919,7 +17919,7 @@ Types:
                   ByteSize: 24
         - Name: xs
           Offset: 25
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 257 GoSliceHeaderType []uint
             Operations:
@@ -17935,7 +17935,7 @@ Types:
       Expressions:
         - Name: xs
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 257 GoSliceHeaderType []uint
             Operations:
@@ -17945,7 +17945,7 @@ Types:
                   ByteSize: 24
         - Name: xs
           Offset: 25
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 257 GoSliceHeaderType []uint
             Operations:
@@ -17961,16 +17961,6 @@ Types:
       Expressions:
         - Name: a
           Offset: 1
-          Kind: argument
-          Expression:
-            Type: 253 ArrayType [0]int
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 130, index: 0, name: a}
-                  Offset: 0
-                  ByteSize: 0
-        - Name: a
-          Offset: 1
           Kind: template_segment
           Expression:
             Type: 253 ArrayType [0]int
@@ -17981,7 +17971,7 @@ Types:
                   ByteSize: 0
         - Name: b
           Offset: 1
-          Kind: argument
+          Kind: template_segment
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -17989,9 +17979,19 @@ Types:
                   Variable: {subprogram: 130, index: 1, name: b}
                   Offset: 0
                   ByteSize: 8
+        - Name: a
+          Offset: 9
+          Kind: argument
+          Expression:
+            Type: 253 ArrayType [0]int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 130, index: 0, name: a}
+                  Offset: 0
+                  ByteSize: 0
         - Name: b
           Offset: 9
-          Kind: template_segment
+          Kind: argument
           Expression:
             Type: 7 BaseType int
             Operations:

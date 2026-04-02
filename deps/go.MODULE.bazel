@@ -9,11 +9,18 @@ go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
 use_repo_rule("//bazel/repo:bazelify_go_work.bzl", "bazelify_go_work")(name = "bazelify_go_work")
 
 go_deps.from_file(go_work = "@bazelify_go_work//:go.work")
+go_deps.gazelle_override(
+    directives = [
+        "gazelle:proto disable",
+    ],
+    path = "github.com/DataDog/sketches-go",
+)
 use_repo(
     go_deps,
     "cc_mvdan_sh_v3",
     "com_github_aarzilli_whydeadcode",
     "com_github_acobaugh_osrelease",
+    "com_github_alecthomas_participle",
     "com_github_alecthomas_units",
     "com_github_aquasecurity_trivy",
     "com_github_aquasecurity_trivy_db",
@@ -39,6 +46,7 @@ use_repo(
     "com_github_bmatcuk_doublestar_v4",
     "com_github_cenkalti_backoff_v5",
     "com_github_cespare_xxhash_v2",
+    "com_github_charlievieth_strcase",
     "com_github_cilium_ebpf",
     "com_github_clbanning_mxj",
     "com_github_cloudflare_cbpfc",
@@ -127,6 +135,7 @@ use_repo(
     "com_github_datadog_datadog_agent_pkg_aggregator_ckey",
     "com_github_datadog_datadog_agent_pkg_api",
     "com_github_datadog_datadog_agent_pkg_collector_check_defaults",
+    "com_github_datadog_datadog_agent_pkg_config_basic",
     "com_github_datadog_datadog_agent_pkg_config_create",
     "com_github_datadog_datadog_agent_pkg_config_env",
     "com_github_datadog_datadog_agent_pkg_config_helper",
@@ -136,6 +145,7 @@ use_repo(
     "com_github_datadog_datadog_agent_pkg_config_setup",
     "com_github_datadog_datadog_agent_pkg_config_structure",
     "com_github_datadog_datadog_agent_pkg_config_utils",
+    "com_github_datadog_datadog_agent_pkg_discovery_tracermetadata_model",
     "com_github_datadog_datadog_agent_pkg_errors",
     "com_github_datadog_datadog_agent_pkg_fips",
     "com_github_datadog_datadog_agent_pkg_fleet_installer",
@@ -200,6 +210,7 @@ use_repo(
     "com_github_datadog_datadog_agent_pkg_util_pointer",
     "com_github_datadog_datadog_agent_pkg_util_prometheus",
     "com_github_datadog_datadog_agent_pkg_util_quantile",
+    "com_github_datadog_datadog_agent_pkg_util_quantile_sketchtest",
     "com_github_datadog_datadog_agent_pkg_util_scrubber",
     "com_github_datadog_datadog_agent_pkg_util_sort",
     "com_github_datadog_datadog_agent_pkg_util_startstop",
@@ -264,6 +275,7 @@ use_repo(
     "com_github_google_go_containerregistry",
     "com_github_google_gofuzz",
     "com_github_google_gopacket",
+    "com_github_google_shlex",
     "com_github_google_uuid",
     "com_github_gorilla_handlers",
     "com_github_gorilla_mux",
@@ -286,6 +298,7 @@ use_repo(
     "com_github_iceber_iouring_go",
     "com_github_imdario_mergo",
     "com_github_invopop_jsonschema",
+    "com_github_itchyny_gojq",
     "com_github_jackc_pgx_v5",
     "com_github_jarcoal_httpmock",
     "com_github_jellydator_ttlcache_v3",
@@ -300,6 +313,7 @@ use_repo(
     "com_github_kouhin_envflag",
     "com_github_kr_pretty",
     "com_github_kraken_hpc_go_fork",
+    "com_github_lightstep_go_expohisto",
     "com_github_lorenzosaino_go_sysctl",
     "com_github_lxn_walk",
     "com_github_lxn_win",
@@ -324,12 +338,16 @@ use_repo(
     "com_github_open_policy_agent_opa",
     "com_github_open_telemetry_opentelemetry_collector_contrib_extension_healthcheckextension",
     "com_github_open_telemetry_opentelemetry_collector_contrib_pkg_datadog",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_pkg_pdatatest",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_attributesprocessor",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_cumulativetodeltaprocessor",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_processor_filterprocessor",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_k8sattributesprocessor",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_processor_probabilisticsamplerprocessor",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_resourcedetectionprocessor",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_resourceprocessor",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_filelogreceiver",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_prometheusreceiver",
     "com_github_opencontainers_go_digest",
     "com_github_opencontainers_image_spec",
     "com_github_opencontainers_runtime_spec",
@@ -389,6 +407,7 @@ use_repo(
     "com_github_vmihailenco_msgpack_v4",
     "com_github_vmihailenco_msgpack_v5",
     "com_github_wadey_gocovmerge",
+    "com_github_weppos_publicsuffix_go",
     "com_github_wi2l_jsondiff",
     "com_github_xeipuuv_gojsonschema",
     "com_github_xi2_xz",
@@ -436,6 +455,7 @@ use_repo(
     "io_opentelemetry_go_collector_confmap_provider_httpsprovider",
     "io_opentelemetry_go_collector_confmap_provider_yamlprovider",
     "io_opentelemetry_go_collector_confmap_xconfmap",
+    "io_opentelemetry_go_collector_consumer",
     "io_opentelemetry_go_collector_consumer_xconsumer",
     "io_opentelemetry_go_collector_exporter",
     "io_opentelemetry_go_collector_exporter_debugexporter",
@@ -449,6 +469,7 @@ use_repo(
     "io_opentelemetry_go_collector_pdata",
     "io_opentelemetry_go_collector_processor",
     "io_opentelemetry_go_collector_processor_batchprocessor",
+    "io_opentelemetry_go_collector_processor_processortest",
     "io_opentelemetry_go_collector_receiver",
     "io_opentelemetry_go_collector_receiver_otlpreceiver",
     "io_opentelemetry_go_collector_receiver_xreceiver",
@@ -460,6 +481,7 @@ use_repo(
     "io_opentelemetry_go_otel_exporters_otlp_otlptrace",
     "io_opentelemetry_go_otel_exporters_otlp_otlptrace_otlptracegrpc",
     "io_opentelemetry_go_otel_exporters_otlp_otlptrace_otlptracehttp",
+    "io_opentelemetry_go_otel_metric",
     "io_opentelemetry_go_otel_sdk",
     "io_opentelemetry_go_otel_sdk_metric",
     "io_opentelemetry_go_otel_trace",
@@ -502,6 +524,8 @@ use_repo(
     "org_uber_go_zap_exp",
     "tools_gotest_gotestsum",
 )
+
+use_repo_rule("//bazel/rules/go_fast:repo.bzl", "go_fast")(name = "go_fast")
 
 use_repo_rule("//bazel/rules/go_sdk_overrides:repo.bzl", "go_sdk_overrides")(name = "go_sdk_overrides")
 

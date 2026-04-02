@@ -243,16 +243,18 @@ type Event struct {
 	EntryOrLine output.Event
 	Return      output.Event
 	ServiceName string
+	ProcessTags string
 }
 
 type message struct {
-	Service   string           `json:"service"`
-	DDSource  ddDebuggerSource `json:"ddsource"`
-	Logger    logger           `json:"logger"`
-	Debugger  debuggerData     `json:"debugger"`
-	Timestamp int              `json:"timestamp"`
-	Duration  uint64           `json:"duration,omitzero"`
-	Message   *messageData     `json:"message,omitempty"`
+	Service     string           `json:"service"`
+	DDSource    ddDebuggerSource `json:"ddsource"`
+	Logger      logger           `json:"logger"`
+	Debugger    debuggerData     `json:"debugger"`
+	Timestamp   int              `json:"timestamp"`
+	Duration    uint64           `json:"duration,omitzero"`
+	Message     *messageData     `json:"message,omitempty"`
+	ProcessTags string           `json:"process_tags,omitempty"`
 }
 
 // populateStackPCsIfMissing populates the decoder's stackPCs map with stack PCs
@@ -293,6 +295,7 @@ func (s *message) init(
 	symbolicator symbol.Symbolicator,
 ) (ir.ProbeDefinition, error) {
 	s.Service = event.ServiceName
+	s.ProcessTags = event.ProcessTags
 	s.Debugger = debuggerData{
 		Snapshot: snapshotData{
 			ID:       uuid.New(),
@@ -324,11 +327,15 @@ func (s *message) init(
 		if whenDSL == "" {
 			whenDSL = "@when"
 		}
+		msg := "error evaluating condition"
+		if header.Condition_eval_error == 2 {
+			msg = errNilPointerEvaluating.Error()
+		}
 		s.Debugger.EvaluationErrors = append(
 			s.Debugger.EvaluationErrors,
 			evaluationError{
 				Expression: whenDSL,
-				Message:    "error evaluating condition",
+				Message:    msg,
 			},
 		)
 	}
@@ -361,11 +368,15 @@ func (s *message) init(
 			if whenDSL == "" {
 				whenDSL = "@when"
 			}
+			msg := "error evaluating condition"
+			if returnHeader.Condition_eval_error == 2 {
+				msg = errNilPointerEvaluating.Error()
+			}
 			s.Debugger.EvaluationErrors = append(
 				s.Debugger.EvaluationErrors,
 				evaluationError{
 					Expression: whenDSL,
-					Message:    "error evaluating condition",
+					Message:    msg,
 				},
 			)
 		}

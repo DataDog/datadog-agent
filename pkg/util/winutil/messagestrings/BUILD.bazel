@@ -1,0 +1,7 @@
+load("//bazel/rules:windows_resources.bzl", "win_messagetable")
+
+win_messagetable(
+    name = "messagetable",
+    src = "messagestrings.mc",
+    visibility = ["//visibility:public"],
+)
