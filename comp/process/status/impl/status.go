@@ -27,15 +27,16 @@ type dependencies struct {
 	Hostname hostnameinterface.Component
 }
 
-type provides struct {
+// Provides defines the output dependencies of the status component.
+type Provides struct {
 	compdef.Out
 
 	StatusProvider status.InformationProvider
 }
 
 // NewComponent creates the status component.
-func NewComponent(deps dependencies) provides {
-	return provides{
+func NewComponent(deps dependencies) Provides {
+	return Provides{
 		StatusProvider: status.NewInformationProvider(statusProvider{
 			config:   deps.Config,
 			hostname: deps.Hostname,
