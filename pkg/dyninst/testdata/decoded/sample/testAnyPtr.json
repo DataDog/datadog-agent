@@ -70,7 +70,8 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "nil"
+    "message": "nil",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
     "service": "sample",
@@ -144,7 +145,8 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "nil"
+    "message": "nil",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
     "service": "sample",
@@ -223,7 +225,8 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "nil"
+    "message": "nil",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
     "service": "sample",
@@ -302,7 +305,8 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "1"
+    "message": "1",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
     "service": "sample",
@@ -387,7 +391,8 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "1"
+    "message": "1",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
     "service": "sample",
@@ -478,6 +483,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "1"
+    "message": "1",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

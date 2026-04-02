@@ -123,6 +123,12 @@ func (pc *ProbeCommon) GetEvaluateAt() string { return pc.EvaluateAt }
 // expressions.
 func (pc *ProbeCommon) GetCaptureExpressions() []ir.CaptureExpressionDefinition { return nil }
 
+// GetWhen returns nil — probe types without a When field fire unconditionally.
+func (pc *ProbeCommon) GetWhen() json.RawMessage { return nil }
+
+// GetWhenDSL returns "" — probe types without a When field have no condition DSL.
+func (pc *ProbeCommon) GetWhenDSL() string { return "" }
+
 // Where specifies where in the target application a probe should be applied.
 type Where struct {
 	// TypeName is the name of the type (e.g. class) where the probe is located.
@@ -297,6 +303,22 @@ func (s JSONSegment) GetJSON() json.RawMessage {
 
 // TemplateSegment implements the TemplateSegment interface.
 func (s JSONSegment) TemplateSegment() {}
+
+// GetWhenDSL returns the human-readable DSL string for the condition, or "" if unconditional.
+func (l *LogProbeCommon) GetWhenDSL() string {
+	if l.When == nil {
+		return ""
+	}
+	return l.When.DSL
+}
+
+// GetWhen returns the JSON condition expression for the probe, or nil if unconditional.
+func (l *LogProbeCommon) GetWhen() json.RawMessage {
+	if l.When == nil {
+		return nil
+	}
+	return l.When.JSON
+}
 
 // GetCaptureConfig returns the capture configuration of the probe.
 func (l *LogProbeCommon) GetCaptureConfig() ir.CaptureConfig {

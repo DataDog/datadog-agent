@@ -1,0 +1,40 @@
+# gazelle:ignore
+# gazelle:exclude _obj
+# gazelle:exclude bytecode
+# gazelle:exclude compiler
+# gazelle:exclude ebpftest
+# gazelle:exclude features
+# gazelle:exclude kernelbugs
+# gazelle:exclude maps
+# gazelle:exclude names
+# gazelle:exclude perf
+# gazelle:exclude prebuilt
+# gazelle:exclude uprobes
+# gazelle:exclude verifier
+
+load("@rules_go//go:def.bzl", "go_binary")
+load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
+
+exports_files([
+    "types_linux.go",
+    "types_linux_test.go",
+])
+
+cgo_godefs(
+    name = "types_godefs",
+    src = "types.go",
+)
+
+# Hand-written: rules_go respects //go:build ignore, so strip it before compiling.
+genrule(
+    name = "include_headers_src",
+    srcs = ["include_headers.go"],
+    outs = ["include_headers_gen.go"],
+    cmd = "grep -v '^//go:build ignore' $< > $@",
+)
+
+go_binary(
+    name = "include_headers",
+    srcs = [":include_headers_src"],
+    visibility = ["//visibility:public"],
+)

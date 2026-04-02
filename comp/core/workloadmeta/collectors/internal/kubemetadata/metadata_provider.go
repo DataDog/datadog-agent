@@ -28,7 +28,6 @@ import (
 // - dcaPerPodProvider:      DCA < 1.3, uses per-pod service mappings endpoint
 // - dcaPerNodeProvider:     DCA >= 1.3, uses per-node service mappings endpoint
 // - dcaFullProvider:        DCA >= 7.55, adds namespace metadata endpoint
-// - streamProvider:         uses streaming endpoint (DCA >= 7.78 and opt-in)
 
 // metadataProvider abstracts how pod services and namespace metadata are
 // fetched.
@@ -252,63 +251,6 @@ func (p *dcaFullProvider) getNamespaceMetadata(ns string) (labels, annotations m
 
 	collected := p.nsCache.set(ns, fromClusterAgentMetadata(metadata))
 	return selectNamespaceMetadata(collected, p.collectNamespaceLabels, p.collectNamespaceAnnotations)
-}
-
-// streamProvider is used when the streaming endpoint is enabled and exposed in
-// the DCA.
-type streamProvider struct {
-	stream                      *streamClient
-	collectNamespaceLabels      bool
-	collectNamespaceAnnotations bool
-	nsCache                     namespaceCache
-}
-
-func newStreamProvider(
-	stream *streamClient,
-	collectNamespaceLabels bool,
-	collectNamespaceAnnotations bool,
-) *streamProvider {
-	return &streamProvider{
-		stream:                      stream,
-		collectNamespaceLabels:      collectNamespaceLabels,
-		collectNamespaceAnnotations: collectNamespaceAnnotations,
-		nsCache:                     newNamespaceCache(),
-	}
-}
-
-func (p *streamProvider) prepare(_ []*kubelet.Pod) error {
-	return nil
-}
-
-func (p *streamProvider) getKubernetesServices(pod *kubelet.Pod) []string {
-	services, found := p.stream.getServices(pod.Metadata.Namespace, pod.Metadata.Name)
-	if !found {
-		return nil
-	}
-
-	return services
-}
-
-func (p *streamProvider) getNamespaceMetadata(ns string) (labels, annotations map[string]string) {
-	if metadata, found := p.nsCache.get(ns); found {
-		return selectNamespaceMetadata(metadata, p.collectNamespaceLabels, p.collectNamespaceAnnotations)
-	}
-
-	nsLabels, nsAnnotations, found := p.stream.getNamespaceMetadata(ns)
-	if !found {
-		return nil, nil
-	}
-
-	metadata := namespaceMetadata{
-		labels:      nsLabels,
-		annotations: nsAnnotations,
-	}
-	p.nsCache.set(ns, metadata)
-	return selectNamespaceMetadata(metadata, p.collectNamespaceLabels, p.collectNamespaceAnnotations)
-}
-
-func (p *streamProvider) getCollectedNamespaces() map[string]namespaceMetadata {
-	return p.nsCache.getCollectedNamespaces()
 }
 
 func metadataNamesToServices(metadata []string) []string {

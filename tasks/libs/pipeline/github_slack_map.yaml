@@ -214,6 +214,13 @@
   review:
     name: '#data-jobs-monitoring'
     id: 'C05DAN6ULF6'
+'@datadog/data-observability':
+  notification:
+    name: '#data-observability-ops'
+    id: 'C08KJQRNRJ6'
+  review:
+    name: '#data-observability-dev'
+    id: 'C05VB5B6U1H'
 '@datadog/data-streams-monitoring':
   notification:
     name: '#data-streams-monitoring'
@@ -382,6 +389,13 @@
   review:
     name: '#universal-service-monitoring'
     id: 'C01R6Q0HQDD'
+'@datadog/q-branch':
+  notification:
+    name: '#agent-q-branch'
+    id: 'C09UDTU0H18'
+  review:
+    name: '#agent-q-branch'
+    id: 'C09UDTU0H18'
 '@datadog/windows-products':
   notification:
     name: '#windows-products-ops'

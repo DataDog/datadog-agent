@@ -471,7 +471,6 @@ def build_repackaged_agent(ctx, log_level="info"):
             {
                 "DD_CC": "x86_64-unknown-linux-gnu-gcc",
                 "DD_CXX": "x86_64-unknown-linux-gnu-g++",
-                "DD_CMAKE_TOOLCHAIN": "/opt/cmake/x86_64-unknown-linux-gnu.toolchain.cmake",
             }
         )
     elif architecture == "arm64":
@@ -479,7 +478,6 @@ def build_repackaged_agent(ctx, log_level="info"):
             {
                 "DD_CC": "aarch64-unknown-linux-gnu-gcc",
                 "DD_CXX": "aarch64-unknown-linux-gnu-g++",
-                "DD_CMAKE_TOOLCHAIN": "/opt/cmake/aarch64-unknown-linux-gnu.toolchain.cmake",
             }
         )
 

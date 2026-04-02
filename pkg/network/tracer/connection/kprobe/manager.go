@@ -125,6 +125,14 @@ func initManager(mgr *ddebpf.Manager, runtimeTracer bool) error {
 		&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.NetDevQueueRawTracepoint, UID: probeUID}, TracepointName: "net_dev_queue", TracepointCategory: "net"},
 	)
 
+	// These probes in both the runtime-compiled and CO-RE kprobe ELFs, not in
+	// the prebuilt ELF.  The manager will skip probes not found in the ELF.
+	mgr.Probes = append(mgr.Probes, slices.Map([]probes.ProbeFuncName{
+		probes.TCPEnterLoss,
+		probes.TCPEnterRecovery,
+		probes.TCPSendProbe0,
+	}, funcNameToProbe)...)
+
 	if !runtimeTracer {
 		// the runtime compiled tracer has no need for separate probes targeting specific kernel versions, since it can
 		// do that with #ifdefs inline. Thus, the following probes should only be declared as existing in the prebuilt

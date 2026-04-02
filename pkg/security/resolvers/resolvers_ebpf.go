@@ -91,7 +91,7 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 	var sbomResolver *sbom.Resolver
 
 	if config.RuntimeSecurity.SBOMResolverEnabled {
-		sbomResolver, err = sbom.NewSBOMResolver(config.RuntimeSecurity, statsdClient)
+		sbomResolver, err = sbom.NewSBOMResolver(config.RuntimeSecurity, statsdClient, opts.WorkloadMeta)
 		if err != nil {
 			return nil, err
 		}
@@ -106,7 +106,9 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 	var versionResolver func(servicePath string) string
 	if config.RuntimeSecurity.SBOMResolverEnabled && sbomResolver != nil {
 		versionResolver = func(servicePath string) string {
-			if pkg := sbomResolver.ResolvePackage("", &model.FileEvent{PathnameStr: servicePath}); pkg != nil {
+			if pkg := sbomResolver.ResolvePackage(&model.ProcessContext{
+				Process: model.Process{Credentials: model.Credentials{UID: 0xffff}},
+			}, &model.FileEvent{PathnameStr: servicePath}); pkg != nil {
 				return pkg.Version
 			}
 			return ""
