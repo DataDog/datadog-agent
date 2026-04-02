@@ -48,7 +48,8 @@ func OTLP(config pkgconfigmodel.Setup) {
 
 	// NOTE: This only partially works.
 	// The environment variable is also manually checked in comp/otelcol/otlp/config.go
-	config.BindEnvAndSetDefault("otlp_config.metrics.tag_cardinality", "low", "DD_OTLP_TAG_CARDINALITY")
+	config.BindEnvAndSetDefault("otlp_config.metrics.tag_cardinality", "low",
+		"DD_OTLP_CONFIG_METRICS_TAG_CARDINALITY", "DD_OTLP_TAG_CARDINALITY")
 
 	// Logs
 	config.BindEnvAndSetDefault("otlp_config.logs.enabled", false)
