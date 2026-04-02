@@ -392,8 +392,9 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 			if !e.captureRawAnomaly(anomaly) {
 				continue // duplicate
 			}
-			e.processAnomaly(anomaly)
+			correlatorTelemetry := e.processAnomaly(anomaly)
 			allAnomalies = append(allAnomalies, anomaly)
+			allTelemetry = append(allTelemetry, correlatorTelemetry...)
 			e.emit(engineEvent{
 				kind:      eventAnomalyCreated,
 				timestamp: anomaly.Timestamp,
@@ -409,7 +410,9 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 	// historical-timestamp anomalies before Advance(upTo) evicts them.
 	for _, correlator := range correlators {
 		e.accumulateCorrelations(correlator.ActiveCorrelations())
+		advanceStart := time.Now()
 		correlator.Advance(upTo)
+		allTelemetry = append(allTelemetry, newTelemetryGauge([]string{"detector:" + correlator.Name()}, telemetryDetectorProcessingTimeNs, float64(time.Since(advanceStart).Nanoseconds()), upTo))
 		e.emit(engineEvent{
 			kind:      eventCorrelationUpdated,
 			timestamp: upTo,

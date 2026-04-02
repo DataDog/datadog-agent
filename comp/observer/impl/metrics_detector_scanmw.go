@@ -294,7 +294,7 @@ func (d *ScanMWDetector) scanMW(points []observer.Point, series *observer.Series
 	seriesName := series.Name + ":" + aggSuffix(agg)
 	anomaly := observer.Anomaly{
 		Type:         observer.AnomalyTypeMetric,
-		Source:       observer.SeriesDescriptor{Namespace: series.Namespace, Name: series.Name, Aggregate: agg},
+		Source:       observer.SeriesDescriptor{Namespace: series.Namespace, Name: series.Name, Tags: series.Tags, Aggregate: agg},
 		DetectorName: d.Name(),
 		Title:        "ScanMW changepoint: " + seriesName,
 		Description: fmt.Sprintf("%s %s (pre_median=%.4f, post_median=%.4f, p=%.2e, effect=%.2f, %.1f MADs)",
@@ -328,7 +328,7 @@ func (d *ScanMWDetector) ensureDefaults() {
 		d.MinEffectSize = 0.85
 	}
 	if d.MinDeviationMAD <= 0 {
-		d.MinDeviationMAD = 15.0
+		d.MinDeviationMAD = 3.0
 	}
 	if d.series == nil {
 		d.series = make(map[scanmwStateKey]*scanmwSeriesState)

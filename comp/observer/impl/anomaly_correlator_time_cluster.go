@@ -138,6 +138,12 @@ func (c *TimeClusterCorrelator) isNearCluster(ts int64, incomingInterval int64, 
 	if incomingInterval > proximity {
 		proximity = incomingInterval
 	}
+	// Cap proximity at half the window to prevent pathological sampling intervals
+	// (e.g. 3600s) from clustering all anomalies together.
+	maxProximity := c.config.WindowSeconds / 2
+	if maxProximity > 0 && proximity > maxProximity {
+		proximity = maxProximity
+	}
 	return ts >= cluster.minTimestamp-proximity && ts <= cluster.maxTimestamp+proximity
 }
 

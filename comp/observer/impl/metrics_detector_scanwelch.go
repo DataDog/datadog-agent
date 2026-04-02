@@ -340,7 +340,7 @@ func (d *ScanWelchDetector) ensureDefaults() {
 		d.MinEffectSize = 0.85
 	}
 	if d.MinDeviationMAD <= 0 {
-		d.MinDeviationMAD = 15.0
+		d.MinDeviationMAD = 3.0
 	}
 	if d.series == nil {
 		d.series = make(map[scanwelchStateKey]*scanwelchSeriesState)
