@@ -150,6 +150,8 @@ func (s *packageDDOTSuite) TestInstallDDOTExtensionWithoutDatadogYAML() {
 		aptRepoVersion := env["TESTING_APT_REPO_VERSION"]
 		keyring := "/usr/share/keyrings/datadog-archive-keyring.gpg"
 
+		s.Env().RemoteHost.MustExecute(
+			`sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y apt-transport-https curl gnupg`)
 		s.Env().RemoteHost.MustExecute(fmt.Sprintf(
 			`sudo touch %s && sudo chmod a+r %s`, keyring, keyring))
 		for _, key := range []string{
