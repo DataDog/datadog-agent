@@ -14,8 +14,9 @@ import (
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
+	logsagentpipeline "github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/def"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -26,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 
-	"go.uber.org/fx"
 	"go.uber.org/zap"
 )
 
@@ -39,9 +39,9 @@ const (
 
 // Dependencies specifies the list of dependencies needed to initialize the logs agent
 type Dependencies struct {
-	fx.In
+	compdef.In
 
-	Lc           fx.Lifecycle
+	Lc           compdef.Lifecycle
 	Log          log.Component
 	Config       configComponent.Component
 	Hostname     hostnameinterface.Component
@@ -86,7 +86,7 @@ func NewLogsAgent(deps Dependencies) logsagentpipeline.LogsAgent {
 			intakeOrigin: deps.IntakeOrigin,
 		}
 		if deps.Lc != nil {
-			deps.Lc.Append(fx.Hook{
+			deps.Lc.Append(compdef.Hook{
 				OnStart: logsAgent.Start,
 				OnStop:  logsAgent.Stop,
 			})

@@ -22,7 +22,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	gpusubscriberfxmock "github.com/DataDog/datadog-agent/comp/process/gpusubscriber/fx-mock"
-	"github.com/DataDog/datadog-agent/comp/process/processcheck"
+	processcheck "github.com/DataDog/datadog-agent/comp/process/processcheck/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -89,7 +89,7 @@ func TestProcessChecksIsEnabled(t *testing.T) {
 					return &statsd.NoOpClient{}
 				}),
 				fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
-				Module(),
+				fx.Provide(NewCheck),
 			))
 			assert.Equal(t, tc.enabled, c.Object().IsEnabled())
 		})

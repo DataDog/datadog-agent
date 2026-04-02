@@ -11,19 +11,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/mock"
-	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/checks/mocks"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
-
-// MockModule defines the fx options for the mock component.
-func MockModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newMock))
-}
 
 var _ types.CheckComponent = (*mockCheck)(nil)
 
@@ -35,7 +27,8 @@ func (m *mockCheck) Object() checks.Check {
 	return m.mock
 }
 
-func newMock(t testing.TB, params types.MockCheckParams[*checks.ProcessCheck]) types.ProvidesCheck {
+// NewMock creates a new mock processcheck component for testing.
+func NewMock(t testing.TB, params types.MockCheckParams[*checks.ProcessCheck]) types.ProvidesCheck {
 	c := mocks.NewCheck(t)
 	if params.OrchestrateMock == nil {
 		c.On("Init", mock.Anything, mock.Anything, mock.AnythingOfType("bool")).Return(nil).Maybe()
