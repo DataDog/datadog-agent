@@ -45,6 +45,16 @@ type hashedMetricTagList struct {
 	action action
 }
 
+func newHashedMetricTagList(action action, tags []uint64) hashedMetricTagList {
+	// The tags must be sorted as we do a binary search to test membership.
+	slices.Sort(tags)
+
+	return hashedMetricTagList{
+		action: action,
+		tags:   tags,
+	}
+}
+
 func NewEmptyTagMatcher() filterlist.TagMatcher {
 	return tagMatcher{
 		MetricTags: map[string]hashedMetricTagList{},
@@ -69,8 +79,6 @@ func newTagMatcher(metrics map[string]MetricTagList, log log.Component) tagMatch
 			tags = append(tags, murmur3.StringSum64(tag))
 		}
 
-		slices.Sort(tags)
-
 		var act action
 		switch v.Action {
 		case "include":
@@ -83,10 +91,7 @@ func newTagMatcher(metrics map[string]MetricTagList, log log.Component) tagMatch
 			log.Warnf("`metric_tag_filterlist.%s.action` configuration value %q should be either `include` or `exclude`. Defaulting to `exclude`.", k, v.Action)
 			act = exclude
 		}
-		hashed[k] = hashedMetricTagList{
-			tags:   tags,
-			action: act,
-		}
+		hashed[k] = newHashedMetricTagList(act, tags)
 	}
 
 	return tagMatcher{
@@ -116,7 +121,9 @@ func (m tagMatcher) ShouldStripTags(metricName string) (func(tag string) bool, b
 	keepTag := func(tag string) bool {
 		hashedTag := murmur3.StringSum64(tagName(tag))
 		_, found := slices.BinarySearch(tm.tags, hashedTag)
-		return found != bool(tm.action)
+		keep := found != bool(tm.action)
+
+		return keep
 	}
 
 	return keepTag, ok
