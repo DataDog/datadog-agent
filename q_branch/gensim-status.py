@@ -801,8 +801,35 @@ def _probe_local() -> str:
         return "[dim]✕[/dim] unavailable"
 
 
+def _probe_aws_auth() -> str:
+    """Check AWS auth via sts get-caller-identity. Returns a short status string."""
+    try:
+        r = subprocess.run(
+            ["aws", "sts", "get-caller-identity", "--output", "json"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if r.returncode == 0 and r.stdout.strip():
+            data = json.loads(r.stdout.strip())
+            arn = data.get("Arn", "")
+            # Show just the role/user name, not the full ARN
+            short = arn.rsplit("/", 1)[-1] if "/" in arn else arn
+            return f"[green]✓[/green] {short}"
+        return "[red]✕[/red] not authenticated"
+    except FileNotFoundError:
+        return "[dim]✕[/dim] aws cli not installed"
+    except Exception:
+        return "[red]✕[/red] auth failed"
+
+
 def _probe_remote() -> str:
     """Quick synchronous probe: is a remote EKS run active? Returns status string."""
+    # First check AWS auth — everything else depends on it.
+    aws_status = _probe_aws_auth()
+    if "✕" in aws_status:
+        return f"[dim]✕[/dim] AWS: {aws_status}"
+
     kc = os.environ.get("KUBECONFIG", f"{_STACK_NAME}-kubeconfig.yaml")
     try:
         r = subprocess.run(
@@ -820,15 +847,15 @@ def _probe_remote() -> str:
                 running = sum(1 for s in statuses if s == "running")
                 done = sum(1 for s in statuses if s == "done")
                 if running:
-                    return f"[yellow]●[/yellow] {running} running, {done} done"
-                return f"[green]●[/green] {len(eps)} done"
-            return "[yellow]●[/yellow] run detected"
+                    return f"[yellow]●[/yellow] {running} running, {done} done  (AWS: {aws_status})"
+                return f"[green]●[/green] {len(eps)} done  (AWS: {aws_status})"
+            return f"[yellow]●[/yellow] run detected  (AWS: {aws_status})"
         # Check if kubeconfig exists
         if Path(kc).exists():
-            return "[dim]○[/dim] cluster reachable, no active run"
-        return "[dim]✕[/dim] no kubeconfig"
+            return f"[dim]○[/dim] no active run  (AWS: {aws_status})"
+        return f"[dim]✕[/dim] no kubeconfig  (AWS: {aws_status})"
     except Exception:
-        return "[dim]✕[/dim] unavailable"
+        return f"[dim]✕[/dim] cluster unreachable  (AWS: {aws_status})"
 
 
 class ModeOption(Static):
