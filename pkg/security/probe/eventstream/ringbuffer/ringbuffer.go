@@ -14,12 +14,25 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf/ringbuf"
+	"golang.org/x/sys/unix"
 
 	ebpfTelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/eventstream"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
+
+func parseSchedPolicy(policy string) (int, error) {
+	switch policy {
+	case "SCHED_FIFO":
+		return unix.SCHED_FIFO, nil
+	case "SCHED_RR":
+		return unix.SCHED_RR, nil
+	default:
+		return 0, fmt.Errorf("unsupported scheduling policy: %q", policy)
+	}
+}
 
 // RingBuffer implements the EventStream interface
 // using an eBPF map of type BPF_MAP_TYPE_RINGBUF
@@ -42,6 +55,26 @@ func (rb *RingBuffer) Init(mgr *manager.Manager, config *config.Config) error {
 		},
 		RecordHandler:    rb.handleEvent,
 		TelemetryEnabled: config.InternalTelemetryEnabled,
+	}
+
+	if config.EventStreamSchedulingPolicy != "" {
+		schedPolicy, err := parseSchedPolicy(config.EventStreamSchedulingPolicy)
+		if err != nil {
+			return err
+		}
+		rb.ringBuffer.RingBufferOptions.SchedPolicy = schedPolicy
+		rb.ringBuffer.RingBufferOptions.SchedPriority = config.EventStreamSchedulingPriority
+
+		errChan := make(chan error, 1)
+		rb.ringBuffer.RingBufferOptions.ErrChan = errChan
+		go func() {
+			for err := range errChan {
+				log.Warnf("ring buffer reader error: %v", err)
+			}
+		}()
+
+		log.Infof("ring buffer reader configured with %s priority %d",
+			config.EventStreamSchedulingPolicy, config.EventStreamSchedulingPriority)
 	}
 
 	ebpfTelemetry.ReportRingBufferTelemetry(rb.ringBuffer)
