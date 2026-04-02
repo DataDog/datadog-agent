@@ -159,6 +159,7 @@ type multiFakeIntakeSuite struct {
 }
 
 func TestMultiFakeintakeSuite(t *testing.T) {
+	t.Parallel()
 	e2e.Run(t, &multiFakeIntakeSuite{}, e2e.WithProvisioner(multiFakeIntakeAWS()))
 }
 
