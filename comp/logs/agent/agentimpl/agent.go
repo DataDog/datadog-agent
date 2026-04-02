@@ -11,11 +11,14 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
 	"go.uber.org/atomic"
 	"go.uber.org/fx"
+
+	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils/stream"
@@ -26,6 +29,7 @@ import (
 	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
@@ -85,6 +89,7 @@ type dependencies struct {
 	SchedulerProviders []schedulers.Scheduler `group:"log-agent-scheduler"`
 	Tagger             tagger.Component
 	Compression        logscompression.Component
+	HealthPlatform     healthplatformdef.Component
 }
 
 type provides struct {
@@ -122,6 +127,8 @@ type logAgent struct {
 	schedulerProviders        []schedulers.Scheduler
 	integrationsLogs          integrations.Component
 	compression               logscompression.Component
+
+	healthPlatform healthplatformdef.Component
 
 	// make sure this is done only once, when we're ready
 	prepareSchedulers sync.Once
@@ -162,6 +169,7 @@ func newLogsAgent(deps dependencies) provides {
 			integrationsLogs:   integrationsLogs,
 			tagger:             deps.Tagger,
 			compression:        deps.Compression,
+			healthPlatform:     deps.HealthPlatform,
 		}
 		deps.Lc.Append(fx.Hook{
 			OnStart: logsAgent.start,
@@ -193,6 +201,8 @@ func (a *logAgent) start(context.Context) error {
 	defer a.restartMutex.Unlock()
 
 	a.log.Info("Starting logs-agent...")
+
+	a.detectMissingHostTags()
 
 	// setup the server config
 	endpoints, err := buildEndpoints(a.config)
@@ -299,6 +309,64 @@ func (a *logAgent) startSchedulers() {
 		a.log.Info("logs-agent started")
 		a.started.Store(status.StatusRunning)
 	})
+}
+
+// logsHostTagsCheckID and logsHostTagsCheckName mirror the constants from the
+// logs-host-tags-missing issue package. They are inlined here to avoid an
+// import cycle between comp/logs/agent/agentimpl and the issue sub-package.
+const (
+	logsHostTagsCheckID   = "logs-host-tags-config"
+	logsHostTagsCheckName = "Logs-Only Agent Host Tags Configuration"
+	logsHostTagsIssueID   = "logs-host-tags-missing"
+)
+
+// detectMissingHostTags checks whether the agent is in logs-only mode without
+// any host-level tags configured, and reports (or clears) the issue via the
+// health platform.
+//
+// The issue is reported when all three conditions hold:
+//  1. Logs collection is enabled (implicit: we are inside start()).
+//  2. The agent is in logs-only mode: metric payloads (series and events) are
+//     both disabled.
+//  3. No host-level tags are configured (neither via config key "tags" nor
+//     the DD_TAGS environment variable).
+func (a *logAgent) detectMissingHostTags() {
+	if a.healthPlatform == nil {
+		return
+	}
+
+	// Condition 2: logs-only mode — both series and events payloads disabled.
+	seriesEnabled := a.config.GetBool("enable_payloads.series")
+	eventsEnabled := a.config.GetBool("enable_payloads.events")
+	if seriesEnabled || eventsEnabled {
+		// Not logs-only mode; clear any stale issue and return.
+		if err := a.healthPlatform.ReportIssue(logsHostTagsCheckID, logsHostTagsCheckName, nil); err != nil {
+			a.log.Warnf("Failed to clear logs host tags missing issue: %v", err)
+		}
+		return
+	}
+
+	// Condition 3: no host tags configured.
+	tags := a.config.GetStringSlice("tags")
+	ddTags := os.Getenv("DD_TAGS")
+
+	if len(tags) == 0 && ddTags == "" {
+		report := &healthplatformpayload.IssueReport{
+			IssueId: logsHostTagsIssueID,
+			Context: map[string]string{
+				"logsEnabled":    "true",
+				"tagsConfigured": "false",
+			},
+			Tags: []string{"logs", "tags", "configuration", "logs-only", "host-tags"},
+		}
+		if err := a.healthPlatform.ReportIssue(logsHostTagsCheckID, logsHostTagsCheckName, report); err != nil {
+			a.log.Warnf("Failed to report logs host tags missing issue: %v", err)
+		}
+	} else {
+		if err := a.healthPlatform.ReportIssue(logsHostTagsCheckID, logsHostTagsCheckName, nil); err != nil {
+			a.log.Warnf("Failed to clear logs host tags missing issue: %v", err)
+		}
+	}
 }
 
 func (a *logAgent) stop(context.Context) error {
