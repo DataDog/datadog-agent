@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// go:build render_config
-
 package main
 
 import (
@@ -207,7 +205,7 @@ func lint(destFile string) error {
 		// if there are no nodes then all comments are removed, so this
 		// allows us to make a comparison even for files which only have comments,
 		// such as system-probe.yaml.
-		normalized = append(normalized, []byte("lint_testing: true # ignore me\n")...)
+		normalized = append(normalized, []byte("\nlint_testing: true # ignore me\n")...)
 		if err := yaml.Unmarshal(normalized, &root); err != nil {
 			return fmt.Errorf("lint: YAML unmarshal failed: %w", err)
 		}

@@ -18,7 +18,7 @@
           {
             "function": "main.inlined",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 78
+            "lineNumber": 194
           },
           {
             "function": "main.main",
@@ -61,7 +61,8 @@
         }
       ]
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
     "service": "simple",
@@ -82,12 +83,12 @@
           {
             "function": "main.inlined",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 79
+            "lineNumber": 195
           },
           {
             "function": "main.funcArg",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 83
+            "lineNumber": 199
           },
           {
             "function": "main.main",
@@ -125,6 +126,7 @@
       "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

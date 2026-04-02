@@ -50,7 +50,7 @@ pub struct Service {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub log_files: Vec<String>,
     pub apm_instrumentation: bool,
-    pub language: Language,
+    pub language: Option<Language>,
 }
 
 // getServices processes categorized PID lists and returns service information
@@ -130,10 +130,10 @@ fn get_service(
         None => None,
         Some(path) => tracer_metadata::get_tracer_metadata_from_path(path).ok(),
     };
-    let language = match tracer_metadata {
-        Some(ref metadata) => metadata.tracer_language,
-        None => Language::detect(pid, &exe, &cmdline, open_files_info),
-    };
+    let language = tracer_metadata
+        .as_ref()
+        .and_then(|m| Language::from_tracer_str(&m.tracer_language))
+        .or_else(|| Language::detect(pid, &exe, &cmdline, open_files_info));
 
     // Collect environment variables
     let envs = envs::get_target_envs(pid).ok()?;
@@ -144,12 +144,12 @@ fn get_service(
 
     // Create detection context for service name generation
     let mut ctx = service_name::DetectionContext::new(pid, envs.clone(), &fs);
-    let name_metadata = service_name::get(&language, &cmdline, &mut ctx);
+    let name_metadata = service_name::get(language.as_ref(), &cmdline, &mut ctx);
 
     // Detect APM instrumentation
     // If tracer metadata exists, the service is definitely instrumented
     let apm_instrumentation =
-        tracer_metadata.is_some() || apm::detect(&language, pid, &cmdline, &envs);
+        tracer_metadata.is_some() || apm::detect(language.as_ref(), pid, &cmdline, &envs);
 
     Some(Service {
         pid,

@@ -124,17 +124,31 @@ var testCases = []struct {
 	{name: "count", input: `{"count": {"ref": "payload"}}`},
 	{name: "substring negative", input: `{"substring": [{"ref": "s"}, -5, -1]}`},
 	{name: "nested filter with any", input: `{"len": {"filter": [{"ref": "collection"}, {"any": [{"ref": "@it"}, {"eq": [{"ref": "@it"}, 1]}]}]}}`},
-	// Test literal values (these should also fail - not objects)
+	// Test literal values
 	{name: "literal int", input: `42`},
 	{name: "literal bool", input: `true`},
+	// Test eq expressions
+	{name: "eq with int", input: `{"eq": [{"ref": "x"}, 42]}`},
+	{name: "eq with string", input: `{"eq": [{"ref": "name"}, "hello"]}`},
+	{name: "eq with float", input: `{"eq": [{"ref": "x"}, 3.14]}`},
+	{name: "literal string", input: `"hello"`},
+	{name: "literal float", input: `3.14`},
+	{name: "literal false", input: `false`},
+	{name: "literal null", input: `null`},
+	// Test len/isEmpty inside eq
+	{name: "eq with len", input: `{"eq": [{"len": {"ref": "s"}}, 5]}`},
+	{name: "eq with isEmpty", input: `{"eq": [{"isEmpty": {"ref": "s"}}, true]}`},
 }
 
 // exprResult represents the result of parsing an expression for storage in JSON.
 type exprResult struct {
-	Type      string          `json:"type"`          // "ref", "unsupported", or "error"
+	Type      string          `json:"type"`          // "ref", "unsupported", "eq", "literal", or "error"
 	Ref       string          `json:"ref,omitempty"` // Ref value (used for ref expressions)
 	Operation string          `json:"operation"`
 	Argument  json.RawMessage `json:"argument,omitempty"` // Raw json argument (used for unsupported expressions)
+	Left      *exprResult     `json:"left,omitempty"`     // Left operand (used for eq expressions)
+	Right     *exprResult     `json:"right,omitempty"`    // Right operand (used for eq expressions)
+	Value     any             `json:"value,omitempty"`    // Literal value
 	Error     string          `json:"error"`
 }
 
@@ -151,6 +165,18 @@ func exprToResult(expr Expr, err error) exprResult {
 		baseJSON, _ := json.Marshal(e.Base)
 		argJSON, _ := json.Marshal([]interface{}{json.RawMessage(baseJSON), e.Member})
 		return exprResult{Type: "unsupported", Operation: "getmember", Argument: json.RawMessage(argJSON)}
+	case *LenExpr:
+		operand := exprToResult(e.Operand, nil)
+		return exprResult{Type: "len", Left: &operand}
+	case *IsEmptyExpr:
+		operand := exprToResult(e.Operand, nil)
+		return exprResult{Type: "isEmpty", Left: &operand}
+	case *EqExpr:
+		left := exprToResult(e.Left, nil)
+		right := exprToResult(e.Right, nil)
+		return exprResult{Type: "eq", Left: &left, Right: &right}
+	case *LiteralExpr:
+		return exprResult{Type: "literal", Value: e.Value}
 	case *UnsupportedExpr:
 		return exprResult{Type: "unsupported", Operation: e.Operation, Argument: json.RawMessage(e.Argument)}
 	default:
@@ -254,6 +280,18 @@ func TestParse(t *testing.T) {
 			switch expr.(type) {
 			case *RefExpr:
 				require.Equal(t, expectedResult.Ref, actualResult.Ref, "ref value mismatch")
+			case *LenExpr, *IsEmptyExpr:
+				actualJSON, _ := json.Marshal(actualResult)
+				expectedJSON, _ := json.Marshal(expectedResult)
+				require.JSONEq(t, string(expectedJSON), string(actualJSON), "len/isEmpty expression mismatch")
+			case *EqExpr:
+				actualJSON, _ := json.Marshal(actualResult)
+				expectedJSON, _ := json.Marshal(expectedResult)
+				require.JSONEq(t, string(expectedJSON), string(actualJSON), "eq expression mismatch")
+			case *LiteralExpr:
+				actualJSON, _ := json.Marshal(actualResult)
+				expectedJSON, _ := json.Marshal(expectedResult)
+				require.JSONEq(t, string(expectedJSON), string(actualJSON), "literal expression mismatch")
 			case *UnsupportedExpr:
 				if expectedResult.Argument == nil {
 					require.Equal(t, json.RawMessage("null"), actualResult.Argument, "argument mismatch")

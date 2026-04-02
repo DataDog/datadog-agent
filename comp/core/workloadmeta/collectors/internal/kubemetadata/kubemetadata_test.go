@@ -9,8 +9,6 @@ package kubemetadata
 
 import (
 	"context"
-	"errors"
-	"reflect"
 	"testing"
 	"time"
 
@@ -29,6 +27,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
+
+type fakeKubeUtil struct {
+	kubelet.KubeUtil
+	nodeName string
+}
+
+func (f *fakeKubeUtil) GetNodename(_ context.Context) (string, error) { return f.nodeName, nil }
 
 type FakeDCAClient struct {
 	LocalVersion                 version.Version
@@ -136,6 +141,62 @@ func (f *FakeDCAClient) PostLanguageMetadata(_ context.Context, _ *pbgo.ParentLa
 
 func (f *FakeDCAClient) SupportsNamespaceMetadataCollection() bool {
 	return f.LocalVersion.Major >= 7 && f.LocalVersion.Minor >= 55
+}
+
+func TestCollector_selectPullBasedProvider(t *testing.T) {
+	tests := []struct {
+		name      string
+		collector collector
+		wantType  interface{}
+	}{
+		{
+			name: "local apiserver provider when DCA is disabled",
+			collector: collector{
+				dcaClient: nil,
+			},
+			wantType: &localAPIServerProvider{},
+		},
+		{
+			name: "per-pod provider for DCA < 1.3",
+			collector: collector{
+				dcaEnabled: true,
+				dcaClient: &FakeDCAClient{
+					LocalVersion: version.Version{Major: 1, Minor: 2},
+				},
+			},
+			wantType: &dcaPerPodProvider{},
+		},
+		{
+			name: "per-node provider for DCA >= 1.3 and < 7.55",
+			collector: collector{
+				dcaEnabled: true,
+				kubeUtil:   &fakeKubeUtil{nodeName: "node-a"},
+				dcaClient: &FakeDCAClient{
+					LocalVersion: version.Version{Major: 7, Minor: 54},
+				},
+			},
+			wantType: &dcaPerNodeProvider{},
+		},
+		{
+			name: "full provider for DCA >= 7.55",
+			collector: collector{
+				dcaEnabled: true,
+				kubeUtil:   &fakeKubeUtil{nodeName: "node-a"},
+				dcaClient: &FakeDCAClient{
+					LocalVersion: version.Version{Major: 7, Minor: 55},
+				},
+			},
+			wantType: &dcaFullProvider{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			provider, err := tt.collector.selectPullBasedProvider(context.TODO())
+			assert.NoError(t, err)
+			assert.IsType(t, tt.wantType, provider)
+		})
+	}
 }
 
 func TestCollector_detectExpiredNamespace(t *testing.T) {
@@ -254,281 +315,11 @@ func TestCollector_createUnsetEvent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := &collector{}
-			event := c.createUnsetEvent(tt.seenID)
+			event := createUnsetEvent(tt.seenID)
 
 			assert.Equal(t, workloadmeta.EventTypeUnset, event.Type)
 			assert.Equal(t, workloadmeta.SourceClusterOrchestrator, event.Source)
 			assert.Equal(t, tt.wantEntity, event.Entity)
-		})
-	}
-}
-
-func TestKubeMetadataCollector_getMetadata(t *testing.T) {
-	type fields struct {
-		dcaClient           clusteragent.DCAClientInterface
-		clusterAgentEnabled bool
-	}
-	type args struct {
-		getPodMetaDataFromAPIServerFunc func(string, string, string) ([]string, error)
-		metadataByNsPods                apiv1.NamespacesPodsStringsSet
-		po                              *kubelet.Pod
-	}
-
-	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		want    []string
-		wantErr bool
-	}{
-		{
-			name: "clusterAgentEnabled not enable",
-			args: args{
-				getPodMetaDataFromAPIServerFunc: func(string, string, string) ([]string, error) {
-					return []string{"foo=bar"}, nil
-				},
-				po: &kubelet.Pod{},
-			},
-			fields: fields{
-				clusterAgentEnabled: false,
-				dcaClient:           &FakeDCAClient{},
-			},
-			want:    []string{"foo=bar"},
-			wantErr: false,
-		},
-
-		{
-			name: "clusterAgentEnabled not enable, APIserver return error",
-			args: args{
-				getPodMetaDataFromAPIServerFunc: func(string, string, string) ([]string, error) {
-					return nil, errors.New("fake error")
-				},
-				po: &kubelet.Pod{},
-			},
-			fields: fields{
-				clusterAgentEnabled: false,
-				dcaClient:           &FakeDCAClient{},
-			},
-			want:    nil,
-			wantErr: true,
-		},
-
-		{
-			name: "clusterAgentEnabled enable, but old version",
-			args: args{
-				getPodMetaDataFromAPIServerFunc: func(string, string, string) ([]string, error) {
-					return []string{"foo=bar"}, nil
-				},
-				po: &kubelet.Pod{},
-			},
-			fields: fields{
-				clusterAgentEnabled: true,
-				dcaClient: &FakeDCAClient{
-					LocalVersion:            version.Version{Major: 1, Minor: 2},
-					KubernetesMetadataNames: []string{"foo=bar"},
-				},
-			},
-			want:    []string{"foo=bar"},
-			wantErr: false,
-		},
-
-		{
-			name: "clusterAgentEnabled enable, but old version",
-			args: args{
-				getPodMetaDataFromAPIServerFunc: func(string, string, string) ([]string, error) {
-					return []string{"foo=bar"}, nil
-				},
-				po: &kubelet.Pod{},
-			},
-			fields: fields{
-				clusterAgentEnabled: true,
-				dcaClient:           &clusteragent.DCAClient{},
-			},
-			want:    []string{"foo=bar"},
-			wantErr: false,
-		},
-
-		{
-			name: "clusterAgentEnabled enable, but old version, DCS return error",
-			args: args{
-				getPodMetaDataFromAPIServerFunc: func(string, string, string) ([]string, error) {
-					return []string{"foo=bar"}, nil
-				},
-				po: &kubelet.Pod{},
-			},
-			fields: fields{
-				clusterAgentEnabled: true,
-				dcaClient: &FakeDCAClient{
-					LocalVersion:               version.Version{Major: 1, Minor: 2},
-					KubernetesMetadataNamesErr: errors.New("fake error"),
-				},
-			},
-			want:    nil,
-			wantErr: true,
-		},
-
-		{
-			name: "clusterAgentEnabled enable with new version",
-			args: args{
-				getPodMetaDataFromAPIServerFunc: func(string, string, string) ([]string, error) {
-					return []string{"foo=bar"}, nil
-				},
-				po: &kubelet.Pod{Metadata: kubelet.PodMetadata{
-					Namespace: "test",
-					Name:      "pod-bar",
-				}},
-				metadataByNsPods: apiv1.NamespacesPodsStringsSet{
-					"test": apiv1.MapStringSet{
-						"pod-bar": sets.New("foo=bar"),
-					},
-				},
-			},
-			fields: fields{
-				clusterAgentEnabled: true,
-				dcaClient: &FakeDCAClient{
-					LocalVersion: version.Version{Major: 1, Minor: 3},
-				},
-			},
-			want:    []string{"foo=bar"},
-			wantErr: false,
-		},
-		{
-			name: "clusterAgentEnabled enable with new version (error case, pod not exist)",
-			args: args{
-				getPodMetaDataFromAPIServerFunc: func(string, string, string) ([]string, error) {
-					return []string{"foo=bar"}, nil
-				},
-				po: &kubelet.Pod{Metadata: kubelet.PodMetadata{
-					Namespace: "test",
-					Name:      "pod-bar",
-				}},
-				metadataByNsPods: apiv1.NamespacesPodsStringsSet{
-					"test": apiv1.MapStringSet{},
-				},
-			},
-			fields: fields{
-				clusterAgentEnabled: true,
-				dcaClient: &FakeDCAClient{
-					LocalVersion: version.Version{Major: 1, Minor: 3},
-				},
-			},
-			want:    nil,
-			wantErr: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			c := &collector{
-				dcaClient:  tt.fields.dcaClient,
-				dcaEnabled: tt.fields.clusterAgentEnabled,
-			}
-			got, err := c.getMetadata(tt.args.getPodMetaDataFromAPIServerFunc, tt.args.metadataByNsPods, tt.args.po)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("KubeMetadataCollector.getMetadaNames() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("KubeMetadataCollector.getMetadaNames() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestKubeMetadataCollector_getNamespaceMetadata(t *testing.T) {
-	type fields struct {
-		dcaClient           clusteragent.DCAClientInterface
-		clusterAgentEnabled bool
-	}
-
-	tests := []struct {
-		name                       string
-		fields                     fields
-		namespaceAnnotationsAsTags map[string]string
-		namespaceLabelsAsTags      map[string]string
-		want                       *workloadmeta.EntityMeta
-		wantErr                    bool
-	}{
-		{
-			name:    "no namespace annotations as tags and no namespace labels as tags",
-			want:    nil,
-			wantErr: false,
-		},
-		{
-			name: "cluster agent not enabled",
-			fields: fields{
-				clusterAgentEnabled: false,
-				dcaClient:           &FakeDCAClient{},
-			},
-			namespaceAnnotationsAsTags: map[string]string{
-				"annot-key": "annot-tag",
-			},
-			namespaceLabelsAsTags: map[string]string{
-				"label-key": "label-tag",
-			},
-			want:    nil,
-			wantErr: true,
-		},
-		{
-			name: "cluster agent enabled",
-			fields: fields{
-				clusterAgentEnabled: true,
-				dcaClient: &FakeDCAClient{
-					LocalVersion: version.Version{Major: 1, Minor: 12},
-					NamespaceMetadata: clusteragent.Metadata{
-						Annotations: map[string]string{
-							"annot-key": "value",
-						},
-						Labels: map[string]string{
-							"label-key": "value",
-						},
-					},
-				},
-			},
-			namespaceAnnotationsAsTags: map[string]string{
-				"annot-key": "annot-tag",
-			},
-			namespaceLabelsAsTags: map[string]string{
-				"label-key": "label-tag",
-			},
-			want: &workloadmeta.EntityMeta{
-				Labels:      map[string]string{"label-key": "value"},
-				Annotations: map[string]string{"annot-key": "value"},
-			},
-			wantErr: false,
-		},
-		{
-			name: "cluster agent enabled and failed to get namespace metadata",
-			fields: fields{
-				clusterAgentEnabled: true,
-				dcaClient: &FakeDCAClient{
-					LocalVersion:         version.Version{Major: 1, Minor: 12},
-					NamespaceMetadataErr: errors.New("failed to get namespace metadata"),
-				},
-			},
-			namespaceAnnotationsAsTags: map[string]string{
-				"key": "tag",
-			},
-			namespaceLabelsAsTags: map[string]string{
-				"key": "tag",
-			},
-			want:    nil,
-			wantErr: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			c := &collector{
-				dcaClient:                   tt.fields.dcaClient,
-				dcaEnabled:                  tt.fields.clusterAgentEnabled,
-				collectNamespaceAnnotations: len(tt.namespaceAnnotationsAsTags) > 0,
-				collectNamespaceLabels:      len(tt.namespaceLabelsAsTags) > 0,
-			}
-
-			metadata, err := c.getNamespaceMetadata("foo")
-			assert.True(t, (err != nil) == tt.wantErr)
-			assert.EqualValues(&testing.T{}, tt.want, metadata)
 		})
 	}
 }
@@ -555,6 +346,11 @@ func TestKubeMetadataCollector_parsePods(t *testing.T) {
 	}}
 	podsCache := kubelet.PodList{
 		Items: pods,
+	}
+	podMetadata := apiv1.NamespacesPodsStringsSet{
+		"default": apiv1.MapStringSet{
+			"foo": sets.New("svc1", "svc2"),
+		},
 	}
 
 	type fields struct {
@@ -587,8 +383,8 @@ func TestKubeMetadataCollector_parsePods(t *testing.T) {
 				dcaEnabled:             true,
 				collectNamespaceLabels: true,
 				dcaClient: &FakeDCAClient{
-					LocalVersion:            version.Version{Major: 1, Minor: 3},
-					KubernetesMetadataNames: []string{"svc1", "svc2"},
+					LocalVersion:       version.Version{Major: 1, Minor: 3},
+					PodMetadataForNode: podMetadata,
 					NamespaceLabels: map[string]string{
 						"label": "value",
 					},
@@ -709,8 +505,8 @@ func TestKubeMetadataCollector_parsePods(t *testing.T) {
 				collectNamespaceLabels:      true,
 				collectNamespaceAnnotations: true,
 				dcaClient: &FakeDCAClient{
-					LocalVersion:            version.Version{Major: 1, Minor: 3},
-					KubernetesMetadataNames: []string{"svc1", "svc2"},
+					LocalVersion:       version.Version{Major: 1, Minor: 3},
+					PodMetadataForNode: podMetadata,
 					NamespaceLabels: map[string]string{
 						"label": "value",
 					},
@@ -777,8 +573,8 @@ func TestKubeMetadataCollector_parsePods(t *testing.T) {
 				collectNamespaceLabels:      true,
 				collectNamespaceAnnotations: true,
 				dcaClient: &FakeDCAClient{
-					LocalVersion:            version.Version{Major: 7, Minor: 55},
-					KubernetesMetadataNames: []string{"svc1", "svc2"},
+					LocalVersion:       version.Version{Major: 7, Minor: 55},
+					PodMetadataForNode: podMetadata,
 					NamespaceLabels: map[string]string{
 						"label": "value",
 					},
@@ -858,8 +654,8 @@ func TestKubeMetadataCollector_parsePods(t *testing.T) {
 				collectNamespaceLabels:      true,
 				collectNamespaceAnnotations: false,
 				dcaClient: &FakeDCAClient{
-					LocalVersion:            version.Version{Major: 7, Minor: 55},
-					KubernetesMetadataNames: []string{"svc1", "svc2"},
+					LocalVersion:       version.Version{Major: 7, Minor: 55},
+					PodMetadataForNode: podMetadata,
 					NamespaceLabels: map[string]string{
 						"label": "value",
 					},
@@ -935,8 +731,8 @@ func TestKubeMetadataCollector_parsePods(t *testing.T) {
 				dcaEnabled:             true,
 				collectNamespaceLabels: false,
 				dcaClient: &FakeDCAClient{
-					LocalVersion:            version.Version{Major: 1, Minor: 3},
-					KubernetesMetadataNames: []string{"svc1", "svc2"},
+					LocalVersion:       version.Version{Major: 1, Minor: 3},
+					PodMetadataForNode: podMetadata,
 					NamespaceLabels: map[string]string{
 						"label": "value",
 					},

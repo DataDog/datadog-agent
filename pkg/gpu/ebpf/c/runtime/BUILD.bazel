@@ -1,4 +1,6 @@
-load("//bazel/rules:ebpf.bzl", "ebpf_program_suite")
+load("//bazel/rules/ebpf:ebpf.bzl", "ebpf_program_suite")
+
+exports_files(["gpu.c"])
 
 ebpf_program_suite(
     name = "gpu",

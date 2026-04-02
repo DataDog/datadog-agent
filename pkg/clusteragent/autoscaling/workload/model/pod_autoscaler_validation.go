@@ -28,6 +28,16 @@ func ValidateAutoscalerSpec(spec *datadoghq.DatadogPodAutoscalerSpec) error {
 	if err := validateFallback(spec.Fallback); err != nil {
 		return err
 	}
+	if err := validateApplyPolicy(spec.ApplyPolicy); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateApplyPolicy(policy *datadoghq.DatadogPodAutoscalerApplyPolicy) error {
+	if policy == nil || policy.Update == nil {
+		return nil
+	}
 	return nil
 }
 

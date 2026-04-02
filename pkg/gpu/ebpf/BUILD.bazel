@@ -1,0 +1,14 @@
+# gazelle:ignore
+
+load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
+
+exports_files([
+    "kprobe_types_linux.go",
+    "kprobe_types_linux_test.go",
+])
+
+cgo_godefs(
+    name = "kprobe_types_godefs",
+    src = "kprobe_types.go",
+    hdrs = ["//pkg/gpu/ebpf/c:gpu_headers"],
+)

@@ -12,6 +12,10 @@
 #include "queue.h"
 #include "chased_pointers_trie.h"
 
+// Sentinel value for nil_bit_idx indicating no nil bit should be set
+// (used by condition expressions which report nil via condition_eval_error).
+#define NIL_BIT_IDX_NONE 0xFFFFFFFF
+
 const int32_t defaultCollectionSizeBytesLimit = 512;
 
 DEFINE_BINARY_SEARCH(
@@ -611,6 +615,108 @@ sm_resolve_go_any_type(global_ctx_t* global_ctx, resolved_go_any_type_t* r) {
 //   return true;
 // }
 
+// copy_from_code_ctx_t is the context for copying bytes from the stack machine
+// code array into the scratch buffer, using bpf_loop.
+typedef struct copy_from_code_ctx {
+  scratch_buf_t* buf;
+  buf_offset_t dst;
+  uint32_t src_pc;
+  bool failed;
+} copy_from_code_ctx_t;
+
+static long copy_from_code_loop(unsigned long i, void* _ctx) {
+  copy_from_code_ctx_t* ctx = (copy_from_code_ctx_t*)_ctx;
+  // Look up the code map first.
+  uint32_t zero = 0;
+  uint8_t* code = bpf_map_lookup_elem(&stack_machine_code, &zero);
+  if (!code) {
+    ctx->failed = true;
+    return 1;
+  }
+  // Bounds check src right before access (after map lookup, so verifier
+  // state is fresh).
+  uint64_t src = (uint64_t)(uint32_t)(ctx->src_pc + (uint32_t)i);
+  barrier_var(src);
+  if (src >= stack_machine_code_len) {
+    ctx->failed = true;
+    return 1;
+  }
+  uint8_t val = code[src];
+  barrier_var(val);
+  // Bounds check dst right before write.
+  buf_offset_t dst = ctx->dst + i;
+  if (!scratch_buf_bounds_check(&dst, 1)) {
+    ctx->failed = true;
+    return 1;
+  }
+  (*ctx->buf)[dst] = val;
+  LOG(4, "copy_from_code_loop: i=%d, dst=%d, val=%d", i, dst, val);
+  return 0;
+}
+
+__attribute__((noinline)) bool
+sm_copy_from_code(scratch_buf_t* buf, buf_offset_t dst,
+                  uint32_t src_pc, uint32_t byte_size) {
+  if (!buf) {
+    return false;
+  }
+  copy_from_code_ctx_t ctx = {
+      .buf = buf,
+      .dst = dst,
+      .src_pc = src_pc,
+      .failed = false,
+  };
+  bpf_loop(byte_size, copy_from_code_loop, &ctx, 0);
+  return !ctx.failed;
+}
+
+// cmp_eq_bytes_ctx_t is the context for comparing two byte sequences in the
+// scratch buffer, using bpf_loop.
+typedef struct cmp_eq_bytes_ctx {
+  scratch_buf_t* buf;
+  buf_offset_t lhs;
+  buf_offset_t rhs;
+  bool equal;
+} cmp_eq_bytes_ctx_t;
+
+static long cmp_eq_bytes_loop(unsigned long i, void* _ctx) {
+  cmp_eq_bytes_ctx_t* ctx = (cmp_eq_bytes_ctx_t*)_ctx;
+  buf_offset_t lhs = ctx->lhs + i;
+  buf_offset_t rhs = ctx->rhs + i;
+  if (!scratch_buf_bounds_check(&lhs, 1)) {
+    return 1;
+  }
+  if (!scratch_buf_bounds_check(&rhs, 1)) {
+    return 1;
+  }
+  char lhs_val = (*ctx->buf)[lhs];
+  char rhs_val = (*ctx->buf)[rhs];
+  barrier_var(lhs_val);
+  barrier_var(rhs_val);
+  LOG(4, "cmp_eq_bytes_loop: i=%d, lhs=%d, rhs=%d, lhs_val=%d, rhs_val=%d", i, lhs, rhs, lhs_val, rhs_val);
+  if (lhs_val != rhs_val) {
+    ctx->equal = false;
+    return 1;
+  }
+  return 0;
+}
+
+__attribute__((noinline)) bool
+sm_cmp_eq_bytes(scratch_buf_t* buf, buf_offset_t lhs, buf_offset_t rhs,
+                uint32_t len) {
+  if (!buf) {
+    return false;
+  }
+  cmp_eq_bytes_ctx_t ctx = {
+      .buf = buf,
+      .lhs = lhs,
+      .rhs = rhs,
+      .equal = true,
+  };
+  bpf_loop(len, cmp_eq_bytes_loop, &ctx, 0);
+  return ctx.equal;
+}
+
 static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
   global_ctx_t* ctx = (global_ctx_t*)_ctx;
   scratch_buf_t* buf = ctx->buf;
@@ -627,7 +733,7 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     return 1;
   }
   const sm_opcode_t op = (sm_opcode_t)sm_read_program_uint8(sm);
-  LOG(4, "%6x %s %s", sm->pc - 1, padding(sm->pc_stack_pointer), op_code_name(op));
+  LOG(4, "%6llx %s %s", (uint64_t)(sm->pc - 1), padding(sm->pc_stack_pointer), op_code_name(op));
   if (sm->pc >= stack_machine_code_len - stack_machine_code_max_op + 1) {
     return 1;
   }
@@ -813,13 +919,23 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     LOG(4, "EXPR_DEREFERENCE_PTR: starting");
     uint32_t bias = sm_read_program_uint32(sm);
     uint32_t byte_len = sm_read_program_uint32(sm);
+    uint32_t nil_bit_idx = sm_read_program_uint32(sm);
     buf_offset_t value_offset = sm->offset;
     if (!scratch_buf_bounds_check(&value_offset, sizeof(target_ptr_t))) {
       return 1;
     }
     target_ptr_t addr = *(target_ptr_t*)&((*buf)[value_offset]);
     if (addr == 0) {
-      // NULL pointer: abort expression evaluation.
+      // NULL pointer: set nil bit in presence bitset if applicable.
+      if (nil_bit_idx != NIL_BIT_IDX_NONE) {
+        buf_offset_t nil_byte_offset = sm->expr_results_offset + nil_bit_idx / 8;
+        uint32_t nil_bit = nil_bit_idx % 8;
+        if (scratch_buf_bounds_check(&nil_byte_offset, 1)) {
+          (*buf)[nil_byte_offset] |= (1 << nil_bit);
+        }
+      }
+      sm->condition_nil_deref = true;
+      // Abort expression evaluation.
       scratch_buf_set_len(buf, sm->expr_results_end_offset);
       if (!sm_return(sm)) {
         return 1;
@@ -1259,6 +1375,156 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     //   sm->go_context_capture_bitmask = 0;
     // } break;
 
+  case SM_OP_EXPR_PUSH_OFFSET: {
+    uint32_t byte_size = sm_read_program_uint32(sm);
+    if (!sm_data_stack_push(sm, sm->offset)) {
+      return 1;
+    }
+    sm->offset += byte_size;
+  } break;
+
+  case SM_OP_EXPR_LOAD_LITERAL: {
+    uint16_t byte_size = sm_read_program_uint16(sm);
+    if (byte_size > 255 || byte_size == 0) {
+      LOG(1, "enqueue: load_literal: invalid byte_size %d", byte_size);
+      return 1;
+    }
+    if (!sm_copy_from_code(buf, sm->offset, sm->pc, (uint32_t)byte_size)) {
+      return 1;
+    }
+    sm->pc += byte_size;
+  } break;
+
+  case SM_OP_EXPR_READ_STRING: {
+    uint16_t max_len = sm_read_program_uint16(sm);
+    if (max_len > 255) {
+      max_len = 255;
+    }
+    // Read Go string header at sm->offset: ptr (8 bytes) + len (8 bytes).
+    if (!scratch_buf_bounds_check(&sm->offset, 16)) {
+      return 1;
+    }
+    uint64_t str_ptr = *(uint64_t*)(&(*buf)[sm->offset]);
+    uint64_t str_len = *(uint64_t*)(&(*buf)[sm->offset + 8]);
+
+    // Push current offset onto data stack (bookmark).
+    if (!sm_data_stack_push(sm, sm->offset)) {
+      return 1;
+    }
+
+    // Cap the length.
+    uint32_t capped_len = str_len;
+    if (capped_len > max_len) {
+      capped_len = max_len;
+    }
+
+    // Overwrite in-place: [u32 len][bytes...]
+    // Use constant 259 (4 + max 255) so the verifier sees a compile-time bound.
+    if (!scratch_buf_bounds_check(&sm->offset, 259)) {
+      return 1;
+    }
+    *(uint32_t*)(&(*buf)[sm->offset]) = capped_len;
+
+    // Read string data from userspace.
+    if (capped_len > 0 && str_ptr != 0) {
+      buf_offset_t data_offset = sm->offset + 4;
+      bpf_probe_read_user(&(*buf)[data_offset], capped_len & 0xFF, (void*)str_ptr);
+    }
+
+    // Advance offset past materialized data.
+    sm->offset += 4 + capped_len;
+  } break;
+
+  case SM_OP_EXPR_CMP_EQ_BASE: {
+    uint8_t byte_size = sm_read_program_uint8(sm);
+    if (byte_size > 8 || byte_size == 0) {
+      LOG(1, "enqueue: cmp_eq_base: invalid byte_size %d", byte_size);
+      return 1;
+    }
+    // Pop LHS offset from data stack.
+    if (sm->data_stack_pointer == 0) {
+      LOG(1, "enqueue: cmp_eq_base: empty data stack");
+      return 1;
+    }
+    sm->data_stack_pointer--;
+    if (sm->data_stack_pointer >= ENQUEUE_STACK_DEPTH) {
+      return 1;
+    }
+    uint32_t lhs_offset = sm->data_stack[sm->data_stack_pointer];
+    sm->data_stack[sm->data_stack_pointer] = 0;
+
+    buf_offset_t lhs_off = lhs_offset;
+    buf_offset_t rhs_off = sm->offset;
+    if (!scratch_buf_bounds_check(&lhs_off, 8) ||
+        !scratch_buf_bounds_check(&rhs_off, 8)) {
+      return 1;
+    }
+
+    bool eq = sm_cmp_eq_bytes(buf, lhs_off, rhs_off, (uint32_t)byte_size);
+
+    // Write bool result at sm->offset.
+    if (!scratch_buf_bounds_check(&sm->offset, 1)) {
+      return 1;
+    }
+    (*buf)[sm->offset] = eq ? 1 : 0;
+  } break;
+
+  case SM_OP_EXPR_CMP_EQ_STRING: {
+    // Pop LHS offset from data stack.
+    if (sm->data_stack_pointer == 0) {
+      LOG(1, "enqueue: cmp_eq_string: empty data stack");
+      return 1;
+    }
+    sm->data_stack_pointer--;
+    if (sm->data_stack_pointer >= ENQUEUE_STACK_DEPTH) {
+      return 1;
+    }
+    uint32_t lhs_offset = sm->data_stack[sm->data_stack_pointer];
+    sm->data_stack[sm->data_stack_pointer] = 0;
+
+    buf_offset_t lhs_off = lhs_offset;
+    buf_offset_t rhs_off = sm->offset;
+    // Both have format: [u32 len][bytes...]
+    if (!scratch_buf_bounds_check(&lhs_off, 4) ||
+        !scratch_buf_bounds_check(&rhs_off, 4)) {
+      return 1;
+    }
+    uint32_t lhs_len = *(uint32_t*)(&(*buf)[lhs_off]);
+    uint32_t rhs_len = *(uint32_t*)(&(*buf)[rhs_off]);
+
+    uint8_t result = 0;
+    if (lhs_len == rhs_len) {
+      uint32_t cmp_len = lhs_len;
+      if (cmp_len > 256) {
+        cmp_len = 256;
+      }
+      result = sm_cmp_eq_bytes(buf, lhs_off + 4, rhs_off + 4, cmp_len) ? 1 : 0;
+    }
+
+    // Write result at sm->offset.
+    if (!scratch_buf_bounds_check(&sm->offset, 1)) {
+      return 1;
+    }
+    (*buf)[sm->offset] = result;
+  } break;
+
+  case SM_OP_CONDITION_BEGIN: {
+    sm->condition_eval_error = true;
+  } break;
+
+  case SM_OP_CONDITION_CHECK: {
+    sm->condition_eval_error = false;
+    if (!scratch_buf_bounds_check(&sm->offset, 1)) {
+      return 1;
+    }
+    uint8_t val = (*buf)[sm->offset];
+    if (val == 0) {
+      sm->condition_failed = true;
+      LOG(1, "condition check failed");
+      return 1; // Abort stack machine.
+    }
+  } break;
+
   default:
     LOG(1, "enqueue: @0x%x unknown instruction %d\n", sm->pc - 1, op);
     return 1;
@@ -1286,6 +1552,9 @@ stack_machine_process_frame(global_ctx_t* ctx, frame_data_t* frame_data,
   ctx->stack_machine->pc = entrypoint;
   ctx->stack_machine->offset = scratch_buf_len(ctx->buf);
   ctx->stack_machine->frame_data = *frame_data;
+  ctx->stack_machine->condition_failed = false;
+  ctx->stack_machine->condition_eval_error = false;
+  ctx->stack_machine->condition_nil_deref = false;
   return sm_run(ctx);
 }
 
@@ -1293,6 +1562,9 @@ __attribute__((always_inline)) int
 stack_machine_chase_pointers(global_ctx_t* ctx) {
   ctx->stack_machine->pc = chase_pointers_entrypoint;
   ctx->stack_machine->offset = scratch_buf_len(ctx->buf);
+  ctx->stack_machine->condition_failed = false;
+  ctx->stack_machine->condition_eval_error = false;
+  ctx->stack_machine->condition_nil_deref = false;
   return sm_run(ctx);
 }
 

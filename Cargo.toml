@@ -50,12 +50,13 @@ zip = { version = "2.1", default-features = false, features = ["deflate"] }
 
 tower = "0.4"
 uuid = { version = "1", features = ["v4"] }
+windows-sys = { version = "0.59", features = [] }
 
 # dev-dependencies
 dircpy = "0.3.19"
 regex = "1"
 memmap2 = "0.9"
-nix = { version = "0.30", features = ["signal"] }
+nix = { version = "0.31", features = ["signal"] }
 scopeguard = "1.2"
 temp-env = "0.3"
 tempfile = "3.0"
@@ -63,4 +64,3 @@ tempfile = "3.0"
 [profile.release]
 lto = "fat"
 opt-level = "z"
-strip = "symbols"

@@ -1,4 +1,5 @@
-load("//bazel/rules:ebpf.bzl", "ebpf_prog")
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("//bazel/rules/ebpf:ebpf.bzl", "ebpf_prog")
 
 # CO-RE program
 ebpf_prog(
@@ -9,5 +10,16 @@ ebpf_prog(
 )
 
 # detect-seccomp-bug is a native binary (not eBPF), x86 only.
-# It's compiled with gcc -static -lseccomp in the ninja build.
-# Keeping it out of the eBPF Bazel rules for now.
+cc_binary(
+    name = "detect-seccomp-bug",
+    srcs = ["detect-seccomp-bug.c"],
+    linkopts = [
+        "-static",
+        "-Wl,--gc-sections",
+    ],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    deps = ["@libseccomp"],
+)

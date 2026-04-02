@@ -127,11 +127,13 @@ func (m *MetaBundleStore) Subscribe(nodeName string) <-chan struct{} {
 }
 
 // Unsubscribe removes a subscriber.
-func (m *MetaBundleStore) Unsubscribe(nodeName string) {
+func (m *MetaBundleStore) Unsubscribe(nodeName string, ch <-chan struct{}) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	delete(m.subscribers, nodeName)
+	if m.subscribers[nodeName] == ch {
+		delete(m.subscribers, nodeName)
+	}
 }
 
 // notifyLocked signals the subscriber for the given node.

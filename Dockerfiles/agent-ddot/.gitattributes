@@ -1,0 +1,2 @@
+# CRLF breaks the heredoc (RUNSCRIPT)
+Dockerfile.agent-otel text eol=lf
