@@ -22,11 +22,14 @@ static __always_inline void fill_path_safe(lib_path_t *path, const char *path_ar
     }
 }
 
-static __always_inline long _bpf_copy_from_user(void *dst, u32 size, const void *user_ptr) {
+static __always_inline long _bpf_copy_from_user(void *dst, u32 size, const void *user_ptr, bool allowed) {
 #if defined(COMPILE_RUNTIME) && LINUX_VERSION_CODE > KERNEL_VERSION(5, 10, 0)
     return bpf_copy_from_user_with_telemetry(dst, size, user_ptr);
 #elif defined(COMPILE_CORE)
-    return bpf_copy_from_user_with_telemetry(dst, size, user_ptr);
+    if (allowed)
+        return bpf_copy_from_user_with_telemetry(dst, size, user_ptr);
+    else
+        return bpf_probe_read_user_with_telemetry(dst, size, user_ptr);
 #else
     return bpf_probe_read_user_with_telemetry(dst, size, user_ptr);
 #endif
@@ -34,21 +37,13 @@ static __always_inline long _bpf_copy_from_user(void *dst, u32 size, const void 
 
 static __always_inline long fill_path(lib_path_t *path, const char *path_argument) {
 #if defined(COMPILE_RUNTIME) && LINUX_VERSION_CODE > KERNEL_VERSION(5, 10, 0)
-    return _bpf_copy_from_user(&path->buf, sizeof(path->buf), path_argument);
+    return _bpf_copy_from_user(&path->buf, sizeof(path->buf), path_argument, true);
 #elif defined(COMPILE_CORE)
     u64 sleepable = 0;
     LOAD_CONSTANT("sleepable_shared_libraries", sleepable);
-    if (sleepable & path->sleepable_mask)
-        return _bpf_copy_from_user(&path->buf, sizeof(path->buf), path_argument);
-    else {
-        return bpf_probe_read_user_with_telemetry(&path->buf, sizeof(path->buf), path_argument);
-        //if (bpf_probe_read_user(&path->buf, sizeof(path->buf), path_argument) < 0)
-        //    fill_path_loop(path, path_argument);
-    }
+    return _bpf_copy_from_user(&path->buf, sizeof(path->buf), path_argument, sleepable & path->sleepable_mask);
 #else
     return bpf_probe_read_user_with_telemetry(&path->buf, sizeof(path->buf), path_argument);
-   // if (bpf_probe_read_user(&path->buf, sizeof(path->buf), path_argument) < 0)
-   //     fill_path_loop(path, path_argument);
 #endif
 }
 
@@ -223,9 +218,11 @@ SEC("tracepoint/syscalls/sys_enter_openat2")
 int tracepoint__syscalls__sys_enter_openat2(enter_sys_openat2_ctx *args) {
     CHECK_BPF_PROGRAM_BYPASSED()
 
+    u64 sleepable = 0;
+    LOAD_CONSTANT("sleepable_shared_libraries", sleepable);
     if (args->how != NULL) {
         __u64 flags = 0;
-        _bpf_copy_from_user(&flags, sizeof(flags), &args->how->flags);
+        _bpf_copy_from_user(&flags, sizeof(flags), &args->how->flags, sleepable & SLEEPBALE_SYS_OPENAT2_MASK);
         if (should_ignore_flags(flags)) {
             return 0;
         }
@@ -260,7 +257,9 @@ int BPF_BYPASSABLE_PROG(__x64_sys_openat2_exit, const struct pt_regs *regs, long
     if (bpf_probe_read_kernel_with_telemetry(&how, sizeof(how), &PT_REGS_PARM3(regs)) < 0 || how == NULL)
         return 0;
 
-    if (_bpf_copy_from_user(&flags, sizeof(flags), &how->flags) < 0)
+    u64 sleepable = 0;
+    LOAD_CONSTANT("sleepable_shared_libraries", sleepable);
+    if (_bpf_copy_from_user(&flags, sizeof(flags), &how->flags, sleepable & SLEEPBALE_SYS_OPENAT2_MASK) < 0)
         return 0;
 
     if (should_ignore_flags(flags))
