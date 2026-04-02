@@ -206,4 +206,21 @@ func TestMultilineParserLimit(t *testing.T) {
 	assert.Equal(t, "clean", string(msg.GetContent()))
 	assert.False(t, msg.ParsingExtra.IsTruncated)
 	assert.Equal(t, msg.RawDataLen, 14)
+
+	// a complete (non-partial) frame at the limit should NOT corrupt the next line
+	oversized := strings.Repeat("x", contentLenLimit)
+	logMessage = message.NewMessage([]byte(header+oversized+"\\n"), nil, "", 0)
+	lineParser.process(logMessage, 7+len(oversized))
+
+	msg = <-lineHandler.ch
+	assert.Equal(t, oversized+truncFlag, string(msg.GetContent()))
+	assert.True(t, msg.ParsingExtra.IsTruncated)
+
+	// next unrelated line must be clean — no leftover shouldTruncate state
+	logMessage = message.NewMessage([]byte(header+"next\\n"), nil, "", 0)
+	lineParser.process(logMessage, 12)
+
+	msg = <-lineHandler.ch
+	assert.Equal(t, "next", string(msg.GetContent()))
+	assert.False(t, msg.ParsingExtra.IsTruncated)
 }

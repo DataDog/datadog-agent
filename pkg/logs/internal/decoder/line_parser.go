@@ -158,6 +158,11 @@ func (p *MultiLineParser) process(input *message.Message, rawDataLen int) {
 	if !msg.ParsingExtra.IsPartial || p.buffer.Len() >= p.lineLimit {
 		// the current chunk marks the end of an aggregated line
 		p.sendLine()
+		if !msg.ParsingExtra.IsPartial {
+			// complete frame — no continuation expected, so clear truncation state
+			// to avoid corrupting the next unrelated log line
+			p.shouldTruncate = false
+		}
 	}
 	if p.buffer.Len() > 0 {
 		// since there's buffered data, start the flush timer to flush it
