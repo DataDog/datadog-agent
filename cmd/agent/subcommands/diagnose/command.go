@@ -106,7 +106,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams:    log.ForOneShot("CORE", cliParams.logLevelDefaultOff.Value(), true),
 				}),
-				core.Bundle(),
+				core.Bundle(core.WithSecrets()),
 				// workloadmeta setup
 				wmcatalog.GetCatalog(),
 				workloadmetafx.Module(workloadmeta.Params{
