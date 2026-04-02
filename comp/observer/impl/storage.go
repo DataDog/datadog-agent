@@ -981,6 +981,51 @@ func (s *timeSeriesStorage) ForEachPoint(
 	return true
 }
 
+// SumRange returns the aggregate total over the time range (start, end] without
+// allocating any intermediate slices. It operates directly on the columnar
+// data arrays, using binary search to locate the range boundaries.
+// Returns 0 if the series is not found or the range is empty.
+func (s *timeSeriesStorage) SumRange(ref observer.SeriesRef, start, end int64, agg Aggregate) float64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	stats := s.resolveByID(ref)
+	if stats == nil {
+		return 0
+	}
+
+	lo := searchAfter(stats.timestamps, start)
+	hi := searchAfter(stats.timestamps, end)
+	if lo >= hi {
+		return 0
+	}
+
+	var total float64
+	switch agg {
+	case AggregateSum:
+		for _, v := range stats.sums[lo:hi] {
+			total += v
+		}
+	case AggregateCount:
+		for _, c := range stats.counts[lo:hi] {
+			total += float64(c)
+		}
+	case AggregateMin:
+		for _, v := range stats.mins[lo:hi] {
+			total += v
+		}
+	case AggregateMax:
+		for _, v := range stats.maxes[lo:hi] {
+			total += v
+		}
+	default: // AggregateAverage
+		for i := lo; i < hi; i++ {
+			total += stats.aggregateAt(i, agg)
+		}
+	}
+	return total
+}
+
 // snapshotRange copies points for a time range into buf under the read lock.
 // Returns the series metadata, the (potentially grown) buffer, and whether the
 // series was found.

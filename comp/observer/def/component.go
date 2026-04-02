@@ -634,6 +634,13 @@ type StorageReader interface {
 	// Uses binary search for efficiency. Returns 0 if the series is not found.
 	PointCountUpTo(handle SeriesRef, endTime int64) int
 
+	// SumRange returns the sum of the specified aggregate over all points with
+	// timestamp in (start, end] without allocating any intermediate slices.
+	// Returns 0 if the series is not found or the range is empty.
+	// This is more efficient than ForEachPoint when only the aggregate total
+	// is needed (e.g. computing an average rate over a window).
+	SumRange(handle SeriesRef, start, end int64, agg Aggregate) float64
+
 	// WriteGeneration returns a per-series counter that increments on every
 	// write to that series, including same-bucket merges. Use this to detect
 	// updates to an existing series even when its point count does not change.

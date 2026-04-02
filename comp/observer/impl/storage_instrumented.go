@@ -81,12 +81,16 @@ func newCallHasher() *callHasher {
 	return &callHasher{h: fnv.New64a()}
 }
 
-func (c *callHasher) mixBytes(data []byte)  { c.h.Write(data) }
-func (c *callHasher) mixString(v string)    { c.h.Write([]byte(v)) }
-func (c *callHasher) mixUint64(v uint64)    { var b [8]byte; binary.LittleEndian.PutUint64(b[:], v); c.h.Write(b[:]) }
-func (c *callHasher) mixInt64(v int64)      { c.mixUint64(uint64(v)) }
-func (c *callHasher) mixFloat64(v float64)  { c.mixUint64(math.Float64bits(v)) }
-func (c *callHasher) sum() uint64           { return c.h.Sum64() }
+func (c *callHasher) mixBytes(data []byte) { c.h.Write(data) }
+func (c *callHasher) mixString(v string)   { c.h.Write([]byte(v)) }
+func (c *callHasher) mixUint64(v uint64) {
+	var b [8]byte
+	binary.LittleEndian.PutUint64(b[:], v)
+	c.h.Write(b[:])
+}
+func (c *callHasher) mixInt64(v int64)     { c.mixUint64(uint64(v)) }
+func (c *callHasher) mixFloat64(v float64) { c.mixUint64(math.Float64bits(v)) }
+func (c *callHasher) sum() uint64          { return c.h.Sum64() }
 
 func (c *callHasher) mixSeriesIdentity(namespace, name string, tags []string) {
 	c.mixString(namespace)
@@ -206,6 +210,21 @@ func (s *instrumentedStorage) PointCountUpTo(ref observerdef.SeriesRef, endTime 
 	ch.mixString("PointCountUpTo")
 	ch.mixInt64(endTime)
 	ch.mixInt64(int64(result))
+	s.callHashes = append(s.callHashes, ch.sum())
+	return result
+}
+
+func (s *instrumentedStorage) SumRange(ref observerdef.SeriesRef, start, end int64, agg observerdef.Aggregate) float64 {
+	s.readCount++
+	result := s.inner.SumRange(ref, start, end, agg)
+
+	ch := newCallHasher()
+	ch.mixString("SumRange")
+	ch.mixInt64(int64(ref))
+	ch.mixInt64(start)
+	ch.mixInt64(end)
+	ch.mixInt64(int64(agg))
+	ch.mixFloat64(result)
 	s.callHashes = append(s.callHashes, ch.sum())
 	return result
 }

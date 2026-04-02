@@ -286,7 +286,7 @@ func NewComponent(deps Requires) Provides {
 
 	// Optionally add the event reporter when sending is enabled via config.
 	if cfg.GetBool("observer.event_reporter.sending_enabled") {
-		if sender, err := newEventSender(deps.Config, deps.Log); err != nil {
+		if sender, err := newEventSender(deps.Config, deps.Log, eng.Storage()); err != nil {
 			deps.Log.Warnf("[observer] event_reporter disabled: %v", err)
 		} else {
 			eventReporter := &EventReporter{sender: sender, logger: deps.Log}
@@ -429,9 +429,9 @@ type observerImpl struct {
 	// fetcher pulls traces/profiles from remote trace-agents
 	fetcher *observerFetcher
 
-	telemetryHandler    *telemetryHandler
-	digestCleanup      func() // flushes detect digest recording file
-	advanceLogCleanup  func() // flushes advance log recording file
+	telemetryHandler  *telemetryHandler
+	digestCleanup     func() // flushes detect digest recording file
+	advanceLogCleanup func() // flushes advance log recording file
 }
 
 // run is the main dispatch loop, processing all observations sequentially.
@@ -638,9 +638,9 @@ func (o *observerImpl) DumpMetrics(path string) error {
 // handle is the lightweight observation interface passed to other components.
 // It only holds a channel and source name - all processing happens in the observer.
 type handle struct {
-	ch         chan<- observation
-	source     string
-	dropCount  *atomic.Int64 // shared counter for channel-full drops (nil = don't track)
+	ch        chan<- observation
+	source    string
+	dropCount *atomic.Int64 // shared counter for channel-full drops (nil = don't track)
 }
 
 // ObserveMetric observes a DogStatsD metric sample.
