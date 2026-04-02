@@ -119,7 +119,7 @@ func (tb *TestBench) WriteObserverOutput(path string, verbose bool) error {
 
 		if verbose {
 			oc.Title = corr.Title
-			oc.Message = correlationMessage(corr, tb.engine.Storage())
+			oc.Message = buildChangeMessage(corr, tb.engine.Storage())
 			oc.Tags = []string{"source:agent-q-branch-observer", "pattern:" + corr.Pattern}
 			oc.MemberSeries = make([]string, len(corr.Members))
 			for j, m := range corr.Members {

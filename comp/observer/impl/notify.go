@@ -73,67 +73,6 @@ func logPatternRate(a observerdef.Anomaly, storage observerdef.StorageReader) (r
 	return 0, false
 }
 
-// correlationMessage builds the event message body for a correlation.
-func correlationMessage(c observerdef.ActiveCorrelation, storage observerdef.StorageReader) string {
-	var metricLines, logLines []string
-	for _, a := range c.Anomalies {
-		if a.Description == "" {
-			continue
-		}
-		if a.Type == observerdef.AnomalyTypeLog {
-			logLines = append(logLines, "- "+a.Description)
-		} else {
-			var pattern string
-			if a.Context != nil {
-				pattern = strings.TrimSpace(a.Context.Pattern)
-			}
-			// If this metric is a log related one, find its pattern and create a custom message
-			// TODO(celian): Be sure that we don't have twice (pattern, tags) tuples
-			if a.Source.Namespace == LogPatternExtractorName && pattern != "" {
-				var tagsPart string
-				if len(a.Context.SplitTags) > 0 {
-					var parts []string
-					for _, k := range splitTagKeyOrder {
-						if v, ok := a.Context.SplitTags[k]; ok {
-							parts = append(parts, k+"="+v)
-						}
-					}
-					if len(parts) > 0 {
-						tagsPart = "\t[" + strings.Join(parts, ", ") + "]"
-					}
-				}
-				var example string
-				if a.Context.Example != "" {
-					example = "\tlog example: " + strings.TrimSpace(a.Context.Example)
-				}
-				var ratePart string
-				if rate, ok := logPatternRate(a, storage); ok {
-					ratePart = fmt.Sprintf("\tavg rate (60s): %.1flog/s", rate)
-				} else {
-					ratePart = "\tavg rate (60s): unknown"
-				}
-				logDescription := fmt.Sprintf("Log pattern change rate detected: %s%s%s%s", pattern, example, ratePart, tagsPart)
-				logLines = append(logLines, "- "+logDescription)
-			} else {
-				metricLines = append(metricLines, "- "+a.Description)
-			}
-		}
-	}
-	var sections []string
-	if len(metricLines) > 0 {
-		sections = append(sections, fmt.Sprintf("Metric anomalies (%d):\n%s", len(metricLines), strings.Join(metricLines, "\n")))
-	}
-	if len(logLines) > 0 {
-		sections = append(sections, fmt.Sprintf("Log anomalies (%d):\n%s", len(logLines), strings.Join(logLines, "\n")))
-	}
-	const maxLen = 4000
-	text := "The following anomalies were detected and are likely related:\n\n" + strings.Join(sections, "\n\n")
-	if len(text) > maxLen {
-		text = text[:maxLen-3] + "..."
-	}
-	return text
-}
-
 // send formats a correlation into a change event and either prints or posts it.
 func (s *eventSender) send(c observerdef.ActiveCorrelation) error {
 	msg := buildChangeMessage(c, s.storage)
@@ -337,7 +276,8 @@ func buildChangeMetadata(c observerdef.ActiveCorrelation) map[string]interface{}
 	return meta
 }
 
-// buildChangeMessage creates a compact human-readable summary for the change event message.
+// buildChangeMessage creates a compact human-readable summary for a correlation (Datadog
+// change events, testbench JSON output, and replay-reported events).
 func buildChangeMessage(c observerdef.ActiveCorrelation, storage observerdef.StorageReader) string {
 	var lines []string
 	lines = append(lines, fmt.Sprintf("Correlated behavior change detected: %d anomalies in pattern %q", len(c.Anomalies), c.Pattern))
@@ -396,7 +336,19 @@ func logDerivedDescription(a observerdef.Anomaly, storage observerdef.StorageRea
 	} else {
 		ratePart = "\tavg rate (60s): unknown"
 	}
-	return fmt.Sprintf("Log pattern change rate detected: %s%s%s", pattern, example, ratePart)
+	var tagsPart string
+	if len(a.Context.SplitTags) > 0 {
+		var parts []string
+		for _, k := range splitTagKeyOrder {
+			if v, ok := a.Context.SplitTags[k]; ok {
+				parts = append(parts, k+"="+v)
+			}
+		}
+		if len(parts) > 0 {
+			tagsPart = "\t[" + strings.Join(parts, ", ") + "]"
+		}
+	}
+	return fmt.Sprintf("Log pattern change rate detected: %s%s%s%s", pattern, example, ratePart, tagsPart)
 }
 
 // sendCorrelationEvents sends one event per correlation.

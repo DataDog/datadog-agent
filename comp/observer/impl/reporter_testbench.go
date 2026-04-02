@@ -53,7 +53,7 @@ func (r *replayReporter) Report(output observerdef.ReportOutput) {
 
 	for _, ac := range output.ActiveCorrelations {
 		if !r.seenPatterns[ac.Pattern] {
-			msg := correlationMessage(ac, r.storage)
+			msg := buildChangeMessage(ac, r.storage)
 			tags := []string{"source:agent-q-branch-observer", "pattern:" + ac.Pattern}
 			r.events = append(r.events, ReportedEvent{
 				Pattern:       ac.Pattern,
