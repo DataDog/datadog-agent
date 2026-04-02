@@ -8,6 +8,7 @@ package gcpopenshiftvm
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -174,6 +175,11 @@ func OpenShiftVMRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, param
 		}
 
 		agent, err = helm.NewKubernetesAgent(&gcpEnv, params.name, openshiftKubeProvider, params.agentOptions...)
+		//force failure to trigger cluster dump
+		if err == nil {
+			err = errors.New("FORCE FAILURE")
+		}
+
 		if err != nil {
 			return err
 		}
