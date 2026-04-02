@@ -43,6 +43,7 @@ def build_scorer(ctx):
 
 
 # --- Eval ---
+# TODO: With config
 @task
 def eval_scenarios(
     ctx,
@@ -51,9 +52,13 @@ def eval_scenarios(
     sigma: float = 30.0,
     only: str = "",
     build: bool = True,
-):
+    main_report_path: str = "/tmp/observer-eval-main-report.json",
+) -> dict[str, object]:
     """
     Runs the observer F1 eval: replays scenarios, scores Gaussian F1.
+
+    > The main score this function produces with the default parameters is the source of truth for our accuracy.
+    > The main score is a metric between 0 and 1, 1 being the best.
 
     Uses testbench --only to control which components are active.
     Default (no --only): uses testbench defaults (bocpd,rrcf,time_cluster + other default-enabled components).
@@ -70,6 +75,11 @@ def eval_scenarios(
         scenarios_dir: Directory containing scenario subdirectories.
         sigma: Gaussian width in seconds for scoring.
         only: Comma-separated components to enable (passed as --only to testbench). Auto-adds time_cluster.
+        build: Whether to build the observer-testbench and observer-scorer binaries.
+        return_results: Whether to return the results for each scenario.
+
+    Returns:
+        All the results for each scenario if return_results is True, otherwise None.
     """
     only_flag = ""
     if only:
@@ -165,6 +175,16 @@ def eval_scenarios(
             )
 
         print(f"\nOutput JSONs: /tmp/observer-eval-*.json (sigma={sigma}s)")
+
+    # Create main report
+    main_score = sum(r["f1"] for r in results) / len(results)
+    main_report = {"score": main_score, "metadata": {r["name"]: r for r in results}}
+    with open(main_report_path, "w") as f:
+        json.dump(main_report, f, indent=4)
+    print(f"Saved main report to {main_report_path}")
+    print(color_message(f"Main score: {main_score*100:.1f}%", Color.GREEN))
+
+    return main_report
 
 
 @task
