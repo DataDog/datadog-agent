@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 )
@@ -192,6 +193,73 @@ func TestBuildSampleTags_ExcludeLabels(t *testing.T) {
 	for _, tag := range tags {
 		assert.NotContains(t, tag, "job:")
 	}
+}
+
+func TestProcessContainerEvents_MultiContainerPodAndUnset(t *testing.T) {
+	c := &KataCheck{
+		instance:            &KataConfig{},
+		sandboxContainerIDs: make(map[string]map[string]struct{}),
+		containerSandboxID:  make(map[string]string),
+	}
+
+	sandboxID := "pod-sandbox-abc"
+
+	// Simulate SET events for two containers in the same pod sandbox.
+	setEvent := func(containerID string) workloadmeta.Event {
+		return workloadmeta.Event{
+			Type: workloadmeta.EventTypeSet,
+			Entity: &workloadmeta.Container{
+				EntityID:  workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID},
+				SandboxID: sandboxID,
+			},
+		}
+	}
+	// Simulate UNSET events: SandboxID is empty, only EntityID is set.
+	unsetEvent := func(containerID string) workloadmeta.Event {
+		return workloadmeta.Event{
+			Type: workloadmeta.EventTypeUnset,
+			Entity: &workloadmeta.Container{
+				EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID},
+			},
+		}
+	}
+
+	bundle1 := workloadmeta.EventBundle{
+		Events: []workloadmeta.Event{setEvent("ctr-1"), setEvent("ctr-2")},
+		Ch:     make(chan struct{}),
+	}
+	c.processContainerEvents(bundle1)
+
+	// Both containers should be tracked under the same sandbox.
+	c.mu.RLock()
+	assert.Len(t, c.sandboxContainerIDs[sandboxID], 2)
+	assert.Equal(t, sandboxID, c.containerSandboxID["ctr-1"])
+	assert.Equal(t, sandboxID, c.containerSandboxID["ctr-2"])
+	c.mu.RUnlock()
+
+	// UNSET first container: sandbox entry should still exist (one container left).
+	bundle2 := workloadmeta.EventBundle{
+		Events: []workloadmeta.Event{unsetEvent("ctr-1")},
+		Ch:     make(chan struct{}),
+	}
+	c.processContainerEvents(bundle2)
+
+	c.mu.RLock()
+	assert.Len(t, c.sandboxContainerIDs[sandboxID], 1)
+	assert.NotContains(t, c.containerSandboxID, "ctr-1")
+	c.mu.RUnlock()
+
+	// UNSET second container: sandbox entry should be fully removed.
+	bundle3 := workloadmeta.EventBundle{
+		Events: []workloadmeta.Event{unsetEvent("ctr-2")},
+		Ch:     make(chan struct{}),
+	}
+	c.processContainerEvents(bundle3)
+
+	c.mu.RLock()
+	assert.NotContains(t, c.sandboxContainerIDs, sandboxID)
+	assert.NotContains(t, c.containerSandboxID, "ctr-2")
+	c.mu.RUnlock()
 }
 
 func TestAssertServiceCheck_MessageContains(t *testing.T) {

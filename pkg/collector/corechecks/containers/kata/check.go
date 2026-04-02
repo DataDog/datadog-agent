@@ -64,8 +64,9 @@ type KataCheck struct {
 	store      workloadmeta.Component
 	excludeSet map[string]struct{} // built once at Configure time
 
-	mu                 sync.RWMutex
-	sandboxContainerID map[string]string // sandboxID -> containerID, updated by workloadmeta events
+	mu                  sync.RWMutex
+	sandboxContainerIDs map[string]map[string]struct{} // sandboxID -> set of containerIDs
+	containerSandboxID  map[string]string              // containerID -> sandboxID
 
 	stopOnce sync.Once
 	stopCh   chan struct{}
@@ -75,12 +76,13 @@ type KataCheck struct {
 func Factory(store workloadmeta.Component, tagger tagger.Component) option.Option[func() check.Check] {
 	return option.New(func() check.Check {
 		return core.NewLongRunningCheckWrapper(&KataCheck{
-			CheckBase:          core.NewCheckBase(CheckName),
-			instance:           &KataConfig{},
-			tagger:             tagger,
-			store:              store,
-			sandboxContainerID: make(map[string]string),
-			stopCh:             make(chan struct{}),
+			CheckBase:           core.NewCheckBase(CheckName),
+			instance:            &KataConfig{},
+			tagger:              tagger,
+			store:               store,
+			sandboxContainerIDs: make(map[string]map[string]struct{}),
+			containerSandboxID:  make(map[string]string),
+			stopCh:              make(chan struct{}),
 		})
 	})
 }
@@ -154,7 +156,7 @@ func (c *KataCheck) Stop() {
 	c.stopOnce.Do(func() { close(c.stopCh) })
 }
 
-// processContainerEvents updates the sandboxContainerID cache from a workloadmeta event bundle.
+// processContainerEvents updates the sandbox↔container caches from a workloadmeta event bundle.
 func (c *KataCheck) processContainerEvents(eventBundle workloadmeta.EventBundle) {
 	defer eventBundle.Acknowledge()
 
@@ -163,14 +165,33 @@ func (c *KataCheck) processContainerEvents(eventBundle workloadmeta.EventBundle)
 
 	for _, event := range eventBundle.Events {
 		ctr, ok := event.Entity.(*workloadmeta.Container)
-		if !ok || ctr.SandboxID == "" {
+		if !ok {
 			continue
 		}
+
 		switch event.Type {
 		case workloadmeta.EventTypeSet:
-			c.sandboxContainerID[ctr.SandboxID] = ctr.ID
+			// SandboxID is only populated on SET events.
+			if ctr.SandboxID == "" {
+				continue
+			}
+			if c.sandboxContainerIDs[ctr.SandboxID] == nil {
+				c.sandboxContainerIDs[ctr.SandboxID] = make(map[string]struct{})
+			}
+			c.sandboxContainerIDs[ctr.SandboxID][ctr.ID] = struct{}{}
+			c.containerSandboxID[ctr.ID] = ctr.SandboxID
+
 		case workloadmeta.EventTypeUnset:
-			delete(c.sandboxContainerID, ctr.SandboxID)
+			// UNSET events are emitted with only EntityID; SandboxID is empty.
+			// Use the reverse map to find which sandbox this container belonged to.
+			sandboxID := c.containerSandboxID[ctr.ID]
+			delete(c.containerSandboxID, ctr.ID)
+			if sandboxID != "" {
+				delete(c.sandboxContainerIDs[sandboxID], ctr.ID)
+				if len(c.sandboxContainerIDs[sandboxID]) == 0 {
+					delete(c.sandboxContainerIDs, sandboxID)
+				}
+			}
 		}
 	}
 }
@@ -195,14 +216,20 @@ func (c *KataCheck) runScrape() {
 }
 
 // buildBaseTags returns sandbox_id tag plus any orchestrator tags from the tagger.
+// All containers in the same pod share the same orchestrator tags, so we pick any
+// one container from the sandbox's set for the tagger lookup.
 func (c *KataCheck) buildBaseTags(sandboxID string) []string {
 	tags := []string{"sandbox_id:" + sandboxID}
 
 	c.mu.RLock()
-	containerID, ok := c.sandboxContainerID[sandboxID]
+	var containerID string
+	for id := range c.sandboxContainerIDs[sandboxID] {
+		containerID = id
+		break
+	}
 	c.mu.RUnlock()
 
-	if ok {
+	if containerID != "" {
 		entityID := taggertypes.NewEntityID(taggertypes.ContainerID, containerID)
 		if taggerTags, err := c.tagger.Tag(entityID, taggertypes.OrchestratorCardinality); err == nil {
 			tags = append(tags, taggerTags...)

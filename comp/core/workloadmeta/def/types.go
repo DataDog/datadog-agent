@@ -658,18 +658,13 @@ type Container struct {
 	// CgroupPath is a path to the cgroup of the container.
 	// It can be relative to the cgroup parent.
 	// Linux only.
-<<<<<<< HEAD
 	CgroupPath   string
-	RestartCount int
-
-	SBOM *SBOM
-=======
-	CgroupPath string
 	// SandboxID is the identifier of the sandbox this container belongs to.
 	// Populated from containerd's container info SandboxID field.
 	SandboxID string
-	RestartCount  int
->>>>>>> eb82ddf282 (feat: adding kata integration)
+	RestartCount int
+
+	SBOM *SBOM
 }
 
 // GetID implements Entity#GetID.

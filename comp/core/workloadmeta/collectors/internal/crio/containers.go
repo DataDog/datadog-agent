@@ -50,7 +50,7 @@ func (c *collector) convertContainerToEvent(ctx context.Context, ctr *v1.Contain
 			Ports:     ports,
 			Runtime:   workloadmeta.ContainerRuntimeCRIO,
 			SandboxID: ctr.GetPodSandboxId(),
-			State:    getContainerState(containerStatus),
+			State:     getContainerState(containerStatus),
 			Resources: workloadmeta.ContainerResources{
 				CPULimit:    cpuLimit,
 				MemoryLimit: memLimit,
