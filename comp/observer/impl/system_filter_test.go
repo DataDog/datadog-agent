@@ -97,11 +97,15 @@ func TestHFFilteredHandle_ContainerSources(t *testing.T) {
 		sample   observerdef.MetricView
 		wantDrop bool
 	}{
-		// Container check sources — all must be dropped when container HF is active.
+		// Generic container check source — dropped when container HF is active.
+		// Only MetricSourceContainer is suppressed because the HF runner uses the
+		// generic "container" check, not the legacy per-runtime checks.
 		{"container dropped", &sampleWithSource{"container.cpu.usage", metrics.MetricSourceContainer}, true},
-		{"containerd dropped", &sampleWithSource{"container.mem.usage", metrics.MetricSourceContainerd}, true},
-		{"cri dropped", &sampleWithSource{"container.io.read", metrics.MetricSourceCri}, true},
-		{"docker dropped", &sampleWithSource{"docker.cpu.usage", metrics.MetricSourceDocker}, true},
+
+		// Legacy per-runtime sources are NOT suppressed (not run by HF runner).
+		{"containerd passes", &sampleWithSource{"container.mem.usage", metrics.MetricSourceContainerd}, false},
+		{"cri passes", &sampleWithSource{"container.io.read", metrics.MetricSourceCri}, false},
+		{"docker passes", &sampleWithSource{"docker.cpu.usage", metrics.MetricSourceDocker}, false},
 
 		// Non-container sources must pass through.
 		{"dogstatsd passes", &sampleWithSource{"my.custom.metric", metrics.MetricSourceDogstatsd}, false},

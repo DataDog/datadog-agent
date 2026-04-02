@@ -366,6 +366,10 @@ func NewComponent(deps Requires) Provides {
 			if obs.hfContainerRunner != nil {
 				obs.hfContainerRunner.Start()
 				pkglog.Info("[observer] high-frequency container check runner started (1s interval)")
+				// Only suppress 15s container metrics now that the HF replacement is confirmed running.
+				for src := range containerCheckSources {
+					obs.hfFilterSources[src] = struct{}{}
+				}
 				deps.Lifecycle.Append(fx.Hook{
 					OnStop: func(_ context.Context) error {
 						obs.hfContainerRunner.Stop()
@@ -743,12 +747,13 @@ var systemCheckSources = map[metrics.MetricSource]struct{}{
 }
 
 // containerCheckSources is the set of MetricSource values produced by the
-// container checks that the HF container runner executes.
+// container checks that the HF container runner executes. Only MetricSourceContainer
+// is included because the HF runner uses the generic container check (check name
+// "container"), which maps to MetricSourceContainer regardless of runtime.
+// The legacy per-runtime checks (containerd, cri, docker) have their own
+// MetricSource values but are not run by the HF runner.
 var containerCheckSources = map[metrics.MetricSource]struct{}{
-	metrics.MetricSourceContainer:  {},
-	metrics.MetricSourceContainerd: {},
-	metrics.MetricSourceCri:        {},
-	metrics.MetricSourceDocker:     {},
+	metrics.MetricSourceContainer: {},
 }
 
 // hfFilteredHandle wraps a Handle and drops metrics whose source is in the
