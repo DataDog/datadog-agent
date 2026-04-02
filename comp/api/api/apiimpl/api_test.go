@@ -168,7 +168,7 @@ func TestStartBothServersWithObservability(t *testing.T) {
 			t.Log(metric.GetLabel())
 			assert.True(t, hasLabelValue(metric.GetLabel(), "status_code", strconv.Itoa(http.StatusNotFound)))
 			assert.True(t, hasLabelValue(metric.GetLabel(), "method", http.MethodGet))
-			assert.True(t, hasLabelValue(metric.GetLabel(), "path", "/this_does_not_exist"))
+			assert.True(t, hasLabelValue(metric.GetLabel(), "path", "unknown"))
 		})
 	}
 

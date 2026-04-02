@@ -191,17 +191,10 @@ func gpuHostProvisioner(params *provisionerParams) provisioners.Provisioner {
 			return fmt.Errorf("validateGPUDevices: %w", err)
 		}
 
-		// install the ECR credentials helper
-		// required to get pipeline agent images or other internally hosted images
-		installEcrCredsHelperCmd, err := ec2.InstallECRCredentialsHelper(awsEnv, host)
+		// Install Docker (after GPU devices are validated); NewAWSManager ensures the ECR credentials helper is installed first
+		dockerManager, err := docker.NewAWSManager(&awsEnv, host)
 		if err != nil {
-			return fmt.Errorf("ec2.InstallECRCredentialsHelper: %w", err)
-		}
-
-		// Install Docker (only after GPU devices are validated and the ECR credentials helper is installed)
-		dockerManager, err := docker.NewManager(&awsEnv, host, utils.PulumiDependsOn(installEcrCredsHelperCmd))
-		if err != nil {
-			return fmt.Errorf("docker.NewManager: %w", err)
+			return fmt.Errorf("docker.NewAWSManager: %w", err)
 		}
 
 		// Pull all the docker images required for the tests
@@ -258,9 +251,9 @@ func gpuK8sProvisioner(params *provisionerParams) provisioners.Provisioner {
 			return fmt.Errorf("ec2.NewVM: %w", err)
 		}
 
-		installEcrCredsHelperCmd, err := ec2.InstallECRCredentialsHelper(awsEnv, host)
+		installEcrCredsHelperCmd, err := docker.InstallECRCredentialsHelper(awsEnv.Namer, host)
 		if err != nil {
-			return fmt.Errorf("ec2.InstallECRCredentialsHelper %w", err)
+			return fmt.Errorf("docker.InstallECRCredentialsHelper %w", err)
 		}
 
 		validateDevices, err := validateGPUDevices(&awsEnv, host, params.systemData.cudaVersion)
