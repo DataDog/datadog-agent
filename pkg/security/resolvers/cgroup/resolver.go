@@ -203,11 +203,14 @@ func (cr *Resolver) resolveAndPushNewCacheEntry(pid uint32, cgroupContext model.
 		cgroupContext.CGroupID = containerutils.CGroupID(path)
 	}
 
+	cgroupContext.CreatedAt = uint64(createdAt.UnixNano())
+
 	var containerContext model.ContainerContext
 	if containerID := containerutils.FindContainerID(cgroupContext.CGroupID); containerID != "" {
 		containerContext = model.ContainerContext{
-			ContainerID: containerID,
-			CreatedAt:   uint64(createdAt.UnixNano()),
+			ContainerID:     containerID,
+			CreatedAt:       uint64(createdAt.UnixNano()),
+			ContainerSource: model.ContainerSourceEvent,
 		}
 	}
 
@@ -235,11 +238,14 @@ func (cr *Resolver) resolveFromFallback(pid uint32, ppid uint32) *cgroupModel.Ca
 				MountID: cgroup.CGroupFileMountID,
 				Inode:   cgroup.CGroupFileInode,
 			},
-			CGroupID: cgroup.CGroupID,
+			CGroupID:     cgroup.CGroupID,
+			CGroupSource: model.CGroupSourceProcFS,
+			CreatedAt:    uint64(cgroup.CreatedAt.UnixNano()),
 		}
 		containerContext := model.ContainerContext{
-			ContainerID: cid,
-			CreatedAt:   uint64(cgroup.CreatedAt.UnixNano()),
+			ContainerID:     cid,
+			CreatedAt:       uint64(cgroup.CreatedAt.UnixNano()),
+			ContainerSource: model.ContainerSourceProcFS,
 		}
 		seclog.Tracef("fallback to resolve cgroup for pid %d: %s", pid, cgroup.CGroupID)
 		cr.fallbackSucceed.Inc()
@@ -270,11 +276,14 @@ func (cr *Resolver) resolveFromFallback(pid uint32, ppid uint32) *cgroupModel.Ca
 				MountID: cgroup.CGroupFileMountID,
 				Inode:   cgroup.CGroupFileInode,
 			},
-			CGroupID: cgroup.CGroupID,
+			CGroupID:     cgroup.CGroupID,
+			CGroupSource: model.CGroupSourceProcFS,
+			CreatedAt:    uint64(cgroup.CreatedAt.UnixNano()),
 		}
 		containerContext := model.ContainerContext{
-			ContainerID: cid,
-			CreatedAt:   uint64(cgroup.CreatedAt.UnixNano()),
+			ContainerID:     cid,
+			CreatedAt:       uint64(cgroup.CreatedAt.UnixNano()),
+			ContainerSource: model.ContainerSourceProcFS,
 		}
 		seclog.Tracef("fallback to resolve parent cgroup for ppid %d: %s", ppid, cgroup.CGroupID)
 		cr.fallbackSucceed.Inc()

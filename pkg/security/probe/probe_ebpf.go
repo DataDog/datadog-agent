@@ -1332,6 +1332,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if fs == "cgroup2" && event.Open.File.PathKey.Inode != 0 && event.Open.File.FileFields.IsDir() {
 			cgroupContext := model.CGroupContext{
 				CGroupPathKey: event.Open.File.PathKey,
+				CGroupSource:  model.CGroupSourceEvent,
 			}
 			p.Resolvers.CGroupResolver.Add(cgroupContext, time.Now())
 		}
@@ -1706,6 +1707,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 
 		cgroupContext := model.CGroupContext{
 			CGroupPathKey: event.CgroupWrite.File.PathKey,
+			CGroupSource:  model.CGroupSourceEvent,
 		}
 
 		createdAt := event.GetTimestamp()
