@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Fixes a bug where autodiscovered services were not being deleted if GetAuroraClustersFromTags returned no matches. 
+    Fixes a bug where autodiscovered services were not being deleted if GetAuroraClustersFromTags or GetRdsInstancesFromTags returned no matches. 
