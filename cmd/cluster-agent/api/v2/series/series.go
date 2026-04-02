@@ -12,6 +12,8 @@ import (
 	"compress/gzip"
 	"compress/zlib"
 	"context"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"sync"
@@ -45,10 +47,12 @@ func InstallNodeMetricsEndpoints(ctx context.Context, r *mux.Router, cfg config.
 		func(w http.ResponseWriter, r *http.Request) bool { // preHandler
 			if !cfg.GetBool("autoscaling.failover.enabled") {
 				http.Error(w, "Autoscaling workload failover store is disabled on the cluster agent", http.StatusServiceUnavailable)
+				api.SetSpanError(w, errors.New("autoscaling workload failover store is disabled"))
 				return false
 			}
 			if r.Body == nil {
 				http.Error(w, "Request body is empty", http.StatusBadRequest)
+				api.SetSpanError(w, errors.New("request body is empty"))
 				return false
 			}
 			return true
@@ -86,6 +90,7 @@ func (h *seriesHandler) handle(w http.ResponseWriter, r *http.Request) {
 	}
 	defer rc.Close()
 	if err != nil {
+		api.SetSpanError(w, fmt.Errorf("failed to create decompression reader: %w", err))
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -94,12 +99,14 @@ func (h *seriesHandler) handle(w http.ResponseWriter, r *http.Request) {
 	buf.Reset() // Reset the buffer before using it
 	_, err = io.Copy(buf, rc)
 	if err != nil {
+		api.SetSpanError(w, fmt.Errorf("failed to read request body: %w", err))
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
 	metricPayload := &gogen.MetricPayload{}
 	if err := metricPayload.Unmarshal(buf.Bytes()); err != nil {
+		api.SetSpanError(w, fmt.Errorf("failed to unmarshal metric payload: %w", err))
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}

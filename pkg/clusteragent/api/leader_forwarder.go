@@ -9,6 +9,8 @@ package api
 
 import (
 	"crypto/tls"
+	"errors"
+	"fmt"
 	stdLog "log"
 	"net"
 	"net/http"
@@ -86,7 +88,8 @@ func (lf *LeaderForwarder) Forward(rw http.ResponseWriter, req *http.Request) {
 	rw.Header().Set(respForwarded, "true")
 
 	if req.Header.Get(forwardHeader) != "" {
-		http.Error(rw, "Query was already forwarded from: "+req.RemoteAddr, http.StatusLoopDetected)
+		http.Error(rw, "query was already forwarded from: "+req.RemoteAddr, http.StatusLoopDetected)
+		SetSpanError(rw, fmt.Errorf("query already forwarded from: %s", req.RemoteAddr))
 		return
 	}
 
@@ -96,7 +99,8 @@ func (lf *LeaderForwarder) Forward(rw http.ResponseWriter, req *http.Request) {
 	lf.proxyLock.RUnlock()
 
 	if currentProxy == nil {
-		http.Error(rw, "", http.StatusServiceUnavailable)
+		http.Error(rw, "leader proxy not initialized", http.StatusServiceUnavailable)
+		SetSpanError(rw, errors.New("leader proxy not initialized"))
 		return
 	}
 
@@ -121,6 +125,11 @@ func (lf *LeaderForwarder) SetLeaderIP(leaderIP string) {
 		},
 		Transport: lf.transport,
 		ErrorLog:  lf.logger,
+		ErrorHandler: func(rw http.ResponseWriter, _ *http.Request, err error) {
+			log.Errorf("Error forwarding to leader %s: %v", leaderIP, err)
+			http.Error(rw, fmt.Sprintf("error forwarding to leader: %v", err), http.StatusBadGateway)
+			SetSpanError(rw, fmt.Errorf("leader proxy error (%s): %w", leaderIP, err))
+		},
 	}
 }
 

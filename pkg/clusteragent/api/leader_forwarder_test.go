@@ -102,3 +102,58 @@ func TestLeaderForwarder_Forward_WithLeader(t *testing.T) {
 	assert.Equal(t, "true", rw.Header().Get("X-DCA-Forwarded"))
 	assert.Equal(t, "leader response", rw.Body.String())
 }
+
+// newTestTelemetryWrapper creates a telemetryWriterWrapper suitable for testing,
+// with the required setSpanTags callback initialized.
+func newTestTelemetryWrapper(rec *httptest.ResponseRecorder) *telemetryWriterWrapper {
+	return &telemetryWriterWrapper{
+		ResponseWriter: rec,
+		setSpanTags:    func(int) {},
+	}
+}
+
+func TestLeaderForwarder_Forward_NilProxy_SetsSpanError(t *testing.T) {
+	lf := NewLeaderForwarder(5005, 10)
+
+	rec := httptest.NewRecorder()
+	tw := newTestTelemetryWrapper(rec)
+	req := httptest.NewRequest("GET", "http://example.com/foo", nil)
+
+	lf.Forward(tw, req)
+
+	assert.Equal(t, http.StatusServiceUnavailable, rec.Code)
+	assert.NotNil(t, tw.capturedErr)
+	assert.Contains(t, tw.capturedErr.Error(), "leader proxy not initialized")
+}
+
+func TestLeaderForwarder_Forward_LoopDetection_SetsSpanError(t *testing.T) {
+	lf := NewLeaderForwarder(5005, 10)
+	lf.SetLeaderIP("1.1.1.1")
+
+	rec := httptest.NewRecorder()
+	tw := newTestTelemetryWrapper(rec)
+	req := httptest.NewRequest("GET", "http://example.com/foo", nil)
+	req.Header.Set("X-DCA-Follower-Forwarded", "true")
+
+	lf.Forward(tw, req)
+
+	assert.Equal(t, http.StatusLoopDetected, rec.Code)
+	assert.NotNil(t, tw.capturedErr)
+	assert.Contains(t, tw.capturedErr.Error(), "query already forwarded")
+}
+
+func TestLeaderForwarder_Forward_ProxyError_SetsSpanError(t *testing.T) {
+	// Use a port that nothing is listening on to trigger a proxy error
+	lf := NewLeaderForwarder(19999, 10)
+	lf.SetLeaderIP("127.0.0.1")
+
+	rec := httptest.NewRecorder()
+	tw := newTestTelemetryWrapper(rec)
+	req := httptest.NewRequest("GET", "http://example.com/foo", nil)
+
+	lf.Forward(tw, req)
+
+	assert.Equal(t, http.StatusBadGateway, rec.Code)
+	assert.NotNil(t, tw.capturedErr)
+	assert.Contains(t, tw.capturedErr.Error(), "leader proxy error")
+}

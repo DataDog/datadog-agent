@@ -10,6 +10,8 @@
 package api
 
 import (
+	"errors"
+	"fmt"
 	"net/http"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -97,6 +99,7 @@ func (lph *LeaderProxyHandler) rejectOrForwardLeaderQuery(rw http.ResponseWriter
 		if err != nil {
 			log.Errorf("leader engine can't be retrieved: %v", err)
 			http.Error(rw, "leader engine can't be retrieved", http.StatusServiceUnavailable)
+			SetSpanError(rw, fmt.Errorf("leader engine can't be retrieved: %w", err))
 			return true
 		}
 		lph.le = leaderEngine
@@ -110,6 +113,7 @@ func (lph *LeaderProxyHandler) rejectOrForwardLeaderQuery(rw http.ResponseWriter
 	if err != nil {
 		log.Errorf("failed to retrieve leader ip: %v", err)
 		http.Error(rw, "failed to retrieve leader ip", http.StatusServiceUnavailable)
+		SetSpanError(rw, fmt.Errorf("failed to retrieve leader ip: %w", err))
 		return true
 	}
 
@@ -117,6 +121,7 @@ func (lph *LeaderProxyHandler) rejectOrForwardLeaderQuery(rw http.ResponseWriter
 	if lph.leaderForwarder == nil {
 		log.Errorf("leader forwarder is not available")
 		http.Error(rw, "leader forwarder is not available", http.StatusServiceUnavailable)
+		SetSpanError(rw, errors.New("leader forwarder is not available"))
 		return true
 	}
 	if lph.leaderForwarder.GetLeaderIP() != ip {
