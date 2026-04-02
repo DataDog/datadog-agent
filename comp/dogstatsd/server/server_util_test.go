@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	filterlistmock "github.com/DataDog/datadog-agent/comp/filterlist/fx-mock"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -92,6 +93,7 @@ func fulfillDepsWithConfigOverride(t testing.TB, overrides map[string]interface{
 		logscompression.MockModule(),
 		metricscompression.MockModule(),
 		filterlistmock.MockModule(),
+		fx.Provide(func() option.Option[healthplatformdef.Component] { return option.None[healthplatformdef.Component]() }),
 
 		Module(Params{Serverless: false}),
 	))
@@ -111,6 +113,7 @@ func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 		demultiplexerimpl.FakeSamplerMockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		filterlistmock.MockModule(),
+		fx.Provide(func() option.Option[healthplatformdef.Component] { return option.None[healthplatformdef.Component]() }),
 
 		Module(Params{Serverless: false}),
 	))

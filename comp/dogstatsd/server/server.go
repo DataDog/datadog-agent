@@ -33,6 +33,7 @@ import (
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
@@ -76,16 +77,17 @@ type dependencies struct {
 
 	Demultiplexer aggregator.Demultiplexer
 
-	Log        log.Component
-	Config     configComponent.Component
-	Debug      serverdebug.Component
-	Replay     replay.Component
-	PidMap     pidmap.Component
-	Params     Params
-	WMeta      option.Option[workloadmeta.Component]
-	Telemetry  telemetry.Component
-	Hostname   hostnameinterface.Component
-	FilterList filterlist.Component
+	Log            log.Component
+	Config         configComponent.Component
+	Debug          serverdebug.Component
+	Replay         replay.Component
+	PidMap         pidmap.Component
+	Params         Params
+	WMeta          option.Option[workloadmeta.Component]
+	Telemetry      telemetry.Component
+	Hostname       hostnameinterface.Component
+	FilterList     filterlist.Component
+	HealthPlatform option.Option[healthplatformdef.Component]
 }
 
 type provides struct {
@@ -169,6 +171,9 @@ type server struct {
 
 	wmeta option.Option[workloadmeta.Component]
 
+	// healthPlatform is used to report UDP read errors inline
+	healthPlatform option.Option[healthplatformdef.Component]
+
 	// telemetry
 	telemetry               telemetry.Component
 	tlmProcessed            telemetry.Counter
@@ -201,6 +206,7 @@ func initTelemetry() {
 // TODO: (components) - merge with newServerCompat once NewServerlessServer is removed
 func newServer(deps dependencies) provides {
 	s := newServerCompat(deps.Config, deps.Log, deps.Hostname, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry, deps.FilterList)
+	s.healthPlatform = deps.HealthPlatform
 
 	dsdConfig := dsdconfig.NewConfig(s.config)
 	if dsdConfig.EnabledInternal() {
@@ -416,7 +422,8 @@ func (s *server) start(context.Context) error {
 	}
 
 	if s.config.GetString("dogstatsd_port") == listeners.RandomPortName || s.config.GetInt("dogstatsd_port") > 0 {
-		udpListener, err := listeners.NewUDPListener(packetsChannel, sharedPacketPoolManager, s.config, s.tCapture, s.listernersTelemetry, s.packetsTelemetry)
+		hp, _ := s.healthPlatform.Get()
+		udpListener, err := listeners.NewUDPListener(packetsChannel, sharedPacketPoolManager, s.config, s.tCapture, s.listernersTelemetry, s.packetsTelemetry, hp)
 		if err != nil {
 			s.log.Errorf("%s", err.Error())
 		} else {
