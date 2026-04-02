@@ -16,95 +16,94 @@ import (
 
 	gcpapi "cloud.google.com/go/compute/apiv1"
 	"cloud.google.com/go/compute/apiv1/computepb"
-	"golang.org/x/crypto/ssh"
 	"google.golang.org/api/option"
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/infra"
 )
 
-func getClusterOutputWithSsh(out *strings.Builder, sshClient *ssh.Client) (err error) {
-	var errs []error
+// func getClusterOutputWithSsh(out *strings.Builder, sshClient *ssh.Client) (err error) {
+// 	var errs []error
 
-	defer func() {
-		err = errors.Join(errs...)
-	}()
+// 	defer func() {
+// 		err = errors.Join(errs...)
+// 	}()
 
-	crcStatus := "oc status"
-	crcStatusOutput, err := infra.SshRunCommand(sshClient, crcStatus, out)
-	if err != nil {
-		err = fmt.Errorf("failed to run command '%s': %w", crcStatus, err)
-		errs = append(errs, err)
-	}
-	fmt.Fprintf(out, "---------- CRC Status ----------\n%s\n", crcStatusOutput)
+// 	crcStatus := "oc status"
+// 	crcStatusOutput, err := infra.SshRunCommand(sshClient, crcStatus, out)
+// 	if err != nil {
+// 		err = fmt.Errorf("failed to run command '%s': %w", crcStatus, err)
+// 		errs = append(errs, err)
+// 	}
+// 	fmt.Fprintf(out, "---------- CRC Status ----------\n%s\n", crcStatusOutput)
 
-	prefix := "eval $(crc oc-env); "
-	getAllCommand := prefix + "oc get all,nodes -o wide -A"
-	allOutput, err := infra.SshRunCommand(sshClient, getAllCommand, out)
-	if err != nil {
-		err = fmt.Errorf("failed to run command '%s': %w", getAllCommand, err)
-		errs = append(errs, err)
-	}
+// 	prefix := "eval $(crc oc-env); "
+// 	getAllCommand := prefix + "oc get all,nodes -o wide -A"
+// 	allOutput, err := infra.SshRunCommand(sshClient, getAllCommand, out)
+// 	if err != nil {
+// 		err = fmt.Errorf("failed to run command '%s': %w", getAllCommand, err)
+// 		errs = append(errs, err)
+// 	}
 
-	fmt.Fprintf(out, "---------- All resources ----------\n%s\n", string(allOutput))
+// 	fmt.Fprintf(out, "---------- All resources ----------\n%s\n", string(allOutput))
 
-	getAllNonRuningPods := prefix + `oc get pod --field-selector='status.phase!=Running' -A -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{","}'`
-	nonRuningPodsList, err := infra.SshRunCommand(sshClient, getAllNonRuningPods, out)
-	if err != nil {
-		err = fmt.Errorf("failed to run command: '%s': %w", getAllNonRuningPods, err)
-		errs = append(errs, err)
-		return
-	}
+// 	getAllNonRuningPods := prefix + `oc get pod --field-selector='status.phase!=Running' -A -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{","}'`
+// 	nonRuningPodsList, err := infra.SshRunCommand(sshClient, getAllNonRuningPods, out)
+// 	if err != nil {
+// 		err = fmt.Errorf("failed to run command: '%s': %w", getAllNonRuningPods, err)
+// 		errs = append(errs, err)
+// 		return
+// 	}
 
-	fmt.Fprintf(out, "---------- All non running pods ----------\n%s\n", strings.ReplaceAll(string(nonRuningPodsList), ",", "\n"))
+// 	fmt.Fprintf(out, "---------- All non running pods ----------\n%s\n", strings.ReplaceAll(string(nonRuningPodsList), ",", "\n"))
 
-	podDescribeTemplate := "%s oc describe pod --namespace %s %s"
-	podLogsTemplate := "%s oc logs --all-containers --prefix --namespace %s %s"
-	previousPodLogsTemplate := "%s oc logs --all-containers=true --prefix=true --previous=true --namespace %s %s"
-	for _, line := range strings.Split(strings.TrimSpace(string(nonRuningPodsList)), ",") {
-		parts := strings.Split(strings.TrimSpace(line), " ")
-		if len(parts) != 2 {
-			err = fmt.Errorf("failed to find '<namespace> <pod name>' in: %s", line)
-			continue
-		}
+// 	podDescribeTemplate := "%s oc describe pod --namespace %s %s"
+// 	podLogsTemplate := "%s oc logs --all-containers --prefix --namespace %s %s"
+// 	previousPodLogsTemplate := "%s oc logs --all-containers=true --prefix=true --previous=true --namespace %s %s"
+// 	for _, line := range strings.Split(strings.TrimSpace(string(nonRuningPodsList)), ",") {
+// 		parts := strings.Split(strings.TrimSpace(line), " ")
+// 		if len(parts) != 2 {
+// 			err = fmt.Errorf("failed to find '<namespace> <pod name>' in: %s", line)
+// 			continue
+// 		}
 
-		namespace := parts[0]
-		name := parts[1]
+// 		namespace := parts[0]
+// 		name := parts[1]
 
-		command := fmt.Sprintf(podDescribeTemplate, prefix, namespace, name)
-		podDescribe, err := infra.SshRunCommand(sshClient, command, out)
-		if err != nil {
-			err = fmt.Errorf("failed to run command: %s: %w", command, err)
-			errs = append(errs, err)
-			continue
-		}
+// 		command := fmt.Sprintf(podDescribeTemplate, prefix, namespace, name)
+// 		podDescribe, err := infra.SshRunCommand(sshClient, command, out)
+// 		if err != nil {
+// 			err = fmt.Errorf("failed to run command: %s: %w", command, err)
+// 			errs = append(errs, err)
+// 			continue
+// 		}
 
-		fmt.Fprintf(out, "---------- Failed pod (%s/%s) ----------\n%s\n", namespace, name, string(podDescribe))
+// 		fmt.Fprintf(out, "---------- Failed pod (%s/%s) ----------\n%s\n", namespace, name, string(podDescribe))
 
-		command = fmt.Sprintf(podLogsTemplate, prefix, namespace, name)
-		podLogs, err := infra.SshRunCommand(sshClient, command, out)
-		if err != nil {
-			err = fmt.Errorf("failed to read logs for pod %s/%s: %w", err)
-			errs = append(errs, err)
-			continue
-		}
+// 		command = fmt.Sprintf(podLogsTemplate, prefix, namespace, name)
+// 		podLogs, err := infra.SshRunCommand(sshClient, command, out)
+// 		if err != nil {
+// 			err = fmt.Errorf("failed to read logs for pod %s/%s: %w", err)
+// 			errs = append(errs, err)
+// 			continue
+// 		}
 
-		fmt.Fprintf(out, "---------- logs (%s/%s) ----------\n%s\n", namespace, name, podLogs)
+// 		fmt.Fprintf(out, "---------- logs (%s/%s) ----------\n%s\n", namespace, name, podLogs)
 
-		command = fmt.Sprintf(previousPodLogsTemplate, prefix, namespace, name)
-		podLogs, err = infra.SshRunCommand(sshClient, command, out)
-		if err != nil {
-			err = fmt.Errorf("failed to read previous logs for pod %s/%s: %w", err)
-			errs = append(errs, err)
-			continue
-		}
+// 		command = fmt.Sprintf(previousPodLogsTemplate, prefix, namespace, name)
+// 		podLogs, err = infra.SshRunCommand(sshClient, command, out)
+// 		if err != nil {
+// 			err = fmt.Errorf("failed to read previous logs for pod %s/%s: %w", err)
+// 			errs = append(errs, err)
+// 			continue
+// 		}
 
-		fmt.Fprintf(out, "---------- previous logs (%s/%s) ----------\n%s\n", namespace, name, podLogs)
+// 		fmt.Fprintf(out, "---------- previous logs (%s/%s) ----------\n%s\n", namespace, name, podLogs)
 
-	}
+// 	}
 
-	return
-}
+// 	return
+// }
 
 func DumpOpenshiftClusterState(ctx context.Context, name string) (ret string, err error) {
 	var out strings.Builder
