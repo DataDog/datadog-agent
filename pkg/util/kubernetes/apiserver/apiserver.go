@@ -18,6 +18,8 @@ import (
 	"sync"
 	"time"
 
+	k8strace "gopkg.in/DataDog/dd-trace-go.v1/contrib/k8s.io/client-go/kubernetes"
+
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -248,7 +250,7 @@ func GetClientConfig(timeout time.Duration, qps float32, burst int) (*rest.Confi
 	clientConfig.QPS = qps
 	clientConfig.Burst = burst
 	clientConfig.Wrap(func(rt http.RoundTripper) http.RoundTripper {
-		return NewCustomRoundTripper(rt, timeout)
+		return NewCustomRoundTripper(k8strace.WrapRoundTripper(rt), timeout)
 	})
 
 	return clientConfig, nil
