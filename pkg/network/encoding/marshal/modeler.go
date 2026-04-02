@@ -66,11 +66,10 @@ func (c *ConnectionsModeler) Close() {
 func (c *ConnectionsModeler) modelConnections(builder *model.ConnectionsBuilder, conns *network.Connections) {
 	cfgOnce.Do(func() {
 		agentCfg = &model.AgentConfiguration{
-			NpmEnabled:  pkgconfigsetup.SystemProbe().GetBool("network_config.enabled"),
-			UsmEnabled:  pkgconfigsetup.SystemProbe().GetBool("service_monitoring_config.enabled"),
-			CcmEnabled:  pkgconfigsetup.SystemProbe().GetBool("ccm_network_config.enabled"),
-			CsmEnabled:  pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.enabled"),
-			EudmEnabled: pkgconfigsetup.Datadog().GetString("infrastructure_mode") == "end_user_device",
+			NpmEnabled: pkgconfigsetup.SystemProbe().GetBool("network_config.enabled"),
+			UsmEnabled: pkgconfigsetup.SystemProbe().GetBool("service_monitoring_config.enabled"),
+			CcmEnabled: pkgconfigsetup.SystemProbe().GetBool("ccm_network_config.enabled"),
+			CsmEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.enabled"),
 		}
 	})
 
@@ -91,7 +90,6 @@ func (c *ConnectionsModeler) modelConnections(builder *model.ConnectionsBuilder,
 		w.SetUsmEnabled(agentCfg.UsmEnabled)
 		w.SetCcmEnabled(agentCfg.CcmEnabled)
 		w.SetCsmEnabled(agentCfg.CsmEnabled)
-		w.SetEudmEnabled(agentCfg.EudmEnabled)
 	})
 	for _, d := range c.dnsFormatter.Domains() {
 		builder.AddDomains(d)

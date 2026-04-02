@@ -141,11 +141,10 @@ func New(
 
 		hostTagProvider: hosttags.NewHostTagProviderWithDuration(syscfg.GetDuration("system_probe_config.expected_tags_duration")),
 		agentCfg: &model.AgentConfiguration{
-			NpmEnabled:  syscfg.GetBool("network_config.enabled"),
-			UsmEnabled:  syscfg.GetBool("service_monitoring_config.enabled"),
-			CcmEnabled:  syscfg.GetBool("ccm_network_config.enabled"),
-			CsmEnabled:  syscfg.GetBool("runtime_security_config.enabled"),
-			EudmEnabled: deps.Config.GetString("infrastructure_mode") == "end_user_device",
+			NpmEnabled: syscfg.GetBool("network_config.enabled"),
+			UsmEnabled: syscfg.GetBool("service_monitoring_config.enabled"),
+			CcmEnabled: syscfg.GetBool("ccm_network_config.enabled"),
+			CsmEnabled: syscfg.GetBool("runtime_security_config.enabled"),
 		},
 		ctx:        ctx,
 		cancelFunc: cancel,
