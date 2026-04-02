@@ -29,7 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	connectionsforwarderfx "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/fx"
 	forwarders "github.com/DataDog/datadog-agent/comp/process/forwarders/def"
-	"github.com/DataDog/datadog-agent/comp/process/forwarders/forwardersimpl"
+	forwardersimpl "github.com/DataDog/datadog-agent/comp/process/forwarders/fx"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
