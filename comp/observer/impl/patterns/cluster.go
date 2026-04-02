@@ -132,15 +132,20 @@ type PatternClusterer struct {
 	tokenizer           *Tokenizer
 	IgnoreEmpty         bool
 	nextID              int64
+	// minTokenMatchRatio is the effective minimum fraction of token positions that must
+	// match by value for an incoming line to merge into an existing cluster. Set at
+	// construction from rawMinTokenMatchRatio via effectiveMinTokenMatchRatio.
+	minTokenMatchRatio float64
 }
 
 func NewPatternClusterer() *PatternClusterer {
-	return NewPatternClustererWithTokenizer(NewTokenizer())
+	return NewPatternClustererWithTokenizer(NewTokenizer(), 0)
 }
 
 // NewPatternClustererWithTokenizer creates a PatternClusterer that uses the given tokenizer.
-// If t is nil, a default Tokenizer is used.
-func NewPatternClustererWithTokenizer(t *Tokenizer) *PatternClusterer {
+// If t is nil, a default Tokenizer is used. rawMinTokenMatchRatio is normalized once at
+// construction (≤0 → 0.5, >1 → 1); pass 0 for the library default.
+func NewPatternClustererWithTokenizer(t *Tokenizer, rawMinTokenMatchRatio float64) *PatternClusterer {
 	if t == nil {
 		t = NewTokenizer()
 	}
@@ -148,6 +153,7 @@ func NewPatternClustererWithTokenizer(t *Tokenizer) *PatternClusterer {
 		clustersBySignature: make(map[string][]*Cluster),
 		tokenizer:           t,
 		IgnoreEmpty:         true,
+		minTokenMatchRatio:  effectiveMinTokenMatchRatio(rawMinTokenMatchRatio),
 	}
 }
 
@@ -171,7 +177,7 @@ func (pc *PatternClusterer) ProcessTokens(tokens []Token, message string) (*Clus
 	// Try within same signature group first
 	clusters := pc.clustersBySignature[sig]
 	for _, c := range clusters {
-		if canMergeTokenLists(c.Pattern, tokens) {
+		if pc.canMergeTokenLists(c.Pattern, tokens) {
 			mergeTokenLists(c.Pattern, tokens)
 			c.Count++
 			return c, true
@@ -185,7 +191,7 @@ func (pc *PatternClusterer) ProcessTokens(tokens []Token, message string) (*Clus
 			continue
 		}
 		for _, c := range otherClusters {
-			if canMergeTokenLists(c.Pattern, tokens) {
+			if pc.canMergeTokenLists(c.Pattern, tokens) {
 				mergeTokenLists(c.Pattern, tokens)
 				c.Count++
 				return c, true
@@ -221,10 +227,27 @@ func (pc *PatternClusterer) GetCluster(id int64) (*Cluster, error) {
 	return nil, fmt.Errorf("cluster %d not found", id)
 }
 
+func effectiveMinTokenMatchRatio(r float64) float64 {
+	switch {
+	case r <= 0:
+		return 0.5
+	case r > 1:
+		return 1
+	default:
+		return r
+	}
+}
+
 // canMergeTokenLists checks if two token lists can be merged.
-// It requires that all token pairs be type-compatible AND that at least
-// half of the tokens match by value (Drain-style similarity threshold).
-func canMergeTokenLists(pattern, incoming []Token) bool {
+// It requires that all token pairs be type-compatible AND that the fraction of
+// positions with equal values is at least pc.minTokenMatchRatio (set at construction).
+func (pc *PatternClusterer) canMergeTokenLists(pattern, incoming []Token) bool {
+	return canMergeTokenListsWithRatio(pattern, incoming, pc.minTokenMatchRatio)
+}
+
+// canMergeTokenListsWithRatio is the merge predicate parameterized by an already-resolved
+// minRatio. Used by tests and PatternClusterer.canMergeTokenLists.
+func canMergeTokenListsWithRatio(pattern, incoming []Token, minRatio float64) bool {
 	if len(pattern) != len(incoming) {
 		return false
 	}
@@ -237,7 +260,10 @@ func canMergeTokenLists(pattern, incoming []Token) bool {
 			matching++
 		}
 	}
-	return matching*2 >= len(pattern)
+	if len(pattern) == 0 {
+		return true
+	}
+	return float64(matching) >= minRatio*float64(len(pattern))
 }
 
 func canMergeTokens(a, b Token) bool {
@@ -330,7 +356,7 @@ func (pc *PatternClusterer) Classify(message string) *Cluster {
 
 	if clusters, ok := pc.clustersBySignature[sig]; ok {
 		for _, c := range clusters {
-			if canMergeTokenLists(c.Pattern, tokens) {
+			if pc.canMergeTokenLists(c.Pattern, tokens) {
 				return c
 			}
 		}
@@ -341,7 +367,7 @@ func (pc *PatternClusterer) Classify(message string) *Cluster {
 			continue
 		}
 		for _, c := range clusters {
-			if canMergeTokenLists(c.Pattern, tokens) {
+			if pc.canMergeTokenLists(c.Pattern, tokens) {
 				return c
 			}
 		}

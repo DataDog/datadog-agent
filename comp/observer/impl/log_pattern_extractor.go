@@ -29,6 +29,10 @@ type LogPatternExtractorConfig struct {
 	// ParseHexDump controls hex-dump recognition in the tokenizer. When nil, the
 	// patterns package default applies (true).
 	ParseHexDump *bool `json:"parse_hex_dump,omitempty"`
+	// MinTokenMatchRatio is the minimum fraction of token positions (by value)
+	// that must match for two log lines to merge into one pattern. Range (0,1];
+	// zero means the default 0.5 (Drain-style).
+	MinTokenMatchRatio float64 `json:"min_token_match_ratio,omitempty"`
 }
 
 // DefaultLogPatternExtractorConfig returns defaults aligned with the patterns package.
@@ -86,7 +90,7 @@ func NewLogPatternExtractor(cfg LogPatternExtractorConfig) *LogPatternExtractor 
 	registry := NewTagGroupByKeyRegistry()
 	tok := tokenizerFromConfig(cfg)
 	newSub := func() *patterns.PatternClusterer {
-		return patterns.NewPatternClustererWithTokenizer(tok)
+		return patterns.NewPatternClustererWithTokenizer(tok, cfg.MinTokenMatchRatio)
 	}
 	return &LogPatternExtractor{
 		taggedClusterer: NewTaggedPatternClustererWithFactory(registry, newSub),
