@@ -248,7 +248,7 @@ func (c *NTPCheck) Run() error {
 		serviceCheckStatus = servicecheck.ServiceCheckOK
 	}
 
-	_ = sender.GaugeWithTimestamp("ntp.offset", clockOffset, "", []string{"source:ntp"}, ts)
+	_ = sender.GaugeWithTimestamp("ntp.offset", clockOffset, "", nil, ts)
 	ntpExpVar.Set(clockOffset)
 	tlmNtpOffset.Set(clockOffset)
 

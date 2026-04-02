@@ -98,7 +98,7 @@ func TestNTPOK(t *testing.T) {
 			"ntp.offset",
 			float64(offset),
 			"",
-			[]string{"source:ntp"},
+			[]string(nil),
 			mock.AnythingOfType("float64"),
 		).Return().Times(1)
 	// ntp.intake_offset may or may not be submitted depending on whether it's been set
@@ -155,7 +155,7 @@ func TestNTPCritical(t *testing.T) {
 			"ntp.offset",
 			float64(offset),
 			"",
-			[]string{"source:ntp"},
+			[]string(nil),
 			mock.AnythingOfType("float64"),
 		).Return().Times(1)
 	// ntp.intake_offset may or may not be submitted depending on whether it's been set
@@ -296,7 +296,7 @@ func TestNTPNegativeOffsetCritical(t *testing.T) {
 			"ntp.offset",
 			float64(offset),
 			"",
-			[]string{"source:ntp"},
+			[]string(nil),
 			mock.AnythingOfType("float64"),
 		).Return().Times(1)
 	// ntp.intake_offset may or may not be submitted depending on whether it's been set
@@ -361,7 +361,7 @@ hosts:
 			"ntp.offset",
 			float64(2),
 			"",
-			[]string{"source:ntp"},
+			[]string(nil),
 			mock.AnythingOfType("float64"),
 		).Return().Times(1)
 	// ntp.intake_offset may or may not be submitted depending on whether it's been set
@@ -426,7 +426,7 @@ hosts:
 			"ntp.offset",
 			float64(offset),
 			"",
-			[]string{"source:ntp"},
+			[]string(nil),
 			mock.AnythingOfType("float64"),
 		).Return().Times(1)
 	// ntp.intake_offset may or may not be submitted depending on whether it's been set
@@ -669,7 +669,7 @@ func TestNTPUsesResponseTimestamp(t *testing.T) {
 			"ntp.offset",
 			float64(offset),
 			"",
-			[]string{"source:ntp"},
+			[]string(nil),
 			mock.MatchedBy(func(ts float64) bool {
 				actualTS = ts
 				return true
