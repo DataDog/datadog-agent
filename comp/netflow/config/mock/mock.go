@@ -12,6 +12,7 @@ import (
 	"go.uber.org/fx"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	config "github.com/DataDog/datadog-agent/comp/netflow/config/def"
 	configimpl "github.com/DataDog/datadog-agent/comp/netflow/config/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -25,8 +26,15 @@ func (m *mockConfigService) Get() *config.NetflowConfig {
 	return m.conf
 }
 
-func newMock(conf *config.NetflowConfig, logger log.Component) (configimpl.Provides, error) {
-	if err := conf.SetDefaults("default", logger); err != nil {
+type mockDeps struct {
+	compdef.In
+	Conf   *config.NetflowConfig
+	Logger log.Component
+}
+
+func newMock(deps mockDeps) (configimpl.Provides, error) {
+	conf := deps.Conf
+	if err := conf.SetDefaults("default", deps.Logger); err != nil {
 		return configimpl.Provides{}, err
 	}
 	// TODO Currently reverse DNS enrichment is disabled by default for the agent but we want it enabled by default for tests.
