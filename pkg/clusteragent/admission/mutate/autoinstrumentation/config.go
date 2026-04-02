@@ -356,10 +356,10 @@ func (c *TracerConfig) AsEnvVar() corev1.EnvVar {
 
 type initResourceRequirementConfiguration map[corev1.ResourceName]resource.Quantity
 
-// getOptionalBoolValue returns a pointer to a bool corresponding to the config value if the key is set in the config
+// getOptionalBoolValue returns a pointer to a bool corresponding to the config value if the key is configured
 func getOptionalBoolValue(datadogConfig config.Component, key string) *bool {
 	var value *bool
-	if datadogConfig.IsSet(key) {
+	if datadogConfig.IsConfigured(key) {
 		tmp := datadogConfig.GetBool(key)
 		value = &tmp
 	}
@@ -367,10 +367,10 @@ func getOptionalBoolValue(datadogConfig config.Component, key string) *bool {
 	return value
 }
 
-// getOptionalBoolValue returns a pointer to a bool corresponding to the config value if the key is set in the config
+// getOptionalStringValue returns a pointer to a string corresponding to the config value if the key is configured
 func getOptionalStringValue(datadogConfig config.Component, key string) *string {
 	var value *string
-	if datadogConfig.IsSet(key) {
+	if datadogConfig.IsConfigured(key) {
 		tmp := datadogConfig.GetString(key)
 		value = &tmp
 	}
@@ -417,32 +417,28 @@ func getPinnedLibraries(libVersions map[string]string, registry string, checkDef
 func initDefaultResources(datadogConfig config.Component) (initResourceRequirementConfiguration, error) {
 	conf := initResourceRequirementConfiguration{}
 
-	if datadogConfig.IsSet("admission_controller.auto_instrumentation.init_resources.cpu") {
+	if datadogConfig.IsConfigured("admission_controller.auto_instrumentation.init_resources.cpu") {
 		quantity, err := resource.ParseQuantity(datadogConfig.GetString("admission_controller.auto_instrumentation.init_resources.cpu"))
 		if err != nil {
 			return conf, err
 		}
 		conf[corev1.ResourceCPU] = quantity
-	} /* else {
-		conf[corev1.ResourceCPU] = *resource.NewMilliQuantity(minimumCPULimit, resource.DecimalSI)
-	}*/
+	}
 
-	if datadogConfig.IsSet("admission_controller.auto_instrumentation.init_resources.memory") {
+	if datadogConfig.IsConfigured("admission_controller.auto_instrumentation.init_resources.memory") {
 		quantity, err := resource.ParseQuantity(datadogConfig.GetString("admission_controller.auto_instrumentation.init_resources.memory"))
 		if err != nil {
 			return conf, err
 		}
 		conf[corev1.ResourceMemory] = quantity
-	} /*else {
-		conf[corev1.ResourceCPU] = *resource.NewMilliQuantity(minimumMemoryLimit, resource.DecimalSI)
-	}*/
+	}
 
 	return conf, nil
 }
 
 func parseInitSecurityContext(datadogConfig config.Component) (*corev1.SecurityContext, error) {
 	confKey := "admission_controller.auto_instrumentation.init_security_context"
-	if datadogConfig.IsSet(confKey) {
+	if datadogConfig.IsConfigured(confKey) {
 		confValue := datadogConfig.GetString(confKey)
 		var securityContext corev1.SecurityContext
 		err := json.Unmarshal([]byte(confValue), &securityContext)
