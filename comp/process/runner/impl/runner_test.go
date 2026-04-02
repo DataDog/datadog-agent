@@ -113,7 +113,7 @@ type Deps struct {
 
 func createDeps(t *testing.T, confOverrides map[string]interface{}, options ...fx.Option) Deps {
 	return fxutil.Test[Deps](t, fx.Options(
-		fx.Provide(NewComponent),
+		fxutil.ProvideComponentConstructor(NewComponent),
 		submittermock.MockModule(),
 		hostinfomock.MockModule(),
 
