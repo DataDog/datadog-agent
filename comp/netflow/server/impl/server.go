@@ -30,6 +30,7 @@ import (
 // Requires defines the dependencies for the server component.
 type Requires struct {
 	compdef.In
+	Lc            compdef.Lifecycle
 	Config        nfconfig.Component
 	Logger        log.Component
 	Demultiplexer demultiplexer.Component
@@ -47,7 +48,8 @@ type Provides struct {
 }
 
 // NewComponent creates a new netflow server component.
-func NewComponent(lc compdef.Lifecycle, deps Requires) (Provides, error) {
+func NewComponent(deps Requires) (Provides, error) {
+	lc := deps.Lc
 	conf := deps.Config.Get()
 	sender, err := deps.Demultiplexer.GetDefaultSender()
 	if err != nil {
