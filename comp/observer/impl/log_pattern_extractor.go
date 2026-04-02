@@ -11,6 +11,11 @@ import (
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
+// LogPatternExtractorName is the canonical name for the log pattern extractor.
+// It is used as the storage namespace for emitted metrics, as the component
+// name in the catalog, and in notify formatting for log-derived anomalies.
+const LogPatternExtractorName = "log_pattern_extractor"
+
 // defaultMinClusterSizeBeforeEmitMetrics is the minimum number of logs
 // inside a cluster (pattern) before we emit a metric.
 const defaultMinClusterSizeBeforeEmitMetrics = 5

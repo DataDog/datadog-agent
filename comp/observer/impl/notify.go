@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -22,19 +23,25 @@ import (
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
+// logPatternRateWindowSec is the window (seconds) for averaging log pattern
+// rates shown in reports and event messages.
+const logPatternRateWindowSec = 60
+
 // eventSender formats and dispatches one Datadog event per correlation.
 // When api is nil, send prints to stdout (dry-run mode) instead of calling the API.
 type eventSender struct {
-	api    *datadogV2.EventsApi
-	ctx    context.Context
-	logger log.Component
+	api     *datadogV2.EventsApi
+	ctx     context.Context
+	logger  log.Component
+	storage observerdef.StorageReader
 }
 
 // newEventSender creates an eventSender. It reads observer.event_reporter.sending_enabled
 // from cfg; when false, api is left nil and events are only logged (dry-run mode).
-func newEventSender(cfg config.Component, logger log.Component) (*eventSender, error) {
+// storage is used to compute windowed log rates for display in event messages.
+func newEventSender(cfg config.Component, logger log.Component, storage observerdef.StorageReader) (*eventSender, error) {
 	if !cfg.GetBool("observer.event_reporter.sending_enabled") {
-		return &eventSender{logger: logger}, nil
+		return &eventSender{logger: logger, storage: storage}, nil
 	}
 	apiKey := cfg.GetString("api_key")
 	if apiKey == "" {
@@ -46,76 +53,30 @@ func newEventSender(cfg config.Component, logger log.Component) (*eventSender, e
 		map[string]datadog.APIKey{"apiKeyAuth": {Key: apiKey}},
 	)
 	return &eventSender{
-		api:    datadogV2.NewEventsApi(datadog.NewAPIClient(datadog.NewConfiguration())),
-		ctx:    ctx,
-		logger: logger,
+		api:     datadogV2.NewEventsApi(datadog.NewAPIClient(datadog.NewConfiguration())),
+		ctx:     ctx,
+		logger:  logger,
+		storage: storage,
 	}, nil
 }
 
-// correlationMessage builds the event message body for a correlation.
-func correlationMessage(c observerdef.ActiveCorrelation) string {
-	var metricLines, logLines []string
-	for _, a := range c.Anomalies {
-		if a.Description == "" {
-			continue
-		}
-		if a.Type == observerdef.AnomalyTypeLog {
-			logLines = append(logLines, "- "+a.Description)
-		} else {
-			var pattern string
-			if a.Context != nil {
-				pattern = strings.TrimSpace(a.Context.Pattern)
-			}
-			// If this metric is a log related one, find its pattern and create a custom message
-			// TODO(celian): Be sure that we don't have twice (pattern, tags) tuples
-			if a.Source.Namespace == "log_pattern_extractor" && pattern != "" {
-				var tagsPart string
-				if len(a.Context.SplitTags) > 0 {
-					var parts []string
-					for _, k := range splitTagKeyOrder {
-						if v, ok := a.Context.SplitTags[k]; ok {
-							parts = append(parts, k+"="+v)
-						}
-					}
-					if len(parts) > 0 {
-						tagsPart = "\t[" + strings.Join(parts, ", ") + "]"
-					}
-				}
-				var example string
-				if a.Context.Example != "" {
-					example = "\tlog example: " + strings.TrimSpace(a.Context.Example)
-				}
-				var ratePart string
-				if a.DebugInfo != nil {
-					ratePart = fmt.Sprintf("\tcurrent rate: %.1flog/s", a.DebugInfo.CurrentValue)
-				} else {
-					ratePart = "\tcurrent rate: unknown"
-				}
-				logDescription := fmt.Sprintf("Log pattern change rate detected: %s%s%s%s", pattern, example, ratePart, tagsPart)
-				logLines = append(logLines, "- "+logDescription)
-			} else {
-				metricLines = append(metricLines, "- "+a.Description)
-			}
-		}
+// logPatternRate returns the average log/s over the last logPatternRateWindowSec seconds
+// for the given anomaly. It uses SumRange on storage when a series ref is available,
+// otherwise falls back to DebugInfo.CurrentValue.
+func logPatternRate(a observerdef.Anomaly, storage observerdef.StorageReader) (rate float64, ok bool) {
+	if a.SourceRef != nil && storage != nil {
+		total := storage.SumRange(a.SourceRef.Ref, a.Timestamp-logPatternRateWindowSec, a.Timestamp, observerdef.AggregateCount)
+		return total / logPatternRateWindowSec, true
 	}
-	var sections []string
-	if len(metricLines) > 0 {
-		sections = append(sections, fmt.Sprintf("Metric anomalies (%d):\n%s", len(metricLines), strings.Join(metricLines, "\n")))
+	if a.DebugInfo != nil {
+		return a.DebugInfo.CurrentValue, true
 	}
-	if len(logLines) > 0 {
-		sections = append(sections, fmt.Sprintf("Log anomalies (%d):\n%s", len(logLines), strings.Join(logLines, "\n")))
-	}
-	const maxLen = 4000
-	text := "The following anomalies were detected and are likely related:\n\n" + strings.Join(sections, "\n\n")
-	if len(text) > maxLen {
-		text = text[:maxLen-3] + "..."
-	}
-	return text
+	return 0, false
 }
 
 // send formats a correlation into a change event and either prints or posts it.
 func (s *eventSender) send(c observerdef.ActiveCorrelation) error {
-	msg := buildChangeMessage(c)
+	msg := buildChangeMessage(c, s.storage)
 	ts := time.Unix(c.FirstSeen, 0).UTC().Format(time.RFC3339)
 	aggKey := "observer:" + c.Pattern
 
@@ -316,25 +277,30 @@ func buildChangeMetadata(c observerdef.ActiveCorrelation) map[string]interface{}
 	return meta
 }
 
-// buildChangeMessage creates a compact human-readable summary for the change event message.
-func buildChangeMessage(c observerdef.ActiveCorrelation) string {
+// buildChangeMessage creates a compact human-readable summary for a correlation (Datadog
+// change events, testbench JSON output, and replay-reported events).
+func buildChangeMessage(c observerdef.ActiveCorrelation, storage observerdef.StorageReader) string {
 	var lines []string
 	lines = append(lines, fmt.Sprintf("Correlated behavior change detected: %d anomalies in pattern %q", len(c.Anomalies), c.Pattern))
 	lines = append(lines, "")
 
+	anomalyLines := []string{}
 	for _, a := range c.Anomalies {
 		if isLogDerivedAnomaly(a) {
-			lines = append(lines, "- "+logDerivedDescription(a))
+			anomalyLines = append(anomalyLines, "- "+logDerivedDescription(a, storage))
 		} else if a.DebugInfo != nil {
 			display := anomalyDisplayKey(a)
-			lines = append(lines, fmt.Sprintf("- %s: %.2f (baseline mean: %.2f, %.1f sigma)", display, a.DebugInfo.CurrentValue, a.DebugInfo.BaselineMean, a.DebugInfo.DeviationSigma))
+			anomalyLines = append(anomalyLines, fmt.Sprintf("- %s: %.2f (baseline mean: %.2f, %.1f sigma)", display, a.DebugInfo.CurrentValue, a.DebugInfo.BaselineMean, a.DebugInfo.DeviationSigma))
 		} else if a.Description != "" {
-			lines = append(lines, "- "+a.Description)
+			anomalyLines = append(anomalyLines, "- "+a.Description)
 		} else {
-			lines = append(lines, "- "+anomalyDisplayKey(a))
+			anomalyLines = append(anomalyLines, "- "+anomalyDisplayKey(a))
 		}
 	}
 
+	// Ensure anomalies are unique and sorted (could be duplicate if 2 anomalies on the same series at a similar timestamp)
+	slices.Sort(anomalyLines)
+	lines = append(lines, slices.Compact(anomalyLines)...)
 	text := strings.Join(lines, "\n")
 	const maxLen = 4000
 	if len(text) > maxLen {
@@ -356,26 +322,37 @@ func anomalyDisplayKey(a observerdef.Anomaly) string {
 // pattern/example/rate context rather than raw metric descriptions.
 func isLogDerivedAnomaly(a observerdef.Anomaly) bool {
 	return a.Type != observerdef.AnomalyTypeLog &&
-		a.Source.Namespace == "log_pattern_extractor" &&
+		a.Source.Namespace == LogPatternExtractorName &&
 		a.Context != nil &&
 		strings.TrimSpace(a.Context.Pattern) != ""
 }
 
 // logDerivedDescription builds a human-readable description for a log-derived
-// metric anomaly, including pattern, example, and current rate.
-func logDerivedDescription(a observerdef.Anomaly) string {
+// metric anomaly, including pattern, example, and windowed average rate.
+func logDerivedDescription(a observerdef.Anomaly, storage observerdef.StorageReader) string {
 	pattern := strings.TrimSpace(a.Context.Pattern)
 	var example string
-	if a.Context.Example != "" {
-		example = "\tlog example: " + strings.TrimSpace(a.Context.Example)
+	// Don't display example if it's the same as the pattern
+	if a.Context.Example != "" && strings.TrimSpace(a.Context.Example) != pattern {
+		example = "\n\texample: " + strings.TrimSpace(a.Context.Example)
 	}
 	var ratePart string
-	if a.DebugInfo != nil {
-		ratePart = fmt.Sprintf("\tcurrent rate: %.1flog/s", a.DebugInfo.CurrentValue)
-	} else {
-		ratePart = "\tcurrent rate: unknown"
+	if rate, ok := logPatternRate(a, storage); ok {
+		ratePart = fmt.Sprintf("\n\trate: %.1flog/s", rate)
 	}
-	return fmt.Sprintf("Log pattern change rate detected: %s%s%s", pattern, example, ratePart)
+	var tagsPart string
+	if len(a.Context.SplitTags) > 0 {
+		var parts []string
+		for _, k := range splitTagKeyOrder {
+			if v, ok := a.Context.SplitTags[k]; ok {
+				parts = append(parts, k+"="+v)
+			}
+		}
+		if len(parts) > 0 {
+			tagsPart = "\n\ttags: " + strings.Join(parts, ", ")
+		}
+	}
+	return fmt.Sprintf("Log pattern change rate detected:\n\tpattern: %s%s%s%s", pattern, example, ratePart, tagsPart)
 }
 
 // sendCorrelationEvents sends one event per correlation.
