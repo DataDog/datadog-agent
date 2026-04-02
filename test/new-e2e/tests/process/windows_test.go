@@ -339,31 +339,37 @@ func (s *windowsTestSuite) TestLanguageDetectionWindows() {
 		`(Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*time.sleep(300)*' } | Select-Object -First 1).ProcessId`,
 	))
 
-	// Verify language detection via the remote_process_collector source in workload-list.
-	// The header may contain multiple sources (e.g. "[remote_process_collector process_collector]"),
-	// so match by substring.
-	idSuffix := fmt.Sprintf(" id: %s ===", pid)
+	// Verify language detection via workload-list JSON output.
+	// Parse structured JSON to avoid flaky text parsing.
+	type workloadProcess struct {
+		Kind     string `json:"Kind"`
+		ID       string `json:"ID"`
+		Language *struct {
+			Name string `json:"Name"`
+		} `json:"Language"`
+	}
+	type workloadResponse struct {
+		Entities map[string][]workloadProcess `json:"Entities"`
+	}
+
+	var lastOutput string
 	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		wl := s.Env().RemoteHost.MustExecute(`& "C:\Program Files\Datadog\Datadog Agent\bin\agent.exe" workload-list`)
-		lines := strings.Split(wl, "\n")
-		var inBlock bool
-		for _, line := range lines {
-			if strings.HasPrefix(line, "=== Entity process ") && strings.Contains(line, "remote_process_collector") && strings.HasSuffix(strings.TrimSpace(line), idSuffix) {
-				inBlock = true
-				continue
-			}
-			if inBlock {
-				if strings.HasPrefix(line, "=== Entity") {
-					break
-				}
-				if strings.HasPrefix(line, "Language: ") {
-					assert.Equal(c, "python", strings.TrimSpace(line[len("Language: "):]))
-					return
-				}
+		lastOutput = s.Env().RemoteHost.MustExecute(`& "C:\Program Files\Datadog\Datadog Agent\bin\agent.exe" workload-list --json`)
+		var resp workloadResponse
+		if !assert.NoError(c, json.Unmarshal([]byte(lastOutput), &resp), "failed to parse workload-list JSON") {
+			return
+		}
+		processes := resp.Entities["process"]
+		for _, p := range processes {
+			if p.ID == pid && p.Language != nil && p.Language.Name == "python" {
+				return
 			}
 		}
-		assert.Fail(c, "python process not found in workload-list with remote_process_collector source")
+		assert.Fail(c, fmt.Sprintf("process pid=%s with language=python not found in workload-list", pid))
 	}, 2*time.Minute, 5*time.Second)
+	if s.T().Failed() {
+		s.T().Logf("Last workload-list --json output:\n%s", lastOutput)
+	}
 }
 
 // Runs Diskspd in another ssh session
