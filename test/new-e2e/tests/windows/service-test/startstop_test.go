@@ -989,17 +989,6 @@ func (s *baseStartStopSuite) logHostDiagnostics() {
 	}
 }
 
-// TestCrashDumpAnalysis validates the crash dump analysis pipeline end-to-end:
-// it deliberately crashes a process on the remote VM so that AfterTest picks up
-// the dump, runs !analyze -v, and reports it as a real crash failure.
-func (s *baseStartStopSuite) TestCrashDumpAnalysis() {
-	host := s.Env().RemoteHost
-
-	// Generate a deliberate crash dump
-	err := windowsCommon.GenerateCrashDump(host, s.dumpFolder)
-	s.Require().NoError(err, "should generate a crash dump")
-}
-
 // Driver verifier tests start
 
 type dvAgentServiceCommandSuite struct {
