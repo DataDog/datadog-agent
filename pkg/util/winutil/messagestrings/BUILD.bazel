@@ -11,9 +11,9 @@ win_messagetable(
 go_library(
     name = "messagestrings",
     srcs = [
-         # keep
-         ":messagetable",
-         "messages.go",
+        # keep
+        ":messagetable",
+        "messages.go",
     ],
     cgo = True,
     importpath = "github.com/DataDog/datadog-agent/pkg/util/winutil/messagestrings",
