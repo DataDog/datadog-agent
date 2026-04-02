@@ -135,9 +135,18 @@ type PatternClusterer struct {
 }
 
 func NewPatternClusterer() *PatternClusterer {
+	return NewPatternClustererWithTokenizer(NewTokenizer())
+}
+
+// NewPatternClustererWithTokenizer creates a PatternClusterer that uses the given tokenizer.
+// If t is nil, a default Tokenizer is used.
+func NewPatternClustererWithTokenizer(t *Tokenizer) *PatternClusterer {
+	if t == nil {
+		t = NewTokenizer()
+	}
 	return &PatternClusterer{
 		clustersBySignature: make(map[string][]*Cluster),
-		tokenizer:           NewTokenizer(),
+		tokenizer:           t,
 		IgnoreEmpty:         true,
 	}
 }

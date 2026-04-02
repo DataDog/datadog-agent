@@ -148,16 +148,27 @@ func globalClusterHash(groupHash uint64, clusterID int64) string {
 //
 // NOT thread-safe: all calls must be made from the same goroutine.
 type TaggedPatternClusterer struct {
-	registry      *TagGroupByKeyRegistry
-	subClusterers map[uint64]*patterns.PatternClusterer
+	registry            *TagGroupByKeyRegistry
+	subClusterers       map[uint64]*patterns.PatternClusterer
+	newPatternClusterer func() *patterns.PatternClusterer
 }
 
 // NewTaggedPatternClusterer creates a TaggedPatternClusterer that writes group
 // hashes into registry.
 func NewTaggedPatternClusterer(registry *TagGroupByKeyRegistry) *TaggedPatternClusterer {
+	return NewTaggedPatternClustererWithFactory(registry, patterns.NewPatternClusterer)
+}
+
+// NewTaggedPatternClustererWithFactory is like NewTaggedPatternClusterer but uses newPC
+// to construct each per-tag-group sub-clusterer (e.g. to plug tokenizer hyperparameters).
+func NewTaggedPatternClustererWithFactory(registry *TagGroupByKeyRegistry, newPC func() *patterns.PatternClusterer) *TaggedPatternClusterer {
+	if newPC == nil {
+		newPC = patterns.NewPatternClusterer
+	}
 	return &TaggedPatternClusterer{
-		registry:      registry,
-		subClusterers: make(map[uint64]*patterns.PatternClusterer),
+		registry:            registry,
+		subClusterers:       make(map[uint64]*patterns.PatternClusterer),
+		newPatternClusterer: newPC,
 	}
 }
 
@@ -169,7 +180,7 @@ func (tc *TaggedPatternClusterer) Process(tags []string, message string) (uint64
 
 	sub, exists := tc.subClusterers[groupHash]
 	if !exists {
-		sub = patterns.NewPatternClusterer()
+		sub = tc.newPatternClusterer()
 		tc.subClusterers[groupHash] = sub
 	}
 

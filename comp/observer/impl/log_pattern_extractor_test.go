@@ -14,8 +14,8 @@ import (
 )
 
 func TestLogPatternExtractor_GetContextByKeyUsesOutputContextKey(t *testing.T) {
-	e := NewLogPatternExtractor()
-	e.MinPatternsBeforeEmit = 1
+	e := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
+	e.config.MinClusterSizeBeforeEmit = 1
 
 	log := &mockLogView{
 		content: []byte("GET /users/123 returned 500"),
@@ -36,8 +36,8 @@ func TestLogPatternExtractor_GetContextByKeyUsesOutputContextKey(t *testing.T) {
 }
 
 func TestLogPatternExtractor_DifferentTagGroupsProduceDifferentMetricNames(t *testing.T) {
-	e := NewLogPatternExtractor()
-	e.MinPatternsBeforeEmit = 1
+	e := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
+	e.config.MinClusterSizeBeforeEmit = 1
 
 	// 1 pattern per service (same pattern strings but different IDs)
 	logA := &mockLogView{
@@ -84,8 +84,8 @@ func TestLogPatternExtractor_DifferentTagGroupsProduceDifferentMetricNames(t *te
 }
 
 func TestLogPatternExtractor_DifferentHostnamesProduceDifferentMetricNamesWhenNoHostTag(t *testing.T) {
-	e := NewLogPatternExtractor()
-	e.MinPatternsBeforeEmit = 1
+	e := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
+	e.config.MinClusterSizeBeforeEmit = 1
 
 	msg := []byte("GET /users/123 returned 500")
 	tags := []string{"service:api", "env:prod"}
@@ -119,8 +119,8 @@ func TestLogPatternExtractor_DifferentHostnamesProduceDifferentMetricNamesWhenNo
 }
 
 func TestLogPatternExtractor_ResetClearsContext(t *testing.T) {
-	e := NewLogPatternExtractor()
-	e.MinPatternsBeforeEmit = 1
+	e := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
+	e.config.MinClusterSizeBeforeEmit = 1
 
 	log := &mockLogView{
 		content: []byte("GET /users/123 returned 500"),
@@ -141,7 +141,7 @@ func TestLogPatternExtractor_ResetClearsContext(t *testing.T) {
 }
 
 func TestLogPatternExtractor_SkipsBelowWarnSeverity(t *testing.T) {
-	e := NewLogPatternExtractor()
+	e := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
 
 	out := e.ProcessLog(&mockLogView{
 		content: []byte("INFO: routine request completed"),
@@ -153,7 +153,7 @@ func TestLogPatternExtractor_SkipsBelowWarnSeverity(t *testing.T) {
 }
 
 func TestLogPatternExtractor_DeferredEmitUntilMinPatterns(t *testing.T) {
-	e := NewLogPatternExtractor()
+	e := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
 	status := "warn"
 	tags := []string{"service:api"}
 
