@@ -3,6 +3,8 @@ exporters:
         endpoint: http://localhost:4318
         headers:
             dd-api-key: test-key
+            dd-evp-origin: host-profiler
+            dd-evp-origin-version: 7.0.0-test
 extensions:
     custom:
         config: value
@@ -31,7 +33,7 @@ processors:
                 os.type:
                     enabled: false
 receivers:
-    hostprofiler:
+    profiling:
         symbol_uploader:
             enabled: false
 service:
@@ -49,4 +51,4 @@ service:
                 - resourcedetection/default
                 - resource/dd-profiler-internal-metadata
             receivers:
-                - hostprofiler
+                - profiling

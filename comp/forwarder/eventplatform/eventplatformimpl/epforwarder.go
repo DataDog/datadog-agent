@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -33,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	httpsender "github.com/DataDog/datadog-agent/pkg/logs/sender/http"
 	compressioncommon "github.com/DataDog/datadog-agent/pkg/util/compression"
+	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -536,8 +538,12 @@ func newHTTPPassthroughPipeline(
 	}
 
 	if desc.eventType == eventTypeDataStreamsMessage {
+		tags := fmt.Sprintf("host:%s,agent_version:%s", hostname, version.AgentVersion)
+		if taskARN := getECSFargateTaskARN(); taskARN != "" {
+			tags += ",task_arn:" + taskARN
+		}
 		extraHeaders := map[string]string{
-			"X-Datadog-Additional-Tags": fmt.Sprintf("host:%s,agent_version:%s", hostname, version.AgentVersion),
+			"X-Datadog-Additional-Tags": tags,
 		}
 		for i := range endpoints.Endpoints {
 			endpoints.Endpoints[i].ExtraHTTPHeaders = extraHeaders
@@ -635,6 +641,24 @@ func (p *passthroughPipeline) Stop() {
 		p.strategy.Stop()
 		p.sender.Stop()
 	}
+}
+
+// getECSFargateTaskARN returns the ECS task ARN when running on Fargate, or empty string otherwise.
+func getECSFargateTaskARN() string {
+	if !env.IsECSFargate() {
+		return ""
+	}
+	client, err := ecsmeta.V2()
+	if err != nil {
+		log.Debugf("Failed to initialize ECS metadata V2 client for task ARN: %v", err)
+		return ""
+	}
+	taskMeta, err := client.GetTask(context.Background())
+	if err != nil {
+		log.Debugf("Failed to get ECS task metadata for task ARN: %v", err)
+		return ""
+	}
+	return taskMeta.TaskARN
 }
 
 func joinHosts(endpoints []config.Endpoint) string {

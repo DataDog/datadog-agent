@@ -1182,14 +1182,30 @@ def _bazel_verify_cgo_godefs(ctx: Context, targets: list[str], has_test_files: b
         )
 
 
+_NON_EBPF_TARGETS = frozenset(
+    [
+        "//pkg/ebpf/kernelbugs/c:detect-seccomp-bug",
+    ]
+)
+
+
+def _ebpf_strip_targets(targets, strip):
+    """Append .stripped suffix to eBPF targets when strip is requested.
+
+    Non-eBPF targets (e.g. cc_binary) are returned unchanged since they
+    don't have Bazel-side stripped variants.
+    """
+    if not strip:
+        return list(targets)
+    return [t + ".stripped" if t not in _NON_EBPF_TARGETS else t for t in targets]
+
+
 def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, strip: bool = True) -> None:
     """Build eBPF object files and cgo type definitions using Bazel.
 
-    Bazel always produces unstripped .o files. When strip=True, the copied
-    files are stripped in-place using llvm-strip (same as the old ninja flow).
-
-    Also builds cgo_godefs targets and verifies committed Go type files are
-    up to date.
+    When strip=True, the Bazel-side .stripped target variants are built.
+    Stripping is cached by Bazel alongside the compile step.
+    When strip=False, unstripped objects are built and copied directly.
     """
     import shutil
 
@@ -1199,59 +1215,60 @@ def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, strip: bool = Tru
     else:
         inplace_targets = _BAZEL_EBPF_INPLACE_TARGETS
 
-    ebpf_targets = _BAZEL_EBPF_PREBUILT_TARGETS + _BAZEL_EBPF_CORE_TARGETS + list(inplace_targets.keys())
+    prebuilt = _ebpf_strip_targets(_BAZEL_EBPF_PREBUILT_TARGETS, strip)
+    core = _ebpf_strip_targets(_BAZEL_EBPF_CORE_TARGETS, strip)
+    inplace = {_ebpf_strip_targets([t], strip)[0]: d for t, d in inplace_targets.items()}
 
-    print(f"Building {len(ebpf_targets)} eBPF Bazel targets...")
-    bazel(ctx, "build", *ebpf_targets)
+    all_targets = prebuilt + core + list(inplace.keys())
+    print(f"Building {len(all_targets)} eBPF targets via Bazel...")
+    bazel(ctx, "build", *all_targets)
     bazel_bin = bazel(ctx, "info", "bazel-bin", capture_output=True).strip()
 
     co_re_dir = os.path.join(build_dir, "co-re")
     os.makedirs(build_dir, exist_ok=True)
     os.makedirs(co_re_dir, exist_ok=True)
 
-    copied_files = []
-
     def _copy_output(target: str, dest_dir: str):
         label_path, name = target.lstrip("/").rsplit(":", 1)
+        dest_name = name.removesuffix(".stripped")
 
         # eBPF targets produce .o files, native cc_binary targets produce bare binaries
         src_o = os.path.join(bazel_bin, label_path, f"{name}.o")
         src_bin = os.path.join(bazel_bin, label_path, name)
 
+        # Only use mtime fast-path when strip mode hasn't changed;
+        # name != dest_name means .stripped suffix was removed, so the
+        # source identity changed and we must re-copy regardless of mtime.
+        same_mode = name == dest_name
+
         if os.path.exists(src_o):
-            dst = os.path.join(dest_dir, f"{name}.o")
+            dst = os.path.join(dest_dir, f"{dest_name}.o")
+            if same_mode and os.path.exists(dst) and os.path.getmtime(dst) >= os.path.getmtime(src_o):
+                return
+            if os.path.exists(dst):
+                os.chmod(dst, 0o644)
             shutil.copy2(src_o, dst)
             os.chmod(dst, 0o644)
-            copied_files.append(dst)
         elif os.path.exists(src_bin):
-            dst = os.path.join(dest_dir, name)
+            dst = os.path.join(dest_dir, dest_name)
+            if same_mode and os.path.exists(dst) and os.path.getmtime(dst) >= os.path.getmtime(src_bin):
+                return
+            if os.path.exists(dst):
+                os.chmod(dst, 0o755)
             shutil.copy2(src_bin, dst)
             os.chmod(dst, 0o755)
-            copied_files.append(dst)
         else:
             print(f"Warning: expected output {src_o} or {src_bin} not found")
 
-    for target in _BAZEL_EBPF_PREBUILT_TARGETS:
+    for target in prebuilt:
         _copy_output(target, build_dir)
 
-    for target in _BAZEL_EBPF_CORE_TARGETS:
+    for target in core:
         _copy_output(target, co_re_dir)
 
-    for target, dest in inplace_targets.items():
+    for target, dest in inplace.items():
         os.makedirs(dest, exist_ok=True)
         _copy_output(target, dest)
-
-    if strip:
-        llvm_strip = "/opt/datadog-agent/embedded/bin/llvm-strip"
-        for f in copied_files:
-            if not f.endswith(".o"):
-                continue
-            ctx.run(f"{llvm_strip} -g {f}")
-            ctx.run(f'{llvm_strip} -w -N "LBB*" {f}')
-
-    for f in copied_files:
-        if f.endswith(".o"):
-            os.chmod(f, 0o644)
 
     print(f"Copied eBPF objects to {build_dir}")
 
