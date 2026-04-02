@@ -10,18 +10,20 @@ package journald
 
 import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // Launcher is not supported on no systemd environment.
 type Launcher struct{}
 
 // NewLauncher returns a new Launcher
-func NewLauncher(*flareController.FlareController, tagger.Component) *Launcher {
+func NewLauncher(_ *flareController.FlareController, _ tagger.Component, _ option.Option[healthplatform.Component]) *Launcher {
 	return &Launcher{}
 }
 

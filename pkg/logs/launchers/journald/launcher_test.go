@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	auditorMock "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
@@ -24,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/journald"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 type MockJournal struct{}
@@ -57,7 +59,7 @@ func newTestLauncher(t *testing.T) *Launcher {
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
-	launcher := NewLauncherWithFactory(&MockJournalFactory{}, flare.NewFlareController(), fakeTagger)
+	launcher := NewLauncherWithFactory(&MockJournalFactory{}, flare.NewFlareController(), fakeTagger, option.None[healthplatform.Component]())
 	launcher.Start(launchers.NewMockSourceProvider(), pipeline.NewMockProvider(), auditorMock.NewMockRegistry(), tailers.NewTailerTracker())
 	return launcher
 }

@@ -15,6 +15,11 @@ import (
 	"time"
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
+
+	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // HealthCheckFunc is a function that checks for health issues
@@ -55,4 +60,14 @@ type Component interface {
 
 	// ClearAllIssues clears all issues (useful for testing or when all issues are resolved)
 	ClearAllIssues()
+}
+
+// NoneModule returns a None optional type for healthplatform.Component.
+//
+// This helper allows code that needs a disabled Optional type for healthplatform to get it.
+// The helper is split from the implementation to avoid linking with the dependencies from healthplatformimpl.
+func NoneModule() fxutil.Module {
+	return fxutil.Component(fx.Provide(func() option.Option[Component] {
+		return option.None[Component]()
+	}))
 }
