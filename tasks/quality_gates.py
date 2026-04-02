@@ -627,8 +627,14 @@ def display_pr_comment(
 
     exception_banner = ""
     if exception_granted_by:
-        threshold_str = byte_to_string(PER_PR_THRESHOLD)
-        exception_banner = f"{WARNING_CHAR} **Exception granted by @{exception_granted_by}**: this PR exceeds the per-PR size threshold ({threshold_str}) but will not be blocked.\n"
+        per_pr_excepted = [
+            gs
+            for gs in gate_states
+            if gs.get("error_type") == "PerPRThresholdExceeded" and not gs.get("blocking", True)
+        ]
+        if per_pr_excepted:
+            threshold_str = byte_to_string(PER_PR_THRESHOLD)
+            exception_banner = f"{WARNING_CHAR} **Exception granted by @{exception_granted_by}**: this PR exceeds the per-PR size threshold ({threshold_str}) but will not be blocked.\n"
 
     # Build successful checks section
     success_section = ""
