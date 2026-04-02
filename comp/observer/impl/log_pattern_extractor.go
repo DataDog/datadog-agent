@@ -6,11 +6,9 @@
 package observerimpl
 
 import (
-	"fmt"
 	"strings"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
-	"github.com/DataDog/datadog-agent/comp/observer/impl/patterns"
 )
 
 // defaultMinClusterSizeBeforeEmitMetrics is the minimum number of logs
@@ -20,26 +18,15 @@ const defaultMinClusterSizeBeforeEmitMetrics = 5
 // PatternKeyInfo contains what can identify a pattern.
 type PatternKeyInfo struct {
 	ClusterID int64
-}
-
-// NewPatternKeyInfo creates a PatternKeyInfo for the given cluster ID.
-func NewPatternKeyInfo(clusterID int64) PatternKeyInfo {
-	return PatternKeyInfo{ClusterID: clusterID}
-}
-
-// LogPatternExtractorConfig holds configuration for the LogPatternExtractor.
-type LogPatternExtractorConfig struct{}
-
-// DefaultLogPatternExtractorConfig returns a LogPatternExtractorConfig with default values.
-func DefaultLogPatternExtractorConfig() LogPatternExtractorConfig {
-	return LogPatternExtractorConfig{}
+	GroupHash uint64
 }
 
 // LogPatternExtractor is a LogMetricsExtractor that clusters log messages into
 // patterns and emits a count metric per pattern.
 type LogPatternExtractor struct {
-	PatternClusterer *patterns.PatternClusterer
-	patternContext   map[string]patternMetricContext
+	taggedClusterer *TaggedPatternClusterer
+	registry        *TagGroupByKeyRegistry
+	patternContext  map[string]patternMetricContext
 	// MinPatternsBeforeEmit is the minimum number of distinct patterns (clusters)
 	// before emitting metrics. Zero means defaultMinPatternsBeforeEmitMetrics.
 	MinPatternsBeforeEmit int
@@ -55,12 +42,10 @@ type patternMetricContext struct {
 
 // NewLogPatternExtractor creates a new LogPatternExtractor.
 func NewLogPatternExtractor() *LogPatternExtractor {
+	registry := NewTagGroupByKeyRegistry()
 	return &LogPatternExtractor{
-		PatternClusterer: patterns.NewPatternClusterer(patterns.IDComputeInfo{
-			Offset: 0,
-			Stride: 1,
-			Index:  0,
-		}),
+		taggedClusterer:       NewTaggedPatternClusterer(registry),
+		registry:              registry,
 		MinPatternsBeforeEmit: defaultMinClusterSizeBeforeEmitMetrics,
 	}
 }
@@ -71,13 +56,10 @@ func (e *LogPatternExtractor) Name() string {
 }
 
 // Reset clears clustering and cached per-series context so reanalysis starts
-// from the currently observed logs.
+// from the currently observed logs. The registry is kept so that previously
+// registered hashes remain resolvable.
 func (e *LogPatternExtractor) Reset() {
-	e.PatternClusterer = patterns.NewPatternClusterer(patterns.IDComputeInfo{
-		Offset: 0,
-		Stride: 1,
-		Index:  0,
-	})
+	e.taggedClusterer.Reset()
 	e.patternContext = nil
 }
 
@@ -93,15 +75,17 @@ func (e *LogPatternExtractor) GetContextByKey(key string) (observerdef.MetricCon
 	}
 
 	pattern := ""
-	cluster, err := e.PatternClusterer.GetCluster(entry.keyInfo.ClusterID)
+	cluster, err := e.taggedClusterer.GetCluster(entry.keyInfo.GroupHash, entry.keyInfo.ClusterID)
 	if err == nil && cluster != nil {
 		pattern = cluster.PatternString()
 	}
 
+	group, _ := e.registry.Lookup(entry.keyInfo.GroupHash)
 	return observerdef.MetricContext{
-		Pattern: pattern,
-		Example: entry.example,
-		Source:  e.Name(),
+		Pattern:   pattern,
+		Example:   entry.example,
+		Source:    e.Name(),
+		SplitTags: group.AsMap(),
 	}, true
 }
 
@@ -123,7 +107,8 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 	}
 	telemetry := []observerdef.ObserverTelemetry{}
 	message := string(log.GetContent())
-	cluster, ok := e.PatternClusterer.Process(message)
+	groupTags := tagsForPatternGrouping(log.GetTags(), log.GetHostname())
+	groupHash, cluster, ok := e.taggedClusterer.Process(groupTags, message)
 	if !ok {
 		return observerdef.LogMetricsExtractorOutput{}
 	}
@@ -135,16 +120,17 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 		return observerdef.LogMetricsExtractorOutput{}
 	}
 
-	patternKey := NewPatternKeyInfo(cluster.ID)
-	metricName := fmt.Sprintf("log.%s.%x.count", e.Name(), cluster.ID+1)
+	metricName := "log." + e.Name() + "." + globalClusterHash(groupHash, cluster.ID) + ".count"
 	contextKey := metricContextKey(metricName, log.GetTags())
 
 	if e.patternContext == nil {
 		e.patternContext = make(map[string]patternMetricContext)
 	}
-	e.patternContext[contextKey] = patternMetricContext{
-		keyInfo: patternKey,
-		example: message,
+	if _, exists := e.patternContext[contextKey]; !exists {
+		e.patternContext[contextKey] = patternMetricContext{
+			keyInfo: PatternKeyInfo{ClusterID: cluster.ID, GroupHash: groupHash},
+			example: message,
+		}
 	}
 
 	return observerdef.LogMetricsExtractorOutput{

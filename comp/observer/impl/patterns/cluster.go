@@ -11,20 +11,6 @@ import (
 	"strings"
 )
 
-// Used to compute cluster IDs on multiple threads without locking
-type IDComputeInfo struct {
-	Offset int64
-	Stride int64
-	Index  int64
-}
-
-func (idComputeInfo *IDComputeInfo) NextID() int64 {
-	newID := idComputeInfo.Offset + idComputeInfo.Index*idComputeInfo.Stride
-	idComputeInfo.Index++
-
-	return newID
-}
-
 // Cluster represents a group of similar log messages.
 type Cluster struct {
 	// TODO(celian): Use a map to efficiently get the cluster by ID
@@ -66,23 +52,22 @@ func (c *Cluster) ToClusterInfo() ClusterInfo {
 
 // SignatureClusterer groups logs by exact signature match.
 type SignatureClusterer struct {
-	clusters      map[string]*Cluster
-	orderedKeys   []string
-	tokenizer     *Tokenizer
-	IgnoreEmpty   bool
-	TextGetter    func(doc map[string]string) string
-	TagGetters    map[string]func(doc map[string]string) string
-	IDComputeInfo IDComputeInfo
+	clusters    map[string]*Cluster
+	orderedKeys []string
+	tokenizer   *Tokenizer
+	IgnoreEmpty bool
+	TextGetter  func(doc map[string]string) string
+	TagGetters  map[string]func(doc map[string]string) string
+	nextID      int64
 }
 
-func NewSignatureClusterer(idComputeInfo IDComputeInfo) *SignatureClusterer {
+func NewSignatureClusterer() *SignatureClusterer {
 	return &SignatureClusterer{
-		clusters:      make(map[string]*Cluster),
-		tokenizer:     NewTokenizer(),
-		IgnoreEmpty:   true,
-		TextGetter:    func(doc map[string]string) string { return doc["message"] },
-		TagGetters:    map[string]func(doc map[string]string) string{},
-		IDComputeInfo: idComputeInfo,
+		clusters:    make(map[string]*Cluster),
+		tokenizer:   NewTokenizer(),
+		IgnoreEmpty: true,
+		TextGetter:  func(doc map[string]string) string { return doc["message"] },
+		TagGetters:  map[string]func(doc map[string]string) string{},
 	}
 }
 
@@ -108,10 +93,11 @@ func (sc *SignatureClusterer) ProcessTokens(tokens []Token, message string) (*Cl
 		Pattern:   tokens,
 		Count:     1,
 		Samples:   []string{message},
-		ID:        sc.IDComputeInfo.NextID(),
+		ID:        sc.nextID,
 	}
 	sc.clusters[sig] = c
 	sc.orderedKeys = append(sc.orderedKeys, sig)
+	sc.nextID++
 
 	return c, true
 }
@@ -145,15 +131,14 @@ type PatternClusterer struct {
 	allClusters         []*Cluster
 	tokenizer           *Tokenizer
 	IgnoreEmpty         bool
-	IDComputeInfo       IDComputeInfo
+	nextID              int64
 }
 
-func NewPatternClusterer(idComputeInfo IDComputeInfo) *PatternClusterer {
+func NewPatternClusterer() *PatternClusterer {
 	return &PatternClusterer{
 		clustersBySignature: make(map[string][]*Cluster),
 		tokenizer:           NewTokenizer(),
 		IgnoreEmpty:         true,
-		IDComputeInfo:       idComputeInfo,
 	}
 }
 
@@ -204,10 +189,11 @@ func (pc *PatternClusterer) ProcessTokens(tokens []Token, message string) (*Clus
 		Pattern:   tokens,
 		Count:     1,
 		Samples:   []string{message},
-		ID:        pc.IDComputeInfo.NextID(),
+		ID:        pc.nextID,
 	}
 	pc.clustersBySignature[sig] = append(pc.clustersBySignature[sig], c)
 	pc.allClusters = append(pc.allClusters, c)
+	pc.nextID++
 
 	return c, true
 }

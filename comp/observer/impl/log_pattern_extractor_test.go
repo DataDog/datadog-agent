@@ -32,12 +32,14 @@ func TestLogPatternExtractor_GetContextByKeyUsesOutputContextKey(t *testing.T) {
 	assert.Equal(t, "log_pattern_extractor", ctx.Source)
 	assert.Equal(t, "GET /users/123 returned 500", ctx.Example)
 	assert.NotEmpty(t, ctx.Pattern)
+	assert.Equal(t, map[string]string{"service": "web", "env": "prod"}, ctx.SplitTags)
 }
 
-func TestLogPatternExtractor_ContextKeySeparatesSameMetricByTags(t *testing.T) {
+func TestLogPatternExtractor_DifferentTagGroupsProduceDifferentMetricNames(t *testing.T) {
 	e := NewLogPatternExtractor()
 	e.MinPatternsBeforeEmit = 1
 
+	// 1 pattern per service (same pattern strings but different IDs)
 	logA := &mockLogView{
 		content: []byte("GET /users/123 returned 500"),
 		status:  "warn",
@@ -48,12 +50,25 @@ func TestLogPatternExtractor_ContextKeySeparatesSameMetricByTags(t *testing.T) {
 		status:  "warn",
 		tags:    []string{"service:worker"},
 	}
+	logC := &mockLogView{
+		content: []byte("GET /users/124 returned 500"),
+		status:  "warn",
+		tags:    []string{"service:api"},
+	}
+	logD := &mockLogView{
+		content: []byte("GET /users/457 returned 500"),
+		status:  "warn",
+		tags:    []string{"service:worker"},
+	}
 
 	resA := e.ProcessLog(logA)
 	resB := e.ProcessLog(logB)
+	e.ProcessLog(logC)
+	e.ProcessLog(logD)
 	require.Len(t, resA.Metrics, 1)
 	require.Len(t, resB.Metrics, 1)
-	require.Equal(t, resA.Metrics[0].Name, resB.Metrics[0].Name)
+	// Different tag groups → different sub-clusterers → different globalClusterHash → different names.
+	require.NotEqual(t, resA.Metrics[0].Name, resB.Metrics[0].Name)
 	require.NotEqual(t, resA.Metrics[0].ContextKey, resB.Metrics[0].ContextKey)
 
 	ctxA, ok := e.GetContextByKey(resA.Metrics[0].ContextKey)
@@ -64,6 +79,43 @@ func TestLogPatternExtractor_ContextKeySeparatesSameMetricByTags(t *testing.T) {
 	assert.Equal(t, "GET /users/123 returned 500", ctxA.Example)
 	assert.Equal(t, "GET /users/456 returned 500", ctxB.Example)
 	assert.Equal(t, ctxA.Pattern, ctxB.Pattern)
+	assert.Equal(t, map[string]string{"service": "api"}, ctxA.SplitTags)
+	assert.Equal(t, map[string]string{"service": "worker"}, ctxB.SplitTags)
+}
+
+func TestLogPatternExtractor_DifferentHostnamesProduceDifferentMetricNamesWhenNoHostTag(t *testing.T) {
+	e := NewLogPatternExtractor()
+	e.MinPatternsBeforeEmit = 1
+
+	msg := []byte("GET /users/123 returned 500")
+	tags := []string{"service:api", "env:prod"}
+
+	logA := &mockLogView{
+		content:  msg,
+		status:   "warn",
+		tags:     tags,
+		hostname: "host-a",
+	}
+	logB := &mockLogView{
+		content:  msg,
+		status:   "warn",
+		tags:     tags,
+		hostname: "host-b",
+	}
+
+	resA := e.ProcessLog(logA)
+	resB := e.ProcessLog(logB)
+	require.Len(t, resA.Metrics, 1)
+	require.Len(t, resB.Metrics, 1)
+	require.NotEqual(t, resA.Metrics[0].Name, resB.Metrics[0].Name)
+	require.NotEqual(t, resA.Metrics[0].ContextKey, resB.Metrics[0].ContextKey)
+
+	ctxA, ok := e.GetContextByKey(resA.Metrics[0].ContextKey)
+	require.True(t, ok)
+	ctxB, ok := e.GetContextByKey(resB.Metrics[0].ContextKey)
+	require.True(t, ok)
+	assert.Equal(t, map[string]string{"service": "api", "env": "prod", "host": "host-a"}, ctxA.SplitTags)
+	assert.Equal(t, map[string]string{"service": "api", "env": "prod", "host": "host-b"}, ctxB.SplitTags)
 }
 
 func TestLogPatternExtractor_ResetClearsContext(t *testing.T) {

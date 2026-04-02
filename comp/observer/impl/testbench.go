@@ -1586,17 +1586,18 @@ func (tb *TestBench) GetLogPatterns() []LogPatternInfo {
 		return []LogPatternInfo{}
 	}
 
-	clusters := extractor.PatternClusterer.GetClusters()
-	if len(clusters) == 0 {
+	entries := extractor.taggedClusterer.GetAllClusters()
+	if len(entries) == 0 {
 		return []LogPatternInfo{}
 	}
 
 	storage := tb.engine.Storage()
-	result := make([]LogPatternInfo, 0, len(clusters))
-	for _, cluster := range clusters {
-		hash := fmt.Sprintf("%x", cluster.ID+1)
+	result := make([]LogPatternInfo, 0, len(entries))
+	for _, entry := range entries {
+		cluster := entry.Cluster
+		hash := globalClusterHash(entry.GroupHash, cluster.ID)
 		// Must match LogPatternExtractor.ProcessLog metric names (namespace = extractor name).
-		metricName := fmt.Sprintf("log.%s.%s.count", extractor.Name(), hash)
+		metricName := "log." + extractor.Name() + "." + hash + ".count"
 
 		seriesIDs := []string{}
 		if storage != nil {

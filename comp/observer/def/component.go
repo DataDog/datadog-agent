@@ -270,7 +270,6 @@ type LogMetricsExtractorOutput struct {
 	Telemetry []ObserverTelemetry
 }
 
-
 // SeriesDescriptor is the fully resolved identity of a time series.
 // It carries namespace, metric name, tags, and aggregation — everything
 // needed to display, key, and compare series across correlators and API.
@@ -586,6 +585,9 @@ type MetricContext struct {
 	Example string
 	// Source identifies the originating component or data stream.
 	Source string
+	// SplitTags carries the tag-group key/value pairs (source, service, env, host) that
+	// scoped the sub-clusterer which produced this metric. Nil when no split tags apply.
+	SplitTags map[string]string
 }
 
 // StorageReader provides read access to time series data.
