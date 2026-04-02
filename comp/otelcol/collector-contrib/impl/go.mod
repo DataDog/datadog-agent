@@ -532,7 +532,7 @@ require (
 	k8s.io/api v0.35.1 // indirect
 	k8s.io/apimachinery v0.35.1 // indirect
 	k8s.io/client-go v0.35.1 // indirect
-	k8s.io/klog/v2 v2.130.1 // indirect
+	k8s.io/klog/v2 v2.140.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20251125145642-4e65d59e963e // indirect
 	k8s.io/utils v0.0.0-20251222233032-718f0e51e6d2 // indirect
 	sigs.k8s.io/controller-runtime v0.23.1 // indirect
