@@ -396,7 +396,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/util/aws
 # gazelle:exclude pkg/util/aws/creds
 # gazelle:exclude pkg/util/cachedfetch
-# gazelle:exclude pkg/util/cgroups
 # gazelle:exclude pkg/util/cli
 # gazelle:exclude pkg/util/cloudproviders
 # gazelle:exclude pkg/util/clusteragent
