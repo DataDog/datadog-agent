@@ -58,7 +58,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/core/log/impl
 # gazelle:exclude comp/core/log/impl-systemprobe
 # gazelle:exclude comp/core/log/impl-trace
-# gazelle:exclude comp/core/log/mock
 # gazelle:exclude comp/core/log/rust
 # gazelle:exclude comp/core/lsof
 # gazelle:exclude comp/core/pid
@@ -163,7 +162,9 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/syntheticstestscheduler
 # gazelle:exclude comp/systray
 # gazelle:exclude comp/trace-telemetry
-# gazelle:exclude comp/trace/agent
+# gazelle:exclude comp/trace/agent/fx
+# gazelle:exclude comp/trace/agent/fx-mock
+# gazelle:exclude comp/trace/agent/impl
 # gazelle:exclude comp/trace/compression/fx-gzip
 # gazelle:exclude comp/trace/compression/fx-zstd
 # gazelle:exclude comp/trace/config
@@ -420,8 +421,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/util/gpu
 # gazelle:exclude pkg/util/grpc
 # gazelle:exclude pkg/util/hostinfo
-# gazelle:exclude pkg/util/hostname
-# gazelle:exclude pkg/util/hostname/validate
 # gazelle:exclude pkg/util/http
 # gazelle:exclude pkg/util/input
 # gazelle:exclude pkg/util/installinfo
@@ -454,7 +453,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/util/tmplvar
 # gazelle:exclude pkg/util/trie
 # gazelle:exclude pkg/util/trivy
-# gazelle:exclude pkg/util/uuid
 # gazelle:exclude pkg/util/workqueue
 # gazelle:exclude pkg/util/xc
 # gazelle:exclude pkg/windowsdriver

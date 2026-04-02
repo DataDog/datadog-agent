@@ -225,21 +225,6 @@ func load() (*types.Config, error) {
 		}
 	}
 
-	// Enable discovery by default on Linux if system-probe has any modules
-	// enabled, unless the user has explicitly configured the discovery.enabled
-	// config key.
-	//
-	// Note that besides the support in system-probe itself (currently only
-	// implemented on Linux), the WorkloadMeta-based process collector in the
-	// core agent needs to be supported on the platform for discovery to work
-	// correctly.
-	if runtime.GOOS == "linux" &&
-		len(c.EnabledModules) > 0 &&
-		!c.ModuleIsEnabled(DiscoveryModule) &&
-		applyDefault(cfg, discoveryNS("enabled"), true) {
-		c.EnabledModules[DiscoveryModule] = struct{}{}
-	}
-
 	c.Enabled = len(c.EnabledModules) > 0
 	// only allowed raw config adjustments here, otherwise use Adjust function
 	cfg.Set(spNS("enabled"), c.Enabled, pkgconfigmodel.SourceAgentRuntime)
