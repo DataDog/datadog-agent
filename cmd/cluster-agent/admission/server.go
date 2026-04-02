@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"io"
 	stdLog "log"
+	"net"
 	"net/http"
 	"time"
 
@@ -33,6 +34,7 @@ import (
 	admicommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -123,8 +125,9 @@ func (s *Server) Run(mainCtx context.Context) error {
 	}
 
 	logWriter, _ := pkglogsetup.NewTLSHandshakeErrorWriter(4, log.WarnLvl)
+	addr := fmt.Sprintf(":%d", pkgconfigsetup.Datadog().GetInt("admission_controller.port"))
 	server := &http.Server{
-		Addr:     fmt.Sprintf(":%d", pkgconfigsetup.Datadog().GetInt("admission_controller.port")),
+		Addr:     addr,
 		Handler:  s.mux,
 		ErrorLog: stdLog.New(logWriter, "Error from the admission controller http API server: ", 0),
 		TLSConfig: &tls.Config{
@@ -140,15 +143,33 @@ func (s *Server) Run(mainCtx context.Context) error {
 			MinVersion: tlsMinVersion,
 		},
 	}
+
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		return fmt.Errorf("could not listen on %s: %w", addr, err)
+	}
+
+	tlsListener := tls.NewListener(listener, server.TLSConfig)
+
+	healthHandle := health.RegisterReadiness("admission-controller-webhook")
+	defer healthHandle.Deregister() //nolint:errcheck
+
 	go func() error {
-		return log.Error(server.ListenAndServeTLS("", ""))
+		return log.Error(server.Serve(tlsListener))
 	}() //nolint:errcheck
 
-	<-mainCtx.Done()
+	log.Infof("Admission controller webhook server started on %s", addr)
 
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	return server.Shutdown(shutdownCtx)
+	for {
+		select {
+		case <-mainCtx.Done():
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			return server.Shutdown(shutdownCtx)
+		case <-healthHandle.C:
+			// Drain the health check channel to stay healthy
+		}
+	}
 }
 
 // handle contains the main logic responsible for handling admission requests.
