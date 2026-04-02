@@ -125,8 +125,16 @@ func defaultCatalog() *componentCatalog {
 				name:           "log_pattern_extractor",
 				displayName:    "Log Pattern Extractor",
 				kind:           componentExtractor,
-				factory:        func(any) any { return NewLogPatternExtractor() },
+				defaultConfig:  DefaultLogPatternExtractorConfig(),
+				factory:        func(cfg any) any { return NewLogPatternExtractor(cfg.(LogPatternExtractorConfig)) },
 				defaultEnabled: true,
+				parseJSON: func(defaults any, raw []byte) (any, error) {
+					cfg := defaults.(LogPatternExtractorConfig)
+					if err := json.Unmarshal(raw, &cfg); err != nil {
+						return nil, err
+					}
+					return cfg, nil
+				},
 			},
 			// ---- Detectors ----
 			{

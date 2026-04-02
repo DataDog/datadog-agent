@@ -390,7 +390,7 @@ func TestMergeTokensWhitespace(t *testing.T) {
 func TestMergeTokenListsSameLength(t *testing.T) {
 	a := []Token{WordToken("hello"), WhitespaceToken(1), WordToken("world")}
 	b := []Token{WordToken("hello"), WhitespaceToken(1), WordToken("earth")}
-	if !canMergeTokenLists(a, b) {
+	if !canMergeTokenListsWithRatio(a, b, 0.5) {
 		t.Error("token lists with same structure should be mergeable")
 	}
 }
@@ -398,8 +398,20 @@ func TestMergeTokenListsSameLength(t *testing.T) {
 func TestMergeTokenListsDifferentLength(t *testing.T) {
 	a := []Token{WordToken("hello")}
 	b := []Token{WordToken("hello"), WhitespaceToken(1)}
-	if canMergeTokenLists(a, b) {
+	if canMergeTokenListsWithRatio(a, b, 0.5) {
 		t.Error("token lists with different lengths should not be mergeable")
+	}
+}
+
+func TestMergeTokenListsStricterRatio(t *testing.T) {
+	// Four tokens, two value matches (50%) — merge at default 0.5, not at 0.8.
+	a := []Token{WordToken("a"), WhitespaceToken(1), WordToken("b"), WordToken("c")}
+	b := []Token{WordToken("a"), WhitespaceToken(1), WordToken("x"), WordToken("y")}
+	if !canMergeTokenListsWithRatio(a, b, 0.5) {
+		t.Error("expected merge at default ratio 0.5")
+	}
+	if canMergeTokenListsWithRatio(a, b, 0.8) {
+		t.Error("expected no merge at 0.8 min ratio")
 	}
 }
 

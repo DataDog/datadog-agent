@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
+	"github.com/DataDog/datadog-agent/comp/observer/impl/patterns"
 )
 
 // LogPatternExtractorName is the canonical name for the log pattern extractor.
@@ -16,9 +17,44 @@ import (
 // name in the catalog, and in notify formatting for log-derived anomalies.
 const LogPatternExtractorName = "log_pattern_extractor"
 
-// defaultMinClusterSizeBeforeEmitMetrics is the minimum number of logs
-// inside a cluster (pattern) before we emit a metric.
-const defaultMinClusterSizeBeforeEmitMetrics = 5
+// LogPatternExtractorConfig holds hyperparameters for the log pattern extractor.
+type LogPatternExtractorConfig struct {
+	// MinClusterSizeBeforeEmit is the minimum number of logs matching a pattern
+	// before emitting metrics. Zero means the default from DefaultLogPatternExtractorConfig.
+	MinClusterSizeBeforeEmit int `json:"min_cluster_size_before_emit,omitempty"`
+	// MaxTokenizedStringLength caps input length before tokenization (0 = patterns default).
+	MaxTokenizedStringLength int `json:"max_tokenized_string_length,omitempty"`
+	// MaxNumTokens caps token count per message (0 = patterns default).
+	MaxNumTokens int `json:"max_num_tokens,omitempty"`
+	// ParseHexDump controls hex-dump recognition in the tokenizer. When nil, the
+	// patterns package default applies (true).
+	ParseHexDump *bool `json:"parse_hex_dump,omitempty"`
+	// MinTokenMatchRatio is the minimum fraction of token positions (by value)
+	// that must match for two log lines to merge into one pattern. Range (0,1];
+	// zero means the default 0.5 (Drain-style).
+	MinTokenMatchRatio float64 `json:"min_token_match_ratio,omitempty"`
+}
+
+// DefaultLogPatternExtractorConfig returns defaults aligned with the patterns package.
+func DefaultLogPatternExtractorConfig() LogPatternExtractorConfig {
+	return LogPatternExtractorConfig{
+		MinClusterSizeBeforeEmit: 5,
+	}
+}
+
+func tokenizerFromConfig(cfg LogPatternExtractorConfig) *patterns.Tokenizer {
+	t := patterns.NewTokenizer()
+	if cfg.MaxTokenizedStringLength > 0 {
+		t.MaxStringLen = cfg.MaxTokenizedStringLength
+	}
+	if cfg.MaxNumTokens > 0 {
+		t.MaxTokens = cfg.MaxNumTokens
+	}
+	if cfg.ParseHexDump != nil {
+		t.ParseHexDump = *cfg.ParseHexDump
+	}
+	return t
+}
 
 // PatternKeyInfo contains what can identify a pattern.
 type PatternKeyInfo struct {
@@ -32,9 +68,8 @@ type LogPatternExtractor struct {
 	taggedClusterer *TaggedPatternClusterer
 	registry        *TagGroupByKeyRegistry
 	patternContext  map[string]patternMetricContext
-	// MinPatternsBeforeEmit is the minimum number of distinct patterns (clusters)
-	// before emitting metrics. Zero means defaultMinPatternsBeforeEmitMetrics.
-	MinPatternsBeforeEmit int
+	// config is the resolved hyperparameters (MinClusterSizeBeforeEmit is never zero after init).
+	config LogPatternExtractorConfig
 }
 
 var _ observerdef.LogMetricsExtractor = (*LogPatternExtractor)(nil)
@@ -46,12 +81,21 @@ type patternMetricContext struct {
 }
 
 // NewLogPatternExtractor creates a new LogPatternExtractor.
-func NewLogPatternExtractor() *LogPatternExtractor {
+// A zero-value cfg is accepted; zero fields fall back to DefaultLogPatternExtractorConfig values.
+func NewLogPatternExtractor(cfg LogPatternExtractorConfig) *LogPatternExtractor {
+	defaults := DefaultLogPatternExtractorConfig()
+	if cfg.MinClusterSizeBeforeEmit <= 0 {
+		cfg.MinClusterSizeBeforeEmit = defaults.MinClusterSizeBeforeEmit
+	}
 	registry := NewTagGroupByKeyRegistry()
+	tok := tokenizerFromConfig(cfg)
+	newSub := func() *patterns.PatternClusterer {
+		return patterns.NewPatternClustererWithTokenizer(tok, cfg.MinTokenMatchRatio)
+	}
 	return &LogPatternExtractor{
-		taggedClusterer:       NewTaggedPatternClusterer(registry),
-		registry:              registry,
-		MinPatternsBeforeEmit: defaultMinClusterSizeBeforeEmitMetrics,
+		taggedClusterer: NewTaggedPatternClustererWithFactory(registry, newSub),
+		registry:        registry,
+		config:          cfg,
 	}
 }
 
@@ -119,9 +163,9 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 	}
 	// Not enough patterns yet, don't emit metric.
 	// It's not directly a new pattern but the first time we reach the threshold and we emit a metric.
-	if cluster.Count == e.MinPatternsBeforeEmit {
+	if cluster.Count == e.config.MinClusterSizeBeforeEmit {
 		telemetry = append(telemetry, newTelemetryCounter([]string{"detector:" + e.Name()}, telemetryLogPatternExtractorPatternCount, 1, log.GetTimestampUnixMilli()/1000))
-	} else if cluster.Count < e.MinPatternsBeforeEmit {
+	} else if cluster.Count < e.config.MinClusterSizeBeforeEmit {
 		return observerdef.LogMetricsExtractorOutput{}
 	}
 

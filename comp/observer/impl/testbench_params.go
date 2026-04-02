@@ -30,6 +30,11 @@ import (
 //	      "proximity_seconds": 15,
 //	      "min_cluster_size": 2
 //	    },
+//	    "log_pattern_extractor": {
+//	      "min_cluster_size_before_emit": 5,
+//	      "max_tokenized_string_length": 8000,
+//	      "min_token_match_ratio": 0.5
+//	    },
 //	    "rrcf": { "enabled": false }
 //	  }
 //	}
