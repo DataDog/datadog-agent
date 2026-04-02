@@ -128,7 +128,7 @@ type Config struct {
 	Memcached MemcachedConfig `mapstructure:"memcached" json:"memcached"`
 
 	// Memcached holds the obfuscation settings for obfuscation of CC numbers in meta.
-	CreditCard CreditCardsConfig `mapstructure:"credit_card" json:"credit_card"`
+	CreditCard CreditCardsConfig `mapstructure:"credit_cards" json:"credit_card"`
 
 	// Statsd specifies the statsd client to use for reporting metrics.
 	Statsd StatsClient
