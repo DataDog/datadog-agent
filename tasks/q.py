@@ -1015,6 +1015,77 @@ def _run_episode_phases(
     print(color_message(f"{'=' * 60}", Color.GREEN))
 
 
+# --- Parquet utilities ---
+
+
+@task
+def compact_parquets(ctx, parquet_dir: str = "", scenario: str = "food_delivery_redis"):
+    """
+    Combines per-flush parquet files into one file per type (logs, metrics,
+    trace-stats, traces). Dramatically reduces size on disk thanks to larger
+    row groups and shared dictionary encoding.
+
+    Example:
+        dda inv q.compact-parquets --scenario=food_delivery_redis
+        dda inv q.compact-parquets --parquet-dir=/tmp/my-parquets
+    """
+    if not parquet_dir:
+        parquet_dir = os.path.join("comp", "observer", "scenarios", scenario, "parquet")
+
+    if not os.path.isdir(parquet_dir):
+        raise FileNotFoundError(f"Parquet directory not found: {parquet_dir}")
+
+    prefixes = ["observer-logs", "observer-metrics", "observer-trace-stats", "observer-traces"]
+
+    before_size = sum(
+        os.path.getsize(os.path.join(parquet_dir, f)) for f in os.listdir(parquet_dir) if f.endswith(".parquet")
+    )
+    before_count = sum(1 for f in os.listdir(parquet_dir) if f.endswith(".parquet"))
+
+    for prefix in prefixes:
+        parts = sorted(glob.glob(os.path.join(parquet_dir, f"{prefix}-*.parquet")))
+        if len(parts) <= 1:
+            print(f"  {prefix}: {len(parts)} file(s), skipping")
+            continue
+
+        combined_path = os.path.join(parquet_dir, f"{prefix}.parquet")
+        print(color_message(f"  {prefix}: combining {len(parts)} files...", Color.BLUE))
+
+        # Use uv run to get pyarrow without polluting the dda venv.
+        parts_repr = repr(parts)
+        result = ctx.run(
+            f"uv run --with pyarrow python3 -c "
+            f"'import pyarrow as pa, pyarrow.parquet as pq; "
+            f"pq.write_table(pa.concat_tables([pq.read_table(f) for f in {parts_repr}]), "
+            f"{combined_path!r}, compression=\"zstd\")'",
+            warn=True,
+            hide=True,
+        )
+
+        if result.ok and os.path.exists(combined_path) and os.path.getsize(combined_path) > 0:
+            for p in parts:
+                os.unlink(p)
+            combined_size = os.path.getsize(combined_path)
+            print(color_message(f"    → {combined_size / 1024 / 1024:.1f}MB", Color.GREEN))
+        else:
+            print(color_message("    ✕ combine failed, keeping originals", Color.RED))
+
+    after_size = sum(
+        os.path.getsize(os.path.join(parquet_dir, f)) for f in os.listdir(parquet_dir) if f.endswith(".parquet")
+    )
+    after_count = sum(1 for f in os.listdir(parquet_dir) if f.endswith(".parquet"))
+
+    ratio = (1 - after_size / before_size) * 100 if before_size > 0 else 0
+    print(
+        color_message(
+            f"\n  {before_count} files ({before_size / 1024 / 1024:.0f}MB) → "
+            f"{after_count} files ({after_size / 1024 / 1024:.0f}MB) "
+            f"({ratio:.0f}% reduction)",
+            Color.GREEN,
+        )
+    )
+
+
 # --- Benchmarks ---
 
 _BENCH_FILTER = "BenchmarkDetection|BenchmarkIngestion|BenchmarkLogExtraction"
