@@ -97,6 +97,14 @@ type Config struct {
 	// EventStreamKretprobeMaxActive specifies the maximum number of active kretprobe at a given time
 	EventStreamKretprobeMaxActive int
 
+	// EventStreamSchedulingPolicy specifies the realtime scheduling policy for the ring buffer reader thread.
+	// Supported values: "", "SCHED_FIFO", "SCHED_RR". Empty means no change (default).
+	EventStreamSchedulingPolicy string
+
+	// EventStreamSchedulingPriority specifies the realtime scheduling priority (1-99).
+	// Required when EventStreamSchedulingPolicy is set.
+	EventStreamSchedulingPriority int
+
 	// RuntimeCompilationEnabled defines if the runtime-compilation is enabled
 	RuntimeCompilationEnabled bool
 
@@ -209,6 +217,8 @@ func NewConfig() (*Config, error) {
 		EventStreamUseFentry:               getBool("event_stream.use_fentry"),
 		EventStreamUseKprobeFallback:       getBool("event_stream.use_kprobe_fallback"),
 		EventStreamKretprobeMaxActive:      getInt("event_stream.kretprobe_max_active"),
+		EventStreamSchedulingPolicy:        getString("event_stream.scheduling_policy"),
+		EventStreamSchedulingPriority:      getInt("event_stream.scheduling_priority"),
 
 		EnvsWithValue:               getStringSlice("envs_with_value"),
 		NetworkEnabled:              getBool("network.enabled"),
@@ -270,6 +280,20 @@ func (c *Config) sanitize() error {
 
 	if c.EventStreamBufferSize%os.Getpagesize() != 0 || c.EventStreamBufferSize&(c.EventStreamBufferSize-1) != 0 {
 		return fmt.Errorf("runtime_security_config.event_stream.buffer_size must be a power of 2 and a multiple of %d", os.Getpagesize())
+	}
+
+	switch c.EventStreamSchedulingPolicy {
+	case "", "SCHED_FIFO", "SCHED_RR":
+		// valid
+	default:
+		return fmt.Errorf("invalid event_stream.scheduling_policy %q: must be empty, \"SCHED_FIFO\", or \"SCHED_RR\"", c.EventStreamSchedulingPolicy)
+	}
+	if c.EventStreamSchedulingPolicy != "" {
+		if c.EventStreamSchedulingPriority < 1 || c.EventStreamSchedulingPriority > 99 {
+			return fmt.Errorf("event_stream.scheduling_priority must be between 1 and 99 when scheduling_policy is set, got %d", c.EventStreamSchedulingPriority)
+		}
+	} else if c.EventStreamSchedulingPriority != 0 {
+		return fmt.Errorf("event_stream.scheduling_priority is set but event_stream.scheduling_policy is empty")
 	}
 
 	if !isConfigured("enable_approvers") && c.EnableKernelFilters {
