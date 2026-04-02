@@ -18,6 +18,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	logComp "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	"github.com/DataDog/datadog-agent/comp/core/settings"
+	"github.com/DataDog/datadog-agent/comp/core/status"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	apiserver "github.com/DataDog/datadog-agent/comp/process/apiserver/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -32,13 +37,15 @@ type apiserverImpl struct {
 type dependencies struct {
 	compdef.In
 
-	Lc compdef.Lifecycle
-
-	Config config.Component
-	Log    logComp.Component
-	IPC    ipc.Component
-
-	APIServerDeps api.APIServerDeps
+	Lc           compdef.Lifecycle
+	Config       config.Component
+	Log          logComp.Component
+	IPC          ipc.Component
+	WorkloadMeta workloadmeta.Component
+	Status       status.Component
+	Settings     settings.Component
+	Tagger       tagger.Component
+	Secrets      secrets.Component
 }
 
 // NewComponent creates a new apiserver component.
@@ -46,7 +53,15 @@ type dependencies struct {
 //nolint:revive // TODO(PROC) Fix revive linter
 func NewComponent(deps dependencies) apiserver.Component {
 	r := http.NewServeMux()
-	api.SetupAPIServerHandlers(deps.APIServerDeps, r) // Set up routes
+	api.SetupAPIServerHandlers(api.APIServerDeps{
+		Config:       deps.Config,
+		Log:          deps.Log,
+		WorkloadMeta: deps.WorkloadMeta,
+		Status:       deps.Status,
+		Settings:     deps.Settings,
+		Tagger:       deps.Tagger,
+		Secrets:      deps.Secrets,
+	}, r) // Set up routes
 
 	addr, err := pkgconfigsetup.GetProcessAPIAddressPort(deps.Config)
 	if err != nil {
