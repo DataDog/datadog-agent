@@ -32,6 +32,7 @@ import asyncio
 import json
 import os
 import re
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -39,8 +40,9 @@ from typing import Any
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal
+from textual.containers import Horizontal, Vertical
 from textual.reactive import reactive
+from textual.screen import Screen
 from textual.widgets import Footer, Header, Static
 
 # ---------------------------------------------------------------------------
@@ -48,37 +50,46 @@ from textual.widgets import Footer, Header, Static
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
-# Mode detection: --local flag switches to Kind cluster, skips Pulumi/EKS
+# Mode config — mutable globals, set by mode selection screen or --local flag
 # ---------------------------------------------------------------------------
 LOCAL_MODE = "--local" in sys.argv
 
-# Auto-detect stack name from the user prefix (matches e2e framework convention).
 _USER = os.environ.get("USER", "unknown").replace(".", "-")
 _STACK_NAME = os.environ.get("GENSIM_STACK_NAME", f"{_USER}-gensim-eks")
-
-if LOCAL_MODE:
-    _LOCAL_CLUSTER = os.environ.get("LOCAL_CLUSTER_NAME", "observer-local")
-    KUBECONFIG = os.path.expanduser("~/.kube/config")
-    PULUMI_STATE = "/dev/null"  # no Pulumi for local
-    EKS_CLUSTER_NAME = ""
-    LOCAL_EPISODE_LOG = "/tmp/local-episode-runner.log"
-else:
-    _LOCAL_CLUSTER = ""
-    LOCAL_EPISODE_LOG = ""
-    # All paths derived from stack name -- override via env vars if needed.
-    KUBECONFIG = os.environ.get("KUBECONFIG", f"{_STACK_NAME}-kubeconfig.yaml")
-    PULUMI_STATE = os.path.expanduser(os.environ.get("PULUMI_STATE", f"~/.pulumi/stacks/{_STACK_NAME}.json"))
-    EKS_CLUSTER_NAME = os.environ.get("EKS_CLUSTER_NAME", _STACK_NAME)
-
+_LOCAL_CLUSTER = os.environ.get("LOCAL_CLUSTER_NAME", "observer-local")
 EKS_REGION = os.environ.get("EKS_REGION", "us-east-1")
 
-KUBECTL_ENV = {**os.environ, "KUBECONFIG": KUBECONFIG}
+# These are reconfigured by _apply_mode() after selection.
+KUBECONFIG = ""
+PULUMI_STATE = ""
+EKS_CLUSTER_NAME = ""
+LOCAL_EPISODE_LOG = ""
+KUBECTL_ENV: dict[str, str] = {}
+
+
+def _apply_mode(local: bool) -> None:
+    """Configure global variables for the selected mode."""
+    global LOCAL_MODE, KUBECONFIG, PULUMI_STATE, EKS_CLUSTER_NAME, LOCAL_EPISODE_LOG, KUBECTL_ENV
+    LOCAL_MODE = local
+    if local:
+        KUBECONFIG = os.path.expanduser("~/.kube/config")
+        PULUMI_STATE = "/dev/null"
+        EKS_CLUSTER_NAME = ""
+        LOCAL_EPISODE_LOG = "/tmp/local-episode-runner.log"
+        KUBECTL_ENV = {**os.environ, "KUBECONFIG": KUBECONFIG, "KUBECTL_CONTEXT": f"kind-{_LOCAL_CLUSTER}"}
+    else:
+        KUBECONFIG = os.environ.get("KUBECONFIG", f"{_STACK_NAME}-kubeconfig.yaml")
+        PULUMI_STATE = os.path.expanduser(os.environ.get("PULUMI_STATE", f"~/.pulumi/stacks/{_STACK_NAME}.json"))
+        EKS_CLUSTER_NAME = os.environ.get("EKS_CLUSTER_NAME", _STACK_NAME)
+        LOCAL_EPISODE_LOG = ""
+        KUBECTL_ENV = {**os.environ, "KUBECONFIG": KUBECONFIG}
+
+
+# Apply immediately if --local was passed (skip the selection screen).
 if LOCAL_MODE:
-    # For Kind, we need the context in all kubectl calls. The easiest way is to
-    # set KUBECTL_CONTEXT which some helpers use, and inject --context into
-    # fetch_configmap. For the generic kubectl calls (pods, nodes) that go via
-    # run_cmd, we just set the current-context in KUBECTL_ENV.
-    KUBECTL_ENV["KUBECTL_CONTEXT"] = f"kind-{_LOCAL_CLUSTER}"
+    _apply_mode(True)
+else:
+    _apply_mode(False)
 
 # Phase durations (seconds) extracted from typical gensim orchestrator defaults.
 PHASE_DURATIONS: dict[str, int] = {
@@ -739,12 +750,190 @@ class PodLogsWidget(Static):
 
 
 # ---------------------------------------------------------------------------
+# Mode selection screen
+# ---------------------------------------------------------------------------
+
+
+def _probe_local() -> str:
+    """Quick synchronous probe: is a local Kind run active? Returns status string."""
+    try:
+        r = subprocess.run(
+            [
+                "kubectl",
+                "--context",
+                f"kind-{_LOCAL_CLUSTER}",
+                "get",
+                "configmap",
+                "gensim-run-status",
+                "-o",
+                "jsonpath={.data.status}",
+                "-n",
+                "default",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            env={**os.environ, "KUBECONFIG": os.path.expanduser("~/.kube/config")},
+        )
+        if r.returncode == 0 and r.stdout.strip():
+            data = json.loads(r.stdout.strip())
+            eps = data.get("episodes", [])
+            if eps:
+                ep = eps[0]
+                status = ep.get("status", "?")
+                phase = ep.get("phase", "")
+                name = ep.get("episode", "?")
+                if status == "done":
+                    return f"[green]●[/green] {name}: done"
+                return f"[yellow]●[/yellow] {name}: {status} ({phase})"
+            return "[yellow]●[/yellow] run detected"
+        # Check if cluster exists at all
+        r2 = subprocess.run(
+            ["kind", "get", "clusters"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if _LOCAL_CLUSTER in (r2.stdout or ""):
+            return "[dim]○[/dim] cluster exists, no active run"
+        return "[dim]✕[/dim] no cluster"
+    except Exception:
+        return "[dim]✕[/dim] unavailable"
+
+
+def _probe_remote() -> str:
+    """Quick synchronous probe: is a remote EKS run active? Returns status string."""
+    kc = os.environ.get("KUBECONFIG", f"{_STACK_NAME}-kubeconfig.yaml")
+    try:
+        r = subprocess.run(
+            ["kubectl", "get", "configmap", "gensim-run-status", "-o", "jsonpath={.data.status}", "-n", "default"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            env={**os.environ, "KUBECONFIG": kc},
+        )
+        if r.returncode == 0 and r.stdout.strip():
+            data = json.loads(r.stdout.strip())
+            eps = data.get("episodes", [])
+            if eps:
+                statuses = [e.get("status", "?") for e in eps]
+                running = sum(1 for s in statuses if s == "running")
+                done = sum(1 for s in statuses if s == "done")
+                if running:
+                    return f"[yellow]●[/yellow] {running} running, {done} done"
+                return f"[green]●[/green] {len(eps)} done"
+            return "[yellow]●[/yellow] run detected"
+        # Check if kubeconfig exists
+        if Path(kc).exists():
+            return "[dim]○[/dim] cluster reachable, no active run"
+        return "[dim]✕[/dim] no kubeconfig"
+    except Exception:
+        return "[dim]✕[/dim] unavailable"
+
+
+class ModeOption(Static):
+    """A selectable mode option in the picker."""
+
+    def __init__(self, label: str, status: str, is_local: bool, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.label = label
+        self.status = status
+        self.is_local = is_local
+        self.selected = False
+
+    def render(self) -> str:
+        arrow = "[bold cyan]▸[/bold cyan] " if self.selected else "  "
+        return f"{arrow}[bold]{self.label}[/bold]\n    {self.status}"
+
+
+class ModeSelectScreen(Screen):
+    """Startup screen to pick local or remote mode."""
+
+    BINDINGS = [
+        Binding("up", "move_up", "Up", show=False),
+        Binding("down", "move_down", "Down", show=False),
+        Binding("k", "move_up", "Up", show=False),
+        Binding("j", "move_down", "Down", show=False),
+        Binding("enter", "select", "Select"),
+        Binding("q", "quit", "Quit"),
+    ]
+
+    CSS = """
+    ModeSelectScreen {
+        align: center middle;
+    }
+    #mode-box {
+        width: 60;
+        height: auto;
+        padding: 1 2;
+        border: round $accent;
+    }
+    #mode-title {
+        text-align: center;
+        text-style: bold;
+        margin-bottom: 1;
+    }
+    ModeOption {
+        height: 3;
+        margin: 0 1;
+    }
+    #mode-hint {
+        text-align: center;
+        margin-top: 1;
+        color: $text-muted;
+    }
+    """
+
+    def __init__(self, local_status: str, remote_status: str, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self._local_status = local_status
+        self._remote_status = remote_status
+        self._selected = 0  # 0 = local, 1 = remote
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="mode-box"):
+            yield Static("Gensim Status Monitor", id="mode-title")
+            yield ModeOption("Local (Kind)", self._local_status, is_local=True, id="opt-local")
+            yield ModeOption("Remote (EKS)", self._remote_status, is_local=False, id="opt-remote")
+            yield Static("↑↓ to select, Enter to confirm", id="mode-hint")
+
+    def on_mount(self) -> None:
+        self._update_selection()
+
+    def action_move_up(self) -> None:
+        self._selected = 0
+        self._update_selection()
+
+    def action_move_down(self) -> None:
+        self._selected = 1
+        self._update_selection()
+
+    def action_select(self) -> None:
+        is_local = self._selected == 0
+        _apply_mode(is_local)
+        self.app.title = "Gensim Local Monitor" if is_local else "Gensim EKS Monitor"
+        self.app.pop_screen()
+        self.app._start_monitoring()  # noqa: SLF001
+
+    def action_quit(self) -> None:
+        self.app.exit()
+
+    def _update_selection(self) -> None:
+        local_opt = self.query_one("#opt-local", ModeOption)
+        remote_opt = self.query_one("#opt-remote", ModeOption)
+        local_opt.selected = self._selected == 0
+        remote_opt.selected = self._selected == 1
+        local_opt.refresh()
+        remote_opt.refresh()
+
+
+# ---------------------------------------------------------------------------
 # App
 # ---------------------------------------------------------------------------
 
 
 class GensimStatusApp(App):
-    """Gensim EKS evaluation run monitor."""
+    """Gensim evaluation run monitor."""
 
     CSS = """
     #top-row {
@@ -752,7 +941,7 @@ class GensimStatusApp(App):
     }
     """
 
-    TITLE = "Gensim Local Monitor" if LOCAL_MODE else "Gensim EKS Monitor"
+    TITLE = "Gensim Status Monitor"
     BINDINGS = [
         Binding("q", "quit", "Quit"),
         Binding("r", "refresh", "Refresh now"),
@@ -785,6 +974,18 @@ class GensimStatusApp(App):
         yield Footer()
 
     def on_mount(self) -> None:
+        if "--local" in sys.argv or "--remote" in sys.argv:
+            # Mode was specified on CLI — skip the picker.
+            self._start_monitoring()
+        else:
+            # Probe both and show the picker.
+            local_status = _probe_local()
+            remote_status = _probe_remote()
+            self.push_screen(ModeSelectScreen(local_status, remote_status))
+
+    def _start_monitoring(self) -> None:
+        """Begin polling after mode has been selected."""
+        self.title = "Gensim Local Monitor" if LOCAL_MODE else "Gensim EKS Monitor"
         self.call_later(self.action_refresh)
         if not LOCAL_MODE:
             self.set_interval(5, self._poll_pulumi)
@@ -887,7 +1088,9 @@ class GensimStatusApp(App):
 
 if __name__ == "__main__":
     headless = "--headless" in sys.argv
+    if "--remote" in sys.argv:
+        _apply_mode(False)
     # Strip custom flags before Textual sees argv
-    sys.argv = [a for a in sys.argv if a not in ("--local", "--headless")]
+    sys.argv = [a for a in sys.argv if a not in ("--local", "--remote", "--headless")]
     app = GensimStatusApp()
     app.run(headless=headless)
