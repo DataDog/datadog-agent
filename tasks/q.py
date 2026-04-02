@@ -1042,6 +1042,9 @@ def compact_parquets(ctx, parquet_dir: str = "", scenario: str = "food_delivery_
     )
     before_count = sum(1 for f in os.listdir(parquet_dir) if f.endswith(".parquet"))
 
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
     for prefix in prefixes:
         parts = sorted(glob.glob(os.path.join(parquet_dir, f"{prefix}-*.parquet")))
         if len(parts) <= 1:
@@ -1051,24 +1054,16 @@ def compact_parquets(ctx, parquet_dir: str = "", scenario: str = "food_delivery_
         combined_path = os.path.join(parquet_dir, f"{prefix}.parquet")
         print(color_message(f"  {prefix}: combining {len(parts)} files...", Color.BLUE))
 
-        # Use uv run to get pyarrow without polluting the dda venv.
-        parts_repr = repr(parts)
-        result = ctx.run(
-            f"uv run --with pyarrow python3 -c "
-            f"'import pyarrow as pa, pyarrow.parquet as pq; "
-            f"pq.write_table(pa.concat_tables([pq.read_table(f) for f in {parts_repr}]), "
-            f"{combined_path!r}, compression=\"zstd\")'",
-            warn=True,
-            hide=True,
-        )
+        tables = [pq.read_table(f) for f in parts]
+        pq.write_table(pa.concat_tables(tables), combined_path, compression='zstd')
 
-        if result.ok and os.path.exists(combined_path) and os.path.getsize(combined_path) > 0:
+        if os.path.exists(combined_path) and os.path.getsize(combined_path) > 0:
             for p in parts:
                 os.unlink(p)
             combined_size = os.path.getsize(combined_path)
             print(color_message(f"    → {combined_size / 1024 / 1024:.1f}MB", Color.GREEN))
         else:
-            print(color_message("    ✕ combine failed, keeping originals", Color.RED))
+            print(color_message("    ✕ produced empty file, keeping originals", Color.RED))
 
     after_size = sum(
         os.path.getsize(os.path.join(parquet_dir, f)) for f in os.listdir(parquet_dir) if f.endswith(".parquet")
