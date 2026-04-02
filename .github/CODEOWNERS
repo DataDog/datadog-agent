@@ -150,7 +150,6 @@
 /.gitlab/.pre/deps_build/                                 @DataDog/ebpf-platform @DataDog/agent-build @DataDog/windows-products
 
 /.gitlab/windows/test/e2e_install_packages/windows.yml   @DataDog/windows-products
-/.gitlab/windows/test/e2e/windows.yml                    @DataDog/container-experiences @DataDog/windows-products
 
 /.gitlab/.pre/common/                                     @DataDog/agent-devx
 

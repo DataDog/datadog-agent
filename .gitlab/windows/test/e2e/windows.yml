@@ -171,20 +171,6 @@ new-e2e-process-windows:
     TEAM: container-experiences
     ON_NIGHTLY_FIPS: "true"
 
-new-e2e-language-detection-windows:
-  extends: .new_e2e_template
-  needs:
-    - !reference [.needs_new_e2e_template]
-    - windows_msi_and_bosh_zip_x64-a7
-  rules:
-    - !reference [.on_language-detection_or_e2e_changes]
-    - !reference [.manual]
-  variables:
-    EXTRA_PARAMS: --run "Windows"
-    TARGETS: ./tests/language-detection
-    TEAM: container-experiences
-    ON_NIGHTLY_FIPS: "true"
-
 new-e2e-netpath-windows:
   extends: .new_e2e_template_needs_windows_x64
   rules:

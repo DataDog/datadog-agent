@@ -463,7 +463,6 @@ new-e2e-language-detection:
     - !reference [.on_language-detection_or_e2e_changes]
     - !reference [.manual]
   variables:
-    EXTRA_PARAMS: --skip "Windows"
     TARGETS: ./tests/language-detection
     TEAM: container-experiences
     ON_NIGHTLY_FIPS: "true"
