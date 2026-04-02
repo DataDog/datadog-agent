@@ -326,3 +326,68 @@ def compute_gitlab_ci_config(
     print('Writing', diff_file)
     with open(diff_file, 'w') as f:
         f.write(yaml.safe_dump(diff.to_dict()))
+
+
+@task(
+    help={
+        "job_id": "The GitLab job ID to download artifacts from",
+        "artifact_path": "Optional specific artifact path to extract (e.g., 'e2e_test_output.json')",
+        "output_dir": "Directory to save extracted artifacts (default: current directory)",
+        "repo": "GitLab repository (default: DataDog/datadog-agent)",
+    }
+)
+def download_job_artifacts(_, job_id, artifact_path=None, output_dir=".", repo='DataDog/datadog-agent'):
+    """Download artifacts from a GitLab job.
+
+    Downloads the full artifact archive from a job and extracts it to the output directory.
+    Optionally extract only a specific file from the archive.
+
+    Usage:
+        # Download all artifacts from a job
+        $ dda inv gitlab.download-job-artifacts --job-id=1561990651
+
+        # Download a specific artifact file
+        $ dda inv gitlab.download-job-artifacts --job-id=1561990651 --artifact-path=e2e_test_output.json
+
+        # Download to a specific directory
+        $ dda inv gitlab.download-job-artifacts --job-id=1561990651 --output-dir=/tmp/artifacts
+    """
+    import zipfile
+
+    project = get_gitlab_repo(repo)
+    job = project.jobs.get(job_id)
+
+    print(f"Downloading artifacts from job {job.name} (ID: {job_id})...")
+
+    # Create output directory if it doesn't exist
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Download artifacts to a temp file
+    with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as tmp_file:
+        tmp_path = tmp_file.name
+        job.artifacts(streamed=True, action=tmp_file.write)
+
+    try:
+        with zipfile.ZipFile(tmp_path, 'r') as zip_ref:
+            if artifact_path:
+                # Extract only the specific file
+                matching_files = [f for f in zip_ref.namelist() if f.endswith(artifact_path) or f == artifact_path]
+                if not matching_files:
+                    print(color_message(f"Artifact '{artifact_path}' not found in archive.", Color.RED))
+                    print("Available artifacts:")
+                    for name in zip_ref.namelist()[:20]:
+                        print(f"  - {name}")
+                    if len(zip_ref.namelist()) > 20:
+                        print(f"  ... and {len(zip_ref.namelist()) - 20} more")
+                    raise Exit(code=1)
+
+                for match in matching_files:
+                    # Extract to output_dir, preserving or flattening path as needed
+                    extracted_path = zip_ref.extract(match, output_dir)
+                    print(color_message(f"Extracted: {extracted_path}", Color.GREEN))
+            else:
+                # Extract all artifacts
+                zip_ref.extractall(output_dir)
+                print(color_message(f"Extracted {len(zip_ref.namelist())} files to {output_dir}", Color.GREEN))
+    finally:
+        os.unlink(tmp_path)

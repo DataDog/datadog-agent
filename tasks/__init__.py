@@ -77,6 +77,7 @@ from tasks import (
     skaffold,
     system_probe,
     systray,
+    test_report,
     testwasher,
     trace_agent,
     vim,
@@ -243,6 +244,7 @@ ns.add_collection(system_probe)
 ns.add_collection(process_agent)
 ns.add_collection(privateactionrunner)
 ns.add_collection(testwasher)
+ns.add_collection(test_report)
 ns.add_collection(secret_generic_connector)
 ns.add_collection(security_agent)
 ns.add_collection(cws_instrumentation)
