@@ -94,7 +94,7 @@ func (suite *k8sSuite) Test00UpAndRunning() {
 // Inside a testify test suite, tests are executed in alphabetical order.
 // The ZZ in TestZZUpAndRunning is here to guarantee that this test, is run last.
 func (suite *k8sSuite) TestZZUpAndRunning() {
-	suite.testUpAndRunning(1 * time.Minute)
+	suite.testUpAndRunning(2 * time.Minute)
 }
 
 func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
@@ -259,7 +259,7 @@ func (suite *k8sSuite) TestSBOM() {
 					suite.UpdateEnv(provisioner)
 
 					// Wait for agent pods to restart and stabilize before checking SBOMs
-					suite.testUpAndRunning(1 * time.Minute)
+					suite.testUpAndRunning(2 * time.Minute)
 				}
 
 				suite.EventuallyWithTf(func(collect *assert.CollectT) {

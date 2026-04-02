@@ -126,7 +126,7 @@ func TestENCTextScrubbing(t *testing.T) {
 		expected string
 	}{
 		{"api_key with ENC", "api_key=ENC[secret]", "api_key=ENC[secret]"},
-		{"api_key regular", "api_key=aaaaaaaaaaaaaaaaaaaaaaaaaabbbbb", "api_key=***************************bbbbb"},
+		{"api_key regular", "api_key=aaaaaaaaaaaaaaaaaaaaaaaaaabbbbb", "api_key=****************************bbbb"},
 		{"password with ENC", "password=ENC[secret]", "password=ENC[secret]"},
 		{"password regular", "password=apassword", "password=********"},
 

@@ -20,10 +20,12 @@
             "method": "main.stringArg"
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "s: d"
+    "message": "s: d",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

@@ -1,0 +1,25 @@
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("//bazel/rules/ebpf:ebpf.bzl", "ebpf_prog")
+
+# CO-RE program
+ebpf_prog(
+    name = "uprobe-trigger",
+    src = "uprobe-trigger.c",
+    core = True,
+    deps = ["//pkg/ebpf/c:ebpf_c_headers"],
+)
+
+# detect-seccomp-bug is a native binary (not eBPF), x86 only.
+cc_binary(
+    name = "detect-seccomp-bug",
+    srcs = ["detect-seccomp-bug.c"],
+    linkopts = [
+        "-static",
+        "-Wl,--gc-sections",
+    ],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    deps = ["@libseccomp"],
+)

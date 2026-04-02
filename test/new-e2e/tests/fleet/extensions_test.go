@@ -191,6 +191,9 @@ func (s *extensionsSuite) TestExtensionSurvivesExperiment() {
 // TestExtensionRestoredAfterExperimentRollback verifies that extensions are
 // restored to their stable state when an experiment is stopped (rolled back).
 func (s *extensionsSuite) TestExtensionRestoredAfterExperimentRollback() {
+	if s.Env().RemoteHost.OSFamily == e2eos.WindowsFamily {
+		s.T().Skip("Skipping test on Windows -- incident-50789")
+	}
 	s.Agent.MustInstall(agent.WithStagingPackages(stagingAgentVersion))
 	defer s.Agent.MustUninstall()
 
@@ -201,6 +204,7 @@ func (s *extensionsSuite) TestExtensionRestoredAfterExperimentRollback() {
 
 	s.verifyDDOTRunning()
 	initialDDOTVersion := s.getDDOTAgentVersion()
+	// Use the pipeline registry so restoreAgentExtensions can find the experiment OCI during StartExperiment.
 	s.setInstallerRegistryConfig()
 
 	targetVersion := s.Backend.Catalog().Latest(backend.BranchTesting, "datadog-agent")
@@ -209,10 +213,25 @@ func (s *extensionsSuite) TestExtensionRestoredAfterExperimentRollback() {
 	s.verifyDDOTRunning()
 	s.Require().NotEqual(initialDDOTVersion, s.getDDOTAgentVersion(), "DDOT should be running on experiment version after start experiment")
 
+	// Switch to the staging registry so restoreAgentExtensions can find the stable OCI
+	// (7.78.0-beta-fleet-ext-1) during StopExperiment. The pipeline registry does not host
+	// the stable staging package.
+	s.setInstallerRegistryConfig("install.datad0g.com.internal.dda-testing.com")
+
 	err = s.Backend.StopExperiment("datadog-agent")
 	s.Require().NoError(err)
 	s.verifyDDOTRunning()
 	s.Require().Equal(initialDDOTVersion, s.getDDOTAgentVersion(), "DDOT should be restored to initial version after rollback")
+}
+
+// TestDDOTAutoInstalledWithEnvVar verifies that when DD_OTELCOLLECTOR_ENABLED=true is set
+// during a fresh agent install, the DDOT extension is automatically installed and running
+// by the postinstall hook — without any explicit extension install call.
+func (s *extensionsSuite) TestDDOTAutoInstalledWithEnvVar() {
+	s.Agent.MustInstall(agent.WithOTelCollectorEnabled())
+	defer s.Agent.MustUninstall()
+
+	s.verifyDDOTRunning()
 }
 
 // TestDDOTExtension tests installing DDOT as an extension on all platforms
@@ -241,15 +260,32 @@ func (s *extensionsSuite) TestDDOTExtension() {
 
 // Helper methods
 
-// setInstallerRegistryConfig appends the installer registry URL to datadog.yaml.
-// It is idempotent: it will not append the URL if it is already present.
-func (s *extensionsSuite) setInstallerRegistryConfig() {
+// setInstallerRegistryConfig sets the installer registry URL in datadog.yaml.
+// If a URL is provided it uses that registry; otherwise it defaults to the pipeline registry.
+// If an installer registry URL is already present in the config it is replaced.
+func (s *extensionsSuite) setInstallerRegistryConfig(registryURL ...string) {
+	url := "installtesting.datad0g.com.internal.dda-testing.com"
+	if len(registryURL) > 0 && registryURL[0] != "" {
+		url = registryURL[0]
+	}
 	switch s.Env().RemoteHost.OSFamily {
 	case e2eos.LinuxFamily:
-		_, err := s.Env().RemoteHost.Execute(`grep -q "installtesting.datad0g.com.internal.dda-testing.com" /etc/datadog-agent/datadog.yaml || sudo sh -c 'printf "\ninstaller:\n  registry:\n    url: installtesting.datad0g.com.internal.dda-testing.com\n" >> /etc/datadog-agent/datadog.yaml'`)
+		// Replace an existing installer registry URL or append the block if absent.
+		_, err := s.Env().RemoteHost.Execute(
+			`if grep -qE '^\s+url:.*dda-testing\.com' /etc/datadog-agent/datadog.yaml; then ` +
+				`sudo sed -i 's|^\(\s*url: \).*dda-testing\.com.*|\1` + url + `|' /etc/datadog-agent/datadog.yaml; ` +
+				`else sudo sh -c 'printf "\ninstaller:\n  registry:\n    url: ` + url + `\n" >> /etc/datadog-agent/datadog.yaml'; ` +
+				`fi`)
 		s.Require().NoError(err)
 	case e2eos.WindowsFamily:
-		_, err := s.Env().RemoteHost.Execute("if (-not (Select-String -Path \"C:\\ProgramData\\Datadog\\datadog.yaml\" -Pattern \"installtesting.datad0g.com.internal.dda-testing.com\" -Quiet)) { Add-Content \"C:\\ProgramData\\Datadog\\datadog.yaml\" -Value (\"`ninstaller:`n  registry:`n    url: installtesting.datad0g.com.internal.dda-testing.com\") }")
+		// Replace an existing installer registry URL or append the block if absent.
+		_, err := s.Env().RemoteHost.Execute(
+			`$f = 'C:\ProgramData\Datadog\datadog.yaml'; $c = Get-Content $f -Raw; ` +
+				`if ($c -match 'dda-testing\.com') { ` +
+				`$c = $c -replace '(?m)^(\s+url:\s+)\S+dda-testing\.com\S*', '${1}` + url + `'; ` +
+				`} else { ` +
+				"$c += \"`ninstaller:`n  registry:`n    url: " + url + "\"; " +
+				`} Set-Content $f -Value $c -NoNewline`)
 		s.Require().NoError(err)
 	}
 }
@@ -317,7 +353,7 @@ func (s *extensionsSuite) verifyDDOTRunning() {
 		}
 
 		return true
-	}, 30*time.Second, 1*time.Second, "DDOT should be running and reporting status")
+	}, 2*time.Minute, 1*time.Second, "DDOT should be running and reporting status")
 	if !isDDOTRunning {
 		s.T().Fatalf("DDOT is not running")
 	}

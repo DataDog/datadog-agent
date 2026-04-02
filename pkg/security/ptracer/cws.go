@@ -63,18 +63,19 @@ type Opts struct {
 type CWSPtracerCtx struct {
 	Tracer
 
-	opts            *Opts
-	wg              sync.WaitGroup
-	cancel          context.Context
-	cancelFnc       context.CancelFunc
-	containerID     containerutils.ContainerID
-	probeAddr       string
-	client          net.Conn
-	clientReady     chan bool
-	msgDataChan     chan []byte
-	helloMsg        *ebpfless.Message
-	processCache    *ProcessCache
-	traceesReported []int
+	opts                *Opts
+	wg                  sync.WaitGroup
+	cancel              context.Context
+	cancelFnc           context.CancelFunc
+	containerID         containerutils.ContainerID
+	probeAddr           string
+	client              net.Conn
+	clientReady         chan bool
+	msgDataChan         chan []byte
+	helloMsg            *ebpfless.Message
+	processCache        *ProcessCache
+	traceesReported     []int
+	stopSignalForwarder func()
 }
 
 type syscallHandlerFunc func(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error
@@ -401,6 +402,9 @@ func initCWSPtracerAttach(pids []int, probeAddr string, opts Opts) (*CWSPtracerC
 func (ctx *CWSPtracerCtx) CWSCleanup() {
 	ctx.cancelFnc()
 	ctx.wg.Wait()
+	if ctx.stopSignalForwarder != nil {
+		ctx.stopSignalForwarder()
+	}
 	close(ctx.msgDataChan)
 	close(ctx.clientReady)
 }

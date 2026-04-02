@@ -105,6 +105,11 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[manage
 		// runtime compiled implementation
 		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer || coreTracer, kv, probes.TCPRetransmit, probes.TCPRetransmitPre470, kv470))
 		enableProbe(enabled, probes.TCPRetransmitRet)
+		if runtimeTracer || coreTracer {
+			enableProbe(enabled, probes.TCPEnterLoss)
+			enableProbe(enabled, probes.TCPEnterRecovery)
+			enableProbe(enabled, probes.TCPSendProbe0)
+		}
 	}
 
 	if c.CollectUDPv4Conns {

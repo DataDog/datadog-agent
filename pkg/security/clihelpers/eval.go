@@ -401,12 +401,22 @@ func CheckPoliciesLocal(args CheckPoliciesLocalParams, writer io.Writer) error {
 		return fmt.Errorf("failed to create agent version filter: %w", err)
 	}
 
+	hostname, _ := os.Hostname()
+
 	os := runtime.GOOS
 	if args.UseWindowsModel {
 		os = "windows"
 	}
 
-	ruleFilterModel := filtermodel.NewOSOnlyFilterModel(os)
+	rfmCfg := filtermodel.RuleFilterEventConfig{
+		COREEnabled: false,
+		Origin:      "",
+	}
+
+	ruleFilterModel, err := filtermodel.NewRuleFilterModel(rfmCfg, hostname, os)
+	if err != nil {
+		return fmt.Errorf("failed to create rule filter: %w", err)
+	}
 	seclRuleFilter := rules.NewSECLRuleFilter(ruleFilterModel)
 
 	loaderOpts := rules.PolicyLoaderOpts{

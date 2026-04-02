@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// team: ndm-core
+// team: network-device-monitoring-core
 
 // MockBundle defines the fx options for mock versions of everything in this bundle.
 func MockBundle() fxutil.BundleOptions {

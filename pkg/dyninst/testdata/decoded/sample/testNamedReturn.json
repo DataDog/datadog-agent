@@ -65,10 +65,12 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "40"
+    "message": "40",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

@@ -1,2 +1,3 @@
 target
-sd-agent
+system-probe-lite
+*.a

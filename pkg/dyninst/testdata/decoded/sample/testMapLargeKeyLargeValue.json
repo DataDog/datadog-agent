@@ -520,6 +520,7 @@
           }
         }
       },
+      "type": "snapshot",
       "evaluationErrors": [
         {
           "expr": "@duration",
@@ -528,6 +529,7 @@
       ]
     },
     "timestamp": "[ts]",
-    "message": "map[{redacted-entries}, ...]"
+    "message": "map[{redacted-entries}, ...]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

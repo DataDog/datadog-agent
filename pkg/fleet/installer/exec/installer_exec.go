@@ -336,27 +336,6 @@ func (i *InstallerExec) AvailableDiskSpace() (uint64, error) {
 	return repositories.AvailableDiskSpace()
 }
 
-// getStates retrieves the state of all packages & their configuration from disk.
-func (i *InstallerExec) getStates(ctx context.Context) (repo *repository.PackageStates, err error) {
-	cmd := i.newInstallerCmd(ctx, "get-states")
-	defer func() { cmd.span.Finish(err) }()
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	err = cmd.Run()
-	if err != nil {
-		return nil, fmt.Errorf("error getting state from disk: %w\n%s", err, stderr.String())
-	}
-	var pkgStates *repository.PackageStates
-	err = json.Unmarshal(stdout.Bytes(), &pkgStates)
-	if err != nil {
-		return nil, fmt.Errorf("error unmarshalling state from disk: %w\n`%s`", err, stdout.String())
-	}
-
-	return pkgStates, nil
-}
-
 // State returns the state of a package.
 func (i *InstallerExec) State(ctx context.Context, pkg string) (repository.State, error) {
 	allStates, err := i.ConfigAndPackageStates(ctx)

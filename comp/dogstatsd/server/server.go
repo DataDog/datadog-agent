@@ -525,11 +525,6 @@ func (s *server) IsRunning() bool {
 	return s.Started
 }
 
-// SetExtraTags sets extra tags. All metrics sent to the DogstatsD will be tagged with them.
-func (s *server) SetExtraTags(tags []string) {
-	s.extraTags = tags
-}
-
 func (s *server) onFilterListUpdate(filterList utilstrings.Matcher, _ utilstrings.Matcher) {
 	s.startedMtx.RLock()
 	defer s.startedMtx.RUnlock()

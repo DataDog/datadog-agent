@@ -66,6 +66,7 @@ func (p *InitContainerProvider) InjectInjector(pod *corev1.Pod, cfg InjectorConf
 		Name:      InstrumentationVolumeName,
 		MountPath: asAbsPath(injectPackageDir),
 		SubPath:   injectPackageDir,
+		ReadOnly:  true,
 	})
 
 	// Timestamp file path for tracking init container completion
@@ -166,6 +167,7 @@ func (p *InitContainerProvider) InjectLibrary(pod *corev1.Pod, cfg LibraryConfig
 		Name:      InstrumentationVolumeName,
 		MountPath: asAbsPath(libraryPackagesDir),
 		SubPath:   libraryPackagesDir,
+		ReadOnly:  true,
 	})
 
 	return MutationResult{

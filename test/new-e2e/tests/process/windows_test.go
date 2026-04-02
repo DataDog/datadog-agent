@@ -209,7 +209,7 @@ func (s *windowsTestSuite) TestProtectedProcessChecksInCoreAgent() {
 	s.UpdateEnv(awshost.Provisioner(
 		awshost.WithRunOptions(
 			ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
-			ec2.WithAgentOptions(agentparams.WithAgentConfig(processCheckInCoreAgentConfigStr)),
+			ec2.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr)),
 		),
 	))
 	// MsMpEng.exe is a protected process so we can't access any command line arguments

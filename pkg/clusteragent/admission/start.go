@@ -126,7 +126,7 @@ func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa wo
 	webhooks = append(webhooks, webhookController.EnabledWebhooks()...)
 
 	if datadogConfig.GetBool("admission_controller.probe.enabled") {
-		admissionProbe := admprobe.New(ctx.Client, isLeaderFunc, datadogConfig)
+		admissionProbe := admprobe.New(ctx.Client, isLeaderFunc, namespace.GetResourcesNamespace(), datadogConfig)
 		setProbe(admissionProbe)
 		probeCtx, probeCancel := context.WithCancel(context.Background())
 		go func() {

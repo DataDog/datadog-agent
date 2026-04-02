@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/util/sets"
 )
 
@@ -87,6 +88,19 @@ func TestNamespacesPodsStringsSet_Copy(t *testing.T) {
 	}
 }
 
+func TestNamespacesPodsStringsSet_Set(t *testing.T) {
+	namespacesPodsSet := NewNamespacesPodsStringsSet()
+
+	namespacesPodsSet.Set("default", "pod1", "svc1")
+	namespacesPodsSet.Set("default", "pod2", "svc1")
+	namespacesPodsSet.Set("default", "pod3", "svc2")
+
+	require.Equal(t, 3, len(namespacesPodsSet["default"]))
+	assert.Equal(t, sets.New("svc1"), namespacesPodsSet["default"]["pod1"])
+	assert.Equal(t, sets.New("svc1"), namespacesPodsSet["default"]["pod2"])
+	assert.Equal(t, sets.New("svc2"), namespacesPodsSet["default"]["pod3"])
+}
+
 func TestNamespacesPodsStringsSet_Delete(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -126,6 +140,22 @@ func TestNamespacesPodsStringsSet_Delete(t *testing.T) {
 			wantModified: true,
 			wantResult: NamespacesPodsStringsSet{
 				"ns1": map[string]sets.Set[string]{"pod1": sets.New("svc2")},
+			},
+		},
+		{
+			name: "delete service from multiple pods",
+			initialSet: NamespacesPodsStringsSet{
+				"ns1": map[string]sets.Set[string]{
+					"pod1": sets.New("svc1"),
+					"pod2": sets.New("svc1"),
+					"pod3": sets.New("svc2"),
+				},
+			},
+			namespace:    "ns1",
+			services:     []string{"svc1"},
+			wantModified: true,
+			wantResult: NamespacesPodsStringsSet{
+				"ns1": map[string]sets.Set[string]{"pod3": sets.New("svc2")},
 			},
 		},
 		{

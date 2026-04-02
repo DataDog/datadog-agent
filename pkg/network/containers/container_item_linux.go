@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 	utilintern "github.com/DataDog/datadog-agent/pkg/util/intern"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var hostRoot = funcs.MemoizeNoError(func() string {
@@ -64,6 +65,16 @@ func newContainerReader(reader resolvConfReader) containerReader {
 type readContainerItemResult struct {
 	item         containerStoreItem
 	noDataReason string
+}
+
+func (r readContainerItemResult) String() string {
+	if r.noDataReason != "" {
+		return fmt.Sprintf("noData(%s)", r.noDataReason)
+	}
+	if r.item.resolvConf == nil {
+		return "empty"
+	}
+	return fmt.Sprintf("resolvConf(%d bytes)", len(r.item.resolvConf.Get()))
 }
 
 func (cr *containerReader) readContainerItem(ctx context.Context, entry *events.Process) (readContainerItemResult, error) {
@@ -197,7 +208,14 @@ func errIsProcessNotRunning(err error) bool {
 		errors.Is(err, os.ErrNotExist)
 }
 
-func (cr *containerReader) isProcessStillRunningImpl(ctx context.Context, entry *events.Process) (bool, error) {
+func (cr *containerReader) isProcessStillRunningImpl(ctx context.Context, entry *events.Process) (running bool, retErr error) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Warnf("Recovered panic in isProcessStillRunningImpl for pid %d (likely malformed /proc stat): %v", entry.Pid, r)
+			running = false
+			retErr = nil
+		}
+	}()
 	_, err := process.NewProcessWithContext(ctx, int32(entry.Pid))
 	if errIsProcessNotRunning(err) {
 		return false, nil

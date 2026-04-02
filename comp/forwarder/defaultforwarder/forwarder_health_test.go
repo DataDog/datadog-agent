@@ -55,8 +55,8 @@ func TestCheckValidAPIKey(t *testing.T) {
 	fh.init()
 	assert.True(t, fh.checkValidAPIKey())
 
-	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with _key1"))
-	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with _key2"))
+	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with key1"))
+	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with key2"))
 	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with key3"))
 }
 
@@ -76,6 +76,7 @@ func TestComputeDomainsURL(t *testing.T) {
 		"https://app.ddog-gov.com":        {utils.NewAPIKeys("path", "api_key9")},
 		"https://custom.ddog-gov.com":     {utils.NewAPIKeys("path", "api_key10")},
 		"https://app.xxxx99.ddog-gov.com": {utils.NewAPIKeys("path", "api_key11")},
+		"https://app.xxxx99.ddog-gov.mil": {utils.NewAPIKeys("path", "api_key12")},
 	}
 
 	expectedMap := map[string][]string{
@@ -88,6 +89,7 @@ func TestComputeDomainsURL(t *testing.T) {
 		"https://app.myproxy.com":          {"api_key8"},
 		"https://api.ddog-gov.com":         {"api_key9", "api_key10"},
 		"https://api.xxxx99.ddog-gov.com":  {"api_key11"},
+		"https://api.xxxx99.ddog-gov.mil":  {"api_key12"},
 	}
 
 	// just sort the expected map for easy comparison
@@ -145,9 +147,9 @@ func TestCheckValidAPIKeyErrors(t *testing.T) {
 	fh.keysPerAPIEndpoint = keysPerAPIEndpoint
 	assert.True(t, fh.checkValidAPIKey())
 
-	assert.Equal(t, nil, apiKeyStatus.Get("API key ending with _key1"))
-	assert.Equal(t, &apiKeyInvalid, apiKeyFailure.Get("API key ending with _key1"))
-	assert.Equal(t, &apiKeyUnexpectedStatusCode, apiKeyStatus.Get("API key ending with _key2"))
+	assert.Equal(t, nil, apiKeyStatus.Get("API key ending with key1"))
+	assert.Equal(t, &apiKeyInvalid, apiKeyFailure.Get("API key ending with key1"))
+	assert.Equal(t, &apiKeyUnexpectedStatusCode, apiKeyStatus.Get("API key ending with key2"))
 	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with key3"))
 	assert.Equal(t, &apiKeyEndpointUnreachable, apiKeyStatus.Get("API key ending with key4"))
 }
@@ -300,13 +302,13 @@ func runUpdateAPIKeysTest(t *testing.T, description string, keysBefore, keysAfte
 
 	// Check the new keys are now valid
 	for _, key := range expectAfter {
-		assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with "+key[len(key)-5:]), key)
+		assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with "+key[len(key)-4:]), key)
 	}
 
 	// Check removed keys are not valid
 	for _, key := range expectBefore {
 		if !slices.Contains(expectAfter, key) {
-			assert.Nil(t, apiKeyStatus.Get("API key ending with "+key[len(key)-5:]), key)
+			assert.Nil(t, apiKeyStatus.Get("API key ending with "+key[len(key)-4:]), key)
 		}
 	}
 
@@ -326,13 +328,13 @@ func runUpdateAPIKeysTest(t *testing.T, description string, keysBefore, keysAfte
 
 	// Check the old keys are now valid again
 	for _, key := range expectBefore {
-		assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with "+key[len(key)-5:]), key)
+		assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with "+key[len(key)-4:]), key)
 	}
 
 	// Check added keys are now not valid
 	for _, key := range expectAfter {
 		if !slices.Contains(expectBefore, key) {
-			assert.Nil(t, apiKeyStatus.Get("API key ending with "+key[len(key)-5:]), key)
+			assert.Nil(t, apiKeyStatus.Get("API key ending with "+key[len(key)-4:]), key)
 		}
 	}
 }
@@ -524,4 +526,70 @@ func TestUpdateAPIKeyAfterSetBaseDomain(t *testing.T) {
 
 	assert.Contains(t, allKeys, "new_key", "new_key should be in health cache")
 	assert.NotContains(t, allKeys, "old_key", "old_key should have been removed from health cache")
+}
+
+// TestLabelForKeyCollision verifies that two API keys sharing the same 4-char suffix
+// receive unique display labels without exposing more key material than necessary.
+func TestLabelForKeyCollision(t *testing.T) {
+	log := logmock.New(t)
+	cfg := configmock.New(t)
+	secrets := secretsmock.New(t)
+	fh := forwarderHealth{log: log, config: cfg, secrets: secrets}
+	fh.init()
+
+	// Two keys that share the last 4 chars but differ only in earlier characters,
+	// so even longer suffixes would not disambiguate without eventually exposing the full key.
+	key1 := "aXXXX1234"
+	key2 := "bXXXX1234"
+
+	fh.keyMapMutex.Lock()
+	label1 := fh.labelForKey(key1)
+	label2 := fh.labelForKey(key2)
+	fh.keyMapMutex.Unlock()
+
+	// Labels must be distinct so the two keys don't overwrite each other in the expvar maps.
+	assert.NotEqual(t, label1, label2, "colliding keys must get distinct display labels")
+
+	// The counter-based disambiguation always limits exposure to the last 4 chars:
+	// first key gets the base label, second gets the base label with a counter suffix.
+	assert.Equal(t, "API key ending with 1234", label1)
+	assert.Equal(t, "API key ending with 1234 (2)", label2)
+
+	// Verify the labels are stable: looking up the same key again returns the same label.
+	fh.keyMapMutex.Lock()
+	assert.Equal(t, label1, fh.labelForKey(key1))
+	assert.Equal(t, label2, fh.labelForKey(key2))
+	fh.keyMapMutex.Unlock()
+}
+
+// TestLabelForKeyMonotonicAfterRemoval verifies that removing a key keeps its label entry in the
+// map so that a subsequent key sharing the same suffix gets a new counter ("(3)"), not a reused one.
+func TestLabelForKeyMonotonicAfterRemoval(t *testing.T) {
+	log := logmock.New(t)
+	cfg := configmock.New(t)
+	secrets := secretsmock.New(t)
+	fh := forwarderHealth{log: log, config: cfg, secrets: secrets}
+	fh.init()
+
+	key1 := "aXXXX1234"
+	key2 := "bXXXX1234"
+	key3 := "cXXXX1234"
+
+	fh.keyMapMutex.Lock()
+	// Assign labels to key1 and key2.
+	label1 := fh.labelForKey(key1) // "API key ending with 1234"
+	label2 := fh.labelForKey(key2) // "API key ending with 1234 (2)"
+	fh.keyMapMutex.Unlock()
+
+	// "Remove" key1 — its expvar entries are cleared but we intentionally keep the keyLabelMap entry.
+	fh.setAPIKeyStatus(key1, &apiKeyRemove)
+
+	// A brand-new key with the same suffix must not reuse label1; it should get counter (3).
+	fh.keyMapMutex.Lock()
+	label3 := fh.labelForKey(key3)
+	fh.keyMapMutex.Unlock()
+
+	assert.Equal(t, "API key ending with 1234", label1)
+	assert.Equal(t, "API key ending with 1234 (2)", label2)
+	assert.Equal(t, "API key ending with 1234 (3)", label3, "new key must not reuse the label of a removed key")
 }

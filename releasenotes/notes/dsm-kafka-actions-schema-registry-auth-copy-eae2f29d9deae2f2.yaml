@@ -1,0 +1,13 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    DSM: The ``kafka_actions`` check now automatically inherits Schema Registry
+    configuration (URL, credentials, TLS, OAuth) from the ``kafka_consumer``
+    integration, enabling schema registry support without additional configuration.

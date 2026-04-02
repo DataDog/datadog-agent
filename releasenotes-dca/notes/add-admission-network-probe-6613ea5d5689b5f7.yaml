@@ -14,5 +14,5 @@ features:
     for EKS, GKE, and AKS. Probe results are visible in the ``agent status``
     output under the Admission Controller section. The probe is disabled by
     default and can be enabled by setting ``admission_controller.probe.enabled``
-    to ``true``. It requires a dedicated namespace (default:
-    ``datadog-admission-probe-dryrun``) and pod creation RBAC in that namespace.
+    to ``true``. The probe uses dry-run ConfigMap creation requests in the
+    cluster agent's namespace.

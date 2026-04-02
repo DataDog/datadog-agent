@@ -1,0 +1,16 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+_SECURITY_HDRS = glob(["**/*.h"])
+
+cc_library(
+    name = "security_ebpf_headers",
+    hdrs = _SECURITY_HDRS,
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "security_ebpf_headers_files",
+    srcs = _SECURITY_HDRS,
+    visibility = ["//visibility:public"],
+)

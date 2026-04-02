@@ -271,7 +271,10 @@ func getFdListmount(nsfd int, ino uint64, cb func(*model.Mount)) error {
 				Param: mask,
 			}
 			// Ignore ENOENT, sometimes the mount might have been unmounted between listmount and this call
-			if err := statmount(&req2, buf); err != nil && err != unix.ENOENT {
+			if err := statmount(&req2, buf); err != nil {
+				if err == unix.ENOENT {
+					continue
+				}
 				return fmt.Errorf("failed to statmount: %v", err)
 			}
 			sm := parseStatmount(buf)

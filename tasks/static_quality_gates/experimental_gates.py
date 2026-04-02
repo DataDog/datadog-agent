@@ -100,9 +100,10 @@ class FileChange:
     previous: FileInfo
     current: FileInfo
     size_percent: float | None
+    size_bytes: int | None
 
     def __post_init__(self):
-        if self.flags | FileChange.Flags.Size == 0 and self.size_percent is not None:
+        if self.flags | FileChange.Flags.Size == 0 and (self.size_percent is not None or self.size_bytes is not None):
             raise ValueError("size_percent can only be provided when the size change flag is set")
 
 

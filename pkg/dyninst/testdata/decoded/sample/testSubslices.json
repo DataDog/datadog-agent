@@ -96,6 +96,7 @@
           }
         }
       },
+      "type": "snapshot",
       "evaluationErrors": [
         {
           "expr": "@duration",
@@ -104,6 +105,7 @@
       ]
     },
     "timestamp": "[ts]",
-    "message": "[1, 2], [1], [1, 2, 3]"
+    "message": "[1, 2], [1], [1, 2, 3]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

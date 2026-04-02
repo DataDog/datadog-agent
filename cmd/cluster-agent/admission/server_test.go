@@ -25,17 +25,17 @@ func TestIsProbe(t *testing.T) {
 		expected bool
 	}{
 		{
-			name:     "pod with probe label",
+			name:     "object with probe label",
 			raw:      `{"metadata":{"labels":{"` + admicommon.ProbeLabelKey + `":"true"}}}`,
 			expected: true,
 		},
 		{
-			name:     "pod without probe label",
+			name:     "object without probe label",
 			raw:      `{"metadata":{"labels":{"app":"nginx"}}}`,
 			expected: false,
 		},
 		{
-			name:     "pod with no labels",
+			name:     "object with no labels",
 			raw:      `{"metadata":{}}`,
 			expected: false,
 		},
@@ -58,13 +58,13 @@ func TestIsProbe(t *testing.T) {
 	}
 }
 
-func TestProbeResponse_NonProbePod(t *testing.T) {
+func TestProbeResponse_NonProbeObject(t *testing.T) {
 	raw := []byte(`{"metadata":{"labels":{"app":"nginx"}}}`)
 	resp := probeResponse(raw)
 	assert.Nil(t, resp)
 }
 
-func TestProbeResponse_ProbePod(t *testing.T) {
+func TestProbeResponse_ProbeObject(t *testing.T) {
 	raw := []byte(`{"metadata":{"labels":{"` + admicommon.ProbeLabelKey + `":"true"}}}`)
 	resp := probeResponse(raw)
 	require.NotNil(t, resp)

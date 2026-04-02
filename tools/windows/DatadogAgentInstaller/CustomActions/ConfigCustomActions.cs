@@ -458,6 +458,14 @@ namespace Datadog.CustomActions
                 // Log final permissions and owner
                 var _newACL = Directory.GetAccessControl(path, AccessControlSections.All);
                 session.Log($"{path} final ACL: {_newACL.GetSecurityDescriptorSddlForm(AccessControlSections.All)}");
+
+                // Create the logonduration subdirectory; it inherits the DACL above.
+                var logonDurationDir = Path.Combine(path, "logonduration");
+                if (!Directory.Exists(logonDurationDir))
+                {
+                    session.Log($"Creating {logonDurationDir}");
+                    Directory.CreateDirectory(logonDurationDir);
+                }
             }
 
             catch (Exception e)

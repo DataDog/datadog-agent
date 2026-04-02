@@ -58,6 +58,11 @@ func (e *envoyGatewayInjectionPattern) Mode() appsecconfig.InjectionMode {
 }
 
 func (e *envoyGatewayInjectionPattern) IsInjectionPossible(ctx context.Context) error {
+	// Check if the processor service name is configured (required for envoy-gateway)
+	if e.config.Processor.ServiceName == "" {
+		return stdErrors.New("processor service name is required for envoy-gateway proxy type but is not configured")
+	}
+
 	gvrToName := func(gvr schema.GroupVersionResource) string {
 		return gvr.Resource + "." + gvr.Group
 	}
@@ -69,7 +74,7 @@ func (e *envoyGatewayInjectionPattern) IsInjectionPossible(ctx context.Context) 
 	}
 
 	if err != nil {
-		return fmt.Errorf("%w: errog getting EnvoyExtensionPolicy", err)
+		return fmt.Errorf("%w: error getting EnvoyExtensionPolicy", err)
 	}
 
 	// Check if the Gateway CRDs is present
@@ -79,7 +84,7 @@ func (e *envoyGatewayInjectionPattern) IsInjectionPossible(ctx context.Context) 
 	}
 
 	if err != nil {
-		return fmt.Errorf("%w: errog getting Gateway", err)
+		return fmt.Errorf("%w: error getting Gateway", err)
 	}
 
 	// Check if the ReferenceGrant CRD is present
@@ -89,7 +94,7 @@ func (e *envoyGatewayInjectionPattern) IsInjectionPossible(ctx context.Context) 
 	}
 
 	if err != nil {
-		return fmt.Errorf("%w: errog getting ReferenceGrant", err)
+		return fmt.Errorf("%w: error getting ReferenceGrant", err)
 	}
 
 	return nil

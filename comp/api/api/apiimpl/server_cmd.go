@@ -7,7 +7,6 @@ package apiimpl
 
 import (
 	"fmt"
-	"net"
 	"net/http"
 	"time"
 
@@ -33,7 +32,7 @@ func (server *apiServer) startCMDServer(
 		// no way we can recover from this error
 		return fmt.Errorf("unable to listen to address %s: %v", cmdAddr, err)
 	}
-	server.cmdAddr = cmdListener.Addr().(*net.TCPAddr)
+	server.cmdAddr = cmdListener.Addr()
 
 	// gRPC server
 	grpcServer := server.grpcComponent.BuildServer()

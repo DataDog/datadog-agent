@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "health",
+    srcs = [
+        "global.go",
+        "health.go",
+        "options.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/status/health",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "health_test",
+    srcs = ["health_test.go"],
+    embed = [":health"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

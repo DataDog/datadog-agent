@@ -66,9 +66,11 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "message": "10"
+    "message": "10",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]
