@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -163,6 +164,22 @@ func (e *EbpfProgram) isLibsetEnabled(libset Libset) bool {
 	return ok && data.enabled
 }
 
+func sleepableMask(funcName string) (uint64, error) {
+	if strings.Contains(funcName, openat2SysCall) {
+		return uint64(1 << 2), nil
+	}
+
+	if strings.Contains(funcName, openatSysCall) {
+		return uint64(1 << 1), nil
+	}
+
+	if strings.Contains(funcName, openSysCall) {
+		return uint64(1 << 0), nil
+	}
+
+	return uint64(0), fmt.Errorf("no mask for function %q", funcName)
+}
+
 // setupManagerAndPerfHandlers sets up the manager and perf handlers for the eBPF program, creating the perf handlers
 // Assumes initMutex is locked
 func (e *EbpfProgram) setupManagerAndPerfHandlers() error {
@@ -181,9 +198,10 @@ func (e *EbpfProgram) setupManagerAndPerfHandlers() error {
 
 	// Load perf handlers for all enabled libsets
 	for libset, handler := range e.libsets {
-		if !handler.enabled {
-			continue
-		}
+		// we need to do this so that all perf maps are upgraded to prevent issues with sleepable bpf programs
+		//if !handler.enabled {
+		//	continue
+		//}
 
 		mapName := string(libset) + "_" + sharedLibrariesPerfMap
 		mode := perf.UpgradePerfBuffers(perfBufferSize, dataChannelSize, perf.Watermark(1), ringBufferSize)
@@ -198,7 +216,8 @@ func (e *EbpfProgram) setupManagerAndPerfHandlers() error {
 		managerMods = append(managerMods, perfHandler)
 	}
 
-	e.initializeProbes()
+	sleepableIDs := make([]manager.ProbeIdentificationPair, len(e.enabledProbes))
+	e.initializeProbes(&sleepableIDs)
 	for _, identifier := range e.enabledProbes {
 		probe := &manager.Probe{
 			ProbeIdentificationPair: identifier,
@@ -207,7 +226,22 @@ func (e *EbpfProgram) setupManagerAndPerfHandlers() error {
 		mgr.Probes = append(mgr.Probes, probe)
 	}
 
-	e.Manager = ddebpf.NewManager(mgr, "shared-libraries", managerMods...)
+	mask := uint64(0)
+	for _, id := range sleepableIDs {
+		m, err := sleepableMask(id.EBPFFuncName)
+		if err != nil {
+			return fmt.Errorf("error generating sleepable mask: %w", err)
+		}
+
+		mask |= m
+	}
+
+	managerMods = append(managerMods, &ddebpf.SleepableProgramModifier{
+		ProbeIDs:      sleepableIDs,
+		SleepableMask: mask,
+	})
+
+	e.Manager = ddebpf.NewManager(mgr, "shared_libraries", managerMods...)
 
 	return nil
 }
@@ -467,6 +501,7 @@ func (e *EbpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	log.Infof("loading shared libraries program with libsets enabled: %s", strings.Join(enabledMsgs, ", "))
 
 	options.BypassEnabled = e.cfg.BypassEnabled
+
 	return e.InitWithOptions(buf, &options)
 }
 
@@ -543,14 +578,22 @@ func fexitSupported(funcName string) bool {
 }
 
 // initializedProbes initializes the probes that are enabled for the current system
-func (e *EbpfProgram) initializeProbes() {
+func (e *EbpfProgram) initializeProbes(sleepableIDs *[]manager.ProbeIdentificationPair) {
 	openat2Supported := sysOpenAt2Supported()
 	isFexitSupported := fexitSupported("do_sys_openat2")
 
 	// Tracing represents fentry/fexit probes.
 	tracingProbes := []manager.ProbeIdentificationPair{
 		{
-			EBPFFuncName: "do_sys_" + openat2SysCall + "_exit",
+			EBPFFuncName: "__x64_sys_" + openat2SysCall + "_exit",
+			UID:          probeUID,
+		},
+		{
+			EBPFFuncName: "__x64_sys_" + openatSysCall + "_exit",
+			UID:          probeUID,
+		},
+		{
+			EBPFFuncName: "__x64_sys_" + openSysCall + "_exit",
 			UID:          probeUID,
 		},
 	}
@@ -614,6 +657,10 @@ func (e *EbpfProgram) initializeProbes() {
 		} else {
 			// Kernel < 4.15 - keep kprobe fallback (no multiple tracepoint attachment)
 			log.Infof("Using kprobe fallback for shared library monitoring (kernel %s < 4.15)", kv)
+		}
+
+		if kv > kernel.VersionCode(5, 10, 0) {
+			*sleepableIDs = slices.Clone(e.enabledProbes)
 		}
 	}
 }

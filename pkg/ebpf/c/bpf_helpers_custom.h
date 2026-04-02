@@ -27,6 +27,12 @@ extern void __format_check(const char *fmt, ...) __attribute__ ((format(printf, 
 // No op
 #define log_debug(fmt, ...)
 #endif
+#define log_info(fmt, ...)                                        \
+    ({                                                             \
+        char ____fmt[] = fmt "\n";                                 \
+        if (0) __format_check(fmt, ##__VA_ARGS__);                 \
+        bpf_trace_printk(____fmt, sizeof(____fmt), ##__VA_ARGS__); \
+    })
 
 /* llvm builtin functions that eBPF C program may use to
  * emit BPF_LD_ABS and BPF_LD_IND instructions
