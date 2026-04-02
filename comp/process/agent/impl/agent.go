@@ -8,12 +8,12 @@ package agentimpl
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	compdef "github.com/DataDog/datadog-agent/comp/def"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	agent "github.com/DataDog/datadog-agent/comp/process/agent/def"
 	expvars "github.com/DataDog/datadog-agent/comp/process/expvars/impl"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo/def"
@@ -35,7 +35,7 @@ Exiting.`
 )
 
 // NewComponent creates a new process agent component.
-func NewComponent(deps dependencies) (provides, error) {
+func NewComponent(deps dependencies) (Provides, error) {
 	return newProcessAgent(deps)
 }
 
@@ -60,7 +60,7 @@ type processAgent struct {
 	flarehelper *FlareHelper
 }
 
-type provides struct {
+type Provides struct {
 	compdef.Out
 
 	Comp           agent.Component
@@ -68,9 +68,9 @@ type provides struct {
 	FlareProvider  flaretypes.Provider
 }
 
-func newProcessAgent(deps dependencies) (provides, error) {
+func newProcessAgent(deps dependencies) (Provides, error) {
 	if !Enabled(deps.Config, deps.Checks, deps.Log) {
-		return provides{
+		return Provides{
 			Comp: processAgent{
 				enabled: false,
 			},
@@ -91,7 +91,7 @@ func newProcessAgent(deps dependencies) (provides, error) {
 	// Look to see if any checks are enabled, if not, return since the agent doesn't need to be enabled.
 	if len(enabledChecks) == 0 {
 		deps.Log.Info(agentDisabledMessage)
-		return provides{
+		return Provides{
 			Comp: processAgent{
 				enabled: false,
 			},
@@ -112,14 +112,14 @@ func newProcessAgent(deps dependencies) (provides, error) {
 		if err != nil {
 			_ = deps.Log.Critical("Failed to initialize process status server:", err)
 		}
-		return provides{
+		return Provides{
 			Comp:           processAgentComponent,
 			StatusProvider: statusComponent.NewInformationProvider(NewStatusProvider(deps.Config, deps.Hostname)),
 			FlareProvider:  flaretypes.NewProvider(processAgentComponent.flarehelper.FillFlare),
 		}, nil
 	}
 
-	return provides{
+	return Provides{
 		Comp: processAgentComponent,
 	}, nil
 }
