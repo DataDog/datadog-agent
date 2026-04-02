@@ -10,8 +10,10 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
@@ -19,13 +21,13 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	logComp "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	"github.com/DataDog/datadog-agent/comp/core/settings"
+	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	apiserver "github.com/DataDog/datadog-agent/comp/process/apiserver/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
 var _ apiserver.Component = (*apiserverImpl)(nil)
@@ -63,7 +65,7 @@ func NewComponent(deps dependencies) apiserver.Component {
 		Secrets:      deps.Secrets,
 	}, r) // Set up routes
 
-	addr, err := pkgconfigsetup.GetProcessAPIAddressPort(deps.Config)
+	addr, err := getProcessAPIAddressPort(deps.Config, deps.Log)
 	if err != nil {
 		return err
 	}
@@ -107,4 +109,27 @@ func NewComponent(deps dependencies) apiserver.Component {
 	})
 
 	return s
+}
+
+const defaultProcessCmdPort = 6162
+
+// getProcessAPIAddressPort returns the API address:port for the process agent.
+func getProcessAPIAddressPort(cfg config.Component, log logComp.Component) (string, error) {
+	var key string
+	if cfg.IsSet("ipc_address") {
+		log.Warn("ipc_address is deprecated, use cmd_host instead")
+		key = "ipc_address"
+	} else {
+		key = "cmd_host"
+	}
+	address, err := system.IsLocalAddress(cfg.GetString(key))
+	if err != nil {
+		return "", fmt.Errorf("%s: %s", key, err)
+	}
+	port := cfg.GetInt("process_config.cmd_port")
+	if port <= 0 {
+		log.Warnf("Invalid process_config.cmd_port -- %d, using default port %d", port, defaultProcessCmdPort)
+		port = defaultProcessCmdPort
+	}
+	return net.JoinHostPort(address, strconv.Itoa(port)), nil
 }
