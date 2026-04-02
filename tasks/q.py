@@ -339,12 +339,22 @@ def eval_tp(
 # --- Combination search ---
 
 
+def _full_stack_combo(force_disable: list | None = None) -> dict:
+    """All detectors and correlators not in force_disable (for eval baseline)."""
+    fd = set(force_disable or [])
+    return {
+        "detectors": sorted(d for d in DETECTORS if d not in fd),
+        "correlators": sorted(c for c in CORRELATORS if c not in fd),
+    }
+
+
 # TODO(celian): Add heuristics to prioritize combinations that are more likely to be useful.
 def random_component_combinations(
     n: int,
     seed: int = None,
     force_enable: list = None,
     force_disable: list = None,
+    exclude_combo_keys: set | None = None,
 ) -> list:
     """
     Generate up to n distinct random component combinations, each guaranteed to
@@ -355,6 +365,8 @@ def random_component_combinations(
         seed: Random seed for reproducibility (None = non-deterministic).
         force_enable: Components always present in every combination.
         force_disable: Components never present in any combination (removed from pool).
+        exclude_combo_keys: Optional set of (tuple(detectors), tuple(correlators)) keys
+            to skip (e.g. the full-stack combo reserved for combo_000).
 
     Returns:
         List of dicts: {"detectors": [...], "correlators": [...]}
@@ -373,7 +385,7 @@ def random_component_combinations(
     # can be empty; otherwise sample at least 1 from the remaining pool.
     rng = random.Random(seed)
     combos = []
-    seen: set = set()
+    seen: set = set(exclude_combo_keys or [])
     max_attempts = n * 100
     attempts = 0
     while len(combos) < n and attempts < max_attempts:
@@ -451,13 +463,14 @@ def eval_combinations(
     force_disable: str = "",
 ):
     """
-    Run Gaussian F1 eval on n random component combinations and rank them.
+    Run Gaussian F1 eval on n component combinations and rank them.
 
-    Each combination contains at least 1 detector and 1 correlator chosen
-    randomly from DETECTORS and CORRELATORS. All EXTRACTORS are enabled in each
-    combo unless named in --force-disable. A JSON config file is written for
-    each combination so enabled/disabled state is precise (no auto-add side
-    effects from --only).
+    The first combination (combo_000) always enables every detector and
+    correlator not listed in --force-disable (full stack). Remaining
+    combinations are random: each has at least 1 detector and 1 correlator.
+    All EXTRACTORS are enabled in each combo unless named in --force-disable.
+    A JSON config file is written per combination so enabled/disabled state is
+    precise (no auto-add side effects from --only).
 
     Output layout:
         <output_dir>/combo_NNN/config.json   - exact component config used
@@ -465,7 +478,8 @@ def eval_combinations(
         <output_dir>/summary.json            - all combos ranked by mean F1
 
     Args:
-        n: Number of random combinations to evaluate (default: 10).
+        n: Total combinations to evaluate: one full-stack plus (n - 1) random
+            (default: 10). Use n=1 for only the full-stack baseline.
         output_dir: Root directory for per-combo results and summary.
         scenarios_dir: Directory containing scenario subdirectories.
         sigma: Gaussian width in seconds for F1 scoring.
@@ -498,10 +512,23 @@ def eval_combinations(
     if force_disable_list:
         print(color_message(f"Force-disabled: {', '.join(force_disable_list)}", Color.BLUE))
 
-    combos = random_component_combinations(
-        n, seed=seed, force_enable=force_enable_list, force_disable=force_disable_list
+    full_combo = _full_stack_combo(force_disable_list)
+    full_key = (tuple(full_combo["detectors"]), tuple(full_combo["correlators"]))
+    random_count = max(0, n - 1)
+    random_combos = random_component_combinations(
+        random_count,
+        seed=seed,
+        force_enable=force_enable_list,
+        force_disable=force_disable_list,
+        exclude_combo_keys={full_key},
     )
-    print(color_message(f"Generated {len(combos)} unique random combinations (seed={seed})", Color.BLUE))
+    combos = [full_combo] + random_combos
+    print(
+        color_message(
+            f"combo_000 = full stack; plus {len(random_combos)} random (seed={seed}, total={len(combos)})",
+            Color.BLUE,
+        )
+    )
 
     summary_results = []
     for i, combo in enumerate(combos):
@@ -515,7 +542,8 @@ def eval_combinations(
             json.dump(config_data, f, indent=4)
 
         print(color_message(f"\n{'=' * 60}", Color.BLUE))
-        print(color_message(f"  [{i + 1}/{len(combos)}] {combo_label}", Color.BLUE))
+        combo_title = f"{combo_label} (full stack)" if i == 0 else combo_label
+        print(color_message(f"  [{i + 1}/{len(combos)}] {combo_title}", Color.BLUE))
         print(color_message(f"  detectors:   {', '.join(combo['detectors'])}", Color.BLUE))
         print(color_message(f"  correlators: {', '.join(combo['correlators'])}", Color.BLUE))
         ext_on = [e for e in EXTRACTORS if e not in force_disable_list]
