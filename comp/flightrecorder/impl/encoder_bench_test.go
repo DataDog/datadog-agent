@@ -158,7 +158,6 @@ func makeLogEntries(n int, contentLen int) []capturedLog {
 			Tags:        []string{"host:benchhost", "env:bench"},
 			Hostname:    "benchhost",
 			TimestampNs: time.Now().UnixNano(),
-			Source:      "agent",
 		}
 	}
 	return entries

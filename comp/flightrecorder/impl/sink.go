@@ -35,7 +35,7 @@ type Requires struct {
 	Log    log.Component
 
 	MetricsHooks    []hook.Hook[[]hook.MetricSampleSnapshot] `group:"hook"`
-	LogsHooks       []hook.Hook[hook.LogView]                `group:"hook"`
+	LogsHooks       []hook.Hook[[]hook.LogSampleSnapshot]    `group:"hook"`
 	TraceStatsHooks []hook.Hook[hook.TraceStatsView]         `group:"hook"`
 }
 
@@ -63,7 +63,7 @@ type sinkImpl struct {
 
 	// Hooks (injected, immutable).
 	metricsHooks    []hook.Hook[[]hook.MetricSampleSnapshot]
-	logsHooks       []hook.Hook[hook.LogView]
+	logsHooks       []hook.Hook[[]hook.LogSampleSnapshot]
 	traceStatsHooks []hook.Hook[hook.TraceStatsView]
 
 	// Lifecycle.
@@ -248,26 +248,9 @@ func (s *sinkImpl) activate(ctx context.Context) <-chan struct{} {
 		if lh == nil {
 			continue
 		}
-		unsub := lh.Subscribe("flightrecorder-logs", func(payload hook.LogView) {
-			pprof.Do(context.Background(), pprof.Labels("component", "flightrecorder", "goroutine", "hook-logs"), func(_ context.Context) {
-				raw := payload.GetContent()
-				cp := contentPool.Get().(*[]byte)
-				contentCopy := append((*cp)[:0], raw...)
-				srcTags := payload.GetTags()
-				sp := tagPool.Get().(*[]string)
-				tags := append((*sp)[:0], srcTags...)
-				bat.AddLog(capturedLog{
-					Content:          contentCopy,
-					ContentPoolSlice: cp,
-					Status:           payload.GetStatus(),
-					Tags:             tags,
-					TagPoolSlice:     sp,
-					Hostname:         payload.GetHostname(),
-					TimestampNs:      time.Now().UnixNano(),
-					Source:           "",
-				})
-			}) // pprof.Do
-		}, hook.WithBufferSize[hook.LogView](s.hookBufSize))
+		unsub := lh.Subscribe("flightrecorder-logs", func(batch []hook.LogSampleSnapshot) {
+			bat.AddLogBatch(batch)
+		}, hook.WithBufferSize[[]hook.LogSampleSnapshot](s.hookBufSize))
 		unsubs = append(unsubs, unsub)
 	}
 

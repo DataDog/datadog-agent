@@ -35,7 +35,7 @@ func NewProcessorOnlyProvider(diagnosticMessageReceiver diagnostic.MessageReceiv
 	pipelineID := "0"
 	pipelineMonitor := metrics.NewNoopPipelineMonitor(pipelineID)
 	processor := processor.New(nil, inputChan, outputChan, processingRules,
-		encoder, diagnosticMessageReceiver, hostname, pipelineMonitor, pipelineID, hook.NewNoopHook[hook.LogView]())
+		encoder, diagnosticMessageReceiver, hostname, pipelineMonitor, pipelineID, hook.NewNoopHook[[]hook.LogSampleSnapshot]())
 
 	p := &processorOnlyProvider{
 		processor:       processor,

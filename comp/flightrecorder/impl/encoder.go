@@ -13,6 +13,7 @@ import (
 	flatbuffers "github.com/google/flatbuffers/go"
 
 	signals "github.com/DataDog/datadog-agent/comp/flightrecorder/impl/signals"
+	"github.com/DataDog/datadog-agent/pkg/hook"
 )
 
 // metricPoint is a compact data point for known contexts (fast path).
@@ -75,17 +76,8 @@ type capturedTraceStat struct {
 	TimestampNs     int64
 }
 
-// capturedLog is an internal copy of a log entry, safe to retain across hook callbacks.
-type capturedLog struct {
-	Content          []byte
-	ContentPoolSlice *[]byte // non-nil when Content was borrowed from contentPool
-	Status           string
-	Tags             []string
-	TagPoolSlice     *[]string // non-nil when Tags was borrowed from tagPool
-	Hostname         string
-	TimestampNs      int64
-	Source           string
-}
+// capturedLog is a type alias for hook.LogSampleSnapshot, used in encoder and batcher.
+type capturedLog = hook.LogSampleSnapshot
 
 // ---------------------------------------------------------------------------
 // Builder pool (optimisation 1B)
@@ -337,7 +329,7 @@ func EncodeLogBatchRing(pool *builderPool, buf []capturedLog, tail, count, capac
 		contentOff := b.CreateByteVector(e.Content)
 		statusOff := b.CreateSharedString(e.Status)
 		hostnameOff := b.CreateSharedString(e.Hostname)
-		sourceOff := b.CreateSharedString(e.Source)
+		sourceOff := b.CreateSharedString("") // LogSampleSnapshot doesn't carry Source
 
 		if cap(tagBuf) < len(e.Tags) {
 			tagBuf = make([]flatbuffers.UOffsetT, len(e.Tags))
@@ -393,7 +385,7 @@ func encodeLogBatchWith(b *flatbuffers.Builder, entries []capturedLog) ([]byte, 
 		contentOff := b.CreateByteVector(e.Content)
 		statusOff := b.CreateString(e.Status)
 		hostnameOff := b.CreateString(e.Hostname)
-		sourceOff := b.CreateString(e.Source)
+		sourceOff := b.CreateString("")
 
 		if cap(tagBuf) < len(e.Tags) {
 			tagBuf = make([]flatbuffers.UOffsetT, len(e.Tags))

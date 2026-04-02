@@ -58,7 +58,7 @@ func (a *logAgent) SetupPipeline(
 		a.compression,
 		true,                             // disable distributed sending for serverless
 		true,                             // serverless
-		hook.NewNoopHook[hook.LogView](), // no log hook in serverless
+		hook.NewNoopHook[[]hook.LogSampleSnapshot](), // no log hook in serverless
 	)
 
 	lnchrs := launchers.NewLaunchers(a.sources, pipelineProvider, a.auditor, a.tracker)

@@ -10,6 +10,8 @@ import (
 	"runtime/pprof"
 	"sync"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/hook"
 )
 
 // maxEncodeBatchSize caps the number of metric points encoded per FlatBuffers
@@ -58,8 +60,8 @@ type batcher struct {
 
 	// Logs double-buffer.
 	logCap      int
-	logsActive  []capturedLog
-	logsDrain   []capturedLog
+	logsActive  []hook.LogSampleSnapshot
+	logsDrain   []hook.LogSampleSnapshot
 	logsActiveN int
 	logsActiveH int
 
@@ -105,8 +107,8 @@ func newBatcher(transport Transport, flushInterval time.Duration, ptCapacity, de
 		defsDrain:  make([]contextDef, defCapacity),
 
 		logCap:     logCapacity,
-		logsActive: make([]capturedLog, logCapacity),
-		logsDrain:  make([]capturedLog, logCapacity),
+		logsActive: make([]hook.LogSampleSnapshot, logCapacity),
+		logsDrain:  make([]hook.LogSampleSnapshot, logCapacity),
 
 		tssCap:    traceStatsCapacity,
 		tssActive: make([]capturedTraceStat, traceStatsCapacity),
@@ -165,17 +167,18 @@ func (b *batcher) AddContextDef(d contextDef) {
 	}
 }
 
-// AddLog enqueues a log entry. When the ring buffer is full the oldest item is
-// overwritten and the drop counter increments.
-func (b *batcher) AddLog(l capturedLog) {
+// AddLogBatch enqueues a batch of log snapshots with a single lock acquisition.
+func (b *batcher) AddLogBatch(batch []hook.LogSampleSnapshot) {
 	b.mu.Lock()
-	if b.logsActiveN == b.logCap {
-		b.counters.incLogsDroppedOverflow(1)
-	} else {
+	for i := range batch {
+		if b.logsActiveN == b.logCap {
+			b.counters.incLogsDroppedOverflow(1)
+			continue
+		}
+		b.logsActive[b.logsActiveH] = batch[i]
+		b.logsActiveH = (b.logsActiveH + 1) % b.logCap
 		b.logsActiveN++
 	}
-	b.logsActive[b.logsActiveH] = l
-	b.logsActiveH = (b.logsActiveH + 1) % b.logCap
 	signal := b.logsActiveN >= b.logWatermark
 	b.mu.Unlock()
 	if signal {
@@ -326,20 +329,20 @@ func (b *batcher) flushLogs() {
 	builder, err := EncodeLogBatchRing(b.builderPool, drain, tail, count, b.logCap)
 	if err != nil {
 		b.counters.incLogsDroppedTransport(uint64(count))
-		returnLogSlicesRing(drain, tail, count, b.logCap)
+	
 		return
 	}
 	data := builder.FinishedBytes()
 	if err := b.transport.Send(data); err != nil {
 		b.counters.incLogsDroppedTransport(uint64(count))
 		b.builderPool.put(builder)
-		returnLogSlicesRing(drain, tail, count, b.logCap)
+	
 		return
 	}
 	b.counters.incLogsSent(uint64(count))
 	b.counters.incBytesSent(uint64(len(data)))
 	b.builderPool.put(builder)
-	returnLogSlicesRing(drain, tail, count, b.logCap)
+
 }
 
 func (b *batcher) flushTraceStats() {
@@ -407,19 +410,3 @@ func returnDefSlicesRing(buf []contextDef, tail, count, capacity int) {
 	}
 }
 
-// returnLogSlicesRing returns pooled content and tag slices for items in a ring buffer segment.
-func returnLogSlicesRing(buf []capturedLog, tail, count, capacity int) {
-	for i := 0; i < count; i++ {
-		idx := (tail + i) % capacity
-		if buf[idx].ContentPoolSlice != nil {
-			*buf[idx].ContentPoolSlice = buf[idx].Content[:0]
-			contentPool.Put(buf[idx].ContentPoolSlice)
-			buf[idx].ContentPoolSlice = nil
-		}
-		if buf[idx].TagPoolSlice != nil {
-			*buf[idx].TagPoolSlice = buf[idx].Tags[:0]
-			tagPool.Put(buf[idx].TagPoolSlice)
-			buf[idx].TagPoolSlice = nil
-		}
-	}
-}
