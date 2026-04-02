@@ -23,6 +23,9 @@ path = "src/main.rs"
 name = "disco"
 path = "src/bin/disco.rs"
 
+[target.'cfg(target_os = "linux")'.dependencies]
+caps = { workspace = true }
+
 [dependencies]
 anyhow.workspace = true
 cap-std.workspace = true

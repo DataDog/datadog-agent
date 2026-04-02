@@ -174,7 +174,7 @@ deploy_containers-a7-fips_internal:
   stage: deploy_containers
   dependencies: []
   before_script:
-    - 'if [[ "$VERSION" == "" ]]; then VERSION=$(sed -n ''s/.*"7": "\([^"]*\)".*/\1/p'' release.json | head -1); fi'
+    - if [[ "$VERSION" == "" ]]; then VERSION=$(yq -r '.current_milestone' release.json); fi
     - export IMG_SOURCES="${SRC_DDOT_EBPF}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-amd64,${SRC_DDOT_EBPF}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-arm64"
     - export IMG_DESTINATIONS="ddot-ebpf:${VERSION}-preview-host-profiler-${PREVIEW_NUMBER}"
 
