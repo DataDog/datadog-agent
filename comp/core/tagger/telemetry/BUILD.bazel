@@ -7,6 +7,6 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/tagger/types",
-        "@com_github_datadog_datadog_agent_comp_core_telemetry//:telemetry",
+        "//comp/core/telemetry",
     ],
 )
