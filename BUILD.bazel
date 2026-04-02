@@ -332,9 +332,7 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/networkpath/telemetry
 # gazelle:exclude pkg/networkpath/traceroute
 # gazelle:exclude pkg/opentelemetry-mapping-go/inframetadata
-# gazelle:exclude pkg/opentelemetry-mapping-go/otlp/attributes
 # gazelle:exclude pkg/opentelemetry-mapping-go/otlp/logs
-# gazelle:exclude pkg/opentelemetry-mapping-go/otlp/metrics
 # gazelle:exclude pkg/orchestrator/config
 # gazelle:exclude pkg/orchestrator/model
 # gazelle:exclude pkg/persistentcache
