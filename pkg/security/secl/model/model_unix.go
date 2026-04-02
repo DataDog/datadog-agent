@@ -235,11 +235,11 @@ func (s CGroupSource) String() string {
 // CGroupContext holds the cgroup context of an event
 type CGroupContext struct {
 	*Releasable
-	CGroupID      containerutils.CGroupID `field:"id"`                                   // SECLDoc[id] Definition:`ID of the cgroup`
+	CGroupID      containerutils.CGroupID `field:"id"` // SECLDoc[id] Definition:`ID of the cgroup`
 	CGroupPathKey PathKey                 `field:"file"`
 	CGroupVersion int                     `field:"version,handler:ResolveCGroupVersion"` // SECLDoc[version] Definition:`[Experimental] Version of the cgroup API`
 	CGroupSource  CGroupSource            `field:"-"`
-	CreatedAt     uint64                  `field:"created_at,opts:gen_getters"`          // SECLDoc[created_at] Definition:`Timestamp of the creation of the cgroup`
+	CreatedAt     uint64                  `field:"created_at,opts:gen_getters"` // SECLDoc[created_at] Definition:`Timestamp of the creation of the cgroup`
 }
 
 // UnixCreatedAt returns the creation time of the cgroup
