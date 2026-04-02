@@ -38,6 +38,10 @@ const (
 
 	// Restricted Shell
 	PARRestrictedShellAllowedPaths = "private_action_runner.restricted_shell_allowed_paths"
+
+	// PARSkipTaskVerification disables signed-envelope verification and Remote Config key delivery.
+	// WARNING: for testing/development only. Never set to true in production.
+	PARSkipTaskVerification = "private_action_runner.skip_task_verification"
 )
 
 const (
@@ -95,6 +99,7 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 		}
 	}
 	config.BindEnvAndSetDefault(PARRestrictedShellAllowedPaths, defaultPaths)
+	config.BindEnvAndSetDefault(PARSkipTaskVerification, false)
 	config.ParseEnvAsStringSlice(PARRestrictedShellAllowedPaths, func(s string) []string {
 		if s == "" {
 			return nil

@@ -87,6 +87,7 @@ func FromDDConfig(config config.Component) (*Config, error) {
 		RShellAllowedPaths:        config.GetStringSlice(setup.PARRestrictedShellAllowedPaths),
 		DDHost:                    ddHost,
 		DDApiHost:                 ddHost,
+		SkipTaskVerification:      config.GetBool(setup.PARSkipTaskVerification),
 		Modes:                     []modes.Mode{modes.ModePull},
 		OrgId:                     orgID,
 		PrivateKey:                privateKey,

@@ -197,7 +197,7 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	p.logger.Info("==> Site : " + cfg.DatadogSite)
 	p.logger.Info("==> URN : " + cfg.Urn)
 
-	keysManager := taskverifier.NewKeyManager(p.rcClient)
+	keysManager := taskverifier.NewKeyManager(p.rcClient, cfg.SkipTaskVerification)
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 	opmsClient := opms.NewClient(cfg)
 

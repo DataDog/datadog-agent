@@ -50,6 +50,11 @@ datadog:
     urn: "%s"
     privateKey: "%s"
 agents:
+  containers:
+    privateActionRunner:
+      envDict:
+        DD_PRIVATE_ACTION_RUNNER_SKIP_TASK_VERIFICATION: "true"
+agents:
   useHostNetwork: true
 `
 

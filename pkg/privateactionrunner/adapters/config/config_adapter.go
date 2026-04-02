@@ -26,6 +26,7 @@ type Config struct {
 	RShellAllowedPaths []string
 	DDHost             string
 	DDApiHost          string
+	SkipTaskVerification bool
 	Modes              []modes.Mode
 	OrgId              int64
 	PrivateKey         *ecdsa.PrivateKey

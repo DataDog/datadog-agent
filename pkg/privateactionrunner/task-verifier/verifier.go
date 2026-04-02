@@ -1,5 +1,3 @@
-//go:build !test
-
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
@@ -22,14 +20,27 @@ import (
 	privateactionspb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
 )
 
+// NewTaskVerifier returns a TaskVerifier appropriate for the given config.
+// When cfg.SkipTaskVerification is true, a no-op verifier is returned — for testing only.
+func NewTaskVerifier(keysManager KeysManager, cfg *config.Config) TaskVerifier {
+	if cfg.SkipTaskVerification {
+		return &noOpTaskVerifier{}
+	}
+	return &signedEnvelopeTaskVerifier{keysManager: keysManager, config: cfg}
+}
+
+// noOpTaskVerifier passes tasks through without signature validation.
+// WARNING: for testing/development only — never use in production.
+type noOpTaskVerifier struct{}
+
+func (n *noOpTaskVerifier) UnwrapTask(task *types.Task) (*types.Task, error) {
+	return task, nil
+}
+
+// signedEnvelopeTaskVerifier validates the signed envelope and verifies the task signature.
 type signedEnvelopeTaskVerifier struct {
 	keysManager KeysManager
 	config      *config.Config
-}
-
-// NewTaskVerifier returns a TaskVerifier that validates the signed envelope and verifies the task signature.
-func NewTaskVerifier(keysManager KeysManager, cfg *config.Config) TaskVerifier {
-	return &signedEnvelopeTaskVerifier{keysManager: keysManager, config: cfg}
 }
 
 // UnwrapTask extracts and validates the task from its signed envelope.
@@ -93,12 +104,8 @@ func (t *signedEnvelopeTaskVerifier) UnwrapTask(task *types.Task) (*types.Task, 
 }
 
 func (t *signedEnvelopeTaskVerifier) getCandidateSignatureWithKey(envelope *privateactionspb.RemoteConfigSignatureEnvelope) (*privateactionspb.Signature, types.DecodedKey) {
-	if len(envelope.Signatures) == 0 {
-		return nil, nil
-	}
 	for _, sig := range envelope.Signatures {
-		localKey := t.keysManager.GetKey(sig.KeyId)
-		if localKey != nil {
+		if localKey := t.keysManager.GetKey(sig.KeyId); localKey != nil {
 			return sig, localKey
 		}
 	}

@@ -1,5 +1,3 @@
-//go:build !test
-
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
@@ -24,6 +22,28 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
 
+// NewKeyManager returns a KeysManager appropriate for the given skipVerification flag.
+// When skipVerification is true, a no-op manager is returned — for testing only.
+func NewKeyManager(rcClient rcclient.Client, skipVerification bool) KeysManager {
+	if skipVerification {
+		return &noOpKeysManager{}
+	}
+	return &keysManager{
+		stopChan: make(chan bool),
+		keys:     make(map[string]types.DecodedKey),
+		ready:    make(chan struct{}),
+		rcClient: rcClient,
+	}
+}
+
+// noOpKeysManager satisfies KeysManager without RC. WaitForReady returns immediately.
+// WARNING: for testing/development only.
+type noOpKeysManager struct{}
+
+func (n *noOpKeysManager) Start(_ context.Context)            {}
+func (n *noOpKeysManager) GetKey(_ string) types.DecodedKey   { return nil }
+func (n *noOpKeysManager) WaitForReady()                      {}
+
 type keysManager struct {
 	rcClient               rcclient.Client
 	stopChan               chan bool
@@ -31,15 +51,6 @@ type keysManager struct {
 	mu                     sync.RWMutex
 	ready                  chan struct{}
 	firstCallbackCompleted bool
-}
-
-func NewKeyManager(rcClient rcclient.Client) KeysManager {
-	return &keysManager{
-		stopChan: make(chan bool),
-		keys:     make(map[string]types.DecodedKey),
-		ready:    make(chan struct{}),
-		rcClient: rcClient,
-	}
 }
 
 func (k *keysManager) Start(ctx context.Context) {
