@@ -24,8 +24,8 @@ import (
 func GetContextSwitches() (ctxSwitches int64, err error) {
 	log.Debug("collecting ctx switches")
 	procfsPath := "/proc"
-	if pkgconfigsetup.Datadog().IsSet("procfs_path") {
-		procfsPath = pkgconfigsetup.Datadog().GetString("procfs_path")
+	if v := pkgconfigsetup.Datadog().GetString("procfs_path"); v != "" {
+		procfsPath = v
 	}
 	filePath := procfsPath + "/stat"
 	file, err := os.Open(filePath)
