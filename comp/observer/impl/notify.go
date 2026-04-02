@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -283,19 +284,23 @@ func buildChangeMessage(c observerdef.ActiveCorrelation, storage observerdef.Sto
 	lines = append(lines, fmt.Sprintf("Correlated behavior change detected: %d anomalies in pattern %q", len(c.Anomalies), c.Pattern))
 	lines = append(lines, "")
 
+	anomalyLines := []string{}
 	for _, a := range c.Anomalies {
 		if isLogDerivedAnomaly(a) {
-			lines = append(lines, "- "+logDerivedDescription(a, storage))
+			anomalyLines = append(anomalyLines, "- "+logDerivedDescription(a, storage))
 		} else if a.DebugInfo != nil {
 			display := anomalyDisplayKey(a)
-			lines = append(lines, fmt.Sprintf("- %s: %.2f (baseline mean: %.2f, %.1f sigma)", display, a.DebugInfo.CurrentValue, a.DebugInfo.BaselineMean, a.DebugInfo.DeviationSigma))
+			anomalyLines = append(anomalyLines, fmt.Sprintf("- %s: %.2f (baseline mean: %.2f, %.1f sigma)", display, a.DebugInfo.CurrentValue, a.DebugInfo.BaselineMean, a.DebugInfo.DeviationSigma))
 		} else if a.Description != "" {
-			lines = append(lines, "- "+a.Description)
+			anomalyLines = append(anomalyLines, "- "+a.Description)
 		} else {
-			lines = append(lines, "- "+anomalyDisplayKey(a))
+			anomalyLines = append(anomalyLines, "- "+anomalyDisplayKey(a))
 		}
 	}
 
+	// Ensure anomalies are unique and sorted (could be duplicate if 2 anomalies on the same series at a similar timestamp)
+	slices.Sort(anomalyLines)
+	lines = append(lines, slices.Compact(anomalyLines)...)
 	text := strings.Join(lines, "\n")
 	const maxLen = 4000
 	if len(text) > maxLen {
@@ -327,14 +332,13 @@ func isLogDerivedAnomaly(a observerdef.Anomaly) bool {
 func logDerivedDescription(a observerdef.Anomaly, storage observerdef.StorageReader) string {
 	pattern := strings.TrimSpace(a.Context.Pattern)
 	var example string
-	if a.Context.Example != "" {
-		example = "\tlog example: " + strings.TrimSpace(a.Context.Example)
+	// Don't display example if it's the same as the pattern
+	if a.Context.Example != "" && strings.TrimSpace(a.Context.Example) != pattern {
+		example = "\n\texample: " + strings.TrimSpace(a.Context.Example)
 	}
 	var ratePart string
 	if rate, ok := logPatternRate(a, storage); ok {
-		ratePart = fmt.Sprintf("\tavg rate (60s): %.1flog/s", rate)
-	} else {
-		ratePart = "\tavg rate (60s): unknown"
+		ratePart = fmt.Sprintf("\n\trate: %.1flog/s", rate)
 	}
 	var tagsPart string
 	if len(a.Context.SplitTags) > 0 {
@@ -345,10 +349,10 @@ func logDerivedDescription(a observerdef.Anomaly, storage observerdef.StorageRea
 			}
 		}
 		if len(parts) > 0 {
-			tagsPart = "\t[" + strings.Join(parts, ", ") + "]"
+			tagsPart = "\n\ttags: " + strings.Join(parts, ", ")
 		}
 	}
-	return fmt.Sprintf("Log pattern change rate detected: %s%s%s%s", pattern, example, ratePart, tagsPart)
+	return fmt.Sprintf("Log pattern change rate detected:\n\tpattern: %s%s%s%s", pattern, example, ratePart, tagsPart)
 }
 
 // sendCorrelationEvents sends one event per correlation.
