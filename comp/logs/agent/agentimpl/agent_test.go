@@ -36,6 +36,8 @@ import (
 	integrationsimpl "github.com/DataDog/datadog-agent/comp/logs/integrations/impl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/def"
+	hpmock "github.com/DataDog/datadog-agent/comp/healthplatform/mock"
 	kubehealthdef "github.com/DataDog/datadog-agent/comp/logs-library/kubehealth/def"
 	kubehealthmock "github.com/DataDog/datadog-agent/comp/logs-library/kubehealth/mock"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
@@ -510,6 +512,7 @@ func (suite *AgentTestSuite) createDeps() dependencies {
 		}),
 		auditorfx.Module(),
 		fx.Provide(kubehealthmock.NewProvides),
+		fx.Provide(func() healthplatformdef.Component { return hpmock.Mock(suite.T()) }),
 	))
 }
 
