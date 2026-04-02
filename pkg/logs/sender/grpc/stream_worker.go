@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
@@ -365,6 +366,17 @@ func (s *streamWorker) handleBatchAck(ack *batchAck) {
 
 	// Pop the acknowledged payload and send to auditor
 	payload := s.inflight.pop()
+	logCount := payloadLogCount(payload)
+	metrics.LogsSent.Add(logCount)
+	metrics.TlmLogsSent.Add(float64(logCount))
+
+	// BytesSent tracks raw log content size (pre-encoding), matching the HTTP path's use of
+	// UnencodedSize. Note: this is NOT the protobuf-serialized size — computing proto.Size()
+	// per ack would be relatively CPU expensive and is avoided here.
+	metrics.BytesSent.Add(int64(payload.UnencodedSize))
+	metrics.TlmBytesSent.Add(float64(payload.UnencodedSize), metrics.GetAgentIdentityTag(), "logs")
+	metrics.EncodedBytesSent.Add(int64(len(payload.Encoded)))
+	metrics.TlmEncodedBytesSent.Add(float64(len(payload.Encoded)), metrics.GetAgentIdentityTag(), "logs", payload.Encoding)
 	if s.outputChan != nil {
 		select {
 		case s.outputChan <- payload:
@@ -375,10 +387,8 @@ func (s *streamWorker) handleBatchAck(ack *batchAck) {
 
 			// TODO: is this the only possible drop?
 			tlmWorkerBytesDropped.Add(float64(len(payload.Encoded)), s.workerID)
-			// TODO: update this metric with # logs (requires parsing payload)
-			// metrics.DestinationLogsDropped.Set(s.endpoint.Host, &expvar.Int{})
-			// metrics.LogsDropped.Inc(s.workerID, 1)
-			// TODO: other general metrics to update?
+			metrics.DestinationLogsDropped.Add(s.workerID, logCount)
+			metrics.TlmLogsDropped.Add(float64(logCount), s.workerID)
 		}
 	}
 
@@ -708,6 +718,8 @@ func (s *streamWorker) receiverLoop(streamInfo *streamInfo) {
 // signalStreamFailure signals the supervisor to rotate the stream
 func (s *streamWorker) signalStreamFailure(streamInfo *streamInfo, reason string) {
 	tlmWorkerStreamErrors.Inc(s.workerID, reason)
+	metrics.DestinationErrors.Add(1)
+	metrics.TlmDestinationErrors.Inc()
 
 	// This signaling is blocking by design, it's okay to block the sender/receiver,
 	// since the only way we get here is through a stream error.
@@ -757,4 +769,14 @@ func createStoppedTimer(clk clock.Clock, d time.Duration) *clock.Timer {
 		<-t.C
 	}
 	return t
+}
+
+// payloadLogCount returns the number of actual log messages in a payload,
+// excluding state-change datums (pattern/dict define/delete).
+func payloadLogCount(p *message.Payload) int64 {
+	count := p.Count()
+	if extra, ok := p.StatefulExtra.(*StatefulExtra); ok && extra != nil {
+		count -= int64(len(extra.StateChanges))
+	}
+	return count
 }
