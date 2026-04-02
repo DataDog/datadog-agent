@@ -6,11 +6,9 @@
 // Package formatter provides a component for formatting SNMP traps.
 package formatter
 
-import (
-	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
-)
-
 // team: network-device-monitoring-core
+
+import "github.com/DataDog/datadog-agent/comp/snmptraps/packet"
 
 // Component is the component type.
 type Component interface {

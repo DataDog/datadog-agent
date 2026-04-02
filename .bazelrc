@@ -69,8 +69,13 @@ common:ci --noexperimental_convenience_symlinks # not CI-suitable: "These symlin
 import %workspace%/bazel/configs/rust.bazelrc
 
 # Global release config ------------------------------------------------------------------------------------------------
-# This should aggregate all the release configs for all the languages with enabled optimizations, stripping, etc.
+# This should aggregate all the release configs for all the languages with enabled optimizations,
+# stripping, etc.  It does not strictly mean that this build is the one to be released as a product.
+# It just selects all the flags we should use on product builds.  For example, we need to build with
+# optimization and compress packages in CI so that we can run performance and size gates, even
+# though we will never release that instance of the package to customers.
 common:release --config=rust-release
+common:release --//:release
 
 # Local development options --------------------------------------------------------------------------------------------
 try-import %workspace%/user.bazelrc
