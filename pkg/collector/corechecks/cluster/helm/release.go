@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"time"
 )
 
 // The "release" struct and the related ones, are a simplified version of the
@@ -50,7 +51,9 @@ func (rel *release) revision() revision {
 }
 
 type info struct {
-	Status string `json:"status,omitempty"`
+	FirstDeployed time.Time `json:"first_deployed,omitempty"`
+	LastDeployed  time.Time `json:"last_deployed,omitempty"`
+	Status        string    `json:"status,omitempty"`
 }
 
 type chart struct {
