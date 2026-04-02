@@ -98,8 +98,8 @@ func (lph *LeaderProxyHandler) rejectOrForwardLeaderQuery(rw http.ResponseWriter
 		leaderEngine, err := leaderelection.GetLeaderEngine()
 		if err != nil {
 			log.Errorf("leader engine can't be retrieved: %v", err)
-			http.Error(rw, "leader engine can't be retrieved", http.StatusServiceUnavailable)
 			SetSpanError(rw, fmt.Errorf("leader engine can't be retrieved: %w", err))
+			http.Error(rw, "leader engine can't be retrieved", http.StatusServiceUnavailable)
 			return true
 		}
 		lph.le = leaderEngine
@@ -112,16 +112,16 @@ func (lph *LeaderProxyHandler) rejectOrForwardLeaderQuery(rw http.ResponseWriter
 	ip, err := lph.le.GetLeaderIP()
 	if err != nil {
 		log.Errorf("failed to retrieve leader ip: %v", err)
-		http.Error(rw, "failed to retrieve leader ip", http.StatusServiceUnavailable)
 		SetSpanError(rw, fmt.Errorf("failed to retrieve leader ip: %w", err))
+		http.Error(rw, "failed to retrieve leader ip", http.StatusServiceUnavailable)
 		return true
 	}
 
 	// if the leader forwarder is not set, we can't forward the request
 	if lph.leaderForwarder == nil {
 		log.Errorf("leader forwarder is not available")
-		http.Error(rw, "leader forwarder is not available", http.StatusServiceUnavailable)
 		SetSpanError(rw, errors.New("leader forwarder is not available"))
+		http.Error(rw, "leader forwarder is not available", http.StatusServiceUnavailable)
 		return true
 	}
 	if lph.leaderForwarder.GetLeaderIP() != ip {

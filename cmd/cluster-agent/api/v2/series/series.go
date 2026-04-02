@@ -46,13 +46,13 @@ func InstallNodeMetricsEndpoints(ctx context.Context, r *mux.Router, cfg config.
 		loadMetricsHandlerName,
 		func(w http.ResponseWriter, r *http.Request) bool { // preHandler
 			if !cfg.GetBool("autoscaling.failover.enabled") {
-				http.Error(w, "Autoscaling workload failover store is disabled on the cluster agent", http.StatusServiceUnavailable)
 				api.SetSpanError(w, errors.New("autoscaling workload failover store is disabled"))
+				http.Error(w, "Autoscaling workload failover store is disabled on the cluster agent", http.StatusServiceUnavailable)
 				return false
 			}
 			if r.Body == nil {
-				http.Error(w, "Request body is empty", http.StatusBadRequest)
 				api.SetSpanError(w, errors.New("request body is empty"))
+				http.Error(w, "Request body is empty", http.StatusBadRequest)
 				return false
 			}
 			return true
