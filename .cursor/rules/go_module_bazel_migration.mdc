@@ -25,6 +25,7 @@ alwaysApply: false
 - **Never manually edit Gazelle-generated BUILD.bazel files** for content that Gazelle manages (srcs, deps, imports). Re-run Gazelle instead.
 - The **only** manual edits allowed on generated BUILD files:
   - `gotags = ["test"]  # keep` on `go_test` targets (see below).
+  - `target_compatible_with = ["@platforms//os:linux"]  # keep` on OS-specific targets (see below).
   - `# keep` comments to pin specific lines Gazelle would otherwise overwrite.
 
 ## `//go:build test` sources
@@ -32,6 +33,12 @@ alwaysApply: false
 Gazelle places files with `//go:build test` into `go_library` srcs (not `go_test`), because it treats `test` as a regular build tag. Bazel does not set the `test` tag during library compilation, so these symbols become undefined in test targets.
 
 **Fix:** add `gotags = ["test"]  # keep` to the `go_test` target that embeds the library. Do NOT move the source file between targets manually.
+
+## OS-specific modules
+
+Gazelle lists all source files unconditionally in `srcs` even when they carry `//go:build linux` (or another OS constraint). `rules_go` filters them at compile time, so compilation is correct. However, `//...` expansion will still attempt to analyze the target on all platforms, producing empty libraries or confusing errors.
+
+**Fix:** add `target_compatible_with = ["@platforms//os:linux"]  # keep` (or the appropriate OS) to both `go_library` and `go_test` targets. The `# keep` comment prevents Gazelle from stripping the line on re-runs.
 
 ## Proto handling
 

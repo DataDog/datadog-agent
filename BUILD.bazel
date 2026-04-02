@@ -314,7 +314,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/opentelemetry-mapping-go/inframetadata
 # gazelle:exclude pkg/opentelemetry-mapping-go/otlp/logs
 # gazelle:exclude pkg/orchestrator/config
-# gazelle:exclude pkg/orchestrator/model
 # gazelle:exclude pkg/persistentcache
 # gazelle:exclude pkg/pidfile
 # gazelle:exclude pkg/privateactionrunner
@@ -370,7 +369,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/status/systemprobe
 # gazelle:exclude pkg/status/types.go
 # gazelle:exclude pkg/system-probe
-# gazelle:exclude pkg/telemetry
 # gazelle:exclude pkg/trace/agent
 # gazelle:exclude pkg/trace/api
 # gazelle:exclude pkg/trace/config
@@ -399,7 +397,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/util/aws
 # gazelle:exclude pkg/util/aws/creds
 # gazelle:exclude pkg/util/cachedfetch
-# gazelle:exclude pkg/util/cgroups
 # gazelle:exclude pkg/util/cli
 # gazelle:exclude pkg/util/cloudproviders
 # gazelle:exclude pkg/util/clusteragent
@@ -438,7 +435,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/util/maps
 # gazelle:exclude pkg/util/net
 # gazelle:exclude pkg/util/os
-# gazelle:exclude pkg/util/otel
 # gazelle:exclude pkg/util/pdhutil
 # gazelle:exclude pkg/util/podman
 # gazelle:exclude pkg/util/port
@@ -457,7 +453,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/util/tmplvar
 # gazelle:exclude pkg/util/trie
 # gazelle:exclude pkg/util/trivy
-# gazelle:exclude pkg/util/winutil
 # gazelle:exclude pkg/util/workqueue
 # gazelle:exclude pkg/util/xc
 # gazelle:exclude pkg/windowsdriver
