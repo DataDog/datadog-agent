@@ -97,7 +97,7 @@ func fetchAndCheckStatus(v *baseStatusSuite, expectedSections []expectedSection)
 	}, 2*time.Minute, 20*time.Second)
 }
 
-func (v *baseStatusSuite) testDefaultInstallStatus(processAgentContain, processAgentNotContain []string) {
+func (v *baseStatusSuite) testDefaultInstallStatus(processAgentContain, processAgentNotContain []string, systemProbePresent bool) {
 	expectedSections := []expectedSection{
 		{
 			name:             `Agent \(.*\)`, // TODO: verify that the right version is output
@@ -197,7 +197,7 @@ func (v *baseStatusSuite) testDefaultInstallStatus(processAgentContain, processA
 		},
 		{
 			name:            "System Probe",
-			shouldBePresent: false,
+			shouldBePresent: systemProbePresent,
 		},
 		{
 			// XXX: this test is expected to fail until 7.48 as a known status render errors has been fixed in #18123

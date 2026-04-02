@@ -95,5 +95,5 @@ func (v *linuxStatusSuite) TestDefaultInstallStatus() {
 	if resp != nil {
 		resp.Body.Close()
 	}
-	v.testDefaultInstallStatus([]string{"Status: Not running or unreachable"}, nil)
+	v.testDefaultInstallStatus([]string{"Status: Not running or unreachable"}, nil, true)
 }
