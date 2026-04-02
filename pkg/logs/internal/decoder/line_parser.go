@@ -11,7 +11,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -134,9 +133,8 @@ func (p *MultiLineParser) process(input *message.Message, rawDataLen int) {
 
 	if p.buffer.Len() >= p.lineLimit {
 		// buffer exceeds size cap — mark as truncated and let SingleLineHandler
-		// handle the ...TRUNCATED... byte markers downstream
+		// handle the ...TRUNCATED... byte markers and metric downstream
 		p.isBufferTruncated = true
-		metrics.LogsTruncated.Add(1)
 	}
 
 	if !msg.ParsingExtra.IsPartial || p.buffer.Len() >= p.lineLimit {
