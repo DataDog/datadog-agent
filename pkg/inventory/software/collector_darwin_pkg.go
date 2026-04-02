@@ -19,6 +19,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	log "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // pkgReceiptsCollector collects software from PKG installer receipts
@@ -177,7 +179,9 @@ func singleLsbom(bomPath string) []string {
 	for scanner.Scan() {
 		lines = append(lines, scanner.Text())
 	}
-	_ = cmd.Wait()
+	if err := cmd.Wait(); err != nil {
+		log.Warnf("lsbom failed for %s: %v", bomPath, err)
+	}
 	return lines
 }
 
@@ -223,7 +227,9 @@ func batchLsbomShell(bomPaths []string) map[string][]string {
 		}
 	}
 
-	_ = cmd.Wait()
+	if err := cmd.Wait(); err != nil {
+		log.Warnf("batched lsbom shell failed: %v", err)
+	}
 	return result
 }
 
