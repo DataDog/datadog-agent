@@ -43,7 +43,6 @@ def build_scorer(ctx):
 
 
 # --- Eval ---
-# TODO: With config
 @task
 def eval_scenarios(
     ctx,
@@ -53,6 +52,7 @@ def eval_scenarios(
     only: str = "",
     build: bool = True,
     main_report_path: str = "/tmp/observer-eval-main-report.json",
+    config: str = "",
 ) -> dict[str, object]:
     """
     Runs the observer F1 eval: replays scenarios, scores Gaussian F1.
@@ -64,11 +64,13 @@ def eval_scenarios(
     Default (no --only): uses testbench defaults (bocpd,rrcf,time_cluster + other default-enabled components).
     With --only: enables ONLY listed components + extractors, disables everything else.
       time_cluster is auto-added if not specified.
+    With --config: JSON params file for testbench; overrides --only when both are set.
 
     Examples:
         dda inv q.eval-scenarios                            # defaults
         dda inv q.eval-scenarios --only scanmw              # scanmw + time_cluster (auto)
         dda inv q.eval-scenarios --only bocpd,time_cluster  # explicit
+        dda inv q.eval-scenarios --config /tmp/params.json  # Bayesian / custom params
 
     Args:
         scenario: Run a single scenario (e.g. "213_pagerduty"). Default: all scenarios.
@@ -76,10 +78,11 @@ def eval_scenarios(
         sigma: Gaussian width in seconds for scoring.
         only: Comma-separated components to enable (passed as --only to testbench). Auto-adds time_cluster.
         build: Whether to build the observer-testbench and observer-scorer binaries.
-        return_results: Whether to return the results for each scenario.
+        main_report_path: Path for the aggregated JSON report.
+        config: Path to observer-testbench JSON params file (--config). Empty: omit flag.
 
     Returns:
-        All the results for each scenario if return_results is True, otherwise None.
+        Main report dict with ``score`` and per-scenario ``metadata``.
     """
     only_flag = ""
     if only:
@@ -87,6 +90,12 @@ def eval_scenarios(
         components.add("time_cluster")
         only_flag = ",".join(sorted(components))
         print(color_message(f"Only: {only_flag}", Color.BLUE))
+
+    config_obj = None
+    if config:
+        print(color_message(f"Config: {config}", Color.BLUE))
+        with open(config) as f:
+            config_obj = json.load(f)
 
     if build:
         build_testbench(ctx)
@@ -112,8 +121,9 @@ def eval_scenarios(
         print(color_message(f"{'='*60}", Color.BLUE))
 
         only_part = f" --only {shlex.quote(only_flag)}" if only_flag else ""
+        config_part = f" --config {shlex.quote(config)}" if config else ""
         ctx.run(
-            f"bin/observer-testbench --headless {shlex.quote(name)} --output {shlex.quote(output_path)} --scenarios-dir {shlex.quote(scenarios_dir)}{only_part}"
+            f"bin/observer-testbench --headless {shlex.quote(name)} --output {shlex.quote(output_path)} --scenarios-dir {shlex.quote(scenarios_dir)}{only_part}{config_part}"
         )
 
         if not os.path.isfile(output_path):
@@ -178,7 +188,7 @@ def eval_scenarios(
 
     # Create main report
     main_score = sum(r["f1"] for r in results) / len(results)
-    main_report = {"score": main_score, "metadata": {r["name"]: r for r in results}}
+    main_report = {"score": main_score, "metadata": {r["name"]: r for r in results}, "component_configs": config_obj}
     with open(main_report_path, "w") as f:
         json.dump(main_report, f, indent=4)
     print(f"Saved main report to {main_report_path}")
