@@ -11,6 +11,8 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
+	"time"
 
 	"go.uber.org/fx"
 
@@ -21,6 +23,7 @@ import (
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/cli/heuristic"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -104,7 +107,9 @@ func workloadList(_ log.Component, client ipc.HTTPClient, cliParams *cliParams) 
 		return err
 	}
 
-	r, err := client.Get(url, ipchttp.WithCloseConnection)
+	_, heuristicLabel := heuristic.BuildScore("agent workload-list", os.Args[1:], time.Now().UTC())
+
+	r, err := client.Get(url, ipchttp.WithCloseConnection, ipchttp.WithCLIHeaders("agent workload-list", heuristicLabel))
 	if err != nil {
 		if r != nil && string(r) != "" {
 			return fmt.Errorf("the agent ran into an error while getting the workload store information: %s", string(r))

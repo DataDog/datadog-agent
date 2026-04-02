@@ -25,6 +25,7 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/pkg/cli/heuristic"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
@@ -123,6 +124,8 @@ func streamLogs(lc log.Component, config config.Component, client ipc.HTTPClient
 		}()
 	}
 
+	_, heuristicLabel := heuristic.BuildScore("agent stream-logs", os.Args[1:], time.Now().UTC())
+
 	return streamRequest(client, urlstr, body, cliParams.Duration, func(chunk []byte) {
 		if !cliParams.Quiet {
 			fmt.Print(string(chunk))
@@ -133,11 +136,12 @@ func streamLogs(lc log.Component, config config.Component, client ipc.HTTPClient
 				fmt.Printf("Error writing stream-logs to file %s: %v", cliParams.FilePath, err)
 			}
 		}
-	})
+	}, ipchttp.WithCLIHeaders("agent stream-logs", heuristicLabel))
 }
 
-func streamRequest(client ipc.HTTPClient, url string, body []byte, duration time.Duration, onChunk func([]byte)) error {
-	e := client.PostChunk(url, "application/json", bytes.NewBuffer(body), onChunk, ipchttp.WithTimeout(duration), ipchttp.WithCloseConnection)
+func streamRequest(client ipc.HTTPClient, url string, body []byte, duration time.Duration, onChunk func([]byte), extraOpts ...ipc.RequestOption) error {
+	opts := append([]ipc.RequestOption{ipchttp.WithTimeout(duration), ipchttp.WithCloseConnection}, extraOpts...)
+	e := client.PostChunk(url, "application/json", bytes.NewBuffer(body), onChunk, opts...)
 
 	if e == io.EOF {
 		return nil

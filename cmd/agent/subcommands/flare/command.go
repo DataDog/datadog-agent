@@ -40,6 +40,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
+	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	flareprofilerdef "github.com/DataDog/datadog-agent/comp/core/profiler/def"
 	flareprofilerfx "github.com/DataDog/datadog-agent/comp/core/profiler/fx"
@@ -64,6 +65,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/resources/resourcesimpl"
 	logscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
+	"github.com/DataDog/datadog-agent/pkg/cli/heuristic"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -323,6 +325,8 @@ func makeFlare(flareComp flare.Component,
 }
 
 func requestArchive(pdata flaretypes.ProfileData, client ipc.HTTPClient, providerTimeout time.Duration) (string, error) {
+	_, heuristicLabel := heuristic.BuildScore("agent flare", os.Args[1:], time.Now().UTC())
+
 	fmt.Fprintln(color.Output, color.BlueString("Asking the agent to build the flare archive."))
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
@@ -350,7 +354,7 @@ func requestArchive(pdata flaretypes.ProfileData, client ipc.HTTPClient, provide
 		return "", err
 	}
 
-	r, err := client.Post(urlstr, "application/json", bytes.NewBuffer(p))
+	r, err := client.Post(urlstr, "application/json", bytes.NewBuffer(p), ipchttp.WithCLIHeaders("agent flare", heuristicLabel))
 	if err != nil {
 		if r != nil && string(r) != "" {
 			fmt.Fprintf(color.Output, "The agent ran into an error while making the flare: %s\n", color.RedString(string(r)))

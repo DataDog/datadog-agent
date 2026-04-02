@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -26,6 +27,7 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/pkg/cli/heuristic"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -48,6 +50,7 @@ type GlobalParams struct {
 	ConfigName           string
 	LoggerName           string
 	FleetPoliciesDirPath string
+	AgentMode            bool
 }
 
 // MakeCommand returns a `health` command to be used by agent binaries.
@@ -60,6 +63,9 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 		SilenceUsage: true,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			globalParams := globalParamsGetter()
+			if globalParams.AgentMode {
+				cliParams.JSON = true
+			}
 			return fxutil.OneShot(requestHealth,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
@@ -78,6 +84,8 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 }
 
 func requestHealth(_ log.Component, config config.Component, cliParams *cliParams, client ipc.HTTPClient) error {
+	_, heuristicLabel := heuristic.BuildScore("agent health", os.Args[1:], time.Now().UTC())
+
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(config)
 	if err != nil {
 		return err
@@ -92,7 +100,7 @@ func requestHealth(_ log.Component, config config.Component, cliParams *cliParam
 
 	timeout := time.Duration(cliParams.timeout) * time.Second
 
-	r, err := client.Get(urlstr, ipchttp.WithTimeout(timeout), ipchttp.WithCloseConnection)
+	r, err := client.Get(urlstr, ipchttp.WithTimeout(timeout), ipchttp.WithCloseConnection, ipchttp.WithCLIHeaders("agent health", heuristicLabel))
 	if err != nil {
 		var errMap = make(map[string]string)
 		json.Unmarshal(r, &errMap) //nolint:errcheck

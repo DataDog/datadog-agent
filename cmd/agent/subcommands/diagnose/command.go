@@ -14,6 +14,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"time"
 
 	"go.uber.org/fx"
 
@@ -47,6 +48,7 @@ import (
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	logscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
+	"github.com/DataDog/datadog-agent/pkg/cli/heuristic"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -396,6 +398,9 @@ func cmdDiagnose(cliParams *cliParams,
 	config config.Component,
 	client ipc.HTTPClient,
 ) error {
+	if cliParams.GlobalParams.AgentMode {
+		cliParams.JSONOutput = true
+	}
 
 	diagCfg := diagnose.Config{
 		Verbose: cliParams.verbose,
@@ -423,11 +428,13 @@ func cmdDiagnose(cliParams *cliParams,
 		return errors.New("no API key configured: diagnose requires an API key to run checks. Set the API key in datadog.yaml or use the DD_API_KEY environment variable")
 	}
 
+	_, heuristicLabel := heuristic.BuildScore("agent diagnose", os.Args[1:], time.Now().UTC())
+
 	// Run command
 	var err error
 	var result *diagnose.Result
 	if !cliParams.runLocal {
-		result, err = requestDiagnosesFromAgentProcess(diagCfg, client)
+		result, err = requestDiagnosesFromAgentProcess(diagCfg, client, heuristicLabel)
 
 		if err != nil {
 			if !cliParams.JSONOutput { // If JSON output is requested, the output should stay a valid JSON
@@ -489,7 +496,7 @@ func printHealthPlatformIssues(_ log.Component, config config.Component, client 
 	return nil
 }
 
-func requestDiagnosesFromAgentProcess(diagCfg diagnose.Config, client ipc.HTTPClient) (*diagnose.Result, error) {
+func requestDiagnosesFromAgentProcess(diagCfg diagnose.Config, client ipc.HTTPClient, heuristicLabel string) (*diagnose.Result, error) {
 	// Get client to Agent's RPC call
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
@@ -508,7 +515,7 @@ func requestDiagnosesFromAgentProcess(diagCfg diagnose.Config, client ipc.HTTPCl
 
 	// Run diagnose code inside Agent process
 	var response []byte
-	response, err = client.Post(diagnoseURL, "application/json", bytes.NewBuffer(cfgSer))
+	response, err = client.Post(diagnoseURL, "application/json", bytes.NewBuffer(cfgSer), ipchttp.WithCLIHeaders("agent diagnose", heuristicLabel))
 	if err != nil {
 		if response != nil && string(response) != "" {
 			return nil, fmt.Errorf("error getting diagnoses from running agent: %s", strings.TrimSpace(string(response)))

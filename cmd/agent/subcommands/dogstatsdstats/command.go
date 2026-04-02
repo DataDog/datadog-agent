@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"time"
 
 	"go.uber.org/fx"
 
@@ -23,6 +24,7 @@ import (
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
+	"github.com/DataDog/datadog-agent/pkg/cli/heuristic"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/input"
@@ -70,6 +72,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 //nolint:revive // TODO(AML) Fix revive linter
 func requestDogstatsdStats(_ log.Component, config config.Component, cliParams *cliParams, client ipc.HTTPClient) error {
+	if cliParams.GlobalParams.AgentMode {
+		cliParams.jsonStatus = true
+	}
+	_, heuristicLabel := heuristic.BuildScore("agent dogstatsd-stats", os.Args[1:], time.Now().UTC())
+
 	fmt.Printf("Getting the dogstatsd stats from the agent.\n\n")
 	var e error
 	var s string
@@ -79,7 +86,7 @@ func requestDogstatsdStats(_ log.Component, config config.Component, cliParams *
 	}
 	urlstr := fmt.Sprintf("https://%v:%v/agent/dogstatsd-stats", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port"))
 
-	r, e := client.Get(urlstr, ipchttp.WithLeaveConnectionOpen)
+	r, e := client.Get(urlstr, ipchttp.WithLeaveConnectionOpen, ipchttp.WithCLIHeaders("agent dogstatsd-stats", heuristicLabel))
 	if e != nil {
 		var errMap = make(map[string]string)
 		json.Unmarshal(r, &errMap) //nolint:errcheck

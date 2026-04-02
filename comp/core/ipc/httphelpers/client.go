@@ -305,3 +305,12 @@ func WithValues(values url.Values) ipc.RequestOption {
 		params.Request.URL.RawQuery = values.Encode()
 	}
 }
+
+// WithCLIHeaders is a request option that annotates the request with CLI invocation metadata.
+// The server reads these headers to increment the agent_cli_invocations Prometheus counter.
+func WithCLIHeaders(command, heuristicLabel string) ipc.RequestOption {
+	return func(params *ipc.RequestParams) {
+		params.Header.Set("X-DD-CLI-Command", command)
+		params.Header.Set("X-DD-CLI-Heuristic-Label", heuristicLabel)
+	}
+}

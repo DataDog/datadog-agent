@@ -10,6 +10,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"time"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -21,7 +23,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
+	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/pkg/cli/heuristic"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	jsonutil "github.com/DataDog/datadog-agent/pkg/util/json"
@@ -91,6 +95,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 func run(cliParams *cliParams, _ log.Component, client ipc.HTTPClient) error {
+	if cliParams.GlobalParams.AgentMode {
+		cliParams.json = true
+	}
 
 	cr, err := getConfigCheckResponse(client)
 	if err != nil {
@@ -126,6 +133,8 @@ func run(cliParams *cliParams, _ log.Component, client ipc.HTTPClient) error {
 }
 
 func getConfigCheckResponse(client ipc.HTTPClient) (*integration.ConfigCheckResponse, error) {
+	_, heuristicLabel := heuristic.BuildScore("agent configcheck", os.Args[1:], time.Now().UTC())
+
 	cr := &integration.ConfigCheckResponse{}
 
 	endpoint, err := client.NewIPCEndpoint("/agent/config-check")
@@ -133,7 +142,7 @@ func getConfigCheckResponse(client ipc.HTTPClient) (*integration.ConfigCheckResp
 		return nil, err
 	}
 
-	res, err := endpoint.DoGet()
+	res, err := endpoint.DoGet(ipchttp.WithCLIHeaders("agent configcheck", heuristicLabel))
 	if err != nil {
 		return nil, fmt.Errorf("the agent ran into an error while checking config: %v", err)
 	}

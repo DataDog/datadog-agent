@@ -341,6 +341,17 @@ var defaultProfiles = `
         request_type: agent-bsod
         payload_key: agent_bsod
         message: 'Agent BSOD'
+  - name: cli
+    metric:
+      metrics:
+        - name: agent.cli_invocations
+          aggregate_tags:
+            - command
+            - heuristic_label
+    schedule:
+      start_after: 30
+      iterations: 0
+      period: 900
   - name: service-discovery
     metric:
       metrics:

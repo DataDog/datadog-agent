@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"time"
 
 	"go.uber.org/fx"
 
@@ -25,6 +26,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	"github.com/DataDog/datadog-agent/pkg/cli/heuristic"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 
@@ -113,16 +115,21 @@ func redactError(unscrubbedError error) error {
 	return scrubbedError
 }
 
-func statusCmd(logger log.Component, _ sysprobeconfig.Component, cliParams *cliParams, client ipc.HTTPClient) error {
+func statusCmd(_ log.Component, _ config.Component, _ sysprobeconfig.Component, cliParams *cliParams, client ipc.HTTPClient) error {
+	if cliParams.GlobalParams.AgentMode {
+		cliParams.jsonStatus = true
+	}
+	_, heuristicLabel := heuristic.BuildScore("agent status", os.Args[1:], time.Now().UTC())
+
 	if cliParams.list {
-		return redactError(requestSections(client))
+		return redactError(requestSections(client, heuristicLabel))
 	}
 
 	if len(cliParams.args) < 1 {
-		return redactError(requestStatus(cliParams, client))
+		return redactError(requestStatus(cliParams, client, heuristicLabel))
 	}
 
-	return componentStatusCmd(logger, cliParams, client)
+	return componentStatusCmd(cliParams, client, heuristicLabel)
 }
 
 func setIpcURL(cliParams *cliParams) url.Values {
@@ -161,7 +168,7 @@ func renderResponse(res []byte, cliParams *cliParams) error {
 	return nil
 }
 
-func requestStatus(cliParams *cliParams, client ipc.HTTPClient) error {
+func requestStatus(cliParams *cliParams, client ipc.HTTPClient, heuristicLabel string) error {
 
 	if !cliParams.prettyPrintJSON && !cliParams.jsonStatus {
 		fmt.Printf("Getting the status from the agent.\n\n")
@@ -174,7 +181,7 @@ func requestStatus(cliParams *cliParams, client ipc.HTTPClient) error {
 		return err
 	}
 
-	res, err := endpoint.DoGet(ipchttp.WithValues(v))
+	res, err := endpoint.DoGet(ipchttp.WithValues(v), ipchttp.WithCLIHeaders("agent status", heuristicLabel))
 	if err != nil {
 		return err
 	}
@@ -188,15 +195,15 @@ func requestStatus(cliParams *cliParams, client ipc.HTTPClient) error {
 	return nil
 }
 
-func componentStatusCmd(_ log.Component, cliParams *cliParams, client ipc.HTTPClient) error {
+func componentStatusCmd(cliParams *cliParams, client ipc.HTTPClient, heuristicLabel string) error {
 	if len(cliParams.args) > 1 {
 		return errors.New("only one section must be specified")
 	}
 
-	return redactError(componentStatus(cliParams, cliParams.args[0], client))
+	return redactError(componentStatus(cliParams, cliParams.args[0], client, heuristicLabel))
 }
 
-func componentStatus(cliParams *cliParams, component string, client ipc.HTTPClient) error {
+func componentStatus(cliParams *cliParams, component string, client ipc.HTTPClient, heuristicLabel string) error {
 
 	v := setIpcURL(cliParams)
 
@@ -204,7 +211,7 @@ func componentStatus(cliParams *cliParams, component string, client ipc.HTTPClie
 	if err != nil {
 		return err
 	}
-	res, err := endpoint.DoGet(ipchttp.WithValues(v))
+	res, err := endpoint.DoGet(ipchttp.WithValues(v), ipchttp.WithCLIHeaders("agent status", heuristicLabel))
 	if err != nil {
 		return err
 	}
@@ -218,13 +225,13 @@ func componentStatus(cliParams *cliParams, component string, client ipc.HTTPClie
 	return nil
 }
 
-func requestSections(client ipc.HTTPClient) error {
+func requestSections(client ipc.HTTPClient, heuristicLabel string) error {
 	endpoint, err := client.NewIPCEndpoint("/agent/status/sections")
 	if err != nil {
 		return err
 	}
 
-	res, err := endpoint.DoGet()
+	res, err := endpoint.DoGet(ipchttp.WithCLIHeaders("agent status", heuristicLabel))
 	if err != nil {
 		return err
 	}
