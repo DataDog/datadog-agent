@@ -10,6 +10,7 @@ package securityprofile
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -260,7 +261,13 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 		contextTags = append(contextTags, "source:"+ActivityDumpSource)
 	}
 
-	containerFilters := filterStore.GetContainerRuntimeSecurityFilters()
+	var containerFilters workloadfilter.FilterBundle
+	if filterStore != nil {
+		containerFilters = filterStore.GetContainerRuntimeSecurityFilters()
+		if errs := containerFilters.GetErrors(); len(errs) > 0 {
+			return nil, errors.Join(errs...)
+		}
+	}
 
 	profileCache, err := simplelru.NewLRU[cgroupModel.WorkloadSelector, *profile.Profile](cfg.RuntimeSecurity.SecurityProfileCacheSize, nil)
 	if err != nil {

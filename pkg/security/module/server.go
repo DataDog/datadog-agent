@@ -832,7 +832,13 @@ func getEnvAsTags(cfg *config.RuntimeSecurityConfig) []string {
 func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSender MsgSender[api.SecurityEventMessage], client statsd.ClientInterface, selfTester *selftests.SelfTester, compression compression.Component, hostname string, filterStore workloadfilter.Component) (*APIServer, error) {
 	stopper := startstop.NewSerialStopper()
 
-	containerFilter := filterStore.GetContainerRuntimeSecurityFilters()
+	var containerFilter workloadfilter.FilterBundle
+	if filterStore != nil {
+		containerFilter = filterStore.GetContainerRuntimeSecurityFilters()
+		if errs := containerFilter.GetErrors(); len(errs) > 0 {
+			return nil, errors.Join(errs...)
+		}
+	}
 
 	as := &APIServer{
 		events:          make(chan *api.SecurityEventMessage, cfg.EventServerBurst*3),

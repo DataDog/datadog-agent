@@ -14,6 +14,8 @@ import (
 	"slices"
 	"time"
 
+	"golang.org/x/sys/unix"
+
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
@@ -23,7 +25,6 @@ import (
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"golang.org/x/sys/unix"
 )
 
 // fetchSilentWorkloads returns the list of workloads for which we haven't received any profile
