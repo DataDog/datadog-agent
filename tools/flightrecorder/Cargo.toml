@@ -24,6 +24,8 @@ name = "hydrate"
 path = "src/hydrate.rs"
 
 [dependencies]
+rayon = "1"
+bytes = "1"
 flatbuffers = "25"
 tokio = { version = "1", features = ["full"] }
 clap = { version = "4", features = ["derive", "env"] }
