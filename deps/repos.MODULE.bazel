@@ -450,3 +450,10 @@ http_archive(
         "https://github.com/systemd/systemd/archive/refs/tags/v253.tar.gz",
     ],
 )
+
+bazel_dep(name = "saluki")
+git_override(
+    module_name = "saluki",
+    commit = "8228dcb1de252a8950e3bb53ad2b259118131ef9",
+    remote = "https://github.com/DataDog/saluki.git",
+)
