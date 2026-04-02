@@ -1,0 +1,15 @@
+# Each section from every releasenote are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Logs: Fixed a bug where the MultiLineParser did not mark truncation or
+    append ``...TRUNCATED...`` markers when reassembled log lines exceeded the
+    900KB size cap. Oversized lines are now properly flagged with
+    ``IsTruncated``, the ``LogsTruncated`` metric is incremented, and
+    continuation fragments receive truncation markers.

@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -73,6 +74,10 @@ type MultiLineParser struct {
 	buffer      *bytes.Buffer
 	rawDataLen  int
 
+	// truncation tracking
+	shouldTruncate    bool
+	isBufferTruncated bool
+
 	// configuration attributes
 
 	flushTimeout time.Duration
@@ -125,8 +130,30 @@ func (p *MultiLineParser) process(input *message.Message, rawDataLen int) {
 	// track the raw data length and the timestamp so that the agent tails
 	// from the right place at restart
 	p.rawDataLen += rawDataLen
+
+	// capture and reset truncation continuation state
+	isTruncated := p.shouldTruncate
+	p.shouldTruncate = false
+
+	if isTruncated {
+		// the previous line has been truncated because it was too long,
+		// the new line is just a remainder,
+		// adding the truncated flag at the beginning of the content
+		p.buffer.Write(message.TruncatedFlag)
+		p.isBufferTruncated = true
+	}
+
 	p.buffer.Write(msg.GetContent())
 	p.bufferedMsg = msg
+
+	if p.buffer.Len() >= p.lineLimit {
+		// the multiline message is too long, it needs to be cut off and sent,
+		// adding the truncated flag at the end of the content
+		p.buffer.Write(message.TruncatedFlag)
+		p.isBufferTruncated = true
+		p.shouldTruncate = true
+		metrics.LogsTruncated.Add(1)
+	}
 
 	if !msg.ParsingExtra.IsPartial || p.buffer.Len() >= p.lineLimit {
 		// the current chunk marks the end of an aggregated line
@@ -148,6 +175,7 @@ func (p *MultiLineParser) sendLine() {
 		p.buffer.Reset()
 		p.bufferedMsg = nil
 		p.rawDataLen = 0
+		p.isBufferTruncated = false
 	}()
 
 	if p.bufferedMsg == nil || p.buffer.Len() == 0 {
@@ -159,6 +187,7 @@ func (p *MultiLineParser) sendLine() {
 	if len(content) > 0 || p.rawDataLen > 0 {
 		p.bufferedMsg.RawDataLen = p.rawDataLen
 		p.bufferedMsg.SetContent(content)
+		p.bufferedMsg.ParsingExtra.IsTruncated = p.isBufferTruncated
 		p.lineHandler.process(p.bufferedMsg)
 	}
 }

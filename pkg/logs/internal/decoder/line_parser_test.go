@@ -176,13 +176,34 @@ func TestMultilineParserLimit(t *testing.T) {
 	logMessage := message.NewMessage([]byte(header+"aaaa\\n"), nil, "", 0)
 	lineParser.process(logMessage, 13)
 
-	for i := 0; i < 10; i++ {
-		message := <-lineHandler.ch
-		assert.Equal(t, line, string(message.GetContent()))
-		assert.Equal(t, message.RawDataLen, 7+len(line))
+	truncFlag := string(message.TruncatedFlag)
+
+	// first chunk: content + truncation suffix
+	msg := <-lineHandler.ch
+	assert.Equal(t, line+truncFlag, string(msg.GetContent()))
+	assert.True(t, msg.ParsingExtra.IsTruncated)
+	assert.Equal(t, msg.RawDataLen, 7+len(line))
+
+	// subsequent chunks: truncation prefix + content + truncation suffix
+	for i := 1; i < 10; i++ {
+		msg = <-lineHandler.ch
+		assert.Equal(t, truncFlag+line+truncFlag, string(msg.GetContent()))
+		assert.True(t, msg.ParsingExtra.IsTruncated)
+		assert.Equal(t, msg.RawDataLen, 7+len(line))
 	}
 
-	message := <-lineHandler.ch
-	assert.Equal(t, "aaaa", string(message.GetContent()))
-	assert.Equal(t, message.RawDataLen, 13)
+	// final short chunk: truncation prefix + content (no suffix)
+	msg = <-lineHandler.ch
+	assert.Equal(t, truncFlag+"aaaa", string(msg.GetContent()))
+	assert.True(t, msg.ParsingExtra.IsTruncated)
+	assert.Equal(t, msg.RawDataLen, 13)
+
+	// after the truncation sequence, a normal message should have no truncation markers
+	logMessage = message.NewMessage([]byte(header+"clean\\n"), nil, "", 0)
+	lineParser.process(logMessage, 14)
+
+	msg = <-lineHandler.ch
+	assert.Equal(t, "clean", string(msg.GetContent()))
+	assert.False(t, msg.ParsingExtra.IsTruncated)
+	assert.Equal(t, msg.RawDataLen, 14)
 }
