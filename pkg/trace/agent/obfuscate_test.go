@@ -8,7 +8,6 @@ package agent
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"os"
 	"testing"
@@ -71,7 +70,7 @@ func TestObfuscateDefaults(t *testing.T) {
 		}
 		agnt, stop := agentWithDefaults()
 		defer stop()
-		agnt.obfuscateSpan(span)
+		agnt.ObfuscateSpan(span)
 		assert.Equal(t, cmd, span.Meta["redis.raw_command"])
 		assert.Equal(t, "SET GET", span.Resource)
 	})
@@ -85,7 +84,7 @@ func TestObfuscateDefaults(t *testing.T) {
 		}
 		agnt, stop := agentWithDefaults()
 		defer stop()
-		agnt.obfuscateSpan(span)
+		agnt.ObfuscateSpan(span)
 		assert.Equal(t, cmd, span.Meta["valkey.raw_command"])
 		assert.Equal(t, "SET GET", span.Resource)
 	})
@@ -99,7 +98,7 @@ func TestObfuscateDefaults(t *testing.T) {
 		}
 		agnt, stop := agentWithDefaults()
 		defer stop()
-		agnt.obfuscateSpan(span)
+		agnt.ObfuscateSpan(span)
 		assert.Equal(t, "UPDATE users ( name ) SET ( ? )", span.Meta["sql.query"])
 		assert.Equal(t, "UPDATE users ( name ) SET ( ? )", span.Resource)
 	})
@@ -131,7 +130,7 @@ func TestObfuscateConfig(t *testing.T) {
 			agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
 			defer cancelFunc()
 			span := &pb.Span{Type: typ, Meta: map[string]string{key: val}}
-			agnt.obfuscateSpan(span)
+			agnt.ObfuscateSpan(span)
 			assert.Equal(t, exp, span.Meta[key])
 		}
 	}
@@ -362,7 +361,7 @@ func TestSQLResourceQuery(t *testing.T) {
 	agnt, stop := agentWithDefaults()
 	defer stop()
 	for _, tc := range testCases {
-		agnt.obfuscateSpan(tc.span)
+		agnt.ObfuscateSpan(tc.span)
 		assert.Equal("SELECT * FROM users WHERE id = ?", tc.span.Resource)
 		assert.Equal("SELECT * FROM users WHERE id = ?", tc.span.Meta["sql.query"])
 	}
@@ -413,7 +412,7 @@ ORDER BY [b].[Name]`,
 	agnt, stop := agentWithDefaults()
 	defer stop()
 	for _, tc := range testCases {
-		agnt.obfuscateSpan(tc.span)
+		agnt.ObfuscateSpan(tc.span)
 		assert.Equal("Non-parsable SQL query", tc.span.Resource)
 		assert.Equal("Non-parsable SQL query", tc.span.Meta["sql.query"])
 	}
@@ -427,7 +426,7 @@ func TestSQLTableNames(t *testing.T) {
 		}
 		agnt, stop := agentWithDefaults("table_names")
 		defer stop()
-		agnt.obfuscateSpan(span)
+		agnt.ObfuscateSpan(span)
 		assert.Equal(t, "users", span.Meta["sql.tables"])
 	})
 
@@ -438,7 +437,7 @@ func TestSQLTableNames(t *testing.T) {
 		}
 		agnt, stop := agentWithDefaults()
 		defer stop()
-		agnt.obfuscateSpan(span)
+		agnt.ObfuscateSpan(span)
 		assert.Empty(t, span.Meta["sql.tables"])
 	})
 }
@@ -462,7 +461,7 @@ func BenchmarkCCObfuscation(b *testing.B) {
 			"_sample_rate": "1",
 			"sql.query":    "SELECT * FROM users WHERE id = 42",
 		}}
-		agnt.obfuscateSpan(span)
+		agnt.ObfuscateSpan(span)
 	}
 }
 
@@ -526,7 +525,7 @@ func TestObfuscateSpanEvent(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		agnt.obfuscateSpan(tc.span)
+		agnt.ObfuscateSpan(tc.span)
 		for _, v := range tc.span.SpanEvents[0].Attributes {
 			if v.Type == pb.AttributeAnyValue_ARRAY_VALUE {
 				for _, arrayValue := range v.ArrayValue.Values {
@@ -551,7 +550,7 @@ func TestLexerObfuscation(t *testing.T) {
 		Type:     "sql",
 		Meta:     map[string]string{"db.type": "sqlserver"},
 	}
-	agnt.obfuscateSpan(span)
+	agnt.ObfuscateSpan(span)
 	assert.Equal(t, "SELECT * FROM [u].[users]", span.Resource)
 }
 
@@ -572,7 +571,7 @@ func TestObfuscateSpanParameterized(t *testing.T) {
 		} else if err != nil {
 			t.Fatalf("failed to decode test case: %v", err)
 		}
-		t.Run(fmt.Sprintf("TestObfuscateSpanParameterized name=%s", raw.Name), func(t *testing.T) {
+		t.Run("TestObfuscateSpanParameterized name="+raw.Name, func(t *testing.T) {
 			assert.NotEmpty(t, raw.Name)
 
 			var ocfg config.ObfuscationConfig
@@ -590,9 +589,8 @@ func TestObfuscateSpanParameterized(t *testing.T) {
 			cfg.Features["sqllexer"] = struct{}{}
 			cfg.Obfuscation = &ocfg
 			agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
-			span := raw.Input
-			agnt.obfuscateSpan(&span)
-			assertSpanEqual(t, &raw.Expected, &span)
+			agnt.ObfuscateSpan(&raw.Input)
+			assertSpanEqual(t, &raw.Expected, &raw.Input)
 		})
 	}
 }
