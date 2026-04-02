@@ -44,6 +44,7 @@ func (h *countingHandle) ObserveLog(_ observerdef.LogView)               {}
 func (h *countingHandle) ObserveTrace(_ observerdef.TraceView)           {}
 func (h *countingHandle) ObserveTraceStats(_ observerdef.TraceStatsView) {}
 func (h *countingHandle) ObserveProfile(_ observerdef.ProfileView)       {}
+func (h *countingHandle) ObserveLifecycle(_ observerdef.LifecycleView)   {}
 
 func makeHFHandle(sources map[metrics.MetricSource]struct{}) *hfFilteredHandle {
 	return &hfFilteredHandle{inner: &countingHandle{}, sources: sources}

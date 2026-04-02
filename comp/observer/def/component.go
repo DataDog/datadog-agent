@@ -45,6 +45,31 @@ type Handle interface {
 
 	// ObserveProfile observes a profiling sample.
 	ObserveProfile(profile ProfileView)
+
+	// ObserveLifecycle observes a container lifecycle event (create, start, delete).
+	ObserveLifecycle(event LifecycleView)
+}
+
+// LifecycleView provides read-only access to a container lifecycle event.
+//
+// Events are pushed from workloadmeta subscriptions and include both creation
+// and deletion events. The observer stores these alongside metrics/logs/traces
+// for correlation during anomaly analysis.
+type LifecycleView interface {
+	// GetContainerID returns the container ID.
+	GetContainerID() string
+	// GetEventType returns the lifecycle event type: "create", "start", or "delete".
+	GetEventType() string
+	// GetTimestampUnix returns the event timestamp in Unix seconds.
+	GetTimestampUnix() int64
+	// GetExitCode returns the container exit code, or nil for non-delete events.
+	GetExitCode() *int32
+	// GetContainerName returns the human-readable container name.
+	GetContainerName() string
+	// GetImage returns the container image name (e.g. "alpine:latest").
+	GetImage() string
+	// GetRuntime returns the container runtime ("docker", "containerd", "cri-o").
+	GetRuntime() string
 }
 
 // HandleFunc is a function that returns a handle for a named source.

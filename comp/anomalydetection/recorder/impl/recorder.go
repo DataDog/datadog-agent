@@ -93,6 +93,14 @@ func NewComponent(req Requires) (Provides, error) {
 	r.traceStatsParquetWriter = traceStatsWriter
 	pkglog.Infof("Recorder trace stats writer started: dir=%s", parquetDir)
 
+	// Initialize lifecycle JSONL writer (always enabled when recording is on)
+	lcWriter, err := newLifecycleJSONLWriter(parquetDir)
+	if err != nil {
+		return Provides{Comp: r}, pkglog.Errorf("Failed to create lifecycle JSONL writer: %v", err)
+	}
+	r.lifecycleWriter = lcWriter
+	pkglog.Infof("Recorder lifecycle writer started: dir=%s", parquetDir)
+
 	return Provides{Comp: r}, nil
 }
 
@@ -104,6 +112,7 @@ type recorderImpl struct {
 	profileParquetWriter    *profileParquetWriter
 	logParquetWriter        *logParquetWriter
 	traceStatsParquetWriter *traceStatsParquetWriter
+	lifecycleWriter         *lifecycleJSONLWriter
 }
 
 // GetHandle wraps the provided HandleFunc with recording capability.
@@ -347,6 +356,17 @@ func (h *recordingHandle) ObserveProfile(profile observer.ProfileView) {
 		profile.GetRawData(),
 		mapToTagSlice(profile.GetTags()),
 	)
+}
+
+// ObserveLifecycle forwards the lifecycle event to the inner handle and records it.
+func (h *recordingHandle) ObserveLifecycle(event observer.LifecycleView) {
+	h.inner.ObserveLifecycle(event)
+
+	if h.recorder.lifecycleWriter != nil {
+		if err := h.recorder.lifecycleWriter.WriteEvent(event); err != nil {
+			pkglog.Warnf("recorder: failed to write lifecycle event: %v", err)
+		}
+	}
 }
 
 // mapToTagSlice converts a map to a slice of "key:value" strings.

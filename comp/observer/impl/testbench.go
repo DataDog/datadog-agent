@@ -575,6 +575,7 @@ func (h *storageHandle) ObserveLog(_ observerdef.LogView)               {}
 func (h *storageHandle) ObserveTrace(_ observerdef.TraceView)           {}
 func (h *storageHandle) ObserveTraceStats(_ observerdef.TraceStatsView) {}
 func (h *storageHandle) ObserveProfile(_ observerdef.ProfileView)       {}
+func (h *storageHandle) ObserveLifecycle(_ observerdef.LifecycleView)   {}
 
 // parquetTraceStatsView adapts a slice of TraceStatsData (sharing the same AgentHostname/AgentEnv)
 // to the TraceStatsView interface for use with processStatsView.
