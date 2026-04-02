@@ -41,13 +41,12 @@ func NewCustomRoundTripper(rt http.RoundTripper, timeout time.Duration) *CustomR
 func (rt *CustomRoundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
 	start := time.Now()
 
-	path := request.URL.Path
+	resource, tmpl := parseKubePath(request.URL.Path)
 	span, ctx := tracer.StartSpanFromContext(request.Context(), "kubernetes.api.request",
-		tracer.ResourceName(request.Method+" "+path),
+		tracer.ResourceName(request.Method+" "+tmpl),
 		tracer.SpanType("http"),
 		tracer.Tag("http.method", request.Method),
-		tracer.Tag("kube.resource_kind", extractResource(path)),
-		tracer.Tag("kube.verb", kubeVerb(request.Method, path, request.URL.RawQuery)),
+		tracer.Tag("kube.resource_kind", resource),
 	)
 	request = request.WithContext(ctx)
 
@@ -59,7 +58,9 @@ func (rt *CustomRoundTripper) RoundTrip(request *http.Request) (*http.Response, 
 
 	if response != nil {
 		span.SetTag("http.status_code", response.StatusCode)
-		if response.StatusCode >= 400 {
+		// Only mark 5xx as span errors. 4xx responses (404, 409 conflicts, etc.)
+		// are expected during normal K8s API usage (informer resyncs, update retries).
+		if response.StatusCode >= 500 {
 			span.SetTag("error", true)
 		}
 	}
@@ -71,81 +72,50 @@ func (rt *CustomRoundTripper) RoundTrip(request *http.Request) (*http.Response, 
 // WrappedRoundTripper implements http.RoundTripperWrapper.
 func (rt *CustomRoundTripper) WrappedRoundTripper() http.RoundTripper { return rt.rt }
 
-// extractResource parses a Kubernetes API URL path and returns the resource kind
-// (e.g. "pods", "services", "namespaces"). Returns "unknown" if the path cannot be parsed.
+// parseKubePath parses a Kubernetes API URL path and returns the resource kind
+// (e.g. "pods") and a templatized path with dynamic segments replaced by placeholders
+// (e.g. "/api/v1/namespaces/{namespace}/pods/{name}").
 //
 // Kubernetes URL patterns:
-//   /api/v1/pods                           → "pods"
-//   /api/v1/namespaces/{ns}/pods           → "pods"
-//   /api/v1/namespaces/{ns}/pods/{name}    → "pods"
-//   /apis/apps/v1/namespaces/{ns}/deployments → "deployments"
-//   /api/v1/namespaces                     → "namespaces"
-func extractResource(path string) string {
-	// Trim leading/trailing slashes and split
+//
+//	/api/v1/pods                              → ("pods",         "/api/v1/pods")
+//	/api/v1/namespaces/default/pods/my-pod    → ("pods",         "/api/v1/namespaces/{namespace}/pods/{name}")
+//	/apis/apps/v1/namespaces/ns/deployments   → ("deployments",  "/apis/apps/v1/namespaces/{namespace}/deployments")
+//	/api/v1/namespaces                        → ("namespaces",   "/api/v1/namespaces")
+func parseKubePath(path string) (resource string, templatized string) {
 	parts := strings.Split(strings.Trim(path, "/"), "/")
 
-	// Skip the api prefix: "api/v1/..." or "apis/{group}/v1/..."
+	// Determine where the resource portion starts (skip api prefix + version).
 	var i int
 	if len(parts) == 0 {
-		return "unknown"
+		return "unknown", path
 	}
-	if parts[0] == "api" {
-		// /api/v1/...
-		i = 2 // skip "api", "v1"
-	} else if parts[0] == "apis" {
-		// /apis/{group}/v1/...
-		i = 3 // skip "apis", group, version
-	} else {
-		return "unknown"
-	}
-
-	if i >= len(parts) {
-		return "unknown"
-	}
-
-	// After the prefix, pattern is: [namespaces/{ns}/] resource [/{name}] [/{subresource}]
-	// The resource is always at an even offset from current position
-	// if parts[i] == "namespaces", skip "namespaces/{ns}"
-	if parts[i] == "namespaces" && i+2 < len(parts) {
-		i += 2 // skip "namespaces", namespace name
-	}
-
-	if i >= len(parts) {
-		return "unknown"
-	}
-
-	return parts[i]
-}
-
-// kubeVerb maps an HTTP method, URL path, and query string to a Kubernetes API verb.
-// Watch requests (GET with ?watch=true) are detected via the query string.
-func kubeVerb(method, path, rawQuery string) string {
-	switch method {
-	case http.MethodGet:
-		// Check for watch requests in query string
-		if strings.Contains(rawQuery, "watch=true") || strings.Contains(rawQuery, "watch=1") {
-			return "watch"
-		}
-		// Distinguish list vs get: if the path ends with a resource collection (no name), it's list
-		parts := strings.Split(strings.Trim(path, "/"), "/")
-		if len(parts) > 0 {
-			last := parts[len(parts)-1]
-			resource := extractResource(path)
-			if resource != "unknown" && last != resource {
-				return "get"
-			}
-		}
-		return "list"
-	case http.MethodPost:
-		return "create"
-	case http.MethodPut:
-		return "update"
-	case http.MethodPatch:
-		return "patch"
-	case http.MethodDelete:
-		// Could be delete or deletecollection, but deletecollection is rare
-		return "delete"
+	switch parts[0] {
+	case "api":
+		i = 2 // "api", version
+	case "apis":
+		i = 3 // "apis", group, version
 	default:
-		return strings.ToLower(method)
+		return "unknown", path
 	}
+	if i >= len(parts) {
+		return "unknown", path
+	}
+
+	// Pattern after prefix: [namespaces/{ns}/] resource [/{name} [/{subresource}]]
+	// "namespaces" is a namespace prefix only when followed by at least two more segments.
+	if parts[i] == "namespaces" && i+2 < len(parts) {
+		parts[i+1] = "{namespace}"
+		i += 2
+	}
+	if i >= len(parts) {
+		return "unknown", "/" + strings.Join(parts, "/")
+	}
+
+	resource = parts[i]
+	if i+1 < len(parts) {
+		parts[i+1] = "{name}"
+	}
+
+	return resource, "/" + strings.Join(parts, "/")
 }

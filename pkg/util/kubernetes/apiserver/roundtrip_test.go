@@ -17,66 +17,34 @@ import (
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/mocktracer"
 )
 
-func TestExtractResource(t *testing.T) {
+func TestParseKubePath(t *testing.T) {
 	tests := []struct {
-		name     string
-		path     string
-		expected string
+		name         string
+		path         string
+		wantResource string
+		wantTemplate string
 	}{
-		{"core resource list", "/api/v1/pods", "pods"},
-		{"core resource get", "/api/v1/pods/my-pod", "pods"},
-		{"namespaced resource list", "/api/v1/namespaces/default/pods", "pods"},
-		{"namespaced resource get", "/api/v1/namespaces/default/pods/my-pod", "pods"},
-		{"namespaces list", "/api/v1/namespaces", "namespaces"},
-		{"namespace get", "/api/v1/namespaces/kube-system", "namespaces"},
-		{"services", "/api/v1/namespaces/default/services", "services"},
-		{"apps group deployment", "/apis/apps/v1/namespaces/default/deployments", "deployments"},
-		{"apps group deployment get", "/apis/apps/v1/namespaces/default/deployments/nginx", "deployments"},
-		{"cluster-scoped custom resource", "/apis/rbac.authorization.k8s.io/v1/clusterroles", "clusterroles"},
-		{"nodes list", "/api/v1/nodes", "nodes"},
-		{"node get", "/api/v1/nodes/node-1", "nodes"},
-		{"configmaps", "/api/v1/namespaces/default/configmaps/my-cm", "configmaps"},
-		{"subresource status", "/api/v1/namespaces/default/pods/my-pod/status", "pods"},
-		{"empty path", "", "unknown"},
-		{"root only", "/", "unknown"},
-		{"non-api path", "/healthz", "unknown"},
-		{"api with no resource", "/api/v1", "unknown"},
-		{"trailing slash", "/api/v1/pods/", "pods"},
+		{"core list", "/api/v1/pods", "pods", "/api/v1/pods"},
+		{"core get", "/api/v1/pods/my-pod", "pods", "/api/v1/pods/{name}"},
+		{"namespaced list", "/api/v1/namespaces/default/pods", "pods", "/api/v1/namespaces/{namespace}/pods"},
+		{"namespaced get", "/api/v1/namespaces/default/pods/my-pod", "pods", "/api/v1/namespaces/{namespace}/pods/{name}"},
+		{"namespaces list", "/api/v1/namespaces", "namespaces", "/api/v1/namespaces"},
+		{"namespace get", "/api/v1/namespaces/kube-system", "namespaces", "/api/v1/namespaces/{name}"},
+		{"grouped namespaced get", "/apis/apps/v1/namespaces/kube-system/deployments/nginx", "deployments", "/apis/apps/v1/namespaces/{namespace}/deployments/{name}"},
+		{"cluster-scoped CR", "/apis/rbac.authorization.k8s.io/v1/clusterroles", "clusterroles", "/apis/rbac.authorization.k8s.io/v1/clusterroles"},
+		{"subresource", "/api/v1/namespaces/default/pods/my-pod/status", "pods", "/api/v1/namespaces/{namespace}/pods/{name}/status"},
+		{"nodes get", "/api/v1/nodes/node-1", "nodes", "/api/v1/nodes/{name}"},
+		{"trailing slash", "/api/v1/pods/", "pods", "/api/v1/pods"},
+		{"empty", "", "unknown", ""},
+		{"non-api", "/healthz", "unknown", "/healthz"},
+		{"api no resource", "/api/v1", "unknown", "/api/v1"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, extractResource(tt.path))
-		})
-	}
-}
-
-func TestKubeVerb(t *testing.T) {
-	tests := []struct {
-		name     string
-		method   string
-		path     string
-		query    string
-		expected string
-	}{
-		{"list pods", http.MethodGet, "/api/v1/pods", "", "list"},
-		{"get pod", http.MethodGet, "/api/v1/namespaces/default/pods/my-pod", "", "get"},
-		{"watch pods", http.MethodGet, "/api/v1/pods", "watch=true", "watch"},
-		{"watch with other params", http.MethodGet, "/api/v1/pods", "resourceVersion=123&watch=true", "watch"},
-		{"watch=1", http.MethodGet, "/api/v1/pods", "watch=1", "watch"},
-		{"create pod", http.MethodPost, "/api/v1/namespaces/default/pods", "", "create"},
-		{"update pod", http.MethodPut, "/api/v1/namespaces/default/pods/my-pod", "", "update"},
-		{"patch pod", http.MethodPatch, "/api/v1/namespaces/default/pods/my-pod", "", "patch"},
-		{"delete pod", http.MethodDelete, "/api/v1/namespaces/default/pods/my-pod", "", "delete"},
-		{"list namespaces", http.MethodGet, "/api/v1/namespaces", "", "list"},
-		{"get namespace", http.MethodGet, "/api/v1/namespaces/default", "", "get"},
-		{"list deployments", http.MethodGet, "/apis/apps/v1/namespaces/default/deployments", "", "list"},
-		{"get deployment", http.MethodGet, "/apis/apps/v1/namespaces/default/deployments/nginx", "", "get"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, kubeVerb(tt.method, tt.path, tt.query))
+			resource, tmpl := parseKubePath(tt.path)
+			assert.Equal(t, tt.wantResource, resource)
+			assert.Equal(t, tt.wantTemplate, tmpl)
 		})
 	}
 }
@@ -110,16 +78,15 @@ func TestRoundTrip_SpanCreation(t *testing.T) {
 	span := spans[0]
 
 	assert.Equal(t, "kubernetes.api.request", span.OperationName())
-	assert.Equal(t, "GET /api/v1/namespaces/default/pods", span.Tag("resource.name"))
+	assert.Equal(t, "GET /api/v1/namespaces/{namespace}/pods", span.Tag("resource.name"))
 	assert.Equal(t, "http", span.Tag("span.type"))
 	assert.Equal(t, "GET", span.Tag("http.method"))
 	assert.Equal(t, 200, span.Tag("http.status_code"))
 	assert.Equal(t, "pods", span.Tag("kube.resource_kind"))
-	assert.Equal(t, "list", span.Tag("kube.verb"))
 	assert.Nil(t, span.Tag("error"))
 }
 
-func TestRoundTrip_ErrorResponse(t *testing.T) {
+func TestRoundTrip_4xxNotError(t *testing.T) {
 	mt := mocktracer.Start()
 	defer mt.Stop()
 
@@ -135,12 +102,28 @@ func TestRoundTrip_ErrorResponse(t *testing.T) {
 
 	spans := mt.FinishedSpans()
 	require.Len(t, spans, 1)
-	span := spans[0]
 
-	assert.Equal(t, 404, span.Tag("http.status_code"))
-	assert.Equal(t, true, span.Tag("error"))
-	assert.Equal(t, "pods", span.Tag("kube.resource_kind"))
-	assert.Equal(t, "get", span.Tag("kube.verb"))
+	assert.Equal(t, 404, spans[0].Tag("http.status_code"))
+	assert.Nil(t, spans[0].Tag("error"), "4xx should not be marked as errors")
+}
+
+func TestRoundTrip_5xxError(t *testing.T) {
+	mt := mocktracer.Start()
+	defer mt.Stop()
+
+	rt := NewCustomRoundTripper(&mockRoundTripper{
+		response: &http.Response{StatusCode: http.StatusInternalServerError},
+	}, 30)
+
+	req, _ := http.NewRequest("GET", "https://kube-apiserver:443/api/v1/namespaces/default/pods", nil)
+	_, err := rt.RoundTrip(req)
+	require.NoError(t, err)
+
+	spans := mt.FinishedSpans()
+	require.Len(t, spans, 1)
+
+	assert.Equal(t, 500, spans[0].Tag("http.status_code"))
+	assert.Equal(t, true, spans[0].Tag("error"))
 }
 
 func TestRoundTrip_TransportError(t *testing.T) {
@@ -159,18 +142,14 @@ func TestRoundTrip_TransportError(t *testing.T) {
 
 	spans := mt.FinishedSpans()
 	require.Len(t, spans, 1)
-	span := spans[0]
 
-	assert.Equal(t, "kubernetes.api.request", span.OperationName())
-	assert.Equal(t, "create", span.Tag("kube.verb"))
-	// Transport error is captured on span via WithError
-	spanErr, ok := span.Tag("error").(error)
-	require.True(t, ok, "error tag should be an error object from WithError")
+	assert.Equal(t, "kubernetes.api.request", spans[0].OperationName())
+	spanErr, ok := spans[0].Tag("error").(error)
+	require.True(t, ok, "error tag should be an error from WithError")
 	assert.Equal(t, "connection refused", spanErr.Error())
 }
 
 func TestRoundTrip_NoopTracer(t *testing.T) {
-	// No mocktracer.Start() — tracer returns NoopSpan. Should not panic.
 	rt := NewCustomRoundTripper(&mockRoundTripper{
 		response: &http.Response{StatusCode: http.StatusOK},
 	}, 30)
@@ -180,22 +159,4 @@ func TestRoundTrip_NoopTracer(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
-}
-
-func TestRoundTrip_WatchRequest(t *testing.T) {
-	mt := mocktracer.Start()
-	defer mt.Stop()
-
-	rt := NewCustomRoundTripper(&mockRoundTripper{
-		response: &http.Response{StatusCode: http.StatusOK},
-	}, 30)
-
-	req, _ := http.NewRequest("GET", "https://kube-apiserver:443/api/v1/namespaces/default/pods?watch=true&resourceVersion=100", nil)
-	_, err := rt.RoundTrip(req)
-	require.NoError(t, err)
-
-	spans := mt.FinishedSpans()
-	require.Len(t, spans, 1)
-	assert.Equal(t, "watch", spans[0].Tag("kube.verb"))
-	assert.Equal(t, "pods", spans[0].Tag("kube.resource_kind"))
 }
