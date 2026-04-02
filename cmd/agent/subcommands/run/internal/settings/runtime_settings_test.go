@@ -24,8 +24,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/fx-mock"
-	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
