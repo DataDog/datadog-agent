@@ -92,11 +92,12 @@ func AnalyzeDump(host *components.RemoteHost, dumpPath string) (string, error) {
 	// Run cdb.exe non-interactively:
 	// -z: open the dump file
 	// -c: execute commands then quit
-	//   .symfix: configure the default Microsoft symbol server path
-	//   .reload: reload symbols
+	//   .sympath: set the symbol path explicitly (NOT .symfix, which resets to Microsoft-only
+	//             and would drop the Datadog driver symbol server configured in _NT_SYMBOL_PATH)
+	//   .reload: reload symbols with the updated path
 	//   !analyze -v: verbose automated crash analysis
 	//   q: quit cdb
-	cmd := fmt.Sprintf(`& '%s' -z '%s' -c ".symfix; .reload; !analyze -v; q"`, CdbExe, dumpPath)
+	cmd := fmt.Sprintf(`& '%s' -z '%s' -c ".sympath %s; .reload; !analyze -v; q"`, CdbExe, dumpPath, DefaultSymbolPath)
 	output, err := host.Execute(cmd)
 	if err != nil {
 		return output, fmt.Errorf("cdb analysis failed for %s: %w", dumpPath, err)
