@@ -337,6 +337,7 @@ func TestDBMAuroraListener(t *testing.T) {
 			},
 			rdsClientConfigurer: func(k *aws.MockRdsClient) {
 				k.EXPECT().GetAuroraClustersFromTags(gomock.Any(), []string{defaultADTag}).Return([]string{}, nil).AnyTimes()
+				k.EXPECT().GetAuroraClusterEndpoints(gomock.Any(), []string{}, gomock.Any()).Return(nil, nil).AnyTimes()
 			},
 			expectedServices: []*DBMAuroraService{},
 			expectedDelServices: []*DBMAuroraService{

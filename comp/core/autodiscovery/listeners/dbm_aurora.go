@@ -114,25 +114,21 @@ func (l *DBMAuroraListener) discoverAuroraClusters() {
 		_ = log.Error(err)
 		return
 	}
+	auroraCluster, err := l.awsRdsClient.GetAuroraClusterEndpoints(ctx, ids, l.config)
+	if err != nil {
+		_ = log.Error(err)
+		return
+	}
 	discoveredServices := make(map[string]struct{})
-	if len(ids) == 0 {
-		log.Debugf("no aurora clusters found with provided tags %v", l.config.Tags)
-	} else {
-		auroraCluster, err := l.awsRdsClient.GetAuroraClusterEndpoints(ctx, ids, l.config)
-		if err != nil {
-			_ = log.Error(err)
-			return
-		}
-		for id, c := range auroraCluster {
-			for _, instance := range c.Instances {
-				if instance == nil {
-					_ = log.Warnf("received malformed instance response for cluster %s, skipping", id)
-					continue
-				}
-				entityID := instance.Digest(engineToIntegrationType[instance.Engine], id)
-				discoveredServices[entityID] = struct{}{}
-				l.createService(entityID, id, instance)
+	for id, c := range auroraCluster {
+		for _, instance := range c.Instances {
+			if instance == nil {
+				_ = log.Warnf("received malformed instance response for cluster %s, skipping", id)
+				continue
 			}
+			entityID := instance.Digest(engineToIntegrationType[instance.Engine], id)
+			discoveredServices[entityID] = struct{}{}
+			l.createService(entityID, id, instance)
 		}
 	}
 	deletedServices := findDeletedServices(l.services, discoveredServices)
