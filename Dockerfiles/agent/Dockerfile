@@ -47,6 +47,12 @@ ARG GENERAL_ARTIFACTS_CACHE_BUCKET_URL
 
 WORKDIR /output
 
+# Get ddprof for native profiling
+RUN DDPROF_ARCH=$([ "$TARGETARCH" = "amd64" ] && echo "amd64" || echo "arm64") \
+  && curl -Lo /tmp/ddprof-linux.tar.xz https://github.com/DataDog/ddprof/releases/latest/download/ddprof-${DDPROF_ARCH}-linux.tar.xz \
+  && tar xf /tmp/ddprof-linux.tar.xz -C /output \
+  && rm /tmp/ddprof-linux.tar.xz
+
 # Get s6-overlay
 ENV S6_VERSION="v2.2.0.3"
 ENV JUST_CONTAINERS_DOWNLOAD_LOCATION=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL:+${GENERAL_ARTIFACTS_CACHE_BUCKET_URL}/s6-overlay}
@@ -250,6 +256,8 @@ VOLUME ["/var/run/s6", "/var/log/datadog"]
 
 # Ensure the glibc doesn't try to call syscalls that may not be supported
 COPY --from=nosys-seccomp /tmp/nosys.so /opt/lib/nosys.so
+# Copy ddprof for native profiling
+COPY --from=external-deps /output/ddprof/ /opt/ddprof/
 ENV LD_PRELOAD=/opt/lib/nosys.so
 
 # Single entrypoint
