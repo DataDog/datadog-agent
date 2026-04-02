@@ -15,6 +15,12 @@ go_deps.gazelle_override(
     ],
     path = "github.com/DataDog/sketches-go",
 )
+go_deps.gazelle_override(
+    directives = [
+        "gazelle:proto disable",
+    ],
+    path = "github.com/containerd/cgroups/v3",
+)
 use_repo(
     go_deps,
     "cc_mvdan_sh_v3",
@@ -248,6 +254,7 @@ use_repo(
     "com_github_favadi_protoc_go_inject_tag",
     "com_github_frapposelli_wwhrd",
     "com_github_freddierice_go_losetup",
+    "com_github_fsnotify_fsnotify",
     "com_github_ghodss_yaml",
     "com_github_glaslos_ssdeep",
     "com_github_go_delve_delve",
