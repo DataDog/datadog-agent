@@ -772,7 +772,7 @@ def _probe_local() -> str:
             ],
             capture_output=True,
             text=True,
-            timeout=5,
+            timeout=1,
             env={**os.environ, "KUBECONFIG": os.path.expanduser("~/.kube/config")},
         )
         if r.returncode == 0 and r.stdout.strip():
@@ -792,7 +792,7 @@ def _probe_local() -> str:
             ["kind", "get", "clusters"],
             capture_output=True,
             text=True,
-            timeout=5,
+            timeout=1,
         )
         if _LOCAL_CLUSTER in (r2.stdout or ""):
             return "[dim]○[/dim] cluster exists, no active run"
@@ -808,7 +808,7 @@ def _probe_aws_auth() -> str:
             ["aws", "sts", "get-caller-identity", "--output", "json"],
             capture_output=True,
             text=True,
-            timeout=5,
+            timeout=1,
         )
         if r.returncode == 0 and r.stdout.strip():
             data = json.loads(r.stdout.strip())
@@ -836,7 +836,7 @@ def _probe_remote() -> str:
             ["kubectl", "get", "configmap", "gensim-run-status", "-o", "jsonpath={.data.status}", "-n", "default"],
             capture_output=True,
             text=True,
-            timeout=5,
+            timeout=1,
             env={**os.environ, "KUBECONFIG": kc},
         )
         if r.returncode == 0 and r.stdout.strip():
