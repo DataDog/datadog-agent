@@ -50,6 +50,7 @@ def eval_scenarios(
     scenarios_dir: str = "./comp/observer/scenarios",
     sigma: float = 30.0,
     only: str = "",
+    build: bool = True,
 ):
     """
     Runs the observer F1 eval: replays scenarios, scores Gaussian F1.
@@ -77,10 +78,9 @@ def eval_scenarios(
         only_flag = ",".join(sorted(components))
         print(color_message(f"Only: {only_flag}", Color.BLUE))
 
-    print(color_message("Building observer-testbench...", Color.BLUE))
-    ctx.run("go build -o bin/observer-testbench ./cmd/observer-testbench", hide=True)
-    print(color_message("Building observer-scorer...", Color.BLUE))
-    ctx.run("go build -o bin/observer-scorer ./cmd/observer-scorer", hide=True)
+    if build:
+        build_testbench(ctx)
+        build_scorer(ctx)
 
     scenarios_to_run = [scenario] if scenario else SCENARIOS
 
@@ -169,7 +169,12 @@ def eval_scenarios(
 
 @task
 def eval_tp(
-    ctx, scenario: str = "", scenarios_dir: str = "./comp/observer/scenarios", sigma: float = 30.0, only: str = ""
+    ctx,
+    scenario: str = "",
+    scenarios_dir: str = "./comp/observer/scenarios",
+    sigma: float = 30.0,
+    only: str = "",
+    build: bool = True,
 ):
     """
     Runs TP metric scoring: replays scenarios with passthrough correlator and scores
@@ -198,10 +203,9 @@ def eval_tp(
 
     print(color_message(f"Only: {only_flag}", Color.BLUE))
 
-    print(color_message("Building observer-testbench...", Color.BLUE))
-    ctx.run("go build -o bin/observer-testbench ./cmd/observer-testbench", hide=True)
-    print(color_message("Building observer-scorer...", Color.BLUE))
-    ctx.run("go build -o bin/observer-scorer ./cmd/observer-scorer", hide=True)
+    if build:
+        build_testbench(ctx)
+        build_scorer(ctx)
 
     scenarios_to_run = [scenario] if scenario else SCENARIOS
 
