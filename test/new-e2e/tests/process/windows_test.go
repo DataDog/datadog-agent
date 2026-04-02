@@ -334,13 +334,22 @@ func (s *windowsTestSuite) TestLanguageDetectionWindows() {
 		_ = stdin.Close()
 	})
 
-	// Get the PID of the exact python process we started, identified by its command line
-	pid := strings.TrimSpace(s.Env().RemoteHost.MustExecute(
-		`(Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*time.sleep(300)*' } | Select-Object -First 1).ProcessId`,
-	))
+	// Poll for the PID of the exact python process we started, identified by its command line.
+	// Get-CimInstance may briefly return no match while process metadata catches up.
+	var pid string
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		out, err := s.Env().RemoteHost.Execute(
+			`(Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*time.sleep(300)*' } | Select-Object -First 1).ProcessId`,
+		)
+		if !assert.NoError(c, err, "failed to query process") {
+			return
+		}
+		pid = strings.TrimSpace(out)
+		assert.NotEmpty(c, pid, "python process PID not yet available")
+	}, 30*time.Second, 1*time.Second)
 
 	// Verify language detection via workload-list JSON output.
-	// Parse structured JSON to avoid flaky text parsing.
+	// Use Execute (not MustExecute) so transient agent startup errors are retried.
 	type workloadProcess struct {
 		Kind     string `json:"Kind"`
 		ID       string `json:"ID"`
@@ -354,7 +363,11 @@ func (s *windowsTestSuite) TestLanguageDetectionWindows() {
 
 	var lastOutput string
 	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		lastOutput = s.Env().RemoteHost.MustExecute(`& "C:\Program Files\Datadog\Datadog Agent\bin\agent.exe" workload-list --json`)
+		out, err := s.Env().RemoteHost.Execute(`& "C:\Program Files\Datadog\Datadog Agent\bin\agent.exe" workload-list --json`)
+		if !assert.NoError(c, err, "workload-list command failed") {
+			return
+		}
+		lastOutput = out
 		var resp workloadResponse
 		if !assert.NoError(c, json.Unmarshal([]byte(lastOutput), &resp), "failed to parse workload-list JSON") {
 			return
