@@ -185,3 +185,51 @@ nginx-6f8f465d8c-p548f   1/1     Running   0          5m29s
 nginx-6f8f465d8c-s6cnj   1/1     Running   0          5m29s   true
 nginx-6f8f465d8c-sn6dw   1/1     Running   0          5m29s
 ```
+
+
+## Scheduler components
+
+- `scheduler` — admission decisions, fallback, rebalancing
+- `workloadController` — watches workloads, syncs config and pods
+- `podTracker` — counts spot / on-demand pods per workload
+- `spotConfigStore` — per-workload spot config key-value store
+- `podLister` — lists pods from Kubernetes API
+- `podEvictor` — evicts pods via Kubernetes API
+- `workloadPatcher` — persists disabled-until annotation
+
+```mermaid
+graph TD
+    Webhook["Admission webhook"]
+    K8sAPI["Kubernetes API"]
+    WLM["workloadmeta.Component"]
+
+    subgraph package
+        S["scheduler"]
+        WC["workloadController"]
+        PT["podTracker"]
+        CS["spotConfigStore"]
+        PL["podLister"]
+        PE["podEvictor"]
+        WP["workloadPatcher"]
+    end
+
+    Webhook -->|"CREATE / DELETE Pod"| S
+    WLM -->|"Pod set / unset events"| PT
+
+    S -->|"getConfig, disable"| CS
+    S -->|"admitNewPod, deletePod"| PT
+    S -->|"getPendingSpotPods, getPodToDelete"| PT
+    S -->|"evictPod"| PE
+    S -->|"setDisabledUntil"| WP
+    S -->|"starts"| WC
+
+    K8sAPI -->|"WATCH workloads"| WC
+
+    WC -->|"setConfig, deleteConfig"| CS
+    WC -->|"addedOrUpdated, untrack"| PT
+    WC -->|"listPods"| PL
+
+    PL -->|"LIST Pods"| K8sAPI
+    PE -->|"Evict Pod"| K8sAPI
+    WP -->|"PATCH workload"| K8sAPI
+```
