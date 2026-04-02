@@ -44,235 +44,28 @@ go_library(
     ],
 )
 
-# TESTHELPER_DATA lists the data files required by testhelper_test.go's own tests.
-# Every go_test target that includes testhelper_test.go must also include these files.
-TESTHELPER_DATA = [
-    "test/otlp/hist/simple-delta.json",
-    "test/datadog/hist/simple-delta_nobuckets-cs.json",
-]
-
-# List all tests that are in distinct unit tests here.
-# gazelle:exclude histograms_test.go
-# gazelle:exclude consume_host_test.go
-# gazelle:exclude testhelper_test.go
-# gazelle:exclude metrics_translator_benchmark_test.go
-# gazelle:exclude metrics_translator_test.go
-# gazelle:exclude statspayload_test.go
-# gazelle:exclude lossless_mapper_test.go
-# gazelle:exclude dimensions_test.go
-# gazelle:exclude key_hash_cache_test.go
-# gazelle:exclude metrics_remapping_test.go
-# gazelle:exclude mixed_metrics_test.go
-# gazelle:exclude nan_metrics_test.go
-# gazelle:exclude origin_test.go
-# gazelle:exclude sketches_test.go
-# gazelle:exclude summary_test.go
-# gazelle:exclude ttlcache_test.go
-
-# keep
 go_test(
-    name = "histograms_test",
-    srcs = [
-        "histograms_test.go",
-        "testhelper_test.go",
-    ],
-    data = glob([
-        "test/otlp/hist/**",
-        "test/datadog/hist/**",
-    ]),
-    embed = [":metrics"],
-    deps = [
-        "//pkg/opentelemetry-mapping-go/otlp/attributes",
-        "//pkg/util/quantile",
-        "//pkg/util/quantile/summary",
-        "@com_github_datadog_sketches_go//ddsketch",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
-        "@io_opentelemetry_go_collector_component_componenttest//:componenttest",
-        "@io_opentelemetry_go_collector_pdata//pmetric",
-        "@org_uber_go_zap//:zap",
-        "@org_uber_go_zap//zapcore",
-        "@org_uber_go_zap//zaptest/observer",
-    ],
-)
-
-# keep
-go_test(
-    name = "consume_host_test",
+    name = "metrics_test",
     srcs = [
         "consume_host_test.go",
-        "testhelper_test.go",
-    ],
-    data = glob([
-        "test/otlp/hosts/**",
-        "test/datadog/hosts/**",
-    ]) + TESTHELPER_DATA,
-    embed = [":metrics"],
-    deps = [
-        "//pkg/opentelemetry-mapping-go/otlp/attributes",
-        "//pkg/util/quantile",
-        "//pkg/util/quantile/summary",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
-        "@io_opentelemetry_go_collector_component_componenttest//:componenttest",
-        "@io_opentelemetry_go_collector_pdata//pmetric",
-    ],
-)
-
-# metrics_translator_test.go defines shared helpers used by several other test files.
-# statspayload_test.go defines testSketchBytes used by metrics_translator_test.go.
-# keep
-go_test(
-    name = "metrics_translator_test",
-    srcs = [
+        "dimensions_test.go",
+        "histograms_test.go",
+        "key_hash_cache_test.go",
+        "lossless_mapper_test.go",
+        "metrics_remapping_test.go",
         "metrics_translator_benchmark_test.go",
         "metrics_translator_test.go",
-        "statspayload_test.go",
-        "testhelper_test.go",
-    ],
-    data = TESTHELPER_DATA,
-    embed = [":metrics"],
-    gotags = ["test"],
-    deps = [
-        "//pkg/opentelemetry-mapping-go/otlp/attributes",
-        "//pkg/opentelemetry-mapping-go/otlp/attributes/source",
-        "//pkg/proto/pbgo/trace",
-        "//pkg/util/quantile",
-        "//pkg/util/quantile/summary",
-        "@com_github_datadog_sketches_go//ddsketch",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
-        "@io_opentelemetry_go_collector_component_componenttest//:componenttest",
-        "@io_opentelemetry_go_collector_pdata//pcommon",
-        "@io_opentelemetry_go_collector_pdata//pmetric",
-        "@org_golang_google_protobuf//proto",
-        "@org_uber_go_zap//:zap",
-    ],
-)
-
-# keep
-go_test(
-    name = "mixed_metrics_test",
-    srcs = [
         "mixed_metrics_test.go",
-        "testhelper_test.go",
-    ],
-    data = glob([
-        "test/otlp/mixed/**",
-        "test/datadog/mixed/**",
-    ]) + TESTHELPER_DATA,
-    embed = [":metrics"],
-    deps = [
-        "//pkg/opentelemetry-mapping-go/otlp/attributes",
-        "//pkg/util/quantile",
-        "//pkg/util/quantile/summary",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
-        "@io_opentelemetry_go_collector_component_componenttest//:componenttest",
-        "@io_opentelemetry_go_collector_pdata//pmetric",
-        "@org_uber_go_zap//:zap",
-        "@org_uber_go_zap//zapcore",
-        "@org_uber_go_zap//zaptest/observer",
-    ],
-)
-
-# keep
-go_test(
-    name = "origin_test",
-    srcs = [
+        "nan_metrics_test.go",
         "origin_test.go",
-        "testhelper_test.go",
-    ],
-    data = glob([
-        "test/otlp/origin/**",
-        "test/datadog/origin/**",
-    ]) + TESTHELPER_DATA,
-    embed = [":metrics"],
-    deps = [
-        "//pkg/opentelemetry-mapping-go/otlp/attributes",
-        "//pkg/util/quantile",
-        "//pkg/util/quantile/summary",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
-        "@io_opentelemetry_go_collector_component_componenttest//:componenttest",
-        "@io_opentelemetry_go_collector_pdata//pmetric",
-    ],
-)
-
-# summary_test.go uses testProvider (metrics_translator_test.go) and testSketchBytes (statspayload_test.go).
-# keep
-go_test(
-    name = "summary_test",
-    srcs = [
-        "metrics_translator_test.go",
+        "sketches_test.go",
         "statspayload_test.go",
         "summary_test.go",
         "testhelper_test.go",
-    ],
-    data = glob([
-        "test/otlp/summary/**",
-        "test/datadog/summary/**",
-    ]) + TESTHELPER_DATA,
-    embed = [":metrics"],
-    gotags = ["test"],
-    deps = [
-        "//pkg/opentelemetry-mapping-go/otlp/attributes",
-        "//pkg/opentelemetry-mapping-go/otlp/attributes/source",
-        "//pkg/proto/pbgo/trace",
-        "//pkg/util/quantile",
-        "//pkg/util/quantile/summary",
-        "@com_github_datadog_sketches_go//ddsketch",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
-        "@io_opentelemetry_go_collector_component_componenttest//:componenttest",
-        "@io_opentelemetry_go_collector_pdata//pcommon",
-        "@io_opentelemetry_go_collector_pdata//pmetric",
-        "@org_golang_google_protobuf//proto",
-        "@org_uber_go_zap//:zap",
-    ],
-)
-
-# keep
-go_test(
-    name = "lossless_mapper_test",
-    srcs = [
-        "lossless_mapper_test.go",
-        "testhelper_test.go",
-    ],
-    data = TESTHELPER_DATA,
-    embed = [":metrics"],
-    deps = [
-        "//pkg/opentelemetry-mapping-go/otlp/attributes",
-        "//pkg/util/quantile",
-        "//pkg/util/quantile/summary",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
-        "@io_opentelemetry_go_collector_component_componenttest//:componenttest",
-        "@io_opentelemetry_go_collector_pdata//pcommon",
-        "@io_opentelemetry_go_collector_pdata//pmetric",
-        "@org_uber_go_zap//:zap",
-    ],
-)
-
-# nan_metrics_test.go and sketches_test.go use helpers from metrics_translator_test.go.
-# statspayload_test.go defines testSketchBytes used by metrics_translator_test.go.
-# keep
-go_test(
-    name = "unit_tests",
-    srcs = [
-        "dimensions_test.go",
-        "key_hash_cache_test.go",
-        "metrics_remapping_test.go",
-        "metrics_translator_test.go",
-        "nan_metrics_test.go",
-        "sketches_test.go",
-        "statspayload_test.go",
-        "testhelper_test.go",
         "ttlcache_test.go",
     ],
-    data = TESTHELPER_DATA,
+    data = glob(["test/**"]),
     embed = [":metrics"],
-    gotags = ["test"],
     deps = [
         "//pkg/opentelemetry-mapping-go/otlp/attributes",
         "//pkg/opentelemetry-mapping-go/otlp/attributes/source",
