@@ -40,6 +40,8 @@ var programs = map[string]struct{}{
 	//"inet6_bind_exit":         {},
 	"udp_post_bind4_cgroup": {},
 	"udp_post_bind6_cgroup": {},
+	"udp_send_skb_entry":    {},
+	"udp_v6_send_skb_entry": {},
 }
 
 func enableProgram(enabled map[string]struct{}, name string) {
@@ -81,6 +83,7 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		enableProgram(enabled, "udp_destroy_sock_exit")
 		//enableProgram(enabled, "inet_bind_exit")
 		enableProgram(enabled, "udp_post_bind4_cgroup")
+		enableProgram(enabled, "udp_send_skb_entry")
 	}
 
 	if c.CollectUDPv6Conns {
@@ -92,6 +95,7 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		enableProgram(enabled, "udpv6_destroy_sock_exit")
 		//enableProgram(enabled, "inet6_bind_exit")
 		enableProgram(enabled, "udp_post_bind6_cgroup")
+		enableProgram(enabled, "udp_v6_send_skb_entry")
 	}
 
 	if hasSendPage && (c.CollectUDPv4Conns || c.CollectUDPv6Conns) {
