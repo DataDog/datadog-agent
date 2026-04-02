@@ -57,8 +57,6 @@ func (t *SleepableProgramModifier) BeforeInit(m *manager.Manager, module names.M
 		})
 	}
 
-	log.Infof("%v", opts.ConstantEditors)
-
 	// we cannot use perf events with sleepable programs so remove this helper calls
 	patcher := NewHelperCallRemover(asm.FnPerfEventOutput)
 	// if there are no programs to make sleepable, remove any references to

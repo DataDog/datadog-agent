@@ -498,7 +498,6 @@ func (e *EbpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	log.Infof("loading shared libraries program with libsets enabled: %s", strings.Join(enabledMsgs, ", "))
 
 	options.BypassEnabled = e.cfg.BypassEnabled
-
 	return e.InitWithOptions(buf, &options)
 }
 

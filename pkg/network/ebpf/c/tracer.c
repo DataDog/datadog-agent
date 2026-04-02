@@ -1149,8 +1149,6 @@ static __always_inline int handle_net_dev_queue(struct sk_buff* skb) {
         normalize_tuple(&sock_tup);
         // We skip EEXIST because of the use of BPF_NOEXIST flag. Emitting telemetry for EEXIST here spams metrics
         // and do not provide any useful signal since the key is expected to be present sometimes.
-        //log_info("skb_tup (%d->%d)", skb_tup.sport, skb_tup.dport);
-        //log_info("sock_tup (%d->%d)\n", sock_tup.sport, sock_tup.dport);
         bpf_map_update_with_telemetry(conn_tuple_to_socket_skb_conn_tuple, &sock_tup, &skb_tup, BPF_NOEXIST, -EEXIST);
     }
 

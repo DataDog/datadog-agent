@@ -147,9 +147,6 @@ func (m *Manager) InitWithOptions(bytecode io.ReaderAt, opts *manager.Options) e
 	}
 
 	if err := m.Manager.InitWithOptions(nil, *opts); err != nil {
-		mss, _ := m.Manager.GetMapSpecs()
-		log.Infof("!!!! %v", mss)
-
 		return err
 	}
 
