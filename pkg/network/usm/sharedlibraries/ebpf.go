@@ -198,10 +198,7 @@ func (e *EbpfProgram) setupManagerAndPerfHandlers() error {
 
 	// Load perf handlers for all enabled libsets
 	for libset, handler := range e.libsets {
-		// we need to do this so that all perf maps are upgraded to prevent issues with sleepable bpf programs
-		//if !handler.enabled {
-		//	continue
-		//}
+		// we cannot skip disabled handlers here, because we need all loaded eBPF programs to use ringbuffers if they are sleepable
 
 		mapName := string(libset) + "_" + sharedLibrariesPerfMap
 		mode := perf.UpgradePerfBuffers(perfBufferSize, dataChannelSize, perf.Watermark(1), ringBufferSize)
