@@ -19,6 +19,7 @@ import (
 	"sync"
 
 	"github.com/google/shlex"
+	"github.com/klauspost/compress/zstd"
 )
 
 func main() {
@@ -196,24 +197,19 @@ func getBinariesFromPackages(packages []string) ([]string, []string, error) {
 		}
 	}
 
-	// Verify archive exists before attempting extraction
-	if _, err := os.Stat(binariesPath); err != nil {
-		return nil, nil, fmt.Errorf("archive not found: %v", err)
-	}
-
-	// Open and extract tar.zst file using zstd command
-	zstdCmd := exec.Command("zstd", "-dc", binariesPath)
-	var zstdStderr bytes.Buffer
-	zstdCmd.Stderr = &zstdStderr
-	zstdOut, err := zstdCmd.StdoutPipe()
+	file, err := os.Open(binariesPath)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create zstd pipe: %v", err)
+		return nil, nil, fmt.Errorf("failed to open archive: %v", err)
 	}
-	if err := zstdCmd.Start(); err != nil {
-		return nil, nil, fmt.Errorf("failed to start zstd: %v", err)
-	}
+	defer file.Close()
 
-	tr := tar.NewReader(zstdOut)
+	zr, err := zstd.NewReader(file)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create zstd reader: %v", err)
+	}
+	defer zr.Close()
+
+	tr := tar.NewReader(zr)
 
 	// Extract only the targeted binaries
 	for {
@@ -243,10 +239,6 @@ func getBinariesFromPackages(packages []string) ([]string, []string, error) {
 			return nil, nil, fmt.Errorf("failed to write output file %s: %v", outPath, err)
 		}
 		outFile.Close()
-	}
-
-	if err := zstdCmd.Wait(); err != nil {
-		return nil, nil, fmt.Errorf("zstd decompression failed: %v: %s", err, zstdStderr.String())
 	}
 
 	return binaries, matchedPackages, nil
