@@ -308,6 +308,64 @@ func (s *windowsTestSuite) TestManualUnprotectedProcessCheckWithIO() {
 	}, 1*time.Minute, 5*time.Second)
 }
 
+func (s *windowsTestSuite) TestLanguageDetectionWindows() {
+	// Enable language detection on the agent
+	s.UpdateEnv(awshost.Provisioner(
+		awshost.WithRunOptions(
+			ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
+			ec2.WithAgentOptions(agentparams.WithAgentConfig(languageDetectionConfigStr)),
+		),
+	))
+
+	// Install Python via chocolatey (already installed in SetupSuite)
+	stdout, err := s.Env().RemoteHost.Execute(`C:\ProgramData\chocolatey\bin\choco.exe install -y python3 --no-progress`)
+	require.NoErrorf(s.T(), err, "Failed to install python: %s", stdout)
+
+	// Resolve the full python path since SSH sessions don't inherit choco's PATH update
+	pythonPath := strings.TrimSpace(s.Env().RemoteHost.MustExecute(
+		`$env:Path = [System.Environment]::GetEnvironmentVariable('Path','Machine'); (Get-Command python).Source`,
+	))
+
+	// Start Python in a persistent SSH session so it stays alive
+	session, stdin, _, err := s.Env().RemoteHost.Start(pythonPath + ` -c "import time; time.sleep(300)"`)
+	require.NoError(s.T(), err, "Failed to start python")
+	s.T().Cleanup(func() {
+		_ = session.Close()
+		_ = stdin.Close()
+	})
+
+	// Get the PID of the exact python process we started, identified by its command line
+	pid := strings.TrimSpace(s.Env().RemoteHost.MustExecute(
+		`(Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*time.sleep(300)*' } | Select-Object -First 1).ProcessId`,
+	))
+
+	// Verify language detection via the remote_process_collector source in workload-list.
+	// The header may contain multiple sources (e.g. "[remote_process_collector process_collector]"),
+	// so match by substring.
+	idSuffix := fmt.Sprintf(" id: %s ===", pid)
+	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		wl := s.Env().RemoteHost.MustExecute(`& "C:\Program Files\Datadog\Datadog Agent\bin\agent.exe" workload-list`)
+		lines := strings.Split(wl, "\n")
+		var inBlock bool
+		for _, line := range lines {
+			if strings.HasPrefix(line, "=== Entity process ") && strings.Contains(line, "remote_process_collector") && strings.HasSuffix(strings.TrimSpace(line), idSuffix) {
+				inBlock = true
+				continue
+			}
+			if inBlock {
+				if strings.HasPrefix(line, "=== Entity") {
+					break
+				}
+				if strings.HasPrefix(line, "Language: ") {
+					assert.Equal(c, "python", strings.TrimSpace(line[len("Language: "):]))
+					return
+				}
+			}
+		}
+		assert.Fail(c, "python process not found in workload-list with remote_process_collector source")
+	}, 2*time.Minute, 5*time.Second)
+}
+
 // Runs Diskspd in another ssh session
 // https://github.com/Microsoft/diskspd/wiki/Command-line-and-parameters
 // diskspd is an unprotected process, so we can capture the command line
