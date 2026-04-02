@@ -234,7 +234,7 @@ func TestProviderConfigurations(t *testing.T) {
 				compression,
 				tc.legacyMode,
 				tc.serverless,
-				hook.NewNoopHook[hook.LogView](),
+				hook.NewNoopHook[[]hook.LogSampleSnapshot](),
 			)
 			require.NotNil(t, providerImpl)
 
@@ -303,7 +303,7 @@ func TestPipelineChannelDistribution(t *testing.T) {
 				compression,
 				false, // legacy mode
 				false, // serverless
-				hook.NewNoopHook[hook.LogView](),
+				hook.NewNoopHook[[]hook.LogSampleSnapshot](),
 			)
 
 			require.NotNil(t, providerImpl)
