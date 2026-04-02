@@ -475,12 +475,13 @@ def eval_combinations(
     Output layout:
         <output_dir>/combo_NNN/config.json   - exact component config used
         <output_dir>/combo_NNN/report.json   - per-scenario F1 scores
-        <output_dir>/summary.json            - all combos ranked by mean F1
+        <output_dir>/report.json             - all combos ranked by score, plus best_combination
 
     Args:
         n: Total combinations to evaluate: one full-stack plus (n - 1) random
             (default: 10). Use n=1 for only the full-stack baseline.
-        output_dir: Root directory for per-combo results and summary.
+        output_dir: Root directory for per-combo results and summary. If this
+            path already exists, it is removed first.
         scenarios_dir: Directory containing scenario subdirectories.
         sigma: Gaussian width in seconds for F1 scoring.
         seed: Random seed for reproducibility (default: None = random).
@@ -495,7 +496,9 @@ def eval_combinations(
         dda inv q.eval-combinations --n 5 --output-dir /tmp/ablation
         dda inv q.eval-combinations --n 10 --force-enable bocpd --force-disable scanmw,scanwelch
     """
-    os.makedirs(output_dir, exist_ok=True)
+    if os.path.exists(output_dir):
+        shutil.rmtree(output_dir)
+    os.makedirs(output_dir)
 
     if build:
         build_testbench(ctx)
@@ -595,9 +598,19 @@ def eval_combinations(
         for r in summary_results:
             print(f"{r['rank']:<5}  {r['score']:>6.4f}  {', '.join(r['detectors']):<35}  {', '.join(r['correlators'])}")
 
+        best = summary_results[0]
+        print(color_message(f"\n{'=' * 70}", Color.GREEN))
+        print(color_message(f"  Best combination: {best['combo']}  (score={best['score']:.4f})", Color.GREEN))
+        print(color_message(f"    detectors:   {', '.join(best['detectors'])}", Color.GREEN))
+        print(color_message(f"    correlators: {', '.join(best['correlators'])}", Color.GREEN))
+        print(color_message(f"    config:      {best['config_path']}", Color.GREEN))
+        print(color_message(f"    report:      {best['report_path']}", Color.GREEN))
+        print(color_message(f"{'=' * 70}", Color.GREEN))
+
     scores = [r["score"] for r in summary_results]
     max_score = max(scores) if scores else 0.0
     avg_score = sum(scores) / len(scores) if scores else 0.0
+    best_combination = summary_results[0] if summary_results else None
 
     report_path = os.path.join(output_dir, "report.json")
     with open(report_path, "w") as f:
@@ -609,6 +622,7 @@ def eval_combinations(
                 "force_enable": force_enable_list,
                 "force_disable": force_disable_list,
                 "combos": summary_results,
+                "best_combination": best_combination,
             },
             f,
             indent=4,
