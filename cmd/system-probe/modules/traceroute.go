@@ -34,8 +34,6 @@ type traceroute struct {
 
 var (
 	_ module.Module = &traceroute{}
-
-	tracerouteConfigNamespaces = []string{"traceroute"}
 )
 
 func createTracerouteModule(_ *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {

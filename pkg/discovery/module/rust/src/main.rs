@@ -40,10 +40,15 @@ use log::{debug, error, info, warn};
 use serde_json::json;
 use tokio::net::UnixListener;
 use tokio::signal::unix::{SignalKind, signal};
+use tokio::sync::Semaphore;
 
 mod cli;
 
 use cli::Args;
+
+/// We choose 2 because one is for regular agent checks and another one is for manual troubleshooting.
+/// This matches the Go system-probe's DefaultMaxConcurrentRequests.
+static SERVICES_SEMAPHORE: Semaphore = Semaphore::const_new(2);
 
 static BADREQUEST: &[u8] = b"Bad request";
 static NOTFOUND: &[u8] = b"Not found";
@@ -87,9 +92,90 @@ fn setup_socket(socket_path: &str) -> Result<UnixListener> {
     Ok(sock)
 }
 
-async fn handle_services(
-    req: Request<hyper::body::Incoming>,
-) -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
+/// Drops all Linux capabilities except CAP_SYS_PTRACE and CAP_DAC_READ_SEARCH
+/// from every capability set.
+///
+/// Both capabilities are required for full service discovery:
+/// - CAP_SYS_PTRACE: open /proc/<pid>/root and /proc/<pid>/{fd,maps,exe,environ}
+/// - CAP_DAC_READ_SEARCH: traverse restricted directories (e.g. mode-750 home dirs,
+///   container app directories) when reading files through /proc/<pid>/root/
+///
+/// Must be called after socket setup (which needs CAP_CHOWN for chown).
+/// Failure is non-fatal: SPL logs a warning and continues with inherited capabilities
+/// rather than refusing to start.
+///
+/// Sets modified:
+/// - Effective:    {CAP_SYS_PTRACE, CAP_DAC_READ_SEARCH} (or subset if not in permitted)
+/// - Permitted:    {CAP_SYS_PTRACE, CAP_DAC_READ_SEARCH} (or subset)
+/// - Inheritable:  {} (empty — exec'd children get nothing)
+/// - Ambient:      {} (empty — requires kernel ≥ 4.3, silently skipped otherwise)
+/// - Bounding:     {CAP_SYS_PTRACE, CAP_DAC_READ_SEARCH} (prevents future escalation)
+fn drop_capabilities() {
+    match try_drop_capabilities() {
+        Ok(true) => info!("Capabilities restricted to {{CAP_SYS_PTRACE, CAP_DAC_READ_SEARCH}}"),
+        Ok(false) => {
+            warn!("Not all required capabilities were available; service discovery may be impaired")
+        }
+        Err(e) => {
+            warn!("Failed to restrict capabilities: {e}; continuing with inherited capabilities")
+        }
+    }
+}
+
+fn try_drop_capabilities() -> Result<bool> {
+    use caps::{CapSet, Capability};
+
+    let current_permitted = caps::read(None, CapSet::Permitted)?;
+
+    // CAP_SYS_PTRACE: needed to follow /proc/<pid>/root and open /proc/<pid>/ files.
+    // CAP_DAC_READ_SEARCH: needed to traverse restricted directories inside process
+    // root filesystems (e.g. mode-750 home dirs on Ubuntu 22.04+, container app dirs).
+    let has_ptrace = current_permitted.contains(&Capability::CAP_SYS_PTRACE);
+    let has_dac = current_permitted.contains(&Capability::CAP_DAC_READ_SEARCH);
+
+    let mut keep = caps::CapsHashSet::new();
+    if has_ptrace {
+        keep.insert(Capability::CAP_SYS_PTRACE);
+    } else {
+        warn!(
+            "CAP_SYS_PTRACE is not in the permitted set; /proc access for other processes will fail"
+        );
+    }
+    if has_dac {
+        keep.insert(Capability::CAP_DAC_READ_SEARCH);
+    } else {
+        warn!(
+            "CAP_DAC_READ_SEARCH is not in the permitted set; reading files in restricted directories may fail"
+        );
+    }
+
+    // Clear inheritable set (children cannot inherit capabilities).
+    caps::clear(None, CapSet::Inheritable)?;
+
+    // Clear ambient set (kernel ≥ 4.3; older kernels return EINVAL, which we ignore).
+    let _ = caps::clear(None, CapSet::Ambient);
+
+    // Lower the bounding set BEFORE restricting effective/permitted, because
+    // CAP_SETPCAP (needed for bounding set drops) must still be in the effective
+    // set at this point. Ignores errors for capabilities absent from the bounding set.
+    for cap in caps::all() {
+        if !keep.contains(&cap) {
+            let _ = caps::drop(None, CapSet::Bounding, cap);
+        }
+    }
+
+    // Restrict effective and permitted to {CAP_SYS_PTRACE, CAP_DAC_READ_SEARCH} (or subset).
+    caps::set(None, CapSet::Effective, &keep)?;
+    caps::set(None, CapSet::Permitted, &keep)?;
+
+    Ok(has_ptrace && has_dac)
+}
+
+async fn handle_services<B>(req: Request<B>) -> Result<Response<BoxBody<Bytes, std::io::Error>>>
+where
+    B: hyper::body::Body<Data = Bytes>,
+    B::Error: std::fmt::Display,
+{
     if req
         .headers()
         .get(CONTENT_TYPE)
@@ -114,7 +200,7 @@ async fn handle_services(
         }
     };
 
-    let services = get_services(params);
+    let services = tokio::task::spawn_blocking(|| get_services(params)).await?;
     debug!("Found {} services", services.services.len());
 
     Response::builder()
@@ -224,12 +310,32 @@ fn not_found() -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
         .map_err(|e| anyhow!("Failed to build not found response: {}", e))
 }
 
-async fn handle_request(
-    req: Request<hyper::body::Incoming>,
-) -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
+fn too_many_requests() -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
+    Response::builder()
+        .status(StatusCode::TOO_MANY_REQUESTS)
+        .body(
+            Full::new(Bytes::from("Too many requests"))
+                .map_err(|e| match e {})
+                .boxed(),
+        )
+        .map_err(|e| anyhow!("Failed to build too many requests response: {}", e))
+}
+
+async fn handle_request<B>(req: Request<B>) -> Result<Response<BoxBody<Bytes, std::io::Error>>>
+where
+    B: hyper::body::Body<Data = Bytes>,
+    B::Error: std::fmt::Display,
+{
     match (req.method(), req.uri().path()) {
         (&Method::POST, "/discovery/services") => {
             debug!("Handling /discovery/services request");
+            let _permit = match SERVICES_SEMAPHORE.try_acquire() {
+                Ok(permit) => permit,
+                Err(_) => {
+                    warn!("rejecting request for path=/discovery/services concurrency_limit=2");
+                    return too_many_requests();
+                }
+            };
             handle_services(req).await
         }
         (&Method::GET, "/discovery/state") => handle_state().await,
@@ -250,6 +356,8 @@ async fn handle_request(
 async fn run_system_probe_lite(socket_path: &str) -> Result<()> {
     info!("Using sysprobe socket path: {}", socket_path);
     let sock = setup_socket(socket_path).context("Failed to setup Unix socket")?;
+
+    drop_capabilities();
 
     // Setup signal handlers
     let mut sigterm = signal(SignalKind::terminate()).context("Failed to setup SIGTERM handler")?;
@@ -313,7 +421,7 @@ async fn run_system_probe_lite(socket_path: &str) -> Result<()> {
     }
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
     let args = Args::parse(env::args())?;
     dd_agent_log::init(dd_agent_log::LogConfig {
@@ -343,6 +451,71 @@ mod tests {
     use super::*;
     use std::fs;
     use tempfile::TempDir;
+
+    fn services_request() -> Request<Full<Bytes>> {
+        Request::builder()
+            .method(Method::POST)
+            .uri("/discovery/services")
+            .header(CONTENT_TYPE, "application/json")
+            .body(Full::new(Bytes::from("{}")))
+            .unwrap_or_else(|e| panic!("Failed to build request: {e}"))
+    }
+
+    #[tokio::test]
+    async fn test_concurrency_limit() {
+        // Acquire both permits to saturate the semaphore (limit=2).
+        let permit1 = SERVICES_SEMAPHORE
+            .try_acquire()
+            .unwrap_or_else(|e| panic!("Failed to acquire first permit: {e}"));
+        let permit2 = SERVICES_SEMAPHORE
+            .try_acquire()
+            .unwrap_or_else(|e| panic!("Failed to acquire second permit: {e}"));
+
+        // With both permits held, handle_request should return 429.
+        let resp = handle_request(services_request())
+            .await
+            .unwrap_or_else(|e| panic!("handle_request failed: {e}"));
+        assert_eq!(
+            resp.status(),
+            StatusCode::TOO_MANY_REQUESTS,
+            "Expected 429 when semaphore is exhausted"
+        );
+
+        // Other endpoints should still work even with both permits held.
+        for path in [
+            "/discovery/state",
+            "/config",
+            "/config/by-source",
+            "/debug/stats",
+        ] {
+            let req = Request::builder()
+                .method(Method::GET)
+                .uri(path)
+                .body(Full::new(Bytes::new()))
+                .unwrap_or_else(|e| panic!("Failed to build request: {e}"));
+            let resp = handle_request(req)
+                .await
+                .unwrap_or_else(|e| panic!("handle_request failed for {path}: {e}"));
+            assert_eq!(
+                resp.status(),
+                StatusCode::OK,
+                "Expected 200 for {path} even when semaphore is exhausted"
+            );
+        }
+
+        // Release one permit — request should now get through (not 429).
+        drop(permit1);
+        let resp = handle_request(services_request())
+            .await
+            .unwrap_or_else(|e| panic!("handle_request failed: {e}"));
+        assert_ne!(
+            resp.status(),
+            StatusCode::TOO_MANY_REQUESTS,
+            "Should not get 429 when a permit is available"
+        );
+
+        drop(permit2);
+    }
 
     #[test]
     fn test_remove_pid_file_deletes_file() {

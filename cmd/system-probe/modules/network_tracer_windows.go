@@ -22,9 +22,8 @@ func init() { registerModule(NetworkTracer) }
 
 // NetworkTracer is a factory for NPM's tracer
 var NetworkTracer = &module.Factory{
-	Name:             config.NetworkTracerModule,
-	ConfigNamespaces: networkTracerModuleConfigNamespaces,
-	Fn:               createNetworkTracerModule,
+	Name: config.NetworkTracerModule,
+	Fn:   createNetworkTracerModule,
 }
 
 func (nt *networkTracer) platformRegister(httpMux *module.Router) error {

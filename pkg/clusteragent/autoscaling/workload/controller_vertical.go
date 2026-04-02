@@ -161,8 +161,9 @@ func (u *verticalController) syncInternal(
 	podsByResizeStatus map[PodResizeStatus][]classifiedPod,
 ) (autoscaling.ProcessResult, error) {
 
-	// Fall back to rollout if TriggerRollout mode is set or if the API server
-	// does not support in-place resize (pods/resize subresource unavailable).
+	// Fall back to rollout if in-place scaling is not enabled via config, if
+	// TriggerRollout mode is explicitly set, or if the API server does not
+	// support in-place resize (pods/resize subresource unavailable).
 	if isRolloutRequired(autoscalerInternal) || !u.isInPlaceResizeSupported() {
 		switch targetGVK.Kind {
 		case k8sutil.DeploymentKind:
@@ -181,6 +182,7 @@ func (u *verticalController) syncInternal(
 	// If this is a new recommendation, record the action (regardless of whether the patches
 	// below succeed) and reset the eviction counter for this cycle.
 	var toEvictOnPatchFailure []classifiedPod
+	var patchForbidden bool
 	if needsPatch := podsByResizeStatus[PodResizeStatusNeedsPatch]; len(needsPatch) > 0 {
 		lastAction := autoscalerInternal.VerticalLastAction()
 		if lastAction == nil || lastAction.Version != recommendationID {
@@ -198,6 +200,9 @@ func (u *verticalController) syncInternal(
 					// Pod is already gone; the pod watcher hasn't caught up yet. Skip eviction.
 					log.Debugf("pod %s/%s not found during resize patch, likely already evicted: %v", cp.pod.Namespace, cp.pod.Name, err)
 					continue
+				}
+				if k8serrors.IsForbidden(err) {
+					patchForbidden = true
 				}
 				log.Warnf("failed to patch pod %s/%s in place: %v", cp.pod.Namespace, cp.pod.Name, err)
 				toEvictOnPatchFailure = append(toEvictOnPatchFailure, cp)
@@ -218,10 +223,15 @@ func (u *verticalController) syncInternal(
 		}
 	}
 
-	// If any pod has been stuck in an unresolvable state for longer than RolloutFallbackDelay,
-	// escalate to a full rollout rather than continuing to attempt evictions.
-	if shouldFallbackToRollout(toEvict, podAutoscaler, now) {
-		log.Infof("In-place resize fallback: pods stuck too long, triggering rollout for autoscaler %s", autoscalerInternal.ID())
+	// If the resize patch was rejected as forbidden (e.g. RBAC missing for
+	// pods/resize), or any pod has been stuck in an unresolvable state for longer
+	// than RolloutFallbackDelay, escalate to a full rollout.
+	if shouldFallbackToRollout(toEvict, podAutoscaler, now, patchForbidden) {
+		if patchForbidden {
+			log.Infof("In-place resize fallback: pods/resize patch forbidden, triggering rollout for autoscaler %s", autoscalerInternal.ID())
+		} else {
+			log.Infof("In-place resize fallback: pods stuck too long, triggering rollout for autoscaler %s", autoscalerInternal.ID())
+		}
 		return u.triggerRollout(ctx, podAutoscaler, autoscalerInternal, target, targetGVK, recommendationID)
 	}
 
@@ -320,22 +330,6 @@ func (u *verticalController) patchInPlace(ctx context.Context, autoscalerInterna
 	}
 
 	return nil
-}
-
-// shouldEvictDeferred reports whether a pod in PodResizePending/Deferred state should be
-// evicted because it has waited longer than ResizePendingPeriod.
-func shouldEvictDeferred(podAutoscaler *datadoghq.DatadogPodAutoscaler, now time.Time) bool {
-	if podAutoscaler.Spec.ApplyPolicy == nil || podAutoscaler.Spec.ApplyPolicy.Update == nil {
-		return false
-	}
-	period := podAutoscaler.Spec.ApplyPolicy.Update.ResizePendingPeriod
-	if period <= 0 {
-		return false
-	}
-	if podAutoscaler.Status.Vertical == nil || podAutoscaler.Status.Vertical.LastAction == nil {
-		return false
-	}
-	return now.Sub(podAutoscaler.Status.Vertical.LastAction.Time.Time) > time.Duration(period)*time.Second
 }
 
 // triggerRollout patches the target workload's pod template to trigger a rollout.

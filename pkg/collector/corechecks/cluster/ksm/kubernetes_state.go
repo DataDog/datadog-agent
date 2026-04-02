@@ -290,11 +290,11 @@ func init() {
 }
 
 // Configure prepares the configuration of the KSM check instance
-func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
+func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string, provider string) error {
 	k.BuildID(integrationConfigDigest, config, initConfig)
 	k.agentConfig = pkgconfigsetup.Datadog()
 
-	err := k.CommonConfigure(senderManager, initConfig, config, source)
+	err := k.CommonConfigure(senderManager, initConfig, config, source, provider)
 	if err != nil {
 		return err
 	}
@@ -431,7 +431,6 @@ func (k *KSMCheck) buildStores() error {
 	builder.WithFamilyGeneratorFilter(allowDenyList)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	k.cancel = cancel
 	builder.WithContext(ctx)
 
 	resyncPeriod := k.instance.ResyncPeriod
@@ -469,10 +468,12 @@ func (k *KSMCheck) buildStores() error {
 	}
 
 	if err = builder.WithAllowLabels(allowedLabels); err != nil {
+		cancel()
 		return err
 	}
 
 	if err := builder.WithEnabledResources(cr.collectors); err != nil {
+		cancel()
 		return err
 	}
 
@@ -490,6 +491,13 @@ func (k *KSMCheck) buildStores() error {
 
 	// Start the collection process
 	k.allStores = builder.BuildStores()
+
+	// Cancel the old reflectors after the new store is created. Cancelling the
+	// old context ensures previous reflectors release their resources.
+	if k.cancel != nil {
+		k.cancel()
+	}
+	k.cancel = cancel
 
 	return nil
 }

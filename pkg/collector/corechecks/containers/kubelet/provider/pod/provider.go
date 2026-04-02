@@ -141,6 +141,7 @@ func (p *Provider) processWorkloadmetaPod(pod *workloadmeta.KubernetesPod, sende
 
 	p.generatePodTerminationMetric(sender, pod)
 	p.generatePodResizeMetric(sender, pod)
+	p.generatePodStartupMetrics(sender, pod)
 
 	runningAggregator.recordPod(p, pod)
 }

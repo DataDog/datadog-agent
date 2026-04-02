@@ -421,11 +421,7 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(struct den
         return DISCARDED;
     }
 
-    u32 ppid = 0;
-    struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &pid);
-    if (pid_entry != NULL) {
-        ppid = pid_entry->ppid;
-    }
+    u32 ppid = get_current_ppid();
 
     struct process_path_key_t key = {
         .ppid = ppid,
