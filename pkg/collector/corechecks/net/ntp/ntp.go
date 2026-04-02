@@ -226,7 +226,7 @@ func (c *NTPCheck) Run() error {
 				currentTime := time.Now()
 				intakeServerTime := currentTime.Add(time.Duration(intakeOffset * float64(time.Second)))
 				intakeTS := float64(intakeServerTime.UnixNano()) / 1e9
-				_ = sender.GaugeWithTimestamp("ntp.offset", intakeOffset, "", []string{"source:intake"}, intakeTS)
+				_ = sender.GaugeWithTimestamp("ntp.intake_offset", intakeOffset, "", nil, intakeTS)
 			}
 		}
 	}
@@ -248,7 +248,7 @@ func (c *NTPCheck) Run() error {
 		serviceCheckStatus = servicecheck.ServiceCheckOK
 	}
 
-	_ = sender.GaugeWithTimestamp("ntp.offset", clockOffset, "", []string{"source:ntp"}, ts)
+	_ = sender.GaugeWithTimestamp("ntp.offset", clockOffset, "", nil, ts)
 	ntpExpVar.Set(clockOffset)
 	tlmNtpOffset.Set(clockOffset)
 

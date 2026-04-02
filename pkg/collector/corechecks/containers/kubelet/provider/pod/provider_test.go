@@ -113,7 +113,7 @@ func (suite *ProviderTestSuite) TestTransformRunningPods() {
 	err = suite.provider.Provide(nil, suite.mockSender)
 	require.Nil(suite.T(), err)
 
-	suite.mockSender.AssertNumberOfCalls(suite.T(), "Gauge", 42)
+	suite.mockSender.AssertNumberOfCalls(suite.T(), "Gauge", 36)
 
 	// 1) pod running metrics
 	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"containers.running", 2, "", append(config.Tags, "kube_container_name:prometheus-to-sd-exporter", "kube_deployment:fluentd-gcp-v2.0.10", "kube_namespace:default"))

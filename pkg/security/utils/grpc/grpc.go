@@ -7,6 +7,7 @@
 package grpc
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -86,13 +87,13 @@ func (g *Server) Start() error {
 	var err error
 
 	if g.family == "vsock" {
-		port, parseErr := strconv.Atoi(g.address)
+		port, parseErr := strconv.ParseUint(g.address, 10, 16)
 		if parseErr != nil {
 			return parseErr
 		}
 
-		if port <= 0 {
-			return fmt.Errorf("invalid port '%s' for vsock", g.address)
+		if port == 0 {
+			return errors.New("invalid port '0' for vsock")
 		}
 
 		cid := uint32(vsock.Host)

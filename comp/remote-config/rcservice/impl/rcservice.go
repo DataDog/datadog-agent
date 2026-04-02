@@ -15,16 +15,14 @@ import (
 	cfgcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
+	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
 	rctelemetryreporter "github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/def"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
-
-	"go.uber.org/fx"
 )
 
 var (
@@ -37,17 +35,11 @@ func init() {
 	rcExpvars.Set("startupFailureReason", &rcStartupFailureReason)
 }
 
-// Module conditionally provides the remote config service.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newRemoteConfigServiceOptional),
-	)
-}
+// Dependencies defines the dependencies for the rcservice component.
+type Dependencies struct {
+	compdef.In
 
-type dependencies struct {
-	fx.In
-
-	Lc fx.Lifecycle
+	Lc compdef.Lifecycle
 
 	Params                *rcservice.Params `optional:"true"`
 	DdRcTelemetryReporter rctelemetryreporter.Component
@@ -56,24 +48,31 @@ type dependencies struct {
 	Logger                log.Component
 }
 
-// newRemoteConfigServiceOptional conditionally creates and configures a new remote config service, based on whether RC is enabled.
-func newRemoteConfigServiceOptional(deps dependencies) option.Option[rcservice.Component] {
+// Provides defines the output of the rcservice component.
+type Provides struct {
+	compdef.Out
+
+	Comp option.Option[rcservice.Component]
+}
+
+// NewRemoteConfigServiceOptional conditionally creates and configures a new remote config service, based on whether RC is enabled.
+func NewRemoteConfigServiceOptional(deps Dependencies) Provides {
 	none := option.None[rcservice.Component]()
 	if !configUtils.IsRemoteConfigEnabled(deps.Cfg) {
-		return none
+		return Provides{Comp: none}
 	}
 
 	configService, err := newRemoteConfigService(deps)
 	if err != nil {
 		deps.Logger.Errorf("remote config service not initialized or started: %s", err)
-		return none
+		return Provides{Comp: none}
 	}
 
-	return option.New[rcservice.Component](configService)
+	return Provides{Comp: option.New[rcservice.Component](configService)}
 }
 
-// newRemoteConfigServiceOptional creates and configures a new remote config service
-func newRemoteConfigService(deps dependencies) (rcservice.Component, error) {
+// newRemoteConfigService creates and configures a new remote config service
+func newRemoteConfigService(deps Dependencies) (rcservice.Component, error) {
 	apiKey := deps.Cfg.GetString("api_key")
 	if deps.Cfg.IsSet("remote_configuration.api_key") {
 		apiKey = deps.Cfg.GetString("remote_configuration.api_key")
@@ -124,12 +123,12 @@ func newRemoteConfigService(deps dependencies) (rcservice.Component, error) {
 	}
 	rcStartupFailureReason.Set("")
 
-	deps.Lc.Append(fx.Hook{OnStart: func(_ context.Context) error {
+	deps.Lc.Append(compdef.Hook{OnStart: func(_ context.Context) error {
 		configService.Start()
 		deps.Logger.Info("remote config service started")
 		return nil
 	}})
-	deps.Lc.Append(fx.Hook{OnStop: func(_ context.Context) error {
+	deps.Lc.Append(compdef.Hook{OnStop: func(_ context.Context) error {
 		err = configService.Stop()
 		if err != nil {
 			deps.Logger.Errorf("unable to stop remote config service: %s", err)

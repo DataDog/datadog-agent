@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "generic_store",
+    srcs = [
+        "doc.go",
+        "store.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/tagger/generic_store",
+    visibility = ["//visibility:public"],
+    deps = ["//comp/core/tagger/types"],
+)
+
+go_test(
+    name = "generic_store_test",
+    srcs = ["store_test.go"],
+    embed = [":generic_store"],
+    deps = [
+        "//comp/core/tagger/types",
+        "@com_github_stretchr_testify//assert",
+    ],
+)
