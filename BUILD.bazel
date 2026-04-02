@@ -1,7 +1,7 @@
 # Global build settings
 
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_file")
-load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
+load("@bazel_skylib//rules:common_settings.bzl", "bool_flag", "string_flag")
 load("@bazel_skylib//rules:run_binary.bzl", "run_binary")
 load("@gazelle//:def.bzl", "DEFAULT_LANGUAGES", "gazelle", "gazelle_binary")
 
@@ -76,7 +76,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/host-profiler/version
 # gazelle:exclude comp/languagedetection
 # gazelle:exclude comp/logonduration
-# gazelle:exclude comp/logs-library
 # gazelle:exclude comp/logs
 # gazelle:exclude comp/metadata
 # gazelle:exclude comp/ndmtmp
@@ -194,7 +193,10 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/core/tagger/telemetry
 # gazelle:exclude internal/remote-agent
 # gazelle:exclude internal/third_party
-# gazelle:exclude pkg/aggregator
+# gazelle:exclude pkg/aggregator/internal
+# gazelle:exclude pkg/aggregator/mocksender
+# gazelle:exclude pkg/aggregator/sender
+# gazelle:exclude pkg/aggregator/internal
 # gazelle:exclude pkg/api
 # gazelle:exclude pkg/cli
 # gazelle:exclude pkg/cloudfoundry
@@ -457,7 +459,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/util/kubernetes
 # gazelle:exclude pkg/util/kubernetes/apiserver/common/namespace
 # gazelle:exclude pkg/util/log/setup
-# gazelle:exclude pkg/util/log/zap
 # gazelle:exclude pkg/util/lsof
 # gazelle:exclude pkg/util/maps
 # gazelle:exclude pkg/util/net
@@ -640,4 +641,20 @@ string_flag(
     name = "output_config_dir",
     build_setting_default = "/tmp",
     make_variable = "OUTPUT_CONFIG_DIR",
+)
+
+# Use this configuration setting to select options that should be applied for
+# to a non-developer version of the product. It does not mean this is a delivery
+# pipeline. This is set for most CI runs, so that size and performance tests
+# are accurate.
+bool_flag(
+    name = "release",
+    build_setting_default = False,
+)
+
+config_setting(
+    name = "is_release",
+    flag_values = {
+        "//:release": "True",
+    },
 )

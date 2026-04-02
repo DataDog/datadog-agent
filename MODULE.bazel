@@ -10,6 +10,9 @@ env_vars(
     # Each variable needs a justification. Every time you use one, the
     # target using it is potentially uncachable.
     variables = [
+        # This gets set by omnibus builds in many cases. It's used in the script
+        # to set things like compression, so we'll mimic that for now.
+        "DEPLOY_AGENT",
         # For some tests we want to run with higher compression, but
         # not break caching and rebuild the binaries.
         "FORCED_PACKAGE_COMPRESSION_LEVEL",
@@ -44,15 +47,11 @@ archive_override(
     urls = ["https://github.com/aiuto/supply-chain/archive/refs/tags/dd_test.tar.gz"],
 )
 
-# This enables cross-compilation for macOS x86_64 on Apple Silicon.
-# Simply add --platforms=@apple_support//platforms:macos_x86_64
-# to the build command to enable it.
-bazel_dep(name = "apple_support", version = "2.3.0")
 bazel_dep(name = "bazel_lib", version = "3.2.2")
 bazel_dep(name = "bazel_skylib", version = "1.9.0")
 bazel_dep(name = "gawk", version = "5.3.2.bcr.3")
 bazel_dep(name = "gazelle", version = "0.48.0")
-bazel_dep(name = "gcc_toolchain", version = "0.9.0")
+bazel_dep(name = "gcc_toolchain", version = "0.9.2")
 bazel_dep(name = "libarchive", version = "3.8.1.bcr.2")
 bazel_dep(name = "platforms", version = "1.0.0")
 bazel_dep(name = "protobuf", version = "34.1")
@@ -186,13 +185,12 @@ use_repo(linux_headers_ext, "linux_headers")
 
 git_override(
     module_name = "gcc_toolchain",
-    commit = "93d5d8532523027d54e60d6e9d9a9d13b55ee5b7",
+    commit = "cd3e7ee1027a3ecc8b89dc61eb485299ed833399",
     patch_args = ["-p1"],
     patches = [
-        "//bazel/patches:gcc-toolchain/0001-Remove-fortran-related-actions-adapt-to-our-ctng-too.patch",
+        "//bazel/patches:gcc-toolchain/0001-adapt-to-our-ctng-toolchain.patch",
         "//bazel/patches:gcc-toolchain/0002-fix-c-x86_64-header-locations-with-our-ctng-toolchai.patch",
         "//bazel/patches:gcc-toolchain/0003-add-nostdinc-to-asmflags.patch",
-        "//bazel/patches:gcc-toolchain/0004-fix-re-fetching.patch",  # https://github.com/f0rmiga/gcc-toolchain/pull/207
         "//bazel/patches:gcc-toolchain/0005-fix-bazel-9-compat.patch",
     ],
     remote = "https://github.com/f0rmiga/gcc-toolchain.git",
@@ -202,12 +200,14 @@ gcc_toolchains = use_extension("@gcc_toolchain//toolchain:module_extensions.bzl"
 gcc_toolchains.toolchain(
     name = "gcc_toolchain_x86_64",
     binary_prefix = "x86_64-unknown-linux-gnu-",
+    enable_fortran = False,
     gcc_version = "11.4.0",
     target_arch = "x86_64",
 )
 gcc_toolchains.toolchain(
     name = "gcc_toolchain_aarch64",
     binary_prefix = "aarch64-unknown-linux-gnu-",
+    enable_fortran = False,
     gcc_version = "12.3.0",
     target_arch = "aarch64",
 )
@@ -336,5 +336,10 @@ include("//deps/msodbcsql18:msodbcsql18.MODULE.bazel")
 
 # buildifier: leave-alone
 include("//deps:go.MODULE.bazel")
+
+# This enables cross-compilation for macOS x86_64 on Apple Silicon.
+# Simply add --platforms=@apple_support//platforms:macos_x86_64
+# to the build command to enable it.
+bazel_dep(name = "apple_support", version = "2.3.0")
 
 use_extension("//bazel/tools:bazelisk_check.bzl", "bazelisk_check")
