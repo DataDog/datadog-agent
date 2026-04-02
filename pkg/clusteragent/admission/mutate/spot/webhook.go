@@ -104,6 +104,9 @@ func (w *Webhook) MatchConditions() []admissionregistrationv1.MatchCondition {
 // WebhookFunc returns the function that mutates the resources.
 func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 	return func(request *admission.Request) *admiv1.AdmissionResponse {
+		if request.DryRun != nil && *request.DryRun {
+			return &admiv1.AdmissionResponse{Allowed: true}
+		}
 		switch request.Operation {
 		case admissionregistrationv1.Create:
 			return w.podCreated(request)
