@@ -75,7 +75,6 @@ type MultiLineParser struct {
 	rawDataLen  int
 
 	// truncation tracking
-	shouldTruncate    bool
 	isBufferTruncated bool
 
 	// configuration attributes
@@ -130,39 +129,19 @@ func (p *MultiLineParser) process(input *message.Message, rawDataLen int) {
 	// track the raw data length and the timestamp so that the agent tails
 	// from the right place at restart
 	p.rawDataLen += rawDataLen
-
-	// capture and reset truncation continuation state
-	isTruncated := p.shouldTruncate
-	p.shouldTruncate = false
-
-	if isTruncated {
-		// the previous line has been truncated because it was too long,
-		// the new line is just a remainder,
-		// adding the truncated flag at the beginning of the content
-		p.buffer.Write(message.TruncatedFlag)
-		p.isBufferTruncated = true
-	}
-
 	p.buffer.Write(msg.GetContent())
 	p.bufferedMsg = msg
 
 	if p.buffer.Len() >= p.lineLimit {
-		// the multiline message is too long, it needs to be cut off and sent,
-		// adding the truncated flag at the end of the content
-		p.buffer.Write(message.TruncatedFlag)
+		// buffer exceeds size cap — mark as truncated and let SingleLineHandler
+		// handle the ...TRUNCATED... byte markers downstream
 		p.isBufferTruncated = true
-		p.shouldTruncate = true
 		metrics.LogsTruncated.Add(1)
 	}
 
 	if !msg.ParsingExtra.IsPartial || p.buffer.Len() >= p.lineLimit {
 		// the current chunk marks the end of an aggregated line
 		p.sendLine()
-		if !msg.ParsingExtra.IsPartial {
-			// complete frame — no continuation expected, so clear truncation state
-			// to avoid corrupting the next unrelated log line
-			p.shouldTruncate = false
-		}
 	}
 	if p.buffer.Len() > 0 {
 		// since there's buffered data, start the flush timer to flush it
