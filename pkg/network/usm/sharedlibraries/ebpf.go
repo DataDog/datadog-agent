@@ -216,7 +216,7 @@ func (e *EbpfProgram) setupManagerAndPerfHandlers() error {
 		managerMods = append(managerMods, perfHandler)
 	}
 
-	sleepableIDs := make([]manager.ProbeIdentificationPair, len(e.enabledProbes))
+	var sleepableIDs []manager.ProbeIdentificationPair
 	e.initializeProbes(&sleepableIDs)
 	for _, identifier := range e.enabledProbes {
 		probe := &manager.Probe{
