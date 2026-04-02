@@ -8,11 +8,11 @@ package containercheckimpl
 
 import (
 	"github.com/DataDog/datadog-go/v5/statsd"
-	compdef "github.com/DataDog/datadog-agent/comp/def"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	containercheck "github.com/DataDog/datadog-agent/comp/process/containercheck/def"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
@@ -33,7 +33,7 @@ type dependencies struct {
 	Statsd    statsd.ClientInterface
 }
 
-type result struct {
+type Provides struct {
 	compdef.Out
 
 	Check     types.ProvidesCheck
@@ -41,11 +41,11 @@ type result struct {
 }
 
 // NewCheck creates a new containercheck component.
-func NewCheck(deps dependencies) result {
+func NewCheck(deps dependencies) Provides {
 	c := &check{
 		containerCheck: checks.NewContainerCheck(deps.Config, deps.Sysconfig, deps.WMmeta, deps.Statsd),
 	}
-	return result{
+	return Provides{
 		Check: types.ProvidesCheck{
 			CheckComponent: c,
 		},
