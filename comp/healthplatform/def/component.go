@@ -17,17 +17,25 @@ import (
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 )
 
-// HealthCheckFunc is a function that checks for health issues
-// Returns an IssueReport if an issue is detected, nil if healthy
-// The function should be idempotent and safe to call repeatedly
-type HealthCheckFunc func() (*healthplatformpayload.IssueReport, error)
+// Type aliases so consumers can reference these types via this package without
+// importing agent-payload directly. The proto types remain the single source of
+// truth; there is no duplication or conversion overhead.
+type RemediationStep = healthplatformpayload.RemediationStep
+type Remediation = healthplatformpayload.Remediation
+type Issue = healthplatformpayload.Issue
+type IssueReport = healthplatformpayload.IssueReport
+
+// HealthCheckFunc is a function that checks for health issues.
+// Returns an IssueReport if an issue is detected, nil if healthy.
+// The function should be idempotent and safe to call repeatedly.
+type HealthCheckFunc func() (*IssueReport, error)
 
 // Component is the health platform component interface
 type Component interface {
 	// ReportIssue reports an issue with context, and the health platform fills in remediation
 	// This is the main way for integrations to report issues
 	// If report is nil, it clears any existing issue (issue resolution)
-	ReportIssue(checkID string, checkName string, report *healthplatformpayload.IssueReport) error
+	ReportIssue(checkID string, checkName string, report *IssueReport) error
 
 	// RegisterCheck registers a function to be called periodically to check for issues
 	// Use this when you need the health platform to run your check at regular intervals
@@ -40,11 +48,11 @@ type Component interface {
 
 	// GetAllIssues returns the count and all issues from all checks (indexed by check ID)
 	// Returns the total number of issues and a map of issues (nil for checks with no issues)
-	GetAllIssues() (int, map[string]*healthplatformpayload.Issue)
+	GetAllIssues() (int, map[string]*Issue)
 
 	// GetIssueForCheck returns the issue for a specific check
 	// Returns nil if no issue
-	GetIssueForCheck(checkID string) *healthplatformpayload.Issue
+	GetIssueForCheck(checkID string) *Issue
 
 	// =========================================================================
 	// Clear Methods

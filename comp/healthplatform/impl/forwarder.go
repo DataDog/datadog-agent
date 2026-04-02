@@ -42,7 +42,7 @@ const (
 	eventType = "agent-health-issues"
 )
 
-// issueProvider defines the interface for retrieving health issues
+// issueProvider defines the interface for retrieving health issues.
 type issueProvider interface {
 	GetAllIssues() (int, map[string]*healthplatform.Issue)
 }

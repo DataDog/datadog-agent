@@ -16,9 +16,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
-
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 )
 
 // mockReporter is a simple mock for testing check runner registration/validation
@@ -30,7 +29,7 @@ func newMockReporter() *mockReporter {
 	return &mockReporter{}
 }
 
-func (m *mockReporter) ReportIssue(_ string, _ string, _ *healthplatformpayload.IssueReport) error {
+func (m *mockReporter) ReportIssue(_ string, _ string, _ *healthplatform.IssueReport) error {
 	atomic.AddInt32(&m.reportCount, 1)
 	return nil
 }
@@ -41,7 +40,7 @@ func TestCheckRunnerRegisterCheck(t *testing.T) {
 	runner := newCheckRunner(logmock.New(t), reporter)
 
 	checkCalled := false
-	checkFn := func() (*healthplatformpayload.IssueReport, error) {
+	checkFn := func() (*healthplatform.IssueReport, error) {
 		checkCalled = true
 		return nil, nil
 	}
@@ -65,7 +64,7 @@ func TestCheckRunnerRegisterCheckValidation(t *testing.T) {
 	runner := newCheckRunner(logmock.New(t), reporter)
 
 	// Empty check ID
-	err := runner.RegisterCheck("", "Test Check", func() (*healthplatformpayload.IssueReport, error) { return nil, nil }, 0)
+	err := runner.RegisterCheck("", "Test Check", func() (*healthplatform.IssueReport, error) { return nil, nil }, 0)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "check ID cannot be empty")
 
@@ -75,7 +74,7 @@ func TestCheckRunnerRegisterCheckValidation(t *testing.T) {
 	assert.Contains(t, err.Error(), "check function cannot be nil")
 
 	// Duplicate registration
-	checkFn := func() (*healthplatformpayload.IssueReport, error) { return nil, nil }
+	checkFn := func() (*healthplatform.IssueReport, error) { return nil, nil }
 	err = runner.RegisterCheck("test-check", "Test Check", checkFn, 0)
 	require.NoError(t, err)
 
@@ -89,7 +88,7 @@ func TestCheckRunnerDefaultInterval(t *testing.T) {
 	reporter := newMockReporter()
 	runner := newCheckRunner(logmock.New(t), reporter)
 
-	checkFn := func() (*healthplatformpayload.IssueReport, error) { return nil, nil }
+	checkFn := func() (*healthplatform.IssueReport, error) { return nil, nil }
 
 	// Zero interval should use default
 	err := runner.RegisterCheck("test-check", "Test Check", checkFn, 0)
@@ -108,7 +107,7 @@ func TestCheckRunnerRunsChecks(t *testing.T) {
 	runner := newCheckRunner(logmock.New(t), reporter)
 
 	callCount := int32(0)
-	checkFn := func() (*healthplatformpayload.IssueReport, error) {
+	checkFn := func() (*healthplatform.IssueReport, error) {
 		atomic.AddInt32(&callCount, 1)
 		return nil, nil
 	}
@@ -132,7 +131,7 @@ func TestCheckRunnerStartStop(t *testing.T) {
 	reporter := newMockReporter()
 	runner := newCheckRunner(logmock.New(t), reporter)
 
-	checkFn := func() (*healthplatformpayload.IssueReport, error) {
+	checkFn := func() (*healthplatform.IssueReport, error) {
 		return nil, nil
 	}
 
@@ -168,7 +167,7 @@ func TestCheckRunnerWithComponent(t *testing.T) {
 	require.NotNil(t, comp.checkRunner)
 
 	callCount := int32(0)
-	checkFn := func() (*healthplatformpayload.IssueReport, error) {
+	checkFn := func() (*healthplatform.IssueReport, error) {
 		atomic.AddInt32(&callCount, 1)
 		return nil, nil
 	}
@@ -202,8 +201,8 @@ func TestCheckRunnerReportsIssues(t *testing.T) {
 
 	comp := provides.Comp.(*healthPlatformImpl)
 
-	checkFn := func() (*healthplatformpayload.IssueReport, error) {
-		return &healthplatformpayload.IssueReport{
+	checkFn := func() (*healthplatform.IssueReport, error) {
+		return &healthplatform.IssueReport{
 			IssueId: "check-execution-failure", // Use real issue ID from registry
 			Context: map[string]string{"checkName": "test-check", "error": "test error"},
 		}, nil
@@ -236,10 +235,10 @@ func TestCheckRunnerClearsIssueWhenNil(t *testing.T) {
 
 	// First return an issue, then nil
 	callCount := int32(0)
-	checkFn := func() (*healthplatformpayload.IssueReport, error) {
+	checkFn := func() (*healthplatform.IssueReport, error) {
 		count := atomic.AddInt32(&callCount, 1)
 		if count == 1 {
-			return &healthplatformpayload.IssueReport{
+			return &healthplatform.IssueReport{
 				IssueId: "check-execution-failure", // Use real issue ID from registry
 				Context: map[string]string{"checkName": "test-check", "error": "test error"},
 			}, nil

@@ -33,6 +33,7 @@ import (
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
@@ -76,16 +77,17 @@ type dependencies struct {
 
 	Demultiplexer aggregator.Demultiplexer
 
-	Log        log.Component
-	Config     configComponent.Component
-	Debug      serverdebug.Component
-	Replay     replay.Component
-	PidMap     pidmap.Component
-	Params     Params
-	WMeta      option.Option[workloadmeta.Component]
-	Telemetry  telemetry.Component
-	Hostname   hostnameinterface.Component
-	FilterList filterlist.Component
+	Log            log.Component
+	Config         configComponent.Component
+	Debug          serverdebug.Component
+	Replay         replay.Component
+	PidMap         pidmap.Component
+	Params         Params
+	WMeta          option.Option[workloadmeta.Component]
+	Telemetry      telemetry.Component
+	Hostname       hostnameinterface.Component
+	FilterList     filterlist.Component
+	HealthPlatform healthplatform.Component `optional:"true"`
 }
 
 type provides struct {
@@ -162,6 +164,11 @@ type server struct {
 	ServerlessMode bool
 	udpLocalAddr   string
 
+	// healthPlatform is used to report tag-limit issues. It is nil when the health platform is not configured.
+	healthPlatform healthplatform.Component
+	// maxTagsCount is the maximum number of tags allowed per metric (0 = no limit)
+	maxTagsCount int
+
 	// originTelemetry is true if we want to report telemetry per origin.
 	originTelemetry bool
 
@@ -200,7 +207,7 @@ func initTelemetry() {
 
 // TODO: (components) - merge with newServerCompat once NewServerlessServer is removed
 func newServer(deps dependencies) provides {
-	s := newServerCompat(deps.Config, deps.Log, deps.Hostname, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry, deps.FilterList)
+	s := newServerCompat(deps.Config, deps.Log, deps.Hostname, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry, deps.FilterList, deps.HealthPlatform)
 
 	dsdConfig := dsdconfig.NewConfig(s.config)
 	if dsdConfig.EnabledInternal() {
@@ -216,7 +223,7 @@ func newServer(deps dependencies) provides {
 	}
 }
 
-func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnameinterface.Component, capture replay.Component, debug serverdebug.Component, serverless bool, demux aggregator.Demultiplexer, wmeta option.Option[workloadmeta.Component], pidMap pidmap.Component, telemetrycomp telemetry.Component, filterList filterlist.Component) *server {
+func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnameinterface.Component, capture replay.Component, debug serverdebug.Component, serverless bool, demux aggregator.Demultiplexer, wmeta option.Option[workloadmeta.Component], pidMap pidmap.Component, telemetrycomp telemetry.Component, filterList filterlist.Component, hp healthplatform.Component) *server {
 	// This needs to be done after the configuration is loaded
 	once.Do(func() { initTelemetry() })
 	var stats *statutil.Stats
@@ -316,6 +323,8 @@ func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnam
 		wmeta:                   wmeta,
 		telemetry:               telemetrycomp,
 		filterList:              filterList,
+		healthPlatform:          hp,
+		maxTagsCount:            cfg.GetInt("dogstatsd_max_tags_count"),
 		tlmProcessed:            dogstatsdTelemetryCount,
 		tlmProcessedOk:          dogstatsdTelemetryCount.WithValues("metrics", "ok", ""),
 		tlmProcessedError:       dogstatsdTelemetryCount.WithValues("metrics", "error", ""),
@@ -837,6 +846,12 @@ func (s *server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 		// extends the first one and reuse it for the rest.
 		if idx == 0 {
 			metricSamples[idx].Tags = append(metricSamples[idx].Tags, s.extraTags...)
+
+			// Enforce the max tags limit if configured
+			if s.maxTagsCount > 0 && len(metricSamples[idx].Tags) > s.maxTagsCount {
+				s.reportTagLimitExceeded(metricSamples[idx].Name, len(metricSamples[idx].Tags))
+				metricSamples[idx].Tags = metricSamples[idx].Tags[:s.maxTagsCount]
+			}
 		} else {
 			metricSamples[idx].Tags = metricSamples[0].Tags
 		}
@@ -850,6 +865,25 @@ func (s *server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 		okCnt.Inc()
 	}
 	return metricSamples, nil
+}
+
+// reportTagLimitExceeded reports a tag-limit issue to the health platform if configured.
+func (s *server) reportTagLimitExceeded(metricName string, tagCount int) {
+	if s.healthPlatform == nil {
+		return
+	}
+	_ = s.healthPlatform.ReportIssue(
+		"dogstatsd-tag-limit-config",
+		"DogStatsD Tag Count Limit",
+		&healthplatform.IssueReport{
+			IssueId: "dogstatsd-tag-limit-drop",
+			Context: map[string]string{
+				"metricName": metricName,
+				"tagCount":   strconv.Itoa(tagCount),
+			},
+			Tags: []string{"dogstatsd", "tag-limit"},
+		},
+	)
 }
 
 func (s *server) parseEventMessage(parser *parser, message []byte, origin string, processID uint32) (*event.Event, error) {

@@ -34,6 +34,7 @@ import (
 	// Import issue modules to trigger their init() registration
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues/checkfailure"
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues/dockerpermissions"
+	_ "github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues/dogstatsd-tag-limit"
 )
 
 // Requires defines the dependencies for the health-platform component
@@ -337,7 +338,7 @@ func (h *healthPlatformImpl) stop(_ context.Context) error {
 // This is the preferred way for integrations to report issues as it keeps all issue knowledge
 // centralized in the health platform registry
 // If report is nil, it clears any existing issue (issue resolution)
-func (h *healthPlatformImpl) ReportIssue(checkID string, checkName string, report *healthplatform.IssueReport) error {
+func (h *healthPlatformImpl) ReportIssue(checkID string, checkName string, report *healthplatformdef.IssueReport) error {
 	if checkID == "" {
 		return errors.New("check ID cannot be empty")
 	}
@@ -393,13 +394,13 @@ func (h *healthPlatformImpl) RegisterCheck(checkID string, checkName string, che
 // ============================================================================
 
 // GetAllIssues returns the count and all issues from all checks (indexed by check ID)
-func (h *healthPlatformImpl) GetAllIssues() (int, map[string]*healthplatform.Issue) {
+func (h *healthPlatformImpl) GetAllIssues() (int, map[string]*healthplatformdef.Issue) {
 	h.issuesMux.RLock()
 	defer h.issuesMux.RUnlock()
 
 	// Create a copy to avoid external modifications and count issues
 	count := 0
-	result := make(map[string]*healthplatform.Issue)
+	result := make(map[string]*healthplatformdef.Issue)
 	for checkID, issue := range h.issues {
 		if issue != nil {
 			result[checkID] = proto.Clone(issue).(*healthplatform.Issue)
@@ -412,7 +413,7 @@ func (h *healthPlatformImpl) GetAllIssues() (int, map[string]*healthplatform.Iss
 }
 
 // GetIssueForCheck returns the issue for a specific check (nil if no issue)
-func (h *healthPlatformImpl) GetIssueForCheck(checkID string) *healthplatform.Issue {
+func (h *healthPlatformImpl) GetIssueForCheck(checkID string) *healthplatformdef.Issue {
 	h.issuesMux.RLock()
 	defer h.issuesMux.RUnlock()
 
@@ -690,8 +691,8 @@ func (h *healthPlatformImpl) getIssuesHandler(w http.ResponseWriter, _ *http.Req
 	count, issues := h.GetAllIssues()
 
 	response := struct {
-		Count  int                              `json:"count"`
-		Issues map[string]*healthplatform.Issue `json:"issues"`
+		Count  int                                 `json:"count"`
+		Issues map[string]*healthplatformdef.Issue `json:"issues"`
 	}{
 		Count:  count,
 		Issues: issues,
