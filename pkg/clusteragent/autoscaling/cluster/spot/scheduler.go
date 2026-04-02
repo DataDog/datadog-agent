@@ -68,7 +68,7 @@ func (s *scheduler) Start(ctx context.Context) {
 	log.Infof("Starting spot scheduler: %s", s.config)
 
 	// Run in separate goroutines to not not delay pod updates processing.
-	go s.configStore.run(ctx)
+	go s.configStore.start(ctx)
 	go s.fetcher.start(ctx)
 	go s.trackPodUpdates(ctx)
 	go s.checkOnDemandFallback(ctx)

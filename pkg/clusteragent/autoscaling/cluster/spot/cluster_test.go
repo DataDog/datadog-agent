@@ -161,7 +161,7 @@ func (c *fakeCluster) createPending(pod *corev1.Pod) {
 	c.pendingPods[pod.UID] = pod
 	c.mu.Unlock()
 
-	async(c.wlm.Set, corePodToWlmPod(pod))
+	async(c.wlm.Set, spot.CoreV1PodToWLM(pod))
 }
 
 // DeleteOwnerPods deletes all pods owned by the given ownerKind/namespace/ownerName.
@@ -293,7 +293,7 @@ func (c *fakeCluster) trySchedule(uid string) {
 	pod.Spec.NodeName = nodeName
 	pod.Status.Phase = corev1.PodRunning
 
-	async(c.wlm.Set, corePodToWlmPod(pod))
+	async(c.wlm.Set, spot.CoreV1PodToWLM(pod))
 }
 
 func (c *fakeCluster) CreateDeployment(namespace, name string, labels, annotations map[string]string, replicas int) *fakeDeployment {
@@ -479,26 +479,5 @@ func wlmPodToCorePod(pod *workloadmeta.KubernetesPod) *corev1.Pod {
 		Status: corev1.PodStatus{
 			Phase: corev1.PodPhase(pod.Phase),
 		},
-	}
-}
-
-func corePodToWlmPod(pod *corev1.Pod) *workloadmeta.KubernetesPod {
-	owners := make([]workloadmeta.KubernetesPodOwner, 0, len(pod.OwnerReferences))
-	for _, owner := range pod.OwnerReferences {
-		owners = append(owners, workloadmeta.KubernetesPodOwner{Kind: owner.Kind, Name: owner.Name})
-	}
-	return &workloadmeta.KubernetesPod{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindKubernetesPod,
-			ID:   string(pod.UID),
-		},
-		EntityMeta: workloadmeta.EntityMeta{
-			Namespace:   pod.Namespace,
-			Name:        pod.Name,
-			Annotations: maps.Clone(pod.Annotations),
-			Labels:      maps.Clone(pod.Labels),
-		},
-		Owners: owners,
-		Phase:  string(pod.Status.Phase),
 	}
 }

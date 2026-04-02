@@ -99,13 +99,20 @@ func (f workloadPatcherFunc) setDisabledUntil(ctx context.Context, owner workloa
 	return f(ctx, owner, until)
 }
 
+// CoreV1PodToWLM is an alias for coreV1PodToWLM, exposed for testing.
+var CoreV1PodToWLM = coreV1PodToWLM
+
 // wlmPodLister implements podLister using the in-process workloadmeta store.
 // Suitable for tests where pods live in WLM rather than a real k8s API server.
 type wlmPodLister struct {
 	wlm workloadmeta.Component
 }
 
-func (l *wlmPodLister) listPods(_ context.Context, namespace string, sel labels.Selector) ([]*workloadmeta.KubernetesPod, error) {
+func (l *wlmPodLister) listPods(_ context.Context, namespace string, selector string) ([]*workloadmeta.KubernetesPod, error) {
+	sel, err := labels.Parse(selector)
+	if err != nil {
+		return nil, err
+	}
 	var result []*workloadmeta.KubernetesPod
 	for _, pod := range l.wlm.ListKubernetesPods() {
 		if pod.Namespace == namespace && sel.Matches(labels.Set(pod.Labels)) {

@@ -26,8 +26,8 @@ import (
 
 // workloadConfigStore provides spot configuration for workloads.
 type workloadConfigStore interface {
-	// run starts the store's background update and blocks until ctx is cancelled.
-	run(ctx context.Context)
+	// start starts the store's background update and blocks until ctx is cancelled.
+	start(ctx context.Context)
 	// waitSynced blocks until the store has completed its initial sync.
 	waitSynced()
 	// getConfig returns the workloadSpotConfig for the workload if present.
@@ -102,7 +102,7 @@ func newKubeWorkloadConfigStore(dynamicClient dynamic.Interface, defaultConfig C
 	return s
 }
 
-func (s *kubeWorkloadConfigStore) run(ctx context.Context) {
+func (s *kubeWorkloadConfigStore) start(ctx context.Context) {
 	s.informerFactory.Start(ctx.Done())
 	if !cache.WaitForCacheSync(ctx.Done(), s.hasSynced...) {
 		log.Error("Failed to sync informer caches")

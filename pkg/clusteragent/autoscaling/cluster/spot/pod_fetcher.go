@@ -9,10 +9,13 @@ package spot
 
 import (
 	"context"
+	"maps"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	k8sclient "k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/util/workqueue"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -20,7 +23,70 @@ import (
 
 // podLister lists pods for a workload by namespace and label selector.
 type podLister interface {
-	listPods(ctx context.Context, namespace string, selector labels.Selector) ([]*workloadmeta.KubernetesPod, error)
+	listPods(ctx context.Context, namespace string, selector string) ([]*workloadmeta.KubernetesPod, error)
+}
+
+// podFetcher processes pod fetch requests.
+// It fetches the workload's existing pods by label selector and
+// feeds them into the tracker so it has accurate state.
+type podFetcher struct {
+	queue   workqueue.TypedRateLimitingInterface[fetchRequest]
+	lister  podLister
+	tracker *podTracker
+}
+
+// fetchRequest is an item in the podFetcher work queue.
+type fetchRequest struct {
+	workload workload
+	selector string
+}
+
+func newPodFetcher(lister podLister, tracker *podTracker) *podFetcher {
+	return &podFetcher{
+		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
+			workqueue.DefaultTypedItemBasedRateLimiter[fetchRequest](),
+			workqueue.TypedRateLimitingQueueConfig[fetchRequest]{Name: "spot-pod-fetcher"},
+		),
+		lister:  lister,
+		tracker: tracker,
+	}
+}
+
+// enqueue schedules a pod fetch request for workload.
+// Requests are deduplicated by the work queue.
+func (f *podFetcher) enqueue(workload workload, selector labels.Selector) {
+	f.queue.Add(fetchRequest{workload: workload, selector: selector.String()})
+}
+
+// start processes fetch requests until ctx is cancelled.
+func (f *podFetcher) start(ctx context.Context) {
+	stop := context.AfterFunc(ctx, f.queue.ShutDown)
+	defer stop()
+
+	for f.processNext(ctx) {
+	}
+}
+
+func (f *podFetcher) processNext(ctx context.Context) bool {
+	req, shutdown := f.queue.Get()
+	if shutdown {
+		return false
+	}
+	defer f.queue.Done(req)
+
+	pods, err := f.lister.listPods(ctx, req.workload.Namespace, req.selector)
+	if err != nil {
+		log.Errorf("spot pod fetcher: listing pods for %s: %v", req.workload, err)
+		f.queue.AddRateLimited(req)
+		return true
+	}
+
+	f.queue.Forget(req)
+	for _, pod := range pods {
+		f.tracker.addedOrUpdated(pod)
+	}
+	log.Debugf("spot pod fetcher: fetched %d pods for %s", len(pods), req.workload)
+	return true
 }
 
 // kubePodLister implements podLister using the Kubernetes API.
@@ -33,87 +99,36 @@ func newKubePodLister(client k8sclient.Interface) podLister {
 	return &kubePodLister{client: client}
 }
 
-func (l *kubePodLister) listPods(ctx context.Context, namespace string, sel labels.Selector) ([]*workloadmeta.KubernetesPod, error) {
-	list, err := l.client.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
-		LabelSelector: sel.String(),
-	})
+func (l *kubePodLister) listPods(ctx context.Context, namespace string, selector string) ([]*workloadmeta.KubernetesPod, error) {
+	list, err := l.client.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{LabelSelector: selector})
 	if err != nil {
 		return nil, err
 	}
 
 	result := make([]*workloadmeta.KubernetesPod, 0, len(list.Items))
 	for i := range list.Items {
-		pod := &list.Items[i]
-		owners := make([]workloadmeta.KubernetesPodOwner, 0, len(pod.OwnerReferences))
-		for _, ref := range pod.OwnerReferences {
-			owners = append(owners, workloadmeta.KubernetesPodOwner{Kind: ref.Kind, Name: ref.Name})
-		}
-		result = append(result, &workloadmeta.KubernetesPod{
-			EntityID: workloadmeta.EntityID{
-				Kind: workloadmeta.KindKubernetesPod,
-				ID:   string(pod.UID),
-			},
-			EntityMeta: workloadmeta.EntityMeta{
-				Name:      pod.Name,
-				Namespace: pod.Namespace,
-				Labels:    pod.Labels,
-			},
-			Owners: owners,
-			Phase:  string(pod.Status.Phase),
-		})
+		result = append(result, coreV1PodToWLM(&list.Items[i]))
 	}
 	return result, nil
 }
 
-// fetchRequest is an item in the podFetcher work queue.
-type fetchRequest struct {
-	w        workload
-	selector labels.Selector
-}
-
-// podFetcher enqueues and processes pod backfill requests for newly opted-in workloads.
-// When a workload is first added to the config store, it fetches the workload's existing
-// pods by label selector and feeds them into the tracker so the rebalancer has accurate state.
-type podFetcher struct {
-	queue   chan fetchRequest
-	lister  podLister
-	tracker *podTracker
-}
-
-func newPodFetcher(lister podLister, tracker *podTracker) *podFetcher {
-	return &podFetcher{
-		queue:   make(chan fetchRequest, 64),
-		lister:  lister,
-		tracker: tracker,
+func coreV1PodToWLM(pod *corev1.Pod) *workloadmeta.KubernetesPod {
+	owners := make([]workloadmeta.KubernetesPodOwner, 0, len(pod.OwnerReferences))
+	for _, ref := range pod.OwnerReferences {
+		owners = append(owners, workloadmeta.KubernetesPodOwner{Kind: ref.Kind, Name: ref.Name})
 	}
-}
-
-// enqueue schedules a pod backfill for w. Non-blocking: if the queue is full the
-// request is dropped (a subsequent config-store event will re-enqueue it).
-func (f *podFetcher) enqueue(w workload, selector labels.Selector) {
-	select {
-	case f.queue <- fetchRequest{w: w, selector: selector}:
-	default:
-		log.Warnf("spot pod fetcher queue full, dropping backfill for %s", w)
-	}
-}
-
-// start processes fetch requests until ctx is cancelled.
-func (f *podFetcher) start(ctx context.Context) {
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case req := <-f.queue:
-			pods, err := f.lister.listPods(ctx, req.w.Namespace, req.selector)
-			if err != nil {
-				log.Errorf("spot pod fetcher: listing pods for %s: %v", req.w, err)
-				continue
-			}
-			for _, pod := range pods {
-				f.tracker.addedOrUpdated(pod)
-			}
-			log.Debugf("spot pod fetcher: backfilled %d pods for %s", len(pods), req.w)
-		}
+	return &workloadmeta.KubernetesPod{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesPod,
+			ID:   string(pod.UID),
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Namespace:   pod.Namespace,
+			Name:        pod.Name,
+			Labels:      maps.Clone(pod.Labels),
+			Annotations: maps.Clone(pod.Annotations),
+		},
+		Owners: owners,
+		Phase:  string(pod.Status.Phase),
 	}
 }
