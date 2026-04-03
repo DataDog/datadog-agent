@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -29,18 +30,19 @@ type stubHandler struct {
 	onChangeCh chan FlagValue
 	noConfigCh chan struct{}
 	recoverCh  chan FlagValue
-	healthy    bool
+	healthy    atomic.Bool
 	onChangeFn func(FlagValue) error
 }
 
 func newStubHandler(flag FlagName) *stubHandler {
-	return &stubHandler{
+	h := &stubHandler{
 		name:       flag,
 		onChangeCh: make(chan FlagValue, 1),
 		noConfigCh: make(chan struct{}, 1),
 		recoverCh:  make(chan FlagValue, 1),
-		healthy:    true,
 	}
+	h.healthy.Store(true)
+	return h
 }
 
 func (h *stubHandler) FlagName() FlagName { return h.name }
@@ -53,7 +55,7 @@ func (h *stubHandler) OnChange(v FlagValue) error {
 }
 func (h *stubHandler) OnNoConfig()                      { h.noConfigCh <- struct{}{} }
 func (h *stubHandler) SafeRecover(_ error, v FlagValue) { h.recoverCh <- v }
-func (h *stubHandler) IsHealthy() bool                  { return h.healthy }
+func (h *stubHandler) IsHealthy() bool                  { return h.healthy.Load() }
 
 // sendUpdate is a test helper that sends a flag config update to the client.
 func sendUpdate(client *Client, flags ...Flag) {
@@ -237,7 +239,7 @@ func TestHealthMonitor_RecoveryProbeConfirmsHealthy(t *testing.T) {
 	defer client.Stop()
 
 	h := newStubHandler(testFlag1)
-	h.healthy = false // Start unhealthy to trigger SafeRecover
+	h.healthy.Store(false) // Start unhealthy to trigger SafeRecover
 	require.NoError(t, client.SubscribeWithHandler(h))
 
 	sendUpdate(client, Flag{
@@ -251,7 +253,7 @@ func TestHealthMonitor_RecoveryProbeConfirmsHealthy(t *testing.T) {
 	waitChan(t, h.recoverCh, 3*time.Second)
 
 	// Simulate recovery: component becomes healthy
-	h.healthy = true
+	h.healthy.Store(true)
 
 	// The recovery monitor should detect the healthy state.
 	time.Sleep(300 * time.Millisecond)
@@ -275,7 +277,7 @@ func TestHealthMonitor_RecoveryProbeStaysUnhealthy(t *testing.T) {
 	defer client.Stop()
 
 	h := newStubHandler(testFlag1)
-	h.healthy = false // Unhealthy throughout
+	h.healthy.Store(false) // Unhealthy throughout
 	require.NoError(t, client.SubscribeWithHandler(h))
 
 	sendUpdate(client, Flag{
