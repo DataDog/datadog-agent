@@ -1,31 +1,34 @@
-# Install setuptools into the embedded Python's site-packages.
-#
-# Mirrors the logic in omnibus/config/software/setuptools3.rb:
-#   python -m pip install .
-#
-# <Usage:
-#   bazel run --//:install_dir=/tmp/os @setuptools//:install
-#   ... except it does not work.
+# Python setuptools
 
-load("@bazel_lib//lib:run_binary.bzl", "run_binary")
-load("@cpython//:version.bzl", "PYTHON_VERSION")
+load("@@//compliance/rules:purl.bzl", "purl_for_generic")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
+load("@rules_license//rules:license.bzl", "license")
 load("@rules_shell//shell:sh_binary.bzl", "sh_binary")
+
+package(default_package_metadata = [":package_metadata"])
+
+VERSION = "75.1.0"
+
+package_metadata(
+    name = "package_metadata",
+    attributes = [
+        ":license",
+    ],
+    purl = purl_for_generic(
+        package = "systemd",
+        version = _VERSION,
+        download_url = "https://github.com/pypa/setuptools/archive/v{version}.tar.gz",
+    ),
+)
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:MIT"],
+    license_text = "LICENSE",
+    visibility = ["//visibility:public"],
+)
 
 sh_binary(
     name = "pip_install_sh",
     srcs = ["pip_install.sh"],
-)
-
-run_binary(
-    name = "install",
-    tool = ":pip_install_sh",
-    env = {
-        "INSTALL_DIR": "/opt/datadog-agent",
-    },
-    args = select({
-        "@platforms//os:windows": ["$(INSTALL_DIR)\\embedded3\\bin\\python.exe"],
-        "//conditions:default": ["/tmp/os/embedded/bin/python"],
-    }),
-    # it
-    out_dirs = ["$(INSTALL_DIR)/embedded/lib/python3.13/site-packages/setuptools"],
 )
