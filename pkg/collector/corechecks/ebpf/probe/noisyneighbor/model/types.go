@@ -11,6 +11,7 @@ type NoisyNeighborStats struct {
 	CgroupID        uint64
 	SumLatenciesNs  uint64
 	EventCount      uint64
-	PreemptionCount uint64
-	UniquePidCount  uint64 // kernel task_struct->pid (TID) count
+	ForeignPreemptionCount uint64
+	SelfPreemptionCount    uint64
+	UniquePidCount         uint64 // kernel task_struct->pid (TID) count
 }

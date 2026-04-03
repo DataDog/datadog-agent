@@ -104,11 +104,12 @@ func (p *Probe) GetAndFlush() []model.NoisyNeighborStats {
 	var cgroupsToDelete []uint64
 
 	for iter.Next(&cgroupID, &perCPUStats) {
-		var cgroupLatencies, cgroupEvents, cgroupPreemptions, pidCount uint64
+		var cgroupLatencies, cgroupEvents, cgroupForeignPreemptions, cgroupSelfPreemptions, pidCount uint64
 		for _, cpuStat := range perCPUStats {
 			cgroupLatencies += cpuStat.Sum_latencies_ns
 			cgroupEvents += cpuStat.Event_count
-			cgroupPreemptions += cpuStat.Preemption_count
+			cgroupForeignPreemptions += cpuStat.Foreign_preemption_count
+			cgroupSelfPreemptions += cpuStat.Self_preemption_count
 			// pid_count is a global cgroup value (not per-CPU), so take the max rather than summing
 			if cpuStat.Pid_count > pidCount {
 				pidCount = cpuStat.Pid_count
@@ -122,11 +123,12 @@ func (p *Probe) GetAndFlush() []model.NoisyNeighborStats {
 		}
 
 		stat := model.NoisyNeighborStats{
-			CgroupID:        cgroupID,
-			SumLatenciesNs:  cgroupLatencies,
-			EventCount:      cgroupEvents,
-			PreemptionCount: cgroupPreemptions,
-			UniquePidCount:  pidCount,
+			CgroupID:               cgroupID,
+			SumLatenciesNs:         cgroupLatencies,
+			EventCount:             cgroupEvents,
+			ForeignPreemptionCount: cgroupForeignPreemptions,
+			SelfPreemptionCount:    cgroupSelfPreemptions,
+			UniquePidCount:         pidCount,
 		}
 
 		nnstats = append(nnstats, stat)

@@ -129,11 +129,15 @@ func (n *NoisyNeighborCheck) submitPrimaryMetrics(sender sender.Sender, stat mod
 	psl := float64(stat.SumLatenciesNs) / float64(stat.UniquePidCount)
 	sender.Gauge("noisy_neighbor.process_scheduling_latency.per_process", psl, "", tags)
 
-	psp := float64(stat.PreemptionCount) / float64(stat.UniquePidCount)
-	sender.Gauge("noisy_neighbor.process_scheduler_preemptions.per_process", psp, "", tags)
+	foreignPsp := float64(stat.ForeignPreemptionCount) / float64(stat.UniquePidCount)
+	sender.Gauge("noisy_neighbor.process_scheduler_preemptions.foreign.per_process", foreignPsp, "", tags)
 
-	if stat.PreemptionCount > 0 {
-		latPerPreempt := float64(stat.SumLatenciesNs) / float64(stat.PreemptionCount)
+	selfPsp := float64(stat.SelfPreemptionCount) / float64(stat.UniquePidCount)
+	sender.Gauge("noisy_neighbor.process_scheduler_preemptions.self.per_process", selfPsp, "", tags)
+
+	totalPreemptions := stat.ForeignPreemptionCount + stat.SelfPreemptionCount
+	if totalPreemptions > 0 {
+		latPerPreempt := float64(stat.SumLatenciesNs) / float64(totalPreemptions)
 		sender.Gauge("noisy_neighbor.latency_per_preemption", latPerPreempt, "", tags)
 	}
 }
