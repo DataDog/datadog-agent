@@ -111,7 +111,7 @@ func DumpOpenshiftClusterState(ctx context.Context, name string) (ret string, er
 		ret = out.String()
 	}()
 
-	fmt.Fprintf(&out, "stack name: '%s'\n", name)
+	fmt.Fprintf(&out, "\nstack name: '%s'\n", name)
 
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -139,6 +139,7 @@ func DumpOpenshiftClusterState(ctx context.Context, name string) (ret string, er
 
 	var openshiftInstance *computepb.Instance
 	for instance := range instanceIterator {
+		fmt.Fprintf(&out, "\nInstance: %s\n", instance.GetName())
 		if strings.Contains(instance.GetName(), "openshiftvm") {
 			openshiftInstance = instance
 			break
