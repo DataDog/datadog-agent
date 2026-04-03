@@ -25,24 +25,18 @@ static __always_inline void fill_path_safe(lib_path_t *path, const char *path_ar
 static __always_inline long _bpf_copy_from_user(void *dst, u32 size, const void *user_ptr, bool allowed) {
 #if defined(COMPILE_RUNTIME) && LINUX_VERSION_CODE > KERNEL_VERSION(5, 10, 0)
     return bpf_copy_from_user_with_telemetry(dst, size, user_ptr);
-#elif defined(COMPILE_CORE)
+#else
     if (allowed)
         return bpf_copy_from_user_with_telemetry(dst, size, user_ptr);
     else
         return bpf_probe_read_user_with_telemetry(dst, size, user_ptr);
-#else
-    return bpf_probe_read_user_with_telemetry(dst, size, user_ptr);
-#endif
 }
 
 static __always_inline long fill_path(lib_path_t *path, const char *path_argument, bool sleepable) {
 #if defined(COMPILE_RUNTIME) && LINUX_VERSION_CODE > KERNEL_VERSION(5, 10, 0)
     return _bpf_copy_from_user(&path->buf, sizeof(path->buf), path_argument, true);
-#elif defined(COMPILE_CORE)
-    return _bpf_copy_from_user(&path->buf, sizeof(path->buf), path_argument, sleepable);
 #else
-    return bpf_probe_read_user_with_telemetry(&path->buf, sizeof(path->buf), path_argument);
-#endif
+    return _bpf_copy_from_user(&path->buf, sizeof(path->buf), path_argument, sleepable);
 }
 
 static __always_inline bool fill_lib_path(lib_path_t *path, const char *path_argument, bool sleepable) {
