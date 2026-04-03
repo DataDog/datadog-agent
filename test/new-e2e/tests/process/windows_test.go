@@ -60,6 +60,10 @@ func (s *windowsTestSuite) SetupSuite() {
 
 	// Start an antivirus scan to use as process for testing
 	s.Env().RemoteHost.MustExecute("Start-MpScan -ScanType FullScan -AsJob")
+	// Install chocolatey - https://chocolatey.org/install
+	// This may be due to choco rate limits - https://datadoghq.atlassian.net/browse/ADXT-950
+	stdout, err := s.Env().RemoteHost.Execute("Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iwr https://community.chocolatey.org/install.ps1 -UseBasicParsing | iex")
+	require.NoErrorf(s.T(), err, "Failed to install chocolatey: %s, err: %s", stdout, err)
 	// DiskSpd for IO tests: zip on E2E artifact host at processes/DiskSpd.zip (see diskspd.go).
 	require.NoError(s.T(), setupDiskSpd(s.Env().RemoteHost))
 }
