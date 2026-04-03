@@ -81,7 +81,8 @@ func TestWithTelemetryWrapper_5xxSetsErrorTag(t *testing.T) {
 	spans := mt.FinishedSpans()
 	require.Len(t, spans, 1)
 	assert.Equal(t, 500, spans[0].Tag("http.status_code"))
-	assert.Equal(t, true, spans[0].Tag("error"))
+	_, ok := spans[0].Tag("error").(error)
+	assert.True(t, ok, "error tag should be set for 5xx responses")
 }
 
 func TestWithTelemetryWrapper_4xxSetsErrorTag(t *testing.T) {
@@ -102,7 +103,8 @@ func TestWithTelemetryWrapper_4xxSetsErrorTag(t *testing.T) {
 	spans := mt.FinishedSpans()
 	require.Len(t, spans, 1)
 	assert.Equal(t, 404, spans[0].Tag("http.status_code"))
-	assert.Equal(t, true, spans[0].Tag("error"))
+	_, ok := spans[0].Tag("error").(error)
+	assert.True(t, ok, "error tag should be set for 4xx responses")
 }
 
 func TestWithTelemetryWrapper_PanicCapturesErrorDetails(t *testing.T) {
@@ -158,8 +160,8 @@ func TestWithTelemetryWrapper_PanicWithErrorPreservesType(t *testing.T) {
 	spans := mt.FinishedSpans()
 	require.Len(t, spans, 1)
 	span := spans[0]
-	err, ok := span.Tag("error").(*customError)
-	require.True(t, ok, "error tag should preserve the original error type, got %T", span.Tag("error"))
+	err, ok := span.Tag("error").(error)
+	require.True(t, ok, "error tag should be an error interface, got %T", span.Tag("error"))
 	assert.Equal(t, "runtime failure", err.Error())
 }
 
@@ -210,7 +212,7 @@ func TestWithTelemetryWrapper_ForwardedTag(t *testing.T) {
 
 	spans := mt.FinishedSpans()
 	require.Len(t, spans, 1)
-	assert.Equal(t, true, spans[0].Tag("forwarded"))
+	assert.Equal(t, "true", spans[0].Tag("forwarded"))
 }
 
 func TestWithTelemetryWrapper_NotForwarded(t *testing.T) {

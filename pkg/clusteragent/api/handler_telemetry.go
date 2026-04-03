@@ -52,8 +52,8 @@ func (t *TelemetryHandler) handle(w http.ResponseWriter, r *http.Request) {
 		tracer.Tag("http.url", r.URL.Path))
 	wrapper.setSpanTags = func(statusCode int) {
 		span.SetTag("http.status_code", statusCode)
-		if statusCode >= 400 {
-			span.SetTag("error", true)
+		if statusCode >= 400 && wrapper.capturedErr == nil {
+			wrapper.capturedErr = fmt.Errorf("HTTP %d", statusCode)
 		}
 	}
 	defer func() {
@@ -74,7 +74,7 @@ func (t *TelemetryHandler) handle(w http.ResponseWriter, r *http.Request) {
 			wrapper.setSpanTags(http.StatusOK)
 		}
 		if wrapper.forwarded {
-			span.SetTag("forwarded", true)
+			span.SetTag("forwarded", "true")
 		}
 		span.Finish(tracer.WithError(wrapper.capturedErr))
 	}()
