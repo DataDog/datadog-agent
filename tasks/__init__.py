@@ -31,13 +31,15 @@ from tasks import (
     emacs,
     epforwarder,
     fakeintake,
+    files_inventory,
     fips,
-    full_host_profiler,
     git,
     github_tasks,
     gitlab_helpers,
     go,
     go_deps,
+    gpu,
+    host_profiler,
     installer,
     invoke_unit_tests,
     issue,
@@ -221,6 +223,7 @@ ns.add_collection(github_tasks, "github")
 ns.add_collection(gitlab_helpers, "gitlab")
 ns.add_collection(issue)
 ns.add_collection(loader)
+ns.add_collection(gpu)
 ns.add_collection(package)
 ns.add_collection(pipeline)
 ns.add_collection(quality_gates)
@@ -230,7 +233,7 @@ ns.add_collection(notes)
 ns.add_collection(notify)
 ns.add_collection(oracle)
 ns.add_collection(otel_agent)
-ns.add_collection(full_host_profiler)
+ns.add_collection(host_profiler)
 ns.add_collection(selinux)
 ns.add_collection(setup)
 ns.add_collection(systray)
@@ -266,6 +269,7 @@ ns.add_collection(worktree)
 ns.add_collection(sbomgen)
 ns.add_collection(pkg_template)
 ns.add_collection(virustotal)
+ns.add_collection(files_inventory)
 
 # e2e-framework collections (from test/e2e-framework)
 ns.add_collection(e2e_aws.collection, "aws")

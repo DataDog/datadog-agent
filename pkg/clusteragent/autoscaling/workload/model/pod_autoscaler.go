@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
+	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -52,6 +53,12 @@ type PodAutoscalerInternal struct {
 	// name is the name of the PodAutoscaler
 	name string
 
+	// upstreamCR keeping track of the upstream DPA CR.
+	// For local-owner DPAs this is always the K8s object from the informer.
+	// For remote-owner DPAs it is initially a minimal shell populated from RC settings,
+	// and later replaced by the real K8s object once the CRD is reconciled.
+	upstreamCR *datadoghq.DatadogPodAutoscaler
+
 	// creationTimestamp is the time when the kubernetes object was created
 	// creationTimestamp is stored in .DatadogPodAutoscaler.CreationTimestamp
 	creationTimestamp time.Time
@@ -59,19 +66,28 @@ type PodAutoscalerInternal struct {
 	// generation is the received generation of the PodAutoscaler
 	generation int64
 
-	// keeping track of .Spec (configuration of the Autoscaling)
-	spec *datadoghq.DatadogPodAutoscalerSpec
-
 	// settingsTimestamp is the time when the settings were last updated
 	// Version is stored in .Spec.RemoteVersion
 	// (only if owner == remote)
 	settingsTimestamp time.Time
+
+	// profileName is set for profile-managed autoscalers
+	profileName string
+
+	// desiredProfileTemplateHash is the target template hash from the profile
+	desiredProfileTemplateHash string
+
+	// appliedProfileHash is the profile template hash last applied to the Kubernetes object
+	appliedProfileHash string
 
 	// scalingValues represents the active scaling values that should be used
 	scalingValues ScalingValues
 
 	// mainScalingValues represents the scaling values retrieved from the main recommender (product, optionally a custom endpoint)
 	mainScalingValues ScalingValues
+
+	// mainScalingValuesVersion is the remote config version of the last received main scaling values (0 if not set)
+	mainScalingValuesVersion uint64
 
 	// fallbackScalingValues represents the scaling values retrieved from the fallback
 	fallbackScalingValues ScalingValues
@@ -89,11 +105,27 @@ type PodAutoscalerInternal struct {
 	// horizontalLastActionError is the last error encountered on horizontal scaling
 	horizontalLastActionError error
 
+	// horizontalActionErrorCount is the number of horizontal actions that triggered an error
+	horizontalActionErrorCount uint
+
+	// horizontalActionSuccessCount is the number of successful horizontal actions
+	horizontalActionSuccessCount uint
+
 	// verticalLastAction is the last action taken by the Vertical Pod Autoscaler
 	verticalLastAction *datadoghqcommon.DatadogPodAutoscalerVerticalAction
 
 	// verticalLastActionError is the last error encountered on vertical scaling
 	verticalLastActionError error
+
+	// verticalActionErrorCount is the number of vertical actions that triggered an error
+	verticalActionErrorCount uint
+
+	// verticalActionSuccessCount is the number of successful vertical actions
+	verticalActionSuccessCount uint
+
+	// verticalLastLimitReason is the reason vertical scaling was limited by min/max constraints.
+	// When non-nil, it carries a ConditionError so that both Reason and Message are preserved.
+	verticalLastLimitReason error
 
 	// currentReplicas is the current number of PODs for the targetRef
 	currentReplicas *int32
@@ -101,11 +133,15 @@ type PodAutoscalerInternal struct {
 	// scaledReplicas is the current number of PODs for the targetRef matching the resources recommendations
 	scaledReplicas *int32
 
+	// evictedReplicas is the number of pods evicted as an in-place resize fallback during the
+	// current recommendation cycle. Resets when the recommendation ID changes.
+	evictedReplicas *int32
+
 	// error is the an error encountered by the controller not specific to a scaling action
 	error error
 
 	// deleted flags the PodAutoscaler as deleted (removal to be handled by the controller)
-	// (only if owner == remote)
+	// (only if owner == remote or profile-managed)
 	deleted bool
 
 	//
@@ -149,15 +185,63 @@ func NewPodAutoscalerFromSettings(ns, name string, podAutoscalerSpec *datadoghq.
 	return pda
 }
 
+// NewPodAutoscalerFromProfile creates a PodAutoscalerInternal for a profile-managed workload.
+func NewPodAutoscalerFromProfile(
+	ns, name, profileName string,
+	template *datadoghq.DatadogPodAutoscalerTemplate,
+	targetRef autoscalingv2.CrossVersionObjectReference,
+	templateHash string,
+) PodAutoscalerInternal {
+	pai := PodAutoscalerInternal{
+		namespace: ns,
+		name:      name,
+		upstreamCR: &datadoghq.DatadogPodAutoscaler{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: ns,
+				Name:      name,
+			},
+		},
+	}
+	pai.UpdateFromProfile(profileName, template, targetRef, templateHash)
+
+	return pai
+}
+
 //
 // Modifiers
 //
 
+// UpdateFromProfile updates the spec from a profile template while preserving scaling state.
+// The templateHash must be the hash of the profile template that produced this spec.
+func (p *PodAutoscalerInternal) UpdateFromProfile(
+	profileName string,
+	template *datadoghq.DatadogPodAutoscalerTemplate,
+	targetRef autoscalingv2.CrossVersionObjectReference,
+	templateHash string,
+) {
+	dpaSpec := BuildDPASpecFromProfile(template, targetRef)
+
+	p.profileName = profileName
+	p.desiredProfileTemplateHash = templateHash
+	p.upstreamCR.Spec = dpaSpec
+	// Reset the target GVK as it might have changed
+	// Resolving the target GVK is done in the controller sync to ensure proper sync and error handling
+	p.targetGVK = schema.GroupVersionKind{}
+	// Compute the horizontal events retention again in case .Spec.ApplyPolicy has changed
+	p.horizontalEventsRetention, p.horizontalRecommendationsRetention = getHorizontalRetentionValues(dpaSpec.ApplyPolicy)
+}
+
 // UpdateFromPodAutoscaler updates the PodAutoscalerInternal from a PodAutoscaler object inside K8S
 func (p *PodAutoscalerInternal) UpdateFromPodAutoscaler(podAutoscaler *datadoghq.DatadogPodAutoscaler) {
+	if v, ok := podAutoscaler.Labels[ProfileLabelKey]; ok {
+		p.profileName = v
+	}
+	if v, ok := podAutoscaler.Annotations[ProfileTemplateHashAnnotation]; ok {
+		p.appliedProfileHash = v
+	}
+	p.upstreamCR = podAutoscaler
 	p.creationTimestamp = podAutoscaler.CreationTimestamp.Time
 	p.generation = podAutoscaler.Generation
-	p.spec = podAutoscaler.Spec.DeepCopy()
 	// Reset the target GVK as it might have changed
 	// Resolving the target GVK is done in the controller sync to ensure proper sync and error handling
 	p.targetGVK = schema.GroupVersionKind{}
@@ -169,16 +253,25 @@ func (p *PodAutoscalerInternal) UpdateFromPodAutoscaler(podAutoscaler *datadoghq
 
 // UpdateFromSettings updates the PodAutoscalerInternal from a new settings
 func (p *PodAutoscalerInternal) UpdateFromSettings(podAutoscalerSpec *datadoghq.DatadogPodAutoscalerSpec, settingsTimestamp time.Time) {
-	if p.spec == nil || p.spec.RemoteVersion == nil || *p.spec.RemoteVersion != *podAutoscalerSpec.RemoteVersion {
+	currentSpec := p.Spec()
+	if currentSpec == nil || currentSpec.RemoteVersion == nil || *currentSpec.RemoteVersion != *podAutoscalerSpec.RemoteVersion {
 		// Reset the target GVK as it might have changed
 		// Resolving the target GVK is done in the controller sync to ensure proper sync and error handling
 		p.targetGVK = schema.GroupVersionKind{}
 		// Compute the horizontal events retention again in case .Spec.ApplyPolicy has changed
 		p.horizontalEventsRetention, p.horizontalRecommendationsRetention = getHorizontalRetentionValues(podAutoscalerSpec.ApplyPolicy)
 	}
-	// From settings, we don't need to deep copy as the object is not stored anywhere else
-	// We store spec all the time to avoid having duplicate memory in the retriever state and here
-	p.spec = podAutoscalerSpec
+	// For remote-owner DPAs the K8s CRD may not exist yet; create a minimal shell so that
+	// Spec() is always accessible without a separate spec field.
+	if p.upstreamCR == nil {
+		p.upstreamCR = &datadoghq.DatadogPodAutoscaler{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: p.namespace,
+				Name:      p.name,
+			},
+		}
+	}
+	p.upstreamCR.Spec = *podAutoscalerSpec
 	p.settingsTimestamp = settingsTimestamp
 }
 
@@ -217,8 +310,9 @@ func (p *PodAutoscalerInternal) SetActiveScalingValues(currentTime time.Time, ho
 }
 
 // UpdateFromMainValues updates the PodAutoscalerInternal from new main scaling values
-func (p *PodAutoscalerInternal) UpdateFromMainValues(mainScalingValues ScalingValues) {
+func (p *PodAutoscalerInternal) UpdateFromMainValues(mainScalingValues ScalingValues, version uint64) {
 	p.mainScalingValues = mainScalingValues
+	p.mainScalingValuesVersion = version
 }
 
 // UpdateFromLocalValues updates the PodAutoscalerInternal from new local scaling values
@@ -234,6 +328,7 @@ func (p *PodAutoscalerInternal) RemoveValues() {
 // RemoveMainValues clears main autoscaling values data from the PodAutoscalerInternal as we stopped autoscaling
 func (p *PodAutoscalerInternal) RemoveMainValues() {
 	p.mainScalingValues = ScalingValues{}
+	p.mainScalingValuesVersion = 0
 }
 
 // RemoveLocalValues clears local autoscaling values data from the PodAutoscalerInternal as we stopped autoscaling
@@ -286,11 +381,45 @@ func (p *PodAutoscalerInternal) ClearHorizontalState() {
 	p.horizontalLastActionError = nil
 }
 
+// SetConstrainedVerticalScaling replaces the vertical scaling values and the limit error
+func (p *PodAutoscalerInternal) SetConstrainedVerticalScaling(v *VerticalScalingValues, limitErr error) {
+	if v == nil {
+		p.verticalLastLimitReason = nil
+		return
+	}
+	p.scalingValues.Vertical = v
+	p.verticalLastLimitReason = limitErr
+}
+
 // ClearVerticalState clears vertical scaling status data when vertical scaling is disabled.
 func (p *PodAutoscalerInternal) ClearVerticalState() {
 	p.verticalLastAction = nil
 	p.verticalLastActionError = nil
+	p.verticalLastLimitReason = nil
 	p.scaledReplicas = nil
+	p.evictedReplicas = nil
+}
+
+// SetEvictedReplicas sets the evicted pod count for the current in-place resize cycle.
+func (p *PodAutoscalerInternal) SetEvictedReplicas(replicas int32) {
+	p.evictedReplicas = &replicas
+}
+
+// AddEvictedReplicas increments the evicted pod count for the current in-place resize cycle.
+func (p *PodAutoscalerInternal) AddEvictedReplicas(count int32) {
+	if count == 0 {
+		return
+	}
+	if p.evictedReplicas == nil {
+		p.evictedReplicas = &count
+		return
+	}
+	*p.evictedReplicas += count
+}
+
+// EvictedReplicas returns the evicted pod count for the current in-place resize cycle.
+func (p *PodAutoscalerInternal) EvictedReplicas() *int32 {
+	return p.evictedReplicas
 }
 
 // SetGeneration sets the generation of the PodAutoscaler
@@ -308,9 +437,19 @@ func (p *PodAutoscalerInternal) SetCurrentReplicas(replicas int32) {
 	p.currentReplicas = &replicas
 }
 
+// ClearCurrentReplicas clears the tracked replica count (e.g. when the target no longer exists).
+func (p *PodAutoscalerInternal) ClearCurrentReplicas() {
+	p.currentReplicas = nil
+}
+
 // SetError sets an error encountered by the controller not specific to a scaling action
 func (p *PodAutoscalerInternal) SetError(err error) {
 	p.error = err
+}
+
+// SetProfileName sets the profile name for a profile-managed autoscaler.
+func (p *PodAutoscalerInternal) SetProfileName(name string) {
+	p.profileName = name
 }
 
 // SetDeleted flags the PodAutoscaler as deleted
@@ -383,6 +522,8 @@ func (p *PodAutoscalerInternal) UpdateFromStatus(status *datadoghqcommon.Datadog
 			p.scalingValues.VerticalError = errorFromCondition(cond)
 		case cond.Type == datadoghqcommon.DatadogPodAutoscalerVerticalAbleToApply && cond.Status == corev1.ConditionFalse:
 			p.verticalLastActionError = errorFromCondition(cond)
+		case cond.Type == datadoghqcommon.DatadogPodAutoscalerVerticalScalingLimitedCondition && cond.Status == corev1.ConditionTrue:
+			p.verticalLastLimitReason = errorFromCondition(cond)
 		}
 	}
 }
@@ -406,6 +547,11 @@ func (p *PodAutoscalerInternal) Name() string {
 	return p.name
 }
 
+// UpstreamCR returns the upstream DatadogPodAutoscaler CR tracked by this internal object
+func (p *PodAutoscalerInternal) UpstreamCR() *datadoghq.DatadogPodAutoscaler {
+	return p.upstreamCR
+}
+
 // ID returns the functional identifier of the PodAutoscaler
 func (p *PodAutoscalerInternal) ID() string {
 	return p.namespace + "/" + p.name
@@ -416,37 +562,43 @@ func (p *PodAutoscalerInternal) Generation() int64 {
 	return p.generation
 }
 
-// Spec returns the spec of the PodAutoscaler
+// Spec returns the spec of the PodAutoscaler, sourced from the upstream CR.
+// Returns nil if no upstream CR has been set yet.
 func (p *PodAutoscalerInternal) Spec() *datadoghq.DatadogPodAutoscalerSpec {
-	return p.spec
+	if p.upstreamCR == nil {
+		return nil
+	}
+	return &p.upstreamCR.Spec
 }
 
 func (p *PodAutoscalerInternal) IsHorizontalScalingEnabled() bool {
-	if p.spec == nil || p.spec.ApplyPolicy == nil {
+	spec := p.Spec()
+	if spec == nil || spec.ApplyPolicy == nil {
 		return true
 	}
 
-	scaleUpDisabled := p.spec.ApplyPolicy.ScaleUp != nil &&
-		p.spec.ApplyPolicy.ScaleUp.Strategy != nil &&
-		*p.spec.ApplyPolicy.ScaleUp.Strategy == datadoghqcommon.DatadogPodAutoscalerDisabledStrategySelect
+	scaleUpDisabled := spec.ApplyPolicy.ScaleUp != nil &&
+		spec.ApplyPolicy.ScaleUp.Strategy != nil &&
+		*spec.ApplyPolicy.ScaleUp.Strategy == datadoghqcommon.DatadogPodAutoscalerDisabledStrategySelect
 
-	scaleDownDisabled := p.spec.ApplyPolicy.ScaleDown != nil &&
-		p.spec.ApplyPolicy.ScaleDown.Strategy != nil &&
-		*p.spec.ApplyPolicy.ScaleDown.Strategy == datadoghqcommon.DatadogPodAutoscalerDisabledStrategySelect
+	scaleDownDisabled := spec.ApplyPolicy.ScaleDown != nil &&
+		spec.ApplyPolicy.ScaleDown.Strategy != nil &&
+		*spec.ApplyPolicy.ScaleDown.Strategy == datadoghqcommon.DatadogPodAutoscalerDisabledStrategySelect
 
 	return !(scaleUpDisabled && scaleDownDisabled)
 }
 
 func (p *PodAutoscalerInternal) IsVerticalScalingEnabled() bool {
-	if p.spec == nil || p.spec.ApplyPolicy == nil {
+	spec := p.Spec()
+	if spec == nil || spec.ApplyPolicy == nil {
 		return true
 	}
 
-	if p.spec.ApplyPolicy.Update == nil {
+	if spec.ApplyPolicy.Update == nil {
 		return true
 	}
 
-	return p.spec.ApplyPolicy.Update.Strategy != datadoghqcommon.DatadogPodAutoscalerDisabledUpdateStrategy
+	return spec.ApplyPolicy.Update.Strategy != datadoghqcommon.DatadogPodAutoscalerDisabledUpdateStrategy
 }
 
 // SettingsTimestamp returns the timestamp of the last settings update
@@ -469,6 +621,11 @@ func (p *PodAutoscalerInternal) MainScalingValues() ScalingValues {
 	return p.mainScalingValues
 }
 
+// MainScalingValuesVersion returns the remote config version of the last received main scaling values (0 if not set)
+func (p *PodAutoscalerInternal) MainScalingValuesVersion() uint64 {
+	return p.mainScalingValuesVersion
+}
+
 // FallbackScalingValues returns the fallback scaling values of the PodAutoscaler
 func (p *PodAutoscalerInternal) FallbackScalingValues() ScalingValues {
 	return p.fallbackScalingValues
@@ -489,6 +646,26 @@ func (p *PodAutoscalerInternal) HorizontalLastActionError() error {
 	return p.horizontalLastActionError
 }
 
+// HorizontalActionErrorCount returns the number of horizontal actions that triggered an error
+func (p *PodAutoscalerInternal) HorizontalActionErrorCount() uint {
+	return p.horizontalActionErrorCount
+}
+
+// HorizontalActionErrorInc increment the number of horizontal actions that triggered an error
+func (p *PodAutoscalerInternal) HorizontalActionErrorInc() {
+	p.horizontalActionErrorCount++
+}
+
+// HorizontalActionSuccessCount returns the number of successful horizontal actions
+func (p *PodAutoscalerInternal) HorizontalActionSuccessCount() uint {
+	return p.horizontalActionSuccessCount
+}
+
+// HorizontalActionSuccessInc increment the number of horizontal actions that triggered a success
+func (p *PodAutoscalerInternal) HorizontalActionSuccessInc() {
+	p.horizontalActionSuccessCount++
+}
+
 // VerticalLastAction returns the last action taken by the Vertical Pod Autoscaler
 func (p *PodAutoscalerInternal) VerticalLastAction() *datadoghqcommon.DatadogPodAutoscalerVerticalAction {
 	return p.verticalLastAction
@@ -497,6 +674,26 @@ func (p *PodAutoscalerInternal) VerticalLastAction() *datadoghqcommon.DatadogPod
 // VerticalLastActionError returns the last error encountered on vertical scaling
 func (p *PodAutoscalerInternal) VerticalLastActionError() error {
 	return p.verticalLastActionError
+}
+
+// VerticalActionErrorCount returns the number of vertical actions that triggered an error
+func (p *PodAutoscalerInternal) VerticalActionErrorCount() uint {
+	return p.verticalActionErrorCount
+}
+
+// VerticalActionErrorInc increment the number of horizontal actions that triggered an error
+func (p *PodAutoscalerInternal) VerticalActionErrorInc() {
+	p.verticalActionErrorCount++
+}
+
+// VerticalActionSuccessCount returns the number of successful vertical actions
+func (p *PodAutoscalerInternal) VerticalActionSuccessCount() uint {
+	return p.verticalActionSuccessCount
+}
+
+// VerticalActionSuccessInc increment the number of vertical actions that triggered as success
+func (p *PodAutoscalerInternal) VerticalActionSuccessInc() {
+	p.verticalActionSuccessCount++
 }
 
 // CurrentReplicas returns the current number of PODs for the targetRef
@@ -514,6 +711,32 @@ func (p *PodAutoscalerInternal) Error() error {
 	return p.error
 }
 
+// ProfileName returns the profile name if this is a profile-managed autoscaler.
+func (p *PodAutoscalerInternal) ProfileName() string {
+	return p.profileName
+}
+
+// IsProfileManaged returns true if this autoscaler is managed by a profile.
+func (p *PodAutoscalerInternal) IsProfileManaged() bool {
+	return p.profileName != ""
+}
+
+// DesiredProfileTemplateHash returns the desired profile template hash set via UpdateFromProfile.
+func (p *PodAutoscalerInternal) DesiredProfileTemplateHash() string {
+	return p.desiredProfileTemplateHash
+}
+
+// AppliedProfileHash returns the hash last successfully applied to Kubernetes.
+func (p *PodAutoscalerInternal) AppliedProfileHash() string {
+	return p.appliedProfileHash
+}
+
+// MarkProfileTemplateApplied copies the current desired hash to the applied hash.
+// Must be called after a successful K8s create or update of a profile-managed DPA.
+func (p *PodAutoscalerInternal) MarkProfileTemplateApplied() {
+	p.appliedProfileHash = p.desiredProfileTemplateHash
+}
+
 // Deleted returns the deletion status of the PodAutoscaler
 func (p *PodAutoscalerInternal) Deleted() bool {
 	return p.deleted
@@ -525,15 +748,20 @@ func (p *PodAutoscalerInternal) TargetGVK() (schema.GroupVersionKind, error) {
 		return p.targetGVK, nil
 	}
 
-	gv, err := schema.ParseGroupVersion(p.spec.TargetRef.APIVersion)
+	spec := p.Spec()
+	if spec == nil {
+		return schema.GroupVersionKind{}, autoscaling.NewConditionError(autoscaling.ConditionReasonInvalidTargetRef, errors.New("spec is not set"))
+	}
+
+	gv, err := schema.ParseGroupVersion(spec.TargetRef.APIVersion)
 	if err != nil || gv.Group == "" || gv.Version == "" {
-		return schema.GroupVersionKind{}, autoscaling.NewConditionError(autoscaling.ConditionReasonInvalidTargetRef, fmt.Errorf("failed to parse API version '%s', err: %w", p.spec.TargetRef.APIVersion, err))
+		return schema.GroupVersionKind{}, autoscaling.NewConditionError(autoscaling.ConditionReasonInvalidTargetRef, fmt.Errorf("failed to parse API version '%s', err: %w", spec.TargetRef.APIVersion, err))
 	}
 
 	p.targetGVK = schema.GroupVersionKind{
 		Group:   gv.Group,
 		Version: gv.Version,
-		Kind:    p.spec.TargetRef.Kind,
+		Kind:    spec.TargetRef.Kind,
 	}
 	return p.targetGVK, nil
 }
@@ -593,6 +821,7 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 				Version:          p.scalingValues.Vertical.ResourcesHash,
 				DesiredResources: p.scalingValues.Vertical.ContainerResources,
 				Scaled:           p.scaledReplicas,
+				Evicted:          p.evictedReplicas,
 				PodCPURequest:    cpuReqSum,
 				PodMemoryRequest: memReqSum,
 			},
@@ -609,6 +838,7 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 		datadoghqcommon.DatadogPodAutoscalerHorizontalScalingLimitedCondition:  nil,
 		datadoghqcommon.DatadogPodAutoscalerVerticalAbleToRecommendCondition:   nil,
 		datadoghqcommon.DatadogPodAutoscalerVerticalAbleToApply:                nil,
+		datadoghqcommon.DatadogPodAutoscalerVerticalScalingLimitedCondition:    nil,
 	}
 
 	if currentStatus != nil {
@@ -656,6 +886,13 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 		status.Conditions = append(status.Conditions, newCondition(corev1.ConditionTrue, "", p.horizontalLastLimitReason, currentTime, datadoghqcommon.DatadogPodAutoscalerHorizontalScalingLimitedCondition, existingConditions))
 	} else {
 		status.Conditions = append(status.Conditions, newCondition(corev1.ConditionFalse, "", "", currentTime, datadoghqcommon.DatadogPodAutoscalerHorizontalScalingLimitedCondition, existingConditions))
+	}
+
+	// Vertical: handle scaling limited condition
+	if verticalEnabled && p.verticalLastLimitReason != nil {
+		status.Conditions = append(status.Conditions, newConditionFromError(true, currentTime, p.verticalLastLimitReason, datadoghqcommon.DatadogPodAutoscalerVerticalScalingLimitedCondition, existingConditions))
+	} else {
+		status.Conditions = append(status.Conditions, newCondition(corev1.ConditionFalse, "", "", currentTime, datadoghqcommon.DatadogPodAutoscalerVerticalScalingLimitedCondition, existingConditions))
 	}
 
 	// Building rollout errors
@@ -855,6 +1092,22 @@ func getLongestScalingRulesPeriod(rules []datadoghqcommon.DatadogPodAutoscalerSc
 	}
 
 	return longest
+}
+
+// BuildDPASpecFromProfile builds a DPA spec from a profile template and a target ref.
+func BuildDPASpecFromProfile(
+	template *datadoghq.DatadogPodAutoscalerTemplate,
+	targetRef autoscalingv2.CrossVersionObjectReference,
+) datadoghq.DatadogPodAutoscalerSpec {
+	return datadoghq.DatadogPodAutoscalerSpec{
+		TargetRef:   targetRef,
+		Owner:       datadoghqcommon.DatadogPodAutoscalerLocalOwner,
+		ApplyPolicy: template.ApplyPolicy,
+		Objectives:  template.Objectives,
+		Fallback:    template.Fallback,
+		Constraints: template.Constraints,
+		Options:     template.Options,
+	}
 }
 
 func parseCustomConfigurationAnnotation(annotations map[string]string) (*RecommenderConfiguration, error) {

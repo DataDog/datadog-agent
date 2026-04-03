@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
@@ -179,4 +180,45 @@ func TestFromEc2Prioritize(t *testing.T) {
 	hostname, err := fromEC2(context.Background(), "non-default-hostname")
 	assert.NoError(t, err)
 	assert.Equal(t, "someHostname", hostname)
+}
+
+func TestFromEc2ECSManagedInstancesDaemon(t *testing.T) {
+	// In daemon mode on ECS Managed Instances, fromOS and fromFQDN are blocked by the UTS namespace
+	// check, so currentHostname is empty and IsDefaultHostname never matches. The fix adds an explicit
+	// ECSManagedInstances (daemon) check so IMDS is still consulted.
+	defer func() { ec2GetInstanceID = ec2.GetInstanceID }()
+
+	t.Setenv("AWS_EXECUTION_ENV", "AWS_ECS_MANAGED_INSTANCES") // so IsECSSidecarMode reads config
+	env.SetFeatures(t, env.ECSManagedInstances)
+	cfg := configmock.New(t)
+	cfg.SetWithoutSource("ecs_deployment_mode", "daemon")
+
+	ec2GetInstanceID = func(context.Context) (string, error) { return "", errors.New("imds error") }
+	_, err := fromEC2(context.Background(), "")
+	assert.Error(t, err)
+
+	ec2GetInstanceID = func(context.Context) (string, error) { return "i-0abc123", nil }
+	hostname, err := fromEC2(context.Background(), "")
+	assert.NoError(t, err)
+	assert.Equal(t, "i-0abc123", hostname)
+}
+
+func TestFromEc2ECSManagedInstancesSidecarSkipsIMDS(t *testing.T) {
+	// In sidecar mode, fromFargate already stops the hostname chain; fromEC2 should not
+	// call IMDS even though ECSManagedInstances is set.
+	defer func() { ec2GetInstanceID = ec2.GetInstanceID }()
+
+	t.Setenv("AWS_EXECUTION_ENV", "AWS_ECS_MANAGED_INSTANCES") // so IsECSSidecarMode reads config
+	env.SetFeatures(t, env.ECSManagedInstances)
+	cfg := configmock.New(t)
+	cfg.SetWithoutSource("ecs_deployment_mode", "sidecar")
+
+	called := false
+	ec2GetInstanceID = func(context.Context) (string, error) {
+		called = true
+		return "i-0abc123", nil
+	}
+	_, err := fromEC2(context.Background(), "")
+	assert.Error(t, err)
+	assert.False(t, called, "IMDS should not be called in sidecar mode")
 }

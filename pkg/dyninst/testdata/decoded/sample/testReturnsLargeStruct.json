@@ -98,10 +98,12 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "testReturnsLargeStruct"
+    "message": "testReturnsLargeStruct",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

@@ -1,0 +1,16 @@
+issuer: https://gitlab.ddbuild.io
+
+subject_pattern: "project_path:DataDog/datadog-agent:.*"
+
+claim_pattern:
+  project_path: "DataDog/datadog-agent"
+  project_id: "4670"
+  ref_type: "branch"
+  ref: ".+"
+  ref_path: "refs/heads/.+"
+  ref_protected: "true"
+
+# This token is used by the skip-ci-check merge queue job to read PR title and
+# body via the GitHub API, ensuring [skip ci] tags are not propagated to main.
+permissions:
+  pull_requests: read

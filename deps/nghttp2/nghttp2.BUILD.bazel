@@ -1,6 +1,5 @@
-load("@@//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
-load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
@@ -119,8 +118,6 @@ so_symlink(
     name = "lib_files",
     src = ":nghttp2_shared",
     libname = "libnghttp2",
-    # Lands in embedded/lib. so_symlink FR, prefix should be able to override the automatic 'lib/'.
-    prefix = "embedded",
     version = SO_VERSION,
     attributes = pkg_attributes(mode = "0755"),
 )
@@ -128,7 +125,7 @@ so_symlink(
 pkg_files(
     name = "header_files",
     srcs = PUBLIC_HEADERS,
-    prefix = "embedded/include/nghttp2",
+    prefix = "include/nghttp2",
 )
 
 pkg_filegroup(
@@ -137,6 +134,7 @@ pkg_filegroup(
         ":header_files",
         ":lib_files",
     ],
+    prefix = "embedded",
     visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )
 
@@ -145,35 +143,5 @@ pkg_install(
     name = "install",
     srcs = [
         ":all_files",
-    ],
-)
-
-# The pc file is temporary until curl builds with bazel and we don't need it
-# any more.
-dd_agent_expand_template(
-    name = "pc_file",
-    template = "lib/libnghttp2.pc.in",
-    out = "libnghttp2.pc",
-    substitutions = {
-        "@prefix@": "{install_dir}/embedded",
-        "@exec_prefix@": "{install_dir}/embedded/bin",
-        "@libdir@": "{install_dir}/embedded/lib",
-        "@includedir@": "{install_dir}/embedded/include",
-        "@VERSION@": VERSION,
-    },
-)
-
-pkg_files(
-    name = "pc_files",
-    srcs = [":pc_file"],
-    prefix = "lib/pkgconfig",
-)
-
-# This should be installed with --destdir=/, so that the pc file
-# is always in /lib/pkgconfig so the rest of the build can find it
-pkg_install(
-    name = "install_pc",
-    srcs = [
-        ":pc_files",
     ],
 )

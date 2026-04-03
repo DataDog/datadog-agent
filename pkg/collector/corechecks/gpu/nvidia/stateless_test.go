@@ -17,6 +17,7 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -460,6 +461,14 @@ func TestProcessMemoryMetricValues(t *testing.T) {
 			expectMemory:     float64(legacyMemory),
 			expectCollectErr: true,
 		},
+		{
+			name:             "Hopper fallback on detail list insufficient size",
+			architecture:     nvml.DEVICE_ARCH_HOPPER,
+			detailListErr:    nvml.ERROR_INSUFFICIENT_SIZE,
+			expectPid:        legacyPid,
+			expectMemory:     float64(legacyMemory),
+			expectCollectErr: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -601,4 +610,63 @@ func TestProcessDetailListArchitectureSupport(t *testing.T) {
 			require.Equal(t, tt.supported, hasProcessDetailAPICall)
 		})
 	}
+}
+
+func TestDeviceUnhealthyMetricFeatureGate(t *testing.T) {
+	tests := []struct {
+		name          string
+		features      []env.Feature
+		expectMetrics bool
+		expectError   bool
+	}{
+		{
+			name:          "not emitted when kubernetes device plugins feature is absent",
+			features:      nil,
+			expectMetrics: false,
+			expectError:   true,
+		},
+		{
+			name:          "emitted when kubernetes device plugins feature is present",
+			features:      []env.Feature{env.KubernetesDevicePlugins},
+			expectMetrics: true,
+			expectError:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			env.SetFeatures(t, tt.features...)
+
+			device := setupMockDevice(t, nil)
+			wmeta := testutil.GetWorkloadMetaMockWithDefaultGPUs(t)
+			apis := createStatelessAPIs(&CollectorDependencies{Workloadmeta: wmeta})
+			deviceUnhealthyAPI := findAPICallByName(t, apis, "device_unhealthy_count")
+
+			gotMetrics, _, err := deviceUnhealthyAPI.Handler(device, 0)
+			if tt.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+
+			if tt.expectMetrics {
+				require.Len(t, gotMetrics, 1)
+				require.Equal(t, "device.unhealthy", gotMetrics[0].Name)
+			} else {
+				require.Empty(t, gotMetrics)
+			}
+		})
+	}
+}
+
+func findAPICallByName(t *testing.T, apis []apiCallInfo, name string) apiCallInfo {
+	t.Helper()
+	for _, api := range apis {
+		if api.Name == name {
+			return api
+		}
+	}
+
+	require.FailNowf(t, "api call not found", "expected API call %q to exist", name)
+	return apiCallInfo{}
 }

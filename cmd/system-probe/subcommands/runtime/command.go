@@ -31,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/security/clihelpers"
@@ -59,6 +58,7 @@ func commonPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	commonPolicyCmd.AddCommand(commonCheckPoliciesCommands(globalParams)...)
 	commonPolicyCmd.AddCommand(commonReloadPoliciesCommands(globalParams)...)
 	commonPolicyCmd.AddCommand(downloadPolicyCommands(globalParams)...)
+	commonPolicyCmd.AddCommand(dumpLoadedPoliciesCommands(globalParams)...)
 
 	return []*cobra.Command{commonPolicyCmd}
 }
@@ -88,7 +88,6 @@ func evalCommands(globalParams *command.GlobalParams) []*cobra.Command {
 					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "off", false)}),
 				core.Bundle(),
-				secretsnoopfx.Module(),
 			)
 		},
 	}
@@ -121,7 +120,6 @@ func commonCheckPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Co
 					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "off", false)}),
 				core.Bundle(),
-				secretsnoopfx.Module(),
 			)
 		},
 	}
@@ -145,7 +143,6 @@ func commonReloadPoliciesCommands(globalParams *command.GlobalParams) []*cobra.C
 					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
-				secretsnoopfx.Module(),
 			)
 		},
 	}
@@ -163,7 +160,6 @@ func selfTestCommands(globalParams *command.GlobalParams) []*cobra.Command {
 					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
-				secretsnoopfx.Module(),
 			)
 		},
 	}
@@ -194,7 +190,6 @@ func downloadPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command
 					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "off", false)}),
 				core.Bundle(),
-				secretsnoopfx.Module(),
 			)
 		},
 	}
@@ -204,6 +199,70 @@ func downloadPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command
 	downloadPolicyCmd.Flags().StringVar(&downloadPolicyArgs.source, "source", "all", `Specify whether should download the custom, default or all policies. allowed: "all", "default", "custom"`)
 
 	return []*cobra.Command{downloadPolicyCmd}
+}
+
+type dumpLoadedPoliciesCliParams struct {
+	*command.GlobalParams
+
+	outputPath     string
+	includeBundled bool
+}
+
+func dumpLoadedPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Command {
+	cliParams := &dumpLoadedPoliciesCliParams{
+		GlobalParams: globalParams,
+	}
+
+	dumpLoadedPoliciesCmd := &cobra.Command{
+		Use:   "dump",
+		Short: "Dump the currently loaded policies as JSON",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return fxutil.OneShot(dumpLoadedPolicies,
+				fx.Supply(cliParams),
+				fx.Supply(core.BundleParams{
+					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
+					LogParams:    log.ForOneShot(command.LoggerName, "off", false)}),
+				core.Bundle(),
+			)
+		},
+	}
+
+	dumpLoadedPoliciesCmd.Flags().StringVar(&cliParams.outputPath, "output", "", "Path to write JSON output (default: stdout)")
+	dumpLoadedPoliciesCmd.Flags().BoolVar(&cliParams.includeBundled, "include-bundled", false, "Include bundled policies in the output")
+
+	return []*cobra.Command{dumpLoadedPoliciesCmd}
+}
+
+func dumpLoadedPolicies(_ log.Component, _ config.Component, _ secrets.Component, cliParams *dumpLoadedPoliciesCliParams) error {
+	client, err := secagent.NewRuntimeSecurityCmdClient()
+	if err != nil {
+		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
+	}
+	defer client.Close()
+
+	response, err := client.GetLoadedPolicies(cliParams.includeBundled)
+	if err != nil {
+		return fmt.Errorf("unable to get loaded policies: %w", err)
+	}
+
+	if len(response.Error) > 0 {
+		return fmt.Errorf("get loaded policies request failed: %s", response.Error)
+	}
+
+	var writer io.Writer
+	if cliParams.outputPath == "" || cliParams.outputPath == "-" {
+		writer = os.Stdout
+	} else {
+		f, err := os.Create(cliParams.outputPath)
+		if err != nil {
+			return fmt.Errorf("unable to create output file: %w", err)
+		}
+		defer f.Close()
+		writer = f
+	}
+
+	_, err = fmt.Fprintln(writer, response.Policies)
+	return err
 }
 
 //nolint:unused // TODO(SEC) Fix unused linter
@@ -230,7 +289,6 @@ func processCacheCommands(globalParams *command.GlobalParams) []*cobra.Command {
 					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
-				secretsnoopfx.Module(),
 			)
 		},
 	}
@@ -269,7 +327,6 @@ func networkNamespaceCommands(globalParams *command.GlobalParams) []*cobra.Comma
 					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
-				secretsnoopfx.Module(),
 			)
 		},
 	}
@@ -296,7 +353,6 @@ func discardersCommands(globalParams *command.GlobalParams) []*cobra.Command {
 					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
-				secretsnoopfx.Module(),
 			)
 		},
 	}

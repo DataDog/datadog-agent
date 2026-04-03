@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Use atomic file replacement (write to temp file then rename) when writing
+    APM workload selection policy files, preventing concurrent readers from
+    seeing partially-written data.

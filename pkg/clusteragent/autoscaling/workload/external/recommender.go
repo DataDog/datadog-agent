@@ -22,8 +22,8 @@ import (
 )
 
 const (
-	pollingInterval              = 30 * time.Second
-	externalRecommenderID string = "extr"
+	pollingInterval                            = 30 * time.Second
+	externalRecommenderID autoscaling.SenderID = "extr"
 )
 
 // Recommender is the interface used to fetch external recommendations
@@ -108,12 +108,12 @@ func (r *Recommender) updateAutoscaler(key string, horizontalRecommendation *mod
 		recommendation.Horizontal = horizontalRecommendation
 	}
 
-	podAutoscalerInternal, found := r.store.LockRead(key, true)
+	podAutoscalerInternal, found, unlock := r.store.LockRead(key, true)
 	if !found { // In case the object is deleted in between when we start calculating
 		log.Debugf("Object %s not found in store; recommendation values not updated", key)
-		r.store.Unlock(key)
+		unlock()
 		return
 	}
-	podAutoscalerInternal.UpdateFromMainValues(recommendation)
+	podAutoscalerInternal.UpdateFromMainValues(recommendation, 0)
 	r.store.UnlockSet(podAutoscalerInternal.ID(), podAutoscalerInternal, externalRecommenderID)
 }

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build (linux && linux_bpf) || darwin
 
 package ebpfless
 
@@ -12,13 +12,12 @@ import (
 	"syscall"
 	"time"
 
-	"golang.org/x/sys/unix"
-
 	"github.com/google/gopacket/layers"
 	"github.com/hashicorp/golang-lru/v2/expirable"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -152,7 +151,7 @@ func (t *TCPProcessor) updateSynFlag(conn *network.ConnectionStats, st *connecti
 		st.connDirection = connDirectionFromPktType(pktType)
 	}
 	// progress the synStates based off this packet
-	if pktType == unix.PACKET_OUTGOING {
+	if pktType == filter.PacketOutgoing {
 		st.localSynState.update(tcp.SYN, tcp.ACK)
 	} else {
 		st.remoteSynState.update(tcp.SYN, tcp.ACK)
@@ -180,13 +179,24 @@ func (t *TCPProcessor) updateTCPStats(conn *network.ConnectionStats, st *connect
 	nextSeq := calcNextSeq(tcp, payloadLen)
 
 	st.lastUpdateEpoch = timestampNs
-	if pktType == unix.PACKET_OUTGOING {
+	if pktType == filter.PacketOutgoing {
 		conn.Monotonic.SentPackets++
 		// packetCanRetransmit filters out packets that look like retransmits but aren't, like TCP keepalives
 		packetCanRetransmit := nextSeq != tcp.Seq
 		if !st.hasSentPacket || isSeqBefore(st.maxSeqSent, nextSeq) {
+			// Count only genuinely new data bytes. If the segment partially
+			// overlaps with previously-counted data (a retransmit that extends
+			// beyond our high-water mark), subtract the overlap. We compute
+			// from payloadLen rather than nextSeq because nextSeq includes
+			// virtual bytes for SYN/FIN flags that aren't real data.
+			var overlap uint64
+			if st.hasSentPacket && isSeqBefore(tcp.Seq, st.maxSeqSent) {
+				overlap = uint64(st.maxSeqSent - tcp.Seq)
+			}
+			if uint64(payloadLen) > overlap {
+				conn.Monotonic.SentBytes += uint64(payloadLen) - overlap
+			}
 			st.hasSentPacket = true
-			conn.Monotonic.SentBytes += uint64(payloadLen)
 			st.maxSeqSent = nextSeq
 
 			st.rttTracker.processOutgoing(timestampNs, nextSeq)
@@ -233,7 +243,7 @@ func (t *TCPProcessor) updateFinFlag(conn *network.ConnectionStats, st *connecti
 	nextSeq := calcNextSeq(tcp, payloadLen)
 	// update FIN sequence numbers
 	if tcp.FIN {
-		if pktType == unix.PACKET_OUTGOING {
+		if pktType == filter.PacketOutgoing {
 			st.hasLocalFin = true
 			st.localFinSeq = nextSeq
 		} else {
@@ -281,7 +291,7 @@ func (t *TCPProcessor) updateRstFlag(conn *network.ConnectionStats, st *connecti
 // Process handles a TCP packet, calculating stats and keeping track of its state according to the
 // TCP state machine.
 func (t *TCPProcessor) Process(conn *network.ConnectionStats, timestampNs uint64, pktType uint8, ip4 *layers.IPv4, ip6 *layers.IPv6, tcp *layers.TCP) (ProcessResult, error) {
-	if pktType != unix.PACKET_OUTGOING && pktType != unix.PACKET_HOST {
+	if pktType != filter.PacketOutgoing && pktType != filter.PacketHost {
 		return ProcessResultNone, fmt.Errorf("TCPProcessor saw invalid pktType: %d", pktType)
 	}
 	payloadLen, err := TCPPayloadLen(conn.Family, ip4, ip6, tcp)
@@ -332,6 +342,12 @@ func (t *TCPProcessor) Process(conn *network.ConnectionStats, timestampNs uint64
 		if !ok {
 			return ProcessResultMapFull, nil
 		}
+	}
+
+	// if direction is still unknown after processing, don't persist this
+	// connection (it's preexisting and we can't determine direction)
+	if conn.Direction == network.UNKNOWN {
+		return ProcessResultNone, nil
 	}
 
 	// if the connection is still established, we should update the connection map

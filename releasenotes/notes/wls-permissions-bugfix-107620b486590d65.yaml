@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix a Windows file-permission issue that prevented workload selection
+    policy files from being updated after the initial write.

@@ -9,6 +9,7 @@
 package admission
 
 import (
+	"context"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
@@ -16,8 +17,8 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/secret"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/webhook"
+	admprobe "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/probe"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
-	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -37,7 +38,6 @@ type ControllerContext struct {
 	StopCh                       chan struct{}
 	ValidatingStopCh             chan struct{}
 	Demultiplexer                demultiplexer.Component
-	RcClient                     *rcclient.Client
 }
 
 // StartControllers starts the secret and webhook controllers
@@ -98,7 +98,6 @@ func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa wo
 		pa,
 		datadogConfig,
 		ctx.Demultiplexer,
-		ctx.RcClient,
 	)
 
 	go secretController.Run(ctx.StopCh)
@@ -125,6 +124,17 @@ func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa wo
 	}
 
 	webhooks = append(webhooks, webhookController.EnabledWebhooks()...)
+
+	if datadogConfig.GetBool("admission_controller.probe.enabled") {
+		admissionProbe := admprobe.New(ctx.Client, isLeaderFunc, namespace.GetResourcesNamespace(), datadogConfig)
+		setProbe(admissionProbe)
+		probeCtx, probeCancel := context.WithCancel(context.Background())
+		go func() {
+			<-ctx.StopCh
+			probeCancel()
+		}()
+		go admissionProbe.Run(probeCtx)
+	}
 
 	return webhooks, apiserver.SyncInformers(informers, 0)
 }

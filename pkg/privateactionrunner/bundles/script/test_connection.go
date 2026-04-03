@@ -3,13 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+//go:build !windows
+
 package com_datadoghq_script
 
 import (
 	"context"
 	"fmt"
-	"os/user"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
@@ -28,8 +28,6 @@ type TestConnectionInputs struct {
 
 type TestConnectionOutputs struct {
 	ConfigurationValid bool                     `json:"configurationValid"`
-	ScriptUserValid    bool                     `json:"scriptUserValid"`
-	ScriptUserInfo     string                   `json:"scriptUserInfo"`
 	AvailableScripts   map[string]ScriptDetails `json:"availableScripts"`
 	Errors             []string                 `json:"errors"`
 }
@@ -48,14 +46,6 @@ func (h *TestConnectionHandler) Run(
 	var errors []string
 	availableScripts := make(map[string]ScriptDetails)
 	configurationValid := true
-	scriptUserValid := true
-	scriptUserInfo := ""
-
-	scriptUserInfo, userErrors := h.validateScriptUser()
-	if len(userErrors) > 0 {
-		scriptUserValid = false
-		errors = append(errors, userErrors...)
-	}
 
 	scriptConfig, err := parseCredentials(credentials)
 	if err != nil {
@@ -63,8 +53,6 @@ func (h *TestConnectionHandler) Run(
 		errors = append(errors, fmt.Sprintf("Failed to parse script configuration: %v", err))
 		return &TestConnectionOutputs{
 			ConfigurationValid: configurationValid,
-			ScriptUserValid:    scriptUserValid,
-			ScriptUserInfo:     scriptUserInfo,
 			AvailableScripts:   availableScripts,
 			Errors:             errors,
 		}, nil
@@ -76,37 +64,7 @@ func (h *TestConnectionHandler) Run(
 
 	return &TestConnectionOutputs{
 		ConfigurationValid: configurationValid,
-		ScriptUserValid:    scriptUserValid,
-		ScriptUserInfo:     scriptUserInfo,
 		AvailableScripts:   availableScripts,
 		Errors:             errors,
 	}, nil
-}
-
-func (h *TestConnectionHandler) validateScriptUser() (string, []string) {
-	var errors []string
-	var info strings.Builder
-
-	scriptUserInfo, err := user.Lookup(ScriptUserName)
-	if err != nil {
-		errors = append(errors, fmt.Sprintf("Script user '%s' not found: %v", ScriptUserName, err))
-	} else {
-		info.WriteString(fmt.Sprintf("Script user '%s' found (UID: %s, GID: %s)\n",
-			scriptUserInfo.Username, scriptUserInfo.Uid, scriptUserInfo.Gid))
-	}
-
-	// Check if the current user can run command
-	cmd, err := NewPredefinedScriptCommand(context.Background(), []string{"echo", "test"}, nil)
-	if err != nil {
-		errors = append(errors, fmt.Sprintf("Failed to build test command: %v", err))
-		return info.String(), errors
-	}
-	_, err = cmd.CombinedOutput()
-	if err != nil {
-		errors = append(errors, fmt.Sprintf("Failed to check if the current user can use the script user: %v", err))
-	} else {
-		info.WriteString("Current user can use the script user.\n")
-	}
-
-	return info.String(), errors
 }

@@ -591,7 +591,7 @@ func TestResolveThenRefresh(t *testing.T) {
 
 	// refresh the secrets and only collect newly updated keys
 	keysResolved = []string{}
-	output, err := resolver.Refresh(true)
+	output, err := resolver.RefreshNow()
 	require.NoError(t, err)
 	assert.Equal(t, testConfNestedOriginMultiple, resolver.origin)
 	assert.Equal(t, []string{"some/second_level"}, keysResolved)
@@ -610,7 +610,7 @@ func TestResolveThenRefresh(t *testing.T) {
 
 	// refresh one last time and only those two handles have updated keys
 	keysResolved = []string{}
-	_, err = resolver.Refresh(true)
+	_, err = resolver.RefreshNow()
 	require.NoError(t, err)
 	slices.Sort(keysResolved)
 	assert.Equal(t, testConfNestedOriginMultiple, resolver.origin)
@@ -655,7 +655,7 @@ func TestRefreshAllowlist(t *testing.T) {
 	allowListPaths = []string{"api_key"}
 
 	// Refresh means nothing changes because allowlist doesn't allow it
-	_, err := resolver.Refresh(true)
+	_, err := resolver.RefreshNow()
 	require.NoError(t, err)
 	assert.Equal(t, changes, []string{})
 
@@ -663,7 +663,7 @@ func TestRefreshAllowlist(t *testing.T) {
 	allowListPaths = []string{"setting"}
 
 	// Refresh sees the change to the handle
-	_, err = resolver.Refresh(true)
+	_, err = resolver.RefreshNow()
 	require.NoError(t, err)
 	assert.Equal(t, changes, []string{"second_value"})
 }
@@ -712,7 +712,7 @@ func TestRefreshAllowlistFromContainer(t *testing.T) {
 	})
 
 	// Refresh means nothing changes because allowlist doesn't allow it
-	_, err := resolver.Refresh(true)
+	_, err := resolver.RefreshNow()
 	require.NoError(t, err)
 	slices.Sort(changes)
 	assert.Equal(t, changes, []string{
@@ -759,7 +759,7 @@ func TestRefreshAllowlistAppliesToEachSettingPath(t *testing.T) {
 	}
 
 	// only 1 setting path got updated
-	_, err = resolver.Refresh(true)
+	_, err = resolver.RefreshNow()
 	require.NoError(t, err)
 	assert.Equal(t, changedPaths, []string{"instances/0/password"})
 }
@@ -795,7 +795,7 @@ func TestRefreshAddsToAuditFile(t *testing.T) {
 	}
 
 	// Refresh the secrets, which will add to the audit file
-	_, err = resolver.Refresh(true)
+	_, err = resolver.RefreshNow()
 	require.NoError(t, err)
 	assert.Equal(t, auditFileNumRows(tmpfile.Name()), 1)
 
@@ -806,7 +806,7 @@ func TestRefreshAddsToAuditFile(t *testing.T) {
 	}
 
 	// Refresh secrets again, which will add another row the audit file
-	_, err = resolver.Refresh(true)
+	_, err = resolver.RefreshNow()
 	require.NoError(t, err)
 	assert.Equal(t, auditFileNumRows(tmpfile.Name()), 2)
 
@@ -832,9 +832,9 @@ func TestRefreshModes(t *testing.T) {
 		return map[string]string{"api_key": "test_value"}, nil
 	}
 
-	t.Run("updateNow=true refreshes synchronously", func(t *testing.T) {
+	t.Run("RefreshNow refreshes synchronously", func(t *testing.T) {
 		calls.Store(0)
-		result, err := resolver.Refresh(true)
+		result, err := resolver.RefreshNow()
 		require.NoError(t, err)
 		assert.NotEmpty(t, result)
 		assert.Equal(t, int32(1), calls.Load())
@@ -848,16 +848,16 @@ func TestRefreshModes(t *testing.T) {
 		calls.Store(0)
 
 		// 1 refresh passes, 2 get dropped
-		resolver.Refresh(false)
-		resolver.Refresh(false)
-		resolver.Refresh(false)
+		resolver.Refresh()
+		resolver.Refresh()
+		resolver.Refresh()
 		time.Sleep(50 * time.Millisecond)
 
 		assert.Equal(t, int32(1), calls.Load(), "only first refresh should process")
 
 		// after interval, next should succeed
 		time.Sleep(100 * time.Millisecond)
-		resolver.Refresh(false)
+		resolver.Refresh()
 		time.Sleep(50 * time.Millisecond)
 
 		assert.Equal(t, int32(2), calls.Load(), "refresh after interval should process")
@@ -867,12 +867,44 @@ func TestRefreshModes(t *testing.T) {
 		resolver.apiKeyFailureRefreshInterval = 0
 
 		calls.Store(0)
-		resolver.Refresh(false)
-		resolver.Refresh(false)
+		resolver.Refresh()
+		resolver.Refresh()
 		time.Sleep(50 * time.Millisecond)
 
 		assert.Equal(t, int32(0), calls.Load(), "no refreshes when disabled")
 	})
+}
+
+func TestIsValueFromSecret(t *testing.T) {
+	tel := nooptelemetry.GetCompatComponent()
+	resolver := newEnabledSecretResolver(tel)
+	resolver.backendCommand = "some_command"
+
+	// initially no values are from secrets
+	assert.False(t, resolver.IsValueFromSecret("password1"))
+
+	resolver.fetchHookFunc = func([]string) (map[string]string, error) {
+		return map[string]string{"pass1": "password1"}, nil
+	}
+	_, err := resolver.Resolve(testSimpleConf, "test", "", "", true)
+	require.NoError(t, err)
+
+	assert.True(t, resolver.IsValueFromSecret("password1"))
+	assert.False(t, resolver.IsValueFromSecret("some_other_value"))
+
+	// mock key rotation
+	resolver.fetchHookFunc = func([]string) (map[string]string, error) {
+		return map[string]string{"pass1": "password2"}, nil
+	}
+	_, err = resolver.RefreshNow()
+	require.NoError(t, err)
+
+	// the new value is recognized
+	assert.True(t, resolver.IsValueFromSecret("password2"))
+	// the OLD value is still recognized
+	assert.True(t, resolver.IsValueFromSecret("password1"))
+
+	assert.False(t, resolver.IsValueFromSecret("some_other_hardcoded_key"))
 }
 
 func TestStartRefreshRoutineWithScatter(t *testing.T) {
@@ -1318,7 +1350,7 @@ func TestRefreshOutput(t *testing.T) {
 
 	password = "password2"
 
-	res, err := resolver.Refresh(true)
+	res, err := resolver.RefreshNow()
 	require.NoError(t, err)
 	res = strings.ReplaceAll(res, "\r", "") // templates use OS line breaks, removes \r line breaks from windows
 	assert.Equal(t, "=== Secret stats ===\nNumber of secrets reloaded: 1\nSecrets handle reloaded:\n\n- 'pass1':\n\tused in 'origin1' configuration in entry 'secret_backend_arguments/0'\n", res)

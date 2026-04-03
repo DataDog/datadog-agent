@@ -86,7 +86,7 @@ func subservices(coreConf model.Reader, sysprobeConf model.Reader) []Servicedef 
 			configKeys: map[string]model.Reader{
 				"private_action_runner.enabled": coreConf,
 			},
-			serviceName:    "datadog-private-action-runner",
+			serviceName:    "datadog-agent-action",
 			serviceInit:    parInit,
 			shouldShutdown: true,
 		},

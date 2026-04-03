@@ -246,6 +246,10 @@ Package workloadmeta provides the workloadmeta component for the Datadog Agent
 
 
 
+### [comp/dogstatsd/http](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/dogstatsd/http)
+
+Package http defines dogstatsd http server component
+
 ### [comp/dogstatsd/pidmap](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap)
 
 Package pidmap implements a component for tracking pid and containerID relations
@@ -382,7 +386,7 @@ Package clusterchecks provides the clusterchecks metadata component
 
 ### [comp/metadata/haagent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/haagent)
 
-*Datadog Team*: ndm-core
+*Datadog Team*: network-device-monitoring-core
 
 Package haagent implements a component to generate the 'ha_agent_metadata' metadata payload for inventory.
 
@@ -438,7 +442,7 @@ Package systemprobe is the metadata provider for system-probe process
 
 ## [comp/ndmtmp](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/ndmtmp) (Component Bundle)
 
-*Datadog Team*: ndm-core
+*Datadog Team*: network-device-monitoring-core
 
 Package ndmtmp implements the "ndmtmp" bundle, which exposes the default
 sender.Sender and the event platform forwarder. This is a temporary module
@@ -468,7 +472,7 @@ It does not expose any public methods.
 
 ## [comp/networkpath](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkpath) (Component Bundle)
 
-*Datadog Team*: cloud-network-monitoring network-path
+*Datadog Team*: network-path
 
 Package networkpath implements the "networkpath" bundle,
 
@@ -506,6 +510,10 @@ Package ddflareextension defines the OpenTelemetry Extension component.
 ### [comp/otelcol/ddprofilingextension](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension)
 
 Package ddprofilingextension defines the otel agent ddprofilingextension component.
+
+### [comp/otelcol/dogtelextension](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/dogtelextension)
+
+Package dogtelextension provides Datadog agent functionalities for OTel collector
 
 ### [comp/otelcol/logsagentpipeline](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline)
 
@@ -612,7 +620,7 @@ Package rctelemetryreporter provides a component that sends RC-specific metrics 
 
 ## [comp/snmptraps](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/snmptraps) (Component Bundle)
 
-*Datadog Team*: ndm-core
+*Datadog Team*: network-device-monitoring-core
 
 Package snmptraps implements the a server that listens for SNMP trap data
 and sends it to the backend.
@@ -677,8 +685,7 @@ Package compression provides compression for trace payloads
 
 ### [comp/trace/config](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace/config)
 
-Package config implements a component to handle trace-agent configuration.  This
-component temporarily wraps pkg/trace/config.
+Package config implements a component to handle trace-agent configuration.
 
 ### [comp/trace/etwtracer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace/etwtracer)
 
@@ -747,6 +754,12 @@ Package datadogclient provides a client to query the datadog API
 
 Package connectivitychecker is responsible for running connectivity checks that will be sent to the backend via the inventory agent.
 
+### [comp/dataobs/queryactions](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/dataobs/queryactions)
+
+*Datadog Team*: data-observability
+
+Package queryactions provides the Data Observability query actions component
+
 ### [comp/etw](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/etw)
 
 *Datadog Team*: windows-products
@@ -770,7 +783,7 @@ Package fleetstatus implements the core status component information provider in
 
 ### [comp/haagent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/haagent)
 
-*Datadog Team*: ndm-core
+*Datadog Team*: network-device-monitoring-core
 
 Package haagent handles states for HA Agent feature.
 
@@ -788,6 +801,12 @@ and a list of issues.
 *Datadog Team*: container-platform
 
 Package client implements a component to send process metadata to the Cluster-Agent
+
+### [comp/logonduration](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logonduration)
+
+*Datadog Team*: windows-products
+
+Package logonduration provides a component that monitors the duration of a user logon after boot and forwards them to the Datadog Event Management v2 API.
 
 ### [comp/networkdeviceconfig](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkdeviceconfig)
 
@@ -833,13 +852,13 @@ Package metricscompression provides the component for metrics compression
 
 ### [comp/snmpscan](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/snmpscan)
 
-*Datadog Team*: ndm-core
+*Datadog Team*: network-device-monitoring-core
 
 Package snmpscan is a light component that can be used to perform a scan or a walk of a particular device
 
 ### [comp/snmpscanmanager](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/snmpscanmanager)
 
-*Datadog Team*: ndm-core
+*Datadog Team*: network-device-monitoring-core
 
 Package snmpscanmanager is a component that is used to manage SNMP device scans
 

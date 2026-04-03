@@ -119,12 +119,11 @@ func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 	maxUncompressedSize := b.config.GetInt("serializer_max_uncompressed_payload_size")
 
 	if b.shareAndLockBuffers {
-		defer b.mu.Unlock()
-
 		tlmCompressorLocks.Inc()
 		expvarsCompressorLocks.Add(1)
 		start := time.Now()
 		b.mu.Lock()
+		defer b.mu.Unlock()
 		elapsed := time.Since(start)
 		expvarsTotalLockTime.Add(int64(elapsed))
 		tlmTotalLockTime.Add(float64(elapsed))

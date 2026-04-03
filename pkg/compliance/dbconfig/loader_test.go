@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/types"
 	"github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDBConfLoader(t *testing.T) {
@@ -599,9 +600,7 @@ include_dir 'conf.d'
 	defer stop()
 
 	c, ok := LoadPostgreSQLConfig(context.Background(), hostroot, proc)
-	if !assert.True(t, ok) {
-		return
-	}
+	require.True(t, ok)
 
 	configData := c.ConfigData.(map[string]string)
 	assert.Equal(t, "100", configData["max_connections"])
@@ -665,9 +664,7 @@ work_mem = 16MB
 
 		c, ok := LoadPostgreSQLConfig(context.Background(), hostroot, proc)
 		assert.True(t, ok)
-		if !assert.NotNil(t, c) {
-			return
-		}
+		require.NotNil(t, c)
 
 		configData := c.ConfigData.(map[string]string)
 		assert.Equal(t, "200", configData["max_connections"])
@@ -698,9 +695,7 @@ include 'circular.conf'
 
 		c, ok := LoadPostgreSQLConfig(context.Background(), hostroot, proc)
 		assert.True(t, ok)
-		if !assert.NotNil(t, c) {
-			return
-		}
+		require.NotNil(t, c)
 		// Should not crash, circular protection should kick in
 		configData := c.ConfigData.(map[string]string)
 		assert.Equal(t, "100", configData["max_connections"])

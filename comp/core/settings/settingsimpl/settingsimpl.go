@@ -16,7 +16,7 @@ import (
 	json "github.com/json-iterator/go"
 	"github.com/mohae/deepcopy"
 	"go.uber.org/fx"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"

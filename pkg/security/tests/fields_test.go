@@ -32,6 +32,14 @@ func TestFieldsResolver(t *testing.T) {
 			ID:         "test_fields_extension",
 			Expression: `open.file.extension == ".txt" && open.flags & O_CREAT != 0`,
 		},
+		{
+			ID:         "test_fields_extension_no_dot",
+			Expression: `open.file.extension == "csv" && open.flags & O_CREAT != 0`,
+		},
+		{
+			ID:         "test_fields_extension_in",
+			Expression: `open.file.extension in [".mp3", "mp4"] && open.flags & O_CREAT != 0`,
+		},
 	}
 
 	test, err := newTestModule(t, nil, ruleDefs)
@@ -76,5 +84,23 @@ func TestFieldsResolver(t *testing.T) {
 		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_fields_extension")
 		}, "test_fields_extension")
+	})
+
+	t.Run("extension-no-dot", func(t *testing.T) {
+		test.WaitSignalFromRule(t, func() error {
+			_, _, err = test.Create("test-fields.csv")
+			return err
+		}, func(_ *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_fields_extension_no_dot")
+		}, "test_fields_extension_no_dot")
+	})
+
+	t.Run("extension-in", func(t *testing.T) {
+		test.WaitSignalFromRule(t, func() error {
+			_, _, err = test.Create("test-fields.mp3")
+			return err
+		}, func(_ *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_fields_extension_in")
+		}, "test_fields_extension_in")
 	})
 }

@@ -130,9 +130,10 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 		// Default Compression for TCP is none
 		compressionKind := "none"
 
-		metrics.TlmBytesSent.Add(float64(payload.UnencodedSize), sourceTag)
+		// Use GetAgentIdentityTag() to identify which agent is sending logs
+		metrics.TlmBytesSent.Add(float64(payload.UnencodedSize), metrics.GetAgentIdentityTag(), sourceTag)
 		metrics.EncodedBytesSent.Add(int64(len(payload.Encoded)))
-		metrics.TlmEncodedBytesSent.Add(float64(len(payload.Encoded)), sourceTag, compressionKind)
+		metrics.TlmEncodedBytesSent.Add(float64(len(payload.Encoded)), metrics.GetAgentIdentityTag(), sourceTag, compressionKind)
 		output <- payload
 
 		if d.connManager.ShouldReset(d.connCreationTime) {

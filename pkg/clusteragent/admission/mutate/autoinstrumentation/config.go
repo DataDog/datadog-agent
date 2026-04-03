@@ -16,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/version"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
@@ -26,6 +27,13 @@ import (
 // Config is a struct to store the configuration for the autoinstrumentation logic. It can be populated using the
 // datadog config through NewConfig.
 type Config struct {
+	staticConfig
+	runtimeConfig
+}
+
+// staticConfig contains configuration derived exclusively from the Datadog Agent config.
+// It should not require any Kubernetes API calls to construct.
+type staticConfig struct {
 	// Webhook is the configuration for the autoinstrumentation webhook
 	Webhook *WebhookConfig
 
@@ -77,6 +85,15 @@ type Config struct {
 	podMetaAsTags podMetaAsTags
 }
 
+// runtimeConfig contains information derived from the runtime environment (e.g. cluster capabilities).
+// It's populated by outer wiring layers (webhook/controller constructors), not from static config.
+type runtimeConfig struct {
+	// kubeServerVersion is the Kubernetes API server version.
+	// It's populated by the webhook constructor (not from static config) and can be used
+	// to gate features that require a minimum Kubernetes version.
+	kubeServerVersion *version.Info
+}
+
 var excludedContainerNames = map[string]bool{
 	"istio-proxy": true, // https://datadoghq.atlassian.net/browse/INPLAT-454
 }
@@ -112,18 +129,20 @@ func NewConfig(datadogConfig config.Component) (*Config, error) {
 	mutateUnlabelled := datadogConfig.GetBool("admission_controller.mutate_unlabelled")
 
 	return &Config{
-		Webhook:                       NewWebhookConfig(datadogConfig),
-		LanguageDetection:             NewLanguageDetectionConfig(datadogConfig),
-		Instrumentation:               instrumentationConfig,
-		containerRegistry:             containerRegistry,
-		mutateUnlabelled:              mutateUnlabelled,
-		initResources:                 initResources,
-		initSecurityContext:           initSecurityContext,
-		defaultResourceRequirements:   defaultResourceRequirements,
-		securityClientLibraryMutator:  securityClientLibraryConfigMutators(datadogConfig),
-		profilingClientLibraryMutator: profilingClientLibraryConfigMutators(datadogConfig),
-		containerFilter:               excludedContainerNamesContainerFilter,
-		podMetaAsTags:                 getPodMetaAsTags(datadogConfig),
+		staticConfig: staticConfig{
+			Webhook:                       NewWebhookConfig(datadogConfig),
+			LanguageDetection:             NewLanguageDetectionConfig(datadogConfig),
+			Instrumentation:               instrumentationConfig,
+			containerRegistry:             containerRegistry,
+			mutateUnlabelled:              mutateUnlabelled,
+			initResources:                 initResources,
+			initSecurityContext:           initSecurityContext,
+			defaultResourceRequirements:   defaultResourceRequirements,
+			securityClientLibraryMutator:  securityClientLibraryConfigMutators(datadogConfig),
+			profilingClientLibraryMutator: profilingClientLibraryConfigMutators(datadogConfig),
+			containerFilter:               excludedContainerNamesContainerFilter,
+			podMetaAsTags:                 getPodMetaAsTags(datadogConfig),
+		},
 	}, nil
 }
 
@@ -337,10 +356,10 @@ func (c *TracerConfig) AsEnvVar() corev1.EnvVar {
 
 type initResourceRequirementConfiguration map[corev1.ResourceName]resource.Quantity
 
-// getOptionalBoolValue returns a pointer to a bool corresponding to the config value if the key is set in the config
+// getOptionalBoolValue returns a pointer to a bool corresponding to the config value if the key is configured
 func getOptionalBoolValue(datadogConfig config.Component, key string) *bool {
 	var value *bool
-	if datadogConfig.IsSet(key) {
+	if datadogConfig.IsConfigured(key) {
 		tmp := datadogConfig.GetBool(key)
 		value = &tmp
 	}
@@ -348,10 +367,10 @@ func getOptionalBoolValue(datadogConfig config.Component, key string) *bool {
 	return value
 }
 
-// getOptionalBoolValue returns a pointer to a bool corresponding to the config value if the key is set in the config
+// getOptionalStringValue returns a pointer to a string corresponding to the config value if the key is configured
 func getOptionalStringValue(datadogConfig config.Component, key string) *string {
 	var value *string
-	if datadogConfig.IsSet(key) {
+	if datadogConfig.IsConfigured(key) {
 		tmp := datadogConfig.GetString(key)
 		value = &tmp
 	}
@@ -398,32 +417,28 @@ func getPinnedLibraries(libVersions map[string]string, registry string, checkDef
 func initDefaultResources(datadogConfig config.Component) (initResourceRequirementConfiguration, error) {
 	conf := initResourceRequirementConfiguration{}
 
-	if datadogConfig.IsSet("admission_controller.auto_instrumentation.init_resources.cpu") {
+	if datadogConfig.IsConfigured("admission_controller.auto_instrumentation.init_resources.cpu") {
 		quantity, err := resource.ParseQuantity(datadogConfig.GetString("admission_controller.auto_instrumentation.init_resources.cpu"))
 		if err != nil {
 			return conf, err
 		}
 		conf[corev1.ResourceCPU] = quantity
-	} /* else {
-		conf[corev1.ResourceCPU] = *resource.NewMilliQuantity(minimumCPULimit, resource.DecimalSI)
-	}*/
+	}
 
-	if datadogConfig.IsSet("admission_controller.auto_instrumentation.init_resources.memory") {
+	if datadogConfig.IsConfigured("admission_controller.auto_instrumentation.init_resources.memory") {
 		quantity, err := resource.ParseQuantity(datadogConfig.GetString("admission_controller.auto_instrumentation.init_resources.memory"))
 		if err != nil {
 			return conf, err
 		}
 		conf[corev1.ResourceMemory] = quantity
-	} /*else {
-		conf[corev1.ResourceCPU] = *resource.NewMilliQuantity(minimumMemoryLimit, resource.DecimalSI)
-	}*/
+	}
 
 	return conf, nil
 }
 
 func parseInitSecurityContext(datadogConfig config.Component) (*corev1.SecurityContext, error) {
 	confKey := "admission_controller.auto_instrumentation.init_security_context"
-	if datadogConfig.IsSet(confKey) {
+	if datadogConfig.IsConfigured(confKey) {
 		confValue := datadogConfig.GetString(confKey)
 		var securityContext corev1.SecurityContext
 		err := json.Unmarshal([]byte(confValue), &securityContext)

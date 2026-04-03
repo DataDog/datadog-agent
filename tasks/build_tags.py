@@ -64,8 +64,8 @@ ALL_TAGS = {
     "podman",
     "python",
     "requirefips",  # used for Linux FIPS mode to avoid having to set GOFIPS
+    "seclmax",  # used for security agent/system-probe to compile the full feature set of secl
     "serverless",
-    "serverlessfips",  # used for FIPS mode in the serverless build in datadog-lambda-extension
     "sharedlibrarycheck",
     "systemd",
     "systemprobechecks",  # used to include system-probe based checks in the agent build
@@ -223,6 +223,7 @@ SYSTEM_PROBE_TAGS = {
     "pcap",
     "zlib",
     "zstd",
+    "seclmax",
 }
 
 # TRACE_AGENT_TAGS lists the tags that have to be added when the trace-agent
@@ -249,11 +250,11 @@ TRACE_AGENT_HEROKU_TAGS = TRACE_AGENT_TAGS.difference(
 
 CWS_INSTRUMENTATION_TAGS = {"netgo", "osusergo"}
 
-OTEL_AGENT_TAGS = {"otlp", "zlib", "zstd"}
+OTEL_AGENT_TAGS = {"otlp", "zlib", "zstd", "kubelet"}
 
 LOADER_TAGS = set()
 
-FULL_HOST_PROFILER_TAGS = set()
+HOST_PROFILER_TAGS = set()
 
 PRIVATEACTIONRUNNER_TAGS = set()
 
@@ -304,7 +305,7 @@ build_tags = {
         "sbomgen": SBOMGEN_TAGS,
         "otel-agent": OTEL_AGENT_TAGS,
         "loader": LOADER_TAGS,
-        "full-host-profiler": FULL_HOST_PROFILER_TAGS,
+        "host-profiler": HOST_PROFILER_TAGS,
         "privateactionrunner": PRIVATEACTIONRUNNER_TAGS,
         "secret-generic-connector": SECRET_GENERIC_CONNECTOR_TAGS,
         # Test setups

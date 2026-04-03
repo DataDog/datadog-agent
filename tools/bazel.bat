@@ -9,17 +9,43 @@ exit /b 2
 :bazelisk_ok
 
 :: Ensure `XDG_CACHE_HOME` denotes a directory
-if defined CI (
-  if not exist "!XDG_CACHE_HOME!" (
+if not exist "%XDG_CACHE_HOME%" (
+  if defined CI (
     >&2 echo 🔴 XDG_CACHE_HOME ^(!XDG_CACHE_HOME!^) must denote a directory in CI!
     exit /b 2
   )
-) else if not defined XDG_CACHE_HOME (
-  set "XDG_CACHE_HOME=%~dp0..\.cache"
+  if not defined DOTNET_RUNNING_IN_CONTAINER >nul 2>&1 sc query CExecSvc && set DOTNET_RUNNING_IN_CONTAINER=1
+  if defined DOTNET_RUNNING_IN_CONTAINER (
+    >&2 echo 💡 To persist caches across restarts, please set XDG_CACHE_HOME pointing to a mounted directory, e.g.:
+    >&2 echo     docker.exe run --env=XDG_CACHE_HOME=C:\cache --volume="$HOME\.cache:C:\cache" ...
+  )
+)
+
+:: Ensure `bazel` & managed toolchains honor `XDG_CACHE_HOME` as per https://wiki.archlinux.org/title/XDG_Base_Directory
+set "extra_args="
+if defined XDG_CACHE_HOME (
+  set "XDG_CACHE_HOME=!XDG_CACHE_HOME:/=\!"
+  if "!XDG_CACHE_HOME:~1,2!" neq ":\" if "!XDG_CACHE_HOME:~0,2!" neq "\\" (
+    >&2 echo 🔴 XDG_CACHE_HOME ^(!XDG_CACHE_HOME!^) must denote an absolute path!
+    exit /b 2
+  )
+  :: https://pkg.go.dev/cmd/go#hdr-Build_and_test_caching
+  set "GOCACHE=%XDG_CACHE_HOME%\go-build"
+  :: https://wiki.archlinux.org/title/XDG_Base_Directory#Partial
+  set "GOMODCACHE=%XDG_CACHE_HOME%\go\mod"
+  :: https://pip.pypa.io/en/stable/topics/caching/#default-paths
+  set "PIP_CACHE_DIR=%XDG_CACHE_HOME%\pip"
+  :: https://github.com/bazelbuild/bazel/issues/27808
+  set "bazel_home=%XDG_CACHE_HOME%\bazel"
+  set bazel_home_startup_option="--output_user_root=!bazel_home!"
+  set extra_args="--disk_cache=!bazel_home!\disk-cache"
+  :: https://github.com/bazelbuild/bazel/issues/26384
+  for %%i in ("%~dp0..\.cache") do if "!XDG_CACHE_HOME!" == "%%~fi" set "extra_args=!extra_args! --repo_contents_cache="
+  if defined CI if not defined GITHUB_ACTIONS set "extra_args=!extra_args! --config=ci"
 )
 
 :: Check legacy max path length of 260 characters got lifted, or fail with instructions
-set "more_than_260_chars=!XDG_CACHE_HOME!\more-than-260-chars"
+for %%i in ("%~dp0..\.cache") do if defined XDG_CACHE_HOME (set "more_than_260_chars=!XDG_CACHE_HOME!") else set "more_than_260_chars=%%~fi"
 for /l %%i in (1,1,26) do set "more_than_260_chars=!more_than_260_chars!\123456789"
 if not exist "!more_than_260_chars!" (
   2>nul mkdir "!more_than_260_chars!"
@@ -31,53 +57,27 @@ if not exist "!more_than_260_chars!" (
   )
 )
 
-:: Not in CI: simply execute `bazel` - done
-if not defined CI (
-  "%BAZEL_REAL%" %*
-  exit /b !errorlevel!
-)
+set "args=%*"
+if defined args if defined extra_args call :insert_extra_args
+"%BAZEL_REAL%" !bazel_home_startup_option! !args!
+exit /b !errorlevel!
 
-:: In CI: make `bazel` honor $XDG_CACHE_HOME as it does on POSIX OSes: https://github.com/bazelbuild/bazel/issues/27808
-set "bazel_home=!XDG_CACHE_HOME!\bazel"
-
-:: Pass CI-specific options through `.user.bazelrc` so any nested `bazel run` and next `bazel shutdown` also honor them
-(
-  echo startup --connect_timeout_secs=5  # instead of 30s, for quicker iterations in diagnostics
-  echo startup --local_startup_timeout_secs=30  # instead of 120s, to fail faster for diagnostics
-  echo startup --output_user_root=!bazel_home:\=/!  # forward slashes: https://github.com/bazelbuild/bazel/issues/3275
-  echo common --config=ci
-) >"%~dp0..\user.bazelrc"
-
-:: Diagnostics: print any stalled client/server before `bazel` execution
->&2 powershell -NoProfile -Command "Get-Process bazel,java -ErrorAction SilentlyContinue | Select-Object 🟡,ProcessName,StartTime"
-
-:: Payload: execute `bazel` and remember exit status
-"%BAZEL_REAL%" %*
-set "bazel_exit=!errorlevel!"
-
-:: Diagnostics: dump logs on non-trivial failures (https://bazel.build/run/scripts#exit-codes)
-:: TODO(regis): adjust (probably `== 37`) next time a `cannot connect to Bazel server` error happens (#incident-42947)
-set "should_diagnose=1"
-for %%c in (0 1 3 34 36 48) do if !bazel_exit!==%%c set "should_diagnose=0"
-if !should_diagnose!==1 (
-  >&2 echo 🔴 Bazel failed [!bazel_exit!], dumping available info in !bazel_home! ^(excluding junctions^):
-  for /f "delims=" %%d in ('dir /a:d-l /b "!bazel_home!"') do (
-    >&2 echo 🟡 [%%d]
-    for %%f in ("!bazel_home!\%%d\java.log.*" "!bazel_home!\%%d\server\*") do (
-      if exist "%%f" (
-        >&2 echo 🟡 %%f:
-        >&2 type "%%f"
-        >&2 echo.
-      ) else (
-        >&2 echo 🟡 %%f doesn't exist
-      )
-    )
+:: "--startup cmd ..." -> "--startup cmd --config=ci ..."
+:insert_extra_args
+set "startup_args="
+set "next_args=!args!"
+:parse_next_arg
+set "cmd="
+for /f "tokens=1* delims= " %%i in ("!next_args!") do (
+  set "arg=%%~i"
+  if "!arg:~0,1!" equ "-" (
+    set "startup_args=!startup_args! %%i"
+    set "next_args=%%j"
+  ) else (
+    if defined startup_args set "startup_args=!startup_args:~1! "
+    set "cmd=%%i"
+    set "args=!startup_args!!cmd! !extra_args! %%j"
   )
 )
-
-:: Stop `bazel` (if still running) to close files and proceed with cleanup
->&2 "%BAZEL_REAL%" shutdown --ui_event_filters=-info
->&2 del /f /q "%~dp0..\user.bazelrc"
-
-:: Done
-exit /b !bazel_exit!
+if not defined cmd if defined next_args goto :parse_next_arg
+exit /b

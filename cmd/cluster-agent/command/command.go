@@ -30,6 +30,8 @@ type GlobalParams struct {
 	// ConfFilePath holds the path to the folder containing the configuration
 	// file, to allow overrides from the command line
 	ConfFilePath string
+	// ExtraConfFilePath represents the paths to additional configuration files.
+	ExtraConfFilePath []string
 	// NoColor is a flag to disable color output
 	NoColor bool
 }
@@ -53,6 +55,7 @@ metadata for their metrics.`,
 	}
 
 	agentCmd.PersistentFlags().StringVarP(&globalParams.ConfFilePath, "cfgpath", "c", "", "path to directory containing datadog-agent.yaml")
+	agentCmd.PersistentFlags().StringArrayVarP(&globalParams.ExtraConfFilePath, "extracfgpath", "E", []string{}, "specify additional configuration files to be loaded sequentially after the main datadog-agent.yaml")
 
 	// github.com/fatih/color sets its global color.NoColor to a default value based on
 	// whether the process is running in a tty.  So, we only want to override that when

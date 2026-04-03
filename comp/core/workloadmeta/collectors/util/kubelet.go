@@ -35,7 +35,7 @@ import (
 const dockerImageIDPrefix = "docker-pullable://"
 
 // ParseKubeletPods parses a list of kubelet pods and returns a list of workloadmeta events
-func ParseKubeletPods(pods []*kubelet.Pod, collectEphemeralContainers bool) []workloadmeta.CollectorEvent {
+func ParseKubeletPods(pods []*kubelet.Pod, collectEphemeralContainers bool, store workloadmeta.Component) []workloadmeta.CollectorEvent {
 	events := []workloadmeta.CollectorEvent{}
 
 	for _, pod := range pods {
@@ -108,6 +108,17 @@ func ParseKubeletPods(pods []*kubelet.Pod, collectEphemeralContainers bool) []wo
 			startTime = &pod.Status.StartTime
 		}
 
+		// Lookup cached namespace entity from kubemetadata collector
+		// Namespace information is not available in the kubelet API, however,
+		// in the Agent namespace data is tightly coupled to the Pod entity and it's tags.
+		var namespaceLabels, namespaceAnnotations map[string]string
+		nsEntityID := GenerateKubeMetadataEntityID("", "namespaces", "", podMeta.Namespace)
+		nsEntity, err := store.GetKubernetesMetadata(nsEntityID)
+		if err == nil && nsEntity != nil {
+			namespaceLabels = nsEntity.Labels
+			namespaceAnnotations = nsEntity.Annotations
+		}
+
 		entity := &workloadmeta.KubernetesPod{
 			EntityID: podID,
 			EntityMeta: workloadmeta.EntityMeta{
@@ -128,6 +139,8 @@ func ParseKubeletPods(pods []*kubelet.Pod, collectEphemeralContainers bool) []wo
 			QOSClass:                   pod.Status.QOSClass,
 			GPUVendorList:              GPUVendors,
 			RuntimeClass:               RuntimeClassName,
+			NamespaceLabels:            namespaceLabels,
+			NamespaceAnnotations:       namespaceAnnotations,
 			SecurityContext:            PodSecurityContext,
 			CreationTimestamp:          podMeta.CreationTimestamp,
 			DeletionTimestamp:          podMeta.DeletionTimestamp,
@@ -380,6 +393,7 @@ func extractReadinessProbe(spec *kubelet.ContainerSpec) *workloadmeta.ContainerP
 
 	return &workloadmeta.ContainerProbe{
 		InitialDelaySeconds: int32(spec.ReadinessProbe.InitialDelaySeconds),
+		FailureThreshold:    int32(spec.ReadinessProbe.FailureThreshold),
 	}
 }
 
@@ -573,9 +587,10 @@ func convertConditions(conditions []kubelet.Conditions) []workloadmeta.Kubernete
 
 	for i, condition := range conditions {
 		result[i] = workloadmeta.KubernetesPodCondition{
-			Type:   condition.Type,
-			Status: condition.Status,
-			Reason: condition.Reason,
+			Type:               condition.Type,
+			Status:             condition.Status,
+			Reason:             condition.Reason,
+			LastTransitionTime: condition.LastTransitionTime,
 		}
 	}
 

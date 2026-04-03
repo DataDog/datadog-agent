@@ -1,18 +1,35 @@
 schemaId: script-credentials-v1
 runPredefinedPowershellScript:
   helloWorld:
-    command:
-    - Write-Output
-    - "Hello World"
+    script: |
+      Write-Output "Hello World"
   
   # Example with parameters
   greet:
-    command:
-      - Write-Output
-      - "Call parameter {{ parameters.name }} !"
+    script: |
+      Write-Output "Call parameter {{ parameters.name }} !"
     parameterSchema:
       properties:
         name:
           type: string
       required:
         - name
+
+  # Example showing environment variable
+  showEnv:
+    script: |
+      Write-Output "This vm name is $env:COMPUTERNAME"
+    allowedEnvVars:
+      - COMPUTERNAME
+
+  # Example restarting a Windows service
+  restartService:
+    script: |
+      Restart-Service -Name {{ parameters.serviceName }} -Force
+      Write-Output "Restart triggered for service '{{ parameters.serviceName }}' at $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+    parameterSchema:
+      properties:
+        serviceName:
+          type: string
+      required:
+        - serviceName

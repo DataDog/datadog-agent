@@ -19,7 +19,6 @@ import (
 	"github.com/go-json-experiment/json"
 	"github.com/go-json-experiment/json/jsontext"
 	"github.com/google/uuid"
-	pkgerrors "github.com/pkg/errors"
 	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
@@ -189,9 +188,9 @@ func (d *Decoder) Decode(
 		switch r := r.(type) {
 		case nil:
 		case error:
-			err = pkgerrors.Wrap(r, "Decode: panic")
+			err = fmt.Errorf("Decode: panic: %w", r)
 		default:
-			err = pkgerrors.Errorf("Decode: panic: %v\n%s", r, debug.Stack())
+			err = fmt.Errorf("Decode: panic: %v\n%s", r, debug.Stack())
 		}
 	}()
 	probe, err = d.message.init(d, event, symbolicator)
@@ -220,7 +219,7 @@ func (d *Decoder) Decode(
 			enc.Reset(b)
 			continue
 		} else if err != nil {
-			return buf, probe, pkgerrors.Wrap(err, "error marshaling snapshot message")
+			return buf, probe, fmt.Errorf("error marshaling snapshot message: %w", err)
 		}
 		break
 	}
@@ -241,20 +240,21 @@ func (d *Decoder) resetForNextMessage() {
 // Event wraps the output Event from the BPF program. It also adds fields
 // that are not present in the BPF program.
 type Event struct {
-	Probe       *ir.Probe
 	EntryOrLine output.Event
 	Return      output.Event
 	ServiceName string
+	ProcessTags string
 }
 
 type message struct {
-	Service   string           `json:"service"`
-	DDSource  ddDebuggerSource `json:"ddsource"`
-	Logger    logger           `json:"logger"`
-	Debugger  debuggerData     `json:"debugger"`
-	Timestamp int              `json:"timestamp"`
-	Duration  uint64           `json:"duration,omitzero"`
-	Message   *messageData     `json:"message,omitempty"`
+	Service     string           `json:"service"`
+	DDSource    ddDebuggerSource `json:"ddsource"`
+	Logger      logger           `json:"logger"`
+	Debugger    debuggerData     `json:"debugger"`
+	Timestamp   int              `json:"timestamp"`
+	Duration    uint64           `json:"duration,omitzero"`
+	Message     *messageData     `json:"message,omitempty"`
+	ProcessTags string           `json:"process_tags,omitempty"`
 }
 
 // populateStackPCsIfMissing populates the decoder's stackPCs map with stack PCs
@@ -295,6 +295,7 @@ func (s *message) init(
 	symbolicator symbol.Symbolicator,
 ) (ir.ProbeDefinition, error) {
 	s.Service = event.ServiceName
+	s.ProcessTags = event.ProcessTags
 	s.Debugger = debuggerData{
 		Snapshot: snapshotData{
 			ID:       uuid.New(),
@@ -312,9 +313,31 @@ func (s *message) init(
 	}
 	probeEvent := decoder.probeEvents[decoder.entryOrLine.rootType.ID]
 	probe := probeEvent.probe
+
+	if probe.GetKind() == ir.ProbeKindSnapshot || probe.GetKind() == ir.ProbeKindLog {
+		s.Debugger.Type = payloadTypeSnapshot
+	}
+
 	header, err := event.EntryOrLine.Header()
 	if err != nil {
 		return probe, fmt.Errorf("error getting header %w", err)
+	}
+	if header.Condition_eval_error != 0 {
+		whenDSL := probe.GetWhenDSL()
+		if whenDSL == "" {
+			whenDSL = "@when"
+		}
+		msg := "error evaluating condition"
+		if header.Condition_eval_error == 2 {
+			msg = errNilPointerEvaluating.Error()
+		}
+		s.Debugger.EvaluationErrors = append(
+			s.Debugger.EvaluationErrors,
+			evaluationError{
+				Expression: whenDSL,
+				Message:    msg,
+			},
+		)
 	}
 	switch probeEvent.event.Kind {
 	case ir.EventKindEntry:
@@ -339,6 +362,23 @@ func (s *message) init(
 		returnHeader, err = event.Return.Header()
 		if err != nil {
 			return nil, fmt.Errorf("error getting return header %w", err)
+		}
+		if returnHeader.Condition_eval_error != 0 {
+			whenDSL := probe.GetWhenDSL()
+			if whenDSL == "" {
+				whenDSL = "@when"
+			}
+			msg := "error evaluating condition"
+			if returnHeader.Condition_eval_error == 2 {
+				msg = errNilPointerEvaluating.Error()
+			}
+			s.Debugger.EvaluationErrors = append(
+				s.Debugger.EvaluationErrors,
+				evaluationError{
+					Expression: whenDSL,
+					Message:    msg,
+				},
+			)
 		}
 		s.Duration = uint64(returnHeader.Ktime_ns - header.Ktime_ns)
 		s.Debugger.Snapshot.captures.Return = &decoder._return

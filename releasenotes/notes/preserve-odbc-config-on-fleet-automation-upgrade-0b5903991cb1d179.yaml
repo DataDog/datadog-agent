@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Preserve ``odbc.ini`` and ``odbcinst.ini`` across Fleet Automation upgrades on Linux.

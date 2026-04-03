@@ -36,6 +36,8 @@ def deploy(
     agent_env: str | None = None,
     helm_config: str | None = None,
     local_package: str | None = None,
+    pulumi_extra_args: str = "",
+    pulumi_env: dict[str, str] | None = None,
 ) -> str:
     from pydantic_core._pydantic_core import ValidationError
 
@@ -81,6 +83,29 @@ def deploy(
     if key_pair_required and cfg.get_options().checkKeyPair:
         _check_key_pair(awsKeyPairName)
 
+    if (
+        full_image_path is not None
+        and full_image_path.startswith("669783387624.dkr.ecr.us-east-1.amazonaws.com/")
+        or cluster_agent_full_image_path is not None
+        and cluster_agent_full_image_path.startswith("669783387624.dkr.ecr.us-east-1.amazonaws.com/")
+    ):
+        flags["ddagent:imagePullRegistry"] = "669783387624.dkr.ecr.us-east-1.amazonaws.com"
+        flags["ddagent:imagePullUsername"] = "AWS"
+        flags["ddagent:imagePullPassword"] = ctx.run(
+            "aws-vault exec sso-agent-qa-read-only -- aws ecr get-login-password --region us-east-1", hide=True
+        ).stdout.strip()
+    elif (
+        full_image_path is not None
+        and full_image_path.startswith("376334461865.dkr.ecr.us-east-1.amazonaws.com/")
+        or cluster_agent_full_image_path is not None
+        and cluster_agent_full_image_path.startswith("376334461865.dkr.ecr.us-east-1.amazonaws.com/")
+    ):
+        flags["ddagent:imagePullRegistry"] = "376334461865.dkr.ecr.us-east-1.amazonaws.com"
+        flags["ddagent:imagePullUsername"] = "AWS"
+        flags["ddagent:imagePullPassword"] = ctx.run(
+            "aws-vault exec sso-agent-sandbox-account-admin -- aws ecr get-login-password --region us-east-1",
+            hide=True,
+        ).stdout.strip()
     return common_deploy(
         ctx,
         scenario_name,
@@ -102,6 +127,8 @@ def deploy(
         agent_env,
         helm_config,
         local_package,
+        pulumi_extra_args=pulumi_extra_args,
+        pulumi_env=pulumi_env,
     )
 
 

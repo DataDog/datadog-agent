@@ -58,6 +58,7 @@
           }
         }
       },
+      "type": "snapshot",
       "evaluationErrors": [
         {
           "expr": "@duration",
@@ -65,7 +66,8 @@
         }
       ]
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
     "service": "sample",
@@ -126,6 +128,7 @@
           }
         }
       },
+      "type": "snapshot",
       "evaluationErrors": [
         {
           "expr": "@duration",
@@ -133,6 +136,7 @@
         }
       ]
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

@@ -54,7 +54,7 @@ pkg_files(
 )
 
 pkg_filegroup(
-    name = "all_deps",
+    name = "all_files",
     srcs = [
         ":bin_files",
         ":license_file",
@@ -63,5 +63,5 @@ pkg_filegroup(
 
 pkg_install(
     name = "install",
-    srcs = [":all_deps"],
+    srcs = [":all_files"],
 )

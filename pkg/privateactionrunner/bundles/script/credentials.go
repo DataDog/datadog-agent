@@ -8,7 +8,7 @@ package com_datadoghq_script
 import (
 	"fmt"
 
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 )
@@ -18,12 +18,34 @@ const (
 )
 
 type ScriptBundleConfig struct {
-	SchemaId            string                               `yaml:"schemaId"`
-	RunPredefinedScript map[string]RunPredefinedScriptConfig `yaml:"runPredefinedScript,omitempty"`
+	SchemaId                      string                                         `yaml:"schemaId"`
+	RunPredefinedScript           map[string]RunPredefinedScriptConfig           `yaml:"runPredefinedScript,omitempty"`
+	RunPredefinedPowershellScript map[string]RunPredefinedPowershellScriptConfig `yaml:"runPredefinedPowershellScript,omitempty"`
 }
 
 type RunPredefinedScriptConfig struct {
 	Command         []string               `yaml:"command"`
+	ParameterSchema map[string]interface{} `yaml:"parameterSchema,omitempty"`
+	AllowedEnvVars  []string               `yaml:"allowedEnvVars,omitempty"`
+}
+
+type RunPredefinedPowershellScriptConfig struct {
+	// Script is an inline PowerShell script/command string
+	// Users write native PowerShell syntax, e.g.:
+	//   script: 'Write-Output "Hello $env:USERNAME"'
+	// or multi-line:
+	//   script: |
+	//     $services = Get-Service
+	//     $services | ConvertTo-Json
+	Script string `yaml:"script,omitempty"`
+
+	// File is a path to a .ps1 script file to execute
+	// Use this for complex scripts stored in files
+	File string `yaml:"file,omitempty"`
+
+	// Arguments to pass to the script file (only used with File)
+	Arguments []string `yaml:"arguments,omitempty"`
+
 	ParameterSchema map[string]interface{} `yaml:"parameterSchema,omitempty"`
 	AllowedEnvVars  []string               `yaml:"allowedEnvVars,omitempty"`
 }

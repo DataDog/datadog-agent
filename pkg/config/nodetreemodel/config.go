@@ -211,6 +211,16 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 		return
 	}
 
+	// convert the value to the type of the default
+	if declaredNode.IsLeafNode() {
+		if converted, err := convertToDefaultType(newValue, declaredNode.Get()); err == nil {
+			if reflect.TypeOf(converted) != reflect.TypeOf(newValue) {
+				log.Warnf("Set('%s'): converting value from %T to %T to match default type", key, newValue, converted)
+			}
+			newValue = converted
+		}
+	}
+
 	// convert the key to lower case for the logs line and the notification
 	key = strings.ToLower(key)
 
@@ -305,6 +315,8 @@ func (c *ntmConfig) findPreviousSourceNode(key string, source model.Source) (*no
 
 // UnsetForSource unsets a config entry for a given source
 func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
+	c.maybeRebuild()
+
 	c.Lock()
 	defer c.Unlock()
 
@@ -416,6 +428,8 @@ func (c *ntmConfig) SetKnown(key string) {
 
 // IsKnown returns whether a key is in the set of "known keys", which is a legacy feature from Viper
 func (c *ntmConfig) IsKnown(key string) bool {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
 	return c.isKnownKey(key)
@@ -550,10 +564,14 @@ func (c *ntmConfig) buildEnvVars() {
 
 func (c *ntmConfig) insertNodeFromString(curr *nodeImpl, key string, envval string) error {
 	var actualValue interface{} = envval
-	// TODO: When nodetreemodel has a schema with type information, we should
-	// use this type to convert the value, instead of requiring a transformer
 	if transformer, found := c.envTransform[key]; found {
 		actualValue = transformer(envval)
+	}
+
+	if defaultNode := c.leafAtPathFromNode(key, c.defaults); defaultNode != missingLeaf {
+		if converted, err := convertToDefaultType(actualValue, defaultNode.Get()); err == nil {
+			actualValue = converted
+		}
 	}
 	parts := splitKeyFunc(key)
 	return curr.setAt(parts, actualValue, model.SourceEnvVar)
@@ -643,6 +661,8 @@ func hasNonDefaultLeaf(node *nodeImpl) bool {
 
 // IsConfigured checks if a key is set in the config but not from the defaults
 func (c *ntmConfig) IsConfigured(key string) bool {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
 
@@ -685,6 +705,8 @@ func isInnerOrLeafWithNilValue(node *nodeImpl) bool {
 // HasSection returns true if the setting is either an inner node,
 // or a leaf node with a nil value
 func (c *ntmConfig) HasSection(key string) bool {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
 
@@ -721,6 +743,8 @@ func (c *ntmConfig) collectFlattenedKeys() []string {
 // AllKeysLowercased returns all keys, including unknown keys and those without default values
 // Unlike AllSettings, this returns keys defined by SetKnown or BindEnv
 func (c *ntmConfig) AllKeysLowercased() []string {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
 
@@ -929,7 +953,8 @@ func (c *ntmConfig) AllSettingsBySource() map[model.Source]interface{} {
 	}
 }
 
-// AllFlattenedSettingsWithSequenceID returns all settings as a flattened map along with the sequence ID.
+// AllFlattenedSettingsWithSequenceID returns all settings as a flattened map of schema leaf keys
+// along with the sequence ID.
 // Keys are flattened (e.g., "logs_config.enabled" instead of nested {"logs_config": {"enabled": ...}}).
 // This provides atomic access to flattened keys, values, and sequence ID under a single lock.
 func (c *ntmConfig) AllFlattenedSettingsWithSequenceID() (map[string]interface{}, uint64) {
@@ -941,11 +966,7 @@ func (c *ntmConfig) AllFlattenedSettingsWithSequenceID() (map[string]interface{}
 	keys := c.collectFlattenedKeys()
 	settings := make(map[string]interface{}, len(keys))
 	for _, key := range keys {
-		v, err := c.inferTypeFromDefault(key, c.getNodeValue(key))
-		if err != nil {
-			log.Warnf("failed to get configuration value for key %q: %s", key, err)
-		}
-		settings[key] = v
+		settings[key] = c.getNodeValue(key)
 	}
 	return settings, c.sequenceID
 }

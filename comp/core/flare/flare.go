@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -28,6 +29,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	rcclienttypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	pkgFlare "github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -38,6 +40,9 @@ import (
 type flareBuilderFactory func(localFlare bool, flareArgs types.FlareArgs) (types.FlareBuilder, error)
 
 var fbFactory flareBuilderFactory = helpers.NewFlareBuilder
+
+// sendToFunc is used to send a flare to the backend. Overridden in tests to avoid real HTTP calls.
+var sendToFunc func(model.Reader, string, string, string, string, string, helpers.FlareSource) (string, error)
 
 type dependencies struct {
 	fx.In
@@ -179,22 +184,34 @@ func (f *flare) createAndReturnFlarePath(w http.ResponseWriter, r *http.Request)
 	f.log.Infof("Making a flare")
 	filePath, err := f.Create(profile, providerTimeout, nil, []byte{})
 
-	if err != nil || filePath == "" {
-		if err != nil {
-			f.log.Errorf("The flare failed to be created: %s", err)
-		} else {
-			f.log.Warnf("The flare failed to be created")
-		}
+	if err != nil {
+		f.log.Errorf("The flare failed to be created: %s", err)
 		http.Error(w, err.Error(), 500)
+		return
 	}
 	w.Write([]byte(filePath))
 }
 
-// Send sends a flare archive to Datadog
+// Send sends a flare archive to Datadog. The local archive file is removed on success unless Params.KeepArchiveAfterSend is set (e.g. CLI --keep-archive).
 func (f *flare) Send(flarePath string, caseID string, email string, source helpers.FlareSource) (string, error) {
 	// For now this is a wrapper around helpers.SendFlare since some code hasn't migrated to FX yet.
 	// The `source` is the reason why the flare was created, for now it's either local or remote-config
-	return helpers.SendTo(f.config, flarePath, caseID, email, f.config.GetString("api_key"), utils.GetInfraEndpoint(f.config), source)
+	sendFn := sendToFunc
+	if sendFn == nil {
+		sendFn = helpers.SendTo
+	}
+	response, err := sendFn(f.config, flarePath, caseID, email, f.config.GetString("api_key"), utils.GetInfraEndpoint(f.config), source)
+	if err != nil {
+		return response, err
+	}
+	if !f.params.KeepArchiveAfterSend && flarePath != "" {
+		if removeErr := os.Remove(flarePath); removeErr != nil {
+			f.log.Warnf("Could not remove local flare archive %s: %v", flarePath, removeErr)
+		} else {
+			f.log.Infof("Removed local flare archive %s", flarePath)
+		}
+	}
+	return response, nil
 }
 
 // Create creates a new flare and returns the path to the final archive file.
@@ -256,7 +273,8 @@ func (f *flare) runProviders(fb types.FlareBuilder, providerTimeout time.Duratio
 		f.log.Infof("Running flare provider %s with timeout %s", providerName, timeout)
 		_ = fb.Logf("Running flare provider %s with timeout %s", providerName, timeout)
 
-		done := make(chan struct{})
+		// Buffered so the goroutine can send even if we already left via timeout.
+		done := make(chan struct{}, 1)
 		go func() {
 			startTime := time.Now()
 			err := p.Callback(fb)

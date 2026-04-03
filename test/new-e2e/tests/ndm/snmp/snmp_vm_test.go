@@ -49,6 +49,7 @@ func snmpVMProvisioner(opts ...awshost.ProvisionerOption) provisioners.Provision
 }
 
 func TestSnmpVMSuite(t *testing.T) {
+	t.Parallel()
 	e2e.Run(t, &snmpVMSuite{}, e2e.WithProvisioner(snmpVMProvisioner()))
 }
 
@@ -64,6 +65,7 @@ func (v *snmpVMSuite) TestAPIKeyRefresh() {
 
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
 		ndmPayload := checkLastNDMPayload(c, fakeIntake, "default")
+		require.NotEmpty(c, ndmPayload.Devices)
 		checkCiscoNexusDeviceMetadata(c, ndmPayload.Devices[0])
 	}, 6*time.Minute, 10*time.Second)
 
@@ -109,6 +111,7 @@ secret_backend_arguments:
 
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
 		ndmPayload := checkLastNDMPayload(c, fakeIntake, "default")
+		require.NotEmpty(c, ndmPayload.Devices)
 		checkCiscoNexusDeviceMetadata(c, ndmPayload.Devices[0])
 	}, 6*time.Minute, 10*time.Second)
 
@@ -130,6 +133,7 @@ secret_backend_arguments:
 
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
 		ndmPayload := checkLastNDMPayload(c, fakeIntake, "default")
+		require.NotEmpty(c, ndmPayload.Devices)
 		checkCiscoNexusDeviceMetadata(c, ndmPayload.Devices[0])
 	}, 6*time.Minute, 10*time.Second)
 }

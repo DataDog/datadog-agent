@@ -6,7 +6,7 @@
 // Package haagent handles states for HA Agent feature.
 package haagent
 
-// team: ndm-core
+// team: network-device-monitoring-core
 
 // Component is the component type.
 type Component interface {

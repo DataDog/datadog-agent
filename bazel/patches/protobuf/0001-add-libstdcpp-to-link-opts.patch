@@ -1,0 +1,10 @@
+--- a/build_defs/cpp_opts.bzl
++++ b/build_defs/cpp_opts.bzl
+@@ -30,6 +30,7 @@
+     ],
+     "//conditions:default": [
+         "-lpthread",
+         "-lm",
++        "-lstdc++",
+     ],
+ })

@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/DataDog/viper"
-	yaml "gopkg.in/yaml.v2"
+	yaml "go.yaml.in/yaml/v2"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"

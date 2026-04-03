@@ -9,6 +9,7 @@ package localkubernetes
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
@@ -34,6 +35,7 @@ const (
 type ProvisionerParams struct {
 	name                string
 	agentOptions        []kubernetesagentparams.Option
+	preAgentHooks       []PreAgentHook
 	fakeintakeOptions   []fakeintake.Option
 	extraConfigParams   runner.ConfigMap
 	workloadAppFuncs    []kubeComp.WorkloadAppFunc
@@ -44,6 +46,7 @@ func newProvisionerParams() *ProvisionerParams {
 	return &ProvisionerParams{
 		name:              defaultVMName,
 		agentOptions:      []kubernetesagentparams.Option{},
+		preAgentHooks:     []PreAgentHook{},
 		fakeintakeOptions: []fakeintake.Option{},
 		extraConfigParams: runner.ConfigMap{},
 	}
@@ -51,6 +54,9 @@ func newProvisionerParams() *ProvisionerParams {
 
 // ProvisionerOption is a function that modifies the ProvisionerParams
 type ProvisionerOption func(*ProvisionerParams) error
+
+// PreAgentHook is executed after the Kubernetes provider is ready but before the agent is installed.
+type PreAgentHook func(e config.Env, kubeProvider *kubernetes.Provider) error
 
 // WithName sets the name of the provisioner
 func WithName(name string) ProvisionerOption {
@@ -64,6 +70,14 @@ func WithName(name string) ProvisionerOption {
 func WithAgentOptions(opts ...kubernetesagentparams.Option) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.agentOptions = opts
+		return nil
+	}
+}
+
+// WithPreAgentHook adds a hook that runs before the agent installation.
+func WithPreAgentHook(hook PreAgentHook) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.preAgentHooks = append(params.preAgentHooks, hook)
 		return nil
 	}
 }

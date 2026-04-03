@@ -7,18 +7,47 @@ if [ -z "${BAZEL_REAL:-}" ] || [ "${BAZELISK_SKIP_WRAPPER:-}" != true ]; then
   exit 2
 fi
 
-# CI specific setup
-if [ -n "${CI:-}" ]; then
-  if [ ! -d "${XDG_CACHE_HOME:-}" ]; then
+# Ensure `XDG_CACHE_HOME` denotes a directory
+if [ ! -d "${XDG_CACHE_HOME:-}" ]; then
+  if [ -n "${CI:-}" ]; then
     >&2 echo "🔴 XDG_CACHE_HOME (${XDG_CACHE_HOME:-}) must denote a directory in CI!"
     exit 2
   fi
+  if [[ -e /.dockerenv || -e /run/.containerenv ]]; then
+    >&2 echo "💡 To persist caches across restarts, please set XDG_CACHE_HOME pointing to a mounted directory, e.g.:"
+    # shellcheck disable=SC2016
+    >&2 echo '    docker run --env=XDG_CACHE_HOME=/cache --volume="$HOME/.cache:/cache" ...'
+  fi
+fi
 
-  # Pass CI-specific options through `.user.bazelrc` so any nested `bazel run` also honor them
-  cat >"$(dirname "$(dirname "$0")")/user.bazelrc" <<EOF
-common --config=ci
-common --config=adms
-EOF
+# Ensure `bazel` & managed toolchains honor `XDG_CACHE_HOME` as per https://wiki.archlinux.org/title/XDG_Base_Directory
+extra_args=()
+if [ -n "${XDG_CACHE_HOME:-}" ]; then
+  if [[ "$XDG_CACHE_HOME" != /* ]]; then
+    >&2 echo "🔴 XDG_CACHE_HOME ($XDG_CACHE_HOME) must denote an absolute path!"
+    exit 2
+  fi
+  unset GOCACHE                               # https://pkg.go.dev/cmd/go#hdr-Build_and_test_caching
+  export GOMODCACHE="$XDG_CACHE_HOME"/go/mod  # https://wiki.archlinux.org/title/XDG_Base_Directory#Partial
+  unset PIP_CACHE_DIR                         # https://pip.pypa.io/en/stable/topics/caching/#default-paths
+  extra_args+=(--disk_cache="$XDG_CACHE_HOME/bazel/disk-cache")
+  # https://github.com/bazelbuild/bazel/issues/26384
+  [ "$XDG_CACHE_HOME" = "$(dirname "$(dirname "$0")")/.cache" ] && extra_args+=(--repo_contents_cache=)
+  [ -n "${CI:-}" ] && [ -z "${GITHUB_ACTIONS:-}" ] && extra_args+=(--config=ci)
+fi
+
+# "--startup cmd ..." -> "--startup cmd --config=ci ..."
+if [[ $# -gt 0 && ${#extra_args[@]} -gt 0 ]]; then
+  args=()
+  cmd=
+  for arg in "$@"; do
+    args+=("$arg")
+    if [[ -z "$cmd" && "$arg" != -* ]]; then
+      cmd=$arg
+      args+=("${extra_args[@]}")
+    fi
+  done
+  set -- "${args[@]}"
 fi
 
 exec "$BAZEL_REAL" "$@"

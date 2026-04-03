@@ -10,16 +10,13 @@ package kubemetadata
 
 import (
 	"context"
-	stderrors "errors"
-	"fmt"
-	"strings"
 	"time"
 
 	"go.uber.org/fx"
-	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -32,8 +29,9 @@ import (
 )
 
 const (
-	collectorID   = "kube_metadata"
-	componentName = "workloadmeta-kube_metadata"
+	collectorID          = "kube_metadata"
+	componentName        = "workloadmeta-kube_metadata"
+	namespaceMetadataTTL = 1 * time.Hour
 )
 
 type collector struct {
@@ -41,6 +39,7 @@ type collector struct {
 	store                       workloadmeta.Component
 	catalog                     workloadmeta.AgentType
 	seen                        map[workloadmeta.EntityID]struct{}
+	namespaceLastSeen           map[string]time.Time
 	kubeUtil                    kubelet.KubeUtilInterface
 	apiClient                   *apiserver.APIClient
 	dcaClient                   clusteragent.DCAClientInterface
@@ -49,15 +48,18 @@ type collector struct {
 	lastUpdate                  time.Time
 	collectNamespaceLabels      bool
 	collectNamespaceAnnotations bool
+	ignoreServiceReadiness      bool
+	streaming                   *streamingProvider
 }
 
 // NewCollector returns a CollectorProvider to build a kubemetadata collector, and an error if any.
 func NewCollector() (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &collector{
-			id:      collectorID,
-			seen:    make(map[workloadmeta.EntityID]struct{}),
-			catalog: workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
+			id:                collectorID,
+			seen:              make(map[workloadmeta.EntityID]struct{}),
+			namespaceLastSeen: make(map[string]time.Time),
+			catalog:           workloadmeta.NodeAgent,
 		},
 	}, nil
 }
@@ -68,7 +70,7 @@ func GetFxOptions() fx.Option {
 }
 
 // Start tries to connect to the kubelet, the DCA and the API Server if the DCA is not available.
-func (c *collector) Start(_ context.Context, store workloadmeta.Component) error {
+func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
 	if !env.IsFeaturePresent(env.Kubernetes) {
 		return errors.NewDisabled(componentName, "Agent is not running on Kubernetes")
 	}
@@ -120,12 +122,35 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 	metadataAsTags := configutils.GetMetadataAsTags(pkgconfigsetup.Datadog())
 	c.collectNamespaceLabels = len(metadataAsTags.GetNamespaceLabelsAsTags()) > 0
 	c.collectNamespaceAnnotations = len(metadataAsTags.GetNamespaceAnnotationsAsTags()) > 0
+	c.ignoreServiceReadiness = pkgconfigsetup.Datadog().GetBool("kubernetes_kube_service_ignore_readiness")
+
+	if c.dcaEnabled && pkgconfigsetup.Datadog().GetBool("kubernetes_metadata_streaming") {
+		nodeName, nodeNameErr := c.kubeUtil.GetNodename(ctx)
+		if nodeNameErr != nil {
+			log.Warnf("Could not get node name, kube metadata streaming disabled: %v", nodeNameErr)
+		} else {
+			c.streaming = newStreamingProvider(
+				nodeName,
+				pkgconfigsetup.Datadog(),
+				c.store,
+				c.ignoreServiceReadiness,
+				c.collectNamespaceLabels,
+				c.collectNamespaceAnnotations,
+			)
+			c.streaming.start(ctx)
+		}
+	}
 
 	return err
 }
 
 // Pull triggers an event collection from kubelet and the Datadog Cluster Agent.
+// When streaming is active, this is a no-op.
 func (c *collector) Pull(ctx context.Context) error {
+	if c.streaming.isActive() {
+		return nil
+	}
+
 	// Time constraints, get the delta in seconds to display it in the logs:
 	timeDelta := c.lastUpdate.Add(c.updateFreq).Unix() - time.Now().Unix()
 	if timeDelta > 0 {
@@ -138,32 +163,25 @@ func (c *collector) Pull(ctx context.Context) error {
 		return err
 	}
 
-	if !c.isDCAEnabled() {
-		// If the DCA is not used, each agent stores a local cache of the MetadataMap.
-		err = c.addToCacheMetadataMapping(pods)
-		if err != nil {
-			log.Debugf("Cannot add the metadataMapping to cache: %v", err)
-		}
-	}
-
 	seen := make(map[workloadmeta.EntityID]struct{})
 	events, err := c.parsePods(ctx, pods, seen)
 	if err != nil {
 		return err
 	}
 
+	// Create unset events for entities that are no longer seen
 	for seenID := range c.seen {
 		if _, ok := seen[seenID]; ok {
 			continue
 		}
 
-		events = append(events, workloadmeta.CollectorEvent{
-			Type:   workloadmeta.EventTypeUnset,
-			Source: workloadmeta.SourceClusterOrchestrator,
-			Entity: &workloadmeta.KubernetesPod{
-				EntityID: seenID,
-			},
-		})
+		// If the entity is a namespace metadata entity and is within its TTL, skip creating an unset event.
+		if namespaceName, isNsEntity := c.getNamespaceName(seenID); isNsEntity && c.shouldKeepNamespaceAlive(namespaceName) {
+			continue
+		}
+
+		// Unset entities that are no longer seen
+		events = append(events, createUnsetEvent(seenID))
 	}
 
 	c.seen = seen
@@ -183,110 +201,88 @@ func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 	return c.catalog
 }
 
+// createUnsetEvent creates an unset event for the appropriate entity type.
+func createUnsetEvent(seenID workloadmeta.EntityID) workloadmeta.CollectorEvent {
+	var entity workloadmeta.Entity
+	switch seenID.Kind {
+	case workloadmeta.KindKubernetesMetadata:
+		entity = &workloadmeta.KubernetesMetadata{EntityID: seenID}
+	case workloadmeta.KindKubernetesPod:
+		entity = &workloadmeta.KubernetesPod{EntityID: seenID}
+	default:
+		log.Errorf("Unknown entity kind: %s", seenID.Kind)
+	}
+
+	return workloadmeta.CollectorEvent{
+		Type:   workloadmeta.EventTypeUnset,
+		Source: workloadmeta.SourceClusterOrchestrator,
+		Entity: entity,
+	}
+}
+
+// getNamespaceName returns the namespace name if seenID is a namespace metadata entity
+func (c *collector) getNamespaceName(seenID workloadmeta.EntityID) (string, bool) {
+	if seenID.Kind != workloadmeta.KindKubernetesMetadata {
+		return "", false
+	}
+
+	group, resource, _, name, err := util.ParseKubeMetadataEntityID(workloadmeta.KubeMetadataEntityID(seenID.ID))
+	if err != nil || group != "" || resource != "namespaces" {
+		return "", false
+	}
+
+	return name, true
+}
+
+// shouldKeepNamespaceAlive checks if a namespace is within its TTL.
+// Returns false for unknown or expired namespaces (also cleans up tracking for expired ones).
+func (c *collector) shouldKeepNamespaceAlive(namespaceName string) bool {
+	lastSeen, ok := c.namespaceLastSeen[namespaceName]
+	if !ok {
+		return false
+	}
+
+	if time.Since(lastSeen) < namespaceMetadataTTL {
+		return true
+	}
+
+	// Expired, remove from tracking
+	delete(c.namespaceLastSeen, namespaceName)
+	return false
+}
+
 // parsePods returns collection events based on a given podlist.
 func (c *collector) parsePods(
 	ctx context.Context,
 	pods []*kubelet.Pod,
 	seen map[workloadmeta.EntityID]struct{},
 ) ([]workloadmeta.CollectorEvent, error) {
-	events := []workloadmeta.CollectorEvent{}
-
-	var err error
-	var metadataByNsPods apiv1.NamespacesPodsStringsSet
-	if c.isDCAEnabled() {
-		dcaVersion := c.dcaClient.Version(false)
-		if dcaVersion.Major >= 1 && dcaVersion.Minor >= 3 {
-			var nodeName string
-			nodeName, err = c.kubeUtil.GetNodename(ctx)
-			if err != nil {
-				log.Errorf("Could not retrieve the Nodename, err: %v", err)
-				return events, err
-			}
-
-			metadataByNsPods, err = c.dcaClient.GetPodsMetadataForNode(nodeName)
-			if err != nil {
-				log.Debugf("Could not pull the metadata map of pods on node %s from the Datadog Cluster Agent: %s", nodeName, err.Error())
-				return events, err
-			}
-		}
+	// selectPullBasedProvider is called on every pull (instead of Start)
+	// because providers have a per-pull namespace cache.
+	provider, err := c.selectPullBasedProvider(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	// To get metadata/labels once per namespace.
-	metadataByNS := make(map[string]*clusteragent.Metadata)
-	labelsByNS := make(map[string]map[string]string)
+	if err := provider.prepare(pods); err != nil {
+		return nil, err
+	}
+
+	events := []workloadmeta.CollectorEvent{}
 
 	for _, pod := range pods {
 		if pod.Metadata.UID == "" {
 			continue
 		}
 
-		metadata, err := c.getMetadata(apiserver.GetPodMetadataNames, metadataByNsPods, pod)
-		if err != nil {
-			log.Debugf("Could not fetch metadata for pod %s/%s: %v", pod.Metadata.Namespace, pod.Metadata.Name, err)
-		}
-
 		services := []string{}
-
-		// collectService if new kube_service bahavior is active
-		// or if not active, use old condition IsPodReady
-
-		collectService := pkgconfigsetup.Datadog().GetBool("kubernetes_kube_service_ignore_readiness") || kubelet.IsPodReady(pod)
-
-		if collectService {
-			for _, data := range metadata {
-				d := strings.Split(data, ":")
-				switch len(d) {
-				case 1:
-					// c.dcaClient.GetPodsMetadataForNode returns only a list of services without tag key
-					services = append(services, d[0])
-				case 2:
-					services = append(services, d[1])
-				default:
-					continue
-				}
+		if c.shouldCollectServices(pod) {
+			if s := provider.getKubernetesServices(pod); s != nil {
+				services = s
 			}
 		}
 
-		var nsLabels, nsAnnotations map[string]string
-
-		if c.isDCAEnabled() && c.dcaClient.SupportsNamespaceMetadataCollection() {
-			// Cluster agent with version 7.55+
-			nsMetadata, ok := metadataByNS[pod.Metadata.Namespace]
-			if !ok {
-				nsMetadata, err = c.getNamespaceMetadata(pod.Metadata.Namespace)
-				if err == nil {
-					metadataByNS[pod.Metadata.Namespace] = nsMetadata
-				} else {
-					log.Errorf("Could not fetch namespace metadata for pod %s/%s: %v", pod.Metadata.Namespace, pod.Metadata.Name, err)
-				}
-			}
-
-			if nsMetadata != nil {
-				if c.collectNamespaceAnnotations {
-					nsAnnotations = nsMetadata.Annotations
-				}
-
-				if c.collectNamespaceLabels {
-					nsLabels = nsMetadata.Labels
-				}
-			}
-		} else {
-			// Cluster agent with version older than 7.55
-			var ok bool
-			nsLabels, ok = labelsByNS[pod.Metadata.Namespace]
-			if !ok {
-				nsLabels, err = c.getNamespaceLabels(pod.Metadata.Namespace)
-				if err == nil {
-					labelsByNS[pod.Metadata.Namespace] = nsLabels
-				} else {
-					log.Errorf("Could not fetch namespace labels for pod %s/%s: %v", pod.Metadata.Namespace, pod.Metadata.Name, err)
-				}
-			}
-
-			if c.collectNamespaceAnnotations {
-				log.Errorf("Could not fetch namespace annotations for pod %s/%s: kubernetes_namespace_annotations_as_tags requires version 7.55 or later of the cluster agent", pod.Metadata.Namespace, pod.Metadata.Name)
-			}
-		}
+		nsLabels, nsAnnotations := provider.getNamespaceMetadata(pod.Metadata.Namespace)
 
 		entityID := workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesPod,
@@ -315,55 +311,22 @@ func (c *collector) parsePods(
 		})
 	}
 
+	// Save kubernetes namespace metadata entities for caching
+	for ns, nsMetadata := range provider.getCollectedNamespaces() {
+		nsEntity := createNamespaceEntity(ns, nsMetadata)
+		nsEntityID := nsEntity.GetID()
+
+		events = append(events, workloadmeta.CollectorEvent{
+			Source: workloadmeta.SourceClusterOrchestrator,
+			Type:   workloadmeta.EventTypeSet,
+			Entity: nsEntity,
+		})
+
+		seen[nsEntityID] = struct{}{}
+		c.namespaceLastSeen[ns] = time.Now()
+	}
+
 	return events, nil
-}
-
-// getMetadata returns the cluster level metadata (kube service only currently).
-func (c *collector) getMetadata(getPodMetaDataFromAPIServerFunc func(string, string, string) ([]string, error), metadataByNsPods apiv1.NamespacesPodsStringsSet, po *kubelet.Pod) ([]string, error) {
-	if !c.isDCAEnabled() {
-		metadataNames, err := getPodMetaDataFromAPIServerFunc(po.Spec.NodeName, po.Metadata.Namespace, po.Metadata.Name)
-		if err != nil {
-			err = fmt.Errorf("could not fetch cluster level tags of pod: %s, %v", po.Metadata.Name, err)
-		}
-		return metadataNames, err
-	}
-
-	if metadataByNsPods != nil {
-		if data, ok := metadataByNsPods[po.Metadata.Namespace][po.Metadata.Name]; ok && data != nil {
-			return sets.List(data), nil
-		}
-		return nil, nil
-	}
-
-	metadataNames, err := c.dcaClient.GetKubernetesMetadataNames(po.Spec.NodeName, po.Metadata.Namespace, po.Metadata.Name)
-	if err != nil {
-		err = fmt.Errorf("could not pull the metadata map of pod %s on node %s, %v", po.Metadata.Name, po.Spec.NodeName, err)
-	}
-
-	return metadataNames, err
-}
-
-// getNamespaceLabels returns the namespace labels, fast return if namespace labels as tags is disabled.
-func (c *collector) getNamespaceLabels(ns string) (map[string]string, error) {
-	if !c.collectNamespaceLabels || !c.isDCAEnabled() {
-		return nil, nil
-	}
-
-	return c.dcaClient.GetNamespaceLabels(ns)
-}
-
-// getNamespaceMetadata returns the namespace metadata
-// fast return if both namespace annotations and labels as tags are disabled, or if cluster agent is disabled
-// This endpoint is supported for cluster agents with version 7.55+
-func (c *collector) getNamespaceMetadata(ns string) (*clusteragent.Metadata, error) {
-	if !c.collectNamespaceAnnotations && !c.collectNamespaceLabels {
-		return nil, nil
-	}
-
-	if !c.isDCAEnabled() {
-		return nil, stderrors.New("cluster agent should be enabled in order to allow fetching namespace metadata")
-	}
-	return c.dcaClient.GetNamespaceMetadata(ns)
 }
 
 func (c *collector) isDCAEnabled() bool {
@@ -377,24 +340,58 @@ func (c *collector) isDCAEnabled() bool {
 	return false
 }
 
-// addToCacheMetadataMapping is acting like the DCA at the node level.
-func (c *collector) addToCacheMetadataMapping(kubeletPodList []*kubelet.Pod) error {
-	if len(kubeletPodList) == 0 {
-		log.Debug("Empty kubelet pod list")
-		return nil
+func (c *collector) selectPullBasedProvider(ctx context.Context) (metadataProvider, error) {
+	if !c.isDCAEnabled() {
+		return newLocalAPIServerProvider(c.apiClient), nil
 	}
 
-	reachablePods := make([]*kubelet.Pod, 0)
-	nodeName := ""
-	for _, p := range kubeletPodList {
-		if p.Status.PodIP == "" {
-			continue
+	dcaVersion := c.dcaClient.Version(false)
+	if supportsPerNodePodMetadata(dcaVersion) {
+		nodeName, err := c.kubeUtil.GetNodename(ctx)
+		if err != nil {
+			return nil, err
 		}
-		if nodeName == "" && p.Spec.NodeName != "" {
-			nodeName = p.Spec.NodeName
+
+		if c.dcaClient.SupportsNamespaceMetadataCollection() {
+			return newDCAFullProvider(nodeName, c.dcaClient, c.collectNamespaceLabels, c.collectNamespaceAnnotations), nil
 		}
-		reachablePods = append(reachablePods, p)
+
+		return newDCAPerNodeProvider(nodeName, c.dcaClient, c.collectNamespaceLabels, c.collectNamespaceAnnotations), nil
 	}
 
-	return c.apiClient.NodeMetadataMapping(nodeName, reachablePods)
+	return newDCAPerPodProvider(c.dcaClient, c.collectNamespaceLabels, c.collectNamespaceAnnotations), nil
+}
+
+// createNamespaceEntity creates a KubernetesMetadata entity for a namespace
+func createNamespaceEntity(namespaceName string, metadata namespaceMetadata) *workloadmeta.KubernetesMetadata {
+	labels := make(map[string]string)
+	annotations := make(map[string]string)
+
+	if metadata.labels != nil {
+		labels = metadata.labels
+	}
+	if metadata.annotations != nil {
+		annotations = metadata.annotations
+	}
+
+	return &workloadmeta.KubernetesMetadata{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesMetadata,
+			ID:   string(util.GenerateKubeMetadataEntityID("", "namespaces", "", namespaceName)),
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:        namespaceName,
+			Labels:      labels,
+			Annotations: annotations,
+		},
+		GVR: &schema.GroupVersionResource{
+			Group:    "",
+			Version:  "v1",
+			Resource: "namespaces",
+		},
+	}
+}
+
+func (c *collector) shouldCollectServices(pod *kubelet.Pod) bool {
+	return c.ignoreServiceReadiness || kubelet.IsPodReady(pod)
 }

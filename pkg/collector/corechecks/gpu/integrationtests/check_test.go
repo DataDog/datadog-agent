@@ -82,9 +82,8 @@ func assertMetricCase(t *testing.T, metricsByName map[string][]mock.Call, tc met
 	t.Helper()
 
 	calls, ok := metricsByName[tc.name]
-	if !assert.True(t, ok, "%s metric should be present", tc.name) || !assert.NotEmpty(t, calls, "No calls found for metric %s", tc.name) {
-		return
-	}
+	require.True(t, ok, "%s metric should be present", tc.name)
+	require.NotEmpty(t, calls, "No calls found for metric %s", tc.name)
 
 	for _, call := range calls {
 		value := call.Arguments[1].(float64)
@@ -145,7 +144,7 @@ func TestCheckRunWithRealHardware(t *testing.T) {
 	require.True(t, ok)
 	checkInternal.SetContainerProvider(mock_containers.NewMockContainerProvider(gomock.NewController(t)))
 
-	err = checkInstance.Configure(senderManager, integration.FakeConfigHash, []byte{}, []byte{}, "test")
+	err = checkInstance.Configure(senderManager, integration.FakeConfigHash, []byte{}, []byte{}, "test", "provider")
 	require.NoError(t, err)
 	t.Cleanup(func() { checkInstance.Cancel() })
 

@@ -283,7 +283,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`process.ancestors.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`process.ancestors.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`process.ancestors.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`process.ancestors.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
 | [`process.ancestors.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`process.ancestors.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`process.ancestors.uid`](#common-credentials-uid-doc) | UID of the process |
@@ -485,7 +485,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`process.parent.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`process.parent.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`process.parent.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`process.parent.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
 | [`process.parent.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`process.parent.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`process.parent.uid`](#common-credentials-uid-doc) | UID of the process |
@@ -503,7 +503,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.user_session.ssh_public_key`](#common-sshsessioncontext-ssh_public_key-doc) | SSH public key used for authentication (if applicable) |
 | [`process.parent.user_session.ssh_session_id`](#common-sshsessioncontext-ssh_session_id-doc) | Unique identifier of the SSH user session on the host |
 | [`process.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`process.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`process.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
 | [`process.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`process.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`process.uid`](#common-credentials-uid-doc) | UID of the process |
@@ -529,6 +529,8 @@ An accept was executed
 | -------- | ------------- |
 | [`accept.addr.family`](#accept-addr-family-doc) | Address family |
 | [`accept.addr.hostname`](#accept-addr-hostname-doc) | Address hostname (if available) |
+| [`accept.addr.hostname.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`accept.addr.hostname.root_domain`](#common-string-root_domain-doc) | Root domain of the corresponding element |
 | [`accept.addr.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`accept.addr.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`accept.addr.port`](#common-ipportcontext-port-doc) | Port number |
@@ -745,6 +747,8 @@ A connect was executed
 | -------- | ------------- |
 | [`connect.addr.family`](#connect-addr-family-doc) | Address family |
 | [`connect.addr.hostname`](#connect-addr-hostname-doc) | Address hostname (if available) |
+| [`connect.addr.hostname.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`connect.addr.hostname.root_domain`](#common-string-root_domain-doc) | Root domain of the corresponding element |
 | [`connect.addr.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`connect.addr.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`connect.addr.port`](#common-ipportcontext-port-doc) | Port number |
@@ -763,6 +767,7 @@ A DNS request was sent
 | [`dns.question.length`](#dns-question-length-doc) | the total DNS request size in bytes |
 | [`dns.question.name`](#dns-question-name-doc) | the queried domain name |
 | [`dns.question.name.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`dns.question.name.root_domain`](#common-string-root_domain-doc) | Root domain of the corresponding element |
 | [`dns.question.type`](#dns-question-type-doc) | a two octet code which specifies the DNS question type |
 | [`dns.response.code`](#dns-response-code-doc) | Response code of the DNS response according to RFC 1035 |
 | [`network.destination.ip`](#common-ipportcontext-ip-doc) | IP address |
@@ -886,7 +891,7 @@ A process was executed (does not trigger on fork syscalls).
 | [`exec.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`exec.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`exec.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`exec.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`exec.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
 | [`exec.syscall.path`](#exec-syscall-path-doc) | path argument of the syscall |
 | [`exec.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`exec.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
@@ -1006,7 +1011,7 @@ A process was terminated
 | [`exit.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`exit.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`exit.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`exit.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`exit.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
 | [`exit.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`exit.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`exit.uid`](#common-credentials-uid-doc) | UID of the process |
@@ -1471,7 +1476,7 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`ptrace.tracee.ancestors.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`ptrace.tracee.ancestors.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`ptrace.tracee.ancestors.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`ptrace.tracee.ancestors.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
 | [`ptrace.tracee.ancestors.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`ptrace.tracee.ancestors.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`ptrace.tracee.ancestors.uid`](#common-credentials-uid-doc) | UID of the process |
@@ -1673,7 +1678,7 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`ptrace.tracee.parent.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`ptrace.tracee.parent.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`ptrace.tracee.parent.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`ptrace.tracee.parent.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
 | [`ptrace.tracee.parent.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`ptrace.tracee.parent.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`ptrace.tracee.parent.uid`](#common-credentials-uid-doc) | UID of the process |
@@ -1691,7 +1696,7 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.user_session.ssh_public_key`](#common-sshsessioncontext-ssh_public_key-doc) | SSH public key used for authentication (if applicable) |
 | [`ptrace.tracee.parent.user_session.ssh_session_id`](#common-sshsessioncontext-ssh_session_id-doc) | Unique identifier of the SSH user session on the host |
 | [`ptrace.tracee.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`ptrace.tracee.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`ptrace.tracee.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
 | [`ptrace.tracee.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`ptrace.tracee.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`ptrace.tracee.uid`](#common-credentials-uid-doc) | UID of the process |
@@ -1974,7 +1979,7 @@ A setrlimit command was executed
 | [`setrlimit.target.ancestors.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`setrlimit.target.ancestors.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`setrlimit.target.ancestors.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`setrlimit.target.ancestors.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`setrlimit.target.ancestors.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
 | [`setrlimit.target.ancestors.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`setrlimit.target.ancestors.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`setrlimit.target.ancestors.uid`](#common-credentials-uid-doc) | UID of the process |
@@ -2176,7 +2181,7 @@ A setrlimit command was executed
 | [`setrlimit.target.parent.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`setrlimit.target.parent.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`setrlimit.target.parent.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`setrlimit.target.parent.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`setrlimit.target.parent.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
 | [`setrlimit.target.parent.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`setrlimit.target.parent.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`setrlimit.target.parent.uid`](#common-credentials-uid-doc) | UID of the process |
@@ -2194,7 +2199,7 @@ A setrlimit command was executed
 | [`setrlimit.target.parent.user_session.ssh_public_key`](#common-sshsessioncontext-ssh_public_key-doc) | SSH public key used for authentication (if applicable) |
 | [`setrlimit.target.parent.user_session.ssh_session_id`](#common-sshsessioncontext-ssh_session_id-doc) | Unique identifier of the SSH user session on the host |
 | [`setrlimit.target.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`setrlimit.target.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`setrlimit.target.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
 | [`setrlimit.target.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`setrlimit.target.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`setrlimit.target.uid`](#common-credentials-uid-doc) | UID of the process |
@@ -2382,7 +2387,7 @@ A signal was sent
 | [`signal.target.ancestors.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`signal.target.ancestors.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`signal.target.ancestors.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`signal.target.ancestors.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`signal.target.ancestors.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
 | [`signal.target.ancestors.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`signal.target.ancestors.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`signal.target.ancestors.uid`](#common-credentials-uid-doc) | UID of the process |
@@ -2584,7 +2589,7 @@ A signal was sent
 | [`signal.target.parent.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`signal.target.parent.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`signal.target.parent.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`signal.target.parent.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`signal.target.parent.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
 | [`signal.target.parent.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`signal.target.parent.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`signal.target.parent.uid`](#common-credentials-uid-doc) | UID of the process |
@@ -2602,7 +2607,7 @@ A signal was sent
 | [`signal.target.parent.user_session.ssh_public_key`](#common-sshsessioncontext-ssh_public_key-doc) | SSH public key used for authentication (if applicable) |
 | [`signal.target.parent.user_session.ssh_session_id`](#common-sshsessioncontext-ssh_session_id-doc) | Unique identifier of the SSH user session on the host |
 | [`signal.target.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`signal.target.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`signal.target.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
 | [`signal.target.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`signal.target.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`signal.target.uid`](#common-credentials-uid-doc) | UID of the process |
@@ -3314,8 +3319,8 @@ Type: int
 
 Definition: Length of the corresponding element
 
-`*.length` has 98 possible prefixes:
-`cgroup_write.file.name` `cgroup_write.file.path` `chdir.file.name` `chdir.file.path` `chmod.file.name` `chmod.file.path` `chown.file.name` `chown.file.path` `dns.question.name` `exec.file.name` `exec.file.path` `exec.interpreter.file.name` `exec.interpreter.file.path` `exit.file.name` `exit.file.path` `exit.interpreter.file.name` `exit.interpreter.file.path` `link.file.destination.name` `link.file.destination.path` `link.file.name` `link.file.path` `load_module.file.name` `load_module.file.path` `mkdir.file.name` `mkdir.file.path` `mmap.file.name` `mmap.file.path` `network_flow_monitor.flows` `open.file.name` `open.file.path` `process.ancestors` `process.ancestors.file.name` `process.ancestors.file.path` `process.ancestors.interpreter.file.name` `process.ancestors.interpreter.file.path` `process.file.name` `process.file.path` `process.interpreter.file.name` `process.interpreter.file.path` `process.parent.file.name` `process.parent.file.path` `process.parent.interpreter.file.name` `process.parent.interpreter.file.path` `ptrace.tracee.ancestors` `ptrace.tracee.ancestors.file.name` `ptrace.tracee.ancestors.file.path` `ptrace.tracee.ancestors.interpreter.file.name` `ptrace.tracee.ancestors.interpreter.file.path` `ptrace.tracee.file.name` `ptrace.tracee.file.path` `ptrace.tracee.interpreter.file.name` `ptrace.tracee.interpreter.file.path` `ptrace.tracee.parent.file.name` `ptrace.tracee.parent.file.path` `ptrace.tracee.parent.interpreter.file.name` `ptrace.tracee.parent.interpreter.file.path` `removexattr.file.name` `removexattr.file.path` `rename.file.destination.name` `rename.file.destination.path` `rename.file.name` `rename.file.path` `rmdir.file.name` `rmdir.file.path` `setrlimit.target.ancestors` `setrlimit.target.ancestors.file.name` `setrlimit.target.ancestors.file.path` `setrlimit.target.ancestors.interpreter.file.name` `setrlimit.target.ancestors.interpreter.file.path` `setrlimit.target.file.name` `setrlimit.target.file.path` `setrlimit.target.interpreter.file.name` `setrlimit.target.interpreter.file.path` `setrlimit.target.parent.file.name` `setrlimit.target.parent.file.path` `setrlimit.target.parent.interpreter.file.name` `setrlimit.target.parent.interpreter.file.path` `setxattr.file.name` `setxattr.file.path` `signal.target.ancestors` `signal.target.ancestors.file.name` `signal.target.ancestors.file.path` `signal.target.ancestors.interpreter.file.name` `signal.target.ancestors.interpreter.file.path` `signal.target.file.name` `signal.target.file.path` `signal.target.interpreter.file.name` `signal.target.interpreter.file.path` `signal.target.parent.file.name` `signal.target.parent.file.path` `signal.target.parent.interpreter.file.name` `signal.target.parent.interpreter.file.path` `splice.file.name` `splice.file.path` `unlink.file.name` `unlink.file.path` `utimes.file.name` `utimes.file.path`
+`*.length` has 100 possible prefixes:
+`accept.addr.hostname` `cgroup_write.file.name` `cgroup_write.file.path` `chdir.file.name` `chdir.file.path` `chmod.file.name` `chmod.file.path` `chown.file.name` `chown.file.path` `connect.addr.hostname` `dns.question.name` `exec.file.name` `exec.file.path` `exec.interpreter.file.name` `exec.interpreter.file.path` `exit.file.name` `exit.file.path` `exit.interpreter.file.name` `exit.interpreter.file.path` `link.file.destination.name` `link.file.destination.path` `link.file.name` `link.file.path` `load_module.file.name` `load_module.file.path` `mkdir.file.name` `mkdir.file.path` `mmap.file.name` `mmap.file.path` `network_flow_monitor.flows` `open.file.name` `open.file.path` `process.ancestors` `process.ancestors.file.name` `process.ancestors.file.path` `process.ancestors.interpreter.file.name` `process.ancestors.interpreter.file.path` `process.file.name` `process.file.path` `process.interpreter.file.name` `process.interpreter.file.path` `process.parent.file.name` `process.parent.file.path` `process.parent.interpreter.file.name` `process.parent.interpreter.file.path` `ptrace.tracee.ancestors` `ptrace.tracee.ancestors.file.name` `ptrace.tracee.ancestors.file.path` `ptrace.tracee.ancestors.interpreter.file.name` `ptrace.tracee.ancestors.interpreter.file.path` `ptrace.tracee.file.name` `ptrace.tracee.file.path` `ptrace.tracee.interpreter.file.name` `ptrace.tracee.interpreter.file.path` `ptrace.tracee.parent.file.name` `ptrace.tracee.parent.file.path` `ptrace.tracee.parent.interpreter.file.name` `ptrace.tracee.parent.interpreter.file.path` `removexattr.file.name` `removexattr.file.path` `rename.file.destination.name` `rename.file.destination.path` `rename.file.name` `rename.file.path` `rmdir.file.name` `rmdir.file.path` `setrlimit.target.ancestors` `setrlimit.target.ancestors.file.name` `setrlimit.target.ancestors.file.path` `setrlimit.target.ancestors.interpreter.file.name` `setrlimit.target.ancestors.interpreter.file.path` `setrlimit.target.file.name` `setrlimit.target.file.path` `setrlimit.target.interpreter.file.name` `setrlimit.target.interpreter.file.path` `setrlimit.target.parent.file.name` `setrlimit.target.parent.file.path` `setrlimit.target.parent.interpreter.file.name` `setrlimit.target.parent.interpreter.file.path` `setxattr.file.name` `setxattr.file.path` `signal.target.ancestors` `signal.target.ancestors.file.name` `signal.target.ancestors.file.path` `signal.target.ancestors.interpreter.file.name` `signal.target.ancestors.interpreter.file.path` `signal.target.file.name` `signal.target.file.path` `signal.target.interpreter.file.name` `signal.target.interpreter.file.path` `signal.target.parent.file.name` `signal.target.parent.file.path` `signal.target.parent.interpreter.file.name` `signal.target.parent.interpreter.file.path` `splice.file.name` `splice.file.path` `unlink.file.name` `unlink.file.path` `utimes.file.name` `utimes.file.path`
 
 
 ### `*.mntns` {#common-pidcontext-mntns-doc}
@@ -3539,7 +3544,7 @@ Definition: Port number
 `accept.addr` `bind.addr` `connect.addr` `network.destination` `network.source` `network_flow_monitor.flows.destination` `network_flow_monitor.flows.source` `packet.destination` `packet.source`
 
 
-### `*.ppid` {#common-process-ppid-doc}
+### `*.ppid` {#common-pidcontext-ppid-doc}
 Type: int
 
 Definition: Parent process ID
@@ -3570,6 +3575,15 @@ Definition: Rights of the file
 
 Constants: [File mode constants](#file-mode-constants)
 
+
+
+### `*.root_domain` {#common-string-root_domain-doc}
+Type: string
+
+Definition: Root domain of the corresponding element
+
+`*.root_domain` has 3 possible prefixes:
+`accept.addr.hostname` `connect.addr.hostname` `dns.question.name`
 
 
 ### `*.session_type` {#common-usersessioncontext-session_type-doc}

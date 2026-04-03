@@ -211,8 +211,9 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 
 	model.AssertPodAutoscalersEqual(t, []model.FakePodAutoscalerInternal{
 		{
-			Namespace: "ns",
-			Name:      "name1",
+			Namespace:                "ns",
+			Name:                     "name1",
+			MainScalingValuesVersion: 1,
 			MainScalingValues: model.ScalingValues{
 				Horizontal: &model.HorizontalScalingValues{
 					Source:    datadoghqcommon.DatadogPodAutoscalerManualValueSource,
@@ -222,8 +223,9 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 			},
 		},
 		{
-			Namespace: "ns",
-			Name:      "name2",
+			Namespace:                "ns",
+			Name:                     "name2",
+			MainScalingValuesVersion: 2,
 			MainScalingValues: model.ScalingValues{
 				Horizontal: &model.HorizontalScalingValues{
 					Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
@@ -247,8 +249,9 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 			},
 		},
 		{
-			Namespace: "ns",
-			Name:      "name3",
+			Namespace:                "ns",
+			Name:                     "name3",
+			MainScalingValuesVersion: 2,
 			MainScalingValues: model.ScalingValues{
 				Horizontal: &model.HorizontalScalingValues{
 					Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
@@ -303,13 +306,15 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 	podAutoscalers = store.GetAll()
 	model.AssertPodAutoscalersEqual(t, []model.FakePodAutoscalerInternal{
 		{
-			Namespace:         "ns",
-			Name:              "name1",
-			MainScalingValues: model.ScalingValues{},
+			Namespace:                "ns",
+			Name:                     "name1",
+			MainScalingValuesVersion: 10,
+			MainScalingValues:        model.ScalingValues{},
 		},
 		{
-			Namespace: "ns",
-			Name:      "name2",
+			Namespace:                "ns",
+			Name:                     "name2",
+			MainScalingValuesVersion: 20,
 			MainScalingValues: model.ScalingValues{
 				Horizontal: &model.HorizontalScalingValues{
 					Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
@@ -333,8 +338,9 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 			},
 		},
 		{
-			Namespace: "ns",
-			Name:      "name3",
+			Namespace:                "ns",
+			Name:                     "name3",
+			MainScalingValuesVersion: 20,
 			MainScalingValues: model.ScalingValues{
 				Horizontal: &model.HorizontalScalingValues{
 					Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
@@ -365,13 +371,15 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 	podAutoscalers = store.GetAll()
 	model.AssertPodAutoscalersEqual(t, []model.FakePodAutoscalerInternal{
 		{
-			Namespace:         "ns",
-			Name:              "name1",
-			MainScalingValues: model.ScalingValues{},
+			Namespace:                "ns",
+			Name:                     "name1",
+			MainScalingValuesVersion: 10,
+			MainScalingValues:        model.ScalingValues{},
 		},
 		{
-			Namespace: "ns",
-			Name:      "name2",
+			Namespace:                "ns",
+			Name:                     "name2",
+			MainScalingValuesVersion: 20,
 			MainScalingValues: model.ScalingValues{
 				Horizontal: &model.HorizontalScalingValues{
 					Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
@@ -395,8 +403,9 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 			},
 		},
 		{
-			Namespace: "ns",
-			Name:      "name3",
+			Namespace:                "ns",
+			Name:                     "name3",
+			MainScalingValuesVersion: 20,
 			MainScalingValues: model.ScalingValues{
 				Horizontal: &model.HorizontalScalingValues{
 					Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
@@ -431,8 +440,9 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 			Name:      "name1",
 		},
 		{
-			Namespace: "ns",
-			Name:      "name2",
+			Namespace:                "ns",
+			Name:                     "name2",
+			MainScalingValuesVersion: 21,
 			MainScalingValues: model.ScalingValues{
 				Horizontal: &model.HorizontalScalingValues{
 					Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
@@ -535,8 +545,9 @@ func TestConfigRetriverAutoscalingValuesReconcile(t *testing.T) {
 	podAutoscalers = store.GetAll()
 	model.AssertPodAutoscalersEqual(t, []model.FakePodAutoscalerInternal{
 		{
-			Namespace: "ns",
-			Name:      "name1",
+			Namespace:                "ns",
+			Name:                     "name1",
+			MainScalingValuesVersion: 2,
 			MainScalingValues: model.ScalingValues{
 				Horizontal: &model.HorizontalScalingValues{
 					Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,

@@ -25,7 +25,7 @@ import (
 )
 
 type tailer interface {
-	Start(bookmark string)
+	Start()
 	startstop.Stoppable
 	Identifier() string
 }
@@ -120,7 +120,6 @@ func (l *Launcher) setupTailer(source *sources.LogSource) (tailer, error) {
 		ProcessRawMessage: sanitizedConfig.ProcessRawMessage,
 	}
 	t := windowsevent.NewTailer(nil, source, config, l.pipelineProvider.NextPipelineChan(), l.registry, l.publisherMetadataCache)
-	bookmark := l.registry.GetOffset(t.Identifier())
-	t.Start(bookmark)
+	t.Start()
 	return t, nil
 }

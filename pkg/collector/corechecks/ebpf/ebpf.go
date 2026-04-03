@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"strings"
 
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -62,8 +62,8 @@ func (c *EBPFCheckConfig) Parse(data []byte) error {
 }
 
 // Configure parses the check configuration and init the check
-func (m *EBPFCheck) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
-	if err := m.CommonConfigure(senderManager, initConfig, config, source); err != nil {
+func (m *EBPFCheck) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string, provider string) error {
+	if err := m.CommonConfigure(senderManager, initConfig, config, source, provider); err != nil {
 		return err
 	}
 	if err := m.config.Parse(config); err != nil {

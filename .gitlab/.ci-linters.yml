@@ -50,6 +50,9 @@ needs-rules:
     - installer_trigger_auto_staging_release
     - installer_trigger_manual_prod_release
     - index-consolidation
+    - single-machine-performance-regression_detector
+    - single-machine-performance-metal-runners-regression_detector
+    - single-machine-performance-regression_detector-pr-comment
 
 # Lists jobs that are allowed to not be within JOBOWNERS
 job-owners:
@@ -99,6 +102,7 @@ job-owners:
     - single-machine-performance-regression_detector
     - single-machine-performance-metal-runners-regression_detector
     - single-machine-performance-regression_detector-pr-comment
+    - trigger-single-machine-performance-regression_detector
     - test_install_script
     - trace-agent-v04-2cpus-normal_load-fixed_sps
     - trace-agent-v04-2cpus-stress_load-fixed_sps

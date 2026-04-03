@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/semantics"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	normalizeutil "github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 )
@@ -30,15 +31,13 @@ const (
 	// tagSamplingPriority specifies the sampling priority of the trace.
 	// DEPRECATED: Priority is now specified as a TraceChunk field.
 	tagSamplingPriority = "_sampling_priority_v1"
-	// peerServiceKey is the key for the peer.service meta field.
-	peerServiceKey = "peer.service"
-	// baseServiceKey is the key for the _dd.base_service meta field.
-	baseServiceKey = "_dd.base_service"
 )
 
 var (
 	// Year2000NanosecTS is an arbitrary cutoff to spot weird-looking values
 	Year2000NanosecTS = time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC).UnixNano()
+	// normalizerRegistry is the semantic registry used for tag lookups in span normalization.
+	normalizerRegistry = semantics.DefaultRegistry()
 )
 
 // normalizeService handles service normalization for both pb.Span and idx.InternalSpan
@@ -164,12 +163,16 @@ func (a *Agent) validateAndFixHTTPStatusCode(ts *info.TagStats, sc string) (stri
 // normalizeSpanLinks handles span links normalization for both pb.Span and idx.InternalSpan
 func (a *Agent) normalizeSpanLinks(links []*pb.SpanLink) {
 	for _, link := range links {
-		if val, ok := link.Attributes["link.name"]; ok {
+		if link == nil {
+			continue
+		}
+
+		if val, ok := link.Attributes[string(semantics.ConceptLinkName)]; ok {
 			newName, err := normalizeutil.NormalizeName(val)
 			if err != nil {
 				log.Debugf("Fixing malformed trace. 'link.name' attribute in span link is invalid (reason=%q), setting link.Attributes[\"link.name\"]=%s", err, newName)
 			}
-			link.Attributes["link.name"] = newName
+			link.Attributes[string(semantics.ConceptLinkName)] = newName
 		}
 	}
 }
@@ -202,12 +205,16 @@ func (a *Agent) validateAndFixStartTimeV1(ts *info.TagStats, start uint64, durat
 // normalizeSpanLinksV1 handles span links normalization for idx.InternalSpan
 func (a *Agent) normalizeSpanLinksV1(links []*idx.InternalSpanLink) {
 	for _, link := range links {
-		if val, ok := link.GetAttributeAsString("link.name"); ok {
+		if link == nil {
+			continue
+		}
+
+		if val, ok := link.GetAttributeAsString(string(semantics.ConceptLinkName)); ok {
 			newName, err := normalizeutil.NormalizeName(val)
 			if err != nil {
 				log.Debugf("Fixing malformed trace. 'link.name' attribute in span link is invalid (reason=%q), setting link.Attributes[\"link.name\"]=%s", err, newName)
 			}
-			link.SetStringAttribute("link.name", newName)
+			link.SetStringAttribute(string(semantics.ConceptLinkName), newName)
 		}
 	}
 }
@@ -227,16 +234,16 @@ func (a *Agent) normalize(ts *info.TagStats, s *pb.Span) error {
 	svc, _ := a.normalizeService(ts, s.Service, ts.Lang)
 	s.Service = svc
 
-	if pSvc, ok := s.Meta[peerServiceKey]; ok {
-		s.Meta[peerServiceKey] = a.normalizePeerService(ts, pSvc)
+	spanAccessor := semantics.NewDDSpanAccessor(s.Meta, s.Metrics)
+	if pSvc := semantics.LookupString(normalizerRegistry, spanAccessor, semantics.ConceptPeerService); pSvc != "" {
+		s.Meta[string(semantics.ConceptPeerService)] = a.normalizePeerService(ts, pSvc)
 	}
-
-	if bSvc, ok := s.Meta[baseServiceKey]; ok {
-		s.Meta[baseServiceKey] = a.normalizeBaseService(ts, bSvc)
+	if bSvc := semantics.LookupString(normalizerRegistry, spanAccessor, semantics.ConceptDDBaseService); bSvc != "" {
+		s.Meta[string(semantics.ConceptDDBaseService)] = a.normalizeBaseService(ts, bSvc)
 	}
 
 	if a.conf.HasFeature("component2name") {
-		if v, ok := s.Meta["component"]; ok {
+		if v := semantics.LookupString(normalizerRegistry, spanAccessor, semantics.ConceptComponent); v != "" {
 			s.Name = v
 		}
 	}
@@ -263,6 +270,8 @@ func (a *Agent) normalize(ts *info.TagStats, s *pb.Span) error {
 		s.Meta["env"] = normalizeutil.NormalizeTagValue(env)
 	}
 
+	// TODO: We need to extend the semantic registry
+	// to allow validations or updates in place.
 	if sc, ok := s.Meta["http.status_code"]; ok {
 		if _, valid := a.validateAndFixHTTPStatusCode(ts, sc); !valid {
 			delete(s.Meta, "http.status_code")
@@ -286,16 +295,20 @@ func (a *Agent) normalizeV1(ts *info.TagStats, s *idx.InternalSpan) error {
 	svc, _ := a.normalizeService(ts, s.Service(), ts.Lang)
 	s.SetService(svc)
 
-	if pSvc, ok := s.GetAttributeAsString(peerServiceKey); ok {
-		s.SetStringAttribute(peerServiceKey, a.normalizePeerService(ts, pSvc))
+	spanAccessorV1 := semantics.NewDDSpanAccessorV1(s)
+	if pSvc := semantics.LookupString(normalizerRegistry, spanAccessorV1, semantics.ConceptPeerService); pSvc != "" {
+		s.SetStringAttribute(string(semantics.ConceptPeerService), a.normalizePeerService(ts, pSvc))
 	}
-
-	if bSvc, ok := s.GetAttributeAsString(baseServiceKey); ok {
-		s.SetStringAttribute(baseServiceKey, a.normalizeBaseService(ts, bSvc))
+	if bSvc := semantics.LookupString(normalizerRegistry, spanAccessorV1, semantics.ConceptDDBaseService); bSvc != "" {
+		s.SetStringAttribute(string(semantics.ConceptDDBaseService), a.normalizeBaseService(ts, bSvc))
 	}
 
 	if a.conf.HasFeature("component2name") {
-		if v, ok := s.GetAttributeAsString("component"); ok {
+		// Use GetAttributeAsString directly instead of the semantic registry:
+		// DDSpanAccessorV1.GetString only reads from the attributes map, but "component"
+		// is stored as a promoted field (ComponentRef) on V1 spans. GetAttributeAsString
+		// handles promoted fields correctly.
+		if v, ok := s.GetAttributeAsString(string(semantics.ConceptComponent)); ok && v != "" {
 			s.SetName(v)
 		}
 	}
@@ -455,7 +468,6 @@ func (a *Agent) normalizeStatsGroup(b *pb.ClientGroupedStats, lang string) {
 	if b.Resource == "" {
 		b.Resource = b.Name
 	}
-	b.Resource, _ = a.TruncateResource(b.Resource)
 }
 
 func isValidStatusCode(sc string) bool {

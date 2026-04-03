@@ -130,8 +130,10 @@ type kernelSpan struct {
 	// numKernels is the number of kernels that were launched during the span
 	numKernels uint64
 
-	// avgMemoryUsage is the average memory usage during the span, per allocation type
-	avgMemoryUsage map[memAllocType]uint64
+	// avgMemoryUsage is the average memory usage during the span, per allocation type.
+	// Indexed by memAllocType, an enum representing the CUDA memory spaces
+	// tracked by the agent (kernel binary, global, shared, constant).
+	avgMemoryUsage [memAllocTypeCount]uint64
 }
 
 // enrichedKernelLaunch is a structure that wraps a kernel launch event with the code to get
@@ -320,14 +322,8 @@ func (sh *StreamHandler) getCurrentKernelSpan(maxTime uint64) *kernelSpan {
 	span.numKernels = 0
 	span.avgThreadCount = 0
 
-	// Reset the memory usage map
-	for allocType := range span.avgMemoryUsage {
-		span.avgMemoryUsage[allocType] = 0
-	}
-
-	if span.avgMemoryUsage == nil {
-		span.avgMemoryUsage = make(map[memAllocType]uint64)
-	}
+	// Reset the memory usage array
+	span.avgMemoryUsage = [memAllocTypeCount]uint64{}
 
 	sh.kernelLaunchesMutex.RLock()
 	defer sh.kernelLaunchesMutex.RUnlock()
@@ -381,7 +377,7 @@ func getAssociatedAllocations(span *kernelSpan) []*memorySpan {
 		return nil
 	}
 
-	allocations := make([]*memorySpan, 0, len(span.avgMemoryUsage))
+	allocations := make([]*memorySpan, 0, memAllocTypeCount)
 	for allocType, size := range span.avgMemoryUsage {
 		if size == 0 {
 			continue
@@ -392,7 +388,7 @@ func getAssociatedAllocations(span *kernelSpan) []*memorySpan {
 		alloc.endKtime = span.endKtime
 		alloc.size = size
 		alloc.isLeaked = false
-		alloc.allocType = allocType
+		alloc.allocType = memAllocType(allocType)
 		allocations = append(allocations, alloc)
 	}
 

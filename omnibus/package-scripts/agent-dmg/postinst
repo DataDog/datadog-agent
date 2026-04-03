@@ -37,7 +37,7 @@ INSTALL_USER=$(ps aux | grep "CoreServices/Installer" | grep -v grep | awk '{pri
 # Otherwise, we hope he is using the install script and try to use this user
 # If it fails, no choice but to use root :'(
 if [ -z "$INSTALL_USER" ] || [ "$INSTALL_USER" = "root" ]; then
-    INSTALL_USER=`cat /tmp/datadog-install-user || echo 'root'`
+    INSTALL_USER=$(cat /tmp/datadog-install-user || echo 'root')
     rm -v /tmp/datadog-install-user || true
 fi
 echo "INSTALL_USER: $INSTALL_USER"
@@ -92,8 +92,23 @@ chmod -v 755 "$RUN_DIR"  # Secure: protects databases and registries
 
 # Create separate world-writable directory ONLY for multi-user GUI sockets
 mkdir -vp "$RUN_DIR/ipc"
+# Remove stale GUI socket files before chown to prevent "Address already in use" on DMG reinstall
+# or installation over a partial installation or partial cleanup of a previous installation.
+# Use find instead of shell glob so removal works when Installer runs postinst (glob may not expand).
+find "$RUN_DIR/ipc" -maxdepth 1 -name 'gui-*.sock' -exec rm -fv {} \;
 chown -vR root:wheel "$RUN_DIR/ipc"
 chmod -v 1777 "$RUN_DIR/ipc"  # Sticky bit: users can create GUI sockets but not delete others' files
+
+# Reset location permission prompt attempt count for all users so each user gets a fresh 2 prompt
+# attempts after each installation (per-installation behavior). UserDefaults key is in
+# ~/Library/Preferences/com.datadoghq.agent.plist and survives reinstall otherwise.
+echo "# Resetting location permission prompt attempt count for all users"
+for user_home in /Users/*; do
+    [ -d "$user_home" ] || continue
+    user=$(basename "$user_home")
+    [ "$user" = "Shared" ] && continue
+    sudo -u "$user" defaults delete com.datadoghq.agent locationPermissionPromptAttemptCount 2>/dev/null || true
+done
 
 echo "# Copying conf"
 mkdir -vp $CONF_DIR/checks.d
@@ -143,13 +158,8 @@ if [ -f "/tmp/install-ddagent/system-wide" ]; then
   # System-wide installation: Install GUI app for all users (headless mode)
   echo "# Configuring GUI app for system-wide installation"
 
-  # Install GUI appfor ALL users (headless mode)
+  # Install GUI app for ALL users (headless mode by default from plist template)
   cp -vf "$CONF_DIR/com.datadoghq.gui.plist.example" /Library/LaunchAgents/com.datadoghq.gui.plist
-
-  # Add --headless flag to ProgramArguments (inserts before the closing </array> tag)
-  sed -i '' '/<\/array>/i\
-            <string>--headless<\/string>
-' /Library/LaunchAgents/com.datadoghq.gui.plist
 
   # Set proper ownership and permissions for system-wide LaunchAgent
   chown root:wheel /Library/LaunchAgents/com.datadoghq.gui.plist
@@ -192,8 +202,10 @@ else
   sudo -Hu "$INSTALL_USER" ln -vs $CONF_DIR/datadog.yaml "$USER_HOME/.datadog-agent/datadog.yaml"
   sudo -Hu "$INSTALL_USER" ln -vs $CONF_DIR/checks.d "$USER_HOME/.datadog-agent/checks.d"
 
-  # Create the tray icon app launchctl service
+  # Tray app: headless by default from plist template. install_mac_os.sh may remove --headless
+  # if DD_GUI_APP_MENU_ENABLED=true (postinst does not see that env var from the installer).
   sudo -Hu "$INSTALL_USER" cp -vf "$CONF_DIR/com.datadoghq.gui.plist.example" "$USER_HOME/Library/LaunchAgents/com.datadoghq.gui.plist"
+
   sudo -Hu "$INSTALL_USER" launchctl load -w "$USER_HOME/Library/LaunchAgents/com.datadoghq.agent.plist"
 
   # Load the GUI LaunchAgent
@@ -204,6 +216,7 @@ else
   echo "=========================================="
   echo "Datadog Agent GUI"
   echo "=========================================="
+  echo ""
   echo "To enable WiFi data collection (SSID/BSSID), grant Location permission:"
   echo "  System Settings -> Privacy & Security -> Location Services -> Enable 'Datadog Agent'"
   echo ""

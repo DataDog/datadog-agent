@@ -1,0 +1,25 @@
+---
+name: Bazel Cache
+description: Pull or push Bazel-related cache(s)
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: echo "XDG_CACHE_HOME=$GITHUB_WORKSPACE/.cache" >>"$GITHUB_ENV"
+    - name: Pull or push Bazel installation cache(s)
+      uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+      with:
+        key: bazelversion-${{ hashFiles('.bazelversion') }}
+        path: |
+          .cache/bazelisk
+          .cache/bazel/*/install
+    - name: Pull or push Bazel-managed repository cache(s)
+      uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+      with:
+        key: bazel-${{ hashFiles('.go-version', '.python-version') }}
+        path: |
+          .cache/bazel/*/cache
+          .cache/bazel/disk-cache
+          .cache/go
+          .cache/ms-go
+          .cache/pip

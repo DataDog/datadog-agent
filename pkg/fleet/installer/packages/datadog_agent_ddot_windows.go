@@ -15,7 +15,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
 	windowssvc "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/windows"
 	windowsuser "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user/windows"
@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 
 	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/registry"
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/mgr"
 )
@@ -41,11 +42,8 @@ const (
 )
 
 // preInstallDatadogAgentDDOT performs pre-installation steps for DDOT on Windows
-func preInstallDatadogAgentDDOT(_ HookContext) error {
-	// Best effort stop and delete existing service
-	_ = stopServiceIfExists(otelServiceName)
-	_ = deleteServiceIfExists(otelServiceName)
-	return nil
+func preInstallDatadogAgentDDOT(ctx HookContext) error {
+	return preInstallDDOTExtension(ctx)
 }
 
 // postInstallDatadogAgentDdot performs post-installation steps for the DDOT package on Windows
@@ -105,10 +103,6 @@ func postInstallDatadogAgentDdot(ctx HookContext) (err error) {
 	return nil
 }
 
-// waitForServiceRunning waits until the given Windows service reaches the Running state or times out
-// (removed) waitForServiceRunning and isServiceRunning helpers were replaced by
-// winutil.WaitForPendingStateChange and winutil.IsServiceRunning
-
 // readAPIKeyFromDatadogYAML reads the api_key from ProgramData datadog.yaml, returns empty string if unset/unknown
 func readAPIKeyFromDatadogYAML() (string, error) {
 	ddYaml := filepath.Join(paths.DatadogDataDir, "datadog.yaml")
@@ -145,7 +139,7 @@ func preRemoveDatadogAgentDdot(ctx HookContext) error {
 	return nil
 }
 
-// writeOTelConfigWindows creates otel-config.yaml by substituting API key and site values from datadog.yaml
+// writeOTelConfigWindows creates otel-config.yaml by substituting API key and site values from datadog.yaml, fallback with env variables.
 func writeOTelConfigWindows(ctx HookContext) error {
 	ddYaml := filepath.Join(paths.DatadogDataDir, "datadog.yaml")
 	// Prefer packaged example/template from the installed package repository
@@ -211,6 +205,9 @@ func ensureDDOTService() error {
 		}
 		// Best-effort: align service DACL to allow the core Agent user to control OTEL service
 		configureDDOTServicePermissions(s)
+		if err := setDDOTServiceEnvVars(); err != nil {
+			return err
+		}
 		return nil
 	}
 
@@ -230,6 +227,9 @@ func ensureDDOTService() error {
 	}
 	// Best-effort: align service DACL to allow the core Agent user to control OTEL service
 	configureDDOTServicePermissions(s)
+	if err := setDDOTServiceEnvVars(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -344,6 +344,20 @@ func configureDDOTServicePermissions(s *mgr.Service) {
 	}
 }
 
+// setDDOTServiceEnvVars writes the DDOT service environment variables to the registry.
+func setDDOTServiceEnvVars() error {
+	key, err := registry.OpenKey(
+		registry.LOCAL_MACHINE,
+		`SYSTEM\CurrentControlSet\Services\`+otelServiceName,
+		registry.SET_VALUE,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to open service registry key: %w", err)
+	}
+	defer key.Close()
+	return key.SetStringsValue("Environment", []string{"DD_OTELCOLLECTOR_INSTALLATION_METHOD=bare-metal"})
+}
+
 // stopServiceIfExists stops the service if it exists
 func stopServiceIfExists(name string) error {
 	// Use robust stop; ignore 'service does not exist'
@@ -392,7 +406,7 @@ func deleteServiceIfExists(name string) error {
 
 // preInstallDDOTExtension stops the existing DDOT service before extension installation
 func preInstallDDOTExtension(_ HookContext) error {
-	// Best effort - ignore errors
+	// Best effort stop and delete existing service
 	_ = stopServiceIfExists(otelServiceName)
 	_ = deleteServiceIfExists(otelServiceName)
 	return nil
@@ -400,7 +414,15 @@ func preInstallDDOTExtension(_ HookContext) error {
 
 // postInstallDDOTExtension sets up the DDOT extension after files are extracted
 func postInstallDDOTExtension(ctx HookContext) error {
-	extensionPath := filepath.Join(ctx.PackagePath, "ext", ctx.Extension)
+	// Resolve the package path symlink to the real versioned directory.
+	// ctx.PackagePath may point to a "stable" or "experiment" symlink; using the
+	// versioned path ensures the service binary path remains valid after the symlink
+	// is updated on promote or stop-experiment.
+	packagePath, err := filepath.EvalSymlinks(ctx.PackagePath)
+	if err != nil {
+		packagePath = ctx.PackagePath
+	}
+	extensionPath := filepath.Join(packagePath, "ext", ctx.Extension)
 
 	if err := writeOTelConfigWindowsExtension(ctx, extensionPath); err != nil {
 		return fmt.Errorf("failed to write otel-config.yaml: %w", err)
@@ -480,6 +502,9 @@ func ensureDDOTServiceForExtension(binaryPath string) error {
 			return err
 		}
 		configureDDOTServicePermissions(s)
+		if err := setDDOTServiceEnvVars(); err != nil {
+			return err
+		}
 		return nil
 	}
 
@@ -497,5 +522,8 @@ func ensureDDOTServiceForExtension(binaryPath string) error {
 		return err
 	}
 	configureDDOTServicePermissions(s)
+	if err := setDDOTServiceEnvVars(); err != nil {
+		return err
+	}
 	return nil
 }

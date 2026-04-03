@@ -26,7 +26,6 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	traceutilotel "github.com/DataDog/datadog-agent/pkg/trace/otel/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/teststatsd"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
@@ -1414,8 +1413,8 @@ var (
 
 func TestOTLPHelpers(t *testing.T) {
 	t.Run("byteArrayToUint64", func(t *testing.T) {
-		assert.Equal(t, uint64(0x240031ead750e5f3), traceutilotel.OTelTraceIDToUint64([16]byte(otlpTestTraceID)))
-		assert.Equal(t, uint64(0x240031ead750e5f3), traceutilotel.OTelSpanIDToUint64([8]byte(otlpTestSpanID)))
+		assert.Equal(t, uint64(0x240031ead750e5f3), transform.OTelTraceIDToUint64([16]byte(otlpTestTraceID)))
+		assert.Equal(t, uint64(0x240031ead750e5f3), transform.OTelSpanIDToUint64([8]byte(otlpTestSpanID)))
 	})
 
 	t.Run("spanKindNames", func(t *testing.T) {
@@ -1428,7 +1427,7 @@ func TestOTLPHelpers(t *testing.T) {
 			ptrace.SpanKindConsumer:    "consumer",
 			99:                         "unspecified",
 		} {
-			assert.Equal(t, out, traceutilotel.OTelSpanKindName(in))
+			assert.Equal(t, out, transform.OTelSpanKindName(in))
 		}
 	})
 
@@ -2087,10 +2086,14 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 					"otel.trace_id":        "72df520af2bde7a5240031ead750e5f3",
 					"span.kind":            "unspecified",
 				},
+				Metrics: map[string]float64{
+					"http.status_code": 201,
+				},
 				Type: "custom",
 			},
 			topLevelOutMetrics: map[string]float64{
-				"_top_level": 1,
+				"_top_level":       1,
+				"http.status_code": 201,
 			},
 		},
 		{
@@ -2145,10 +2148,14 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 					"otel.trace_id":        "72df520af2bde7a5240031ead750e5f3",
 					"span.kind":            "unspecified",
 				},
+				Metrics: map[string]float64{
+					"http.status_code": 201,
+				},
 				Type: "custom",
 			},
 			topLevelOutMetrics: map[string]float64{
-				"_top_level": 1,
+				"_top_level":       1,
+				"http.status_code": 201,
 			},
 		},
 		{

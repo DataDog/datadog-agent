@@ -1,58 +1,405 @@
 # This file contains a mapping of DataDog Github teams to slack channels.
+# Each team has a 'notification' channel (for CI/pipeline alerts) and a 'review' channel (for PR reviews).
 # The DEFAULT_SLACK_CHANNEL value is interpreted as '#agent-devx-ops'.
 # Note that the values must be quoted if they contain a '#' symbol, because
 # YAML interprets that as the beginning of a comment. Keys must also be quoted
 # because the '@' symbol is reserved in YAML.
-'@datadog/action-platform': '#action-platform'
-'@datadog/agent-all': '#datadog-agent-pipelines'
-'@datadog/agent-apm': '#apm-agent'
-'@datadog/agent-build': '#agent-build-ops'
-'@datadog/agent-configuration': '#agent-configuration-ops'
-'@datadog/agent-cspm': '#security-and-compliance-agent-ops'
-'@datadog/agent-delivery': '#agent-delivery-ops'
-'@datadog/agent-devx': '#agent-devx-ops'
-'@datadog/agent-discovery': '#agent-discovery'
-'@datadog/agent-integrations': '#agent-integrations'
-'@datadog/agent-log-pipelines': '#agent-log-pipelines'
-'@datadog/agent-metric-pipelines': '#agent-metric-pipelines'
-'@datadog/agent-metrics-logs': '#agent-metrics-logs'
-'@datadog/agent-platform': DEFAULT_SLACK_CHANNEL
-'@datadog/agent-processing-and-routing': '#agent-processing-and-routing'
-'@datadog/agent-runtimes': '#agent-runtimes-ops'
-'@datadog/agent-security': '#security-and-compliance-agent-ops'
-'@datadog/apm-ecosystems-performance': '#apm-benchmarking-platform'
-'@datadog/apm-onboarding': '#apm-onboarding'
-'@datadog/apm-trace-storage': '#apm-trace-storage'
-'@datadog/asm-go': '#k9-library-go'
-'@datadog/kubernetes-experiences': '#kubernetes-experiences'
-'@datadog/agent-onboarding': '#agent-onboarding-ops'
-'@datadog/container-autoscaling': '#container-autoscaling'
-'@datadog/container-integrations': '#container-integrations'
-'@datadog/container-experiences': '#process-agent-ops'
-'@datadog/container-platform': '#container-platform'
-'@datadog/database-monitoring': '#database-monitoring'
-'@datadog/data-streams-monitoring': '#data-streams-monitoring'
-'@datadog/debugger': '#debugger-ops-prod'
-'@datadog/debugger-go': '#dynamic-instrumentation-go'
-'@datadog/documentation': DEFAULT_SLACK_CHANNEL
-'@datadog/ecs-experiences': '#ecs-experiences'
-'@datadog/ebpf-platform': '#ebpf-platform-ops'
-'@datadog/fleet': '#fleet-automation-monitoring'
-'@datadog/injection-platform': '#injection-platform'
-'@datadog/metrics-aggregation': '#metrics-aggregation'
-'@datadog/ndm-core': '#ndm-core'
-'@datadog/ndm-integrations': '#ndm-integrations'
-'@datadog/cloud-network-monitoring': '#cloud-network-monitoring'
-'@datadog/network-path': '#network-path-dev'
-'@datadog/opentelemetry': '#opentelemetry-ops'
-'@datadog/opentelemetry-agent': '#opentelemetry-agent-ops'
-'@datadog/remote-config': '#remote-config-platform'
-'@datadog/sdlc-security': '#sdlc-security'
-'@datadog/serverless': '#serverless-agent'
-'@datadog/serverless-azure-gcp': '#serverless-azure-gcp-team'
-'@datadog/single-machine-performance': '#single-machine-performance'
-'@datadog/universal-service-monitoring': '#universal-service-monitoring'
-'@datadog/windows-products': '#windows-products-ops'
-'@datadog/synthetics-executing': '#synthetics'
-'@datadog/agent-health': '#agent-health'
-'@datadog/profiling-full-host': '#profiling-full-host-project'
+'@datadog/action-platform':
+  notification:
+    name: '#action-platform'
+    id: 'C037JEVR8S3'
+  review:
+    name: '#action-platform-reviews'
+    id: 'C0AG2UCHUKZ'
+'@datadog/agent-all':
+  notification:
+    name: '#datadog-agent-pipelines'
+    id: 'CR5TV8QBY'
+  review:
+    name: '#datadog-agent-pipelines'
+    id: 'CR5TV8QBY'
+'@datadog/agent-apm':
+  notification:
+    name: '#apm-agent'
+    id: 'CK4KK761W'
+  review:
+    name: '#apm-agent'
+    id: 'CK4KK761W'
+'@datadog/agent-build':
+  notification:
+    name: '#agent-build-ops'
+    id: 'C08T0U0079Q'
+  review:
+    name: '#agent-build-reviews'
+    id: 'C08SK57TL1M'
+'@datadog/agent-configuration':
+  notification:
+    name: '#agent-configuration-ops'
+    id: 'C08A85VGC8P'
+  review:
+    name: '#agent-configuration-ops'
+    id: 'C08A85VGC8P'
+'@datadog/agent-cspm':
+  notification:
+    name: '#security-and-compliance-agent-ops'
+    id: 'C031KSGGNBW'
+  review:
+    name: '#security-and-compliance-agent'
+    id: 'CTNVD37T3'
+'@datadog/agent-delivery':
+  notification:
+    name: '#agent-delivery-ops'
+    id: 'C079U54FYSU'
+  review:
+    name: '#agent-delivery-reviews'
+    id: 'C06PQ6KD5BK'
+'@datadog/agent-devx':
+  notification:
+    name: '#agent-devx-ops'
+    id: 'C0795C1C2AE'
+  review:
+    name: '#agent-devx-reviews'
+    id: 'C06P2KX149M'
+'@datadog/agent-discovery':
+  notification:
+    name: '#agent-discovery'
+    id: 'C089ER2M7MZ'
+  review:
+    name: '#agent-discovery'
+    id: 'C089ER2M7MZ'
+'@datadog/agent-health':
+  notification:
+    name: '#agent-health'
+    id: 'C08U2C0GCMV'
+  review:
+    name: '#agent-health'
+    id: 'C08U2C0GCMV'
+'@datadog/agent-integrations':
+  notification:
+    name: '#agent-integrations'
+    id: 'C9WBCH0AF'
+  review:
+    name: '#agent-integrations-reviews'
+    id: 'C06E366NH2B'
+'@datadog/agent-log-pipelines':
+  notification:
+    name: '#agent-log-pipelines'
+    id: 'C089UJ6CUAW'
+  review:
+    name: '#agent-log-pipelines'
+    id: 'C089UJ6CUAW'
+'@datadog/agent-metric-pipelines':
+  notification:
+    name: '#agent-metric-pipelines'
+    id: 'C08A7KEN7LL'
+  review:
+    name: '#agent-metric-pipelines'
+    id: 'C08A7KEN7LL'
+'@datadog/agent-metrics-logs':
+  notification:
+    name: '#agent-metrics-logs'
+    id: 'C03EC7JKSMV'
+  review:
+    name: '#agent-metrics-logs'
+    id: 'C03EC7JKSMV'
+'@datadog/agent-onboarding':
+  notification:
+    name: '#agent-onboarding-ops'
+    id: 'C03THNXNJSZ'
+  review:
+    name: '#agent-onboarding-ops'
+    id: 'C03THNXNJSZ'
+'@datadog/agent-platform':
+  notification:
+    name: 'DEFAULT_SLACK_CHANNEL'
+    id: 'C0795C1C2AE'
+  review:
+    name: 'DEFAULT_SLACK_CHANNEL'
+    id: 'C0795C1C2AE'
+'@datadog/agent-processing-and-routing':
+  notification:
+    name: '#agent-processing-and-routing'
+    id: 'C06DYV5HN3Y'
+  review:
+    name: '#agent-processing-and-routing'
+    id: 'C06DYV5HN3Y'
+'@datadog/agent-runtimes':
+  notification:
+    name: '#agent-runtimes-ops'
+    id: 'C08AG3H5RN2'
+  review:
+    name: '#agent-runtimes-reviews'
+    id: 'C0ABM4KFQ6Q'
+'@datadog/agent-security':
+  notification:
+    name: '#security-and-compliance-agent-ops'
+    id: 'C031KSGGNBW'
+  review:
+    name: '#security-and-compliance-agent'
+    id: 'CTNVD37T3'
+'@datadog/apm-ecosystems-performance':
+  notification:
+    name: '#apm-benchmarking-platform'
+    id: 'C045F97HYJD'
+  review:
+    name: '#apm-benchmarking-platform'
+    id: 'C045F97HYJD'
+'@datadog/apm-onboarding':
+  notification:
+    name: '#apm-onboarding'
+    id: 'CLWN64GAW'
+  review:
+    name: '#apm-onboarding'
+    id: 'CLWN64GAW'
+'@datadog/apm-trace-storage':
+  notification:
+    name: '#apm-trace-storage'
+    id: 'C02FKLS4ETW'
+  review:
+    name: '#apm-trace-storage'
+    id: 'C02FKLS4ETW'
+'@datadog/asm-go':
+  notification:
+    name: '#k9-library-go'
+    id: 'C02HVGRLQ8Z'
+  review:
+    name: '#k9-library-go'
+    id: 'C02HVGRLQ8Z'
+'@datadog/cloud-network-monitoring':
+  notification:
+    name: '#cloud-network-monitoring'
+    id: 'CFB4213BJ'
+  review:
+    name: '#cnm-agent'
+    id: 'C07FNUP1M3N'
+'@datadog/container-autoscaling':
+  notification:
+    name: '#container-autoscaling'
+    id: 'C06D0H262G4'
+  review:
+    name: '#container-autoscaling'
+    id: 'C06D0H262G4'
+'@datadog/container-experiences':
+  notification:
+    name: '#process-agent-ops'
+    id: 'C0493DCUR6C'
+  review:
+    name: '#container-experiences'
+    id: 'C05404GL3R8'
+'@datadog/container-integrations':
+  notification:
+    name: '#container-integrations'
+    id: 'C4TQDFK1P'
+  review:
+    name: '#container-integrations'
+    id: 'C4TQDFK1P'
+'@datadog/container-platform':
+  notification:
+    name: '#container-platform'
+    id: 'C0702JHC7G8'
+  review:
+    name: '#container-platform'
+    id: 'C0702JHC7G8'
+'@datadog/core-authn':
+  notification:
+    name: '#aaa-authn'
+    id: 'C02S3STU39N'
+  review:
+    name: '#aaa-authn'
+    id: 'C02S3STU39N'
+'@datadog/data-jobs-monitoring':
+  notification:
+    name: ''
+    id: ''
+  review:
+    name: '#data-jobs-monitoring'
+    id: 'C05DAN6ULF6'
+'@datadog/data-observability':
+  notification:
+    name: '#data-observability-ops'
+    id: 'C08KJQRNRJ6'
+  review:
+    name: '#data-observability-dev'
+    id: 'C05VB5B6U1H'
+'@datadog/data-streams-monitoring':
+  notification:
+    name: '#data-streams-monitoring'
+    id: 'C02FFNF9VN0'
+  review:
+    name: '#data-streams-monitoring'
+    id: 'C02FFNF9VN0'
+'@datadog/database-monitoring':
+  notification:
+    name: '#database-monitoring'
+    id: 'C011QG8MJBA'
+  review:
+    name: '#database-monitoring'
+    id: 'C011QG8MJBA'
+'@datadog/debugger':
+  notification:
+    name: '#debugger-ops-prod'
+    id: 'C01TX4LJGTB'
+  review:
+    name: ''
+    id: ''
+'@datadog/debugger-go':
+  notification:
+    name: '#dynamic-instrumentation-go'
+    id: 'C04J1N8L2Q6'
+  review:
+    name: '#debugger-go'
+    id: 'C09DBHFJE4E'
+'@datadog/documentation':
+  notification:
+    name: 'DEFAULT_SLACK_CHANNEL'
+    id: 'C0795C1C2AE'
+  review:
+    name: '#documentation'
+    id: 'C0DESMBQU'
+'@datadog/ebpf-platform':
+  notification:
+    name: '#ebpf-platform-ops'
+    id: 'C04NAC0JVMM'
+  review:
+    name: '#ebpf-platform'
+    id: 'C0424HA1SJK'
+'@datadog/ecs-experiences':
+  notification:
+    name: '#ecs-experiences'
+    id: 'C09FX078WH2'
+  review:
+    name: '#ecs-experiences'
+    id: 'C09FX078WH2'
+'@datadog/fleet':
+  notification:
+    name: '#fleet-automation-monitoring'
+    id: 'C06TZ0APY6Q'
+  review:
+    name: '#fleet-automation'
+    id: 'C05PUSNU4H5'
+'@datadog/injection-platform':
+  notification:
+    name: '#injection-platform'
+    id: 'C06UEUW9A75'
+  review:
+    name: '#injection-platform'
+    id: 'C06UEUW9A75'
+'@datadog/kubernetes-experiences':
+  notification:
+    name: '#kubernetes-experiences'
+    id: 'CSY06FKSP'
+  review:
+    name: '#kubernetes-experiences'
+    id: 'CSY06FKSP'
+'@datadog/metrics-aggregation':
+  notification:
+    name: '#metrics-aggregation'
+    id: 'C573SFWSJ'
+  review:
+    name: '#metrics-aggregation'
+    id: 'C573SFWSJ'
+'@datadog/ndm-integrations':
+  notification:
+    name: '#ndm-integrations'
+    id: 'C07S0UH4R0C'
+  review:
+    name: '#ndm-integrations'
+    id: 'C07S0UH4R0C'
+'@datadog/network-device-monitoring-core':
+  notification:
+    name: '#ndm-core'
+    id: 'C07RHJTEFRD'
+  review:
+    name: '#ndm-core'
+    id: 'C07RHJTEFRD'
+'@datadog/network-path':
+  notification:
+    name: '#network-path-dev'
+    id: 'C06GLJ7SHM3'
+  review:
+    name: '#network-path-dev'
+    id: 'C06GLJ7SHM3'
+'@datadog/opentelemetry':
+  notification:
+    name: '#opentelemetry-ops'
+    id: 'C045DGB1V39'
+  review:
+    name: '#opentelemetry-ops'
+    id: 'C045DGB1V39'
+'@datadog/opentelemetry-agent':
+  notification:
+    name: '#opentelemetry-agent-ops'
+    id: 'C08R19TR3FS'
+  review:
+    name: '#opentelemetry-agent'
+    id: 'C086Z7E2A0Y'
+'@datadog/profiling-full-host':
+  notification:
+    name: '#profiling-full-host-project'
+    id: 'C06F2EP2SDA'
+  review:
+    name: '#profiling-full-host-project'
+    id: 'C06F2EP2SDA'
+'@datadog/remote-config':
+  notification:
+    name: '#remote-config-platform'
+    id: 'C01HVED6Q1M'
+  review:
+    name: '#remote-config-platform'
+    id: 'C01HVED6Q1M'
+'@datadog/sdlc-security':
+  notification:
+    name: '#sdlc-security'
+    id: 'C027P1CK07N'
+  review:
+    name: '#sdlc-security'
+    id: 'C027P1CK07N'
+'@datadog/serverless':
+  notification:
+    name: '#serverless-agent'
+    id: 'C017ES2MY05'
+  review:
+    name: '#serverless-agent'
+    id: 'C017ES2MY05'
+'@datadog/serverless-azure-gcp':
+  notification:
+    name: '#serverless-azure-gcp-team'
+    id: 'C06P8R33PD3'
+  review:
+    name: '#serverless-azure-gcp-team'
+    id: 'C06P8R33PD3'
+'@datadog/single-machine-performance':
+  notification:
+    name: '#single-machine-performance'
+    id: 'C03LY8MQ73R'
+  review:
+    name: '#single-machine-performance'
+    id: 'C03LY8MQ73R'
+'@datadog/synthetics-executing':
+  notification:
+    name: '#synthetics'
+    id: 'C8E85JEGH'
+  review:
+    name: '#synthetics'
+    id: 'C8E85JEGH'
+'@datadog/universal-service-monitoring':
+  notification:
+    name: '#universal-service-monitoring'
+    id: 'C01R6Q0HQDD'
+  review:
+    name: '#universal-service-monitoring'
+    id: 'C01R6Q0HQDD'
+'@datadog/q-branch':
+  notification:
+    name: '#agent-q-branch'
+    id: 'C09UDTU0H18'
+  review:
+    name: '#agent-q-branch'
+    id: 'C09UDTU0H18'
+'@datadog/windows-products':
+  notification:
+    name: '#windows-products-ops'
+    id: 'C097S0V4KHR'
+  review:
+    name: '#windows-products-reviews'
+    id: 'C0983QTJJJ0'

@@ -14,8 +14,6 @@ import (
 	"time"
 	"unsafe"
 
-	yaml "gopkg.in/yaml.v2"
-
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	common "github.com/DataDog/datadog-agent/rtloader/test/common"
 	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
@@ -77,9 +75,9 @@ var (
 )
 
 type message struct {
-	Name string `yaml:"name"`
-	Body string `yaml:"body"`
-	Time int64  `yaml:"time"`
+	Name string `json:"name"`
+	Body string `json:"body"`
+	Time int64  `json:"time"`
 }
 
 func setUp() error {
@@ -96,9 +94,6 @@ func setUp() error {
 	if err != nil {
 		return err
 	}
-
-	// Updates sys.path so testing Check can be found
-	C.add_python_path(rtloader, C.CString("../python"))
 
 	if ok := C.init(rtloader); ok != 1 {
 		return fmt.Errorf("`init` failed: %s", C.GoString(C.get_error(rtloader)))
@@ -158,7 +153,7 @@ func getConfig(key *C.char, in **C.char) {
 		*in = (*C.char)(helpers.TrackedCString("\"warning\""))
 	case "foo":
 		m := message{C.GoString(key), "Hello", 123456}
-		b, _ := yaml.Marshal(m)
+		b, _ := json.Marshal(m)
 		*in = (*C.char)(helpers.TrackedCString(string(b)))
 	default:
 		*in = (*C.char)(helpers.TrackedCString("null"))
@@ -172,7 +167,7 @@ func headers(in **C.char) {
 		"Content-Type": "application/x-www-form-urlencoded",
 		"Accept":       "text/html, */*",
 	}
-	retval, _ := yaml.Marshal(h)
+	retval, _ := json.Marshal(h)
 
 	*in = (*C.char)(helpers.TrackedCString(string(retval)))
 }

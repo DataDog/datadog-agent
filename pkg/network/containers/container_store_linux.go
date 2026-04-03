@@ -10,6 +10,7 @@ package containers
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	lru "github.com/hashicorp/golang-lru/v2"
@@ -24,23 +25,25 @@ import (
 const (
 	resolvConfInputMaxSizeBytes = 4096
 	resolvConfMaxSizeBytes      = 1024
-	maxProcessQueueLen          = 100
-	moduleName                  = "network_tracer__containerStore"
+	// the queue is oversized to account for the procfs snapshot when system-probe starts.
+	// these are pointers, so the memory cost is not severe
+	maxProcessQueueLen = 2048
+	moduleName         = "network_tracer__containerStore"
 
-	// containerStaleTime: when to re-fetch a container's resolv.conf
-	containerStaleTime = 10 * time.Minute
-	// containerTTL: when to evict a container
-	containerTTL = 25 * time.Minute
+	// containerTTL: when to evict a container that hasn't been accessed
+	containerTTL = 10 * time.Minute
 	// cleanerInterval: how often to evict old containers
-	cleanerInterval = 15 * time.Minute
+	cleanerInterval = 5 * time.Minute
+	// errorRetryInterval: how long to wait before retrying a failed read
+	errorRetryInterval = time.Minute
 )
 
 var containerStoreTelemetry = struct {
-	nonStaleEvictions telemetry.Counter
+	capacityEvictions telemetry.Counter
 	eventsDropped     telemetry.Counter
 	readFailures      telemetry.Counter
 }{
-	telemetry.NewCounter(moduleName, "non_stale_evicts", []string{}, "Counter measuring the number of evictions of non-stale containers in the container store"),
+	telemetry.NewCounter(moduleName, "capacity_evictions", []string{}, "Counter measuring the number of LRU capacity evictions of non-expired containers"),
 	telemetry.NewCounter(moduleName, "events_dropped", []string{}, "Counter measuring the number of dropped process events"),
 	telemetry.NewCounter(moduleName, "read_failures", []string{}, "Counter measuring the number of failures to read container data such as resolv.conf"),
 }
@@ -56,6 +59,9 @@ type ContainerStore struct {
 	ctx       context.Context
 	cancelCtx func()
 
+	// mu protects timestamp updates in GetResolvConf from racing with
+	// expiry checks in cleanMap.
+	mu    sync.Mutex
 	cache *lru.Cache[network.ContainerID, containerStoreItem]
 
 	in chan *events.Process
@@ -69,9 +75,6 @@ type ContainerStore struct {
 	readContainerItem func(ctx context.Context, entry *events.Process) (readContainerItemResult, error)
 }
 
-func (csi containerStoreItem) isStale() bool {
-	return time.Since(csi.timestamp) > containerStaleTime
-}
 func (csi containerStoreItem) isExpired() bool {
 	return time.Since(csi.timestamp) > containerTTL
 }
@@ -80,14 +83,17 @@ func (csi containerStoreItem) isExpired() bool {
 func NewContainerStore(maxContainers int) (*ContainerStore, error) {
 	warnLimit := log.NewLogLimit(5, 10*time.Minute)
 	errorLimit := log.NewLogLimit(5, 10*time.Minute)
-	debugLimit := log.NewLogLimit(5, time.Minute)
+	debugLimit := log.NewLogLimit(10, time.Minute)
 
 	cache, err := lru.NewWithEvict(maxContainers, func(key *intern.Value, item containerStoreItem) {
-		if log.ShouldLog(log.TraceLvl) {
+		if log.ShouldLog(log.DebugLvl) && debugLimit.ShouldLog() {
 			logEvictingID(key)
 		}
-		if !item.isStale() {
-			containerStoreTelemetry.nonStaleEvictions.Add(1)
+		if !item.isExpired() {
+			containerStoreTelemetry.capacityEvictions.Add(1)
+			if warnLimit.ShouldLog() {
+				log.Warnf("CNM ContainerStore capacity eviction of non-expired container %s", containerIDStr(key))
+			}
 		}
 	})
 	if err != nil {
@@ -147,9 +153,15 @@ func (cs *ContainerStore) HandleProcessEvent(entry *events.Process) {
 
 func (cs *ContainerStore) addProcess(entry *events.Process) {
 	prevItem, ok := cs.cache.Get(entry.ContainerID)
-	if ok && !prevItem.isStale() {
-		// we already pulled resolv.conf recently, so skip
-		return
+	if ok {
+		if prevItem.resolvConf != nil {
+			// we already have resolv.conf for this container, no need to re-read
+			return
+		}
+		// previous read failed (resolvConf is nil); only retry after errorRetryInterval
+		if time.Since(prevItem.timestamp) < errorRetryInterval {
+			return
+		}
 	}
 
 	result, err := cs.readContainerItem(cs.ctx, entry)
@@ -173,46 +185,35 @@ func (cs *ContainerStore) addProcess(entry *events.Process) {
 		return
 	}
 	if result.noDataReason != "" {
-		if log.ShouldLog(log.DebugLvl) && cs.debugLimit.ShouldLog() {
-			logNoData(entry.ContainerID, result.noDataReason)
-		}
 		return
 	}
 
-	item := result.item
+	cs.cache.Add(entry.ContainerID, result.item)
+}
 
-	if log.ShouldLog(log.DebugLvl) && cs.debugLimit.ShouldLog() {
-		logResolvConfRead(len(item.resolvConf.Get()))
+func containerIDStr(containerID network.ContainerID) string {
+	if containerID != nil {
+		if s, ok := containerID.Get().(string); ok {
+			return s
+		}
 	}
-
-	cs.cache.Add(entry.ContainerID, item)
+	return "host"
 }
 
 // logEvictingID logs in a separate function to avoid allocation
 func logEvictingID(containerID network.ContainerID) {
-	containerStr := "host"
-	if containerID != nil {
-		containerStr = containerID.Get().(string)
-	}
-	log.Tracef("CNM ContainerStore evicting ID %s", containerStr)
+	log.Debugf("CNM ContainerStore evicting ID %s", containerIDStr(containerID))
 }
 
 // logHandledID logs in a separate function to avoid allocation
 func logHandledID(containerID network.ContainerID, result readContainerItemResult, err error) {
-	log.Debugf("CNM ContainerStore handled ID=%v with result=%v, err=%v", containerID, result, err)
-}
-
-// logNoData logs in a separate function to avoid allocation
-func logNoData(containerID network.ContainerID, reason string) {
-	log.Debugf("CNM ContainerStore read ID=%v and found no data: %s", containerID, reason)
-}
-
-// logResolvConfRead logs in a separate function to avoid allocation
-func logResolvConfRead(size int) {
-	log.Debugf("CNM ContainerStore successfully read resolv.conf of size %d", size)
+	log.Debugf("CNM ContainerStore handled ID=%s with result=%s, err=%v", containerIDStr(containerID), result.String(), err)
 }
 
 func (cs *ContainerStore) cleanMap() {
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+
 	for _, containerID := range cs.cache.Keys() {
 		item, ok := cs.cache.Get(containerID)
 		if !ok {
@@ -230,11 +231,17 @@ func (cs *ContainerStore) Stop() {
 }
 
 // GetResolvConf returns the resolv.conf for a containerID.
+// Accessing an entry refreshes its timestamp, preventing expiry for active containers.
 func (cs *ContainerStore) GetResolvConf(containerID network.ContainerID) network.ResolvConf {
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+
 	item, ok := cs.cache.Get(containerID)
-	if !ok {
+	if !ok || item.resolvConf == nil {
 		return nil
 	}
+	item.timestamp = time.Now()
+	cs.cache.Add(containerID, item)
 	return item.resolvConf
 }
 

@@ -50,7 +50,7 @@ tests_ebpf_arm64:
     TASK_ARCH: arm64
 
 .prepare_sysprobe_ebpf_functional_tests:
-  extends: .bazel:defs:cache:ephemeral
+  extends: .bazel:defs:cache:progressive
   stage: source_test
   rules:
     - !reference [.except_mergequeue]
@@ -58,6 +58,8 @@ tests_ebpf_arm64:
   needs: ["go_deps"]
   variables:
     KUBERNETES_CPU_REQUEST: 4
+    KUBERNETES_MEMORY_REQUEST: "12Gi"
+    KUBERNETES_MEMORY_LIMIT: "12Gi"
   artifacts:
     when: always
     paths:
@@ -88,12 +90,16 @@ prepare_sysprobe_ebpf_functional_tests_x64:
     DD_CXX: "x86_64-unknown-linux-gnu-g++"
 
 .prepare_secagent_ebpf_functional_tests:
-  extends: .bazel:defs:cache:ephemeral  # for `bazel run @libpcap//:install`
+  extends: .bazel:defs:cache:progressive
   stage: source_test
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
   needs: ["go_deps"]
+  variables:
+    KUBERNETES_CPU_REQUEST: 4
+    KUBERNETES_MEMORY_REQUEST: "12Gi"
+    KUBERNETES_MEMORY_LIMIT: "12Gi"
   artifacts:
     when: always
     paths:

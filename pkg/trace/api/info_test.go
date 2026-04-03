@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -365,9 +366,7 @@ func TestInfoHandler(t *testing.T) {
 	req.Header.Add("Datadog-Container-ID", "id1")
 	h.ServeHTTP(rec, req)
 	var m map[string]any
-	if !assert.NoError(t, json.NewDecoder(rec.Body).Decode(&m)) {
-		return
-	}
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&m))
 	assert.NoError(t, ensureKeys(expectedKeys, m, ""))
 	expectedContainerHash := fmt.Sprintf("%x", sha256.Sum256([]byte(strings.Join([]string{"kube_cluster_name:clusterA", "kube_namespace:namespace1"}, ","))))
 	assert.Equal(t, expectedContainerHash, rec.Header().Get(containerTagsHashHeader))

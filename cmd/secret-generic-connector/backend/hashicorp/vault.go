@@ -38,6 +38,7 @@ type VaultSessionBackendConfig struct {
 	VaultLDAPPassword        string `mapstructure:"vault_ldap_password"`
 	VaultAuthType            string `mapstructure:"vault_auth_type"`
 	VaultAWSRole             string `mapstructure:"vault_aws_role"`
+	VaultAWSIAMServerID      string `mapstructure:"vault_aws_iam_server_id"`
 	AWSRegion                string `mapstructure:"aws_region"`
 	VaultKubernetesRole      string `mapstructure:"vault_kubernetes_role"`
 	VaultKubernetesJWT       string `mapstructure:"vault_kubernetes_jwt"`
@@ -138,6 +139,10 @@ func newAuthenticationFromBackendConfig(bc VaultBackendConfig, client *api.Clien
 
 		if sessionConfig.AWSRegion != "" {
 			opts = append(opts, aws.WithRegion(sessionConfig.AWSRegion))
+		}
+
+		if sessionConfig.VaultAWSIAMServerID != "" {
+			opts = append(opts, aws.WithIAMServerIDHeader(sessionConfig.VaultAWSIAMServerID))
 		}
 
 		auth, err = aws.NewAWSAuth(opts...)

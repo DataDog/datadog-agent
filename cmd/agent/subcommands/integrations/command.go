@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	secretnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -114,7 +113,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				LogParams:    log.ForOneShot(command.LoggerName, cliParams.logLevelDefaultOff.Value(), true),
 			}),
 			core.Bundle(),
-			secretnoopfx.Module(),
 		)
 	}
 
@@ -577,13 +575,16 @@ func downloadWheel(cliParams *cliParams, integration, version, rootLayoutType st
 	if err := downloaderCmd.Start(); err != nil {
 		return "", fmt.Errorf("error running command: %v", err)
 	}
-	lastLine := ""
+	// Buffered so the goroutine can send even if we return early on error.
+	lastLineCh := make(chan string, 1)
 	go func() {
+		var last string
 		in := bufio.NewScanner(stdout)
 		for in.Scan() {
-			lastLine = in.Text()
-			fmt.Println(lastLine)
+			last = in.Text()
+			fmt.Println(last)
 		}
+		lastLineCh <- last
 	}()
 
 	if err := downloaderCmd.Wait(); err != nil {
@@ -591,7 +592,7 @@ func downloadWheel(cliParams *cliParams, integration, version, rootLayoutType st
 	}
 
 	// The path to the wheel will be at the last line of the output
-	wheelPath := lastLine
+	wheelPath := <-lastLineCh
 
 	// Verify the availability of the wheel file
 	if _, err := os.Stat(wheelPath); err != nil {

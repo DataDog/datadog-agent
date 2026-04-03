@@ -259,7 +259,7 @@ int __attribute__((always_inline)) dr_mount_stage_two_callback(void *ctx) {
         return 0;
     }
 
-    if (syscall->type == EVENT_MOUNT || syscall->type == EVENT_OPEN_TREE || syscall->type == EVENT_MOVE_MOUNT) {
+    if (syscall->type == EVENT_MOUNT || syscall->type == EVENT_OPEN_TREE || syscall->type == EVENT_MOVE_MOUNT || syscall->type == EVENT_PIVOT_ROOT) {
         struct mount_event_t event = {
             .syscall.retval = 0,
             .syscall_ctx.id = syscall->ctx_id,
@@ -283,6 +283,11 @@ int __attribute__((always_inline)) dr_mount_stage_two_callback(void *ctx) {
             } else {
                 event.source = SOURCE_MOVE_MOUNT;
             }
+        }
+        if (syscall->type == EVENT_PIVOT_ROOT) {
+            event.source = SOURCE_PIVOT_ROOT;
+            send_event(ctx, EVENT_PIVOT_ROOT, event);
+            return 0;
         }
         if (syscall->type == EVENT_MOVE_MOUNT) {
             send_event(ctx, EVENT_MOVE_MOUNT, event);
@@ -327,6 +332,30 @@ int hook_mnt_change_mountpoint(ctx_t *ctx)
      syscall->mount.mountpoint_dentry = get_mountpoint_dentry(mp);
 
      handle_new_mount(ctx, syscall, KPROBE_OR_FENTRY_TYPE, false);
+
+    return 0;
+}
+
+HOOK_ENTRY("make_visible")
+int hook_make_visible(ctx_t *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall_with(unshare_or_open_tree_or_move_mount);
+    if (!syscall) {
+        return 0;
+    }
+
+    struct mount *newmnt = (struct mount *)CTX_PARM1(ctx);
+    // check if this mount has already been processed
+    if (syscall->mount.newmnt == newmnt) {
+        return 0;
+    }
+
+    syscall->mount.ns_inum = get_mount_mount_ns_inum(newmnt);
+    syscall->mount.newmnt  = newmnt;
+    syscall->mount.parent  = get_mount_parent(newmnt);
+    struct mountpoint *mp  = get_mount_mountpoint(newmnt);
+    syscall->mount.mountpoint_dentry = get_mountpoint_dentry(mp);
+
+    handle_new_mount(ctx, syscall, KPROBE_OR_FENTRY_TYPE, false);
 
     return 0;
 }

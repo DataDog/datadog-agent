@@ -114,6 +114,7 @@ int __attribute__((always_inline)) handle_do_fork(ctx_t *ctx) {
     u64 input;
     LOAD_CONSTANT("do_fork_input", input);
 
+    u64 flags = 0;
     if (input == DO_FORK_STRUCT_INPUT) {
         u64 exit_signal_offset;
         LOAD_CONSTANT("kernel_clone_args_exit_signal_offset", exit_signal_offset);
@@ -125,12 +126,16 @@ int __attribute__((always_inline)) handle_do_fork(ctx_t *ctx) {
         if (exit_signal == SIGCHLD) {
             syscall.fork.is_thread = 0;
         }
+
+        bpf_probe_read(&flags, sizeof(flags), (void *)args);
     } else {
-        u64 flags = (u64)CTX_PARM1(ctx);
+        flags = (u64)CTX_PARM1(ctx);
         if ((flags & SIGCHLD) == SIGCHLD) {
             syscall.fork.is_thread = 0;
         }
     }
+
+    syscall.fork.flags = flags;
 
     cache_syscall(&syscall);
 
@@ -188,6 +193,8 @@ int __attribute__((always_inline)) sched_process_fork_common(void *ctx, u32 pid,
         bpf_map_update_elem(&netns_cache, &pid, &child_netns_entry, BPF_ANY);
     }
 
+    // TODO should inherit the nmtns
+
     // if this is a thread, leave
     if (syscall->fork.is_thread) {
         pop_syscall(EVENT_FORK);
@@ -217,10 +224,14 @@ int __attribute__((always_inline)) sched_process_fork_common(void *ctx, u32 pid,
         return 0;
     }
 
-    event->pid_entry.ppid = ppid;
-    // sched::sched_process_fork is triggered from the parent process, update the pid / tid to the child value
+    // sched::sched_process_fork is triggered from the parent process, update the pid / tid to the child value.
+    // Override ppid: fill_process_context set it to the grandparent (parent's real_parent), but for
+    // the child the ppid is the parent PID.
     event->process.pid = pid;
     event->process.tid = pid;
+    event->process.ppid = ppid;
+
+    event->pid_entry.fork_flags = syscall->fork.flags;
 
     u32 *inum = bpf_map_lookup_elem(&mntns_cache, &ppid);
     if (inum) {
@@ -244,6 +255,10 @@ int __attribute__((always_inline)) sched_process_fork_common(void *ctx, u32 pid,
         if (parent_pc) {
             fill_cgroup_context(parent_pc, &event->cgroup);
             copy_proc_entry(&parent_pc->entry, &event->proc_entry);
+
+            // store the process path key (copy to stack for older kernel verifiers)
+            struct path_key_t on_stack_path_key = parent_pc->entry.executable.path_key;
+            bpf_map_update_elem(&pid_path_keys, &pid, &on_stack_path_key, BPF_ANY);
         }
     }
 
@@ -762,6 +777,10 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
     fill_file(syscall->exec.dentry, &pc.entry.executable);
     bpf_get_current_comm(&pc.entry.comm, sizeof(pc.entry.comm));
 
+    // store the process path key (copy to stack for older kernel verifiers)
+    struct path_key_t on_stack_exec_path_key = syscall->exec.file.path_key;
+    bpf_map_update_elem(&pid_path_keys, &tgid, &on_stack_exec_path_key, BPF_ANY);
+
     u64 parent_inode = 0;
 
     // select the previous cookie entry in cache of the current process
@@ -775,7 +794,15 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
             parent_inode = parent_pc->entry.executable.path_key.ino;
 
             // inherit the parent cgroup context
-            fill_cgroup_context(parent_pc, &pc.cgroup);
+            if ((fork_entry->fork_flags & CLONE_INTO_CGROUP) == 0) {
+                fill_cgroup_context(parent_pc, &pc.cgroup);
+            } else {
+                u64 has_current_cgroup_id_helper = 0;
+                LOAD_CONSTANT("has_current_cgroup_id_helper", has_current_cgroup_id_helper);
+                if (has_current_cgroup_id_helper) {
+                    pc.cgroup.cgroup_file.ino = bpf_get_current_cgroup_id();
+                }
+            }
         }
     }
 

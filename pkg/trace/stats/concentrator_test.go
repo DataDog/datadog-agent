@@ -12,6 +12,7 @@ import (
 	"time"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
@@ -1006,6 +1007,248 @@ func TestLangInStats(t *testing.T) {
 
 		assert.Equal(t, "go", stats.Stats[0].Lang)
 	})
+}
+
+func TestBaseServiceInStats(t *testing.T) {
+	t.Run("base_service_propagated", func(t *testing.T) {
+		now := time.Now()
+		spans := []*pb.Span{testSpan(now, 1, 0, 50, 5, "A1", "resource1", 0, map[string]string{
+			"_dd.base_service": "base-svc",
+		})}
+		traceutil.ComputeTopLevel(spans)
+
+		testTrace := toProcessedTrace(spans, "none", "", "", "", "", "")
+		c := NewTestConcentrator(now)
+		c.addNow(testTrace, infraTags{})
+
+		stats := c.flushNow(now.UnixNano()+int64(c.spanConcentrator.bufferLen)*testBucketInterval, false)
+		require.Len(t, stats.Stats, 1)
+		assert.Equal(t, "base-svc", stats.Stats[0].Service)
+	})
+
+	t.Run("empty_base_service", func(t *testing.T) {
+		now := time.Now()
+		spans := []*pb.Span{testSpan(now, 1, 0, 50, 5, "A1", "resource1", 0, nil)}
+		traceutil.ComputeTopLevel(spans)
+
+		testTrace := toProcessedTrace(spans, "none", "", "", "", "", "")
+		c := NewTestConcentrator(now)
+		c.addNow(testTrace, infraTags{})
+
+		stats := c.flushNow(now.UnixNano()+int64(c.spanConcentrator.bufferLen)*testBucketInterval, false)
+		require.Len(t, stats.Stats, 1)
+		assert.Equal(t, "", stats.Stats[0].Service)
+	})
+
+	t.Run("different_base_service_separate_payloads", func(t *testing.T) {
+		now := time.Now()
+		c := NewTestConcentrator(now)
+
+		spans1 := []*pb.Span{testSpan(now, 1, 0, 50, 5, "A1", "resource1", 0, map[string]string{
+			"_dd.base_service": "base-svc-1",
+		})}
+		traceutil.ComputeTopLevel(spans1)
+		testTrace1 := toProcessedTrace(spans1, "none", "", "", "", "", "")
+
+		spans2 := []*pb.Span{testSpan(now, 2, 0, 60, 5, "A1", "resource1", 0, map[string]string{
+			"_dd.base_service": "base-svc-2",
+		})}
+		traceutil.ComputeTopLevel(spans2)
+		testTrace2 := toProcessedTrace(spans2, "none", "", "", "", "", "")
+
+		c.addNow(testTrace1, infraTags{})
+		c.addNow(testTrace2, infraTags{})
+
+		stats := c.flushNow(now.UnixNano()+int64(c.spanConcentrator.bufferLen)*testBucketInterval, false)
+		require.Len(t, stats.Stats, 2)
+
+		services := make(map[string]bool)
+		for _, stat := range stats.Stats {
+			services[stat.Service] = true
+		}
+		assert.True(t, services["base-svc-1"])
+		assert.True(t, services["base-svc-2"])
+	})
+
+	t.Run("same_base_service_same_payload", func(t *testing.T) {
+		now := time.Now()
+		c := NewTestConcentrator(now)
+
+		spans1 := []*pb.Span{testSpan(now, 1, 0, 50, 5, "A1", "resource1", 0, map[string]string{
+			"_dd.base_service": "base-svc",
+		})}
+		traceutil.ComputeTopLevel(spans1)
+		testTrace1 := toProcessedTrace(spans1, "none", "", "", "", "", "")
+
+		spans2 := []*pb.Span{testSpan(now, 2, 0, 60, 5, "A1", "resource1", 0, map[string]string{
+			"_dd.base_service": "base-svc",
+		})}
+		traceutil.ComputeTopLevel(spans2)
+		testTrace2 := toProcessedTrace(spans2, "none", "", "", "", "", "")
+
+		c.addNow(testTrace1, infraTags{})
+		c.addNow(testTrace2, infraTags{})
+
+		stats := c.flushNow(now.UnixNano()+int64(c.spanConcentrator.bufferLen)*testBucketInterval, false)
+		require.Len(t, stats.Stats, 1)
+		assert.Equal(t, "base-svc", stats.Stats[0].Service)
+	})
+}
+
+func TestServiceSourceInStats(t *testing.T) {
+	now := time.Now()
+	c := NewTestConcentrator(now)
+	alignedNow := alignTs(now.UnixNano(), c.bsize)
+	c.spanConcentrator.oldestTs = alignedNow - int64(c.spanConcentrator.bufferLen)*c.bsize
+
+	spans := []*pb.Span{
+		testSpan(now, 1, 0, 50, 0, "A1", "resource1", 0, map[string]string{"_dd.svc_src": "1"}),
+		testSpan(now, 2, 0, 30, 0, "A1", "resource1", 0, map[string]string{"_dd.svc_src": "1"}),
+		testSpan(now, 3, 0, 60, 0, "A1", "resource1", 0, map[string]string{"_dd.svc_src": "spring_app"}),
+		testSpan(now, 4, 0, 40, 0, "A1", "resource1", 1, map[string]string{"_dd.svc_src": "spring_app"}),
+		testSpan(now, 5, 0, 70, 0, "A1", "resource1", 0, nil),
+		testSpan(now, 6, 0, 10, 0, "A1", "resource1", 0, nil),
+	}
+	traceutil.ComputeTopLevel(spans)
+	testTrace := toProcessedTrace(spans, "none", "", "", "", "", "")
+	c.addNow(testTrace, infraTags{})
+
+	stats := c.flushNow(now.UnixNano()+int64(c.spanConcentrator.bufferLen)*testBucketInterval, false)
+	require.Len(t, stats.Stats, 1)
+	require.Len(t, stats.Stats[0].Stats, 1)
+
+	expected := []*pb.ClientGroupedStats{
+		{
+			Service:       "A1",
+			Resource:      "resource1",
+			Type:          "db",
+			Name:          "query",
+			Duration:      80,
+			Hits:          2,
+			TopLevelHits:  2,
+			Errors:        0,
+			IsTraceRoot:   pb.Trilean_TRUE,
+			ServiceSource: "1",
+		},
+		{
+			Service:       "A1",
+			Resource:      "resource1",
+			Type:          "db",
+			Name:          "query",
+			Duration:      100,
+			Hits:          2,
+			TopLevelHits:  2,
+			Errors:        1,
+			IsTraceRoot:   pb.Trilean_TRUE,
+			ServiceSource: "spring_app",
+		},
+		{
+			Service:      "A1",
+			Resource:     "resource1",
+			Type:         "db",
+			Name:         "query",
+			Duration:     80,
+			Hits:         2,
+			TopLevelHits: 2,
+			Errors:       0,
+			IsTraceRoot:  pb.Trilean_TRUE,
+		},
+	}
+	assertCountsEqual(t, expected, stats.Stats[0].Stats[0].Stats)
+}
+
+func TestServiceSourceInStatsV1(t *testing.T) {
+	now := time.Now()
+	c := NewTestConcentrator(now)
+	alignedNow := alignTs(now.UnixNano(), c.bsize)
+	c.spanConcentrator.oldestTs = alignedNow - int64(c.spanConcentrator.bufferLen)*c.bsize
+
+	strings := idx.NewStringTable()
+	mkSpan := func(spanID uint64, parentID uint64, duration int64, spanError bool, meta map[string]string) *idx.InternalSpan {
+		attrs := map[uint32]*idx.AnyValue{
+			strings.Add("_top_level"): {Value: &idx.AnyValue_DoubleValue{DoubleValue: 1}},
+		}
+		for k, v := range meta {
+			attrs[strings.Add(k)] = &idx.AnyValue{
+				Value: &idx.AnyValue_StringValueRef{StringValueRef: strings.Add(v)},
+			}
+		}
+		start := getTsInBucket(alignedNow, testBucketInterval, 0) - duration
+		return idx.NewInternalSpan(strings, &idx.Span{
+			SpanID:      spanID,
+			ParentID:    parentID,
+			ServiceRef:  strings.Add("A1"),
+			NameRef:     strings.Add("query"),
+			ResourceRef: strings.Add("resource1"),
+			TypeRef:     strings.Add("db"),
+			Start:       uint64(start),
+			Duration:    uint64(duration),
+			Error:       spanError,
+			Attributes:  attrs,
+		})
+	}
+
+	spans := []*idx.InternalSpan{
+		mkSpan(1, 0, 50, false, map[string]string{"_dd.svc_src": "1"}),
+		mkSpan(2, 0, 30, false, map[string]string{"_dd.svc_src": "1"}),
+		mkSpan(3, 0, 60, false, map[string]string{"_dd.svc_src": "spring_app"}),
+		mkSpan(4, 0, 40, true, map[string]string{"_dd.svc_src": "spring_app"}),
+		mkSpan(5, 0, 70, false, nil),
+		mkSpan(6, 0, 10, false, nil),
+	}
+	chunk := idx.NewInternalTraceChunk(strings, 0, "", nil, spans, false, nil, 0)
+	testTrace := &traceutil.ProcessedTraceV1{
+		TraceChunk: chunk,
+		Root:       spans[0],
+		TracerEnv:  "none",
+	}
+	c.addNowV1(testTrace, infraTags{})
+
+	stats := c.flushNow(now.UnixNano()+int64(c.spanConcentrator.bufferLen)*testBucketInterval, false)
+	require.Len(t, stats.Stats, 1)
+	require.Len(t, stats.Stats[0].Stats, 1)
+
+	expected := []*pb.ClientGroupedStats{
+		{
+			Service:       "A1",
+			Resource:      "resource1",
+			Type:          "db",
+			Name:          "query",
+			SpanKind:      "unknown",
+			Duration:      80,
+			Hits:          2,
+			TopLevelHits:  2,
+			Errors:        0,
+			IsTraceRoot:   pb.Trilean_TRUE,
+			ServiceSource: "1",
+		},
+		{
+			Service:       "A1",
+			Resource:      "resource1",
+			Type:          "db",
+			Name:          "query",
+			SpanKind:      "unknown",
+			Duration:      100,
+			Hits:          2,
+			TopLevelHits:  2,
+			Errors:        1,
+			IsTraceRoot:   pb.Trilean_TRUE,
+			ServiceSource: "spring_app",
+		},
+		{
+			Service:      "A1",
+			Resource:     "resource1",
+			Type:         "db",
+			Name:         "query",
+			SpanKind:     "unknown",
+			Duration:     80,
+			Hits:         2,
+			TopLevelHits: 2,
+			Errors:       0,
+			IsTraceRoot:  pb.Trilean_TRUE,
+		},
+	}
+	assertCountsEqual(t, expected, stats.Stats[0].Stats[0].Stats)
 }
 
 func TestComputeStatsForSpanKind(t *testing.T) {

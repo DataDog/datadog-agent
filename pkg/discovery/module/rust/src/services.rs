@@ -3,17 +3,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-use log::info;
 use serde::Serialize;
 
 use crate::apm;
+use crate::comm;
 use crate::envs;
 use crate::fs::SubDirFs;
 use crate::injector::is_apm_injector_in_process_maps;
 use crate::language::Language;
 use crate::params::Params;
 use crate::ports::{self, ParsingContext};
-use crate::procfs::{self, Cmdline, Exe};
+use crate::procfs::{self, Cmdline, Exe, fd::OpenFilesInfo};
 use crate::service_name::ServiceNameSource;
 use crate::tracer_metadata::TracerMetadata;
 use crate::ust::UST;
@@ -23,6 +23,7 @@ use crate::{service_name, tracer_metadata};
 pub struct ServicesResponse {
     pub services: Vec<Service>,
     pub injected_pids: Vec<i32>,
+    pub gpu_pids: Vec<i32>,
 }
 
 impl ServicesResponse {
@@ -30,6 +31,7 @@ impl ServicesResponse {
         ServicesResponse {
             services: Vec::new(),
             injected_pids: Vec::new(),
+            gpu_pids: Vec::new(),
         }
     }
 }
@@ -48,8 +50,7 @@ pub struct Service {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub log_files: Vec<String>,
     pub apm_instrumentation: bool,
-    pub language: Language,
-    pub service_type: String,
+    pub language: Option<Language>,
 }
 
 // getServices processes categorized PID lists and returns service information
@@ -67,8 +68,19 @@ pub fn get_services(params: Params) -> ServicesResponse {
                 resp.injected_pids.push(*pid);
             }
 
-            if let Some(service) = get_service(*pid, &mut context) {
-                info!("found service {service:#?}");
+            if comm::should_ignore_comm(*pid) {
+                continue;
+            }
+
+            let Ok(open_files_info) = procfs::fd::get_open_files_info(*pid) else {
+                continue;
+            };
+
+            if is_using_gpu(*pid, &open_files_info) {
+                resp.gpu_pids.push(*pid);
+            }
+
+            if let Some(service) = get_service(*pid, &mut context, &open_files_info) {
                 resp.services.push(service);
             }
         }
@@ -76,8 +88,11 @@ pub fn get_services(params: Params) -> ServicesResponse {
 
     if let Some(heartbeat_pids) = &params.heartbeat_pids {
         for pid in heartbeat_pids {
+            if comm::should_ignore_comm(*pid) {
+                continue;
+            }
+
             if let Some(service) = get_heartbeat_service(*pid, &mut context) {
-                info!("handled heartbeat {service:#?}");
                 resp.services.push(service);
             }
         }
@@ -86,9 +101,15 @@ pub fn get_services(params: Params) -> ServicesResponse {
     resp
 }
 
-fn get_service(pid: i32, context: &mut ParsingContext) -> Option<Service> {
-    let open_files_info = procfs::fd::get_open_files_info(pid).ok()?;
+fn is_using_gpu(pid: i32, open_files_info: &OpenFilesInfo) -> bool {
+    open_files_info.has_gpu_device || procfs::maps::has_gpu_nvidia_libraries(pid)
+}
 
+fn get_service(
+    pid: i32,
+    context: &mut ParsingContext,
+    open_files_info: &OpenFilesInfo,
+) -> Option<Service> {
     let log_files = procfs::fd::get_log_files(pid, &open_files_info.logs);
 
     let (tcp_ports, udp_ports) = ports::get(context, pid, &open_files_info.sockets);
@@ -109,10 +130,10 @@ fn get_service(pid: i32, context: &mut ParsingContext) -> Option<Service> {
         None => None,
         Some(path) => tracer_metadata::get_tracer_metadata_from_path(path).ok(),
     };
-    let language = match tracer_metadata {
-        Some(ref metadata) => metadata.tracer_language,
-        None => Language::detect(pid, &exe, &cmdline, &open_files_info),
-    };
+    let language = tracer_metadata
+        .as_ref()
+        .and_then(|m| Language::from_tracer_str(&m.tracer_language))
+        .or_else(|| Language::detect(pid, &exe, &cmdline, open_files_info));
 
     // Collect environment variables
     let envs = envs::get_target_envs(pid).ok()?;
@@ -123,12 +144,12 @@ fn get_service(pid: i32, context: &mut ParsingContext) -> Option<Service> {
 
     // Create detection context for service name generation
     let mut ctx = service_name::DetectionContext::new(pid, envs.clone(), &fs);
-    let name_metadata = service_name::get(&language, &cmdline, &mut ctx);
+    let name_metadata = service_name::get(language.as_ref(), &cmdline, &mut ctx);
 
     // Detect APM instrumentation
     // If tracer metadata exists, the service is definitely instrumented
     let apm_instrumentation =
-        tracer_metadata.is_some() || apm::detect(&language, pid, &cmdline, &envs);
+        tracer_metadata.is_some() || apm::detect(language.as_ref(), pid, &cmdline, &envs);
 
     Some(Service {
         pid,
@@ -144,10 +165,10 @@ fn get_service(pid: i32, context: &mut ParsingContext) -> Option<Service> {
         log_files,
         apm_instrumentation,
         language,
-        service_type: String::new(),
     })
 }
 
+// GPU state is not re-detected on heartbeat; the caller preserves it from the initial detection.
 fn get_heartbeat_service(pid: i32, context: &mut ParsingContext) -> Option<Service> {
     let open_files_info = procfs::fd::get_open_files_info(pid).ok()?;
 
@@ -176,6 +197,7 @@ fn get_heartbeat_service(pid: i32, context: &mut ParsingContext) -> Option<Servi
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
+    use crate::params::Params;
 
     #[cfg(target_os = "linux")]
     mod log_file_integration {
@@ -359,5 +381,16 @@ mod tests {
                 "log file path should be in JSON"
             );
         }
+    }
+
+    #[test]
+    fn test_unreadable_pid_not_in_gpu_pids() {
+        let params = Params {
+            new_pids: Some(vec![i32::MAX]),
+            heartbeat_pids: None,
+        };
+        let resp = get_services(params);
+        assert!(resp.gpu_pids.is_empty());
+        assert!(resp.services.is_empty());
     }
 }

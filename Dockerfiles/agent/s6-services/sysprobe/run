@@ -1,6 +1,6 @@
 #!/usr/bin/execlineb -P
 
-# Check if the system-probe exists before running it
+# Check if the system-probe exists before running
 ifelse -n
     { s6-test -x "/opt/datadog-agent/embedded/bin/system-probe" }
     {
@@ -8,4 +8,4 @@ ifelse -n
         foreground { /bin/s6-svc -d /var/run/s6/services/sysprobe/ }
     }
     foreground { /initlog.sh "starting system-probe" }
-    system-probe run --config=/etc/datadog-agent/system-probe.yaml
+    /opt/datadog-agent/embedded/bin/system-probe run --config=/etc/datadog-agent/system-probe.yaml

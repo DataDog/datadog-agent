@@ -1,6 +1,6 @@
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
 load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
-load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
@@ -101,20 +101,6 @@ cc_shared_library(
     visibility = ["//visibility:public"],
 )
 
-expand_template(
-    name = "gen_blkid_pkgconfig",
-    out = "blkid.pc",
-    substitutions = {
-        # Prepare the .pc file for our own substitution later
-        "@prefix@": "##PREFIX##",
-        "@exec_prefix@": "${prefix}",
-        "@libdir@": "${prefix}/lib",
-        "@includedir@": "${prefix}/include",
-        "@LIBBLKID_VERSION@": _VERSION,
-    },
-    template = "libblkid/blkid.pc.in",
-)
-
 so_symlink(
     name = "libblkid_libfiles",
     src = ":blkid",
@@ -128,18 +114,13 @@ pkg_files(
     prefix = "include/blkid",
 )
 
-pkg_files(
-    name = "blkid_pc_file",
-    srcs = [":gen_blkid_pkgconfig"],
-    prefix = "lib/pkgconfig",
-)
-
 pkg_filegroup(
     name = "all_files",
     srcs = [
         ":blkid_hdr_files",
         ":libblkid_libfiles",
     ],
+    prefix = "embedded",
     visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )
 
@@ -147,6 +128,5 @@ pkg_install(
     name = "blkid_install",
     srcs = [
         ":all_files",
-        ":blkid_pc_file",
     ],
 )

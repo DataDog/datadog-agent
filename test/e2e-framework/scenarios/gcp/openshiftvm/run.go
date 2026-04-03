@@ -56,6 +56,11 @@ func Run(ctx *pulumi.Context) error {
 	if err := openshiftCluster.Export(ctx, nil); err != nil {
 		return err
 	}
+
+	if gcpEnv.InitOnly() {
+		return nil
+	}
+
 	// Building Kubernetes provider for OpenShift
 	openshiftKubeProvider, err := kubernetesNewProvider.NewProvider(ctx, gcpEnv.Namer.ResourceName("openshift-k8s-provider"), &kubernetesNewProvider.ProviderArgs{
 		Kubeconfig:            openshiftCluster.KubeConfig,

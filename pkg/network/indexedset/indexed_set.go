@@ -13,9 +13,9 @@ type IndexedSet[K comparable] struct {
 }
 
 // New returns a new IndexedSet instance.
-func New[K comparable]() *IndexedSet[K] {
+func New[K comparable](size int) *IndexedSet[K] {
 	return &IndexedSet[K]{
-		keyMap:   make(map[K]int32),
+		keyMap:   make(map[K]int32, size),
 		uniqList: nil,
 	}
 }

@@ -1,0 +1,30 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go_stringer:defs.bzl", "go_stringer")
+
+go_library(
+    name = "actuator",
+    srcs = [
+        "doc.go",
+        "processstate_string.go",
+        "programstate_string.go",
+        "state_enums.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/actuator",
+    visibility = ["//visibility:public"],
+)
+
+go_stringer(
+    name = "processstate_string",
+    src = "state_enums.go",
+    output = "processstate_string.go",
+    trimprefix = "processState",
+    types = ["processState"],
+)
+
+go_stringer(
+    name = "programstate_string",
+    src = "state_enums.go",
+    output = "programstate_string.go",
+    trimprefix = "programState",
+    types = ["programState"],
+)

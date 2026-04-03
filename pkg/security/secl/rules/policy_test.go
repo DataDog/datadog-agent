@@ -28,11 +28,12 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 	yamlk8s "sigs.k8s.io/yaml"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/schemas"
 )
 
 func savePolicy(filename string, testPolicy *PolicyDef) error {
@@ -1175,6 +1176,19 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 					},
 				},
 			},
+			{
+				ID:         "variable_noise",
+				Expression: `open.file.path == "/tmp/noise"`,
+				Actions: []*ActionDefinition{
+					{
+						Set: &SetDefinition{
+							Name:  "noise",
+							Value: "noise",
+							Scope: "process",
+						},
+					},
+				},
+			},
 		},
 	}
 
@@ -1237,6 +1251,12 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 	correlationKeyFromFirstRule := correlationKeyValue.(string)
 
 	pce2 := newFakeProcessCacheEntry(2, pce1)
+
+	// trigger the variable_noise rule
+	eventNoise := fakeOpenEvent("/tmp/noise", pce2)
+	if !rs.Evaluate(eventNoise) {
+		t.Errorf("Expected event to match rule")
+	}
 
 	// trigger the first rule again, and make sure nothing changes
 	event2 := fakeOpenEvent("/tmp/first", pce2)
@@ -3294,8 +3314,7 @@ func TestPolicySchema(t *testing.T) {
 		},
 	}
 
-	fs := os.DirFS("../../../../pkg/security/secl/schemas")
-	schemaLoader := gojsonschema.NewReferenceLoaderFileSystem("file:///policy.schema.json", http.FS(fs))
+	schemaLoader := gojsonschema.NewReferenceLoaderFileSystem("file:///policy.schema.json", http.FS(schemas.AssetFS))
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

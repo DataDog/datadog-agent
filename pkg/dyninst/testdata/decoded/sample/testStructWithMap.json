@@ -75,6 +75,7 @@
           }
         }
       },
+      "type": "snapshot",
       "evaluationErrors": [
         {
           "expr": "@duration",
@@ -83,6 +84,7 @@
       ]
     },
     "timestamp": "[ts]",
-    "message": "{m: map[1: 1]} {error: not available: function has no body}"
+    "message": "{m: map[1: 1]} {error: not available: function has no body}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

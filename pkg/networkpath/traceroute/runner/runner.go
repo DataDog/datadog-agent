@@ -93,7 +93,7 @@ func New(telemetryComp telemetryComponent.Component) (*Runner, error) {
 		networkID: funcs.MemoizeNoError(func() string {
 			nid, err := retryGetNetworkID()
 			if err != nil {
-				log.Errorf("failed to get network ID: %s", err.Error())
+				log.Warnf("failed to get network ID: %s", err.Error())
 			}
 			return nid
 		}),
@@ -165,7 +165,7 @@ func (r *Runner) processResults(res *result.Results, protocol payload.Protocol, 
 
 	traceroutePath := payload.NetworkPath{
 		AgentVersion: version.AgentVersion,
-		PathtraceID:  payload.NewPathtraceID(),
+		TestRunID:    res.TestRunID,
 		Protocol:     protocol,
 		Timestamp:    time.Now().UnixMilli(),
 		Source: payload.NetworkPathSource{

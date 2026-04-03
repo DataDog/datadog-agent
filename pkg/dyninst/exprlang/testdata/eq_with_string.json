@@ -1,0 +1,17 @@
+{
+  "type": "eq",
+  "operation": "",
+  "left": {
+    "type": "ref",
+    "ref": "name",
+    "operation": "",
+    "error": ""
+  },
+  "right": {
+    "type": "literal",
+    "operation": "",
+    "value": "hello",
+    "error": ""
+  },
+  "error": ""
+}

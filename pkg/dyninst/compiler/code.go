@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/pkg/errors"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 )
 
 // CodeMetadata contains metadata about the generated code.
@@ -41,7 +41,7 @@ func GenerateCode(program Program, out CodeSerializer) (CodeMetadata, error) {
 
 	var fs []codeFragment
 	pc := uint32(0)
-	maxOpLen := uint32(0)
+	var maxOpLen uint32
 	appendFragment := func(f codeFragment) {
 		fs = append(fs, f)
 		pc += f.codeByteLen()
@@ -58,8 +58,14 @@ func GenerateCode(program Program, out CodeSerializer) (CodeMetadata, error) {
 		}
 	}
 
+	// We're going to need to pad out the code so that bounds checks in the
+	// implementation can statically succeed. By padding out to the maximum
+	// size of a literal op, we know that the ops bounds check and also the
+	// literal data bounds check will succeed.
 	appendFragment(blockComment{"Extra illegal ops to simplify code bound checks"})
-	for range maxOpLen {
+	const maxDataOpLen = 1 + ir.MaxStringLiteralLength + 4
+	padLen := max(maxOpLen, maxDataOpLen)
+	for range padLen {
 		appendFragment(makeInstruction(IllegalOp{}))
 	}
 
@@ -229,7 +235,7 @@ func (i callInstruction) encode(t codeTracker, out CodeSerializer) error {
 		comment: i.target.String(),
 	}
 	if i.codeByteLen() != si.codeByteLen() {
-		return errors.Errorf("internal: callInstruction codeByteLen mismatch: %d != %d", i.codeByteLen(), si.codeByteLen())
+		return fmt.Errorf("internal: callInstruction codeByteLen mismatch: %d != %d", i.codeByteLen(), si.codeByteLen())
 	}
 	return si.encode(t, out)
 }

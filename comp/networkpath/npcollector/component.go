@@ -12,7 +12,7 @@ import (
 	npmodel "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
 )
 
-// team: cloud-network-monitoring network-path
+// team: network-path
 
 // Component is the component type.
 type Component interface {

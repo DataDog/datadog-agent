@@ -68,6 +68,7 @@
           }
         }
       },
+      "type": "snapshot",
       "evaluationErrors": [
         {
           "expr": "@duration",
@@ -76,7 +77,8 @@
       ]
     },
     "timestamp": "[ts]",
-    "message": "{s: foo}"
+    "message": "{s: foo}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
     "service": "sample",
@@ -148,6 +150,7 @@
           }
         }
       },
+      "type": "snapshot",
       "evaluationErrors": [
         {
           "expr": "@duration",
@@ -156,7 +159,8 @@
       ]
     },
     "timestamp": "[ts]",
-    "message": "{s: foo}"
+    "message": "{s: foo}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
     "service": "sample",
@@ -227,6 +231,7 @@
           }
         }
       },
+      "type": "snapshot",
       "evaluationErrors": [
         {
           "expr": "@duration",
@@ -235,7 +240,8 @@
       ]
     },
     "timestamp": "[ts]",
-    "message": "{i: 42}"
+    "message": "{i: 42}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
     "service": "sample",
@@ -307,6 +313,7 @@
           }
         }
       },
+      "type": "snapshot",
       "evaluationErrors": [
         {
           "expr": "@duration",
@@ -315,7 +322,8 @@
       ]
     },
     "timestamp": "[ts]",
-    "message": "{i: 42}"
+    "message": "{i: 42}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
     "service": "sample",
@@ -381,6 +389,7 @@
           }
         }
       },
+      "type": "snapshot",
       "evaluationErrors": [
         {
           "expr": "@duration",
@@ -389,7 +398,8 @@
       ]
     },
     "timestamp": "[ts]",
-    "message": "nil"
+    "message": "nil",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
     "service": "sample",
@@ -450,6 +460,7 @@
           }
         }
       },
+      "type": "snapshot",
       "evaluationErrors": [
         {
           "expr": "@duration",
@@ -458,6 +469,7 @@
       ]
     },
     "timestamp": "[ts]",
-    "message": "nil"
+    "message": "nil",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

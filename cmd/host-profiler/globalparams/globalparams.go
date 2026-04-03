@@ -8,6 +8,8 @@
 // Package globalparams contains the global CLI parameters for the host profiler.
 package globalparams
 
+import "time"
+
 // GlobalParams contains the values of host profiler global Cobra flags.
 //
 // A pointer to this type is passed to SubcommandFactory's, but its contents
@@ -17,5 +19,18 @@ type GlobalParams struct {
 	ConfFilePath string
 
 	// CoreConfPath holds the path to the Datadog Agent config file.
-	CoreConfPath string
+	CoreConfPath      string
+	SyncOnInitTimeout time.Duration
+	SyncTimeout       time.Duration
+}
+
+// ConfigURI returns the appropriate configuration URI based on the operational mode.
+// In bundled mode (CoreConfPath set), it returns "dd:" to use the agentprovider,
+// which generates OTEL config from the Agent configuration.
+// In standalone mode (ConfFilePath set), it returns the file path to the OTEL config.
+func (g *GlobalParams) ConfigURI() string {
+	if g.CoreConfPath != "" {
+		return "dd:"
+	}
+	return g.ConfFilePath
 }

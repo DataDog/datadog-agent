@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -32,21 +33,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
 	taskverifier "github.com/DataDog/datadog-agent/pkg/privateactionrunner/task-verifier"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 )
 
-// Configuration keys for the private action runner.
-// These mirror the constants in pkg/config/setup but are defined here
-// because comp/ packages cannot import pkg/config/setup (depguard rule).
 const (
-	parEnabled    = "private_action_runner.enabled"
-	parSelfEnroll = "private_action_runner.self_enroll"
-	parPrivateKey = "private_action_runner.private_key"
-	parUrn        = "private_action_runner.urn"
+	maxStartupWaitTimeout = 15 * time.Second
 )
 
 // isEnabled checks if the private action runner is enabled in the configuration
 func isEnabled(cfg config.Component) bool {
-	return cfg.GetBool(parEnabled)
+	return cfg.GetBool(privateactionrunner.PAREnabled)
 }
 
 // Requires defines the dependencies for the privateactionrunner component
@@ -78,7 +75,10 @@ type PrivateActionRunner struct {
 	workflowRunner *runners.WorkflowRunner
 	commonRunner   *runners.CommonRunner
 
-	drain func()
+	started     bool
+	startOnce   sync.Once
+	startChan   chan struct{}
+	cancelStart context.CancelFunc
 }
 
 // NewComponent creates a new privateactionrunner component
@@ -86,6 +86,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	ctx := context.Background()
 	if !isEnabled(reqs.Config) {
 		reqs.Log.Info("private-action-runner is not enabled. Set private_action_runner.enabled: true in your datadog.yaml file or set the environment variable DD_PRIVATE_ACTION_RUNNER_ENABLED=true.")
+		reqs.Log.Flush()
 		return Provides{}, privateactionrunner.ErrNotEnabled
 	}
 
@@ -118,6 +119,7 @@ func NewPrivateActionRunner(
 		tagger:         taggerComp,
 		traceroute:     tracerouteComp,
 		eventPlatform:  eventPlatform,
+		startChan:      make(chan struct{}),
 	}, nil
 }
 
@@ -127,8 +129,8 @@ func (p *PrivateActionRunner) getRunnerConfig(ctx context.Context) (*parconfig.C
 		return nil, fmt.Errorf("failed to get identity: %w", err)
 	}
 	if persistedIdentity != nil {
-		p.coreConfig.Set(parPrivateKey, persistedIdentity.PrivateKey, model.SourceAgentRuntime)
-		p.coreConfig.Set(parUrn, persistedIdentity.URN, model.SourceAgentRuntime)
+		p.coreConfig.Set(privateactionrunner.PARPrivateKey, persistedIdentity.PrivateKey, model.SourceAgentRuntime)
+		p.coreConfig.Set(privateactionrunner.PARUrn, persistedIdentity.URN, model.SourceAgentRuntime)
 	}
 
 	cfg, err := parconfig.FromDDConfig(p.coreConfig)
@@ -136,15 +138,16 @@ func (p *PrivateActionRunner) getRunnerConfig(ctx context.Context) (*parconfig.C
 		return nil, err
 	}
 
-	canSelfEnroll := p.coreConfig.GetBool(parSelfEnroll)
+	canSelfEnroll := p.coreConfig.GetBool(privateactionrunner.PARSelfEnroll)
 	if cfg.IdentityIsIncomplete() && canSelfEnroll {
 		p.logger.Info("Identity not found and self-enrollment enabled. Self-enrolling private action runner")
 		updatedCfg, err := p.performSelfEnrollment(ctx, cfg)
 		if err != nil {
+			p.logger.Errorf("Self-enrollment failed: %v", err)
 			return nil, fmt.Errorf("self-enrollment failed: %w", err)
 		}
-		p.coreConfig.Set(parPrivateKey, updatedCfg.PrivateKey, model.SourceAgentRuntime)
-		p.coreConfig.Set(parUrn, updatedCfg.Urn, model.SourceAgentRuntime)
+		p.coreConfig.Set(privateactionrunner.PARPrivateKey, updatedCfg.PrivateKey, model.SourceAgentRuntime)
+		p.coreConfig.Set(privateactionrunner.PARUrn, updatedCfg.Urn, model.SourceAgentRuntime)
 		cfg = updatedCfg
 	} else if cfg.IdentityIsIncomplete() {
 		return nil, errors.New("identity not found and self-enrollment disabled. Please provide a valid URN and private key")
@@ -153,8 +156,32 @@ func (p *PrivateActionRunner) getRunnerConfig(ctx context.Context) (*parconfig.C
 }
 
 func (p *PrivateActionRunner) Start(ctx context.Context) error {
+	var err error
+	p.started = true
+	p.startOnce.Do(func() {
+		defer close(p.startChan)
+		err = p.start(ctx)
+	})
+	return err
+}
+
+func (p *PrivateActionRunner) StartAsync(ctx context.Context) <-chan error {
+	errChan := make(chan error, 1)
+	go func() {
+		errChan <- p.Start(ctx)
+		close(errChan)
+	}()
+	return errChan
+}
+
+func (p *PrivateActionRunner) start(ctx context.Context) error {
+	// Keep the parent context's deadline for the startup phase (config, enrollment, etc.)
+	// but allow Stop() to cancel as well.
+	ctx, p.cancelStart = context.WithCancel(ctx)
+	defer p.logger.Flush()
 	cfg, err := p.getRunnerConfig(ctx)
 	if err != nil {
+		p.logger.Errorf("Private action runner failed to start: %v", err)
 		return err
 	}
 	p.logger.Info("Private action runner starting")
@@ -171,17 +198,27 @@ func (p *PrivateActionRunner) Start(ctx context.Context) error {
 		return err
 	}
 	p.commonRunner = runners.NewCommonRunner(cfg)
-	// Use background context to avoid inheriting any deadlines from component lifecycle which stop the PAR loop
-	ctx, mainCtxCancel := context.WithCancel(context.Background())
-	p.drain = mainCtxCancel
-	err = p.commonRunner.Start(ctx)
+	err = p.workflowRunner.Start(ctx)
 	if err != nil {
 		return err
 	}
-	return p.workflowRunner.Start(ctx)
+	return p.commonRunner.Start(ctx)
 }
 
 func (p *PrivateActionRunner) Stop(ctx context.Context) error {
+	if !p.started {
+		return nil // Never started, nothing to stop
+	}
+
+	p.cancelStart()
+	waitCtx, cancelWaitCtx := context.WithTimeout(ctx, maxStartupWaitTimeout)
+	defer cancelWaitCtx()
+	err := p.waitForStartup(waitCtx)
+	if err != nil {
+		p.logger.Warn("PAR startup did not complete in time, forcing cleanup")
+		// Don't return - continue to cleanup what we can
+	}
+
 	if p.workflowRunner != nil {
 		err := p.workflowRunner.Stop(ctx)
 		if err != nil {
@@ -194,25 +231,54 @@ func (p *PrivateActionRunner) Stop(ctx context.Context) error {
 			return err
 		}
 	}
-	p.drain()
+	return nil
+}
+
+func (p *PrivateActionRunner) waitForStartup(ctx context.Context) error {
+	select {
+	case <-p.startChan:
+		// Startup completed normally
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 	return nil
 }
 
 // performSelfEnrollment handles the self-registration of a private action runner
 func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *parconfig.Config) (*parconfig.Config, error) {
-	ddSite := p.coreConfig.GetString("site")
+	ddSite := cfg.DatadogSite
 	apiKey := p.coreConfig.GetString("api_key")
 	appKey := p.coreConfig.GetString("app_key")
+
+	if apiKeyOK, err := util.ValidateAPIKey(apiKey); err != nil {
+		return nil, fmt.Errorf("invalid api_key: %w", err)
+	} else if !apiKeyOK {
+		p.logger.Warnf("api_key does not match the expected format; enrollment may fail")
+	}
+
+	if appKeyOK, err := util.ValidateAppKey(appKey); err != nil {
+		return nil, fmt.Errorf("invalid app_key: %w", err)
+	} else if !appKeyOK {
+		p.logger.Warnf("app_key does not match the expected format; enrollment may fail")
+	}
 
 	runnerHostname, err := p.hostnameGetter.Get(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get hostname: %w", err)
 	}
-	now := time.Now().UTC()
-	formattedTime := now.Format("20060102150405")
-	runnerName := runnerHostname + "-" + formattedTime
 
-	enrollmentResult, err := enrollment.SelfEnroll(ctx, ddSite, runnerName, apiKey, appKey)
+	runnerNamePrefix := runnerHostname
+	// For cluster agent, use cluster name instead of hostname for better identification
+	if flavor.GetFlavor() == flavor.ClusterAgent {
+		clusterName := clustername.GetClusterName(ctx, runnerHostname)
+		if clusterName != "" {
+			runnerNamePrefix = clusterName
+		} else {
+			p.logger.Warnf("Cluster name not found, falling back to hostname '%s' for cluster agent enrollment", runnerHostname)
+		}
+	}
+
+	enrollmentResult, err := enrollment.SelfEnroll(ctx, ddSite, runnerNamePrefix, runnerHostname, apiKey, appKey)
 	if err != nil {
 		return nil, fmt.Errorf("enrollment API call failed: %w", err)
 	}
@@ -246,7 +312,7 @@ func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *pa
 			tagsProvider := autoconnections.NewTagsProvider(p.tagger)
 			creator := autoconnections.NewConnectionsCreator(*client, tagsProvider)
 
-			if err := creator.AutoCreateConnections(ctx, urnParts.RunnerID, runnerHostname, runnerName, actionsAllowlist); err != nil {
+			if err := creator.AutoCreateConnections(ctx, urnParts.RunnerID, enrollmentResult, actionsAllowlist); err != nil {
 				p.logger.Warnf("Failed to auto-create connections: %v", err)
 			}
 		}

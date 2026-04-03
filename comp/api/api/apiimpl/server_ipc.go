@@ -20,12 +20,15 @@ const ipcServerName string = "IPC API Server"
 const ipcServerShortName string = "IPC"
 
 func (server *apiServer) startIPCServer(ipcServerAddr string, tmf observability.TelemetryMiddlewareFactory) (err error) {
-	server.ipcListener, err = listener.GetListener(ipcServerAddr)
+	ipcListener, err := listener.GetListener(ipcServerAddr)
 	if err != nil {
 		return err
 	}
+	server.ipcAddr = ipcListener.Addr()
 
 	configEndpointMux := configendpoint.GetConfigEndpointMuxCore(server.cfg)
+	// Pass "/config/v1" to preserve the full path since configEndpointMux is mounted via http.StripPrefix("/config/v1", ...).
+	configEndpointMux.Use(observability.CaptureRouteTemplateMiddlewareWithPrefix("/config/v1"))
 
 	ipcMux := http.NewServeMux()
 	ipcMux.Handle(
@@ -45,7 +48,8 @@ func (server *apiServer) startIPCServer(ipcServerAddr string, tmf observability.
 		TLSConfig: serverTLSConfig,
 	}
 
-	startServer(server.ipcListener, ipcServer, ipcServerName)
+	server.ipcServer = ipcServer
+	startServer(ipcListener, ipcServer, ipcServerName)
 
 	return nil
 }

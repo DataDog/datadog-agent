@@ -17,7 +17,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
@@ -79,6 +79,11 @@ func getProbeDefinitions(name string) ([]ir.ProbeDefinition, error) {
 // IssueTagPrefix is the prefix of the issue tag.
 const IssueTagPrefix = "issue:"
 
+// SkipIntegrationTagPrefix is the prefix for skipping probes in integration tests.
+// The value after the prefix is a Config string (arch=ARCH,toolchain=VERSION)
+// parsed by parseConfig. Matching is exact on both fields.
+const SkipIntegrationTagPrefix = "skip_integration:"
+
 // GetIssueTag returns the issue tag for a probe definition.
 func GetIssueTag(p ir.ProbeDefinition) (string, bool) {
 	tags := p.GetTags()
@@ -95,4 +100,21 @@ func GetIssueTag(p ir.ProbeDefinition) (string, bool) {
 func HasIssueTag(p ir.ProbeDefinition) bool {
 	_, ok := GetIssueTag(p)
 	return ok
+}
+
+// IsIntegrationConfigSkipped returns true if the probe should be skipped for
+// the given Config. Each skip_integration: tag value is parsed as a Config
+// string via parseConfig and compared with exact equality.
+func IsIntegrationConfigSkipped(t testing.TB, p ir.ProbeDefinition, cfg Config) bool {
+	for _, tag := range p.GetTags() {
+		if !strings.HasPrefix(tag, SkipIntegrationTagPrefix) {
+			continue
+		}
+		skipCfg, err := ParseConfig(tag[len(SkipIntegrationTagPrefix):])
+		require.NoError(t, err, "invalid skip_integration tag %q on probe %s", tag, p.GetID())
+		if skipCfg == cfg {
+			return true
+		}
+	}
+	return false
 }

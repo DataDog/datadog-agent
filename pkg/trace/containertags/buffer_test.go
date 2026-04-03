@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build go1.25
-
 // Package containertagsbuffer contains the logic to buffer payloads for container tags
 // enrichment
 package containertagsbuffer
@@ -37,10 +35,10 @@ func (m *mockResolver) setTags(t []string) {
 	m.tags = t
 }
 
-func (m *mockResolver) Resolve(string) ([]string, error) {
+func (m *mockResolver) Resolve(string) ([]string, bool, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return m.tags, m.err
+	return m.tags, true, m.err
 }
 
 func TestBuffer_DelayedSuccess(t *testing.T) {
@@ -118,8 +116,8 @@ func TestAsyncEnrichment_DeniedContainer(t *testing.T) {
 	conf := &config.AgentConfig{
 		MaxMemory:           1000,
 		ContainerTagsBuffer: true,
-		ContainerTags: func(string) ([]string, error) {
-			return []string{"image:only"}, nil
+		ContainerTagsWithCompleteness: func(string) ([]string, bool, error) {
+			return []string{"image:only"}, true, nil
 		},
 	}
 
@@ -145,9 +143,9 @@ func TestAsyncEnrichment_DeniedContainer(t *testing.T) {
 func TestAsyncEnrichment_MemoryLimit(t *testing.T) {
 	mock := &mockResolver{tags: []string{"short_image:java"}}
 	conf := &config.AgentConfig{
-		MaxMemory:           100, // Max size will be 10 (10%)
-		ContainerTagsBuffer: true,
-		ContainerTags:       mock.Resolve,
+		MaxMemory:                     100, // Max size will be 10 (10%)
+		ContainerTagsBuffer:           true,
+		ContainerTagsWithCompleteness: mock.Resolve,
 	}
 
 	ctb := newContainerTagsBuffer(conf, &statsd.NoOpClient{})
@@ -183,8 +181,8 @@ func TestAsyncEnrichment_ImmediateResolution(t *testing.T) {
 	conf := &config.AgentConfig{
 		MaxMemory:           10000,
 		ContainerTagsBuffer: true,
-		ContainerTags: func(string) ([]string, error) {
-			return []string{"kube_pod_name:abc", "image:123"}, nil
+		ContainerTagsWithCompleteness: func(string) ([]string, bool, error) {
+			return []string{"kube_pod_name:abc", "image:123"}, true, nil
 		},
 	}
 	ctb := newContainerTagsBuffer(conf, &statsd.NoOpClient{})
@@ -209,8 +207,8 @@ func TestAsyncEnrichment_Buffered_Expiration(t *testing.T) {
 	conf := &config.AgentConfig{
 		MaxMemory:           10000,
 		ContainerTagsBuffer: true,
-		ContainerTags: func(string) ([]string, error) {
-			return []string{"image:only"}, nil
+		ContainerTagsWithCompleteness: func(string) ([]string, bool, error) {
+			return []string{"image:only"}, true, nil
 		},
 	}
 
@@ -247,8 +245,8 @@ func TestAsyncEnrichment_Buffered_HardLimit(t *testing.T) {
 	conf := &config.AgentConfig{
 		MaxMemory:           10000,
 		ContainerTagsBuffer: true,
-		ContainerTags: func(string) ([]string, error) {
-			return []string{"image:only"}, nil
+		ContainerTagsWithCompleteness: func(string) ([]string, bool, error) {
+			return []string{"image:only"}, true, nil
 		},
 	}
 
@@ -293,15 +291,15 @@ func syncTestAsyncEnrichmentConcurrentMixedScenarios(t *testing.T) {
 	conf := &config.AgentConfig{
 		MaxMemory:           10 * 1024 * 1024,
 		ContainerTagsBuffer: true,
-		ContainerTags: func(cid string) ([]string, error) {
+		ContainerTagsWithCompleteness: func(cid string) ([]string, bool, error) {
 			if strings.Contains(cid, "c-error") {
-				return nil, errors.New("container not found")
+				return nil, false, errors.New("container not found")
 			}
 
 			if shouldResolveContainers.Load() {
-				return []string{"kube_image:" + cid}, nil
+				return []string{"kube_image:" + cid}, true, nil
 			}
-			return []string{"tag:incomplete_tags"}, nil
+			return []string{"tag:incomplete_tags"}, true, nil
 		},
 	}
 

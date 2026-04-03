@@ -146,18 +146,18 @@ func replaceConfigDirectory(oldDir, newDir string) (err error) {
 // setFileOwnershipAndPermissions sets the ownership and permissions for a file based on its configFileSpec.
 // If the user doesn't exist (e.g., in tests) or if we don't have permission
 // to change ownership, the function logs a warning and continues without failing.
-func setFileOwnershipAndPermissions(ctx context.Context, filePath string, spec *configFileSpec) error {
+func setFileOwnershipAndPermissions(ctx context.Context, root *os.Root, path string, spec *configFileSpec) error {
 	// Set file permissions
 	if spec.mode != 0 {
-		if err := os.Chmod(filePath, spec.mode); err != nil {
-			return fmt.Errorf("error setting file permissions for %s: %w", filePath, err)
+		if err := root.Chmod(path, spec.mode); err != nil {
+			return fmt.Errorf("error setting file permissions for %s: %w", path, err)
 		}
 	}
 
 	// Set file ownership
-	err := file.Chown(ctx, filePath, spec.owner, spec.group)
+	err := file.Chown(ctx, filepath.Join(root.Name(), path), spec.owner, spec.group)
 	if err != nil {
-		log.Warnf("error setting file ownership for %s: %v", filePath, err)
+		log.Warnf("error setting file ownership for %s: %v", path, err)
 	}
 
 	return nil

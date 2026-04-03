@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/netip"
-	"runtime"
 	"sort"
 	"strconv"
 	"time"
@@ -131,11 +130,6 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 
 // IsEnabled returns true if the check is enabled by configuration
 func (c *ConnectionsCheck) IsEnabled() bool {
-	// connection check is not supported on darwin, so we should fail gracefully in this case.
-	if runtime.GOOS == "darwin" {
-		return false
-	}
-
 	// connections check is only supported on the process agent
 	if flavor.GetFlavor() != flavor.ProcessAgent {
 		return false
@@ -551,7 +545,7 @@ func batchConnections(
 		}
 
 		// remap resolv.conf indices for this batch
-		resolvConfSet := indexedset.New[string]()
+		resolvConfSet := indexedset.New[string](0)
 		for _, c := range batchConns {
 			if c.ResolvConfIdx >= 0 && int(c.ResolvConfIdx) < len(resolvConfs) {
 				c.ResolvConfIdx = resolvConfSet.Add(resolvConfs[c.ResolvConfIdx])

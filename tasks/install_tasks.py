@@ -20,7 +20,7 @@ TOOL_LIST = [
     'github.com/goware/modvendor',
     'github.com/stormcat24/protodep',
     'gotest.tools/gotestsum',
-    'github.com/vektra/mockery/v2',
+    'github.com/vektra/mockery/v3',
     'github.com/wadey/gocovmerge',
     'github.com/uber-go/gopatch',
     'github.com/aarzilli/whydeadcode',
@@ -50,7 +50,7 @@ def download_tools(ctx):
 
 
 @task
-def install_tools(ctx: Context, max_retry: int = 3):
+def install_tools(ctx: Context, max_retry: int = 3, verbose: bool = False):
     """Install all Go tools for testing."""
     with gitlab_section("Installing Go tools", collapsed=True):
         env = {'GO111MODULE': 'on'}
@@ -58,11 +58,12 @@ def install_tools(ctx: Context, max_retry: int = 3):
             env['CC'] = os.getenv('DD_CC')
         if os.getenv('DD_CXX'):
             env['CXX'] = os.getenv('DD_CXX')
+        verbose_flag = " -x" if verbose else ""
         with environ(env):
             for path, tools in TOOLS.items():
                 with ctx.cd(path):
                     for tool in tools:
-                        run_command_with_retry(ctx, f"go install {tool}", max_retry=max_retry)
+                        run_command_with_retry(ctx, f"go install{verbose_flag} {tool}", max_retry=max_retry)
         for bazelisk in Path(get_gobin(ctx)).glob('bazelisk*'):
             link_or_copy(bazelisk, bazelisk.with_stem(bazelisk.stem.replace('isk', '')))
 

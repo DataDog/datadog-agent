@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import ClassVar
 
 import yaml
+from invoke.context import Context
 
 import tasks
 from tasks.libs.build.bazel import bazel
@@ -235,11 +236,12 @@ class GoModule:
 
         return "v0" + agent_version[1:]
 
-    def __compute_dependencies(self):
+    def __compute_dependencies(self, ctx: Context):
         """
         Computes the list of github.com/DataDog/datadog-agent/ dependencies of the module.
         """
         output = bazel(
+            ctx,
             "run",
             "//internal/tools/modparser",
             "--",
@@ -277,10 +279,9 @@ class GoModule:
         """Return the absolute path of the Go module go.mod file."""
         return self.full_path() + "/go.mod"
 
-    @property
-    def dependencies(self):
+    def dependencies(self, ctx: Context):
         if not self._dependencies:
-            self._dependencies = self.__compute_dependencies()
+            self._dependencies = self.__compute_dependencies(ctx)
         return self._dependencies
 
     @property

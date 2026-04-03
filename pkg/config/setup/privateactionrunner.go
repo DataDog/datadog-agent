@@ -6,6 +6,10 @@
 package setup
 
 import (
+	"path"
+	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
@@ -14,11 +18,12 @@ const (
 	PARLogFile = "private_action_runner.log_file"
 
 	// Identity / enrollment configuration
-	PARSelfEnroll         = "private_action_runner.self_enroll"
-	PARIdentityFilePath   = "private_action_runner.identity_file_path"
-	PARIdentitySecretName = "private_action_runner.identity_secret_name"
-	PARPrivateKey         = "private_action_runner.private_key"
-	PARUrn                = "private_action_runner.urn"
+	PARSelfEnroll           = "private_action_runner.self_enroll"
+	PARIdentityFilePath     = "private_action_runner.identity_file_path"
+	PARIdentityUseK8sSecret = "private_action_runner.identity_use_k8s_secret"
+	PARIdentitySecretName   = "private_action_runner.identity_secret_name"
+	PARPrivateKey           = "private_action_runner.private_key"
+	PARUrn                  = "private_action_runner.urn"
 
 	// General config
 	PARTaskConcurrency    = "private_action_runner.task_concurrency"
@@ -29,7 +34,21 @@ const (
 	PARHttpTimeoutSeconds    = "private_action_runner.http_timeout_seconds"
 	PARHttpAllowlist         = "private_action_runner.http_allowlist"
 	PARHttpAllowImdsEndpoint = "private_action_runner.http_allow_imds_endpoint"
+
+	// Restricted Shell
+	PARRestrictedShellAllowedPaths = "private_action_runner.restricted_shell_allowed_paths"
 )
+
+const (
+	// Default allowed paths for restricted shell
+	defaultLogPath = "/var/log"
+
+	containerizedPathPrefix = "/host"
+)
+
+// parPathExists is the function used to check path existence. It defaults to
+// pathExists and can be overridden in tests.
+var parPathExists = pathExists
 
 // setupPrivateActionRunner registers all configuration keys for the private action runner
 func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
@@ -42,6 +61,7 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	// Identity / enrollment configuration
 	config.BindEnvAndSetDefault(PARSelfEnroll, true)
 	config.BindEnvAndSetDefault(PARIdentityFilePath, "")
+	config.BindEnvAndSetDefault(PARIdentityUseK8sSecret, true)
 	config.BindEnvAndSetDefault(PARIdentitySecretName, "private-action-runner-identity")
 	config.BindEnvAndSetDefault(PARPrivateKey, "")
 	config.BindEnvAndSetDefault(PARUrn, "")
@@ -50,9 +70,30 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault(PARTaskConcurrency, 5)
 	config.BindEnvAndSetDefault(PARTaskTimeoutSeconds, 60)
 	config.BindEnvAndSetDefault(PARActionsAllowlist, []string{})
+	config.ParseEnvAsStringSlice(PARActionsAllowlist, func(s string) []string {
+		return strings.Split(s, ",")
+	})
 
 	// HTTP action
 	config.BindEnvAndSetDefault(PARHttpTimeoutSeconds, 30)
 	config.BindEnvAndSetDefault(PARHttpAllowlist, []string{})
+	config.ParseEnvAsStringSlice(PARHttpAllowlist, func(s string) []string {
+		return strings.Split(s, ",")
+	})
 	config.BindEnvAndSetDefault(PARHttpAllowImdsEndpoint, false)
+
+	defaultPaths := []string{defaultLogPath}
+	if env.IsContainerized() {
+		for i, v := range defaultPaths {
+			hostPath := path.Join(containerizedPathPrefix, v)
+			defaultPaths[i] = hostPath
+		}
+	}
+	config.BindEnvAndSetDefault(PARRestrictedShellAllowedPaths, defaultPaths)
+	config.ParseEnvAsStringSlice(PARRestrictedShellAllowedPaths, func(s string) []string {
+		if s == "" {
+			return nil
+		}
+		return strings.Split(s, ",")
+	})
 }

@@ -1,6 +1,7 @@
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
+load("@rules_python//python:defs.bzl", "py_binary")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -23,10 +24,6 @@ FIPS_LINUX = "fips.so"
 
 configure_make(
     name = "openssl_fips",
-    # TODO(team:agent-build): Find a better way to utilize more than 1 core
-    args = [
-        "-j 16",
-    ],
     configure_command = "Configure",
     configure_in_place = select({
         "@platforms//os:windows": True,
@@ -44,6 +41,7 @@ configure_make(
     }),
     copts = ["-O2"],
     lib_source = ":all",
+    resource_size = "enormous",
     out_shared_libs = select({
         "@platforms//os:linux": [
             "ossl-modules/" + FIPS_LINUX,
@@ -116,8 +114,8 @@ pkg_files(
 
 # FIPS version of the agent requires libraries and headers of the regular OpenSSL installation.
 # Thus, bringing them in here with openssl_install_files target.
-pkg_install(
-    name = "install",
+pkg_filegroup(
+    name = "all_files",
     srcs = [
         ":openssl_cnf_tmp",
         ":openssl_fips_provider",
@@ -125,6 +123,17 @@ pkg_install(
         "@platforms//os:windows": [],
         "//conditions:default": [":fipsinstall_sh"],
     }),
+    prefix = select({
+        "@platforms//os:windows": "embedded3",
+        "//conditions:default": "embedded",
+    }),
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":all_files",
+    ],
 )
 
 # Cross-platform helper to set the correct paths in openssl.cnf and fipsinstall.sh.

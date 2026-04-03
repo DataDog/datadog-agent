@@ -1,0 +1,35 @@
+# gazelle:ignore
+# We have go code in this directory, so we need gazelle to ignore it for now.
+# But we need gazelle to generate the BUILD.bazel files for the cgo directory.
+# Using exclude directive doesn't allow us to only run gazelle on certain subdirectories
+# if the main one is excluded, therefore, ignore directive is used here.
+
+load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
+
+exports_files([
+    "conntrack_types_linux.go",
+    "conntrack_types_linux_test.go",
+    "tuple_types_linux.go",
+    "tuple_types_linux_test.go",
+    "kprobe_types_linux.go",
+    "kprobe_types_linux_test.go",
+])
+
+cgo_godefs(
+    name = "conntrack_types_godefs",
+    src = "conntrack_types.go",
+    deps = ["//pkg/network/ebpf/c:ebpf_c_network"],
+)
+
+cgo_godefs(
+    name = "tuple_types_godefs",
+    src = "tuple_types.go",
+    deps = ["//pkg/network/ebpf/c:ebpf_c_network"],
+)
+
+cgo_godefs(
+    name = "kprobe_types_godefs",
+    src = "kprobe_types.go",
+    hdrs = ["//pkg/network/ebpf/c/prebuilt:prebuilt_headers"],
+    deps = ["//pkg/network/ebpf/c:ebpf_c_network"],
+)

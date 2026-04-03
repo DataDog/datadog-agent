@@ -1,0 +1,16 @@
+---
+name: "Push Bazel Cache"
+on:
+  push:
+    branches: [main]
+    paths: ["**/*MODULE.bazel*"]
+  workflow_dispatch:
+permissions: {}
+jobs:
+  push_bazel_cache:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: ./.github/actions/bazel-cache
+      - name: Fetch Bazel module dependencies
+        run: bazel mod deps

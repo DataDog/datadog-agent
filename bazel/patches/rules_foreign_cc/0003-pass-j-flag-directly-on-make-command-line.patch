@@ -1,0 +1,88 @@
+Pass -j<N> on the make command line for GNU Make 3.x compatibility.
+GNUMAKEFLAGS is only honored by GNU Make 4.2+; injecting -j on the
+command line works on all GNU Make versions. Skip when using nmake.
+Shared helper inject_make_parallelism_args() in resource_sets.bzl.
+Do not set GNUMAKEFLAGS in env to avoid a no-op on GNU Make 3.x.
+
+---
+ foreign_cc/configure.bzl              | 4 ++++
+ foreign_cc/make.bzl                   | 4 ++++
+ foreign_cc/private/resource_sets.bzl  | 18 +++++++++---------
+ 3 files changed, 22 insertions(+), 9 deletions(-)
+
+diff --git a/foreign_cc/configure.bzl b/foreign_cc/configure.bzl
+index a35698d..0cc1f1e 100644
+--- a/foreign_cc/configure.bzl
++++ b/foreign_cc/configure.bzl
+@@ -11,6 +11,7 @@ load(
+ )
+ load("//foreign_cc/private:configure_script.bzl", "create_configure_script")
+ load("//foreign_cc/private:detect_root.bzl", "detect_root")
++load("//foreign_cc/private:resource_sets.bzl", "inject_make_parallelism_args")
+ load("//foreign_cc/private:detect_xcompile.bzl", "detect_xcompile")
+ load(
+     "//foreign_cc/private:framework.bzl",
+@@ -86,6 +87,7 @@ def _create_configure_script(configureParameters):
+         ctx.expand_location(arg, data)
+         for arg in ctx.attr.args
+     ])
++    args = inject_make_parallelism_args(ctx.attr, attrs.make_path, args)
+ 
+     user_env = expand_locations_and_make_variables(ctx, ctx.attr.env, "env", data)
+ 
+diff --git a/foreign_cc/make.bzl b/foreign_cc/make.bzl
+index 8ffa23f..a1941a8 100644
+--- a/foreign_cc/make.bzl
++++ b/foreign_cc/make.bzl
+@@ -11,6 +11,7 @@ load(
+     "//foreign_cc/private:detect_root.bzl",
+     "detect_root",
+ )
++load("//foreign_cc/private:resource_sets.bzl", "inject_make_parallelism_args")
+ load(
+     "//foreign_cc/private:framework.bzl",
+     "CC_EXTERNAL_RULE_ATTRIBUTES",
+@@ -54,6 +55,7 @@ def _create_make_script(configureParameters):
+         ctx.expand_location(arg, data)
+         for arg in ctx.attr.args
+     ])
++    args = inject_make_parallelism_args(ctx.attr, attrs.make_path, args)
+ 
+     user_env = expand_locations_and_make_variables(ctx, ctx.attr.env, "env", data)
+ 
+diff --git a/foreign_cc/private/resource_sets.bzl b/foreign_cc/private/resource_sets.bzl
+index 332205e..795a80a 100644
+--- a/foreign_cc/private/resource_sets.bzl
++++ b/foreign_cc/private/resource_sets.bzl
+@@ -183,6 +183,17 @@ def get_resource_set(attr):
+ 
+     return resource_set, actual_cpu, actual_mem
+ 
++def inject_make_parallelism_args(attr, make_path, args):
++    """Prepend -j<N> to make args when resource_size requests parallelism and make is not nmake.
++
++    GNUMAKEFLAGS is only honored by GNU Make 4.2+; the command-line -j flag works on all
++    GNU Make versions. We do not set MAKEFLAGS because nmake reads it and rejects -j.
++    """
++    _, cpu, _ = get_resource_set(attr)
++    if cpu > 0 and "nmake" not in make_path:
++        return ("-j%d " % cpu) + args
++    return args
++
+ def get_resource_env_vars(attr):
+     """ get the values of env vars controlling parallelism
+ 
+@@ -207,11 +218,8 @@ def get_resource_env_vars(attr):
+         env = {
+             "CMAKE_BUILD_PARALLEL_LEVEL": sc,
+ 
+-            # we set GNUMAKEFLAGS instead of MAKEFLAGS because nmake sees
+-            # MAKEFLAGS but doesn't accept a -j argument, and we don't have a
+-            # good way of being sure that nmake isn't going to be used as part
+-            # of a build.
+-            "GNUMAKEFLAGS": "-j" + sc,
++            # Make parallelism is set via -j on the command line in inject_make_parallelism_args();
++            # we do not set GNUMAKEFLAGS/MAKEFLAGS here to avoid a no-op env var on GNU Make 3.x.
+ 
+             # Meson starts to honor this as of 1.7.0; before that, it only uses
+             # ninja's parallelization controls.

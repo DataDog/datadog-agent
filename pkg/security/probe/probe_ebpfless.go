@@ -174,7 +174,7 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 		event.Open.Flags = syscallMsg.Open.Flags
 
 	case ebpfless.SyscallTypeSetUID:
-		p.Resolvers.ProcessResolver.UpdateUID(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.SetUID.UID, syscallMsg.SetUID.EUID)
+		p.Resolvers.ProcessResolver.UpdateUser(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.SetUID.UID, syscallMsg.SetUID.EUID, syscallMsg.SetUID.User, syscallMsg.SetUID.EUser)
 		event.Type = uint32(model.SetuidEventType)
 		event.SetUID.UID = uint32(syscallMsg.SetUID.UID)
 		event.SetUID.User = syscallMsg.SetUID.User
@@ -182,7 +182,7 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 		event.SetUID.EUser = syscallMsg.SetUID.EUser
 
 	case ebpfless.SyscallTypeSetGID:
-		p.Resolvers.ProcessResolver.UpdateGID(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.SetGID.GID, syscallMsg.SetGID.EGID)
+		p.Resolvers.ProcessResolver.UpdateGroup(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.SetGID.GID, syscallMsg.SetGID.EGID, syscallMsg.SetGID.Group, syscallMsg.SetGID.EGroup)
 		event.Type = uint32(model.SetgidEventType)
 		event.SetGID.GID = uint32(syscallMsg.SetGID.GID)
 		event.SetGID.Group = syscallMsg.SetGID.Group
@@ -719,6 +719,9 @@ func (p *EBPFLessProbe) zeroEvent() *model.Event {
 func (p *EBPFLessProbe) EnableEnforcement(state bool) {
 	p.processKiller.SetState(state)
 }
+
+// SendCustomEventKillAction is a no-op for EBPFLess (remediation custom events use EBPF probe).
+func (p *EBPFLessProbe) SendCustomEventKillAction(_ model.ActionReport, _ []string) {}
 
 // GetAgentContainerContext returns the agent container context
 func (p *EBPFLessProbe) GetAgentContainerContext() *events.AgentContainerContext {

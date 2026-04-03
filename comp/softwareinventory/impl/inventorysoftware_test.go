@@ -32,9 +32,17 @@ import (
 
 type testFixture struct {
 	t                 *testing.T
-	sysProbeClient    *mockSysProbeClient
+	sysProbeClient    sysProbeClient
 	eventPlatformMock *mockEventPlatform
 	reqs              Requires
+}
+
+func (tf *testFixture) sysProbeClientAsMock() *mockSysProbeClient {
+	return tf.sysProbeClient.(*mockSysProbeClient)
+}
+
+type callCounter interface {
+	GetCallCount() int
 }
 
 type mockEventPlatform struct {
@@ -111,7 +119,7 @@ type softwareInventoryTestHelper struct {
 // WaitForSystemProbe waits for the GetCheck method to be called on the sys probe client
 func (h *softwareInventoryTestHelper) WaitForSystemProbe() *softwareInventoryTestHelper {
 	require.Eventually(h.fixture.t, func() bool {
-		return h.fixture.sysProbeClient.GetCallCount() > 0
+		return h.fixture.sysProbeClient.(callCounter).GetCallCount() > 0
 	}, time.Second, 10*time.Millisecond, "Expected GetCheck to be called")
 	return h
 }
@@ -170,8 +178,9 @@ func TestFlareProviderOutputDisabled(t *testing.T) {
 
 func TestFlareProviderOutputFailed(t *testing.T) {
 	f := newFixtureWithData(t, true, []software.Entry{{DisplayName: "TestApp"}})
-	f.sysProbeClient = &mockSysProbeClient{}
-	f.sysProbeClient.On("GetCheck", sysconfig.SoftwareInventoryModule).Return(nil, errors.New("error"))
+	sp := &mockSysProbeClient{}
+	sp.On("GetCheck", sysconfig.SoftwareInventoryModule).Return(nil, errors.New("error"))
+	f.sysProbeClient = sp
 	sut := f.sut().WaitForSystemProbe()
 
 	flareProvider := sut.FlareProvider()
@@ -242,4 +251,23 @@ func TestGetPayload(t *testing.T) {
 	p, ok = payload.(*Payload)
 	assert.True(t, ok)
 	assert.Len(t, p.Metadata.Software, 0)
+}
+
+func TestSendPayloadSetsIngestionTimestamp(t *testing.T) {
+	f := newFixtureWithData(t, true, []software.Entry{{DisplayName: "TestApp"}})
+
+	var capturedMsg *message.Message
+	f.eventPlatformMock.ExpectedCalls = nil
+	f.eventPlatformMock.On("SendEventPlatformEvent", mock.Anything, eventplatform.EventTypeSoftwareInventory).
+		Run(func(args mock.Arguments) {
+			capturedMsg = args.Get(0).(*message.Message)
+		}).
+		Return(nil)
+
+	sut := f.sut().WaitForPayload()
+	_ = sut
+
+	require.NotNil(t, capturedMsg, "expected SendEventPlatformEvent to be called")
+	assert.Greater(t, capturedMsg.IngestionTimestamp, int64(0),
+		"IngestionTimestamp must be set to a valid non-zero value (nanoseconds since epoch)")
 }

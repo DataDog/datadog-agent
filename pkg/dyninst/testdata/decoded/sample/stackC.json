@@ -67,10 +67,12 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "stackC"
+    "message": "stackC",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

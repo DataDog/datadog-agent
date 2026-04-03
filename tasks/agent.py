@@ -14,17 +14,18 @@ import tempfile
 from invoke import task
 from invoke.exceptions import Exit
 
+from tasks import doc
 from tasks.build_tags import (
     compute_build_tags_for_flavor,
     get_default_build_tags,
 )
-from tasks.cluster_agent import CONTAINER_PLATFORM_MAPPING
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
 from tasks.gointegrationtest import (
     CORE_AGENT_WINDOWS_IT_CONF,
     containerized_integration_tests,
 )
+from tasks.libs.common.constants import CONTAINER_PLATFORM_MAPPING
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
     REPO_PATH,
@@ -38,6 +39,7 @@ from tasks.libs.common.utils import (
 from tasks.libs.releasing.version import create_version_json
 from tasks.rtloader import clean as rtloader_clean
 from tasks.rtloader import install as rtloader_install
+from tasks.rtloader import install_with_bazel as rtloader_install_with_bazel
 from tasks.rtloader import make as rtloader_make
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
@@ -148,6 +150,7 @@ def build(
     agent_bin=None,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
     glibc=True,
+    enable_bazel=False,
 ):
     """
     Build the agent. If the bits to include in the build are not specified,
@@ -159,11 +162,14 @@ def build(
     flavor = AgentFlavor[flavor]
 
     if not exclude_rtloader and not flavor.is_iot():
-        # If embedded_path is set, we should give it to rtloader as it should install the headers/libs
-        # in the embedded path folder because that's what is used in get_build_flags()
         with gitlab_section("Install embedded rtloader", collapsed=True):
-            rtloader_make(ctx, install_prefix=embedded_path, cmake_options=cmake_options)
-            rtloader_install(ctx)
+            if enable_bazel:
+                bazel_embedded = rtloader_install_with_bazel(ctx)
+                embedded_path = bazel_embedded
+                python_home_3 = bazel_embedded
+            else:
+                rtloader_make(ctx, install_prefix=embedded_path, cmake_options=cmake_options)
+                rtloader_install(ctx)
 
     ldflags, gcflags, env = get_build_flags(
         ctx,
@@ -317,8 +323,18 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
     os.mkdir(dist_folder)
 
     if "python" in build_tags:
-        shutil.copytree("./cmd/agent/dist/checks/", os.path.join(dist_folder, "checks"), dirs_exist_ok=True)
-        shutil.copytree("./cmd/agent/dist/utils/", os.path.join(dist_folder, "utils"), dirs_exist_ok=True)
+        shutil.copytree(
+            "./cmd/agent/dist/checks/",
+            os.path.join(dist_folder, "checks"),
+            ignore=shutil.ignore_patterns("BUILD.bazel"),
+            dirs_exist_ok=True,
+        )
+        shutil.copytree(
+            "./cmd/agent/dist/utils/",
+            os.path.join(dist_folder, "utils"),
+            ignore=shutil.ignore_patterns("BUILD.bazel"),
+            dirs_exist_ok=True,
+        )
         shutil.copy("./cmd/agent/dist/config.py", os.path.join(dist_folder, "config.py"))
     if not flavor.is_iot():
         shutil.copy("./cmd/agent/dist/dd-agent", os.path.join(dist_folder, "dd-agent"))
@@ -335,7 +351,12 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
 
     for check in AGENT_CORECHECKS if not flavor.is_iot() else IOT_AGENT_CORECHECKS:
         check_dir = os.path.join(dist_folder, f"conf.d/{check}.d/")
-        shutil.copytree(f"./cmd/agent/dist/conf.d/{check}.d/", check_dir, dirs_exist_ok=True)
+        shutil.copytree(
+            f"./cmd/agent/dist/conf.d/{check}.d/",
+            check_dir,
+            ignore=shutil.ignore_patterns("BUILD.bazel"),
+            dirs_exist_ok=True,
+        )
         # Ensure the config folders are not world writable
         os.chmod(check_dir, mode=0o755)
 
@@ -344,7 +365,12 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
     if sys.platform == 'win32':
         for check in WINDOWS_CORECHECKS:
             check_dir = os.path.join(dist_folder, f"conf.d/{check}.d/")
-            shutil.copytree(f"./cmd/agent/dist/conf.d/{check}.d/", check_dir, dirs_exist_ok=True)
+            shutil.copytree(
+                f"./cmd/agent/dist/conf.d/{check}.d/",
+                check_dir,
+                ignore=shutil.ignore_patterns("BUILD.bazel"),
+                dirs_exist_ok=True,
+            )
 
     if sys.platform == 'darwin':
         shutil.copy("./cmd/agent/dist/conf.d/apm.yaml.default", os.path.join(dist_folder, "conf.d/apm.yaml.default"))
@@ -353,9 +379,14 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
             os.path.join(dist_folder, "conf.d/process_agent.yaml.default"),
         )
 
-    shutil.copytree("./comp/core/gui/guiimpl/views/private", os.path.join(dist_folder, "views"), dirs_exist_ok=True)
+    shutil.copytree(
+        "./comp/core/gui/guiimpl/views/private",
+        os.path.join(dist_folder, "views"),
+        ignore=shutil.ignore_patterns("BUILD.bazel"),
+        dirs_exist_ok=True,
+    )
     if development:
-        shutil.copytree("./dev/dist/", dist_folder, dirs_exist_ok=True)
+        shutil.copytree("./dev/dist/", dist_folder, ignore=shutil.ignore_patterns("BUILD.bazel"), dirs_exist_ok=True)
 
 
 @task
@@ -444,7 +475,23 @@ def image_build(ctx, arch='amd64', base_dir="omnibus", skip_tests=False, tag=Non
     ctx.run(f"rm {build_context}/{deb_glob}")
 
 
-@task
+@task(
+    help={
+        "base_image": doc.base_image,
+        "target_image": doc.target_image,
+        "process_agent": doc.process_agent,
+        "trace_agent": doc.trace_agent,
+        "system_probe": doc.system_probe,
+        "security_agent": doc.security_agent,
+        "trace_loader": doc.trace_loader,
+        "privateactionrunner": doc.privateactionrunner,
+        "push": doc.push,
+        "race": doc.race,
+        "signed_pull": doc.signed_pull,
+        "arch": doc.arch,
+        "development": doc.development,
+    }
+)
 def hacky_dev_image_build(
     ctx,
     base_image=None,
@@ -461,6 +508,9 @@ def hacky_dev_image_build(
     arch=None,
     development=True,
 ):
+    """
+    Builds the agent or cluster-agent Docker image.
+    """
     if arch is None:
         arch = CONTAINER_PLATFORM_MAPPING.get(platform.machine().lower())
 
@@ -474,7 +524,7 @@ def hacky_dev_image_build(
 
         # Try to guess what is the latest release of the agent
         latest_release = semver.VersionInfo(0)
-        tags = requests.get("https://registry.datadoghq.com/v2/agent/tags/list", timeout=10)
+        tags = requests.get("https://gcr.io/v2/datadoghq/agent/tags/list", timeout=10)
         for tag in tags.json()['tags']:
             if not semver.VersionInfo.isvalid(tag):
                 continue
@@ -483,7 +533,7 @@ def hacky_dev_image_build(
                 continue
             if ver > latest_release:
                 latest_release = ver
-        base_image = f"registry.datadoghq.com/agent:{latest_release}"
+        base_image = f"gcr.io/datadoghq/agent:{latest_release}"
 
     # Extract the python library of the docker image
     with tempfile.TemporaryDirectory() as extracted_python_dir:
@@ -552,7 +602,10 @@ def hacky_dev_image_build(
         build_dir = get_ebpf_build_dir(build_arch)
         runtime_dir = get_ebpf_runtime_dir()
 
-        copy_extra_agents += "COPY bin/system-probe/system-probe /opt/datadog-agent/embedded/bin/system-probe\n"
+        copy_extra_agents += (
+            "COPY bin/system-probe/system-probe /opt/datadog-agent/embedded/bin/system-probe\n"
+            "COPY pkg/discovery/module/rust/embedded/bin/system-probe-lite /opt/datadog-agent/embedded/bin/system-probe-lite\n"
+        )
         copy_ebpf_assets = f"""
 RUN mkdir -p /opt/datadog-agent/embedded/share/system-probe/ebpf/co-re/
 RUN mkdir -p /opt/datadog-agent/embedded/share/system-probe/ebpf/runtime/
@@ -933,11 +986,16 @@ def generate_config(ctx, build_type, output_file, env=None):
     Generates the datadog.yaml configuration file.
     """
     args = {
-        "go_file": "./pkg/config/render_config.go",
+        "go_file": "./pkg/config/render_config/render_config.go",
         "build_type": build_type,
         "template_file": "./pkg/config/config_template.yaml",
         "output_file": output_file,
     }
+    if build_type == "system-probe":
+        args["template_file"] = "./pkg/config/system-probe_template.yaml"
+    elif build_type == "security-agent":
+        args["template_file"] = "./pkg/config/security-agent_template.yaml"
+
     cmd = "go run {go_file} {build_type} {template_file} {output_file}"
     return ctx.run(cmd.format(**args), env=env or {})
 

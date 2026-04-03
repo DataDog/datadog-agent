@@ -1,0 +1,18 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fixed a bug where tailing UTF-16 encoded log files (UTF-16-LE or UTF-16-BE) could
+    produce mojibake (garbled text) when log lines exceeded the configured
+    ``logs_config.max_message_size_bytes`` limit (default 900KB). The truncation was
+    performed at the byte level without respecting 2-byte UTF-16 character boundaries,
+    which could split a character in half and produce Unicode replacement characters
+    (U+FFFD) after decoding. The framer now aligns the truncation limit to a 2-byte
+    boundary for UTF-16 encodings, ensuring that truncated frames always contain
+    valid UTF-16 data.

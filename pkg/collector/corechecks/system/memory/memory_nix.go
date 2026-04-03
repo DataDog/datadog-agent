@@ -16,7 +16,7 @@ import (
 	"strings"
 
 	"github.com/shirou/gopsutil/v4/mem"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -130,8 +130,8 @@ func (c *Check) freebsdSpecificVirtualMemoryCheck(v *mem.VirtualMemoryStat) erro
 }
 
 // Configure configures the memory check
-func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
-	err := c.CommonConfigure(senderManager, rawInitConfig, rawInstance, source)
+func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, rawInstance integration.Data, rawInitConfig integration.Data, source string, provider string) error {
+	err := c.CommonConfigure(senderManager, rawInitConfig, rawInstance, source, provider)
 	if err != nil {
 		return err
 	}
@@ -147,8 +147,8 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, rawInsta
 
 func (c *Check) collectVMStatPressureMetrics(sender sender.Sender) {
 	procfsPath := "/proc"
-	if pkgconfigsetup.Datadog().IsSet("procfs_path") {
-		procfsPath = pkgconfigsetup.Datadog().GetString("procfs_path")
+	if v := pkgconfigsetup.Datadog().GetString("procfs_path"); v != "" {
+		procfsPath = v
 	}
 
 	filePath := procfsPath + "/vmstat"

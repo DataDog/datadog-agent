@@ -171,7 +171,7 @@ func (b *Backend) StartExperiment(pkg string, version string) error {
 // PromoteExperiment promotes an update experiment for the given package.
 func (b *Backend) PromoteExperiment(pkg string) error {
 	b.t().Logf("Promoting update experiment for package %s", pkg)
-	output, err := b.runDaemonCommandWithRestart("promote-experiment", pkg)
+	output, err := b.runDaemonCommand("promote-experiment", pkg)
 	if err != nil {
 		return fmt.Errorf("%w, output: %s", err, output)
 	}

@@ -93,7 +93,7 @@ func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &collector{
 			id:                     collectorID,
-			catalog:                workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
+			catalog:                workloadmeta.NodeAgent,
 			filterPausedContainers: deps.FilterStore.GetContainerPausedFilters(),
 			filterSBOMContainers:   deps.FilterStore.GetContainerSBOMFilters(),
 		},

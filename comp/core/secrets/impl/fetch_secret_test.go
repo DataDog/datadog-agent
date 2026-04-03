@@ -142,12 +142,18 @@ func TestExecCommandError(t *testing.T) {
 		resolver.Configure(secrets.ConfigParams{Command: backendCommandBin, Arguments: []string{"timeout"}, Timeout: 1})
 		_, err := resolver.execCommand(inputPayload)
 		require.NotNil(t, err)
-		require.Equal(t, "error while running '"+backendCommandBin+"': command timeout", err.Error())
+		require.Contains(t, err.Error(), "timed out after 1 seconds")
+		require.Contains(t, err.Error(), "secret_backend_timeout")
 	})
 
 	t.Run("No Error", func(t *testing.T) {
 		resolver := newEnabledSecretResolver(tel)
-		resolver.Configure(secrets.ConfigParams{Command: backendCommandBin})
+		resolver.Configure(secrets.ConfigParams{
+			Command:          backendCommandBin,
+			MaxSize:          1024 * 1024,
+			Timeout:          30,
+			AuditFileMaxSize: 1024 * 1024,
+		})
 		resp, err := resolver.execCommand(inputPayload)
 		require.NoError(t, err)
 		require.Equal(t, "{\"sec1\":{\"value\":\"arg_password\"}}", string(resp))
@@ -164,10 +170,17 @@ func TestExecCommandError(t *testing.T) {
 	t.Run("buffer limit", func(t *testing.T) {
 		resolver := newEnabledSecretResolver(tel)
 		// This "response_too_long" arg makes the command return too long of a response
-		resolver.Configure(secrets.ConfigParams{Command: backendCommandBin, Arguments: []string{"response_too_long"}, MaxSize: 20})
+		resolver.Configure(secrets.ConfigParams{
+			Command:          backendCommandBin,
+			Arguments:        []string{"response_too_long"},
+			MaxSize:          20,
+			Timeout:          30,
+			AuditFileMaxSize: 1024 * 1024,
+		})
 		_, err := resolver.execCommand(inputPayload)
 		require.NotNil(t, err)
-		assert.Equal(t, "error while running '"+backendCommandBin+"': command output was too long: exceeded 20 bytes", err.Error())
+		assert.Contains(t, err.Error(), "command output was too long: exceeded 20 bytes")
+		assert.Contains(t, err.Error(), secretsManagementDocsURL)
 	})
 }
 
@@ -200,7 +213,8 @@ func TestFetchSecretMissingSecret(t *testing.T) {
 	resolver.commandHookFunc = func(string) ([]byte, error) { return []byte("{}"), nil }
 	_, err := resolver.fetchSecret(secrets)
 	assert.NotNil(t, err)
-	assert.Equal(t, "secret handle 'handle1' was not resolved by the secret_backend_command", err.Error())
+	assert.Contains(t, err.Error(), "secret handle 'handle1' was not resolved by the secret_backend_command")
+	assert.Contains(t, err.Error(), secretsManagementDocsURL)
 	checkErrorCountMetric(t, tel, 1, "missing", "handle1")
 }
 
@@ -224,7 +238,8 @@ func TestFetchSecretEmptyValue(t *testing.T) {
 	}
 	_, err := resolver.fetchSecret([]string{"handle1"})
 	assert.NotNil(t, err)
-	assert.Equal(t, "resolved secret for 'handle1' is empty", err.Error())
+	assert.Contains(t, err.Error(), "resolved secret for 'handle1' is empty")
+	assert.Contains(t, err.Error(), secretsManagementDocsURL)
 	checkErrorCountMetric(t, tel, 1, "empty", "handle1")
 
 	resolver.commandHookFunc = func(string) ([]byte, error) {
@@ -232,7 +247,7 @@ func TestFetchSecretEmptyValue(t *testing.T) {
 	}
 	_, err = resolver.fetchSecret([]string{"handle1"})
 	assert.NotNil(t, err)
-	assert.Equal(t, "resolved secret for 'handle1' is empty", err.Error())
+	assert.Contains(t, err.Error(), "resolved secret for 'handle1' is empty")
 	checkErrorCountMetric(t, tel, 2, "empty", "handle1")
 }
 

@@ -39,6 +39,10 @@ type MultiLineHandler struct {
 	telemetryEnabled  bool
 	linesCombined     int
 	multiLineTagValue string
+	// patternMatchedOnce tracks whether the multiline pattern has ever matched.
+	// Before the first match, lines are sent individually to prevent misconfigured
+	// patterns (that never match) from joining all lines into a single message.
+	patternMatchedOnce bool
 }
 
 // NewMultiLineHandler returns a new MultiLineHandler.
@@ -61,6 +65,14 @@ func NewMultiLineHandler(outputFn func(*message.Message), newContentRe *regexp.R
 		multiLineTagValue: multiLineTagValue,
 	}
 	return h
+}
+
+// Satisfy the multiLineCountable interface to use syncSourceInfo function
+func (h *MultiLineHandler) CountInfo() *status.CountInfo         { return h.countInfo }
+func (h *MultiLineHandler) SetCountInfo(info *status.CountInfo)  { h.countInfo = info }
+func (h *MultiLineHandler) LinesCombinedInfo() *status.CountInfo { return h.linesCombinedInfo }
+func (h *MultiLineHandler) SetLinesCombinedInfo(info *status.CountInfo) {
+	h.linesCombinedInfo = info
 }
 
 func (h *MultiLineHandler) flushChan() <-chan time.Time {
@@ -89,8 +101,14 @@ func (h *MultiLineHandler) process(msg *message.Message) {
 
 	if h.newContentRe.Match(msg.GetContent()) {
 		h.countInfo.Add(1)
+		h.patternMatchedOnce = true
 		// the current line is part of a new message,
 		// send the buffer
+		h.sendBuffer()
+	} else if !h.patternMatchedOnce {
+		// The pattern has never matched yet. Send buffered lines individually
+		// rather than aggregating, so a misconfigured pattern that never
+		// matches doesn't silently join all lines into one message.
 		h.sendBuffer()
 	}
 

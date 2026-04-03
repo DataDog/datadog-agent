@@ -20,6 +20,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.build_tags import ALL_TAGS, UNIT_TEST_TAGS, get_default_build_tags
+from tasks.libs.build.bazel import bazel, bazel_not_found_message
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import check_uncommitted_changes
 from tasks.libs.common.go import download_go_dependencies
@@ -94,10 +95,16 @@ def run_golangci_lint(
                     cc = cc_clang
                     cxx = cxx_clang
                 else:
+                    if goos == "darwin":
+                        instr = "cloning https://github.com/tpoechtrager/osxcross.git, pulling the macos SDK from https://github.com/joseluisq/macosx-sdks/releases, building OSXcross and adding it to your PATH"
+                    elif goos == "windows":
+                        instr = "the mingw-w64 toolchain (eg. `apt install gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64`)"
+                    else:
+                        instr = "the appropriate cross-compilation toolchain"
                     print(
                         color_message(
                             f"Error: Cross-compiler '{prefix}-gcc' (or '{prefix}-clang') not found. "
-                            f"Cross-linting for GOOS={goos} requires the appropriate cross-compilation toolchain.",
+                            f"Cross-linting for GOOS={goos} requires {instr}.",
                             "red",
                         )
                     )
@@ -340,7 +347,10 @@ def tidy_all(ctx):
 @task
 def tidy(ctx, verbose: bool = False):
     check_valid_mods(ctx)
+    (_bazel_tidy if shutil.which("bazel") else _go_only_tidy)(ctx, verbose)
 
+
+def _go_only_tidy(ctx, verbose: bool):
     ctx.run("go work sync")
 
     if os.name != 'nt':  # not windows
@@ -364,6 +374,21 @@ def tidy(ctx, verbose: bool = False):
     for promise in promises:
         promise.join()
 
+    print("Done - " + bazel_not_found_message("orange"), file=sys.stderr)
+
+
+def _bazel_tidy(ctx, verbose: bool):
+    # 1. deps/go.MODULE.bazel ↺ (prune stale use_repo declarations to not hinder next `bazel` commands)
+    bazel(ctx, "mod", "tidy")
+    # 2. go.work + **/go.mod -> **/go.mod (sync each workspace module's deps to the workspace build list)
+    bazel(ctx, "run", "//:go", "work", "sync")
+    # 3. **/*.go + **/go.mod -> **/go.mod, **/go.sum (reconcile each module's requirements with its actual imports)
+    bazel(ctx, "run", "//:go_mod_tidy_all", *(("--", "-x") if verbose else ()))
+    # 4. go.work + **/go.mod -> deps/go.MODULE.bazel (update use_repo declarations)
+    bazel(ctx, "mod", "tidy")
+    # 5. deps/go.MODULE.bazel + /BUILD.bazel + **/*.go + **/go.mod -> **/BUILD.bazel (infer build rules from Go source)
+    bazel(ctx, "run", "//:gazelle")
+
 
 @task(autoprint=True)
 def version(_):
@@ -373,7 +398,7 @@ def version(_):
 @task
 def check_go_version(ctx):
     go_version_output = ctx.run('go version')
-    # result is like "go version go1.25.7 linux/amd64"
+    # result is like "go version go1.25.8 linux/amd64"
     running_go_version = go_version_output.stdout.split(' ')[2]
 
     with open(".go-version") as f:

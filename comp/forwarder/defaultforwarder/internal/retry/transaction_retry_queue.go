@@ -215,10 +215,10 @@ func (tc *TransactionRetryQueue) FlushToDisk() error {
 	if tc.optionalStorage == nil {
 		return nil
 	}
-	tc.mutex.RLock()
-	defer tc.mutex.RUnlock()
+	tc.mutex.Lock()
+	defer tc.mutex.Unlock()
 
-	transactions := tc.extractTransactionsFromMemory(tc.GetMaxMemSizeInBytes())
+	transactions := tc.extractTransactionsFromMemory(tc.maxMemSizeInBytes)
 	return tc.optionalStorage.Store(transactions)
 }
 

@@ -40,6 +40,8 @@ type SafeDevice interface {
 	GetEncoderUtilization() (uint32, uint32, error)
 	// GetFanSpeed returns the fan speed percentage
 	GetFanSpeed() (uint32, error)
+	// GetFanSpeed_v2 returns the fan speed percentage for the given fan index
+	GetFanSpeed_v2(fanIndex int) (uint32, error)
 	// GetFieldValues returns the values for the specified fields
 	GetFieldValues(values []nvml.FieldValue) error
 	// GetGpuInstanceId returns the GPU instance ID for MIG devices
@@ -69,6 +71,8 @@ type SafeDevice interface {
 	GetNvLinkState(link int) (nvml.EnableState, error)
 	// GetNumGpuCores returns the number of GPU cores in the device
 	GetNumGpuCores() (int, error)
+	// GetNumFans returns the number of fans in the device
+	GetNumFans() (int, error)
 	// GetPcieThroughput returns the PCIe throughput in bytes/sec
 	GetPcieThroughput(counter nvml.PcieUtilCounter) (uint32, error)
 	// GetPerformanceState returns the current performance state

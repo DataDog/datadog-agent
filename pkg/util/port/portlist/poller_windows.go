@@ -41,7 +41,6 @@ func newWindowsImpl(includeLocalhost bool) osImpl {
 		includeLocalhost: includeLocalhost,
 	}
 }
-func (*windowsImpl) Close() error { return nil }
 
 func (im *windowsImpl) AppendListeningPorts(base []Port) ([]Port, error) {
 	tab, err := GetConnTable()

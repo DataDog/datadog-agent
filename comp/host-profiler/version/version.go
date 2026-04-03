@@ -10,6 +10,6 @@ package version
 
 import "github.com/DataDog/datadog-agent/pkg/version"
 
-const ProfilerName = "full-host-profiler"
+const ProfilerName = "host-profiler"
 
 var ProfilerVersion = version.AgentVersion

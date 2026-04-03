@@ -6,6 +6,8 @@
 package marshal
 
 import (
+	"iter"
+
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
@@ -31,35 +33,24 @@ import (
 //				model.ProtocolType_protocolHTTP2,
 //			},
 //		}
-func FormatProtocolStack(originalStack protocols.Stack, staticTags uint64) *model.ProtocolStack {
-	var stack []model.ProtocolType
-
-	if tls.IsTLSTag(staticTags) || originalStack.Encryption == protocols.TLS {
-		stack = addProtocol(stack, protocols.TLS)
+func FormatProtocolStack(originalStack protocols.Stack, staticTags uint64) iter.Seq[model.ProtocolType] {
+	return func(yield func(model.ProtocolType) bool) {
+		if tls.IsTLSTag(staticTags) || originalStack.Encryption == protocols.TLS {
+			if !yield(formatProtocol(protocols.TLS)) {
+				return
+			}
+		}
+		if originalStack.Application != protocols.Unknown {
+			if !yield(formatProtocol(originalStack.Application)) {
+				return
+			}
+		}
+		if originalStack.API != protocols.Unknown {
+			if !yield(formatProtocol(originalStack.API)) {
+				return
+			}
+		}
 	}
-	if originalStack.Application != protocols.Unknown {
-		stack = addProtocol(stack, originalStack.Application)
-	}
-	if originalStack.API != protocols.Unknown {
-		stack = addProtocol(stack, originalStack.API)
-	}
-
-	return &model.ProtocolStack{
-		Stack: stack,
-	}
-}
-
-func addProtocol(stack []model.ProtocolType, proto protocols.ProtocolType) []model.ProtocolType {
-	encodedProtocol := formatProtocol(proto)
-	if encodedProtocol == model.ProtocolType_protocolUnknown {
-		return stack
-	}
-
-	if stack == nil {
-		stack = make([]model.ProtocolType, 0, 3)
-	}
-
-	return append(stack, encodedProtocol)
 }
 
 func formatProtocol(proto protocols.ProtocolType) model.ProtocolType {

@@ -33,6 +33,8 @@ const (
 	OffsetNameMountMntID                = "mount_id_offset"
 	OffsetNameMountMntIDUnique          = "mount_id_unique_offset"
 	OffsetNameMountMntNs                = "mount_ns_offset"
+	OffsetNameMountParent               = "mount_parent_offset"
+	OffsetNameMountMountpoint           = "mount_mountpoint_offset"
 	OffsetNameMntNamespaceNs            = "mnt_namespace_ns"
 	OffsetNameNsCommonInum              = "ns_common_inum_offset"
 	OffsetNameSbDev                     = "sb_dev_offset"
@@ -81,12 +83,14 @@ const (
 	OffsetNameBPFProgAuxStructName            = "bpf_prog_aux_name_offset"
 
 	// namespace nr offsets
-	OffsetNamePIDStructLevel    = "pid_level_offset"
-	OffsetNamePIDStructNumbers  = "pid_numbers_offset"
-	OffsetNameDentryStructDSB   = "dentry_sb_offset"
-	OffsetNameTaskStructPID     = "task_struct_pid_offset"      // kernels >= 4.19
-	OffsetNameTaskStructPIDLink = "task_struct_pid_link_offset" // kernels < 4.19
-	OffsetNamePIDLinkStructPID  = "pid_link_pid_offset"         // kernels < 4.19
+	OffsetNamePIDStructLevel       = "pid_level_offset"
+	OffsetNamePIDStructNumbers     = "pid_numbers_offset"
+	OffsetNameDentryStructDSB      = "dentry_sb_offset"
+	OffsetNameTaskStructPID        = "task_struct_pid_offset"      // kernels >= 4.19
+	OffsetNameTaskStructPIDLink    = "task_struct_pid_link_offset" // kernels < 4.19
+	OffsetNamePIDLinkStructPID     = "pid_link_pid_offset"         // kernels < 4.19
+	OffsetNameTaskStructRealParent = "task_struct_real_parent_offset"
+	OffsetNameTaskStructTGID       = "task_struct_tgid_offset"
 
 	// splice event
 	OffsetNamePipeInodeInfoStructBufs     = "pipe_inode_info_bufs_offset"

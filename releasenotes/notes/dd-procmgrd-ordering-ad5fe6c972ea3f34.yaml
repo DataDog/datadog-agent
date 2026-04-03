@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    dd-procmgrd: Add multi-process startup ordering via ``after``/``before`` config fields with topological sort and reverse shutdown order.

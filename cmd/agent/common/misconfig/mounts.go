@@ -16,7 +16,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/pkg/errors"
 	"github.com/syndtr/gocapability/capability"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -74,7 +73,7 @@ func procMount() error {
 func checkProcMountHidePid(path string, uid int, groups []int) error {
 	file, err := os.Open(path)
 	if err != nil {
-		return errors.Wrapf(err, "failed to open %s - proc fs inspection may not work", path)
+		return fmt.Errorf("failed to open %s - proc fs inspection may not work: %w", path, err)
 	}
 	defer file.Close()
 
@@ -121,5 +120,8 @@ func checkProcMountHidePid(path string, uid int, groups []int) error {
 			hidepidSetting, path, fields[3], uid, strings.Join(gidList, ","))
 	}
 
-	return errors.Wrapf(scanner.Err(), "failed to scan %s", path)
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("failed to scan %s: %w", path, err)
+	}
+	return nil
 }

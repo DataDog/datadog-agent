@@ -219,7 +219,7 @@
         },
         "variables": {
           "$ref": "#/$defs/Variables",
-          "description": "Variables values"
+          "description": "Variable values"
         }
       },
       "additionalProperties": false,
@@ -299,7 +299,7 @@
         },
         "variables": {
           "$ref": "#/$defs/Variables",
-          "description": "Variables values"
+          "description": "Variable values"
         }
       },
       "additionalProperties": false,
@@ -425,7 +425,7 @@
         },
         "variables": {
           "$ref": "#/$defs/Variables",
-          "description": "Variables values"
+          "description": "Variable values"
         },
         "rule_context": {
           "$ref": "#/$defs/RuleContext",
@@ -1323,6 +1323,10 @@
           "type": "integer",
           "description": "Thread ID"
         },
+        "fork_flags": {
+          "type": "integer",
+          "description": "ForkFlags"
+        },
         "uid": {
           "type": "integer",
           "description": "User ID"
@@ -1438,9 +1442,17 @@
           "type": "boolean",
           "description": "Indicates whether the process is a kworker"
         },
+        "is_exec": {
+          "type": "boolean",
+          "description": "Indicates whether the process entry is from a new binary execution"
+        },
         "is_exec_child": {
           "type": "boolean",
           "description": "Indicates whether the process is an exec following another exec"
+        },
+        "is_parent_missing": {
+          "type": "boolean",
+          "description": "Indicates whether the direct parent is missing"
         },
         "source": {
           "type": "string",
@@ -1458,16 +1470,18 @@
           "description": "List of AWS Security Credentials that the process had access to"
         },
         "tracer": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "type": "object",
-          "description": "Tags from an APM tracer instrumentation"
+          "$ref": "#/$defs/TracerMetadata",
+          "description": "Metadata from APM tracer instrumentation"
+        },
+        "variables": {
+          "$ref": "#/$defs/Variables",
+          "description": "Variable values"
         }
       },
       "additionalProperties": false,
       "type": "object",
       "required": [
+        "fork_flags",
         "uid",
         "gid"
       ],
@@ -1487,6 +1501,10 @@
           "type": "integer",
           "description": "Thread ID"
         },
+        "fork_flags": {
+          "type": "integer",
+          "description": "ForkFlags"
+        },
         "uid": {
           "type": "integer",
           "description": "User ID"
@@ -1602,9 +1620,17 @@
           "type": "boolean",
           "description": "Indicates whether the process is a kworker"
         },
+        "is_exec": {
+          "type": "boolean",
+          "description": "Indicates whether the process entry is from a new binary execution"
+        },
         "is_exec_child": {
           "type": "boolean",
           "description": "Indicates whether the process is an exec following another exec"
+        },
+        "is_parent_missing": {
+          "type": "boolean",
+          "description": "Indicates whether the direct parent is missing"
         },
         "source": {
           "type": "string",
@@ -1622,11 +1648,12 @@
           "description": "List of AWS Security Credentials that the process had access to"
         },
         "tracer": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "type": "object",
-          "description": "Tags from an APM tracer instrumentation"
+          "$ref": "#/$defs/TracerMetadata",
+          "description": "Metadata from APM tracer instrumentation"
+        },
+        "variables": {
+          "$ref": "#/$defs/Variables",
+          "description": "Variable values"
         },
         "parent": {
           "$ref": "#/$defs/Process",
@@ -1639,10 +1666,6 @@
           "type": "array",
           "description": "Ancestor processes"
         },
-        "variables": {
-          "$ref": "#/$defs/Variables",
-          "description": "Variables values"
-        },
         "truncated_ancestors": {
           "type": "boolean",
           "description": "True if the ancestors list was truncated because it was too big"
@@ -1651,6 +1674,7 @@
       "additionalProperties": false,
       "type": "object",
       "required": [
+        "fork_flags",
         "uid",
         "gid"
       ],
@@ -2196,6 +2220,51 @@
       "additionalProperties": false,
       "type": "object",
       "description": "TLSContextSerializer defines a tls context serializer"
+    },
+    "TracerMetadata": {
+      "properties": {
+        "schema_version": {
+          "type": "integer"
+        },
+        "runtime_id": {
+          "type": "string"
+        },
+        "tracer_language": {
+          "type": "string"
+        },
+        "tracer_version": {
+          "type": "string"
+        },
+        "hostname": {
+          "type": "string"
+        },
+        "service_name": {
+          "type": "string"
+        },
+        "service_env": {
+          "type": "string"
+        },
+        "service_version": {
+          "type": "string"
+        },
+        "process_tags": {
+          "type": "string"
+        },
+        "container_id": {
+          "type": "string"
+        },
+        "logs_collected": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "schema_version",
+        "tracer_language",
+        "tracer_version",
+        "hostname"
+      ]
     },
     "UserContext": {
       "properties": {

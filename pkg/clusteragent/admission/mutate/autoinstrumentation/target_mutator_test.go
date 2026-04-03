@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/annotation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/imageresolver"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
@@ -139,6 +140,34 @@ func TestMutatePod(t *testing.T) {
 			in:         mutatecommon.FakePodWithNamespace("foo-service", "foo"),
 			namespaces: []workloadmeta.KubernetesMetadata{
 				newTestNamespace("foo", nil),
+			},
+			expectNoChange: true,
+		},
+		// Re-admission guard: when the webhook runs again on an already-injected pod we must not
+		// mutate further (e.g. must not append to LD_PRELOAD or add duplicate init containers).
+		"re-admission with init_container mode init container already present does not mutate": {
+			configPath: "testdata/filter_simple_namespace.yaml",
+			in: mutatecommon.FakePodSpec{
+				NS: "application",
+				InitContainers: []corev1.Container{
+					{Name: "datadog-lib-python-init", Image: "registry/dd-lib-python-init:v3"},
+				},
+			}.Create(),
+			namespaces: []workloadmeta.KubernetesMetadata{
+				newTestNamespace("application", nil),
+			},
+			expectNoChange: true,
+		},
+		"re-admission with image_volume mode init container already present does not mutate": {
+			configPath: "testdata/filter_simple_namespace.yaml",
+			in: mutatecommon.FakePodSpec{
+				NS: "application",
+				InitContainers: []corev1.Container{
+					{Name: libraryinjection.InjectLDPreloadInitContainerName, Image: "registry/apm-inject:0"},
+				},
+			}.Create(),
+			namespaces: []workloadmeta.KubernetesMetadata{
+				newTestNamespace("application", nil),
 			},
 			expectNoChange: true,
 		},
@@ -374,13 +403,13 @@ func TestIsNamespaceEligible(t *testing.T) {
 			},
 			expected: false,
 		},
-		"a common disabled namespace is not eligible": {
+		"kube-system is eligible because default namespaces are filtered at the webhook layer": {
 			configPath: "testdata/filter_no_default.yaml",
 			in:         "kube-system",
 			namespaces: []workloadmeta.KubernetesMetadata{
 				newTestNamespace("kube-system", nil),
 			},
-			expected: false,
+			expected: true,
 		},
 	}
 
@@ -669,7 +698,7 @@ func TestGetTargetLibraries(t *testing.T) {
 				},
 			},
 		},
-		"a default disabled namespace gets no tracers": {
+		"kube-system matches target because default namespaces are filtered at the webhook layer": {
 			configPath: "testdata/filter.yaml",
 			in: &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
@@ -682,7 +711,11 @@ func TestGetTargetLibraries(t *testing.T) {
 			namespaces: []workloadmeta.KubernetesMetadata{
 				newTestNamespace("kube-system", nil),
 			},
-			expected: nil,
+			expected: &targetInternal{
+				libVersions: []libInfo{
+					defaultLibInfoWithVersion(java, "v1"),
+				},
+			},
 		},
 		"enabled namespace gets converted to target": {
 			configPath: "testdata/enabled_namespaces.yaml",

@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -19,7 +20,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
@@ -29,6 +30,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+	pkglogslog "github.com/DataDog/datadog-agent/pkg/util/log/slog"
+	slogHandlers "github.com/DataDog/datadog-agent/pkg/util/log/slog/handlers"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -40,6 +44,14 @@ const (
 	AnnotationHumanReadableErrors = "human-readable-errors"
 )
 
+type cmdOption func(*cmdConfig)
+type cmdConfig struct{ quiet bool }
+
+// withQuiet suppresses stdout logging for the command (e.g. when outputting structured JSON).
+func withQuiet() cmdOption {
+	return func(c *cmdConfig) { c.quiet = true }
+}
+
 type cmd struct {
 	t              *telemetry.Telemetry
 	span           *telemetry.Span
@@ -48,9 +60,29 @@ type cmd struct {
 	stopSigHandler context.CancelFunc
 }
 
+func setupStdoutLogger(_ *env.Env) {
+	level := "warn"
+	if envLevel, found := os.LookupEnv("DD_LOG_LEVEL"); found && envLevel != "" {
+		level = envLevel
+	}
+	formatter := func(_ context.Context, r slog.Record) string {
+		return r.Message + "\n"
+	}
+	handler := slogHandlers.NewFormat(formatter, os.Stdout)
+	loggerInterface := pkglogslog.NewWrapper(handler)
+	pkglog.SetupLogger(loggerInterface, level)
+}
+
 // newCmd creates a new command
-func newCmd(operation string) *cmd {
+func newCmd(operation string, opts ...cmdOption) *cmd {
+	cfg := &cmdConfig{}
+	for _, o := range opts {
+		o(cfg)
+	}
 	env := env.FromEnv()
+	if !env.IsFromDaemon && !cfg.quiet {
+		setupStdoutLogger(env)
+	}
 	t := newTelemetry(env)
 	span, ctx := telemetry.StartSpanFromEnv(context.Background(), operation)
 	ctx, stop := context.WithCancel(ctx)
@@ -94,8 +126,8 @@ type installerCmd struct {
 	installer.Installer
 }
 
-func newInstallerCmd(operation string) (_ *installerCmd, err error) {
-	cmd := newCmd(operation)
+func newInstallerCmd(operation string, opts ...cmdOption) (_ *installerCmd, err error) {
+	cmd := newCmd(operation, opts...)
 	defer func() {
 		if err != nil {
 			cmd.stop(err)
@@ -105,7 +137,7 @@ func newInstallerCmd(operation string) (_ *installerCmd, err error) {
 	if MockInstaller != nil {
 		i = MockInstaller
 	} else {
-		i, err = installer.NewInstaller(cmd.env)
+		i, err = installer.NewInstaller(cmd.ctx, cmd.env)
 	}
 	if err != nil {
 		return nil, err
@@ -517,8 +549,8 @@ func isInstalledCommand() *cobra.Command {
 	return cmd
 }
 
-func getState() (*repository.PackageStates, error) {
-	i, err := newInstallerCmd("get_states")
+func getState(opts ...cmdOption) (*repository.PackageStates, error) {
+	i, err := newInstallerCmd("get_states", opts...)
 	if err != nil {
 		return nil, err
 	}

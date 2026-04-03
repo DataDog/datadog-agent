@@ -9,6 +9,7 @@ package encoding
 
 import (
 	"fmt"
+	"slices"
 	"testing"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -116,7 +117,7 @@ func TestHTTP2SerializationWithLocalhostTraffic(t *testing.T) {
 				Http2Aggregations: http2OutBlob,
 				RouteIdx:          -1,
 				ResolvConfIdx:     -1,
-				Protocol:          marshal.FormatProtocolStack(protocols.Stack{}, 0),
+				Protocol:          &model.ProtocolStack{Stack: slices.Collect(marshal.FormatProtocolStack(protocols.Stack{}, 0))},
 			},
 			{
 				Laddr:             &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
@@ -124,7 +125,7 @@ func TestHTTP2SerializationWithLocalhostTraffic(t *testing.T) {
 				Http2Aggregations: http2OutBlob,
 				RouteIdx:          -1,
 				ResolvConfIdx:     -1,
-				Protocol:          marshal.FormatProtocolStack(protocols.Stack{}, 0),
+				Protocol:          &model.ProtocolStack{Stack: slices.Collect(marshal.FormatProtocolStack(protocols.Stack{}, 0))},
 			},
 		},
 		AgentConfiguration: &model.AgentConfiguration{
@@ -282,7 +283,7 @@ func TestKafkaSerializationWithLocalhostTraffic(t *testing.T) {
 				DataStreamsAggregations: kafkaOutBlob,
 				RouteIdx:                -1,
 				ResolvConfIdx:           -1,
-				Protocol:                marshal.FormatProtocolStack(protocols.Stack{}, 0),
+				Protocol:                &model.ProtocolStack{Stack: slices.Collect(marshal.FormatProtocolStack(protocols.Stack{}, 0))},
 				Pid:                     1,
 			},
 			{
@@ -291,7 +292,7 @@ func TestKafkaSerializationWithLocalhostTraffic(t *testing.T) {
 				DataStreamsAggregations: kafkaOutBlob,
 				RouteIdx:                -1,
 				ResolvConfIdx:           -1,
-				Protocol:                marshal.FormatProtocolStack(protocols.Stack{}, 0),
+				Protocol:                &model.ProtocolStack{Stack: slices.Collect(marshal.FormatProtocolStack(protocols.Stack{}, 0))},
 				Pid:                     2,
 			},
 		},

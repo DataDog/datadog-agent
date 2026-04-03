@@ -155,6 +155,31 @@ func (z *ClientGroupedStats) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "HTTPEndpoint")
 				return
 			}
+		case "srv_src":
+			z.ServiceSource, err = dc.ReadString()
+			if err != nil {
+				err = msgp.WrapError(err, "ServiceSource")
+				return
+			}
+		case "SpanDerivedPrimaryTags":
+			var zb0004 uint32
+			zb0004, err = dc.ReadArrayHeader()
+			if err != nil {
+				err = msgp.WrapError(err, "SpanDerivedPrimaryTags")
+				return
+			}
+			if cap(z.SpanDerivedPrimaryTags) >= int(zb0004) {
+				z.SpanDerivedPrimaryTags = (z.SpanDerivedPrimaryTags)[:zb0004]
+			} else {
+				z.SpanDerivedPrimaryTags = make([]string, zb0004)
+			}
+			for za0002 := range z.SpanDerivedPrimaryTags {
+				z.SpanDerivedPrimaryTags[za0002], err = dc.ReadString()
+				if err != nil {
+					err = msgp.WrapError(err, "SpanDerivedPrimaryTags", za0002)
+					return
+				}
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -168,9 +193,9 @@ func (z *ClientGroupedStats) DecodeMsg(dc *msgp.Reader) (err error) {
 
 // EncodeMsg implements msgp.Encodable
 func (z *ClientGroupedStats) EncodeMsg(en *msgp.Writer) (err error) {
-	// map header, size 19
+	// map header, size 21
 	// write "Service"
-	err = en.Append(0xde, 0x0, 0x13, 0xa7, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65)
+	err = en.Append(0xde, 0x0, 0x15, 0xa7, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65)
 	if err != nil {
 		return
 	}
@@ -366,15 +391,42 @@ func (z *ClientGroupedStats) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "HTTPEndpoint")
 		return
 	}
+	// write "srv_src"
+	err = en.Append(0xa7, 0x73, 0x72, 0x76, 0x5f, 0x73, 0x72, 0x63)
+	if err != nil {
+		return
+	}
+	err = en.WriteString(z.ServiceSource)
+	if err != nil {
+		err = msgp.WrapError(err, "ServiceSource")
+		return
+	}
+	// write "SpanDerivedPrimaryTags"
+	err = en.Append(0xb6, 0x53, 0x70, 0x61, 0x6e, 0x44, 0x65, 0x72, 0x69, 0x76, 0x65, 0x64, 0x50, 0x72, 0x69, 0x6d, 0x61, 0x72, 0x79, 0x54, 0x61, 0x67, 0x73)
+	if err != nil {
+		return
+	}
+	err = en.WriteArrayHeader(uint32(len(z.SpanDerivedPrimaryTags)))
+	if err != nil {
+		err = msgp.WrapError(err, "SpanDerivedPrimaryTags")
+		return
+	}
+	for za0002 := range z.SpanDerivedPrimaryTags {
+		err = en.WriteString(z.SpanDerivedPrimaryTags[za0002])
+		if err != nil {
+			err = msgp.WrapError(err, "SpanDerivedPrimaryTags", za0002)
+			return
+		}
+	}
 	return
 }
 
 // MarshalMsg implements msgp.Marshaler
 func (z *ClientGroupedStats) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 19
+	// map header, size 21
 	// string "Service"
-	o = append(o, 0xde, 0x0, 0x13, 0xa7, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65)
+	o = append(o, 0xde, 0x0, 0x15, 0xa7, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65)
 	o = msgp.AppendString(o, z.Service)
 	// string "Name"
 	o = append(o, 0xa4, 0x4e, 0x61, 0x6d, 0x65)
@@ -433,6 +485,15 @@ func (z *ClientGroupedStats) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "HTTPEndpoint"
 	o = append(o, 0xac, 0x48, 0x54, 0x54, 0x50, 0x45, 0x6e, 0x64, 0x70, 0x6f, 0x69, 0x6e, 0x74)
 	o = msgp.AppendString(o, z.HTTPEndpoint)
+	// string "srv_src"
+	o = append(o, 0xa7, 0x73, 0x72, 0x76, 0x5f, 0x73, 0x72, 0x63)
+	o = msgp.AppendString(o, z.ServiceSource)
+	// string "SpanDerivedPrimaryTags"
+	o = append(o, 0xb6, 0x53, 0x70, 0x61, 0x6e, 0x44, 0x65, 0x72, 0x69, 0x76, 0x65, 0x64, 0x50, 0x72, 0x69, 0x6d, 0x61, 0x72, 0x79, 0x54, 0x61, 0x67, 0x73)
+	o = msgp.AppendArrayHeader(o, uint32(len(z.SpanDerivedPrimaryTags)))
+	for za0002 := range z.SpanDerivedPrimaryTags {
+		o = msgp.AppendString(o, z.SpanDerivedPrimaryTags[za0002])
+	}
 	return
 }
 
@@ -585,6 +646,31 @@ func (z *ClientGroupedStats) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "HTTPEndpoint")
 				return
 			}
+		case "srv_src":
+			z.ServiceSource, bts, err = msgp.ReadStringBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "ServiceSource")
+				return
+			}
+		case "SpanDerivedPrimaryTags":
+			var zb0004 uint32
+			zb0004, bts, err = msgp.ReadArrayHeaderBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "SpanDerivedPrimaryTags")
+				return
+			}
+			if cap(z.SpanDerivedPrimaryTags) >= int(zb0004) {
+				z.SpanDerivedPrimaryTags = (z.SpanDerivedPrimaryTags)[:zb0004]
+			} else {
+				z.SpanDerivedPrimaryTags = make([]string, zb0004)
+			}
+			for za0002 := range z.SpanDerivedPrimaryTags {
+				z.SpanDerivedPrimaryTags[za0002], bts, err = msgp.ReadStringBytes(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "SpanDerivedPrimaryTags", za0002)
+					return
+				}
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -603,7 +689,10 @@ func (z *ClientGroupedStats) Msgsize() (s int) {
 	for za0001 := range z.PeerTags {
 		s += msgp.StringPrefixSize + len(z.PeerTags[za0001])
 	}
-	s += 12 + msgp.Int32Size + 15 + msgp.StringPrefixSize + len(z.GRPCStatusCode) + 11 + msgp.StringPrefixSize + len(z.HTTPMethod) + 13 + msgp.StringPrefixSize + len(z.HTTPEndpoint)
+	s += 12 + msgp.Int32Size + 15 + msgp.StringPrefixSize + len(z.GRPCStatusCode) + 11 + msgp.StringPrefixSize + len(z.HTTPMethod) + 13 + msgp.StringPrefixSize + len(z.HTTPEndpoint) + 8 + msgp.StringPrefixSize + len(z.ServiceSource) + 23 + msgp.ArrayHeaderSize
+	for za0002 := range z.SpanDerivedPrimaryTags {
+		s += msgp.StringPrefixSize + len(z.SpanDerivedPrimaryTags[za0002])
+	}
 	return
 }
 

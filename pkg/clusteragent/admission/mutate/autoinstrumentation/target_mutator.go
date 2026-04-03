@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/annotation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/imageresolver"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -48,15 +49,11 @@ type TargetMutator struct {
 // NewTargetMutator creates a new mutator for target based workload selection. We convert the targets to a more
 // efficient internal format for quick lookups.
 func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolver imageresolver.Resolver) (*TargetMutator, error) {
-	// Determine default disabled namespaces.
-	defaultDisabled := mutatecommon.DefaultDisabledNamespaces()
-
-	// Create a map of disabled namespaces for quick lookups.
-	disabledNamespacesMap := make(map[string]bool, len(config.Instrumentation.DisabledNamespaces)+len(defaultDisabled))
+	// Create a map of user-configured disabled namespaces for quick lookups.
+	// Default namespaces (kube-system, datadog agent namespace) are excluded at
+	// the webhook layer via namespace selectors and not duplicated here.
+	disabledNamespacesMap := make(map[string]bool, len(config.Instrumentation.DisabledNamespaces))
 	for _, ns := range config.Instrumentation.DisabledNamespaces {
-		disabledNamespacesMap[ns] = true
-	}
-	for _, ns := range defaultDisabled {
 		disabledNamespacesMap[ns] = true
 	}
 
@@ -185,11 +182,17 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 	log.Debugf("Mutating pod in target mutator %q", mutatecommon.PodString(pod))
 
 	// The admission can be re-run for the same pod. Fast return if we injected the library already.
+	// Check for the init_container mode's per-language init containers.
 	for _, lang := range supportedLanguages {
 		if containsInitContainer(pod, initContainerName(lang)) {
 			log.Debugf("Init container %q already exists in pod %q", initContainerName(lang), mutatecommon.PodString(pod))
 			return false, nil
 		}
+	}
+	// Check for the image_volume mode's init container.
+	if containsInitContainer(pod, libraryinjection.InjectLDPreloadInitContainerName) {
+		log.Debugf("Init container %q already exists in pod %q", libraryinjection.InjectLDPreloadInitContainerName, mutatecommon.PodString(pod))
+		return false, nil
 	}
 
 	// Get the target to inject. If there is not target, we should not mutate the pod.

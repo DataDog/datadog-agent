@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/mock"
@@ -32,6 +33,7 @@ type mockCheck struct {
 
 // Mock Check interface implementation
 func (mc *mockCheck) ConfigSource() string    { return mc.cfgSource }
+func (mc *mockCheck) ConfigProvider() string  { return "" }
 func (mc *mockCheck) Loader() string          { return mc.loaderName }
 func (mc *mockCheck) ID() checkid.ID          { return mc.id }
 func (mc *mockCheck) String() string          { return mc.stringVal }
@@ -95,9 +97,7 @@ func TestNewStatsStateTelemetryInitialized(t *testing.T) {
 	NewStats(newMockCheck(), healthplatformmock.Mock(t))
 
 	tlmData, err := getTelemetryData()
-	if !assert.NoError(t, err) {
-		return
-	}
+	require.NoError(t, err)
 
 	assert.Contains(
 		t,
