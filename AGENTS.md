@@ -139,6 +139,7 @@ The project uses Python's Invoke framework with custom tasks. Main task categori
 - `linter.*` - Linting tasks
 - `docker.*` - Docker image tasks
 - `release.*` - Release management
+- `gitlab.*` - GitLab CI helpers ([below](#gitlab-cli-helpers))
 
 ### Build Tags
 Go build tags control feature inclusion, some examples are:
@@ -169,6 +170,17 @@ Go build tags control feature inclusion, some examples are:
 - Primary CI system
 - Defined in `.gitlab-ci.yml` and `.gitlab/` directory
 - Runs tests, builds, and deployments
+
+#### GitLab CLI helpers
+
+`dda inv gitlab.*` tasks live in `tasks/gitlab_helpers.py` and use the GitLab API. For local runs, set up auth as in `tasks/libs/ciproviders/gitlab_api.py` (e.g. `GITLAB_TOKEN` or OAuth via `ddtool`).
+
+1. **Find pipeline** — `dda inv gitlab.find-pipeline` (optional `--branch`); prints id, status, and URL.
+2. **Find job** — `dda inv gitlab.find-pipeline-job --pipeline-id <ID> --job-name <name>` for job id and URL.
+3. **Play a manual job** — `dda inv gitlab.trigger-manual-job --pipeline-id <ID> --job-name <name>`; use `--variables K=v,K2=v2` for overrides.
+4. **Wait for completion** — `dda inv gitlab.wait-for-job --job-id <ID>`; optional `--timeout` and `--poll-interval` (seconds).
+
+**Inspect / logs:** `gitlab.print-pipeline`, `gitlab.print-job` (optional `-j` for jq), `gitlab.print-job-trace`.
 
 ### GitHub Actions
 - Secondary CI for specific workflows
