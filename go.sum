@@ -236,6 +236,8 @@ github.com/DataDog/opa v0.0.0-20251126100856-d2e1e78e0816 h1:8diKw2aLYE6LsjWfYxD
 github.com/DataDog/opa v0.0.0-20251126100856-d2e1e78e0816/go.mod h1:7cPuErOAt7k/oVWAVJnxqAC6mwArrAazkvk0RXiih2A=
 github.com/DataDog/opentelemetry-collector-contrib/extension/datadogextension v0.147.1-0.20260319095942-6b90e15b61ca h1:zGGt6/Ylp7+i4xop9XpOyC1LCv+TLVARo6TFMqpvMjY=
 github.com/DataDog/opentelemetry-collector-contrib/extension/datadogextension v0.147.1-0.20260319095942-6b90e15b61ca/go.mod h1:X2RsZAzB4956LB2UFWcz6GG9MF3X/paAZtIEnzmkL4c=
+github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20260403080509-3113d73838c9 h1:m39fbDXJc7OIHajr1VwGQxuHPEWMJ4XSbaB3h3eM/3U=
+github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20260403080509-3113d73838c9/go.mod h1:34LtYk9Gh/SCItzi7v8ok9E5lk88AA5I+5aKoVKQClI=
 github.com/DataDog/rshell v0.0.9 h1:HS38O5aVK43ctHkTFm5RGTZA1JCP5oDxcD5O97NnoSc=
 github.com/DataDog/rshell v0.0.9/go.mod h1:e6IP68xHScumYqM/9dT9y5H41EmStHDVEyCZKv5mEt4=
 github.com/DataDog/sketches-go v1.4.8 h1:pFk9BNn+Rzv8IMIoPUttoOpOr3bJOqU3P6EP5wK+Lv8=
@@ -2572,8 +2574,6 @@ github.com/vultr/govultr/v2 v2.17.2 h1:gej/rwr91Puc/tgh+j33p/BLR16UrIPnSr+AIwYWZ
 github.com/vultr/govultr/v2 v2.17.2/go.mod h1:ZFOKGWmgjytfyjeyAdhQlSWwTjh2ig+X49cAp50dzXI=
 github.com/wI2L/jsondiff v0.7.0 h1:1lH1G37GhBPqCfp/lrs91rf/2j3DktX6qYAKZkLuCQQ=
 github.com/wI2L/jsondiff v0.7.0/go.mod h1:KAEIojdQq66oJiHhDyQez2x+sRit0vIzC9KeK0yizxM=
-github.com/wehzzz/opentelemetry-ebpf-profiler v0.0.0-20260402085008-05d09d571572 h1:yIlQwX3Oko+trwFicY1J7arDf2SlqPlskj+6ezWEySE=
-github.com/wehzzz/opentelemetry-ebpf-profiler v0.0.0-20260402085008-05d09d571572/go.mod h1:34LtYk9Gh/SCItzi7v8ok9E5lk88AA5I+5aKoVKQClI=
 github.com/weppos/publicsuffix-go v0.50.3 h1:eT5dcjHQcVDNc0igpFEsGHKIip30feuB2zuuI9eJxiE=
 github.com/weppos/publicsuffix-go v0.50.3/go.mod h1:/rOa781xBykZhHK/I3QeHo92qdDKVmKZKF7s8qAEM/4=
 github.com/wk8/go-ordered-map/v2 v2.1.8 h1:5h/BUHu93oj4gIdvHHHGsScSTMijfx5PeYkE/fJgbpc=

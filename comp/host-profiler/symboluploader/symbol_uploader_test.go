@@ -55,8 +55,8 @@ func (d *dummyProcess) GetMachineData() process.MachineData {
 	return process.MachineData{}
 }
 
-func (d *dummyProcess) GetMappings() ([]process.RawMapping, uint32, error) {
-	return nil, 0, errors.New("not implemented")
+func (d *dummyProcess) IterateMappings(_ func(m process.RawMapping) bool) (uint32, error) {
+	return 0, errors.New("not implemented")
 }
 
 func (d *dummyProcess) GetThreads() ([]process.ThreadInfo, error) {
