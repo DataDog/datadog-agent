@@ -8,7 +8,6 @@ package flightrecorderimpl
 import (
 	"context"
 	"net"
-	"runtime/pprof"
 	"sync"
 	"time"
 
@@ -137,9 +136,7 @@ func NewComponent(req Requires) (Provides, error) {
 	req.Lc.Append(compdef.Hook{
 		OnStart: func(_ context.Context) error {
 			impl.wg.Add(1)
-			go pprof.Do(ctx, pprof.Labels("component", "flightrecorder", "goroutine", "discovery"), func(ctx context.Context) {
-				impl.discoveryLoop(ctx)
-			})
+			go impl.discoveryLoop(ctx)
 			return nil
 		},
 		OnStop: func(_ context.Context) error {
@@ -210,7 +207,8 @@ func (s *sinkImpl) activate(ctx context.Context) <-chan struct{} {
 		}
 		source := mh.Name()
 		unsub := mh.Subscribe("flightrecorder-metrics", func(batch []hook.MetricSampleSnapshot) {
-			pprof.Do(context.Background(), pprof.Labels("component", "flightrecorder", "goroutine", "hook-metrics"), func(_ context.Context) {
+			go func() {
+				c.incHookCallbacks(uint64(len(batch)))
 				for i := range batch {
 					ms := &batch[i]
 					ckey := ms.ContextKey
@@ -237,7 +235,7 @@ func (s *sinkImpl) activate(ctx context.Context) <-chan struct{} {
 						})
 					}
 				}
-			}) // pprof.Do
+			}()
 		},
 			hook.WithBufferSize[[]hook.MetricSampleSnapshot](s.hookBufSize),
 			hook.WithRecycle(
@@ -266,28 +264,26 @@ func (s *sinkImpl) activate(ctx context.Context) <-chan struct{} {
 			continue
 		}
 		unsub := sh.Subscribe("flightrecorder-trace-stats", func(payload hook.TraceStatsView) {
-			pprof.Do(context.Background(), pprof.Labels("component", "flightrecorder", "goroutine", "hook-trace-stats"), func(_ context.Context) {
-				bat.AddTraceStat(capturedTraceStat{
-					Service:          payload.GetService(),
-					Name:             payload.GetName(),
-					Resource:         payload.GetResource(),
-					Type:             payload.GetType(),
-					SpanKind:         payload.GetSpanKind(),
-					HTTPStatusCode:   payload.GetHTTPStatusCode(),
-					Hits:             payload.GetHits(),
-					Errors:           payload.GetErrors(),
-					DurationNs:       payload.GetDuration(),
-					TopLevelHits:     payload.GetTopLevelHits(),
-					OkSummary:        payload.GetOkSummary(),
-					ErrorSummary:     payload.GetErrorSummary(),
-					Hostname:         payload.GetHostname(),
-					Env:              payload.GetEnv(),
-					Version:          payload.GetVersion(),
-					BucketStartNs:    int64(payload.GetBucketStartNs()),
-					BucketDurationNs: int64(payload.GetBucketDurationNs()),
-					TimestampNs:      time.Now().UnixNano(),
-				})
-			}) // pprof.Do
+			bat.AddTraceStat(capturedTraceStat{
+				Service:          payload.GetService(),
+				Name:             payload.GetName(),
+				Resource:         payload.GetResource(),
+				Type:             payload.GetType(),
+				SpanKind:         payload.GetSpanKind(),
+				HTTPStatusCode:   payload.GetHTTPStatusCode(),
+				Hits:             payload.GetHits(),
+				Errors:           payload.GetErrors(),
+				DurationNs:       payload.GetDuration(),
+				TopLevelHits:     payload.GetTopLevelHits(),
+				OkSummary:        payload.GetOkSummary(),
+				ErrorSummary:     payload.GetErrorSummary(),
+				Hostname:         payload.GetHostname(),
+				Env:              payload.GetEnv(),
+				Version:          payload.GetVersion(),
+				BucketStartNs:    int64(payload.GetBucketStartNs()),
+				BucketDurationNs: int64(payload.GetBucketDurationNs()),
+				TimestampNs:      time.Now().UnixNano(),
+			})
 		}, hook.WithBufferSize[hook.TraceStatsView](s.hookBufSize))
 		unsubs = append(unsubs, unsub)
 	}

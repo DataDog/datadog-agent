@@ -27,8 +27,8 @@ var (
 		"Total number of log entries dropped")
 	tlmTraceStatsDropped = telemetry.NewCounter(subsystem, "trace_stats_dropped_total", []string{"reason"},
 		"Total number of trace stats entries dropped")
-	tlmBytesSent = telemetry.NewCounter(subsystem, "bytes_sent_total", nil,
-		"Total bytes written to the transport")
+	tlmBytesSent = telemetry.NewCounter(subsystem, "bytes_sent_total", []string{"type"},
+		"Total bytes written to the transport, by signal type")
 	tlmReconnects = telemetry.NewCounter(subsystem, "reconnects_total", nil,
 		"Total number of transport reconnect events")
 	tlmBatchSize = telemetry.NewGauge(subsystem, "batch_size", []string{"type"},
@@ -39,19 +39,21 @@ var (
 		"Duration of the last transport.Send() call in nanoseconds")
 	tlmReconnectReason = telemetry.NewCounter(subsystem, "reconnect_reason_total", []string{"reason"},
 		"Reason for transport reconnect (write_timeout, conn_refused, etc)")
+	tlmHookCallbacks = telemetry.NewCounter(subsystem, "hook_callbacks_total", nil,
+		"Total number of metric samples received via hook callback")
 )
 
 // counters holds atomic counters that back both the telemetry gauges and the
 // Stats() call so both views stay consistent.
 type counters struct {
-	metricsSent      atomic.Uint64
-	logsSent         atomic.Uint64
-	traceStatsSent   atomic.Uint64
-	metricsDropped   atomic.Uint64
-	logsDropped      atomic.Uint64
+	metricsSent       atomic.Uint64
+	logsSent          atomic.Uint64
+	traceStatsSent    atomic.Uint64
+	metricsDropped    atomic.Uint64
+	logsDropped       atomic.Uint64
 	traceStatsDropped atomic.Uint64
-	bytesSent        atomic.Uint64
-	reconnects       atomic.Uint64
+	bytesSent         atomic.Uint64
+	reconnects        atomic.Uint64
 }
 
 func (c *counters) incMetricsSent(n uint64) {
@@ -109,9 +111,9 @@ func (c *counters) setBatchSize(typ string, n int) {
 	tlmBatchSize.Set(float64(n), typ)
 }
 
-func (c *counters) incBytesSent(n uint64) {
+func (c *counters) incBytesSent(n uint64, signalType string) {
 	c.bytesSent.Add(n)
-	tlmBytesSent.Add(float64(n))
+	tlmBytesSent.Add(float64(n), signalType)
 }
 
 func (c *counters) incReconnects() {
@@ -129,6 +131,10 @@ func (c *counters) setSendDuration(ns int64) {
 
 func (c *counters) incReconnectReason(reason string) {
 	tlmReconnectReason.Inc(reason)
+}
+
+func (c *counters) incHookCallbacks(n uint64) {
+	tlmHookCallbacks.Add(float64(n))
 }
 
 func (c *counters) stats() flightrecorder.Stats {

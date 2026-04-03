@@ -6,8 +6,6 @@
 package flightrecorderimpl
 
 import (
-	"context"
-	"runtime/pprof"
 	"sync"
 	"time"
 
@@ -66,11 +64,11 @@ type batcher struct {
 	logsActiveH int
 
 	// Trace stats double-buffer.
-	tssCap      int
-	tssActive   []capturedTraceStat
-	tssDrain    []capturedTraceStat
-	tssActiveN  int
-	tssActiveH  int
+	tssCap     int
+	tssActive  []capturedTraceStat
+	tssDrain   []capturedTraceStat
+	tssActiveN int
+	tssActiveH int
 
 	// FlatBuffers builder pool.
 	builderPool *builderPool
@@ -124,9 +122,7 @@ func newBatcher(transport Transport, flushInterval time.Duration, ptCapacity, de
 		stopCh:       make(chan struct{}),
 	}
 	b.wg.Add(1)
-	go pprof.Do(context.Background(), pprof.Labels("component", "flightrecorder", "goroutine", "flush"), func(_ context.Context) {
-		b.flushLoop()
-	})
+	go b.flushLoop()
 	return b
 }
 
@@ -304,7 +300,7 @@ func (b *batcher) flushMetrics() {
 			break
 		}
 		sent += chunkDefs + chunkPts
-		b.counters.incBytesSent(uint64(len(data)))
+		b.counters.incBytesSent(uint64(len(data)), "metrics")
 		b.builderPool.put(builder)
 		ptSent += chunkPts
 	}
@@ -333,18 +329,18 @@ func (b *batcher) flushLogs() {
 	builder, err := EncodeLogBatchRing(b.builderPool, drain, tail, count, b.logCap)
 	if err != nil {
 		b.counters.incLogsDroppedTransport(uint64(count))
-	
+
 		return
 	}
 	data := builder.FinishedBytes()
 	if err := b.transport.Send(data); err != nil {
 		b.counters.incLogsDroppedTransport(uint64(count))
 		b.builderPool.put(builder)
-	
+
 		return
 	}
 	b.counters.incLogsSent(uint64(count))
-	b.counters.incBytesSent(uint64(len(data)))
+	b.counters.incBytesSent(uint64(len(data)), "logs")
 	b.builderPool.put(builder)
 
 }
@@ -379,7 +375,7 @@ func (b *batcher) flushTraceStats() {
 		return
 	}
 	b.counters.incTraceStatsSent(uint64(count))
-	b.counters.incBytesSent(uint64(len(data)))
+	b.counters.incBytesSent(uint64(len(data)), "trace_stats")
 	b.builderPool.put(builder)
 }
 
@@ -408,4 +404,3 @@ func returnDefSlicesRing(buf []contextDef, tail, count, capacity int) {
 		}
 	}
 }
-

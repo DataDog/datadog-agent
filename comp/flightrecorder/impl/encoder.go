@@ -56,24 +56,24 @@ type capturedMetric struct {
 
 // capturedTraceStat is an internal copy of a trace stats entry.
 type capturedTraceStat struct {
-	Service         string
-	Name            string
-	Resource        string
-	Type            string
-	SpanKind        string
-	HTTPStatusCode  uint32
-	Hits            uint64
-	Errors          uint64
-	DurationNs      uint64
-	TopLevelHits    uint64
-	OkSummary       []byte
-	ErrorSummary    []byte
-	Hostname        string
-	Env             string
-	Version         string
-	BucketStartNs   int64
+	Service          string
+	Name             string
+	Resource         string
+	Type             string
+	SpanKind         string
+	HTTPStatusCode   uint32
+	Hits             uint64
+	Errors           uint64
+	DurationNs       uint64
+	TopLevelHits     uint64
+	OkSummary        []byte
+	ErrorSummary     []byte
+	Hostname         string
+	Env              string
+	Version          string
+	BucketStartNs    int64
 	BucketDurationNs int64
-	TimestampNs     int64
+	TimestampNs      int64
 }
 
 // capturedLog is a type alias for hook.LogSampleSnapshot, used in encoder and batcher.

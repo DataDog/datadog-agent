@@ -10,7 +10,6 @@ import (
 	"context"
 	"encoding/binary"
 	"net"
-	"runtime/pprof"
 	"sync"
 	"syscall"
 	"time"
@@ -63,9 +62,7 @@ func newUnixTransport(parentCtx context.Context, socketPath string) *unixTranspo
 		cancel:       cancel,
 	}
 	t.wg.Add(1)
-	go pprof.Do(ctx, pprof.Labels("component", "flightrecorder", "goroutine", "transport"), func(ctx context.Context) {
-		t.serveLoop(ctx)
-	})
+	go t.serveLoop(ctx)
 	return t
 }
 
