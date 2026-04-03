@@ -7,6 +7,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -98,7 +99,7 @@ type Config struct {
 	EventStreamKretprobeMaxActive int
 
 	// EventStreamSchedulingPolicy specifies the realtime scheduling policy for the ring buffer reader thread.
-	// Supported values: "", "SCHED_FIFO", "SCHED_RR". Empty means no change (default).
+	// Supported values: "", "SCHED_FIFO", "SCHED_RR". Empty means the scheduling policy is not changed (default).
 	EventStreamSchedulingPolicy string
 
 	// EventStreamSchedulingPriority specifies the realtime scheduling priority (1-99).
@@ -286,14 +287,14 @@ func (c *Config) sanitize() error {
 	case "", "SCHED_FIFO", "SCHED_RR":
 		// valid
 	default:
-		return fmt.Errorf("invalid event_stream.scheduling_policy %q: must be empty, \"SCHED_FIFO\", or \"SCHED_RR\"", c.EventStreamSchedulingPolicy)
+		return fmt.Errorf("invalid event_monitoring_config.event_stream.scheduling_policy %q: must be empty, \"SCHED_FIFO\", or \"SCHED_RR\"", c.EventStreamSchedulingPolicy)
 	}
 	if c.EventStreamSchedulingPolicy != "" {
 		if c.EventStreamSchedulingPriority < 1 || c.EventStreamSchedulingPriority > 99 {
-			return fmt.Errorf("event_stream.scheduling_priority must be between 1 and 99 when scheduling_policy is set, got %d", c.EventStreamSchedulingPriority)
+			return fmt.Errorf("event_monitoring_config.event_stream.scheduling_priority must be between 1 and 99 when scheduling_policy is set, got %d", c.EventStreamSchedulingPriority)
 		}
 	} else if c.EventStreamSchedulingPriority != 0 {
-		return fmt.Errorf("event_stream.scheduling_priority is set but event_stream.scheduling_policy is empty")
+		return errors.New("event_monitoring_config.event_stream.scheduling_priority is set but event_monitoring_config.event_stream.scheduling_policy is empty")
 	}
 
 	if !isConfigured("enable_approvers") && c.EnableKernelFilters {

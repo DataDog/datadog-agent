@@ -44,31 +44,31 @@ func TestSanitizeSchedulingConfig(t *testing.T) {
 			name:     "invalid policy string",
 			policy:   "SCHED_OTHER",
 			priority: 10,
-			wantErr:  "invalid event_stream.scheduling_policy",
+			wantErr:  "invalid event_monitoring_config.event_stream.scheduling_policy",
 		},
 		{
 			name:     "policy set without priority",
 			policy:   "SCHED_FIFO",
 			priority: 0,
-			wantErr:  "event_stream.scheduling_priority must be between 1 and 99",
+			wantErr:  "event_monitoring_config.event_stream.scheduling_priority must be between 1 and 99",
 		},
 		{
 			name:     "priority too high",
 			policy:   "SCHED_FIFO",
 			priority: 100,
-			wantErr:  "event_stream.scheduling_priority must be between 1 and 99",
+			wantErr:  "event_monitoring_config.event_stream.scheduling_priority must be between 1 and 99",
 		},
 		{
 			name:     "priority negative",
 			policy:   "SCHED_FIFO",
 			priority: -1,
-			wantErr:  "event_stream.scheduling_priority must be between 1 and 99",
+			wantErr:  "event_monitoring_config.event_stream.scheduling_priority must be between 1 and 99",
 		},
 		{
 			name:     "priority set without policy",
 			policy:   "",
 			priority: 10,
-			wantErr:  "event_stream.scheduling_priority is set but event_stream.scheduling_policy is empty",
+			wantErr:  "event_monitoring_config.event_stream.scheduling_priority is set but event_monitoring_config.event_stream.scheduling_policy is empty",
 		},
 	}
 
