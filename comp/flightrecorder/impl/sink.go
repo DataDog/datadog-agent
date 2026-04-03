@@ -61,6 +61,12 @@ type sinkImpl struct {
 	hookBufSize        int
 	contextCap         int
 
+	// Context deduplication — persists across reconnect cycles so the agent
+	// doesn't re-send all 50K+ context definitions on every reconnect.
+	// Context keys are deterministic hashes, so the sidecar's bloom filter
+	// deduplicates any contexts that were already persisted to contexts.bin.
+	seenContexts *contextSet
+
 	// Hooks (injected, immutable).
 	metricsHooks    []hook.Hook[[]hook.MetricSampleSnapshot]
 	logsHooks       []hook.Hook[[]hook.LogSampleSnapshot]
@@ -121,6 +127,7 @@ func NewComponent(req Requires) (Provides, error) {
 		traceStatsCapacity: traceStatsCapacity,
 		hookBufSize:        hookBufSize,
 		contextCap:         contextCap,
+		seenContexts:       newContextSet(contextCap),
 		metricsHooks:       req.MetricsHooks,
 		logsHooks:          req.LogsHooks,
 		traceStatsHooks:    req.TraceStatsHooks,
@@ -189,7 +196,7 @@ func (s *sinkImpl) activate(ctx context.Context) <-chan struct{} {
 	c := s.counters
 	transport := newUnixTransport(ctx, s.socketPath)
 	bat := newBatcher(transport, s.flushInterval,
-		s.ptCapacity, s.defCapacity, s.logCapacity, s.traceStatsCapacity, s.contextCap, c)
+		s.ptCapacity, s.defCapacity, s.logCapacity, s.traceStatsCapacity, s.seenContexts, c)
 
 	// Subscribe to all hooks, collect unsubscribe functions.
 	var unsubs []func()

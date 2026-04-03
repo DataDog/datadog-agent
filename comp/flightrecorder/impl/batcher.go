@@ -92,7 +92,7 @@ type batcher struct {
 	wg     sync.WaitGroup
 }
 
-func newBatcher(transport Transport, flushInterval time.Duration, ptCapacity, defCapacity, logCapacity, traceStatsCapacity, contextCap int, c *counters) *batcher {
+func newBatcher(transport Transport, flushInterval time.Duration, ptCapacity, defCapacity, logCapacity, traceStatsCapacity int, seenContexts *contextSet, c *counters) *batcher {
 	b := &batcher{
 		transport:     transport,
 		flushInterval: flushInterval,
@@ -115,7 +115,7 @@ func newBatcher(transport Transport, flushInterval time.Duration, ptCapacity, de
 		tssDrain:  make([]capturedTraceStat, traceStatsCapacity),
 
 		builderPool:  newBuilderPool(),
-		seenContexts: newContextSet(contextCap),
+		seenContexts: seenContexts,
 		ptWatermark:  ptCapacity * 4 / 5,
 		defWatermark: defCapacity * 4 / 5,
 		logWatermark: logCapacity * 4 / 5,
@@ -385,17 +385,12 @@ func (b *batcher) IsContextKnown(key uint64) bool {
 	return b.seenContexts.IsKnown(key)
 }
 
-// ResetContexts clears the seen-context set, forcing all context definitions
-// to be re-sent. Called on transport reconnect because the sidecar lost state.
-func (b *batcher) ResetContexts() {
-	b.seenContexts.Reset()
-}
-
 // Stop drains the buffers and stops the flush goroutine.
+// The seenContexts set is NOT stopped here — it persists across reconnect
+// cycles and is owned by sinkImpl.
 func (b *batcher) Stop() {
 	close(b.stopCh)
 	b.wg.Wait()
-	b.seenContexts.Stop()
 }
 
 // returnDefSlicesRing returns pooled tag slices for context definitions.
