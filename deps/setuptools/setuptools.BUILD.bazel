@@ -3,7 +3,6 @@
 load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_license//rules:license.bzl", "license")
-load("@rules_shell//shell:sh_binary.bzl", "sh_binary")
 
 package(default_package_metadata = [":package_metadata"])
 
@@ -26,9 +25,4 @@ license(
     license_kinds = ["@rules_license//licenses/spdx:MIT"],
     license_text = "LICENSE",
     visibility = ["//visibility:public"],
-)
-
-sh_binary(
-    name = "pip_install_sh",
-    srcs = ["pip_install.sh"],
 )

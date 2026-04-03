@@ -6,7 +6,6 @@ http_archive(
     name = "setuptools",
     files = {
         "BUILD.bazel": "//deps/setuptools:setuptools.BUILD.bazel",
-        "pip_install.sh": "//deps/setuptools:pip_install.sh",
     },
     sha256 = "514dc60688d3118c9883a3dd54a38b28128ea912c01ea325d6e204a93da3b524",
     strip_prefix = "setuptools-75.1.0",
