@@ -30,7 +30,7 @@ lru = { version = "0.16.0", default-features = false }
 memchr = "2.7.6"
 nom = "7.1"
 normalize-path = "0.2"
-phf = { version = "0.11", features = ["macros"] }
+phf = { version = "0.13", features = ["macros"] }
 quick-xml = { version = "0.37", features = ["serialize"] }
 rmp-serde = "1.3"
 serde = { version = "1.0.219", features = ["derive", "std"] }

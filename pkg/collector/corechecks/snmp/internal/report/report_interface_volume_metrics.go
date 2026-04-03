@@ -3,22 +3,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(NDM) Fix revive linter
 package report
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
-
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-// TODO: Rename file to report_interface_volume_metrics.go in a separate PR.
-//       Making the change in the current PR will make review harder (it makes the whole file considered as deleted).
 
 // TimeNow is the unix time to use for rate (delta) calculations
 var TimeNow = time.Now

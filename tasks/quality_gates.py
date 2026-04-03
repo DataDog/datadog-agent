@@ -42,6 +42,8 @@ FAIL_CHAR = "❌"
 SUCCESS_CHAR = "✅"
 WARNING_CHAR = "⚠️"
 GATE_CONFIG_PATH = "test/static/static_quality_gates.yml"
+PER_PR_THRESHOLD = 600 * 1024
+EXCEPTION_APPROVERS = {"cmourot", "dd-ddamien"}
 
 
 @dataclass
@@ -237,6 +239,20 @@ def identify_gates_with_size_increase(pr_metrics: dict[str, GateMetricsData]) ->
     return gates_to_bump
 
 
+def identify_gates_exceeding_pr_threshold(metric_handler: GateMetricHandler) -> list[str]:
+    """
+    Identify gates where the on-disk size increase exceeds PER_PR_THRESHOLD.
+
+    Returns gate names where relative_on_disk_size > PER_PR_THRESHOLD.
+    """
+    exceeding = []
+    for gate_name, gate_metrics in metric_handler.metrics.items():
+        delta = gate_metrics.get("relative_on_disk_size")
+        if delta is not None and delta > PER_PR_THRESHOLD:
+            exceeding.append(gate_name)
+    return exceeding
+
+
 def get_pr_for_branch(branch: str):
     """
     Get PR info for a branch. Returns the PR object or None.
@@ -305,6 +321,34 @@ def get_pr_author(pr_number: str) -> str | None:
     except Exception as e:
         print(color_message(f"[WARN] Failed to get PR author for PR #{pr_number}: {e}", "orange"))
         return None
+
+
+class ExceptionApprovalChecker:
+    """Lazily fetches and caches per-PR threshold exception approval."""
+
+    def __init__(self, pr):
+        self._pr = pr
+        self._checked = False
+        self._result: str | None = None
+
+    def _fetch(self) -> str | None:
+        if self._pr is None:
+            return None
+        try:
+            for review in self._pr.get_reviews():
+                if review.state == "APPROVED" and review.user and review.user.login in EXCEPTION_APPROVERS:
+                    return review.user.login
+        except Exception as e:
+            print(color_message(f"[WARN] Failed to check exception approvals: {e}", "orange"))
+        return None
+
+    def get(self) -> str | None:
+        if not self._checked:
+            self._checked = True
+            self._result = self._fetch()
+            if self._result:
+                print(color_message(f"Exception granted by @{self._result}", "orange"))
+        return self._result
 
 
 # Main table pattern for on-disk metrics (primary view)
@@ -464,6 +508,7 @@ def display_pr_comment(
     metric_handler: GateMetricHandler,
     ancestor: str,
     pr,
+    exception_granted_by: str | None = None,
 ):
     """
     Display a comment on a PR with results from our static quality gates checks
@@ -472,6 +517,7 @@ def display_pr_comment(
     :param gate_states: State of each quality gate
     :param metric_handler: Precise metrics of each quality gate
     :param ancestor: Ancestor used for relative size comparaison
+    :param exception_granted_by: Login of the reviewer who granted a per-PR threshold exception, or None
     :return:
     """
     title = "Static quality checks"
@@ -537,18 +583,26 @@ def display_pr_comment(
             is_blocking = gate.get("blocking", True)
             status_char = FAIL_CHAR if is_blocking else WARNING_CHAR
 
-            # This is probably way more convoluted than it should be, but the best we can do
-            # without refactoring the data structures involved
-            if gate_metrics.get("current_on_wire_size", 0) > gate_metrics.get("max_on_wire_size", float('inf')):
-                body_error += f"|{status_char}|{gate_name} (on wire)|{wire_change_str}|{wire_limit_bounds}|\n"
-            if gate_metrics.get("current_on_disk_size", 0) > gate_metrics.get("max_on_disk_size", float('inf')):
-                body_error += f"|{status_char}|{gate_name} (on disk)|{change_str}|{limit_bounds}|\n"
+            if gate["error_type"] == "PerPRThresholdExceeded":
+                body_error += f"|{status_char}|{gate_name} (per-PR threshold)|{change_str}|{limit_bounds}|\n"
+            else:
+                # This is probably way more convoluted than it should be, but the best we can do
+                # without refactoring the data structures involved
+                if gate_metrics.get("current_on_wire_size", 0) > gate_metrics.get("max_on_wire_size", float('inf')):
+                    body_error += f"|{status_char}|{gate_name} (on wire)|{wire_change_str}|{wire_limit_bounds}|\n"
+                if gate_metrics.get("current_on_disk_size", 0) > gate_metrics.get("max_on_disk_size", float('inf')):
+                    body_error += f"|{status_char}|{gate_name} (on disk)|{change_str}|{limit_bounds}|\n"
 
             # Add to wire table for errors too
             body_wire += f"|{status_char}|{gate_name}|{wire_change_str}|{wire_limit_bounds}|\n"
 
             error_message = gate['message'].replace('\n', '<br>')
-            blocking_note = "" if is_blocking else " (non-blocking: size unchanged from ancestor)"
+            if not is_blocking and gate["error_type"] == "PerPRThresholdExceeded":
+                blocking_note = f" (non-blocking: exception granted by @{exception_granted_by})"
+            elif not is_blocking:
+                blocking_note = " (non-blocking: size unchanged from ancestor)"
+            else:
+                blocking_note = ""
             body_error_footer += f"|{gate_name}|{gate['error_type']}{blocking_note}|{error_message}|\n"
 
             if is_blocking:
@@ -557,13 +611,30 @@ def display_pr_comment(
                 with_non_blocking_error = True
 
     if with_blocking_error:
-        body_error_footer += "\n</details>\n\nStatic quality gates prevent the PR to merge!\nYou can check the static quality gates [confluence page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4805854687/Static+Quality+Gates) for guidance. We also have a [toolbox page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4887448722/Static+Quality+Gates+Toolbox) available to list tools useful to debug the size increase.\n"
+        body_error_footer += (
+            "\n</details>\n\n"
+            "Static quality gates prevent the PR to merge!\n"
+            "You can check the static quality gates [confluence page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4805854687/Static+Quality+Gates) for guidance. "
+            "We also have a [toolbox page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4887448722/Static+Quality+Gates+Toolbox) available to list tools useful to debug the size increase.\n"
+            "Please either fix the size violation or [request an exception](https://datadoghq.atlassian.net/wiki/spaces/ABLD/pages/6034456675/Static+Quality+Gates+runbooks#Exception-process).\n"
+        )
         final_error_body = body_error + body_error_footer
     elif with_non_blocking_error:
         body_error_footer += "\n</details>\n\nNote: Some gates exceeded limits but are non-blocking because the size hasn't increased from the ancestor commit.\n"
         final_error_body = body_error + body_error_footer
     else:
         final_error_body = ""
+
+    exception_banner = ""
+    if exception_granted_by:
+        per_pr_excepted = [
+            gs
+            for gs in gate_states
+            if gs.get("error_type") == "PerPRThresholdExceeded" and not gs.get("blocking", True)
+        ]
+        if per_pr_excepted:
+            threshold_str = byte_to_string(PER_PR_THRESHOLD)
+            exception_banner = f"{WARNING_CHAR} **Exception granted by @{exception_granted_by}**: this PR exceeds the per-PR size threshold ({threshold_str}) but will not be blocked.\n"
 
     # Build successful checks section
     success_section = ""
@@ -588,7 +659,7 @@ def display_pr_comment(
     if has_na_change and job_url:
         retry_hint = f"SOME SIZE DELTAS ARE N/A (ANCESTOR METRICS NOT YET AVAILABLE). [RETRY JOB]({job_url})\n"
 
-    body = f"{SUCCESS_CHAR if final_state else FAIL_CHAR} Please find below the results from static quality gates\n{ancestor_info}{dashboard_link}{job_link}{retry_hint}{final_error_body}\n\n{success_section}\n{wire_section}"
+    body = f"{SUCCESS_CHAR if final_state else FAIL_CHAR} Please find below the results from static quality gates\n{ancestor_info}{dashboard_link}{job_link}{retry_hint}{exception_banner}{final_error_body}\n\n{success_section}\n{wire_section}"
 
     pr_commenter(ctx, title=title, body=body, pr=pr)
 
@@ -761,8 +832,6 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
                 gate.config.gate_name, "current_on_disk_size", result.measurement.on_disk_size
             )
 
-    ctx.run(f"datadog-ci tag --level job --tags static_quality_gates:\"{final_state}\"")
-
     # Calculate relative sizes (delta from ancestor) before sending metrics
     # This is done for all branches to include delta metrics in Datadog
     # Use get_ancestor_base_branch to correctly handle PRs targeting release branches
@@ -774,6 +843,8 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
     # Post-process gate failures: mark as non-blocking if delta <= 0
     # This tolerance only applies to PRs - on main branch, failures should always block unconditionally
     # This means on PRs, the size issue existed before this PR and wasn't introduced by current changes
+    exception_checker = ExceptionApprovalChecker(pr)
+
     if not is_on_main_branch:
         for gate_state in gate_states:
             if gate_state["state"] is False and gate_state.get("blocking", True):
@@ -787,6 +858,32 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
                                 "orange",
                             )
                         )
+
+        # Check per-PR threshold: if any gate increased by more than PER_PR_THRESHOLD, mark it as failing
+        per_pr_exceeding = identify_gates_exceeding_pr_threshold(metric_handler)
+        if per_pr_exceeding:
+            threshold_str = byte_to_string(PER_PR_THRESHOLD)
+            print(
+                color_message(
+                    f"Per-PR threshold ({threshold_str}) exceeded by: {', '.join(per_pr_exceeding)}",
+                    "red",
+                )
+            )
+            for gate_state in gate_states:
+                if gate_state["name"] in per_pr_exceeding and gate_state["state"] is True:
+                    delta = metric_handler.metrics.get(gate_state["name"], {}).get("relative_on_disk_size", 0)
+                    gate_state["state"] = False
+                    gate_state["error_type"] = "PerPRThresholdExceeded"
+                    gate_state["message"] = (
+                        f"On-disk size increase of {byte_to_string(delta)} exceeds the per-PR threshold of {threshold_str}"
+                    )
+                    gate_state["blocking"] = exception_checker.get() is None
+
+    # Recompute final_state now that all post-processing is done (bypass logic and per-PR threshold
+    # can both change gate states after the initial gate execution loop).
+    if any(gs["state"] is False for gs in gate_states):
+        final_state = "failure"
+    ctx.run(f"datadog-ci tag --level job --tags static_quality_gates:\"{final_state}\"")
 
     # Reporting part
     # Send metrics to Datadog (now includes delta metrics)
@@ -808,7 +905,9 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
         # Reuse cached PR lookup from earlier
         if pr:
             # Pass True for final_state if there are no blocking failures
-            display_pr_comment(ctx, not has_blocking_failures, gate_states, metric_handler, ancestor, pr)
+            display_pr_comment(
+                ctx, not has_blocking_failures, gate_states, metric_handler, ancestor, pr, exception_checker.get()
+            )
 
         # Nightly pipelines have different package size and gates thresholds are unreliable for nightly pipelines
         # Only fail for blocking failures (non-blocking failures have delta=0 and don't block the PR)

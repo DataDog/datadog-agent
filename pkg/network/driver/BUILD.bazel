@@ -1,4 +1,5 @@
 load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
 
 exports_files([
@@ -17,4 +18,31 @@ cgo_godefs(
     src = "types.go",
     platform = "windows",
     deps = [":ddnpmapi"],
+)
+
+go_library(
+    name = "driver",
+    srcs = [
+        "ddnpmapi.h",
+        "doc.go",
+        "driver_windows.go",
+        "flow_windows.go",
+        "handle.go",
+        "types_windows.go",
+        "utils.go",
+    ],
+    cgo = True,
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/driver",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//comp/core/telemetry",
+            "//pkg/telemetry",
+            "//pkg/util/log",
+            "//pkg/util/winutil",
+            "@org_golang_x_sys//windows",
+            "@org_uber_go_atomic//:atomic",
+        ],
+        "//conditions:default": [],
+    }),
 )

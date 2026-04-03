@@ -117,10 +117,10 @@ func FuzzObfuscateSpan(f *testing.F) {
 		if err != nil {
 			t.Skipf("Skipping invalid span: %v", err)
 		}
-		agent.obfuscateSpan(pbSpan)
+		agent.ObfuscateSpan(pbSpan)
 		encPostObfuscate, err := encode(pbSpan)
 		if err != nil {
-			t.Fatalf("obfuscateSpan returned an invalid span: %v", err)
+			t.Fatalf("ObfuscateSpan returned an invalid span: %v", err)
 		}
 		decPostObfuscate, err := decode(encPostObfuscate)
 		if err != nil {

@@ -180,6 +180,18 @@ func WithAnnotations(annotations map[string]string) DeploymentModifier {
 	}
 }
 
+// WithImagePullSecrets sets the pod spec's ImagePullSecrets (e.g. for private registries).
+func WithImagePullSecrets(imagePullSecrets corev1.LocalObjectReferenceArray) DeploymentModifier {
+	return func(d *appsv1.DeploymentArgs) error {
+		podTemplateSpec, err := ensureDeploymentPodTemplateSpec(d)
+		if err != nil {
+			return err
+		}
+		podTemplateSpec.ImagePullSecrets = imagePullSecrets
+		return nil
+	}
+}
+
 // WithConfigMap adds a ConfigMap volume and volume mount to the nginx container.
 func WithConfigMap() DeploymentModifier {
 	return func(d *appsv1.DeploymentArgs) error {

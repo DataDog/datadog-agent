@@ -25,6 +25,7 @@ func TestDBMAuroraListener(t *testing.T) {
 		name                  string
 		config                aws.Config
 		numDiscoveryIntervals int
+		initialServices       map[string]Service
 		rdsClientConfigurer   mockRdsClientConfigurer
 		expectedServices      []*DBMAuroraService
 		expectedDelServices   []*DBMAuroraService
@@ -309,6 +310,53 @@ func TestDBMAuroraListener(t *testing.T) {
 			},
 			expectedDelServices: []*DBMAuroraService{},
 		},
+		{
+			name: "previously discovered services are deleted when no clusters found",
+			config: aws.Config{
+				DiscoveryInterval: 1,
+				Region:            "us-east-1",
+				Tags:              []string{defaultADTag},
+				DbmTag:            defaultDbmTag,
+			},
+			numDiscoveryIntervals: 0,
+			initialServices: map[string]Service{
+				"f7fee36c58e3da8a": &DBMAuroraService{
+					adIdentifier: dbmPostgresAuroraADIdentifier,
+					entityID:     "f7fee36c58e3da8a",
+					checkName:    "postgres",
+					clusterID:    "my-cluster-1",
+					region:       "us-east-1",
+					instance: &aws.Instance{
+						Endpoint:   "my-endpoint",
+						Port:       5432,
+						IamEnabled: true,
+						Engine:     "aurora-postgresql",
+						DbmEnabled: true,
+					},
+				},
+			},
+			rdsClientConfigurer: func(k *aws.MockRdsClient) {
+				k.EXPECT().GetAuroraClustersFromTags(gomock.Any(), []string{defaultADTag}).Return([]string{}, nil).AnyTimes()
+				k.EXPECT().GetAuroraClusterEndpoints(gomock.Any(), []string{}, gomock.Any()).Return(nil, nil).AnyTimes()
+			},
+			expectedServices: []*DBMAuroraService{},
+			expectedDelServices: []*DBMAuroraService{
+				{
+					adIdentifier: dbmPostgresAuroraADIdentifier,
+					entityID:     "f7fee36c58e3da8a",
+					checkName:    "postgres",
+					clusterID:    "my-cluster-1",
+					region:       "us-east-1",
+					instance: &aws.Instance{
+						Endpoint:   "my-endpoint",
+						Port:       5432,
+						IamEnabled: true,
+						Engine:     "aurora-postgresql",
+						DbmEnabled: true,
+					},
+				},
+			},
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -329,6 +377,9 @@ func TestDBMAuroraListener(t *testing.T) {
 			tc.rdsClientConfigurer(mockAWSClient)
 			ticks := make(chan time.Time, 1)
 			l := newDBMAuroraListener(tc.config, mockAWSClient, ticks)
+			if tc.initialServices != nil {
+				l.(*DBMAuroraListener).services = tc.initialServices
+			}
 			l.Listen(newSvc, delSvc)
 			// execute loop
 			for i := 0; i < tc.numDiscoveryIntervals; i++ {
