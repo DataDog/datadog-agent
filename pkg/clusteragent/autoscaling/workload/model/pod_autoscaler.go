@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
+	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -69,6 +70,15 @@ type PodAutoscalerInternal struct {
 	// Version is stored in .Spec.RemoteVersion
 	// (only if owner == remote)
 	settingsTimestamp time.Time
+
+	// profileName is set for profile-managed autoscalers
+	profileName string
+
+	// desiredProfileTemplateHash is the target template hash from the profile
+	desiredProfileTemplateHash string
+
+	// appliedProfileHash is the profile template hash last applied to the Kubernetes object
+	appliedProfileHash string
 
 	// scalingValues represents the active scaling values that should be used
 	scalingValues ScalingValues
@@ -131,7 +141,7 @@ type PodAutoscalerInternal struct {
 	error error
 
 	// deleted flags the PodAutoscaler as deleted (removal to be handled by the controller)
-	// (only if owner == remote)
+	// (only if owner == remote or profile-managed)
 	deleted bool
 
 	//
@@ -175,12 +185,60 @@ func NewPodAutoscalerFromSettings(ns, name string, podAutoscalerSpec *datadoghq.
 	return pda
 }
 
+// NewPodAutoscalerFromProfile creates a PodAutoscalerInternal for a profile-managed workload.
+func NewPodAutoscalerFromProfile(
+	ns, name, profileName string,
+	template *datadoghq.DatadogPodAutoscalerTemplate,
+	targetRef autoscalingv2.CrossVersionObjectReference,
+	templateHash string,
+) PodAutoscalerInternal {
+	pai := PodAutoscalerInternal{
+		namespace: ns,
+		name:      name,
+		upstreamCR: &datadoghq.DatadogPodAutoscaler{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: ns,
+				Name:      name,
+			},
+		},
+	}
+	pai.UpdateFromProfile(profileName, template, targetRef, templateHash)
+
+	return pai
+}
+
 //
 // Modifiers
 //
 
+// UpdateFromProfile updates the spec from a profile template while preserving scaling state.
+// The templateHash must be the hash of the profile template that produced this spec.
+func (p *PodAutoscalerInternal) UpdateFromProfile(
+	profileName string,
+	template *datadoghq.DatadogPodAutoscalerTemplate,
+	targetRef autoscalingv2.CrossVersionObjectReference,
+	templateHash string,
+) {
+	dpaSpec := BuildDPASpecFromProfile(template, targetRef)
+
+	p.profileName = profileName
+	p.desiredProfileTemplateHash = templateHash
+	p.upstreamCR.Spec = dpaSpec
+	// Reset the target GVK as it might have changed
+	// Resolving the target GVK is done in the controller sync to ensure proper sync and error handling
+	p.targetGVK = schema.GroupVersionKind{}
+	// Compute the horizontal events retention again in case .Spec.ApplyPolicy has changed
+	p.horizontalEventsRetention, p.horizontalRecommendationsRetention = getHorizontalRetentionValues(dpaSpec.ApplyPolicy)
+}
+
 // UpdateFromPodAutoscaler updates the PodAutoscalerInternal from a PodAutoscaler object inside K8S
 func (p *PodAutoscalerInternal) UpdateFromPodAutoscaler(podAutoscaler *datadoghq.DatadogPodAutoscaler) {
+	if v, ok := podAutoscaler.Labels[ProfileLabelKey]; ok {
+		p.profileName = v
+	}
+	if v, ok := podAutoscaler.Annotations[ProfileTemplateHashAnnotation]; ok {
+		p.appliedProfileHash = v
+	}
 	p.upstreamCR = podAutoscaler
 	p.creationTimestamp = podAutoscaler.CreationTimestamp.Time
 	p.generation = podAutoscaler.Generation
@@ -387,6 +445,11 @@ func (p *PodAutoscalerInternal) ClearCurrentReplicas() {
 // SetError sets an error encountered by the controller not specific to a scaling action
 func (p *PodAutoscalerInternal) SetError(err error) {
 	p.error = err
+}
+
+// SetProfileName sets the profile name for a profile-managed autoscaler.
+func (p *PodAutoscalerInternal) SetProfileName(name string) {
+	p.profileName = name
 }
 
 // SetDeleted flags the PodAutoscaler as deleted
@@ -646,6 +709,32 @@ func (p *PodAutoscalerInternal) ScaledReplicas() *int32 {
 // Error returns the an error encountered by the controller not specific to a scaling action
 func (p *PodAutoscalerInternal) Error() error {
 	return p.error
+}
+
+// ProfileName returns the profile name if this is a profile-managed autoscaler.
+func (p *PodAutoscalerInternal) ProfileName() string {
+	return p.profileName
+}
+
+// IsProfileManaged returns true if this autoscaler is managed by a profile.
+func (p *PodAutoscalerInternal) IsProfileManaged() bool {
+	return p.profileName != ""
+}
+
+// DesiredProfileTemplateHash returns the desired profile template hash set via UpdateFromProfile.
+func (p *PodAutoscalerInternal) DesiredProfileTemplateHash() string {
+	return p.desiredProfileTemplateHash
+}
+
+// AppliedProfileHash returns the hash last successfully applied to Kubernetes.
+func (p *PodAutoscalerInternal) AppliedProfileHash() string {
+	return p.appliedProfileHash
+}
+
+// MarkProfileTemplateApplied copies the current desired hash to the applied hash.
+// Must be called after a successful K8s create or update of a profile-managed DPA.
+func (p *PodAutoscalerInternal) MarkProfileTemplateApplied() {
+	p.appliedProfileHash = p.desiredProfileTemplateHash
 }
 
 // Deleted returns the deletion status of the PodAutoscaler
@@ -1003,6 +1092,22 @@ func getLongestScalingRulesPeriod(rules []datadoghqcommon.DatadogPodAutoscalerSc
 	}
 
 	return longest
+}
+
+// BuildDPASpecFromProfile builds a DPA spec from a profile template and a target ref.
+func BuildDPASpecFromProfile(
+	template *datadoghq.DatadogPodAutoscalerTemplate,
+	targetRef autoscalingv2.CrossVersionObjectReference,
+) datadoghq.DatadogPodAutoscalerSpec {
+	return datadoghq.DatadogPodAutoscalerSpec{
+		TargetRef:   targetRef,
+		Owner:       datadoghqcommon.DatadogPodAutoscalerLocalOwner,
+		ApplyPolicy: template.ApplyPolicy,
+		Objectives:  template.Objectives,
+		Fallback:    template.Fallback,
+		Constraints: template.Constraints,
+		Options:     template.Options,
+	}
 }
 
 func parseCustomConfigurationAnnotation(annotations map[string]string) (*RecommenderConfiguration, error) {

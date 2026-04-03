@@ -24,16 +24,13 @@ end
 
 dependency 'datadog-agent-data-plane' if linux_target? && !heroku_target?
 
-# Bundled cacerts file (is this a good idea?)
-dependency 'cacerts'
-
 # Used for memory profiling with the `status py` agent subcommand
 dependency 'pympler'
 
 dependency 'datadog-agent-integrations-py3'
 
 build do
-    command_on_repo_root "bazelisk run #{flavor_flag} -- //packages/agent/dependencies:install --destdir=#{install_dir}"
+    command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} #{flavor_flag} -- //packages/agent/dependencies:install --destdir=#{install_dir}"
 end
 
 build do

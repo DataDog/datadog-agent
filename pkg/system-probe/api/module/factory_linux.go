@@ -13,9 +13,8 @@ import (
 
 // Factory encapsulates the initialization of a Module
 type Factory struct {
-	Name             sysconfigtypes.ModuleName
-	ConfigNamespaces []string
-	Fn               func(cfg *sysconfigtypes.Config, deps FactoryDependencies) (Module, error)
-	NeedsEBPF        func() bool
-	OptionalEBPF     bool
+	Name         sysconfigtypes.ModuleName
+	Fn           func(cfg *sysconfigtypes.Config, deps FactoryDependencies) (Module, error)
+	NeedsEBPF    func() bool
+	OptionalEBPF bool
 }

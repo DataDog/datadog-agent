@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
 	delegatedauthnoopfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-noop"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -34,19 +35,26 @@ import (
 	pid "github.com/DataDog/datadog-agent/comp/core/pid/def"
 	pidfx "github.com/DataDog/datadog-agent/comp/core/pid/fx"
 	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
+	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	remoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-optional-remote"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-otel"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	workloadmetainit "github.com/DataDog/datadog-agent/comp/core/workloadmeta/init"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	statsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
 	statsdotel "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/otel"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface"
 	logconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/inventoryhostimpl"
+	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	collectorcontribFx "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/fx"
 	collectordef "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	collectorfx "github.com/DataDog/datadog-agent/comp/otelcol/collector/fx"
@@ -154,7 +162,21 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 		)
 	}
 
+	if acfg.GetBool("otel_standalone") {
+		return fxutil.Run(
+			commonAgentFxOptions(ctx, params, acfg, uris, opts...),
+			standaloneAgentFxOptions(params),
+		)
+	}
 	return fxutil.Run(
+		commonAgentFxOptions(ctx, params, acfg, uris, opts...),
+		connectedAgentFxOptions(params),
+	)
+}
+
+// commonAgentFxOptions returns FX options shared by both standalone and connected agent modes.
+func commonAgentFxOptions(ctx context.Context, params *cliParams, acfg coreconfig.Component, uris []string, opts ...fx.Option) fx.Option {
+	return fx.Options(
 		ForwarderBundle(),
 		logtracefx.Module(),
 		inventoryagentimpl.Module(),
@@ -174,17 +196,16 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 			return acfg, nil
 		}),
 		fxutil.ProvideOptional[coreconfig.Component](),
-		secretsnoopfx.Module(),
 		workloadmetafx.Module(workloadmeta.Params{
 			AgentType:  workloadmeta.NodeAgent,
 			InitHelper: workloadmetainit.GetWorkloadmetaInit(),
 		}),
+		wmcatalog.GetCatalog(),
+		workloadfilterfx.Module(),
 		fx.Supply(uris),
 		fx.Provide(func(h hostnameinterface.Component) (serializerexporter.SourceProviderFunc, error) {
 			return h.Get, nil
 		}),
-		remotehostnameimpl.Module(),
-
 		fx.Provide(func(_ coreconfig.Component) log.Params {
 			return log.ForDaemon(params.LoggerName, "log_file", pkgconfigsetup.DefaultOTelAgentLogFile)
 		}),
@@ -210,7 +231,6 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 				return "", err
 			}
 			l.Info("Using ", "hostname", hn)
-
 			return hn, nil
 		}),
 
@@ -223,19 +243,14 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 		fx.Options(opts...),
 		fx.Invoke(func(_ collectordef.Component, _ defaultforwarder.Forwarder, _ option.Option[logsagentpipeline.Component], _ pid.Component) {
 		}),
-
-		configsyncimpl.Module(configsyncimpl.NewParams(params.SyncTimeout, true, params.SyncOnInitTimeout)),
-		remoteTaggerFx.Module(tagger.OptionalRemoteParams{Disable: isCmdPortNegative}, tagger.NewRemoteParams()),
 		telemetryimpl.Module(),
 		fx.Provide(func(cfg traceconfigdef.Component) telemetry.TelemetryCollector {
 			return telemetry.NewCollector(cfg.Object())
 		}),
 		gzipfx.Module(),
-
 		// ctx is required to be supplied from here, as Windows needs to inject its own context
 		// to allow the agent to work as a service.
 		fx.Provide(func() context.Context { return ctx }), // fx.Supply(ctx) fails with a missing type error.
-
 		// TODO: consider adding configsync.Component as an explicit dependency for traceconfig
 		//       to avoid this sort of dependency tree hack.
 		fx.Provide(func(params traceconfigdef.Params, cfg coreconfig.Component, taggerComp tagger.Component, ipcComp ipc.Component, _ configsync.Component) (traceconfigdef.Component, error) {
@@ -250,7 +265,6 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 			return provides.Comp, err
 		}),
 		fx.Supply(traceconfigdef.Params{FailIfAPIKeyMissing: false}),
-
 		fx.Supply(&traceagentcomp.Params{
 			CPUProfile:               "",
 			MemProfile:               "",
@@ -262,6 +276,43 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 		agenttelemetryfx.Module(),
 		delegatedauthnoopfx.Module(),
 		fxinstrumentation.Module(),
+	)
+}
+
+// standaloneAgentFxOptions returns FX options specific to standalone mode (DD_OTEL_STANDALONE=true).
+// In standalone mode the otel-agent runs without a core Datadog Agent on the same host.
+func standaloneAgentFxOptions(params *cliParams) fx.Option {
+	return fx.Options(
+		// Metadata collection (host inventory, runner) for dogtelextension
+		runnerimpl.Module(),
+		hostimpl.Module(),
+		inventoryhostimpl.Module(),
+		// Real secrets backend so ENC[] handles in OTel/DD config are resolved locally
+		secretsfx.Module(),
+		// Resolve hostname locally; no core agent to ask
+		hostnameimpl.Module(),
+		// No on-init config sync (no core agent to sync from); periodic sync is also
+		// effectively disabled by the default agent_ipc.config_refresh_interval=0
+		configsyncimpl.Module(configsyncimpl.NewParams(params.SyncTimeout, false, params.SyncOnInitTimeout)),
+		// Local workloadmeta-backed tagger so the infraattributes processor can enrich
+		// spans with K8s tags (pod, namespace, deployment, ...) without a core agent
+		taggerfx.Module(),
+	)
+}
+
+// connectedAgentFxOptions returns FX options specific to connected mode (DD_OTEL_STANDALONE=false).
+// In connected mode the otel-agent runs alongside a core Datadog Agent on the same host.
+func connectedAgentFxOptions(params *cliParams) fx.Option {
+	return fx.Options(
+		// No local metadata runner; core agent handles host metadata
+		// Noop secrets; core agent resolves ENC[] handles
+		secretsnoopfx.Module(),
+		// Ask core agent for hostname first, fall back to local resolution
+		remotehostnameimpl.Module(),
+		// Sync config from core agent on init and periodically
+		configsyncimpl.Module(configsyncimpl.NewParams(params.SyncTimeout, true, params.SyncOnInitTimeout)),
+		// Remote tagger proxying tag lookups to core agent
+		remoteTaggerFx.Module(tagger.OptionalRemoteParams{Disable: isCmdPortNegative}, tagger.NewRemoteParams()),
 	)
 }
 

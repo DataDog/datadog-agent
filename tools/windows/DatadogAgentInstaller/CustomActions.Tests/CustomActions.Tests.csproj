@@ -123,10 +123,10 @@
       <Version>2.2.1</Version>
     </PackageReference>
     <PackageReference Include="FluentAssertions">
-      <Version>6.10.0</Version>
+      <Version>6.12.2</Version>
     </PackageReference>
     <PackageReference Include="Moq">
-      <Version>4.18.4</Version>
+      <Version>4.20.72</Version>
     </PackageReference>
     <PackageReference Include="more.xunit.runner.visualstudio">
       <Version>2.3.1</Version>
@@ -150,7 +150,7 @@
     </PackageReference>
     <!-- WiX 5 migration: Replaced WixSharp.bin with WixSharp_wix4 -->
     <PackageReference Include="WixSharp_wix4">
-      <Version>2.12.0</Version>
+      <Version>2.12.3</Version>
     </PackageReference>
     <PackageReference Include="xunit">
       <Version>2.4.2</Version>

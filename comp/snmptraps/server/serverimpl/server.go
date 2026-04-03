@@ -17,17 +17,18 @@ import (
 
 	"go.uber.org/fx"
 
-	trapsconfig "github.com/DataDog/datadog-agent/comp/snmptraps/config"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/config/configimpl"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/formatter/formatterimpl"
+	trapsconfig "github.com/DataDog/datadog-agent/comp/snmptraps/config/def"
+	configfx "github.com/DataDog/datadog-agent/comp/snmptraps/config/fx"
+	formatter "github.com/DataDog/datadog-agent/comp/snmptraps/formatter/def"
+	formatterimpl "github.com/DataDog/datadog-agent/comp/snmptraps/formatter/impl"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/forwarder"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/forwarder/forwarderimpl"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/listener"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/listener/listenerimpl"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver/oidresolverimpl"
+	oidresolverfx "github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver/fx"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/server"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/status"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/status/statusimpl"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/status/def"
+	statusimpl "github.com/DataDog/datadog-agent/comp/snmptraps/status/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
 )
@@ -104,11 +105,12 @@ func newServer(lc fx.Lifecycle, deps dependencies) provides {
 			Logger:    deps.Logger,
 			Status:    stat,
 		}),
-		configimpl.Module(),
-		formatterimpl.Module(),
+		configfx.Module(),
+		fxutil.ProvideComponentConstructor(formatterimpl.NewComponent),
+		fxutil.ProvideOptional[formatter.Component](),
 		forwarderimpl.Module(),
 		listenerimpl.Module(),
-		oidresolverimpl.Module(),
+		oidresolverfx.Module(),
 		fx.Invoke(func(_ forwarder.Component, _ listener.Component) {}),
 	)
 	server := &TrapsServer{app: app, stat: stat}

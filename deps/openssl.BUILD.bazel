@@ -175,11 +175,10 @@ configure_make(
         "//conditions:default": [],
     }),
     out_data_dirs = select({
-        "@//packages/agent:fips_flavor": [
-            "ssl",
-            "lib/ossl-modules",
-            "lib/engines-3",
-        ],
+        # ssl/ is empty on Windows because --openssldir above points outside the sandbox; rules_python 1.9.0 skips
+        # empty dirs when copying runfiles to a temp dir for `bazel run`, causing FileNotFoundError in pkg_install.
+        ":fips_windows": ["lib/ossl-modules", "lib/engines-3"],  #TODO(agent-build): remove special case
+        "@//packages/agent:fips_flavor": ["ssl", "lib/ossl-modules", "lib/engines-3"],
         "//conditions:default": [],
     }),
     # For whatever reason rules_foreign_cc does not respect

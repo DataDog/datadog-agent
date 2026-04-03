@@ -13,45 +13,70 @@ import (
 
 // detectingAggregator detects multiline groups and tags the start line without aggregating.
 // It outputs messages immediately for performance.
+//
+// When isDefaultPath is true, it also collects COAT telemetry that simulates what the
+// combining aggregator would do, tracking lines that would be combined and groups that
+// would be truncated if auto multiline were enabled by default.
 type detectingAggregator struct {
-	collected             []*message.Message
+	collected             []AggregatedMessageWithTokens
 	previousMsg           *message.Message
+	previousMsgTokens     []Token
 	previousWasStartGroup bool
 	multiLineMatchInfo    *status.CountInfo
+
+	// COAT simulation state
+	isDefaultPath       bool
+	maxContentSize      int
+	simulatedBufLen     int
+	linesInCurrentGroup int
+	inGroup             bool
 }
 
 // NewDetectingAggregator creates a new detecting aggregator.
-func NewDetectingAggregator(tailerInfo *status.InfoRegistry) Aggregator {
+// maxContentSize is used to simulate truncation detection for COAT telemetry.
+// isDefaultPath should be true when the source relies on the default value of
+// auto_multi_line_detection (not explicitly configured), meaning these metrics
+// reflect the impact of changing that default.
+func NewDetectingAggregator(tailerInfo *status.InfoRegistry, maxContentSize int, isDefaultPath bool) Aggregator {
 	multiLineMatchInfo := status.NewCountInfo("MultiLine matches")
 	tailerInfo.Register(multiLineMatchInfo)
 
 	return &detectingAggregator{
 		multiLineMatchInfo: multiLineMatchInfo,
+		isDefaultPath:      isDefaultPath,
+		maxContentSize:     maxContentSize,
 	}
 }
 
 // Process processes a message with a label and returns any emitted messages.
-func (d *detectingAggregator) Process(msg *message.Message, label Label) []*message.Message {
+func (d *detectingAggregator) Process(msg *message.Message, label Label, tokens []Token) []AggregatedMessageWithTokens {
 	d.collected = d.collected[:0]
+
+	if d.isDefaultPath {
+		metrics.TlmAutoMultilineTotalLines.Inc()
+	}
 
 	// Handle aggregate label
 	if label == aggregate {
 		if d.previousMsg != nil && d.previousWasStartGroup {
 			// Tag the previous message as start of multiline group
 			d.previousMsg.ParsingExtra.Tags = append(d.previousMsg.ParsingExtra.Tags, "auto_multiline_detected:true")
-			d.collected = append(d.collected, d.previousMsg)
+			d.collected = append(d.collected, AggregatedMessageWithTokens{Msg: d.previousMsg, Tokens: d.previousMsgTokens})
 			// Track that we detected and tagged a multiline log
 			metrics.TlmAutoMultilineAggregatorFlush.Inc("false", "auto_multi_line_detected")
 			d.previousMsg = nil
+			d.previousMsgTokens = nil
 			d.previousWasStartGroup = false
 		} else if d.previousMsg != nil {
 			// Previous message wasn't a startGroup, so just output it without tags
-			d.collected = append(d.collected, d.previousMsg)
+			d.collected = append(d.collected, AggregatedMessageWithTokens{Msg: d.previousMsg, Tokens: d.previousMsgTokens})
 			d.previousMsg = nil
+			d.previousMsgTokens = nil
 			d.previousWasStartGroup = false
 		}
 		// Output the current aggregate message immediately
-		d.collected = append(d.collected, msg)
+		d.collected = append(d.collected, AggregatedMessageWithTokens{Msg: msg, Tokens: tokens})
+		d.processSimulatedAggregate(msg)
 		return d.collected
 	}
 
@@ -59,22 +84,26 @@ func (d *detectingAggregator) Process(msg *message.Message, label Label) []*mess
 	if label == noAggregate {
 		// Flush any pending previous message first
 		if d.previousMsg != nil {
-			d.collected = append(d.collected, d.previousMsg)
+			d.collected = append(d.collected, AggregatedMessageWithTokens{Msg: d.previousMsg, Tokens: d.previousMsgTokens})
 			d.previousMsg = nil
+			d.previousMsgTokens = nil
 			d.previousWasStartGroup = false
 		}
-		d.collected = append(d.collected, msg)
+		d.collected = append(d.collected, AggregatedMessageWithTokens{Msg: msg, Tokens: tokens})
+		d.resetSimulatedGroup()
 		return d.collected
 	}
 
 	// Handle startGroup: flush previous and store current
 	if label == startGroup {
 		if d.previousMsg != nil {
-			d.collected = append(d.collected, d.previousMsg)
+			d.collected = append(d.collected, AggregatedMessageWithTokens{Msg: d.previousMsg, Tokens: d.previousMsgTokens})
 		}
 		d.multiLineMatchInfo.Add(1)
 		d.previousMsg = msg
+		d.previousMsgTokens = tokens
 		d.previousWasStartGroup = true
+		d.processSimulatedStartGroup(msg)
 		return d.collected
 	}
 
@@ -82,17 +111,78 @@ func (d *detectingAggregator) Process(msg *message.Message, label Label) []*mess
 }
 
 // Flush returns any pending message (called on handler flush).
-func (d *detectingAggregator) Flush() []*message.Message {
+func (d *detectingAggregator) Flush() []AggregatedMessageWithTokens {
 	d.collected = d.collected[:0]
 	if d.previousMsg != nil {
-		d.collected = append(d.collected, d.previousMsg)
+		d.collected = append(d.collected, AggregatedMessageWithTokens{Msg: d.previousMsg, Tokens: d.previousMsgTokens})
 		d.previousMsg = nil
+		d.previousMsgTokens = nil
 		d.previousWasStartGroup = false
 	}
+	d.resetSimulatedGroup()
 	return d.collected
 }
 
 // IsEmpty returns true if there's no pending message.
 func (d *detectingAggregator) IsEmpty() bool {
 	return d.previousMsg == nil
+}
+
+// processSimulatedStartGroup handles the startGroup transition for COAT simulation.
+func (d *detectingAggregator) processSimulatedStartGroup(msg *message.Message) {
+	if !d.isDefaultPath {
+		return
+	}
+	// Finalize any previous group (no truncation on normal finalize)
+	d.resetSimulatedGroup()
+
+	// A startGroup that is already >= maxContentSize would be flushed immediately
+	// by the combining aggregator. That's a single oversized line -- excluded from
+	// our truncation metric since it would be truncated regardless.
+	if msg.RawDataLen >= d.maxContentSize {
+		return
+	}
+
+	d.inGroup = true
+	d.simulatedBufLen = len(msg.GetContent())
+	d.linesInCurrentGroup = 1
+}
+
+// processSimulatedAggregate handles the aggregate transition for COAT simulation.
+func (d *detectingAggregator) processSimulatedAggregate(msg *message.Message) {
+	if !d.isDefaultPath {
+		return
+	}
+
+	if !d.inGroup {
+		return
+	}
+
+	// This line would be combined in combining mode
+	metrics.TlmAutoMultilineWouldCombine.Inc()
+
+	// When the first aggregate arrives, also count the startGroup line that anchors this group
+	if d.linesInCurrentGroup == 1 {
+		metrics.TlmAutoMultilineWouldCombine.Inc()
+	}
+
+	// Simulate the combining aggregator's overflow check:
+	// if msg.RawDataLen + bucket.buffer.Len() >= maxContentSize → truncation
+	if msg.RawDataLen+d.simulatedBufLen >= d.maxContentSize {
+		truncatedLines := float64(d.linesInCurrentGroup + 1)
+		metrics.TlmAutoMultilineWouldTruncate.Add(truncatedLines)
+		d.resetSimulatedGroup()
+		return
+	}
+
+	// len(EscapedLineFeed) == 2
+	d.simulatedBufLen += len(message.EscapedLineFeed) + len(msg.GetContent())
+	d.linesInCurrentGroup++
+}
+
+// resetSimulatedGroup resets the COAT simulation state.
+func (d *detectingAggregator) resetSimulatedGroup() {
+	d.inGroup = false
+	d.simulatedBufLen = 0
+	d.linesInCurrentGroup = 0
 }

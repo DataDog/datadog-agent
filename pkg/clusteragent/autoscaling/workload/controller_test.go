@@ -1279,6 +1279,198 @@ func TestVerticalConstraintsIdempotent(t *testing.T) {
 	f.RunControllerSync(true, "default/dpa-0")
 }
 
+func TestProfileManagedDPA(t *testing.T) {
+	t.Run("Create in K8s from store", func(t *testing.T) {
+		testTime := time.Now()
+		f := newFixture(t, testTime)
+
+		dpaSpec := datadoghq.DatadogPodAutoscalerSpec{
+			TargetRef: autoscalingv2.CrossVersionObjectReference{
+				Kind: "Deployment", Name: "web-app", APIVersion: "apps/v1",
+			},
+			Owner: datadoghqcommon.DatadogPodAutoscalerLocalOwner,
+		}
+
+		dpaInternal := model.FakePodAutoscalerInternal{
+			Namespace:   "prod",
+			Name:        "web-app-a1b2c3d4",
+			Spec:        &dpaSpec,
+			ProfileName: "high-cpu",
+		}
+		f.store.Set("prod/web-app-a1b2c3d4", dpaInternal.Build(), "pw")
+
+		expectedDPA := &datadoghq.DatadogPodAutoscaler{
+			TypeMeta: podAutoscalerMeta,
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "prod",
+				Name:      "web-app-a1b2c3d4",
+				Labels:    map[string]string{model.ProfileLabelKey: "high-cpu"},
+			},
+			Spec: dpaSpec,
+			Status: datadoghqcommon.DatadogPodAutoscalerStatus{
+				Conditions: []datadoghqcommon.DatadogPodAutoscalerCondition{
+					condition(datadoghqcommon.DatadogPodAutoscalerErrorCondition, corev1.ConditionFalse, "", "", testTime),
+					condition(datadoghqcommon.DatadogPodAutoscalerActiveCondition, corev1.ConditionTrue, "", "", testTime),
+					condition(datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToRecommendCondition, corev1.ConditionUnknown, "", "", testTime),
+					condition(datadoghqcommon.DatadogPodAutoscalerVerticalAbleToRecommendCondition, corev1.ConditionUnknown, "", "", testTime),
+					condition(datadoghqcommon.DatadogPodAutoscalerHorizontalScalingLimitedCondition, corev1.ConditionFalse, "", "", testTime),
+					condition(datadoghqcommon.DatadogPodAutoscalerVerticalScalingLimitedCondition, corev1.ConditionFalse, "", "", testTime),
+					condition(datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToScaleCondition, corev1.ConditionUnknown, "", "", testTime),
+					condition(datadoghqcommon.DatadogPodAutoscalerVerticalAbleToApply, corev1.ConditionUnknown, "", "", testTime),
+				},
+			},
+		}
+		f.ExpectCreateAction(mustUnstructured(t, expectedDPA))
+		f.RunControllerSync(true, "prod/web-app-a1b2c3d4")
+	})
+
+	t.Run("Delete K8s CRD when deleted flag set", func(t *testing.T) {
+		testTime := time.Now()
+		f := newFixture(t, testTime)
+
+		dpaSpec := datadoghq.DatadogPodAutoscalerSpec{
+			TargetRef: autoscalingv2.CrossVersionObjectReference{
+				Kind: "Deployment", Name: "web-app", APIVersion: "apps/v1",
+			},
+			Owner: datadoghqcommon.DatadogPodAutoscalerLocalOwner,
+		}
+
+		dpaInternal := model.FakePodAutoscalerInternal{
+			Namespace:   "prod",
+			Name:        "web-app-a1b2c3d4",
+			Spec:        &dpaSpec,
+			ProfileName: "high-cpu",
+			Deleted:     true,
+		}
+		f.store.Set("prod/web-app-a1b2c3d4", dpaInternal.Build(), "pw")
+
+		dpa, dpaTyped := newFakePodAutoscaler("prod", "web-app-a1b2c3d4", 1, testTime, dpaSpec, datadoghqcommon.DatadogPodAutoscalerStatus{})
+		dpaTyped.Labels = map[string]string{model.ProfileLabelKey: "high-cpu"}
+		dpa.SetLabels(map[string]string{model.ProfileLabelKey: "high-cpu"})
+		f.InformerObjects = append(f.InformerObjects, dpa)
+		f.Objects = append(f.Objects, dpaTyped)
+
+		f.ExpectDeleteAction("prod", "web-app-a1b2c3d4")
+		f.RunControllerSync(true, "prod/web-app-a1b2c3d4")
+	})
+
+	t.Run("Clean store after K8s gone", func(t *testing.T) {
+		testTime := time.Now()
+		f := newFixture(t, testTime)
+
+		dpaSpec := datadoghq.DatadogPodAutoscalerSpec{
+			TargetRef: autoscalingv2.CrossVersionObjectReference{
+				Kind: "Deployment", Name: "web-app", APIVersion: "apps/v1",
+			},
+			Owner: datadoghqcommon.DatadogPodAutoscalerLocalOwner,
+		}
+
+		dpaInternal := model.FakePodAutoscalerInternal{
+			Namespace:   "prod",
+			Name:        "web-app-a1b2c3d4",
+			Spec:        &dpaSpec,
+			ProfileName: "high-cpu",
+			Deleted:     true,
+		}
+		f.store.Set("prod/web-app-a1b2c3d4", dpaInternal.Build(), "pw")
+
+		// K8s object gone, store entry flagged deleted → should clean store.
+		f.RunControllerSync(true, "prod/web-app-a1b2c3d4")
+		assert.Len(t, f.store.GetAll(), 0)
+	})
+
+	t.Run("Orphan when profile label removed from K8s object", func(t *testing.T) {
+		testTime := time.Now()
+		f := newFixture(t, testTime)
+
+		dpaSpec := datadoghq.DatadogPodAutoscalerSpec{
+			TargetRef: autoscalingv2.CrossVersionObjectReference{
+				Kind: "Deployment", Name: "web-app", APIVersion: "apps/v1",
+			},
+			Owner: datadoghqcommon.DatadogPodAutoscalerLocalOwner,
+		}
+
+		// Store has a profile-managed DPA.
+		dpaInternal := model.FakePodAutoscalerInternal{
+			Namespace:   "prod",
+			Name:        "web-app-a1b2c3d4",
+			Spec:        &dpaSpec,
+			ProfileName: "high-cpu",
+			Generation:  1,
+		}
+		f.store.Set("prod/web-app-a1b2c3d4", dpaInternal.Build(), "pw")
+
+		// K8s object exists but customer removed the profile label.
+		dpa, dpaTyped := newFakePodAutoscaler("prod", "web-app-a1b2c3d4", 2, testTime, dpaSpec, datadoghqcommon.DatadogPodAutoscalerStatus{})
+		_ = dpaTyped
+		// dpa (informer object) has no profile label by default from newFakePodAutoscaler.
+		f.InformerObjects = append(f.InformerObjects, dpa)
+		f.Objects = append(f.Objects, dpaTyped)
+
+		// After orphaning, the controller processes the DPA as local-owned.
+		// It hits the heap validation error since we haven't added it to
+		// the heap, producing a status update with error conditions.
+		expectedStatus := &datadoghq.DatadogPodAutoscaler{
+			TypeMeta:   podAutoscalerMeta,
+			ObjectMeta: dpaTyped.ObjectMeta,
+			Status: datadoghqcommon.DatadogPodAutoscalerStatus{
+				Conditions: []datadoghqcommon.DatadogPodAutoscalerCondition{
+					condition(datadoghqcommon.DatadogPodAutoscalerErrorCondition, corev1.ConditionTrue, "ClusterAutoscalerLimitReached", fmt.Sprintf("Autoscaler disabled as maximum number per cluster reached (%d)", testMaxAutoscalerObjects), testTime),
+					condition(datadoghqcommon.DatadogPodAutoscalerActiveCondition, corev1.ConditionTrue, "", "", testTime),
+					condition(datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToRecommendCondition, corev1.ConditionUnknown, "", "", testTime),
+					condition(datadoghqcommon.DatadogPodAutoscalerVerticalAbleToRecommendCondition, corev1.ConditionUnknown, "", "", testTime),
+					condition(datadoghqcommon.DatadogPodAutoscalerHorizontalScalingLimitedCondition, corev1.ConditionFalse, "", "", testTime),
+					condition(datadoghqcommon.DatadogPodAutoscalerVerticalScalingLimitedCondition, corev1.ConditionFalse, "", "", testTime),
+					condition(datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToScaleCondition, corev1.ConditionUnknown, "", "", testTime),
+					condition(datadoghqcommon.DatadogPodAutoscalerVerticalAbleToApply, corev1.ConditionUnknown, "", "", testTime),
+				},
+			},
+		}
+		f.ExpectUpdateStatusAction(mustUnstructured(t, expectedStatus))
+		f.RunControllerSync(true, "prod/web-app-a1b2c3d4")
+
+		pai, found := f.store.Get("prod/web-app-a1b2c3d4")
+		require.True(t, found)
+		assert.False(t, pai.IsProfileManaged(), "DPA should no longer be profile-managed after label removal")
+		assert.Empty(t, pai.ProfileName(), "Profile name should be cleared")
+		assert.False(t, pai.Deleted(), "DPA should NOT be deleted, it's orphaned")
+	})
+
+	t.Run("Startup: K8s DPA with profile label populates store", func(t *testing.T) {
+		testTime := time.Now()
+		f := newFixture(t, testTime)
+
+		dpaSpec := datadoghq.DatadogPodAutoscalerSpec{
+			TargetRef: autoscalingv2.CrossVersionObjectReference{
+				Kind: "Deployment", Name: "web-app", APIVersion: "apps/v1",
+			},
+			Owner: datadoghqcommon.DatadogPodAutoscalerLocalOwner,
+		}
+
+		dpa := &datadoghq.DatadogPodAutoscaler{
+			TypeMeta: podAutoscalerMeta,
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "web-app-a1b2c3d4",
+				Namespace: "prod",
+				Labels:    map[string]string{model.ProfileLabelKey: "high-cpu"},
+			},
+			Spec: dpaSpec,
+		}
+		obj, err := autoscaling.ToUnstructured(dpa)
+		require.NoError(t, err)
+
+		f.InformerObjects = append(f.InformerObjects, obj)
+		f.Objects = append(f.Objects, dpa)
+
+		f.RunControllerSync(true, "prod/web-app-a1b2c3d4")
+
+		pai, found := f.store.Get("prod/web-app-a1b2c3d4")
+		require.True(t, found)
+		assert.Equal(t, "high-cpu", pai.ProfileName())
+		assert.True(t, pai.IsProfileManaged())
+	})
+}
+
 func mustUnstructured(t *testing.T, structIn any) *unstructured.Unstructured {
 	unstructOut, err := autoscaling.ToUnstructured(structIn)
 	require.NoError(t, err)
