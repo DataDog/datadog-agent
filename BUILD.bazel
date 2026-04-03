@@ -64,6 +64,7 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/core/profiler
 # gazelle:exclude comp/core/remoteagent
 # gazelle:exclude comp/core/remoteagentregistry
+# gazelle:exclude comp/core/remoteflags
 # gazelle:exclude comp/core/secrets/fx
 # gazelle:exclude comp/core/secrets/fx-noop
 # gazelle:exclude comp/core/secrets/impl
@@ -330,6 +331,7 @@ ALL_BUILD_TAGS = [
 # Vendored proto definitions used only for protoc code-gen, not Bazel builds.
 # gazelle:exclude pkg/proto/protodep
 # gazelle:exclude pkg/redact
+# gazelle:exclude pkg/remoteflags
 # gazelle:exclude pkg/runtime
 # gazelle:exclude pkg/sbom
 # gazelle:exclude pkg/security/agent
