@@ -282,7 +282,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/network/config
 # gazelle:exclude pkg/network/containers
 # gazelle:exclude pkg/network/dns
-# gazelle:exclude pkg/network/driver
 # gazelle:exclude pkg/network/ebpf
 # gazelle:exclude pkg/network/encoding
 # gazelle:exclude pkg/network/events
