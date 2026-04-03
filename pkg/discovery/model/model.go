@@ -7,7 +7,7 @@
 package model
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
+	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 )
 
 // Service represents a listening process.

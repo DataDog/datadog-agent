@@ -58,6 +58,7 @@
       "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "message": "testLongFunctionWithChangingState"
+    "message": "testLongFunctionWithChangingState",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

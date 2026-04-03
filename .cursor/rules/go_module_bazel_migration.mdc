@@ -1,0 +1,58 @@
+---
+description: Rules for migrating Go modules (L0+) from go.work to Bazel. Use when adjusting gazelle:exclude directives, running Gazelle, or opening new modules for Bazel builds.
+alwaysApply: false
+---
+
+# Go Module Bazel Migration
+
+## Recipe per module
+
+1. **Granularize excludes** in root `BUILD.bazel`: replace the broad `# gazelle:exclude pkg/foo` with individual excludes for every sibling directory *except* the target module. Never remove an exclude without adding granular replacements.
+
+2. **Stub intermediate directories**: if any parent directory on the path to the target module contains `.go` files, create a `BUILD.bazel` with only `# gazelle:ignore` and a short comment. This prevents Gazelle from generating targets that pull unmigrated external-repo deps. Check with `ls <dir>/*.go` before deciding.
+
+3. **Run the pipeline**:
+   ```bash
+   bazel run //:gazelle
+   bazel mod tidy
+   bazel test //path/to/module/...
+   ```
+
+4. **Verify `//...`** still works after migration — intermediate BUILD files that reference external repos for local modules trigger the `bazelify_go_work` / `go_deps` `@rules_go` visibility bug.
+
+## BUILD.bazel editing rules
+
+- **Never manually edit Gazelle-generated BUILD.bazel files** for content that Gazelle manages (srcs, deps, imports). Re-run Gazelle instead.
+- The **only** manual edits allowed on generated BUILD files:
+  - `gotags = ["test"]  # keep` on `go_test` targets (see below).
+  - `target_compatible_with = ["@platforms//os:linux"]  # keep` on OS-specific targets (see below).
+  - `# keep` comments to pin specific lines Gazelle would otherwise overwrite.
+
+## `//go:build test` sources
+
+Gazelle places files with `//go:build test` into `go_library` srcs (not `go_test`), because it treats `test` as a regular build tag. Bazel does not set the `test` tag during library compilation, so these symbols become undefined in test targets.
+
+**Fix:** add `gotags = ["test"]  # keep` to the `go_test` target that embeds the library. Do NOT move the source file between targets manually.
+
+## OS-specific modules
+
+Gazelle lists all source files unconditionally in `srcs` even when they carry `//go:build linux` (or another OS constraint). `rules_go` filters them at compile time, so compilation is correct. However, `//...` expansion will still attempt to analyze the target on all platforms, producing empty libraries or confusing errors.
+
+**Fix:** add `target_compatible_with = ["@platforms//os:linux"]  # keep` (or the appropriate OS) to both `go_library` and `go_test` targets. The `# keep` comment prevents Gazelle from stripping the line on re-runs.
+
+## Proto handling
+
+The repo uses pre-generated `.pb.go` files everywhere — no `proto_library` or `go_proto_library` targets. Gazelle's `DEFAULT_LANGUAGES` includes `//language/proto`, so the proto extension is always active.
+
+**`# gazelle:proto disable`** must be set in the root `BUILD.bazel`. Without it, Gazelle's default proto mode would generate `proto_library` rules and suppress `.pb.go` files from `go_library` srcs in any directory containing both `.proto` and `.pb.go` (e.g. `comp/forwarder/defaultforwarder/internal/retry/`, `pkg/security/proto/api/`). Currently this is masked by `gazelle:exclude` on those directories, but migration would silently break without the global disable.
+
+Proto source-only trees (`pkg/proto/datadog`, `pkg/proto/protodep`) still need `gazelle:exclude` because they contain no Go code — `# gazelle:proto disable` alone doesn't help there since there's nothing for Gazelle to generate. The fan-in problem (multiple `.proto` dirs sharing `option go_package = "pkg/proto/pbgo/core"`) is an additional reason those excludes must stay.
+
+## `gazelle:ignore` vs `gazelle:exclude`
+
+- `gazelle:exclude` — stops Gazelle AND affects `bazelify_go_work` filtering of `go.work` entries for `go_deps`.
+- `gazelle:ignore` — only stops Gazelle from generating/updating targets in that directory. Safe for stub BUILD files at intermediate unmigrated packages.
+
+## Known issue: `go_deps` external repo `@rules_go` visibility
+
+When `go_deps` creates external repos for local `go.work` modules that are still excluded, those repos can't resolve `@rules_go`. This surfaces when `//...` expansion hits an unmigrated intermediate package. Fix: `# gazelle:ignore` stubs at those directories, or ensure they remain excluded.

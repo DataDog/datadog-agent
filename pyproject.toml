@@ -17,25 +17,16 @@ exclude = [
     "venv",
     "dev",
     "third_party",
-    "cmd/system-probe/subcommands/usm/debug_scripts",  # Standalone scripts for customer debugging
+    "cmd/system-probe/subcommands/usm/debug_scripts", # Standalone scripts for customer debugging
 ]
 line-length = 120
 
 [tool.ruff.lint]
 # All the rules can be found here: https://beta.ruff.rs/docs/rules/
-select = [
-    "B",
-    "C",
-    "E",
-    "F",
-    "G",
-    "I",
-    "U",
-    "W",
-]
+select = ["B", "C", "E", "F", "G", "I", "U", "W"]
 ignore = [
-    "E501", # line-too-long
-    "C901", # complex-structure
+    "E501",  # line-too-long
+    "C901",  # complex-structure
     "UP033", # Ignore the lru_cache for now
     "UP017", # Ignore datetime.UTC for now
 ]
@@ -83,11 +74,11 @@ disable_error_code = [
 ]
 
 [[tool.mypy.overrides]]
-module = "tasks.kernel_matrix_testing.*,tasks.kmt"
+module = "tasks.kernel_matrix_testing.*,tasks.kmt,tasks.libs.gpu.*,tasks.gpu"
 disable_error_code = []
 
 [tool.vulture]
-ignore_decorators = ["@task"]
+ignore_decorators = ["@task", "@field_validator"]
 ignore_names = ["test_*", "Test*", "model_config"]
 paths = ["tasks"]
 
