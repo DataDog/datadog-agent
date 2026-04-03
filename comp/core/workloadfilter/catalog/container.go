@@ -58,3 +58,12 @@ func ContainerLegacyComplianceProgram(b *ProgramBuilder) program.FilterProgram {
 		b.config.ContainerComplianceExclude,
 	)
 }
+
+// ContainerLegacyCWSAdmissionProgram creates a program for filtering containers for the CWS admission webhook
+func ContainerLegacyCWSAdmissionProgram(b *ProgramBuilder) program.FilterProgram {
+	return b.CreateLegacyProgram(
+		workloadfilter.ContainerLegacyCWSAdmission,
+		b.config.CWSAdmissionInclude,
+		b.config.CWSAdmissionExclude,
+	)
+}

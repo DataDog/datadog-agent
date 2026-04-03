@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/secret"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/webhook"
@@ -38,6 +39,7 @@ type ControllerContext struct {
 	StopCh                       chan struct{}
 	ValidatingStopCh             chan struct{}
 	Demultiplexer                demultiplexer.Component
+	FilterStore                  workloadfilter.Component
 }
 
 // StartControllers starts the secret and webhook controllers
@@ -98,6 +100,7 @@ func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa wo
 		pa,
 		datadogConfig,
 		ctx.Demultiplexer,
+		ctx.FilterStore,
 	)
 
 	go secretController.Run(ctx.StopCh)
