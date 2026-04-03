@@ -3,6 +3,10 @@
 //! Periodically reads writer stats (from lock-free atomics) and jemalloc
 //! memory stats, then emits them as DogStatsD metrics to the agent's
 //! DogStatsD server (typically at 127.0.0.1:8125 within the same pod).
+//!
+//! Origin detection: reads `DD_ENTITY_ID` (injected by the Datadog admission
+//! controller) and includes `dd.internal.entity_id:<pod-uid>` on every metric
+//! so the agent can enrich with pod_name, kube_namespace, etc.
 
 use std::net::UdpSocket;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -12,9 +16,12 @@ use std::time::Duration;
 use cadence::prelude::*;
 use cadence::{StatsdClient, UdpMetricSink};
 use tikv_jemalloc_ctl::raw;
-use tracing::warn;
+use tracing::{info, warn};
 
 use crate::writers::thread::WriterTelemetry;
+
+/// DogStatsD tag prefix recognized by the agent's origin detection.
+const ENTITY_ID_TAG_PREFIX: &str = "dd.internal.entity_id:";
 
 /// Shared counters for connection-level telemetry.
 pub struct ConnectionStats {
@@ -35,6 +42,9 @@ impl ConnectionStats {
 pub struct TelemetryReporter {
     client: StatsdClient,
     interval: Duration,
+    /// Origin detection tag: `dd.internal.entity_id:<pod-uid>`.
+    /// Empty if DD_ENTITY_ID is not set (origin detection disabled).
+    entity_id_tag: String,
 }
 
 impl TelemetryReporter {
@@ -56,9 +66,25 @@ impl TelemetryReporter {
         socket.set_nonblocking(true).ok();
         let sink = UdpMetricSink::from(addr.as_str(), socket).ok()?;
         let client = StatsdClient::from_sink("flightrecorder.sidecar", sink);
+
+        // Read DD_ENTITY_ID (injected by Datadog admission controller) for
+        // origin detection. Without this, metrics show pod_name:N/A.
+        let entity_id_tag = match std::env::var("DD_ENTITY_ID") {
+            Ok(uid) if !uid.is_empty() => {
+                let tag = format!("{ENTITY_ID_TAG_PREFIX}{uid}");
+                info!(tag = %tag, "origin detection enabled via DD_ENTITY_ID");
+                tag
+            }
+            _ => {
+                warn!("DD_ENTITY_ID not set — sidecar metrics will not have pod_name tags");
+                String::new()
+            }
+        };
+
         Some(Self {
             client,
             interval: Duration::from_secs(10),
+            entity_id_tag,
         })
     }
 
@@ -99,17 +125,17 @@ impl TelemetryReporter {
 
             let mut jemalloc_ok = true;
             if let Ok(v) = unsafe { raw::read::<usize>(b"stats.resident\0") } {
-                let _ = self.client.gauge("memory.resident", v as u64);
+                self.send_gauge("memory.resident", v as u64);
             } else {
                 jemalloc_ok = false;
             }
             if let Ok(v) = unsafe { raw::read::<usize>(b"stats.allocated\0") } {
-                let _ = self.client.gauge("memory.allocated", v as u64);
+                self.send_gauge("memory.allocated", v as u64);
             } else {
                 jemalloc_ok = false;
             }
             if let Ok(v) = unsafe { raw::read::<usize>(b"stats.active\0") } {
-                let _ = self.client.gauge("memory.active", v as u64);
+                self.send_gauge("memory.active", v as u64);
             } else {
                 jemalloc_ok = false;
             }
@@ -120,31 +146,49 @@ impl TelemetryReporter {
 
             // --- Connection stats ---
             let conns = conn_stats.active_connections.load(Ordering::Relaxed);
-            let _ = self.client.gauge("connections", conns);
+            self.send_gauge("connections", conns);
 
             let frames = conn_stats.frames_received.load(Ordering::Relaxed);
-            let _ = self.client.count("frames_received", (frames - prev_frames) as i64);
+            self.send_count("frames_received", (frames - prev_frames) as i64);
             prev_frames = frames;
 
             // --- Per-writer stats (read from lock-free atomics) ---
-            Self::report_writer(
-                &self.client, "metrics", &metrics_telemetry,
+            self.report_writer(
+                "metrics", &metrics_telemetry,
                 &mut prev_metrics_flush_count, &mut prev_metrics_flush_bytes, &mut prev_metrics_rows,
             );
-            Self::report_writer(
-                &self.client, "logs", &logs_telemetry,
+            self.report_writer(
+                "logs", &logs_telemetry,
                 &mut prev_logs_flush_count, &mut prev_logs_flush_bytes, &mut prev_logs_rows,
             );
-            Self::report_writer(
-                &self.client, "trace_stats", &trace_stats_telemetry,
+            self.report_writer(
+                "trace_stats", &trace_stats_telemetry,
                 &mut prev_tss_flush_count, &mut prev_tss_flush_bytes, &mut prev_tss_rows,
             );
         }
     }
 
+    /// Send a gauge with the entity ID tag for origin detection.
+    fn send_gauge(&self, key: &str, value: u64) {
+        let mut b = self.client.gauge_with_tags(key, value);
+        if !self.entity_id_tag.is_empty() {
+            b = b.with_tag_value(&self.entity_id_tag);
+        }
+        let _ = b.send();
+    }
+
+    /// Send a count with the entity ID tag for origin detection.
+    fn send_count(&self, key: &str, value: i64) {
+        let mut b = self.client.count_with_tags(key, value);
+        if !self.entity_id_tag.is_empty() {
+            b = b.with_tag_value(&self.entity_id_tag);
+        }
+        let _ = b.send();
+    }
+
     fn report_writer(
-        client: &StatsdClient,
-        tag: &str,
+        &self,
+        writer_tag: &str,
         telemetry: &WriterTelemetry,
         prev_flush_count: &mut u64,
         prev_flush_bytes: &mut u64,
@@ -156,16 +200,33 @@ impl TelemetryReporter {
         let buffered = telemetry.buffered_rows.load(Ordering::Relaxed);
         let flush_ns = telemetry.last_flush_duration_ns.load(Ordering::Relaxed);
 
-        let _ = client.gauge_with_tags("buffered_rows", buffered)
-            .with_tag("writer", tag).send();
-        let _ = client.count_with_tags("flush_count", (flush_count - *prev_flush_count) as i64)
-            .with_tag("writer", tag).send();
-        let _ = client.count_with_tags("flush_bytes", (flush_bytes - *prev_flush_bytes) as i64)
-            .with_tag("writer", tag).send();
-        let _ = client.count_with_tags("rows_written", (rows - *prev_rows) as i64)
-            .with_tag("writer", tag).send();
-        let _ = client.gauge_with_tags("flush_duration_ns", flush_ns)
-            .with_tag("writer", tag).send();
+        let eid = &self.entity_id_tag;
+        let has_eid = !eid.is_empty();
+
+        let mut b = self.client.gauge_with_tags("buffered_rows", buffered)
+            .with_tag("writer", writer_tag);
+        if has_eid { b = b.with_tag_value(eid); }
+        let _ = b.send();
+
+        let mut b = self.client.count_with_tags("flush_count", (flush_count - *prev_flush_count) as i64)
+            .with_tag("writer", writer_tag);
+        if has_eid { b = b.with_tag_value(eid); }
+        let _ = b.send();
+
+        let mut b = self.client.count_with_tags("flush_bytes", (flush_bytes - *prev_flush_bytes) as i64)
+            .with_tag("writer", writer_tag);
+        if has_eid { b = b.with_tag_value(eid); }
+        let _ = b.send();
+
+        let mut b = self.client.count_with_tags("rows_written", (rows - *prev_rows) as i64)
+            .with_tag("writer", writer_tag);
+        if has_eid { b = b.with_tag_value(eid); }
+        let _ = b.send();
+
+        let mut b = self.client.gauge_with_tags("flush_duration_ns", flush_ns)
+            .with_tag("writer", writer_tag);
+        if has_eid { b = b.with_tag_value(eid); }
+        let _ = b.send();
 
         *prev_flush_count = flush_count;
         *prev_flush_bytes = flush_bytes;
