@@ -110,7 +110,7 @@ func (t *StreamTailer) forwardMessages() {
 	}()
 
 	for output := range t.decoder.OutputChan() {
-		if len(output.GetContent()) > 0 {
+		if output.HasContent() {
 			origin := message.NewOrigin(t.source)
 			origin.Identifier = t.Identifier()
 			origin.SetTags(output.ParsingExtra.Tags)

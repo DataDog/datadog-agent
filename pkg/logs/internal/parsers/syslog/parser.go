@@ -48,6 +48,14 @@ func (p *parser) Parse(msg *message.Message) (*message.Message, error) {
 		},
 	}
 
+	// Detect and parse CEF/LEEF headers embedded in the syslog message body.
+	// All meaningful data is extracted into the "siem" key; the raw CEF/LEEF
+	// string has no body separate from its structured fields, so clear "message".
+	if header, ext, _, ok := ParseCEFLEEF(parsed.Msg); ok {
+		sc.Data["siem"] = BuildSIEMFields(header, ext)
+		sc.Data["message"] = ""
+	}
+
 	// Create a new StateStructured message, preserving the origin from
 	// the file tailer (which carries source, service, tags, file offset).
 	structured := message.NewStructuredMessage(

@@ -142,6 +142,18 @@ const (
 	StateEncoded
 )
 
+// HasContent reports whether the message carries meaningful data.
+// For structured messages, content lives in metadata fields (e.g. "siem",
+// "journald"), so the message has content even when the "message" key is empty.
+// For unstructured messages, content is present only when the raw bytes are
+// non-empty.
+func (m *MessageContent) HasContent() bool {
+	if m.State == StateStructured {
+		return m.structuredContent != nil
+	}
+	return len(m.content) > 0
+}
+
 // GetContent returns the bytes array containing only the message content
 // E.g. from a structured log:
 //

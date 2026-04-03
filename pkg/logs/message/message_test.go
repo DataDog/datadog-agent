@@ -25,6 +25,47 @@ func TestMessage(t *testing.T) {
 	assert.Equal(t, StatusInfo, message.GetStatus())
 }
 
+func TestHasContent(t *testing.T) {
+	t.Run("unstructured with content", func(t *testing.T) {
+		msg := NewMessage([]byte("hello"), nil, "", 0)
+		assert.True(t, msg.HasContent())
+	})
+
+	t.Run("unstructured empty", func(t *testing.T) {
+		msg := NewMessage([]byte{}, nil, "", 0)
+		assert.False(t, msg.HasContent())
+	})
+
+	t.Run("structured with message", func(t *testing.T) {
+		sc := &BasicStructuredContent{Data: map[string]interface{}{"message": "hello"}}
+		msg := NewStructuredMessage(sc, nil, "", 0)
+		assert.True(t, msg.HasContent())
+	})
+
+	t.Run("structured with empty message", func(t *testing.T) {
+		sc := &BasicStructuredContent{Data: map[string]interface{}{"message": "", "siem": map[string]interface{}{"format": "CEF"}}}
+		msg := NewStructuredMessage(sc, nil, "", 0)
+		assert.True(t, msg.HasContent())
+	})
+
+	t.Run("structured nil content", func(t *testing.T) {
+		msg := &Message{MessageContent: MessageContent{State: StateStructured, structuredContent: nil}}
+		assert.False(t, msg.HasContent())
+	})
+
+	t.Run("rendered with content", func(t *testing.T) {
+		msg := NewMessage([]byte("hello"), nil, "", 0)
+		msg.SetRendered([]byte(`{"message":"hello"}`))
+		assert.True(t, msg.HasContent())
+	})
+
+	t.Run("rendered empty", func(t *testing.T) {
+		msg := NewMessage(nil, nil, "", 0)
+		msg.SetRendered([]byte{})
+		assert.False(t, msg.HasContent())
+	})
+}
+
 func TestNewPayload(t *testing.T) {
 	messages := []*Message{
 		NewMessage([]byte("hello"), nil, "", 0),
