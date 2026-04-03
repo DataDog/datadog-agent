@@ -11,6 +11,10 @@
 #define TCP_ECN_OK	1
 #endif
 
+#ifndef NSEC_PER_SEC
+#define NSEC_PER_SEC	1000000000L
+#endif
+
 typedef struct {
     __u64 sent_bytes;
     __u64 recv_bytes;
@@ -37,6 +41,8 @@ typedef struct {
 typedef struct {
     conn_tuple_t tup;
 
+    __u64 timestamp_ns;
+    __u64 start_ns;
     __u64 sent_bytes;
     __u64 recv_bytes;
     __u32 sent_packets;

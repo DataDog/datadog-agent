@@ -44,11 +44,7 @@ static __always_inline int read_conn_tuple_sk(conn_tuple_t* t, struct sock* sk, 
     int err = 0;
 
     if (!t->pid) {
-        if (task) {
-            t->pid = task->tgid;
-        } else {
-            t->pid = GET_USER_MODE_PID(bpf_get_current_pid_tgid());
-        }
+        t->pid = task ? task->tgid : GET_USER_MODE_PID(bpf_get_current_pid_tgid());
     }
 
     if (!t->netns) {

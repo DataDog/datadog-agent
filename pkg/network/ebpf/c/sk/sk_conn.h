@@ -44,7 +44,7 @@ static __always_inline int create_tcp_conn(conn_t *conn, struct sock *sk, sk_tcp
         conn->tcp_stats.failure_reason = sk_stats->failure_reason;
         conn->tcp_stats.state_transitions = sk_stats->state_transitions;
         conn->tcp_stats.tcp_event_stats = sk_stats->tcp_event_stats;
-        conn->conn_stats.duration_ms = sk_stats->start_ms;
+        conn->conn_stats.duration = bpf_ktime_get_ns() - sk_stats->start_ns;
         conn->conn_stats.direction = sk_stats->direction;
 
         // offset absolute counters with initial values read
@@ -79,7 +79,7 @@ static __always_inline int create_udp_conn(conn_t *conn, struct sock *sk, sk_udp
     // TODO conn->conn_stats.cert_id
 
     if (sk_stats) {
-        conn->conn_stats.duration_ms = sk_stats->start_ms;
+        conn->conn_stats.duration = bpf_ktime_get_ns() - sk_stats->start_ns;
         conn->conn_stats.direction = sk_stats->direction;
         conn->conn_stats.sent_bytes = sk_stats->sent_bytes;
         conn->conn_stats.recv_bytes = sk_stats->recv_bytes;
@@ -140,8 +140,6 @@ int bpf_iter__task_file_socket(struct bpf_iter__task_file *ctx) {
         if (!create_udp_conn(&conn, sk, sk_stats, task)) {
             return 0;
         }
-        print_sk_ip(conn.tup.saddr_h, conn.tup.saddr_l, conn.tup.sport, conn.tup.metadata);
-        print_sk_ip(conn.tup.daddr_h, conn.tup.daddr_l, conn.tup.dport, conn.tup.metadata);
     } else {
         return 0;
     }
