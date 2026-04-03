@@ -317,8 +317,9 @@ func (c *DatadogMetricController) createDatadogMetric(ns, name string, datadogMe
 }
 
 func (c *DatadogMetricController) updateDatadogMetric(ns, name string, datadogMetricInternal *model.DatadogMetricInternal, _ *datadoghq.DatadogMetric) error {
-	return k8sretry.RetryOnConflict(k8sretry.DefaultBackoff, func() error {
-		// Always fetch the latest version directly from the API server to avoid stale resourceVersion from the informer cache.
+	err := k8sretry.RetryOnConflict(k8sretry.DefaultBackoff, func() error {
+		// Always fetch the latest version directly from the API server to
+		// avoid stale resourceVersion from the informer cache.
 		currentObj, err := c.clientSet.Resource(gvrDDM).Namespace(ns).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
 			return fmt.Errorf("Unable to get DatadogMetric: %s/%s, err: %v", ns, name, err)
@@ -356,6 +357,8 @@ func (c *DatadogMetricController) updateDatadogMetric(ns, name string, datadogMe
 
 		return nil
 	})
+
+	return err
 }
 
 func (c *DatadogMetricController) deleteDatadogMetric(ns, name string) error {
