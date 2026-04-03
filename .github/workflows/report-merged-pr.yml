@@ -56,6 +56,6 @@ jobs:
         env:
           PR_NUMBER: ${{ steps.extract_pr.outputs.pr_number }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DD_API_KEY: ${{ steps.dd-sts.outputs.api-key }}
+          DD_API_KEY: ${{ steps.dd-sts.outputs.api_key }}
         run: |
           dda inv -- -e github.pr-merge-dd-event-sender -p "$PR_NUMBER"
