@@ -315,33 +315,46 @@ func (c *DatadogMetricController) createDatadogMetric(ns, name string, datadogMe
 	return nil
 }
 
-func (c *DatadogMetricController) updateDatadogMetric(ns, name string, datadogMetricInternal *model.DatadogMetricInternal, datadogMetric *datadoghq.DatadogMetric) error {
-	newStatus := datadogMetricInternal.BuildStatus(&datadogMetric.Status)
-	if newStatus != nil {
-		log.Debugf("Updating status of DatadogMetric: %s/%s", ns, name)
-		datadogMetric := &datadoghq.DatadogMetric{
-			TypeMeta: metaDDM,
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace:       ns,
-				Name:            name,
-				ResourceVersion: datadogMetric.ResourceVersion,
-			},
-			Status: *newStatus,
+func (c *DatadogMetricController) updateDatadogMetric(ns, name string, datadogMetricInternal *model.DatadogMetricInternal, _ *datadoghq.DatadogMetric) error {
+	return k8sretry.RetryOnConflict(k8sretry.DefaultBackoff, func() error {
+		// Always fetch the latest version directly from the API server to avoid stale resourceVersion from the informer cache.
+		currentObj, err := c.clientSet.Resource(gvrDDM).Namespace(ns).Get(context.TODO(), name, metav1.GetOptions{})
+		if err != nil {
+			return fmt.Errorf("Unable to get DatadogMetric: %s/%s, err: %v", ns, name, err)
 		}
-		datadogMetricObj := &unstructured.Unstructured{}
-		if err := UnstructuredFromDDM(datadogMetric, datadogMetricObj); err != nil {
+
+		current := &datadoghq.DatadogMetric{}
+		if err := UnstructuredIntoDDM(currentObj, current); err != nil {
 			return err
 		}
-		_, err := c.clientSet.Resource(gvrDDM).Namespace(ns).UpdateStatus(context.TODO(), datadogMetricObj, metav1.UpdateOptions{})
-		if err != nil {
-			return fmt.Errorf("Unable to update DatadogMetric: %s/%s, err: %v", ns, name, err)
-		}
-		setDatadogMetricTelemetry(datadogMetric)
-	} else {
-		return fmt.Errorf("Impossible to build new status for DatadogMetric: %s", datadogMetricInternal.ID)
-	}
 
-	return nil
+		newStatus := datadogMetricInternal.BuildStatus(&current.Status)
+		if newStatus != nil {
+			log.Debugf("Updating status of DatadogMetric: %s/%s", ns, name)
+			datadogMetric := &datadoghq.DatadogMetric{
+				TypeMeta: metaDDM,
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:       ns,
+					Name:            name,
+					ResourceVersion: current.ResourceVersion,
+				},
+				Status: *newStatus,
+			}
+			datadogMetricObj := &unstructured.Unstructured{}
+			if err := UnstructuredFromDDM(datadogMetric, datadogMetricObj); err != nil {
+				return err
+			}
+			_, err = c.clientSet.Resource(gvrDDM).Namespace(ns).UpdateStatus(context.TODO(), datadogMetricObj, metav1.UpdateOptions{})
+			if err != nil {
+				return err
+			}
+			setDatadogMetricTelemetry(datadogMetric)
+		} else {
+			return fmt.Errorf("Impossible to build new status for DatadogMetric: %s", datadogMetricInternal.ID)
+		}
+
+		return nil
+	})
 }
 
 func (c *DatadogMetricController) deleteDatadogMetric(ns, name string) error {
