@@ -6,6 +6,8 @@
 package etcd
 
 import (
+	"strings"
+
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	appsv1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/apps/v1"
 	corev1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/core/v1"
@@ -110,6 +112,19 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, opts ...p
 		return nil, err
 	}
 
+	var imagePullSecrets corev1.LocalObjectReferenceArray
+	etcdImage := "quay.io/coreos/etcd:v3.5.1"
+	if e.ImagePullRegistry() != "" {
+		imgPullSecret, err := utils.NewImagePullSecret(e, Namespace, opts...)
+		if err != nil {
+			return nil, err
+		}
+		imagePullSecrets = append(imagePullSecrets, corev1.LocalObjectReferenceArgs{
+			Name: imgPullSecret.Metadata.Name(),
+		})
+		etcdImage = strings.SplitN(e.ImagePullRegistry(), ",", 2)[0] + "/quay/coreos/etcd:v3.5.1"
+	}
+
 	_, err = appsv1.NewDeployment(e.Ctx(), "etcd", &appsv1.DeploymentArgs{
 		Metadata: &metav1.ObjectMetaArgs{
 			Name:      pulumi.String("etcd"),
@@ -133,12 +148,13 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, opts ...p
 				},
 				Spec: &corev1.PodSpecArgs{
 					ServiceAccountName: sa.Metadata.Name().Elem(),
+					ImagePullSecrets:   imagePullSecrets,
 					Containers: corev1.ContainerArray{
 						&corev1.ContainerArgs{
 							Name: pulumi.String("etcd"),
 							// The agent only supports the v2 API, which is not
 							// supported anymore in newer versions of etcd.
-							Image: pulumi.String("quay.io/coreos/etcd:v3.5.1"),
+							Image: pulumi.String(etcdImage),
 							Command: pulumi.StringArray{
 								pulumi.String("etcd"),
 							},
