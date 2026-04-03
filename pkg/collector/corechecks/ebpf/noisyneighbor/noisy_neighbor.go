@@ -131,6 +131,11 @@ func (n *NoisyNeighborCheck) submitPrimaryMetrics(sender sender.Sender, stat mod
 
 	psp := float64(stat.PreemptionCount) / float64(stat.UniquePidCount)
 	sender.Gauge("noisy_neighbor.process_scheduler_preemptions.per_process", psp, "", tags)
+
+	if stat.PreemptionCount > 0 {
+		latPerPreempt := float64(stat.SumLatenciesNs) / float64(stat.PreemptionCount)
+		sender.Gauge("noisy_neighbor.latency_per_preemption", latPerPreempt, "", tags)
+	}
 }
 
 func (n *NoisyNeighborCheck) submitRawCounters(sender sender.Sender, stat model.NoisyNeighborStats, tags []string) {
