@@ -316,7 +316,7 @@ func (c *DatadogMetricController) createDatadogMetric(ns, name string, datadogMe
 	return nil
 }
 
-func (c *DatadogMetricController) updateDatadogMetric(ns, name string, datadogMetricInternal *model.DatadogMetricInternal, _ *datadoghq.DatadogMetric) error {
+func (c *DatadogMetricController) updateDatadogMetric(ns, name string, datadogMetricInternal *model.DatadogMetricInternal, datadogMetric *datadoghq.DatadogMetric) error {
 	err := k8sretry.RetryOnConflict(k8sretry.DefaultBackoff, func() error {
 		// Always fetch the latest version directly from the API server to
 		// avoid stale resourceVersion from the informer cache.
