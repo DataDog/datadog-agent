@@ -4062,7 +4062,7 @@ api_key:
 #
 #       enabled: false
 
-#       # @param timeout - integer - optional - default: 5
+#       # @param timeout - integer - optional - default: 3000
 #       # @env DD_NETWORK_DEVICES_AUTODISCOVERY_PING_TIMEOUT - integer - optional - default: 3000
 #       # Timeout in milliseconds
 #
