@@ -117,11 +117,10 @@ func (t *unixTransport) Send(b []byte) error {
 	bufs := net.Buffers{prefix[:], b}
 	_, err := bufs.WriteTo(conn)
 	if err != nil {
-		// Timeout: sidecar is slow but alive. Drop the frame, keep connection.
-		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-			return err
-		}
-		// Non-timeout error (broken pipe, reset): connection is dead.
+		// Any write error (timeout, broken pipe, reset) corrupts the
+		// framing — a partial frame may be in the kernel buffer, so the
+		// sidecar's frame reader is permanently desynchronized. The
+		// connection must be torn down; the discovery loop will reconnect.
 		t.mu.Lock()
 		if t.conn == conn {
 			t.conn = nil
