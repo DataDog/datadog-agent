@@ -26,6 +26,7 @@ RUN mkdir -p src/writers benches \
     && echo 'fn main(){}' > src/hydrate.rs \
     && echo 'fn main(){}' > benches/transport_bench.rs \
     && echo 'fn main(){}' > benches/framing_bench.rs \
+    && echo 'fn main(){}' > benches/writer_bench.rs \
     && cargo build --release --bin flightrecorder --bin reader --bin validate \
     && rm src/main.rs src/reader.rs src/validate.rs src/hydrate.rs benches/*
 

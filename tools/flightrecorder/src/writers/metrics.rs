@@ -99,6 +99,8 @@ impl MetricsWriter {
                 self.timestamps.push(s.timestamp_ns());
                 self.sample_rates.push(s.sample_rate());
             }
+            // Flush the BufWriter once per frame (not per-context).
+            let _ = self.context_store.flush();
         }
 
         if self.base.should_flush(self.len()) {
@@ -292,6 +294,7 @@ mod tests {
         w.context_store
             .try_record(200, "mem.usage", "host:b")
             .unwrap();
+        w.context_store.flush().unwrap();
 
         w.context_keys.extend_from_slice(&[100, 200]);
         w.sources.intern("agent");

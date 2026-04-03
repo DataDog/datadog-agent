@@ -1,5 +1,5 @@
 use std::fs::{File, OpenOptions};
-use std::io::Write;
+use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
@@ -25,7 +25,7 @@ use tracing::info;
 ///
 /// No footer or index. The reader scans linearly.
 pub struct ContextStore {
-    file: File,
+    file: BufWriter<File>,
     path: PathBuf,
     bloom: Bloom<u64>,
     write_buf: Vec<u8>,
@@ -53,7 +53,10 @@ impl ContextStore {
         info!(path = %path.display(), "context store opened (append mode)");
 
         Ok(Self {
-            file,
+            // 64 KB buffer batches many small context writes into fewer
+            // syscalls. Critical during warm-up when 50K+ contexts arrive
+            // in a burst — reduces syscalls from 50K to ~80.
+            file: BufWriter::with_capacity(64 * 1024, file),
             path,
             // 500K keys at 0.1% false positive rate ≈ 120 KB.
             bloom: Bloom::new_for_fp_rate(500_000, 0.001),
@@ -98,6 +101,11 @@ impl ContextStore {
         Ok(true)
     }
 
+    /// Flush the BufWriter to disk. Call after processing a batch of
+    /// context definitions (not per-context) to ensure data is persisted.
+    pub fn flush(&mut self) -> Result<()> {
+        self.file.flush().with_context(|| "flushing contexts.bin")
+    }
 }
 
 /// Read all context records from a `contexts.bin` file.
@@ -184,7 +192,8 @@ mod tests {
         assert_eq!(store.contexts_written, 2);
         assert_eq!(store.contexts_deduplicated, 1);
 
-        // Read back and verify.
+        // Flush BufWriter before reading back.
+        store.flush().unwrap();
         drop(store);
         let contexts = read_contexts_bin(&dir.path().join("contexts.bin")).unwrap();
         assert_eq!(contexts.len(), 2);
@@ -200,6 +209,7 @@ mod tests {
             let mut store = ContextStore::new(dir.path()).unwrap();
             store.try_record(1, "a", "t:1").unwrap();
             store.try_record(2, "b", "t:2").unwrap();
+            store.flush().unwrap();
         }
         // Second open: file is preserved, new bloom filter is empty so
         // the same keys can be written again (duplicates are harmless).
@@ -207,6 +217,7 @@ mod tests {
             let mut store = ContextStore::new(dir.path()).unwrap();
             store.try_record(1, "a", "t:1").unwrap(); // duplicate, appended
             store.try_record(3, "c", "t:3").unwrap(); // new
+            store.flush().unwrap();
         }
         let contexts = read_contexts_bin(&dir.path().join("contexts.bin")).unwrap();
         assert_eq!(contexts.len(), 4); // 2 from first open + 2 from second

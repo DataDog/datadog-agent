@@ -86,19 +86,19 @@ func NewComponent(req Requires) (Provides, error) {
 	}
 	ptCapacity := req.Config.GetInt("flightrecorder.point_buffer_capacity")
 	if ptCapacity <= 0 {
-		ptCapacity = 10000
+		ptCapacity = 100000
 	}
 	defCapacity := req.Config.GetInt("flightrecorder.def_buffer_capacity")
 	if defCapacity <= 0 {
-		defCapacity = 1000
+		defCapacity = 10000
 	}
 	logCapacity := req.Config.GetInt("flightrecorder.log_buffer_capacity")
 	if logCapacity <= 0 {
-		logCapacity = 2500
+		logCapacity = 25000
 	}
 	traceStatsCapacity := req.Config.GetInt("flightrecorder.trace_stats_buffer_capacity")
 	if traceStatsCapacity <= 0 {
-		traceStatsCapacity = 1000
+		traceStatsCapacity = 5000
 	}
 	hookBufSize := req.Config.GetInt("flightrecorder.hook_buffer_size")
 	if hookBufSize <= 0 {
