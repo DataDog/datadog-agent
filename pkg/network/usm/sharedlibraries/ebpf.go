@@ -579,19 +579,14 @@ func (e *EbpfProgram) initializeProbes(sleepableIDs *[]manager.ProbeIdentificati
 	isFexitSupported := fexitSupported("do_sys_openat2")
 
 	// Tracing represents fentry/fexit probes.
-	tracingProbes := []manager.ProbeIdentificationPair{
-		{
-			EBPFFuncName: "__x64_sys_" + openat2SysCall + "_exit",
-			UID:          probeUID,
-		},
-		{
-			EBPFFuncName: "__x64_sys_" + openatSysCall + "_exit",
-			UID:          probeUID,
-		},
-		{
-			EBPFFuncName: "__x64_sys_" + openSysCall + "_exit",
-			UID:          probeUID,
-		},
+	tracingProbes := []manager.ProbeIdentificationPair{}
+	for _, arch := range []string{"__x64", "__arm64"} {
+		for _, syscall := range []string{openat2SysCall, openatSysCall, openSysCall} {
+			tracingProbes = append(tracingProbes, manager.ProbeIdentificationPair{
+				EBPFFuncName: arch + syscall + "_exit",
+				UID:          probeUID,
+			})
+		}
 	}
 
 	openatProbes := []string{openatSysCall}
@@ -644,6 +639,7 @@ func (e *EbpfProgram) initializeProbes(sleepableIDs *[]manager.ProbeIdentificati
 			// Kernel >= 5.6 with fexit support - use fexit probes (most efficient)
 			e.enabledProbes = tracingProbes
 			e.disabledProbes = append(tpProbes, kprobeProbes...)
+
 			log.Infof("Using fexit probes for shared library monitoring (kernel %s)", kv)
 		} else if kv >= kv415 {
 			// Kernel >= 4.15 - use tracepoints (multiple attachment supported)
@@ -655,9 +651,11 @@ func (e *EbpfProgram) initializeProbes(sleepableIDs *[]manager.ProbeIdentificati
 			log.Infof("Using kprobe fallback for shared library monitoring (kernel %s < 4.15)", kv)
 		}
 
-		if kv > kernel.VersionCode(5, 10, 0) {
-			*sleepableIDs = slices.Clone(e.enabledProbes)
-		}
+	}
+
+	// Only fentry/fexit/fmod_ret, lsm, iter, uprobe, and struct_ops programs can be sleepable
+	if kv >= kernel.VersionCode(5, 11, 0) {
+		*sleepableIDs = slices.Clone(e.enabledProbes)
 	}
 }
 
