@@ -12,13 +12,20 @@
 #endif
 
 typedef struct {
+    __u64 sent_bytes;
+    __u64 recv_bytes;
+    __u32 sent_packets;
+    __u32 recv_packets;
+    __u32 retransmits;
+    __u32 reord_seen;
+    __u32 rcv_ooopack;
+    __u32 delivered_ce;
+} sk_initial_tcp_stats_t;
+
+typedef struct {
     conn_tuple_t tup;
 
-    __u64 initial_sent_bytes;
-    __u64 initial_recv_bytes;
-    __u32 initial_sent_packets;
-    __u32 initial_recv_packets;
-    __u32 initial_retransmits;
+    sk_initial_tcp_stats_t initial;
     __u16 state_transitions;
     __u16 failure_reason;
 
