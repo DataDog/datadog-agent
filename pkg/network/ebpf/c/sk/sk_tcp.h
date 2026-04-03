@@ -209,7 +209,6 @@ int BPF_PROG(tcp_done_entry, struct sock *sk) {
         return 0;
     }
 
-    conn.conn_stats.duration = bpf_ktime_get_ns() - conn.conn_stats.duration;
     bpf_ringbuf_output(&conn_close_event, &conn, sizeof(conn_t), get_ringbuf_flags(sizeof(conn_t)));
     return 0;
 }
@@ -229,7 +228,6 @@ int BPF_PROG(tcp_close_entry, struct sock *sk) {
         return 0;
     }
 
-    conn.conn_stats.duration = bpf_ktime_get_ns() - conn.conn_stats.duration;
     bpf_ringbuf_output(&conn_close_event, &conn, sizeof(conn_t), get_ringbuf_flags(sizeof(conn_t)));
     return 0;
 }
