@@ -1053,10 +1053,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("integration_security_excluded_checks", []string{})
 
 	// Host Profiler config
-
-	// Individual debug options don't need to be registered here - the section is
-	// passed as-is to the OTel debug exporter which handles its own validation.
-	config.BindEnvAndSetDefault("hostprofiler.debug", map[string]any{})
+	config.BindEnvAndSetDefault("hostprofiler.debug.verbosity", "")
 	config.BindEnvAndSetDefault("hostprofiler.additional_http_headers", map[string]string{})
 }
 
