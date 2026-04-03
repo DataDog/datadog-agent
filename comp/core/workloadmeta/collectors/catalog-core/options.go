@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build trivy
-
 // Package catalog is a wrapper that loads the available workloadmeta
 // collectors. This is the catalog used by the core agent.
 package catalog
