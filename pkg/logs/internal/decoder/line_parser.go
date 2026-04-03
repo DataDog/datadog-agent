@@ -125,15 +125,21 @@ func (p *MultiLineParser) process(input *message.Message, rawDataLen int) {
 	if err != nil {
 		log.Debug(err)
 	}
+	// if the buffer already has content and adding this chunk would exceed
+	// the limit, flush the current buffer as truncated before writing
+	if p.buffer.Len() > 0 && p.buffer.Len()+len(msg.GetContent()) >= p.lineLimit {
+		p.isBufferTruncated = true
+		p.sendLine()
+	}
+
 	// track the raw data length and the timestamp so that the agent tails
 	// from the right place at restart
 	p.rawDataLen += rawDataLen
 	p.buffer.Write(msg.GetContent())
 	p.bufferedMsg = msg
 
+	// a single chunk alone could still exceed the limit
 	if p.buffer.Len() >= p.lineLimit {
-		// buffer exceeds size cap — mark as truncated and let SingleLineHandler
-		// handle the ...TRUNCATED... byte markers and metric downstream
 		p.isBufferTruncated = true
 	}
 
