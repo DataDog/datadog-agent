@@ -19,7 +19,6 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.147.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/pprofextension v0.147.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor v0.147.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver v0.147.0
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/collector/component v1.53.0
 	go.opentelemetry.io/collector/component/componentstatus v0.147.0

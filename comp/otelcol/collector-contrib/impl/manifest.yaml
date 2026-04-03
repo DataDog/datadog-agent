@@ -1,8 +1,6 @@
 connectors:
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector
     v0.147.0
-- gomod: github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector
-    v0.147.0
 dist:
   description: Datadog OpenTelemetry Collector
   module: github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl
@@ -24,14 +22,6 @@ extensions:
     v0.147.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/pprofextension
     v0.147.0
-- gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/dockerobserver
-    v0.147.0
-- gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/ecsobserver
-    v0.147.0
-- gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/hostobserver
-    v0.147.0
-- gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/k8sobserver
-    v0.147.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension
     v0.147.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/filestorage
@@ -43,21 +33,11 @@ processors:
     v0.147.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/cumulativetodeltaprocessor
     v0.147.0
-- gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor
-    v0.147.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/groupbyattrsprocessor
-    v0.147.0
-- gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/k8sattributesprocessor
     v0.147.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor
     v0.147.0
-- gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor
-    v0.147.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourceprocessor
-    v0.147.0
-- gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor
-    v0.147.0
-- gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor
     v0.147.0
 providers:
 - gomod: go.opentelemetry.io/collector/confmap/provider/envprovider v1.53.0
@@ -70,17 +50,7 @@ receivers:
 - gomod: go.opentelemetry.io/collector/receiver/otlpreceiver v0.147.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/filelogreceiver
     v0.147.0
-- gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/fluentforwardreceiver
-    v0.147.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsreceiver
-    v0.147.0
-- gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver
-    v0.147.0
-- gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver
-    v0.147.0
-- gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/receivercreator
-    v0.147.0
-- gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver
     v0.147.0
 replaces:
 - github.com/googleapis/gnostic v0.5.6 => github.com/googleapis/gnostic v0.5.5

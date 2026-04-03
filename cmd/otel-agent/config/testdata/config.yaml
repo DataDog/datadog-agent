@@ -28,8 +28,7 @@ exporters:
       compute_top_level_by_span_kind: false
       trace_buffer: 10
 processors:
-  resourcedetection:
-    detectors: [system, env]
+  batch:
 service:
   telemetry:
     logs:
@@ -37,13 +36,13 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [resourcedetection]
+      processors: [batch]
       exporters: [debug, datadog/exp1]
     metrics:
       receivers: [otlp]
-      processors: [resourcedetection]
+      processors: [batch]
       exporters: [debug]
     logs:
       receivers: [otlp]
-      processors: [resourcedetection]
+      processors: [batch]
       exporters: [debug]

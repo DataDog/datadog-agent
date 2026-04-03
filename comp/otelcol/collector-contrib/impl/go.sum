@@ -694,8 +694,6 @@ github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsre
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsreceiver v0.147.0/go.mod h1:vR40Pf+qPjkN3dw+SZduxgRpKDI86TTAk026HcjFUAc=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.147.0 h1:4Fxs1MC5uedffj72Cbsp4PGYlS2QwYzzFMsnWqKrvXI=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.147.0/go.mod h1:KPxcGM9KYv+4l3fTYpVA/tAX0Tmh3e9LFVvMRXaCcwk=
-github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver v0.147.0 h1:+UKAkzgVjdYbeI/hErs0R20LOlzqCYIXcWuiHBcZLpY=
-github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver v0.147.0/go.mod h1:GIyJzng/QxPqTl+2zlXCtZflF9O6EXM4gSjHYtUgrK8=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/receivercreator v0.147.0 h1:R7FZxpNBz3t1ENi6jV3bCLvdopsOG6saUZOp8wJpLyw=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/receivercreator v0.147.0/go.mod h1:BzYXC7fF+clMxSjIrDMI/9dieFzwhbj8KhaTWwfeGII=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver v0.147.0 h1:99RtE1pkTjNkRlcwTdCOI9miK+q7DWPZ/3anBfRN2xE=

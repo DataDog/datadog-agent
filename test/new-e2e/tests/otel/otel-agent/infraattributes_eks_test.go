@@ -86,10 +86,6 @@ func (s *iaEKSTestSuite) TestHosts() {
 	utils.TestHosts(s)
 }
 
-func (s *iaEKSTestSuite) TestPrometheusMetrics() {
-	utils.TestPrometheusMetrics(s)
-}
-
 type iaUSTEKSTestSuite struct {
 	e2e.BaseSuite[environments.Kubernetes]
 }

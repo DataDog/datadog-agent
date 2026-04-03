@@ -11,8 +11,7 @@ exporters:
     tls:
       insecure: true
 processors:
-  resourcedetection:
-    detectors: [system, env]
+  batch:
 service:
   telemetry:
     logs:
@@ -20,13 +19,13 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [resourcedetection]
+      processors: [batch]
       exporters: [debug]
     metrics:
       receivers: [otlp]
-      processors: [resourcedetection]
+      processors: [batch]
       exporters: [debug]
     logs:
       receivers: [otlp]
-      processors: [resourcedetection]
+      processors: [batch]
       exporters: [debug]

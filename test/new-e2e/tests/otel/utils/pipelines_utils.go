@@ -417,40 +417,8 @@ func TestSampling(s OTelTestSuite, computeTopLevelBySpanKind bool) {
 
 const (
 	originProductDatadogExporter     = 19
-	originServicePrometheusReceiver  = 238
 	originServiceHostmetricsReceiver = 224
 )
-
-// TestPrometheusMetrics tests that expected prometheus metrics are scraped
-func TestPrometheusMetrics(s OTelTestSuite) {
-	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
-	require.NoError(s.T(), err)
-
-	var otelcolMetrics []*aggregator.MetricSeries
-	var traceAgentMetrics []*aggregator.MetricSeries
-	s.T().Log("Waiting for metrics")
-	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		otelcolMetrics, err = s.Env().FakeIntake.Client().FilterMetrics("otelcol_process_uptime")
-		assert.NoError(c, err)
-		assert.NotEmpty(c, otelcolMetrics)
-		for _, m := range otelcolMetrics {
-			origin := m.Metadata.Origin
-			assert.Equal(c, originProductDatadogExporter, int(origin.OriginProduct))
-			assert.Equal(c, originServicePrometheusReceiver, int(origin.OriginService))
-		}
-
-		traceAgentMetrics, err = s.Env().FakeIntake.Client().FilterMetrics("otelcol_datadog_trace_agent_trace_writer_spans")
-		assert.NoError(c, err)
-		assert.NotEmpty(c, traceAgentMetrics)
-		for _, m := range otelcolMetrics {
-			origin := m.Metadata.Origin
-			assert.Equal(c, originProductDatadogExporter, int(origin.OriginProduct))
-			assert.Equal(c, originServicePrometheusReceiver, int(origin.OriginService))
-		}
-	}, 2*time.Minute, 10*time.Second)
-	s.T().Log("Got otelcol_process_uptime", otelcolMetrics)
-	s.T().Log("Got otelcol_datadog_trace_agent_trace_writer_spans", traceAgentMetrics)
-}
 
 // TestHostMetrics tests that expected host metrics are scraped
 func TestHostMetrics(s OTelTestSuite) {

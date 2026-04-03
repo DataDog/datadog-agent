@@ -24,7 +24,6 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/pprofextension"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -200,7 +199,6 @@ func components() (otelcol.Factories, error) {
 	factories.Receivers, err = otelcol.MakeFactoryMap[receiver.Factory](
 		nopreceiver.NewFactory(),
 		otlpreceiver.NewFactory(),
-		prometheusreceiver.NewFactory(),
 	)
 	if err != nil {
 		return otelcol.Factories{}, err

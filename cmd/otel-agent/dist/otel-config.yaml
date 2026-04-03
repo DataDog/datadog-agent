@@ -1,11 +1,4 @@
 receivers:
-  prometheus:
-    config:
-      scrape_configs:
-        - job_name: "otelcol"
-          scrape_interval: 60s
-          static_configs:
-            - targets: ["0.0.0.0:8888"]
   otlp:
     protocols:
       grpc:
@@ -37,7 +30,7 @@ service:
       processors: [infraattributes]
       exporters: [datadog, datadog/connector]
     metrics:
-      receivers: [otlp, datadog/connector, prometheus]
+      receivers: [otlp, datadog/connector]
       processors: [infraattributes]
       exporters: [datadog]
     logs:

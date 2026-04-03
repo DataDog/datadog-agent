@@ -19,8 +19,7 @@ exporters:
       key: DATADOG_API_KEY_2
       site: eu.datadoghq.com
 processors:
-  resourcedetection:
-    detectors: [system, env]
+  batch:
 service:
   telemetry:
     logs:
@@ -28,13 +27,13 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [resourcedetection]
+      processors: [batch]
       exporters: [debug, datadog/exp1]
     metrics:
       receivers: [otlp]
-      processors: [resourcedetection]
+      processors: [batch]
       exporters: [debug, datadog/exp2]
     logs:
       receivers: [otlp]
-      processors: [resourcedetection]
+      processors: [batch]
       exporters: [debug]

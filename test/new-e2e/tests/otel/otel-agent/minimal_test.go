@@ -98,10 +98,6 @@ func (s *minimalTestSuite) TestHosts() {
 	utils.TestHosts(s)
 }
 
-func (s *minimalTestSuite) TestPrometheusMetrics() {
-	utils.TestPrometheusMetrics(s)
-}
-
 func (s *minimalTestSuite) TestOTelAgentInstalled() {
 	utils.TestOTelAgentInstalled(s)
 }
@@ -154,13 +150,6 @@ func (s *minimalTestSuite) TestCoreAgentConfigCmd() {
       receivers:
       - otlp
       - datadog/connector
-    metrics/dd-autoconfigured/datadog:
-      exporters:
-      - datadog
-      processors:
-      - filter/drop-prometheus-internal-metrics/dd-autoconfigured
-      receivers:
-      - prometheus/dd-autoconfigured
     traces:
       exporters:
       - datadog/connector

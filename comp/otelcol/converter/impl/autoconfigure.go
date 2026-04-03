@@ -35,7 +35,7 @@ func (c *ddConverter) enhanceConfig(ctx context.Context, conf *confmap.Conf) {
 	if c.coreConfig != nil {
 		enabledFeatures = c.coreConfig.GetStringSlice("otelcollector.converter.features")
 	} else {
-		enabledFeatures = []string{"infraattributes", "prometheus", "pprof", "zpages", "health_check", "ddflare", "datadog"}
+		enabledFeatures = []string{"infraattributes", "pprof", "zpages", "health_check", "ddflare", "datadog"}
 	}
 
 	// extensions (pprof, zpages, health_check, ddflare, datadog)
@@ -92,10 +92,6 @@ func (c *ddConverter) enhanceConfig(ctx context.Context, conf *confmap.Conf) {
 	// infra attributes processor
 	if slices.Contains(enabledFeatures, "infraattributes") {
 		addProcessorToPipelinesWithDDExporter(conf, infraAttributesProcessor)
-	}
-	// prometheus receiver
-	if slices.Contains(enabledFeatures, "prometheus") {
-		addPrometheusReceiver(conf, findInternalMetricsAddress(conf))
 	}
 
 	// add datadog agent sourced config

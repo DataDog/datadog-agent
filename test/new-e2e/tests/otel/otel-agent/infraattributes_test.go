@@ -85,7 +85,3 @@ func (s *iaTestSuite) TestOTLPLogs() {
 func (s *iaTestSuite) TestHosts() {
 	utils.TestHosts(s)
 }
-
-func (s *iaTestSuite) TestPrometheusMetrics() {
-	utils.TestPrometheusMetrics(s)
-}

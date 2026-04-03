@@ -57,6 +57,32 @@ func TestFxRun_Standalone(t *testing.T) {
 	})
 }
 
+func TestFxRun_HostMetricsReceiver(t *testing.T) {
+	t.Setenv("DD_OTELCOLLECTOR_ENABLED", "true")
+	fxutil.TestRun(t, func() error {
+		ctx := context.Background()
+		params := &cliParams{
+			GlobalParams: &subcommands.GlobalParams{
+				ConfPaths: []string{"test_config_hostmetrics.yaml"},
+			},
+		}
+		return runOTelAgentCommand(ctx, params)
+	})
+}
+
+func TestFxRun_LoadBalancingExporter(t *testing.T) {
+	t.Setenv("DD_OTELCOLLECTOR_ENABLED", "true")
+	fxutil.TestRun(t, func() error {
+		ctx := context.Background()
+		params := &cliParams{
+			GlobalParams: &subcommands.GlobalParams{
+				ConfPaths: []string{"test_config_loadbalancing.yaml"},
+			},
+		}
+		return runOTelAgentCommand(ctx, params)
+	})
+}
+
 func TestFxRun_NoDatadogExporter_Standalone(t *testing.T) {
 	t.Setenv("DD_OTELCOLLECTOR_ENABLED", "true")
 	t.Setenv("DD_OTEL_STANDALONE", "true")

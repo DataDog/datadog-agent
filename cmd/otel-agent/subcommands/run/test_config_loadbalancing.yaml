@@ -1,0 +1,42 @@
+receivers:
+  otlp/loadbalancer:
+    protocols:
+      grpc:
+        endpoint: "localhost:4317"
+  otlp/backend:
+    protocols:
+      grpc:
+        endpoint: "localhost:4318"
+
+exporters:
+  debug:
+  loadbalancing:
+    routing_key: "service"
+    protocol:
+      otlp:
+        timeout: 1s
+        tls:
+          insecure: true
+    resolver:
+      static:
+        hostnames: ["localhost:4318"]
+
+service:
+  pipelines:
+    traces/loadbalancer:
+      receivers: [otlp/loadbalancer]
+      exporters: [loadbalancing]
+    traces/backend:
+      receivers: [otlp/backend]
+      exporters: [debug]
+  telemetry:
+    metrics:
+      readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: "localhost"
+                port: 8888
+                without_scope_info: true
+                without_type_suffix: true
+                without_units: true

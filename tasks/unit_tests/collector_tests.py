@@ -8,6 +8,30 @@ from tasks.collector import YAMLValidationError, strip_invalid_components, valid
 
 # Unit tests to check collector tasks for converged agent
 
+MANIFEST_PATH = "./comp/otelcol/collector-contrib/impl/manifest.yaml"
+
+REMOVED_OTEL_AGENT_COMPONENTS = [
+    "spanmetricsconnector",
+    "tailsamplingprocessor",
+    "transformprocessor",
+    "receivercreator",
+    "dockerobserver",
+    "ecsobserver",
+    "k8sobserver",
+    "jaegerreceiver",
+    "zipkinreceiver",
+    "fluentforwardreceiver",
+]
+
+REQUIRED_OTEL_AGENT_COMPONENTS = [
+    "filterprocessor",
+    "hostmetricsreceiver",
+    "k8sattributesprocessor",
+    "loadbalancingexporter",
+    "prometheusreceiver",
+    "resourcedetectionprocessor",
+]
+
 
 class TestStripComponents(unittest.TestCase):
     def setUp(self):
@@ -112,3 +136,24 @@ class TestValidateYAML(unittest.TestCase):
         with open("./tasks/unit_tests/testdata/collector/awscontainerinsightreceiver_manifest.yaml") as mock_file:
             mock_manifest = yaml.safe_load(mock_file)
             self.assertEqual(validate_manifest(mock_manifest), ["awscontainerinsightreceiver"])
+
+    def test_otel_agent_manifest_component_surface(self):
+        with open(MANIFEST_PATH) as manifest_file:
+            manifest = yaml.safe_load(manifest_file)
+
+        manifest_modules = []
+        for component_type in ["connectors", "exporters", "extensions", "processors", "receivers"]:
+            for component in manifest.get(component_type, []):
+                manifest_modules.append(component["gomod"])
+
+        for component_name in REMOVED_OTEL_AGENT_COMPONENTS:
+            self.assertFalse(
+                any(component_name in module for module in manifest_modules),
+                f"{component_name} should not be present in the otel-agent manifest",
+            )
+
+        for component_name in REQUIRED_OTEL_AGENT_COMPONENTS:
+            self.assertTrue(
+                any(component_name in module for module in manifest_modules),
+                f"{component_name} should remain in the otel-agent manifest",
+            )

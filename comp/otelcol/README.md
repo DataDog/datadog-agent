@@ -64,22 +64,6 @@ receivers:
         endpoint: 0.0.0.0:4317
       http:
         endpoint: 0.0.0.0:4318
-    # Collect own metrics
-  prometheus:
-    config:
-      scrape_configs:
-      - job_name: 'otel-collector'
-        fallback_scrape_protocol: PrometheusText0.0.4
-        metric_name_validation_scheme: legacy
-        scrape_interval: 60s
-        scrape_protocols:
-          - PrometheusText0.0.4
-        static_configs:
-        - targets: ['0.0.0.0:8888']
-        metric_relabel_configs:
-        - source_labels: [__name__]
-          regex: ".*grpc_io.*"
-          action: drop
 exporters:
   datadog:
     hostname: "otelcol-docker"
@@ -110,7 +94,7 @@ service:
       processors: [probabilistic_sampler, infraattributes]
       exporters: [datadog]
     metrics:
-      receivers: [otlp, datadog/connector, prometheus]
+      receivers: [otlp, datadog/connector]
       processors: [infraattributes]
       exporters: [datadog]
     logs:

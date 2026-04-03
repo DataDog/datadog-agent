@@ -173,16 +173,6 @@ func TestConvert(t *testing.T) {
 			expectedResult: "processors/no-changes/config.yaml",
 		},
 		{
-			name:           "receivers/empty-receivers",
-			provided:       "receivers/empty-receivers/config.yaml",
-			expectedResult: "receivers/empty-receivers/config-result.yaml",
-		},
-		{
-			name:           "receivers/job-name-change",
-			provided:       "receivers/job-name-change/config.yaml",
-			expectedResult: "receivers/job-name-change/config-result.yaml",
-		},
-		{
 			name:           "receivers/no-changes",
 			provided:       "receivers/no-changes/config.yaml",
 			expectedResult: "receivers/no-changes/config.yaml",
@@ -196,41 +186,6 @@ func TestConvert(t *testing.T) {
 			name:           "receivers/no-changes-multiple-dd-same-pipeline",
 			provided:       "receivers/no-changes-multiple-dd-same-pipeline/config.yaml",
 			expectedResult: "receivers/no-changes-multiple-dd-same-pipeline/config.yaml",
-		},
-		{
-			name:           "receivers/no-prometheus-receiver",
-			provided:       "receivers/no-prometheus-receiver/config.yaml",
-			expectedResult: "receivers/no-prometheus-receiver/config-result.yaml",
-		},
-		{
-			name:           "receivers/no-prom-multi-dd",
-			provided:       "receivers/no-prom-multi-dd/config.yaml",
-			expectedResult: "receivers/no-prom-multi-dd/config-result.yaml",
-		},
-		{
-			name:           "receivers/no-prom-not-default-addr",
-			provided:       "receivers/no-prom-not-default-addr/config.yaml",
-			expectedResult: "receivers/no-prom-not-default-addr/config-result.yaml",
-		},
-		{
-			name:           "receivers/multi-dd-partial-prom",
-			provided:       "receivers/multi-dd-partial-prom/config.yaml",
-			expectedResult: "receivers/multi-dd-partial-prom/config-result.yaml",
-		},
-		{
-			name:           "receivers/no-receivers-defined",
-			provided:       "receivers/no-receivers-defined/config.yaml",
-			expectedResult: "receivers/no-receivers-defined/config-result.yaml",
-		},
-		{
-			name:           "receivers/empty-staticconfigs",
-			provided:       "receivers/empty-staticconfigs/config.yaml",
-			expectedResult: "receivers/empty-staticconfigs/config-result.yaml",
-		},
-		{
-			name:           "receivers/missing-staticconfigs-section",
-			provided:       "receivers/missing-staticconfigs-section/config.yaml",
-			expectedResult: "receivers/missing-staticconfigs-section/config-result.yaml",
 		},
 		{
 			name:           "processors/dd-connector",
@@ -403,12 +358,6 @@ func TestConvert(t *testing.T) {
 			provided:       "features/no-features/config.yaml",
 			expectedResult: "features/no-features/config.yaml",
 			agentConfig:    "features/no-features/acfg.yaml",
-		},
-		{
-			name:           "features/prometheus-only",
-			provided:       "features/prometheus-only/config.yaml",
-			expectedResult: "features/prometheus-only/config-result.yaml",
-			agentConfig:    "features/prometheus-only/acfg.yaml",
 		},
 		{
 			name:           "features/no-defined-features",

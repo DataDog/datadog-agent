@@ -83,10 +83,6 @@ func (s *completeTestSuite) TestHosts() {
 	utils.TestHosts(s)
 }
 
-func (s *completeTestSuite) TestPrometheusMetrics() {
-	utils.TestPrometheusMetrics(s)
-}
-
 func (s *completeTestSuite) TestOTelAgentInstalled() {
 	utils.TestOTelAgentInstalled(s)
 }

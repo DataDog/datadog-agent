@@ -7,34 +7,19 @@ go 1.25.0
 require (
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def v0.0.0-00010101000000-000000000000
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector v0.147.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.147.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/loadbalancingexporter v0.147.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/sapmexporter v0.147.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension v0.147.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.147.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/dockerobserver v0.147.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/ecsobserver v0.147.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/hostobserver v0.147.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/k8sobserver v0.147.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/pprofextension v0.147.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/filestorage v0.147.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor v0.147.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/cumulativetodeltaprocessor v0.147.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.147.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/groupbyattrsprocessor v0.147.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/processor/k8sattributesprocessor v0.147.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor v0.147.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor v0.147.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourceprocessor v0.147.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor v0.147.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor v0.147.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/filelogreceiver v0.147.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/fluentforwardreceiver v0.147.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsreceiver v0.147.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.147.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver v0.147.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/receivercreator v0.147.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver v0.147.0
 	go.opentelemetry.io/collector/component v1.53.0
 	go.opentelemetry.io/collector/connector v0.147.0
 	go.opentelemetry.io/collector/exporter v1.53.0

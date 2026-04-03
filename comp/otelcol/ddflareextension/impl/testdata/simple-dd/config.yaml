@@ -1,17 +1,5 @@
 receivers:
   otlp:
-  prometheus:
-    config:
-      scrape_configs:
-        - fallback_scrape_protocol: PrometheusText0.0.4
-          job_name: "datadog-agent"
-          metric_name_validation_scheme: legacy
-          metric_name_escaping_scheme: underscores
-          scrape_interval: 5s
-          scrape_protocols:
-            - PrometheusText0.0.4
-          static_configs:
-            - targets: ["0.0.0.0:8888"]
 
 exporters:
   datadog:
@@ -24,7 +12,7 @@ service:
       receivers: [otlp]
       exporters: [datadog]
     metrics:
-      receivers: [otlp, prometheus]
+      receivers: [otlp]
       exporters: [datadog]
     logs:
       receivers: [otlp]
