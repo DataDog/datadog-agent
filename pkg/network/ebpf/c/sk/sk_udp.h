@@ -262,7 +262,6 @@ static __always_inline int handle_skb_consume_udp(struct sock *sk, struct sk_buf
 
     sk_udp_stats_t *sk_stats = bpf_sk_storage_get(&sk_udp_stats, sk, 0, BPF_SK_STORAGE_GET_F_CREATE);
     if (!sk_stats) {
-        log_debug("ERR no stats");
         return 0;
     }
     if (!sk_stats->tup.pid) {
@@ -272,6 +271,7 @@ static __always_inline int handle_skb_consume_udp(struct sock *sk, struct sk_buf
         sk_stats->tup.netns = get_netns_from_sock(sk);
     }
     sk_stats->tup.metadata |= CONN_TYPE_UDP;
+
     // TODO do we need to differentiate UDP connections by tuple instead of socket?
     unsigned char *head = skb->head;
     if (!head) {
