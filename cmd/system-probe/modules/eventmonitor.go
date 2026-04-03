@@ -66,14 +66,35 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDepen
 		return nil, module.ErrNotEnabled
 	}
 
-	if secconfig.RuntimeSecurity.IsRuntimeEnabled() {
-		cws, err := secmodule.NewCWSConsumer(evm, secconfig.RuntimeSecurity, deps.WMeta, deps.FilterStore, secmoduleOpts, deps.Compression, deps.Ipc, hostname, deps.Secrets)
+	cwsEnabled := secconfig.RuntimeSecurity.IsRuntimeEnabled()
+	runtimeUsageEnabled := secconfig.RuntimeSecurity.SBOMResolverEnabled
+
+	if cwsEnabled || runtimeUsageEnabled {
+		stopChan := make(chan struct{})
+
+		cmdServer, err := secmodule.NewCommandServer(secconfig.RuntimeSecurity, stopChan)
 		if err != nil {
 			return nil, err
 		}
-		evm.RegisterEventConsumer(cws)
-		evm.SetCWSStatusProvider(cws)
-		log.Info("event monitoring cws consumer initialized")
+
+		if cwsEnabled {
+			cws, err := secmodule.NewCWSConsumer(cmdServer, evm, secconfig.RuntimeSecurity, deps.WMeta, deps.FilterStore, secmoduleOpts, deps.Compression, deps.Ipc, hostname, deps.Secrets)
+			if err != nil {
+				return nil, err
+			}
+			evm.RegisterEventConsumer(cws)
+			evm.SetCWSStatusProvider(cws)
+			log.Info("event monitoring cws consumer initialized")
+		}
+
+		if runtimeUsageEnabled {
+			usage, err := secmodule.NewUsageConsumer(cmdServer, evm, secconfig.RuntimeSecurity, stopChan)
+			if err != nil {
+				return nil, err
+			}
+			evm.RegisterEventConsumer(usage)
+			log.Info("event monitoring usage consumer initialized")
+		}
 	}
 
 	netconfig := netconfig.New()
