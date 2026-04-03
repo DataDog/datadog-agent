@@ -42,7 +42,7 @@ func DumpK8sClusterState(ctx context.Context, kubeconfig *clientcmdapi.Config, o
 		return fmt.Errorf("failed to close kubeconfig file: %v", err)
 	}
 
-	fmt.Fprintf(out, "\n")
+	fmt.Fprintf(out, "\n---------- All resources ----------\n")
 
 	configFlags := genericclioptions.NewConfigFlags(false)
 	kubeconfigFileName := kubeconfigFile.Name()
@@ -89,7 +89,7 @@ func DumpK8sClusterState(ctx context.Context, kubeconfig *clientcmdapi.Config, o
 
 	for _, pod := range pods.Items {
 		for _, containerStatus := range pod.Status.ContainerStatuses {
-			if containerStatus.RestartCount > 0 {
+			if containerStatus.RestartCount > 0 || !containerStatus.Ready {
 				fmt.Fprintf(out, "\nLOGS FOR POD %s/%s CONTAINER %s:\n", pod.Namespace, pod.Name, containerStatus.Name)
 				logs, err := k8sClient.CoreV1().Pods(pod.Namespace).GetLogs(pod.Name, &corev1.PodLogOptions{
 					Container: containerStatus.Name,

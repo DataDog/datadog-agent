@@ -92,6 +92,8 @@ func OpenShiftVMRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, param
 		compute.WithOS(osDesc),
 		compute.WithInstancetype("n2-standard-32"),
 		compute.WithNestedVirt(true),
+		// this is used by the dumpCluster debug function
+		compute.WithLabels(map[string]string{"kube-provider": "openshift"}),
 	)
 	if err != nil {
 		return err

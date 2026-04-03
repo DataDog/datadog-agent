@@ -111,6 +111,7 @@ func DumpOpenshiftClusterState(ctx context.Context, name string) (ret string, er
 
 	fmt.Fprintf(&out, "\nstack name: '%s'\n", name)
 
+	// Create GCP client using default provided env var GOOGLE_APPLICATION_CREDENTIALS
 	gcpClient, err := gcpapi.NewInstancesRESTClient(ctx)
 	if err != nil {
 		gcpEnvVarContent := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS")
@@ -119,23 +120,19 @@ func DumpOpenshiftClusterState(ctx context.Context, name string) (ret string, er
 		return
 	}
 
-	instanceFilter := "(labels.managed-by=pulumi) (labels.stack=" + name + ")"
+	// search for the unique instance using labels: manged-by, stack name and unique label on the vm 'kube-provider'
+	// to prevent returning the fakeintake vm and only return the vm running openshift.
+	instanceFilter := "(labels.managed-by=pulumi) (labels.stack=" + name + ") (labels.kube-provider=openshift)"
 	project := "datadog-agent-qa"
 	zone := "us-central1-a"
-	instanceIterator := gcpClient.List(ctx, &computepb.ListInstancesRequest{
+	openshiftInstance, err := gcpClient.List(ctx, &computepb.ListInstancesRequest{
 		Filter:  &instanceFilter,
 		Project: project,
 		Zone:    zone,
-	}).All()
+	}).Next()
 
-	var openshiftInstance *computepb.Instance
-	for instance := range instanceIterator {
-		fmt.Fprintf(&out, "\nFound Instance: %s\n", instance.GetName())
-		// between the fake intake and the vm running openshifht, this is the only difference in the VM name
-		if strings.Contains(instance.GetName(), "open") {
-			openshiftInstance = instance
-			break
-		}
+	if err != nil {
+		err = fmt.Errorf("failed to find the VM running openshift: %w", err)
 	}
 
 	if openshiftInstance == nil {
@@ -143,6 +140,7 @@ func DumpOpenshiftClusterState(ctx context.Context, name string) (ret string, er
 		return
 	}
 
+	// get the private IP Address
 	vmName := openshiftInstance.GetName()
 	networks := openshiftInstance.GetNetworkInterfaces()
 	if len(networks) == 0 {
@@ -159,6 +157,7 @@ func DumpOpenshiftClusterState(ctx context.Context, name string) (ret string, er
 
 	fmt.Fprintf(&out, "Found gcp vm running openshift: %s - IP: %s\n", vmName, vmIP)
 
+	// get the kubeconfig file from the VM using ssh
 	var errs []error
 
 	sshClient, err := infra.SshConnectToInstance(vmIP, "22", "gce")
@@ -185,14 +184,13 @@ func DumpOpenshiftClusterState(ctx context.Context, name string) (ret string, er
 		return
 	}
 
-	fmt.Fprintf(&out, "Original kubeconfig file:\n%s\n", string(sshOutput))
-
 	kubeConfig, err := clientcmd.Load(sshOutput)
 	if err != nil {
 		err = fmt.Errorf("failed to load kubeconfig: %w", err)
 		err = errors.Join(append(errs, err)...)
 	}
 
+	// patch the kubeconfig file to use the private IP address and the port listening on that address
 	for _, cluster := range kubeConfig.Clusters {
 		serverUrl, err := url.Parse(cluster.Server)
 		if err != nil {
@@ -217,6 +215,7 @@ func DumpOpenshiftClusterState(ctx context.Context, name string) (ret string, er
 
 	fmt.Fprintf(&out, "---------- Kubeconfig ----------\n%s\n", string(kubeconfigStr))
 
+	// use the global k8s dump cluster function to dump the cluster state to help debug
 	err = infra.DumpK8sClusterState(ctx, kubeConfig, &out)
 	if err != nil {
 		err = fmt.Errorf("failed to dump cluster state: %w", err)
