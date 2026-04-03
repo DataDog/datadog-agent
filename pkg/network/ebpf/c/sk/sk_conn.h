@@ -48,11 +48,14 @@ static __always_inline int create_tcp_conn(conn_t *conn, struct sock *sk, sk_tcp
         conn->conn_stats.direction = sk_stats->direction;
 
         // offset absolute counters with initial values read
-        conn->conn_stats.sent_bytes -= sk_stats->initial_sent_bytes;
-        conn->conn_stats.recv_bytes -= sk_stats->initial_recv_bytes;
-        conn->conn_stats.sent_packets -= sk_stats->initial_sent_packets;
-        conn->conn_stats.recv_packets -= sk_stats->initial_recv_packets;
-        conn->tcp_stats.retransmits -= sk_stats->initial_retransmits;
+        conn->conn_stats.sent_bytes -= sk_stats->initial.sent_bytes;
+        conn->conn_stats.recv_bytes -= sk_stats->initial.recv_bytes;
+        conn->conn_stats.sent_packets -= sk_stats->initial.sent_packets;
+        conn->conn_stats.recv_packets -= sk_stats->initial.recv_packets;
+        conn->tcp_stats.retransmits -= sk_stats->initial.retransmits;
+        conn->tcp_stats.reord_seen -= sk_stats->initial.reord_seen;
+        conn->tcp_stats.rcv_ooopack -= sk_stats->initial.rcv_ooopack;
+        conn->tcp_stats.delivered_ce -= sk_stats->initial.delivered_ce;
     }
     return 1;
 }

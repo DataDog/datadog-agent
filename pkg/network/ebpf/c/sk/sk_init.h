@@ -21,16 +21,14 @@ static __always_inline void initialize_tcp_socket(struct sock *sk, struct task_s
         return;
     }
 
-    // TODO do any of these need to be stored?
-//    conn->tcp_stats.reord_seen = tp->reord_seen;
-//    conn->tcp_stats.rcv_ooopack = tp->rcv_ooopack;
-//    conn->tcp_stats.delivered_ce = tp->delivered_ce;
-
-    sk_stats->initial_sent_bytes = tp->bytes_sent;
-    sk_stats->initial_recv_bytes = tp->bytes_received;
-    sk_stats->initial_sent_packets = tp->segs_out;
-    sk_stats->initial_recv_packets = tp->segs_in;
-    sk_stats->initial_retransmits = tp->total_retrans;
+    sk_stats->initial.sent_bytes = tp->bytes_sent;
+    sk_stats->initial.recv_bytes = tp->bytes_received;
+    sk_stats->initial.sent_packets = tp->segs_out;
+    sk_stats->initial.recv_packets = tp->segs_in;
+    sk_stats->initial.retransmits = tp->total_retrans;
+    sk_stats->initial.reord_seen = tp->reord_seen;
+    sk_stats->initial.rcv_ooopack = tp->rcv_ooopack;
+    sk_stats->initial.delivered_ce = tp->delivered_ce;
 
     sk_stats->tup.pid = task->tgid;
     sk_stats->tup.netns = get_netns_from_sock(sk);
