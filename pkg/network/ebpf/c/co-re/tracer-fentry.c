@@ -4,6 +4,8 @@
 #include "bpf_tracing.h"
 #include "bpf_metadata.h"
 
+#include "bpf_bypass.h"
+
 #include "ip.h"
 #include "ipv6.h"
 #include "sock.h"
