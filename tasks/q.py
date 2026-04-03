@@ -111,6 +111,33 @@ def build_scorer(ctx):
     ctx.run("go build -o bin/observer-scorer ./cmd/observer-scorer")
 
 
+def _prepare_eval_output_dir(output_dir: str, *, overwrite: bool) -> bool:
+    """Ensure ``output_dir`` is empty and ready for a fresh eval run.
+
+    If the path exists and contains ``report.json``, the run is aborted unless
+    ``overwrite`` is True (avoids silently deleting completed experiments).
+
+    Returns True if the directory is ready, False if the caller should stop.
+    """
+    if os.path.isfile(output_dir):
+        print(color_message(f"Error: output path is a file, not a directory: {output_dir}", Color.RED))
+        return False
+    report_path = os.path.join(output_dir, "report.json")
+    if os.path.isfile(report_path) and not overwrite:
+        print(
+            color_message(
+                f"Error: output directory already contains report.json: {report_path}\n"
+                f"Use --overwrite to replace it, or choose a different --output-dir.",
+                Color.RED,
+            )
+        )
+        return False
+    if os.path.exists(output_dir):
+        shutil.rmtree(output_dir)
+    os.makedirs(output_dir)
+    return True
+
+
 # --- Eval ---
 @task
 def eval_scenarios(
@@ -518,6 +545,7 @@ def eval_combinations(
     sigma: float = 30.0,
     seed: int = None,
     build: bool = True,
+    overwrite: bool = False,
     force_enable: str = "",
     force_disable: str = "",
 ):
@@ -540,7 +568,9 @@ def eval_combinations(
         n: Total combinations to evaluate: one full-stack plus (n - 1) random
             (default: 10). Use n=1 for only the full-stack baseline.
         output_dir: Root directory for per-combo results and summary. If this
-            path already exists, it is removed first.
+            path already exists and contains report.json, the task aborts unless
+            overwrite is True; otherwise the directory is removed first.
+        overwrite: Allow replacing an existing output_dir that contains report.json.
         scenarios_dir: Directory containing scenario subdirectories.
         sigma: Gaussian width in seconds for F1 scoring.
         seed: Random seed for reproducibility (default: None = random).
@@ -555,9 +585,8 @@ def eval_combinations(
         dda inv q.eval-combinations --n 5 --output-dir /tmp/ablation
         dda inv q.eval-combinations --n 10 --force-enable bocpd --force-disable scanmw,scanwelch
     """
-    if os.path.exists(output_dir):
-        shutil.rmtree(output_dir)
-    os.makedirs(output_dir)
+    if not _prepare_eval_output_dir(output_dir, overwrite=overwrite):
+        return
 
     if build:
         build_testbench(ctx)
@@ -793,6 +822,7 @@ def eval_bayesian(
     sigma: float = 30.0,
     seed: int = None,
     build: bool = True,
+    overwrite: bool = False,
     _logger: StepLogger | None = None,
 ):
     """
@@ -812,7 +842,9 @@ def eval_bayesian(
         components: Comma-separated component names to enable (detectors, correlators, extractors; default: all).
         lock: Comma-separated components to enable but not tune (keep at Go defaults).
         n_trials: Number of Optuna trials (default: 50).
-        output_dir: Root output directory. Removed and recreated if it exists.
+        output_dir: Root output directory. If it already contains report.json,
+            the task aborts unless overwrite is True; otherwise it is removed first.
+        overwrite: Allow replacing an existing output_dir that contains report.json.
         scenarios_dir: Directory containing scenario subdirectories.
         sigma: Gaussian width in seconds for F1 scoring.
         seed: Random seed for TPE sampler reproducibility (default: None = random).
@@ -848,9 +880,8 @@ def eval_bayesian(
     if seed is None:
         seed = random.randint(0, 2**32 - 1)
 
-    if os.path.exists(output_dir):
-        shutil.rmtree(output_dir)
-    os.makedirs(output_dir)
+    if not _prepare_eval_output_dir(output_dir, overwrite=overwrite):
+        return
 
     if build:
         build_testbench(ctx)
@@ -1006,6 +1037,7 @@ def eval_component(
     sigma: float = 30.0,
     seed: int = None,
     build: bool = True,
+    overwrite: bool = False,
 ):
     """
     Evaluate whether adding a component improves observer accuracy via
@@ -1030,7 +1062,9 @@ def eval_component(
         n_subsets: Number of random detector/correlator subsets (default: 5).
         n_trials: Optuna trials per Bayesian run (default: 5).
         m_runs: Independent Bayesian optimisation runs per subset per variant (default: 1).
-        output_dir: Root output directory (removed and recreated).
+        output_dir: Root output directory. If it already contains report.json,
+            the task aborts unless overwrite is True.
+        overwrite: Allow replacing an existing output_dir that contains report.json.
         scenarios_dir: Directory containing scenario subdirectories.
         sigma: Gaussian width in seconds for F1 scoring.
         seed: Base seed for deterministic reproducibility (default: random).
@@ -1079,14 +1113,13 @@ def eval_component(
     total_bayesian_runs = n_subsets * 2 * m_runs
     total_testbench_runs = total_bayesian_runs * n_trials * n_scenarios
 
+    if not _prepare_eval_output_dir(output_dir, overwrite=overwrite):
+        return
+
     # --- build once ---
     if build:
         build_testbench(ctx)
         build_scorer(ctx)
-
-    if os.path.exists(output_dir):
-        shutil.rmtree(output_dir)
-    os.makedirs(output_dir)
 
     print(color_message(f"\n{'=' * 70}", Color.BLUE))
     print(color_message("  Observer Component Evaluation", Color.BLUE))
@@ -1149,6 +1182,7 @@ def eval_component(
                     sigma=sigma,
                     seed=run_seed,
                     build=False,
+                    overwrite=True,
                     _logger=trial_logger,
                 )
 
