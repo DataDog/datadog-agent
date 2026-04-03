@@ -1,0 +1,8 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+cc_library(
+    name = "procmonapi",
+    hdrs = ["procmonapi.h"],
+    target_compatible_with = ["@platforms//os:windows"],
+    visibility = ["//pkg/windowsdriver/procmon:__pkg__"],
+)

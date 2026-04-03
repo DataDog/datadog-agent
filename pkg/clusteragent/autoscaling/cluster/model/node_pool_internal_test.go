@@ -84,13 +84,13 @@ func TestConvertTaints(t *testing.T) {
 
 func TestBuildNodePoolSpec(t *testing.T) {
 	tests := []struct {
-		name          string
-		minNodePool   NodePoolInternal
-		nodeClassName string
-		expected      karpenterv1.NodePoolSpec
+		name         string
+		minNodePool  NodePoolInternal
+		nodeClassRef *karpenterv1.NodeClassReference
+		expected     karpenterv1.NodePoolSpec
 	}{
 		{
-			name: "basic",
+			name: "manual karpenter ec2nodeclass",
 			minNodePool: NodePoolInternal{
 				name:                     "default",
 				recommendedInstanceTypes: []string{"t3.micro", "m5.large"},
@@ -103,7 +103,11 @@ func TestBuildNodePoolSpec(t *testing.T) {
 					},
 				},
 			},
-			nodeClassName: "default",
+			nodeClassRef: &karpenterv1.NodeClassReference{
+				Kind:  "EC2NodeClass",
+				Name:  "default",
+				Group: "karpenter.k8s.aws",
+			},
 			expected: karpenterv1.NodePoolSpec{
 				Template: karpenterv1.NodeClaimTemplate{
 					Spec: karpenterv1.NodeClaimTemplateSpec{
@@ -146,11 +150,72 @@ func TestBuildNodePoolSpec(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "eks auto mode nodeclass",
+			minNodePool: NodePoolInternal{
+				name:                     "default",
+				recommendedInstanceTypes: []string{"t3.micro", "m5.large"},
+				labels:                   map[string]string{"kubernetes.io/arch": "amd64", "kubernetes.io/os": "linux"},
+				taints: []corev1.Taint{
+					{
+						Key:    "node",
+						Value:  "test",
+						Effect: corev1.TaintEffectNoSchedule,
+					},
+				},
+			},
+			nodeClassRef: &karpenterv1.NodeClassReference{
+				Kind:  "NodeClass",
+				Name:  "default",
+				Group: "eks.amazonaws.com",
+			},
+			expected: karpenterv1.NodePoolSpec{
+				Template: karpenterv1.NodeClaimTemplate{
+					Spec: karpenterv1.NodeClaimTemplateSpec{
+						Taints: []corev1.Taint{
+							{
+								Key:    "node",
+								Value:  "test",
+								Effect: corev1.TaintEffectNoSchedule,
+							},
+						},
+						Requirements: []karpenterv1.NodeSelectorRequirementWithMinValues{
+							{
+								NodeSelectorRequirement: corev1.NodeSelectorRequirement{
+									Key:      "kubernetes.io/os",
+									Operator: corev1.NodeSelectorOpIn,
+									Values:   []string{"linux"},
+								},
+							},
+							{
+								NodeSelectorRequirement: corev1.NodeSelectorRequirement{
+									Key:      "kubernetes.io/arch",
+									Operator: corev1.NodeSelectorOpIn,
+									Values:   []string{"amd64"},
+								},
+							},
+							{
+								NodeSelectorRequirement: corev1.NodeSelectorRequirement{
+									Key:      corev1.LabelInstanceTypeStable,
+									Operator: corev1.NodeSelectorOpIn,
+									Values:   []string{"m5.large", "t3.micro"},
+								},
+							},
+						},
+						NodeClassRef: &karpenterv1.NodeClassReference{
+							Kind:  "NodeClass",
+							Name:  "default",
+							Group: "eks.amazonaws.com",
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := buildNodePoolSpec(tt.minNodePool, tt.nodeClassName)
+			result := buildNodePoolSpec(tt.minNodePool, tt.nodeClassRef)
 			assert.Equal(t, tt.expected.Template.Spec.Taints, result.Template.Spec.Taints, "Resulting NodePool does not match expected NodePool")
 			assert.Equal(t, tt.expected.Template.Spec.NodeClassRef, result.Template.Spec.NodeClassRef, "Resulting NodePool does not match expected NodePool")
 			assert.ElementsMatch(t, tt.expected.Template.Spec.Requirements, result.Template.Spec.Requirements, "Resulting NodePool does not match expected NodePool")

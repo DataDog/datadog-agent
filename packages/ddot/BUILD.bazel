@@ -7,9 +7,23 @@ load(
 )
 load("@rules_pkg//pkg:rpm.bzl", "pkg_rpm")
 load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
+load("//bazel/rules:compression.bzl", "get_compression_level")
 load("//compliance:package_licenses.bzl", "package_licenses")
+load("//packages/rules:package_naming.bzl", "package_name_variables")
 
 package(default_visibility = ["//packages:__subpackages__"])
+
+package_name_variables(
+    name = "variables",
+    product_name = "datadog-agent",
+)
+
+package_name_selector = {
+    "//packages/agent:linux_default": "datadog-agent-ddot",
+    "//packages/agent:linux_fips": "datadog-fips-agent-ddot",
+    "//packages/agent:linux_heroku": "datadog-heroku-agent-ddot",
+    "//conditions:default": "datadog-agent-ddot",
+}
 
 # TODO: Add the ddot binary and component targets here, analogous to
 # //packages/agent/dependencies:all_files and //packages/install_dir:embedded.
@@ -49,6 +63,7 @@ pkg_filegroup(
 pkg_tar(
     name = "whole_distro_tar",
     srcs = [":whole_distro"],
+    compression_level = get_compression_level(),
     extension = "tar.xz",
     owner = "0.0",
 )
@@ -68,7 +83,9 @@ pkg_deb(
     # epoch 1
     license = "Apache License Version 2.0",
     maintainer = "Datadog Packages <package@datadoghq.com>",
-    package = "datadog-agent-ddot",
+    package = select(package_name_selector),
+    package_file_name = "{product_name}-ddot_{version}-1_{arch_deb}.deb",
+    package_variables = ":variables",
     postinst = "//omnibus:package-scripts/ddot-deb/postinst",
     preinst = "//omnibus:package-scripts/ddot-deb/preinst",
     prerm = "//omnibus:package-scripts/ddot-deb/prerm",
@@ -81,12 +98,14 @@ pkg_deb(
 
 pkg_rpm(
     name = "rpm",
-    package_name = "datadog-agent-ddot",
+    package_name = select(package_name_selector),
     srcs = [":whole_distro"],
     description = _DESCRIPTION,
     epoch = "1",
     group = "System Environment/Daemons",
     license = "Apache License Version 2.0",
+    package_file_name = "{product_name}-ddot-{version}-1.{arch_rpm}.rpm",
+    package_variables = ":variables",
     posttrans_scriptlet_file = "//omnibus:package-scripts/ddot-rpm/posttrans",
     pre_scriptlet_file = "//omnibus:package-scripts/ddot-rpm/preinst",
     preun_scriptlet_file = "//omnibus:package-scripts/ddot-rpm/prerm",

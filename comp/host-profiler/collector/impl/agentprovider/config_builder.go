@@ -12,6 +12,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/converters"
+	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/params"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -21,8 +22,8 @@ type confMap = map[string]any
 func buildReceivers(conf confMap, agent configManager) []any {
 	receivers := make(confMap)
 
-	hostProfiler := make(confMap)
-	_ = converters.Set(hostProfiler, "symbol_uploader::enabled", true)
+	profiling := make(confMap)
+	_ = converters.Set(profiling, "symbol_uploader::enabled", true)
 
 	symbolEndpoints := make([]any, 0, agent.endpointsTotalLength)
 	for _, endpoint := range agent.endpoints {
@@ -34,11 +35,11 @@ func buildReceivers(conf confMap, agent configManager) []any {
 		}
 	}
 
-	_ = converters.Set(hostProfiler, "symbol_uploader::symbol_endpoints", symbolEndpoints)
+	_ = converters.Set(profiling, "symbol_uploader::symbol_endpoints", symbolEndpoints)
 
-	receivers["hostprofiler"] = hostProfiler
+	receivers["profiling"] = profiling
 	conf["receivers"] = receivers
-	return []any{"hostprofiler"}
+	return []any{"profiling"}
 }
 
 func buildExporters(conf confMap, agent configManager) []any {
@@ -46,21 +47,33 @@ func buildExporters(conf confMap, agent configManager) []any {
 		profilesEndpointFormat = "https://intake.profile.%s/v1development/profiles"
 		metricsEndpointFormat  = "https://otlp.%s/v1/metrics"
 		otlpHTTPNameFormat     = "otlphttp/%s_%d"
+		debugExporterName      = "debug"
 	)
 
 	exporters := make(confMap)
 
 	createOtlpHTTPFromEndpoint := func(site, key string) confMap {
+		headers := make(confMap, 3+len(agent.hostProfilerConfig.AdditionalHTTPHeaders))
+		for k, v := range agent.hostProfilerConfig.AdditionalHTTPHeaders {
+			headers[k] = v
+		}
+		// Required headers set after additional headers to prevent overrides
+		headers["dd-api-key"] = key
+		headers["dd-evp-origin"] = version.ProfilerName
+		headers["dd-evp-origin-version"] = version.ProfilerVersion
 		return confMap{
 			"profiles_endpoint": fmt.Sprintf(profilesEndpointFormat, site),
 			"metrics_endpoint":  fmt.Sprintf(metricsEndpointFormat, site),
-			"headers": confMap{
-				"dd-api-key": key,
-			},
+			"headers":           headers,
 		}
 	}
 
-	profilesExporters := make([]any, 0, agent.endpointsTotalLength)
+	debugEnabled := agent.hostProfilerConfig.DebugVerbosity != ""
+	capacity := agent.endpointsTotalLength
+	if debugEnabled {
+		capacity++
+	}
+	profilesExporters := make([]any, 0, capacity)
 	// Track exporter count per site to ensure unique names for duplicate sites
 	siteExporterCount := make(map[string]int)
 	for _, endpoint := range agent.endpoints {
@@ -71,6 +84,13 @@ func buildExporters(conf confMap, agent configManager) []any {
 			_ = converters.Set(exporters, exporterName, createOtlpHTTPFromEndpoint(endpoint.site, key))
 			profilesExporters = append(profilesExporters, exporterName)
 		}
+	}
+
+	if debugEnabled {
+		exporters[debugExporterName] = confMap{
+			"verbosity": agent.hostProfilerConfig.DebugVerbosity,
+		}
+		profilesExporters = append(profilesExporters, debugExporterName)
 	}
 
 	conf["exporters"] = exporters
@@ -106,18 +126,51 @@ func buildProcessors(conf confMap) []any {
 	return []any{"infraattributes/default", "resource/dd-profiler-internal-metadata"}
 }
 
-func buildConfig(agent configManager) confMap {
+func buildMetricsPipeline(conf confMap, enableGoRuntimeMetrics bool, profilesProcessors, profilesExporters []any) {
+	metricsPipeline, _ := converters.Ensure[confMap](conf, "service::pipelines::metrics")
+
+	receivers, _ := converters.Ensure[confMap](conf, "receivers")
+	receivers["prometheus"] = converters.PrometheusReceiverConfig()
+
+	processors, _ := converters.Ensure[confMap](conf, "processors")
+	processors["cumulativetodelta"] = confMap{}
+	processors["filter"] = converters.FilterProcessorConfig()
+
+	metricsProcessors := []any{"filter", "cumulativetodelta"}
+	metricsProcessors = append(metricsProcessors, profilesProcessors...)
+	metricsReceivers := []any{"prometheus"}
+	if enableGoRuntimeMetrics {
+		receivers["otlp"] = confMap{
+			"protocols": confMap{
+				"grpc": nil,
+				"http": nil,
+			},
+		}
+		metricsReceivers = append(metricsReceivers, "otlp")
+	}
+
+	metricsPipeline["receivers"] = metricsReceivers
+	metricsPipeline["processors"] = metricsProcessors
+	metricsPipeline["exporters"] = profilesExporters
+}
+
+func buildConfig(agent configManager, p params.CollectorParams) confMap {
 	config := make(confMap)
 
 	profilesPipeline, _ := converters.Ensure[confMap](config, "service::pipelines::profiles")
 
-	profilesPipeline["processors"] = buildProcessors(config)
-	profilesPipeline["exporters"] = buildExporters(config, agent)
-	profilesPipeline["receivers"] = buildReceivers(config, agent)
+	profilesProcessors := buildProcessors(config)
+	profilesExporters := buildExporters(config, agent)
+	profilesReceivers := buildReceivers(config, agent)
+
+	profilesPipeline["processors"] = profilesProcessors
+	profilesPipeline["exporters"] = profilesExporters
+	profilesPipeline["receivers"] = profilesReceivers
+
+	buildMetricsPipeline(config, p.GetGoRuntimeMetrics(), profilesProcessors, profilesExporters)
 
 	_ = converters.Set(config, "extensions::ddprofiling/default", confMap{})
 	_ = converters.Set(config, "extensions::hpflare/default", confMap{})
-	_ = converters.Set(config, "service::telemetry::metrics::level", "none")
 
 	log.Debugf("Generated configuration: %+v", config)
 

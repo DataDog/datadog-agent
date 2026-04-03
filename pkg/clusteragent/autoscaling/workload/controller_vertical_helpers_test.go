@@ -161,10 +161,11 @@ func TestShouldTriggerRollout_AlreadyTriggered(t *testing.T) {
 	}
 	podsPerRecommendationID := map[string]int32{"old-rec": 1, recommendationID: 0}
 
-	// Last action was for THIS recommendation
+	// Last action was a rollout for THIS recommendation
 	lastAction := &datadoghqcommon.DatadogPodAutoscalerVerticalAction{
 		Time:    metav1.NewTime(time.Now().Add(-1 * time.Minute)),
 		Version: recommendationID,
+		Type:    datadoghqcommon.DatadogPodAutoscalerRolloutTriggeredVerticalActionType,
 	}
 
 	decision := shouldTriggerRollout(
@@ -621,4 +622,37 @@ func TestApplyVerticalConstraints_ValidationErrors(t *testing.T) {
 
 	// Vertical values should be untouched
 	assert.Equal(t, "original-hash", vertical.ResourcesHash)
+}
+
+func TestFromAutoscalerToContainerResourcePatches_PreservesPodOrder(t *testing.T) {
+	sv := &model.VerticalScalingValues{
+		ResourcesHash: "r1",
+		ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+			{Name: "c3", Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("300m")}},
+			{Name: "c1", Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("100m")}},
+			{Name: "c2", Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("200m")}},
+		},
+	}
+	ai := (&model.FakePodAutoscalerInternal{
+		Namespace:     "default",
+		Name:          "ai",
+		ScalingValues: model.ScalingValues{Vertical: sv},
+	}).Build()
+
+	pod := &workloadmeta.KubernetesPod{
+		EntityID: workloadmeta.EntityID{ID: "pod1"},
+		// Pod defines containers in a specific order that differs from the recommendation.
+		Containers: []workloadmeta.OrchestratorContainer{
+			{Name: "c1"},
+			{Name: "c2"},
+			{Name: "c3"},
+		},
+	}
+
+	patches := fromAutoscalerToContainerResourcePatches(&ai, pod)
+
+	require.Len(t, patches, 3)
+	assert.Equal(t, "c1", patches[0].Name, "patch order must follow pod container order")
+	assert.Equal(t, "c2", patches[1].Name)
+	assert.Equal(t, "c3", patches[2].Name)
 }
