@@ -116,6 +116,11 @@ func (t *unixTransport) serveLoop(ctx context.Context) {
 }
 
 // Send writes b to the Unix socket. It returns an error immediately if not connected.
+//
+// A 5-second write deadline prevents blocking the flush goroutine forever.
+// On timeout, the frame is dropped but the connection stays alive — a timeout
+// is a transient backpressure signal, not a permanent failure. The connection
+// is only torn down on non-timeout errors (broken pipe, connection reset).
 func (t *unixTransport) Send(b []byte) error {
 	t.mu.Lock()
 	conn := t.conn
@@ -125,10 +130,7 @@ func (t *unixTransport) Send(b []byte) error {
 		return errNotConnected
 	}
 
-	// Set a write deadline so that a slow or stuck sidecar causes a
-	// transport error (triggering reconnect) instead of blocking the
-	// flush goroutine indefinitely.
-	conn.SetWriteDeadline(time.Now().Add(time.Second)) //nolint:errcheck
+	conn.SetWriteDeadline(time.Now().Add(5 * time.Second)) //nolint:errcheck
 
 	// Write a length-prefixed frame using writev (net.Buffers) to avoid
 	// copying the payload just to prepend 4 bytes.
@@ -137,14 +139,17 @@ func (t *unixTransport) Send(b []byte) error {
 	bufs := net.Buffers{prefix[:], b}
 	_, err := bufs.WriteTo(conn)
 	if err != nil {
-		// Mark connection as dead and signal the serve loop.
+		// Timeout: sidecar is slow but alive. Drop the frame, keep connection.
+		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+			return err
+		}
+		// Non-timeout error (broken pipe, reset): connection is dead.
 		t.mu.Lock()
 		if t.conn == conn {
 			t.conn = nil
 			conn.Close() //nolint:errcheck
 			select {
 			case <-t.disconnected:
-				// Already closed.
 			default:
 				close(t.disconnected)
 			}

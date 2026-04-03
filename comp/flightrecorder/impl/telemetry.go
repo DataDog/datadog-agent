@@ -33,6 +33,12 @@ var (
 		"Total number of transport reconnect events")
 	tlmBatchSize = telemetry.NewGauge(subsystem, "batch_size", []string{"type"},
 		"Number of items in the last flushed batch")
+	tlmFlushCycles = telemetry.NewCounter(subsystem, "flush_cycles_total", nil,
+		"Total number of flush loop iterations that had data to send")
+	tlmSendDuration = telemetry.NewGauge(subsystem, "send_duration_ns", nil,
+		"Duration of the last transport.Send() call in nanoseconds")
+	tlmReconnectReason = telemetry.NewCounter(subsystem, "reconnect_reason_total", []string{"reason"},
+		"Reason for transport reconnect (write_timeout, conn_refused, etc)")
 )
 
 // counters holds atomic counters that back both the telemetry gauges and the
@@ -111,6 +117,18 @@ func (c *counters) incBytesSent(n uint64) {
 func (c *counters) incReconnects() {
 	c.reconnects.Add(1)
 	tlmReconnects.Inc()
+}
+
+func (c *counters) incFlushCycles() {
+	tlmFlushCycles.Inc()
+}
+
+func (c *counters) setSendDuration(ns int64) {
+	tlmSendDuration.Set(float64(ns))
+}
+
+func (c *counters) incReconnectReason(reason string) {
+	tlmReconnectReason.Inc(reason)
 }
 
 func (c *counters) stats() flightrecorder.Stats {

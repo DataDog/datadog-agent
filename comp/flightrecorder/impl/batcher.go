@@ -267,6 +267,7 @@ func (b *batcher) flushMetrics() {
 	defTail := (defHead - defCount + b.defCap) % b.defCap
 
 	b.counters.setBatchSize("metrics", ptCount+defCount)
+	b.counters.incFlushCycles()
 
 	// Encode in chunks to keep the FlatBuffers builder under the pool cap.
 	// Context defs are always sent first (small batch). Points are chunked.
@@ -294,7 +295,10 @@ func (b *batcher) flushMetrics() {
 			break
 		}
 		data := builder.FinishedBytes()
-		if err := b.transport.Send(data); err != nil {
+		sendStart := time.Now()
+		sendErr := b.transport.Send(data)
+		b.counters.setSendDuration(time.Since(sendStart).Nanoseconds())
+		if sendErr != nil {
 			b.counters.incMetricsDroppedTransport(uint64(chunkDefs + chunkPts))
 			b.builderPool.put(builder)
 			break
