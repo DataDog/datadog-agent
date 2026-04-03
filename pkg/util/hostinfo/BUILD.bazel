@@ -73,9 +73,9 @@ go_library(
             "@com_github_shirou_gopsutil_v4//host",
         ],
         "@rules_go//go/platform:windows": [
+            "//pkg/gohai/platform",
             "//pkg/util/uuid",
             "//pkg/util/winutil",
-            "@com_github_datadog_datadog_agent_pkg_gohai//platform",
             "@com_github_shirou_w32//:w32",
             "@org_golang_x_sys//windows",
         ],
@@ -184,9 +184,9 @@ go_test(
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:windows": [
+            "//pkg/gohai/platform",
             "//pkg/util/cache",
             "//pkg/util/winutil",
-            "@com_github_datadog_datadog_agent_pkg_gohai//platform",
             "@com_github_stretchr_testify//assert",
         ],
         "//conditions:default": [],
