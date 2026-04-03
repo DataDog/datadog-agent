@@ -29,10 +29,13 @@ func (m *mockTagsProvider) GetTags(ctx context.Context, runnerID, hostname strin
 		return m.tags
 	}
 	// Default: return basic tags
-	return []string{
+	tags := []string{
 		"runner-id:" + runnerID,
-		"hostname:" + hostname,
 	}
+	if hostname != "" {
+		tags = append(tags, "hostname:"+hostname)
+	}
+	return tags
 }
 
 func TestNewConnectionAPIClient_ValidCredentials(t *testing.T) {
@@ -63,7 +66,7 @@ func TestBuildConnectionRequest_NoAdditionalFields(t *testing.T) {
 	runnerID := "2112072a-b24c-4f23-b80e-d4e93484cf3a"
 	runnerName := "runner-123"
 	connectionName := "HTTP (runner-123)"
-	tags := []string{"runner-id:test", "hostname:test-host"}
+	tags := []string{"runner-id:test"}
 
 	request := buildConnectionRequest(httpDef, runnerID, runnerName, tags)
 
@@ -206,7 +209,7 @@ func TestCreateConnection_ErrorResponses(t *testing.T) {
 				},
 			}
 
-			tags := []string{"runner-id:runner-id-123", "hostname:test-hostname"}
+			tags := []string{"runner-id:runner-id-123"}
 
 			err := client.CreateConnection(context.Background(), httpDef, "runner-id-123", "runner-name-abc", tags)
 
@@ -298,7 +301,7 @@ func TestBuildConnectionRequest_JSONStructureMatchesAPISpec(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tags := []string{"runner-id:runner-123", "hostname:test-host"}
+			tags := []string{"runner-id:runner-123"}
 			request := buildConnectionRequest(tt.definition, tt.runnerID, tt.runnerName, tags)
 
 			jsonBytes, err := jsonapi.Marshal(request, jsonapi.MarshalClientMode())
