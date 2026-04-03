@@ -669,6 +669,29 @@ func TestNetworkConnectionTagsWithService(t *testing.T) {
 	require.EqualValues(t, expectedTags, connections.GetConnectionsTags(connections.Connections[0].TagsIdx))
 }
 
+func TestNetworkConnectionTagsWithProcessName(t *testing.T) {
+	conns := makeConnections(2)
+
+	procsByPid := map[int32]*procutil.Process{
+		conns[0].Pid: {Pid: conns[0].Pid, Comm: "nginx"},
+		// conns[1] has no entry — should produce no process_name tag
+	}
+
+	pne := parser.NewProcessNameExtractor()
+	pne.Extract(procsByPid)
+
+	ex := parser.NewServiceExtractor(false, false, false)
+	hostTagsProvider := hosttags.NewHostTagProvider()
+	chunks := batchConnections(&HostInfo{}, hostTagsProvider, nil, nil, 10, 0, conns, nil, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, nil, nil, ex, pne, nil)
+
+	require.Len(t, chunks, 1)
+	connections := chunks[0].(*model.CollectorConnections)
+	require.Len(t, connections.Connections, 2)
+
+	assert.Equal(t, []string{"process_name:nginx"}, connections.GetConnectionsTags(connections.Connections[0].TagsIdx))
+	assert.Nil(t, connections.GetConnectionsTags(connections.Connections[1].TagsIdx))
+}
+
 func TestConvertAndEnrichWithServiceTags(t *testing.T) {
 	tags := []string{"tag0", "tag1", "tag2"}
 

@@ -1,7 +1,7 @@
 ---
 enhancements:
   - |
-    NPM connection payloads now include an ``executable_name:<name>`` tag identifying
+    NPM connection payloads now include a ``process_name:<name>`` tag identifying
     the process executable that owns each connection. The tag is populated from the
     process agent's process list and requires ``process_config.process_collection.enabled``
     to be set to ``true``.
