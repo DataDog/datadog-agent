@@ -1073,6 +1073,7 @@ def eval_component(
     seed: int = None,
     build: bool = True,
     overwrite: bool = False,
+    tune_evaluated_component: bool = False,
 ):
     """
     Evaluate whether adding a component improves observer accuracy via
@@ -1083,6 +1084,12 @@ def eval_component(
       - Run M independent Bayesian optimizations WITH the target component.
       - Compare the max best-score across the M runs per subset, averaged
         over all subsets.
+
+    By default the evaluated component is locked at Go defaults on the ``with``
+    runs (``--lock`` in Bayesian eval), so the Optuna search space matches the
+    ``without`` side and n_trials is a fair comparison. Pass
+    ``--tune-evaluated-component`` to include the target in the HP search
+    (larger space on ``with``; use a higher trial budget if you enable this).
 
     All seeds are derived deterministically from a single base seed so the
     entire experiment is fully reproducible.
@@ -1106,11 +1113,15 @@ def eval_component(
         sigma: Gaussian width in seconds for F1 scoring.
         seed: Base seed for deterministic reproducibility (default: random).
         build: Whether to build testbench and scorer first.
+        tune_evaluated_component: If False (default), the target component is
+            locked on ``with`` runs (same effective search complexity as ``without``).
+            If True, Optuna also tunes the target component's hyperparameters.
 
     Examples:
         dda inv q.eval-component --component scanmw
         dda inv q.eval-component --component log_pattern_extractor --n-subsets 3
         dda inv q.eval-component --component cusum --seed 42 --n-trials 10
+        dda inv q.eval-component --component scanmw --tune-evaluated-component
     """
     all_known = DETECTORS + CORRELATORS + EXTRACTORS
     if component not in all_known:
@@ -1170,6 +1181,10 @@ def eval_component(
     print(color_message(f"  total bayesian runs:   {total_bayesian_runs}", Color.BLUE))
     print(color_message(f"  total testbench runs:  {total_testbench_runs}", Color.BLUE))
     print(color_message(f"  output_dir:            {output_dir}", Color.BLUE))
+    if tune_evaluated_component:
+        print(color_message("  target component HPs:  tuned (Optuna search on 'with')", Color.ORANGE))
+    else:
+        print(color_message("  target component HPs:  locked at defaults ('with' vs fair baseline)", Color.BLUE))
     print(color_message(f"{'=' * 70}\n", Color.BLUE))
 
     # --- run evaluations ---
@@ -1208,11 +1223,13 @@ def eval_component(
 
                 run_logger.step(f"{variant} / {subset_label} / {run_label}  (seed={run_seed})")
                 run_logger.detail(f"components: {', '.join(components_list)}")
+                lock_for_run = component if variant == "with" and not tune_evaluated_component else ""
 
                 trial_logger = run_logger.child(n_trials, "Trial")
                 report = eval_bayesian(
                     ctx,
                     components=",".join(components_list),
+                    lock=lock_for_run,
                     n_trials=n_trials,
                     output_dir=run_dir,
                     scenarios_dir=scenarios_dir,
@@ -1421,6 +1438,7 @@ def eval_component(
     # --- write report ---
     final_report = {
         "component": component,
+        "tune_evaluated_component": tune_evaluated_component,
         "recommendation": recommendation,
         "seed": seed,
         "n_subsets": n_subsets,
