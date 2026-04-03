@@ -1,0 +1,52 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "processes",
+    srcs = [
+        "processes.go",
+        "processes_nix.go",
+        "processes_windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/gohai/processes",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/gohai/processes/gops",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/gohai/processes/gops",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/gohai/processes/gops",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/gohai/processes/gops",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "processes_test",
+    srcs = ["processes_test.go"],
+    embed = [":processes"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)
