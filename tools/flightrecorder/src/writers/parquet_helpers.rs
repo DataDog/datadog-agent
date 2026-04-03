@@ -90,6 +90,9 @@ impl BaseWriter {
 
     /// Append a RecordBatch as a new row group to the current Parquet file.
     /// Rotates to a new file if the rotation interval has elapsed.
+    ///
+    /// This method performs synchronous file I/O. It is called from dedicated
+    /// writer threads (not the Tokio async runtime).
     pub fn write_batch(
         &mut self,
         prefix: &str,

@@ -11,7 +11,8 @@ use super::apply_permutation;
 use super::intern::StringInterner;
 use super::parquet_helpers::{dict_utf8_type, interner_to_dict_array, BaseWriter};
 use super::tags::{decompose_tags_into_interners, LOG_RESERVED_KEYS};
-use crate::generated::signals_generated::signals::LogBatch;
+use super::thread::{SignalWriter, WriterStats};
+use crate::generated::signals_generated::signals;
 
 /// Schema for the logs Parquet file (10 columns).
 fn logs_schema() -> Arc<Schema> {
@@ -79,7 +80,7 @@ impl LogsWriter {
     }
 
     /// Ingest a LogBatch from FlatBuffers. Flushes automatically when thresholds are reached.
-    pub async fn push(&mut self, batch: &LogBatch<'_>) -> Result<Option<PathBuf>> {
+    pub fn push(&mut self, batch: &signals::LogBatch<'_>) -> Result<Option<PathBuf>> {
         if let Some(entries) = batch.entries() {
             for i in 0..entries.len() {
                 let e = entries.get(i);
@@ -108,13 +109,13 @@ impl LogsWriter {
         }
 
         if self.base.should_flush(self.len()) {
-            return self.flush().await.map(Some);
+            return self.flush().map(Some);
         }
         Ok(None)
     }
 
-    /// Flush accumulated columns to a new Parquet file.
-    pub async fn flush(&mut self) -> Result<PathBuf> {
+    /// Flush accumulated columns to a new Parquet row group.
+    pub fn flush(&mut self) -> Result<PathBuf> {
         let row_count = self.len();
         if row_count == 0 {
             anyhow::bail!("no rows to flush");
@@ -162,16 +163,33 @@ impl LogsWriter {
 
         self.base.write_batch("logs", schema, batch)
     }
+}
 
-    /// Flush any buffered rows and close the active Parquet file. Used on shutdown.
-    pub async fn flush_if_any(&mut self) -> Result<Option<PathBuf>> {
-        let result = if self.len() == 0 {
-            Ok(None)
-        } else {
-            self.flush().await.map(Some)
-        };
-        self.base.close()?;
-        result
+impl SignalWriter for LogsWriter {
+    fn process_frame(&mut self, buf: &[u8]) -> Result<()> {
+        let env = flatbuffers::root::<signals::SignalEnvelope>(buf)
+            .map_err(|e| anyhow::anyhow!("decode error: {e}"))?;
+        if let Some(batch) = env.payload_as_log_batch() {
+            self.push(&batch)?;
+        }
+        Ok(())
+    }
+
+    fn flush_and_close(&mut self) -> Result<()> {
+        if self.len() > 0 {
+            self.flush()?;
+        }
+        self.base.close()
+    }
+
+    fn stats(&self) -> WriterStats {
+        WriterStats {
+            buffered_rows: self.len() as u64,
+            flush_count: self.base.flush_count,
+            flush_bytes: self.base.flush_bytes,
+            rows_written: self.base.rows_written,
+            last_flush_duration_ns: self.base.last_flush_duration_ns,
+        }
     }
 }
 
@@ -217,13 +235,13 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn test_push_and_flush() {
+    #[test]
+    fn test_push_and_flush() {
         let dir = tempdir().unwrap();
         let mut w = make_writer(dir.path());
         add_rows(&mut w, 50);
 
-        let path = w.flush().await.unwrap();
+        let path = w.flush().unwrap();
         assert!(path.exists());
         w.base.close().unwrap();
         let batch = read_parquet(&path);
@@ -231,8 +249,8 @@ mod tests {
         assert_eq!(batch.num_columns(), 10);
     }
 
-    #[tokio::test]
-    async fn test_binary_content_roundtrip() {
+    #[test]
+    fn test_binary_content_roundtrip() {
         let dir = tempdir().unwrap();
         let mut w = make_writer(dir.path());
         let binary_data = vec![0u8, 1, 2, 3, 255, 0];
@@ -247,7 +265,7 @@ mod tests {
         w.contents.push(binary_data.clone());
         w.timestamps.push(42);
 
-        let path = w.flush().await.unwrap();
+        let path = w.flush().unwrap();
         w.base.close().unwrap();
         let batch = read_parquet(&path);
         assert_eq!(batch.num_rows(), 1);
@@ -262,8 +280,8 @@ mod tests {
         assert_eq!(content_col.value(0), binary_data.as_slice());
     }
 
-    #[tokio::test]
-    async fn test_roundtrip_logs_inline() {
+    #[test]
+    fn test_roundtrip_logs_inline() {
         let dir = tempdir().unwrap();
         let mut w = make_writer(dir.path());
 
@@ -289,7 +307,7 @@ mod tests {
         w.contents.push(b"something went wrong".to_vec());
         w.timestamps.push(67890);
 
-        let path = w.flush().await.unwrap();
+        let path = w.flush().unwrap();
         w.base.close().unwrap();
         let batch = read_parquet(&path);
         assert_eq!(batch.num_rows(), 2);
@@ -318,21 +336,21 @@ mod tests {
         assert_eq!(h1, "server2");
     }
 
-    #[tokio::test]
-    async fn test_empty_flush_errors() {
+    #[test]
+    fn test_empty_flush_errors() {
         let dir = tempdir().unwrap();
         let mut w = make_writer(dir.path());
-        assert!(w.flush().await.is_err());
+        assert!(w.flush().is_err());
     }
 
-    #[tokio::test]
-    async fn test_telemetry_counters() {
+    #[test]
+    fn test_telemetry_counters() {
         let dir = tempdir().unwrap();
         let mut w = make_writer(dir.path());
         add_rows(&mut w, 10);
 
         assert_eq!(w.base.flush_count, 0);
-        let path = w.flush().await.unwrap();
+        let path = w.flush().unwrap();
         assert_eq!(w.base.flush_count, 1);
         assert_eq!(w.base.rows_written, 10);
         // flush_bytes is updated on file rotation/close.

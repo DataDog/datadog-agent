@@ -4,6 +4,7 @@ pub mod logs;
 pub mod metrics;
 pub mod parquet_helpers;
 pub mod tags;
+pub mod thread;
 pub mod trace_stats;
 
 /// Reorder `data` according to `order` without cloning elements.

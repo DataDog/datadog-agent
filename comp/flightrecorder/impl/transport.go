@@ -12,6 +12,7 @@ import (
 	"net"
 	"runtime/pprof"
 	"sync"
+	"time"
 )
 
 // Transport abstracts the wire protocol so the Unix-socket implementation can be
@@ -66,7 +67,7 @@ func (t *unixTransport) serveLoop(ctx context.Context) {
 	defer t.wg.Done()
 	defer t.cancel() // release child context resources
 
-	conn, err := net.DialTimeout("unix", t.socketPath, 5*secondDuration)
+	conn, err := net.DialTimeout("unix", t.socketPath, 5*time.Second)
 	if err != nil {
 		// Socket disappeared between discovery probe and connect — trigger teardown.
 		if t.onDisconnect != nil {
@@ -95,9 +96,6 @@ func (t *unixTransport) serveLoop(ctx context.Context) {
 	}
 }
 
-// secondDuration avoids importing time in the const declaration.
-const secondDuration = 1_000_000_000 // time.Second
-
 // Send writes b to the Unix socket. It returns an error immediately if not connected.
 func (t *unixTransport) Send(b []byte) error {
 	t.mu.Lock()
@@ -107,6 +105,11 @@ func (t *unixTransport) Send(b []byte) error {
 	if conn == nil {
 		return errNotConnected
 	}
+
+	// Set a write deadline so that a slow or stuck sidecar causes a
+	// transport error (triggering reconnect) instead of blocking the
+	// flush goroutine indefinitely.
+	conn.SetWriteDeadline(time.Now().Add(time.Second)) //nolint:errcheck
 
 	// Write a length-prefixed frame using writev (net.Buffers) to avoid
 	// copying the payload just to prepend 4 bytes.

@@ -41,6 +41,7 @@ tokio-util = { version = "0.7", features = ["rt"] }
 cadence = "1"
 const_format = "0.2"
 bloomfilter = "1"
+rtrb = "0.3"
 atty = "0.2"
 
 [dev-dependencies]
@@ -53,6 +54,10 @@ harness = false
 
 [[bench]]
 name = "framing_bench"
+harness = false
+
+[[bench]]
+name = "writer_bench"
 harness = false
 
 [features]

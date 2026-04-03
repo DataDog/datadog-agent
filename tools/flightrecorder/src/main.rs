@@ -11,10 +11,9 @@ pub mod telemetry;
 mod transport;
 mod writers;
 
-use std::time::Duration;
-
 use std::sync::atomic::Ordering;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use anyhow::Result;
 use clap::Parser;
@@ -24,6 +23,13 @@ use tokio::signal::unix::{signal, SignalKind};
 use tracing::{error, info, warn};
 
 use generated::signals_generated::signals;
+use writers::thread::WriterHandle;
+
+/// Ring buffer capacity for the writer threads.
+/// Each slot holds a Vec<u8> (24 bytes). With 512 slots the ring overhead
+/// is ~12 KB. The ring is effectively never full — the writer thread drains
+/// faster than the async handler can push.
+const WRITER_RING_CAPACITY: usize = 512;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -71,28 +77,27 @@ async fn main() -> Result<()> {
 pub async fn run(cfg: config::Config) -> Result<()> {
     let flush_interval = Duration::from_secs(cfg.flush_interval_secs);
 
-    let context_store = if !cfg.inline_contexts {
-        Some(Arc::new(tokio::sync::Mutex::new(
-            writers::context_store::ContextStore::new(&cfg.output_dir)?,
-        )))
-    } else {
-        None
-    };
+    // Create writers and spawn dedicated threads.
+    let context_store = writers::context_store::ContextStore::new(&cfg.output_dir)?;
+    let metrics_writer = writers::metrics::MetricsWriter::new(
+        &cfg.output_dir,
+        cfg.flush_rows,
+        flush_interval,
+        context_store,
+    );
+    let logs_writer =
+        writers::logs::LogsWriter::new(&cfg.output_dir, cfg.flush_rows, flush_interval);
+    let trace_stats_writer =
+        writers::trace_stats::TraceStatsWriter::new(&cfg.output_dir, cfg.flush_rows, flush_interval);
 
-    let metrics_writer = std::sync::Arc::new(tokio::sync::Mutex::new(
-        writers::metrics::MetricsWriter::new(
-            &cfg.output_dir,
-            cfg.flush_rows,
-            flush_interval,
-            cfg.inline_contexts,
-            context_store.clone(),
-        ),
+    let metrics_handle = Arc::new(Mutex::new(
+        WriterHandle::spawn(metrics_writer, WRITER_RING_CAPACITY, "metrics"),
     ));
-    let logs_writer = std::sync::Arc::new(tokio::sync::Mutex::new(
-        writers::logs::LogsWriter::new(&cfg.output_dir, cfg.flush_rows, flush_interval),
+    let logs_handle = Arc::new(Mutex::new(
+        WriterHandle::spawn(logs_writer, WRITER_RING_CAPACITY, "logs"),
     ));
-    let trace_stats_writer = std::sync::Arc::new(tokio::sync::Mutex::new(
-        writers::trace_stats::TraceStatsWriter::new(&cfg.output_dir, cfg.flush_rows, flush_interval),
+    let traces_handle = Arc::new(Mutex::new(
+        WriterHandle::spawn(trace_stats_writer, WRITER_RING_CAPACITY, "traces"),
     ));
 
     let conn_stats = Arc::new(telemetry::ConnectionStats::new());
@@ -108,12 +113,12 @@ pub async fn run(cfg: config::Config) -> Result<()> {
             "telemetry reporter started"
         );
         let tc = telemetry_cancel.clone();
-        let mw = metrics_writer.clone();
-        let lw = logs_writer.clone();
-        let tw = trace_stats_writer.clone();
+        let mt = metrics_handle.lock().unwrap().telemetry.clone();
+        let lt = logs_handle.lock().unwrap().telemetry.clone();
+        let tt = traces_handle.lock().unwrap().telemetry.clone();
         let cs = conn_stats.clone();
         Some(tokio::spawn(async move {
-            reporter.run(tc, mw, lw, tw, cs).await;
+            reporter.run(tc, mt, lt, tt, cs).await;
         }))
     } else {
         info!("telemetry reporter disabled (empty statsd_host)");
@@ -153,23 +158,17 @@ pub async fn run(cfg: config::Config) -> Result<()> {
 
         info!("client connected");
 
-        let mw = metrics_writer.clone();
-        let lw = logs_writer.clone();
-        let tw = trace_stats_writer.clone();
+        let mh = metrics_handle.clone();
+        let lh = logs_handle.clone();
+        let th = traces_handle.clone();
         let token = cancel.clone();
         let cs = conn_stats.clone();
-        let ctx_store = context_store.clone();
-
         cs.active_connections.fetch_add(1, Ordering::Relaxed);
 
         client_tasks.push(tokio::spawn(async move {
-            // New connection — agent will re-send all context definitions.
-            mw.lock().await.reset_context_map();
-            if let Some(store) = &ctx_store {
-                if let Err(e) = store.lock().await.reset() {
-                    warn!("context store reset error: {}", e);
-                }
-            }
+            // Context keys are deterministic hashes — the bloom filter
+            // persists across connections. Duplicate contexts from
+            // reconnecting agents are silently deduplicated.
 
             let mut reader = BufReader::new(stream);
             loop {
@@ -190,6 +189,9 @@ pub async fn run(cfg: config::Config) -> Result<()> {
                     }
                 };
 
+                // Peek at the payload type to route to the correct writer
+                // thread. The full frame (buf) is moved into the ring — the
+                // writer thread decodes it.
                 let env = match flatbuffers::root::<signals::SignalEnvelope>(&buf) {
                     Ok(e) => e,
                     Err(e) => {
@@ -202,25 +204,13 @@ pub async fn run(cfg: config::Config) -> Result<()> {
 
                 match env.payload_type() {
                     signals::SignalPayload::MetricBatch => {
-                        if let Some(batch) = env.payload_as_metric_batch() {
-                            if let Err(e) = mw.lock().await.push(&batch).await {
-                                warn!("metrics writer error: {}", e);
-                            }
-                        }
+                        mh.lock().unwrap().send_frame(buf);
                     }
                     signals::SignalPayload::LogBatch => {
-                        if let Some(batch) = env.payload_as_log_batch() {
-                            if let Err(e) = lw.lock().await.push(&batch).await {
-                                warn!("logs writer error: {}", e);
-                            }
-                        }
+                        lh.lock().unwrap().send_frame(buf);
                     }
                     signals::SignalPayload::TraceStatsBatch => {
-                        if let Some(batch) = env.payload_as_trace_stats_batch() {
-                            if let Err(e) = tw.lock().await.push(&batch).await {
-                                warn!("trace stats writer error: {}", e);
-                            }
-                        }
+                        th.lock().unwrap().send_frame(buf);
                     }
                     _ => {
                         warn!("unknown SignalPayload variant");
@@ -244,16 +234,10 @@ pub async fn run(cfg: config::Config) -> Result<()> {
         let _ = h.await;
     }
 
-    // Final flush on shutdown.
-    if let Err(e) = metrics_writer.lock().await.flush_if_any().await {
-        warn!("final metrics flush error: {}", e);
-    }
-    if let Err(e) = logs_writer.lock().await.flush_if_any().await {
-        warn!("final logs flush error: {}", e);
-    }
-    if let Err(e) = trace_stats_writer.lock().await.flush_if_any().await {
-        warn!("final trace stats flush error: {}", e);
-    }
+    // Shut down writer threads (drain rings, flush, close files).
+    metrics_handle.lock().unwrap().shutdown();
+    logs_handle.lock().unwrap().shutdown();
+    traces_handle.lock().unwrap().shutdown();
 
     info!("flightrecorder stopped");
     Ok(())

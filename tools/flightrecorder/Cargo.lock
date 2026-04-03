@@ -649,6 +649,7 @@ dependencies = [
  "futures",
  "parquet",
  "rayon",
+ "rtrb",
  "tempfile",
  "tikv-jemalloc-ctl",
  "tikv-jemallocator",
@@ -1371,6 +1372,12 @@ name = "regex-syntax"
 version = "0.8.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dc897dd8d9e8bd1ed8cdad82b5966c3e0ecae09fb1907d58efaa013543185d0a"
+
+[[package]]
+name = "rtrb"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7204ed6420f698836b76d4d5c2ec5dec7585fd5c3a788fd1cde855d1de598239"
 
 [[package]]
 name = "rustc_version"

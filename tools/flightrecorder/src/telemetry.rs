@@ -1,8 +1,8 @@
 //! DogStatsD telemetry reporter for the flightrecorder sidecar.
 //!
-//! Periodically reads writer stats and jemalloc memory stats, then emits them
-//! as DogStatsD metrics to the agent's DogStatsD server (typically at
-//! 127.0.0.1:8125 within the same pod).
+//! Periodically reads writer stats (from lock-free atomics) and jemalloc
+//! memory stats, then emits them as DogStatsD metrics to the agent's
+//! DogStatsD server (typically at 127.0.0.1:8125 within the same pod).
 
 use std::net::UdpSocket;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -12,12 +12,9 @@ use std::time::Duration;
 use cadence::prelude::*;
 use cadence::{StatsdClient, UdpMetricSink};
 use tikv_jemalloc_ctl::raw;
-use tokio::sync::Mutex;
 use tracing::warn;
 
-use crate::writers::logs::LogsWriter;
-use crate::writers::metrics::MetricsWriter;
-use crate::writers::trace_stats::TraceStatsWriter;
+use crate::writers::thread::WriterTelemetry;
 
 /// Shared counters for connection-level telemetry.
 pub struct ConnectionStats {
@@ -66,12 +63,15 @@ impl TelemetryReporter {
     }
 
     /// Run the reporter until the cancellation token fires.
+    ///
+    /// All writer stats are read from lock-free [`WriterTelemetry`] atomics —
+    /// no mutex acquisition needed.
     pub async fn run(
         self,
         cancel: tokio_util::sync::CancellationToken,
-        metrics_writer: Arc<Mutex<MetricsWriter>>,
-        logs_writer: Arc<Mutex<LogsWriter>>,
-        trace_stats_writer: Arc<Mutex<TraceStatsWriter>>,
+        metrics_telemetry: Arc<WriterTelemetry>,
+        logs_telemetry: Arc<WriterTelemetry>,
+        trace_stats_telemetry: Arc<WriterTelemetry>,
         conn_stats: Arc<ConnectionStats>,
     ) {
         let mut interval = tokio::time::interval(self.interval);
@@ -95,7 +95,6 @@ impl TelemetryReporter {
             }
 
             // --- Jemalloc memory stats ---
-            // Advance the epoch first to refresh jemalloc's cached stats.
             unsafe { let _ = raw::write(b"epoch\0", 1u64); }
 
             let mut jemalloc_ok = true;
@@ -127,55 +126,49 @@ impl TelemetryReporter {
             let _ = self.client.count("frames_received", (frames - prev_frames) as i64);
             prev_frames = frames;
 
-            // --- Per-writer stats (lock briefly to read counters) ---
-            {
-                let mw = metrics_writer.lock().await;
-                let _ = self.client.gauge_with_tags("buffered_rows", mw.len() as u64)
-                    .with_tag("writer", "metrics").send();
-                let _ = self.client.count_with_tags("flush_count", (mw.base.flush_count - prev_metrics_flush_count) as i64)
-                    .with_tag("writer", "metrics").send();
-                let _ = self.client.count_with_tags("flush_bytes", (mw.base.flush_bytes - prev_metrics_flush_bytes) as i64)
-                    .with_tag("writer", "metrics").send();
-                let _ = self.client.count_with_tags("rows_written", (mw.base.rows_written - prev_metrics_rows) as i64)
-                    .with_tag("writer", "metrics").send();
-                let _ = self.client.gauge_with_tags("flush_duration_ns", mw.base.last_flush_duration_ns)
-                    .with_tag("writer", "metrics").send();
-                prev_metrics_flush_count = mw.base.flush_count;
-                prev_metrics_flush_bytes = mw.base.flush_bytes;
-                prev_metrics_rows = mw.base.rows_written;
-            }
-            {
-                let lw = logs_writer.lock().await;
-                let _ = self.client.gauge_with_tags("buffered_rows", lw.len() as u64)
-                    .with_tag("writer", "logs").send();
-                let _ = self.client.count_with_tags("flush_count", (lw.base.flush_count - prev_logs_flush_count) as i64)
-                    .with_tag("writer", "logs").send();
-                let _ = self.client.count_with_tags("flush_bytes", (lw.base.flush_bytes - prev_logs_flush_bytes) as i64)
-                    .with_tag("writer", "logs").send();
-                let _ = self.client.count_with_tags("rows_written", (lw.base.rows_written - prev_logs_rows) as i64)
-                    .with_tag("writer", "logs").send();
-                let _ = self.client.gauge_with_tags("flush_duration_ns", lw.base.last_flush_duration_ns)
-                    .with_tag("writer", "logs").send();
-                prev_logs_flush_count = lw.base.flush_count;
-                prev_logs_flush_bytes = lw.base.flush_bytes;
-                prev_logs_rows = lw.base.rows_written;
-            }
-            {
-                let tw = trace_stats_writer.lock().await;
-                let _ = self.client.gauge_with_tags("buffered_rows", tw.len() as u64)
-                    .with_tag("writer", "trace_stats").send();
-                let _ = self.client.count_with_tags("flush_count", (tw.base.flush_count - prev_tss_flush_count) as i64)
-                    .with_tag("writer", "trace_stats").send();
-                let _ = self.client.count_with_tags("flush_bytes", (tw.base.flush_bytes - prev_tss_flush_bytes) as i64)
-                    .with_tag("writer", "trace_stats").send();
-                let _ = self.client.count_with_tags("rows_written", (tw.base.rows_written - prev_tss_rows) as i64)
-                    .with_tag("writer", "trace_stats").send();
-                let _ = self.client.gauge_with_tags("flush_duration_ns", tw.base.last_flush_duration_ns)
-                    .with_tag("writer", "trace_stats").send();
-                prev_tss_flush_count = tw.base.flush_count;
-                prev_tss_flush_bytes = tw.base.flush_bytes;
-                prev_tss_rows = tw.base.rows_written;
-            }
+            // --- Per-writer stats (read from lock-free atomics) ---
+            Self::report_writer(
+                &self.client, "metrics", &metrics_telemetry,
+                &mut prev_metrics_flush_count, &mut prev_metrics_flush_bytes, &mut prev_metrics_rows,
+            );
+            Self::report_writer(
+                &self.client, "logs", &logs_telemetry,
+                &mut prev_logs_flush_count, &mut prev_logs_flush_bytes, &mut prev_logs_rows,
+            );
+            Self::report_writer(
+                &self.client, "trace_stats", &trace_stats_telemetry,
+                &mut prev_tss_flush_count, &mut prev_tss_flush_bytes, &mut prev_tss_rows,
+            );
         }
+    }
+
+    fn report_writer(
+        client: &StatsdClient,
+        tag: &str,
+        telemetry: &WriterTelemetry,
+        prev_flush_count: &mut u64,
+        prev_flush_bytes: &mut u64,
+        prev_rows: &mut u64,
+    ) {
+        let flush_count = telemetry.flush_count.load(Ordering::Relaxed);
+        let flush_bytes = telemetry.flush_bytes.load(Ordering::Relaxed);
+        let rows = telemetry.rows_written.load(Ordering::Relaxed);
+        let buffered = telemetry.buffered_rows.load(Ordering::Relaxed);
+        let flush_ns = telemetry.last_flush_duration_ns.load(Ordering::Relaxed);
+
+        let _ = client.gauge_with_tags("buffered_rows", buffered)
+            .with_tag("writer", tag).send();
+        let _ = client.count_with_tags("flush_count", (flush_count - *prev_flush_count) as i64)
+            .with_tag("writer", tag).send();
+        let _ = client.count_with_tags("flush_bytes", (flush_bytes - *prev_flush_bytes) as i64)
+            .with_tag("writer", tag).send();
+        let _ = client.count_with_tags("rows_written", (rows - *prev_rows) as i64)
+            .with_tag("writer", tag).send();
+        let _ = client.gauge_with_tags("flush_duration_ns", flush_ns)
+            .with_tag("writer", tag).send();
+
+        *prev_flush_count = flush_count;
+        *prev_flush_bytes = flush_bytes;
+        *prev_rows = rows;
     }
 }

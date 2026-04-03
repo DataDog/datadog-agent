@@ -37,13 +37,6 @@ pub struct Config {
         default_value_t = 5120)]
     pub max_disk_mb: u64,
 
-    /// When true, store tags inline in every metric flush file (higher RSS,
-    /// self-contained files). When false (default), use a shared context file
-    /// with context_key references (lower RSS, requires contexts.bin for reads).
-    #[arg(long, env = const_format::concatcp!(ENV_PREFIX, "INLINE_CONTEXTS"),
-        default_value_t = false)]
-    pub inline_contexts: bool,
-
     /// DogStatsD host for sidecar telemetry. Empty string disables telemetry.
     #[arg(long, env = const_format::concatcp!(ENV_PREFIX, "STATSD_HOST"),
         default_value = "127.0.0.1")]

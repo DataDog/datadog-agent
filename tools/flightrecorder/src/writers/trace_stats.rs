@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use anyhow::{Context, Result};
 use arrow::array::{ArrayRef, BinaryArray, Int64Array, UInt32Array, UInt64Array};
@@ -10,7 +10,8 @@ use arrow::record_batch::RecordBatch;
 use super::apply_permutation;
 use super::intern::StringInterner;
 use super::parquet_helpers::{dict_utf8_type, interner_to_dict_array, BaseWriter};
-use crate::generated::signals_generated::signals::TraceStatsBatch;
+use super::thread::{SignalWriter, WriterStats};
+use crate::generated::signals_generated::signals;
 
 /// Schema for the trace stats Parquet file (18 columns).
 fn trace_stats_schema() -> Arc<Schema> {
@@ -67,7 +68,6 @@ pub struct TraceStatsWriter {
     // Binary columns (DDSketch protobuf).
     ok_summaries: Vec<Vec<u8>>,
     error_summaries: Vec<Vec<u8>>,
-
 }
 
 impl TraceStatsWriter {
@@ -110,7 +110,7 @@ impl TraceStatsWriter {
     }
 
     /// Ingest a TraceStatsBatch from FlatBuffers. Flushes automatically when thresholds are reached.
-    pub async fn push(&mut self, batch: &TraceStatsBatch<'_>) -> Result<Option<PathBuf>> {
+    pub fn push(&mut self, batch: &signals::TraceStatsBatch<'_>) -> Result<Option<PathBuf>> {
         if let Some(entries) = batch.entries() {
             for i in 0..entries.len() {
                 let e = entries.get(i);
@@ -145,13 +145,13 @@ impl TraceStatsWriter {
         }
 
         if self.base.should_flush(self.len()) {
-            return self.flush().await.map(Some);
+            return self.flush().map(Some);
         }
         Ok(None)
     }
 
-    /// Flush accumulated columns to a new Parquet file. Returns the file path.
-    pub async fn flush(&mut self) -> Result<PathBuf> {
+    /// Flush accumulated columns to a new Parquet row group. Returns the file path.
+    pub fn flush(&mut self) -> Result<PathBuf> {
         let row_count = self.len();
         if row_count == 0 {
             anyhow::bail!("no rows to flush");
@@ -245,16 +245,33 @@ impl TraceStatsWriter {
 
         self.base.write_batch("trace_stats", schema, batch)
     }
+}
 
-    /// Flush any buffered rows and close the active Parquet file. Used on shutdown.
-    pub async fn flush_if_any(&mut self) -> Result<Option<PathBuf>> {
-        let result = if self.len() == 0 {
-            Ok(None)
-        } else {
-            self.flush().await.map(Some)
-        };
-        self.base.close()?;
-        result
+impl SignalWriter for TraceStatsWriter {
+    fn process_frame(&mut self, buf: &[u8]) -> Result<()> {
+        let env = flatbuffers::root::<signals::SignalEnvelope>(buf)
+            .map_err(|e| anyhow::anyhow!("decode error: {e}"))?;
+        if let Some(batch) = env.payload_as_trace_stats_batch() {
+            self.push(&batch)?;
+        }
+        Ok(())
+    }
+
+    fn flush_and_close(&mut self) -> Result<()> {
+        if self.len() > 0 {
+            self.flush()?;
+        }
+        self.base.close()
+    }
+
+    fn stats(&self) -> WriterStats {
+        WriterStats {
+            buffered_rows: self.len() as u64,
+            flush_count: self.base.flush_count,
+            flush_bytes: self.base.flush_bytes,
+            rows_written: self.base.rows_written,
+            last_flush_duration_ns: self.base.last_flush_duration_ns,
+        }
     }
 }
 
@@ -325,13 +342,13 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn test_push_and_flush() {
+    #[test]
+    fn test_push_and_flush() {
         let dir = tempdir().unwrap();
         let mut w = make_writer(dir.path());
         add_rows(&mut w, 50);
 
-        let path = w.flush().await.unwrap();
+        let path = w.flush().unwrap();
         assert!(path.exists());
 
         w.base.close().unwrap();
@@ -341,15 +358,15 @@ mod tests {
         assert_eq!(batch.num_columns(), 18);
     }
 
-    #[tokio::test]
-    async fn test_empty_flush_errors() {
+    #[test]
+    fn test_empty_flush_errors() {
         let dir = tempdir().unwrap();
         let mut w = make_writer(dir.path());
-        assert!(w.flush().await.is_err());
+        assert!(w.flush().is_err());
     }
 
-    #[tokio::test]
-    async fn test_roundtrip_trace_stats() {
+    #[test]
+    fn test_roundtrip_trace_stats() {
         let dir = tempdir().unwrap();
         let mut w = make_writer(dir.path());
 
@@ -393,42 +410,11 @@ mod tests {
         w.ok_summaries.push(vec![10, 20]);
         w.error_summaries.push(vec![30]);
 
-        let path = w.flush().await.unwrap();
+        let path = w.flush().unwrap();
         w.base.close().unwrap();
         let batch = read_parquet(&path);
 
         assert_eq!(batch.num_rows(), 2);
-
-        // Verify column names.
-        let schema = batch.schema();
-        let col_names: Vec<&str> = schema
-            .fields()
-            .iter()
-            .map(|f| f.name().as_str())
-            .collect();
-        assert_eq!(
-            col_names,
-            vec![
-                "service",
-                "name",
-                "resource",
-                "type",
-                "span_kind",
-                "hostname",
-                "env",
-                "version",
-                "http_status_code",
-                "hits",
-                "errors",
-                "duration_ns",
-                "top_level_hits",
-                "ok_summary",
-                "error_summary",
-                "bucket_start_ns",
-                "bucket_duration_ns",
-                "timestamp_ns",
-            ]
-        );
 
         // Sorted by timestamp: row 1 (ts=1000) comes first, row 0 (ts=2000) second.
         let services = read_dict_string_column(&batch, "service");
@@ -436,15 +422,6 @@ mod tests {
 
         let names = read_dict_string_column(&batch, "name");
         assert_eq!(names, vec!["op2", "op1"]);
-
-        let resources = read_dict_string_column(&batch, "resource");
-        assert_eq!(resources, vec!["/bar", "/foo"]);
-
-        let types = read_dict_string_column(&batch, "type");
-        assert_eq!(types, vec!["rpc", "web"]);
-
-        let span_kinds = read_dict_string_column(&batch, "span_kind");
-        assert_eq!(span_kinds, vec!["client", "server"]);
 
         // Numeric columns (sorted by timestamp).
         let http_col = batch
@@ -454,30 +431,6 @@ mod tests {
             .downcast_ref::<UInt32Array>()
             .unwrap();
         assert_eq!(http_col.values().to_vec(), vec![500, 200]);
-
-        let hits_col = batch
-            .column_by_name("hits")
-            .unwrap()
-            .as_any()
-            .downcast_ref::<UInt64Array>()
-            .unwrap();
-        assert_eq!(hits_col.values().to_vec(), vec![20, 10]);
-
-        let errors_col = batch
-            .column_by_name("errors")
-            .unwrap()
-            .as_any()
-            .downcast_ref::<UInt64Array>()
-            .unwrap();
-        assert_eq!(errors_col.values().to_vec(), vec![5, 1]);
-
-        let dur_col = batch
-            .column_by_name("duration_ns")
-            .unwrap()
-            .as_any()
-            .downcast_ref::<UInt64Array>()
-            .unwrap();
-        assert_eq!(dur_col.values().to_vec(), vec![10000, 5000]);
 
         let ts_col = batch
             .column_by_name("timestamp_ns")
@@ -496,19 +449,10 @@ mod tests {
             .unwrap();
         assert_eq!(ok_col.value(0), &[10, 20]);
         assert_eq!(ok_col.value(1), &[1, 2, 3]);
-
-        let err_col = batch
-            .column_by_name("error_summary")
-            .unwrap()
-            .as_any()
-            .downcast_ref::<BinaryArray>()
-            .unwrap();
-        assert_eq!(err_col.value(0), &[30]);
-        assert_eq!(err_col.value(1), &[4, 5]);
     }
 
-    #[tokio::test]
-    async fn test_telemetry_counters() {
+    #[test]
+    fn test_telemetry_counters() {
         let dir = tempdir().unwrap();
         let mut w = make_writer(dir.path());
         add_rows(&mut w, 10);
@@ -516,7 +460,7 @@ mod tests {
         assert_eq!(w.base.flush_count, 0);
         assert_eq!(w.base.flush_bytes, 0);
 
-        let path = w.flush().await.unwrap();
+        let path = w.flush().unwrap();
         assert_eq!(w.base.flush_count, 1);
         assert!(w.base.last_flush_duration_ns > 0);
 

@@ -1,5 +1,5 @@
 use std::fs::{File, OpenOptions};
-use std::io::{Seek, SeekFrom, Write};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
@@ -37,17 +37,20 @@ pub struct ContextStore {
 }
 
 impl ContextStore {
-    /// Create a new ContextStore, creating or truncating `contexts.bin`.
+    /// Create or re-open the ContextStore in append mode.
+    ///
+    /// On sidecar restart, the file retains entries from previous runs.
+    /// The bloom filter starts empty so agents will re-send all contexts;
+    /// duplicates are harmless (the hydrate tool deduplicates on read).
     pub fn new(output_dir: impl AsRef<Path>) -> Result<Self> {
         let path = output_dir.as_ref().join("contexts.bin");
         let file = OpenOptions::new()
             .create(true)
-            .write(true)
-            .truncate(true)
+            .append(true)
             .open(&path)
-            .with_context(|| format!("creating {}", path.display()))?;
+            .with_context(|| format!("opening {}", path.display()))?;
 
-        info!(path = %path.display(), "context store created");
+        info!(path = %path.display(), "context store opened (append mode)");
 
         Ok(Self {
             file,
@@ -95,22 +98,6 @@ impl ContextStore {
         Ok(true)
     }
 
-    /// Reset the store: truncate the file and clear the bloom filter.
-    /// Called when a new agent connection arrives (the agent re-sends all
-    /// context definitions).
-    pub fn reset(&mut self) -> Result<()> {
-        self.file
-            .set_len(0)
-            .with_context(|| "truncating contexts.bin")?;
-        self.file
-            .seek(SeekFrom::Start(0))
-            .with_context(|| "seeking to start of contexts.bin")?;
-        self.bloom.clear();
-        self.contexts_written = 0;
-        self.contexts_deduplicated = 0;
-        info!(path = %self.path.display(), "context store reset");
-        Ok(())
-    }
 }
 
 /// Read all context records from a `contexts.bin` file.
@@ -179,18 +166,6 @@ mod tests {
     }
 
     #[test]
-    fn test_reset_clears_bloom() {
-        let dir = tempdir().unwrap();
-        let mut store = ContextStore::new(dir.path()).unwrap();
-        assert!(store.try_record(42, "mem.used", "host:b").unwrap());
-        store.reset().unwrap();
-        assert_eq!(store.contexts_written, 0);
-        // After reset, same key should be accepted again.
-        assert!(store.try_record(42, "mem.used", "host:b").unwrap());
-        assert_eq!(store.contexts_written, 1);
-    }
-
-    #[test]
     fn test_roundtrip_binary_format() {
         let dir = tempdir().unwrap();
         let mut store = ContextStore::new(dir.path()).unwrap();
@@ -218,23 +193,25 @@ mod tests {
     }
 
     #[test]
-    fn test_reset_truncates_file() {
+    fn test_append_survives_reopen() {
         let dir = tempdir().unwrap();
-        let mut store = ContextStore::new(dir.path()).unwrap();
-        store.try_record(1, "a", "t:1").unwrap();
-        store.try_record(2, "b", "t:2").unwrap();
-
-        let path = dir.path().join("contexts.bin");
-        assert!(std::fs::metadata(&path).unwrap().len() > 0);
-
-        store.reset().unwrap();
-        assert_eq!(std::fs::metadata(&path).unwrap().len(), 0);
-
-        // Write new data after reset.
-        store.try_record(3, "c", "t:3").unwrap();
-        let contexts = read_contexts_bin(&path).unwrap();
-        assert_eq!(contexts.len(), 1);
-        assert_eq!(contexts[0].0, 3);
+        // First open: write two contexts.
+        {
+            let mut store = ContextStore::new(dir.path()).unwrap();
+            store.try_record(1, "a", "t:1").unwrap();
+            store.try_record(2, "b", "t:2").unwrap();
+        }
+        // Second open: file is preserved, new bloom filter is empty so
+        // the same keys can be written again (duplicates are harmless).
+        {
+            let mut store = ContextStore::new(dir.path()).unwrap();
+            store.try_record(1, "a", "t:1").unwrap(); // duplicate, appended
+            store.try_record(3, "c", "t:3").unwrap(); // new
+        }
+        let contexts = read_contexts_bin(&dir.path().join("contexts.bin")).unwrap();
+        assert_eq!(contexts.len(), 4); // 2 from first open + 2 from second
+        assert_eq!(contexts[0].0, 1);
+        assert_eq!(contexts[3].0, 3);
     }
 
     #[test]
