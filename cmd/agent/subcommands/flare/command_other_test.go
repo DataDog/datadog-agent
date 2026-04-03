@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build !windows && !darwin
+//go:build test && !windows && !darwin
 
 // Package flare implements 'agent flare'.
 package flare
