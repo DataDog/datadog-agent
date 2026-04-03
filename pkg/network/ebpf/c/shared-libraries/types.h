@@ -9,7 +9,6 @@
 typedef struct {
     __u32 pid;
     __u32 len;
-    __u64 sleepable_mask;
     char buf[LIB_PATH_MAX_SIZE];
 } lib_path_t;
 

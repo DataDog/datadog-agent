@@ -35,22 +35,20 @@ static __always_inline long _bpf_copy_from_user(void *dst, u32 size, const void 
 #endif
 }
 
-static __always_inline long fill_path(lib_path_t *path, const char *path_argument) {
+static __always_inline long fill_path(lib_path_t *path, const char *path_argument, bool sleepable) {
 #if defined(COMPILE_RUNTIME) && LINUX_VERSION_CODE > KERNEL_VERSION(5, 10, 0)
     return _bpf_copy_from_user(&path->buf, sizeof(path->buf), path_argument, true);
 #elif defined(COMPILE_CORE)
-    u64 sleepable = 0;
-    LOAD_CONSTANT("sleepable_shared_libraries", sleepable);
-    return _bpf_copy_from_user(&path->buf, sizeof(path->buf), path_argument, sleepable & path->sleepable_mask);
+    return _bpf_copy_from_user(&path->buf, sizeof(path->buf), path_argument, sleepable);
 #else
     return bpf_probe_read_user_with_telemetry(&path->buf, sizeof(path->buf), path_argument);
 #endif
 }
 
-static __always_inline bool fill_lib_path(lib_path_t *path, const char *path_argument) {
+static __always_inline bool fill_lib_path(lib_path_t *path, const char *path_argument, bool sleepable) {
     path->pid = GET_USER_MODE_PID(bpf_get_current_pid_tgid());
 
-    if (fill_path(path, path_argument) >= 0) {
+    if (fill_path(path, path_argument, sleepable) >= 0) {
 #pragma unroll
         for (int i = 0; i < LIB_PATH_MAX_SIZE; i++) {
             if (path->buf[i] == 0) {
@@ -65,9 +63,9 @@ static __always_inline bool fill_lib_path(lib_path_t *path, const char *path_arg
     return path->len > 0;
 }
 
-static __always_inline void do_sys_open_helper_enter(const char *filename, u64 mask) {
-    lib_path_t path = { .sleepable_mask = mask };
-    if (fill_lib_path(&path, filename)) {
+static __always_inline void do_sys_open_helper_enter(const char *filename, bool sleepable) {
+    lib_path_t path = { 0 };
+    if (fill_lib_path(&path, filename, sleepable)) {
         u64 pid_tgid = bpf_get_current_pid_tgid();
         bpf_map_update_with_telemetry(open_at_args, &pid_tgid, &path, BPF_ANY);
     }
@@ -184,7 +182,7 @@ int tracepoint__syscalls__sys_enter_open(enter_sys_open_ctx *args) {
         return 0;
     }
 
-    do_sys_open_helper_enter(args->filename, SLEEPABLE_SYS_OPEN_MASK);
+    do_sys_open_helper_enter(args->filename, false);
     return 0;
 }
 
@@ -203,7 +201,7 @@ int tracepoint__syscalls__sys_enter_openat(enter_sys_openat_ctx *args) {
         return 0;
     }
 
-    do_sys_open_helper_enter(args->filename, SLEEPABLE_SYS_OPENAT_MASK);
+    do_sys_open_helper_enter(args->filename, false);
     return 0;
 }
 
@@ -218,17 +216,15 @@ SEC("tracepoint/syscalls/sys_enter_openat2")
 int tracepoint__syscalls__sys_enter_openat2(enter_sys_openat2_ctx *args) {
     CHECK_BPF_PROGRAM_BYPASSED()
 
-    u64 sleepable = 0;
-    LOAD_CONSTANT("sleepable_shared_libraries", sleepable);
     if (args->how != NULL) {
         __u64 flags = 0;
-        _bpf_copy_from_user(&flags, sizeof(flags), &args->how->flags, sleepable & SLEEPBALE_SYS_OPENAT2_MASK);
+        _bpf_copy_from_user(&flags, sizeof(flags), &args->how->flags, 0);
         if (should_ignore_flags(flags)) {
             return 0;
         }
     }
 
-    do_sys_open_helper_enter(args->filename, SLEEPBALE_SYS_OPENAT2_MASK);
+    do_sys_open_helper_enter(args->filename, false);
     return 0;
 }
 
@@ -239,16 +235,21 @@ int tracepoint__syscalls__sys_exit_openat2(exit_sys_ctx *args) {
     return 0;
 }
 
-static __always_inline int fexit_open_handler(void* ctx, u64 mask, const char *pathname, long ret) {
-    lib_path_t path = { .sleepable_mask = mask };
+static __always_inline int fexit_open_handler(void* ctx, bool sleepable, const char *pathname, long ret) {
+    lib_path_t path = { 0 };
     if (fill_lib_path(&path, pathname)) {
         push_event_if_relevant(ctx, &path, ret);
     }
     return 0;
 }
 
-SEC("fexit/__x64_sys_openat2")
-int BPF_BYPASSABLE_PROG(__x64_sys_openat2_exit, const struct pt_regs *regs, long ret) {
+static __always_inline bool is_sleepable() {
+    u64 sleepable = 0;
+    LOAD_CONSTANT("sleepable_shared_libraries", sleepable);
+    return (sleepable & SLEEPBALE_SYS_OPENAT2_MASK) > 0;
+}
+
+static __always_inline int handle_sys_openat2(const struct pt_regs* regs, long ret) {
     const char *pathname;
     openat2_open_how* how;
     int flags;
@@ -256,9 +257,8 @@ int BPF_BYPASSABLE_PROG(__x64_sys_openat2_exit, const struct pt_regs *regs, long
     if (bpf_probe_read_kernel_with_telemetry(&how, sizeof(how), &PT_REGS_PARM3(regs)) < 0 || how == NULL)
         return 0;
 
-    u64 sleepable = 0;
-    LOAD_CONSTANT("sleepable_shared_libraries", sleepable);
-    if (_bpf_copy_from_user(&flags, sizeof(flags), &how->flags, sleepable & SLEEPBALE_SYS_OPENAT2_MASK) < 0)
+    bool sleepable = is_sleepable();
+    if (_bpf_copy_from_user(&flags, sizeof(flags), &how->flags, sleepable)) < 0)
         return 0;
 
     if (should_ignore_flags(flags))
@@ -267,14 +267,24 @@ int BPF_BYPASSABLE_PROG(__x64_sys_openat2_exit, const struct pt_regs *regs, long
     if (bpf_probe_read_kernel_with_telemetry(&pathname, sizeof(pathname), &PT_REGS_PARM2(regs)) < 0)
         return 0;
 
-    return fexit_open_handler(ctx, SLEEPBALE_SYS_OPENAT2_MASK, pathname, ret);
+    return fexit_open_handler(ctx, sleepable, pathname, ret);
 }
 
-SEC("fexit/__x64_sys_openat")
-int BPF_BYPASSABLE_PROG(__x64_sys_openat_exit, const struct pt_regs* regs, long ret) {
+SEC("fexit/__x64_sys_openat2")
+int BPF_BYPASSABLE_PROG(__x64_sys_openat2_exit, const struct pt_regs* regs, long ret) {
+    return handle_sys_openat2(regs, ret);
+}
+
+SEC("fexit/__arm64_sys_openat2")
+int BPF_BYPASSABLE_PROG(__arm64_sys_openat2_exit, const struct pt_regs* regs, long ret) {
+    return handle_sys_openat2(regs, ret);
+}
+
+static __always_inline int handle_sys_openat(const struct pt_regs* regs, long ret) {
     const char* pathname;
     int flags;
 
+    bool sleepable = is_sleepable();
     if (bpf_probe_read_kernel_with_telemetry(&flags, sizeof(flags), &PT_REGS_PARM3(regs)) < 0)
         return 0;
 
@@ -284,14 +294,24 @@ int BPF_BYPASSABLE_PROG(__x64_sys_openat_exit, const struct pt_regs* regs, long 
     if (bpf_probe_read_kernel_with_telemetry(&pathname, sizeof(pathname), &PT_REGS_PARM2(regs)) < 0)
         return 0;
 
-    return fexit_open_handler(ctx, SLEEPABLE_SYS_OPENAT_MASK, pathname, ret);
+    return fexit_open_handler(ctx, sleepable, pathname, ret);
 }
 
-SEC("fexit/__x64_sys_open")
-int BPF_BYPASSABLE_PROG(__x64_sys_open_exit, const struct pt_regs* regs, long ret) {
+SEC("fexit/__x64_sys_openat")
+int BPF_BYPASSABLE_PROG(__arm64_sys_openat_exit, const struct pt_regs* regs, long ret) {
+    return handle_sys_openat(regs, ret);
+}
+
+SEC("fexit/__arm64_sys_openat")
+int BPF_BYPASSABLE_PROG(__arm64_sys_openat_exit, const struct pt_regs* regs, long ret) {
+    return handle_sys_openat(regs, ret);
+}
+
+static __always_inline int handle_sys_open(const struct pt_regs* regs, long ret) {
     const char* pathname;
     int flags;
 
+    bool sleepable = is_sleepable();
     if (bpf_probe_read_kernel_with_telemetry(&flags, sizeof(flags), &PT_REGS_PARM2(regs)) < 0)
         return 0;
 
@@ -302,7 +322,17 @@ int BPF_BYPASSABLE_PROG(__x64_sys_open_exit, const struct pt_regs* regs, long re
     if (bpf_probe_read_kernel_with_telemetry(&pathname, sizeof(pathname), &PT_REGS_PARM1(regs)) < 0)
         return 0;
 
-    return fexit_open_handler(ctx, SLEEPABLE_SYS_OPEN_MASK, pathname, ret);
+    return fexit_open_handler(ctx, sleepable, pathname, ret);
+}
+
+SEC("fexit/__x64_sys_open")
+int BPF_BYPASSABLE_PROG(__x64_sys_open_exit, const struct pt_regs* regs, long ret) {
+    return handle_sys_open(regs, ret);
+}
+
+SEC("fexit/__arm64_sys_open")
+int BPF_BYPASSABLE_PROG(__x64_sys_open_exit, const struct pt_regs* regs, long ret) {
+    return handle_sys_open(regs, ret);
 }
 
 // Kprobe fallbacks for kernels < 4.15 that don't support multiple tracepoint attachments
@@ -332,7 +362,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__do_sys_open, int dfd, const char *filename, in
     }
 
     // Store the filename in a map keyed by pid_tgid for correlation with the return value
-    do_sys_open_helper_enter(filename, SLEEPABLE_SYS_OPEN_MASK);
+    do_sys_open_helper_enter(filename, false);
     return 0;
 }
 
