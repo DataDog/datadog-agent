@@ -724,20 +724,38 @@ func TestDetectingAggregator_TruncatesTaggedStartLineAndPrefixesContinuation(t *
 	assert.Equal(t, []string{message.TruncatedReasonTag("single_line")}, msgs[1].ParsingExtra.Tags)
 }
 
-func TestDetectingAggregator_TruncationCarryResetsOnNoAggregate(t *testing.T) {
+func TestDetectingAggregator_NoAggregateInheritsTruncationCarry(t *testing.T) {
 	ag := NewDetectingAggregator(5, true, status.NewInfoRegistry())
 
-	require.Empty(t, processMsg(ag, newMessage("123456"), startGroup))
-
-	msgs := processMsg(ag, newMessage("abc"), aggregate)
-	require.Len(t, msgs, 2)
-	assert.Equal(t, "...TRUNCATED...abc", string(msgs[1].GetContent()))
+	msgs := processMsg(ag, newMessage("123456"), noAggregate)
+	require.Len(t, msgs, 1)
+	assert.Equal(t, "123456...TRUNCATED...", string(msgs[0].GetContent()))
 
 	msgs = processMsg(ag, newMessage("ok"), noAggregate)
 	require.Len(t, msgs, 1)
-	assert.Equal(t, "ok", string(msgs[0].GetContent()))
-	assert.False(t, msgs[0].ParsingExtra.IsTruncated)
-	assert.Empty(t, msgs[0].ParsingExtra.Tags)
+	assert.Equal(t, "...TRUNCATED...ok", string(msgs[0].GetContent()))
+	assert.True(t, msgs[0].ParsingExtra.IsTruncated)
+	assert.Equal(t, []string{message.TruncatedReasonTag("single_line")}, msgs[0].ParsingExtra.Tags)
+}
+
+func TestDetectingAggregator_StartGroupInheritsTruncationCarry(t *testing.T) {
+	ag := NewDetectingAggregator(5, true, status.NewInfoRegistry())
+
+	msgs := processMsg(ag, newMessage("123456"), noAggregate)
+	require.Len(t, msgs, 1)
+	assert.Equal(t, "123456...TRUNCATED...", string(msgs[0].GetContent()))
+
+	require.Empty(t, processMsg(ag, newMessage("abc"), startGroup))
+
+	msgs = processMsg(ag, newMessage("tail"), aggregate)
+	require.Len(t, msgs, 2)
+	assert.Equal(t, "...TRUNCATED...abc", string(msgs[0].GetContent()))
+	assert.True(t, msgs[0].ParsingExtra.IsTruncated)
+	assert.Contains(t, msgs[0].ParsingExtra.Tags, "auto_multiline_detected:true")
+	assert.Contains(t, msgs[0].ParsingExtra.Tags, message.TruncatedReasonTag("single_line"))
+	assert.Equal(t, "tail", string(msgs[1].GetContent()))
+	assert.False(t, msgs[1].ParsingExtra.IsTruncated)
+	assert.Empty(t, msgs[1].ParsingExtra.Tags)
 }
 
 func TestDetectingAggregator_TruncationDoesNotTagWhenDisabled(t *testing.T) {
