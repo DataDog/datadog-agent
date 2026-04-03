@@ -108,6 +108,7 @@ func TestNPMEnabled(t *testing.T) {
 		{true, true, true, false, true, false, true},
 	}
 
+	mock.New(t)
 	mock.NewSystemProbe(t)
 	for _, te := range tests {
 		t.Run("", func(t *testing.T) {
