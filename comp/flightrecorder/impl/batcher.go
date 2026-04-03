@@ -266,15 +266,19 @@ func (b *batcher) flushMetrics() {
 	b.counters.incFlushCycles()
 
 	// Encode in chunks to keep the FlatBuffers builder under the pool cap.
-	// Context defs are always sent first (small batch). Points are chunked.
+	// Both defs and points are capped at maxEncodeBatchSize per frame to
+	// prevent the encode loop from stalling the flush goroutine for 500ms+
+	// when there are thousands of context definitions with strings.
 	sent := 0
-	for ptSent := 0; ptSent < ptCount || (ptSent == 0 && defCount > 0); {
-		// First chunk includes all defs; subsequent chunks are points-only.
-		chunkDefs := 0
-		chunkDefTail := defTail
-		if ptSent == 0 {
-			chunkDefs = defCount
+	defSent := 0
+	ptSent := 0
+	for defSent < defCount || ptSent < ptCount {
+		chunkDefs := defCount - defSent
+		if chunkDefs > maxEncodeBatchSize {
+			chunkDefs = maxEncodeBatchSize
 		}
+		chunkDefTail := (defTail + defSent) % b.defCap
+
 		chunkPts := ptCount - ptSent
 		if chunkPts > maxEncodeBatchSize {
 			chunkPts = maxEncodeBatchSize
@@ -302,6 +306,7 @@ func (b *batcher) flushMetrics() {
 		sent += chunkDefs + chunkPts
 		b.counters.incBytesSent(uint64(len(data)), "metrics")
 		b.builderPool.put(builder)
+		defSent += chunkDefs
 		ptSent += chunkPts
 	}
 	b.counters.incMetricsSent(uint64(sent))
