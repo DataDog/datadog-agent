@@ -12,8 +12,16 @@ import (
 	"net"
 	"runtime/pprof"
 	"sync"
+	"syscall"
 	"time"
 )
+
+// setSendBuffer sets SO_SNDBUF on a file descriptor. Errors are silently
+// ignored — the transport works with the default buffer, just slower during
+// the initial context burst.
+func setSendBuffer(fd uintptr, size int) {
+	_ = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_SNDBUF, size)
+}
 
 // Transport abstracts the wire protocol so the Unix-socket implementation can be
 // swapped for a zero-copy shared-memory transport (Iceoryx2) without any logic changes.
@@ -74,6 +82,17 @@ func (t *unixTransport) serveLoop(ctx context.Context) {
 			t.onDisconnect()
 		}
 		return
+	}
+
+	// Increase the socket send buffer to 4 MB so the initial context
+	// definition burst (~50K contexts × ~100 bytes = ~5 MB FlatBuffers)
+	// doesn't fill the default 208 KB kernel buffer and block Send().
+	if uc, ok := conn.(*net.UnixConn); ok {
+		if raw, err := uc.SyscallConn(); err == nil {
+			_ = raw.Control(func(fd uintptr) {
+				setSendBuffer(fd, 4*1024*1024)
+			})
+		}
 	}
 
 	t.mu.Lock()

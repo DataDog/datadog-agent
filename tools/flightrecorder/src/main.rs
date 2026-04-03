@@ -26,10 +26,12 @@ use generated::signals_generated::signals;
 use writers::thread::WriterHandle;
 
 /// Ring buffer capacity for the writer threads.
-/// Each slot holds a Vec<u8> (24 bytes). With 512 slots the ring overhead
-/// is ~12 KB. The ring is effectively never full — the writer thread drains
-/// faster than the async handler can push.
-const WRITER_RING_CAPACITY: usize = 512;
+/// Each slot holds a Vec<u8> (24 bytes). With 4096 slots the ring overhead
+/// is ~96 KB. A large ring decouples socket reading from frame processing:
+/// the async handler keeps draining the Unix socket into the ring while
+/// the writer thread processes earlier frames, preventing backpressure
+/// from stalling the Go agent's Send().
+const WRITER_RING_CAPACITY: usize = 4096;
 
 #[tokio::main]
 async fn main() -> Result<()> {
