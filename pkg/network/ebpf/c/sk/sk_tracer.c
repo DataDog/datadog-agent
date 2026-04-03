@@ -18,6 +18,8 @@ __maybe_unused static __always_inline __u64 get_ringbuf_flags(size_t data_size) 
 
 #include "sk_tcp.h"
 #include "sk_udp.h"
+#include "sk_port.h"
+#include "sk_init.h"
 
 //#include "tracer/udp_recv.h"
 //#include "tracer/udp_send.h"
