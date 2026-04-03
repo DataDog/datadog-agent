@@ -6,6 +6,7 @@
 package parser
 
 import (
+	"path/filepath"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/process/metadata"
@@ -30,7 +31,11 @@ func NewProcessNameExtractor() *ProcessNameExtractor {
 func (e *ProcessNameExtractor) Extract(processes map[int32]*procutil.Process) {
 	names := make(map[int32]string, len(processes))
 	for pid, p := range processes {
-		names[pid] = p.Comm
+		if p.Comm != "" {
+			names[pid] = p.Comm
+		} else if p.Exe != "" {
+			names[pid] = filepath.Base(p.Exe)
+		}
 	}
 	e.mu.Lock()
 	e.names = names

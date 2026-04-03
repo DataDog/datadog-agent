@@ -19,13 +19,15 @@ func TestProcessNameExtractorExtract(t *testing.T) {
 	procs := map[int32]*procutil.Process{
 		1: {Pid: 1, Comm: "nginx"},
 		2: {Pid: 2, Comm: "python3"},
-		3: {Pid: 3, Comm: ""},
+		3: {Pid: 3, Comm: "", Exe: "/usr/bin/myapp"},
+		4: {Pid: 4, Comm: "", Exe: ""},
 	}
 	e.Extract(procs)
 
 	assert.Equal(t, "nginx", e.GetProcessName(1))
 	assert.Equal(t, "python3", e.GetProcessName(2))
-	assert.Equal(t, "", e.GetProcessName(3))
+	assert.Equal(t, "myapp", e.GetProcessName(3), "falls back to executable name when Comm is empty")
+	assert.Equal(t, "", e.GetProcessName(4), "returns empty string when both Comm and Exe are empty")
 	assert.Equal(t, "", e.GetProcessName(99), "unknown pid returns empty string")
 }
 
