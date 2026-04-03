@@ -15,6 +15,12 @@ go_deps.gazelle_override(
     ],
     path = "github.com/DataDog/sketches-go",
 )
+go_deps.gazelle_override(
+    directives = [
+        "gazelle:proto disable",
+    ],
+    path = "github.com/containerd/cgroups/v3",
+)
 use_repo(
     go_deps,
     "cc_mvdan_sh_v3",
@@ -135,6 +141,7 @@ use_repo(
     "com_github_datadog_datadog_agent_pkg_aggregator_ckey",
     "com_github_datadog_datadog_agent_pkg_api",
     "com_github_datadog_datadog_agent_pkg_collector_check_defaults",
+    "com_github_datadog_datadog_agent_pkg_config_basic",
     "com_github_datadog_datadog_agent_pkg_config_create",
     "com_github_datadog_datadog_agent_pkg_config_env",
     "com_github_datadog_datadog_agent_pkg_config_helper",
@@ -247,6 +254,7 @@ use_repo(
     "com_github_favadi_protoc_go_inject_tag",
     "com_github_frapposelli_wwhrd",
     "com_github_freddierice_go_losetup",
+    "com_github_fsnotify_fsnotify",
     "com_github_ghodss_yaml",
     "com_github_glaslos_ssdeep",
     "com_github_go_delve_delve",
@@ -297,6 +305,7 @@ use_repo(
     "com_github_iceber_iouring_go",
     "com_github_imdario_mergo",
     "com_github_invopop_jsonschema",
+    "com_github_itchyny_gojq",
     "com_github_jackc_pgx_v5",
     "com_github_jarcoal_httpmock",
     "com_github_jellydator_ttlcache_v3",
@@ -311,6 +320,7 @@ use_repo(
     "com_github_kouhin_envflag",
     "com_github_kr_pretty",
     "com_github_kraken_hpc_go_fork",
+    "com_github_lightstep_go_expohisto",
     "com_github_lorenzosaino_go_sysctl",
     "com_github_lxn_walk",
     "com_github_lxn_win",
@@ -335,6 +345,7 @@ use_repo(
     "com_github_open_policy_agent_opa",
     "com_github_open_telemetry_opentelemetry_collector_contrib_extension_healthcheckextension",
     "com_github_open_telemetry_opentelemetry_collector_contrib_pkg_datadog",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_pkg_pdatatest",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_attributesprocessor",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_cumulativetodeltaprocessor",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_filterprocessor",

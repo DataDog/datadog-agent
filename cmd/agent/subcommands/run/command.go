@@ -151,13 +151,14 @@ import (
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	otelagentStatusfx "github.com/DataDog/datadog-agent/comp/otelcol/status/fx"
+	parStatusImpl "github.com/DataDog/datadog-agent/comp/privateactionrunner/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/process"
 	processAgent "github.com/DataDog/datadog-agent/comp/process/agent"
 	processagentStatusImpl "github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
 	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
 	remoteconfig "github.com/DataDog/datadog-agent/comp/remote-config"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
+	rcservicefx "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/fx"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf/rcservicemrfimpl"
 	rctelemetryreporterfx "github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/fx"
 	metricscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
@@ -451,6 +452,7 @@ func getSharedFxOption() fx.Option {
 		otelagentStatusfx.Module(),
 		traceagentStatusImpl.Module(),
 		processagentStatusImpl.Module(),
+		parStatusImpl.Module(),
 		statsdFx.Module(),
 		statusimpl.Module(),
 		apiimpl.Module(),
@@ -470,7 +472,7 @@ func getSharedFxOption() fx.Option {
 		otelcol.Bundle(),
 		hostProfilerFlareFx.Module(),
 		rctelemetryreporterfx.Module(),
-		rcserviceimpl.Module(),
+		rcservicefx.Module(),
 		rcservicemrfimpl.Module(),
 		remoteconfig.Bundle(),
 		daemoncheckerfx.Module(),
