@@ -113,7 +113,7 @@ func (d customResourceDecoder) Decode(v interface{}) error {
 }
 
 // StartDiscovery starts the custom resource discovery and returns a discoverer instance
-func StartDiscovery() *discovery.CRDiscoverer {
+func StartDiscovery() (*discovery.CRDiscoverer, context.CancelFunc) {
 	discovererInstance := &discovery.CRDiscoverer{
 		CRDsAddEventsCounter:    crdsAddEventsCounter,
 		CRDsDeleteEventsCounter: crdsDeleteEventsCounter,
@@ -125,11 +125,12 @@ func StartDiscovery() *discovery.CRDiscoverer {
 		panic(err)
 	}
 
-	if err := discovererInstance.StartDiscovery(context.Background(), clientConfig); err != nil {
+	ctx, cancel := context.WithCancel(context.Background())
+	if err := discovererInstance.StartDiscovery(ctx, clientConfig); err != nil {
 		log.Errorf("failed to start custom resource discovery: %v", err)
 	}
 
-	return discovererInstance
+	return discovererInstance, cancel
 }
 
 // GetCustomResourceFactories returns a list of custom resource factories
