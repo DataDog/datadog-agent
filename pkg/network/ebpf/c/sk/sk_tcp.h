@@ -344,7 +344,7 @@ static __always_inline bool handle_sk_tcp_failure(struct sock *sk, sk_tcp_stats_
     if (!err) {
         return false;
     }
-    log_debug("tcp failure: sk=%pK err=%d", sk, err);
+    log_debug("tcp failure: sk=%p err=%d", sk, err);
     if (!is_tcp_failure_recognized(err)) {
         return false;
     }
@@ -353,7 +353,7 @@ static __always_inline bool handle_sk_tcp_failure(struct sock *sk, sk_tcp_stats_
 }
 
 static __always_inline void sockops_tcp_close(struct bpf_sock_ops *ctx, struct sock *sk, sk_tcp_stats_t *sk_stats) {
-    log_debug("sockops: sk=%pK state=TCP_CLOSE", sk);
+    log_debug("sockops: sk=%p state=TCP_CLOSE", sk);
     sk_stats->state_transitions |= (1 << TCP_CLOSE);
 }
 
@@ -371,7 +371,7 @@ int tcp_sockops(struct bpf_sock_ops *ctx) {
         return 1;
     }
 
-    log_debug("sockops: sk=%pK op=%d", sk, ctx->op);
+    log_debug("sockops: sk=%p op=%u", sk, ctx->op);
     switch (ctx->op) {
     case BPF_SOCK_OPS_TCP_CONNECT_CB:
         bpf_sock_ops_cb_flags_set(ctx, BPF_SOCK_OPS_STATE_CB_FLAG);
@@ -384,8 +384,7 @@ int tcp_sockops(struct bpf_sock_ops *ctx) {
         return 1;
     }
 
-    log_debug("sockops: sk=%pK lport=%d rport=%d", sk, ctx->local_port, bpf_ntohl(ctx->remote_port));
-
+    log_debug("sockops: sk=%p lport=%u rport=%u", sk, ctx->local_port, bpf_ntohl(ctx->remote_port));
     sk_tcp_stats_t *sk_stats = bpf_sk_storage_get(&sk_tcp_stats, sk, 0, BPF_SK_STORAGE_GET_F_CREATE);
     if (!sk_stats) {
         return 1;
@@ -421,12 +420,14 @@ int tcp_sockops(struct bpf_sock_ops *ctx) {
             read_in6_addr(&sk_stats->tup.daddr_h, &sk_stats->tup.daddr_l, &daddr);
         }
     }
-    // TODO netns
+    if (!sk_stats->tup.netns) {
+        sk_stats->tup.netns = get_netns_from_sock(sk);
+    }
 
     if (ctx->op == BPF_SOCK_OPS_STATE_CB) {
         switch (ctx->state) {
         case BPF_TCP_ESTABLISHED:
-            log_debug("sockops: sk=%pK state=TCP_ESTABLISHED", sk);
+            log_debug("sockops: sk=%p state=TCP_ESTABLISHED", sk);
             sk_stats->state_transitions |= (1 << TCP_ESTABLISHED);
             break;
         case BPF_TCP_CLOSE:
@@ -449,11 +450,9 @@ int BPF_PROG(tcp_connect_entry, struct sock *sk) {
         return 0;
     }
     log_debug("tcp_connect: sk=%p", sk);
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    sk_stats->pid = GET_USER_MODE_PID(pid_tgid);
+    sk_stats->tup.pid = GET_USER_MODE_PID(bpf_get_current_pid_tgid());
     sk_stats->start_ns = bpf_ktime_get_ns();
     sk_stats->direction = CONN_DIRECTION_OUTGOING;
-//    st_stats->cookie = get_sk_cookie(sk);
     return 0;
 }
 
@@ -464,12 +463,10 @@ int BPF_PROG(inet_csk_accept_exit, struct sock *orig_sk, int flags, int *err, bo
         return 0;
     }
     log_debug("inet_csk_accept: sk=%p", sk);
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    sk_stats->pid = GET_USER_MODE_PID(pid_tgid);
+    sk_stats->tup.pid = GET_USER_MODE_PID(bpf_get_current_pid_tgid());
     sk_stats->start_ns = bpf_ktime_get_ns();
     sk_stats->direction = CONN_DIRECTION_INCOMING;
     sk_stats->state_transitions |= (1 << TCP_ESTABLISHED);
-//    st_stats->cookie = get_sk_cookie(sk);
     return 0;
 }
 
@@ -495,7 +492,7 @@ int BPF_PROG(tcp_done_entry, struct sock *sk) {
     sk_stats->state_transitions |= (1 << TCP_CLOSE);
 
     conn_t conn = {};
-    if (!create_tcp_conn(&conn, sk, sk_stats)) {
+    if (!create_tcp_conn(&conn, sk, sk_stats, NULL)) {
         return 0;
     }
 
@@ -515,7 +512,7 @@ int BPF_PROG(tcp_close_entry, struct sock *sk) {
     sk_stats->state_transitions |= (1 << TCP_CLOSE);
 
     conn_t conn = {};
-    if (!create_tcp_conn(&conn, sk, sk_stats)) {
+    if (!create_tcp_conn(&conn, sk, sk_stats, NULL)) {
         return 0;
     }
 
