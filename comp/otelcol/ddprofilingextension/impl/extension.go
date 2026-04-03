@@ -207,7 +207,11 @@ func (e *ddExtension) Shutdown(ctx context.Context) error {
 		return e.server.Shutdown(ctx)
 	}
 	// OCB mode: clean up environment variables set during startForOCB.
-	os.Unsetenv("DD_PROFILING_AGENTLESS")
-	os.Unsetenv("DD_API_KEY")
+	if err := os.Unsetenv("DD_PROFILING_AGENTLESS"); err != nil {
+		return err
+	}
+	if err := os.Unsetenv("DD_API_KEY"); err != nil {
+		return err
+	}
 	return nil
 }
