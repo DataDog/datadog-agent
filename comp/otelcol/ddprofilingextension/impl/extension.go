@@ -106,7 +106,7 @@ func (e *ddExtension) startForOCB() error {
 	os.Setenv("DD_PROFILING_AGENTLESS", "true")
 	os.Setenv("DD_API_KEY", string(e.cfg.API.Key))
 	if string(e.cfg.API.Site) != "" {
-		os.Setenv("DD_SITE", string(e.cfg.API.Site))
+		profilerOptions = append(profilerOptions, profiler.WithSite(string(e.cfg.API.Site)))
 	}
 
 	source, err := e.sourceProvider.Source(context.Background())
@@ -206,5 +206,8 @@ func (e *ddExtension) Shutdown(ctx context.Context) error {
 		// stop server
 		return e.server.Shutdown(ctx)
 	}
+	// OCB mode: clean up environment variables set during startForOCB.
+	os.Unsetenv("DD_PROFILING_AGENTLESS")
+	os.Unsetenv("DD_API_KEY")
 	return nil
 }
