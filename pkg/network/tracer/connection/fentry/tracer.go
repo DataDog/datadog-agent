@@ -188,11 +188,6 @@ func initFentryTracer(ar bytecode.AssetReader, o manager.Options, config *config
 		util.AddBoolConst(&o, "tcp_failed_connections_enabled", true)
 	}
 
-	// SSL cert collection: enable the sched_process_exit cleanup probe (uses separate UID)
-	if config.EnableCertCollection {
-		enabledProbes[probes.RawTracepointSchedProcessExit] = struct{}{}
-	}
-
 	// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
 	for _, p := range m.Probes {
 		if _, enabled := enabledProbes[p.EBPFFuncName]; !enabled {
@@ -219,6 +214,13 @@ func initFentryTracer(ar bytecode.AssetReader, o manager.Options, config *config
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: pid,
 			})
+	}
+
+	// SSL sched_process_exit uses UID "ssl-certs", not "net" — activate with correct UID
+	if config.EnableCertCollection {
+		o.ActivatedProbes = append(o.ActivatedProbes, &manager.ProbeSelector{
+			ProbeIdentificationPair: ssluprobes.IDPairFromFuncName(probes.RawTracepointSchedProcessExit),
+		})
 	}
 
 	if err := m.InitWithOptions(ar, &o); err != nil {
