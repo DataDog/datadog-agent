@@ -12,7 +12,8 @@ from invoke import task
 
 from tasks.libs.common.color import Color, color_message
 
-SCENARIOS = ["213_pagerduty", "353_postmark", "food_delivery_redis"]
+# SCENARIOS = ["213_pagerduty", "353_postmark", "food_delivery_redis"]
+SCENARIOS = ["353_postmark-onlylogs", "food_delivery_redis-onlylogs"]
 
 # Maps short scenario names to episode names used in runs.jsonl
 SCENARIO_EPISODE_NAMES = {
@@ -37,6 +38,61 @@ EXTRACTORS = [
     "connection_error_extractor",
     "log_pattern_extractor",
 ]
+
+
+class StepLogger:
+    """Hierarchical progress logger that always shows the full ancestor chain.
+
+    Each step prints [root X/N > ... > this X/N]  title, so every line carries
+    complete context regardless of nesting depth. Create a root logger with
+    StepLogger(total, label), then nest via .child() which captures the parent.
+
+    Example output (depth 0 → 1 → 2):
+        [Bayesian run 1/30]  without/subset_000/run_000
+          [Bayesian run 1/30 > Trial 2/5]  trial_001
+            [Bayesian run 1/30 > Trial 2/5 > Scenario 1/3]  213_pagerduty
+    """
+
+    def __init__(self, total: int, label: str, depth: int = 0, parent: "StepLogger | None" = None):
+        self.total = total
+        self.label = label
+        self.depth = depth
+        self._parent = parent
+        self._current = 0
+
+    @property
+    def _indent(self) -> str:
+        return "  " * self.depth
+
+    def _ancestor_tag(self) -> str:
+        """Build 'root X/N > ... > this X/N' chain from the root down to this logger."""
+        parts = []
+        node: StepLogger | None = self
+        while node is not None:
+            parts.append(f"{node.label} {node._current}/{node.total}")
+            node = node._parent
+        return " > ".join(reversed(parts))
+
+    def step(self, title: str = "", color: Color = Color.BLUE) -> "StepLogger":
+        """Increment counter and print full-context progress line. Returns self for chaining."""
+        self._current += 1
+        tag = f"[{self._ancestor_tag()}]"
+        msg = f"{self._indent}{tag}  {title}" if title else f"{self._indent}{tag}"
+        print(color_message(msg, color))
+        return self
+
+    def detail(self, message: str, color: Color = Color.BLUE) -> None:
+        """Print an indented detail line under the current step."""
+        print(color_message(f"{self._indent}  {message}", color))
+
+    def score(self, value: float) -> None:
+        """Print a score line, green if positive, red otherwise."""
+        clr = Color.GREEN if value > 0 else Color.RED
+        print(color_message(f"{self._indent}  score: {value:.4f}", clr))
+
+    def child(self, total: int, label: str) -> "StepLogger":
+        """Create a nested logger one level deeper, capturing self as parent."""
+        return StepLogger(total, label, depth=self.depth + 1, parent=self)
 
 
 # --- Build ---
@@ -68,6 +124,7 @@ def eval_scenarios(
     main_report_path: str = "/tmp/observer-eval-main-report.json",
     config: str = "",
     scenario_output_dir: str = "/tmp",
+    _logger: StepLogger | None = None,
 ) -> dict[str, object]:
     """
     Runs the observer F1 eval: replays scenarios, scores Gaussian F1.
@@ -119,6 +176,7 @@ def eval_scenarios(
         build_scorer(ctx)
 
     scenarios_to_run = [scenario] if scenario else SCENARIOS
+    scenario_logger = _logger or StepLogger(len(scenarios_to_run), "Scenario")
 
     results = []
     for name in scenarios_to_run:
@@ -129,13 +187,11 @@ def eval_scenarios(
         if not os.path.isdir(parquet_dir) or not os.listdir(parquet_dir):
             # Fallback: check for *.parquet files directly in scenario root
             if not glob.glob(os.path.join(scenario_root, "*.parquet")):
-                print(color_message(f"Skipping {name} — no parquet data at {parquet_dir}", Color.ORANGE))
+                scenario_logger.detail(f"skipping {name} — no parquet data at {parquet_dir}", Color.ORANGE)
                 continue
 
         output_path = os.path.join(scenario_output_dir, f"observer-eval-{name}.json")
-        print(color_message(f"\n{'=' * 60}", Color.BLUE))
-        print(color_message(f"  {name}", Color.BLUE))
-        print(color_message(f"{'=' * 60}", Color.BLUE))
+        scenario_logger.step(name)
 
         only_part = f" --only {shlex.quote(only_flag)}" if only_flag else ""
         config_part = f" --config {shlex.quote(config)}" if config else ""
@@ -144,13 +200,13 @@ def eval_scenarios(
         )
 
         if not os.path.isfile(output_path):
-            print(color_message(f"Testbench did not produce output at {output_path}", Color.RED))
+            scenario_logger.detail(f"testbench did not produce output at {output_path}", Color.RED)
             continue
         try:
             with open(output_path) as f:
                 json.load(f)
         except (json.JSONDecodeError, OSError) as e:
-            print(color_message(f"Testbench output at {output_path} is not valid JSON: {e}", Color.RED))
+            scenario_logger.detail(f"testbench output not valid JSON: {e}", Color.RED)
             continue
 
         scorer_result = ctx.run(
@@ -160,14 +216,18 @@ def eval_scenarios(
         )
 
         if scorer_result.failed:
-            print(color_message(f"Scorer failed for {name}:\n{scorer_result.stderr}", Color.RED))
+            scenario_logger.detail(f"scorer failed:\n{scorer_result.stderr}", Color.RED)
             continue
 
         try:
             score = json.loads(scorer_result.stdout.strip())
         except json.JSONDecodeError:
-            print(color_message(f"Scorer returned invalid JSON for {name}:\n{scorer_result.stdout}", Color.RED))
+            scenario_logger.detail(f"scorer returned invalid JSON:\n{scorer_result.stdout}", Color.RED)
             continue
+
+        scenario_logger.detail(
+            f"F1={score.get('f1', 0):.4f}  prec={score.get('precision', 0):.4f}  rec={score.get('recall', 0):.4f}"
+        )
         results.append({"name": name, **score})
 
     # Print summary table
@@ -533,6 +593,7 @@ def eval_combinations(
         )
     )
 
+    combo_logger = StepLogger(len(combos), "Combo")
     summary_results = []
     for i, combo in enumerate(combos):
         combo_label = f"combo_{i:03d}"
@@ -544,14 +605,12 @@ def eval_combinations(
         with open(config_path, "w") as f:
             json.dump(config_data, f, indent=4)
 
-        print(color_message(f"\n{'=' * 60}", Color.BLUE))
         combo_title = f"{combo_label} (full stack)" if i == 0 else combo_label
-        print(color_message(f"  [{i + 1}/{len(combos)}] {combo_title}", Color.BLUE))
-        print(color_message(f"  detectors:   {', '.join(combo['detectors'])}", Color.BLUE))
-        print(color_message(f"  correlators: {', '.join(combo['correlators'])}", Color.BLUE))
+        combo_logger.step(combo_title)
+        combo_logger.detail(f"detectors:   {', '.join(combo['detectors'])}")
+        combo_logger.detail(f"correlators: {', '.join(combo['correlators'])}")
         ext_on = [e for e in EXTRACTORS if e not in force_disable_list]
-        print(color_message(f"  extractors:  {', '.join(ext_on)}", Color.BLUE))
-        print(color_message(f"{'=' * 60}", Color.BLUE))
+        combo_logger.detail(f"extractors:  {', '.join(ext_on)}")
 
         scenario_output_dir = os.path.join(combo_dir, "scenarios")
         os.makedirs(scenario_output_dir, exist_ok=True)
@@ -566,12 +625,14 @@ def eval_combinations(
                 build=False,
                 main_report_path=report_path,
                 scenario_output_dir=scenario_output_dir,
+                _logger=combo_logger.child(len(SCENARIOS), "Scenario"),
             )
         except Exception as e:
-            print(color_message(f"eval_scenarios failed for {combo_label}: {e}", Color.RED))
+            combo_logger.detail(f"eval_scenarios failed: {e}", Color.RED)
             report = None
 
         if report is not None:
+            combo_logger.detail(f"score: {report.get('score', 0.0):.4f}")
             summary_results.append(
                 {
                     "rank": 0,
@@ -733,6 +794,7 @@ def eval_bayesian(
     sigma: float = 30.0,
     seed: int = None,
     build: bool = True,
+    _logger: StepLogger | None = None,
 ):
     """
     Run Bayesian hyperparameter optimization (Optuna TPE) for a fixed set of observer components.
@@ -796,16 +858,20 @@ def eval_bayesian(
         build_scorer(ctx)
 
     tuned = [c for c in components_list if c not in locked_set]
-    print(color_message(f"\n{'=' * 60}", Color.BLUE))
-    print(color_message("  Observer Bayesian Optimization", Color.BLUE))
-    print(color_message(f"{'=' * 60}", Color.BLUE))
-    print(color_message(f"  components:  {', '.join(components_list)}", Color.BLUE))
-    if locked_set:
-        print(color_message(f"  locked:      {', '.join(sorted(locked_set))} (not tuned)", Color.BLUE))
-    print(color_message(f"  tuned:       {', '.join(tuned)}", Color.BLUE))
-    print(color_message(f"  n_trials:    {n_trials}", Color.BLUE))
-    print(color_message(f"  output_dir:  {output_dir}", Color.BLUE))
-    print(color_message(f"  seed:        {seed}", Color.BLUE))
+    trial_logger = _logger or StepLogger(n_trials, "Trial")
+
+    if not _logger:
+        # Only print the full header when running standalone (not nested inside eval_component)
+        print(color_message(f"\n{'=' * 60}", Color.BLUE))
+        print(color_message("  Observer Bayesian Optimization", Color.BLUE))
+        print(color_message(f"{'=' * 60}", Color.BLUE))
+        print(color_message(f"  components:  {', '.join(components_list)}", Color.BLUE))
+        if locked_set:
+            print(color_message(f"  locked:      {', '.join(sorted(locked_set))} (not tuned)", Color.BLUE))
+        print(color_message(f"  tuned:       {', '.join(tuned)}", Color.BLUE))
+        print(color_message(f"  n_trials:    {n_trials}", Color.BLUE))
+        print(color_message(f"  output_dir:  {output_dir}", Color.BLUE))
+        print(color_message(f"  seed:        {seed}", Color.BLUE))
 
     completed_trials = []
 
@@ -819,11 +885,9 @@ def eval_bayesian(
         with open(config_path, "w") as f:
             json.dump(config_data, f, indent=4)
 
-        print(color_message(f"\n{'=' * 60}", Color.BLUE))
-        print(color_message(f"  [{trial.number + 1}/{n_trials}] {trial_label}", Color.BLUE))
+        trial_logger.step(trial_label)
         for key, val in sorted(trial.params.items()):
-            print(color_message(f"    {key}: {val}", Color.BLUE))
-        print(color_message(f"{'=' * 60}", Color.BLUE))
+            trial_logger.detail(f"{key}: {val}")
 
         report_path = os.path.join(trial_dir, "report.json")
         scenario_output_dir = os.path.join(trial_dir, "scenarios")
@@ -838,13 +902,14 @@ def eval_bayesian(
                 build=False,
                 main_report_path=report_path,
                 scenario_output_dir=scenario_output_dir,
+                _logger=trial_logger.child(len(SCENARIOS), "Scenario"),
             )
         except Exception as e:
-            print(color_message(f"eval_scenarios failed for {trial_label}: {e}", Color.RED))
+            trial_logger.detail(f"eval_scenarios failed: {e}", Color.RED)
             return float("-inf")
 
         score = report.get("score", 0.0) if report else 0.0
-        print(color_message(f"  Score: {score:.4f}", Color.GREEN if score > 0 else Color.RED))
+        trial_logger.score(score)
 
         completed_trials.append(
             {
@@ -928,7 +993,7 @@ def eval_bayesian(
 
 
 @task
-def component_eval(
+def eval_component(
     ctx,
     component: str,
     n_subsets: int = 5,
@@ -970,9 +1035,9 @@ def component_eval(
         build: Whether to build testbench and scorer first.
 
     Examples:
-        dda inv q.component-eval --component scanmw
-        dda inv q.component-eval --component log_pattern_extractor --n-subsets 3
-        dda inv q.component-eval --component cusum --seed 42 --n-trials 10
+        dda inv q.eval-component --component scanmw
+        dda inv q.eval-component --component log_pattern_extractor --n-subsets 3
+        dda inv q.eval-component --component cusum --seed 42 --n-trials 10
     """
     all_known = DETECTORS + CORRELATORS + EXTRACTORS
     if component not in all_known:
@@ -1037,7 +1102,7 @@ def component_eval(
 
     # --- run evaluations ---
     variant_results: dict[str, list] = {"without": [], "with": []}
-    bayesian_counter = 0
+    run_logger = StepLogger(total_bayesian_runs, "Bayesian run")
 
     for variant in ("without", "with"):
         variant_dir = os.path.join(output_dir, variant)
@@ -1068,19 +1133,11 @@ def component_eval(
                 run_label = f"run_{ri:03d}"
                 run_dir = os.path.join(subset_dir, run_label)
                 run_seed = run_seeds[(variant, si)][ri]
-                bayesian_counter += 1
 
-                print(color_message(f"\n{'=' * 70}", Color.BLUE))
-                print(
-                    color_message(
-                        f"  [{bayesian_counter}/{total_bayesian_runs}] "
-                        f"{variant}/{subset_label}/{run_label}  (seed={run_seed})",
-                        Color.BLUE,
-                    )
-                )
-                print(color_message(f"  components: {', '.join(components_list)}", Color.BLUE))
-                print(color_message(f"{'=' * 70}", Color.BLUE))
+                run_logger.step(f"{variant} / {subset_label} / {run_label}  (seed={run_seed})")
+                run_logger.detail(f"components: {', '.join(components_list)}")
 
+                trial_logger = run_logger.child(n_trials, "Trial")
                 report = eval_bayesian(
                     ctx,
                     components=",".join(components_list),
@@ -1090,6 +1147,7 @@ def component_eval(
                     sigma=sigma,
                     seed=run_seed,
                     build=False,
+                    _logger=trial_logger,
                 )
 
                 best_score = report.get("score", 0.0) if report else 0.0
@@ -1184,6 +1242,16 @@ def component_eval(
     print(color_message(f"  Recommendation: {recommendation.upper()} {component}", rec_clr))
     print(color_message(f"{'=' * 70}", Color.GREEN))
 
+    # --- copy best "with" config to root ---
+    all_with_runs = [run for subset in variant_results["with"] for run in subset["runs"]]
+    best_with_run = max(all_with_runs, key=lambda r: r["best_score"]) if all_with_runs else None
+    best_config_path = None
+    if best_with_run:
+        src = os.path.join(os.path.dirname(best_with_run["report_path"]), "best_config.json")
+        if os.path.isfile(src):
+            best_config_path = os.path.join(output_dir, "best_config.json")
+            shutil.copy2(src, best_config_path)
+
     # --- write report ---
     final_report = {
         "component": component,
@@ -1194,6 +1262,8 @@ def component_eval(
         "n_trials": n_trials,
         "total_bayesian_runs": total_bayesian_runs,
         "total_testbench_runs": total_testbench_runs,
+        "best_config_path": best_config_path,
+        "best_with_run": best_with_run,
         "summary": {
             "avg_max_score_without": avg_max_without,
             "avg_max_score_with": avg_max_with,
@@ -1210,7 +1280,11 @@ def component_eval(
     with open(report_path, "w") as f:
         json.dump(final_report, f, indent=4)
 
-    print(color_message(f"\n  Report: {report_path}", Color.GREEN))
+    print(color_message(f"\n  Report:      {report_path}", Color.GREEN))
+    if best_config_path:
+        print(
+            color_message(f"  Best config: {best_config_path}  (score={best_with_run['best_score']:.4f})", Color.GREEN)
+        )
 
     return final_report
 
