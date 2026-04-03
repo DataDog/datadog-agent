@@ -1055,6 +1055,8 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// Host Profiler config
 	config.BindEnvAndSetDefault("hostprofiler.debug.verbosity", "")
 	config.BindEnvAndSetDefault("hostprofiler.additional_http_headers", map[string]string{})
+	config.BindEnvAndSetDefault("hostprofiler.ddprofiling.enabled", false)
+	config.BindEnvAndSetDefault("hostprofiler.ddprofiling.period", 0)
 }
 
 func agent(config pkgconfigmodel.Setup) {
