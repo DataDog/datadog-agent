@@ -20,6 +20,8 @@ import (
 	"github.com/google/uuid"
 	"go.etcd.io/bbolt"
 
+	"github.com/DataDog/datadog-agent/pkg/util/compression"
+	"github.com/DataDog/datadog-agent/pkg/util/compression/selector"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -39,8 +41,9 @@ const (
 // whenever a config is retrieved, we will store agent-side along with the payload sent
 // to intake to enable "rollbacks" without sending sensitive data (in configs) back and forth
 type ConfigStore struct {
-	db   *bbolt.DB
-	lock sync.RWMutex
+	db         *bbolt.DB
+	lock       sync.RWMutex
+	compressor compression.Compressor
 }
 
 // Open creates a new ConfigStore and initializes the underlying boltDB + required buckets
@@ -52,9 +55,12 @@ func Open(path string) (*ConfigStore, error) {
 		return nil, fmt.Errorf("failed to open NCM bbolt config store at %s: %w", path, err)
 	}
 
-	cs := &ConfigStore{db: db}
+	cs := &ConfigStore{
+		db:         db,
+		compressor: selector.NewCompressor(compression.ZstdKind, 3), // Level 3 is default for compression, can tune iteratively
+	}
 
-	// Create the buckets when we first open ?
+	// Create the buckets when we first open
 	err = cs.update(func(tx *bbolt.Tx) error {
 		for _, name := range []string{rawConfigBucket, configBlocksBucket, metadataBucket, secretsBucket} {
 			if _, err := tx.CreateBucketIfNotExists([]byte(name)); err != nil {
@@ -106,18 +112,26 @@ func (cs *ConfigStore) StoreConfig(deviceID, configType string, rawConfig string
 
 	// Setup for storing the config
 	configUUID := uuid.New().String()
-	now := time.Now().Unix() // TODO: may need to be different for testing purposes
+	now := time.Now().Unix()
 
 	// Raw text
 	rawConfigJSON, err := json.Marshal(rawConfig)
 	if err != nil {
 		return "", fmt.Errorf("marshal raw config error: %w", err)
 	}
+	compressedRawConfigJSON, err := cs.compressor.Compress((rawConfigJSON))
+	if err != nil {
+		return "", fmt.Errorf("compress raw config error: %w", err)
+	}
 
 	// Blocks / raw text
 	blocksJSON, err := json.Marshal(blocks)
 	if err != nil {
 		return "", fmt.Errorf("marshal config blocks error: %w", err)
+	}
+	compressedBlocksJSON, err := cs.compressor.Compress(blocksJSON)
+	if err != nil {
+		return "", fmt.Errorf("compress config blocks error: %w", err)
 	}
 
 	// Metadata
@@ -144,10 +158,10 @@ func (cs *ConfigStore) StoreConfig(deviceID, configType string, rawConfig string
 	// Update the DB with all the JSONs
 	err = cs.update(func(tx *bbolt.Tx) error {
 		key := []byte(configUUID) // TODO: include more for prefix searches?
-		if err := tx.Bucket([]byte(rawConfigBucket)).Put(key, rawConfigJSON); err != nil {
+		if err := tx.Bucket([]byte(rawConfigBucket)).Put(key, compressedRawConfigJSON); err != nil {
 			return err
 		}
-		if err := tx.Bucket([]byte(configBlocksBucket)).Put(key, blocksJSON); err != nil {
+		if err := tx.Bucket([]byte(configBlocksBucket)).Put(key, compressedBlocksJSON); err != nil {
 			return err
 		}
 		if err := tx.Bucket([]byte(metadataBucket)).Put(key, metadataJSON); err != nil {
@@ -180,7 +194,11 @@ func (cs *ConfigStore) GetConfig(configUUID string) (string, []ConfigBlock, *Con
 		if rawConfigBytes == nil {
 			return fmt.Errorf("raw config not found for UUID: %s", configUUID)
 		}
-		if err := json.Unmarshal(rawConfigBytes, &rawConfig); err != nil {
+		decompressedRawConfig, err := cs.compressor.Decompress(rawConfigBytes)
+		if err != nil {
+			return fmt.Errorf("decompress raw config error: %w", err)
+		}
+		if err := json.Unmarshal(decompressedRawConfig, &rawConfig); err != nil {
 			return fmt.Errorf("unmarshal raw config error: %w", err)
 		}
 
@@ -189,7 +207,11 @@ func (cs *ConfigStore) GetConfig(configUUID string) (string, []ConfigBlock, *Con
 		if blocksBytes == nil {
 			return fmt.Errorf("blocks not found for UUID: %s", configUUID)
 		}
-		if err := json.Unmarshal(blocksBytes, &blocks); err != nil {
+		decompressedBlocks, err := cs.compressor.Decompress(blocksBytes)
+		if err != nil {
+			return fmt.Errorf("decompress config blocks error: %w", err)
+		}
+		if err := json.Unmarshal(decompressedBlocks, &blocks); err != nil {
 			return fmt.Errorf("unmarshal blocks error: %w", err)
 		}
 
@@ -201,6 +223,7 @@ func (cs *ConfigStore) GetConfig(configUUID string) (string, []ConfigBlock, *Con
 		if err := json.Unmarshal(metadataBytes, &metadata); err != nil {
 			return fmt.Errorf("unmarshal metadata error: %w", err)
 		}
+
 		// Unmarshal secrets
 		secretBytes := tx.Bucket([]byte(secretsBucket)).Get(key)
 		if secretBytes == nil {
