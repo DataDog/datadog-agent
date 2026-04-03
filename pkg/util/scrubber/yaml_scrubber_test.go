@@ -233,12 +233,12 @@ func TestNewAPIKeyAndAuthPatterns(t *testing.T) {
 				"apikey":  "secret678",
 			},
 			expected: map[string]interface{}{
-				"APIKEY":  "********",
-				"API_KEY": "********",
-				"ApiKey":  "********",
-				"Api_key": "********",
-				"api-key": "********",
-				"apikey":  "********",
+				"APIKEY":  "*****t123",
+				"API_KEY": "*****t456",
+				"ApiKey":  "*****t789",
+				"Api_key": "*****t012",
+				"api-key": "*****t345",
+				"apikey":  "*****t678",
 			},
 		},
 		{
@@ -394,7 +394,8 @@ func TestScrubbingENC(t *testing.T) {
 password: ENC
 token: [not_enc]`)
 		require.NoError(t, err)
-		require.YAMLEq(t, `api_key: "********"
+		// api_key: invalid ENC reference is partially scrubbed (last 4 chars shown)
+		require.YAMLEq(t, `api_key: "**********lete"
 password: "********"
 token: "********"`, result)
 	})
@@ -440,6 +441,14 @@ token: "********"`, result)
 		ScrubDataObj(&input)
 		assert.Equal(t, expected, input)
 	})
+}
+
+func TestAPIKeyScrubNonStandardLength(t *testing.T) {
+	// Non-standard-length api_key values (e.g. from a secret manager) should
+	// show the last 4 characters, matching the behavior for standard 32-char keys.
+	result, err := ScrubYamlString(`api_key: secretmanagerresolvedkeyabcd`)
+	require.NoError(t, err)
+	require.YAMLEq(t, `api_key: "************************abcd"`, result)
 }
 
 func TestComplexYAMLWithNewKeys(t *testing.T) {

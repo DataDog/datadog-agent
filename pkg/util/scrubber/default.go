@@ -215,9 +215,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 				if apiKey == "" {
 					return ""
 				}
-				if len(apiKey) == 32 {
-					return HideKeyExceptLastFourChars(apiKey)
-				}
+				return HideKeyExceptLastFourChars(apiKey)
 			}
 			return defaultReplacement
 		},
@@ -232,9 +230,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 				if appKey == "" {
 					return ""
 				}
-				if len(appKey) == 40 {
-					return HideKeyExceptLastFourChars(appKey)
-				}
+				return HideKeyExceptLastFourChars(appKey)
 			}
 			return defaultReplacement
 		},
@@ -488,10 +484,10 @@ func ScrubDataObj(data *interface{}) {
 }
 
 // HideKeyExceptLastFourChars replaces all characters in the key with "*", except
-// for the last 4 characters. If the key is an unrecognized length, replace
+// for the last 4 characters. If the key is shorter than 4 characters, replace
 // all of it with the default string of "*"s instead.
 func HideKeyExceptLastFourChars(key string) string {
-	if len(key) != 32 && len(key) != 40 {
+	if len(key) < 4 {
 		return defaultReplacement
 	}
 	return strings.Repeat("*", len(key)-4) + key[len(key)-4:]
