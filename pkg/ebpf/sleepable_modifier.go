@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/names"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
 )
 
@@ -32,6 +33,25 @@ func (t *SleepableProgramModifier) String() string {
 	return "SleepableProgramModifier"
 }
 
+func isProgramSleepable(prog *ebpf.ProgramSpec) bool {
+	if prog.Type == ebpf.Tracing {
+		switch prog.AttachType {
+		case ebpf.AttachTraceFEntry:
+			fallthrough
+		case ebpf.AttachTraceFExit:
+			fallthrough
+		case ebpf.AttachModifyReturn:
+			fallthrough
+		case ebpf.AttachTraceIter:
+			return true
+		default:
+			return false
+		}
+	}
+
+	return prog.Type == ebpf.LSM || prog.Type == ebpf.Kprobe || prog.Type == ebpf.StructOps
+}
+
 func (t *SleepableProgramModifier) BeforeInit(m *manager.Manager, module names.ModuleName, opts *manager.Options) error {
 	for _, id := range t.ProbeIDs {
 		// passing in a ProbeIdentificationPair with UID set forces the ebpf manager to return the ebpf.ProgramSpec associated with a manager.Probe
@@ -47,6 +67,10 @@ func (t *SleepableProgramModifier) BeforeInit(m *manager.Manager, module names.M
 
 		log.Infof("Marking %s sleepable as requested by %q", id.EBPFFuncName, module.Name())
 		for _, spec := range specs {
+			if !isProgramSleepable(spec) {
+				return fmt.Errorf("program %s of type %v and attach type %v is not sleepable", spec.Name, spec.Type, spec.AttachType)
+			}
+
 			spec.Flags |= BPF_F_SLEEPABLE
 		}
 	}
