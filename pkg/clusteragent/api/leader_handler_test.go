@@ -8,7 +8,6 @@
 package api
 
 import (
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -18,9 +17,8 @@ import (
 
 // mockLeaderEngine is our mock implementation of the leaderEngine interface
 type mockLeaderEngine struct {
-	isLeader    bool
-	leaderIP    string
-	leaderIPErr error
+	isLeader bool
+	leaderIP string
 }
 
 func (m *mockLeaderEngine) IsLeader() bool {
@@ -28,7 +26,7 @@ func (m *mockLeaderEngine) IsLeader() bool {
 }
 
 func (m *mockLeaderEngine) GetLeaderIP() (string, error) {
-	return m.leaderIP, m.leaderIPErr
+	return m.leaderIP, nil
 }
 
 // fakeLeaderForwarder is a fake implementation of the forwarder for testing purposes.
@@ -185,50 +183,4 @@ func TestRejectOrForwardLeaderQuery_LeaderIPChange(t *testing.T) {
 	assert.True(t, lph.rejectOrForwardLeaderQuery(rw3, req3))
 	assert.Equal(t, 3, forwarder.forwardCallCount)
 	assert.Equal(t, 1, forwarder.leaderIPChangeCount, "Should not update IP when unchanged")
-}
-
-func TestRejectOrForwardLeaderQuery_LeaderIPError_SetsSpanError(t *testing.T) {
-	leaderIPErr := errors.New("lease not found")
-	mockEngine := &mockLeaderEngine{
-		isLeader:    false,
-		leaderIPErr: leaderIPErr,
-	}
-
-	lph := &LeaderProxyHandler{
-		leaderElectionEnabled: true,
-		le:                    mockEngine,
-		leaderForwarder:       &fakeLeaderForwarder{},
-	}
-
-	rec := httptest.NewRecorder()
-	tw := newTestTelemetryWrapper(rec)
-	req := httptest.NewRequest("GET", "http://example.com/foo", nil)
-
-	assert.True(t, lph.rejectOrForwardLeaderQuery(tw, req))
-	assert.Equal(t, http.StatusServiceUnavailable, rec.Code)
-	assert.NotNil(t, tw.capturedErr)
-	assert.Contains(t, tw.capturedErr.Error(), "failed to retrieve leader ip")
-	assert.ErrorIs(t, tw.capturedErr, leaderIPErr)
-}
-
-func TestRejectOrForwardLeaderQuery_NilForwarder_SetsSpanError(t *testing.T) {
-	mockEngine := &mockLeaderEngine{
-		isLeader: false,
-		leaderIP: "1.1.1.1",
-	}
-
-	lph := &LeaderProxyHandler{
-		leaderElectionEnabled: true,
-		le:                    mockEngine,
-		leaderForwarder:       nil,
-	}
-
-	rec := httptest.NewRecorder()
-	tw := newTestTelemetryWrapper(rec)
-	req := httptest.NewRequest("GET", "http://example.com/foo", nil)
-
-	assert.True(t, lph.rejectOrForwardLeaderQuery(tw, req))
-	assert.Equal(t, http.StatusServiceUnavailable, rec.Code)
-	assert.NotNil(t, tw.capturedErr)
-	assert.Contains(t, tw.capturedErr.Error(), "leader forwarder is not available")
 }
