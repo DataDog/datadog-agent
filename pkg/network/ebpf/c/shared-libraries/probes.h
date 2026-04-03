@@ -237,7 +237,7 @@ int tracepoint__syscalls__sys_exit_openat2(exit_sys_ctx *args) {
 
 static __always_inline int fexit_open_handler(void* ctx, bool sleepable, const char *pathname, long ret) {
     lib_path_t path = { 0 };
-    if (fill_lib_path(&path, pathname)) {
+    if (fill_lib_path(&path, pathname, sleepable)) {
         push_event_if_relevant(ctx, &path, ret);
     }
     return 0;
@@ -249,7 +249,7 @@ static __always_inline bool is_sleepable() {
     return (sleepable & SLEEPBALE_SYS_OPENAT2_MASK) > 0;
 }
 
-static __always_inline int handle_sys_openat2(const struct pt_regs* regs, long ret) {
+static __always_inline int handle_sys_openat2(void* ctx, const struct pt_regs* regs, long ret) {
     const char *pathname;
     openat2_open_how* how;
     int flags;
@@ -258,7 +258,7 @@ static __always_inline int handle_sys_openat2(const struct pt_regs* regs, long r
         return 0;
 
     bool sleepable = is_sleepable();
-    if (_bpf_copy_from_user(&flags, sizeof(flags), &how->flags, sleepable)) < 0)
+    if (_bpf_copy_from_user(&flags, sizeof(flags), &how->flags, sleepable) < 0)
         return 0;
 
     if (should_ignore_flags(flags))
@@ -272,15 +272,15 @@ static __always_inline int handle_sys_openat2(const struct pt_regs* regs, long r
 
 SEC("fexit/__x64_sys_openat2")
 int BPF_BYPASSABLE_PROG(__x64_sys_openat2_exit, const struct pt_regs* regs, long ret) {
-    return handle_sys_openat2(regs, ret);
+    return handle_sys_openat2(ctx, regs, ret);
 }
 
 SEC("fexit/__arm64_sys_openat2")
 int BPF_BYPASSABLE_PROG(__arm64_sys_openat2_exit, const struct pt_regs* regs, long ret) {
-    return handle_sys_openat2(regs, ret);
+    return handle_sys_openat2(ctx, regs, ret);
 }
 
-static __always_inline int handle_sys_openat(const struct pt_regs* regs, long ret) {
+static __always_inline int handle_sys_openat(void* ctx, const struct pt_regs* regs, long ret) {
     const char* pathname;
     int flags;
 
@@ -298,16 +298,16 @@ static __always_inline int handle_sys_openat(const struct pt_regs* regs, long re
 }
 
 SEC("fexit/__x64_sys_openat")
-int BPF_BYPASSABLE_PROG(__arm64_sys_openat_exit, const struct pt_regs* regs, long ret) {
-    return handle_sys_openat(regs, ret);
+int BPF_BYPASSABLE_PROG(__x64_sys_openat_exit, const struct pt_regs* regs, long ret) {
+    return handle_sys_openat(ctx, regs, ret);
 }
 
 SEC("fexit/__arm64_sys_openat")
 int BPF_BYPASSABLE_PROG(__arm64_sys_openat_exit, const struct pt_regs* regs, long ret) {
-    return handle_sys_openat(regs, ret);
+    return handle_sys_openat(ctx, regs, ret);
 }
 
-static __always_inline int handle_sys_open(const struct pt_regs* regs, long ret) {
+static __always_inline int handle_sys_open(void* ctx, const struct pt_regs* regs, long ret) {
     const char* pathname;
     int flags;
 
@@ -327,12 +327,12 @@ static __always_inline int handle_sys_open(const struct pt_regs* regs, long ret)
 
 SEC("fexit/__x64_sys_open")
 int BPF_BYPASSABLE_PROG(__x64_sys_open_exit, const struct pt_regs* regs, long ret) {
-    return handle_sys_open(regs, ret);
+    return handle_sys_open(ctx, regs, ret);
 }
 
 SEC("fexit/__arm64_sys_open")
-int BPF_BYPASSABLE_PROG(__x64_sys_open_exit, const struct pt_regs* regs, long ret) {
-    return handle_sys_open(regs, ret);
+int BPF_BYPASSABLE_PROG(__arm64_sys_open_exit, const struct pt_regs* regs, long ret) {
+    return handle_sys_open(ctx, regs, ret);
 }
 
 // Kprobe fallbacks for kernels < 4.15 that don't support multiple tracepoint attachments
