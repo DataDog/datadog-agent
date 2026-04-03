@@ -109,11 +109,13 @@ rust_binary(
         "src/main.rs",
     ],
     edition = "2024",
+    target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
     deps = [
         ":dd_discovery",
         "//comp/core/log/rust:dd-agent-log",
         "@crates//:anyhow",
+        "@crates//:caps",
         "@crates//:http-body-util",
         "@crates//:hyper",
         "@crates//:hyper-util",
