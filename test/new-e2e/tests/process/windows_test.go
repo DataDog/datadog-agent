@@ -8,6 +8,7 @@ package process
 import (
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -63,9 +64,8 @@ func (s *windowsTestSuite) SetupSuite() {
 	// This may be due to choco rate limits - https://datadoghq.atlassian.net/browse/ADXT-950
 	stdout, err := s.Env().RemoteHost.Execute("Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iwr https://community.chocolatey.org/install.ps1 -UseBasicParsing | iex")
 	require.NoErrorf(s.T(), err, "Failed to install chocolatey: %s, err: %s", stdout, err)
-	// Install diskspd for IO tests - https://learn.microsoft.com/en-us/azure/azure-local/manage/diskspd-overview
-	stdout, err = s.Env().RemoteHost.Execute("C:\\ProgramData\\chocolatey\\bin\\choco.exe install -y diskspd")
-	require.NoErrorf(s.T(), err, "Failed to install diskspd: %s, err: %s", stdout, err)
+	// DiskSpd for IO tests: zip on E2E artifact host at processes/DiskSpd.zip (see diskspd.go).
+	require.NoError(s.T(), setupDiskSpd(s.Env().RemoteHost))
 }
 
 func (s *windowsTestSuite) TestAPIKeyRefresh() {
@@ -308,6 +308,83 @@ func (s *windowsTestSuite) TestManualUnprotectedProcessCheckWithIO() {
 	}, 1*time.Minute, 5*time.Second)
 }
 
+func (s *windowsTestSuite) TestLanguageDetectionWindows() {
+	// Enable language detection on the agent
+	s.UpdateEnv(awshost.Provisioner(
+		awshost.WithRunOptions(
+			ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
+			ec2.WithAgentOptions(agentparams.WithAgentConfig(languageDetectionConfigStr)),
+		),
+	))
+
+	// Install Python via chocolatey (already installed in SetupSuite)
+	stdout, err := s.Env().RemoteHost.Execute(`C:\ProgramData\chocolatey\bin\choco.exe install -y python3 --no-progress`)
+	require.NoErrorf(s.T(), err, "Failed to install python: %s", stdout)
+
+	// Resolve the full python path since SSH sessions don't inherit choco's PATH update
+	pythonPath := strings.TrimSpace(s.Env().RemoteHost.MustExecute(
+		`$env:Path = [System.Environment]::GetEnvironmentVariable('Path','Machine'); (Get-Command python).Source`,
+	))
+
+	// Start Python in a persistent SSH session so it stays alive
+	session, stdin, _, err := s.Env().RemoteHost.Start(pythonPath + ` -c "import time; time.sleep(300)"`)
+	require.NoError(s.T(), err, "Failed to start python")
+	s.T().Cleanup(func() {
+		_ = session.Close()
+		_ = stdin.Close()
+	})
+
+	// Poll for the PID of the exact python process we started, identified by its command line.
+	// Get-CimInstance may briefly return no match while process metadata catches up.
+	var pid string
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		out, err := s.Env().RemoteHost.Execute(
+			`(Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*time.sleep(300)*' } | Select-Object -First 1).ProcessId`,
+		)
+		if !assert.NoError(c, err, "failed to query process") {
+			return
+		}
+		pid = strings.TrimSpace(out)
+		assert.NotEmpty(c, pid, "python process PID not yet available")
+	}, 30*time.Second, 1*time.Second)
+
+	// Verify language detection via workload-list JSON output.
+	// Use Execute (not MustExecute) so transient agent startup errors are retried.
+	type workloadProcess struct {
+		Kind     string `json:"Kind"`
+		ID       string `json:"ID"`
+		Language *struct {
+			Name string `json:"Name"`
+		} `json:"Language"`
+	}
+	type workloadResponse struct {
+		Entities map[string][]workloadProcess `json:"Entities"`
+	}
+
+	var lastOutput string
+	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		out, err := s.Env().RemoteHost.Execute(`& "C:\Program Files\Datadog\Datadog Agent\bin\agent.exe" workload-list --json`)
+		if !assert.NoError(c, err, "workload-list command failed") {
+			return
+		}
+		lastOutput = out
+		var resp workloadResponse
+		if !assert.NoError(c, json.Unmarshal([]byte(lastOutput), &resp), "failed to parse workload-list JSON") {
+			return
+		}
+		processes := resp.Entities["process"]
+		for _, p := range processes {
+			if p.ID == pid && p.Language != nil && p.Language.Name == "python" {
+				return
+			}
+		}
+		assert.Fail(c, fmt.Sprintf("process pid=%s with language=python not found in workload-list", pid))
+	}, 2*time.Minute, 5*time.Second)
+	if s.T().Failed() {
+		s.T().Logf("Last workload-list --json output:\n%s", lastOutput)
+	}
+}
+
 // Runs Diskspd in another ssh session
 // https://github.com/Microsoft/diskspd/wiki/Command-line-and-parameters
 // diskspd is an unprotected process, so we can capture the command line
@@ -323,7 +400,7 @@ func runDiskSpd(t *testing.T, remoteHost *components.RemoteHost) (string, []stri
 	// -Sh: Disable both software caching and hardware write caching.
 	// -w50: Write percentage
 	cmd := []string{
-		"diskspd",
+		DiskSpdExe,
 		"-d120",
 		"-c128M",
 		"-t2",
@@ -349,5 +426,6 @@ func runWindowsCommand(t *testing.T, remoteHost *components.RemoteHost, cmd []st
 		_ = session.Close()
 		_ = stdin.Close()
 	})
-	return cmd[0] + ".exe", nil
+	// Payloads use the executable file name (e.g. diskspd.exe), not the full path.
+	return filepath.Base(cmd[0]), nil
 }
