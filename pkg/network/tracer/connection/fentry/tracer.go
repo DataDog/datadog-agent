@@ -224,6 +224,9 @@ func initFentryTracer(ar bytecode.AssetReader, o manager.Options, config *config
 	}
 
 	if err := m.InitWithOptions(ar, &o); err != nil {
+		if closeProtocolClassifierSocketFilterFn != nil {
+			closeProtocolClassifierSocketFilterFn()
+		}
 		return nil, fmt.Errorf("failed to init ebpf manager: %w", err)
 	}
 
