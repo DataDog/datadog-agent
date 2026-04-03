@@ -14,6 +14,7 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/gosnmp/gosnmp"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
@@ -327,6 +328,20 @@ func snmpWalk(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snmps
 		// newSNMP only returns config errors, so any problem is a usage error
 		return configErr{err}
 	}
+
+	// Print connection info so the user knows what's happening during long timeouts
+	_, _ = fmt.Fprintf(os.Stderr, "Querying %s:%d, timeout: %ds, retries: %d\n", snmp.Target, snmp.Port, connParams.Timeout, snmp.Retries)
+	// Notify the user on each retry so they know the tool is still running.
+	// gosnmp calls OnRetry once more on the iteration that exits the retry
+	// loop, so cap output at snmp.Retries to avoid a spurious message.
+	retryNum := 0
+	snmp.OnRetry = func(_ *gosnmp.GoSNMP) {
+		retryNum++
+		if retryNum <= snmp.Retries {
+			_, _ = fmt.Fprintf(os.Stderr, "  Request failed, retrying (%d/%d)...\n", retryNum, snmp.Retries)
+		}
+	}
+
 	if err := snmp.Connect(); err != nil {
 		return fmt.Errorf("unable to connect to SNMP agent on %s:%d: %w", snmp.LocalAddr, snmp.Port, err)
 	}
