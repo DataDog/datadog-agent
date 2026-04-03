@@ -121,6 +121,15 @@ int tp_sched_switch(u64 *ctx) {
         stats->sum_latencies_ns += runq_lat;
         stats->event_count += 1;
         stats->pid_count = get_cgroup_pids_count(next);
+
+        if (runq_lat < 100000)
+            stats->latency_bucket_lt_100us += 1;
+        else if (runq_lat < 1000000)
+            stats->latency_bucket_100us_1ms += 1;
+        else if (runq_lat < 10000000)
+            stats->latency_bucket_1ms_10ms += 1;
+        else
+            stats->latency_bucket_gt_10ms += 1;
     }
 
     return 0;

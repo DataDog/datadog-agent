@@ -95,6 +95,7 @@ func (n *NoisyNeighborCheck) Run() error {
 		tags := n.getContainerTags(stat)
 		n.submitPrimaryMetrics(sender, stat, tags)
 		n.submitRawCounters(sender, stat, tags)
+		n.submitLatencyBuckets(sender, stat, tags)
 	}
 	sender.Gauge("noisy_neighbor.system.cgroups_tracked", float64(totalCgroups), "", nil)
 	sender.Commit()
@@ -141,4 +142,11 @@ func (n *NoisyNeighborCheck) submitPrimaryMetrics(sender sender.Sender, stat mod
 func (n *NoisyNeighborCheck) submitRawCounters(sender sender.Sender, stat model.NoisyNeighborStats, tags []string) {
 	sender.Count("noisy_neighbor.events.total", float64(stat.EventCount), "", tags)
 	sender.Gauge("noisy_neighbor.unique_processes", float64(stat.UniquePidCount), "", tags)
+}
+
+func (n *NoisyNeighborCheck) submitLatencyBuckets(sender sender.Sender, stat model.NoisyNeighborStats, tags []string) {
+	sender.Count("noisy_neighbor.scheduling_latency.bucket.lt_100us", float64(stat.LatencyBucketLt100us), "", tags)
+	sender.Count("noisy_neighbor.scheduling_latency.bucket.100us_1ms", float64(stat.LatencyBucket100us1ms), "", tags)
+	sender.Count("noisy_neighbor.scheduling_latency.bucket.1ms_10ms", float64(stat.LatencyBucket1ms10ms), "", tags)
+	sender.Count("noisy_neighbor.scheduling_latency.bucket.gt_10ms", float64(stat.LatencyBucketGt10ms), "", tags)
 }
