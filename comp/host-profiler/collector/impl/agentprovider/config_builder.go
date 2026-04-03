@@ -64,6 +64,7 @@ func buildExporters(conf confMap, agent configManager) []any {
 		return confMap{
 			"profiles_endpoint": fmt.Sprintf(profilesEndpointFormat, site),
 			"metrics_endpoint":  fmt.Sprintf(metricsEndpointFormat, site),
+			"compression":       "zstd",
 			"headers":           headers,
 		}
 	}
