@@ -267,7 +267,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/logs/internal
 # gazelle:exclude pkg/logs/launchers
 # gazelle:exclude pkg/logs/message
-# gazelle:exclude pkg/logs/metrics
 # gazelle:exclude pkg/logs/pipeline
 # gazelle:exclude pkg/logs/processor
 # gazelle:exclude pkg/logs/schedulers
