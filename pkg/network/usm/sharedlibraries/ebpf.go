@@ -578,15 +578,27 @@ func (e *EbpfProgram) initializeProbes(sleepableIDs *[]manager.ProbeIdentificati
 	openat2Supported := sysOpenAt2Supported()
 	isFexitSupported := fexitSupported("do_sys_openat2")
 
+	arch := "__x64_"
+	disabledArch := "__arm64_"
+	if strings.HasPrefix(runtime.GOARCH, "arm") {
+		arch = "__arm64_"
+		disabledArch = "__x64_"
+
+		log.Info("arm64 runtime detected")
+	}
+
 	// Tracing represents fentry/fexit probes.
 	tracingProbes := []manager.ProbeIdentificationPair{}
-	for _, arch := range []string{"__x64", "__arm64"} {
-		for _, syscall := range []string{openat2SysCall, openatSysCall, openSysCall} {
-			tracingProbes = append(tracingProbes, manager.ProbeIdentificationPair{
-				EBPFFuncName: arch + syscall + "_exit",
-				UID:          probeUID,
-			})
-		}
+	disabledTracingProbes := []manager.ProbeIdentificationPair{}
+	for _, syscall := range []string{openat2SysCall, openatSysCall, openSysCall} {
+		tracingProbes = append(tracingProbes, manager.ProbeIdentificationPair{
+			EBPFFuncName: arch + "sys_" + syscall + "_exit",
+			UID:          probeUID,
+		})
+		disabledTracingProbes = append(disabledTracingProbes, manager.ProbeIdentificationPair{
+			EBPFFuncName: disabledArch + "sys_" + syscall + "_exit",
+			UID:          probeUID,
+		})
 	}
 
 	openatProbes := []string{openatSysCall}
@@ -640,6 +652,10 @@ func (e *EbpfProgram) initializeProbes(sleepableIDs *[]manager.ProbeIdentificati
 			e.enabledProbes = tracingProbes
 			e.disabledProbes = append(tpProbes, kprobeProbes...)
 
+			// Only fentry/fexit/fmod_ret, lsm, iter, uprobe, and struct_ops programs can be sleepable
+			if kv > kernel.VersionCode(5, 10, 0) {
+				*sleepableIDs = slices.Clone(e.enabledProbes)
+			}
 			log.Infof("Using fexit probes for shared library monitoring (kernel %s)", kv)
 		} else if kv >= kv415 {
 			// Kernel >= 4.15 - use tracepoints (multiple attachment supported)
@@ -653,10 +669,7 @@ func (e *EbpfProgram) initializeProbes(sleepableIDs *[]manager.ProbeIdentificati
 
 	}
 
-	// Only fentry/fexit/fmod_ret, lsm, iter, uprobe, and struct_ops programs can be sleepable
-	if kv >= kernel.VersionCode(5, 11, 0) {
-		*sleepableIDs = slices.Clone(e.enabledProbes)
-	}
+	e.disabledProbes = append(e.disabledProbes, disabledTracingProbes...)
 }
 
 func getAssetName(module string, debug bool) string {
