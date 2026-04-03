@@ -138,6 +138,41 @@ def _prepare_eval_output_dir(output_dir: str, *, overwrite: bool) -> bool:
     return True
 
 
+def _scenario_f1_from_bayesian_report(report: dict | None) -> dict[str, float]:
+    """Per-scenario F1 from the best trial's eval_scenarios report (metadata)."""
+    if not report:
+        return {}
+    best = report.get("best_combination")
+    if not isinstance(best, dict):
+        return {}
+    path = best.get("report_path")
+    if not path or not os.path.isfile(path):
+        return {}
+    try:
+        with open(path) as f:
+            main = json.load(f)
+    except (OSError, json.JSONDecodeError, TypeError):
+        return {}
+    meta = main.get("metadata")
+    if not isinstance(meta, dict):
+        return {}
+    out: dict[str, float] = {}
+    for name, row in meta.items():
+        if isinstance(row, dict) and "f1" in row:
+            try:
+                out[str(name)] = float(row["f1"])
+            except (TypeError, ValueError):
+                continue
+    return out
+
+
+def _best_run_index(runs: list[dict]) -> int:
+    """Index of the run with highest best_score (first on ties)."""
+    if not runs:
+        return -1
+    return max(range(len(runs)), key=lambda i: runs[i]["best_score"])
+
+
 # --- Eval ---
 @task
 def eval_scenarios(
@@ -1055,7 +1090,9 @@ def eval_component(
     Output layout:
         <output_dir>/without/subset_NNN/run_NNN/  - bayesian_eval output
         <output_dir>/with/subset_NNN/run_NNN/      - bayesian_eval output
-        <output_dir>/report.json                   - comparison report
+        <output_dir>/report.json                   - comparison report including
+            per_subset, per_subset_scenario (Δ F1 per scenario), and
+            per_scenario_summary (mean/min/max Δ across subsets).
 
     Args:
         component: Component to evaluate (any detector, correlator, or extractor).
@@ -1195,6 +1232,7 @@ def eval_component(
                         "best_score": best_score,
                         "avg_score": report.get("avg_eval_score", 0.0) if report else 0.0,
                         "report_path": os.path.join(run_dir, "report.json"),
+                        "scenario_f1": _scenario_f1_from_bayesian_report(report),
                     }
                 )
 
@@ -1235,6 +1273,59 @@ def eval_component(
             }
         )
 
+    # --- per-scenario deltas (best run per variant per subset) ---
+    per_subset_scenario: list[dict] = []
+    for si in range(n_subsets):
+        wo_runs = variant_results["without"][si]["runs"]
+        wi_runs = variant_results["with"][si]["runs"]
+        iwo = _best_run_index(wo_runs)
+        iwi = _best_run_index(wi_runs)
+        wo_f1 = wo_runs[iwo]["scenario_f1"] if iwo >= 0 else {}
+        wi_f1 = wi_runs[iwi]["scenario_f1"] if iwi >= 0 else {}
+        names = sorted(set(wo_f1.keys()) | set(wi_f1.keys()))
+        by_scenario: dict[str, dict] = {}
+        for s in names:
+            a = wo_f1.get(s)
+            b = wi_f1.get(s)
+            delta = (b - a) if a is not None and b is not None else None
+            by_scenario[s] = {
+                "without_f1": a,
+                "with_f1": b,
+                "delta_f1": delta,
+            }
+        per_subset_scenario.append(
+            {
+                "subset": variant_results["without"][si]["subset"],
+                "by_scenario": by_scenario,
+            }
+        )
+
+    all_scenario_names: set[str] = set()
+    for pss in per_subset_scenario:
+        all_scenario_names.update(pss["by_scenario"].keys())
+
+    per_scenario_summary: dict[str, dict] = {}
+    for s in sorted(all_scenario_names):
+        deltas = []
+        for pss in per_subset_scenario:
+            row = pss["by_scenario"].get(s)
+            if row and row.get("delta_f1") is not None:
+                deltas.append(row["delta_f1"])
+        if not deltas:
+            per_scenario_summary[s] = {
+                "mean_delta_f1": None,
+                "min_delta_f1": None,
+                "max_delta_f1": None,
+                "n_subsets": 0,
+            }
+        else:
+            per_scenario_summary[s] = {
+                "mean_delta_f1": sum(deltas) / len(deltas),
+                "min_delta_f1": min(deltas),
+                "max_delta_f1": max(deltas),
+                "n_subsets": len(deltas),
+            }
+
     without_maxs = [r["max_score"] for r in variant_results["without"]]
     with_maxs = [r["max_score"] for r in variant_results["with"]]
     without_means = [r["mean_score"] for r in variant_results["without"]]
@@ -1247,7 +1338,10 @@ def eval_component(
     delta_max = avg_max_with - avg_max_without
     delta_mean = avg_mean_with - avg_mean_without
 
-    # --- print summary ---
+    recommendation = "keep" if delta_max > 0 else "discard"
+    rec_clr = Color.GREEN if delta_max > 0 else Color.RED
+
+    # --- print summary (primary max-score block last) ---
     print(color_message(f"\n{'=' * 70}", Color.GREEN))
     print(color_message("  Component Evaluation Summary", Color.GREEN))
     print(color_message(f"{'=' * 70}\n", Color.GREEN))
@@ -1262,18 +1356,54 @@ def eval_component(
         print(line + color_message(f"{ps['delta_max']:>+8.4f}", delta_clr))
 
     print()
-    print(color_message(f"  Avg max score without:  {avg_max_without:.4f}", Color.BLUE))
-    print(color_message(f"  Avg max score with:     {avg_max_with:.4f}", Color.BLUE))
-    delta_clr = Color.GREEN if delta_max > 0 else Color.RED
-    print(color_message(f"  Delta (max):            {delta_max:+.4f}", delta_clr))
+    print(
+        color_message(
+            "  Per-scenario Δ F1 (best Bayesian trial per run; best run per variant per subset)",
+            Color.BLUE,
+        )
+    )
+    print(
+        color_message(
+            "  Columns: mean / min / max of Δ across subsets (helps spot inconsistent scenarios)",
+            Color.BLUE,
+        )
+    )
+    ps_header = f"  {'Scenario':<26}  {'mean Δ':>8}  {'min Δ':>8}  {'max Δ':>8}"
+    print(ps_header)
+    print(f"  {'-' * len(ps_header.strip())}")
+
+    def _scenario_sort_key(item: tuple[str, dict]) -> tuple:
+        m = item[1].get("mean_delta_f1")
+        if m is None:
+            return (1, 0.0)
+        return (0, -m)
+
+    for scen, row in sorted(per_scenario_summary.items(), key=_scenario_sort_key):
+        mean_d = row["mean_delta_f1"]
+        min_d = row["min_delta_f1"]
+        max_d = row["max_delta_f1"]
+        if mean_d is None:
+            print(color_message(f"  {scen:<26}  {'n/a':>8}  {'n/a':>8}  {'n/a':>8}", Color.ORANGE))
+        else:
+            mean_clr = Color.GREEN if mean_d > 0 else Color.RED if mean_d < 0 else Color.BLUE
+            msg = f"  {scen:<26}  {mean_d:>+8.4f}  {min_d:>+8.4f}  {max_d:>+8.4f}"
+            print(color_message(msg, mean_clr))
+
     print()
+    print(color_message("  Secondary: mean of trial-mean scores (across subsets)", Color.BLUE))
     print(color_message(f"  Avg mean score without: {avg_mean_without:.4f}", Color.BLUE))
     print(color_message(f"  Avg mean score with:    {avg_mean_with:.4f}", Color.BLUE))
     delta_clr = Color.GREEN if delta_mean > 0 else Color.RED
     print(color_message(f"  Delta (mean):           {delta_mean:+.4f}", delta_clr))
 
-    recommendation = "keep" if delta_max > 0 else "discard"
-    rec_clr = Color.GREEN if delta_max > 0 else Color.RED
+    print()
+    print(color_message(f"  {'-' * 66}", Color.GREEN))
+    print(color_message("  Primary metric — max best-trial score (avg across subsets)", Color.GREEN))
+    print(color_message(f"  {'-' * 66}", Color.GREEN))
+    print(color_message(f"  Avg max score without:  {avg_max_without:.4f}", Color.GREEN))
+    print(color_message(f"  Avg max score with:     {avg_max_with:.4f}", Color.GREEN))
+    delta_clr = Color.GREEN if delta_max > 0 else Color.RED
+    print(color_message(f"  Delta (max):            {delta_max:+.4f}", delta_clr))
     print()
     print(color_message(f"  Recommendation: {recommendation.upper()} {component}", rec_clr))
     print(color_message(f"{'=' * 70}", Color.GREEN))
@@ -1309,6 +1439,8 @@ def eval_component(
             "delta_mean": delta_mean,
         },
         "per_subset": per_subset,
+        "per_subset_scenario": per_subset_scenario,
+        "per_scenario_summary": per_scenario_summary,
         "without": variant_results["without"],
         "with": variant_results["with"],
     }
