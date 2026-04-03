@@ -8,11 +8,21 @@
 #include "bpf_telemetry.h"
 
 #define MAX_TASK_ENTRIES 4096
+#define MAX_PREEMPTOR_ENTRIES 512
 #define TASK_RUNNING 0
 
 BPF_TASK_STORAGE_MAP(runq_enqueued, u64)
 
 BPF_PERCPU_HASH_MAP(cgroup_agg_stats, __u64, cgroup_agg_stats_t, MAX_TASK_ENTRIES)
+
+// watchlist_active: single-entry gate. If 0, sched_switch does minimal work.
+BPF_ARRAY_MAP(watchlist_active, __u8, 1)
+
+// watchlist: cgroup IDs that Layer 1 flagged for detailed monitoring
+BPF_HASH_MAP(watchlist, __u64, __u8, 128)
+
+// preemptor_stats: tracks which foreign cgroups preempt watched cgroups
+BPF_PERCPU_HASH_MAP(preemptor_stats, preemptor_key_t, preemptor_stats_t, MAX_PREEMPTOR_ENTRIES)
 
 void bpf_rcu_read_lock(void) __ksym;
 void bpf_rcu_read_unlock(void) __ksym;
@@ -85,6 +95,18 @@ int tp_sched_wakeup_new(u64 *ctx) {
 
 SEC("tp_btf/sched_switch")
 int tp_sched_switch(u64 *ctx) {
+    // Fast gate: skip all detailed work if no cgroups are being watched
+    u32 zero_key = 0;
+    u8 *active = bpf_map_lookup_elem(&watchlist_active, &zero_key);
+    if (!active || !*active) {
+        // Still re-enqueue runnable tasks so timestamps are ready when watchlist activates
+        struct task_struct *prev = (struct task_struct *)ctx[1];
+        if (prev->__state == TASK_RUNNING) {
+            enqueue_timestamp(prev);
+        }
+        return 0;
+    }
+
     bool preempted = ctx[0] & 1;
     struct task_struct *prev = (struct task_struct *)ctx[1];
     struct task_struct *next = (struct task_struct *)ctx[2];
@@ -95,15 +117,45 @@ int tp_sched_switch(u64 *ctx) {
         enqueue_timestamp(prev);
     }
 
-    if (preempted && prev_pid) {
-        u64 prev_cgroup_id = get_task_cgroup_id(prev);
+    // Resolve cgroup IDs for both tasks
+    u64 prev_cgroup_id = prev_pid ? get_task_cgroup_id(prev) : 0;
+    u64 next_cgroup_id = next_pid ? get_task_cgroup_id(next) : 0;
+
+    // Check if either cgroup is in the watchlist
+    bool prev_watched = prev_pid && bpf_map_lookup_elem(&watchlist, &prev_cgroup_id);
+    bool next_watched = next_pid && bpf_map_lookup_elem(&watchlist, &next_cgroup_id);
+
+    if (!prev_watched && !next_watched) {
+        return 0;
+    }
+
+    // Layer 2: Preemption classification for the victim (prev) cgroup
+    if (preempted && prev_watched) {
         cgroup_agg_stats_t *stats = get_or_create_cgroup_stats(prev_cgroup_id);
         if (stats) {
-            stats->preemption_count += 1;
+            if (prev_cgroup_id != next_cgroup_id) {
+                stats->foreign_preemption_count += 1;
+
+                // Layer 3: Track which foreign cgroup is doing the preempting
+                preemptor_key_t pkey = {
+                    .victim_cgroup_id = prev_cgroup_id,
+                    .preemptor_cgroup_id = next_cgroup_id,
+                };
+                preemptor_stats_t *pstats = bpf_map_lookup_elem(&preemptor_stats, &pkey);
+                if (pstats) {
+                    pstats->count += 1;
+                } else {
+                    preemptor_stats_t new_pstats = { .count = 1 };
+                    bpf_map_update_with_telemetry(preemptor_stats, &pkey, &new_pstats, BPF_NOEXIST, -EEXIST);
+                }
+            } else {
+                stats->self_preemption_count += 1;
+            }
         }
     }
 
-    if (!next_pid) {
+    // Layer 2: Latency measurement for the scheduled-in (next) cgroup
+    if (!next_watched || !next_pid) {
         return 0;
     }
 
@@ -115,12 +167,49 @@ int tp_sched_switch(u64 *ctx) {
     u64 runq_lat = bpf_ktime_get_ns() - *tsp;
     bpf_task_storage_delete(&runq_enqueued, next);
 
-    u64 cgroup_id = get_task_cgroup_id(next);
-    cgroup_agg_stats_t *stats = get_or_create_cgroup_stats(cgroup_id);
+    cgroup_agg_stats_t *stats = get_or_create_cgroup_stats(next_cgroup_id);
     if (stats) {
         stats->sum_latencies_ns += runq_lat;
         stats->event_count += 1;
-        stats->pid_count = get_cgroup_pids_count(next);
+        stats->task_count = get_cgroup_pids_count(next);
+
+        // Latency histogram buckets
+        if (runq_lat < 100000)
+            stats->latency_bucket_lt_100us += 1;
+        else if (runq_lat < 1000000)
+            stats->latency_bucket_100us_1ms += 1;
+        else if (runq_lat < 10000000)
+            stats->latency_bucket_1ms_10ms += 1;
+        else
+            stats->latency_bucket_gt_10ms += 1;
+    }
+
+    return 0;
+}
+
+SEC("tp_btf/sched_migrate_task")
+int tp_sched_migrate_task(u64 *ctx) {
+    // Fast gate
+    u32 zero_key = 0;
+    u8 *active = bpf_map_lookup_elem(&watchlist_active, &zero_key);
+    if (!active || !*active) {
+        return 0;
+    }
+
+    struct task_struct *task = (struct task_struct *)ctx[0];
+    u32 pid = task->pid;
+    if (!pid) {
+        return 0;
+    }
+
+    u64 cgroup_id = get_task_cgroup_id(task);
+    if (!bpf_map_lookup_elem(&watchlist, &cgroup_id)) {
+        return 0;
+    }
+
+    cgroup_agg_stats_t *stats = get_or_create_cgroup_stats(cgroup_id);
+    if (stats) {
+        stats->cpu_migrations += 1;
     }
 
     return 0;

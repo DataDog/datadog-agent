@@ -8,12 +8,14 @@
 package modules
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/noisyneighbor"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/noisyneighbor/model"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
@@ -59,11 +61,28 @@ func (n noisyNeighborModule) GetStats() map[string]interface{} {
 
 // Register implements module.Module.Register
 func (n noisyNeighborModule) Register(httpMux *module.Router) error {
-	// Limit concurrency to one as the probe check is not thread safe (mainly in the entry count buffers)
+	// Limit concurrency to one as the probe check is not thread safe
 	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(1, func(w http.ResponseWriter, req *http.Request) {
 		n.lastCheck.Store(time.Now().Unix())
 		stats := n.Probe.GetAndFlush()
 		utils.WriteAsJSON(req, w, stats, utils.GetPrettyPrintFromQueryParams(req))
+	}))
+
+	httpMux.HandleFunc("/watchlist", utils.WithConcurrencyLimit(1, func(w http.ResponseWriter, req *http.Request) {
+		if req.Method != http.MethodPost {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		var watchlistReq model.WatchlistRequest
+		if err := json.NewDecoder(req.Body).Decode(&watchlistReq); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if err := n.Probe.UpdateWatchlist(watchlistReq.CgroupIDs); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
 	}))
 
 	return nil
