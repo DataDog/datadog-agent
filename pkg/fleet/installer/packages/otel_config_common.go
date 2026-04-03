@@ -6,14 +6,11 @@
 package packages
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"strings"
 
 	"go.yaml.in/yaml/v2"
-
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 )
 
 // enableOTelCollectorConfigInDatadogYAML adds otelcollector.enabled and agent_ipc defaults to the given datadog.yaml path
@@ -24,13 +21,6 @@ func enableOTelCollectorConfigInDatadogYAML(ctx HookContext, datadogYamlPath str
 
 	data, err := os.ReadFile(datadogYamlPath)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			// datadog.yaml not yet written (fresh install); the install script or a
-			// subsequent configure step is responsible for enabling otelcollector.
-			span.SetTag("datadog.yaml_found", false)
-			return nil
-		}
-		span.SetTag("datadog.yaml_found", true)
 		return fmt.Errorf("failed to read datadog.yaml: %w", err)
 	}
 	var existing map[string]any
@@ -85,26 +75,16 @@ func writeOTelConfigCommon(ctx HookContext, datadogYamlPath, templatePath, outPa
 		}
 	}
 
-	var apiKey, site string
 	data, err := os.ReadFile(datadogYamlPath)
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
+	if err != nil {
 		return fmt.Errorf("failed to read datadog.yaml: %w", err)
 	}
-	if err == nil {
-		span.SetTag("datadog.yaml_found", true)
-		var cfg map[string]any
-		if err := yaml.Unmarshal(data, &cfg); err != nil {
-			return fmt.Errorf("failed to parse datadog.yaml: %w", err)
-		}
-		apiKey, _ = cfg["api_key"].(string)
-		site, _ = cfg["site"].(string)
-	} else {
-		// datadog.yaml not yet written (fresh install); fall back to environment variables
-		span.SetTag("datadog.yaml_found", false)
-		e := env.FromEnv()
-		apiKey = e.APIKey
-		site = e.Site
+	var cfg map[string]any
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return fmt.Errorf("failed to parse datadog.yaml: %w", err)
 	}
+	apiKey, _ := cfg["api_key"].(string)
+	site, _ := cfg["site"].(string)
 
 	templateData, err := os.ReadFile(templatePath)
 	if err != nil {

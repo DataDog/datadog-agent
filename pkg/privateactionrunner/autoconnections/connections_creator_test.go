@@ -49,7 +49,7 @@ func TestCreateConnection_CorrectHTTPRequest(t *testing.T) {
 
 	definition := supportedConnections["kubernetes"]
 
-	tags := []string{"runner-id:runner-id-abc123", "hostname:test-hostname"}
+	tags := []string{"runner-id:runner-id-abc123"}
 
 	err := client.CreateConnection(context.Background(), definition, "runner-id-abc123", "runner-name-abc123", tags)
 
@@ -121,7 +121,7 @@ func TestCreateConnection_StatusCodeHandling(t *testing.T) {
 
 			definition := supportedConnections["kubernetes"]
 
-			tags := []string{"runner-id:runner-id-abc123", "hostname:test-hostname"}
+			tags := []string{"runner-id:runner-id-abc123"}
 
 			err := client.CreateConnection(context.Background(), definition, "runner-id-abc123", "runner-name-abc123", tags)
 
