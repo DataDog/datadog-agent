@@ -285,6 +285,11 @@ func (c *Controller) updateNodePool(ctx context.Context, targetNp, datadogNp *ka
 			return nil
 		}
 
+		// The manifest may explicitly omit nodeClassRef; in this case, preserve the live value currently set
+		if desired.Spec.Template.Spec.NodeClassRef == nil && datadogNp.Spec.Template.Spec.NodeClassRef != nil {
+			desired.Spec.Template.Spec.NodeClassRef = datadogNp.Spec.Template.Spec.NodeClassRef.DeepCopy()
+		}
+
 		log.Infof("Patching NodePool: %s", npi.Name())
 		patchData := map[string]any{
 			"metadata": map[string]any{
