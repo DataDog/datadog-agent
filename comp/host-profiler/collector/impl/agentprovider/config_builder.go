@@ -68,7 +68,7 @@ func buildExporters(conf confMap, agent configManager) []any {
 		}
 	}
 
-	debugEnabled := len(agent.hostProfilerConfig.Debug) > 0
+	debugEnabled := agent.hostProfilerConfig.DebugVerbosity != ""
 	capacity := agent.endpointsTotalLength
 	if debugEnabled {
 		capacity++
@@ -87,7 +87,9 @@ func buildExporters(conf confMap, agent configManager) []any {
 	}
 
 	if debugEnabled {
-		exporters[debugExporterName] = agent.hostProfilerConfig.Debug
+		exporters[debugExporterName] = confMap{
+			"verbosity": agent.hostProfilerConfig.DebugVerbosity,
+		}
 		profilesExporters = append(profilesExporters, debugExporterName)
 	}
 

@@ -29,10 +29,10 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 		expectedErr                    error
 	}{
 		{
-			name:            "no cluster ids given",
-			configureClient: func(*MockrdsService) {},
-			clusterIDs:      nil,
-			expectedErr:     errors.New("at least one database cluster identifier is required"),
+			name:                           "no cluster ids given",
+			configureClient:                func(*MockrdsService) {},
+			clusterIDs:                     nil,
+			expectedAuroraClusterEndpoints: nil,
 		},
 		{
 			name: "single cluster id returns no results from API",
