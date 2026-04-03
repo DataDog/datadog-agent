@@ -11,6 +11,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/DataDog/agent-payload/v5/statefulpb"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -38,6 +39,8 @@ type Payload struct {
 	Encoding string
 	// The size of the unencoded payload
 	UnencodedSize int
+	// Extra information for Stateful gRPC streaming (batch-level state changes)
+	StatefulExtra any
 }
 
 // NewPayload creates a new payload with the given message metadata, encoded content, encoding type and unencoded size
@@ -68,6 +71,13 @@ func (m *Payload) Size() int64 {
 type Message struct {
 	MessageContent
 	MessageMetadata
+}
+
+// StatefulMessage represents a log message for gRPC stateful streaming
+// It contains a Datum (from stateful_encoding.proto) and associated metadata
+type StatefulMessage struct {
+	Datum    *statefulpb.Datum
+	Metadata *MessageMetadata
 }
 
 // MessageMetadata contains metadata information about a log message
