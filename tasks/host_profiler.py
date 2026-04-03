@@ -10,7 +10,6 @@ from invoke.exceptions import Exit
 from tasks.build_tags import get_default_build_tags
 from tasks.libs.common.color import color_message
 from tasks.libs.common.constants import ALLOWED_REPO_NIGHTLY_BRANCHES
-from tasks.libs.common.git import get_current_branch
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_version_ldflags
 from tasks.libs.releasing.json import get_current_milestone
@@ -54,7 +53,7 @@ def _get_profiler_agent_version(ctx):
     if is_nightly:
         return f"{version}-nightly_git.{commits}.{git_sha}"
 
-    branch = os.environ.get("CI_COMMIT_REF_SLUG") or get_current_branch(ctx)
+    branch = os.environ.get("CI_COMMIT_REF_SLUG")
     pre_label = pre if pre else "devel"
     return f"{version}-{pre_label}_git.{commits}.{git_sha}.{branch}"
 
