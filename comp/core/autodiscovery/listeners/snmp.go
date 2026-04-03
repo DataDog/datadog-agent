@@ -57,7 +57,7 @@ type SNMPListener struct {
 	sync.RWMutex
 	newService     chan<- Service
 	delService     chan<- Service
-	stop           chan bool
+	stop           chan struct{}
 	config         snmp.ListenerConfig
 	services       map[string]*SNMPService
 	deviceDeduper  devicededuper.DeviceDeduper
@@ -107,7 +107,7 @@ func NewSNMPListener(ServiceListernerDeps) (ServiceListener, error) {
 	}
 	return &SNMPListener{
 		services:       map[string]*SNMPService{},
-		stop:           make(chan bool),
+		stop:           make(chan struct{}),
 		config:         snmpConfig,
 		deviceDeduper:  devicededuper.NewDeviceDeduper(snmpConfig),
 		sessionFactory: newGosnmpSession,
@@ -153,11 +153,20 @@ func (l *SNMPListener) loadCache(subnet *snmpSubnet) {
 	var wg sync.WaitGroup
 	loadJob := make(chan struct{}, workers)
 	for i, device := range devices {
+		select {
+		case <-l.stop:
+			return
+		case loadJob <- struct{}{}:
+		}
 		wg.Add(1)
-		loadJob <- struct{}{}
 		go func(i int, device deviceCache) {
 			defer wg.Done()
 			defer func() { <-loadJob }()
+			select {
+			case <-l.stop:
+				return
+			default:
+			}
 			deviceInfos[i] = l.checkDeviceInfo(subnet.config.Authentications[device.AuthIndex], subnet.config.Port, device.IP.String())
 		}(i, device)
 	}
@@ -590,7 +599,7 @@ func (l *SNMPListener) deleteService(entityID string, subnet *snmpSubnet) {
 
 // Stop queues a shutdown of SNMPListener
 func (l *SNMPListener) Stop() {
-	l.stop <- true
+	close(l.stop)
 }
 
 // Equal returns whether the two SNMPService are equal
