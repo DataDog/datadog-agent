@@ -90,10 +90,8 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/core/tagger/mock
 # gazelle:exclude comp/core/tagger/proto
 # gazelle:exclude comp/core/tagger/server
-# gazelle:exclude comp/core/tagger/subscriber
 # gazelle:exclude comp/core/tagger/taglist
 # gazelle:exclude comp/core/tagger/tagstore
-# gazelle:exclude comp/core/tagger/telemetry
 # gazelle:exclude comp/core/workloadfilter
 # gazelle:exclude comp/core/workloadmeta
 # gazelle:exclude comp/core/workloadmeta
