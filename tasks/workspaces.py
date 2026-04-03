@@ -71,7 +71,7 @@ def cmd(ctx, name: str, cmd: str):
 
 
 @task
-def aws_auth(ctx, name: str, account: str = 'sso-agent-sandbox-account-admin'):
+def aws_auth(ctx, name: str, account: str = 'sso-agent-sandbox-account-admin-8h'):
     """
     Will authenticate with AWS on the workspace
     """
