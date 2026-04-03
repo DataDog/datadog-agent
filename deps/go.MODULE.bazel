@@ -270,6 +270,7 @@ use_repo(
     "com_github_gocomply_scap",
     "com_github_godbus_dbus_v5",
     "com_github_godror_godror",
+    "com_github_gofrs_flock",
     "com_github_gogo_protobuf",
     "com_github_golang_groupcache",
     "com_github_golang_jwt_jwt_v5",
