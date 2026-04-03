@@ -386,6 +386,63 @@ func (suite *ConfigTestSuite) TestDDAPISiteSet() {
 	assert.Equal(t, "https://trace.agent.us3.datadoghq.com", c.Get("apm_config.apm_dd_url"))
 }
 
+func (suite *ConfigTestSuite) TestProxyDDEnvVarsWithoutCoreConfig() {
+	t := suite.T()
+	t.Setenv("DD_PROXY_HTTP", "http://dd-proxy.example.com:8080")
+	t.Setenv("DD_PROXY_HTTPS", "https://dd-proxy.example.com:8443")
+	t.Setenv("DD_PROXY_NO_PROXY", "localhost,127.0.0.1")
+
+	pkgconfig, err := NewConfigComponent(context.Background(), "", []string{"testdata/config.yaml"})
+	require.NoError(t, err)
+
+	assert.Equal(t, "http://dd-proxy.example.com:8080", pkgconfig.GetString("proxy.http"))
+	assert.Equal(t, "https://dd-proxy.example.com:8443", pkgconfig.GetString("proxy.https"))
+	// 169.254.169.254 and 100.100.100.200 are added by default (cloud metadata endpoints)
+	assert.ElementsMatch(t, []string{"localhost", "127.0.0.1", "169.254.169.254", "100.100.100.200"}, pkgconfig.GetStringSlice("proxy.no_proxy"))
+}
+
+func (suite *ConfigTestSuite) TestProxyHTTPEnvVarsWithoutCoreConfig() {
+	t := suite.T()
+	t.Setenv("HTTP_PROXY", "http://proxy.example.com:8080")
+	t.Setenv("HTTPS_PROXY", "https://proxy.example.com:8443")
+	t.Setenv("NO_PROXY", "localhost,127.0.0.1")
+
+	pkgconfig, err := NewConfigComponent(context.Background(), "", []string{"testdata/config.yaml"})
+	require.NoError(t, err)
+
+	assert.Equal(t, "http://proxy.example.com:8080", pkgconfig.GetString("proxy.http"))
+	assert.Equal(t, "https://proxy.example.com:8443", pkgconfig.GetString("proxy.https"))
+	// 169.254.169.254 and 100.100.100.200 are added by default (cloud metadata endpoints)
+	assert.ElementsMatch(t, []string{"localhost", "127.0.0.1", "169.254.169.254", "100.100.100.200"}, pkgconfig.GetStringSlice("proxy.no_proxy"))
+}
+
+func (suite *ConfigTestSuite) TestProxyDDEnvVarsTakePrecedenceOverHTTPEnvVars() {
+	t := suite.T()
+	t.Setenv("DD_PROXY_HTTP", "http://dd-proxy.example.com:8080")
+	t.Setenv("DD_PROXY_HTTPS", "https://dd-proxy.example.com:8443")
+	t.Setenv("HTTP_PROXY", "http://other-proxy.example.com:8080")
+	t.Setenv("HTTPS_PROXY", "https://other-proxy.example.com:8443")
+
+	pkgconfig, err := NewConfigComponent(context.Background(), "", []string{"testdata/config.yaml"})
+	require.NoError(t, err)
+
+	assert.Equal(t, "http://dd-proxy.example.com:8080", pkgconfig.GetString("proxy.http"))
+	assert.Equal(t, "https://dd-proxy.example.com:8443", pkgconfig.GetString("proxy.https"))
+}
+
+func (suite *ConfigTestSuite) TestProxyConfigURLTakesPrecedenceOverDDEnvVars() {
+	t := suite.T()
+	t.Setenv("DD_PROXY_HTTP", "http://dd-proxy.example.com:8080")
+	t.Setenv("DD_PROXY_HTTPS", "https://dd-proxy.example.com:8443")
+
+	pkgconfig, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_proxy.yaml"})
+	require.NoError(t, err)
+
+	// proxy_url from OTel exporter config should take precedence over DD_PROXY_* env vars
+	assert.Equal(t, "http://proxyurl.example.com:3128", pkgconfig.GetString("proxy.http"))
+	assert.Equal(t, "http://proxyurl.example.com:3128", pkgconfig.GetString("proxy.https"))
+}
+
 func (suite *ConfigTestSuite) TestProxyEnvVarsBoth() {
 	t := suite.T()
 	t.Setenv("HTTP_PROXY", "http://proxy.example.com:8080")

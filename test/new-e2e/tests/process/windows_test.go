@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
@@ -40,6 +41,7 @@ type windowsTestSuite struct {
 }
 
 func TestWindowsTestSuite(t *testing.T) {
+	flake.Mark(t)
 	t.Parallel()
 	e2e.Run(t, &windowsTestSuite{},
 		e2e.WithProvisioner(
@@ -60,6 +62,10 @@ func (s *windowsTestSuite) SetupSuite() {
 
 	// Start an antivirus scan to use as process for testing
 	s.Env().RemoteHost.MustExecute("Start-MpScan -ScanType FullScan -AsJob")
+	// Install chocolatey - https://chocolatey.org/install
+	// This may be due to choco rate limits - https://datadoghq.atlassian.net/browse/ADXT-950
+	stdout, err := s.Env().RemoteHost.Execute("Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iwr https://community.chocolatey.org/install.ps1 -UseBasicParsing | iex")
+	require.NoErrorf(s.T(), err, "Failed to install chocolatey: %s, err: %s", stdout, err)
 	// DiskSpd for IO tests: zip on E2E artifact host at processes/DiskSpd.zip (see diskspd.go).
 	require.NoError(s.T(), setupDiskSpd(s.Env().RemoteHost))
 }
