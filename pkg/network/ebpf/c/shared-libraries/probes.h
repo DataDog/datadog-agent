@@ -7,9 +7,6 @@
 #include "pid_tgid.h"
 #include "shared-libraries/types.h"
 
-#define SLEEPBALE_SYS_OPENAT2_MASK (1<<2)
-#define SLEEPABLE_SYS_OPENAT_MASK  (1<<1) #define SLEEPABLE_SYS_OPEN_MASK    (1<<0)
-
 static __always_inline void fill_path_safe(lib_path_t *path, const char *path_argument) {
 #pragma unroll
     for (int i = 0; i < LIB_PATH_MAX_SIZE; i++) {
@@ -21,18 +18,14 @@ static __always_inline void fill_path_safe(lib_path_t *path, const char *path_ar
     }
 }
 
-static __always_inline long _bpf_copy_from_user(void *dst, u32 size, const void *user_ptr, bool allowed) {
-    return bpf_probe_read_user_with_telemetry(dst, size, user_ptr);
+static __always_inline long fill_path(lib_path_t *path, const char *path_argument) {
+    return bpf_probe_read_user_with_telemetry(&path->buf, sizeof(path->buf), path_argument);
 }
 
-static __always_inline long fill_path(lib_path_t *path, const char *path_argument, bool sleepable) {
-    return _bpf_copy_from_user(&path->buf, sizeof(path->buf), path_argument, sleepable);
-}
-
-static __always_inline bool fill_lib_path(lib_path_t *path, const char *path_argument, bool sleepable) {
+static __always_inline bool fill_lib_path(lib_path_t *path, const char *path_argument) {
     path->pid = GET_USER_MODE_PID(bpf_get_current_pid_tgid());
 
-    if (fill_path(path, path_argument, sleepable) >= 0) {
+    if (fill_path(path, path_argument) >= 0) {
 #pragma unroll
         for (int i = 0; i < LIB_PATH_MAX_SIZE; i++) {
             if (path->buf[i] == 0) {
@@ -47,9 +40,9 @@ static __always_inline bool fill_lib_path(lib_path_t *path, const char *path_arg
     return path->len > 0;
 }
 
-static __always_inline void do_sys_open_helper_enter(const char *filename, bool sleepable) {
+static __always_inline void do_sys_open_helper_enter(const char *filename) {
     lib_path_t path = { 0 };
-    if (fill_lib_path(&path, filename, sleepable)) {
+    if (fill_lib_path(&path, filename)) {
         u64 pid_tgid = bpf_get_current_pid_tgid();
         bpf_map_update_with_telemetry(open_at_args, &pid_tgid, &path, BPF_ANY);
     }
@@ -166,7 +159,7 @@ int tracepoint__syscalls__sys_enter_open(enter_sys_open_ctx *args) {
         return 0;
     }
 
-    do_sys_open_helper_enter(args->filename, false);
+    do_sys_open_helper_enter(args->filename);
     return 0;
 }
 
@@ -185,7 +178,7 @@ int tracepoint__syscalls__sys_enter_openat(enter_sys_openat_ctx *args) {
         return 0;
     }
 
-    do_sys_open_helper_enter(args->filename, false);
+    do_sys_open_helper_enter(args->filename);
     return 0;
 }
 
@@ -202,13 +195,13 @@ int tracepoint__syscalls__sys_enter_openat2(enter_sys_openat2_ctx *args) {
 
     if (args->how != NULL) {
         __u64 flags = 0;
-        _bpf_copy_from_user(&flags, sizeof(flags), &args->how->flags, 0);
+        bpf_probe_read_user_with_telemetry(&flags, sizeof(flags), &args->how->flags);
         if (should_ignore_flags(flags)) {
             return 0;
         }
     }
 
-    do_sys_open_helper_enter(args->filename, false);
+    do_sys_open_helper_enter(args->filename);
     return 0;
 }
 
@@ -219,18 +212,12 @@ int tracepoint__syscalls__sys_exit_openat2(exit_sys_ctx *args) {
     return 0;
 }
 
-static __always_inline int fexit_open_handler(void* ctx, bool sleepable, const char *pathname, long ret) {
+static __always_inline int fexit_open_handler(void* ctx, const char *pathname, long ret) {
     lib_path_t path = { 0 };
-    if (fill_lib_path(&path, pathname, sleepable)) {
+    if (fill_lib_path(&path, pathname)) {
         push_event_if_relevant(ctx, &path, ret);
     }
     return 0;
-}
-
-static __always_inline bool is_sleepable() {
-    u64 sleepable = 0;
-    LOAD_CONSTANT("sleepable_shared_libraries", sleepable);
-    return (sleepable & SLEEPBALE_SYS_OPENAT2_MASK) > 0;
 }
 
 static __always_inline int handle_sys_openat2(void* ctx, const struct pt_regs* regs, long ret) {
@@ -241,8 +228,7 @@ static __always_inline int handle_sys_openat2(void* ctx, const struct pt_regs* r
     if (bpf_probe_read_kernel_with_telemetry(&how, sizeof(how), &PT_REGS_PARM3(regs)) < 0 || how == NULL)
         return 0;
 
-    bool sleepable = is_sleepable();
-    if (_bpf_copy_from_user(&flags, sizeof(flags), &how->flags, sleepable) < 0)
+    if (bpf_probe_read_user_with_telemetry(&flags, sizeof(flags), &how->flags) < 0)
         return 0;
 
     if (should_ignore_flags(flags))
@@ -251,7 +237,7 @@ static __always_inline int handle_sys_openat2(void* ctx, const struct pt_regs* r
     if (bpf_probe_read_kernel_with_telemetry(&pathname, sizeof(pathname), &PT_REGS_PARM2(regs)) < 0)
         return 0;
 
-    return fexit_open_handler(ctx, sleepable, pathname, ret);
+    return fexit_open_handler(ctx, pathname, ret);
 }
 
 SEC("fexit/__x64_sys_openat2")
@@ -268,7 +254,6 @@ static __always_inline int handle_sys_openat(void* ctx, const struct pt_regs* re
     const char* pathname;
     int flags;
 
-    bool sleepable = is_sleepable();
     if (bpf_probe_read_kernel_with_telemetry(&flags, sizeof(flags), &PT_REGS_PARM3(regs)) < 0)
         return 0;
 
@@ -278,7 +263,7 @@ static __always_inline int handle_sys_openat(void* ctx, const struct pt_regs* re
     if (bpf_probe_read_kernel_with_telemetry(&pathname, sizeof(pathname), &PT_REGS_PARM2(regs)) < 0)
         return 0;
 
-    return fexit_open_handler(ctx, sleepable, pathname, ret);
+    return fexit_open_handler(ctx, pathname, ret);
 }
 
 SEC("fexit/__x64_sys_openat")
@@ -295,7 +280,6 @@ static __always_inline int handle_sys_open(void* ctx, const struct pt_regs* regs
     const char* pathname;
     int flags;
 
-    bool sleepable = is_sleepable();
     if (bpf_probe_read_kernel_with_telemetry(&flags, sizeof(flags), &PT_REGS_PARM2(regs)) < 0)
         return 0;
 
@@ -306,7 +290,7 @@ static __always_inline int handle_sys_open(void* ctx, const struct pt_regs* regs
     if (bpf_probe_read_kernel_with_telemetry(&pathname, sizeof(pathname), &PT_REGS_PARM1(regs)) < 0)
         return 0;
 
-    return fexit_open_handler(ctx, sleepable, pathname, ret);
+    return fexit_open_handler(ctx, pathname, ret);
 }
 
 SEC("fexit/__x64_sys_open")
@@ -346,7 +330,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__do_sys_open, int dfd, const char *filename, in
     }
 
     // Store the filename in a map keyed by pid_tgid for correlation with the return value
-    do_sys_open_helper_enter(filename, false);
+    do_sys_open_helper_enter(filename);
     return 0;
 }
 
