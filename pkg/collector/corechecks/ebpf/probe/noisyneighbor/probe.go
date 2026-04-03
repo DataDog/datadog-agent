@@ -126,7 +126,7 @@ func (p *Probe) GetAndFlush() []model.NoisyNeighborStats {
 			SumLatenciesNs:  cgroupLatencies,
 			EventCount:      cgroupEvents,
 			PreemptionCount: cgroupPreemptions,
-			UniquePidCount:  pidCount,
+			CgroupTaskCount: pidCount,
 		}
 
 		nnstats = append(nnstats, stat)

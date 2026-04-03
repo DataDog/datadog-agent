@@ -122,18 +122,18 @@ func (n *NoisyNeighborCheck) getContainerTags(stat model.NoisyNeighborStats) []s
 // submitPrimaryMetrics sends the main PSL and PSP metrics
 // Note: "process" in metric names follows kernel convention, but these are thread-level measurements
 func (n *NoisyNeighborCheck) submitPrimaryMetrics(sender sender.Sender, stat model.NoisyNeighborStats, tags []string) {
-	if stat.UniquePidCount == 0 {
+	if stat.CgroupTaskCount == 0 {
 		return
 	}
 
-	psl := float64(stat.SumLatenciesNs) / float64(stat.UniquePidCount)
+	psl := float64(stat.SumLatenciesNs) / float64(stat.CgroupTaskCount)
 	sender.Gauge("noisy_neighbor.process_scheduling_latency.per_process", psl, "", tags)
 
-	psp := float64(stat.PreemptionCount) / float64(stat.UniquePidCount)
+	psp := float64(stat.PreemptionCount) / float64(stat.CgroupTaskCount)
 	sender.Gauge("noisy_neighbor.process_scheduler_preemptions.per_process", psp, "", tags)
 }
 
 func (n *NoisyNeighborCheck) submitRawCounters(sender sender.Sender, stat model.NoisyNeighborStats, tags []string) {
 	sender.Count("noisy_neighbor.events.total", float64(stat.EventCount), "", tags)
-	sender.Gauge("noisy_neighbor.unique_processes", float64(stat.UniquePidCount), "", tags)
+	sender.Gauge("noisy_neighbor.cgroup_task_count", float64(stat.CgroupTaskCount), "", tags)
 }
