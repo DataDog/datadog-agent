@@ -15,8 +15,9 @@ import (
 type hostProfilerConfig struct {
 	DebugVerbosity        string
 	AdditionalHTTPHeaders map[string]string
-	DDProfilingEnabled    bool
-	DDProfilingPeriod     int
+	DDProfilingEnabled bool
+	// DDProfilingPeriod is the profiling period in seconds. Values <= 0 fall back to the extension's default.
+	DDProfilingPeriod int
 }
 
 type endpoint struct {
