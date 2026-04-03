@@ -106,9 +106,17 @@ func (cs *ConfigStore) update(fn func(tx *bbolt.Tx) error) error {
 // if so, it will create a new entry in each bucket (for the config, metadata, and secrets)
 func (cs *ConfigStore) StoreConfig(deviceID, configType string, rawConfig string, blocks []ConfigBlock, secrets map[string]string) (string, error) {
 	// Check that this is a new config for the DB - does the hash match the last stored config for this device?
-	// TODO: implement the above functionality in a separate method
-	// for consideration: utilizing a composite key that is made up of
+	// TODO: optimization for consideration: utilizing a composite key that is made up of
 	// config_type | device_id | timestamp | uuid (or using this with another bucket to emulate an index)
+	rawHash := hashConfig(rawConfig)
+	existingConfigID, err := cs.CheckDuplicate(deviceID, configType, rawHash)
+	if err != nil {
+		return "", fmt.Errorf("duplicate check error: %w", err)
+	}
+	if existingConfigID != "" {
+		// This config matched the latest, let's not make a new entry
+		return existingConfigID, nil
+	}
 
 	// Setup for storing the config
 	configUUID := uuid.New().String()
@@ -141,7 +149,7 @@ func (cs *ConfigStore) StoreConfig(deviceID, configType string, rawConfig string
 		ConfigType:     configType,
 		CapturedAt:     now,
 		LastAccessedAt: now,
-		RawHash:        hashConfig(rawConfig),
+		RawHash:        rawHash,
 		AgentVersion:   version.AgentVersion,
 	}
 	metadataJSON, err := json.Marshal(metadata)
@@ -177,6 +185,38 @@ func (cs *ConfigStore) StoreConfig(deviceID, configType string, rawConfig string
 	}
 
 	return configUUID, nil
+}
+
+// CheckDuplicate iterates through the metadata bucket (currently keyed by UUID)
+// and checks for configs that match the device ID and config type (e.g. default:10.0.0.1, "running")
+// and compares the hashes with the incoming config retrieved to help check if we need to store it
+// TODO: nice to have optimization since we check duplicates more than we'd check by exact UUID is having a composite key / prefix scan
+func (cs *ConfigStore) CheckDuplicate(deviceID string, configType string, rawHash string) (string, error) {
+	var latest *ConfigMetadata
+	err := cs.view(func(tx *bbolt.Tx) error {
+		return tx.Bucket([]byte(metadataBucket)).ForEach(func(_, v []byte) error {
+			var current ConfigMetadata
+			if err := json.Unmarshal(v, &current); err != nil {
+				return err
+			}
+			if current.DeviceID == deviceID && current.ConfigType == configType {
+				if latest == nil || current.CapturedAt > latest.CapturedAt {
+					latest = &current
+				}
+			}
+			return nil
+		})
+	})
+	// compare the hashes if a latest was found
+	if latest != nil {
+		fmt.Printf("latest hash: %s", latest.RawHash)
+		fmt.Printf("current hash: %s", rawHash)
+		if latest.RawHash == rawHash {
+			return latest.ConfigUUID, nil
+		}
+	}
+
+	return "", err
 }
 
 // GetConfig retrieves all the data associated with a config given its UUID

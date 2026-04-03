@@ -66,13 +66,22 @@ func TestStoreConfig(t *testing.T) {
 	})
 
 	t.Run("each call for a device generates a unique UUID", func(t *testing.T) {
-		// TODO: update to add test w/ de-dupe (should return same UUID as the last config it matches)
 		cs := newTestConfigStore(t)
 		uuid1, err := cs.StoreConfig("device:10.0.0.1", "running", testRawConfig, testBlocks, testSecrets)
 		require.NoError(t, err)
 		uuid2, err := cs.StoreConfig("device:10.0.0.2", "running", testRawConfig, testBlocks, testSecrets)
 		require.NoError(t, err)
 		assert.NotEqual(t, uuid1, uuid2)
+	})
+
+	t.Run("device deduplicate returns UUID of latest config if matches", func(t *testing.T) {
+		// TODO: update to add test w/ de-dupe (should return same UUID as the last config it matches)
+		cs := newTestConfigStore(t)
+		uuid1, err := cs.StoreConfig("device:10.0.0.1", "running", testRawConfig, testBlocks, testSecrets)
+		require.NoError(t, err)
+		uuid2, err := cs.StoreConfig("device:10.0.0.1", "running", testRawConfig, testBlocks, testSecrets) // the same exact one, should return the first UUID (uuid1)
+		require.NoError(t, err)
+		assert.Equal(t, uuid1, uuid2)
 	})
 }
 
