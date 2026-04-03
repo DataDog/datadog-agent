@@ -702,6 +702,7 @@ func TestRun_bandwidthStateSurvivesFailedCheck(t *testing.T) {
 collect_device_metadata: false
 ip_address: 1.2.3.4
 community_string: public
+min_collection_interval: 15
 metrics:
 - symbol:
     OID: 1.2.3
@@ -728,8 +729,8 @@ profiles:
 	sender := mocksender.NewMockSender("123")
 	sender.SetupAcceptAll()
 
-	// Pre-populate bandwidth state with entries from 15 seconds ago (within TTL)
-	recentTs := time.Now().Add(-15 * time.Second).UnixNano()
+	// Use entries from 1 interval ago (within TTL of bandwidthStateTTLChecks intervals).
+	recentTs := time.Now().Add(-config.MinCollectionInterval).UnixNano()
 	bandwidthState := report.MockInterfaceRateMap("9", 80_000_000, 80_000_000, 30.0, 5.0, recentTs)
 	deviceCk.SetSender(report.NewMetricSender(sender, "", nil, bandwidthState))
 	deviceCk.SetInterfaceBandwidthState(bandwidthState)
@@ -750,6 +751,7 @@ func TestRun_bandwidthStateCleanedUpAfterTTL(t *testing.T) {
 collect_device_metadata: false
 ip_address: 1.2.3.4
 community_string: public
+min_collection_interval: 15
 metrics:
 - symbol:
     OID: 1.2.3
@@ -776,8 +778,9 @@ profiles:
 	sender := mocksender.NewMockSender("123")
 	sender.SetupAcceptAll()
 
-	// Pre-populate bandwidth state with entries from long ago (beyond TTL)
-	oldTs := time.Now().Add(-10 * time.Minute).UnixNano()
+	// Use entries from well beyond the TTL (2x the TTL to be safe).
+	beyondTTL := 2 * bandwidthStateTTLChecks * config.MinCollectionInterval
+	oldTs := time.Now().Add(-beyondTTL).UnixNano()
 	bandwidthState := report.MockInterfaceRateMap("9", 80_000_000, 80_000_000, 30.0, 5.0, oldTs)
 	deviceCk.SetSender(report.NewMetricSender(sender, "", nil, bandwidthState))
 	deviceCk.SetInterfaceBandwidthState(bandwidthState)

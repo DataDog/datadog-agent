@@ -57,7 +57,7 @@ const (
 	deviceHostnamePrefix    = "device:"
 	checkDurationThreshold  = 30  // Thirty seconds
 	profileRefreshDelay     = 600 // Number of seconds after which a profile needs to be refreshed
-	bandwidthStateTTLChecks = 6   // Number of failed checks before bandwidth state entries are cleaned up
+	bandwidthStateTTLChecks = 4   // Number of failed checks before bandwidth state entries are cleaned up
 )
 
 // SNMPTroubleshootingDocURL is the troubleshooting doc for unreachable devices (exported for tests).
