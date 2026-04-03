@@ -9,6 +9,7 @@ package(default_visibility = ["//visibility:public"])
 
 # The list of go tags to be used by gazelle
 ALL_BUILD_TAGS = [
+    "clusterchecks",
     "otlp",
     "test",
     "seclmax",
