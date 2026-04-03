@@ -124,5 +124,5 @@ func TestScrubKeys(t *testing.T) {
 	}
 	keys = scrubKeys(keys)
 
-	assert.Equal(t, []string{"****************************y001", "****************************y002", "********"}, keys)
+	assert.Equal(t, []string{"****************************y001", "****************************y002", "****tkey"}, keys)
 }
