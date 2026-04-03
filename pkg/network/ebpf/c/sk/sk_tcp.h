@@ -17,7 +17,7 @@ __maybe_unused static __always_inline bool tcp_failed_connections_enabled() {
     return val > 0;
 }
 
-static __always_inline int create_tcp_conn(conn_t *conn, struct sock *sk, sk_tcp_stats_t *sk_stats) {
+static __always_inline int create_tcp_conn(conn_t *conn, struct sock *sk, sk_tcp_stats_t *sk_stats, struct task_struct *task) {
     struct tcp_sock *tp = bpf_skc_to_tcp_sock(sk);
     if (!tp) {
         return 0;
@@ -26,7 +26,7 @@ static __always_inline int create_tcp_conn(conn_t *conn, struct sock *sk, sk_tcp
     if (sk_stats) {
         copy_conn_tuple(&conn->tup, &sk_stats->tup);
     }
-    if (!read_conn_tuple_sk(&conn->tup, sk)) {
+    if (!read_conn_tuple_sk(&conn->tup, sk, task)) {
         return 0;
     }
     conn->tup.metadata |= CONN_TYPE_TCP;
@@ -53,7 +53,6 @@ static __always_inline int create_tcp_conn(conn_t *conn, struct sock *sk, sk_tcp
         conn->tcp_stats.failure_reason = sk_stats->failure_reason;
         conn->tcp_stats.state_transitions = sk_stats->state_transitions;
         conn->tcp_stats.tcp_event_stats = sk_stats->tcp_event_stats;
-        conn->tup.pid = sk_stats->pid;
         conn->conn_stats.duration_ms = sk_stats->start_ms;
         conn->conn_stats.direction = sk_stats->direction;
 
@@ -67,11 +66,11 @@ static __always_inline int create_tcp_conn(conn_t *conn, struct sock *sk, sk_tcp
     return 1;
 }
 
-static __always_inline int create_udp_conn(conn_t *conn, struct sock *sk, sk_udp_stats_t *sk_stats) {
+static __always_inline int create_udp_conn(conn_t *conn, struct sock *sk, sk_udp_stats_t *sk_stats, struct task_struct *task) {
     if (sk_stats) {
         copy_conn_tuple(&conn->tup, &sk_stats->tup);
     }
-    if (!read_conn_tuple_sk(&conn->tup, sk)) {
+    if (!read_conn_tuple_sk(&conn->tup, sk, task)) {
         return 0;
     }
     conn->tup.metadata |= CONN_TYPE_UDP;
@@ -86,7 +85,6 @@ static __always_inline int create_udp_conn(conn_t *conn, struct sock *sk, sk_udp
     // TODO conn->conn_stats.cert_id
 
     if (sk_stats) {
-        conn->tup.pid = sk_stats->pid;
         conn->conn_stats.duration = sk_stats->start_ns;
         conn->conn_stats.direction = sk_stats->direction;
         conn->conn_stats.sent_bytes = sk_stats->sent_bytes;
@@ -120,7 +118,7 @@ static __always_inline void initialize_tcp_socket(struct sock *sk, struct task_s
     sk_stats->initial_recv_packets = tp->segs_in;
     sk_stats->initial_retransmits = tp->total_retrans;
 
-    sk_stats->pid = task->tgid;
+    sk_stats->tup.pid = task->tgid;
     sk_stats->tup.netns = get_netns_from_sock(sk);
 
     port_binding_t pb = {};
@@ -136,7 +134,7 @@ static __always_inline void initialize_udp_socket(struct sock *sk, struct task_s
         return;
     }
 
-    sk_stats->pid = task->tgid;
+    sk_stats->tup.pid = task->tgid;
     sk_stats->tup.netns = get_netns_from_sock(sk);
 
     port_binding_t pb = {};
@@ -276,7 +274,7 @@ int bpf_iter__task_file_socket(struct bpf_iter__task_file *ctx) {
 
         log_debug("iterate tcp: sk=%pK pid=%d", sk, task->tgid);
         sk_tcp_stats_t *sk_stats = bpf_sk_storage_get(&sk_tcp_stats, sk, 0, 0);
-        if (!create_tcp_conn(&conn, sk, sk_stats)) {
+        if (!create_tcp_conn(&conn, sk, sk_stats, task)) {
             return 0;
         }
     } else if (sk->sk_protocol == IPPROTO_UDP) {
@@ -293,7 +291,7 @@ int bpf_iter__task_file_socket(struct bpf_iter__task_file *ctx) {
 
         log_debug("iterate udp: sk=%pK pid=%d", sk, task->tgid);
         sk_udp_stats_t *sk_stats = bpf_sk_storage_get(&sk_udp_stats, sk, 0, 0);
-        if (!create_udp_conn(&conn, sk, sk_stats)) {
+        if (!create_udp_conn(&conn, sk, sk_stats, task)) {
             return 0;
         }
     } else {
