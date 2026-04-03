@@ -22,7 +22,7 @@ import (
 // MockModule is the mock module for process forwarders
 func MockModule() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(forwardersimpl.NewMockForwarders),
+		fxutil.ProvideComponentConstructor(forwardersimpl.NewMockForwarders),
 		//TODO: Fix the MockForwarder to be a real mock,
 		// and remove the need of including the MockSecrets for tests that use only the Forwarder.
 		fx.Provide(func(t testing.TB) secrets.Component { return secretsmock.New(t) }),
