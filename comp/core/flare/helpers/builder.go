@@ -141,7 +141,6 @@ type builder struct {
 
 	// nonScrubbedFiles tracks files that were added without scrubbing
 	nonScrubbedFiles map[string]bool
-
 }
 
 func getArchiveName() string {
