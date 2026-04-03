@@ -15,6 +15,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
+	"golang.org/x/sys/unix"
 )
 
 type SleepableProgramModifier struct {
@@ -23,11 +24,6 @@ type SleepableProgramModifier struct {
 }
 
 var _ ModifierBeforeInit = &SleepableProgramModifier{}
-
-const (
-	//nolint:revive
-	BPF_F_SLEEPABLE = 1 << 4
-)
 
 func (t *SleepableProgramModifier) String() string {
 	return "SleepableProgramModifier"
@@ -71,7 +67,7 @@ func (t *SleepableProgramModifier) BeforeInit(m *manager.Manager, module names.M
 				return fmt.Errorf("program %s of type %v and attach type %v is not sleepable", spec.Name, spec.Type, spec.AttachType)
 			}
 
-			spec.Flags |= BPF_F_SLEEPABLE
+			spec.Flags |= unix.BPF_F_SLEEPABLE
 		}
 	}
 
