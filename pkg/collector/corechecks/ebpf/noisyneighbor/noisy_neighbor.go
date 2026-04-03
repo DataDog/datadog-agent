@@ -9,6 +9,7 @@ package noisyneighbor
 
 import (
 	"fmt"
+	"path/filepath"
 	"time"
 
 	"go.yaml.in/yaml/v2"
@@ -29,14 +30,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
+// maxNonContainerCgroups caps the number of non-container cgroups emitted per
+// check run to prevent tag cardinality explosion from transient systemd scopes
+// or other short-lived cgroup hierarchies.
+const maxNonContainerCgroups = 100
+
 type NoisyNeighborConfig struct{}
 
+// NoisyNeighborCheck collects scheduling-latency metrics per cgroup.
 type NoisyNeighborCheck struct {
 	core.CheckBase
-	config         *NoisyNeighborConfig
-	tagger         tagger.Component
-	sysProbeClient *sysprobeclient.CheckClient
-	cgroupReader   *cgroups.Reader
+	config          *NoisyNeighborConfig
+	tagger          tagger.Component
+	sysProbeClient  *sysprobeclient.CheckClient
+	cgroupReader    *cgroups.Reader // container-only cgroups (ContainerFilter)
+	allCgroupReader *cgroups.Reader // all cgroups (DefaultFilter) for non-container fallback
 }
 
 func Factory(tagger tagger.Component) option.Option[func() check.Check] {
@@ -70,6 +78,13 @@ func (n *NoisyNeighborCheck) Configure(senderManager sender.SenderManager, _ uin
 		return fmt.Errorf("noisy_neighbor: cgroup reader init failed: %s", err)
 	}
 	n.cgroupReader = reader
+
+	allReader, err := cgroups.NewReader()
+	if err != nil {
+		return fmt.Errorf("noisy_neighbor: all-cgroup reader init failed: %s", err)
+	}
+	n.allCgroupReader = allReader
+
 	return nil
 }
 
@@ -88,11 +103,22 @@ func (n *NoisyNeighborCheck) Run() error {
 	if err != nil {
 		return fmt.Errorf("unable to refresh cgroups: %s", err)
 	}
+	err = n.allCgroupReader.RefreshCgroups(0)
+	if err != nil {
+		return fmt.Errorf("unable to refresh all-cgroup reader: %s", err)
+	}
 
 	var totalCgroups uint64
+	var nonContainerCount int
 	for _, stat := range stats {
 		totalCgroups++
-		tags := n.getContainerTags(stat)
+		tags, isContainer := n.getContainerTags(stat)
+		if !isContainer {
+			nonContainerCount++
+			if nonContainerCount > maxNonContainerCgroups {
+				continue
+			}
+		}
 		n.submitPrimaryMetrics(sender, stat, tags)
 		n.submitRawCounters(sender, stat, tags)
 	}
@@ -101,7 +127,10 @@ func (n *NoisyNeighborCheck) Run() error {
 	return nil
 }
 
-func (n *NoisyNeighborCheck) getContainerTags(stat model.NoisyNeighborStats) []string {
+// getContainerTags returns tags for the given stat and whether the tags came
+// from a known container (true) or the cgroup-path fallback (false).
+func (n *NoisyNeighborCheck) getContainerTags(stat model.NoisyNeighborStats) ([]string, bool) {
+	// Try container-based tag lookup first.
 	if cg := n.cgroupReader.GetCgroupByInode(stat.CgroupID); cg != nil {
 		containerID := cg.Identifier()
 		if containerID != "" {
@@ -111,12 +140,25 @@ func (n *NoisyNeighborCheck) getContainerTags(stat model.NoisyNeighborStats) []s
 				if err != nil {
 					log.Warnf("noisy_neighbor: tagger error for container %s: %v", containerID, err)
 				} else {
-					return taggerTags
+					return taggerTags, true
 				}
 			}
 		}
 	}
-	return []string{}
+
+	// Fallback: use the cgroup path as a tag for non-container workloads
+	// (e.g. systemd services).
+	if cg := n.allCgroupReader.GetCgroupByInode(stat.CgroupID); cg != nil {
+		cgroupPath := cg.Identifier()
+		if cgroupPath != "" {
+			// Use the last path component for a concise, human-readable tag
+			// (e.g. "sshd.service" from "/system.slice/sshd.service").
+			name := filepath.Base(cgroupPath)
+			return []string{fmt.Sprintf("cgroup_name:%s", name)}, false
+		}
+	}
+
+	return []string{}, false
 }
 
 // submitPrimaryMetrics sends the main PSL and PSP metrics
