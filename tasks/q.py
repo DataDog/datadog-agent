@@ -12,8 +12,7 @@ from invoke import task
 
 from tasks.libs.common.color import Color, color_message
 
-# SCENARIOS = ["213_pagerduty", "353_postmark", "food_delivery_redis"]
-SCENARIOS = ["353_postmark-onlylogs", "food_delivery_redis-onlylogs"]
+SCENARIOS = ["213_pagerduty", "353_postmark", "food_delivery_redis"]
 
 # Maps short scenario names to episode names used in runs.jsonl
 SCENARIO_EPISODE_NAMES = {
