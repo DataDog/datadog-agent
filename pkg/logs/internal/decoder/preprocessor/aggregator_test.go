@@ -494,7 +494,6 @@ func TestDetectingAggregator_IsEmpty(t *testing.T) {
 	require.Len(t, msgs, 1)
 	assert.True(t, ag.IsEmpty())
 }
-<<<<<<< HEAD
 
 func TestDetectingAggregator_TruncatesTaggedStartLineAndPrefixesContinuation(t *testing.T) {
 	ag := NewDetectingAggregator(status.NewInfoRegistry(), 5, true, false)
@@ -703,81 +702,3 @@ func TestDetectingAggregator_COATTelemetry_MultiGroupWithTruncation(t *testing.T
 	assert.Equal(t, float64(4), combineAfter-combineBefore) // group 1: startGroup + aggregate, group 2: startGroup + aggregate
 	assert.Equal(t, float64(2), truncAfter-truncBefore)     // group 2 (2 lines) would truncate
 }
-||||||| parent of 61235840f4b (Add detecting aggregator truncation tests)
-=======
-
-func TestDetectingAggregator_TruncatesTaggedStartLineAndPrefixesContinuation(t *testing.T) {
-	ag := NewDetectingAggregator(5, true, status.NewInfoRegistry())
-
-	require.Empty(t, processMsg(ag, newMessage("123456"), startGroup))
-
-	msgs := processMsg(ag, newMessage("abc"), aggregate)
-	require.Len(t, msgs, 2)
-
-	assert.Equal(t, "123456...TRUNCATED...", string(msgs[0].GetContent()))
-	assert.True(t, msgs[0].ParsingExtra.IsTruncated)
-	assert.Contains(t, msgs[0].ParsingExtra.Tags, "auto_multiline_detected:true")
-	assert.Contains(t, msgs[0].ParsingExtra.Tags, message.TruncatedReasonTag("single_line"))
-
-	assert.Equal(t, "...TRUNCATED...abc", string(msgs[1].GetContent()))
-	assert.True(t, msgs[1].ParsingExtra.IsTruncated)
-	assert.Equal(t, []string{message.TruncatedReasonTag("single_line")}, msgs[1].ParsingExtra.Tags)
-}
-
-func TestDetectingAggregator_NoAggregateInheritsTruncationCarry(t *testing.T) {
-	ag := NewDetectingAggregator(5, true, status.NewInfoRegistry())
-
-	msgs := processMsg(ag, newMessage("123456"), noAggregate)
-	require.Len(t, msgs, 1)
-	assert.Equal(t, "123456...TRUNCATED...", string(msgs[0].GetContent()))
-
-	msgs = processMsg(ag, newMessage("ok"), noAggregate)
-	require.Len(t, msgs, 1)
-	assert.Equal(t, "...TRUNCATED...ok", string(msgs[0].GetContent()))
-	assert.True(t, msgs[0].ParsingExtra.IsTruncated)
-	assert.Equal(t, []string{message.TruncatedReasonTag("single_line")}, msgs[0].ParsingExtra.Tags)
-}
-
-func TestDetectingAggregator_StartGroupInheritsTruncationCarry(t *testing.T) {
-	ag := NewDetectingAggregator(5, true, status.NewInfoRegistry())
-
-	msgs := processMsg(ag, newMessage("123456"), noAggregate)
-	require.Len(t, msgs, 1)
-	assert.Equal(t, "123456...TRUNCATED...", string(msgs[0].GetContent()))
-
-	require.Empty(t, processMsg(ag, newMessage("abc"), startGroup))
-
-	msgs = processMsg(ag, newMessage("tail"), aggregate)
-	require.Len(t, msgs, 2)
-	assert.Equal(t, "...TRUNCATED...abc", string(msgs[0].GetContent()))
-	assert.True(t, msgs[0].ParsingExtra.IsTruncated)
-	assert.Contains(t, msgs[0].ParsingExtra.Tags, "auto_multiline_detected:true")
-	assert.Contains(t, msgs[0].ParsingExtra.Tags, message.TruncatedReasonTag("single_line"))
-	assert.Equal(t, "tail", string(msgs[1].GetContent()))
-	assert.False(t, msgs[1].ParsingExtra.IsTruncated)
-	assert.Empty(t, msgs[1].ParsingExtra.Tags)
-}
-
-func TestDetectingAggregator_TruncationDoesNotTagWhenDisabled(t *testing.T) {
-	ag := NewDetectingAggregator(5, false, status.NewInfoRegistry())
-
-	msgs := processMsg(ag, newMessage("123456"), noAggregate)
-	require.Len(t, msgs, 1)
-	assert.Equal(t, "123456...TRUNCATED...", string(msgs[0].GetContent()))
-	assert.True(t, msgs[0].ParsingExtra.IsTruncated)
-	assert.Empty(t, msgs[0].ParsingExtra.Tags)
-}
-
-func TestDetectingAggregator_UsesExistingTruncatedFlag(t *testing.T) {
-	ag := NewDetectingAggregator(100, true, status.NewInfoRegistry())
-
-	msg := newMessage("already-truncated")
-	msg.ParsingExtra.IsTruncated = true
-
-	msgs := processMsg(ag, msg, noAggregate)
-	require.Len(t, msgs, 1)
-	assert.Equal(t, "already-truncated...TRUNCATED...", string(msgs[0].GetContent()))
-	assert.True(t, msgs[0].ParsingExtra.IsTruncated)
-	assert.Equal(t, []string{message.TruncatedReasonTag("single_line")}, msgs[0].ParsingExtra.Tags)
-}
->>>>>>> 61235840f4b (Add detecting aggregator truncation tests)
