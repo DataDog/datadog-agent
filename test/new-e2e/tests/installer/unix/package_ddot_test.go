@@ -133,6 +133,7 @@ func (s *packageDDOTSuite) TestInstallDDOTWithoutDatadogYAML() {
 	// Step 1: install the agent via the standard install script
 	// and creates /etc/datadog-agent/datadog.yaml.
 	s.RunInstallScript()
+	s.host.AssertPackageInstalledByInstaller("datadog-agent")
 
 	// Step 2: remove the agent package while keeping config files.
 	// apt-get remove (not purge) preserves /etc/datadog-agent/.
@@ -152,11 +153,12 @@ func (s *packageDDOTSuite) TestInstallDDOTWithoutDatadogYAML() {
 
 	// Step 4: reinstall via the package manager with DD_OTELCOLLECTOR_ENABLED=true.
 	// The repos are already configured by the install script in step 1.
-	env := map[string]string{
-		"DD_OTELCOLLECTOR_ENABLED": "true",
-		"DD_API_KEY":               testAPIKey,
-		"DD_SITE":                  testSite,
-	}
+	// The full env from InstallScriptEnvWithPackages is required because the postinst
+	// hook downloads the DDOT extension via OCI and needs the registry/version overrides.
+	env := InstallScriptEnvWithPackages(s.arch, PackagesConfig)
+	env["DD_OTELCOLLECTOR_ENABLED"] = "true"
+	env["DD_API_KEY"] = testAPIKey
+	env["DD_SITE"] = testSite
 	switch s.host.GetPkgManager() {
 	case "apt":
 		s.Env().RemoteHost.MustExecute("sudo -E apt-get install -y datadog-agent", client.WithEnvVariables(env))
