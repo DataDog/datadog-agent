@@ -24,6 +24,18 @@ SCENARIO_EPISODE_NAMES = {
 S3_BUCKET = "qbranch-gensim-recordings"
 AWS_PROFILE = "sso-agent-sandbox-account-admin"
 
+
+def _aws_cmd_prefix():
+    """Return the command prefix for aws CLI calls.
+
+    In CI (credentials injected as env vars) no wrapper is needed.
+    Locally, aws-vault is used to vend temporary credentials from the SSO profile.
+    """
+    if os.environ.get("CI"):
+        return ""
+    return f"aws-vault exec {AWS_PROFILE} -- "
+
+
 # All available detectors and correlators for ablation / combination search.
 # passthrough is intentionally excluded: it is designed for TP scoring (eval_tp),
 # not for Gaussian F1 eval (eval_scenarios / eval_combinations).
@@ -1299,7 +1311,7 @@ def _resolve_zip_from_runs_jsonl(ctx, name):
 
     try:
         result = ctx.run(
-            f"aws-vault exec {AWS_PROFILE} -- aws s3 cp s3://{S3_BUCKET}/runs.jsonl {shlex.quote(tmp_path)}",
+            f"{_aws_cmd_prefix()}aws s3 cp s3://{S3_BUCKET}/runs.jsonl {shlex.quote(tmp_path)}",
             warn=True,
             hide=True,
         )
@@ -1357,7 +1369,7 @@ def _ensure_parquets(ctx, name, parquet_dir):
 
     try:
         result = ctx.run(
-            f"aws-vault exec {AWS_PROFILE} -- aws s3 cp s3://{S3_BUCKET}/{zip_key} {shlex.quote(tmp_path)}",
+            f"{_aws_cmd_prefix()}aws s3 cp s3://{S3_BUCKET}/{zip_key} {shlex.quote(tmp_path)}",
             warn=True,
         )
         if result is None or result.failed:

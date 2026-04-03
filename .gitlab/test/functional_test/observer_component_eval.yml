@@ -1,0 +1,49 @@
+observer-component-eval:
+  stage: q
+  # rules:
+  #   - when: manual
+  #     allow_failure: true
+  needs: []
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
+  tags: ["arch:amd64", "specific:true"]
+  timeout: 6h
+  variables:
+    # Required: name of the component to evaluate.
+    # Must be one of: bocpd, cusum, rrcf, scanmw, scanwelch (detectors),
+    #                 cross_signal, time_cluster (correlators),
+    #                 log_metrics_extractor, connection_error_extractor,
+    #                 log_pattern_extractor (extractors).
+    # OBSERVER_COMPONENT: ""
+    OBSERVER_COMPONENT: "bocpd"
+    OBSERVER_N_SUBSETS: "5"
+    OBSERVER_N_TRIALS: "5"
+    OBSERVER_M_RUNS: "1"
+    OBSERVER_SEED: ""
+  script:
+    # Validate that a component was provided
+    - |
+      if [ -z "$OBSERVER_COMPONENT" ]; then
+        echo "ERROR: OBSERVER_COMPONENT must be set when triggering this job."
+        exit 1
+      fi
+    # Smoke-test S3 access before running the full eval
+    - aws s3 ls --region us-east-1 s3://qbranch-gensim-recordings/runs.jsonl || exit $?
+    - echo "S3 access verified"
+    # Build observer binaries and run the evaluation
+    - |
+      SEED_ARG=""
+      if [ -n "$OBSERVER_SEED" ]; then
+        SEED_ARG="--seed $OBSERVER_SEED"
+      fi
+      # Add optuna as dependency only for this job
+      dda inv --dep optuna==4.8.0 -- q.eval-component \
+        --component "$OBSERVER_COMPONENT" \
+        --n-subsets "$OBSERVER_N_SUBSETS" \
+        --n-trials "$OBSERVER_N_TRIALS" \
+        --m-runs "$OBSERVER_M_RUNS" \
+        $SEED_ARG
+  artifacts:
+    when: always
+    expire_in: 1 week
+    paths:
+      - /tmp/observer-component-eval/**/*

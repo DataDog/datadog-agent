@@ -187,6 +187,7 @@ stages:
   - internal_kubernetes_deploy
   - post_rc_build
   - check_merge
+  - q
   - .post
 
 variables:
