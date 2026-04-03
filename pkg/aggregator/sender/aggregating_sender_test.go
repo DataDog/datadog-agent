@@ -30,6 +30,7 @@ func (h *capturingHandle) ObserveLog(_ observerdef.LogView)               {}
 func (h *capturingHandle) ObserveTrace(_ observerdef.TraceView)           {}
 func (h *capturingHandle) ObserveTraceStats(_ observerdef.TraceStatsView) {}
 func (h *capturingHandle) ObserveProfile(_ observerdef.ProfileView)       {}
+func (h *capturingHandle) ObserveLifecycle(_ observerdef.LifecycleView)   {}
 
 // noopSender satisfies Sender and discards everything.
 type noopSender struct{}

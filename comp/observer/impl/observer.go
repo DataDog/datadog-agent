@@ -77,11 +77,12 @@ type Provides struct {
 
 // observation is a message sent from handles to the observer.
 type observation struct {
-	source  string
-	metric  *metricObs
-	log     *logObs
-	trace   *traceObs
-	profile *profileObs
+	source    string
+	metric    *metricObs
+	log       *logObs
+	trace     *traceObs
+	profile   *profileObs
+	lifecycle *lifecycleObs
 }
 
 // metricObs contains copied metric data and implements observerdef.MetricView.
@@ -171,6 +172,28 @@ type profileObs struct {
 	rawData      []byte
 	externalPath string
 }
+
+// lifecycleObs contains copied container lifecycle event data and implements observerdef.LifecycleView.
+type lifecycleObs struct {
+	containerID   string
+	eventType     string
+	timestamp     int64
+	exitCode      *int32
+	containerName string
+	image         string
+	runtime       string
+}
+
+// Ensure lifecycleObs implements observerdef.LifecycleView
+var _ observerdef.LifecycleView = (*lifecycleObs)(nil)
+
+func (l *lifecycleObs) GetContainerID() string   { return l.containerID }
+func (l *lifecycleObs) GetEventType() string     { return l.eventType }
+func (l *lifecycleObs) GetTimestampUnix() int64  { return l.timestamp }
+func (l *lifecycleObs) GetExitCode() *int32      { return l.exitCode }
+func (l *lifecycleObs) GetContainerName() string { return l.containerName }
+func (l *lifecycleObs) GetImage() string         { return l.image }
+func (l *lifecycleObs) GetRuntime() string       { return l.runtime }
 
 // Ensure logObs implements observerdef.LogView
 var _ observerdef.LogView = (*logObs)(nil)
@@ -382,6 +405,22 @@ func NewComponent(deps Requires) Provides {
 		}
 	}
 
+	// Start lifecycle watcher if workloadmeta is available.
+	// Subscribes to container create/start/delete events and pushes them into
+	// the observer pipeline via ObserveLifecycle.
+	if wmeta, wmetaOk := deps.WMeta.Get(); wmetaOk {
+		lcHandle := obs.GetHandle("lifecycle-watcher")
+		lcWatcher := newLifecycleWatcher(wmeta, lcHandle)
+		lcWatcher.Start()
+		pkglog.Info("[observer] container lifecycle watcher started")
+		deps.Lifecycle.Append(fx.Hook{
+			OnStop: func(_ context.Context) error {
+				lcWatcher.Stop()
+				return nil
+			},
+		})
+	}
+
 	// Start periodic metric dump if configured
 	dumpPath := cfg.GetString("observer.debug_dump_path")
 	dumpInterval := cfg.GetDuration("observer.debug_dump_interval")
@@ -558,6 +597,11 @@ func (o *observerImpl) run() {
 		}
 		if obs.profile != nil {
 			o.processProfile(obs.source, obs.profile)
+		}
+		if obs.lifecycle != nil {
+			// Convert lifecycle event into a counter metric for the detector pipeline.
+			lme := &lifecycleMetricsExtractor{}
+			lme.processLifecycleEvent(o.engine, obs.source, obs.lifecycle)
 		}
 		for _, req := range requests {
 			result := o.engine.advanceWithReason(req.upToSec, req.reason)
@@ -783,6 +827,9 @@ func (f *hfFilteredHandle) ObserveTraceStats(s observerdef.TraceStatsView) {
 	f.inner.ObserveTraceStats(s)
 }
 func (f *hfFilteredHandle) ObserveProfile(p observerdef.ProfileView) { f.inner.ObserveProfile(p) }
+func (f *hfFilteredHandle) ObserveLifecycle(e observerdef.LifecycleView) {
+	f.inner.ObserveLifecycle(e)
+}
 
 // noopHandle returns a handle that discards all observations.
 // Used when analysis is disabled so the analysis pipeline is not started.
@@ -798,6 +845,7 @@ func (h *noopObserveHandle) ObserveLog(_ observerdef.LogView)               {}
 func (h *noopObserveHandle) ObserveTrace(_ observerdef.TraceView)           {}
 func (h *noopObserveHandle) ObserveTraceStats(_ observerdef.TraceStatsView) {}
 func (h *noopObserveHandle) ObserveProfile(_ observerdef.ProfileView)       {}
+func (h *noopObserveHandle) ObserveLifecycle(_ observerdef.LifecycleView)   {}
 
 // DumpMetrics writes all stored metrics to the specified file as JSON.
 func (o *observerImpl) DumpMetrics(path string) error {
@@ -963,6 +1011,40 @@ func (h *handle) ObserveProfile(profile observerdef.ProfileView) {
 			contentType:  profile.GetContentType(),
 			rawData:      copyBytes(profile.GetRawData()),
 			externalPath: profile.GetExternalPath(),
+		},
+	}
+
+	// Non-blocking send - drop if channel is full.
+	select {
+	case h.ch <- obs:
+	default:
+		if h.dropCount != nil {
+			h.dropCount.Add(1)
+		}
+		if h.dropCounter != nil {
+			h.dropCounter.Add(1, h.source)
+		}
+	}
+}
+
+// ObserveLifecycle observes a container lifecycle event.
+func (h *handle) ObserveLifecycle(event observerdef.LifecycleView) {
+	var exitCodeCopy *int32
+	if ec := event.GetExitCode(); ec != nil {
+		v := *ec
+		exitCodeCopy = &v
+	}
+
+	obs := observation{
+		source: h.source,
+		lifecycle: &lifecycleObs{
+			containerID:   event.GetContainerID(),
+			eventType:     event.GetEventType(),
+			timestamp:     event.GetTimestampUnix(),
+			exitCode:      exitCodeCopy,
+			containerName: event.GetContainerName(),
+			image:         event.GetImage(),
+			runtime:       event.GetRuntime(),
 		},
 	}
 
