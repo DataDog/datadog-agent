@@ -86,33 +86,12 @@ func (s *sinkImpl) Stats() flightrecorder.Stats {
 func NewComponent(req Requires) (Provides, error) {
 	socketPath := req.Config.GetString("flightrecorder.socket_path")
 	flushInterval := req.Config.GetDuration("flightrecorder.flush_interval")
-	if flushInterval <= 0 {
-		flushInterval = 100 * time.Millisecond
-	}
 	ptCapacity := req.Config.GetInt("flightrecorder.point_buffer_capacity")
-	if ptCapacity <= 0 {
-		ptCapacity = 100000
-	}
 	defCapacity := req.Config.GetInt("flightrecorder.def_buffer_capacity")
-	if defCapacity <= 0 {
-		defCapacity = 10000
-	}
 	logCapacity := req.Config.GetInt("flightrecorder.log_buffer_capacity")
-	if logCapacity <= 0 {
-		logCapacity = 25000
-	}
 	traceStatsCapacity := req.Config.GetInt("flightrecorder.trace_stats_buffer_capacity")
-	if traceStatsCapacity <= 0 {
-		traceStatsCapacity = 5000
-	}
 	hookBufSize := req.Config.GetInt("flightrecorder.hook_buffer_size")
-	if hookBufSize <= 0 {
-		hookBufSize = 128
-	}
 	contextCap := req.Config.GetInt("flightrecorder.context_set_capacity")
-	if contextCap <= 0 {
-		contextCap = 50000
-	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	impl := &sinkImpl{
