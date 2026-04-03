@@ -15,7 +15,7 @@ import (
 
 // hostProfilerConfig holds host-profiler settings extracted from the Agent config.
 type hostProfilerConfig struct {
-	Debug                 confMap
+	DebugVerbosity        string
 	AdditionalHTTPHeaders map[string]string
 }
 
@@ -88,7 +88,7 @@ func newConfigManager(config config.Component) configManager {
 	// key ("hostprofiler") returns defaults instead of env var overrides, so
 	// mapstructure.Decode on the parent map silently drops env-var-set values.
 	hostProfilerConfig := hostProfilerConfig{
-		Debug:                 config.GetStringMap("hostprofiler.debug"),
+		DebugVerbosity:        config.GetString("hostprofiler.debug.verbosity"),
 		AdditionalHTTPHeaders: config.GetStringMapString("hostprofiler.additional_http_headers"),
 	}
 

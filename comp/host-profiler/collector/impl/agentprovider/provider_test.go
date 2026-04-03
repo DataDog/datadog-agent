@@ -221,11 +221,6 @@ func TestProvider(t *testing.T) {
 			expectedOTel: "provider/debug-disabled/otel.yaml",
 		},
 		{
-			name:         "debug-multi-field",
-			agentConfig:  "provider/debug-multi-field/agent.yaml",
-			expectedOTel: "provider/debug-multi-field/otel.yaml",
-		},
-		{
 			name:         "additional-http-headers",
 			agentConfig:  "provider/add-headers/agent.yaml",
 			expectedOTel: "provider/add-headers/otel.yaml",
