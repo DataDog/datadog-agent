@@ -347,6 +347,7 @@ func TestInfoHandler(t *testing.T) {
 				"mongo":                   nil,
 				"sql_exec_plan":           nil,
 				"sql_exec_plan_normalize": nil,
+				"sql_obfuscation_mode":    nil,
 				"http": map[string]any{
 					"remove_query_string": nil,
 					"remove_path_digits":  nil,

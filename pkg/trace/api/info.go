@@ -41,6 +41,7 @@ type reducedObfuscationConfig struct {
 	Mongo                bool                      `json:"mongo"`
 	SQLExecPlan          bool                      `json:"sql_exec_plan"`
 	SQLExecPlanNormalize bool                      `json:"sql_exec_plan_normalize"`
+	SQLObfuscationMode   string                    `json:"sql_obfuscation_mode"`
 	HTTP                 obfuscate.HTTPConfig      `json:"http"`
 	RemoveStackTraces    bool                      `json:"remove_stack_traces"`
 	Redis                obfuscate.RedisConfig     `json:"redis"`
@@ -87,6 +88,7 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		oconf.Mongo = o.Mongo.Enabled
 		oconf.SQLExecPlan = o.SQLExecPlan.Enabled
 		oconf.SQLExecPlanNormalize = o.SQLExecPlanNormalize.Enabled
+		oconf.SQLObfuscationMode = r.conf.SQLObfuscationMode
 		oconf.HTTP = o.HTTP
 		oconf.RemoveStackTraces = o.RemoveStackTraces
 		oconf.Redis = o.Redis
