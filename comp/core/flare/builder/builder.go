@@ -9,7 +9,6 @@
 package flarebuilder
 
 import (
-	"context"
 	"time"
 )
 
@@ -140,14 +139,6 @@ type FlareBuilder interface {
 
 	// GetFlareArgs will return the struct of caller-provided arguments that can be referenced by various flare providers
 	GetFlareArgs() FlareArgs
-
-	// SetProviderContext records a context retrievable via ProviderContext. The flare orchestrator passes
-	// a per-provider context as the first argument to FlareCallback instead of calling this.
-	SetProviderContext(ctx context.Context)
-
-	// ProviderContext returns the context last stored by SetProviderContext, or Background if none.
-	// Prefer the context argument to FlareCallback for subprocess deadlines.
-	ProviderContext() context.Context
 
 	// Save archives all the data added to the flare, cleanup all the temporary directories and return the path to
 	// the archive file. Upon error the cleanup is still done.

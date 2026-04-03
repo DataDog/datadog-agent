@@ -49,6 +49,9 @@ const (
 	evtExportLogChannelPath uint32 = 0x1
 )
 
+// getCounterStrings does not accept a context because it reads the Windows
+// performance counter registry directly via RegQueryValueEx (a Win32 API call),
+// which cannot be canceled through a Go context.
 func getCounterStrings(fb flaretypes.FlareBuilder) error {
 	return fb.AddFileFromFunc("counter_strings.txt",
 		func() ([]byte, error) {
@@ -123,7 +126,9 @@ func getLodctrOutput(ctx context.Context, fb flaretypes.FlareBuilder) error {
 	return fb.AddFile("lodctr.txt", out.Bytes())
 }
 
-// getWindowsEventLogs exports Windows event logs.
+// getWindowsEventLogs exports Windows event logs. It does not accept a context
+// because it uses the EvtExportLog Win32 API directly, which cannot be canceled
+// through a Go context.
 func getWindowsEventLogs(fb flaretypes.FlareBuilder) error {
 	var err error
 
@@ -186,6 +191,9 @@ func exportWindowsEventLog(fb flaretypes.FlareBuilder, eventLogChannel, eventLog
 	return err
 }
 
+// getServiceStatus does not accept a context because it queries the Windows
+// Service Control Manager via Win32 API calls, which cannot be canceled through
+// a Go context.
 func getServiceStatus(fb flaretypes.FlareBuilder) error {
 	return fb.AddFileFromFunc(
 		"servicestatus.json",
