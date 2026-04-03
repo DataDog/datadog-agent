@@ -973,9 +973,12 @@ def eval_bayesian(
     with open(report_path, "w") as f:
         json.dump(final_report, f, indent=4)
 
-    if best:
+    if best and best.get("config_path") and os.path.exists(best["config_path"]):
+        with open(best["config_path"]) as f:
+            best_config = json.load(f)
         best_config_path = os.path.join(output_dir, "best_config.json")
-        shutil.copy2(best["config_path"], best_config_path)
+        with open(best_config_path, "w") as f:
+            json.dump(best_config, f, indent=4)
 
     print(color_message(f"\n{'=' * 70}", Color.GREEN))
     print(color_message(f"  Report: {report_path}", Color.GREEN))
