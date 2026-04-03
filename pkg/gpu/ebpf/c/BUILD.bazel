@@ -1,8 +1,16 @@
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 
+_GPU_HDRS = glob(["*.h"])
+
 cc_library(
     name = "gpu_headers",
-    hdrs = glob(["*.h"]),
+    hdrs = _GPU_HDRS,
     includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "gpu_headers_files",
+    srcs = _GPU_HDRS,
     visibility = ["//visibility:public"],
 )

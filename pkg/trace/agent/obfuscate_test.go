@@ -7,6 +7,9 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
+	"io"
+	"os"
 	"testing"
 
 	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
@@ -15,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 
+	"github.com/go-viper/mapstructure/v2"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -66,7 +70,7 @@ func TestObfuscateDefaults(t *testing.T) {
 		}
 		agnt, stop := agentWithDefaults()
 		defer stop()
-		agnt.obfuscateSpan(span)
+		agnt.ObfuscateSpan(span)
 		assert.Equal(t, cmd, span.Meta["redis.raw_command"])
 		assert.Equal(t, "SET GET", span.Resource)
 	})
@@ -80,7 +84,7 @@ func TestObfuscateDefaults(t *testing.T) {
 		}
 		agnt, stop := agentWithDefaults()
 		defer stop()
-		agnt.obfuscateSpan(span)
+		agnt.ObfuscateSpan(span)
 		assert.Equal(t, cmd, span.Meta["valkey.raw_command"])
 		assert.Equal(t, "SET GET", span.Resource)
 	})
@@ -94,7 +98,7 @@ func TestObfuscateDefaults(t *testing.T) {
 		}
 		agnt, stop := agentWithDefaults()
 		defer stop()
-		agnt.obfuscateSpan(span)
+		agnt.ObfuscateSpan(span)
 		assert.Equal(t, "UPDATE users ( name ) SET ( ? )", span.Meta["sql.query"])
 		assert.Equal(t, "UPDATE users ( name ) SET ( ? )", span.Resource)
 	})
@@ -126,7 +130,7 @@ func TestObfuscateConfig(t *testing.T) {
 			agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent(), nil)
 			defer cancelFunc()
 			span := &pb.Span{Type: typ, Meta: map[string]string{key: val}}
-			agnt.obfuscateSpan(span)
+			agnt.ObfuscateSpan(span)
 			assert.Equal(t, exp, span.Meta[key])
 		}
 	}
@@ -357,7 +361,7 @@ func TestSQLResourceQuery(t *testing.T) {
 	agnt, stop := agentWithDefaults()
 	defer stop()
 	for _, tc := range testCases {
-		agnt.obfuscateSpan(tc.span)
+		agnt.ObfuscateSpan(tc.span)
 		assert.Equal("SELECT * FROM users WHERE id = ?", tc.span.Resource)
 		assert.Equal("SELECT * FROM users WHERE id = ?", tc.span.Meta["sql.query"])
 	}
@@ -408,7 +412,7 @@ ORDER BY [b].[Name]`,
 	agnt, stop := agentWithDefaults()
 	defer stop()
 	for _, tc := range testCases {
-		agnt.obfuscateSpan(tc.span)
+		agnt.ObfuscateSpan(tc.span)
 		assert.Equal("Non-parsable SQL query", tc.span.Resource)
 		assert.Equal("Non-parsable SQL query", tc.span.Meta["sql.query"])
 	}
@@ -422,7 +426,7 @@ func TestSQLTableNames(t *testing.T) {
 		}
 		agnt, stop := agentWithDefaults("table_names")
 		defer stop()
-		agnt.obfuscateSpan(span)
+		agnt.ObfuscateSpan(span)
 		assert.Equal(t, "users", span.Meta["sql.tables"])
 	})
 
@@ -433,7 +437,7 @@ func TestSQLTableNames(t *testing.T) {
 		}
 		agnt, stop := agentWithDefaults()
 		defer stop()
-		agnt.obfuscateSpan(span)
+		agnt.ObfuscateSpan(span)
 		assert.Empty(t, span.Meta["sql.tables"])
 	})
 }
@@ -457,7 +461,7 @@ func BenchmarkCCObfuscation(b *testing.B) {
 			"_sample_rate": "1",
 			"sql.query":    "SELECT * FROM users WHERE id = 42",
 		}}
-		agnt.obfuscateSpan(span)
+		agnt.ObfuscateSpan(span)
 	}
 }
 
@@ -521,7 +525,7 @@ func TestObfuscateSpanEvent(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		agnt.obfuscateSpan(tc.span)
+		agnt.ObfuscateSpan(tc.span)
 		for _, v := range tc.span.SpanEvents[0].Attributes {
 			if v.Type == pb.AttributeAnyValue_ARRAY_VALUE {
 				for _, arrayValue := range v.ArrayValue.Values {
@@ -546,6 +550,65 @@ func TestLexerObfuscation(t *testing.T) {
 		Type:     "sql",
 		Meta:     map[string]string{"db.type": "sqlserver"},
 	}
-	agnt.obfuscateSpan(span)
+	agnt.ObfuscateSpan(span)
 	assert.Equal(t, "SELECT * FROM [u].[users]", span.Resource)
+}
+
+func TestObfuscateSpanParameterized(t *testing.T) {
+	type RawTestCase struct {
+		Name     string                 `json:"name"`
+		Input    pb.Span                `json:"input"`
+		Expected pb.Span                `json:"expected"`
+		Config   map[string]interface{} `json:"config"`
+	}
+	f, err := os.Open("./testdata/obfuscation_test_spans.jsonl")
+	assert.NoError(t, err)
+	d := json.NewDecoder(f)
+	for {
+		var raw RawTestCase
+		if err := d.Decode(&raw); err == io.EOF {
+			break
+		} else if err != nil {
+			t.Fatalf("failed to decode test case: %v", err)
+		}
+		t.Run("TestObfuscateSpanParameterized name="+raw.Name, func(t *testing.T) {
+			assert.NotEmpty(t, raw.Name)
+
+			var ocfg config.ObfuscationConfig
+			decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
+				Result:  &ocfg,
+				TagName: "mapstructure",
+			})
+			assert.NoError(t, err)
+			assert.NoError(t, decoder.Decode(raw.Config))
+
+			ctx, cancelFunc := context.WithCancel(context.Background())
+			defer cancelFunc()
+			cfg := config.New()
+			cfg.Endpoints[0].APIKey = "test"
+			cfg.Features["sqllexer"] = struct{}{}
+			cfg.Obfuscation = &ocfg
+			agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
+			agnt.ObfuscateSpan(&raw.Input)
+			assertSpanEqual(t, &raw.Expected, &raw.Input)
+		})
+	}
+}
+
+func assertSpanEqual(t *testing.T, expected *pb.Span, actual *pb.Span) {
+	assert.Equal(t, expected.Service, actual.Service)
+	assert.Equal(t, expected.Name, actual.Name)
+	assert.Equal(t, expected.Resource, actual.Resource)
+	assert.Equal(t, expected.TraceID, actual.TraceID)
+	assert.Equal(t, expected.SpanID, actual.SpanID)
+	assert.Equal(t, expected.ParentID, actual.ParentID)
+	assert.Equal(t, expected.Start, actual.Start)
+	assert.Equal(t, expected.Duration, actual.Duration)
+	assert.Equal(t, expected.Error, actual.Error)
+	assert.Equal(t, expected.Meta, actual.Meta)
+	assert.Equal(t, expected.Metrics, actual.Metrics)
+	assert.Equal(t, expected.Type, actual.Type)
+	assert.Equal(t, expected.MetaStruct, actual.MetaStruct)
+	assert.Equal(t, expected.SpanLinks, actual.SpanLinks)
+	assert.Equal(t, expected.SpanEvents, actual.SpanEvents)
 }

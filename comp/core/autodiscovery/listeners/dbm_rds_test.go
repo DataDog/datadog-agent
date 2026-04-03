@@ -27,6 +27,7 @@ func TestDBMRdsListener(t *testing.T) {
 		name                  string
 		config                map[string]interface{}
 		numDiscoveryIntervals int
+		initialServices       map[string]Service
 		rdsClientConfigurer   mockRdsClientConfigurer
 		expectedServices      []*DBMRdsService
 		expectedDelServices   []*DBMRdsService
@@ -192,6 +193,52 @@ func TestDBMRdsListener(t *testing.T) {
 			},
 			expectedDelServices: []*DBMRdsService{},
 		},
+		{
+			name: "previously discovered services are deleted when no instances found",
+			config: map[string]interface{}{
+				"discoveryInterval": 1,
+				"region":            "us-east-1",
+				"tags":              []string{defaultADTag},
+				"dbmTag":            defaultDbmTag,
+			},
+			numDiscoveryIntervals: 0,
+			initialServices: map[string]Service{
+				"36740c31448ee889": &DBMRdsService{
+					adIdentifier: dbmPostgresADIdentifier,
+					entityID:     "36740c31448ee889",
+					checkName:    "postgres",
+					region:       "us-east-1",
+					instance: &aws.Instance{
+						ID:         "my-instance-1",
+						Endpoint:   "my-endpoint",
+						Port:       5432,
+						IamEnabled: true,
+						Engine:     "postgres",
+						DbmEnabled: true,
+					},
+				},
+			},
+			rdsClientConfigurer: func(k *aws.MockRdsClient) {
+				k.EXPECT().GetRdsInstancesFromTags(gomock.Any(), gomock.Any()).Return([]aws.Instance{}, nil).AnyTimes()
+			},
+			expectedServices: []*DBMRdsService{},
+			expectedDelServices: []*DBMRdsService{
+				{
+					adIdentifier: dbmPostgresADIdentifier,
+					entityID:     "36740c31448ee889",
+					checkName:    "postgres",
+					region:       "us-east-1",
+					instance: &aws.Instance{
+						ID:         "my-instance-1",
+						Endpoint:   "my-endpoint",
+						Port:       5432,
+						IamEnabled: true,
+						Engine:     "postgres",
+						DbmEnabled: true,
+					},
+				},
+			},
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -208,6 +255,9 @@ func TestDBMRdsListener(t *testing.T) {
 			err := mapstructure.Decode(tc.config, &newRdsConfig)
 			assert.NoError(t, err)
 			l := newDBMRdsListener(newRdsConfig, mockAWSClient, ticks)
+			if tc.initialServices != nil {
+				l.(*DBMRdsListener).services = tc.initialServices
+			}
 			l.Listen(newSvc, delSvc)
 			// execute loop
 			for i := 0; i < tc.numDiscoveryIntervals; i++ {
