@@ -35,12 +35,26 @@ static __always_inline void copy_conn_tuple(conn_tuple_t *t, conn_tuple_t *stats
     }
     if (stats_tup->sport) t->sport = stats_tup->sport;
     if (stats_tup->dport) t->dport = stats_tup->dport;
-    if (stats_tup->metadata) t->metadata |= stats_tup->metadata;
     if (stats_tup->netns) t->netns = stats_tup->netns;
+    if (stats_tup->pid) t->pid = stats_tup->pid;
+    if (stats_tup->metadata) t->metadata |= stats_tup->metadata;
 }
 
-static __always_inline int read_conn_tuple_sk(conn_tuple_t* t, struct sock* sk) {
+static __always_inline int read_conn_tuple_sk(conn_tuple_t* t, struct sock* sk, struct task_struct *task) {
     int err = 0;
+
+    if (!t->pid) {
+        if (task) {
+            t->pid = task->tgid;
+        } else {
+            t->pid = GET_USER_MODE_PID(bpf_get_current_pid_tgid());
+        }
+    }
+
+    if (!t->netns) {
+        t->netns = get_netns_from_sock(sk);
+    }
+
     u16 family = sk->sk_family;
     if (family == AF_INET) {
         if (!is_tcpv4_enabled() && !is_udpv4_enabled()) {

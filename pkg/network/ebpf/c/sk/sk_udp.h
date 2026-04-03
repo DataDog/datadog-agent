@@ -61,7 +61,7 @@ int udp_post_bind4_cgroup(struct bpf_sock *ctx) {
     if (ctx->type != SOCK_DGRAM || ctx->protocol != IPPROTO_UDP) {
         return 1;
     }
-    log_debug("post_bind4: sk=%pK", ctx);
+    log_debug("post_bind4: sk=%p", ctx);
     update_stats_tuple4(ctx);
     return 1;
 }
@@ -71,7 +71,7 @@ int udp_post_bind6_cgroup(struct bpf_sock *ctx) {
     if (ctx->type != SOCK_DGRAM || ctx->protocol != IPPROTO_UDP) {
         return 1;
     }
-    log_debug("post_bind6: sk=%pK", ctx);
+    log_debug("post_bind6: sk=%p", ctx);
     update_stats_tuple6(ctx);
     return 1;
 }
@@ -82,7 +82,7 @@ int BPF_PROG(udp_sendpage_exit, struct sock *sk, struct page *page, int offset, 
         log_debug("fexit/udp_sendpage: err=%d", sent);
         return 0;
     }
-    log_debug("udp_sendpage: sk=%pK sent=%d", sk, sent);
+    log_debug("udp_sendpage: sk=%p sent=%d", sk, sent);
 
 //    u64 pid_tgid = bpf_get_current_pid_tgid();
 //    log_debug("fexit/udp_sendpage: pid_tgid: %llu, sent: %d, sock: %p", pid_tgid, sent, sk);
@@ -110,7 +110,7 @@ int BPF_PROG(udp_sendpage_exit, struct sock *sk, struct page *page, int offset, 
 
 SEC("fexit/udpv6_sendmsg")
 int BPF_PROG(udpv6_sendmsg_exit, struct sock *sk, struct msghdr *msg, size_t len, int sent) {
-    log_debug("udpv6_sendmsg: sk=%pK sent=%d", sk, sent);
+    log_debug("udpv6_sendmsg: sk=%p sent=%d", sk, sent);
     if (sent <= 0) {
         return 0;
     }
@@ -201,7 +201,7 @@ int BPF_PROG(udp_v6_send_skb_entry, struct sk_buff *skb, struct flowi6 *fl6) {
 
 SEC("fexit/udp_sendmsg")
 int BPF_PROG(udp_sendmsg_exit, struct sock *sk, struct msghdr *msg, size_t len, int sent) {
-    log_debug("udp_sendmsg: sk=%pK sent=%d", sk, sent);
+    log_debug("udp_sendmsg: sk=%p sent=%d", sk, sent);
     if (sent <= 0) {
         return 0;
     }
@@ -264,6 +264,12 @@ static __always_inline int handle_skb_consume_udp(struct sock *sk, struct sk_buf
     if (!sk_stats) {
         log_debug("ERR no stats");
         return 0;
+    }
+    if (!sk_stats->tup.pid) {
+        sk_stats->tup.pid = GET_USER_MODE_PID(bpf_get_current_pid_tgid());
+    }
+    if (!sk_stats->tup.netns) {
+        sk_stats->tup.netns = get_netns_from_sock(sk);
     }
     sk_stats->tup.metadata |= CONN_TYPE_UDP;
     // TODO do we need to differentiate UDP connections by tuple instead of socket?
@@ -350,7 +356,7 @@ static __always_inline int handle_skb_consume_udp(struct sock *sk, struct sk_buf
     sk_stats->recv_packets += 1;
     sk_stats->timestamp_ns = bpf_ktime_get_ns();
 
-    log_debug("skb_consume_udp: sk=%pK recv=%d", sk, data_len);
+    log_debug("skb_consume_udp: sk=%p recv=%d", sk, data_len);
     if (!(sk_stats->flags & CONN_ASSURED)) {
         if (sk_stats->sent_bytes == 0 && data_len > 0) {
             sk_stats->flags |= CONN_R_INIT;
@@ -370,9 +376,10 @@ int BPF_PROG(skb_consume_udp, struct sock *sk, struct sk_buff *skb, int len) {
 
 SEC("fexit/udp_destroy_sock")
 int BPF_PROG(udp_destroy_sock_exit, struct sock *sk) {
+    log_debug("udp_destroy_sock: sk=%p", sk);
     sk_udp_stats_t *sk_stats = bpf_sk_storage_get(&sk_udp_stats, sk, 0, 0);
     conn_t conn = {};
-    if (!create_udp_conn(&conn, sk, sk_stats)) {
+    if (!create_udp_conn(&conn, sk, sk_stats, NULL)) {
         return 0;
     }
     bpf_ringbuf_output(&conn_close_event, &conn, sizeof(conn_t), get_ringbuf_flags(sizeof(conn_t)));
@@ -381,9 +388,10 @@ int BPF_PROG(udp_destroy_sock_exit, struct sock *sk) {
 
 SEC("fexit/udpv6_destroy_sock")
 int BPF_PROG(udpv6_destroy_sock_exit, struct sock *sk) {
+    log_debug("udpv6_destroy_sock: sk=%p", sk);
     sk_udp_stats_t *sk_stats = bpf_sk_storage_get(&sk_udp_stats, sk, 0, 0);
     conn_t conn = {};
-    if (!create_udp_conn(&conn, sk, sk_stats)) {
+    if (!create_udp_conn(&conn, sk, sk_stats, NULL)) {
         return 0;
     }
     bpf_ringbuf_output(&conn_close_event, &conn, sizeof(conn_t), get_ringbuf_flags(sizeof(conn_t)));
