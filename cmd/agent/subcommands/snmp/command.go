@@ -329,7 +329,7 @@ func snmpWalk(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snmps
 		return configErr{err}
 	}
 
-	// Print connection info so the user knows what's happening during long timeouts
+	// Print progress to stderr so it doesn't pollute walk output when piped
 	_, _ = fmt.Fprintf(os.Stderr, "Connecting to %s:%d (timeout: %ds, retries: %d)\n", snmp.Target, snmp.Port, connParams.Timeout, snmp.Retries)
 	// Notify the user on each retry so they know the tool is still running.
 	// gosnmp calls OnRetry once more on the iteration that exits the retry
