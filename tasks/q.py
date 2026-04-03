@@ -8,7 +8,7 @@ import shutil
 import tempfile
 import zipfile
 
-from invoke import task
+from invoke import Exit, task
 
 from tasks.libs.common.color import Color, color_message
 
@@ -932,7 +932,13 @@ def eval_bayesian(
     """
     import pickle
 
-    import optuna
+    try:
+        import optuna
+    except Exception:
+        import sys
+
+        print(color_message('Please use dda inv --dep optuna ... to run this task', Color.RED), file=sys.stderr)
+        raise Exit(1) from None
 
     only_list = [c.strip() for c in only.split(",") if c.strip()]
     if only_list and lock:
