@@ -27,6 +27,7 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/modifiers"
 	bugs "github.com/DataDog/datadog-agent/pkg/ebpf/kernelbugs"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/perf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
@@ -233,7 +234,7 @@ func (e *EbpfProgram) setupManagerAndPerfHandlers() error {
 		mask |= m
 	}
 
-	managerMods = append(managerMods, &ddebpf.SleepableProgramModifier{
+	managerMods = append(managerMods, &modifiers.SleepableProgramModifier{
 		ProbeIDs:      sleepableIDs,
 		SleepableMask: mask,
 	})

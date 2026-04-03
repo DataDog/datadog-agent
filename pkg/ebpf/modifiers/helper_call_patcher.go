@@ -5,15 +5,19 @@
 
 //go:build linux_bpf
 
-package ebpf
+package modifiers
 
 import (
+	"errors"
 	"fmt"
 
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
 
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/names"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 )
 
 // replaceIns is used in place of the eBPF helpers we wish to remove from
@@ -40,7 +44,7 @@ var replaceIns = asm.Mov.Imm(asm.R0, 0)
 // conditionally select eBPF helpers. This should be regarded as a last resort
 // when the aforementioned options don't apply (prebuilt artifacts, for
 // example).
-func NewHelperCallRemover(helpers ...asm.BuiltinFunc) ModifierBeforeInit {
+func NewHelperCallRemover(helpers ...asm.BuiltinFunc) ddebpf.ModifierBeforeInit {
 	return &helperCallRemover{
 		helpers: helpers,
 	}
@@ -83,4 +87,59 @@ func (h *helperCallRemover) BeforeInit(m *manager.Manager, _ names.ModuleName, _
 
 func (h *helperCallRemover) String() string {
 	return fmt.Sprintf("HelperCallRemover[%+v]", h.helpers)
+}
+
+type HelperReplacer struct {
+	Target asm.BuiltinFunc
+	New    asm.BuiltinFunc
+	Prog   *ebpf.ProgramSpec
+}
+
+type helperCallReplacer struct {
+	replacers []HelperReplacer
+}
+
+func NewHelperCallReplacer(replacers ...HelperReplacer) ddebpf.ModifierBeforeInit {
+	return &helperCallReplacer{
+		replacers: replacers,
+	}
+}
+
+func (h *helperCallReplacer) BeforeInit(m *manager.Manager, mn names.ModuleName, _ *manager.Options) error {
+	m.InstructionPatchers = append(m.InstructionPatchers, func(m *manager.Manager) error {
+		for _, rep := range h.replacers {
+			if rep.Prog == nil {
+				return errors.New("nil ebpf.ProgramSpec provided to HelperReplacer")
+			}
+
+			replaced := false
+			iter := rep.Prog.Instructions.Iterate()
+			for iter.Next() {
+				ins := iter.Ins
+				if !ins.IsBuiltinCall() {
+					continue
+				}
+
+				if ins.Constant == int64(rep.Target) {
+					*ins = rep.New.Call().WithMetadata(ins.Metadata)
+					replaced = true
+				}
+			}
+
+			if replaced {
+				progName := names.NewProgramNameFromProgramSpec(rep.Prog)
+				if err := telemetry.RemapHelper(progName, mn, rep.Target, rep.New); err != nil {
+					return err
+				}
+			}
+		}
+
+		return nil
+	})
+
+	return nil
+}
+
+func (h *helperCallReplacer) String() string {
+	return fmt.Sprintf("HelperCallReplacer[%+v]", h.replacers)
 }

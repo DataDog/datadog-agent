@@ -8,8 +8,7 @@
 #include "shared-libraries/types.h"
 
 #define SLEEPBALE_SYS_OPENAT2_MASK (1<<2)
-#define SLEEPABLE_SYS_OPENAT_MASK  (1<<1)
-#define SLEEPABLE_SYS_OPEN_MASK    (1<<0)
+#define SLEEPABLE_SYS_OPENAT_MASK  (1<<1) #define SLEEPABLE_SYS_OPEN_MASK    (1<<0)
 
 static __always_inline void fill_path_safe(lib_path_t *path, const char *path_argument) {
 #pragma unroll
@@ -23,10 +22,7 @@ static __always_inline void fill_path_safe(lib_path_t *path, const char *path_ar
 }
 
 static __always_inline long _bpf_copy_from_user(void *dst, u32 size, const void *user_ptr, bool allowed) {
-    if (allowed)
-        return bpf_copy_from_user_with_telemetry(dst, size, user_ptr);
-    else
-        return bpf_probe_read_user_with_telemetry(dst, size, user_ptr);
+    return bpf_probe_read_user_with_telemetry(dst, size, user_ptr);
 }
 
 static __always_inline long fill_path(lib_path_t *path, const char *path_argument, bool sleepable) {
