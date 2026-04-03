@@ -8,15 +8,15 @@
 #
 # system_probe_config:
 
-#   # @param sysprobe_socket - string - optional - default: {{ if (eq .OS "windows") }}localhost:3333{{else}}/opt/datadog-agent/run/sysprobe.sock{{end}}
-#   # @env DD_SYSTEM_PROBE_CONFIG_SYSPROBE_SOCKET - string - optional - default: {{ if (eq .OS "windows") }}localhost:3333{{else}}/opt/datadog-agent/run/sysprobe.sock{{end}}
+#   # @param sysprobe_socket - string - optional - default: {{ if (eq .OS "windows") }}"\\.\pipe\dd_system_probe"{{else}}"/opt/datadog-agent/run/sysprobe.sock"{{end}}
+#   # @env DD_SYSPROBE_SOCKET - string - optional - default: {{ if (eq .OS "windows") }}"\\.\pipe\dd_system_probe"{{else}}"/opt/datadog-agent/run/sysprobe.sock"{{end}}
 #   # On Windows: the TCP address where system probes are accessed.
 #   # On Unix: the full path to the location of the unix socket where system probes are accessed.
 #
-#   sysprobe_socket: {{ if (eq .OS "windows") }}localhost:3333{{else}}/opt/datadog-agent/run/sysprobe.sock{{end}}
+#   sysprobe_socket: {{ if (eq .OS "windows") }}"\\.\pipe\dd_system_probe"{{else}}"/opt/datadog-agent/run/sysprobe.sock"{{end}}
 
-#   # @param log_file - string - optional - default: /var/log/datadog/system-probe.log
-#   # @env DD_SYSTEM_PROBE_CONFIG_LOG_FILE - string - optional - default: /var/log/datadog/system-probe.log
+#   # @param log_file - string - optional - default: ""
+#   # @env DD_SYSTEM_PROBE_CONFIG_LOG_FILE - string - optional - default: ""
 #   # The full path to the file where system-probe logs are written.
 #
 #   log_file: /var/log/datadog/system-probe.log
@@ -45,7 +45,7 @@
 ## @env DD_LOG_FILE - string - optional - default: {{ if (eq .OS "linux") }}"/var/log/datadog/system-probe.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\system-probe.log"{{else}}"/opt/datadog-agent/logs/system-probe.log"{{ end }}
 ## The full path to the file where system-probe logs are written.
 #
-# log_file: "LOG FILE PATH"
+# log_file: {{ if (eq .OS "linux") }}"/var/log/datadog/system-probe.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\system-probe.log"{{else}}"/opt/datadog-agent/logs/system-probe.log"{{ end }}
 
 ########################################
 ## System Probe Network Configuration ##
@@ -65,7 +65,7 @@
 #   enabled: false
 
 #   # @param dns_monitoring_ports - list of integers - optional - default: [53]
-#   # @env DD_NETWORK_CONFIG_DNS_MONITORING_PORTS - space separated list of integers - optional - default: '53'
+#   # @env DD_NETWORK_CONFIG_DNS_MONITORING_PORTS - space-separated list of integers - optional - default: "53"
 #   # A list of ports that should be monitored for DNS traffic.
 #
 #   dns_monitoring_ports:
@@ -138,42 +138,23 @@
 #
 #   fim_enabled: false
 
-#   # @param socket - string - optional - default: {{ if (eq .OS "windows") }}localhost:3334{{else}}/opt/datadog-agent/run/runtime-security.sock{{end}}
-#   # @env DD_RUNTIME_SECURITY_CONFIG_SOCKET - string - optional - default: {{ if (eq .OS "windows") }}"localhost:3334"{{else}}"/opt/datadog-agent/run/runtime-security.sock"{{end}}
+#   # @param socket - string - optional - default: {{ if (eq .OS "windows") }}"localhost:3335"{{else}}"/opt/datadog-agent/run/runtime-security.sock"{{end}}
+#   # @env DD_RUNTIME_SECURITY_CONFIG_SOCKET - string - optional - default: {{ if (eq .OS "windows") }}"localhost:3335"{{else}}"/opt/datadog-agent/run/runtime-security.sock"{{end}}
 #   # On Windows: the TCP address where the security runtime module is accessed.
 #   # On Unix: the full path to the location of the unix socket where security runtime module is accessed.
 #
-#   socket: {{ if (eq .OS "windows") }}localhost:3334{{else}}/opt/datadog-agent/run/runtime-security.sock{{end}}
+#   socket: {{ if (eq .OS "windows") }}"localhost:3335"{{else}}"/opt/datadog-agent/run/runtime-security.sock"{{end}}
 
 #   # @param policies - custom object - optional
 #   # Policy files
 #
 #   policies:
 
-#     # @param dir - string - default: {{ if (eq .OS "windows") }}C:\\ProgramData\\Datadog\\runtime-security.d{{else}}/etc/datadog-agent/runtime-security.d{{end}}
-#     # @env DD_RUNTIME_SECURITY_CONFIG_POLICIES_DIR - string - default: {{ if (eq .OS "windows") }}C:ProgramData\\Datadog\\runtime-security.d{{else}}/etc/datadog-agent/runtime-security.d{{end}}
+#     # @param dir - string - optional - default: {{ if (eq .OS "windows") }}"c:\\programdata\\datadog\\runtime-security.d"{{else}}"/etc/datadog-agent/runtime-security.d"{{end}}
+#     # @env DD_RUNTIME_SECURITY_CONFIG_POLICIES_DIR - string - optional - default: {{ if (eq .OS "windows") }}"c:\\programdata\\datadog\\runtime-security.d"{{else}}"/etc/datadog-agent/runtime-security.d"{{end}}
 #     # Path from where the policy files are loaded
 #
-#     dir: {{ if (eq .OS "windows") }}C:\\ProgramData\\Datadog\\runtime-security.d{{else}}/etc/datadog-agent/runtime-security.d{{end}}
-
-#   # @param policies - custom object - optional
-#   # Policy files
-#
-#   policies:
-
-{{ if (eq .OS "windows") -}}
-#     # @param dir - string - optional - default: "c:\\programdata\\datadog\\runtime-security.d"
-#     # @env DD_RUNTIME_SECURITY_CONFIG_POLICIES_DIR - string - optional - default: "c:\\programdata\\datadog\\runtime-security.d"
-#     # Path from where the policy files are loaded
-#
-#     dir: "c:\\programdata\\datadog\\runtime-security.d"
-{{- else -}}
-#     # @param dir - string - optional - default: "/etc/datadog-agent/runtime-security.d"
-#     # @env DD_RUNTIME_SECURITY_CONFIG_POLICIES_DIR - string - optional - default: "/etc/datadog-agent/runtime-security.d"
-#     # Path from where the policy files are loaded
-#
-#     dir: "/etc/datadog-agent/runtime-security.d"
-{{- end }}
+#     dir: {{ if (eq .OS "windows") }}"c:\\programdata\\datadog\\runtime-security.d"{{else}}"/etc/datadog-agent/runtime-security.d"{{end}}
 
 #   # @param activity_dump - custom object - optional
 #   # Activity dump section configures if/how the Agent sends activity dumps to Datadog
@@ -203,8 +184,8 @@
 # event_monitoring_config:
 
 #   # @param custom_sensitive_words - list of strings - optional - default: []
-#   # @env DD_EVENT_MONITORING_CONFIG_CUSTOM_SENSITIVE_WORDS - space separated list of strings - optional - default: []
-#   # @env DD_RUNTIME_SECURITY_CONFIG_CUSTOM_SENSITIVE_WORDS - space separated list of strings - optional - default: []
+#   # @env DD_EVENT_MONITORING_CONFIG_CUSTOM_SENSITIVE_WORDS - space-separated list of strings - optional - default: []
+#   # @env DD_RUNTIME_SECURITY_CONFIG_CUSTOM_SENSITIVE_WORDS - space-separated list of strings - optional - default: []
 #   # Define your own list of sensitive data to be merged with the default one.
 #   # Read more on Datadog documentation:
 #   # https://docs.datadoghq.com/graphing/infrastructure/process/#process-arguments-scrubbing
@@ -216,15 +197,15 @@
 #     - '*pass*d*'
 
 #   # @param custom_sensitive_regexps - list of strings - optional - default: []
-#   # @env DD_EVENT_MONITORING_CONFIG_CUSTOM_SENSITIVE_REGEXPS - space separated list of strings - optional - default: []
-#   # @env DD_RUNTIME_SECURITY_CONFIG_CUSTOM_SENSITIVE_REGEXPS - space separated list of strings - optional - default: []
+#   # @env DD_EVENT_MONITORING_CONFIG_CUSTOM_SENSITIVE_REGEXPS - space-separated list of strings - optional - default: []
+#   # @env DD_RUNTIME_SECURITY_CONFIG_CUSTOM_SENSITIVE_REGEXPS - space-separated list of strings - optional - default: []
 #
 #   custom_sensitive_regexps:
 #     - 'gh-[a-zA-Z0-9]+'
 #
 #   # @param envs_with_value - list of strings - optional - default: ["LD_PRELOAD", "LD_LIBRARY_PATH", "PATH", "HISTSIZE", "HISTFILESIZE", "GLIBC_TUNABLES", "SSH_CLIENT"]
-#   # @env DD_EVENT_MONITORING_CONFIG_ENVS_WITH_VALUE - space separated list of strings - optional - default: 'LD_PRELOAD LD_LIBRARY_PATH PATH HISTSIZE HISTFILESIZE GLIBC_TUNABLES SSH_CLIENT'
-#   # @env DD_RUNTIME_SECURITY_CONFIG_ENVS_WITH_VALUE - space separated list of strings - optional - default: 'LD_PRELOAD LD_LIBRARY_PATH PATH HISTSIZE HISTFILESIZE GLIBC_TUNABLES SSH_CLIENT'
+#   # @env DD_EVENT_MONITORING_CONFIG_ENVS_WITH_VALUE - space-separated list of strings - optional - default: 'LD_PRELOAD LD_LIBRARY_PATH PATH HISTSIZE HISTFILESIZE GLIBC_TUNABLES SSH_CLIENT'
+#   # @env DD_RUNTIME_SECURITY_CONFIG_ENVS_WITH_VALUE - space-separated list of strings - optional - default: 'LD_PRELOAD LD_LIBRARY_PATH PATH HISTSIZE HISTFILESIZE GLIBC_TUNABLES SSH_CLIENT'
 #   # Define your own list of non-sensitive environment variable names whose value will not be
 #   # concealed by the runtime security module.
 #   # Default: LD_PRELOAD, LD_LIBRARY_PATH, PATH, HISTSIZE, HISTFILESIZE, GLIBC_TUNABLES, OTEL_SERVICE_NAME, DD_SERVICE
