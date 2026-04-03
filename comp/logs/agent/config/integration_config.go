@@ -6,15 +6,20 @@
 package config
 
 import (
+	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/tls/certreloader"
 )
 
 // Logs source types
@@ -44,9 +49,12 @@ type LogsConfig struct {
 
 	IntegrationName string
 
-	Port        int    // Network
-	IdleTimeout string `mapstructure:"idle_timeout" json:"idle_timeout" yaml:"idle_timeout"` // Network
-	Path        string // File, Journald
+	Port           int                `mapstructure:"port" json:"port" yaml:"port"`                                     // Network (tcp, udp)
+	BindHost       string             `mapstructure:"bind_host" json:"bind_host" yaml:"bind_host"`                     // Network (tcp, udp)
+	IdleTimeout    string             `mapstructure:"idle_timeout" json:"idle_timeout" yaml:"idle_timeout"`             // Network (tcp)
+	MaxConnections int                `mapstructure:"max_connections" json:"max_connections" yaml:"max_connections"`    // Network (tcp)
+	TLS            *TLSListenerConfig `mapstructure:"tls" json:"tls,omitempty" yaml:"tls,omitempty"`                   // TCP TLS
+	Path           string             // File, Journald
 
 	Encoding     string           `mapstructure:"encoding" json:"encoding" yaml:"encoding"`                   // File
 	ExcludePaths StringSliceField `mapstructure:"exclude_paths" json:"exclude_paths" yaml:"exclude_paths"`    // File
@@ -155,6 +163,85 @@ type AutoMultilineSample struct {
 	Label *string `mapstructure:"label,omitempty" json:"label,omitempty"`
 }
 
+// TLSListenerConfig holds TLS settings for a TCP log listener.
+// When present on a TCP source, the listener will require TLS connections.
+type TLSListenerConfig struct {
+	CertFile      string `mapstructure:"cert_file" json:"cert_file" yaml:"cert_file"`
+	KeyFile       string `mapstructure:"key_file" json:"key_file" yaml:"key_file"`
+	CAFile        string `mapstructure:"ca_file" json:"ca_file" yaml:"ca_file"`
+	ClientAuth    string `mapstructure:"client_auth" json:"client_auth" yaml:"client_auth"`
+	MinTLSVersion string `mapstructure:"min_tls_version" json:"min_tls_version" yaml:"min_tls_version"`
+}
+
+// BuildTLSCredentials loads certificates from disk and returns a *tls.Config
+// ready for use with tls.NewListener. A CertReloader is created to support
+// automatic certificate rotation without process restarts. The TLSListenerConfig
+// holds user-facing settings (file paths, version strings); the returned
+// *tls.Config holds the parsed cryptographic material.
+//
+// CipherSuites is left nil to use Go's default suite selection and
+// hardware-aware ordering (see https://go.dev/blog/tls-cipher-suites).
+func (t *TLSListenerConfig) BuildTLSCredentials(ctx context.Context) (*tls.Config, error) {
+	reloader := certreloader.New(ctx, t.CertFile, t.KeyFile, certreloader.RealClock())
+	if _, err := reloader.GetCertificate(nil); err != nil {
+		return nil, fmt.Errorf("failed to load TLS cert/key: %w", err)
+	}
+
+	tlsCfg := &tls.Config{
+		GetCertificate: reloader.GetCertificate,
+		MinVersion:     parseTLSVersion(t.MinTLSVersion),
+		ClientAuth:     parseClientAuth(t.ClientAuth),
+	}
+
+	if t.CAFile != "" {
+		caPEM, err := os.ReadFile(t.CAFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read TLS CA file: %w", err)
+		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(caPEM) {
+			return nil, errors.New("failed to parse TLS CA certificate")
+		}
+		tlsCfg.ClientCAs = pool
+	}
+
+	return tlsCfg, nil
+}
+
+var validTLSVersions = map[string]uint16{
+	"":        tls.VersionTLS12,
+	"tlsv1.2": tls.VersionTLS12,
+	"tlsv1.3": tls.VersionTLS13,
+}
+
+var validClientAuthModes = map[string]tls.ClientAuthType{
+	"":         tls.NoClientCert,
+	"none":     tls.NoClientCert,
+	"optional": tls.VerifyClientCertIfGiven,
+	"required": tls.RequireAndVerifyClientCert,
+}
+
+// parseTLSVersion converts a user-facing version string to a tls.VersionTLSxx constant.
+func parseTLSVersion(v string) uint16 {
+	return validTLSVersions[strings.ToLower(v)]
+}
+
+// parseClientAuth converts a user-facing client auth string to a tls.ClientAuthType.
+func parseClientAuth(s string) tls.ClientAuthType {
+	return validClientAuthModes[strings.ToLower(s)]
+}
+
+// clientAuthRequiresVerification returns true if the given client_auth setting
+// requires a CA certificate for client verification.
+func clientAuthRequiresVerification(s string) bool {
+	switch strings.ToLower(s) {
+	case "optional", "required":
+		return true
+	default:
+		return false
+	}
+}
+
 // StringSliceField is a custom type for unmarshalling comma-separated string values or typical yaml fields into a slice of strings.
 type StringSliceField []string
 
@@ -202,6 +289,10 @@ func (c *LogsConfig) Dump(multiline bool) string {
 	case TCPType:
 		fmt.Fprintf(&b, ws("Port: %d,"), c.Port)
 		fmt.Fprintf(&b, ws("IdleTimeout: %#v,"), c.IdleTimeout)
+		if c.TLS != nil {
+			fmt.Fprintf(&b, ws("TLS: {CertFile: %#v, KeyFile: %#v, CAFile: %#v, ClientAuth: %#v, MinTLSVersion: %#v},"),
+				c.TLS.CertFile, c.TLS.KeyFile, c.TLS.CAFile, c.TLS.ClientAuth, c.TLS.MinTLSVersion)
+		}
 	case UDPType:
 		fmt.Fprintf(&b, ws("Port: %d,"), c.Port)
 		fmt.Fprintf(&b, ws("IdleTimeout: %#v,"), c.IdleTimeout)
@@ -359,6 +450,10 @@ func (c *LogsConfig) Validate() error {
 		return errors.New("udp source must have a port")
 	}
 
+	if err := c.validateTLS(); err != nil {
+		return err
+	}
+
 	// Validate fingerprint configuration
 	err := ValidateFingerprintConfig(c.FingerprintConfig)
 	if err != nil {
@@ -385,6 +480,42 @@ func (c *LogsConfig) validateTailingMode() error {
 		log.Warnf("Using wildcard path %v with start_position: %v without fingerprinting may cause duplicate log reads during rotation.", c.Path, c.TailingMode)
 	}
 	return nil
+}
+
+func (c *LogsConfig) validateTLS() error {
+	if c.TLS == nil {
+		return nil
+	}
+	if c.Type != TCPType {
+		return fmt.Errorf("tls configuration is only supported for %s sources, got %s", TCPType, c.Type)
+	}
+	if c.TLS.CertFile == "" || c.TLS.KeyFile == "" {
+		return errors.New("tls requires both cert_file and key_file")
+	}
+	if _, ok := validTLSVersions[strings.ToLower(c.TLS.MinTLSVersion)]; !ok {
+		return fmt.Errorf("unrecognized min_tls_version %q; valid values: tlsv1.2, tlsv1.3", c.TLS.MinTLSVersion)
+	}
+	if _, ok := validClientAuthModes[strings.ToLower(c.TLS.ClientAuth)]; !ok {
+		return fmt.Errorf("unrecognized client_auth %q; valid values: none, optional, required", c.TLS.ClientAuth)
+	}
+	if clientAuthRequiresVerification(c.TLS.ClientAuth) && c.TLS.CAFile == "" {
+		return fmt.Errorf("tls client_auth %q requires ca_file to be set", c.TLS.ClientAuth)
+	}
+	warnKeyFilePermissions(c.TLS.KeyFile)
+	return nil
+}
+
+// warnKeyFilePermissions checks if the TLS private key file is readable by
+// group or others and emits a warning if so.
+func warnKeyFilePermissions(path string) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return
+	}
+	mode := info.Mode().Perm()
+	if mode&0o077 != 0 {
+		log.Warnf("TLS key file %q has permissions %04o; recommended permissions are 0600", path, mode)
+	}
 }
 
 // LegacyAutoMultiLineEnabled determines whether the agent has fallen back to legacy auto multi line detection
