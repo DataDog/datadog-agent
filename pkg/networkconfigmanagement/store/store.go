@@ -224,3 +224,68 @@ func hashConfig(raw string) string {
 	hash := sha256.Sum256([]byte(raw))
 	return hex.EncodeToString(hash[:])
 }
+
+// buildEvictionIndex scans the metadata bucket and returns:
+// configsPerDevice: map of deviceID -> total number of configs stored for that device
+// sortedEntries: all ConfigMetadata pointers sorted by LastAccessedAt ascending (oldest first)
+// Both structures are built in a single view transaction for a consistent snapshot.
+func (cs *ConfigStore) buildEvictionIndex() (configsPerDevice map[string]int, entries []*ConfigMetadata, err error) {
+	configsPerDevice = make(map[string]int)
+
+	err = cs.view(func(tx *bbolt.Tx) error {
+		return tx.Bucket([]byte(metadataBucket)).ForEach(func(_, v []byte) error {
+			var meta ConfigMetadata
+			if err := json.Unmarshal(v, &meta); err != nil {
+				return fmt.Errorf("unmarshal metadata error during eviction index build: %w", err)
+			}
+			configsPerDevice[meta.DeviceID]++
+			entries = append(entries, &meta)
+			return nil
+		})
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].LastAccessedAt < entries[j].LastAccessedAt
+	})
+
+	return configsPerDevice, entries, nil
+}
+
+// getEvictableExceedingN returns UUIDs of configs to evict due to the per-device cap N
+// For each device whose total config count exceeds N, evict the oldest evictable configs
+// This function should be called first before calling for the global LRU candidate
+func getEvictableExceedingMax(configsPerDevice map[string]int, sortedEntries []*ConfigMetadata, maxRetainedConfigs int) ([]string, []*ConfigMetadata) {
+	var evictable []string
+	var remaining []*ConfigMetadata
+
+	for _, entry := range sortedEntries {
+		if entry.IsPinned || configsPerDevice[entry.DeviceID] <= maxRetainedConfigs {
+			remaining = append(remaining, entry)
+			continue
+		}
+		evictable = append(evictable, entry.ConfigUUID)
+		configsPerDevice[entry.DeviceID]--
+	}
+	return evictable, remaining
+}
+
+// getGlobalLRUCandidate returns the UUID of the single oldest evictable config (rule 3).
+// A config is evictable if it is: 1) not pinned, 2) its device exceeds minRetainedConfigs.
+// Returns an empty string if no evictable config exists.
+func getGlobalLRUCandidate(configsPerDevice map[string]int, sortedEntries []*ConfigMetadata, minRetainedConfigs int) (string, []*ConfigMetadata) {
+	for i, entry := range sortedEntries {
+		if entry.IsPinned {
+			continue
+		}
+		if configsPerDevice[entry.DeviceID] > minRetainedConfigs {
+			remaining := make([]*ConfigMetadata, 0, len(sortedEntries)-1)
+			remaining = append(remaining, sortedEntries[:i]...)
+			remaining = append(remaining, sortedEntries[i+1:]...)
+			return entry.ConfigUUID, remaining
+		}
+	}
+	return "", sortedEntries
+}
