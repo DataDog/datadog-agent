@@ -12,8 +12,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/docker/docker/api/types/swarm"
-	"github.com/docker/docker/client"
+	"github.com/moby/moby/api/types/swarm"
+	"github.com/moby/moby/client"
 )
 
 // GetTags returns tags that are automatically added to metrics and events on a

@@ -54,7 +54,10 @@ require (
 	go.opentelemetry.io/collector/service v0.147.0
 )
 
-require github.com/puzpuzpuz/xsync/v4 v4.4.0 // indirect
+require (
+	github.com/docker/docker v28.5.2+incompatible // indirect
+	github.com/puzpuzpuz/xsync/v4 v4.4.0 // indirect
+)
 
 require (
 	cloud.google.com/go/auth v0.17.0 // indirect
@@ -194,7 +197,6 @@ require (
 	github.com/digitalocean/go-metadata v0.0.0-20250129100319-e3650a3df44b // indirect
 	github.com/digitalocean/godo v1.171.0 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
-	github.com/docker/docker v28.5.2+incompatible // indirect
 	github.com/docker/go-connections v0.6.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
@@ -733,3 +735,7 @@ replace (
 	github.com/DataDog/datadog-agent/test/new-e2e => ../../../../test/new-e2e
 	github.com/DataDog/datadog-agent/test/otel => ../../../../test/otel
 )
+
+replace github.com/docker/docker/api => github.com/moby/moby/api v1.54.0
+
+replace github.com/docker/docker/client => github.com/moby/moby/client v0.3.0

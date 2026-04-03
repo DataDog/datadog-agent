@@ -10,8 +10,8 @@ package docker
 import (
 	"testing"
 
-	"github.com/docker/docker/api/types/container"
-	dockerNetworkTypes "github.com/docker/docker/api/types/network"
+	"github.com/moby/moby/api/types/container"
+	dockerNetworkTypes "github.com/moby/moby/api/types/network"
 
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"

@@ -9,6 +9,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"context"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"os"
@@ -18,9 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
 	"github.com/docker/cli/cli/connhelper"
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/client"
-	"github.com/docker/docker/pkg/stdcopy"
+	"github.com/moby/moby/client"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -97,21 +96,21 @@ func (docker *Docker) ExecuteCommandStdoutStdErr(containerName string, commands 
 	docker.t.Logf("Executing command `%s`", scrubbedCommand)
 
 	context := context.Background()
-	execConfig := container.ExecOptions{Cmd: commands, AttachStderr: true, AttachStdout: true}
-	execCreateResp, err := docker.client.ContainerExecCreate(context, containerName, execConfig)
+	execConfig := client.ExecCreateOptions{Cmd: commands, AttachStderr: true, AttachStdout: true}
+	execCreateResp, err := docker.client.ExecCreate(context, containerName, execConfig)
 	require.NoError(docker.t, err)
 
-	execAttachResp, err := docker.client.ContainerExecAttach(context, execCreateResp.ID, container.ExecAttachOptions{})
+	execAttachResp, err := docker.client.ExecAttach(context, execCreateResp.ID, client.ExecAttachOptions{})
 	require.NoError(docker.t, err)
 	defer execAttachResp.Close()
 
 	var outBuf, errBuf bytes.Buffer
-	// Use stdcopy.StdCopy to remove prefix for stdout and stderr
+	// Demux Docker's multiplexed stream into separate stdout/stderr buffers.
 	// See https://stackoverflow.com/questions/52774830/docker-exec-command-from-golang-api for additional context
-	_, err = stdcopy.StdCopy(&outBuf, &errBuf, execAttachResp.Reader)
+	_, err = stdcopyDemux(&outBuf, &errBuf, execAttachResp.Reader)
 	require.NoError(docker.t, err)
 
-	execInspectResp, err := docker.client.ContainerExecInspect(context, execCreateResp.ID)
+	execInspectResp, err := docker.client.ExecInspect(context, execCreateResp.ID, client.ExecInspectOptions{})
 	require.NoError(docker.t, err)
 
 	stdout = outBuf.String()
@@ -139,11 +138,11 @@ func (docker *Docker) ListContainers() ([]string, error) {
 
 func (docker *Docker) getContainerIDsByName() (map[string]string, error) {
 	containersMap := make(map[string]string)
-	containers, err := docker.client.ContainerList(context.Background(), container.ListOptions{All: true})
+	containers, err := docker.client.ContainerList(context.Background(), client.ContainerListOptions{All: true})
 	if err != nil {
 		return containersMap, err
 	}
-	for _, container := range containers {
+	for _, container := range containers.Items {
 		for _, name := range container.Names {
 			// remove leading /
 			name = strings.TrimPrefix(name, "/")
@@ -158,13 +157,13 @@ func (docker *Docker) DownloadFile(containerName, containerPath, localPath strin
 	docker.t.Logf("Downloading from container %s:%s to local path %s", containerName, containerPath, localPath)
 
 	ctx := context.Background()
-	reader, _, err := docker.client.CopyFromContainer(ctx, containerName, containerPath)
+	resp, err := docker.client.CopyFromContainer(ctx, containerName, client.CopyFromContainerOptions{SourcePath: containerPath})
 	if err != nil {
 		return fmt.Errorf("failed to copy from container %s:%s: %w", containerName, containerPath, err)
 	}
-	defer reader.Close()
+	defer resp.Content.Close()
 
-	tarReader := tar.NewReader(reader)
+	tarReader := tar.NewReader(resp.Content)
 
 	// Process all entries in the tar archive
 	for {
@@ -232,4 +231,35 @@ func (docker *Docker) DownloadFile(containerName, containerPath, localPath strin
 
 	docker.t.Logf("Successfully downloaded to %s", localPath)
 	return nil
+}
+
+func stdcopyDemux(dstOut, dstErr io.Writer, src io.Reader) (written int64, err error) {
+	header := make([]byte, 8)
+	for {
+		if _, err = io.ReadFull(src, header); err != nil {
+			if err == io.EOF || err == io.ErrUnexpectedEOF {
+				return written, nil
+			}
+			return written, err
+		}
+
+		frameSize := int64(binary.BigEndian.Uint32(header[4:8]))
+		if frameSize == 0 {
+			continue
+		}
+
+		var dst io.Writer = io.Discard
+		switch header[0] {
+		case 1:
+			dst = dstOut
+		case 2:
+			dst = dstErr
+		}
+
+		n, copyErr := io.CopyN(dst, src, frameSize)
+		written += n
+		if copyErr != nil {
+			return written, copyErr
+		}
+	}
 }

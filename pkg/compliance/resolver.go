@@ -20,9 +20,6 @@ import (
 	"time"
 
 	"github.com/distribution/reference"
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/image"
-	"github.com/docker/docker/api/types/network"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
@@ -32,7 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
-	docker "github.com/docker/docker/client"
+	docker "github.com/moby/moby/client"
 
 	"github.com/shirou/gopsutil/v4/process"
 
@@ -554,6 +551,18 @@ func parseImageRepo(name string) string {
 	return ""
 }
 
+func dockerKernelVersion(version docker.ServerVersionResult) string {
+	for _, c := range version.Components {
+		if c.Name != "Engine" || c.Details == nil {
+			continue
+		}
+		if v, ok := c.Details["KernelVersion"]; ok {
+			return v
+		}
+	}
+	return ""
+}
+
 func (r *defaultResolver) resolveDocker(ctx context.Context, spec InputSpecDocker) (interface{}, error) {
 	cl := r.dockerCl
 	if cl == nil {
@@ -563,11 +572,11 @@ func (r *defaultResolver) resolveDocker(ctx context.Context, spec InputSpecDocke
 	var resolved []interface{}
 	switch spec.Kind {
 	case "image":
-		list, err := cl.ImageList(ctx, image.ListOptions{All: true})
+		list, err := cl.ImageList(ctx, docker.ImageListOptions{All: true})
 		if err != nil {
 			return nil, err
 		}
-		for _, im := range list {
+		for _, im := range list.Items {
 			image, err := cl.ImageInspect(ctx, im.ID)
 			if err != nil {
 				return nil, err
@@ -579,15 +588,16 @@ func (r *defaultResolver) resolveDocker(ctx context.Context, spec InputSpecDocke
 			})
 		}
 	case "container":
-		list, err := cl.ContainerList(ctx, container.ListOptions{All: true})
+		list, err := cl.ContainerList(ctx, docker.ContainerListOptions{All: true})
 		if err != nil {
 			return nil, err
 		}
-		for _, cn := range list {
-			container, _, err := cl.ContainerInspectWithRaw(ctx, cn.ID, false)
+		for _, cn := range list.Items {
+			containerRes, err := cl.ContainerInspect(ctx, cn.ID, docker.ContainerInspectOptions{})
 			if err != nil {
 				return nil, err
 			}
+			container := containerRes.Container
 			imageRepo := parseImageRepo(container.Config.Image)
 			resolved = append(resolved, map[string]interface{}{
 				"id":         container.ID,
@@ -598,11 +608,11 @@ func (r *defaultResolver) resolveDocker(ctx context.Context, spec InputSpecDocke
 			})
 		}
 	case "network":
-		networks, err := cl.NetworkList(ctx, network.ListOptions{})
+		networks, err := cl.NetworkList(ctx, docker.NetworkListOptions{})
 		if err != nil {
 			return nil, err
 		}
-		for _, nw := range networks {
+		for _, nw := range networks.Items {
 			resolved = append(resolved, map[string]interface{}{
 				"id":      nw.ID,
 				"name":    nw.Name,
@@ -610,15 +620,15 @@ func (r *defaultResolver) resolveDocker(ctx context.Context, spec InputSpecDocke
 			})
 		}
 	case "info":
-		info, err := cl.Info(ctx)
+		info, err := cl.Info(ctx, docker.InfoOptions{})
 		if err != nil {
 			return nil, err
 		}
 		resolved = append(resolved, map[string]interface{}{
-			"inspect": info,
+			"inspect": info.Info,
 		})
 	case "version":
-		version, err := cl.ServerVersion(ctx)
+		version, err := cl.ServerVersion(ctx, docker.ServerVersionOptions{})
 		if err != nil {
 			return nil, err
 		}
@@ -629,7 +639,7 @@ func (r *defaultResolver) resolveDocker(ctx context.Context, spec InputSpecDocke
 			"experimental":  version.Experimental,
 			"os":            version.Os,
 			"arch":          version.Arch,
-			"kernelVersion": version.KernelVersion,
+			"kernelVersion": dockerKernelVersion(version),
 		})
 	default:
 		return nil, fmt.Errorf("unsupported docker object kind '%q'", spec.Kind)

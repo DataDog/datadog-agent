@@ -14,8 +14,8 @@ import (
 	"time"
 
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
-	"github.com/docker/docker/api/types/events"
-	"github.com/docker/docker/api/types/filters"
+	"github.com/moby/moby/api/types/events"
+	"github.com/moby/moby/client"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -88,14 +88,15 @@ func (d *DockerUtil) dispatchEvents(sub *eventSubscriber) {
 
 CONNECT: // Outer loop handles re-connecting in case the docker daemon closes the connection
 	for {
-		eventOptions := events.ListOptions{
+		eventOptions := client.EventsListOptions{
 			Since:   strconv.FormatInt(latestTimestamp, 10),
 			Filters: eventFilters(),
 		}
 
 		var ctx context.Context
 		ctx, cancelFunc = context.WithCancel(context.Background())
-		messages, errs := d.cli.Events(ctx, eventOptions)
+		stream := d.cli.Events(ctx, eventOptions)
+		messages, errs := stream.Messages, stream.Err
 
 		// Inner loop iterates over elements in the channel
 		for {
@@ -148,8 +149,8 @@ CONNECT: // Outer loop handles re-connecting in case the docker daemon closes th
 	close(sub.containerEventsChan)
 }
 
-func eventFilters() filters.Args {
-	res := filters.NewArgs()
+func eventFilters() client.Filters {
+	res := make(client.Filters)
 
 	res.Add("type", string(events.ContainerEventType))
 	for _, containerEventAction := range containerEventActions {
