@@ -26,6 +26,7 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/tools/cache"
+	k8sretry "k8s.io/client-go/util/retry"
 	"k8s.io/client-go/util/workqueue"
 )
 

@@ -9,13 +9,16 @@ package externalmetrics
 
 import (
 	"errors"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/dynamic/fake"
 	kscheme "k8s.io/client-go/kubernetes/scheme"
@@ -760,4 +763,72 @@ func TestFollower(t *testing.T) {
 	}
 	ddm.SetQueries("metric query1")
 	assert.Equal(t, &ddm, f.store.Get("default/autogen-1"))
+}
+
+// Scenario: UpdateStatus returns a conflict error (409) on the first attempt.
+// RetryOnConflict should re-GET the latest version and succeed on the second attempt.
+func TestLeaderUpdateRetryOnConflict(t *testing.T) {
+	f := newFixture(t)
+
+	updateTime := time.Now()
+	metric, metricTyped := newFakeDatadogMetric("default", "dd-metric-0", "metric query0", datadoghq.DatadogMetricStatus{})
+	f.datadogMetricLister = append(f.datadogMetricLister, metric)
+	f.objects = append(f.objects, metricTyped)
+
+	ddm := model.DatadogMetricInternal{
+		ID:         "default/dd-metric-0",
+		Valid:      true,
+		Value:      42.0,
+		UpdateTime: updateTime,
+		DataTime:   updateTime,
+		Error:      nil,
+	}
+	ddm.SetQueries("metric query0")
+	f.store.Set("default/dd-metric-0", ddm, "utest")
+
+	controller, informer := f.newController(true)
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	informer.Start(stopCh)
+
+	// Inject a reactor that returns a conflict error on the first UpdateStatus call,
+	// then allows subsequent calls to proceed normally.
+	var updateAttempts int32
+	f.client.PrependReactor("update", "datadogmetrics", func(action core.Action) (bool, runtime.Object, error) {
+		if action.GetSubresource() != "status" {
+			return false, nil, nil
+		}
+		attempt := atomic.AddInt32(&updateAttempts, 1)
+		if attempt == 1 {
+			return true, nil, k8serrors.NewConflict(
+				schema.GroupResource{Group: "datadoghq.com", Resource: "datadogmetrics"},
+				"dd-metric-0",
+				errors.New("the object has been modified; please apply your changes to the latest version and try again"),
+			)
+		}
+		// Let subsequent attempts fall through to the default handler
+		return false, nil, nil
+	})
+
+	_, err := controller.processDatadogMetric(0, "default/dd-metric-0")
+	assert.NoError(t, err)
+
+	// Verify that the update was retried: at least 2 UpdateStatus attempts
+	assert.GreaterOrEqual(t, int(atomic.LoadInt32(&updateAttempts)), 2,
+		"expected at least 2 update attempts (1 conflict + 1 success)")
+
+	// Verify the actions include GET (from RetryOnConflict re-read) and UpdateStatus calls
+	actions := autoscaling.FilterInformerActions(f.client.Actions(), "datadogmetrics")
+	getCount := 0
+	updateCount := 0
+	for _, action := range actions {
+		if action.GetVerb() == "get" {
+			getCount++
+		}
+		if action.GetVerb() == "update" && action.GetSubresource() == "status" {
+			updateCount++
+		}
+	}
+	assert.GreaterOrEqual(t, getCount, 2, "expected at least 2 GET calls (one per RetryOnConflict attempt)")
+	assert.GreaterOrEqual(t, updateCount, 2, "expected at least 2 UpdateStatus calls (1 conflict + 1 success)")
 }
