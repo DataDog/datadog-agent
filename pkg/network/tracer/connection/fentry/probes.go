@@ -159,9 +159,9 @@ var programs = map[string]struct{}{
 	protocolClassifierQueues:    {},
 	protocolClassifierDBs:       {},
 	protocolClassifierGRPC:      {},
-	// net_dev_queue: also added separately in manager.go with tracepoint fields,
-	// but must be in programs map for enableProgram() to work
-	netDevQueueRawTracepoint: {},
+	// Note: netDevQueueRawTracepoint is NOT in this map — it's added separately
+	// in manager.go with TracepointName/TracepointCategory fields, and enabled
+	// directly in enabledPrograms() to avoid duplicate probe registration.
 }
 
 func enableProgram(enabled map[string]struct{}, name string) {
@@ -249,7 +249,8 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 			enableProgram(enabled, protocolClassifierGRPC)
 
 			// fentry requires 5.8+ which always supports raw tracepoints (4.17+)
-			enableProgram(enabled, netDevQueueRawTracepoint)
+			// Directly insert — not in programs map since manager.go adds it with TracepointName fields
+			enabled[netDevQueueRawTracepoint] = struct{}{}
 		}
 	}
 
