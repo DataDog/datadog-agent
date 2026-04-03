@@ -134,7 +134,8 @@ func (h *Host) InstallDocker() {
 		h.remote.MustExecute("sudo yum install -y amazon-ecr-credential-helper")
 	case "zypper":
 		h.remote.MustExecute("sudo zypper install -y docker")
-		h.remote.MustExecute("sudo zypper install -y amazon-ecr-credential-helper")
+		// No official amazon-ecr-credential-helper package for zypper; download the binary directly.
+		h.remote.MustExecute(`ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/') && sudo curl -fsSL "https://github.com/awslabs/amazon-ecr-credential-helper/releases/latest/download/docker-credential-ecr-login_linux_${ARCH}" -o /usr/local/bin/docker-credential-ecr-login && sudo chmod +x /usr/local/bin/docker-credential-ecr-login`)
 	default:
 		h.t().Fatalf("unsupported package manager: %s", h.pkgManager)
 	}
