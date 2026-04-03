@@ -11,12 +11,10 @@ import (
 	"fmt"
 	"net/url"
 	"os"
-	"path"
 	"strings"
 
 	gcpapi "cloud.google.com/go/compute/apiv1"
 	"cloud.google.com/go/compute/apiv1/computepb"
-	"google.golang.org/api/option"
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/infra"
@@ -113,18 +111,11 @@ func DumpOpenshiftClusterState(ctx context.Context, name string) (ret string, er
 
 	fmt.Fprintf(&out, "\nstack name: '%s'\n", name)
 
-	homeDir, err := os.UserHomeDir()
+	gcpClient, err := gcpapi.NewInstancesRESTClient(ctx)
 	if err != nil {
-		err = fmt.Errorf("failed to read homedir path from env to open gcloud creds: %w", err)
-		return
-	}
-
-	credentialsPath := path.Join(homeDir, "/gcp-credentials.json")
-	gcpClient, err := gcpapi.NewInstancesRESTClient(
-		ctx,
-		option.WithAuthCredentialsFile(option.ServiceAccount, credentialsPath))
-	if err != nil {
-		err = fmt.Errorf("failed to init GCP instance client using credentials at '%s' : %w", credentialsPath, err)
+		gcpEnvVarContent := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS")
+		err = fmt.Errorf(
+			"failed to init GCP instance client using env var GOOGLE_APPLICATION_CREDENTIALS (content=%s) : %w", gcpEnvVarContent, err)
 		return
 	}
 
@@ -139,8 +130,9 @@ func DumpOpenshiftClusterState(ctx context.Context, name string) (ret string, er
 
 	var openshiftInstance *computepb.Instance
 	for instance := range instanceIterator {
-		fmt.Fprintf(&out, "\nInstance: %s\n", instance.GetName())
-		if strings.Contains(instance.GetName(), "openshiftvm") {
+		fmt.Fprintf(&out, "\nFound Instance: %s\n", instance.GetName())
+		// between the fake intake and the vm running openshifht, this is the only difference in the VM name
+		if strings.Contains(instance.GetName(), "open") {
 			openshiftInstance = instance
 			break
 		}
