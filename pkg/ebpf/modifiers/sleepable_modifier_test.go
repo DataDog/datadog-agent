@@ -8,6 +8,7 @@
 package modifiers
 
 import (
+	"os"
 	"runtime"
 	"testing"
 
@@ -29,6 +30,7 @@ var allProgs = []string{
 	"test_replaced_arm64",
 	"test_womodifier_x64",
 	"test_womodifier_arm64",
+	"test_tracepoint",
 }
 
 func archSuffix() string {
@@ -157,6 +159,14 @@ func TestSleepableProgramWithoutModifier(t *testing.T) {
 func TestSleepableModifierReplacesProbeReadUser(t *testing.T) {
 	skipTestIfSleepableEBPFProgramsNotSupported(t)
 
+	const kptrRestrictPath = "/proc/sys/kernel/kptr_restrict"
+	oldVal, err := os.ReadFile(kptrRestrictPath)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(kptrRestrictPath, []byte("0"), 0644))
+	t.Cleanup(func() {
+		os.WriteFile(kptrRestrictPath, oldVal, 0644)
+	})
+
 	probeName := "test_replaced" + archSuffix()
 	excluded := excludeAllExcept(probeName)
 
@@ -179,7 +189,7 @@ func TestSleepableModifierReplacesProbeReadUser(t *testing.T) {
 	}
 	mname := names.NewModuleName("ebpf")
 
-	err := ddebpf.LoadCOREAsset("sleepable.o", func(buf bytecode.AssetReader, opts manager.Options) error {
+	err = ddebpf.LoadCOREAsset("sleepable.o", func(buf bytecode.AssetReader, opts manager.Options) error {
 		opts.RemoveRlimit = true
 		opts.ExcludedFunctions = excluded
 		opts.ActivatedProbes = []manager.ProbesSelector{
@@ -226,4 +236,51 @@ func TestSleepableModifierReplacesProbeReadUser(t *testing.T) {
 		assert.NotEqual(t, int64(asm.FnProbeReadUser), ins.Constant,
 			"found bpf_probe_read_user call that should have been replaced with bpf_copy_from_user")
 	}
+}
+
+func TestSleepableModifierRejectsTracepoint(t *testing.T) {
+	skipTestIfSleepableEBPFProgramsNotSupported(t)
+
+	probeName := "test_tracepoint"
+	excluded := excludeAllExcept(probeName)
+
+	mgr := &manager.Manager{
+		Probes: []*manager.Probe{
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: probeName,
+				},
+			},
+		},
+	}
+
+	t.Cleanup(func() { _ = mgr.Stop(manager.CleanAll) })
+
+	modifier := SleepableProgramModifier{
+		ProbeIDs: []manager.ProbeIdentificationPair{
+			{EBPFFuncName: probeName},
+		},
+	}
+	mname := names.NewModuleName("ebpf")
+
+	err := ddebpf.LoadCOREAsset("sleepable.o", func(buf bytecode.AssetReader, opts manager.Options) error {
+		opts.RemoveRlimit = true
+		opts.ExcludedFunctions = excluded
+		opts.ActivatedProbes = []manager.ProbesSelector{
+			&manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: probeName,
+				},
+			},
+		}
+
+		err := mgr.LoadELF(buf)
+		require.NoError(t, err)
+
+		err = modifier.BeforeInit(mgr, mname, &opts)
+		require.Error(t, err, "sleepable modifier should reject tracepoint programs")
+
+		return nil
+	})
+	require.NoError(t, err)
 }
