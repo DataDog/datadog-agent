@@ -42,12 +42,16 @@ const (
 
 	// ProxyTypeIstio represents the Istio proxy type for appsec injection mode
 	ProxyTypeIstio ProxyType = "istio"
+
+	// ProxyTypeIstioGateway represents the Istio native Gateway (networking.istio.io/v1) proxy type for appsec injection mode
+	ProxyTypeIstioGateway ProxyType = "istio-gateway"
 )
 
 // AllProxyTypes is the list of all supported proxy types for appsec injection mode
 var AllProxyTypes = []ProxyType{
 	ProxyTypeEnvoyGateway,
 	ProxyTypeIstio,
+	ProxyTypeIstioGateway,
 }
 
 // Processor represents the configuration of the AppSec processor service that was deployed in the cluster

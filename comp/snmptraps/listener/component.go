@@ -11,7 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
 )
 
-// team: ndm-core
+// team: network-device-monitoring-core
 
 // Component is the component type.
 type Component interface {

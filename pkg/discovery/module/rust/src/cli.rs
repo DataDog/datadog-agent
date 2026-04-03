@@ -5,370 +5,268 @@
 
 use std::path::PathBuf;
 
-#[derive(Debug, Default)]
+use anyhow::{Result, bail};
+
+fn parse_log_level(level: &str) -> log::Level {
+    match level.to_lowercase().as_str() {
+        "trace" => log::Level::Trace,
+        "debug" => log::Level::Debug,
+        "info" => log::Level::Info,
+        "warn" | "warning" => log::Level::Warn,
+        "error" | "critical" => log::Level::Error,
+        "off" => log::Level::Error, // Rust log crate doesn't have "off", use Error as minimal logging
+        _ => log::Level::Info,
+    }
+}
+
+#[derive(Debug)]
 pub struct Args {
-    /// Path to system-probe binary (extracted from first arg after --)
-    pub fallback_binary: Option<PathBuf>,
+    /// Unix socket path (--socket, required)
+    pub socket_path: String,
 
-    /// All system-probe arguments (everything after --)
-    pub system_probe_args: Vec<String>,
+    /// Log level (--log-level, default: info)
+    pub log_level: log::Level,
 
-    /// Config path (extracted from --config in system-probe args)
-    pub config_path: Option<PathBuf>,
+    /// Log file path (--log-file, optional)
+    pub log_file: Option<PathBuf>,
 
-    /// PID file path (extracted from --pid in system-probe args)
+    /// PID file path (--pid, optional)
     pub pid_path: Option<PathBuf>,
+
+    /// Unknown arguments encountered during parsing (logged after logger init).
+    pub unknown_args: Vec<String>,
 }
 
 impl Args {
-    pub fn parse(mut args: impl Iterator<Item = String>) -> Self {
-        // Find the -- separator
-        let Some(_) = args.find(|arg| arg == "--") else {
-            // No -- separator, standalone mode
-            return Args::default();
+    pub fn parse(args: impl Iterator<Item = String>) -> Result<Self> {
+        let mut iter = args;
+
+        // Skip program name.
+        iter.next();
+
+        // Expect subcommand as first real argument.
+        match iter.next().as_deref() {
+            Some("run") => {}
+            Some(other) => bail!("unknown command: {other}. Available commands: run"),
+            None => bail!("missing command. Available commands: run"),
+        }
+
+        let mut socket_path = None;
+        let mut log_level = None;
+        let mut log_file = None;
+        let mut pid_path = None;
+        let mut unknown_args = Vec::new();
+
+        while let Some(arg) = iter.next() {
+            if arg == "--socket" {
+                if let Some(next) = iter.next() {
+                    socket_path = Some(next);
+                }
+                continue;
+            }
+            if arg == "--log-level" {
+                if let Some(next) = iter.next() {
+                    log_level = Some(next);
+                }
+                continue;
+            }
+            if arg == "--log-file" {
+                if let Some(next) = iter.next() {
+                    log_file = Some(PathBuf::from(next));
+                }
+                continue;
+            }
+            if arg == "--pid" {
+                if let Some(next) = iter.next() {
+                    pid_path = Some(PathBuf::from(next));
+                }
+                continue;
+            }
+            // Collect rather than error so that newer helm charts that pass
+            // newly-added flags don't break older agents on upgrade.
+            // Warnings are logged after the logger is initialized.
+            unknown_args.push(arg);
+        }
+
+        let Some(socket_path) = socket_path else {
+            bail!("missing required argument: --socket");
         };
+        let log_level = parse_log_level(log_level.as_deref().unwrap_or("info"));
 
-        // First arg after -- is the binary path
-        let Some(next_arg) = args.next() else {
-            // -- was provided but no args after it
-            return Args::default();
-        };
-        let binary = PathBuf::from(next_arg);
-
-        let rest: Vec<String> = args.collect();
-        let (config, pid) = extract_paths(&rest);
-
-        Args {
-            fallback_binary: Some(binary),
-            system_probe_args: rest,
-            config_path: config,
-            pid_path: pid,
-        }
+        Ok(Args {
+            socket_path,
+            log_level,
+            log_file,
+            pid_path,
+            unknown_args,
+        })
     }
-}
-
-/// Extract --config and --pid paths from arguments in a single pass
-fn extract_paths(args: &[String]) -> (Option<PathBuf>, Option<PathBuf>) {
-    let mut config = None;
-    let mut pid = None;
-    let mut args = args.iter();
-
-    while let Some(arg) = args.next() {
-        // Check for --config or -c
-        if matches!(arg.as_str(), "--config" | "-c")
-            && let Some(next_arg) = args.next()
-        {
-            config = Some(PathBuf::from(next_arg));
-            continue;
-        }
-        if let Some(path) = arg.strip_prefix("--config=") {
-            config = Some(PathBuf::from(path));
-            continue;
-        }
-
-        // Check for --pid
-        if arg == "--pid"
-            && let Some(next_arg) = args.next()
-        {
-            pid = Some(PathBuf::from(next_arg));
-            continue;
-        }
-        if let Some(path) = arg.strip_prefix("--pid=") {
-            pid = Some(PathBuf::from(path));
-        }
-    }
-
-    (config, pid)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_extract_paths_config_space_separated() {
-        let args = vec![
-            "/usr/bin/system-probe".to_string(),
-            "run".to_string(),
-            "--config".to_string(),
-            "/etc/config.yaml".to_string(),
-        ];
-        let (config, pid) = extract_paths(&args);
-        assert_eq!(config, Some(PathBuf::from("/etc/config.yaml")));
-        assert_eq!(pid, None);
+    fn args(parts: &[&str]) -> Vec<String> {
+        parts.iter().map(|s| s.to_string()).collect()
     }
 
     #[test]
-    fn test_extract_paths_config_equals() {
-        let args = vec![
-            "/usr/bin/system-probe".to_string(),
-            "run".to_string(),
-            "--config=/etc/config.yaml".to_string(),
-        ];
-        let (config, pid) = extract_paths(&args);
-        assert_eq!(config, Some(PathBuf::from("/etc/config.yaml")));
-        assert_eq!(pid, None);
+    fn test_parse_required_args() {
+        let a = Args::parse(
+            args(&["system-probe-lite", "run", "--socket", "/run/sysprobe.sock"]).into_iter(),
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(a.socket_path, "/run/sysprobe.sock");
+        assert_eq!(a.log_level, log::Level::Info);
+        assert!(a.log_file.is_none());
+        assert!(a.pid_path.is_none());
     }
 
     #[test]
-    fn test_extract_paths_config_not_present() {
-        let args = vec![
-            "/usr/bin/system-probe".to_string(),
-            "run".to_string(),
-            "--pid=/var/run/sp.pid".to_string(),
-        ];
-        let (config, pid) = extract_paths(&args);
-        assert_eq!(config, None);
-        assert_eq!(pid, Some(PathBuf::from("/var/run/sp.pid")));
-    }
-
-    #[test]
-    fn test_parse_no_separator() {
-        let args = vec!["sd-agent".to_string(), "--some-flag".to_string()];
-        let parsed = Args::parse(args.into_iter());
-        assert_eq!(parsed.fallback_binary, None);
-        assert!(parsed.system_probe_args.is_empty());
-        assert_eq!(parsed.config_path, None);
-    }
-
-    #[test]
-    fn test_parse_separator_with_no_args() {
-        let args = vec!["sd-agent".to_string(), "--".to_string()];
-        let parsed = Args::parse(args.into_iter());
-        assert_eq!(parsed.fallback_binary, None);
-        assert!(parsed.system_probe_args.is_empty());
-        assert_eq!(parsed.config_path, None);
-    }
-
-    #[test]
-    fn test_parse_separator_with_binary_only() {
-        let args = vec![
-            "sd-agent".to_string(),
-            "--".to_string(),
-            "/usr/bin/system-probe".to_string(),
-        ];
-        let parsed = Args::parse(args.into_iter());
-        assert_eq!(
-            parsed.fallback_binary,
-            Some(PathBuf::from("/usr/bin/system-probe"))
-        );
-        assert!(parsed.system_probe_args.is_empty());
-        assert_eq!(parsed.config_path, None);
-    }
-
-    #[test]
-    fn test_parse_separator_with_binary_and_args() {
-        let args = vec![
-            "sd-agent".to_string(),
-            "--".to_string(),
-            "/usr/bin/system-probe".to_string(),
-            "run".to_string(),
-            "--pid=/var/run/sp.pid".to_string(),
-        ];
-        let parsed = Args::parse(args.into_iter());
-        assert_eq!(
-            parsed.fallback_binary,
-            Some(PathBuf::from("/usr/bin/system-probe"))
-        );
-        assert_eq!(
-            parsed.system_probe_args,
-            vec!["run", "--pid=/var/run/sp.pid"]
-        );
-        assert_eq!(parsed.config_path, None);
-    }
-
-    #[test]
-    fn test_parse_with_config_space_separated() {
-        let args = vec![
-            "sd-agent".to_string(),
-            "--".to_string(),
-            "/usr/bin/system-probe".to_string(),
-            "run".to_string(),
-            "--config".to_string(),
-            "/etc/config.yaml".to_string(),
-        ];
-        let parsed = Args::parse(args.into_iter());
-        assert_eq!(
-            parsed.fallback_binary,
-            Some(PathBuf::from("/usr/bin/system-probe"))
-        );
-        assert_eq!(
-            parsed.system_probe_args,
-            vec!["run", "--config", "/etc/config.yaml"]
-        );
-        assert_eq!(parsed.config_path, Some(PathBuf::from("/etc/config.yaml")));
-    }
-
-    #[test]
-    fn test_parse_with_config_equals() {
-        let args = vec![
-            "sd-agent".to_string(),
-            "--".to_string(),
-            "/usr/bin/system-probe".to_string(),
-            "run".to_string(),
-            "--config=/etc/config.yaml".to_string(),
-        ];
-        let parsed = Args::parse(args.into_iter());
-        assert_eq!(
-            parsed.fallback_binary,
-            Some(PathBuf::from("/usr/bin/system-probe"))
-        );
-        assert_eq!(
-            parsed.system_probe_args,
-            vec!["run", "--config=/etc/config.yaml"]
-        );
-        assert_eq!(parsed.config_path, Some(PathBuf::from("/etc/config.yaml")));
-    }
-
-    #[test]
-    fn test_parse_with_config_short_flag() {
-        let args = vec![
-            "sd-agent".to_string(),
-            "--".to_string(),
-            "/usr/bin/system-probe".to_string(),
-            "run".to_string(),
-            "-c".to_string(),
-            "/etc/config.yaml".to_string(),
-        ];
-        let parsed = Args::parse(args.into_iter());
-        assert_eq!(
-            parsed.fallback_binary,
-            Some(PathBuf::from("/usr/bin/system-probe"))
-        );
-        assert_eq!(
-            parsed.system_probe_args,
-            vec!["run", "-c", "/etc/config.yaml"]
-        );
-        assert_eq!(parsed.config_path, Some(PathBuf::from("/etc/config.yaml")));
-    }
-
-    #[test]
-    fn test_parse_ignores_args_before_separator() {
-        let args = vec![
-            "sd-agent".to_string(),
-            "--some-flag".to_string(),
-            "--another-flag=value".to_string(),
-            "--".to_string(),
-            "/usr/bin/system-probe".to_string(),
-            "run".to_string(),
-        ];
-        let parsed = Args::parse(args.into_iter());
-        assert_eq!(
-            parsed.fallback_binary,
-            Some(PathBuf::from("/usr/bin/system-probe"))
-        );
-        assert_eq!(parsed.system_probe_args, vec!["run"]);
-        assert_eq!(parsed.config_path, None);
-    }
-
-    #[test]
-    fn test_extract_paths_pid_space_separated() {
-        let args = vec![
-            "run".to_string(),
-            "--pid".to_string(),
-            "/var/run/sd-agent.pid".to_string(),
-        ];
-        let (config, pid) = extract_paths(&args);
-        assert_eq!(config, None);
-        assert_eq!(pid, Some(PathBuf::from("/var/run/sd-agent.pid")));
-    }
-
-    #[test]
-    fn test_extract_paths_pid_equals() {
-        let args = vec!["run".to_string(), "--pid=/var/run/sd-agent.pid".to_string()];
-        let (config, pid) = extract_paths(&args);
-        assert_eq!(config, None);
-        assert_eq!(pid, Some(PathBuf::from("/var/run/sd-agent.pid")));
-    }
-
-    #[test]
-    fn test_extract_paths_pid_not_present() {
-        let args = vec!["run".to_string(), "--config=/etc/config.yaml".to_string()];
-        let (config, pid) = extract_paths(&args);
-        assert_eq!(config, Some(PathBuf::from("/etc/config.yaml")));
-        assert_eq!(pid, None);
-    }
-
-    #[test]
-    fn test_parse_with_pid_space_separated() {
-        let args = vec![
-            "sd-agent".to_string(),
-            "--".to_string(),
-            "/usr/bin/system-probe".to_string(),
-            "run".to_string(),
-            "--pid".to_string(),
-            "/var/run/sd-agent.pid".to_string(),
-        ];
-        let parsed = Args::parse(args.into_iter());
-        assert_eq!(
-            parsed.fallback_binary,
-            Some(PathBuf::from("/usr/bin/system-probe"))
-        );
-        assert_eq!(
-            parsed.system_probe_args,
-            vec!["run", "--pid", "/var/run/sd-agent.pid"]
-        );
-        assert_eq!(
-            parsed.pid_path,
-            Some(PathBuf::from("/var/run/sd-agent.pid"))
-        );
-    }
-
-    #[test]
-    fn test_parse_with_pid_equals() {
-        let args = vec![
-            "sd-agent".to_string(),
-            "--".to_string(),
-            "/usr/bin/system-probe".to_string(),
-            "run".to_string(),
-            "--pid=/var/run/sd-agent.pid".to_string(),
-        ];
-        let parsed = Args::parse(args.into_iter());
-        assert_eq!(
-            parsed.fallback_binary,
-            Some(PathBuf::from("/usr/bin/system-probe"))
-        );
-        assert_eq!(
-            parsed.system_probe_args,
-            vec!["run", "--pid=/var/run/sd-agent.pid"]
-        );
-        assert_eq!(
-            parsed.pid_path,
-            Some(PathBuf::from("/var/run/sd-agent.pid"))
-        );
-    }
-
-    #[test]
-    fn test_parse_with_config_and_pid() {
-        let args = vec![
-            "sd-agent".to_string(),
-            "--".to_string(),
-            "/usr/bin/system-probe".to_string(),
-            "run".to_string(),
-            "--config".to_string(),
-            "/etc/config.yaml".to_string(),
-            "--pid".to_string(),
-            "/var/run/sd-agent.pid".to_string(),
-        ];
-        let parsed = Args::parse(args.into_iter());
-        assert_eq!(
-            parsed.fallback_binary,
-            Some(PathBuf::from("/usr/bin/system-probe"))
-        );
-        assert_eq!(
-            parsed.system_probe_args,
-            vec![
+    fn test_parse_with_log_file() {
+        let a = Args::parse(
+            args(&[
+                "system-probe-lite",
                 "run",
-                "--config",
-                "/etc/config.yaml",
-                "--pid",
-                "/var/run/sd-agent.pid"
-            ]
-        );
-        assert_eq!(parsed.config_path, Some(PathBuf::from("/etc/config.yaml")));
+                "--socket",
+                "/run/sysprobe.sock",
+                "--log-level",
+                "info",
+                "--log-file",
+                "/var/log/datadog/system-probe.log",
+            ])
+            .into_iter(),
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(a.socket_path, "/run/sysprobe.sock");
+        assert_eq!(a.log_level, log::Level::Info);
         assert_eq!(
-            parsed.pid_path,
-            Some(PathBuf::from("/var/run/sd-agent.pid"))
+            a.log_file,
+            Some(PathBuf::from("/var/log/datadog/system-probe.log"))
         );
+        assert!(a.pid_path.is_none());
+    }
+
+    #[test]
+    fn test_parse_all_args() {
+        let a = Args::parse(
+            args(&[
+                "system-probe-lite",
+                "run",
+                "--socket",
+                "/run/sysprobe.sock",
+                "--log-level",
+                "warn",
+                "--log-file",
+                "/var/log/datadog/system-probe.log",
+                "--pid",
+                "/var/run/system-probe-lite.pid",
+            ])
+            .into_iter(),
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(a.socket_path, "/run/sysprobe.sock");
+        assert_eq!(a.log_level, log::Level::Warn);
+        assert_eq!(
+            a.log_file,
+            Some(PathBuf::from("/var/log/datadog/system-probe.log"))
+        );
+        assert_eq!(
+            a.pid_path,
+            Some(PathBuf::from("/var/run/system-probe-lite.pid"))
+        );
+    }
+
+    #[test]
+    fn test_parse_missing_socket() {
+        let result =
+            Args::parse(args(&["system-probe-lite", "run", "--log-level", "info"]).into_iter());
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("--socket"),
+            "error should mention --socket: {err}"
+        );
+    }
+
+    #[test]
+    fn test_parse_log_level_defaults_to_info() {
+        let a = Args::parse(
+            args(&["system-probe-lite", "run", "--socket", "/run/sysprobe.sock"]).into_iter(),
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(a.log_level, log::Level::Info);
+    }
+
+    #[test]
+    fn test_parse_missing_subcommand() {
+        let result = Args::parse(args(&["system-probe-lite"]).into_iter());
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("missing command"),
+            "error should mention missing command: {err}"
+        );
+        assert!(
+            err.contains("Available commands: run"),
+            "error should list available commands: {err}"
+        );
+    }
+
+    #[test]
+    fn test_parse_unknown_subcommand() {
+        let result = Args::parse(args(&["system-probe-lite", "bogus"]).into_iter());
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("unknown command: bogus"),
+            "error should mention unknown command: {err}"
+        );
+        assert!(
+            err.contains("Available commands: run"),
+            "error should list available commands: {err}"
+        );
+    }
+
+    #[test]
+    fn test_parse_unknown_flags_collected() {
+        let a = Args::parse(
+            args(&[
+                "system-probe-lite",
+                "run",
+                "--socket",
+                "/run/sysprobe.sock",
+                "--future-flag",
+                "future-value",
+            ])
+            .into_iter(),
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(a.socket_path, "/run/sysprobe.sock");
+        assert_eq!(a.unknown_args, vec!["--future-flag", "future-value"]);
+    }
+
+    #[test]
+    fn test_parse_no_unknown_flags() {
+        let a = Args::parse(
+            args(&["system-probe-lite", "run", "--socket", "/run/sysprobe.sock"]).into_iter(),
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+        assert!(a.unknown_args.is_empty());
+    }
+
+    #[test]
+    fn test_parse_log_level() {
+        assert_eq!(parse_log_level("trace"), log::Level::Trace);
+        assert_eq!(parse_log_level("debug"), log::Level::Debug);
+        assert_eq!(parse_log_level("info"), log::Level::Info);
+        assert_eq!(parse_log_level("warn"), log::Level::Warn);
+        assert_eq!(parse_log_level("warning"), log::Level::Warn);
+        assert_eq!(parse_log_level("error"), log::Level::Error);
+        assert_eq!(parse_log_level("critical"), log::Level::Error);
+        assert_eq!(parse_log_level("off"), log::Level::Error);
+        assert_eq!(parse_log_level("INFO"), log::Level::Info);
+        assert_eq!(parse_log_level("unknown"), log::Level::Info);
     }
 }

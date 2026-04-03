@@ -99,6 +99,22 @@ func (a *Actuator) Stats() map[string]any {
 	}
 }
 
+// DebugInfo returns a snapshot of the actuator's internal state for debugging.
+func (a *Actuator) DebugInfo() *DebugInfo {
+	debugInfoChan := make(chan DebugInfo, 1)
+	select {
+	case <-a.shuttingDown:
+		return nil
+	case a.events <- eventGetDebugInfo{debugInfoChan: debugInfoChan}:
+		select {
+		case <-a.shuttingDown:
+			return nil
+		case info := <-debugInfoChan:
+			return &info
+		}
+	}
+}
+
 // NewActuator creates a new Actuator instance.
 func NewActuator(cfg Config) *Actuator {
 	if cfg.DiscoveredTypesLimit == 0 {

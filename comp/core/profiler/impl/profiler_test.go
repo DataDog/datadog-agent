@@ -8,6 +8,7 @@ package profilerimpl
 import (
 	"net/http/httptest"
 	"net/url"
+	"runtime"
 	"testing"
 	"time"
 
@@ -54,7 +55,6 @@ func createGenericConfig(t *testing.T) model.Config {
 	mockConfig.SetWithoutSource("process_config.expvar_port", port)
 	mockConfig.SetWithoutSource("security_agent.expvar_port", port)
 
-	mockConfig.SetWithoutSource("process_config.run_in_core_agent.enabled", false)
 	mockConfig.SetWithoutSource("process_config.enabled", false)
 	mockConfig.SetWithoutSource("process_config.container_collection.enabled", false)
 	mockConfig.SetWithoutSource("process_config.process_collection.enabled", false)
@@ -149,6 +149,13 @@ func TestProfileSetting(t *testing.T) {
 func TestTimeout(t *testing.T) {
 	baseTimeout := 10 * time.Minute
 
+	// On Linux, discovery.enabled defaults to true which auto-enables system-probe,
+	// adding 2*profileDuration to the timeout.
+	var discoveryTimeout time.Duration
+	if runtime.GOOS == "linux" {
+		discoveryTimeout = 2 * (10 * time.Second)
+	}
+
 	scenarios := []struct {
 		name            string
 		extraCfgs       map[string]interface{}
@@ -161,7 +168,7 @@ func TestTimeout(t *testing.T) {
 			extraCfgs:       map[string]interface{}{},
 			extraSysCfgs:    map[string]interface{}{},
 			profileDuration: 10 * time.Second,
-			expTimeout:      baseTimeout + 4*(10*time.Second),
+			expTimeout:      baseTimeout + 4*(10*time.Second) + discoveryTimeout,
 		},
 		{
 			name:            "Base Disabled Case",
@@ -177,7 +184,7 @@ func TestTimeout(t *testing.T) {
 			},
 			extraSysCfgs:    map[string]interface{}{},
 			profileDuration: 10 * time.Second,
-			expTimeout:      baseTimeout + 4*(10*time.Second) + 2*(4*time.Second), // APM default runtime has a ceiling of 4
+			expTimeout:      baseTimeout + 4*(10*time.Second) + discoveryTimeout + 2*(4*time.Second), // APM default runtime has a ceiling of 4
 		},
 		{
 			name: "APM Enabled, Small Runtime",
@@ -187,7 +194,7 @@ func TestTimeout(t *testing.T) {
 			},
 			extraSysCfgs:    map[string]interface{}{},
 			profileDuration: 10 * time.Second,
-			expTimeout:      baseTimeout + 6*(10*time.Second), // APM timeout is floored to the profile duration
+			expTimeout:      baseTimeout + 6*(10*time.Second) + discoveryTimeout, // APM timeout is floored to the profile duration
 		},
 		{
 			name: "APM Enabled, Large Runtime",
@@ -197,40 +204,28 @@ func TestTimeout(t *testing.T) {
 			},
 			extraSysCfgs:    map[string]interface{}{},
 			profileDuration: 10 * time.Second,
-			expTimeout:      baseTimeout + 4*(10*time.Second) + 2*(5*time.Second), // APM timeout is the ceiling, limiting profile duration
+			expTimeout:      baseTimeout + 4*(10*time.Second) + discoveryTimeout + 2*(5*time.Second), // APM timeout is the ceiling, limiting profile duration
 		},
 		{
-			name: "Process Agent Enabled",
-			extraCfgs: map[string]interface{}{
-				"process_config.enabled": true,
-			},
+			name:            "Process Agent Checks in Core Agent",
+			extraCfgs:       map[string]interface{}{},
 			extraSysCfgs:    map[string]interface{}{},
 			profileDuration: 10 * time.Second,
-			expTimeout:      baseTimeout + 6*(10*time.Second),
+			expTimeout:      baseTimeout + 4*(10*time.Second) + discoveryTimeout,
 		},
 		{
-			name: "Process Agent Enabled, Alternate Setting",
-			extraCfgs: map[string]interface{}{
-				"process_config.process_collection.enabled": true,
+			name:      "SysProbe Explicitly Disabled",
+			extraCfgs: map[string]interface{}{},
+			extraSysCfgs: map[string]interface{}{
+				"system_probe_config.enabled": false,
+				"discovery.enabled":           false,
 			},
-			extraSysCfgs:    map[string]interface{}{},
-			profileDuration: 10 * time.Second,
-			expTimeout:      baseTimeout + 6*(10*time.Second),
-		},
-		{
-			name: "Process Agent Checks in Core Agent",
-			extraCfgs: map[string]interface{}{
-				"process_config.run_in_core_agent.enabled": true,
-			},
-			extraSysCfgs:    map[string]interface{}{},
 			profileDuration: 10 * time.Second,
 			expTimeout:      baseTimeout + 4*(10*time.Second),
 		},
 		{
-			name: "Process Agent Enabled, via NPM",
-			extraCfgs: map[string]interface{}{
-				"process_config.run_in_core_agent.enabled": true,
-			},
+			name:      "Process Agent Enabled, via NPM",
+			extraCfgs: map[string]interface{}{},
 			extraSysCfgs: map[string]interface{}{
 				"network_config.enabled":      true,
 				"system_probe_config.enabled": true,
@@ -239,10 +234,8 @@ func TestTimeout(t *testing.T) {
 			expTimeout:      baseTimeout + 8*(10*time.Second),
 		},
 		{
-			name: "Process Agent Enabled, via USM",
-			extraCfgs: map[string]interface{}{
-				"process_config.run_in_core_agent.enabled": true,
-			},
+			name:      "Process Agent Enabled, via USM",
+			extraCfgs: map[string]interface{}{},
 			extraSysCfgs: map[string]interface{}{
 				"service_monitoring_config.enabled": true,
 				"system_probe_config.enabled":       true,

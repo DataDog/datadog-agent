@@ -58,10 +58,12 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "testReturnsArrayZero"
+    "message": "testReturnsArrayZero",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

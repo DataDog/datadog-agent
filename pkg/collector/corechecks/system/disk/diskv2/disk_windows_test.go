@@ -369,7 +369,7 @@ create_mounts:
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
 
-	err = diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err = diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test", "provider")
 
 	assert.Nil(t, err)
 	assert.Equal(t, 0, len(netAddConnectionCalls))
@@ -397,7 +397,7 @@ create_mounts:
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test", "provider")
 	err = diskCheck.Run()
 
 	assert.Nil(t, err)

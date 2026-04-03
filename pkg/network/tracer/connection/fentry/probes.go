@@ -79,6 +79,14 @@ const (
 	// tcpRetransmitRet traces the return of the tcp_retransmit_skb() system call
 	tcpRetransmitRet = "tcp_retransmit_skb_exit"
 
+	// tcpEnterLoss traces tcp_enter_loss() to count RTO loss events.
+	// kprobe because the function is static (not exported via BTF).
+	tcpEnterLoss = "kprobe__tcp_enter_loss"
+	// tcpEnterRecovery traces tcp_enter_recovery() to count fast-recovery events.
+	tcpEnterRecovery = "kprobe__tcp_enter_recovery"
+	// tcpSendProbe0 traces tcp_send_probe0() to count zero-window probe events.
+	tcpSendProbe0 = "kprobe__tcp_send_probe0"
+
 	// inetCskAcceptReturn traces the return value for the inet_csk_accept syscall
 	inetCskAcceptReturn = "inet_csk_accept_exit"
 
@@ -117,6 +125,9 @@ var programs = map[string]struct{}{
 	tcpFinishConnect:          {},
 	tcpRetransmit:             {},
 	tcpRetransmitRet:          {},
+	tcpEnterLoss:              {},
+	tcpEnterRecovery:          {},
+	tcpSendProbe0:             {},
 	tcpSendMsgReturn:          {},
 	tcpSendPageReturn:         {},
 	tcpDone:                   {},
@@ -216,6 +227,9 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		enableProgram(enabled, tcpRetransmitRet)
 		enableProgram(enabled, tcpDone)
 		enableProgram(enabled, tcpReadSockReturn)
+		enableProgram(enabled, tcpEnterLoss)
+		enableProgram(enabled, tcpEnterRecovery)
+		enableProgram(enabled, tcpSendProbe0)
 
 		if c.CustomBatchingEnabled {
 			enableProgram(enabled, tcpCloseReturn)

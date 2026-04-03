@@ -21,6 +21,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/DataDog/ebpf-manager/tracefs"
 	"github.com/cilium/ebpf"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sys/unix"
 
@@ -149,6 +150,7 @@ type ebpfTracer struct {
 	conns                   *maps.GenericMap[netebpf.ConnTuple, netebpf.ConnStats]
 	tcpStats                *maps.GenericMap[netebpf.ConnTuple, netebpf.TCPStats]
 	tcpRetransmits          *maps.GenericMap[netebpf.ConnTuple, uint32]
+	tcpEventStats           *maps.GenericMap[netebpf.ConnTuple, netebpf.TCPEventStats]
 	ebpfTelemetryMap        *maps.GenericMap[uint32, netebpf.Telemetry]
 	tcpFailuresTelemetryMap *maps.GenericMap[int32, uint64]
 	sslCertInfoMap          *maps.GenericMap[uint32, netebpf.CertItem]
@@ -186,6 +188,7 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 			probes.ConnMap:                           {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
 			probes.TCPStatsMap:                       {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
 			probes.TCPRetransmitsMap:                 {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
+			probes.TCPEventStatsMap:                  {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
 			probes.PortBindingsMap:                   {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
 			probes.UDPPortBindingsMap:                {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
 			probes.ConnectionProtocolMap:             {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
@@ -223,6 +226,16 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 	var extractor *batchExtractor
 
 	util.AddBoolConst(&mgrOptions, "batching_enabled", config.CustomBatchingEnabled)
+	// Set batch flush threshold: 4 on ringbuf (no stack limit), 3 on perf buffer
+	// (to fit within the 512-byte BPF stack when doing the stack copy).
+	batchFlushSize := uint64(4)
+	if !config.RingBufferSupportedNPM() {
+		batchFlushSize = 3
+	}
+	mgrOptions.ConstantEditors = append(mgrOptions.ConstantEditors, manager.ConstantEditor{
+		Name:  "conn_closed_batch_size",
+		Value: batchFlushSize,
+	})
 	if config.CustomBatchingEnabled {
 		numCPUs, err := ebpf.PossibleCPU()
 		if err != nil {
@@ -324,6 +337,10 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 		return nil, fmt.Errorf("error retrieving the bpf %s map: %s", probes.TCPRetransmitsMap, err)
 	}
 
+	if tr.tcpEventStats, err = maps.GetMap[netebpf.ConnTuple, netebpf.TCPEventStats](m.Manager, probes.TCPEventStatsMap); err != nil {
+		log.Warnf("error retrieving the bpf %s map: %s", probes.TCPEventStatsMap, err)
+	}
+
 	tr.ebpfTelemetryMap, err = maps.GetMap[uint32, netebpf.Telemetry](m.Manager, probes.TelemetryMap)
 	if err != nil {
 		log.Warnf("error retrieving telemetry map: %s", err)
@@ -378,7 +395,9 @@ func initClosedConnEventHandler(config *config.Config, lookupCert lookupCertCb, 
 		handler = func(buf []byte) {
 			l := len(buf)
 			switch {
-			case l >= netebpf.SizeofBatch:
+			case l >= netebpf.SizeofBatch3:
+				// Accept both 3-connection batches (perf buffer, older kernels)
+				// and 4-connection batches (ring buffer, modern kernels).
 				b := netebpf.ToBatch(buf)
 				for rc := extractor.NextConnection(b); rc != nil; rc = extractor.NextConnection(b) {
 					c := pool.Get()
@@ -502,6 +521,7 @@ func (t *ebpfTracer) GetConnections(buffer *network.ConnectionBuffer, filter fun
 	// Iterate through all key-value pairs in map
 	key, stats := &netebpf.ConnTuple{}, &netebpf.ConnStats{}
 	seen := make(map[netebpf.ConnTuple]struct{})
+	seenEvents := make(map[netebpf.ConnTuple]struct{})
 	// connsByTuple is used to detect whether we are iterating over
 	// a connection we have previously seen. This can happen when
 	// ebpf maps are being iterated over and deleted at the same time.
@@ -512,6 +532,7 @@ func (t *ebpfTracer) GetConnections(buffer *network.ConnectionBuffer, filter fun
 	// Cached objects
 	conn := new(network.ConnectionStats)
 	tcp := new(netebpf.TCPStats)
+	var tcpEvents netebpf.TCPEventStats
 
 	var tcp4, tcp6, udp4, udp6 float64
 	entries := t.conns.IterateWithBatchSize(1000)
@@ -554,6 +575,9 @@ func (t *ebpfTracer) GetConnections(buffer *network.ConnectionBuffer, filter fun
 		}
 		if retrans, ok := t.getTCPRetransmits(key, seen); ok && conn.Type == network.TCP {
 			conn.Monotonic.Retransmits = retrans
+		}
+		if t.getTCPEventStats(key, &tcpEvents, seenEvents) {
+			conn.FromTCPEventStats(&tcpEvents)
 		}
 
 		// use a map to only refresh cert timestamps once per connections check
@@ -627,6 +651,10 @@ func (t *ebpfTracer) Remove(conn *network.ConnectionStats) error {
 		pid := t.removeTuple.Pid
 		t.removeTuple.Pid = 0
 		_ = t.tcpRetransmits.Delete(t.removeTuple)
+		// tcp_event_stats map is also keyed by zero-PID tuple like tcp_retransmits
+		if t.tcpEventStats != nil {
+			_ = t.tcpEventStats.Delete(t.removeTuple)
+		}
 		t.removeTuple.Pid = pid
 	}
 	return nil
@@ -909,6 +937,29 @@ func (t *ebpfTracer) getTCPStats(stats *netebpf.TCPStats, tuple *netebpf.ConnTup
 	}
 
 	return t.tcpStats.Lookup(tuple, stats) == nil
+}
+
+func (t *ebpfTracer) getTCPEventStats(tuple *netebpf.ConnTuple, stats *netebpf.TCPEventStats, seen map[netebpf.ConnTuple]struct{}) bool {
+	if t.tcpEventStats == nil || tuple.Type() != netebpf.TCP {
+		return false
+	}
+	// The PID isn't used as a key in the event stats map, we will temporarily set it to 0 here and reset it when we're done
+	pid := tuple.Pid
+	tuple.Pid = 0
+
+	found := false
+	if err := t.tcpEventStats.Lookup(tuple, stats); err == nil {
+		if _, reported := seen[*tuple]; reported {
+			EbpfTracerTelemetry.PidCollisions.Inc()
+			*stats = netebpf.TCPEventStats{}
+		} else {
+			seen[*tuple] = struct{}{}
+		}
+		found = true
+	}
+
+	tuple.Pid = pid
+	return found
 }
 
 // setupMapCleaners sets up the map cleaners for the eBPF maps

@@ -69,10 +69,12 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "{error: unsupported operation: foobar}"
+    "message": "{error: unsupported operation: foobar}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

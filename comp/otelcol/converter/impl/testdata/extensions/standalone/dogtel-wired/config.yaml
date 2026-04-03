@@ -1,0 +1,21 @@
+receivers:
+    otlp:
+
+exporters:
+    nop:
+
+extensions:
+    dogtel/mytagger:
+        enable_tagger_server: true
+
+service:
+    pipelines:
+        traces:
+            receivers: [nop]
+            exporters: [nop]
+        metrics:
+            receivers: [nop]
+            exporters: [nop]
+        logs:
+            receivers: [nop]
+            exporters: [nop]

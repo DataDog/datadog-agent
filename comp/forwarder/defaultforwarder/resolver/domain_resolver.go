@@ -94,13 +94,13 @@ func OnUpdateConfig(resolver DomainResolver, log log.Component, config config.Co
 			resolver.UpdateAPIKey(setting, oldAPIKey, newAPIKey)
 
 			if health := resolver.GetForwarderHealth(); health != nil {
-				health.UpdateAPIKeys(resolver.GetBaseDomain(), []string{oldAPIKey}, []string{newAPIKey})
+				health.UpdateAPIKeys(resolver.GetConfigName(), []string{oldAPIKey}, []string{newAPIKey})
 			}
 
 			log.Infof("rotating API key for '%s': %s -> %s",
 				setting,
-				scrubber.HideKeyExceptLastFiveChars(oldAPIKey),
-				scrubber.HideKeyExceptLastFiveChars(newAPIKey),
+				scrubber.HideKeyExceptLastFourChars(oldAPIKey),
+				scrubber.HideKeyExceptLastFourChars(newAPIKey),
 			)
 
 			return
@@ -136,7 +136,7 @@ func updateAdditionalEndpoints(resolver DomainResolver, setting string, config c
 	added := missing(newKeys, oldKeys)
 
 	if health := resolver.GetForwarderHealth(); health != nil {
-		health.UpdateAPIKeys(resolver.GetBaseDomain(), removed, added)
+		health.UpdateAPIKeys(resolver.GetConfigName(), removed, added)
 	}
 
 	removed = scrubKeys(removed)
@@ -233,7 +233,7 @@ func missing(a []string, b []string) []string {
 // scrubKeys scrubs the API key to avoid leaking the key when logging.
 func scrubKeys(keys []string) []string {
 	for i, key := range keys {
-		keys[i] = scrubber.HideKeyExceptLastFiveChars(key)
+		keys[i] = scrubber.HideKeyExceptLastFourChars(key)
 	}
 	return keys
 }

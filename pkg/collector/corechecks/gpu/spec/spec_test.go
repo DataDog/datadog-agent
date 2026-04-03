@@ -92,6 +92,16 @@ func TestMockCapabilitiesMatchArchitectureSpec(t *testing.T) {
 				}
 				assert.Equal(t, expected, support.IsSupportedDevice, "GpmQueryDeviceSupport.IsSupportedDevice should be %d when gpm=%v", expected, archSpec.Capabilities.GPM)
 
+				// Check also that GpmSampleGet returns NOT_SUPPORTED when GPM is not supported
+				var sample testutil.MockGpmSample
+				err = dev.GpmSampleGet(sample)
+				if archSpec.Capabilities.GPM && mode != DeviceModeVGPU {
+					require.NoError(t, err, "GpmSampleGet should not return an error")
+				} else {
+					require.Error(t, err, "GpmSampleGet should return an error")
+					require.True(t, ddnvml.IsUnsupported(err), "GpmSampleGet should return an API_UNSUPPORTED_ON_DEVICE error")
+				}
+
 				unsupportedIDs := UnsupportedFieldIDsForMode(t, archSpec, mode)
 				unsupportedSet := make(map[uint32]struct{}, len(unsupportedIDs))
 				for _, id := range unsupportedIDs {

@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/operator"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/operatorparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
 	kubeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/argorollouts"
@@ -36,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/outputs"
 
+	"github.com/Masterminds/semver/v3"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
@@ -93,7 +95,7 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.Kube
 		return err
 	}
 
-	installEcrCredsHelperCmd, err := ec2.InstallECRCredentialsHelper(awsEnv, host)
+	installEcrCredsHelperCmd, err := docker.InstallECRCredentialsHelper(awsEnv.Namer, host)
 	if err != nil {
 		return err
 	}
@@ -148,7 +150,14 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.Kube
 
 	var dependsOnArgoRollout pulumi.ResourceOption
 	if params.deployArgoRollout {
-		argoParams, err := argorollouts.NewParams()
+		var argoOpts []argorollouts.Option
+		// argo-rollouts chart >= 2.40.8 uses x-kubernetes-validations in CRDs,
+		// which requires K8s >= 1.25. Pin to last compatible version for older clusters.
+		kubeVer, err := semver.NewVersion(utils.ParseKubernetesVersion(awsEnv.KubernetesVersion()))
+		if err == nil && kubeVer.LessThan(semver.MustParse("1.25.0")) {
+			argoOpts = append(argoOpts, argorollouts.WithVersion("2.40.7"))
+		}
+		argoParams, err := argorollouts.NewParams(argoOpts...)
 		if err != nil {
 			return err
 		}

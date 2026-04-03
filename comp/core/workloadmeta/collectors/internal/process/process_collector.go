@@ -31,7 +31,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/discovery/core"
 	"github.com/DataDog/datadog-agent/pkg/discovery/model"
-	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
+	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
@@ -92,6 +92,16 @@ type Event struct {
 }
 
 func newProcessCollector(id string, catalog workloadmeta.AgentType, clock clock.Clock, processProbe procutil.Probe, config pkgconfigmodel.Reader, systemProbeConfig pkgconfigmodel.Reader) collector {
+	var discoveredServicesGauge telemetry.Gauge
+	if serviceDiscoveryEnabled(systemProbeConfig) {
+		discoveredServicesGauge = telemetry.NewGaugeWithOpts(
+			collectorID,
+			"discovered_services",
+			[]string{},
+			"Number of discovered alive services.",
+			telemetry.DefaultOptions,
+		)
+	}
 	return collector{
 		id:                     id,
 		catalog:                catalog,
@@ -108,6 +118,7 @@ func newProcessCollector(id string, catalog workloadmeta.AgentType, clock clock.
 		ignoredPids:              make(core.PidSet),
 		pidHeartbeats:            make(map[int32]time.Time),
 		knownInjectionStatusPids: make(core.PidSet),
+		metricDiscoveredServices: discoveredServicesGauge,
 	}
 }
 
@@ -159,7 +170,11 @@ func (c *collector) isProcessCollectionEnabled() bool {
 
 // isServiceDiscoveryEnabled returns a boolean indicating if service discovery is enabled
 func (c *collector) isServiceDiscoveryEnabled() bool {
-	return c.systemProbeConfig.GetBool("discovery.enabled")
+	return serviceDiscoveryEnabled(c.systemProbeConfig)
+}
+
+func serviceDiscoveryEnabled(systemProbeConfig pkgconfigmodel.Reader) bool {
+	return systemProbeConfig.GetBool("discovery.enabled")
 }
 
 // isGPUMonitoringEnabled returns a boolean indicating if GPU monitoring is enabled
@@ -213,14 +228,6 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 
 	if c.isServiceDiscoveryEnabled() {
 		serviceCollectionInterval := c.getServiceCollectionInterval()
-		// Initialize service discovery metric
-		c.metricDiscoveredServices = telemetry.NewGaugeWithOpts(
-			collectorID,
-			"discovered_services",
-			[]string{},
-			"Number of discovered alive services.",
-			telemetry.DefaultOptions,
-		)
 
 		if c.isProcessCollectionEnabled() || c.isLanguageCollectionEnabled() {
 			log.Debug("Starting cached service collection (process collection enabled)")
@@ -923,7 +930,6 @@ func convertModelServiceToService(modelService *model.Service) *workloadmeta.Ser
 		TCPPorts:                 modelService.TCPPorts,
 		UDPPorts:                 modelService.UDPPorts,
 		APMInstrumentation:       modelService.APMInstrumentation,
-		Type:                     modelService.Type,
 		LogFiles:                 logFiles,
 		UST: workloadmeta.UST{
 			Service: modelService.UST.Service,

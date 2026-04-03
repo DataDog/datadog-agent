@@ -66,6 +66,7 @@
           }
         }
       },
+      "type": "snapshot",
       "evaluationErrors": [
         {
           "expr": "@duration",
@@ -74,6 +75,7 @@
       ]
     },
     "timestamp": "[ts]",
-    "message": "abc, def, ghi"
+    "message": "abc, def, ghi",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

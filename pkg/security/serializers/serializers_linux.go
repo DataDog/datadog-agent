@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"path"
 	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
@@ -22,6 +21,7 @@ import (
 	"github.com/google/gopacket/layers"
 	"golang.org/x/sys/unix"
 
+	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/sysctl"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
@@ -268,6 +268,8 @@ type ProcessSerializer struct {
 	PPid *uint32 `json:"ppid,omitempty"`
 	// Thread ID
 	Tid uint32 `json:"tid,omitempty"`
+	// ForkFlags
+	ForkFlags int `json:"fork_flags"`
 	// User ID
 	UID int `json:"uid"`
 	// Group ID
@@ -330,8 +332,10 @@ type ProcessSerializer struct {
 	Syscalls *SyscallsEventSerializer `json:"syscalls,omitempty"`
 	// List of AWS Security Credentials that the process had access to
 	AWSSecurityCredentials []*AWSSecurityCredentialsSerializer `json:"aws_security_credentials,omitempty"`
-	// Tags from an APM tracer instrumentation
-	Tracer map[string]string `json:"tracer,omitempty"`
+	// Metadata from APM tracer instrumentation
+	Tracer *tracermetadata.TracerMetadata `json:"tracer,omitempty"`
+	// Variable values
+	Variables Variables `json:"variables,omitempty"`
 }
 
 // FileEventSerializer serializes a file event to JSON
@@ -958,6 +962,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			Pid:             ps.Pid,
 			Tid:             ps.Tid,
 			PPid:            createNumPointer(ps.PPid),
+			ForkFlags:       int(ps.ForkFlags),
 			Comm:            ps.Comm,
 			TTY:             ps.TTYName,
 			Executable:      newFileSerializer(&ps.FileEvent, e, 0, nil),
@@ -1001,15 +1006,9 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			}
 		}
 
-		if len(ps.TracerTags) > 0 {
-			tracerTags := make(map[string]string, len(ps.TracerTags))
-			for _, tag := range ps.TracerTags {
-				key, value, found := strings.Cut(tag, ":")
-				if found {
-					tracerTags[key] = value
-				}
-			}
-			psSerializer.Tracer = tracerTags
+		if (ps.TracerMetadata != tracermetadata.TracerMetadata{}) {
+			tmetaCopy := ps.TracerMetadata
+			psSerializer.Tracer = &tmetaCopy
 		}
 
 		if len(ps.ContainerContext.ContainerID) != 0 {
@@ -1052,20 +1051,10 @@ func serializeK8sContext(e *model.Event, ctx *model.UserSessionContext, userSess
 }
 
 func serializeSSHContext(ctx *model.UserSessionContext, userSessionContextSerializer *UserSessionContextSerializer) {
-	sshClientIP := ctx.SSHClientIP.IP.String()
-	if sshClientIP == "<nil>" {
-		sshClientIP = ""
-	}
-
-	sshAuthMethod := model.SSHAuthMethodToString(usersession.AuthType(ctx.SSHAuthMethod))
-	if sshAuthMethod == "<nil>" {
-		sshAuthMethod = ""
-	}
-
 	userSessionContextSerializer.SSHSessionID = strconv.FormatUint(uint64(ctx.SSHSessionID), 16)
 	userSessionContextSerializer.SSHClientPort = ctx.SSHClientPort
-	userSessionContextSerializer.SSHClientIP = sshClientIP
-	userSessionContextSerializer.SSHAuthMethod = sshAuthMethod
+	userSessionContextSerializer.SSHClientIP = utils.GetIPStringFromIPNet(ctx.SSHClientIP)
+	userSessionContextSerializer.SSHAuthMethod = model.SSHAuthMethodToString(usersession.AuthType(ctx.SSHAuthMethod))
 	userSessionContextSerializer.SSHPublicKey = ctx.SSHPublicKey
 }
 
@@ -1184,7 +1173,7 @@ func newPTraceEventSerializer(e *model.Event) *PTraceEventSerializer {
 	return &PTraceEventSerializer{
 		Request: model.PTraceRequest(e.PTrace.Request).String(),
 		Address: fmt.Sprintf("0x%x", e.PTrace.Address),
-		Tracee:  newProcessContextSerializer(e.PTrace.Tracee, fakeTraceeEvent),
+		Tracee:  newProcessContextSerializer(e.PTrace.Tracee, fakeTraceeEvent, nil),
 	}
 }
 
@@ -1209,7 +1198,7 @@ func newSignalEventSerializer(e *model.Event) *SignalEventSerializer {
 	ses := &SignalEventSerializer{
 		Type:   model.Signal(e.Signal.Type).String(),
 		PID:    e.Signal.PID,
-		Target: newProcessContextSerializer(e.Signal.Target, e),
+		Target: newProcessContextSerializer(e.Signal.Target, e, nil),
 	}
 	return ses
 }
@@ -1378,7 +1367,7 @@ func serializeOutcome(retval int64) string {
 	}
 }
 
-func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event) *ProcessContextSerializer {
+func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, rule *rules.Rule) *ProcessContextSerializer {
 	if pc == nil || pc.Pid == 0 || e == nil {
 		return nil
 	}
@@ -1386,6 +1375,8 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event) *Proc
 	ps := ProcessContextSerializer{
 		ProcessSerializer: newProcessSerializer(&pc.Process, e),
 	}
+
+	ps.Variables = newVariablesContext(e, rule, "process.")
 
 	// add the syscalls from the event only for the top level parent
 	if e.GetEventType() == model.SyscallsEventType {
@@ -1402,9 +1393,17 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event) *Proc
 
 	first := true
 
+	originalPCE := e.ProcessCacheEntry
+
 	for ptr != nil {
 		pce := (*model.ProcessCacheEntry)(ptr)
 		s := newProcessSerializer(&pce.Process, e)
+
+		// evaluate variables scoped to this ancestor
+		e.ProcessCacheEntry = pce
+		s.Variables = newVariablesContext(e, rule, "process.")
+		e.ProcessCacheEntry = originalPCE
+
 		ps.Ancestors = append(ps.Ancestors, s)
 
 		if first {
@@ -1544,7 +1543,7 @@ func newSetrlimitEventSerializer(e *model.Event) *SetrlimitEventSerializer {
 		Resource: model.RlimitResource(e.Setrlimit.Resource).String(),
 		Current:  e.Setrlimit.RlimCur,
 		Max:      e.Setrlimit.RlimMax,
-		Target:   newProcessContextSerializer(e.Setrlimit.Target, fakeTargetEvent),
+		Target:   newProcessContextSerializer(e.Setrlimit.Target, fakeTargetEvent, nil),
 	}
 }
 
@@ -1738,7 +1737,7 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Sc
 		s.SyscallContextSerializer = newSyscallContextSerializer(&event.Utimes.SyscallContext, event, func(ctx *SyscallContextSerializer, args *SyscallArgsSerializer) {
 			ctx.Utimes = args
 		})
-	case model.FileMountEventType:
+	case model.FileMountEventType, model.PivotRootEventType:
 		s.MountEventSerializer = newMountEventSerializer(event)
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Mount.Retval)
 		s.SyscallContextSerializer = newSyscallContextSerializer(&event.Mount.SyscallContext, event, func(ctx *SyscallContextSerializer, args *SyscallArgsSerializer) {

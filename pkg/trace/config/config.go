@@ -387,17 +387,18 @@ type AgentConfig struct {
 	ErrorTrackingStandalone bool
 
 	// Receiver
-	ReceiverEnabled bool // specifies whether Receiver listeners are enabled. Unless OTLPReceiver is used, this should always be true.
-	ReceiverHost    string
-	ReceiverPort    int
-	ReceiverSocket  string // if not empty, UDS will be enabled on unix://<receiver_socket>
-	ConnectionLimit int    // for rate-limiting, how many unique connections to allow in a lease period (30s)
-	ReceiverTimeout int
-	MaxRequestBytes int64 // specifies the maximum allowed request size for incoming trace payloads
-	TraceBuffer     int   // specifies the number of traces to buffer before blocking.
-	Decoders        int   // specifies the number of traces that can be concurrently decoded.
-	MaxConnections  int   // specifies the maximum number of concurrent incoming connections allowed.
-	DecoderTimeout  int   // specifies the maximum time in milliseconds that the decoders will wait for a turn to accept a payload before returning 429
+	ReceiverEnabled     bool // specifies whether Receiver listeners are enabled. Unless OTLPReceiver is used, this should always be true.
+	ReceiverHost        string
+	ReceiverPort        int
+	ReceiverSocket      string // if not empty, UDS will be enabled on unix://<receiver_socket>
+	ConnectionLimit     int    // for rate-limiting, how many unique connections to allow in a lease period (30s)
+	ReceiverTimeout     int
+	ReceiverIdleTimeout time.Duration // idle timeout for keepalive connections.
+	MaxRequestBytes     int64         // specifies the maximum allowed request size for incoming trace payloads
+	TraceBuffer         int           // specifies the number of traces to buffer before blocking.
+	Decoders            int           // specifies the number of traces that can be concurrently decoded.
+	MaxConnections      int           // specifies the maximum number of concurrent incoming connections allowed.
+	DecoderTimeout      int           // specifies the maximum time in milliseconds that the decoders will wait for a turn to accept a payload before returning 429
 
 	WindowsPipeName        string
 	PipeBufferSize         int
@@ -519,6 +520,10 @@ type AgentConfig struct {
 
 	// ContainerTags ...
 	ContainerTags func(cid string) ([]string, error) `json:"-"`
+	// ContainerTagsWithCompleteness returns the tags for a given container ID
+	// along with a completeness flag indicating whether all expected tag
+	// sources have reported data for this container.
+	ContainerTagsWithCompleteness func(cid string) ([]string, bool, error) `json:"-"`
 	// ContainerTagsBuffer enables buffering of payloads until full container tags extraction
 	ContainerTagsBuffer bool
 
@@ -616,6 +621,7 @@ func New() *AgentConfig {
 		ReceiverEnabled:        true,
 		ReceiverHost:           "localhost",
 		ReceiverPort:           8126,
+		ReceiverIdleTimeout:    60 * time.Second,
 		MaxRequestBytes:        25 * 1024 * 1024, // 25MB
 		PipeBufferSize:         1_000_000,
 		PipeSecurityDescriptor: "D:AI(A;;GA;;;WD)",
@@ -645,11 +651,12 @@ func New() *AgentConfig {
 
 		GlobalTags: computeGlobalTags(),
 
-		Proxy:                     http.ProxyFromEnvironment,
-		OTLPReceiver:              &OTLP{},
-		ContainerTags:             noopContainerTagsFunc,
-		ContainerTagsBuffer:       false, // disabled here for otlp collector exporter, enabled in comp/trace-agent
-		ContainerIDFromOriginInfo: NoopContainerIDFromOriginInfoFunc,
+		Proxy:                         http.ProxyFromEnvironment,
+		OTLPReceiver:                  &OTLP{},
+		ContainerTags:                 noopContainerTagsFunc,
+		ContainerTagsWithCompleteness: noopContainerTagsWithCompletenessFunc,
+		ContainerTagsBuffer:           false, // disabled here for otlp collector exporter, enabled in comp/trace-agent
+		ContainerIDFromOriginInfo:     NoopContainerIDFromOriginInfoFunc,
 		TelemetryConfig: &TelemetryConfig{
 			Endpoints: []*Endpoint{{Host: TelemetryEndpointPrefix + "datadoghq.com"}},
 		},
@@ -685,6 +692,10 @@ var ErrContainerTagsFuncNotDefined = errors.New("containerTags function not defi
 
 func noopContainerTagsFunc(_ string) ([]string, error) {
 	return nil, ErrContainerTagsFuncNotDefined
+}
+
+func noopContainerTagsWithCompletenessFunc(_ string) ([]string, bool, error) {
+	return nil, false, ErrContainerTagsFuncNotDefined
 }
 
 // ErrContainerIDFromOriginInfoFuncNotDefined is returned when the ContainerIDFromOriginInfo function is not defined.

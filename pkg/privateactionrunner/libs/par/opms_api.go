@@ -11,17 +11,23 @@ import (
 
 // CreateRunnerRequest represents the request to create a runner with API key auth
 type CreateRunnerRequest struct {
-	ID           string       `jsonapi:"primary,createRunnerRequest"`
-	RunnerName   string       `json:"runner_name" jsonapi:"attribute" validate:"required"`
-	RunnerModes  []modes.Mode `json:"runner_modes" jsonapi:"attribute" validate:"gt=0,max=2,dive"`
-	RunnerHost   string       `json:"runner_host" jsonapi:"attribute" validate:"omitempty,hostname"`
-	PublicKeyPEM string       `json:"public_key_pem" jsonapi:"attribute" validate:"required"`
+	ID            string       `jsonapi:"primary,createRunnerRequest"`
+	RunnerName    string       `json:"runner_name" jsonapi:"attribute" validate:"required"`
+	RunnerModes   []modes.Mode `json:"runner_modes" jsonapi:"attribute" validate:"gt=0,max=2,dive"`
+	RunnerHost    string       `json:"runner_host" jsonapi:"attribute" validate:"omitempty,hostname"`
+	PublicKeyPEM  string       `json:"public_key_pem" jsonapi:"attribute" validate:"required"`
+	AgentHostname string       `json:"agent_hostname,omitempty" jsonapi:"attribute" validate:"omitempty"`
+	OrchClusterID string       `json:"orch_cluster_id,omitempty" jsonapi:"attribute" validate:"omitempty"`
+	AgentFlavor   string       `json:"agent_flavor,omitempty" jsonapi:"attribute" validate:"omitempty"`
 }
 
 // CreateRunnerResponse represents the response for runner creation
 type CreateRunnerResponse struct {
-	ID          string   `jsonapi:"primary,createRunnerResponse"`
-	RunnerID    string   `json:"runner_id" jsonapi:"attribute"`
-	OrgID       int64    `json:"org_id" jsonapi:"attribute"`
-	RunnerModes []string `json:"runner_modes" jsonapi:"attribute"`
+	ID            string   `jsonapi:"primary,createRunnerResponse"`
+	RunnerID      string   `json:"runner_id" jsonapi:"attribute"`
+	OrgID         int64    `json:"org_id" jsonapi:"attribute"`
+	RunnerModes   []string `json:"runner_modes" jsonapi:"attribute"`
+	AgentHostname string   `json:"agent_hostname,omitempty" jsonapi:"attribute"`
+	OrchClusterID string   `json:"orch_cluster_id,omitempty" jsonapi:"attribute"`
+	AgentFlavor   string   `json:"agent_flavor,omitempty" jsonapi:"attribute"`
 }

@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "backoff",
+    srcs = [
+        "backoff.go",
+        "policy.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/backoff",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "backoff_test",
+    srcs = ["backoff_test.go"],
+    embed = [":backoff"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

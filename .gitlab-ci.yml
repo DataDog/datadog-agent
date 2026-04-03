@@ -16,6 +16,9 @@
 .if_mergequeue: &if_mergequeue
   if: $CI_COMMIT_BRANCH =~ /^mq-working-branch-/
 
+.if_deploy: &if_deploy
+  if: $DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null
+
 # Windows-specific Go source files, pkg/, and cmd/ (27 paths), need to be splitted because Gitlab has a limit to 50 paths in a single rule
 .windows_path: &windows_path
   # Windows-specific Go source files (by filename convention)
@@ -36,7 +39,10 @@
   - pkg/logs/util/windowsevent/**/*
   - pkg/network/driver/**/*
 
-  # cmd/ 
+  # Global packages likely to impact windows
+  - pkg/config/**/*
+
+  # cmd/
   - cmd/agent/**/*
   - cmd/process-agent/**/*
   - cmd/security-agent/**/*
@@ -66,8 +72,14 @@
   # MSI installer and Windows tooling
   - tools/windows/**/*
 
-  # Omnibus packaging
+  # Build/packaging
+  - .bazel*
+  - MODULE.bazel*
   - omnibus/**/*
+  - packages/**/*
+  - deps/**/*
+  - rtloader/**/*
+  - bazel/**/*
 
   # Windows containers
   - Dockerfiles/agent/windows/**/*
@@ -89,6 +101,14 @@
   - .gitlab-ci.yml
   - .gitlab/**/*
 
+# Windows-specific e2e tests
+.windows_path_3: &windows_path_3
+  - test/new-e2e/tests/fleet/**/* # cross platform tests
+  - test/new-e2e/tests/installer/windows/**/*
+  - test/new-e2e/tests/windows/**/*
+  - test/new-e2e/tests/sysprobe-functional/**/*
+  - test/new-e2e/tests/process/**/*
+
 include:
   - local: .adms/**/*.yaml
   - local: .gitlab/.pre/**.yml
@@ -105,12 +125,17 @@ include:
       - <<: *if_release_branch
       - <<: *if_triggered_pipeline
       - <<: *if_mergequeue
+      - <<: *if_deploy
+      - <<: *if_run_all_e2e_tests
       # - !reference [.except_skip_windows] Should be the rule but it is not working so we need to explicitly write the rule. See https://gitlab.com/gitlab-org/gitlab/-/issues/434157
       - changes:
           paths: *windows_path
           compare_to: main
       - changes:
           paths: *windows_path_2
+          compare_to: main
+      - changes:
+          paths: *windows_path_3
           compare_to: main
       - when: never
 
@@ -237,25 +262,25 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v96864623-38cade90
+  CI_IMAGE_BTF_GEN: v104474088-0c9dfdf4
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v96864623-38cade90
+  CI_IMAGE_DOCKER_X64: v104474088-0c9dfdf4
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v96864623-38cade90
+  CI_IMAGE_DOCKER_ARM64: v104474088-0c9dfdf4
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v96864623-38cade90
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v104474088-0c9dfdf4
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v96864623-38cade90
+  CI_IMAGE_LINUX: v104474088-0c9dfdf4
   CI_IMAGE_LINUX_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v96864623-38cade90
+  CI_IMAGE_RPM_X64: v104474088-0c9dfdf4
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v96864623-38cade90
+  CI_IMAGE_RPM_ARM64: v104474088-0c9dfdf4
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v96864623-38cade90
+  CI_IMAGE_RPM_ARMHF: v104474088-0c9dfdf4
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v95648322-a2e015b0
+  CI_IMAGE_WIN_LTSC2022_X64: v102144341-64dad9f8
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2025_X64: v95648322-a2e015b0
+  CI_IMAGE_WIN_LTSC2025_X64: v102144341-64dad9f8
   CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -354,9 +379,6 @@ variables:
 
 .if_not_main_branch: &if_not_main_branch
   if: $CI_COMMIT_BRANCH != "main"
-
-.if_deploy: &if_deploy
-  if: $DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null
 
 .if_deploy_stable: &if_deploy_stable
   if: ($DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null) && $BUCKET_BRANCH == "stable"
@@ -493,6 +515,11 @@ workflow:
         SKIP_WINDOWS: "false"
     - changes:
         paths: *windows_path_2
+        compare_to: main
+      variables:
+        SKIP_WINDOWS: "false"
+    - changes:
+        paths: *windows_path_3
         compare_to: main
       variables:
         SKIP_WINDOWS: "false"
@@ -683,7 +710,7 @@ workflow:
   - <<: *on_build_changes
   - changes:
       paths:
-        - test/new-e2e/tests/agent-platform/install-script/**/*
+        - test/new-e2e/tests/agent-platform/tests/install_script*
         - test/e2e-framework/**/*
 
 .on_ddot_tests:
@@ -694,7 +721,7 @@ workflow:
   - <<: *on_build_changes
   - changes:
       paths:
-        - test/new-e2e/tests/agent-platform/ddot/**/*
+        - test/new-e2e/tests/agent-platform/tests/ddot*
         - test/e2e-framework/**/*
 
 .on_step_by_step_tests:
@@ -705,7 +732,7 @@ workflow:
   - <<: *on_build_changes
   - changes:
       paths:
-        - test/new-e2e/tests/agent-platform/step-by-step/**/*
+        - test/new-e2e/tests/agent-platform/tests/step_by_step*
         - test/e2e-framework/**/*
 
 .on_upgrade_tests:
@@ -716,7 +743,7 @@ workflow:
   - <<: *on_build_changes
   - changes:
       paths:
-        - test/new-e2e/tests/agent-platform/upgrade/**/*
+        - test/new-e2e/tests/agent-platform/tests/upgrade*
         - test/e2e-framework/**/*
 
 .on_persisting_integrations_tests:
@@ -727,7 +754,7 @@ workflow:
   - <<: *on_build_changes
   - changes:
       paths:
-        - test/new-e2e/tests/agent-platform/persisting-integrations/**/*
+        - test/new-e2e/tests/agent-platform/tests/persisting_integrations*
         - test/e2e-framework/**/*
 
 .on_rpm_tests:
@@ -738,7 +765,7 @@ workflow:
   - <<: *on_build_changes
   - changes:
       paths:
-        - test/new-e2e/tests/agent-platform/rpm/**/*
+        - test/new-e2e/tests/agent-platform/tests/rpm*
         - test/e2e-framework/**/*
 
 .on_package_signing_tests:
@@ -749,7 +776,7 @@ workflow:
   - <<: *on_build_changes
   - changes:
       paths:
-        - test/new-e2e/tests/agent-platform/package-signing/**/*
+        - test/new-e2e/tests/agent-platform/tests/package_signing*
         - test/e2e-framework/**/*
 
 .security_agent_change_paths: &security_agent_change_paths
@@ -852,7 +879,6 @@ workflow:
         - .gitlab/test/e2e/e2e.yml
         - test/e2e-framework/**/*
         - test/new-e2e/go.mod
-        - go.mod
         - flakes.yaml
         - release.json
       compare_to: $COMPARE_TO_BRANCH
@@ -874,7 +900,6 @@ workflow:
         - .gitlab/test/e2e/e2e.yml
         - test/e2e-framework/testing/**/*
         - test/new-e2e/go.mod
-        - go.mod
         - flakes.yaml
         - release.json
       compare_to: $COMPARE_TO_BRANCH
@@ -940,7 +965,6 @@ workflow:
         - pkg/util/trivy/**/*
         - test/new-e2e/tests/containers/**/*
         - test/new-e2e/go.mod
-        - go.mod
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
@@ -1088,7 +1112,6 @@ workflow:
         - comp/trace/**/*
         - test/new-e2e/tests/apm/**/*
         - test/new-e2e/go.mod
-        - go.mod
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
@@ -1116,7 +1139,6 @@ workflow:
         - comp/netflow/**/*
         - test/new-e2e/tests/ndm/netflow/**/*
         - test/new-e2e/go.mod
-        - go.mod
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
@@ -1127,7 +1149,6 @@ workflow:
         - pkg/collector/corechecks/snmp/**/*
         - test/new-e2e/tests/ndm/snmp/**/*
         - test/new-e2e/go.mod
-        - go.mod
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
   - when: manual
@@ -1141,7 +1162,6 @@ workflow:
         - pkg/aggregator/**/*
         - test/new-e2e/tests/ha-agent/**/*
         - test/new-e2e/go.mod
-        - go.mod
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
@@ -1155,7 +1175,6 @@ workflow:
         - comp/networkpath/**/*
         - test/new-e2e/tests/netpath/**/*
         - test/new-e2e/go.mod
-        - go.mod
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 

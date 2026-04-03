@@ -86,6 +86,7 @@
           }
         }
       },
+      "type": "snapshot",
       "evaluationErrors": [
         {
           "expr": "@duration",
@@ -94,6 +95,7 @@
       ]
     },
     "timestamp": "[ts]",
-    "message": "[{anotherInt: 42, anotherString: foo}, {anotherInt: 24, anotherString: bar}]"
+    "message": "[{anotherInt: 42, anotherString: foo}, {anotherInt: 24, anotherString: bar}]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

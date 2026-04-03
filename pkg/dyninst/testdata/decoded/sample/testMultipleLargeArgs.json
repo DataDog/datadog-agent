@@ -192,10 +192,12 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "{a: 101, b: 102, c: 103, d: 104, e: 105, ...}}, {a: 111, b: 112, c: 113, d: 114, e: 115, ...}}"
+    "message": "{a: 101, b: 102, c: 103, d: 104, e: 105, ...}}, {a: 111, b: 112, c: 113, d: 114, e: 115, ...}}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

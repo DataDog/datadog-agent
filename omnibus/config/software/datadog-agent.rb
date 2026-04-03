@@ -1,4 +1,4 @@
-# Unless explicitly stated otherwise all files in this repository are licensed
+ # Unless explicitly stated otherwise all files in this repository are licensed
 # under the Apache License Version 2.0.
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
 # Copyright 2016-present Datadog, Inc.
@@ -11,11 +11,13 @@ require 'pathname'
 name 'datadog-agent'
 
 # Flavor flag for bazel actions
+flavor_flag = ""
 if heroku_target?
   flavor_flag = "--//packages/agent:flavor=heroku"
-else
-  flavor_flag = fips_mode? ? "--//packages/agent:flavor=fips" : ""
+elsif fips_mode?
+  flavor_flag = "--//packages/agent:flavor=fips"
 end
+bazel_flags = "--config=release #{flavor_flag} --//:install_dir='#{install_dir}'"
 
 # We don't want to build any dependencies in "repackaging mode" so all usual dependencies
 # need to go under this guard.
@@ -73,41 +75,43 @@ build do
 
   # we assume the go deps are already installed before running omnibus
   if windows_target?
-    platform = windows_arch_i386? ? "x86" : "x64"
     do_windows_sysprobe = ""
-    if not windows_arch_i386? and ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
+    if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
       do_windows_sysprobe = "--windows-sysprobe"
     end
-    command "dda inv -- -e rtloader.clean", :live_stream => Omnibus.logger.live_stream(:info)
-    command "dda inv -- -e rtloader.make --install-prefix \"#{windows_safe_path(python_3_embedded)}\" --cmake-options \"-G \\\"Unix Makefiles\\\" \\\"-DPython3_EXECUTABLE=#{windows_safe_path(python_3_embedded)}\\python.exe\\\" \\\"-DCMAKE_BUILD_TYPE=RelWithDebInfo\\\"\"", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
-    command "mv rtloader/bin/*.dll  #{install_dir}/bin/agent/"
+    command_on_repo_root "bazelisk run #{bazel_flags} -- //rtloader:install --destdir=\"#{install_dir}"
+    # Put the static rtloader library where it gets picked up by the go build linking to it
+    command_on_repo_root "bazelisk run #{bazel_flags} -- //rtloader:install_static --destdir=\"#{project_dir}/rtloader/build/rtloader\""
     command "dda inv -- -e agent.build --exclude-rtloader --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded #{do_windows_sysprobe} --flavor #{flavor_arg}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     command "dda inv -- -e systray.build", env: env, :live_stream => Omnibus.logger.live_stream(:info)
   else
-    command "dda inv -- -e rtloader.clean", :live_stream => Omnibus.logger.live_stream(:info)
-    command "dda inv -- -e rtloader.make --install-prefix \"#{install_dir}/embedded\" --cmake-options '-DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0\" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_FIND_FRAMEWORK:STRING=NEVER -DPython3_EXECUTABLE=#{install_dir}/embedded/bin/python3'", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
-    command "dda inv -- -e rtloader.install", :live_stream => Omnibus.logger.live_stream(:info)
-
+    command_on_repo_root "bazelisk run #{bazel_flags} -- //rtloader:install --destdir='#{install_dir}'"
+    sh_ext = if linux_target? then "so" else "dylib" end
+    command_on_repo_root "bazelisk run #{bazel_flags} -- //bazel/rules:replace_prefix" \
+      " --prefix '#{install_dir}/embedded'" \
+      " #{install_dir}/embedded/lib/libdatadog-agent-rtloader.#{sh_ext}" \
+      " #{install_dir}/embedded/lib/libdatadog-agent-three.#{sh_ext}"
     command "dda inv -- -e agent.build --exclude-rtloader --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
   end
 
+  command_on_repo_root "bazelisk run #{bazel_flags} -- //packages/agent/product:post_build_install --destdir=#{install_dir} --verbose", :live_stream => Omnibus.logger.live_stream(:info)
+  # TODO: dda agent.build also builds datadog.yaml. We need to work with the
+  # config team to find out if removing that will break their workflow.  If not,
+  # then we drop it. If so, then we can switch the build from go run building the
+  # target with bazel.
+  delete 'bin/agent/dist/datadog.yaml'
+
+  # TODO(https://datadoghq.atlassian.net/browse/ABLD-402): Put the config files in the right places
   if osx_target?
     conf_dir = "#{install_dir}/etc"
   else
     conf_dir = "#{install_dir}/etc/datadog-agent"
   end
-  mkdir conf_dir
-  mkdir "#{install_dir}/bin"
-  unless windows_target?
-    mkdir "#{install_dir}/run/"
-    mkdir "#{install_dir}/scripts/"
-  end
-
-  # move around bin and config files
-  move 'bin/agent/dist/datadog.yaml', "#{conf_dir}/datadog.yaml.example"
   copy 'bin/agent/dist/conf.d/.', "#{conf_dir}"
+  # We must do this to prevent a copy command below from picking it up again.
   delete 'bin/agent/dist/conf.d'
 
+  # move around bin files
   unless windows_target?
     copy 'bin/agent', "#{install_dir}/bin/"
   else
@@ -120,7 +124,6 @@ build do
     mkdir Omnibus::Config.package_dir() unless Dir.exists?(Omnibus::Config.package_dir())
   end
 
-  platform = windows_arch_i386? ? "x86" : "x64"
   command "dda inv -- -e trace-agent.build --install-path=#{install_dir} --flavor #{flavor_arg}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
 
   # Build the installer
@@ -220,14 +223,14 @@ build do
 
   end
 
-  # sd-agent (service discovery agent)
+  # system-probe-lite (service discovery agent)
   if linux_target? and !heroku_target?
-    command_on_repo_root "bazel run --config=sd-agent-release #{flavor_flag} //pkg/discovery/module/rust:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+    command_on_repo_root "bazelisk run #{bazel_flags} //pkg/discovery/module/rust:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
   end
 
   # dd-procmgrd (process manager daemon)
   if ENV['WITH_DD_PROCMGRD'] == 'true'
-    command_on_repo_root "bazel run --config=dd-procmgrd-release #{flavor_flag} //pkg/procmgr/rust:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+    command_on_repo_root "bazelisk run #{bazel_flags} //pkg/procmgr/rust:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
   end
 
   # Security agent
@@ -261,7 +264,7 @@ build do
   end
 
   if osx_target?
-    command_on_repo_root "bazelisk run #{flavor_flag} -- //packages/macos/app:install --destdir='#{install_dir}'", :live_stream => Omnibus.logger.live_stream(:info)
+    command_on_repo_root "bazelisk run #{bazel_flags} -- //packages/macos/app:install --destdir=#{install_dir}", :live_stream => Omnibus.logger.live_stream(:info)
 
     # Systray GUI
     app_temp_dir = "#{install_dir}/Datadog Agent.app/Contents"

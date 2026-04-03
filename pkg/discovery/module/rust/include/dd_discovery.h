@@ -39,6 +39,9 @@ struct dd_tracer_metadata {
   struct dd_str service_name;
   struct dd_str service_env;
   struct dd_str service_version;
+  struct dd_str process_tags;
+  struct dd_str container_id;
+  bool logs_collected;
 };
 
 struct dd_tracer_metadata_slice {
@@ -75,7 +78,6 @@ struct dd_service {
   struct dd_strs log_files;
   bool apm_instrumentation;
   struct dd_str language;
-  struct dd_str service_type;
 };
 
 struct dd_discovery_result {

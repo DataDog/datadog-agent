@@ -8,12 +8,12 @@ package cloudservice
 import (
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"os"
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -42,19 +42,38 @@ const (
 )
 
 const (
-	// Span Tag with namespace specific for cloud run (gcr) and cloud run function (gcrfx)
-	cloudRunService   = "gcr."
-	cloudRunFunction  = "gcrfx."
-	revisionName      = "revision_name"
-	serviceName       = "service_name"
-	configName        = "configuration_name"
-	containerID       = "container_id"
-	location          = "location"
-	projectID         = "project_id"
-	resourceName      = "resource_name"
-	functionTarget    = "build_function_target"
-	functionSignature = "function_signature_type"
-	cloudRunPrefix    = "gcp.run"
+	// Cloud Run metrics prefixes and names
+	cloudRunPrefix             = "gcp.run.container."
+	cloudRunShutdownMetricName = "gcp.run.container.enhanced.shutdown"
+	cloudRunStartMetricName    = "gcp.run.container.enhanced.cold_start"
+
+	cloudRunLegacyShutdownMetricName = "gcp.run.enhanced.shutdown"
+	cloudRunLegacyStartMetricName    = "gcp.run.enhanced.cold_start"
+
+	cloudRunUsageMetricSuffix = "instance"
+)
+
+const (
+	// Cloud Run common tags
+	revisionName = "revision_name"
+	serviceName  = "service_name"
+	configName   = "configuration_name"
+	containerID  = "container_id"
+	location     = "location"
+	projectID    = "project_id"
+	resourceName = "resource_name"
+)
+
+const (
+	// Cloud Run Service tags
+	cloudRunServiceTagPrefix = "gcr."
+)
+
+const (
+	// Cloud Run Function tags
+	cloudRunFunctionTagPrefix = "gcrfx."
+	functionTarget            = "build_function_target"
+	functionSignature         = "function_signature_type"
 )
 
 var metadataHelperFunc = GetMetaData
@@ -74,8 +93,14 @@ type CloudRun struct {
 
 // GetTags returns a map of gcp-related tags.
 func (c *CloudRun) GetTags() map[string]string {
-	isCloudRun := c.spanNamespace == cloudRunService
-	tags := metadataHelperFunc(GetDefaultConfig(), isCloudRun)
+	isCloudRun := c.spanNamespace == cloudRunServiceTagPrefix
+	var cloudRunType CloudRunType
+	if isCloudRun {
+		cloudRunType = CloudRunService
+	} else {
+		cloudRunType = CloudRunFunction
+	}
+	tags := metadataHelperFunc(GetDefaultConfig(), cloudRunType)
 	tags["origin"] = CloudRunOrigin
 	tags["_dd.origin"] = CloudRunOrigin
 
@@ -85,35 +110,50 @@ func (c *CloudRun) GetTags() map[string]string {
 	if revisionNameVal != "" {
 		tags[revisionName] = revisionNameVal
 		if isCloudRun {
-			tags[cloudRunService+revisionName] = revisionNameVal
+			tags[cloudRunServiceTagPrefix+revisionName] = revisionNameVal
 		} else {
-			tags[cloudRunFunction+revisionName] = revisionNameVal
+			tags[cloudRunFunctionTagPrefix+revisionName] = revisionNameVal
 		}
 	}
 
 	if serviceNameVal != "" {
 		tags[serviceName] = serviceNameVal
 		if isCloudRun {
-			tags[cloudRunService+serviceName] = serviceNameVal
+			tags[cloudRunServiceTagPrefix+serviceName] = serviceNameVal
 		} else {
-			tags[cloudRunFunction+serviceName] = serviceNameVal
+			tags[cloudRunFunctionTagPrefix+serviceName] = serviceNameVal
 		}
 	}
 
 	if configNameVal != "" {
 		tags[configName] = configNameVal
 		if isCloudRun {
-			tags[cloudRunService+configName] = configNameVal
+			tags[cloudRunServiceTagPrefix+configName] = configNameVal
 		} else {
-			tags[cloudRunFunction+configName] = configNameVal
+			tags[cloudRunFunctionTagPrefix+configName] = configNameVal
 		}
 	}
 
-	if c.spanNamespace == cloudRunFunction {
+	if c.spanNamespace == cloudRunFunctionTagPrefix {
 		return c.getFunctionTags(tags)
 	}
-	tags[cloudRunService+resourceName] = fmt.Sprintf("projects/%s/locations/%s/services/%s", tags["project_id"], tags["location"], tags["service_name"])
+	tags[cloudRunServiceTagPrefix+resourceName] = fmt.Sprintf("projects/%s/locations/%s/services/%s", tags["project_id"], tags["location"], tags["service_name"])
 	return tags
+}
+
+func (c *CloudRun) GetEnhancedMetricTags(tags map[string]string) EnhancedMetricTags {
+	baseTags := map[string]string{
+		"location":      tagValueOrUnknown(tags["location"]),
+		"origin":        tagValueOrUnknown(tags["origin"]),
+		"project_id":    tagValueOrUnknown(tags["project_id"]),
+		"revision_name": tagValueOrUnknown(tags["revision_name"]),
+		"service_name":  tagValueOrUnknown(tags["service_name"]),
+	}
+
+	usageTags := maps.Clone(baseTags)
+	usageTags["instance"] = tagValueOrUnknown(tags["container_id"])
+
+	return EnhancedMetricTags{Base: baseTags, Usage: usageTags}
 }
 
 func (c *CloudRun) getFunctionTags(tags map[string]string) map[string]string {
@@ -121,20 +161,28 @@ func (c *CloudRun) getFunctionTags(tags map[string]string) map[string]string {
 	functionSignatureType := os.Getenv(functionTypeEnvVar)
 
 	if functionTargetVal != "" {
-		tags[cloudRunFunction+functionTarget] = functionTargetVal
+		tags[cloudRunFunctionTagPrefix+functionTarget] = functionTargetVal
 	}
 
 	if functionSignatureType != "" {
-		tags[cloudRunFunction+functionSignature] = functionSignatureType
+		tags[cloudRunFunctionTagPrefix+functionSignature] = functionSignatureType
 	}
 
-	tags[cloudRunFunction+resourceName] = fmt.Sprintf("projects/%s/locations/%s/services/%s/functions/%s", tags["project_id"], tags["location"], tags["service_name"], functionTargetVal)
+	tags[cloudRunFunctionTagPrefix+resourceName] = fmt.Sprintf("projects/%s/locations/%s/services/%s/functions/%s", tags["project_id"], tags["location"], tags["service_name"], functionTargetVal)
 	return tags
 }
 
 // GetDefaultLogsSource returns the default logs source if `DD_SOURCE` is not set
 func (c *CloudRun) GetDefaultLogsSource() string {
 	return CloudRunOrigin
+}
+
+func (c *CloudRun) GetMetricPrefix() string {
+	return cloudRunPrefix
+}
+
+func (c *CloudRun) GetUsageMetricSuffix() string {
+	return cloudRunUsageMetricSuffix
 }
 
 // GetOrigin returns the `origin` attribute type for the given
@@ -154,13 +202,16 @@ func (c *CloudRun) Init(_ *TracingContext) error {
 }
 
 // Shutdown emits the shutdown metric for CloudRun
-func (c *CloudRun) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, _ error) {
-	metric.Add(cloudRunPrefix+".enhanced.shutdown", 1.0, c.GetSource(), metricAgent)
+func (c *CloudRun) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, enhancedMetricsEnabled bool, _ error) {
+	if enhancedMetricsEnabled {
+		metricAgent.AddEnhancedMetric(cloudRunShutdownMetricName, 1.0, c.GetSource(), 0)
+		metricAgent.AddLegacyEnhancedMetric(cloudRunLegacyShutdownMetricName, 1.0, c.GetSource())
+	}
 }
 
-// GetStartMetricName returns the metric name for container start (coldstart) events
-func (c *CloudRun) GetStartMetricName() string {
-	return cloudRunPrefix + ".enhanced.cold_start"
+func (c *CloudRun) AddStartMetric(metricAgent *serverlessMetrics.ServerlessMetricAgent) {
+	metricAgent.AddEnhancedMetric(cloudRunStartMetricName, 1.0, c.GetSource(), 0)
+	metricAgent.AddLegacyEnhancedMetric(cloudRunLegacyStartMetricName, 1.0, c.GetSource())
 }
 
 // ShouldForceFlushAllOnForceFlushToSerializer is false usually.
@@ -175,7 +226,6 @@ func isCloudRunService() bool {
 
 func isCloudRunFunction() bool {
 	_, cloudRunFunctionMode := os.LookupEnv(functionTargetEnvVar)
-	log.Debug("cloud run namespace SET TO: " + cloudRunFunction)
 	return cloudRunFunctionMode
 }
 
@@ -217,7 +267,7 @@ func getSingleMetadata(httpClient *http.Client, url string) string {
 }
 
 // GetMetaData returns the container's metadata
-func GetMetaData(config *GCPConfig, isCloudRun bool) map[string]string {
+func GetMetaData(config *GCPConfig, cloudRunType CloudRunType) map[string]string {
 	type keyVal struct {
 		key, val string
 	}
@@ -230,10 +280,15 @@ func GetMetaData(config *GCPConfig, isCloudRun bool) map[string]string {
 	getMeta := func(fnMetadata func(*http.Client, string) string, url string, baseKey string) {
 		val := fnMetadata(httpClient, url)
 		metaChan <- keyVal{baseKey, val}
-		if isCloudRun {
-			metaChan <- keyVal{cloudRunService + baseKey, val}
-		} else {
-			metaChan <- keyVal{cloudRunFunction + baseKey, val}
+		switch cloudRunType {
+		case CloudRunJob:
+			metaChan <- keyVal{cloudRunJobTagPrefix + baseKey, val}
+		case CloudRunService:
+			metaChan <- keyVal{cloudRunServiceTagPrefix + baseKey, val}
+		case CloudRunFunction:
+			metaChan <- keyVal{cloudRunFunctionTagPrefix + baseKey, val}
+		default:
+			panic(fmt.Sprintf("unexpected cloudRunType for GCP metadata: %s", cloudRunType))
 		}
 	}
 

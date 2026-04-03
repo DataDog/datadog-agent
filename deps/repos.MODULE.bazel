@@ -10,8 +10,10 @@ sqlite_amalgamation = "sqlite-amalgamation-{}00".format("".join(sqlite_ver))
 
 http_archive(
     name = "sqlite3",
-    build_file = "//deps:sqlite3.BUILD.bazel",
-    files = {"LICENSE.md": "@sqlite3_license//file:LICENSE.md"},
+    files = {
+        "BUILD.bazel": "//deps:sqlite3.BUILD.bazel",
+        "LICENSE.md": "@sqlite3_license//file:LICENSE.md",
+    },
     sha256 = "1d3049dd0f830a025a53105fc79fd2ab9431aea99e137809d064d8ee8356b032",
     strip_prefix = sqlite_amalgamation,
     url = "https://www.sqlite.org/2025/{}.zip".format(sqlite_amalgamation),
@@ -22,7 +24,6 @@ http_file(
     downloaded_file_path = "LICENSE.md",
     sha256 = "a7a58d6022c090c528e3167026167b3141d682efc6a3c188b473ba59f1788fc7",
     urls = [url.format(".".join([v.lstrip("0") for v in sqlite_ver])) for url in (
-        "https://cdn.jsdelivr.net/gh/sqlite/sqlite@version-{}/LICENSE.md",
         "https://raw.githubusercontent.com/sqlite/sqlite/version-{}/LICENSE.md",
     )],
 )
@@ -72,14 +73,27 @@ http_archive(
 )
 
 # Defines a "rules_foreign_cc" target to build openssl
+# Pinned to main commit 2373ac51627f05029b0068884c93fa82a11df400 to get:
+# - bazel-contrib/rules_foreign_cc#1451: out_data_dirs in output groups
+# - bazel-contrib/rules_foreign_cc#1465: resource_set integration (fixes overcommitting)
+# - bazel-contrib/rules_foreign_cc#1493: load CcSharedLibraryInfo from rules_cc (Bazel 9)
+# - bazel-contrib/rules_foreign_cc#1492: bump bazel_skylib_gazelle_plugin to 1.9.0 (Bazel 9)
 bazel_dep(name = "rules_foreign_cc", version = "0.15.1")
-single_version_override(
+git_override(
     module_name = "rules_foreign_cc",
+    commit = "7e486222f4899ea22f6f7b689534fc8b9e54b575",
     patch_strip = 1,
     patches = [
-        "//bazel/patches:rules_foreign_cc/0001-include-out_data_dirs-to-the-output-groups.patch",
+        # https://github.com/bazel-contrib/rules_foreign_cc/pull/1452
         "//bazel/patches:rules_foreign_cc/0002-configure_make-provide-DY-LD_LIBRARY_PATH-based-on-t.patch",
+        # https://github.com/bazel-contrib/rules_foreign_cc/pull/1491
+        "//bazel/patches:rules_foreign_cc/0003-pass-j-flag-directly-on-make-command-line.patch",
+        # https://github.com/bazel-contrib/rules_foreign_cc/issues/985
+        # TODO(agent-build): Ideally we'd like to find a better way to solve this, possibly
+        # finding a general solution that could be properly upstreamed
+        "//bazel/patches:rules_foreign_cc/0004-Pass-cc-flags-as-CPPFLAGS.patch",
     ],
+    remote = "https://github.com/bazel-contrib/rules_foreign_cc",
 )
 
 register_toolchains(
@@ -157,6 +171,19 @@ http_archive(
     urls = [
         "https://dd-agent-omnibus.s3.amazonaws.com/bazel/util-linux-2.39.2.tar.gz",
         "https://mirrors.edge.kernel.org/pub/linux/utils/util-linux/v2.39/util-linux-2.39.2.tar.gz",
+    ],
+)
+
+http_archive(
+    name = "libseccomp",
+    files = {
+        "BUILD.bazel": "//deps/libseccomp:overlay.BUILD.bazel",
+        "src/configure.h": "//deps/libseccomp:configure.h",
+    },
+    sha256 = "83b6085232d1588c379dc9b9cae47bb37407cf262e6e74993c61ba72d2a784dc",
+    strip_prefix = "libseccomp-2.6.0",
+    urls = [
+        "https://github.com/seccomp/libseccomp/releases/download/v2.6.0/libseccomp-2.6.0.tar.gz",
     ],
 )
 

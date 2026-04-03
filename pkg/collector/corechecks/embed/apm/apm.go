@@ -50,6 +50,7 @@ type APMCheck struct {
 	stop           chan struct{}
 	stopDone       chan struct{}
 	source         string
+	provider       string
 	telemetry      bool
 	initConfig     string
 	instanceConfig string
@@ -68,6 +69,11 @@ func (c *APMCheck) Version() string {
 // ConfigSource displays the command's source
 func (c *APMCheck) ConfigSource() string {
 	return c.source
+}
+
+// ConfigProvider returns the name of the config provider that issued the check config
+func (c *APMCheck) ConfigProvider() string {
+	return c.provider
 }
 
 // Loader returns the check loader
@@ -158,7 +164,7 @@ func (c *APMCheck) run() error {
 }
 
 // Configure configures the APM check with the provided configuration
-func (c *APMCheck) Configure(_ sender.SenderManager, _ uint64, data integration.Data, initConfig integration.Data, source string) error {
+func (c *APMCheck) Configure(_ sender.SenderManager, _ uint64, data integration.Data, initConfig integration.Data, source string, provider string) error {
 	var checkConf apmCheckConf
 	if err := yaml.Unmarshal(data, &checkConf); err != nil {
 		return err
@@ -192,6 +198,7 @@ func (c *APMCheck) Configure(_ sender.SenderManager, _ uint64, data integration.
 	}
 
 	c.source = source
+	c.provider = provider
 	c.telemetry = utils.IsCheckTelemetryEnabled("apm", pkgconfigsetup.Datadog())
 	c.initConfig = string(initConfig)
 	c.instanceConfig = string(data)

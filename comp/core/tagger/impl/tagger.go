@@ -384,9 +384,6 @@ func (t *localTagger) GlobalTags(cardinality types.TagCardinality) ([]string, er
 // NOTE(remy): it is not needed to sort/dedup the tags anymore since after the
 // enrichment, the metric and its tags is sent to the context key generator, which
 // is taking care of deduping the tags while generating the context key.
-// This function is dupliacted in the remote tagger `impl-remote`.
-// When modifying this function make sure to update the copy `impl-remote` as well.
-// TODO: extract this function to a share function so it can be used in both implementations
 func (t *localTagger) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertypes.OriginInfo) {
 	cardinality := taggerCardinality(originInfo.Cardinality, t.datadogConfig.dogstatsdCardinality, t.log)
 

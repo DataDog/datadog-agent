@@ -1,0 +1,17 @@
+# enable logs agent
+logs_enabled: true
+
+# enable process agent
+process_config:
+  # live process
+  process_collection:
+    enabled: true
+
+# enable the datadog-installer, needs an API KEY
+remote_updates: true
+
+# enable remote configuration so the installer runs in FIPS mode
+remote_configuration:
+  enabled: true
+
+# trace-agent is running by default

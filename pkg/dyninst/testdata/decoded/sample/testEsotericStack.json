@@ -89,10 +89,12 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "{_valid: 77, c: {chan}, val: 42, work: {pointer: not captured at 0x[addr]}, foo: {func}}"
+    "message": "{_valid: 77, c: {chan}, val: 42, work: {pointer: not captured at 0x[addr]}, foo: {func}}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

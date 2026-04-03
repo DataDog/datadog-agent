@@ -112,7 +112,6 @@ components_classic_style = [
     'comp/api/authtoken/fetchonlyimpl',
     'comp/api/authtoken/createandfetchimpl',
     'comp/checks/agentcrashdetect/agentcrashdetectimpl',
-    'comp/checks/windowseventlog/windowseventlogimpl',
     "comp/checks/winregistry/impl",
     'comp/collector/collector/collectorimpl',
     'comp/core/autodiscovery/autodiscoveryimpl',

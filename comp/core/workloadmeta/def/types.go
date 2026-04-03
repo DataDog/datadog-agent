@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
+	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	pkgcontainersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 )
@@ -92,9 +92,13 @@ const (
 	// workloadmeta.
 	SourceRemoteWorkloadmeta Source = "remote_workloadmeta"
 
-	// SourceRemoteProcessCollector reprents processes entities detected
+	// SourceRemoteProcessCollector represents processes entities detected
 	// by the RemoteProcessCollector.
 	SourceRemoteProcessCollector Source = "remote_process_collector"
+
+	// SourceRemoteSBOMCollector represents SBOM entities computed
+	// by the RemoteSBOMCollector.
+	SourceRemoteSBOMCollector Source = "remote_sbom_collector"
 
 	// SourceLanguageDetectionServer represents container languages
 	// detected by node agents
@@ -363,6 +367,7 @@ type ContainerState struct {
 	StartedAt  time.Time
 	FinishedAt time.Time
 	ExitCode   *int64
+	SBOM       *SBOM
 }
 
 // String returns a string representation of ContainerState.
@@ -613,9 +618,8 @@ func (e ECSContainer) String(verbose bool) string {
 
 // ContainerProbe represents a health check probe for a Container
 type ContainerProbe struct {
-	// This is only used by KSM, so it only includes the fields used by KSM. We
-	// can add the rest later as needed.
 	InitialDelaySeconds int32
+	FailureThreshold    int32
 }
 
 // Container is an Entity representing a containerized workload.
@@ -654,8 +658,13 @@ type Container struct {
 	// CgroupPath is a path to the cgroup of the container.
 	// It can be relative to the cgroup parent.
 	// Linux only.
-	CgroupPath   string
+	CgroupPath string
+	// SandboxID is the identifier of the sandbox this container belongs to.
+	// Populated from containerd's container info SandboxID field.
+	SandboxID    string
 	RestartCount int
+
+	SBOM *SBOM
 }
 
 // GetID implements Entity#GetID.
@@ -1078,9 +1087,10 @@ func (t KubernetesPodToleration) String(_ bool) string {
 
 // KubernetesPodCondition represents a condition in a Kubernetes pod status.
 type KubernetesPodCondition struct {
-	Type   string
-	Status string
-	Reason string
+	Type               string
+	Status             string
+	Reason             string
+	LastTransitionTime time.Time
 }
 
 // String returns a string representation of KubernetesPodCondition.
@@ -1566,7 +1576,31 @@ func (i *ContainerImageMetadata) Merge(e Entity) error {
 		return fmt.Errorf("cannot merge ContainerImageMetadata with different kind %T", e)
 	}
 
-	return merge(i, otherImage)
+	// Save SBOM pointers before the generic merge to prevent mergo from
+	// concatenating the compressed Bom []byte fields across sources. Two
+	// gzip-encoded protobufs appended byte-for-byte form a valid multistream
+	// gzip that decodes to a concatenated protobuf, which duplicates all
+	// repeated Components.  We apply our own "prefer dst if non-nil" rule
+	// instead: the remote SBOM collector (alphabetically first) always
+	// produces an already-enriched SBOM that supersedes the raw Trivy SBOM.
+	dstSBOM := i.SBOM
+	srcSBOM := otherImage.SBOM
+
+	// Shallow-copy src with SBOM cleared so the generic merge skips it.
+	otherImageCopy := *otherImage
+	otherImageCopy.SBOM = nil
+	i.SBOM = nil
+
+	err := merge(i, &otherImageCopy)
+
+	// Restore SBOM: keep dst's enriched SBOM when available, else fall back to src.
+	if dstSBOM != nil {
+		i.SBOM = dstSBOM
+	} else {
+		i.SBOM = srcSBOM
+	}
+
+	return err
 }
 
 // DeepCopy implements Entity#DeepCopy.
@@ -1677,9 +1711,6 @@ type Service struct {
 
 	// APMInstrumentation indicates if the service is instrumented for APM
 	APMInstrumentation bool
-
-	// Type is the service type (e.g., "web_service")
-	Type string
 }
 
 // UST contains Unified Service Tagging environment variables
@@ -1821,7 +1852,6 @@ func (p Process) String(verbose bool) string {
 			_, _ = fmt.Fprintln(&sb, "Service TCP Ports:", p.Service.TCPPorts)
 			_, _ = fmt.Fprintln(&sb, "Service UDP Ports:", p.Service.UDPPorts)
 			_, _ = fmt.Fprintln(&sb, "Service APM Instrumentation:", p.Service.APMInstrumentation)
-			_, _ = fmt.Fprintln(&sb, "Service Type:", p.Service.Type)
 
 			if p.Service.UST != (UST{}) {
 				_, _ = fmt.Fprintln(&sb, "---- Unified Service Tagging ----")
@@ -2183,8 +2213,8 @@ func (crd *CRD) Merge(e Entity) error {
 
 // DeepCopy returns a deep copy of the given CRD entity
 func (crd CRD) DeepCopy() Entity {
-	copyCrd := deepcopy.Copy(crd).(*CRD)
-	return copyCrd
+	copyCrd := deepcopy.Copy(crd).(CRD)
+	return &copyCrd
 }
 
 // String return the string representation of the given CRD entity.

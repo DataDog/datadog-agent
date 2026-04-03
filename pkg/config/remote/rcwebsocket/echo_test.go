@@ -106,6 +106,10 @@ func TestWebSocketTest(t *testing.T) {
 			agentConfig.SetWithoutSource("remote_configuration.no_tls_validation", true) // RC check
 
 			ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// Verify the reconnection counter header is present and zero on
+				// the first (and only) connection in these tests.
+				assert.Equal("0", r.Header.Get("X-Echo-Reconnections"))
+
 				// Attempt to upgrade the HTTP connection into a WebSocket
 				// connection.
 				conn, err := upgrader.Upgrade(w, r, nil)
@@ -145,7 +149,7 @@ func TestWebSocketTest(t *testing.T) {
 
 			// Drive the test and ensure the expected number of frames were
 			// exchanged.
-			n, err := runEchoLoop(ctx, client)
+			n, err := runEchoLoop(ctx, client, 0)
 			assert.NoError(err)
 			assert.Equal(uint(len(tt.frames)), n)
 		})
@@ -219,10 +223,10 @@ func TestWebSocketTest_PING_PONG(t *testing.T) {
 	client, err := api.NewHTTPClient(api.Auth{}, agentConfig, url)
 	assert.NoError(err)
 
-	conn, err := client.NewWebSocket(ctx, "/bananas")
+	conn, err := client.NewWebSocket(ctx, "/bananas", nil)
 	assert.NoError(err)
 	defer conn.Close()
 
-	_, err = runEchoLoop(ctx, client)
+	_, err = runEchoLoop(ctx, client, 0)
 	assert.NoError(err)
 }

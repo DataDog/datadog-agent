@@ -118,10 +118,12 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "testReturnsManyFloats"
+    "message": "testReturnsManyFloats",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

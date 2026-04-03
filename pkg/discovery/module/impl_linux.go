@@ -25,8 +25,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/discovery/core"
 	"github.com/DataDog/datadog-agent/pkg/discovery/language"
 	"github.com/DataDog/datadog-agent/pkg/discovery/model"
-	"github.com/DataDog/datadog-agent/pkg/discovery/servicetype"
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
+	tracermetadatamodel "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/discovery/usm"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -108,13 +108,15 @@ func (s *discovery) handleStatusEndpoint(w http.ResponseWriter, _ *http.Request)
 
 // handleStateEndpoint is the handler for the /state endpoint.
 // Returns the internal state of the discovery module.
-func (s *discovery) handleStateEndpoint(w http.ResponseWriter, _ *http.Request) {
+func (s *discovery) handleStateEndpoint(w http.ResponseWriter, req *http.Request) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 
-	state := make(map[string]interface{})
+	state := map[string]interface{}{
+		"implementation": "system-probe",
+	}
 
-	utils.WriteAsJSON(w, state, utils.CompactOutput)
+	utils.WriteAsJSON(req, w, state, utils.CompactOutput)
 }
 
 func (s *discovery) handleServices(w http.ResponseWriter, req *http.Request) {
@@ -132,7 +134,7 @@ func (s *discovery) handleServices(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	utils.WriteAsJSON(w, services, utils.CompactOutput)
+	utils.WriteAsJSON(req, w, services, utils.CompactOutput)
 }
 
 // socketInfo stores information related to each socket.
@@ -336,8 +338,8 @@ func (s *discovery) getServiceInfo(pid int32, openFiles openFilesInfo) (*model.S
 		return nil, err
 	}
 
-	var tracerMetadataArr []tracermetadata.TracerMetadata
-	var firstMetadata *tracermetadata.TracerMetadata
+	var tracerMetadataArr []tracermetadatamodel.TracerMetadata
+	var firstMetadata *tracermetadatamodel.TracerMetadata
 
 	if openFiles.tracerMemfdFd != "" {
 		fdPath := kernel.HostProc(strconv.Itoa(int(pid)), "fd", openFiles.tracerMemfdFd)
@@ -563,7 +565,6 @@ func (s *discovery) getServiceWithoutRetry(context parsingContext, pid int32) *m
 	service.TCPPorts = tcpPorts
 	service.UDPPorts = udpPorts
 	service.LogFiles = getLogFiles(pid, openFileInfo.logs)
-	service.Type = string(servicetype.Detect(tcpPorts, udpPorts))
 
 	return service
 }

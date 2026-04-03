@@ -11,7 +11,7 @@
 '@datadog/core-authn': AUTHN
 '@datadog/agent-security': CWS
 '@datadog/agent-apm': APMSP
-'@datadog/ndm-core': NDMC
+'@datadog/network-device-monitoring-core': NDMC
 '@datadog/ndm-integrations': NDINT
 '@datadog/container-experiences': CXP
 '@datadog/ecs-experiences': EXP
@@ -40,6 +40,7 @@
 '@datadog/debugger': DEBUG
 '@datadog/debugger-go': DEBUG
 '@datadog/database-monitoring': DBMON
+'@datadog/data-observability': DO
 '@datadog/data-streams-monitoring': DSMON
 '@datadog/agent-cspm': SEC
 '@datadog/apm-trace-storage': TDH
@@ -53,3 +54,4 @@
 '@datadog/synthetics-executing': SYNORG
 '@datadog/agent-health': AHEALTH
 '@datadog/profiling-full-host': 'PROF'
+'@datadog/q-branch': DEFAULT_JIRA_PROJECT

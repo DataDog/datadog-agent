@@ -119,7 +119,7 @@ func TestFillFlare(t *testing.T) {
 	i.Enabled = true
 	flareFiller(f)
 	f.AssertFileExists("metadata", "inventory", "test.json")
-	f.AssertFileContent("{\n    \"test\": true\n}", "metadata", "inventory", "test.json")
+	f.AssertFileContent("{\n  \"test\": true\n}", "metadata", "inventory", "test.json")
 }
 
 func TestCollectRecentLastCollect(t *testing.T) {

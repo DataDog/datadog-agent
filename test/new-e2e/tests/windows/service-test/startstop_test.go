@@ -46,6 +46,9 @@ var agentConfigTADisabled string
 //go:embed fixtures/datadog-di-disabled.yaml
 var agentConfigDIDisabled string
 
+//go:embed fixtures/datadog-rc-enabled.yaml
+var agentConfigRCEnabled string
+
 //go:embed fixtures/system-probe.yaml
 var systemProbeConfig string
 
@@ -78,29 +81,45 @@ const driverVerifierTimeoutScale = 10
 
 type onServiceStateMismatch func(host *components.RemoteHost, serviceName, actual string)
 
+// TestServiceBehaviorInstallerWithRemoteConfig tests that the installer runs
+// when remote_configuration is explicitly enabled, which is required in FIPS mode.
+// TODO: remove this test when installer runs fully in FIPS mode.
+func TestServiceBehaviorInstallerWithRemoteConfig(t *testing.T) {
+	s := &installerWithRemoteConfigSuite{}
+	run(t, s, systemProbeConfig, agentConfigRCEnabled, securityAgentConfig)
+}
+
+type installerWithRemoteConfigSuite struct {
+	powerShellServiceCommandSuite
+}
+
+func (s *installerWithRemoteConfigSuite) SetupSuite() {
+	s.powerShellServiceCommandSuite.SetupSuite()
+	defer s.CleanupOnSetupFailure()
+
+	// With remote_configuration enabled, the installer should run even in FIPS mode
+	s.runningUserServices = func() []string {
+		return s.getInstalledUserServices()
+	}
+	s.runningServices = func() []string {
+		return s.getInstalledServices()
+	}
+}
+
 // TestServiceBehaviorAgentCommandNoFIM tests the service behavior when controlled by Agent commands
 func TestNoFIMServiceBehaviorAgentCommand(t *testing.T) {
-	// TODO(windows-products): Fix flakiness and re-enable this test
-	flake.Mark(t)
-
 	s := &agentServiceCommandSuite{}
 	run(t, s, systemProbeNoFIMConfig, agentConfig, securityAgentConfig)
 }
 
 // TestServiceBehaviorPowerShellNoFIM tests the service behavior when controlled by PowerShell commands
 func TestNoFIMServiceBehaviorPowerShell(t *testing.T) {
-	// TODO(windows-products): Fix flakiness and re-enable this test
-	flake.Mark(t)
-
 	s := &powerShellServiceCommandSuite{}
 	run(t, s, systemProbeNoFIMConfig, agentConfig, securityAgentConfig)
 }
 
 // TestServiceBehaviorAgentCommand tests the service behavior when controlled by Agent commands
 func TestServiceBehaviorAgentCommand(t *testing.T) {
-	// TODO(windows-products): Fix flakiness and re-enable this test
-	flake.Mark(t)
-
 	s := &agentServiceCommandSuite{}
 	run(t, s, systemProbeConfig, agentConfig, securityAgentConfig)
 }
@@ -139,9 +158,6 @@ func (s *agentServiceCommandSuite) SetupSuite() {
 
 // TestServiceBehaviorAgentCommand tests the service behavior when controlled by PowerShell commands
 func TestServiceBehaviorPowerShell(t *testing.T) {
-	// TODO(windows-products): Fix flakiness and re-enable this test
-	flake.Mark(t)
-
 	s := &powerShellServiceCommandSuite{}
 	run(t, s, systemProbeConfig, agentConfig, securityAgentConfig)
 }
@@ -289,9 +305,6 @@ type agentServiceDisabledSuite struct {
 
 // TestServiceBehaviorWhenDisabled tests the service behavior when disabled in the configuration
 func TestServiceBehaviorWhenDisabledSystemProbe(t *testing.T) {
-	// TODO(windows-products): Fix flakiness and re-enable this test
-	flake.Mark(t)
-
 	s := &agentServiceDisabledSystemProbeSuite{}
 	s.disabledServices = []string{
 		"datadog-security-agent",
@@ -308,9 +321,6 @@ type agentServiceDisabledSystemProbeSuite struct {
 
 // TestServiceBehaviorWhenDisabledProcessAgent tests the service behavior when disabled in the configuration
 func TestServiceBehaviorWhenDisabledProcessAgent(t *testing.T) {
-	// TODO(windows-products): Fix flakiness and re-enable this test
-	flake.Mark(t)
-
 	s := &agentServiceDisabledProcessAgentSuite{}
 	s.disabledServices = []string{
 		"datadog-process-agent",
@@ -327,9 +337,6 @@ type agentServiceDisabledProcessAgentSuite struct {
 }
 
 func TestServiceBehaviorWhenDisabledTraceAgent(t *testing.T) {
-	// TODO(windows-products): Fix flakiness and re-enable this test
-	flake.Mark(t)
-
 	s := &agentServiceDisabledTraceAgentSuite{}
 	s.disabledServices = []string{
 		"datadog-trace-agent",
@@ -342,9 +349,6 @@ type agentServiceDisabledTraceAgentSuite struct {
 }
 
 func TestServiceBehaviorWhenDisabledInstaller(t *testing.T) {
-	// TODO(windows-products): Fix flakiness and re-enable this test
-	flake.Mark(t)
-
 	s := &agentServiceDisabledInstallerSuite{}
 	s.disabledServices = []string{
 		"Datadog Installer",
@@ -360,6 +364,11 @@ func (s *agentServiceDisabledSuite) SetupSuite() {
 	s.baseStartStopSuite.SetupSuite()
 	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
 	defer s.CleanupOnSetupFailure()
+
+	// TODO: This service is not supported in FIPS mode yet
+	if s.Env().Agent.FIPSEnabled && !slices.Contains(s.disabledServices, "Datadog Installer") {
+		s.disabledServices = append(s.disabledServices, "Datadog Installer")
+	}
 
 	// set up the expected services before calling the base setup
 	s.runningUserServices = func() []string {
@@ -409,6 +418,15 @@ func (s *agentServiceDisabledSuite) TestStartingDisabledService() {
 
 		// verify that we only try user services
 		if !slices.Contains(kernel, service) {
+			// In FIPS builds the installer does not start correctly
+			// when remote configuration is disabled and Start-Service fails.
+			// TODO: remove this when installer runs fully in FIPS mode.
+			if s.Env().Agent.FIPSEnabled && service == "Datadog Installer" {
+				err := windowsCommon.StartService(s.Env().RemoteHost, service)
+				s.Require().Error(err, "should fail to start "+service+" in FIPS mode")
+				continue
+			}
+
 			// try and start it and verify that it does correctly outputs to event log
 			err := windowsCommon.StartService(s.Env().RemoteHost, service)
 			s.Require().NoError(err, "should start "+service)
@@ -581,10 +599,24 @@ func (s *baseStartStopSuite) SetupSuite() {
 
 	// Setup default expected services
 	s.runningUserServices = func() []string {
-		return s.getInstalledUserServices()
+		services := s.getInstalledUserServices()
+		if s.Env().Agent.FIPSEnabled {
+			// TODO: This service is not supported in FIPS mode yet
+			services = slices.DeleteFunc(services, func(svc string) bool {
+				return svc == "Datadog Installer"
+			})
+		}
+		return services
 	}
 	s.runningServices = func() []string {
-		return s.getInstalledServices()
+		services := s.getInstalledServices()
+		if s.Env().Agent.FIPSEnabled {
+			// TODO: This service is not supported in FIPS mode yet
+			services = slices.DeleteFunc(services, func(svc string) bool {
+				return svc == "Datadog Installer"
+			})
+		}
+		return services
 	}
 
 	// By default driver verifier is disabled.
@@ -959,9 +991,6 @@ type dvAgentServiceDisabledInstallerSuite struct {
 // TestDriverVerifierOnServiceBehaviorAgentCommand tests the same as TestServiceBehaviorAgentCommand
 // with driver verifier enabled.
 func TestDriverVerifierOnServiceBehaviorAgentCommand(t *testing.T) {
-	// TODO(windows-products): Fix flakiness and re-enable this test
-	flake.Mark(t)
-
 	s := &dvAgentServiceCommandSuite{}
 	s.enableDriverVerifier = true
 	s.timeoutScale = driverVerifierTimeoutScale
@@ -971,9 +1000,6 @@ func TestDriverVerifierOnServiceBehaviorAgentCommand(t *testing.T) {
 // TestDriverVerifierOnServiceBehaviorPowerShell tests the the same as TestServiceBehaviorPowerShell
 // with driver verifier enabled.
 func TestDriverVerifierOnServiceBehaviorPowerShell(t *testing.T) {
-	// TODO(windows-products): Fix flakiness and re-enable this test
-	flake.Mark(t)
-
 	s := &dvPowerShellServiceCommandSuite{}
 	s.enableDriverVerifier = true
 	s.timeoutScale = driverVerifierTimeoutScale
@@ -983,9 +1009,6 @@ func TestDriverVerifierOnServiceBehaviorPowerShell(t *testing.T) {
 // TestDriverVerifierOnServiceBehaviorWhenDisabledSystemProbe tests the same as TestServiceBehaviorWhenDisabledSystemProbe
 // with driver verifier enabled.
 func TestDriverVerifierOnServiceBehaviorWhenDisabledSystemProbe(t *testing.T) {
-	// TODO(windows-products): Fix flakiness and re-enable this test
-	flake.Mark(t)
-
 	s := &dvAgentServiceDisabledSystemProbeSuite{}
 	s.disabledServices = []string{
 		"datadog-security-agent",
@@ -1001,9 +1024,6 @@ func TestDriverVerifierOnServiceBehaviorWhenDisabledSystemProbe(t *testing.T) {
 // TestDriverVerifierOnServiceBehaviorWhenDisabledProcessAgent tests the same as TestServiceBehaviorWhenDisabledProcessAgent
 // with driver verifier enabled.
 func TestDriverVerifierOnServiceBehaviorWhenDisabledProcessAgent(t *testing.T) {
-	// TODO(windows-products): Fix flakiness and re-enable this test
-	flake.Mark(t)
-
 	s := &dvAgentServiceDisabledProcessAgentSuite{}
 	s.disabledServices = []string{
 		"datadog-process-agent",
@@ -1020,9 +1040,6 @@ func TestDriverVerifierOnServiceBehaviorWhenDisabledProcessAgent(t *testing.T) {
 // TestDriverVerifierOnServiceBehaviorWhenDisabledTraceAgent tests the same as TestServiceBehaviorWhenDisabledTraceAgent
 // with driver verifier enabled.
 func TestDriverVerifierOnServiceBehaviorWhenDisabledTraceAgent(t *testing.T) {
-	// TODO(windows-products): Fix flakiness and re-enable this test
-	flake.Mark(t)
-
 	s := &dvAgentServiceDisabledTraceAgentSuite{}
 	s.disabledServices = []string{
 		"datadog-trace-agent",
@@ -1035,9 +1052,6 @@ func TestDriverVerifierOnServiceBehaviorWhenDisabledTraceAgent(t *testing.T) {
 // TestDriverVerifierOnServiceBehaviorWhenDisabledInstaller tests the same as TestServiceBehaviorWhenDisabledInstaller
 // with driver verifier enabled.
 func TestDriverVerifierOnServiceBehaviorWhenDisabledInstaller(t *testing.T) {
-	// TODO(windows-products): Fix flakiness and re-enable this test
-	flake.Mark(t)
-
 	s := &dvAgentServiceDisabledInstallerSuite{}
 	s.disabledServices = []string{
 		"Datadog Installer",

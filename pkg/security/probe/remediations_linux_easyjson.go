@@ -7,6 +7,7 @@ package probe
 
 import (
 	json "encoding/json"
+	utils "github.com/DataDog/datadog-agent/pkg/security/utils"
 	easyjson "github.com/mailru/easyjson"
 	jlexer "github.com/mailru/easyjson/jlexer"
 	jwriter "github.com/mailru/easyjson/jwriter"
@@ -99,11 +100,7 @@ func easyjson71693981DecodeGithubComDataDogDatadogAgentPkgSecurityProbe1(in *jle
 				(out.Process).UnmarshalEasyJSON(in)
 			}
 		case "container":
-			if in.IsNull() {
-				in.Skip()
-			} else {
-				(out.Container).UnmarshalEasyJSON(in)
-			}
+			easyjson71693981DecodeGithubComDataDogDatadogAgentPkgSecurityProbe2(in, &out.Container)
 		case "agent":
 			if in.IsNull() {
 				in.Skip()
@@ -170,6 +167,76 @@ func easyjson71693981DecodeGithubComDataDogDatadogAgentPkgSecurityProbe1(in *jle
 				}
 				in.Delim('}')
 			}
+		case "created_at":
+			if in.IsNull() {
+				in.Skip()
+				out.CreatedAt = nil
+			} else {
+				if out.CreatedAt == nil {
+					out.CreatedAt = new(utils.EasyjsonTime)
+				}
+				if in.IsNull() {
+					in.Skip()
+				} else {
+					if data := in.Raw(); in.Ok() {
+						in.AddError((*out.CreatedAt).UnmarshalJSON(data))
+					}
+				}
+			}
+		case "detected_at":
+			if in.IsNull() {
+				in.Skip()
+				out.DetectedAt = nil
+			} else {
+				if out.DetectedAt == nil {
+					out.DetectedAt = new(utils.EasyjsonTime)
+				}
+				if in.IsNull() {
+					in.Skip()
+				} else {
+					if data := in.Raw(); in.Ok() {
+						in.AddError((*out.DetectedAt).UnmarshalJSON(data))
+					}
+				}
+			}
+		case "killed_at":
+			if in.IsNull() {
+				in.Skip()
+				out.KilledAt = nil
+			} else {
+				if out.KilledAt == nil {
+					out.KilledAt = new(utils.EasyjsonTime)
+				}
+				if in.IsNull() {
+					in.Skip()
+				} else {
+					if data := in.Raw(); in.Ok() {
+						in.AddError((*out.KilledAt).UnmarshalJSON(data))
+					}
+				}
+			}
+		case "exited_at":
+			if in.IsNull() {
+				in.Skip()
+				out.ExitedAt = nil
+			} else {
+				if out.ExitedAt == nil {
+					out.ExitedAt = new(utils.EasyjsonTime)
+				}
+				if in.IsNull() {
+					in.Skip()
+				} else {
+					if data := in.Raw(); in.Ok() {
+						in.AddError((*out.ExitedAt).UnmarshalJSON(data))
+					}
+				}
+			}
+		case "ttr":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.TTR = string(in.String())
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -197,7 +264,7 @@ func easyjson71693981EncodeGithubComDataDogDatadogAgentPkgSecurityProbe1(out *jw
 	if true {
 		const prefix string = ",\"container\":"
 		out.RawString(prefix)
-		(in.Container).MarshalEasyJSON(out)
+		easyjson71693981EncodeGithubComDataDogDatadogAgentPkgSecurityProbe2(out, in.Container)
 	}
 	{
 		const prefix string = ",\"agent\":"
@@ -252,6 +319,31 @@ func easyjson71693981EncodeGithubComDataDogDatadogAgentPkgSecurityProbe1(out *jw
 			}
 			out.RawByte('}')
 		}
+	}
+	if in.CreatedAt != nil {
+		const prefix string = ",\"created_at\":"
+		out.RawString(prefix)
+		(*in.CreatedAt).MarshalEasyJSON(out)
+	}
+	if in.DetectedAt != nil {
+		const prefix string = ",\"detected_at\":"
+		out.RawString(prefix)
+		(*in.DetectedAt).MarshalEasyJSON(out)
+	}
+	if in.KilledAt != nil {
+		const prefix string = ",\"killed_at\":"
+		out.RawString(prefix)
+		(*in.KilledAt).MarshalEasyJSON(out)
+	}
+	if in.ExitedAt != nil {
+		const prefix string = ",\"exited_at\":"
+		out.RawString(prefix)
+		(*in.ExitedAt).MarshalEasyJSON(out)
+	}
+	if in.TTR != "" {
+		const prefix string = ",\"ttr\":"
+		out.RawString(prefix)
+		out.String(string(in.TTR))
 	}
 	out.RawByte('}')
 }
@@ -322,16 +414,6 @@ func easyjson71693981EncodeGithubComDataDogDatadogAgentPkgSecurityProbe2(out *jw
 		out.String(string(in.ID))
 	}
 	out.RawByte('}')
-}
-
-// MarshalEasyJSON supports easyjson.Marshaler interface
-func (v RemediationContainerContext) MarshalEasyJSON(w *jwriter.Writer) {
-	easyjson71693981EncodeGithubComDataDogDatadogAgentPkgSecurityProbe2(w, v)
-}
-
-// UnmarshalEasyJSON supports easyjson.Unmarshaler interface
-func (v *RemediationContainerContext) UnmarshalEasyJSON(l *jlexer.Lexer) {
-	easyjson71693981DecodeGithubComDataDogDatadogAgentPkgSecurityProbe2(l, v)
 }
 func easyjson71693981DecodeGithubComDataDogDatadogAgentPkgSecurityProbe3(in *jlexer.Lexer, out *RemediationAgentContext) {
 	isTopLevel := in.IsStart()

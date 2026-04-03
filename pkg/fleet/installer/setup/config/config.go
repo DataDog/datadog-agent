@@ -24,30 +24,30 @@ var (
 
 // WriteConfigs writes the configuration files to the given directory.
 func WriteConfigs(config Config, configDir string) error {
-	err := writeConfig(filepath.Join(configDir, datadogConfFile), config.DatadogYAML, 0640, true)
+	err := WriteConfig(filepath.Join(configDir, datadogConfFile), config.DatadogYAML, 0640, true)
 	if err != nil {
 		return fmt.Errorf("could not write datadog.yaml: %w", err)
 	}
 	if config.SecurityAgentYAML != nil {
-		err = writeConfig(filepath.Join(configDir, "security-agent.yaml"), config.SecurityAgentYAML, 0640, true)
+		err = WriteConfig(filepath.Join(configDir, "security-agent.yaml"), config.SecurityAgentYAML, 0640, true)
 		if err != nil {
 			return fmt.Errorf("could not write security-agent.yaml: %w", err)
 		}
 	}
 	if config.SystemProbeYAML != nil {
-		err = writeConfig(filepath.Join(configDir, "system-probe.yaml"), config.SystemProbeYAML, 0640, true)
+		err = WriteConfig(filepath.Join(configDir, "system-probe.yaml"), config.SystemProbeYAML, 0640, true)
 		if err != nil {
 			return fmt.Errorf("could not write system-probe.yaml: %w", err)
 		}
 	}
 	if config.ApplicationMonitoringYAML != nil {
-		err = writeConfig(filepath.Join(configDir, "application_monitoring.yaml"), config.ApplicationMonitoringYAML, 0644, true)
+		err = WriteConfig(filepath.Join(configDir, "application_monitoring.yaml"), config.ApplicationMonitoringYAML, 0644, true)
 		if err != nil {
 			return fmt.Errorf("could not write application_monitoring.yaml: %w", err)
 		}
 	}
 	for name, config := range config.IntegrationConfigs {
-		err = writeConfig(filepath.Join(configDir, "conf.d", name), config, 0644, false)
+		err = WriteConfig(filepath.Join(configDir, "conf.d", name), config, 0644, false)
 		if err != nil {
 			return fmt.Errorf("could not write %s.yaml: %w", name, err)
 		}
@@ -90,6 +90,15 @@ type DatadogConfig struct {
 	SBOM                 SBOMConfig                 `yaml:"sbom,omitempty"`
 	InfrastructureMode   string                     `yaml:"infrastructure_mode,omitempty"`
 	APMConfig            DatadogAPMConfig           `yaml:"apm_config,omitempty"`
+	AppKey               string                     `yaml:"app_key,omitempty"`
+	PrivateActionRunner  PrivateActionRunnerConfig  `yaml:"private_action_runner,omitempty"`
+}
+
+// PrivateActionRunnerConfig represents the configuration for the private action runner
+type PrivateActionRunnerConfig struct {
+	Enabled          *bool    `yaml:"enabled,omitempty"`
+	SelfEnroll       *bool    `yaml:"self_enroll,omitempty"`
+	ActionsAllowlist []string `yaml:"actions_allowlist,omitempty"`
 }
 
 // GPUCheckConfig represents the configuration for the GPU check
@@ -176,6 +185,12 @@ type SystemProbeConfig struct {
 	RuntimeSecurityConfig RuntimeSecurityConfig `yaml:"runtime_security_config,omitempty"`
 	GPUMonitoringConfig   GPUMonitoringConfig   `yaml:"gpu_monitoring,omitempty"`
 	PrivilegedLogsConfig  PrivilegedLogsConfig  `yaml:"privileged_logs,omitempty"`
+	WindowsCrashDetection WindowsCrashDetection `yaml:"windows_crash_detection,omitempty"`
+}
+
+// WindowsCrashDetection represents the configuration for Windows crash detection
+type WindowsCrashDetection struct {
+	Enabled *bool `yaml:"enabled,omitempty"`
 }
 
 // RuntimeSecurityConfig represents the configuration for the runtime security

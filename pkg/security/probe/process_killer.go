@@ -241,6 +241,12 @@ func (p *ProcessKiller) HandleProcessExited(event *model.Event) {
 		defer report.Unlock()
 
 		if report.Pid == event.ProcessContext.Pid {
+			if report.Scope == "process" {
+				if report.Status == KillActionStatusQueued {
+					// The process exited before the kill was performed
+					report.Status = KillActionStatusKillAborted
+				}
+			}
 			report.ExitedAt = event.ProcessContext.ExitTime
 			report.resolved = true
 			return true
@@ -323,6 +329,10 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 				DetectedAt:   ev.ResolveEventTime(),
 				Pid:          ev.ProcessContext.Pid,
 				rule:         rule,
+			}
+			if !ev.ProcessContext.Process.ContainerContext.IsNull() {
+				report.containerContext.ID = string(ev.ProcessContext.Process.ContainerContext.ContainerID)
+				report.containerContext.CreatedAt = ev.ProcessContext.Process.ContainerContext.CreatedAt
 			}
 			if dismantled {
 				report.Status = KillActionStatusRuleDismantled
@@ -422,6 +432,10 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 		DetectedAt: ev.ResolveEventTime(),
 		Pid:        ev.ProcessContext.Pid,
 		rule:       rule,
+	}
+	if !ev.ProcessContext.Process.ContainerContext.IsNull() {
+		report.containerContext.ID = string(ev.ProcessContext.Process.ContainerContext.ContainerID)
+		report.containerContext.CreatedAt = ev.ProcessContext.Process.ContainerContext.CreatedAt
 	}
 
 	if disarmer != nil && p.warmupEnqueued(disarmer, sig, pcs) {
@@ -621,6 +635,7 @@ func (p *ProcessKiller) Start(ctx context.Context, wg *sync.WaitGroup) {
 		killQueue := time.NewTicker(killQueueTicker)
 
 		defer ticker.Stop()
+		defer killQueue.Stop()
 		state := stopped
 		for {
 			switch state {
