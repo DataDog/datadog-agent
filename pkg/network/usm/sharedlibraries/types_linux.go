@@ -4,11 +4,9 @@
 package sharedlibraries
 
 type LibPath struct {
-	Pid           uint32
-	Len           uint32
-	SleepableMask uint64
-	Buf           [220]byte
-	Pad_cgo_0     [4]byte
+	Pid uint32
+	Len uint32
+	Buf [220]byte
 }
 
 const (
