@@ -22,11 +22,11 @@ VICTIM_CG="${TEST_PREFIX}_victim"
 NOISY_CG="${TEST_PREFIX}_noisy"
 QUIET_CG="${TEST_PREFIX}_quiet"
 # CPU quota in microseconds per 100ms period
-VICTIM_QUOTA=50000   # 50% of one core
-NOISY_QUOTA=200000   # 200% (2 cores worth)
+VICTIM_QUOTA=800000  # 800% (8 cores worth) — enough headroom for threads to preempt each other
+NOISY_QUOTA=800000   # 800% (8 cores worth)
 QUIET_QUOTA=50000    # 50% of one core
 STRESS_DURATION=30   # seconds to run workloads
-SETTLE_TIME=5        # seconds to wait for metrics to accumulate
+SETTLE_TIME=8        # seconds to wait for metrics to accumulate
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -214,17 +214,16 @@ sysprobe_post "/watchlist" '{"cgroup_ids":[]}'
 sleep 1
 sysprobe_get "/check" > /dev/null  # flush
 
-# Start a workload in the victim cgroup
-stress-ng --cpu 2 --timeout "${STRESS_DURATION}s" --quiet &
+# Start a workload in the victim cgroup (exec inside cgroup so workers inherit)
+bash -c "echo \$\$ > ${CGROUP_ROOT}/${VICTIM_CG}/cgroup.procs && exec stress-ng --cpu 2 --timeout ${STRESS_DURATION}s --quiet" &
 STRESS_PID=$!
-echo "$STRESS_PID" > "${CGROUP_ROOT}/${VICTIM_CG}/cgroup.procs"
 PIDS_TO_KILL+=("$STRESS_PID")
 
 sleep "$SETTLE_TIME"
 
 # Fetch stats — should be empty since watchlist is empty
 STATS=$(sysprobe_get "/check")
-CGROUP_COUNT=$(echo "$STATS" | jq '.cgroup_stats | length')
+CGROUP_COUNT=$(echo "$STATS" | jq '(.cgroup_stats // []) | length')
 
 if [[ "$CGROUP_COUNT" -eq 0 ]] || [[ "$CGROUP_COUNT" == "null" ]]; then
     pass "No cgroup stats with empty watchlist (fast-exit gate working)"
@@ -243,7 +242,7 @@ info "Added victim cgroup (inode $VICTIM_INODE) to watchlist"
 sleep "$SETTLE_TIME"
 
 STATS=$(sysprobe_get "/check")
-VICTIM_STATS=$(echo "$STATS" | jq ".cgroup_stats[] | select(.CgroupID == $VICTIM_INODE)")
+VICTIM_STATS=$(echo "$STATS" | jq "(.cgroup_stats // [])[] | select(.CgroupID == $VICTIM_INODE)")
 
 if [[ -n "$VICTIM_STATS" ]]; then
     EVENT_COUNT=$(echo "$VICTIM_STATS" | jq '.EventCount')
@@ -256,13 +255,12 @@ fi
 
 header "Test 3: Self-Preemption (many threads, same cgroup)"
 
-# Run many threads in victim cgroup with limited CPU quota → self-preemption
+# Run many more threads than CPUs with high quota → threads preempt each other
 kill "$STRESS_PID" 2>/dev/null; wait "$STRESS_PID" 2>/dev/null || true
 PIDS_TO_KILL=()
 
-stress-ng --cpu 16 --timeout "${STRESS_DURATION}s" --quiet &
+bash -c "echo \$\$ > ${CGROUP_ROOT}/${VICTIM_CG}/cgroup.procs && exec stress-ng --cpu 64 --timeout ${STRESS_DURATION}s --quiet" &
 STRESS_PID=$!
-echo "$STRESS_PID" > "${CGROUP_ROOT}/${VICTIM_CG}/cgroup.procs"
 PIDS_TO_KILL+=("$STRESS_PID")
 
 # Ensure watchlist is set
@@ -274,7 +272,7 @@ sysprobe_get "/check" > /dev/null
 sleep "$SETTLE_TIME"
 
 STATS=$(sysprobe_get "/check")
-VICTIM_STATS=$(echo "$STATS" | jq ".cgroup_stats[] | select(.CgroupID == $VICTIM_INODE)")
+VICTIM_STATS=$(echo "$STATS" | jq "(.cgroup_stats // [])[] | select(.CgroupID == $VICTIM_INODE)")
 
 if [[ -n "$VICTIM_STATS" ]]; then
     SELF_PREEMPT=$(echo "$VICTIM_STATS" | jq '.SelfPreemptionCount')
@@ -295,9 +293,8 @@ fi
 header "Test 4: Foreign Preemption + Neighbor Identification"
 
 # Start aggressive workload in noisy cgroup
-stress-ng --cpu 16 --timeout "${STRESS_DURATION}s" --quiet &
+bash -c "echo \$\$ > ${CGROUP_ROOT}/${NOISY_CG}/cgroup.procs && exec stress-ng --cpu 64 --timeout ${STRESS_DURATION}s --quiet" &
 NOISY_PID=$!
-echo "$NOISY_PID" > "${CGROUP_ROOT}/${NOISY_CG}/cgroup.procs"
 PIDS_TO_KILL+=("$NOISY_PID")
 
 # Watch both cgroups
@@ -309,7 +306,7 @@ sysprobe_get "/check" > /dev/null
 sleep "$SETTLE_TIME"
 
 STATS=$(sysprobe_get "/check")
-VICTIM_STATS=$(echo "$STATS" | jq ".cgroup_stats[] | select(.CgroupID == $VICTIM_INODE)")
+VICTIM_STATS=$(echo "$STATS" | jq "(.cgroup_stats // [])[] | select(.CgroupID == $VICTIM_INODE)")
 PREEMPTOR_STATS=$(echo "$STATS" | jq '.preemptor_stats // []')
 
 if [[ -n "$VICTIM_STATS" ]]; then
@@ -420,7 +417,7 @@ sysprobe_get "/check" > /dev/null
 sleep "$SETTLE_TIME"
 
 STATS=$(sysprobe_get "/check")
-CGROUP_COUNT=$(echo "$STATS" | jq '.cgroup_stats | length')
+CGROUP_COUNT=$(echo "$STATS" | jq '(.cgroup_stats // []) | length')
 
 if [[ "$CGROUP_COUNT" -eq 0 ]] || [[ "$CGROUP_COUNT" == "null" ]]; then
     pass "No stats after clearing watchlist"
@@ -433,9 +430,8 @@ fi
 header "Test 9: Quiet Cgroup Baseline"
 
 # Run minimal workload in quiet cgroup
-stress-ng --cpu 1 --timeout "${STRESS_DURATION}s" --quiet &
+bash -c "echo \$\$ > ${CGROUP_ROOT}/${QUIET_CG}/cgroup.procs && exec stress-ng --cpu 1 --timeout ${STRESS_DURATION}s --quiet" &
 QUIET_PID=$!
-echo "$QUIET_PID" > "${CGROUP_ROOT}/${QUIET_CG}/cgroup.procs"
 PIDS_TO_KILL+=("$QUIET_PID")
 
 # Watch quiet cgroup
@@ -445,7 +441,7 @@ sysprobe_get "/check" > /dev/null
 sleep "$SETTLE_TIME"
 
 STATS=$(sysprobe_get "/check")
-QUIET_STATS=$(echo "$STATS" | jq ".cgroup_stats[] | select(.CgroupID == $QUIET_INODE)")
+QUIET_STATS=$(echo "$STATS" | jq "(.cgroup_stats // [])[] | select(.CgroupID == $QUIET_INODE)")
 
 if [[ -n "$QUIET_STATS" ]]; then
     Q_FOREIGN=$(echo "$QUIET_STATS" | jq '.ForeignPreemptionCount')
@@ -479,8 +475,8 @@ sysprobe_get "/check" > /dev/null
 sleep "$SETTLE_TIME"
 
 STATS=$(sysprobe_get "/check")
-VICTIM_IN_STATS=$(echo "$STATS" | jq "[.cgroup_stats[] | select(.CgroupID == $VICTIM_INODE)] | length")
-NOISY_IN_STATS=$(echo "$STATS" | jq "[.cgroup_stats[] | select(.CgroupID == $NOISY_INODE)] | length")
+VICTIM_IN_STATS=$(echo "$STATS" | jq "[(.cgroup_stats // [])[] | select(.CgroupID == $VICTIM_INODE)] | length")
+NOISY_IN_STATS=$(echo "$STATS" | jq "[(.cgroup_stats // [])[] | select(.CgroupID == $NOISY_INODE)] | length")
 
 if [[ "$VICTIM_IN_STATS" -eq 0 ]]; then
     pass "Victim cgroup NOT in stats after watchlist replacement"
