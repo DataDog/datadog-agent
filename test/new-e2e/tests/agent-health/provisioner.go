@@ -81,16 +81,12 @@ func dockerPermissionEnvProvisioner() provisioners.PulumiEnvRunFunc[dockerPermis
 
 		// Deploy busybox containers using Docker Compose
 		// These will run without proper permissions to trigger the docker permission issue
-		busyboxEnvVars := pulumi.StringMap{}
-		if awsEnv.ImagePullRegistry() != "" {
-			busyboxEnvVars["DD_REGISTRY"] = pulumi.String(strings.SplitN(awsEnv.ImagePullRegistry(), ",", 2)[0] + "/dockerhub")
-		}
 		composeBusyboxCmd, err := dockerManager.ComposeStrUp("busybox", []docker.ComposeInlineManifest{
 			{
 				Name:    "busybox",
 				Content: pulumi.String(busyboxComposeContent),
 			},
-		}, busyboxEnvVars)
+		}, nil)
 		if err != nil {
 			return err
 		}
