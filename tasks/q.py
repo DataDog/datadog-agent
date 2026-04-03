@@ -554,15 +554,21 @@ def fetch_k8s_observer_parquet(ctx, dest: str = "/tmp/k8s-observer-metrics"):
 _DEFAULT_GENSIM_PATH = os.path.expanduser("~/dd/gensim-episodes")
 _DEFAULT_CLUSTER_NAME = "observer-local"
 
-# Maps short episode names to their directory under gensim-episodes
-_EPISODE_PATHS = {
-    "food-delivery-redis": "synthetics/food-delivery-redis-cpu-saturation",
-}
+# Subdirectories to search for episodes within the gensim-episodes repo.
+_EPISODE_SUBDIRS = ["postmortems", "synthetics"]
 
-# Maps short episode names to their default scenario file (without .yaml)
-_EPISODE_DEFAULT_SCENARIOS = {
-    "food-delivery-redis": "redis-cpu-saturation",
-}
+
+def _find_episode_dir(gensim_path, ep_name):
+    """Find an episode directory by searching known subdirectories."""
+    direct = os.path.join(gensim_path, ep_name)
+    if os.path.isdir(direct):
+        return direct
+    for subdir in _EPISODE_SUBDIRS:
+        candidate = os.path.join(gensim_path, subdir, ep_name)
+        if os.path.isdir(candidate):
+            return candidate
+    checked = [direct] + [os.path.join(gensim_path, s, ep_name) for s in _EPISODE_SUBDIRS]
+    raise FileNotFoundError(f"Episode '{ep_name}' not found. Checked: {', '.join(checked)}")
 
 
 _LOCAL_EPISODE_LOG = "/tmp/local-episode-runner.log"
@@ -716,9 +722,10 @@ clusterAgent:
 @task
 def run_local_episode(
     ctx,
-    episode: str = "food-delivery-redis",
+    episode: str = "",
     scenario: str = "",
-    image: str = "datadog/agent-dev:sopell-hf-container-checks-full",
+    episode_manifest: str = "",
+    image: str = "",
     mode: str = "live-and-record",
     gensim_path: str = "",
     cluster_name: str = "",
@@ -734,34 +741,101 @@ def run_local_episode(
     executes the episode's play-episode.sh, collects parquet recordings, and
     optionally tears down. Output is compatible with q.eval-scenarios.
 
+    Episode can be specified by name (--episode) or via a manifest file
+    (--episode-manifest). The manifest uses the same format as
+    q_branch/gensim-eval-scenarios.json.
+
     Example:
         dda inv q.run-local-episode \\
             --episode=food-delivery-redis \\
-            --image=datadog/agent-dev:sopell-hf-container-checks-full \\
+            --image=datadog/agent-dev:my-tag \\
             --mode=live-and-record
+
+        dda inv q.run-local-episode \\
+            --episode-manifest=q_branch/gensim-eval-scenarios.json \\
+            --image=datadog/agent-dev:my-tag
     """
+    if not image:
+        raise ValueError("--image is required")
+
     # Resolve paths and defaults
     gensim_path = gensim_path or os.environ.get("GENSIM_REPO_PATH", _DEFAULT_GENSIM_PATH)
     cluster_name = cluster_name or _DEFAULT_CLUSTER_NAME
 
-    if episode not in _EPISODE_PATHS:
-        raise ValueError(f"Unknown episode '{episode}'. Known: {list(_EPISODE_PATHS.keys())}")
+    # Build episode list from --episode or --episode-manifest
+    if episode and episode_manifest:
+        raise ValueError("--episode and --episode-manifest are mutually exclusive.")
+    if not episode and not episode_manifest:
+        episode = "food-delivery-redis"  # default
 
-    episode_dir = os.path.join(gensim_path, _EPISODE_PATHS[episode])
-    if not os.path.isdir(episode_dir):
-        raise FileNotFoundError(f"Episode directory not found: {episode_dir}")
+    episode_pairs = []
+    if episode_manifest:
+        with open(episode_manifest) as f:
+            entries = json.load(f)
+        for entry in entries:
+            ep_name = entry.get("episode", "").strip()
+            scen_name = entry.get("scenario", "").strip()
+            if ep_name and scen_name:
+                episode_pairs.append((ep_name, scen_name))
+        if not episode_pairs:
+            raise ValueError(f"No valid episodes in manifest: {episode_manifest}")
+    else:
+        # Single episode — resolve scenario from the episodes/ directory
+        episode_dir = _find_episode_dir(gensim_path, episode)
+        if scenario:
+            episode_pairs.append((episode, scenario))
+        else:
+            # Auto-detect: use the first .yaml in episodes/
+            episodes_dir = os.path.join(episode_dir, "episodes")
+            if os.path.isdir(episodes_dir):
+                yamls = sorted(f[:-5] for f in os.listdir(episodes_dir) if f.endswith(".yaml"))
+                if yamls:
+                    episode_pairs.append((episode, yamls[0]))
+            if not episode_pairs:
+                raise ValueError(f"No scenario found for episode '{episode}', specify --scenario")
 
-    scenario = scenario or _EPISODE_DEFAULT_SCENARIOS.get(episode, "")
-    if not scenario:
-        raise ValueError(f"No default scenario for episode '{episode}', specify --scenario")
+    # Run each episode sequentially
+    for ep_name, scen_name in episode_pairs:
+        _run_single_episode(
+            ctx,
+            ep_name,
+            scen_name,
+            image,
+            mode,
+            gensim_path,
+            cluster_name,
+            output_dir,
+            skip_build,
+            skip_teardown,
+        )
+        # After the first episode, images are already loaded
+        skip_build = True
+
+
+def _run_single_episode(
+    ctx,
+    episode,
+    scenario,
+    image,
+    mode,
+    gensim_path,
+    cluster_name,
+    output_dir,
+    skip_build,
+    skip_teardown,
+):
+    """Run a single episode. Extracted so run_local_episode can loop over a manifest."""
+    episode_dir = _find_episode_dir(gensim_path, episode)
 
     scenario_file = os.path.join(episode_dir, "episodes", f"{scenario}.yaml")
     if not os.path.exists(scenario_file):
         raise FileNotFoundError(f"Scenario file not found: {scenario_file}")
 
     if not output_dir:
-        # Map to scenario directory compatible with q.eval-scenarios
-        short_name = {v: k for k, v in SCENARIO_EPISODE_NAMES.items()}.get(os.path.basename(episode_dir), episode)
+        # Map to scenario directory compatible with q.eval-scenarios.
+        # Try SCENARIO_EPISODE_NAMES reverse lookup first, fall back to episode basename.
+        basename = os.path.basename(episode_dir)
+        short_name = {v: k for k, v in SCENARIO_EPISODE_NAMES.items()}.get(basename, basename)
         output_dir = os.path.join("comp", "observer", "scenarios", short_name, "parquet")
 
     release_name = f"gensim-{episode}"
