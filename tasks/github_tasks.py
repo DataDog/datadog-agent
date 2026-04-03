@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import time
 from collections import Counter
 
@@ -85,6 +86,19 @@ def is_pr_ready(ctx, git_ref: str):
         print(color_message(f"PR for branch {git_ref!r} is a draft", "yellow"))
         raise Exit(code=1)
     print(color_message(f"PR for branch {git_ref!r} is ready", "green"))
+
+
+@task
+def get_pr_target_branch(ctx, git_ref: str):
+    """Print the target branch of the PR for the given branch, or exit with code 1 if no PR exists."""
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    github = GithubAPI()
+    prs = list(github.get_pr_for_branch(git_ref))
+    if not prs:
+        print(color_message(f"No open PR found for branch {git_ref!r}", "yellow"), file=sys.stderr)
+        raise Exit(code=1)
+    print(prs[0].base.ref)
 
 
 @task
