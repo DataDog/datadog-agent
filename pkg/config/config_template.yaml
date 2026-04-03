@@ -2557,15 +2557,6 @@ api_key:
 #
 #   capture_metrics.sample_rate: 1.0
 
-## @param observer.high_frequency_interval - duration - optional - default: 0
-## @env DD_OBSERVER_HIGH_FREQUENCY_INTERVAL - duration - optional - default: 0
-## High-frequency collection interval for ALL checks (applies globally).
-## When set, ALL checks run at this interval for observer analysis while backend flush
-## remains at original check interval (transparent to backend).
-## Set to 0 to disable (default). Example values: 1s, 500ms
-#
-#   high_frequency_interval: 0
-
 ## @param observer.parquet_output_dir - string - optional - default: ""
 ## @env DD_OBSERVER_PARQUET_OUTPUT_DIR - string - optional - default: ""
 ## Directory where timestamped parquet files will be written for long-term storage.
