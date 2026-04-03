@@ -38,6 +38,18 @@ EXTRACTORS = [
     "log_pattern_extractor",
 ]
 
+# Fixed anchor subsets used by eval_component to anchor the evaluation at known
+# reference configurations regardless of the random seed.
+#   [0] minimal: smallest meaningful stack (1 detector + 1 correlator)
+#   [1] medium:  a richer mid-complexity stack for a second anchor point
+# Components missing from the pool (because they are force-disabled or are the
+# evaluated component) are stripped; an anchor is omitted entirely if it ends up
+# with no detectors or no correlators after filtering.
+ANCHOR_COMBOS = [
+    {"detectors": ["bocpd"], "correlators": ["time_cluster"]},
+    {"detectors": ["bocpd", "rrcf"], "correlators": ["cross_signal", "time_cluster"]},
+]
+
 
 class StepLogger:
     """Hierarchical progress logger that always shows the full ancestor chain.
@@ -469,7 +481,30 @@ def _full_stack_combo(force_disable: list | None = None) -> dict:
     }
 
 
-# TODO(celian): Add heuristics to prioritize combinations that are more likely to be useful.
+def _anchor_combos(force_disable: list | None = None) -> list[dict]:
+    """Fixed anchor subsets derived from ANCHOR_COMBOS after filtering force_disable.
+
+    Each anchor that ends up with at least one detector and one correlator is
+    included.  Anchors whose key components are all removed are silently skipped
+    so that evaluating a component that appears in an anchor does not break the
+    run.
+    """
+    fd = set(force_disable or [])
+    anchors = []
+    seen_keys: set = set()
+    for combo in ANCHOR_COMBOS:
+        dets = sorted(d for d in combo["detectors"] if d not in fd)
+        cors = sorted(c for c in combo["correlators"] if c not in fd)
+        if not dets or not cors:
+            continue
+        key = (tuple(dets), tuple(cors))
+        if key in seen_keys:
+            continue
+        seen_keys.add(key)
+        anchors.append({"detectors": dets, "correlators": cors})
+    return anchors
+
+
 def random_component_combinations(
     n: int,
     seed: int = None,
@@ -1141,11 +1176,22 @@ def eval_component(
 
     # --- generate subsets ---
     is_extractor = component in EXTRACTORS
-    subsets = random_component_combinations(
-        n_subsets,
+    force_disable_subsets: list[str] = [] if is_extractor else [component]
+
+    # Build fixed subsets: full stack, then anchors (minimal + medium), then random fill.
+    # Anchors whose required components are disabled are silently skipped.
+    full_stack = _full_stack_combo(force_disable=force_disable_subsets)
+    anchor_subsets = _anchor_combos(force_disable=force_disable_subsets)
+    fixed_subsets = [full_stack] + anchor_subsets
+    fixed_keys = {(tuple(s["detectors"]), tuple(s["correlators"])) for s in fixed_subsets}
+    random_count = max(0, n_subsets - len(fixed_subsets))
+    random_subsets = random_component_combinations(
+        random_count,
         seed=subset_seed,
-        force_disable=[] if is_extractor else [component],
+        force_disable=force_disable_subsets,
+        exclude_combo_keys=fixed_keys,
     )
+    subsets = fixed_subsets + random_subsets
     if len(subsets) < n_subsets:
         print(
             color_message(
