@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
+	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	pkgcontainersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 )
@@ -618,9 +618,8 @@ func (e ECSContainer) String(verbose bool) string {
 
 // ContainerProbe represents a health check probe for a Container
 type ContainerProbe struct {
-	// This is only used by KSM, so it only includes the fields used by KSM. We
-	// can add the rest later as needed.
 	InitialDelaySeconds int32
+	FailureThreshold    int32
 }
 
 // Container is an Entity representing a containerized workload.
@@ -659,7 +658,10 @@ type Container struct {
 	// CgroupPath is a path to the cgroup of the container.
 	// It can be relative to the cgroup parent.
 	// Linux only.
-	CgroupPath   string
+	CgroupPath string
+	// SandboxID is the identifier of the sandbox this container belongs to.
+	// Populated from containerd's container info SandboxID field.
+	SandboxID    string
 	RestartCount int
 
 	SBOM *SBOM

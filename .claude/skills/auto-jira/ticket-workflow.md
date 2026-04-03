@@ -109,9 +109,11 @@ Extract the `sprint.id` from the result, then:
 mcp__atlassian__editJiraIssue(
   cloudId="datadoghq.atlassian.net",
   issueIdOrKey="<KEY>",
-  fields={"customfield_10020": {"id": <SPRINT_ID>}}
+  fields={"customfield_10020": <SPRINT_ID>}
 )
 ```
+
+**IMPORTANT:** Pass `<SPRINT_ID>` as a bare integer (e.g. `50028`), NOT as an object (`{"id": 50028}`). The API returns "Number value expected" if you pass an object.
 
 POST-ACTION verify: re-fetch the issue and confirm the sprint field is set.
 

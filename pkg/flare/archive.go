@@ -14,9 +14,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"go.yaml.in/yaml/v2"
@@ -84,10 +87,11 @@ func ExtraFlareProviders(workloadmeta option.Option[workloadmeta.Component], ipc
 	telemetryURL := fmt.Sprintf("http://127.0.0.1:%s/telemetry", pkgconfigsetup.Datadog().GetString("expvar_port"))
 
 	for filename, fromFunc := range map[string]func() ([]byte, error){
-		"envvars.log":         common.GetEnvVars,
-		"health.yaml":         getHealth,
-		"go-routine-dump.log": func() ([]byte, error) { return remote.GetGoRoutineDump() },
-		"telemetry.log":       func() ([]byte, error) { return remote.getHTTPCallContent(telemetryURL) },
+		"envvars.log":                         common.GetEnvVars,
+		"health.yaml":                         getHealth,
+		"go-routine-dump.log":                 func() ([]byte, error) { return remote.GetGoRoutineDump() },
+		"telemetry.log":                       func() ([]byte, error) { return remote.getHTTPCallContent(telemetryURL) },
+		"connectivity/resolved_endpoints.txt": getEndpointDNS,
 	} {
 		providers = append(providers, flaretypes.NewFiller(
 			func(fb flaretypes.FlareBuilder) error {
@@ -98,6 +102,70 @@ func ExtraFlareProviders(workloadmeta option.Option[workloadmeta.Component], ipc
 	}
 
 	return providers
+}
+
+// getEndpointDNS resolves the hostnames of all configured agent endpoints.
+// The results can be used to determine whether the agent is using PrivateLink
+// (private IPs) vs. the public Datadog intake.
+func getEndpointDNS() ([]byte, error) {
+	cfg := pkgconfigsetup.Datadog()
+	endpointDescriptors, err := configUtils.GetMultipleEndpoints(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("could not get endpoints: %w", err)
+	}
+
+	var buf bytes.Buffer
+
+	// Collect unique hostnames from all configured endpoint URLs.
+	seen := make(map[string]bool)
+	var hostnames []string
+	for domain := range endpointDescriptors {
+		u, parseErr := url.Parse(domain)
+		if parseErr != nil {
+			fmt.Fprintf(&buf, "%s: error parsing URL: %s\n", domain, parseErr)
+			continue
+		}
+		if u.Hostname() == "" {
+			continue
+		}
+		h := u.Hostname()
+		if !seen[h] {
+			seen[h] = true
+			hostnames = append(hostnames, h)
+		}
+	}
+	sort.Strings(hostnames)
+
+	// Use a single context with a fixed budget shared across all lookups so the
+	// aggregate runtime is bounded regardless of how many endpoints are configured.
+	// TODO: expose as a configurable timeout if needed in the future.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	resolver := &net.Resolver{}
+	for _, h := range hostnames {
+		// LookupIPAddr returns both IPv4 and IPv6 addresses; separate them for clarity.
+		addrs, lookupErr := resolver.LookupIPAddr(ctx, h)
+		if lookupErr != nil {
+			fmt.Fprintf(&buf, "%s: error: %s\n", h, lookupErr)
+			continue
+		}
+		var ipv4s, ipv6s []string
+		for _, addr := range addrs {
+			if addr.IP.To4() != nil {
+				ipv4s = append(ipv4s, addr.IP.String())
+			} else {
+				ipv6s = append(ipv6s, addr.IP.String())
+			}
+		}
+		if len(ipv4s) > 0 {
+			fmt.Fprintf(&buf, "%s IPv4: %s\n", h, strings.Join(ipv4s, ", "))
+		}
+		if len(ipv6s) > 0 {
+			fmt.Fprintf(&buf, "%s IPv6: %s\n", h, strings.Join(ipv6s, ", "))
+		}
+	}
+	return buf.Bytes(), nil
 }
 
 func provideContainers(workloadmeta option.Option[workloadmeta.Component]) func(fb flaretypes.FlareBuilder) error {
@@ -132,8 +200,8 @@ func (r *RemoteFlareProvider) provideRemoteConfig(fb flaretypes.FlareBuilder) er
 }
 
 func (r *RemoteFlareProvider) provideConfigDump(fb flaretypes.FlareBuilder) error {
-	fb.AddFileFromFunc("process_agent_runtime_config_dump.yaml", r.getProcessAgentFullConfig)                                                            //nolint:errcheck
-	fb.AddFileFromFunc("runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(pkgconfigsetup.Datadog().AllSettingsWithoutSecrets()) }) //nolint:errcheck
+	fb.AddFileFromFunc("process_agent_runtime_config_dump.yaml", r.getProcessAgentFullConfig)                                              //nolint:errcheck
+	fb.AddFileFromFunc("runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(pkgconfigsetup.Datadog().AllSettings()) }) //nolint:errcheck
 	return nil
 }
 
@@ -169,7 +237,7 @@ func provideSystemProbe(fb flaretypes.FlareBuilder) error {
 		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "dyninst_symdb.json"), getSystemProbeDyninstSymDB)
 	} else {
 		// If system probe is disabled, we still want to include the system probe config file
-		_ = fb.AddFileFromFunc("system_probe_runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(pkgconfigsetup.SystemProbe().AllSettingsWithoutSecrets()) })
+		_ = fb.AddFileFromFunc("system_probe_runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(pkgconfigsetup.SystemProbe().AllSettings()) })
 	}
 	return nil
 }

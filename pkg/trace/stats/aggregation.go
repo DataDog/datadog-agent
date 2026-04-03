@@ -23,8 +23,6 @@ var ddRegistry = semantics.DefaultRegistry()
 
 const (
 	tagSynthetics    = "synthetics"
-	tagSpanKind      = "span.kind"
-	tagBaseService   = "_dd.base_service"
 	tagServiceSource = "_dd.svc_src"
 )
 
@@ -195,65 +193,37 @@ var grpcStatusMap = map[string]string{
 	"DATALOSS":           "15",
 }
 
-func getGRPCStatusCode(meta map[string]string, metrics map[string]float64) string {
-	// List of possible keys to check in order
-	statusCodeFields := []string{"rpc.grpc.status_code", "grpc.code", "rpc.grpc.status.code", "grpc.status.code"}
-
-	for _, key := range statusCodeFields {
-		if strC, exists := meta[key]; exists && strC != "" {
-			c, err := strconv.ParseUint(strC, 10, 32)
-			if err == nil {
-				return strconv.FormatUint(c, 10)
-			}
-			strC = strings.TrimPrefix(strC, "StatusCode.") // Some tracers send status code values prefixed by "StatusCode."
-			strCUpper := strings.ToUpper(strC)
-			if statusCode, exists := grpcStatusMap[strCUpper]; exists {
-				return statusCode
-			}
-
-			// If not integer or canceled or multi-word, check for valid gRPC status string
-			if codeNum, found := code.Code_value[strCUpper]; found {
-				return strconv.Itoa(int(codeNum))
-			}
-
-			return ""
-		}
+// parseGRPCStatusString converts a raw gRPC status string (numeric, enum name, or
+// "StatusCode."-prefixed) to its canonical numeric string form, or "" if unrecognized.
+func parseGRPCStatusString(strC string) string {
+	if c, err := strconv.ParseUint(strC, 10, 32); err == nil {
+		return strconv.FormatUint(c, 10)
 	}
-
-	for _, key := range statusCodeFields { // Check if gRPC status code is stored in metrics
-		if code, ok := metrics[key]; ok {
-			return strconv.FormatUint(uint64(code), 10)
-		}
+	strC = strings.TrimPrefix(strC, "StatusCode.") // Some tracers send status code values prefixed by "StatusCode."
+	strCUpper := strings.ToUpper(strC)
+	if statusCode, exists := grpcStatusMap[strCUpper]; exists {
+		return statusCode
 	}
-
+	if codeNum, found := code.Code_value[strCUpper]; found {
+		return strconv.Itoa(int(codeNum))
+	}
 	return ""
 }
 
-func getGRPCStatusCodeV1(s *idx.InternalSpan) string {
-	// List of possible keys to check in order
-	statusCodeFields := []string{"rpc.grpc.status_code", "grpc.code", "rpc.grpc.status.code", "grpc.status.code"}
-
-	for _, key := range statusCodeFields {
-		// TODO: could optimize this to use the Attribute directly to avoid the string conversion sometimes
-		if strC, exists := s.GetAttributeAsString(key); exists && strC != "" {
-			c, err := strconv.ParseUint(strC, 10, 32)
-			if err == nil {
-				return strconv.FormatUint(c, 10)
-			}
-			strC = strings.TrimPrefix(strC, "StatusCode.") // Some tracers send status code values prefixed by "StatusCode."
-			strCUpper := strings.ToUpper(strC)
-			if statusCode, exists := grpcStatusMap[strCUpper]; exists {
-				return statusCode
-			}
-
-			// If not integer or canceled or multi-word, check for valid gRPC status string
-			if codeNum, found := code.Code_value[strCUpper]; found {
-				return strconv.Itoa(int(codeNum))
-			}
-
-			return ""
-		}
+func getGRPCStatusCode(meta map[string]string, metrics map[string]float64) string {
+	a := semantics.NewDDSpanAccessor(meta, metrics)
+	strC := semantics.LookupString(ddRegistry, a, semantics.ConceptGRPCStatusCode)
+	if strC == "" {
+		return ""
 	}
+	return parseGRPCStatusString(strC)
+}
 
-	return ""
+func getGRPCStatusCodeV1(s *idx.InternalSpan) string {
+	a := semantics.NewDDSpanAccessorV1(s)
+	strC := semantics.LookupString(ddRegistry, a, semantics.ConceptGRPCStatusCode)
+	if strC == "" {
+		return ""
+	}
+	return parseGRPCStatusString(strC)
 }

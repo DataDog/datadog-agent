@@ -108,9 +108,9 @@ func (s *settingsRegistry) getFullConfigHandler(includeDefaults bool, namespaces
 
 		var allSettings map[string]interface{}
 		if includeDefaults {
-			allSettings = s.config.AllSettingsWithoutSecrets()
+			allSettings = s.config.AllSettings()
 		} else {
-			allSettings = s.config.AllSettingsWithoutDefaultOrSecrets()
+			allSettings = s.config.AllSettingsWithoutDefault()
 		}
 
 		if !requiresAllNamespaces {

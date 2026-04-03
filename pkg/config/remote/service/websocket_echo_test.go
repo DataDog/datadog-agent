@@ -73,11 +73,13 @@ func TestWebSocketActor_upstream(t *testing.T) {
 			actor := NewWebSocketTestActor(client)
 
 			// Wrap the callback to assert it is invoked.
+			// Signal calledCh before calling fn so that the the actor can
+			// cancel the context and the RunEchoTest retry loop will be unblocked
 			calledCh := make(chan struct{}, 1)
 			fn := actor.fn
 			actor.fn = func(ctx context.Context, client *api.HTTPClient) {
-				fn(ctx, client)
 				calledCh <- struct{}{}
+				fn(ctx, client)
 			}
 
 			actor.Start()
