@@ -723,7 +723,7 @@ def _build_optuna_config(
 
 
 @task
-def bayesian_eval(
+def eval_bayesian(
     ctx,
     components: str = ",".join(DETECTORS + CORRELATORS + EXTRACTORS),
     lock: str = "",
