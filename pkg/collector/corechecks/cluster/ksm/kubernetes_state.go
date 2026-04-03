@@ -256,6 +256,7 @@ type KSMCheck struct {
 	workloadmetaStore          workloadmeta.Component
 	rolloutTracker             *customresources.RolloutTracker
 	customResourceDiscoverer   *ksmDiscovery.CRDiscoverer
+	cancelCRDiscoverer         context.CancelFunc
 	namespaceTagsErrorLogLimit *log.Limit
 }
 
@@ -327,7 +328,7 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 
 	// Start custom resource discovery if not
 	if k.instance.PodCollectionMode != nodeKubeletPodCollection {
-		k.customResourceDiscoverer = customresources.StartDiscovery()
+		k.customResourceDiscoverer, k.cancelCRDiscoverer = customresources.StartDiscovery()
 	}
 
 	// Retry configuration steps related to API Server in check executions if necessary
@@ -762,6 +763,9 @@ func (k *KSMCheck) Cancel() {
 	log.Infof("Shutting down informers used by the check '%s'", k.ID())
 	if k.cancel != nil {
 		k.cancel()
+	}
+	if k.cancelCRDiscoverer != nil {
+		k.cancelCRDiscoverer()
 	}
 }
 
