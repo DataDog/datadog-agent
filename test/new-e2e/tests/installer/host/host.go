@@ -7,7 +7,6 @@
 package host
 
 import (
-	"errors"
 	"fmt"
 	"io/fs"
 	"os/user"
@@ -91,53 +90,11 @@ func (h *Host) dockerImage(ecrPath, publicFallback string) string {
 	return strings.SplitN(reg, ",", 2)[0] + "/" + ecrPath
 }
 
-// ensureDockerLogin logs the host into the ECR registry when E2E_IMAGE_PULL_* is set, so pulls work.
-// It must be called whenever Docker is available (already installed or just installed).
-func (h *Host) ensureDockerLogin() {
-	store := runner.GetProfile().ParamStore()
-
-	registryStr, err := store.Get(parameters.ImagePullRegistry)
-	if err != nil {
-		var notFound parameters.ParameterNotFoundError
-		if errors.As(err, &notFound) {
-			h.t().Logf("skipping docker login (set E2E_IMAGE_PULL_* for private registry pulls)")
-			return
-		}
-		h.t().Fatalf("failed to get image pull registry: %v", err)
-	}
-
-	usernameStr, err := store.Get(parameters.ImagePullUsername)
-	if err != nil {
-		h.t().Fatalf("failed to get image pull username: %v", err)
-	}
-
-	passwordStr, err := store.Get(parameters.ImagePullPassword)
-	if err != nil {
-		h.t().Fatalf("failed to get image pull password: %v", err)
-	}
-
-	registries := strings.Split(registryStr, ",")
-	usernames := strings.Split(usernameStr, ",")
-	passwords := strings.Split(passwordStr, ",")
-
-	if len(registries) != len(usernames) || len(registries) != len(passwords) {
-		h.t().Fatalf("E2E_IMAGE_PULL_REGISTRY, E2E_IMAGE_PULL_USERNAME, and E2E_IMAGE_PULL_PASSWORD must have the same number of comma-separated entries")
-	}
-
-	for i := range registries {
-		password := passwords[i]
-		if strings.HasPrefix(password, "b64=") {
-			// GCP JSON service account keys contain characters that break shell quoting if
-			// passed directly. Decode into a shell variable first, then use that variable
-			// as the --password argument so the shell handles the quoting correctly.
-			// The b64= data itself is safe to inline (only base64 alphabet characters).
-			h.remote.MustExecute(fmt.Sprintf(`DOCKER_PWD=$(echo %s | base64 -d) && sudo docker login --username %s --password "$DOCKER_PWD" %s`, password[4:], usernames[i], registries[i]))
-		} else {
-			// ECR tokens are JWT-style base64url strings with no special characters,
-			// safe to pass directly to --password.
-			h.remote.MustExecute(fmt.Sprintf("sudo docker login --username %s --password %s %s", usernames[i], password, registries[i]))
-		}
-	}
+// configureDockerECRCredentialHelper writes credsStore: ecr-login into root's Docker config,
+// enabling automatic IAM-role-based authentication for ECR registries (including pull-through caches).
+// The amazon-ecr-credential-helper binary must already be on PATH.
+func (h *Host) configureDockerECRCredentialHelper() {
+	h.remote.MustExecute(`sudo mkdir -p /root/.docker && printf '{"credsStore":"ecr-login"}\n' | sudo tee /root/.docker/config.json > /dev/null`)
 }
 
 // TODO[@agent-devx]: Probably move this to the proper docker component defined in components/docker/component.go
@@ -163,7 +120,7 @@ func (h *Host) InstallDocker() {
 		require.NoErrorf(h.t(), err, "failed to start Docker, logs: %s", h.remote.MustExecute("sudo journalctl -xeu docker"))
 	}()
 	if _, err := h.remote.Execute("command -v docker"); err == nil {
-		h.ensureDockerLogin()
+		h.configureDockerECRCredentialHelper()
 		return
 	}
 
@@ -182,7 +139,7 @@ func (h *Host) InstallDocker() {
 		h.t().Fatalf("unsupported package manager: %s", h.pkgManager)
 	}
 
-	h.ensureDockerLogin()
+	h.configureDockerECRCredentialHelper()
 }
 
 // GetDockerRuntimePath returns the runtime path of a docker runtime
