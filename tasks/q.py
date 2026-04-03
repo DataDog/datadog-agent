@@ -886,6 +886,7 @@ def eval_bayesian(
     ctx,
     components: str = ",".join(DETECTORS + CORRELATORS + EXTRACTORS),
     lock: str = "",
+    only: str = "",
     n_trials: int = 10,
     output_dir: str = "/tmp/observer-optuna-eval",
     scenarios_dir: str = "./comp/observer/scenarios",
@@ -911,6 +912,8 @@ def eval_bayesian(
     Args:
         components: Comma-separated component names to enable (detectors, correlators, extractors; default: all).
         lock: Comma-separated components to enable but not tune (keep at Go defaults).
+        only: Shorthand: enable all components but tune only the listed ones (locks everything else).
+            Mutually exclusive with --lock.
         n_trials: Number of Optuna trials (default: 50).
         output_dir: Root output directory. If it already contains report.json,
             the task aborts unless overwrite is True; otherwise it is removed first.
@@ -924,14 +927,27 @@ def eval_bayesian(
         dda inv q.bayesian-eval                                                                       # all components
         dda inv q.bayesian-eval --components bocpd,rrcf,time_cluster,log_pattern_extractor            # fixed subset
         dda inv q.bayesian-eval --components bocpd,rrcf,time_cluster --lock time_cluster              # freeze one
+        dda inv q.bayesian-eval --only bocpd                                                          # tune one, lock rest
         dda inv q.bayesian-eval --n-trials 100 --seed 42
     """
     import pickle
 
     import optuna
 
+    only_list = [c.strip() for c in only.split(",") if c.strip()]
+    if only_list and lock:
+        print(color_message("Error: --only and --lock are mutually exclusive", Color.RED))
+        return
+
     components_list = [c.strip() for c in components.split(",") if c.strip()]
-    locked_set = {c.strip() for c in lock.split(",") if c.strip()}
+
+    if only_list:
+        # Expand to full component set and lock everything except the --only targets.
+        all_components = DETECTORS + CORRELATORS + EXTRACTORS
+        components_list = all_components
+        locked_set = {c for c in all_components if c not in set(only_list)}
+    else:
+        locked_set = {c.strip() for c in lock.split(",") if c.strip()}
 
     if not components_list:
         print(color_message("Error: at least one component is required (--components)", Color.RED))
@@ -1469,6 +1485,9 @@ def eval_component(
     print(color_message(f"  Delta (max):            {delta_max:+.4f}", delta_clr))
     print()
     print(color_message(f"  Recommendation: {recommendation.upper()} {component}", rec_clr))
+    if recommendation == "keep":
+        print(color_message("  Next step: update your config, then tune the new component using:", Color.BOLD))
+        print(color_message(f"    dda inv q.eval-bayesian --only {component}", Color.BOLD))
     print(color_message(f"{'=' * 70}", Color.GREEN))
 
     # --- copy best "with" config to root ---
