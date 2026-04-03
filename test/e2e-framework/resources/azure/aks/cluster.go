@@ -69,7 +69,7 @@ func NewCluster(e azure.Environment, name string, kataNodePoolEnabled bool, opts
 	kubeletIdentity, err := managedidentity.LookupUserAssignedIdentity(e.Ctx(), &managedidentity.LookupUserAssignedIdentityArgs{
 		ResourceGroupName: e.DefaultResourceGroup(),
 		ResourceName:      kubeletIdentityResourceID,
-	})
+	}, e.WithProvider(config.ProviderAzure))
 	if err != nil {
 		return nil, pulumi.StringOutput{}, err
 	}
