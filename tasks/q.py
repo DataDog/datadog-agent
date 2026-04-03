@@ -784,6 +784,9 @@ def bayesian_eval(
         print(color_message(f"Error: locked components not in active set: {', '.join(sorted(not_active))}", Color.RED))
         return
 
+    if seed is None:
+        seed = random.randint(0, 2**32 - 1)
+
     if os.path.exists(output_dir):
         shutil.rmtree(output_dir)
     os.makedirs(output_dir)
