@@ -1,5 +1,10 @@
 load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
 
+exports_files(
+    glob(["**/*.tmpl"]),
+    visibility = ["//pkg/procmgr/rust:__pkg__"],
+)
+
 # keep
 service_srcs = [
     "tmpl/gen/debrpm-nocap/datadog-agent-action-exp.service",
