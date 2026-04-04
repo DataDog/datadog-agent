@@ -19,6 +19,7 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude cmd
 # gazelle:exclude comp/agent
 # gazelle:exclude comp/aggregator
+# gazelle:exclude comp/anomalydetection
 # gazelle:exclude comp/api/bundle.go
 # gazelle:exclude comp/api/bundle_test.go
 # gazelle:exclude comp/api/authtoken
@@ -130,6 +131,7 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/networkdeviceconfig
 # gazelle:exclude comp/networkpath
 # gazelle:exclude comp/notableevents
+# gazelle:exclude comp/observer
 # gazelle:exclude comp/otelcol/collector
 # gazelle:exclude comp/otelcol/collector-contrib/fx
 # gazelle:exclude comp/otelcol/collector-contrib/impl
@@ -167,6 +169,7 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/trace/compression/fx-zstd
 # gazelle:exclude comp/trace/config
 # gazelle:exclude comp/trace/etwtracer
+# gazelle:exclude comp/trace/observerbuffer
 # gazelle:exclude comp/trace/payload-modifier
 # gazelle:exclude comp/trace/status
 # gazelle:exclude comp/updater
