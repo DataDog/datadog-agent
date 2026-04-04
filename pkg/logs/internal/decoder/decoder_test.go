@@ -6,10 +6,14 @@
 package decoder
 
 import (
+	"fmt"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/dockerfile"
@@ -328,4 +332,31 @@ func TestDecoderWithMultilineKubernetes(t *testing.T) {
 	assert.Equal(t, lineLen, output.RawDataLen)
 	assert.Equal(t, message.StatusError, output.Status)
 	assert.Equal(t, "2019-06-06T16:35:55.930852913Z", output.ParsingExtra.Timestamp)
+}
+
+func TestDecoderWithDockerJSONPartialLineDetectionOnlyMarksOversizedLogicalLineTruncated(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.Set("logs_config.max_message_size_bytes", 1000, pkgconfigmodel.SourceAgentRuntime)
+	mockConfig.Set("logs_config.tag_truncated_logs", true, pkgconfigmodel.SourceAgentRuntime)
+	mockConfig.Set("logs_config.auto_multi_line_detection_tagging", true, pkgconfigmodel.SourceAgentRuntime)
+
+	source := sources.NewLogSource("", &config.LogsConfig{})
+	d := InitializeDecoderForTest(source, dockerfile.New())
+	d.Start()
+	defer d.Stop()
+
+	part1 := strings.Repeat("a", 600)
+	part2 := strings.Repeat("b", 600)
+
+	line1 := []byte(fmt.Sprintf(`{"log":"%s","stream":"stdout","time":"2019-06-06T16:35:55.930852911Z"}`+"\n", part1))
+	line2 := []byte(fmt.Sprintf(`{"log":"%s\n","stream":"stdout","time":"2019-06-06T16:35:55.930852912Z"}`+"\n", part2))
+
+	d.InputChan() <- NewInput(line1)
+	d.InputChan() <- NewInput(line2)
+
+	output := <-d.OutputChan()
+	assert.Equal(t, part1+part2+string(message.TruncatedFlag), string(output.GetContent()))
+	assert.True(t, output.ParsingExtra.IsTruncated)
+	assert.Contains(t, output.ParsingExtra.Tags, message.TruncatedReasonTag("single_line"))
+	assert.Equal(t, len(line1)+len(line2), output.RawDataLen)
 }

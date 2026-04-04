@@ -41,7 +41,7 @@ func newDetectingHandler(outputChan chan *message.Message, _ int, flushTimeout t
 	tok := preprocessor.NewTokenizer(1000)
 	sampler := preprocessor.NewNoopSampler()
 	labeler := buildAutoMultilineLabeler(nil, nil, tailerInfo)
-	aggregator := preprocessor.NewDetectingAggregator(tailerInfo)
+	aggregator := preprocessor.NewDetectingAggregator(tailerInfo, 1000, false)
 	return newPreprocessorHandler(aggregator, tok, labeler, sampler, outputChan, preprocessor.NewNoopJSONAggregator(), flushTimeout)
 }
 
