@@ -490,15 +490,15 @@ func (k *KSMCheck) buildStores() error {
 	// Configure builder to enable callbacks for specific resource types
 	builder.WithCallbacksForResources(callbackResourceTypes)
 
-	// Start the collection process
-	k.allStores = builder.BuildStores()
-
 	// Cancel the old reflectors after the new store is created. Cancelling the
 	// old context ensures previous reflectors release their resources.
 	if k.cancel != nil {
 		k.cancel()
 	}
 	k.cancel = cancel
+
+	// Start the collection process
+	k.allStores = builder.BuildStores()
 
 	return nil
 }

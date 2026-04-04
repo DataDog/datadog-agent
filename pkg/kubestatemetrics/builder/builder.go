@@ -458,8 +458,8 @@ func generateConfigMapStores(
 
 func createConfigMapListWatch(metadataClient metadata.Interface, gvr schema.GroupVersionResource, namespace string) *cache.ListWatch {
 	return &cache.ListWatch{
-		ListFunc: func(options v1.ListOptions) (runtime.Object, error) {
-			result, err := metadataClient.Resource(gvr).Namespace(namespace).List(context.TODO(), options)
+		ListWithContextFunc: func(ctx context.Context, options v1.ListOptions) (runtime.Object, error) {
+			result, err := metadataClient.Resource(gvr).Namespace(namespace).List(ctx, options)
 			if err != nil {
 				return nil, err
 			}
@@ -478,8 +478,8 @@ func createConfigMapListWatch(metadataClient metadata.Interface, gvr schema.Grou
 
 			return configMapList, nil
 		},
-		WatchFunc: func(options v1.ListOptions) (apiwatch.Interface, error) {
-			watcher, err := metadataClient.Resource(gvr).Namespace(namespace).Watch(context.TODO(), options)
+		WatchFuncWithContext: func(ctx context.Context, options v1.ListOptions) (apiwatch.Interface, error) {
+			watcher, err := metadataClient.Resource(gvr).Namespace(namespace).Watch(ctx, options)
 			if err != nil {
 				return nil, err
 			}
