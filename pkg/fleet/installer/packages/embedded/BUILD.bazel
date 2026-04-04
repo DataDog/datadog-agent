@@ -7,28 +7,6 @@ exports_files(
 
 # keep
 service_srcs = [
-    "tmpl/gen/debrpm-nocap/datadog-agent-action-exp.service",
-    "tmpl/gen/debrpm-nocap/datadog-agent-action.service",
-    "tmpl/gen/debrpm-nocap/datadog-agent-data-plane-exp.service",
-    "tmpl/gen/debrpm-nocap/datadog-agent-data-plane.service",
-    "tmpl/gen/debrpm-nocap/datadog-agent-ddot-exp.service",
-    "tmpl/gen/debrpm-nocap/datadog-agent-ddot-exp.yaml",
-    "tmpl/gen/debrpm-nocap/datadog-agent-ddot.service",
-    "tmpl/gen/debrpm-nocap/datadog-agent-ddot.yaml",
-    "tmpl/gen/debrpm-nocap/datadog-agent-exp.service",
-    "tmpl/gen/debrpm-nocap/datadog-agent-installer-exp.service",
-    "tmpl/gen/debrpm-nocap/datadog-agent-installer.service",
-    "tmpl/gen/debrpm-nocap/datadog-agent-process-exp.service",
-    "tmpl/gen/debrpm-nocap/datadog-agent-process.service",
-    "tmpl/gen/debrpm-nocap/datadog-agent-procmgrd-exp.service",
-    "tmpl/gen/debrpm-nocap/datadog-agent-procmgrd.service",
-    "tmpl/gen/debrpm-nocap/datadog-agent-security-exp.service",
-    "tmpl/gen/debrpm-nocap/datadog-agent-security.service",
-    "tmpl/gen/debrpm-nocap/datadog-agent-sysprobe-exp.service",
-    "tmpl/gen/debrpm-nocap/datadog-agent-sysprobe.service",
-    "tmpl/gen/debrpm-nocap/datadog-agent-trace-exp.service",
-    "tmpl/gen/debrpm-nocap/datadog-agent-trace.service",
-    "tmpl/gen/debrpm-nocap/datadog-agent.service",
     "tmpl/gen/debrpm/datadog-agent-action-exp.service",
     "tmpl/gen/debrpm/datadog-agent-action.service",
     "tmpl/gen/debrpm/datadog-agent-data-plane-exp.service",
@@ -121,7 +99,11 @@ go_test(
     name = "tmpl_test",
     srcs = ["tmpl/main_test.go"],
     embed = [":tmpl_lib"],
-    embedsrcs = service_srcs + glob(["tmpl/gen/oci-nocap/**"]),  # keep
+    # keep
+    embedsrcs = service_srcs + glob([
+        "tmpl/gen/debrpm-nocap/**",
+        "tmpl/gen/oci-nocap/**",
+    ]),
     deps = [
         "//pkg/fleet/installer/fixtures",
         "@com_github_stretchr_testify//assert",

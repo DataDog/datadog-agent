@@ -44,8 +44,11 @@ go_test(
         ],
         "//conditions:default": [],
     }),
+    gotags = [
+        "test",
+        "windows",
+    ],
     target_compatible_with = ["@platforms//os:windows"],
-    gotags = ["test", "windows"],
     deps = select({
         "@rules_go//go/platform:windows": [
             "@com_github_cenkalti_backoff_v5//:backoff",
