@@ -8,6 +8,7 @@ go_library(
         "system_api.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/windows",
+    target_compatible_with = ["@platforms//os:windows"],
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:windows": [
@@ -29,6 +30,7 @@ go_test(
         "system_api_test.go",
     ],
     embed = [":windows"],
+    visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:windows": [
             "@com_github_stretchr_testify//assert",

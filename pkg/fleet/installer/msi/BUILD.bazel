@@ -10,6 +10,7 @@ go_library(
         "sourcelist.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/msi",
+    target_compatible_with = ["@platforms//os:windows"],
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:windows": [
@@ -43,6 +44,8 @@ go_test(
         ],
         "//conditions:default": [],
     }),
+    target_compatible_with = ["@platforms//os:windows"],
+    gotags = ["test", "windows"],
     deps = select({
         "@rules_go//go/platform:windows": [
             "@com_github_cenkalti_backoff_v5//:backoff",
