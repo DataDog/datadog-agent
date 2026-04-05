@@ -30,6 +30,7 @@
     "https://bcr.bazel.build/modules/apple_support/2.3.0/source.json": "d99b0a50918c4484856d773026b2fd60a694668c70fc0e19d592786dc7e5e469",
     "https://bcr.bazel.build/modules/aspect_bazel_lib/1.31.2/MODULE.bazel": "7bee702b4862612f29333590f4b658a5832d433d6f8e4395f090e8f4e85d442f",
     "https://bcr.bazel.build/modules/aspect_bazel_lib/1.38.0/MODULE.bazel": "6307fec451ba9962c1c969eb516ebfe1e46528f7fa92e1c9ac8646bef4cdaa3f",
+    "https://bcr.bazel.build/modules/aspect_bazel_lib/1.40.2/MODULE.bazel": "94faac347405327a3bb58382da0f8be7e0f266a4ab2ee094aa34aada2720a672",
     "https://bcr.bazel.build/modules/aspect_bazel_lib/1.40.3/MODULE.bazel": "668e6bcb4d957fc0e284316dba546b705c8d43c857f87119619ee83c4555b859",
     "https://bcr.bazel.build/modules/aspect_bazel_lib/2.14.0/MODULE.bazel": "2b31ffcc9bdc8295b2167e07a757dbbc9ac8906e7028e5170a3708cecaac119f",
     "https://bcr.bazel.build/modules/aspect_bazel_lib/2.19.3/MODULE.bazel": "253d739ba126f62a5767d832765b12b59e9f8d2bc88cc1572f4a73e46eb298ca",
@@ -322,7 +323,7 @@
   "moduleExtensions": {
     "//bazel/toolchains/linux_headers:linux_headers.bzl%linux_headers_extension": {
       "general": {
-        "bzlTransitiveDigest": "wDkMZfI1H3h4axJXtOBlLSvlRWkQbRM/HdKyU03x32g=",
+        "bzlTransitiveDigest": "NySVGUvAAoaQcTMqu7MkdAQum0uLVzVNoaTLha228Vo=",
         "usagesDigest": "Gkt9dniyJltedRsP9VwZgpDnbzWmq0SeOXle8DjQ96s=",
         "recordedInputs": [],
         "generatedRepoSpecs": {
@@ -335,7 +336,7 @@
     },
     "//bazel/toolchains/llvm_bpf:llvm_bpf_configure.bzl%llvm_bpf_extension": {
       "general": {
-        "bzlTransitiveDigest": "L67A58ViDXnouey/grwOU76W/Dr+mOtr9FuG9fDhK0Q=",
+        "bzlTransitiveDigest": "eOYXODssdQNOf4X8CCImpZYvyFCF/VqCz/43DBjJieA=",
         "usagesDigest": "lBRxCKYy9X03c4jyF/C6hWEAf+24zs/m6M/bS7BVXQU=",
         "recordedInputs": [],
         "generatedRepoSpecs": {
@@ -361,7 +362,7 @@
     },
     "//bazel/toolchains/otool:otool_configure.bzl%find_system_otool": {
       "general": {
-        "bzlTransitiveDigest": "1EqlvLMsXc9SmdJwuH1LmOHrKN/1VU/SzoT5jzL/dmQ=",
+        "bzlTransitiveDigest": "68iERr/kCkKOV3vSc2q4LzpEgt7vSpOMHMX9EL+4l7g=",
         "usagesDigest": "fSN6/kn8e/g7DLnxiuMteG88rd6OVfCnXR7SSOcGUdw=",
         "recordedInputs": [],
         "generatedRepoSpecs": {
@@ -374,7 +375,7 @@
     },
     "//bazel/toolchains/patchelf:patchelf_configure.bzl%find_system_patchelf": {
       "general": {
-        "bzlTransitiveDigest": "h/34iJRsppuwRgke9QA2KoAGS7yIA0wXxQxbSaS7UKU=",
+        "bzlTransitiveDigest": "LycsDwhNSFStb20EW25ZzhzQ5zgmwMvzS7gxKN0tTo0=",
         "usagesDigest": "sbh/OV5qDj0UnO59z1JQIBVtZdGEcUj1f7xDqQlvL+Y=",
         "recordedInputs": [],
         "generatedRepoSpecs": {
@@ -387,13 +388,13 @@
     },
     "//bazel/tools:bazelisk_check.bzl%bazelisk_check": {
       "general": {
-        "bzlTransitiveDigest": "wvNx8+i7P/XkPcVAF75VMwpjWhlTDPm78mV4GGE//UM=",
+        "bzlTransitiveDigest": "vIQYQXzy/Q+owB/yz0XcUOwOyn9G0aQIpTxYlBfiCcQ=",
         "usagesDigest": "CKsn1dtme4oztWA0td45Tt6oCZK6MZnpIocVVZK14sU=",
         "recordedInputs": [
-          "FILE:@@//.bazelversion 517e17574ca76eadebef961820c6519544f5d17295833ba0a900d704c5a19535",
-          "FILE:@@//tools/bazel c4e222e2a3cc20c016cb93eb8c9e5d09d4191ad25ebea6d152db5c6acc2dedab",
-          "FILE:@@//tools/bazel.bat 8d4b069aa2d353f11b16903dc189623220bd747d4492357fd8a06fa712a964a6",
-          "FILE:@@//tools/bazelisk.md e125fa021d1d97f3e14d2641b9e2fcac85deeb90783e2480598ed5e321b552bc"
+          "FILE:@@//.bazelversion 59b003a1f3465ae6084432329f8265e860cbaac0bd4a92a4f3ea6b979a6eed66",
+          "FILE:@@//tools/bazel 6804bf06e2253629bf30d0a777fc8baf943b50529d230a059f1dc46296dbf4d6",
+          "FILE:@@//tools/bazel.bat c2f0c08f179108517d08b1e34d19b3aabd80458d9e2575f9de08e640ba9b4ac3",
+          "FILE:@@//tools/bazelisk.md 184864dc41f9cd398f786ba7c7cd858942d19daa792203e0b18a1a3bfaf372f0"
         ],
         "generatedRepoSpecs": {}
       }
@@ -411,18 +412,18 @@
             "repoRuleId": "@@aspect_tools_telemetry+//:extension.bzl%tel_repository",
             "attributes": {
               "deps": {
-                "abseil-cpp": "20250814.1",
+                "abseil-cpp": "20250512.1",
                 "abseil-py": "2.1.0",
                 "apple_support": "2.3.0",
                 "aspect_bazel_lib": "2.22.5",
                 "aspect_tools_telemetry": "0.3.2",
-                "bazel_features": "1.42.1",
+                "bazel_features": "1.36.0",
                 "bazel_lib": "3.2.2",
                 "bazel_skylib": "1.9.0",
                 "bazel_worker_api": "0.0.8",
                 "bazel_worker_java": "0.0.8",
                 "buildifier_prebuilt": "7.3.1",
-                "buildozer": "8.5.1",
+                "buildozer": "7.1.2",
                 "bzip2": "1.0.8.bcr.3",
                 "gawk": "5.3.2.bcr.3",
                 "googletest": "1.17.0",
@@ -440,7 +441,7 @@
                 "rules_android": "0.6.4",
                 "rules_cc": "0.2.17",
                 "rules_flex": "0.4",
-                "rules_java": "9.0.3",
+                "rules_java": "8.14.0",
                 "rules_jvm_external": "6.7",
                 "rules_kotlin": "2.2.2",
                 "rules_m4": "0.3.bcr.1",
@@ -451,7 +452,7 @@
                 "rules_rs": "0.0.27",
                 "rules_rust": "0.69.0",
                 "rules_rust_prost": "0.69.0",
-                "rules_shell": "0.7.1",
+                "rules_shell": "0.6.1",
                 "rules_testing": "0.9.0",
                 "stardoc": "0.7.2",
                 "supply-chain-go": "0.0.6",
@@ -597,7 +598,7 @@
     },
     "@@gcc_toolchain+//:internal.bzl%non_bazel_dependencies": {
       "general": {
-        "bzlTransitiveDigest": "r7YfOeYqTNbfjZXih3cgDgyoukbqHwhnqdoiFg1Xx04=",
+        "bzlTransitiveDigest": "hFH1yCyp2ucrdzlOqIFdIbU/GWFQzeimvYsGRrX66Jo=",
         "usagesDigest": "sWe6gvmFpdWalNUJUWNZF23cgclfU+ijKXCf9JEbTjs=",
         "recordedInputs": [
           "REPO_MAPPING:gcc_toolchain+,bazel_tools bazel_tools",
@@ -607,7 +608,7 @@
           "openssl": {
             "repoRuleId": "@@bazel_tools//tools/build_defs/repo:http.bzl%http_archive",
             "attributes": {
-              "build_file_content": "filegroup(\r\n    name = \"srcs\",\r\n    srcs = glob(\r\n        include = [\"**\"],\r\n        exclude = [\"**/* *\"],\r\n    ),\r\n    visibility = [\"//visibility:public\"],\r\n)\r\n",
+              "build_file_content": "filegroup(\n    name = \"srcs\",\n    srcs = glob(\n        include = [\"**\"],\n        exclude = [\"**/* *\"],\n    ),\n    visibility = [\"//visibility:public\"],\n)\n",
               "sha256": "40dceb51a4f6a5275bde0e6bf20ef4b91bfc32ed57c0552e2e8e15463372b17a",
               "strip_prefix": "openssl-1.1.1n",
               "url": "https://www.openssl.org/source/openssl-1.1.1n.tar.gz"
@@ -616,9 +617,9 @@
           "lapack": {
             "repoRuleId": "@@bazel_tools//tools/build_defs/repo:http.bzl%http_archive",
             "attributes": {
-              "build_file_content": "filegroup(\r\n    name = \"srcs\",\r\n    srcs = glob(\r\n        include = [\"**\"],\r\n        exclude = [\"**/* *\"],\r\n    ),\r\n    visibility = [\"//visibility:public\"],\r\n)\r\n",
+              "build_file_content": "filegroup(\n    name = \"srcs\",\n    srcs = glob(\n        include = [\"**\"],\n        exclude = [\"**/* *\"],\n    ),\n    visibility = [\"//visibility:public\"],\n)\n",
               "patch_cmds": [
-                "cat > make.inc <<EOF\r\n####################################################################\r\n#  LAPACK make include file.                                       #\r\n####################################################################\r\n\r\nSHELL = $0\r\n\r\nCC ?=\r\n\r\nFC ?=\r\nFFLAGS ?=\r\nFFLAGS_DRV ?=\r\nFFLAGS_NOOPT ?=\r\n\r\nLDFLAGS ?=\r\n\r\nAR ?=\r\nARFLAGS = cr\r\nRANLIB = echo\r\n\r\nBLASLIB ?=\r\nCBLASLIB ?=\r\nLAPACKLIB ?=\r\nTMGLIB ?=\r\nLAPACKELIB ?=\r\n\r\nDOCSDIR ?=\r\n\r\nTIMER ?=\r\nEOF\r\n"
+                "cat > make.inc <<EOF\n####################################################################\n#  LAPACK make include file.                                       #\n####################################################################\n\nSHELL = $0\n\nCC ?=\n\nFC ?=\nFFLAGS ?=\nFFLAGS_DRV ?=\nFFLAGS_NOOPT ?=\n\nLDFLAGS ?=\n\nAR ?=\nARFLAGS = cr\nRANLIB = echo\n\nBLASLIB ?=\nCBLASLIB ?=\nLAPACKLIB ?=\nTMGLIB ?=\nLAPACKELIB ?=\n\nDOCSDIR ?=\n\nTIMER ?=\nEOF\n"
               ],
               "sha256": "eac9570f8e0ad6f30ce4b963f4f033f0f643e7c3912fc9ee6cd99120675ad48b",
               "strip_prefix": "lapack-3.12.0",
@@ -765,7 +766,7 @@
     },
     "@@rules_pkg+//toolchains/rpm:rpmbuild_configure.bzl%find_system_rpmbuild_bzlmod": {
       "general": {
-        "bzlTransitiveDigest": "RXRGyXaIh7OaREqpAZu8mNyIfJgp7mzjnti6rMs+EMg=",
+        "bzlTransitiveDigest": "9HVW2/lqcIJQiRN0QXRBEEEu4X5577GLCxN3ifPnx1I=",
         "usagesDigest": "/KxCvOG4ymMxLBcldn54pcMSEjOygkYUMlHj/fabSNE=",
         "recordedInputs": [],
         "generatedRepoSpecs": {
@@ -1472,7 +1473,6 @@
       "bytes_1.11.1": "{\"dependencies\":[{\"default_features\":false,\"features\":[\"require-cas\"],\"name\":\"extra-platforms\",\"optional\":true,\"package\":\"portable-atomic\",\"req\":\"^1.3\"},{\"kind\":\"dev\",\"name\":\"loom\",\"req\":\"^0.7\",\"target\":\"cfg(loom)\"},{\"default_features\":false,\"features\":[\"alloc\"],\"name\":\"serde\",\"optional\":true,\"req\":\"^1.0.60\"},{\"kind\":\"dev\",\"name\":\"serde_test\",\"req\":\"^1.0\"}],\"features\":{\"default\":[\"std\"],\"std\":[]}}",
       "cap-primitives_3.4.5": "{\"dependencies\":[{\"name\":\"ambient-authority\",\"req\":\"^0.0.2\"},{\"features\":[\"derive\"],\"name\":\"arbitrary\",\"optional\":true,\"req\":\"^1.0.0\"},{\"name\":\"fs-set-times\",\"req\":\"^0.20.0\"},{\"name\":\"io-extras\",\"req\":\"^0.18.3\"},{\"default_features\":false,\"name\":\"io-lifetimes\",\"req\":\"^2.0.0\"},{\"name\":\"ipnet\",\"req\":\"^2.5.0\"},{\"name\":\"maybe-owned\",\"req\":\"^0.3.4\"},{\"features\":[\"fs\",\"process\",\"termios\",\"time\"],\"name\":\"rustix\",\"req\":\"^1.0.0\",\"target\":\"cfg(not(windows))\"},{\"name\":\"rustix-linux-procfs\",\"req\":\"^0.1.1\",\"target\":\"cfg(any(target_os = \\\"android\\\", target_os = \\\"linux\\\"))\"},{\"features\":[\"Win32_Foundation\",\"Win32_Security\",\"Win32_Storage_FileSystem\",\"Win32_System_Kernel\",\"Win32_System_WindowsProgramming\",\"Win32_System_IO\",\"Wdk_Storage_FileSystem\",\"Wdk_Foundation\"],\"name\":\"windows-sys\",\"req\":\">=0.52, <=0.59\",\"target\":\"cfg(windows)\"},{\"name\":\"winx\",\"req\":\"^0.36.0\",\"target\":\"cfg(windows)\"}],\"features\":{}}",
       "cap-std_3.4.5": "{\"dependencies\":[{\"name\":\"arf-strings\",\"optional\":true,\"req\":\"^0.7.0\"},{\"name\":\"camino\",\"optional\":true,\"req\":\"^1.0.5\"},{\"name\":\"cap-primitives\",\"req\":\"^3.4.5\"},{\"name\":\"io-extras\",\"req\":\"^0.18.3\"},{\"default_features\":false,\"name\":\"io-lifetimes\",\"req\":\"^2.0.0\"},{\"features\":[\"fs\"],\"name\":\"rustix\",\"req\":\"^1.0.0\",\"target\":\"cfg(not(windows))\"}],\"features\":{\"arf_strings\":[\"fs_utf8\",\"arf-strings\"],\"default\":[],\"fs_utf8\":[\"camino\"]}}",
-      "caps_0.5.6": "{\"dependencies\":[{\"name\":\"libc\",\"req\":\"^0.2\"},{\"features\":[\"derive\"],\"name\":\"serde\",\"optional\":true,\"req\":\"^1.0\"},{\"kind\":\"dev\",\"name\":\"serde_json\",\"req\":\"^1.0\"}],\"features\":{\"serde_support\":[\"serde\"]}}",
       "cfg-if_1.0.4": "{\"dependencies\":[{\"name\":\"core\",\"optional\":true,\"package\":\"rustc-std-workspace-core\",\"req\":\"^1.0.0\"}],\"features\":{\"rustc-dep-of-std\":[\"core\"]}}",
       "cfg_aliases_0.2.1": "{\"dependencies\":[],\"features\":{}}",
       "clap_4.6.0": "{\"dependencies\":[{\"kind\":\"dev\",\"name\":\"automod\",\"req\":\"^1.0.16\"},{\"default_features\":false,\"kind\":\"dev\",\"name\":\"clap-cargo\",\"req\":\"^0.15.2\"},{\"default_features\":false,\"name\":\"clap_builder\",\"req\":\"=4.6.0\"},{\"name\":\"clap_derive\",\"optional\":true,\"req\":\"=4.6.0\"},{\"kind\":\"dev\",\"name\":\"jiff\",\"req\":\"^0.2.23\"},{\"kind\":\"dev\",\"name\":\"rustversion\",\"req\":\"^1.0.22\"},{\"kind\":\"dev\",\"name\":\"semver\",\"req\":\"^1.0.27\"},{\"kind\":\"dev\",\"name\":\"shlex\",\"req\":\"^1.3.0\"},{\"features\":[\"term-svg\"],\"kind\":\"dev\",\"name\":\"snapbox\",\"req\":\"^1.1.0\"},{\"kind\":\"dev\",\"name\":\"trybuild\",\"req\":\"^1.0.116\"},{\"default_features\":false,\"features\":[\"color-auto\",\"diff\",\"examples\"],\"kind\":\"dev\",\"name\":\"trycmd\",\"req\":\"^1.1.1\"}],\"features\":{\"cargo\":[\"clap_builder/cargo\"],\"color\":[\"clap_builder/color\"],\"debug\":[\"clap_builder/debug\",\"clap_derive?/debug\"],\"default\":[\"std\",\"color\",\"help\",\"usage\",\"error-context\",\"suggestions\"],\"deprecated\":[\"clap_builder/deprecated\",\"clap_derive?/deprecated\"],\"derive\":[\"dep:clap_derive\"],\"env\":[\"clap_builder/env\"],\"error-context\":[\"clap_builder/error-context\"],\"help\":[\"clap_builder/help\"],\"std\":[\"clap_builder/std\"],\"string\":[\"clap_builder/string\"],\"suggestions\":[\"clap_builder/suggestions\"],\"unicode\":[\"clap_builder/unicode\"],\"unstable-derive-ui-tests\":[],\"unstable-doc\":[\"clap_builder/unstable-doc\",\"derive\"],\"unstable-ext\":[\"clap_builder/unstable-ext\"],\"unstable-markdown\":[\"clap_derive/unstable-markdown\"],\"unstable-styles\":[\"clap_builder/unstable-styles\"],\"unstable-v5\":[\"clap_builder/unstable-v5\",\"clap_derive?/unstable-v5\",\"deprecated\"],\"usage\":[\"clap_builder/usage\"],\"wrap_help\":[\"clap_builder/wrap_help\"]}}",
@@ -1562,10 +1562,10 @@
       "parking_lot_core_0.9.12": "{\"dependencies\":[{\"name\":\"backtrace\",\"optional\":true,\"req\":\"^0.3.60\"},{\"name\":\"cfg-if\",\"req\":\"^1.0.0\"},{\"name\":\"libc\",\"req\":\"^0.2.95\",\"target\":\"cfg(unix)\"},{\"name\":\"petgraph\",\"optional\":true,\"req\":\"^0.6.0\"},{\"name\":\"redox_syscall\",\"req\":\"^0.5\",\"target\":\"cfg(target_os = \\\"redox\\\")\"},{\"name\":\"smallvec\",\"req\":\"^1.6.1\"},{\"name\":\"windows-link\",\"req\":\"^0.2.0\",\"target\":\"cfg(windows)\"}],\"features\":{\"deadlock_detection\":[\"petgraph\",\"backtrace\"],\"nightly\":[]}}",
       "percent-encoding_2.3.2": "{\"dependencies\":[],\"features\":{\"alloc\":[],\"default\":[\"std\"],\"std\":[\"alloc\"]}}",
       "petgraph_0.7.1": "{\"dependencies\":[{\"kind\":\"dev\",\"name\":\"ahash\",\"req\":\"^0.7.2\"},{\"kind\":\"dev\",\"name\":\"bincode\",\"req\":\"^1.3.3\"},{\"kind\":\"dev\",\"name\":\"defmac\",\"req\":\"^0.2.1\"},{\"default_features\":false,\"name\":\"fixedbitset\",\"req\":\"^0.5.7\"},{\"kind\":\"dev\",\"name\":\"fxhash\",\"req\":\"^0.2.1\"},{\"name\":\"indexmap\",\"req\":\"^2.5.0\"},{\"default_features\":false,\"kind\":\"dev\",\"name\":\"itertools\",\"req\":\"^0.12.1\"},{\"kind\":\"dev\",\"name\":\"odds\",\"req\":\"^0.4.0\"},{\"default_features\":false,\"name\":\"quickcheck\",\"optional\":true,\"req\":\"^0.8\"},{\"kind\":\"dev\",\"name\":\"rand\",\"req\":\"^0.5.5\"},{\"name\":\"rayon\",\"optional\":true,\"req\":\"^1.5.3\"},{\"name\":\"serde\",\"optional\":true,\"req\":\"^1.0\"},{\"name\":\"serde_derive\",\"optional\":true,\"req\":\"^1.0\"}],\"features\":{\"all\":[\"unstable\",\"quickcheck\",\"matrix_graph\",\"stable_graph\",\"graphmap\",\"rayon\"],\"default\":[\"graphmap\",\"stable_graph\",\"matrix_graph\"],\"generate\":[],\"graphmap\":[],\"matrix_graph\":[],\"rayon\":[\"dep:rayon\",\"indexmap/rayon\"],\"serde-1\":[\"serde\",\"serde_derive\"],\"stable_graph\":[],\"unstable\":[\"generate\"]}}",
-      "phf_0.13.1": "{\"dependencies\":[{\"name\":\"phf_macros\",\"optional\":true,\"req\":\"^0.13.1\"},{\"default_features\":false,\"name\":\"phf_shared\",\"req\":\"^0.13.1\"},{\"default_features\":false,\"name\":\"serde\",\"optional\":true,\"req\":\"^1.0\"}],\"features\":{\"default\":[\"std\"],\"macros\":[\"phf_macros\"],\"std\":[\"phf_shared/std\",\"serde?/std\"],\"uncased\":[\"phf_macros?/uncased\",\"phf_shared/uncased\"],\"unicase\":[\"phf_macros?/unicase\",\"phf_shared/unicase\"]}}",
-      "phf_generator_0.13.1": "{\"dependencies\":[{\"kind\":\"dev\",\"name\":\"criterion\",\"req\":\"^0.6.0\"},{\"default_features\":false,\"name\":\"fastrand\",\"req\":\"^2.1.0\"},{\"default_features\":false,\"name\":\"phf_shared\",\"req\":\"^0.13.1\"}],\"features\":{}}",
-      "phf_macros_0.13.1": "{\"dependencies\":[{\"name\":\"phf_generator\",\"req\":\"^0.13.1\"},{\"default_features\":false,\"name\":\"phf_shared\",\"req\":\"^0.13.1\"},{\"name\":\"proc-macro2\",\"req\":\"^1.0.95\"},{\"name\":\"quote\",\"req\":\"^1\"},{\"features\":[\"full\"],\"name\":\"syn\",\"req\":\"^2\"},{\"name\":\"uncased_\",\"optional\":true,\"package\":\"uncased\",\"req\":\"^0.9.7\"},{\"name\":\"unicase_\",\"optional\":true,\"package\":\"unicase\",\"req\":\"^2.4.0\"}],\"features\":{\"uncased\":[\"uncased_\",\"phf_shared/uncased\"],\"unicase\":[\"unicase_\",\"phf_shared/unicase\"]}}",
-      "phf_shared_0.13.1": "{\"dependencies\":[{\"name\":\"siphasher\",\"req\":\"^1.0\"},{\"default_features\":false,\"name\":\"uncased\",\"optional\":true,\"req\":\"^0.9.9\"},{\"name\":\"unicase\",\"optional\":true,\"req\":\"^2.4.0\"}],\"features\":{\"default\":[\"std\"],\"std\":[]}}",
+      "phf_0.11.3": "{\"dependencies\":[{\"name\":\"phf_macros\",\"optional\":true,\"req\":\"^0.11.3\"},{\"default_features\":false,\"name\":\"phf_shared\",\"req\":\"^0.11.3\"},{\"name\":\"serde\",\"optional\":true,\"req\":\"^1.0\"}],\"features\":{\"default\":[\"std\"],\"macros\":[\"phf_macros\"],\"std\":[\"phf_shared/std\"],\"uncased\":[\"phf_shared/uncased\"],\"unicase\":[\"phf_macros?/unicase\",\"phf_shared/unicase\"]}}",
+      "phf_generator_0.11.3": "{\"dependencies\":[{\"name\":\"criterion\",\"optional\":true,\"req\":\"^0.3.6\"},{\"kind\":\"dev\",\"name\":\"criterion\",\"req\":\"^0.3.6\"},{\"default_features\":false,\"name\":\"phf_shared\",\"req\":\"^0.11.2\"},{\"default_features\":false,\"features\":[\"small_rng\"],\"name\":\"rand\",\"req\":\"^0.8\"}],\"features\":{}}",
+      "phf_macros_0.11.3": "{\"dependencies\":[{\"name\":\"phf_generator\",\"req\":\"^0.11.1\"},{\"default_features\":false,\"name\":\"phf_shared\",\"req\":\"^0.11.2\"},{\"name\":\"proc-macro2\",\"req\":\"^1\"},{\"name\":\"quote\",\"req\":\"^1\"},{\"features\":[\"full\"],\"name\":\"syn\",\"req\":\"^2\"},{\"name\":\"unicase_\",\"optional\":true,\"package\":\"unicase\",\"req\":\"^2.4.0\"}],\"features\":{\"unicase\":[\"unicase_\",\"phf_shared/unicase\"]}}",
+      "phf_shared_0.11.3": "{\"dependencies\":[{\"name\":\"siphasher\",\"req\":\"^1.0\"},{\"default_features\":false,\"name\":\"uncased\",\"optional\":true,\"req\":\"^0.9.9\"},{\"name\":\"unicase\",\"optional\":true,\"req\":\"^2.4.0\"}],\"features\":{\"default\":[\"std\"],\"std\":[]}}",
       "pin-project-internal_1.1.11": "{\"dependencies\":[{\"name\":\"proc-macro2\",\"req\":\"^1.0.60\"},{\"name\":\"quote\",\"req\":\"^1.0.25\"},{\"default_features\":false,\"features\":[\"parsing\",\"printing\",\"clone-impls\",\"proc-macro\",\"full\",\"visit-mut\"],\"name\":\"syn\",\"req\":\"^2.0.1\"}],\"features\":{}}",
       "pin-project-lite_0.2.17": "{\"dependencies\":[{\"kind\":\"dev\",\"name\":\"rustversion\",\"req\":\"^1\"},{\"kind\":\"dev\",\"name\":\"static_assertions\",\"req\":\"^1\"}],\"features\":{}}",
       "pin-project_1.1.11": "{\"dependencies\":[{\"name\":\"pin-project-internal\",\"req\":\"=1.1.11\"},{\"kind\":\"dev\",\"name\":\"rustversion\",\"req\":\"^1\"},{\"kind\":\"dev\",\"name\":\"static_assertions\",\"req\":\"^1\"}],\"features\":{}}",
