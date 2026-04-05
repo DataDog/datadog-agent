@@ -47,6 +47,7 @@ func NewCRDCollector() *CRDCollector {
 			IsManifestProducer:                   true,
 			IsMetadataProducer:                   false,
 			SupportsManifestBuffering:            false,
+			Group:                                utilTypes.CrdGroup,
 			Name:                                 utilTypes.CrdName,
 			Kind:                                 kubernetes.CustomResourceDefinitionKind,
 			NodeType:                             orchestrator.K8sCRD,

@@ -48,6 +48,7 @@ func (d DeviceInfo) equal(other DeviceInfo) bool {
 
 // DeviceDeduper is an interface for deduplicating SNMP devices
 type DeviceDeduper interface {
+	DecrementIPCounter(ip string)
 	MarkIPAsProcessed(ip string)
 	AddPendingDevice(device PendingDevice)
 	GetDedupedDevices() []PendingDevice
@@ -58,7 +59,7 @@ type deviceDeduperImpl struct {
 	sync.RWMutex
 	deviceInfos    []DeviceInfo
 	pendingDevices []PendingDevice
-	ipsCounter     map[string]*atomic.Uint32
+	ipsCounter     map[string]*atomic.Int32
 	config         snmp.ListenerConfig
 }
 
@@ -67,7 +68,7 @@ func NewDeviceDeduper(config snmp.ListenerConfig) DeviceDeduper {
 	deduper := &deviceDeduperImpl{
 		deviceInfos:    make([]DeviceInfo, 0),
 		pendingDevices: make([]PendingDevice, 0),
-		ipsCounter:     make(map[string]*atomic.Uint32),
+		ipsCounter:     make(map[string]*atomic.Int32),
 		config:         config,
 	}
 
@@ -94,10 +95,10 @@ func (d *deviceDeduperImpl) initializeCounters() {
 			ipStr := currentIP.String()
 			counter, exists := d.ipsCounter[ipStr]
 			if !exists {
-				counter = &atomic.Uint32{}
+				counter = &atomic.Int32{}
 				d.ipsCounter[ipStr] = counter
 			}
-			counter.Add(uint32(len(config.Authentications)))
+			counter.Add(int32(len(config.Authentications)))
 		}
 	}
 }
@@ -175,14 +176,25 @@ func (d *deviceDeduperImpl) GetDedupedDevices() []PendingDevice {
 	return dedupedDevices
 }
 
-// MarkIPAsProcessed removes an IP from the counter, it is used to make sure we get the minimum IP for a device
+// DecrementIPCounter decrements the counter for an IP by 1, representing one completed auth attempt.
+func (d *deviceDeduperImpl) DecrementIPCounter(ip string) {
+	d.RLock()
+	defer d.RUnlock()
+	counter, exists := d.ipsCounter[ip]
+
+	if exists {
+		counter.Add(-1)
+	}
+}
+
+// MarkIPAsProcessed sets the counter for an IP to 0, signaling that the device was found and no further attempts are needed
 func (d *deviceDeduperImpl) MarkIPAsProcessed(ip string) {
 	d.RLock()
 	defer d.RUnlock()
 	counter, exists := d.ipsCounter[ip]
 
 	if exists {
-		counter.Add(^uint32(0)) // Subtract 1 using bitwise NOT of 0
+		counter.Store(0)
 	}
 }
 
