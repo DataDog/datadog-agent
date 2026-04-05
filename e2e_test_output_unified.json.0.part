@@ -1,0 +1,40 @@
+{
+  "version": "1.0.0",
+  "metadata": {
+    "test_system": "e2e",
+    "timestamp": "2026-04-05T14:47:17.390709+00:00",
+    "duration_seconds": 0.0,
+    "git": {
+      "branch": "bar.fins/usm-e2e-tests",
+      "commit_sha": "3359dd4d876e775567a1d9ef94e7746c38122adf",
+      "commit_author": "",
+      "base_branch": "",
+      "base_sha": ""
+    },
+    "ci": {
+      "pipeline_id": "",
+      "job_id": "",
+      "job_name": "",
+      "job_url": ""
+    },
+    "environment": {
+      "os": "Windows",
+      "os_version": "11",
+      "arch": "AMD64",
+      "kernel": "",
+      "runtime_version": "",
+      "agent_flavor": "base",
+      "runner_cpu_request": "",
+      "runner_memory_request": ""
+    }
+  },
+  "summary": {
+    "total": 0,
+    "passed": 0,
+    "failed": 0,
+    "skipped": 0,
+    "flaky": 0,
+    "retried": 0,
+    "status": "pass"
+  }
+}
