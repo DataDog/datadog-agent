@@ -214,8 +214,7 @@ new-e2e-windows-usm:
     TEAM: universal-service-monitoring
   parallel:
     matrix:
-      - EXTRA_PARAMS: --run TestIISRemoteTagsSuite
-      - EXTRA_PARAMS: --run TestHTTPRemoteTagsWindowsSuite
+      - EXTRA_PARAMS: --run TestWindowsUSMSuite
 
 new-e2e-windows-security-agent:
   extends: .new_e2e_template
