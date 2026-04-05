@@ -102,6 +102,7 @@ go_test(
     # keep
     gotags = ["test"] + select({
         "@platforms//os:linux": ["linux"],
+        "@platforms//os:macos": ["darwin"],
         "@platforms//os:windows": ["windows"],
         "//conditions:default": [],
     }),
