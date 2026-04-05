@@ -57,6 +57,9 @@ func (s *pythonRemoteTagsLinuxSuite) SetupSuite() {
 
 	waitForHTTPServer(s.T(), host, `python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:%d/')"`, 8081)
 	waitForHTTPServer(s.T(), host, `python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:%d/')"`, 8082)
+
+	// Wait for the connections pipeline to be active before running tests.
+	waitForConnectionsPipeline(s.T(), s.Env().FakeIntake.Client())
 }
 
 func (s *pythonRemoteTagsLinuxSuite) BeforeTest(suiteName, testName string) {
@@ -75,7 +78,7 @@ func (s *pythonRemoteTagsLinuxSuite) TestPythonRemoteServiceTags() {
 
 	const requestsPerPort = 4000
 	sendPythonHTTPRequests(host, "python3", requestsPerPort)
-	fetchAndAssertTaggedConnections(t, s.Env().FakeIntake.Client(), "python", requestsPerPort)
+	fetchAndAssertTaggedConnections(t, s.Env().FakeIntake.Client(), "python", 8081, 8082, requestsPerPort)
 }
 
 // pythonRemoteTagsDirectLinuxSuite is the direct send variant of pythonRemoteTagsLinuxSuite.

@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	ec2windows "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2/windows"
@@ -24,23 +26,21 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type iisRemoteTagsSuite struct {
+type windowsUSMSuite struct {
 	e2e.BaseSuite[environments.WindowsHost]
 }
 
-func TestIISRemoteTagsSuite(t *testing.T) {
+func TestWindowsUSMSuite(t *testing.T) {
 	t.Parallel()
 
-	s := &iisRemoteTagsSuite{}
-
 	e2eParams := []e2e.SuiteOption{
-		e2e.WithProvisioner(provisioners.NewTypedPulumiProvisioner("iisHost", iisHostProvisionerWindows(), nil)),
+		e2e.WithProvisioner(provisioners.NewTypedPulumiProvisioner("iisHost", windowsUSMProvisioner(), nil)),
 	}
 
-	e2e.Run(t, s, e2eParams...)
+	e2e.Run(t, &windowsUSMSuite{}, e2eParams...)
 }
 
-func iisHostProvisionerWindows() provisioners.PulumiEnvRunFunc[environments.WindowsHost] {
+func windowsUSMProvisioner() provisioners.PulumiEnvRunFunc[environments.WindowsHost] {
 	return func(ctx *pulumi.Context, env *environments.WindowsHost) error {
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {
@@ -57,66 +57,78 @@ func iisHostProvisionerWindows() provisioners.PulumiEnvRunFunc[environments.Wind
 	}
 }
 
-func (s *iisRemoteTagsSuite) SetupSuite() {
+func (s *windowsUSMSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 	defer s.CleanupOnSetupFailure()
 
 	host := s.Env().RemoteHost
 
-	// Install IIS BEFORE deploying binaries so system-probe's IIS ETW provider
-	// initializes correctly when the agent services restart.
+	s.setupIISSites(host)
+	s.setupPythonServers(host)
+	s.restartAgent(host)
+}
+
+func (s *windowsUSMSuite) setupIISSites(host *components.RemoteHost) {
 	err := windows.InstallIIS(host)
 	require.NoError(s.T(), err, "failed to install IIS")
 
 	sites := []windows.IISSiteDefinition{
-		{
-			Name:        "DatadogTestSiteA",
-			BindingPort: "*:8081:",
-		},
-		{
-			Name:        "DatadogTestSiteB",
-			BindingPort: "*:8082:",
-		},
+		{Name: "DatadogTestSiteA", BindingPort: "*:8081:"},
+		{Name: "DatadogTestSiteB", BindingPort: "*:8082:"},
 	}
 	err = windows.CreateIISSite(host, sites)
 	require.NoError(s.T(), err, "failed to create IIS sites")
 
-	// Write a default document so IIS returns 200 instead of 403.14
 	for _, site := range sites {
 		sitePath := "c:/tmp/inetpub/" + site.Name + "/index.html"
 		_, err = host.WriteFile(sitePath, []byte("<html><body>ok</body></html>"))
 		require.NoError(s.T(), err, "failed to write default document for %s", site.Name)
 	}
+}
 
-	// Restart the agent so system-probe's IIS ETW provider initializes
-	// now that IIS is installed. In CI the agent was started before IIS.
-	host.MustExecute("Restart-Service datadogagent -Force")
+func (s *windowsUSMSuite) setupPythonServers(host *components.RemoteHost) {
+	pythonExe := `C:\Program Files\Datadog\Datadog Agent\embedded3\python.exe`
+	out, _ := host.Execute(`Test-Path "` + pythonExe + `"`)
+	require.Contains(s.T(), out, "True", "embedded Python not found at %s", pythonExe)
+
+	host.MustExecute(`New-Item -ItemType Directory -Force -Path C:\temp | Out-Null`)
+	_, err := host.WriteFile(`C:\temp\httpserver.py`, []byte(httpServerScript))
+	require.NoError(s.T(), err, "failed to write HTTP server script")
+
+	for _, port := range []string{"8083", "8084"} {
+		out, err = host.Execute(`$r = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{` +
+			`CommandLine='"` + pythonExe + `" C:\temp\httpserver.py ` + port + `'}; ` +
+			`Write-Output "port` + port + `: pid=$($r.ProcessId) rc=$($r.ReturnValue)"`)
+		require.NoError(s.T(), err, "WMI process creation failed for port %s", port)
+		require.Contains(s.T(), out, "rc=0", "WMI process creation returned non-zero for port %s", port)
+	}
+
+	waitForHTTPServer(s.T(), host, "Invoke-WebRequest -UseBasicParsing http://localhost:%d/", 8083)
+	waitForHTTPServer(s.T(), host, "Invoke-WebRequest -UseBasicParsing http://localhost:%d/", 8084)
+}
+
+// restartAgent stops and starts the agent so system-probe's IIS ETW provider
+// initializes with IIS installed. In CI the agent was started before IIS.
+func (s *windowsUSMSuite) restartAgent(host *components.RemoteHost) {
+	host.MustExecute("Stop-Service datadogagent -Force")
+	require.Eventually(s.T(), func() bool {
+		out, _ := host.Execute(`(Get-Service datadogagent).Status`)
+		return strings.Contains(out, "Stopped")
+	}, 30*time.Second, 2*time.Second, "datadogagent did not stop")
+
+	host.MustExecute("Start-Service datadogagent")
 	require.Eventually(s.T(), func() bool {
 		out, err := host.Execute(`& "C:\Program Files\Datadog\Datadog Agent\bin\agent.exe" "status"`)
 		return err == nil && out != ""
 	}, 60*time.Second, 5*time.Second, "agent did not become ready after restart")
 
-	// Wait for system-probe's ETW provider to initialize by sending a probe
-	// request to IIS and polling the IIS tags cache until it's populated.
-	// Without this, traffic sent before ETW is ready won't get IIS tags.
 	require.Eventually(s.T(), func() bool {
-		// Send a single request to IIS to trigger ETW capture.
-		host.Execute(`Invoke-WebRequest -UseBasicParsing -Uri "http://localhost:8081/" -ErrorAction SilentlyContinue`)
-		// Check if the IIS tags cache has entries.
-		out, err := host.Execute(`Invoke-WebRequest -UseBasicParsing -Uri "http://localhost:3333/network_tracer/iis_tags" | Select-Object -ExpandProperty Content`)
-		if err != nil || out == "" {
-			return false
-		}
-		trimmed := strings.TrimSpace(out)
-		return trimmed != "" && trimmed != "{}" && trimmed != "null"
-	}, 90*time.Second, 5*time.Second, "IIS tags cache not populated — ETW provider may not have initialized")
-
-	// In CI, the provisioner installs the agent built from the current branch.
-	// For local dev, uncomment to deploy locally-built binaries:
-	// deployWindowsBinaries(s.T(), host)
+		out, _ := host.Execute(`Test-Path \\.\pipe\dd_system_probe`)
+		return strings.Contains(out, "True")
+	}, 60*time.Second, 2*time.Second, "system-probe named pipe not ready after restart")
 }
 
-func (s *iisRemoteTagsSuite) BeforeTest(suiteName, testName string) {
+func (s *windowsUSMSuite) BeforeTest(suiteName, testName string) {
 	s.BaseSuite.BeforeTest(suiteName, testName)
 
 	if !s.BaseSuite.IsDevMode() {
@@ -126,10 +138,7 @@ func (s *iisRemoteTagsSuite) BeforeTest(suiteName, testName string) {
 
 // TestIISRemoteServiceTags verifies that connections to IIS sites have
 // RemoteServiceTagsIdx >= 0 with tags containing http.iis.sitename: prefix.
-// It sends connections to each site sequentially, verifying tags after each,
-// then sends to the second site to exercise cache key replacement in the IIS
-// ETW tag cache when ephemeral ports are reused (cache entries have 2-minute TTL).
-func (s *iisRemoteTagsSuite) TestIISRemoteServiceTags() {
+func (s *windowsUSMSuite) TestIISRemoteServiceTags() {
 	t := s.T()
 	host := s.Env().RemoteHost
 	const count = 1000
@@ -146,7 +155,7 @@ func (s *iisRemoteTagsSuite) TestIISRemoteServiceTags() {
 		if err != nil || cnx == nil {
 			return false
 		}
-		statsA = getConnectionStats(t, cnx, "http.iis.sitename:")
+		statsA = getConnectionStats(t, cnx, []int32{8081, 8082}, "http.iis.sitename:")
 		return statsA.connsByPort[8081] >= count
 	}, 90*time.Second, 5*time.Second, "timed out waiting for siteA connections on port 8081")
 
@@ -154,9 +163,7 @@ func (s *iisRemoteTagsSuite) TestIISRemoteServiceTags() {
 	assert.True(t, statsA.tagsByPort[8081]["http.iis.sitename:DatadogTestSiteA"],
 		"siteA: port 8081 should be tagged with DatadogTestSiteA")
 
-	// Step 2: quickly send 1000 connections to site B (port 8082).
-	// Ephemeral ports from step 1 are recycled by the OS, exercising IIS ETW
-	// cache key replacement (entries have a 2-minute TTL).
+	// Step 2: send 1000 connections to site B (port 8082).
 	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	sendWindowsKeepAliveRequestsToPort(host, 8082, count, 20)
 
@@ -166,11 +173,39 @@ func (s *iisRemoteTagsSuite) TestIISRemoteServiceTags() {
 		if err != nil || cnx == nil {
 			return false
 		}
-		statsB = getConnectionStats(t, cnx, "http.iis.sitename:")
+		statsB = getConnectionStats(t, cnx, []int32{8081, 8082}, "http.iis.sitename:")
 		return statsB.connsByPort[8082] >= count
 	}, 90*time.Second, 5*time.Second, "timed out waiting for siteB connections on port 8082")
 
 	assertTaggedConnectionsOnPort(t, statsB, "siteB", 8082, count)
 	assert.True(t, statsB.tagsByPort[8082]["http.iis.sitename:DatadogTestSiteB"],
 		"siteB: port 8082 should be tagged with DatadogTestSiteB")
+}
+
+// TestHTTPRemoteServiceTags verifies that connections to Python HTTP listeners
+// have RemoteServiceTagsIdx >= 0 with process-based remote service tags.
+func (s *windowsUSMSuite) TestHTTPRemoteServiceTags() {
+	t := s.T()
+	host := s.Env().RemoteHost
+
+	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+
+	const requestsPerPort = 4000
+	sendWindowsKeepAliveRequestsToPort(host, 8083, requestsPerPort, 20)
+	sendWindowsKeepAliveRequestsToPort(host, 8084, requestsPerPort, 20)
+
+	var stats connectionStats
+	require.Eventually(t, func() bool {
+		cnx, err := s.Env().FakeIntake.Client().GetConnections()
+		if err != nil || cnx == nil {
+			return false
+		}
+		stats = getConnectionStats(t, cnx, []int32{8083, 8084}, "process_context:")
+		return stats.connsByPort[8083] >= requestsPerPort && stats.connsByPort[8084] >= requestsPerPort &&
+			stats.untaggedByPort[8083] == 0 && stats.untaggedByPort[8084] == 0
+	}, 120*time.Second, 5*time.Second, "http: timed out waiting for tagged connections on both ports (8083: %d/%d untagged, 8084: %d/%d untagged)",
+		stats.untaggedByPort[8083], stats.connsByPort[8083], stats.untaggedByPort[8084], stats.connsByPort[8084])
+
+	assertTaggedConnectionsOnPort(t, stats, "http", 8083, requestsPerPort)
+	assertTaggedConnectionsOnPort(t, stats, "http", 8084, requestsPerPort)
 }

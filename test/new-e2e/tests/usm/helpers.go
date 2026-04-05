@@ -21,6 +21,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// waitForConnectionsPipeline polls fakeintake until at least one connections
+// payload arrives, confirming that system-probe and process-agent are working.
+// Call this in SetupSuite before sending test traffic to avoid flakiness
+// from the agent not being fully initialized yet.
+func waitForConnectionsPipeline(t *testing.T, fakeintake *fi.Client) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		names, err := fakeintake.GetConnectionsNames()
+		return err == nil && len(names) > 0
+	}, 90*time.Second, 5*time.Second, "no connections data received by fakeintake — connections pipeline may not be running")
+}
+
 // waitForHTTPServer polls until the HTTP server on the given port responds.
 // checkCmd is the platform-specific command to probe the server (e.g. curl or Invoke-WebRequest).
 func waitForHTTPServer(t *testing.T, host *components.RemoteHost, checkCmd string, port int) {
@@ -86,7 +98,7 @@ func sendWindowsKeepAliveRequestsToPort(host *components.RemoteHost, port, count
 
 // fetchAndAssertTaggedConnections polls fakeintake until connections with the
 // expected tags appear on ports 8081/8082, then asserts the results.
-func fetchAndAssertTaggedConnections(t *testing.T, fi *fi.Client, label string, minPerPort int) {
+func fetchAndAssertTaggedConnections(t *testing.T, fi *fi.Client, label string, portA, portB int32, minPerPort int) {
 	t.Helper()
 
 	var stats connectionStats
@@ -95,15 +107,14 @@ func fetchAndAssertTaggedConnections(t *testing.T, fi *fi.Client, label string, 
 		if err != nil || cnx == nil {
 			return false
 		}
-		stats = getConnectionStats(t, cnx, "process_context:")
-		// Wait until both ports have enough connections AND they are tagged.
-		return stats.connsByPort[8081] >= minPerPort && stats.connsByPort[8082] >= minPerPort &&
-			stats.untaggedByPort[8081] == 0 && stats.untaggedByPort[8082] == 0
-	}, 120*time.Second, 5*time.Second, "%s: timed out waiting for tagged connections on both ports (8081: %d/%d untagged, 8082: %d/%d untagged)",
-		label, stats.untaggedByPort[8081], stats.connsByPort[8081], stats.untaggedByPort[8082], stats.connsByPort[8082])
+		stats = getConnectionStats(t, cnx, []int32{portA, portB}, "process_context:")
+		return stats.connsByPort[portA] >= minPerPort && stats.connsByPort[portB] >= minPerPort &&
+			stats.untaggedByPort[portA] == 0 && stats.untaggedByPort[portB] == 0
+	}, 120*time.Second, 5*time.Second, "%s: timed out waiting for tagged connections on both ports (%d: %d/%d untagged, %d: %d/%d untagged)",
+		label, portA, stats.untaggedByPort[portA], stats.connsByPort[portA], portB, stats.untaggedByPort[portB], stats.connsByPort[portB])
 
-	assertTaggedConnectionsOnPort(t, stats, label, 8081, minPerPort)
-	assertTaggedConnectionsOnPort(t, stats, label, 8082, minPerPort)
+	assertTaggedConnectionsOnPort(t, stats, label, portA, minPerPort)
+	assertTaggedConnectionsOnPort(t, stats, label, portB, minPerPort)
 }
 
 // connectionStats holds the results of counting connections on test ports from FakeIntake.
@@ -115,9 +126,9 @@ type connectionStats struct {
 }
 
 // getConnectionStats fetches connections from FakeIntake and counts connections
-// on ports 8081/8082. For each connection it checks whether all requiredTagPrefixes
+// on the specified ports. For each connection it checks whether all requiredTagPrefixes
 // are present in the remote service tags, counting how many connections are missing each.
-func getConnectionStats(t *testing.T, cnx *aggregator.ConnectionsAggregator, requiredTagPrefixes ...string) connectionStats {
+func getConnectionStats(t *testing.T, cnx *aggregator.ConnectionsAggregator, ports []int32, requiredTagPrefixes ...string) connectionStats {
 	t.Helper()
 	stats := connectionStats{
 		connsByPort:      make(map[int32]int),
@@ -126,9 +137,14 @@ func getConnectionStats(t *testing.T, cnx *aggregator.ConnectionsAggregator, req
 		tagsByPort:       make(map[int32]map[string]bool),
 	}
 
+	portSet := make(map[int32]bool, len(ports))
+	for _, p := range ports {
+		portSet[p] = true
+	}
+
 	cnx.ForeachConnection(func(conn *agentmodel.Connection, cc *agentmodel.CollectorConnections, _ string) {
 		port := conn.Raddr.Port
-		if port != 8081 && port != 8082 {
+		if !portSet[port] {
 			return
 		}
 		stats.connsByPort[port]++
