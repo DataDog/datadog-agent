@@ -14,8 +14,9 @@ import (
 
 	"github.com/cilium/ebpf/rlimit"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
 var core struct {
@@ -50,8 +51,8 @@ func coreLoader(cfg *Config, rcclient rcclient.Component) (*coreAssetLoader, err
 			success telemetry.Counter
 			error   telemetry.Counter
 		}{
-			success: telemetry.NewCounter("ebpf__core__load", "success", []string{"platform", "platform_version", "kernel", "arch", "asset", "btf_type"}, "count of CO-RE load successes"),
-			error:   telemetry.NewCounter("ebpf__core__load", "error", []string{"platform", "platform_version", "kernel", "arch", "asset", "error_type"}, "count of CO-RE load errors"),
+			success: telemetryimpl.GetCompatComponent().NewCounter("ebpf__core__load", "success", []string{"platform", "platform_version", "kernel", "arch", "asset", "btf_type"}, "count of CO-RE load successes"),
+			error:   telemetryimpl.GetCompatComponent().NewCounter("ebpf__core__load", "error", []string{"platform", "platform_version", "kernel", "arch", "asset", "error_type"}, "count of CO-RE load errors"),
 		},
 	}
 	return core.loader, nil

@@ -23,8 +23,8 @@ import (
 	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -464,7 +464,7 @@ func newMetrics(
 func TestUsageMetric_AgentOTLPIngest(t *testing.T) {
 	rec := &metricRecorder{}
 	ctx := context.Background()
-	telemetryComp := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
+	telemetryComp := fxutil.Test[telemetry.Mock](t, mocktelemetry.Module())
 	store := TelemetryStore{
 		OTLPIngestMetrics: telemetryComp.NewGauge(
 			"runtime",
@@ -508,7 +508,7 @@ func TestUsageMetric_AgentOTLPIngest(t *testing.T) {
 func TestUsageMetric_DDOT(t *testing.T) {
 	rec := &metricRecorder{}
 	ctx := context.Background()
-	telemetryComp := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
+	telemetryComp := fxutil.Test[telemetry.Mock](t, mocktelemetry.Module())
 	store := TelemetryStore{
 		DDOTMetrics: telemetryComp.NewGauge(
 			"runtime",
@@ -574,7 +574,7 @@ func TestUsageMetric_DDOT(t *testing.T) {
 func usageMetricGW(t *testing.T, gwUsage otel.GatewayUsage, expGwUsage float64, expGwEnvVar float64) {
 	rec := &metricRecorder{}
 	ctx := context.Background()
-	telemetryComp := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
+	telemetryComp := fxutil.Test[telemetry.Mock](t, mocktelemetry.Module())
 	store := TelemetryStore{
 		DDOTGWUsage: telemetryComp.NewGauge(
 			"runtime",

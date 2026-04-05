@@ -35,7 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	taggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	processapiserver "github.com/DataDog/datadog-agent/comp/process/apiserver"
@@ -95,7 +95,7 @@ func setupProcessAPIServer(t *testing.T) {
 		processapiserver.Module(),
 		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		telemetryimpl.MockModule(),
+		mocktelemetry.Module(),
 		workloadmetafx.Module(workloadmeta.NewParams()),
 		fx.Supply(
 			status.Params{

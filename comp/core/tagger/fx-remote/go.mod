@@ -48,7 +48,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/proto v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/tagset v0.72.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/telemetry v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/template v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/cache v0.69.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/common v0.72.0-rc.5 // indirect
@@ -269,7 +268,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/status/health => ../../../../pkg/status/health
 	github.com/DataDog/datadog-agent/pkg/tagger/types => ../../../../pkg/tagger/types
 	github.com/DataDog/datadog-agent/pkg/tagset => ../../../../pkg/tagset
-	github.com/DataDog/datadog-agent/pkg/telemetry => ../../../../pkg/telemetry
 	github.com/DataDog/datadog-agent/pkg/template => ../../../../pkg/template
 	github.com/DataDog/datadog-agent/pkg/trace => ../../../../pkg/trace
 	github.com/DataDog/datadog-agent/pkg/trace/log => ../../../../pkg/trace/log

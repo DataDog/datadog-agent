@@ -6,22 +6,14 @@
 package telemetry
 
 import (
-	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetryDef "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 )
 
 // Counter tracks how many times something is happening.
-type Counter interface {
-	telemetryComponent.Counter
-}
+type Counter = telemetryDef.Counter
 
 // NewCounter creates a Counter with default options for telemetry purpose.
 // Current implementation used: Prometheus Counter
 func NewCounter(subsystem, name string, tags []string, help string) Counter {
-	return NewCounterWithOpts(subsystem, name, tags, help, DefaultOptions)
-}
-
-// NewCounterWithOpts creates a Counter with the given options for telemetry purpose.
-// See NewCounter()
-func NewCounterWithOpts(subsystem, name string, tags []string, help string, opts Options) Counter {
-	return GetCompatComponent().NewCounterWithOpts(subsystem, name, tags, help, telemetryComponent.Options(opts))
+	return GetCompatComponent().NewCounter(subsystem, name, tags, help)
 }

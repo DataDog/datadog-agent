@@ -16,7 +16,7 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"

@@ -16,6 +16,7 @@ import (
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
@@ -30,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/sort"
@@ -147,29 +147,29 @@ var (
 	aggregatorEventPlatformEvents              = expvar.Map{}
 	aggregatorEventPlatformEventsErrors        = expvar.Map{}
 
-	tlmFlush = telemetry.NewCounter("aggregator", "flush",
+	tlmFlush = telemetryimpl.GetCompatComponent().NewCounter("aggregator", "flush",
 		[]string{"data_type", "state"}, "Number of metrics/service checks/events flushed")
 
-	tlmChannelSize = telemetry.NewGauge("aggregator", "channel_size",
+	tlmChannelSize = telemetryimpl.GetCompatComponent().NewGauge("aggregator", "channel_size",
 		[]string{"shard"}, "Size of the aggregator channel")
-	tlmProcessed = telemetry.NewCounter("aggregator", "processed",
+	tlmProcessed = telemetryimpl.GetCompatComponent().NewCounter("aggregator", "processed",
 		[]string{"shard", "data_type"}, "Amount of metrics/services_checks/events processed by the aggregator")
-	tlmDogstatsdTimeBuckets = telemetry.NewGauge("aggregator", "dogstatsd_time_buckets",
+	tlmDogstatsdTimeBuckets = telemetryimpl.GetCompatComponent().NewGauge("aggregator", "dogstatsd_time_buckets",
 		[]string{"shard"}, "Number of time buckets in the dogstatsd sampler")
-	tlmDogstatsdContexts = telemetry.NewGauge("aggregator", "dogstatsd_contexts",
+	tlmDogstatsdContexts = telemetryimpl.GetCompatComponent().NewGauge("aggregator", "dogstatsd_contexts",
 		[]string{"shard"}, "Count the number of dogstatsd contexts in the aggregator")
-	tlmDogstatsdContextsByMtype = telemetry.NewGauge("aggregator", "dogstatsd_contexts_by_mtype",
+	tlmDogstatsdContextsByMtype = telemetryimpl.GetCompatComponent().NewGauge("aggregator", "dogstatsd_contexts_by_mtype",
 		[]string{"shard", "metric_type"}, "Count the number of dogstatsd contexts in the aggregator, by metric type")
-	tlmDogstatsdContextsBytesByMtype = telemetry.NewGauge("aggregator", "dogstatsd_contexts_bytes_by_mtype",
+	tlmDogstatsdContextsBytesByMtype = telemetryimpl.GetCompatComponent().NewGauge("aggregator", "dogstatsd_contexts_bytes_by_mtype",
 		[]string{"shard", "metric_type", tags.BytesKindTelemetryKey}, "Estimated count of bytes taken by contexts in the aggregator, by metric type")
-	tlmDogstatsdFilteredMetrics = telemetry.NewSimpleCounter("aggregator", "dogstatsd_filtered_metrics", "How many metrics were filtered in the time samplers")
-	tlmChecksFilteredMetrics    = telemetry.NewSimpleCounter("aggregator", "checks_filtered_metrics", "How many metrics were filtered in the check samplers")
-	tlmFilteredTags             = telemetry.NewSimpleCounter("aggregator", "filtered_tags", "How many tags were filtered from a metric sample")
-	tlmChecksContexts           = telemetry.NewGauge("aggregator", "checks_contexts",
+	tlmDogstatsdFilteredMetrics = telemetryimpl.GetCompatComponent().NewSimpleCounter("aggregator", "dogstatsd_filtered_metrics", "How many metrics were filtered in the time samplers")
+	tlmChecksFilteredMetrics    = telemetryimpl.GetCompatComponent().NewSimpleCounter("aggregator", "checks_filtered_metrics", "How many metrics were filtered in the check samplers")
+	tlmFilteredTags             = telemetryimpl.GetCompatComponent().NewSimpleCounter("aggregator", "filtered_tags", "How many tags were filtered from a metric sample")
+	tlmChecksContexts           = telemetryimpl.GetCompatComponent().NewGauge("aggregator", "checks_contexts",
 		[]string{"shard"}, "Count the number of checks contexts in the check aggregator")
-	tlmChecksContextsByMtype = telemetry.NewGauge("aggregator", "checks_contexts_by_mtype",
+	tlmChecksContextsByMtype = telemetryimpl.GetCompatComponent().NewGauge("aggregator", "checks_contexts_by_mtype",
 		[]string{"shard", "metric_type"}, "Count the number of checks contexts in the check aggregator, by metric type")
-	tlmChecksContextsBytesByMtype = telemetry.NewGauge("aggregator", "checks_contexts_bytes_by_mtype",
+	tlmChecksContextsBytesByMtype = telemetryimpl.GetCompatComponent().NewGauge("aggregator", "checks_contexts_bytes_by_mtype",
 		[]string{"shard", "metric_type", tags.BytesKindTelemetryKey}, "Estimated count of bytes taken by contexts in the check aggregator, by metric type")
 
 	// Hold series to be added to aggregated series on each flush

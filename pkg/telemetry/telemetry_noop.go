@@ -8,11 +8,11 @@
 package telemetry
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	telemetryDef "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 )
 
-// GetCompatComponent returns a component wrapping telemetry global variables
-func GetCompatComponent() telemetry.Component {
+// GetCompatComponent returns a noop telemetry component for serverless builds.
+func GetCompatComponent() telemetryDef.Component {
 	return noopsimpl.GetCompatComponent()
 }

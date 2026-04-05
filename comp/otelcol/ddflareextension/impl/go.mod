@@ -186,7 +186,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/status/health v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
 	github.com/DataDog/datadog-agent/pkg/tagset v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
-	github.com/DataDog/datadog-agent/pkg/telemetry v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
 	github.com/DataDog/datadog-agent/pkg/template v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
 	github.com/DataDog/datadog-agent/pkg/trace v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
@@ -660,7 +659,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/status/health => ../../../../pkg/status/health
 	github.com/DataDog/datadog-agent/pkg/tagger/types => ../../../../pkg/tagger/types
 	github.com/DataDog/datadog-agent/pkg/tagset => ../../../../pkg/tagset
-	github.com/DataDog/datadog-agent/pkg/telemetry => ../../../../pkg/telemetry
 	github.com/DataDog/datadog-agent/pkg/template => ../../../../pkg/template
 	github.com/DataDog/datadog-agent/pkg/trace => ../../../../pkg/trace
 	github.com/DataDog/datadog-agent/pkg/trace/log => ../../../../pkg/trace/log

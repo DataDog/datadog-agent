@@ -18,8 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	taggerTelemetry "github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -30,7 +30,7 @@ type StoreTestSuite struct {
 }
 
 func (s *StoreTestSuite) SetupTest() {
-	tel := fxutil.Test[telemetry.Component](s.T(), telemetryimpl.MockModule())
+	tel := fxutil.Test[telemetry.Component](s.T(), mocktelemetry.Module())
 	telemetryStore := taggerTelemetry.NewStore(tel)
 	s.clock = clock.NewMock()
 	// set the mock clock to the current time
@@ -514,7 +514,7 @@ func TestProcessTagInfo_IsComplete(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			telemetryComponent := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+			telemetryComponent := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
 			telemetryStore := taggerTelemetry.NewStore(telemetryComponent)
 			tagStore := NewTagStore(telemetryStore)
 
@@ -537,7 +537,7 @@ func TestProcessTagInfo_IsComplete(t *testing.T) {
 }
 
 func TestSubscribe(t *testing.T) {
-	tel := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	tel := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
 	telemetryStore := taggerTelemetry.NewStore(tel)
 	clock := clock.NewMock()
 	store := newTagStoreWithClock(clock, telemetryStore)

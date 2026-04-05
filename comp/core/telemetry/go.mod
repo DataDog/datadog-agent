@@ -3,6 +3,7 @@ module github.com/DataDog/datadog-agent/comp/core/telemetry
 go 1.25.0
 
 require (
+	github.com/DataDog/datadog-agent/comp/def v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.61.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/client_model v0.6.2
@@ -14,7 +15,6 @@ require (
 require gopkg.in/yaml.v3 v3.0.1 // indirect
 
 require (
-	github.com/DataDog/datadog-agent/comp/def v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/option v0.64.0-devel // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -164,7 +164,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/status/health => ../../../pkg/status/health
 	github.com/DataDog/datadog-agent/pkg/tagger/types => ../../../pkg/tagger/types
 	github.com/DataDog/datadog-agent/pkg/tagset => ../../../pkg/tagset
-	github.com/DataDog/datadog-agent/pkg/telemetry => ../../../pkg/telemetry
 	github.com/DataDog/datadog-agent/pkg/template => ../../../pkg/template
 	github.com/DataDog/datadog-agent/pkg/trace => ../../../pkg/trace
 	github.com/DataDog/datadog-agent/pkg/trace/log => ../../../pkg/trace/log

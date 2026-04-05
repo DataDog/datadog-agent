@@ -16,8 +16,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmetafilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -30,7 +30,7 @@ func newFilterStoreObject(t *testing.T, config config.Component) *localFilterSto
 	reqs := Requires{
 		Log:       logmock.New(t),
 		Config:    config,
-		Telemetry: fxutil.Test[coretelemetry.Component](t, telemetryimpl.MockModule()),
+		Telemetry: fxutil.Test[coretelemetry.Component](t, mocktelemetry.Module()),
 	}
 
 	f, err := NewComponent(reqs)

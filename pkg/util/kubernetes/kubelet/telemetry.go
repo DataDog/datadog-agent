@@ -7,7 +7,10 @@
 
 package kubelet
 
-import "github.com/DataDog/datadog-agent/pkg/telemetry"
+import (
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+)
 
 const (
 	subsystem = "kubelet"
@@ -15,7 +18,7 @@ const (
 
 var (
 	// queries tracks kubelet queries done by the Agent.
-	queries = telemetry.NewCounterWithOpts(
+	queries = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
 		subsystem,
 		"queries",
 		[]string{"path", "code"},

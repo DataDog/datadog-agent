@@ -24,7 +24,7 @@ import (
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
-	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	filterlistmock "github.com/DataDog/datadog-agent/comp/filterlist/fx-mock"
 	filterlistimpl "github.com/DataDog/datadog-agent/comp/filterlist/impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"

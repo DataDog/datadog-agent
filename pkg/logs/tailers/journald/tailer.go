@@ -17,6 +17,7 @@ import (
 	"github.com/coreos/go-systemd/v22/sdjournal"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
@@ -24,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 

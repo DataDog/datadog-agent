@@ -17,6 +17,7 @@ require (
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.67.5 // indirect
 	github.com/prometheus/procfs v0.20.1 // indirect
+	go.uber.org/atomic v1.11.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
 	golang.org/x/sys v0.42.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
@@ -152,7 +153,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/status/health => ../../../../pkg/status/health
 	github.com/DataDog/datadog-agent/pkg/tagger/types => ../../../../pkg/tagger/types
 	github.com/DataDog/datadog-agent/pkg/tagset => ../../../../pkg/tagset
-	github.com/DataDog/datadog-agent/pkg/telemetry => ../../../../pkg/telemetry
 	github.com/DataDog/datadog-agent/pkg/template => ../../../../pkg/template
 	github.com/DataDog/datadog-agent/pkg/trace => ../../../../pkg/trace
 	github.com/DataDog/datadog-agent/pkg/trace/log => ../../../../pkg/trace/log

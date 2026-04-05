@@ -187,7 +187,6 @@ use_repo(
     "com_github_datadog_datadog_agent_pkg_status_health",
     "com_github_datadog_datadog_agent_pkg_tagger_types",
     "com_github_datadog_datadog_agent_pkg_tagset",
-    "com_github_datadog_datadog_agent_pkg_telemetry",
     "com_github_datadog_datadog_agent_pkg_template",
     "com_github_datadog_datadog_agent_pkg_trace",
     "com_github_datadog_datadog_agent_pkg_trace_log",

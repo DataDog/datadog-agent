@@ -22,9 +22,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )

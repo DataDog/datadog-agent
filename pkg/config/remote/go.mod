@@ -33,13 +33,10 @@ require (
 	github.com/DataDog/datadog-agent/comp/def v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/basic v0.0.0-20260211235139-a5361978c2b6 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.73.0-devel.0.20251030121902-cd89eab046d6 // indirect
-	github.com/DataDog/datadog-agent/pkg/telemetry v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/template v0.65.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.73.0-rc.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
-	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/mdlayher/socket v0.5.1 // indirect
 	github.com/mdlayher/vsock v1.2.1 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
@@ -48,11 +45,6 @@ require (
 	github.com/prometheus/common v0.67.5 // indirect
 	github.com/prometheus/procfs v0.20.1 // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.9.0 // indirect
-	github.com/spf13/cobra v1.10.2 // indirect
-	go.uber.org/dig v1.19.0 // indirect
-	go.uber.org/fx v1.24.0 // indirect
-	go.uber.org/multierr v1.11.0 // indirect
-	go.uber.org/zap v1.27.1 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
 	golang.org/x/sync v0.20.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
@@ -75,7 +67,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/cache v0.69.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.72.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/option v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.72.0-rc.5 // indirect
@@ -262,7 +253,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/status/health => ../../../pkg/status/health
 	github.com/DataDog/datadog-agent/pkg/tagger/types => ../../../pkg/tagger/types
 	github.com/DataDog/datadog-agent/pkg/tagset => ../../../pkg/tagset
-	github.com/DataDog/datadog-agent/pkg/telemetry => ../../../pkg/telemetry
 	github.com/DataDog/datadog-agent/pkg/template => ../../../pkg/template
 	github.com/DataDog/datadog-agent/pkg/trace => ../../../pkg/trace
 	github.com/DataDog/datadog-agent/pkg/trace/log => ../../../pkg/trace/log

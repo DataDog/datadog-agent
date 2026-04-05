@@ -12,13 +12,13 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/gogo/protobuf/proto"
 
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 )
 
 var (
-	tlmBytesIn = telemetry.NewCounter("process", "payloads_bytes_in",
+	tlmBytesIn = telemetryimpl.GetCompatComponent().NewCounter("process", "payloads_bytes_in",
 		[]string{"type"}, "Count of bytes before encoding payload")
-	tlmBytesOut = telemetry.NewCounter("process", "payloads_bytes_out",
+	tlmBytesOut = telemetryimpl.GetCompatComponent().NewCounter("process", "payloads_bytes_out",
 		[]string{"type"}, "Count of bytes after encoding payload")
 )
 

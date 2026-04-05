@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
@@ -112,7 +112,7 @@ func testTraceExporter(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	ctx := context.Background()
 	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, gzip.NewComponent())
 
-	telemetryComp := fxutil.Test[coretelemetry.Mock](t, telemetryimpl.MockModule())
+	telemetryComp := fxutil.Test[coretelemetry.Mock](t, mocktelemetry.Module())
 	store := serializerexporter.TelemetryStore{
 		DDOTTraces: telemetryComp.NewGauge(
 			"runtime",
@@ -176,7 +176,7 @@ func testNewTracesExporter(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, gzip.NewComponent())
 
 	// The client should have been created correctly
-	telemetryComp := fxutil.Test[coretelemetry.Mock](t, telemetryimpl.MockModule())
+	telemetryComp := fxutil.Test[coretelemetry.Mock](t, mocktelemetry.Module())
 	store := serializerexporter.TelemetryStore{
 		DDOTTraces: telemetryComp.NewGauge(
 			"runtime",
