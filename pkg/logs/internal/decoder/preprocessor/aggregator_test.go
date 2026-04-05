@@ -385,7 +385,7 @@ func TestRegexAggregatorFirstLineMatchesWorksNormally(t *testing.T) {
 // Tests for detectingAggregator
 
 func TestDetectingAggregator_TagsMultilineStartOnly(t *testing.T) {
-	ag := NewDetectingAggregator(status.NewInfoRegistry(), 100, false)
+	ag := NewDetectingAggregator(status.NewInfoRegistry(), 100, false, false)
 
 	// startGroup: stored as pending, nothing emitted
 	require.Empty(t, processMsg(ag, newMessage("Error: Exception"), startGroup))
@@ -406,7 +406,7 @@ func TestDetectingAggregator_TagsMultilineStartOnly(t *testing.T) {
 }
 
 func TestDetectingAggregator_SingleLineNotTagged(t *testing.T) {
-	ag := NewDetectingAggregator(status.NewInfoRegistry(), 100, false)
+	ag := NewDetectingAggregator(status.NewInfoRegistry(), 100, false, false)
 
 	// startGroup: stored
 	require.Empty(t, processMsg(ag, newMessage("Single line 1"), startGroup))
@@ -425,7 +425,7 @@ func TestDetectingAggregator_SingleLineNotTagged(t *testing.T) {
 }
 
 func TestDetectingAggregator_NoAggregateOutputsImmediately(t *testing.T) {
-	ag := NewDetectingAggregator(status.NewInfoRegistry(), 100, false)
+	ag := NewDetectingAggregator(status.NewInfoRegistry(), 100, false, false)
 
 	msgs := processMsg(ag, newMessage("No aggregate 1"), noAggregate)
 	require.Len(t, msgs, 1)
@@ -439,7 +439,7 @@ func TestDetectingAggregator_NoAggregateOutputsImmediately(t *testing.T) {
 }
 
 func TestDetectingAggregator_FlushPendingMessage(t *testing.T) {
-	ag := NewDetectingAggregator(status.NewInfoRegistry(), 100, false)
+	ag := NewDetectingAggregator(status.NewInfoRegistry(), 100, false, false)
 
 	require.Empty(t, processMsg(ag, newMessage("Pending message"), startGroup))
 
@@ -450,7 +450,7 @@ func TestDetectingAggregator_FlushPendingMessage(t *testing.T) {
 }
 
 func TestDetectingAggregator_MixedSingleAndMultiLine(t *testing.T) {
-	ag := NewDetectingAggregator(status.NewInfoRegistry(), 100, false)
+	ag := NewDetectingAggregator(status.NewInfoRegistry(), 100, false, false)
 
 	// Single line stored
 	require.Empty(t, processMsg(ag, newMessage("Single"), startGroup))
@@ -479,7 +479,7 @@ func TestDetectingAggregator_MixedSingleAndMultiLine(t *testing.T) {
 }
 
 func TestDetectingAggregator_IsEmpty(t *testing.T) {
-	ag := NewDetectingAggregator(status.NewInfoRegistry(), 100, false)
+	ag := NewDetectingAggregator(status.NewInfoRegistry(), 100, false, false)
 
 	assert.True(t, ag.IsEmpty())
 
@@ -495,10 +495,86 @@ func TestDetectingAggregator_IsEmpty(t *testing.T) {
 	assert.True(t, ag.IsEmpty())
 }
 
+func TestDetectingAggregator_TruncatesTaggedStartLineAndPrefixesContinuation(t *testing.T) {
+	ag := NewDetectingAggregator(status.NewInfoRegistry(), 5, true, false)
+
+	require.Empty(t, processMsg(ag, newMessage("123456"), startGroup))
+
+	msgs := processMsg(ag, newMessage("abc"), aggregate)
+	require.Len(t, msgs, 2)
+
+	assert.Equal(t, "123456...TRUNCATED...", string(msgs[0].GetContent()))
+	assert.True(t, msgs[0].ParsingExtra.IsTruncated)
+	assert.Contains(t, msgs[0].ParsingExtra.Tags, "auto_multiline_detected:true")
+	assert.Contains(t, msgs[0].ParsingExtra.Tags, message.TruncatedReasonTag("single_line"))
+
+	assert.Equal(t, "...TRUNCATED...abc", string(msgs[1].GetContent()))
+	assert.True(t, msgs[1].ParsingExtra.IsTruncated)
+	assert.Equal(t, []string{message.TruncatedReasonTag("single_line")}, msgs[1].ParsingExtra.Tags)
+}
+
+func TestDetectingAggregator_NoAggregateInheritsTruncationCarry(t *testing.T) {
+	ag := NewDetectingAggregator(status.NewInfoRegistry(), 5, true, false)
+
+	msgs := processMsg(ag, newMessage("123456"), noAggregate)
+	require.Len(t, msgs, 1)
+	assert.Equal(t, "123456...TRUNCATED...", string(msgs[0].GetContent()))
+
+	msgs = processMsg(ag, newMessage("ok"), noAggregate)
+	require.Len(t, msgs, 1)
+	assert.Equal(t, "...TRUNCATED...ok", string(msgs[0].GetContent()))
+	assert.True(t, msgs[0].ParsingExtra.IsTruncated)
+	assert.Equal(t, []string{message.TruncatedReasonTag("single_line")}, msgs[0].ParsingExtra.Tags)
+}
+
+func TestDetectingAggregator_StartGroupInheritsTruncationCarry(t *testing.T) {
+	ag := NewDetectingAggregator(status.NewInfoRegistry(), 5, true, false)
+
+	msgs := processMsg(ag, newMessage("123456"), noAggregate)
+	require.Len(t, msgs, 1)
+	assert.Equal(t, "123456...TRUNCATED...", string(msgs[0].GetContent()))
+
+	require.Empty(t, processMsg(ag, newMessage("abc"), startGroup))
+
+	msgs = processMsg(ag, newMessage("tail"), aggregate)
+	require.Len(t, msgs, 2)
+	assert.Equal(t, "...TRUNCATED...abc", string(msgs[0].GetContent()))
+	assert.True(t, msgs[0].ParsingExtra.IsTruncated)
+	assert.Contains(t, msgs[0].ParsingExtra.Tags, "auto_multiline_detected:true")
+	assert.Contains(t, msgs[0].ParsingExtra.Tags, message.TruncatedReasonTag("single_line"))
+
+	assert.Equal(t, "tail", string(msgs[1].GetContent()))
+	assert.False(t, msgs[1].ParsingExtra.IsTruncated)
+	assert.Empty(t, msgs[1].ParsingExtra.Tags)
+}
+
+func TestDetectingAggregator_TruncationDoesNotTagWhenDisabled(t *testing.T) {
+	ag := NewDetectingAggregator(status.NewInfoRegistry(), 5, false, false)
+
+	msgs := processMsg(ag, newMessage("123456"), noAggregate)
+	require.Len(t, msgs, 1)
+	assert.Equal(t, "123456...TRUNCATED...", string(msgs[0].GetContent()))
+	assert.True(t, msgs[0].ParsingExtra.IsTruncated)
+	assert.Empty(t, msgs[0].ParsingExtra.Tags)
+}
+
+func TestDetectingAggregator_UsesExistingTruncatedFlag(t *testing.T) {
+	ag := NewDetectingAggregator(status.NewInfoRegistry(), 100, true, false)
+
+	msg := newMessage("already-truncated")
+	msg.ParsingExtra.IsTruncated = true
+
+	msgs := processMsg(ag, msg, noAggregate)
+	require.Len(t, msgs, 1)
+	assert.Equal(t, "already-truncated...TRUNCATED...", string(msgs[0].GetContent()))
+	assert.True(t, msgs[0].ParsingExtra.IsTruncated)
+	assert.Equal(t, []string{message.TruncatedReasonTag("single_line")}, msgs[0].ParsingExtra.Tags)
+}
+
 // COAT telemetry tests
 
 func TestDetectingAggregator_COATTelemetry_WouldCombine(t *testing.T) {
-	ag := NewDetectingAggregator(status.NewInfoRegistry(), 1000, true)
+	ag := NewDetectingAggregator(status.NewInfoRegistry(), 1000, false, true)
 
 	totalBefore := metrics.TlmAutoMultilineTotalLines.WithValues().Get()
 	combineBefore := metrics.TlmAutoMultilineWouldCombine.WithValues().Get()
@@ -519,7 +595,7 @@ func TestDetectingAggregator_COATTelemetry_WouldCombine(t *testing.T) {
 }
 
 func TestDetectingAggregator_COATTelemetry_NoCombineForStandaloneAggregates(t *testing.T) {
-	ag := NewDetectingAggregator(status.NewInfoRegistry(), 1000, true)
+	ag := NewDetectingAggregator(status.NewInfoRegistry(), 1000, false, true)
 
 	totalBefore := metrics.TlmAutoMultilineTotalLines.WithValues().Get()
 	combineBefore := metrics.TlmAutoMultilineWouldCombine.WithValues().Get()
@@ -539,7 +615,7 @@ func TestDetectingAggregator_COATTelemetry_NoCombineForStandaloneAggregates(t *t
 
 func TestDetectingAggregator_COATTelemetry_WouldTruncate(t *testing.T) {
 	// maxContentSize=20 so combining will overflow
-	ag := NewDetectingAggregator(status.NewInfoRegistry(), 20, true)
+	ag := NewDetectingAggregator(status.NewInfoRegistry(), 20, false, true)
 
 	truncBefore := metrics.TlmAutoMultilineWouldTruncate.WithValues().Get()
 	totalBefore := metrics.TlmAutoMultilineTotalLines.WithValues().Get()
@@ -560,7 +636,7 @@ func TestDetectingAggregator_COATTelemetry_WouldTruncate(t *testing.T) {
 }
 
 func TestDetectingAggregator_COATTelemetry_NoTruncateForOversizedSingleLine(t *testing.T) {
-	ag := NewDetectingAggregator(status.NewInfoRegistry(), 5, true)
+	ag := NewDetectingAggregator(status.NewInfoRegistry(), 5, false, true)
 
 	totalBefore := metrics.TlmAutoMultilineTotalLines.WithValues().Get()
 	truncBefore := metrics.TlmAutoMultilineWouldTruncate.WithValues().Get()
@@ -580,7 +656,7 @@ func TestDetectingAggregator_COATTelemetry_NoTruncateForOversizedSingleLine(t *t
 }
 
 func TestDetectingAggregator_COATTelemetry_NoCountsWhenNotDefaultPath(t *testing.T) {
-	ag := NewDetectingAggregator(status.NewInfoRegistry(), 1000, false)
+	ag := NewDetectingAggregator(status.NewInfoRegistry(), 1000, false, false)
 
 	totalBefore := metrics.TlmAutoMultilineTotalLines.WithValues().Get()
 	combineBefore := metrics.TlmAutoMultilineWouldCombine.WithValues().Get()
@@ -600,7 +676,7 @@ func TestDetectingAggregator_COATTelemetry_NoCountsWhenNotDefaultPath(t *testing
 
 func TestDetectingAggregator_COATTelemetry_MultiGroupWithTruncation(t *testing.T) {
 	// maxContentSize=15 to make the second group truncate
-	ag := NewDetectingAggregator(status.NewInfoRegistry(), 15, true)
+	ag := NewDetectingAggregator(status.NewInfoRegistry(), 15, false, true)
 
 	totalBefore := metrics.TlmAutoMultilineTotalLines.WithValues().Get()
 	combineBefore := metrics.TlmAutoMultilineWouldCombine.WithValues().Get()

@@ -93,10 +93,12 @@ type telemetryWriterWrapper struct {
 	setSpanTags func(int)
 }
 
-// SetSpanError stores an error so the deferred span.Finish includes it via tracer.WithError,
-// which populates error.message, error.type, and error.stack on the span.
-func (w *telemetryWriterWrapper) SetSpanError(err error) {
-	w.capturedErr = err
+// SetSpanError propagates an error to the telemetry span if the writer is a telemetryWriterWrapper.
+// This populates error.message, error.type, and error.stack on the span via tracer.WithError.
+func SetSpanError(w http.ResponseWriter, err error) {
+	if tw, ok := w.(*telemetryWriterWrapper); ok {
+		tw.capturedErr = err
+	}
 }
 
 func (w *telemetryWriterWrapper) WriteHeader(statusCode int) {

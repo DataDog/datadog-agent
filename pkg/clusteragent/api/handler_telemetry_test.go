@@ -171,9 +171,7 @@ func TestWithTelemetryWrapper_SetSpanError(t *testing.T) {
 	th := &TelemetryHandler{
 		handlerName: "errorDetailHandler",
 		handler: func(w http.ResponseWriter, _ *http.Request) {
-			if tw, ok := w.(*telemetryWriterWrapper); ok {
-				tw.SetSpanError(testErr)
-			}
+			SetSpanError(w, testErr)
 			w.WriteHeader(http.StatusInternalServerError)
 		},
 	}
