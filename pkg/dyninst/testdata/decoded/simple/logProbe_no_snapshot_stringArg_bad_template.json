@@ -25,6 +25,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "x: {error: failed to resolve reference \"x\"}"
+    "message": "x: {error: failed to resolve reference \"x\"}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]
