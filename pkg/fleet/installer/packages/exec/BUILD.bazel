@@ -7,6 +7,7 @@ go_library(
         "dotnet_library_exec.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/exec",
+    target_compatible_with = ["@platforms//os:windows"],
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:windows": [
