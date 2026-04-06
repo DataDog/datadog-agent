@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/utils/ipfilter"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/socket"
@@ -37,6 +38,7 @@ type TCPListener struct {
 	frameSize        int
 	maxConnections   int
 	tlsCredentials   *tls.Config
+	ipFilter         *ipfilter.Filter
 	listener         net.Listener
 	tailers          []*tailer.Tailer
 	mu               sync.Mutex
@@ -48,7 +50,7 @@ type TCPListener struct {
 }
 
 // NewTCPListener returns an initialized TCPListener or an error if critical
-// configuration (TLS credentials) fails to build.
+// configuration (TLS credentials, IP filter) fails to build.
 func NewTCPListener(pipelineProvider pipeline.Provider, source *sources.LogSource, frameSize int) (*TCPListener, error) {
 	var idleTimeout time.Duration
 	if source.Config.IdleTimeout != "" {
@@ -79,6 +81,16 @@ func NewTCPListener(pipelineProvider pipeline.Provider, source *sources.LogSourc
 		maxConns = defaultMaxConnections
 	}
 
+	var ipF *ipfilter.Filter
+	if len(source.Config.AllowedIPs) > 0 || len(source.Config.DeniedIPs) > 0 {
+		var err error
+		ipF, err = ipfilter.New(source.Config.AllowedIPs, source.Config.DeniedIPs)
+		if err != nil {
+			cancel()
+			return nil, fmt.Errorf("failed to build IP filter for TCP listener on port %d: %w", source.Config.Port, err)
+		}
+	}
+
 	return &TCPListener{
 		pipelineProvider: pipelineProvider,
 		source:           source,
@@ -86,6 +98,7 @@ func NewTCPListener(pipelineProvider pipeline.Provider, source *sources.LogSourc
 		frameSize:        frameSize,
 		maxConnections:   maxConns,
 		tlsCredentials:   tlsCreds,
+		ipFilter:         ipF,
 		tailers:          []*tailer.Tailer{},
 		connSem:          make(chan struct{}, maxConns),
 		stop:             make(chan struct{}, 1),
@@ -156,6 +169,11 @@ func (l *TCPListener) run() {
 				l.source.Status.Success()
 				continue
 			default:
+				if l.ipFilter != nil && !l.ipFilter.Allow(conn.RemoteAddr()) {
+					log.Debugf("Rejected connection from %s on port %d: IP not allowed", conn.RemoteAddr(), l.source.Config.Port)
+					conn.Close()
+					continue
+				}
 				select {
 				case l.connSem <- struct{}{}:
 					go l.handleConnection(conn)

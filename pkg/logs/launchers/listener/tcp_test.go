@@ -618,4 +618,105 @@ func TestTCPMTLSOptionalAcceptsNoClientCert(t *testing.T) {
 	assert.Equal(t, "optional no cert", string(msg.GetContent()))
 
 	listener.Stop()
+
+func TestTCPNoIPFilterAcceptsAll(t *testing.T) {
+	pp := mock.NewMockProvider()
+	msgChan := pp.NextPipelineChan()
+	listener, err := NewTCPListener(pp, sources.NewLogSource("", &config.LogsConfig{Port: tcpTestPort}), 9000)
+	require.NoError(t, err)
+	listener.Start()
+	defer listener.Stop()
+
+	conn, err := net.Dial("tcp", listener.listener.Addr().String())
+	require.NoError(t, err)
+	defer conn.Close()
+
+	fmt.Fprint(conn, "hello\n")
+	msg := <-msgChan
+	assert.Equal(t, "hello", string(msg.GetContent()))
+}
+
+func TestTCPAllowedIPsAcceptsMatchingConnection(t *testing.T) {
+	pp := mock.NewMockProvider()
+	msgChan := pp.NextPipelineChan()
+	source := sources.NewLogSource("", &config.LogsConfig{
+		Port:       tcpTestPort,
+		AllowedIPs: config.StringSliceField{"127.0.0.0/8", "::1"},
+	})
+	listener, err := NewTCPListener(pp, source, 9000)
+	require.NoError(t, err)
+	listener.Start()
+	defer listener.Stop()
+
+	conn, err := net.Dial("tcp", listener.listener.Addr().String())
+	require.NoError(t, err)
+	defer conn.Close()
+
+	fmt.Fprint(conn, "allowed\n")
+	msg := <-msgChan
+	assert.Equal(t, "allowed", string(msg.GetContent()))
+}
+
+func TestTCPDeniedIPsRejectsMatchingConnection(t *testing.T) {
+	pp := mock.NewMockProvider()
+	source := sources.NewLogSource("", &config.LogsConfig{
+		Port:      tcpTestPort,
+		DeniedIPs: config.StringSliceField{"127.0.0.0/8", "::1"},
+	})
+	listener, err := NewTCPListener(pp, source, 9000)
+	require.NoError(t, err)
+	listener.Start()
+	defer listener.Stop()
+
+	conn, err := net.Dial("tcp", listener.listener.Addr().String())
+	require.NoError(t, err)
+
+	fmt.Fprint(conn, "denied\n")
+	conn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+	buf := make([]byte, 1)
+	_, err = conn.Read(buf)
+	assert.Error(t, err, "connection from denied IP should be closed by server")
+}
+
+func TestTCPDeniedTakesPrecedenceOverAllow(t *testing.T) {
+	pp := mock.NewMockProvider()
+	source := sources.NewLogSource("", &config.LogsConfig{
+		Port:       tcpTestPort,
+		AllowedIPs: config.StringSliceField{"127.0.0.0/8", "::1"},
+		DeniedIPs:  config.StringSliceField{"127.0.0.1", "::1"},
+	})
+	listener, err := NewTCPListener(pp, source, 9000)
+	require.NoError(t, err)
+	listener.Start()
+	defer listener.Stop()
+
+	conn, err := net.Dial("tcp", listener.listener.Addr().String())
+	require.NoError(t, err)
+
+	fmt.Fprint(conn, "should be denied\n")
+	conn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+	buf := make([]byte, 1)
+	_, err = conn.Read(buf)
+	assert.Error(t, err, "connection from denied IP should be closed even if it matches allow list")
+}
+
+func TestTCPAllowedIPsRejectsNonMatchingConnection(t *testing.T) {
+	pp := mock.NewMockProvider()
+	source := sources.NewLogSource("", &config.LogsConfig{
+		Port:       tcpTestPort,
+		AllowedIPs: config.StringSliceField{"192.168.1.0/24"},
+	})
+	listener, err := NewTCPListener(pp, source, 9000)
+	require.NoError(t, err)
+	listener.Start()
+	defer listener.Stop()
+
+	conn, err := net.Dial("tcp", listener.listener.Addr().String())
+	require.NoError(t, err)
+
+	fmt.Fprint(conn, "should be rejected\n")
+	conn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+	buf := make([]byte, 1)
+	_, err = conn.Read(buf)
+	assert.Error(t, err, "connection from non-allowed IP should be rejected")
 }

@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -24,7 +25,8 @@ var udpTestPort = 0
 func TestUDPShouldReceiveMessage(t *testing.T) {
 	pp := mock.NewMockProvider()
 	msgChan := pp.NextPipelineChan()
-	listener := NewUDPListener(pp, sources.NewLogSource("", &config.LogsConfig{Port: udpTestPort}), 9000)
+	listener, err := NewUDPListener(pp, sources.NewLogSource("", &config.LogsConfig{Port: udpTestPort}), 9000)
+	require.NoError(t, err)
 	listener.Start()
 
 	conn, err := net.Dial("udp", listener.tailer.Conn.LocalAddr().String())
@@ -39,9 +41,10 @@ func TestUDPShouldReceiveMessage(t *testing.T) {
 	listener.Stop()
 }
 
-func TestUDPShouldStopWhenNotStarted(_ *testing.T) {
+func TestUDPShouldStopWhenNotStarted(t *testing.T) {
 	pp := mock.NewMockProvider()
-	listener := NewUDPListener(pp, sources.NewLogSource("", &config.LogsConfig{Port: udpTestPort}), 9000)
+	listener, err := NewUDPListener(pp, sources.NewLogSource("", &config.LogsConfig{Port: udpTestPort}), 9000)
+	require.NoError(t, err)
 	// Don't call start, this is similar to if `startNewTailer` fails when start is called (such as if the port is already in use)
 	listener.Stop()
 }

@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/netip"
 	"strings"
 	"sync"
 
@@ -52,8 +53,10 @@ type LogsConfig struct {
 	IdleTimeout    string `mapstructure:"idle_timeout" json:"idle_timeout" yaml:"idle_timeout"`          // Network (tcp)
 	MaxConnections int    `mapstructure:"max_connections" json:"max_connections" yaml:"max_connections"` // Network (tcp)
 	// TLS is under active security review and is not ready for general use.
-	TLS  *TLSListenerConfig `mapstructure:"tls" json:"tls,omitempty" yaml:"tls,omitempty"`
-	Path string             // File, Journald
+	TLS        *TLSListenerConfig `mapstructure:"tls" json:"tls,omitempty" yaml:"tls,omitempty"`
+	AllowedIPs StringSliceField   `mapstructure:"allowed_ips" json:"allowed_ips,omitempty" yaml:"allowed_ips,omitempty"` // Network (tcp, udp)
+	DeniedIPs  StringSliceField   `mapstructure:"denied_ips" json:"denied_ips,omitempty" yaml:"denied_ips,omitempty"`    // Network (tcp, udp)
+	Path       string             // File, Journald
 
 	Encoding     string           `mapstructure:"encoding" json:"encoding" yaml:"encoding"`                   // File
 	ExcludePaths StringSliceField `mapstructure:"exclude_paths" json:"exclude_paths" yaml:"exclude_paths"`    // File
@@ -274,9 +277,21 @@ func (c *LogsConfig) Dump(multiline bool) string {
 			fmt.Fprintf(&b, ws("TLS: {CertFile: %#v, KeyFile: %#v, CAFile: %#v, ClientAuth: %#v, MinTLSVersion: %#v},"),
 				c.TLS.CertFile, c.TLS.KeyFile, c.TLS.CAFile, c.TLS.ClientAuth, c.TLS.MinTLSVersion)
 		}
+		if len(c.AllowedIPs) > 0 {
+			fmt.Fprintf(&b, ws("AllowedIPs: %v,"), []string(c.AllowedIPs))
+		}
+		if len(c.DeniedIPs) > 0 {
+			fmt.Fprintf(&b, ws("DeniedIPs: %v,"), []string(c.DeniedIPs))
+		}
 	case UDPType:
 		fmt.Fprintf(&b, ws("Port: %d,"), c.Port)
 		fmt.Fprintf(&b, ws("IdleTimeout: %#v,"), c.IdleTimeout)
+		if len(c.AllowedIPs) > 0 {
+			fmt.Fprintf(&b, ws("AllowedIPs: %v,"), []string(c.AllowedIPs))
+		}
+		if len(c.DeniedIPs) > 0 {
+			fmt.Fprintf(&b, ws("DeniedIPs: %v,"), []string(c.DeniedIPs))
+		}
 	case FileType:
 		fmt.Fprintf(&b, ws("Path: %#v,"), c.Path)
 		fmt.Fprintf(&b, ws("Encoding: %#v,"), c.Encoding)
@@ -435,6 +450,10 @@ func (c *LogsConfig) Validate() error {
 		return err
 	}
 
+	if err := c.validateIPFilter(); err != nil {
+		return err
+	}
+
 	// Validate fingerprint configuration
 	err := ValidateFingerprintConfig(c.FingerprintConfig)
 	if err != nil {
@@ -485,6 +504,36 @@ func (c *LogsConfig) validateTLS() error {
 	}
 	tlsutil.WarnKeyFilePermissions(c.TLS.KeyFile)
 	return nil
+}
+
+func (c *LogsConfig) validateIPFilter() error {
+	if len(c.AllowedIPs) == 0 && len(c.DeniedIPs) == 0 {
+		return nil
+	}
+	if c.Type != TCPType && c.Type != UDPType {
+		return fmt.Errorf("allowed_ips/denied_ips are only supported for %s and %s sources, got %s", TCPType, UDPType, c.Type)
+	}
+	for _, entry := range c.AllowedIPs {
+		if err := validateIPOrCIDR(entry); err != nil {
+			return fmt.Errorf("invalid allowed_ips entry %q: %w", entry, err)
+		}
+	}
+	for _, entry := range c.DeniedIPs {
+		if err := validateIPOrCIDR(entry); err != nil {
+			return fmt.Errorf("invalid denied_ips entry %q: %w", entry, err)
+		}
+	}
+	return nil
+}
+
+func validateIPOrCIDR(s string) error {
+	if _, err := netip.ParsePrefix(s); err == nil {
+		return nil
+	}
+	if _, err := netip.ParseAddr(s); err == nil {
+		return nil
+	}
+	return errors.New("not a valid IP address or CIDR")
 }
 
 // LegacyAutoMultiLineEnabled determines whether the agent has fallen back to legacy auto multi line detection
