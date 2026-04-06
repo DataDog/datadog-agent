@@ -154,8 +154,6 @@ func (p Provider) PopulateStatus(stats map[string]interface{}) {
 // collectCheckMetadata builds a map of check-hash → metadata from the collector,
 // supplemented by per-instance fields from the inventories expvar (e.g. version.raw).
 // Falls back to the expvar alone when the collector is not wired.
-// Config fields (instance_config, init_config) are always excluded — they belong in
-// the inventorychecks backend payload, not status output.
 func (p Provider) collectCheckMetadata() map[string]map[string]string {
 	checkMetadata := map[string]map[string]string{}
 
