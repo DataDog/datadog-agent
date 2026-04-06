@@ -123,7 +123,9 @@ func TestPatchDeploymentExecutor_MissingNamespace(t *testing.T) {
 
 	result := executor.Execute(context.Background(), action)
 	assert.Equal(t, "failed", result.Status)
-	assert.Contains(t, result.Message, "namespace is required")
+	// Namespace validation happens in the validator layer before the executor is called.
+	// With an empty namespace, the k8s API returns a not-found error.
+	assert.Contains(t, result.Message, "not found")
 }
 
 func TestPatchDeploymentExecutor_MissingPatch(t *testing.T) {
