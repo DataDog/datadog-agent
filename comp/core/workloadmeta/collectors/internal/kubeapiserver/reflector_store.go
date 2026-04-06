@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"sync"
 
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -83,10 +82,6 @@ func (r *reflectorStore) Update(obj interface{}) error {
 // Replace diffs the given list with the contents of the workloadmeta store
 // (through r.seen), and updates and deletes the necessary objects.
 func (r *reflectorStore) Replace(list []interface{}, _ string) error {
-	span := tracer.StartSpan("workloadmeta.reflector_store.replace",
-		tracer.Tag("list_size", len(list)),
-	)
-
 	entities := make([]entityUID, 0, len(list))
 
 	for _, obj := range list {
@@ -123,7 +118,6 @@ func (r *reflectorStore) Replace(list []interface{}, _ string) error {
 	for _, entityID := range seenBefore {
 		entity, err := entityFromEntityID(entityID)
 		if err != nil {
-			span.Finish(tracer.WithError(err))
 			return err
 		}
 
@@ -137,9 +131,6 @@ func (r *reflectorStore) Replace(list []interface{}, _ string) error {
 	r.wlmetaStore.Notify(events)
 	r.seen = seenNow
 	r.hasSynced = true
-
-	span.SetTag("events_generated", len(events))
-	span.Finish()
 
 	return nil
 }
