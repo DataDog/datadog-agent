@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/gorilla/mux"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
@@ -74,10 +75,19 @@ func getNodeMetadata(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.
 	var dataBytes []byte
 	nodeName := vars["nodeName"]
 
+	var spanErr error
+	span, _ := tracer.StartSpanFromContext(r.Context(), "cluster_agent.metadata.node_lookup",
+		tracer.Tag("node_name", nodeName),
+		tracer.Tag("metadata_type", what),
+	)
+	defer func() { span.Finish(tracer.WithError(spanErr)) }()
+
 	entityID := util.GenerateKubeMetadataEntityID("", "nodes", "", nodeName)
 	nodeMetadata, err := wmeta.GetKubernetesMetadata(entityID)
 	if err != nil {
 		log.Errorf("Could not retrieve the node %s of %s: %v", what, nodeName, err.Error()) //nolint:errcheck
+		spanErr = err
+		api.SetSpanError(w, err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -98,6 +108,8 @@ func getNodeMetadata(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.
 	dataBytes, err = json.Marshal(nodeData)
 	if err != nil {
 		log.Errorf("Could not process the %s of the node %s from the informer's cache: %v", what, nodeName, err.Error()) //nolint:errcheck
+		spanErr = err
+		api.SetSpanError(w, err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -187,9 +199,18 @@ func getNamespaceMetadataWithTransformerFunc[T any](w http.ResponseWriter, r *ht
 	vars := mux.Vars(r)
 	var metadataBytes []byte
 	nsName := vars["ns"]
+
+	var spanErr error
+	span, _ := tracer.StartSpanFromContext(r.Context(), "cluster_agent.metadata.namespace_lookup",
+		tracer.Tag("namespace", nsName),
+	)
+	defer func() { span.Finish(tracer.WithError(spanErr)) }()
+
 	namespaceMetadata, err := wmeta.GetKubernetesMetadata(util.GenerateKubeMetadataEntityID("", "namespaces", "", nsName))
 	if err != nil {
 		log.Debugf("Could not retrieve the %s of namespace %s: %v", what, nsName, err.Error()) //nolint:errcheck
+		spanErr = err
+		api.SetSpanError(w, err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -198,6 +219,8 @@ func getNamespaceMetadataWithTransformerFunc[T any](w http.ResponseWriter, r *ht
 	metadataBytes, err = json.Marshal(metadata)
 	if err != nil {
 		log.Errorf("Failed to marshal %s %+v of namespace %s from the workload metadata store: %v", what, metadata, nsName, err.Error()) //nolint:errcheck
+		spanErr = err
+		api.SetSpanError(w, err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -281,9 +304,19 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 	nodeName := vars["nodeName"]
 	podName := vars["podName"]
 	ns := vars["ns"]
+
+	var spanErr error
+	span, _ := tracer.StartSpanFromContext(r.Context(), "cluster_agent.metadata.pod_lookup",
+		tracer.Tag("node_name", nodeName),
+		tracer.Tag("namespace", ns),
+	)
+	defer func() { span.Finish(tracer.WithError(spanErr)) }()
+
 	metaList, errMetaList := as.GetPodMetadataNames(nodeName, ns, podName)
 	if errMetaList != nil {
 		log.Errorf("Could not retrieve the metadata of: %s from the cache", podName) //nolint:errcheck
+		spanErr = errMetaList
+		api.SetSpanError(w, errMetaList)
 		http.Error(w, errMetaList.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -291,6 +324,8 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 	metaBytes, err := json.Marshal(metaList)
 	if err != nil {
 		log.Errorf("Could not process the list of services for: %s", podName) //nolint:errcheck
+		spanErr = err
+		api.SetSpanError(w, err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -307,6 +342,13 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 func getPodMetadataForNode(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	nodeName := vars["nodeName"]
+
+	var spanErr error
+	span, _ := tracer.StartSpanFromContext(r.Context(), "cluster_agent.metadata.pod_metadata_for_node",
+		tracer.Tag("node_name", nodeName),
+	)
+	defer func() { span.Finish(tracer.WithError(spanErr)) }()
+
 	log.Tracef("Fetching metadata map on all pods of the node %s", nodeName)
 	metaList, errNodes := as.GetMetadataMapBundleOnNode(nodeName)
 	if errNodes != nil {
@@ -314,6 +356,8 @@ func getPodMetadataForNode(w http.ResponseWriter, r *http.Request) {
 	}
 	slcB, err := json.Marshal(metaList)
 	if err != nil {
+		spanErr = err
+		api.SetSpanError(w, err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -346,12 +390,19 @@ func getAllMetadata(w http.ResponseWriter, r *http.Request) {
 			Returns: map[string]string
 			Example: "["Error":"could not collect the service map for all nodes: List services is not permitted at the cluster scope."]
 	*/
+
+	var spanErr error
+	span, _ := tracer.StartSpanFromContext(r.Context(), "cluster_agent.metadata.all_metadata")
+	defer func() { span.Finish(tracer.WithError(spanErr)) }()
+
 	log.Trace("Computing metadata map on all nodes")
 	// As HTTP query handler, we do not retry getting the APIServer
 	// Client will have to retry query in case of failure
 	cl, err := as.GetAPIClient()
 	if err != nil {
 		log.Errorf("Can't create client to query the API Server: %v", err) //nolint:errcheck
+		spanErr = err
+		api.SetSpanError(w, err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -360,11 +411,15 @@ func getAllMetadata(w http.ResponseWriter, r *http.Request) {
 	if errAPIServer != nil {
 		w.WriteHeader(http.StatusServiceUnavailable)
 		log.Errorf("There was an error querying the nodes from the API: %s", errAPIServer.Error()) //nolint:errcheck
+		spanErr = errAPIServer
+		api.SetSpanError(w, errAPIServer)
 	} else {
 		w.WriteHeader(http.StatusOK)
 	}
 	metaListBytes, err := json.Marshal(metaList)
 	if err != nil {
+		spanErr = err
+		api.SetSpanError(w, err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -379,11 +434,17 @@ func getAllMetadata(w http.ResponseWriter, r *http.Request) {
 //
 //nolint:revive // TODO(CINT) Fix revive linter
 func getClusterID(w http.ResponseWriter, r *http.Request) {
+	var spanErr error
+	span, _ := tracer.StartSpanFromContext(r.Context(), "cluster_agent.metadata.cluster_id")
+	defer func() { span.Finish(tracer.WithError(spanErr)) }()
+
 	// As HTTP query handler, we do not retry getting the APIServer
 	// Client will have to retry query in case of failure
 	cl, err := as.GetAPIClient()
 	if err != nil {
 		log.Errorf("Can't create client to query the API Server: %v", err) //nolint:errcheck
+		spanErr = err
+		api.SetSpanError(w, err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -392,6 +453,8 @@ func getClusterID(w http.ResponseWriter, r *http.Request) {
 	clusterID, err := apicommon.GetOrCreateClusterID(coreCl)
 	if err != nil {
 		log.Errorf("Failed to generate or retrieve the cluster ID: %v", err) //nolint:errcheck
+		spanErr = err
+		api.SetSpanError(w, err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -399,6 +462,8 @@ func getClusterID(w http.ResponseWriter, r *http.Request) {
 	j, err := json.Marshal(clusterID)
 	if err != nil {
 		log.Errorf("Failed to marshal the cluster ID: %v", err) //nolint:errcheck
+		spanErr = err
+		api.SetSpanError(w, err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

@@ -15,8 +15,10 @@ import (
 	"testing"
 
 	"github.com/gorilla/mux"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/mocktracer"
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -187,4 +189,230 @@ func TestGetNodeUID(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetNodeMetadata_SpanCreation(t *testing.T) {
+	mt := mocktracer.Start()
+	defer mt.Stop()
+
+	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	mockStore.Set(&workloadmeta.KubernetesMetadata{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesMetadata,
+			ID:   "/nodes//" + testNode,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Labels: map[string]string{"label1": "value1"},
+		},
+	})
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		getNodeLabels(w, r, mockStore)
+	})
+
+	req := httptest.NewRequest("GET", "/tags/node/"+testNode, nil)
+	req = mux.SetURLVars(req, map[string]string{"nodeName": testNode})
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	spans := mt.FinishedSpans()
+	require.Len(t, spans, 1)
+	span := spans[0]
+	assert.Equal(t, "cluster_agent.metadata.node_lookup", span.OperationName())
+	assert.Equal(t, testNode, span.Tag("node_name"))
+	assert.Equal(t, "labels", span.Tag("metadata_type"))
+	assert.Nil(t, span.Tag("error"))
+}
+
+func TestGetNodeMetadata_SpanError(t *testing.T) {
+	mt := mocktracer.Start()
+	defer mt.Stop()
+
+	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	// No data set — lookup will fail
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		getNodeLabels(w, r, mockStore)
+	})
+
+	req := httptest.NewRequest("GET", "/tags/node/missing_node", nil)
+	req = mux.SetURLVars(req, map[string]string{"nodeName": "missing_node"})
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusInternalServerError, rec.Code)
+
+	spans := mt.FinishedSpans()
+	require.Len(t, spans, 1)
+	span := spans[0]
+	assert.Equal(t, "cluster_agent.metadata.node_lookup", span.OperationName())
+	assert.Equal(t, "missing_node", span.Tag("node_name"))
+	// Error should be set on the span
+	err, ok := span.Tag("error").(error)
+	require.True(t, ok, "error tag should be an error object, got %T", span.Tag("error"))
+	assert.NotEmpty(t, err.Error())
+}
+
+func TestGetNamespaceMetadata_SpanCreation(t *testing.T) {
+	mt := mocktracer.Start()
+	defer mt.Stop()
+
+	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	mockStore.Set(&workloadmeta.KubernetesMetadata{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesMetadata,
+			ID:   "/namespaces//default",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Labels: map[string]string{"env": "test"},
+		},
+	})
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		getNamespaceLabels(w, r, mockStore)
+	})
+
+	req := httptest.NewRequest("GET", "/tags/namespace/default", nil)
+	req = mux.SetURLVars(req, map[string]string{"ns": "default"})
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	spans := mt.FinishedSpans()
+	require.Len(t, spans, 1)
+	span := spans[0]
+	assert.Equal(t, "cluster_agent.metadata.namespace_lookup", span.OperationName())
+	assert.Equal(t, "default", span.Tag("namespace"))
+	assert.Nil(t, span.Tag("error"))
+}
+
+func TestGetNamespaceMetadata_SpanError(t *testing.T) {
+	mt := mocktracer.Start()
+	defer mt.Stop()
+
+	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	// No data set — lookup will fail
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		getNamespaceLabels(w, r, mockStore)
+	})
+
+	req := httptest.NewRequest("GET", "/tags/namespace/missing_ns", nil)
+	req = mux.SetURLVars(req, map[string]string{"ns": "missing_ns"})
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusInternalServerError, rec.Code)
+
+	spans := mt.FinishedSpans()
+	require.Len(t, spans, 1)
+	span := spans[0]
+	assert.Equal(t, "cluster_agent.metadata.namespace_lookup", span.OperationName())
+	assert.Equal(t, "missing_ns", span.Tag("namespace"))
+	err, ok := span.Tag("error").(error)
+	require.True(t, ok, "error tag should be an error object, got %T", span.Tag("error"))
+	assert.NotEmpty(t, err.Error())
+}
+
+func TestGetPodMetadata_SpanCreation(t *testing.T) {
+	mt := mocktracer.Start()
+	defer mt.Stop()
+
+	// getPodMetadata calls as.GetPodMetadataNames which requires the apiserver cache.
+	// When no cache is available it returns an error, so we test the error path which
+	// still verifies span creation and tag propagation.
+	handler := http.HandlerFunc(getPodMetadata)
+
+	req := httptest.NewRequest("GET", "/tags/pod/node1/default/pod1", nil)
+	req = mux.SetURLVars(req, map[string]string{"nodeName": "node1", "ns": "default", "podName": "pod1"})
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	spans := mt.FinishedSpans()
+	require.Len(t, spans, 1)
+	span := spans[0]
+	assert.Equal(t, "cluster_agent.metadata.pod_lookup", span.OperationName())
+	assert.Equal(t, "node1", span.Tag("node_name"))
+	assert.Equal(t, "default", span.Tag("namespace"))
+	// pod_name should NOT be set (cardinality)
+	assert.Nil(t, span.Tag("pod_name"))
+}
+
+func TestGetPodMetadataForNode_SpanCreation(t *testing.T) {
+	mt := mocktracer.Start()
+	defer mt.Stop()
+
+	handler := http.HandlerFunc(getPodMetadataForNode)
+
+	req := httptest.NewRequest("GET", "/tags/pod/node1", nil)
+	req = mux.SetURLVars(req, map[string]string{"nodeName": "node1"})
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	spans := mt.FinishedSpans()
+	require.Len(t, spans, 1)
+	span := spans[0]
+	assert.Equal(t, "cluster_agent.metadata.pod_metadata_for_node", span.OperationName())
+	assert.Equal(t, "node1", span.Tag("node_name"))
+}
+
+func TestGetAllMetadata_SpanCreation(t *testing.T) {
+	mt := mocktracer.Start()
+	defer mt.Stop()
+
+	// getAllMetadata calls as.GetAPIClient which will fail without a real apiserver.
+	// This tests the error path, which still verifies span creation.
+	handler := http.HandlerFunc(getAllMetadata)
+
+	req := httptest.NewRequest("GET", "/tags/pod", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusInternalServerError, rec.Code)
+
+	spans := mt.FinishedSpans()
+	require.Len(t, spans, 1)
+	span := spans[0]
+	assert.Equal(t, "cluster_agent.metadata.all_metadata", span.OperationName())
+	err, ok := span.Tag("error").(error)
+	require.True(t, ok, "error tag should be an error object, got %T", span.Tag("error"))
+	assert.NotEmpty(t, err.Error())
+}
+
+func TestGetClusterID_SpanCreation(t *testing.T) {
+	mt := mocktracer.Start()
+	defer mt.Stop()
+
+	// getClusterID calls as.GetAPIClient which will fail without a real apiserver.
+	// This tests the error path, which still verifies span creation.
+	handler := http.HandlerFunc(getClusterID)
+
+	req := httptest.NewRequest("GET", "/cluster/id", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusInternalServerError, rec.Code)
+
+	spans := mt.FinishedSpans()
+	require.Len(t, spans, 1)
+	span := spans[0]
+	assert.Equal(t, "cluster_agent.metadata.cluster_id", span.OperationName())
+	err, ok := span.Tag("error").(error)
+	require.True(t, ok, "error tag should be an error object, got %T", span.Tag("error"))
+	assert.NotEmpty(t, err.Error())
 }
