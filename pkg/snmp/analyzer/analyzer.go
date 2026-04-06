@@ -1,6 +1,7 @@
 package analyzer
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -26,9 +27,11 @@ func SysObjectOID() string {
 }
 
 func FindSysOID(pdus []gosnmp.SnmpPDU) string {
-	sysOIDNorm := normalizeOID(_cached_sys_obj_id)
+	base := normalizeOID(_cached_sys_obj_id)
+	with0 := base + ".0"
 	for _, pdu := range pdus {
-		if normalizeOID(pdu.Name) == sysOIDNorm {
+		n := normalizeOID(pdu.Name)
+		if n == base || n == with0 {
 			return fmt.Sprintf("%v", pdu.Value)
 		}
 	}
@@ -137,6 +140,9 @@ func Analyze(pdus []gosnmp.SnmpPDU, sysOID string) (
 	extendedProfiles []string,
 	err error,
 ) {
+	if strings.TrimSpace(sysOID) == "" {
+		return nil, nil, "", nil, errors.New("sysObjectID is required for analysis")
+	}
 	// Resolve the profile definition for this device from sysObjectID.
 	profileDef, err := FindProfile(normalizeOID(sysOID))
 	if err != nil {
@@ -157,7 +163,7 @@ func Analyze(pdus []gosnmp.SnmpPDU, sysOID string) (
 	// Map each known OID to the profile name; columnBases are used only for prefix (table instance) lookup.
 	profileByOID, nameByOID, columnBases := oidMap(allProfileDefs)
 
-	const maxResults = 100_000
+	const maxResults = 1_000_000
 	var foundMetrics []MetricProfile
 	var notFoundMetrics []MetricProfile
 	// Match each walk PDU's OID: exact lookup first, then prefix match over column bases only (longest first).

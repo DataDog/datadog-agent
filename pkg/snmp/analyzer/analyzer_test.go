@@ -20,6 +20,16 @@ func TestFindSysOID_Found(t *testing.T) {
 	}
 }
 
+func TestFindSysOID_FoundScalarInstance0(t *testing.T) {
+	expectedSysOID := "1.3.6.1.4.1.9.1.1208"
+	pdus := []gosnmp.SnmpPDU{
+		{Name: ".1.3.6.1.2.1.1.2.0", Value: expectedSysOID},
+	}
+	if got := FindSysOID(pdus); got != expectedSysOID {
+		t.Fatalf("FindSysOID with .1.3.6.1.2.1.1.2.0: got %q, want %q", got, expectedSysOID)
+	}
+}
+
 func TestFindSysOID_NotFound(t *testing.T) {
 	pdus := []gosnmp.SnmpPDU{
 		{Name: ".1.3.3.1.2.1.2.2", Value: "no sysOID here"},
@@ -41,6 +51,20 @@ func TestFindSysOID_NonStringValue(t *testing.T) {
 	got := FindSysOID(pdus)
 	if got == "" {
 		t.Fatalf("expected non-empty string, got %q", got)
+	}
+}
+
+func TestAnalyze_EmptySysOID(t *testing.T) {
+	expectedErrMsg := "sysObjectID is required for analysis"
+
+	_, _, _, _, err := Analyze(nil, "")
+	if err == nil || err.Error() != expectedErrMsg {
+		t.Fatalf("Analyze(nil, \"\"): got err=%v, want Error()=%q", err, expectedErrMsg)
+	}
+
+	_, _, _, _, err = Analyze([]gosnmp.SnmpPDU{{Name: ".1.3.6.1.2.1.1.1.0", Value: "x"}}, "   ")
+	if err == nil || err.Error() != expectedErrMsg {
+		t.Fatalf("Analyze(..., whitespace sysOID): got err=%v, want Error()=%q", err, expectedErrMsg)
 	}
 }
 
