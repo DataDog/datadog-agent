@@ -100,9 +100,13 @@ pub fn false_config_yaml() -> &'static str {
 
 /// Command that ignores graceful-stop and sleeps forever.
 /// Used to test forced-kill (SIGKILL / TerminateProcess) on timeout.
+///
+/// The loop ensures that even though `sleep` (a child) is killed by SIGTERM,
+/// the shell (which traps SIGTERM) restarts it, keeping the process alive
+/// until SIGKILL arrives.
 #[cfg(unix)]
 pub fn trap_term_sleep() -> (&'static str, Vec<&'static str>) {
-    ("/bin/sh", vec!["-c", "trap '' TERM; sleep 60"])
+    ("/bin/sh", vec!["-c", "trap '' TERM; while true; do sleep 60; done"])
 }
 
 #[cfg(windows)]

@@ -13,6 +13,6 @@ pub mod platform;
 pub mod process;
 pub mod shutdown;
 pub mod state;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-helpers"))]
 pub mod test_helpers;
 pub mod uuid_gen;
