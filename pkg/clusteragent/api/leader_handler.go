@@ -144,6 +144,7 @@ func (lph *LeaderProxyHandler) rejectOrForwardLeaderQuery(rw http.ResponseWriter
 		lph.leaderForwarder.SetLeaderIP(ip)
 	}
 	span.SetTag("forwarded", true)
+	span.SetTag("forward.leader_ip", ip)
 	forwardedRequest.Inc(lph.handlerName)
 	lph.leaderForwarder.Forward(rw, req.WithContext(ctx))
 	return true
