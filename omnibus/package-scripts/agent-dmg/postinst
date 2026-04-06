@@ -156,16 +156,13 @@ chmod 644 /Library/LaunchDaemons/com.datadoghq.agent.plist
 launchctl load -w /Library/LaunchDaemons/com.datadoghq.agent.plist
 launchctl kickstart system/com.datadoghq.agent
 
-# Install system-probe as system-wide LaunchDaemon (if this version includes support for it)
-SYSPROBE_PLIST_EXAMPLE="$CONF_DIR/com.datadoghq.sysprobe.plist.example"
-if [ -f "$SYSPROBE_PLIST_EXAMPLE" ]; then
-    echo "# Installing system-probe as system-wide LaunchDaemon"
-    mv -vf "$SYSPROBE_PLIST_EXAMPLE" /Library/LaunchDaemons/com.datadoghq.sysprobe.plist
-    chown root:wheel /Library/LaunchDaemons/com.datadoghq.sysprobe.plist
-    chmod 644 /Library/LaunchDaemons/com.datadoghq.sysprobe.plist
-    launchctl load -w /Library/LaunchDaemons/com.datadoghq.sysprobe.plist
-    launchctl kickstart system/com.datadoghq.sysprobe
-fi
+# Install system-probe as system-wide LaunchDaemon
+echo "# Installing system-probe as system-wide LaunchDaemon"
+cp -vf "$CONF_DIR/com.datadoghq.sysprobe.plist.example" /Library/LaunchDaemons/com.datadoghq.sysprobe.plist
+chown root:wheel /Library/LaunchDaemons/com.datadoghq.sysprobe.plist
+chmod 644 /Library/LaunchDaemons/com.datadoghq.sysprobe.plist
+launchctl load -w /Library/LaunchDaemons/com.datadoghq.sysprobe.plist
+launchctl kickstart system/com.datadoghq.sysprobe
 
 # Install GUI LaunchAgent for all users (system-wide)
 echo "# Configuring GUI app for system-wide installation"

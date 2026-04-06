@@ -6,7 +6,7 @@
 
 # Datadog Agent install script for macOS.
 set -e
-install_script_version=1.6.0
+install_script_version=1.0.0
 
 # Terminal color detection
 # Colors are enabled only when outputting to a terminal (not when piped/redirected)
@@ -203,7 +203,7 @@ $sudo_cmd chmod 700 "$install_staging_dir"
 $sudo_cmd chmod 600 "$install_env_file"
 
 # Download and install
-printf "${BLUE}\n* Downloading datadog-agent\n${NC}"
+printf "${BLUE}\n* Downloading datadog-agent ${dmg_version}\n${NC}"
 prepare_dmg_file $dmg_file
 if ! $sudo_cmd curl --fail --progress-bar "$dmg_url" "${curl_retries[@]}" --output $dmg_file; then
     printf "${RED}Couldn't download the installer for macOS Agent version ${dmg_version}.${NC}\n"
@@ -220,7 +220,7 @@ $sudo_cmd hdiutil detach "/Volumes/datadog_agent" >/dev/null
 
 printf "${GREEN}
 
-Your Agent is running properly. It will continue to run in the
+Your Agent (${dmg_version}) is running properly. It will continue to run in the
 background and submit metrics to Datadog.
 
 You can check the agent status using the \"datadog-agent status\" command
