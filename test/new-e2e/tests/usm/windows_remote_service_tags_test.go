@@ -66,6 +66,7 @@ func (s *windowsUSMSuite) SetupSuite() {
 	s.setupIISSites(host)
 	s.setupPythonServers(host)
 	s.restartAgent(host)
+	waitForConnectionsPipeline(s.T(), s.Env().FakeIntake.Client())
 }
 
 func (s *windowsUSMSuite) setupIISSites(host *components.RemoteHost) {
