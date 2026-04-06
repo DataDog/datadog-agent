@@ -486,6 +486,7 @@ func (s *discoveryTestSuite) TestServicesMultipleTracerMetadata() {
 	require.NoError(t, err)
 
 	createTracerMemfd(t, data1)
+	createTracerMemfd(t, []byte("invalid msgpack data"))
 	createTracerMemfd(t, data2)
 
 	listener, err := net.Listen("tcp", "")
@@ -513,7 +514,7 @@ func (s *discoveryTestSuite) TestServicesMultipleTracerMetadata() {
 		require.NotNilf(collect, svc, "could not find service for pid %v", pid)
 	}, 30*time.Second, 100*time.Millisecond)
 
-	// Both tracer metadata should be present, sorted by runtime_id
+	// Both valid tracer metadata should be present (invalid one skipped), sorted by runtime_id
 	require.Len(t, svc.TracerMetadata, 2)
 	assert.Equal(t, "aaa-runtime-id-1", svc.TracerMetadata[0].RuntimeID)
 	assert.Equal(t, "zzz-runtime-id-2", svc.TracerMetadata[1].RuntimeID)
