@@ -1,0 +1,19 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    The ``exporter.datadogexporter.DisableAllMetricRemapping`` feature gate is now
+    fully supported in all three serializer exporter paths: DDOT (embedded
+    collector), agent OTLP ingest, and the OSS Datadog exporter. When enabled,
+    this alpha feature gate disables all metric remapping, including the ``otel.``
+    prefix added to ``system.*``, ``process.*``, and select Kafka metrics, the
+    Datadog-named copies produced from container and system metrics, and the
+    runtime metric name mappings (e.g. ``process.runtime.go.goroutines`` to
+    ``runtime.go.num_goroutine``). OpenTelemetry metrics are forwarded to Datadog
+    under their original names with no transformation applied.

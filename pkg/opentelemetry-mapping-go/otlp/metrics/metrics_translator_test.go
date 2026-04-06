@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"strings"
 	"testing"
 	"time"
 
@@ -2548,9 +2549,12 @@ func TestWithNoRemapping(t *testing.T) {
 	assert.Contains(t, names, "container.cpu.usage.total")
 	assert.Contains(t, names, "kafka.producer.request-rate")
 
-	// No otel. prefix must be added
+	// Exactly one output metric per input metric — no extra copies.
+	assert.Len(t, names, len(metrics))
+
+	// No otel. prefix must be added to any metric name.
 	for _, n := range names {
-		assert.NotContains(t, n, "otel.", "unexpected otel. prefix in metric %q", n)
+		assert.Falsef(t, strings.HasPrefix(n, "otel."), "unexpected otel. prefix in metric %q", n)
 	}
 
 	// No remapped copies must be produced

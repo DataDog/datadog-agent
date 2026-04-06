@@ -216,6 +216,9 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings,
 	if err != nil {
 		return nil, err
 	}
+	if featuregates.DisableMetricRemappingFeatureGate.IsEnabled() {
+		params.Logger.Info("exporter.datadogexporter.DisableAllMetricRemapping is active: all metric remapping and otel. prefixing are disabled")
+	}
 	var forwarder *defaultforwarder.DefaultForwarder
 	if f.s == nil {
 		f.s, forwarder, err = InitSerializer(params.Logger, cfg, f.hostProvider)
