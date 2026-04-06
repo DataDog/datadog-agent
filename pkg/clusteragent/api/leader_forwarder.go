@@ -135,6 +135,10 @@ func (lf *LeaderForwarder) SetLeaderIP(leaderIP string) {
 		},
 		Transport: lf.transport,
 		ErrorLog:  lf.logger,
+		ErrorHandler: func(rw http.ResponseWriter, _ *http.Request, err error) {
+			SetSpanError(rw, err)
+			http.Error(rw, "forwarding to leader failed", http.StatusBadGateway)
+		},
 	}
 }
 
