@@ -8,18 +8,16 @@ package config
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 	"sync"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/tls/certreloader"
+	tlsutil "github.com/DataDog/datadog-agent/pkg/util/tls"
 )
 
 // Logs source types
@@ -163,8 +161,9 @@ type AutoMultilineSample struct {
 	Label *string `mapstructure:"label,omitempty" json:"label,omitempty"`
 }
 
-// TLSListenerConfig holds TLS settings for a TCP log listener.
-// When present on a TCP source, the listener will require TLS connections.
+// TLSListenerConfig holds user-facing TLS settings for a TCP log listener,
+// deserialized directly from YAML/JSON. String fields are validated and
+// converted to typed values when building the TLS configuration.
 type TLSListenerConfig struct {
 	CertFile      string `mapstructure:"cert_file" json:"cert_file" yaml:"cert_file"`
 	KeyFile       string `mapstructure:"key_file" json:"key_file" yaml:"key_file"`
@@ -173,39 +172,17 @@ type TLSListenerConfig struct {
 	MinTLSVersion string `mapstructure:"min_tls_version" json:"min_tls_version" yaml:"min_tls_version"`
 }
 
-// BuildTLSCredentials loads certificates from disk and returns a *tls.Config
-// ready for use with tls.NewListener. A CertReloader is created to support
-// automatic certificate rotation without process restarts. The TLSListenerConfig
-// holds user-facing settings (file paths, version strings); the returned
-// *tls.Config holds the parsed cryptographic material.
-//
-// CipherSuites is left nil to use Go's default suite selection and
-// hardware-aware ordering (see https://go.dev/blog/tls-cipher-suites).
-func (t *TLSListenerConfig) BuildTLSCredentials(ctx context.Context) (*tls.Config, error) {
-	reloader := certreloader.New(ctx, t.CertFile, t.KeyFile, certreloader.RealClock())
-	if _, err := reloader.GetCertificate(nil); err != nil {
-		return nil, fmt.Errorf("failed to load TLS cert/key: %w", err)
+// BuildTLSConfig validates user-facing strings, converts them to typed values,
+// and delegates to tlsutil.ServerConfig to build the *tls.Config.
+func (t *TLSListenerConfig) BuildTLSConfig(ctx context.Context) (*tls.Config, error) {
+	cfg := &tlsutil.ServerConfig{
+		CertFile:   t.CertFile,
+		KeyFile:    t.KeyFile,
+		CAFile:     t.CAFile,
+		ClientAuth: parseClientAuth(t.ClientAuth),
+		MinVersion: parseTLSVersion(t.MinTLSVersion),
 	}
-
-	tlsCfg := &tls.Config{
-		GetCertificate: reloader.GetCertificate,
-		MinVersion:     parseTLSVersion(t.MinTLSVersion),
-		ClientAuth:     parseClientAuth(t.ClientAuth),
-	}
-
-	if t.CAFile != "" {
-		caPEM, err := os.ReadFile(t.CAFile)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read TLS CA file: %w", err)
-		}
-		pool := x509.NewCertPool()
-		if !pool.AppendCertsFromPEM(caPEM) {
-			return nil, errors.New("failed to parse TLS CA certificate")
-		}
-		tlsCfg.ClientCAs = pool
-	}
-
-	return tlsCfg, nil
+	return cfg.BuildTLSConfig(ctx)
 }
 
 var validTLSVersions = map[string]uint16{
@@ -221,25 +198,12 @@ var validClientAuthModes = map[string]tls.ClientAuthType{
 	"required": tls.RequireAndVerifyClientCert,
 }
 
-// parseTLSVersion converts a user-facing version string to a tls.VersionTLSxx constant.
 func parseTLSVersion(v string) uint16 {
 	return validTLSVersions[strings.ToLower(v)]
 }
 
-// parseClientAuth converts a user-facing client auth string to a tls.ClientAuthType.
 func parseClientAuth(s string) tls.ClientAuthType {
 	return validClientAuthModes[strings.ToLower(s)]
-}
-
-// clientAuthRequiresVerification returns true if the given client_auth setting
-// requires a CA certificate for client verification.
-func clientAuthRequiresVerification(s string) bool {
-	switch strings.ToLower(s) {
-	case "optional", "required":
-		return true
-	default:
-		return false
-	}
 }
 
 // StringSliceField is a custom type for unmarshalling comma-separated string values or typical yaml fields into a slice of strings.
@@ -498,24 +462,12 @@ func (c *LogsConfig) validateTLS() error {
 	if _, ok := validClientAuthModes[strings.ToLower(c.TLS.ClientAuth)]; !ok {
 		return fmt.Errorf("unrecognized client_auth %q; valid values: none, optional, required", c.TLS.ClientAuth)
 	}
-	if clientAuthRequiresVerification(c.TLS.ClientAuth) && c.TLS.CAFile == "" {
+	auth := parseClientAuth(c.TLS.ClientAuth)
+	if tlsutil.ClientAuthRequiresVerification(auth) && c.TLS.CAFile == "" {
 		return fmt.Errorf("tls client_auth %q requires ca_file to be set", c.TLS.ClientAuth)
 	}
-	warnKeyFilePermissions(c.TLS.KeyFile)
+	tlsutil.WarnKeyFilePermissions(c.TLS.KeyFile)
 	return nil
-}
-
-// warnKeyFilePermissions checks if the TLS private key file is readable by
-// group or others and emits a warning if so.
-func warnKeyFilePermissions(path string) {
-	info, err := os.Stat(path)
-	if err != nil {
-		return
-	}
-	mode := info.Mode().Perm()
-	if mode&0o077 != 0 {
-		log.Warnf("TLS key file %q has permissions %04o; recommended permissions are 0600", path, mode)
-	}
 }
 
 // LegacyAutoMultiLineEnabled determines whether the agent has fallen back to legacy auto multi line detection

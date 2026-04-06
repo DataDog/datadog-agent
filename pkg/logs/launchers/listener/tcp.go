@@ -63,7 +63,7 @@ func NewTCPListener(pipelineProvider pipeline.Provider, source *sources.LogSourc
 	ctx, cancel := context.WithCancel(context.Background())
 	if tlsRequired {
 		var err error
-		tlsCreds, err = source.Config.TLS.BuildTLSCredentials(ctx)
+		tlsCreds, err = source.Config.TLS.BuildTLSConfig(ctx)
 		if err != nil {
 			log.Errorf("Failed to load TLS credentials for TCP listener on port %d: %v", source.Config.Port, err)
 			source.Status.Error(err)
