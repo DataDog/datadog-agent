@@ -569,7 +569,7 @@ pub mod tests {
         assert!(proc.is_running());
 
         if let Some(pid) = proc.pid() {
-            let _ = platform::send_force_kill(pid);
+            test_helpers::cleanup_process(pid);
         }
         let mut child = child.unwrap();
         let _ = child.wait().await;

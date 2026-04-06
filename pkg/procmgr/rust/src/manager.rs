@@ -532,7 +532,7 @@ mod tests {
         assert_eq!(procs.len(), 1);
         assert!(procs[0].is_running());
 
-        let _ = platform::send_force_kill(procs[0].pid().unwrap());
+        test_helpers::cleanup_process(procs[0].pid().unwrap());
         Ok(())
     }
 
@@ -573,7 +573,7 @@ mod tests {
             "restarted process should have a different PID"
         );
 
-        let _ = platform::send_force_kill(procs[0].pid().unwrap());
+        test_helpers::cleanup_process(procs[0].pid().unwrap());
         Ok(())
     }
 
