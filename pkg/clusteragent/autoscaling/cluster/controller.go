@@ -43,6 +43,12 @@ var (
 	ec2NodeClassGVR = schema.GroupVersionResource{Group: "karpenter.k8s.aws", Version: "v1", Resource: "ec2nodeclasses"}
 	eksNodeClassGVR = schema.GroupVersionResource{Group: "eks.amazonaws.com", Version: "v1", Resource: "nodeclasses"}
 
+	// nodeClassGVRByGroup maps a NodeClassReference Group to its GVR
+	nodeClassGVRByGroup = map[string]schema.GroupVersionResource{
+		ec2NodeClassGVR.Group: ec2NodeClassGVR,
+		eksNodeClassGVR.Group: eksNodeClassGVR,
+	}
+
 	controllerID autoscaling.SenderID = "dca-c"
 )
 
@@ -205,7 +211,7 @@ func (c *Controller) createNodePool(ctx context.Context, targetNp *karpenterv1.N
 		var err error
 		knp, err = c.updateNodePoolWithNodeClass(ctx, knp)
 		if err != nil {
-			return err
+			return fmt.Errorf("unable to update NodePool with node class: %s, err: %v", npi.Name(), err)
 		}
 		if knp.Labels == nil {
 			knp.Labels = make(map[string]string)
@@ -217,7 +223,7 @@ func (c *Controller) createNodePool(ctx context.Context, targetNp *karpenterv1.N
 		knp.Annotations[model.DatadogReplicaAnnotationKey] = npi.TargetName()
 		npUnstr, err := convertNodePoolToUnstructured(knp)
 		if err != nil {
-			return err
+			return fmt.Errorf("unable to convert NodePool to unstructured: %s, err: %v", npi.Name(), err)
 		}
 		_, err = c.Client.Resource(nodePoolGVR).Create(ctx, npUnstr, metav1.CreateOptions{})
 		if err != nil {
@@ -236,14 +242,14 @@ func (c *Controller) createNodePool(ctx context.Context, targetNp *karpenterv1.N
 	} else {
 		nodeClassRef, err := c.discoverNodeClass(ctx)
 		if err != nil {
-			return err
+			return fmt.Errorf("unable to discover node class for NodePool: %s, err: %v", npi.Name(), err)
 		}
 		np = model.ConvertToKarpenterNodePool(npi, nodeClassRef)
 	}
 
 	npUnstr, err := convertNodePoolToUnstructured(np)
 	if err != nil {
-		return err
+		return fmt.Errorf("unable to convert NodePool to unstructured: %s, err: %v", npi.Name(), err)
 	}
 
 	_, err = c.Client.Resource(nodePoolGVR).Create(ctx, npUnstr, metav1.CreateOptions{})
@@ -348,8 +354,12 @@ func (c *Controller) updateNodePoolWithNodeClass(ctx context.Context, knp *karpe
 	// Check that if NodeClassRef is set, that it's valid
 	nc := knp.Spec.Template.Spec.NodeClassRef
 	if nc != nil {
-		_, err := c.Client.Resource(nodeClassGVR).Get(ctx, nc.Name, metav1.GetOptions{})
-		if err == nil {
+		gvr, ok := nodeClassGVRByGroup[nc.Group]
+		if !ok {
+			return nil, fmt.Errorf("unknown NodeClassRef group %q", nc.Group)
+		}
+		_, err := c.Client.Resource(gvr).Get(ctx, nc.Name, metav1.GetOptions{})
+		if err == nil { // nodeClassRef is valid, keep it
 			return knp, nil
 		}
 		if !apierrors.IsNotFound(err) {
