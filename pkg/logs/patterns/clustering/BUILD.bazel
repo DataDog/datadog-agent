@@ -16,8 +16,8 @@ go_library(
         "//pkg/logs/patterns/eviction",
         "//pkg/logs/patterns/token",
         "//pkg/trace/log",
+        "//pkg/util/log",
         "@com_github_datadog_datadog_agent_pkg_config_setup//:setup",
-        "@com_github_datadog_datadog_agent_pkg_util_log//:log",
     ],
 )
 
