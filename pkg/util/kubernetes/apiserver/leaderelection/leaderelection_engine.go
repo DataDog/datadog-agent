@@ -58,6 +58,7 @@ func (le *LeaderEngine) getCurrentLeaderLease() (string, error) {
 	}
 
 	return *leader, err
+
 }
 
 func (le *LeaderEngine) getCurrentLeaderConfigMap() (string, error) {
