@@ -118,7 +118,7 @@ func newProvides(deps dependencies) provides {
 
 	return provides{
 		Comp:             c,
-		StatusProvider:   status.NewInformationProvider(collectorStatus.NewProvider(c, deps.Config)),
+		StatusProvider:   status.NewInformationProvider(collectorStatus.NewProvider(c)),
 		MetadataProvider: agentCheckMetadata,
 		APIGetPyStatus:   api.NewAgentEndpointProvider(getPythonStatus, "/py/status", "GET"),
 	}

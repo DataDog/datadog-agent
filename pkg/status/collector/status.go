@@ -17,19 +17,17 @@ import (
 	collectorcomp "github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 // Provider provides the functionality to populate the status output with the collector information
 type Provider struct {
-	coll   collectorcomp.Component
-	config pkgconfigmodel.Reader
+	coll collectorcomp.Component
 }
 
 // NewProvider creates a Provider that reads check metadata directly from the collector
 // instead of relying on the inventories expvar published by the inventorychecks component.
-func NewProvider(coll collectorcomp.Component, config pkgconfigmodel.Reader) Provider {
-	return Provider{coll: coll, config: config}
+func NewProvider(coll collectorcomp.Component) Provider {
+	return Provider{coll: coll}
 }
 
 // GetStatusInfo retrieves collector information
@@ -153,9 +151,11 @@ func (p Provider) PopulateStatus(stats map[string]interface{}) {
 	stats["inventories"] = p.collectCheckMetadata()
 }
 
-// collectCheckMetadata builds a map of check-hash → metadata. When the collector is
-// available it reads via check.GetMetadata, supplemented by per-instance metadata from
-// the inventories expvar (e.g. version.raw). Falls back to the expvar alone otherwise.
+// collectCheckMetadata builds a map of check-hash → metadata from the collector,
+// supplemented by per-instance fields from the inventories expvar (e.g. version.raw).
+// Falls back to the expvar alone when the collector is not wired.
+// Config fields (instance_config, init_config) are always excluded — they belong in
+// the inventorychecks backend payload, not status output.
 func (p Provider) collectCheckMetadata() map[string]map[string]string {
 	checkMetadata := map[string]map[string]string{}
 
@@ -164,11 +164,9 @@ func (p Provider) collectCheckMetadata() map[string]map[string]string {
 		return collectCheckMetadataFromExpvar()
 	}
 
-	invChecksEnabled := p.config != nil && p.config.GetBool("inventories_checks_configuration_enabled")
-
 	p.coll.MapOverChecks(func(checks []check.Info) {
 		for _, c := range checks {
-			metadata := check.GetMetadata(c, invChecksEnabled)
+			metadata := check.GetMetadata(c, false)
 			checkHash := ""
 			result := map[string]string{}
 			for k, v := range metadata {
