@@ -126,12 +126,21 @@ fn get_service(
 
     let cmdline = Cmdline::get(pid).ok()?;
     let exe = Exe::get(pid).ok()?;
-    let mut tracer_metadata: Vec<TracerMetadata> = open_files_info
-        .tracer_memfds
-        .iter()
-        .filter_map(|path| tracer_metadata::get_tracer_metadata_from_path(path).ok())
+    let mut tracer_metadata_with_time: Vec<(TracerMetadata, std::time::SystemTime)> =
+        open_files_info
+            .tracer_memfds
+            .iter()
+            .filter_map(|path| {
+                let mtime = std::fs::metadata(path).ok()?.modified().ok()?;
+                let tm = tracer_metadata::get_tracer_metadata_from_path(path).ok()?;
+                Some((tm, mtime))
+            })
+            .collect();
+    tracer_metadata_with_time.sort_by_key(|(_, t)| *t);
+    let tracer_metadata: Vec<TracerMetadata> = tracer_metadata_with_time
+        .into_iter()
+        .map(|(m, _)| m)
         .collect();
-    tracer_metadata.sort_by(|a, b| a.runtime_id.cmp(&b.runtime_id));
     let first_metadata = tracer_metadata.first();
     let language = first_metadata
         .and_then(|m| Language::from_tracer_str(&m.tracer_language))

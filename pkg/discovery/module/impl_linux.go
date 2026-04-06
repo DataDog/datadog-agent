@@ -338,19 +338,34 @@ func (s *discovery) getServiceInfo(pid int32, openFiles openFilesInfo) (*model.S
 		return nil, err
 	}
 
-	var tracerMetadataArr []tracermetadatamodel.TracerMetadata
+	type tracerMetadataWithTime struct {
+		metadata tracermetadatamodel.TracerMetadata
+		modTime  int64 // nanoseconds since epoch
+	}
+	var metadataWithTimes []tracerMetadataWithTime
 	var firstMetadata *tracermetadatamodel.TracerMetadata
 
 	for _, memfdFd := range openFiles.tracerMemfdFds {
 		fdPath := kernel.HostProc(strconv.Itoa(int(pid)), "fd", memfdFd)
+		info, err := os.Stat(fdPath)
+		if err != nil {
+			continue
+		}
 		tm, err := tracermetadata.GetTracerMetadataFromPath(fdPath)
 		if err == nil {
-			tracerMetadataArr = append(tracerMetadataArr, tm)
+			metadataWithTimes = append(metadataWithTimes, tracerMetadataWithTime{
+				metadata: tm,
+				modTime:  info.ModTime().UnixNano(),
+			})
 		}
 	}
-	slices.SortFunc(tracerMetadataArr, func(a, b tracermetadatamodel.TracerMetadata) int {
-		return cmp.Compare(a.RuntimeID, b.RuntimeID)
+	slices.SortFunc(metadataWithTimes, func(a, b tracerMetadataWithTime) int {
+		return cmp.Compare(a.modTime, b.modTime)
 	})
+	tracerMetadataArr := make([]tracermetadatamodel.TracerMetadata, len(metadataWithTimes))
+	for i, m := range metadataWithTimes {
+		tracerMetadataArr[i] = m.metadata
+	}
 	if len(tracerMetadataArr) > 0 {
 		firstMetadata = &tracerMetadataArr[0]
 	}

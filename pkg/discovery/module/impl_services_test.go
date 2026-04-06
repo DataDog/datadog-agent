@@ -467,27 +467,33 @@ func (s *discoveryTestSuite) TestServicesMultipleTracerMetadata() {
 	t := s.T()
 	discovery := s.discovery
 
-	meta1 := tracermetadata.TracerMetadata{
+	// Create first memfd (created earlier, should appear first in results)
+	metaFirst := tracermetadata.TracerMetadata{
 		SchemaVersion:  1,
 		RuntimeID:      "zzz-runtime-id-2",
 		TracerLanguage: "go",
-		ServiceName:    "service-two",
+		ServiceName:    "service-created-first",
 	}
-	meta2 := tracermetadata.TracerMetadata{
+	// Create second memfd (created later, should appear second in results)
+	metaSecond := tracermetadata.TracerMetadata{
 		SchemaVersion:  1,
 		RuntimeID:      "aaa-runtime-id-1",
 		TracerLanguage: "java",
-		ServiceName:    "service-one",
+		ServiceName:    "service-created-second",
 	}
 
-	data1, err := meta1.MarshalMsg(nil)
+	dataFirst, err := metaFirst.MarshalMsg(nil)
 	require.NoError(t, err)
-	data2, err := meta2.MarshalMsg(nil)
+	dataSecond, err := metaSecond.MarshalMsg(nil)
 	require.NoError(t, err)
 
-	createTracerMemfd(t, data1)
+	// Create memfds with sleeps between them so mtimes are distinct.
+	// Sorted by creation time, not by runtime_id.
+	createTracerMemfd(t, dataFirst)
+	time.Sleep(50 * time.Millisecond)
 	createTracerMemfd(t, []byte("invalid msgpack data"))
-	createTracerMemfd(t, data2)
+	time.Sleep(50 * time.Millisecond)
+	createTracerMemfd(t, dataSecond)
 
 	listener, err := net.Listen("tcp", "")
 	require.NoError(t, err)
@@ -514,12 +520,13 @@ func (s *discoveryTestSuite) TestServicesMultipleTracerMetadata() {
 		require.NotNilf(collect, svc, "could not find service for pid %v", pid)
 	}, 30*time.Second, 100*time.Millisecond)
 
-	// Both valid tracer metadata should be present (invalid one skipped), sorted by runtime_id
+	// Both valid tracer metadata should be present (invalid one skipped),
+	// sorted by creation time (mtime), not by runtime_id.
 	require.Len(t, svc.TracerMetadata, 2)
-	assert.Equal(t, "aaa-runtime-id-1", svc.TracerMetadata[0].RuntimeID)
-	assert.Equal(t, "zzz-runtime-id-2", svc.TracerMetadata[1].RuntimeID)
-	assert.Equal(t, "service-one", svc.TracerMetadata[0].ServiceName)
-	assert.Equal(t, "service-two", svc.TracerMetadata[1].ServiceName)
+	assert.Equal(t, "zzz-runtime-id-2", svc.TracerMetadata[0].RuntimeID)
+	assert.Equal(t, "aaa-runtime-id-1", svc.TracerMetadata[1].RuntimeID)
+	assert.Equal(t, "service-created-first", svc.TracerMetadata[0].ServiceName)
+	assert.Equal(t, "service-created-second", svc.TracerMetadata[1].ServiceName)
 }
 
 // TestServicesLogsWithoutPorts checks that processes with open log files
