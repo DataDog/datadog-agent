@@ -266,7 +266,9 @@ int BPF_PROG(tcp_close_exit, struct sock *sk, long timeout) {
 
 SEC("fentry/tcp_done")
 int BPF_PROG(tcp_done, struct sock *sk) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/tcp_done");
+    // NOTE: no RETURN_IF_NOT_IN_SYSPROBE_TASK here — tcp_done often fires from
+    // timeout/RST paths in idle/softirq context where the PID namespace check
+    // would incorrectly reject the event, silently dropping failed connections.
     conn_tuple_t t = {};
 
     if (!read_conn_tuple(&t, sk, 0, CONN_TYPE_TCP)) {
