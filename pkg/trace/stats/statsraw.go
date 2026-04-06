@@ -32,12 +32,12 @@ const (
 
 type groupedStats struct {
 	// using float64 here to avoid the accumulation of rounding issues.
-	hits                   float64
-	topLevelHits           float64
-	errors                 float64
-	duration               float64
-	okDistribution         *ddsketch.DDSketch
-	errDistribution        *ddsketch.DDSketch
+	hits                 float64
+	topLevelHits         float64
+	errors               float64
+	duration             float64
+	okDistribution       *ddsketch.DDSketch
+	errDistribution      *ddsketch.DDSketch
 	peerTags             []string
 	additionalMetricTags []string
 }
@@ -64,26 +64,26 @@ func (s *groupedStats) export(a Aggregation) (*pb.ClientGroupedStats, error) {
 		return &pb.ClientGroupedStats{}, err
 	}
 	return &pb.ClientGroupedStats{
-		Service:                a.Service,
-		Name:                   a.Name,
-		Resource:               a.Resource,
-		HTTPStatusCode:         a.StatusCode,
-		Type:                   a.Type,
-		Hits:                   round(s.hits),
-		Errors:                 round(s.errors),
-		Duration:               round(s.duration),
-		TopLevelHits:           round(s.topLevelHits),
-		OkSummary:              okSummary,
-		ErrorSummary:           errSummary,
-		Synthetics:             a.Synthetics,
-		SpanKind:               a.SpanKind,
+		Service:              a.Service,
+		Name:                 a.Name,
+		Resource:             a.Resource,
+		HTTPStatusCode:       a.StatusCode,
+		Type:                 a.Type,
+		Hits:                 round(s.hits),
+		Errors:               round(s.errors),
+		Duration:             round(s.duration),
+		TopLevelHits:         round(s.topLevelHits),
+		OkSummary:            okSummary,
+		ErrorSummary:         errSummary,
+		Synthetics:           a.Synthetics,
+		SpanKind:             a.SpanKind,
 		PeerTags:             s.peerTags,
 		AdditionalMetricTags: s.additionalMetricTags,
-		ServiceSource:          a.ServiceSource,
-		IsTraceRoot:            a.IsTraceRoot,
-		GRPCStatusCode:         a.GRPCStatusCode,
-		HTTPMethod:             a.HTTPMethod,
-		HTTPEndpoint:           a.HTTPEndpoint,
+		ServiceSource:        a.ServiceSource,
+		IsTraceRoot:          a.IsTraceRoot,
+		GRPCStatusCode:       a.GRPCStatusCode,
+		HTTPMethod:           a.HTTPMethod,
+		HTTPEndpoint:         a.HTTPEndpoint,
 	}, nil
 }
 

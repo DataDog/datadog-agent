@@ -38,16 +38,16 @@ type Concentrator struct {
 
 	spanConcentrator *SpanConcentrator
 	// bucket duration in nanoseconds
-	bsize                     int64
-	exit                      chan struct{}
-	exitWG                    sync.WaitGroup
-	cidStats                  bool
-	processStats              bool
-	agentEnv                  string
-	agentHostname             string
-	agentVersion              string
-	statsd                    statsd.ClientInterface
-	peerTagKeys               []string
+	bsize                   int64
+	exit                    chan struct{}
+	exitWG                  sync.WaitGroup
+	cidStats                bool
+	processStats            bool
+	agentEnv                string
+	agentHostname           string
+	agentVersion            string
+	statsd                  statsd.ClientInterface
+	peerTagKeys             []string
 	additionalMetricTagKeys []string
 }
 
@@ -61,17 +61,17 @@ func NewConcentrator(conf *config.AgentConfig, writer Writer, now time.Time, sta
 	_, disabledCIDStats := conf.Features["disable_cid_stats"]
 	_, disabledProcessStats := conf.Features["disable_process_stats"]
 	c := Concentrator{
-		spanConcentrator:          sc,
-		Writer:                    writer,
-		exit:                      make(chan struct{}),
-		cidStats:                  !disabledCIDStats,
-		processStats:              !disabledProcessStats,
-		agentEnv:                  conf.DefaultEnv,
-		agentHostname:             conf.Hostname,
-		agentVersion:              conf.AgentVersion,
-		statsd:                    statsd,
-		bsize:                     bsize,
-		peerTagKeys:               conf.ConfiguredPeerTags(),
+		spanConcentrator:        sc,
+		Writer:                  writer,
+		exit:                    make(chan struct{}),
+		cidStats:                !disabledCIDStats,
+		processStats:            !disabledProcessStats,
+		agentEnv:                conf.DefaultEnv,
+		agentHostname:           conf.Hostname,
+		agentVersion:            conf.AgentVersion,
+		statsd:                  statsd,
+		bsize:                   bsize,
+		peerTagKeys:             conf.ConfiguredPeerTags(),
 		additionalMetricTagKeys: conf.ConfiguredSpanDerivedPrimaryTagKeys(),
 	}
 	return &c

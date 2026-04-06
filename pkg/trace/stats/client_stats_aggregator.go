@@ -267,14 +267,14 @@ func (b *bucket) aggregateStatsBucket(sb *pb.ClientStatsBucket, payloadAggKey Pa
 		agg, ok := payloadAgg[aggKey]
 		if !ok {
 			agg = &aggregatedStats{
-				hits:                   gs.Hits,
-				topLevelHits:           gs.TopLevelHits,
-				errors:                 gs.Errors,
-				duration:               gs.Duration,
+				hits:                 gs.Hits,
+				topLevelHits:         gs.TopLevelHits,
+				errors:               gs.Errors,
+				duration:             gs.Duration,
 				peerTags:             gs.PeerTags,
 				additionalMetricTags: gs.AdditionalMetricTags,
-				okDistributionRaw:      gs.OkSummary,    // store encoded version only
-				errDistributionRaw:     gs.ErrorSummary, // store encoded version only
+				okDistributionRaw:    gs.OkSummary,    // store encoded version only
+				errDistributionRaw:   gs.ErrorSummary, // store encoded version only
 			}
 			payloadAgg[aggKey] = agg
 			continue
@@ -379,26 +379,26 @@ func exporGroupedStats(aggrKey BucketsAggregationKey, stats *aggregatedStats) (*
 		}
 	}
 	return &pb.ClientGroupedStats{
-		Service:                aggrKey.Service,
-		Name:                   aggrKey.Name,
-		SpanKind:               aggrKey.SpanKind,
-		Resource:               aggrKey.Resource,
-		HTTPStatusCode:         aggrKey.StatusCode,
-		Type:                   aggrKey.Type,
-		Synthetics:             aggrKey.Synthetics,
-		ServiceSource:          aggrKey.ServiceSource,
-		IsTraceRoot:            aggrKey.IsTraceRoot,
-		GRPCStatusCode:         aggrKey.GRPCStatusCode,
-		HTTPMethod:             aggrKey.HTTPMethod,
-		HTTPEndpoint:           aggrKey.HTTPEndpoint,
+		Service:              aggrKey.Service,
+		Name:                 aggrKey.Name,
+		SpanKind:             aggrKey.SpanKind,
+		Resource:             aggrKey.Resource,
+		HTTPStatusCode:       aggrKey.StatusCode,
+		Type:                 aggrKey.Type,
+		Synthetics:           aggrKey.Synthetics,
+		ServiceSource:        aggrKey.ServiceSource,
+		IsTraceRoot:          aggrKey.IsTraceRoot,
+		GRPCStatusCode:       aggrKey.GRPCStatusCode,
+		HTTPMethod:           aggrKey.HTTPMethod,
+		HTTPEndpoint:         aggrKey.HTTPEndpoint,
 		PeerTags:             stats.peerTags,
 		AdditionalMetricTags: stats.additionalMetricTags,
-		TopLevelHits:           stats.topLevelHits,
-		Hits:                   stats.hits,
-		Errors:                 stats.errors,
-		Duration:               stats.duration,
-		OkSummary:              okSummary,
-		ErrorSummary:           errSummary,
+		TopLevelHits:         stats.topLevelHits,
+		Hits:                 stats.hits,
+		Errors:               stats.errors,
+		Duration:             stats.duration,
+		OkSummary:            okSummary,
+		ErrorSummary:         errSummary,
 	}, nil
 }
 
@@ -444,8 +444,8 @@ func newBucketAggregationKey(b *pb.ClientGroupedStats) BucketsAggregationKey {
 type aggregatedStats struct {
 	// aggregated counts
 	hits, topLevelHits, errors, duration uint64
-	peerTags             []string
-	additionalMetricTags []string
+	peerTags                             []string
+	additionalMetricTags                 []string
 
 	// aggregated DDSketches
 	okDistribution, errDistribution *ddsketch.DDSketch
