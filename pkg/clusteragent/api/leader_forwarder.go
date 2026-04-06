@@ -9,6 +9,7 @@ package api
 
 import (
 	"crypto/tls"
+	"errors"
 	stdLog "log"
 	"net"
 	"net/http"
@@ -17,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/ext"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -91,9 +93,12 @@ func (lf *LeaderForwarder) Forward(rw http.ResponseWriter, req *http.Request) {
 	rw.Header().Set(respForwarded, "true")
 
 	if req.Header.Get(forwardHeader) != "" {
+		loopErr := errors.New("query was already forwarded from: " + req.RemoteAddr)
 		span.SetTag("forward.loop_detected", true)
 		span.SetTag("forward.proxy_available", false)
-		http.Error(rw, "Query was already forwarded from: "+req.RemoteAddr, http.StatusLoopDetected)
+		span.SetTag(ext.Error, loopErr)
+		SetSpanError(rw, loopErr)
+		http.Error(rw, loopErr.Error(), http.StatusLoopDetected)
 		return
 	}
 	span.SetTag("forward.loop_detected", false)
@@ -104,8 +109,11 @@ func (lf *LeaderForwarder) Forward(rw http.ResponseWriter, req *http.Request) {
 	lf.proxyLock.RUnlock()
 
 	if currentProxy == nil {
+		proxyErr := errors.New("leader proxy is not available")
 		span.SetTag("forward.proxy_available", false)
-		http.Error(rw, "", http.StatusServiceUnavailable)
+		span.SetTag(ext.Error, proxyErr)
+		SetSpanError(rw, proxyErr)
+		http.Error(rw, proxyErr.Error(), http.StatusServiceUnavailable)
 		return
 	}
 
