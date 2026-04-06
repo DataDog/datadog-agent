@@ -155,9 +155,15 @@ func getNodeAnnotations(w http.ResponseWriter, r *http.Request, wmeta workloadme
 }
 
 func getNodeInfo(w http.ResponseWriter, r *http.Request, _ workloadmeta.Component) {
+	var spanErr error
+	span, _ := tracer.StartSpanFromContext(r.Context(), "cluster_agent.metadata.node_info")
+	defer func() { span.Finish(tracer.WithError(spanErr)) }()
+
 	cl, err := as.GetAPIClient()
 	if err != nil {
 		log.Errorf("getNodeInfo: unable to get apiserver: %v", err)
+		spanErr = err
+		api.SetSpanError(w, err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -165,10 +171,13 @@ func getNodeInfo(w http.ResponseWriter, r *http.Request, _ workloadmeta.Componen
 
 	vars := mux.Vars(r)
 	nodeName := vars["nodeName"]
+	span.SetTag("node_name", nodeName)
 
 	node, err := nodeCl.Get(r.Context(), nodeName, metav1.GetOptions{})
 	if err != nil {
 		log.Errorf("getNodeInfo: unable to get self node: %v", err)
+		spanErr = err
+		api.SetSpanError(w, err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -183,6 +192,8 @@ func getNodeInfo(w http.ResponseWriter, r *http.Request, _ workloadmeta.Componen
 	data, err := json.Marshal(&node.Status.NodeInfo)
 	if err != nil {
 		log.Errorf("getNodeInfo: failed to marshal node %s info %+v: %s", nodeName, &node.Status.NodeInfo, err.Error()) //nolint:errcheck
+		spanErr = err
+		api.SetSpanError(w, err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

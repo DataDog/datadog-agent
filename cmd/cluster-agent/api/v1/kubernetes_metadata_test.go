@@ -417,3 +417,28 @@ func TestGetClusterID_SpanCreation(t *testing.T) {
 	require.True(t, ok, "error tag should be an error object, got %T", span.Tag("error"))
 	assert.NotEmpty(t, err.Error())
 }
+
+func TestGetNodeInfo_SpanCreation(t *testing.T) {
+	mt := mocktracer.Start()
+	defer mt.Stop()
+
+	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		getNodeInfo(w, r, mockStore)
+	})
+
+	req := httptest.NewRequest("GET", "/info/node/"+testNode, nil)
+	req = mux.SetURLVars(req, map[string]string{"nodeName": testNode})
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusInternalServerError, rec.Code)
+
+	spans := mt.FinishedSpans()
+	require.Len(t, spans, 1)
+	assert.Equal(t, "cluster_agent.metadata.node_info", spans[0].OperationName())
+}
