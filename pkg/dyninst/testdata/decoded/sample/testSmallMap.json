@@ -89,6 +89,7 @@
       ]
     },
     "timestamp": "[ts]",
-    "message": "map[AAA: 1, BBB: 2]"
+    "message": "map[AAA: 1, BBB: 2]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]
