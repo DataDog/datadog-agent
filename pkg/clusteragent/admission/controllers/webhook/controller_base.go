@@ -124,7 +124,7 @@ func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workl
 	}
 
 	// Setup config webhook.
-	configWebhook, err := generateConfigWebhook(datadogConfig)
+	configWebhook, err := generateConfigWebhook(datadogConfig, filterStore)
 	if err != nil {
 		log.Errorf("failed to register config webhook: %v", err)
 	} else {
@@ -132,7 +132,7 @@ func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workl
 	}
 
 	// Setup tags from labels webhook.
-	tagsWebhook, err := generateTagsFromLabelsWebhook(datadogConfig)
+	tagsWebhook, err := generateTagsFromLabelsWebhook(datadogConfig, filterStore)
 	if err != nil {
 		log.Errorf("failed to register tags from labels webhook: %v", err)
 	} else {
@@ -182,8 +182,8 @@ func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workl
 	return webhooks
 }
 
-func generateConfigWebhook(datadogConfig config.Component) (*configWebhook.Webhook, error) {
-	filter, err := configWebhook.NewFilter(datadogConfig)
+func generateConfigWebhook(datadogConfig config.Component, filterStore workloadfilter.Component) (*configWebhook.Webhook, error) {
+	filter, err := configWebhook.NewFilter(datadogConfig, filterStore)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create config filter: %v", err)
 	}
@@ -192,8 +192,8 @@ func generateConfigWebhook(datadogConfig config.Component) (*configWebhook.Webho
 	return configWebhook.NewWebhook(datadogConfig, mutator), nil
 }
 
-func generateTagsFromLabelsWebhook(datadogConfig config.Component) (*tagsfromlabels.Webhook, error) {
-	filter, err := tagsfromlabels.NewFilter(datadogConfig)
+func generateTagsFromLabelsWebhook(datadogConfig config.Component, filterStore workloadfilter.Component) (*tagsfromlabels.Webhook, error) {
+	filter, err := tagsfromlabels.NewFilter(datadogConfig, filterStore)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create tags from labels filter: %v", err)
 	}

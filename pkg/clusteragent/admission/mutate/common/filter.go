@@ -13,9 +13,9 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -40,17 +40,18 @@ func DefaultDisabledNamespaces() []string {
 // DefaultFilter provides a default implementation of the MutationFilter interface that uses namespaces for filtering.
 type DefaultFilter struct {
 	enabled bool
-	filter  *containers.Filter
+	filter  workloadfilter.FilterBundle
 }
 
 // NewDefaultFilter constructs the default mutation filter from the enabled flag and the list of enabled and disabled
 // namespaces.
-func NewDefaultFilter(enabled bool, enabledNamespaces []string, disabledNamespaces []string) (*DefaultFilter, error) {
-	filter, err := makeNamespaceFilter(enabledNamespaces, disabledNamespaces)
-	return &DefaultFilter{
-		enabled: enabled,
-		filter:  filter,
-	}, err
+func NewDefaultFilter(enabled bool, enabledNamespaces []string, disabledNamespaces []string, filterStore workloadfilter.Component) (*DefaultFilter, error) {
+	bundle, err := buildNamespaceBundle(enabledNamespaces, disabledNamespaces, filterStore)
+	if err != nil {
+		// Return a non-nil filter that denies everything (fail-closed) alongside the error.
+		return &DefaultFilter{enabled: enabled, filter: bundle}, err
+	}
+	return &DefaultFilter{enabled: enabled, filter: bundle}, nil
 }
 
 // ShouldMutatePod checks if a pod is mutable per explicit rules and them validates the namespace.
@@ -80,12 +81,10 @@ func (f *DefaultFilter) IsNamespaceEligible(ns string) bool {
 		return false
 	}
 
-	return !f.filter.IsExcluded(nil, "", "", ns)
+	return !f.filter.IsExcluded(workloadfilter.CreatePod("", "", ns, nil))
 }
 
-// makeNamespaceFilter returns a filter with the provided enabled/disabled namespaces.
-// The filter excludes two namespaces by default: "kube-system" and the
-// namespace where datadog is installed.
+// buildNamespaceBundle returns a FilterBundle that allows/denies namespaces per the provided lists.
 //
 // Cases:
 //   - No enabled namespaces and no disabled namespaces: inject in all namespaces
@@ -97,40 +96,43 @@ func (f *DefaultFilter) IsNamespaceEligible(ns string) bool {
 //     namespaces that are not included in the list of disabled namespaces and that
 //     are not one of the ones disabled by default.
 //   - Enabled and disabled namespaces: return error.
-func makeNamespaceFilter(enabledNamespaces, disabledNamespaces []string) (*containers.Filter, error) {
+func buildNamespaceBundle(enabledNamespaces, disabledNamespaces []string, filterStore workloadfilter.Component) (workloadfilter.FilterBundle, error) {
 	if len(enabledNamespaces) > 0 && len(disabledNamespaces) > 0 {
 		return nil, errors.New("enabled_namespaces and disabled_namespaces configuration cannot be set together")
 	}
 
-	// Prefix the namespaces as needed by the containers.Filter.
-	prefix := containers.KubeNamespaceFilterPrefix
-	enabledNamespacesWithPrefix := make([]string, len(enabledNamespaces))
-	disabledNamespacesWithPrefix := make([]string, len(disabledNamespaces))
-
-	for i := range enabledNamespaces {
-		enabledNamespacesWithPrefix[i] = prefix + fmt.Sprintf("^%s$", enabledNamespaces[i])
+	// Prefix the namespaces as needed by the legacy filter.
+	prefix := "kube_namespace:"
+	enabledWithPrefix := make([]string, len(enabledNamespaces))
+	disabledWithPrefix := make([]string, len(disabledNamespaces))
+	for i, ns := range enabledNamespaces {
+		enabledWithPrefix[i] = prefix + fmt.Sprintf("^%s$", ns)
 	}
-	for i := range disabledNamespaces {
-		disabledNamespacesWithPrefix[i] = prefix + fmt.Sprintf("^%s$", disabledNamespaces[i])
+	for i, ns := range disabledNamespaces {
+		disabledWithPrefix[i] = prefix + fmt.Sprintf("^%s$", ns)
 	}
 
 	defaultDisabled := DefaultDisabledNamespaces()
 	disabledByDefault := make([]string, len(defaultDisabled))
-	for i := range defaultDisabled {
-		disabledByDefault[i] = prefix + fmt.Sprintf("^%s$", defaultDisabled[i])
+	for i, ns := range defaultDisabled {
+		disabledByDefault[i] = prefix + fmt.Sprintf("^%s$", ns)
 	}
 
-	var filterExcludeList []string
-	if len(enabledNamespacesWithPrefix) > 0 && len(disabledNamespacesWithPrefix) == 0 {
-		// In this case, we want to include only the namespaces in the enabled list.
-		// In the containers.Filter, the include list is checked before the
-		// exclude list, that's why we set the exclude list to all namespaces.
-		filterExcludeList = []string{prefix + ".*"}
+	var includeList []string
+	var excludeList []string
+	if len(enabledWithPrefix) > 0 {
+		// Include only the specified namespaces; exclude everything else.
+		includeList = enabledWithPrefix
+		excludeList = []string{prefix + ".*"}
 	} else {
-		filterExcludeList = append(disabledNamespacesWithPrefix, disabledByDefault...)
+		excludeList = append(disabledWithPrefix, disabledByDefault...)
 	}
 
-	return containers.NewFilter(containers.GlobalFilter, enabledNamespacesWithPrefix, filterExcludeList)
+	bundle := filterStore.CreateAdHocBundle(includeList, excludeList)
+	if errs := bundle.GetErrors(); len(errs) > 0 {
+		return bundle, errors.Join(errs...)
+	}
+	return bundle, nil
 }
 
 type podMutationLabelFlag int

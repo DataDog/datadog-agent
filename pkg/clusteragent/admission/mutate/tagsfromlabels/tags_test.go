@@ -15,6 +15,7 @@ import (
 	kscheme "k8s.io/client-go/kubernetes/scheme"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 )
 
@@ -162,7 +163,7 @@ func Test_injectTags(t *testing.T) {
 	datadogConfig := config.NewMock(t)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			filter, err := NewFilter(datadogConfig)
+			filter, err := NewFilter(datadogConfig, workloadfilterfxmock.SetupMockFilter(t))
 			assert.NoError(t, err)
 			mutator := NewMutator(NewMutatorConfig(datadogConfig), filter)
 			webhook := NewWebhook(datadogConfig, mutator)

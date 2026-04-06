@@ -11,6 +11,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 )
 
 func TestFailingInjectionConfig(t *testing.T) {
@@ -76,7 +78,8 @@ func TestFailingInjectionConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			nsFilter, _ := NewDefaultFilter(tt.instrumentationEnabled, tt.enabledNamespaces, tt.disabledNamespaces)
+			filterStore := workloadfilterfxmock.SetupMockFilter(t)
+			nsFilter, _ := NewDefaultFilter(tt.instrumentationEnabled, tt.enabledNamespaces, tt.disabledNamespaces, filterStore)
 			require.NotNil(t, nsFilter, "we should always get a filter")
 
 			checkedNamespaces := map[string]bool{}

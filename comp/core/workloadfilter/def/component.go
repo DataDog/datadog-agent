@@ -48,6 +48,11 @@ type Component interface {
 	// GetContainerCWSAdmissionFilters retrieves the container CWS admission webhook FilterBundle
 	GetContainerCWSAdmissionFilters() FilterBundle
 
+	// CreateAdHocBundle creates a one-off FilterBundle from raw legacy-format include/exclude lists.
+	// Unlike pre-registered bundles, the bundle is constructed on each call.
+	// Errors from parsing the lists are stored in the bundle and accessible via GetErrors().
+	CreateAdHocBundle(include, exclude []string) FilterBundle
+
 	// String returns a string representation of the workloadfilter configuration
 	// If useColor is true, the output will include ANSI color codes.
 	String(useColor bool) string
