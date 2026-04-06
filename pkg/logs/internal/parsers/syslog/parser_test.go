@@ -212,8 +212,8 @@ func TestFileParser_CEF_RFC5424(t *testing.T) {
 
 	assert.Equal(t, message.StateStructured, result.State)
 
-	// The message content should be the raw extension (not the full CEF string)
-	assert.Equal(t, "src=10.0.0.1 dst=2.1.2.2 spt=1232", string(result.GetContent()))
+	// CEF/LEEF messages have an empty message body; all data is in "siem"
+	assert.Equal(t, "", string(result.GetContent()))
 
 	// Render and verify JSON structure
 	rendered, err := result.Render()
@@ -256,7 +256,7 @@ func TestFileParser_CEF_BSD(t *testing.T) {
 	result, err := parser.Parse(input)
 	require.NoError(t, err)
 
-	assert.Equal(t, "src=1.2.3.4", string(result.GetContent()))
+	assert.Equal(t, "", string(result.GetContent()))
 
 	rendered, err := result.Render()
 	require.NoError(t, err)

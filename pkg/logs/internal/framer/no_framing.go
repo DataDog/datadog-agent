@@ -8,6 +8,10 @@ package framer
 // noFramingMatcher considers the given bytes as already framed.
 type noFramingMatcher struct{}
 
+// FlushFrame implements FrameMatcher. The buffer is always drained by
+// FindFrame, so there is never a remainder to flush.
+func (m *noFramingMatcher) FlushFrame([]byte) ([]byte, int) { return nil, 0 }
+
 // FindFrame considers the given bytes buffer as one full frame.
 func (m *noFramingMatcher) FindFrame(buf []byte, _ int) ([]byte, int, bool) {
 	return buf, len(buf), false

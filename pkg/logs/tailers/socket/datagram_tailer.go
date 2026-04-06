@@ -10,7 +10,6 @@ import (
 	"net"
 	"strings"
 
-	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -158,13 +157,6 @@ func (t *DatagramTailer) tail() {
 
 			data := make([]byte, readLen)
 			copy(data, buf[:readLen])
-
-			// For unstructured mode (UTF-8 newline framing), ensure the
-			// datagram ends with a newline so the framer emits it promptly.
-			// Syslog mode uses NoFraming where this is unnecessary.
-			if t.source.Config.Format != logsconfig.SyslogFormat && len(data) > 0 && data[len(data)-1] != '\n' {
-				data = append(data, '\n')
-			}
 
 			t.source.RecordBytes(int64(n))
 

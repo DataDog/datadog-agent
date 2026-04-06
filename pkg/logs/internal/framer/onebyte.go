@@ -17,6 +17,10 @@ type oneByteNewLineMatcher struct {
 	contentLenLimit int
 }
 
+// FlushFrame implements FrameMatcher. Partial newline-delimited lines are
+// not emitted at end-of-stream (they may be genuinely incomplete).
+func (ob *oneByteNewLineMatcher) FlushFrame([]byte) ([]byte, int) { return nil, 0 }
+
 // FindFrame implements FrameMatcher#FindFrame.
 func (ob *oneByteNewLineMatcher) FindFrame(buf []byte, seen int) ([]byte, int, bool) {
 	nl := bytes.IndexByte(buf[seen:], '\n')

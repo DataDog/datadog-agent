@@ -643,6 +643,205 @@ func TestFramerInputNotDockerHeader(t *testing.T) {
 	assert.Equal(t, len(expected2)+1, output.rawDataLen)
 }
 
+func TestUTF8NewlineDatagramFraming(t *testing.T) {
+	test := func(chunks [][]byte, lines []string, rawLens []int) func(*testing.T) {
+		return func(t *testing.T) {
+			gotContent := []string{}
+			gotLens := []int{}
+			outputFn := func(msg *message.Message, rawDataLen int) {
+				gotContent = append(gotContent, string(msg.GetContent()))
+				gotLens = append(gotLens, rawDataLen)
+			}
+			fr := NewFramer(outputFn, UTF8NewlineDatagram, contentLenLimit)
+			for _, chunk := range chunks {
+				logMessage := message.NewMessage(chunk, nil, "", 0)
+				fr.Process(logMessage)
+			}
+			require.Equal(t, lines, gotContent)
+			require.Equal(t, rawLens, gotLens)
+			require.Equal(t, int64(len(lines)), fr.GetFrameCount())
+		}
+	}
+
+	t.Run("no trailing newline", test(
+		[][]byte{[]byte("hello")},
+		[]string{"hello"},
+		[]int{5},
+	))
+
+	t.Run("with trailing newline", test(
+		[][]byte{[]byte("hello\n")},
+		[]string{"hello"},
+		[]int{6},
+	))
+
+	t.Run("multiple lines with trailing newline", test(
+		[][]byte{[]byte("line1\nline2\n")},
+		[]string{"line1", "line2"},
+		[]int{6, 6},
+	))
+
+	t.Run("multiple lines without trailing newline", test(
+		[][]byte{[]byte("line1\nline2")},
+		[]string{"line1", "line2"},
+		[]int{6, 5},
+	))
+
+	t.Run("empty datagram", test(
+		[][]byte{[]byte("")},
+		[]string{},
+		[]int{},
+	))
+
+	t.Run("just a newline", test(
+		[][]byte{[]byte("\n")},
+		[]string{""},
+		[]int{1},
+	))
+
+	t.Run("two datagrams in sequence", test(
+		[][]byte{[]byte("first"), []byte("second")},
+		[]string{"first", "second"},
+		[]int{5, 6},
+	))
+
+	t.Run("datagram with mixed newline-terminated and not", test(
+		[][]byte{[]byte("a\nb\nc")},
+		[]string{"a", "b", "c"},
+		[]int{2, 2, 1},
+	))
+
+	t.Run("no cross-datagram buffering", func(t *testing.T) {
+		gotContent := []string{}
+		gotLens := []int{}
+		outputFn := func(msg *message.Message, rawDataLen int) {
+			gotContent = append(gotContent, string(msg.GetContent()))
+			gotLens = append(gotLens, rawDataLen)
+		}
+		fr := NewFramer(outputFn, UTF8NewlineDatagram, contentLenLimit)
+
+		msg1 := message.NewMessage([]byte("partial"), nil, "", 0)
+		fr.Process(msg1)
+		require.Equal(t, []string{"partial"}, gotContent,
+			"first datagram should flush immediately, not buffer")
+
+		msg2 := message.NewMessage([]byte("next"), nil, "", 0)
+		fr.Process(msg2)
+		require.Equal(t, []string{"partial", "next"}, gotContent,
+			"second datagram should be independent, not concatenated with first")
+	})
+}
+
+func TestFlush(t *testing.T) {
+	t.Run("SyslogFraming/non-transparent without trailing LF", func(t *testing.T) {
+		gotContent := []string{}
+		gotLens := []int{}
+		outputFn := func(msg *message.Message, rawDataLen int) {
+			gotContent = append(gotContent, string(msg.GetContent()))
+			gotLens = append(gotLens, rawDataLen)
+		}
+		fr := NewFramer(outputFn, SyslogFraming, contentLenLimit)
+
+		msg := message.NewMessage([]byte("<134>hello world"), nil, "", 0)
+		fr.Process(msg)
+		require.Empty(t, gotContent, "no delimiter yet, nothing should be emitted")
+
+		fr.Flush()
+		require.Equal(t, []string{"<134>hello world"}, gotContent)
+		require.Equal(t, []int{16}, gotLens)
+	})
+
+	t.Run("SyslogFraming/partial octet-counted is discarded", func(t *testing.T) {
+		gotContent := []string{}
+		outputFn := func(msg *message.Message, _ int) {
+			gotContent = append(gotContent, string(msg.GetContent()))
+		}
+		fr := NewFramer(outputFn, SyslogFraming, contentLenLimit)
+
+		msg := message.NewMessage([]byte("200 <134>partial"), nil, "", 0)
+		fr.Process(msg)
+		require.Empty(t, gotContent)
+
+		fr.Flush()
+		require.Empty(t, gotContent, "partial octet-counted frame should not be emitted")
+	})
+
+	t.Run("SyslogFraming/empty buffer is no-op", func(t *testing.T) {
+		gotContent := []string{}
+		outputFn := func(msg *message.Message, _ int) {
+			gotContent = append(gotContent, string(msg.GetContent()))
+		}
+		fr := NewFramer(outputFn, SyslogFraming, contentLenLimit)
+
+		msg := message.NewMessage([]byte("<134>complete\n"), nil, "", 0)
+		fr.Process(msg)
+		require.Equal(t, []string{"<134>complete"}, gotContent)
+
+		fr.Flush()
+		require.Len(t, gotContent, 1, "Flush on empty buffer should not emit")
+	})
+
+	t.Run("UTF8Newline/partial line not emitted", func(t *testing.T) {
+		gotContent := []string{}
+		outputFn := func(msg *message.Message, _ int) {
+			gotContent = append(gotContent, string(msg.GetContent()))
+		}
+		fr := NewFramer(outputFn, UTF8Newline, contentLenLimit)
+
+		msg := message.NewMessage([]byte("no newline here"), nil, "", 0)
+		fr.Process(msg)
+		require.Empty(t, gotContent)
+
+		fr.Flush()
+		require.Empty(t, gotContent, "UTF8Newline should not flush partial lines")
+	})
+
+	t.Run("NoFraming/always drained so Flush is no-op", func(t *testing.T) {
+		gotContent := []string{}
+		outputFn := func(msg *message.Message, _ int) {
+			gotContent = append(gotContent, string(msg.GetContent()))
+		}
+		fr := NewFramer(outputFn, NoFraming, contentLenLimit)
+
+		msg := message.NewMessage([]byte("already framed"), nil, "", 0)
+		fr.Process(msg)
+		require.Equal(t, []string{"already framed"}, gotContent)
+
+		fr.Flush()
+		require.Len(t, gotContent, 1, "NoFraming buffer is always empty after Process")
+	})
+
+	t.Run("SyslogFraming/Flush does not interfere with subsequent Process", func(t *testing.T) {
+		gotContent := []string{}
+		outputFn := func(msg *message.Message, _ int) {
+			gotContent = append(gotContent, string(msg.GetContent()))
+		}
+		fr := NewFramer(outputFn, SyslogFraming, contentLenLimit)
+
+		msg1 := message.NewMessage([]byte("<134>first"), nil, "", 0)
+		fr.Process(msg1)
+		fr.Flush()
+		require.Equal(t, []string{"<134>first"}, gotContent)
+
+		fr.reset()
+		gotContent = gotContent[:0]
+
+		msg2 := message.NewMessage([]byte("<134>second\n"), nil, "", 0)
+		fr.Process(msg2)
+		require.Equal(t, []string{"<134>second"}, gotContent)
+	})
+
+	t.Run("Flush before any Process is no-op", func(t *testing.T) {
+		gotContent := []string{}
+		outputFn := func(msg *message.Message, _ int) {
+			gotContent = append(gotContent, string(msg.GetContent()))
+		}
+		fr := NewFramer(outputFn, SyslogFraming, contentLenLimit)
+		fr.Flush()
+		require.Empty(t, gotContent, "Flush with no prior Process should be safe no-op")
+	})
+}
+
 func TestStructuredContent(t *testing.T) {
 	// structured log messages must not be processed by the framer
 	outputFn, outputChan := framerOutput()

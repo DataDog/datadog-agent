@@ -9,6 +9,8 @@ package message
 import (
 	"encoding/json"
 	"errors"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -152,6 +154,46 @@ func (m *MessageContent) HasContent() bool {
 		return m.structuredContent != nil
 	}
 	return len(m.content) > 0
+}
+
+// GetStructuredAttribute retrieves a dot-delimited attribute from structured
+// content. For example, "siem.device_vendor" walks Data["siem"] ->
+// map["device_vendor"]. Returns the string value and true if found.
+// Non-string leaf types (int, float64, bool) are converted via strconv.
+func (m *MessageContent) GetStructuredAttribute(path string) (string, bool) {
+	if m.State != StateStructured {
+		return "", false
+	}
+	bsc, ok := m.structuredContent.(*BasicStructuredContent)
+	if !ok || bsc == nil {
+		return "", false
+	}
+
+	parts := strings.Split(path, ".")
+	var current interface{} = bsc.Data
+	for _, key := range parts {
+		obj, ok := current.(map[string]interface{})
+		if !ok {
+			return "", false
+		}
+		current, ok = obj[key]
+		if !ok {
+			return "", false
+		}
+	}
+
+	switch v := current.(type) {
+	case string:
+		return v, true
+	case int:
+		return strconv.Itoa(v), true
+	case float64:
+		return strconv.FormatFloat(v, 'g', -1, 64), true
+	case bool:
+		return strconv.FormatBool(v), true
+	default:
+		return "", false
+	}
 }
 
 // GetContent returns the bytes array containing only the message content

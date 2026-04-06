@@ -23,16 +23,16 @@ import (
 // so NoFraming is used with the syslog parser. A NoopLineHandler prevents
 // truncation logic from corrupting structured messages.
 //
-// For unstructured format, datagrams may contain multiple newline-separated
-// messages, so UTF-8 newline framing is used. The tailer must ensure each
-// datagram ends with a newline for prompt frame emission.
+// For unstructured format, UTF8NewlineDatagram framing splits on newlines
+// (for multi-message datagrams) and flushes any remainder, so the tailer
+// does not need to append a trailing newline.
 func NewDatagramDecoder(source *sources.ReplaceableSource, tailerInfo *status.InfoRegistry) Decoder {
 	format := source.Config().Format
 	switch format {
 	case config.SyslogFormat:
 		return newSyslogDatagramDecoder(source, tailerInfo)
 	default:
-		return InitializeDecoder(source, noop.New(), tailerInfo)
+		return NewDecoderWithFraming(source, noop.New(), framer.UTF8NewlineDatagram, nil, tailerInfo)
 	}
 }
 
