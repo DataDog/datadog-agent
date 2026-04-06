@@ -152,4 +152,15 @@ static __always_inline bool is_protocol_family_enabled(const struct sock *sk) {
      return false;
 }
 
+__maybe_unused static __always_inline __u64 get_ringbuf_flags(size_t data_size) {
+    __u64 ringbuffer_wakeup_size = 0;
+    LOAD_CONSTANT("ringbuffer_wakeup_size", ringbuffer_wakeup_size);
+    if (ringbuffer_wakeup_size == 0) {
+        return 0;
+    }
+
+    __u64 sz = bpf_ringbuf_query(&conn_close_event, DD_BPF_RB_AVAIL_DATA);
+    return (sz + data_size) >= ringbuffer_wakeup_size ? DD_BPF_RB_FORCE_WAKEUP : DD_BPF_RB_NO_WAKEUP;
+}
+
 #endif
