@@ -216,7 +216,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_devices.autodiscovery.ping.enabled", false)
 	config.BindEnvAndSetDefault("network_devices.autodiscovery.ping.count", 2)
 	config.BindEnvAndSetDefault("network_devices.autodiscovery.ping.interval", 10)
-	config.BindEnvAndSetDefault("network_devices.autodiscovery.ping.timeout", 5)
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.ping.timeout", 3000)
 	config.BindEnvAndSetDefault("network_devices.autodiscovery.ping.linux.use_raw_socket", false)
 	config.BindEnvAndSetDefault("network_devices.autodiscovery.use_deduplication", false)
 	config.BindEnvAndSetDefault("network_devices.autodiscovery.collect_vpn", false)
@@ -1053,10 +1053,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("integration_security_excluded_checks", []string{})
 
 	// Host Profiler config
-
-	// Individual debug options don't need to be registered here - the section is
-	// passed as-is to the OTel debug exporter which handles its own validation.
-	config.BindEnvAndSetDefault("hostprofiler.debug", map[string]any{})
+	config.BindEnvAndSetDefault("hostprofiler.debug.verbosity", "")
 	config.BindEnvAndSetDefault("hostprofiler.additional_http_headers", map[string]string{})
 }
 
@@ -1141,6 +1138,7 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnv("bind_host") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.BindEnvAndSetDefault("health_port", int64(0))
 	config.BindEnvAndSetDefault("health_platform.enabled", false)
+	config.BindEnvAndSetDefault("health_platform.persist_on_kubernetes", false)
 	config.BindEnvAndSetDefault("health_platform.forwarder.interval", 0)
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
 	config.BindEnvAndSetDefault("win_skip_com_init", false)
