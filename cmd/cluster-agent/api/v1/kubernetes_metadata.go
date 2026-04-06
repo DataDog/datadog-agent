@@ -155,8 +155,13 @@ func getNodeAnnotations(w http.ResponseWriter, r *http.Request, wmeta workloadme
 }
 
 func getNodeInfo(w http.ResponseWriter, r *http.Request, _ workloadmeta.Component) {
+	vars := mux.Vars(r)
+	nodeName := vars["nodeName"]
+
 	var spanErr error
-	span, _ := tracer.StartSpanFromContext(r.Context(), "cluster_agent.metadata.node_info")
+	span, ctx := tracer.StartSpanFromContext(r.Context(), "cluster_agent.metadata.node_info",
+		tracer.Tag("node_name", nodeName),
+	)
 	defer func() { span.Finish(tracer.WithError(spanErr)) }()
 
 	cl, err := as.GetAPIClient()
@@ -169,11 +174,7 @@ func getNodeInfo(w http.ResponseWriter, r *http.Request, _ workloadmeta.Componen
 	}
 	nodeCl := cl.Cl.CoreV1().Nodes()
 
-	vars := mux.Vars(r)
-	nodeName := vars["nodeName"]
-	span.SetTag("node_name", nodeName)
-
-	node, err := nodeCl.Get(r.Context(), nodeName, metav1.GetOptions{})
+	node, err := nodeCl.Get(ctx, nodeName, metav1.GetOptions{})
 	if err != nil {
 		log.Errorf("getNodeInfo: unable to get self node: %v", err)
 		spanErr = err
@@ -182,9 +183,13 @@ func getNodeInfo(w http.ResponseWriter, r *http.Request, _ workloadmeta.Componen
 		return
 	}
 
+	// Defensive check: client-go's Get() should never return (nil, nil),
+	// but guard against it to avoid a nil-pointer dereference below.
 	if node == nil {
-		w.WriteHeader(http.StatusNotFound)
-		fmt.Fprintf(w, "Could not find node %s", nodeName)
+		notFoundErr := fmt.Errorf("node %s not found", nodeName)
+		spanErr = notFoundErr
+		api.SetSpanError(w, notFoundErr)
+		http.Error(w, notFoundErr.Error(), http.StatusNotFound)
 		return
 	}
 
@@ -364,6 +369,8 @@ func getPodMetadataForNode(w http.ResponseWriter, r *http.Request) {
 	metaList, errNodes := as.GetMetadataMapBundleOnNode(nodeName)
 	if errNodes != nil {
 		log.Warnf("Could not collect the service map for %s, err: %v", nodeName, errNodes) //nolint:errcheck
+		spanErr = errNodes
+		api.SetSpanError(w, errNodes)
 	}
 	slcB, err := json.Marshal(metaList)
 	if err != nil {
