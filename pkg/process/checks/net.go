@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	netEncoding "github.com/DataDog/datadog-agent/pkg/network/encoding/unmarshal"
 	"github.com/DataDog/datadog-agent/pkg/network/indexedset"
+	"github.com/DataDog/datadog-agent/pkg/network/remoteservice"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 	"github.com/DataDog/datadog-agent/pkg/process/net/resolver"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
@@ -182,8 +183,29 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 
 	getContainersCB := c.getContainerTagsCallback(c.getContainersForExplicitTagging(conns.Conns))
 	getProcessTagsCB := c.getProcessTagsCallback()
+
+	// Fetch remote service tag data. On Windows these are HTTP calls to
+	// system-probe and run concurrently; on Linux they are no-ops.
+	iisTags, procCacheTags, portToPID := fetchRemoteServiceData(c.sysprobeClient)
+
+	// Supplement portToPID from connections data. system-probe runs as root
+	// and provides both sides of intra-host connections, so server-side
+	// entries have the correct PID even when portlist.Poller (running as
+	// dd-agent) cannot read /proc/<pid>/fd/ for other users' processes.
+	if portToPID == nil {
+		portToPID = make(map[int32]int32)
+	}
+	for _, cx := range conns.Conns {
+		// USM supports TCP only; skip UDP connections.
+		if cx.IntraHost && cx.Pid > 0 && cx.Laddr.Port > 0 && cx.Type == model.ConnectionType_tcp {
+			if _, exists := portToPID[cx.Laddr.Port]; !exists {
+				portToPID[cx.Laddr.Port] = cx.Pid
+			}
+		}
+	}
+
 	groupID := nextGroupID()
-	messages := batchConnections(c.hostInfo, c.hostTagProvider, getContainersCB, getProcessTagsCB, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor, conns.ResolvConfs)
+	messages := batchConnections(c.hostInfo, c.hostTagProvider, getContainersCB, getProcessTagsCB, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor, conns.ResolvConfs, iisTags, procCacheTags, portToPID)
 	return StandardRunResult(messages), nil
 }
 
@@ -448,11 +470,32 @@ func batchConnections(
 	agentCfg *model.AgentConfiguration,
 	serviceExtractor *parser.ServiceExtractor,
 	resolvConfs []string,
+	iisTags map[string][]string,
+	procCacheTags map[uint32][]string,
+	portToPID map[int32]int32,
 ) []model.MessageBody {
 	groupSize := groupSize(len(cxs), maxConnsPerMessage)
 	batches := make([]model.MessageBody, 0, groupSize)
 
 	dnsEncoder := model.NewV2DNSEncoder()
+
+	// Build the remote service resolver for intra-host connection enrichment.
+	var getIISTags func(remotePort, localPort int32) []string
+	if iisTags != nil {
+		getIISTags = func(remotePort, localPort int32) []string {
+			iisKey := strconv.FormatInt(int64(remotePort), 10) + "-" + strconv.FormatInt(int64(localPort), 10)
+			if tags, ok := iisTags[iisKey]; ok {
+				return tags
+			}
+			return nil
+		}
+	}
+	remoteServiceResolver := &remoteservice.Resolver{
+		GetServiceContext: serviceExtractor.GetServiceContext,
+		GetProcessTags:    func(pid int32) []string { return getRemoteProcessTags(pid, procCacheTags, processTagProvider) },
+		GetIISTags:        getIISTags,
+		PortToPID:         portToPID,
+	}
 
 	if len(cxs) > maxConnsPerMessage {
 		// Sort connections by remote IP/PID for more efficient resolution
@@ -507,6 +550,15 @@ func batchConnections(
 			// tags remap
 			serviceCtx := serviceExtractor.GetServiceContext(c.Pid)
 			tagsStr := convertAndEnrichWithServiceCtx(tags, c.Tags, serviceCtx...)
+
+			// For same-host connections, resolve and attach the remote service tags.
+			c.RemoteServiceTagsIdx = -1
+			// USM supports TCP only; skip UDP connections.
+			if c.IntraHost && c.Laddr.ContainerId == "" && c.Type == model.ConnectionType_tcp {
+				if remoteTags := remoteServiceResolver.Resolve(c.Pid, c.Raddr.Port, c.Laddr.Port); len(remoteTags) > 0 {
+					c.RemoteServiceTagsIdx = int32(tagsEncoder.Encode(remoteTags))
+				}
+			}
 
 			// Get process tags and add them to the connection tags
 			if processTagProvider != nil {

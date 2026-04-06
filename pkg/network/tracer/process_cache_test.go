@@ -10,6 +10,7 @@ package tracer
 import (
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -289,4 +290,101 @@ func TestProcessCacheGet(t *testing.T) {
 		})
 	}
 
+}
+
+func TestGetAllPIDTags(t *testing.T) {
+	t.Run("nil cache", func(t *testing.T) {
+		var pc *processCache
+		assert.Nil(t, pc.GetAllPIDTags())
+	})
+
+	t.Run("returns tags for latest entry per PID", func(t *testing.T) {
+		pc, err := newProcessCache(10)
+		require.NoError(t, err)
+		t.Cleanup(pc.Stop)
+
+		// Add two entries for the same PID with different start times
+		pc.add(&events.Process{
+			Pid:       100,
+			StartTime: 1,
+			Tags:      []*intern.Value{intern.GetByString("service:old")},
+		})
+		pc.add(&events.Process{
+			Pid:       100,
+			StartTime: 5,
+			Tags:      []*intern.Value{intern.GetByString("service:new")},
+		})
+
+		// Add entry for a different PID
+		pc.add(&events.Process{
+			Pid:       200,
+			StartTime: 3,
+			Tags:      []*intern.Value{intern.GetByString("env:prod"), intern.GetByString("service:web")},
+		})
+
+		result := pc.GetAllPIDTags()
+		require.NotNil(t, result)
+
+		// PID 100 should have the latest entry's tags
+		assert.Equal(t, []string{"service:new"}, result[100])
+
+		// PID 200 should have both tags
+		assert.ElementsMatch(t, []string{"env:prod", "service:web"}, result[200])
+	})
+
+	t.Run("skips expired entries", func(t *testing.T) {
+		pc, err := newProcessCache(10)
+		require.NoError(t, err)
+		t.Cleanup(pc.Stop)
+
+		// Add a process and then manually expire it
+		pc.add(&events.Process{
+			Pid:       300,
+			StartTime: 1,
+			Tags:      []*intern.Value{intern.GetByString("service:expired")},
+		})
+
+		// Manually set expiry to the past
+		pc.mu.Lock()
+		for _, pl := range pc.cacheByPid {
+			for _, p := range pl {
+				p.Expiry = time.Now().Add(-1 * time.Minute).Unix()
+			}
+		}
+		pc.mu.Unlock()
+
+		result := pc.GetAllPIDTags()
+		assert.Empty(t, result)
+	})
+
+	t.Run("skips entries with no tags", func(t *testing.T) {
+		pc, err := newProcessCache(10)
+		require.NoError(t, err)
+		t.Cleanup(pc.Stop)
+
+		pc.add(&events.Process{
+			Pid:         400,
+			StartTime:   1,
+			ContainerID: intern.GetByString("ctr"), // needed to be added to cache
+		})
+
+		result := pc.GetAllPIDTags()
+		_, exists := result[400]
+		assert.False(t, exists)
+	})
+
+	t.Run("handles nil tag values", func(t *testing.T) {
+		pc, err := newProcessCache(10)
+		require.NoError(t, err)
+		t.Cleanup(pc.Stop)
+
+		pc.add(&events.Process{
+			Pid:       500,
+			StartTime: 1,
+			Tags:      []*intern.Value{intern.GetByString("service:ok"), nil, intern.GetByString("env:test")},
+		})
+
+		result := pc.GetAllPIDTags()
+		assert.ElementsMatch(t, []string{"service:ok", "env:test"}, result[500])
+	})
 }

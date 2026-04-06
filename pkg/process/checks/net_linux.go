@@ -15,6 +15,25 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// fetchRemoteServiceData returns remote service enrichment data. On Linux,
+// IIS tags and process cache tags are not applicable; only portToPID is fetched.
+func fetchRemoteServiceData(_ *http.Client) (map[string][]string, map[uint32][]string, map[int32]int32) {
+	return nil, nil, getListeningPortToPIDMap()
+}
+
+// getRemoteProcessTags returns process tags for a remote PID using the tagger.
+func getRemoteProcessTags(pid int32, _ map[uint32][]string, processTagProvider func(int32) ([]string, error)) []string {
+	if processTagProvider == nil {
+		return nil
+	}
+	tags, err := processTagProvider(pid)
+	if err != nil {
+		log.Debugf("error getting process tags for remote pid %d: %v", pid, err)
+		return nil
+	}
+	return tags
+}
+
 // getNetworkID fetches network_id from the current netNS or from the system probe if necessary, where the root netNS is used
 func getNetworkID(sysProbeClient *http.Client) (string, error) {
 	networkID, err := network.GetNetworkID(context.Background())

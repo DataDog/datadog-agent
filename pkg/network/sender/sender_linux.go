@@ -29,6 +29,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	connectionsforwarder "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -41,6 +42,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/encoding/marshal"
 	"github.com/DataDog/datadog-agent/pkg/network/indexedset"
+	"github.com/DataDog/datadog-agent/pkg/network/remoteservice"
 	"github.com/DataDog/datadog-agent/pkg/process/runner/endpoint"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
@@ -358,6 +360,34 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 	usmEncoders := marshal.InitializeUSMEncoders(conns)
 	d.resolver.resolveDestinationContainerIDs(conns)
 
+	// Build remote service resolver for intra-host connection enrichment.
+	portToPID := make(map[int32]int32)
+	for _, c := range conns.Conns {
+		// USM supports TCP only; skip UDP connections.
+		if c.IntraHost && c.Pid > 0 && c.SPort > 0 && c.Type == network.TCP {
+			if _, exists := portToPID[int32(c.SPort)]; !exists {
+				portToPID[int32(c.SPort)] = int32(c.Pid)
+			}
+		}
+	}
+	remoteServiceResolver := &remoteservice.Resolver{
+		GetServiceContext: func(pid int32) []string {
+			if dsc := directSenderConsumerInstance.Load(); dsc != nil {
+				return dsc.extractor.GetServiceContext(pid)
+			}
+			return nil
+		},
+		GetProcessTags: func(pid int32) []string {
+			processEntityID := types.NewEntityID(types.Process, strconv.Itoa(int(pid)))
+			tags, err := d.tagger.Tag(processEntityID, types.HighCardinality)
+			if err != nil {
+				return nil
+			}
+			return tags
+		},
+		PortToPID: portToPID,
+	}
+
 	// Sort connections by remote IP/PID for more efficient resolution
 	slices.SortFunc(conns.Conns, func(a, b network.ConnectionStats) int {
 		if a.Dest.Addr != b.Dest.Addr {
@@ -410,6 +440,7 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 				builder.AddConnections(func(builder *model.ConnectionBuilder) {
 					d.encodeConnection(builder, nc, conns, routeSet, resolvConfSet)
 					d.addContainerTags(builder, nc.ContainerID.Source, tagsEncoder)
+					d.addRemoteServiceTags(builder, nc, remoteServiceResolver, tagsEncoder)
 					d.addTags(builder, nc, tagsSet, usmEncoders, connectionsTagsEncoder)
 					d.addDNS(builder, nc, dnsSet, indexToOffset)
 				})
