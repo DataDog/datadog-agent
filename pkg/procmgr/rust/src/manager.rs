@@ -615,9 +615,10 @@ mod tests {
     #[tokio::test]
     async fn test_create_rejects_empty_name() {
         let mgr = ProcessManager::new(loader(vec![]), uuid_gen());
-        let (cmd, _) = test_helpers::true_cmd();
+        let (cmd, args) = test_helpers::true_cmd();
         let config = ProcessConfig {
             command: cmd.to_string(),
+            args: args.into_iter().map(|a| a.to_string()).collect(),
             ..Default::default()
         };
         let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
@@ -631,9 +632,10 @@ mod tests {
     #[tokio::test]
     async fn test_create_rejects_invalid_name() {
         let mgr = ProcessManager::new(loader(vec![]), uuid_gen());
-        let (cmd, _) = test_helpers::true_cmd();
+        let (cmd, args) = test_helpers::true_cmd();
         let config = ProcessConfig {
             command: cmd.to_string(),
+            args: args.into_iter().map(|a| a.to_string()).collect(),
             ..Default::default()
         };
         let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
@@ -647,9 +649,10 @@ mod tests {
     #[tokio::test]
     async fn test_create_accepts_valid_name() -> anyhow::Result<()> {
         let mgr = ProcessManager::new(loader(vec![]), uuid_gen());
-        let (cmd, _) = test_helpers::true_cmd();
+        let (cmd, args) = test_helpers::true_cmd();
         let config = ProcessConfig {
             command: cmd.to_string(),
+            args: args.into_iter().map(|a| a.to_string()).collect(),
             ..Default::default()
         };
         let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
@@ -663,9 +666,10 @@ mod tests {
     #[tokio::test]
     async fn test_reload_preserves_runtime_created_processes() -> anyhow::Result<()> {
         let mgr = ProcessManager::new(loader(vec![]), uuid_gen());
-        let (cmd, _) = test_helpers::true_cmd();
+        let (cmd, args) = test_helpers::true_cmd();
         let config = ProcessConfig {
             command: cmd.to_string(),
+            args: args.into_iter().map(|a| a.to_string()).collect(),
             ..Default::default()
         };
         let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
