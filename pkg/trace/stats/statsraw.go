@@ -40,6 +40,7 @@ type groupedStats struct {
 	errDistribution        *ddsketch.DDSketch
 	peerTags               []string
 	spanDerivedPrimaryTags []string
+	additionalMetricTags   []string
 }
 
 // round a float to an int, uniformly choosing
@@ -79,6 +80,7 @@ func (s *groupedStats) export(a Aggregation) (*pb.ClientGroupedStats, error) {
 		SpanKind:               a.SpanKind,
 		PeerTags:               s.peerTags,
 		SpanDerivedPrimaryTags: s.spanDerivedPrimaryTags,
+		AdditionalMetricTags:   s.additionalMetricTags,
 		ServiceSource:          a.ServiceSource,
 		IsTraceRoot:            a.IsTraceRoot,
 		GRPCStatusCode:         a.GRPCStatusCode,

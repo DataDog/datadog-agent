@@ -108,4 +108,6 @@ message ClientGroupedStats {
 	// span_derived_primary_tags are user-configured tags that are extracted from spans and used for stats aggregation
 	// E.g., `aws.s3.bucket`, `http.url`, or any custom tag
 	repeated string span_derived_primary_tags = 22;
+	// additional_metric_tags are tags sent by tracers to be used as additional dimensions for stats aggregation
+	repeated string additional_metric_tags = 23;
 }

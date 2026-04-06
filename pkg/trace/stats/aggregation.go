@@ -43,6 +43,7 @@ type BucketsAggregationKey struct {
 	Synthetics                 bool
 	PeerTagsHash               uint64
 	SpanDerivedPrimaryTagsHash uint64
+	AdditionalMetricTagsHash   uint64
 	ServiceSource              string
 	IsTraceRoot                pb.Trilean
 	GRPCStatusCode             string
@@ -163,6 +164,7 @@ func NewAggregationFromGroup(g *pb.ClientGroupedStats) Aggregation {
 			Synthetics:                 g.Synthetics,
 			PeerTagsHash:               tagsFnvHash(g.PeerTags),
 			SpanDerivedPrimaryTagsHash: tagsFnvHash(g.SpanDerivedPrimaryTags),
+			AdditionalMetricTagsHash:   tagsFnvHash(g.AdditionalMetricTags),
 			ServiceSource:              g.ServiceSource,
 			IsTraceRoot:                g.IsTraceRoot,
 			GRPCStatusCode:             g.GRPCStatusCode,

@@ -110,6 +110,7 @@ func getTestStatsWithStart(t *testing.T, start time.Time, incPeerTags bool) *pb.
 			s.PeerTags = nil
 		}
 		s.DBType = ""
+		s.AdditionalMetricTags = nil
 		s.OkSummary = encodeTestSketch(t, generateTestSketch(t))
 		s.ErrorSummary = encodeTestSketch(t, generateTestSketch(t))
 		stats = append(stats, s)
@@ -912,6 +913,65 @@ func TestNewBucketAggregationKeyPeerTags(t *testing.T) {
 	})
 }
 
+func TestNewBucketAggregationKeyAdditionalMetricTags(t *testing.T) {
+	tagsHash := tagsFnvHash([]string{"env:prod", "region:us-east-1"})
+	t.Run("empty", func(t *testing.T) {
+		assert := assert.New(t)
+		r := newBucketAggregationKey(&pb.ClientGroupedStats{Service: "a"})
+		assert.Equal(BucketsAggregationKey{Service: "a"}, r)
+	})
+	t.Run("populated", func(t *testing.T) {
+		assert := assert.New(t)
+		r := newBucketAggregationKey(&pb.ClientGroupedStats{Service: "a", AdditionalMetricTags: []string{"env:prod", "region:us-east-1"}})
+		assert.Equal(BucketsAggregationKey{Service: "a", AdditionalMetricTagsHash: tagsHash}, r)
+	})
+}
+
+func TestCountAggregationAdditionalMetricTags(t *testing.T) {
+	assert := assert.New(t)
+	a := newTestAggregator()
+	msw := &mockStatsWriter{}
+	a.writer = msw
+	testTime := time.Unix(time.Now().Unix(), 0)
+
+	tags := []string{"env:prod", "region:us-east-1"}
+	tagsHash := tagsFnvHash(tags)
+	k := BucketsAggregationKey{Service: "s", AdditionalMetricTagsHash: tagsHash}
+
+	c1 := payloadWithCounts(testTime, k, "", "test-version", "", "", "", 11, 7, 100)
+	c2 := payloadWithCounts(testTime, k, "", "test-version", "", "", "", 27, 2, 300)
+	c1.Stats[0].Stats[0].AdditionalMetricTags = tags
+	c2.Stats[0].Stats[0].AdditionalMetricTags = tags
+
+	keyDefault := BucketsAggregationKey{}
+	cDefault := payloadWithCounts(testTime, keyDefault, "", "test-version", "", "", "", 0, 2, 4)
+
+	a.add(testTime, deepCopy(c1))
+	a.add(testTime, deepCopy(c2))
+	a.add(testTime, deepCopy(cDefault))
+	a.flushOnTime(testTime.Add(oldestBucketStart + time.Nanosecond))
+	require.Len(t, msw.payloads, 1)
+
+	payload := msw.payloads[0]
+	assertAggCountsPayload(t, payload)
+
+	assert.ElementsMatch(payload.Stats[0].Stats[0].Stats, []*pb.ClientGroupedStats{
+		{
+			Service:              "s",
+			Hits:                 38,
+			Errors:               9,
+			Duration:             400,
+			AdditionalMetricTags: tags,
+		},
+		{
+			Hits:     0,
+			Errors:   2,
+			Duration: 4,
+		},
+	})
+	assert.Len(a.buckets, 0)
+}
+
 func TestGoroutineShutdown(t *testing.T) {
 	a := NewClientStatsAggregator(&config.AgentConfig{}, &mockStatsWriter{}, &statsd.NoOpClient{})
 
@@ -1001,6 +1061,7 @@ func deepCopyGroupedStats(s []*pb.ClientGroupedStats) []*pb.ClientGroupedStats {
 			HTTPMethod:             b.GetHTTPMethod(),
 			HTTPEndpoint:           b.GetHTTPEndpoint(),
 			SpanDerivedPrimaryTags: b.GetSpanDerivedPrimaryTags(),
+			AdditionalMetricTags:   b.GetAdditionalMetricTags(),
 		}
 		if b.OkSummary != nil {
 			stats[i].OkSummary = make([]byte, len(b.OkSummary))

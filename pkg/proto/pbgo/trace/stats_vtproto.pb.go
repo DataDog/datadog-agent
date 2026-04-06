@@ -344,6 +344,17 @@ func (m *ClientGroupedStats) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if len(m.AdditionalMetricTags) > 0 {
+		for iNdEx := len(m.AdditionalMetricTags) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.AdditionalMetricTags[iNdEx])
+			copy(dAtA[i:], m.AdditionalMetricTags[iNdEx])
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.AdditionalMetricTags[iNdEx])))
+			i--
+			dAtA[i] = 0x1
+			i--
+			dAtA[i] = 0xba
+		}
+	}
 	if len(m.SpanDerivedPrimaryTags) > 0 {
 		for iNdEx := len(m.SpanDerivedPrimaryTags) - 1; iNdEx >= 0; iNdEx-- {
 			i -= len(m.SpanDerivedPrimaryTags[iNdEx])
@@ -721,6 +732,12 @@ func (m *ClientGroupedStats) SizeVT() (n int) {
 	}
 	if len(m.SpanDerivedPrimaryTags) > 0 {
 		for _, s := range m.SpanDerivedPrimaryTags {
+			l = len(s)
+			n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
+		}
+	}
+	if len(m.AdditionalMetricTags) > 0 {
+		for _, s := range m.AdditionalMetricTags {
 			l = len(s)
 			n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
 		}
@@ -2245,6 +2262,38 @@ func (m *ClientGroupedStats) UnmarshalVT(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.SpanDerivedPrimaryTags = append(m.SpanDerivedPrimaryTags, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		case 23:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field AdditionalMetricTags", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.AdditionalMetricTags = append(m.AdditionalMetricTags, string(dAtA[iNdEx:postIndex]))
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
