@@ -12,6 +12,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	stdLog "log"
@@ -79,6 +80,7 @@ type Server struct {
 	decoder       runtime.Decoder
 	mux           *http.ServeMux
 	secretsLister corelisters.SecretLister
+	healthHandle  *health.Handle
 }
 
 // NewServer creates an admission webhook server.
@@ -86,6 +88,7 @@ func NewServer(secretsLister corelisters.SecretLister) *Server {
 	s := &Server{
 		mux:           http.NewServeMux(),
 		secretsLister: secretsLister,
+		healthHandle:  health.RegisterReadiness("admission-controller-webhook"),
 	}
 
 	s.initDecoder()
@@ -151,12 +154,13 @@ func (s *Server) Run(mainCtx context.Context) error {
 
 	tlsListener := tls.NewListener(listener, server.TLSConfig)
 
-	healthHandle := health.RegisterReadiness("admission-controller-webhook")
-	defer healthHandle.Deregister() //nolint:errcheck
-
-	go func() error {
-		return log.Error(server.Serve(tlsListener))
-	}() //nolint:errcheck
+	servErrCh := make(chan error, 1)
+	go func() {
+		if err := server.Serve(tlsListener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Errorf("Admission controller webhook server error: %v", err)
+			servErrCh <- err
+		}
+	}()
 
 	log.Infof("Admission controller webhook server started on %s", addr)
 
@@ -166,7 +170,9 @@ func (s *Server) Run(mainCtx context.Context) error {
 			shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()
 			return server.Shutdown(shutdownCtx)
-		case <-healthHandle.C:
+		case err := <-servErrCh:
+			return fmt.Errorf("admission controller webhook server stopped unexpectedly: %w", err)
+		case <-s.healthHandle.C:
 			// Drain the health check channel to stay healthy
 		}
 	}
