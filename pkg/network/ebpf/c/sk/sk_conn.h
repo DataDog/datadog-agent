@@ -68,11 +68,6 @@ static __always_inline int create_udp_conn(conn_t *conn, struct sock *sk, sk_udp
         return 0;
     }
     conn->tup.metadata |= CONN_TYPE_UDP;
-
-//    struct net *nt = sk->sk_net.net;
-//    conn->conn_stats.sent_packets = nt->mib.udp_statistics->mibs[UDP_MIB_OUTDATAGRAMS];
-//    conn->conn_stats.recv_packets = nt->mib.udp_statistics->mibs[UDP_MIB_INDATAGRAMS];
-
     conn->conn_stats.cookie = (__u32)(bpf_get_socket_cookie(sk) & 0xFFFFFFFF);
     // TODO conn->conn_stats.protocol_stack
     // TODO conn->conn_stats.tls_tags
