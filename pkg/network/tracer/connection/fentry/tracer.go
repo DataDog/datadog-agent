@@ -69,7 +69,7 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHa
 }
 
 // protocolClassificationTailCalls returns the tail call routes for protocol classification
-func protocolClassificationTailCalls(cfg *config.Config) []manager.TailCallRoute {
+func protocolClassificationTailCalls() []manager.TailCallRoute {
 	tcs := []manager.TailCallRoute{
 		{
 			ProgArrayName: probes.ClassificationProgsMap,
@@ -161,7 +161,7 @@ func initFentryTracer(ar bytecode.AssetReader, o manager.Options, config *config
 	var tailCallsIdentifiersSet map[manager.ProbeIdentificationPair]struct{}
 
 	if isClassificationSupported {
-		pcTailCalls := protocolClassificationTailCalls(config)
+		pcTailCalls := protocolClassificationTailCalls()
 		tailCallsIdentifiersSet = make(map[manager.ProbeIdentificationPair]struct{}, len(pcTailCalls))
 		for _, tailCall := range pcTailCalls {
 			tailCallsIdentifiersSet[tailCall.ProbeIdentificationPair] = struct{}{}
