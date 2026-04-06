@@ -567,6 +567,7 @@ func start(log log.Component,
 		if rcClient == nil {
 			return errors.New("remote config is disabled or failed to initialize, remote config is a required dependency for kubeactions")
 		}
+		log.Infof("[KubeActions] Starting with cluster_id=%s, cluster_name=%s", clusterID, clusterName)
 
 		if _, err := kubeactions.Setup(mainCtx, apiCl.Cl, clusterName, clusterID, le.IsLeader, rcClient, epForwarder); err != nil {
 			return fmt.Errorf("Error while starting kubernetes actions: %v", err)
