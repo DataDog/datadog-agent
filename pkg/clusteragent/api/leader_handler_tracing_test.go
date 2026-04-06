@@ -59,6 +59,7 @@ func TestRejectOrForwardLeaderQuery_AsFollower_Span(t *testing.T) {
 	span := spans[0]
 	assert.Equal(t, "cluster_agent.leader_proxy.forward", span.OperationName())
 	assert.Equal(t, true, span.Tag("forwarded"))
+	assert.Equal(t, "2.2.2.2", span.Tag("forward.leader_ip"))
 	assert.Nil(t, span.Tag("error"), "No error tag on success path")
 }
 
