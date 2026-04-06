@@ -13,14 +13,12 @@ pub fn setup_process_group(_cmd: &mut tokio::process::Command) {
 
 /// Send a graceful stop signal (CTRL_BREAK_EVENT via GenerateConsoleCtrlEvent).
 pub fn send_graceful_stop(_pid: u32) -> Result<()> {
-    log::warn!("send_graceful_stop is not yet implemented on Windows");
-    Ok(())
+    anyhow::bail!("send_graceful_stop is not yet implemented on Windows")
 }
 
 /// Force-kill the process and all descendants (TerminateJobObject / TerminateProcess).
 pub fn send_force_kill(_pid: u32) -> Result<()> {
-    log::warn!("send_force_kill is not yet implemented on Windows");
-    Ok(())
+    anyhow::bail!("send_force_kill is not yet implemented on Windows")
 }
 
 /// On Windows, processes don't have Unix signals.
