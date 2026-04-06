@@ -295,6 +295,19 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 			defaultInputChanSize:          500,
 		},
+		// TODO: Add kubeactions EVP pipeline once the intake endpoint is provisioned
+		// {
+		// 	eventType:                     eventplatform.EventTypeKubeActions,
+		// 	category:                      "Kubernetes",
+		// 	contentType:                   logshttp.JSONContentType,
+		// 	endpointsConfigPrefix:         "kubeactions.forwarder.",
+		// 	hostnameEndpointPrefix:        "kubeactions-intake.",
+		// 	intakeTrackType:               "kubeactions",
+		// 	defaultBatchMaxConcurrentSend: 10,
+		// 	defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
+		// 	defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
+		// 	defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+		// },
 	}
 
 	if pkgconfigsetup.Datadog().GetBool("software_inventory.enabled") {
