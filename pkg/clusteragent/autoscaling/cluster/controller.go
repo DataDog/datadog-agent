@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/model"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -208,7 +209,10 @@ func (c *Controller) createNodePool(ctx context.Context, targetNp *karpenterv1.N
 	// New path: use manifest-provided NodePool when available
 	if knp := npi.KarpenterNodePool(); knp != nil {
 		knp = knp.DeepCopy()
-		// Check that NodeClassRef (if set) is valid
+		// If the manifest omits NodeClassRef and a target NodePool exists, prefer its NodeClassRef
+		if knp.Spec.Template.Spec.NodeClassRef == nil && targetNp != nil {
+			knp.Spec.Template.Spec.NodeClassRef = targetNp.Spec.Template.Spec.NodeClassRef.DeepCopy()
+		}
 		var err error
 		knp, err = c.updateNodePoolWithNodeClass(ctx, knp)
 		if err != nil {
@@ -218,6 +222,11 @@ func (c *Controller) createNodePool(ctx context.Context, targetNp *karpenterv1.N
 		if knp.Spec.Weight == nil && targetNp != nil {
 			knp.Spec.Weight = model.GetNodePoolWeight(targetNp)
 		}
+		// Ensure Datadog autoscaling node label is always present
+		if knp.Spec.Template.ObjectMeta.Labels == nil {
+			knp.Spec.Template.ObjectMeta.Labels = make(map[string]string)
+		}
+		knp.Spec.Template.ObjectMeta.Labels[kubernetes.AutoscalingLabelKey] = "true"
 		// add Datadog labels and annotations
 		if knp.Labels == nil {
 			knp.Labels = make(map[string]string)
@@ -279,16 +288,28 @@ func (c *Controller) updateNodePool(ctx context.Context, targetNp, datadogNp *ka
 		if _, ok := datadogNp.Labels[model.DatadogCreatedLabelKey]; ok {
 			desired.Labels[model.DatadogCreatedLabelKey] = "true"
 		}
+
+		// Use the NodeClass in the live NodePool if the manifest omits it
+		if desired.Spec.Template.Spec.NodeClassRef == nil && datadogNp.Spec.Template.Spec.NodeClassRef != nil {
+			desired.Spec.Template.Spec.NodeClassRef = datadogNp.Spec.Template.Spec.NodeClassRef.DeepCopy()
+		}
+		var err error
+		desired, err = c.updateNodePoolWithNodeClass(ctx, desired)
+		if err != nil {
+			return fmt.Errorf("unable to update NodePool with node class: %s, err: %v", npi.Name(), err)
+		}
+
+		// Ensure Datadog autoscaling node label is always present
+		if desired.Spec.Template.ObjectMeta.Labels == nil {
+			desired.Spec.Template.ObjectMeta.Labels = make(map[string]string)
+		}
+		desired.Spec.Template.ObjectMeta.Labels[kubernetes.AutoscalingLabelKey] = "true"
+
 		if equality.Semantic.DeepEqual(datadogNp.Spec, desired.Spec) &&
 			maps.Equal(datadogNp.Labels, desired.Labels) &&
 			maps.Equal(datadogNp.Annotations, desired.Annotations) {
 			log.Debugf("NodePool: %s has not changed, no action will be applied.", npi.Name())
 			return nil
-		}
-
-		// The manifest may explicitly omit nodeClassRef; in this case, preserve the live value currently set
-		if desired.Spec.Template.Spec.NodeClassRef == nil && datadogNp.Spec.Template.Spec.NodeClassRef != nil {
-			desired.Spec.Template.Spec.NodeClassRef = datadogNp.Spec.Template.Spec.NodeClassRef.DeepCopy()
 		}
 
 		log.Infof("Patching NodePool: %s", npi.Name())
