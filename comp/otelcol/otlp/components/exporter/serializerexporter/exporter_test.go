@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
+	exp "go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exportertest"
 	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/collector/pdata/pmetric"
@@ -26,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	otlpmetrics "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -362,6 +364,7 @@ func Test_ConsumeMetrics_MetricOrigins(t *testing.T) {
 }
 
 func TestMetricPrefix(t *testing.T) {
+	// Old gate (MetricRemappingDisabledFeatureGate) controls the prefix.
 	testMetricPrefixWithFeatureGates(t, false, "datadog_trace_agent_retries", "otelcol_datadog_trace_agent_retries")
 	testMetricPrefixWithFeatureGates(t, false, "system.memory.usage", "otel.system.memory.usage")
 	testMetricPrefixWithFeatureGates(t, false, "process.cpu.utilization", "otel.process.cpu.utilization")
@@ -371,6 +374,17 @@ func TestMetricPrefix(t *testing.T) {
 	testMetricPrefixWithFeatureGates(t, true, "system.memory.usage", "system.memory.usage")
 	testMetricPrefixWithFeatureGates(t, true, "process.cpu.utilization", "process.cpu.utilization")
 	testMetricPrefixWithFeatureGates(t, true, "kafka.producer.request-rate", "kafka.producer.request-rate")
+
+	// New gate (DisableMetricRemappingFeatureGate) must also suppress the otel. prefix.
+	testMetricPrefixWithNewGate(t, false, "datadog_trace_agent_retries", "otelcol_datadog_trace_agent_retries")
+	testMetricPrefixWithNewGate(t, false, "system.memory.usage", "otel.system.memory.usage")
+	testMetricPrefixWithNewGate(t, false, "process.cpu.utilization", "otel.process.cpu.utilization")
+	testMetricPrefixWithNewGate(t, false, "kafka.producer.request-rate", "otel.kafka.producer.request-rate")
+
+	testMetricPrefixWithNewGate(t, true, "datadog_trace_agent_retries", "datadog_trace_agent_retries")
+	testMetricPrefixWithNewGate(t, true, "system.memory.usage", "system.memory.usage")
+	testMetricPrefixWithNewGate(t, true, "process.cpu.utilization", "process.cpu.utilization")
+	testMetricPrefixWithNewGate(t, true, "kafka.producer.request-rate", "kafka.producer.request-rate")
 }
 
 func testMetricPrefixWithFeatureGates(t *testing.T, disablePrefix bool, inName string, outName string) {
@@ -785,6 +799,217 @@ func TestMetricRemapping(t *testing.T) {
 			require.NoError(t, exp.Start(t.Context(), componenttest.NewNopHost()))
 			testMetrics := createTestMetricsWithRuntimeMetrics()
 			err = exp.ConsumeMetrics(t.Context(), testMetrics)
+			require.NoError(t, err)
+			require.NoError(t, exp.Shutdown(t.Context()))
+
+			actualMetrics := make([]string, 0, len(rec.series))
+			for _, s := range rec.series {
+				actualMetrics = append(actualMetrics, s.Name)
+			}
+			assert.ElementsMatch(t, tt.expectedMetrics, actualMetrics)
+		})
+	}
+}
+
+// testMetricPrefixWithNewGate mirrors testMetricPrefixWithFeatureGates but toggles
+// the new DisableMetricRemappingFeatureGate instead of the old gate.
+func testMetricPrefixWithNewGate(t *testing.T, disablePrefix bool, inName string, outName string) {
+	prevVal := featuregates.DisableMetricRemappingFeatureGate.IsEnabled()
+	require.NoError(t, featuregate.GlobalRegistry().Set(featuregates.DisableMetricRemappingFeatureGate.ID(), disablePrefix))
+	defer func() {
+		require.NoError(t, featuregate.GlobalRegistry().Set(featuregates.DisableMetricRemappingFeatureGate.ID(), prevVal))
+	}()
+
+	rec := &metricRecorder{}
+	ctx := context.Background()
+	f := NewFactoryForOTelAgent(rec, func(context.Context) (string, error) {
+		return "", nil
+	}, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil)
+	cfg := f.CreateDefaultConfig().(*ExporterConfig)
+	exp, err := f.CreateMetrics(
+		ctx,
+		exportertest.NewNopSettings(component.MustNewType("datadog")),
+		cfg,
+	)
+	require.NoError(t, err)
+	require.NoError(t, exp.Start(ctx, componenttest.NewNopHost()))
+
+	md := pmetric.NewMetrics()
+	rm := md.ResourceMetrics().AppendEmpty()
+	ilm := rm.ScopeMetrics().AppendEmpty()
+	met := ilm.Metrics().AppendEmpty()
+	met.SetName(inName)
+	met.SetEmptySum()
+	met.Sum().SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
+	met.Sum().DataPoints().AppendEmpty().SetIntValue(100)
+
+	require.NoError(t, exp.ConsumeMetrics(ctx, md))
+	require.NoError(t, exp.Shutdown(ctx))
+
+	for _, serie := range rec.series {
+		if serie.Name == outName {
+			return
+		}
+	}
+	t.Errorf("%s not found in metrics", outName)
+}
+
+// newOSSFactoryForTest constructs a factory equivalent to NewFactoryForOSSExporter but
+// with a pre-built serializer injected, allowing unit tests to avoid real API key setup.
+// Feature gate state is read at call time, matching the production constructor behaviour.
+func newOSSFactoryForTest(s serializer.MetricSerializer) exp.Factory {
+	var options []otlpmetrics.TranslatorOption
+	switch {
+	case featuregates.DisableMetricRemappingFeatureGate.IsEnabled():
+		options = append(options, otlpmetrics.WithNoRemapping())
+	case featuregates.MetricRemappingDisabledFeatureGate.IsEnabled():
+		// old gate, no action needed
+	default:
+		options = append(options, otlpmetrics.WithRemapping())
+	}
+	f := &factory{
+		s:            s,
+		hostProvider: func(_ context.Context) (string, error) { return "", nil },
+		createConsumer: func(extraTags []string, apmReceiverAddr string, _ component.BuildInfo) SerializerConsumer {
+			return &serializerConsumer{
+				extraTags:       extraTags,
+				apmReceiverAddr: apmReceiverAddr,
+				ipath:           ossCollector,
+				hosts:           make(map[string]struct{}),
+				ecsFargateTags:  make(map[string]struct{}),
+			}
+		},
+		options: options,
+		ipath:   ossCollector,
+	}
+	return exp.NewFactory(
+		component.MustNewType("datadog"),
+		newDefaultConfig,
+		exp.WithMetrics(f.createMetricExporter, stability),
+	)
+}
+
+// createTestMetricsForOSSRemapping builds a pmetric.Metrics payload containing metrics
+// that exercise all remapping paths relevant to the OSS exporter:
+//   - system.filesystem.utilization  →  otel. prefix + system.disk.in_use copy
+//   - container.cpu.usage.total      →  container.cpu.usage copy
+//   - process.runtime.go.goroutines  →  otel. prefix + runtime.go.num_goroutine copy
+func createTestMetricsForOSSRemapping() pmetric.Metrics {
+	md := pmetric.NewMetrics()
+	ilm := md.ResourceMetrics().AppendEmpty().ScopeMetrics().AppendEmpty()
+
+	for _, name := range []string{
+		"system.filesystem.utilization",
+		"container.cpu.usage.total",
+		"process.runtime.go.goroutines",
+	} {
+		met := ilm.Metrics().AppendEmpty()
+		met.SetName(name)
+		dp := met.SetEmptyGauge().DataPoints().AppendEmpty()
+		dp.SetTimestamp(0)
+		dp.SetIntValue(42)
+	}
+	return md
+}
+
+func TestMetricRemappingOSS(t *testing.T) {
+	tests := []struct {
+		newGate         bool
+		oldGate         bool
+		expectedMetrics []string
+	}{
+		{
+			// Default (no gate): WithRemapping() adds otel. prefix AND produces Datadog-named copies.
+			newGate: false,
+			oldGate: false,
+			expectedMetrics: []string{
+				// Originals with otel. prefix
+				"otel.system.filesystem.utilization",
+				"otel.process.runtime.go.goroutines",
+				// Datadog-remapped copies from WithRemapping()
+				"system.disk.in_use",
+				"container.cpu.usage",
+				// Runtime name mapping
+				"runtime.go.num_goroutine",
+				// container.cpu.usage.total has no otel. prefix (not a host metric)
+				"container.cpu.usage.total",
+				// Internal telemetry
+				"datadog.agent.otlp.metrics",
+				"datadog.agent.otlp.runtime_metrics",
+				"datadog.otel.gateway.configured",
+			},
+		},
+		{
+			// New gate: WithNoRemapping() — no prefix, no copies, no runtime mapping.
+			newGate: true,
+			oldGate: false,
+			expectedMetrics: []string{
+				"system.filesystem.utilization",
+				"container.cpu.usage.total",
+				"process.runtime.go.goroutines",
+				// Internal telemetry
+				"datadog.agent.otlp.metrics",
+				"datadog.otel.gateway.configured",
+			},
+		},
+		{
+			// Old gate only: no prefix, no remapping copies (withRemapping defaults to false when no
+			// options are applied), but runtime name mapping is still active (withRuntimeRemapping
+			// defaults to true and the old gate does not add WithNoRemapping()).
+			newGate: false,
+			oldGate: true,
+			expectedMetrics: []string{
+				// Originals without otel. prefix
+				"system.filesystem.utilization",
+				"process.runtime.go.goroutines",
+				"container.cpu.usage.total",
+				// Runtime name mapping still present
+				"runtime.go.num_goroutine",
+				// Internal telemetry
+				"datadog.agent.otlp.metrics",
+				"datadog.agent.otlp.runtime_metrics",
+				"datadog.otel.gateway.configured",
+			},
+		},
+		{
+			// Both gates: new gate takes precedence — same as new-gate-only case.
+			newGate: true,
+			oldGate: true,
+			expectedMetrics: []string{
+				"system.filesystem.utilization",
+				"container.cpu.usage.total",
+				"process.runtime.go.goroutines",
+				// Internal telemetry
+				"datadog.agent.otlp.metrics",
+				"datadog.otel.gateway.configured",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("new=%v,old=%v", tt.newGate, tt.oldGate), func(t *testing.T) {
+			reg := featuregate.GlobalRegistry()
+			prevNewVal := featuregates.DisableMetricRemappingFeatureGate.IsEnabled()
+			prevOldVal := featuregates.MetricRemappingDisabledFeatureGate.IsEnabled()
+			require.NoError(t, reg.Set(featuregates.DisableMetricRemappingFeatureGate.ID(), tt.newGate))
+			require.NoError(t, reg.Set(featuregates.MetricRemappingDisabledFeatureGate.ID(), tt.oldGate))
+			defer func() {
+				require.NoError(t, reg.Set(featuregates.DisableMetricRemappingFeatureGate.ID(), prevNewVal))
+				require.NoError(t, reg.Set(featuregates.MetricRemappingDisabledFeatureGate.ID(), prevOldVal))
+			}()
+
+			rec := &metricRecorder{}
+			f := newOSSFactoryForTest(rec)
+			cfg := f.CreateDefaultConfig().(*ExporterConfig)
+			cfg.HostMetadata.Enabled = false
+			exp, err := f.CreateMetrics(
+				t.Context(),
+				exportertest.NewNopSettings(component.MustNewType("datadog")),
+				cfg,
+			)
+			require.NoError(t, err)
+			require.NoError(t, exp.Start(t.Context(), componenttest.NewNopHost()))
+			err = exp.ConsumeMetrics(t.Context(), createTestMetricsForOSSRemapping())
 			require.NoError(t, err)
 			require.NoError(t, exp.Shutdown(t.Context()))
 
