@@ -57,7 +57,7 @@ func enableDetectDigestRecordingToFile(e *engine, path string) (func(), error) {
 	log.Printf("[observer] detect digest recording enabled: %s", path)
 	return func() {
 		e.enableDetectDigestRecording(nil)
-		rec.close()
+		_ = rec.close()
 	}, nil
 }
 
@@ -117,13 +117,13 @@ func (d DetectDivergence) String() string {
 
 // detectDigestComparator compares replay digests against a live recording.
 type detectDigestComparator struct {
-	mu              sync.Mutex
-	expected        map[string]detectDigest // keyed by "detector|dataTime"
-	visited         map[string]bool         // keys seen during replay
-	divergences     []DetectDivergence
-	inputOnlyDiffs  int
-	matched         int
-	replayOnly      int
+	mu             sync.Mutex
+	expected       map[string]detectDigest // keyed by "detector|dataTime"
+	visited        map[string]bool         // keys seen during replay
+	divergences    []DetectDivergence
+	inputOnlyDiffs int
+	matched        int
+	replayOnly     int
 }
 
 func newDetectDigestComparator(path string) (*detectDigestComparator, error) {

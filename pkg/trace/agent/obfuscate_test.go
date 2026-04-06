@@ -588,7 +588,7 @@ func TestObfuscateSpanParameterized(t *testing.T) {
 			cfg.Endpoints[0].APIKey = "test"
 			cfg.Features["sqllexer"] = struct{}{}
 			cfg.Obfuscation = &ocfg
-			agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
+			agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent(), nil)
 			agnt.ObfuscateSpan(&raw.Input)
 			assertSpanEqual(t, &raw.Expected, &raw.Input)
 		})

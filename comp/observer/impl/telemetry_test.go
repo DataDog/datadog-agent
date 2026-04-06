@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestTelemetryHandler_CounterAdd(t *testing.T) {
+func TestTelemetryHandler_CounterAdd(_t *testing.T) {
 	tel := noopsimpl.GetCompatComponent()
 	h := newTelemetryHandler(tel)
 
@@ -32,7 +32,7 @@ func TestTelemetryHandler_CounterAdd(t *testing.T) {
 	// No-op telemetry: asserts routing does not warn or panic.
 }
 
-func TestTelemetryHandler_GaugeSet(t *testing.T) {
+func TestTelemetryHandler_GaugeSet(_t *testing.T) {
 	tel := noopsimpl.GetCompatComponent()
 	h := newTelemetryHandler(tel)
 

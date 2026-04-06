@@ -31,15 +31,15 @@ func newObserverSenderManager(handle observerdef.Handle) *observerSenderManager 
 	return &observerSenderManager{handle: handle}
 }
 
-func (m *observerSenderManager) GetSender(id checkid.ID) (aggsender.Sender, error) {
+func (m *observerSenderManager) GetSender(_id checkid.ID) (aggsender.Sender, error) {
 	return &observerSender{handle: m.handle}, nil
 }
 
-func (m *observerSenderManager) SetSender(s aggsender.Sender, id checkid.ID) error {
+func (m *observerSenderManager) SetSender(_s aggsender.Sender, _id checkid.ID) error {
 	return nil
 }
 
-func (m *observerSenderManager) DestroySender(id checkid.ID) {}
+func (m *observerSenderManager) DestroySender(_id checkid.ID) {}
 
 func (m *observerSenderManager) GetDefaultSender() (aggsender.Sender, error) {
 	return &observerSender{handle: m.handle}, nil

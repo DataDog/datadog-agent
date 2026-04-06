@@ -16,7 +16,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"go.uber.org/fx"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
@@ -41,7 +41,7 @@ type Requires struct {
 	// When fields are nil, values are read from configuration defaults.
 	AgentInternalLogTap AgentInternalLogTapConfig
 
-	Lifecycle fx.Lifecycle
+	Lifecycle compdef.Lifecycle
 	Config    config.Component
 	Log       log.Component
 	Telemetry telemetry.Component
@@ -308,7 +308,7 @@ func NewComponent(deps Requires) Provides {
 				eng.onAdvance = advRec.record
 				obs.advanceLogCleanup = func() {
 					eng.onAdvance = nil
-					advRec.close()
+					_ = advRec.close()
 				}
 			}
 		}
@@ -341,7 +341,7 @@ func NewComponent(deps Requires) Provides {
 			obs.hfFilterSources[src] = struct{}{}
 		}
 		pkglog.Info("[observer] high-frequency system check runner started (1s interval)")
-		deps.Lifecycle.Append(fx.Hook{
+		deps.Lifecycle.Append(compdef.Hook{
 			OnStop: func(_ context.Context) error {
 				obs.hfRunner.Stop()
 				return nil
@@ -370,7 +370,7 @@ func NewComponent(deps Requires) Provides {
 				for src := range containerCheckSources {
 					obs.hfFilterSources[src] = struct{}{}
 				}
-				deps.Lifecycle.Append(fx.Hook{
+				deps.Lifecycle.Append(compdef.Hook{
 					OnStop: func(_ context.Context) error {
 						obs.hfContainerRunner.Stop()
 						return nil
