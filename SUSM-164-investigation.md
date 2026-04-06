@@ -370,45 +370,210 @@ All 3 requests are `POST /usb/CollateralEvaluation/v5`, protocol HTTP/1.1, respo
 - User-Agent: `Apache-HttpClient/5.5.1 (Java/17.0.18)` — Java service calling in
 - Note: `cashmidd-rmrksapp` (124 USM hits with `tls.library:istio`) has NO Istio access logs visible — possibly logging is not enabled for all services/namespaces, making Istio log comparison unreliable for some services
 
-### Updated Hypothesis
+## High-Volume Service Comparison (2026-03-25)
 
-The eBPF capture undercount is confirmed, but the scope is unclear:
+### Service: `dss-auth-proofing`, resource: `GET /digital-auth/engineering/proofing/v1/status/instant-link`
 
-1. **It may be systemic** — affecting all services on the host, not just `npbcollateralevaluation`. High-volume services may also undercount but it's less noticeable proportionally. We need to compare Istio logs vs USM metrics for a high-volume service to confirm.
-2. **It may be specific to low-frequency traffic patterns** — services with infrequent requests may hit eBPF map eviction, flush timing, or connection tracking edge cases that high-frequency services avoid.
-3. **The `tls.library:istio` tag presence** on the 1 captured USM hit confirms the uprobe path does fire for this service, ruling out a total uprobe hooking failure.
+15-minute window on `aks-cus-gen-prod-002`:
+
+| Source | Hits |
+|--------|------|
+| Istio sidecar logs | **334** |
+| `universal.http.server.hits` metric | **3** |
+
+**Capture rate: ~0.9%** — near-total loss on a high-volume service.
+
+This confirms the loss is **systemic**, not specific to low-volume services or particular endpoints. The ~99% loss rate is consistent across:
+- `dss-auth-proofing`: 3/334 (0.9%)
+- `npbcollateralevaluation`: 1/3 (33% but tiny sample)
+
+---
+
+### Confirmed Findings
+
+1. **The loss is systemic** — affects both high and low volume services across the cluster
+2. **The loss is at the eBPF capture level** — backend pipeline (procq → metric) is lossless
+3. **Istio uprobes ARE attached** — 26 envoy processes traced, some hits do appear with `tls.library:istio`
+4. **Capture rate is ~1%** — this is near-total failure, not an edge case or timing issue
+5. **No known "working" service** — we have not confirmed any service on these hosts has accurate USM counts vs Istio logs
+
+---
+
+## Flare Telemetry Deep Dive (2026-03-25)
+
+### SSL eBPF Map State
+
+Flare from `aks-userpool3-24857875-vmss00003g`, agent uptime ~3h50m (460 map cleaner runs).
+
+**SSL map sizes are set to `max_tracked_connections: 131,072`** (from `system_probe_config` in `etc/system-probe.yaml`).
+
+| Map | Max entries | Entries examined | Entries deleted | % deleted |
+|-----|------------|-----------------|-----------------|-----------|
+| `ssl_sock_by_ctx` | 131,072 | **136,250** | **0** | 0% |
+| `ssl_ctx_by_tuple` | 131,072 | **97,848** | **0** | 0% |
+| `ssl_ctx_by_pid_tgid` | 131,072 | 884 | 0 | 0% |
+| `tls_enhanced_tags` | — | 112,109 | 25,986 | 23% |
+
+For comparison, maps with healthy cleanup:
+
+| Map | Examined | Deleted | % deleted |
+|-----|----------|---------|-----------|
+| `http_in_flight` | 12,267 | 5,170 | 42% |
+| `http2_dynamic_table` | 405 | 384 | 95% |
+| `tcp_ongoing_connect_pid` | 13,446 | 692 | 5% |
+
+**Observation:** `ssl_sock_by_ctx` has been examined at 136,250 entries — **exceeding the 131,072 max capacity**. Zero entries have ever been deleted across 460 cleaner runs (~4 hours). The map is effectively full and has been for some time.
+
+### Why the cleaner deletes nothing
+
+The SSL map cleaner (`pkg/network/usm/ebpf_ssl.go`) uses a **PID-liveness predicate**: entries are only deleted when the process that created them has exited. Since envoy sidecar processes are long-lived (they don't restart), their entries are never eligible for cleanup.
+
+The cleaner does NOT check:
+- Whether an individual TLS connection/session has closed
+- Whether the SSL context is still in use
+- Entry age or TTL
+
+### What this means (observation, not conclusion)
+
+The `ssl_sock_by_ctx` map appears to be at or over capacity. If the map is full, new `bpf_map_update_elem()` calls for new TLS handshakes would silently fail, preventing new connections from being tracked. However:
+
+- **This has NOT been proven as the root cause.** The Istio HTTP load test passes with 100% accuracy every release — if this were a simple map exhaustion issue, the load test should catch it.
+- The "examined > max_entries" count may reflect cumulative entries examined across multiple cleaner runs, not concurrent entries — needs verification.
+- Something about the customer's environment may cause different map usage patterns than our tests.
+
+### Other notable telemetry
+
+- `network_tracer__process_cache__events_skipped: 398,170` — significant process cache misses
+- `usm__file_registry__registered{program="istio"}: 26` — all envoy processes hooked successfully
+- `usm__file_registry__blocked{program="go-tls"}: 179,584` — expected, these are non-Go binaries correctly rejected
+- Cleanup of `ssl_sock_by_ctx` takes 500ms-1000ms per run (80 runs < 500ms, 380 runs in 500-1000ms range)
+
+---
+
+### Istio Load Test Comparison (2026-03-25)
+
+The Istio HTTP load test (at `system-probe-test-environments/k8s/`) passes at 100% accuracy every release. Key differences from customer environment:
+
+| Aspect | Load Test | Customer |
+|--------|-----------|----------|
+| CNI/Dataplane | AWS VPC CNI (iptables) | **Cilium eBPF dataplane** |
+| Envoy processes/node | ~2-4 | **26** |
+| max_tracked_connections | Default (65,536) | **131,072** |
+| Connection density | Low (~100s concurrent) | Very high (136K+ SSL map entries) |
+| Startup order | system-probe before traffic | Unknown |
+| mTLS | Permissive (but Istio still encrypts by default) | TLS active (`tls.library:istio` observed) |
+| Traffic pattern | Controlled K6 scenarios | Real-world production |
+| Duration | 2min–20hr soak | Continuous |
+
+**Note:** Permissive vs strict mTLS is likely NOT the differentiator — Istio encrypts inter-service traffic by default even in permissive mode, so the SSL uprobes fire in both cases.
+
+**Most likely differentiators:** Cilium eBPF dataplane, connection density (26 envoy processes × many connections), and potentially startup ordering.
+
+### Istio Capture Code Path (from code analysis)
+
+**How `ssl_sock_by_ctx` is populated:**
+1. `uprobe__SSL_set_bio` / `uprobe__SSL_set_fd` — called during TLS setup, creates entry `{fd, empty_tuple}`
+2. `tup_from_ssl_ctx()` — on first SSL_read/SSL_write, resolves tuple from `tuple_by_pid_fd` map and caches it
+3. `map_ssl_ctx_to_sock()` in `kprobe__tcp_sendmsg` — **fallback** when SSL_set_bio didn't fire; resolves ssl_ctx → socket tuple
+
+**How `ssl_sock_by_ctx` is cleaned:**
+1. `uprobe__SSL_shutdown` — **primary cleanup**, deletes entry when TLS session closes (eBPF-side)
+2. Userspace map cleaner — **backup**, only deletes entries for dead PIDs (runs every ~30s)
+
+**Important:** The 136K examined / 0 deleted by the userspace cleaner does NOT necessarily mean entries are leaking. If `SSL_shutdown` is correctly cleaning entries in eBPF, the userspace cleaner would have nothing to clean (all remaining entries belong to live PIDs with active connections). The "examined" count is cumulative across all 460 runs, so ~296 entries/run on average.
+
+**What happens when `ssl_sock_by_ctx` lookup misses:**
+1. `tup_from_ssl_ctx()` returns NULL
+2. Falls back to `ssl_ctx_by_pid_tgid` (stores pid_tgid → ssl_ctx for resolution on next tcp_sendmsg)
+3. If fallback also fails → data is silently dropped (no tuple = can't process)
+
+---
+
+## Cilium + Istio Reproduction Test (2026-03-30)
+
+### Setup
+
+Created an EKS cluster with:
+- Cilium eBPF dataplane (kube-proxy replacement mode)
+- Istio with STRICT mTLS (`PeerAuthentication`)
+- Agent 7.73.0
+- `max_tracked_connections: 131072`
+- ~20 server replicas (generating multiple envoy processes)
+- K6 soak_test scenario (~1700 req/s)
+
+### Results
+
+| Metric | Value/min |
+|--------|-----------|
+| K6 actual requests | ~102,000 |
+| USM server hits (`golang-httpbin`) | ~95,000 |
+| USM client hits (`golang-k6-client-http`) | ~95,000 |
+| **Capture rate** | **~93%** |
+
+Service names correctly attributed. `tls.library:istio` tag present and correct.
+
+### Conclusion
+
+**Cilium + Istio strict mTLS does NOT reproduce the ~1% capture rate.** 93% capture is healthy (the ~7% gap is likely due to ramp-up/ramp-down phases). The customer's issue requires an additional factor we have not yet identified.
+
+### What this rules out
+- ~~Cilium eBPF dataplane interference~~ — Cilium alone doesn't cause the loss
+- ~~mTLS mode~~ — STRICT mTLS works fine
+- ~~Basic connection density~~ — 20 envoy processes with 131K max_tracked_connections works
+
+### What remains different from customer environment
+- **Cilium version/configuration** — customer may have specific Cilium L7 policies, DNS proxying, or other features enabled that our test doesn't
+- **Connection pooling patterns** — our K6 test creates connections at a steady rate; customer's real-world traffic may have long-lived connections with many requests per connection
+- **Envoy version / BoringSSL build** — customer's Istio/envoy binary may differ
+- **AKS-specific kernel patches** — customer runs Azure kernel 5.15.0-1102-azure
+- **Scale / duration** — customer environment runs continuously for days/weeks vs our test which runs for hours
+
+---
+
+### Revised Hypotheses (after reproduction failure)
+
+1. **Customer-specific Cilium configuration** — Cilium L7 policy, DNS proxying, or Hubble enabled could cause different eBPF program interactions. Awaiting customer's Cilium config.
+
+2. **Connection reuse patterns** — If envoy reuses long-lived connections with thousands of requests per connection, and something causes the SSL context tracking to break for those connections, a small number of broken connections could account for massive hit loss. Our K6 test creates new connections frequently.
+
+3. **SSL map exhaustion in production** — The flare showed 136K examined entries in `ssl_sock_by_ctx` with 0 userspace deletions. Our test may not have run long enough to accumulate that many entries. If the map genuinely fills up over days of production traffic, new connections would silently fail.
+
+4. **`cilium-envoy` at `/usr/bin/cilium-envoy`** — The customer's flare shows this binary is blocked (not hooked). If Cilium's own envoy proxy handles some traffic (e.g., L7 policy enforcement), that traffic would bypass USM's Istio hooks entirely.
 
 ---
 
 ## Open Questions / Next Steps
 
-1. **Compare Istio logs vs USM metrics for a high-volume service**
-   - Pick a service like `cashserv-dblogrestsvc` (1,642 USM hits in 10min) and compare against its Istio sidecar logs
-   - If Istio logs also show significantly more, the issue is systemic (not service-specific)
-   - If they match, the issue is specific to low-volume traffic patterns
-   - Note: Istio access logging may not be enabled for all services (e.g., `cashmidd-rmrksapp` has USM hits but no visible Istio logs)
+1. **Get customer's Cilium configuration** — specifically:
+   - Cilium version
+   - L7 policies (CiliumNetworkPolicy with HTTP rules)
+   - DNS proxying enabled?
+   - Hubble enabled?
+   - `cilium-envoy` usage — is it processing application traffic?
 
-2. **Investigate eBPF map eviction and flush timing**
-   - Check `http_in_flight` map TTL and cleaner interval — could slow requests (1.5s) be evicted before response arrives?
-   - 5,170 entries cleaned from `http_in_flight` in the flare — is this normal or excessive?
-   - Check if low-frequency connections get cleaned from connection tracking maps
+2. **Ask customer for debug data from a live node:**
+   ```bash
+   # Two telemetry snapshots 5 minutes apart
+   curl --unix-socket /var/run/datadog/sysprobe.sock 'http://localhost/debug/usm_telemetry' > /tmp/t1.json
+   sleep 300
+   curl --unix-socket /var/run/datadog/sysprobe.sock 'http://localhost/debug/usm_telemetry' > /tmp/t2.json
 
-3. **Why do captured hits in procq lack `tls.library:istio` tags while the USM metric shows the tag?**
-   - The procq hits have `TagsIdx: -1` (no TLS tags) but USM metric shows `tls.library:istio`
-   - These may be different hits (procq captured a socket-filter hit, metric captured an uprobe hit)
-   - Or tags may be resolved differently at different pipeline stages
+   # Dump SSL context maps — see actual entry count
+   curl --unix-socket /var/run/datadog/sysprobe.sock 'http://localhost/debug/ebpf_maps?maps=ssl_sock_by_ctx' > /tmp/ssl_maps.json
 
-4. **Verify envoy connection reuse patterns**
-   - Even though 3 different client IPs, check if envoy reuses TLS sessions (session tickets/resumption)
-   - Check envoy connection pool settings for inbound listener
+   # Check traced programs
+   curl --unix-socket /var/run/datadog/sysprobe.sock 'http://localhost/debug/usm/traced_programs' > /tmp/traced.json
+   ```
 
-5. **Test the `ssl_ctx_by_pid_tgid` fallback disable (SUSM-146)**
-   - The fallback was disabled on main (commit `c21d3170fa`) but is active on 7.73.x
-   - Would disabling it make things worse or trigger a different code path?
+3. **Run a longer soak test** — run the Cilium reproduction for 24-48 hours to check if `ssl_sock_by_ctx` entries accumulate over time and eventually cause map exhaustion.
 
-6. **Investigate whether upgrading to a newer agent version helps**
-   - Main branch has SUSM-146 changes — does this affect capture rate?
-   - Are there other istio-related fixes post-7.73.0?
+4. **Test with `cilium-envoy` L7 policy** — add a CiliumNetworkPolicy with L7 HTTP rules to the test cluster. This would activate `cilium-envoy` as a transparent proxy, which could intercept traffic before Istio's envoy sees it.
+
+5. **Verify `ssl_sock_by_ctx` examined count** — confirm whether the flare's "136,250 examined" is cumulative across 460 runs or reflects actual map size.
+
+6. **Why do captured hits in procq lack `tls.library:istio` tags?**
+   - Procq hits have `TagsIdx: -1` but USM metric shows `tls.library:istio`
+   - May indicate traffic captured via a different path (socket filter vs uprobe)
 
 ---
 
