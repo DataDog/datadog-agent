@@ -260,8 +260,8 @@ func WithoutRuntimeMetricMappings() TranslatorOption {
 }
 
 // WithNoRemapping disables all metric remapping: no otel. prefix, no container/system/Kafka
-// remapping, and no runtime metric name mapping. Use this when the
-// exporter.datadogexporter.DisableAllMetricRemapping feature gate is enabled.
+// remapping, and no runtime metric name mapping. Metrics are forwarded under their original
+// names with no transformations applied.
 func WithNoRemapping() TranslatorOption {
 	return func(t *translatorConfig) error {
 		t.withRemapping = false

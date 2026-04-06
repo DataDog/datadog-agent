@@ -47,6 +47,7 @@ type factory struct {
 
 	onceReporter sync.Once
 	reporter     *inframetadata.Reporter
+	onceLogGate  sync.Once // ensures the DisableAllMetricRemapping log fires at most once per factory
 	gatewayUsage otel.GatewayUsage
 
 	ipath ingestionPath
@@ -102,7 +103,8 @@ func newFactoryForAgentWithType(
 	case featuregates.DisableMetricRemappingFeatureGate.IsEnabled():
 		options = append(options, otlpmetrics.WithNoRemapping())
 	case featuregates.MetricRemappingDisabledFeatureGate.IsEnabled():
-		// old gate, no action needed
+		// old gate: no otel. prefix, no remapping copies; runtime mapping defaults to on — no options needed.
+		// The new gate above takes precedence; if both are set this branch is unreachable.
 	default:
 		options = append(options, otlpmetrics.WithOTelPrefix())
 	}
@@ -147,7 +149,8 @@ func NewFactoryForOSSExporter(typ component.Type, statsIn chan []byte) exp.Facto
 	case featuregates.DisableMetricRemappingFeatureGate.IsEnabled():
 		options = append(options, otlpmetrics.WithNoRemapping())
 	case featuregates.MetricRemappingDisabledFeatureGate.IsEnabled():
-		// old gate, no action needed
+		// old gate: no otel. prefix, no remapping copies; runtime mapping defaults to on — no options needed.
+		// The new gate above takes precedence; if both are set this branch is unreachable.
 	default:
 		options = append(options, otlpmetrics.WithRemapping())
 	}
@@ -210,15 +213,17 @@ func checkAndCastConfig(c component.Config, logger *zap.Logger) (*ExporterConfig
 	return cfg, nil
 }
 
-// createMetricsExporter creates a new metrics exporter.
+// createMetricExporter creates a new metrics exporter.
 func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings, c component.Config) (exp.Metrics, error) {
 	cfg, err := checkAndCastConfig(c, params.Logger)
 	if err != nil {
 		return nil, err
 	}
-	if featuregates.DisableMetricRemappingFeatureGate.IsEnabled() {
-		params.Logger.Info("exporter.datadogexporter.DisableAllMetricRemapping is active: all metric remapping and otel. prefixing are disabled")
-	}
+	f.onceLogGate.Do(func() {
+		if featuregates.DisableMetricRemappingFeatureGate.IsEnabled() {
+			params.Logger.Info("exporter.datadogexporter.DisableAllMetricRemapping is active: all metric remapping and otel. prefixing are disabled")
+		}
+	})
 	var forwarder *defaultforwarder.DefaultForwarder
 	if f.s == nil {
 		f.s, forwarder, err = InitSerializer(params.Logger, cfg, f.hostProvider)

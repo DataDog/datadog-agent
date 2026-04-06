@@ -400,6 +400,10 @@ func testMetricPrefixWithFeatureGates(t *testing.T, disablePrefix bool, inName s
 		return "", nil
 	}, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil)
 	cfg := f.CreateDefaultConfig().(*ExporterConfig)
+	// newDefaultConfigForAgent already sets HostMetadata.Enabled=false, but set it
+	// explicitly here to guard against any future config default change that could
+	// cause a background reporter goroutine to race against rec.series reads below.
+	cfg.HostMetadata.Enabled = false
 	exp, err := f.CreateMetrics(
 		ctx,
 		exportertest.NewNopSettings(component.MustNewType("datadog")),
@@ -424,12 +428,19 @@ func testMetricPrefixWithFeatureGates(t *testing.T, disablePrefix bool, inName s
 	require.NoError(t, exp.ConsumeMetrics(ctx, md))
 	require.NoError(t, exp.Shutdown(ctx))
 
-	for _, serie := range rec.series {
-		if serie.Name == outName {
-			return
-		}
+	names := make([]string, 0, len(rec.series))
+	for _, s := range rec.series {
+		names = append(names, s.Name)
 	}
-	t.Errorf("%s not found in metrics", outName)
+	assert.Contains(t, names, outName)
+	if disablePrefix {
+		// Gate suppresses renaming: neither the otel. nor otelcol_ prefixed variant should appear.
+		assert.NotContains(t, names, "otel."+inName)
+		assert.NotContains(t, names, "otelcol_"+inName)
+	} else {
+		// Gate disabled: the metric was renamed to outName; the bare inName must not appear.
+		assert.NotContains(t, names, inName)
+	}
 }
 
 func newMetrics(
@@ -826,6 +837,10 @@ func testMetricPrefixWithNewGate(t *testing.T, disablePrefix bool, inName string
 		return "", nil
 	}, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil)
 	cfg := f.CreateDefaultConfig().(*ExporterConfig)
+	// newDefaultConfigForAgent already sets HostMetadata.Enabled=false, but set it
+	// explicitly here to guard against any future config default change that could
+	// cause a background reporter goroutine to race against rec.series reads below.
+	cfg.HostMetadata.Enabled = false
 	exp, err := f.CreateMetrics(
 		ctx,
 		exportertest.NewNopSettings(component.MustNewType("datadog")),
@@ -846,16 +861,25 @@ func testMetricPrefixWithNewGate(t *testing.T, disablePrefix bool, inName string
 	require.NoError(t, exp.ConsumeMetrics(ctx, md))
 	require.NoError(t, exp.Shutdown(ctx))
 
-	for _, serie := range rec.series {
-		if serie.Name == outName {
-			return
-		}
+	names := make([]string, 0, len(rec.series))
+	for _, s := range rec.series {
+		names = append(names, s.Name)
 	}
-	t.Errorf("%s not found in metrics", outName)
+	assert.Contains(t, names, outName)
+	if disablePrefix {
+		// Gate suppresses renaming: neither the otel. nor otelcol_ prefixed variant should appear.
+		assert.NotContains(t, names, "otel."+inName)
+		assert.NotContains(t, names, "otelcol_"+inName)
+	} else {
+		// Gate disabled: the metric was renamed to outName; the bare inName must not appear.
+		assert.NotContains(t, names, inName)
+	}
 }
 
-// newOSSFactoryForTest constructs a factory equivalent to NewFactoryForOSSExporter but
-// with a pre-built serializer injected, allowing unit tests to avoid real API key setup.
+// newOSSFactoryForTest approximates NewFactoryForOSSExporter for translator-option testing.
+// It injects a pre-built serializer to avoid real API key setup. Note: it uses a plain
+// serializerConsumer instead of the production collectorConsumer wrapper, so host-deduplication
+// and push-time logic in collectorConsumer are not exercised by tests using this helper.
 // Feature gate state is read at call time, matching the production constructor behaviour.
 func newOSSFactoryForTest(s serializer.MetricSerializer) exp.Factory {
 	var options []otlpmetrics.TranslatorOption

@@ -2550,6 +2550,8 @@ func TestWithNoRemapping(t *testing.T) {
 	assert.Contains(t, names, "kafka.producer.request-rate")
 
 	// Exactly one output metric per input metric — no extra copies.
+	// This holds because WithNoRemapping disables all copy-producing paths (remapping,
+	// runtime mapping) and the translator layer emits no additional internal telemetry.
 	assert.Len(t, names, len(metrics))
 
 	// No otel. prefix must be added to any metric name.
@@ -2557,7 +2559,8 @@ func TestWithNoRemapping(t *testing.T) {
 		assert.Falsef(t, strings.HasPrefix(n, "otel."), "unexpected otel. prefix in metric %q", n)
 	}
 
-	// No remapped copies must be produced
+	// No remapped copies must be produced.
+	// system.cpu.utilization would normally produce system.cpu.idle (and others) via remapSystemMetrics.
 	assert.NotContains(t, names, "system.cpu.idle")
 	assert.NotContains(t, names, "container.cpu.usage")
 	assert.NotContains(t, names, "runtime.go.num_goroutine")
