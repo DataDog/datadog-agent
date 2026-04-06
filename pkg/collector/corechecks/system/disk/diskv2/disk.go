@@ -72,37 +72,39 @@ type mount struct {
 
 // diskInstanceConfig represents an instance configuration.
 type diskInstanceConfig struct {
-	UseMount             bool              `yaml:"use_mount"`
-	IncludeAllDevices    bool              `yaml:"include_all_devices"`
-	AllPartitions        bool              `yaml:"all_partitions"`
-	MinDiskSize          uint64            `yaml:"min_disk_size"`
-	TagByFilesystem      bool              `yaml:"tag_by_filesystem"`
-	TagByLabel           bool              `yaml:"tag_by_label"`
-	UseLsblk             bool              `yaml:"use_lsblk"`
-	BlkidCacheFile       string            `yaml:"blkid_cache_file"`
-	ServiceCheckRw       bool              `yaml:"service_check_rw"`
-	CreateMounts         []mount           `yaml:"create_mounts"`
-	DeviceInclude        []string          `yaml:"device_include"`
-	DeviceWhitelist      []string          `yaml:"device_whitelist"`
-	DeviceExclude        []string          `yaml:"device_exclude"`
-	DeviceBlacklist      []string          `yaml:"device_blacklist"`
-	ExcludedDisks        []string          `yaml:"excluded_disks"`
-	ExcludedDiskRe       string            `yaml:"excluded_disk_re"`
-	FileSystemInclude    []string          `yaml:"file_system_include"`
-	FileSystemWhitelist  []string          `yaml:"file_system_whitelist"`
-	FileSystemExclude    []string          `yaml:"file_system_exclude"`
-	FileSystemBlacklist  []string          `yaml:"file_system_blacklist"`
-	ExcludedFileSystems  []string          `yaml:"excluded_filesystems"`
-	MountPointInclude    []string          `yaml:"mount_point_include"`
-	MountPointWhitelist  []string          `yaml:"mount_point_whitelist"`
-	MountPointExclude    []string          `yaml:"mount_point_exclude"`
-	MountPointBlacklist  []string          `yaml:"mount_point_blacklist"`
-	ExcludedMountPointRe string            `yaml:"excluded_mountpoint_re"`
-	DeviceTagRe          map[string]string `yaml:"device_tag_re"`
-	LowercaseDeviceTag   bool              `yaml:"lowercase_device_tag"`
-	Timeout              uint16            `yaml:"timeout"`
-	ProcMountInfoPath    string            `yaml:"proc_mountinfo_path"`
-	ResolveRootDevice    bool              `yaml:"resolve_root_device"`
+	UseMount               bool              `yaml:"use_mount"`
+	IncludeAllDevices      bool              `yaml:"include_all_devices"`
+	AllPartitions          bool              `yaml:"all_partitions"`
+	MinDiskSize            uint64            `yaml:"min_disk_size"`
+	TagByFilesystem        bool              `yaml:"tag_by_filesystem"`
+	TagByLabel             bool              `yaml:"tag_by_label"`
+	UseLsblk               bool              `yaml:"use_lsblk"`
+	BlkidCacheFile         string            `yaml:"blkid_cache_file"`
+	ServiceCheckRw         bool              `yaml:"service_check_rw"`
+	CreateMounts           []mount           `yaml:"create_mounts"`
+	DeviceInclude          []string          `yaml:"device_include"`
+	DeviceWhitelist        []string          `yaml:"device_whitelist"`
+	DeviceExclude          []string          `yaml:"device_exclude"`
+	DeviceBlacklist        []string          `yaml:"device_blacklist"`
+	ExcludedDisks          []string          `yaml:"excluded_disks"`
+	ExcludedDiskRe         string            `yaml:"excluded_disk_re"`
+	FileSystemInclude      []string          `yaml:"file_system_include"`
+	FileSystemWhitelist    []string          `yaml:"file_system_whitelist"`
+	FileSystemExclude      []string          `yaml:"file_system_exclude"`
+	FileSystemBlacklist    []string          `yaml:"file_system_blacklist"`
+	ExcludedFileSystems    []string          `yaml:"excluded_filesystems"`
+	MountPointInclude      []string          `yaml:"mount_point_include"`
+	MountPointWhitelist    []string          `yaml:"mount_point_whitelist"`
+	MountPointExclude      []string          `yaml:"mount_point_exclude"`
+	MountPointBlacklist    []string          `yaml:"mount_point_blacklist"`
+	ExcludedMountPointRe   string            `yaml:"excluded_mountpoint_re"`
+	DeviceTagRe            map[string]string `yaml:"device_tag_re"`
+	LowercaseDeviceTag     bool              `yaml:"lowercase_device_tag"`
+	Timeout                uint16            `yaml:"timeout"`
+	ProcMountInfoPath      string            `yaml:"proc_mountinfo_path"`
+	ResolveRootDevice      bool              `yaml:"resolve_root_device"`
+	TagByPhysicalStorage   bool              `yaml:"tag_by_physical_storage"`
+	CollectPhysicalMetrics bool              `yaml:"collect_physical_metrics"`
 }
 
 // matchesAnyRegex returns true if value matches any of the provided regular expressions.
@@ -215,6 +217,11 @@ func (c *Check) configureDiskCheck(data integration.Data, initConfig integration
 	err = yaml.Unmarshal([]byte(data), &c.instanceConfig)
 	if err != nil {
 		return err
+	}
+	if c.goos != "linux" && (c.instanceConfig.TagByPhysicalStorage || c.instanceConfig.CollectPhysicalMetrics) {
+		log.Warnf("tag_by_physical_storage and collect_physical_metrics are only supported on Linux (current platform: %s); ignoring", c.goos)
+		c.instanceConfig.TagByPhysicalStorage = false
+		c.instanceConfig.CollectPhysicalMetrics = false
 	}
 	err = c.configureExcludeDevice()
 	if err != nil {
@@ -446,22 +453,88 @@ func (c *Check) configureIncludeMountPoint() error {
 }
 
 func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
-	partitions, err := c.getDiskPartitionsWithTimeout(c.instanceConfig.IncludeAllDevices)
+	physicalPartitions, nonPhysicalPartitions, unclassifiedPartitions, err := c.fetchClassifiedPartitions()
 	if err != nil {
-		if len(partitions) == 0 {
-			// Complete failure - no partitions retrieved
-			log.Warnf("Unable to get disk partitions: %v", err)
-			return err
-		}
-		// Partial success - some partitions retrieved despite error
-		log.Warnf("Error getting some disk partitions (continuing with %d partitions): %v", len(partitions), err)
-	} else if len(partitions) == 0 {
-		// No error but no partitions - unusual, could indicate a problem
-		log.Warn("No disk partitions found - this may indicate a configuration or access issue")
-		return nil
+		return err
 	}
+	rootDevices := c.resolveRootDevices()
+	isPhys, isNonPhys := true, false
+	c.processPartitions(sender, physicalPartitions, rootDevices, &isPhys)
+	c.processPartitions(sender, nonPhysicalPartitions, rootDevices, &isNonPhys)
+	c.processPartitions(sender, unclassifiedPartitions, rootDevices, nil)
+	return nil
+}
+
+func (c *Check) fetchClassifiedPartitions() (physical, nonPhysical, unclassified []gopsutil_disk.PartitionStat, err error) {
+	needsClassification := c.instanceConfig.TagByPhysicalStorage || c.instanceConfig.CollectPhysicalMetrics
+
+	if !needsClassification {
+		partitions, err := c.getDiskPartitionsWithTimeout(c.instanceConfig.IncludeAllDevices)
+		if err != nil {
+			if len(partitions) == 0 {
+				log.Warnf("Unable to get disk partitions: %v", err)
+				return nil, nil, nil, err
+			}
+			log.Warnf("Error getting some disk partitions (continuing with %d partitions): %v", len(partitions), err)
+		} else if len(partitions) == 0 {
+			log.Warn("No disk partitions found - this may indicate a configuration or access issue")
+		}
+		return partitions, nil, nil, nil
+	}
+
+	physicalScanPartial := false
+	physical, err = c.getDiskPartitionsWithTimeout(false)
+	if err != nil {
+		if len(physical) == 0 {
+			log.Warnf("Unable to get disk partitions: %v", err)
+			return nil, nil, nil, err
+		}
+		physicalScanPartial = true
+		log.Warnf("Error getting some disk partitions (continuing with %d partitions): %v", len(physical), err)
+	}
+
+	if c.instanceConfig.IncludeAllDevices {
+		allPartitions, err := c.getDiskPartitionsWithTimeout(true)
+		if err != nil {
+			if len(allPartitions) == 0 {
+				if len(physical) == 0 {
+					log.Warnf("Unable to get disk partitions: %v", err)
+					return nil, nil, nil, err
+				}
+				log.Warnf("Unable to get all disk partitions: %v", err)
+			} else {
+				log.Warnf("Error getting some disk partitions (continuing with %d partitions): %v", len(allPartitions), err)
+			}
+		}
+		physicalDevices := make(map[string]struct{}, len(physical))
+		for _, p := range physical {
+			physicalDevices[p.Device] = struct{}{}
+		}
+		seen := make(map[string]struct{}, len(physical))
+		for _, p := range physical {
+			seen[p.Device+"\x00"+p.Mountpoint] = struct{}{}
+		}
+		for _, p := range allPartitions {
+			if _, dup := seen[p.Device+"\x00"+p.Mountpoint]; dup {
+				continue
+			}
+			if _, isPhys := physicalDevices[p.Device]; isPhys {
+				physical = append(physical, p)
+			} else if physicalScanPartial {
+				unclassified = append(unclassified, p)
+			} else {
+				nonPhysical = append(nonPhysical, p)
+			}
+		}
+	}
+
+	return physical, nonPhysical, unclassified, nil
+}
+
+func (c *Check) resolveRootDevices() map[string]string {
 	rootDevices := make(map[string]string)
 	if c.goos == "linux" && !c.instanceConfig.ResolveRootDevice {
+		var err error
 		rootDevices, err = c.loadRootDevices()
 		if err != nil {
 			log.Warnf("Error reading raw devices: %s", err)
@@ -469,6 +542,10 @@ func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 		}
 	}
 	log.Debugf("rootDevices '%s'", rootDevices)
+	return rootDevices
+}
+
+func (c *Check) processPartitions(sender sender.Sender, partitions []gopsutil_disk.PartitionStat, rootDevices map[string]string, isPhysicalDisk *bool) {
 	for _, partition := range partitions {
 		if rootDev, ok := rootDevices[partition.Device]; ok {
 			log.Debugf("Found [device: %s] in rootDevices as [rawDev: %s]", partition.Device, rootDev)
@@ -481,7 +558,13 @@ func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 		}
 		if usage := c.getPartitionUsage(partition); usage != nil {
 			tags := c.getPartitionTags(partition)
+			if c.instanceConfig.TagByPhysicalStorage && isPhysicalDisk != nil {
+				tags = append(tags, fmt.Sprintf("is_physical_storage:%t", *isPhysicalDisk))
+			}
 			c.sendPartitionMetrics(sender, usage, tags)
+			if isPhysicalDisk != nil && *isPhysicalDisk && c.instanceConfig.CollectPhysicalMetrics {
+				c.sendPartitionPhysicalMetrics(sender, usage, tags)
+			}
 
 			if c.instanceConfig.ServiceCheckRw {
 				checkStatus := servicecheck.ServiceCheckUnknown
@@ -498,7 +581,6 @@ func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 			}
 		}
 	}
-	return nil
 }
 
 func (c *Check) collectDiskMetrics(sender sender.Sender) {
@@ -531,6 +613,14 @@ func (c *Check) sendPartitionMetrics(sender sender.Sender, usage *gopsutil_disk.
 	c.sendInodesMetrics(sender, usage, tags)
 }
 
+func (c *Check) sendPartitionPhysicalMetrics(sender sender.Sender, usage *gopsutil_disk.UsageStat, tags []string) {
+	sender.Gauge(fmt.Sprintf(diskMetric, "physical_total"), float64(usage.Total)/bytesPerKB, "", tags)
+	sender.Gauge(fmt.Sprintf(diskMetric, "physical_used"), float64(usage.Used)/bytesPerKB, "", tags)
+	sender.Gauge(fmt.Sprintf(diskMetric, "physical_free"), float64(usage.Free)/bytesPerKB, "", tags)
+	sender.Gauge(fmt.Sprintf(diskMetric, "physical_utilized"), usage.UsedPercent, "", tags)
+	sender.Gauge(fmt.Sprintf(diskMetric, "physical_in_use"), usage.UsedPercent/100, "", tags)
+}
+
 func (c *Check) sendDiskMetrics(sender sender.Sender, ioCounter gopsutil_disk.IOCountersStat, tags []string) {
 	sender.MonotonicCount(fmt.Sprintf(diskMetric, "read_time"), float64(ioCounter.ReadTime), "", tags)
 	sender.MonotonicCount(fmt.Sprintf(diskMetric, "write_time"), float64(ioCounter.WriteTime), "", tags)
@@ -556,8 +646,8 @@ func (c *Check) getDiskPartitionsWithTimeout(includeAllDevices bool) ([]gopsutil
 		ctx = context.WithValue(ctx, common.EnvKey, common.EnvMap{common.HostProcMountinfo: c.instanceConfig.ProcMountInfoPath})
 	}
 	go func() {
-		defer c.partitionEnumInFlight.Store(false)
 		partitions, err := c.diskPartitionsWithContext(ctx, includeAllDevices)
+		c.partitionEnumInFlight.Store(false)
 		resultCh <- partitionsResult{partitions, err}
 	}()
 	select {
@@ -809,7 +899,9 @@ func newCheck() check.Check {
 			// Match psutil exactly setting default value (https://github.com/giampaolo/psutil/blob/3d21a43a47ab6f3c4a08d235d2a9a55d4adae9b1/psutil/_pslinux.py#L1277)
 			ProcMountInfoPath: "/proc/self/mounts",
 			// Match psutil reporting '/dev/root' from /proc/self/mounts by default
-			ResolveRootDevice: false,
+			ResolveRootDevice:      false,
+			TagByPhysicalStorage:   false,
+			CollectPhysicalMetrics: false,
 		},
 		includedDevices:     []regexp.Regexp{},
 		excludedDevices:     []regexp.Regexp{},
