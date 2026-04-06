@@ -10,7 +10,7 @@ use std::os::unix::process::ExitStatusExt;
 
 /// Place the child in its own process group so signals don't propagate
 /// to the daemon itself and SIGTERM can target all descendants.
-pub fn configure_command(cmd: &mut tokio::process::Command) {
+pub fn setup_process_group(cmd: &mut tokio::process::Command) {
     cmd.process_group(0);
 }
 

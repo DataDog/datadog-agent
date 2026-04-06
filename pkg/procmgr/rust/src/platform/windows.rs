@@ -7,7 +7,7 @@ use anyhow::Result;
 
 /// Configure the child process for Windows: create a new process group
 /// and assign to a Job Object so all descendants can be managed together.
-pub fn configure_command(_cmd: &mut tokio::process::Command) {
+pub fn setup_process_group(_cmd: &mut tokio::process::Command) {
     unimplemented!("Windows process group configuration not yet implemented")
 }
 

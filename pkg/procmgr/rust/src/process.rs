@@ -264,7 +264,7 @@ impl ManagedProcess {
         cmd.stdout(stdio_from_str(&self.config.stdout));
         cmd.stderr(stdio_from_str(&self.config.stderr));
 
-        platform::configure_command(&mut cmd);
+        platform::setup_process_group(&mut cmd);
 
         Ok(cmd)
     }
