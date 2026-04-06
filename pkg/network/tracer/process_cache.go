@@ -126,7 +126,11 @@ func (pc *processCache) HandleProcessEvent(entry *events.Process) {
 
 func (pc *processCache) processEvent(entry *events.Process) *events.Process {
 	if len(entry.Tags) == 0 && entry.ContainerID == nil {
-		return nil
+		// CWS event had no container ID — cgroup migration may not have
+		// completed yet. Try reading /proc/<pid>/cgroup directly as a
+		// fallback; by this point the migration is more likely to have
+		// finished.
+		return rescueEventWithProcfs(entry)
 	}
 
 	return entry
