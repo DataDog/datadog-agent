@@ -5,11 +5,10 @@
 
 use crate::config::{ProcessConfig, RestartPolicy};
 use crate::env::parse_environment_file;
+use crate::platform;
 use crate::state::ProcessState;
 use anyhow::{Context, Result};
 use log::{info, warn};
-use nix::sys::signal::{self, Signal};
-use nix::unistd::Pid;
 use std::collections::VecDeque;
 use std::process::Stdio;
 use tokio::process::{Child, Command};
@@ -163,15 +162,7 @@ impl ManagedProcess {
     }
 
     pub fn last_signal(&self) -> Option<i32> {
-        #[cfg(unix)]
-        {
-            use std::os::unix::process::ExitStatusExt;
-            self.last_exit_status.and_then(|s| s.signal())
-        }
-        #[cfg(not(unix))]
-        {
-            None
-        }
+        self.last_exit_status.and_then(|s| platform::last_signal(&s))
     }
 
     pub fn set_config(&mut self, config: ProcessConfig) {
@@ -273,9 +264,7 @@ impl ManagedProcess {
         cmd.stdout(stdio_from_str(&self.config.stdout));
         cmd.stderr(stdio_from_str(&self.config.stderr));
 
-        // Place child in its own process group so SIGTERM reaches all
-        // grandchildren and our own signals don't propagate to them.
-        cmd.process_group(0);
+        platform::configure_command(&mut cmd);
 
         Ok(cmd)
     }
@@ -318,28 +307,44 @@ impl ManagedProcess {
         }
     }
 
-    /// Mark the process for stop and send SIGTERM. The watcher will observe
-    /// the exit and `set_last_status` will transition to Stopped.
+    /// Mark the process for stop and send a graceful-stop signal. The watcher
+    /// will observe the exit and `set_last_status` will transition to Stopped.
     pub fn request_stop(&mut self) {
         if self.is_running() {
             self.stop_requested = true;
-            info!("[{}] sending SIGTERM (stop requested)", self.name);
-            self.send_signal(Signal::SIGTERM);
+            info!("[{}] sending graceful stop (stop requested)", self.name);
+            self.graceful_stop();
         }
     }
 
-    /// Send a signal using the stored PID (works even after take_child).
-    /// The caller must still call `wait()` afterward to reap the child and
-    /// avoid zombie processes. This is kept separate from `wait()` so
-    /// `shutdown_all()` can fan out SIGTERM to all processes before blocking
-    /// on each.
-    pub fn send_signal(&self, sig: Signal) {
+    /// Send a graceful-stop signal (SIGTERM on Unix, CTRL_BREAK on Windows).
+    fn graceful_stop(&self) {
+        if let Some(pid) = self.pid {
+            if let Err(e) = platform::send_graceful_stop(pid) {
+                warn!("[{}] graceful stop failed: {e}", self.name);
+            }
+        }
+    }
+
+    /// Force-kill the process and all descendants (SIGKILL / TerminateProcess).
+    fn force_kill(&self) {
+        if let Some(pid) = self.pid {
+            if let Err(e) = platform::send_force_kill(pid) {
+                warn!("[{}] force kill failed: {e}", self.name);
+            }
+        }
+    }
+
+    /// Send a Unix signal using the stored PID (works even after take_child).
+    /// Used by tests that need to send specific signals for cleanup.
+    #[cfg(unix)]
+    pub fn send_signal(&self, sig: nix::sys::signal::Signal) {
         if let Some(raw_pid) = self.pid {
             match i32::try_from(raw_pid) {
                 Ok(pid) => {
-                    // Negate PID to target the entire process group created
-                    // by process_group(0) in build_command.
-                    if let Err(e) = signal::kill(Pid::from_raw(-pid), sig) {
+                    if let Err(e) =
+                        nix::sys::signal::kill(nix::unistd::Pid::from_raw(-pid), sig)
+                    {
                         warn!("[{}] failed to send {sig} to pgid {pid}: {e}", self.name);
                     }
                 }
@@ -366,8 +371,8 @@ impl ManagedProcess {
         self.config.stop_timeout()
     }
 
-    /// Wait for the process to stop after SIGTERM has been sent.
-    /// Escalates to SIGKILL if the process doesn't exit within `stop_timeout`.
+    /// Wait for the process to stop after a graceful-stop signal has been sent.
+    /// Escalates to force-kill if the process doesn't exit within `stop_timeout`.
     pub async fn wait_for_stop(&mut self) {
         if !self.is_running() {
             return;
@@ -377,27 +382,27 @@ impl ManagedProcess {
             tokio::pin!(handle);
             if time::timeout(stop, &mut handle).await.is_err() {
                 warn!(
-                    "[{}] stop timeout ({}s) reached, sending SIGKILL",
+                    "[{}] stop timeout ({}s) reached, force-killing",
                     self.name,
                     stop.as_secs()
                 );
-                self.send_signal(Signal::SIGKILL);
+                self.force_kill();
                 if time::timeout(Self::SIGKILL_TIMEOUT, handle).await.is_err() {
-                    warn!("[{}] still running after SIGKILL, giving up", self.name);
+                    warn!("[{}] still running after force-kill, giving up", self.name);
                 }
             }
         } else if self.has_child_handle() && time::timeout(stop, self.wait()).await.is_err() {
             warn!(
-                "[{}] stop timeout ({}s) reached, sending SIGKILL",
+                "[{}] stop timeout ({}s) reached, force-killing",
                 self.name,
                 stop.as_secs()
             );
-            self.send_signal(Signal::SIGKILL);
+            self.force_kill();
             if time::timeout(Self::SIGKILL_TIMEOUT, self.wait())
                 .await
                 .is_err()
             {
-                warn!("[{}] still running after SIGKILL, giving up", self.name);
+                warn!("[{}] still running after force-kill, giving up", self.name);
             }
         }
         self.mark_stopped();
@@ -488,6 +493,7 @@ fn stdio_from_str(s: &str) -> Stdio {
 pub mod tests {
     use super::*;
     use crate::config::ProcessConfig;
+    use nix::sys::signal::Signal;
 
     pub fn test_uuid() -> String {
         "00000000-0000-0000-0000-000000000000".to_string()
