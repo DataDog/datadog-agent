@@ -153,9 +153,9 @@ func (p Provider) PopulateStatus(stats map[string]interface{}) {
 	stats["inventories"] = p.collectCheckMetadata()
 }
 
-// collectCheckMetadata builds a map of check-hash → metadata by calling check.GetMetadata
-// directly on each check registered with the collector. Falls back to reading the
-// inventories expvar when the collector is not available (e.g. in tests or CLI commands).
+// collectCheckMetadata builds a map of check-hash → metadata. When the collector is
+// available it reads via check.GetMetadata, supplemented by per-instance metadata from
+// the inventories expvar (e.g. version.raw). Falls back to the expvar alone otherwise.
 func (p Provider) collectCheckMetadata() map[string]map[string]string {
 	checkMetadata := map[string]map[string]string{}
 
@@ -183,11 +183,28 @@ func (p Provider) collectCheckMetadata() map[string]map[string]string {
 					}
 				}
 			}
-			if checkHash != "" && len(result) != 0 {
+			if checkHash != "" {
 				checkMetadata[checkHash] = result
 			}
 		}
 	})
+
+	// Overlay per-instance metadata from inventorychecks.Set (e.g. version.raw).
+	// Only merge into known hashes to avoid stale data from unscheduled checks.
+	for checkHash, expvarFields := range collectCheckMetadataFromExpvar() {
+		if result, ok := checkMetadata[checkHash]; ok {
+			for k, v := range expvarFields {
+				result[k] = v
+			}
+		}
+	}
+
+	// Drop entries that have no displayable metadata fields after merging.
+	for checkHash, result := range checkMetadata {
+		if len(result) == 0 {
+			delete(checkMetadata, checkHash)
+		}
+	}
 
 	return checkMetadata
 }
