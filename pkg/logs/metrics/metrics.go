@@ -126,6 +126,11 @@ var (
 	TlmRotationSizeDifferences = telemetry.NewHistogram("logs", "rotation_size_differences",
 		nil, "Distribution of absolute file size differences observed between consecutive file rotation checks", []float64{256, 1024, 4096, 16384, 65536, 262144, 1048576, 10485760, 104857600})
 
+	// TlmPayloadFlushed is the total number of payloads flushed by the batch strategy.
+	// Tags: pipeline, flush_reason (max_count, max_bytes, timer, flush, shutdown)
+	TlmPayloadFlushed = telemetry.NewCounter("logs_sender", "payload_flushed",
+		[]string{"pipeline", "flush_reason"}, "Total number of payloads flushed, tagged by the reason the flush was triggered")
+
 	// TlmHTTPConnectivityCheck tracks HTTP connectivity check results
 	// Tags: status (success/failure)
 	TlmHTTPConnectivityCheck = telemetry.NewCounter("logs", "http_connectivity_check",
