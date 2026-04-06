@@ -95,6 +95,7 @@ type telemetryWriterWrapper struct {
 
 // SetSpanError propagates an error to the telemetry span if the writer is a telemetryWriterWrapper.
 // This populates error.message, error.type, and error.stack on the span via tracer.WithError.
+// If called multiple times, only the last error is captured (last-writer-wins).
 func SetSpanError(w http.ResponseWriter, err error) {
 	if tw, ok := w.(*telemetryWriterWrapper); ok {
 		tw.capturedErr = err

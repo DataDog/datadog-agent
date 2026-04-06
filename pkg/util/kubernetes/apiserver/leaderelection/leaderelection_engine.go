@@ -23,7 +23,6 @@ import (
 	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/client-go/tools/record"
 
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/ext"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 
 	configmaplock "github.com/DataDog/datadog-agent/internal/third_party/client-go/tools/leaderelection/resourcelock"
@@ -48,14 +47,15 @@ func newReleaseLock(lockType string, ns string, name string, coreClient corev1.C
 }
 
 func (le *LeaderEngine) getCurrentLeaderLease() (string, error) {
+	var spanErr error
 	span, _ := tracer.StartSpanFromContext(le.ctx, "leader_election.get_lease",
 		tracer.Tag("lock_type", "lease"),
 	)
-	defer span.Finish()
+	defer func() { span.Finish(tracer.WithError(spanErr)) }()
 
 	lease, err := le.coordClient.Leases(le.LeaderNamespace).Get(context.TODO(), le.LeaseName, metav1.GetOptions{})
 	if err != nil {
-		span.SetTag(ext.Error, err)
+		spanErr = err
 		return "", err
 	}
 
@@ -70,14 +70,15 @@ func (le *LeaderEngine) getCurrentLeaderLease() (string, error) {
 }
 
 func (le *LeaderEngine) getCurrentLeaderConfigMap() (string, error) {
+	var spanErr error
 	span, _ := tracer.StartSpanFromContext(le.ctx, "leader_election.get_lease",
 		tracer.Tag("lock_type", "configmap"),
 	)
-	defer span.Finish()
+	defer func() { span.Finish(tracer.WithError(spanErr)) }()
 
 	configMap, err := le.coreClient.ConfigMaps(le.LeaderNamespace).Get(context.TODO(), le.LeaseName, metav1.GetOptions{})
 	if err != nil {
-		span.SetTag(ext.Error, err)
+		spanErr = err
 		return "", err
 	}
 
@@ -89,7 +90,7 @@ func (le *LeaderEngine) getCurrentLeaderConfigMap() (string, error) {
 
 	electionRecord := rl.LeaderElectionRecord{}
 	if err := json.Unmarshal([]byte(val), &electionRecord); err != nil {
-		span.SetTag(ext.Error, err)
+		spanErr = err
 		return "", err
 	}
 	return electionRecord.HolderIdentity, err
@@ -105,12 +106,7 @@ func (le *LeaderEngine) getCurrentLeader() (string, error) {
 
 func (le *LeaderEngine) createLeaderTokenIfNotExists() (retErr error) {
 	span, _ := tracer.StartSpanFromContext(le.ctx, "leader_election.create_token")
-	defer func() {
-		if retErr != nil {
-			span.SetTag(ext.Error, retErr)
-		}
-		span.Finish()
-	}()
+	defer func() { span.Finish(tracer.WithError(retErr)) }()
 
 	if le.lockType == rl.LeasesResourceLock {
 		_, err := le.coordClient.Leases(le.LeaderNamespace).Get(context.TODO(), le.LeaseName, metav1.GetOptions{})

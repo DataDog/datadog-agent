@@ -56,6 +56,7 @@ func TestGetCurrentLeaderLease_Span(t *testing.T) {
 	span := spans[0]
 	assert.Equal(t, "leader_election.get_lease", span.OperationName())
 	assert.Equal(t, "lease", span.Tag("lock_type"))
+	assert.Nil(t, span.Tag("error"), "No error tag on success path")
 }
 
 func TestGetCurrentLeaderLease_Error_Span(t *testing.T) {
@@ -81,7 +82,7 @@ func TestGetCurrentLeaderLease_Error_Span(t *testing.T) {
 	span := spans[0]
 	assert.Equal(t, "leader_election.get_lease", span.OperationName())
 	assert.Equal(t, "lease", span.Tag("lock_type"))
-	assert.NotNil(t, span.Tag("error"))
+	assert.NotNil(t, span.Tag("error"), "Error should be set on the span")
 }
 
 func TestGetCurrentLeaderConfigMap_Span(t *testing.T) {
@@ -116,6 +117,33 @@ func TestGetCurrentLeaderConfigMap_Span(t *testing.T) {
 	span := spans[0]
 	assert.Equal(t, "leader_election.get_lease", span.OperationName())
 	assert.Equal(t, "configmap", span.Tag("lock_type"))
+	assert.Nil(t, span.Tag("error"), "No error tag on success path")
+}
+
+func TestGetCurrentLeaderConfigMap_Error_Span(t *testing.T) {
+	mt := mocktracer.Start()
+	defer mt.Stop()
+
+	// No configmap exists, so Get will return NotFound
+	client := fake.NewClientset()
+
+	le := &LeaderEngine{
+		ctx:             context.Background(),
+		LeaseName:       "nonexistent-cm",
+		LeaderNamespace: "default",
+		coreClient:      client.CoreV1(),
+		lockType:        cmLock.ConfigMapsResourceLock,
+	}
+
+	_, err := le.getCurrentLeaderConfigMap()
+	require.Error(t, err)
+
+	spans := mt.FinishedSpans()
+	require.Len(t, spans, 1)
+	span := spans[0]
+	assert.Equal(t, "leader_election.get_lease", span.OperationName())
+	assert.Equal(t, "configmap", span.Tag("lock_type"))
+	assert.NotNil(t, span.Tag("error"), "Error should be set on the span")
 }
 
 func TestCreateLeaderTokenIfNotExists_Lease_Span(t *testing.T) {
@@ -140,6 +168,7 @@ func TestCreateLeaderTokenIfNotExists_Lease_Span(t *testing.T) {
 	require.Len(t, spans, 1)
 	span := spans[0]
 	assert.Equal(t, "leader_election.create_token", span.OperationName())
+	assert.Nil(t, span.Tag("error"), "No error tag on success path")
 }
 
 func TestCreateLeaderTokenIfNotExists_ConfigMap_Span(t *testing.T) {
@@ -164,4 +193,5 @@ func TestCreateLeaderTokenIfNotExists_ConfigMap_Span(t *testing.T) {
 	require.Len(t, spans, 1)
 	span := spans[0]
 	assert.Equal(t, "leader_election.create_token", span.OperationName())
+	assert.Nil(t, span.Tag("error"), "No error tag on success path")
 }

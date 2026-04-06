@@ -18,7 +18,6 @@ import (
 	"sync"
 	"time"
 
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/ext"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -86,19 +85,18 @@ func GetGlobalLeaderForwarder() *LeaderForwarder {
 
 // Forward forwards a query to leader if available
 func (lf *LeaderForwarder) Forward(rw http.ResponseWriter, req *http.Request) {
+	var spanErr error
 	span, _ := tracer.StartSpanFromContext(req.Context(), "cluster_agent.leader_forwarder.forward")
-	defer span.Finish()
+	defer func() { span.Finish(tracer.WithError(spanErr)) }()
 
 	// Always set Forwarded header in reply
 	rw.Header().Set(respForwarded, "true")
 
 	if req.Header.Get(forwardHeader) != "" {
-		loopErr := errors.New("query was already forwarded from: " + req.RemoteAddr)
+		spanErr = errors.New("query was already forwarded from: " + req.RemoteAddr)
 		span.SetTag("forward.loop_detected", true)
 		span.SetTag("forward.proxy_available", false)
-		span.SetTag(ext.Error, loopErr)
-		SetSpanError(rw, loopErr)
-		http.Error(rw, loopErr.Error(), http.StatusLoopDetected)
+		http.Error(rw, spanErr.Error(), http.StatusLoopDetected)
 		return
 	}
 	span.SetTag("forward.loop_detected", false)
@@ -109,11 +107,9 @@ func (lf *LeaderForwarder) Forward(rw http.ResponseWriter, req *http.Request) {
 	lf.proxyLock.RUnlock()
 
 	if currentProxy == nil {
-		proxyErr := errors.New("leader proxy is not available")
+		spanErr = errors.New("leader proxy is not available")
 		span.SetTag("forward.proxy_available", false)
-		span.SetTag(ext.Error, proxyErr)
-		SetSpanError(rw, proxyErr)
-		http.Error(rw, proxyErr.Error(), http.StatusServiceUnavailable)
+		http.Error(rw, spanErr.Error(), http.StatusServiceUnavailable)
 		return
 	}
 

@@ -13,7 +13,6 @@ import (
 	"errors"
 	"net/http"
 
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/ext"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -96,18 +95,10 @@ func (lph *LeaderProxyHandler) rejectOrForwardLeaderQuery(rw http.ResponseWriter
 		return false
 	}
 
-	span, _ := tracer.StartSpanFromContext(req.Context(), "cluster_agent.leader_proxy.forward",
-		tracer.Tag("handler.role", "follower"),
-	)
-	defer span.Finish()
-
 	if lph.le == nil {
 		leaderEngine, err := leaderelection.GetLeaderEngine()
 		if err != nil {
 			log.Errorf("leader engine can't be retrieved: %v", err)
-			span.SetTag("forwarded", false)
-			span.SetTag("forward.failure_mode", "engine_unavailable")
-			span.SetTag(ext.Error, err)
 			SetSpanError(rw, err)
 			http.Error(rw, "leader engine can't be retrieved", http.StatusServiceUnavailable)
 			return true
@@ -116,18 +107,22 @@ func (lph *LeaderProxyHandler) rejectOrForwardLeaderQuery(rw http.ResponseWriter
 	}
 
 	if lph.le.IsLeader() {
-		span.SetTag("handler.role", "leader")
-		span.SetTag("forwarded", false)
-		span.SetTag("forward.failure_mode", "none")
 		return false
 	}
+
+	var spanErr error
+	span, ctx := tracer.StartSpanFromContext(req.Context(), "cluster_agent.leader_proxy.forward",
+		tracer.Tag("handler.role", "follower"),
+	)
+	defer func() { span.Finish(tracer.WithError(spanErr)) }()
 
 	ip, err := lph.le.GetLeaderIP()
 	if err != nil {
 		log.Errorf("failed to retrieve leader ip: %v", err)
+		spanErr = err
 		span.SetTag("forwarded", false)
 		span.SetTag("forward.failure_mode", "leader_ip_unavailable")
-		span.SetTag(ext.Error, err)
+		// Mark both this span and the parent request span
 		SetSpanError(rw, err)
 		http.Error(rw, "failed to retrieve leader ip", http.StatusServiceUnavailable)
 		return true
@@ -135,12 +130,12 @@ func (lph *LeaderProxyHandler) rejectOrForwardLeaderQuery(rw http.ResponseWriter
 
 	// if the leader forwarder is not set, we can't forward the request
 	if lph.leaderForwarder == nil {
-		forwarderErr := errors.New("leader forwarder is not available")
-		log.Errorf("%v", forwarderErr)
+		spanErr = errors.New("leader forwarder is not available")
+		log.Errorf("%v", spanErr)
 		span.SetTag("forwarded", false)
 		span.SetTag("forward.failure_mode", "forwarder_unavailable")
-		span.SetTag(ext.Error, forwarderErr)
-		SetSpanError(rw, forwarderErr)
+		// Mark both this span and the parent request span
+		SetSpanError(rw, spanErr)
 		http.Error(rw, "leader forwarder is not available", http.StatusServiceUnavailable)
 		return true
 	}
@@ -149,9 +144,7 @@ func (lph *LeaderProxyHandler) rejectOrForwardLeaderQuery(rw http.ResponseWriter
 		lph.leaderForwarder.SetLeaderIP(ip)
 	}
 	span.SetTag("forwarded", true)
-	span.SetTag("forward.leader_ip", ip)
-	span.SetTag("forward.failure_mode", "none")
 	forwardedRequest.Inc(lph.handlerName)
-	lph.leaderForwarder.Forward(rw, req)
+	lph.leaderForwarder.Forward(rw, req.WithContext(ctx))
 	return true
 }
