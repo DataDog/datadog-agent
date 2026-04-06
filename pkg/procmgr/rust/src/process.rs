@@ -162,7 +162,8 @@ impl ManagedProcess {
     }
 
     pub fn last_signal(&self) -> Option<i32> {
-        self.last_exit_status.and_then(|s| platform::last_signal(&s))
+        self.last_exit_status
+            .and_then(|s| platform::last_signal(&s))
     }
 
     pub fn set_config(&mut self, config: ProcessConfig) {
@@ -342,9 +343,7 @@ impl ManagedProcess {
         if let Some(raw_pid) = self.pid {
             match i32::try_from(raw_pid) {
                 Ok(pid) => {
-                    if let Err(e) =
-                        nix::sys::signal::kill(nix::unistd::Pid::from_raw(-pid), sig)
-                    {
+                    if let Err(e) = nix::sys::signal::kill(nix::unistd::Pid::from_raw(-pid), sig) {
                         warn!("[{}] failed to send {sig} to pgid {pid}: {e}", self.name);
                     }
                 }
