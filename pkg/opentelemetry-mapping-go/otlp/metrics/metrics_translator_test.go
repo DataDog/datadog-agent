@@ -2515,3 +2515,46 @@ func TestInferInterval(t *testing.T) {
 		})
 	}
 }
+
+// TestWithNoRemapping verifies that WithNoRemapping disables all three remapping
+// behaviours: otel. prefix, system/container remapping copies, and runtime name mapping.
+func TestWithNoRemapping(t *testing.T) {
+	ctx := context.Background()
+	tr := NewTestTranslator(t, WithNoRemapping())
+	consumer := &mockFullConsumer{}
+
+	metrics := []string{
+		"system.cpu.utilization",        // would get otel. prefix + remapped copies without WithNoRemapping
+		"process.runtime.go.goroutines", // would get otel. prefix + runtime mapping
+		"container.cpu.usage.total",     // would get remapped to container.cpu.usage
+		"kafka.producer.request-rate",   // would get otel. prefix
+	}
+
+	for _, name := range metrics {
+		metric := createTestMetricWithAttributes(name, pmetric.MetricTypeGauge, nil, 1)
+		_, err := tr.MapMetrics(ctx, metric, consumer, nil)
+		require.NoError(t, err)
+	}
+
+	// Collect all output metric names
+	names := make([]string, 0, len(consumer.metrics))
+	for _, m := range consumer.metrics {
+		names = append(names, m.name)
+	}
+
+	// Each input metric must appear exactly once under its original name
+	assert.Contains(t, names, "system.cpu.utilization")
+	assert.Contains(t, names, "process.runtime.go.goroutines")
+	assert.Contains(t, names, "container.cpu.usage.total")
+	assert.Contains(t, names, "kafka.producer.request-rate")
+
+	// No otel. prefix must be added
+	for _, n := range names {
+		assert.NotContains(t, n, "otel.", "unexpected otel. prefix in metric %q", n)
+	}
+
+	// No remapped copies must be produced
+	assert.NotContains(t, names, "system.cpu.idle")
+	assert.NotContains(t, names, "container.cpu.usage")
+	assert.NotContains(t, names, "runtime.go.num_goroutine")
+}

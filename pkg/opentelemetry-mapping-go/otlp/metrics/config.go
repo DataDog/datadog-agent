@@ -250,9 +250,22 @@ func WithInferDeltaInterval() TranslatorOption {
 	}
 }
 
-// WithoutRuntimeMetricMappings enables mapping of runtime metrics.
+// WithoutRuntimeMetricMappings disables mapping of runtime metrics to their Datadog counterparts
+// (e.g. process.runtime.go.goroutines → runtime.go.num_goroutine).
 func WithoutRuntimeMetricMappings() TranslatorOption {
 	return func(t *translatorConfig) error {
+		t.withRuntimeRemapping = false
+		return nil
+	}
+}
+
+// WithNoRemapping disables all metric remapping: no otel. prefix, no container/system/Kafka
+// remapping, and no runtime metric name mapping. Use this when the
+// exporter.datadogexporter.DisableAllMetricRemapping feature gate is enabled.
+func WithNoRemapping() TranslatorOption {
+	return func(t *translatorConfig) error {
+		t.withRemapping = false
+		t.withOTelPrefix = false
 		t.withRuntimeRemapping = false
 		return nil
 	}
