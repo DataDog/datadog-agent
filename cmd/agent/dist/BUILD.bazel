@@ -1,10 +1,13 @@
-# assets
+"""Agent assets - typically configuration files that ship with the product."""
+# Don't let gazelle delete this based on the top level exclude.
+# gazelle:exclude
 
+load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
 
 pkg_files(
-    name = "all_files",
+    name = "config_files",
     srcs = [
         "//pkg/config:security_agent_config",
         "//pkg/config:system_probe_config",
@@ -22,6 +25,15 @@ pkg_files(
         "//packages/agent:iot_flavor": {"//pkg/config:iot_agent_config": "datadog.yaml"},
         "//conditions:default": None,
     }),
+    visibility = ["//packages/agent:__subpackages__"],
+)
+
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        ":config_files",
+        "//cmd/agent/dist/conf.d:all_files",
+    ],
     visibility = ["//packages/agent:__subpackages__"],
 )
 
@@ -59,4 +71,13 @@ pkg_install(
     srcs = [
         ":all_python_files",
     ],
+)
+
+# We keep two copies so we don't need symlink support on windows.
+# No worries eventually the python version will go away
+diff_test(
+    name = "core_checks_list_sync_test",
+    failure_message = "core_checks.py and core_checks.bzl must be identical files",
+    file1 = "core_checks.py",
+    file2 = "core_checks.bzl",
 )

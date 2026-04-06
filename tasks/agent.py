@@ -10,6 +10,7 @@ import re
 import shutil
 import sys
 import tempfile
+from cmd.agent.dist import core_checks
 
 from invoke import task
 from invoke.exceptions import Exit
@@ -55,70 +56,6 @@ if sys.platform == "win32":
     AWS_CMD = "aws.exe"
 else:
     AWS_CMD = "aws"
-
-AGENT_CORECHECKS = [
-    "container",
-    "containerd",
-    "container_image",
-    "container_lifecycle",
-    "cpu",
-    "cri",
-    "snmp",
-    "docker",
-    "file_handle",
-    "go_expvar",
-    "io",
-    "jmx",
-    "kubernetes_apiserver",
-    "load",
-    "memory",
-    "ntp",
-    "oom_kill",
-    "oracle",
-    "oracle-dbm",
-    "sbom",
-    "systemd",
-    "tcp_queue_length",
-    "uptime",
-    "jetson",
-    "telemetry",
-    "orchestrator_pod",
-    "orchestrator_kubelet_config",
-    "orchestrator_ecs",
-    "cisco_sdwan",
-    "network_path",
-    "gpu",
-    "wlan",
-    "discovery",
-    "versa",
-    "network_config_management",
-    "battery",
-    "cloud_hostinfo",
-]
-
-WINDOWS_CORECHECKS = [
-    "agentcrashdetect",
-    "sbom",
-    "windows_registry",
-    "winkmem",
-    "wincrashdetect",
-    "windows_certificate",
-    "winproc",
-    "win32_event_log",
-]
-
-IOT_AGENT_CORECHECKS = [
-    "cpu",
-    "disk",
-    "io",
-    "load",
-    "memory",
-    "network",
-    "ntp",
-    "uptime",
-    "systemd",
-    "jetson",
-]
 
 CACHED_WHEEL_FILENAME_PATTERN = "datadog_{integration}-*.whl"
 CACHED_WHEEL_DIRECTORY_PATTERN = "integration-wheels/{branch}/{hash}/{python_version}/"
@@ -349,7 +286,7 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
 
     shutil.copy("./cmd/agent/dist/security-agent.yaml", os.path.join(dist_folder, "security-agent.yaml"))
 
-    for check in AGENT_CORECHECKS if not flavor.is_iot() else IOT_AGENT_CORECHECKS:
+    for check in core_checks.AGENT_CORECHECKS if not flavor.is_iot() else core_checks.IOT_AGENT_CORECHECKS:
         check_dir = os.path.join(dist_folder, f"conf.d/{check}.d/")
         shutil.copytree(
             f"./cmd/agent/dist/conf.d/{check}.d/",
@@ -363,7 +300,7 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
     # add additional windows-only corechecks, only on windows. Otherwise the check loader
     # on linux will throw an error because the module is not found, but the config is.
     if sys.platform == 'win32':
-        for check in WINDOWS_CORECHECKS:
+        for check in core_checks.WINDOWS_CORECHECKS:
             check_dir = os.path.join(dist_folder, f"conf.d/{check}.d/")
             shutil.copytree(
                 f"./cmd/agent/dist/conf.d/{check}.d/",
