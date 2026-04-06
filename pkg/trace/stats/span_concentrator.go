@@ -43,8 +43,8 @@ type StatSpan struct {
 	serviceSource                  string
 	statusCode                     uint32
 	isTopLevel                     bool
-	matchingPeerTags               []string
-	matchingSpanDerivedPrimaryTags []string
+	matchingPeerTags          []string
+	matchingAdditionalMetricTags []string
 	grpcStatusCode                 string
 
 	httpMethod   string
@@ -103,12 +103,12 @@ func peerTagKeysToAggregateForSpan(spanKind string, baseService string, peerTagK
 	return nil
 }
 
-func matchingSpanDerivedPrimaryTags(meta map[string]string, spanDerivedPrimaryTagKeys []string) []string {
-	if len(spanDerivedPrimaryTagKeys) == 0 {
+func matchingAdditionalMetricTags(meta map[string]string, additionalMetricTagKeys []string) []string {
+	if len(additionalMetricTagKeys) == 0 {
 		return nil
 	}
 	var tags []string
-	for _, t := range spanDerivedPrimaryTagKeys {
+	for _, t := range additionalMetricTagKeys {
 		if v, ok := meta[t]; ok && v != "" {
 			tags = append(tags, t+":"+v)
 		}
@@ -116,12 +116,12 @@ func matchingSpanDerivedPrimaryTags(meta map[string]string, spanDerivedPrimaryTa
 	return tags
 }
 
-func matchingSpanDerivedPrimaryTagsV1(s *idx.InternalSpan, spanDerivedPrimaryTagKeys []string) []string {
-	if len(spanDerivedPrimaryTagKeys) == 0 {
+func matchingAdditionalMetricTagsV1(s *idx.InternalSpan, additionalMetricTagKeys []string) []string {
+	if len(additionalMetricTagKeys) == 0 {
 		return nil
 	}
 	var tags []string
-	for _, t := range spanDerivedPrimaryTagKeys {
+	for _, t := range additionalMetricTagKeys {
 		if v, ok := s.GetAttributeAsString(t); ok && v != "" {
 			tags = append(tags, t+":"+v)
 		}
@@ -162,7 +162,7 @@ func NewSpanConcentrator(cfg *SpanConcentratorConfig, now time.Time) *SpanConcen
 }
 
 // NewStatSpanFromPB is a helper version of NewStatSpanWithConfig that builds a StatSpan from a pb.Span.
-func (sc *SpanConcentrator) NewStatSpanFromPB(s *pb.Span, peerTags []string, spanDerivedPrimaryTagKeys []string) (statSpan *StatSpan, ok bool) {
+func (sc *SpanConcentrator) NewStatSpanFromPB(s *pb.Span, peerTags []string, additionalMetricTagKeys []string) (statSpan *StatSpan, ok bool) {
 	return sc.NewStatSpanWithConfig(
 		StatSpanConfig{
 			Service:                   s.Service,
@@ -176,7 +176,7 @@ func (sc *SpanConcentrator) NewStatSpanFromPB(s *pb.Span, peerTags []string, spa
 			Meta:                      s.Meta,
 			Metrics:                   s.Metrics,
 			PeerTags:                  peerTags,
-			SpanDerivedPrimaryTagKeys: spanDerivedPrimaryTagKeys,
+			AdditionalMetricTagKeys: additionalMetricTagKeys,
 			HTTPMethod:                "",
 			HTTPEndpoint:              "",
 		},
@@ -196,7 +196,7 @@ type StatSpanConfig struct {
 	Meta                      map[string]string
 	Metrics                   map[string]float64
 	PeerTags                  []string
-	SpanDerivedPrimaryTagKeys []string
+	AdditionalMetricTagKeys []string
 	HTTPMethod                string
 	HTTPEndpoint              string
 }
@@ -235,7 +235,7 @@ func (sc *SpanConcentrator) NewStatSpanWithConfig(config StatSpanConfig) (statSp
 		statusCode:                     getStatusCode(config.Meta, config.Metrics),
 		isTopLevel:                     isTopLevel,
 		matchingPeerTags:               matchingPeerTags(config.Meta, config.PeerTags),
-		matchingSpanDerivedPrimaryTags: matchingSpanDerivedPrimaryTags(config.Meta, config.SpanDerivedPrimaryTagKeys),
+		matchingAdditionalMetricTags: matchingAdditionalMetricTags(config.Meta, config.AdditionalMetricTagKeys),
 
 		grpcStatusCode: getGRPCStatusCode(config.Meta, config.Metrics),
 
@@ -245,7 +245,7 @@ func (sc *SpanConcentrator) NewStatSpanWithConfig(config StatSpanConfig) (statSp
 }
 
 // NewStatSpanFromV1 is a helper version of NewStatSpan that builds a StatSpan from an idx.InternalSpan.
-func (sc *SpanConcentrator) NewStatSpanFromV1(s *idx.InternalSpan, peerTags []string, spanDerivedPrimaryTagKeys []string) (statSpan *StatSpan, ok bool) {
+func (sc *SpanConcentrator) NewStatSpanFromV1(s *idx.InternalSpan, peerTags []string, additionalMetricTagKeys []string) (statSpan *StatSpan, ok bool) {
 	eligibleSpanKind := sc.computeStatsBySpanKind && computeStatsForSpanKindV1(s.Kind())
 	isTopLevel := traceutil.HasTopLevelMetricsV1(s)
 	if !(isTopLevel || traceutil.IsMeasuredMetricsV1(s) || eligibleSpanKind) {
@@ -273,7 +273,7 @@ func (sc *SpanConcentrator) NewStatSpanFromV1(s *idx.InternalSpan, peerTags []st
 		statusCode:                     getStatusCodeV1(s),
 		isTopLevel:                     isTopLevel,
 		matchingPeerTags:               matchingPeerTagsV1(s, peerTags),
-		matchingSpanDerivedPrimaryTags: matchingSpanDerivedPrimaryTagsV1(s, spanDerivedPrimaryTagKeys),
+		matchingAdditionalMetricTags: matchingAdditionalMetricTagsV1(s, additionalMetricTagKeys),
 		grpcStatusCode:                 getGRPCStatusCodeV1(s),
 	}, true
 }
@@ -305,7 +305,7 @@ func (sc *SpanConcentrator) NewStatSpan(
 			Meta:                      meta,
 			Metrics:                   metrics,
 			PeerTags:                  peerTags,
-			SpanDerivedPrimaryTagKeys: nil,
+			AdditionalMetricTagKeys: nil,
 			HTTPMethod:                "",
 			HTTPEndpoint:              "",
 		},

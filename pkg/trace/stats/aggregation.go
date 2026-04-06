@@ -41,9 +41,8 @@ type BucketsAggregationKey struct {
 	SpanKind                   string
 	StatusCode                 uint32
 	Synthetics                 bool
-	PeerTagsHash               uint64
-	SpanDerivedPrimaryTagsHash uint64
-	AdditionalMetricTagsHash   uint64
+	PeerTagsHash             uint64
+	AdditionalMetricTagsHash uint64
 	ServiceSource              string
 	IsTraceRoot                pb.Trilean
 	GRPCStatusCode             string
@@ -119,8 +118,8 @@ func NewAggregationFromSpan(s *StatSpan, origin string, aggKey PayloadAggregatio
 			Synthetics:                 synthetics,
 			IsTraceRoot:                isTraceRoot,
 			GRPCStatusCode:             s.grpcStatusCode,
-			PeerTagsHash:               tagsFnvHash(s.matchingPeerTags),
-			SpanDerivedPrimaryTagsHash: tagsFnvHash(s.matchingSpanDerivedPrimaryTags),
+			PeerTagsHash:             tagsFnvHash(s.matchingPeerTags),
+			AdditionalMetricTagsHash: tagsFnvHash(s.matchingAdditionalMetricTags),
 			HTTPMethod:                 s.httpMethod,
 			HTTPEndpoint:               s.httpEndpoint,
 		},
@@ -162,9 +161,8 @@ func NewAggregationFromGroup(g *pb.ClientGroupedStats) Aggregation {
 			SpanKind:                   g.SpanKind,
 			StatusCode:                 g.HTTPStatusCode,
 			Synthetics:                 g.Synthetics,
-			PeerTagsHash:               tagsFnvHash(g.PeerTags),
-			SpanDerivedPrimaryTagsHash: tagsFnvHash(g.SpanDerivedPrimaryTags),
-			AdditionalMetricTagsHash:   tagsFnvHash(g.AdditionalMetricTags),
+			PeerTagsHash:             tagsFnvHash(g.PeerTags),
+			AdditionalMetricTagsHash: tagsFnvHash(g.AdditionalMetricTags),
 			ServiceSource:              g.ServiceSource,
 			IsTraceRoot:                g.IsTraceRoot,
 			GRPCStatusCode:             g.GRPCStatusCode,

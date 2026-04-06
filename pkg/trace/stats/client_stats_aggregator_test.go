@@ -110,6 +110,7 @@ func getTestStatsWithStart(t *testing.T, start time.Time, incPeerTags bool) *pb.
 			s.PeerTags = nil
 		}
 		s.DBType = ""
+		s.SpanDerivedPrimaryTags = nil
 		s.AdditionalMetricTags = nil
 		s.OkSummary = encodeTestSketch(t, generateTestSketch(t))
 		s.ErrorSummary = encodeTestSketch(t, generateTestSketch(t))
@@ -1060,8 +1061,7 @@ func deepCopyGroupedStats(s []*pb.ClientGroupedStats) []*pb.ClientGroupedStats {
 			GRPCStatusCode:         b.GetGRPCStatusCode(),
 			HTTPMethod:             b.GetHTTPMethod(),
 			HTTPEndpoint:           b.GetHTTPEndpoint(),
-			SpanDerivedPrimaryTags: b.GetSpanDerivedPrimaryTags(),
-			AdditionalMetricTags:   b.GetAdditionalMetricTags(),
+			AdditionalMetricTags: b.GetAdditionalMetricTags(),
 		}
 		if b.OkSummary != nil {
 			stats[i].OkSummary = make([]byte, len(b.OkSummary))

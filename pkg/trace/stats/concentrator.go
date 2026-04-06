@@ -48,7 +48,7 @@ type Concentrator struct {
 	agentVersion              string
 	statsd                    statsd.ClientInterface
 	peerTagKeys               []string
-	spanDerivedPrimaryTagKeys []string
+	additionalMetricTagKeys []string
 }
 
 // NewConcentrator initializes a new concentrator ready to be started
@@ -72,7 +72,7 @@ func NewConcentrator(conf *config.AgentConfig, writer Writer, now time.Time, sta
 		statsd:                    statsd,
 		bsize:                     bsize,
 		peerTagKeys:               conf.ConfiguredPeerTags(),
-		spanDerivedPrimaryTagKeys: conf.ConfiguredSpanDerivedPrimaryTagKeys(),
+		additionalMetricTagKeys: conf.ConfiguredSpanDerivedPrimaryTagKeys(),
 	}
 	return &c
 }
@@ -209,7 +209,7 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, tags infraTags) {
 		BaseService:     semantics.LookupString(ddRegistry, semantics.NewDDSpanAccessor(pt.Root.Meta, pt.Root.Metrics), semantics.ConceptDDBaseService),
 	}
 	for _, s := range pt.TraceChunk.Spans {
-		statSpan, ok := c.spanConcentrator.NewStatSpanFromPB(s, c.peerTagKeys, c.spanDerivedPrimaryTagKeys)
+		statSpan, ok := c.spanConcentrator.NewStatSpanFromPB(s, c.peerTagKeys, c.additionalMetricTagKeys)
 		if ok {
 			c.spanConcentrator.addSpan(statSpan, aggKey, tags, pt.TraceChunk.Origin, weight)
 		}
@@ -245,7 +245,7 @@ func (c *Concentrator) addNowV1(pt *traceutil.ProcessedTraceV1, tags infraTags) 
 		BaseService:     baseService,
 	}
 	for _, s := range pt.TraceChunk.Spans {
-		statSpan, ok := c.spanConcentrator.NewStatSpanFromV1(s, c.peerTagKeys, c.spanDerivedPrimaryTagKeys)
+		statSpan, ok := c.spanConcentrator.NewStatSpanFromV1(s, c.peerTagKeys, c.additionalMetricTagKeys)
 		if ok {
 			c.spanConcentrator.addSpan(statSpan, aggKey, tags, pt.TraceChunk.Origin(), weight)
 		}

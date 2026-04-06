@@ -271,9 +271,8 @@ func (b *bucket) aggregateStatsBucket(sb *pb.ClientStatsBucket, payloadAggKey Pa
 				topLevelHits:           gs.TopLevelHits,
 				errors:                 gs.Errors,
 				duration:               gs.Duration,
-				peerTags:               gs.PeerTags,
-				spanDerivedPrimaryTags: gs.SpanDerivedPrimaryTags,
-				additionalMetricTags:   gs.AdditionalMetricTags,
+				peerTags:             gs.PeerTags,
+				additionalMetricTags: gs.AdditionalMetricTags,
 				okDistributionRaw:      gs.OkSummary,    // store encoded version only
 				errDistributionRaw:     gs.ErrorSummary, // store encoded version only
 			}
@@ -392,9 +391,8 @@ func exporGroupedStats(aggrKey BucketsAggregationKey, stats *aggregatedStats) (*
 		GRPCStatusCode:         aggrKey.GRPCStatusCode,
 		HTTPMethod:             aggrKey.HTTPMethod,
 		HTTPEndpoint:           aggrKey.HTTPEndpoint,
-		PeerTags:               stats.peerTags,
-		SpanDerivedPrimaryTags: stats.spanDerivedPrimaryTags,
-		AdditionalMetricTags:   stats.additionalMetricTags,
+		PeerTags:             stats.peerTags,
+		AdditionalMetricTags: stats.additionalMetricTags,
 		TopLevelHits:           stats.topLevelHits,
 		Hits:                   stats.hits,
 		Errors:                 stats.errors,
@@ -436,9 +434,6 @@ func newBucketAggregationKey(b *pb.ClientGroupedStats) BucketsAggregationKey {
 	if tags := b.GetPeerTags(); len(tags) > 0 {
 		k.PeerTagsHash = tagsFnvHash(tags)
 	}
-	if tags := b.GetSpanDerivedPrimaryTags(); len(tags) > 0 {
-		k.SpanDerivedPrimaryTagsHash = tagsFnvHash(tags)
-	}
 	if tags := b.GetAdditionalMetricTags(); len(tags) > 0 {
 		k.AdditionalMetricTagsHash = tagsFnvHash(tags)
 	}
@@ -449,9 +444,8 @@ func newBucketAggregationKey(b *pb.ClientGroupedStats) BucketsAggregationKey {
 type aggregatedStats struct {
 	// aggregated counts
 	hits, topLevelHits, errors, duration uint64
-	peerTags                             []string
-	spanDerivedPrimaryTags               []string
-	additionalMetricTags                 []string
+	peerTags             []string
+	additionalMetricTags []string
 
 	// aggregated DDSketches
 	okDistribution, errDistribution *ddsketch.DDSketch

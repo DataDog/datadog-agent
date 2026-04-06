@@ -38,9 +38,8 @@ type groupedStats struct {
 	duration               float64
 	okDistribution         *ddsketch.DDSketch
 	errDistribution        *ddsketch.DDSketch
-	peerTags               []string
-	spanDerivedPrimaryTags []string
-	additionalMetricTags   []string
+	peerTags             []string
+	additionalMetricTags []string
 }
 
 // round a float to an int, uniformly choosing
@@ -78,9 +77,8 @@ func (s *groupedStats) export(a Aggregation) (*pb.ClientGroupedStats, error) {
 		ErrorSummary:           errSummary,
 		Synthetics:             a.Synthetics,
 		SpanKind:               a.SpanKind,
-		PeerTags:               s.peerTags,
-		SpanDerivedPrimaryTags: s.spanDerivedPrimaryTags,
-		AdditionalMetricTags:   s.additionalMetricTags,
+		PeerTags:             s.peerTags,
+		AdditionalMetricTags: s.additionalMetricTags,
 		ServiceSource:          a.ServiceSource,
 		IsTraceRoot:            a.IsTraceRoot,
 		GRPCStatusCode:         a.GRPCStatusCode,
@@ -183,7 +181,7 @@ func (sb *RawBucket) add(s *StatSpan, weight float64, aggr Aggregation) {
 	if gs, ok = sb.data[aggr]; !ok {
 		gs = newGroupedStats()
 		gs.peerTags = s.matchingPeerTags
-		gs.spanDerivedPrimaryTags = s.matchingSpanDerivedPrimaryTags
+		gs.additionalMetricTags = s.matchingAdditionalMetricTags
 		sb.data[aggr] = gs
 	}
 	if s.isTopLevel {
