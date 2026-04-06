@@ -717,7 +717,7 @@ pub mod tests {
         #[cfg(unix)]
         let script = "test \"$FROM_FILE\" = 'hello' && echo $PATH";
         #[cfg(windows)]
-        let script = "if \"%FROM_FILE%\"==\"hello\" (echo %PATH%)";
+        let script = "if \"%FROM_FILE%\"==\"hello\" (echo %PATH%) else (exit 1)";
         let mut cfg = make_config(sh, vec![flag, script]);
         cfg.environment_file = Some(env_file.to_str().unwrap().to_string());
 
