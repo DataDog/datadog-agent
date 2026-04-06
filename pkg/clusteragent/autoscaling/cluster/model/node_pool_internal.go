@@ -26,7 +26,6 @@ import (
 const (
 	// For use on NodePools
 	DatadogCreatedLabelKey      = "autoscaling.datadoghq.com/created"
-	DatadogModifiedLabelKey     = "autoscaling.datadoghq.com/modified"
 	DatadogReplicaAnnotationKey = "autoscaling.datadoghq.com/target-nodepool"
 
 	// KarpenterNodePoolHashAnnotationKey is the annotation key that that tracks the Karpenter NodePool template hash
@@ -353,20 +352,19 @@ func modifyReplicaNodePool(replicaNp *karpenterv1.NodePool, npi NodePoolInternal
 		}
 		// Reset the Status
 		replicaNp.Status = karpenterv1.NodePoolStatus{}
-	} else {
-		if replicaNp.ObjectMeta.Labels == nil {
-			replicaNp.ObjectMeta.Labels = make(map[string]string)
-		}
-		replicaNp.ObjectMeta.Labels[DatadogModifiedLabelKey] = "true"
 	}
 
 	// Update the weight
+	replicaNp.Spec.Weight = GetNodePoolWeight(replicaNp)
+}
+
+func GetNodePoolWeight(replicaNp *karpenterv1.NodePool) *int32 {
 	weight := int32(1)
 	if replicaNp.Spec.Weight != nil {
 		if *replicaNp.Spec.Weight == 100 {
-			log.Warnf("Target weight is at the max possible value for target NodePool: %s", npi.TargetName())
+			log.Warnf("Target weight is at the max possible value for target NodePool: %s", replicaNp.Name)
 		}
 		weight = min(*replicaNp.Spec.Weight+1, 100)
 	}
-	replicaNp.Spec.Weight = &weight
+	return &weight
 }

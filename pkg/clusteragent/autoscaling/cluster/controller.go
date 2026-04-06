@@ -208,11 +208,17 @@ func (c *Controller) createNodePool(ctx context.Context, targetNp *karpenterv1.N
 	// New path: use manifest-provided NodePool when available
 	if knp := npi.KarpenterNodePool(); knp != nil {
 		knp = knp.DeepCopy()
+		// Check that NodeClassRef (if set) is valid
 		var err error
 		knp, err = c.updateNodePoolWithNodeClass(ctx, knp)
 		if err != nil {
 			return fmt.Errorf("unable to update NodePool with node class: %s, err: %v", npi.Name(), err)
 		}
+		// Update the weight if replica NodePool
+		if knp.Spec.Weight == nil && targetNp != nil {
+			knp.Spec.Weight = model.GetNodePoolWeight(targetNp)
+		}
+		// add Datadog labels and annotations
 		if knp.Labels == nil {
 			knp.Labels = make(map[string]string)
 		}
@@ -273,8 +279,6 @@ func (c *Controller) updateNodePool(ctx context.Context, targetNp, datadogNp *ka
 		if _, ok := datadogNp.Labels[model.DatadogCreatedLabelKey]; ok {
 			desired.Labels[model.DatadogCreatedLabelKey] = "true"
 		}
-		desired.Labels[model.DatadogModifiedLabelKey] = "true"
-
 		if equality.Semantic.DeepEqual(datadogNp.Spec, desired.Spec) &&
 			maps.Equal(datadogNp.Labels, desired.Labels) &&
 			maps.Equal(datadogNp.Annotations, desired.Annotations) {
@@ -351,7 +355,6 @@ func (c *Controller) deleteNodePool(ctx context.Context, name string, knp *karpe
 }
 
 func (c *Controller) updateNodePoolWithNodeClass(ctx context.Context, knp *karpenterv1.NodePool) (*karpenterv1.NodePool, error) {
-	// Check that if NodeClassRef is set, that it's valid
 	nc := knp.Spec.Template.Spec.NodeClassRef
 	if nc != nil {
 		gvr, ok := nodeClassGVRByGroup[nc.Group]

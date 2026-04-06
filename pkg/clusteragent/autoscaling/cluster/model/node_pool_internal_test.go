@@ -442,9 +442,6 @@ func TestUpdateNodePoolObject(t *testing.T) {
 			expectedNodePool: karpenterv1.NodePool{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "replicaNp",
-					Labels: map[string]string{
-						"autoscaling.datadoghq.com/modified": "true",
-					},
 				},
 				Spec: karpenterv1.NodePoolSpec{
 					Weight: &weightOne,
@@ -604,9 +601,6 @@ func TestUpdateNodePoolObject(t *testing.T) {
 			expectedNodePool: karpenterv1.NodePool{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "replicaNp",
-					Labels: map[string]string{
-						"autoscaling.datadoghq.com/modified": "true",
-					},
 				},
 				Spec: karpenterv1.NodePoolSpec{
 					Weight: &weightOne,
@@ -766,9 +760,6 @@ func TestUpdateNodePoolObject(t *testing.T) {
 			expectedNodePool: karpenterv1.NodePool{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "replicaNp",
-					Labels: map[string]string{
-						"autoscaling.datadoghq.com/modified": "true",
-					},
 				},
 				Spec: karpenterv1.NodePoolSpec{
 					Weight: &weightOne,
@@ -952,4 +943,40 @@ func TestBuildKarpenterNodePoolFromManifest_NilSpec(t *testing.T) {
 		Spec:     nil,
 	}
 	assert.Nil(t, buildKarpenterNodePoolFromManifest(kv1))
+}
+
+func TestGetNodePoolWeight(t *testing.T) {
+	tests := []struct {
+		name           string
+		weight         *int32
+		expectedWeight int32
+	}{
+		{
+			name:           "nil weight defaults to 1",
+			weight:         nil,
+			expectedWeight: 1,
+		},
+		{
+			name:           "weight incremented by 1",
+			weight:         func() *int32 { w := int32(5); return &w }(),
+			expectedWeight: 6,
+		},
+		{
+			name:           "weight capped at 100",
+			weight:         func() *int32 { w := int32(99); return &w }(),
+			expectedWeight: 100,
+		},
+		{
+			name:           "weight at max stays at 100",
+			weight:         func() *int32 { w := int32(100); return &w }(),
+			expectedWeight: 100,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			np := &karpenterv1.NodePool{}
+			np.Spec.Weight = tt.weight
+			assert.Equal(t, tt.expectedWeight, *GetNodePoolWeight(np))
+		})
+	}
 }
