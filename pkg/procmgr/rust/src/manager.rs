@@ -488,6 +488,7 @@ fn recompute_startup_order(procs: &[ManagedProcess]) -> StartupOrderResult {
 mod tests {
     use super::*;
     use crate::config::{MutableConfigLoader, ProcessConfig, StaticConfigLoader};
+    use crate::test_helpers;
     use crate::uuid_gen::{SequentialUuidGenerator, V4UuidGenerator};
 
     fn loader(defs: Vec<ProcessDefinition>) -> Arc<dyn ConfigLoader> {
@@ -499,11 +500,12 @@ mod tests {
     }
 
     fn sleep_def(name: &str) -> ProcessDefinition {
+        let (cmd, args) = test_helpers::sleep_cmd(60);
         ProcessDefinition {
             name: name.to_string(),
             config: ProcessConfig {
-                command: "/bin/sleep".to_string(),
-                args: vec!["60".to_string()],
+                command: cmd.to_string(),
+                args: args.into_iter().map(|a| a.to_string()).collect(),
                 ..Default::default()
             },
         }
@@ -526,11 +528,7 @@ mod tests {
         assert_eq!(procs.len(), 1);
         assert!(procs[0].is_running());
 
-        nix::sys::signal::kill(
-            nix::unistd::Pid::from_raw(procs[0].pid().unwrap() as i32),
-            nix::sys::signal::Signal::SIGKILL,
-        )
-        .ok();
+        let _ = platform::send_force_kill(procs[0].pid().unwrap());
         Ok(())
     }
 
@@ -549,10 +547,11 @@ mod tests {
         };
 
         // Reload with modified config (different args)
+        let (cmd, _) = test_helpers::sleep_cmd(120);
         config_loader.set(vec![ProcessDefinition {
             name: "svc-a".to_string(),
             config: ProcessConfig {
-                command: "/bin/sleep".to_string(),
+                command: cmd.to_string(),
                 args: vec!["120".to_string()],
                 ..Default::default()
             },
@@ -576,11 +575,7 @@ mod tests {
             "restarted process should have a different PID"
         );
 
-        nix::sys::signal::kill(
-            nix::unistd::Pid::from_raw(procs[0].pid().unwrap() as i32),
-            nix::sys::signal::Signal::SIGKILL,
-        )
-        .ok();
+        let _ = platform::send_force_kill(procs[0].pid().unwrap());
         Ok(())
     }
 
@@ -591,10 +586,11 @@ mod tests {
         let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
 
         // Don't start svc-a — leave it in Created state
+        let (cmd, _) = test_helpers::sleep_cmd(120);
         config_loader.set(vec![ProcessDefinition {
             name: "svc-a".to_string(),
             config: ProcessConfig {
-                command: "/bin/sleep".to_string(),
+                command: cmd.to_string(),
                 args: vec!["120".to_string()],
                 ..Default::default()
             },
@@ -628,8 +624,9 @@ mod tests {
     #[tokio::test]
     async fn test_create_rejects_empty_name() {
         let mgr = ProcessManager::new(loader(vec![]), uuid_gen());
+        let (cmd, _) = test_helpers::true_cmd();
         let config = ProcessConfig {
-            command: "/bin/echo".to_string(),
+            command: cmd.to_string(),
             ..Default::default()
         };
         let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
@@ -643,8 +640,9 @@ mod tests {
     #[tokio::test]
     async fn test_create_rejects_invalid_name() {
         let mgr = ProcessManager::new(loader(vec![]), uuid_gen());
+        let (cmd, _) = test_helpers::true_cmd();
         let config = ProcessConfig {
-            command: "/bin/echo".to_string(),
+            command: cmd.to_string(),
             ..Default::default()
         };
         let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
@@ -658,8 +656,9 @@ mod tests {
     #[tokio::test]
     async fn test_create_accepts_valid_name() -> anyhow::Result<()> {
         let mgr = ProcessManager::new(loader(vec![]), uuid_gen());
+        let (cmd, _) = test_helpers::true_cmd();
         let config = ProcessConfig {
-            command: "/bin/echo".to_string(),
+            command: cmd.to_string(),
             ..Default::default()
         };
         let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
@@ -673,8 +672,9 @@ mod tests {
     #[tokio::test]
     async fn test_reload_preserves_runtime_created_processes() -> anyhow::Result<()> {
         let mgr = ProcessManager::new(loader(vec![]), uuid_gen());
+        let (cmd, _) = test_helpers::true_cmd();
         let config = ProcessConfig {
-            command: "/bin/echo".to_string(),
+            command: cmd.to_string(),
             ..Default::default()
         };
         let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
@@ -757,7 +757,7 @@ mod tests {
         mgr.handle_create(
             "runtime-svc".to_string(),
             ProcessConfig {
-                command: "/bin/sleep".to_string(),
+                command: test_helpers::sleep_cmd(60).0.to_string(),
                 args: vec!["60".to_string()],
                 auto_start: false,
                 ..Default::default()
@@ -806,7 +806,7 @@ mod tests {
         mgr.handle_create(
             "svc-b".to_string(),
             ProcessConfig {
-                command: "/bin/sleep".to_string(),
+                command: test_helpers::sleep_cmd(60).0.to_string(),
                 args: vec!["60".to_string()],
                 after: vec!["svc-a".to_string()],
                 auto_start: false,
@@ -834,7 +834,7 @@ mod tests {
         mgr.handle_create(
             "auto-svc".to_string(),
             ProcessConfig {
-                command: "/bin/sleep".to_string(),
+                command: test_helpers::sleep_cmd(60).0.to_string(),
                 args: vec!["60".to_string()],
                 auto_start: true,
                 ..Default::default()
@@ -867,7 +867,7 @@ mod tests {
         mgr.handle_create(
             "manual-svc".to_string(),
             ProcessConfig {
-                command: "/bin/sleep".to_string(),
+                command: test_helpers::sleep_cmd(60).0.to_string(),
                 args: vec!["60".to_string()],
                 auto_start: false,
                 ..Default::default()
@@ -919,7 +919,7 @@ mod tests {
         mgr.handle_create(
             "cond-svc".to_string(),
             ProcessConfig {
-                command: "/bin/sleep".to_string(),
+                command: test_helpers::sleep_cmd(60).0.to_string(),
                 args: vec!["60".to_string()],
                 auto_start: true,
                 condition_path_exists: Some("/nonexistent/path/that/should/not/exist".to_string()),
@@ -955,7 +955,7 @@ mod tests {
             ProcessDefinition {
                 name: "svc-api".to_string(),
                 config: ProcessConfig {
-                    command: "/bin/sleep".to_string(),
+                    command: test_helpers::sleep_cmd(60).0.to_string(),
                     args: vec!["60".to_string()],
                     after: vec!["svc-b".to_string()],
                     ..Default::default()
