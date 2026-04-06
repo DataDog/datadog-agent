@@ -24,16 +24,52 @@ DDAGENT_USER="_dd-agent"
 harden_ddagent_user() {
     # Enforce least-privilege properties regardless of how the account was
     # originally created (previous install, MDM pre-provisioning, manual
-    # creation). This runs on every install/upgrade.
+    # creation). This runs on every install/upgrade — every upgrade is a
+    # hardening pass.
+
+    # Core identity: no shell, no home, hidden, daemon group
     dscl . -create /Users/$DDAGENT_USER UserShell /usr/bin/false
     dscl . -create /Users/$DDAGENT_USER NFSHomeDirectory /var/empty
     dscl . -create /Users/$DDAGENT_USER IsHidden 1
     dscl . -create /Users/$DDAGENT_USER PrimaryGroupID 1
 
+    # Lock the account password. The '*' marker is the standard Unix convention
+    # for "no valid password" (same as /etc/shadow on Linux). This prevents
+    # authentication via PAM-based services that might not check the login shell
+    # (e.g., screen sharing, VPN agents, custom PAM modules).
+    dscl . -create /Users/$DDAGENT_USER Password '*'
+
+    # Remove all authentication mechanisms (password hashes, Kerberos
+    # principals, smart card bindings). This is what Apple does for its own
+    # daemon accounts (_www, _sshd, _spotlight). It means there is no
+    # credential to brute-force or extract from Directory Services.
+    dscl . -delete /Users/$DDAGENT_USER AuthenticationAuthority 2>/dev/null || true
+
+    # Strip privileged supplementary group memberships. PrimaryGroupID=1
+    # (daemon) only sets the primary group — it does not remove supplementary
+    # memberships. If someone pre-created _dd-agent in the admin group (which
+    # grants sudo on macOS), that's a privilege escalation path.
+    for group in admin wheel staff; do
+        if dseditgroup -o checkmember -m "$DDAGENT_USER" "$group" >/dev/null 2>&1; then
+            echo "Removing $DDAGENT_USER from group $group"
+            dseditgroup -o edit -d "$DDAGENT_USER" "$group"
+        fi
+    done
+
+    # UID sanity check: warn if outside the system range but don't change it
+    # (changing UID would orphan all files owned by the old UID).
     local existing_uid
     existing_uid=$(id -u "$DDAGENT_USER")
     if [ "$existing_uid" -ge 500 ]; then
         echo "WARNING: $DDAGENT_USER has UID $existing_uid (interactive range >=500). UID is preserved to avoid breaking file ownership, but this is non-standard for a daemon account."
+    fi
+
+    # Secure Token check: daemon accounts should never have Secure Token
+    # (affects FileVault recovery and bootstrap token flows). We can't revoke
+    # it programmatically without MDM, but we log a warning so admins can
+    # investigate.
+    if sysadminctl -secureTokenStatus "$DDAGENT_USER" 2>&1 | grep -q "ENABLED"; then
+        echo "WARNING: $DDAGENT_USER has Secure Token enabled. Daemon accounts should not hold Secure Token. This may have been granted by MDM bootstrap token flows. Contact your MDM administrator to revoke it."
     fi
 }
 
