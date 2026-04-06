@@ -320,19 +320,19 @@ impl ManagedProcess {
 
     /// Send a graceful-stop signal (SIGTERM on Unix, CTRL_BREAK on Windows).
     fn graceful_stop(&self) {
-        if let Some(pid) = self.pid {
-            if let Err(e) = platform::send_graceful_stop(pid) {
-                warn!("[{}] graceful stop failed: {e}", self.name);
-            }
+        if let Some(pid) = self.pid
+            && let Err(e) = platform::send_graceful_stop(pid)
+        {
+            warn!("[{}] graceful stop failed: {e}", self.name);
         }
     }
 
     /// Force-kill the process and all descendants (SIGKILL / TerminateProcess).
     fn force_kill(&self) {
-        if let Some(pid) = self.pid {
-            if let Err(e) = platform::send_force_kill(pid) {
-                warn!("[{}] force kill failed: {e}", self.name);
-            }
+        if let Some(pid) = self.pid
+            && let Err(e) = platform::send_force_kill(pid)
+        {
+            warn!("[{}] force kill failed: {e}", self.name);
         }
     }
 
