@@ -1642,6 +1642,7 @@ tag_by_physical_storage: true
 	assert.Nil(t, err)
 	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda1", "is_physical_storage:true"})
 	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda2", "is_physical_storage:true"})
+	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"is_physical_storage:false"})
 	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"device:tmpfs"})
 	m.AssertMetricNotTaggedWith(t, "Gauge", "system.disk.total", []string{"device:shm"})
 }
