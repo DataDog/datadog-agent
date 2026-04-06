@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/filter"
 	ssluprobes "github.com/DataDog/datadog-agent/pkg/network/tracer/connection/ssl-uprobes"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const probeUID = "net"

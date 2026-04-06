@@ -4,8 +4,6 @@
 #include "bpf_tracing.h"
 #include "bpf_metadata.h"
 
-#include "bpf_bypass.h"
-
 #include "ip.h"
 #include "ipv6.h"
 #include "sock.h"
@@ -775,20 +773,23 @@ int BPF_PROG(raw_tracepoint__net__net_dev_queue, struct sk_buff *skb) {
 // functions (not exported via BTF), so they must use kprobes even in the
 // fentry tracer. They fire from kernel timer/softirq context. The shared
 // helpers in tracer/stats.h handle the map lookup and atomic increment.
+// Note: use BPF_KPROBE (not BPF_BYPASSABLE_KPROBE) because the fentry object
+// is compiled as CO-RE, and the bypass mechanism's inline assembly references
+// an undefined symbol in that context.
 SEC("kprobe/tcp_enter_loss")
-int BPF_BYPASSABLE_KPROBE(kprobe__tcp_enter_loss, struct sock *sk) {
+int BPF_KPROBE(kprobe__tcp_enter_loss, struct sock *sk) {
     handle_tcp_enter_loss(sk);
     return 0;
 }
 
 SEC("kprobe/tcp_enter_recovery")
-int BPF_BYPASSABLE_KPROBE(kprobe__tcp_enter_recovery, struct sock *sk) {
+int BPF_KPROBE(kprobe__tcp_enter_recovery, struct sock *sk) {
     handle_tcp_enter_recovery(sk);
     return 0;
 }
 
 SEC("kprobe/tcp_send_probe0")
-int BPF_BYPASSABLE_KPROBE(kprobe__tcp_send_probe0, struct sock *sk) {
+int BPF_KPROBE(kprobe__tcp_send_probe0, struct sock *sk) {
     handle_tcp_send_probe0(sk);
     return 0;
 }
