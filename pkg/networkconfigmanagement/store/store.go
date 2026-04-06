@@ -285,6 +285,7 @@ func getGlobalLRUCandidate(configsPerDevice map[string]int, sortedEntries []*Con
 			remaining := make([]*ConfigMetadata, 0, len(sortedEntries)-1)
 			remaining = append(remaining, sortedEntries[:i]...)
 			remaining = append(remaining, sortedEntries[i+1:]...)
+			configsPerDevice[entry.DeviceID]--
 			return entry.ConfigUUID, remaining
 		}
 	}
