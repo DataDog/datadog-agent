@@ -1870,6 +1870,20 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// Pipeline failover configuration
 	config.BindEnvAndSetDefault("logs_config.pipeline_failover.enabled", false)
 	config.BindEnvAndSetDefault("logs_config.pipeline_failover.router_channel_size", 5)
+
+	// Stateful stream pattern eviction
+	config.BindEnvAndSetDefault("logs_config.patterns.max_pattern_count", 5000)
+	config.BindEnvAndSetDefault("logs_config.patterns.max_memory_bytes", 5_000_000)
+	config.BindEnvAndSetDefault("logs_config.patterns.eviction_high_watermark", 0.9)
+	config.BindEnvAndSetDefault("logs_config.patterns.eviction_low_watermark", 0.7)
+	config.BindEnvAndSetDefault("logs_config.patterns.age_decay_factor", 0.5)
+
+	// Stateful stream tag dictionary eviction
+	config.BindEnvAndSetDefault("logs_config.tags.max_tag_count", 50000)
+	config.BindEnvAndSetDefault("logs_config.tags.max_memory_bytes", 20_000_000)
+	config.BindEnvAndSetDefault("logs_config.tags.eviction_high_watermark", 0.9)
+	config.BindEnvAndSetDefault("logs_config.tags.eviction_low_watermark", 0.7)
+	config.BindEnvAndSetDefault("logs_config.tags.age_decay_factor", 0.5)
 }
 
 // vector integration
