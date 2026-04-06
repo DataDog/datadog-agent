@@ -12,6 +12,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 // paramDefaultRe matches top-level @param lines that declare a default value.
@@ -102,9 +104,19 @@ func TestConfigTemplateDefaultsMatchCode(t *testing.T) {
 			continue
 		}
 
-		actual := fmt.Sprintf("%v", cfg.Get(key))
+		// Read the default layer directly to avoid env-variable overrides (DD_*)
+		// causing false failures when the test runs in an environment that has
+		// those variables set for unrelated reasons.
+		var codeDefault interface{}
+		for _, vs := range cfg.GetAllSources(key) {
+			if vs.Source == pkgconfigmodel.SourceDefault {
+				codeDefault = vs.Value
+				break
+			}
+		}
+		actual := fmt.Sprintf("%v", codeDefault)
 		if actual != templateDefault {
-			t.Errorf("config key %q: template documents default=%q but code returns %q",
+			t.Errorf("config key %q: template documents default=%q but code default=%q",
 				key, templateDefault, actual)
 		}
 	}
