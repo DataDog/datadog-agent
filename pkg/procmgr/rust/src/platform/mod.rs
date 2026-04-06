@@ -3,14 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-pub mod command;
-pub mod config;
-pub mod env;
-pub mod grpc;
-pub mod manager;
-pub mod ordering;
-pub mod platform;
-pub mod process;
-pub mod shutdown;
-pub mod state;
-pub mod uuid_gen;
+#[cfg(unix)]
+mod unix;
+#[cfg(unix)]
+pub use self::unix::*;
+
+#[cfg(windows)]
+mod windows;
+#[cfg(windows)]
+pub use self::windows::*;

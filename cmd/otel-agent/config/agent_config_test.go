@@ -7,7 +7,6 @@ package config
 
 import (
 	"context"
-	"fmt"
 	"io/fs"
 	"os"
 	"testing"
@@ -16,7 +15,6 @@ import (
 	"go.opentelemetry.io/collector/featuregate"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -304,10 +302,7 @@ func (suite *ConfigTestSuite) TestBadLogLevel() {
 	ddFileName := "testdata/datadog_bad_log_level.yaml"
 	_, err := NewConfigComponent(context.Background(), ddFileName, []string{fileName})
 
-	expectedError := fmt.Sprintf(
-		"invalid log level (%v) set in the Datadog Agent configuration",
-		pkgconfigsetup.Datadog().GetString("log_level"))
-	assert.ErrorContains(t, err, expectedError)
+	assert.EqualError(t, err, "invalid log level (yabadabadoo) set in the Datadog Agent configuration")
 }
 
 func (suite *ConfigTestSuite) TestNoDDExporter() {
