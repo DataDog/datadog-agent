@@ -484,10 +484,10 @@ func ScrubDataObj(data *interface{}) {
 }
 
 // HideKeyExceptLastFourChars replaces all characters in the key with "*", except
-// for the last 4 characters. If the key is shorter than 4 characters, replace
+// for the last 4 characters. If the key is 4 characters or less, replace
 // all of it with the default string of "*"s instead.
 func HideKeyExceptLastFourChars(key string) string {
-	if len(key) < 4 {
+	if len(key) <= 4 {
 		return defaultReplacement
 	}
 	return strings.Repeat("*", len(key)-4) + key[len(key)-4:]
