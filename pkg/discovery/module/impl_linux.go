@@ -338,33 +338,45 @@ func (s *discovery) getServiceInfo(pid int32, openFiles openFilesInfo) (*model.S
 		return nil, err
 	}
 
+	var tracerMetadataArr []tracermetadatamodel.TracerMetadata
+	var firstMetadata *tracermetadatamodel.TracerMetadata
+
+	needsSort := len(openFiles.tracerMemfdFds) > 1
 	type tracerMetadataWithTime struct {
 		metadata tracermetadatamodel.TracerMetadata
 		modTime  int64 // nanoseconds since epoch
 	}
 	var metadataWithTimes []tracerMetadataWithTime
-	var firstMetadata *tracermetadatamodel.TracerMetadata
 
 	for _, memfdFd := range openFiles.tracerMemfdFds {
 		fdPath := kernel.HostProc(strconv.Itoa(int(pid)), "fd", memfdFd)
-		info, err := os.Stat(fdPath)
-		if err != nil {
-			continue
-		}
-		tm, err := tracermetadata.GetTracerMetadataFromPath(fdPath)
-		if err == nil {
-			metadataWithTimes = append(metadataWithTimes, tracerMetadataWithTime{
-				metadata: tm,
-				modTime:  info.ModTime().UnixNano(),
-			})
+		if needsSort {
+			info, err := os.Stat(fdPath)
+			if err != nil {
+				continue
+			}
+			tm, err := tracermetadata.GetTracerMetadataFromPath(fdPath)
+			if err == nil {
+				metadataWithTimes = append(metadataWithTimes, tracerMetadataWithTime{
+					metadata: tm,
+					modTime:  info.ModTime().UnixNano(),
+				})
+			}
+		} else {
+			tm, err := tracermetadata.GetTracerMetadataFromPath(fdPath)
+			if err == nil {
+				tracerMetadataArr = append(tracerMetadataArr, tm)
+			}
 		}
 	}
-	slices.SortFunc(metadataWithTimes, func(a, b tracerMetadataWithTime) int {
-		return cmp.Compare(a.modTime, b.modTime)
-	})
-	tracerMetadataArr := make([]tracermetadatamodel.TracerMetadata, len(metadataWithTimes))
-	for i, m := range metadataWithTimes {
-		tracerMetadataArr[i] = m.metadata
+	if needsSort {
+		slices.SortFunc(metadataWithTimes, func(a, b tracerMetadataWithTime) int {
+			return cmp.Compare(a.modTime, b.modTime)
+		})
+		tracerMetadataArr = make([]tracermetadatamodel.TracerMetadata, len(metadataWithTimes))
+		for i, m := range metadataWithTimes {
+			tracerMetadataArr[i] = m.metadata
+		}
 	}
 	if len(tracerMetadataArr) > 0 {
 		firstMetadata = &tracerMetadataArr[0]

@@ -126,8 +126,8 @@ fn get_service(
 
     let cmdline = Cmdline::get(pid).ok()?;
     let exe = Exe::get(pid).ok()?;
-    let mut tracer_metadata_with_time: Vec<(TracerMetadata, std::time::SystemTime)> =
-        open_files_info
+    let tracer_metadata: Vec<TracerMetadata> = if open_files_info.tracer_memfds.len() > 1 {
+        let mut with_time: Vec<(TracerMetadata, std::time::SystemTime)> = open_files_info
             .tracer_memfds
             .iter()
             .filter_map(|path| {
@@ -136,11 +136,15 @@ fn get_service(
                 Some((tm, mtime))
             })
             .collect();
-    tracer_metadata_with_time.sort_by_key(|(_, t)| *t);
-    let tracer_metadata: Vec<TracerMetadata> = tracer_metadata_with_time
-        .into_iter()
-        .map(|(m, _)| m)
-        .collect();
+        with_time.sort_by_key(|(_, t)| *t);
+        with_time.into_iter().map(|(m, _)| m).collect()
+    } else {
+        open_files_info
+            .tracer_memfds
+            .iter()
+            .filter_map(|path| tracer_metadata::get_tracer_metadata_from_path(path).ok())
+            .collect()
+    };
     let first_metadata = tracer_metadata.first();
     let language = first_metadata
         .and_then(|m| Language::from_tracer_str(&m.tracer_language))
