@@ -488,7 +488,6 @@ func (s *discoveryTestSuite) TestServicesMultipleTracerMetadata() {
 	require.NoError(t, err)
 
 	// Create memfds with sleeps between them so mtimes are distinct.
-	// Sorted by creation time, not by runtime_id.
 	createTracerMemfd(t, dataFirst)
 	time.Sleep(50 * time.Millisecond)
 	createTracerMemfd(t, []byte("invalid msgpack data"))
@@ -521,7 +520,7 @@ func (s *discoveryTestSuite) TestServicesMultipleTracerMetadata() {
 	}, 30*time.Second, 100*time.Millisecond)
 
 	// Both valid tracer metadata should be present (invalid one skipped),
-	// sorted by creation time (mtime), not by runtime_id.
+	// sorted by creation time (mtime).
 	require.Len(t, svc.TracerMetadata, 2)
 	assert.Equal(t, "zzz-runtime-id-2", svc.TracerMetadata[0].RuntimeID)
 	assert.Equal(t, "aaa-runtime-id-1", svc.TracerMetadata[1].RuntimeID)
