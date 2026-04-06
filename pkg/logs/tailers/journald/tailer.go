@@ -53,6 +53,10 @@ type Tailer struct {
 	// instead of on the logs content.
 	processRawMessage bool
 
+	// entryReady is true when seek() has already positioned the journal on a
+	// readable entry (via SeekHead+Next). tail() should read this entry before
+	// calling Next() again.
+	entryReady bool
 	// tagProvider provides additional tags to be attached to each log message.  It
 	// is called once for each log message.
 	tagProvider            tag.Provider
@@ -223,7 +227,10 @@ func (t *Tailer) seek(cursor string) error {
 		if err := t.journal.SeekHead(); err != nil {
 			return err
 		}
-		_, err := t.journal.Next() // SeekHead must be followed by Next
+		// SeekHead must be followed by Next before any Get* call.
+		// Set entryReady so tail() reads this entry before calling Next().
+		n, err := t.journal.Next()
+		t.entryReady = n > 0
 		return err
 	}
 	seekTail := func() error {
@@ -271,17 +278,22 @@ func (t *Tailer) tail() {
 		case <-t.stop:
 			return
 		default:
-			n, err := t.journal.Next()
-			if err != nil && err != io.EOF {
-				err := fmt.Errorf("cant't tail journal %s: %s", t.journalPath(), err)
-				t.source.Status.Error(err)
-				log.Error(err)
-				return
-			}
-			if n < 1 {
-				// no new entry
-				t.journal.Wait(defaultWaitDuration)
-				continue
+			if t.entryReady {
+				// seek() already positioned the journal on a readable entry.
+				t.entryReady = false
+			} else {
+				n, err := t.journal.Next()
+				if err != nil && err != io.EOF {
+					err := fmt.Errorf("cant't tail journal %s: %s", t.journalPath(), err)
+					t.source.Status.Error(err)
+					log.Error(err)
+					return
+				}
+				if n < 1 {
+					// no new entry
+					t.journal.Wait(defaultWaitDuration)
+					continue
+				}
 			}
 			entry, err := t.journal.GetEntry()
 			if err != nil {

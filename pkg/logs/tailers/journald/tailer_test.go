@@ -33,6 +33,11 @@ type MockJournal struct {
 	previous int
 	cursor   string
 	entries  []*sdjournal.JournalEntry
+	// idx tracks the current journal cursor position, mirroring real journald
+	// semantics: -1 means before the first entry (set by SeekHead),
+	// len(entries) means after the last entry (set by SeekTail).
+	// When creating a mock to read entries, initialize with idx: -1.
+	idx int
 }
 
 func (m *MockJournal) AddMatch(_ string) error {
@@ -45,11 +50,13 @@ func (m *MockJournal) AddDisjunction() error {
 
 func (m *MockJournal) SeekTail() error {
 	m.seekTail++
+	m.idx = len(m.entries)
 	return nil
 }
 
 func (m *MockJournal) SeekHead() error {
 	m.seekHead++
+	m.idx = -1
 	return nil
 }
 
@@ -75,28 +82,31 @@ func (m *MockJournal) Next() (uint64, error) {
 	m.m.Lock()
 	defer m.m.Unlock()
 	m.next++
-	return uint64(len(m.entries)), nil
+	m.idx++
+	if m.idx < len(m.entries) {
+		return 1, nil
+	}
+	return 0, nil
 }
 
 func (m *MockJournal) Previous() (uint64, error) {
 	m.m.Lock()
 	defer m.m.Unlock()
 	m.previous++
-	return uint64(len(m.entries)), nil
+	m.idx--
+	if m.idx >= 0 && m.idx < len(m.entries) {
+		return 1, nil
+	}
+	return 0, nil
 }
 
 func (m *MockJournal) GetEntry() (*sdjournal.JournalEntry, error) {
 	m.m.Lock()
 	defer m.m.Unlock()
-	defer func() {
-		m.entries = m.entries[1:]
-	}()
-
-	if len(m.entries) == 0 {
+	if m.idx < 0 || m.idx >= len(m.entries) {
 		return nil, nil
 	}
-
-	return m.entries[0], nil
+	return m.entries[m.idx], nil
 }
 
 func (m *MockJournal) GetCursor() (string, error) {
@@ -566,8 +576,8 @@ func TestTailingMode(t *testing.T) {
 
 func TestTailerCanTailJournal(t *testing.T) {
 
-	mockJournal := &MockJournal{m: &sync.Mutex{}}
-	source := sources.NewLogSource("", &config.LogsConfig{})
+	mockJournal := &MockJournal{m: &sync.Mutex{}, idx: -1}
+	source := sources.NewLogSource("", &config.LogsConfig{TailingMode: "beginning"})
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	fakeRegistry := auditorMock.NewMockAuditor()
 	tailer := NewTailer(source, make(chan *message.Message, 1), mockJournal, true, fakeTagger, fakeRegistry)
@@ -585,11 +595,38 @@ func TestTailerCanTailJournal(t *testing.T) {
 	tailer.Stop()
 }
 
+func TestSeekHeadReadsFirstEntry(t *testing.T) {
+	mockJournal := &MockJournal{m: &sync.Mutex{}, idx: -1}
+	source := sources.NewLogSource("", &config.LogsConfig{TailingMode: "beginning"})
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	fakeRegistry := auditorMock.NewMockAuditor()
+	tailer := NewTailer(source, make(chan *message.Message, 2), mockJournal, true, fakeTagger, fakeRegistry)
+
+	mockJournal.entries = []*sdjournal.JournalEntry{
+		{Fields: map[string]string{"MESSAGE": "first"}},
+		{Fields: map[string]string{"MESSAGE": "second"}},
+	}
+
+	tailer.Start("")
+
+	msg1 := <-tailer.outputChan
+	var parsed1 map[string]interface{}
+	json.Unmarshal(msg1.GetContent(), &parsed1)
+	assert.Equal(t, "first", parsed1["message"])
+
+	msg2 := <-tailer.outputChan
+	var parsed2 map[string]interface{}
+	json.Unmarshal(msg2.GetContent(), &parsed2)
+	assert.Equal(t, "second", parsed2["message"])
+
+	tailer.Stop()
+}
+
 func TestTailerWithStructuredMessage(t *testing.T) {
 	assert := assert.New(t)
 
-	mockJournal := &MockJournal{m: &sync.Mutex{}}
-	source := sources.NewLogSource("", &config.LogsConfig{})
+	mockJournal := &MockJournal{m: &sync.Mutex{}, idx: -1}
+	source := sources.NewLogSource("", &config.LogsConfig{TailingMode: "beginning"})
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	fakeRegistry := auditorMock.NewMockAuditor()
 	tailer := NewTailer(source, make(chan *message.Message, 1), mockJournal, false, fakeTagger, fakeRegistry)
@@ -614,8 +651,8 @@ func TestTailerCompareUnstructuredAndStructured(t *testing.T) {
 
 	// v1 behavior tailer
 
-	mockJournalV1 := &MockJournal{m: &sync.Mutex{}}
-	sourceV1 := sources.NewLogSource("", &config.LogsConfig{})
+	mockJournalV1 := &MockJournal{m: &sync.Mutex{}, idx: -1}
+	sourceV1 := sources.NewLogSource("", &config.LogsConfig{TailingMode: "beginning"})
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	fakeRegistry := auditorMock.NewMockAuditor()
 	tailerV1 := NewTailer(sourceV1, make(chan *message.Message, 1), mockJournalV1, true, fakeTagger, fakeRegistry)
@@ -629,8 +666,8 @@ func TestTailerCompareUnstructuredAndStructured(t *testing.T) {
 
 	// v2 behavior tailer
 
-	mockJournalV2 := &MockJournal{m: &sync.Mutex{}}
-	sourceV2 := sources.NewLogSource("", &config.LogsConfig{})
+	mockJournalV2 := &MockJournal{m: &sync.Mutex{}, idx: -1}
+	sourceV2 := sources.NewLogSource("", &config.LogsConfig{TailingMode: "beginning"})
 	tailerV2 := NewTailer(sourceV2, make(chan *message.Message, 1), mockJournalV2, false, fakeTagger, fakeRegistry)
 	mockJournalV2.entries = append(mockJournalV2.entries, &sdjournal.JournalEntry{Fields: map[string]string{
 		sdjournal.SD_JOURNAL_FIELD_MESSAGE: "journald log message content",
@@ -663,8 +700,8 @@ func TestExpectedTagDuration(t *testing.T) {
 	// test, even with the race detector enabled, don't hit that time limit.
 	mockConfig.SetWithoutSource("logs_config.expected_tags_duration", "1h")
 
-	mockJournal := &MockJournal{m: &sync.Mutex{}}
-	source := sources.NewLogSource("", &config.LogsConfig{})
+	mockJournal := &MockJournal{m: &sync.Mutex{}, idx: -1}
+	source := sources.NewLogSource("", &config.LogsConfig{TailingMode: "beginning"})
 	fakeRegistry := auditorMock.NewMockAuditor()
 	tailer := NewTailer(source, make(chan *message.Message, 1), mockJournal, true, fakeTagger, fakeRegistry)
 
