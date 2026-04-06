@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/require"
 )
@@ -24,7 +23,6 @@ func TestFxApp(t *testing.T) {
 		err := fxutil.OneShot(run,
 			recorderfx.Module(),
 			core.Bundle(),
-			secretsnoopfx.Module(),
 			fx.Supply(core.BundleParams{
 				ConfigParams: config.NewAgentParams(""),
 				LogParams:    log.ForOneShot("", "off", true),

@@ -308,7 +308,7 @@ func NewComponent(deps Requires) Provides {
 				eng.onAdvance = advRec.record
 				obs.advanceLogCleanup = func() {
 					eng.onAdvance = nil
-					advRec.close()
+					_ = advRec.close()
 				}
 			}
 		}

@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/observer/def
 
-go 1.25.3
+go 1.25.0
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
