@@ -39,7 +39,10 @@ pub fn sleep_cmd(secs: u32) -> (&'static str, Vec<String>) {
 
 #[cfg(windows)]
 pub fn sleep_cmd(secs: u32) -> (&'static str, Vec<String>) {
-    ("cmd.exe", vec!["/C".into(), format!("timeout /t {secs} /nobreak >nul")])
+    (
+        "cmd.exe",
+        vec!["/C".into(), format!("timeout /t {secs} /nobreak >nul")],
+    )
 }
 
 /// Shell command + flag for running an inline script.
@@ -106,7 +109,10 @@ pub fn false_config_yaml() -> &'static str {
 /// until SIGKILL arrives.
 #[cfg(unix)]
 pub fn trap_term_sleep() -> (&'static str, Vec<&'static str>) {
-    ("/bin/sh", vec!["-c", "trap '' TERM; while true; do sleep 60; done"])
+    (
+        "/bin/sh",
+        vec!["-c", "trap '' TERM; while true; do sleep 60; done"],
+    )
 }
 
 #[cfg(windows)]
