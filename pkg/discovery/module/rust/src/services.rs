@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+use std::path::PathBuf;
+
 use serde::Serialize;
 
 use crate::apm;
@@ -105,6 +107,29 @@ fn is_using_gpu(pid: i32, open_files_info: &OpenFilesInfo) -> bool {
     open_files_info.has_gpu_device || procfs::maps::has_gpu_nvidia_libraries(pid)
 }
 
+/// Reads tracer metadata from all memfd paths. When multiple memfds are present,
+/// sorts them by file modification time (creation order). When there is only one,
+/// skips the stat call.
+fn get_all_tracer_metadata(memfd_paths: &[PathBuf]) -> Vec<TracerMetadata> {
+    if memfd_paths.len() <= 1 {
+        return memfd_paths
+            .iter()
+            .filter_map(|path| tracer_metadata::get_tracer_metadata_from_path(path).ok())
+            .collect();
+    }
+
+    let mut with_time: Vec<(TracerMetadata, std::time::SystemTime)> = memfd_paths
+        .iter()
+        .filter_map(|path| {
+            let mtime = std::fs::metadata(path).ok()?.modified().ok()?;
+            let tm = tracer_metadata::get_tracer_metadata_from_path(path).ok()?;
+            Some((tm, mtime))
+        })
+        .collect();
+    with_time.sort_by_key(|(_, t)| *t);
+    with_time.into_iter().map(|(m, _)| m).collect()
+}
+
 fn get_service(
     pid: i32,
     context: &mut ParsingContext,
@@ -126,25 +151,7 @@ fn get_service(
 
     let cmdline = Cmdline::get(pid).ok()?;
     let exe = Exe::get(pid).ok()?;
-    let tracer_metadata: Vec<TracerMetadata> = if open_files_info.tracer_memfds.len() > 1 {
-        let mut with_time: Vec<(TracerMetadata, std::time::SystemTime)> = open_files_info
-            .tracer_memfds
-            .iter()
-            .filter_map(|path| {
-                let mtime = std::fs::metadata(path).ok()?.modified().ok()?;
-                let tm = tracer_metadata::get_tracer_metadata_from_path(path).ok()?;
-                Some((tm, mtime))
-            })
-            .collect();
-        with_time.sort_by_key(|(_, t)| *t);
-        with_time.into_iter().map(|(m, _)| m).collect()
-    } else {
-        open_files_info
-            .tracer_memfds
-            .iter()
-            .filter_map(|path| tracer_metadata::get_tracer_metadata_from_path(path).ok())
-            .collect()
-    };
+    let tracer_metadata = get_all_tracer_metadata(&open_files_info.tracer_memfds);
     let first_metadata = tracer_metadata.first();
     let language = first_metadata
         .and_then(|m| Language::from_tracer_str(&m.tracer_language))
