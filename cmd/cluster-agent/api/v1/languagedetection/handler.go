@@ -79,10 +79,9 @@ func (handler *languageDetectionHandler) startCleanupInBackground(ctx context.Co
 			case <-cleanupTicker.C:
 				// Only clean expired languages if we're the leader
 				if handler.isLeader() {
-					var spanErr error
 					span, _ := tracer.StartSpanFromContext(ctx, "cluster_agent.language_detection.cleanup")
 					handler.ownersLanguages.cleanExpiredLanguages(handler.wlm)
-					span.Finish(tracer.WithError(spanErr))
+					span.Finish()
 				}
 			case <-ctx.Done():
 				return
@@ -99,13 +98,9 @@ func (handler *languageDetectionHandler) startCleanupInBackground(ctx context.Co
 			select {
 			case <-flushTicker.C:
 				if !handler.isLeader() {
-					var spanErr error
-					span, _ := tracer.StartSpanFromContext(ctx, "cluster_agent.language_detection.flush")
-					err := handler.ownersLanguages.flush(handler.wlm)
-					if err != nil {
-						spanErr = err
-					}
-					span.Finish(tracer.WithError(spanErr))
+						span, _ := tracer.StartSpanFromContext(ctx, "cluster_agent.language_detection.flush")
+						err := handler.ownersLanguages.flush(handler.wlm)
+						span.Finish(tracer.WithError(err))
 				}
 			case <-ctx.Done():
 				return
