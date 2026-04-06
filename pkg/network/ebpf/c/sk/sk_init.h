@@ -84,35 +84,14 @@ int bpf_iter__task_file_initial_sockets(struct bpf_iter__task_file *ctx) {
         return 0;
     }
     struct sock *sk = sock->sk;
+    if (!is_protocol_family_enabled(sk)) {
+        return 0;
+    }
 
     if (sk->sk_protocol == IPPROTO_TCP || sk->sk_protocol == IPPROTO_MPTCP) {
-        switch (sk->sk_family) {
-        case AF_INET6:
-            if (!is_tcpv6_enabled()) return 0;
-            break;
-        case AF_INET:
-            if (!is_tcpv4_enabled()) return 0;
-            break;
-        default:
-            return 0;
-        }
-
         initialize_tcp_socket(sk, task, file);
-        return 0;
     } else if (sk->sk_protocol == IPPROTO_UDP) {
-        switch (sk->sk_family) {
-        case AF_INET6:
-            if (!is_udpv6_enabled()) return 0;
-            break;
-        case AF_INET:
-            if (!is_udpv4_enabled()) return 0;
-            break;
-        default:
-            return 0;
-        }
-
         initialize_udp_socket(sk, task, file);
-        return 0;
     }
     return 0;
 }

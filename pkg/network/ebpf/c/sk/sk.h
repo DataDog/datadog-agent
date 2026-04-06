@@ -125,4 +125,31 @@ static __always_inline int read_conn_tuple_sk(conn_tuple_t* t, struct sock* sk, 
     return err ? 0 : 1;
 }
 
+static __always_inline bool is_protocol_family_enabled(const struct sock *sk) {
+    if (sk->sk_protocol == IPPROTO_TCP || sk->sk_protocol == IPPROTO_MPTCP) {
+        switch (sk->sk_family) {
+        case AF_INET6:
+            if (is_tcpv6_enabled()) return true;
+            break;
+        case AF_INET:
+            if (is_tcpv4_enabled()) return true;
+            break;
+        default:
+            return false;
+        }
+    } else if (sk->sk_protocol == IPPROTO_UDP) {
+         switch (sk->sk_family) {
+         case AF_INET6:
+             if (is_udpv6_enabled()) return true;
+             break;
+         case AF_INET:
+             if (is_udpv4_enabled()) return true;
+             break;
+         default:
+             return false;
+         }
+     }
+     return false;
+}
+
 #endif
