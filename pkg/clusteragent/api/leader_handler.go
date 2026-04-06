@@ -108,6 +108,7 @@ func (lph *LeaderProxyHandler) rejectOrForwardLeaderQuery(rw http.ResponseWriter
 			span.SetTag("forwarded", false)
 			span.SetTag("forward.failure_mode", "engine_unavailable")
 			span.SetTag(ext.Error, err)
+			SetSpanError(rw, err)
 			http.Error(rw, "leader engine can't be retrieved", http.StatusServiceUnavailable)
 			return true
 		}
@@ -127,16 +128,19 @@ func (lph *LeaderProxyHandler) rejectOrForwardLeaderQuery(rw http.ResponseWriter
 		span.SetTag("forwarded", false)
 		span.SetTag("forward.failure_mode", "leader_ip_unavailable")
 		span.SetTag(ext.Error, err)
+		SetSpanError(rw, err)
 		http.Error(rw, "failed to retrieve leader ip", http.StatusServiceUnavailable)
 		return true
 	}
 
 	// if the leader forwarder is not set, we can't forward the request
 	if lph.leaderForwarder == nil {
-		log.Errorf("leader forwarder is not available")
+		forwarderErr := errors.New("leader forwarder is not available")
+		log.Errorf("%v", forwarderErr)
 		span.SetTag("forwarded", false)
 		span.SetTag("forward.failure_mode", "forwarder_unavailable")
-		span.SetTag(ext.Error, errors.New("leader forwarder is not available"))
+		span.SetTag(ext.Error, forwarderErr)
+		SetSpanError(rw, forwarderErr)
 		http.Error(rw, "leader forwarder is not available", http.StatusServiceUnavailable)
 		return true
 	}
