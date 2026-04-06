@@ -118,9 +118,13 @@ pub fn trap_term_sleep() -> (&'static str, Vec<&'static str>) {
 #[cfg(windows)]
 pub fn trap_term_sleep() -> (&'static str, Vec<&'static str>) {
     // On Windows there is no SIGTERM to trap; the graceful stop sends
-    // CTRL_BREAK_EVENT which cmd.exe ignores by default, so a plain
-    // long sleep is equivalent.
-    ("cmd.exe", vec!["/C", "timeout /t 60 /nobreak >nul"])
+    // CTRL_BREAK_EVENT which cmd.exe ignores by default.
+    // Loop indefinitely so the process outlives any stop_timeout and
+    // forces the escalation to TerminateProcess (force-kill).
+    (
+        "cmd.exe",
+        vec!["/C", "for /L %i in () do @timeout /t 60 /nobreak >nul"],
+    )
 }
 
 /// Shell command that exits with the value of the given environment variable.
