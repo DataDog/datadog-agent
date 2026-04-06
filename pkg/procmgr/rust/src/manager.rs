@@ -500,7 +500,11 @@ mod tests {
     }
 
     fn sleep_def(name: &str) -> ProcessDefinition {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
+        sleep_def_secs(name, 60)
+    }
+
+    fn sleep_def_secs(name: &str, secs: u32) -> ProcessDefinition {
+        let (cmd, args) = test_helpers::sleep_cmd(secs);
         ProcessDefinition {
             name: name.to_string(),
             config: ProcessConfig {
@@ -542,20 +546,13 @@ mod tests {
         let old_pid = {
             let procs = mgr.processes().await;
             assert!(procs[0].is_running());
-            assert_eq!(procs[0].config().args, vec!["60"]);
+            let expected_args = sleep_def("_").config.args;
+            assert_eq!(procs[0].config().args, expected_args);
             procs[0].pid().unwrap()
         };
 
         // Reload with modified config (different args)
-        let (cmd, _) = test_helpers::sleep_cmd(120);
-        config_loader.set(vec![ProcessDefinition {
-            name: "svc-a".to_string(),
-            config: ProcessConfig {
-                command: cmd.to_string(),
-                args: vec!["120".to_string()],
-                ..Default::default()
-            },
-        }]);
+        config_loader.set(vec![sleep_def_secs("svc-a", 120)]);
         let result = mgr.handle_reload_config(&exit_tx).await?;
         assert!(result.modified.contains(&"svc-a".to_string()));
         assert!(result.added.is_empty());
@@ -564,7 +561,8 @@ mod tests {
 
         // Config should be updated and process restarted with a new PID
         let procs = mgr.processes().await;
-        assert_eq!(procs[0].config().args, vec!["120"]);
+        let expected_args = sleep_def_secs("_", 120).config.args;
+        assert_eq!(procs[0].config().args, expected_args);
         assert!(
             procs[0].is_running(),
             "modified running process should be restarted"
@@ -586,20 +584,13 @@ mod tests {
         let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
 
         // Don't start svc-a — leave it in Created state
-        let (cmd, _) = test_helpers::sleep_cmd(120);
-        config_loader.set(vec![ProcessDefinition {
-            name: "svc-a".to_string(),
-            config: ProcessConfig {
-                command: cmd.to_string(),
-                args: vec!["120".to_string()],
-                ..Default::default()
-            },
-        }]);
+        config_loader.set(vec![sleep_def_secs("svc-a", 120)]);
         let result = mgr.handle_reload_config(&exit_tx).await?;
         assert!(result.modified.contains(&"svc-a".to_string()));
 
         let procs = mgr.processes().await;
-        assert_eq!(procs[0].config().args, vec!["120"]);
+        let expected_args = sleep_def_secs("_", 120).config.args;
+        assert_eq!(procs[0].config().args, expected_args);
         assert!(
             !procs[0].is_running(),
             "non-running modified process should not be started"
@@ -754,11 +745,12 @@ mod tests {
         mgr.handle_start("svc-a", &exit_tx).await?;
 
         // Create a runtime process
+        let (cmd, args) = test_helpers::sleep_cmd(60);
         mgr.handle_create(
             "runtime-svc".to_string(),
             ProcessConfig {
-                command: test_helpers::sleep_cmd(60).0.to_string(),
-                args: vec!["60".to_string()],
+                command: cmd.to_string(),
+                args: args.into_iter().map(|a| a.to_string()).collect(),
                 auto_start: false,
                 ..Default::default()
             },
@@ -803,11 +795,12 @@ mod tests {
     async fn test_create_includes_runtime_process_in_startup_order() -> anyhow::Result<()> {
         let mgr = ProcessManager::new(loader(vec![sleep_def("svc-a")]), uuid_gen());
         let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
+        let (cmd, args) = test_helpers::sleep_cmd(60);
         mgr.handle_create(
             "svc-b".to_string(),
             ProcessConfig {
-                command: test_helpers::sleep_cmd(60).0.to_string(),
-                args: vec!["60".to_string()],
+                command: cmd.to_string(),
+                args: args.into_iter().map(|a| a.to_string()).collect(),
                 after: vec!["svc-a".to_string()],
                 auto_start: false,
                 ..Default::default()
@@ -831,11 +824,12 @@ mod tests {
     async fn test_create_auto_start_spawns_process() -> anyhow::Result<()> {
         let mgr = ProcessManager::new(loader(vec![]), uuid_gen());
         let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+        let (cmd, args) = test_helpers::sleep_cmd(60);
         mgr.handle_create(
             "auto-svc".to_string(),
             ProcessConfig {
-                command: test_helpers::sleep_cmd(60).0.to_string(),
-                args: vec!["60".to_string()],
+                command: cmd.to_string(),
+                args: args.into_iter().map(|a| a.to_string()).collect(),
                 auto_start: true,
                 ..Default::default()
             },
@@ -864,11 +858,12 @@ mod tests {
     async fn test_create_auto_start_false_stays_created() -> anyhow::Result<()> {
         let mgr = ProcessManager::new(loader(vec![]), uuid_gen());
         let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
+        let (cmd, args) = test_helpers::sleep_cmd(60);
         mgr.handle_create(
             "manual-svc".to_string(),
             ProcessConfig {
-                command: test_helpers::sleep_cmd(60).0.to_string(),
-                args: vec!["60".to_string()],
+                command: cmd.to_string(),
+                args: args.into_iter().map(|a| a.to_string()).collect(),
                 auto_start: false,
                 ..Default::default()
             },
@@ -916,11 +911,12 @@ mod tests {
     async fn test_create_auto_start_condition_not_met() -> anyhow::Result<()> {
         let mgr = ProcessManager::new(loader(vec![]), uuid_gen());
         let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
+        let (cmd, args) = test_helpers::sleep_cmd(60);
         mgr.handle_create(
             "cond-svc".to_string(),
             ProcessConfig {
-                command: test_helpers::sleep_cmd(60).0.to_string(),
-                args: vec!["60".to_string()],
+                command: cmd.to_string(),
+                args: args.into_iter().map(|a| a.to_string()).collect(),
                 auto_start: true,
                 condition_path_exists: Some("/nonexistent/path/that/should/not/exist".to_string()),
                 ..Default::default()
@@ -951,12 +947,13 @@ mod tests {
 
         // Reload with a new process that has an after-dependency, which
         // forces a non-alphabetical order (svc-b before svc-api).
+        let (cmd, args) = test_helpers::sleep_cmd(60);
         config_loader.set(vec![
             ProcessDefinition {
                 name: "svc-api".to_string(),
                 config: ProcessConfig {
-                    command: test_helpers::sleep_cmd(60).0.to_string(),
-                    args: vec!["60".to_string()],
+                    command: cmd.to_string(),
+                    args: args.into_iter().map(|a| a.to_string()).collect(),
                     after: vec!["svc-b".to_string()],
                     ..Default::default()
                 },
