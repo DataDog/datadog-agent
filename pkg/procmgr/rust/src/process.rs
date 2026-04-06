@@ -492,23 +492,9 @@ fn stdio_from_str(s: &str) -> Stdio {
 pub mod tests {
     use super::*;
     use crate::config::ProcessConfig;
-    use crate::test_helpers;
+    use crate::test_helpers::{self, make_config, test_uuid};
     #[cfg(unix)]
     use nix::sys::signal::Signal;
-
-    pub fn test_uuid() -> String {
-        "00000000-0000-0000-0000-000000000000".to_string()
-    }
-
-    pub fn make_config<S: Into<String>>(command: &str, args: Vec<S>) -> ProcessConfig {
-        ProcessConfig {
-            command: command.to_string(),
-            args: args.into_iter().map(Into::into).collect(),
-            stdout: "null".to_string(),
-            stderr: "null".to_string(),
-            ..Default::default()
-        }
-    }
 
     // -- state lifecycle tests --
 
