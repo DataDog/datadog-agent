@@ -22,6 +22,7 @@ func TestValidateShouldSucceedWithValidConfigs(t *testing.T) {
 		{Type: FileType, Path: "/var/log/foo.log", FingerprintConfig: &types.FingerprintConfig{MaxBytes: 256, Count: 1, CountToSkip: 0, FingerprintStrategy: "line_checksum"}},
 		{Type: TCPType, Port: 1234, FingerprintConfig: &types.FingerprintConfig{MaxBytes: 256, Count: 1, CountToSkip: 0, FingerprintStrategy: "line_checksum"}},
 		{Type: UDPType, Port: 5678, FingerprintConfig: &types.FingerprintConfig{MaxBytes: 256, Count: 1, CountToSkip: 0, FingerprintStrategy: "line_checksum"}},
+		{Type: TCPType, Port: 6514, TLS: &TLSListenerConfig{CertFile: "/cert", KeyFile: "/key"}, FingerprintConfig: &types.FingerprintConfig{MaxBytes: 256, Count: 1, CountToSkip: 0, FingerprintStrategy: "line_checksum"}},
 		{Type: DockerType, FingerprintConfig: &types.FingerprintConfig{MaxBytes: 256, Count: 1, CountToSkip: 0, FingerprintStrategy: "line_checksum"}},
 		{Type: JournaldType, ProcessingRules: []*ProcessingRule{{Name: "foo", Type: ExcludeAtMatch, Pattern: ".*"}}, FingerprintConfig: &types.FingerprintConfig{MaxBytes: 256, Count: 1, CountToSkip: 0, FingerprintStrategy: "line_checksum"}},
 	}
@@ -38,6 +39,9 @@ func TestValidateShouldFailWithInvalidConfigs(t *testing.T) {
 		{Type: FileType},
 		{Type: TCPType},
 		{Type: UDPType},
+		{Type: TCPType, Port: 6514, TLS: &TLSListenerConfig{CertFile: "/cert"}},
+		{Type: UDPType, Port: 514, TLS: &TLSListenerConfig{CertFile: "/cert", KeyFile: "/key"}},
+		{Type: TCPType, Port: 6514, TLS: &TLSListenerConfig{CertFile: "/cert", KeyFile: "/key", MinTLSVersion: "tls1.2"}},
 		{Type: DockerType, ProcessingRules: []*ProcessingRule{{Name: "foo"}}},
 		{Type: DockerType, ProcessingRules: []*ProcessingRule{{Name: "foo", Type: "bar"}}},
 		{Type: DockerType, ProcessingRules: []*ProcessingRule{{Name: "foo", Type: ExcludeAtMatch}}},
@@ -189,6 +193,103 @@ func TestFingerprintConfig(t *testing.T) {
 		err := ValidateFingerprintConfig(config)
 		assert.NotNil(t, err)
 	}
+}
+
+func TestValidateTLSConfig(t *testing.T) {
+	t.Run("valid TLS with cert and key", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type: TCPType,
+			Port: 6514,
+			TLS:  &TLSListenerConfig{CertFile: "/path/to/cert.pem", KeyFile: "/path/to/key.pem"},
+		}
+		err := cfg.validateTLS()
+		assert.Nil(t, err)
+	})
+
+	t.Run("nil TLS is valid", func(t *testing.T) {
+		cfg := &LogsConfig{Type: TCPType, Port: 1234}
+		err := cfg.validateTLS()
+		assert.Nil(t, err)
+	})
+
+	t.Run("TLS on non-TCP type fails", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type: UDPType,
+			Port: 514,
+			TLS:  &TLSListenerConfig{CertFile: "/cert", KeyFile: "/key"},
+		}
+		err := cfg.validateTLS()
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "only supported for tcp")
+	})
+
+	t.Run("TLS missing key_file fails", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type: TCPType,
+			Port: 6514,
+			TLS:  &TLSListenerConfig{CertFile: "/cert"},
+		}
+		err := cfg.validateTLS()
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "cert_file and key_file")
+	})
+
+	t.Run("TLS missing cert_file fails", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type: TCPType,
+			Port: 6514,
+			TLS:  &TLSListenerConfig{KeyFile: "/key"},
+		}
+		err := cfg.validateTLS()
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "cert_file and key_file")
+	})
+
+	t.Run("unrecognized min_tls_version fails", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type: TCPType,
+			Port: 6514,
+			TLS:  &TLSListenerConfig{CertFile: "/cert", KeyFile: "/key", MinTLSVersion: "tls1.2"},
+		}
+		err := cfg.validateTLS()
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "unrecognized min_tls_version")
+	})
+
+	t.Run("all valid min_tls_version values pass", func(t *testing.T) {
+		for _, v := range []string{"", "tlsv1.2", "tlsv1.3"} {
+			cfg := &LogsConfig{
+				Type: TCPType,
+				Port: 6514,
+				TLS:  &TLSListenerConfig{CertFile: "/cert", KeyFile: "/key", MinTLSVersion: v},
+			}
+			err := cfg.validateTLS()
+			assert.Nil(t, err, "min_tls_version %q should be valid", v)
+		}
+	})
+
+	t.Run("deprecated TLS versions are rejected", func(t *testing.T) {
+		for _, v := range []string{"tlsv1.0", "tlsv1.1"} {
+			cfg := &LogsConfig{
+				Type: TCPType,
+				Port: 6514,
+				TLS:  &TLSListenerConfig{CertFile: "/cert", KeyFile: "/key", MinTLSVersion: v},
+			}
+			err := cfg.validateTLS()
+			assert.NotNil(t, err, "min_tls_version %q should be rejected", v)
+			assert.Contains(t, err.Error(), "unrecognized min_tls_version")
+		}
+	})
+}
+
+func TestParseTLSVersion(t *testing.T) {
+	assert.Equal(t, uint16(0x0303), parseTLSVersion("tlsv1.2"))
+	assert.Equal(t, uint16(0x0304), parseTLSVersion("tlsv1.3"))
+	assert.Equal(t, uint16(0x0303), parseTLSVersion(""))
+	assert.Equal(t, uint16(0x0304), parseTLSVersion("TLSv1.3"))
+	assert.Equal(t, uint16(0), parseTLSVersion("invalid"))
+	assert.Equal(t, uint16(0), parseTLSVersion("tlsv1.0"), "TLS 1.0 should no longer be accepted")
+	assert.Equal(t, uint16(0), parseTLSVersion("tlsv1.1"), "TLS 1.1 should no longer be accepted")
 }
 
 func TestValidateWildcardWithBeginningMode(t *testing.T) {
