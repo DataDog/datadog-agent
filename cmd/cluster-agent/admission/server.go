@@ -169,6 +169,7 @@ func (s *Server) Run(mainCtx context.Context) error {
 		case <-mainCtx.Done():
 			shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()
+			s.healthHandle.Deregister() //nolint:errcheck
 			return server.Shutdown(shutdownCtx)
 		case err := <-servErrCh:
 			return fmt.Errorf("admission controller webhook server stopped unexpectedly: %w", err)
