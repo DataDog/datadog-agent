@@ -207,6 +207,32 @@ func TestUnscheduleConfigRemovesSource(t *testing.T) {
 	assert.Equal(t, "a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b", logSource.Config.Identifier)
 }
 
+func TestUnscheduleRemovesSourcesWhenServiceIDEmpty(t *testing.T) {
+	scheduler, spy := setup()
+
+	adConfig := integration.Config{
+		Name:         "container_collect_all",
+		LogsConfig:   []byte(`[{}]`),
+		Provider:     names.Container,
+		ServiceID:    "",
+		ClusterCheck: false,
+	}
+
+	sources, err := CreateSources(adConfig)
+	require.NoError(t, err)
+	require.Len(t, sources, 1)
+	require.Empty(t, sources[0].Config.Identifier, "empty ServiceID must leave Identifier unset so the source matches empty identifier cleanup")
+
+	spy.Sources = sources
+	scheduler.Unschedule([]integration.Config{adConfig})
+
+	require.Len(t, spy.Events, 1,
+		"expected RemoveSource after Unschedule; empty ServiceID + old Unschedule skips cleanup. "+
+			"Source comes from CreateSources validation (WARN: Invalid logs configuration: a config must have a type).")
+	require.False(t, spy.Events[0].Add)
+	assert.Same(t, sources[0], spy.Events[0].Source)
+}
+
 func TestIgnoreConfigIfLogsExcluded(t *testing.T) {
 	scheduler, spy := setup()
 	configService := integration.Config{

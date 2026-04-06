@@ -148,8 +148,10 @@ func (s *Scheduler) Unschedule(configs []integration.Config) {
 
 			_, identifier, err := parseServiceID(config.ServiceID)
 			if err != nil {
-				log.Warnf("Invalid configuration: %v", err)
-				continue
+				// log.Warnf("Invalid configuration: %v", err)
+				// continue
+				log.Warnf("Could not parse service ID %q: %v; removing sources with empty identifier", config.ServiceID, err)
+				identifier = ""
 			}
 
 			// remove all the sources for this ServiceID.  This makes the
