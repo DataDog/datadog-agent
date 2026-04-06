@@ -100,7 +100,7 @@ func newFactoryForAgentWithType(
 	var options []otlpmetrics.TranslatorOption
 	switch {
 	case featuregates.DisableMetricRemappingFeatureGate.IsEnabled():
-		options = append(options, otlpmetrics.WithoutRuntimeMetricMappings())
+		options = append(options, otlpmetrics.WithNoRemapping())
 	case featuregates.MetricRemappingDisabledFeatureGate.IsEnabled():
 		// old gate, no action needed
 	default:
@@ -145,7 +145,7 @@ func NewFactoryForOSSExporter(typ component.Type, statsIn chan []byte) exp.Facto
 	var options []otlpmetrics.TranslatorOption
 	switch {
 	case featuregates.DisableMetricRemappingFeatureGate.IsEnabled():
-		options = append(options, otlpmetrics.WithoutRuntimeMetricMappings())
+		options = append(options, otlpmetrics.WithNoRemapping())
 	case featuregates.MetricRemappingDisabledFeatureGate.IsEnabled():
 		// old gate, no action needed
 	default:
