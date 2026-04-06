@@ -88,7 +88,6 @@ func (le *LeaderEngine) getCurrentLeader() (string, error) {
 }
 
 func (le *LeaderEngine) createLeaderTokenIfNotExists() error {
-
 	if le.lockType == rl.LeasesResourceLock {
 		_, err := le.coordClient.Leases(le.LeaderNamespace).Get(context.TODO(), le.LeaseName, metav1.GetOptions{})
 
