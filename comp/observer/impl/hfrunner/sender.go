@@ -51,7 +51,7 @@ func (m *observerSenderManager) GetDefaultSender() (aggsender.Sender, error) {
 // used to compute deltas for Rate and MonotonicCount metrics.
 type prevSample struct {
 	value float64
-	ts    int64
+	ts    int64 // unix timestamp in nanoseconds
 }
 
 // observerSender implements sender.Sender. Metric calls route to the observer
@@ -97,7 +97,7 @@ func metricKey(name string, tags []string) string {
 // MonotonicCount metrics.
 func (s *observerSender) observeDelta(name string, value float64, tags []string, isRate bool, flushFirstValue bool) {
 	key := metricKey(name, tags)
-	now := time.Now().Unix()
+	now := time.Now().UnixNano()
 
 	prev, hasPrev := s.prev[key]
 	s.prev[key] = prevSample{value: value, ts: now}
@@ -122,7 +122,7 @@ func (s *observerSender) observeDelta(name string, value float64, tags []string,
 	}
 
 	if isRate {
-		elapsed := float64(now - prev.ts)
+		elapsed := float64(now-prev.ts) / float64(time.Second)
 		if elapsed > 0 {
 			delta /= elapsed
 		} else {

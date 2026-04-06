@@ -7,6 +7,7 @@ package hfrunner
 
 import (
 	"testing"
+	"time"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 	"github.com/stretchr/testify/require"
@@ -33,21 +34,23 @@ func (h *testHandle) ObserveProfile(_ observerdef.ProfileView)       {}
 func TestObserverSenderRateDropsNegativeDelta(t *testing.T) {
 	h := &testHandle{}
 	s := &observerSender{handle: h, prev: make(map[string]prevSample)}
+	key := metricKey("container.cpu.usage", []string{"container_id:abc"})
+	s.prev[key] = prevSample{value: 20, ts: time.Now().Add(-2 * time.Second).UnixNano()}
 
-	s.Rate("container.cpu.usage", 20, "", []string{"container_id:abc"}) // prime
-	s.Rate("container.cpu.usage", 30, "", []string{"container_id:abc"}) // +10
+	s.Rate("container.cpu.usage", 30, "", []string{"container_id:abc"}) // +10 over ~2s
 	s.Rate("container.cpu.usage", 5, "", []string{"container_id:abc"})  // reset: should drop
 
 	require.Len(t, h.metrics, 1)
 	require.Equal(t, "container.cpu.usage", h.metrics[0].name)
-	require.Equal(t, 10.0, h.metrics[0].value)
+	require.InDelta(t, 5.0, h.metrics[0].value, 0.2)
 }
 
 func TestObserverSenderMonotonicCountDropsNegativeDeltaByDefault(t *testing.T) {
 	h := &testHandle{}
 	s := &observerSender{handle: h, prev: make(map[string]prevSample)}
+	key := metricKey("container.io.read", []string{"container_id:abc"})
+	s.prev[key] = prevSample{value: 100, ts: time.Now().Add(-1 * time.Second).UnixNano()}
 
-	s.MonotonicCount("container.io.read", 100, "", []string{"container_id:abc"})
 	s.MonotonicCount("container.io.read", 140, "", []string{"container_id:abc"})
 	s.MonotonicCount("container.io.read", 12, "", []string{"container_id:abc"}) // reset: should drop
 
