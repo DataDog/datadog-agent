@@ -98,9 +98,9 @@ func (handler *languageDetectionHandler) startCleanupInBackground(ctx context.Co
 			select {
 			case <-flushTicker.C:
 				if !handler.isLeader() {
-						span, _ := tracer.StartSpanFromContext(ctx, "cluster_agent.language_detection.flush")
-						err := handler.ownersLanguages.flush(handler.wlm)
-						span.Finish(tracer.WithError(err))
+					span, _ := tracer.StartSpanFromContext(ctx, "cluster_agent.language_detection.flush")
+					err := handler.ownersLanguages.flush(handler.wlm)
+					span.Finish(tracer.WithError(err))
 				}
 			case <-ctx.Done():
 				return
