@@ -55,6 +55,7 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHa
 		o.MapSpecEditors = mgrOpts.MapSpecEditors
 		o.ConstantEditors = mgrOpts.ConstantEditors
 		o.DefaultKProbeMaxActive = mgrOpts.DefaultKProbeMaxActive
+		o.DefaultKprobeAttachMethod = mgrOpts.DefaultKprobeAttachMethod
 		o.BypassEnabled = mgrOpts.BypassEnabled
 		var initErr error
 		closeFn, initErr = initFentryTracer(ar, o, config, m)
