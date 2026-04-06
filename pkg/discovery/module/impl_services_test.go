@@ -461,6 +461,66 @@ func (s *discoveryTestSuite) TestServicesTracerMetadataWithoutPorts() {
 	assert.Equal(t, string(language.Python), svc.Language)
 }
 
+// TestServicesMultipleTracerMetadata checks that when a process has multiple
+// tracer metadata memfds, all of them are reported sorted by runtime_id.
+func (s *discoveryTestSuite) TestServicesMultipleTracerMetadata() {
+	t := s.T()
+	discovery := s.discovery
+
+	meta1 := tracermetadata.TracerMetadata{
+		SchemaVersion:  1,
+		RuntimeID:      "zzz-runtime-id-2",
+		TracerLanguage: "go",
+		ServiceName:    "service-two",
+	}
+	meta2 := tracermetadata.TracerMetadata{
+		SchemaVersion:  1,
+		RuntimeID:      "aaa-runtime-id-1",
+		TracerLanguage: "java",
+		ServiceName:    "service-one",
+	}
+
+	data1, err := meta1.MarshalMsg(nil)
+	require.NoError(t, err)
+	data2, err := meta2.MarshalMsg(nil)
+	require.NoError(t, err)
+
+	createTracerMemfd(t, data1)
+	createTracerMemfd(t, data2)
+
+	listener, err := net.Listen("tcp", "")
+	require.NoError(t, err)
+	f, err := listener.(*net.TCPListener).File()
+	listener.Close()
+	require.NoError(t, err)
+	t.Cleanup(func() { f.Close() })
+	disableCloseOnExec(t, f)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
+
+	cmd := exec.CommandContext(ctx, "sleep", "1000")
+	cmd.Dir = "/tmp/"
+	err = cmd.Start()
+	require.NoError(t, err)
+	f.Close()
+
+	pid := cmd.Process.Pid
+	var svc *model.Service
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		resp := getServices(collect, discovery)
+		svc = findService(pid, resp.Services)
+		require.NotNilf(collect, svc, "could not find service for pid %v", pid)
+	}, 30*time.Second, 100*time.Millisecond)
+
+	// Both tracer metadata should be present, sorted by runtime_id
+	require.Len(t, svc.TracerMetadata, 2)
+	assert.Equal(t, "aaa-runtime-id-1", svc.TracerMetadata[0].RuntimeID)
+	assert.Equal(t, "zzz-runtime-id-2", svc.TracerMetadata[1].RuntimeID)
+	assert.Equal(t, "service-one", svc.TracerMetadata[0].ServiceName)
+	assert.Equal(t, "service-two", svc.TracerMetadata[1].ServiceName)
+}
+
 // TestServicesLogsWithoutPorts checks that processes with open log files
 // are discovered even when they have no listening ports or tracer metadata.
 func (s *discoveryTestSuite) TestServicesLogsWithoutPorts() {

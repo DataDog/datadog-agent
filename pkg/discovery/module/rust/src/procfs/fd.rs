@@ -20,7 +20,7 @@ const O_APPEND: u32 = 0o2000;
 pub struct OpenFilesInfo {
     pub sockets: Vec<u64>,
     pub logs: Vec<FdPath>,
-    pub tracer_memfd: Option<PathBuf>,
+    pub tracer_memfds: Vec<PathBuf>,
     pub memfd_path: Option<PathBuf>,
     pub has_gpu_device: bool,
 }
@@ -41,7 +41,7 @@ pub fn get_open_files_info(pid: i32) -> Result<OpenFilesInfo, std::io::Error> {
     let mut result = OpenFilesInfo {
         sockets: Vec::new(),
         logs: Vec::new(),
-        tracer_memfd: None,
+        tracer_memfds: Vec::new(),
         memfd_path: None,
         has_gpu_device: false,
     };
@@ -69,7 +69,7 @@ pub fn get_open_files_info(pid: i32) -> Result<OpenFilesInfo, std::io::Error> {
                     });
                 }
             } else if is_tracer_memfd(link.as_path()) {
-                result.tracer_memfd = Some(entry);
+                result.tracer_memfds.push(entry);
             } else if is_language_memfd(link.as_path()) {
                 result.memfd_path = Some(entry);
             }

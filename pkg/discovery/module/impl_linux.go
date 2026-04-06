@@ -341,14 +341,18 @@ func (s *discovery) getServiceInfo(pid int32, openFiles openFilesInfo) (*model.S
 	var tracerMetadataArr []tracermetadatamodel.TracerMetadata
 	var firstMetadata *tracermetadatamodel.TracerMetadata
 
-	if openFiles.tracerMemfdFd != "" {
-		fdPath := kernel.HostProc(strconv.Itoa(int(pid)), "fd", openFiles.tracerMemfdFd)
-		tracerMetadata, err := tracermetadata.GetTracerMetadataFromPath(fdPath)
+	for _, memfdFd := range openFiles.tracerMemfdFds {
+		fdPath := kernel.HostProc(strconv.Itoa(int(pid)), "fd", memfdFd)
+		tm, err := tracermetadata.GetTracerMetadataFromPath(fdPath)
 		if err == nil {
-			// Currently we only get the first tracer metadata
-			tracerMetadataArr = append(tracerMetadataArr, tracerMetadata)
-			firstMetadata = &tracerMetadata
+			tracerMetadataArr = append(tracerMetadataArr, tm)
 		}
+	}
+	slices.SortFunc(tracerMetadataArr, func(a, b tracermetadatamodel.TracerMetadata) int {
+		return cmp.Compare(a.RuntimeID, b.RuntimeID)
+	})
+	if len(tracerMetadataArr) > 0 {
+		firstMetadata = &tracerMetadataArr[0]
 	}
 
 	root := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "root")
@@ -403,7 +407,7 @@ func (s *discovery) getHeartbeatServiceInfo(context parsingContext, pid int32) *
 	}
 
 	totalPorts := len(tcpPorts) + len(udpPorts)
-	hasTracerMetadata := openFileInfo.tracerMemfdFd != ""
+	hasTracerMetadata := len(openFileInfo.tracerMemfdFds) > 0
 	hasLogs := len(openFileInfo.logs) > 0
 	if totalPorts == 0 && !hasTracerMetadata && !hasLogs {
 		return nil
@@ -550,7 +554,7 @@ func (s *discovery) getServiceWithoutRetry(context parsingContext, pid int32) *m
 	}
 
 	totalPorts := len(tcpPorts) + len(udpPorts)
-	hasTracerMetadata := openFileInfo.tracerMemfdFd != ""
+	hasTracerMetadata := len(openFileInfo.tracerMemfdFds) > 0
 	hasLogs := len(openFileInfo.logs) > 0
 	if totalPorts == 0 && !hasTracerMetadata && !hasLogs {
 		return nil
