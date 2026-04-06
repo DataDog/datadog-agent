@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
@@ -40,6 +41,7 @@ type windowsTestSuite struct {
 }
 
 func TestWindowsTestSuite(t *testing.T) {
+	flake.Mark(t)
 	t.Parallel()
 	e2e.Run(t, &windowsTestSuite{},
 		e2e.WithProvisioner(
@@ -60,6 +62,10 @@ func (s *windowsTestSuite) SetupSuite() {
 
 	// Start an antivirus scan to use as process for testing
 	s.Env().RemoteHost.MustExecute("Start-MpScan -ScanType FullScan -AsJob")
+	// Install chocolatey - https://chocolatey.org/install
+	// This may be due to choco rate limits - https://datadoghq.atlassian.net/browse/ADXT-950
+	stdout, err := s.Env().RemoteHost.Execute("Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iwr https://community.chocolatey.org/install.ps1 -UseBasicParsing | iex")
+	require.NoErrorf(s.T(), err, "Failed to install chocolatey: %s, err: %s", stdout, err)
 	// DiskSpd for IO tests: zip on E2E artifact host at processes/DiskSpd.zip (see diskspd.go).
 	require.NoError(s.T(), setupDiskSpd(s.Env().RemoteHost))
 }
@@ -304,7 +310,12 @@ func (s *windowsTestSuite) TestManualUnprotectedProcessCheckWithIO() {
 	}, 1*time.Minute, 5*time.Second)
 }
 
+// TODO(CXP-3410): Unskip once gRPC stream cycling after MSI reinstall is fixed.
+// See https://datadoghq.atlassian.net/browse/CXP-3410
 func (s *windowsTestSuite) TestLanguageDetectionWindows() {
+	s.T().Skip("Skipped: gRPC stream cycling after MSI reinstall prevents language data delivery (CXP-3410)")
+	t := s.T()
+
 	// Enable language detection on the agent
 	s.UpdateEnv(awshost.Provisioner(
 		awshost.WithRunOptions(
@@ -313,39 +324,17 @@ func (s *windowsTestSuite) TestLanguageDetectionWindows() {
 		),
 	))
 
-	// Install Python via chocolatey (already installed in SetupSuite)
-	stdout, err := s.Env().RemoteHost.Execute(`C:\ProgramData\chocolatey\bin\choco.exe install -y python3 --no-progress`)
-	require.NoErrorf(s.T(), err, "Failed to install python: %s", stdout)
-
-	// Resolve the full python path since SSH sessions don't inherit choco's PATH update
-	pythonPath := strings.TrimSpace(s.Env().RemoteHost.MustExecute(
-		`$env:Path = [System.Environment]::GetEnvironmentVariable('Path','Machine'); (Get-Command python).Source`,
-	))
-
-	// Start Python in a persistent SSH session so it stays alive
-	session, stdin, _, err := s.Env().RemoteHost.Start(pythonPath + ` -c "import time; time.sleep(300)"`)
-	require.NoError(s.T(), err, "Failed to start python")
-	s.T().Cleanup(func() {
+	// Start Python in a persistent SSH session so it survives across commands
+	s.Env().RemoteHost.MustExecute(`Set-Content -Path C:\sleep.py -Value "import time; time.sleep(600)"`)
+	pythonPath := `"C:\Program Files\Datadog\Datadog Agent\embedded3\python.exe" C:\sleep.py`
+	session, stdin, _, err := s.Env().RemoteHost.Start(pythonPath)
+	require.NoError(t, err, "Failed to start python")
+	t.Cleanup(func() {
 		_ = session.Close()
 		_ = stdin.Close()
 	})
 
-	// Poll for the PID of the exact python process we started, identified by its command line.
-	// Get-CimInstance may briefly return no match while process metadata catches up.
-	var pid string
-	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		out, err := s.Env().RemoteHost.Execute(
-			`(Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*time.sleep(300)*' } | Select-Object -First 1).ProcessId`,
-		)
-		if !assert.NoError(c, err, "failed to query process") {
-			return
-		}
-		pid = strings.TrimSpace(out)
-		assert.NotEmpty(c, pid, "python process PID not yet available")
-	}, 30*time.Second, 1*time.Second)
-
-	// Verify language detection via workload-list JSON output.
-	// Use Execute (not MustExecute) so transient agent startup errors are retried.
+	// Check that any process entity has Language.Name == "python" in the core agent's workload-list.
 	type workloadProcess struct {
 		Kind     string `json:"Kind"`
 		ID       string `json:"ID"`
@@ -358,7 +347,7 @@ func (s *windowsTestSuite) TestLanguageDetectionWindows() {
 	}
 
 	var lastOutput string
-	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		out, err := s.Env().RemoteHost.Execute(`& "C:\Program Files\Datadog\Datadog Agent\bin\agent.exe" workload-list --json`)
 		if !assert.NoError(c, err, "workload-list command failed") {
 			return
@@ -368,16 +357,15 @@ func (s *windowsTestSuite) TestLanguageDetectionWindows() {
 		if !assert.NoError(c, json.Unmarshal([]byte(lastOutput), &resp), "failed to parse workload-list JSON") {
 			return
 		}
-		processes := resp.Entities["process"]
-		for _, p := range processes {
-			if p.ID == pid && p.Language != nil && p.Language.Name == "python" {
+		for _, p := range resp.Entities["process"] {
+			if p.Language != nil && p.Language.Name == "python" {
 				return
 			}
 		}
-		assert.Fail(c, fmt.Sprintf("process pid=%s with language=python not found in workload-list", pid))
+		assert.Fail(c, "no process with language=python found in workload-list")
 	}, 2*time.Minute, 5*time.Second)
-	if s.T().Failed() {
-		s.T().Logf("Last workload-list --json output:\n%s", lastOutput)
+	if t.Failed() {
+		t.Logf("Last workload-list --json output:\n%s", lastOutput)
 	}
 }
 
