@@ -3259,6 +3259,10 @@ func testTLSCertParsing(t *testing.T, client *http.Client, matcher func(c *netwo
 		t.Skipf("skipping because tls certs kernel features are not supported on this kernel: %s", err)
 	}
 	skipOnEbpflessNotSupported(t, cfg)
+	if ebpftest.GetBuildMode() == ebpftest.SK {
+		// TODO support certs
+		t.Skip("certs not supported on SK tracer yet")
+	}
 
 	tr := setupTracer(t, cfg)
 	if tr.ebpfTracer.Type() == connection.TracerTypeFentry {
