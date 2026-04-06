@@ -14,9 +14,9 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
-	"sort"
 
 	"github.com/google/uuid"
 	"go.etcd.io/bbolt"
