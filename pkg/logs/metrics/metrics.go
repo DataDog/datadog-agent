@@ -128,7 +128,7 @@ var (
 
 	// TlmPayloadFlushed is the total number of payloads flushed by the batch strategy.
 	// Tags: pipeline, flush_reason (max_count, max_bytes, timer, flush, shutdown)
-	TlmPayloadFlushed = telemetry.NewCounter("logs_sender", "payload_flushed",
+	TlmPayloadFlushed = telemetry.NewCounter("logs", "batch_payload_flushed",
 		[]string{"pipeline", "flush_reason"}, "Total number of payloads flushed, tagged by the reason the flush was triggered")
 
 	// TlmHTTPConnectivityCheck tracks HTTP connectivity check results
