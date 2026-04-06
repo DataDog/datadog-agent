@@ -72,7 +72,7 @@ func NewConcentrator(conf *config.AgentConfig, writer Writer, now time.Time, sta
 		statsd:                  statsd,
 		bsize:                   bsize,
 		peerTagKeys:             conf.ConfiguredPeerTags(),
-		additionalMetricTagKeys: conf.ConfiguredSpanDerivedPrimaryTagKeys(),
+		additionalMetricTagKeys: nil,
 	}
 	return &c
 }
