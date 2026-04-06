@@ -18,28 +18,34 @@ import (
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/mocktracer"
 )
 
-func TestLeaderForwarder_Forward_NilProxy_Span(t *testing.T) {
+func TestLeaderForwarder_Forward_NilProxy_PropagatesError(t *testing.T) {
 	mt := mocktracer.Start()
 	defer mt.Stop()
 
 	lf := NewLeaderForwarder(5005, 10)
 
+	// Wrap in a TelemetryHandler so SetSpanError can propagate to the parent span
+	th := &TelemetryHandler{
+		handlerName: "testHandler",
+		handler: func(w http.ResponseWriter, r *http.Request) {
+			lf.Forward(w, r)
+		},
+	}
+
 	rw := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "http://example.com/foo", nil)
-
-	lf.Forward(rw, req)
+	th.handle(rw, req)
 
 	assert.Equal(t, http.StatusServiceUnavailable, rw.Code)
 
 	spans := mt.FinishedSpans()
 	require.Len(t, spans, 1)
 	span := spans[0]
-	assert.Equal(t, "cluster_agent.leader_forwarder.forward", span.OperationName())
-	assert.Equal(t, false, span.Tag("forward.loop_detected"))
-	assert.Equal(t, false, span.Tag("forward.proxy_available"))
+	assert.Equal(t, "cluster_agent.api.request", span.OperationName())
+	assert.NotNil(t, span.Tag("error"), "nil proxy error should propagate to parent span")
 }
 
-func TestLeaderForwarder_Forward_LoopDetection_Span(t *testing.T) {
+func TestLeaderForwarder_Forward_LoopDetection_PropagatesError(t *testing.T) {
 	mt := mocktracer.Start()
 	defer mt.Stop()
 
@@ -52,20 +58,25 @@ func TestLeaderForwarder_Forward_LoopDetection_Span(t *testing.T) {
 	lf := NewLeaderForwarder(port, 10)
 	lf.SetLeaderIP("127.0.0.1")
 
+	th := &TelemetryHandler{
+		handlerName: "testHandler",
+		handler: func(w http.ResponseWriter, r *http.Request) {
+			lf.Forward(w, r)
+		},
+	}
+
 	rw := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "http://example.com/foo", nil)
 	req.Header.Set("X-DCA-Follower-Forwarded", "true")
-
-	lf.Forward(rw, req)
+	th.handle(rw, req)
 
 	assert.Equal(t, http.StatusLoopDetected, rw.Code)
 
 	spans := mt.FinishedSpans()
 	require.Len(t, spans, 1)
 	span := spans[0]
-	assert.Equal(t, "cluster_agent.leader_forwarder.forward", span.OperationName())
-	assert.Equal(t, true, span.Tag("forward.loop_detected"))
-	assert.Equal(t, false, span.Tag("forward.proxy_available"))
+	assert.Equal(t, "cluster_agent.api.request", span.OperationName())
+	assert.NotNil(t, span.Tag("error"), "loop detection error should propagate to parent span")
 }
 
 func TestLeaderForwarder_Forward_UpstreamError_502(t *testing.T) {
@@ -97,22 +108,14 @@ func TestLeaderForwarder_Forward_UpstreamError_502(t *testing.T) {
 	assert.Equal(t, http.StatusBadGateway, rw.Code)
 
 	spans := mt.FinishedSpans()
-	require.Len(t, spans, 2) // forwarder span + parent telemetry span
-
-	// Find the parent span (the telemetry handler span)
-	var parentSpan mocktracer.Span
-	for _, s := range spans {
-		if s.OperationName() == "cluster_agent.api.request" {
-			parentSpan = s
-			break
-		}
-	}
-	require.NotNil(t, parentSpan, "parent telemetry span should exist")
+	require.Len(t, spans, 1)
+	span := spans[0]
+	assert.Equal(t, "cluster_agent.api.request", span.OperationName())
 	// SetSpanError should have propagated the upstream error to the parent span
-	assert.NotNil(t, parentSpan.Tag("error"), "upstream error should propagate to parent span")
+	assert.NotNil(t, span.Tag("error"), "upstream error should propagate to parent span")
 }
 
-func TestLeaderForwarder_Forward_WithLeader_Span(t *testing.T) {
+func TestLeaderForwarder_Forward_WithLeader_NoError(t *testing.T) {
 	mt := mocktracer.Start()
 	defer mt.Stop()
 
@@ -125,17 +128,22 @@ func TestLeaderForwarder_Forward_WithLeader_Span(t *testing.T) {
 	lf := NewLeaderForwarder(port, 10)
 	lf.SetLeaderIP("127.0.0.1")
 
+	th := &TelemetryHandler{
+		handlerName: "testHandler",
+		handler: func(w http.ResponseWriter, r *http.Request) {
+			lf.Forward(w, r)
+		},
+	}
+
 	rw := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "http://example.com/foo", nil)
-
-	lf.Forward(rw, req)
+	th.handle(rw, req)
 
 	assert.Equal(t, http.StatusOK, rw.Code)
 
 	spans := mt.FinishedSpans()
 	require.Len(t, spans, 1)
 	span := spans[0]
-	assert.Equal(t, "cluster_agent.leader_forwarder.forward", span.OperationName())
-	assert.Equal(t, false, span.Tag("forward.loop_detected"))
-	assert.Equal(t, true, span.Tag("forward.proxy_available"))
+	assert.Equal(t, "cluster_agent.api.request", span.OperationName())
+	assert.Nil(t, span.Tag("error"), "successful forward should not have error on span")
 }
