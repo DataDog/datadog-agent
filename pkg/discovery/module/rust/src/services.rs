@@ -126,13 +126,13 @@ fn get_service(
 
     let cmdline = Cmdline::get(pid).ok()?;
     let exe = Exe::get(pid).ok()?;
-    let mut tracer_metadata_vec: Vec<TracerMetadata> = open_files_info
+    let mut tracer_metadata: Vec<TracerMetadata> = open_files_info
         .tracer_memfds
         .iter()
         .filter_map(|path| tracer_metadata::get_tracer_metadata_from_path(path).ok())
         .collect();
-    tracer_metadata_vec.sort_by(|a, b| a.runtime_id.cmp(&b.runtime_id));
-    let first_metadata = tracer_metadata_vec.first();
+    tracer_metadata.sort_by(|a, b| a.runtime_id.cmp(&b.runtime_id));
+    let first_metadata = tracer_metadata.first();
     let language = first_metadata
         .and_then(|m| Language::from_tracer_str(&m.tracer_language))
         .or_else(|| Language::detect(pid, &exe, &cmdline, open_files_info));
@@ -151,7 +151,7 @@ fn get_service(
     // Detect APM instrumentation
     // If tracer metadata exists, the service is definitely instrumented
     let apm_instrumentation =
-        !tracer_metadata_vec.is_empty() || apm::detect(language.as_ref(), pid, &cmdline, &envs);
+        !tracer_metadata.is_empty() || apm::detect(language.as_ref(), pid, &cmdline, &envs);
 
     Some(Service {
         pid,
@@ -160,7 +160,7 @@ fn get_service(
         additional_generated_names: name_metadata
             .map(|meta| meta.additional_names)
             .unwrap_or_default(),
-        tracer_metadata: tracer_metadata_vec,
+        tracer_metadata,
         ust: UST::from_envs(&envs),
         tcp_ports,
         udp_ports,
