@@ -10,6 +10,8 @@
 package hfrunner
 
 import (
+	"sort"
+	"strings"
 	"time"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
@@ -32,7 +34,7 @@ func newObserverSenderManager(handle observerdef.Handle) *observerSenderManager 
 }
 
 func (m *observerSenderManager) GetSender(id checkid.ID) (aggsender.Sender, error) {
-	return &observerSender{handle: m.handle}, nil
+	return &observerSender{handle: m.handle, prev: make(map[string]prevSample)}, nil
 }
 
 func (m *observerSenderManager) SetSender(s aggsender.Sender, id checkid.ID) error {
@@ -42,14 +44,26 @@ func (m *observerSenderManager) SetSender(s aggsender.Sender, id checkid.ID) err
 func (m *observerSenderManager) DestroySender(id checkid.ID) {}
 
 func (m *observerSenderManager) GetDefaultSender() (aggsender.Sender, error) {
-	return &observerSender{handle: m.handle}, nil
+	return &observerSender{handle: m.handle, prev: make(map[string]prevSample)}, nil
+}
+
+// prevSample stores the previous value and timestamp for a metric series,
+// used to compute deltas for Rate and MonotonicCount metrics.
+type prevSample struct {
+	value float64
+	ts    int64
 }
 
 // observerSender implements sender.Sender. Metric calls route to the observer
 // handle as MetricView observations. Everything else (events, service checks,
 // orchestrator metadata) is silently dropped — the observer doesn't use them.
+//
+// Rate and MonotonicCount metrics receive cumulative counter values from checks.
+// The sender computes deltas so the observer sees per-interval changes, matching
+// what the normal aggregator pipeline produces.
 type observerSender struct {
 	handle observerdef.Handle
+	prev   map[string]prevSample // delta tracking for Rate/MonotonicCount
 }
 
 // inlineMetric is a lightweight MetricView that holds a single sample.
@@ -67,6 +81,57 @@ func (m *inlineMetric) GetValue() float64       { return m.value }
 func (m *inlineMetric) GetRawTags() []string    { return m.tags }
 func (m *inlineMetric) GetTimestampUnix() int64 { return m.timestamp }
 func (m *inlineMetric) GetSampleRate() float64  { return 1.0 }
+
+// metricKey builds a map key from metric name + sorted tags for delta tracking.
+func metricKey(name string, tags []string) string {
+	if len(tags) == 0 {
+		return name
+	}
+	sorted := make([]string, len(tags))
+	copy(sorted, tags)
+	sort.Strings(sorted)
+	return name + "|" + strings.Join(sorted, ",")
+}
+
+// observeDelta computes the delta from the previous sample for Rate and
+// MonotonicCount metrics.
+func (s *observerSender) observeDelta(name string, value float64, tags []string, isRate bool, flushFirstValue bool) {
+	key := metricKey(name, tags)
+	now := time.Now().Unix()
+
+	prev, hasPrev := s.prev[key]
+	s.prev[key] = prevSample{value: value, ts: now}
+
+	if !hasPrev {
+		if flushFirstValue && !isRate {
+			s.observe(name, value, tags)
+		}
+		return // first sample — no delta to emit
+	}
+
+	delta := value - prev.value
+	if delta < 0 {
+		// Match the standard aggregator behavior:
+		// - Rate: drop negative deltas (counter reset/wrap).
+		// - MonotonicCount: drop negative deltas unless flushFirstValue is set.
+		if !isRate && flushFirstValue {
+			delta = value
+		} else {
+			return
+		}
+	}
+
+	if isRate {
+		elapsed := float64(now - prev.ts)
+		if elapsed > 0 {
+			delta /= elapsed
+		} else {
+			return
+		}
+	}
+
+	s.observe(name, delta, tags)
+}
 
 func (s *observerSender) observe(name string, value float64, tags []string) {
 	m := &inlineMetric{
@@ -89,19 +154,19 @@ func (s *observerSender) GaugeNoIndex(metric string, value float64, _ string, ta
 }
 
 func (s *observerSender) Rate(metric string, value float64, _ string, tags []string) {
-	s.observe(metric, value, tags)
+	s.observeDelta(metric, value, tags, true, false) // cumulative → per-second rate
 }
 
 func (s *observerSender) Count(metric string, value float64, _ string, tags []string) {
-	s.observe(metric, value, tags)
+	s.observe(metric, value, tags) // already a per-interval delta
 }
 
 func (s *observerSender) MonotonicCount(metric string, value float64, _ string, tags []string) {
-	s.observe(metric, value, tags)
+	s.observeDelta(metric, value, tags, false, false) // cumulative → delta
 }
 
-func (s *observerSender) MonotonicCountWithFlushFirstValue(metric string, value float64, _ string, tags []string, _ bool) {
-	s.observe(metric, value, tags)
+func (s *observerSender) MonotonicCountWithFlushFirstValue(metric string, value float64, _ string, tags []string, flushFirstValue bool) {
+	s.observeDelta(metric, value, tags, false, flushFirstValue)
 }
 
 func (s *observerSender) Counter(metric string, value float64, _ string, tags []string) {
