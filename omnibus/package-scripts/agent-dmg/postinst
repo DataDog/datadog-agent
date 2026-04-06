@@ -14,8 +14,11 @@ RUN_DIR=$INSTALL_DIR/run
 # On Mac, the real log folder is located under /opt/datadog-agent/logs, because MacOS upgrades delete /var/log
 LOG_DIR=/opt/datadog-agent/logs
 
-INSTALL_CONFIG_FILE="/tmp/datadog-install-config"
-SAVED_CONF_DIR="/tmp/datadog-install-conf"
+# Root-only staging directory shared with the install script.
+# Contains env (install-time vars) and saved-conf/ (backup from preinst).
+INSTALL_STAGING_DIR="/private/var/root/datadog-install"
+INSTALL_ENV_FILE="$INSTALL_STAGING_DIR/env"
+SAVED_CONF_DIR="$INSTALL_STAGING_DIR/saved-conf"
 
 # Let's log the standard outputs of this script
 LOG_FILE="$LOG_DIR/postinstall.log"
@@ -94,7 +97,6 @@ if [ -d "$SAVED_CONF_DIR" ]; then
     cp -vf "$SAVED_CONF_DIR/datadog.yaml" $CONF_DIR/ 2>/dev/null || true
     cp -vfR "$SAVED_CONF_DIR/conf.d/"* $CONF_DIR/conf.d 2>/dev/null || true
     cp -vn "$SAVED_CONF_DIR/checks.d/"* $CONF_DIR/checks.d 2>/dev/null || true
-    rm -vrf "$SAVED_CONF_DIR"
 fi
 
 if [ ! -e "$CONF_DIR/datadog.yaml" ]; then
@@ -106,13 +108,12 @@ fi
 # this file won't exist and the config is left as-is for the admin to configure.
 install_method="macos_dmg"
 install_method_version="macos_dmg"
-if [ -f "$INSTALL_CONFIG_FILE" ]; then
-    dd_api_key=$(grep '^DD_API_KEY=' "$INSTALL_CONFIG_FILE" | cut -d= -f2-)
-    dd_site=$(grep '^DD_SITE=' "$INSTALL_CONFIG_FILE" | cut -d= -f2-)
-    dd_gui_menu=$(grep '^DD_GUI_APP_MENU_ENABLED=' "$INSTALL_CONFIG_FILE" | cut -d= -f2-)
-    dd_install_method=$(grep '^DD_INSTALL_METHOD=' "$INSTALL_CONFIG_FILE" | cut -d= -f2-)
-    dd_install_version=$(grep '^DD_INSTALL_SCRIPT_VERSION=' "$INSTALL_CONFIG_FILE" | cut -d= -f2-)
-    rm -f "$INSTALL_CONFIG_FILE"
+if [ -f "$INSTALL_ENV_FILE" ]; then
+    dd_api_key=$(grep '^DD_API_KEY=' "$INSTALL_ENV_FILE" | cut -d= -f2-)
+    dd_site=$(grep '^DD_SITE=' "$INSTALL_ENV_FILE" | cut -d= -f2-)
+    dd_gui_menu=$(grep '^DD_GUI_APP_MENU_ENABLED=' "$INSTALL_ENV_FILE" | cut -d= -f2-)
+    dd_install_method=$(grep '^DD_INSTALL_METHOD=' "$INSTALL_ENV_FILE" | cut -d= -f2-)
+    dd_install_version=$(grep '^DD_INSTALL_SCRIPT_VERSION=' "$INSTALL_ENV_FILE" | cut -d= -f2-)
 
     if [ -n "$dd_api_key" ]; then
         sed -i '' "s/^api_key:.*/api_key: $dd_api_key/" "$CONF_DIR/datadog.yaml"
@@ -202,6 +203,9 @@ echo ""
 echo "Note: The GUI will prompt for this permission when needed."
 echo "=========================================="
 echo ""
+
+# Clean up the install staging directory (env file with API key, saved config)
+rm -rf "$INSTALL_STAGING_DIR"
 
 # A little debriefing won't hurt
 echo "# State at the end"

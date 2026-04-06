@@ -5,11 +5,8 @@
 # Copyright 2016-present Datadog, Inc.
 
 # Datadog Agent install script for macOS.
-# Downloads the correct DMG and runs the pkg installer.
-# Configuration (API key, site) is passed to the pkg's postinst via a temp file.
-# All installation logic lives in the pkg's preinst and postinst scripts.
 set -e
-install_script_version=2.0.0
+install_script_version=1.6.0
 
 # Terminal color detection
 # Colors are enabled only when outputting to a terminal (not when piped/redirected)
@@ -28,7 +25,11 @@ else
 fi
 dmg_file=/tmp/datadog-agent.dmg
 dmg_base_url="https://s3.amazonaws.com/dd-agent"
-install_config_file="/tmp/datadog-install-config"
+# Root-only staging directory for install-time data (API key, saved config).
+# /private/var/root is mode 700 owned by root:wheel, preventing local attackers
+# from reading secrets or planting symlinks in /tmp.
+install_staging_dir="/private/var/root/datadog-install"
+install_env_file="$install_staging_dir/env"
 
 if [ -n "$DD_REPO_URL" ]; then
     dmg_base_url=$DD_REPO_URL
@@ -162,6 +163,16 @@ solve your problem.\n${NC}\n"
 }
 trap on_error ERR
 
+# Clean up sensitive staging files on any exit (success, error, or signal).
+# The staging dir contains the API key and must not be left on disk.
+# The postinst script cleans it after reading, but if the install fails before
+# that point, this trap ensures cleanup still happens.
+function cleanup() {
+    $sudo_cmd rm -rf "$install_staging_dir"
+    $sudo_cmd rm -f "$dmg_file"
+}
+trap cleanup EXIT
+
 # Determine agent flavor to install
 if [ -z "$agent_dist_channel" ]; then
     dmg_url_prefix="$dmg_base_url/datadog-agent-${dmg_version}"
@@ -179,22 +190,23 @@ if [ "$(curl --head --location --output /dev/null "${curl_retries[@]}" --silent 
 fi
 
 # Write configuration for the pkg's postinst to consume
-$sudo_cmd rm -f "$install_config_file"
+$sudo_cmd rm -rf "$install_staging_dir"
+$sudo_cmd mkdir -p "$install_staging_dir"
+$sudo_cmd chmod 700 "$install_staging_dir"
 {
     echo "DD_API_KEY=$apikey"
     [ -n "$site" ] && echo "DD_SITE=$site"
     [ "$gui_app_menu_enabled" = true ] && echo "DD_GUI_APP_MENU_ENABLED=true"
     echo "DD_INSTALL_METHOD=install_script_mac"
     echo "DD_INSTALL_SCRIPT_VERSION=$install_script_version"
-} | $sudo_cmd tee "$install_config_file" > /dev/null
-$sudo_cmd chmod 600 "$install_config_file"
+} | $sudo_cmd tee "$install_env_file" > /dev/null
+$sudo_cmd chmod 600 "$install_env_file"
 
 # Download and install
 printf "${BLUE}\n* Downloading datadog-agent\n${NC}"
 prepare_dmg_file $dmg_file
 if ! $sudo_cmd curl --fail --progress-bar "$dmg_url" "${curl_retries[@]}" --output $dmg_file; then
     printf "${RED}Couldn't download the installer for macOS Agent version ${dmg_version}.${NC}\n"
-    $sudo_cmd rm -f "$install_config_file"
     exit 1;
 fi
 printf "${BLUE}\n* Installing datadog-agent, you might be asked for your sudo password...\n${NC}"

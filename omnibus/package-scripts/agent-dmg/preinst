@@ -93,14 +93,18 @@ if [ -e "$CONF_DIR/datadog.yaml" ]; then
     done
     kill $(pgrep -f 'Datadog Agent.app') 2>/dev/null || true
 
-    # Save existing config for restoration in postinst
-    rm -rvf /tmp/datadog-install-conf
-    mkdir -vp /tmp/datadog-install-conf/conf.d
-    mkdir -vp /tmp/datadog-install-conf/checks.d
-    cp -vf $CONF_DIR/datadog.yaml /tmp/datadog-install-conf/
-    cp -vfR $CONF_DIR/conf.d/* /tmp/datadog-install-conf/conf.d 2>/dev/null || true
-    find /tmp/datadog-install-conf/conf.d '(' -name '*.yaml.example' -o -name '*.yaml.default' ')' -delete
-    cp -vfR $CONF_DIR/checks.d/* /tmp/datadog-install-conf/checks.d 2>/dev/null || true
+    # Save existing config for restoration in postinst.
+    # All install-time staging data lives under a single root-only directory.
+    INSTALL_STAGING_DIR="/private/var/root/datadog-install"
+    SAVED_CONF_DIR="$INSTALL_STAGING_DIR/saved-conf"
+    rm -rvf "$SAVED_CONF_DIR"
+    mkdir -vp "$SAVED_CONF_DIR/conf.d"
+    mkdir -vp "$SAVED_CONF_DIR/checks.d"
+    chmod 700 "$INSTALL_STAGING_DIR"
+    cp -vf $CONF_DIR/datadog.yaml "$SAVED_CONF_DIR/"
+    cp -vfR $CONF_DIR/conf.d/* "$SAVED_CONF_DIR/conf.d" 2>/dev/null || true
+    find "$SAVED_CONF_DIR/conf.d" '(' -name '*.yaml.example' -o -name '*.yaml.default' ')' -delete
+    cp -vfR $CONF_DIR/checks.d/* "$SAVED_CONF_DIR/checks.d" 2>/dev/null || true
 fi
 
 echo '# Deleting old datadog-agent link'
