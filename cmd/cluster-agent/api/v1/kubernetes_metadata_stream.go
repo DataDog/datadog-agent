@@ -13,8 +13,8 @@ import (
 	"sync"
 	"time"
 
-	"k8s.io/apimachinery/pkg/util/sets"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -110,12 +110,15 @@ func (srv *KubeMetadataStreamServer) StreamKubeMetadata(req *pb.KubeMetadataStre
 	lastSentPodServicesState := srv.buildPodServiceMappingsSnapshot(nodeName)
 	lastSentNamespacesState := srv.buildNamespacesSnapshot()
 	initialResp := fullStateResponse(lastSentPodServicesState, lastSentNamespacesState)
+	initialSendSpan, _ := tracer.StartSpanFromContext(ctx, "cluster_agent.metadata_stream.send_full_state")
 	if err := grpc.DoWithTimeout(func() error {
 		return stream.Send(initialResp)
 	}, streamSendTimeout); err != nil {
 		log.Warnf("Error sending initial kube metadata state for node %s: %s", nodeName, err)
+		initialSendSpan.Finish(tracer.WithError(err))
 		return err
 	}
+	initialSendSpan.Finish()
 
 	ticker := time.NewTicker(keepAliveInterval)
 	defer ticker.Stop()
