@@ -118,12 +118,12 @@ pub fn trap_term_sleep() -> (&'static str, Vec<&'static str>) {
 #[cfg(windows)]
 pub fn trap_term_sleep() -> (&'static str, Vec<&'static str>) {
     // On Windows there is no SIGTERM to trap; the graceful stop sends
-    // CTRL_BREAK_EVENT which cmd.exe ignores by default.
+    // CTRL_BREAK_EVENT which PowerShell ignores by default.
     // Loop indefinitely so the process outlives any stop_timeout and
     // forces the escalation to TerminateProcess (force-kill).
     (
-        "cmd.exe",
-        vec!["/C", "for /L %i in () do @timeout /t 60 /nobreak >nul"],
+        "powershell.exe",
+        vec!["-Command", "while($true){Start-Sleep 60}"],
     )
 }
 
