@@ -42,7 +42,7 @@ func TestNoisyNeighborProbe(t *testing.T) {
 
 		require.Eventually(t, func() bool {
 			for _, r := range probe.GetAndFlush() {
-				if r.EventCount > 0 || r.PreemptionCount > 0 {
+				if r.EventCount > 0 || r.ForeignPreemptionCount > 0 || r.SelfPreemptionCount > 0 {
 					return true
 				}
 			}

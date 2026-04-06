@@ -95,11 +95,20 @@ int tp_sched_switch(u64 *ctx) {
         enqueue_timestamp(prev);
     }
 
+    // Hoist next cgroup lookup — used by both preemption classification and latency recording
+    u64 next_cgroup_id = 0;
+    if (next_pid) {
+        next_cgroup_id = get_task_cgroup_id(next);
+    }
+
     if (preempted && prev_pid) {
         u64 prev_cgroup_id = get_task_cgroup_id(prev);
         cgroup_agg_stats_t *stats = get_or_create_cgroup_stats(prev_cgroup_id);
         if (stats) {
-            stats->preemption_count += 1;
+            if (prev_cgroup_id != next_cgroup_id)
+                stats->foreign_preemption_count += 1;
+            else
+                stats->self_preemption_count += 1;
         }
     }
 
@@ -115,12 +124,20 @@ int tp_sched_switch(u64 *ctx) {
     u64 runq_lat = bpf_ktime_get_ns() - *tsp;
     bpf_task_storage_delete(&runq_enqueued, next);
 
-    u64 cgroup_id = get_task_cgroup_id(next);
-    cgroup_agg_stats_t *stats = get_or_create_cgroup_stats(cgroup_id);
+    cgroup_agg_stats_t *stats = get_or_create_cgroup_stats(next_cgroup_id);
     if (stats) {
         stats->sum_latencies_ns += runq_lat;
         stats->event_count += 1;
         stats->pid_count = get_cgroup_pids_count(next);
+
+        if (runq_lat < 100000)
+            stats->latency_bucket_lt_100us += 1;
+        else if (runq_lat < 1000000)
+            stats->latency_bucket_100us_1ms += 1;
+        else if (runq_lat < 10000000)
+            stats->latency_bucket_1ms_10ms += 1;
+        else
+            stats->latency_bucket_gt_10ms += 1;
     }
 
     return 0;

@@ -104,11 +104,17 @@ func (p *Probe) GetAndFlush() []model.NoisyNeighborStats {
 	var cgroupsToDelete []uint64
 
 	for iter.Next(&cgroupID, &perCPUStats) {
-		var cgroupLatencies, cgroupEvents, cgroupPreemptions, pidCount uint64
+		var cgroupLatencies, cgroupEvents, cgroupForeignPreemptions, cgroupSelfPreemptions, pidCount uint64
+		var bucketLt100us, bucket100us1ms, bucket1ms10ms, bucketGt10ms uint64
 		for _, cpuStat := range perCPUStats {
 			cgroupLatencies += cpuStat.Sum_latencies_ns
 			cgroupEvents += cpuStat.Event_count
-			cgroupPreemptions += cpuStat.Preemption_count
+			cgroupForeignPreemptions += cpuStat.Foreign_preemption_count
+			cgroupSelfPreemptions += cpuStat.Self_preemption_count
+			bucketLt100us += cpuStat.Latency_bucket_lt_100us
+			bucket100us1ms += cpuStat.Latency_bucket_100us_1ms
+			bucket1ms10ms += cpuStat.Latency_bucket_1ms_10ms
+			bucketGt10ms += cpuStat.Latency_bucket_gt_10ms
 			// pid_count is a global cgroup value (not per-CPU), so take the max rather than summing
 			if cpuStat.Pid_count > pidCount {
 				pidCount = cpuStat.Pid_count
@@ -122,11 +128,16 @@ func (p *Probe) GetAndFlush() []model.NoisyNeighborStats {
 		}
 
 		stat := model.NoisyNeighborStats{
-			CgroupID:        cgroupID,
-			SumLatenciesNs:  cgroupLatencies,
-			EventCount:      cgroupEvents,
-			PreemptionCount: cgroupPreemptions,
-			UniquePidCount:  pidCount,
+			CgroupID:               cgroupID,
+			SumLatenciesNs:         cgroupLatencies,
+			EventCount:             cgroupEvents,
+			ForeignPreemptionCount: cgroupForeignPreemptions,
+			SelfPreemptionCount:    cgroupSelfPreemptions,
+			CgroupTaskCount:        pidCount,
+			LatencyBucketLt100us:   bucketLt100us,
+			LatencyBucket100us1ms:  bucket100us1ms,
+			LatencyBucket1ms10ms:   bucket1ms10ms,
+			LatencyBucketGt10ms:    bucketGt10ms,
 		}
 
 		nnstats = append(nnstats, stat)

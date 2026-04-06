@@ -9,6 +9,7 @@ package noisyneighbor
 
 import (
 	"fmt"
+	"path/filepath"
 	"time"
 
 	"go.yaml.in/yaml/v2"
@@ -29,14 +30,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
+// maxNonContainerCgroups caps the number of non-container cgroups emitted per
+// check run to prevent tag cardinality explosion from transient systemd scopes
+// or other short-lived cgroup hierarchies.
+const maxNonContainerCgroups = 100
+
 type NoisyNeighborConfig struct{}
 
+// NoisyNeighborCheck collects scheduling-latency metrics per cgroup.
 type NoisyNeighborCheck struct {
 	core.CheckBase
-	config         *NoisyNeighborConfig
-	tagger         tagger.Component
-	sysProbeClient *sysprobeclient.CheckClient
-	cgroupReader   *cgroups.Reader
+	config          *NoisyNeighborConfig
+	tagger          tagger.Component
+	sysProbeClient  *sysprobeclient.CheckClient
+	cgroupReader    *cgroups.Reader // container-only cgroups (ContainerFilter)
+	allCgroupReader *cgroups.Reader // all cgroups (DefaultFilter) for non-container fallback
 }
 
 func Factory(tagger tagger.Component) option.Option[func() check.Check] {
@@ -70,6 +78,13 @@ func (n *NoisyNeighborCheck) Configure(senderManager sender.SenderManager, _ uin
 		return fmt.Errorf("noisy_neighbor: cgroup reader init failed: %s", err)
 	}
 	n.cgroupReader = reader
+
+	allReader, err := cgroups.NewReader()
+	if err != nil {
+		return fmt.Errorf("noisy_neighbor: all-cgroup reader init failed: %s", err)
+	}
+	n.allCgroupReader = allReader
+
 	return nil
 }
 
@@ -88,20 +103,35 @@ func (n *NoisyNeighborCheck) Run() error {
 	if err != nil {
 		return fmt.Errorf("unable to refresh cgroups: %s", err)
 	}
+	err = n.allCgroupReader.RefreshCgroups(0)
+	if err != nil {
+		return fmt.Errorf("unable to refresh all-cgroup reader: %s", err)
+	}
 
 	var totalCgroups uint64
+	var nonContainerCount int
 	for _, stat := range stats {
 		totalCgroups++
-		tags := n.getContainerTags(stat)
+		tags, isContainer := n.getContainerTags(stat)
+		if !isContainer {
+			nonContainerCount++
+			if nonContainerCount > maxNonContainerCgroups {
+				continue
+			}
+		}
 		n.submitPrimaryMetrics(sender, stat, tags)
 		n.submitRawCounters(sender, stat, tags)
+		n.submitLatencyBuckets(sender, stat, tags)
 	}
 	sender.Gauge("noisy_neighbor.system.cgroups_tracked", float64(totalCgroups), "", nil)
 	sender.Commit()
 	return nil
 }
 
-func (n *NoisyNeighborCheck) getContainerTags(stat model.NoisyNeighborStats) []string {
+// getContainerTags returns tags for the given stat and whether the tags came
+// from a known container (true) or the cgroup-path fallback (false).
+func (n *NoisyNeighborCheck) getContainerTags(stat model.NoisyNeighborStats) ([]string, bool) {
+	// Try container-based tag lookup first.
 	if cg := n.cgroupReader.GetCgroupByInode(stat.CgroupID); cg != nil {
 		containerID := cg.Identifier()
 		if containerID != "" {
@@ -111,29 +141,58 @@ func (n *NoisyNeighborCheck) getContainerTags(stat model.NoisyNeighborStats) []s
 				if err != nil {
 					log.Warnf("noisy_neighbor: tagger error for container %s: %v", containerID, err)
 				} else {
-					return taggerTags
+					return taggerTags, true
 				}
 			}
 		}
 	}
-	return []string{}
+
+	// Fallback: use the cgroup path as a tag for non-container workloads
+	// (e.g. systemd services).
+	if cg := n.allCgroupReader.GetCgroupByInode(stat.CgroupID); cg != nil {
+		cgroupPath := cg.Identifier()
+		if cgroupPath != "" {
+			// Use the last path component for a concise, human-readable tag
+			// (e.g. "sshd.service" from "/system.slice/sshd.service").
+			name := filepath.Base(cgroupPath)
+			return []string{fmt.Sprintf("cgroup_name:%s", name)}, false
+		}
+	}
+
+	return []string{}, false
 }
 
 // submitPrimaryMetrics sends the main PSL and PSP metrics
 // Note: "process" in metric names follows kernel convention, but these are thread-level measurements
 func (n *NoisyNeighborCheck) submitPrimaryMetrics(sender sender.Sender, stat model.NoisyNeighborStats, tags []string) {
-	if stat.UniquePidCount == 0 {
+	if stat.CgroupTaskCount == 0 {
 		return
 	}
 
-	psl := float64(stat.SumLatenciesNs) / float64(stat.UniquePidCount)
+	psl := float64(stat.SumLatenciesNs) / float64(stat.CgroupTaskCount)
 	sender.Gauge("noisy_neighbor.process_scheduling_latency.per_process", psl, "", tags)
 
-	psp := float64(stat.PreemptionCount) / float64(stat.UniquePidCount)
-	sender.Gauge("noisy_neighbor.process_scheduler_preemptions.per_process", psp, "", tags)
+	foreignPsp := float64(stat.ForeignPreemptionCount) / float64(stat.CgroupTaskCount)
+	sender.Gauge("noisy_neighbor.process_scheduler_preemptions.foreign.per_process", foreignPsp, "", tags)
+
+	selfPsp := float64(stat.SelfPreemptionCount) / float64(stat.CgroupTaskCount)
+	sender.Gauge("noisy_neighbor.process_scheduler_preemptions.self.per_process", selfPsp, "", tags)
+
+	totalPreemptions := stat.ForeignPreemptionCount + stat.SelfPreemptionCount
+	if totalPreemptions > 0 {
+		latPerPreempt := float64(stat.SumLatenciesNs) / float64(totalPreemptions)
+		sender.Gauge("noisy_neighbor.latency_per_preemption", latPerPreempt, "", tags)
+	}
 }
 
 func (n *NoisyNeighborCheck) submitRawCounters(sender sender.Sender, stat model.NoisyNeighborStats, tags []string) {
 	sender.Count("noisy_neighbor.events.total", float64(stat.EventCount), "", tags)
-	sender.Gauge("noisy_neighbor.unique_processes", float64(stat.UniquePidCount), "", tags)
+	sender.Gauge("noisy_neighbor.cgroup_task_count", float64(stat.CgroupTaskCount), "", tags)
+}
+
+func (n *NoisyNeighborCheck) submitLatencyBuckets(sender sender.Sender, stat model.NoisyNeighborStats, tags []string) {
+	sender.Count("noisy_neighbor.scheduling_latency.bucket.lt_100us", float64(stat.LatencyBucketLt100us), "", tags)
+	sender.Count("noisy_neighbor.scheduling_latency.bucket.100us_1ms", float64(stat.LatencyBucket100us1ms), "", tags)
+	sender.Count("noisy_neighbor.scheduling_latency.bucket.1ms_10ms", float64(stat.LatencyBucket1ms10ms), "", tags)
+	sender.Count("noisy_neighbor.scheduling_latency.bucket.gt_10ms", float64(stat.LatencyBucketGt10ms), "", tags)
 }
