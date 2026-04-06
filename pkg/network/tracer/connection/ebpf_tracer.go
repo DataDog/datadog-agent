@@ -397,7 +397,6 @@ func initClosedConnEventHandler(config *config.Config, lookupCert lookupCertCb, 
 
 		c.CertInfo = lookupCert(ct.Conn_stats.Cert_id, false)
 		connHasher.Hash(c)
-		fmt.Printf("closed conn: %s\n", c)
 		closedCallback(c)
 	}
 
@@ -528,8 +527,6 @@ func (t *ebpfTracer) getConnectionsIterator(buffer *network.ConnectionBuffer, fi
 	}
 	defer connIter.Close()
 
-	//fmt.Println("+++ start iterate connections +++")
-
 	var tcp4, tcp6, udp4, udp6 float64
 	conn := new(network.ConnectionStats)
 	buf := make([]byte, netebpf.SizeofConn)
@@ -565,11 +562,8 @@ func (t *ebpfTracer) getConnectionsIterator(buffer *network.ConnectionBuffer, fi
 		if filter != nil && !filter(conn) {
 			continue
 		}
-		//fmt.Println(conn)
 		*buffer.Next() = *conn
 	}
-
-	//fmt.Println("--- end iterate connections ---")
 
 	EbpfTracerTelemetry.connections.Set(tcp4, "tcp", "v4")
 	EbpfTracerTelemetry.connections.Set(tcp6, "tcp", "v6")
