@@ -375,15 +375,16 @@ func TestGetAllMetadata_SpanCreation(t *testing.T) {
 	mt := mocktracer.Start()
 	defer mt.Stop()
 
-	// getAllMetadata calls as.GetAPIClient which will fail without a real apiserver.
-	// This tests the error path, which still verifies span creation.
+	// Without a real apiserver, getAllMetadata may fail at GetAPIClient (500) or
+	// at GetMetadataMapBundleOnAllNodes (503) depending on the environment.
+	// Either way, we verify span creation on the error path.
 	handler := http.HandlerFunc(getAllMetadata)
 
 	req := httptest.NewRequest("GET", "/tags/pod", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
-	require.Equal(t, http.StatusInternalServerError, rec.Code)
+	require.Contains(t, []int{http.StatusInternalServerError, http.StatusServiceUnavailable}, rec.Code)
 
 	spans := mt.FinishedSpans()
 	require.Len(t, spans, 1)
