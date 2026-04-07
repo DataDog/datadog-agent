@@ -18,15 +18,20 @@ type detectingAggregator struct {
 	previousMsg           *message.Message
 	previousWasStartGroup bool
 	multiLineMatchInfo    *status.CountInfo
+	shouldTruncate        bool
+	maxContentSize        int
+	tagTruncatedLogs      bool
 }
 
 // NewDetectingAggregator creates a new detecting aggregator.
-func NewDetectingAggregator(tailerInfo *status.InfoRegistry) Aggregator {
+func NewDetectingAggregator(tailerInfo *status.InfoRegistry, maxContentSize int, tagTruncatedLogs bool) Aggregator {
 	multiLineMatchInfo := status.NewCountInfo("MultiLine matches")
 	tailerInfo.Register(multiLineMatchInfo)
 
 	return &detectingAggregator{
 		multiLineMatchInfo: multiLineMatchInfo,
+		maxContentSize:     maxContentSize,
+		tagTruncatedLogs:   tagTruncatedLogs,
 	}
 }
 
@@ -39,19 +44,19 @@ func (d *detectingAggregator) Process(msg *message.Message, label Label) []*mess
 		if d.previousMsg != nil && d.previousWasStartGroup {
 			// Tag the previous message as start of multiline group
 			d.previousMsg.ParsingExtra.Tags = append(d.previousMsg.ParsingExtra.Tags, "auto_multiline_detected:true")
-			d.collected = append(d.collected, d.previousMsg)
+			d.emit(d.previousMsg)
 			// Track that we detected and tagged a multiline log
 			metrics.TlmAutoMultilineAggregatorFlush.Inc("false", "auto_multi_line_detected")
 			d.previousMsg = nil
 			d.previousWasStartGroup = false
 		} else if d.previousMsg != nil {
 			// Previous message wasn't a startGroup, so just output it without tags
-			d.collected = append(d.collected, d.previousMsg)
+			d.emit(d.previousMsg)
 			d.previousMsg = nil
 			d.previousWasStartGroup = false
 		}
 		// Output the current aggregate message immediately
-		d.collected = append(d.collected, msg)
+		d.emit(msg)
 		return d.collected
 	}
 
@@ -59,18 +64,18 @@ func (d *detectingAggregator) Process(msg *message.Message, label Label) []*mess
 	if label == noAggregate {
 		// Flush any pending previous message first
 		if d.previousMsg != nil {
-			d.collected = append(d.collected, d.previousMsg)
+			d.emit(d.previousMsg)
 			d.previousMsg = nil
 			d.previousWasStartGroup = false
 		}
-		d.collected = append(d.collected, msg)
+		d.emit(msg)
 		return d.collected
 	}
 
 	// Handle startGroup: flush previous and store current
 	if label == startGroup {
 		if d.previousMsg != nil {
-			d.collected = append(d.collected, d.previousMsg)
+			d.emit(d.previousMsg)
 		}
 		d.multiLineMatchInfo.Add(1)
 		d.previousMsg = msg
@@ -85,7 +90,7 @@ func (d *detectingAggregator) Process(msg *message.Message, label Label) []*mess
 func (d *detectingAggregator) Flush() []*message.Message {
 	d.collected = d.collected[:0]
 	if d.previousMsg != nil {
-		d.collected = append(d.collected, d.previousMsg)
+		d.emit(d.previousMsg)
 		d.previousMsg = nil
 		d.previousWasStartGroup = false
 	}
@@ -95,4 +100,29 @@ func (d *detectingAggregator) Flush() []*message.Message {
 // IsEmpty returns true if there's no pending message.
 func (d *detectingAggregator) IsEmpty() bool {
 	return d.previousMsg == nil
+}
+
+func (d *detectingAggregator) emit(msg *message.Message) {
+	lastWasTruncated := d.shouldTruncate
+	content := msg.GetContent()
+	d.shouldTruncate = len(content) > d.maxContentSize || msg.ParsingExtra.IsTruncated
+
+	if lastWasTruncated {
+		content = append(message.TruncatedFlag, content...)
+	}
+
+	if d.shouldTruncate {
+		content = append(content, message.TruncatedFlag...)
+		metrics.LogsTruncated.Add(1)
+	}
+
+	if lastWasTruncated || d.shouldTruncate {
+		msg.ParsingExtra.IsTruncated = true
+		if d.tagTruncatedLogs {
+			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.TruncatedReasonTag("single_line"))
+		}
+	}
+
+	msg.SetContent(content)
+	d.collected = append(d.collected, msg)
 }
