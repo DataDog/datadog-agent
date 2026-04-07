@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "network",
+    srcs = ["network.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/gohai/network",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/gohai/utils"],
+)
+
+go_test(
+    name = "network_test",
+    srcs = ["network_test.go"],
+    embed = [":network"],
+    deps = [
+        "//pkg/gohai/utils",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

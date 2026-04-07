@@ -216,7 +216,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_devices.autodiscovery.ping.enabled", false)
 	config.BindEnvAndSetDefault("network_devices.autodiscovery.ping.count", 2)
 	config.BindEnvAndSetDefault("network_devices.autodiscovery.ping.interval", 10)
-	config.BindEnvAndSetDefault("network_devices.autodiscovery.ping.timeout", 5)
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.ping.timeout", 3000)
 	config.BindEnvAndSetDefault("network_devices.autodiscovery.ping.linux.use_raw_socket", false)
 	config.BindEnvAndSetDefault("network_devices.autodiscovery.use_deduplication", false)
 	config.BindEnvAndSetDefault("network_devices.autodiscovery.collect_vpn", false)
@@ -1053,10 +1053,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("integration_security_excluded_checks", []string{})
 
 	// Host Profiler config
-
-	// Individual debug options don't need to be registered here - the section is
-	// passed as-is to the OTel debug exporter which handles its own validation.
-	config.BindEnvAndSetDefault("hostprofiler.debug", map[string]any{})
+	config.BindEnvAndSetDefault("hostprofiler.debug.verbosity", "")
 	config.BindEnvAndSetDefault("hostprofiler.additional_http_headers", map[string]string{})
 }
 
@@ -1272,6 +1269,9 @@ func autoscaling(config pkgconfigmodel.Setup) {
 
 	// Cluster autoscaling product
 	config.BindEnvAndSetDefault("autoscaling.cluster.enabled", false)
+
+	// Kubernetes actions
+	config.BindEnvAndSetDefault("kubeactions.enabled", false)
 }
 
 func fips(config pkgconfigmodel.Setup) {
@@ -1333,6 +1333,7 @@ func autoconfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("container_exclude_logs", []string{})
 	config.BindEnvAndSetDefault("container_exclude_stopped_age", DefaultAuditorTTL-1) // in hours
 	config.BindEnvAndSetDefault("ad_config_poll_interval", int64(10))                 // in seconds
+	config.BindEnvAndSetDefault("ad_tag_completeness_max_wait", 0)                    // in seconds, 0 means disabled (not exposed yet)
 	config.BindEnvAndSetDefault("ad_allowed_env_vars", []string{})
 	config.BindEnvAndSetDefault("ad_disable_env_var_resolution", false)
 	config.BindEnvAndSetDefault("extra_listeners", []string{})
