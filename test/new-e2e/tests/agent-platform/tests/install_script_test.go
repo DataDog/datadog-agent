@@ -261,7 +261,7 @@ func (is *installScriptSuiteSysVInit) TestInstallAgent() {
 
 	ubuntuImage := "public.ecr.aws/ubuntu/ubuntu:22.04_stable"
 	if reg, _ := runner.GetProfile().ParamStore().GetWithDefault(parameters.ImagePullRegistry, ""); reg != "" {
-		ubuntuImage = strings.SplitN(reg, ",", 2)[0] + "/public-ecr/ubuntu/ubuntu:22.04_stable"
+		ubuntuImage = strings.SplitN(reg, ",", 2)[0] + "/ecr-public/ubuntu/ubuntu:22.04_stable"
 	}
 	err := client.RunContainer(ubuntuImage)
 	require.NoError(is.T(), err)
