@@ -24,7 +24,7 @@ ExecStart={{.InstallDir}}/embedded/bin/privateactionrunner run --cfgpath={{.EtcD
 StartLimitInterval=10
 StartLimitBurst=5
 {{- if .AmbiantCapabilitiesSupported}}
-AmbientCapabilities=CAP_NET_BIND_SERVICE
+AmbientCapabilities=CAP_NET_BIND_SERVICE CAP_NET_RAW
 {{- end}}
 
 [Install]

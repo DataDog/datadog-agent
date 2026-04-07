@@ -88,6 +88,7 @@ use (
 	pkg/api
 	pkg/collector/check/defaults
 	pkg/config/basic
+	pkg/config/buildschema
 	pkg/config/create
 	pkg/config/env
 	pkg/config/helper

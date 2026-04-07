@@ -5,22 +5,31 @@
 
 //go:build test
 
-package hostinfoimpl
+// Package hostinfomock provides a mock hostinfo component.
+package hostinfomock
 
 import (
 	"go.uber.org/fx"
 
-	hostinfoComp "github.com/DataDog/datadog-agent/comp/process/hostinfo"
+	hostinfoComp "github.com/DataDog/datadog-agent/comp/process/hostinfo/def"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
+
+type hostinfo struct {
+	hostinfo *checks.HostInfo
+}
+
+func (h *hostinfo) Object() *checks.HostInfo {
+	return h.hostinfo
+}
+
+func newMockHostInfo() hostinfoComp.Component {
+	return &hostinfo{hostinfo: &checks.HostInfo{}}
+}
 
 // MockModule defines the fx options for the mock component.
 func MockModule() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newMockHostInfo))
-}
-
-func newMockHostInfo() hostinfoComp.Component {
-	return &hostinfo{hostinfo: &checks.HostInfo{}}
 }

@@ -103,7 +103,7 @@ func (s *batchStrategy) Start() {
 	go func() {
 		flushTicker := s.clock.Ticker(s.batchWait)
 		defer func() {
-			s.flushAllBatches()
+			s.flushAllBatches("shutdown")
 			flushTicker.Stop()
 			close(s.stopChan)
 		}()
@@ -123,10 +123,10 @@ func (s *batchStrategy) Start() {
 				}
 			case <-flushTicker.C:
 				// flush the payloads at a regular interval so pending messages don't wait here for too long.
-				s.flushAllBatches()
+				s.flushAllBatches("timer")
 			case <-s.flushChan:
 				// flush payloads on demand, used for infrequently running serverless functions
-				s.flushAllBatches()
+				s.flushAllBatches("flush")
 			}
 		}
 	}()
@@ -142,8 +142,8 @@ func (s *batchStrategy) getBatch(key string) *batch {
 	return s.batches[key]
 }
 
-func (s *batchStrategy) flushAllBatches() {
+func (s *batchStrategy) flushAllBatches(reason string) {
 	for _, batch := range s.batches {
-		batch.flushBuffer(s.outputChan)
+		batch.flushBuffer(s.outputChan, reason)
 	}
 }

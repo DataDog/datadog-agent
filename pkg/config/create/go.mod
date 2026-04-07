@@ -3,7 +3,8 @@ module github.com/DataDog/datadog-agent/pkg/config/create
 go 1.25.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/config/model v0.72.2
+	github.com/DataDog/datadog-agent/pkg/config/buildschema v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/config/model v0.77.2
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.64.1
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.64.1
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.72.2
@@ -114,6 +115,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/api => ../../../pkg/api
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../pkg/collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/basic => ../../../pkg/config/basic
+	github.com/DataDog/datadog-agent/pkg/config/buildschema => ../../../pkg/config/buildschema
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../../pkg/config/env
 	github.com/DataDog/datadog-agent/pkg/config/helper => ../../../pkg/config/helper
 	github.com/DataDog/datadog-agent/pkg/config/mock => ../../../pkg/config/mock
