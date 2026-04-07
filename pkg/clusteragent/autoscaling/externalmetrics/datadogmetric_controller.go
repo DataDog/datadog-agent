@@ -175,7 +175,10 @@ func (c *DatadogMetricController) process(workerID int) bool {
 	operation, err = c.processDatadogMetric(workerID, key)
 	if err == nil {
 		c.workqueue.Forget(key)
-	} else {
+	} else if k8serrors.IsConflict(err) {
+		c.workqueue.Forget(key)
+		log.Debugf("Conflict updating DatadogMetric %s, skipping as next reconciliation will resolve it", key)
+  	} else {
 		numRequeues := c.workqueue.NumRequeues(key)
 		if numRequeues >= maxRetry {
 			c.workqueue.Forget(key)
