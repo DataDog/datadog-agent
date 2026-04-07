@@ -23,7 +23,7 @@ const defaultKindNodeImage = "kindest/node"
 // validate the GPU setup with the default CUDA installation. Note that the CUDA
 // version in this image must be equal or less than the one installed in the
 // AMI.
-const defaultCudaSanityCheckImage = "669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/nvidia/cuda:12.6.3-base-ubuntu22.04"
+const defaultCudaSanityCheckImage = "docker.io/nvidia/cuda:12.6.3-base-ubuntu22.04"
 
 // KindClusterOptions contains the options for creating a kind cluster with the Nvidia GPU operator
 type KindClusterOptions struct {

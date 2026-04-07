@@ -9,7 +9,6 @@ package clusterchecks
 
 import (
 	"context"
-	"errors"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -30,11 +29,6 @@ import (
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-)
-
-var (
-	errScheduleFailed   = errors.New("failed to schedule configs")
-	errUnscheduleFailed = errors.New("failed to unschedule configs")
 )
 
 // dispatcher holds the management logic for cluster-checks
@@ -170,10 +164,9 @@ func (d *dispatcher) Schedule(configs []integration.Config) {
 		span.SetTag("excluded_configs", excludedConfigs)
 		span.SetTag("failed_configs", failedConfigs)
 		if failedConfigs > 0 {
-			span.Finish(tracer.WithError(errScheduleFailed))
-		} else {
-			span.Finish()
+			span.SetTag("error", true)
 		}
+		span.Finish()
 	}()
 
 	for _, c := range configs {
@@ -230,10 +223,9 @@ func (d *dispatcher) Unschedule(configs []integration.Config) {
 	defer func() {
 		span.SetTag("failed_configs", failedConfigs)
 		if failedConfigs > 0 {
-			span.Finish(tracer.WithError(errUnscheduleFailed))
-		} else {
-			span.Finish()
+			span.SetTag("error", true)
 		}
+		span.Finish()
 	}()
 
 	for _, c := range configs {

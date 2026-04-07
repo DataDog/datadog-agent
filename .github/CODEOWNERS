@@ -474,6 +474,7 @@
 /pkg/cloudfoundry                       @DataDog/agent-integrations
 /pkg/clusteragent/                      @DataDog/container-platform
 /pkg/clusteragent/autoscaling/          @DataDog/container-autoscaling
+/pkg/clusteragent/kubeactions/          @DataDog/container-integrations
 /pkg/clusteragent/evictor/              @DataDog/container-platform @DataDog/container-integrations
 /pkg/clusteragent/metricsstore/         @DataDog/container-autoscaling
 /pkg/clusteragent/admission/mutate/autoscaling          @DataDog/container-integrations

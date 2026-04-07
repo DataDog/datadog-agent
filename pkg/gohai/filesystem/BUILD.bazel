@@ -1,0 +1,65 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "filesystem",
+    srcs = [
+        "filesystem.go",
+        "filesystem_nix.go",
+        "filesystem_windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/gohai/filesystem",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/util/log",
+            "@com_github_moby_sys_mountinfo//:mountinfo",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/util/log",
+            "@com_github_moby_sys_mountinfo//:mountinfo",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/util/log",
+            "@com_github_moby_sys_mountinfo//:mountinfo",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/util/log",
+            "@com_github_moby_sys_mountinfo//:mountinfo",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:windows": [
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "filesystem_test",
+    srcs = [
+        "filesystem_nix_test.go",
+        "filesystem_test.go",
+    ],
+    embed = [":filesystem"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "@com_github_moby_sys_mountinfo//:mountinfo",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "@com_github_moby_sys_mountinfo//:mountinfo",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@com_github_moby_sys_mountinfo//:mountinfo",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_moby_sys_mountinfo//:mountinfo",
+        ],
+        "//conditions:default": [],
+    }),
+)
