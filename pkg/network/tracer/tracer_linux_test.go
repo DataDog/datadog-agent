@@ -2668,7 +2668,7 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 		f := os.NewFile(uintptr(sfd), "")
 		defer f.Close()
 
-		err = syscall.SetsockoptInt(sfd, syscall.IPPROTO_TCP, syscall.TCP_USER_TIMEOUT, 500)
+		err = syscall.SetsockoptInt(sfd, syscall.IPPROTO_TCP, unix.TCP_USER_TIMEOUT, 500)
 		require.NoError(t, err)
 
 		err = syscall.Connect(sfd, &addr)
