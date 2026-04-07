@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixed a bug where empty log sources would get orphaned due to empty `serviceID` due the agent attempting to collect logs from short lived containers that exit quickly.
