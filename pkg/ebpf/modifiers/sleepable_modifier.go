@@ -8,11 +8,14 @@
 package modifiers
 
 import (
+	"errors"
 	"fmt"
+	"runtime"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
+	"github.com/cilium/ebpf/link"
 	"golang.org/x/sys/unix"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -22,8 +25,8 @@ import (
 )
 
 // SleepableSyscallsSupported checks whether the kernel supports sleepable
-// BPF programs on syscall entry/exit points. This requires kernel >= 5.10
-// and CONFIG_FUNCTION_ERROR_INJECTION
+// BPF programs on syscall entry/exit points. It does this by attempting to
+// load a minimal sleepable fentry program on a syscall wrapper.
 func SleepableSyscallsSupported() (bool, error) {
 	kv, err := kernel.HostVersion()
 	if err != nil {
@@ -37,7 +40,43 @@ func SleepableSyscallsSupported() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return len(missing) == 0, nil
+	if len(missing) > 0 {
+		return false, nil
+	}
+
+	spec := &ebpf.ProgramSpec{
+		Type:       ebpf.Tracing,
+		AttachType: ebpf.AttachTraceFEntry,
+		AttachTo:   "__x64_sys_openat",
+		Flags:      unix.BPF_F_SLEEPABLE,
+		Instructions: asm.Instructions{
+			asm.LoadImm(asm.R0, 0, asm.DWord),
+			asm.Return(),
+		},
+	}
+	if runtime.GOARCH == "arm64" {
+		spec.AttachTo = "__arm64_sys_openat"
+	}
+
+	prog, err := ebpf.NewProgramWithOptions(spec, ebpf.ProgramOptions{
+		LogDisabled: true,
+	})
+	if err != nil {
+		return false, err
+	}
+	defer prog.Close()
+
+	l, err := link.AttachTracing(link.TracingOptions{
+		Program: prog,
+	})
+	if err != nil {
+		if errors.Is(err, link.ErrNotSupported) {
+			return false, nil
+		}
+		return false, err
+	}
+	l.Close()
+	return true, nil
 }
 
 type SleepableProgramModifier struct {
