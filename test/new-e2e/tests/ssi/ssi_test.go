@@ -389,6 +389,12 @@ func (v *ssiSuite) TestRegistryAllowList() {
 							Image:   "registry.datadoghq.com/injector-dev/python",
 							Version: "16ad9d4b",
 							Port:    8080,
+							// admission.datadoghq.com/enabled triggers annotation-based (local SDK)
+							// injection so the webhook processes python-lib.custom-image. Without
+							// this label, the target match takes over and the annotation is ignored.
+							PodLabels: map[string]string{
+								"admission.datadoghq.com/enabled": "true",
+							},
 							PodAnnotations: map[string]string{
 								// Override python library to a registry not in the allow list.
 								"admission.datadoghq.com/python-lib.custom-image": "fake.registry.invalid/dd-lib-python-init:v3.18.1",
