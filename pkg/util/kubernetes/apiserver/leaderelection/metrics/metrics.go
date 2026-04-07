@@ -16,8 +16,8 @@ const (
 	JoinLeaderLabel = "join_leader"
 	// JoinLeaderValue is the static value of the label join_leader
 	JoinLeaderValue = "true"
-	// isLeaderLabel represents the is_leader label
-	isLeaderLabel = "is_leader"
+	// IsLeaderLabel represents the is_leader label
+	IsLeaderLabel = "is_leader"
 )
 
 // NewLeaderMetric returns the leader_election_is_leader metric
@@ -25,7 +25,7 @@ func NewLeaderMetric() telemetry.Gauge {
 	return telemetry.NewGaugeWithOpts(
 		"leader_election",
 		"is_leader",
-		[]string{JoinLeaderLabel, isLeaderLabel}, // join_leader is for label joins
+		[]string{JoinLeaderLabel, IsLeaderLabel}, // join_leader is for label joins
 		"The label is_leader is true if the reporting pod is leader, equals false otherwise.",
 		telemetry.Options{NoDoubleUnderscoreSep: true},
 	)
