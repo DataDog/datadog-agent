@@ -67,7 +67,7 @@ def cmd(ctx, name: str, cmd: str):
     """
     Will execute command
     """
-    ctx.run(f"ssh workspace-{name} bash -c '{cmd}'")
+    ctx.run(f"ssh workspace-{name} bash -c {shlex.quote(cmd)}")
 
 
 @task
