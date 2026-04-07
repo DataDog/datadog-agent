@@ -155,3 +155,19 @@ pub fn exit_cmd(code: i32) -> (&'static str, Vec<String>) {
     let (sh, flag) = shell_cmd();
     (sh, vec![flag.to_string(), format!("exit {code}")])
 }
+
+/// Fixed UUID for deterministic tests.
+pub fn test_uuid() -> String {
+    "00000000-0000-0000-0000-000000000000".to_string()
+}
+
+/// Build a `ProcessConfig` with null stdio, suitable for tests.
+pub fn make_config<S: Into<String>>(command: &str, args: Vec<S>) -> crate::config::ProcessConfig {
+    crate::config::ProcessConfig {
+        command: command.to_string(),
+        args: args.into_iter().map(Into::into).collect(),
+        stdout: "null".to_string(),
+        stderr: "null".to_string(),
+        ..Default::default()
+    }
+}
