@@ -19,6 +19,8 @@ ARG AGENT_GIT_REF
 ARG CI
 ARG DDA_VERSION=v0.29.0
 ARG PACKAGE_TYPE
+ARG GOPROXY
+ARG GONOSUMDB
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Set the working directory
@@ -96,21 +98,21 @@ RUN ARCH=$(dpkg --print-architecture) && \
 COPY manifest.yaml /workspace/datadog-agent/comp/otelcol/collector-contrib/impl/manifest.yaml
 
 # Generate the files and clean up go cache to free space
-RUN dda inv collector.generate && \
+RUN GOPROXY=$GOPROXY GONOSUMDB=$GONOSUMDB dda inv collector.generate && \
     go clean -cache -modcache
 
 # Build the OTel agent with cleanup
 RUN if [ "$PACKAGE_TYPE" = "windows" ]; then \
-    GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CXX=x86_64-w64-mingw32-g++ CC=x86_64-w64-mingw32-gcc dda inv otel-agent.build --byoc && \
+    GOPROXY=$GOPROXY GONOSUMDB=$GONOSUMDB GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CXX=x86_64-w64-mingw32-g++ CC=x86_64-w64-mingw32-gcc dda inv otel-agent.build --byoc && \
     go clean -cache; \
     else \
-    dda inv otel-agent.build --byoc && \
+    GOPROXY=$GOPROXY GONOSUMDB=$GONOSUMDB dda inv otel-agent.build --byoc && \
     go clean -cache; \
     fi
 
 # Build the build-ddot-byoc tool (required for linux and windows PACKAGE_TYPE)
 RUN if [ "$PACKAGE_TYPE" = "linux" ] || [ "$PACKAGE_TYPE" = "windows" ]; then \
-    cd /workspace/datadog-agent/tools/build-ddot-byoc && GOWORK=off go build -o /usr/local/bin/build-ddot-byoc .; \
+    cd /workspace/datadog-agent/tools/build-ddot-byoc && GOPROXY=$GOPROXY GONOSUMDB=$GONOSUMDB GOWORK=off go build -o /usr/local/bin/build-ddot-byoc .; \
     fi
 
 # Build packages if PACKAGE_TYPE is specified, otherwise just output the binary.

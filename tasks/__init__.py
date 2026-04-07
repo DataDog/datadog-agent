@@ -70,6 +70,7 @@ from tasks import (
     release,
     rtloader,
     sbomgen,
+    schema,
     secret_generic_connector,
     security_agent,
     selinux,
@@ -266,6 +267,7 @@ ns.add_collection(debug)
 ns.add_collection(winbuild)
 ns.add_collection(windows_dev_env)
 ns.add_collection(worktree)
+ns.add_collection(schema)
 ns.add_collection(sbomgen)
 ns.add_collection(pkg_template)
 ns.add_collection(virustotal)

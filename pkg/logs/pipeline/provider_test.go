@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsnoopimpl "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -73,6 +75,7 @@ func (f *mockSenderFactory) NewHTTPSender(
 	workersPerQueue int,
 	minWorkerConcurrency int,
 	maxWorkerConcurrency int,
+	_ secrets.Component,
 ) *sender.Sender {
 	f.queueCount = queueCount
 	f.workersPerQueue = workersPerQueue
@@ -233,6 +236,7 @@ func TestProviderConfigurations(t *testing.T) {
 				compression,
 				tc.legacyMode,
 				tc.serverless,
+				secretsnoopimpl.NewComponent().Comp,
 			)
 			require.NotNil(t, providerImpl)
 
@@ -301,6 +305,7 @@ func TestPipelineChannelDistribution(t *testing.T) {
 				compression,
 				false, // legacy mode
 				false, // serverless
+				secretsnoopimpl.NewComponent().Comp,
 			)
 
 			require.NotNil(t, providerImpl)

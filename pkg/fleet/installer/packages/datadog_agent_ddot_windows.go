@@ -139,7 +139,7 @@ func preRemoveDatadogAgentDdot(ctx HookContext) error {
 	return nil
 }
 
-// writeOTelConfigWindows creates otel-config.yaml by substituting API key and site values from datadog.yaml
+// writeOTelConfigWindows creates otel-config.yaml by substituting API key and site values from datadog.yaml, fallback with env variables.
 func writeOTelConfigWindows(ctx HookContext) error {
 	ddYaml := filepath.Join(paths.DatadogDataDir, "datadog.yaml")
 	// Prefer packaged example/template from the installed package repository

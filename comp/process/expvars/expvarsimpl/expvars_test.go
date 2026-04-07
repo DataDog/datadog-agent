@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package expvarsimpl
 
 import (
@@ -19,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/comp/process/expvars"
-	"github.com/DataDog/datadog-agent/comp/process/hostinfo/hostinfoimpl"
+	hostinfomock "github.com/DataDog/datadog-agent/comp/process/hostinfo/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -38,7 +40,7 @@ func TestExpvarServer(t *testing.T) {
 		}),
 		telemetryimpl.MockModule(),
 		sysprobeconfigimpl.MockModule(),
-		hostinfoimpl.MockModule(),
+		hostinfomock.MockModule(),
 		Module(),
 	))
 
@@ -67,7 +69,7 @@ func TestTelemetry(t *testing.T) {
 			})
 		}),
 		Module(),
-		hostinfoimpl.MockModule(),
+		hostinfomock.MockModule(),
 		telemetryimpl.MockModule(),
 		sysprobeconfigimpl.MockModule(),
 	))

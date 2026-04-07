@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "setup",
+    srcs = ["setup.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/setup",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/fleet/installer/env",
+        "//pkg/fleet/installer/exec",
+        "//pkg/fleet/installer/paths",
+        "//pkg/fleet/installer/setup/common",
+        "//pkg/fleet/installer/setup/defaultscript",
+        "//pkg/fleet/installer/setup/djm",
+    ],
+)

@@ -101,7 +101,7 @@ func TestBatchFlushBuffer(t *testing.T) {
 	b.addMessage(msg)
 
 	// Flush the buffer
-	b.flushBuffer(output)
+	b.flushBuffer(output, "timer")
 
 	// Should receive payload
 	payload := <-output
@@ -119,7 +119,7 @@ func TestBatchFlushEmptyBuffer(t *testing.T) {
 	output := make(chan *message.Payload, 1)
 
 	// Flush empty buffer
-	b.flushBuffer(output)
+	b.flushBuffer(output, "timer")
 
 	// Should not receive anything
 	select {
@@ -206,7 +206,7 @@ func TestBatchSendMessages(t *testing.T) {
 	b.serializer.Serialize(msg, b.writeCounter)
 
 	// Send messages
-	b.sendMessages(metadata, output)
+	b.sendMessages(metadata, output, "timer")
 
 	// Should receive payload
 	payload := <-output

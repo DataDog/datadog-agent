@@ -93,7 +93,11 @@ func (b *batch) processMessage(m *message.Message, outputChan chan *message.Payl
 		return
 	}
 	if !added || b.buffer.IsFull() {
-		b.flushBuffer(outputChan)
+		reason := "max_bytes"
+		if b.buffer.IsCountFull() {
+			reason = "max_count"
+		}
+		b.flushBuffer(outputChan, reason)
 	}
 	if !added {
 		// it's possible that the m could not be added because the buffer was full
@@ -128,7 +132,7 @@ func (b *batch) addMessage(m *message.Message) (bool, error) {
 
 // flushBuffer sends all of the messages that are stored in the buffer and
 // forwards them to the the next stage of the pipeline
-func (b *batch) flushBuffer(outputChan chan *message.Payload) {
+func (b *batch) flushBuffer(outputChan chan *message.Payload, reason string) {
 	if b.buffer.IsEmpty() {
 		return
 	}
@@ -148,10 +152,10 @@ func (b *batch) flushBuffer(outputChan chan *message.Payload) {
 	if b.pipelineName == "dbm-samples" || b.pipelineName == "dbm-metrics" || b.pipelineName == "dbm-activity" {
 		log.Debugf("Flushing buffer and sending %d messages for pipeline %s", len(messagesMetadata), b.pipelineName)
 	}
-	b.sendMessages(messagesMetadata, outputChan)
+	b.sendMessages(messagesMetadata, outputChan, reason)
 }
 
-func (b *batch) sendMessages(messagesMetadata []*message.MessageMetadata, outputChan chan *message.Payload) {
+func (b *batch) sendMessages(messagesMetadata []*message.MessageMetadata, outputChan chan *message.Payload, reason string) {
 	defer b.resetBatch()
 
 	if err := b.compressor.Close(); err != nil {
@@ -162,6 +166,7 @@ func (b *batch) sendMessages(messagesMetadata []*message.MessageMetadata, output
 
 	unencodedSize := b.writeCounter.getWrittenBytes()
 	log.Debugf("Send messages for pipeline %s (msg_count:%d, content_size=%d, avg_msg_size=%.2f)", b.pipelineName, len(messagesMetadata), unencodedSize, float64(unencodedSize)/float64(len(messagesMetadata)))
+	metrics.TlmPayloadFlushed.Inc(b.pipelineName, reason)
 
 	if b.serverlessMeta.IsEnabled() {
 		// Increment the wait group so the flush doesn't finish until all payloads are sent to all destinations

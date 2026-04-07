@@ -425,3 +425,57 @@ outer:
 		},
 	)
 }
+
+func TestBuildPipelinesWithV3Beta(t *testing.T) {
+	logger := logmock.New(t)
+	config := configmock.New(t)
+
+	config.SetWithoutSource("dd_url", "http://example.test")
+	config.SetWithoutSource("api_key", "test_key")
+	config.SetWithoutSource("serializer_experimental_use_v3_api.series.endpoints", []string{"http://example.test"})
+	config.SetWithoutSource("serializer_experimental_use_v3_api.series.use_beta", true)
+
+	f, err := defaultforwarder.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
+	require.NoError(t, err)
+	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: config}).Comp
+	s := NewSerializer(f, nil, compressor, config, logger, "")
+
+	pipelines := s.buildPipelines(metricsKindSeries)
+	require.Len(t, pipelines, 1)
+
+	for conf, ctx := range pipelines {
+		require.Len(t, ctx.Destinations, 1)
+		dest := ctx.Destinations[0]
+		assert.Equal(t, metrics.AllowAllFilter{}, conf.Filter)
+		assert.True(t, conf.V3)
+		assert.Equal(t, endpoints.V3BetaSeriesEndpoint, dest.Endpoint)
+	}
+}
+
+func TestBuildPipelinesWithV3BetaCustomRoute(t *testing.T) {
+	logger := logmock.New(t)
+	config := configmock.New(t)
+
+	config.SetWithoutSource("dd_url", "http://example.test")
+	config.SetWithoutSource("api_key", "test_key")
+	config.SetWithoutSource("serializer_experimental_use_v3_api.series.endpoints", []string{"http://example.test"})
+	config.SetWithoutSource("serializer_experimental_use_v3_api.series.use_beta", true)
+	config.SetWithoutSource("serializer_experimental_use_v3_api.series.beta_route", "/api/intake/metrics/custom/series")
+
+	f, err := defaultforwarder.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
+	require.NoError(t, err)
+	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: config}).Comp
+	s := NewSerializer(f, nil, compressor, config, logger, "")
+
+	pipelines := s.buildPipelines(metricsKindSeries)
+	require.Len(t, pipelines, 1)
+
+	for conf, ctx := range pipelines {
+		require.Len(t, ctx.Destinations, 1)
+		dest := ctx.Destinations[0]
+		assert.Equal(t, metrics.AllowAllFilter{}, conf.Filter)
+		assert.True(t, conf.V3)
+		assert.Equal(t, "/api/intake/metrics/custom/series", dest.Endpoint.Route)
+		assert.Equal(t, endpoints.V3BetaSeriesEndpoint.Name, dest.Endpoint.Name)
+	}
+}

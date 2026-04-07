@@ -39,6 +39,7 @@ type context struct {
 	AdmissionController bool
 	CloudFoundry        bool
 	PrivateActionRunner bool
+	SecurityAgent       bool
 }
 
 func mkContext(buildType string, osName string) context {
@@ -149,10 +150,10 @@ func renderAll(destFolder string, tplFolder string) {
 		for _, osName := range []string{"windows", "darwin", "linux"} {
 			destFile := filepath.Join(destFolder, component+"_"+osName+".yaml")
 			render(destFile, filepath.Join(tplFolder, templateName), component, osName)
+			fmt.Println("Successfully wrote", destFile)
 			if err := lint(destFile); err != nil {
 				panic(err)
 			}
-			fmt.Println("Successfully wrote", destFile)
 		}
 	}
 }

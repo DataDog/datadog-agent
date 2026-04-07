@@ -26,8 +26,8 @@ pub async fn shutdown_all(processes: &mut [ManagedProcess]) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::process::tests::{make_config, test_uuid};
     use crate::state::ProcessState;
+    use crate::test_helpers::{make_config, test_uuid};
 
     #[tokio::test]
     async fn test_shutdown_all_graceful() {
