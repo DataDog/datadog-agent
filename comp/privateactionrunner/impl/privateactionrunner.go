@@ -29,6 +29,7 @@ import (
 	pkgrcclient "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/autoconnections"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
 	taskverifier "github.com/DataDog/datadog-agent/pkg/privateactionrunner/task-verifier"
@@ -184,6 +185,14 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 		p.logger.Errorf("Private action runner failed to start: %v", err)
 		return err
 	}
+	commonTags := observability.CommonTags{
+		RunnerId:      cfg.RunnerId,
+		RunnerVersion: cfg.Version,
+		Modes:         cfg.Modes,
+		ExtraTags:     cfg.Tags,
+	}
+	ctx = observability.AddCommonTagsToLogs(ctx, commonTags)
+
 	p.logger.Info("Private action runner starting")
 	p.logger.Info("==> Version : " + parversion.RunnerVersion)
 	p.logger.Info("==> Site : " + cfg.DatadogSite)
