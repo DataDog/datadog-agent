@@ -5,6 +5,7 @@
 
 //go:build linux_bpf
 
+// Package modifiers hold modifiers to be run during the ebpf load and attach lifecycle.
 package modifiers
 
 import (
