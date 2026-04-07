@@ -48,7 +48,7 @@ func TestBaseAutoscalerTags(t *testing.T) {
 	assert.Contains(t, tags, "target_kind:deployment")
 	assert.Contains(t, tags, "autoscaler_name:test-autoscaler")
 	assert.Contains(t, tags, "name:test-autoscaler")
-	assert.Contains(t, tags, le.JoinLeaderLabel+":"+le.JoinLeaderValue)
+	assert.Contains(t, tags, le.IsLeaderLabel+":"+le.JoinLeaderValue)
 }
 
 func TestConditionTags(t *testing.T) {
@@ -73,7 +73,7 @@ func TestConditionTags(t *testing.T) {
 	assert.Contains(t, tags, "autoscaler_name:test-autoscaler")
 	assert.Contains(t, tags, "name:test-autoscaler")
 	assert.Contains(t, tags, "type:Active")
-	assert.Contains(t, tags, le.JoinLeaderLabel+":"+le.JoinLeaderValue)
+	assert.Contains(t, tags, le.IsLeaderLabel+":"+le.JoinLeaderValue)
 }
 
 func TestGeneratePodAutoscalerMetrics(t *testing.T) {
