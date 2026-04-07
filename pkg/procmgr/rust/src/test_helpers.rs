@@ -11,24 +11,26 @@
 
 /// Command that succeeds immediately (exit 0).
 #[cfg(unix)]
-pub fn true_cmd() -> (&'static str, Vec<&'static str>) {
+pub fn true_cmd() -> (&'static str, Vec<String>) {
     ("/usr/bin/true", vec![])
 }
 
+/// Command that succeeds immediately (exit 0).
 #[cfg(windows)]
-pub fn true_cmd() -> (&'static str, Vec<&'static str>) {
-    ("cmd.exe", vec!["/C", "exit 0"])
+pub fn true_cmd() -> (&'static str, Vec<String>) {
+    ("cmd.exe", vec!["/C".into(), "exit 0".into()])
 }
 
 /// Command that fails immediately (exit 1).
 #[cfg(unix)]
-pub fn false_cmd() -> (&'static str, Vec<&'static str>) {
+pub fn false_cmd() -> (&'static str, Vec<String>) {
     ("/usr/bin/false", vec![])
 }
 
+/// Command that fails immediately (exit 1).
 #[cfg(windows)]
-pub fn false_cmd() -> (&'static str, Vec<&'static str>) {
-    ("cmd.exe", vec!["/C", "exit 1"])
+pub fn false_cmd() -> (&'static str, Vec<String>) {
+    ("cmd.exe", vec!["/C".into(), "exit 1".into()])
 }
 
 /// Command + args for sleeping `secs` seconds.
@@ -37,6 +39,7 @@ pub fn sleep_cmd(secs: u32) -> (&'static str, Vec<String>) {
     ("/bin/sleep", vec![secs.to_string()])
 }
 
+/// Command + args for sleeping `secs` seconds.
 #[cfg(windows)]
 pub fn sleep_cmd(secs: u32) -> (&'static str, Vec<String>) {
     (
@@ -52,6 +55,7 @@ pub fn shell_cmd() -> (&'static str, &'static str) {
     ("/bin/sh", "-c")
 }
 
+/// Shell command + flag for running an inline script.
 #[cfg(windows)]
 pub fn shell_cmd() -> (&'static str, &'static str) {
     ("cmd.exe", "/C")
@@ -72,33 +76,34 @@ pub fn sleep_config_yaml() -> &'static str {
     "command: /bin/sleep\nargs:\n  - '300'\n"
 }
 
+/// YAML config snippet for a process that sleeps for a long time.
 #[cfg(windows)]
 pub fn sleep_config_yaml() -> &'static str {
     "command: cmd.exe\nargs:\n  - '/C'\n  - 'timeout /t 300 /nobreak >nul'\n"
 }
 
 /// YAML for a process that exits successfully and never restarts.
+#[cfg(unix)]
 pub fn true_config_yaml() -> &'static str {
-    #[cfg(unix)]
-    {
-        "command: /usr/bin/true\nrestart: never\n"
-    }
-    #[cfg(windows)]
-    {
-        "command: cmd.exe\nargs:\n  - '/C'\n  - 'exit 0'\nrestart: never\n"
-    }
+    "command: /usr/bin/true\nrestart: never\n"
+}
+
+/// YAML for a process that exits successfully and never restarts.
+#[cfg(windows)]
+pub fn true_config_yaml() -> &'static str {
+    "command: cmd.exe\nargs:\n  - '/C'\n  - 'exit 0'\nrestart: never\n"
 }
 
 /// YAML for a process that exits with failure and never restarts.
+#[cfg(unix)]
 pub fn false_config_yaml() -> &'static str {
-    #[cfg(unix)]
-    {
-        "command: /usr/bin/false\nrestart: never\n"
-    }
-    #[cfg(windows)]
-    {
-        "command: cmd.exe\nargs:\n  - '/C'\n  - 'exit 1'\nrestart: never\n"
-    }
+    "command: /usr/bin/false\nrestart: never\n"
+}
+
+/// YAML for a process that exits with failure and never restarts.
+#[cfg(windows)]
+pub fn false_config_yaml() -> &'static str {
+    "command: cmd.exe\nargs:\n  - '/C'\n  - 'exit 1'\nrestart: never\n"
 }
 
 /// Command that ignores graceful-stop and sleeps forever.
@@ -108,22 +113,26 @@ pub fn false_config_yaml() -> &'static str {
 /// the shell (which traps SIGTERM) restarts it, keeping the process alive
 /// until SIGKILL arrives.
 #[cfg(unix)]
-pub fn trap_term_sleep() -> (&'static str, Vec<&'static str>) {
+pub fn trap_term_sleep() -> (&'static str, Vec<String>) {
     (
         "/bin/sh",
-        vec!["-c", "trap '' TERM; while true; do sleep 60; done"],
+        vec![
+            "-c".into(),
+            "trap '' TERM; while true; do sleep 60; done".into(),
+        ],
     )
 }
 
+/// Command that ignores graceful-stop and sleeps forever.
+/// Used to test forced-kill (TerminateProcess) on timeout.
+///
+/// PowerShell ignores CTRL_BREAK_EVENT by default, so the process
+/// outlives any stop_timeout and forces escalation to TerminateProcess.
 #[cfg(windows)]
-pub fn trap_term_sleep() -> (&'static str, Vec<&'static str>) {
-    // On Windows there is no SIGTERM to trap; the graceful stop sends
-    // CTRL_BREAK_EVENT which PowerShell ignores by default.
-    // Loop indefinitely so the process outlives any stop_timeout and
-    // forces the escalation to TerminateProcess (force-kill).
+pub fn trap_term_sleep() -> (&'static str, Vec<String>) {
     (
         "powershell.exe",
-        vec!["-Command", "while($true){Start-Sleep 60}"],
+        vec!["-Command".into(), "while($true){Start-Sleep 60}".into()],
     )
 }
 
@@ -134,6 +143,7 @@ pub fn exit_env_cmd(var: &str) -> (&'static str, Vec<String>) {
     (sh, vec![flag.to_string(), format!("exit ${var}")])
 }
 
+/// Shell command that exits with the value of the given environment variable.
 #[cfg(windows)]
 pub fn exit_env_cmd(var: &str) -> (&'static str, Vec<String>) {
     let (sh, flag) = shell_cmd();
