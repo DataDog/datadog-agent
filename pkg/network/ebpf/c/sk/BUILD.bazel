@@ -14,6 +14,7 @@ ebpf_program_suite(
     name = "sk_tracer",
     src = "sk_tracer.c",
     core = True,
+    visibility = ["//visibility:public"],
     deps = [
         ":ebpf_c_network_sk",
         "//pkg/network/ebpf/c:ebpf_c_network",
