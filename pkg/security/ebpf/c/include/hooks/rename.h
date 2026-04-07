@@ -5,6 +5,7 @@
 #include "helpers/approvers.h"
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
+#include "helpers/discarders.h"
 
 int __attribute__((always_inline)) trace__sys_rename(u8 async, const char *oldpath, const char *newpath) {
     struct syscall_cache_t syscall = {
@@ -99,6 +100,10 @@ int hook_vfs_rename(ctx_t *ctx) {
     // always return after any invalidate_inode call
     if (approve_syscall(syscall, rename_approvers) == DISCARDED) {
         // do not pop, we want to invalidate the inode even if the syscall is discarded
+        return 0;
+    }
+    if (is_auid_discarder(EVENT_RENAME)) {
+        syscall->state = DISCARDED;
         return 0;
     }
 

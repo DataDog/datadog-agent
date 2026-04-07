@@ -115,7 +115,7 @@ function formatTime(isoString: string): string {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
-function EpisodeInfoPanel({ info, score }: { info: EpisodeInfo; score?: ScoreResult | null }) {
+function EpisodeInfoPanel({ info, score, onShowConfig }: { info: EpisodeInfo; score?: ScoreResult | null; onShowConfig?: () => void }) {
   const [expanded, setExpanded] = useState(false);
 
   const phases: { key: string; phase: typeof info.baseline }[] = [
@@ -184,6 +184,17 @@ function EpisodeInfoPanel({ info, score }: { info: EpisodeInfo; score?: ScoreRes
         )}
 
       </div>
+
+      {/* Config button — right-aligned outside the flex-1 group */}
+      {onShowConfig && (
+        <button
+          onClick={onShowConfig}
+          title="Show active component config as JSON (for --config flag)"
+          className="shrink-0 px-2.5 py-1 rounded text-xs text-slate-400 hover:text-white hover:bg-slate-700 transition-colors font-mono border border-slate-600 hover:border-slate-500"
+        >
+          {'{ }'}
+        </button>
+      )}
     </div>
   );
 }
@@ -213,9 +224,81 @@ function ScoreDisplay({ score }: { score: ScoreResult }) {
   );
 }
 
+function ConfigModal({ components, onClose }: {
+  components: import('./api/client').ComponentInfo[];
+  onClose: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  const configJSON = JSON.stringify(
+    {
+      components: Object.fromEntries(
+        components.map(c => [
+          c.name,
+          { enabled: c.enabled, ...(c.config ?? {}) },
+        ])
+      ),
+    },
+    null,
+    2
+  );
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(configJSON).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="bg-slate-800 border border-slate-600 rounded-lg shadow-2xl w-[560px] max-h-[80vh] flex flex-col"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700">
+          <div>
+            <h2 className="text-sm font-semibold text-white">Active Config</h2>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Paste into a file and pass with <code className="font-mono bg-slate-700 px-1 rounded">--config &lt;file&gt;</code>
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleCopy}
+              className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                copied
+                  ? 'bg-green-700 text-green-200'
+                  : 'bg-slate-600 hover:bg-slate-500 text-slate-200'
+              }`}
+            >
+              {copied ? '✓ Copied' : 'Copy'}
+            </button>
+            <button
+              onClick={onClose}
+              className="text-slate-400 hover:text-white transition-colors text-lg leading-none px-1"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+        {/* Body */}
+        <pre className="overflow-auto flex-1 p-4 text-xs font-mono text-slate-200 leading-relaxed">
+          {configJSON}
+        </pre>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const [state, actions] = useObserver();
   const [activeTab, setActiveTab] = useState<TabID>('timeseries');
+  const [showConfigModal, setShowConfigModal] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(320);
   const [requestedFocusedGroupKey, setRequestedFocusedGroupKey] = useState<string | null>(null);
   const [requestedPatternFilter, setRequestedPatternFilter] = useState<string | null>(null);
@@ -559,7 +642,13 @@ function App() {
       )}
 
       {/* Episode info panel (shown when episode.json is present) */}
-      {episodeInfo && <EpisodeInfoPanel info={episodeInfo} score={state.scoreResponse?.available ? state.scoreResponse.score : null} />}
+      {episodeInfo && (
+        <EpisodeInfoPanel
+          info={episodeInfo}
+          score={state.scoreResponse?.available ? state.scoreResponse.score : null}
+          onShowConfig={state.components?.length ? () => setShowConfigModal(true) : undefined}
+        />
+      )}
 
       <div className="flex-1 flex relative min-h-0">
         {/* Resize handle */}
@@ -630,6 +719,13 @@ function App() {
           />
         </div>
       </div>
+
+      {showConfigModal && state.components && (
+        <ConfigModal
+          components={state.components}
+          onClose={() => setShowConfigModal(false)}
+        />
+      )}
     </div>
   );
 }

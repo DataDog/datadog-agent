@@ -588,6 +588,9 @@ type MetricContext struct {
 	Example string
 	// Source identifies the originating component or data stream.
 	Source string
+	// SplitTags carries the tag-group key/value pairs (source, service, env, host) that
+	// scoped the sub-clusterer which produced this metric. Nil when no split tags apply.
+	SplitTags map[string]string
 }
 
 // StorageReader provides read access to time series data.
@@ -633,6 +636,13 @@ type StorageReader interface {
 	// PointCountUpTo returns the number of raw data points with timestamp <= endTime.
 	// Uses binary search for efficiency. Returns 0 if the series is not found.
 	PointCountUpTo(handle SeriesRef, endTime int64) int
+
+	// SumRange returns the sum of the specified aggregate over all points with
+	// timestamp in (start, end] without allocating any intermediate slices.
+	// Returns 0 if the series is not found or the range is empty.
+	// This is more efficient than ForEachPoint when only the aggregate total
+	// is needed (e.g. computing an average rate over a window).
+	SumRange(handle SeriesRef, start, end int64, agg Aggregate) float64
 
 	// WriteGeneration returns a per-series counter that increments on every
 	// write to that series, including same-bucket merges. Use this to detect

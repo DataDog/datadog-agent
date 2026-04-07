@@ -316,8 +316,8 @@ func TestSetExtractorsRefreshesContextProviders(t *testing.T) {
 }
 
 func TestEnrichAnomalyWithRealLogPatternExtractorUsesStoredSeriesTags(t *testing.T) {
-	extractor := NewLogPatternExtractor()
-	extractor.MinPatternsBeforeEmit = 1
+	extractor := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
+	extractor.config.MinClusterSizeBeforeEmit = 1
 	e := newEngine(engineConfig{
 		storage:          newTimeSeriesStorage(),
 		extractors:       []observerdef.LogMetricsExtractor{extractor},
@@ -329,6 +329,13 @@ func TestEnrichAnomalyWithRealLogPatternExtractorUsesStoredSeriesTags(t *testing
 		status:      "warn",
 		tags:        []string{"service:api"},
 		timestampMs: 1_000,
+	})
+	// Second log in the same sub-clusterer so patterns merge and produce a wildcard.
+	_, _ = e.IngestLog("source-a", &logObs{
+		content:     []byte("GET /users/456 returned 500"),
+		status:      "warn",
+		tags:        []string{"service:api"},
+		timestampMs: 1_500,
 	})
 	_, _ = e.IngestLog("source-b", &logObs{
 		content:     []byte("GET /users/456 returned 500"),

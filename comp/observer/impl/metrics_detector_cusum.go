@@ -17,21 +17,21 @@ import (
 type CUSUMConfig struct {
 	// MinPoints is the minimum number of points required for analysis.
 	// Default: 5
-	MinPoints int
+	MinPoints int `json:"min_points"`
 
 	// BaselineFraction is the fraction of points to use for baseline estimation.
 	// Default: 0.25 (first 25% of data)
-	BaselineFraction float64
+	BaselineFraction float64 `json:"baseline_fraction"`
 
 	// SlackFactor is multiplied by baseline stddev to get k (slack parameter).
 	// Higher values make detection less sensitive to small shifts.
 	// Default: 0.5
-	SlackFactor float64
+	SlackFactor float64 `json:"slack_factor"`
 
 	// ThresholdFactor is multiplied by baseline stddev to get h (threshold).
 	// Higher values require larger cumulative deviation to trigger.
 	// Default: 4.0
-	ThresholdFactor float64
+	ThresholdFactor float64 `json:"threshold_factor"`
 }
 
 // DefaultCUSUMConfig returns a CUSUMConfig with default values.

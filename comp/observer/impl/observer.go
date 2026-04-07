@@ -7,20 +7,29 @@
 package observerimpl
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"time"
+
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
+	taggerdef "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	workloadfilterdef "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadmetadef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
+	"github.com/DataDog/datadog-agent/comp/observer/impl/hfrunner"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -32,6 +41,7 @@ type Requires struct {
 	// When fields are nil, values are read from configuration defaults.
 	AgentInternalLogTap AgentInternalLogTapConfig
 
+	Lifecycle compdef.Lifecycle
 	Config    config.Component
 	Log       log.Component
 	Telemetry telemetry.Component
@@ -43,6 +53,14 @@ type Requires struct {
 	// RemoteAgentRegistry enables fetching traces/profiles
 	// from remote trace-agents via the ObserverProvider gRPC service.
 	RemoteAgentRegistry remoteagentregistry.Component
+
+	// WMeta, FilterStore, Tagger are optional — required only when
+	// observer.high_frequency_container_checks.enabled is true.
+	// Using option.Option so the observer can start without them (e.g. in tests
+	// or agent binaries that don't include container infrastructure).
+	WMeta       option.Option[workloadmetadef.Component]
+	FilterStore option.Option[workloadfilterdef.Component]
+	Tagger      option.Option[taggerdef.Component]
 }
 
 type AgentInternalLogTapConfig struct {
@@ -239,10 +257,23 @@ func NewComponent(deps Requires) Provides {
 		telemetryComp = noopsimpl.GetCompatComponent()
 	}
 
+	hfSystemEnabled := cfg.GetBool("observer.high_frequency_system_checks.enabled")
+	hfContainerEnabled := cfg.GetBool("observer.high_frequency_container_checks.enabled")
+	th := newTelemetryHandler(telemetryComp)
+
+	// Build the set of MetricSource values to suppress from the "all-metrics"
+	// pipeline. Sources are added later, only after their respective HF runners
+	// are confirmed started, to avoid suppressing 15s metrics when the HF
+	// replacement can't start.
+	hfFilterSources := make(map[metrics.MetricSource]struct{})
+
 	obs := &observerImpl{
-		engine:           eng,
-		obsCh:            make(chan observation, 1000),
-		telemetryHandler: newTelemetryHandler(telemetryComp),
+		engine:             eng,
+		obsCh:              make(chan observation, 1000),
+		telemetryHandler:   th,
+		dropCounter:        th.telemetryCounters[telemetryObsChannelDropped],
+		hfContainerEnabled: hfContainerEnabled,
+		hfFilterSources:    hfFilterSources,
 	}
 
 	// Set up handle function based on recording and analysis configuration.
@@ -257,11 +288,35 @@ func NewComponent(deps Requires) Provides {
 
 	if recorder, ok := deps.Recorder.Get(); ok {
 		obs.handleFunc = recorder.GetHandle(obs.handleFunc)
+
+		// Record detect digests and advance log alongside parquet for parity debugging.
+		parquetDir := cfg.GetString("observer.recording.parquet_output_dir")
+		if parquetDir != "" {
+			digestPath := filepath.Join(parquetDir, detectDigestFileName)
+			cleanup, err := enableDetectDigestRecordingToFile(eng, digestPath)
+			if err != nil {
+				deps.Log.Warnf("[observer] detect digest recording disabled: %v", err)
+			} else {
+				obs.digestCleanup = cleanup
+			}
+
+			advPath := filepath.Join(parquetDir, advanceLogFileName)
+			advRec, err := newAdvanceLogRecorder(advPath)
+			if err != nil {
+				deps.Log.Warnf("[observer] advance log recording disabled: %v", err)
+			} else {
+				eng.onAdvance = advRec.record
+				obs.advanceLogCleanup = func() {
+					eng.onAdvance = nil
+					_ = advRec.close()
+				}
+			}
+		}
 	}
 
 	// Optionally add the event reporter when sending is enabled via config.
 	if cfg.GetBool("observer.event_reporter.sending_enabled") {
-		if sender, err := newEventSender(deps.Config, deps.Log); err != nil {
+		if sender, err := newEventSender(deps.Config, deps.Log, eng.Storage()); err != nil {
 			deps.Log.Warnf("[observer] event_reporter disabled: %v", err)
 		} else {
 			eventReporter := &EventReporter{sender: sender, logger: deps.Log}
@@ -273,6 +328,59 @@ func NewComponent(deps Requires) Provides {
 	}
 
 	go obs.run()
+
+	// Start high-frequency system check runner if enabled.
+	// Checks run at 1s and route metrics into the observer via a dedicated
+	// "system-checks-hf" handle, never touching the aggregator or forwarder.
+	if hfSystemEnabled {
+		hfHandle := obs.GetHandle(hfrunner.HFSource)
+		obs.hfRunner = hfrunner.New(hfHandle)
+		obs.hfRunner.Start()
+		obs.hfEnabled = true
+		for src := range systemCheckSources {
+			obs.hfFilterSources[src] = struct{}{}
+		}
+		pkglog.Info("[observer] high-frequency system check runner started (1s interval)")
+		deps.Lifecycle.Append(compdef.Hook{
+			OnStop: func(_ context.Context) error {
+				obs.hfRunner.Stop()
+				return nil
+			},
+		})
+	}
+
+	// Start high-frequency container check runner if enabled.
+	// Uses the generic container check with WLM + tagger for full per-container
+	// cardinality. Metrics route via "container-checks-hf" and never reach intake.
+	if hfContainerEnabled {
+		wmeta, wmetaOk := deps.WMeta.Get()
+		filterStore, filterOk := deps.FilterStore.Get()
+		tagger, taggerOk := deps.Tagger.Get()
+		if wmetaOk && filterOk && taggerOk {
+			containerHandle := obs.GetHandle(hfrunner.HFContainerSource)
+			obs.hfContainerRunner = hfrunner.NewContainer(containerHandle, hfrunner.ContainerDeps{
+				WMeta:       wmeta,
+				FilterStore: filterStore,
+				Tagger:      tagger,
+			})
+			if obs.hfContainerRunner != nil {
+				obs.hfContainerRunner.Start()
+				pkglog.Info("[observer] high-frequency container check runner started (1s interval)")
+				// Only suppress 15s container metrics now that the HF replacement is confirmed running.
+				for src := range containerCheckSources {
+					obs.hfFilterSources[src] = struct{}{}
+				}
+				deps.Lifecycle.Append(compdef.Hook{
+					OnStop: func(_ context.Context) error {
+						obs.hfContainerRunner.Stop()
+						return nil
+					},
+				})
+			}
+		} else {
+			pkglog.Warn("[observer] high_frequency_container_checks.enabled=true but WMeta/FilterStore/Tagger not available; skipping")
+		}
+	}
 
 	// Start periodic metric dump if configured
 	dumpPath := cfg.GetString("observer.debug_dump_path")
@@ -404,7 +512,31 @@ type observerImpl struct {
 	// fetcher pulls traces/profiles from remote trace-agents
 	fetcher *observerFetcher
 
-	telemetryHandler *telemetryHandler
+	telemetryHandler  *telemetryHandler
+	digestCleanup     func() // flushes detect digest recording file
+	advanceLogCleanup func() // flushes advance log recording file
+
+	// dropCounter counts observations silently dropped when the channel is full.
+	// Tagged by source for Prometheus visibility. Complements engine.droppedObs
+	// which tracks drops for live/replay parity analysis.
+	dropCounter telemetry.Counter
+
+	// hfRunner is the high-frequency system check runner, non-nil when enabled.
+	hfRunner *hfrunner.Runner
+
+	// hfContainerRunner is the high-frequency container check runner, non-nil when enabled.
+	hfContainerRunner *hfrunner.Runner
+
+	// hfFilterSources is the combined set of MetricSource values to suppress from
+	// the "all-metrics" pipeline when their HF counterpart is active. Built at
+	// construction time from whichever HF flags are enabled.
+	hfFilterSources map[metrics.MetricSource]struct{}
+
+	// hfEnabled is true when high-frequency system check collection is active.
+	hfEnabled bool
+
+	// hfContainerEnabled is true when high-frequency container check collection is active.
+	hfContainerEnabled bool
 }
 
 // run is the main dispatch loop, processing all observations sequentially.
@@ -582,9 +714,75 @@ func (o *observerImpl) GetHandle(name string) observerdef.Handle {
 }
 
 // innerHandle creates the base handle without any middleware wrapping.
+// When any HF check collection is enabled, the "all-metrics" handle is wrapped
+// with hfFilteredHandle to suppress 15s samples for checks that have a 1s HF
+// counterpart active — the scorer should only see the higher-resolution stream.
 func (o *observerImpl) innerHandle(name string) observerdef.Handle {
-	return &handle{ch: o.obsCh, source: name}
+	h := &handle{ch: o.obsCh, source: name, dropCount: &o.engine.droppedObs, dropCounter: o.dropCounter}
+	if len(o.hfFilterSources) > 0 && name == "all-metrics" {
+		return &hfFilteredHandle{inner: h, sources: o.hfFilterSources}
+	}
+	return h
 }
+
+// sourceProvider is a structural interface satisfied by *metrics.MetricSample,
+// which carries a MetricSource enum populated by the standard check sender.
+// Using a type assertion (rather than adding GetSource to MetricView) avoids
+// importing pkg/metrics into comp/observer/def.
+type sourceProvider interface {
+	GetSource() metrics.MetricSource
+}
+
+// systemCheckSources is the set of MetricSource values produced by the system
+// checks that the HF runner executes. It mirrors the check list in hfrunner/runner.go.
+var systemCheckSources = map[metrics.MetricSource]struct{}{
+	metrics.MetricSourceCPU:        {},
+	metrics.MetricSourceLoad:       {},
+	metrics.MetricSourceMemory:     {},
+	metrics.MetricSourceIo:         {},
+	metrics.MetricSourceDisk:       {},
+	metrics.MetricSourceNetwork:    {},
+	metrics.MetricSourceUptime:     {},
+	metrics.MetricSourceFileHandle: {},
+}
+
+// containerCheckSources is the set of MetricSource values produced by the
+// container checks that the HF container runner executes. Only MetricSourceContainer
+// is included because the HF runner uses the generic container check (check name
+// "container"), which maps to MetricSourceContainer regardless of runtime.
+// The legacy per-runtime checks (containerd, cri, docker) have their own
+// MetricSource values but are not run by the HF runner.
+var containerCheckSources = map[metrics.MetricSource]struct{}{
+	metrics.MetricSourceContainer: {},
+}
+
+// hfFilteredHandle wraps a Handle and drops metrics whose source is in the
+// provided sources set, so that 15s pipeline samples do not compete with their
+// 1s HF counterparts in the scorer.
+//
+// Filtering uses a MetricSource enum map lookup via a type assertion to
+// sourceProvider. Samples that do not implement sourceProvider pass through
+// unchanged — absence of metadata is not sufficient grounds to drop.
+type hfFilteredHandle struct {
+	inner   observerdef.Handle
+	sources map[metrics.MetricSource]struct{}
+}
+
+func (f *hfFilteredHandle) ObserveMetric(sample observerdef.MetricView) {
+	if sp, ok := sample.(sourceProvider); ok {
+		if _, suppressed := f.sources[sp.GetSource()]; suppressed {
+			return
+		}
+	}
+	f.inner.ObserveMetric(sample)
+}
+
+func (f *hfFilteredHandle) ObserveLog(msg observerdef.LogView)       { f.inner.ObserveLog(msg) }
+func (f *hfFilteredHandle) ObserveTrace(trace observerdef.TraceView) { f.inner.ObserveTrace(trace) }
+func (f *hfFilteredHandle) ObserveTraceStats(s observerdef.TraceStatsView) {
+	f.inner.ObserveTraceStats(s)
+}
+func (f *hfFilteredHandle) ObserveProfile(p observerdef.ProfileView) { f.inner.ObserveProfile(p) }
 
 // noopHandle returns a handle that discards all observations.
 // Used when analysis is disabled so the analysis pipeline is not started.
@@ -611,8 +809,10 @@ func (o *observerImpl) DumpMetrics(path string) error {
 // handle is the lightweight observation interface passed to other components.
 // It only holds a channel and source name - all processing happens in the observer.
 type handle struct {
-	ch     chan<- observation
-	source string
+	ch          chan<- observation
+	source      string
+	dropCount   *atomic.Int64     // shared with engine.droppedObs for parity debugging; may be nil
+	dropCounter telemetry.Counter // tagged by source for Prometheus visibility; may be nil
 }
 
 // ObserveMetric observes a DogStatsD metric sample.
@@ -640,11 +840,15 @@ func (h *handle) ObserveMetric(sample observerdef.MetricView) {
 	}
 
 	// Non-blocking send - drop if channel is full.
-	// In production, this prevents slow consumers from blocking data ingestion.
-	// For demo comparison, this means faster correlators see more data.
 	select {
 	case h.ch <- obs:
 	default:
+		if h.dropCount != nil {
+			h.dropCount.Add(1)
+		}
+		if h.dropCounter != nil {
+			h.dropCounter.Add(1, h.source)
+		}
 	}
 }
 
@@ -668,6 +872,12 @@ func (h *handle) ObserveLog(msg observerdef.LogView) {
 	select {
 	case h.ch <- obs:
 	default:
+		if h.dropCount != nil {
+			h.dropCount.Add(1)
+		}
+		if h.dropCounter != nil {
+			h.dropCounter.Add(1, h.source)
+		}
 	}
 }
 
@@ -718,6 +928,12 @@ func (h *handle) ObserveTrace(trace observerdef.TraceView) {
 	select {
 	case h.ch <- obs:
 	default:
+		if h.dropCount != nil {
+			h.dropCount.Add(1)
+		}
+		if h.dropCounter != nil {
+			h.dropCounter.Add(1, h.source)
+		}
 	}
 }
 
@@ -754,6 +970,12 @@ func (h *handle) ObserveProfile(profile observerdef.ProfileView) {
 	select {
 	case h.ch <- obs:
 	default:
+		if h.dropCount != nil {
+			h.dropCount.Add(1)
+		}
+		if h.dropCounter != nil {
+			h.dropCounter.Add(1, h.source)
+		}
 	}
 }
 

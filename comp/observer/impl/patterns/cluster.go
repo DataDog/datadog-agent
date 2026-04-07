@@ -13,20 +13,6 @@ import (
 	"time"
 )
 
-// Used to compute cluster IDs on multiple threads without locking
-type IDComputeInfo struct {
-	Offset int64
-	Stride int64
-	Index  int64
-}
-
-func (idComputeInfo *IDComputeInfo) NextID() int64 {
-	newID := idComputeInfo.Offset + idComputeInfo.Index*idComputeInfo.Stride
-	idComputeInfo.Index++
-
-	return newID
-}
-
 // Cluster represents a group of similar log messages.
 type Cluster struct {
 	// TODO(celian): Use a map to efficiently get the cluster by ID
@@ -86,23 +72,22 @@ func (c *Cluster) ToClusterInfo() ClusterInfo {
 
 // SignatureClusterer groups logs by exact signature match.
 type SignatureClusterer struct {
-	clusters      map[string]*Cluster
-	orderedKeys   []string
-	tokenizer     *Tokenizer
-	IgnoreEmpty   bool
-	TextGetter    func(doc map[string]string) string
-	TagGetters    map[string]func(doc map[string]string) string
-	IDComputeInfo IDComputeInfo
+	clusters    map[string]*Cluster
+	orderedKeys []string
+	tokenizer   *Tokenizer
+	IgnoreEmpty bool
+	TextGetter  func(doc map[string]string) string
+	TagGetters  map[string]func(doc map[string]string) string
+	nextID      int64
 }
 
-func NewSignatureClusterer(idComputeInfo IDComputeInfo) *SignatureClusterer {
+func NewSignatureClusterer() *SignatureClusterer {
 	return &SignatureClusterer{
-		clusters:      make(map[string]*Cluster),
-		tokenizer:     NewTokenizer(),
-		IgnoreEmpty:   true,
-		TextGetter:    func(doc map[string]string) string { return doc["message"] },
-		TagGetters:    map[string]func(doc map[string]string) string{},
-		IDComputeInfo: idComputeInfo,
+		clusters:    make(map[string]*Cluster),
+		tokenizer:   NewTokenizer(),
+		IgnoreEmpty: true,
+		TextGetter:  func(doc map[string]string) string { return doc["message"] },
+		TagGetters:  map[string]func(doc map[string]string) string{},
 	}
 }
 
@@ -133,11 +118,12 @@ func (sc *SignatureClusterer) ProcessTokens(tokens []Token, message string, unix
 		Pattern:      tokens,
 		Count:        1,
 		Samples:      []string{message},
-		ID:           sc.IDComputeInfo.NextID(),
+		ID:           sc.nextID,
 		LastSeenUnix: unixSec,
 	}
 	sc.clusters[sig] = c
 	sc.orderedKeys = append(sc.orderedKeys, sig)
+	sc.nextID++
 
 	return c, true
 }
@@ -171,15 +157,29 @@ type PatternClusterer struct {
 	allClusters         []*Cluster
 	tokenizer           *Tokenizer
 	IgnoreEmpty         bool
-	IDComputeInfo       IDComputeInfo
+	nextID              int64
+	// minTokenMatchRatio is the effective minimum fraction of token positions that must
+	// match by value for an incoming line to merge into an existing cluster. Set at
+	// construction from rawMinTokenMatchRatio via effectiveMinTokenMatchRatio.
+	minTokenMatchRatio float64
 }
 
-func NewPatternClusterer(idComputeInfo IDComputeInfo) *PatternClusterer {
+func NewPatternClusterer() *PatternClusterer {
+	return NewPatternClustererWithTokenizer(NewTokenizer(), 0)
+}
+
+// NewPatternClustererWithTokenizer creates a PatternClusterer that uses the given tokenizer.
+// If t is nil, a default Tokenizer is used. rawMinTokenMatchRatio is normalized once at
+// construction (≤0 → 0.5, >1 → 1); pass 0 for the library default.
+func NewPatternClustererWithTokenizer(t *Tokenizer, rawMinTokenMatchRatio float64) *PatternClusterer {
+	if t == nil {
+		t = NewTokenizer()
+	}
 	return &PatternClusterer{
 		clustersBySignature: make(map[string][]*Cluster),
-		tokenizer:           NewTokenizer(),
+		tokenizer:           t,
 		IgnoreEmpty:         true,
-		IDComputeInfo:       idComputeInfo,
+		minTokenMatchRatio:  effectiveMinTokenMatchRatio(rawMinTokenMatchRatio),
 	}
 }
 
@@ -206,7 +206,7 @@ func (pc *PatternClusterer) ProcessTokens(tokens []Token, message string, unixSe
 	// Try within same signature group first
 	clusters := pc.clustersBySignature[sig]
 	for _, c := range clusters {
-		if canMergeTokenLists(c.Pattern, tokens) {
+		if pc.canMergeTokenLists(c.Pattern, tokens) {
 			mergeTokenLists(c.Pattern, tokens)
 			c.Count++
 			c.LastSeenUnix = unixSec
@@ -221,7 +221,7 @@ func (pc *PatternClusterer) ProcessTokens(tokens []Token, message string, unixSe
 			continue
 		}
 		for _, c := range otherClusters {
-			if canMergeTokenLists(c.Pattern, tokens) {
+			if pc.canMergeTokenLists(c.Pattern, tokens) {
 				mergeTokenLists(c.Pattern, tokens)
 				c.Count++
 				c.LastSeenUnix = unixSec
@@ -235,11 +235,12 @@ func (pc *PatternClusterer) ProcessTokens(tokens []Token, message string, unixSe
 		Pattern:      tokens,
 		Count:        1,
 		Samples:      []string{message},
-		ID:           pc.IDComputeInfo.NextID(),
+		ID:           pc.nextID,
 		LastSeenUnix: unixSec,
 	}
 	pc.clustersBySignature[sig] = append(pc.clustersBySignature[sig], c)
 	pc.allClusters = append(pc.allClusters, c)
+	pc.nextID++
 
 	return c, true
 }
@@ -313,10 +314,27 @@ func (pc *PatternClusterer) RemoveClusters(ids []int64) error {
 	return nil
 }
 
+func effectiveMinTokenMatchRatio(r float64) float64 {
+	switch {
+	case r <= 0:
+		return 0.5
+	case r > 1:
+		return 1
+	default:
+		return r
+	}
+}
+
 // canMergeTokenLists checks if two token lists can be merged.
-// It requires that all token pairs be type-compatible AND that at least
-// half of the tokens match by value (Drain-style similarity threshold).
-func canMergeTokenLists(pattern, incoming []Token) bool {
+// It requires that all token pairs be type-compatible AND that the fraction of
+// positions with equal values is at least pc.minTokenMatchRatio (set at construction).
+func (pc *PatternClusterer) canMergeTokenLists(pattern, incoming []Token) bool {
+	return canMergeTokenListsWithRatio(pattern, incoming, pc.minTokenMatchRatio)
+}
+
+// canMergeTokenListsWithRatio is the merge predicate parameterized by an already-resolved
+// minRatio. Used by tests and PatternClusterer.canMergeTokenLists.
+func canMergeTokenListsWithRatio(pattern, incoming []Token, minRatio float64) bool {
 	if len(pattern) != len(incoming) {
 		return false
 	}
@@ -329,7 +347,10 @@ func canMergeTokenLists(pattern, incoming []Token) bool {
 			matching++
 		}
 	}
-	return matching*2 >= len(pattern)
+	if len(pattern) == 0 {
+		return true
+	}
+	return float64(matching) >= minRatio*float64(len(pattern))
 }
 
 func canMergeTokens(a, b Token) bool {
@@ -422,7 +443,7 @@ func (pc *PatternClusterer) Classify(message string) *Cluster {
 
 	if clusters, ok := pc.clustersBySignature[sig]; ok {
 		for _, c := range clusters {
-			if canMergeTokenLists(c.Pattern, tokens) {
+			if pc.canMergeTokenLists(c.Pattern, tokens) {
 				return c
 			}
 		}
@@ -433,7 +454,7 @@ func (pc *PatternClusterer) Classify(message string) *Cluster {
 			continue
 		}
 		for _, c := range clusters {
-			if canMergeTokenLists(c.Pattern, tokens) {
+			if pc.canMergeTokenLists(c.Pattern, tokens) {
 				return c
 			}
 		}

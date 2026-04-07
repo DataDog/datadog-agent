@@ -14,8 +14,8 @@ import (
 )
 
 func TestLogPatternExtractor_GetContextByKeyUsesOutputContextKey(t *testing.T) {
-	e := NewLogPatternExtractor()
-	e.MinPatternsBeforeEmit = 1
+	e := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
+	e.config.MinClusterSizeBeforeEmit = 1
 
 	log := &mockLogView{
 		content: []byte("GET /users/123 returned 500"),
@@ -32,12 +32,14 @@ func TestLogPatternExtractor_GetContextByKeyUsesOutputContextKey(t *testing.T) {
 	assert.Equal(t, "log_pattern_extractor", ctx.Source)
 	assert.Equal(t, "GET /users/123 returned 500", ctx.Example)
 	assert.NotEmpty(t, ctx.Pattern)
+	assert.Equal(t, map[string]string{"service": "web", "env": "prod"}, ctx.SplitTags)
 }
 
-func TestLogPatternExtractor_ContextKeySeparatesSameMetricByTags(t *testing.T) {
-	e := NewLogPatternExtractor()
-	e.MinPatternsBeforeEmit = 1
+func TestLogPatternExtractor_DifferentTagGroupsProduceDifferentMetricNames(t *testing.T) {
+	e := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
+	e.config.MinClusterSizeBeforeEmit = 1
 
+	// 1 pattern per service (same pattern strings but different IDs)
 	logA := &mockLogView{
 		content: []byte("GET /users/123 returned 500"),
 		status:  "warn",
@@ -48,12 +50,25 @@ func TestLogPatternExtractor_ContextKeySeparatesSameMetricByTags(t *testing.T) {
 		status:  "warn",
 		tags:    []string{"service:worker"},
 	}
+	logC := &mockLogView{
+		content: []byte("GET /users/124 returned 500"),
+		status:  "warn",
+		tags:    []string{"service:api"},
+	}
+	logD := &mockLogView{
+		content: []byte("GET /users/457 returned 500"),
+		status:  "warn",
+		tags:    []string{"service:worker"},
+	}
 
 	resA := e.ProcessLog(logA)
 	resB := e.ProcessLog(logB)
+	e.ProcessLog(logC)
+	e.ProcessLog(logD)
 	require.Len(t, resA.Metrics, 1)
 	require.Len(t, resB.Metrics, 1)
-	require.Equal(t, resA.Metrics[0].Name, resB.Metrics[0].Name)
+	// Different tag groups → different sub-clusterers → different globalClusterHash → different names.
+	require.NotEqual(t, resA.Metrics[0].Name, resB.Metrics[0].Name)
 	require.NotEqual(t, resA.Metrics[0].ContextKey, resB.Metrics[0].ContextKey)
 
 	ctxA, ok := e.GetContextByKey(resA.Metrics[0].ContextKey)
@@ -64,11 +79,48 @@ func TestLogPatternExtractor_ContextKeySeparatesSameMetricByTags(t *testing.T) {
 	assert.Equal(t, "GET /users/123 returned 500", ctxA.Example)
 	assert.Equal(t, "GET /users/456 returned 500", ctxB.Example)
 	assert.Equal(t, ctxA.Pattern, ctxB.Pattern)
+	assert.Equal(t, map[string]string{"service": "api"}, ctxA.SplitTags)
+	assert.Equal(t, map[string]string{"service": "worker"}, ctxB.SplitTags)
+}
+
+func TestLogPatternExtractor_DifferentHostnamesProduceDifferentMetricNamesWhenNoHostTag(t *testing.T) {
+	e := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
+	e.config.MinClusterSizeBeforeEmit = 1
+
+	msg := []byte("GET /users/123 returned 500")
+	tags := []string{"service:api", "env:prod"}
+
+	logA := &mockLogView{
+		content:  msg,
+		status:   "warn",
+		tags:     tags,
+		hostname: "host-a",
+	}
+	logB := &mockLogView{
+		content:  msg,
+		status:   "warn",
+		tags:     tags,
+		hostname: "host-b",
+	}
+
+	resA := e.ProcessLog(logA)
+	resB := e.ProcessLog(logB)
+	require.Len(t, resA.Metrics, 1)
+	require.Len(t, resB.Metrics, 1)
+	require.NotEqual(t, resA.Metrics[0].Name, resB.Metrics[0].Name)
+	require.NotEqual(t, resA.Metrics[0].ContextKey, resB.Metrics[0].ContextKey)
+
+	ctxA, ok := e.GetContextByKey(resA.Metrics[0].ContextKey)
+	require.True(t, ok)
+	ctxB, ok := e.GetContextByKey(resB.Metrics[0].ContextKey)
+	require.True(t, ok)
+	assert.Equal(t, map[string]string{"service": "api", "env": "prod", "host": "host-a"}, ctxA.SplitTags)
+	assert.Equal(t, map[string]string{"service": "api", "env": "prod", "host": "host-b"}, ctxB.SplitTags)
 }
 
 func TestLogPatternExtractor_ResetClearsContext(t *testing.T) {
-	e := NewLogPatternExtractor()
-	e.MinPatternsBeforeEmit = 1
+	e := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
+	e.config.MinClusterSizeBeforeEmit = 1
 
 	log := &mockLogView{
 		content: []byte("GET /users/123 returned 500"),
@@ -89,7 +141,7 @@ func TestLogPatternExtractor_ResetClearsContext(t *testing.T) {
 }
 
 func TestLogPatternExtractor_SkipsBelowWarnSeverity(t *testing.T) {
-	e := NewLogPatternExtractor()
+	e := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
 
 	out := e.ProcessLog(&mockLogView{
 		content: []byte("INFO: routine request completed"),
@@ -101,7 +153,7 @@ func TestLogPatternExtractor_SkipsBelowWarnSeverity(t *testing.T) {
 }
 
 func TestLogPatternExtractor_DeferredEmitUntilMinPatterns(t *testing.T) {
-	e := NewLogPatternExtractor()
+	e := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
 	status := "warn"
 	tags := []string{"service:api"}
 
@@ -123,8 +175,8 @@ func TestLogPatternExtractor_DeferredEmitUntilMinPatterns(t *testing.T) {
 }
 
 func TestLogPatternExtractor_GarbageCollectRemovesStaleClusterAndContext(t *testing.T) {
-	e := NewLogPatternExtractor()
-	e.MinPatternsBeforeEmit = 1
+	e := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
+	e.config.MinClusterSizeBeforeEmit = 1
 	e.ClusterTimeToLiveSec = 10
 	// GC scheduling uses wall-clock seconds; 0 means the next ProcessLog can run
 	// maybeGarbageCollect without waiting an extra second (tests run in one Unix second).
@@ -169,18 +221,17 @@ func TestLogPatternExtractor_GarbageCollectRemovesStaleClusterAndContext(t *test
 
 	require.NotEqual(t, ctxKey1, ctxKey2)
 
-	// PatternClusterer uses IDs 0, 1, … for the first and second clusters respectively.
-	_, err := e.PatternClusterer.GetCluster(0)
-	require.Error(t, err, "stale cluster should be removed from clusterer")
-	_, err = e.PatternClusterer.GetCluster(1)
-	require.NoError(t, err, "cluster from the second log should still exist")
+	// Only cluster B should remain in the tagged clusterer.
+	remaining := e.taggedClusterer.GetAllClusters()
+	require.Len(t, remaining, 1, "stale cluster should be removed from tagged clusterer")
 }
 
 func TestLogPatternExtractor_GCEvictedContextKeysTwoTagSetsOneCluster(t *testing.T) {
-	// Two different tag-sets produce two context keys for the same cluster;
-	// GC should evict both context keys when the cluster becomes stale.
-	e := NewLogPatternExtractor()
-	e.MinPatternsBeforeEmit = 1
+	// Two different tag-sets that share the same split dimensions (same sub-clusterer)
+	// produce two context keys for the same cluster. GC should evict both when the cluster
+	// becomes stale. Non-split tags (e.g. "version:") differ so the context keys differ.
+	e := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
+	e.config.MinClusterSizeBeforeEmit = 1
 	e.ClusterTimeToLiveSec = 10
 	e.GarbageCollectionIntervalSec = 0
 	// Pin NextGarbageCollectionTime far in the future so GC does not fire during
@@ -188,25 +239,26 @@ func TestLogPatternExtractor_GCEvictedContextKeysTwoTagSetsOneCluster(t *testing
 	// on every ProcessLog call, evicting the cluster before both tags are ingested.
 	e.NextGarbageCollectionTime = 1 << 62
 
-	msg := []byte("WARN disk usage above threshold on host *")
+	msg := []byte("WARN disk usage above threshold")
 	const tsMs = int64(1_000_000) // unix sec = 1000
 
-	// Same pattern, two different tag-sets → two context keys, one cluster.
-	resA := e.ProcessLog(&mockLogView{content: msg, status: "warn", tags: []string{"host:a"}, timestampMs: tsMs})
-	require.Len(t, resA.Metrics, 1, "host:a must emit a metric")
-	resB := e.ProcessLog(&mockLogView{content: msg, status: "warn", tags: []string{"host:b"}, timestampMs: tsMs})
-	require.Len(t, resB.Metrics, 1, "host:b must emit a metric")
+	// Same pattern, same split-dimension tag group (service:api) → same sub-clusterer.
+	// Different non-split tag "version:" → different context keys, but one cluster.
+	resA := e.ProcessLog(&mockLogView{content: msg, status: "warn", tags: []string{"service:api", "version:1"}, timestampMs: tsMs})
+	require.Len(t, resA.Metrics, 1, "version:1 must emit a metric")
+	resB := e.ProcessLog(&mockLogView{content: msg, status: "warn", tags: []string{"service:api", "version:2"}, timestampMs: tsMs})
+	require.Len(t, resB.Metrics, 1, "version:2 must emit a metric")
 	require.Equal(t, resA.Metrics[0].Name, resB.Metrics[0].Name,
-		"identical messages must be assigned to the same cluster")
+		"identical messages with same split-dims must share the same cluster metric name")
 
 	// Allow GC to run on the next call.
 	e.NextGarbageCollectionTime = 0
 
-	// Trigger GC: real time >> 1000+10, so the cluster is stale.
+	// Trigger GC: cutoff = 1015-10 = 1005, cluster last seen at 1000 is stale.
 	res := e.ProcessLog(&mockLogView{
 		content:     []byte("WARN distinct pattern seed 999 not mergeable xyz"),
 		status:      "warn",
-		tags:        []string{"host:a"},
+		tags:        []string{"service:api"},
 		timestampMs: 1_015_000,
 	})
 
@@ -214,8 +266,8 @@ func TestLogPatternExtractor_GCEvictedContextKeysTwoTagSetsOneCluster(t *testing
 }
 
 func TestLogPatternExtractor_NoGCBeforeInterval(t *testing.T) {
-	e := NewLogPatternExtractor()
-	e.MinPatternsBeforeEmit = 1
+	e := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
+	e.config.MinClusterSizeBeforeEmit = 1
 	e.ClusterTimeToLiveSec = 10
 	e.GarbageCollectionIntervalSec = 3600 // far in the future
 

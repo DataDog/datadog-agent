@@ -62,6 +62,8 @@ export interface ComponentInfo {
   displayName: string;
   category: 'detector' | 'correlator' | 'processing';
   enabled: boolean;
+  /** Active hyperparameter values, present when the component has a typed config. */
+  config?: Record<string, unknown>;
 }
 
 export interface SeriesInfo {

@@ -13,14 +13,14 @@ import (
 const testUnixSec = int64(1704067200)
 
 func TestSignatureClustererEmpty(t *testing.T) {
-	sc := NewSignatureClusterer(IDComputeInfo{})
+	sc := NewSignatureClusterer()
 	if len(sc.GetClusters()) != 0 {
 		t.Error("new clusterer should have 0 clusters")
 	}
 }
 
 func TestSignatureClustererSameMessage(t *testing.T) {
-	sc := NewSignatureClusterer(IDComputeInfo{})
+	sc := NewSignatureClusterer()
 
 	msg := `10.143.180.25 - - [27/Aug/2020:00:27:02 +0000] "POST /api/v1/series HTTP/1.1" 202 16`
 	r1, _ := sc.Process(msg, testUnixSec)
@@ -41,7 +41,7 @@ func TestSignatureClustererSameMessage(t *testing.T) {
 }
 
 func TestSignatureClustererDifferentMessages(t *testing.T) {
-	sc := NewSignatureClusterer(IDComputeInfo{})
+	sc := NewSignatureClusterer()
 
 	msg1 := `10.143.180.25 - - [27/Aug/2020:00:27:02 +0000] "POST /api/v1/series HTTP/1.1" 202 16`
 	msg2 := `2020-08-27 02:32:42 ERROR (connector.go:34) - Failed to connected to redis`
@@ -55,7 +55,7 @@ func TestSignatureClustererDifferentMessages(t *testing.T) {
 }
 
 func TestSignatureClustererIgnoresEmpty(t *testing.T) {
-	sc := NewSignatureClusterer(IDComputeInfo{})
+	sc := NewSignatureClusterer()
 	_, ok := sc.Process("", testUnixSec)
 	if ok {
 		t.Error("empty message should return no result")
@@ -66,7 +66,7 @@ func TestSignatureClustererIgnoresEmpty(t *testing.T) {
 }
 
 func TestSignatureClustererCount(t *testing.T) {
-	sc := NewSignatureClusterer(IDComputeInfo{})
+	sc := NewSignatureClusterer()
 	msg := "hello world"
 	sc.Process(msg, testUnixSec)
 	sc.Process(msg, testUnixSec)
@@ -90,7 +90,7 @@ func TestPatternClustererSimpleOneCluster(t *testing.T) {
 		"[stats] total:888 rps:15.13",
 	}
 
-	pc := NewPatternClusterer(IDComputeInfo{})
+	pc := NewPatternClusterer()
 	for _, msg := range messages {
 		pc.Process(msg, 0)
 	}
@@ -118,7 +118,7 @@ func TestPatternClustererSimpleMultipleClusters(t *testing.T) {
 		"[stats] total:888 rps:15.10",
 	}
 
-	pc := NewPatternClusterer(IDComputeInfo{})
+	pc := NewPatternClusterer()
 	for _, msg := range messages {
 		pc.Process(msg, 0)
 	}
@@ -138,7 +138,7 @@ func TestPatternClustererTrailingWhitespace(t *testing.T) {
 		"ApplyAlgorithm request failed; requeueing for retry. ",
 	}
 
-	pc := NewPatternClusterer(IDComputeInfo{})
+	pc := NewPatternClusterer()
 	for _, msg := range messages {
 		pc.Process(msg, 0)
 	}
@@ -161,7 +161,7 @@ func TestPatternClustererSameNumberOfTokens(t *testing.T) {
 		"Travis CI API request for org 68083 succeeded",
 	}
 
-	pc := NewPatternClusterer(IDComputeInfo{})
+	pc := NewPatternClusterer()
 	for _, msg := range messages {
 		pc.Process(msg, 0)
 	}
@@ -190,7 +190,7 @@ func TestPatternClustererSameNumberOfTokens2(t *testing.T) {
 		"Done crawling pagerduty",
 	}
 
-	pc := NewPatternClusterer(IDComputeInfo{})
+	pc := NewPatternClusterer()
 	for _, msg := range messages {
 		pc.Process(msg, 0)
 	}
@@ -205,7 +205,7 @@ func TestPatternClustererSameNumberOfTokens2(t *testing.T) {
 }
 
 func TestPatternClustererIgnoresEmpty(t *testing.T) {
-	pc := NewPatternClusterer(IDComputeInfo{})
+	pc := NewPatternClusterer()
 	pc.Process("", 0)
 	pc.Process("", 0)
 	pc.Process("", 0)
@@ -233,7 +233,7 @@ func TestPatternClustererShouldReturnCorrectClusters(t *testing.T) {
 		"let's go for a jog",
 	}
 
-	pc := NewPatternClusterer(IDComputeInfo{})
+	pc := NewPatternClusterer()
 	for _, msg := range messages {
 		pc.Process(msg, 0)
 	}
@@ -266,7 +266,7 @@ func TestPatternClustererSimilarMessages(t *testing.T) {
 		"[34593403.292552]",
 	}
 
-	pc := NewPatternClusterer(IDComputeInfo{})
+	pc := NewPatternClusterer()
 	for _, msg := range messages {
 		pc.Process(msg, 0)
 	}
@@ -283,7 +283,7 @@ func TestPatternClustererSimilarGCStats(t *testing.T) {
 		"4730 @95338.114s 0%: 0.14+151+0.13 ms clock, 2.2+588/602/154+2.1 ms cpu, 2043->2095->1510 MB, 2092 MB goal, 16 P",
 	}
 
-	pc := NewPatternClusterer(IDComputeInfo{})
+	pc := NewPatternClusterer()
 	for _, msg := range messages {
 		pc.Process(msg, 0)
 	}
@@ -303,7 +303,7 @@ func TestPatternClustererIdsAsFirstWord(t *testing.T) {
 		"FATAL|2019-07-04T16:27:55,087|DC461A43ABD7|1.0|",
 	}
 
-	pc := NewPatternClusterer(IDComputeInfo{})
+	pc := NewPatternClusterer()
 	for _, msg := range messages {
 		pc.Process(msg, 0)
 	}
@@ -317,7 +317,7 @@ func TestPatternClustererIdsAsFirstWord(t *testing.T) {
 }
 
 func TestPatternClustererTrailingInterrogationMark(t *testing.T) {
-	pc := NewPatternClusterer(IDComputeInfo{})
+	pc := NewPatternClusterer()
 	pc.Process("GET /api/v2/query?", 0)
 	pc.Process("GET /api/v2/query", 0)
 
@@ -337,7 +337,7 @@ func TestPatternClustererFailureMessages(t *testing.T) {
 		`Failure detected for requestId=2. error.code=INTERNAL error.message="Failed to rewrite query: '@verb:GET AND @referer:*xyz*'"`,
 	}
 
-	pc := NewPatternClusterer(IDComputeInfo{})
+	pc := NewPatternClusterer()
 	for _, msg := range messages {
 		pc.Process(msg, 0)
 	}
@@ -393,7 +393,7 @@ func TestMergeTokensWhitespace(t *testing.T) {
 func TestMergeTokenListsSameLength(t *testing.T) {
 	a := []Token{WordToken("hello"), WhitespaceToken(1), WordToken("world")}
 	b := []Token{WordToken("hello"), WhitespaceToken(1), WordToken("earth")}
-	if !canMergeTokenLists(a, b) {
+	if !canMergeTokenListsWithRatio(a, b, 0.5) {
 		t.Error("token lists with same structure should be mergeable")
 	}
 }
@@ -401,8 +401,20 @@ func TestMergeTokenListsSameLength(t *testing.T) {
 func TestMergeTokenListsDifferentLength(t *testing.T) {
 	a := []Token{WordToken("hello")}
 	b := []Token{WordToken("hello"), WhitespaceToken(1)}
-	if canMergeTokenLists(a, b) {
+	if canMergeTokenListsWithRatio(a, b, 0.5) {
 		t.Error("token lists with different lengths should not be mergeable")
+	}
+}
+
+func TestMergeTokenListsStricterRatio(t *testing.T) {
+	// Four tokens, two value matches (50%) — merge at default 0.5, not at 0.8.
+	a := []Token{WordToken("a"), WhitespaceToken(1), WordToken("b"), WordToken("c")}
+	b := []Token{WordToken("a"), WhitespaceToken(1), WordToken("x"), WordToken("y")}
+	if !canMergeTokenListsWithRatio(a, b, 0.5) {
+		t.Error("expected merge at default ratio 0.5")
+	}
+	if canMergeTokenListsWithRatio(a, b, 0.8) {
+		t.Error("expected no merge at 0.8 min ratio")
 	}
 }
 
@@ -465,7 +477,7 @@ func TestMergeTokensWildcarding(t *testing.T) {
 // --- End-to-end clustering ---
 
 func TestEndToEndClustering(t *testing.T) {
-	pc := NewPatternClusterer(IDComputeInfo{})
+	pc := NewPatternClusterer()
 
 	r1, _ := pc.Process("user login from 192.168.1.1", 0)
 	if r1.Count != 1 {
@@ -488,7 +500,7 @@ func TestEndToEndClustering(t *testing.T) {
 }
 
 func TestPatternClustererLastSeenAndClusterIDsBeforeUnix(t *testing.T) {
-	pc := NewPatternClusterer(IDComputeInfo{Offset: 0, Stride: 1, Index: 0})
+	pc := NewPatternClusterer()
 
 	a, _ := pc.Process("unique alpha message one", 1000)
 	b, _ := pc.Process("totally different beta two", 5000)
@@ -519,7 +531,7 @@ func TestPatternClustererLastSeenAndClusterIDsBeforeUnix(t *testing.T) {
 }
 
 func TestPatternClustererRemoveCluster(t *testing.T) {
-	pc := NewPatternClusterer(IDComputeInfo{Offset: 10, Stride: 1, Index: 0})
+	pc := NewPatternClusterer()
 	a, _ := pc.Process("[stats] total:889 rps:14.82", 100)
 	b, _ := pc.Process("new connection: 234", 200)
 	if pc.NumClusters() != 2 {
@@ -556,7 +568,7 @@ func TestPatternClustererRemoveCluster(t *testing.T) {
 }
 
 func TestPatternClustererRemoveClusters(t *testing.T) {
-	pc := NewPatternClusterer(IDComputeInfo{Offset: 10, Stride: 1, Index: 0})
+	pc := NewPatternClusterer()
 	a, _ := pc.Process("[stats] total:889 rps:14.82", 100)
 	b, _ := pc.Process("new connection: 234", 200)
 	c, _ := pc.Process("other line", 300)
@@ -592,21 +604,5 @@ func TestPatternClustererRemoveClusters(t *testing.T) {
 	}
 	if pc.NumClusters() != 0 {
 		t.Fatalf("expected 0 clusters, got %d", pc.NumClusters())
-	}
-}
-
-func TestIDComputeInfo(t *testing.T) {
-	idComputeInfo := IDComputeInfo{Offset: 1, Stride: 2, Index: 0}
-	if idComputeInfo.NextID() != 1 {
-		t.Errorf("expected 1, got %d", idComputeInfo.NextID())
-	}
-	if idComputeInfo.Index != 1 {
-		t.Errorf("expected 1, got %d", idComputeInfo.Index)
-	}
-	if idComputeInfo.NextID() != 3 {
-		t.Errorf("expected 3, got %d", idComputeInfo.NextID())
-	}
-	if idComputeInfo.Index != 2 {
-		t.Errorf("expected 2, got %d", idComputeInfo.Index)
 	}
 }

@@ -172,6 +172,7 @@ func parseLogsQuery(query url.Values) logsQuery {
 // patternClusterFilter matches log lines against a single pattern cluster (hex hash from /api/log-patterns).
 type patternClusterFilter struct {
 	extractor *LogPatternExtractor
+	groupHash uint64
 	clusterID int64
 }
 
@@ -183,9 +184,9 @@ func (api *TestBenchAPI) resolvePatternClusterFilter(patternHash string) *patter
 	if ext == nil {
 		return nil
 	}
-	for _, c := range ext.PatternClusterer.GetClusters() {
-		if fmt.Sprintf("%x", c.ID+1) == patternHash {
-			return &patternClusterFilter{extractor: ext, clusterID: c.ID}
+	for _, entry := range ext.taggedClusterer.GetAllClusters() {
+		if globalClusterHash(entry.GroupHash, entry.Cluster.ID) == patternHash {
+			return &patternClusterFilter{extractor: ext, groupHash: entry.GroupHash, clusterID: entry.Cluster.ID}
 		}
 	}
 	return nil
@@ -195,7 +196,7 @@ func (pf *patternClusterFilter) matchesLogContent(logView observerdef.LogView) b
 	if pf == nil {
 		return true
 	}
-	matched := pf.extractor.PatternClusterer.Classify(string(logView.GetContent()))
+	matched := pf.extractor.taggedClusterer.Classify(pf.groupHash, string(logView.GetContent()))
 	return matched != nil && matched.ID == pf.clusterID
 }
 

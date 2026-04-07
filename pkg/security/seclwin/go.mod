@@ -2,12 +2,17 @@ module github.com/DataDog/datadog-agent/pkg/security/seclwin
 
 go 1.25.7
 
-require github.com/DataDog/datadog-agent/pkg/security/secl v0.56.0
+require (
+	github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/security/secl v0.56.0
+)
 
 require (
 	github.com/alecthomas/participle v0.7.1 // indirect
 	github.com/charlievieth/strcase v0.0.5 // indirect
 	github.com/jellydator/ttlcache/v3 v3.4.0 // indirect
+	github.com/philhofer/fwd v1.2.0 // indirect
+	github.com/tinylib/msgp v1.6.3 // indirect
 	github.com/weppos/publicsuffix-go v0.50.3 // indirect
 	golang.org/x/net v0.52.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
@@ -63,6 +68,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/logs-library => ../../../comp/logs-library
 	github.com/DataDog/datadog-agent/comp/logs/agent/config => ../../../comp/logs/agent/config
 	github.com/DataDog/datadog-agent/comp/netflow/payload => ../../../comp/netflow/payload
+	github.com/DataDog/datadog-agent/comp/observer/def => ../../../comp/observer/def
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def => ../../../comp/otelcol/collector-contrib/def
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl => ../../../comp/otelcol/collector-contrib/impl
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/def => ../../../comp/otelcol/converter/def
@@ -88,6 +94,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/trace/compression/def => ../../../comp/trace/compression/def
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip => ../../../comp/trace/compression/impl-gzip
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd => ../../../comp/trace/compression/impl-zstd
+	github.com/DataDog/datadog-agent/comp/trace/observerbuffer/def => ../../../comp/trace/observerbuffer/def
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ../../../pkg/aggregator/ckey
 	github.com/DataDog/datadog-agent/pkg/api => ../../../pkg/api
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../pkg/collector/check/defaults
@@ -105,6 +112,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig => ../../../pkg/config/teeconfig
 	github.com/DataDog/datadog-agent/pkg/config/utils => ../../../pkg/config/utils
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig => ../../../pkg/config/viperconfig
+	github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model => ../../../pkg/discovery/tracermetadata/model
 	github.com/DataDog/datadog-agent/pkg/errors => ../../../pkg/errors
 	github.com/DataDog/datadog-agent/pkg/fips => ../../../pkg/fips
 	github.com/DataDog/datadog-agent/pkg/fleet/installer => ../../../pkg/fleet/installer
@@ -194,7 +202,3 @@ replace (
 	github.com/DataDog/datadog-agent/test/new-e2e => ../../../test/new-e2e
 	github.com/DataDog/datadog-agent/test/otel => ../../../test/otel
 )
-
-replace github.com/DataDog/datadog-agent/comp/observer/def => ../../../comp/observer/def
-
-replace github.com/DataDog/datadog-agent/comp/trace/observerbuffer/def => ../../../comp/trace/observerbuffer/def

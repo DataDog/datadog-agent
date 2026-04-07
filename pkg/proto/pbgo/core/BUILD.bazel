@@ -10,6 +10,8 @@ go_library(
         "flare_grpc.pb.go",
         "kubemetadata.pb.go",
         "model.pb.go",
+        "observer.pb.go",
+        "observer_grpc.pb.go",
         "remoteagent.pb.go",
         "remoteconfig.pb.go",
         "remoteconfig_gen.go",

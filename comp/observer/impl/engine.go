@@ -7,6 +7,7 @@ package observerimpl
 
 import (
 	"math"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -95,6 +96,15 @@ type engine struct {
 	replayAdvances        atomic.Int64
 	replayAnomalies       atomic.Int64
 	replayPhase           atomic.Value // string: "", "loading", "detecting", "done"
+
+	// Optional instrumentation for live/replay parity debugging.
+	onDetectDigest func(detectDigest)
+	instrStorage   *instrumentedStorage
+	onAdvance      func(advanceEntry) // scheduler trace
+
+	// Counters for data ingestion anomalies, reset after each advance.
+	latePoints atomic.Int64 // points ingested after their timestamp was already analyzed
+	droppedObs atomic.Int64 // observations dropped due to full channel
 }
 
 // engineConfig holds the parameters for constructing an engine.
@@ -143,6 +153,17 @@ func newEngine(cfg engineConfig) *engine {
 	return e
 }
 
+// enableDetectDigestRecording sets a callback invoked after each Detect() call
+// with a digest of the detection output and input hash. Pass nil to disable.
+func (e *engine) enableDetectDigestRecording(fn func(detectDigest)) {
+	e.onDetectDigest = fn
+	if fn != nil {
+		e.instrStorage = newInstrumentedStorage(e.storage)
+	} else {
+		e.instrStorage = nil
+	}
+}
+
 // Subscribe registers an event sink to receive engine events.
 // Returns an unsubscribe function that removes the sink.
 func (e *engine) Subscribe(sink eventSink) func() {
@@ -181,6 +202,11 @@ func (e *engine) emit(evt engineEvent) {
 // that the caller should execute via Advance.
 func (e *engine) IngestMetric(source string, m *metricObs) []advanceRequest {
 	e.storage.Add(source, m.name, m.value, m.timestamp, m.tags)
+	// Track points that arrive after their timestamp was already analyzed.
+	// These points are in storage but were invisible to detectors at analysis time.
+	if m.timestamp <= e.lastAnalyzedDataTime {
+		e.latePoints.Add(1)
+	}
 	e.trackLatestDataTime(m.timestamp)
 	return e.scheduler.onObservation(m.timestamp, e.schedulerState())
 }
@@ -312,6 +338,15 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 	e.lastAnalyzedDataTime = upToSec
 	e.mu.Unlock()
 
+	if e.onAdvance != nil {
+		e.onAdvance(advanceEntry{
+			DataTime:   upToSec,
+			Reason:     advanceReasonString(reason),
+			LatePoints: e.latePoints.Swap(0),
+			DroppedObs: e.droppedObs.Swap(0),
+		})
+	}
+
 	result := e.runDetectorsAndCorrelatorsSnapshot(upToSec, detectors, correlators)
 
 	e.emit(engineEvent{
@@ -336,10 +371,40 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 	var allTelemetry []observerdef.ObserverTelemetry
 
 	for _, detector := range detectors {
+		// Use instrumented storage when digest recording is active.
+		storageForDetect := observerdef.StorageReader(e.storage)
+		if e.instrStorage != nil {
+			e.instrStorage.inner = e.storage // rebind in case storage was swapped
+			e.instrStorage.reset()
+			storageForDetect = e.instrStorage
+		}
+
 		processingStartTime := time.Now()
-		result := detector.Detect(e.storage, upTo)
+		result := detector.Detect(storageForDetect, upTo)
 		processingTime := time.Since(processingStartTime)
 		allTelemetry = append(allTelemetry, newTelemetryGauge([]string{"detector:" + detector.Name()}, telemetryDetectorProcessingTimeNs, float64(processingTime.Nanoseconds()), upTo))
+
+		// Emit detect digest (captures raw result BEFORE dedup).
+		if e.onDetectDigest != nil {
+			fps := make([]string, len(result.Anomalies))
+			for i, a := range result.Anomalies {
+				fps[i] = anomalyFingerprint(a)
+			}
+			sort.Strings(fps)
+			dd := detectDigest{
+				DetectorName:        detector.Name(),
+				DataTime:            upTo,
+				AnomalyCount:        len(result.Anomalies),
+				AnomalyFingerprints: fps,
+			}
+			if e.instrStorage != nil {
+				rd := e.instrStorage.digest(detector.Name(), upTo)
+				dd.InputHash = rd.Hash
+				dd.ReadCount = rd.ReadCount
+				dd.PointCount = rd.PointCount
+			}
+			e.onDetectDigest(dd)
+		}
 
 		for _, anomaly := range result.Anomalies {
 			e.enrichAnomaly(&anomaly)
@@ -413,9 +478,10 @@ func (e *engine) enrichAnomaly(a *observerdef.Anomaly) {
 		return
 	}
 	a.Context = &observerdef.MetricContext{
-		Pattern: ctx.Pattern,
-		Example: truncate(ctx.Example, 120),
-		Source:  ctx.Source,
+		Pattern:   ctx.Pattern,
+		Example:   truncate(ctx.Example, 120),
+		Source:    ctx.Source,
+		SplitTags: ctx.SplitTags,
 	}
 }
 

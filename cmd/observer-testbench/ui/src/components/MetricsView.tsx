@@ -402,6 +402,15 @@ export function MetricsView({
     actions.toggleComponent(name);
   };
 
+  const [expandedConfigs, setExpandedConfigs] = useState<Set<string>>(new Set());
+  const toggleConfigPanel = (name: string) => {
+    setExpandedConfigs(prev => {
+      const next = new Set(prev);
+      next.has(name) ? next.delete(name) : next.add(name);
+      return next;
+    });
+  };
+
   const anomalousGroupKeys = useMemo(() => {
     const keys = new Set<string>();
     metricGroups.forEach((g) => {
@@ -431,31 +440,52 @@ export function MetricsView({
               const count = allAnomalies.filter((a) => getDetectorComponent(a) === comp.name).length;
               const detectorName = detectorNameByComponent.get(comp.name);
               const color = detectorName ? getDetectorColorStable(detectorName) : null;
+              const configEntries = comp.config ? Object.entries(comp.config) : [];
+              const isExpanded = expandedConfigs.has(comp.name);
               return (
-                <label
-                  key={comp.name}
-                  className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-slate-700 cursor-pointer"
-                >
-                  <input
-                    type="checkbox"
-                    checked={enabledDetectors.has(comp.name)}
-                    onChange={() => toggleDetector(comp.name)}
-                    className="rounded border-slate-600 bg-slate-700 text-purple-600 focus:ring-purple-500"
-                  />
-                  {color ? (
-                    <span
-                      className="text-xs px-1.5 py-0.5 rounded font-medium flex-1"
-                      style={{ backgroundColor: color.fill, color: color.stroke }}
-                    >
-                      {comp.displayName}
-                    </span>
-                  ) : (
-                    <span className="text-sm text-slate-300 flex-1">{comp.displayName}</span>
+                <div key={comp.name}>
+                  <label className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-slate-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={enabledDetectors.has(comp.name)}
+                      onChange={() => toggleDetector(comp.name)}
+                      className="rounded border-slate-600 bg-slate-700 text-purple-600 focus:ring-purple-500"
+                    />
+                    {color ? (
+                      <span
+                        className="text-xs px-1.5 py-0.5 rounded font-medium flex-1"
+                        style={{ backgroundColor: color.fill, color: color.stroke }}
+                      >
+                        {comp.displayName}
+                      </span>
+                    ) : (
+                      <span className="text-sm text-slate-300 flex-1">{comp.displayName}</span>
+                    )}
+                    {count > 0 && (
+                      <span className="text-xs text-slate-500">{count}</span>
+                    )}
+                    {configEntries.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={e => { e.preventDefault(); toggleConfigPanel(comp.name); }}
+                        title={isExpanded ? 'Hide config' : 'Show config'}
+                        className="text-slate-500 hover:text-slate-300 transition-colors text-xs leading-none"
+                      >
+                        {isExpanded ? '▴' : '▾'}
+                      </button>
+                    )}
+                  </label>
+                  {isExpanded && configEntries.length > 0 && (
+                    <div className="ml-6 mb-1 px-2 py-1.5 bg-slate-900/60 rounded border border-slate-700/50 font-mono text-xs space-y-0.5">
+                      {configEntries.map(([k, v]) => (
+                        <div key={k} className="flex gap-2">
+                          <span className="text-slate-500 shrink-0">{k}</span>
+                          <span className="text-slate-300">{String(v)}</span>
+                        </div>
+                      ))}
+                    </div>
                   )}
-                  {count > 0 && (
-                    <span className="text-xs text-slate-500">{count}</span>
-                  )}
-                </label>
+                </div>
               );
             })}
           </div>

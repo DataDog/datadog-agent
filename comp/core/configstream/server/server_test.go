@@ -78,6 +78,14 @@ func (m *mockRemoteAgentRegistry) GetRegisteredAgentStatuses() []remoteagentregi
 	return nil
 }
 
+func (m *mockRemoteAgentRegistry) GetObserverTraces(_ uint32) []remoteagentregistry.ObserverTracesData {
+	return nil
+}
+
+func (m *mockRemoteAgentRegistry) GetObserverProfiles(_ uint32) []remoteagentregistry.ObserverProfilesData {
+	return nil
+}
+
 func setupTest(ctx context.Context, t *testing.T, sessionID string) (*Server, *mockComp, *mockStream, chan *pb.ConfigEvent) {
 	cfg := configmock.New(t)
 	cfg.Set("remote_agent.configstream.sleep_interval", 10*time.Millisecond, model.SourceAgentRuntime)

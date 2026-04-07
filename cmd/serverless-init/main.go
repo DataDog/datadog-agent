@@ -153,6 +153,21 @@ func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Compone
 	// Note: we do not modify tags for the LogsAgent.
 	logsAgent := serverlessInitLog.SetupLogAgent(agentLogConfig, tagConfig.Tags, tagger, compression, hostname, origin)
 
+	// When no API key is configured, skip trace and metric agent initialization
+	// to avoid noisy error logs. The process wrapper and logs agent still function normally.
+	// Also check the deprecated apm_config.api_key, which the trace agent still honors.
+	apiKey := configUtils.SanitizeAPIKey(pkgconfigsetup.Datadog().GetString("api_key"))
+	apmAPIKey := configUtils.SanitizeAPIKey(pkgconfigsetup.Datadog().GetString("apm_config.api_key"))
+	if apiKey == "" && apmAPIKey == "" {
+		log.Warnf("DD_API_KEY is not set; trace and metric collection are disabled. Set DD_API_KEY to enable monitoring.")
+		traceAgent := trace.NewNoopTraceAgent()
+		tracingCtx := &cloudservice.TracingContext{TraceAgent: traceAgent}
+		metricAgent := &metrics.ServerlessMetricAgent{
+			Tagger: tagger,
+		}
+		return cloudService, agentLogConfig, tracingCtx, metricAgent, logsAgent, nil, false
+	}
+
 	traceTags := serverlessInitTag.MakeTraceAgentTags(tagConfig.Tags)
 	traceAgent := setupTraceAgent(traceTags, tagConfig.ConfiguredTags, tagger, origin)
 

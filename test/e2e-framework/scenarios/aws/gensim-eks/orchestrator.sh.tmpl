@@ -139,7 +139,7 @@ for EP_SPEC in "${EP_LIST[@]}"; do
       CHART_DIR="/workspace/chart-$EPISODE"
     fi
 
-    EP_RELEASE="gensim-$(echo "$EPISODE" | tr '_' '-' | tr '[:upper:]' '[:lower:]')"
+    EP_RELEASE="gensim-$(echo "$EPISODE" | tr '_' '-' | tr '[:upper:]' '[:lower:]' | cut -c1-46)"
 
     helm install "$EP_RELEASE" "$CHART_DIR" \
       --set agent.enabled=false \
@@ -177,7 +177,7 @@ for EP_SPEC in "${EP_LIST[@]}"; do
   # play-episode.sh requires DD_ENV, DD_API_KEY, DD_APP_KEY, KUBE_NAMESPACE.
   # DD_API_KEY, DD_APP_KEY, KUBE_NAMESPACE are set on the Job env. DD_ENV must
   # be set to the episode helm release name (used for monitor scoping).
-  export DD_ENV="gensim-$(echo "$EPISODE" | tr '_' '-' | tr '[:upper:]' '[:lower:]')"
+  export DD_ENV="$EP_RELEASE"
   EP_OUTCOME="success"
   bash /workspace/play-episode.sh run-episode "$SCENARIO" || EP_OUTCOME="failure"
   cd /
@@ -216,7 +216,7 @@ for EP_SPEC in "${EP_LIST[@]}"; do
       #   tmp/gensim-archive/results/<scenario>.json  (produced by play-episode.sh)
       mkdir -p /workspace/zip-staging/tmp/gensim-archive/parquet
       mkdir -p /workspace/zip-staging/tmp/gensim-archive/results
-      cp /workspace/results/parquet/*.parquet /workspace/zip-staging/tmp/gensim-archive/parquet/ 2>/dev/null || true
+      cp /workspace/results/parquet/* /workspace/zip-staging/tmp/gensim-archive/parquet/ 2>/dev/null || true
       # play-episode.sh writes results to /workspace/results/<scenario>-<cycle>.json
       cp /workspace/results/*.json /workspace/zip-staging/tmp/gensim-archive/results/ 2>/dev/null || true
 

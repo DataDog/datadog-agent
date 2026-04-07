@@ -10,6 +10,7 @@ import (
 	"time"
 
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
@@ -24,16 +25,19 @@ type AggregatingSender struct {
 	backendSender    Sender
 	observerHandle   observer.Handle
 	aggregator       *localAggregator
-	originalInterval time.Duration // Original check interval for backend flush
+	originalInterval time.Duration        // Original check interval for backend flush
+	source           metrics.MetricSource // Derived from check ID at construction time
 	stopCh           chan struct{}
 	mu               sync.Mutex
 }
 
 // NewAggregatingSender wraps a backend sender for high-frequency collection.
+// - id: the check ID, used to populate MetricSource on observer samples
 // - backendSender: the real sender that submits to backend
 // - observerHandle: observer handle for immediate high-freq observations
 // - originalInterval: original check interval (for backend flush timing)
 func NewAggregatingSender(
+	id checkid.ID,
 	backendSender Sender,
 	observerHandle observer.Handle,
 	originalInterval time.Duration,
@@ -43,6 +47,7 @@ func NewAggregatingSender(
 		observerHandle:   observerHandle,
 		aggregator:       newLocalAggregator(),
 		originalInterval: originalInterval,
+		source:           metrics.CheckNameToMetricSource(checkid.IDToCheckName(id)),
 		stopCh:           make(chan struct{}),
 	}
 
@@ -52,23 +57,30 @@ func NewAggregatingSender(
 	return s
 }
 
+// newObserverSample builds a MetricSample for observer mirroring.
+// Centralising construction here ensures Source is always populated,
+// enabling source-based filtering in the observer without string comparisons.
+func (s *AggregatingSender) newObserverSample(metric string, value float64, mtype metrics.MetricType, hostname string, tags []string, timestamp float64) *metrics.MetricSample {
+	if timestamp == 0 {
+		timestamp = float64(time.Now().Unix())
+	}
+	return &metrics.MetricSample{
+		Name:       metric,
+		Value:      value,
+		Mtype:      mtype,
+		Tags:       tags,
+		Host:       hostname,
+		SampleRate: 1.0,
+		Timestamp:  timestamp,
+		Source:     s.source,
+	}
+}
+
 // Gauge sends to observer immediately and accumulates for backend
 func (s *AggregatingSender) Gauge(metric string, value float64, hostname string, tags []string) {
-	// Observer: send immediately (high-frequency)
 	if s.observerHandle != nil {
-		sample := &metrics.MetricSample{
-			Name:       metric,
-			Value:      value,
-			Mtype:      metrics.GaugeType,
-			Tags:       tags,
-			Host:       hostname,
-			SampleRate: 1.0,
-			Timestamp:  float64(time.Now().Unix()),
-		}
-		s.observerHandle.ObserveMetric(sample)
+		s.observerHandle.ObserveMetric(s.newObserverSample(metric, value, metrics.GaugeType, hostname, tags, 0))
 	}
-
-	// Aggregator: accumulate for backend
 	s.mu.Lock()
 	s.aggregator.addGauge(metric, value, hostname, tags)
 	s.mu.Unlock()
@@ -76,21 +88,9 @@ func (s *AggregatingSender) Gauge(metric string, value float64, hostname string,
 
 // GaugeNoIndex sends to observer immediately and accumulates for backend
 func (s *AggregatingSender) GaugeNoIndex(metric string, value float64, hostname string, tags []string) {
-	// Observer: send immediately (high-frequency)
 	if s.observerHandle != nil {
-		sample := &metrics.MetricSample{
-			Name:       metric,
-			Value:      value,
-			Mtype:      metrics.GaugeType,
-			Tags:       tags,
-			Host:       hostname,
-			SampleRate: 1.0,
-			Timestamp:  float64(time.Now().Unix()),
-		}
-		s.observerHandle.ObserveMetric(sample)
+		s.observerHandle.ObserveMetric(s.newObserverSample(metric, value, metrics.GaugeType, hostname, tags, 0))
 	}
-
-	// Aggregator: accumulate for backend (with noIndex flag)
 	s.mu.Lock()
 	s.aggregator.addGaugeNoIndex(metric, value, hostname, tags)
 	s.mu.Unlock()
@@ -99,18 +99,8 @@ func (s *AggregatingSender) GaugeNoIndex(metric string, value float64, hostname 
 // Rate sends to observer immediately and accumulates for backend
 func (s *AggregatingSender) Rate(metric string, value float64, hostname string, tags []string) {
 	if s.observerHandle != nil {
-		sample := &metrics.MetricSample{
-			Name:       metric,
-			Value:      value,
-			Mtype:      metrics.RateType,
-			Tags:       tags,
-			Host:       hostname,
-			SampleRate: 1.0,
-			Timestamp:  float64(time.Now().Unix()),
-		}
-		s.observerHandle.ObserveMetric(sample)
+		s.observerHandle.ObserveMetric(s.newObserverSample(metric, value, metrics.RateType, hostname, tags, 0))
 	}
-
 	s.mu.Lock()
 	s.aggregator.addRate(metric, value, hostname, tags)
 	s.mu.Unlock()
@@ -119,18 +109,8 @@ func (s *AggregatingSender) Rate(metric string, value float64, hostname string, 
 // Count sends to observer immediately and accumulates for backend (sums)
 func (s *AggregatingSender) Count(metric string, value float64, hostname string, tags []string) {
 	if s.observerHandle != nil {
-		sample := &metrics.MetricSample{
-			Name:       metric,
-			Value:      value,
-			Mtype:      metrics.CountType,
-			Tags:       tags,
-			Host:       hostname,
-			SampleRate: 1.0,
-			Timestamp:  float64(time.Now().Unix()),
-		}
-		s.observerHandle.ObserveMetric(sample)
+		s.observerHandle.ObserveMetric(s.newObserverSample(metric, value, metrics.CountType, hostname, tags, 0))
 	}
-
 	s.mu.Lock()
 	s.aggregator.addCount(metric, value, hostname, tags)
 	s.mu.Unlock()
@@ -139,18 +119,8 @@ func (s *AggregatingSender) Count(metric string, value float64, hostname string,
 // MonotonicCount sends to observer immediately and accumulates for backend (sums)
 func (s *AggregatingSender) MonotonicCount(metric string, value float64, hostname string, tags []string) {
 	if s.observerHandle != nil {
-		sample := &metrics.MetricSample{
-			Name:       metric,
-			Value:      value,
-			Mtype:      metrics.MonotonicCountType,
-			Tags:       tags,
-			Host:       hostname,
-			SampleRate: 1.0,
-			Timestamp:  float64(time.Now().Unix()),
-		}
-		s.observerHandle.ObserveMetric(sample)
+		s.observerHandle.ObserveMetric(s.newObserverSample(metric, value, metrics.MonotonicCountType, hostname, tags, 0))
 	}
-
 	s.mu.Lock()
 	s.aggregator.addMonotonicCount(metric, value, hostname, tags)
 	s.mu.Unlock()
@@ -159,18 +129,8 @@ func (s *AggregatingSender) MonotonicCount(metric string, value float64, hostnam
 // MonotonicCountWithFlushFirstValue sends to observer immediately and accumulates for backend
 func (s *AggregatingSender) MonotonicCountWithFlushFirstValue(metric string, value float64, hostname string, tags []string, flushFirstValue bool) {
 	if s.observerHandle != nil {
-		sample := &metrics.MetricSample{
-			Name:       metric,
-			Value:      value,
-			Mtype:      metrics.MonotonicCountType,
-			Tags:       tags,
-			Host:       hostname,
-			SampleRate: 1.0,
-			Timestamp:  float64(time.Now().Unix()),
-		}
-		s.observerHandle.ObserveMetric(sample)
+		s.observerHandle.ObserveMetric(s.newObserverSample(metric, value, metrics.MonotonicCountType, hostname, tags, 0))
 	}
-
 	s.mu.Lock()
 	s.aggregator.addMonotonicCountWithFlushFirstValue(metric, value, hostname, tags, flushFirstValue)
 	s.mu.Unlock()
@@ -184,18 +144,8 @@ func (s *AggregatingSender) Counter(metric string, value float64, hostname strin
 // Histogram sends to observer immediately and accumulates for backend
 func (s *AggregatingSender) Histogram(metric string, value float64, hostname string, tags []string) {
 	if s.observerHandle != nil {
-		sample := &metrics.MetricSample{
-			Name:       metric,
-			Value:      value,
-			Mtype:      metrics.HistogramType,
-			Tags:       tags,
-			Host:       hostname,
-			SampleRate: 1.0,
-			Timestamp:  float64(time.Now().Unix()),
-		}
-		s.observerHandle.ObserveMetric(sample)
+		s.observerHandle.ObserveMetric(s.newObserverSample(metric, value, metrics.HistogramType, hostname, tags, 0))
 	}
-
 	s.mu.Lock()
 	s.aggregator.addHistogram(metric, value, hostname, tags)
 	s.mu.Unlock()
@@ -204,18 +154,8 @@ func (s *AggregatingSender) Histogram(metric string, value float64, hostname str
 // Historate sends to observer immediately and accumulates for backend
 func (s *AggregatingSender) Historate(metric string, value float64, hostname string, tags []string) {
 	if s.observerHandle != nil {
-		sample := &metrics.MetricSample{
-			Name:       metric,
-			Value:      value,
-			Mtype:      metrics.HistorateType,
-			Tags:       tags,
-			Host:       hostname,
-			SampleRate: 1.0,
-			Timestamp:  float64(time.Now().Unix()),
-		}
-		s.observerHandle.ObserveMetric(sample)
+		s.observerHandle.ObserveMetric(s.newObserverSample(metric, value, metrics.HistorateType, hostname, tags, 0))
 	}
-
 	s.mu.Lock()
 	s.aggregator.addHistorate(metric, value, hostname, tags)
 	s.mu.Unlock()
@@ -224,18 +164,8 @@ func (s *AggregatingSender) Historate(metric string, value float64, hostname str
 // Distribution sends to observer immediately and forwards to backend
 func (s *AggregatingSender) Distribution(metric string, value float64, hostname string, tags []string) {
 	if s.observerHandle != nil {
-		sample := &metrics.MetricSample{
-			Name:       metric,
-			Value:      value,
-			Mtype:      metrics.DistributionType,
-			Tags:       tags,
-			Host:       hostname,
-			SampleRate: 1.0,
-			Timestamp:  float64(time.Now().Unix()),
-		}
-		s.observerHandle.ObserveMetric(sample)
+		s.observerHandle.ObserveMetric(s.newObserverSample(metric, value, metrics.DistributionType, hostname, tags, 0))
 	}
-
 	// Distributions are forwarded directly (no local aggregation)
 	s.backendSender.Distribution(metric, value, hostname, tags)
 }
@@ -243,18 +173,8 @@ func (s *AggregatingSender) Distribution(metric string, value float64, hostname 
 // GaugeWithTimestamp sends to observer and forwards to backend
 func (s *AggregatingSender) GaugeWithTimestamp(metric string, value float64, hostname string, tags []string, timestamp float64) error {
 	if s.observerHandle != nil {
-		sample := &metrics.MetricSample{
-			Name:       metric,
-			Value:      value,
-			Mtype:      metrics.GaugeType,
-			Tags:       tags,
-			Host:       hostname,
-			SampleRate: 1.0,
-			Timestamp:  timestamp,
-		}
-		s.observerHandle.ObserveMetric(sample)
+		s.observerHandle.ObserveMetric(s.newObserverSample(metric, value, metrics.GaugeType, hostname, tags, timestamp))
 	}
-
 	// Timestamped metrics are forwarded directly (no aggregation)
 	return s.backendSender.GaugeWithTimestamp(metric, value, hostname, tags, timestamp)
 }
@@ -262,18 +182,8 @@ func (s *AggregatingSender) GaugeWithTimestamp(metric string, value float64, hos
 // CountWithTimestamp sends to observer and forwards to backend
 func (s *AggregatingSender) CountWithTimestamp(metric string, value float64, hostname string, tags []string, timestamp float64) error {
 	if s.observerHandle != nil {
-		sample := &metrics.MetricSample{
-			Name:       metric,
-			Value:      value,
-			Mtype:      metrics.CountType,
-			Tags:       tags,
-			Host:       hostname,
-			SampleRate: 1.0,
-			Timestamp:  timestamp,
-		}
-		s.observerHandle.ObserveMetric(sample)
+		s.observerHandle.ObserveMetric(s.newObserverSample(metric, value, metrics.CountType, hostname, tags, timestamp))
 	}
-
 	// Timestamped metrics are forwarded directly (no aggregation)
 	return s.backendSender.CountWithTimestamp(metric, value, hostname, tags, timestamp)
 }
@@ -286,18 +196,8 @@ func (s *AggregatingSender) ServiceCheck(checkName string, status servicecheck.S
 // HistogramBucket sends to observer and accumulates for backend
 func (s *AggregatingSender) HistogramBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue bool) {
 	if s.observerHandle != nil {
-		sample := &metrics.MetricSample{
-			Name:       metric,
-			Value:      float64(value),
-			Mtype:      metrics.HistogramType,
-			Tags:       tags,
-			Host:       hostname,
-			SampleRate: 1.0,
-			Timestamp:  float64(time.Now().Unix()),
-		}
-		s.observerHandle.ObserveMetric(sample)
+		s.observerHandle.ObserveMetric(s.newObserverSample(metric, float64(value), metrics.HistogramType, hostname, tags, 0))
 	}
-
 	s.mu.Lock()
 	s.aggregator.addHistogramBucket(metric, value, lowerBound, upperBound, monotonic, hostname, tags, flushFirstValue)
 	s.mu.Unlock()
