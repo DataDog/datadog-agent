@@ -138,7 +138,7 @@ func multiFakeIntakeAWS(agentOptions ...agentparams.Option) provisioners.Provisi
 		fakeIntake2.Export(ctx, &env.Fakeintake2.FakeintakeOutput)
 
 		// Create a docker manager
-		dockerManager, err := docker.NewManager(&awsEnv, host)
+		dockerManager, err := docker.NewAWSManager(&awsEnv, host)
 		if err != nil {
 			return err
 		}
@@ -159,6 +159,7 @@ type multiFakeIntakeSuite struct {
 }
 
 func TestMultiFakeintakeSuite(t *testing.T) {
+	t.Parallel()
 	e2e.Run(t, &multiFakeIntakeSuite{}, e2e.WithProvisioner(multiFakeIntakeAWS()))
 }
 
