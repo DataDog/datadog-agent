@@ -1269,6 +1269,9 @@ func autoscaling(config pkgconfigmodel.Setup) {
 
 	// Cluster autoscaling product
 	config.BindEnvAndSetDefault("autoscaling.cluster.enabled", false)
+
+	// Kubernetes actions
+	config.BindEnvAndSetDefault("kubeactions.enabled", false)
 }
 
 func fips(config pkgconfigmodel.Setup) {
@@ -1330,6 +1333,7 @@ func autoconfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("container_exclude_logs", []string{})
 	config.BindEnvAndSetDefault("container_exclude_stopped_age", DefaultAuditorTTL-1) // in hours
 	config.BindEnvAndSetDefault("ad_config_poll_interval", int64(10))                 // in seconds
+	config.BindEnvAndSetDefault("ad_tag_completeness_max_wait", 0)                    // in seconds, 0 means disabled (not exposed yet)
 	config.BindEnvAndSetDefault("ad_allowed_env_vars", []string{})
 	config.BindEnvAndSetDefault("ad_disable_env_var_resolution", false)
 	config.BindEnvAndSetDefault("extra_listeners", []string{})
