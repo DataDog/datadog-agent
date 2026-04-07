@@ -251,8 +251,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/eventmonitor
 # gazelle:exclude pkg/flare
 # gazelle:exclude pkg/fleet/daemon
-# NOTE: DO NOT REMOVE. This uses embeddedsrc across packages the BUILD files are tricky.
-# gazelle:exclude pkg/fleet/installer/packages/embedded/tmpl
 # gazelle:exclude pkg/gohai/cpu
 # gazelle:exclude pkg/gpu
 # gazelle:exclude pkg/hosttags
