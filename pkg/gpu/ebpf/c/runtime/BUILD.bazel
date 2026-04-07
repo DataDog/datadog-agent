@@ -11,6 +11,7 @@ ebpf_program_suite(
         "-Ipkg/gpu/ebpf/c/runtime",
         "-Ipkg/network/ebpf/c",
     ],
+    visibility = ["//visibility:public"],
     deps = [
         "//pkg/ebpf/c:ebpf_c_headers",
         "//pkg/gpu/ebpf/c:gpu_headers",
