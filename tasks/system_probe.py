@@ -190,6 +190,7 @@ def ninja_runtime_compilation_files(nw: NinjaWriter, gobin):
         "pkg/network/tracer/offsetguess_test.go": "offsetguess-test",
         "pkg/security/ebpf/compile.go": "runtime-security",
         "pkg/gpu/compile.go": "gpu",
+        "pkg/collector/corechecks/ebpf/probe/socketcontention/probe.go": "socket-contention",
     }
 
     nw.rule(
@@ -1096,6 +1097,8 @@ _BAZEL_EBPF_CORE_TARGETS = [
     "//pkg/collector/corechecks/ebpf/c/runtime:ebpf-debug",
     "//pkg/collector/corechecks/ebpf/c/runtime:noisy-neighbor",
     "//pkg/collector/corechecks/ebpf/c/runtime:noisy-neighbor-debug",
+    "//pkg/collector/corechecks/ebpf/c/runtime:socket-contention",
+    "//pkg/collector/corechecks/ebpf/c/runtime:socket-contention-debug",
     "//pkg/gpu/ebpf/c/runtime:gpu",
     "//pkg/gpu/ebpf/c/runtime:gpu-debug",
     "//pkg/dyninst/ebpf:dyninst_event",
@@ -1134,6 +1137,7 @@ _BAZEL_CGO_GODEFS_TARGETS = [
     "//pkg/collector/corechecks/ebpf/probe/ebpfcheck:c_types_godefs_gen",
     "//pkg/collector/corechecks/ebpf/probe/noisyneighbor:ebpf_types_godefs_gen",
     "//pkg/collector/corechecks/ebpf/probe/oomkill:c_types_godefs_gen",
+    "//pkg/collector/corechecks/ebpf/probe/socketcontention:ebpf_types_godefs_gen",
     "//pkg/collector/corechecks/ebpf/probe/tcpqueuelength:tcp_queue_length_kern_types_godefs_gen",
     "//pkg/gpu/ebpf:kprobe_types_godefs_gen",
     "//pkg/dyninst/loader:types_godefs_gen",
