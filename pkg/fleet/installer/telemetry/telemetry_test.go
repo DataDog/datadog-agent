@@ -9,10 +9,12 @@ package telemetry
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"testing"
 
+	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -243,4 +245,60 @@ func TestSampling(t *testing.T) {
 	require.Len(t, trace, 1, "Expected only one span in the trace")
 	assert.Equal(t, "normal", trace[0].Name, "Expected the normal span to be present")
 	assert.NotEqual(t, dropTraceID, trace[0].TraceID, "Expected the trace ID to not be dropTraceID")
+}
+
+func TestFinishWithPlainErrorUsesFallbackStack(t *testing.T) {
+	globalTracer = &tracer{spans: make(map[uint64]*Span)}
+	s, _ := StartSpanFromContext(context.Background(), "test")
+	s.Finish(errors.New("plain error"))
+
+	stack := s.span.Meta["error.stack"]
+	require.NotEmpty(t, stack)
+	// Fallback stack should contain this test function
+	assert.Contains(t, stack, "TestFinishWithPlainErrorUsesFallbackStack")
+	// Should NOT contain runtime internals (filtered out)
+	assert.NotContains(t, stack, "runtime.Callers")
+}
+
+func TestFinishWithStackTracerErrorUsesCreationStack(t *testing.T) {
+	globalTracer = &tracer{spans: make(map[uint64]*Span)}
+
+	// Create an InstallerError with a stack captured at Wrap() time
+	err := installerErrors.Wrap(installerErrors.ErrDownloadFailed, errors.New("download failed"))
+
+	s, _ := StartSpanFromContext(context.Background(), "test")
+	s.Finish(err)
+
+	stack := s.span.Meta["error.stack"]
+	require.NotEmpty(t, stack)
+	// The creation-time stack should contain this test function (where Wrap was called)
+	assert.Contains(t, stack, "TestFinishWithStackTracerErrorUsesCreationStack")
+}
+
+func TestFinishWithWrappedStackTracerError(t *testing.T) {
+	globalTracer = &tracer{spans: make(map[uint64]*Span)}
+
+	// Wrap an InstallerError further with fmt.Errorf
+	inner := installerErrors.Wrap(installerErrors.ErrDownloadFailed, errors.New("download failed"))
+	err := fmt.Errorf("outer context: %w", inner)
+
+	s, _ := StartSpanFromContext(context.Background(), "test")
+	s.Finish(err)
+
+	stack := s.span.Meta["error.stack"]
+	require.NotEmpty(t, stack)
+	// Should still extract the creation-time stack from the inner InstallerError
+	assert.Contains(t, stack, "TestFinishWithWrappedStackTracerError")
+}
+
+func TestTakeStacktraceFiltersInternals(t *testing.T) {
+	stack := takeStacktrace(0)
+	require.NotEmpty(t, stack)
+	assert.Contains(t, stack, "TestTakeStacktraceFiltersInternals")
+	assert.NotContains(t, stack, "runtime.Callers")
+}
+
+func TestExtractStackTraceReturnsEmptyForPlainError(t *testing.T) {
+	err := errors.New("plain")
+	assert.Empty(t, extractStackTrace(err))
 }

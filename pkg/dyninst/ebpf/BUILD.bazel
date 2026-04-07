@@ -13,6 +13,7 @@ ebpf_prog(
     src = "event.c",
     core = True,
     extra_flags = ["-Ipkg/dyninst/ebpf"],
+    visibility = ["//visibility:public"],
     deps = [
         ":dyninst_ebpf_headers",
         "//pkg/ebpf/c:ebpf_c_headers",
@@ -28,6 +29,7 @@ ebpf_prog(
         "-Ipkg/dyninst/ebpf",
         "-DDYNINST_DEBUG=1",
     ],
+    visibility = ["//visibility:public"],
     deps = [
         ":dyninst_ebpf_headers",
         "//pkg/ebpf/c:ebpf_c_headers",

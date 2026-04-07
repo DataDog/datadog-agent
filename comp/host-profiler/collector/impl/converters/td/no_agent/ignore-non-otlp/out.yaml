@@ -2,6 +2,7 @@ exporters:
     debug: {}
     logging: {}
     otlphttp:
+        compression: zstd
         headers:
             dd-api-key: test-api-key
             dd-evp-origin: host-profiler
