@@ -102,7 +102,7 @@ pub struct ManagedProcess {
 }
 
 impl ManagedProcess {
-    const SIGKILL_TIMEOUT: Duration = Duration::from_secs(10);
+    const FORCE_KILL_TIMEOUT: Duration = Duration::from_secs(10);
 
     pub fn new_config(name: String, uuid: String, config: ProcessConfig) -> Self {
         Self::new_inner(name, uuid, config, ProcessOrigin::Config)
@@ -386,7 +386,7 @@ impl ManagedProcess {
                     stop.as_secs()
                 );
                 self.force_kill();
-                if time::timeout(Self::SIGKILL_TIMEOUT, handle).await.is_err() {
+                if time::timeout(Self::FORCE_KILL_TIMEOUT, handle).await.is_err() {
                     warn!("[{}] still running after force-kill, giving up", self.name);
                 }
             }
@@ -397,7 +397,7 @@ impl ManagedProcess {
                 stop.as_secs()
             );
             self.force_kill();
-            if time::timeout(Self::SIGKILL_TIMEOUT, self.wait())
+            if time::timeout(Self::FORCE_KILL_TIMEOUT, self.wait())
                 .await
                 .is_err()
             {
