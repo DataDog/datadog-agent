@@ -5,6 +5,7 @@
 
 //go:build test
 
+// package collectors contains collectors for the workloadmeta component
 package collectors
 
 import (
@@ -17,6 +18,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
+// GetNvmlCollector creates the NVML collector, exposed here for testing purposes only
 func GetNvmlCollector(t *testing.T, config config.Component) workloadmeta.Collector {
 	collector, err := nvml.NewCollector(config)
 	require.NoError(t, err, "failed to create NVML collector")
