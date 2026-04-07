@@ -1,6 +1,7 @@
 """Bazel rules for compiling eBPF programs (.c -> .bc -> .o)."""
 
 load("@bazel_lib//lib:resource_sets.bzl", "resource_set_for")
+load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("@linux_headers//:defs.bzl", "KERNEL_ARCH", "KERNEL_HEADER_DIRS")
 load("@linux_headers_aarch64//:defs.bzl", _KHD_AARCH64 = "KERNEL_HEADER_DIRS")
 load("@linux_headers_x86_64//:defs.bzl", _KHD_X86_64 = "KERNEL_HEADER_DIRS")
@@ -53,6 +54,15 @@ def _get_arch_flags(target_arch):
         return _ARCH_DEFINES.get("aarch64", [])
     return _ARCH_DEFINES.get("x86_64", [])
 
+def _resolve_target_arch(ctx):
+    """Resolve the effective target architecture.
+
+    Priority: explicit target_arch attr > --//bazel/rules/ebpf:target_arch flag > empty (host default).
+    """
+    if ctx.attr.target_arch:
+        return ctx.attr.target_arch
+    return ctx.attr._target_arch_flag[BuildSettingInfo].value
+
 def _ebpf_prog_impl(ctx):
     tc = ctx.toolchains[_TOOLCHAIN_TYPE].llvm_bpf
     if not tc.valid:
@@ -61,6 +71,8 @@ def _ebpf_prog_impl(ctx):
     src = ctx.file.src
     inc = collect_include_dirs(ctx.attr.deps)
     header_files = collect_headers(ctx.attr.deps)
+
+    target_arch = _resolve_target_arch(ctx)
 
     # Build flags
     flags = list(_COMMON_FLAGS)
@@ -72,7 +84,7 @@ def _ebpf_prog_impl(ctx):
         flags.extend(["-include", "pkg/ebpf/c/asm_goto_workaround.h"])
 
     # Architecture defines
-    flags.extend(_get_arch_flags(ctx.attr.target_arch))
+    flags.extend(_get_arch_flags(target_arch))
 
     if ctx.attr.debug:
         flags.append("-DDEBUG=1")
@@ -85,10 +97,10 @@ def _ebpf_prog_impl(ctx):
     clang_args = ctx.actions.args()
     if ctx.attr.core:
         clang_args.add("-target", "bpf")
-    elif ctx.attr.target_arch:
+    elif target_arch:
         # Prebuilt cross-compilation: the clang frontend needs the target
         # arch to correctly parse arch-specific inline ASM in kernel headers.
-        clang_args.add("-target", ctx.attr.target_arch)
+        clang_args.add("-target", target_arch)
     clang_args.add("-emit-llvm")
     clang_args.add_all(flags)
 
@@ -100,10 +112,10 @@ def _ebpf_prog_impl(ctx):
         clang_args.add("-iquote", d)
 
     # Select the correct kernel headers and directory list based on target_arch.
-    if ctx.attr.target_arch == "aarch64":
+    if target_arch == "aarch64":
         kernel_header_dirs = _KHD_AARCH64
         kernel_header_files = ctx.files._linux_headers_aarch64
-    elif ctx.attr.target_arch == "x86_64":
+    elif target_arch == "x86_64":
         kernel_header_dirs = _KHD_X86_64
         kernel_header_files = ctx.files._linux_headers_x86_64
     else:
@@ -218,7 +230,12 @@ _ebpf_prog = rule(
             doc = "Additional compiler flags.",
         ),
         "target_arch": attr.string(
-            doc = "Target architecture: x86_64 or aarch64. Empty = auto-detect from host.",
+            doc = "Explicit target architecture override (x86_64 or aarch64). " +
+                  "Takes precedence over the --//bazel/rules/ebpf:target_arch flag.",
+        ),
+        "_target_arch_flag": attr.label(
+            default = "//bazel/rules/ebpf:target_arch",
+            doc = "The string_flag providing the cross-compilation target arch.",
         ),
         "_linux_headers": attr.label(
             default = "@linux_headers//:all",
@@ -236,14 +253,7 @@ _ebpf_prog = rule(
     toolchains = [_TOOLCHAIN_TYPE],
 )
 
-_TARGET_ARCH_SELECT = select({
-    "//bazel/rules/ebpf:target_arch_aarch64": "aarch64",
-    "//bazel/rules/ebpf:target_arch_x86_64": "x86_64",
-    "//conditions:default": "",
-})
-
 def _ebpf_prog_macro_impl(name, visibility, src, deps, core, debug, extra_flags, target_arch):
-    resolved_arch = target_arch if target_arch else _TARGET_ARCH_SELECT
     _ebpf_prog(
         name = name,
         visibility = visibility,
@@ -252,7 +262,7 @@ def _ebpf_prog_macro_impl(name, visibility, src, deps, core, debug, extra_flags,
         core = core,
         debug = debug,
         extra_flags = extra_flags,
-        target_arch = resolved_arch,
+        target_arch = target_arch,
         target_compatible_with = ["@platforms//os:linux"],
     )
     _stripped_ebpf(
@@ -270,13 +280,12 @@ ebpf_prog = macro(
         "core": attr.bool(default = False, configurable = False),
         "debug": attr.bool(default = False, configurable = False),
         "extra_flags": attr.string_list(default = [], configurable = False),
-        "target_arch": attr.string(default = ""),
+        "target_arch": attr.string(default = "", configurable = False),
     },
     implementation = _ebpf_prog_macro_impl,
 )
 
 def _ebpf_program_suite_impl(name, visibility, src, deps, core, extra_flags, target_arch):
-    resolved_arch = target_arch if target_arch else _TARGET_ARCH_SELECT
     _ebpf_prog(
         name = name,
         visibility = visibility,
@@ -285,7 +294,7 @@ def _ebpf_program_suite_impl(name, visibility, src, deps, core, extra_flags, tar
         core = core,
         debug = False,
         extra_flags = extra_flags,
-        target_arch = resolved_arch,
+        target_arch = target_arch,
         target_compatible_with = ["@platforms//os:linux"],
     )
     _stripped_ebpf(
@@ -302,7 +311,7 @@ def _ebpf_program_suite_impl(name, visibility, src, deps, core, extra_flags, tar
         core = core,
         debug = True,
         extra_flags = extra_flags,
-        target_arch = resolved_arch,
+        target_arch = target_arch,
         target_compatible_with = ["@platforms//os:linux"],
     )
     _stripped_ebpf(
@@ -326,7 +335,7 @@ ebpf_program_suite = macro(
         "deps": attr.label_list(default = [], configurable = False),
         "core": attr.bool(default = False, configurable = False),
         "extra_flags": attr.string_list(default = [], configurable = False),
-        "target_arch": attr.string(default = ""),
+        "target_arch": attr.string(default = "", configurable = False),
     },
     implementation = _ebpf_program_suite_impl,
 )
