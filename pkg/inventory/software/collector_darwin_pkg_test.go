@@ -78,6 +78,108 @@ func TestBuildPkgSummaryFromLines_PrefixApplicationsApp(t *testing.T) {
 	assert.True(t, shouldSkipPkgFromSummary(summary), "applications-prefix app-only package should be skipped")
 }
 
+func TestBuildPkgSummaryFromDigest_WithRelativeTopLevelTokens(t *testing.T) {
+	digest := bomDigest{
+		HasApplicationsApp: true,
+		HasNonAppPayload:   true,
+		TopLevelTokens: []topLevelToken{
+			{Value: "/Applications/Datadog Agent.app"},
+			{Value: "Datadog Agent", Relative: true},
+		},
+	}
+
+	summary := buildPkgSummaryFromDigest(digest, "/opt")
+
+	assert.True(t, summary.HasApplicationsApp)
+	assert.True(t, summary.HasNonAppPayload)
+	assert.Contains(t, summary.TopLevelPaths, "/Applications/Datadog Agent.app")
+	assert.Contains(t, summary.TopLevelPaths, "/opt/Datadog Agent")
+}
+
+func TestBuildBomDigest_DedupesTopLevelsAndAppPaths(t *testing.T) {
+	lines := []string{
+		"./Applications/Pages.app",
+		"./Applications/Pages.app",
+		"./Applications/Pages.app/Contents",
+		"./foo",
+		"./foo/bar",
+	}
+
+	digest := buildBomDigest(lines)
+
+	assert.True(t, digest.HasApplicationsApp)
+	assert.True(t, digest.HasNonAppPayload)
+	assert.Equal(t, []string{"Applications/Pages.app"}, digest.AppPaths)
+
+	// Ensure top-level tokens were deduplicated.
+	seen := make(map[topLevelToken]struct{})
+	for _, tok := range digest.TopLevelTokens {
+		seen[tok] = struct{}{}
+	}
+	assert.Len(t, digest.TopLevelTokens, len(seen))
+}
+
+func TestBomDigestBuilder_AddLineNormalizesAndDedupes(t *testing.T) {
+	builder := newBomDigestBuilder()
+
+	builder.addLine("  ./Applications/Pages.app  ")
+	builder.addLine("./Applications/Pages.app")
+	builder.addLine("./Applications/Pages.app/Contents")
+	builder.addLine("./opt/example")
+
+	digest := builder.result()
+
+	assert.True(t, digest.HasApplicationsApp)
+	assert.True(t, digest.HasNonAppPayload)
+	assert.Equal(t, []string{"Applications/Pages.app"}, digest.AppPaths)
+	assert.Equal(t, []topLevelToken{
+		{Value: "/Applications/Pages.app"},
+		{Value: "/opt/example"},
+	}, digest.TopLevelTokens)
+}
+
+func TestNormalizeBomLine(t *testing.T) {
+	assert.Equal(t, "", normalizeBomLine(""))
+	assert.Equal(t, "", normalizeBomLine("."))
+	assert.Equal(t, "", normalizeBomLine("./"))
+	assert.Equal(t, "foo", normalizeBomLine("  ./foo  "))
+	assert.Equal(t, "Applications/App.app", normalizeBomLine("./Applications/App.app"))
+}
+
+func TestTopLevelTokenFromLine(t *testing.T) {
+	tests := []struct {
+		name     string
+		line     string
+		expected topLevelToken
+		ok       bool
+	}{
+		{name: "usr", line: "usr/local/bin", expected: topLevelToken{Value: "/usr/local/bin"}, ok: true},
+		{name: "library", line: "Library/Application Support", expected: topLevelToken{Value: "/Library/Application Support"}, ok: true},
+		{name: "opt", line: "opt/datadog-agent/bin", expected: topLevelToken{Value: "/opt/datadog-agent"}, ok: true},
+		{name: "applications", line: "Applications/Foo.app/Contents", expected: topLevelToken{Value: "/Applications/Foo.app"}, ok: true},
+		{name: "system", line: "System/Library/Extensions", expected: topLevelToken{Value: "/System/Library/Extensions"}, ok: true},
+		{name: "default", line: "Datadog Agent/bin", expected: topLevelToken{Value: "Datadog Agent", Relative: true}, ok: true},
+		{name: "empty", line: "", expected: topLevelToken{}, ok: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			token, ok := topLevelTokenFromLine(tt.line)
+			assert.Equal(t, tt.ok, ok)
+			assert.Equal(t, tt.expected, token)
+		})
+	}
+}
+
+func TestIsSafeForShell(t *testing.T) {
+	assert.True(t, isSafeForShell("/var/db/receipts/com.example.bom"))
+	assert.True(t, isSafeForShell("/var/db/receipts/Some App.bom"))
+
+	assert.False(t, isSafeForShell("/var/db/receipts/evil'file.bom"))
+	assert.False(t, isSafeForShell("/var/db/receipts/evil`file.bom"))
+	assert.False(t, isSafeForShell("/var/db/receipts/evil\nfile.bom"))
+}
+
 func TestBomCache_HitsWithinTTL(t *testing.T) {
 	c := &bomCache{
 		entries:    make(map[string]*bomCacheEntry),
@@ -87,16 +189,37 @@ func TestBomCache_HitsWithinTTL(t *testing.T) {
 
 	// Seed cache manually
 	c.entries["/var/db/receipts/com.example.bom"] = &bomCacheEntry{
-		Lines:     []string{"./opt/example", "./opt/example/bin"},
+		Digest: bomDigest{
+			TopLevelTokens: []topLevelToken{
+				{Value: "/opt/example"},
+			},
+		},
 		Timestamp: time.Now(),
 	}
 
-	result := c.getBomLines([]string{"/var/db/receipts/com.example.bom"})
-	require.Len(t, result["/var/db/receipts/com.example.bom"], 2)
-	assert.Equal(t, "./opt/example", result["/var/db/receipts/com.example.bom"][0])
+	result := c.getBomDigests([]string{"/var/db/receipts/com.example.bom"})
+	require.Len(t, result["/var/db/receipts/com.example.bom"].TopLevelTokens, 1)
+	assert.Equal(t, "/opt/example", result["/var/db/receipts/com.example.bom"].TopLevelTokens[0].Value)
 }
 
 func TestBomCache_ExpiredEntryRefetches(t *testing.T) {
+	originalFetcher := batchLsbomFetcher
+	t.Cleanup(func() {
+		batchLsbomFetcher = originalFetcher
+	})
+
+	batchLsbomFetcher = func(bomPaths []string) map[string]bomFetchOutcome {
+		require.Equal(t, []string{"/var/db/receipts/com.example.bom"}, bomPaths)
+		return map[string]bomFetchOutcome{
+			"/var/db/receipts/com.example.bom": {
+				Digest: bomDigest{
+					TopLevelTokens: []topLevelToken{{Value: "/opt/example"}},
+				},
+				Cacheable: true,
+			},
+		}
+	}
+
 	c := &bomCache{
 		entries:    make(map[string]*bomCacheEntry),
 		ttl:        5 * time.Millisecond,
@@ -104,18 +227,37 @@ func TestBomCache_ExpiredEntryRefetches(t *testing.T) {
 	}
 
 	c.entries["/var/db/receipts/com.example.bom"] = &bomCacheEntry{
-		Lines:     []string{"./stale"},
+		Digest: bomDigest{
+			TopLevelTokens: []topLevelToken{
+				{Value: "/stale"},
+			},
+		},
 		Timestamp: time.Now().Add(-time.Second),
 	}
 
-	// After TTL, getBomLines should call batchLsbom for the expired key.
+	// After TTL, getBomDigests should call batchLsbom for the expired key.
 	// Since the BOM file doesn't exist, we'll get empty lines back.
-	result := c.getBomLines([]string{"/var/db/receipts/com.example.bom"})
-	lines := result["/var/db/receipts/com.example.bom"]
-	assert.NotContains(t, lines, "./stale", "expired entry should not return stale data")
+	result := c.getBomDigests([]string{"/var/db/receipts/com.example.bom"})
+	digest := result["/var/db/receipts/com.example.bom"]
+	assert.Equal(t, []topLevelToken{{Value: "/opt/example"}}, digest.TopLevelTokens)
 }
 
 func TestBomCache_EvictsWhenFull(t *testing.T) {
+	originalFetcher := batchLsbomFetcher
+	t.Cleanup(func() {
+		batchLsbomFetcher = originalFetcher
+	})
+
+	batchLsbomFetcher = func(bomPaths []string) map[string]bomFetchOutcome {
+		require.Equal(t, []string{"/bom/c"}, bomPaths)
+		return map[string]bomFetchOutcome{
+			"/bom/c": {
+				Digest:    bomDigest{},
+				Cacheable: true,
+			},
+		}
+	}
+
 	c := &bomCache{
 		entries:    make(map[string]*bomCacheEntry),
 		ttl:        time.Hour,
@@ -123,15 +265,43 @@ func TestBomCache_EvictsWhenFull(t *testing.T) {
 	}
 
 	oldest := time.Now().Add(-10 * time.Minute)
-	c.entries["/bom/a"] = &bomCacheEntry{Lines: []string{}, Timestamp: oldest}
-	c.entries["/bom/b"] = &bomCacheEntry{Lines: []string{}, Timestamp: time.Now()}
+	c.entries["/bom/a"] = &bomCacheEntry{Digest: bomDigest{}, Timestamp: oldest}
+	c.entries["/bom/b"] = &bomCacheEntry{Digest: bomDigest{}, Timestamp: time.Now()}
 
 	// Inserting a third should evict the oldest (/bom/a)
-	c.getBomLines([]string{"/bom/c"})
+	c.getBomDigests([]string{"/bom/c"})
 
 	assert.LessOrEqual(t, len(c.entries), 2)
 	_, hasA := c.entries["/bom/a"]
 	assert.False(t, hasA, "oldest entry should be evicted")
+}
+
+func TestBomCache_DoesNotCacheNonCacheableFetches(t *testing.T) {
+	originalFetcher := batchLsbomFetcher
+	t.Cleanup(func() {
+		batchLsbomFetcher = originalFetcher
+	})
+
+	batchLsbomFetcher = func(bomPaths []string) map[string]bomFetchOutcome {
+		require.Equal(t, []string{"/bom/fail"}, bomPaths)
+		return map[string]bomFetchOutcome{
+			"/bom/fail": {
+				Digest:    bomDigest{TopLevelTokens: []topLevelToken{{Value: "/transient"}}},
+				Cacheable: false,
+			},
+		}
+	}
+
+	c := &bomCache{
+		entries:    make(map[string]*bomCacheEntry),
+		ttl:        time.Hour,
+		maxEntries: 2,
+	}
+
+	result := c.getBomDigests([]string{"/bom/fail"})
+	assert.Equal(t, []topLevelToken{{Value: "/transient"}}, result["/bom/fail"].TopLevelTokens)
+	_, exists := c.entries["/bom/fail"]
+	assert.False(t, exists, "non-cacheable fetch results should not be stored")
 }
 
 func TestBatchLsbom_EmptyInput(t *testing.T) {

@@ -50,15 +50,29 @@ const (
 	bomDelimiterSuffix        = "==="
 )
 
-// bomCacheEntry stores cached raw directory lines from lsbom for a single BOM file.
+// topLevelToken stores a prefix-neutral top-level path candidate derived from one
+// lsbom line. Relative tokens are anchored to the receipt prefix at read time.
+type topLevelToken struct {
+	Value    string
+	Relative bool
+}
+
+// bomDigest stores compact derived data from one BOM payload, shared across
+// both pkgReceiptsCollector and appToPkgIndex consumers.
+type bomDigest struct {
+	HasApplicationsApp bool
+	HasNonAppPayload   bool
+	TopLevelTokens     []topLevelToken
+	AppPaths           []string // normalized (no "./"), relative to receipt prefix
+}
+
+// bomCacheEntry stores cached compact BOM digest data for a single BOM file.
 type bomCacheEntry struct {
-	Lines     []string
+	Digest    bomDigest
 	Timestamp time.Time
 }
 
-// bomCache caches raw lsbom -sd output lines keyed by BOM file path.
-// The summary (pkgSummary) is derived per-receipt from cached lines + prefixPath,
-// so the same BOM data can serve receipts with different install prefixes.
+// bomCache caches compact BOM digests keyed by BOM file path.
 type bomCache struct {
 	mu         sync.Mutex
 	entries    map[string]*bomCacheEntry
@@ -66,9 +80,15 @@ type bomCache struct {
 	maxEntries int
 }
 
+type bomFetchOutcome struct {
+	Digest    bomDigest
+	Cacheable bool
+}
+
 var (
 	globalBomCache     *bomCache
 	globalBomCacheOnce sync.Once
+	batchLsbomFetcher  = batchLsbom // test seam for hermetic cache tests
 )
 
 func getGlobalBomCache() *bomCache {
@@ -82,19 +102,19 @@ func getGlobalBomCache() *bomCache {
 	return globalBomCache
 }
 
-// getBomLines returns cached lsbom lines for the given BOM paths.
-// Uncached or expired entries are fetched in a single batched shell subprocess.
-func (c *bomCache) getBomLines(bomPaths []string) map[string][]string {
+// getBomDigests returns cached compact BOM digests for the given BOM paths.
+// Uncached or expired entries are fetched in a single batched subprocess flow.
+func (c *bomCache) getBomDigests(bomPaths []string) map[string]bomDigest {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	now := time.Now()
-	result := make(map[string][]string, len(bomPaths))
+	result := make(map[string]bomDigest, len(bomPaths))
 	var uncached []string
 
 	for _, bp := range bomPaths {
 		if entry, ok := c.entries[bp]; ok && now.Sub(entry.Timestamp) < c.ttl {
-			result[bp] = entry.Lines
+			result[bp] = entry.Digest
 		} else {
 			uncached = append(uncached, bp)
 		}
@@ -104,7 +124,7 @@ func (c *bomCache) getBomLines(bomPaths []string) map[string][]string {
 		return result
 	}
 
-	fetched := batchLsbom(uncached)
+	fetched := batchLsbomFetcher(uncached)
 
 	// Evict expired entries before inserting new ones
 	for key, entry := range c.entries {
@@ -114,9 +134,14 @@ func (c *bomCache) getBomLines(bomPaths []string) map[string][]string {
 	}
 
 	for _, bp := range uncached {
-		lines := fetched[bp]
-		if lines == nil {
-			lines = []string{}
+		outcome, ok := fetched[bp]
+		if ok {
+			result[bp] = outcome.Digest
+		} else {
+			result[bp] = bomDigest{}
+		}
+		if !ok || !outcome.Cacheable {
+			continue
 		}
 
 		// Evict oldest if at capacity
@@ -124,8 +149,7 @@ func (c *bomCache) getBomLines(bomPaths []string) map[string][]string {
 			c.evictOldestLocked()
 		}
 
-		c.entries[bp] = &bomCacheEntry{Lines: lines, Timestamp: now}
-		result[bp] = lines
+		c.entries[bp] = &bomCacheEntry{Digest: outcome.Digest, Timestamp: now}
 	}
 
 	return result
@@ -158,38 +182,49 @@ func isSafeForShell(path string) bool {
 	return !strings.ContainsAny(path, shellUnsafeChars)
 }
 
-// singleLsbom runs lsbom -sd for one BOM file using exec.Command directly,
-// bypassing the shell. This is injection-safe for any filename.
-func singleLsbom(bomPath string) []string {
+// singleLsbom runs lsbom -sd for one BOM file and streams output directly into
+// digest accumulation. It bypasses the shell and is injection-safe for any name.
+func singleLsbom(bomPath string) bomFetchOutcome {
 	ctx, cancel := context.WithTimeout(context.Background(), lsbomSingleTimeout)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, "lsbom", "-sd", bomPath)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return []string{}
+		log.Warnf("failed to create lsbom stdout pipe for %s: %v", bomPath, err)
+		return bomFetchOutcome{}
 	}
 	if err := cmd.Start(); err != nil {
-		return []string{}
+		log.Warnf("failed to start lsbom for %s: %v", bomPath, err)
+		return bomFetchOutcome{}
 	}
 
-	var lines []string
+	builder := newBomDigestBuilder()
 	scanner := bufio.NewScanner(stdout)
 	scanner.Buffer(make([]byte, 0, 64*1024), lsbomScannerMaxTokenSize)
 	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
+		builder.addLine(scanner.Text())
 	}
-	if err := cmd.Wait(); err != nil {
-		log.Warnf("lsbom failed for %s: %v", bomPath, err)
+	scanErr := scanner.Err()
+	waitErr := cmd.Wait()
+	if scanErr != nil {
+		log.Warnf("lsbom scan failed for %s: %v", bomPath, scanErr)
 	}
-	return lines
+	if waitErr != nil {
+		log.Warnf("lsbom failed for %s: %v", bomPath, waitErr)
+	}
+	if scanErr != nil || waitErr != nil {
+		return bomFetchOutcome{}
+	}
+	return bomFetchOutcome{Digest: builder.result(), Cacheable: true}
 }
 
 // batchLsbomShell runs a single shell subprocess that invokes lsbom -sd for multiple
-// BOM files, producing delimited output. Only safe paths should be passed here.
-func batchLsbomShell(bomPaths []string) map[string][]string {
+// BOM files, producing delimited output that is streamed into digest builders.
+// Only safe paths should be passed here.
+func batchLsbomShell(bomPaths []string) (map[string]bomDigest, error) {
 	if len(bomPaths) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	var script strings.Builder
@@ -203,13 +238,14 @@ func batchLsbomShell(bomPaths []string) map[string][]string {
 	cmd := exec.CommandContext(ctx, "sh", "-c", script.String())
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("failed to create batched lsbom stdout pipe: %w", err)
 	}
 	if err := cmd.Start(); err != nil {
-		return nil
+		return nil, fmt.Errorf("failed to start batched lsbom: %w", err)
 	}
 
-	result := make(map[string][]string, len(bomPaths))
+	result := make(map[string]bomDigest, len(bomPaths))
+	builders := make(map[string]*bomDigestBuilder, len(bomPaths))
 	var currentBom string
 	scanner := bufio.NewScanner(stdout)
 	scanner.Buffer(make([]byte, 0, 64*1024), lsbomScannerMaxTokenSize)
@@ -217,26 +253,45 @@ func batchLsbomShell(bomPaths []string) map[string][]string {
 		line := scanner.Text()
 		if strings.HasPrefix(line, bomDelimiterPrefix) && strings.HasSuffix(line, bomDelimiterSuffix) {
 			currentBom = line[len(bomDelimiterPrefix) : len(line)-len(bomDelimiterSuffix)]
-			if result[currentBom] == nil {
-				result[currentBom] = []string{}
+			if _, exists := builders[currentBom]; !exists {
+				builders[currentBom] = newBomDigestBuilder()
 			}
 			continue
 		}
 		if currentBom != "" {
-			result[currentBom] = append(result[currentBom], line)
+			builders[currentBom].addLine(line)
+		}
+	}
+	scanErr := scanner.Err()
+	waitErr := cmd.Wait()
+	if scanErr != nil && waitErr != nil {
+		return nil, fmt.Errorf("batched lsbom scan failed: %v; wait error: %w", scanErr, waitErr)
+	}
+	if scanErr != nil {
+		return nil, fmt.Errorf("batched lsbom scan failed: %w", scanErr)
+	}
+	if waitErr != nil {
+		return nil, fmt.Errorf("batched lsbom failed: %w", waitErr)
+	}
+
+	for bomPath, builder := range builders {
+		result[bomPath] = builder.result()
+	}
+	// Preserve previous behavior: include requested keys even when there are no
+	// payload lines (or if lsbom produced no output for that BOM).
+	for _, bp := range bomPaths {
+		if _, exists := result[bp]; !exists {
+			result[bp] = bomDigest{}
 		}
 	}
 
-	if err := cmd.Wait(); err != nil {
-		log.Warnf("batched lsbom shell failed: %v", err)
-	}
-	return result
+	return result, nil
 }
 
 // batchLsbom fetches lsbom -sd output for all given BOM paths.
 // Safe paths are batched into a single shell subprocess for performance.
 // Paths with shell metacharacters are handled via individual exec.Command calls.
-func batchLsbom(bomPaths []string) map[string][]string {
+func batchLsbom(bomPaths []string) map[string]bomFetchOutcome {
 	if len(bomPaths) == 0 {
 		return nil
 	}
@@ -250,9 +305,22 @@ func batchLsbom(bomPaths []string) map[string][]string {
 		}
 	}
 
-	result := batchLsbomShell(safePaths)
-	if result == nil {
-		result = make(map[string][]string, len(unsafePaths))
+	result := make(map[string]bomFetchOutcome, len(bomPaths))
+	if len(safePaths) > 0 {
+		safeDigests, err := batchLsbomShell(safePaths)
+		if err != nil {
+			log.Warnf("batched lsbom failed, falling back to per-BOM execution: %v", err)
+			for _, bp := range safePaths {
+				result[bp] = singleLsbom(bp)
+			}
+		} else {
+			for _, bp := range safePaths {
+				result[bp] = bomFetchOutcome{
+					Digest:    safeDigests[bp],
+					Cacheable: true,
+				}
+			}
+		}
 	}
 	for _, bp := range unsafePaths {
 		result[bp] = singleLsbom(bp)
@@ -272,94 +340,157 @@ func isApplicationsAppPath(path string) bool {
 	return len(parts) >= 2 && parts[0] == "Applications" && strings.HasSuffix(parts[1], ".app")
 }
 
-// topLevelPathFromLine derives a representative top-level install path from a pkg payload line.
-func topLevelPathFromLine(line, prefixPath string) string {
-	parts := strings.Split(line, "/")
-	if len(parts) == 0 {
-		return ""
-	}
-
-	var basePrefix string
+// normalizePrefixPath returns a normalized absolute install prefix.
+func normalizePrefixPath(prefixPath string) string {
 	if prefixPath == "" || prefixPath == "/" {
-		basePrefix = ""
-	} else if strings.HasPrefix(prefixPath, "/") {
-		basePrefix = prefixPath
-	} else {
-		basePrefix = "/" + prefixPath
-	}
-
-	var topLevelDir string
-	switch parts[0] {
-	case "usr":
-		if len(parts) >= 3 {
-			topLevelDir = "/" + parts[0] + "/" + parts[1] + "/" + parts[2]
-		}
-	case "Library":
-		if len(parts) >= 2 {
-			topLevelDir = "/" + parts[0] + "/" + parts[1]
-		}
-	case "opt":
-		if len(parts) >= 2 {
-			topLevelDir = "/" + parts[0] + "/" + parts[1]
-		}
-	case "Applications":
-		if len(parts) >= 2 {
-			topLevelDir = "/" + parts[0] + "/" + parts[1]
-		}
-	case "System", "private", "var":
-		if len(parts) >= 3 {
-			topLevelDir = "/" + parts[0] + "/" + parts[1] + "/" + parts[2]
-		} else if len(parts) >= 2 {
-			topLevelDir = "/" + parts[0] + "/" + parts[1]
-		}
-	default:
-		if basePrefix != "" && basePrefix != "/" {
-			topLevelDir = basePrefix + "/" + parts[0]
-		} else if len(parts) >= 1 {
-			topLevelDir = "/" + parts[0]
-		}
-	}
-
-	if topLevelDir == "" || topLevelDir == "/" {
 		return ""
 	}
-	return strings.ReplaceAll(topLevelDir, "//", "/")
+	if strings.HasPrefix(prefixPath, "/") {
+		return prefixPath
+	}
+	return "/" + prefixPath
 }
 
-// updatePkgSummaryFromLine updates summary flags and top-level path set from one directory line.
-// Input lines come from lsbom -sd, so every line is a directory path prefixed with "./".
-func updatePkgSummaryFromLine(summary *pkgSummary, topLevelSet map[string]struct{}, line, prefixPath string) {
+func normalizeBomLine(line string) string {
 	line = strings.TrimSpace(line)
 	line = strings.TrimPrefix(line, "./")
 	if line == "" || line == "." {
-		return
+		return ""
+	}
+	return line
+}
+
+func topLevelTokenFromLine(line string) (topLevelToken, bool) {
+	parts := strings.Split(line, "/")
+	if len(parts) == 0 || parts[0] == "" {
+		return topLevelToken{}, false
 	}
 
-	appPath := isApplicationsAppPath(line)
-	if appPath {
-		summary.HasApplicationsApp = true
-	} else {
-		summary.HasNonAppPayload = true
+	switch parts[0] {
+	case "usr":
+		if len(parts) >= 3 {
+			return topLevelToken{Value: "/" + parts[0] + "/" + parts[1] + "/" + parts[2]}, true
+		}
+	case "Library":
+		if len(parts) >= 2 {
+			return topLevelToken{Value: "/" + parts[0] + "/" + parts[1]}, true
+		}
+	case "opt":
+		if len(parts) >= 2 {
+			return topLevelToken{Value: "/" + parts[0] + "/" + parts[1]}, true
+		}
+	case "Applications":
+		if len(parts) >= 2 {
+			return topLevelToken{Value: "/" + parts[0] + "/" + parts[1]}, true
+		}
+	case "System", "private", "var":
+		if len(parts) >= 3 {
+			return topLevelToken{Value: "/" + parts[0] + "/" + parts[1] + "/" + parts[2]}, true
+		} else if len(parts) >= 2 {
+			return topLevelToken{Value: "/" + parts[0] + "/" + parts[1]}, true
+		}
+	default:
+		return topLevelToken{Value: parts[0], Relative: true}, true
+	}
+	return topLevelToken{}, false
+}
+
+func topLevelPathFromToken(token topLevelToken, prefixPath string) string {
+	if token.Value == "" {
+		return ""
+	}
+	if !token.Relative {
+		if token.Value == "/" {
+			return ""
+		}
+		return token.Value
 	}
 
-	topLevelDir := topLevelPathFromLine(line, prefixPath)
-	if topLevelDir == "" {
-		return
+	basePrefix := normalizePrefixPath(prefixPath)
+	if basePrefix != "" {
+		return strings.ReplaceAll(basePrefix+"/"+token.Value, "//", "/")
 	}
-	if _, exists := topLevelSet[topLevelDir]; exists || len(topLevelSet) < maxTopLevelPathsPerPkg {
-		topLevelSet[topLevelDir] = struct{}{}
+	return "/" + token.Value
+}
+
+// bomDigestBuilder incrementally accumulates compact BOM digest facts while
+// scanning lsbom output, avoiding full-line slice retention.
+type bomDigestBuilder struct {
+	digest       bomDigest
+	seenTopLevel map[topLevelToken]struct{}
+	seenAppPaths map[string]struct{}
+}
+
+func newBomDigestBuilder() *bomDigestBuilder {
+	return &bomDigestBuilder{
+		seenTopLevel: make(map[topLevelToken]struct{}),
+		seenAppPaths: make(map[string]struct{}),
 	}
 }
 
-// buildPkgSummaryFromLines builds a compact package summary from lsbom -sd output lines.
-func buildPkgSummaryFromLines(lines []string, prefixPath string) pkgSummary {
-	summary := pkgSummary{}
-	topLevelSet := make(map[string]struct{})
+func (b *bomDigestBuilder) addLine(line string) {
+	line = normalizeBomLine(line)
+	if line == "" {
+		return
+	}
+
+	if isApplicationsAppPath(line) {
+		b.digest.HasApplicationsApp = true
+	} else {
+		b.digest.HasNonAppPayload = true
+	}
+
+	if token, ok := topLevelTokenFromLine(line); ok {
+		if _, exists := b.seenTopLevel[token]; !exists {
+			b.seenTopLevel[token] = struct{}{}
+			b.digest.TopLevelTokens = append(b.digest.TopLevelTokens, token)
+		}
+	}
+
+	if strings.HasSuffix(line, ".app") {
+		if _, exists := b.seenAppPaths[line]; !exists {
+			b.seenAppPaths[line] = struct{}{}
+			b.digest.AppPaths = append(b.digest.AppPaths, line)
+		}
+	}
+}
+
+func (b *bomDigestBuilder) result() bomDigest {
+	return b.digest
+}
+
+// buildBomDigest is a small helper that lets tests exercise the streaming builder.
+func buildBomDigest(lines []string) bomDigest {
+	builder := newBomDigestBuilder()
 	for _, line := range lines {
-		updatePkgSummaryFromLine(&summary, topLevelSet, line, prefixPath)
+		builder.addLine(line)
+	}
+	return builder.result()
+}
+
+func buildPkgSummaryFromDigest(digest bomDigest, prefixPath string) pkgSummary {
+	summary := pkgSummary{
+		HasApplicationsApp: digest.HasApplicationsApp,
+		HasNonAppPayload:   digest.HasNonAppPayload,
+	}
+	topLevelSet := make(map[string]struct{})
+	for _, token := range digest.TopLevelTokens {
+		topLevelDir := topLevelPathFromToken(token, prefixPath)
+		if topLevelDir == "" {
+			continue
+		}
+		if len(topLevelSet) < maxTopLevelPathsPerPkg {
+			topLevelSet[topLevelDir] = struct{}{}
+		}
 	}
 	summary.TopLevelPaths = sortedPathsFromSet(topLevelSet)
 	return summary
+}
+
+// buildPkgSummaryFromLines builds a compact package summary from lsbom -sd output lines.
+// It remains as a thin helper so tests can assert summary behavior directly.
+func buildPkgSummaryFromLines(lines []string, prefixPath string) pkgSummary {
+	return buildPkgSummaryFromDigest(buildBomDigest(lines), prefixPath)
 }
 
 // sortedPathsFromSet converts a path set into a lexicographically sorted slice.
@@ -552,35 +683,20 @@ func buildAppToPkgMap() map[string]string {
 	}
 
 	cache := getGlobalBomCache()
-	bomLines := cache.getBomLines(bomPaths)
+	bomDigests := cache.getBomDigests(bomPaths)
 
 	result := make(map[string]string)
 	for _, item := range items {
-		lines := bomLines[item.bomPath]
-		prefix := item.prefixPath
-		if prefix == "" || prefix == "/" {
-			prefix = ""
-		} else if !strings.HasPrefix(prefix, "/") {
-			prefix = "/" + prefix
-		}
+		digest := bomDigests[item.bomPath]
+		prefix := normalizePrefixPath(item.prefixPath)
 
-		for _, line := range lines {
-			line = strings.TrimSpace(line)
-			line = strings.TrimPrefix(line, "./")
-			if line == "" || line == "." {
-				continue
-			}
-
+		for _, appPath := range digest.AppPaths {
 			// Build absolute path and check if it's an .app in /Applications
 			var absPath string
 			if prefix == "" {
-				absPath = "/" + line
+				absPath = "/" + appPath
 			} else {
-				absPath = prefix + "/" + line
-			}
-
-			if !strings.HasSuffix(absPath, ".app") {
-				continue
+				absPath = strings.ReplaceAll(prefix+"/"+appPath, "//", "/")
 			}
 			// Only index top-level .app bundles (not nested .app inside other .app)
 			dir := filepath.Dir(absPath)
@@ -671,11 +787,11 @@ func (c *pkgReceiptsCollector) Collect() ([]*Entry, []*Warning, error) {
 
 	// Fetch all BOM data in one batch (cache hit = 0 subprocesses, miss = 1 subprocess)
 	cache := getGlobalBomCache()
-	bomLines := cache.getBomLines(bomPaths)
+	bomDigests := cache.getBomDigests(bomPaths)
 
 	for _, receipt := range receipts {
-		lines := bomLines[receipt.bomPath]
-		summary := buildPkgSummaryFromLines(lines, receipt.prefixPath)
+		digest := bomDigests[receipt.bomPath]
+		summary := buildPkgSummaryFromDigest(digest, receipt.prefixPath)
 		if entry := buildEntryFromReceipt(receipt, summary, is64Bit); entry != nil {
 			entries = append(entries, entry)
 		}
