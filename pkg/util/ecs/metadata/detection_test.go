@@ -9,6 +9,7 @@ package metadata
 
 import (
 	"context"
+	"net/netip"
 	"testing"
 	"time"
 
@@ -84,8 +85,8 @@ func TestGetAgentV1ContainerURLs(t *testing.T) {
 
 	// Setting mocked data in cache
 	nets := make(map[string]*network.EndpointSettings)
-	nets["bridge"] = &network.EndpointSettings{IPAddress: "172.17.0.2"}
-	nets["foo"] = &network.EndpointSettings{IPAddress: "172.17.0.3"}
+	nets["bridge"] = &network.EndpointSettings{IPAddress: netip.MustParseAddr("172.17.0.2")}
+	nets["foo"] = &network.EndpointSettings{IPAddress: netip.MustParseAddr("172.17.0.3")}
 
 	co := container.InspectResponse{
 		Config: &container.Config{

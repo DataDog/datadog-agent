@@ -19,8 +19,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/distribution/reference"
 	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/distribution/reference"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance/metrics"
 	"github.com/DataDog/datadog-agent/pkg/compliance/utils"
@@ -622,7 +622,7 @@ func (r *defaultResolver) resolveDocker(ctx context.Context, spec InputSpecDocke
 			"version":      versionResult.Version,
 			"apiVersion":   versionResult.APIVersion,
 			"platform":     versionResult.Platform.Name,
-			"experimental": versionResult.Experimental,
+			"experimental": versionResult.Experimental, //nolint:staticcheck // SA1019: field is deprecated upstream but still needed for compliance checks
 			"os":           versionResult.Os,
 			"arch":         versionResult.Arch,
 		})
