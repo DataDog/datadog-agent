@@ -39,6 +39,61 @@ EXTRACTORS = [
 ]
 
 
+class StepLogger:
+    """Hierarchical progress logger that always shows the full ancestor chain.
+
+    Each step prints [root X/N > ... > this X/N]  title, so every line carries
+    complete context regardless of nesting depth. Create a root logger with
+    StepLogger(total, label), then nest via .child() which captures the parent.
+
+    Example output (depth 0 → 1 → 2):
+        [Bayesian run 1/30]  without/subset_000/run_000
+          [Bayesian run 1/30 > Trial 2/5]  trial_001
+            [Bayesian run 1/30 > Trial 2/5 > Scenario 1/3]  213_pagerduty
+    """
+
+    def __init__(self, total: int, label: str, depth: int = 0, parent: "StepLogger | None" = None):
+        self.total = total
+        self.label = label
+        self.depth = depth
+        self._parent = parent
+        self._current = 0
+
+    @property
+    def _indent(self) -> str:
+        return "  " * self.depth
+
+    def _ancestor_tag(self) -> str:
+        """Build 'root X/N > ... > this X/N' chain from the root down to this logger."""
+        parts = []
+        node: StepLogger | None = self
+        while node is not None:
+            parts.append(f"{node.label} {node._current}/{node.total}")
+            node = node._parent
+        return " > ".join(reversed(parts))
+
+    def step(self, title: str = "", color: Color = Color.BLUE) -> "StepLogger":
+        """Increment counter and print full-context progress line. Returns self for chaining."""
+        self._current += 1
+        tag = f"[{self._ancestor_tag()}]"
+        msg = f"{self._indent}{tag}  {title}" if title else f"{self._indent}{tag}"
+        print(color_message(msg, color))
+        return self
+
+    def detail(self, message: str, color: Color = Color.BLUE) -> None:
+        """Print an indented detail line under the current step."""
+        print(color_message(f"{self._indent}  {message}", color))
+
+    def score(self, value: float) -> None:
+        """Print a score line, green if positive, red otherwise."""
+        clr = Color.GREEN if value > 0 else Color.RED
+        print(color_message(f"{self._indent}  score: {value:.4f}", clr))
+
+    def child(self, total: int, label: str) -> "StepLogger":
+        """Create a nested logger one level deeper, capturing self as parent."""
+        return StepLogger(total, label, depth=self.depth + 1, parent=self)
+
+
 # --- Build ---
 @task
 def build_testbench(ctx):
@@ -68,6 +123,7 @@ def eval_scenarios(
     main_report_path: str = "/tmp/observer-eval-main-report.json",
     config: str = "",
     scenario_output_dir: str = "/tmp",
+    _logger: StepLogger | None = None,
 ) -> dict[str, object]:
     """
     Runs the observer F1 eval: replays scenarios, scores Gaussian F1.
@@ -119,6 +175,7 @@ def eval_scenarios(
         build_scorer(ctx)
 
     scenarios_to_run = [scenario] if scenario else SCENARIOS
+    scenario_logger = _logger or StepLogger(len(scenarios_to_run), "Scenario")
 
     results = []
     for name in scenarios_to_run:
@@ -129,13 +186,11 @@ def eval_scenarios(
         if not os.path.isdir(parquet_dir) or not os.listdir(parquet_dir):
             # Fallback: check for *.parquet files directly in scenario root
             if not glob.glob(os.path.join(scenario_root, "*.parquet")):
-                print(color_message(f"Skipping {name} — no parquet data at {parquet_dir}", Color.ORANGE))
+                scenario_logger.detail(f"skipping {name} — no parquet data at {parquet_dir}", Color.ORANGE)
                 continue
 
         output_path = os.path.join(scenario_output_dir, f"observer-eval-{name}.json")
-        print(color_message(f"\n{'=' * 60}", Color.BLUE))
-        print(color_message(f"  {name}", Color.BLUE))
-        print(color_message(f"{'=' * 60}", Color.BLUE))
+        scenario_logger.step(name)
 
         only_part = f" --only {shlex.quote(only_flag)}" if only_flag else ""
         config_part = f" --config {shlex.quote(config)}" if config else ""
@@ -144,13 +199,13 @@ def eval_scenarios(
         )
 
         if not os.path.isfile(output_path):
-            print(color_message(f"Testbench did not produce output at {output_path}", Color.RED))
+            scenario_logger.detail(f"testbench did not produce output at {output_path}", Color.RED)
             continue
         try:
             with open(output_path) as f:
                 json.load(f)
         except (json.JSONDecodeError, OSError) as e:
-            print(color_message(f"Testbench output at {output_path} is not valid JSON: {e}", Color.RED))
+            scenario_logger.detail(f"testbench output not valid JSON: {e}", Color.RED)
             continue
 
         scorer_result = ctx.run(
@@ -160,14 +215,18 @@ def eval_scenarios(
         )
 
         if scorer_result.failed:
-            print(color_message(f"Scorer failed for {name}:\n{scorer_result.stderr}", Color.RED))
+            scenario_logger.detail(f"scorer failed:\n{scorer_result.stderr}", Color.RED)
             continue
 
         try:
             score = json.loads(scorer_result.stdout.strip())
         except json.JSONDecodeError:
-            print(color_message(f"Scorer returned invalid JSON for {name}:\n{scorer_result.stdout}", Color.RED))
+            scenario_logger.detail(f"scorer returned invalid JSON:\n{scorer_result.stdout}", Color.RED)
             continue
+
+        scenario_logger.detail(
+            f"F1={score.get('f1', 0):.4f}  prec={score.get('precision', 0):.4f}  rec={score.get('recall', 0):.4f}"
+        )
         results.append({"name": name, **score})
 
     # Print summary table
@@ -533,6 +592,7 @@ def eval_combinations(
         )
     )
 
+    combo_logger = StepLogger(len(combos), "Combo")
     summary_results = []
     for i, combo in enumerate(combos):
         combo_label = f"combo_{i:03d}"
@@ -544,14 +604,12 @@ def eval_combinations(
         with open(config_path, "w") as f:
             json.dump(config_data, f, indent=4)
 
-        print(color_message(f"\n{'=' * 60}", Color.BLUE))
         combo_title = f"{combo_label} (full stack)" if i == 0 else combo_label
-        print(color_message(f"  [{i + 1}/{len(combos)}] {combo_title}", Color.BLUE))
-        print(color_message(f"  detectors:   {', '.join(combo['detectors'])}", Color.BLUE))
-        print(color_message(f"  correlators: {', '.join(combo['correlators'])}", Color.BLUE))
+        combo_logger.step(combo_title)
+        combo_logger.detail(f"detectors:   {', '.join(combo['detectors'])}")
+        combo_logger.detail(f"correlators: {', '.join(combo['correlators'])}")
         ext_on = [e for e in EXTRACTORS if e not in force_disable_list]
-        print(color_message(f"  extractors:  {', '.join(ext_on)}", Color.BLUE))
-        print(color_message(f"{'=' * 60}", Color.BLUE))
+        combo_logger.detail(f"extractors:  {', '.join(ext_on)}")
 
         scenario_output_dir = os.path.join(combo_dir, "scenarios")
         os.makedirs(scenario_output_dir, exist_ok=True)
@@ -566,12 +624,14 @@ def eval_combinations(
                 build=False,
                 main_report_path=report_path,
                 scenario_output_dir=scenario_output_dir,
+                _logger=combo_logger.child(len(SCENARIOS), "Scenario"),
             )
         except Exception as e:
-            print(color_message(f"eval_scenarios failed for {combo_label}: {e}", Color.RED))
+            combo_logger.detail(f"eval_scenarios failed: {e}", Color.RED)
             report = None
 
         if report is not None:
+            combo_logger.detail(f"score: {report.get('score', 0.0):.4f}")
             summary_results.append(
                 {
                     "rank": 0,
@@ -733,6 +793,7 @@ def eval_bayesian(
     sigma: float = 30.0,
     seed: int = None,
     build: bool = True,
+    _logger: StepLogger | None = None,
 ):
     """
     Run Bayesian hyperparameter optimization (Optuna TPE) for a fixed set of observer components.
@@ -796,16 +857,20 @@ def eval_bayesian(
         build_scorer(ctx)
 
     tuned = [c for c in components_list if c not in locked_set]
-    print(color_message(f"\n{'=' * 60}", Color.BLUE))
-    print(color_message("  Observer Bayesian Optimization", Color.BLUE))
-    print(color_message(f"{'=' * 60}", Color.BLUE))
-    print(color_message(f"  components:  {', '.join(components_list)}", Color.BLUE))
-    if locked_set:
-        print(color_message(f"  locked:      {', '.join(sorted(locked_set))} (not tuned)", Color.BLUE))
-    print(color_message(f"  tuned:       {', '.join(tuned)}", Color.BLUE))
-    print(color_message(f"  n_trials:    {n_trials}", Color.BLUE))
-    print(color_message(f"  output_dir:  {output_dir}", Color.BLUE))
-    print(color_message(f"  seed:        {seed}", Color.BLUE))
+    trial_logger = _logger or StepLogger(n_trials, "Trial")
+
+    if not _logger:
+        # Only print the full header when running standalone (not nested inside eval_component)
+        print(color_message(f"\n{'=' * 60}", Color.BLUE))
+        print(color_message("  Observer Bayesian Optimization", Color.BLUE))
+        print(color_message(f"{'=' * 60}", Color.BLUE))
+        print(color_message(f"  components:  {', '.join(components_list)}", Color.BLUE))
+        if locked_set:
+            print(color_message(f"  locked:      {', '.join(sorted(locked_set))} (not tuned)", Color.BLUE))
+        print(color_message(f"  tuned:       {', '.join(tuned)}", Color.BLUE))
+        print(color_message(f"  n_trials:    {n_trials}", Color.BLUE))
+        print(color_message(f"  output_dir:  {output_dir}", Color.BLUE))
+        print(color_message(f"  seed:        {seed}", Color.BLUE))
 
     completed_trials = []
 
@@ -819,11 +884,9 @@ def eval_bayesian(
         with open(config_path, "w") as f:
             json.dump(config_data, f, indent=4)
 
-        print(color_message(f"\n{'=' * 60}", Color.BLUE))
-        print(color_message(f"  [{trial.number + 1}/{n_trials}] {trial_label}", Color.BLUE))
+        trial_logger.step(trial_label)
         for key, val in sorted(trial.params.items()):
-            print(color_message(f"    {key}: {val}", Color.BLUE))
-        print(color_message(f"{'=' * 60}", Color.BLUE))
+            trial_logger.detail(f"{key}: {val}")
 
         report_path = os.path.join(trial_dir, "report.json")
         scenario_output_dir = os.path.join(trial_dir, "scenarios")
@@ -838,13 +901,14 @@ def eval_bayesian(
                 build=False,
                 main_report_path=report_path,
                 scenario_output_dir=scenario_output_dir,
+                _logger=trial_logger.child(len(SCENARIOS), "Scenario"),
             )
         except Exception as e:
-            print(color_message(f"eval_scenarios failed for {trial_label}: {e}", Color.RED))
+            trial_logger.detail(f"eval_scenarios failed: {e}", Color.RED)
             return float("-inf")
 
         score = report.get("score", 0.0) if report else 0.0
-        print(color_message(f"  Score: {score:.4f}", Color.GREEN if score > 0 else Color.RED))
+        trial_logger.score(score)
 
         completed_trials.append(
             {
@@ -923,6 +987,306 @@ def eval_bayesian(
     print(color_message(f"  study:           {study_path}", Color.GREEN))
     print(color_message(f"  Per-trial:       {output_dir}/trial_*/report.json", Color.GREEN))
     print(color_message(f"{'=' * 70}", Color.GREEN))
+
+    return final_report
+
+
+# --- Component Evaluation ---
+
+
+@task
+def eval_component(
+    ctx,
+    component: str,
+    n_subsets: int = 5,
+    n_trials: int = 5,
+    m_runs: int = 1,
+    output_dir: str = "/tmp/observer-component-eval",
+    scenarios_dir: str = "./comp/observer/scenarios",
+    sigma: float = 30.0,
+    seed: int = None,
+    build: bool = True,
+):
+    """
+    Evaluate whether adding a component improves observer accuracy via
+    Bayesian optimization on random component subsets.
+
+    For N random subsets of detectors/correlators (extractors stay fixed):
+      - Run M independent Bayesian optimizations WITHOUT the target component.
+      - Run M independent Bayesian optimizations WITH the target component.
+      - Compare the max best-score across the M runs per subset, averaged
+        over all subsets.
+
+    All seeds are derived deterministically from a single base seed so the
+    entire experiment is fully reproducible.
+
+    Output layout:
+        <output_dir>/without/subset_NNN/run_NNN/  - bayesian_eval output
+        <output_dir>/with/subset_NNN/run_NNN/      - bayesian_eval output
+        <output_dir>/report.json                   - comparison report
+
+    Args:
+        component: Component to evaluate (any detector, correlator, or extractor).
+        n_subsets: Number of random detector/correlator subsets (default: 5).
+        n_trials: Optuna trials per Bayesian run (default: 5).
+        m_runs: Independent Bayesian optimisation runs per subset per variant (default: 1).
+        output_dir: Root output directory (removed and recreated).
+        scenarios_dir: Directory containing scenario subdirectories.
+        sigma: Gaussian width in seconds for F1 scoring.
+        seed: Base seed for deterministic reproducibility (default: random).
+        build: Whether to build testbench and scorer first.
+
+    Examples:
+        dda inv q.eval-component --component scanmw
+        dda inv q.eval-component --component log_pattern_extractor --n-subsets 3
+        dda inv q.eval-component --component cusum --seed 42 --n-trials 10
+    """
+    all_known = DETECTORS + CORRELATORS + EXTRACTORS
+    if component not in all_known:
+        print(color_message(f"Error: unknown component '{component}'. Known: {', '.join(all_known)}", Color.RED))
+        return
+
+    if seed is None:
+        seed = random.randint(0, 2**32 - 1)
+
+    # --- deterministic seed derivation ---
+    rng = random.Random(seed)
+    subset_seed = rng.randint(0, 2**32 - 1)
+    run_seeds: dict[tuple[str, int], list[int]] = {}
+    for variant in ("without", "with"):
+        for si in range(n_subsets):
+            run_seeds[(variant, si)] = [rng.randint(0, 2**32 - 1) for _ in range(m_runs)]
+
+    # --- generate subsets ---
+    is_extractor = component in EXTRACTORS
+    subsets = random_component_combinations(
+        n_subsets,
+        seed=subset_seed,
+        force_disable=[] if is_extractor else [component],
+    )
+    if len(subsets) < n_subsets:
+        print(
+            color_message(
+                f"Warning: only {len(subsets)} unique subsets generated (requested {n_subsets})",
+                Color.ORANGE,
+            )
+        )
+        n_subsets = len(subsets)
+
+    # --- compute totals ---
+    scenario_names = sorted(d for d in os.listdir(scenarios_dir) if os.path.isdir(os.path.join(scenarios_dir, d)))
+    n_scenarios = len(scenario_names)
+    total_bayesian_runs = n_subsets * 2 * m_runs
+    total_testbench_runs = total_bayesian_runs * n_trials * n_scenarios
+
+    # --- build once ---
+    if build:
+        build_testbench(ctx)
+        build_scorer(ctx)
+
+    if os.path.exists(output_dir):
+        shutil.rmtree(output_dir)
+    os.makedirs(output_dir)
+
+    print(color_message(f"\n{'=' * 70}", Color.BLUE))
+    print(color_message("  Observer Component Evaluation", Color.BLUE))
+    print(color_message(f"{'=' * 70}", Color.BLUE))
+    print(color_message(f"  component:             {component}", Color.BLUE))
+    print(color_message(f"  n_subsets:             {n_subsets}", Color.BLUE))
+    print(color_message(f"  m_runs:                {m_runs}", Color.BLUE))
+    print(color_message(f"  n_trials:              {n_trials}", Color.BLUE))
+    print(color_message(f"  seed:                  {seed}", Color.BLUE))
+    print(color_message(f"  scenarios:             {n_scenarios} ({', '.join(scenario_names)})", Color.BLUE))
+    print(color_message(f"  total bayesian runs:   {total_bayesian_runs}", Color.BLUE))
+    print(color_message(f"  total testbench runs:  {total_testbench_runs}", Color.BLUE))
+    print(color_message(f"  output_dir:            {output_dir}", Color.BLUE))
+    print(color_message(f"{'=' * 70}\n", Color.BLUE))
+
+    # --- run evaluations ---
+    variant_results: dict[str, list] = {"without": [], "with": []}
+    run_logger = StepLogger(total_bayesian_runs, "Bayesian run")
+
+    for variant in ("without", "with"):
+        variant_dir = os.path.join(output_dir, variant)
+        os.makedirs(variant_dir, exist_ok=True)
+
+        for si, subset in enumerate(subsets):
+            subset_label = f"subset_{si:03d}"
+            subset_dir = os.path.join(variant_dir, subset_label)
+            os.makedirs(subset_dir, exist_ok=True)
+
+            # Build the full components list for this variant
+            components_list = list(subset["detectors"]) + list(subset["correlators"])
+            for ext in EXTRACTORS:
+                if ext == component:
+                    if variant == "with":
+                        components_list.append(ext)
+                    # "without" → skip this extractor
+                else:
+                    components_list.append(ext)
+            if not is_extractor and variant == "with":
+                components_list.append(component)
+            components_list = sorted(set(components_list))
+
+            run_scores: list[float] = []
+            run_details: list[dict] = []
+
+            for ri in range(m_runs):
+                run_label = f"run_{ri:03d}"
+                run_dir = os.path.join(subset_dir, run_label)
+                run_seed = run_seeds[(variant, si)][ri]
+
+                run_logger.step(f"{variant} / {subset_label} / {run_label}  (seed={run_seed})")
+                run_logger.detail(f"components: {', '.join(components_list)}")
+
+                trial_logger = run_logger.child(n_trials, "Trial")
+                report = eval_bayesian(
+                    ctx,
+                    components=",".join(components_list),
+                    n_trials=n_trials,
+                    output_dir=run_dir,
+                    scenarios_dir=scenarios_dir,
+                    sigma=sigma,
+                    seed=run_seed,
+                    build=False,
+                    _logger=trial_logger,
+                )
+
+                best_score = report.get("score", 0.0) if report else 0.0
+                run_scores.append(best_score)
+                run_details.append(
+                    {
+                        "run": run_label,
+                        "seed": run_seed,
+                        "best_score": best_score,
+                        "avg_score": report.get("avg_eval_score", 0.0) if report else 0.0,
+                        "report_path": os.path.join(run_dir, "report.json"),
+                    }
+                )
+
+            max_score = max(run_scores) if run_scores else 0.0
+            mean_score = sum(run_scores) / len(run_scores) if run_scores else 0.0
+
+            variant_results[variant].append(
+                {
+                    "subset": subset_label,
+                    "detectors": subset["detectors"],
+                    "correlators": subset["correlators"],
+                    "components": components_list,
+                    "run_scores": run_scores,
+                    "max_score": max_score,
+                    "mean_score": mean_score,
+                    "runs": run_details,
+                }
+            )
+
+    # --- aggregate per-subset comparison ---
+    per_subset = []
+    for si in range(n_subsets):
+        wo = variant_results["without"][si]
+        wi = variant_results["with"][si]
+        per_subset.append(
+            {
+                "subset": wo["subset"],
+                "detectors": wo["detectors"],
+                "correlators": wo["correlators"],
+                "without_max": wo["max_score"],
+                "with_max": wi["max_score"],
+                "delta_max": wi["max_score"] - wo["max_score"],
+                "without_mean": wo["mean_score"],
+                "with_mean": wi["mean_score"],
+                "delta_mean": wi["mean_score"] - wo["mean_score"],
+                "without_run_scores": wo["run_scores"],
+                "with_run_scores": wi["run_scores"],
+            }
+        )
+
+    without_maxs = [r["max_score"] for r in variant_results["without"]]
+    with_maxs = [r["max_score"] for r in variant_results["with"]]
+    without_means = [r["mean_score"] for r in variant_results["without"]]
+    with_means = [r["mean_score"] for r in variant_results["with"]]
+
+    avg_max_without = sum(without_maxs) / len(without_maxs) if without_maxs else 0.0
+    avg_max_with = sum(with_maxs) / len(with_maxs) if with_maxs else 0.0
+    avg_mean_without = sum(without_means) / len(without_means) if without_means else 0.0
+    avg_mean_with = sum(with_means) / len(with_means) if with_means else 0.0
+    delta_max = avg_max_with - avg_max_without
+    delta_mean = avg_mean_with - avg_mean_without
+
+    # --- print summary ---
+    print(color_message(f"\n{'=' * 70}", Color.GREEN))
+    print(color_message("  Component Evaluation Summary", Color.GREEN))
+    print(color_message(f"{'=' * 70}\n", Color.GREEN))
+    print(color_message(f"  Component: {component}\n", Color.GREEN))
+
+    header = f"  {'Subset':<12}  {'Without':>8}  {'With':>8}  {'Delta':>8}"
+    print(header)
+    print(f"  {'-' * 44}")
+    for ps in per_subset:
+        delta_clr = Color.GREEN if ps["delta_max"] > 0 else Color.RED
+        line = f"  {ps['subset']:<12}  {ps['without_max']:>8.4f}  {ps['with_max']:>8.4f}  "
+        print(line + color_message(f"{ps['delta_max']:>+8.4f}", delta_clr))
+
+    print()
+    print(color_message(f"  Avg max score without:  {avg_max_without:.4f}", Color.BLUE))
+    print(color_message(f"  Avg max score with:     {avg_max_with:.4f}", Color.BLUE))
+    delta_clr = Color.GREEN if delta_max > 0 else Color.RED
+    print(color_message(f"  Delta (max):            {delta_max:+.4f}", delta_clr))
+    print()
+    print(color_message(f"  Avg mean score without: {avg_mean_without:.4f}", Color.BLUE))
+    print(color_message(f"  Avg mean score with:    {avg_mean_with:.4f}", Color.BLUE))
+    delta_clr = Color.GREEN if delta_mean > 0 else Color.RED
+    print(color_message(f"  Delta (mean):           {delta_mean:+.4f}", delta_clr))
+
+    recommendation = "keep" if delta_max > 0 else "discard"
+    rec_clr = Color.GREEN if delta_max > 0 else Color.RED
+    print()
+    print(color_message(f"  Recommendation: {recommendation.upper()} {component}", rec_clr))
+    print(color_message(f"{'=' * 70}", Color.GREEN))
+
+    # --- copy best "with" config to root ---
+    all_with_runs = [run for subset in variant_results["with"] for run in subset["runs"]]
+    best_with_run = max(all_with_runs, key=lambda r: r["best_score"]) if all_with_runs else None
+    best_config_path = None
+    if best_with_run:
+        src = os.path.join(os.path.dirname(best_with_run["report_path"]), "best_config.json")
+        if os.path.isfile(src):
+            best_config_path = os.path.join(output_dir, "best_config.json")
+            shutil.copy2(src, best_config_path)
+
+    # --- write report ---
+    final_report = {
+        "component": component,
+        "recommendation": recommendation,
+        "seed": seed,
+        "n_subsets": n_subsets,
+        "m_runs": m_runs,
+        "n_trials": n_trials,
+        "total_bayesian_runs": total_bayesian_runs,
+        "total_testbench_runs": total_testbench_runs,
+        "best_config_path": best_config_path,
+        "best_with_run": best_with_run,
+        "summary": {
+            "avg_max_score_without": avg_max_without,
+            "avg_max_score_with": avg_max_with,
+            "delta_max": delta_max,
+            "avg_mean_score_without": avg_mean_without,
+            "avg_mean_score_with": avg_mean_with,
+            "delta_mean": delta_mean,
+        },
+        "per_subset": per_subset,
+        "without": variant_results["without"],
+        "with": variant_results["with"],
+    }
+    report_path = os.path.join(output_dir, "report.json")
+    with open(report_path, "w") as f:
+        json.dump(final_report, f, indent=4)
+
+    print(color_message(f"\n  Report:      {report_path}", Color.GREEN))
+    if best_config_path:
+        print(
+            color_message(f"  Best config: {best_config_path}  (score={best_with_run['best_score']:.4f})", Color.GREEN)
+        )
 
     return final_report
 
