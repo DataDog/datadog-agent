@@ -59,6 +59,20 @@ func TestLoadArchitecturesNotEmpty(t *testing.T) {
 	}
 }
 
+func TestLoadTagsSpecNotEmpty(t *testing.T) {
+	tagsSpec, err := LoadTagsSpec()
+	require.NoError(t, err)
+
+	require.NotEmpty(t, tagsSpec.Tags, "tags should not be empty")
+	require.NotEmpty(t, tagsSpec.Tagsets, "tagsets should not be empty")
+	for tagsetName, tagsetSpec := range tagsSpec.Tagsets {
+		for _, tagName := range tagsetSpec.Tags {
+			_, ok := tagsSpec.Tags[tagName]
+			require.Truef(t, ok, "tagset %s references unknown tag %s", tagsetName, tagName)
+		}
+	}
+}
+
 func TestTagSpecUnmarshalYAML(t *testing.T) {
 	t.Run("compiles regex", func(t *testing.T) {
 		var spec TagSpec

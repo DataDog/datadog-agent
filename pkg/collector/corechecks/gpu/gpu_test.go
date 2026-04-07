@@ -1028,23 +1028,23 @@ func getEmittedGPUMetricsWithTags(mockSender *mocksender.MockSender) map[string]
 	return metricsByName
 }
 
-func requiredTagsFromSpec(t *testing.T, tagsSpec *gpuspec.TagsSpec, metricName string, metricSpec gpuspec.MetricSpec) map[string]struct{} {
+func requiredTagsFromSpec(t *testing.T, tagsSpec *gpuspec.TagsSpec, metricName string, metricSpec gpuspec.MetricSpec) map[string]gpuspec.TagSpec {
 	t.Helper()
 
-	requiredTags := make(map[string]struct{})
+	requiredTags := make(map[string]gpuspec.TagSpec)
 	for _, tagsetName := range metricSpec.Tagsets {
 		tagsetSpec, ok := tagsSpec.Tagsets[tagsetName]
 		require.True(t, ok, "metric %s references unknown tagset %s", metricName, tagsetName)
 		for _, tag := range tagsetSpec.Tags {
-			_, ok := tagsSpec.Tags[tag]
+			tagSpec, ok := tagsSpec.Tags[tag]
 			require.True(t, ok, "tagset %s references unknown tag %s", tagsetName, tag)
-			requiredTags[tag] = struct{}{}
+			requiredTags[tag] = tagSpec
 		}
 	}
 	for _, tag := range metricSpec.CustomTags {
-		_, ok := tagsSpec.Tags[tag]
+		tagSpec, ok := tagsSpec.Tags[tag]
 		require.True(t, ok, "metric %s references unknown custom tag %s", metricName, tag)
-		requiredTags[tag] = struct{}{}
+		requiredTags[tag] = tagSpec
 	}
 
 	return requiredTags
@@ -1076,7 +1076,7 @@ func validateMetricTagsAgainstSpec(t *testing.T, tagsSpec *gpuspec.TagsSpec, met
 				}
 
 				if tagSpec.Regex != nil {
-					require.Regexp(t, *tagSpec.Regex, value, "metric %s has unexpected value for tag %s", metricName, key)
+					require.Regexp(t, tagSpec.Regex, value, "metric %s has unexpected value for tag %s", metricName, key)
 				}
 			}
 		}
