@@ -1677,7 +1677,6 @@ def _resolve_zip_from_runs_jsonl(ctx, name):
         result = ctx.run(
             f"aws-vault exec {AWS_PROFILE} -- aws s3 cp s3://{S3_BUCKET}/runs.jsonl {shlex.quote(tmp_path)}",
             warn=True,
-            hide=True,
         )
         if result is None or result.failed:
             return None

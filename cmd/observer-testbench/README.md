@@ -34,6 +34,23 @@ npm install  # first time only
 npm run dev
 ```
 
+## Evals
+
+Here is the proper way to evaluate a new component using workspaces + tmux:
+
+```sh
+$ dda inv workspaces.create evals # or replace evals with any other name
+$ dda inv workspaces.tmux-new evals
+# We are inside the workspace
+$ dda inv --dep=optuna q.eval-component bocpd # or any other component
+# This will first ask you to authenticate, then download files and after do the evals
+<C-b> d # to detach and see the results later
+$ dda inv workspaces.tmux-attach evals
+# You can see the live evaluation
+<C-b> d
+$ dda inv q.eval-component-workspace-report evals # This will fetch the results to /tmp/workspace-observer-component-eval
+```
+
 ## Command Line Flags
 
 ### General

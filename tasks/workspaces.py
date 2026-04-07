@@ -26,7 +26,7 @@ echo 'export PATH=$PATH:/home/bits/go/bin' >> ~/.zshrc
 
 
 @task
-def create(ctx, name: str, branch: str = ""):
+def create(ctx, name: str, branch: str = "", instance_type: str = ""):
     """
     Create a workspace and bootstrap dda on it (download dda, install-tools, PATH in ~/.zshrc).
 
@@ -44,6 +44,8 @@ def create(ctx, name: str, branch: str = ""):
     branch_s = branch.strip()
     if branch_s:
         create_cmd += f" --branch {shlex.quote(branch_s)}"
+    if instance_type:
+        create_cmd += f" --instance-type {shlex.quote(instance_type)}"
     ctx.run(create_cmd)
 
     ctx.run(
@@ -70,6 +72,18 @@ def cmd(ctx, name: str, cmd: str):
     Will execute command
     """
     ctx.run(f"ssh workspace-{name} bash -c {shlex.quote(cmd)}")
+
+
+@task
+def tmux_new(ctx, name: str, session: str = "main"):
+    print(color_message('Use Ctrl+B d to detach', Color.BLUE))
+    print(color_message('Use dda inv workspaces.tmux_attach to reattach', Color.BLUE))
+    ctx.run(f"ssh -t workspace-{shlex.quote(name)} tmux new -s {shlex.quote(session)} /bin/zsh", pty=True)
+
+
+@task
+def tmux_attach(ctx, name: str, session: str = "main"):
+    ctx.run(f"ssh -t workspace-{name} tmux attach -t {session}", pty=True)
 
 
 @task
