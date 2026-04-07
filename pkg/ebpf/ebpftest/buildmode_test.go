@@ -82,7 +82,7 @@ func TestBuildModeConstants(t *testing.T) {
 		mock.NewSystemProbe(t)
 		cfg := ebpf.NewConfig()
 		assert.False(t, cfg.EnableRuntimeCompiler)
-		assert.False(t, cfg.EnableCORE)
+		assert.True(t, cfg.EnableCORE)
 		assert.False(t, cfg.AllowPrebuiltFallback)
 		assert.False(t, cfg.AllowRuntimeCompiledFallback)
 		assert.Equal(t, "false", os.Getenv("DD_NETWORK_CONFIG_ENABLE_CO_RE"))
