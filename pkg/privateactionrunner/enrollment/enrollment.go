@@ -33,7 +33,7 @@ type Result struct {
 type PersistedIdentity struct {
 	PrivateKey string `json:"private_key"`
 	URN        string `json:"urn"`
-	Hostname   string `json:"hostname"`
+	Hostname   string `json:"hostname,omitempty"`
 }
 
 // SelfEnroll performs self-registration of a private action runner using API credentials

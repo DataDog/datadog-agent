@@ -130,6 +130,7 @@ core,github.com/DataDog/agent-payload/v5/cws/dumpsv1,BSD-3-Clause,"Copyright (c)
 core,github.com/DataDog/agent-payload/v5/cyclonedx_v1_4,BSD-3-Clause,"Copyright (c) 2017, Datadog, Inc"
 core,github.com/DataDog/agent-payload/v5/gogen,BSD-3-Clause,"Copyright (c) 2017, Datadog, Inc"
 core,github.com/DataDog/agent-payload/v5/healthplatform,BSD-3-Clause,"Copyright (c) 2017, Datadog, Inc"
+core,github.com/DataDog/agent-payload/v5/kubeactions,BSD-3-Clause,"Copyright (c) 2017, Datadog, Inc"
 core,github.com/DataDog/agent-payload/v5/pb,BSD-3-Clause,"Copyright (c) 2017, Datadog, Inc"
 core,github.com/DataDog/agent-payload/v5/process,BSD-3-Clause,"Copyright (c) 2017, Datadog, Inc"
 core,github.com/DataDog/agent-payload/v5/sbom,BSD-3-Clause,"Copyright (c) 2017, Datadog, Inc"
@@ -237,6 +238,10 @@ core,github.com/DataDog/rshell/builtins/head,Apache-2.0,"Copyright 2026-present 
 core,github.com/DataDog/rshell/builtins/help,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/internal/loopctl,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/internal/procinfo,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/internal/procnetroute,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/internal/procnetsocket,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/internal/procpath,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/internal/procsyskernel,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/internal/winnet,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/ip,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/ls,Apache-2.0,"Copyright 2026-present Datadog, Inc"
@@ -251,8 +256,10 @@ core,github.com/DataDog/rshell/builtins/tail,Apache-2.0,"Copyright 2026-present 
 core,github.com/DataDog/rshell/builtins/testcmd,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/tr,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/true,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/uname,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/uniq,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/wc,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/internal/interpoption,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/interp,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/sketches-go/ddsketch,Apache-2.0,"Copyright 2021 Datadog, Inc"
 core,github.com/DataDog/sketches-go/ddsketch/encoding,Apache-2.0,"Copyright 2021 Datadog, Inc"
@@ -1564,14 +1571,15 @@ core,github.com/moby/sys/sequential,Apache-2.0,Kir Kolyshkin <kolyshkin@gmail.co
 core,github.com/moby/sys/signal,Apache-2.0,Copyright (c) 2014-2018 The Docker & Go Authors. All rights reserved.
 core,github.com/moby/sys/user,Apache-2.0,Copyright (c) 2014-2018 The Docker & Go Authors. All rights reserved.
 core,github.com/moby/sys/userns,Apache-2.0,Copyright (c) 2014-2018 The Docker & Go Authors. All rights reserved.
-core,github.com/modelcontextprotocol/go-sdk/auth,MIT,Copyright (c) 2025 Go MCP SDK Authors
-core,github.com/modelcontextprotocol/go-sdk/internal/json,MIT,Copyright (c) 2025 Go MCP SDK Authors
-core,github.com/modelcontextprotocol/go-sdk/internal/jsonrpc2,MIT,Copyright (c) 2025 Go MCP SDK Authors
-core,github.com/modelcontextprotocol/go-sdk/internal/util,MIT,Copyright (c) 2025 Go MCP SDK Authors
-core,github.com/modelcontextprotocol/go-sdk/internal/xcontext,MIT,Copyright (c) 2025 Go MCP SDK Authors
-core,github.com/modelcontextprotocol/go-sdk/jsonrpc,MIT,Copyright (c) 2025 Go MCP SDK Authors
-core,github.com/modelcontextprotocol/go-sdk/mcp,MIT,Copyright (c) 2025 Go MCP SDK Authors
-core,github.com/modelcontextprotocol/go-sdk/oauthex,MIT,Copyright (c) 2025 Go MCP SDK Authors
+core,github.com/modelcontextprotocol/go-sdk/auth,Apache-2.0,"Copyright (c) 2024-2025 Model Context Protocol a Series of LF Projects, LLC"
+core,github.com/modelcontextprotocol/go-sdk/internal/json,Apache-2.0,"Copyright (c) 2024-2025 Model Context Protocol a Series of LF Projects, LLC"
+core,github.com/modelcontextprotocol/go-sdk/internal/jsonrpc2,Apache-2.0,"Copyright (c) 2024-2025 Model Context Protocol a Series of LF Projects, LLC"
+core,github.com/modelcontextprotocol/go-sdk/internal/mcpgodebug,Apache-2.0,"Copyright (c) 2024-2025 Model Context Protocol a Series of LF Projects, LLC"
+core,github.com/modelcontextprotocol/go-sdk/internal/util,Apache-2.0,"Copyright (c) 2024-2025 Model Context Protocol a Series of LF Projects, LLC"
+core,github.com/modelcontextprotocol/go-sdk/internal/xcontext,Apache-2.0,"Copyright (c) 2024-2025 Model Context Protocol a Series of LF Projects, LLC"
+core,github.com/modelcontextprotocol/go-sdk/jsonrpc,Apache-2.0,"Copyright (c) 2024-2025 Model Context Protocol a Series of LF Projects, LLC"
+core,github.com/modelcontextprotocol/go-sdk/mcp,Apache-2.0,"Copyright (c) 2024-2025 Model Context Protocol a Series of LF Projects, LLC"
+core,github.com/modelcontextprotocol/go-sdk/oauthex,Apache-2.0,"Copyright (c) 2024-2025 Model Context Protocol a Series of LF Projects, LLC"
 core,github.com/modern-go/concurrent,Apache-2.0,Copyright (c) 2018 Tao Wen
 core,github.com/modern-go/reflect2,Apache-2.0,Copyright (c) 2018 Tao Wen
 core,github.com/mohae/deepcopy,MIT,Copyright (c) 2014 Joel

@@ -2,6 +2,8 @@ exporters:
     otlphttp:
         headers:
             dd-api-key: test-key
+            dd-evp-origin: host-profiler
+            dd-evp-origin-version: 7.0.0-test
 processors:
     batch:
         timeout: 10s
@@ -29,7 +31,7 @@ processors:
                 os.type:
                     enabled: false
 receivers:
-    hostprofiler:
+    profiling:
         symbol_uploader:
             enabled: false
 service:
@@ -46,4 +48,4 @@ service:
                 - resourcedetection/default
                 - resource/dd-profiler-internal-metadata
             receivers:
-                - hostprofiler
+                - profiling
