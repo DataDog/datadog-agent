@@ -16,6 +16,90 @@
         "language": "go",
         "stack": [
           {
+            "function": "main.(*Pair[go.shape.string,go.shape.int]).SetValue",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go",
+            "lineNumber": 69
+          },
+          {
+            "function": "main.executeGenericFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go",
+            "lineNumber": 242
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 49
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testGenericPairSetValue",
+          "location": {
+            "method": "main.(*Pair[...]).SetValue"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "x": {
+                "type": "*main.Pair[string,int]",
+                "address": "[addr]",
+                "fields": {
+                  "Key": {
+                    "type": "go.shape.string",
+                    "value": ""
+                  },
+                  "Value": {
+                    "type": "go.shape.int",
+                    "value": "0"
+                  }
+                }
+              },
+              "k": {
+                "type": "string",
+                "value": "key"
+              },
+              "v": {
+                "type": "int",
+                "value": "123"
+              }
+            }
+          }
+        }
+      },
+      "type": "snapshot"
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "message": "k=key",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  },
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.(*Pair[...]).SetValue",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
             "function": "main.(*Pair[go.shape.int,go.shape.bool]).SetValue",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go",
             "lineNumber": 69

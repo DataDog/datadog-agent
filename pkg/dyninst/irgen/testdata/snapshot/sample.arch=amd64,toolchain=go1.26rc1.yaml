@@ -1477,11 +1477,11 @@ Probes:
           events:
             - Kind: Entry
               Type: 1619 EventRootType Probe[main.(*Pair[go.shape.string,go.shape.int]).SetValue]
-              InjectionPoints: [{PC: "0xcf1127", Frameless: false}]
+              InjectionPoints: [{PC: "0xcf112a", Frameless: false}]
               Condition: null
             - Kind: Return
               Type: 1620 EventRootType Probe[main.(*Pair[go.shape.string,go.shape.int]).SetValue]Return
-              InjectionPoints: []
+              InjectionPoints: [{PC: "0xcf1153", Frameless: false}]
               Condition: null
           probeTemplate:
             TemplateString: k={k}

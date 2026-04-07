@@ -127,6 +127,7 @@ func testDyninst(
 		loader.WithAdditionalSerializer(&compiler.DebugSerializer{
 			Out: codeDump,
 		}),
+		loader.WithRingBufSize(8 << 20), // 8 MiB
 	}
 	if debug {
 		loaderOpts = append(loaderOpts, loader.WithDebugLevel(100))
