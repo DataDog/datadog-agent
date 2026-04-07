@@ -10,6 +10,7 @@ After=datadog-agent.service datadog-agent-exp.service
 BindsTo=datadog-agent-exp.service
 Conflicts=datadog-agent.service datadog-agent-trace.service
 {{- end}}
+ConditionPathExists={{.InstallDir}}/embedded/bin/trace-agent
 
 [Service]
 Type=simple
