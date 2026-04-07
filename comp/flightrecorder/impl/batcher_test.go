@@ -14,15 +14,26 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/hook"
 )
 
-// recordingTransport records the number of Send() calls and total bytes.
+// recordingTransport records the number of Send() calls, total bytes,
+// and the largest single frame seen.
 type recordingTransport struct {
-	sends atomic.Int64
-	bytes atomic.Int64
+	sends    atomic.Int64
+	bytes    atomic.Int64
+	maxFrame atomic.Int64
 }
 
 func (t *recordingTransport) Send(b []byte) error {
 	t.sends.Add(1)
 	t.bytes.Add(int64(len(b)))
+	for {
+		cur := t.maxFrame.Load()
+		if int64(len(b)) <= cur {
+			break
+		}
+		if t.maxFrame.CompareAndSwap(cur, int64(len(b))) {
+			break
+		}
+	}
 	return nil
 }
 
@@ -208,5 +219,169 @@ func TestBatcher_HighVolumeProducer(t *testing.T) {
 	}
 	if stats.MetricsSent != totalItems {
 		t.Errorf("expected %d metrics sent, got %d", totalItems, stats.MetricsSent)
+	}
+}
+
+// TestBatcher_LargeLogBatchIsChunked verifies that a large log batch (>25 MB
+// equivalent) is split into multiple frames, not sent as one giant frame.
+func TestBatcher_LargeLogBatchIsChunked(t *testing.T) {
+	transport := &recordingTransport{}
+	c := &counters{}
+	cs := newContextSet(50000)
+	// Large ring to hold all items, fast flush.
+	bat := newBatcher(transport, 5*time.Millisecond, 1000, 100, 50000, 100, cs, c)
+
+	// Add 25,000 log entries — each ~1 KB content. Without chunking this
+	// would be a single ~25 MB frame.
+	content := make([]byte, 1024)
+	for i := range content {
+		content[i] = byte('A' + (i % 26))
+	}
+	for i := 0; i < 25000; i++ {
+		bat.logs.add(hook.LogSampleSnapshot{
+			Content:     content,
+			Status:      "info",
+			Tags:        []string{"env:test", "service:bench"},
+			Hostname:    "testhost",
+			TimestampNs: int64(i * 1000),
+		}, nil)
+	}
+
+	// Wait for flush.
+	time.Sleep(200 * time.Millisecond)
+	bat.Stop()
+
+	stats := c.stats()
+	sends := transport.sends.Load()
+	maxFrame := transport.maxFrame.Load()
+
+	t.Logf("logsSent=%d logsDropped=%d sends=%d totalBytes=%d maxFrame=%d",
+		stats.LogsSent, stats.LogsDropped, sends, transport.bytes.Load(), maxFrame)
+
+	// All 25,000 logs should be sent.
+	if stats.LogsSent != 25000 {
+		t.Errorf("expected 25000 logs sent, got %d", stats.LogsSent)
+	}
+
+	// Should be split into multiple frames (25000 / 2000 = 13 chunks).
+	if sends < 10 {
+		t.Errorf("expected at least 10 Send() calls (chunked), got %d", sends)
+	}
+
+	// No single frame should exceed 2 MB (2000 logs × ~1 KB each + overhead).
+	const maxAcceptableFrameSize = 4 * 1024 * 1024 // 4 MB generous upper bound
+	if maxFrame > maxAcceptableFrameSize {
+		t.Errorf("largest frame is %d bytes (%.1f MB), exceeds %d byte limit — chunking not working",
+			maxFrame, float64(maxFrame)/1e6, maxAcceptableFrameSize)
+	}
+}
+
+// TestBatcher_LargeTraceStatsBatchIsChunked verifies that trace stats are
+// also chunked, not sent as one giant frame.
+func TestBatcher_LargeTraceStatsBatchIsChunked(t *testing.T) {
+	transport := &recordingTransport{}
+	c := &counters{}
+	cs := newContextSet(50000)
+	bat := newBatcher(transport, 5*time.Millisecond, 1000, 100, 1000, 10000, cs, c)
+
+	// Add 5,000 trace stat entries.
+	for i := 0; i < 5000; i++ {
+		bat.tss.add(capturedTraceStat{
+			Service:          "web-service",
+			Name:             "http.request",
+			Resource:         "/api/v1/users",
+			Type:             "web",
+			SpanKind:         "server",
+			HTTPStatusCode:   200,
+			Hits:             uint64(100 + i),
+			Errors:           uint64(i % 10),
+			DurationNs:       uint64(1000000 * (i + 1)),
+			TopLevelHits:     uint64(50 + i),
+			OkSummary:        []byte{0x0a, 0x01, byte(i % 256)},
+			ErrorSummary:     []byte{0x0b, 0x02, byte(i % 256)},
+			Hostname:         "host1",
+			Env:              "prod",
+			Version:          "1.0.0",
+			BucketStartNs:    int64(i) * 1000000000,
+			BucketDurationNs: 10000000000,
+			TimestampNs:      int64(i) * 1000,
+		}, nil)
+	}
+
+	time.Sleep(200 * time.Millisecond)
+	bat.Stop()
+
+	stats := c.stats()
+	sends := transport.sends.Load()
+	maxFrame := transport.maxFrame.Load()
+
+	t.Logf("traceStatsSent=%d traceStatsDropped=%d sends=%d totalBytes=%d maxFrame=%d",
+		stats.TraceStatsSent, stats.TraceStatsDropped, sends, transport.bytes.Load(), maxFrame)
+
+	// All 5,000 entries should be sent.
+	if stats.TraceStatsSent != 5000 {
+		t.Errorf("expected 5000 trace stats sent, got %d", stats.TraceStatsSent)
+	}
+
+	// Should be split into multiple frames (5000 / 2000 = 3 chunks).
+	if sends < 3 {
+		t.Errorf("expected at least 3 Send() calls (chunked), got %d", sends)
+	}
+
+	// No single frame should be excessively large.
+	const maxAcceptableFrameSize = 2 * 1024 * 1024 // 2 MB
+	if maxFrame > maxAcceptableFrameSize {
+		t.Errorf("largest frame is %d bytes (%.1f MB), exceeds limit — chunking not working",
+			maxFrame, float64(maxFrame)/1e6)
+	}
+}
+
+// TestBatcher_LargeContextDefBatchIsChunked verifies that 10K context
+// definitions are split across multiple frames, not packed into one.
+func TestBatcher_LargeContextDefBatchIsChunked(t *testing.T) {
+	transport := &recordingTransport{}
+	c := &counters{}
+	cs := newContextSet(50000)
+	bat := newBatcher(transport, 5*time.Millisecond, 100000, 15000, 1000, 100, cs, c)
+
+	// Add 10,000 context definitions with realistic name + tags.
+	for i := 0; i < 10000; i++ {
+		bat.AddContextDef(contextDef{
+			ContextKey:  uint64(i + 1),
+			Name:        "system.cpu.user.by_host_and_env",
+			Value:       float64(i),
+			Tags:        []string{"host:web-" + string(rune('a'+i%26)), "env:production", "service:api-gateway", "version:2.1.0", "team:platform"},
+			TimestampNs: int64(i * 1000),
+			SampleRate:  1.0,
+			Source:      "dogstatsd",
+		})
+	}
+
+	time.Sleep(200 * time.Millisecond)
+	bat.Stop()
+
+	stats := c.stats()
+	sends := transport.sends.Load()
+	maxFrame := transport.maxFrame.Load()
+
+	t.Logf("metricsSent=%d metricsDropped=%d sends=%d totalBytes=%d maxFrame=%d (%.1f MB)",
+		stats.MetricsSent, stats.MetricsDropped, sends, transport.bytes.Load(),
+		maxFrame, float64(maxFrame)/1e6)
+
+	// All 10,000 defs should be sent.
+	if stats.MetricsSent != 10000 {
+		t.Errorf("expected 10000 metrics sent, got %d", stats.MetricsSent)
+	}
+
+	// Should be split into multiple frames (10000 / 2000 = 5 chunks).
+	if sends < 5 {
+		t.Errorf("expected at least 5 Send() calls (chunked), got %d", sends)
+	}
+
+	// No single frame should exceed 2 MB.
+	const maxAcceptableFrameSize = 2 * 1024 * 1024
+	if maxFrame > maxAcceptableFrameSize {
+		t.Errorf("largest frame is %d bytes (%.1f MB), exceeds limit — chunking not working",
+			maxFrame, float64(maxFrame)/1e6)
 	}
 }
