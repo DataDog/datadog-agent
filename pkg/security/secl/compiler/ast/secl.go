@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alecthomas/participle"
-	"github.com/alecthomas/participle/lexer"
-	"github.com/alecthomas/participle/lexer/ebnf"
+	"github.com/alecthomas/participle/v2"
+	"github.com/alecthomas/participle/v2/lexer"
+	"github.com/alecthomas/participle/v2/lexer/ebnf"
 )
 
 // ParsingContext holds the parsers and optional rule cache; it has no parent (root factory for Rule, Macro, Expression).
