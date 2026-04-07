@@ -49,10 +49,10 @@ fn detect_python(pid: i32) -> bool {
 /// 7aef453fc000-7aef453ff000 rw-p 0004c000 fc:06 7895473  /home/foo/.local/lib/python3.10/site-packages/ddtrace/internal/_encoding.cpython-310-x86_64-linux-gnu.so
 /// 7aef45400000-7aef45459000 r--p 00000000 fc:06 7895588  /home/foo/.local/lib/python3.10/site-packages/ddtrace/internal/datadog/profiling/libdd_wrapper.so
 fn detect_python_from_reader<R: std::io::BufRead>(reader: R) -> bool {
-    reader.lines().any(|line| match line {
-        Ok(line) => line.contains("/ddtrace/"),
-        Err(_) => false,
-    })
+    reader
+        .lines()
+        .map_while(Result::ok)
+        .any(|line| line.contains("/ddtrace/"))
 }
 
 /// Detects Java APM instrumentation by checking command-line arguments and environment variables.
@@ -135,10 +135,10 @@ fn detect_dotnet(pid: i32, envs: &HashMap<String, String>) -> bool {
 
 /// Detects .NET APM instrumentation by scanning a maps reader for Datadog.Trace.dll.
 fn detect_dotnet_from_reader<R: std::io::BufRead>(reader: R) -> bool {
-    reader.lines().any(|line| match line {
-        Ok(line) => line.ends_with("Datadog.Trace.dll"),
-        Err(_) => false,
-    })
+    reader
+        .lines()
+        .map_while(Result::ok)
+        .any(|line| line.ends_with("Datadog.Trace.dll"))
 }
 
 #[cfg(test)]
@@ -274,6 +274,47 @@ mod tests {
 79f6cd438000-79f6cd441000 r-xp 00004000 fc:06 7895596                    /home/foo/.local/lib/python3.10/site-packages-internal/ddtrace/internal/datadog/profiling/crashtracker/_crashtracker.cpython-310-x86_64-linux-gnu.so";
         let reader = Cursor::new(maps.as_bytes());
         assert!(detect_python_from_reader(reader));
+    }
+
+    /// Verify that detect_python_from_reader terminates on I/O error.
+    #[test]
+    fn test_detect_python_from_reader_terminates_on_io_error() {
+        use crate::test_utils::ErrorAfterReader;
+        use std::io::BufReader;
+
+        // No match before error — should return false, not hang.
+        let content = b"7f8e4c000000-7f8e4c021000 r--p 00000000 08:01 123456 /usr/lib/libc.so.6\n";
+        let reader = BufReader::new(ErrorAfterReader::new(&content[..]));
+        assert!(!detect_python_from_reader(reader));
+
+        // Match before error — should return true.
+        let content = b"7f8e4c000000-7f8e4c021000 r--p 00000000 08:01 123456 /home/foo/site-packages/ddtrace/internal/_encoding.so\n";
+        let reader = BufReader::new(ErrorAfterReader::new(&content[..]));
+        assert!(detect_python_from_reader(reader));
+
+        // Empty, immediate error.
+        let reader = BufReader::new(ErrorAfterReader::new(&b""[..]));
+        assert!(!detect_python_from_reader(reader));
+    }
+
+    /// Verify that detect_dotnet_from_reader terminates on I/O error.
+    #[test]
+    fn test_detect_dotnet_from_reader_terminates_on_io_error() {
+        use crate::test_utils::ErrorAfterReader;
+        use std::io::BufReader;
+
+        let content =
+            b"785c8a400000-785c8aaeb000 r--s 00000000 fc:06 12762267 /usr/lib/libc.so.6\n";
+        let reader = BufReader::new(ErrorAfterReader::new(&content[..]));
+        assert!(!detect_dotnet_from_reader(reader));
+
+        let content =
+            b"785c8a400000-785c8aaeb000 r--s 00000000 fc:06 12762267 /home/foo/Datadog.Trace.dll\n";
+        let reader = BufReader::new(ErrorAfterReader::new(&content[..]));
+        assert!(detect_dotnet_from_reader(reader));
+
+        let reader = BufReader::new(ErrorAfterReader::new(&b""[..]));
+        assert!(!detect_dotnet_from_reader(reader));
     }
 
     #[test]

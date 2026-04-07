@@ -13,7 +13,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"net"
 	"net/netip"
 	"os"
 	"path/filepath"
@@ -37,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/DataDog/ebpf-manager/tracefs"
+	gopsutilprocess "github.com/shirou/gopsutil/v4/process"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -57,6 +57,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/eventstream/ringbuffer"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/procfs"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/sysctl"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
@@ -837,18 +838,24 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 
 		events = append(events, event)
 
-		// Replay bound sockets from entry snapshot data
-		for _, s := range entry.SnapshottedBoundSockets {
-			bindEvent := p.newBindEventFromReplay(entry, s)
-			bindEvent.Source = model.EventSourceReplay
-			events = append(events, bindEvent)
-		}
+		// Replay mmaped files (only needed if SBOM resolver is enabled)
+		if p.config.RuntimeSecurity.SBOMResolverEnabled {
+			proc, err := gopsutilprocess.NewProcess(int32(entry.Pid))
+			if err != nil {
+				return
+			}
 
-		// Replay mmaped files from entry snapshot data
-		for _, f := range entry.SnapshottedMmapedFiles {
-			openEvent := p.newOpenEventFromReplay(entry, f)
-			openEvent.Source = model.EventSourceReplay
-			events = append(events, openEvent)
+			mmapedFiles, err := procfs.GetMmapedFiles(proc)
+			if err != nil {
+				seclog.Debugf("mmaped files snapshot failed for (pid: %v): %s", entry.Pid, err)
+				return
+			}
+
+			for _, f := range mmapedFiles {
+				openEvent := p.newOpenEventFromReplay(entry, f)
+				openEvent.Source = model.EventSourceReplay
+				events = append(events, openEvent)
+			}
 		}
 	}
 
@@ -1318,6 +1325,16 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if !p.regularUnmarshalEvent(&event.Open, eventType, offset, dataLen, data) {
 			return false
 		}
+
+		// handle cgroup v2 creation
+		fs := p.fieldHandlers.ResolveFileFilesystem(event, &event.Open.File)
+
+		if fs == "cgroup2" && event.Open.File.PathKey.Inode != 0 && event.Open.File.FileFields.IsDir() {
+			cgroupContext := model.CGroupContext{
+				CGroupPathKey: event.Open.File.PathKey,
+			}
+			p.Resolvers.CGroupResolver.Add(cgroupContext, time.Now())
+		}
 	case model.FileMkdirEventType:
 		if !p.regularUnmarshalEvent(&event.Mkdir, eventType, offset, dataLen, data) {
 			return false
@@ -1326,9 +1343,21 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if !p.regularUnmarshalEvent(&event.Rmdir, eventType, offset, dataLen, data) {
 			return false
 		}
+
+		// handle cgroup v2 deletion
+		fs := p.fieldHandlers.ResolveFileFilesystem(event, &event.Rmdir.File)
+		if fs == "cgroup2" && event.Rmdir.File.PathKey.Inode != 0 && event.Rmdir.File.IsDir() && event.Rmdir.Retval == 0 {
+			p.Resolvers.CGroupResolver.Delete(event.Rmdir.File.PathKey.Inode)
+		}
 	case model.FileUnlinkEventType:
 		if !p.regularUnmarshalEvent(&event.Unlink, eventType, offset, dataLen, data) {
 			return false
+		}
+
+		// handle cgroup v2 deletion
+		fs := p.fieldHandlers.ResolveFileFilesystem(event, &event.Unlink.File)
+		if fs == "cgroup2" && event.Unlink.File.PathKey.Inode != 0 && event.Unlink.File.IsDir() {
+			p.Resolvers.CGroupResolver.Delete(event.Unlink.File.PathKey.Inode)
 		}
 	case model.FileRenameEventType:
 		if !p.regularUnmarshalEvent(&event.Rename, eventType, offset, dataLen, data) {
@@ -2271,17 +2300,22 @@ func (p *EBPFProbe) Walk(callback func(*model.ProcessCacheEntry)) {
 // Stop the probe
 func (p *EBPFProbe) Stop() {
 	_ = p.Manager.StopReaders(manager.CleanAll)
+
+	// Cancel the context and wait for all goroutines to exit before proceeding.
+	// This must happen before event consumers are stopped
+	// and reporter channels are closed, to avoid sending on a closed channel.
+	p.cancelFnc()
+	// wait for the following goroutines to exit:
+	// - the perfmap reorderer (if used/enabled)
+	// - the perfmap reorderer monitor (if used/enabled)
+	// - the security profile manager
+	// - the process killer goroutine
+	// - the startSysCtlSnapshotLoop goroutine
+	p.wg.Wait()
 }
 
 // Close the probe
 func (p *EBPFProbe) Close() error {
-	// Cancelling the context will stop the reorderer = we won't dequeue events anymore and new events from the
-	// perf map reader are ignored
-	p.cancelFnc()
-
-	// we wait until both the reorderer and the monitor are stopped
-	p.wg.Wait()
-
 	if p.rawPacketFilterCollection != nil {
 		p.rawPacketFilterCollection.Close()
 	}
@@ -2714,6 +2748,10 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 		manager.ConstantEditor{
 			Name:  "sched_cls_has_current_cgroup_id_helper",
 			Value: utils.BoolTouint64(p.kernelVersion.HasBpfGetCurrentCgroupIDForSchedCLS()),
+		},
+		manager.ConstantEditor{
+			Name:  "has_current_cgroup_id_helper",
+			Value: utils.BoolTouint64(p.kernelVersion.HasBpfGetCurrentCgroupID()),
 		},
 		manager.ConstantEditor{
 			Name:  "event_sampling_open_enabled",
@@ -3548,30 +3586,6 @@ func (p *EBPFProbe) newEBPFPooledEventFromPCE(entry *model.ProcessCacheEntry) *m
 	event.ProcessCacheEntry = entry
 	event.ProcessContext = &entry.ProcessContext
 	event.Exec.Process = &entry.Process
-
-	return event
-}
-
-// newBindEventFromReplay returns a new bind event with a process context
-func (p *EBPFProbe) newBindEventFromReplay(entry *model.ProcessCacheEntry, snapshottedBind model.SnapshottedBoundSocket) *model.Event {
-	event := p.getPoolEvent()
-	event.Timestamp = time.Now()
-	event.TimestampRaw = uint64(p.Resolvers.TimeResolver.ComputeMonotonicTimestamp(event.Timestamp))
-	event.Type = uint32(model.BindEventType)
-	event.ProcessCacheEntry = entry
-	event.ProcessContext = &entry.ProcessContext
-	event.AddToFlags(model.EventFlagsFromReplay)
-
-	event.Bind.SyscallEvent.Retval = 0
-	event.Bind.AddrFamily = snapshottedBind.Family
-	event.Bind.Addr.IPNet.IP = snapshottedBind.IP
-	event.Bind.Protocol = snapshottedBind.Protocol
-	if snapshottedBind.Family == unix.AF_INET {
-		event.Bind.Addr.IPNet.Mask = net.CIDRMask(32, 32)
-	} else {
-		event.Bind.Addr.IPNet.Mask = net.CIDRMask(128, 128)
-	}
-	event.Bind.Addr.Port = snapshottedBind.Port
 
 	return event
 }

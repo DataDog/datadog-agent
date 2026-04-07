@@ -30,4 +30,7 @@ var (
 	BodyContentTypeTokenName = "content_type"
 	UrlParametersGroupName   = "url_parameters"
 	HeadersGroupName         = "headers"
+	TestingName              = "testing"
+	TestingPathName          = "path"
+	TestingVerbName          = "verb"
 )

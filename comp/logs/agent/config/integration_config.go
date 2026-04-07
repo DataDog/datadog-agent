@@ -414,18 +414,29 @@ func (c *LogsConfig) LegacyAutoMultiLineEnabled(coreConfig pkgconfigmodel.Reader
 	return false
 }
 
+// AutoMultiLineStatus returns whether auto multi line detection is enabled for this config
+// and whether the result comes from the agent's built-in default (i.e. no per-source override
+// and no explicit global configuration). The isDefault flag is true only when changing the
+// built-in default would alter this source's behavior.
+func (c *LogsConfig) AutoMultiLineStatus(coreConfig pkgconfigmodel.Reader) (enabled bool, isDefault bool) {
+	if c.AutoMultiLine != nil {
+		return *c.AutoMultiLine, false
+	}
+	if coreConfig.GetBool("logs_config.experimental_auto_multi_line_detection") {
+		log.Warn("logs_config.experimental_auto_multi_line_detection is deprecated, use logs_config.auto_multi_line_detection instead")
+		return true, false
+	}
+	isDefault = !coreConfig.IsConfigured("logs_config.auto_multi_line_detection") &&
+		!coreConfig.IsConfigured("logs_config.experimental_auto_multi_line_detection")
+	return coreConfig.GetBool("logs_config.auto_multi_line_detection"), isDefault
+}
+
 // AutoMultiLineEnabled determines whether auto multi line detection is enabled for this config,
 // considering both the agent-wide logs_config.auto_multi_line_detection and any config for this
 // particular log source.
 func (c *LogsConfig) AutoMultiLineEnabled(coreConfig pkgconfigmodel.Reader) bool {
-	if c.AutoMultiLine != nil {
-		return *c.AutoMultiLine
-	}
-	if coreConfig.GetBool("logs_config.experimental_auto_multi_line_detection") {
-		log.Warn("logs_config.experimental_auto_multi_line_detection is deprecated, use logs_config.auto_multi_line_detection instead")
-		return true
-	}
-	return coreConfig.GetBool("logs_config.auto_multi_line_detection")
+	enabled, _ := c.AutoMultiLineStatus(coreConfig)
+	return enabled
 }
 
 // ShouldProcessRawMessage returns if the raw message should be processed instead

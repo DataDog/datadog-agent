@@ -3379,16 +3379,14 @@ func (s *TracerSuite) TestTCPRetransmitSyncOnClose() {
 }
 
 // TestTCPCongestionSyncOnClose validates that congestion stats are finalized
-// at close time and carried in the batch close event. The test triggers
-// reord_seen on a connection, verifies the signal is present while active,
-// then closes the connection and verifies the closed connection still reports
-// non-zero reord_seen. The close-time value comes from the embedded
-// tcp_stats_t.congestion fields finalized via finalize_congestion_stats.
+// at close time and carried in the close event. Uses reord_seen as the
+// representative signal — all tcp_sock-sourced congestion fields (reord_seen,
+// rcv_ooopack, delivered_ce, ecn_negotiated) share the same finalization path.
 func (s *TracerSuite) TestTCPCongestionSyncOnClose() {
 	t := s.T()
 	cfg := testConfig()
 	if isPrebuilt(cfg) {
-		t.Skip("congestion signals not available on prebuilt")
+		t.Skip("TCP congestion signals not available on prebuilt")
 	}
 	skipOnEbpflessNotSupported(t, cfg)
 	if kv < kernel.VersionCode(4, 19, 0) {
@@ -3398,27 +3396,15 @@ func (s *TracerSuite) TestTCPCongestionSyncOnClose() {
 
 	tr := setupTracer(t, cfg)
 
-	// Set up an isolated netns with netem reordering and a discard server.
-	doneCh := make(chan struct{})
-	env := setupNetemTestEnv(t, func(c net.Conn) {
-		io.Copy(io.Discard, c) //nolint:errcheck
-		<-doneCh
-	})
-	t.Cleanup(func() { close(doneCh) })
-
-	// Dial before netem so handshake completes cleanly.
-	c := env.dialInNs(t)
+	c := setupNetemCongestionTest(t, []string{"delay", "50ms", "reorder", "75%"}, nil)
 	defer c.Close()
 
-	env.addNetem(t, "delay", "10ms", "reorder", "50%")
-
-	// Phase 1: Trigger reord_seen while connection is active.
-	// Send data in poll loop until we see reord_seen > 0.
+	// Verify reord_seen in active connection
+	var reordSeen uint32
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		data := make([]byte, 64*1024)
 		c.SetWriteDeadline(time.Now().Add(2 * time.Second))
 		c.Write(data) //nolint:errcheck
-		time.Sleep(200 * time.Millisecond)
 
 		conns, cleanup := getConnections(ct, tr)
 		defer cleanup()
@@ -3426,64 +3412,56 @@ func (s *TracerSuite) TestTCPCongestionSyncOnClose() {
 		if !assert.True(ct, ok, "active connection not found") {
 			return
 		}
-		assert.Greater(ct, conn.Last.TCPReordSeen, uint32(0), "reord_seen should be > 0 while active")
-	}, 30*time.Second, 500*time.Millisecond)
+		reordSeen = conn.Monotonic.TCPReordSeen
+		assert.Greater(ct, reordSeen, uint32(0), "reord_seen should be > 0 while active")
+	}, 30*time.Second, 200*time.Millisecond)
 
-	// Phase 2: Close the connection and verify reord_seen survives.
-	// The close event carries the finalized congestion stats embedded in
-	// tcp_stats_t. Even though the polling-path delta was already consumed
-	// above, the close-time finalization reads the tcp_sock directly and
-	// takes the max — so the close event should have the full count.
+	// Close and verify reord_seen after the close event
 	localAddr := c.LocalAddr()
 	remoteAddr := c.RemoteAddr()
 	c.Close()
 
-	require.EventuallyWithT(t, func(ct *assert.CollectT) {
-		conns, cleanup := getConnections(ct, tr)
+	var closedConn *network.ConnectionStats
+	require.Eventually(t, func() bool {
+		conns, cleanup := getConnections(t, tr)
 		defer cleanup()
 		conn, ok := findConnection(localAddr, remoteAddr, conns)
-		if !assert.True(ct, ok, "closed connection not found") {
-			return
+		if ok {
+			closedConn = conn
 		}
-		assert.Greater(ct, conn.Monotonic.TCPReordSeen, uint32(0),
-			"reord_seen should be > 0 on closed connection (close-time sync)")
-	}, 5*time.Second, 100*time.Millisecond)
+		return ok
+	}, 5*time.Second, 100*time.Millisecond, "closed connection not found")
+
+	require.GreaterOrEqual(t, closedConn.Monotonic.TCPReordSeen, reordSeen,
+		"close event should preserve reord_seen")
 }
 
 // TestTCPEventStatsSyncOnClose validates that kprobe-sourced event counters
-// (rto_count, recovery_count, probe0_count) from the tcp_event_stats BPF map
-// are correctly copied into the embedded tcp_stats_t at close time. This tests
-// a different close-time path than TestTCPCongestionSyncOnClose (which tests
-// tcp_sock field finalization via finalize_congestion_stats).
+// from the tcp_event_stats BPF map are correctly copied into the embedded
+// tcp_stats_t at close time.
 func (s *TracerSuite) TestTCPEventStatsSyncOnClose() {
 	t := s.T()
 	cfg := testConfig()
 	if isPrebuilt(cfg) {
-		t.Skip("congestion signals not available on prebuilt")
+		t.Skip("TCP congestion signals not available on prebuilt")
 	}
 	skipOnEbpflessNotSupported(t, cfg)
 
 	tr := setupTracer(t, cfg)
 
-	doneCh := make(chan struct{})
-	env := setupNetemTestEnv(t, func(c net.Conn) {
-		io.Copy(io.Discard, c) //nolint:errcheck
-		<-doneCh
-	})
-	t.Cleanup(func() { close(doneCh) })
-
-	c := env.dialInNs(t)
+	c := setupNetemCongestionTest(t, []string{"delay", "100ms", "loss", "30%", "50%"}, nil)
 	defer c.Close()
 
-	// High correlated loss + delay to trigger RTO on loopback.
-	env.addNetem(t, "delay", "100ms", "loss", "30%", "50%")
-
-	// Phase 1: Wait for rto_count > 0 while connection is active.
+	// Wait for either rto_count or recovery_count to appear. Both live
+	// in the same tcp_event_stats struct that gets copied at close, so
+	// either one is sufficient to validate the sync. This test checks
+	// the close-event plumbing, not which signal fires — TestTCPRTOCount
+	// and TestTCPRecoveryCount cover each signal independently.
+	var rtoCount, recoveryCount uint32
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		data := make([]byte, 64*1024)
 		c.SetWriteDeadline(time.Now().Add(2 * time.Second))
 		c.Write(data) //nolint:errcheck
-		time.Sleep(200 * time.Millisecond)
 
 		conns, cleanup := getConnections(ct, tr)
 		defer cleanup()
@@ -3491,24 +3469,32 @@ func (s *TracerSuite) TestTCPEventStatsSyncOnClose() {
 		if !assert.True(ct, ok, "active connection not found") {
 			return
 		}
-		assert.Greater(ct, conn.Last.TCPRTOCount, uint32(0), "rto_count should be > 0 while active")
-	}, 30*time.Second, 500*time.Millisecond)
+		rtoCount = conn.Monotonic.TCPRTOCount
+		recoveryCount = conn.Monotonic.TCPRecoveryCount
+		assert.Greater(ct, rtoCount+recoveryCount, uint32(0),
+			"rto_count or recovery_count should be > 0 while active")
+	}, 30*time.Second, 200*time.Millisecond)
 
-	// Phase 2: Close and verify rto_count survives in the close event.
+	// Close and verify rto_count and recovery_count after the close event
 	localAddr := c.LocalAddr()
 	remoteAddr := c.RemoteAddr()
 	c.Close()
 
-	require.EventuallyWithT(t, func(ct *assert.CollectT) {
-		conns, cleanup := getConnections(ct, tr)
+	var closedConn *network.ConnectionStats
+	require.Eventually(t, func() bool {
+		conns, cleanup := getConnections(t, tr)
 		defer cleanup()
 		conn, ok := findConnection(localAddr, remoteAddr, conns)
-		if !assert.True(ct, ok, "closed connection not found") {
-			return
+		if ok {
+			closedConn = conn
 		}
-		assert.Greater(ct, conn.Monotonic.TCPRTOCount, uint32(0),
-			"rto_count should be > 0 on closed connection (close-time sync)")
-	}, 5*time.Second, 100*time.Millisecond)
+		return ok
+	}, 5*time.Second, 100*time.Millisecond, "closed connection not found")
+
+	require.GreaterOrEqual(t, closedConn.Monotonic.TCPRTOCount, rtoCount,
+		"close event should preserve rto_count")
+	require.GreaterOrEqual(t, closedConn.Monotonic.TCPRecoveryCount, recoveryCount,
+		"close event should preserve recovery_count")
 }
 
 // netemTestEnv holds the resources for an isolated network namespace where
@@ -3534,6 +3520,16 @@ func (env *netemTestEnv) addNetem(t *testing.T, args ...string) {
 	t.Cleanup(func() {
 		exec.Command("ip", "netns", "exec", env.Netns, "tc", "qdisc", "del", "dev", "lo", "root").Run() //nolint:errcheck
 	})
+}
+
+// changeNetem modifies an existing netem qdisc on the loopback device inside
+// the namespace. The qdisc must have been added with addNetem first.
+func (env *netemTestEnv) changeNetem(t *testing.T, args ...string) {
+	t.Helper()
+	cmd := append([]string{"ip", "netns", "exec", env.Netns, "tc", "qdisc", "change", "dev", "lo", "root", "netem"}, args...)
+	changeCmd := exec.Command(cmd[0], cmd[1:]...)
+	out, err := changeCmd.CombinedOutput()
+	require.NoError(t, err, "tc qdisc change netem failed: %s", out)
 }
 
 // setupNetemTestEnv creates an isolated network namespace with loopback up.
@@ -3593,25 +3589,53 @@ func (s *TracerSuite) TestTCPRTOCount() {
 
 	tr := setupTracer(t, cfg)
 
-	// Delay + high correlated loss prevents fast SACK recovery on loopback
-	// (where RTT is ~0), forcing the RTO timer to fire.
-	runNetemCongestionTest(t, tr, []string{"delay", "100ms", "loss", "30%", "50%"}, nil,
-		func(ct *assert.CollectT, conn *network.ConnectionStats) {
-			assert.Greater(ct, conn.Last.TCPRTOCount, uint32(0), "rto_count should be > 0 with high correlated loss")
-		})
+	// Strategy: establish the connection with low delay so the kernel
+	// calibrates a small SRTT/RTO, send a few packets to lock that in,
+	// then spike the delay so packets take far longer than the RTO
+	// estimate — guaranteeing timeout-based retransmits.
+	doneCh := make(chan struct{})
+	env := setupNetemTestEnv(t, func(c net.Conn) {
+		io.Copy(io.Discard, c) //nolint:errcheck
+		<-doneCh
+	})
+	t.Cleanup(func() { close(doneCh) })
+
+	// Dial on a clean link, then apply low-delay netem with loss so
+	// the kernel calibrates a small RTO during the first few exchanges.
+	c := env.dialInNs(t)
+	defer c.Close()
+	env.addNetem(t, "delay", "5ms", "loss", "30%", "50%")
+
+	// Send enough packets to let the kernel calibrate RTO based on ~5ms
+	// RTT. With 30% loss some ACKs won't arrive, so send 10 to ensure
+	// several round-trips update the SRTT estimator.
+	for i := 0; i < 10; i++ {
+		c.SetWriteDeadline(time.Now().Add(2 * time.Second))
+		c.Write(make([]byte, 64*1024)) //nolint:errcheck
+	}
+
+	// Spike delay well above the calibrated RTO so retransmits hit the
+	// RTO timer instead of being recovered by SACK.
+	env.changeNetem(t, "delay", "500ms", "loss", "30%", "50%")
+
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		c.SetWriteDeadline(time.Now().Add(2 * time.Second))
+		c.Write(make([]byte, 64*1024)) //nolint:errcheck
+
+		conns, cleanup := getConnections(ct, tr)
+		defer cleanup()
+		conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		if !assert.True(ct, ok, "connection not found") {
+			return
+		}
+		assert.Greater(ct, conn.Last.TCPRTOCount, uint32(0), "rto_count should be > 0")
+	}, 30*time.Second, 200*time.Millisecond)
 }
 
-// runNetemCongestionTest is a helper for TCP congestion signal tests that use
-// tc netem inside an isolated network namespace. It creates the namespace with
-// a discard server, optionally runs nsSetup (e.g. sysctl), dials a connection
-// on a clean link, then applies netem so the handshake isn't impaired.
-func runNetemCongestionTest(
-	t *testing.T,
-	tr *Tracer,
-	netemArgs []string,
-	nsSetup func(t *testing.T, env *netemTestEnv),
-	assertFn func(ct *assert.CollectT, conn *network.ConnectionStats),
-) {
+// setupNetemCongestionTest creates an isolated netns with a discard server,
+// dials a connection on a clean link, then applies netem. The caller is
+// responsible for closing the returned connection.
+func setupNetemCongestionTest(t *testing.T, netemArgs []string, nsSetup func(*testing.T, *netemTestEnv)) net.Conn {
 	t.Helper()
 
 	doneCh := make(chan struct{})
@@ -3625,20 +3649,31 @@ func runNetemCongestionTest(
 		nsSetup(t, env)
 	}
 
-	// Dial before applying netem so the TCP handshake completes on a clean link.
+	// Dial before netem so handshake completes cleanly.
 	c := env.dialInNs(t)
+	env.addNetem(t, netemArgs...)
+	return c
+}
+
+// runNetemCongestionTest is a helper for TCP congestion signal tests that use
+// tc netem inside an isolated network namespace. It sets up the environment,
+// then runs the standard write-poll-assert loop until the signal is detected.
+func runNetemCongestionTest(
+	t *testing.T,
+	tr *Tracer,
+	netemArgs []string,
+	nsSetup func(t *testing.T, env *netemTestEnv),
+	assertFn func(ct *assert.CollectT, conn *network.ConnectionStats),
+) {
+	t.Helper()
+
+	c := setupNetemCongestionTest(t, netemArgs, nsSetup)
 	defer c.Close()
 
-	env.addNetem(t, netemArgs...)
-
-	// Send data in a loop — each write triggers tcp_sendmsg which snapshots
-	// the congestion stats. Writing in the poll loop keeps the connection
-	// active so getConnections continues to return it (delta consumption).
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		data := make([]byte, 64*1024)
 		c.SetWriteDeadline(time.Now().Add(2 * time.Second))
 		c.Write(data) //nolint:errcheck
-		time.Sleep(200 * time.Millisecond)
 
 		conns, cleanup := getConnections(ct, tr)
 		defer cleanup()
@@ -3647,26 +3682,59 @@ func runNetemCongestionTest(
 			return
 		}
 		assertFn(ct, conn)
-	}, 30*time.Second, 500*time.Millisecond)
+	}, 30*time.Second, 200*time.Millisecond)
 }
 
-// TestTCPRecoveryCount validates the recovery_count signal. Delay creates
-// enough in-flight packets on loopback for SACK to detect gaps; moderate loss
-// triggers fast recovery rather than full RTO timeout.
+// TestTCPRecoveryCount validates the recovery_count signal.
+// Strategy: calibrate with low loss so SACK is active and the kernel
+// has enough in-flight data, then spike loss so SACK detects gaps and
+// triggers fast recovery. Delay stays low to avoid RTO.
 func (s *TracerSuite) TestTCPRecoveryCount() {
 	t := s.T()
 	cfg := testConfig()
 	if isPrebuilt(cfg) {
-		t.Skip("congestion signals not available on prebuilt")
+		t.Skip("TCP congestion signals not available on prebuilt")
 	}
 	skipOnEbpflessNotSupported(t, cfg)
 
 	tr := setupTracer(t, cfg)
 
-	runNetemCongestionTest(t, tr, []string{"delay", "50ms", "loss", "10%"}, nil,
-		func(ct *assert.CollectT, conn *network.ConnectionStats) {
-			assert.Greater(ct, conn.Last.TCPRecoveryCount, uint32(0), "recovery_count should be > 0 with moderate packet loss")
-		})
+	doneCh := make(chan struct{})
+	env := setupNetemTestEnv(t, func(c net.Conn) {
+		io.Copy(io.Discard, c) //nolint:errcheck
+		<-doneCh
+	})
+	t.Cleanup(func() { close(doneCh) })
+
+	// Dial on a clean link, then apply low loss so SACK is active and
+	// the kernel builds up enough in-flight segments.
+	c := env.dialInNs(t)
+	defer c.Close()
+	env.addNetem(t, "delay", "5ms", "loss", "5%")
+
+	// Send calibration packets so the kernel has in-flight data and
+	// SACK state established.
+	for i := 0; i < 10; i++ {
+		c.SetWriteDeadline(time.Now().Add(2 * time.Second))
+		c.Write(make([]byte, 64*1024)) //nolint:errcheck
+	}
+
+	// Spike loss — delay stays low so RTO doesn't fire, but frequent
+	// correlated drops trigger SACK-based fast recovery.
+	env.changeNetem(t, "delay", "5ms", "loss", "30%", "50%")
+
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		c.SetWriteDeadline(time.Now().Add(2 * time.Second))
+		c.Write(make([]byte, 64*1024)) //nolint:errcheck
+
+		conns, cleanup := getConnections(ct, tr)
+		defer cleanup()
+		conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		if !assert.True(ct, ok, "connection not found") {
+			return
+		}
+		assert.Greater(ct, conn.Last.TCPRecoveryCount, uint32(0), "recovery_count should be > 0")
+	}, 30*time.Second, 200*time.Millisecond)
 }
 
 // TestTCPReordSeen validates the reord_seen signal by introducing packet
@@ -3677,7 +3745,7 @@ func (s *TracerSuite) TestTCPReordSeen() {
 	t := s.T()
 	cfg := testConfig()
 	if isPrebuilt(cfg) {
-		t.Skip("congestion signals not available on prebuilt")
+		t.Skip("TCP congestion signals not available on prebuilt")
 	}
 	skipOnEbpflessNotSupported(t, cfg)
 
@@ -3688,20 +3756,19 @@ func (s *TracerSuite) TestTCPReordSeen() {
 
 	tr := setupTracer(t, cfg)
 
-	runNetemCongestionTest(t, tr, []string{"delay", "10ms", "reorder", "50%"}, nil,
+	runNetemCongestionTest(t, tr, []string{"delay", "50ms", "reorder", "75%"}, nil,
 		func(ct *assert.CollectT, conn *network.ConnectionStats) {
 			assert.Greater(ct, conn.Last.TCPReordSeen, uint32(0), "reord_seen should be > 0 with tc netem reordering")
 		})
 }
 
 // TestTCPRcvOOOPack validates the rcv_ooopack signal by creating a connection
-// where the receiver sees out-of-order TCP segments. tc netem is applied to
-// loopback inside an isolated network namespace so it doesn't affect other tests.
+// where the receiver sees out-of-order TCP segments.
 func (s *TracerSuite) TestTCPRcvOOOPack() {
 	t := s.T()
 	cfg := testConfig()
 	if isPrebuilt(cfg) {
-		t.Skip("congestion signals not available on prebuilt")
+		t.Skip("TCP congestion signals not available on prebuilt")
 	}
 	skipOnEbpflessNotSupported(t, cfg)
 
@@ -3732,20 +3799,17 @@ func (s *TracerSuite) TestTCPRcvOOOPack() {
 	})
 	t.Cleanup(func() { close(doneCh) })
 
-	// Apply reordering on loopback inside the namespace.
-	// "delay 10ms reorder 50%" sends 50% of packets immediately and delays
-	// the rest by 10ms, causing out-of-order delivery.
-	env.addNetem(t, "delay", "10ms", "reorder", "50%")
-
 	c := env.dialInNs(t)
 	defer c.Close()
 
-	// Drain and check in the poll loop — each tcp_recvmsg invocation
-	// updates the rcv_ooopack snapshot, and ongoing server writes keep
-	// producing reordered segments.
+	// Apply reordering on loopback inside the namespace.
+	// "delay 50ms reorder 75%" delays 75% of packets by 50ms, sending the
+	// rest immediately, causing reliable out-of-order delivery.
+	env.addNetem(t, "delay", "50ms", "reorder", "75%")
+
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		// Drain available data to trigger tcp_recvmsg snapshots.
-		c.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+		c.SetReadDeadline(time.Now().Add(2 * time.Second))
 		io.Copy(io.Discard, c) //nolint:errcheck
 
 		conns, cleanup := getConnections(ct, tr)
@@ -3755,7 +3819,7 @@ func (s *TracerSuite) TestTCPRcvOOOPack() {
 			return
 		}
 		assert.Greater(ct, conn.Last.TCPRcvOOOPack, uint32(0), "rcv_ooopack should be > 0 with tc netem reordering")
-	}, 30*time.Second, 500*time.Millisecond)
+	}, 30*time.Second, 200*time.Millisecond)
 }
 
 // TestTCPDeliveredCE validates the delivered_ce signal by enabling ECN and
@@ -3765,7 +3829,7 @@ func (s *TracerSuite) TestTCPDeliveredCE() {
 	t := s.T()
 	cfg := testConfig()
 	if isPrebuilt(cfg) {
-		t.Skip("congestion signals not available on prebuilt")
+		t.Skip("TCP congestion signals not available on prebuilt")
 	}
 	skipOnEbpflessNotSupported(t, cfg)
 
@@ -3792,12 +3856,12 @@ func (s *TracerSuite) TestTCPDeliveredCE() {
 // TestTCPZeroWindowProbe validates the probe0_count signal by creating a
 // connection where the receiver stops reading, causing the receive buffer to
 // fill and the receiver to advertise window=0. The sender then sends
-// zero-window probes which are counted by the kprobe/tcp_send_probe0 handler.
+// zero-window probes.
 func (s *TracerSuite) TestTCPZeroWindowProbe() {
 	t := s.T()
 	cfg := testConfig()
 	if isPrebuilt(cfg) {
-		t.Skip("congestion signals not available on prebuilt")
+		t.Skip("TCP congestion signals not available on prebuilt")
 	}
 	skipOnEbpflessNotSupported(t, cfg)
 
@@ -3858,13 +3922,12 @@ func (s *TracerSuite) TestTCPZeroWindowProbe() {
 	// fire. An explicit client write ensures the hook fires.
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		buf := make([]byte, 64)
-		serverConn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+		serverConn.SetReadDeadline(time.Now().Add(2 * time.Second))
 		serverConn.Read(buf) //nolint:errcheck
 
 		// Explicit write to trigger tcp_sendmsg hook.
-		c.SetWriteDeadline(time.Now().Add(500 * time.Millisecond))
+		c.SetWriteDeadline(time.Now().Add(2 * time.Second))
 		c.Write([]byte("keepalive")) //nolint:errcheck
-		time.Sleep(500 * time.Millisecond)
 
 		conns, cleanup := getConnections(ct, tr)
 		defer cleanup()
@@ -3873,7 +3936,7 @@ func (s *TracerSuite) TestTCPZeroWindowProbe() {
 			return
 		}
 		assert.Greater(ct, conn.Last.TCPProbe0Count, uint32(0), "probe0_count should be > 0 after zero-window")
-	}, 30*time.Second, 500*time.Millisecond)
+	}, 30*time.Second, 200*time.Millisecond)
 }
 
 func expectDNSWorkload(ct *assert.CollectT, connections *network.Connections) *network.ConnectionStats {
