@@ -60,15 +60,15 @@ func SetMaxProcs() bool {
 			}
 
 			cpus := milliCPUs / 1000
-			if cpus > 0 {
+			if cpus > 1 {
 				log.Infof("runtime: honoring GOMAXPROCS millicpu configuration: %v, setting GOMAXPROCS to: %d", max, cpus)
 				runtime.GOMAXPROCS(cpus)
 				set = true
 			} else {
 				log.Infof(
-					"runtime: GOMAXPROCS millicpu configuration: %s was less than 1, setting GOMAXPROCS to 1",
+					"runtime: GOMAXPROCS millicpu configuration: %s was less than 2, setting GOMAXPROCS to 2",
 					max)
-				runtime.GOMAXPROCS(1)
+				runtime.GOMAXPROCS(2)
 				set = true
 			}
 			return set
