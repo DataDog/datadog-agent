@@ -201,7 +201,6 @@
 #
 #     enabled: true
 {{ if (eq .OS "windows") }}
-
 ##################################################
 ## Datadog Agent Windows Crash Detection module ##
 ##################################################
