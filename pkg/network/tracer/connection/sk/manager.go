@@ -5,6 +5,7 @@
 
 //go:build linux_bpf
 
+// Package sk provides connection tracing based on socket tracking
 package sk
 
 import (
