@@ -10,11 +10,11 @@ import re
 import shutil
 import sys
 import tempfile
-from cmd.agent.dist import core_checks
 
 from invoke import task
 from invoke.exceptions import Exit
 
+from tasks import core_checks
 from tasks import doc
 from tasks.build_tags import (
     compute_build_tags_for_flavor,

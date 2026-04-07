@@ -78,6 +78,6 @@ pkg_install(
 diff_test(
     name = "core_checks_list_sync_test",
     failure_message = "core_checks.py and core_checks.bzl must be identical files",
-    file1 = "core_checks.py",
+    file1 = "//tasks:core_checks.py",
     file2 = "core_checks.bzl",
 )
