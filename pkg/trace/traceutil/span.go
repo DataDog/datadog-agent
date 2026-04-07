@@ -133,6 +133,19 @@ func MarkExplicitlyUnmeasured(s *pb.Span) {
 	SetMetric(s, measuredKey, 0)
 }
 
+// MarkExplicitlyNotTopLevel sets _dd.top_level to 0, recording an explicit opt-out from
+// top-level stats computation. This is distinct from the key being absent.
+func MarkExplicitlyNotTopLevel(s *pb.Span) {
+	SetMetric(s, tracerTopLevelKey, 0)
+}
+
+// IsExplicitlyNotTopLevelMetrics returns true if _dd.top_level is explicitly set to 0,
+// indicating an explicit opt-out from top-level stats computation.
+func IsExplicitlyNotTopLevelMetrics(metrics map[string]float64) bool {
+	v, ok := metrics[tracerTopLevelKey]
+	return ok && v == 0
+}
+
 // SetMeasured sets the measured attribute of the span.
 func SetMeasured(s *pb.Span, measured bool) {
 	if !measured {

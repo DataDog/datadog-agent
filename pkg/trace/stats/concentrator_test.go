@@ -933,6 +933,36 @@ func TestComputeStatsThroughSpanKindCheck(t *testing.T) {
 			}
 		}
 	})
+	t.Run("enabled_explicit_top_level_opt_out", func(_ *testing.T) {
+		// A SERVER span with _dd.top_level=0 must not get stats computed via the eligibleSpanKind
+		// path even when computeStatsBySpanKind is enabled.
+		optOutServerSpan := &pb.Span{
+			ParentID: sp.SpanID,
+			SpanID:   6,
+			Service:  "myservice",
+			Name:     "http.server.request",
+			Resource: "GET /opted-out",
+			Duration: 60,
+			Metrics:  map[string]float64{"_dd.top_level": 0},
+			Meta:     map[string]string{"span.kind": "server"},
+		}
+		spans := []*pb.Span{sp, topLevelInternalSpan, measuredInternalSpan, clientSpan, optOutServerSpan}
+		traceutil.ComputeTopLevel(spans)
+		testTrace := toProcessedTrace(spans, "none", "", "", "", "", "")
+		c := NewTestConcentrator(now)
+		c.spanConcentrator.computeStatsBySpanKind = true
+		c.addNow(testTrace, infraTags{})
+		stats := c.flushNow(now.UnixNano()+int64(c.spanConcentrator.bufferLen)*testBucketInterval, false)
+		// optOutServerSpan should not appear — still 4 stats entries, not 5
+		assert.Len(stats.Stats[0].Stats[0].Stats, 4)
+		for _, s := range stats.Stats {
+			for _, b := range s.Stats {
+				for _, g := range b.Stats {
+					assert.NotEqual("GET /opted-out", g.Resource)
+				}
+			}
+		}
+	})
 }
 
 func TestVersionData(t *testing.T) {

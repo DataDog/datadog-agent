@@ -91,7 +91,15 @@ func otelSpanToDDSpanMinimal(
 	if code, ok := semantics.LookupInt64(reg, spanAccessor, semantics.ConceptHTTPStatusCode); ok && code >= 0 {
 		ddspan.Metrics[traceutil.TagStatusCode] = float64(code)
 	}
-	if isTopLevel {
+	if v, ok := semantics.LookupInt64(reg, spanAccessor, semantics.ConceptDDTopLevel); ok {
+		if v == 1 {
+			traceutil.SetTopLevel(ddspan, true)
+		} else {
+			// Explicit opt-out: write _dd.top_level=0 so the concentrator can distinguish this from
+			// "not set" and skip top-level-based stats for this span.
+			traceutil.MarkExplicitlyNotTopLevel(ddspan)
+		}
+	} else if isTopLevel {
 		traceutil.SetTopLevel(ddspan, true)
 	}
 	if v, ok := semantics.LookupInt64(reg, spanAccessor, semantics.ConceptDDMeasured); ok {
