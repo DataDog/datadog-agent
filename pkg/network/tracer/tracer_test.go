@@ -90,6 +90,9 @@ func setupTracer(t testing.TB, cfg *config.Config) *Tracer {
 	if ebpftest.GetBuildMode() == ebpftest.Fentry {
 		cfg.ProtocolClassificationEnabled = false
 	}
+	if ebpftest.GetBuildMode() == ebpftest.SK {
+		cfg.ProtocolClassificationEnabled = false
+	}
 
 	tr, err := NewTracer(cfg, nil, nil)
 	require.NoError(t, err)
