@@ -81,22 +81,20 @@ func (t *SleepableProgramModifier) BeforeInit(m *manager.Manager, module names.M
 		}
 	}
 
-	if len(t.ProbeIDs == 0) {
+	if len(t.ProbeIDs) == 0 {
 		return nil
 	}
 
 	// we cannot use perf events with sleepable programs so remove this helper calls
 	if t.PatchPerfEventOutput {
 		patcher := NewHelperCallRemover(asm.FnPerfEventOutput)
-		err := patcher.BeforeInit(m, module, opts)
-		if err != nil {
+		if err := patcher.BeforeInit(m, module, opts); err != nil {
 			return fmt.Errorf("error patching helper calls from sleepable modifier on %q: %w", module.Name(), err)
 		}
 	}
 
 	replacer := NewHelperCallReplacer(helperCallReplacers...)
-	err = replacer.BeforeInit(m, module, opts)
-	if err != nil {
+	if err := replacer.BeforeInit(m, module, opts); err != nil {
 		return fmt.Errorf("error replacing probe_read_user with copy_from_user helpers: %w", err)
 	}
 

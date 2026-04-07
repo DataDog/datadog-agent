@@ -15,6 +15,7 @@ import (
 	"unsafe"
 
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
@@ -38,6 +39,8 @@ var allProgs = []string{
 	"test_womodifier_arm64",
 	"test_telemetry_x64",
 	"test_telemetry_arm64",
+	"test_perf_x64",
+	"test_perf_arm64",
 	"test_tracepoint",
 }
 
@@ -77,6 +80,19 @@ func setTelemetryMapEditors(opts *manager.Options) {
 		MaxEntries: 1,
 		EditorFlag: manager.EditMaxEntries,
 	}
+}
+
+func upgradePerfBufferToRingBuffer(opts *manager.Options, mapName string, size int) {
+	if opts.MapSpecEditors == nil {
+		opts.MapSpecEditors = make(map[string]manager.MapSpecEditor)
+	}
+	specEditor := opts.MapSpecEditors[mapName]
+	specEditor.Type = ebpf.RingBuf
+	specEditor.KeySize = 0
+	specEditor.ValueSize = 0
+	specEditor.MaxEntries = uint32(size)
+	specEditor.EditorFlag |= manager.EditType | manager.EditKeyValue | manager.EditMaxEntries
+	opts.MapSpecEditors[mapName] = specEditor
 }
 
 func skipTestIfSleepableEBPFProgramsNotSupported(t *testing.T) {
@@ -422,4 +438,144 @@ func TestSleepableModifierTelemetryRemapping(t *testing.T) {
 
 	assert.True(t, copyFromUserFound,
 		"expected telemetry to report bpf_copy_from_user EFAULT errors after remapping")
+}
+
+func TestSleepableModifierRemovesPerfEventOutput(t *testing.T) {
+	skipTestIfSleepableEBPFProgramsNotSupported(t)
+
+	const kptrRestrictPath = "/proc/sys/kernel/kptr_restrict"
+	oldVal, err := os.ReadFile(kptrRestrictPath)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(kptrRestrictPath, []byte("0"), 0644))
+	t.Cleanup(func() {
+		os.WriteFile(kptrRestrictPath, oldVal, 0644)
+	})
+
+	probeName := "test_perf" + archSuffix()
+	excluded := excludeAllExcept(probeName)
+
+	mgr := &manager.Manager{
+		Probes: []*manager.Probe{
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: probeName,
+				},
+			},
+		},
+	}
+
+	t.Cleanup(func() { _ = mgr.Stop(manager.CleanAll) })
+
+	modifier := SleepableProgramModifier{
+		ProbeIDs: []manager.ProbeIdentificationPair{
+			{EBPFFuncName: probeName},
+		},
+		PatchPerfEventOutput: true,
+	}
+	mname := names.NewModuleName("ebpf")
+
+	err = ddebpf.LoadCOREAsset("sleepable.o", func(buf bytecode.AssetReader, opts manager.Options) error {
+		opts.RemoveRlimit = true
+		setTelemetryMapEditors(&opts)
+		opts.ExcludedFunctions = excluded
+		opts.ActivatedProbes = []manager.ProbesSelector{
+			&manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: probeName,
+				},
+			},
+		}
+
+		err := mgr.LoadELF(buf)
+		require.NoError(t, err)
+
+		upgradePerfBufferToRingBuffer(&opts, "test_perf_map", 8*4096)
+
+		err = modifier.BeforeInit(mgr, mname, &opts)
+		require.NoError(t, err)
+
+		err = mgr.InitWithOptions(nil, opts)
+		require.NoError(t, err)
+
+		err = mgr.Start()
+		require.NoError(t, err)
+
+		return nil
+	})
+	require.NoError(t, err)
+
+	progs, found, err := mgr.GetProgram(manager.ProbeIdentificationPair{EBPFFuncName: probeName})
+	require.NoError(t, err)
+	require.True(t, found)
+	require.NotEmpty(t, progs)
+
+	info, err := progs[0].Info()
+	require.NoError(t, err)
+
+	insns, err := info.Instructions()
+	require.NoError(t, err)
+
+	iter := insns.Iterate()
+	for iter.Next() {
+		ins := iter.Ins
+		if !ins.IsBuiltinCall() {
+			continue
+		}
+		assert.NotEqual(t, int64(asm.FnPerfEventOutput), ins.Constant,
+			"found bpf_perf_event_output call that should have been removed")
+	}
+}
+
+func TestSleepableModifierFailsWithoutPerfPatch(t *testing.T) {
+	skipTestIfSleepableEBPFProgramsNotSupported(t)
+
+	probeName := "test_perf" + archSuffix()
+	excluded := excludeAllExcept(probeName)
+
+	mgr := &manager.Manager{
+		Probes: []*manager.Probe{
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: probeName,
+				},
+			},
+		},
+	}
+
+	t.Cleanup(func() { _ = mgr.Stop(manager.CleanAll) })
+
+	modifier := SleepableProgramModifier{
+		ProbeIDs: []manager.ProbeIdentificationPair{
+			{EBPFFuncName: probeName},
+		},
+		PatchPerfEventOutput: false,
+	}
+	mname := names.NewModuleName("ebpf")
+
+	err := ddebpf.LoadCOREAsset("sleepable.o", func(buf bytecode.AssetReader, opts manager.Options) error {
+		opts.RemoveRlimit = true
+		setTelemetryMapEditors(&opts)
+		opts.ExcludedFunctions = excluded
+		opts.ActivatedProbes = []manager.ProbesSelector{
+			&manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: probeName,
+				},
+			},
+		}
+
+		err := mgr.LoadELF(buf)
+		require.NoError(t, err)
+
+		upgradePerfBufferToRingBuffer(&opts, "test_perf_map", 8*4096)
+
+		err = modifier.BeforeInit(mgr, mname, &opts)
+		require.NoError(t, err)
+
+		err = mgr.InitWithOptions(nil, opts)
+		require.Error(t, err, "sleepable program with bpf_perf_event_output should fail to load")
+
+		return nil
+	})
+	require.NoError(t, err)
 }
