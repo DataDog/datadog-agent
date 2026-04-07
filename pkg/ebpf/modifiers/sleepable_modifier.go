@@ -21,8 +21,7 @@ import (
 )
 
 type SleepableProgramModifier struct {
-	ProbeIDs      []manager.ProbeIdentificationPair
-	SleepableMask uint64
+	ProbeIDs []manager.ProbeIdentificationPair
 }
 
 var _ ddebpf.ModifierBeforeInit = &SleepableProgramModifier{}

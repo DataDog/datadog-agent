@@ -27,8 +27,8 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/modifiers"
 	bugs "github.com/DataDog/datadog-agent/pkg/ebpf/kernelbugs"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/modifiers"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/perf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
@@ -165,22 +165,6 @@ func (e *EbpfProgram) isLibsetEnabled(libset Libset) bool {
 	return ok && data.enabled
 }
 
-func sleepableMask(funcName string) (uint64, error) {
-	if strings.Contains(funcName, openat2SysCall) {
-		return uint64(1 << 2), nil
-	}
-
-	if strings.Contains(funcName, openatSysCall) {
-		return uint64(1 << 1), nil
-	}
-
-	if strings.Contains(funcName, openSysCall) {
-		return uint64(1 << 0), nil
-	}
-
-	return uint64(0), fmt.Errorf("no mask for function %q", funcName)
-}
-
 // setupManagerAndPerfHandlers sets up the manager and perf handlers for the eBPF program, creating the perf handlers
 // Assumes initMutex is locked
 func (e *EbpfProgram) setupManagerAndPerfHandlers() error {
@@ -224,19 +208,8 @@ func (e *EbpfProgram) setupManagerAndPerfHandlers() error {
 		mgr.Probes = append(mgr.Probes, probe)
 	}
 
-	mask := uint64(0)
-	for _, id := range sleepableIDs {
-		m, err := sleepableMask(id.EBPFFuncName)
-		if err != nil {
-			return fmt.Errorf("error generating sleepable mask: %w", err)
-		}
-
-		mask |= m
-	}
-
 	managerMods = append(managerMods, &modifiers.SleepableProgramModifier{
-		ProbeIDs:      sleepableIDs,
-		SleepableMask: mask,
+		ProbeIDs: sleepableIDs,
 	})
 
 	e.Manager = ddebpf.NewManager(mgr, "shared_libraries", managerMods...)
