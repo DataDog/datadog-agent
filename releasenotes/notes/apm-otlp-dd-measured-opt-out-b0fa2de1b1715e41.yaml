@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    APM : OTLP spans that carry the ``_dd.measured`` attribute set to ``0`` now
+    explicitly opt out of APM stats computation. Previously, when the
+    ``enable_otlp_compute_top_level_by_span_kind`` feature flag was enabled,
+    ``CLIENT`` and ``PRODUCER`` spans with ``_dd.measured: 0`` would still have
+    stats computed via span-kind-based eligibility, ignoring the opt-out signal.
