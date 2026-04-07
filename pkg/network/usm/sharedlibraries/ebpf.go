@@ -200,7 +200,11 @@ func (e *EbpfProgram) setupManagerAndPerfHandlers() error {
 		managerMods = append(managerMods, perfHandler)
 	}
 
-	sleepableIDs := e.initializeProbes()
+	sleepableIDs, err := e.initializeProbes()
+	if err != nil {
+		return err
+	}
+
 	for _, identifier := range e.enabledProbes {
 		probe := &manager.Probe{
 			ProbeIdentificationPair: identifier,
@@ -632,7 +636,7 @@ func (e *EbpfProgram) initializeProbes() ([]manager.ProbeIdentificationPair, err
 			// Only fentry/fexit/fmod_ret, lsm, iter, uprobe, and struct_ops programs can be sleepable
 			ok, err := modifiers.SleepableSyscallsSupported()
 			if err != nil {
-				return fmt.Errorf("failed to check if sleepable syscalls are enabled: %w", err)
+				return nil, fmt.Errorf("failed to check if sleepable syscalls are enabled: %w", err)
 			}
 			if ok {
 				sleepableIDs = slices.Clone(e.enabledProbes)
@@ -653,7 +657,7 @@ func (e *EbpfProgram) initializeProbes() ([]manager.ProbeIdentificationPair, err
 
 	e.disabledProbes = append(e.disabledProbes, disabledTracingProbes...)
 
-	return sleepableIDs
+	return sleepableIDs, nil
 }
 
 func getAssetName(module string, debug bool) string {
