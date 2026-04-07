@@ -142,6 +142,7 @@ use_repo(
     "com_github_datadog_datadog_agent_pkg_api",
     "com_github_datadog_datadog_agent_pkg_collector_check_defaults",
     "com_github_datadog_datadog_agent_pkg_config_basic",
+    "com_github_datadog_datadog_agent_pkg_config_buildschema",
     "com_github_datadog_datadog_agent_pkg_config_create",
     "com_github_datadog_datadog_agent_pkg_config_env",
     "com_github_datadog_datadog_agent_pkg_config_helper",
