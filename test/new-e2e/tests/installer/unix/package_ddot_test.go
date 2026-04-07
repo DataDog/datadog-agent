@@ -190,8 +190,8 @@ func (s *packageDDOTSuite) TestInstallDDOTWithoutDatadogYAML() {
 	// Step 9: verify the agent and ddot are both running.
 	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, ddotUnit)
 	state = s.host.State()
-	s.assertCoreUnits(state, true)  // oldUnits=true: core agent installed via package manager
-	s.assertDDOTUnits(state, false) // oldUnits=false: ddot installed via installer postinst hook
+	s.assertCoreUnits(state, true)
+	s.assertDDOTUnits(state, true)
 }
 
 func (s *packageDDOTSuite) assertCoreUnits(state host.State, oldUnits bool) {
