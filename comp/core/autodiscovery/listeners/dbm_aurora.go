@@ -139,8 +139,12 @@ func (l *DBMAuroraListener) discoverAuroraClusters() {
 }
 
 func (l *DBMAuroraListener) createService(entityID, clusterID string, instance *aws.Instance) {
-	if _, present := l.services[entityID]; present {
-		return
+	if existing, present := l.services[entityID]; present {
+		if existingSvc, ok := existing.(*DBMAuroraService); ok && reflect.DeepEqual(existingSvc.instance, instance) {
+			return
+		}
+		l.delService <- existing
+		delete(l.services, entityID)
 	}
 	svc := &DBMAuroraService{
 		adIdentifier: engineToAuroraADIdentifier[instance.Engine],
