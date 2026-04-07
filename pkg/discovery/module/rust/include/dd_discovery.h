@@ -101,9 +101,18 @@ struct dd_discovery_result {
  * # Returns
  * A non-null pointer to a heap-allocated `dd_discovery_result` on success.
  * Returns NULL if an internal panic occurs. On a NULL return no memory was
- * allocated.
+ * allocated; the caller must NOT call `dd_discovery_free` on NULL.
  * On a non-NULL return, the caller MUST pass the pointer to `dd_discovery_free`
  * exactly once after reading the fields.
+ *
+ * # Panic safety
+ * The Rust nomicon states: "You must absolutely catch any panics at the FFI
+ * boundary" (<https://doc.rust-lang.org/nomicon/unwinding.html>), because an
+ * unwinding panic across a C ABI boundary is undefined behaviour. This
+ * function wraps its body in `std::panic::catch_unwind` and returns NULL on
+ * panic, matching the convention used by Go's `net/http` handler (which
+ * recovers panics per request) and Tokio (which catches panics in spawned
+ * tasks).
  *
  * # Safety
  * - If `new_pids` is non-NULL, it must point to a valid array of `new_pids_len` i32 values.
