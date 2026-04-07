@@ -30,6 +30,7 @@ func (t *SleepableProgramModifier) String() string {
 	return "SleepableProgramModifier"
 }
 
+// adapted from https://elixir.bootlin.com/linux/v6.15.4/source/kernel/bpf/verifier.c#L23439
 func isProgramSleepable(prog *ebpf.ProgramSpec) bool {
 	if prog.Type == ebpf.Tracing {
 		switch prog.AttachType {
