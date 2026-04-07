@@ -290,16 +290,19 @@ func buildCustomPayload(bootTime time.Time, ts logonduration.LoginTimestamps) ma
 	bootMs := safeDurationMs(ts.LoginWindowTime, bootTime)
 	logonMs := safeDurationMs(ts.DesktopReadyTime, ts.LoginTime)
 
-	custom["durations"] = map[string]interface{}{
-		"boot_duration_ms":       bootMs,
-		"logon_duration_ms":      logonMs,
-		"total_boot_duration_ms": bootMs + logonMs,
-	}
+	durations := make(map[string]interface{})
+	durations["boot_duration_ms"] = bootMs
+	durations["logon_duration_ms"] = logonMs
+	durations["total_boot_duration_ms"] = bootMs + logonMs
 
 	for _, milestone := range milestones {
 		if milestone.DurationMs > 0 {
-			custom[milestone.ID] = milestone.DurationMs
+			durations[milestone.ID] = milestone.DurationMs
 		}
+	}
+
+	if len(durations) > 0 {
+		custom["durations"] = durations
 	}
 
 	custom["filevault_enabled"] = ts.FileVaultEnabled
