@@ -1,5 +1,6 @@
 exporters:
     otlphttp:
+        compression: zstd
         headers:
             dd-api-key: test-api-key
             dd-evp-origin: host-profiler
@@ -25,13 +26,13 @@ processors:
                 os.type:
                     enabled: false
 receivers:
-    hostprofiler:
-        symbol_uploader:
-            enabled: false
     otlp:
         protocols:
             grpc:
                 endpoint: 0.0.0.0:4317
+    profiling:
+        symbol_uploader:
+            enabled: false
 service:
     pipelines:
         metrics:
@@ -43,4 +44,4 @@ service:
                 - resourcedetection/default
                 - resource/dd-profiler-internal-metadata
             receivers:
-                - hostprofiler
+                - profiling

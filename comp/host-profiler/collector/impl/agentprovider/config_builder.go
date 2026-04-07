@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux
-
 // Package agentprovider generates OpenTelemetry Collector configuration from Datadog Agent configuration.
 package agentprovider
 
@@ -22,8 +20,8 @@ type confMap = map[string]any
 func buildReceivers(conf confMap, agent configManager) []any {
 	receivers := make(confMap)
 
-	hostProfiler := make(confMap)
-	_ = converters.Set(hostProfiler, "symbol_uploader::enabled", true)
+	profiling := make(confMap)
+	_ = converters.Set(profiling, "symbol_uploader::enabled", true)
 
 	symbolEndpoints := make([]any, 0, agent.endpointsTotalLength)
 	for _, endpoint := range agent.endpoints {
@@ -35,11 +33,11 @@ func buildReceivers(conf confMap, agent configManager) []any {
 		}
 	}
 
-	_ = converters.Set(hostProfiler, "symbol_uploader::symbol_endpoints", symbolEndpoints)
+	_ = converters.Set(profiling, "symbol_uploader::symbol_endpoints", symbolEndpoints)
 
-	receivers["hostprofiler"] = hostProfiler
+	receivers["profiling"] = profiling
 	conf["receivers"] = receivers
-	return []any{"hostprofiler"}
+	return []any{"profiling"}
 }
 
 func buildExporters(conf confMap, agent configManager) []any {
@@ -47,23 +45,34 @@ func buildExporters(conf confMap, agent configManager) []any {
 		profilesEndpointFormat = "https://intake.profile.%s/v1development/profiles"
 		metricsEndpointFormat  = "https://otlp.%s/v1/metrics"
 		otlpHTTPNameFormat     = "otlphttp/%s_%d"
+		debugExporterName      = "debug"
 	)
 
 	exporters := make(confMap)
 
 	createOtlpHTTPFromEndpoint := func(site, key string) confMap {
+		headers := make(confMap, 3+len(agent.hostProfilerConfig.AdditionalHTTPHeaders))
+		for k, v := range agent.hostProfilerConfig.AdditionalHTTPHeaders {
+			headers[k] = v
+		}
+		// Required headers set after additional headers to prevent overrides
+		headers["dd-api-key"] = key
+		headers["dd-evp-origin"] = version.ProfilerName
+		headers["dd-evp-origin-version"] = version.ProfilerVersion
 		return confMap{
 			"profiles_endpoint": fmt.Sprintf(profilesEndpointFormat, site),
 			"metrics_endpoint":  fmt.Sprintf(metricsEndpointFormat, site),
-			"headers": confMap{
-				"dd-api-key":            key,
-				"dd-evp-origin":         version.ProfilerName,
-				"dd-evp-origin-version": version.ProfilerVersion,
-			},
+			"compression":       "zstd",
+			"headers":           headers,
 		}
 	}
 
-	profilesExporters := make([]any, 0, agent.endpointsTotalLength)
+	debugEnabled := agent.hostProfilerConfig.DebugVerbosity != ""
+	capacity := agent.endpointsTotalLength
+	if debugEnabled {
+		capacity++
+	}
+	profilesExporters := make([]any, 0, capacity)
 	// Track exporter count per site to ensure unique names for duplicate sites
 	siteExporterCount := make(map[string]int)
 	for _, endpoint := range agent.endpoints {
@@ -74,6 +83,13 @@ func buildExporters(conf confMap, agent configManager) []any {
 			_ = converters.Set(exporters, exporterName, createOtlpHTTPFromEndpoint(endpoint.site, key))
 			profilesExporters = append(profilesExporters, exporterName)
 		}
+	}
+
+	if debugEnabled {
+		exporters[debugExporterName] = confMap{
+			"verbosity": agent.hostProfilerConfig.DebugVerbosity,
+		}
+		profilesExporters = append(profilesExporters, debugExporterName)
 	}
 
 	conf["exporters"] = exporters

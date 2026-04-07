@@ -5,11 +5,10 @@
 
 use crate::config::{ProcessConfig, RestartPolicy};
 use crate::env::parse_environment_file;
+use crate::platform;
 use crate::state::ProcessState;
 use anyhow::{Context, Result};
 use log::{info, warn};
-use nix::sys::signal::{self, Signal};
-use nix::unistd::Pid;
 use std::collections::VecDeque;
 use std::process::Stdio;
 use tokio::process::{Child, Command};
@@ -103,7 +102,7 @@ pub struct ManagedProcess {
 }
 
 impl ManagedProcess {
-    const SIGKILL_TIMEOUT: Duration = Duration::from_secs(10);
+    const FORCE_KILL_TIMEOUT: Duration = Duration::from_secs(10);
 
     pub fn new_config(name: String, uuid: String, config: ProcessConfig) -> Self {
         Self::new_inner(name, uuid, config, ProcessOrigin::Config)
@@ -163,15 +162,8 @@ impl ManagedProcess {
     }
 
     pub fn last_signal(&self) -> Option<i32> {
-        #[cfg(unix)]
-        {
-            use std::os::unix::process::ExitStatusExt;
-            self.last_exit_status.and_then(|s| s.signal())
-        }
-        #[cfg(not(unix))]
-        {
-            None
-        }
+        self.last_exit_status
+            .and_then(|s| platform::last_signal(&s))
     }
 
     pub fn set_config(&mut self, config: ProcessConfig) {
@@ -273,9 +265,7 @@ impl ManagedProcess {
         cmd.stdout(stdio_from_str(&self.config.stdout));
         cmd.stderr(stdio_from_str(&self.config.stderr));
 
-        // Place child in its own process group so SIGTERM reaches all
-        // grandchildren and our own signals don't propagate to them.
-        cmd.process_group(0);
+        platform::setup_process_group(&mut cmd);
 
         Ok(cmd)
     }
@@ -318,36 +308,47 @@ impl ManagedProcess {
         }
     }
 
-    /// Mark the process for stop and send SIGTERM. The watcher will observe
-    /// the exit and `set_last_status` will transition to Stopped.
+    /// Mark the process for stop and send a graceful-stop signal. The watcher
+    /// will observe the exit and `set_last_status` will transition to Stopped.
     pub fn request_stop(&mut self) {
         if self.is_running() {
             self.stop_requested = true;
-            info!("[{}] sending SIGTERM (stop requested)", self.name);
-            self.send_signal(Signal::SIGTERM);
+            info!("[{}] sending graceful stop (stop requested)", self.name);
+            self.graceful_stop();
         }
     }
 
-    /// Send a signal using the stored PID (works even after take_child).
-    /// The caller must still call `wait()` afterward to reap the child and
-    /// avoid zombie processes. This is kept separate from `wait()` so
-    /// `shutdown_all()` can fan out SIGTERM to all processes before blocking
-    /// on each.
-    pub fn send_signal(&self, sig: Signal) {
-        if let Some(raw_pid) = self.pid {
-            match i32::try_from(raw_pid) {
-                Ok(pid) => {
-                    // Negate PID to target the entire process group created
-                    // by process_group(0) in build_command.
-                    if let Err(e) = signal::kill(Pid::from_raw(-pid), sig) {
+    /// Send a graceful-stop signal (SIGTERM on Unix, CTRL_BREAK on Windows).
+    fn graceful_stop(&self) {
+        if let Some(pid) = self.pid
+            && let Err(e) = platform::send_graceful_stop(pid)
+        {
+            warn!("[{}] graceful stop failed: {e}", self.name);
+        }
+    }
+
+    /// Force-kill the process and all descendants (SIGKILL / TerminateProcess).
+    fn force_kill(&self) {
+        if let Some(pid) = self.pid
+            && let Err(e) = platform::send_force_kill(pid)
+        {
+            warn!("[{}] force kill failed: {e}", self.name);
+        }
+    }
+
+    /// Send a Unix signal to the entire process group (works even after take_child).
+    /// Used by tests that need to send specific signals for cleanup.
+    #[cfg(unix)]
+    pub fn send_signal(&self, sig: nix::sys::signal::Signal) {
+        if let Some(pid) = self.pid {
+            match platform::process_group_id(pid) {
+                Ok(pgid) => {
+                    if let Err(e) = nix::sys::signal::kill(pgid, sig) {
                         warn!("[{}] failed to send {sig} to pgid {pid}: {e}", self.name);
                     }
                 }
-                Err(_) => {
-                    warn!(
-                        "[{}] PID {raw_pid} overflows i32, cannot send {sig}",
-                        self.name
-                    );
+                Err(e) => {
+                    warn!("[{}] {e}", self.name);
                 }
             }
         }
@@ -366,8 +367,8 @@ impl ManagedProcess {
         self.config.stop_timeout()
     }
 
-    /// Wait for the process to stop after SIGTERM has been sent.
-    /// Escalates to SIGKILL if the process doesn't exit within `stop_timeout`.
+    /// Wait for the process to stop after a graceful-stop signal has been sent.
+    /// Escalates to force-kill if the process doesn't exit within `stop_timeout`.
     pub async fn wait_for_stop(&mut self) {
         if !self.is_running() {
             return;
@@ -377,27 +378,30 @@ impl ManagedProcess {
             tokio::pin!(handle);
             if time::timeout(stop, &mut handle).await.is_err() {
                 warn!(
-                    "[{}] stop timeout ({}s) reached, sending SIGKILL",
+                    "[{}] stop timeout ({}s) reached, force-killing",
                     self.name,
                     stop.as_secs()
                 );
-                self.send_signal(Signal::SIGKILL);
-                if time::timeout(Self::SIGKILL_TIMEOUT, handle).await.is_err() {
-                    warn!("[{}] still running after SIGKILL, giving up", self.name);
+                self.force_kill();
+                if time::timeout(Self::FORCE_KILL_TIMEOUT, handle)
+                    .await
+                    .is_err()
+                {
+                    warn!("[{}] still running after force-kill, giving up", self.name);
                 }
             }
         } else if self.has_child_handle() && time::timeout(stop, self.wait()).await.is_err() {
             warn!(
-                "[{}] stop timeout ({}s) reached, sending SIGKILL",
+                "[{}] stop timeout ({}s) reached, force-killing",
                 self.name,
                 stop.as_secs()
             );
-            self.send_signal(Signal::SIGKILL);
-            if time::timeout(Self::SIGKILL_TIMEOUT, self.wait())
+            self.force_kill();
+            if time::timeout(Self::FORCE_KILL_TIMEOUT, self.wait())
                 .await
                 .is_err()
             {
-                warn!("[{}] still running after SIGKILL, giving up", self.name);
+                warn!("[{}] still running after force-kill, giving up", self.name);
             }
         }
         self.mark_stopped();
@@ -488,36 +492,19 @@ fn stdio_from_str(s: &str) -> Stdio {
 pub mod tests {
     use super::*;
     use crate::config::ProcessConfig;
-
-    pub fn test_uuid() -> String {
-        "00000000-0000-0000-0000-000000000000".to_string()
-    }
-
-    pub fn make_config(command: &str, args: Vec<&str>) -> ProcessConfig {
-        ProcessConfig {
-            command: command.to_string(),
-            args: args.into_iter().map(String::from).collect(),
-            stdout: "null".to_string(),
-            stderr: "null".to_string(),
-            ..Default::default()
-        }
-    }
-
-    fn exit_status(code: i32) -> std::process::ExitStatus {
-        std::process::Command::new("/bin/sh")
-            .args(["-c", &format!("exit {code}")])
-            .status()
-            .unwrap()
-    }
+    use crate::test_helpers;
+    #[cfg(unix)]
+    use nix::sys::signal::Signal;
 
     // -- state lifecycle tests --
 
     #[test]
     fn test_initial_state_is_created() {
+        let (cmd, args) = test_helpers::true_cmd();
         let proc = ManagedProcess::new_config(
             "test".into(),
-            test_uuid(),
-            make_config("/bin/true", vec![]),
+            test_helpers::test_uuid(),
+            test_helpers::make_config(cmd, args),
         );
         assert_eq!(proc.state(), ProcessState::Created);
         assert!(!proc.is_running());
@@ -525,10 +512,11 @@ pub mod tests {
 
     #[tokio::test]
     async fn test_state_transitions_spawn_exit_success() {
+        let (cmd, args) = test_helpers::exit_cmd(0);
         let mut proc = ManagedProcess::new_config(
             "t".into(),
-            test_uuid(),
-            make_config("/bin/sh", vec!["-c", "exit 0"]),
+            test_helpers::test_uuid(),
+            test_helpers::make_config(cmd, args),
         );
         assert_eq!(proc.state(), ProcessState::Created);
 
@@ -545,10 +533,11 @@ pub mod tests {
 
     #[tokio::test]
     async fn test_state_transitions_spawn_exit_failure() {
+        let (cmd, args) = test_helpers::exit_cmd(1);
         let mut proc = ManagedProcess::new_config(
             "t".into(),
-            test_uuid(),
-            make_config("/bin/sh", vec!["-c", "exit 1"]),
+            test_helpers::test_uuid(),
+            test_helpers::make_config(cmd, args),
         );
         proc.spawn().unwrap();
         assert_eq!(proc.state(), ProcessState::Running);
@@ -561,10 +550,11 @@ pub mod tests {
 
     #[tokio::test]
     async fn test_state_after_take_child_still_running() {
+        let (cmd, args) = test_helpers::sleep_cmd(60);
         let mut proc = ManagedProcess::new_config(
             "t".into(),
-            test_uuid(),
-            make_config("/bin/sleep", vec!["60"]),
+            test_helpers::test_uuid(),
+            test_helpers::make_config(cmd, args),
         );
         proc.spawn().unwrap();
         assert_eq!(proc.state(), ProcessState::Running);
@@ -578,18 +568,21 @@ pub mod tests {
         );
         assert!(proc.is_running());
 
-        // Clean up
-        proc.send_signal(Signal::SIGKILL);
+        if let Some(pid) = proc.pid() {
+            let _ = platform::send_force_kill(pid);
+        }
         let mut child = child.unwrap();
         let _ = child.wait().await;
     }
 
+    #[cfg(unix)]
     #[tokio::test]
     async fn test_send_signal_works_after_take_child() {
+        let (cmd, args) = test_helpers::sleep_cmd(60);
         let mut proc = ManagedProcess::new_config(
             "t".into(),
-            test_uuid(),
-            make_config("/bin/sleep", vec!["60"]),
+            test_helpers::test_uuid(),
+            test_helpers::make_config(cmd, args),
         );
         proc.spawn().unwrap();
         let mut child = proc.take_child().unwrap();
@@ -606,35 +599,40 @@ pub mod tests {
 
     #[test]
     fn test_should_start_auto_start_true_no_condition() {
+        let (cmd, args) = test_helpers::true_cmd();
         let proc = ManagedProcess::new_config(
             "test".into(),
-            test_uuid(),
-            make_config("/usr/bin/true", vec![]),
+            test_helpers::test_uuid(),
+            test_helpers::make_config(cmd, args),
         );
         assert!(proc.should_start());
     }
 
     #[test]
     fn test_should_start_auto_start_false() {
-        let mut cfg = make_config("/usr/bin/true", vec![]);
+        let (cmd, args) = test_helpers::true_cmd();
+        let mut cfg = test_helpers::make_config(cmd, args);
         cfg.auto_start = false;
-        let proc = ManagedProcess::new_config("test".into(), test_uuid(), cfg);
+        let proc = ManagedProcess::new_config("test".into(), test_helpers::test_uuid(), cfg);
         assert!(!proc.should_start());
     }
 
     #[test]
     fn test_should_start_condition_path_exists_met() {
-        let mut cfg = make_config("/usr/bin/true", vec![]);
-        cfg.condition_path_exists = Some("/usr/bin/true".to_string());
-        let proc = ManagedProcess::new_config("test".into(), test_uuid(), cfg);
+        let (cmd, args) = test_helpers::true_cmd();
+        let mut cfg = test_helpers::make_config(cmd, args);
+        let exe = std::env::current_exe().unwrap();
+        cfg.condition_path_exists = Some(exe.to_str().unwrap().to_string());
+        let proc = ManagedProcess::new_config("test".into(), test_helpers::test_uuid(), cfg);
         assert!(proc.should_start());
     }
 
     #[test]
     fn test_should_start_condition_path_exists_not_met() {
-        let mut cfg = make_config("/usr/bin/true", vec![]);
+        let (cmd, args) = test_helpers::true_cmd();
+        let mut cfg = test_helpers::make_config(cmd, args);
         cfg.condition_path_exists = Some("/nonexistent/path/binary".to_string());
-        let proc = ManagedProcess::new_config("test".into(), test_uuid(), cfg);
+        let proc = ManagedProcess::new_config("test".into(), test_helpers::test_uuid(), cfg);
         assert!(!proc.should_start());
     }
 
@@ -642,22 +640,26 @@ pub mod tests {
 
     #[tokio::test]
     async fn test_spawn_and_is_running() {
-        let cfg = make_config("/bin/sleep", vec!["60"]);
-        let mut proc = ManagedProcess::new_config("sleeper".into(), test_uuid(), cfg);
+        let (cmd, args) = test_helpers::sleep_cmd(60);
+        let mut proc = ManagedProcess::new_config(
+            "sleeper".into(),
+            test_helpers::test_uuid(),
+            test_helpers::make_config(cmd, args),
+        );
 
         assert!(!proc.is_running());
         proc.spawn().unwrap();
         assert!(proc.is_running());
 
-        proc.send_signal(Signal::SIGKILL);
+        proc.request_stop();
         let status = proc.wait().await.unwrap();
         assert!(!status.success());
     }
 
     #[tokio::test]
     async fn test_spawn_nonexistent_binary() {
-        let cfg = make_config("/nonexistent/binary", vec![]);
-        let mut proc = ManagedProcess::new_config("bad".into(), test_uuid(), cfg);
+        let cfg = test_helpers::make_config::<&str>("/nonexistent/binary", vec![]);
+        let mut proc = ManagedProcess::new_config("bad".into(), test_helpers::test_uuid(), cfg);
         assert!(proc.spawn().is_err());
         assert!(!proc.is_running());
         assert_eq!(proc.state(), ProcessState::Failed);
@@ -665,10 +667,12 @@ pub mod tests {
 
     #[tokio::test]
     async fn test_spawn_with_env() {
-        let mut cfg = make_config("/bin/sh", vec!["-c", "exit $MY_EXIT_CODE"]);
+        let (cmd, args) = test_helpers::exit_env_cmd("MY_EXIT_CODE");
+        let mut cfg = test_helpers::make_config(cmd, args);
         cfg.env.insert("MY_EXIT_CODE".to_string(), "42".to_string());
 
-        let mut proc = ManagedProcess::new_config("env-test".into(), test_uuid(), cfg);
+        let mut proc =
+            ManagedProcess::new_config("env-test".into(), test_helpers::test_uuid(), cfg);
         proc.spawn().unwrap();
         let status = proc.wait().await.unwrap();
         assert_eq!(status.code(), Some(42));
@@ -676,19 +680,28 @@ pub mod tests {
 
     #[tokio::test]
     async fn test_spawn_with_args() {
-        let cfg = make_config("/bin/sh", vec!["-c", "exit 7"]);
-        let mut proc = ManagedProcess::new_config("args-test".into(), test_uuid(), cfg);
+        let (cmd, args) = test_helpers::exit_cmd(7);
+        let mut proc = ManagedProcess::new_config(
+            "args-test".into(),
+            test_helpers::test_uuid(),
+            test_helpers::make_config(cmd, args),
+        );
         proc.spawn().unwrap();
         let status = proc.wait().await.unwrap();
         assert_eq!(status.code(), Some(7));
     }
 
-    // -- signal tests --
+    // -- signal tests (Unix-only: test the raw send_signal API) --
 
+    #[cfg(unix)]
     #[tokio::test]
     async fn test_send_signal_sigterm() {
-        let cfg = make_config("/bin/sleep", vec!["60"]);
-        let mut proc = ManagedProcess::new_config("sig-test".into(), test_uuid(), cfg);
+        let (cmd, args) = test_helpers::sleep_cmd(60);
+        let mut proc = ManagedProcess::new_config(
+            "sig-test".into(),
+            test_helpers::test_uuid(),
+            test_helpers::make_config(cmd, args),
+        );
         proc.spawn().unwrap();
 
         proc.send_signal(Signal::SIGTERM);
@@ -696,12 +709,14 @@ pub mod tests {
         assert!(!status.success());
     }
 
+    #[cfg(unix)]
     #[test]
     fn test_send_signal_no_child_does_not_panic() {
+        let (cmd, args) = test_helpers::true_cmd();
         let proc = ManagedProcess::new_config(
             "no-child".into(),
-            test_uuid(),
-            make_config("/usr/bin/true", vec![]),
+            test_helpers::test_uuid(),
+            test_helpers::make_config(cmd, args),
         );
         proc.send_signal(Signal::SIGTERM);
     }
@@ -712,14 +727,14 @@ pub mod tests {
     async fn test_spawn_does_not_inherit_parent_env() {
         // SAFETY: single-threaded test runtime; no concurrent env access.
         unsafe { std::env::set_var("PROCMGRD_TEST_SECRET", "leaked") };
-        let cfg = make_config(
-            "/bin/sh",
-            vec![
-                "-c",
-                "test -z \"$PROCMGRD_TEST_SECRET\" && exit 0 || exit 1",
-            ],
-        );
-        let mut proc = ManagedProcess::new_config("clean-env".into(), test_uuid(), cfg);
+        let (sh, flag) = test_helpers::shell_cmd();
+        #[cfg(unix)]
+        let script = "test -z \"$PROCMGRD_TEST_SECRET\" && exit 0 || exit 1";
+        #[cfg(windows)]
+        let script = "if defined PROCMGRD_TEST_SECRET (exit 1) else (exit 0)";
+        let cfg = test_helpers::make_config(sh, vec![flag, script]);
+        let mut proc =
+            ManagedProcess::new_config("clean-env".into(), test_helpers::test_uuid(), cfg);
         proc.spawn().unwrap();
         let status = proc.wait().await.unwrap();
         assert_eq!(
@@ -736,13 +751,15 @@ pub mod tests {
         let env_file = dir.path().join("env");
         std::fs::write(&env_file, "# comment\nFROM_FILE=hello\nPATH=/usr/bin\n\n").unwrap();
 
-        let mut cfg = make_config(
-            "/bin/sh",
-            vec!["-c", "test \"$FROM_FILE\" = 'hello' && echo $PATH"],
-        );
+        let (sh, flag) = test_helpers::shell_cmd();
+        #[cfg(unix)]
+        let script = "test \"$FROM_FILE\" = 'hello' && echo $PATH";
+        #[cfg(windows)]
+        let script = "if \"%FROM_FILE%\"==\"hello\" (echo %PATH%) else (exit 1)";
+        let mut cfg = test_helpers::make_config(sh, vec![flag, script]);
         cfg.environment_file = Some(env_file.to_str().unwrap().to_string());
 
-        let mut proc = ManagedProcess::new_config("envfile".into(), test_uuid(), cfg);
+        let mut proc = ManagedProcess::new_config("envfile".into(), test_helpers::test_uuid(), cfg);
         proc.spawn().unwrap();
         let status = proc.wait().await.unwrap();
         assert_eq!(
@@ -758,18 +775,18 @@ pub mod tests {
         let env_file = dir.path().join("env");
         std::fs::write(&env_file, "MY_VAR=from_file\n").unwrap();
 
-        let mut cfg = make_config(
-            "/bin/sh",
-            vec![
-                "-c",
-                "exit $(test \"$MY_VAR\" = 'overridden' && echo 0 || echo 1)",
-            ],
-        );
+        let (sh, flag) = test_helpers::shell_cmd();
+        #[cfg(unix)]
+        let script = "exit $(test \"$MY_VAR\" = 'overridden' && echo 0 || echo 1)";
+        #[cfg(windows)]
+        let script = "if \"%MY_VAR%\"==\"overridden\" (exit 0) else (exit 1)";
+        let mut cfg = test_helpers::make_config(sh, vec![flag, script]);
         cfg.environment_file = Some(env_file.to_str().unwrap().to_string());
         cfg.env
             .insert("MY_VAR".to_string(), "overridden".to_string());
 
-        let mut proc = ManagedProcess::new_config("override".into(), test_uuid(), cfg);
+        let mut proc =
+            ManagedProcess::new_config("override".into(), test_helpers::test_uuid(), cfg);
         proc.spawn().unwrap();
         let status = proc.wait().await.unwrap();
         assert_eq!(
@@ -781,9 +798,11 @@ pub mod tests {
 
     #[tokio::test]
     async fn test_spawn_fails_on_missing_environment_file() {
-        let mut cfg = make_config("/usr/bin/true", vec![]);
+        let (cmd, args) = test_helpers::true_cmd();
+        let mut cfg = test_helpers::make_config(cmd, args);
         cfg.environment_file = Some("/nonexistent/env".to_string());
-        let mut proc = ManagedProcess::new_config("bad-envfile".into(), test_uuid(), cfg);
+        let mut proc =
+            ManagedProcess::new_config("bad-envfile".into(), test_helpers::test_uuid(), cfg);
         assert!(
             proc.spawn().is_err(),
             "spawn should fail if environment_file is missing without - prefix"
@@ -793,9 +812,11 @@ pub mod tests {
 
     #[tokio::test]
     async fn test_spawn_skips_missing_optional_environment_file() {
-        let mut cfg = make_config("/usr/bin/true", vec![]);
+        let (cmd, args) = test_helpers::true_cmd();
+        let mut cfg = test_helpers::make_config(cmd, args);
         cfg.environment_file = Some("-/nonexistent/env".to_string());
-        let mut proc = ManagedProcess::new_config("optional-envfile".into(), test_uuid(), cfg);
+        let mut proc =
+            ManagedProcess::new_config("optional-envfile".into(), test_helpers::test_uuid(), cfg);
         proc.spawn().unwrap();
         let status = proc.wait().await.unwrap();
         assert!(
@@ -808,66 +829,77 @@ pub mod tests {
 
     #[test]
     fn test_should_restart_never() {
-        let cfg = make_config("/bin/sh", vec![]);
-        let proc = ManagedProcess::new_config("t".into(), test_uuid(), cfg);
-        assert!(!proc.should_restart(&exit_status(1)));
+        let (cmd, args) = test_helpers::true_cmd();
+        let proc = ManagedProcess::new_config(
+            "t".into(),
+            test_helpers::test_uuid(),
+            test_helpers::make_config(cmd, args),
+        );
+        assert!(!proc.should_restart(&test_helpers::exit_status(1)));
     }
 
     #[test]
     fn test_should_restart_always_on_success() {
-        let mut cfg = make_config("/bin/sh", vec![]);
+        let (cmd, args) = test_helpers::true_cmd();
+        let mut cfg = test_helpers::make_config(cmd, args);
         cfg.restart = RestartPolicy::Always;
-        let proc = ManagedProcess::new_config("t".into(), test_uuid(), cfg);
-        assert!(proc.should_restart(&exit_status(0)));
+        let proc = ManagedProcess::new_config("t".into(), test_helpers::test_uuid(), cfg);
+        assert!(proc.should_restart(&test_helpers::exit_status(0)));
     }
 
     #[test]
     fn test_should_restart_always_on_failure() {
-        let mut cfg = make_config("/bin/sh", vec![]);
+        let (cmd, args) = test_helpers::true_cmd();
+        let mut cfg = test_helpers::make_config(cmd, args);
         cfg.restart = RestartPolicy::Always;
-        let proc = ManagedProcess::new_config("t".into(), test_uuid(), cfg);
-        assert!(proc.should_restart(&exit_status(1)));
+        let proc = ManagedProcess::new_config("t".into(), test_helpers::test_uuid(), cfg);
+        assert!(proc.should_restart(&test_helpers::exit_status(1)));
     }
 
     #[test]
     fn test_should_restart_on_failure_with_failure() {
-        let mut cfg = make_config("/bin/sh", vec![]);
+        let (cmd, args) = test_helpers::true_cmd();
+        let mut cfg = test_helpers::make_config(cmd, args);
         cfg.restart = RestartPolicy::OnFailure;
-        let proc = ManagedProcess::new_config("t".into(), test_uuid(), cfg);
-        assert!(proc.should_restart(&exit_status(1)));
+        let proc = ManagedProcess::new_config("t".into(), test_helpers::test_uuid(), cfg);
+        assert!(proc.should_restart(&test_helpers::exit_status(1)));
     }
 
     #[test]
     fn test_should_restart_on_failure_with_success() {
-        let mut cfg = make_config("/bin/sh", vec![]);
+        let (cmd, args) = test_helpers::true_cmd();
+        let mut cfg = test_helpers::make_config(cmd, args);
         cfg.restart = RestartPolicy::OnFailure;
-        let proc = ManagedProcess::new_config("t".into(), test_uuid(), cfg);
-        assert!(!proc.should_restart(&exit_status(0)));
+        let proc = ManagedProcess::new_config("t".into(), test_helpers::test_uuid(), cfg);
+        assert!(!proc.should_restart(&test_helpers::exit_status(0)));
     }
 
     #[test]
     fn test_should_restart_on_success_with_success() {
-        let mut cfg = make_config("/bin/sh", vec![]);
+        let (cmd, args) = test_helpers::true_cmd();
+        let mut cfg = test_helpers::make_config(cmd, args);
         cfg.restart = RestartPolicy::OnSuccess;
-        let proc = ManagedProcess::new_config("t".into(), test_uuid(), cfg);
-        assert!(proc.should_restart(&exit_status(0)));
+        let proc = ManagedProcess::new_config("t".into(), test_helpers::test_uuid(), cfg);
+        assert!(proc.should_restart(&test_helpers::exit_status(0)));
     }
 
     #[test]
     fn test_should_restart_on_success_with_failure() {
-        let mut cfg = make_config("/bin/sh", vec![]);
+        let (cmd, args) = test_helpers::true_cmd();
+        let mut cfg = test_helpers::make_config(cmd, args);
         cfg.restart = RestartPolicy::OnSuccess;
-        let proc = ManagedProcess::new_config("t".into(), test_uuid(), cfg);
-        assert!(!proc.should_restart(&exit_status(1)));
+        let proc = ManagedProcess::new_config("t".into(), test_helpers::test_uuid(), cfg);
+        assert!(!proc.should_restart(&test_helpers::exit_status(1)));
     }
 
     #[test]
     fn test_burst_limiting() {
-        let mut cfg = make_config("/bin/true", vec![]);
+        let (cmd, args) = test_helpers::true_cmd();
+        let mut cfg = test_helpers::make_config(cmd, args);
         cfg.restart = RestartPolicy::Always;
         cfg.start_limit_burst = Some(3);
         cfg.start_limit_interval_sec = Some(60);
-        let mut proc = ManagedProcess::new_config("burst".into(), test_uuid(), cfg);
+        let mut proc = ManagedProcess::new_config("burst".into(), test_helpers::test_uuid(), cfg);
 
         let burst = proc.config.burst_limit();
         let interval = proc.config.burst_interval();
@@ -889,11 +921,12 @@ pub mod tests {
 
     #[test]
     fn test_backoff_increases() {
-        let mut cfg = make_config("/bin/true", vec![]);
+        let (cmd, args) = test_helpers::true_cmd();
+        let mut cfg = test_helpers::make_config(cmd, args);
         cfg.restart = RestartPolicy::Always;
         cfg.restart_sec = Some(1.0);
         cfg.restart_max_delay_sec = Some(10.0);
-        let mut proc = ManagedProcess::new_config("backoff".into(), test_uuid(), cfg);
+        let mut proc = ManagedProcess::new_config("backoff".into(), test_helpers::test_uuid(), cfg);
 
         assert!((proc.restarts.current_delay - 1.0).abs() < 0.001);
         proc.restarts.advance_backoff(10.0);
@@ -911,11 +944,12 @@ pub mod tests {
 
     #[test]
     fn test_backoff_resets_on_long_runtime() {
-        let mut cfg = make_config("/bin/true", vec![]);
+        let (cmd, args) = test_helpers::true_cmd();
+        let mut cfg = test_helpers::make_config(cmd, args);
         cfg.restart = RestartPolicy::Always;
         cfg.restart_sec = Some(1.0);
         cfg.runtime_success_sec = Some(0);
-        let mut proc = ManagedProcess::new_config("reset".into(), test_uuid(), cfg);
+        let mut proc = ManagedProcess::new_config("reset".into(), test_helpers::test_uuid(), cfg);
 
         proc.restarts.last_spawn_time = Some(Instant::now() - Duration::from_secs(5));
         proc.restarts.current_delay = 16.0;
@@ -932,8 +966,12 @@ pub mod tests {
 
     #[test]
     fn test_restart_config_defaults() {
-        let cfg = make_config("/bin/true", vec![]);
-        let proc = ManagedProcess::new_config("defaults".into(), test_uuid(), cfg);
+        let (cmd, args) = test_helpers::true_cmd();
+        let proc = ManagedProcess::new_config(
+            "defaults".into(),
+            test_helpers::test_uuid(),
+            test_helpers::make_config(cmd, args),
+        );
         assert_eq!(*proc.restart_policy(), RestartPolicy::Never);
         assert!((proc.restarts.current_delay - 1.0).abs() < 0.001);
         assert_eq!(proc.restarts.count, 0);
@@ -962,10 +1000,11 @@ runtime_success_sec: 5
 
     #[tokio::test]
     async fn test_stop_requested_transitions_to_stopped() {
+        let (cmd, args) = test_helpers::sleep_cmd(60);
         let mut proc = ManagedProcess::new_config(
             "svc".into(),
-            test_uuid(),
-            make_config("/bin/sleep", vec!["60"]),
+            test_helpers::test_uuid(),
+            test_helpers::make_config(cmd, args),
         );
         proc.spawn().unwrap();
         assert_eq!(proc.state(), ProcessState::Running);
@@ -980,9 +1019,10 @@ runtime_success_sec: 5
 
     #[tokio::test]
     async fn test_stop_requested_skips_restart() {
-        let mut cfg = make_config("/bin/sleep", vec!["60"]);
+        let (cmd, args) = test_helpers::sleep_cmd(60);
+        let mut cfg = test_helpers::make_config(cmd, args);
         cfg.restart = RestartPolicy::Always;
-        let mut proc = ManagedProcess::new_config("svc".into(), test_uuid(), cfg);
+        let mut proc = ManagedProcess::new_config("svc".into(), test_helpers::test_uuid(), cfg);
         proc.spawn().unwrap();
 
         proc.request_stop();
@@ -999,10 +1039,11 @@ runtime_success_sec: 5
 
     #[tokio::test]
     async fn test_normal_exit_not_affected_by_stop_flag() {
+        let (cmd, args) = test_helpers::exit_cmd(1);
         let mut proc = ManagedProcess::new_config(
             "svc".into(),
-            test_uuid(),
-            make_config("/bin/sh", vec!["-c", "exit 1"]),
+            test_helpers::test_uuid(),
+            test_helpers::make_config(cmd, args),
         );
         proc.spawn().unwrap();
 

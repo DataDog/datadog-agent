@@ -8,11 +8,11 @@
 package k8s
 
 import (
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 
@@ -23,9 +23,9 @@ import (
 )
 
 // NewRoleCollectorVersions builds the group of collector versions.
-func NewRoleCollectorVersions(metadataAsTags utils.MetadataAsTags) collectors.CollectorVersions {
+func NewRoleCollectorVersions(tagger tagger.Component) collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewRoleCollector(metadataAsTags),
+		NewRoleCollector(tagger),
 	)
 }
 
@@ -38,11 +38,7 @@ type RoleCollector struct {
 }
 
 // NewRoleCollector creates a new collector for the Kubernetes Role resource.
-func NewRoleCollector(metadataAsTags utils.MetadataAsTags) *RoleCollector {
-	resourceType := utilTypes.GetResourceType(utilTypes.RoleName, utilTypes.RoleVersion)
-	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
-	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
-
+func NewRoleCollector(tagger tagger.Component) *RoleCollector {
 	return &RoleCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:                     true,
@@ -53,12 +49,11 @@ func NewRoleCollector(metadataAsTags utils.MetadataAsTags) *RoleCollector {
 			Name:                                 utilTypes.RoleName,
 			Kind:                                 kubernetes.RoleKind,
 			NodeType:                             orchestrator.K8sRole,
+			Group:                                utilTypes.RoleGroup,
 			Version:                              utilTypes.RoleVersion,
-			LabelsAsTags:                         labelsAsTags,
-			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: true,
 		},
-		processor: processors.NewProcessor(new(k8sProcessors.RoleHandlers)),
+		processor: processors.NewProcessor(k8sProcessors.NewRoleHandlers(tagger)),
 	}
 }
 

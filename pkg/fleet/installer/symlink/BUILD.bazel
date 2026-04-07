@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "symlink",
+    srcs = [
+        "link.go",
+        "link_nix.go",
+        "link_win.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/symlink",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "symlink_test",
+    srcs = ["link_test.go"],
+    embed = [":symlink"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)
