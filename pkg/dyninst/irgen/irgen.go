@@ -532,6 +532,8 @@ func extractRootVariableName(expr exprlang.Expr) (string, bool) {
 			expr = e.Operand
 		case *exprlang.IsEmptyExpr:
 			expr = e.Operand
+		case *exprlang.IndexExpr:
+			expr = e.Base
 		case *exprlang.EqExpr:
 			expr = e.Left
 		default:
@@ -948,6 +950,7 @@ func newTemplate(td ir.TemplateDefinition) *ir.Template {
 						continue
 					}
 				case *exprlang.GetMemberExpr:
+				case *exprlang.IndexExpr:
 				case *exprlang.LenExpr:
 				case *exprlang.IsEmptyExpr:
 				case *exprlang.EqExpr:
@@ -1457,6 +1460,26 @@ func walkExpressionPathTypes(
 		// Walk to the member and get the field type.
 		return walkMemberPathTypes(tc, baseType, e.Member)
 
+	case *exprlang.IndexExpr:
+		// Walk the base expression first.
+		if _, err := walkExpressionPathTypes(tc, e.Base, varByName); err != nil {
+			return nil, err
+		}
+
+		// Get the base type and resolve to element type.
+		baseType, err := getExprType(tc, e.Base, varByName)
+		if err != nil {
+			return nil, err
+		}
+		elemType, err := indexElementType(tc, baseType)
+		if err != nil {
+			return nil, err
+		}
+		if err := ensureTypeExplored(tc, elemType); err != nil {
+			return nil, err
+		}
+		return elemType, nil
+
 	default:
 		return nil, nil
 	}
@@ -1500,6 +1523,13 @@ func getExprType(
 			return nil, err
 		}
 		return f.Type, nil
+
+	case *exprlang.IndexExpr:
+		baseType, err := getExprType(tc, e.Base, varByName)
+		if err != nil {
+			return nil, err
+		}
+		return indexElementType(tc, baseType)
 
 	default:
 		return nil, fmt.Errorf("unsupported expression type %T", expr)
@@ -3527,9 +3557,62 @@ func exploreExpressionTypes(
 		}
 		return tc.typesByID[tc.boolType], nil
 
+	case *exprlang.IndexExpr:
+		return exploreIndexExprTypes(e, currentType, tc, exprPath)
+
 	default:
 		// Unknown expression type - nothing to explore.
 		return currentType, nil
+	}
+}
+
+// exploreIndexExprTypes explores types for an index expression, resolving
+// the base expression and validating the element type.
+func exploreIndexExprTypes(
+	e *exprlang.IndexExpr,
+	currentType ir.Type,
+	tc *typeCatalog,
+	exprPath string,
+) (ir.Type, error) {
+	// Explore the base expression to resolve its type.
+	resolvedType, err := exploreExpressionTypes(e.Base, currentType, tc, exprPath)
+	if err != nil {
+		return nil, err
+	}
+
+	// Validate the index is a literal integer >= 0.
+	litExpr, ok := e.Index.(*exprlang.LiteralExpr)
+	if !ok {
+		return nil, fmt.Errorf("index must be a literal, got %T", e.Index)
+	}
+	idx, ok := litExpr.Value.(int64)
+	if !ok {
+		return nil, fmt.Errorf("index must be an integer literal, got %T", litExpr.Value)
+	}
+	if idx < 0 {
+		return nil, fmt.Errorf("index must be non-negative, got %d", idx)
+	}
+
+	// Resolve the collection type to get the element type.
+	canonical := tc.typesByID[resolvedType.GetID()]
+	switch t := canonical.(type) {
+	case *ir.ArrayType:
+		if uint32(idx) >= t.Count {
+			return nil, fmt.Errorf("index %d out of bounds for array of length %d", idx, t.Count)
+		}
+		elemType := t.Element
+		if err := ensureTypeExplored(tc, elemType); err != nil {
+			return nil, err
+		}
+		return elemType, nil
+	case *ir.GoSliceHeaderType:
+		elemType := t.Data.Element
+		if err := ensureTypeExplored(tc, elemType); err != nil {
+			return nil, err
+		}
+		return elemType, nil
+	default:
+		return nil, fmt.Errorf("index not supported on type %T (%q)", canonical, canonical.GetName())
 	}
 }
 
@@ -3811,6 +3894,9 @@ func resolveExpression(
 			Operations: operations,
 		}, nil
 
+	case *exprlang.IndexExpr:
+		return resolveIndexExpression(e, rootVar, tc)
+
 	case *exprlang.LenExpr:
 		return resolveLenExpression(e.Operand, rootVar, tc)
 
@@ -3836,6 +3922,153 @@ func resolveExpression(
 			"unsupported expression type: %T", expr,
 		)
 	}
+}
+
+// indexElementType returns the element type for an indexable collection type
+// (array or slice).
+func indexElementType(tc *typeCatalog, baseType ir.Type) (ir.Type, error) {
+	canonical := tc.typesByID[baseType.GetID()]
+	switch t := canonical.(type) {
+	case *ir.ArrayType:
+		return t.Element, nil
+	case *ir.GoSliceHeaderType:
+		return t.Data.Element, nil
+	default:
+		return nil, fmt.Errorf("index not supported on type %T (%q)", canonical, canonical.GetName())
+	}
+}
+
+// resolveIndexExpression resolves an index expression to IR operations that
+// read only the single element at the given index. For arrays, this adjusts
+// the offset on the existing LocationOp/DereferenceOp. For slices, this
+// narrows to the data pointer and adds a DereferenceOp with element offset.
+func resolveIndexExpression(
+	e *exprlang.IndexExpr,
+	rootVar *ir.Variable,
+	tc *typeCatalog,
+) (ir.Expression, error) {
+	// Validate the index is a non-negative integer literal.
+	litExpr, ok := e.Index.(*exprlang.LiteralExpr)
+	if !ok {
+		return ir.Expression{}, fmt.Errorf("index must be a literal, got %T", e.Index)
+	}
+	idx, ok := litExpr.Value.(int64)
+	if !ok {
+		return ir.Expression{}, fmt.Errorf("index must be an integer literal, got %T", litExpr.Value)
+	}
+	if idx < 0 {
+		return ir.Expression{}, fmt.Errorf("index must be non-negative, got %d", idx)
+	}
+
+	// Resolve the base expression.
+	baseExpr, err := resolveExpression(e.Base, rootVar, tc)
+	if err != nil {
+		return ir.Expression{}, fmt.Errorf("failed to resolve index base: %w", err)
+	}
+
+	// Determine the collection type and element type.
+	canonical := tc.typesByID[baseExpr.Type.GetID()]
+	switch t := canonical.(type) {
+	case *ir.ArrayType:
+		return resolveArrayIndex(baseExpr, t, idx)
+	case *ir.GoSliceHeaderType:
+		return resolveSliceIndex(baseExpr, t, idx, tc)
+	default:
+		return ir.Expression{}, fmt.Errorf(
+			"index not supported on type %T (%q)", canonical, canonical.GetName(),
+		)
+	}
+}
+
+// resolveArrayIndex resolves indexing into an array. Since arrays are stored
+// inline (on the stack or within a struct), we adjust the last operation's
+// offset to point directly at the element, reading only elemSize bytes.
+func resolveArrayIndex(
+	baseExpr ir.Expression,
+	arrType *ir.ArrayType,
+	idx int64,
+) (ir.Expression, error) {
+	if uint32(idx) >= arrType.Count {
+		return ir.Expression{}, fmt.Errorf(
+			"index %d out of bounds for array of length %d", idx, arrType.Count,
+		)
+	}
+
+	elemType := arrType.Element
+	elemSize := elemType.GetByteSize()
+	elementOffset := uint32(idx) * elemSize
+
+	operations := baseExpr.Operations
+	if len(operations) == 0 {
+		return ir.Expression{}, errors.New("no operations to adjust for array index")
+	}
+
+	// Adjust the last operation to read only the element.
+	lastOp := operations[len(operations)-1]
+	switch op := lastOp.(type) {
+	case *ir.LocationOp:
+		op.Offset += elementOffset
+		op.ByteSize = elemSize
+	case *ir.DereferenceOp:
+		op.Bias += elementOffset
+		op.ByteSize = elemSize
+	default:
+		return ir.Expression{}, fmt.Errorf(
+			"unexpected last operation type %T for array index", lastOp,
+		)
+	}
+
+	return ir.Expression{
+		Type:       elemType,
+		Operations: operations,
+	}, nil
+}
+
+// resolveSliceIndex resolves indexing into a slice. The slice header has a data
+// pointer at offset 0. We narrow the base operations to read only the pointer,
+// then append a DereferenceOp to read the element at the computed offset.
+func resolveSliceIndex(
+	baseExpr ir.Expression,
+	sliceType *ir.GoSliceHeaderType,
+	idx int64,
+	tc *typeCatalog,
+) (ir.Expression, error) {
+	elemType := sliceType.Data.Element
+	elemSize := elemType.GetByteSize()
+	elementOffset := uint32(idx) * elemSize
+	ptrSize := uint32(tc.ptrSize)
+
+	operations := baseExpr.Operations
+	if len(operations) == 0 {
+		return ir.Expression{}, errors.New("no operations to adjust for slice index")
+	}
+
+	// Narrow the last operation to read only the data pointer (first field,
+	// offset 0 in the slice header). The data pointer is at the start of
+	// the header, so we keep the existing offset/bias and just change the
+	// byte size.
+	lastOp := operations[len(operations)-1]
+	switch op := lastOp.(type) {
+	case *ir.LocationOp:
+		op.ByteSize = ptrSize
+	case *ir.DereferenceOp:
+		op.ByteSize = ptrSize
+	default:
+		return ir.Expression{}, fmt.Errorf(
+			"unexpected last operation type %T for slice index", lastOp,
+		)
+	}
+
+	// Dereference the data pointer and read the element.
+	operations = append(operations, &ir.DereferenceOp{
+		Bias:     elementOffset,
+		ByteSize: elemSize,
+	})
+
+	return ir.Expression{
+		Type:       elemType,
+		Operations: operations,
+	}, nil
 }
 
 // resolveLenExpression resolves a len/isEmpty operand to an IR expression
