@@ -47,7 +47,7 @@ var helperNames = map[int]string{
 
 type remapHelpers struct {
 	mtx      sync.Mutex
-	remapped map[telemetryKey]map[int]int
+	remapped map[string]map[int]int
 }
 
 var helperRemapper remapHelpers
@@ -56,25 +56,28 @@ func (r *remapHelpers) remap(oldH, newH int, tk telemetryKey) {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
 
+	key := tk.String()
 	if r.remapped == nil {
-		r.remapped = make(map[telemetryKey]map[int]int)
+		r.remapped = make(map[string]map[int]int)
 	}
-	if _, ok := r.remapped[tk]; !ok {
-		r.remapped[tk] = make(map[int]int)
+	if _, ok := r.remapped[key]; !ok {
+		r.remapped[key] = make(map[int]int)
 	}
 
-	r.remapped[tk][oldH] = newH
+	r.remapped[key][oldH] = newH
 }
 
 func (r *remapHelpers) helperName(tk telemetryKey, indx int) string {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
 
-	if m, ok := r.remapped[tk]; ok {
+	key := tk.String()
+	if m, ok := r.remapped[key]; ok {
 		if newIndx, ok := m[indx]; ok {
 			return helperNames[newIndx]
 		}
 	}
+
 	return helperNames[indx]
 }
 

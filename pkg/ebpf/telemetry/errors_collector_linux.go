@@ -109,7 +109,7 @@ func (e *EBPFErrorsCollector) Collect(ch chan<- prometheus.Metric) {
 						err:  errStr,
 					}
 					delta := float64(errCount - e.lastValues[key])
-					name := helperName(tKey, i)
+					name := helperRemapper.helperName(tKey, i)
 					if delta > 0 {
 						e.helperErrors.WithLabelValues(name, tKey.resourceName.Name(), errStr, tKey.moduleName.Name()).Add(delta)
 					}
