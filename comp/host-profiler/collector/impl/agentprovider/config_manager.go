@@ -3,20 +3,18 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux
-
 package agentprovider
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/go-viper/mapstructure/v2"
 )
 
 // hostProfilerConfig holds host-profiler settings extracted from the Agent config.
 type hostProfilerConfig struct {
-	Debug confMap `mapstructure:"debug"`
+	DebugVerbosity        string
+	AdditionalHTTPHeaders map[string]string
 }
 
 type endpoint struct {
@@ -84,11 +82,12 @@ func newConfigManager(config config.Component) configManager {
 		log.Warnf("No API key registered for main site %s", usedSite)
 	}
 
-	var hostProfilerConfig hostProfilerConfig
-	if raw := config.GetStringMap("hostprofiler"); len(raw) > 0 {
-		if err := mapstructure.Decode(raw, &hostProfilerConfig); err != nil {
-			log.Warnf("Failed to decode host_profiler config: %v", err)
-		}
+	// Read hostprofiler fields from leaf keys directly. GetStringMap on the parent
+	// key ("hostprofiler") returns defaults instead of env var overrides, so
+	// mapstructure.Decode on the parent map silently drops env-var-set values.
+	hostProfilerConfig := hostProfilerConfig{
+		DebugVerbosity:        config.GetString("hostprofiler.debug.verbosity"),
+		AdditionalHTTPHeaders: config.GetStringMapString("hostprofiler.additional_http_headers"),
 	}
 
 	return configManager{

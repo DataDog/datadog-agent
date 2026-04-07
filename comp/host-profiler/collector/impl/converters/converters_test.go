@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux && test
+//go:build test
 
 package converters
 
@@ -346,7 +346,7 @@ func TestConverterWithoutAgentPreservesExpandedValues(t *testing.T) {
 		"service": confMap{
 			"pipelines": confMap{
 				"profiles": confMap{
-					"receivers":  []any{"hostprofiler"},
+					"receivers":  []any{"profiling"},
 					"processors": []any{},
 					"exporters":  []any{"otlphttp"},
 				},
@@ -360,7 +360,7 @@ func TestConverterWithoutAgentPreservesExpandedValues(t *testing.T) {
 			},
 		},
 		"receivers": confMap{
-			"hostprofiler": confMap{
+			"profiling": confMap{
 				"symbol_uploader": confMap{
 					"enabled": false,
 				},
