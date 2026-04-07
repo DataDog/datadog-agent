@@ -1,5 +1,3 @@
-//go:build !test
-
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
@@ -11,25 +9,39 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	aperrorpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/errorcode"
 	privateactionspb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
 )
 
+// NewTaskVerifier returns a TaskVerifier appropriate for the current environment.
+// When DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION=true, a no-op verifier is returned for e2e tests.
+func NewTaskVerifier(keysManager KeysManager, cfg *config.Config) TaskVerifier {
+	if os.Getenv(app.InternalSkipTaskVerificationEnvVar) == "true" {
+		return &noOpTaskVerifier{}
+	}
+	return &signedEnvelopeTaskVerifier{keysManager: keysManager, config: cfg}
+}
+
+// noOpTaskVerifier passes tasks through without signature validation.
+// Used only when DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION=true.
+type noOpTaskVerifier struct{}
+
+func (n *noOpTaskVerifier) UnwrapTask(task *types.Task) (*types.Task, error) {
+	return task, nil
+}
+
 type signedEnvelopeTaskVerifier struct {
 	keysManager KeysManager
 	config      *config.Config
-}
-
-// NewTaskVerifier returns a TaskVerifier that validates the signed envelope and verifies the task signature.
-func NewTaskVerifier(keysManager KeysManager, cfg *config.Config) TaskVerifier {
-	return &signedEnvelopeTaskVerifier{keysManager: keysManager, config: cfg}
 }
 
 // UnwrapTask extracts and validates the task from its signed envelope.
