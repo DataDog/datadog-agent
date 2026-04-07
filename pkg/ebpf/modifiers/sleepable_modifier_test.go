@@ -20,6 +20,7 @@ import (
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/unix"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -373,12 +374,18 @@ func TestSleepableModifierTelemetryRemapping(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Trigger the fexit probe via a direct open(2) syscall.
+	// Trigger the fexit probe via a direct syscall.
 	// The BPF program reads from 0xdeadbeef via bpf_probe_read_user_with_telemetry,
 	// which fails with EFAULT. After the sleepable modifier replaces it with
 	// bpf_copy_from_user, the telemetry should report the error under bpf_copy_from_user.
 	path, _ := syscall.BytePtrFromString("/dev/null")
-	syscall.Syscall(syscall.SYS_OPEN, uintptr(unsafe.Pointer(path)), syscall.O_RDONLY, 0)
+	if runtime.GOARCH == "arm64" {
+		// arm64 doesn't have open(2), use openat(2) with AT_FDCWD
+		dirfd := unix.AT_FDCWD
+		syscall.Syscall6(syscall.SYS_OPENAT, uintptr(dirfd), uintptr(unsafe.Pointer(path)), syscall.O_RDONLY, 0, 0, 0)
+	} else {
+		syscall.Syscall(syscall.SYS_OPEN, uintptr(unsafe.Pointer(path)), syscall.O_RDONLY, 0)
+	}
 
 	ch := make(chan prometheus.Metric)
 	go func() {

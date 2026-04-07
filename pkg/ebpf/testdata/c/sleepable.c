@@ -83,7 +83,7 @@ int BPF_PROG(test_telemetry_x64, const struct pt_regs* regs, long ret) {
 }
 
 
-SEC("fexit/__arm64_sys_open")
+SEC("fexit/__arm64_sys_openat")
 int BPF_PROG(test_telemetry_arm64, struct pt_regs* regs, long ret) {
     char buf[16];
     bpf_probe_read_user_with_telemetry(&buf, sizeof(buf), (void *)0xdeadbeef);
