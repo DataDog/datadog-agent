@@ -124,7 +124,7 @@ func TestResolveImageNameFromContainerError(t *testing.T) {
 	assert := assert.New(t)
 
 	// This returns a nil client because the transport verification fails
-	cli, _ := client.NewClientWithOpts(client.FromEnv)
+	cli, _ := client.New(client.FromEnv)
 
 	globalDockerUtil = &DockerUtil{
 		cfg:            &Config{CollectNetwork: false},

@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moby/moby/api/types/container"
 	"github.com/google/go-cmp/cmp"
+	"github.com/moby/moby/api/types/container"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 

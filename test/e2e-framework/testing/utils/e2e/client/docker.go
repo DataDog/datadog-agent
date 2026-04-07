@@ -58,10 +58,9 @@ func NewDocker(t *testing.T, dockerOutput docker.ManagerOutput) (*Docker, error)
 
 	opts := []client.Opt{
 		client.WithDialContext(helper.Dialer),
-		client.WithAPIVersionNegotiation(),
 	}
 
-	client, err := client.NewClientWithOpts(opts...)
+	client, err := client.New(opts...)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create docker client: %w", err)
 	}

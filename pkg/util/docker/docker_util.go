@@ -80,7 +80,7 @@ func (d *DockerUtil) init() error {
 
 // ConnectToDocker connects to docker and negotiates the API version
 func ConnectToDocker(ctx context.Context) (*client.Client, error) {
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	cli, err := client.New(client.FromEnv)
 	if err != nil {
 		return nil, err
 	}

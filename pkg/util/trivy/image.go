@@ -18,11 +18,11 @@ import (
 	"sync"
 	"time"
 
-	dimage "github.com/moby/moby/api/types/image"
-	"github.com/moby/moby/client"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/tarball"
 	dockerspec "github.com/moby/docker-image-spec/specs-go/v1"
+	dimage "github.com/moby/moby/api/types/image"
+	"github.com/moby/moby/client"
 	"github.com/samber/lo"
 
 	"github.com/DataDog/datadog-agent/pkg/sbom/telemetry"
@@ -127,9 +127,9 @@ func (img *image) ConfigFile() (*v1.ConfigFile, error) {
 	}
 
 	return &v1.ConfigFile{
-		Architecture: img.inspect.Architecture,
-		Author:       img.inspect.Author,
-		Created:      v1.Time{Time: created},
+		Architecture:  img.inspect.Architecture,
+		Author:        img.inspect.Author,
+		Created:       v1.Time{Time: created},
 		DockerVersion: "", // DockerVersion was removed from image.InspectResponse in Docker SDK v29
 		Config:        img.imageConfig(img.inspect.Config),
 		History:       img.history,
