@@ -1,6 +1,7 @@
 import glob
 import json
 import os
+import random
 import re
 import shlex
 import shutil
@@ -13,7 +14,6 @@ from tasks.libs.common.color import Color, color_message
 
 SCENARIOS = ["213_pagerduty", "353_postmark", "food_delivery_redis"]
 
-
 # Maps short scenario names to episode names used in runs.jsonl
 SCENARIO_EPISODE_NAMES = {
     "213_pagerduty": "213_PagerDuty_June_2014_Outage",
@@ -23,6 +23,20 @@ SCENARIO_EPISODE_NAMES = {
 
 S3_BUCKET = "qbranch-gensim-recordings"
 AWS_PROFILE = "sso-agent-sandbox-account-admin"
+
+# All available detectors and correlators for ablation / combination search.
+# passthrough is intentionally excluded: it is designed for TP scoring (eval_tp),
+# not for Gaussian F1 eval (eval_scenarios / eval_combinations).
+DETECTORS = ["bocpd", "cusum", "rrcf", "scanmw", "scanwelch"]
+CORRELATORS = ["cross_signal", "time_cluster"]
+
+# Log metrics extractors (component_catalog extractors). Not part of the random
+# ablation grid: eval_combinations always enables all of them unless force-disabled.
+EXTRACTORS = [
+    "log_metrics_extractor",
+    "connection_error_extractor",
+    "log_pattern_extractor",
+]
 
 
 # --- Build ---
@@ -50,25 +64,42 @@ def eval_scenarios(
     scenarios_dir: str = "./comp/observer/scenarios",
     sigma: float = 30.0,
     only: str = "",
-):
+    build: bool = True,
+    main_report_path: str = "/tmp/observer-eval-main-report.json",
+    config: str = "",
+    scenario_output_dir: str = "/tmp",
+) -> dict[str, object]:
     """
     Runs the observer F1 eval: replays scenarios, scores Gaussian F1.
+
+    > The main score this function produces with the default parameters is the source of truth for our accuracy.
+    > The main score is a metric between 0 and 1, 1 being the best.
 
     Uses testbench --only to control which components are active.
     Default (no --only): uses testbench defaults (bocpd,rrcf,time_cluster + other default-enabled components).
     With --only: enables ONLY listed components + extractors, disables everything else.
       time_cluster is auto-added if not specified.
+    With --config: JSON params file for testbench; overrides --only when both are set.
 
     Examples:
         dda inv q.eval-scenarios                            # defaults
         dda inv q.eval-scenarios --only scanmw              # scanmw + time_cluster (auto)
         dda inv q.eval-scenarios --only bocpd,time_cluster  # explicit
+        dda inv q.eval-scenarios --config /tmp/params.json  # Bayesian / custom params
 
     Args:
         scenario: Run a single scenario (e.g. "213_pagerduty"). Default: all scenarios.
         scenarios_dir: Directory containing scenario subdirectories.
         sigma: Gaussian width in seconds for scoring.
         only: Comma-separated components to enable (passed as --only to testbench). Auto-adds time_cluster.
+        build: Whether to build the observer-testbench and observer-scorer binaries.
+        main_report_path: Path for the aggregated JSON report.
+        config: Path to observer-testbench JSON params file (--config). Empty: omit flag.
+        scenario_output_dir: Directory where per-scenario testbench JSON outputs are written.
+            Defaults to /tmp. Set to a combo-specific folder to keep outputs co-located.
+
+    Returns:
+        Main report dict with ``score`` and per-scenario ``metadata``.
     """
     only_flag = ""
     if only:
@@ -77,10 +108,15 @@ def eval_scenarios(
         only_flag = ",".join(sorted(components))
         print(color_message(f"Only: {only_flag}", Color.BLUE))
 
-    print(color_message("Building observer-testbench...", Color.BLUE))
-    ctx.run("go build -o bin/observer-testbench ./cmd/observer-testbench", hide=True)
-    print(color_message("Building observer-scorer...", Color.BLUE))
-    ctx.run("go build -o bin/observer-scorer ./cmd/observer-scorer", hide=True)
+    config_obj = None
+    if config:
+        print(color_message(f"Config: {config}", Color.BLUE))
+        with open(config) as f:
+            config_obj = json.load(f)
+
+    if build:
+        build_testbench(ctx)
+        build_scorer(ctx)
 
     scenarios_to_run = [scenario] if scenario else SCENARIOS
 
@@ -96,14 +132,15 @@ def eval_scenarios(
                 print(color_message(f"Skipping {name} — no parquet data at {parquet_dir}", Color.ORANGE))
                 continue
 
-        output_path = f"/tmp/observer-eval-{name}.json"
-        print(color_message(f"\n{'='*60}", Color.BLUE))
+        output_path = os.path.join(scenario_output_dir, f"observer-eval-{name}.json")
+        print(color_message(f"\n{'=' * 60}", Color.BLUE))
         print(color_message(f"  {name}", Color.BLUE))
-        print(color_message(f"{'='*60}", Color.BLUE))
+        print(color_message(f"{'=' * 60}", Color.BLUE))
 
         only_part = f" --only {shlex.quote(only_flag)}" if only_flag else ""
+        config_part = f" --config {shlex.quote(config)}" if config else ""
         ctx.run(
-            f"bin/observer-testbench --headless {shlex.quote(name)} --output {shlex.quote(output_path)} --scenarios-dir {shlex.quote(scenarios_dir)}{only_part}"
+            f"bin/observer-testbench --headless {shlex.quote(name)} --output {shlex.quote(output_path)} --scenarios-dir {shlex.quote(scenarios_dir)}{only_part}{config_part}"
         )
 
         if not os.path.isfile(output_path):
@@ -135,9 +172,9 @@ def eval_scenarios(
 
     # Print summary table
     if results:
-        print(color_message(f"\n{'='*60}", Color.GREEN))
+        print(color_message(f"\n{'=' * 60}", Color.GREEN))
         print(color_message("  Observer Eval Summary", Color.GREEN))
-        print(color_message(f"{'='*60}\n", Color.GREEN))
+        print(color_message(f"{'=' * 60}\n", Color.GREEN))
 
         # Header
         header = f"{'Scenario':<25}  {'F1':>6}  {'Precision':>9}  {'Recall':>6}  {'Alpha':>7}  {'Scored':>6}  {'Baseline FPs':>12}  {'Warmup (excl)':>13}  {'Cascading (excl)':>16}"
@@ -166,10 +203,25 @@ def eval_scenarios(
 
         print(f"\nOutput JSONs: /tmp/observer-eval-*.json (sigma={sigma}s)")
 
+    # Create main report
+    main_score = sum(r["f1"] for r in results) / len(results)
+    main_report = {"score": main_score, "metadata": {r["name"]: r for r in results}, "component_configs": config_obj}
+    with open(main_report_path, "w") as f:
+        json.dump(main_report, f, indent=4)
+    print(f"Saved main report to {main_report_path}")
+    print(color_message(f"Main score: {main_score * 100:.1f}%", Color.GREEN))
+
+    return main_report
+
 
 @task
 def eval_tp(
-    ctx, scenario: str = "", scenarios_dir: str = "./comp/observer/scenarios", sigma: float = 30.0, only: str = ""
+    ctx,
+    scenario: str = "",
+    scenarios_dir: str = "./comp/observer/scenarios",
+    sigma: float = 30.0,
+    only: str = "",
+    build: bool = True,
 ):
     """
     Runs TP metric scoring: replays scenarios with passthrough correlator and scores
@@ -198,10 +250,9 @@ def eval_tp(
 
     print(color_message(f"Only: {only_flag}", Color.BLUE))
 
-    print(color_message("Building observer-testbench...", Color.BLUE))
-    ctx.run("go build -o bin/observer-testbench ./cmd/observer-testbench", hide=True)
-    print(color_message("Building observer-scorer...", Color.BLUE))
-    ctx.run("go build -o bin/observer-scorer ./cmd/observer-scorer", hide=True)
+    if build:
+        build_testbench(ctx)
+        build_scorer(ctx)
 
     scenarios_to_run = [scenario] if scenario else SCENARIOS
 
@@ -217,9 +268,9 @@ def eval_tp(
                 continue
 
         output_path = f"/tmp/observer-eval-{name}-tp.json"
-        print(color_message(f"\n{'='*60}", Color.BLUE))
+        print(color_message(f"\n{'=' * 60}", Color.BLUE))
         print(color_message(f"  {name}", Color.BLUE))
-        print(color_message(f"{'='*60}", Color.BLUE))
+        print(color_message(f"{'=' * 60}", Color.BLUE))
 
         ctx.run(
             f"bin/observer-testbench --headless {shlex.quote(name)} --output {shlex.quote(output_path)}"
@@ -251,9 +302,9 @@ def eval_tp(
         results.append({"name": name, **score})
 
     if results:
-        print(color_message(f"\n{'='*60}", Color.GREEN))
+        print(color_message(f"\n{'=' * 60}", Color.GREEN))
         print(color_message("  Observer TP Eval Summary", Color.GREEN))
-        print(color_message(f"{'='*60}\n", Color.GREEN))
+        print(color_message(f"{'=' * 60}\n", Color.GREEN))
 
         header = f"{'Scenario':<25}  {'M F1':>6}  {'M Prec':>7}  {'M Rec':>6}  {'TP':>4}  {'Unk':>5}  {'Found':>5}  {'Missed':>6}"
         print(header)
@@ -283,6 +334,305 @@ def eval_tp(
                 print(f"    [{d['classification']}] {d['service']}/{d['metric']}: {status}")
 
         print("\nOutput JSONs: /tmp/observer-eval-*-tp.json")
+
+
+# --- Combination search ---
+
+
+def _full_stack_combo(force_disable: list | None = None) -> dict:
+    """All detectors and correlators not in force_disable (for eval baseline)."""
+    fd = set(force_disable or [])
+    return {
+        "detectors": sorted(d for d in DETECTORS if d not in fd),
+        "correlators": sorted(c for c in CORRELATORS if c not in fd),
+    }
+
+
+# TODO(celian): Add heuristics to prioritize combinations that are more likely to be useful.
+def random_component_combinations(
+    n: int,
+    seed: int = None,
+    force_enable: list = None,
+    force_disable: list = None,
+    exclude_combo_keys: set | None = None,
+) -> list:
+    """
+    Generate up to n distinct random component combinations, each guaranteed to
+    contain at least 1 detector (from DETECTORS) and 1 correlator (from CORRELATORS).
+
+    Args:
+        n: Target number of distinct combinations to generate.
+        seed: Random seed for reproducibility (None = non-deterministic).
+        force_enable: Components always present in every combination.
+        force_disable: Components never present in any combination (removed from pool).
+        exclude_combo_keys: Optional set of (tuple(detectors), tuple(correlators)) keys
+            to skip (e.g. the full-stack combo reserved for combo_000).
+
+    Returns:
+        List of dicts: {"detectors": [...], "correlators": [...]}
+        May be shorter than n if the combinatorial space is exhausted.
+    """
+    force_enable = set(force_enable or [])
+    force_disable = set(force_disable or [])
+
+    det_pool = [d for d in DETECTORS if d not in force_disable]
+    cor_pool = [c for c in CORRELATORS if c not in force_disable]
+    forced_dets = sorted(d for d in force_enable if d in DETECTORS)
+    forced_cors = sorted(c for c in force_enable if c in CORRELATORS)
+
+    # After forcing, we need at least one detector and one correlator in each combo.
+    # If force_enable already covers a category, the random part for that category
+    # can be empty; otherwise sample at least 1 from the remaining pool.
+    rng = random.Random(seed)
+    combos = []
+    seen: set = set(exclude_combo_keys or [])
+    max_attempts = n * 100
+    attempts = 0
+    while len(combos) < n and attempts < max_attempts:
+        attempts += 1
+
+        # Random detectors from the pool (excluding forced, which are added back below)
+        free_det_pool = [d for d in det_pool if d not in force_enable]
+        if forced_dets:
+            # forced already satisfies the ≥1 detector requirement
+            extra_dets = sorted(rng.sample(free_det_pool, rng.randint(0, len(free_det_pool)))) if free_det_pool else []
+        else:
+            if not free_det_pool:
+                break  # no detectors available at all
+            extra_dets = sorted(rng.sample(free_det_pool, rng.randint(1, len(free_det_pool))))
+        dets = sorted(set(forced_dets + extra_dets))
+
+        free_cor_pool = [c for c in cor_pool if c not in force_enable]
+        if forced_cors:
+            extra_cors = sorted(rng.sample(free_cor_pool, rng.randint(0, len(free_cor_pool)))) if free_cor_pool else []
+        else:
+            if not free_cor_pool:
+                break  # no correlators available at all
+            extra_cors = sorted(rng.sample(free_cor_pool, rng.randint(1, len(free_cor_pool))))
+        cors = sorted(set(forced_cors + extra_cors))
+
+        key = (tuple(dets), tuple(cors))
+        if key in seen:
+            continue
+        seen.add(key)
+        combos.append({"detectors": dets, "correlators": cors})
+    if attempts >= max_attempts:
+        print(
+            color_message(
+                f"Warning: Only generated {len(combos)} unique combinations (max attempts={max_attempts})", Color.ORANGE
+            )
+        )
+    return combos
+
+
+def _combo_to_config(
+    detectors: list,
+    correlators: list,
+    force_disable: list | None = None,
+) -> dict:
+    """
+    Build a testbench JSON params config enabling exactly the listed detectors
+    and correlators, explicitly disabling all other detectors/correlators.
+
+    All EXTRACTORS are enabled unless listed in force_disable (explicit
+    ``{"enabled": false}`` so ablation stays stable if catalog defaults change).
+
+    The config follows the TestbenchParamsFile format consumed by --config:
+        {"components": {"bocpd": {"enabled": true}, "rrcf": {"enabled": false}, ...}}
+    """
+    force_disable_set = set(force_disable or [])
+    enabled_set = set(detectors + correlators)
+    components = {}
+    for name in DETECTORS + CORRELATORS:
+        components[name] = {"enabled": name in enabled_set}
+    for name in EXTRACTORS:
+        components[name] = {"enabled": name not in force_disable_set}
+    return {"components": components}
+
+
+@task
+def eval_combinations(
+    ctx,
+    n: int = 10,
+    output_dir: str = "/tmp/observer-eval-combinations",
+    scenarios_dir: str = "./comp/observer/scenarios",
+    sigma: float = 30.0,
+    seed: int = None,
+    build: bool = True,
+    force_enable: str = "",
+    force_disable: str = "",
+):
+    """
+    Run Gaussian F1 eval on n component combinations and rank them.
+
+    The first combination (combo_000) always enables every detector and
+    correlator not listed in --force-disable (full stack). Remaining
+    combinations are random: each has at least 1 detector and 1 correlator.
+    All EXTRACTORS are enabled in each combo unless named in --force-disable.
+    A JSON config file is written per combination so enabled/disabled state is
+    precise (no auto-add side effects from --only).
+
+    Output layout:
+        <output_dir>/combo_NNN/config.json   - exact component config used
+        <output_dir>/combo_NNN/report.json   - per-scenario F1 scores
+        <output_dir>/report.json             - all combos ranked by score, plus best_combination
+
+    Args:
+        n: Total combinations to evaluate: one full-stack plus (n - 1) random
+            (default: 10). Use n=1 for only the full-stack baseline.
+        output_dir: Root directory for per-combo results and summary. If this
+            path already exists, it is removed first.
+        scenarios_dir: Directory containing scenario subdirectories.
+        sigma: Gaussian width in seconds for F1 scoring.
+        seed: Random seed for reproducibility (default: None = random).
+        build: Whether to build observer-testbench and observer-scorer first.
+        force_enable: Comma-separated components always present in every combination.
+        force_disable: Comma-separated components never included in any combination
+            (detectors/correlators removed from the random pool; extractors in
+            EXTRACTORS are disabled in the written config when listed here).
+
+    Examples:
+        dda inv q.eval-combinations --n 20 --seed 42
+        dda inv q.eval-combinations --n 5 --output-dir /tmp/ablation
+        dda inv q.eval-combinations --n 10 --force-enable bocpd --force-disable scanmw,scanwelch
+    """
+    if os.path.exists(output_dir):
+        shutil.rmtree(output_dir)
+    os.makedirs(output_dir)
+
+    if build:
+        build_testbench(ctx)
+        build_scorer(ctx)
+
+    if seed is None:
+        seed = random.randint(0, 2**32 - 1)
+
+    force_enable_list = [c.strip() for c in force_enable.split(",") if c.strip()]
+    force_disable_list = [c.strip() for c in force_disable.split(",") if c.strip()]
+
+    if force_enable_list:
+        print(color_message(f"Force-enabled:  {', '.join(force_enable_list)}", Color.BLUE))
+    if force_disable_list:
+        print(color_message(f"Force-disabled: {', '.join(force_disable_list)}", Color.BLUE))
+
+    full_combo = _full_stack_combo(force_disable_list)
+    full_key = (tuple(full_combo["detectors"]), tuple(full_combo["correlators"]))
+    random_count = max(0, n - 1)
+    random_combos = random_component_combinations(
+        random_count,
+        seed=seed,
+        force_enable=force_enable_list,
+        force_disable=force_disable_list,
+        exclude_combo_keys={full_key},
+    )
+    combos = [full_combo] + random_combos
+    print(
+        color_message(
+            f"combo_000 = full stack; plus {len(random_combos)} random (seed={seed}, total={len(combos)})",
+            Color.BLUE,
+        )
+    )
+
+    summary_results = []
+    for i, combo in enumerate(combos):
+        combo_label = f"combo_{i:03d}"
+        combo_dir = os.path.join(output_dir, combo_label)
+        os.makedirs(combo_dir, exist_ok=True)
+
+        config_data = _combo_to_config(combo["detectors"], combo["correlators"], force_disable=force_disable_list)
+        config_path = os.path.join(combo_dir, "config.json")
+        with open(config_path, "w") as f:
+            json.dump(config_data, f, indent=4)
+
+        print(color_message(f"\n{'=' * 60}", Color.BLUE))
+        combo_title = f"{combo_label} (full stack)" if i == 0 else combo_label
+        print(color_message(f"  [{i + 1}/{len(combos)}] {combo_title}", Color.BLUE))
+        print(color_message(f"  detectors:   {', '.join(combo['detectors'])}", Color.BLUE))
+        print(color_message(f"  correlators: {', '.join(combo['correlators'])}", Color.BLUE))
+        ext_on = [e for e in EXTRACTORS if e not in force_disable_list]
+        print(color_message(f"  extractors:  {', '.join(ext_on)}", Color.BLUE))
+        print(color_message(f"{'=' * 60}", Color.BLUE))
+
+        scenario_output_dir = os.path.join(combo_dir, "scenarios")
+        os.makedirs(scenario_output_dir, exist_ok=True)
+
+        report_path = os.path.join(combo_dir, "report.json")
+        try:
+            report = eval_scenarios(
+                ctx,
+                scenarios_dir=scenarios_dir,
+                sigma=sigma,
+                config=config_path,
+                build=False,
+                main_report_path=report_path,
+                scenario_output_dir=scenario_output_dir,
+            )
+        except Exception as e:
+            print(color_message(f"eval_scenarios failed for {combo_label}: {e}", Color.RED))
+            report = None
+
+        if report is not None:
+            summary_results.append(
+                {
+                    "rank": 0,
+                    "combo": combo_label,
+                    "score": report.get("score", 0.0),
+                    "detectors": combo["detectors"],
+                    "correlators": combo["correlators"],
+                    "report_path": report_path,
+                    "config_path": config_path,
+                }
+            )
+
+    summary_results.sort(key=lambda x: x["score"], reverse=True)
+    for rank, r in enumerate(summary_results, 1):
+        r["rank"] = rank
+
+    if summary_results:
+        print(color_message(f"\n{'=' * 70}", Color.GREEN))
+        print(color_message("  Combinations Eval Summary", Color.GREEN))
+        print(color_message(f"{'=' * 70}\n", Color.GREEN))
+        header = f"{'Rank':<5}  {'Score':>6}  {'Detectors':<35}  Correlators"
+        print(header)
+        print("-" * 80)
+        for r in summary_results:
+            print(f"{r['rank']:<5}  {r['score']:>6.4f}  {', '.join(r['detectors']):<35}  {', '.join(r['correlators'])}")
+
+        best = summary_results[0]
+        print(color_message(f"\n{'=' * 70}", Color.GREEN))
+        print(color_message(f"  Best combination: {best['combo']}  (score={best['score']:.4f})", Color.GREEN))
+        print(color_message(f"    detectors:   {', '.join(best['detectors'])}", Color.GREEN))
+        print(color_message(f"    correlators: {', '.join(best['correlators'])}", Color.GREEN))
+        print(color_message(f"    config:      {best['config_path']}", Color.GREEN))
+        print(color_message(f"    report:      {best['report_path']}", Color.GREEN))
+        print(color_message(f"{'=' * 70}", Color.GREEN))
+
+    scores = [r["score"] for r in summary_results]
+    max_score = max(scores) if scores else 0.0
+    avg_score = sum(scores) / len(scores) if scores else 0.0
+    best_combination = summary_results[0] if summary_results else None
+
+    report_path = os.path.join(output_dir, "report.json")
+    with open(report_path, "w") as f:
+        json.dump(
+            {
+                "score": max_score,
+                "avg_eval_score": avg_score,
+                "seed": seed,
+                "force_enable": force_enable_list,
+                "force_disable": force_disable_list,
+                "combos": summary_results,
+                "best_combination": best_combination,
+            },
+            f,
+            indent=4,
+        )
+    print(color_message(f"\nReport: {report_path}", Color.GREEN))
+    print(color_message(f"  score (max):      {max_score:.4f}", Color.GREEN))
+    print(color_message(f"  avg_eval_score:   {avg_score:.4f}", Color.GREEN))
+    print(color_message(f"Per-combo reports: {output_dir}/combo_*/report.json", Color.GREEN))
+
+    return summary_results
 
 
 def _resolve_zip_from_runs_jsonl(ctx, name):
@@ -342,7 +692,7 @@ def _ensure_parquets(ctx, name, parquet_dir):
     if not zip_key:
         print(
             color_message(
-                f"No recording found for '{name}' in runs.jsonl. " f"Run a gensim-eks episode to produce one.",
+                f"No recording found for '{name}' in runs.jsonl. Run a gensim-eks episode to produce one.",
                 Color.RED,
             )
         )
@@ -354,7 +704,7 @@ def _ensure_parquets(ctx, name, parquet_dir):
 
     try:
         result = ctx.run(
-            f"aws-vault exec {AWS_PROFILE} -- aws s3 cp " f"s3://{S3_BUCKET}/{zip_key} {shlex.quote(tmp_path)}",
+            f"aws-vault exec {AWS_PROFILE} -- aws s3 cp s3://{S3_BUCKET}/{zip_key} {shlex.quote(tmp_path)}",
             warn=True,
         )
         if result is None or result.failed:
@@ -610,9 +960,9 @@ def _print_benchmark_summary(output):
     if not groups:
         return
 
-    print(color_message(f"\n{'='*65}", Color.GREEN))
+    print(color_message(f"\n{'=' * 65}", Color.GREEN))
     print(color_message("  Observer Benchmark Summary", Color.GREEN))
-    print(color_message(f"{'='*65}\n", Color.GREEN))
+    print(color_message(f"{'=' * 65}\n", Color.GREEN))
 
     for family, rows in groups.items():
         print(color_message(family, Color.BLUE))
