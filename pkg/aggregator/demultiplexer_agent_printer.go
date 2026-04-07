@@ -60,8 +60,8 @@ func (p AgentDemultiplexerPrinter) PrintMetrics(checkFileOutput *bytes.Buffer, f
 				tablewriter.WithPadding(tw.Padding{Left: "\t", Right: ""}),
 			)
 			table.Header(headers)
-			table.Bulk(data)
-			table.Render()
+			_ = table.Bulk(data)
+			_ = table.Render()
 			fmt.Println(buffer.String())
 			checkFileOutput.WriteString(buffer.String() + "\n")
 		} else {
@@ -103,8 +103,8 @@ func (p AgentDemultiplexerPrinter) PrintMetrics(checkFileOutput *bytes.Buffer, f
 				tablewriter.WithPadding(tw.Padding{Left: "\t", Right: ""}),
 			)
 			table.Header(headers)
-			table.Bulk(data)
-			table.Render()
+			_ = table.Bulk(data)
+			_ = table.Render()
 			fmt.Println(buffer.String())
 			checkFileOutput.WriteString(buffer.String() + "\n")
 		} else {
