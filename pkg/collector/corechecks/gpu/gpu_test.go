@@ -959,6 +959,7 @@ func setupMockCheckForMetricCollection(t *testing.T, archName string, mode gpusp
 
 	// Iterate all GPUs from workloadmeta and set the tags in the tagger
 	wmetaGpus := wmeta.ListGPUs()
+	require.Len(t, wmetaGpus, 1, "expected 1 GPU")
 	for _, gpu := range wmetaGpus {
 		tags := taglist.NewTagList()
 		taggercollectors.ExtractGPUTags(gpu, tags)
