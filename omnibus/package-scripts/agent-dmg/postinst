@@ -153,16 +153,14 @@ echo "# Installing agent as system-wide LaunchDaemon"
 cp -vf "$CONF_DIR/com.datadoghq.agent.plist.example" /Library/LaunchDaemons/com.datadoghq.agent.plist
 chown root:wheel /Library/LaunchDaemons/com.datadoghq.agent.plist
 chmod 644 /Library/LaunchDaemons/com.datadoghq.agent.plist
-launchctl load -w /Library/LaunchDaemons/com.datadoghq.agent.plist
-launchctl kickstart system/com.datadoghq.agent
+launchctl bootstrap system /Library/LaunchDaemons/com.datadoghq.agent.plist || true
 
 # Install system-probe as system-wide LaunchDaemon
 echo "# Installing system-probe as system-wide LaunchDaemon"
 cp -vf "$CONF_DIR/com.datadoghq.sysprobe.plist.example" /Library/LaunchDaemons/com.datadoghq.sysprobe.plist
 chown root:wheel /Library/LaunchDaemons/com.datadoghq.sysprobe.plist
 chmod 644 /Library/LaunchDaemons/com.datadoghq.sysprobe.plist
-launchctl load -w /Library/LaunchDaemons/com.datadoghq.sysprobe.plist
-launchctl kickstart system/com.datadoghq.sysprobe
+launchctl bootstrap system /Library/LaunchDaemons/com.datadoghq.sysprobe.plist || true
 
 # Install GUI LaunchAgent for all users (system-wide)
 echo "# Configuring GUI app for system-wide installation"
@@ -183,7 +181,7 @@ CONSOLE_USER=$(stat -f '%Su' /dev/console 2>/dev/null || echo 'root')
 CONSOLE_USER_UID=$(id -u "$CONSOLE_USER" 2>/dev/null)
 if [ -n "$CONSOLE_USER_UID" ] && sudo -u "$CONSOLE_USER" launchctl managername 2>/dev/null | grep -q "Aqua"; then
     echo "# Loading GUI app for $CONSOLE_USER"
-    sudo -Hu "$CONSOLE_USER" launchctl load -w /Library/LaunchAgents/com.datadoghq.gui.plist
+    launchctl bootstrap "gui/$CONSOLE_USER_UID" /Library/LaunchAgents/com.datadoghq.gui.plist || true
 else
     echo "# No GUI session detected; GUI app will launch at next user login"
 fi

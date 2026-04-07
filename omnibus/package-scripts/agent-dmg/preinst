@@ -118,8 +118,8 @@ if [ -e "$CONF_DIR/datadog.yaml" ]; then
     datadog-agent version || true
 
     echo '# Stopping running services'
-    launchctl unload -wF /Library/LaunchDaemons/com.datadoghq.agent.plist 2>/dev/null || true
-    launchctl unload -wF /Library/LaunchDaemons/com.datadoghq.sysprobe.plist 2>/dev/null || true
+    launchctl bootout system/com.datadoghq.agent 2>/dev/null || true
+    launchctl bootout system/com.datadoghq.sysprobe 2>/dev/null || true
     rm -f /Library/LaunchDaemons/com.datadoghq.sysprobe.plist
 
     # Stop GUI for all logged-in users

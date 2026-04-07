@@ -229,6 +229,7 @@ or by opening the webui using the \"datadog-agent launch-gui\" command.
 ${NC}"
 
 printf "${GREEN}
-If you ever want to stop the Agent, please use the launchctl command.
+To stop the Agent:  sudo launchctl kill SIGTERM system/com.datadoghq.agent
+To start the Agent: sudo launchctl kickstart system/com.datadoghq.agent
 The Agent will start automatically at system startup.
 ${NC}"
