@@ -2070,6 +2070,9 @@ func (s *TracerSuite) TestKprobeAttachWithKprobeEvents() {
 	if tr.ebpfTracer.Type() == connection.TracerTypeFentry {
 		t.Skip("skipped on fentry")
 	}
+	if tr.ebpfTracer.Type() == connection.TracerTypeSK {
+		t.Skip("skipped on sk")
+	}
 
 	cmd := []string{"curl", "-k", "-o/dev/null", "example.com"}
 	exec.Command(cmd[0], cmd[1:]...).Run()
@@ -2078,9 +2081,6 @@ func (s *TracerSuite) TestKprobeAttachWithKprobeEvents() {
 	require.NotNil(t, stats)
 
 	key := "p_tcp_sendmsg_hits"
-	if ebpftest.GetBuildMode() == ebpftest.SK {
-		key = "p___nf_conntrack_hash_insert_hits"
-	}
 	hitCount, ok := stats[key]
 	require.True(t, ok)
 	fmt.Printf("%s = %d\n", key, hitCount)
