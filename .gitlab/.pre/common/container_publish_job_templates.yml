@@ -7,14 +7,33 @@
   SRC_OTEL_AGENT: registry.ddbuild.io/ci/datadog-agent/otel-agent
   SRC_DDOT_EBPF: registry.ddbuild.io/ci/datadog-agent/ddot-ebpf
 
+# Computes the agent version string without dda.
+# Reads current_milestone from release.json and appends git metadata.
+# Output matches dda inv -- agent.version --url-safe --pipeline-id.
+.agent_version_script: &agent_version_script
+  - |
+    MILESTONE=$(python3 -c "import json; print(json.load(open('release.json'))['current_milestone'])")
+    COMMIT_COUNT=$(git rev-list --count HEAD)
+    SHORT_SHA=$(git rev-parse --short=7 HEAD)
+    # On main/RC branches dda uses "devel", on other branches it uses the branch slug
+    if [[ "${CI_COMMIT_BRANCH}" == "main" ]] || [[ "${CI_COMMIT_TAG}" =~ ^[0-9]+\.[0-9]+\.[0-9]+-rc ]]; then
+      VERSION="${MILESTONE}-devel.git.${COMMIT_COUNT}.${SHORT_SHA}"
+    else
+      BRANCH_SLUG=$(echo "${CI_COMMIT_REF_SLUG}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | head -c 56)
+      VERSION="${MILESTONE}-${BRANCH_SLUG}.git.${COMMIT_COUNT}.${SHORT_SHA}"
+    fi
+
 .docker_publish_job_definition:
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
+  # TODO: pin to semver tag once dd-pkg publish-image is released
+  image: registry.ddbuild.io/agent-delivery/dd-pkg:v106852116-3c888529
   tags: ["arch:amd64", "specific:true"]
   variables:
     <<: *docker_variables
     IMG_VARIABLES: ""
     IMG_SIGNING: "false"
-  script: # We can't use the 'trigger' keyword on manual jobs, otherwise they can't be run if the pipeline fails and is retried
+    # TODO: switch to prod URL once migration is complete
+    ARTIFACT_GATEWAY_URL: "https://artifact-gateway.us1.ddbuild.staging.dog/internal/artifact-gateway"
+  script:
     - |
       if [[ "$BUCKET_BRANCH" == "nightly" && ( "$IMG_SOURCES" =~ "$SRC_AGENT" || "$IMG_SOURCES" =~ "$SRC_OTEL_AGENT" || "$IMG_SOURCES" =~ "$SRC_DDOT_EBPF" || "$IMG_SOURCES" =~ "$SRC_DCA" || "$IMG_SOURCES" =~ "$SRC_CWS_INSTRUMENTATION" || "$IMG_VARIABLES" =~ "$SRC_AGENT" || "$IMG_VARIABLES" =~ "$SRC_DDOT_EBPF" || "$IMG_VARIABLES" =~ "$SRC_DCA" || "$IMG_VARIABLES" =~ "$SRC_CWS_INSTRUMENTATION" ) ]]; then
         export ECR_RELEASE_SUFFIX="-nightly"
@@ -23,17 +42,4 @@
       fi
     - IMG_VARIABLES="$(sed -E "s#(${SRC_AGENT}|${SRC_OTEL_AGENT}|${SRC_DDOT_EBPF}|${SRC_DSD}|${SRC_DCA}|${SRC_CWS_INSTRUMENTATION})#\1${ECR_RELEASE_SUFFIX}#g" <<<"$IMG_VARIABLES")"
     - IMG_SOURCES="$(sed -E "s#(${SRC_AGENT}|${SRC_OTEL_AGENT}|${SRC_DDOT_EBPF}|${SRC_DSD}|${SRC_DCA}|${SRC_CWS_INSTRUMENTATION})#\1${ECR_RELEASE_SUFFIX}#g" <<<"$IMG_SOURCES")"
-    - "dda inv pipeline.trigger-child-pipeline --project-name DataDog/public-images --git-ref main --timeout 1800
-      --variable IMG_VARIABLES
-      --variable IMG_REGISTRIES
-      --variable IMG_SOURCES
-      --variable IMG_DESTINATIONS
-      --variable IMG_TAG_REFERENCE
-      --variable IMG_NEW_TAGS
-      --variable IMG_SIGNING
-      --variable APPS
-      --variable BAZEL_TARGET
-      --variable DDR
-      --variable DDR_WORKFLOW_ID
-      --variable TARGET_ENV
-      --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS"
+    - dd-pkg publish-image --gateway-url "${ARTIFACT_GATEWAY_URL}" --timeout 1800
