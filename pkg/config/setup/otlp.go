@@ -42,12 +42,14 @@ const (
 
 // OTLP related configuration.
 func OTLP(config pkgconfigmodel.Setup) {
-	config.BindEnv("otlp_config.grpc_port") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // TODO OTLP team: add default value
-	config.BindEnv("otlp_config.http_port") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // TODO OTLP team: add default value
+	// Legacy port keys (unused; 0 = disabled)
+	config.BindEnvAndSetDefault("otlp_config.grpc_port", 0)
+	config.BindEnvAndSetDefault("otlp_config.http_port", 0)
 
 	// NOTE: This only partially works.
 	// The environment variable is also manually checked in comp/otelcol/otlp/config.go
-	config.BindEnvAndSetDefault("otlp_config.metrics.tag_cardinality", "low", "DD_OTLP_TAG_CARDINALITY")
+	config.BindEnvAndSetDefault("otlp_config.metrics.tag_cardinality", "low",
+		"DD_OTLP_CONFIG_METRICS_TAG_CARDINALITY", "DD_OTLP_TAG_CARDINALITY")
 
 	// Logs
 	config.BindEnvAndSetDefault("otlp_config.logs.enabled", false)
@@ -63,45 +65,41 @@ func OTLP(config pkgconfigmodel.Setup) {
 		"DD_OTLP_CONFIG_TRACES_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE")
 	config.BindEnvAndSetDefault("otlp_config.traces.internal_port", 5003)
 
-	// TODO(OTAGENT-378): Fix OTLP ingestion configs so that they can have default values
-	// For now do NOT add default values for any config under otlp_config.receiver, that will force the OTLP ingestion pipelines to always start
+	// Receiver gRPC settings (defaults from OTel otlpreceiver / configgrpc)
+	config.BindEnvAndSetDefault("otlp_config.receiver.protocols.grpc.endpoint", "localhost:4317")
+	config.BindEnvAndSetDefault("otlp_config.receiver.protocols.grpc.transport", "tcp")
+	config.BindEnvAndSetDefault("otlp_config.receiver.protocols.grpc.max_recv_msg_size_mib", 0)
+	config.BindEnvAndSetDefault("otlp_config.receiver.protocols.grpc.max_concurrent_streams", 0)
+	config.BindEnvAndSetDefault("otlp_config.receiver.protocols.grpc.read_buffer_size", 524288)
+	config.BindEnvAndSetDefault("otlp_config.receiver.protocols.grpc.write_buffer_size", 0)
+	config.BindEnvAndSetDefault("otlp_config.receiver.protocols.grpc.include_metadata", false)
+	config.BindEnvAndSetDefault("otlp_config.receiver.protocols.grpc.keepalive.enforcement_policy.min_time", "5m")
 
-	// gRPC settings
-	config.BindEnv("otlp_config.receiver.protocols.grpc.endpoint")                              //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("otlp_config.receiver.protocols.grpc.transport")                             //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("otlp_config.receiver.protocols.grpc.max_recv_msg_size_mib")                 //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("otlp_config.receiver.protocols.grpc.max_concurrent_streams")                //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("otlp_config.receiver.protocols.grpc.read_buffer_size")                      //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("otlp_config.receiver.protocols.grpc.write_buffer_size")                     //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("otlp_config.receiver.protocols.grpc.include_metadata")                      //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("otlp_config.receiver.protocols.grpc.keepalive.enforcement_policy.min_time") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-
-	// HTTP settings
-	config.BindEnv("otlp_config.receiver.protocols.http.endpoint")              //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("otlp_config.receiver.protocols.http.max_request_body_size") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("otlp_config.receiver.protocols.http.include_metadata")      //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("otlp_config.receiver.protocols.http.cors.allowed_headers")  //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("otlp_config.receiver.protocols.http.cors.allowed_origins")  //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	// Receiver HTTP settings (defaults from OTel otlpreceiver / confighttp)
+	config.BindEnvAndSetDefault("otlp_config.receiver.protocols.http.endpoint", "localhost:4318")
+	config.BindEnvAndSetDefault("otlp_config.receiver.protocols.http.max_request_body_size", 0)
+	config.BindEnvAndSetDefault("otlp_config.receiver.protocols.http.include_metadata", false)
+	config.BindEnvAndSetDefault("otlp_config.receiver.protocols.http.cors.allowed_headers", []string{})
+	config.BindEnvAndSetDefault("otlp_config.receiver.protocols.http.cors.allowed_origins", []string{})
 
 	// Metrics settings
-	config.BindEnv("otlp_config.metrics.tags") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // TODO OTLP team: add default value
+	config.BindEnvAndSetDefault("otlp_config.metrics.tags", "")
 	config.BindEnvAndSetDefault("otlp_config.metrics.enabled", true)
-	config.BindEnv("otlp_config.metrics.resource_attributes_as_tags") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // TODO OTLP team: add default value
+	config.BindEnvAndSetDefault("otlp_config.metrics.resource_attributes_as_tags", false)
 	config.BindEnvAndSetDefault("otlp_config.metrics.instrumentation_scope_metadata_as_tags", true)
-	config.BindEnv("otlp_config.metrics.tag_cardinality")                         //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // TODO OTLP team: add default value
-	config.BindEnv("otlp_config.metrics.delta_ttl")                               //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // TODO OTLP team: add default value
-	config.BindEnv("otlp_config.metrics.histograms.mode")                         //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // TODO OTLP team: add default value
-	config.BindEnv("otlp_config.metrics.histograms.send_count_sum_metrics")       //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // TODO OTLP team: add default value
-	config.BindEnv("otlp_config.metrics.histograms.send_aggregation_metrics")     //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // TODO OTLP team: add default value
-	config.BindEnv("otlp_config.metrics.sums.cumulative_monotonic_mode")          //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // TODO OTLP team: add default value
-	config.BindEnv("otlp_config.metrics.sums.initial_cumulative_monotonic_value") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // TODO OTLP team: add default value
-	config.BindEnv("otlp_config.metrics.summaries.mode")                          //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // TODO OTLP team: add default value
+	config.BindEnvAndSetDefault("otlp_config.metrics.delta_ttl", 3600)
+	config.BindEnvAndSetDefault("otlp_config.metrics.histograms.mode", "distributions")
+	config.BindEnvAndSetDefault("otlp_config.metrics.histograms.send_count_sum_metrics", false)
+	config.BindEnvAndSetDefault("otlp_config.metrics.histograms.send_aggregation_metrics", false)
+	config.BindEnvAndSetDefault("otlp_config.metrics.sums.cumulative_monotonic_mode", "to_delta")
+	config.BindEnvAndSetDefault("otlp_config.metrics.sums.initial_cumulative_monotonic_value", "auto")
+	config.BindEnvAndSetDefault("otlp_config.metrics.summaries.mode", "gauges")
 	config.BindEnvAndSetDefault("otlp_config.metrics.batch.min_size", 8192)
 	config.BindEnvAndSetDefault("otlp_config.metrics.batch.max_size", 0)
 	config.BindEnvAndSetDefault("otlp_config.metrics.batch.flush_timeout", "200ms")
 
 	config.BindEnvAndSetDefault("otlp_config.traces.infra_attributes.enabled", true)
 
-	// Debug settings
-	config.BindEnv("otlp_config.debug.verbosity") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	// Debug settings (default from OTel debugexporter)
+	config.BindEnvAndSetDefault("otlp_config.debug.verbosity", "basic")
 }

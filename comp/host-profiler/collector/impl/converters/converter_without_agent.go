@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux
-
 // Package converters implements the converters for the host profiler collector.
 package converters
 
@@ -342,6 +340,10 @@ func (c *converterWithoutAgent) ensureOtlpHTTPExporterConfig(conf confMap, expor
 	for _, nameAny := range exporterNames {
 		if name, ok := nameAny.(string); ok && isComponentType(name, componentTypeOtlpHTTP) {
 			hasOtlpHTTP = true
+
+			if _, err := SetDefault(conf, pathPrefixExporters+name+"::compression", "zstd"); err != nil {
+				return err
+			}
 
 			headers, err := Ensure[confMap](conf, pathPrefixExporters+name+"::headers")
 			if err != nil {

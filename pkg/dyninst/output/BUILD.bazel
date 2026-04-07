@@ -11,4 +11,5 @@ cgo_godefs(
     name = "framing_godefs",
     src = "framing.go",
     hdrs = ["//pkg/dyninst/ebpf:dyninst_ebpf_headers"],
+    visibility = ["//visibility:public"],
 )
