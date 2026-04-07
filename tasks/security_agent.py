@@ -2,13 +2,10 @@ from __future__ import annotations
 
 import datetime
 import errno
-import glob
 import json
 import os
-import re
 import shutil
 import sys
-import tempfile
 from subprocess import check_output
 
 from invoke.exceptions import Exit
@@ -25,13 +22,13 @@ from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
-    environ,
     get_build_flags,
     get_go_version,
     get_version,
 )
 from tasks.libs.types.arch import ARCH_AMD64, Arch
 from tasks.process_agent import TempDir
+from tasks.protobuf import Tools
 from tasks.system_probe import (
     CURRENT_ARCH,
     build_cws_object_files,
@@ -650,35 +647,20 @@ def split_btfhub_constants(ctx):
 
 @task
 def generate_cws_proto(ctx):
-    with tempfile.TemporaryDirectory() as temp_gobin:
-        with environ({"GOBIN": temp_gobin}):
-            ctx.run("go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.3")
-            ctx.run("go install github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto@v0.6.0")
-            ctx.run("go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1")
+    tools = Tools(ctx)
+    plugin_opts = " ".join(
+        [
+            tools.plugin("protoc-gen-go"),
+            tools.plugin("protoc-gen-go-grpc"),
+            tools.plugin("protoc-gen-go-vtproto"),
+        ]
+    )
 
-            plugin_opts = " ".join(
-                [
-                    f"--plugin protoc-gen-go=\"{temp_gobin}/protoc-gen-go\"",
-                    f"--plugin protoc-gen-go-grpc=\"{temp_gobin}/protoc-gen-go-grpc\"",
-                    f"--plugin protoc-gen-go-vtproto=\"{temp_gobin}/protoc-gen-go-vtproto\"",
-                ]
-            )
-
-            # API
-            ctx.run(
-                f"protoc -I. {plugin_opts} --go_out=paths=source_relative:. --go-vtproto_out=. --go-vtproto_opt=features=marshal+unmarshal+size --go-grpc_out=paths=source_relative:. pkg/security/proto/api/api.proto"
-            )
-
-    security_files = glob.glob("pkg/security/**/*.pb.go", recursive=True)
-    for path in security_files:
-        print(f"replacing protoc version in {path}")
-        with open(path) as f:
-            content = f.read()
-
-        replaced_content = re.sub(r"\/\/\s*protoc\s*v\d+\.\d+\.\d+", "//  protoc", content)
-        replaced_content = re.sub(r"\/\/\s*-\s+protoc\s*v\d+\.\d+\.\d+", "// - protoc", replaced_content)
-        with open(path, "w") as f:
-            f.write(replaced_content)
+    # API
+    ctx.run(
+        f"{tools.protoc} {plugin_opts} -I. -Ipkg/proto/protodep --go_out=paths=source_relative:. --go-vtproto_out=. --go-vtproto_opt=features=marshal+unmarshal+size --go-grpc_out=paths=source_relative:. pkg/security/proto/api/api.proto"
+    )
+    # no need to strip protoc version from headers: hermetic tools guarantee it's identical on all execution platforms
 
 
 def get_git_dirty_files():

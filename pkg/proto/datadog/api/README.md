@@ -1,33 +1,13 @@
 ## gRPC: Protobuf code generation
 
 To generate the code for the API you have defined in your `.proto`
-files requires three different grpc-related packages:
-
-- protobuf - protoc-gen-go: generates the golang protobuf definitions.
-
-### Install
-
-From the repository root run the following:
-```
-dda inv setup
-```
-This should drop all required binaries in your `$GOPATH/bin`
-
-Remember to make sure `GOPATH/bin` is in your `PATH`, also make
-sure no other versions of those binaries you may have installed
-elsewhere take precedence (`which` is your friend).
-
-### Code Generation
-
-From the repository root run the following:
-
+files, run the following from the repository root:
 ```
 dda inv protobuf.generate
 ```
 
-This command generates generate the protobuf golang definitions _and_ the
-gRPC gateway code that allows Datadog to serve the API also as a
-REST application.
+All required tools (`protoc`, `protoc-gen-go`, etc.) are managed
+hermetically by Bazel and do not need to be installed separately.
 
 ### Notes
 
