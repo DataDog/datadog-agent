@@ -20,6 +20,7 @@ common --experimental_disk_cache_gc_max_size=5G # Cap applied whenever --disk_ca
 common --experimental_ui_max_stdouterr_bytes=1073741819 # why?
 common --http_timeout_scaling=3.0 # At least one attempt reaches 30s (3,6,12,24,30,30,30,30) instead of only 10s (1,2,4,8,10,10,10,10)
 common --incompatible_strict_action_env # Do not leak local environment variables into the build context
+common --skip_incompatible_explicit_targets # Let target_compatible_with skip rather than fail
 common --test_output=errors # Print test errors to console output instead of only capturing them in buried test.log
 common --verbose_failures
 
@@ -69,8 +70,13 @@ common:ci --noexperimental_convenience_symlinks # not CI-suitable: "These symlin
 import %workspace%/bazel/configs/rust.bazelrc
 
 # Global release config ------------------------------------------------------------------------------------------------
-# This should aggregate all the release configs for all the languages with enabled optimizations, stripping, etc.
+# This should aggregate all the release configs for all the languages with enabled optimizations,
+# stripping, etc.  It does not strictly mean that this build is the one to be released as a product.
+# It just selects all the flags we should use on product builds.  For example, we need to build with
+# optimization and compress packages in CI so that we can run performance and size gates, even
+# though we will never release that instance of the package to customers.
 common:release --config=rust-release
+common:release --//:release
 
 # Local development options --------------------------------------------------------------------------------------------
 try-import %workspace%/user.bazelrc

@@ -133,6 +133,20 @@ func NewHttpbinServiceInstallation(e config.Env, opts ...pulumi.ResourceOption) 
 	if err != nil {
 		return nil, err
 	}
+	optsWithSA := append(opts, utils.PulumiDependsOn(httpbinServiceAccount))
+
+	var imagePullSecrets corev1.LocalObjectReferenceArray
+	if e.ImagePullRegistry() != "" {
+		imgPullSecret, err := utils.NewImagePullSecret(e, "default", optsWithSA...)
+		if err != nil {
+			return nil, err
+		}
+		imagePullSecrets = append(imagePullSecrets, corev1.LocalObjectReferenceArgs{
+			Name: imgPullSecret.Metadata.Name(),
+		})
+		optsWithSA = append(optsWithSA, utils.PulumiDependsOn(imgPullSecret))
+	}
+
 	httpbinDeploy, err := appsv1.NewDeployment(e.Ctx(), "httpbin", &appsv1.DeploymentArgs{
 		Metadata: &metav1.ObjectMetaArgs{
 			Name: pulumi.String("httpbin"),
@@ -154,6 +168,7 @@ func NewHttpbinServiceInstallation(e config.Env, opts ...pulumi.ResourceOption) 
 				},
 				Spec: &corev1.PodSpecArgs{
 					ServiceAccountName: pulumi.String("httpbin"),
+					ImagePullSecrets:   imagePullSecrets,
 					Containers: corev1.ContainerArray{
 						&corev1.ContainerArgs{
 							Image: pulumi.String("ghcr.io/datadog/apps-go-httpbin:" + apps.Version),
@@ -168,7 +183,7 @@ func NewHttpbinServiceInstallation(e config.Env, opts ...pulumi.ResourceOption) 
 				},
 			},
 		},
-	}, append(opts, utils.PulumiDependsOn(httpbinServiceAccount))...)
+	}, optsWithSA...)
 	if err != nil {
 		return nil, err
 	}
