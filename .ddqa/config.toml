@@ -40,7 +40,7 @@ jira_issue_type = "QA"
 jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "agent-health"
 github_labels = ["team/agent-health"]
-exclude_members = [""]
+exclude_members = ["iglendd", "kunalkxxxxxxxxr", "mwdd146980"]
 
 [teams."Agent Developer Experience"]
 jira_project = "ACIX"
