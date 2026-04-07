@@ -124,8 +124,6 @@ build do
     mkdir Omnibus::Config.package_dir() unless Dir.exists?(Omnibus::Config.package_dir())
   end
 
-  command "dda inv -- -e trace-agent.build --install-path=#{install_dir} --flavor #{flavor_arg}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
-
   # Build the installer
   # We do this in the same software definition to avoid redundant copying, as it's based on the same source
   if linux_target? and !heroku_target?
@@ -146,12 +144,6 @@ build do
       command "dda inv -- -e loader.build --install-path=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
       copy "bin/trace-loader/trace-loader", "#{install_dir}/embedded/bin"
     end
-  end
-
-  if windows_target?
-    copy 'bin/trace-agent/trace-agent.exe', "#{install_dir}/bin/agent"
-  else
-    copy 'bin/trace-agent/trace-agent', "#{install_dir}/embedded/bin"
   end
 
   # Process agent
@@ -294,7 +286,6 @@ build do
     block do
       LINUX_BINARIES = [
         "bin/agent/agent",
-        "embedded/bin/trace-agent",
         "embedded/bin/process-agent",
         "embedded/bin/security-agent",
         "embedded/bin/system-probe",

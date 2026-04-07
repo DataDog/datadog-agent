@@ -569,12 +569,6 @@ def hacky_dev_image_build(
         process_agent_build(ctx)
         copy_extra_agents += "COPY bin/process-agent/process-agent /opt/datadog-agent/embedded/bin/process-agent\n"
 
-    if trace_agent:
-        from tasks.trace_agent import build as trace_agent_build
-
-        trace_agent_build(ctx)
-        copy_extra_agents += "COPY bin/trace-agent/trace-agent /opt/datadog-agent/embedded/bin/trace-agent\n"
-
     if trace_loader:
         from tasks.loader import build as trace_loader_build
 
@@ -678,7 +672,6 @@ RUN agent          completion bash > /usr/share/bash-completion/completions/agen
 RUN process-agent  completion bash > /usr/share/bash-completion/completions/process-agent
 RUN security-agent completion bash > /usr/share/bash-completion/completions/security-agent
 RUN system-probe   completion bash > /usr/share/bash-completion/completions/system-probe
-RUN trace-agent    completion bash > /usr/share/bash-completion/completions/trace-agent
 
 ENV DD_SSLKEYLOGFILE=/tmp/sslkeylog.txt
 '''
