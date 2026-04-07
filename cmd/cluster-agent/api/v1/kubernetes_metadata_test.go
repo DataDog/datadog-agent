@@ -370,10 +370,13 @@ func TestGetPodMetadataForNode_SpanCreation(t *testing.T) {
 	span := spans[0]
 	assert.Equal(t, "cluster_agent.metadata.pod_metadata_for_node", span.OperationName())
 	assert.Equal(t, "node1", span.Tag("node_name"))
-	// Without a real apiserver, GetMetadataMapBundleOnNode fails, so the span should capture the error
-	spanErr, ok := span.Tag("error").(error)
-	require.True(t, ok, "error tag should be an error object, got %T", span.Tag("error"))
-	assert.NotEmpty(t, spanErr.Error())
+	// Without a real apiserver, GetMetadataMapBundleOnNode fails, but this is a
+	// non-fatal warning path (the handler continues), so it should be recorded
+	// as a warning tag rather than marking the span as errored.
+	assert.Nil(t, span.Tag("error"), "span should not be marked as errored for partial failures")
+	warning, ok := span.Tag("warning").(string)
+	require.True(t, ok, "warning tag should be a string, got %T", span.Tag("warning"))
+	assert.NotEmpty(t, warning)
 }
 
 func TestGetAllMetadata_SpanCreation(t *testing.T) {

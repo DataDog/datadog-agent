@@ -369,8 +369,7 @@ func getPodMetadataForNode(w http.ResponseWriter, r *http.Request) {
 	metaList, errNodes := as.GetMetadataMapBundleOnNode(nodeName)
 	if errNodes != nil {
 		log.Warnf("Could not collect the service map for %s, err: %v", nodeName, errNodes) //nolint:errcheck
-		spanErr = errNodes
-		api.SetSpanError(w, errNodes)
+		span.SetTag("warning", errNodes.Error())
 	}
 	slcB, err := json.Marshal(metaList)
 	if err != nil {
@@ -436,8 +435,10 @@ func getAllMetadata(w http.ResponseWriter, r *http.Request) {
 	}
 	metaListBytes, err := json.Marshal(metaList)
 	if err != nil {
-		spanErr = err
-		api.SetSpanError(w, err)
+		if spanErr == nil {
+			spanErr = err
+			api.SetSpanError(w, err)
+		}
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
