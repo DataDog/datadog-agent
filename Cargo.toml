@@ -14,6 +14,7 @@ rust-version = "1.91"
 [workspace.dependencies]
 anyhow = "1.0.98"
 cap-std = "3.4"
+caps = "0.5"
 clap = { version = "4.5", features = ["derive"] }
 elf = "0.8.0"
 glob-match = "0.2"
@@ -29,7 +30,7 @@ lru = { version = "0.16.0", default-features = false }
 memchr = "2.7.6"
 nom = "7.1"
 normalize-path = "0.2"
-phf = { version = "0.11", features = ["macros"] }
+phf = { version = "0.13", features = ["macros"] }
 quick-xml = { version = "0.37", features = ["serialize"] }
 rmp-serde = "1.3"
 serde = { version = "1.0.219", features = ["derive", "std"] }

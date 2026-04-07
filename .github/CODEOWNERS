@@ -470,9 +470,11 @@
 /comp/core/autodiscovery/providers/remote_config*.go  @DataDog/fleet
 /comp/core/autodiscovery/providers/datastreams @DataDog/data-streams-monitoring
 /comp/core/gui/guiimpl/systray/ @DataDog/windows-products @DataDog/agent-configuration
+/comp/healthplatform/impl/issues/rofspermissions @DataDog/container-platform @DataDog/agent-health
 /pkg/cloudfoundry                       @DataDog/agent-integrations
 /pkg/clusteragent/                      @DataDog/container-platform
 /pkg/clusteragent/autoscaling/          @DataDog/container-autoscaling
+/pkg/clusteragent/kubeactions/          @DataDog/container-integrations
 /pkg/clusteragent/evictor/              @DataDog/container-platform @DataDog/container-integrations
 /pkg/clusteragent/metricsstore/         @DataDog/container-autoscaling
 /pkg/clusteragent/admission/mutate/autoscaling          @DataDog/container-integrations
