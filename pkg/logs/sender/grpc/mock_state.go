@@ -376,7 +376,7 @@ func buildDictEntryDefine(id uint64, value string) *statefulpb.Datum {
 }
 
 // encodeDynamicValue encodes a wildcard value with type inference
-// Priority: int64 → dict_index (via tagManager)
+// Priority: int64 → float64 → inline string (high-cardinality) → dict_index
 // Returns the encoded DynamicValue and whether a new dict entry was created
 func (mt *MessageTranslator) encodeDynamicValue(value string) (*statefulpb.DynamicValue, uint64, bool) {
 	// Skip int conversion for values with leading zeros (e.g. "01", "-007") to preserve them as strings.
@@ -392,6 +392,16 @@ func (mt *MessageTranslator) encodeDynamicValue(value string) (*statefulpb.Dynam
 		}
 	}
 
+	// Send high-cardinality values as inline strings to avoid polluting the dictionary.
+	// These values are almost never reused, so dict-encoding them wastes state and snapshot bytes.
+	if shouldInlineString(value) {
+		return &statefulpb.DynamicValue{
+			Value: &statefulpb.DynamicValue_StringValue{
+				StringValue: value,
+			},
+		}, 0, false
+	}
+
 	// Dictionary encoding for non-integer values
 	dictID, isNew := mt.tagManager.AddString(value)
 	return &statefulpb.DynamicValue{
@@ -399,6 +409,42 @@ func (mt *MessageTranslator) encodeDynamicValue(value string) (*statefulpb.Dynam
 			DictIndex: dictID,
 		},
 	}, dictID, isNew
+}
+
+// shouldInlineString returns true for values that are likely high-cardinality and should
+// be sent as inline strings rather than dict-encoded. This avoids bloating the dictionary
+// state with values that are never reused (UUIDs, timestamps, JSON blobs, epoch floats).
+func shouldInlineString(value string) bool {
+	if len(value) == 0 {
+		return false
+	}
+
+	// JSON objects or arrays
+	if value[0] == '{' || value[0] == '[' {
+		return true
+	}
+
+	// UUID pattern: 8-4-4-4-12 hex chars (36 bytes total)
+	if len(value) == 36 && value[8] == '-' && value[13] == '-' && value[18] == '-' && value[23] == '-' {
+		return true
+	}
+
+	// Epoch float timestamps (e.g. "1.77551962625433e+12", "1.775519724235197e+09")
+	if len(value) > 10 && value[0] == '1' && value[1] == '.' && strings.ContainsAny(value, "eE") {
+		return true
+	}
+
+	// ISO8601-ish timestamps (e.g. "2026-04-07T10:30:18Z", "2026-04-07 10:30:18")
+	if len(value) >= 19 && value[4] == '-' && value[7] == '-' && (value[10] == 'T' || value[10] == ' ') {
+		return true
+	}
+
+	// Large strings (>128 bytes) are unlikely to repeat and expensive to keep in state
+	if len(value) > 128 {
+		return true
+	}
+
+	return false
 }
 
 // buildRawLog creates a Datum containing a raw (unstructured) log entry.
