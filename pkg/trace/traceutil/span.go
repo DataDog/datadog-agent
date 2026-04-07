@@ -74,6 +74,13 @@ func IsMeasuredMetrics(metrics map[string]float64) bool {
 	return metrics[measuredKey] == 1
 }
 
+// IsExplicitlyUnmeasuredMetrics returns true if _dd.measured is explicitly set to 0,
+// indicating an explicit opt-out from stats computation that overrides span-kind-based eligibility.
+func IsExplicitlyUnmeasuredMetrics(metrics map[string]float64) bool {
+	v, ok := metrics[measuredKey]
+	return ok && v == 0
+}
+
 // IsMeasuredMetricsV1 returns true if a span should be measured (i.e., it should get trace metrics calculated).
 func IsMeasuredMetricsV1(s *idx.InternalSpan) bool {
 	measured, ok := s.GetAttributeAsFloat64(measuredKey)
@@ -118,6 +125,12 @@ func SetTopLevel(s *pb.Span, topLevel bool) {
 	// Setting the metrics value, so that code downstream in the pipeline
 	// can identify this as top-level without recomputing everything.
 	SetMetric(s, topLevelKey, 1)
+}
+
+// MarkExplicitlyUnmeasured sets _dd.measured to 0, recording an explicit opt-out from stats
+// computation. This is distinct from the key being absent (which means no explicit preference).
+func MarkExplicitlyUnmeasured(s *pb.Span) {
+	SetMetric(s, measuredKey, 0)
 }
 
 // SetMeasured sets the measured attribute of the span.

@@ -903,6 +903,36 @@ func TestComputeStatsThroughSpanKindCheck(t *testing.T) {
 		}
 		assert.Equal(map[string]struct{}{"http.server.request": {}, "internal.op1": {}, "internal.op2": {}, "postgres.query": {}}, opNames)
 	})
+	t.Run("enabled_explicit_opt_out", func(_ *testing.T) {
+		// A CLIENT span with _dd.measured=0 must not get stats computed via the eligibleSpanKind
+		// path even when computeStatsBySpanKind is enabled.
+		optOutClientSpan := &pb.Span{
+			ParentID: sp.SpanID,
+			SpanID:   5,
+			Service:  "myservice",
+			Name:     "postgres.query",
+			Resource: "SELECT id FROM opted_out",
+			Duration: 50,
+			Metrics:  map[string]float64{"_dd.measured": 0},
+			Meta:     map[string]string{"span.kind": "client"},
+		}
+		spans := []*pb.Span{sp, topLevelInternalSpan, measuredInternalSpan, clientSpan, optOutClientSpan}
+		traceutil.ComputeTopLevel(spans)
+		testTrace := toProcessedTrace(spans, "none", "", "", "", "", "")
+		c := NewTestConcentrator(now)
+		c.spanConcentrator.computeStatsBySpanKind = true
+		c.addNow(testTrace, infraTags{})
+		stats := c.flushNow(now.UnixNano()+int64(c.spanConcentrator.bufferLen)*testBucketInterval, false)
+		// optOutClientSpan should not appear — still 4 stats entries, not 5
+		assert.Len(stats.Stats[0].Stats[0].Stats, 4)
+		for _, s := range stats.Stats {
+			for _, b := range s.Stats {
+				for _, g := range b.Stats {
+					assert.NotEqual("SELECT id FROM opted_out", g.Resource)
+				}
+			}
+		}
+	})
 }
 
 func TestVersionData(t *testing.T) {

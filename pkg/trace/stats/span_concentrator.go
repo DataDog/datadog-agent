@@ -213,7 +213,7 @@ func (sc *SpanConcentrator) NewStatSpanWithConfig(config StatSpanConfig) (statSp
 	}
 	a := semantics.NewDDSpanAccessor(config.Meta, config.Metrics)
 	spanKind := semantics.LookupString(ddRegistry, a, semantics.ConceptSpanKind)
-	eligibleSpanKind := sc.computeStatsBySpanKind && computeStatsForSpanKind(spanKind)
+	eligibleSpanKind := sc.computeStatsBySpanKind && computeStatsForSpanKind(spanKind) && !traceutil.IsExplicitlyUnmeasuredMetrics(config.Metrics)
 	isTopLevel := traceutil.HasTopLevelMetrics(config.Metrics)
 	if !(isTopLevel || traceutil.IsMeasuredMetrics(config.Metrics) || eligibleSpanKind) {
 		return nil, false

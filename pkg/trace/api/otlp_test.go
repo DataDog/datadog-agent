@@ -2438,6 +2438,53 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 				"_top_level": 1,
 			},
 		},
+		{
+			// A CLIENT span with explicit _dd.measured:0 must not have _dd.measured set to 1
+			// by the topLevelByKind fallback, even when enable_otlp_compute_top_level_by_span_kind is enabled.
+			rattr: map[string]string{
+				"service.name":           "pylons",
+				"deployment.environment": "prod",
+			},
+			libname: "ddtracer",
+			libver:  "v2",
+			in: testutil.NewOTLPSpan(&testutil.OTLPSpan{
+				TraceID:  otlpTestTraceID,
+				SpanID:   otlpTestSpanID,
+				ParentID: [8]byte{0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8},
+				Name:     "/path",
+				Kind:     ptrace.SpanKindClient,
+				Start:    now,
+				End:      now + 200000000,
+				Attributes: map[string]interface{}{
+					"_dd.measured": 0,
+				},
+			}),
+			operationNameV1: "ddtracer.client",
+			operationNameV2: "client.request",
+			resourceNameV1:  "/path",
+			resourceNameV2:  "/path",
+			out: &pb.Span{
+				Service:  "pylons",
+				TraceID:  2594128270069917171,
+				SpanID:   2594128270069917171,
+				ParentID: 0x102030405060708,
+				Start:    int64(now),
+				Duration: 200000000,
+				Meta: map[string]string{
+					"env":                    "prod",
+					"deployment.environment": "prod",
+					"otel.trace_id":          "72df520af2bde7a5240031ead750e5f3",
+					"otel.status_code":       "Unset",
+					"otel.library.name":      "ddtracer",
+					"otel.library.version":   "v2",
+					"span.kind":              "client",
+				},
+				Type:    "http",
+				Metrics: map[string]float64{"_dd.measured": 0},
+			},
+			// With topLevelByKind enabled, _dd.measured:0 must still be respected — not overridden to 1.
+			topLevelOutMetrics: map[string]float64{"_dd.measured": 0},
+		},
 	} {
 		t.Run("", func(t *testing.T) {
 			o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
