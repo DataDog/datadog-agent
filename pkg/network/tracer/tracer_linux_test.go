@@ -2637,6 +2637,7 @@ LOOP:
 var failedConnectionsBuildModes = map[ebpftest.BuildMode]struct{}{
 	ebpftest.CORE:            {},
 	ebpftest.RuntimeCompiled: {},
+	ebpftest.SK:              {},
 }
 
 func checkSkipFailureConnectionsTests(t *testing.T) {

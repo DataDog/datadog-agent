@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -41,6 +42,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ddslices "github.com/DataDog/datadog-agent/pkg/util/slices"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
@@ -848,11 +850,46 @@ func (t *ebpfTracer) Type() TracerType {
 	return t.ebpfTracerType
 }
 
+func (t *ebpfTracer) closeMap(name string) error {
+	mp := ddslices.FirstFunc(t.m.Maps, func(m *manager.Map) bool {
+		return m.Name == name
+	})
+	if mp == nil {
+		return fmt.Errorf("find map %s", name)
+	}
+	if err := mp.Close(manager.CleanAll); err != nil {
+		return fmt.Errorf("close map %s: %s", name, err)
+	}
+	t.m.Maps = slices.DeleteFunc(t.m.Maps, func(m *manager.Map) bool {
+		return m.Name == name
+	})
+	return nil
+}
+
 func (t *ebpfTracer) initializeSocketCounters() error {
 	if t.initialSocketIter == nil || t.initialPortBindingIter == nil {
 		return nil
 	}
-	// TODO cleanup port binding maps and detach iterators?
+	defer func() {
+		if t.initialPortBindingIter.IsRunning() {
+			if err := t.initialPortBindingIter.Detach(); err != nil {
+				log.Warnf("error detaching %s: %s", t.initialPortBindingIter.EBPFFuncName, err)
+			}
+		}
+		t.initialPortBindingIter = nil
+		if t.initialSocketIter.IsRunning() {
+			if err := t.initialSocketIter.Detach(); err != nil {
+				log.Warnf("error detaching %s: %s", t.initialSocketIter.EBPFFuncName, err)
+			}
+		}
+		t.initialSocketIter = nil
+		if err := t.closeMap("udp_port_bindings"); err != nil {
+			log.Warnf("error closing map: %s", err)
+		}
+		if err := t.closeMap("port_bindings"); err != nil {
+			log.Warnf("error closing map: %s", err)
+		}
+	}()
 
 	// we manually attach so we collect this data before any other ebpf programs are running
 	if err := t.initialPortBindingIter.Attach(); err != nil {

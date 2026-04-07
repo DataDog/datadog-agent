@@ -569,7 +569,6 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 				tracerTelemetry.expiredTCPConns.Inc()
 			}
 			tracerTelemetry.closedConns.IncWithTags(c.Type.Tags())
-			fmt.Printf(">>> EXPIRED: %s\n", c)
 			return false
 		}
 
