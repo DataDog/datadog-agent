@@ -9,18 +9,15 @@ package remoteflagsimpl
 import (
 	"context"
 
-	"go.uber.org/fx"
-
 	comp "github.com/DataDog/datadog-agent/comp/core/remoteflags/def"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/remoteflags"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Requires defines the dependencies for the Remote Flags component.
 type Requires struct {
-	Lc fx.Lifecycle
+	Lc compdef.Lifecycle
 
 	// Subscribers is the list of components that subscribe to remote flags.
 	// They are automatically collected via fx groups.
@@ -29,8 +26,7 @@ type Requires struct {
 
 // Provides defines the output of the Remote Flags component.
 type Provides struct {
-	Comp       comp.Component
-	RCListener types.ListenerProvider
+	Comp comp.Component
 }
 
 type remoteFlagsComponent struct {
@@ -55,13 +51,7 @@ func NewComponent(deps Requires) Provides {
 		}
 	}
 
-	// Use the RCListener pattern to automatically subscribe via FX dependency injection
-	var rcListener types.ListenerProvider
-	rcListener.ListenerProvider = types.RCListener{
-		data.ProductAgentFlags: client.OnUpdate,
-	}
-
-	deps.Lc.Append(fx.Hook{
+	deps.Lc.Append(compdef.Hook{
 		OnStop: func(_ context.Context) error {
 			client.Stop()
 			return nil
@@ -69,8 +59,7 @@ func NewComponent(deps Requires) Provides {
 	})
 
 	return Provides{
-		Comp:       component,
-		RCListener: rcListener,
+		Comp: component,
 	}
 }
 
