@@ -3691,10 +3691,10 @@ func runNetemCongestionTest(
 	}, 30*time.Second, 200*time.Millisecond)
 }
 
-// TestTCPRecoveryCount validates the recovery_count signal.
-// Strategy: calibrate with low loss so SACK is active and the kernel
-// has enough in-flight data, then spike loss so SACK detects gaps and
-// triggers fast recovery. Delay stays low to avoid RTO.
+// TestTCPRecoveryCount validates the recovery_count signal. Uses escalating
+// netem configs to handle test variability — delay keeps enough segments
+// in-flight for SACK to detect gaps, while moderate loss triggers fast
+// recovery rather than full RTO timeout.
 func (s *TracerSuite) TestTCPRecoveryCount() {
 	t := s.T()
 	cfg := testConfig()
@@ -3707,50 +3707,36 @@ func (s *TracerSuite) TestTCPRecoveryCount() {
 
 	tr := setupTracer(t, cfg)
 
-	doneCh := make(chan struct{})
-	env := setupNetemTestEnv(t, func(c net.Conn) {
-		io.Copy(io.Discard, c) //nolint:errcheck
-		<-doneCh
-	})
-	t.Cleanup(func() { close(doneCh) })
-
-	// Dial on a clean link, then apply low loss so SACK is active and
-	// the kernel builds up enough in-flight segments.
-	c := env.dialInNs(t)
-	defer c.Close()
-	env.addNetem(t, "delay", "5ms", "loss", "5%")
-
-	// Send calibration packets so the kernel has in-flight data and
-	// SACK state established.
-	for i := 0; i < 10; i++ {
-		c.SetWriteDeadline(time.Now().Add(2 * time.Second))
-		c.Write(make([]byte, 64*1024)) //nolint:errcheck
+	netemConfigs := [][]string{
+		{"delay", "50ms", "loss", "15%", "50%"},
+		{"delay", "50ms", "loss", "20%", "50%"},
+		{"delay", "50ms", "loss", "25%", "75%"},
 	}
+	for _, netemArgs := range netemConfigs {
+		c := setupNetemCongestionTest(t, netemArgs, nil)
+		triggered := false
+		deadline := time.Now().Add(20 * time.Second)
+		for time.Now().Before(deadline) {
+			c.SetWriteDeadline(time.Now().Add(2 * time.Second))
+			c.Write(make([]byte, 64*1024)) //nolint:errcheck
+			time.Sleep(200 * time.Millisecond)
 
-	// Ensure the tracer has registered the connection before spiking loss.
-	require.EventuallyWithT(t, func(ct *assert.CollectT) {
-		conns, cleanup := getConnections(ct, tr)
-		defer cleanup()
-		_, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
-		assert.True(ct, ok, "connection not found during calibration")
-	}, 10*time.Second, 200*time.Millisecond)
-
-	// Spike loss — delay stays low so RTO doesn't fire, but frequent
-	// correlated drops trigger SACK-based fast recovery.
-	env.changeNetem(t, "delay", "5ms", "loss", "30%", "50%")
-
-	require.EventuallyWithT(t, func(ct *assert.CollectT) {
-		c.SetWriteDeadline(time.Now().Add(2 * time.Second))
-		c.Write(make([]byte, 64*1024)) //nolint:errcheck
-
-		conns, cleanup := getConnections(ct, tr)
-		defer cleanup()
-		conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
-		if !assert.True(ct, ok, "connection not found") {
+			conns, cleanup := getConnections(t, tr)
+			conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+			if ok && conn.Last.TCPRecoveryCount > 0 {
+				triggered = true
+				cleanup()
+				break
+			}
+			cleanup()
+		}
+		c.Close()
+		if triggered {
 			return
 		}
-		assert.Greater(ct, conn.Last.TCPRecoveryCount, uint32(0), "recovery_count should be > 0")
-	}, 30*time.Second, 200*time.Millisecond)
+		t.Logf("netem config %v did not trigger recovery, trying next", netemArgs)
+	}
+	require.Fail(t, "no netem configuration triggered recovery_count > 0")
 }
 
 // TestTCPReordSeen validates the reord_seen signal by introducing packet
