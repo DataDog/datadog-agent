@@ -20,9 +20,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers/container"
 	dockerutilPkg "github.com/DataDog/datadog-agent/pkg/util/docker"
 
+	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/container/tailerfactory/tailers"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // get gets a DockerUtil instance, either returning a memoized value
@@ -66,7 +68,7 @@ func (tf *factory) makeSocketTailer(source *sources.LogSource) (Tailer, error) {
 	// apply defaults for source and service directly to the LogSource struct (!!)
 	source.Config.Source, source.Config.Service = tf.defaultSourceAndService(source, tf.cop.Get())
 
-	return tailers.NewDockerSocketTailer(
+	t := tailers.NewDockerSocketTailer(
 		du,
 		containerID,
 		source,
@@ -74,5 +76,23 @@ func (tf *factory) makeSocketTailer(source *sources.LogSource) (Tailer, error) {
 		readTimeout,
 		tf.registry,
 		tf.tagger,
-	), nil
+	)
+
+	// Report the Docker log rotation risk: socket-based tailing does not
+	// handle Docker log rotation gracefully.
+	if hp, ok := tf.healthPlatform.Get(); ok {
+		if err := hp.ReportIssue(
+			"docker-logs-rotation-config",
+			"docker-logs-rotation",
+			&healthplatformpayload.IssueReport{
+				IssueId: "docker-logs-rotation-risk",
+				Context: map[string]string{"mode": "socket"},
+				Tags:    []string{"logs", "docker", "rotation"},
+			},
+		); err != nil {
+			log.Debugf("healthplatform: failed to report docker-logs-rotation-risk: %v", err)
+		}
+	}
+
+	return t, nil
 }

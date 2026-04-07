@@ -33,6 +33,7 @@ import (
 
 	// Import issue modules to trigger their init() registration
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues/checkfailure"
+	_ "github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues/docker-logs-rotation"
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues/dockerpermissions"
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues/rofspermissions"
 )
