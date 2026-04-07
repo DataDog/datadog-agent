@@ -8,6 +8,29 @@ if defined BAZEL_REAL if "%BAZELISK_SKIP_WRAPPER%"=="true" goto :bazelisk_ok
 exit /b 2
 :bazelisk_ok
 
+:: Download credential helper if not already present
+set "credential_helper_dir=%~dp0..\.credential-helper"
+set "credential_helper_bin=%credential_helper_dir%\credential-helper.exe"
+if not exist "%credential_helper_bin%" (
+  if not exist "%credential_helper_dir%" mkdir "%credential_helper_dir%"
+  set "credential_helper_version=v0.0.9"
+  set "credential_helper_url=https://github.com/tweag/credential-helper/releases/download/!credential_helper_version!/credential_helper_windows_amd64.exe"
+  set "credential_helper_expected_hash=efa1d39972088e437f92539600a3d53694f19cb6e93d6bf4bdbe4ff47c79b5fa"
+  curl -fsSL -o "%credential_helper_bin%" "!credential_helper_url!" 2>nul
+  if !errorlevel! neq 0 (
+    >&2 echo Warning: failed to download credential helper
+    del /q "%credential_helper_bin%" 2>nul
+    goto :credential_helper_done
+  )
+  for /f "tokens=*" %%h in ('certutil -hashfile "%credential_helper_bin%" SHA256 ^| findstr /v "hash CertUtil"') do set "credential_helper_actual_hash=%%h"
+  set "credential_helper_actual_hash=!credential_helper_actual_hash: =!"
+  if /i "!credential_helper_actual_hash!" neq "!credential_helper_expected_hash!" (
+    >&2 echo Warning: credential helper hash mismatch
+    del /q "%credential_helper_bin%" 2>nul
+  )
+)
+:credential_helper_done
+
 :: Ensure `XDG_CACHE_HOME` denotes a directory
 if not exist "%XDG_CACHE_HOME%" (
   if defined CI (
@@ -56,6 +79,8 @@ if not exist "!more_than_260_chars!" (
     exit /b 2
   )
 )
+
+if defined BUILDBARN_ID_TOKEN set "BUILDBARN_BEARER_TOKEN=Bearer !BUILDBARN_ID_TOKEN!"
 
 set "args=%*"
 if defined args if defined extra_args call :insert_extra_args

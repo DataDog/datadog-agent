@@ -30,6 +30,8 @@ target
 
 # Build System Protocol (Bazel <-> JetBrains IDEs)
 /.bazelbsp/
+# Credential helper binary (downloaded by tools/bazel)
+/.credential-helper/
 # In-workpace cache
 /.cache/
 # Bazel convenience symlinks to output folders

@@ -7,9 +7,11 @@ ensure_credential_helper() {
   local version="v0.0.9"
   local platform arch cache_dir helper_bin expected_hash
 
+  cache_dir="$(dirname "$0")/../.credential-helper"
+
   case "$(uname -s)" in
-    Darwin) platform=darwin; cache_dir="$HOME/Library/Caches/bazel/credential-helper" ;;
-    Linux)  platform=linux;  cache_dir="${HOME}/.cache/bazel/credential-helper" ;;
+    Darwin) platform=darwin ;;
+    Linux)  platform=linux ;;
     *)      >&2 echo "Warning: unsupported OS for credential helper"; return 0 ;;
   esac
   case "$(uname -m)" in
@@ -102,4 +104,8 @@ fi
 
 # Prevent rules_android from loading a system Android SDK - TODO(regis): replace with --experimental_strict_repo_env
 unset ANDROID_HOME
+
+if [[ -n "${BUILDBARN_ID_TOKEN:-}" ]]; then
+  export BUILDBARN_BEARER_TOKEN="Bearer ${BUILDBARN_ID_TOKEN}"
+fi
 exec "$BAZEL_REAL" "$@"
