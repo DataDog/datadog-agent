@@ -99,7 +99,7 @@ func (e *EBPFErrorsCollector) Collect(ch chan<- prometheus.Metric) {
 	})
 
 	e.t.forEachHelperErrorEntryInMaps(func(tKey telemetryKey, eBPFKey uint64, val helperErrTelemetry) bool {
-		for i, helperName := range helperNames {
+		for i, _ := range helperNames {
 			base := maxErrno * i
 			if count := getErrCount(val.Count[base : base+maxErrno]); len(count) > 0 {
 				for errStr, errCount := range count {
@@ -109,8 +109,9 @@ func (e *EBPFErrorsCollector) Collect(ch chan<- prometheus.Metric) {
 						err:  errStr,
 					}
 					delta := float64(errCount - e.lastValues[key])
+					name := helperName(tKey, i)
 					if delta > 0 {
-						e.helperErrors.WithLabelValues(helperName, tKey.resourceName.Name(), errStr, tKey.moduleName.Name()).Add(delta)
+						e.helperErrors.WithLabelValues(name, tKey.resourceName.Name(), errStr, tKey.moduleName.Name()).Add(delta)
 					}
 					e.lastValues[key] = errCount
 				}
