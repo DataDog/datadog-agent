@@ -1,6 +1,13 @@
 #include "bpf_metadata.h"
 #include "bpf_tracing.h"
 
+#include "ktypes.h"
+
+#ifdef COMPILE_RUNTIME
+#include "kconfig.h"
+#include <linux/ptrace.h>
+#endif
+
 SEC("fexit/__x64_sys_open")
 int BPF_PROG(test_modifier_x64, const struct pt_regs* regs, long ret) {
     const char* pathname;
