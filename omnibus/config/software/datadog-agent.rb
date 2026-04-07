@@ -102,6 +102,11 @@ build do
   # target with bazel.
   delete 'bin/agent/dist/datadog.yaml'
 
+  if osx_target?
+    conf_dir = "#{install_dir}/etc"
+  else
+    conf_dir = "#{install_dir}/etc/datadog-agent"
+  end
   # TODO(agent-build): sort out the use of bin/agen/dist/conf.d
   # dda inv agent.build  leaves many files in bin/agen/dist/conf.d
   # Now we place them into the pacakge via the //packages/agent/product:post_build_install
