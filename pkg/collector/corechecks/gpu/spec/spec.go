@@ -10,7 +10,6 @@ import (
 	"embed"
 	"fmt"
 	"regexp"
-
 	"go.yaml.in/yaml/v2"
 )
 
