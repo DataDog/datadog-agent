@@ -6,29 +6,20 @@
 package listenerimpl
 
 import (
-	"go.uber.org/fx"
-
-	"github.com/DataDog/datadog-agent/comp/snmptraps/listener"
+	listener "github.com/DataDog/datadog-agent/comp/snmptraps/listener/def"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// MockModule provides a MockComponent as the Component.
-func MockModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newMock),
-	)
-}
-
-type mockListener struct {
-	packets packet.PacketsChannel
-}
-
-func newMock() (listener.MockComponent, listener.Component) {
+// NewMockListener creates a mock listener for use in tests.
+func NewMockListener() (listener.MockComponent, listener.Component) {
 	l := &mockListener{
 		packets: make(chan *packet.SnmpPacket, 100),
 	}
 	return l, l
+}
+
+type mockListener struct {
+	packets packet.PacketsChannel
 }
 
 // Packets returns the packets channel to which the listener publishes.

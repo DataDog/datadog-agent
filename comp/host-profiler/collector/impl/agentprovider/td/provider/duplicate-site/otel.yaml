@@ -1,5 +1,6 @@
 exporters:
     otlphttp/datadoghq.com_0:
+        compression: zstd
         headers:
             dd-api-key: additional_api_key
             dd-evp-origin: host-profiler
@@ -7,6 +8,7 @@ exporters:
         metrics_endpoint: https://otlp.datadoghq.com/v1/metrics
         profiles_endpoint: https://intake.profile.datadoghq.com/v1development/profiles
     otlphttp/datadoghq.com_1:
+        compression: zstd
         headers:
             dd-api-key: main_api_key
             dd-evp-origin: host-profiler
