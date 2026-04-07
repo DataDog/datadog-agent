@@ -142,6 +142,7 @@ func (p sk) Env() map[string]string {
 		"DD_NETWORK_CONFIG_ENABLE_FENTRY":    "false",
 		"DD_ENABLE_RUNTIME_COMPILER":         "false",
 		"DD_ENABLE_CO_RE":                    "true",
+		"DD_NETWORK_CONFIG_ENABLE_CO_RE":     "false",
 		"DD_ALLOW_RUNTIME_COMPILED_FALLBACK": "false",
 		"DD_ALLOW_PREBUILT_FALLBACK":         "false",
 		"DD_ENABLE_EBPFLESS":                 "false",
