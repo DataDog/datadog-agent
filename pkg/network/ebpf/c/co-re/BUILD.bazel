@@ -8,6 +8,7 @@ ebpf_program_suite(
         "-Ipkg/network/ebpf/c/co-re",
         "-Ipkg/network/ebpf/c",
     ],
+    visibility = ["//visibility:public"],
     deps = [
         "//pkg/ebpf/c:ebpf_c_headers",
         "//pkg/network/ebpf/c:ebpf_c_network",

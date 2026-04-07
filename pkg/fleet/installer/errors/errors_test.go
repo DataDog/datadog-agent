@@ -8,9 +8,12 @@ package errors
 import (
 	"errors"
 	"fmt"
+	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetCode(t *testing.T) {
@@ -39,18 +42,15 @@ func TestGetCode(t *testing.T) {
 func TestWrap(t *testing.T) {
 	err := errors.New("test: test")
 	taskErr := Wrap(ErrDownloadFailed, err)
-	assert.Equal(t, taskErr, &InstallerError{
-		err:  err,
-		code: ErrDownloadFailed,
-	})
+	ie, ok := taskErr.(*InstallerError)
+	require.True(t, ok)
+	assert.Equal(t, err, ie.err)
+	assert.Equal(t, ErrDownloadFailed, ie.code)
 
 	// Check that Wrap doesn't change anything if the error
 	// is already an InstallerError
 	taskErr2 := Wrap(ErrNotEnoughDiskSpace, taskErr)
-	assert.Equal(t, taskErr2, &InstallerError{
-		err:  err,
-		code: ErrDownloadFailed,
-	})
+	assert.Equal(t, taskErr, taskErr2)
 
 	taskErr3 := Wrap(ErrFilesystemIssue, fmt.Errorf("Wrap 2: %w", fmt.Errorf("Wrap 1: %w", taskErr2)))
 	unwrapped := &InstallerError{}
@@ -71,4 +71,67 @@ func TestFromJSON(t *testing.T) {
 	err := FromJSON(json)
 	assert.Equal(t, err.Error(), "test: test2: test3")
 	assert.Equal(t, GetCode(err), ErrDownloadFailed)
+}
+
+func TestWrapCapturesStack(t *testing.T) {
+	err := errors.New("test error")
+	wrapped := Wrap(ErrDownloadFailed, err)
+
+	ie, ok := wrapped.(*InstallerError)
+	require.True(t, ok)
+	require.NotEmpty(t, ie.StackTrace(), "Wrap should capture a stack trace")
+
+	assert.True(t, stackContainsFunc(ie.StackTrace(), "TestWrapCapturesStack"),
+		"Stack trace should contain the calling test function")
+}
+
+func TestUnwrap(t *testing.T) {
+	inner := errors.New("inner error")
+	wrapped := Wrap(ErrDownloadFailed, inner)
+
+	ie, ok := wrapped.(*InstallerError)
+	require.True(t, ok)
+	assert.Equal(t, inner, ie.Unwrap())
+
+	// errors.Unwrap should work
+	assert.Equal(t, inner, errors.Unwrap(wrapped))
+}
+
+func TestWithStack(t *testing.T) {
+	assert.Nil(t, WithStack(nil))
+
+	err := errors.New("plain error")
+	withStack := WithStack(err)
+	require.NotNil(t, withStack)
+	assert.Equal(t, "plain error", withStack.Error())
+
+	se, ok := withStack.(*stackError)
+	require.True(t, ok)
+	require.NotEmpty(t, se.StackTrace())
+	assert.Equal(t, err, se.Unwrap())
+
+	assert.True(t, stackContainsFunc(se.StackTrace(), "TestWithStack"),
+		"Stack trace should contain the calling test function")
+}
+
+func TestWithStackNoDoubleWrap(t *testing.T) {
+	err := errors.New("test")
+	wrapped := Wrap(ErrDownloadFailed, err)
+
+	result := WithStack(wrapped)
+	assert.Equal(t, wrapped, result, "WithStack should return the original error if it already has a stack")
+}
+
+func stackContainsFunc(pcs []uintptr, name string) bool {
+	frames := runtime.CallersFrames(pcs)
+	for {
+		frame, more := frames.Next()
+		if strings.Contains(frame.Function, name) {
+			return true
+		}
+		if !more {
+			break
+		}
+	}
+	return false
 }

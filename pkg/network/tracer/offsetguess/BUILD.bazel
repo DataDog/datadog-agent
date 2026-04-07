@@ -11,5 +11,6 @@ cgo_godefs(
     name = "offsetguess_types_godefs",
     src = "offsetguess_types.go",
     hdrs = ["//pkg/network/ebpf/c/prebuilt:prebuilt_headers"],
+    visibility = ["//visibility:public"],
     deps = ["//pkg/network/ebpf/c:ebpf_c_network"],
 )

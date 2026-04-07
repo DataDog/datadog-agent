@@ -18,7 +18,7 @@ import (
 	config "github.com/DataDog/datadog-agent/comp/snmptraps/config/def"
 	formatter "github.com/DataDog/datadog-agent/comp/snmptraps/formatter/def"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/forwarder"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/listener"
+	listener "github.com/DataDog/datadog-agent/comp/snmptraps/listener/def"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"

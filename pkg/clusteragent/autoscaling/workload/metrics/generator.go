@@ -46,7 +46,7 @@ func baseAutoscalerTags(internal *model.PodAutoscalerInternal) []string {
 		"target_kind:" + targetKind,
 		"autoscaler_name:" + name, // keep it for backward compatibility, even if it's redundant with "name"
 		"name:" + name,
-		le.JoinLeaderLabel + ":" + le.JoinLeaderValue,
+		le.IsLeaderLabel + ":" + le.JoinLeaderValue,
 	}
 	tags = append(tags, keyTagsFromObjectMetadata(internal)...)
 	// Cap to prevent slice aliasing when callers append to this slice multiple times

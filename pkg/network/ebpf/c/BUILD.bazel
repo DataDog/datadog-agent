@@ -30,6 +30,7 @@ ebpf_program_suite(
     name = "tracer",
     src = "tracer.c",
     core = True,
+    visibility = ["//visibility:public"],
     deps = [
         ":ebpf_c_network",
         "//pkg/ebpf/c:ebpf_c_headers",

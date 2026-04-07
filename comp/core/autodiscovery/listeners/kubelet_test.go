@@ -12,8 +12,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -661,6 +664,131 @@ func TestProcessPodWithEphemeralContainer(t *testing.T) {
 	}
 
 	wlm.assertServices(expectedServices)
+}
+
+func TestAreTagsComplete(t *testing.T) {
+	podEntityID := types.NewEntityID(types.KubernetesPodUID, podID)
+	containerEntityID := types.NewEntityID(types.ContainerID, containerID)
+
+	tests := []struct {
+		name     string
+		pod      *workloadmeta.KubernetesPod
+		tagInfos []*types.TagInfo
+		expected bool
+	}{
+		{
+			name: "pod and container complete",
+			pod: &workloadmeta.KubernetesPod{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesPod,
+					ID:   podID,
+				},
+				Containers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:   containerID,
+						Name: containerName,
+					},
+				},
+			},
+			tagInfos: []*types.TagInfo{
+				{
+					Source:      "source",
+					EntityID:    podEntityID,
+					LowCardTags: []string{"kube_namespace:default"},
+					IsComplete:  true,
+				},
+				{
+					Source:      "source",
+					EntityID:    containerEntityID,
+					LowCardTags: []string{"container_name:agent"},
+					IsComplete:  true,
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "pod incomplete",
+			pod: &workloadmeta.KubernetesPod{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesPod,
+					ID:   podID,
+				},
+			},
+			tagInfos: []*types.TagInfo{
+				{
+					Source:      "source",
+					EntityID:    podEntityID,
+					LowCardTags: []string{"kube_namespace:default"},
+					IsComplete:  false,
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "container incomplete",
+			pod: &workloadmeta.KubernetesPod{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesPod,
+					ID:   podID,
+				},
+				Containers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:   containerID,
+						Name: containerName,
+					},
+				},
+			},
+			tagInfos: []*types.TagInfo{
+				{
+					Source:      "source",
+					EntityID:    podEntityID,
+					LowCardTags: []string{"kube_namespace:default"},
+					IsComplete:  true,
+				},
+				{
+					Source:      "source",
+					EntityID:    containerEntityID,
+					LowCardTags: []string{"container_name:agent"},
+					IsComplete:  false,
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "container not in tagger",
+			pod: &workloadmeta.KubernetesPod{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesPod,
+					ID:   podID,
+				},
+				Containers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:   "unknown-container",
+						Name: "unknown",
+					},
+				},
+			},
+			tagInfos: []*types.TagInfo{
+				{
+					Source:      "source",
+					EntityID:    podEntityID,
+					LowCardTags: []string{"kube_namespace:default"},
+					IsComplete:  true,
+				},
+			},
+			expected: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			taggerMock := taggerfxmock.SetupFakeTagger(t)
+			taggerMock.GetTagStore().ProcessTagInfo(test.tagInfos)
+			listener, _ := newKubeletListener(t, taggerMock)
+
+			assert.Equal(t, test.expected, listener.areTagsComplete(test.pod))
+		})
+	}
 }
 
 func newKubeletListener(t *testing.T, tagger tagger.Component) (*KubeletListener, *testWorkloadmetaListener) {

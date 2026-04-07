@@ -8,7 +8,7 @@
             <false/>
             <key>PathState</key>
             <dict>
-              <key>{conf_dir}/system-probe.yaml</key>
+              <key>/opt/datadog-agent/etc/system-probe.yaml</key>
               <true/>
             </dict>
         </dict>
@@ -24,7 +24,7 @@
             <string>/opt/datadog-agent/embedded/bin/system-probe</string>
             <string>run</string>
             <string>-c</string>
-            <string>/opt/datadog-agent/{conf_dir}</string>
+            <string>/opt/datadog-agent/etc</string>
         </array>
         <key>StandardOutPath</key>
         <string>/opt/datadog-agent/logs/launchd_sysprobe.log</string>

@@ -12,8 +12,9 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"reflect"
-	"runtime/debug"
+	"runtime"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -68,8 +69,15 @@ func (s *Span) Finish(err error) {
 	if err != nil {
 		s.span.Error = 1
 		s.setTag("error.message", err.Error())
-		s.setTag("error.stack", string(debug.Stack()))
 		s.setTag("error.type", getRootErrorType(err))
+		if st := extractStackTrace(err); st != "" {
+			s.setTag("error.stack", st)
+		} else {
+			s.setTag("error.stack", takeStacktrace(1))
+		}
+		if _, ok := err.(fmt.Formatter); ok {
+			s.setTag("error.details", fmt.Sprintf("%+v", err))
+		}
 	}
 	globalTracer.finishSpan(s)
 }
@@ -164,4 +172,73 @@ func getRootErrorType(err error) string {
 		err = u
 	}
 	return reflect.TypeOf(err).String()
+}
+
+// stackTracer is implemented by errors that carry a stack trace captured at creation time.
+type stackTracer interface {
+	StackTrace() []uintptr
+}
+
+// extractStackTrace walks the error chain to find the deepest error with a creation-time
+// stack trace, and formats it. Returns empty string if no stack trace is found.
+func extractStackTrace(err error) string {
+	var st stackTracer
+	for u := err; u != nil; u = errors.Unwrap(u) {
+		if s, ok := u.(stackTracer); ok {
+			st = s
+		}
+	}
+	if st == nil {
+		return ""
+	}
+	return formatStack(st.StackTrace())
+}
+
+// takeStacktrace captures the current call stack and returns it as a formatted string.
+// skip is the number of additional frames to skip beyond takeStacktrace and runtime.Callers.
+func takeStacktrace(skip int) string {
+	pcs := make([]uintptr, 32)
+	n := runtime.Callers(skip+2, pcs) // +2 to skip runtime.Callers and takeStacktrace
+	if n == 0 {
+		return ""
+	}
+	return formatStack(pcs[:n])
+}
+
+func formatStack(pcs []uintptr) string {
+	if len(pcs) == 0 {
+		return ""
+	}
+	frames := runtime.CallersFrames(pcs)
+	var buf strings.Builder
+	first := true
+	for {
+		frame, more := frames.Next()
+		if isInternalFrame(frame.Function) {
+			if !more {
+				break
+			}
+			continue
+		}
+		if !first {
+			buf.WriteByte('\n')
+		}
+		first = false
+		buf.WriteString(frame.Function)
+		buf.WriteByte('\n')
+		buf.WriteByte('\t')
+		buf.WriteString(frame.File)
+		buf.WriteByte(':')
+		buf.WriteString(strconv.Itoa(frame.Line))
+		if !more {
+			break
+		}
+	}
+	return buf.String()
+}
+
+func isInternalFrame(fn string) bool {
+	return strings.HasPrefix(fn, "runtime.") ||
+		strings.HasPrefix(fn, "runtime/debug.") ||
+		strings.Contains(fn, "orchestrion")
 }

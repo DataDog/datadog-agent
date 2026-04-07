@@ -16,16 +16,20 @@ runtime_compilation_bundle(
     name = "oom-kill",
     header_deps = _CORECHECK_HEADERS,
     include_dirs = ["pkg/ebpf/c"],
+    out_go_file = "//pkg/ebpf/bytecode/runtime:oom-kill.go",
     out_name = "oom-kill",
     src_c = "//pkg/collector/corechecks/ebpf/c/runtime:oom-kill-kern.c",
+    visibility = ["//visibility:public"],
 )
 
 runtime_compilation_bundle(
     name = "tcp-queue-length",
     header_deps = _CORECHECK_HEADERS,
     include_dirs = ["pkg/ebpf/c"],
+    out_go_file = "//pkg/ebpf/bytecode/runtime:tcp-queue-length.go",
     out_name = "tcp-queue-length",
     src_c = "//pkg/collector/corechecks/ebpf/c/runtime:tcp-queue-length-kern.c",
+    visibility = ["//visibility:public"],
 )
 
 runtime_compilation_bundle(
@@ -36,8 +40,10 @@ runtime_compilation_bundle(
         "pkg/network/ebpf/c/runtime",
         "pkg/network/ebpf/c",
     ],
+    out_go_file = "//pkg/ebpf/bytecode/runtime:usm.go",
     out_name = "usm",
     src_c = "//pkg/network/ebpf/c/runtime:usm.c",
+    visibility = ["//visibility:public"],
 )
 
 runtime_compilation_bundle(
@@ -48,8 +54,10 @@ runtime_compilation_bundle(
         "pkg/network/ebpf/c/runtime",
         "pkg/network/ebpf/c",
     ],
+    out_go_file = "//pkg/ebpf/bytecode/runtime:shared-libraries.go",
     out_name = "shared-libraries",
     src_c = "//pkg/network/ebpf/c/runtime:shared-libraries.c",
+    visibility = ["//visibility:public"],
 )
 
 runtime_compilation_bundle(
@@ -60,8 +68,10 @@ runtime_compilation_bundle(
         "pkg/network/ebpf/c/runtime",
         "pkg/network/ebpf/c",
     ],
+    out_go_file = "//pkg/ebpf/bytecode/runtime:conntrack.go",
     out_name = "conntrack",
     src_c = "//pkg/network/ebpf/c/runtime:conntrack.c",
+    visibility = ["//visibility:public"],
 )
 
 runtime_compilation_bundle(
@@ -72,8 +82,10 @@ runtime_compilation_bundle(
         "pkg/network/ebpf/c/runtime",
         "pkg/network/ebpf/c",
     ],
+    out_go_file = "//pkg/ebpf/bytecode/runtime:tracer.go",
     out_name = "tracer",
     src_c = "//pkg/network/ebpf/c:tracer.c",
+    visibility = ["//visibility:public"],
 )
 
 runtime_compilation_bundle(
@@ -84,8 +96,10 @@ runtime_compilation_bundle(
         "pkg/network/ebpf/c/runtime",
         "pkg/network/ebpf/c",
     ],
+    out_go_file = "//pkg/ebpf/bytecode/runtime:offsetguess-test.go",
     out_name = "offsetguess-test",
     src_c = "//pkg/network/ebpf/c/runtime:offsetguess-test.c",
+    visibility = ["//visibility:public"],
 )
 
 runtime_compilation_bundle(
@@ -95,8 +109,10 @@ runtime_compilation_bundle(
         "pkg/security/ebpf/c/include",
         "pkg/ebpf/c",
     ],
+    out_go_file = "//pkg/ebpf/bytecode/runtime:runtime-security.go",
     out_name = "runtime-security",
     src_c = "//pkg/security/ebpf/c/prebuilt:probe.c",
+    visibility = ["//visibility:public"],
 )
 
 runtime_compilation_bundle(
@@ -108,6 +124,8 @@ runtime_compilation_bundle(
         "pkg/gpu/ebpf/c",
         "pkg/network/ebpf/c",
     ],
+    out_go_file = "//pkg/ebpf/bytecode/runtime:gpu.go",
     out_name = "gpu",
     src_c = "//pkg/gpu/ebpf/c/runtime:gpu.c",
+    visibility = ["//visibility:public"],
 )
