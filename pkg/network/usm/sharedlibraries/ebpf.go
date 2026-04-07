@@ -550,7 +550,7 @@ func fexitSupported(funcName string) bool {
 }
 
 // initializedProbes initializes the probes that are enabled for the current system
-func (e *EbpfProgram) initializeProbes() []manager.ProbeIdentificationPair {
+func (e *EbpfProgram) initializeProbes() ([]manager.ProbeIdentificationPair, error) {
 	openat2Supported := sysOpenAt2Supported()
 	isFexitSupported := fexitSupported("do_sys_openat2")
 
@@ -630,9 +630,14 @@ func (e *EbpfProgram) initializeProbes() []manager.ProbeIdentificationPair {
 			e.disabledProbes = append(tpProbes, kprobeProbes...)
 
 			// Only fentry/fexit/fmod_ret, lsm, iter, uprobe, and struct_ops programs can be sleepable
-			if kv > kernel.VersionCode(5, 10, 0) {
+			ok, err := modifiers.SleepableSyscallsSupported()
+			if err != nil {
+				return fmt.Errorf("failed to check if sleepable syscalls are enabled: %w", err)
+			}
+			if ok {
 				sleepableIDs = slices.Clone(e.enabledProbes)
 			}
+
 			log.Infof("Using fexit probes for shared library monitoring (kernel %s)", kv)
 		} else if kv >= kv415 {
 			// Kernel >= 4.15 - use tracepoints (multiple attachment supported)
