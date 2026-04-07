@@ -635,6 +635,298 @@ def eval_combinations(
     return summary_results
 
 
+# --- Bayesian Optimization ---
+
+
+def _sample_component_params(trial, component: str) -> dict:
+    """Sample Optuna hyperparameters for a named component that supports parseJSON.
+
+    Each component's params are wrapped in a lambda so that suggest_* calls are
+    only executed for the active component. Returns an empty dict for components
+    with no tunable hyperparameters (scanmw, scanwelch, log_metrics_extractor,
+    connection_error_extractor).
+    """
+    # TODO(celian): Reduce the search space, this contains every parameter
+    space = {
+        "bocpd": lambda: {
+            "warmup_points": trial.suggest_int("bocpd.warmup_points", 40, 300),
+            "hazard": trial.suggest_float("bocpd.hazard", 1e-3, 0.2, log=True),
+            "cp_threshold": trial.suggest_float("bocpd.cp_threshold", 0.35, 0.9),
+            "short_run_length": trial.suggest_int("bocpd.short_run_length", 2, 20),
+            "cp_mass_threshold": trial.suggest_float("bocpd.cp_mass_threshold", 0.4, 0.95),
+            "max_run_length": trial.suggest_int("bocpd.max_run_length", 50, 400),
+            "prior_variance_scale": trial.suggest_float("bocpd.prior_variance_scale", 1.0, 50.0),
+            "min_variance": trial.suggest_float("bocpd.min_variance", 0.01, 5.0, log=True),
+            "recovery_points": trial.suggest_int("bocpd.recovery_points", 3, 40),
+        },
+        "cusum": lambda: {
+            "min_points": trial.suggest_int("cusum.min_points", 3, 30),
+            "baseline_fraction": trial.suggest_float("cusum.baseline_fraction", 0.05, 0.5),
+            "slack_factor": trial.suggest_float("cusum.slack_factor", 0.1, 2.0),
+            "threshold_factor": trial.suggest_float("cusum.threshold_factor", 2.0, 10.0),
+        },
+        "rrcf": lambda: {
+            "num_trees": trial.suggest_int("rrcf.num_trees", 20, 200),
+            "tree_size": trial.suggest_int("rrcf.tree_size", 64, 512),
+            "shingle_size": trial.suggest_int("rrcf.shingle_size", 1, 16),
+            "threshold_sigma": trial.suggest_float("rrcf.threshold_sigma", 0.5, 6.0),
+        },
+        "cross_signal": lambda: {
+            "window_seconds": trial.suggest_int("cross_signal.window_seconds", 5, 180),
+        },
+        "time_cluster": lambda: {
+            "proximity_seconds": trial.suggest_int("time_cluster.proximity_seconds", 2, 60),
+            "window_seconds": trial.suggest_int("time_cluster.window_seconds", 30, 600),
+            "min_cluster_size": trial.suggest_int("time_cluster.min_cluster_size", 0, 8),
+        },
+        "log_pattern_extractor": lambda: {
+            "min_cluster_size_before_emit": trial.suggest_int(
+                "log_pattern_extractor.min_cluster_size_before_emit", 1, 30
+            ),
+            "max_tokenized_string_length": trial.suggest_int(
+                "log_pattern_extractor.max_tokenized_string_length", 2000, 16000
+            ),
+            "max_num_tokens": trial.suggest_int("log_pattern_extractor.max_num_tokens", 32, 512),
+            "parse_hex_dump": trial.suggest_categorical("log_pattern_extractor.parse_hex_dump", [True, False]),
+            "min_token_match_ratio": trial.suggest_float("log_pattern_extractor.min_token_match_ratio", 0.2, 0.95),
+        },
+    }
+    fn = space.get(component)
+    return fn() if fn else {}
+
+
+def _build_optuna_config(
+    trial,
+    components: list,
+    locked: set,
+) -> dict:
+    """Build a TestbenchParamsFile config dict for one Optuna trial.
+
+    Enables exactly the listed components, disables all others in the catalog.
+    Components in `locked` are enabled but their hyperparameters are not sampled
+    (Go catalog defaults apply), effectively fixing them during the search.
+    """
+    active_set = set(components)
+    result = {}
+
+    for name in DETECTORS + CORRELATORS + EXTRACTORS:
+        if name not in active_set:
+            result[name] = {"enabled": False}
+
+    for name in components:
+        params = {"enabled": True}
+        if name not in locked:
+            params.update(_sample_component_params(trial, name))
+        result[name] = params
+
+    return {"components": result}
+
+
+@task
+def eval_bayesian(
+    ctx,
+    components: str = ",".join(DETECTORS + CORRELATORS + EXTRACTORS),
+    lock: str = "",
+    n_trials: int = 10,
+    output_dir: str = "/tmp/observer-optuna-eval",
+    scenarios_dir: str = "./comp/observer/scenarios",
+    sigma: float = 30.0,
+    seed: int = None,
+    build: bool = True,
+):
+    """
+    Run Bayesian hyperparameter optimization (Optuna TPE) for a fixed set of observer components.
+
+    Each trial enables the specified components, sampling hyperparameters and scoring via eval_scenarios (mean F1). Locked components (--lock) are enabled but use Go defaults (not tuned). Components with no tunable hyperparameters are always locked.
+
+    Output layout:
+        <output_dir>/trial_NNN/config.json     - sampled component config for this trial
+        <output_dir>/trial_NNN/report.json     - eval_scenarios output for this trial
+        <output_dir>/trial_NNN/scenarios/      - per-scenario testbench outputs
+        <output_dir>/study.pkl                 - serialized Optuna study (for resuming / analysis)
+        <output_dir>/report.json               - summary: best score, best params, avg_eval_score
+        <output_dir>/best_config.json          - best config used
+
+    Args:
+        components: Comma-separated component names to enable (detectors, correlators, extractors; default: all).
+        lock: Comma-separated components to enable but not tune (keep at Go defaults).
+        n_trials: Number of Optuna trials (default: 50).
+        output_dir: Root output directory. Removed and recreated if it exists.
+        scenarios_dir: Directory containing scenario subdirectories.
+        sigma: Gaussian width in seconds for F1 scoring.
+        seed: Random seed for TPE sampler reproducibility (default: None = random).
+        build: Whether to build observer-testbench and observer-scorer first.
+
+    Examples:
+        dda inv q.bayesian-eval                                                                       # all components
+        dda inv q.bayesian-eval --components bocpd,rrcf,time_cluster,log_pattern_extractor            # fixed subset
+        dda inv q.bayesian-eval --components bocpd,rrcf,time_cluster --lock time_cluster              # freeze one
+        dda inv q.bayesian-eval --n-trials 100 --seed 42
+    """
+    import pickle
+
+    import optuna
+
+    components_list = [c.strip() for c in components.split(",") if c.strip()]
+    locked_set = {c.strip() for c in lock.split(",") if c.strip()}
+
+    if not components_list:
+        print(color_message("Error: at least one component is required (--components)", Color.RED))
+        return
+
+    unknown = (set(components_list) | locked_set) - set(DETECTORS + CORRELATORS + EXTRACTORS)
+    if unknown:
+        print(color_message(f"Error: unknown components: {', '.join(sorted(unknown))}", Color.RED))
+        return
+
+    not_active = locked_set - set(components_list)
+    if not_active:
+        print(color_message(f"Error: locked components not in active set: {', '.join(sorted(not_active))}", Color.RED))
+        return
+
+    if seed is None:
+        seed = random.randint(0, 2**32 - 1)
+
+    if os.path.exists(output_dir):
+        shutil.rmtree(output_dir)
+    os.makedirs(output_dir)
+
+    if build:
+        build_testbench(ctx)
+        build_scorer(ctx)
+
+    tuned = [c for c in components_list if c not in locked_set]
+    print(color_message(f"\n{'=' * 60}", Color.BLUE))
+    print(color_message("  Observer Bayesian Optimization", Color.BLUE))
+    print(color_message(f"{'=' * 60}", Color.BLUE))
+    print(color_message(f"  components:  {', '.join(components_list)}", Color.BLUE))
+    if locked_set:
+        print(color_message(f"  locked:      {', '.join(sorted(locked_set))} (not tuned)", Color.BLUE))
+    print(color_message(f"  tuned:       {', '.join(tuned)}", Color.BLUE))
+    print(color_message(f"  n_trials:    {n_trials}", Color.BLUE))
+    print(color_message(f"  output_dir:  {output_dir}", Color.BLUE))
+    print(color_message(f"  seed:        {seed}", Color.BLUE))
+
+    completed_trials = []
+
+    def objective(trial):
+        trial_label = f"trial_{trial.number:03d}"
+        trial_dir = os.path.join(output_dir, trial_label)
+        os.makedirs(trial_dir, exist_ok=True)
+
+        config_data = _build_optuna_config(trial, components_list, locked_set)
+        config_path = os.path.join(trial_dir, "config.json")
+        with open(config_path, "w") as f:
+            json.dump(config_data, f, indent=4)
+
+        print(color_message(f"\n{'=' * 60}", Color.BLUE))
+        print(color_message(f"  [{trial.number + 1}/{n_trials}] {trial_label}", Color.BLUE))
+        for key, val in sorted(trial.params.items()):
+            print(color_message(f"    {key}: {val}", Color.BLUE))
+        print(color_message(f"{'=' * 60}", Color.BLUE))
+
+        report_path = os.path.join(trial_dir, "report.json")
+        scenario_output_dir = os.path.join(trial_dir, "scenarios")
+        os.makedirs(scenario_output_dir, exist_ok=True)
+
+        try:
+            report = eval_scenarios(
+                ctx,
+                scenarios_dir=scenarios_dir,
+                sigma=sigma,
+                config=config_path,
+                build=False,
+                main_report_path=report_path,
+                scenario_output_dir=scenario_output_dir,
+            )
+        except Exception as e:
+            print(color_message(f"eval_scenarios failed for {trial_label}: {e}", Color.RED))
+            return float("-inf")
+
+        score = report.get("score", 0.0) if report else 0.0
+        print(color_message(f"  Score: {score:.4f}", Color.GREEN if score > 0 else Color.RED))
+
+        completed_trials.append(
+            {
+                "trial": trial.number,
+                "label": trial_label,
+                "score": score,
+                "params": dict(trial.params),
+                "config_path": config_path,
+                "report_path": report_path,
+            }
+        )
+        return score
+
+    optuna.logging.set_verbosity(optuna.logging.WARNING)
+    sampler = optuna.samplers.TPESampler(seed=seed)
+    study = optuna.create_study(direction="maximize", sampler=sampler)
+    study.optimize(objective, n_trials=n_trials)
+
+    study_path = os.path.join(output_dir, "study.pkl")
+    with open(study_path, "wb") as f:
+        pickle.dump(study, f)
+
+    completed_trials.sort(key=lambda x: x["score"], reverse=True)
+
+    scores = [t["score"] for t in completed_trials]
+    max_score = max(scores) if scores else 0.0
+    avg_score = sum(scores) / len(scores) if scores else 0.0
+    best = completed_trials[0] if completed_trials else None
+
+    if completed_trials:
+        print(color_message(f"\n{'=' * 70}", Color.GREEN))
+        print(color_message("  Bayesian Optimization Summary", Color.GREEN))
+        print(color_message(f"{'=' * 70}\n", Color.GREEN))
+        header = f"{'Rank':<5}  {'Trial':<12}  {'Score':>6}"
+        print(header)
+        print("-" * 30)
+        for rank, t in enumerate(completed_trials[:10], 1):
+            print(f"{rank:<5}  {t['label']:<12}  {t['score']:>6.4f}")
+        if len(completed_trials) > 10:
+            print(f"  ... {len(completed_trials) - 10} more trials")
+
+        if best:
+            print(color_message(f"\n  Best: {best['label']}  (score={best['score']:.4f})", Color.GREEN))
+            print(color_message("  Best parameters:", Color.GREEN))
+            for key, val in sorted(best["params"].items()):
+                print(color_message(f"    {key}: {val}", Color.GREEN))
+            print(color_message(f"  config: {best['config_path']}", Color.GREEN))
+            print(color_message(f"  report: {best['report_path']}", Color.GREEN))
+
+    final_report = {
+        "score": max_score,
+        "avg_eval_score": avg_score,
+        "n_trials": n_trials,
+        "completed_trials": len(completed_trials),
+        "seed": seed,
+        "components": components_list,
+        "locked": sorted(locked_set),
+        "best_combination": best,
+        "trials": completed_trials,
+    }
+    report_path = os.path.join(output_dir, "report.json")
+    with open(report_path, "w") as f:
+        json.dump(final_report, f, indent=4)
+
+    if best and best.get("config_path") and os.path.exists(best["config_path"]):
+        with open(best["config_path"]) as f:
+            best_config = json.load(f)
+        best_config_path = os.path.join(output_dir, "best_config.json")
+        with open(best_config_path, "w") as f:
+            json.dump(best_config, f, indent=4)
+
+    print(color_message(f"\n{'=' * 70}", Color.GREEN))
+    print(color_message(f"  Report: {report_path}", Color.GREEN))
+    print(color_message(f"  score (best):    {max_score:.4f}", Color.GREEN))
+    print(color_message(f"  avg_eval_score:  {avg_score:.4f}", Color.GREEN))
+    print(color_message(f"  study:           {study_path}", Color.GREEN))
+    print(color_message(f"  Per-trial:       {output_dir}/trial_*/report.json", Color.GREEN))
+    print(color_message(f"{'=' * 70}", Color.GREEN))
+
+    return final_report
+
+
 def _resolve_zip_from_runs_jsonl(ctx, name):
     """Resolve the latest zip key for a scenario from runs.jsonl in S3."""
     episode_name = SCENARIO_EPISODE_NAMES.get(name)
