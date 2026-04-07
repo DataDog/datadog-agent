@@ -51,8 +51,8 @@ docker_image_build_otel:
       --build-arg BASE_IMAGE_REGISTRY=registry.ddbuild.io/images/mirror \
       --build-arg CI \
       --build-arg DDA_VERSION=$DDA_VERSION \
-      --build-arg GOPROXY=$GOPROXY \
-      --build-arg GONOSUMDB=$GONOSUMDB \
+      --build-arg GOPROXY \
+      --build-arg GONOSUMDB \
       --tag agent-byoc:latest \
       -f /tmp/otel-ci/Dockerfile.agent-otel \
       /tmp/otel-ci
