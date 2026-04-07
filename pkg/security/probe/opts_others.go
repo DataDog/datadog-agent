@@ -9,7 +9,6 @@
 package probe
 
 import (
-	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 )
 
@@ -19,6 +18,4 @@ type Opts struct {
 	DontDiscardRuntime bool
 	// Tagger will override the default one. Mainly here for tests.
 	Tagger tags.Tagger
-	// FilterStore provides the workload filtering component
-	FilterStore workloadfilter.Component
 }
