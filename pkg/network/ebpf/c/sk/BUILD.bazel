@@ -17,7 +17,7 @@ ebpf_program_suite(
     visibility = ["//visibility:public"],
     deps = [
         ":ebpf_c_network_sk",
-        "//pkg/network/ebpf/c:ebpf_c_network",
         "//pkg/ebpf/c:ebpf_c_headers",
+        "//pkg/network/ebpf/c:ebpf_c_network",
     ],
 )
