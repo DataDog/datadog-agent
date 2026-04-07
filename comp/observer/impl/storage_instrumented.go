@@ -81,8 +81,7 @@ func newCallHasher() *callHasher {
 	return &callHasher{h: fnv.New64a()}
 }
 
-func (c *callHasher) mixBytes(data []byte) { c.h.Write(data) }
-func (c *callHasher) mixString(v string)   { c.h.Write([]byte(v)) }
+func (c *callHasher) mixString(v string) { c.h.Write([]byte(v)) }
 func (c *callHasher) mixUint64(v uint64) {
 	var b [8]byte
 	binary.LittleEndian.PutUint64(b[:], v)

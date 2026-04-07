@@ -724,7 +724,7 @@ func TestLexerNormalization(t *testing.T) {
 		Type:     "sql",
 		Meta:     map[string]string{"db.type": "sqlserver"},
 	}
-	agnt.obfuscateSpan(span)
+	agnt.ObfuscateSpan(span)
 	assert.Equal(t, "SELECT * FROM u.users", span.Resource)
 }
 

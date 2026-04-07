@@ -363,8 +363,16 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("observer.traces.max_fetch_batch", 100)
 	config.BindEnvAndSetDefault("observer.profiles.fetch_interval", 10*time.Second)
 	config.BindEnvAndSetDefault("observer.profiles.max_fetch_batch", 50)
-	config.BindEnvAndSetDefault("observer.metrics.enabled", false)
-	config.BindEnvAndSetDefault("observer.metrics.high_frequency_interval", 0*time.Second) // 0 = disabled
+	// When true, the observer runs system checks (cpu, memory, disk, io, load, network, etc.)
+	// at 1-second intervals and feeds them directly into the anomaly detection pipeline.
+	// These high-frequency samples are never forwarded to Datadog intake.
+	// The normal 15-second system check pipeline is unaffected.
+	config.BindEnvAndSetDefault("observer.high_frequency_system_checks.enabled", false)
+	// When true, the observer runs the generic container check at 1-second intervals
+	// with HighCardinality tags (container_id, image, etc.) and feeds metrics directly
+	// into the anomaly detection pipeline. Requires workloadmeta and tagger.
+	// These high-frequency samples are never forwarded to Datadog intake.
+	config.BindEnvAndSetDefault("observer.high_frequency_container_checks.enabled", false)
 	config.BindEnvAndSetDefault("observer.event_reporter.sending_enabled", false)
 
 	// Observer component toggles — values must match catalog defaults in
@@ -1079,7 +1087,7 @@ func resolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 func configAssignAtPath(config pkgconfigmodel.Config, settingPath []string, newValue any) error {
 	settingName := strings.Join(settingPath, ".")
 	if config.IsKnown(settingName) {
-		config.Set(settingName, newValue, pkgconfigmodel.SourceSecretBackend)
+		config.Set(settingName, newValue, pkgconfigmodel.SourceAgentRuntime)
 		return nil
 	}
 
@@ -1193,7 +1201,7 @@ func configAssignAtPath(config pkgconfigmodel.Config, settingPath []string, newV
 		}
 	}
 
-	config.Set(settingName, startingValue, pkgconfigmodel.SourceSecretBackend)
+	config.Set(settingName, startingValue, pkgconfigmodel.SourceAgentRuntime)
 	return nil
 }
 

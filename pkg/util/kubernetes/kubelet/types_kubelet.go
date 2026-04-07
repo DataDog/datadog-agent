@@ -147,6 +147,7 @@ type ContainerPortSpec struct {
 // ContainerProbe contains fields for unmarshalling a Pod.Spec.Containers.ReadinessProbe
 type ContainerProbe struct {
 	InitialDelaySeconds int `json:"initialDelaySeconds"`
+	FailureThreshold    int `json:"failureThreshold"`
 }
 
 // ContainerSecurityContextSpec contains fields for unmarshalling a Pod.Spec.Containers.SecurityContext
