@@ -7,7 +7,6 @@ package config
 
 import (
 	"context"
-	"fmt"
 	"io/fs"
 	"os"
 	"testing"
@@ -16,7 +15,6 @@ import (
 	"go.opentelemetry.io/collector/featuregate"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -304,10 +302,7 @@ func (suite *ConfigTestSuite) TestBadLogLevel() {
 	ddFileName := "testdata/datadog_bad_log_level.yaml"
 	_, err := NewConfigComponent(context.Background(), ddFileName, []string{fileName})
 
-	expectedError := fmt.Sprintf(
-		"invalid log level (%v) set in the Datadog Agent configuration",
-		pkgconfigsetup.Datadog().GetString("log_level"))
-	assert.ErrorContains(t, err, expectedError)
+	assert.EqualError(t, err, "invalid log level (yabadabadoo) set in the Datadog Agent configuration")
 }
 
 func (suite *ConfigTestSuite) TestNoDDExporter() {
@@ -384,6 +379,63 @@ func (suite *ConfigTestSuite) TestDDAPISiteSet() {
 	assert.Equal(t, "https://api.us3.datadoghq.com", c.Get("dd_url"))
 	assert.Equal(t, "https://agent-http-intake.logs.us3.datadoghq.com", c.Get("logs_config.logs_dd_url"))
 	assert.Equal(t, "https://trace.agent.us3.datadoghq.com", c.Get("apm_config.apm_dd_url"))
+}
+
+func (suite *ConfigTestSuite) TestProxyDDEnvVarsWithoutCoreConfig() {
+	t := suite.T()
+	t.Setenv("DD_PROXY_HTTP", "http://dd-proxy.example.com:8080")
+	t.Setenv("DD_PROXY_HTTPS", "https://dd-proxy.example.com:8443")
+	t.Setenv("DD_PROXY_NO_PROXY", "localhost,127.0.0.1")
+
+	pkgconfig, err := NewConfigComponent(context.Background(), "", []string{"testdata/config.yaml"})
+	require.NoError(t, err)
+
+	assert.Equal(t, "http://dd-proxy.example.com:8080", pkgconfig.GetString("proxy.http"))
+	assert.Equal(t, "https://dd-proxy.example.com:8443", pkgconfig.GetString("proxy.https"))
+	// 169.254.169.254 and 100.100.100.200 are added by default (cloud metadata endpoints)
+	assert.ElementsMatch(t, []string{"localhost", "127.0.0.1", "169.254.169.254", "100.100.100.200"}, pkgconfig.GetStringSlice("proxy.no_proxy"))
+}
+
+func (suite *ConfigTestSuite) TestProxyHTTPEnvVarsWithoutCoreConfig() {
+	t := suite.T()
+	t.Setenv("HTTP_PROXY", "http://proxy.example.com:8080")
+	t.Setenv("HTTPS_PROXY", "https://proxy.example.com:8443")
+	t.Setenv("NO_PROXY", "localhost,127.0.0.1")
+
+	pkgconfig, err := NewConfigComponent(context.Background(), "", []string{"testdata/config.yaml"})
+	require.NoError(t, err)
+
+	assert.Equal(t, "http://proxy.example.com:8080", pkgconfig.GetString("proxy.http"))
+	assert.Equal(t, "https://proxy.example.com:8443", pkgconfig.GetString("proxy.https"))
+	// 169.254.169.254 and 100.100.100.200 are added by default (cloud metadata endpoints)
+	assert.ElementsMatch(t, []string{"localhost", "127.0.0.1", "169.254.169.254", "100.100.100.200"}, pkgconfig.GetStringSlice("proxy.no_proxy"))
+}
+
+func (suite *ConfigTestSuite) TestProxyDDEnvVarsTakePrecedenceOverHTTPEnvVars() {
+	t := suite.T()
+	t.Setenv("DD_PROXY_HTTP", "http://dd-proxy.example.com:8080")
+	t.Setenv("DD_PROXY_HTTPS", "https://dd-proxy.example.com:8443")
+	t.Setenv("HTTP_PROXY", "http://other-proxy.example.com:8080")
+	t.Setenv("HTTPS_PROXY", "https://other-proxy.example.com:8443")
+
+	pkgconfig, err := NewConfigComponent(context.Background(), "", []string{"testdata/config.yaml"})
+	require.NoError(t, err)
+
+	assert.Equal(t, "http://dd-proxy.example.com:8080", pkgconfig.GetString("proxy.http"))
+	assert.Equal(t, "https://dd-proxy.example.com:8443", pkgconfig.GetString("proxy.https"))
+}
+
+func (suite *ConfigTestSuite) TestProxyConfigURLTakesPrecedenceOverDDEnvVars() {
+	t := suite.T()
+	t.Setenv("DD_PROXY_HTTP", "http://dd-proxy.example.com:8080")
+	t.Setenv("DD_PROXY_HTTPS", "https://dd-proxy.example.com:8443")
+
+	pkgconfig, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_proxy.yaml"})
+	require.NoError(t, err)
+
+	// proxy_url from OTel exporter config should take precedence over DD_PROXY_* env vars
+	assert.Equal(t, "http://proxyurl.example.com:3128", pkgconfig.GetString("proxy.http"))
+	assert.Equal(t, "http://proxyurl.example.com:3128", pkgconfig.GetString("proxy.https"))
 }
 
 func (suite *ConfigTestSuite) TestProxyEnvVarsBoth() {

@@ -83,6 +83,7 @@
       ]
     },
     "timestamp": "[ts]",
-    "message": "{nested: {anotherInt: 42, anotherString: xyz}}"
+    "message": "{nested: {anotherInt: 42, anotherString: xyz}}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

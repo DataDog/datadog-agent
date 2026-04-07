@@ -107,6 +107,7 @@
   - test/new-e2e/tests/installer/windows/**/*
   - test/new-e2e/tests/windows/**/*
   - test/new-e2e/tests/sysprobe-functional/**/*
+  - test/new-e2e/tests/process/**/*
 
 include:
   - local: .adms/**/*.yaml
