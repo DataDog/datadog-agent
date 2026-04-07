@@ -17,8 +17,28 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/names"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// SleepableSyscallsSupported checks whether the kernel supports sleepable
+// BPF programs on syscall entry/exit points. This requires kernel >= 5.10
+// and CONFIG_FUNCTION_ERROR_INJECTION
+func SleepableSyscallsSupported() (bool, error) {
+	kv, err := kernel.HostVersion()
+	if err != nil {
+		return false, err
+	}
+	if kv < kernel.VersionCode(5, 10, 0) {
+		return false, nil
+	}
+
+	missing, err := ddebpf.VerifyKernelFuncs("error_injection_list")
+	if err != nil {
+		return false, err
+	}
+	return len(missing) == 0, nil
+}
 
 type SleepableProgramModifier struct {
 	ProbeIDs             []manager.ProbeIdentificationPair

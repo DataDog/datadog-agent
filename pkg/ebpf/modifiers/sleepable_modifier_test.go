@@ -104,8 +104,17 @@ func skipTestIfSleepableEBPFProgramsNotSupported(t *testing.T) {
 	}
 }
 
+func skipTestIfSleepableSyscallsNotSupported(t *testing.T) {
+	ok, err := SleepableSyscallsSupported()
+	require.NoError(t, err)
+
+	if !ok {
+		t.Skip("Sleepable syscalls are not supported")
+	}
+}
+
 func TestSleepableProgramWithModifier(t *testing.T) {
-	skipTestIfSleepableEBPFProgramsNotSupported(t)
+	skipTestIfSleepableSyscallsNotSupported(t)
 
 	probeName := "test_modifier" + archSuffix()
 	excluded := excludeAllExcept(probeName)
@@ -158,7 +167,7 @@ func TestSleepableProgramWithModifier(t *testing.T) {
 }
 
 func TestSleepableProgramWithoutModifier(t *testing.T) {
-	skipTestIfSleepableEBPFProgramsNotSupported(t)
+	skipTestIfSleepableSyscallsNotSupported(t)
 
 	probeName := "test_womodifier" + archSuffix()
 	excluded := excludeAllExcept(probeName)
@@ -197,7 +206,7 @@ func TestSleepableProgramWithoutModifier(t *testing.T) {
 }
 
 func TestSleepableModifierReplacesProbeReadUser(t *testing.T) {
-	skipTestIfSleepableEBPFProgramsNotSupported(t)
+	skipTestIfSleepableSyscallsNotSupported(t)
 
 	const kptrRestrictPath = "/proc/sys/kernel/kptr_restrict"
 	oldVal, err := os.ReadFile(kptrRestrictPath)
@@ -328,7 +337,7 @@ func TestSleepableModifierRejectsTracepoint(t *testing.T) {
 }
 
 func TestSleepableModifierTelemetryRemapping(t *testing.T) {
-	skipTestIfSleepableEBPFProgramsNotSupported(t)
+	skipTestIfSleepableSyscallsNotSupported(t)
 
 	collector := telemetry.NewEBPFErrorsCollector()
 	require.NotNil(t, collector, "telemetry not supported on this kernel")
@@ -441,7 +450,7 @@ func TestSleepableModifierTelemetryRemapping(t *testing.T) {
 }
 
 func TestSleepableModifierRemovesPerfEventOutput(t *testing.T) {
-	skipTestIfSleepableEBPFProgramsNotSupported(t)
+	skipTestIfSleepableSyscallsNotSupported(t)
 
 	const kptrRestrictPath = "/proc/sys/kernel/kptr_restrict"
 	oldVal, err := os.ReadFile(kptrRestrictPath)
@@ -527,7 +536,7 @@ func TestSleepableModifierRemovesPerfEventOutput(t *testing.T) {
 }
 
 func TestSleepableModifierFailsWithoutPerfPatch(t *testing.T) {
-	skipTestIfSleepableEBPFProgramsNotSupported(t)
+	skipTestIfSleepableSyscallsNotSupported(t)
 
 	probeName := "test_perf" + archSuffix()
 	excluded := excludeAllExcept(probeName)
