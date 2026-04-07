@@ -131,7 +131,7 @@ func checkYAMLSyntax(path string) (bool, []string, error) {
 // Returns (message, error): message is the human-readable result to be logged
 // by the caller; error is non-nil only on a format violation.
 // Empty keys and ENC[] keys are not errors.
-// Uses HideKeyExceptLastFourChars from the agent's scrubber package
+// Uses HideKeyExceptLastChars from the agent's scrubber package
 // for consistent API key masking.
 func validateAPIKey(apiKey string) (message string, err error) {
 	if apiKey == "" {
@@ -145,7 +145,7 @@ func validateAPIKey(apiKey string) (message string, err error) {
 	if !apiKeyRegex.MatchString(apiKey) {
 		return "", fmt.Errorf("api_key format is invalid (got %d chars, expected 32 hex characters)", len(apiKey))
 	}
-	masked := scrubber.HideKeyExceptLastFourChars(apiKey)
+	masked := scrubber.HideKeyExceptLastChars(apiKey)
 	return fmt.Sprintf("api_key format is valid (%s)", masked), nil
 }
 
