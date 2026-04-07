@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux
-
 // Package converters implements OTEL collector configuration converters for the host profiler.
 //
 // Converters normalize user-provided OTEL collector configs by adding required Datadog-specific
