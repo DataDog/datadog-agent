@@ -25,10 +25,14 @@ import (
 	nvmlmock "github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	taggercollectors "github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -908,46 +912,6 @@ type metricCollectionSetup struct {
 	knownTagValues map[string]string
 }
 
-func seedPhysicalGPUs(wmeta workloadmetamock.Mock, fakeTagger taggermock.Mock) {
-	for idx, uuid := range testutil.GPUUUIDs {
-		gpu := newMockWorkloadMetaGPU(uuid, idx, workloadmeta.GPUDeviceTypePhysical, "")
-		wmeta.Set(gpu)
-		fakeTagger.SetTags(
-			taggertypes.NewEntityID(taggertypes.GPU, uuid),
-			"spec-test",
-			gpuTagsFromWorkloadMetaGPU(gpu),
-			nil,
-			nil,
-			nil,
-		)
-	}
-}
-
-func seedMIGGPUs(wmeta workloadmetamock.Mock, fakeTagger taggermock.Mock) {
-	for parentIdx, uuids := range testutil.MIGChildrenUUIDs {
-		parentUUID := testutil.GPUUUIDs[parentIdx]
-		for migIdx, uuid := range uuids {
-			gpu := newMockWorkloadMetaGPU(uuid, migIdx, workloadmeta.GPUDeviceTypeMIG, parentUUID)
-			wmeta.Set(gpu)
-			fakeTagger.SetTags(
-				taggertypes.NewEntityID(taggertypes.GPU, uuid),
-				"spec-test",
-				gpuTagsFromWorkloadMetaGPU(gpu),
-				nil,
-				nil,
-				nil,
-			)
-		}
-	}
-}
-
-func seedGPUsForMode(wmeta workloadmetamock.Mock, fakeTagger taggermock.Mock, mode gpuspec.DeviceMode) {
-	seedPhysicalGPUs(wmeta, fakeTagger)
-	if mode == gpuspec.DeviceModeMIG {
-		seedMIGGPUs(wmeta, fakeTagger)
-	}
-}
-
 func seedContainersForPIDMapping(wmeta workloadmetamock.Mock, fakeTagger taggermock.Mock, pidToContainerID map[int]string) {
 	for _, containerID := range pidToContainerID {
 		wmeta.Set(&workloadmeta.Container{
@@ -982,7 +946,34 @@ func setupMockCheckForMetricCollection(t *testing.T, archName string, mode gpusp
 	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(opts...))
 
 	wmeta := testutil.GetWorkloadMetaMock(t)
-	seedGPUsForMode(wmeta, fakeTagger, mode)
+
+	// Ensure that the NVML collector can start, prepare config
+	env.SetFeatures(t, env.NVML)
+	cfg := config.NewMockWithOverrides(t, map[string]interface{}{
+		"gpu.integrate_with_workloadmeta_processes": false,
+	})
+
+	// Create the NVML collector to ensure we get the data in the same way as with real checks
+	nvmlCollector := collectors.GetNvmlCollector(t, cfg)
+	ctx := t.Context()
+	require.NoError(t, nvmlCollector.Start(ctx, wmeta), "failed to start NVML collector")
+	require.NoError(t, nvmlCollector.Pull(ctx), "failed to pull NVML collector")
+
+	// Iterate all GPUs from workloadmeta and set the tags in the tagger
+	wmetaGpus := wmeta.ListGPUs()
+	for _, gpu := range wmetaGpus {
+		tags := taglist.NewTagList()
+		taggercollectors.ExtractGPUTags(gpu, tags)
+		low, orch, high, standard := tags.Compute()
+		fakeTagger.SetTags(
+			taggertypes.NewEntityID(taggertypes.GPU, gpu.ID),
+			"spec-test",
+			low,
+			orch,
+			high,
+			standard,
+		)
+	}
 
 	pidToContainerID := map[int]string{
 		1:    "container-1",
@@ -1100,39 +1091,6 @@ func getEmittedGPUMetricsWithTags(mockSender *mocksender.MockSender) map[string]
 	}
 
 	return metricsByName
-}
-
-func newMockWorkloadMetaGPU(uuid string, index int, deviceType workloadmeta.GPUDeviceType, parentUUID string) *workloadmeta.GPU {
-	gpu := &workloadmeta.GPU{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindGPU,
-			ID:   uuid,
-		},
-		EntityMeta: workloadmeta.EntityMeta{
-			Name: testutil.DefaultGPUName,
-		},
-		Vendor:             "nvidia",
-		Device:             testutil.DefaultGPUName,
-		DriverVersion:      testutil.DefaultNvidiaDriverVersion,
-		Index:              index,
-		DeviceType:         deviceType,
-		VirtualizationMode: "none",
-	}
-
-	if parentUUID != "" {
-		gpu.ParentGPUUUID = parentUUID
-	}
-
-	return gpu
-}
-
-func gpuTagsFromWorkloadMetaGPU(gpu *workloadmeta.GPU) []string {
-	return []string{
-		"gpu_uuid:" + gpu.ID,
-		"gpu_device:" + strings.ToLower(strings.ReplaceAll(gpu.Device, " ", "_")),
-		"gpu_vendor:" + strings.ToLower(gpu.Vendor),
-		"gpu_driver_version:" + gpu.DriverVersion,
-	}
 }
 
 func validateMetricTagsAgainstSpec(t *testing.T, spec *gpuspec.MetricsSpec, metricName string, metricSpec gpuspec.MetricSpec, emittedMetrics []metric, knownTagValues map[string]string) {
