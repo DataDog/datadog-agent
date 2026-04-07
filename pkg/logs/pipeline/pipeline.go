@@ -13,12 +13,15 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
+	grpcsender "github.com/DataDog/datadog-agent/pkg/logs/sender/grpc"
 	compressioncommon "github.com/DataDog/datadog-agent/pkg/util/compression"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Pipeline processes and sends messages to the backend
@@ -48,6 +51,10 @@ func NewPipeline(
 	var encoder processor.Encoder
 	if serverlessMeta.IsEnabled() {
 		encoder = processor.JSONServerlessInitEncoder
+	} else if endpoints.UseGRPC {
+		// Throwaway code to test with existing pipelines
+		// TODO change to real encoder once State component is ready
+		encoder = grpcsender.MockEncoder
 	} else if endpoints.UseHTTP {
 		encoder = processor.JSONEncoder
 	} else if endpoints.UseProto {
@@ -99,13 +106,20 @@ func getStrategy(
 	compressor logscompression.Component,
 	instanceID string,
 ) sender.Strategy {
-	if endpoints.UseHTTP || serverlessMeta.IsEnabled() {
+	if endpoints.UseGRPC || endpoints.UseHTTP || serverlessMeta.IsEnabled() {
 		var encoder compressioncommon.Compressor
 		encoder = compressor.NewCompressor(compressioncommon.NoneKind, 0)
 		if endpoints.Main.UseCompression {
 			encoder = compressor.NewCompressor(endpoints.Main.CompressionKind, endpoints.Main.CompressionLevel)
 		}
+		if endpoints.UseGRPC {
+			translator := grpcsender.NewMessageTranslator(instanceID)
+			// TODO: Consider sharing cluster manager across pipelines for better pattern clustering:
+			// translator := grpcsender.NewMessageTranslator(getSharedClusterManager())
+			statefulInputChan := translator.Start(inputChan, pkgconfigsetup.Datadog().GetInt("logs_config.message_channel_size"))
 
+			return grpcsender.NewBatchStrategy(statefulInputChan, outputChan, flushChan, endpoints.BatchWait, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", encoder, pipelineMonitor, instanceID)
+		}
 		return sender.NewBatchStrategy(
 			inputChan,
 			outputChan,
@@ -119,5 +133,7 @@ func getStrategy(
 			pipelineMonitor,
 			instanceID)
 	}
+
+	log.Infof("Pipeline: Using StreamStrategy (default)")
 	return sender.NewStreamStrategy(inputChan, outputChan, compressor.NewCompressor(compressioncommon.NoneKind, 0))
 }
