@@ -35,6 +35,7 @@ type baseHostnameSuite struct {
 }
 
 func TestBaseHostnameSuite(t *testing.T) {
+	t.Parallel()
 	e2e.Run(t, &baseHostnameSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()))
 }
 
