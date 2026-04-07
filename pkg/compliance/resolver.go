@@ -618,13 +618,24 @@ func (r *defaultResolver) resolveDocker(ctx context.Context, spec InputSpecDocke
 		if err != nil {
 			return nil, err
 		}
+		// KernelVersion was removed from client.ServerVersionResult in v29
+		// but is still available in the Engine component details.
+		kernelVersion := ""
+		for _, comp := range versionResult.Components {
+			if comp.Name == "Engine" {
+				if kv, ok := comp.Details["KernelVersion"]; ok {
+					kernelVersion = kv
+				}
+			}
+		}
 		resolved = append(resolved, map[string]interface{}{
-			"version":      versionResult.Version,
-			"apiVersion":   versionResult.APIVersion,
-			"platform":     versionResult.Platform.Name,
-			"experimental": versionResult.Experimental, //nolint:staticcheck // SA1019: field is deprecated upstream but still needed for compliance checks
-			"os":           versionResult.Os,
-			"arch":         versionResult.Arch,
+			"version":       versionResult.Version,
+			"apiVersion":    versionResult.APIVersion,
+			"platform":      versionResult.Platform.Name,
+			"experimental":  versionResult.Experimental, //nolint:staticcheck // SA1019: field is deprecated upstream but still needed for compliance checks
+			"os":            versionResult.Os,
+			"arch":          versionResult.Arch,
+			"kernelVersion": kernelVersion,
 		})
 	default:
 		return nil, fmt.Errorf("unsupported docker object kind '%q'", spec.Kind)
