@@ -25,6 +25,7 @@ import (
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/pkg/hook"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -63,6 +64,7 @@ type provides struct {
 	SenderManager           sender.SenderManager
 	StatusProvider          status.InformationProvider
 	AggregatorDemultiplexer aggregator.Demultiplexer
+	MetricHook              hook.Hook[[]hook.MetricSampleSnapshot] `group:"hook"`
 }
 
 func newDemultiplexer(deps dependencies) (provides, error) {
@@ -76,6 +78,7 @@ func newDemultiplexer(deps dependencies) (provides, error) {
 		}
 	}
 	options := createAgentDemultiplexerOptions(deps.Config, deps.Params)
+	metricHook := hook.NewHook[[]hook.MetricSampleSnapshot]("metrics-pipeline")
 	agentDemultiplexer := aggregator.InitAndStartAgentDemultiplexer(
 		deps.Log,
 		deps.SharedForwarder,
@@ -87,6 +90,7 @@ func newDemultiplexer(deps dependencies) (provides, error) {
 		deps.Tagger,
 		deps.FilterList,
 		hostnameDetected,
+		metricHook,
 	)
 	demultiplexer := demultiplexer{
 		AgentDemultiplexer: agentDemultiplexer,
@@ -103,6 +107,7 @@ func newDemultiplexer(deps dependencies) (provides, error) {
 			Log: deps.Log,
 		}),
 		AggregatorDemultiplexer: demultiplexer,
+		MetricHook:              metricHook,
 	}, nil
 }
 

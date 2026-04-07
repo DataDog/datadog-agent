@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/util"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/hook"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
@@ -36,6 +37,8 @@ type CheckSampler struct {
 	contextResolverMetrics bool
 	logThrottling          util.SimpleThrottler
 	allowSketchBucketReset bool
+
+	metricHook hook.Hook[[]hook.MetricSampleSnapshot]
 }
 
 // newCheckSampler returns a newly initialized CheckSampler
@@ -48,6 +51,7 @@ func newCheckSampler(
 	cache *tags.Store,
 	id checkid.ID,
 	tagger tagger.Component,
+	metricHook hook.Hook[[]hook.MetricSampleSnapshot],
 ) *CheckSampler {
 	return &CheckSampler{
 		id:                     id,
@@ -60,10 +64,14 @@ func newCheckSampler(
 		contextResolverMetrics: contextResolverMetrics,
 		logThrottling:          util.NewSimpleThrottler(5, 5*time.Minute, ""),
 		allowSketchBucketReset: allowSketchBucketReset,
+		metricHook:             metricHook,
 	}
 }
 
 func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample, tagFilterList filterlist.TagMatcher) {
+	if cs.metricHook.HasSubscribers() {
+		cs.metricHook.Publish("checks", []hook.MetricSampleSnapshot{hook.NewMetricSampleSnapshot(metricSample)})
+	}
 	contextKey := cs.contextResolver.trackContext(metricSample, tagFilterList)
 	if metricSample.Mtype == metrics.DistributionType {
 		cs.sketchMap.insert(int64(metricSample.Timestamp), contextKey, metricSample.Value, metricSample.SampleRate)

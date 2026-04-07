@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/hook"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
@@ -81,6 +82,7 @@ func createTestProviderWithFailover(t *testing.T, numberOfPipelines int) *provid
 		compressionfx.NewMockCompressor(),
 		sender.NewServerlessMeta(false),
 		createMockSender(),
+		hook.NewNoopHook[hook.LogView](),
 	).(*provider)
 
 	p.Start()

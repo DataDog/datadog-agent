@@ -254,6 +254,7 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/gohai/cpu
 # gazelle:exclude pkg/gpu
 # gazelle:exclude pkg/hosttags
+# gazelle:exclude pkg/hook
 # gazelle:exclude pkg/inventory
 # gazelle:exclude pkg/jmxfetch
 # gazelle:exclude pkg/kubestatemetrics

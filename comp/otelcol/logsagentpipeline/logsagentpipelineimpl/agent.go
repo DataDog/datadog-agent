@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/hook"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
@@ -218,6 +219,7 @@ func (a *Agent) SetupPipeline(
 		a.compression,
 		a.config.GetBool("logs_config.disable_distributed_senders"),
 		false, // serverless
+		hook.NewNoopHook[hook.LogView](),
 	)
 
 	a.destinationsCtx = destinationsCtx

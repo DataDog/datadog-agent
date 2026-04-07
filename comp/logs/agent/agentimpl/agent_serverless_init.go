@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/hook"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
@@ -55,8 +56,9 @@ func (a *logAgent) SetupPipeline(
 		a.hostname,
 		a.config,
 		a.compression,
-		true, // disable distributed sending for serverless
-		true, // serverless
+		true,                             // disable distributed sending for serverless
+		true,                             // serverless
+		hook.NewNoopHook[hook.LogView](), // no log hook in serverless
 	)
 
 	lnchrs := launchers.NewLaunchers(a.sources, pipelineProvider, a.auditor, a.tracker)

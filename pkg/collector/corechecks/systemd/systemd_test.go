@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/hook"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 )
 
@@ -1226,7 +1227,7 @@ unit_names:
 func TestCheckID(t *testing.T) {
 	check1 := newCheck()
 	check2 := newCheck()
-	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour, filterlistimpl.NewNoopFilterList())
+	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour, filterlistimpl.NewNoopFilterList(), hook.NewNoopHook[[]hook.MetricSampleSnapshot]())
 
 	// language=yaml
 	rawInstanceConfig1 := []byte(`

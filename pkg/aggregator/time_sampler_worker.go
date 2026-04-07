@@ -108,9 +108,10 @@ func (w *timeSamplerWorker) run() {
 			tlmProcessed.Add(float64(len(ms)), shard, "dogstatsd_metrics")
 			t := timeNowNano()
 
-			for i := 0; i < len(ms); i++ {
+			for i := range ms {
 				w.sampler.sample(&ms[i], t, w.tagFilterList)
 			}
+			w.sampler.publishHookBatch()
 			w.metricSamplePool.PutBatch(ms)
 		case matcher := <-w.metricFilterListChan:
 			w.flushFilterList = matcher

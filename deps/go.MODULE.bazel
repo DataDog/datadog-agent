@@ -157,6 +157,7 @@ use_repo(
     "com_github_datadog_datadog_agent_pkg_fips",
     "com_github_datadog_datadog_agent_pkg_fleet_installer",
     "com_github_datadog_datadog_agent_pkg_gohai",
+    "com_github_datadog_datadog_agent_pkg_hook",
     "com_github_datadog_datadog_agent_pkg_logs_client",
     "com_github_datadog_datadog_agent_pkg_logs_diagnostic",
     "com_github_datadog_datadog_agent_pkg_logs_message",

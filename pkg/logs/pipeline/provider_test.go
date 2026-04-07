@@ -16,6 +16,7 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/hook"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -233,6 +234,7 @@ func TestProviderConfigurations(t *testing.T) {
 				compression,
 				tc.legacyMode,
 				tc.serverless,
+				hook.NewNoopHook[hook.LogView](),
 			)
 			require.NotNil(t, providerImpl)
 
@@ -301,6 +303,7 @@ func TestPipelineChannelDistribution(t *testing.T) {
 				compression,
 				false, // legacy mode
 				false, // serverless
+				hook.NewNoopHook[hook.LogView](),
 			)
 
 			require.NotNil(t, providerImpl)

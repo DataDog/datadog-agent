@@ -12,6 +12,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/hook"
 	"github.com/DataDog/datadog-agent/pkg/hosttags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -54,6 +55,8 @@ type noAggregationStreamWorker struct {
 	tagger          tagger.Component
 
 	logThrottling util.SimpleThrottler
+
+	metricHook hook.Hook[[]hook.MetricSampleSnapshot]
 }
 
 // noAggWorkerStreamCheckFrequency is the frequency at which the no agg worker
@@ -85,6 +88,7 @@ func init() {
 func newNoAggregationStreamWorker(maxMetricsPerPayload int, _ *metrics.MetricSamplePool,
 	serializer serializer.MetricSerializer, flushConfig FlushAndSerializeInParallel,
 	tagger tagger.Component,
+	metricHook hook.Hook[[]hook.MetricSampleSnapshot],
 ) *noAggregationStreamWorker {
 	return &noAggregationStreamWorker{
 		serializer:           serializer,
@@ -105,7 +109,8 @@ func newNoAggregationStreamWorker(maxMetricsPerPayload int, _ *metrics.MetricSam
 		// every 5 minutes.
 		logThrottling: util.NewSimpleThrottler(200, 5*time.Minute, "Pausing the unsupported metric type warning message for 5m"),
 
-		tagger: tagger,
+		tagger:     tagger,
+		metricHook: metricHook,
 	}
 }
 
@@ -236,6 +241,13 @@ func (w *noAggregationStreamWorker) run() {
 						tlmNoAggSamplesProcessedUnsupportedType.Add(float64(countUnsupportedType))
 						expvarNoAggSamplesProcessedUnsupportedType.Add(int64(countUnsupportedType))
 
+						if w.metricHook.HasSubscribers() {
+							hookBatch := make([]hook.MetricSampleSnapshot, len(samples))
+							for i := range samples {
+								hookBatch[i] = hook.NewMetricSampleSnapshot(&samples[i])
+							}
+							w.metricHook.Publish("dogstatsd-no-aggr", hookBatch)
+						}
 						w.metricSamplePool.PutBatch(samples) // return the sample batch back to the pool for reuse
 
 						if serializedSamples > w.maxMetricsPerPayload {

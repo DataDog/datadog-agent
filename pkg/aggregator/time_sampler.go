@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/hook"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
@@ -45,10 +46,15 @@ type TimeSampler struct {
 	idString string
 
 	hostname string
+
+	// metricHook fans out metric batches to subscribers (e.g. flight recorder).
+	// hookBatch is a reusable slice filled by sample() and flushed by publishHookBatch().
+	metricHook hook.Hook[[]hook.MetricSampleSnapshot]
+	hookBatch  []hook.MetricSampleSnapshot
 }
 
 // NewTimeSampler returns a newly initialized TimeSampler
-func NewTimeSampler(id TimeSamplerID, interval int64, cache *tags.Store, tagger tagger.Component, hostname string) *TimeSampler {
+func NewTimeSampler(id TimeSamplerID, interval int64, cache *tags.Store, tagger tagger.Component, hostname string, metricHook hook.Hook[[]hook.MetricSampleSnapshot]) *TimeSampler {
 	if interval == 0 {
 		interval = bucketSize
 	}
@@ -67,6 +73,7 @@ func NewTimeSampler(id TimeSamplerID, interval int64, cache *tags.Store, tagger 
 		id:                 id,
 		idString:           idString,
 		hostname:           hostname,
+		metricHook:         metricHook,
 	}
 
 	return s
@@ -90,6 +97,15 @@ func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float
 	contextKey := s.contextResolver.trackContext(metricSample, int64(timestamp), filterList)
 	bucketStart := s.calculateBucketStart(timestamp)
 
+	s.hookBatch = append(s.hookBatch, hook.MetricSampleSnapshot{
+		Name:       metricSample.Name,
+		Value:      metricSample.Value,
+		RawTags:    metricSample.Tags,
+		Timestamp:  timestamp,
+		SampleRate: metricSample.SampleRate,
+		ContextKey: uint64(contextKey),
+	})
+
 	switch metricSample.Mtype {
 	case metrics.DistributionType:
 		s.sketchMap.insert(bucketStart, contextKey, metricSample.Value, metricSample.SampleRate)
@@ -105,6 +121,20 @@ func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float
 			log.Debugf("TimeSampler #%d Ignoring sample '%s' on host '%s' and tags '%s': %s", s.id, metricSample.Name, metricSample.Host, metricSample.Tags, err)
 		}
 	}
+}
+
+// publishHookBatch publishes the accumulated snapshot batch to hook subscribers
+// and resets the accumulator for the next batch.
+// Must be called by the worker after processing each []MetricSample batch,
+// before returning the batch to the pool.
+// Safe to reset with [:0] because subscribers using WithRecycle clone the slice
+// before enqueuing; without WithRecycle, set hookBatch = nil to release ownership.
+func (s *TimeSampler) publishHookBatch() {
+	if len(s.hookBatch) == 0 {
+		return
+	}
+	s.metricHook.Publish("dogstatsd", s.hookBatch)
+	s.hookBatch = s.hookBatch[:0]
 }
 
 func (s *TimeSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.SketchPoint) *metrics.SketchSeries {

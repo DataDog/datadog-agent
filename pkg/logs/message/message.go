@@ -404,6 +404,16 @@ func LogSourceTag(stream string) string {
 	return "logsource:" + stream
 }
 
+// GetTags returns the tags of the message (implements hook.LogView)
+func (m *Message) GetTags() []string {
+	return m.MessageMetadata.Tags()
+}
+
+// GetHostname returns the hostname of the message (implements hook.LogView)
+func (m *Message) GetHostname() string {
+	return m.MessageMetadata.Hostname
+}
+
 // IsMRF returns true if the payload should be sent to MRF endpoints.
 func (m *Payload) IsMRF() bool {
 	if len(m.MessageMetas) == 0 {

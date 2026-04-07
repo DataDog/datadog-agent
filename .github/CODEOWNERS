@@ -714,6 +714,7 @@
 /pkg/networkpath/                       @DataDog/network-path
 /pkg/networkpath/traceroute/            @DataDog/windows-products @DataDog/network-path
 /pkg/collector/corechecks/networkpath/  @DataDog/network-path
+/pkg/hook                               @DataDog/agent-metric-pipelines @DataDog/agent-log-pipelines
 
 # release notes accompany code changes, so code owners will review anyway
 /releasenotes/                          # do not notify anyone

@@ -17,6 +17,7 @@ import (
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/hook"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
@@ -74,6 +75,8 @@ type provider struct {
 	routerChannels     []chan *message.Message
 	currentRouterIndex *atomic.Uint32
 	forwarderWaitGroup sync.WaitGroup
+
+	logHook hook.Hook[hook.LogView]
 }
 
 // NewProvider returns a new Provider
@@ -90,6 +93,7 @@ func NewProvider(
 	compression logscompression.Component,
 	legacyMode bool,
 	serverless bool,
+	logHook hook.Hook[hook.LogView],
 ) Provider {
 	var senderImpl sender.PipelineComponent
 	serverlessMeta := sender.NewServerlessMeta(serverless)
@@ -110,6 +114,7 @@ func NewProvider(
 		compression,
 		serverlessMeta,
 		senderImpl,
+		logHook,
 	)
 }
 
@@ -217,6 +222,7 @@ func newProvider(
 	compression logscompression.Component,
 	serverlessMeta sender.ServerlessMeta,
 	senderImpl sender.PipelineComponent,
+	logHook hook.Hook[hook.LogView],
 ) Provider {
 	return &provider{
 		numberOfPipelines:         numberOfPipelines,
@@ -233,6 +239,8 @@ func newProvider(
 
 		failoverEnabled:    cfg.GetBool("logs_config.pipeline_failover.enabled"),
 		currentRouterIndex: atomic.NewUint32(0),
+
+		logHook: logHook,
 	}
 }
 
@@ -254,6 +262,7 @@ func (p *provider) Start() {
 			p.cfg,
 			p.compression,
 			strconv.Itoa(i),
+			p.logHook,
 		)
 		pipeline.Start()
 		p.pipelines = append(p.pipelines, pipeline)

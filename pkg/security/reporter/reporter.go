@@ -12,6 +12,7 @@ import (
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/hook"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -60,6 +61,7 @@ func newReporter(hostname string, stopper startstop.Stopper, sourceName, sourceT
 		compression,
 		cfg.GetBool("logs_config.disable_distributed_senders"),
 		false, // serverless
+		hook.NewNoopHook[hook.LogView](),
 	)
 	pipelineProvider.Start()
 	stopper.Add(pipelineProvider)

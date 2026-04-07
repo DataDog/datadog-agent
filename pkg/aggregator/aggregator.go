@@ -23,6 +23,7 @@ import (
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/hook"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
@@ -280,6 +281,8 @@ type BufferedAggregator struct {
 
 	tagFilterListChan chan filterlist.TagMatcher
 	tagFilterList     filterlist.TagMatcher
+
+	metricHook hook.Hook[[]hook.MetricSampleSnapshot]
 }
 
 // FlushAndSerializeInParallel contains options for flushing metrics and serializing in parallel.
@@ -297,7 +300,7 @@ func NewFlushAndSerializeInParallel(config model.Config) FlushAndSerializeInPara
 }
 
 // NewBufferedAggregator instantiates a BufferedAggregator
-func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder eventplatform.Component, haAgent haagent.Component, tagger tagger.Component, hostname string, flushInterval time.Duration, filterList filterlist.Component) *BufferedAggregator {
+func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder eventplatform.Component, haAgent haagent.Component, tagger tagger.Component, hostname string, flushInterval time.Duration, filterList filterlist.Component, metricHook hook.Hook[[]hook.MetricSampleSnapshot]) *BufferedAggregator {
 	bufferSize := pkgconfigsetup.Datadog().GetInt("aggregator_buffer_size")
 
 	agentName := flavor.GetFlavor()
@@ -356,6 +359,8 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		flushFilterList:   filterList.GetMetricFilterList(),
 		tagFilterListChan: make(chan filterlist.TagMatcher),
 		tagFilterList:     filterList.GetTagFilterList(),
+
+		metricHook: metricHook,
 	}
 
 	return aggregator
@@ -998,5 +1003,6 @@ func (agg *BufferedAggregator) handleRegisterSampler(id checkid.ID) {
 		agg.tagsStore,
 		id,
 		agg.tagger,
+		agg.metricHook,
 	)
 }
