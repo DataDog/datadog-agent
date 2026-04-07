@@ -49,30 +49,6 @@ func TestContextSet_Reset(t *testing.T) {
 		t.Fatal("expected key to be unknown after reset")
 	}
 }
-
-func TestContextSet_RemoveIsNoOp(t *testing.T) {
-	cs := newContextSet(0)
-
-	cs.IsKnown(42)
-	cs.Remove(42) // no-op for bloom filter
-	// Key should still be known (bloom filters don't support deletion).
-	if !cs.IsKnown(42) {
-		t.Fatal("expected key to still be known after Remove (bloom filter)")
-	}
-}
-
-func TestContextSet_CheckCapAlwaysFalse(t *testing.T) {
-	cs := newContextSet(10)
-
-	for i := uint64(0); i <= 100; i++ {
-		cs.IsKnown(i)
-	}
-	// Bloom filter has fixed size — CheckCap never triggers.
-	if cs.CheckCap() {
-		t.Fatal("expected CheckCap to return false for bloom filter")
-	}
-}
-
 func TestContextSet_Concurrent(t *testing.T) {
 	cs := newContextSet(0)
 

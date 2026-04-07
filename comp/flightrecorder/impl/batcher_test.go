@@ -114,15 +114,14 @@ func TestBatcher_ConcurrentAddAndFlush(t *testing.T) {
 		t.Error("expected bytes sent > 0, got 0")
 	}
 
-	stats := c.stats()
-	total := stats.MetricsSent + stats.MetricsDropped + stats.LogsSent + stats.LogsDropped
+	total := c.metricsSent.Load() + c.metricsDropped.Load() + c.logsSent.Load() + c.logsDropped.Load()
 	if total == 0 {
 		t.Error("expected some items processed, got 0")
 	}
 	t.Logf("sends=%d bytes=%d metricsSent=%d metricsDropped=%d logsSent=%d logsDropped=%d",
 		transport.sends.Load(), transport.bytes.Load(),
-		stats.MetricsSent, stats.MetricsDropped,
-		stats.LogsSent, stats.LogsDropped)
+		c.metricsSent.Load(), c.metricsDropped.Load(),
+		c.logsSent.Load(), c.logsDropped.Load())
 }
 
 // TestBatcher_FlushLoopDrainsRing verifies that items added to the ring
@@ -162,17 +161,16 @@ func TestBatcher_FlushLoopDrainsRing(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	bat.Stop()
 
-	stats := c.stats()
 	t.Logf("metricsSent=%d metricsDropped=%d sends=%d",
-		stats.MetricsSent, stats.MetricsDropped, transport.sends.Load())
+		c.metricsSent.Load(), c.metricsDropped.Load(), transport.sends.Load())
 
 	// With 10K ring and 600 items total, there should be zero drops.
-	if stats.MetricsDropped > 0 {
-		t.Errorf("expected 0 drops with 10K ring and 600 items, got %d", stats.MetricsDropped)
+	if c.metricsDropped.Load() > 0 {
+		t.Errorf("expected 0 drops with 10K ring and 600 items, got %d", c.metricsDropped.Load())
 	}
 	// All 600 items should be sent.
-	if stats.MetricsSent != 600 {
-		t.Errorf("expected 600 metrics sent, got %d", stats.MetricsSent)
+	if c.metricsSent.Load() != 600 {
+		t.Errorf("expected 600 metrics sent, got %d", c.metricsSent.Load())
 	}
 }
 
@@ -208,17 +206,16 @@ func TestBatcher_HighVolumeProducer(t *testing.T) {
 	time.Sleep(500 * time.Millisecond)
 	bat.Stop()
 
-	stats := c.stats()
 	t.Logf("metricsSent=%d metricsDropped=%d sends=%d bytes=%d",
-		stats.MetricsSent, stats.MetricsDropped,
+		c.metricsSent.Load(), c.metricsDropped.Load(),
 		transport.sends.Load(), transport.bytes.Load())
 
 	// With 100K ring and 50K items, zero drops expected.
-	if stats.MetricsDropped > 0 {
-		t.Errorf("expected 0 drops, got %d", stats.MetricsDropped)
+	if c.metricsDropped.Load() > 0 {
+		t.Errorf("expected 0 drops, got %d", c.metricsDropped.Load())
 	}
-	if stats.MetricsSent != totalItems {
-		t.Errorf("expected %d metrics sent, got %d", totalItems, stats.MetricsSent)
+	if c.metricsSent.Load() != totalItems {
+		t.Errorf("expected %d metrics sent, got %d", totalItems, c.metricsSent.Load())
 	}
 }
 
@@ -251,16 +248,15 @@ func TestBatcher_LargeLogBatchIsChunked(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 	bat.Stop()
 
-	stats := c.stats()
 	sends := transport.sends.Load()
 	maxFrame := transport.maxFrame.Load()
 
 	t.Logf("logsSent=%d logsDropped=%d sends=%d totalBytes=%d maxFrame=%d",
-		stats.LogsSent, stats.LogsDropped, sends, transport.bytes.Load(), maxFrame)
+		c.logsSent.Load(), c.logsDropped.Load(), sends, transport.bytes.Load(), maxFrame)
 
 	// All 25,000 logs should be sent.
-	if stats.LogsSent != 25000 {
-		t.Errorf("expected 25000 logs sent, got %d", stats.LogsSent)
+	if c.logsSent.Load() != 25000 {
+		t.Errorf("expected 25000 logs sent, got %d", c.logsSent.Load())
 	}
 
 	// Should be split into multiple frames (25000 / 2000 = 13 chunks).
@@ -311,16 +307,15 @@ func TestBatcher_LargeTraceStatsBatchIsChunked(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 	bat.Stop()
 
-	stats := c.stats()
 	sends := transport.sends.Load()
 	maxFrame := transport.maxFrame.Load()
 
-	t.Logf("traceStatsSent=%d traceStatsDropped=%d sends=%d totalBytes=%d maxFrame=%d",
-		stats.TraceStatsSent, stats.TraceStatsDropped, sends, transport.bytes.Load(), maxFrame)
+	t.Logf("tracec.ent.Load()=%d tracec.ropped.Load()=%d sends=%d totalBytes=%d maxFrame=%d",
+		c.traceStatsSent.Load(), c.traceStatsDropped.Load(), sends, transport.bytes.Load(), maxFrame)
 
 	// All 5,000 entries should be sent.
-	if stats.TraceStatsSent != 5000 {
-		t.Errorf("expected 5000 trace stats sent, got %d", stats.TraceStatsSent)
+	if c.traceStatsSent.Load() != 5000 {
+		t.Errorf("expected 5000 trace c.sent.Load(), got %d", c.traceStatsSent.Load())
 	}
 
 	// Should be split into multiple frames (5000 / 2000 = 3 chunks).
@@ -360,17 +355,16 @@ func TestBatcher_LargeContextDefBatchIsChunked(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 	bat.Stop()
 
-	stats := c.stats()
 	sends := transport.sends.Load()
 	maxFrame := transport.maxFrame.Load()
 
 	t.Logf("metricsSent=%d metricsDropped=%d sends=%d totalBytes=%d maxFrame=%d (%.1f MB)",
-		stats.MetricsSent, stats.MetricsDropped, sends, transport.bytes.Load(),
+		c.metricsSent.Load(), c.metricsDropped.Load(), sends, transport.bytes.Load(),
 		maxFrame, float64(maxFrame)/1e6)
 
 	// All 10,000 defs should be sent.
-	if stats.MetricsSent != 10000 {
-		t.Errorf("expected 10000 metrics sent, got %d", stats.MetricsSent)
+	if c.metricsSent.Load() != 10000 {
+		t.Errorf("expected 10000 metrics sent, got %d", c.metricsSent.Load())
 	}
 
 	// Should be split into multiple frames (10000 / 2000 = 5 chunks).

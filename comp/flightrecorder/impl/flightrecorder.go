@@ -43,10 +43,10 @@ type Provides struct {
 	Comp flightrecorder.Component
 }
 
-// sinkImpl implements flightrecorder.Component with socket-based auto-activation.
+// flightrecorderImpl implements flightrecorder.Component with socket-based auto-activation.
 // It probes for the sidecar's Unix socket and activates when found. On disconnect,
 // it tears down hooks and batcher, then restarts discovery.
-type sinkImpl struct {
+type flightrecorderImpl struct {
 	counters *counters
 	log      log.Component
 
@@ -76,10 +76,6 @@ type sinkImpl struct {
 	wg     sync.WaitGroup
 }
 
-func (s *sinkImpl) Stats() flightrecorder.Stats {
-	return s.counters.stats()
-}
-
 // NewComponent creates the flight recorder fx component. The component probes
 // for the sidecar's Unix socket with exponential backoff and activates
 // automatically when the socket is found.
@@ -94,7 +90,7 @@ func NewComponent(req Requires) (Provides, error) {
 	contextCap := req.Config.GetInt("flightrecorder.context_set_capacity")
 
 	ctx, cancel := context.WithCancel(context.Background())
-	impl := &sinkImpl{
+	impl := &flightrecorderImpl{
 		counters:           &counters{},
 		log:                req.Log,
 		socketPath:         socketPath,
@@ -131,7 +127,7 @@ func NewComponent(req Requires) (Provides, error) {
 // discoveryLoop probes the sidecar socket with exponential backoff.
 // On success, it activates (subscribes hooks, creates batcher+transport).
 // When the connection is lost, it tears down and restarts discovery.
-func (s *sinkImpl) discoveryLoop(ctx context.Context) {
+func (s *flightrecorderImpl) discoveryLoop(ctx context.Context) {
 	defer s.wg.Done()
 	for {
 		bo := backoff.NewExponentialBackOff()
@@ -166,7 +162,7 @@ func (s *sinkImpl) discoveryLoop(ctx context.Context) {
 // activate creates the transport, batcher, and subscribes to all hooks.
 // It returns a channel that is closed when the transport disconnects,
 // signaling the discovery loop to restart.
-func (s *sinkImpl) activate(ctx context.Context) <-chan struct{} {
+func (s *flightrecorderImpl) activate(ctx context.Context) <-chan struct{} {
 	done := make(chan struct{})
 
 	c := s.counters

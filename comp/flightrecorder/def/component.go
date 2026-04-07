@@ -10,18 +10,5 @@ package flightrecorder
 
 // Component is the flight recorder that forwards signal data to the Rust sidecar.
 type Component interface {
-	// Stats returns current operational counters (for health endpoints / debugging).
-	Stats() Stats
-}
-
-// Stats contains runtime counters for the flight recorder.
-type Stats struct {
-	MetricsSent     uint64
-	LogsSent        uint64
-	TraceStatsSent  uint64
-	MetricsDropped  uint64
-	LogsDropped     uint64
-	TraceStatsDropped uint64
-	BytesSent       uint64
-	Reconnects      uint64
+	// flightrecorder is a leaf component, nothing depends on it
 }

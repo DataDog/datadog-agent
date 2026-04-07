@@ -84,25 +84,9 @@ func (cs *contextSet) setBits(key uint64) {
 	}
 }
 
-// Remove is a no-op. Bloom filters do not support deletion.
-func (cs *contextSet) Remove(_ uint64) {}
-
 // Reset clears all bits.
 func (cs *contextSet) Reset() {
 	for i := range cs.bits {
 		cs.bits[i].Store(0)
 	}
-}
-
-// Stop is a no-op — no background goroutine to terminate.
-func (cs *contextSet) Stop() {}
-
-// CheckCap is a no-op — the bloom filter has fixed size.
-func (cs *contextSet) CheckCap() bool {
-	return false
-}
-
-// Len returns 0. The bloom filter does not track exact count.
-func (cs *contextSet) Len() int64 {
-	return 0
 }

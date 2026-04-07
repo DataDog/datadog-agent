@@ -8,7 +8,6 @@ package flightrecorderimpl
 import (
 	"sync/atomic"
 
-	flightrecorder "github.com/DataDog/datadog-agent/comp/flightrecorder/def"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
@@ -135,17 +134,4 @@ func (c *counters) incReconnectReason(reason string) {
 
 func (c *counters) incHookCallbacks(n uint64) {
 	tlmHookCallbacks.Add(float64(n))
-}
-
-func (c *counters) stats() flightrecorder.Stats {
-	return flightrecorder.Stats{
-		MetricsSent:       c.metricsSent.Load(),
-		LogsSent:          c.logsSent.Load(),
-		TraceStatsSent:    c.traceStatsSent.Load(),
-		MetricsDropped:    c.metricsDropped.Load(),
-		LogsDropped:       c.logsDropped.Load(),
-		TraceStatsDropped: c.traceStatsDropped.Load(),
-		BytesSent:         c.bytesSent.Load(),
-		Reconnects:        c.reconnects.Load(),
-	}
 }
