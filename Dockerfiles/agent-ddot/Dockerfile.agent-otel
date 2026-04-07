@@ -112,7 +112,7 @@ RUN if [ "$PACKAGE_TYPE" = "windows" ]; then \
 
 # Build the build-ddot-byoc tool (required for linux and windows PACKAGE_TYPE)
 RUN if [ "$PACKAGE_TYPE" = "linux" ] || [ "$PACKAGE_TYPE" = "windows" ]; then \
-    cd /workspace/datadog-agent/tools/build-ddot-byoc && GOWORK=off go build -o /usr/local/bin/build-ddot-byoc .; \
+    cd /workspace/datadog-agent/tools/build-ddot-byoc && GOPROXY=$GOPROXY GONOSUMDB=$GONOSUMDB GOWORK=off go build -o /usr/local/bin/build-ddot-byoc .; \
     fi
 
 # Build packages if PACKAGE_TYPE is specified, otherwise just output the binary.
