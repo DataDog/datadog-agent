@@ -2497,6 +2497,9 @@ func testConfig() *config.Config {
 	if ebpftest.GetBuildMode() == ebpftest.Fentry {
 		cfg.ProtocolClassificationEnabled = false
 	}
+	if ebpftest.GetBuildMode() == ebpftest.SK {
+		cfg.ProtocolClassificationEnabled = false
+	}
 
 	// prebuilt on 5.18+ does not support UDPv6
 	if isPrebuilt(cfg) && kv >= kernel.VersionCode(5, 18, 0) {
