@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+#![allow(clippy::result_large_err)]
+
 use crate::command::Command;
 use crate::config::{ProcessConfig, RestartPolicy};
 use crate::grpc::proto;
@@ -44,12 +46,9 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         &self,
         request: Request<proto::DescribeRequest>,
     ) -> Result<Response<proto::DescribeResponse>, Status> {
-        let name = request.into_inner().name;
+        let name_or_uuid = request.into_inner().name_or_uuid;
         let procs = self.mgr.processes().await;
-        let proc = procs
-            .iter()
-            .find(|p| p.name() == name)
-            .ok_or_else(|| Status::not_found(format!("process '{name}' not found")))?;
+        let proc = resolve_process(&procs, &name_or_uuid)?;
 
         Ok(Response::new(proto::DescribeResponse {
             detail: Some(process_detail(proc)),
@@ -109,18 +108,23 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         reply_rx
             .await
             .map_err(|_| Status::internal("event loop dropped reply"))?
-            .map(|()| Response::new(proto::CreateResponse {}))
+            .map(|result| {
+                Response::new(proto::CreateResponse {
+                    uuid: result.uuid,
+                    warnings: result.warnings,
+                })
+            })
     }
 
     async fn start(
         &self,
         request: Request<proto::StartRequest>,
     ) -> Result<Response<proto::StartResponse>, Status> {
-        let name = request.into_inner().name;
+        let name_or_uuid = request.into_inner().name_or_uuid;
         let (reply_tx, reply_rx) = oneshot::channel();
         self.cmd_tx
             .send(Command::Start {
-                name,
+                name_or_uuid,
                 reply: reply_tx,
             })
             .await
@@ -128,18 +132,24 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         reply_rx
             .await
             .map_err(|_| Status::internal("event loop dropped reply"))?
-            .map(|()| Response::new(proto::StartResponse {}))
+            .map(|result| {
+                Response::new(proto::StartResponse {
+                    uuid: result.uuid,
+                    pid: result.pid.unwrap_or(0),
+                    state: proto::ProcessState::from(result.state).into(),
+                })
+            })
     }
 
     async fn stop(
         &self,
         request: Request<proto::StopRequest>,
     ) -> Result<Response<proto::StopResponse>, Status> {
-        let name = request.into_inner().name;
+        let name_or_uuid = request.into_inner().name_or_uuid;
         let (reply_tx, reply_rx) = oneshot::channel();
         self.cmd_tx
             .send(Command::Stop {
-                name,
+                name_or_uuid,
                 reply: reply_tx,
             })
             .await
@@ -147,7 +157,12 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         reply_rx
             .await
             .map_err(|_| Status::internal("event loop dropped reply"))?
-            .map(|()| Response::new(proto::StopResponse {}))
+            .map(|result| {
+                Response::new(proto::StopResponse {
+                    uuid: result.uuid,
+                    state: proto::ProcessState::from(result.state).into(),
+                })
+            })
     }
 
     async fn reload_config(
@@ -206,11 +221,15 @@ impl From<ProcessState> for proto::ProcessState {
 fn process_to_proto(proc: &ManagedProcess) -> proto::Process {
     let cfg = proc.config();
     proto::Process {
+        uuid: proc.uuid().to_owned(),
         name: proc.name().to_owned(),
         pid: proc.pid().unwrap_or(0),
         command: cfg.command.clone(),
         args: cfg.args.clone(),
         state: proto::ProcessState::from(proc.state()).into(),
+        restart_count: proc.restart_count(),
+        last_exit_code: proc.last_exit_code(),
+        last_signal: proc.last_signal(),
     }
 }
 
@@ -267,9 +286,35 @@ fn create_request_to_config(req: &proto::CreateRequest) -> Result<ProcessConfig,
     })
 }
 
+fn resolve_process<'a>(
+    procs: &'a [ManagedProcess],
+    name_or_uuid: &str,
+) -> Result<&'a ManagedProcess, Status> {
+    if crate::manager::looks_like_uuid_prefix(name_or_uuid) {
+        let matches: Vec<&ManagedProcess> = procs
+            .iter()
+            .filter(|p| p.uuid().starts_with(name_or_uuid))
+            .collect();
+        if matches.len() == 1 {
+            return Ok(matches[0]);
+        }
+        if matches.len() > 1 {
+            return Err(Status::invalid_argument(format!(
+                "UUID prefix '{name_or_uuid}' is ambiguous ({} matches)",
+                matches.len()
+            )));
+        }
+    }
+    procs
+        .iter()
+        .find(|p| p.name() == name_or_uuid)
+        .ok_or_else(|| Status::not_found(format!("process '{name_or_uuid}' not found")))
+}
+
 fn process_detail(proc: &ManagedProcess) -> proto::ProcessDetail {
     let cfg = proc.config();
     proto::ProcessDetail {
+        uuid: proc.uuid().to_owned(),
         name: proc.name().to_owned(),
         description: cfg.description.clone().unwrap_or_default(),
         pid: proc.pid().unwrap_or(0),
@@ -285,6 +330,9 @@ fn process_detail(proc: &ManagedProcess) -> proto::ProcessDetail {
         condition_path_exists: cfg.condition_path_exists.clone().unwrap_or_default(),
         after: cfg.after.clone(),
         before: cfg.before.clone(),
+        restart_count: proc.restart_count(),
+        last_exit_code: proc.last_exit_code(),
+        last_signal: proc.last_signal(),
     }
 }
 
@@ -292,6 +340,7 @@ fn process_detail(proc: &ManagedProcess) -> proto::ProcessDetail {
 mod tests {
     use super::*;
     use crate::config::ProcessConfig;
+    use crate::process::tests::test_uuid;
 
     #[test]
     fn test_state_to_proto_mapping() {
@@ -332,7 +381,7 @@ mod tests {
             args: vec!["60".to_string()],
             ..Default::default()
         };
-        let proc = ManagedProcess::new_config("test-proc".to_string(), cfg);
+        let proc = ManagedProcess::new_config("test-proc".to_string(), test_uuid(), cfg);
         let proto = process_to_proto(&proc);
         assert_eq!(proto.name, "test-proc");
         assert_eq!(proto.command, "/usr/bin/sleep");
@@ -352,7 +401,7 @@ mod tests {
             before: vec!["dep-b".to_string()],
             ..Default::default()
         };
-        let proc = ManagedProcess::new_config("detail-proc".to_string(), cfg);
+        let proc = ManagedProcess::new_config("detail-proc".to_string(), test_uuid(), cfg);
         let detail = process_detail(&proc);
         assert_eq!(detail.name, "detail-proc");
         assert_eq!(detail.description, "A test process");
@@ -369,7 +418,7 @@ mod tests {
             args: vec!["60".to_string()],
             ..Default::default()
         };
-        let mut proc = ManagedProcess::new_config("sleeper".to_string(), cfg);
+        let mut proc = ManagedProcess::new_config("sleeper".to_string(), test_uuid(), cfg);
         proc.spawn().unwrap();
 
         let proto = process_to_proto(&proc);
@@ -393,7 +442,7 @@ mod tests {
             args: vec!["-c".to_string(), "exit 1".to_string()],
             ..Default::default()
         };
-        let mut proc = ManagedProcess::new_config("fail-proc".to_string(), cfg);
+        let mut proc = ManagedProcess::new_config("fail-proc".to_string(), test_uuid(), cfg);
         proc.spawn().unwrap();
 
         let mut child = proc.take_child().unwrap();
@@ -402,6 +451,6 @@ mod tests {
 
         let proto = process_to_proto(&proc);
         assert_eq!(proto.state, proto::ProcessState::Failed as i32);
-        assert!(proto.pid > 0, "failed process retains its last known pid");
+        assert_eq!(proto.pid, 0, "exited process should have pid cleared");
     }
 }

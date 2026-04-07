@@ -19,6 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
+	filterlistimpl "github.com/DataDog/datadog-agent/comp/filterlist/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -41,7 +42,7 @@ func TestProfileMetadata_f5(t *testing.T) {
 	setupHostname(t)
 	cfg := configmock.New(t)
 	timeNow = common.MockTimeNow
-	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour)
+	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour, filterlistimpl.NewNoopFilterList())
 	invalidPath, _ := filepath.Abs(filepath.Join("internal", "test", "metadata.d"))
 	cfg.SetWithoutSource("confd_path", invalidPath)
 
@@ -66,7 +67,7 @@ profiles:
     definition_file: f5-big-ip.yaml
 `)
 	senderManager := mocksender.CreateDefaultDemultiplexer()
-	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, rawInitConfig, "test")
+	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, rawInitConfig, "test", "provider")
 	assert.NoError(t, err)
 	sender := mocksender.NewMockSenderWithSenderManager(chk.ID(), senderManager)
 

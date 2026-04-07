@@ -27,6 +27,7 @@ func uptimeSampler() (uint64, error) {
 func resetTestVars() {
 	detectCloudProviderFn = cloudproviders.DetectCloudProvider
 	getPreemptionTerminationFn = cloudproviders.GetPreemptionTerminationTime
+	getRebalanceRecommendationFn = cloudproviders.GetRebalanceRecommendationTime
 	uptime = host.Uptime
 }
 
@@ -42,7 +43,7 @@ func TestHostInfoCheckNoCloudProvider(t *testing.T) {
 	mockSender.On("FinalizeCheckServiceTag").Return()
 
 	check := newCheck().(*Check)
-	check.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	check.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	mocksender.SetSender(mockSender, check.ID())
 
@@ -77,7 +78,7 @@ func TestHostInfoCheckWithPreemptionTermination(t *testing.T) {
 	mockSender.On("FinalizeCheckServiceTag").Return()
 
 	check := newCheck().(*Check)
-	check.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	check.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	mocksender.SetSender(mockSender, check.ID())
 
@@ -107,11 +108,15 @@ func TestHostInfoCheckNoPreemptionScheduled(t *testing.T) {
 		return time.Time{}, errors.New("no preemption scheduled")
 	}
 
+	getRebalanceRecommendationFn = func(_ context.Context, _ string) (time.Time, error) {
+		return time.Time{}, errors.New("no rebalance recommendation")
+	}
+
 	mockSender := mocksender.NewMockSender(CheckName)
 	mockSender.On("FinalizeCheckServiceTag").Return()
 
 	check := newCheck().(*Check)
-	check.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	check.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	mocksender.SetSender(mockSender, check.ID())
 
@@ -146,7 +151,7 @@ func TestHostInfoCheckPreemptionEventSentOnlyOnce(t *testing.T) {
 	mockSender.On("FinalizeCheckServiceTag").Return()
 
 	check := newCheck().(*Check)
-	check.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	check.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	mocksender.SetSender(mockSender, check.ID())
 
@@ -187,7 +192,7 @@ func TestHostInfoCheckNotPreemptibleStopsPolling(t *testing.T) {
 	mockSender.On("FinalizeCheckServiceTag").Return()
 
 	check := newCheck().(*Check)
-	check.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	check.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	mocksender.SetSender(mockSender, check.ID())
 
@@ -228,7 +233,7 @@ func TestHostInfoCheckPreemptionUnsupportedStopsPolling(t *testing.T) {
 	mockSender.On("FinalizeCheckServiceTag").Return()
 
 	check := newCheck().(*Check)
-	check.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	check.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	mocksender.SetSender(mockSender, check.ID())
 
@@ -247,4 +252,162 @@ func TestHostInfoCheckPreemptionUnsupportedStopsPolling(t *testing.T) {
 	if callCount != 1 {
 		t.Errorf("expected getPreemptionTerminationFn to be called 1 time, got %d", callCount)
 	}
+}
+
+func TestHostInfoCheckWithRebalanceRecommendation(t *testing.T) {
+	defer resetTestVars()
+
+	noticeTime := time.Date(2020, 10, 27, 8, 22, 0, 0, time.UTC)
+
+	detectCloudProviderFn = func(_ context.Context, _ bool) (string, string) {
+		return "AWS", ""
+	}
+
+	// No termination scheduled
+	getPreemptionTerminationFn = func(_ context.Context, _ string) (time.Time, error) {
+		return time.Time{}, errors.New("no preemption scheduled")
+	}
+
+	getRebalanceRecommendationFn = func(_ context.Context, _ string) (time.Time, error) {
+		return noticeTime, nil
+	}
+
+	uptime = uptimeSampler
+
+	mockSender := mocksender.NewMockSender(CheckName)
+	mockSender.On("FinalizeCheckServiceTag").Return()
+
+	check := newCheck().(*Check)
+	check.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
+
+	mocksender.SetSender(mockSender, check.ID())
+
+	mockSender.On("Event", mock.MatchedBy(func(ev event.Event) bool {
+		return ev.Title == "Elevated risk of Instance Preemption" &&
+			ev.AlertType == event.AlertTypeInfo &&
+			ev.EventType == PreemptionRiskEventType
+	})).Return().Times(1)
+	mockSender.On("Commit").Return().Times(1)
+
+	check.Run()
+	mockSender.AssertExpectations(t)
+	mockSender.AssertNumberOfCalls(t, "Event", 1)
+	mockSender.AssertNumberOfCalls(t, "Commit", 1)
+}
+
+func TestHostInfoCheckRebalanceEventSentOnlyOnce(t *testing.T) {
+	defer resetTestVars()
+
+	noticeTime := time.Date(2020, 10, 27, 8, 22, 0, 0, time.UTC)
+
+	detectCloudProviderFn = func(_ context.Context, _ bool) (string, string) {
+		return "AWS", ""
+	}
+
+	getPreemptionTerminationFn = func(_ context.Context, _ string) (time.Time, error) {
+		return time.Time{}, errors.New("no preemption scheduled")
+	}
+
+	getRebalanceRecommendationFn = func(_ context.Context, _ string) (time.Time, error) {
+		return noticeTime, nil
+	}
+
+	uptime = uptimeSampler
+
+	mockSender := mocksender.NewMockSender(CheckName)
+	mockSender.On("FinalizeCheckServiceTag").Return()
+
+	check := newCheck().(*Check)
+	check.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
+
+	mocksender.SetSender(mockSender, check.ID())
+
+	mockSender.On("Event", mock.MatchedBy(func(ev event.Event) bool {
+		return ev.EventType == PreemptionRiskEventType
+	})).Return().Times(1)
+	mockSender.On("Commit").Return()
+
+	// Run the check twice — event should only be sent once
+	check.Run()
+	check.Run()
+
+	mockSender.AssertExpectations(t)
+	mockSender.AssertNumberOfCalls(t, "Event", 1)
+	mockSender.AssertNumberOfCalls(t, "Commit", 2)
+}
+
+func TestHostInfoCheckRebalanceSkippedWhenTerminationSet(t *testing.T) {
+	defer resetTestVars()
+
+	terminationTime := time.Now().Add(2 * time.Minute).UTC().Truncate(time.Second)
+
+	detectCloudProviderFn = func(_ context.Context, _ bool) (string, string) {
+		return "AWS", ""
+	}
+
+	getPreemptionTerminationFn = func(_ context.Context, _ string) (time.Time, error) {
+		return terminationTime, nil
+	}
+
+	rebalanceCalled := false
+	getRebalanceRecommendationFn = func(_ context.Context, _ string) (time.Time, error) {
+		rebalanceCalled = true
+		return time.Date(2020, 10, 27, 8, 22, 0, 0, time.UTC), nil
+	}
+
+	uptime = uptimeSampler
+
+	mockSender := mocksender.NewMockSender(CheckName)
+	mockSender.On("FinalizeCheckServiceTag").Return()
+
+	check := newCheck().(*Check)
+	check.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
+
+	mocksender.SetSender(mockSender, check.ID())
+
+	// Only preemption event should be sent, not rebalance
+	mockSender.On("Event", mock.MatchedBy(func(ev event.Event) bool {
+		return ev.EventType == PreemptionEventType
+	})).Return().Times(1)
+	mockSender.On("Commit").Return().Times(1)
+
+	check.Run()
+	mockSender.AssertExpectations(t)
+	mockSender.AssertNumberOfCalls(t, "Event", 1)
+	mockSender.AssertNumberOfCalls(t, "Commit", 1)
+
+	if rebalanceCalled {
+		t.Error("rebalance recommendation should not be checked when termination is already scheduled")
+	}
+}
+
+func TestHostInfoCheckNoRebalanceRecommendation(t *testing.T) {
+	defer resetTestVars()
+
+	detectCloudProviderFn = func(_ context.Context, _ bool) (string, string) {
+		return "AWS", ""
+	}
+
+	getPreemptionTerminationFn = func(_ context.Context, _ string) (time.Time, error) {
+		return time.Time{}, errors.New("no preemption scheduled")
+	}
+
+	getRebalanceRecommendationFn = func(_ context.Context, _ string) (time.Time, error) {
+		return time.Time{}, errors.New("no rebalance recommendation")
+	}
+
+	mockSender := mocksender.NewMockSender(CheckName)
+	mockSender.On("FinalizeCheckServiceTag").Return()
+
+	check := newCheck().(*Check)
+	check.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
+
+	mocksender.SetSender(mockSender, check.ID())
+
+	mockSender.On("Commit").Return().Times(1)
+
+	check.Run()
+	mockSender.AssertExpectations(t)
+	mockSender.AssertNumberOfCalls(t, "Event", 0)
+	mockSender.AssertNumberOfCalls(t, "Commit", 1)
 }

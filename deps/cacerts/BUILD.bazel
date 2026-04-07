@@ -1,0 +1,77 @@
+"""cacert provides the list of trusted root SSL signing certificates.
+
+"""
+
+load("@rules_license//rules:license.bzl", "license")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files", "pkg_mklink")
+
+package(
+    default_package_metadata = [":license"],
+    default_visibility = ["//packages:__subpackages__"],
+)
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:MPL-2.0"],
+    license_text = "@cacert_license//file",
+    visibility = ["//visibility:public"],
+)
+
+pkg_files(
+    name = "real_certs_file",
+    srcs = [
+        "@cacert_pem//file",
+    ],
+    # Must be writable or the signing step in finalize fails.
+    attributes = pkg_attributes(
+        mode = "0644",
+    ),
+    prefix = select({
+        "@platforms//os:windows": "embedded3/ssl/certs",
+        "//conditions:default": "embedded/ssl/certs",
+    }),
+)
+
+# most systems can symlink to the real file
+pkg_mklink(
+    name = "certs_file_link",
+    link_name = "embedded/ssl/cert.pem",
+    target = "certs/cacert.pem",
+)
+
+# but on windows we copy it out twice.
+pkg_files(
+    name = "certs_file_dup",
+    srcs = [
+        "@cacert_pem//file",
+    ],
+    # Must be writable or the signing step in finalize fails.
+    attributes = pkg_attributes(
+        mode = "0644",
+    ),
+    prefix = "embedded3/ssl",
+    renames = {
+        "@cacert_pem//file": "cert.pem",
+    },
+)
+
+# TODO: add this to //packages/install_dir/embedded:everything
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        "real_certs_file",
+    ] + select({
+        "@platforms//os:windows": ["certs_file_dup"],
+        "//conditions:default": ["certs_file_link"],
+    }),
+)
+
+# Only call this directly for testing. It should be called
+pkg_install(
+    name = "install",
+    srcs = [
+        ":all_files",
+    ],
+    tags = ["manual"],
+)

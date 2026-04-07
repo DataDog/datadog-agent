@@ -1,6 +1,6 @@
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
-load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_shared_library", "rust_test")
+load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_static_library", "rust_test")
 
 # ============================================================================
 # Library Targets (rlib + cdylib)
@@ -37,21 +37,17 @@ rust_library(
         "@crates//:nom",
         "@crates//:normalize-path",
         "@crates//:phf",
-        "@crates//:quick-xml",
         "@crates//:rmp-serde",
         "@crates//:serde",
         "@crates//:serde_json",
         "@crates//:thiserror",
         "@crates//:tokio",
         "@crates//:uzers",
-        "@crates//:walkdir",
-        "@crates//:yaml-rust2",
-        "@crates//:zip",
     ],
 )
 
-# Shared library (cdylib) for FFI/cgo integration
-rust_shared_library(
+# Static library (staticlib) for FFI integration
+rust_static_library(
     name = "libdd_discovery",
     srcs = glob(
         ["src/**/*.rs"],
@@ -82,16 +78,12 @@ rust_shared_library(
         "@crates//:nom",
         "@crates//:normalize-path",
         "@crates//:phf",
-        "@crates//:quick-xml",
         "@crates//:rmp-serde",
         "@crates//:serde",
         "@crates//:serde_json",
         "@crates//:thiserror",
         "@crates//:tokio",
         "@crates//:uzers",
-        "@crates//:walkdir",
-        "@crates//:yaml-rust2",
-        "@crates//:zip",
     ],
 )
 
@@ -114,24 +106,23 @@ rust_binary(
     name = "system-probe-lite",
     srcs = [
         "src/cli.rs",
-        "src/config.rs",
         "src/main.rs",
     ],
     edition = "2024",
+    target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
     deps = [
         ":dd_discovery",
         "//comp/core/log/rust:dd-agent-log",
         "@crates//:anyhow",
+        "@crates//:caps",
         "@crates//:http-body-util",
         "@crates//:hyper",
         "@crates//:hyper-util",
         "@crates//:log",
-        "@crates//:phf",
         "@crates//:serde_json",
         "@crates//:tokio",
         "@crates//:uzers",
-        "@crates//:yaml-rust2",
     ],
 )
 
@@ -142,6 +133,7 @@ pkg_files(
         mode = "0755",
     ),
     prefix = "embedded/bin",
+    visibility = ["//packages:__subpackages__"],
 )
 
 pkg_install(
@@ -172,15 +164,15 @@ filegroup(
     srcs = glob(["testdata/**/*"]),
 )
 
-filegroup(
-    name = "mock_system_probe",
-    srcs = ["testdata/fallback/mock-system-probe.sh"],
-)
-
 # Unit tests embedded in source files
 rust_test(
     name = "dd_discovery_test",
     crate = ":dd_discovery",
+    crate_features = [
+        "java-archives",
+        "spring",
+        "jee",
+    ],
     # Make test data available to tests
     data = [":testdata"],
     edition = "2024",
@@ -191,30 +183,33 @@ rust_test(
         "@crates//:scopeguard",
         "@crates//:tempfile",
         "@crates//:temp-env",
+        # Optional deps needed when spring/jee features are enabled
+        "@crates//:quick-xml",
+        "@crates//:walkdir",
+        "@crates//:yaml-rust2",
+        "@crates//:zip",
+    ],
+)
+
+# Unit tests without optional features (tests the production code path)
+rust_test(
+    name = "dd_discovery_nofeatures_test",
+    crate = ":dd_discovery",
+    # No crate_features — matches production build
+    data = [":testdata"],
+    edition = "2024",
+    deps = [
+        "@crates//:dircpy",
+        "@crates//:memmap2",
+        "@crates//:scopeguard",
+        "@crates//:tempfile",
+        "@crates//:temp-env",
+        # walkdir is needed by test_utils (dev-dependency)
+        "@crates//:walkdir",
     ],
 )
 
 # Integration tests
-rust_test(
-    name = "fallback_integration_test",
-    srcs = ["tests/fallback_integration_test.rs"],
-    data = [
-        ":mock_system_probe",
-        ":system-probe-lite",
-    ],
-    edition = "2024",
-    # Set compile-time environment variable pointing to system-probe-lite binary
-    # This mimics Cargo's CARGO_BIN_EXE_* behavior
-    rustc_env = {
-        "CARGO_BIN_EXE_system-probe-lite": "$(rootpath :system-probe-lite)",
-        "MOCK_SYSTEM_PROBE": "$(rootpath :mock_system_probe)",
-    },
-    deps = [
-        "@crates//:nix",
-        "@crates//:tempfile",
-    ],
-)
-
 rust_test(
     name = "pid_integration_test",
     srcs = ["tests/pid_integration_test.rs"],
@@ -226,5 +221,21 @@ rust_test(
     deps = [
         "@crates//:nix",
         "@crates//:tempfile",
+    ],
+)
+
+rust_test(
+    name = "config_integration_test",
+    srcs = ["tests/config_integration_test.rs"],
+    data = [":system-probe-lite"],
+    edition = "2024",
+    rustc_env = {
+        "CARGO_BIN_EXE_system-probe-lite": "$(rootpath :system-probe-lite)",
+    },
+    deps = [
+        "@crates//:nix",
+        "@crates//:serde_json",
+        "@crates//:tempfile",
+        "@crates//:yaml-rust2",
     ],
 )

@@ -22,6 +22,7 @@ copy_file(
         "@//:linux_arm64": "config-linux-arm64.h",
     }),
     out = "config.h",
+    target_compatible_with = ["@platforms//os:linux"],
 )
 
 cc_library(

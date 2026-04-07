@@ -191,7 +191,7 @@ func TestAddStrippedKeysExceptions(t *testing.T) {
 
 		scrubbed, err := ScrubYamlString(contents)
 		require.Nil(t, err)
-		require.YAMLEq(t, `api_key: '***************************aaaaa'`, scrubbed)
+		require.YAMLEq(t, `api_key: '****************************aaaa'`, scrubbed)
 	})
 
 	t.Run("multiple keys", func(t *testing.T) {
@@ -208,9 +208,9 @@ yet_another_key: 'dddd'`
 
 		scrubbed, err := ScrubYamlString(contents)
 		require.Nil(t, err)
-		expected := `api_key: '***************************aaaaa'
+		expected := `api_key: '****************************aaaa'
 some_other_key: '********'
-app_key: '***********************************acccc'
+app_key: '************************************cccc'
 yet_another_key: 'dddd'`
 		require.YAMLEq(t, expected, scrubbed)
 	})

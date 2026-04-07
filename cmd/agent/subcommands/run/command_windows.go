@@ -14,7 +14,7 @@ import (
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 
 	autoexit "github.com/DataDog/datadog-agent/comp/agent/autoexit/def"
-	"github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer"
+	cloudfoundrycontainer "github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer/def"
 	expvarserver "github.com/DataDog/datadog-agent/comp/agent/expvarserver/def"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
@@ -39,7 +39,8 @@ import (
 	windowseventlogfx "github.com/DataDog/datadog-agent/comp/checks/windowseventlog/fx"
 	notableeventsfx "github.com/DataDog/datadog-agent/comp/notableevents/fx"
 	trapserver "github.com/DataDog/datadog-agent/comp/snmptraps/server"
-	comptraceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
+	traceconfigdef "github.com/DataDog/datadog-agent/comp/trace/config/def"
+	traceconfigfx "github.com/DataDog/datadog-agent/comp/trace/config/fx"
 
 	// core components
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api/def"
@@ -249,11 +250,11 @@ func getPlatformModules() fx.Option {
 		windowseventlogfx.Module(),
 		winregistryfx.Module(),
 		etwimpl.Module,
-		comptraceconfig.Module(),
+		traceconfigfx.Module(),
 		softwareinventoryfx.Module(),
 		publishermetadatacachefx.Module(),
 		notableeventsfx.Module(),
-		fx.Replace(comptraceconfig.Params{
+		fx.Replace(traceconfigdef.Params{
 			FailIfAPIKeyMissing: false,
 		}),
 		// Force the instantiation of the components

@@ -9,11 +9,13 @@ package converterimpl
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/confmap"
@@ -24,6 +26,23 @@ import (
 	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
 	"go.uber.org/zap"
 )
+
+type mockHostname struct {
+	hostname string
+	err      error
+}
+
+func (m *mockHostname) Get(_ context.Context) (string, error) {
+	return m.hostname, m.err
+}
+
+func (m *mockHostname) GetWithProvider(_ context.Context) (hostnameinterface.Data, error) {
+	return hostnameinterface.Data{Hostname: m.hostname, Provider: "mock"}, m.err
+}
+
+func (m *mockHostname) GetSafe(_ context.Context) string {
+	return m.hostname
+}
 
 func uriFromFile(filename string) []string {
 	return []string{filepath.Join("testdata", filename)}
@@ -57,6 +76,7 @@ func TestConvert(t *testing.T) {
 		provided       string
 		expectedResult string
 		agentConfig    string
+		hostnameErr    bool
 	}{
 		{
 			name:           "extensions/ddflare-and-dd/datadog",
@@ -396,6 +416,37 @@ func TestConvert(t *testing.T) {
 			expectedResult: "features/no-defined-features/config-result.yaml",
 			agentConfig:    "features/no-defined-features/acfg.yaml",
 		},
+		{
+			name:           "extensions/no-extensions/dd-no-hostname",
+			provided:       "extensions/no-extensions/dd-no-hostname/config.yaml",
+			expectedResult: "extensions/no-extensions/dd-no-hostname/config-result.yaml",
+			agentConfig:    "extensions/no-extensions/dd-no-hostname/acfg.yaml",
+			hostnameErr:    true,
+		},
+		{
+			name:           "extensions/standalone/dogtel-injected",
+			provided:       "extensions/standalone/dogtel-injected/config.yaml",
+			expectedResult: "extensions/standalone/dogtel-injected/config-result.yaml",
+			agentConfig:    "extensions/standalone/dogtel-injected/acfg.yaml",
+		},
+		{
+			name:           "extensions/standalone/dogtel-no-inject",
+			provided:       "extensions/standalone/dogtel-no-inject/config.yaml",
+			expectedResult: "extensions/standalone/dogtel-no-inject/config-result.yaml",
+			agentConfig:    "extensions/standalone/dogtel-no-inject/acfg.yaml",
+		},
+		{
+			name:           "extensions/standalone/dogtel-present",
+			provided:       "extensions/standalone/dogtel-present/config.yaml",
+			expectedResult: "extensions/standalone/dogtel-present/config-result.yaml",
+			agentConfig:    "extensions/standalone/dogtel-present/acfg.yaml",
+		},
+		{
+			name:           "extensions/standalone/dogtel-wired",
+			provided:       "extensions/standalone/dogtel-wired/config.yaml",
+			expectedResult: "extensions/standalone/dogtel-wired/config-result.yaml",
+			agentConfig:    "extensions/standalone/dogtel-wired/acfg.yaml",
+		},
 	}
 
 	for _, tc := range tests {
@@ -406,6 +457,11 @@ func TestConvert(t *testing.T) {
 				require.NoError(t, err)
 				acfg := config.NewMockFromYAML(t, string(f))
 				r.Conf = acfg
+				if tc.hostnameErr {
+					r.Hostname = &mockHostname{hostname: "", err: errors.New("hostname resolution failed")}
+				} else {
+					r.Hostname = &mockHostname{hostname: "test-host"}
+				}
 			}
 			converter, err := NewConverterForAgent(r)
 			assert.NoError(t, err)
@@ -455,7 +511,7 @@ func TestConvert(t *testing.T) {
 func TestConvert_APIKeyFromEnvVar(t *testing.T) {
 	t.Setenv("DD_API_KEY", "123456")
 	t.Setenv("DD_SITE", "")
-	converter, err := NewConverterForAgent(Requires{config.NewMock(t)})
+	converter, err := NewConverterForAgent(Requires{Conf: config.NewMock(t), Hostname: &mockHostname{hostname: "test-host"}})
 	assert.NoError(t, err)
 
 	resolver, err := newResolver(uriFromFile("dd-core-cfg/apikey/unset-number/config.yaml"))

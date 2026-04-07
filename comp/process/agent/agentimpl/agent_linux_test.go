@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux
+//go:build test && linux
 
 package agentimpl
 
@@ -25,9 +25,9 @@ import (
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	statsdimpl "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/impl"
 	"github.com/DataDog/datadog-agent/comp/process/agent"
-	"github.com/DataDog/datadog-agent/comp/process/hostinfo/hostinfoimpl"
+	hostinfomock "github.com/DataDog/datadog-agent/comp/process/hostinfo/mock"
 	"github.com/DataDog/datadog-agent/comp/process/processcheck/processcheckimpl"
 	"github.com/DataDog/datadog-agent/comp/process/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/comp/process/submitter/submitterimpl"
@@ -39,82 +39,51 @@ import (
 
 func TestProcessAgentComponentOnLinux(t *testing.T) {
 	tests := []struct {
-		name                 string
-		agentFlavor          string
-		checksEnabled        bool
-		checkName            string
-		runInCoreAgentConfig bool
-		expected             bool
+		name          string
+		agentFlavor   string
+		checksEnabled bool
+		checkName     string
+		expected      bool
 	}{
 		{
-			name:                 "process-agent with process check enabled and run in core-agent mode disabled",
-			agentFlavor:          flavor.ProcessAgent,
-			checksEnabled:        true,
-			checkName:            checks.ProcessCheckName,
-			runInCoreAgentConfig: false,
-			expected:             true,
+			name:          "process-agent with process check enabled",
+			agentFlavor:   flavor.ProcessAgent,
+			checksEnabled: true,
+			checkName:     checks.ProcessCheckName,
+			expected:      false,
 		},
 		{
-			name:                 "process-agent with checks disabled and run in core-agent mode disabled",
-			agentFlavor:          flavor.ProcessAgent,
-			checksEnabled:        false,
-			runInCoreAgentConfig: false,
-			expected:             false,
+			name:          "process-agent with checks disabled",
+			agentFlavor:   flavor.ProcessAgent,
+			checksEnabled: false,
+			expected:      false,
 		},
 		{
-			name:                 "process-agent with process check enabled and run in core-agent mode enabled",
-			agentFlavor:          flavor.ProcessAgent,
-			checksEnabled:        true,
-			checkName:            checks.ProcessCheckName,
-			runInCoreAgentConfig: true,
-			expected:             false,
+			name:          "process-agent with connections check enabled",
+			agentFlavor:   flavor.ProcessAgent,
+			checksEnabled: true,
+			checkName:     checks.ConnectionsCheckName,
+			expected:      true,
 		},
 		{
-			name:                 "process-agent with connections check enabled and run in core-agent mode enabled",
-			agentFlavor:          flavor.ProcessAgent,
-			checksEnabled:        true,
-			checkName:            checks.ConnectionsCheckName,
-			runInCoreAgentConfig: true,
-			expected:             true,
+			name:          "core agent with process check enabled",
+			agentFlavor:   flavor.DefaultAgent,
+			checksEnabled: true,
+			checkName:     checks.ProcessCheckName,
+			expected:      true,
 		},
 		{
-			name:                 "process-agent with connections check enabled and run in core-agent mode disabled",
-			agentFlavor:          flavor.ProcessAgent,
-			checksEnabled:        true,
-			checkName:            checks.ConnectionsCheckName,
-			runInCoreAgentConfig: false,
-			expected:             true,
+			name:          "core agent with checks disabled",
+			agentFlavor:   flavor.DefaultAgent,
+			checksEnabled: false,
+			expected:      false,
 		},
 		{
-			name:                 "core agent with process check enabled and run in core-agent mode enabled",
-			agentFlavor:          flavor.DefaultAgent,
-			checksEnabled:        true,
-			checkName:            checks.ProcessCheckName,
-			runInCoreAgentConfig: true,
-			expected:             true,
-		},
-		{
-			name:                 "core agent with checks disabled and run in core-agent mode enabled",
-			agentFlavor:          flavor.DefaultAgent,
-			checksEnabled:        false,
-			runInCoreAgentConfig: true,
-			expected:             false,
-		},
-		{
-			name:                 "core agent with process check enabled and run in core-agent mode disabled",
-			agentFlavor:          flavor.DefaultAgent,
-			checksEnabled:        true,
-			checkName:            checks.ProcessCheckName,
-			runInCoreAgentConfig: false,
-			expected:             false,
-		},
-		{
-			name:                 "core agent with connections enabled and run in core-agent mode enabled",
-			agentFlavor:          flavor.DefaultAgent,
-			checksEnabled:        true,
-			checkName:            checks.ConnectionsCheckName,
-			runInCoreAgentConfig: true,
-			expected:             true,
+			name:          "core agent with connections enabled",
+			agentFlavor:   flavor.DefaultAgent,
+			checksEnabled: true,
+			checkName:     checks.ConnectionsCheckName,
+			expected:      true,
 		},
 	}
 
@@ -130,18 +99,16 @@ func TestProcessAgentComponentOnLinux(t *testing.T) {
 
 			opts := []fx.Option{
 				runnerimpl.Module(),
-				hostinfoimpl.MockModule(),
+				hostinfomock.MockModule(),
 				submitterimpl.MockModule(),
-				statsd.MockModule(),
+				statsdimpl.MockModule(),
 				fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 				fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 				sysprobeconfigimpl.MockModule(),
 				Module(),
 				hostnameimpl.MockModule(),
 				fx.Provide(func() configComp.Component {
-					return configComp.NewMockWithOverrides(t, map[string]interface{}{
-						"process_config.run_in_core_agent.enabled": tc.runInCoreAgentConfig,
-					})
+					return configComp.NewMock(t)
 				}),
 			}
 
@@ -197,17 +164,15 @@ func TestStatusProvider(t *testing.T) {
 
 			deps := fxutil.Test[dependencies](t, fx.Options(
 				runnerimpl.Module(),
-				hostinfoimpl.MockModule(),
+				hostinfomock.MockModule(),
 				submitterimpl.MockModule(),
-				statsd.MockModule(),
+				statsdimpl.MockModule(),
 				Module(),
 				processcheckimpl.MockModule(),
 				fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 				fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 				fx.Provide(func() configComp.Component {
-					return configComp.NewMockWithOverrides(t, map[string]interface{}{
-						"process_config.run_in_core_agent.enabled": true,
-					})
+					return configComp.NewMock(t)
 				}),
 				sysprobeconfigimpl.MockModule(),
 				hostnameimpl.MockModule(),
@@ -246,17 +211,16 @@ func TestTelemetryCoreAgent(t *testing.T) {
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		runnerimpl.Module(),
-		hostinfoimpl.MockModule(),
+		hostinfomock.MockModule(),
 		submitterimpl.MockModule(),
-		statsd.MockModule(),
+		statsdimpl.MockModule(),
 		Module(),
 		processcheckimpl.MockModule(),
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 		fx.Provide(func() configComp.Component {
 			return configComp.NewMockWithOverrides(t, map[string]interface{}{
-				"process_config.run_in_core_agent.enabled": true,
-				"telemetry.enabled":                        true,
+				"telemetry.enabled": true,
 			})
 		}),
 		sysprobeconfigimpl.MockModule(),

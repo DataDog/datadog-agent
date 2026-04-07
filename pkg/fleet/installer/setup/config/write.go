@@ -17,7 +17,11 @@ import (
 	"golang.org/x/text/encoding/unicode"
 )
 
-func writeConfig(path string, config any, perms os.FileMode, merge bool) error {
+// WriteConfig writes a config struct to a YAML file. When merge is true it
+// preserves existing key ordering and keys not present in the struct. Comment
+// text is preserved but its formatting (whitespace, indentation, blank lines)
+// may change.
+func WriteConfig(path string, config any, perms os.FileMode, merge bool) error {
 	err := os.MkdirAll(filepath.Dir(path), 0755)
 	if err != nil {
 		return fmt.Errorf("could not create config directory: %w", err)

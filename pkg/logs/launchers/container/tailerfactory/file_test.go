@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
@@ -39,11 +40,10 @@ var platformDockerLogsBasePath string
 
 func fileTestSetup(t *testing.T) {
 	tmp := t.TempDir()
-	var oldPodLogsBasePath, oldDockerLogsBasePathNix, oldDockerLogsBasePathWin, oldPodmanLogsBasePath string
+	var oldPodLogsBasePath, oldDockerLogsBasePathNix, oldDockerLogsBasePathWin string
 	oldPodLogsBasePath, podLogsBasePath = podLogsBasePath, filepath.Join(tmp, "pods")
 	oldDockerLogsBasePathNix, dockerLogsBasePathNix = dockerLogsBasePathNix, filepath.Join(tmp, "docker-nix")
 	oldDockerLogsBasePathWin, dockerLogsBasePathWin = dockerLogsBasePathWin, filepath.Join(tmp, "docker-win")
-	oldPodmanLogsBasePath, podmanRootfullLogsBasePath = podmanRootfullLogsBasePath, filepath.Join(tmp, "containers")
 
 	switch runtime.GOOS {
 	case "windows":
@@ -56,7 +56,6 @@ func fileTestSetup(t *testing.T) {
 		podLogsBasePath = oldPodLogsBasePath
 		dockerLogsBasePathNix = oldDockerLogsBasePathNix
 		dockerLogsBasePathWin = oldDockerLogsBasePathWin
-		podmanRootfullLogsBasePath = oldPodmanLogsBasePath
 	})
 }
 
@@ -95,6 +94,32 @@ func makeTestPod() (*workloadmeta.KubernetesPod, *workloadmeta.Container) {
 	}
 
 	return pod, container
+}
+
+func newWorkloadmetaMock(t *testing.T) workloadmetamock.Mock {
+	t.Helper()
+
+	return fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() compConfig.Component { return compConfig.NewMock(t) }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+}
+
+func setPodmanContainerRootDir(wmeta workloadmetamock.Mock, containerID, rootDir string) {
+	wmeta.Set(&workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   containerID,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Annotations: map[string]string{
+				pkglog.ContainerRootDirAnnotationKey: rootDir,
+			},
+		},
+		Runtime: workloadmeta.ContainerRuntimePodman,
+	})
 }
 
 func TestMakeFileSource_docker_success(t *testing.T) {
@@ -136,6 +161,7 @@ func TestMakeFileSource_docker_success(t *testing.T) {
 
 func TestMakeFileSource_podman_success(t *testing.T) {
 	fileTestSetup(t)
+	tmp := t.TempDir()
 	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("logs_config.use_podman_logs", true)
 
@@ -146,14 +172,19 @@ func TestMakeFileSource_podman_success(t *testing.T) {
 		t.Skip("Skip on Windows due to WSL file path abstraction")
 	}
 
-	p := filepath.Join(podmanRootfullLogsBasePath, filepath.FromSlash("storage/overlay-containers/abc/userdata/ctr.log"))
+	containersRoot := filepath.Join(tmp, "containers")
+	p := filepath.Join(containersRoot, filepath.FromSlash("storage/overlay-containers/abc/userdata/ctr.log"))
 	require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o777))
 	require.NoError(t, os.WriteFile(p, []byte("{}"), 0o666))
 
+	wmeta := newWorkloadmetaMock(t)
+	setPodmanContainerRootDir(wmeta, "abc", containersRoot)
+
 	tf := &factory{
-		pipelineProvider: pipeline.NewMockProvider(),
-		cop:              containersorpods.NewDecidedChooser(containersorpods.LogContainers),
-		dockerUtilGetter: &dockerUtilGetterImpl{},
+		pipelineProvider:  pipeline.NewMockProvider(),
+		cop:               containersorpods.NewDecidedChooser(containersorpods.LogContainers),
+		dockerUtilGetter:  &dockerUtilGetterImpl{},
+		workloadmetaStore: option.New[workloadmeta.Component](wmeta),
 	}
 	source := sources.NewLogSource("test", &config.LogsConfig{
 		Type:                        "podman",
@@ -180,9 +211,9 @@ func TestMakeFileSource_podman_success(t *testing.T) {
 	require.Equal(t, source.Config.AutoMultiLineMatchThreshold, 0.321)
 }
 
-func TestMakeFileSource_podman_with_db_path_success(t *testing.T) {
+func TestMakeFileSource_podman_with_db_path_uses_annotation_success(t *testing.T) {
 	tmp := t.TempDir()
-	customPath := filepath.Join(tmp, "/custom/path/containers/storage/db.sql")
+	customPath := filepath.Join(tmp, "/configured/path/containers/storage/db.sql")
 	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("logs_config.use_podman_logs", true)
 	mockConfig.SetWithoutSource("podman_db_path", customPath)
@@ -194,14 +225,19 @@ func TestMakeFileSource_podman_with_db_path_success(t *testing.T) {
 		t.Skip("Skip on Windows due to WSL file path abstraction")
 	}
 
-	p := filepath.Join(filepath.Join(tmp, "/custom/path/containers"), filepath.FromSlash("storage/overlay-containers/abc/userdata/ctr.log"))
+	actualContainersRoot := filepath.Join(tmp, "/actual/path/containers")
+	p := filepath.Join(actualContainersRoot, filepath.FromSlash("storage/overlay-containers/abc/userdata/ctr.log"))
 	require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o777))
 	require.NoError(t, os.WriteFile(p, []byte("{}"), 0o666))
 
+	wmeta := newWorkloadmetaMock(t)
+	setPodmanContainerRootDir(wmeta, "abc", actualContainersRoot)
+
 	tf := &factory{
-		pipelineProvider: pipeline.NewMockProvider(),
-		cop:              containersorpods.NewDecidedChooser(containersorpods.LogContainers),
-		dockerUtilGetter: &dockerUtilGetterImpl{},
+		pipelineProvider:  pipeline.NewMockProvider(),
+		cop:               containersorpods.NewDecidedChooser(containersorpods.LogContainers),
+		dockerUtilGetter:  &dockerUtilGetterImpl{},
+		workloadmetaStore: option.New[workloadmeta.Component](wmeta),
 	}
 	source := sources.NewLogSource("test", &config.LogsConfig{
 		Type:       "podman",
@@ -218,6 +254,129 @@ func TestMakeFileSource_podman_with_db_path_success(t *testing.T) {
 	require.Equal(t, source.Config.Source, child.Config.Source)
 	require.Equal(t, source.Config.Service, child.Config.Service)
 	require.Equal(t, sources.DockerSourceType, child.GetSourceType())
+}
+
+func TestMakeFileSource_podman_with_multiple_db_paths_success(t *testing.T) {
+	tmp := t.TempDir()
+
+	// On Windows, podman runs within a Linux virtual machine, so the Agent would believe it runs in a Linux environment with all the paths being nix-like.
+	// The real path on the system is abstracted by the Windows Subsystem for Linux layer, so this unit test is skipped.
+	// Ref: https://github.com/containers/podman/blob/main/docs/tutorials/podman-for-windows.md
+	if runtime.GOOS == "windows" {
+		t.Skip("Skip on Windows due to WSL file path abstraction")
+	}
+
+	// First DB path (root user)
+	rootDBPath := filepath.Join(tmp, "root/containers/storage/db.sql")
+
+	// Second DB path (regular user)
+	userContainersRoot := filepath.Join(tmp, "user/containers")
+	userDBPath := filepath.Join(userContainersRoot, "storage/db.sql")
+	userLogPath := filepath.Join(userContainersRoot, "storage/overlay-containers/abc/userdata/ctr.log")
+	require.NoError(t, os.MkdirAll(filepath.Dir(userLogPath), 0o777))
+	require.NoError(t, os.WriteFile(userLogPath, []byte("{}"), 0o666))
+
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("logs_config.use_podman_logs", true)
+	mockConfig.SetWithoutSource("podman_db_path", rootDBPath+","+userDBPath)
+
+	wmeta := newWorkloadmetaMock(t)
+	setPodmanContainerRootDir(wmeta, "abc", userContainersRoot)
+
+	tf := &factory{
+		pipelineProvider:  pipeline.NewMockProvider(),
+		cop:               containersorpods.NewDecidedChooser(containersorpods.LogContainers),
+		dockerUtilGetter:  &dockerUtilGetterImpl{},
+		workloadmetaStore: option.New[workloadmeta.Component](wmeta),
+	}
+	source := sources.NewLogSource("test", &config.LogsConfig{
+		Type:       "podman",
+		Identifier: "abc",
+		Source:     "src",
+		Service:    "svc",
+	})
+	child, err := tf.makeFileSource(source)
+	require.NoError(t, err)
+	require.Equal(t, userLogPath, child.Config.Path)
+}
+
+func TestMakeFileSource_podman_without_annotation_errors_even_with_dbpath(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skip on Windows due to WSL file path abstraction")
+	}
+
+	tmp := t.TempDir()
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("logs_config.use_podman_logs", true)
+	mockConfig.SetWithoutSource("podman_db_path", filepath.Join(tmp, "configured/path/containers/storage/db.sql"))
+
+	wmeta := newWorkloadmetaMock(t)
+	wmeta.Set(&workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   "abc",
+		},
+		Runtime: workloadmeta.ContainerRuntimePodman,
+	})
+
+	tf := &factory{
+		pipelineProvider:  pipeline.NewMockProvider(),
+		cop:               containersorpods.NewDecidedChooser(containersorpods.LogContainers),
+		dockerUtilGetter:  &dockerUtilGetterImpl{},
+		workloadmetaStore: option.New[workloadmeta.Component](wmeta),
+	}
+
+	source := sources.NewLogSource("test", &config.LogsConfig{
+		Type:       "podman",
+		Identifier: "abc",
+		Source:     "src",
+		Service:    "svc",
+	})
+
+	_, err := tf.makeFileSource(source)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "missing annotation")
+}
+
+// TestMakeFileSource_podman_autodiscovery_home_user verifies that when podman_db_path is empty
+// (auto-discovery mode), log collection uses the root dir stored by the collector in workloadmeta.
+func TestMakeFileSource_podman_autodiscovery_home_user(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skip on Windows due to WSL file path abstraction")
+	}
+
+	tmp := t.TempDir()
+
+	// Simulate a rootless user's storage root and log file.
+	userContainersRoot := filepath.Join(tmp, "home", "testuser", ".local", "share", "containers")
+	userLogPath := filepath.Join(userContainersRoot, "storage", "overlay-containers", "abc", "userdata", "ctr.log")
+	require.NoError(t, os.MkdirAll(filepath.Dir(userLogPath), 0o777))
+	require.NoError(t, os.WriteFile(userLogPath, []byte("{}"), 0o666))
+
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("logs_config.use_podman_logs", true)
+	// podman_db_path is intentionally left empty (auto-discovery mode)
+
+	// Populate a workloadmeta store with the container annotated with its root dir,
+	// as the Podman collector would have done at collection time.
+	wmeta := newWorkloadmetaMock(t)
+	setPodmanContainerRootDir(wmeta, "abc", userContainersRoot)
+
+	tf := &factory{
+		pipelineProvider:  pipeline.NewMockProvider(),
+		cop:               containersorpods.NewDecidedChooser(containersorpods.LogContainers),
+		dockerUtilGetter:  &dockerUtilGetterImpl{},
+		workloadmetaStore: option.New[workloadmeta.Component](wmeta),
+	}
+	source := sources.NewLogSource("test", &config.LogsConfig{
+		Type:       "podman",
+		Identifier: "abc",
+		Source:     "src",
+		Service:    "svc",
+	})
+	child, err := tf.makeFileSource(source)
+	require.NoError(t, err)
+	require.Equal(t, userLogPath, child.Config.Path)
 }
 
 func TestMakeFileSource_docker_no_file(t *testing.T) {
@@ -269,7 +428,8 @@ func TestDockerOverride(t *testing.T) {
 		Service:    "svc",
 	})
 
-	tf.findDockerLogPath(source.Config.Identifier)
+	_, err := tf.findDockerLogPath(source.Config.Identifier)
+	require.NoError(t, err)
 
 	child, err := tf.makeFileSource(source)
 

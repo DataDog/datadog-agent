@@ -99,7 +99,7 @@ func TestGetMetaDataComplete(t *testing.T) {
 		"gcr.project_id":   "superprojectid",
 	}
 
-	metadata := GetMetaData(testConfig, true)
+	metadata := GetMetaData(testConfig, CloudRunService)
 	assert.Equal(t, expected, metadata)
 }
 
@@ -133,14 +133,50 @@ func TestGetMetaDataIncompleteDueToTimeout(t *testing.T) {
 		"project_id":       "superprojectid",
 	}
 
-	metadata := GetMetaData(testConfig, true)
+	metadata := GetMetaData(testConfig, CloudRunService)
 	assert.Equal(t, expected, metadata)
 }
 
-func TestGetCloudRunTags(t *testing.T) {
-	service := &CloudRun{spanNamespace: cloudRunService}
+func TestGetMetaDataCloudRunTypePrefixes(t *testing.T) {
+	tsProjectID := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write([]byte("testprojectid"))
+	}))
+	defer tsProjectID.Close()
+	tsRegion := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write([]byte("testregion"))
+	}))
+	defer tsRegion.Close()
+	tsContainerID := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write([]byte("testcontainerid"))
+	}))
+	defer tsContainerID.Close()
 
-	metadataHelperFunc = func(*GCPConfig, bool) map[string]string {
+	testConfig := &GCPConfig{
+		timeout:        1 * time.Second,
+		projectIDURL:   tsProjectID.URL,
+		regionURL:      tsRegion.URL,
+		containerIDURL: tsContainerID.URL,
+	}
+
+	for _, tc := range []struct {
+		cloudRunType CloudRunType
+		tagPrefix    string
+	}{
+		{CloudRunService, cloudRunServiceTagPrefix},
+		{CloudRunFunction, cloudRunFunctionTagPrefix},
+		{CloudRunJob, cloudRunJobTagPrefix},
+	} {
+		meta := GetMetaData(testConfig, tc.cloudRunType)
+		assert.Equal(t, "testcontainerid", meta[tc.tagPrefix+containerID], "cloudRunType=%v", tc.cloudRunType)
+		assert.Equal(t, "testregion", meta[tc.tagPrefix+location], "cloudRunType=%v", tc.cloudRunType)
+		assert.Equal(t, "testprojectid", meta[tc.tagPrefix+projectID], "cloudRunType=%v", tc.cloudRunType)
+	}
+}
+
+func TestGetCloudRunTags(t *testing.T) {
+	service := &CloudRun{spanNamespace: cloudRunServiceTagPrefix}
+
+	metadataHelperFunc = func(*GCPConfig, CloudRunType) map[string]string {
 		return map[string]string{
 			"container_id":     "test_container",
 			"location":         "test_region",
@@ -167,9 +203,9 @@ func TestGetCloudRunTags(t *testing.T) {
 }
 
 func TestGetCloudRunTagsWithEnvironmentVariables(t *testing.T) {
-	service := &CloudRun{spanNamespace: cloudRunService}
+	service := &CloudRun{spanNamespace: cloudRunServiceTagPrefix}
 
-	metadataHelperFunc = func(*GCPConfig, bool) map[string]string {
+	metadataHelperFunc = func(*GCPConfig, CloudRunType) map[string]string {
 		return map[string]string{
 			"container_id":     "test_container",
 			"location":         "test_region",
@@ -203,9 +239,9 @@ func TestGetCloudRunTagsWithEnvironmentVariables(t *testing.T) {
 }
 
 func TestGetCloudRunFunctionTagsWithEnvironmentVariables(t *testing.T) {
-	service := &CloudRun{spanNamespace: cloudRunFunction}
+	service := &CloudRun{spanNamespace: cloudRunFunctionTagPrefix}
 
-	metadataHelperFunc = func(*GCPConfig, bool) map[string]string {
+	metadataHelperFunc = func(*GCPConfig, CloudRunType) map[string]string {
 		return map[string]string{
 			"container_id":       "test_container",
 			"location":           "test_region",

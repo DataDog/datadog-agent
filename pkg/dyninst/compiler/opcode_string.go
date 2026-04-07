@@ -31,15 +31,23 @@ func _() {
 	_ = x[OpcodeProcessGoSwissMapGroups-20]
 	_ = x[OpcodeChasePointers-21]
 	_ = x[OpcodePrepareEventRoot-22]
+	_ = x[OpcodeExprPushOffset-23]
+	_ = x[OpcodeExprLoadLiteral-24]
+	_ = x[OpcodeExprReadString-25]
+	_ = x[OpcodeExprCmpEqBase-26]
+	_ = x[OpcodeExprCmpEqString-27]
+	_ = x[OpcodeConditionCheck-28]
+	_ = x[OpcodeConditionBegin-29]
 }
 
-const _Opcode_name = "InvalidCallReturnIllegalIncrementOutputOffsetExprPrepareExprSaveExprDereferenceCfaExprReadRegisterExprDereferencePtrProcessPointerProcessSliceProcessArrayDataPrepProcessSliceDataPrepProcessSliceDataRepeatProcessStringProcessGoEmptyInterfaceProcessGoInterfaceProcessGoHmapProcessGoSwissMapProcessGoSwissMapGroupsChasePointersPrepareEventRoot"
+const _Opcode_name = "InvalidCallReturnIllegalIncrementOutputOffsetExprPrepareExprSaveExprDereferenceCfaExprReadRegisterExprDereferencePtrProcessPointerProcessSliceProcessArrayDataPrepProcessSliceDataPrepProcessSliceDataRepeatProcessStringProcessGoEmptyInterfaceProcessGoInterfaceProcessGoHmapProcessGoSwissMapProcessGoSwissMapGroupsChasePointersPrepareEventRootExprPushOffsetExprLoadLiteralExprReadStringExprCmpEqBaseExprCmpEqStringConditionCheckConditionBegin"
 
-var _Opcode_index = [...]uint16{0, 7, 11, 17, 24, 45, 56, 64, 82, 98, 116, 130, 142, 162, 182, 204, 217, 240, 258, 271, 288, 311, 324, 340}
+var _Opcode_index = [...]uint16{0, 7, 11, 17, 24, 45, 56, 64, 82, 98, 116, 130, 142, 162, 182, 204, 217, 240, 258, 271, 288, 311, 324, 340, 354, 369, 383, 396, 411, 425, 439}
 
 func (i Opcode) String() string {
-	if i >= Opcode(len(_Opcode_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_Opcode_index)-1 {
 		return "Opcode(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _Opcode_name[_Opcode_index[i]:_Opcode_index[i+1]]
+	return _Opcode_name[_Opcode_index[idx]:_Opcode_index[idx+1]]
 }

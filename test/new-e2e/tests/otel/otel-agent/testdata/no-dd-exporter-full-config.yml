@@ -78,6 +78,7 @@ extensions:
     deployment_type: daemonset
     force_attempt_http2: true
     hostname: ""
+    installation_method: "" # TODO: change to "helm" after helm chart version bump
     http:
       cors: null
       endpoint: localhost:9875

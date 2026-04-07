@@ -1,0 +1,1 @@
+/* Empty header used as a test fixture. */

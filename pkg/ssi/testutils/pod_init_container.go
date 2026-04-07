@@ -41,6 +41,7 @@ func initContainerVolumeMounts() []corev1.VolumeMount {
 			Name:      "datadog-auto-instrumentation",
 			MountPath: "/opt/datadog-packages/datadog-apm-inject",
 			SubPath:   "opt/datadog-packages/datadog-apm-inject",
+			ReadOnly:  true,
 		},
 		{
 			Name:      "datadog-auto-instrumentation-etc",
@@ -52,6 +53,7 @@ func initContainerVolumeMounts() []corev1.VolumeMount {
 			Name:      "datadog-auto-instrumentation",
 			MountPath: "/opt/datadog/apm/library",
 			SubPath:   "opt/datadog/apm/library",
+			ReadOnly:  true,
 		},
 	}
 }

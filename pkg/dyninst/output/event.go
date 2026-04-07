@@ -33,6 +33,7 @@ const (
 	EventPairingExpectationBufferFull            EventPairingExpectation = 5
 	EventPairingExpectationNoneInlined           EventPairingExpectation = 6
 	EventPairingExpectationNoneNoBody            EventPairingExpectation = 7
+	EventPairingExpectationConditionFailed       EventPairingExpectation = 8
 )
 
 const (

@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
@@ -359,12 +360,12 @@ func (e *Event) ResolveService() string {
 	return e.FieldHandlers.ResolveService(e, &e.BaseEvent)
 }
 
-// GetProcessTracerTags returns the value of the field, resolving if necessary
-func (e *Event) GetProcessTracerTags() []string {
+// GetProcessTracerMetadata returns the tracer metadata of the process
+func (e *Event) GetProcessTracerMetadata() tracermetadata.TracerMetadata {
 	if e.BaseEvent.ProcessContext == nil {
-		return []string{}
+		return tracermetadata.TracerMetadata{}
 	}
-	return e.BaseEvent.ProcessContext.Process.TracerTags
+	return e.BaseEvent.ProcessContext.Process.TracerMetadata
 }
 
 // UserSessionContext describes the user session context
@@ -519,9 +520,23 @@ func (ha HashAlgorithm) String() string {
 
 var zeroProcessContext ProcessContext
 
+// SnapshottedBoundSocket represents a snapshotted bound socket
+type SnapshottedBoundSocket struct {
+	IP       net.IP
+	Port     uint16
+	Family   uint16
+	Protocol uint16
+}
+
+// SnapshottedMmapedFile represents a snapshotted memory-mapped file
+type SnapshottedMmapedFile struct {
+	Path string
+}
+
 // ProcessCacheEntry this struct holds process context kept in the process tree
 type ProcessCacheEntry struct {
 	ProcessContext
+	Children []*ProcessCacheEntry `field:"-" copy:"-"`
 }
 
 // IsContainerRoot returns whether this is a top level process in the container ID

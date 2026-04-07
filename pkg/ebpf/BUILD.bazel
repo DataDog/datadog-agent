@@ -1,0 +1,180 @@
+# gazelle:ignore
+# gazelle:exclude _obj
+# gazelle:exclude bytecode
+# gazelle:exclude compiler
+# gazelle:exclude ebpftest
+# gazelle:exclude features
+# gazelle:exclude kernelbugs
+# gazelle:exclude maps
+# gazelle:exclude names
+# gazelle:exclude perf
+# gazelle:exclude prebuilt
+# gazelle:exclude uprobes
+# gazelle:exclude verifier
+
+load("@rules_go//go:def.bzl", "go_binary")
+load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
+
+exports_files([
+    "types_linux.go",
+    "types_linux_test.go",
+])
+
+cgo_godefs(
+    name = "types_godefs",
+    src = "types.go",
+    visibility = ["//visibility:public"],
+)
+
+# Hand-written: rules_go respects //go:build ignore, so strip it before compiling.
+genrule(
+    name = "include_headers_src",
+    srcs = ["include_headers.go"],
+    outs = ["include_headers_gen.go"],
+    cmd = "grep -v '^//go:build ignore' $< > $@",
+)
+
+go_binary(
+    name = "include_headers",
+    srcs = [":include_headers_src"],
+    visibility = ["//visibility:public"],
+)
+
+# Convenience: verify all committed generated files (cgo godefs) in one shot.
+# Incompatible targets are skipped via target_compatible_with.
+# Runtime hash _verify_test targets are excluded (files are .gitignored).
+#   bazel test //pkg/ebpf:verify_generated_files
+test_suite(
+    name = "verify_generated_files",
+    tests = [
+        # ── Linux cgo_godefs ───────────────────────────────────────────
+        ":types_godefs_test",
+        ":types_godefs_test_file_test",
+        "//pkg/ebpf/telemetry:types_godefs_test",
+        "//pkg/ebpf/telemetry:types_godefs_test_file_test",
+        "//pkg/network/ebpf:conntrack_types_godefs_test",
+        "//pkg/network/ebpf:conntrack_types_godefs_test_file_test",
+        "//pkg/network/ebpf:tuple_types_godefs_test",
+        "//pkg/network/ebpf:tuple_types_godefs_test_file_test",
+        "//pkg/network/ebpf:kprobe_types_godefs_test",
+        "//pkg/network/ebpf:kprobe_types_godefs_test_file_test",
+        "//pkg/network/protocols:ebpf_types_godefs_test",
+        "//pkg/network/protocols:ebpf_types_godefs_test_file_test",
+        "//pkg/network/protocols/events:types_godefs_test",
+        "//pkg/network/protocols/events:types_godefs_test_file_test",
+        "//pkg/network/protocols/http:types_godefs_test",
+        "//pkg/network/protocols/http:types_godefs_test_file_test",
+        "//pkg/network/protocols/http/gotls:go_tls_types_godefs_test",
+        "//pkg/network/protocols/http/gotls:go_tls_types_godefs_test_file_test",
+        "//pkg/network/protocols/http2:types_godefs_test",
+        "//pkg/network/protocols/http2:types_godefs_test_file_test",
+        "//pkg/network/protocols/kafka:types_godefs_test",
+        "//pkg/network/protocols/kafka:types_godefs_test_file_test",
+        "//pkg/network/protocols/postgres/ebpf:types_godefs_test",
+        "//pkg/network/protocols/postgres/ebpf:types_godefs_test_file_test",
+        "//pkg/network/protocols/redis:types_godefs_test",
+        "//pkg/network/protocols/redis:types_godefs_test_file_test",
+        "//pkg/network/protocols/tls:types_godefs_test",
+        "//pkg/network/protocols/tls:types_godefs_test_file_test",
+        "//pkg/network/tracer/offsetguess:offsetguess_types_godefs_test",
+        "//pkg/network/tracer/offsetguess:offsetguess_types_godefs_test_file_test",
+        "//pkg/network/usm/sharedlibraries:types_godefs_test",
+        "//pkg/network/usm/sharedlibraries:types_godefs_test_file_test",
+        "//pkg/collector/corechecks/ebpf/probe/ebpfcheck:c_types_godefs_test",
+        "//pkg/collector/corechecks/ebpf/probe/ebpfcheck:c_types_godefs_test_file_test",
+        "//pkg/collector/corechecks/ebpf/probe/noisyneighbor:ebpf_types_godefs_test",
+        "//pkg/collector/corechecks/ebpf/probe/noisyneighbor:ebpf_types_godefs_test_file_test",
+        "//pkg/collector/corechecks/ebpf/probe/oomkill:c_types_godefs_test",
+        "//pkg/collector/corechecks/ebpf/probe/oomkill:c_types_godefs_test_file_test",
+        "//pkg/collector/corechecks/ebpf/probe/tcpqueuelength:tcp_queue_length_kern_types_godefs_test",
+        "//pkg/collector/corechecks/ebpf/probe/tcpqueuelength:tcp_queue_length_kern_types_godefs_test_file_test",
+        "//pkg/gpu/ebpf:kprobe_types_godefs_test",
+        "//pkg/gpu/ebpf:kprobe_types_godefs_test_file_test",
+        "//pkg/dyninst/loader:types_godefs_test",
+        "//pkg/dyninst/loader:types_godefs_test_file_test",
+        "//pkg/dyninst/output:framing_godefs_test",
+        "//pkg/dyninst/output:framing_godefs_test_file_test",
+        # ── Windows cgo_godefs ─────────────────────────────────────────
+        "//pkg/network/driver:types_godefs_test",
+        "//pkg/windowsdriver/procmon:types_godefs_test",
+        # Runtime compilation hash _verify_test targets are excluded:
+        # their out_files are .gitignored so tests only pass after a local build.
+        # Use  bazel run //pkg/ebpf/bytecode:<name>_verify  to update locally.
+    ],
+)
+
+# Convenience: build every eBPF program (.o) and runtime bundle (.c) at once.
+# filegroup is analysis-only; incompatible srcs are skipped automatically.
+#   bazel build //pkg/ebpf:all_ebpf_programs
+filegroup(
+    name = "all_ebpf_programs",
+    srcs = select({
+        "@platforms//os:linux": [
+            # ── Prebuilt programs ──────────────────────────────────────
+            "//pkg/network/ebpf/c/prebuilt:dns",
+            "//pkg/network/ebpf/c/prebuilt:dns-debug",
+            "//pkg/network/ebpf/c/prebuilt:offset-guess",
+            "//pkg/network/ebpf/c/prebuilt:offset-guess-debug",
+            "//pkg/network/ebpf/c/prebuilt:tracer",
+            "//pkg/network/ebpf/c/prebuilt:tracer-debug",
+            "//pkg/network/ebpf/c/prebuilt:usm",
+            "//pkg/network/ebpf/c/prebuilt:usm-debug",
+            "//pkg/network/ebpf/c/prebuilt:usm_events_test",
+            "//pkg/network/ebpf/c/prebuilt:usm_events_test-debug",
+            "//pkg/network/ebpf/c/prebuilt:shared-libraries",
+            "//pkg/network/ebpf/c/prebuilt:shared-libraries-debug",
+            "//pkg/network/ebpf/c/prebuilt:conntrack",
+            "//pkg/network/ebpf/c/prebuilt:conntrack-debug",
+            "//pkg/security/ebpf/c/prebuilt:runtime-security",
+            "//pkg/security/ebpf/c/prebuilt:runtime-security-syscall-wrapper",
+            "//pkg/security/ebpf/c/prebuilt:runtime-security-fentry",
+            "//pkg/security/ebpf/c/prebuilt:runtime-security-offset-guesser",
+            # ── CO-RE programs ─────────────────────────────────────────
+            "//pkg/ebpf/c:lock_contention",
+            "//pkg/ebpf/c:ksyms_iter",
+            "//pkg/network/ebpf/c:tracer",
+            "//pkg/network/ebpf/c:tracer-debug",
+            "//pkg/network/ebpf/c/co-re:tracer-fentry",
+            "//pkg/network/ebpf/c/co-re:tracer-fentry-debug",
+            "//pkg/network/ebpf/c/runtime:usm",
+            "//pkg/network/ebpf/c/runtime:usm-debug",
+            "//pkg/network/ebpf/c/runtime:shared-libraries",
+            "//pkg/network/ebpf/c/runtime:shared-libraries-debug",
+            "//pkg/network/ebpf/c/runtime:conntrack",
+            "//pkg/network/ebpf/c/runtime:conntrack-debug",
+            "//pkg/collector/corechecks/ebpf/c/runtime:oom-kill",
+            "//pkg/collector/corechecks/ebpf/c/runtime:oom-kill-debug",
+            "//pkg/collector/corechecks/ebpf/c/runtime:tcp-queue-length",
+            "//pkg/collector/corechecks/ebpf/c/runtime:tcp-queue-length-debug",
+            "//pkg/collector/corechecks/ebpf/c/runtime:ebpf",
+            "//pkg/collector/corechecks/ebpf/c/runtime:ebpf-debug",
+            "//pkg/collector/corechecks/ebpf/c/runtime:noisy-neighbor",
+            "//pkg/collector/corechecks/ebpf/c/runtime:noisy-neighbor-debug",
+            "//pkg/gpu/ebpf/c/runtime:gpu",
+            "//pkg/gpu/ebpf/c/runtime:gpu-debug",
+            "//pkg/dyninst/ebpf:dyninst_event",
+            "//pkg/dyninst/ebpf:dyninst_event-debug",
+            "//pkg/ebpf/testdata/c:logdebug-test",
+            "//pkg/ebpf/testdata/c:error_telemetry",
+            "//pkg/ebpf/testdata/c:uprobe_attacher-test",
+            "//cmd/system-probe/subcommands/ebpf/testdata:btf_test",
+            # ── Inplace targets ────────────────────────────────────────
+            "//pkg/ebpf/kernelbugs/c:uprobe-trigger",
+            # ── Runtime compilation bundles (flattened .c) ─────────────
+            "//pkg/ebpf/bytecode:oom-kill_flat",
+            "//pkg/ebpf/bytecode:tcp-queue-length_flat",
+            "//pkg/ebpf/bytecode:usm_flat",
+            "//pkg/ebpf/bytecode:shared-libraries_flat",
+            "//pkg/ebpf/bytecode:conntrack_flat",
+            "//pkg/ebpf/bytecode:tracer_flat",
+            "//pkg/ebpf/bytecode:offsetguess-test_flat",
+            "//pkg/ebpf/bytecode:runtime-security_flat",
+            "//pkg/ebpf/bytecode:gpu_flat",
+        ],
+        "//conditions:default": [],
+    }) + select({
+        "@platforms//cpu:x86_64": ["//pkg/ebpf/kernelbugs/c:detect-seccomp-bug"],
+        "//conditions:default": [],
+    }),
+    visibility = ["//visibility:public"],
+)

@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "filter",
+    srcs = ["seclrulefilter.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/secl/rules/filter",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/security/secl/compiler/ast",
+        "//pkg/security/secl/compiler/eval",
+    ],
+)
