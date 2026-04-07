@@ -60,23 +60,23 @@ def _prebuilt_file(rctx):
 
     actual_label = rctx.attr.target_label
     target_path = rctx.path(actual_label)
+
     # Windows will probably have a .exe extension, so we can fall back to that.
     if not target_path.exists and rctx.os.name == "windows":
-        l = rctx.attr.target_label
-        actual_label = l.same_package_label(l.name + ".exe")
+        actual_label = rctx.attr.target_label.same_package_label(rctx.attr.target_label.name + ".exe")
         target_path = rctx.path(actual_label)
     rctx.watch(target_path)
     if target_path.exists:
-       rctx.report_progress("Found built file: %s" % str(target_path))
-       rctx.file("BUILD", _BUILD_FILE_FOUND.format(
-           target_name = rctx.attr.target_name,
-           target_path = str(actual_label),
-       ))
+        rctx.report_progress("Found built file: %s" % str(target_path))
+        rctx.file("BUILD", _BUILD_FILE_FOUND.format(
+            target_name = rctx.attr.target_name,
+            target_path = str(actual_label),
+        ))
     else:
-       rctx.file("BUILD", _BUILD_FILE_NOT_FOUND.format(
-           target_name = rctx.attr.target_name,
-           target_path = target_path,
-       ))
+        rctx.file("BUILD", _BUILD_FILE_NOT_FOUND.format(
+            target_name = rctx.attr.target_name,
+            target_path = target_path,
+        ))
     return rctx.repo_metadata(reproducible = False)
 
 prebuilt_file = repository_rule(
