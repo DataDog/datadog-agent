@@ -14,18 +14,23 @@ pub fn setup_process_group(cmd: &mut tokio::process::Command) {
     cmd.process_group(0);
 }
 
+/// Negate a PID to produce the process group ID for `kill(2)`.
+/// Sending a signal to `-pgid` targets every process in the group.
+pub(crate) fn process_group_id(pid: u32) -> Result<Pid> {
+    let raw = i32::try_from(pid).context("PID overflows i32")?;
+    Ok(Pid::from_raw(-raw))
+}
+
 /// Send SIGTERM to the entire process group (graceful stop).
 pub fn send_graceful_stop(pid: u32) -> Result<()> {
-    let raw = i32::try_from(pid).context("PID overflows i32")?;
-    signal::kill(Pid::from_raw(-raw), Signal::SIGTERM)
+    signal::kill(process_group_id(pid)?, Signal::SIGTERM)
         .with_context(|| format!("failed to send SIGTERM to pgid {pid}"))?;
     Ok(())
 }
 
 /// Send SIGKILL to the entire process group (force kill).
 pub fn send_force_kill(pid: u32) -> Result<()> {
-    let raw = i32::try_from(pid).context("PID overflows i32")?;
-    signal::kill(Pid::from_raw(-raw), Signal::SIGKILL)
+    signal::kill(process_group_id(pid)?, Signal::SIGKILL)
         .with_context(|| format!("failed to send SIGKILL to pgid {pid}"))?;
     Ok(())
 }

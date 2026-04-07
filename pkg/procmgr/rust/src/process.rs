@@ -336,22 +336,19 @@ impl ManagedProcess {
         }
     }
 
-    /// Send a Unix signal using the stored PID (works even after take_child).
+    /// Send a Unix signal to the entire process group (works even after take_child).
     /// Used by tests that need to send specific signals for cleanup.
     #[cfg(unix)]
     pub fn send_signal(&self, sig: nix::sys::signal::Signal) {
-        if let Some(raw_pid) = self.pid {
-            match i32::try_from(raw_pid) {
-                Ok(pid) => {
-                    if let Err(e) = nix::sys::signal::kill(nix::unistd::Pid::from_raw(-pid), sig) {
+        if let Some(pid) = self.pid {
+            match platform::process_group_id(pid) {
+                Ok(pgid) => {
+                    if let Err(e) = nix::sys::signal::kill(pgid, sig) {
                         warn!("[{}] failed to send {sig} to pgid {pid}: {e}", self.name);
                     }
                 }
-                Err(_) => {
-                    warn!(
-                        "[{}] PID {raw_pid} overflows i32, cannot send {sig}",
-                        self.name
-                    );
+                Err(e) => {
+                    warn!("[{}] {e}", self.name);
                 }
             }
         }
@@ -386,7 +383,10 @@ impl ManagedProcess {
                     stop.as_secs()
                 );
                 self.force_kill();
-                if time::timeout(Self::FORCE_KILL_TIMEOUT, handle).await.is_err() {
+                if time::timeout(Self::FORCE_KILL_TIMEOUT, handle)
+                    .await
+                    .is_err()
+                {
                     warn!("[{}] still running after force-kill, giving up", self.name);
                 }
             }
