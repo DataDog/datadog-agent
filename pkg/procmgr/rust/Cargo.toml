@@ -23,7 +23,6 @@ anyhow.workspace = true
 clap = { workspace = true, features = ["derive"] }
 hyper-util = { workspace = true, features = ["tokio"] }
 log.workspace = true
-nix = { workspace = true, features = ["signal", "process"] }
 prost.workspace = true
 prost-types.workspace = true
 serde = { workspace = true, features = ["derive"] }
@@ -37,8 +36,22 @@ tonic-reflection.workspace = true
 tower.workspace = true
 uuid.workspace = true
 
-[dev-dependencies]
+[target.'cfg(unix)'.dependencies]
+nix = { workspace = true, features = ["signal", "process"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { workspace = true, features = [
+    "Win32_Foundation",
+    "Win32_System_JobObjects",
+    "Win32_System_Threading",
+    "Win32_System_Console",
+    "Win32_Security",
+] }
+
+[target.'cfg(unix)'.dev-dependencies]
 nix = { workspace = true, features = ["signal", "process", "user"] }
+
+[dev-dependencies]
 tempfile.workspace = true
 
 [build-dependencies]

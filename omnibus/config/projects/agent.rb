@@ -194,14 +194,10 @@ end
 
 # Windows .zip specific flags
 package :zip do
-  if windows_arch_i386?
-    skip_packager true
-  else
-    # noinspection RubyLiteralArrayInspection
-    extra_package_dirs [
-      "#{Omnibus::Config.source_dir()}\\cf-root"
-    ]
-  end
+  # noinspection RubyLiteralArrayInspection
+  extra_package_dirs [
+    "#{Omnibus::Config.source_dir()}\\cf-root"
+  ]
 end
 
 package :msi do
@@ -314,7 +310,7 @@ if windows_target?
     GO_BINARIES << "#{install_dir}\\bin\\agent\\privateactionrunner.exe"
   end
 
-  if not windows_arch_i386? and ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
+  if ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
     GO_BINARIES << "#{install_dir}\\bin\\agent\\security-agent.exe"
   end
 

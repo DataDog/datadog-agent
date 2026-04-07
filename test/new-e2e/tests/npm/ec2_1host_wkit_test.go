@@ -71,7 +71,7 @@ func hostDockerHttpbinEnvProvisionerWindows(opt ...ec2windows.RunOption) provisi
 		}
 
 		// install docker.io
-		manager, err := docker.NewManager(&awsEnv, nginxHost)
+		manager, err := docker.NewAWSManager(&awsEnv, nginxHost)
 		if err != nil {
 			return err
 		}
