@@ -270,6 +270,11 @@ func (c noopConcentrator) Stop()               {}
 func (c noopConcentrator) Add(stats.Input)     {}
 func (c noopConcentrator) AddV1(stats.InputV1) {}
 
+// NewNoopTraceAgent returns a no-op trace agent that safely discards all data.
+func NewNoopTraceAgent() ServerlessTraceAgent {
+	return noopTraceAgent{}
+}
+
 type noopTraceAgent struct{}
 
 func (t noopTraceAgent) Stop()                               {}

@@ -13,6 +13,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 )
 
 func TestParseJavaTracerMetadata(t *testing.T) {
@@ -43,7 +45,7 @@ func TestParseJavaTracerMetadata(t *testing.T) {
 		0x65, 0x6d, 0x6f, 0x61, 0x70, 0x70, 0x6c, 0x69, 0x63, 0x61, 0x74, 0x69, 0x6f, 0x6e,
 	}
 
-	var trm TracerMetadata
+	var trm model.TracerMetadata
 	_, err := trm.UnmarshalMsg(data)
 	require.NoError(t, err)
 	require.Equal(t, uint8(2), trm.SchemaVersion)

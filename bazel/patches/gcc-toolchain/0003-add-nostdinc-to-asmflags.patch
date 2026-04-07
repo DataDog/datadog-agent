@@ -11,7 +11,7 @@ diff --git a/toolchain/defs.bzl b/toolchain/defs.bzl
 index 2560783..84863bb 100644
 --- a/toolchain/defs.bzl
 +++ b/toolchain/defs.bzl
-@@ -161,7 +161,9 @@ def _gcc_toolchain_impl(rctx):
+@@ -193,7 +193,9 @@ def _gcc_toolchain_impl(rctx):
      ]
      extra_ldflags.extend(rctx.attr.extra_ldflags)
  

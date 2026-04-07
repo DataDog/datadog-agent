@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "helper",
+    srcs = ["get_combine.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/config/helper",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/config/model"],
+)
+
+go_test(
+    name = "helper_test",
+    srcs = ["get_combine_test.go"],
+    embed = [":helper"],
+    deps = [
+        "//pkg/config/viperconfig",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

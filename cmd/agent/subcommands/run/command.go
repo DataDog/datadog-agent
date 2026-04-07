@@ -153,19 +153,18 @@ import (
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	otelagentStatusfx "github.com/DataDog/datadog-agent/comp/otelcol/status/fx"
+	parStatusImpl "github.com/DataDog/datadog-agent/comp/privateactionrunner/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/process"
 	processAgent "github.com/DataDog/datadog-agent/comp/process/agent"
 	processagentStatusImpl "github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
 	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
 	remoteconfig "github.com/DataDog/datadog-agent/comp/remote-config"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
+	rcservicefx "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/fx"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf/rcservicemrfimpl"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
+	rctelemetryreporterfx "github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/fx"
 	metricscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	snmpscanmanager "github.com/DataDog/datadog-agent/comp/snmpscanmanager/def"
-	"github.com/DataDog/datadog-agent/comp/snmptraps"
-	snmptrapsServer "github.com/DataDog/datadog-agent/comp/snmptraps/server"
 	syntheticsTestsfx "github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/fx"
 	tracetelemetryfx "github.com/DataDog/datadog-agent/comp/trace-telemetry/fx"
 	traceagentStatusImpl "github.com/DataDog/datadog-agent/comp/trace/status/statusimpl"
@@ -293,7 +292,6 @@ func run(log log.Component,
 	invChecks inventorychecks.Component,
 	logReceiver option.Option[integrations.Component],
 	_ netflowServer.Component,
-	_ snmptrapsServer.Component,
 	_ option.Option[langDetectionCl.Component],
 	_ internalAPI.Component,
 	_ packagesigning.Component,
@@ -456,6 +454,7 @@ func getSharedFxOption() fx.Option {
 		otelagentStatusfx.Module(),
 		traceagentStatusImpl.Module(),
 		processagentStatusImpl.Module(),
+		parStatusImpl.Module(),
 		statsdFx.Module(),
 		statusimpl.Module(),
 		apiimpl.Module(),
@@ -474,8 +473,8 @@ func getSharedFxOption() fx.Option {
 		}),
 		otelcol.Bundle(),
 		hostProfilerFlareFx.Module(),
-		rctelemetryreporterimpl.Module(),
-		rcserviceimpl.Module(),
+		rctelemetryreporterfx.Module(),
+		rcservicefx.Module(),
 		rcservicemrfimpl.Module(),
 		remoteconfig.Bundle(),
 		daemoncheckerfx.Module(),
@@ -524,7 +523,7 @@ func getSharedFxOption() fx.Option {
 		ndmtmp.Bundle(),
 		netflow.Bundle(),
 		rdnsquerierfx.Module(),
-		snmptraps.Bundle(),
+		getSnmptrapsOptions(),
 		snmpscanfx.Module(),
 		snmpscanmanagerfx.Module(),
 		collectorimpl.Module(),
