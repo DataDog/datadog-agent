@@ -28,9 +28,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	cerrdefs "github.com/containerd/errdefs"
-	dcontainer "github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/image"
-	"github.com/docker/docker/client"
+	dcontainer "github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/image"
+	"github.com/moby/moby/client"
 )
 
 // DockerUtil wraps interactions with a local docker API.
@@ -86,7 +86,7 @@ func ConnectToDocker(ctx context.Context) (*client.Client, error) {
 	}
 	// Looks like docker is not actually doing a call to server when `NewClient` is called
 	// Forcing it to verify server availability by calling Info()
-	_, err = cli.Info(ctx)
+	_, err = cli.Info(ctx, client.InfoOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -100,11 +100,11 @@ func ConnectToDocker(ctx context.Context) (*client.Client, error) {
 func (d *DockerUtil) Images(ctx context.Context, includeIntermediate bool) ([]image.Summary, error) {
 	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
 	defer cancel()
-	images, err := d.cli.ImageList(ctx, image.ListOptions{All: includeIntermediate})
+	result, err := d.cli.ImageList(ctx, client.ImageListOptions{All: includeIntermediate})
 	if err != nil {
 		return nil, fmt.Errorf("unable to list docker images: %s", err)
 	}
-	return images, nil
+	return result.Items, nil
 }
 
 // CountVolumes returns the number of attached and dangling volumes.
@@ -123,7 +123,7 @@ func (d *DockerUtil) CountVolumes(ctx context.Context) (int, int, error) {
 		return 0, 0, fmt.Errorf("unable to list dangling docker volumes: %s", err)
 	}
 
-	return len(attachedVolumes.Volumes), len(danglingVolumes.Volumes), nil
+	return len(attachedVolumes.Items), len(danglingVolumes.Items), nil
 }
 
 // RawClient returns the underlying docker client being used by this object.
@@ -133,14 +133,18 @@ func (d *DockerUtil) RawClient() *client.Client {
 
 // RawContainerList wraps around the docker client's ContainerList method.
 // Value validation and error handling are the caller's responsibility.
-func (d *DockerUtil) RawContainerList(ctx context.Context, options dcontainer.ListOptions) ([]dcontainer.Summary, error) {
+func (d *DockerUtil) RawContainerList(ctx context.Context, options client.ContainerListOptions) ([]dcontainer.Summary, error) {
 	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
 	defer cancel()
-	return d.cli.ContainerList(ctx, options)
+	result, err := d.cli.ContainerList(ctx, options)
+	if err != nil {
+		return nil, err
+	}
+	return result.Items, nil
 }
 
 // RawContainerListWithFilter is like RawContainerList but with a container filter.
-func (d *DockerUtil) RawContainerListWithFilter(ctx context.Context, options dcontainer.ListOptions, filter workloadfilter.FilterBundle, wmeta workloadmeta.Component) ([]dcontainer.Summary, error) {
+func (d *DockerUtil) RawContainerListWithFilter(ctx context.Context, options client.ContainerListOptions, filter workloadfilter.FilterBundle, wmeta workloadmeta.Component) ([]dcontainer.Summary, error) {
 	containers, err := d.RawContainerList(ctx, options)
 	if err != nil {
 		return nil, err
@@ -178,11 +182,11 @@ func (d *DockerUtil) RawContainerListWithFilter(ctx context.Context, options dco
 func (d *DockerUtil) GetHostname(ctx context.Context) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
 	defer cancel()
-	info, err := d.cli.Info(ctx)
+	result, err := d.cli.Info(ctx, client.InfoOptions{})
 	if err != nil {
 		return "", fmt.Errorf("unable to get Docker info: %s", err)
 	}
-	return info.Name, nil
+	return result.Info.Name, nil
 }
 
 // GetStorageStats returns the docker global storage stats if available
@@ -190,11 +194,11 @@ func (d *DockerUtil) GetHostname(ctx context.Context) (string, error) {
 func (d *DockerUtil) GetStorageStats(ctx context.Context) ([]*StorageStats, error) {
 	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
 	defer cancel()
-	info, err := d.cli.Info(ctx)
+	result, err := d.cli.Info(ctx, client.InfoOptions{})
 	if err != nil {
 		return []*StorageStats{}, fmt.Errorf("unable to get Docker info: %s", err)
 	}
-	return parseStorageStatsFromInfo(info)
+	return parseStorageStatsFromInfo(result.Info)
 }
 
 func isImageShaOrRepoDigest(image string) bool {
@@ -228,7 +232,7 @@ func (d *DockerUtil) ResolveImageName(ctx context.Context, image string) (string
 	}
 
 	d.Unlock()
-	return d.GetPreferredImageName(r.ID, r.RepoTags, r.RepoDigests), nil
+	return d.GetPreferredImageName(r.InspectResponse.ID, r.InspectResponse.RepoTags, r.InspectResponse.RepoDigests), nil
 }
 
 // GetPreferredImageName returns preferred image name based on RepoTags and RepoDigests
@@ -263,12 +267,12 @@ func (d *DockerUtil) ImageInspect(ctx context.Context, imageID string) (image.In
 	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
 	defer cancel()
 
-	imageInspect, err := d.cli.ImageInspect(ctx, imageID)
+	result, err := d.cli.ImageInspect(ctx, imageID)
 	if err != nil {
-		return imageInspect, fmt.Errorf("error inspecting image: %w", err)
+		return result.InspectResponse, fmt.Errorf("error inspecting image: %w", err)
 	}
 
-	return imageInspect, nil
+	return result.InspectResponse, nil
 }
 
 // ImageHistory returns the history for a given image ID
@@ -276,12 +280,12 @@ func (d *DockerUtil) ImageHistory(ctx context.Context, imageID string) ([]image.
 	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
 	defer cancel()
 
-	history, err := d.cli.ImageHistory(ctx, imageID)
+	result, err := d.cli.ImageHistory(ctx, imageID)
 	if err != nil {
-		return history, fmt.Errorf("error getting image history: %w", err)
+		return result.Items, fmt.Errorf("error getting image history: %w", err)
 	}
 
-	return history, nil
+	return result.Items, nil
 }
 
 // ResolveImageNameFromContainer will resolve the container sha image name to their user-friendly name.
@@ -334,7 +338,8 @@ func (d *DockerUtil) InspectNoCache(ctx context.Context, id string, withSize boo
 	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
 	defer cancel()
 
-	container, _, err := d.cli.ContainerInspectWithRaw(ctx, id, withSize)
+	result, err := d.cli.ContainerInspect(ctx, id, client.ContainerInspectOptions{Size: withSize})
+	container := result.Container
 	if cerrdefs.IsNotFound(err) {
 		return container, dderrors.NewNotFound("docker container " + id)
 	}
@@ -342,8 +347,8 @@ func (d *DockerUtil) InspectNoCache(ctx context.Context, id string, withSize boo
 		return container, err
 	}
 
-	// ContainerJSONBase is a pointer embed, so it might be nil and cause segfaults
-	if container.ContainerJSONBase == nil {
+	// Check for empty inspect data
+	if container.ID == "" {
 		return container, errors.New("invalid inspect data")
 	}
 
@@ -355,10 +360,11 @@ func (d *DockerUtil) InspectNoCache(ctx context.Context, id string, withSize boo
 func (d *DockerUtil) AllContainerLabels(ctx context.Context) (map[string]map[string]string, error) {
 	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
 	defer cancel()
-	containers, err := d.cli.ContainerList(ctx, dcontainer.ListOptions{})
+	result, err := d.cli.ContainerList(ctx, client.ContainerListOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("error listing containers: %s", err)
 	}
+	containers := result.Items
 
 	labelMap := make(map[string]map[string]string)
 
@@ -376,7 +382,7 @@ func (d *DockerUtil) AllContainerLabels(ctx context.Context) (map[string]map[str
 func (d *DockerUtil) GetContainerStats(ctx context.Context, containerID string) (*dcontainer.StatsResponse, error) {
 	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
 	defer cancel()
-	stats, err := d.cli.ContainerStatsOneShot(ctx, containerID)
+	stats, err := d.cli.ContainerStats(ctx, containerID, client.ContainerStatsOptions{IncludePreviousSample: true})
 	if err != nil {
 		return nil, fmt.Errorf("unable to get Docker stats: %s", err)
 	}
@@ -389,7 +395,7 @@ func (d *DockerUtil) GetContainerStats(ctx context.Context, containerID string) 
 }
 
 // ContainerLogs returns a container logs reader
-func (d *DockerUtil) ContainerLogs(ctx context.Context, container string, options dcontainer.LogsOptions) (io.ReadCloser, error) {
+func (d *DockerUtil) ContainerLogs(ctx context.Context, container string, options client.ContainerLogsOptions) (io.ReadCloser, error) {
 	return d.cli.ContainerLogs(ctx, container, options)
 }
 
@@ -400,7 +406,7 @@ func (d *DockerUtil) GetContainerPIDs(ctx context.Context, containerID string) (
 	pidIdx := -1
 
 	// Docker API to collect PIDs associated with containerID
-	procs, err := d.cli.ContainerTop(ctx, containerID, nil)
+	procs, err := d.cli.ContainerTop(ctx, containerID, client.ContainerTopOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("unable to get PIDs for container %s: %s", containerID, err)
 	}

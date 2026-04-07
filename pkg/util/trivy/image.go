@@ -18,8 +18,8 @@ import (
 	"sync"
 	"time"
 
-	dimage "github.com/docker/docker/api/types/image"
-	"github.com/docker/docker/client"
+	dimage "github.com/moby/moby/api/types/image"
+	"github.com/moby/moby/client"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/tarball"
 	dockerspec "github.com/moby/docker-image-spec/specs-go/v1"
@@ -32,7 +32,7 @@ var mu sync.Mutex
 
 type opener func() (v1.Image, error)
 
-type imageSave func(context.Context, []string, ...client.ImageSaveOption) (io.ReadCloser, error)
+type imageSave func(context.Context, []string, ...client.ImageSaveOption) (client.ImageSaveResult, error)
 
 func imageOpener(ctx context.Context, collector, ref string, f *os.File, imageSave imageSave) opener {
 	return func() (v1.Image, error) {
@@ -130,8 +130,7 @@ func (img *image) ConfigFile() (*v1.ConfigFile, error) {
 		Architecture: img.inspect.Architecture,
 		Author:       img.inspect.Author,
 		Created:      v1.Time{Time: created},
-		//nolint:staticcheck // SA1019 keep for backwards compatibility, to be removed in the next Docker release
-		DockerVersion: img.inspect.DockerVersion,
+		DockerVersion: "", // DockerVersion was removed from image.InspectResponse in Docker SDK v29
 		Config:        img.imageConfig(img.inspect.Config),
 		History:       img.history,
 		OS:            img.inspect.Os,

@@ -21,7 +21,6 @@ require (
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3
 	github.com/docker/cli v29.2.0+incompatible // indirect
-	github.com/docker/docker v28.5.2+incompatible // indirect
 	github.com/fatih/color v1.18.0
 	github.com/google/uuid v1.6.0
 	github.com/kr/pretty v0.3.1
@@ -299,7 +298,8 @@ require (
 	github.com/minio/simdjson-go v0.4.5 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
-	github.com/moby/sys/sequential v0.6.0 // indirect
+	github.com/moby/moby/api v1.54.1 // indirect
+	github.com/moby/moby/client v0.4.0 // indirect
 	github.com/nats-io/jwt/v2 v2.7.3 // indirect
 	github.com/nats-io/nats-server/v2 v2.11.1 // indirect
 	github.com/nats-io/nats.go v1.41.1 // indirect

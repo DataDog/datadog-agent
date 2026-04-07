@@ -26,7 +26,6 @@ import (
 
 	"github.com/avast/retry-go/v4"
 	"github.com/cilium/ebpf"
-	"github.com/docker/docker/libnetwork/resolvconf"
 	"github.com/oliveagle/jsonpath"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
@@ -51,12 +50,11 @@ func TestNetworkCIDR(t *testing.T) {
 		}
 	}
 
-	// write the rules using the local resolv.conf file
-	resolvFile, err := resolvconf.GetSpecific("/etc/resolv.conf")
+	// read the local resolv.conf file and parse nameservers
+	nameserversCIDR, err := parseNameserversFromResolvConf("/etc/resolv.conf")
 	if err != nil {
 		t.Fatal(err)
 	}
-	nameserversCIDR := resolvconf.GetNameserversAsPrefix(resolvFile.Content)
 
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
@@ -83,6 +81,38 @@ func TestNetworkCIDR(t *testing.T) {
 			test.validateDNSSchema(t, event)
 		}, "test_rule")
 	})
+}
+
+// parseNameserversFromResolvConf reads a resolv.conf file and returns the
+// nameservers as netip.Prefix values (each as a /32 or /128 prefix).
+func parseNameserversFromResolvConf(path string) ([]netip.Prefix, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	var prefixes []netip.Prefix
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if !strings.HasPrefix(line, "nameserver") {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		addr, err := netip.ParseAddr(fields[1])
+		if err != nil {
+			continue
+		}
+		prefixes = append(prefixes, netip.PrefixFrom(addr, addr.BitLen()))
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+	return prefixes, nil
 }
 
 func isRawPacketNotSupported(kv *kernel.Version) bool {
