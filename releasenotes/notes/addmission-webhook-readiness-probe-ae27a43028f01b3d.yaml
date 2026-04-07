@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    The cluster agent readiness probe now includes the admission controller webhook server.
+    Newly started cluster agents will not be marked as ready until the webhook can serve requests,
+    preventing missed pod mutations during rollouts.

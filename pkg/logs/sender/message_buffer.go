@@ -51,7 +51,17 @@ func (p *MessageBuffer) GetMessages() []*message.MessageMetadata {
 
 // IsFull returns true if the buffer is full.
 func (p *MessageBuffer) IsFull() bool {
-	return len(p.messageBuffer) == cap(p.messageBuffer) || p.contentSize == p.contentSizeLimit
+	return p.IsCountFull() || p.IsBytesFull()
+}
+
+// IsCountFull returns true if the buffer is full due to the message count limit.
+func (p *MessageBuffer) IsCountFull() bool {
+	return len(p.messageBuffer) == cap(p.messageBuffer)
+}
+
+// IsBytesFull returns true if the buffer is full due to the content size limit.
+func (p *MessageBuffer) IsBytesFull() bool {
+	return p.contentSize == p.contentSizeLimit
 }
 
 // IsEmpty returns true if the buffer is empty.
