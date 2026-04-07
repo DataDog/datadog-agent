@@ -52,6 +52,7 @@ from tasks.kernel_matrix_testing.stacks import check_and_get_stack, check_and_ge
 from tasks.kernel_matrix_testing.tool import Exit, ask, error, get_binary_target_arch, info, warn
 from tasks.kernel_matrix_testing.types import PlatformInfo, component_from_str
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS, KMTPaths
+from tasks.libs.build.bazel import bazel
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.ciproviders.gitlab_api import (
     get_gitlab_job_dependencies,
@@ -559,7 +560,7 @@ def config_ssh_key(ctx: Context):
 
         info("[+] KMT needs this SSH key to be loaded in AWS so that it can be used to access the instances")
         info(
-            "[+] If you haven't loaded it yet, go to https://dtdg.co/aws-sso-prod -> DataDog Sandbox -> EC2 -> Network & Security -> Key Pairs"
+            "[+] If you haven't loaded it yet, go to https://dtdg.co/aws-sso-prod -> Agent Sandbox -> EC2 -> Network & Security -> Key Pairs"
         )
         aws_key_name = ask(
             f"Enter the key name configured in AWS for this key (leave blank to set the same as the local key name '{ssh_key['name']}'): "
@@ -1048,7 +1049,9 @@ def build_target_packages(filter_packages: list[str], build_tags: list[str]):
 def build_object_files(ctx, fp, arch: Arch):
     info("[+] Building eBPF object files via Bazel...")
     build_dir = get_ebpf_build_dir(arch)
-    bazel_build_ebpf(ctx, arch, str(build_dir), strip=False)
+    runtime_dir = get_ebpf_runtime_dir()
+    bazel_build_ebpf(ctx, arch, str(build_dir), str(runtime_dir), strip=False)
+    bazel(ctx, "test", "//pkg/ebpf:verify_generated_files")
 
     info(f"[+] Building non-eBPF artifacts via ninja... {fp}")
     ninja_generate(ctx, fp, arch=arch)

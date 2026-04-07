@@ -1549,6 +1549,29 @@ func TestRemediationCustomEvents(t *testing.T) {
 				if el, err := jsonpath.JsonPathLookup(obj, `$.rule_tags.agent_event_id`); err != nil || el != "AZoIdt0EAAAbKF9Rg_3TKKJ" {
 					t.Errorf("rule_tags.agent_event_id should be 'AZoIdt0EAAAbKF9Rg_3TKKJ': %s => %v", string(msg.Data), err)
 				}
+
+				if el, err := jsonpath.JsonPathLookup(obj, `$.created_at`); err != nil || el == nil || el == "" {
+					t.Errorf("created_at not found in remediation event: %s => %v", string(msg.Data), err)
+				}
+
+				if el, err := jsonpath.JsonPathLookup(obj, `$.detected_at`); err != nil || el == nil || el == "" {
+					t.Errorf("detected_at not found in remediation event: %s => %v", string(msg.Data), err)
+				}
+
+				if el, err := jsonpath.JsonPathLookup(obj, `$.killed_at`); err != nil || el == nil || el == "" {
+					t.Errorf("killed_at not found in remediation event: %s => %v", string(msg.Data), err)
+				}
+
+				if el, err := jsonpath.JsonPathLookup(obj, `$.exited_at`); err != nil || el == nil || el == "" {
+					t.Errorf("exited_at not found in remediation event: %s => %v", string(msg.Data), err)
+				}
+
+				if el, err := jsonpath.JsonPathLookup(obj, `$.ttr`); err != nil || el == nil || el == "" {
+					t.Errorf("ttr not found in remediation event: %s => %v", string(msg.Data), err)
+				} else if s, ok := el.(string); !ok || s == "0s" {
+					t.Errorf("ttr has zero or invalid value: %v", el)
+				}
+
 			})
 
 			return nil
@@ -1613,6 +1636,28 @@ func TestRemediationCustomEvents(t *testing.T) {
 
 				if el, err := jsonpath.JsonPathLookup(obj, `$.process.pid`); err != nil || el == nil {
 					t.Errorf("process.pid not found: %s => %v", string(msg.Data), err)
+				}
+
+				if el, err := jsonpath.JsonPathLookup(obj, `$.created_at`); err != nil || el == nil || el == "" {
+					t.Errorf("created_at not found in remediation event: %s => %v", string(msg.Data), err)
+				}
+
+				if el, err := jsonpath.JsonPathLookup(obj, `$.detected_at`); err != nil || el == nil || el == "" {
+					t.Errorf("detected_at not found in remediation event: %s => %v", string(msg.Data), err)
+				}
+
+				if el, err := jsonpath.JsonPathLookup(obj, `$.killed_at`); err != nil || el == nil || el == "" {
+					t.Errorf("killed_at not found in remediation event: %s => %v", string(msg.Data), err)
+				}
+
+				if el, err := jsonpath.JsonPathLookup(obj, `$.exited_at`); err != nil || el == nil || el == "" {
+					t.Errorf("exited_at not found in remediation event: %s => %v", string(msg.Data), err)
+				}
+
+				if el, err := jsonpath.JsonPathLookup(obj, `$.ttr`); err != nil || el == nil || el == "" {
+					t.Errorf("ttr not found in remediation event: %s => %v", string(msg.Data), err)
+				} else if s, ok := el.(string); !ok || s == "0s" {
+					t.Errorf("ttr has zero or invalid value: %v", el)
 				}
 			})
 

@@ -10,6 +10,7 @@ package module
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -51,6 +52,7 @@ type runtimeStats struct {
 	eventPairingBufferFull        atomic.Uint64
 	eventPairingCallMapFull       atomic.Uint64
 	eventPairingCallCountExceeded atomic.Uint64
+	eventPairingConditionFailed   atomic.Uint64
 }
 
 func (s *runtimeStats) asStats() map[string]any {
@@ -58,6 +60,7 @@ func (s *runtimeStats) asStats() map[string]any {
 		"event_pairing_buffer_full":         s.eventPairingBufferFull.Load(),
 		"event_pairing_call_map_full":       s.eventPairingCallMapFull.Load(),
 		"event_pairing_call_count_exceeded": s.eventPairingCallCountExceeded.Load(),
+		"event_pairing_condition_failed":    s.eventPairingConditionFailed.Load(),
 	}
 }
 
@@ -202,6 +205,7 @@ func (rt *runtimeImpl) Load(
 		programID:    programID,
 		processID:    processID,
 		service:      runtimeID.service,
+		processTags:  strings.Join(runtimeID.processTags, ","),
 		logUploader: rt.logsFactory.GetUploader(uploader.LogsUploaderMetadata{
 			Tags:        tags,
 			EntityID:    entityID,

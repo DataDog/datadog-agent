@@ -54,8 +54,8 @@ func (c *fhCheck) Run() error {
 }
 
 // The check doesn't need configuration
-func (c *fhCheck) Configure(senderManager sender.SenderManager, _ uint64, data integration.Data, initConfig integration.Data, source string) (err error) {
-	if err := c.CommonConfigure(senderManager, initConfig, data, source); err != nil {
+func (c *fhCheck) Configure(senderManager sender.SenderManager, _ uint64, data integration.Data, initConfig integration.Data, source string, provider string) (err error) {
+	if err := c.CommonConfigure(senderManager, initConfig, data, source, provider); err != nil {
 		return err
 	}
 

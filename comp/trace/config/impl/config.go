@@ -108,7 +108,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		oldAPIKey, ok1 := oldValue.(string)
 		newAPIKey, ok2 := newValue.(string)
 		if ok1 && ok2 {
-			log.Debugf("Updating API key in trace-agent config, replacing `%s` with `%s`", scrubber.HideKeyExceptLastFiveChars(oldAPIKey), scrubber.HideKeyExceptLastFiveChars(newAPIKey))
+			log.Debugf("Updating API key in trace-agent config, replacing `%s` with `%s`", scrubber.HideKeyExceptLastFourChars(oldAPIKey), scrubber.HideKeyExceptLastFourChars(newAPIKey))
 			// Update API Key on config, and propagate the signal to registered listeners
 			newAPIKey = pkgconfigutils.SanitizeAPIKey(newAPIKey)
 			c.updateAPIKey(oldAPIKey, newAPIKey)
@@ -188,7 +188,7 @@ func (c *cfg) GetConfigHandler() http.Handler {
 				return
 			}
 
-			runtimeConfig, err := yaml.Marshal(c.coreConfig.AllSettingsWithoutSecrets())
+			runtimeConfig, err := yaml.Marshal(c.coreConfig.AllSettings())
 			if err != nil {
 				log.Errorf("Unable to marshal runtime config response: %s", err)
 				body, _ := json.Marshal(map[string]string{"error": err.Error()})

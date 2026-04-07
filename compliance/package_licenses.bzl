@@ -64,8 +64,14 @@ def package_licenses(name = None, src = None):
         name = name,
         srcs = [
             ":%s_license_dir_stripped_" % name,
-            ":%s_offer_dir_stripped_" % name,
-        ],
+        ] + select({
+            # None of the deps that declare ship_source_offer (freetds, openscap, attr, etc.) are included in the
+            # Windows build; offers_dir is therefore always empty there. rules_python 1.9.0 makes `bazel run` copy
+            # runfiles to a fresh temp dir and skips empty dirs, causing pkg_install to fail with FileNotFoundError
+            # (Linux/macOS use symlinks so empty TreeArtifacts are fine); remove this select when Windows does.
+            "@platforms//os:windows": [],  #TODO(ABLD-351): deal with products that don't have source offers
+            "//conditions:default": [":%s_offer_dir_stripped_" % name],
+        }),
         visibility = ["//visibility:public"],
     )
 

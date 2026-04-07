@@ -53,7 +53,10 @@ mod tests {
         let uds = UnixListener::bind(&sock_path).unwrap();
         let uds_stream = UnixListenerStream::new(uds);
 
-        let mgr = ProcessManager::new(Arc::new(StaticConfigLoader::new(defs)));
+        let mgr = ProcessManager::new(
+            Arc::new(StaticConfigLoader::new(defs)),
+            Arc::new(crate::uuid_gen::V4UuidGenerator),
+        );
         let svc = ProcessManagerService::new(mgr.clone(), cmd_tx);
 
         let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();

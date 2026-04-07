@@ -200,7 +200,7 @@ func GetMultipleEndpoints(c pkgconfigmodel.Reader) (EndpointDescriptorSet, error
 // ddDomainPattern matches known Datadog domains (e.g., datadoghq.com,
 // datad0g.eu, ddog-gov.com). This is the shared building block for
 // wellKnownSitesRe, ddSitePattern, ddSiteFromHostnameRe, and ddURLRegexp.
-const ddDomainPattern = `datad(?:oghq|0g)\.(?:com|eu)|ddog-gov\.com`
+const ddDomainPattern = `datad(?:oghq|0g)\.(?:com|eu)|ddog-gov\.(?:com|mil)`
 
 var wellKnownSitesRe = regexp.MustCompile(`(?:` + ddDomainPattern + `)$`)
 

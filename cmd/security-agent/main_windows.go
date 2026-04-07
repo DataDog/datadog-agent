@@ -43,7 +43,8 @@ import (
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	statsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
+	statsdFx "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/fx"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
@@ -116,7 +117,7 @@ func (s *service) Run(svcctx context.Context) error {
 		}),
 		core.Bundle(core.WithSecrets()),
 		remotehostnameimpl.Module(),
-		statsd.Module(),
+		statsdFx.Module(),
 
 		// workloadmeta setup
 		wmcatalog.GetCatalog(),

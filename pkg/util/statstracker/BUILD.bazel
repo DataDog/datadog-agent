@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "statstracker",
+    srcs = ["stats_tracker.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/statstracker",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "statstracker_test",
+    srcs = ["stats_tracker_test.go"],
+    embed = [":statstracker"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

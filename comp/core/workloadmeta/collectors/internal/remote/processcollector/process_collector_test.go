@@ -256,8 +256,7 @@ func TestCollection(t *testing.T) {
 				fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 				fx.Provide(func(t testing.TB) config.Component {
 					return config.NewMockWithOverrides(t, map[string]interface{}{
-						"language_detection.enabled":               true,
-						"process_config.run_in_core_agent.enabled": false,
+						"language_detection.enabled": true,
 					})
 				}),
 				workloadmetafxmock.MockModule(workloadmeta.Params{AgentType: workloadmeta.Remote}),
@@ -292,6 +291,7 @@ func TestCollection(t *testing.T) {
 				StreamHandler: &streamHandler{
 					Reader: mockStore.GetConfig(),
 					port:   port,
+					ipc:    ipcComp,
 				},
 				IPC: ipcComp,
 			}

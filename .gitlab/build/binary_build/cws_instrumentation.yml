@@ -1,7 +1,7 @@
 ---
 .cws_instrumentation-build_common:
   stage: binary_build
-  needs: ["go_mod_tidy_check"]
+  needs: []
   script:
     - dda inv -- check-go-version
     - dda inv -- -e cws-instrumentation.build --arch-suffix
@@ -14,7 +14,7 @@
     - when: on_success
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
-  needs: ["go_mod_tidy_check", "go_deps"]
+  needs: ["go_deps"]
   variables:
     ARCH: amd64
   before_script:
@@ -25,7 +25,7 @@
     - when: on_success
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:arm64", "specific:true"]
-  needs: ["go_mod_tidy_check", "go_deps"]
+  needs: ["go_deps"]
   variables:
     ARCH: arm64
   before_script:
@@ -41,7 +41,7 @@ cws_instrumentation-build_arm64:
 
 .cws_instrumentation-build_injector_common:
   stage: binary_build
-  needs: ["go_mod_tidy_check"]
+  needs: []
   script:
     - dda inv -- check-go-version
     - dda inv -- -e cws-instrumentation.build --arch-suffix --injector-only

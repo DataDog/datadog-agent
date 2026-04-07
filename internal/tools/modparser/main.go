@@ -10,26 +10,26 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"golang.org/x/mod/modfile"
 )
 
 func parseMod(module string) (*modfile.File, error) {
-	if !strings.HasSuffix(module, "/") {
-		module += "/"
+	modFilename := filepath.Clean(module)
+	if info, err := os.Stat(module); err != nil || info.IsDir() {
+		modFilename = filepath.Join(module, "go.mod")
 	}
-
-	modFilename := module + "go.mod"
 
 	data, err := os.ReadFile(modFilename)
 	if err != nil {
-		return nil, fmt.Errorf("could not read go.mod file in %s", module)
+		return nil, fmt.Errorf("could not read %s", modFilename)
 	}
 
 	parsedFile, err := modfile.Parse(modFilename, data, nil)
 	if err != nil {
-		return nil, fmt.Errorf("could not parse go.mod file in %s", module)
+		return nil, fmt.Errorf("could not parse %s", modFilename)
 	}
 
 	return parsedFile, nil

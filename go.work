@@ -101,6 +101,7 @@ use (
 	pkg/config/teeconfig
 	pkg/config/utils
 	pkg/config/viperconfig
+	pkg/discovery/tracermetadata/model
 	pkg/errors
 	pkg/fips
 	pkg/fleet/installer

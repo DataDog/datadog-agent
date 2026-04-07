@@ -5,7 +5,6 @@ go 1.25.0
 require (
 	github.com/DataDog/datadog-agent/pkg/config/model v0.72.2
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.64.1
-	github.com/DataDog/datadog-agent/pkg/config/structure v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.64.1
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.72.2
 	github.com/DataDog/datadog-agent/pkg/util/log v0.72.2
@@ -34,7 +33,7 @@ require (
 	go.uber.org/atomic v1.11.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
-	golang.org/x/sys v0.41.0 // indirect
+	golang.org/x/sys v0.42.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
 )
 
@@ -127,6 +126,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig => ../../../pkg/config/teeconfig
 	github.com/DataDog/datadog-agent/pkg/config/utils => ../../../pkg/config/utils
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig => ../../../pkg/config/viperconfig
+	github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model => ../../../pkg/discovery/tracermetadata/model
 	github.com/DataDog/datadog-agent/pkg/errors => ../../../pkg/errors
 	github.com/DataDog/datadog-agent/pkg/fips => ../../../pkg/fips
 	github.com/DataDog/datadog-agent/pkg/fleet/installer => ../../../pkg/fleet/installer

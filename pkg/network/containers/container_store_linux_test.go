@@ -166,6 +166,96 @@ func TestContainerStoreNoData(t *testing.T) {
 	require.True(t, ok, "Container should be in cache")
 	require.Equal(t, resolvConf, item.resolvConf, "ResolvConf should match")
 }
+
+func TestContainerStoreAccessRefreshesTimestamp(t *testing.T) {
+	t.Parallel()
+	cs, err := NewContainerStore(10)
+	require.NoError(t, err)
+	defer cs.Stop()
+
+	containerID := intern.GetByString("container-1")
+	processEvent := &events.Process{
+		Pid:         12345,
+		ContainerID: containerID,
+		StartTime:   time.Now().UnixNano(),
+	}
+
+	resolvConf := stringInterner.GetString("nameserver 8.8.8.8")
+	// mock readContainerItem to return an item with a timestamp far in the past
+	insertTime := time.Now().Add(-containerTTL + time.Minute)
+	cs.readContainerItem = func(_ context.Context, _ *events.Process) (readContainerItemResult, error) {
+		return readContainerItemResult{
+			item: containerStoreItem{
+				timestamp:  insertTime,
+				resolvConf: resolvConf,
+			},
+		}, nil
+	}
+
+	cs.HandleProcessEvent(processEvent)
+
+	require.Eventually(t, func() bool {
+		return cs.cache.Len() == 1
+	}, 2*time.Second, 50*time.Millisecond)
+
+	// verify GetResolvConf refreshes the timestamp
+	result := cs.GetResolvConf(containerID)
+	require.Equal(t, resolvConf, result)
+
+	item, ok := cs.cache.Get(containerID)
+	require.True(t, ok)
+	require.True(t, item.timestamp.After(insertTime),
+		"GetResolvConf should refresh the timestamp to prevent expiry")
+}
+
+func TestContainerStoreErrorRetry(t *testing.T) {
+	t.Parallel()
+	// verifies that a failed read is retried after errorRetryInterval, but not before
+	cs, err := NewContainerStore(10)
+	require.NoError(t, err)
+	defer cs.Stop()
+
+	containerID := intern.GetByString("container-retry")
+	processEvent := &events.Process{
+		Pid:         12345,
+		ContainerID: containerID,
+		StartTime:   time.Now().UnixNano(),
+	}
+
+	callCount := 0
+	resolvConf := stringInterner.GetString("nameserver 8.8.8.8")
+	cs.readContainerItem = func(_ context.Context, _ *events.Process) (readContainerItemResult, error) {
+		callCount++
+		if callCount == 1 {
+			return readContainerItemResult{}, errors.New("transient procfs error")
+		}
+		return mockReadContainerItemResult(resolvConf), nil
+	}
+
+	// first call: error gets cached
+	cs.addProcess(processEvent)
+	require.Equal(t, 1, callCount)
+	item, ok := cs.cache.Get(containerID)
+	require.True(t, ok)
+	require.Nil(t, item.resolvConf)
+
+	// immediate retry: should be suppressed by errorRetryInterval
+	cs.addProcess(processEvent)
+	require.Equal(t, 1, callCount, "should not retry before errorRetryInterval")
+
+	// backdate the error entry past errorRetryInterval
+	item.timestamp = time.Now().Add(-errorRetryInterval - time.Second)
+	cs.cache.Add(containerID, item)
+
+	// now retry should succeed
+	cs.addProcess(processEvent)
+	require.Equal(t, 2, callCount, "should retry after errorRetryInterval")
+
+	item, ok = cs.cache.Get(containerID)
+	require.True(t, ok)
+	require.Equal(t, resolvConf, item.resolvConf, "should have resolv.conf after successful retry")
+}
+
 func TestContainerStoreDuplicate(t *testing.T) {
 	t.Parallel()
 	// makes sure that nothing weird happens when you repeat a process entry

@@ -55,6 +55,53 @@ func TestIsNodeMetadata(t *testing.T) {
 	}
 
 }
+
+func TestIsNamespaceMetadata(t *testing.T) {
+	tests := []struct {
+		name     string
+		metadata KubernetesMetadata
+		expected bool
+	}{
+		{
+			name: "namespace metadata",
+			metadata: KubernetesMetadata{
+				GVR: &schema.GroupVersionResource{
+					Version:  "v1",
+					Resource: "namespaces",
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "namespace metadata with custom group",
+			metadata: KubernetesMetadata{
+				GVR: &schema.GroupVersionResource{
+					Group:    "customgroup",
+					Version:  "v1",
+					Resource: "namespaces",
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "node metadata is not namespace metadata",
+			metadata: KubernetesMetadata{
+				GVR: &schema.GroupVersionResource{
+					Version:  "v1",
+					Resource: "nodes",
+				},
+			},
+			expected: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(tt *testing.T) {
+			assert.Equal(tt, test.expected, IsNamespaceMetadata(&test.metadata))
+		})
+	}
+}
+
 func TestFilterBuilder_Build(t *testing.T) {
 	dummyEntityFilterFunc := func(entity Entity) bool {
 		return len(entity.GetID().ID) == 5
