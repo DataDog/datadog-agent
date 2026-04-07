@@ -15,24 +15,48 @@ import (
 	"time"
 
 	"github.com/gosnmp/gosnmp"
-	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	config "github.com/DataDog/datadog-agent/comp/snmptraps/config/def"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/listener"
+	listener "github.com/DataDog/datadog-agent/comp/snmptraps/listener/def"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/status/def"
+	status "github.com/DataDog/datadog-agent/comp/snmptraps/status/def"
 )
 
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newTrapListener),
-	)
+// Requires defines the dependencies for the listener component.
+type Requires struct {
+	compdef.In
+
+	Lifecycle compdef.Lifecycle
+	Config    config.Component
+	Demux     demultiplexer.Component
+	Logger    log.Component
+	Status    status.Component
+}
+
+// Provides defines the output of the listener component.
+type Provides struct {
+	compdef.Out
+
+	Comp listener.Component
+}
+
+// NewComponent creates a new listener component.
+func NewComponent(reqs Requires) (Provides, error) {
+	comp, err := newTrapListener(reqs.Lifecycle, dependencies{
+		Config: reqs.Config,
+		Demux:  reqs.Demux,
+		Logger: reqs.Logger,
+		Status: reqs.Status,
+	})
+	if err != nil {
+		return Provides{}, err
+	}
+	return Provides{Comp: comp}, nil
 }
 
 // trapListener opens an UDP socket and put all received traps in a channel
@@ -47,7 +71,6 @@ type trapListener struct {
 }
 
 type dependencies struct {
-	fx.In
 	Config config.Component
 	Demux  demultiplexer.Component
 	Logger log.Component
@@ -55,41 +78,41 @@ type dependencies struct {
 }
 
 // newTrapListener creates a TrapListener and registers it with the lifecycle.
-func newTrapListener(lc fx.Lifecycle, dep dependencies) (listener.Component, error) {
+func newTrapListener(lc compdef.Lifecycle, dep dependencies) (listener.Component, error) {
 	sender, err := dep.Demux.GetDefaultSender()
 	if err != nil {
 		return nil, err
 	}
-	config := dep.Config.Get()
+	cfg := dep.Config.Get()
 	gosnmpListener := gosnmp.NewTrapListener()
-	gosnmpListener.Params, err = config.BuildSNMPParams(dep.Logger)
+	gosnmpListener.Params, err = cfg.BuildSNMPParams(dep.Logger)
 	if err != nil {
 		return nil, err
 	}
 	errorsChan := make(chan error, 1)
-	trapListener := &trapListener{
-		config:        config,
+	tl := &trapListener{
+		config:        cfg,
 		sender:        sender,
-		packets:       make(packet.PacketsChannel, config.GetPacketChannelSize()),
+		packets:       make(packet.PacketsChannel, cfg.GetPacketChannelSize()),
 		listener:      gosnmpListener,
 		errorsChannel: errorsChan,
 		logger:        dep.Logger,
 		status:        dep.Status,
 	}
 
-	gosnmpListener.OnNewTrap = trapListener.receiveTrap
-	if config.Enabled {
-		lc.Append(fx.Hook{
+	gosnmpListener.OnNewTrap = tl.receiveTrap
+	if cfg.Enabled {
+		lc.Append(compdef.Hook{
 			OnStart: func(_ context.Context) error {
-				return trapListener.start()
+				return tl.start()
 			},
 			OnStop: func(_ context.Context) error {
-				return trapListener.stop()
+				return tl.stop()
 			},
 		})
 	}
 
-	return trapListener, nil
+	return tl, nil
 }
 
 // Packets returns the packets channel to which the listener publishes.
@@ -144,8 +167,8 @@ func (t *trapListener) stop() error {
 }
 
 func (t *trapListener) receiveTrap(p *gosnmp.SnmpPacket, u *net.UDPAddr) {
-	packet := &packet.SnmpPacket{Content: p, Addr: u, Timestamp: time.Now().UnixMilli(), Namespace: t.config.Namespace}
-	tags := packet.GetTags()
+	pkt := &packet.SnmpPacket{Content: p, Addr: u, Timestamp: time.Now().UnixMilli(), Namespace: t.config.Namespace}
+	tags := pkt.GetTags()
 
 	t.sender.Count("datadog.snmp_traps.received", 1, "", tags)
 
@@ -157,7 +180,7 @@ func (t *trapListener) receiveTrap(p *gosnmp.SnmpPacket, u *net.UDPAddr) {
 	}
 	t.logger.Debugf("Packet received from %s on listener %s", u.String(), t.config.Addr())
 	t.status.AddTrapsPackets(1)
-	t.packets <- packet
+	t.packets <- pkt
 }
 
 func validatePacket(p *gosnmp.SnmpPacket, c *config.TrapsConfig) error {

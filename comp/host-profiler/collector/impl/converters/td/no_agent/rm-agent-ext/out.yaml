@@ -1,5 +1,6 @@
 exporters:
     otlphttp:
+        compression: zstd
         endpoint: http://localhost:4318
         headers:
             dd-api-key: test-key
