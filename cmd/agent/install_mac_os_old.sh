@@ -87,6 +87,25 @@ if [ -n "$DD_AGENT_MINOR_VERSION" ]; then
   fi
 fi
 
+# Version guard: this script is for Agent versions prior to 7.79.0
+if [ -n "$DD_AGENT_MINOR_VERSION" ] && [ "$agent_minor_version_without_patch" -ge 79 ]; then
+    printf "${RED}This install script is for Agent versions prior to 7.79.0.
+For Agent 7.79.0 and later, use install_mac_os.sh instead.
+If you are upgrading from Agent < 7.79.0, you must fully uninstall the Agent first:
+    https://docs.datadoghq.com/agent/supported_platforms/osx/#uninstall-the-agent${NC}\n"
+    exit 1
+fi
+
+# Deprecation notice
+printf "${YELLOW}
+================================================================================
+NOTICE: This install script only supports Agent versions up to 7.78.x.
+For Agent 7.79.0 and later, use install_mac_os.sh instead.
+If you are upgrading from Agent < 7.79.0, you must fully uninstall the Agent first:
+    https://docs.datadoghq.com/agent/supported_platforms/osx/#uninstall-the-agent
+================================================================================
+${NC}\n"
+
 arch=$(/usr/bin/uname -m)
 curl_retries=(--retry 2)
 
@@ -217,7 +236,8 @@ else
         exit 1
     else
         if [ -z "${agent_minor_version}" ]; then
-            dmg_version="7-latest"
+            # Cap to 7.78 (latest patch) since this script is for versions prior to 7.79.0
+            agent_minor_version_without_patch=78
         fi
     fi
 fi

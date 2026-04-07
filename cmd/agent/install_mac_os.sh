@@ -77,6 +77,15 @@ if [ -n "$DD_AGENT_MINOR_VERSION" ]; then
   fi
 fi
 
+# Version guard: this script is for Agent 7.79.0+
+if [ -n "$DD_AGENT_MINOR_VERSION" ] && [ "$agent_minor_version_without_patch" -lt 79 ]; then
+    printf "${RED}This install script is for Agent 7.79.0 and later.
+For older versions, use install_mac_os_old.sh instead.
+If you are downgrading from Agent >= 7.79.0, you must fully uninstall the Agent first:
+    https://docs.datadoghq.com/agent/supported_platforms/osx/#uninstall-the-agent${NC}\n"
+    exit 1
+fi
+
 arch=$(/usr/bin/uname -m)
 curl_retries=(--retry 2)
 
@@ -121,7 +130,7 @@ macos_major_version=$(echo "${macos_full_version}" | cut -d '.' -f 1)
 macos_minor_version=$(echo "${macos_full_version}" | cut -d '.' -f 2)
 
 if [ "${macos_major_version}" -lt 10 ] || { [ "${macos_major_version}" -eq 10 ] && [ "${macos_minor_version}" -lt 14 ]; }; then
-    echo -e "${RED}Datadog Agent requires macOS 10.14 (Mojave) or later.${NC}\n"
+    echo -e "${RED}Datadog Agent requires macOS 12.0 or later.${NC}\n"
     exit 1
 fi
 
