@@ -179,10 +179,14 @@ def _scenario_f1_from_bayesian_report(report: dict | None) -> dict[str, float]:
 
 
 def _best_run_index(runs: list[dict]) -> int:
-    """Index of the run with highest best_score (first on ties)."""
-    if not runs:
+    """Index of the run with highest best_score among non-failed runs (first on ties).
+
+    Returns -1 if there are no runs or all runs failed.
+    """
+    valid = [i for i, r in enumerate(runs) if not r.get("failed") and r.get("best_score") is not None]
+    if not valid:
         return -1
-    return max(range(len(runs)), key=lambda i: runs[i]["best_score"])
+    return max(valid, key=lambda i: runs[i]["best_score"])
 
 
 # --- Eval ---
@@ -995,7 +999,8 @@ def eval_bayesian(
         print(color_message(f"  output_dir:  {output_dir}", Color.BLUE))
         print(color_message(f"  seed:        {seed}", Color.BLUE))
 
-    completed_trials = []
+    completed_trials: list[dict] = []
+    failed_trials: list[dict] = []
 
     def objective(trial):
         trial_label = f"trial_{trial.number:03d}"
@@ -1015,6 +1020,8 @@ def eval_bayesian(
         scenario_output_dir = os.path.join(trial_dir, "scenarios")
         os.makedirs(scenario_output_dir, exist_ok=True)
 
+        failure_reason: str | None = None
+        report = None
         try:
             report = eval_scenarios(
                 ctx,
@@ -1027,10 +1034,24 @@ def eval_bayesian(
                 _logger=trial_logger.child(len(SCENARIOS), "Scenario"),
             )
         except Exception as e:
-            trial_logger.detail(f"eval_scenarios failed: {e}", Color.RED)
+            failure_reason = f"eval_scenarios raised {type(e).__name__}: {e}"
+
+        if failure_reason is None and report is None:
+            failure_reason = "eval_scenarios returned None (no report produced)"
+
+        if failure_reason is not None:
+            trial_logger.detail(f"Trial failed: {failure_reason}", Color.RED)
+            failed_trials.append(
+                {
+                    "trial": trial.number,
+                    "label": trial_label,
+                    "reason": failure_reason,
+                    "config_path": config_path,
+                }
+            )
             return float("-inf")
 
-        score = report.get("score", 0.0) if report else 0.0
+        score = report.get("score", 0.0)
         trial_logger.score(score)
 
         completed_trials.append(
@@ -1061,6 +1082,22 @@ def eval_bayesian(
     avg_score = sum(scores) / len(scores) if scores else 0.0
     best = completed_trials[0] if completed_trials else None
 
+    n_failed = len(failed_trials)
+    if n_failed > 0:
+        fail_pct = 100 * n_failed / n_trials
+        clr = Color.RED if not completed_trials else Color.ORANGE
+        print(
+            color_message(
+                f"Warning: {n_failed}/{n_trials} trials failed ({fail_pct:.0f}%).  "
+                f"Failed trials are excluded from scoring.",
+                clr,
+            )
+        )
+        for ft in failed_trials:
+            print(color_message(f"  [{ft['label']}] {ft['reason']}", clr))
+        if not completed_trials:
+            print(color_message("Error: all trials failed — scores are meaningless.", Color.RED))
+
     if completed_trials:
         print(color_message(f"\n{'=' * 70}", Color.GREEN))
         print(color_message("  Bayesian Optimization Summary", Color.GREEN))
@@ -1086,11 +1123,13 @@ def eval_bayesian(
         "avg_eval_score": avg_score,
         "n_trials": n_trials,
         "completed_trials": len(completed_trials),
+        "failed_trials": n_failed,
         "seed": seed,
         "components": components_list,
         "locked": sorted(locked_set),
         "best_combination": best,
         "trials": completed_trials,
+        "failures": failed_trials,
     }
     report_path = os.path.join(output_dir, "report.json")
     with open(report_path, "w") as f:
@@ -1308,21 +1347,34 @@ def eval_component(
                     _logger=trial_logger,
                 )
 
-                best_score = report.get("score", 0.0) if report else 0.0
-                run_scores.append(best_score)
+                run_failed = report is None or report.get("completed_trials", 0) == 0
+                if run_failed:
+                    if report is None:
+                        reason = "eval_bayesian returned None (aborted before producing a report)"
+                    else:
+                        n_ft = report.get("failed_trials", 0)
+                        reason = f"all {n_ft} trials failed — no completed trials in report"
+                    run_logger.detail(f"Warning: {variant}/{subset_label}/{run_label} failed: {reason}", Color.RED)
+
+                best_score = report.get("score") if report and not run_failed else None
+                avg_score_val = report.get("avg_eval_score") if report and not run_failed else None
+                if not run_failed:
+                    run_scores.append(best_score)
                 run_details.append(
                     {
                         "run": run_label,
                         "seed": run_seed,
+                        "failed": run_failed,
                         "best_score": best_score,
-                        "avg_score": report.get("avg_eval_score", 0.0) if report else 0.0,
+                        "avg_score": avg_score_val,
                         "report_path": os.path.join(run_dir, "report.json"),
-                        "scenario_f1": _scenario_f1_from_bayesian_report(report),
+                        "scenario_f1": _scenario_f1_from_bayesian_report(report) if not run_failed else {},
                     }
                 )
 
-            max_score = max(run_scores) if run_scores else 0.0
-            mean_score = sum(run_scores) / len(run_scores) if run_scores else 0.0
+            max_score = max(run_scores) if run_scores else None
+            mean_score = sum(run_scores) / len(run_scores) if run_scores else None
+            n_failed_runs = sum(1 for r in run_details if r["failed"])
 
             variant_results[variant].append(
                 {
@@ -1333,6 +1385,7 @@ def eval_component(
                     "run_scores": run_scores,
                     "max_score": max_score,
                     "mean_score": mean_score,
+                    "failed_runs": n_failed_runs,
                     "runs": run_details,
                 }
             )
@@ -1342,17 +1395,25 @@ def eval_component(
     for si in range(n_subsets):
         wo = variant_results["without"][si]
         wi = variant_results["with"][si]
+        wo_max = wo["max_score"]
+        wi_max = wi["max_score"]
+        wo_mean = wo["mean_score"]
+        wi_mean = wi["mean_score"]
+        delta_max_ps = (wi_max - wo_max) if wo_max is not None and wi_max is not None else None
+        delta_mean_ps = (wi_mean - wo_mean) if wo_mean is not None and wi_mean is not None else None
+        failed_runs_total = wo["failed_runs"] + wi["failed_runs"]
         per_subset.append(
             {
                 "subset": wo["subset"],
                 "detectors": wo["detectors"],
                 "correlators": wo["correlators"],
-                "without_max": wo["max_score"],
-                "with_max": wi["max_score"],
-                "delta_max": wi["max_score"] - wo["max_score"],
-                "without_mean": wo["mean_score"],
-                "with_mean": wi["mean_score"],
-                "delta_mean": wi["mean_score"] - wo["mean_score"],
+                "without_max": wo_max,
+                "with_max": wi_max,
+                "delta_max": delta_max_ps,
+                "without_mean": wo_mean,
+                "with_mean": wi_mean,
+                "delta_mean": delta_mean_ps,
+                "failed_runs": failed_runs_total,
                 "without_run_scores": wo["run_scores"],
                 "with_run_scores": wi["run_scores"],
             }
@@ -1411,20 +1472,50 @@ def eval_component(
                 "n_subsets": len(deltas),
             }
 
-    without_maxs = [r["max_score"] for r in variant_results["without"]]
-    with_maxs = [r["max_score"] for r in variant_results["with"]]
-    without_means = [r["mean_score"] for r in variant_results["without"]]
-    with_means = [r["mean_score"] for r in variant_results["with"]]
+    # Only include subsets where both variants produced at least one successful run.
+    valid_deltas_max = [ps["delta_max"] for ps in per_subset if ps["delta_max"] is not None]
+    valid_deltas_mean = [ps["delta_mean"] for ps in per_subset if ps["delta_mean"] is not None]
+    n_failed_subsets = sum(1 for ps in per_subset if ps["delta_max"] is None)
+    total_failed_runs = sum(ps["failed_runs"] for ps in per_subset)
 
-    avg_max_without = sum(without_maxs) / len(without_maxs) if without_maxs else 0.0
-    avg_max_with = sum(with_maxs) / len(with_maxs) if with_maxs else 0.0
-    avg_mean_without = sum(without_means) / len(without_means) if without_means else 0.0
-    avg_mean_with = sum(with_means) / len(with_means) if with_means else 0.0
-    delta_max = avg_max_with - avg_max_without
-    delta_mean = avg_mean_with - avg_mean_without
+    if n_failed_subsets > 0:
+        print(
+            color_message(
+                f"Warning: {n_failed_subsets}/{n_subsets} subsets had fully failed runs and are excluded from the final delta.",
+                Color.ORANGE,
+            )
+        )
+    if total_failed_runs > 0 and n_failed_subsets == 0:
+        print(
+            color_message(
+                f"Warning: {total_failed_runs} individual run(s) failed across subsets; "
+                "partial results were excluded from per-subset scores.",
+                Color.ORANGE,
+            )
+        )
 
-    recommendation = "keep" if delta_max > 0 else "discard"
-    rec_clr = Color.GREEN if delta_max > 0 else Color.RED
+    delta_max = sum(valid_deltas_max) / len(valid_deltas_max) if valid_deltas_max else None
+    delta_mean = sum(valid_deltas_mean) / len(valid_deltas_mean) if valid_deltas_mean else None
+
+    avg_max_without_vals = [ps["without_max"] for ps in per_subset if ps["without_max"] is not None]
+    avg_max_with_vals = [ps["with_max"] for ps in per_subset if ps["with_max"] is not None]
+    avg_mean_without_vals = [ps["without_mean"] for ps in per_subset if ps["without_mean"] is not None]
+    avg_mean_with_vals = [ps["with_mean"] for ps in per_subset if ps["with_mean"] is not None]
+
+    avg_max_without = sum(avg_max_without_vals) / len(avg_max_without_vals) if avg_max_without_vals else None
+    avg_max_with = sum(avg_max_with_vals) / len(avg_max_with_vals) if avg_max_with_vals else None
+    avg_mean_without = sum(avg_mean_without_vals) / len(avg_mean_without_vals) if avg_mean_without_vals else None
+    avg_mean_with = sum(avg_mean_with_vals) / len(avg_mean_with_vals) if avg_mean_with_vals else None
+
+    if delta_max is None:
+        recommendation = "inconclusive"
+        rec_clr = Color.ORANGE
+    elif delta_max > 0:
+        recommendation = "keep"
+        rec_clr = Color.GREEN
+    else:
+        recommendation = "discard"
+        rec_clr = Color.RED
 
     # --- print summary (primary max-score block last) ---
     print(color_message(f"\n{'=' * 70}", Color.GREEN))
@@ -1436,9 +1527,15 @@ def eval_component(
     print(header)
     print(f"  {'-' * 44}")
     for ps in per_subset:
-        delta_clr = Color.GREEN if ps["delta_max"] > 0 else Color.RED
-        line = f"  {ps['subset']:<12}  {ps['without_max']:>8.4f}  {ps['with_max']:>8.4f}  "
-        print(line + color_message(f"{ps['delta_max']:>+8.4f}", delta_clr))
+        wo_str = f"{ps['without_max']:>8.4f}" if ps["without_max"] is not None else f"{'FAILED':>8}"
+        wi_str = f"{ps['with_max']:>8.4f}" if ps["with_max"] is not None else f"{'FAILED':>8}"
+        if ps["delta_max"] is None:
+            delta_str = color_message(f"{'n/a':>8}", Color.ORANGE)
+        else:
+            delta_clr = Color.GREEN if ps["delta_max"] > 0 else Color.RED
+            delta_str = color_message(f"{ps['delta_max']:>+8.4f}", delta_clr)
+        fail_note = f"  [{ps['failed_runs']} run(s) failed]" if ps["failed_runs"] > 0 else ""
+        print(f"  {ps['subset']:<12}  {wo_str}  {wi_str}  {delta_str}{fail_note}")
 
     print()
     print(
@@ -1474,30 +1571,43 @@ def eval_component(
             msg = f"  {scen:<26}  {mean_d:>+8.4f}  {min_d:>+8.4f}  {max_d:>+8.4f}"
             print(color_message(msg, mean_clr))
 
+    def _fmt(v: float | None, signed: bool = False) -> str:
+        if v is None:
+            return "n/a"
+        return f"{v:+.4f}" if signed else f"{v:.4f}"
+
     print()
     print(color_message("  Secondary: mean of trial-mean scores (across subsets)", Color.BLUE))
-    print(color_message(f"  Avg mean score without: {avg_mean_without:.4f}", Color.BLUE))
-    print(color_message(f"  Avg mean score with:    {avg_mean_with:.4f}", Color.BLUE))
-    delta_clr = Color.GREEN if delta_mean > 0 else Color.RED
-    print(color_message(f"  Delta (mean):           {delta_mean:+.4f}", delta_clr))
+    print(color_message(f"  Avg mean score without: {_fmt(avg_mean_without)}", Color.BLUE))
+    print(color_message(f"  Avg mean score with:    {_fmt(avg_mean_with)}", Color.BLUE))
+    if delta_mean is None:
+        print(color_message("  Delta (mean):           n/a (no valid subsets)", Color.ORANGE))
+    else:
+        delta_clr = Color.GREEN if delta_mean > 0 else Color.RED
+        print(color_message(f"  Delta (mean):           {delta_mean:+.4f}", delta_clr))
 
     print()
     print(color_message(f"  {'-' * 66}", Color.GREEN))
     print(color_message("  Primary metric — max best-trial score (avg across subsets)", Color.GREEN))
     print(color_message(f"  {'-' * 66}", Color.GREEN))
-    print(color_message(f"  Avg max score without:  {avg_max_without:.4f}", Color.GREEN))
-    print(color_message(f"  Avg max score with:     {avg_max_with:.4f}", Color.GREEN))
-    delta_clr = Color.GREEN if delta_max > 0 else Color.RED
-    print(color_message(f"  Delta (max):            {delta_max:+.4f}", delta_clr))
+    print(color_message(f"  Avg max score without:  {_fmt(avg_max_without)}", Color.GREEN))
+    print(color_message(f"  Avg max score with:     {_fmt(avg_max_with)}", Color.GREEN))
+    if delta_max is None:
+        print(color_message("  Delta (max):            n/a (no valid subsets)", Color.ORANGE))
+    else:
+        delta_clr = Color.GREEN if delta_max > 0 else Color.RED
+        print(color_message(f"  Delta (max):            {delta_max:+.4f}", delta_clr))
     print()
     print(color_message(f"  Recommendation: {recommendation.upper()} {component}", rec_clr))
-    if recommendation == "keep":
+    if recommendation == "inconclusive":
+        print(color_message("  All subsets failed — cannot make a reliable recommendation.", Color.ORANGE))
+    elif recommendation == "keep":
         print(color_message("  Next step: update your config, then tune the new component using:", Color.BOLD))
         print(color_message(f"    dda inv q.eval-bayesian --only {component}", Color.BOLD))
     print(color_message(f"{'=' * 70}", Color.GREEN))
 
     # --- copy best "with" config to root ---
-    all_with_runs = [run for subset in variant_results["with"] for run in subset["runs"]]
+    all_with_runs = [run for subset in variant_results["with"] for run in subset["runs"] if not run.get("failed")]
     best_with_run = max(all_with_runs, key=lambda r: r["best_score"]) if all_with_runs else None
     best_config_path = None
     if best_with_run:
@@ -1526,6 +1636,8 @@ def eval_component(
             "avg_mean_score_without": avg_mean_without,
             "avg_mean_score_with": avg_mean_with,
             "delta_mean": delta_mean,
+            "failed_subsets": n_failed_subsets,
+            "total_failed_runs": total_failed_runs,
         },
         "per_subset": per_subset,
         "per_subset_scenario": per_subset_scenario,
@@ -1539,9 +1651,10 @@ def eval_component(
 
     print(color_message(f"\n  Report:      {report_path}", Color.GREEN))
     if best_config_path:
-        print(
-            color_message(f"  Best config: {best_config_path}  (score={best_with_run['best_score']:.4f})", Color.GREEN)
+        score_str = (
+            f"{best_with_run['best_score']:.4f}" if best_with_run and best_with_run["best_score"] is not None else "n/a"
         )
+        print(color_message(f"  Best config: {best_config_path}  (score={score_str})", Color.GREEN))
 
     return final_report
 
