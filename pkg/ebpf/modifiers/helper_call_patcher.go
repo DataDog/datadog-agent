@@ -106,7 +106,7 @@ func NewHelperCallReplacer(replacers ...HelperReplacer) ddebpf.ModifierBeforeIni
 }
 
 func (h *helperCallReplacer) BeforeInit(m *manager.Manager, mn names.ModuleName, _ *manager.Options) error {
-	m.InstructionPatchers = append(m.InstructionPatchers, func(m *manager.Manager) error {
+	m.InstructionPatchers = append(m.InstructionPatchers, func(_ *manager.Manager) error {
 		for _, rep := range h.replacers {
 			if rep.Prog == nil {
 				return errors.New("nil ebpf.ProgramSpec provided to HelperReplacer")
