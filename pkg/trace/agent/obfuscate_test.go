@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
+	"github.com/DataDog/datadog-agent/pkg/hook"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -588,7 +589,7 @@ func TestObfuscateSpanParameterized(t *testing.T) {
 			cfg.Endpoints[0].APIKey = "test"
 			cfg.Features["sqllexer"] = struct{}{}
 			cfg.Obfuscation = &ocfg
-			agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
+			agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent(), hook.NewNoopHook[hook.TraceStatsView]())
 			agnt.ObfuscateSpan(&raw.Input)
 			assertSpanEqual(t, &raw.Expected, &raw.Input)
 		})
