@@ -1213,9 +1213,13 @@ require (
 // TODO(songy23): remove this once https://github.com/kubernetes/apiserver/commit/b887c9ebecf558a2001fc5c5dbd5c87fd672500c is brought to agent
 replace go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc => go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.60.0
 
-// containerd v1.7.30 (latest v1.x) is incompatible with runtime-spec v1.3.0 (int64 vs *int64 field change).
-// Pin to v1.2.1 until containerd v1 is replaced by v2 or the incompatibility is resolved upstream.
-replace github.com/opencontainers/runtime-spec => github.com/opencontainers/runtime-spec v1.2.1
+// containerd v1.7.30 (latest v1.x) uses runtime-spec types with int64 fields (not *int64).
+// runtime-spec v1.3.0 changed LinuxPids.Limit to *int64, breaking containerd v1.7.30.
+// containerd/cgroups/v3 v3.1.2 also expects *int64 (runtime-spec v1.3.0), so we must
+// downgrade both: pin runtime-spec to v1.2.0 (int64) and cgroups/v3 to v3.0.5 (also int64).
+replace github.com/opencontainers/runtime-spec => github.com/opencontainers/runtime-spec v1.2.0
+
+replace github.com/containerd/cgroups/v3 => github.com/containerd/cgroups/v3 v3.0.5
 
 replace github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211027164128-cc6111af44be => github.com/DataDog/go-grpc-bidirectional-streaming-example v0.0.0-20221024060302-b9cf785c02fe
 
