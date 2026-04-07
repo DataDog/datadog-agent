@@ -5,7 +5,7 @@
 
 //go:build test
 
-// package collectors contains collectors for the workloadmeta component
+// Package collectors contains collectors for the workloadmeta component
 package collectors
 
 import (
