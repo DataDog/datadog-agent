@@ -176,8 +176,10 @@ use_repo(llvm_bpf_ext, "llvm_bpf")
 register_toolchains("@llvm_bpf//:llvm_bpf_toolchain")
 
 ## Linux kernel headers for eBPF prebuilt compilation
+## Registers three repos: host auto-detect + explicit x86_64 + explicit aarch64
+## for cross-compilation via --//bazel/rules/ebpf:target_arch=<arch>.
 linux_headers_ext = use_extension("//bazel/toolchains/linux_headers:linux_headers.bzl", "linux_headers_extension")
-use_repo(linux_headers_ext, "linux_headers")
+use_repo(linux_headers_ext, "linux_headers", "linux_headers_aarch64", "linux_headers_x86_64")
 
 ######################################
 ## Compilers and toolchains        ##
