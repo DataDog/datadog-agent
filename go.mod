@@ -169,7 +169,7 @@ require (
 	github.com/DataDog/datadog-go/v5 v5.8.3
 	github.com/DataDog/datadog-operator/api v0.0.0-20260323152500-0887e50ccf73
 	github.com/DataDog/datadog-traceroute v1.0.13
-	github.com/DataDog/ebpf-manager v0.7.17-0.20260402101140-069e628f92b3
+	github.com/DataDog/ebpf-manager v0.7.17
 	github.com/DataDog/go-sqllexer v0.2.1
 	github.com/DataDog/nikos v1.12.12
 	github.com/DataDog/sketches-go v1.4.8
