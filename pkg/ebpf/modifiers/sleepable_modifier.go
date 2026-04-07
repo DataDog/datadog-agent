@@ -21,7 +21,8 @@ import (
 )
 
 type SleepableProgramModifier struct {
-	ProbeIDs []manager.ProbeIdentificationPair
+	ProbeIDs             []manager.ProbeIdentificationPair
+	PatchPerfEventOutput bool
 }
 
 var _ ddebpf.ModifierBeforeInit = &SleepableProgramModifier{}
@@ -80,21 +81,23 @@ func (t *SleepableProgramModifier) BeforeInit(m *manager.Manager, module names.M
 		}
 	}
 
+	if len(t.ProbeIDs == 0) {
+		return nil
+	}
+
 	// we cannot use perf events with sleepable programs so remove this helper calls
-	// if there are no programs to make sleepable, remove any references to
-	// bpf_copy_from_user
-	if len(t.ProbeIDs) > 0 {
+	if t.PatchPerfEventOutput {
 		patcher := NewHelperCallRemover(asm.FnPerfEventOutput)
 		err := patcher.BeforeInit(m, module, opts)
 		if err != nil {
 			return fmt.Errorf("error patching helper calls from sleepable modifier on %q: %w", module.Name(), err)
 		}
+	}
 
-		replacer := NewHelperCallReplacer(helperCallReplacers...)
-		err = replacer.BeforeInit(m, module, opts)
-		if err != nil {
-			return fmt.Errorf("error replacing probe_read_user with copy_from_user helpers: %w", err)
-		}
+	replacer := NewHelperCallReplacer(helperCallReplacers...)
+	err = replacer.BeforeInit(m, module, opts)
+	if err != nil {
+		return fmt.Errorf("error replacing probe_read_user with copy_from_user helpers: %w", err)
 	}
 
 	return nil

@@ -182,6 +182,7 @@ func (e *EbpfProgram) setupManagerAndPerfHandlers() error {
 	}
 
 	// Load perf handlers for all enabled libsets
+	perfOutputRedundant := false
 	for libset, handler := range e.libsets {
 		// we cannot skip disabled handlers here, because we need all loaded eBPF programs to use ringbuffers if they are sleepable
 
@@ -195,11 +196,11 @@ func (e *EbpfProgram) setupManagerAndPerfHandlers() error {
 			return fmt.Errorf("failed to create perf handler for map %s: %w", mapName, err)
 		}
 
+		perfOutputRedundant = true
 		managerMods = append(managerMods, perfHandler)
 	}
 
-	var sleepableIDs []manager.ProbeIdentificationPair
-	e.initializeProbes(&sleepableIDs)
+	sleepableIDs := e.initializeProbes()
 	for _, identifier := range e.enabledProbes {
 		probe := &manager.Probe{
 			ProbeIdentificationPair: identifier,
@@ -209,7 +210,8 @@ func (e *EbpfProgram) setupManagerAndPerfHandlers() error {
 	}
 
 	managerMods = append(managerMods, &modifiers.SleepableProgramModifier{
-		ProbeIDs: sleepableIDs,
+		ProbeIDs:             sleepableIDs,
+		PatchPerfEventOutput: perfOutputRedundant,
 	})
 
 	e.Manager = ddebpf.NewManager(mgr, "shared_libraries", managerMods...)
@@ -548,7 +550,7 @@ func fexitSupported(funcName string) bool {
 }
 
 // initializedProbes initializes the probes that are enabled for the current system
-func (e *EbpfProgram) initializeProbes(sleepableIDs *[]manager.ProbeIdentificationPair) {
+func (e *EbpfProgram) initializeProbes() []manager.ProbeIdentificationPair {
 	openat2Supported := sysOpenAt2Supported()
 	isFexitSupported := fexitSupported("do_sys_openat2")
 
@@ -616,6 +618,7 @@ func (e *EbpfProgram) initializeProbes(sleepableIDs *[]manager.ProbeIdentificati
 	e.disabledProbes = append(tracingProbes, tpProbes...)
 
 	kv, err := kernel.HostVersion()
+	var sleepableIDs []manager.ProbeIdentificationPair
 	if err != nil {
 		log.Warnf("Failed to get kernel version for shared library probes, using kprobe fallback: %v", err)
 	} else {
@@ -628,7 +631,7 @@ func (e *EbpfProgram) initializeProbes(sleepableIDs *[]manager.ProbeIdentificati
 
 			// Only fentry/fexit/fmod_ret, lsm, iter, uprobe, and struct_ops programs can be sleepable
 			if kv > kernel.VersionCode(5, 10, 0) {
-				*sleepableIDs = slices.Clone(e.enabledProbes)
+				sleepableIDs = slices.Clone(e.enabledProbes)
 			}
 			log.Infof("Using fexit probes for shared library monitoring (kernel %s)", kv)
 		} else if kv >= kv415 {
@@ -644,6 +647,8 @@ func (e *EbpfProgram) initializeProbes(sleepableIDs *[]manager.ProbeIdentificati
 	}
 
 	e.disabledProbes = append(e.disabledProbes, disabledTracingProbes...)
+
+	return sleepableIDs
 }
 
 func getAssetName(module string, debug bool) string {
