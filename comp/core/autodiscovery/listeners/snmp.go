@@ -155,6 +155,7 @@ func (l *SNMPListener) loadCache(subnet *snmpSubnet) {
 	for i, device := range devices {
 		select {
 		case <-l.stop:
+			wg.Wait()
 			return
 		case loadJob <- struct{}{}:
 		}
