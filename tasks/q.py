@@ -11,6 +11,8 @@ import zipfile
 from invoke import Exit, task
 
 from tasks.libs.common.color import Color, color_message
+from tasks.workspaces import DEFAULT_AWS_ACCOUNT as _DEFAULT_AWS_ACCOUNT
+from tasks.workspaces import create as _workspace_create
 
 SCENARIOS = ["213_pagerduty", "353_postmark", "food_delivery_redis"]
 
@@ -1276,6 +1278,9 @@ def eval_component(
         build_testbench(ctx)
         build_scorer(ctx)
 
+    # --- ensure scenarios are present ---
+    download_scenarios(ctx, scenarios_dir=scenarios_dir)
+
     print(color_message(f"\n{'=' * 70}", Color.BLUE))
     print(color_message("  Observer Component Evaluation", Color.BLUE))
     print(color_message(f"{'=' * 70}", Color.BLUE))
@@ -1993,12 +1998,12 @@ def _print_benchmark_summary(output):
         has_params = any(r[0] for r in rows)
         if has_params:
             print(f"  {'param':<22}  {'time/op':>10}  {'B/op':>8}  {'allocs':>7}")
-            print("  " + "-" * 54)
+            print(f"  {'-' * 54}")
             for param, ns_op, b_op, allocs in rows:
                 print(f"  {param:<22}  {_fmt_ns(ns_op):>10}  {b_op:>8.0f}  {allocs:>7.0f}")
         else:
             print(f"  {'time/op':>10}  {'B/op':>8}  {'allocs':>7}")
-            print("  " + "-" * 30)
+            print(f"  {'-' * 30}")
             for _, ns_op, b_op, allocs in rows:
                 print(f"  {_fmt_ns(ns_op):>10}  {b_op:>8.0f}  {allocs:>7.0f}")
         print()
@@ -2013,3 +2018,215 @@ def _fmt_ns(ns):
     if ns >= 1_000:
         return f"{ns / 1_000:.2f}µs"
     return f"{ns:.0f}ns"
+
+
+@task
+def eval_component_on_workspace(
+    ctx,
+    component: str,
+    workspace_name: str = "",
+    branch: str = "",
+    existing: bool = False,
+    aws_account: str = _DEFAULT_AWS_ACCOUNT,
+    n_subsets: int = 5,
+    n_trials: int = 5,
+    m_runs: int = 1,
+    output_dir: str = "/tmp/observer-component-eval",
+    scenarios_dir: str = "./comp/observer/scenarios",
+    sigma: float = 30.0,
+    seed: int = None,
+    overwrite: bool = False,
+    tune_evaluated_component: bool = False,
+):
+    """
+    Create a remote workspace, bootstrap it, and run eval_component inside a
+    persistent tmux session named ``main``.
+
+    Pass ``--existing`` to skip workspace creation and bootstrap and dispatch
+    the eval directly onto a workspace that is already set up (e.g. one created
+    by a previous run or by ``dda inv workspaces.create``).
+
+    The tmux session is started with ``tmux new-session -A -s main`` so
+    re-runs attach to an existing session rather than spawning a new one.
+
+    All eval_component arguments are forwarded verbatim.  ``--build`` is always
+    True on the workspace (the binary must be compiled there).
+
+    Args:
+        component:                Component to evaluate (detector, correlator, or extractor).
+        workspace_name:           Name for the workspace (default: ``eval-<component>``).
+        branch:                   Branch to check out on the workspace (default: current HEAD).
+        existing:                 Skip creation/bootstrap and reuse an already-configured workspace.
+        aws_account:              AWS account for ``aws-vault exec`` (default: agent sandbox admin).
+        n_subsets:                Number of subset contexts to evaluate (default: 5).
+        n_trials:                 Optuna trials per Bayesian run (default: 5).
+        m_runs:                   Independent Bayesian runs per subset per variant (default: 1).
+        output_dir:               Output directory on the workspace (default: /tmp/observer-component-eval).
+        scenarios_dir:            Scenarios directory on the workspace.
+        sigma:                    Gaussian width in seconds for F1 scoring.
+        seed:                     Base seed for reproducibility (default: random).
+        overwrite:                Allow replacing an existing output_dir.
+        tune_evaluated_component: Tune the target component's HPs on ``with`` runs.
+
+    Examples:
+        dda inv q.eval-component-on-workspace --component bocpd
+        dda inv q.eval-component-on-workspace --component scanmw --workspace-name eval-scanmw --branch my-branch
+        dda inv q.eval-component-on-workspace --component rrcf --n-subsets 8 --n-trials 20
+        dda inv q.eval-component-on-workspace --component bocpd --existing --workspace-name eval-bocpd
+    """
+    all_known = DETECTORS + CORRELATORS + EXTRACTORS
+    if component not in all_known:
+        raise Exit(f"Unknown component '{component}'. Known: {', '.join(all_known)}")
+
+    ws_name = workspace_name.strip() or f"eval-{component}"
+    ssh_host = f"workspace-{ws_name}"
+
+    if not existing:
+        _workspace_create(ctx, name=ws_name, branch=branch)
+    else:
+        print(color_message(f"Skipping workspace creation — reusing existing workspace '{ws_name}'.", Color.BLUE))
+
+    # --- build the eval command ---
+    eval_args = [
+        f"--component {shlex.quote(component)}",
+        f"--n-subsets {n_subsets}",
+        f"--n-trials {n_trials}",
+        f"--m-runs {m_runs}",
+        f"--output-dir {shlex.quote(output_dir)}",
+        f"--scenarios-dir {shlex.quote(scenarios_dir)}",
+        f"--sigma {sigma}",
+    ]
+    if seed is not None:
+        eval_args.append(f"--seed {seed}")
+    if overwrite:
+        eval_args.append("--overwrite")
+    if tune_evaluated_component:
+        eval_args.append("--tune-evaluated-component")
+
+    inv_cmd = "dda inv --dep=optuna -- q.eval-component " + " ".join(eval_args)
+    # Print a detach hint inside the session so the user sees it right after
+    # aws-vault auth completes and the eval starts.
+    detach_hint = "echo -e '\r\033[K\033[1mDetach at any time with Ctrl+B then d (session stays alive).\033[0m'"
+    # ``; exec zsh`` keeps the tmux window open after the eval finishes or
+    # fails so the output remains inspectable without the session disappearing.
+    aws_cmd = f"aws-vault exec {shlex.quote(aws_account)} -- bash -c {shlex.quote(f'{detach_hint} && {inv_cmd}')}"
+    inner_cmd = f"cd ~/dd/datadog-agent && {aws_cmd}; exec zsh"
+
+    # ``aws-vault exec`` may trigger an interactive SSO browser flow or MFA
+    # prompt, so we SSH in with a PTY and attach to the tmux session immediately.
+    # ``tmux new-session -A -s main "cmd"`` creates the session with cmd running
+    # (or attaches to an existing one).  The user stays attached until they
+    # explicitly detach with Ctrl+B d — the eval keeps running either way.
+    #
+    # ``zsh -l`` (login shell) sources ~/.zshrc so the PATH set by the workspace
+    # bootstrap (go/bin, dda) is available to the command.
+    session_cmd = f"zsh -lc {shlex.quote(inner_cmd)}"
+    ctx.run(
+        f"ssh -t {shlex.quote(ssh_host)} tmux new-session -A -s main {shlex.quote(session_cmd)}",
+        pty=True,
+    )
+
+    print(color_message(f"\n{'=' * 60}", Color.GREEN))
+    print(color_message("  eval_component running on workspace", Color.GREEN))
+    print(color_message(f"{'=' * 60}", Color.GREEN))
+    print(color_message(f"  workspace:  {ws_name}", Color.GREEN))
+    print(color_message(f"  component:  {component}", Color.GREEN))
+    print(color_message(f"  output:     {output_dir}", Color.GREEN))
+    print(color_message("\n  Reattach at any time:", Color.BLUE))
+    print(color_message(f"    dda inv q.eval-component-workspace-attach --workspace-name {ws_name}", Color.BLUE))
+    print(color_message("\n  Check results when done:", Color.BLUE))
+    print(color_message(f"    dda inv q.eval-component-workspace-report --workspace-name {ws_name}", Color.BLUE))
+    print(color_message("\n  Detach without stopping:  Ctrl+B then d", Color.BLUE))
+    print(color_message(f"\n  {'-' * 58}", Color.ORANGE))
+    print(color_message("  Remember to destroy the workspace when finished:", Color.ORANGE))
+    print(color_message(f"    dda inv workspaces.delete --name {ws_name}", Color.ORANGE))
+    print(color_message(f"  {'-' * 58}", Color.ORANGE))
+    print(color_message(f"{'=' * 60}\n", Color.GREEN))
+
+
+@task
+def eval_component_workspace_attach(ctx, workspace_name: str):
+    """
+    Attach to the persistent tmux session on a workspace started by
+    eval_component_on_workspace.
+
+    Opens an interactive SSH session directly into ``tmux attach -t main``
+    so you can watch live progress or inspect results.  Detach with Ctrl+B d
+    without stopping the eval.
+
+    Args:
+        workspace_name: Name of the workspace (same value passed to eval_component_on_workspace).
+
+    Example:
+        dda inv q.eval-component-workspace-attach --workspace-name eval-bocpd
+    """
+    ws_name = workspace_name.strip()
+    if not ws_name:
+        raise Exit("workspace_name is required")
+
+    ssh_host = f"workspace-{ws_name}"
+    # -t forces PTY allocation so tmux can render properly.
+    ctx.run(f"ssh -t {shlex.quote(ssh_host)} tmux attach -t main", pty=True)
+
+
+@task
+def eval_component_workspace_report(
+    ctx,
+    workspace_name: str,
+    output_dir: str = "/tmp/observer-component-eval",
+    local_dir: str = "",
+    only_report: bool = False,
+):
+    """
+    Check whether eval_component has finished on a workspace and copy results locally.
+
+    If ``report.json`` exists the full output directory is copied to ``local_dir``
+    via ``scp -r`` (or just ``report.json`` when ``--only-report`` is passed).
+    If the report is not yet present, prints a hint to attach to the session.
+
+    Args:
+        workspace_name: Name of the workspace.
+        output_dir:     Remote output directory (default matches eval_component_on_workspace).
+        local_dir:      Local destination directory (default: ``./eval-results/<workspace_name>``).
+        only_report:    Copy only ``report.json`` instead of the full output directory.
+
+    Example:
+        dda inv q.eval-component-workspace-report --workspace-name eval-bocpd
+        dda inv q.eval-component-workspace-report --workspace-name eval-bocpd --only-report
+    """
+    ws_name = workspace_name.strip()
+    if not ws_name:
+        raise Exit("workspace_name is required")
+
+    ssh_host = f"workspace-{ws_name}"
+    remote_report = f"{output_dir}/report.json"
+
+    # Check whether the report exists yet.
+    check = ctx.run(
+        f"ssh {shlex.quote(ssh_host)} test -f {shlex.quote(remote_report)}",
+        warn=True,
+        hide=True,
+    )
+    if check is None or check.failed:
+        print(
+            color_message(
+                f"Report not found at {remote_report} on {ssh_host} — eval may still be running.",
+                Color.ORANGE,
+            )
+        )
+        print(color_message("  Attach to watch live progress:", Color.BLUE))
+        print(color_message(f"    dda inv q.eval-component-workspace-attach --workspace-name {ws_name}", Color.BLUE))
+        return
+
+    dest = local_dir.strip() or os.path.join("eval-results", ws_name)
+    os.makedirs(dest, exist_ok=True)
+
+    if only_report:
+        ctx.run(f"scp {shlex.quote(f'{ssh_host}:{remote_report}')} {shlex.quote(dest)}/")
+        print(color_message(f"report.json copied to {dest}/report.json", Color.GREEN))
+    else:
+        # scp -r copies the remote directory tree into dest.
+        ctx.run(f"scp -r {shlex.quote(f'{ssh_host}:{output_dir}/.')} {shlex.quote(dest)}/")
+        print(color_message(f"Results copied to {dest}/", Color.GREEN))
+
+    print(color_message(f"  report.json: {os.path.join(dest, 'report.json')}", Color.GREEN))

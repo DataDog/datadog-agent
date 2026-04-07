@@ -13,6 +13,8 @@ _DDA_TARBALL_URL = (
     "https://github.com/DataDog/datadog-agent-dev/releases/latest/download/dda-x86_64-unknown-linux-gnu.tar.gz"
 )
 
+DEFAULT_AWS_ACCOUNT = "sso-agent-sandbox-account-admin-8h"
+
 _REMOTE_SETUP = f"""set -euo pipefail
 cd ~
 wget {_DDA_TARBALL_URL}
@@ -71,7 +73,7 @@ def cmd(ctx, name: str, cmd: str):
 
 
 @task
-def aws_auth(ctx, name: str, account: str = 'sso-agent-sandbox-account-admin-8h'):
+def aws_auth(ctx, name: str, account: str = DEFAULT_AWS_ACCOUNT):
     """
     Will authenticate with AWS on the workspace
     """
