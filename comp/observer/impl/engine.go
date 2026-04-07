@@ -196,12 +196,6 @@ func (e *engine) IngestLog(source string, l *logObs) ([]advanceRequest, []observ
 		processingStartTime := time.Now()
 		out := extractor.ProcessLog(view)
 		e.removeContextRefsForEvictedKeys(extractor.Name(), out.EvictedContextKeys)
-		for _, name := range out.EvictedMetricNames {
-			e.storage.RemoveMetric(extractor.Name(), name)
-		}
-		if len(out.EvictedMetricNames) > 0 {
-			logTelemetry = append(logTelemetry, newTelemetryCounter([]string{"detector:" + extractor.Name()}, telemetryDetectorEvictedCount, float64(len(out.EvictedMetricNames)), l.timestampMs/1000))
-		}
 		processingTime := time.Since(processingStartTime)
 		logTelemetry = append(logTelemetry, newTelemetryGauge([]string{"detector:" + extractor.Name()}, telemetryDetectorProcessingTimeNs, float64(processingTime.Nanoseconds()), l.timestampMs/1000))
 		for _, m := range out.Metrics {

@@ -18,6 +18,7 @@ import (
 // inside a cluster (pattern) before we emit a metric.
 const defaultMinClusterSizeBeforeEmitMetrics = 5
 
+// TODO(agent-q): Add a test to ensure this is >= the time we evict metrics
 // defaultClusterTimeToLive is the time to live for a cluster.
 // If a cluster hasn't been seen since this time, it will be removed.
 const defaultClusterTimeToLive = 4 * time.Hour
@@ -174,11 +175,10 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 	telemetry := []observerdef.ObserverTelemetry{}
 	result := observerdef.LogMetricsExtractorOutput{
 		EvictedContextKeys: gc.contextKeys,
-		EvictedMetricNames: gc.metricNames,
 	}
-	if len(gc.metricNames) > 0 {
+	if gc.clustersEvicted > 0 {
 		// We count active patterns so we remove them
-		telemetry = append(telemetry, newTelemetryCounter([]string{"detector:" + e.Name()}, telemetryLogPatternExtractorPatternCount, -float64(len(gc.metricNames)), logUnixSec))
+		telemetry = append(telemetry, newTelemetryCounter([]string{"detector:" + e.Name()}, telemetryLogPatternExtractorPatternCount, -float64(gc.clustersEvicted), logUnixSec))
 	}
 	if !logSeverityIsWarnPlus(log) {
 		return result
@@ -215,16 +215,10 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 	return result
 }
 
-// clusterMetricName returns the metric name for a given cluster ID.
-// Must stay in sync with the name emitted in ProcessLog.
-func (e *LogPatternExtractor) clusterMetricName(clusterID int64) string {
-	return fmt.Sprintf("log.%s.%x.count", e.Name(), clusterID+1)
-}
-
 // gcResult holds what was evicted during a garbage-collection pass.
 type gcResult struct {
-	contextKeys []string
-	metricNames []string
+	contextKeys     []string
+	clustersEvicted int
 }
 
 // maybeGarbageCollect removes stale clusters and returns the context keys and
@@ -244,9 +238,9 @@ func (e *LogPatternExtractor) maybeGarbageCollect(currentTime int64) gcResult {
 		if e.ctx.keysByCluster != nil {
 			result.contextKeys = append(result.contextKeys, e.ctx.keysByCluster[clusterID]...)
 		}
-		result.metricNames = append(result.metricNames, e.clusterMetricName(clusterID))
 		e.ctx.removeCluster(clusterID)
 	}
+	result.clustersEvicted = len(toDelete)
 	_ = e.PatternClusterer.RemoveClusters(toDelete)
 	return result
 }

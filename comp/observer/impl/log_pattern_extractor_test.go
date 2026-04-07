@@ -160,9 +160,6 @@ func TestLogPatternExtractor_GarbageCollectRemovesStaleClusterAndContext(t *test
 	})
 	require.Len(t, res2.Metrics, 1)
 	require.Equal(t, []string{ctxKey1}, res2.EvictedContextKeys, "GC should report evicted context keys for the engine")
-	require.Len(t, res2.EvictedMetricNames, 1, "GC should report one evicted metric name for the stale cluster")
-	// Cluster 0 maps to metric name "log.log_pattern_extractor.1.count" (ID+1 in hex).
-	assert.Equal(t, "log.log_pattern_extractor.1.count", res2.EvictedMetricNames[0])
 	ctxKey2 := res2.Metrics[0].ContextKey
 
 	_, ok = e.GetContextByKey(ctxKey1)
@@ -179,9 +176,9 @@ func TestLogPatternExtractor_GarbageCollectRemovesStaleClusterAndContext(t *test
 	require.NoError(t, err, "cluster from the second log should still exist")
 }
 
-func TestLogPatternExtractor_GCEvictedMetricNamesOnePerCluster(t *testing.T) {
-	// Two different tag-sets produce two context keys for the same cluster, but
-	// GC should still return exactly one EvictedMetricName (one per cluster, not per key).
+func TestLogPatternExtractor_GCEvictedContextKeysTwoTagSetsOneCluster(t *testing.T) {
+	// Two different tag-sets produce two context keys for the same cluster;
+	// GC should evict both context keys when the cluster becomes stale.
 	e := NewLogPatternExtractor()
 	e.MinPatternsBeforeEmit = 1
 	e.ClusterTimeToLiveSec = 10
@@ -214,7 +211,6 @@ func TestLogPatternExtractor_GCEvictedMetricNamesOnePerCluster(t *testing.T) {
 	})
 
 	assert.Len(t, res.EvictedContextKeys, 2, "two tag variants → two context keys evicted")
-	assert.Len(t, res.EvictedMetricNames, 1, "but only one metric name evicted per cluster")
 }
 
 func TestLogPatternExtractor_NoGCBeforeInterval(t *testing.T) {
@@ -230,5 +226,4 @@ func TestLogPatternExtractor_NoGCBeforeInterval(t *testing.T) {
 	// GC interval not elapsed: no evictions even though cluster would be stale.
 	res2 := e.ProcessLog(&mockLogView{content: msg, status: "warn", tags: nil, timestampMs: 2_000_000})
 	assert.Empty(t, res2.EvictedContextKeys)
-	assert.Empty(t, res2.EvictedMetricNames)
 }

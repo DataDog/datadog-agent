@@ -946,42 +946,6 @@ func (s *timeSeriesStorage) GetSeriesRange(ref observer.SeriesRef, start, end in
 	}
 }
 
-// RemoveMetric removes all series in the given namespace whose Name matches the
-// given metric name. Numeric ID slots are tombstoned (set to nil) rather than
-// compacted, so previously issued SeriesHandles for other metrics remain valid.
-// Drop-accounting entries for the metric are also cleared.
-// Returns the number of series removed. Intended for garbage collection when a
-// target metric is no longer observed.
-func (s *timeSeriesStorage) RemoveMetric(namespace, name string) int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	removed := 0
-	for key, stats := range s.series {
-		if stats.Name != name || stats.Namespace != namespace {
-			continue
-		}
-		delete(s.series, key)
-		if id, ok := s.seriesIDs[key]; ok {
-			// Tombstone the slot so resolveByID returns nil without shifting other handles.
-			s.seriesIDStats[id] = nil
-			s.seriesIDKeys[id] = ""
-			delete(s.seriesIDs, key)
-		}
-		removed++
-	}
-
-	// Clear the exact drop-accounting entry for this namespace+name pair.
-	metricKey := namespace + "|" + name
-	delete(s.droppedByMetric, metricKey)
-	delete(s.sampledDrops, metricKey)
-
-	if removed > 0 {
-		s.seriesGen++
-	}
-	return removed
-}
-
 // pointBufPool reuses point buffers across ForEachPoint calls to avoid
 // per-call allocation. Each buffer grows to its high-water mark and stays.
 var pointBufPool = sync.Pool{

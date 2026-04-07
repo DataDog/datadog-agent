@@ -271,10 +271,6 @@ type LogMetricsExtractorOutput struct {
 	// EvictedContextKeys lists context keys that are no longer valid (e.g. after
 	// extractor garbage collection). The engine removes matching contextRefs entries.
 	EvictedContextKeys []string
-	// EvictedMetricNames lists metric names whose storage series should be removed
-	// (e.g. after garbage collection of stale patterns). The engine calls
-	// storage.RemoveMetric for each name so their time-series data is freed.
-	EvictedMetricNames []string
 }
 
 // SeriesDescriptor is the fully resolved identity of a time series.
