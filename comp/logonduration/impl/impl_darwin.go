@@ -249,24 +249,28 @@ func buildTimelineMilestones(bootTime time.Time, ts logonduration.LoginTimestamp
 
 	milestones := []Milestone{
 		{
+			ID:         "boot_start",
 			Name:       "Boot Start",
 			OffsetMs:   0,
 			DurationMs: float64(safeDurationMs(ts.LoginWindowTime, bootTime)),
 			Timestamp:  bootTime.UTC().Format(tsFmt),
 		},
 		{
+			ID:         "login_window_ready",
 			Name:       "Login Window Ready",
 			OffsetMs:   float64(safeDurationMs(ts.LoginWindowTime, bootTime)),
 			DurationMs: 0,
 			Timestamp:  formatTS(ts.LoginWindowTime),
 		},
 		{
+			ID:         "user_login",
 			Name:       "User Login",
 			OffsetMs:   float64(safeDurationMs(ts.LoginTime, bootTime)),
 			DurationMs: float64(safeDurationMs(ts.DesktopReadyTime, ts.LoginTime)),
 			Timestamp:  formatTS(ts.LoginTime),
 		},
 		{
+			ID:         "desktop_ready",
 			Name:       "Desktop Ready",
 			OffsetMs:   float64(safeDurationMs(ts.DesktopReadyTime, bootTime)),
 			DurationMs: 0,
@@ -280,7 +284,8 @@ func buildTimelineMilestones(bootTime time.Time, ts logonduration.LoginTimestamp
 func buildCustomPayload(bootTime time.Time, ts logonduration.LoginTimestamps) map[string]interface{} {
 	custom := make(map[string]interface{})
 
-	custom["boot_timeline"] = buildTimelineMilestones(bootTime, ts)
+	milestones := buildTimelineMilestones(bootTime, ts)
+	custom["boot_timeline"] = milestones
 
 	bootMs := safeDurationMs(ts.LoginWindowTime, bootTime)
 	logonMs := safeDurationMs(ts.DesktopReadyTime, ts.LoginTime)
@@ -289,6 +294,12 @@ func buildCustomPayload(bootTime time.Time, ts logonduration.LoginTimestamps) ma
 		"boot_duration_ms":       bootMs,
 		"logon_duration_ms":      logonMs,
 		"total_boot_duration_ms": bootMs + logonMs,
+	}
+
+	for _, milestone := range milestones {
+		if milestone.DurationMs > 0 {
+			custom[milestone.ID] = milestone.DurationMs
+		}
 	}
 
 	custom["filevault_enabled"] = ts.FileVaultEnabled
