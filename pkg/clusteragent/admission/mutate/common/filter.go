@@ -85,16 +85,15 @@ func (f *DefaultFilter) IsNamespaceEligible(ns string) bool {
 }
 
 // buildNamespaceBundle returns a FilterBundle that allows/denies namespaces per the provided lists.
+// Default namespaces (kube-system, datadog agent namespace) are NOT excluded here;
+// they are excluded at the webhook layer via namespace selectors.
 //
 // Cases:
-//   - No enabled namespaces and no disabled namespaces: inject in all namespaces
-//     except the 2 namespaces excluded by default.
+//   - No enabled namespaces and no disabled namespaces: inject in all namespaces.
 //   - Enabled namespaces and no disabled namespaces: inject only in the
-//     namespaces specified in the list of enabled namespaces. If one of the
-//     namespaces excluded by default is included in the list, it will be injected.
+//     namespaces specified in the list of enabled namespaces.
 //   - Disabled namespaces and no enabled namespaces: inject only in the
-//     namespaces that are not included in the list of disabled namespaces and that
-//     are not one of the ones disabled by default.
+//     namespaces that are not included in the list of disabled namespaces.
 //   - Enabled and disabled namespaces: return error.
 func buildNamespaceBundle(enabledNamespaces, disabledNamespaces []string, filterStore workloadfilter.Component) (workloadfilter.FilterBundle, error) {
 	if len(enabledNamespaces) > 0 && len(disabledNamespaces) > 0 {
@@ -112,12 +111,6 @@ func buildNamespaceBundle(enabledNamespaces, disabledNamespaces []string, filter
 		disabledWithPrefix[i] = prefix + fmt.Sprintf("^%s$", ns)
 	}
 
-	defaultDisabled := DefaultDisabledNamespaces()
-	disabledByDefault := make([]string, len(defaultDisabled))
-	for i, ns := range defaultDisabled {
-		disabledByDefault[i] = prefix + fmt.Sprintf("^%s$", ns)
-	}
-
 	var includeList []string
 	var excludeList []string
 	if len(enabledWithPrefix) > 0 {
@@ -125,7 +118,7 @@ func buildNamespaceBundle(enabledNamespaces, disabledNamespaces []string, filter
 		includeList = enabledWithPrefix
 		excludeList = []string{prefix + ".*"}
 	} else {
-		excludeList = append(disabledWithPrefix, disabledByDefault...)
+		excludeList = disabledWithPrefix
 	}
 
 	bundle := filterStore.CreateAdHocBundle(includeList, excludeList)
