@@ -986,3 +986,112 @@ func setupMockCheckForMetricCollection(t *testing.T, config gpuspec.GPUConfig, a
 		knownTagValues: knownTagValues,
 	}
 }
+<<<<<<< HEAD
+=======
+
+type metric struct {
+	name string
+	tags []string
+}
+
+func getEmittedGPUMetricsWithTags(mockSender *mocksender.MockSender) map[string][]metric {
+	metricsByName := make(map[string][]metric)
+
+	for _, call := range mockSender.Mock.Calls {
+		if call.Method != "GaugeWithTimestamp" && call.Method != "CountWithTimestamp" {
+			continue
+		}
+
+		if len(call.Arguments) == 0 {
+			continue
+		}
+
+		metricName, ok := call.Arguments.Get(0).(string)
+		if !ok || !strings.HasPrefix(metricName, "gpu.") {
+			continue
+		}
+
+		specMetricName := strings.TrimPrefix(metricName, "gpu.")
+		tags := []string{}
+		if len(call.Arguments) > 3 {
+			if callTags, ok := call.Arguments.Get(3).([]string); ok {
+				tags = append([]string(nil), callTags...)
+			}
+		}
+
+		metricsByName[specMetricName] = append(metricsByName[specMetricName], metric{
+			name: specMetricName,
+			tags: tags,
+		})
+	}
+
+	return metricsByName
+}
+
+func requiredTagsFromSpec(t *testing.T, tagsSpec *gpuspec.TagsSpec, metricName string, metricSpec gpuspec.MetricSpec) map[string]struct{} {
+	t.Helper()
+
+	requiredTags := make(map[string]struct{})
+	for _, tagsetName := range metricSpec.Tagsets {
+		tagsetSpec, ok := tagsSpec.Tagsets[tagsetName]
+		require.True(t, ok, "metric %s references unknown tagset %s", metricName, tagsetName)
+		for _, tag := range tagsetSpec.Tags {
+			_, ok := tagsSpec.Tags[tag]
+			require.True(t, ok, "tagset %s references unknown tag %s", tagsetName, tag)
+			requiredTags[tag] = struct{}{}
+		}
+	}
+	for _, tag := range metricSpec.CustomTags {
+		_, ok := tagsSpec.Tags[tag]
+		require.True(t, ok, "metric %s references unknown custom tag %s", metricName, tag)
+		requiredTags[tag] = struct{}{}
+	}
+
+	return requiredTags
+}
+
+func validateMetricTagsAgainstSpec(t *testing.T, tagsSpec *gpuspec.TagsSpec, metricName string, metricSpec gpuspec.MetricSpec, emittedMetrics []metric, knownTagValues map[string]string) {
+	require.NotEmpty(t, emittedMetrics, "metric %s has no emitted samples to validate tags", metricName)
+
+	requiredTags := requiredTagsFromSpec(t, tagsSpec, metricName, metricSpec)
+
+	for _, emittedMetric := range emittedMetrics {
+		tagsByKey := tagsToKeyValues(emittedMetric.tags)
+
+		// check that all required tags are present
+		for tag := range requiredTags {
+			require.Contains(t, tagsByKey, tag, "metric %s missing required tag key %s", metricName, tag)
+		}
+
+		// check that no unknown tags are present, and that all known tags have non-empty values. If the tag should have
+		// a specific value, check that the value is as expected.
+		for key, values := range tagsByKey {
+			tagSpec, allowed := requiredTags[key]
+			require.True(t, allowed, "metric %s has unknown tag key %s", metricName, key)
+
+			for _, value := range values {
+				require.NotEmpty(t, value, "metric %s has empty value for tag %s", metricName, key)
+				if expectedValue, ok := knownTagValues[key]; ok {
+					require.Equal(t, expectedValue, value, "metric %s has unexpected value for tag %s", metricName, key)
+				}
+
+				if tagSpec.Regex != nil {
+					require.Regexp(t, *tagSpec.Regex, value, "metric %s has unexpected value for tag %s", metricName, key)
+				}
+			}
+		}
+	}
+}
+
+func tagsToKeyValues(tags []string) map[string][]string {
+	result := make(map[string][]string, len(tags))
+	for _, tag := range tags {
+		key, value, ok := strings.Cut(tag, ":")
+		if !ok || key == "" || value == "" {
+			continue
+		}
+		result[key] = append(result[key], value)
+	}
+	return result
+}
+>>>>>>> b026cc417a (Validate regexes)

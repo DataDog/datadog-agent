@@ -14,6 +14,7 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.yaml.in/yaml/v2"
 
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
@@ -56,6 +57,28 @@ func TestLoadArchitecturesNotEmpty(t *testing.T) {
 			require.NotNil(t, archSpec.UnsupportedDeviceModes, "unsupported_device_modes should be present")
 		})
 	}
+}
+
+func TestTagSpecUnmarshalYAML(t *testing.T) {
+	t.Run("compiles regex", func(t *testing.T) {
+		var spec TagSpec
+
+		err := yaml.Unmarshal([]byte(`regex: "^foo$"`), &spec)
+
+		require.NoError(t, err)
+		require.NotNil(t, spec.Regex)
+		require.True(t, spec.Regex.MatchString("foo"))
+		require.False(t, spec.Regex.MatchString("bar"))
+	})
+
+	t.Run("rejects invalid regex", func(t *testing.T) {
+		var spec TagSpec
+
+		err := yaml.Unmarshal([]byte(`regex: "["`), &spec)
+
+		require.Error(t, err)
+		require.ErrorContains(t, err, `compile tag regex "["`)
+	})
 }
 
 // TestMockCapabilitiesMatchArchitectureSpec ensures that for each architecture and supported device mode,
