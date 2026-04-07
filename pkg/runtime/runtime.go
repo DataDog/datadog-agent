@@ -60,17 +60,14 @@ func SetMaxProcs() bool {
 			}
 
 			cpus := milliCPUs / 1000
-			if cpus > 1 {
-				log.Infof("runtime: honoring GOMAXPROCS millicpu configuration: %v, setting GOMAXPROCS to: %d", max, cpus)
-				runtime.GOMAXPROCS(cpus)
-				set = true
-			} else {
-				log.Infof(
-					"runtime: GOMAXPROCS millicpu configuration: %s was less than 2, setting GOMAXPROCS to 2",
-					max)
-				runtime.GOMAXPROCS(2)
-				set = true
+			// Floor at 2 to ensure minimal concurrency: Go relies heavily on
+			// goroutines and a single OS thread can cause scheduling stalls.
+			if cpus < 2 {
+				cpus = 2
 			}
+			log.Infof("runtime: GOMAXPROCS millicpu configuration: %s (resolved to %d CPUs), setting GOMAXPROCS to %d", max, milliCPUs/1000, cpus)
+			runtime.GOMAXPROCS(cpus)
+			set = true
 			return set
 		}
 
