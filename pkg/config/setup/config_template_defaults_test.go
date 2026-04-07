@@ -7,23 +7,24 @@ package setup
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"os"
+	"reflect"
 	"regexp"
+	"sort"
 	"strings"
 	"testing"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-// paramDefaultRe matches top-level @param lines that declare a default value.
-// Format: ## @param KEY - TYPE - (optional|required) - default: VALUE
+// paramDefaultRe matches: ## @param KEY - TYPE - (optional|required) - default: VALUE
 var paramDefaultRe = regexp.MustCompile(`^## @param (\S+) - [^-]+ - (?:optional|required) - default: (.+)$`)
 
-// parseTopLevelParamDefaults reads config_template.yaml and returns a map of
-// config key → documented default value string.
-// It only parses top-level "## @param" lines (nested keys use a different comment style).
-// Complex defaults (lists and maps) and Go-template expressions are skipped.
+// parseTopLevelParamDefaults returns config key → documented default string from
+// top-level ## @param lines in config_template.yaml. Go-template expressions are
+// skipped; list/map defaults are kept as raw JSON strings for JSON comparison.
 func parseTopLevelParamDefaults(t *testing.T) map[string]string {
 	t.Helper()
 
@@ -48,12 +49,7 @@ func parseTopLevelParamDefaults(t *testing.T) map[string]string {
 		if strings.HasPrefix(rawDefault, "{{") {
 			continue
 		}
-		// Skip list and map types.
-		if strings.HasPrefix(rawDefault, "[") || strings.HasPrefix(rawDefault, "{") {
-			continue
-		}
-
-		// Normalize: strip surrounding double-quotes for string values.
+		// Strip surrounding double-quotes from string values.
 		normalized := rawDefault
 		if len(rawDefault) >= 2 && rawDefault[0] == '"' && rawDefault[len(rawDefault)-1] == '"' {
 			normalized = rawDefault[1 : len(rawDefault)-1]
@@ -67,33 +63,18 @@ func parseTopLevelParamDefaults(t *testing.T) map[string]string {
 	return result
 }
 
-// TestConfigTemplateDefaultsMatchCode verifies that the default values documented
-// in @param comments in config_template.yaml match the actual defaults registered
-// by InitConfig. A mismatch means either the template comment or the code is stale.
-//
-// Keys in knownExceptions are intentionally different: the template documents a
-// user-visible or computed effective default, while the code leaves the key without
-// a programmatic default so that viper can detect whether the user explicitly set it.
+// TestConfigTemplateDefaultsMatchCode checks that default values documented in
+// @param comments in config_template.yaml match the defaults registered by InitConfig.
 func TestConfigTemplateDefaultsMatchCode(t *testing.T) {
 	cfg := newTestConf(t)
 	templateDefaults := parseTopLevelParamDefaults(t)
 
-	// Keys where the template intentionally documents a user-visible/effective default
-	// that differs from the raw code default. Each entry must include a reason.
+	// Keys where the template documents an effective/user-visible default that differs
+	// from the raw code default. Each value must describe why.
 	knownExceptions := map[string]string{
-		// "Don't set a default on 'site' to allow detecting with viper whether it's set
-		// in config" (see common_settings.go). The template documents "datadoghq.com" as
-		// the effective default but the code intentionally leaves it unset.
-		"site": "effective default computed at runtime; code uses BindEnv only",
-		// dd_url is derived from site at runtime; no programmatic default is set.
-		"dd_url": "effective default computed from site at runtime; code uses BindEnv only",
-		// bind_host has no programmatic default (BindEnv only); consuming code falls back
-		// to "localhost". The template documents this effective fallback.
-		"bind_host": "effective default applied in consuming code; code uses BindEnv only",
-		// container_proc_root and container_cgroup_root defaults are set conditionally at
-		// startup based on whether /host/... paths are mounted (containerized environment).
-		// The template documents the containerized default (/host/...); non-containerized
-		// environments use /proc and /sys/fs/cgroup/ respectively.
+		"site":                  "effective default computed at runtime; code uses BindEnv only",
+		"dd_url":                "effective default computed from site at runtime; code uses BindEnv only",
+		"bind_host":             "effective default applied in consuming code; code uses BindEnv only",
 		"container_proc_root":   "runtime-conditional: /host/proc in containers, /proc otherwise",
 		"container_cgroup_root": "runtime-conditional: /host/sys/fs/cgroup/ in containers, /sys/fs/cgroup/ otherwise",
 	}
@@ -104,9 +85,8 @@ func TestConfigTemplateDefaultsMatchCode(t *testing.T) {
 			continue
 		}
 
-		// Read the default layer directly to avoid env-variable overrides (DD_*)
-		// causing false failures when the test runs in an environment that has
-		// those variables set for unrelated reasons.
+		// Use the default source directly; DD_* env vars can override Get() and
+		// cause false failures in environments that set them for unrelated reasons.
 		var codeDefault interface{}
 		for _, vs := range cfg.GetAllSources(key) {
 			if vs.Source == pkgconfigmodel.SourceDefault {
@@ -114,6 +94,49 @@ func TestConfigTemplateDefaultsMatchCode(t *testing.T) {
 				break
 			}
 		}
+
+		if strings.HasPrefix(templateDefault, "[") || strings.HasPrefix(templateDefault, "{") {
+			// List/map defaults: compare via JSON since fmt.Sprintf produces Go syntax
+			// (e.g. "[a b c]") rather than JSON syntax.
+			var templateVal interface{}
+			if err := json.Unmarshal([]byte(templateDefault), &templateVal); err != nil {
+				t.Logf("skipping %q: cannot parse template default as JSON: %v", key, err)
+				continue
+			}
+			codeJSON, err := json.Marshal(codeDefault)
+			if err != nil {
+				t.Logf("skipping %q: cannot marshal code default to JSON: %v", key, err)
+				continue
+			}
+			var codeVal interface{}
+			if err := json.Unmarshal(codeJSON, &codeVal); err != nil {
+				t.Logf("skipping %q: cannot unmarshal code default JSON: %v", key, err)
+				continue
+			}
+			if tSlice, ok := templateVal.([]interface{}); ok {
+				// Sort before comparing: config lists are typically sets where order doesn't matter.
+				cSlice, _ := codeVal.([]interface{})
+				toSortedStrings := func(s []interface{}) []string {
+					out := make([]string, len(s))
+					for i, v := range s {
+						out[i] = fmt.Sprintf("%v", v)
+					}
+					sort.Strings(out)
+					return out
+				}
+				if !reflect.DeepEqual(toSortedStrings(tSlice), toSortedStrings(cSlice)) {
+					t.Errorf("config key %q: template documents default=%q but code default=%v",
+						key, templateDefault, codeDefault)
+				}
+				continue
+			}
+			if !reflect.DeepEqual(templateVal, codeVal) {
+				t.Errorf("config key %q: template documents default=%q but code default=%v",
+					key, templateDefault, codeDefault)
+			}
+			continue
+		}
+
 		actual := fmt.Sprintf("%v", codeDefault)
 		if actual != templateDefault {
 			t.Errorf("config key %q: template documents default=%q but code default=%q",
