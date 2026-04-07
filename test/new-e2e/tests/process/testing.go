@@ -42,6 +42,9 @@ var coreAgentRefreshStr string
 //go:embed config/process_agent_refresh_win.yaml
 var processAgentWinRefreshStr string
 
+//go:embed config/language_detection.yaml
+var languageDetectionConfigStr string
+
 // AgentStatus is a subset of the agent's status response for asserting the process-agent runtime
 type AgentStatus struct {
 	ProcessAgentStatus struct {
