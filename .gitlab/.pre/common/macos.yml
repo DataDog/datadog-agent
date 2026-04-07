@@ -88,6 +88,7 @@
     - |
       eval $(gimme $(cat .go-version))
       export GOPATH=$GOROOT
+    - go clean -cache # Clean build cache to avoid issues with it becoming too large
     - !reference [.install_python_dependencies]
     # See there is no virtualization, we need to clean the environment regularly
     - !reference [.macos_runner_maintenance]
