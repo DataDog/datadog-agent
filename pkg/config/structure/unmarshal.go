@@ -104,6 +104,9 @@ func UnmarshalKey(cfg model.Reader, key string, target interface{}, opts ...Unma
 		WeaklyTypedInput: true,
 		DecodeHook:       mapstructure.ComposeDecodeHookFunc(decodeHooks...),
 	}
+	if fs.allowSquash {
+		dc.Squash = true
+	}
 	if fs.errorUnused {
 		dc.ErrorUnused = true
 	}

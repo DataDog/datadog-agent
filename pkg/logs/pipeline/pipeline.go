@@ -13,13 +13,25 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
+	grpcsender "github.com/DataDog/datadog-agent/pkg/logs/sender/grpc"
 	compressioncommon "github.com/DataDog/datadog-agent/pkg/util/compression"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// pipelineEntry is the internal interface used by the provider to manage pipelines.
+type pipelineEntry interface {
+	Start()
+	Stop()
+	Flush(ctx context.Context)
+	GetInputChan() chan *message.Message
+	GetPipelineMonitor() metrics.PipelineMonitor
+}
 
 // Pipeline processes and sends messages to the backend
 type Pipeline struct {
@@ -48,6 +60,10 @@ func NewPipeline(
 	var encoder processor.Encoder
 	if serverlessMeta.IsEnabled() {
 		encoder = processor.JSONServerlessInitEncoder
+	} else if endpoints.UseGRPC {
+		// Throwaway code to test with existing pipelines
+		// TODO change to real encoder once State component is ready
+		encoder = grpcsender.MockEncoder
 	} else if endpoints.UseHTTP {
 		encoder = processor.JSONEncoder
 	} else if endpoints.UseProto {
@@ -55,7 +71,7 @@ func NewPipeline(
 	} else {
 		encoder = processor.RawEncoder
 	}
-	strategy := getStrategy(strategyInput, senderImpl.In(), flushChan, endpoints, serverlessMeta, senderImpl.PipelineMonitor(), compression, instanceID)
+	strategy := getStrategy(strategyInput, senderImpl.In(), flushChan, endpoints, serverlessMeta, senderImpl.PipelineMonitor(), compression, cfg, instanceID)
 
 	inputChan := make(chan *message.Message, cfg.GetInt("logs_config.message_channel_size"))
 
@@ -69,6 +85,16 @@ func NewPipeline(
 		strategy:        strategy,
 		pipelineMonitor: senderImpl.PipelineMonitor(),
 	}
+}
+
+// GetInputChan returns the pipeline's input channel.
+func (p *Pipeline) GetInputChan() chan *message.Message {
+	return p.InputChan
+}
+
+// GetPipelineMonitor returns the pipeline's monitor.
+func (p *Pipeline) GetPipelineMonitor() metrics.PipelineMonitor {
+	return p.pipelineMonitor
 }
 
 // Start launches the pipeline
@@ -97,15 +123,27 @@ func getStrategy(
 	serverlessMeta sender.ServerlessMeta,
 	pipelineMonitor metrics.PipelineMonitor,
 	compressor logscompression.Component,
+	cfg pkgconfigmodel.Reader,
 	instanceID string,
 ) sender.Strategy {
-	if endpoints.UseHTTP || serverlessMeta.IsEnabled() {
+	if endpoints.UseGRPC || endpoints.UseHTTP || serverlessMeta.IsEnabled() {
 		var encoder compressioncommon.Compressor
 		encoder = compressor.NewCompressor(compressioncommon.NoneKind, 0)
 		if endpoints.Main.UseCompression {
 			encoder = compressor.NewCompressor(endpoints.Main.CompressionKind, endpoints.Main.CompressionLevel)
 		}
+		if endpoints.UseGRPC {
+			translator := grpcsender.NewMessageTranslator(instanceID)
+			// TODO: Consider sharing cluster manager across pipelines for better pattern clustering:
+			// translator := grpcsender.NewMessageTranslator(getSharedClusterManager())
+			statefulInputChan := translator.Start(inputChan, pkgconfigsetup.Datadog().GetInt("logs_config.message_channel_size"))
 
+			return grpcsender.NewBatchStrategy(statefulInputChan, outputChan, flushChan, endpoints.BatchWait, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", encoder, pipelineMonitor, instanceID)
+		}
+		if grpcEndpoint, ok := firstGRPCAdditionalEndpoint(endpoints); ok && !serverlessMeta.IsEnabled() {
+			grpcComp := buildEndpointCompressor(compressor, grpcEndpoint)
+			return grpcsender.NewDualStrategy(inputChan, outputChan, flushChan, grpcEndpoint, grpcComp, cfg, endpoints, serverlessMeta, encoder, pipelineMonitor, instanceID)
+		}
 		return sender.NewBatchStrategy(
 			inputChan,
 			outputChan,
@@ -119,5 +157,26 @@ func getStrategy(
 			pipelineMonitor,
 			instanceID)
 	}
+
+	log.Infof("Pipeline: Using StreamStrategy (default)")
 	return sender.NewStreamStrategy(inputChan, outputChan, compressor.NewCompressor(compressioncommon.NoneKind, 0))
+}
+
+// firstGRPCAdditionalEndpoint returns the first additional endpoint with UseGRPC set, if any.
+func firstGRPCAdditionalEndpoint(endpoints *config.Endpoints) (config.Endpoint, bool) {
+	// endpoints.Endpoints[0] is always the Main endpoint; additional endpoints start at index 1.
+	for _, ep := range endpoints.Endpoints[1:] {
+		if ep.UseGRPC {
+			return ep, true
+		}
+	}
+	return config.Endpoint{}, false
+}
+
+// buildEndpointCompressor creates a Compressor for the given endpoint's compression settings.
+func buildEndpointCompressor(comp logscompression.Component, endpoint config.Endpoint) compressioncommon.Compressor {
+	if endpoint.UseCompression {
+		return comp.NewCompressor(endpoint.CompressionKind, endpoint.CompressionLevel)
+	}
+	return comp.NewCompressor(compressioncommon.NoneKind, 0)
 }

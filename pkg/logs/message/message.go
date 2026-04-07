@@ -11,6 +11,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/DataDog/agent-payload/v5/statefulpb"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -38,6 +39,8 @@ type Payload struct {
 	Encoding string
 	// The size of the unencoded payload
 	UnencodedSize int
+	// Extra information for Stateful gRPC streaming (batch-level state changes)
+	StatefulExtra any
 }
 
 // NewPayload creates a new payload with the given message metadata, encoded content, encoding type and unencoded size
@@ -70,6 +73,13 @@ type Message struct {
 	MessageMetadata
 }
 
+// StatefulMessage represents a log message for gRPC stateful streaming
+// It contains a Datum (from stateful_encoding.proto) and associated metadata
+type StatefulMessage struct {
+	Datum    *statefulpb.Datum
+	Metadata *MessageMetadata
+}
+
 // MessageMetadata contains metadata information about a log message
 //
 //nolint:revive // exported: ignore package name struct conflict
@@ -85,6 +95,13 @@ type MessageMetadata struct {
 	RawDataLen int
 	// Tags added on processing
 	ProcessingTags []string
+	// DualSendUUID is a random identifier set during JSON encoding, shared across both the HTTP
+	// and gRPC paths in dual-send mode to correlate the same log on both transports.
+	DualSendUUID string
+	// EncodedTimestampMs is the timestamp in milliseconds used when JSON-encoding the message for
+	// the HTTP path. It is stored here so the gRPC dual-send path can use the exact same timestamp,
+	// ensuring that UUID derivation (which depends on timestamp + dual-send-uuid) is consistent.
+	EncodedTimestampMs int64
 	// Extra information from the parsers
 	ParsingExtra
 	// Extra information for Serverless Logs messages
@@ -126,6 +143,10 @@ type MessageContent struct { //nolint:revive
 	// structured content
 	structuredContent StructuredContent
 	State             MessageContentState
+	// PreEncodedContent holds a snapshot of the rendered content (StateRendered) before
+	// the encoder overwrites it with the encoded form (StateEncoded). Used by the gRPC
+	// dual-send path to access the original log text after JSON encoding has run.
+	PreEncodedContent []byte
 }
 
 // MessageContentState is used to represent the MessageContent state.

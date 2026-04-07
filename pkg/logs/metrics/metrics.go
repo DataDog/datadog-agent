@@ -4,6 +4,34 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package metrics provides telemetry metrics for the logs agent
+//
+// gRPC sender parity tracker
+// ===========================
+// This table tracks which metrics are emitted on the gRPC sending path.
+// "Shared" means the metric is set in a component common to all pipelines (e.g. processor, tailer).
+//
+// Metric                               | gRPC status    | Notes
+// -------------------------------------|----------------|----------------------------------------------
+// LogsDecoded / TlmLogsDecoded         | SHARED         | Set in processor.go for all pipelines
+// LogsProcessed / TlmLogsProcessed     | SHARED         | Set in processor.go for all pipelines
+// LogsSent / TlmLogsSent               | DONE           | gRPC: stream_worker.go handleBatchAck; HTTP: destination.go, sync_destination.go; TCP: destination.go
+// DestinationErrors / TlmDestErrors    | DONE           | gRPC: stream_worker.go signalStreamFailure; HTTP: destination.go, sync_destination.go; TCP: destination.go
+// DestinationLogsDropped / TlmDropped  | DONE           | gRPC: stream_worker.go handleBatchAck (auditor full); HTTP: destination.go; TCP: destination.go
+// BytesSent / TlmBytesSent             | DONE           | gRPC: stream_worker.go handleBatchAck; HTTP: destination.go; TCP: destination.go
+// RetryCount / TlmRetryCount           | TODO           | HTTP only: destination.go
+// RetryTimeSpent                       | TODO           | HTTP only: destination.go
+// EncodedBytesSent / TlmEncBytesSent   | DONE           | gRPC: stream_worker.go handleBatchAck; HTTP: destination.go; TCP: destination.go
+// BytesMissed / TlmBytesMissed         | SHARED         | Set in file tailer, not sender-specific
+// SenderLatency / TlmSenderLatency     | TODO           | HTTP only: destination.go
+// LogsTruncated / TlmTruncatedCount    | SHARED         | Set in processor.go and decoder handlers
+// DestHTTPResp / TlmDestHTTPResp       | N/A            | HTTP-specific, no gRPC equivalent needed
+// TlmUtilizationRatio/Items/Bytes      | SHARED         | Set via CapacityMonitor / UtilizationMonitor
+// TlmDestNumWorkers                    | N/A            | HTTP worker pool specific
+// TlmDestVirtualLatency                | N/A            | HTTP worker pool specific
+// TlmDestWorkerResets                  | N/A            | HTTP worker pool specific
+// TlmHTTPConnectivityCheck             | N/A            | HTTP restart/connectivity logic in agentimpl
+// TlmHTTPConnectivityRetryAttempt      | N/A            | HTTP restart/connectivity logic in agentimpl
+// TlmRestartAttempt                    | N/A            | HTTP restart/connectivity logic in agentimpl
 package metrics
 
 import (

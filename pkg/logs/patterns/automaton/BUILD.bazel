@@ -1,0 +1,30 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "automaton",
+    srcs = [
+        "rules.go",
+        "tokenizer.go",
+        "trie.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/patterns/automaton",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/logs/patterns/token",
+        "//pkg/util/log",
+    ],
+)
+
+go_test(
+    name = "automaton_test",
+    srcs = [
+        "rules_test.go",
+        "tokenizer_test.go",
+        "trie_test.go",
+    ],
+    embed = [":automaton"],
+    deps = [
+        "//pkg/logs/patterns/token",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

@@ -75,6 +75,7 @@ type Endpoint struct {
 	CompressionLevel        int    `mapstructure:"compression_level" json:"compression_level"`
 	ProxyAddress            string
 	IsMRF                   bool `mapstructure:"-" json:"-"`
+	UseGRPC                 bool `mapstructure:"use_grpc" json:"use_grpc"`
 	ConnectionResetInterval time.Duration
 
 	BackoffFactor    float64
@@ -88,7 +89,8 @@ type Endpoint struct {
 	Protocol  IntakeProtocol
 	Origin    IntakeOrigin
 
-	ExtraHTTPHeaders map[string]string
+	// ExtraHeaders are additional HTTP/gRPC headers to include with every request to this endpoint.
+	ExtraHeaders map[string]string
 }
 
 // unmarshalEndpoint is used to load additional endpoints from the configuration which stored as JSON/mapstructure.
@@ -239,6 +241,7 @@ func loadHTTPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, intakeTrackTy
 		newE.TrackType = e.TrackType
 		newE.Protocol = e.Protocol
 		newE.Origin = e.Origin
+		newE.UseGRPC = e.UseGRPC
 
 		if e.UseSSL != nil {
 			newE.useSSL = *e.UseSSL
@@ -387,6 +390,7 @@ type Endpoints struct {
 	Endpoints              []Endpoint
 	UseProto               bool
 	UseHTTP                bool
+	UseGRPC                bool
 	BatchWait              time.Duration
 	BatchMaxConcurrentSend int
 	BatchMaxSize           int
@@ -413,6 +417,23 @@ func NewEndpoints(main Endpoint, additionalEndpoints []Endpoint, useProto bool, 
 		additionalEndpoints,
 		useProto,
 		useHTTP,
+		false, // useGRPC defaults to false for backward compatibility
+		pkgconfigsetup.DefaultBatchWait,
+		pkgconfigsetup.DefaultBatchMaxConcurrentSend,
+		pkgconfigsetup.DefaultBatchMaxSize,
+		pkgconfigsetup.DefaultBatchMaxContentSize,
+		pkgconfigsetup.DefaultInputChanSize,
+	)
+}
+
+// NewEndpointsWithGRPC returns a new endpoints composite with gRPC support
+func NewEndpointsWithGRPC(main Endpoint, additionalEndpoints []Endpoint, useProto bool, useHTTP bool, useGRPC bool) *Endpoints {
+	return NewEndpointsWithBatchSettings(
+		main,
+		additionalEndpoints,
+		useProto,
+		useHTTP,
+		useGRPC,
 		pkgconfigsetup.DefaultBatchWait,
 		pkgconfigsetup.DefaultBatchMaxConcurrentSend,
 		pkgconfigsetup.DefaultBatchMaxSize,
@@ -422,12 +443,13 @@ func NewEndpoints(main Endpoint, additionalEndpoints []Endpoint, useProto bool, 
 }
 
 // NewEndpointsWithBatchSettings returns a new endpoints composite with non-default batching settings specified
-func NewEndpointsWithBatchSettings(main Endpoint, additionalEndpoints []Endpoint, useProto bool, useHTTP bool, batchWait time.Duration, batchMaxConcurrentSend int, batchMaxSize int, batchMaxContentSize int, inputChanSize int) *Endpoints {
+func NewEndpointsWithBatchSettings(main Endpoint, additionalEndpoints []Endpoint, useProto bool, useHTTP bool, useGRPC bool, batchWait time.Duration, batchMaxConcurrentSend int, batchMaxSize int, batchMaxContentSize int, inputChanSize int) *Endpoints {
 	return &Endpoints{
 		Main:                   main,
 		Endpoints:              append([]Endpoint{main}, additionalEndpoints...),
 		UseProto:               useProto,
 		UseHTTP:                useHTTP,
+		UseGRPC:                useGRPC,
 		BatchWait:              batchWait,
 		BatchMaxConcurrentSend: batchMaxConcurrentSend,
 		BatchMaxSize:           batchMaxSize,

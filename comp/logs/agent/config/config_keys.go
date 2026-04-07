@@ -101,6 +101,10 @@ func (l *LogsConfigKeys) isForceHTTPUse() bool {
 		l.getConfig().GetBool(l.getConfigKey("force_use_http"))
 }
 
+func (l *LogsConfigKeys) isGRPCUse() bool {
+	return l.getConfig().GetBool(l.getConfigKey("use_grpc"))
+}
+
 func (l *LogsConfigKeys) logsNoSSL() bool {
 	return l.getConfig().GetBool(l.getConfigKey("logs_no_ssl"))
 }
@@ -163,11 +167,17 @@ func (l *LogsConfigKeys) useCompression() bool {
 
 func (l *LogsConfigKeys) hasAdditionalEndpoints() bool {
 	endpoints, _ := l.getAdditionalEndpoints()
-	return len(endpoints) > 0
+	for _, e := range endpoints {
+		if !e.UseGRPC {
+			return true
+		}
+	}
+	return false
 }
 
 // shouldUseTCP returns true if the configuration should use TCP.
 // This happens when force_use_tcp, socks5_proxy_address, or additional_endpoints are set.
+// gRPC additional endpoints do not force TCP since they use their own transport.
 func (l *LogsConfigKeys) shouldUseTCP() bool {
 	return l.isForceTCPUse() || l.isSocks5ProxySet() || l.hasAdditionalEndpoints()
 }
@@ -301,6 +311,16 @@ func (l *LogsConfigKeys) senderRecoveryInterval() int {
 
 func (l *LogsConfigKeys) senderRecoveryReset() bool {
 	return l.getConfig().GetBool(l.getConfigKey("sender_recovery_reset"))
+}
+
+func (l *LogsConfigKeys) streamLifetime() time.Duration {
+	key := l.getConfigKey("stream_lifetime")
+	streamLifetime := l.getConfig().GetInt(key)
+	if streamLifetime <= 0 {
+		log.Warnf("Invalid %s: %v should be > 0, fallback on %v", key, streamLifetime, pkgconfigsetup.DefaultLogsStreamLifetime)
+		return time.Duration(pkgconfigsetup.DefaultLogsStreamLifetime) * time.Second
+	}
+	return time.Duration(streamLifetime) * time.Second
 }
 
 // AggregationTimeout is used when performing aggregation operations
