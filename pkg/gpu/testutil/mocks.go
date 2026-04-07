@@ -217,7 +217,7 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 		},
 		GetNameFunc: func() (string, nvml.Return) {
 			if opts.isMIGChild() {
-				return "MIG " + DefaultGPUName, nvml.SUCCESS
+				return DefaultGPUName + " MIG 3g.40gb", nvml.SUCCESS
 			}
 			return DefaultGPUName, nvml.SUCCESS
 		},

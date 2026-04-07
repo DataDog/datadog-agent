@@ -837,8 +837,9 @@ func TestDisabledCollectorsConfiguration(t *testing.T) {
 }
 
 func TestMetricsFollowSpec(t *testing.T) {
-	// required to emit gpu.devices.unhealthy metric
-	env.SetFeatures(t, env.KubernetesDevicePlugins)
+	// - KubernetesDevicePlugins required for gpu.device.unhealthy metric
+	// - NVML required to ensure the NVML workloadmeta collector starts up
+	env.SetFeatures(t, env.KubernetesDevicePlugins, env.NVML)
 
 	metricsSpec, err := gpuspec.LoadMetricsSpec()
 	require.NoError(t, err)
@@ -947,13 +948,10 @@ func setupMockCheckForMetricCollection(t *testing.T, archName string, mode gpusp
 
 	wmeta := testutil.GetWorkloadMetaMock(t)
 
-	// Ensure that the NVML collector can start, prepare config
-	env.SetFeatures(t, env.NVML)
+	// Create the NVML collector to ensure we get the data in the same way as with real checks
 	cfg := config.NewMockWithOverrides(t, map[string]interface{}{
 		"gpu.integrate_with_workloadmeta_processes": false,
 	})
-
-	// Create the NVML collector to ensure we get the data in the same way as with real checks
 	nvmlCollector := collectors.GetNvmlCollector(t, cfg)
 	ctx := t.Context()
 	require.NoError(t, nvmlCollector.Start(ctx, wmeta), "failed to start NVML collector")
@@ -1040,7 +1038,6 @@ func setupMockCheckForMetricCollection(t *testing.T, archName string, mode gpusp
 
 	// Known values are defined at the same place where the mock behavior/data is configured.
 	knownTagValues := map[string]string{
-		"gpu_device":         strings.ToLower(strings.ReplaceAll(testutil.DefaultGPUName, " ", "_")),
 		"gpu_vendor":         "nvidia",
 		"gpu_driver_version": testutil.DefaultNvidiaDriverVersion,
 		"type":               "31",
@@ -1094,7 +1091,6 @@ func getEmittedGPUMetricsWithTags(mockSender *mocksender.MockSender) map[string]
 }
 
 func validateMetricTagsAgainstSpec(t *testing.T, spec *gpuspec.MetricsSpec, metricName string, metricSpec gpuspec.MetricSpec, emittedMetrics []metric, knownTagValues map[string]string) {
-	t.Helper()
 	require.NotEmpty(t, emittedMetrics, "metric %s has no emitted samples to validate tags", metricName)
 
 	requiredTags := make(map[string]struct{})
