@@ -5,6 +5,7 @@
 load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
+load("//packages/agent:defs.bzl", "CONF_DIR_SELECTOR")
 
 pkg_files(
     name = "config_files",
@@ -20,7 +21,7 @@ pkg_files(
         ],
     }),
     attributes = pkg_attributes(mode = "0644"),
-    prefix = "bin/agent/dist",
+    prefix = select(CONF_DIR_SELECTOR),
     renames = select({
         "//packages/agent:iot_flavor": {"//pkg/config:iot_agent_config": "datadog.yaml"},
         "//conditions:default": None,
@@ -50,7 +51,7 @@ pkg_files(
         "config.py",
     ],
     attributes = pkg_attributes(mode = "0644"),
-    prefix = "bin/agent/dist",
+    prefix = select(CONF_DIR_SELECTOR),
 )
 
 pkg_filegroup(
