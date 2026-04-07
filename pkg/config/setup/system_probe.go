@@ -182,7 +182,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 
 	cfg.BindEnvAndSetDefault("system_probe_config.offset_guess_threshold", int64(defaultOffsetThreshold))
 
-	cfg.BindEnvAndSetDefault("system_probe_config.max_tracked_connections", 65536)
+	cfg.BindEnvAndSetDefault("system_probe_config.max_tracked_connections", int64(65536))
 	cfg.BindEnv("system_probe_config.max_closed_connections_buffered")   //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	cfg.BindEnv("network_config.max_failed_connections_buffered")        //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	cfg.BindEnv("system_probe_config.closed_connection_flush_threshold") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
