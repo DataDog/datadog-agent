@@ -178,8 +178,6 @@ modules:
     used_by_otel: true
   pkg/config/basic:
     used_by_otel: true
-  pkg/config/buildschema:
-    used_by_otel: true
   pkg/config/create:
     used_by_otel: true
   pkg/config/env:

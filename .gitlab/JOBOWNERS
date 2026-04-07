@@ -42,9 +42,6 @@ cluster_agent-build*                 @DataDog/container-integrations
 cluster_agent_fips-build*            @DataDog/container-integrations
 cws_instrumentation-build*           @DataDog/agent-security
 build_windows_container_entrypoint   @DataDog/windows-products
-generate_config_schema-linux         @DataDog/agent-configuration
-generate_config_schema-macos         @DataDog/agent-configuration
-generate_config_schema-windows       @DataDog/agent-configuration
 
 # Package deps build
 generate_minimized_btfs_*            @DataDog/ebpf-platform

@@ -132,7 +132,6 @@
 /.gitlab/build/binary_build/fakeintake.yml                 @DataDog/agent-devx
 /.gitlab/build/binary_build/host_profiler.yml              @DataDog/opentelemetry-agent @DataDog/profiling-full-host @DataDog/agent-build
 /.gitlab/build/binary_build/system_probe.yml               @DataDog/ebpf-platform @DataDog/agent-build
-/.gitlab/build/binary_build/schema_generation.yml          @DataDog/agent-configuration
 /.gitlab/windows/build/binary_build/windows.yml            @DataDog/agent-build @DataDog/windows-products
 
 /.gitlab/build/source_test/codeql_scan.yml                 @DataDog/sdlc-security
@@ -773,7 +772,6 @@
 /tasks/release.py                       @DataDog/agent-delivery
 /tasks/release_metrics/                 @DataDog/agent-delivery
 /tasks/libs/releasing/                  @DataDog/agent-delivery
-/tasks/schema/                          @DataDog/agent-configuration
 /tasks/unit_tests/components_tests.py   @DataDog/agent-runtimes
 /tasks/unit_tests/libs/build/           @DataDog/agent-build
 /tasks/unit_tests/omnibus_tests.py      @DataDog/agent-build
