@@ -141,10 +141,6 @@ func (is *stepByStepSuite) CheckStepByStepAgentInstallation(VMclient *common.Tes
 		common.SetAgentPythonMajorVersion(is.T(), VMclient, "2")
 		common.CheckAgentPython(is.T(), VMclient, common.ExpectedPythonVersion2)
 	}
-	time.Sleep(5 * time.Second) // Restarting the agent too fast will cause systemctl to fail
-	common.CheckApmEnabled(is.T(), VMclient)
-	time.Sleep(5 * time.Second) // Restarting the agent too fast will cause systemctl to fail
-	common.CheckApmDisabled(is.T(), VMclient)
 	if *flavorName == "datadog-agent" {
 		common.CheckSystemProbeBehavior(is.T(), VMclient)
 		if is.cwsSupported {

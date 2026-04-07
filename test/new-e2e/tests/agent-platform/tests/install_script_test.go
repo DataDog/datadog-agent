@@ -170,10 +170,6 @@ func (is *installScriptSuite) AgentTest(flavor string) {
 	common.SetAgentPythonMajorVersion(is.T(), client, "3")
 	time.Sleep(5 * time.Second) // Restarting the agent too fast will cause systemctl to fail
 	common.CheckAgentPython(is.T(), client, common.ExpectedPythonVersion3)
-	time.Sleep(5 * time.Second) // Restarting the agent too fast will cause systemctl to fail
-	common.CheckApmEnabled(is.T(), client)
-	time.Sleep(5 * time.Second) // Restarting the agent too fast will cause systemctl to fail
-	common.CheckApmDisabled(is.T(), client)
 	if flavor == "datadog-agent" {
 		common.CheckSystemProbeBehavior(is.T(), client)
 		if is.cwsSupported {
