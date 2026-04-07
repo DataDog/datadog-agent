@@ -10,7 +10,7 @@
 #include <linux/ptrace.h>
 #endif
 
-SEC("fexit/__x64_sys_open")
+SEC("fexit/__x64_sys_openat")
 int BPF_PROG(test_modifier_x64, const struct pt_regs* regs, long ret) {
     const char* pathname;
     char buf[16];
@@ -21,7 +21,7 @@ int BPF_PROG(test_modifier_x64, const struct pt_regs* regs, long ret) {
     return 0;
 }
 
-SEC("fexit/__arm64_sys_open")
+SEC("fexit/__arm64_sys_openat")
 int BPF_PROG(test_modifier_arm64, struct pt_regs* regs, long ret) {
     const char* pathname;
     char buf[16];
@@ -32,7 +32,7 @@ int BPF_PROG(test_modifier_arm64, struct pt_regs* regs, long ret) {
     return 0;
 }
 
-SEC("fexit/__x64_sys_open")
+SEC("fexit/__x64_sys_openat")
 int BPF_PROG(test_replaced_x64, const struct pt_regs* regs, long ret) {
     const char* pathname;
     char buf[16];
@@ -43,7 +43,7 @@ int BPF_PROG(test_replaced_x64, const struct pt_regs* regs, long ret) {
     return 0;
 }
 
-SEC("fexit/__arm64_sys_open")
+SEC("fexit/__arm64_sys_openat")
 int BPF_PROG(test_replaced_arm64, const struct pt_regs* regs, long ret) {
     const char* pathname;
     char buf[16];
@@ -54,7 +54,7 @@ int BPF_PROG(test_replaced_arm64, const struct pt_regs* regs, long ret) {
     return 0;
 }
 
-SEC("fexit/__x64_sys_open")
+SEC("fexit/__x64_sys_openat")
 int BPF_PROG(test_womodifier_x64, const struct pt_regs* regs, long ret) {
     const char* pathname;
     char buf[16];
@@ -65,7 +65,7 @@ int BPF_PROG(test_womodifier_x64, const struct pt_regs* regs, long ret) {
     return 0;
 }
 
-SEC("fexit/__arm64_sys_open")
+SEC("fexit/__arm64_sys_openat")
 int BPF_PROG(test_womodifier_arm64, struct pt_regs* regs, long ret) {
     const char* pathname;
     char buf[16];
@@ -93,7 +93,7 @@ int BPF_PROG(test_telemetry_arm64, struct pt_regs* regs, long ret) {
 
 BPF_PERF_EVENT_ARRAY_MAP(test_perf_map, __u32)
 
-SEC("fexit/__x64_sys_open")
+SEC("fexit/__x64_sys_openat")
 int BPF_PROG(test_perf_x64, const struct pt_regs* regs, long ret) {
     __u32 val = 1;
     bpf_perf_event_output(ctx, &test_perf_map, BPF_F_CURRENT_CPU, &val, sizeof(val));
