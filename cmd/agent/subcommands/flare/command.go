@@ -401,7 +401,7 @@ func runLocalDiagnose(
 	case result := <-ch:
 		return result
 	case <-time.After(localDiagnoseTimeout):
-		fmt.Fprintf(color.Output, color.YellowString("Local diagnose timed out after %s, proceeding with flare creation\n", localDiagnoseTimeout))
+		fmt.Fprint(color.Output, color.YellowString("Local diagnose timed out after %s, proceeding with flare creation\n", localDiagnoseTimeout))
 		return []byte(fmt.Sprintf("local diagnose timed out after %s", localDiagnoseTimeout))
 	}
 }
