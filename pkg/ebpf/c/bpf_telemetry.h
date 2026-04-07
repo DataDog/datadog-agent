@@ -62,6 +62,7 @@ static void *(*bpf_telemetry_update_patch)(unsigned long, ...) = (void *)PATCH_T
 #define FN_INDX_bpf_skb_load_bytes bpf_skb_load_bytes_indx
 #define FN_INDX_bpf_perf_event_output bpf_perf_event_output_indx
 #define FN_INDX_bpf_ringbuf_output bpf_ringbuf_output_indx
+#define FN_INDX_bpf_copy_from_user bpf_copy_from_user_indx
 
 #define helper_with_telemetry(fn, ...)                                                          \
     ({                                                                                          \
@@ -155,6 +156,9 @@ static void *(*bpf_telemetry_update_patch)(unsigned long, ...) = (void *)PATCH_T
 
 #define bpf_ringbuf_output_with_telemetry(...) \
     helper_with_telemetry(bpf_ringbuf_output, __VA_ARGS__)
+
+#define bpf_copy_from_user_with_telemetry(...) \
+    helper_with_telemetry(bpf_copy_from_user, __VA_ARGS__)
 
 #if defined(bpf_target_x86)
 
