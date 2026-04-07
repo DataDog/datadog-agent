@@ -303,7 +303,8 @@ int BPF_PROG(tcp_done, struct sock *sk) {
 
 SEC("fexit/tcp_done")
 int BPF_PROG(tcp_done_exit, struct sock *sk) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/tcp_done");
+    // NOTE: no RETURN_IF_NOT_IN_SYSPROBE_TASK here — must match tcp_done entry
+    // which runs without the guard for timeout/RST/softirq context events.
     flush_conn_close_if_full(ctx);
     return 0;
 }
