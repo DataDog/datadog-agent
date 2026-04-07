@@ -284,14 +284,6 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 		}
 	}
 
-	if tracerType == TracerTypeSK {
-		// TLS certificate collection is not supported on SK (yet)
-		if config.EnableCertCollection {
-			log.Warn("TLS certificate collection is not supported with the SK tracer. Disabling.")
-			config.EnableCertCollection = false
-		}
-	}
-
 	if config.EnableCertCollection {
 		program, err := ssluprobes.NewSSLCertsProgram(m.Manager, config)
 		if err != nil {

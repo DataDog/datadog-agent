@@ -26,6 +26,7 @@ const (
 
 func adjustNetwork(cfg model.Config) {
 	ebpflessEnabled := cfg.GetBool(netNS("enable_ebpfless"))
+	skEnabled := cfg.GetBool(netNS("enable_sk_tracer"))
 
 	deprecateInt(cfg, spNS("closed_connection_flush_threshold"), netNS("closed_connection_flush_threshold"))
 	deprecateInt(cfg, spNS("closed_channel_size"), netNS("closed_channel_size"))
@@ -121,5 +122,11 @@ func adjustNetwork(cfg model.Config) {
 	}
 	if !cfg.GetBool(spNS("enable_co_re")) {
 		disableConfig(cfg, netNS("enable_co_re"), "not supported when CO-RE is disabled in system-probe")
+	}
+	if skEnabled {
+		const notSupportedSK = "not supported when sk tracer is enabled"
+		disableConfig(cfg, netNS("enable_protocol_classification"), notSupportedSK)
+		disableConfig(cfg, netNS("enable_cert_collection"), notSupportedSK)
+		disableConfig(cfg, smNS("enabled"), notSupportedSK)
 	}
 }
