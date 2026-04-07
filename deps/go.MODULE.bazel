@@ -74,7 +74,6 @@ use_repo(
     "com_github_datadog_datadog_agent_comp_api_api_def",
     "com_github_datadog_datadog_agent_comp_core_agenttelemetry_def",
     "com_github_datadog_datadog_agent_comp_core_agenttelemetry_fx",
-    "com_github_datadog_datadog_agent_comp_core_agenttelemetry_impl",
     "com_github_datadog_datadog_agent_comp_core_config",
     "com_github_datadog_datadog_agent_comp_core_configsync",
     "com_github_datadog_datadog_agent_comp_core_delegatedauth",
