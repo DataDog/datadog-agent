@@ -264,3 +264,70 @@ Run a local DDOT with and without the gate:
 dda inv test --targets=./comp/otelcol/otlp/components/exporter/serializerexporter/...
 dda inv test --targets=./pkg/opentelemetry-mapping-go/otlp/metrics/...
 ```
+
+---
+
+## Implemented Behavior
+
+This section documents the behavior delivered by this branch.
+
+### What the gate does
+
+When `exporter.datadogexporter.DisableAllMetricRemapping` is enabled, all metric name
+transformations are disabled across all three serializer exporter paths. Metrics are
+forwarded to Datadog under their original OpenTelemetry names with no modifications.
+
+Specifically, the following transformations are **suppressed**:
+
+| Transformation | Example (disabled) | Controlled by |
+|---|---|---|
+| `otel.` prefix on system/process metrics | `system.cpu.utilization` → ~~`otel.system.cpu.utilization`~~ | `withOTelPrefix` |
+| `otel.` prefix on select Kafka metrics | `kafka.producer.request-rate` → ~~`otel.kafka.producer.request-rate`~~ | `withOTelPrefix` |
+| `otelcol_` prefix on internal agent metrics | `datadog_trace_agent_retries` → ~~`otelcol_datadog_trace_agent_retries`~~ | `withOTelPrefix` |
+| Host/system metric remapping (OSS path only) | `system.filesystem.utilization` → ~~`system.disk.in_use`~~ copy | `withRemapping` |
+| Container metric remapping (OSS path only) | `container.cpu.usage.total` → ~~`container.cpu.usage`~~ copy | `withRemapping` |
+| Runtime metric name mapping | `process.runtime.go.goroutines` → ~~`runtime.go.num_goroutine`~~ | `withRuntimeRemapping` |
+
+### Behavior by ingestion path
+
+| Path | Constructor | Default (gate off) | Gate enabled |
+|---|---|---|---|
+| Agent OTLP ingest | `NewFactoryForAgent` | `WithOTelPrefix()` — adds `otel.` prefix | `WithNoRemapping()` — pass-through |
+| DDOT embedded collector | `NewFactoryForOTelAgent` | `WithOTelPrefix()` — adds `otel.` prefix | `WithNoRemapping()` — pass-through |
+| OSS Datadog exporter | `NewFactoryForOSSExporter` | `WithRemapping()` — adds `otel.` prefix **and** produces Datadog-named copies | `WithNoRemapping()` — pass-through |
+
+The deprecated gate `exporter.datadogexporter.metricremappingdisabled` is still
+respected for backwards compatibility. Its behavior differs from the new gate: it
+suppresses the `otel.` prefix but **keeps** runtime metric name mapping active
+(`withRuntimeRemapping` remains `true`). The new gate takes precedence when both are set.
+
+### Key implementation files
+
+| File | Change |
+|---|---|
+| `pkg/opentelemetry-mapping-go/otlp/metrics/config.go` | Added `WithNoRemapping()` option; fixed misleading doc on `WithoutRuntimeMetricMappings()` |
+| `comp/otelcol/otlp/components/exporter/serializerexporter/factory.go` | Uses `WithNoRemapping()` in the gate-enabled branch for all three factory constructors; logs once when gate is active |
+| `comp/otelcol/otlp/components/exporter/serializerexporter/exporter_test.go` | `TestMetricPrefix` extended for new gate; `TestMetricRemappingOSS` covers all four gate combinations on the OSS path |
+| `pkg/opentelemetry-mapping-go/otlp/metrics/metrics_translator_test.go` | `TestWithNoRemapping` validates all three suppressed code paths at the translator layer |
+
+### How to enable the gate
+
+**Flag format:**
+```
+--feature-gates=exporter.datadogexporter.DisableAllMetricRemapping
+```
+
+| Deployment | Command |
+|---|---|
+| Standalone `otel-agent` | `./bin/otel-agent/otel-agent run --config otel-config.yaml --feature-gates=exporter.datadogexporter.DisableAllMetricRemapping` |
+| `otelcol-contrib` | `otelcol-contrib --config config.yaml --feature-gates=exporter.datadogexporter.DisableAllMetricRemapping` |
+| `agent run` (embedded DDOT) | ❌ Not yet supported — `agent run` does not register OTel feature gate flags. Follow-up work needed to wire `featuregate.GlobalRegistry().RegisterFlags(flagSet)` into the agent's run command. |
+
+### Observability
+
+When the gate is active, the exporter logs the following message once at startup
+(per factory instance):
+
+```
+exporter.datadogexporter.DisableAllMetricRemapping is active: all metric remapping and otel. prefixing are disabled
+```
