@@ -777,15 +777,15 @@ func TestLoadEnv(t *testing.T) {
 			t.Setenv(tt.envOld, "1,2,3")
 			t.Setenv(tt.envNew, "4,5,6")
 
-			config := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+			config, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 
 			cfg := config.Object()
 
 			assert.NotNil(t, cfg)
 			if tt.envNew == "DD_APM_IGNORE_RESOURCES" {
-				assert.Equal(t, []string{"4", "5", "6"}, pkgconfigsetup.Datadog().GetStringSlice(tt.key))
+				assert.Equal(t, []string{"4", "5", "6"}, coreConfig.GetStringSlice(tt.key))
 			} else {
-				assert.Equal(t, "4,5,6", pkgconfigsetup.Datadog().GetString(tt.key))
+				assert.Equal(t, "4,5,6", coreConfig.GetString(tt.key))
 			}
 		}
 	})
@@ -1214,43 +1214,43 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "my-site.com")
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
 
-		assert.Equal(t, "my-site.com", pkgconfigsetup.Datadog().GetString("apm_config.profiling_dd_url"))
+		assert.Equal(t, "my-site.com", coreConfig.GetString("apm_config.profiling_dd_url"))
 	})
 
 	env = "DD_APM_DEBUGGER_DD_URL"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "my-site.com")
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
 
-		assert.Equal(t, "my-site.com", pkgconfigsetup.Datadog().GetString("apm_config.debugger_dd_url"))
+		assert.Equal(t, "my-site.com", coreConfig.GetString("apm_config.debugger_dd_url"))
 	})
 
 	env = "DD_APM_DEBUGGER_API_KEY"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "my-key")
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
 
-		assert.Equal(t, "my-key", pkgconfigsetup.Datadog().GetString("apm_config.debugger_api_key"))
+		assert.Equal(t, "my-key", coreConfig.GetString("apm_config.debugger_api_key"))
 	})
 
 	env = "DD_APM_DEBUGGER_ADDITIONAL_ENDPOINTS"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, `{"url1": ["key1", "key2"], "url2": ["key3"]}`)
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
@@ -1259,7 +1259,7 @@ func TestLoadEnv(t *testing.T) {
 			"url2": {"key3"},
 		}
 
-		actual := pkgconfigsetup.Datadog().GetStringMapStringSlice("apm_config.debugger_additional_endpoints")
+		actual := coreConfig.GetStringMapStringSlice("apm_config.debugger_additional_endpoints")
 		if !reflect.DeepEqual(actual, expected) {
 			t.Fatalf("Failed to process env var %s, expected %v and got %v", env, expected, actual)
 		}
@@ -1269,31 +1269,31 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "my-diagnostics-site.com")
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
 
-		assert.Equal(t, "my-diagnostics-site.com", pkgconfigsetup.Datadog().GetString("apm_config.debugger_diagnostics_dd_url"))
+		assert.Equal(t, "my-diagnostics-site.com", coreConfig.GetString("apm_config.debugger_diagnostics_dd_url"))
 	})
 
 	env = "DD_APM_DEBUGGER_DIAGNOSTICS_API_KEY"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "my-diagnostics-key")
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
 
-		assert.Equal(t, "my-diagnostics-key", pkgconfigsetup.Datadog().GetString("apm_config.debugger_diagnostics_api_key"))
+		assert.Equal(t, "my-diagnostics-key", coreConfig.GetString("apm_config.debugger_diagnostics_api_key"))
 	})
 
 	env = "DD_APM_DEBUGGER_DIAGNOSTICS_ADDITIONAL_ENDPOINTS"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, `{"diagnostics-url1": ["diagnostics-key1", "diagnostics-key2"], "diagnostics-url2": ["diagnostics-key3"]}`)
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
@@ -1302,7 +1302,7 @@ func TestLoadEnv(t *testing.T) {
 			"diagnostics-url2": {"diagnostics-key3"},
 		}
 
-		actual := pkgconfigsetup.Datadog().GetStringMapStringSlice("apm_config.debugger_diagnostics_additional_endpoints")
+		actual := coreConfig.GetStringMapStringSlice("apm_config.debugger_diagnostics_additional_endpoints")
 		if !reflect.DeepEqual(actual, expected) {
 			t.Fatalf("Failed to process env var %s, expected %v and got %v", env, expected, actual)
 		}
@@ -1312,29 +1312,29 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "my-site.com")
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.Equal(t, "my-site.com", pkgconfigsetup.Datadog().GetString("apm_config.symdb_dd_url"))
+		assert.Equal(t, "my-site.com", coreConfig.GetString("apm_config.symdb_dd_url"))
 	})
 
 	env = "DD_APM_SYMDB_API_KEY"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "my-key")
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.Equal(t, "my-key", pkgconfigsetup.Datadog().GetString("apm_config.symdb_api_key"))
+		assert.Equal(t, "my-key", coreConfig.GetString("apm_config.symdb_api_key"))
 	})
 
 	env = "DD_APM_SYMDB_ADDITIONAL_ENDPOINTS"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, `{"url1": ["key1", "key2"], "url2": ["key3"]}`)
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
@@ -1343,7 +1343,7 @@ func TestLoadEnv(t *testing.T) {
 			"url2": {"key3"},
 		}
 
-		actual := pkgconfigsetup.Datadog().GetStringMapStringSlice("apm_config.symdb_additional_endpoints")
+		actual := coreConfig.GetStringMapStringSlice("apm_config.symdb_additional_endpoints")
 		if !reflect.DeepEqual(actual, expected) {
 			t.Fatalf("Failed to process env var %s, expected %v and got %v", env, expected, actual)
 		}
@@ -1353,12 +1353,12 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "false")
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
 
-		assert.False(t, pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.credit_cards.enabled"))
+		assert.False(t, coreConfig.GetBool("apm_config.obfuscation.credit_cards.enabled"))
 		assert.False(t, cfg.Obfuscation.CreditCards.Enabled)
 	})
 
@@ -1366,22 +1366,22 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "false")
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.False(t, pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.credit_cards.luhn"))
+		assert.False(t, coreConfig.GetBool("apm_config.obfuscation.credit_cards.luhn"))
 	})
 
 	env = "DD_APM_OBFUSCATION_ELASTICSEARCH_ENABLED"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "true")
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.True(t, pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.elasticsearch.enabled"))
+		assert.True(t, coreConfig.GetBool("apm_config.obfuscation.elasticsearch.enabled"))
 		assert.True(t, cfg.Obfuscation.ES.Enabled)
 	})
 
@@ -1389,12 +1389,12 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, `["client_id", "product_id"]`)
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
 		expected := []string{"client_id", "product_id"}
-		actualConfig := pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.elasticsearch.keep_values")
+		actualConfig := coreConfig.GetStringSlice("apm_config.obfuscation.elasticsearch.keep_values")
 		actualParsed := cfg.Obfuscation.ES.KeepValues
 		assert.Equal(t, expected, actualConfig)
 		assert.Equal(t, expected, actualParsed)
@@ -1404,12 +1404,12 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, `["key1", "key2"]`)
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
 		expected := []string{"key1", "key2"}
-		actualConfig := pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.elasticsearch.obfuscate_sql_values")
+		actualConfig := coreConfig.GetStringSlice("apm_config.obfuscation.elasticsearch.obfuscate_sql_values")
 		actualParsed := cfg.Obfuscation.ES.ObfuscateSQLValues
 		assert.Equal(t, expected, actualConfig)
 		assert.Equal(t, expected, actualParsed)
@@ -1419,11 +1419,11 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "true")
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.True(t, pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.http.remove_query_string"))
+		assert.True(t, coreConfig.GetBool("apm_config.obfuscation.http.remove_query_string"))
 		assert.True(t, cfg.Obfuscation.HTTP.RemoveQueryString)
 	})
 
@@ -1431,11 +1431,11 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "true")
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.True(t, pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.memcached.enabled"))
+		assert.True(t, coreConfig.GetBool("apm_config.obfuscation.memcached.enabled"))
 		assert.True(t, cfg.Obfuscation.Memcached.Enabled)
 	})
 
@@ -1443,11 +1443,11 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "true")
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.True(t, pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.memcached.enabled"))
+		assert.True(t, coreConfig.GetBool("apm_config.obfuscation.memcached.enabled"))
 		assert.True(t, cfg.Obfuscation.Memcached.Enabled)
 	})
 
@@ -1455,13 +1455,13 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "true")
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.True(t, pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.memcached.enabled"))
+		assert.True(t, coreConfig.GetBool("apm_config.obfuscation.memcached.enabled"))
 		assert.True(t, cfg.Obfuscation.Memcached.Enabled)
-		assert.True(t, pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.memcached.keep_command"))
+		assert.True(t, coreConfig.GetBool("apm_config.obfuscation.memcached.keep_command"))
 		assert.True(t, cfg.Obfuscation.Memcached.KeepCommand)
 	})
 
@@ -1469,11 +1469,11 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "true")
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.True(t, pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.mongodb.enabled"))
+		assert.True(t, coreConfig.GetBool("apm_config.obfuscation.mongodb.enabled"))
 		assert.True(t, cfg.Obfuscation.Mongo.Enabled)
 	})
 
@@ -1481,12 +1481,12 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, `["document_id", "template_id"]`)
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
 		expected := []string{"document_id", "template_id"}
-		actualConfig := pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.mongodb.keep_values")
+		actualConfig := coreConfig.GetStringSlice("apm_config.obfuscation.mongodb.keep_values")
 		actualParsed := cfg.Obfuscation.Mongo.KeepValues
 		assert.Equal(t, expected, actualConfig)
 		assert.Equal(t, expected, actualParsed)
@@ -1496,12 +1496,12 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, `["key1", "key2"]`)
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
 		expected := []string{"key1", "key2"}
-		actualConfig := pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.mongodb.obfuscate_sql_values")
+		actualConfig := coreConfig.GetStringSlice("apm_config.obfuscation.mongodb.obfuscate_sql_values")
 		actualParsed := cfg.Obfuscation.Mongo.ObfuscateSQLValues
 		assert.Equal(t, expected, actualConfig)
 		assert.Equal(t, expected, actualParsed)
@@ -1511,11 +1511,11 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "true")
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.True(t, pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.redis.enabled"))
+		assert.True(t, coreConfig.GetBool("apm_config.obfuscation.redis.enabled"))
 		assert.True(t, cfg.Obfuscation.Redis.Enabled)
 	})
 
@@ -1523,11 +1523,11 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "true")
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.True(t, pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.redis.remove_all_args"))
+		assert.True(t, coreConfig.GetBool("apm_config.obfuscation.redis.remove_all_args"))
 		assert.True(t, cfg.Obfuscation.Redis.RemoveAllArgs)
 	})
 
@@ -1535,11 +1535,11 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "true")
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.True(t, pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.valkey.enabled"))
+		assert.True(t, coreConfig.GetBool("apm_config.obfuscation.valkey.enabled"))
 		assert.True(t, cfg.Obfuscation.Valkey.Enabled)
 	})
 
@@ -1547,11 +1547,11 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "true")
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.True(t, pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.valkey.remove_all_args"))
+		assert.True(t, coreConfig.GetBool("apm_config.obfuscation.valkey.remove_all_args"))
 		assert.True(t, cfg.Obfuscation.Valkey.RemoveAllArgs)
 	})
 
@@ -1559,11 +1559,11 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "true")
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.True(t, pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.remove_stack_traces"))
+		assert.True(t, coreConfig.GetBool("apm_config.obfuscation.remove_stack_traces"))
 		assert.True(t, cfg.Obfuscation.RemoveStackTraces)
 	})
 
@@ -1571,11 +1571,11 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "true")
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.True(t, pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.sql_exec_plan.enabled"))
+		assert.True(t, coreConfig.GetBool("apm_config.obfuscation.sql_exec_plan.enabled"))
 		assert.True(t, cfg.Obfuscation.SQLExecPlan.Enabled)
 	})
 
@@ -1583,12 +1583,12 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, `["id1", "id2"]`)
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
 		expected := []string{"id1", "id2"}
-		actualConfig := pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.sql_exec_plan.keep_values")
+		actualConfig := coreConfig.GetStringSlice("apm_config.obfuscation.sql_exec_plan.keep_values")
 		actualParsed := cfg.Obfuscation.SQLExecPlan.KeepValues
 		assert.Equal(t, expected, actualConfig)
 		assert.Equal(t, expected, actualParsed)
@@ -1598,12 +1598,12 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, `["key1", "key2"]`)
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
 		expected := []string{"key1", "key2"}
-		actualConfig := pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.sql_exec_plan.obfuscate_sql_values")
+		actualConfig := coreConfig.GetStringSlice("apm_config.obfuscation.sql_exec_plan.obfuscate_sql_values")
 		actualParsed := cfg.Obfuscation.SQLExecPlan.ObfuscateSQLValues
 		assert.Equal(t, expected, actualConfig)
 		assert.Equal(t, expected, actualParsed)
@@ -1613,11 +1613,11 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "true")
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.True(t, pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.sql_exec_plan_normalize.enabled"))
+		assert.True(t, coreConfig.GetBool("apm_config.obfuscation.sql_exec_plan_normalize.enabled"))
 		assert.True(t, cfg.Obfuscation.SQLExecPlanNormalize.Enabled)
 	})
 
@@ -1625,12 +1625,12 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, `["id1", "id2"]`)
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
 		expected := []string{"id1", "id2"}
-		actualConfig := pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.sql_exec_plan_normalize.keep_values")
+		actualConfig := coreConfig.GetStringSlice("apm_config.obfuscation.sql_exec_plan_normalize.keep_values")
 		actualParsed := cfg.Obfuscation.SQLExecPlanNormalize.KeepValues
 		assert.Equal(t, expected, actualConfig)
 		assert.Equal(t, expected, actualParsed)
@@ -1640,12 +1640,12 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, `["key1", "key2"]`)
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
 		expected := []string{"key1", "key2"}
-		actualConfig := pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.sql_exec_plan_normalize.obfuscate_sql_values")
+		actualConfig := coreConfig.GetStringSlice("apm_config.obfuscation.sql_exec_plan_normalize.obfuscate_sql_values")
 		actualParsed := cfg.Obfuscation.SQLExecPlanNormalize.ObfuscateSQLValues
 		assert.Equal(t, expected, actualConfig)
 		assert.Equal(t, expected, actualParsed)
@@ -1655,11 +1655,11 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "false")
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.False(t, pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.cache.enabled"))
+		assert.False(t, coreConfig.GetBool("apm_config.obfuscation.cache.enabled"))
 		assert.False(t, cfg.Obfuscation.Cache.Enabled)
 	})
 
@@ -1667,11 +1667,11 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "1234567")
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		actualConfig := pkgconfigsetup.Datadog().GetString("apm_config.obfuscation.cache.max_size")
+		actualConfig := coreConfig.GetString("apm_config.obfuscation.cache.max_size")
 		actualParsed := cfg.Obfuscation.Cache.MaxSize
 		assert.Equal(t, "1234567", actualConfig)
 		assert.Equal(t, int64(1234567), actualParsed)
@@ -1681,7 +1681,7 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, `{"url1": ["key1", "key2"], "url2": ["key3"]}`)
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
@@ -1690,7 +1690,7 @@ func TestLoadEnv(t *testing.T) {
 			"url1": {"key1", "key2"},
 			"url2": {"key3"},
 		}
-		actual := pkgconfigsetup.Datadog().GetStringMapStringSlice("apm_config.profiling_additional_endpoints")
+		actual := coreConfig.GetStringMapStringSlice("apm_config.profiling_additional_endpoints")
 		if !reflect.DeepEqual(actual, expected) {
 			t.Fatalf("Failed to process env var %s, expected %v and got %v", env, expected, actual)
 		}
@@ -1724,10 +1724,10 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, `install_id_foo_bar`)
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 		assert.NotNil(t, cfg)
-		assert.Equal(t, "install_id_foo_bar", pkgconfigsetup.Datadog().GetString("apm_config.install_id"))
+		assert.Equal(t, "install_id_foo_bar", coreConfig.GetString("apm_config.install_id"))
 		assert.Equal(t, "install_id_foo_bar", cfg.InstallSignature.InstallID)
 		assert.True(t, cfg.InstallSignature.Found)
 	})
@@ -1736,10 +1736,10 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, `host_injection`)
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 		assert.NotNil(t, cfg)
-		assert.Equal(t, "host_injection", pkgconfigsetup.Datadog().GetString("apm_config.install_type"))
+		assert.Equal(t, "host_injection", coreConfig.GetString("apm_config.install_type"))
 		assert.Equal(t, "host_injection", cfg.InstallSignature.InstallType)
 		assert.True(t, cfg.InstallSignature.Found)
 	})
@@ -1748,10 +1748,10 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, `1699621675`)
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 		assert.NotNil(t, cfg)
-		assert.Equal(t, int64(1699621675), pkgconfigsetup.Datadog().GetInt64("apm_config.install_time"))
+		assert.Equal(t, int64(1699621675), coreConfig.GetInt64("apm_config.install_time"))
 		assert.Equal(t, int64(1699621675), cfg.InstallSignature.InstallTime)
 		assert.True(t, cfg.InstallSignature.Found)
 	})
@@ -1760,12 +1760,12 @@ func TestLoadEnv(t *testing.T) {
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "30")
 
-		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
 		assert.Equal(t, 30, cfg.ProfilingProxy.ReceiverTimeout)
-		assert.Equal(t, 30, pkgconfigsetup.Datadog().GetInt("apm_config.profiling_receiver_timeout"))
+		assert.Equal(t, 30, coreConfig.GetInt("apm_config.profiling_receiver_timeout"))
 	})
 
 	env = "DD_APM_MODE"
@@ -2209,6 +2209,13 @@ func buildConfigComponentFromYAML(t *testing.T, setHostnameInConfig bool, yamlPa
 
 	coreConfig := configcomp.NewMockFromYAMLFile(t, yamlPath)
 	return buildComponent(t, setHostnameInConfig, coreConfig)
+}
+
+func buildConfigComponentAndCoreFromYAML(t *testing.T, setHostnameInConfig bool, yamlPath string) (Component, configcomp.Component) {
+	t.Helper()
+
+	coreConfig := configcomp.NewMockFromYAMLFile(t, yamlPath)
+	return buildComponent(t, setHostnameInConfig, coreConfig), coreConfig
 }
 
 func buildConfigComponentFromOverrides(t *testing.T, setHostnameInConfig bool, settings map[string]interface{}) Component {

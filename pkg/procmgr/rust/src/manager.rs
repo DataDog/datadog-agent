@@ -9,13 +9,13 @@ use crate::command::{Command, CreateResult, ReloadResult, StartResult, StopResul
 use crate::config::{self, ConfigLoader, ProcessDefinition};
 use crate::grpc;
 use crate::ordering;
+use crate::platform;
 use crate::process::{ManagedProcess, ProcessOrigin};
 use crate::shutdown;
 use crate::uuid_gen::UuidGenerator;
 use anyhow::Result;
 use log::{debug, info, warn};
 use std::sync::Arc;
-use tokio::signal::unix::{SignalKind, signal};
 use tokio::sync::{RwLock, mpsc, oneshot};
 use tonic::Status;
 
@@ -74,17 +74,12 @@ impl ProcessManager {
         let (restart_tx, mut restart_rx) = mpsc::channel::<String>(256);
         self.start(&exit_tx).await;
 
-        let mut sigterm = signal(SignalKind::terminate())?;
-        let mut sigint = signal(SignalKind::interrupt())?;
+        let shutdown = platform::shutdown_signal();
+        tokio::pin!(shutdown);
 
         loop {
             tokio::select! {
-                _ = sigterm.recv() => {
-                    info!("received SIGTERM");
-                    break;
-                }
-                _ = sigint.recv() => {
-                    info!("received SIGINT");
+                _ = &mut shutdown => {
                     break;
                 }
                 Some(event) = exit_rx.recv() => {
