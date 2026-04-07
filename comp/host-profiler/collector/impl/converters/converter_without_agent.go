@@ -341,6 +341,10 @@ func (c *converterWithoutAgent) ensureOtlpHTTPExporterConfig(conf confMap, expor
 		if name, ok := nameAny.(string); ok && isComponentType(name, componentTypeOtlpHTTP) {
 			hasOtlpHTTP = true
 
+			if _, err := SetDefault(conf, pathPrefixExporters+name+"::compression", "zstd"); err != nil {
+				return err
+			}
+
 			headers, err := Ensure[confMap](conf, pathPrefixExporters+name+"::headers")
 			if err != nil {
 				return err
