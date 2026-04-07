@@ -21,6 +21,7 @@ import (
 	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
+	model "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/process"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -81,7 +82,7 @@ type Scanner struct {
 	readStartTime func(pid int32) (ticks, error)
 
 	// tracerMetadataReader reads tracer metadata from a process.
-	tracerMetadataReader func(pid int32) (tracermetadata.TracerMetadata, error)
+	tracerMetadataReader func(pid int32) (model.TracerMetadata, error)
 
 	// resolveExecutable resolves the executable metadata for a process.
 	resolveExecutable func(pid int32) (process.Executable, error)
@@ -125,7 +126,7 @@ func NewScanner(
 			}
 			return ticks(startTime), nil
 		},
-		func(pid int32) (tracermetadata.TracerMetadata, error) {
+		func(pid int32) (model.TracerMetadata, error) {
 			return tracermetadata.GetTracerMetadata(int(pid), procfsRoot)
 		},
 		func(pid int32) (process.Executable, error) {
@@ -141,7 +142,7 @@ func newScanner(
 	nowTicks func() (ticks, error),
 	listPids func() iter.Seq2[uint32, error],
 	readStartTime func(pid int32) (ticks, error),
-	tracerMetadataReader func(pid int32) (tracermetadata.TracerMetadata, error),
+	tracerMetadataReader func(pid int32) (model.TracerMetadata, error),
 	resolveExecutable func(pid int32) (process.Executable, error),
 ) *Scanner {
 	s := &Scanner{
@@ -162,7 +163,7 @@ func newScanner(
 type DiscoveredProcess struct {
 	PID            uint32
 	StartTimeTicks uint64
-	tracermetadata.TracerMetadata
+	model.TracerMetadata
 	Executable process.Executable
 }
 

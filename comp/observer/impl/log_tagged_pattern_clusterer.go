@@ -9,6 +9,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"hash/fnv"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/observer/impl/patterns"
@@ -139,7 +140,7 @@ func globalClusterHash(groupHash uint64, clusterID int64) string {
 	h := fnv.New64a()
 	_ = binary.Write(h, binary.LittleEndian, groupHash)
 	_ = binary.Write(h, binary.LittleEndian, clusterID)
-	return fmt.Sprintf("%x", h.Sum64())
+	return strconv.FormatUint(h.Sum64(), 16)
 }
 
 // TaggedPatternClusterer wraps one *patterns.PatternClusterer per tag-group

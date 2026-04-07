@@ -6,10 +6,10 @@
 package eks
 
 import (
-	"github.com/pulumi/pulumi-aws/sdk/v6/go/aws/ec2"
-	awsEks "github.com/pulumi/pulumi-aws/sdk/v6/go/aws/eks"
-	awsIam "github.com/pulumi/pulumi-aws/sdk/v6/go/aws/iam"
-	"github.com/pulumi/pulumi-eks/sdk/v3/go/eks"
+	"github.com/pulumi/pulumi-aws/sdk/v7/go/aws/ec2"
+	awsEks "github.com/pulumi/pulumi-aws/sdk/v7/go/aws/eks"
+	awsIam "github.com/pulumi/pulumi-aws/sdk/v7/go/aws/iam"
+	"github.com/pulumi/pulumi-eks/sdk/v4/go/eks"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	appsv1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/apps/v1"
 	corev1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/core/v1"

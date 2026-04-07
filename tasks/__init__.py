@@ -38,6 +38,7 @@ from tasks import (
     gitlab_helpers,
     go,
     go_deps,
+    gpu,
     host_profiler,
     installer,
     invoke_unit_tests,
@@ -84,6 +85,7 @@ from tasks import (
     vscode,
     winbuild,
     windows_dev_env,
+    workspaces,
     worktree,
 )
 from tasks.build_tags import audit_tag_impact, print_default_build_tags
@@ -223,6 +225,7 @@ ns.add_collection(github_tasks, "github")
 ns.add_collection(gitlab_helpers, "gitlab")
 ns.add_collection(issue)
 ns.add_collection(loader)
+ns.add_collection(gpu)
 ns.add_collection(package)
 ns.add_collection(pipeline)
 ns.add_collection(quality_gates)
@@ -264,6 +267,7 @@ ns.add_collection(invoke_unit_tests)
 ns.add_collection(debug)
 ns.add_collection(winbuild)
 ns.add_collection(windows_dev_env)
+ns.add_collection(workspaces)
 ns.add_collection(worktree)
 ns.add_collection(sbomgen)
 ns.add_collection(pkg_template)
