@@ -57,6 +57,10 @@ nix = { workspace = true, features = ["signal", "process", "user"] }
 [dev-dependencies]
 tempfile.workspace = true
 
+[[test]]
+name = "e2e"
+required-features = ["test-helpers"]
+
 [build-dependencies]
 protoc-gen-prost.workspace = true
 protoc-gen-tonic.workspace = true
