@@ -72,6 +72,22 @@ def _update_windows_runner_version(new_version=None, repo="ci-platform-machine-i
 
 
 @task
+def is_pr_ready(ctx, git_ref: str):
+    """Exit with code 0 if the PR for the given branch exists and is ready (not draft), 1 otherwise."""
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    github = GithubAPI()
+    prs = list(github.get_pr_for_branch(git_ref))
+    if not prs:
+        print(color_message(f"No open PR found for branch {git_ref!r}", "yellow"))
+        raise Exit(code=1)
+    if prs[0].draft:
+        print(color_message(f"PR for branch {git_ref!r} is a draft", "yellow"))
+        raise Exit(code=1)
+    print(color_message(f"PR for branch {git_ref!r} is ready", "green"))
+
+
+@task
 def update_windows_runner_version(
     ctx,
     new_version=None,

@@ -122,7 +122,7 @@ func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workl
 	}
 
 	// Setup config webhook.
-	configWebhook, err := generateConfigWebhook(wmeta, datadogConfig)
+	configWebhook, err := generateConfigWebhook(datadogConfig)
 	if err != nil {
 		log.Errorf("failed to register config webhook: %v", err)
 	} else {
@@ -130,7 +130,7 @@ func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workl
 	}
 
 	// Setup tags from labels webhook.
-	tagsWebhook, err := generateTagsFromLabelsWebhook(wmeta, datadogConfig)
+	tagsWebhook, err := generateTagsFromLabelsWebhook(datadogConfig)
 	if err != nil {
 		log.Errorf("failed to register tags from labels webhook: %v", err)
 	} else {
@@ -180,23 +180,23 @@ func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workl
 	return webhooks
 }
 
-func generateConfigWebhook(wmeta workloadmeta.Component, datadogConfig config.Component) (*configWebhook.Webhook, error) {
+func generateConfigWebhook(datadogConfig config.Component) (*configWebhook.Webhook, error) {
 	filter, err := configWebhook.NewFilter(datadogConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create config filter: %v", err)
 	}
 	mutatorCfg := configWebhook.NewMutatorConfig(datadogConfig)
 	mutator := configWebhook.NewMutator(mutatorCfg, filter)
-	return configWebhook.NewWebhook(wmeta, datadogConfig, mutator), nil
+	return configWebhook.NewWebhook(datadogConfig, mutator), nil
 }
 
-func generateTagsFromLabelsWebhook(wmeta workloadmeta.Component, datadogConfig config.Component) (*tagsfromlabels.Webhook, error) {
+func generateTagsFromLabelsWebhook(datadogConfig config.Component) (*tagsfromlabels.Webhook, error) {
 	filter, err := tagsfromlabels.NewFilter(datadogConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create tags from labels filter: %v", err)
 	}
 	mutator := tagsfromlabels.NewMutator(tagsfromlabels.NewMutatorConfig(datadogConfig), filter)
-	return tagsfromlabels.NewWebhook(wmeta, datadogConfig, mutator), nil
+	return tagsfromlabels.NewWebhook(datadogConfig, mutator), nil
 }
 
 // controllerBase acts as a base class for ControllerV1 and ControllerV1beta1.

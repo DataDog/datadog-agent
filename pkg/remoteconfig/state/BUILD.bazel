@@ -1,0 +1,45 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "state",
+    srcs = [
+        "agent_config.go",
+        "configs.go",
+        "configs_agent_task.go",
+        "configs_asm.go",
+        "path.go",
+        "products.go",
+        "repository.go",
+        "tuf.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/remoteconfig/state",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_datadog_go_tuf//client",
+        "@com_github_datadog_go_tuf//data",
+        "@com_github_datadog_go_tuf//util",
+        "@com_github_datadog_go_tuf//verify",
+    ],
+)
+
+go_test(
+    name = "state_test",
+    srcs = [
+        "agent_config_test.go",
+        "configs_test.go",
+        "path_test.go",
+        "repository_test.go",
+        "testingutils_test.go",
+    ],
+    embed = [":state"],
+    deps = [
+        "//pkg/remoteconfig/state/products/apmsampling",
+        "@com_github_datadog_go_tuf//data",
+        "@com_github_datadog_go_tuf//pkg/keys",
+        "@com_github_datadog_go_tuf//sign",
+        "@com_github_datadog_go_tuf//util",
+        "@com_github_secure_systems_lab_go_securesystemslib//cjson",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

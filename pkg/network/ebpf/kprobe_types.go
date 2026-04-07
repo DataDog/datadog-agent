@@ -19,6 +19,7 @@ package ebpf
 import "C"
 
 type ConnTuple C.conn_tuple_t
+type TCPEventStats C.tcp_event_stats_t
 type TCPStats C.tcp_stats_t
 type ConnStats C.conn_stats_ts_t
 type Conn C.conn_t

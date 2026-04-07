@@ -99,6 +99,9 @@ pkg/trace/info/git_version.go
 # process agent test artifacts
 pkg/process/config/logs
 
+# sd-agent
+/pkg/discovery/module/rust/sd-agent
+
 # sysprobe artifacts
 **/.ninja_log
 **/.ninja_deps
@@ -135,6 +138,7 @@ pkg/ebpf/bytecode/build/
 
 # CGo generated object files
 **/_obj/*.o
+**/_cgo_*.o
 
 # windows container build output
 build.out/
@@ -152,7 +156,7 @@ packer.json
 devenv/iso
 devenv/output-virtualbox-iso/
 devenv/packer_cache
-test_output.json
+test_output*.json
 module_test_output.json
 e2e_test_output.json
 e2e_test_output.json.*.part
@@ -235,6 +239,10 @@ CLAUDE_PERSONAL.md
 # Claude local settings and overrides
 **/.claude/settings.local.json
 **/CLAUDE.local.md
+
+# Claude Code auto-jira work tracking (local only, never commit)
+AUTO_JIRA.md
+.claude/skills/auto-jira/SKILL.notes.md
 
 # Claude Code worktrees (local development, not for repo)
 .claude/worktrees/

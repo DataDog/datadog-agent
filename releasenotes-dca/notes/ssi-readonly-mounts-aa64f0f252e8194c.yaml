@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Single Step Instrumentation volumes are now mounted as read-only to prevent accidental writes to SSI artifacts.

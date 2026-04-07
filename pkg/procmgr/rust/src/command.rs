@@ -4,6 +4,7 @@
 // Copyright 2026-present Datadog, Inc.
 
 use crate::config::ProcessConfig;
+use crate::state::ProcessState;
 use tokio::sync::oneshot;
 use tonic::Status;
 
@@ -14,19 +15,38 @@ pub struct ReloadResult {
     pub unchanged: Vec<String>,
 }
 
+#[derive(Debug)]
+pub struct CreateResult {
+    pub uuid: String,
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug)]
+pub struct StartResult {
+    pub uuid: String,
+    pub pid: Option<u32>,
+    pub state: ProcessState,
+}
+
+#[derive(Debug)]
+pub struct StopResult {
+    pub uuid: String,
+    pub state: ProcessState,
+}
+
 pub enum Command {
     Create {
         name: String,
         config: Box<ProcessConfig>,
-        reply: oneshot::Sender<Result<(), Status>>,
+        reply: oneshot::Sender<Result<CreateResult, Status>>,
     },
     Start {
-        name: String,
-        reply: oneshot::Sender<Result<(), Status>>,
+        name_or_uuid: String,
+        reply: oneshot::Sender<Result<StartResult, Status>>,
     },
     Stop {
-        name: String,
-        reply: oneshot::Sender<Result<(), Status>>,
+        name_or_uuid: String,
+        reply: oneshot::Sender<Result<StopResult, Status>>,
     },
     ReloadConfig {
         reply: oneshot::Sender<Result<ReloadResult, Status>>,

@@ -69,7 +69,6 @@ func (m *MetricsStore[T]) WriteAll() error {
 			return true
 		}
 
-		log.Tracef("Submitting %d metrics for key: %v", len(metrics), key)
 		for _, metric := range metrics {
 			tags := metric.Tags
 			if len(globalTags) > 0 {

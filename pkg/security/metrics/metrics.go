@@ -195,6 +195,21 @@ var (
 	// MetricProcessInodeError is the name of the metric used to report a broken lineage with a inode mismatch
 	// Tags: -
 	MetricProcessInodeError = newRuntimeMetric(".process_resolver.inode_error")
+	// MetricProcessResolverReparentSuccess counts successful process reparenting
+	// Tags: callpath:set_process_context, callpath:do_exit
+	MetricProcessResolverReparentSuccess = newRuntimeMetric(".process_resolver.reparent.success")
+	// MetricProcessResolverReparentFailed counts failed reparenting attempts (e.g. procfs not updated yet)
+	// Tags: callpath:set_process_context, callpath:do_exit
+	MetricProcessResolverReparentFailed = newRuntimeMetric(".process_resolver.reparent.failed")
+	// MetricProcessResolverReparentProcfsSuccess counts successful procfs resolutions of a new parent during reparenting
+	// Tags: -
+	MetricProcessResolverReparentProcfsSuccess = newRuntimeMetric(".process_resolver.reparent.procfs_resolution.success")
+	// MetricProcessResolverReparentProcfsFailed counts failed procfs resolutions of a new parent during reparenting
+	// Tags: -
+	MetricProcessResolverReparentProcfsFailed = newRuntimeMetric(".process_resolver.reparent.procfs_resolution.failed")
+	// MetricProcessResolverProcFallbackLimiterDrop counts procfs fallback resolutions dropped by the rate limiter
+	// Tags: -
+	MetricProcessResolverProcFallbackLimiterDrop = newRuntimeMetric(".process_resolver.proc_fallback_limiter.drop")
 
 	// Mount resolver metrics
 
@@ -214,6 +229,12 @@ var (
 	// MetricMountResolverProcfsHits is the counter of successful procfs mount resolution
 	// Tags: cache, procfs
 	MetricMountResolverProcfsHits = newRuntimeMetric(".mount_resolver.procfs_hits")
+	// MetricMountResolverDanglingCacheSize is the name of the metric used to report the size of the dangling mount cache
+	// Tags: -
+	MetricMountResolverDanglingCacheSize = newRuntimeMetric(".mount_resolver.dangling_cache_size")
+	// MetricMountResolverPidNsCacheSize is the name of the metric used to report the size of the pid namespace cache
+	// Tags: -
+	MetricMountResolverPidNsCacheSize = newRuntimeMetric(".mount_resolver.pid_ns_cache_size")
 
 	// Activity dump metrics
 
@@ -310,6 +331,9 @@ var (
 	// MetricCGroupResolverFallbackFailed is the name of the metric used to report the number of failed fallbacks
 	// Tags: -
 	MetricCGroupResolverFallbackFailed = newRuntimeMetric(".cgroup_resolver.fallback_failed")
+	// MetricCGroupResolverRemainingPids is the name of the metric used to report when a cgroup being delete still has pids
+	// Tags: -
+	MetricCGroupResolverRemainingPids = newRuntimeMetric(".cgroup_resolver.remaining_pids")
 
 	// Security Profile metrics
 
@@ -578,6 +602,17 @@ var (
 	ProcessSourceKernelMapsTags = []string{KernelMapsTag}
 	// ProcessSourceProcTags is assigned to metrics for process cache entries populated from /proc data
 	ProcessSourceProcTags = []string{ProcFSTag}
+
+	// ReparentCallpathSetProcessContext tags a reparent from the setProcessContext path
+	ReparentCallpathSetProcessContext = "callpath:set_process_context"
+	// ReparentCallpathDoExit tags a reparent from the ApplyExitEntry path (do_exit)
+	ReparentCallpathDoExit = "callpath:do_exit"
+	// ReparentCallpathKernelPPid tags a reparent triggered by a kernel ppid mismatch
+	ReparentCallpathKernelPPid = "callpath:kernel_ppid"
+	// ReparentCallpathRelatedEvent tags a reparent from the related event dispatch path
+	ReparentCallpathRelatedEvent = "callpath:related_event"
+	// AllReparentCallpathTags is the list of all reparent callpath tags
+	AllReparentCallpathTags = []string{ReparentCallpathSetProcessContext, ReparentCallpathDoExit, ReparentCallpathKernelPPid, ReparentCallpathRelatedEvent}
 )
 
 func newRuntimeMetric(name string) string {

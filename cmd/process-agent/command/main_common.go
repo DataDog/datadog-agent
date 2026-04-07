@@ -41,7 +41,8 @@ import (
 	wmcatalogremote "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
-	compstatsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	compstatsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
+	compstatsdFx "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
@@ -51,7 +52,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/agent"
 	"github.com/DataDog/datadog-agent/comp/process/apiserver"
 	"github.com/DataDog/datadog-agent/comp/process/expvars"
-	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
+	"github.com/DataDog/datadog-agent/comp/process/hostinfo/def"
 	profiler "github.com/DataDog/datadog-agent/comp/process/profiler/def"
 	"github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/process/types"
@@ -60,12 +61,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta/collector"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/process/util/coreagent"
 	"github.com/DataDog/datadog-agent/pkg/util/coredump"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -154,7 +155,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		coreStatusImpl.Module(),
 
 		// Provide statsd client module
-		compstatsd.Module(),
+		compstatsdFx.Module(),
 		fx.Provide(func(config config.Component, statsd compstatsd.Component) (ddgostatsd.ClientInterface, error) {
 			return statsd.CreateForHostPort(configutils.GetBindHost(config), config.GetInt("dogstatsd_port"))
 		}),
@@ -229,7 +230,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 	err := app.Start(ctx)
 	if err != nil {
 		if errors.Is(err, errAgentDisabled) {
-			if !shouldStayAlive(appInitDeps.Config) {
+			if !shouldStayAlive() {
 				log.Info("process-agent is not enabled, exiting...")
 				return nil
 			}
@@ -319,11 +320,13 @@ func initMisc(deps miscDeps) error {
 }
 
 // shouldStayAlive determines whether the process agent should stay alive when no checks are running.
-// This can happen when the checks are running on the core agent but a process agent container is
-// still brought up. The process-agent is kept alive to prevent crash loops.
-func shouldStayAlive(cfg model.Reader) bool {
-	if env.IsKubernetes() && cfg.GetBool("process_config.run_in_core_agent.enabled") {
-		log.Warn("The process-agent is staying alive to prevent crash loops due to the checks running on the core agent. Thus, the process-agent is idle. Update your Helm chart or Datadog Operator to the latest version to prevent this (https://docs.datadoghq.com/containers/kubernetes/installation/).")
+// In Kubernetes, the Helm chart may deploy a process-agent container even when process checks run
+// in the core agent. The process-agent stays alive idle to prevent the container from crash-looping.
+// TODO: remove this once the Helm chart no longer deploys the process-agent container when
+// runInCoreAgent is enabled (the chart's doNotCheckTag logic prevents automatic detection).
+func shouldStayAlive() bool {
+	if env.IsKubernetes() && coreagent.ProcessChecksRunInCoreAgent() {
+		log.Error("The process-agent is idle: process checks run in the core agent. Update your Helm chart or Datadog Operator to the latest version to prevent this (https://docs.datadoghq.com/containers/kubernetes/installation/).")
 		return true
 	}
 

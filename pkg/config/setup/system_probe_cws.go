@@ -94,11 +94,18 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// CWS - SBOM
 	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.workloads_cache_size", 10)
+	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.enrichment_ticker", "1m")
 	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.host.enabled", false)
 
-	// CWS - Open sampling
-	cfg.BindEnvAndSetDefault("runtime_security_config.open_sampling.enabled", false)
-	cfg.BindEnvAndSetDefault("runtime_security_config.open_sampling.rate", 500)
+	// CWS - Event sampling (per-type)
+	cfg.BindEnvAndSetDefault("runtime_security_config.event_sampling.open.enabled", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.event_sampling.open.rate", 500)
+	cfg.BindEnvAndSetDefault("runtime_security_config.event_sampling.connect.enabled", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.event_sampling.connect.rate", 500)
+	cfg.BindEnvAndSetDefault("runtime_security_config.event_sampling.bind.enabled", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.event_sampling.bind.rate", 500)
+	cfg.BindEnvAndSetDefault("runtime_security_config.event_sampling.dns.enabled", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.event_sampling.dns.rate", 500)
 
 	// CWS - Security Profiles
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.enabled", true)
@@ -113,7 +120,7 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.profile_cleanup_delay", "60m")
 
 	// CWS - Security Profile V2
-	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.v2.event_types", []string{"exec"})
+	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.v2.event_types", []string{"exec", "dns", "bind", "connect"})
 
 	// CWS - Auto suppression
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.auto_suppression.enabled", true)

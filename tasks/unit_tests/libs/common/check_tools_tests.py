@@ -34,7 +34,7 @@ class TestCheckTools(unittest.TestCase):
         c = MockContext(run={'protoc --version': Result("libprotoc 1.98.2")})
         with self.assertRaises(Exit) as e:
             check_tools(c)
-        self.assertTrue(e.exception.message.startswith("Expected protoc version 29.3, found"))
+        self.assertTrue(e.exception.message.startswith("Expected protoc version 34.0, found"))
 
     @patch('tasks.protobuf.check_tools_installed', new=MagicMock(return_value=True))
     def test_protoc_not_installed(self):

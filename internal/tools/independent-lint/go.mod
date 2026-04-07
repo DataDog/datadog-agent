@@ -1,5 +1,5 @@
-module github.com/DataDog/datadog-agent/cmd/independent-lint
+module github.com/DataDog/datadog-agent/internal/tools/independent-lint
 
 go 1.25.0
 
-require golang.org/x/mod v0.33.0
+require golang.org/x/mod v0.34.0

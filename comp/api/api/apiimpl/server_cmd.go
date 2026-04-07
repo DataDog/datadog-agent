@@ -7,7 +7,6 @@ package apiimpl
 
 import (
 	"fmt"
-	"net"
 	"net/http"
 	"time"
 
@@ -33,7 +32,7 @@ func (server *apiServer) startCMDServer(
 		// no way we can recover from this error
 		return fmt.Errorf("unable to listen to address %s: %v", cmdAddr, err)
 	}
-	server.cmdAddr = cmdListener.Addr().(*net.TCPAddr)
+	server.cmdAddr = cmdListener.Addr()
 
 	// gRPC server
 	grpcServer := server.grpcComponent.BuildServer()
@@ -44,6 +43,9 @@ func (server *apiServer) startCMDServer(
 
 	// Validate token for every request
 	agentMux.Use(server.ipc.HTTPMiddleware)
+	// Fill route template captures for the telemetry middleware (reduces metric cardinality).
+	// Pass "/agent" to preserve the full path since agentMux is mounted via http.StripPrefix("/agent", ...).
+	agentMux.Use(observability.CaptureRouteTemplateMiddlewareWithPrefix("/agent"))
 
 	cmdMux := http.NewServeMux()
 	cmdMux.Handle(

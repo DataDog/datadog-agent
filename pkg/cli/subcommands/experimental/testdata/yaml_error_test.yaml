@@ -1,0 +1,4 @@
+api_key: abcdef1234567890abcdef1234567890
+site: datadoghq.com
+apm_config:
+	enabled: true

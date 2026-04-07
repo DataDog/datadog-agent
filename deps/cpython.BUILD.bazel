@@ -65,6 +65,7 @@ run_binary(
             "libffi_win_dir",
             "openssl-bin_win_dir",
             "tcltk_win_dir",
+            "@python_3_12//:python3",
             "@visual_studio//:msbuild",
         ]
     ),
@@ -84,6 +85,7 @@ run_binary(
         "TCLTK_DIR": r"$(location tcltk_win_dir)\amd64",
         "TCL_VERSION": python_externals["tcltk"],
         "MSBUILD": "$(location @visual_studio//:msbuild)",
+        "PYTHON_FOR_BUILD": "$(location @python_3_12//:python3)",
     },
     outs = [
         "build/{}".format(file)
@@ -115,6 +117,13 @@ select_file(
     name = "headers_win",
     srcs = "python_win",
     subpath = "build/include",
+)
+
+select_file(
+    name = "python_win_lib",
+    srcs = "python_win",
+    subpath = "build/python{}.dll".format(VERSION_STR_FLAT),
+    visibility = ["//visibility:public"],
 )
 
 cc_import(
@@ -154,21 +163,6 @@ python_deps = {
     "liblzma": "-llzma",
 }
 
-# The list of build tools we want to override in sysconfigdata.py
-# as they will not be available when building custom integrations without bazel
-to_override_build_tools = [
-    "ar",
-    "gcc",
-    "g++",
-    "ld",
-]
-
-to_override_flags = [
-    "CFLAGS",
-    "CXXFLAGS",
-    "LDFLAGS",
-]
-
 configure_make(
     name = "python_unix",
     configure_options = [
@@ -177,9 +171,6 @@ configure_make(
         "--enable-shared",
         "--without-static-libpython",
         "--with-dbmliborder=",
-        # Fixes an issue with __DATE__ being set to undefined `redacted`
-        # https://github.com/bazelbuild/rules_foreign_cc/issues/239#issuecomment-478167267
-        "CPPFLAGS='-Dredacted=\\\"redacted\\\"'",
         "--with-openssl=$$EXT_BUILD_DEPS/openssl",
         "--with-openssl-rpath=yes",
     ] + select({
@@ -194,6 +185,11 @@ configure_make(
         "OPT": "-DNDEBUG -fwrapv",
         # Ensure we don't use the system provided .pc
         "PKG_CONFIG_LIBDIR": "/does/not/exist",
+        # Avoid quotation issues around keeping `redacted` (for __DATE__/__TIME__) properly quoted
+        # (See comments on redacted_compat.h)
+        # It's important to pass this on the `env` and not on `configure_options` to avoid CPPFLAGS
+        # populated by rules_foreign_cc from being overwritten
+        "CPPFLAGS": "-include$(execpath :redacted_compat.h)",
         # We need to pass linker flags here instead of `linkopts` because we don't want these to be
         # propagated to dependent targets, as `linkopts` would do.
         # This is meant to allow python to find its dependency during its modules import test.
@@ -212,6 +208,11 @@ configure_make(
         },
         "//conditions:default": {},
     }),
+    build_data = [
+        ":redacted_compat.h",
+        "@@//deps/cpython:fix_sysconfigdata.py",
+        "@python_3_12//:python3",
+    ],
     lib_source = ":all_srcs",
     out_binaries = UNIX_BINS,
     out_data_dirs = [
@@ -269,26 +270,11 @@ configure_make(
     # This is later used to build extensions with the same tools/compiler/flags/config as the interpreter
     # However, in our case, that means using tools that are stored in the build sandbox, so they aren't
     # usable when building an extension, causing all builds to fail.
-    # Ideally we would want to explicitly replace bazel paths with known alternatives, but we don't
-    # have an environment variable holding the value we want to replace so we have to resort to
-    # a regular expression replacing paths to tools.
-    # We also unset the flags listed in to_override_flags.
-    # If we start using some specific build flags that need to be propagated, we will need to include
-    # them here instead of replacing them by an empty string.
-    postfix_script = " && ".join([
-                         "perl -i -pe 's/(:?[a-zA-Z0-9_+.\\/-]+)\\/{tool}\\b/{tool}/g' $$INSTALLDIR/lib/python{version}/_sysconfigdata__*.py".format(
-                             tool = tool,
-                             version = VERSION_STR,
-                         )
-                         for tool in to_override_build_tools
-                     ]) + " && " +
-                     " && ".join([
-                         "perl -i -pe \"s/\'{flag}\': \'.*\',$$/\'{flag}\': \'\',/g\" $$INSTALLDIR/lib/python{version}/_sysconfigdata__*.py".format(
-                             flag = flag,
-                             version = VERSION_STR,
-                         )
-                         for flag in to_override_flags
-                     ]),
+    # fix_sysconfigdata.py strips sandbox-absolute paths from known tool entries (leaving just the
+    # basename so they can be found on PATH) and clears build flags that are Bazel-specific.
+    postfix_script = "$(execpath @python_3_12//:python3) $(execpath @@//deps/cpython:fix_sysconfigdata.py) $$INSTALLDIR/lib/python{version}/_sysconfigdata__*.py".format(
+        version = VERSION_STR,
+    ),
 )
 
 foreign_cc_shared_wrapper(
@@ -450,6 +436,7 @@ pkg_filegroup(
         "@platforms//os:windows": "embedded3",
         "//conditions:default": "embedded",
     }),
+    visibility = ["//visibility:public"],
 )
 
 pkg_install(
