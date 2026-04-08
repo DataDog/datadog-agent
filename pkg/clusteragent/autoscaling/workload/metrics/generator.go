@@ -258,7 +258,7 @@ func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metrics
 		Tags:  baseWithVerticalSourceTags,
 	})
 
-	// 7a. Vertical scaled/evicted replica gauges
+	// 8. Vertical scaled/evicted replica gauges
 	if scaledReplicas := internal.ScaledReplicas(); scaledReplicas != nil {
 		metrics = append(metrics, metricsstore.StructuredMetric{
 			Name:  metricPrefix + ".status.vertical.scaled_replicas",
