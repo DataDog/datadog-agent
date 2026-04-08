@@ -1097,7 +1097,9 @@ core,github.com/go-kit/log/level,MIT,Copyright (c) 2021 Go kit
 core,github.com/go-logfmt/logfmt,MIT,Copyright (c) 2015 go-logfmt
 core,github.com/go-logr/logr,Apache-2.0,Copyright 2019 The logr Authors. | Copyright 2020 The logr Authors.
 core,github.com/go-logr/logr/funcr,Apache-2.0,Copyright 2019 The logr Authors. | Copyright 2020 The logr Authors.
+core,github.com/go-logr/logr/slogr,Apache-2.0,Copyright 2019 The logr Authors. | Copyright 2020 The logr Authors.
 core,github.com/go-logr/stdr,Apache-2.0,Copyright 2019 The logr Authors.
+core,github.com/go-logr/zapr,Apache-2.0,Copyright 2018 Solly Ross | Copyright 2019 The logr Authors.
 core,github.com/go-ole/go-ole,MIT,"Copyright © 2013-2017 Yasuhiro Matsumoto, <mattn.jp@gmail.com>"
 core,github.com/go-ole/go-ole/oleutil,MIT,"Copyright © 2013-2017 Yasuhiro Matsumoto, <mattn.jp@gmail.com>"
 core,github.com/go-openapi/analysis,Apache-2.0,Copyright 2015 go-swagger maintainers
@@ -1606,7 +1608,15 @@ core,github.com/netsampler/goflow2/utils,BSD-3-Clause,"Copyright (c) 2021, NetSa
 core,github.com/nexus-rpc/sdk-go/nexus,MIT,Copyright (c) 2023 Temporal Technologies Inc. All Rights Reserved
 core,github.com/oklog/ulid,Apache-2.0,- Peter Bourgon (@peterbourgon) | - Tomás Senart (@tsenart)
 core,github.com/oklog/ulid/v2,Apache-2.0,- Peter Bourgon (@peterbourgon) | - Tomás Senart (@tsenart)
+core,github.com/olekukonko/errors,MIT,Copyright (c) 2025 Oleku Konko
+core,github.com/olekukonko/ll,MIT,Copyright (c) 2025 Oleku Konko
+core,github.com/olekukonko/ll/lh,MIT,Copyright (c) 2025 Oleku Konko
+core,github.com/olekukonko/ll/lx,MIT,Copyright (c) 2025 Oleku Konko
 core,github.com/olekukonko/tablewriter,MIT,Copyright (C) 2014 by Oleku Konko
+core,github.com/olekukonko/tablewriter/pkg/twwarp,MIT,Copyright (C) 2014 by Oleku Konko
+core,github.com/olekukonko/tablewriter/pkg/twwidth,MIT,Copyright (C) 2014 by Oleku Konko
+core,github.com/olekukonko/tablewriter/renderer,MIT,Copyright (C) 2014 by Oleku Konko
+core,github.com/olekukonko/tablewriter/tw,MIT,Copyright (C) 2014 by Oleku Konko
 core,github.com/oliveagle/jsonpath,MIT,Copyright (c) 2015 oliver
 core,github.com/open-policy-agent/opa/capabilities,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/bundle,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
@@ -2554,10 +2564,12 @@ core,go.opentelemetry.io/collector/config/configcompression,Apache-2.0,Copyright
 core,go.opentelemetry.io/collector/config/configgrpc,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/config/confighttp,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/config/confighttp/internal,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/config/confighttp/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/config/configmiddleware,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/config/confignet,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/config/configopaque,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/config/configoptional,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/config/configoptional/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/config/configretry,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/config/configtelemetry,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/config/configtls,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2565,6 +2577,7 @@ core,go.opentelemetry.io/collector/confmap,Apache-2.0,Copyright The OpenTelemetr
 core,go.opentelemetry.io/collector/confmap/internal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/confmap/internal/envvar,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/confmap/internal/mapstructure,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/confmap/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/confmap/internal/third_party/composehook,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/confmap/provider/envprovider,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/confmap/provider/fileprovider,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2631,6 +2644,7 @@ core,go.opentelemetry.io/collector/otelcol/internal/configunmarshaler,Apache-2.0
 core,go.opentelemetry.io/collector/otelcol/internal/grpclog,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/pdata/internal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/pdata/internal/json,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/pdata/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/pdata/internal/otelgrpc,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/pdata/internal/otlp,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/pdata/internal/proto,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2645,6 +2659,7 @@ core,go.opentelemetry.io/collector/pdata/ptrace,Apache-2.0,Copyright The OpenTel
 core,go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/pdata/testdata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/pdata/xpdata/entity,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/pdata/xpdata/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/pdata/xpdata/pref,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/pdata/xpdata/request,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/pipeline,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2829,6 +2844,10 @@ core,go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp/internal/ot
 core,go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp/internal/retry,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp/internal/x,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/exporters/prometheus,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/exporters/prometheus/internal,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/exporters/prometheus/internal/counter,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/exporters/prometheus/internal/observ,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/exporters/prometheus/internal/x,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/exporters/stdout/stdoutlog,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/exporters/stdout/stdoutmetric,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/exporters/stdout/stdoutmetric/internal,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2882,11 +2901,13 @@ core,go.opentelemetry.io/otel/semconv/v1.27.0,Apache-2.0,Copyright The OpenTelem
 core,go.opentelemetry.io/otel/semconv/v1.37.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.37.0/goconv,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.37.0/httpconv,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/semconv/v1.37.0/otelconv,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.38.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.39.0,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/otel/semconv/v1.39.0/httpconv,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.39.0/otelconv,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.40.0,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/semconv/v1.40.0/httpconv,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/semconv/v1.40.0/otelconv,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.5.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.6.1,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.9.0,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -3649,7 +3670,7 @@ core,k8s.io/api/scheduling/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Auth
 core,k8s.io/api/storage/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/api/storage/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/api/storage/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/api/storagemigration/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/api/storagemigration/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiextensions-apiserver/pkg/apis/apiextensions,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -3729,6 +3750,7 @@ core,k8s.io/apimachinery/pkg/util/rand,Apache-2.0,Copyright 2014 The Kubernetes 
 core,k8s.io/apimachinery/pkg/util/remotecommand,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apimachinery/pkg/util/runtime,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apimachinery/pkg/util/sets,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/apimachinery/pkg/util/sort,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apimachinery/pkg/util/strategicpatch,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apimachinery/pkg/util/uuid,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apimachinery/pkg/util/validation,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -3820,6 +3842,7 @@ core,k8s.io/apiserver/pkg/endpoints/discovery,Apache-2.0,Copyright 2014 The Kube
 core,k8s.io/apiserver/pkg/endpoints/discovery/aggregated,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/endpoints/filterlatency,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/endpoints/filters,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/apiserver/pkg/endpoints/filters/impersonation,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/endpoints/handlers,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/endpoints/handlers/fieldmanager,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/endpoints/handlers/finisher,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -3841,6 +3864,9 @@ core,k8s.io/apiserver/pkg/server/dynamiccertificates,Apache-2.0,Copyright 2014 T
 core,k8s.io/apiserver/pkg/server/egressselector,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/server/egressselector/metrics,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/server/filters,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/apiserver/pkg/server/flagz,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/apiserver/pkg/server/flagz/api/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/apiserver/pkg/server/flagz/negotiate,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/server/healthz,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/server/httplog,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/server/mux,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -3851,6 +3877,9 @@ core,k8s.io/apiserver/pkg/server/options/encryptionconfig/metrics,Apache-2.0,Cop
 core,k8s.io/apiserver/pkg/server/resourceconfig,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/server/routes,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/server/routine,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/apiserver/pkg/server/statusz,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/apiserver/pkg/server/statusz/api/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/apiserver/pkg/server/statusz/negotiate,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/server/storage,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/storage,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiserver/pkg/storage/cacher,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -3981,7 +4010,7 @@ core,k8s.io/client-go/applyconfigurations/scheduling/v1beta1,Apache-2.0,Copyrigh
 core,k8s.io/client-go/applyconfigurations/storage/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/applyconfigurations/storage/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/applyconfigurations/storage/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/client-go/applyconfigurations/storagemigration/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/client-go/applyconfigurations/storagemigration/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/discovery,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/discovery/cached/memory,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/discovery/fake,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -4062,7 +4091,7 @@ core,k8s.io/client-go/informers/storage/v1,Apache-2.0,Copyright 2014 The Kuberne
 core,k8s.io/client-go/informers/storage/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/informers/storage/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/informers/storagemigration,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/client-go/informers/storagemigration/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/client-go/informers/storagemigration/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/kubernetes,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/kubernetes/fake,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/kubernetes/scheme,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -4174,8 +4203,8 @@ core,k8s.io/client-go/kubernetes/typed/storage/v1alpha1,Apache-2.0,Copyright 201
 core,k8s.io/client-go/kubernetes/typed/storage/v1alpha1/fake,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/kubernetes/typed/storage/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/kubernetes/typed/storage/v1beta1/fake,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/client-go/kubernetes/typed/storagemigration/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/client-go/kubernetes/typed/storagemigration/v1alpha1/fake,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/client-go/kubernetes/typed/storagemigration/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/client-go/kubernetes/typed/storagemigration/v1beta1/fake,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/listers,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/listers/admissionregistration/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/listers/admissionregistration/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -4226,7 +4255,7 @@ core,k8s.io/client-go/listers/scheduling/v1beta1,Apache-2.0,Copyright 2014 The K
 core,k8s.io/client-go/listers/storage/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/listers/storage/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/listers/storage/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/client-go/listers/storagemigration/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/client-go/listers/storagemigration/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/metadata,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/metadata/fake,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/openapi,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -4281,6 +4310,7 @@ core,k8s.io/client-go/util/flowcontrol,Apache-2.0,Copyright 2014 The Kubernetes 
 core,k8s.io/client-go/util/homedir,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/util/keyutil,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/util/retry,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/client-go/util/watchlist,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/util/workqueue,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/cloud-provider/api,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/component-base/cli/flag,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -4303,9 +4333,6 @@ core,k8s.io/component-base/tracing,Apache-2.0,Copyright 2014 The Kubernetes Auth
 core,k8s.io/component-base/tracing/api/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/component-base/version,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/component-base/zpages/features,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/component-base/zpages/flagz,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/component-base/zpages/httputil,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/component-base/zpages/statusz,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/component-helpers/resource,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/cri-api/pkg/apis/runtime/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/cri-client/pkg/util,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -4461,14 +4488,13 @@ core,sigs.k8s.io/custom-metrics-apiserver/pkg/provider/defaults,Apache-2.0,Copyr
 core,sigs.k8s.io/custom-metrics-apiserver/pkg/registry/custom_metrics,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/custom-metrics-apiserver/pkg/registry/external_metrics,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/gateway-api/apis/v1,Apache-2.0,Copyright 2017 The Kubernetes Authors.
-core,sigs.k8s.io/gateway-api/apis/v1alpha2,Apache-2.0,Copyright 2017 The Kubernetes Authors.
-core,sigs.k8s.io/gateway-api/apis/v1alpha3,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/gateway-api/apis/v1beta1,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/json,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/json/internal/golang/encoding/json,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/karpenter/pkg/apis,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/karpenter/pkg/apis/v1,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/karpenter/pkg/cloudprovider,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/karpenter/pkg/operator/logging,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/karpenter/pkg/operator/options,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/karpenter/pkg/scheduling,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/karpenter/pkg/utils/env,Apache-2.0,Copyright 2017 The Kubernetes Authors.

@@ -185,6 +185,7 @@ github.com/dgraph-io/ristretto:
  - "Copyright (c) 2019 Ewan Chou"
 github.com/go-logr/logr: ["Copyright 2019 The logr Authors.", "Copyright 2020 The logr Authors."]
 github.com/go-logr/stdr: "Copyright 2019 The logr Authors."
+github.com/go-logr/zapr: ["Copyright 2019 The logr Authors.", "Copyright 2018 Solly Ross"]
 github.com/go-openapi/analysis: Copyright 2015 go-swagger maintainers
 github.com/go-openapi/errors: Copyright 2015 go-swagger maintainers
 github.com/go-openapi/jsonpointer: "Copyright 2013 sigu-399 ( https://github.com/sigu-399 )"
