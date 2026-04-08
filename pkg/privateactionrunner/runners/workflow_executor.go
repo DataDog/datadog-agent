@@ -163,7 +163,7 @@ func (l *Loop) Close(ctx context.Context) {
 
 func (l *Loop) publishFailure(ctx context.Context, task *types.Task, e error) {
 	logger := log.FromContext(ctx)
-	if task.Data.Attributes.JobId == "" {
+	if task == nil || task.Data.Attributes == nil || task.Data.Attributes.JobId == "" {
 		logger.Error("publish failure error: no job id was provided")
 		return
 	}
