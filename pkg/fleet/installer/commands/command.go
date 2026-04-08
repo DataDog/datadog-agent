@@ -80,6 +80,7 @@ func newCmd(operation string, opts ...cmdOption) *cmd {
 		o(cfg)
 	}
 	env := env.FromEnv()
+	applyDatadogYAMLRegistryConfig(env)
 	if !env.IsFromDaemon && !cfg.quiet {
 		setupStdoutLogger(env)
 	}
@@ -161,6 +162,17 @@ type telemetryConfigFields struct {
 	Site   string `yaml:"site"`
 }
 
+type installerRegistryYAMLConfig struct {
+	Installer struct {
+		Registry struct {
+			URL      string `yaml:"url"`
+			Auth     string `yaml:"auth"`
+			Username string `yaml:"username"`
+			Password string `yaml:"password"`
+		} `yaml:"registry"`
+	} `yaml:"installer"`
+}
+
 // telemetryConfig is a best effort to get the API key / site from `datadog.yaml`.
 func telemetryConfig() telemetryConfigFields {
 	configPath := filepath.Join(paths.AgentConfigDir, "datadog.yaml")
@@ -194,6 +206,37 @@ func newTelemetry(env *env.Env) *telemetry.Telemetry {
 
 	t := telemetry.NewTelemetry(env.HTTPClient(), apiKey, site, "datadog-installer") // No sampling rules for commands
 	return t
+}
+
+// applyDatadogYAMLRegistryConfig reads installer.registry from datadog.yaml and
+// applies any values not already set by environment variables.
+func applyDatadogYAMLRegistryConfig(e *env.Env) {
+	configPath := filepath.Join(paths.AgentConfigDir, "datadog.yaml")
+	rawConfig, err := os.ReadFile(configPath)
+	if err != nil {
+		return
+	}
+	var config installerRegistryYAMLConfig
+	if err = yaml.Unmarshal(rawConfig, &config); err != nil {
+		return
+	}
+	r := config.Installer.Registry
+	if e.RegistryOverride == "" {
+		if agentURL := os.Getenv("DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE"); agentURL != "" {
+			e.RegistryOverride = agentURL
+		} else if r.URL != "" {
+			e.RegistryOverride = r.URL
+		}
+	}
+	if e.RegistryAuthOverride == "" && r.Auth != "" {
+		e.RegistryAuthOverride = r.Auth
+	}
+	if e.RegistryUsername == "" && r.Username != "" {
+		e.RegistryUsername = r.Username
+	}
+	if e.RegistryPassword == "" && r.Password != "" {
+		e.RegistryPassword = r.Password
+	}
 }
 
 // RootCommands returns the root commands
