@@ -289,6 +289,16 @@ func (c *Controller) updateNodePool(ctx context.Context, targetNp, datadogNp *ka
 			desired.Labels[model.DatadogCreatedLabelKey] = "true"
 		}
 
+		// Preserve annotations added by Karpenter directly
+		mergedAnnotations := make(map[string]string, len(datadogNp.Annotations)+len(desired.Annotations))
+		for k, v := range datadogNp.Annotations {
+			mergedAnnotations[k] = v
+		}
+		for k, v := range desired.Annotations {
+			mergedAnnotations[k] = v
+		}
+		desired.Annotations = mergedAnnotations
+
 		// Use the NodeClass in the live NodePool if the manifest omits it
 		if desired.Spec.Template.Spec.NodeClassRef == nil && datadogNp.Spec.Template.Spec.NodeClassRef != nil {
 			desired.Spec.Template.Spec.NodeClassRef = datadogNp.Spec.Template.Spec.NodeClassRef.DeepCopy()
