@@ -594,7 +594,9 @@ func TestCreateServiceFromCacheRegistersImmediately(t *testing.T) {
 
 	// Simulate loading 192.168.0.1 from cache — should register immediately
 	entityID1 := subnet.config.Digest("192.168.0.1")
-	l.createService(entityID1, subnet, "192.168.0.1", deviceInfo, 0, 0, true)
+	svc1 := l.createService(entityID1, subnet, "192.168.0.1", 0)
+	require.NotNil(t, svc1)
+	l.processService(svc1, deviceInfo, 0, 0, true)
 
 	assert.Equal(t, 1, len(newSvc))
 	svc := (<-newSvc).(*SNMPService)
@@ -603,7 +605,9 @@ func TestCreateServiceFromCacheRegistersImmediately(t *testing.T) {
 
 	// Simulate scan discovering 192.168.0.2 — same physical device, should NOT register
 	entityID2 := subnet.config.Digest("192.168.0.2")
-	l.createService(entityID2, subnet, "192.168.0.2", deviceInfo, 0, 0, false)
+	svc2 := l.createService(entityID2, subnet, "192.168.0.2", 0)
+	require.NotNil(t, svc2)
+	l.processService(svc2, deviceInfo, 0, 0, false)
 
 	assert.Equal(t, 0, len(newSvc), "second IP for same device should not be registered")
 }
