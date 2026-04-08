@@ -262,8 +262,6 @@ func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *pa
 		} else if !appKeyOK {
 			p.logger.Warnf("app_key does not match the expected format; enrollment may fail")
 		}
-	} else {
-		p.logger.Infof("No app_key configured; enrolling with API key only. Ensure the API key has the required scope for enrollment.")
 	}
 
 	runnerHostname, err := p.hostnameGetter.Get(ctx)
@@ -305,11 +303,8 @@ func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *pa
 	cfg.OrgId = urnParts.OrgID
 	cfg.RunnerId = urnParts.RunnerID
 
-	// Auto-create connections for enrolled runner.
-	// Connections require an App Key (user-level identity), so skip when enrolling with API key only.
-	if appKey == "" {
-		p.logger.Infof("Skipping auto-connection creation: no app_key configured. Connections can be managed via Execution Groups or the UI.")
-	} else {
+	// Auto-create connections for enrolled runner; skip when enrolling with API key only.
+	if appKey != "" {
 		var actionsAllowlist = make([]string, 0, len(cfg.ActionsAllowlist))
 		for fqnPrefix := range cfg.ActionsAllowlist {
 			actionsAllowlist = append(actionsAllowlist, fqnPrefix)
