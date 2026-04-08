@@ -117,7 +117,7 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="AutoFixture.Xunit2">
-      <Version>4.18.0</Version>
+      <Version>4.18.1</Version>
     </PackageReference>
     <PackageReference Include="Fare">
       <Version>2.2.1</Version>
