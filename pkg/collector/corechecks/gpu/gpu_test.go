@@ -1058,37 +1058,7 @@ func setupMockCheckForMetricCollection(t *testing.T, archName string, mode gpusp
 }
 
 func getEmittedGPUMetricsWithTags(mockSender *mocksender.MockSender) map[string][]gpuspec.EmittedMetric {
-	metricsByName := make(map[string][]gpuspec.EmittedMetric)
-
-	for _, call := range mockSender.Mock.Calls {
-		if call.Method != "GaugeWithTimestamp" && call.Method != "CountWithTimestamp" {
-			continue
-		}
-
-		if len(call.Arguments) == 0 {
-			continue
-		}
-
-		metricName, ok := call.Arguments.Get(0).(string)
-		if !ok || !strings.HasPrefix(metricName, "gpu.") {
-			continue
-		}
-
-		specMetricName := strings.TrimPrefix(metricName, "gpu.")
-		tags := []string{}
-		if len(call.Arguments) > 3 {
-			if callTags, ok := call.Arguments.Get(3).([]string); ok {
-				tags = append([]string(nil), callTags...)
-			}
-		}
-
-		metricsByName[specMetricName] = append(metricsByName[specMetricName], gpuspec.EmittedMetric{
-			Name: specMetricName,
-			Tags: tags,
-		})
-	}
-
-	return metricsByName
+	return GetEmittedGPUMetrics(mockSender)
 }
 
 func newMockWorkloadMetaGPU(uuid string, index int, deviceType workloadmeta.GPUDeviceType, parentUUID string) *workloadmeta.GPU {

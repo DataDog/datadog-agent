@@ -96,32 +96,6 @@ func extractDeviceUUID(tags []string) string {
 	return ""
 }
 
-func collectGPUMetrics(calls []mock.Call) map[string][]gpuspec.EmittedMetric {
-	metricsByName := make(map[string][]gpuspec.EmittedMetric)
-	for _, call := range calls {
-		if call.Method != "GaugeWithTimestamp" && call.Method != "CountWithTimestamp" {
-			continue
-		}
-
-		metricName, ok := call.Arguments[0].(string)
-		if !ok || !strings.HasPrefix(metricName, "gpu.") {
-			continue
-		}
-
-		tags, ok := call.Arguments[3].([]string)
-		if !ok {
-			continue
-		}
-
-		metricsByName[metricName] = append(metricsByName[metricName], gpuspec.EmittedMetric{
-			Name: metricName,
-			Tags: append([]string(nil), tags...),
-		})
-	}
-
-	return metricsByName
-}
-
 func gpuArchToSpecName(arch nvml.DeviceArchitecture) string {
 	switch arch {
 	case nvml.DEVICE_ARCH_KEPLER:
@@ -354,7 +328,7 @@ func TestCheckRunMatchesSpecForPhysicalDevices(t *testing.T) {
 	err = checkInstance.Run()
 	require.NoError(t, err, "Check.Run() should not return an error")
 
-	metricsByName := collectGPUMetrics(mockSender.Calls)
+	metricsByName := gpu.GetEmittedGPUMetrics(mockSender)
 	require.NotEmpty(t, metricsByName)
 
 	metricsByUUID := make(map[string]map[string][]gpuspec.EmittedMetric, len(devices))
@@ -368,8 +342,7 @@ func TestCheckRunMatchesSpecForPhysicalDevices(t *testing.T) {
 				metricsByUUID[deviceUUID] = make(map[string][]gpuspec.EmittedMetric)
 			}
 
-			specMetricName := strings.TrimPrefix(metricName, metricsSpec.MetricPrefix+".")
-			metricsByUUID[deviceUUID][specMetricName] = append(metricsByUUID[deviceUUID][specMetricName], sample)
+			metricsByUUID[deviceUUID][metricName] = append(metricsByUUID[deviceUUID][metricName], sample)
 		}
 	}
 
