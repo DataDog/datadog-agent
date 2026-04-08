@@ -7,6 +7,9 @@ files:
 code_sources:
   - comp/otelcol/otlp/**/*.go
   - comp/otelcol/extensions/**/*.go
+  - pkg/serverless/otlp/*_test.go
+  - test/new-e2e/tests/otel/otlp-ingest/*_test.go
+  - test/new-e2e/tests/otel/otel-agent/*_test.go
 source_links:
   url: auto
 coverage_categories:

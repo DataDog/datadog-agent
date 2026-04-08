@@ -39,6 +39,7 @@ var minimalFullConfigDatadogExtension string
 //go:embed testdata/sources.json
 var sources string
 
+// speky:otelcol#T001 speky:otelcol#T002
 func TestOTelAgentMinimal(t *testing.T) {
 	values := `
 datadog:
