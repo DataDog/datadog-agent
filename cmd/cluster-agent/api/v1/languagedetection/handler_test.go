@@ -63,6 +63,7 @@ func TestPreHandlerSpan_FeatureDisabled(t *testing.T) {
 	span := spans[0]
 
 	assert.Equal(t, "cluster_agent.language_detection.pre_handler", span.OperationName())
+	assert.Equal(t, "preHandler", span.Tag("resource.name"))
 	assert.Equal(t, false, span.Tag("feature_enabled"))
 	// mocktracer stores the error object in the "error" tag via WithError
 	err, ok := span.Tag("error").(error)
@@ -97,6 +98,7 @@ func TestPreHandlerSpan_NilBody(t *testing.T) {
 	span := spans[0]
 
 	assert.Equal(t, "cluster_agent.language_detection.pre_handler", span.OperationName())
+	assert.Equal(t, "preHandler", span.Tag("resource.name"))
 	assert.Equal(t, true, span.Tag("feature_enabled"))
 	err, ok := span.Tag("error").(error)
 	require.True(t, ok, "error tag should be an error object from WithError")
@@ -151,6 +153,7 @@ func TestLeaderHandlerSpan_Success(t *testing.T) {
 	span := spans[0]
 
 	assert.Equal(t, "cluster_agent.language_detection.leader_handler", span.OperationName())
+	assert.Equal(t, "leaderHandler", span.Tag("resource.name"))
 	assert.Equal(t, 1, span.Tag("owner_count"))
 	assert.Nil(t, span.Tag("error"))
 }
@@ -182,6 +185,7 @@ func TestLeaderHandlerSpan_UnmarshalError(t *testing.T) {
 	span := spans[0]
 
 	assert.Equal(t, "cluster_agent.language_detection.leader_handler", span.OperationName())
+	assert.Equal(t, "leaderHandler", span.Tag("resource.name"))
 	err, ok := span.Tag("error").(error)
 	require.True(t, ok, "error tag should be an error object from WithError")
 	assert.Contains(t, err.Error(), "failed to unmarshal request body")
@@ -209,6 +213,7 @@ func TestHandleLeadershipState_BecameLeader(t *testing.T) {
 	span := spans[0]
 
 	assert.Equal(t, "cluster_agent.language_detection.leadership_change", span.OperationName())
+	assert.Equal(t, "leadershipChange", span.Tag("resource.name"))
 	assert.Equal(t, "leader", span.Tag("became"))
 }
 
@@ -243,6 +248,7 @@ func TestHandleLeadershipState_BecameFollower(t *testing.T) {
 	span := spans[0]
 
 	assert.Equal(t, "cluster_agent.language_detection.leadership_change", span.OperationName())
+	assert.Equal(t, "leadershipChange", span.Tag("resource.name"))
 	assert.Equal(t, "follower", span.Tag("became"))
 }
 

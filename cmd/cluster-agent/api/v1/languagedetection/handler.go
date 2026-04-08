@@ -79,7 +79,9 @@ func (handler *languageDetectionHandler) startCleanupInBackground(ctx context.Co
 			case <-cleanupTicker.C:
 				// Only clean expired languages if we're the leader
 				if handler.isLeader() {
-					span, _ := tracer.StartSpanFromContext(ctx, "cluster_agent.language_detection.cleanup")
+					span, _ := tracer.StartSpanFromContext(ctx, "cluster_agent.language_detection.cleanup",
+						tracer.ResourceName("cleanup"),
+					)
 					handler.ownersLanguages.cleanExpiredLanguages(handler.wlm)
 					span.Finish()
 				}
@@ -98,7 +100,9 @@ func (handler *languageDetectionHandler) startCleanupInBackground(ctx context.Co
 			select {
 			case <-flushTicker.C:
 				if !handler.isLeader() {
-					span, _ := tracer.StartSpanFromContext(ctx, "cluster_agent.language_detection.flush")
+					span, _ := tracer.StartSpanFromContext(ctx, "cluster_agent.language_detection.flush",
+						tracer.ResourceName("flush"),
+					)
 					err := handler.ownersLanguages.flush(handler.wlm)
 					span.Finish(tracer.WithError(err))
 				}
@@ -121,6 +125,7 @@ func (handler *languageDetectionHandler) startCleanupInBackground(ctx context.Co
 func (handler *languageDetectionHandler) preHandler(w http.ResponseWriter, r *http.Request) bool {
 	var spanErr error
 	span, _ := tracer.StartSpanFromContext(r.Context(), "cluster_agent.language_detection.pre_handler",
+		tracer.ResourceName("preHandler"),
 		tracer.Tag("feature_enabled", handler.cfg.enabled),
 	)
 	defer func() { span.Finish(tracer.WithError(spanErr)) }()
@@ -148,7 +153,9 @@ func (handler *languageDetectionHandler) preHandler(w http.ResponseWriter, r *ht
 // leaderHandler is called only by the leader and used to patch the annotations
 func (handler *languageDetectionHandler) leaderHandler(w http.ResponseWriter, r *http.Request) {
 	var spanErr error
-	span, _ := tracer.StartSpanFromContext(r.Context(), "cluster_agent.language_detection.leader_handler")
+	span, _ := tracer.StartSpanFromContext(r.Context(), "cluster_agent.language_detection.leader_handler",
+		tracer.ResourceName("leaderHandler"),
+	)
 	defer func() { span.Finish(tracer.WithError(spanErr)) }()
 
 	body, err := io.ReadAll(r.Body)
@@ -298,6 +305,7 @@ func (handler *languageDetectionHandler) handleLeadershipState(ctx context.Conte
 	if isLeader {
 		// Became leader
 		span, _ := tracer.StartSpanFromContext(ctx, "cluster_agent.language_detection.leadership_change",
+			tracer.ResourceName("leadershipChange"),
 			tracer.Tag("became", "leader"),
 		)
 		span.Finish()
@@ -314,6 +322,7 @@ func (handler *languageDetectionHandler) handleLeadershipState(ctx context.Conte
 	} else {
 		// Lost leadership
 		span, _ := tracer.StartSpanFromContext(ctx, "cluster_agent.language_detection.leadership_change",
+			tracer.ResourceName("leadershipChange"),
 			tracer.Tag("became", "follower"),
 		)
 		span.Finish()
