@@ -2026,16 +2026,17 @@ def eval_component_workspace_report(
     only_report: bool = False,
 ):
     """
-    Check whether eval_component has finished on a workspace and copy results locally.
+    After ``q.eval-component`` on a remote dev workspace, copy results to your machine.
 
-    If ``report.json`` exists the full output directory is copied to ``local_dir``
-    via ``scp -r`` (or just ``report.json`` when ``--only-report`` is passed).
-    If the report is not yet present, prints a hint to attach to the session.
+    SSH host is ``workspace-<workspace_name>`` (same as ``workspaces.create``). If
+    ``report.json`` exists under ``output_dir``, copies the tree to ``local_dir``
+    via ``scp -r`` (or only ``report.json`` with ``--only-report``). If the report
+    is missing, eval may still be running — reattach to the tmux session on the host.
 
     Args:
-        workspace_name: Name of the workspace.
-        output_dir:     Remote output directory (default matches eval_component_on_workspace).
-        local_dir:      Local destination directory (default: ``./eval-results/<workspace_name>``).
+        workspace_name: Workspace name (SSH: ``workspace-<name>``).
+        output_dir:     Remote directory passed to ``q.eval-component`` (default: ``/tmp/observer-component-eval``).
+        local_dir:      Local destination (default: ``./eval-results/<workspace_name>``).
         only_report:    Copy only ``report.json`` instead of the full output directory.
 
     Example:
@@ -2062,8 +2063,8 @@ def eval_component_workspace_report(
                 Color.ORANGE,
             )
         )
-        print(color_message("  Attach to watch live progress:", Color.BLUE))
-        print(color_message(f"    dda inv q.eval-component-workspace-attach --workspace-name {ws_name}", Color.BLUE))
+        print(color_message("  Reattach to the workspace tmux session to watch progress:", Color.BLUE))
+        print(color_message(f"    dda inv workspaces.tmux-attach --name {ws_name}", Color.BLUE))
         return
 
     dest = local_dir.strip() or os.path.join("eval-results", ws_name)
