@@ -48,8 +48,7 @@ const (
 	evtWinlogonInitDone      uint16 = 102
 	evtLoginUIStart          uint16 = 103
 	evtLoginUIDone           uint16 = 104
-	evtLogonStart            uint16 = 5001
-	evtLogonStop             uint16 = 5002
+	evtSessionLogon          uint16 = 7001
 
 	// User Profile Service
 	evtProfileLoadStart     uint16 = 1
@@ -79,8 +78,7 @@ type BootTimeline struct {
 	WinlogonStart                time.Time // Kernel-Process Event 1 (first winlogon.exe, Session 1)
 	UserSmssStart                time.Time // Kernel-Process Event 1 (smss.exe, Session 2+)
 	UserWinlogonStart            time.Time // Kernel-Process Event 1 (winlogon.exe, Session 2+)
-	LogonStart                   time.Time // Winlogon Event 5001
-	LogonStop                    time.Time // Winlogon Event 5002
+	SessionLogon                 time.Time // Winlogon Event 7001 (Session Logon)
 	ProfileLoadStart             time.Time // User Profile Service Event 1
 	ProfileLoadEnd               time.Time // User Profile Service Event 2
 	ProfileCreationStart         time.Time // User Profile Service Event 1001
@@ -162,7 +160,7 @@ func buildProviders(timeline *BootTimeline) map[windows.GUID]providerConfig {
 				evtWinlogonShellCmdStart: {}, evtWinlogonShellCmdEnd: {},
 				evtWinlogonInit: {}, evtWinlogonInitDone: {},
 				evtLoginUIStart: {}, evtLoginUIDone: {},
-				evtLogonStart: {}, evtLogonStop: {},
+				evtSessionLogon: {},
 			},
 			parser: &winlogonParser{timeline: timeline},
 		},
@@ -357,13 +355,9 @@ func (p *winlogonParser) Parse(_ eventWithProperties, id uint16, ts time.Time) {
 		if p.timeline.ExecuteShellCommandListEnd.IsZero() {
 			p.timeline.ExecuteShellCommandListEnd = ts
 		}
-	case evtLogonStart:
-		if p.timeline.LogonStart.IsZero() {
-			p.timeline.LogonStart = ts
-		}
-	case evtLogonStop:
-		if p.timeline.LogonStop.IsZero() {
-			p.timeline.LogonStop = ts
+	case evtSessionLogon:
+		if p.timeline.SessionLogon.IsZero() {
+			p.timeline.SessionLogon = ts
 		}
 	}
 }

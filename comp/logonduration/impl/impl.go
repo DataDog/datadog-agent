@@ -29,10 +29,11 @@ type Provides struct {
 
 // Milestone represents a single event in the boot/logon timeline.
 type Milestone struct {
-	Name      string  `json:"name"`
-	OffsetS   float64 `json:"offset_s"`
-	DurationS float64 `json:"duration_s"`
-	Timestamp string  `json:"timestamp"`
+	ID         string  `json:"id"`
+	Name       string  `json:"name"`
+	OffsetMs   float64 `json:"offset_ms"`
+	DurationMs float64 `json:"duration_ms"`
+	Timestamp  string  `json:"timestamp"`
 }
 
 // eventInput holds the data needed to build and send a logon duration event.
@@ -55,7 +56,7 @@ func buildEventPayload(input eventInput) (map[string]interface{}, error) {
 				"category":       "alert",
 				"integration_id": "system-notable-events",
 				"system-notable-events": map[string]interface{}{
-					"event_type": "Logon duration",
+					"event_type": "logon_duration",
 				},
 				"attributes": map[string]interface{}{
 					"status":   "ok",
