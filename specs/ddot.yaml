@@ -5,6 +5,16 @@ files:
   - specs/ddot/*.yaml
   - specs/ddot/tests/*.yaml
   - specs/otelcol.yaml
-code_sources: []
+code_sources:
+  - comp/otelcol/converter/**/*.go
+  - comp/otelcol/collector/**/*.go
+  - comp/otelcol/ddflareextension/**/*.go
+  - comp/otelcol/ddprofilingextension/**/*.go
+  - comp/otelcol/status/**/*.go
+  - comp/otelcol/logsagentpipeline/**/*.go
+  - cmd/otel-agent/*.go
 source_links:
   url: auto
+coverage_categories:
+  - functional
+  - non-functional

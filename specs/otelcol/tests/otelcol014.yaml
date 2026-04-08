@@ -88,7 +88,7 @@ tests:
           DD_CMD_PORT=0 DD_AGENT_IPC_PORT=0 DD_AGENT_IPC_CONFIG_REFRESH_INTERVAL=0 \
           DD_ENABLE_METADATA_COLLECTION=false DD_HOSTNAME=<hostname> \
           DD_OTELCOLLECTOR_CONVERTER_FEATURES="health_check,zpages,pprof" \
-          ./otel-agent --config 'yaml:receivers:
+          ./otel-agent --config "yaml:receivers:
           otlp:
             protocols:
               grpc:
@@ -101,7 +101,7 @@ tests:
             traces:
               receivers: [otlp]
               exporters: [debug]
-        '
+        "
       expected: |
         [...]
         [...] | OTELCOL | INFO | (...) | [...]endpoint:127.0.0.1:4317 | Starting GRPC server
@@ -122,7 +122,7 @@ tests:
   steps:
     - action: Store the full configuration in an environment variable and start the otel-agent
       run: |
-        OTEL_CONFIG='receivers:
+        OTEL_CONFIG="receivers:
           otlp:
             protocols:
               grpc:
@@ -135,7 +135,7 @@ tests:
             traces:
               receivers: [otlp]
               exporters: [debug]
-        ' \
+        " \
           DD_OTELCOLLECTOR_ENABLED=true DD_API_KEY=<key> DD_SITE=datadoghq.com \
           DD_CMD_PORT=0 DD_AGENT_IPC_PORT=0 DD_AGENT_IPC_CONFIG_REFRESH_INTERVAL=0 \
           DD_ENABLE_METADATA_COLLECTION=false DD_HOSTNAME=<hostname> \

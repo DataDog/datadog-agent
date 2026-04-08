@@ -4,6 +4,11 @@ root_directory: ..
 files:
   - specs/otelcol/*.yaml
   - specs/otelcol/tests/*.yaml
-code_sources: []
+code_sources:
+  - comp/otelcol/otlp/**/*.go
+  - comp/otelcol/extensions/**/*.go
 source_links:
   url: auto
+coverage_categories:
+  - functional
+  - non-functional

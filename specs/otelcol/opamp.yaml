@@ -8,5 +8,9 @@ code_sources:
   - comp/otelcol/collector/impl/*.go
   - comp/otelcol/converter/impl/*.go
   - comp/otelcol/extensions/opamp/*.go
+  - test/new-e2e/tests/otel/otel-agent/scripts/test-opamp-*.sh
 source_links:
   url: auto
+coverage_categories:
+  - functional
+  - non-functional
