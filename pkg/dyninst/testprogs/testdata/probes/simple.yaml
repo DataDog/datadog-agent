@@ -1629,6 +1629,329 @@ probes:
   sampling:
     snapshotsPerSecond: 10
 
+# --- Index expression tests ---
+
+# Capture expression: int slice index
+- id: indexIntSlice_capture
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.intSliceArg
+  captureExpressions:
+    - name: "s_1"
+      expr:
+        dsl: "s[1]"
+        json: {index: [{ref: "s"}, 1]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# Capture expression: int array index
+- id: indexIntArray_capture
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.intArrayArg
+  captureExpressions:
+    - name: "s_1"
+      expr:
+        dsl: "s[1]"
+        json: {index: [{ref: "s"}, 1]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# Capture expression: string slice index
+- id: indexStringSlice_capture
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.stringSliceArg
+  captureExpressions:
+    - name: "s_0"
+      expr:
+        dsl: "s[0]"
+        json: {index: [{ref: "s"}, 0]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# Capture expression: string array index
+- id: indexStringArray_capture
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.stringArrayArg
+  captureExpressions:
+    - name: "s_1"
+      expr:
+        dsl: "s[1]"
+        json: {index: [{ref: "s"}, 1]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# Template with index expression
+- id: indexIntSlice_template
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.intSliceArg
+  template: "s[1]: {s[1]}"
+  segments:
+    - str: "s[1]: "
+    - json: {index: [{ref: "s"}, 1]}
+      dsl: "s[1]"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Condition on slice element
+- id: indexIntSlice_cond
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.intSliceArg
+  when:
+    dsl: "s[1] == 2"
+    json: {eq: [{index: [{ref: "s"}, 1]}, 2]}
+  template: "matched"
+  segments:
+    - str: "matched"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Condition on array element
+- id: indexIntArray_cond
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.intArrayArg
+  when:
+    dsl: "s[1] == 2"
+    json: {eq: [{index: [{ref: "s"}, 1]}, 2]}
+  template: "matched"
+  segments:
+    - str: "matched"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Big array: first element — proves index only reads 8 bytes, not 1MiB
+- id: indexBigArray_first
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.bigArrayArg
+  captureExpressions:
+    - name: "s_0"
+      expr:
+        dsl: "s[0]"
+        json: {index: [{ref: "s"}, 0]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# Big array: last element — offset 131071*8 = 1048568 bytes into array
+- id: indexBigArray_last
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.bigArrayArg
+  captureExpressions:
+    - name: "s_131071"
+      expr:
+        dsl: "s[131071]"
+        json: {index: [{ref: "s"}, 131071]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# Big array behind pointer+struct: s.data[131071]
+- id: indexBigArrayStruct_last
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.bigArrayStructArg
+  captureExpressions:
+    - name: "data_last"
+      expr:
+        dsl: "s.data[131071]"
+        json: {index: [{getmember: [{ref: "s"}, "data"]}, 131071]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# Index into slice field of a struct (struct → slice → index):
+# x.Items is []int{1,2,3}, so x.Items[2] should be 3
+- id: indexStructSliceField_capture
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenStructFields
+  captureExpressions:
+    - name: "items_2"
+      expr:
+        dsl: "x.Items[2]"
+        json: {index: [{getmember: [{ref: "x"}, "Items"]}, 2]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# Index into slice field of a pointer-to-struct (*struct → slice → index):
+# x.Items is []int{1,2,3}, so x.Items[0] should be 1
+- id: indexPtrStructSliceField_capture
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.lenPtrStructFields
+  captureExpressions:
+    - name: "items_0"
+      expr:
+        dsl: "x.Items[0]"
+        json: {index: [{getmember: [{ref: "x"}, "Items"]}, 0]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- Index expression error cases ---
+
+# Out-of-bounds index on array: s[3] on [3]int.
+# The probe should compile successfully. At runtime, the eBPF reads past the
+# array, which will either read garbage or fail the probe_read. The evaluation
+# error surfaces in the snapshot output, not at IR generation time.
+- id: indexErr_array_oob_capture
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.intArrayArg
+  captureExpressions:
+    - name: "s_3"
+      expr:
+        dsl: "s[3]"
+        json: {index: [{ref: "s"}, 3]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# Out-of-bounds index on array in template
+- id: indexErr_array_oob_template
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.intArrayArg
+  template: "s[3]: {s[3]}"
+  segments:
+    - str: "s[3]: "
+    - json: {index: [{ref: "s"}, 3]}
+      dsl: "s[3]"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Out-of-bounds index on array in condition: currently fails the probe at
+# IR generation because condition resolution errors are fatal. This matches
+# the existing behavior for all condition expression failures. A future
+# refactor should make this a runtime eval error (Java behavior: condition
+# returns false + conditionErrors).
+- id: indexErr_array_oob_cond
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.intArrayArg
+  when:
+    dsl: "s[3] == 42"
+    json: {eq: [{index: [{ref: "s"}, 3]}, 42]}
+  template: "matched"
+  segments:
+    - str: "matched"
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionExpressionUnresolvable"
+
+# Out-of-bounds index on slice: s[5] on []int{1, 2, 3}.
+# The bounds check happens at BPF runtime. The expression status should be OOB.
+- id: indexErr_slice_oob_capture
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.intSliceArg
+  captureExpressions:
+    - name: "s_5"
+      expr:
+        dsl: "s[5]"
+        json: {index: [{ref: "s"}, 5]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# Out-of-bounds index on slice in template
+- id: indexErr_slice_oob_template
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.intSliceArg
+  template: "s[5]: {s[5]}"
+  segments:
+    - str: "s[5]: "
+    - json: {index: [{ref: "s"}, 5]}
+      dsl: "s[5]"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Out-of-bounds index on slice in condition: s[5] == 42 on []int{1, 2, 3}.
+# The bounds check fires at BPF runtime, aborting the condition expression.
+# ConditionBegin sets condition_eval_error=true; the abort prevents
+# ConditionCheck from clearing it, so the probe fires with a condition
+# evaluation error (same as nil-deref in a condition).
+- id: indexErr_slice_oob_cond
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.intSliceArg
+  when:
+    dsl: "s[5] == 42"
+    json: {eq: [{index: [{ref: "s"}, 5]}, 42]}
+  template: "matched"
+  segments:
+    - str: "matched"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Nil pointer + index: x.Items[0] where x is *lenFields.
+# Called twice: once with valid pointer, once nil.
+# Capture expression with nil ptr should emit event with eval error.
+- id: indexNilPtr_capture
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.indexNilPtrSlice
+  captureExpressions:
+    - name: "items_0"
+      expr:
+        dsl: "x.Items[0]"
+        json: {index: [{getmember: [{ref: "x"}, "Items"]}, 0]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# Nil pointer + index in template
+- id: indexNilPtr_template
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.indexNilPtrSlice
+  template: "items[0]: {x.Items[0]}"
+  segments:
+    - str: "items[0]: "
+    - json: {index: [{getmember: [{ref: "x"}, "Items"]}, 0]}
+      dsl: "x.Items[0]"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Nil pointer + index in condition
+- id: indexNilPtr_cond
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.indexNilPtrSlice
+  when:
+    dsl: "x.Items[0] == 10"
+    json: {eq: [{index: [{getmember: [{ref: "x"}, "Items"]}, 0]}, 10]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
 # --- Generic function probe ---
 # Exercises two things:
 # 1. Runtime dictionary ops: genericIdentity is called with int and string,

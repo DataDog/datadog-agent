@@ -3959,6 +3959,9 @@ func resolveIndexExpression(
 	if idx < 0 {
 		return ir.Expression{}, fmt.Errorf("index must be non-negative, got %d", idx)
 	}
+	if idx > math.MaxUint32 {
+		return ir.Expression{}, fmt.Errorf("index %d exceeds maximum (%d)", idx, math.MaxUint32)
+	}
 
 	// Resolve the base expression.
 	baseExpr, err := resolveExpression(e.Base, rootVar, tc)
@@ -4043,21 +4046,27 @@ func resolveSliceIndex(
 		return ir.Expression{}, errors.New("no operations to adjust for slice index")
 	}
 
-	// Narrow the last operation to read only the data pointer (first field,
-	// offset 0 in the slice header). The data pointer is at the start of
-	// the header, so we keep the existing offset/bias and just change the
-	// byte size.
+	// Read the data pointer and length from the slice header. We need both
+	// fields (2 * ptrSize bytes) so the bounds check can validate the index
+	// against the runtime length.
 	lastOp := operations[len(operations)-1]
 	switch op := lastOp.(type) {
 	case *ir.LocationOp:
-		op.ByteSize = ptrSize
+		op.ByteSize = 2 * ptrSize
 	case *ir.DereferenceOp:
-		op.ByteSize = ptrSize
+		op.ByteSize = 2 * ptrSize
 	default:
 		return ir.Expression{}, fmt.Errorf(
 			"unexpected last operation type %T for slice index", lastOp,
 		)
 	}
+
+	// Validate index < len at runtime. On success this is a no-op; the data
+	// pointer remains at byte 0 of the scratch region for the following
+	// dereference. On failure it writes ExprStatusOOB and aborts.
+	operations = append(operations, &ir.SliceBoundsCheckOp{
+		Index: uint32(idx),
+	})
 
 	// Dereference the data pointer and read the element.
 	operations = append(operations, &ir.DereferenceOp{
@@ -4609,12 +4618,12 @@ func populateEventExpressions(
 			DictIndex:  v.DictIndex,
 		})
 	}
-	presenceBitsetSize := uint32((2*len(expressions) + 7) / 8)
-	byteSize := uint64(presenceBitsetSize)
+	exprStatusArraySize := uint32((ir.ExprStatusBits*len(expressions) + 7) / 8)
+	byteSize := uint64(exprStatusArraySize)
 
 	// Build dict entries for generic shape functions. Each dict entry
-	// occupies 8 bytes in the event output (after presence bitset, before
-	// expressions). The eBPF resolves the runtime type at probe time.
+	// occupies 8 bytes in the event output (after expression status array,
+	// before expressions). The eBPF resolves the runtime type at probe time.
 	// Only emit entries for dict indices actually referenced by expressions
 	// in this event.
 	var dictEntries []ir.DictEntry
@@ -4654,9 +4663,9 @@ func populateEventExpressions(
 			Name:     fmt.Sprintf("Probe[%s]%s", inst.Subprogram.Name, eventKind),
 			ByteSize: uint32(byteSize),
 		},
-		PresenceBitsetSize: presenceBitsetSize,
-		DictEntries:        dictEntries,
-		Expressions:        expressions,
+		ExprStatusArraySize: exprStatusArraySize,
+		DictEntries:         dictEntries,
+		Expressions:         expressions,
 	}
 	typeCatalog.typesByID[event.Type.ID] = event.Type
 	return ir.Issue{}
