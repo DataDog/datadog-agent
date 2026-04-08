@@ -1,14 +1,11 @@
 connectors:
   datadog/connector:
     traces:
-      bucket_interval: 10000000000
       compute_stats_by_span_kind: true
       compute_top_level_by_span_kind: true
-      ignore_missing_datadog_fields: false
       ignore_resources: []
       peer_tags: null
       peer_tags_aggregation: true
-      resource_attributes_as_container_tags: null
       span_name_as_resource_name: false
       span_name_remappings: null
 exporters:
