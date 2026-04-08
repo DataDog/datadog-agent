@@ -79,6 +79,7 @@ from tasks.system_probe import (
     build_rust_binaries,
     check_for_ninja,
     compute_go_parallelism,
+    ebpf_bazel_flags,
     get_ebpf_build_dir,
     get_ebpf_runtime_dir,
     get_sysprobe_test_buildtags,
@@ -1051,7 +1052,7 @@ def build_object_files(ctx, fp, arch: Arch):
     build_dir = get_ebpf_build_dir(arch)
     runtime_dir = get_ebpf_runtime_dir()
     bazel_build_ebpf(ctx, arch, str(build_dir), str(runtime_dir), strip=False)
-    bazel(ctx, "test", "//pkg/ebpf:verify_generated_files")
+    bazel(ctx, "test", *ebpf_bazel_flags(arch), "//pkg/ebpf:verify_generated_files")
 
     info(f"[+] Building non-eBPF artifacts via ninja... {fp}")
     ninja_generate(ctx, fp, arch=arch)
