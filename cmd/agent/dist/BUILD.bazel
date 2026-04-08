@@ -6,7 +6,6 @@ load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_fil
 pkg_files(
     name = "all_files",
     srcs = [
-        "//pkg/config:security_agent_config",
         "//pkg/config:system_probe_config",
     ] + select({
         "//packages/agent:iot_flavor": [
