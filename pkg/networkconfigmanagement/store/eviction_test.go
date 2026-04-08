@@ -76,9 +76,7 @@ func TestGetGlobalLRUCandidate(t *testing.T) {
 			{ConfigUUID: "uuid-2", DeviceID: "device:10.0.0.1", LastAccessedAt: 200},
 		}
 		// K=2: device has exactly 2 configs, none are evictable
-		candidate, remaining := getGlobalLRUCandidate(countMap, entries, 2)
-		assert.Empty(t, candidate)
-		assert.Len(t, remaining, 2)
+		assert.Empty(t, getGlobalLRUCandidate(countMap, entries, 2))
 	})
 
 	t.Run("returns oldest evictable config UUID", func(t *testing.T) {
@@ -89,12 +87,7 @@ func TestGetGlobalLRUCandidate(t *testing.T) {
 			{ConfigUUID: "uuid-newest", DeviceID: "device:10.0.0.1", LastAccessedAt: 300},
 		}
 		// K=2: device has 3, oldest is the LRU candidate
-		candidate, remaining := getGlobalLRUCandidate(countMap, entries, 2)
-		assert.Equal(t, "uuid-oldest", candidate)
-		assert.Equal(t, []*ConfigMetadata{
-			{ConfigUUID: "uuid-middle", DeviceID: "device:10.0.0.1", LastAccessedAt: 200},
-			{ConfigUUID: "uuid-newest", DeviceID: "device:10.0.0.1", LastAccessedAt: 300},
-		}, remaining)
+		assert.Equal(t, "uuid-oldest", getGlobalLRUCandidate(countMap, entries, 2))
 	})
 
 	t.Run("skips pinned configs", func(t *testing.T) {
@@ -104,8 +97,7 @@ func TestGetGlobalLRUCandidate(t *testing.T) {
 			{ConfigUUID: "uuid-evictable", DeviceID: "device:10.0.0.1", LastAccessedAt: 200},
 			{ConfigUUID: "uuid-newest", DeviceID: "device:10.0.0.1", LastAccessedAt: 300},
 		}
-		candidate, _ := getGlobalLRUCandidate(countMap, entries, 2)
-		assert.Equal(t, "uuid-evictable", candidate)
+		assert.Equal(t, "uuid-evictable", getGlobalLRUCandidate(countMap, entries, 2))
 	})
 
 	t.Run("returns globally oldest evictable config across multiple devices", func(t *testing.T) {
@@ -122,8 +114,19 @@ func TestGetGlobalLRUCandidate(t *testing.T) {
 			{ConfigUUID: "uuid-d2-new", DeviceID: "device:10.0.0.2", LastAccessedAt: 350},
 		}
 		// device:10.0.0.2's oldest (ts=50) is globally older than device:10.0.0.1's oldest (ts=100)
-		candidate, _ := getGlobalLRUCandidate(countMap, entries, 2)
-		assert.Equal(t, "uuid-d2-oldest", candidate)
+		assert.Equal(t, "uuid-d2-oldest", getGlobalLRUCandidate(countMap, entries, 2))
+	})
+
+	t.Run("does not mutate index", func(t *testing.T) {
+		countMap := map[string]int{"device:10.0.0.1": 3}
+		entries := []*ConfigMetadata{
+			{ConfigUUID: "uuid-oldest", DeviceID: "device:10.0.0.1", LastAccessedAt: 100},
+			{ConfigUUID: "uuid-middle", DeviceID: "device:10.0.0.1", LastAccessedAt: 200},
+			{ConfigUUID: "uuid-newest", DeviceID: "device:10.0.0.1", LastAccessedAt: 300},
+		}
+		getGlobalLRUCandidate(countMap, entries, 2)
+		assert.Equal(t, 3, countMap["device:10.0.0.1"])
+		assert.Len(t, entries, 3)
 	})
 }
 
@@ -136,9 +139,7 @@ func TestGetEvictableExceedingMax(t *testing.T) {
 			{ConfigUUID: "uuid-3", DeviceID: "device:10.0.0.1", LastAccessedAt: 300},
 		}
 		// N=3: device has exactly 3 total, not over cap
-		evictable, remaining := getEvictableExceedingMax(countMap, entries, 3)
-		assert.Empty(t, evictable)
-		assert.Len(t, remaining, 3)
+		assert.Empty(t, getEvictableExceedingMax(countMap, entries, 3))
 	})
 
 	t.Run("returns configs until device is within N", func(t *testing.T) {
@@ -148,11 +149,7 @@ func TestGetEvictableExceedingMax(t *testing.T) {
 			{ConfigUUID: "uuid-2", DeviceID: "device:10.0.0.1", LastAccessedAt: 200},
 			{ConfigUUID: "uuid-3", DeviceID: "device:10.0.0.1", LastAccessedAt: 300},
 		}
-		evictable, remaining := getEvictableExceedingMax(countMap, entries, 1)
-		assert.Equal(t, []string{"uuid-1", "uuid-2"}, evictable)
-		assert.Equal(t, []*ConfigMetadata{
-			{ConfigUUID: "uuid-3", DeviceID: "device:10.0.0.1", LastAccessedAt: 300},
-		}, remaining)
+		assert.Equal(t, []string{"uuid-1", "uuid-2"}, getEvictableExceedingMax(countMap, entries, 1))
 	})
 
 	t.Run("returns configs until all devices are within N", func(t *testing.T) {
@@ -165,7 +162,57 @@ func TestGetEvictableExceedingMax(t *testing.T) {
 			{ConfigUUID: "uuid-5", DeviceID: "device:10.0.0.2", LastAccessedAt: 500},
 			{ConfigUUID: "uuid-6", DeviceID: "device:10.0.0.2", LastAccessedAt: 600},
 		}
-		evictable, _ := getEvictableExceedingMax(countMap, entries, 1)
-		assert.Equal(t, []string{"uuid-1", "uuid-2", "uuid-4", "uuid-5"}, evictable)
+		assert.Equal(t, []string{"uuid-1", "uuid-2", "uuid-4", "uuid-5"}, getEvictableExceedingMax(countMap, entries, 1))
+	})
+
+	t.Run("does not mutate index", func(t *testing.T) {
+		countMap := map[string]int{"device:10.0.0.1": 3}
+		entries := []*ConfigMetadata{
+			{ConfigUUID: "uuid-1", DeviceID: "device:10.0.0.1", LastAccessedAt: 100},
+			{ConfigUUID: "uuid-2", DeviceID: "device:10.0.0.1", LastAccessedAt: 200},
+			{ConfigUUID: "uuid-3", DeviceID: "device:10.0.0.1", LastAccessedAt: 300},
+		}
+		getEvictableExceedingMax(countMap, entries, 1)
+		assert.Equal(t, 3, countMap["device:10.0.0.1"])
+		assert.Len(t, entries, 3)
+	})
+}
+
+func TestUpdateEvictionIndex(t *testing.T) {
+	t.Run("removes entry and decrements device count", func(t *testing.T) {
+		countMap := map[string]int{"device:10.0.0.1": 3}
+		entries := []*ConfigMetadata{
+			{ConfigUUID: "uuid-oldest", DeviceID: "device:10.0.0.1", LastAccessedAt: 100},
+			{ConfigUUID: "uuid-middle", DeviceID: "device:10.0.0.1", LastAccessedAt: 200},
+			{ConfigUUID: "uuid-newest", DeviceID: "device:10.0.0.1", LastAccessedAt: 300},
+		}
+		updatedMap, updatedEntries := updateEvictionIndex(countMap, entries, "uuid-oldest")
+		assert.Equal(t, 2, updatedMap["device:10.0.0.1"])
+		assert.Equal(t, []*ConfigMetadata{
+			{ConfigUUID: "uuid-middle", DeviceID: "device:10.0.0.1", LastAccessedAt: 200},
+			{ConfigUUID: "uuid-newest", DeviceID: "device:10.0.0.1", LastAccessedAt: 300},
+		}, updatedEntries)
+	})
+
+	t.Run("only decrements the device whose entry was removed", func(t *testing.T) {
+		countMap := map[string]int{"device:10.0.0.1": 2, "device:10.0.0.2": 2}
+		entries := []*ConfigMetadata{
+			{ConfigUUID: "uuid-d1", DeviceID: "device:10.0.0.1", LastAccessedAt: 100},
+			{ConfigUUID: "uuid-d2", DeviceID: "device:10.0.0.2", LastAccessedAt: 200},
+		}
+		updatedMap, _ := updateEvictionIndex(countMap, entries, "uuid-d1")
+		assert.Equal(t, 1, updatedMap["device:10.0.0.1"])
+		assert.Equal(t, 2, updatedMap["device:10.0.0.2"])
+	})
+
+	t.Run("key not present leaves index unchanged", func(t *testing.T) {
+		countMap := map[string]int{"device:10.0.0.1": 2}
+		entries := []*ConfigMetadata{
+			{ConfigUUID: "uuid-1", DeviceID: "device:10.0.0.1", LastAccessedAt: 100},
+			{ConfigUUID: "uuid-2", DeviceID: "device:10.0.0.1", LastAccessedAt: 200},
+		}
+		updatedMap, updatedEntries := updateEvictionIndex(countMap, entries, "uuid-does-not-exist")
+		assert.Equal(t, 2, updatedMap["device:10.0.0.1"])
+		assert.Len(t, updatedEntries, 2)
 	})
 }

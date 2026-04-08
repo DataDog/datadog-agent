@@ -255,39 +255,56 @@ func (cs *ConfigStore) buildEvictionIndex() (configsPerDevice map[string]int, en
 	return configsPerDevice, entries, nil
 }
 
-// getEvictableExceedingN returns UUIDs of configs to evict due to the per-device cap N
-// For each device whose total config count exceeds N, evict the oldest evictable configs
-// This function should be called first before calling for the global LRU candidate
-func getEvictableExceedingMax(configsPerDevice map[string]int, sortedEntries []*ConfigMetadata, maxRetainedConfigs int) ([]string, []*ConfigMetadata) {
+// getEvictableExceedingMax returns UUIDs of configs to evict due to the per-device cap N.
+// For each device whose total config count exceeds N, evict the oldest evictable configs.
+// This function should be called first before calling for the global LRU candidate.
+// It does not mutate the index; call updateEvictionIndex with the returned UUIDs to apply changes.
+func getEvictableExceedingMax(configsPerDevice map[string]int, sortedEntries []*ConfigMetadata, maxRetainedConfigs int) []string {
 	var evictable []string
-	var remaining []*ConfigMetadata
+	pendingEvictions := make(map[string]int)
 
 	for _, entry := range sortedEntries {
-		if entry.IsPinned || configsPerDevice[entry.DeviceID] <= maxRetainedConfigs {
-			remaining = append(remaining, entry)
+		if entry.IsPinned {
+			continue
+		}
+		if configsPerDevice[entry.DeviceID]-pendingEvictions[entry.DeviceID] <= maxRetainedConfigs {
 			continue
 		}
 		evictable = append(evictable, entry.ConfigUUID)
-		configsPerDevice[entry.DeviceID]--
+		pendingEvictions[entry.DeviceID]++
 	}
-	return evictable, remaining
+	return evictable
 }
 
 // getGlobalLRUCandidate returns the UUID of the single oldest evictable config (rule 3).
 // A config is evictable if it is: 1) not pinned, 2) its device exceeds minRetainedConfigs.
 // Returns an empty string if no evictable config exists.
-func getGlobalLRUCandidate(configsPerDevice map[string]int, sortedEntries []*ConfigMetadata, minRetainedConfigs int) (string, []*ConfigMetadata) {
-	for i, entry := range sortedEntries {
+// It does not mutate the index; call updateEvictionIndex with the returned UUID to apply changes.
+func getGlobalLRUCandidate(configsPerDevice map[string]int, sortedEntries []*ConfigMetadata, minRetainedConfigs int) string {
+	for _, entry := range sortedEntries {
 		if entry.IsPinned {
 			continue
 		}
 		if configsPerDevice[entry.DeviceID] > minRetainedConfigs {
-			remaining := make([]*ConfigMetadata, 0, len(sortedEntries)-1)
-			remaining = append(remaining, sortedEntries[:i]...)
-			remaining = append(remaining, sortedEntries[i+1:]...)
-			configsPerDevice[entry.DeviceID]--
-			return entry.ConfigUUID, remaining
+			return entry.ConfigUUID
 		}
 	}
-	return "", sortedEntries
+	return ""
+}
+
+// updateEvictionIndex removes a single config key from both index data structures.
+// Both the updated configsPerDevice map and sortedEntries slice are returned to make
+// it explicit that both structures are outputs of this operation.
+func updateEvictionIndex(configsPerDevice map[string]int, sortedEntries []*ConfigMetadata, key string) (map[string]int, []*ConfigMetadata) {
+	configsPerDevice[entry.DeviceID]--
+	
+	var remaining []*ConfigMetadata
+	for _, entry := range sortedEntries {
+		if entry.ConfigUUID == key {
+			continue
+		}
+		remaining = append(remaining, entry)
+	}
+
+	return configsPerDevice, remaining
 }
