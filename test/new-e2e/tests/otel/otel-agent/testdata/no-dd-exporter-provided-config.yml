@@ -24,7 +24,7 @@ exporters:
       histograms:
         mode: distributions
         send_aggregation_metrics: false
-        send_count_sum_metrics: false
+
       instrumentation_scope_metadata_as_tags: true
       resource_attributes_as_tags: false
       summaries:
@@ -56,12 +56,10 @@ exporters:
       compute_stats_by_span_kind: true
       compute_top_level_by_span_kind: true
       ignore_resources: []
-      peer_service_aggregation: true
       peer_tags: []
       peer_tags_aggregation: true
       span_name_as_resource_name: false
       span_name_remappings: {}
-      trace_buffer: 0
   debug:
     output_paths: []
     sampling_initial: 2
