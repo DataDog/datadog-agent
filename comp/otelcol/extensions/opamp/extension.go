@@ -12,6 +12,8 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net/http"
+	"sort"
+	"strings"
 	"sync"
 
 	"github.com/google/uuid"
@@ -20,8 +22,13 @@ import (
 	"github.com/open-telemetry/opamp-go/protobufs"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componentstatus"
+	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/extension"
+	"go.opentelemetry.io/collector/extension/extensioncapabilities"
+	"go.opentelemetry.io/collector/service"
+	"go.opentelemetry.io/collector/service/hostcapabilities"
 	"go.uber.org/zap"
+	"go.yaml.in/yaml/v2"
 )
 
 // extension is the DDOT OpAmp extension. It wraps the opamp-go client and
@@ -49,11 +56,16 @@ type ddotOpampExtension struct {
 	// mu protects lastRemoteCfgHash.
 	mu                sync.Mutex
 	lastRemoteCfgHash []byte
+
+	// eclk protects effectiveConfig.
+	eclk            sync.RWMutex
+	effectiveConfig *confmap.Conf
 }
 
 var (
-	_ extension.Extension     = (*ddotOpampExtension)(nil)
-	_ componentstatus.Watcher = (*ddotOpampExtension)(nil)
+	_ extension.Extension                 = (*ddotOpampExtension)(nil)
+	_ componentstatus.Watcher             = (*ddotOpampExtension)(nil)
+	_ extensioncapabilities.ConfigWatcher = (*ddotOpampExtension)(nil)
 )
 
 func newExtension(set extension.Settings, cfg *Config, remoteCfg *RemoteConfigProvider) (*ddotOpampExtension, error) {
@@ -118,11 +130,7 @@ func (e *ddotOpampExtension) Start(ctx context.Context, host component.Host) err
 				e.logger.Error("OpAMP server returned an error response", zap.String("message", err.ErrorMessage))
 			},
 			GetEffectiveConfig: func(_ context.Context) (*protobufs.EffectiveConfig, error) {
-				return &protobufs.EffectiveConfig{
-					ConfigMap: &protobufs.AgentConfigMap{
-						ConfigMap: map[string]*protobufs.AgentConfigFile{},
-					},
-				}, nil
+				return e.composeEffectiveConfig(), nil
 			},
 			OnOpampConnectionSettings: e.onOpampConnectionSettings,
 			OnMessage:                 e.onMessage,
@@ -141,12 +149,8 @@ func (e *ddotOpampExtension) Start(ctx context.Context, host component.Host) err
 		}
 	}
 	if e.cfg.Capabilities.ReportsAvailableComponents {
-		// Use an empty component set (SHA256 of empty string as hash). A future
-		// improvement can enumerate the actual factories from the host.
-		emptyHash := sha256.Sum256(nil)
-		if err := e.client.SetAvailableComponents(&protobufs.AvailableComponents{
-			Hash: emptyHash[:],
-		}); err != nil {
+		ac := buildAvailableComponents(host)
+		if err := e.client.SetAvailableComponents(ac); err != nil {
 			return fmt.Errorf("opamp: setting available components: %w", err)
 		}
 	}
@@ -175,6 +179,58 @@ func (e *ddotOpampExtension) Shutdown(ctx context.Context) error {
 		return e.client.Stop(ctx)
 	}
 	return nil
+}
+
+// NotifyConfig implements extensioncapabilities.ConfigWatcher. The collector
+// calls this right after Start with the resolved effective configuration.
+//
+// speky:DDOT#OTELCOL031
+func (e *ddotOpampExtension) NotifyConfig(ctx context.Context, conf *confmap.Conf) error {
+	if conf == nil {
+		return nil
+	}
+	e.eclk.Lock()
+	e.effectiveConfig = conf
+	e.eclk.Unlock()
+	if e.client != nil {
+		if err := e.client.UpdateEffectiveConfig(ctx); err != nil {
+			e.logger.Warn("Could not push effective config to OpAMP server", zap.Error(err))
+		}
+	}
+	return nil
+}
+
+// composeEffectiveConfig serializes the stored effective config into the OpAMP
+// protobuf representation. Returns an empty config map if no config has been
+// received yet.
+func (e *ddotOpampExtension) composeEffectiveConfig() *protobufs.EffectiveConfig {
+	e.eclk.RLock()
+	conf := e.effectiveConfig
+	e.eclk.RUnlock()
+
+	if conf == nil {
+		return &protobufs.EffectiveConfig{
+			ConfigMap: &protobufs.AgentConfigMap{
+				ConfigMap: map[string]*protobufs.AgentConfigFile{},
+			},
+		}
+	}
+	body, err := yaml.Marshal(conf.ToStringMap())
+	if err != nil {
+		e.logger.Error("Cannot marshal effective config", zap.Error(err))
+		return &protobufs.EffectiveConfig{
+			ConfigMap: &protobufs.AgentConfigMap{
+				ConfigMap: map[string]*protobufs.AgentConfigFile{},
+			},
+		}
+	}
+	return &protobufs.EffectiveConfig{
+		ConfigMap: &protobufs.AgentConfigMap{
+			ConfigMap: map[string]*protobufs.AgentConfigFile{
+				"config.yaml": {Body: body},
+			},
+		},
+	}
 }
 
 // ComponentStatusChanged implements componentstatus.Watcher.
@@ -293,6 +349,70 @@ func kv(key, value string) *protobufs.KeyValue {
 			Value: &protobufs.AnyValue_StringValue{StringValue: value},
 		},
 	}
+}
+
+// buildAvailableComponents enumerates the collector's registered component
+// factories and returns a populated AvailableComponents message. If the host
+// implements hostcapabilities.ModuleInfo, real module metadata is used;
+// otherwise an empty set is returned.
+//
+// speky:DDOT#OTELCOL037
+func buildAvailableComponents(host component.Host) *protobufs.AvailableComponents {
+	mi, ok := host.(hostcapabilities.ModuleInfo)
+	if !ok {
+		emptyHash := sha256.Sum256(nil)
+		return &protobufs.AvailableComponents{Hash: emptyHash[:]}
+	}
+
+	infos := mi.GetModuleInfos()
+	return &protobufs.AvailableComponents{
+		Hash: availableComponentsHash(infos),
+		Components: map[string]*protobufs.ComponentDetails{
+			"receivers":  {SubComponentMap: componentDetailsMap(infos.Receiver)},
+			"processors": {SubComponentMap: componentDetailsMap(infos.Processor)},
+			"exporters":  {SubComponentMap: componentDetailsMap(infos.Exporter)},
+			"extensions": {SubComponentMap: componentDetailsMap(infos.Extension)},
+			"connectors": {SubComponentMap: componentDetailsMap(infos.Connector)},
+		},
+	}
+}
+
+// componentDetailsMap converts a map of component types to their OpAMP details.
+func componentDetailsMap(modules map[component.Type]service.ModuleInfo) map[string]*protobufs.ComponentDetails {
+	details := make(map[string]*protobufs.ComponentDetails, len(modules))
+	for ct, mi := range modules {
+		details[ct.String()] = &protobufs.ComponentDetails{
+			Metadata: []*protobufs.KeyValue{kv("module", mi.BuilderRef)},
+		}
+	}
+	return details
+}
+
+// availableComponentsHash produces a deterministic hash of the module infos.
+func availableComponentsHash(infos service.ModuleInfos) []byte {
+	var b strings.Builder
+	for _, pair := range []struct {
+		kind    string
+		modules map[component.Type]service.ModuleInfo
+	}{
+		{"receiver", infos.Receiver},
+		{"processor", infos.Processor},
+		{"exporter", infos.Exporter},
+		{"extension", infos.Extension},
+		{"connector", infos.Connector},
+	} {
+		b.WriteString(pair.kind + ":")
+		names := make([]string, 0, len(pair.modules))
+		for ct := range pair.modules {
+			names = append(names, ct.String())
+		}
+		sort.Strings(names)
+		for _, name := range names {
+			b.WriteString(name + "=" + pair.modules[component.MustNewType(name)].BuilderRef + ";")
+		}
+	}
+	hash := sha256.Sum256([]byte(b.String()))
+	return hash[:]
 }
 
 // onMessage is the callback invoked by the opamp-go client when the server
