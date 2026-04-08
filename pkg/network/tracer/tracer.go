@@ -224,7 +224,9 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 			if tr.containerStore, err = containers.NewContainerStore(cfg.MaxContainersTracked); err != nil {
 				return nil, fmt.Errorf("could not create container store: %w", err)
 			}
-			events.RegisterHandler(tr.containerStore)
+			if tr.containerStore != nil {
+				events.RegisterHandler(tr.containerStore)
+			}
 		}
 	}
 

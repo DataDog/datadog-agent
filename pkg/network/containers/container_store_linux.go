@@ -79,8 +79,14 @@ func (csi containerStoreItem) isExpired() bool {
 	return time.Since(csi.timestamp) > containerTTL
 }
 
-// NewContainerStore initializes the container store
+// NewContainerStore initializes the container store.
+// Returns (nil, nil) if the kernel does not support openat2 (Linux < 5.6),
+// which the caller treats as the feature being unavailable.
 func NewContainerStore(maxContainers int) (*ContainerStore, error) {
+	if !openat2Available() {
+		log.Info("CNM ContainerStore disabled: openat2 not available (requires Linux 5.6+)")
+		return nil, nil
+	}
 	warnLimit := log.NewLogLimit(5, 10*time.Minute)
 	errorLimit := log.NewLogLimit(5, 10*time.Minute)
 	debugLimit := log.NewLogLimit(10, time.Minute)
