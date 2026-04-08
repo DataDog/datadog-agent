@@ -31,8 +31,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_shutdown_all_graceful() {
-        let cfg1 = make_config("/bin/sleep", vec!["60"]);
-        let cfg2 = make_config("/bin/sleep", vec!["60"]);
+        let cfg1 = make_config("/bin/sleep", vec!["60".into()]);
+        let cfg2 = make_config("/bin/sleep", vec!["60".into()]);
 
         let mut p1 = ManagedProcess::new_config("p1".into(), test_uuid(), cfg1);
         let mut p2 = ManagedProcess::new_config("p2".into(), test_uuid(), cfg2);
@@ -56,7 +56,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_shutdown_all_sigkill_on_timeout() {
-        let mut cfg = make_config("/bin/sh", vec!["-c", "trap '' TERM; sleep 60"]);
+        let mut cfg = make_config(
+            "/bin/sh",
+            vec!["-c".into(), "trap '' TERM; sleep 60".into()],
+        );
         cfg.stop_timeout = Some(1);
         let mut proc = ManagedProcess::new_config("stubborn".into(), test_uuid(), cfg);
         proc.spawn().unwrap();
@@ -72,7 +75,7 @@ mod tests {
         let mut proc = ManagedProcess::new_config(
             "t".into(),
             test_uuid(),
-            make_config("/bin/sleep", vec!["60"]),
+            make_config("/bin/sleep", vec!["60".into()]),
         );
         proc.spawn().unwrap();
         let _child = proc.take_child();
@@ -92,17 +95,17 @@ mod tests {
         let mut p1 = ManagedProcess::new_config(
             "p1".into(),
             test_uuid(),
-            make_config("/bin/sleep", vec!["60"]),
+            make_config("/bin/sleep", vec!["60".into()]),
         );
         let mut p2 = ManagedProcess::new_config(
             "p2".into(),
             test_uuid(),
-            make_config("/bin/sleep", vec!["60"]),
+            make_config("/bin/sleep", vec!["60".into()]),
         );
         let mut p3 = ManagedProcess::new_config(
             "p3".into(),
             test_uuid(),
-            make_config("/bin/sleep", vec!["60"]),
+            make_config("/bin/sleep", vec!["60".into()]),
         );
         p1.spawn().unwrap();
         p2.spawn().unwrap();
