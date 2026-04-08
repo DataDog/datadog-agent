@@ -61,6 +61,32 @@ func TestZlibValidFrameEmpty(t *testing.T) {
 	}
 }
 
+// Asserts that closing a StreamCompressor without writing produces a valid
+// compressed frame (non-empty output that decompresses to empty). Derived from
+// the EmptyStreamProducesValidFrame invariant in compression.allium.
+func TestZlibEmptyStreamProducesValidFrame(t *testing.T) {
+	c := New()
+	var buf bytes.Buffer
+	stream := c.NewStreamCompressor(&buf)
+
+	if err := stream.Close(); err != nil {
+		t.Fatalf("Close failed: %v", err)
+	}
+
+	if buf.Len() == 0 {
+		t.Errorf("Close without Write produced empty output; expected a valid zlib frame")
+	}
+
+	decompressed, err := c.Decompress(buf.Bytes())
+	if err != nil {
+		t.Fatalf("Decompress of empty stream frame failed: %v", err)
+	}
+
+	if len(decompressed) != 0 {
+		t.Errorf("Empty stream frame decompressed to non-empty output: %v", decompressed)
+	}
+}
+
 // Asserts that len(compress(b)) <= CompressBound(len(b)) for all b.
 func FuzzZlibCompressBound(f *testing.F) {
 	f.Add([]byte("hello world"))
