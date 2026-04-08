@@ -88,8 +88,10 @@ static __always_inline u8 sampling_admission_check(u32 limiter_key, u16 rate, u8
         if (ring_buffer_size > 0) {
             u8 pressure_pct = (u8)(usage * 100 / ring_buffer_size);
 
-            int zero = 0;
-            bpf_map_update_elem(&sampling_pressure_pct, &zero, &pressure_pct, BPF_ANY);
+            struct event_sample_stats_t *stats = get_active_event_sample_stats(0);
+            if (stats != NULL && (u64)pressure_pct > stats->max_pressure) {
+                __sync_val_compare_and_swap(&stats->max_pressure, stats->max_pressure, (u64)pressure_pct);
+            }
 
             if (pressure_pct > SAMPLING_PRESSURE_CRITICAL) {
                 bpf_printk("sampling_admission: REJECT limiter=%u pressure=%u%% > critical", limiter_key, pressure_pct);

@@ -63,9 +63,9 @@ func appendSyscallProbes(probes []*manager.Probe, fentry bool, flag int, compat 
 	return probes
 }
 
-// computeDefaultEventsRingBufferSize is the default buffer size of the ring buffers for events.
+// ComputeDefaultEventsRingBufferSize is the default buffer size of the ring buffers for events.
 // Must be a power of 2 and a multiple of the page size
-func computeDefaultEventsRingBufferSize() uint32 {
+func ComputeDefaultEventsRingBufferSize() uint32 {
 	numCPU, err := utils.NumCPU()
 	if err != nil {
 		numCPU = 1
@@ -320,11 +320,6 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 		}
 	}
 
-	editors["sampling_pressure_pct"] = manager.MapSpecEditor{
-		MaxEntries: 1,
-		EditorFlag: manager.EditMaxEntries,
-	}
-
 	if opts.PathResolutionEnabled {
 		editors["pathnames"] = manager.MapSpecEditor{
 			MaxEntries: getMaxEntries(numCPU, minPathnamesEntries, maxPathnamesEntries),
@@ -359,7 +354,7 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 	}
 	if opts.UseRingBuffers {
 		if opts.RingBufferSize == 0 {
-			opts.RingBufferSize = computeDefaultEventsRingBufferSize()
+			opts.RingBufferSize = ComputeDefaultEventsRingBufferSize()
 		}
 		editors["events"] = manager.MapSpecEditor{
 			MaxEntries: opts.RingBufferSize,

@@ -167,7 +167,6 @@ type EBPFProbe struct {
 	useRingBuffers         bool
 	useMmapableMaps        bool
 	cgroup2MountPath       string
-	samplingPressureMap    *lib.Map
 	// On demand1
 	onDemandManager     *OnDemandProbesManager
 	onDemandRateLimiter *rate.Limiter
@@ -585,12 +584,6 @@ func (p *EBPFProbe) Init() error {
 
 	p.processKiller.Start(p.ctx, &p.wg)
 
-	if p.config.RuntimeSecurity.EventSamplingDynamicEnabled {
-		p.samplingPressureMap, _, err = p.Manager.GetMap("sampling_pressure_pct")
-		if err != nil {
-			return err
-		}
-	}
 
 	if p.config.RuntimeSecurity.ActivityDumpEnabled || p.config.RuntimeSecurity.SecurityProfileEnabled {
 		p.wg.Add(1)
@@ -979,14 +972,6 @@ func (p *EBPFProbe) SendStats() error {
 		return err
 	}
 
-	if p.config.RuntimeSecurity.EventSamplingDynamicEnabled && p.samplingPressureMap != nil {
-		var pct uint8
-		if err := p.samplingPressureMap.Lookup(uint32(0), &pct); err == nil {
-			if err := p.statsdClient.Gauge(metrics.MetricSamplingPressureLevel, float64(pct), []string{}, 1.0); err != nil {
-				return err
-			}
-		}
-	}
 
 	return p.monitors.SendStats()
 }
@@ -2745,8 +2730,13 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingDynamicEnabled),
 		},
 		manager.ConstantEditor{
-			Name:  "ring_buffer_size",
-			Value: uint64(p.config.Probe.EventStreamBufferSize),
+			Name: "ring_buffer_size",
+			Value: func() uint64 {
+				if p.config.Probe.EventStreamBufferSize != 0 {
+					return uint64(p.config.Probe.EventStreamBufferSize)
+				}
+				return uint64(probes.ComputeDefaultEventsRingBufferSize())
+			}(),
 		},
 		manager.ConstantEditor{
 			Name:  "capabilities_monitoring_enabled",

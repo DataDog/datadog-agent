@@ -28,6 +28,7 @@ import (
 type Stats struct {
 	EventsTotal   uint64
 	EventsSampled uint64
+	MaxPressure   uint64
 }
 
 // Monitor defines an event sample monitor
@@ -47,18 +48,23 @@ func (m *Monitor) SendStats() error {
 	statsAcrossAllCPUs := make([]Stats, m.numCPU)
 	statsByEventType := make([]Stats, model.MaxAllEventType)
 
+	var maxPressure uint64
 	var eventType uint32
 	for iterator.Next(&eventType, &statsAcrossAllCPUs) {
 		if int(eventType) >= len(statsByEventType) {
 			continue
 		}
 
-		// aggregate all cpu stats
 		for _, stat := range statsAcrossAllCPUs {
 			statsByEventType[eventType].EventsTotal += stat.EventsTotal
 			statsByEventType[eventType].EventsSampled += stat.EventsSampled
+			if stat.MaxPressure > maxPressure {
+				maxPressure = stat.MaxPressure
+			}
 		}
 	}
+
+	_ = m.statsdClient.Gauge(metrics.MetricSamplingPressureLevel, float64(maxPressure), []string{}, 1.0)
 
 	for eventType, stats := range statsByEventType {
 		if stats.EventsTotal == 0 && stats.EventsSampled == 0 {
