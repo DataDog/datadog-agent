@@ -1,0 +1,47 @@
+kind: tests
+category: functional
+tests:
+- id: T035
+  ref: [OTELCOL037]
+  short: Collector reports its available components to the OpAmp server
+  long: |
+    Verify that when the Collector connects to an OpAmp server with the
+    `ReportsAvailableComponents` capability enabled, the server receives an
+    `AvailableComponents` message listing all compiled-in receivers, processors,
+    exporters, extensions, and connectors with a non-empty deterministic hash.
+  prereq: [T016]
+  steps:
+    - action: Start the otel-agent with the opamp extension and connect to the test server
+      sample: |
+        extensions:
+          opamp:
+            server:
+              ws:
+                endpoint: ws://127.0.0.1:4320/v1/opamp
+        receivers:
+          otlp:
+            protocols:
+              grpc:
+        exporters:
+          debug:
+            verbosity: detailed
+        service:
+          extensions: [opamp]
+          pipelines:
+            traces:
+              receivers: [otlp]
+              exporters: [debug]
+      sample_lang: yaml
+    - action: Verify the server received AvailableComponents with a non-empty hash
+      expected: |
+        AvailableComponents hash is non-empty
+    - action: Verify the component map contains entries for each component kind
+      expected: |
+        Components["receivers"] contains sub-components (e.g. "otlp")
+        Components["processors"] contains sub-components (e.g. "batch")
+        Components["exporters"] contains sub-components (e.g. "debug", "datadog")
+        Components["extensions"] contains sub-components (e.g. "opamp")
+        Components["connectors"] is present
+    - action: Verify each component entry includes module metadata
+      expected: |
+        Each sub-component has a "module" metadata key with a non-empty value

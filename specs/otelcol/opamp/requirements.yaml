@@ -207,3 +207,29 @@ requirements:
     properties:
       source: https://opentelemetry.io/docs/specs/opamp/#connection-settings-management
     ref: [OTELCOL025, OTELCOL028]
+
+  - id: OTELCOL037
+    short: Report available components to the OpAmp server
+    client_statement: |
+      The Agent SHOULD report the set of all components that it is able to use.
+      This is the set of all receivers, processors, exporters, extensions, and connectors
+      that are compiled into the Agent binary and that can be used in its pipelines.
+      Each component is identified by its type name and optionally annotated with
+      module metadata (e.g. the Go module path that provided it).
+    long: |
+      When the `ReportsAvailableComponents` capability is declared, the Collector
+      shall report the full set of component factories compiled into the binary to
+      the OpAmp server via an `AvailableComponents` message.
+
+      The message shall contain a deterministic hash of the component set so the
+      server can detect changes without inspecting the full payload. The component
+      list is organized by kind (receivers, processors, exporters, extensions,
+      connectors) and each entry includes metadata such as the Go module reference.
+
+      If the host provides `ModuleInfos` (via the `hostcapabilities.ModuleInfo`
+      interface), the Collector shall use them to populate the component details.
+      Otherwise, an empty component set with a corresponding hash shall be reported.
+    tags: [opamp, observability]
+    properties:
+      source: https://opentelemetry.io/docs/specs/opamp/#available-components
+    ref: [OTELCOL025, OTELCOL028]
