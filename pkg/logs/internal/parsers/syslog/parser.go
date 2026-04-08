@@ -17,12 +17,18 @@ import (
 // PRI detection is automatic: if a line starts with '<', it is parsed as a
 // network-format syslog message (RFC 5424 or BSD with PRI). Otherwise it is
 // parsed as a plain BSD line without PRI (e.g., traditional /var/log/syslog).
-type parser struct{}
+type parser struct {
+	siemParsing bool
+}
 
 // NewParser returns a parsers.Parser for syslog-formatted input.
-// PRI headers are auto-detected per line; no configuration is needed.
-func NewParser() parsers.Parser {
-	return &parser{}
+// PRI headers are auto-detected per line.
+//
+// When siemParsing is true, CEF/LEEF headers in the message body are detected
+// and extracted into structured SIEM fields. When false, message bodies are
+// left as plain text regardless of content.
+func NewParser(siemParsing bool) parsers.Parser {
+	return &parser{siemParsing: siemParsing}
 }
 
 // Parse implements parsers.Parser. It parses the unstructured line content
@@ -56,6 +62,16 @@ func (p *parser) Parse(msg *message.Message) (*message.Message, error) {
 			"message": msgBody,
 			"syslog":  BuildSyslogFields(&parsed),
 		},
+	}
+
+	// Detect and parse CEF/LEEF headers embedded in the syslog message body.
+	// All meaningful data is extracted into the "siem" key; the raw CEF/LEEF
+	// string has no body separate from its structured fields, so clear "message".
+	if p.siemParsing {
+		if header, ext, _, ok := ParseCEFLEEF(parsed.Msg); ok {
+			sc.Data["siem"] = BuildSIEMFields(header, ext)
+			sc.Data["message"] = ""
+		}
 	}
 
 	structured := message.NewStructuredMessage(
