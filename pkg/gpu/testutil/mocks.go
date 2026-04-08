@@ -121,6 +121,7 @@ type deviceOptions struct {
 	processInfoCB      func(uuid string) ([]nvml.ProcessInfo, nvml.Return)
 	gpmSupported       *bool
 	unsupportedFields  map[uint32]struct{}
+	migChildCount      int
 }
 
 func (o deviceOptions) isMIGChild() bool {
@@ -254,6 +255,9 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 		GetMaxMigDeviceCountFunc: func() (int, nvml.Return) {
 			if opts.isMIGChild() || opts.migDisabled {
 				return 0, nvml.SUCCESS
+			}
+			if opts.migChildCount > 0 {
+				return opts.migChildCount, nvml.SUCCESS
 			}
 			return MIGChildrenPerDevice[deviceIdx], nvml.SUCCESS
 		},
@@ -492,7 +496,7 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 		},
 		GetVirtualizationModeFunc: func() (nvml.GpuVirtualizationMode, nvml.Return) {
 			if opts.isVGPU() {
-				return nvml.GPU_VIRTUALIZATION_MODE_HOST_VGPU, nvml.SUCCESS
+				return nvml.GPU_VIRTUALIZATION_MODE_VGPU, nvml.SUCCESS
 			}
 			return nvml.GPU_VIRTUALIZATION_MODE_NONE, nvml.SUCCESS
 		},
@@ -568,6 +572,12 @@ func WithDeviceCount(count int) NvmlMockOption {
 				return getDeviceMockWithOptions(index, o.deviceOptions), nvml.SUCCESS
 			}
 		})
+	}
+}
+
+func WithMIGChildCount(count int) NvmlMockOption {
+	return func(o *nvmlMockOptions) {
+		o.deviceOptions.migChildCount = count
 	}
 }
 
