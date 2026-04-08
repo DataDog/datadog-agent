@@ -297,11 +297,12 @@ def render_config(ctx, env, flavor, skip_assets, build_tags, development, window
 
     generate_config(ctx, build_type=build_type, output_file="./cmd/agent/dist/datadog.yaml", env=env)
 
-    # On Linux and MacOS, render the system-probe configuration file template
-    if sys.platform != 'win32' or windows_sysprobe:
-        generate_config(ctx, build_type="system-probe", output_file="./cmd/agent/dist/system-probe.yaml", env=env)
+    if not flavor.is_iot():
+        # On Linux and MacOS, render the system-probe configuration file template
+        if sys.platform != 'win32' or windows_sysprobe:
+            generate_config(ctx, build_type="system-probe", output_file="./cmd/agent/dist/system-probe.yaml", env=env)
 
-    generate_config(ctx, build_type="security-agent", output_file="./cmd/agent/dist/security-agent.yaml", env=env)
+        generate_config(ctx, build_type="security-agent", output_file="./cmd/agent/dist/security-agent.yaml", env=env)
 
     if not skip_assets:
         refresh_assets(ctx, build_tags, development=development, flavor=flavor.name, windows_sysprobe=windows_sysprobe)
@@ -342,12 +343,12 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
         bin_ddagent = os.path.join(BIN_PATH, "dd-agent")
         shutil.move(os.path.join(dist_folder, "dd-agent"), bin_ddagent)
 
-    # System probe not supported on windows
-    if sys.platform != 'win32' or windows_sysprobe:
-        shutil.copy("./cmd/agent/dist/system-probe.yaml", os.path.join(dist_folder, "system-probe.yaml"))
-    shutil.copy("./cmd/agent/dist/datadog.yaml", os.path.join(dist_folder, "datadog.yaml"))
+    if not flavor.is_iot():
+        if sys.platform != 'win32' or windows_sysprobe:
+            shutil.copy("./cmd/agent/dist/system-probe.yaml", os.path.join(dist_folder, "system-probe.yaml"))
+        shutil.copy("./cmd/agent/dist/security-agent.yaml", os.path.join(dist_folder, "security-agent.yaml"))
 
-    shutil.copy("./cmd/agent/dist/security-agent.yaml", os.path.join(dist_folder, "security-agent.yaml"))
+    shutil.copy("./cmd/agent/dist/datadog.yaml", os.path.join(dist_folder, "datadog.yaml"))
 
     for check in AGENT_CORECHECKS if not flavor.is_iot() else IOT_AGENT_CORECHECKS:
         check_dir = os.path.join(dist_folder, f"conf.d/{check}.d/")
@@ -379,12 +380,13 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
             os.path.join(dist_folder, "conf.d/process_agent.yaml.default"),
         )
 
-    shutil.copytree(
-        "./comp/core/gui/guiimpl/views/private",
-        os.path.join(dist_folder, "views"),
-        ignore=shutil.ignore_patterns("BUILD.bazel"),
-        dirs_exist_ok=True,
-    )
+    if not flavor.is_iot():
+        shutil.copytree(
+            "./comp/core/gui/guiimpl/views/private",
+            os.path.join(dist_folder, "views"),
+            ignore=shutil.ignore_patterns("BUILD.bazel"),
+            dirs_exist_ok=True,
+        )
     if development:
         shutil.copytree("./dev/dist/", dist_folder, ignore=shutil.ignore_patterns("BUILD.bazel"), dirs_exist_ok=True)
 
