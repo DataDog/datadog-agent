@@ -954,6 +954,10 @@ def eval_bayesian(
     if only_list:
         # Expand to full component set and lock everything except the --only targets.
         all_components = DETECTORS + CORRELATORS + EXTRACTORS
+        unknown_only = set(only_list) - set(all_components)
+        if unknown_only:
+            print(color_message(f"Error: unknown components in --only: {', '.join(sorted(unknown_only))}", Color.RED))
+            return
         components_list = all_components
         locked_set = {c for c in all_components if c not in set(only_list)}
     else:
@@ -1260,6 +1264,13 @@ def eval_component(
                 Color.ORANGE,
             )
         )
+        n_subsets = len(subsets)
+    elif len(subsets) > n_subsets:
+        # Fixed subsets (full stack + anchors) exceed the requested n_subsets; generate
+        # run_seeds for the extra indices so the later loop doesn't raise KeyError.
+        for variant in ("without", "with"):
+            for si in range(n_subsets, len(subsets)):
+                run_seeds[(variant, si)] = [rng.randint(0, 2**32 - 1) for _ in range(m_runs)]
         n_subsets = len(subsets)
 
     # --- compute totals ---
