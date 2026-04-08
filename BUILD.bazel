@@ -31,8 +31,9 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/checks
 # gazelle:exclude comp/collector
 # gazelle:exclude comp/connectivitychecker
-# gazelle:exclude comp/core/agenttelemetry
 # gazelle:exclude comp/core/autodiscovery
+# gazelle:exclude comp/core/agenttelemetry/fx
+# gazelle:exclude comp/core/agenttelemetry/impl
 # gazelle:exclude comp/core/config
 # gazelle:exclude comp/core/configstream
 # gazelle:exclude comp/core/configsync
