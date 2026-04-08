@@ -174,6 +174,13 @@ func TestLogPatternExtractor_DeferredEmitUntilMinPatterns(t *testing.T) {
 	require.Len(t, out.Metrics, 1)
 }
 
+func TestLogPatternExtractor_ZeroConfigAppliesGCDefaults(t *testing.T) {
+	e := NewLogPatternExtractor(LogPatternExtractorConfig{})
+	defaults := DefaultLogPatternExtractorConfig()
+	assert.Equal(t, defaults.ClusterTimeToLiveSec, e.config.ClusterTimeToLiveSec)
+	assert.Equal(t, defaults.GarbageCollectionIntervalSec, e.config.GarbageCollectionIntervalSec)
+}
+
 func TestLogPatternExtractor_GarbageCollectRemovesStaleClusterAndContext(t *testing.T) {
 	e := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
 	e.config.MinClusterSizeBeforeEmit = 1

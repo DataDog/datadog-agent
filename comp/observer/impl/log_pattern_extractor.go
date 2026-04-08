@@ -65,7 +65,7 @@ func DefaultLogPatternExtractorConfig() LogPatternExtractorConfig {
 	}
 }
 
-func (c *LogPatternExtractorConfig) UpdateConfig() {
+func (c *LogPatternExtractorConfig) RefreshConfig() {
 	if c.DisableOptimizations {
 		c.MinClusterSizeBeforeEmit = 0
 		c.ClusterTimeToLiveSec = 0
@@ -156,11 +156,21 @@ func (c *logPatternExtractorContext) removeTaggedCluster(taggedKey string) {
 // NewLogPatternExtractor creates a new LogPatternExtractor.
 // A zero-value cfg is accepted; zero fields fall back to DefaultLogPatternExtractorConfig values.
 func NewLogPatternExtractor(cfg LogPatternExtractorConfig) *LogPatternExtractor {
+	// Apply defaults first and then refresh config to finalize it
 	defaults := DefaultLogPatternExtractorConfig()
 	if cfg.MinClusterSizeBeforeEmit <= 0 {
 		cfg.MinClusterSizeBeforeEmit = defaults.MinClusterSizeBeforeEmit
 	}
-	cfg.UpdateConfig()
+	if !cfg.DisableOptimizations {
+		if cfg.ClusterTimeToLiveSec <= 0 {
+			cfg.ClusterTimeToLiveSec = defaults.ClusterTimeToLiveSec
+		}
+		if cfg.GarbageCollectionIntervalSec <= 0 {
+			cfg.GarbageCollectionIntervalSec = defaults.GarbageCollectionIntervalSec
+		}
+	}
+	cfg.RefreshConfig()
+
 	registry := NewTagGroupByKeyRegistry()
 	tok := tokenizerFromConfig(cfg)
 	newSub := func() *patterns.PatternClusterer {
