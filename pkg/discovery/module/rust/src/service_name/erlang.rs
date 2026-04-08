@@ -437,7 +437,6 @@ mod tests {
         assert_eq!(result, None);
     }
 
-    // Port of Test_erlangDetector from Go
     #[test]
     fn test_detector_couchdb() {
         let cmdline = cmdline!["beam.smp", "-progname", "couchdb", "-home", "/opt/couchdb"];

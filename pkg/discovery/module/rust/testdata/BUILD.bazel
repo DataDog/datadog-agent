@@ -1,0 +1,15 @@
+# Omnibus packaging excludes **/testdata/**/* from the source tree it builds
+# from. Keeping testdata globs in this dedicated subpackage prevents those
+# stripped packaging builds from evaluating test-only globs in the parent
+# package when they only need //pkg/discovery/module/rust:install.
+filegroup(
+    name = "files",
+    srcs = glob(
+        [
+            "**/*",
+            "**/.*",
+        ],
+        exclude = ["BUILD.bazel"],
+    ),
+    visibility = ["//pkg/discovery/module/rust:__pkg__"],
+)

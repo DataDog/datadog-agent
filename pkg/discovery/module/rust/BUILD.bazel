@@ -161,7 +161,10 @@ rust_binary(
 # Test data files
 filegroup(
     name = "testdata",
-    srcs = glob(["testdata/**/*"]),
+    srcs = glob(
+        ["testdata/**/*"],
+        allow_empty = True,
+    ),
 )
 
 # Unit tests embedded in source files
@@ -174,7 +177,7 @@ rust_test(
         "jee",
     ],
     # Make test data available to tests
-    data = [":testdata"],
+    data = ["//pkg/discovery/module/rust/testdata:files"],
     edition = "2024",
     deps = [
         # Dev dependencies from Cargo.toml
@@ -196,7 +199,7 @@ rust_test(
     name = "dd_discovery_nofeatures_test",
     crate = ":dd_discovery",
     # No crate_features — matches production build
-    data = [":testdata"],
+    data = ["//pkg/discovery/module/rust/testdata:files"],
     edition = "2024",
     deps = [
         "@crates//:dircpy",
@@ -209,7 +212,6 @@ rust_test(
     ],
 )
 
-# Integration tests
 rust_test(
     name = "pid_integration_test",
     srcs = ["tests/pid_integration_test.rs"],
@@ -237,5 +239,24 @@ rust_test(
         "@crates//:serde_json",
         "@crates//:tempfile",
         "@crates//:yaml-rust2",
+    ],
+)
+
+pkg_files(
+    name = "libdd_discovery_files",
+    srcs = [":libdd_discovery"],
+    attributes = pkg_attributes(mode = "0755"),
+)
+
+pkg_install(
+    name = "install_libs",
+    srcs = [":libdd_discovery_files"],
+)
+
+pkg_install(
+    name = "install_all",
+    srcs = [
+        ":all_files",
+        ":libdd_discovery_files",
     ],
 )

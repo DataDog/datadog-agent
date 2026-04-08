@@ -27,7 +27,7 @@ def _parse_kernel_version(name):
     Returns None if no version can be parsed.
     """
     clean = name
-    for prefix in ["linux-headers-", "linux-kbuild-"]:
+    for prefix in ["linux-headers-", "linux-kbuild-", "linux-"]:
         if clean.startswith(prefix):
             clean = clean[len(prefix):]
             break

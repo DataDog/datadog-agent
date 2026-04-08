@@ -412,7 +412,6 @@ use_repo(
     "com_github_uptrace_bun_dialect_pgdialect",
     "com_github_uptrace_bun_driver_pgdriver",
     "com_github_urfave_negroni",
-    "com_github_valyala_fastjson",
     "com_github_vektra_mockery_v3",
     "com_github_vibrantbyte_go_antpath",
     "com_github_vishvananda_netlink",

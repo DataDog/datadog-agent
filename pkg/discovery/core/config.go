@@ -8,13 +8,6 @@
 // Package core provides the core functionality for service discovery.
 package core
 
-const (
-	// MaxCommLen is maximum command name length to process when checking for non-reportable commands,
-	// is one byte less (excludes end of line) than the maximum of /proc/<pid>/comm
-	// defined in https://man7.org/linux/man-pages/man5/proc.5.html.
-	MaxCommLen = 15
-)
-
 // DiscoveryConfig holds the configuration for service discovery.
 type DiscoveryConfig struct {
 }
