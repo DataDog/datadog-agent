@@ -380,7 +380,7 @@ func createArchive(flareComp flare.Component, pdata flaretypes.ProfileData, prov
 // step can hang indefinitely when Python check initialization stalls in CGo
 // (GIL acquisition), so we bound it to keep flare creation from blocking forever.
 // The goroutine is intentionally leaked on timeout; the flare CLI is short-lived.
-const localDiagnoseTimeout = 30 * time.Second
+const localDiagnoseTimeout = 60 * time.Second
 
 func runLocalDiagnose(
 	diagnoseComponent diagnose.Component,
