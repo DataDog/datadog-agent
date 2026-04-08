@@ -90,7 +90,10 @@ impl<R: Read + io::Seek> UnverifiedZipArchive<R> {
 
     /// Gets a ZIP entry by name, returning an UnverifiedZipFile.
     /// To read the entry contents, call .verify(max_size) on the returned file.
-    pub fn by_name(&mut self, name: &str) -> Result<UnverifiedZipFile<'_, R>, zip::result::ZipError> {
+    pub fn by_name(
+        &mut self,
+        name: &str,
+    ) -> Result<UnverifiedZipFile<'_, R>, zip::result::ZipError> {
         Ok(UnverifiedZipFile(self.0.by_name(name)?))
     }
 
