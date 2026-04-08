@@ -24,15 +24,32 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// SleepableSyscallsSupported checks whether the kernel supports sleepable
-// BPF programs on syscall entry/exit points. It does this by attempting to
-// load a minimal sleepable fentry program on a syscall wrapper.
-func SleepableSyscallsSupported() (bool, error) {
+func sleepableModifierMinimumKernelVersion() (bool, error) {
 	kv, err := kernel.HostVersion()
 	if err != nil {
 		return false, err
 	}
-	if kv < kernel.VersionCode(5, 10, 0) {
+
+	// Sleepable programs were introduced in kernel 5.10
+	// However, sleepable programs were allowed to use ring buffers
+	// only after 5.12
+	if kv < kernel.VersionCode(5, 12, 0) {
+		return false, nil
+	}
+
+	return true, nil
+}
+
+// SleepableSyscallsSupported checks whether the kernel supports sleepable
+// BPF programs on syscall entry/exit points. It does this by attempting to
+// load a minimal sleepable fentry program on a syscall wrapper.
+func SleepableSyscallsSupported() (bool, error) {
+	ok, err := sleepableModifierMinimumKernelVersion()
+	if err != nil {
+		return false, err
+	}
+
+	if !ok {
 		return false, nil
 	}
 

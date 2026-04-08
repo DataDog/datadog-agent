@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/names"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 var allProgs = []string{
@@ -96,10 +95,10 @@ func upgradePerfBufferToRingBuffer(opts *manager.Options, mapName string, size i
 }
 
 func skipTestIfSleepableEBPFProgramsNotSupported(t *testing.T) {
-	kv, err := kernel.HostVersion()
+	ok, err := sleepableModifierMinimumKernelVersion()
 	require.NoError(t, err)
 
-	if kv < kernel.VersionCode(5, 10, 0) {
+	if !ok {
 		t.Skip("Sleepable EBPF programs not supported")
 	}
 }
