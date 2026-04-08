@@ -201,6 +201,7 @@ def eval_scenarios(
     main_report_path: str = "/tmp/observer-eval-main-report.json",
     config: str = "",
     scenario_output_dir: str = "/tmp",
+    timeout: int = 0,
     _logger: StepLogger | None = None,
 ) -> dict[str, object]:
     """
@@ -231,6 +232,8 @@ def eval_scenarios(
         config: Path to observer-testbench JSON params file (--config). Empty: omit flag.
         scenario_output_dir: Directory where per-scenario testbench JSON outputs are written.
             Defaults to /tmp. Set to a combo-specific folder to keep outputs co-located.
+        timeout: Seconds before a single testbench invocation is killed and the
+            scenario is skipped (None = no limit).
 
     Returns:
         Main report dict with ``score`` and per-scenario ``metadata``.
@@ -272,9 +275,16 @@ def eval_scenarios(
 
         only_part = f" --only {shlex.quote(only_flag)}" if only_flag else ""
         config_part = f" --config {shlex.quote(config)}" if config else ""
-        ctx.run(
-            f"bin/observer-testbench --headless {shlex.quote(name)} --output {shlex.quote(output_path)} --scenarios-dir {shlex.quote(scenarios_dir)}{only_part}{config_part}"
-        )
+        try:
+            ctx.run(
+                f"bin/observer-testbench --headless {shlex.quote(name)} --output {shlex.quote(output_path)} --scenarios-dir {shlex.quote(scenarios_dir)}{only_part}{config_part}",
+                timeout=None if timeout == 0 else timeout,
+            )
+        except Exception as e:
+            if type(e).__name__ == "CommandTimedOut":
+                scenario_logger.detail(f"testbench timed out after {timeout}s — skipping scenario", Color.ORANGE)
+                continue
+            raise
 
         if not os.path.isfile(output_path):
             scenario_logger.detail(f"testbench did not produce output at {output_path}", Color.RED)
@@ -899,6 +909,7 @@ def eval_bayesian(
     seed: int = None,
     build: bool = True,
     overwrite: bool = False,
+    timeout: int = 0,
     _logger: StepLogger | None = None,
 ):
     """
@@ -927,6 +938,8 @@ def eval_bayesian(
         sigma: Gaussian width in seconds for F1 scoring.
         seed: Random seed for TPE sampler reproducibility (default: None = random).
         build: Whether to build observer-testbench and observer-scorer first.
+        timeout: Seconds before a single testbench invocation is killed and the
+            scenario is skipped (None = no limit). Passed to eval_scenarios.
 
     Examples:
         dda inv q.bayesian-eval                                                                       # all components
@@ -1032,6 +1045,7 @@ def eval_bayesian(
                 build=False,
                 main_report_path=report_path,
                 scenario_output_dir=scenario_output_dir,
+                timeout=timeout,
                 _logger=trial_logger.child(len(SCENARIOS), "Scenario"),
             )
         except Exception as e:
@@ -1174,6 +1188,7 @@ def eval_component(
     enable: str = "",
     disable: str = "",
     lock: str = "",
+    timeout: int = 0,
 ):
     """
     Evaluate whether adding a component improves observer accuracy via
@@ -1224,6 +1239,10 @@ def eval_component(
             Bayesian run (not tuned by Optuna, in addition to the evaluated
             component which is locked on ``with`` runs unless
             ``--tune-evaluated-component`` is set).
+        timeout: Seconds before a single testbench invocation is killed and that
+            scenario is skipped (None = no limit). Applied per scenario within each
+            Bayesian trial — effectively a timeout for one complete pass over all
+            scenarios.
 
     Examples:
         dda inv q.eval-component --component scanmw
@@ -1232,6 +1251,7 @@ def eval_component(
         dda inv q.eval-component --component scanmw --tune-evaluated-component
         dda inv q.eval-component --component bocpd --enable cusum --disable rrcf
         dda inv q.eval-component --component bocpd --lock time_cluster
+        dda inv q.eval-component --component bocpd --timeout 120
     """
     all_known = DETECTORS + CORRELATORS + EXTRACTORS
     if component not in all_known:
@@ -1326,6 +1346,8 @@ def eval_component(
         print(color_message(f"  force-disabled:        {', '.join(force_disable_extra_list)}", Color.BLUE))
     if extra_lock_list:
         print(color_message(f"  extra locked HPs:      {', '.join(extra_lock_list)}", Color.BLUE))
+    if timeout:
+        print(color_message(f"  timeout:               {timeout}s per testbench invocation", Color.BLUE))
     if tune_evaluated_component:
         print(color_message("  target component HPs:  tuned (Optuna search on 'with')", Color.ORANGE))
     else:
@@ -1388,6 +1410,7 @@ def eval_component(
                     seed=run_seed,
                     build=False,
                     overwrite=True,
+                    timeout=timeout,
                     _logger=trial_logger,
                 )
 
@@ -1847,6 +1870,7 @@ def launch_testbench(
     config: str = "",
     enable: str = "",
     disable: str = "",
+    timeout: int = 0,
 ):
     """
     Will launch both the observer-testbench backend and UI.
@@ -1858,6 +1882,8 @@ def launch_testbench(
         config: JSON params file; if set, overrides --enable/--disable/--only (testbench behavior).
         enable: Comma-separated components to enable (passed to testbench ``--enable``).
         disable: Comma-separated components to disable (passed to testbench ``--disable``).
+        timeout: Seconds before the headless testbench process is killed (None = no limit;
+            ignored in interactive mode).
     """
     if build:
         print("Building observer-testbench...")
@@ -1884,9 +1910,16 @@ def launch_testbench(
         print(
             f"Launching observer-testbench in headless mode for scenario {headless_scenario}, output to {headless_output}"
         )
-        ctx.run(
-            f"bin/observer-testbench --headless {headless_scenario} --scenarios-dir {scenarios_dir} --output {headless_output} {flags}"
-        )
+        try:
+            ctx.run(
+                f"bin/observer-testbench --headless {headless_scenario} --scenarios-dir {scenarios_dir} --output {headless_output} {flags}",
+                timeout=None if timeout == 0 else timeout,
+            )
+        except Exception as e:
+            if type(e).__name__ == "CommandTimedOut":
+                print(color_message(f"testbench timed out after {timeout}s", Color.ORANGE))
+            else:
+                raise
         if profile:
             if open_pprof:
                 print('Running pprof...')
