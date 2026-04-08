@@ -49,6 +49,8 @@ common:windows --enable_runfiles
 # it may lead to cache poisoning.
 common:windows --repo_env=BAZEL_SH=C:/tools/msys64/usr/bin/bash.exe # for https://github.com/bazelbuild/bazel/pull/26927
 common:windows --shell_executable=C:/tools/msys64/usr/bin/bash.exe
+# Force bazel to download all artifacts to the local disk to avoid junctions and symlinks (Access denied errors).
+common:windows --remote_download_all
 
 # Remote cache config --------------------------------------------------------------------------------------------------
 # datadog-agent virtually isolates caching instance from its parent (which is remote-caching).
