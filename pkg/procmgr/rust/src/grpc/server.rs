@@ -9,10 +9,7 @@ use crate::grpc::service::ProcessManagerService;
 use crate::manager::ProcessManager;
 use crate::transport;
 use anyhow::{Context, Result};
-use log::info;
-use tokio::net::UnixListener;
 use tokio::sync::mpsc;
-use tokio_stream::wrappers::UnixListenerStream;
 use tonic::transport::Server;
 
 pub fn socket_path() -> std::path::PathBuf {
@@ -24,16 +21,6 @@ pub async fn run(
     cmd_tx: mpsc::Sender<Command>,
     shutdown: tokio::sync::oneshot::Receiver<()>,
 ) -> Result<()> {
-    let path = transport::ipc_path();
-    transport::prepare(&path)?;
-
-    let uds = UnixListener::bind(&path)
-        .with_context(|| format!("failed to bind Unix socket: {}", path.display()))?;
-    transport::set_permissions(&path);
-    info!("gRPC server listening on {}", path.display());
-
-    let uds_stream = UnixListenerStream::new(uds);
-
     let svc = ProcessManagerService::new(mgr, cmd_tx);
     let pm_service = proto::process_manager_server::ProcessManagerServer::new(svc);
 
@@ -45,16 +32,10 @@ pub async fn run(
         .add_service(reflection)
         .add_service(pm_service);
 
-    router
-        .serve_with_incoming_shutdown(uds_stream, async {
-            let _ = shutdown.await;
-        })
-        .await
-        .context("gRPC server error")?;
-
-    info!("gRPC server stopped");
-    transport::cleanup(&path);
-    Ok(())
+    transport::serve(router, async {
+        let _ = shutdown.await;
+    })
+    .await
 }
 
 #[cfg(test)]
