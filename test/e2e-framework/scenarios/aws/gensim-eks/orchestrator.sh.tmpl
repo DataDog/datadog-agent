@@ -1,5 +1,5 @@
 set -euo pipefail
-apk add --no-cache aws-cli py3-requests py3-yaml lsof 2>/dev/null || true
+apk add --no-cache aws-cli py3-requests 2>/dev/null || true
 helm repo add datadog https://helm.datadoghq.com && helm repo update
 
 # ── Parse image into repo + tag ──────────────────────────────────────────
