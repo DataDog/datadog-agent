@@ -51,7 +51,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process"
 	"github.com/DataDog/datadog-agent/comp/process/agent"
 	"github.com/DataDog/datadog-agent/comp/process/apiserver"
-	"github.com/DataDog/datadog-agent/comp/process/expvars"
+	expvars "github.com/DataDog/datadog-agent/comp/process/expvars/def"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo/def"
 	profiler "github.com/DataDog/datadog-agent/comp/process/profiler/def"
 	"github.com/DataDog/datadog-agent/comp/process/status/statusimpl"

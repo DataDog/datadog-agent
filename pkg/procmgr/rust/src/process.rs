@@ -569,7 +569,7 @@ pub mod tests {
         assert!(proc.is_running());
 
         if let Some(pid) = proc.pid() {
-            let _ = platform::send_force_kill(pid);
+            test_helpers::cleanup_process(pid);
         }
         let mut child = child.unwrap();
         let _ = child.wait().await;
@@ -658,7 +658,7 @@ pub mod tests {
 
     #[tokio::test]
     async fn test_spawn_nonexistent_binary() {
-        let cfg = test_helpers::make_config::<&str>("/nonexistent/binary", vec![]);
+        let cfg = test_helpers::make_config("/nonexistent/binary", vec![]);
         let mut proc = ManagedProcess::new_config("bad".into(), test_helpers::test_uuid(), cfg);
         assert!(proc.spawn().is_err());
         assert!(!proc.is_running());
@@ -732,7 +732,7 @@ pub mod tests {
         let script = "test -z \"$PROCMGRD_TEST_SECRET\" && exit 0 || exit 1";
         #[cfg(windows)]
         let script = "if defined PROCMGRD_TEST_SECRET (exit 1) else (exit 0)";
-        let cfg = test_helpers::make_config(sh, vec![flag, script]);
+        let cfg = test_helpers::make_config(sh, vec![flag.into(), script.into()]);
         let mut proc =
             ManagedProcess::new_config("clean-env".into(), test_helpers::test_uuid(), cfg);
         proc.spawn().unwrap();
@@ -756,7 +756,7 @@ pub mod tests {
         let script = "test \"$FROM_FILE\" = 'hello' && echo $PATH";
         #[cfg(windows)]
         let script = "if \"%FROM_FILE%\"==\"hello\" (echo %PATH%) else (exit 1)";
-        let mut cfg = test_helpers::make_config(sh, vec![flag, script]);
+        let mut cfg = test_helpers::make_config(sh, vec![flag.into(), script.into()]);
         cfg.environment_file = Some(env_file.to_str().unwrap().to_string());
 
         let mut proc = ManagedProcess::new_config("envfile".into(), test_helpers::test_uuid(), cfg);
@@ -780,7 +780,7 @@ pub mod tests {
         let script = "exit $(test \"$MY_VAR\" = 'overridden' && echo 0 || echo 1)";
         #[cfg(windows)]
         let script = "if \"%MY_VAR%\"==\"overridden\" (exit 0) else (exit 1)";
-        let mut cfg = test_helpers::make_config(sh, vec![flag, script]);
+        let mut cfg = test_helpers::make_config(sh, vec![flag.into(), script.into()]);
         cfg.environment_file = Some(env_file.to_str().unwrap().to_string());
         cfg.env
             .insert("MY_VAR".to_string(), "overridden".to_string());

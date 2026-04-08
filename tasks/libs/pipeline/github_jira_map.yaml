@@ -52,6 +52,6 @@
 '@datadog/agent-processing-and-routing': APR
 '@datadog/agent-discovery': DSCVR
 '@datadog/synthetics-executing': SYNORG
-'@datadog/agent-health': HEAL
+'@datadog/agent-health': AGTHEAL
 '@datadog/profiling-full-host': 'PROF'
 '@datadog/q-branch': DEFAULT_JIRA_PROJECT

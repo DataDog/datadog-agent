@@ -5,7 +5,7 @@
 
 //go:build test
 
-package expvarsimpl
+package expvarsimpl_test
 
 import (
 	"net/http"
@@ -20,7 +20,8 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
-	"github.com/DataDog/datadog-agent/comp/process/expvars"
+	expvars "github.com/DataDog/datadog-agent/comp/process/expvars/def"
+	expvarsfx "github.com/DataDog/datadog-agent/comp/process/expvars/fx"
 	hostinfomock "github.com/DataDog/datadog-agent/comp/process/hostinfo/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -41,7 +42,7 @@ func TestExpvarServer(t *testing.T) {
 		telemetryimpl.MockModule(),
 		sysprobeconfigimpl.MockModule(),
 		hostinfomock.MockModule(),
-		Module(),
+		expvarsfx.Module(),
 	))
 
 	assert.Eventually(t, func() bool {
@@ -68,7 +69,7 @@ func TestTelemetry(t *testing.T) {
 				"process_config.expvar_port": 43423,
 			})
 		}),
-		Module(),
+		expvarsfx.Module(),
 		hostinfomock.MockModule(),
 		telemetryimpl.MockModule(),
 		sysprobeconfigimpl.MockModule(),
