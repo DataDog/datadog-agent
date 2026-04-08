@@ -161,11 +161,16 @@ pub fn test_uuid() -> String {
     "00000000-0000-0000-0000-000000000000".to_string()
 }
 
+/// Best-effort teardown: force-kill a process group so tests don't leak children.
+pub fn cleanup_process(pid: u32) {
+    let _ = crate::platform::send_force_kill(pid);
+}
+
 /// Build a `ProcessConfig` with null stdio, suitable for tests.
-pub fn make_config<S: Into<String>>(command: &str, args: Vec<S>) -> crate::config::ProcessConfig {
+pub fn make_config(command: &str, args: Vec<String>) -> crate::config::ProcessConfig {
     crate::config::ProcessConfig {
         command: command.to_string(),
-        args: args.into_iter().map(Into::into).collect(),
+        args,
         stdout: "null".to_string(),
         stderr: "null".to_string(),
         ..Default::default()
