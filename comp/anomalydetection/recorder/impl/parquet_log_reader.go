@@ -198,15 +198,17 @@ func (r *LogParquetReader) readFile(filePath string, logs *[]recorderdef.LogData
 }
 
 // readNewFormatLogFile reads a logs-*.parquet file written by the new pipeline.
-// Schema: hostname dict<string>, source dict<string>, status dict<string>,
 //
-//	tag_service dict<string>, tag_env dict<string>, tag_version dict<string>,
-//	tag_team dict<string>, tags_overflow dict<string>, content binary, timestamp_ns int64.
+// Only two columns have fixed semantics:
+//   - content   (BYTE_ARRAY) → LogData.Content
+//   - timestamp_ns (INT64)   → LogData.TimestampMs (divided by 1e6)
+//
+// Every other BYTE_ARRAY column becomes a tag in "column_name:value" form.
+// This schema-agnostic approach means new columns added by the writer are
+// automatically included as tags without any reader changes.
 //
 // Uses file.ColumnChunkReader.ReadBatch directly (bypassing pqarrow) to avoid the
-// arrow-go v18 double-configureDict bug that fires when reading dict-encoded columns
-// across multiple row groups. Dictionary decoding is handled transparently by the
-// file package's column chunk readers.
+// arrow-go v18 double-configureDict bug on multi-row-group dict-encoded columns.
 func (r *LogParquetReader) readNewFormatLogFile(filePath string, logs *[]recorderdef.LogData) {
 	f, err := os.Open(filePath)
 	if err != nil {
@@ -223,54 +225,35 @@ func (r *LogParquetReader) readNewFormatLogFile(filePath string, logs *[]recorde
 	defer pf.Close()
 
 	s := pf.MetaData().Schema
-	hostnameIdx := findParquetColIdx(pf, "hostname")
-	sourceIdx := findParquetColIdx(pf, "source")
-	statusIdx := findParquetColIdx(pf, "status")
-	tagServiceIdx := findParquetColIdx(pf, "tag_service")
-	tagEnvIdx := findParquetColIdx(pf, "tag_env")
-	tagVersionIdx := findParquetColIdx(pf, "tag_version")
-	tagTeamIdx := findParquetColIdx(pf, "tag_team")
-	tagsOverflowIdx := findParquetColIdx(pf, "tags_overflow")
+	numCols := s.NumColumns()
+
 	contentIdx := findParquetColIdx(pf, "content")
 	tsIdx := findParquetColIdx(pf, "timestamp_ns")
 
-	colMaxDef := func(idx int) int16 {
-		if idx < 0 {
-			return 0
+	// Classify every column as content, timestamp, or a tag column.
+	type tagColMeta struct {
+		idx    int
+		name   string
+		maxDef int16
+	}
+	var tagColsMeta []tagColMeta
+	for i := 0; i < numCols; i++ {
+		if i == contentIdx || i == tsIdx {
+			continue
 		}
-		return s.Column(idx).MaxDefinitionLevel()
+		tagColsMeta = append(tagColsMeta, tagColMeta{
+			idx:    i,
+			name:   s.Column(i).Name(),
+			maxDef: s.Column(i).MaxDefinitionLevel(),
+		})
 	}
 
-	hostnameMaxDef := colMaxDef(hostnameIdx)
-	sourceMaxDef := colMaxDef(sourceIdx)
-	statusMaxDef := colMaxDef(statusIdx)
-	tagSvcMaxDef := colMaxDef(tagServiceIdx)
-	tagEnvMaxDef := colMaxDef(tagEnvIdx)
-	tagVerMaxDef := colMaxDef(tagVersionIdx)
-	tagTeamMaxDef := colMaxDef(tagTeamIdx)
-	tagsOvMaxDef := colMaxDef(tagsOverflowIdx)
-	contentMaxDef := colMaxDef(contentIdx)
-	tsMaxDef := colMaxDef(tsIdx)
-
-	// readByteCol reads a ByteArray column (including dict-encoded strings) for a row group.
-	readByteCol := func(rg *file.RowGroupReader, idx int, n int) ([]parquet.ByteArray, []int16) {
-		if idx < 0 {
-			return nil, nil
-		}
-		col, colErr := rg.Column(idx)
-		if colErr != nil {
-			return nil, nil
-		}
-		cr, ok := col.(*file.ByteArrayColumnChunkReader)
-		if !ok {
-			return nil, nil
-		}
-		buf := make([]parquet.ByteArray, n)
-		def := make([]int16, n)
-		if _, _, colErr = cr.ReadBatch(int64(n), buf, def, nil); colErr != nil {
-			return nil, nil
-		}
-		return buf, def
+	var contentMaxDef, tsMaxDef int16
+	if contentIdx >= 0 {
+		contentMaxDef = s.Column(contentIdx).MaxDefinitionLevel()
+	}
+	if tsIdx >= 0 {
+		tsMaxDef = s.Column(tsIdx).MaxDefinitionLevel()
 	}
 
 	for rg := 0; rg < pf.NumRowGroups(); rg++ {
@@ -280,16 +263,7 @@ func (r *LogParquetReader) readNewFormatLogFile(filePath string, logs *[]recorde
 			continue
 		}
 
-		hostBuf, hostDef := readByteCol(rgReader, hostnameIdx, numRows)
-		srcBuf, srcDef := readByteCol(rgReader, sourceIdx, numRows)
-		statusBuf, statusDef := readByteCol(rgReader, statusIdx, numRows)
-		tagSvcBuf, tagSvcDef := readByteCol(rgReader, tagServiceIdx, numRows)
-		tagEnvBuf, tagEnvDef := readByteCol(rgReader, tagEnvIdx, numRows)
-		tagVerBuf, tagVerDef := readByteCol(rgReader, tagVersionIdx, numRows)
-		tagTeamBuf, tagTeamDef := readByteCol(rgReader, tagTeamIdx, numRows)
-		tagsOvBuf, tagsOvDef := readByteCol(rgReader, tagsOverflowIdx, numRows)
-		contentBuf, contentDef := readByteCol(rgReader, contentIdx, numRows)
-
+		// Read timestamp_ns.
 		var tsBuf []int64
 		var tsDef []int16
 		if tsIdx >= 0 {
@@ -304,27 +278,49 @@ func (r *LogParquetReader) readNewFormatLogFile(filePath string, logs *[]recorde
 			}
 		}
 
-		// ReadBatch compacts non-null values; we track per-column value indices (vi)
-		// to expand them back to row-aligned access using the definition levels.
-		hostVI, srcVI, statusVI := 0, 0, 0
-		tagSvcVI, tagEnvVI, tagVerVI, tagTeamVI, tagsOvVI := 0, 0, 0, 0, 0
-		contentVI, tsVI := 0, 0
-
-		// strAt reads the i-th row value from a compacted ByteArray buffer.
-		strAt := func(buf []parquet.ByteArray, def []int16, maxD int16, vi *int, i int) string {
-			if buf == nil || def[i] < maxD {
-				return ""
+		// Read content.
+		var contentBuf []parquet.ByteArray
+		var contentDef []int16
+		if contentIdx >= 0 {
+			if col, colErr := rgReader.Column(contentIdx); colErr == nil {
+				if cr, ok := col.(*file.ByteArrayColumnChunkReader); ok {
+					contentBuf = make([]parquet.ByteArray, numRows)
+					contentDef = make([]int16, numRows)
+					if _, _, colErr = cr.ReadBatch(int64(numRows), contentBuf, contentDef, nil); colErr != nil {
+						contentBuf, contentDef = nil, nil
+					}
+				}
 			}
-			v := string(buf[*vi])
-			*vi++
-			return v
 		}
 
-		for i := 0; i < numRows; i++ {
-			hostname := strAt(hostBuf, hostDef, hostnameMaxDef, &hostVI, i)
-			source := strAt(srcBuf, srcDef, sourceMaxDef, &srcVI, i)
-			status := strAt(statusBuf, statusDef, statusMaxDef, &statusVI, i)
+		// Read all tag columns (any BYTE_ARRAY column that is not content/timestamp).
+		type tagColData struct {
+			tagColMeta
+			buf []parquet.ByteArray
+			def []int16
+			vi  int
+		}
+		tagCols := make([]tagColData, 0, len(tagColsMeta))
+		for _, meta := range tagColsMeta {
+			col, colErr := rgReader.Column(meta.idx)
+			if colErr != nil {
+				continue
+			}
+			cr, ok := col.(*file.ByteArrayColumnChunkReader)
+			if !ok {
+				continue // skip non-BYTE_ARRAY columns (e.g. int, bool)
+			}
+			buf := make([]parquet.ByteArray, numRows)
+			def := make([]int16, numRows)
+			if _, _, colErr = cr.ReadBatch(int64(numRows), buf, def, nil); colErr != nil {
+				continue
+			}
+			tagCols = append(tagCols, tagColData{tagColMeta: meta, buf: buf, def: def})
+		}
 
+		tsVI, contentVI := 0, 0
+
+		for i := 0; i < numRows; i++ {
 			var tsMs int64
 			if tsBuf != nil && tsDef[i] >= tsMaxDef {
 				tsMs = tsBuf[tsVI] / 1_000_000
@@ -340,39 +336,21 @@ func (r *LogParquetReader) readNewFormatLogFile(filePath string, logs *[]recorde
 			}
 
 			var tags []string
-			addTag := func(buf []parquet.ByteArray, def []int16, maxD int16, vi *int, key string) {
-				if buf == nil || def[i] < maxD {
-					return
-				}
-				if v := string(buf[*vi]); v != "" {
-					tags = append(tags, key+":"+v)
-				}
-				*vi++
-			}
-			addTag(tagSvcBuf, tagSvcDef, tagSvcMaxDef, &tagSvcVI, "service")
-			addTag(tagEnvBuf, tagEnvDef, tagEnvMaxDef, &tagEnvVI, "env")
-			addTag(tagVerBuf, tagVerDef, tagVerMaxDef, &tagVerVI, "version")
-			addTag(tagTeamBuf, tagTeamDef, tagTeamMaxDef, &tagTeamVI, "team")
-
-			if overflow := strAt(tagsOvBuf, tagsOvDef, tagsOvMaxDef, &tagsOvVI, i); overflow != "" {
-				for _, t := range strings.Split(overflow, ",") {
-					if t = strings.TrimSpace(t); t != "" {
-						tags = append(tags, t)
+			for j := range tagCols {
+				tc := &tagCols[j]
+				if tc.def[i] >= tc.maxDef {
+					if v := string(tc.buf[tc.vi]); v != "" {
+						tags = append(tags, tc.name+":"+v)
 					}
+					tc.vi++
 				}
 			}
 
-			logEntry := recorderdef.LogData{
-				Source:      source,
-				Status:      status,
-				Hostname:    hostname,
+			*logs = append(*logs, recorderdef.LogData{
 				TimestampMs: tsMs,
 				Content:     content,
-			}
-			if len(tags) > 0 {
-				logEntry.Tags = tags
-			}
-			*logs = append(*logs, logEntry)
+				Tags:        tags,
+			})
 		}
 	}
 }
