@@ -16,28 +16,20 @@ import (
 
 	cfgcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
+	rcservicemrf "github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf/def"
 	rctelemetryreporter "github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/def"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
-
-	"go.uber.org/fx"
 )
 
-// Module conditionally provides the HA DC remote config service.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newMrfRemoteConfigServiceOptional),
-	)
-}
+// Dependencies defines the dependencies for the rcservicemrf component.
+type Dependencies struct {
+	compdef.In
 
-type dependencies struct {
-	fx.In
-
-	Lc fx.Lifecycle
+	Lc compdef.Lifecycle
 
 	DdRcTelemetryReporter rctelemetryreporter.Component
 	Hostname              hostname.Component
@@ -45,24 +37,31 @@ type dependencies struct {
 	Logger                log.Component
 }
 
-// newMrfRemoteConfigServiceOptional conditionally creates and configures a new MRF remote config service, based on whether RC is enabled.
-func newMrfRemoteConfigServiceOptional(deps dependencies) option.Option[rcservicemrf.Component] {
+// Provides defines the output of the rcservicemrf component.
+type Provides struct {
+	compdef.Out
+
+	Comp option.Option[rcservicemrf.Component]
+}
+
+// NewMrfRemoteConfigServiceOptional conditionally creates and configures a new MRF remote config service, based on whether RC is enabled.
+func NewMrfRemoteConfigServiceOptional(deps Dependencies) Provides {
 	none := option.None[rcservicemrf.Component]()
 	if !configUtils.IsRemoteConfigEnabled(deps.Cfg) || !deps.Cfg.GetBool("multi_region_failover.enabled") {
-		return none
+		return Provides{Comp: none}
 	}
 
 	mrfConfigService, err := newMrfRemoteConfigService(deps)
 	if err != nil {
 		deps.Logger.Errorf("remote config MRF service not initialized or started: %s", err)
-		return none
+		return Provides{Comp: none}
 	}
 
-	return option.New[rcservicemrf.Component](mrfConfigService)
+	return Provides{Comp: option.New[rcservicemrf.Component](mrfConfigService)}
 }
 
-// newMrfRemoteConfigServiceOptional creates and configures a new service that receives remote config updates from the configured DD failover DC
-func newMrfRemoteConfigService(deps dependencies) (rcservicemrf.Component, error) {
+// newMrfRemoteConfigService creates and configures a new service that receives remote config updates from the configured DD failover DC
+func newMrfRemoteConfigService(deps Dependencies) (rcservicemrf.Component, error) {
 	apiKey := configUtils.SanitizeAPIKey(deps.Cfg.GetString("multi_region_failover.api_key"))
 	baseRawURL, err := configUtils.GetMRFEndpoint(deps.Cfg, "https://config.", "multi_region_failover.remote_configuration.rc_dd_url")
 	if err != nil {
@@ -107,12 +106,12 @@ func newMrfRemoteConfigService(deps dependencies) (rcservicemrf.Component, error
 		return nil, fmt.Errorf("unable to create MRF remote-config service: %w", err)
 	}
 
-	deps.Lc.Append(fx.Hook{OnStart: func(_ context.Context) error {
+	deps.Lc.Append(compdef.Hook{OnStart: func(_ context.Context) error {
 		mrfConfigService.Start()
 		deps.Logger.Info("remote config MRF service started")
 		return nil
 	}})
-	deps.Lc.Append(fx.Hook{OnStop: func(_ context.Context) error {
+	deps.Lc.Append(compdef.Hook{OnStop: func(_ context.Context) error {
 		deps.Logger.Info("remote config MRF service stopped")
 		err = mrfConfigService.Stop()
 		if err != nil {
