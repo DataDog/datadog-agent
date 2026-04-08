@@ -205,7 +205,7 @@ type Config struct {
 	// EnableFentry enables the experimental fentry tracer (disabled by default)
 	EnableFentry bool
 
-	// EnableCORE enables the CO-RE version of the tracer
+	// EnableCORETracer enables the CO-RE version of the tracer
 	EnableCORETracer bool
 
 	// ExpectedTagsDuration is the duration for which we add host and container tags to our payloads, to handle the race
