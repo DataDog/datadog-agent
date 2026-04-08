@@ -86,7 +86,7 @@ func dockerPermissionEnvProvisioner() provisioners.PulumiEnvRunFunc[dockerPermis
 				Name:    "busybox",
 				Content: pulumi.String(busyboxComposeContent),
 			},
-		}, nil)
+		}, pulumi.StringMap{})
 		if err != nil {
 			return err
 		}

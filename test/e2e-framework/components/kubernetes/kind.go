@@ -144,10 +144,7 @@ func NewKindClusterWithConfig(env config.Env, vm *remote.Host, name, kubeVersion
 			kubernetes rc candidates in some registry, etc)
 
 			Note: InternalDockerhubMirror() returns the ECR pull-through cache on AWS (CI). Non-AWS
-			environments (GCP, Azure, local) still return registry-1.docker.io, but that is intentional:
-			KinD clusters are only created on AWS in CI — GCP uses GKE and Azure uses AKS — so the
-			non-AWS path is local-dev only, and forcing it through ECR would require developers to have
-			AWS credentials configured.
+			environments (GCP, Azure, local) still return registry-1.docker.io, since we don't have pull-through caches for those environments.
 		*/
 		var nodeImage string
 		if env.KubeNodeURL() != "" {
