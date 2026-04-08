@@ -439,3 +439,130 @@ func TestExcludeTruncated(t *testing.T) {
 	assert.False(shouldProcess2)
 	assert.Equal(int64(1), msg2.Origin.LogSource.ProcessingInfo.GetCount(ruleType+":"+ruleName))
 }
+
+func TestRemapAttributeToSource(t *testing.T) {
+	assert := assert.New(t)
+
+	t.Run("matching mapping remaps source", func(_ *testing.T) {
+		source := sources.NewLogSource("", &config.LogsConfig{
+			Source: "syslog_fallback",
+			ProcessingRules: []*config.ProcessingRule{{
+				Type: config.RemapAttributeToSource,
+				Name: "siem_remap",
+				Mappings: []*config.SourceMappingEntry{
+					{Attribute: "siem.device_vendor", Value: "Security", RemapSourceTo: "arcsight"},
+					{Attribute: "siem.device_product", Value: "palo alto", RemapSourceTo: "pan"},
+				},
+			}},
+		})
+		sc := &message.BasicStructuredContent{Data: map[string]interface{}{
+			"message": "test",
+			"siem": map[string]interface{}{
+				"device_vendor": "Security",
+			},
+		}}
+		msg := message.NewStructuredMessage(sc, message.NewOrigin(source), "", 0)
+
+		p := &Processor{}
+		shouldProcess := p.applyRedactingRules(msg)
+		assert.True(shouldProcess)
+		assert.Equal("arcsight", msg.Origin.Source())
+	})
+
+	t.Run("second mapping matches", func(_ *testing.T) {
+		source := sources.NewLogSource("", &config.LogsConfig{
+			Source: "syslog_fallback",
+			ProcessingRules: []*config.ProcessingRule{{
+				Type: config.RemapAttributeToSource,
+				Name: "siem_remap",
+				Mappings: []*config.SourceMappingEntry{
+					{Attribute: "siem.device_vendor", Value: "Security", RemapSourceTo: "arcsight"},
+					{Attribute: "siem.device_product", Value: "palo alto", RemapSourceTo: "pan"},
+				},
+			}},
+		})
+		sc := &message.BasicStructuredContent{Data: map[string]interface{}{
+			"message": "test",
+			"siem": map[string]interface{}{
+				"device_product": "palo alto",
+			},
+		}}
+		msg := message.NewStructuredMessage(sc, message.NewOrigin(source), "", 0)
+
+		p := &Processor{}
+		shouldProcess := p.applyRedactingRules(msg)
+		assert.True(shouldProcess)
+		assert.Equal("pan", msg.Origin.Source())
+	})
+
+	t.Run("no match falls back to config source", func(_ *testing.T) {
+		source := sources.NewLogSource("", &config.LogsConfig{
+			Source: "syslog_fallback",
+			ProcessingRules: []*config.ProcessingRule{{
+				Type: config.RemapAttributeToSource,
+				Name: "siem_remap",
+				Mappings: []*config.SourceMappingEntry{
+					{Attribute: "siem.device_vendor", Value: "Security", RemapSourceTo: "arcsight"},
+				},
+			}},
+		})
+		sc := &message.BasicStructuredContent{Data: map[string]interface{}{
+			"message": "test",
+			"siem": map[string]interface{}{
+				"device_vendor": "UnknownVendor",
+			},
+		}}
+		msg := message.NewStructuredMessage(sc, message.NewOrigin(source), "", 0)
+
+		p := &Processor{}
+		shouldProcess := p.applyRedactingRules(msg)
+		assert.True(shouldProcess)
+		assert.Equal("syslog_fallback", msg.Origin.Source())
+	})
+
+	t.Run("unstructured message is a no-op", func(_ *testing.T) {
+		source := sources.NewLogSource("", &config.LogsConfig{
+			Source: "syslog_fallback",
+			ProcessingRules: []*config.ProcessingRule{{
+				Type: config.RemapAttributeToSource,
+				Name: "siem_remap",
+				Mappings: []*config.SourceMappingEntry{
+					{Attribute: "siem.device_vendor", Value: "Security", RemapSourceTo: "arcsight"},
+				},
+			}},
+		})
+		msg := newMessage([]byte("plain text"), source, "")
+
+		p := &Processor{}
+		shouldProcess := p.applyRedactingRules(msg)
+		assert.True(shouldProcess)
+		assert.Equal("syslog_fallback", msg.Origin.Source())
+	})
+
+	t.Run("first match wins", func(_ *testing.T) {
+		source := sources.NewLogSource("", &config.LogsConfig{
+			Source: "syslog_fallback",
+			ProcessingRules: []*config.ProcessingRule{{
+				Type: config.RemapAttributeToSource,
+				Name: "siem_remap",
+				Mappings: []*config.SourceMappingEntry{
+					{Attribute: "siem.format", Value: "CEF", RemapSourceTo: "cef_source"},
+					{Attribute: "siem.device_vendor", Value: "Security", RemapSourceTo: "arcsight"},
+				},
+			}},
+		})
+		sc := &message.BasicStructuredContent{Data: map[string]interface{}{
+			"message": "test",
+			"siem": map[string]interface{}{
+				"format":        "CEF",
+				"device_vendor": "Security",
+			},
+		}}
+		msg := message.NewStructuredMessage(sc, message.NewOrigin(source), "", 0)
+
+		p := &Processor{}
+		shouldProcess := p.applyRedactingRules(msg)
+		assert.True(shouldProcess)
+		assert.Equal("cef_source", msg.Origin.Source())
+	})
+}

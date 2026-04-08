@@ -12,6 +12,8 @@ import (
 	"net"
 	"slices"
 	"strconv"
+	"strings"
+
 	"sync"
 	"time"
 
@@ -29,7 +31,10 @@ const (
 	tlsHandshakeTimeout   = 10 * time.Second
 )
 
-// A TCPListener listens and accepts TCP connections and delegates the read operations to a tailer.
+// A TCPListener listens and accepts TCP connections and delegates the read
+// operations to a StreamTailer. The source's Format field controls whether
+// syslog or unstructured parsing is used.
+
 type TCPListener struct {
 	pipelineProvider pipeline.Provider
 	source           *sources.LogSource
@@ -38,7 +43,7 @@ type TCPListener struct {
 	maxConnections   int
 	tlsCredentials   *tls.Config
 	listener         net.Listener
-	tailers          []*tailer.Tailer
+	tailers          []startstop.StartStoppable
 	mu               sync.Mutex
 	stopped          bool
 	connSem          chan struct{}
@@ -85,8 +90,9 @@ func NewTCPListener(pipelineProvider pipeline.Provider, source *sources.LogSourc
 		frameSize:        frameSize,
 		maxConnections:   maxConns,
 		tlsCredentials:   tlsCreds,
-		tailers:          []*tailer.Tailer{},
+		tailers:          []startstop.StartStoppable{},
 		connSem:          make(chan struct{}, maxConns),
+
 		stop:             make(chan struct{}, 1),
 		cancel:           cancel,
 	}, nil
@@ -121,13 +127,13 @@ func (l *TCPListener) Stop() {
 		l.listener.Close()
 	}
 	stopper := startstop.NewParallelStopper()
-	for _, tailer := range l.tailers {
-		stopper.Add(tailer)
+	for _, t := range l.tailers {
+		stopper.Add(t)
 	}
 	stopper.Stop()
 
 	// At this point all the tailers have been stopped - remove them all from the active tailer list
-	l.tailers = []*tailer.Tailer{}
+	l.tailers = []startstop.StartStoppable{}
 }
 
 // run accepts new TCP connections and create a dedicated tailer for each.
@@ -181,21 +187,6 @@ func (l *TCPListener) startListener() error {
 	return nil
 }
 
-// read reads data from connection, returns an error if it failed and stop the tailer.
-func (l *TCPListener) read(tailer *tailer.Tailer) ([]byte, string, error) {
-	if l.idleTimeout > 0 {
-		tailer.Conn.SetReadDeadline(time.Now().Add(l.idleTimeout)) //nolint:errcheck
-	}
-	frame := make([]byte, l.frameSize)
-	n, err := tailer.Conn.Read(frame)
-	if err != nil {
-		log.Debugf("Connection error on port %d from %s: %v", l.source.Config.Port, tailer.Conn.RemoteAddr(), err)
-		go l.stopTailer(tailer)
-		return nil, "", err
-	}
-	return frame[:n], tailer.Conn.RemoteAddr().String(), nil
-}
-
 // handleConnection performs the TLS handshake (if applicable) outside of any
 // mutex, then registers the tailer. This prevents a slow or malicious client
 // from blocking the accept loop.
@@ -218,24 +209,46 @@ func (l *TCPListener) handleConnection(conn net.Conn) {
 		<-l.connSem
 		return
 	}
-	t := tailer.NewTailer(l.source, conn, l.pipelineProvider.NextPipelineChan(), l.read)
+
+	outputChan := l.pipelineProvider.NextPipelineChan()
+	sourceHostAddr := extractIPFromAddr(conn.RemoteAddr().String())
+
+	t := tailer.NewStreamTailer(
+		l.source,
+		conn,
+		outputChan,
+		l.source.Config.Format,
+		l.frameSize,
+		l.idleTimeout,
+		sourceHostAddr,
+	)
+	t.SetOnDone(func() { l.removeTailer(t) })
 	l.tailers = append(l.tailers, t)
 	l.mu.Unlock()
 	t.Start()
 	l.source.Status.Success()
+
 }
 
-// stopTailer stops the tailer.
-func (l *TCPListener) stopTailer(tailer *tailer.Tailer) {
+// removeTailer removes a finished tailer from the active list.
+// Called by the tailer's onDone callback when readLoop exits.
+func (l *TCPListener) removeTailer(t startstop.StartStoppable) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	for i, t := range l.tailers {
-		if t == tailer {
-			// Only stop the tailer if it has not already been stopped
-			tailer.Stop()
+	for i, active := range l.tailers {
+		if active == t {
 			l.tailers = slices.Delete(l.tailers, i, i+1)
 			<-l.connSem
 			break
 		}
 	}
+}
+
+// extractIPFromAddr strips the port from an address string (e.g. "1.2.3.4:5678" -> "1.2.3.4").
+func extractIPFromAddr(addr string) string {
+	lastColon := strings.LastIndex(addr, ":")
+	if lastColon != -1 {
+		return addr[:lastColon]
+	}
+	return addr
 }
