@@ -11,13 +11,23 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
+	gocache "github.com/patrickmn/go-cache"
 	"github.com/twmb/murmur3"
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.uber.org/zap"
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
 	orchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
+)
+
+const (
+	// ManifestCacheTTL is the time-to-live for manifest cache entries.
+	// Matches the orchestrator collector's default (3 minutes).
+	ManifestCacheTTL = 3 * time.Minute
+	// ManifestCachePurge is the interval for purging expired cache entries.
+	ManifestCachePurge = 30 * time.Second
 )
 
 var (
@@ -336,6 +346,56 @@ func CreateClusterManifest(clusterID string, nodes []*agentmodel.Manifest, logge
 		ApiVersion:      "virtual.datadoghq.com/v1",
 		Kind:            "Cluster",
 	}
+}
+
+// NewManifestCache creates a new manifest deduplication cache with the standard TTL and purge interval.
+// Callers are responsible for managing the cache lifetime (e.g., as a singleton).
+func NewManifestCache() *gocache.Cache {
+	return gocache.New(ManifestCacheTTL, ManifestCachePurge)
+}
+
+// ShouldSkipManifest reports whether the manifest should be suppressed because an identical
+// (same UID + resourceVersion) manifest was already sent within the cache TTL.
+// Watch events always bypass the cache so real-time updates are never dropped.
+// cache must not be nil.
+func ShouldSkipManifest(manifest *agentmodel.Manifest, isWatchEvent bool, cache *gocache.Cache) bool {
+	if manifest == nil || manifest.Uid == "" {
+		return false
+	}
+	if isWatchEvent {
+		return false
+	}
+	if cached, hit := cache.Get(manifest.Uid); hit {
+		if cachedVersion, ok := cached.(string); ok && cachedVersion == manifest.ResourceVersion {
+			return true
+		}
+	}
+	cache.Set(manifest.Uid, manifest.ResourceVersion, ManifestCacheTTL)
+	return false
+}
+
+// ChunkManifests splits manifests into chunks that each respect both a maximum count
+// and a maximum total content size (in bytes). This mirrors the limits applied by the
+// orchestrator collector to avoid intake endpoint rejections.
+func ChunkManifests(manifests []*agentmodel.Manifest, maxCount, maxBytes int) [][]*agentmodel.Manifest {
+	var chunks [][]*agentmodel.Manifest
+	var current []*agentmodel.Manifest
+	currentBytes := 0
+
+	for _, m := range manifests {
+		size := len(m.Content)
+		if len(current) > 0 && (len(current) >= maxCount || currentBytes+size > maxBytes) {
+			chunks = append(chunks, current)
+			current = nil
+			currentBytes = 0
+		}
+		current = append(current, m)
+		currentBytes += size
+	}
+	if len(current) > 0 {
+		chunks = append(chunks, current)
+	}
+	return chunks
 }
 
 func getManifestType(kind string) int {
