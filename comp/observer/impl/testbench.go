@@ -109,9 +109,23 @@ type TestBench struct {
 	episodeInfo    *EpisodeInfo
 
 	// Logs and log anomalies (testbench-specific, not in engine)
+	// rawLogs holds non-parquet log entries (demo scenario, live telemetry logs).
+	// Parquet log entries are streamed from disk on each rerun to avoid OOM when
+	// log datasets are large (potentially millions of entries).
 	rawLogs                []observerdef.LogView
 	logAnomalies           []observerdef.Anomaly            // all anomalies from log detectors
 	logAnomaliesByDetector map[string][]observerdef.Anomaly // anomalies grouped by detector name
+
+	// parquetLogDirs holds directories that contain parquet log files.
+	// On each rerunDetectorsLocked, logs are streamed from these dirs rather
+	// than held in memory. This keeps peak RSS proportional to one row-group,
+	// not to the total log count.
+	parquetLogDirs  []string
+	parquetLogCount int64 // total log entries across all parquet dirs (for stats)
+	// parquet log time bounds for GetStatus (tracked during initial load)
+	parquetLogMinTs  int64
+	parquetLogMaxTs  int64
+	parquetLogBounds bool // true once at least one parquet log timestamp has been seen
 
 	// Events captured during replay (mirrors what EventReporter would send in live mode).
 	reportedEvents []ReportedEvent
@@ -327,6 +341,11 @@ func (tb *TestBench) LoadScenario(name string) error {
 	// Clear existing data
 	tb.engine.storage = newTimeSeriesStorage() // TODO: encapsulate behind engine method
 	tb.rawLogs = nil
+	tb.parquetLogDirs = nil
+	tb.parquetLogCount = 0
+	tb.parquetLogMinTs = 0
+	tb.parquetLogMaxTs = 0
+	tb.parquetLogBounds = false
 	tb.logAnomalies = []observerdef.Anomaly{}
 	tb.logAnomaliesByDetector = make(map[string][]observerdef.Anomaly)
 	tb.ready = false
@@ -449,7 +468,7 @@ func (tb *TestBench) LoadScenario(name string) error {
 	fmt.Printf("  Total scenario load took %s\n", time.Since(scenarioStart))
 	rs := tb.replayStats
 	fmt.Printf("Scenario loaded: %d metric samples (%d unique series), %d metric anomalies, %d log entries, %d log anomalies\n",
-		rs.InputMetricsCount, rs.InputMetricsCardinality, len(tb.engine.RawAnomalies()), len(tb.rawLogs), len(tb.logAnomalies))
+		rs.InputMetricsCount, rs.InputMetricsCardinality, len(tb.engine.RawAnomalies()), int(tb.parquetLogCount)+len(tb.rawLogs), len(tb.logAnomalies))
 
 	close(progressDone)
 	tb.mu.Unlock()
@@ -546,14 +565,35 @@ func (tb *TestBench) loadParquetDir(dir string) error {
 		}
 	}
 
-	// Load logs from parquet files
-	parquetLogs, err := tb.config.Recorder.ReadAllLogs(dir)
-	if err != nil {
-		return fmt.Errorf("failed to read parquet logs: %w", err)
+	// Index parquet log files for streaming during rerun.
+	// Logs are NOT loaded into memory here — they are re-streamed from disk on
+	// each rerunDetectorsLocked call to keep peak RSS proportional to one
+	// row-group rather than the total log count (which can be in the millions).
+	var logCount int64
+	if err := tb.config.Recorder.ForEachLog(dir, func(l recorderdef.LogData) error {
+		logCount++
+		if l.TimestampMs > 0 {
+			if !tb.parquetLogBounds {
+				tb.parquetLogMinTs = l.TimestampMs
+				tb.parquetLogMaxTs = l.TimestampMs
+				tb.parquetLogBounds = true
+			} else {
+				if l.TimestampMs < tb.parquetLogMinTs {
+					tb.parquetLogMinTs = l.TimestampMs
+				}
+				if l.TimestampMs > tb.parquetLogMaxTs {
+					tb.parquetLogMaxTs = l.TimestampMs
+				}
+			}
+		}
+		return nil
+	}); err != nil {
+		return fmt.Errorf("indexing parquet logs: %w", err)
 	}
-
-	for _, log := range parquetLogs {
-		tb.rawLogs = append(tb.rawLogs, &logDataView{data: &log})
+	if logCount > 0 {
+		tb.parquetLogDirs = append(tb.parquetLogDirs, dir)
+		tb.parquetLogCount += logCount
+		fmt.Printf("  Indexed %d log entries from parquet files (will stream from disk on each rerun)\n", logCount)
 	}
 
 	return nil
@@ -651,24 +691,32 @@ func (tb *TestBench) GetStatus() StatusResponse {
 
 	scenarioStart, scenarioEnd, hasBounds := tb.engine.Storage().TimeBounds()
 
-	// Extend bounds to include log timestamps (parquet logs can fall outside the metrics range)
-	for _, l := range tb.rawLogs {
-		ts := l.GetTimestampUnixMilli()
-		if ts == 0 {
-			continue
+	// Extend bounds to include log timestamps (logs can fall outside the metrics range).
+	// rawLogs covers non-parquet logs (demo, live telemetry); parquet log bounds are
+	// pre-computed during load to avoid re-scanning large files on every GetStatus.
+	extendBounds := func(tsMs int64) {
+		if tsMs == 0 {
+			return
 		}
 		if !hasBounds {
-			scenarioStart = ts / 1000
-			scenarioEnd = ts / 1000
+			scenarioStart = tsMs / 1000
+			scenarioEnd = tsMs / 1000
 			hasBounds = true
 		} else {
-			if ts/1000 < scenarioStart {
-				scenarioStart = ts / 1000
+			if tsMs/1000 < scenarioStart {
+				scenarioStart = tsMs / 1000
 			}
-			if (ts+999)/1000 > scenarioEnd {
-				scenarioEnd = (ts + 999) / 1000
+			if (tsMs+999)/1000 > scenarioEnd {
+				scenarioEnd = (tsMs + 999) / 1000
 			}
 		}
+	}
+	for _, l := range tb.rawLogs {
+		extendBounds(l.GetTimestampUnixMilli())
+	}
+	if tb.parquetLogBounds {
+		extendBounds(tb.parquetLogMinTs)
+		extendBounds(tb.parquetLogMaxTs)
 	}
 
 	var scenarioStartPtr *int64
@@ -718,23 +766,35 @@ func (tb *TestBench) rerunDetectorsLocked() {
 		state:     tb.engine.StateView(),
 	})
 
-	// Feed raw logs through the engine's IngestLog path so that extractors,
+	// Feed logs through the engine's IngestLog path so that extractors,
 	// log observers, and timestamp tracking all use the same code path as
 	// live ingestion. We ignore the returned advance requests because
 	// ReplayStoredData (below) will handle scheduling after all data is loaded.
+	//
+	// rawLogs holds non-parquet logs (demo, live telemetry); parquet logs are
+	// streamed from disk to avoid keeping millions of entries in memory.
 	var allTelemetry []observerdef.ObserverTelemetry
-	for _, log := range tb.rawLogs {
+	ingestLog := func(content []byte, status, hostname string, tags []string, tsMs int64) {
 		obs := &logObs{
-			content:     log.GetContent(),
-			status:      log.GetStatus(),
-			tags:        log.GetTags(),
-			hostname:    log.GetHostname(),
-			timestampMs: log.GetTimestampUnixMilli(),
+			content:     content,
+			status:      status,
+			tags:        tags,
+			hostname:    hostname,
+			timestampMs: tsMs,
 		}
 		_, tel := tb.engine.IngestLog("parquet", obs)
 		allTelemetry = append(allTelemetry, tel...)
-		// Count logs only here in the testbench
-		allTelemetry = append(allTelemetry, newTelemetryCounter([]string{}, telemetryTbInputLogsCount, 1, log.GetTimestampUnixMilli()/1000))
+		allTelemetry = append(allTelemetry, newTelemetryCounter([]string{}, telemetryTbInputLogsCount, 1, tsMs/1000))
+	}
+	for _, log := range tb.rawLogs {
+		ingestLog(log.GetContent(), log.GetStatus(), log.GetHostname(), log.GetTags(), log.GetTimestampUnixMilli())
+	}
+	// Stream parquet logs from disk (zero heap allocation for the log slice itself).
+	for _, dir := range tb.parquetLogDirs {
+		_ = tb.config.Recorder.ForEachLog(dir, func(l recorderdef.LogData) error {
+			ingestLog(l.Content, l.Status, l.Hostname, l.Tags, l.TimestampMs)
+			return nil
+		})
 	}
 
 	// Replay all stored data through the scheduler policy.
@@ -1416,6 +1476,11 @@ func (tb *TestBench) loadDemoScenario() error {
 	// Clear existing data
 	tb.engine.storage = newTimeSeriesStorage() // TODO: encapsulate behind engine method
 	tb.rawLogs = nil
+	tb.parquetLogDirs = nil
+	tb.parquetLogCount = 0
+	tb.parquetLogMinTs = 0
+	tb.parquetLogMaxTs = 0
+	tb.parquetLogBounds = false
 	tb.logAnomalies = []observerdef.Anomaly{}
 	tb.logAnomaliesByDetector = make(map[string][]observerdef.Anomaly)
 	tb.ready = false

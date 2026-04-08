@@ -232,17 +232,24 @@ func (r *recorderImpl) ReadAllTraceStats(inputDir string) ([]recorderdef.TraceSt
 
 // ReadAllLogs reads all logs from parquet files and returns them as a slice.
 func (r *recorderImpl) ReadAllLogs(inputDir string) ([]recorderdef.LogData, error) {
+	var logs []recorderdef.LogData
+	if err := r.ForEachLog(inputDir, func(l recorderdef.LogData) error {
+		logs = append(logs, l)
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	pkglog.Infof("ReadAllLogs: loaded %d logs from %s", len(logs), inputDir)
+	return logs, nil
+}
+
+// ForEachLog streams log entries from parquet files without loading them all into memory.
+func (r *recorderImpl) ForEachLog(inputDir string, fn func(recorderdef.LogData) error) error {
 	reader, err := NewLogParquetReader(inputDir)
 	if err != nil {
-		return nil, fmt.Errorf("creating log parquet reader: %w", err)
+		return fmt.Errorf("creating log parquet reader: %w", err)
 	}
-
-	pkglog.Infof("ReadAllLogs: loading logs from %s", inputDir)
-
-	logs := reader.ReadAll()
-
-	pkglog.Infof("ReadAllLogs: loaded %d logs", len(logs))
-	return logs, nil
+	return reader.ForEachLog(fn)
 }
 
 // recordingHandle wraps an observer handle to record observations.

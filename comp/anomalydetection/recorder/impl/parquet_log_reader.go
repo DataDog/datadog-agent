@@ -67,13 +67,10 @@ func NewLogParquetReader(inputDir string) (*LogParquetReader, error) {
 // ReadAll reads all logs from all parquet files.
 func (r *LogParquetReader) ReadAll() []recorderdef.LogData {
 	var logs []recorderdef.LogData
-
-	for _, filePath := range r.files {
-		r.readFile(filePath, &logs)
-	}
-	for _, filePath := range r.newFiles {
-		r.readNewFormatLogFile(filePath, &logs)
-	}
+	_ = r.ForEachLog(func(l recorderdef.LogData) error {
+		logs = append(logs, l)
+		return nil
+	})
 
 	// Sort by timestamp for consistent ordering
 	sort.Slice(logs, func(i, j int) bool {
@@ -83,37 +80,55 @@ func (r *LogParquetReader) ReadAll() []recorderdef.LogData {
 	return logs
 }
 
-func (r *LogParquetReader) readFile(filePath string, logs *[]recorderdef.LogData) {
+// ForEachLog streams all log entries without loading them all into memory.
+// Entries are yielded in file order; files are processed in chronological
+// order (sorted by filename). No cross-file sort is applied.
+// Returning a non-nil error from fn stops iteration and propagates the error.
+func (r *LogParquetReader) ForEachLog(fn func(recorderdef.LogData) error) error {
+	for _, filePath := range r.files {
+		if err := r.forEachLegacyLog(filePath, fn); err != nil {
+			return err
+		}
+	}
+	for _, filePath := range r.newFiles {
+		if err := r.forEachNewFormatLog(filePath, fn); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (r *LogParquetReader) forEachLegacyLog(filePath string, fn func(recorderdef.LogData) error) error {
 	f, err := os.Open(filePath)
 	if err != nil {
 		pkglog.Warnf("Failed to open log parquet file %s: %v", filePath, err)
-		return
+		return nil
 	}
 	defer f.Close()
 
 	pf, err := file.NewParquetReader(f)
 	if err != nil {
 		pkglog.Warnf("Failed to create parquet reader for %s: %v", filePath, err)
-		return
+		return nil
 	}
 	defer pf.Close()
 
 	reader, err := pqarrow.NewFileReader(pf, pqarrow.ArrowReadProperties{BatchSize: 1024}, memory.DefaultAllocator)
 	if err != nil {
 		pkglog.Warnf("Failed to create arrow reader for %s: %v", filePath, err)
-		return
+		return nil
 	}
 
 	table, err := reader.ReadTable(context.TODO())
 	if err != nil {
 		pkglog.Warnf("Failed to read table from %s: %v", filePath, err)
-		return
+		return nil
 	}
 	defer table.Release()
 
 	numRows := int(table.NumRows())
 	if numRows == 0 {
-		return
+		return nil
 	}
 
 	// Get column indices
@@ -169,35 +184,39 @@ func (r *LogParquetReader) readFile(filePath string, logs *[]recorderdef.LogData
 	tagsCol := getStringListCol("Tags")
 
 	for i := 0; i < numRows; i++ {
-		log := recorderdef.LogData{}
+		l := recorderdef.LogData{}
 
 		if runIDCol != nil {
-			log.Source = runIDCol.Value(i)
+			l.Source = runIDCol.Value(i)
 		}
 		if timeCol != nil {
-			log.TimestampMs = timeCol.Value(i)
+			l.TimestampMs = timeCol.Value(i)
 		}
 		if contentCol != nil && !contentCol.IsNull(i) {
 			// Copy content data to avoid referencing memory that may be released
 			data := contentCol.Value(i)
-			log.Content = make([]byte, len(data))
-			copy(log.Content, data)
+			l.Content = make([]byte, len(data))
+			copy(l.Content, data)
 		}
 		if statusCol != nil {
-			log.Status = statusCol.Value(i)
+			l.Status = statusCol.Value(i)
 		}
 		if hostnameCol != nil {
-			log.Hostname = hostnameCol.Value(i)
+			l.Hostname = hostnameCol.Value(i)
 		}
 		if tagsCol != nil {
-			log.Tags = readStringList(tagsCol, i)
+			l.Tags = readStringList(tagsCol, i)
 		}
 
-		*logs = append(*logs, log)
+		if err := fn(l); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
-// readNewFormatLogFile reads a logs-*.parquet file written by the new pipeline.
+// forEachNewFormatLog reads a logs-*.parquet file written by the new pipeline,
+// calling fn for each log entry.
 //
 // Only two columns have fixed semantics:
 //   - content   (BYTE_ARRAY) → LogData.Content
@@ -209,18 +228,18 @@ func (r *LogParquetReader) readFile(filePath string, logs *[]recorderdef.LogData
 //
 // Uses file.ColumnChunkReader.ReadBatch directly (bypassing pqarrow) to avoid the
 // arrow-go v18 double-configureDict bug on multi-row-group dict-encoded columns.
-func (r *LogParquetReader) readNewFormatLogFile(filePath string, logs *[]recorderdef.LogData) {
+func (r *LogParquetReader) forEachNewFormatLog(filePath string, fn func(recorderdef.LogData) error) error {
 	f, err := os.Open(filePath)
 	if err != nil {
 		pkglog.Warnf("Failed to open log parquet file %s: %v", filePath, err)
-		return
+		return nil
 	}
 	defer f.Close()
 
 	pf, err := file.NewParquetReader(f)
 	if err != nil {
 		pkglog.Warnf("Failed to create parquet reader for %s: %v", filePath, err)
-		return
+		return nil
 	}
 	defer pf.Close()
 
@@ -346,11 +365,14 @@ func (r *LogParquetReader) readNewFormatLogFile(filePath string, logs *[]recorde
 				}
 			}
 
-			*logs = append(*logs, recorderdef.LogData{
+			if err := fn(recorderdef.LogData{
 				TimestampMs: tsMs,
 				Content:     content,
 				Tags:        tags,
-			})
+			}); err != nil {
+				return err
+			}
 		}
 	}
+	return nil
 }

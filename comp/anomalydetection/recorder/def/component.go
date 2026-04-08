@@ -45,7 +45,13 @@ type Component interface {
 	ReadAllProfiles(inputDir string) ([]ProfileData, error)
 
 	// ReadAllLogs reads all logs from parquet files and returns them as a slice.
+	// For large datasets, prefer ForEachLog to avoid loading everything into memory.
 	ReadAllLogs(inputDir string) ([]LogData, error)
+
+	// ForEachLog streams log entries from parquet files without loading them all into memory,
+	// calling fn for each entry. Peak memory is O(row_group_size) rather than O(total_logs).
+	// Entries are yielded in file order (files sorted chronologically); no cross-file sort.
+	ForEachLog(inputDir string, fn func(LogData) error) error
 
 	// ReadAllTraceStats reads all APM trace stats from parquet files and returns them as a slice.
 	// Each element corresponds to one aggregated stat group (ClientGroupedStats).
