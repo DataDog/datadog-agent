@@ -529,25 +529,11 @@ class GithubAPI:
         if public_repo:
             return Auth.Login("user", "password")
 
-        if "GITHUB_APP_ID" not in os.environ or "GITHUB_KEY_B64" not in os.environ:
+        if "GITHUB_APP_ID" in os.environ or "GITHUB_KEY_B64" in os.environ:
             raise Exit(
-                message="For private repositories on CI, you need to set the GITHUB_APP_ID and GITHUB_KEY_B64 environment variables",
+                message="Github App Authentication is no longer supported in the CI, use dd-octo-sts instead",
                 code=1,
             )
-
-        appAuth = Auth.AppAuth(
-            os.environ['GITHUB_APP_ID'], base64.b64decode(os.environ['GITHUB_KEY_B64']).decode('ascii')
-        )
-        installation_id = os.environ.get('GITHUB_INSTALLATION_ID', None)
-        if installation_id is None:
-            # Even if we don't know the installation id, there's an API endpoint to
-            # retrieve it, given the other credentials (app id + key).
-            integration = GithubIntegration(auth=appAuth)
-            installations = integration.get_installations()
-            if installations.totalCount == 0:
-                raise Exit(message='No usable installation found', code=1)
-            installation_id = installations[0].id
-        return appAuth.get_installation_auth(int(installation_id))
 
     @staticmethod
     def get_token_from_app(app_id_env='GITHUB_APP_ID', pkey_env='GITHUB_KEY_B64'):

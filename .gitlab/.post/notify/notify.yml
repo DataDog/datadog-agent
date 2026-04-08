@@ -37,7 +37,6 @@ notify:
   timeout: 15 minutes # Added to prevent a stuck job blocking the resource_group defined above
   script:
     - !reference [.notify_setup]
-    - !reference [.setup_agent_github_app]
     - dda inv -- -e notify.check-consistent-failures -p $CI_PIPELINE_ID
 
 send_pipeline_stats:
@@ -64,7 +63,6 @@ notify_gitlab_ci_changes:
         compare_to: $COMPARE_TO_BRANCH
   script:
     - python3 -m dda self dep sync -f legacy-tasks
-    - !reference [.setup_agent_github_app]
     - dda inv -- -e notify.gitlab-ci-diff --from-diff artifacts/diff.gitlab-ci.yml --pr-comment
 
 close_failing_tests_stale_issues:
