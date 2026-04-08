@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Fixes a bug where cached services would not be updated with new metadata.
+    Fixes a caching bug in dbm rds instance and aurora cluster autodiscovery. When service metatadata changed (DbName for example) the service check would not be updated with the new metadata if the service was already in the cache. Now the cached service is deleted and the updated service is added as a new check.
