@@ -6,6 +6,7 @@ import re
 import shlex
 import shutil
 import tempfile
+import time
 import zipfile
 
 from invoke import Exit, task
@@ -233,8 +234,10 @@ def eval_scenarios(
         config: Path to observer-testbench JSON params file (--config). Empty: omit flag.
         scenario_output_dir: Directory where per-scenario testbench JSON outputs are written.
             Defaults to /tmp. Set to a combo-specific folder to keep outputs co-located.
-        timeout: Seconds before a single testbench invocation is killed and the
-            scenario is skipped (None = no limit).
+        timeout: Per-scenario time budget in seconds. A total budget of
+            ``timeout × len(scenarios_to_run)`` is shared across all scenarios:
+            unused time from fast scenarios rolls over to later ones. A scenario
+            that exhausts the remaining budget is killed and skipped. 0 = no limit.
         scenarios: Comma-separated scenario names to run (default: all SCENARIOS).
             Overrides the global SCENARIOS list; ``scenario`` (singular) takes precedence
             when both are set.
@@ -264,6 +267,9 @@ def eval_scenarios(
     scenario_logger = _logger or StepLogger(len(scenarios_to_run), "Scenario")
 
     results = []
+    # Rolling budget: total = timeout * #scenarios. Each scenario gets whatever
+    # time remains; unused time rolls over to subsequent scenarios.
+    budget_remaining = timeout * len(scenarios_to_run) if timeout else 0
     for name in scenarios_to_run:
         parquet_dir = os.path.join(scenarios_dir, name, "parquet")
         scenario_root = os.path.join(scenarios_dir, name)
@@ -280,16 +286,23 @@ def eval_scenarios(
 
         only_part = f" --only {shlex.quote(only_flag)}" if only_flag else ""
         config_part = f" --config {shlex.quote(config)}" if config else ""
+        scenario_start = time.monotonic()
         try:
             ctx.run(
                 f"bin/observer-testbench --headless {shlex.quote(name)} --output {shlex.quote(output_path)} --scenarios-dir {shlex.quote(scenarios_dir)}{only_part}{config_part}",
-                timeout=None if timeout == 0 else timeout,
+                timeout=None if timeout == 0 else max(1, int(budget_remaining)),
             )
         except Exception as e:
             if type(e).__name__ == "CommandTimedOut":
-                scenario_logger.detail(f"testbench timed out after {timeout}s — skipping scenario", Color.ORANGE)
+                scenario_logger.detail(
+                    f"testbench timed out (budget {budget_remaining:.0f}s remaining) — skipping scenario",
+                    Color.ORANGE,
+                )
                 continue
             raise
+        finally:
+            if timeout:
+                budget_remaining -= time.monotonic() - scenario_start
 
         if not os.path.isfile(output_path):
             scenario_logger.detail(f"testbench did not produce output at {output_path}", Color.RED)
@@ -944,8 +957,9 @@ def eval_bayesian(
         sigma: Gaussian width in seconds for F1 scoring.
         seed: Random seed for TPE sampler reproducibility (default: None = random).
         build: Whether to build observer-testbench and observer-scorer first.
-        timeout: Seconds before a single testbench invocation is killed and the
-            scenario is skipped (None = no limit). Passed to eval_scenarios.
+        timeout: Per-scenario time budget in seconds, forwarded to eval_scenarios.
+            Total budget per trial = ``timeout × #scenarios``; unused time rolls over.
+            0 = no limit.
         scenarios: Comma-separated scenario names to run (default: all SCENARIOS).
 
     Examples:
@@ -1195,9 +1209,11 @@ def eval_component(
     overwrite: bool = False,
     tune_evaluated_component: bool = False,
     enable: str = "",
-    disable: str = "",
+    # We currently disable cusum because it's slowing down the evaluation significantly
+    disable: str = "cusum",
     lock: str = "",
-    timeout: int = 0,
+    # By default, allow 5m x #scenarios per run
+    timeout: int = 300,
     scenarios: str = "",
 ):
     """
@@ -1249,10 +1265,9 @@ def eval_component(
             Bayesian run (not tuned by Optuna, in addition to the evaluated
             component which is locked on ``with`` runs unless
             ``--tune-evaluated-component`` is set).
-        timeout: Seconds before a single testbench invocation is killed and that
-            scenario is skipped (None = no limit). Applied per scenario within each
-            Bayesian trial — effectively a timeout for one complete pass over all
-            scenarios.
+        timeout: Per-scenario time budget in seconds. Total budget per Bayesian run
+            = ``timeout × #scenarios``; unused time from fast scenarios rolls over
+            to later ones. 0 = no limit.
         scenarios: Comma-separated scenario names to evaluate (default: all SCENARIOS).
             Useful to focus on a subset and reduce wall-clock time.
 
@@ -1371,7 +1386,12 @@ def eval_component(
     if extra_lock_list:
         print(color_message(f"  extra locked HPs:      {', '.join(extra_lock_list)}", Color.BLUE))
     if timeout:
-        print(color_message(f"  timeout:               {timeout}s per testbench invocation", Color.BLUE))
+        print(
+            color_message(
+                f"  timeout:               {timeout}s/scenario ({timeout * n_scenarios}s total budget per run)",
+                Color.BLUE,
+            )
+        )
     if tune_evaluated_component:
         print(color_message("  target component HPs:  tuned (Optuna search on 'with')", Color.ORANGE))
     else:
@@ -1917,7 +1937,7 @@ def launch_testbench(
         config: JSON params file; if set, overrides --enable/--disable/--only (testbench behavior).
         enable: Comma-separated components to enable (passed to testbench ``--enable``).
         disable: Comma-separated components to disable (passed to testbench ``--disable``).
-        timeout: Seconds before the headless testbench process is killed (None = no limit;
+        timeout: Seconds before the headless testbench process is killed (0 = no limit;
             ignored in interactive mode).
     """
     if build:
