@@ -3,16 +3,19 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package logsagentpipelineimpl contains the implementation for the logs agent pipeline component
-package logsagentpipelineimpl
+// Package fx provides the fx module for the logsagentpipeline component.
+package fx
 
 import (
-	logsagentpipelinefx "github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/fx"
+	"go.uber.org/fx"
+
+	logsagentpipelineimpl "github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // Module defines the fx options for this component.
-// Deprecated: use github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/fx.Module instead.
 func Module() fxutil.Module {
-	return logsagentpipelinefx.Module()
+	return fxutil.Component(
+		fx.Provide(logsagentpipelineimpl.NewLogsAgentComponent),
+	)
 }
