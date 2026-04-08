@@ -104,7 +104,7 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 				}.Build()
 				return &internal
 			},
-			expectedCount: 6, // horizontal_scaling_received_replicas + horizontal_scaling_actions(error,ok) + vertical_rollout_triggered(error,ok) + local_fallback_enabled
+			expectedCount: 13, // horizontal_scaling_received_replicas + horizontal_scaling_actions(error,ok) + vertical_rollout_triggered(error,ok) + local_fallback_enabled + vertical_inplace(patch,eviction,rollout_fallback,pdb_blocked,resize_completed)
 			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
 				var found bool
 				for _, m := range metrics {
@@ -154,7 +154,7 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 				}.Build()
 				return &internal
 			},
-			expectedCount: 9, // 2 requests + 2 limits + horizontal_scaling_actions(error,ok) + vertical_rollout_triggered(error,ok) + local_fallback_enabled
+			expectedCount: 16, // 2 requests + 2 limits + horizontal_scaling_actions(error,ok) + vertical_rollout_triggered(error,ok) + local_fallback_enabled + vertical_inplace(7)
 			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
 				var requestsCount, limitsCount int
 				for _, m := range metrics {
@@ -204,7 +204,7 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 				}.Build()
 				return &internal
 			},
-			expectedCount: 5, // horizontal_scaling_actions(error,ok) + vertical_rollout_triggered(error,ok) + local_fallback_enabled
+			expectedCount: 12, // horizontal_scaling_actions(error,ok) + vertical_rollout_triggered(error,ok) + local_fallback_enabled + vertical_inplace(7)
 			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
 				for _, m := range metrics {
 					assert.Contains(t, m.Tags, "team:autoscaling", "annotation tag should be in metric %s", m.Name)
@@ -245,7 +245,7 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 				}.Build()
 				return &internal
 			},
-			expectedCount: 7, // 2 conditions + horizontal_scaling_actions(error,ok) + vertical_rollout_triggered(error,ok) + local_fallback_enabled
+			expectedCount: 14, // 2 conditions + horizontal_scaling_actions(error,ok) + vertical_rollout_triggered(error,ok) + local_fallback_enabled + vertical_inplace(7)
 			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
 				var activeFound, readyFound bool
 				for _, m := range metrics {
@@ -287,7 +287,7 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 				}.Build()
 				return &internal
 			},
-			expectedCount: 6, // horizontal_scaling_applied_replicas + horizontal_scaling_actions(error,ok) + vertical_rollout_triggered(error,ok) + local_fallback_enabled
+			expectedCount: 13, // horizontal_scaling_applied_replicas + horizontal_scaling_actions(error,ok) + vertical_rollout_triggered(error,ok) + local_fallback_enabled + vertical_inplace(7)
 			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
 				var appliedFound, actionsFound bool
 				for _, m := range metrics {
@@ -323,7 +323,7 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 				}.Build()
 				return &internal
 			},
-			expectedCount: 5, // horizontal_scaling_actions(error,ok) + vertical_rollout_triggered(error,ok) + local_fallback_enabled
+			expectedCount: 12, // horizontal_scaling_actions(error,ok) + vertical_rollout_triggered(error,ok) + local_fallback_enabled + vertical_inplace(7)
 			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
 				var actionsFound bool
 				for _, m := range metrics {
@@ -357,7 +357,7 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 				}.Build()
 				return &internal
 			},
-			expectedCount: 6, // horizontal_scaling_applied_replicas + horizontal_scaling_actions(error,ok) + vertical_rollout_triggered(error,ok) + local_fallback_enabled
+			expectedCount: 13, // horizontal_scaling_applied_replicas + horizontal_scaling_actions(error,ok) + vertical_rollout_triggered(error,ok) + local_fallback_enabled + vertical_inplace(7)
 			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
 				for _, m := range metrics {
 					if m.Name == metricPrefix+".horizontal_scaling_applied_replicas" {
@@ -386,7 +386,7 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 				}.Build()
 				return &internal
 			},
-			expectedCount: 6, // horizontal_scaling_applied_replicas + horizontal_scaling_actions(error,ok) + vertical_rollout_triggered(error,ok) + local_fallback_enabled
+			expectedCount: 13, // horizontal_scaling_applied_replicas + horizontal_scaling_actions(error,ok) + vertical_rollout_triggered(error,ok) + local_fallback_enabled + vertical_inplace(7)
 			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
 				var appliedFound, okFound, errorFound bool
 				for _, m := range metrics {
@@ -425,7 +425,7 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 				}.Build()
 				return &internal
 			},
-			expectedCount: 5, // vertical_rollout_triggered(error,ok) + horizontal_scaling_actions(error,ok) + local_fallback_enabled
+			expectedCount: 12, // vertical_rollout_triggered(error,ok) + horizontal_scaling_actions(error,ok) + local_fallback_enabled + vertical_inplace(7)
 			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
 				var found bool
 				for _, m := range metrics {
@@ -453,7 +453,7 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 				}.Build()
 				return &internal
 			},
-			expectedCount: 5, // vertical_rollout_triggered(error,ok) + horizontal_scaling_actions(error,ok) + local_fallback_enabled
+			expectedCount: 12, // vertical_rollout_triggered(error,ok) + horizontal_scaling_actions(error,ok) + local_fallback_enabled + vertical_inplace(7)
 			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
 				var found bool
 				for _, m := range metrics {
@@ -482,7 +482,7 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 				}.Build()
 				return &internal
 			},
-			expectedCount: 5, // vertical_rollout_triggered(error,ok) + horizontal_scaling_actions(error,ok) + local_fallback_enabled
+			expectedCount: 12, // vertical_rollout_triggered(error,ok) + horizontal_scaling_actions(error,ok) + local_fallback_enabled + vertical_inplace(7)
 			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
 				var foundOk, foundError bool
 				for _, m := range metrics {
@@ -523,7 +523,7 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 				}.Build()
 				return &internal
 			},
-			expectedCount: 7, // local_horizontal_scaling_recommended_replicas + local_horizontal_utilization_pct + horizontal_scaling_actions(error,ok) + vertical_rollout_triggered(error,ok) + local_fallback_enabled
+			expectedCount: 14, // local_horizontal_scaling_recommended_replicas + local_horizontal_utilization_pct + horizontal_scaling_actions(error,ok) + vertical_rollout_triggered(error,ok) + local_fallback_enabled + vertical_inplace(7)
 			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
 				var replicasFound, utilizationFound bool
 				for _, m := range metrics {
@@ -564,7 +564,7 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 				}.Build()
 				return &internal
 			},
-			expectedCount: 6, // local_horizontal_scaling_recommended_replicas + horizontal_scaling_actions(error,ok) + vertical_rollout_triggered(error,ok) + local_fallback_enabled
+			expectedCount: 13, // local_horizontal_scaling_recommended_replicas + horizontal_scaling_actions(error,ok) + vertical_rollout_triggered(error,ok) + local_fallback_enabled + vertical_inplace(7)
 			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
 				var replicasFound bool
 				for _, m := range metrics {
@@ -596,7 +596,7 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 				}.Build()
 				return &internal
 			},
-			expectedCount: 7, // horizontal_scaling.constraints.{max,min}_replicas + horizontal_scaling_actions(error,ok) + vertical_rollout_triggered(error,ok) + local_fallback_enabled
+			expectedCount: 14, // horizontal_scaling.constraints.{max,min}_replicas + horizontal_scaling_actions(error,ok) + vertical_rollout_triggered(error,ok) + local_fallback_enabled + vertical_inplace(7)
 			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
 				var maxFound, minFound bool
 				for _, m := range metrics {
@@ -635,7 +635,7 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 				}.Build()
 				return &internal
 			},
-			expectedCount: 6, // horizontal_scaling.constraints.max_replicas + horizontal_scaling_actions(error,ok) + vertical_rollout_triggered(error,ok) + local_fallback_enabled
+			expectedCount: 13, // horizontal_scaling.constraints.max_replicas + horizontal_scaling_actions(error,ok) + vertical_rollout_triggered(error,ok) + local_fallback_enabled + vertical_inplace(7)
 			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
 				var maxFound bool
 				for _, m := range metrics {
@@ -678,7 +678,7 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 				}.Build()
 				return &internal
 			},
-			expectedCount: 9, // 4 container constraints + horizontal_scaling_actions(error,ok) + vertical_rollout_triggered(error,ok) + local_fallback_enabled
+			expectedCount: 16, // 4 container constraints + horizontal_scaling_actions(error,ok) + vertical_rollout_triggered(error,ok) + local_fallback_enabled + vertical_inplace(7)
 			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
 				var cpuMinFound, memMinFound, cpuMaxFound, memMaxFound bool
 				for _, m := range metrics {
@@ -730,7 +730,7 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 				}.Build()
 				return &internal
 			},
-			expectedCount: 6, // 1 constraint metric + horizontal_scaling_actions(error,ok) + vertical_rollout_triggered(error,ok) + local_fallback_enabled
+			expectedCount: 13, // 1 constraint metric + horizontal_scaling_actions(error,ok) + vertical_rollout_triggered(error,ok) + local_fallback_enabled + vertical_inplace(7)
 			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
 				var cpuMinFound bool
 				for _, m := range metrics {
@@ -779,7 +779,7 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 				}.Build()
 				return &internal
 			},
-			expectedCount: 9, // 4 container constraints + horizontal_scaling_actions(error,ok) + vertical_rollout_triggered(error,ok) + local_fallback_enabled
+			expectedCount: 16, // 4 container constraints + horizontal_scaling_actions(error,ok) + vertical_rollout_triggered(error,ok) + local_fallback_enabled + vertical_inplace(7)
 			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
 				var cpuMinFound, memMinFound, cpuMaxFound, memMaxFound bool
 				for _, m := range metrics {
@@ -833,7 +833,7 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 				}.Build()
 				return &internal
 			},
-			expectedCount: 6, // status.desired.replicas + horizontal_scaling_actions(error,ok) + vertical_rollout_triggered(error,ok) + local_fallback_enabled
+			expectedCount: 13, // status.desired.replicas + horizontal_scaling_actions(error,ok) + vertical_rollout_triggered(error,ok) + local_fallback_enabled + vertical_inplace(7)
 			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
 				var found bool
 				for _, m := range metrics {
@@ -889,7 +889,7 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 				}.Build()
 				return &internal
 			},
-			expectedCount: 9, // 4 vertical desired resources + horizontal_scaling_actions(error,ok) + vertical_rollout_triggered(error,ok) + local_fallback_enabled
+			expectedCount: 16, // 4 vertical desired resources + horizontal_scaling_actions(error,ok) + vertical_rollout_triggered(error,ok) + local_fallback_enabled + vertical_inplace(7)
 			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
 				var cpuReqFound, memReqFound, cpuLimFound, memLimFound bool
 				for _, m := range metrics {
@@ -944,7 +944,7 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 				}.Build()
 				return &internal
 			},
-			expectedCount: 6, // horizontal_scaling_received_replicas + horizontal_scaling_actions(error,ok) + vertical_rollout_triggered(error,ok) + local_fallback_enabled
+			expectedCount: 13, // horizontal_scaling_received_replicas + horizontal_scaling_actions(error,ok) + vertical_rollout_triggered(error,ok) + local_fallback_enabled + vertical_inplace(7)
 			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
 				var found bool
 				for _, m := range metrics {
