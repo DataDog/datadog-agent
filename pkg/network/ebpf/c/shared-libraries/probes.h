@@ -298,11 +298,6 @@ int BPF_BYPASSABLE_PROG(__x64_sys_open_exit, const struct pt_regs* regs, long re
     return handle_sys_open(ctx, regs, ret);
 }
 
-SEC("fexit/__arm64_sys_open")
-int BPF_BYPASSABLE_PROG(__arm64_sys_open_exit, const struct pt_regs* regs, long ret) {
-    return handle_sys_open(ctx, regs, ret);
-}
-
 // Kprobe fallbacks for kernels < 4.15 that don't support multiple tracepoint attachments
 //
 // Background:

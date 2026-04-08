@@ -571,6 +571,11 @@ func (e *EbpfProgram) initializeProbes() ([]manager.ProbeIdentificationPair, err
 	tracingProbes := []manager.ProbeIdentificationPair{}
 	disabledTracingProbes := []manager.ProbeIdentificationPair{}
 	for _, syscall := range []string{openat2SysCall, openatSysCall, openSysCall} {
+		// open syscall is not present on arm64
+		if strings.HasPrefix(runtime.GOARCH, "arm") && syscall == openSysCall {
+			continue
+		}
+
 		tracingProbes = append(tracingProbes, manager.ProbeIdentificationPair{
 			EBPFFuncName: arch + "sys_" + syscall + "_exit",
 			UID:          probeUID,
