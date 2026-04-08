@@ -48,7 +48,7 @@ tonic-prost-build = "0.14"
 tonic-reflection = "0.14"
 uzers = "0.12"
 walkdir = "2"
-yaml-rust2 = "0.9"
+yaml-rust2 = "0.11"
 zip = { version = "2.1", default-features = false, features = ["deflate"] }
 
 tower = { version = "0.4", features = ["util"] }
