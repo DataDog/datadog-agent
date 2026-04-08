@@ -9,8 +9,8 @@ package spec
 import (
 	"embed"
 	"fmt"
-	"regexp"
 	"go.yaml.in/yaml/v2"
+	"regexp"
 )
 
 const (
