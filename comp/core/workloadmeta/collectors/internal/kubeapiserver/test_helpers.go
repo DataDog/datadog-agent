@@ -17,6 +17,8 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	clientfeatures "k8s.io/client-go/features"
+	clientfeaturestesting "k8s.io/client-go/features/testing"
 	"k8s.io/client-go/kubernetes/fake"
 	metafake "k8s.io/client-go/metadata/fake"
 
@@ -33,6 +35,10 @@ import (
 const dummySubscriber = "dummy-subscriber"
 
 func testCollectEvent(t *testing.T, createResource func(*fake.Clientset) error, newStore storeGenerator, expected workloadmeta.EventBundle) {
+	// Disable WatchListClient: fake.NewSimpleClientset does not support the watch-list protocol
+	// (it never sends the required initial bookmark event), causing the reflector to hang.
+	clientfeaturestesting.SetFeatureDuringTest(t, clientfeatures.WatchListClient, false)
+
 	// Create a fake client to mock API calls.
 	client := fake.NewSimpleClientset()
 
@@ -99,6 +105,8 @@ func testCollectEvent(t *testing.T, createResource func(*fake.Clientset) error, 
 }
 
 func testCollectMetadataEvent(t *testing.T, createObjects func() []runtime.Object, gvr schema.GroupVersionResource, expected workloadmeta.EventBundle) {
+	// Disable WatchListClient: fake metadata client does not support the watch-list protocol.
+	clientfeaturestesting.SetFeatureDuringTest(t, clientfeatures.WatchListClient, false)
 
 	// Create a resource before starting the reflector store or workloadmeta so that if the reflector calls `List()` then
 	// this resource can't be skipped
