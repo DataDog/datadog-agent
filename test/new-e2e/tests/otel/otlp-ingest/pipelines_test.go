@@ -23,6 +23,7 @@ type otlpIngestTestSuite struct {
 	e2e.BaseSuite[environments.Kubernetes]
 }
 
+// speky:otelcol#T002
 func TestOTLPIngest(t *testing.T) {
 	values := `
 datadog:

@@ -49,6 +49,7 @@ func (m mockSpanModifier) ModifySpan(tc *pb.TraceChunk, s *pb.Span) {
 	m.traceChan <- struct{}{}
 }
 
+// speky:otelcol#T001 speky:otelcol#T004
 func TestServerlessOTLPAgentReceivesTraces(t *testing.T) {
 	assert := assert.New(t)
 

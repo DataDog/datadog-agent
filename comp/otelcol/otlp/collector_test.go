@@ -78,6 +78,7 @@ func TestStartPipeline(t *testing.T) {
 	AssertSucessfulRun(t, pcfg)
 }
 
+// speky:otelcol#T003
 func TestStartPipelineFromConfig(t *testing.T) {
 	cfg := pkgconfigmock.New(t)
 	cfg.SetWithoutSource("hostname", "otlp-testhostname")

@@ -13,6 +13,7 @@ code_sources:
   - comp/otelcol/status/**/*.go
   - comp/otelcol/logsagentpipeline/**/*.go
   - cmd/otel-agent/*.go
+  - test/new-e2e/tests/otel/otel-agent/*_test.go
 source_links:
   url: auto
 coverage_categories:

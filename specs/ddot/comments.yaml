@@ -1,0 +1,15 @@
+kind: comments
+default:
+  date: 04/03/2026
+  from: Claude
+  external: true
+comments:
+- about: DDOT015
+  from: Antoine G.
+  external: false
+  text: Can the container ID actually be derived from PID, cgroup inode, or pod UID + container name, or does it have to be provided as an input?
+- about: DDOT015
+  text: >-
+    It is genuinely derived — `GenerateContainerIDFromOriginInfo` queries the WorkloadMeta store
+    to resolve the container ID from PID, cgroup inode, or pod UID + container name.
+    See: https://github.com/DataDog/datadog-agent/blob/7.78.0-devel/comp/core/tagger/impl/tagger.go#L270

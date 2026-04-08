@@ -28,6 +28,7 @@ type otlpIngestDockerTestSuite struct {
 //go:embed compose/otlp_ingest_compose.yaml
 var otlpIngestCompose string
 
+// speky:otelcol#T004 speky:otelcol#T005
 func TestOTLPIngestDocker(t *testing.T) {
 	t.Parallel()
 	e2e.Run(t,
