@@ -7,7 +7,9 @@
 package logsagentpipelineimpl
 
 import (
+	logsagentpipelinedef "github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/def"
 	logsagentpipelinefx "github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/fx"
+	implpkg "github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -15,4 +17,14 @@ import (
 // Deprecated: use github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/fx.Module instead.
 func Module() fxutil.Module {
 	return logsagentpipelinefx.Module()
+}
+
+// Dependencies specifies the list of dependencies needed to initialize the logs agent.
+// Deprecated: use github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/impl.Dependencies instead.
+type Dependencies = implpkg.Dependencies
+
+// NewLogsAgent returns a new instance of the logs agent with the given dependencies.
+// Deprecated: use github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/impl.NewLogsAgent instead.
+func NewLogsAgent(deps Dependencies) logsagentpipelinedef.LogsAgent {
+	return implpkg.NewLogsAgent(deps)
 }
