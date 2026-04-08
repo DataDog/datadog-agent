@@ -1,5 +1,5 @@
 set -euo pipefail
-apk add --no-cache aws-cli py3-requests 2>/dev/null || true
+apk add --no-cache aws-cli py3-requests lsof 2>/dev/null || true
 helm repo add datadog https://helm.datadoghq.com && helm repo update
 
 # ── Parse image into repo + tag ──────────────────────────────────────────
@@ -174,11 +174,11 @@ for EP_SPEC in "${EP_LIST[@]}"; do
   cp "/episodes/$EPISODE/$SCENARIO.yaml" "/workspace/episodes/$SCENARIO.yaml"
   mkdir -p /workspace/results
   cd /workspace
-  # Source shared postmortem helpers (defines postmortem_chain_exit_trap etc).
-  # Episodes that don't use these functions are unaffected.
+  # Inject shared postmortem helpers into play-episode.sh so functions like
+  # postmortem_chain_exit_trap are available in the bash subprocess.
   if [ -f "/episodes/_shared/env.sh" ]; then
-    # shellcheck source=/dev/null
-    source /episodes/_shared/env.sh
+    cp /episodes/_shared/env.sh /workspace/_shared_env.sh
+    sed -i '1s|^|source /workspace/_shared_env.sh\n|' /workspace/play-episode.sh
   fi
 
   # play-episode.sh requires DD_ENV, DD_API_KEY, DD_APP_KEY, KUBE_NAMESPACE.
