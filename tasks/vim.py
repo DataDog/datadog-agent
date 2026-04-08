@@ -34,4 +34,6 @@ def set_buildtags(
     )
 
     with open(".vimrc", "w") as f:
-        f.write(f"let g:ale_go_gopls_init_options = {{'buildFlags': ['-tags', '{','.join(sorted(use_tags))}']}}\n")
+        f.write(
+            f"let g:ale_go_gopls_init_options = {{'buildFlags': ['-tags', '{','.join(sorted(use_tags))}', '-buildvcs=false']}}\n"
+        )
