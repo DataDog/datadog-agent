@@ -276,6 +276,7 @@ When `--config` is provided it takes full precedence over `--enable`/`--disable`
 
 | Param | Default | Description |
 |-------|---------|-------------|
+| `disable_optimizations` | `false` | When `true`, skips deferred emit and cluster GC: emits on the first matching log per pattern and disables TTL/GC (`min_cluster_size_before_emit`, `cluster_time_to_live_sec`, and `garbage_collection_interval_sec` are forced to zero; other fields still apply). |
 | `min_cluster_size_before_emit` | 5 | Minimum matching logs on a pattern before emitting a metric |
 | `max_tokenized_string_length` | 12500 | Max input length before tokenization (0 = patterns package default) |
 | `max_num_tokens` | 250 | Max tokens per message (0 = patterns package default) |

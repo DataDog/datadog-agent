@@ -31,6 +31,7 @@ import (
 //	      "min_cluster_size": 2
 //	    },
 //	    "log_pattern_extractor": {
+//	      "disable_optimizations": false,
 //	      "min_cluster_size_before_emit": 5,
 //	      "max_tokenized_string_length": 8000,
 //	      "min_token_match_ratio": 0.5,

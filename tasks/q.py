@@ -740,6 +740,9 @@ def _sample_component_params(trial, component: str) -> dict:
             "min_cluster_size": trial.suggest_int("time_cluster.min_cluster_size", 0, 8),
         },
         "log_pattern_extractor": lambda: {
+            "disable_optimizations": trial.suggest_categorical(
+                "log_pattern_extractor.disable_optimizations", [True, False]
+            ),
             "min_cluster_size_before_emit": trial.suggest_int(
                 "log_pattern_extractor.min_cluster_size_before_emit", 1, 30
             ),
