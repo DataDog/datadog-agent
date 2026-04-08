@@ -193,7 +193,7 @@ type {{.Arch}}Syscall int
 // Linux syscall identifiers
 const (
 	{{- range .Syscalls}}
-	{{$.Arch}}Sys{{.CamelCaseName}} {{$.Arch}}Syscall = {{.Number}}
+	{{$.Arch}}Sys{{.CamelCaseName}} {{$.Arch}}Syscall = {{.Number}} // {{.Name}}
 	{{- end}}
 )
 
@@ -264,5 +264,5 @@ func writeFileAndFormat(outputPath string, content string) error {
 }
 
 func generateStringer(inputPath, outputPath string, arch string) error {
-	return exec.Command("go", "run", "golang.org/x/tools/cmd/stringer", "-type", snakeToCamelCase(arch)+"Syscall", "-output", outputPath, inputPath).Run()
+	return exec.Command("go", "run", "golang.org/x/tools/cmd/stringer", "-linecomment", "-type", snakeToCamelCase(arch)+"Syscall", "-output", outputPath, inputPath).Run()
 }
