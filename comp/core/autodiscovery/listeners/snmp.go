@@ -219,13 +219,11 @@ func (l *SNMPListener) checkDevice(job snmpJob) {
 	deviceFound := false
 	for authIndex, authentication := range job.subnet.config.Authentications {
 		deviceFound = l.checkDeviceReachable(authentication, job.subnet.config.Port, deviceIP)
+		l.deviceDeduper.RecordScanResult(deviceIP, deviceFound)
 
 		if !deviceFound {
-			l.deviceDeduper.DecrementIPCounter(deviceIP)
 			continue
 		}
-
-		l.deviceDeduper.MarkIPAsProcessed(deviceIP)
 
 		device, exists := job.subnet.devices[entityID]
 		if exists && device.Failures != 0 {

@@ -175,7 +175,7 @@ func TestDeviceDeduper_Contains(t *testing.T) {
 	assert.False(t, deduper.contains(differentDevice))
 }
 
-func TestDeviceDeduper_DecrementIPCounter(t *testing.T) {
+func TestDeviceDeduper_RecordScanResultNotFound(t *testing.T) {
 	deduper := &deviceDeduperImpl{
 		deviceInfos:    make([]DeviceInfo, 0),
 		pendingDevices: make([]PendingDevice, 0),
@@ -190,25 +190,25 @@ func TestDeviceDeduper_DecrementIPCounter(t *testing.T) {
 	counter2.Store(1)
 	deduper.ipsCounter["192.168.1.2"] = counter2
 
-	deduper.DecrementIPCounter("192.168.1.1")
+	deduper.RecordScanResult("192.168.1.1", false)
 	count := deduper.ipsCounter["192.168.1.1"].Load()
 	assert.Equal(t, int32(1), count)
 
-	deduper.DecrementIPCounter("192.168.1.1")
+	deduper.RecordScanResult("192.168.1.1", false)
 	count = deduper.ipsCounter["192.168.1.1"].Load()
 	assert.Equal(t, int32(0), count)
 
-	deduper.DecrementIPCounter("192.168.1.2")
+	deduper.RecordScanResult("192.168.1.2", false)
 	count = deduper.ipsCounter["192.168.1.2"].Load()
 	assert.Equal(t, int32(0), count)
 
 	// Decrementing past 0 goes to -1, which checkPreviousIPs still treats as processed (count > 0 is false)
-	deduper.DecrementIPCounter("192.168.1.2")
+	deduper.RecordScanResult("192.168.1.2", false)
 	count = deduper.ipsCounter["192.168.1.2"].Load()
 	assert.Equal(t, int32(-1), count)
 }
 
-func TestDeviceDeduper_MarkIPAsProcessed(t *testing.T) {
+func TestDeviceDeduper_RecordScanResultFound(t *testing.T) {
 	deduper := &deviceDeduperImpl{
 		deviceInfos:    make([]DeviceInfo, 0),
 		pendingDevices: make([]PendingDevice, 0),
@@ -219,7 +219,7 @@ func TestDeviceDeduper_MarkIPAsProcessed(t *testing.T) {
 	counter1.Store(5)
 	deduper.ipsCounter["192.168.1.1"] = counter1
 
-	deduper.MarkIPAsProcessed("192.168.1.1")
+	deduper.RecordScanResult("192.168.1.1", true)
 	count := deduper.ipsCounter["192.168.1.1"].Load()
 	assert.Equal(t, int32(0), count)
 }
@@ -597,8 +597,8 @@ func TestDeviceDeduper_ResetCounters(t *testing.T) {
 	assert.Equal(t, int32(2), count)
 
 	// Process some IPs
-	deduper.DecrementIPCounter("192.168.1.1")
-	deduper.DecrementIPCounter("192.168.1.2")
+	deduper.RecordScanResult("192.168.1.1", false)
+	deduper.RecordScanResult("192.168.1.2", false)
 
 	count = deduperImpl.ipsCounter["192.168.1.1"].Load()
 	assert.Equal(t, int32(1), count)

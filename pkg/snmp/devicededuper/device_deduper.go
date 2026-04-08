@@ -48,8 +48,7 @@ func (d DeviceInfo) equal(other DeviceInfo) bool {
 
 // DeviceDeduper is an interface for deduplicating SNMP devices
 type DeviceDeduper interface {
-	DecrementIPCounter(ip string)
-	MarkIPAsProcessed(ip string)
+	RecordScanResult(ip string, deviceFound bool)
 	AddPendingDevice(device PendingDevice)
 	GetDedupedDevices() []PendingDevice
 	ResetCounters()
@@ -176,25 +175,21 @@ func (d *deviceDeduperImpl) GetDedupedDevices() []PendingDevice {
 	return dedupedDevices
 }
 
-// DecrementIPCounter decrements the counter for an IP by 1, representing one completed auth attempt.
-func (d *deviceDeduperImpl) DecrementIPCounter(ip string) {
+// RecordScanResult records the outcome of a single authentication attempt on an IP.
+func (d *deviceDeduperImpl) RecordScanResult(ip string, deviceFound bool) {
 	d.RLock()
 	defer d.RUnlock()
 	counter, exists := d.ipsCounter[ip]
-
-	if exists {
-		counter.Add(-1)
+	if !exists {
+		return
 	}
-}
 
-// MarkIPAsProcessed sets the counter for an IP to 0, signaling that the device was found and no further attempts are needed
-func (d *deviceDeduperImpl) MarkIPAsProcessed(ip string) {
-	d.RLock()
-	defer d.RUnlock()
-	counter, exists := d.ipsCounter[ip]
-
-	if exists {
+	if deviceFound {
+		// Device responded; mark IP as fully processed so no further auth attempts are needed
 		counter.Store(0)
+	} else {
+		// Auth attempt failed; decrement remaining attempts for this IP
+		counter.Add(-1)
 	}
 }
 
