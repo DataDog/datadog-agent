@@ -183,16 +183,6 @@ func getNodeInfo(w http.ResponseWriter, r *http.Request, _ workloadmeta.Componen
 		return
 	}
 
-	// Defensive check: client-go's Get() should never return (nil, nil),
-	// but guard against it to avoid a nil-pointer dereference below.
-	if node == nil {
-		notFoundErr := fmt.Errorf("node %s not found", nodeName)
-		spanErr = notFoundErr
-		api.SetSpanError(w, notFoundErr)
-		http.Error(w, notFoundErr.Error(), http.StatusNotFound)
-		return
-	}
-
 	// Marshal whole struct, unmarshal only takes what is needed on caller side.
 	data, err := json.Marshal(&node.Status.NodeInfo)
 	if err != nil {
@@ -369,7 +359,8 @@ func getPodMetadataForNode(w http.ResponseWriter, r *http.Request) {
 	metaList, errNodes := as.GetMetadataMapBundleOnNode(nodeName)
 	if errNodes != nil {
 		log.Warnf("Could not collect the service map for %s, err: %v", nodeName, errNodes) //nolint:errcheck
-		span.SetTag("warning", errNodes.Error())
+		// Not tagged as a span error since the handler continues with partial results.
+		// The log.Warnf above captures the detail.
 	}
 	slcB, err := json.Marshal(metaList)
 	if err != nil {
@@ -425,6 +416,9 @@ func getAllMetadata(w http.ResponseWriter, r *http.Request) {
 	}
 	metaList, errAPIServer := as.GetMetadataMapBundleOnAllNodes(cl)
 	// If we hit an error at this point, it is because we don't have access to the API server.
+	// NOTE: if errAPIServer != nil we write a 503 header here. If json.Marshal also fails below,
+	// http.Error attempts a second WriteHeader(500) which is silently dropped by the
+	// telemetryWriterWrapper, so the client sees a 503 status with the marshal error body.
 	if errAPIServer != nil {
 		w.WriteHeader(http.StatusServiceUnavailable)
 		log.Errorf("There was an error querying the nodes from the API: %s", errAPIServer.Error()) //nolint:errcheck
