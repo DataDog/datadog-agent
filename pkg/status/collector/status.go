@@ -110,9 +110,9 @@ func (p Provider) PopulateStatus(stats map[string]interface{}) {
 					}
 					workerStats["TopWorkers"] = topWorkers
 				}
-
-				stats["workerStats"] = workerStats
 			}
+
+			stats["workerStats"] = workerStats
 		}
 	}
 
@@ -187,10 +187,13 @@ func (p Provider) collectCheckMetadata() map[string]map[string]string {
 
 	// Overlay per-instance metadata from inventorychecks.Set (e.g. version.raw).
 	// Only merge into known hashes to avoid stale data from unscheduled checks.
+	// Only set keys not already present so that GetMetadata values take precedence.
 	for checkHash, expvarFields := range collectCheckMetadataFromExpvar() {
 		if result, ok := checkMetadata[checkHash]; ok {
 			for k, v := range expvarFields {
-				result[k] = v
+				if _, exists := result[k]; !exists {
+					result[k] = v
+				}
 			}
 		}
 	}
