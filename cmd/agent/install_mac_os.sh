@@ -127,9 +127,8 @@ function prepare_dmg_file() {
 
 macos_full_version=$(sw_vers -productVersion)
 macos_major_version=$(echo "${macos_full_version}" | cut -d '.' -f 1)
-macos_minor_version=$(echo "${macos_full_version}" | cut -d '.' -f 2)
 
-if [ "${macos_major_version}" -lt 10 ] || { [ "${macos_major_version}" -eq 10 ] && [ "${macos_minor_version}" -lt 14 ]; }; then
+if [ "${macos_major_version}" -lt 12 ]; then
     echo -e "${RED}Datadog Agent requires macOS 12.0 or later.${NC}\n"
     exit 1
 fi
