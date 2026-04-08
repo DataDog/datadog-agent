@@ -102,16 +102,12 @@ func (h *Host) installECRCredentialHelper() {
 	if _, err := h.remote.Execute("command -v docker-credential-ecr-login"); err == nil {
 		return
 	}
-	switch h.pkgManager {
-	case "apt":
+	if h.pkgManager == "apt" {
 		h.remote.MustExecute("sudo apt-get install -y amazon-ecr-credential-helper")
-	case "yum":
-		h.remote.MustExecute("sudo yum install -y amazon-ecr-credential-helper")
-	case "zypper":
-		// No official amazon-ecr-credential-helper package for zypper; download the binary directly.
-		h.remote.MustExecute(`ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/') && sudo curl -fsSL "https://github.com/awslabs/amazon-ecr-credential-helper/releases/latest/download/docker-credential-ecr-login_linux_${ARCH}" -o /usr/local/bin/docker-credential-ecr-login && sudo chmod +x /usr/local/bin/docker-credential-ecr-login`)
-	default:
-		h.t().Fatalf("unsupported package manager: %s", h.pkgManager)
+	} else {
+		// No official amazon-ecr-credential-helper package for non-apt distros (zypper, yum on CentOS, etc.);
+		// download the binary directly.
+		h.remote.MustExecute(`ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/') && sudo curl -fsSL "https://amazon-ecr-credential-helper-releases.s3.us-east-2.amazonaws.com/0.12.0/linux-${ARCH}/docker-credential-ecr-login" -o /usr/local/bin/docker-credential-ecr-login && sudo chmod +x /usr/local/bin/docker-credential-ecr-login`)
 	}
 }
 
