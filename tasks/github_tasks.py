@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import os
-import sys
 import time
 from collections import Counter
 
@@ -73,8 +72,11 @@ def _update_windows_runner_version(new_version=None, repo="ci-platform-machine-i
 
 
 @task
-def is_pr_ready(ctx, git_ref: str):
-    """Exit with code 0 if the PR for the given branch exists and is ready (not draft), 1 otherwise."""
+def is_pr_ready(ctx, git_ref: str, target_branch: str | None = None):
+    """Exit with code 0 if the PR for the given branch exists and is ready (not draft), 1 otherwise.
+
+    If --target-branch is set, also checks that the PR targets the given branch.
+    """
     from tasks.libs.ciproviders.github_api import GithubAPI
 
     github = GithubAPI()
@@ -85,20 +87,10 @@ def is_pr_ready(ctx, git_ref: str):
     if prs[0].draft:
         print(color_message(f"PR for branch {git_ref!r} is a draft", "yellow"))
         raise Exit(code=1)
-    print(color_message(f"PR for branch {git_ref!r} is ready", "green"))
-
-
-@task
-def get_pr_target_branch(ctx, git_ref: str):
-    """Print the target branch of the PR for the given branch, or exit with code 1 if no PR exists."""
-    from tasks.libs.ciproviders.github_api import GithubAPI
-
-    github = GithubAPI()
-    prs = list(github.get_pr_for_branch(git_ref))
-    if not prs:
-        print(color_message(f"No open PR found for branch {git_ref!r}", "yellow"), file=sys.stderr)
+    if target_branch and prs[0].base.ref != target_branch:
+        print(color_message(f"PR for branch {git_ref!r} targets {prs[0].base.ref!r}, not {target_branch!r}", "yellow"))
         raise Exit(code=1)
-    print(prs[0].base.ref)
+    print(color_message(f"PR for branch {git_ref!r} is ready", "green"))
 
 
 @task
