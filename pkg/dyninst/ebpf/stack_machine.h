@@ -11,6 +11,7 @@
 #include "program.h"
 #include "queue.h"
 #include "chased_pointers_trie.h"
+#include "swiss_map_hash.h"
 
 // Expression status values. Each expression gets EXPR_STATUS_BITS bits in the
 // expression status array at the start of event root data.
@@ -183,6 +184,16 @@ sm_read_program_uint8(stack_machine_t* sm) {
   uint8_t param = data[sm->pc];
   sm->pc += 1;
   return param;
+}
+
+// Peek at a uint16 at an arbitrary bytecode offset without advancing PC.
+static inline __attribute__((always_inline)) uint16_t
+sm_read_program_uint16_at(stack_machine_t* sm, uint32_t offset) {
+  uint32_t zero = 0;
+  uint8_t* data = bpf_map_lookup_elem(&stack_machine_code, &zero);
+  if (!data) return 0;
+  if (offset >= stack_machine_code_len - 1) return 0;
+  return read_uint16(&data[offset]);
 }
 
 static inline __attribute__((always_inline)) uint16_t
@@ -761,6 +772,1105 @@ sm_cmp_eq_bytes(scratch_buf_t* buf, buf_offset_t lhs, buf_offset_t rhs,
   return ctx.equal;
 }
 
+// ---------------------------------------------------------------------------
+// Swiss map lookup: O(1) hash-based key lookup in Go swisstable maps.
+// See pkg/dyninst/irgen/go_swiss_maps.md for the algorithm specification.
+// ---------------------------------------------------------------------------
+
+// Per-process hash secrets, memoized on first use. These never change after
+// runtime.alginit() so we read them once from the traced process and cache
+// them in globals for the lifetime of the BPF program.
+// Swiss hash state packed into a uint64 to avoid a small variable at
+// the end of BSS where the compiler's 8-byte load would exceed the
+// map value size. Bit 0 = initialized, bit 1 = use_aes.
+static uint64_t g_swiss_hash_flags = 0;
+#define SWISS_HASH_FLAG_INITIALIZED 1
+#define SWISS_HASH_FLAG_USE_AES     2
+// aeskeysched: 128 bytes of AES round keys.
+static uint8_t g_swiss_aeskeysched[128] = {};
+
+// Initialize the hash secret globals by reading from the traced process.
+// Returns true on success.
+static __always_inline bool swiss_hash_ensure_initialized(void) {
+  if (g_swiss_hash_flags & SWISS_HASH_FLAG_INITIALIZED) return true;
+
+  if (VARIABLE_runtime_dot_useAeshash == 0) {
+    LOG(2, "swiss_hash: hash secret addresses not available");
+    return false;
+  }
+
+  uint8_t use_aes = 0;
+  if (bpf_probe_read_user(&use_aes, 1,
+                           (void*)VARIABLE_runtime_dot_useAeshash) != 0) {
+    LOG(2, "swiss_hash: failed to read useAeshash");
+    return false;
+  }
+
+  if (use_aes) {
+    g_swiss_hash_flags |= SWISS_HASH_FLAG_USE_AES;
+    if (bpf_probe_read_user(g_swiss_aeskeysched, 128,
+                             (void*)VARIABLE_runtime_dot_aeskeysched) != 0) {
+      LOG(2, "swiss_hash: failed to read aeskeysched");
+      return false;
+    }
+  }
+  // Note: wyhash fallback (use_aes == false) is not supported. The hash_finish
+  // function will report OOB for map index expressions on such systems.
+
+  g_swiss_hash_flags |= SWISS_HASH_FLAG_INITIALIZED;
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// Swiss map lookup — decomposed into sm_loop opcodes.
+// See SM_OP_SWISS_MAP_SETUP through SM_OP_SWISS_MAP_CHECK_SLOT.
+// ---------------------------------------------------------------------------
+
+// swiss_map_slot_params_t is defined in context.h.
+
+// Check a single slot for a key match. Global noinline — verified separately.
+// Returns: 1 = found, 0 = no match, -1 = error.
+__attribute__((noinline)) int
+swiss_map_check_slot(scratch_buf_t* buf, swiss_map_slot_params_t* p) {
+  if (!buf || !p) return -1;
+
+  buf_offset_t kd_off = p->key_data_off;
+  if (!scratch_buf_bounds_check(&kd_off, 516)) return -1;
+  const uint8_t* lit_key = (const uint8_t*)&(*buf)[kd_off];
+
+  if (p->is_string_key) {
+    uint8_t str_header[16];
+    if (bpf_probe_read_user(str_header, 16, (void*)p->key_addr) != 0) return 0;
+    target_ptr_t str_ptr = *(target_ptr_t*)&str_header[0];
+    uint64_t str_len = *(uint64_t*)&str_header[8];
+
+    // Quick length check.
+    uint32_t lit_len = *(uint32_t*)lit_key;
+    if (str_len != lit_len) return 0;
+    if (lit_len == 0) return 1;
+
+    // Read and compare string bytes (up to 512 bytes).
+    uint32_t cmp_len = lit_len;
+    if (cmp_len > SWISS_MAP_MAX_STR_KEY_LEN) cmp_len = SWISS_MAP_MAX_STR_KEY_LEN;
+    buf_offset_t tmp_off = kd_off + p->key_data_len;
+    if (!scratch_buf_dereference(buf, tmp_off, cmp_len, str_ptr)) return 0;
+    const uint8_t* lit_bytes = lit_key + 4;
+    for (uint32_t i = 0; i < cmp_len && i < SWISS_MAP_MAX_STR_KEY_LEN; i++) {
+      buf_offset_t off = tmp_off + i;
+      if (!scratch_buf_bounds_check(&off, 1)) return 0;
+      if ((*buf)[off] != lit_bytes[i]) return 0;
+    }
+  } else {
+    uint8_t slot_key[8] = {};
+    uint8_t ksz = p->key_byte_size;
+    if (ksz > 8) ksz = 8;
+    if (bpf_probe_read_user(slot_key, ksz, (void*)p->key_addr) != 0) return 0;
+    for (uint8_t i = 0; i < ksz && i < 8; i++) {
+      if (slot_key[i] != lit_key[i]) return 0;
+    }
+  }
+
+  // Key matched — read value.
+  if (!scratch_buf_dereference(buf, p->result_offset,
+                               p->val_byte_size, p->val_addr)) {
+    return -1;
+  }
+  return 1;
+}
+
+// ---------------------------------------------------------------------------
+// sm_swiss_map_setup: global noinline function for SM_OP_SWISS_MAP_SETUP.
+// Reads bytecode params, copies key data, reads map header, computes hash
+// (wyhash inline or AES state initialization), determines groups/length_mask,
+// and stores all probe state in sm->swiss_map_state.
+//
+// Returns:
+//   1 = success, probe state ready (AES rounds still needed if use_aes)
+//   2 = success, hash done, probe state ready (wyhash path; skip AESENC+HASH_FINISH)
+//   0 = key not found (nil map or null table — OOB written)
+//  -1 = error
+// ---------------------------------------------------------------------------
+__attribute__((noinline)) int
+sm_swiss_map_setup(scratch_buf_t* buf, stack_machine_t* sm) {
+  if (!buf || !sm) return -1;
+
+  // Read bytecode parameters directly into swiss_map_state to minimize
+  // stack usage (BPF combined stack limit is 512 bytes).
+  #define ST sm->swiss_map_state
+  ST.is_string_key = sm_read_program_uint8(sm);
+  ST.key_byte_size = sm_read_program_uint8(sm);
+  ST.val_byte_size = sm_read_program_uint32(sm);
+  uint8_t seed_offset = sm_read_program_uint8(sm);
+  uint8_t dir_ptr_offset = sm_read_program_uint8(sm);
+  uint8_t dir_len_offset = sm_read_program_uint8(sm);
+  uint8_t global_shift_offset = sm_read_program_uint8(sm);
+  ST.ctrl_offset = sm_read_program_uint8(sm);
+  ST.slots_offset = sm_read_program_uint8(sm);
+  ST.slot_size = sm_read_program_uint16(sm);
+  ST.key_in_slot_offset = sm_read_program_uint8(sm);
+  ST.val_in_slot_offset = sm_read_program_uint8(sm);
+  uint8_t table_groups_field_offset = sm_read_program_uint8(sm);
+  uint8_t groups_data_field_offset = sm_read_program_uint8(sm);
+  uint8_t groups_len_mask_field_offset = sm_read_program_uint8(sm);
+  ST.group_byte_size = sm_read_program_uint16(sm);
+  ST.expr_status_idx = sm_read_program_uint32(sm);
+  uint16_t key_data_len = sm_read_program_uint16(sm);
+
+  // Max key data: 4 (length prefix) + 512 (string) = 516 for strings,
+  // or 8 for base types.
+  if (key_data_len > 516) key_data_len = 516;
+  barrier_var(key_data_len);
+
+  // Key data goes after the map header in the scratch buffer. The header
+  // was written at sm->offset by EXPR_DEREFERENCE_PTR, which saved its
+  // byte_len to sm->buf_offset_1.
+  ST.key_data_off = sm->offset + sm->buf_offset_1;
+  sm->pc += key_data_len;
+  ST.key_data_len = key_data_len;
+  ST.result_offset = sm->offset;
+  ST.probe_index = 0;
+
+  // Read map header fields from scratch buffer.
+  buf_offset_t base = sm->offset;
+
+  buf_offset_t seed_off = base + seed_offset;
+  if (!scratch_buf_bounds_check(&seed_off, 8)) return -1;
+  uint64_t seed = *(uint64_t*)&(*buf)[seed_off];
+
+  buf_offset_t dir_ptr_off = base + dir_ptr_offset;
+  if (!scratch_buf_bounds_check(&dir_ptr_off, 8)) return -1;
+  target_ptr_t dir_ptr = *(target_ptr_t*)&(*buf)[dir_ptr_off];
+
+  buf_offset_t dir_len_off = base + dir_len_offset;
+  if (!scratch_buf_bounds_check(&dir_len_off, 8)) return -1;
+  int64_t dir_len = *(int64_t*)&(*buf)[dir_len_off];
+
+  // Nil map check.
+  if (dir_ptr == 0) {
+    LOG(4, "swiss_map_setup: nil map");
+    if (ST.expr_status_idx != EXPR_STATUS_IDX_NONE) {
+      expr_status_write(buf, sm->expr_results_offset, ST.expr_status_idx,
+                        EXPR_STATUS_OOB);
+    }
+    scratch_buf_set_len(buf, sm->expr_results_end_offset);
+    return 0;
+  }
+
+  // Ensure hash secrets are initialized.
+  if (!swiss_hash_ensure_initialized()) {
+    scratch_buf_set_len(buf, sm->expr_results_end_offset);
+    return -1;
+  }
+  ST.use_aes = (g_swiss_hash_flags & SWISS_HASH_FLAG_USE_AES) ? 1 : 0;
+
+  // Hash computation is deferred to HASH_FINISH (PHASE_INIT) so that
+  // the caller can copy key data to scratch buf first (the key data
+  // destination must not overlap the map header at sm->offset).
+  // Store seed in hash_scratch.state[0:8] for HASH_FINISH to use.
+  *(uint64_t*)&sm->hash_scratch.state[0] = seed;
+
+
+  ST.groups_data_ptr = dir_ptr;
+  ST.length_mask = (uint64_t)dir_len;
+  ST.hash_phase = SWISS_HASH_PHASE_INIT;
+  ST.aes_rounds_left = 0;
+  #undef ST
+
+  // Pack field offsets for HASH_FINISH's table lookup.
+  sm->value_0 = ((uint64_t)global_shift_offset) |
+                ((uint64_t)table_groups_field_offset << 8) |
+                ((uint64_t)groups_data_field_offset << 16) |
+                ((uint64_t)groups_len_mask_field_offset << 24);
+  sm->buf_offset_0 = base;
+
+  return 1; // proceed to AESENC (which will be a no-op) then HASH_FINISH
+}
+
+// ---------------------------------------------------------------------------
+// sm_swiss_map_hash_finish: global noinline function for SM_OP_SWISS_MAP_HASH_FINISH.
+// Handles AES hash phase transitions and final hash extraction.
+//
+// Returns:
+//   2 = need more AESENC rounds (caller should sm->pc -= 2)
+//   0 = hash done, probe state set
+//  -1 = error
+//  -2 = key not found (null table; OOB already written)
+// ---------------------------------------------------------------------------
+__attribute__((noinline)) int
+sm_swiss_map_hash_finish(scratch_buf_t* buf, stack_machine_t* sm) {
+  if (!buf || !sm) return -1;
+
+  uint8_t* state = sm->hash_scratch.state;
+  uint8_t phase = sm->swiss_map_state.hash_phase;
+
+  if (phase == SWISS_HASH_PHASE_INIT) {
+    // Key data has been copied to scratch. Now read it and init hash.
+    uint64_t seed = *(uint64_t*)&state[0]; // stored by SETUP
+
+    buf_offset_t kd_off = sm->swiss_map_state.key_data_off;
+    if (!scratch_buf_bounds_check(&kd_off, 516)) return -1;
+    const uint8_t* key_data = (const uint8_t*)&(*buf)[kd_off];
+
+    const uint8_t* hash_key_data = key_data;
+    uint32_t hash_key_len = (uint32_t)sm->swiss_map_state.key_byte_size;
+    if (sm->swiss_map_state.is_string_key) {
+      hash_key_len = *(uint32_t*)key_data;
+      hash_key_data = key_data + 4;
+    }
+    if (hash_key_len > SWISS_MAP_MAX_STR_KEY_LEN)
+      hash_key_len = SWISS_MAP_MAX_STR_KEY_LEN;
+    barrier_var(hash_key_len);
+    sm->swiss_map_state.hash_key_len_full = (uint16_t)hash_key_len;
+
+    if (!sm->swiss_map_state.use_aes) {
+      // The Go runtime falls back to wyhash on systems without AES hardware
+      // support. We do not implement the wyhash path because we have no way
+      // to test it — virtually all amd64 and arm64 production hardware has
+      // AES. Report the expression as OOB so the caller sees a clean
+      // "unavailable" rather than a wrong value.
+      LOG(2, "swiss_map_hash: wyhash not supported, reporting OOB");
+      if (sm->swiss_map_state.expr_status_idx != EXPR_STATUS_IDX_NONE) {
+        expr_status_write(buf, sm->expr_results_offset,
+                          sm->swiss_map_state.expr_status_idx, EXPR_STATUS_OOB);
+      }
+      scratch_buf_set_len(buf, sm->expr_results_end_offset);
+      return -1;
+
+    } else {
+      // AES: set up initial state based on key type.
+      uint8_t* unscrambled = sm->hash_scratch.unscrambled;
+      if (!sm->swiss_map_state.is_string_key &&
+          sm->swiss_map_state.key_byte_size == 4) {
+        *(uint64_t*)&state[0] = seed;
+        *(uint32_t*)&state[8] = *(uint32_t*)hash_key_data;
+        *(uint32_t*)&state[12] = 0;
+        sm->swiss_map_state.hash_phase = SWISS_HASH_PHASE_DIRECT_DONE;
+        sm->swiss_map_state.aes_rounds_left = 3;
+        sm->swiss_map_state.aes_self_keyed = 0;
+        sm->swiss_map_state.aes_rk_offset = 0;
+        // arm64: same round key repeated (no advance), final round no MC.
+        sm->swiss_map_state.aes_rk_no_advance = is_arm64 ? 1 : 0;
+        sm->swiss_map_state.aes_final_skip_mc = is_arm64 ? 1 : 0;
+        return 2;
+      } else if (!sm->swiss_map_state.is_string_key &&
+                 sm->swiss_map_state.key_byte_size == 8) {
+        *(uint64_t*)&state[0] = seed;
+        *(uint64_t*)&state[8] = *(uint64_t*)hash_key_data;
+        sm->swiss_map_state.hash_phase = SWISS_HASH_PHASE_DIRECT_DONE;
+        sm->swiss_map_state.aes_rounds_left = 3;
+        sm->swiss_map_state.aes_self_keyed = 0;
+        sm->swiss_map_state.aes_rk_offset = 0;
+        sm->swiss_map_state.aes_rk_no_advance = is_arm64 ? 1 : 0;
+        sm->swiss_map_state.aes_final_skip_mc = is_arm64 ? 1 : 0;
+        return 2;
+      } else {
+        // General memhash / strhash: seed scramble first.
+        *(uint64_t*)&state[0] = seed;
+        if (is_arm64) {
+          // arm64: V30 = [seed | len_as_uint64]. The length is stored
+          // as a single 64-bit value in the high lane (VMOV R2, V30.D[1]).
+          *(uint64_t*)&state[8] = (uint64_t)hash_key_len;
+        } else {
+          // x86: PINSRW $4 + PSHUFHW $0 replicates the 16-bit length
+          // across the high 64 bits.
+          uint16_t len16 = (uint16_t)hash_key_len;
+          *(uint16_t*)&state[8] = len16;
+          *(uint16_t*)&state[10] = len16;
+          *(uint16_t*)&state[12] = len16;
+          *(uint16_t*)&state[14] = len16;
+        }
+        copy16(unscrambled, state);
+        if (is_arm64) {
+          // arm64: AESE(state, keysched[0:16]) + AESMC. The AESE function
+          // XORs keysched into state before SubBytes. Don't pre-XOR here.
+          sm->swiss_map_state.aes_self_keyed = 0;
+          sm->swiss_map_state.aes_rk_no_advance = 0;
+          sm->swiss_map_state.aes_final_skip_mc = 0;
+        } else {
+          // x86: pre-XOR with keysched, then self-keyed AESENC.
+          xor16(state, g_swiss_aeskeysched);
+          sm->swiss_map_state.aes_self_keyed = 1;
+        }
+        sm->swiss_map_state.hash_phase = SWISS_HASH_PHASE_SEED_SCRAMBLE_DONE;
+        sm->swiss_map_state.aes_rounds_left = 1;
+        sm->swiss_map_state.aes_rk_offset = 0;
+        return 2;
+      }
+    }
+    // For wyhash: state[0:8] has the hash. Fall through to finalize below.
+
+  } else if (phase == SWISS_HASH_PHASE_SEED_SCRAMBLE_DONE) {
+    // After 1-round seed scramble. Dispatch based on key length tier.
+    uint32_t len = (uint32_t)sm->swiss_map_state.hash_key_len_full;
+    if (len > SWISS_MAP_MAX_STR_KEY_LEN) len = SWISS_MAP_MAX_STR_KEY_LEN;
+    barrier_var(len);
+
+    if (len == 0) {
+      sm->swiss_map_state.hash_phase = SWISS_HASH_PHASE_FINAL_EXTRA;
+      if (is_arm64) {
+        // arm64 len==0: return scrambled seed directly (no extra round).
+        // AESENC will be a no-op (rounds_left=0), then HASH_FINISH re-enters
+        // with FINAL_EXTRA phase which falls through to finalize.
+        sm->swiss_map_state.aes_rounds_left = 0;
+      } else {
+        sm->swiss_map_state.aes_rounds_left = 1;
+        sm->swiss_map_state.aes_self_keyed = 1;
+      }
+      return 2;
+    }
+
+    // Get key data offset (buf-relative to avoid pointer arithmetic issues).
+    buf_offset_t kd_off = sm->swiss_map_state.key_data_off;
+    if (!scratch_buf_bounds_check(&kd_off, 516)) return -1;
+    buf_offset_t hkd_off = kd_off + (sm->swiss_map_state.is_string_key ? 4 : 0);
+    if (!scratch_buf_bounds_check(&hkd_off, 16)) return -1;
+    const uint8_t* hkd = (const uint8_t*)&(*buf)[hkd_off];
+
+    // Load first 16 bytes into lane0 (needed by all tiers).
+    uint8_t* lane0 = sm->hash_scratch.lanes[0];
+    if (len >= 16) {
+      copy16(lane0, hkd);
+    } else if (is_arm64) {
+      // arm64 aes0to15: scattered loading via bit-tests on length.
+      // Data is placed at specific vector positions matching the Go runtime's
+      // VLD1 into V2.D[0], V2.S[2], V2.H[6], V2.B[14] pattern.
+      zero16(lane0);
+      uint32_t src = 0;
+      uint32_t alen = len & 0xf;
+      if (alen & 8) { // TBZ $3
+        for (uint32_t i = 0; i < 8; i++) lane0[i] = hkd[src + i];
+        src += 8;
+      }
+      if (alen & 4) { // TBZ $2 → V2.S[2] = bytes 8-11
+        for (uint32_t i = 0; i < 4; i++) lane0[8 + i] = hkd[src + i];
+        src += 4;
+      }
+      if (alen & 2) { // TBZ $1 → V2.H[6] = bytes 12-13
+        lane0[12] = hkd[src];
+        lane0[13] = hkd[src + 1];
+        src += 2;
+      }
+      if (alen & 1) { // TBZ $0 → V2.B[14] = byte 14
+        lane0[14] = hkd[src];
+      }
+    } else {
+      zero16(lane0);
+      for (uint32_t i = 0; i < len && i < 16; i++) lane0[i] = hkd[i];
+    }
+
+    if (len <= 16) {
+      if (is_arm64) {
+        // arm64: scrambled seed is the round key, data is the state.
+        // All 3 rounds include AESMC (no skip for the 0-16 byte tier).
+        copy16(sm->hash_scratch.unscrambled, state); // scrambled seed → rk
+        copy16(state, lane0);                         // data → state
+        sm->swiss_map_state.aes_self_keyed = 2;
+        sm->swiss_map_state.aes_final_skip_mc = 0;
+      } else {
+        // x86: XOR data with seed, then self-keyed AESENC.
+        xor16(lane0, state);
+        copy16(state, lane0);
+        sm->swiss_map_state.aes_self_keyed = 1;
+      }
+      sm->swiss_map_state.hash_phase = SWISS_HASH_PHASE_SINGLE_LANE_DONE;
+      sm->swiss_map_state.aes_rounds_left = 3;
+      return 2;
+    }
+
+    if (len <= 32) {
+      // 2-lane: load overlapping 16-byte chunks.
+      // Both arm64 and x86: lane0 = first 16 bytes, lane1 = last 16 bytes.
+      // (arm64 VLD1.P post-indexes R0 so the first load reads from the start.)
+      buf_offset_t lane1_off = kd_off + (sm->swiss_map_state.is_string_key ? 4 : 0) + len - 16;
+      if (!scratch_buf_bounds_check(&lane1_off, 16)) return -1;
+      copy16(sm->hash_scratch.lanes[1], (const uint8_t*)&(*buf)[lane1_off]);
+      if (is_arm64) {
+        // arm64: scrambled seed (state) is the round key for lane0 data.
+        // Save original seed_vec (in unscrambled) to seeds[1] for seed1
+        // derivation later in LANE0_DONE.
+        copy16(sm->hash_scratch.seeds[1], sm->hash_scratch.unscrambled);
+        copy16(sm->hash_scratch.unscrambled, state); // scrambled seed as rk
+        copy16(state, lane0);                         // start data → state
+        sm->swiss_map_state.aes_self_keyed = 2;
+        sm->swiss_map_state.aes_final_skip_mc = 1;
+      } else {
+        xor16(lane0, state);
+        copy16(state, lane0);
+        sm->swiss_map_state.aes_self_keyed = 1;
+      }
+      sm->swiss_map_state.hash_phase = SWISS_HASH_PHASE_LANE0_DONE;
+      sm->swiss_map_state.aes_rounds_left = 3;
+      return 2;
+    }
+
+    // --- Multi-lane: 4 lanes (33-64) or 8 lanes (65+) ---
+    uint8_t num_lanes = (len <= 64) ? 4 : 8;
+    sm->swiss_map_state.num_lanes = num_lanes;
+    sm->swiss_map_state.current_lane = 1;
+
+    // Save scrambled seed as seeds[0].
+    copy16(sm->hash_scratch.seeds[0], state);
+
+    // Begin seed preparation for seed 1.
+    if (is_arm64) {
+      // arm64: AESE(keysched[16], original_seed_vec). keysched slot is state,
+      // original seed_vec (V30, saved in unscrambled) is the round key.
+      copy16(state, g_swiss_aeskeysched + 16);
+      // unscrambled already holds the original seed_vec from above.
+      sm->swiss_map_state.aes_self_keyed = 2;
+      sm->swiss_map_state.aes_final_skip_mc = 0;
+    } else {
+      // x86: unscrambled ^ keysched[16], then self-keyed AESENC.
+      copy16(state, sm->hash_scratch.unscrambled);
+      xor16(state, g_swiss_aeskeysched + 16);
+      sm->swiss_map_state.aes_self_keyed = 1;
+    }
+    sm->swiss_map_state.hash_phase = SWISS_HASH_PHASE_MULTI_SEED_PREP;
+    sm->swiss_map_state.aes_rounds_left = 1;
+    return 2;
+
+  } else if (phase == SWISS_HASH_PHASE_MULTI_SEED_PREP) {
+    // Just finished 1 self-keyed round on current seed. Save it.
+    uint8_t lane = sm->swiss_map_state.current_lane;
+    if (lane >= SWISS_MAP_MAX_AES_LANES) return -1;
+    SEED_WRITE(sm->hash_scratch, lane, state);
+    sm->swiss_map_state.current_lane = lane + 1;
+
+    if (lane + 1 < sm->swiss_map_state.num_lanes) {
+      // Prepare next seed.
+      uint32_t ks_off = (uint32_t)(lane + 1) * 16;
+      if (ks_off > 112) ks_off = 112;
+      if (is_arm64) {
+        // arm64: AESE(keysched[offset], original_seed_vec). keysched is state,
+        // original seed_vec (in unscrambled, preserved from PHASE_INIT) is rk.
+        copy16(state, g_swiss_aeskeysched + ks_off);
+        // unscrambled already holds the original seed_vec — don't overwrite it.
+        sm->swiss_map_state.aes_self_keyed = 2;
+        sm->swiss_map_state.aes_final_skip_mc = 0;
+      } else {
+        copy16(state, sm->hash_scratch.unscrambled);
+        xor16(state, g_swiss_aeskeysched + ks_off);
+        sm->swiss_map_state.aes_self_keyed = 1;
+      }
+      sm->swiss_map_state.aes_rounds_left = 1;
+      return 2;
+    }
+
+    // All seeds prepared. Load data into lanes and XOR with seeds.
+    uint32_t len = (uint32_t)sm->swiss_map_state.hash_key_len_full;
+    if (len > SWISS_MAP_MAX_STR_KEY_LEN) len = SWISS_MAP_MAX_STR_KEY_LEN;
+    barrier_var(len);
+    uint8_t nl = sm->swiss_map_state.num_lanes;
+
+    buf_offset_t kd_off = sm->swiss_map_state.key_data_off;
+    if (!scratch_buf_bounds_check(&kd_off, 516)) return -1;
+    // Base offset of the actual key bytes (past the 4-byte length prefix for strings).
+    buf_offset_t hkd_off = kd_off + (sm->swiss_map_state.is_string_key ? 4 : 0);
+
+    if (len <= 128) {
+      // Non-looping: first N/2 lanes from start, last N/2 from end (overlapping).
+      // Both arm64 and x86 use the same lane ordering: VLD1.P post-indexes R0
+      // on arm64, so the first load reads from the start, the second from the end.
+      uint8_t half = nl / 2;
+      // First half: lanes[i] = key_data[16*i]
+      for (uint8_t i = 0; i < half && i < SWISS_MAP_MAX_AES_LANES; i++) {
+        buf_offset_t off = hkd_off + 16 * (uint32_t)i;
+        if (!scratch_buf_bounds_check(&off, 16)) return -1;
+        LANE_WRITE(sm->hash_scratch, i, (const uint8_t*)&(*buf)[off]);
+      }
+      // Second half: overlapping from end
+      for (uint8_t i = 0; i < half && (half + i) < SWISS_MAP_MAX_AES_LANES; i++) {
+        buf_offset_t off = hkd_off + len - (uint32_t)(half - i) * 16;
+        if (!scratch_buf_bounds_check(&off, 16)) return -1;
+        LANE_WRITE(sm->hash_scratch, half + i, (const uint8_t*)&(*buf)[off]);
+      }
+    } else {
+      // 129+ looping: initial data is the LAST 128 bytes.
+      for (uint8_t i = 0; i < 8 && i < SWISS_MAP_MAX_AES_LANES; i++) {
+        buf_offset_t off = hkd_off + len - 128 + 16 * (uint32_t)i;
+        if (!scratch_buf_bounds_check(&off, 16)) return -1;
+        LANE_WRITE(sm->hash_scratch, i, (const uint8_t*)&(*buf)[off]);
+      }
+      // Set up block loop: process from start in 128-byte chunks.
+      sm->swiss_map_state.block_offset = 0;
+      sm->swiss_map_state.blocks_remaining = (len - 1) / 128; // number of full 128-byte blocks
+    }
+
+    if (!is_arm64) {
+      // x86: XOR each lane with its seed. arm64 skips this — AESE will
+      // XOR the per-lane seed as the round key internally.
+      for (uint8_t i = 0; i < nl && i < SWISS_MAP_MAX_AES_LANES; i++) {
+        SEED_READ(sm->hash_scratch, i, sm->hash_scratch.tmp);
+        LANE_XOR(sm->hash_scratch, i, sm->hash_scratch.tmp);
+      }
+    }
+
+    if (len > 128) {
+      // 129+ path: start block loop.
+      sm->swiss_map_state.current_lane = 0;
+      if (is_arm64) {
+        // arm64: accumulators are seeds (V0-V7). Load seed[0] into state,
+        // lane[0] (old tail data) is the round key.
+        SEED_READ(sm->hash_scratch, 0, state);
+        LANE_READ(sm->hash_scratch, 0, sm->hash_scratch.unscrambled);
+        sm->swiss_map_state.aes_self_keyed = 2;
+        sm->swiss_map_state.aes_final_skip_mc = 0;
+      } else {
+        copy16(state, sm->hash_scratch.lanes[0]);
+        sm->swiss_map_state.aes_self_keyed = 1;
+      }
+      sm->swiss_map_state.hash_phase = SWISS_HASH_PHASE_BLOCK_SELF_ROUNDS;
+      sm->swiss_map_state.aes_rounds_left = 1;
+      return 2;
+    }
+
+    // Non-looping: go straight to 3 data rounds per lane.
+    sm->swiss_map_state.current_lane = 0;
+    if (is_arm64) {
+      // arm64: data is in lanes[], seed is the round key.
+      LANE_READ(sm->hash_scratch, 0, state);
+      SEED_READ(sm->hash_scratch, 0, sm->hash_scratch.unscrambled);
+      sm->swiss_map_state.aes_self_keyed = 2;
+      sm->swiss_map_state.aes_final_skip_mc = 1;
+    } else {
+      copy16(state, sm->hash_scratch.lanes[0]);
+      sm->swiss_map_state.aes_self_keyed = 1;
+    }
+    sm->swiss_map_state.hash_phase = SWISS_HASH_PHASE_MULTI_DATA_ROUNDS;
+    sm->swiss_map_state.aes_rounds_left = 3;
+    return 2;
+
+  } else if (phase == SWISS_HASH_PHASE_MULTI_DATA_ROUNDS) {
+    // Just finished 3 rounds on current lane. Save result.
+    uint8_t lane = sm->swiss_map_state.current_lane;
+    if (lane >= SWISS_MAP_MAX_AES_LANES) return -1;
+    LANE_WRITE(sm->hash_scratch, lane, state);
+
+    uint8_t next = lane + 1;
+    if (next < sm->swiss_map_state.num_lanes) {
+      // Load next lane and do 3 rounds.
+      sm->swiss_map_state.current_lane = next;
+      if (is_arm64) {
+        LANE_READ(sm->hash_scratch, next, state);
+        SEED_READ(sm->hash_scratch, next, sm->hash_scratch.unscrambled);
+        sm->swiss_map_state.aes_self_keyed = 2;
+        sm->swiss_map_state.aes_final_skip_mc = 1;
+      } else {
+        LANE_READ(sm->hash_scratch, next, state);
+        sm->swiss_map_state.aes_self_keyed = 1;
+      }
+      sm->swiss_map_state.aes_rounds_left = 3;
+      return 2;
+    }
+
+    // All lanes done. Fall through to MULTI_DONE.
+    sm->swiss_map_state.hash_phase = SWISS_HASH_PHASE_MULTI_DONE;
+    // Fall through (no return 2 — process MULTI_DONE immediately).
+
+  }
+  if (phase == SWISS_HASH_PHASE_MULTI_DONE ||
+      sm->swiss_map_state.hash_phase == SWISS_HASH_PHASE_MULTI_DONE) {
+    // XOR-fold all lanes down to lanes[0], matching Go runtime:
+    // 8 lanes: [0]^=[4],[1]^=[5],[2]^=[6],[3]^=[7],[0]^=[2],[1]^=[3],[0]^=[1]
+    // 4 lanes: [0]^=[2],[1]^=[3],[0]^=[1]
+    uint8_t nl = sm->swiss_map_state.num_lanes;
+    if (nl == 8) {
+      for (uint8_t i = 0; i < 4; i++)
+        { LANE_READ(sm->hash_scratch, i + 4, sm->hash_scratch.tmp); LANE_XOR(sm->hash_scratch, i, sm->hash_scratch.tmp); }
+    }
+    if (nl >= 4) {
+      xor16(sm->hash_scratch.lanes[0], sm->hash_scratch.lanes[2]);
+      xor16(sm->hash_scratch.lanes[1], sm->hash_scratch.lanes[3]);
+    }
+    xor16(sm->hash_scratch.lanes[0], sm->hash_scratch.lanes[1]);
+    copy16(state, sm->hash_scratch.lanes[0]);
+    // Fall through to finalize.
+
+  } else if (phase == SWISS_HASH_PHASE_BLOCK_SELF_ROUNDS) {
+    // 129+ path: just did 1 round on current lane. Save & advance.
+    uint8_t lane = sm->swiss_map_state.current_lane;
+    if (lane >= SWISS_MAP_MAX_AES_LANES) return -1;
+    if (is_arm64) {
+      // arm64: accumulator is seed, save result back to seeds.
+      SEED_WRITE(sm->hash_scratch, lane, state);
+    } else {
+      LANE_WRITE(sm->hash_scratch, lane, state);
+    }
+
+    uint8_t next = lane + 1;
+    if (next < 8) {
+      sm->swiss_map_state.current_lane = next;
+      if (is_arm64) {
+        // arm64: AESE(seed[next], lane[next]). seed is state, lane data is rk.
+        SEED_READ(sm->hash_scratch, next, state);
+        LANE_READ(sm->hash_scratch, next, sm->hash_scratch.unscrambled);
+        sm->swiss_map_state.aes_self_keyed = 2;
+        sm->swiss_map_state.aes_final_skip_mc = 0;
+      } else {
+        LANE_READ(sm->hash_scratch, next, state);
+        sm->swiss_map_state.aes_self_keyed = 1;
+      }
+      sm->swiss_map_state.aes_rounds_left = 1;
+      return 2;
+    }
+
+    // All 8 rounds done. Start per-lane data-keyed round.
+    // Load data chunk for lane 0 into unscrambled (custom round key).
+    {
+      buf_offset_t kd_off = sm->swiss_map_state.key_data_off;
+      if (!scratch_buf_bounds_check(&kd_off, 516)) return -1;
+      buf_offset_t hkd_off = kd_off + (sm->swiss_map_state.is_string_key ? 4 : 0);
+      buf_offset_t data_off = hkd_off + (uint32_t)sm->swiss_map_state.block_offset;
+      if (!scratch_buf_bounds_check(&data_off, 16)) return -1;
+      copy16(sm->hash_scratch.unscrambled, (const uint8_t*)&(*buf)[data_off]);
+    }
+    sm->swiss_map_state.current_lane = 0;
+    if (is_arm64) {
+      // arm64: AESE(seed[0], new_data). seed is the accumulator.
+      SEED_READ(sm->hash_scratch, 0, state);
+    } else {
+      LANE_READ(sm->hash_scratch, 0, state);
+    }
+    sm->swiss_map_state.hash_phase = SWISS_HASH_PHASE_BLOCK_DATA_ROUND;
+    sm->swiss_map_state.aes_rounds_left = 1;
+    sm->swiss_map_state.aes_self_keyed = 2;
+    sm->swiss_map_state.aes_final_skip_mc = 0;
+    return 2;
+
+  } else if (phase == SWISS_HASH_PHASE_BLOCK_DATA_ROUND) {
+    // Just finished 1 data-keyed round on current lane. Save & advance.
+    uint8_t lane = sm->swiss_map_state.current_lane;
+    if (is_arm64) {
+      SEED_WRITE(sm->hash_scratch, lane, state);
+    } else {
+      LANE_WRITE(sm->hash_scratch, lane, state);
+    }
+
+    uint8_t next = lane + 1;
+    if (next < 8) {
+      // Load next lane and its data chunk as round key.
+      sm->swiss_map_state.current_lane = next;
+      if (is_arm64) {
+        SEED_READ(sm->hash_scratch, next, state);
+      } else {
+        LANE_READ(sm->hash_scratch, next, state);
+      }
+
+      buf_offset_t kd_off2 = sm->swiss_map_state.key_data_off;
+      if (!scratch_buf_bounds_check(&kd_off2, 516)) return -1;
+      buf_offset_t hkd_off2 = kd_off2 + (sm->swiss_map_state.is_string_key ? 4 : 0);
+      buf_offset_t data_off2 = hkd_off2 + (uint32_t)sm->swiss_map_state.block_offset +
+                               16 * (uint32_t)next;
+      if (!scratch_buf_bounds_check(&data_off2, 16)) return -1;
+      copy16(sm->hash_scratch.unscrambled, (const uint8_t*)&(*buf)[data_off2]);
+
+      sm->swiss_map_state.aes_rounds_left = 1;
+      sm->swiss_map_state.aes_self_keyed = 2;
+      return 2;
+    }
+
+    // All 8 data-keyed rounds done. Advance block.
+    sm->swiss_map_state.block_offset += 128;
+    sm->swiss_map_state.blocks_remaining--;
+
+    if (is_arm64) {
+      // arm64: save current block data to lanes[] so next iteration's
+      // BLOCK_SELF_ROUNDS has the "old data" as round keys.
+      buf_offset_t kd_off3 = sm->swiss_map_state.key_data_off;
+      if (scratch_buf_bounds_check(&kd_off3, 516)) {
+        buf_offset_t hkd_off3 = kd_off3 + (sm->swiss_map_state.is_string_key ? 4 : 0);
+        buf_offset_t blk_off = hkd_off3 + (uint32_t)sm->swiss_map_state.block_offset - 128;
+        for (uint8_t i = 0; i < 8 && i < SWISS_MAP_MAX_AES_LANES; i++) {
+          buf_offset_t d_off = blk_off + 16 * (uint32_t)i;
+          if (scratch_buf_bounds_check(&d_off, 16))
+            LANE_WRITE(sm->hash_scratch, i, (const uint8_t*)&(*buf)[d_off]);
+        }
+      }
+    }
+
+    if (sm->swiss_map_state.blocks_remaining > 0) {
+      // More blocks: go back to self/old-data-keyed rounds.
+      sm->swiss_map_state.current_lane = 0;
+      if (is_arm64) {
+        SEED_READ(sm->hash_scratch, 0, state);
+        LANE_READ(sm->hash_scratch, 0, sm->hash_scratch.unscrambled);
+        sm->swiss_map_state.aes_self_keyed = 2;
+        sm->swiss_map_state.aes_final_skip_mc = 0;
+      } else {
+        copy16(state, sm->hash_scratch.lanes[0]);
+        sm->swiss_map_state.aes_self_keyed = 1;
+      }
+      sm->swiss_map_state.hash_phase = SWISS_HASH_PHASE_BLOCK_SELF_ROUNDS;
+      sm->swiss_map_state.aes_rounds_left = 1;
+      return 2;
+    }
+
+    // No more blocks. Do 3 final rounds per lane.
+    sm->swiss_map_state.current_lane = 0;
+    if (is_arm64) {
+      // arm64: AESE(seed, last_data). last data is in lanes[] (saved above).
+      SEED_READ(sm->hash_scratch, 0, state);
+      LANE_READ(sm->hash_scratch, 0, sm->hash_scratch.unscrambled);
+      sm->swiss_map_state.aes_self_keyed = 2;
+      sm->swiss_map_state.aes_final_skip_mc = 1;
+    } else {
+      copy16(state, sm->hash_scratch.lanes[0]);
+      sm->swiss_map_state.aes_self_keyed = 1;
+    }
+    sm->swiss_map_state.hash_phase = SWISS_HASH_PHASE_BLOCK_FINAL_ROUNDS;
+    sm->swiss_map_state.aes_rounds_left = 3;
+    return 2;
+
+  } else if (phase == SWISS_HASH_PHASE_BLOCK_FINAL_ROUNDS) {
+    // Just finished 3 final rounds on current lane. Save & advance.
+    uint8_t lane = sm->swiss_map_state.current_lane;
+    if (lane >= SWISS_MAP_MAX_AES_LANES) return -1;
+    if (is_arm64) {
+      SEED_WRITE(sm->hash_scratch, lane, state);
+    } else {
+      LANE_WRITE(sm->hash_scratch, lane, state);
+    }
+
+    uint8_t next = lane + 1;
+    if (next < 8) {
+      sm->swiss_map_state.current_lane = next;
+      if (is_arm64) {
+        SEED_READ(sm->hash_scratch, next, state);
+        LANE_READ(sm->hash_scratch, next, sm->hash_scratch.unscrambled);
+        sm->swiss_map_state.aes_self_keyed = 2;
+        sm->swiss_map_state.aes_final_skip_mc = 1;
+      } else {
+        LANE_READ(sm->hash_scratch, next, state);
+        sm->swiss_map_state.aes_self_keyed = 1;
+      }
+      sm->swiss_map_state.aes_rounds_left = 3;
+      return 2;
+    }
+    if (is_arm64) {
+      // arm64 129+: XOR-fold seeds[0..7] (accumulators are seeds, not lanes).
+      for (uint8_t i = 0; i < 4; i++)
+        { SEED_READ(sm->hash_scratch, i + 4, sm->hash_scratch.tmp);
+          xor16(_seed_ptr(sm->hash_scratch.seeds, i), sm->hash_scratch.tmp); }
+      xor16(sm->hash_scratch.seeds[0], sm->hash_scratch.seeds[2]);
+      xor16(sm->hash_scratch.seeds[1], sm->hash_scratch.seeds[3]);
+      xor16(sm->hash_scratch.seeds[0], sm->hash_scratch.seeds[1]);
+      copy16(state, sm->hash_scratch.seeds[0]);
+    } else {
+      // x86: XOR-fold lanes[0..7].
+      for (uint8_t i = 0; i < 4; i++)
+        { LANE_READ(sm->hash_scratch, i + 4, sm->hash_scratch.tmp); LANE_XOR(sm->hash_scratch, i, sm->hash_scratch.tmp); }
+      xor16(sm->hash_scratch.lanes[0], sm->hash_scratch.lanes[2]);
+      xor16(sm->hash_scratch.lanes[1], sm->hash_scratch.lanes[3]);
+      xor16(sm->hash_scratch.lanes[0], sm->hash_scratch.lanes[1]);
+      copy16(state, sm->hash_scratch.lanes[0]);
+    }
+    // Fall through to finalize.
+
+  } else if (phase == SWISS_HASH_PHASE_LANE0_DONE) {
+    // Save lane0 AES result (in state) to lanes[0].
+    copy16(sm->hash_scratch.lanes[0], state);
+
+    // Reconstruct data1 = overlapping "last 16 bytes" window.
+    buf_offset_t kd_off2 = sm->swiss_map_state.key_data_off;
+    if (!scratch_buf_bounds_check(&kd_off2, 516)) return -1;
+    const uint8_t* key_data2 = (const uint8_t*)&(*buf)[kd_off2];
+    uint32_t len2;
+    const uint8_t* hash_key_data2;
+    if (sm->swiss_map_state.is_string_key) {
+      len2 = *(uint32_t*)key_data2;
+      hash_key_data2 = key_data2 + 4;
+    } else {
+      len2 = (uint32_t)sm->swiss_map_state.key_byte_size;
+      hash_key_data2 = key_data2;
+    }
+    if (len2 > SWISS_MAP_MAX_STR_KEY_LEN) len2 = SWISS_MAP_MAX_STR_KEY_LEN;
+    barrier_var(len2);
+
+    // data1 = last 16 bytes of key data = lane1 (already loaded in
+    // SEED_SCRAMBLE_DONE from hkd + len - 16). Just copy it.
+    copy16(sm->hash_scratch.seeds[0], sm->hash_scratch.lanes[1]);
+
+    // Prepare seed1: derive from keysched[16:32].
+    uint8_t* seed1 = sm->hash_scratch.seeds[1];
+    if (is_arm64) {
+      // arm64: AESE(keysched[16:32], original_seed_vec). keysched is state,
+      // original seed_vec (saved to seeds[1] in SEED_SCRAMBLE_DONE) is the rk.
+      copy16(state, g_swiss_aeskeysched + 16);
+      copy16(sm->hash_scratch.unscrambled, sm->hash_scratch.seeds[1]);
+      sm->swiss_map_state.aes_self_keyed = 2;
+      sm->swiss_map_state.aes_final_skip_mc = 0;
+    } else {
+      copy16(seed1, sm->hash_scratch.unscrambled);
+      xor16(seed1, g_swiss_aeskeysched + 16);
+      copy16(state, seed1);
+      sm->swiss_map_state.aes_self_keyed = 1;
+    }
+    sm->swiss_map_state.hash_phase = SWISS_HASH_PHASE_SEED1_DONE;
+    sm->swiss_map_state.aes_rounds_left = 1;
+    return 2;
+
+  } else if (phase == SWISS_HASH_PHASE_SEED1_DONE) {
+    if (is_arm64) {
+      // arm64: state has derived seed1. Use it as round key for lane1 data.
+      // lane1 data is in seeds[0] (saved earlier from lanes[1]).
+      copy16(sm->hash_scratch.unscrambled, state); // seed1 as custom rk
+      copy16(state, sm->hash_scratch.seeds[0]);    // lane1 data as state
+      sm->swiss_map_state.aes_self_keyed = 2;
+      sm->swiss_map_state.aes_final_skip_mc = 1;
+    } else {
+      uint8_t* data1 = sm->hash_scratch.seeds[0];
+      xor16(data1, state);
+      copy16(state, data1);
+      sm->swiss_map_state.aes_self_keyed = 1;
+    }
+    sm->swiss_map_state.hash_phase = SWISS_HASH_PHASE_LANE1_DONE;
+    sm->swiss_map_state.aes_rounds_left = 3;
+    return 2;
+
+  } else if (phase == SWISS_HASH_PHASE_LANE1_DONE) {
+    xor16(state, sm->hash_scratch.lanes[0]);
+    // Fall through to finalize.
+
+  } else if (phase == SWISS_HASH_PHASE_FINAL_EXTRA ||
+             phase == SWISS_HASH_PHASE_SINGLE_LANE_DONE ||
+             phase == SWISS_HASH_PHASE_DIRECT_DONE) {
+    // state[0:8] is the hash. Fall through to finalize.
+
+  } else {
+    LOG(2, "swiss_map_hash_finish: unknown phase %d", phase);
+    return -1;
+  }
+
+  // --- Finalize: extract hash, compute h1/h2, determine groups ---
+  uint64_t hash = *(uint64_t*)&state[0];
+  uint64_t h1 = hash >> 7;
+  sm->swiss_map_state.h2 = (uint8_t)(hash & 0x7F);
+  LOG(4, "swiss_map_hash_finish: hash=0x%llx h2=0x%x", hash, sm->swiss_map_state.h2);
+
+  // Recover dir_ptr, dir_len, and field offsets stored by SETUP.
+  target_ptr_t dir_ptr = sm->swiss_map_state.groups_data_ptr;
+  int64_t dir_len = (int64_t)sm->swiss_map_state.length_mask;
+  uint8_t global_shift_offset = (uint8_t)(sm->value_0);
+  uint8_t table_groups_field_offset = (uint8_t)(sm->value_0 >> 8);
+  uint8_t groups_data_field_offset = (uint8_t)(sm->value_0 >> 16);
+  uint8_t groups_len_mask_field_offset = (uint8_t)(sm->value_0 >> 24);
+
+  if (dir_len == 0) {
+    sm->swiss_map_state.groups_data_ptr = dir_ptr;
+    sm->swiss_map_state.length_mask = 0;
+    sm->swiss_map_state.probe_offset = 0;
+  } else {
+    buf_offset_t gs_off = sm->buf_offset_0 + global_shift_offset;
+    if (!scratch_buf_bounds_check(&gs_off, 1)) return -1;
+    uint8_t global_shift = (*buf)[gs_off];
+    uint64_t table_idx = hash >> global_shift;
+    target_ptr_t table_ptr;
+    if (bpf_probe_read_user(&table_ptr, 8,
+                             (void*)(dir_ptr + table_idx * 8)) != 0) {
+      scratch_buf_set_len(buf, sm->expr_results_end_offset);
+      return -1;
+    }
+    if (table_ptr == 0) {
+      if (sm->swiss_map_state.expr_status_idx != EXPR_STATUS_IDX_NONE) {
+        expr_status_write(buf, sm->expr_results_offset,
+                          sm->swiss_map_state.expr_status_idx, EXPR_STATUS_OOB);
+      }
+      scratch_buf_set_len(buf, sm->expr_results_end_offset);
+      return -2;
+    }
+    target_ptr_t groups_ref_addr = table_ptr + table_groups_field_offset;
+    if (bpf_probe_read_user(&sm->swiss_map_state.groups_data_ptr, 8,
+                             (void*)(groups_ref_addr +
+                                     groups_data_field_offset)) != 0) {
+      scratch_buf_set_len(buf, sm->expr_results_end_offset);
+      return -1;
+    }
+    if (bpf_probe_read_user(&sm->swiss_map_state.length_mask, 8,
+                             (void*)(groups_ref_addr +
+                                     groups_len_mask_field_offset)) != 0) {
+      scratch_buf_set_len(buf, sm->expr_results_end_offset);
+      return -1;
+    }
+    sm->swiss_map_state.probe_offset = h1 & sm->swiss_map_state.length_mask;
+  }
+  sm->swiss_map_state.probe_index = 0;
+  LOG(4, "swiss_map_hash_finish: groups=0x%llx lm=%llu po=%llu",
+      sm->swiss_map_state.groups_data_ptr,
+      sm->swiss_map_state.length_mask,
+      sm->swiss_map_state.probe_offset);
+  return 0; // hash done, probe state set
+}
+
+// ---------------------------------------------------------------------------
+// sm_swiss_map_aesenc: global noinline function for one AESENC round.
+// Operates on sm->hash_scratch.state using sm->hash_scratch.tmp as scratch.
+// Isolates the AESENC stack frame from sm_loop.
+// ---------------------------------------------------------------------------
+__attribute__((noinline)) int
+sm_swiss_map_aesenc(stack_machine_t* sm) {
+  if (!sm) return -1;
+  uint8_t* state = sm->hash_scratch.state;
+  uint8_t* tmp = sm->hash_scratch.tmp;
+
+  // SubBytes + ShiftRows.
+  tmp[0]  = aes_sbox[state[0]];
+  tmp[1]  = aes_sbox[state[5]];
+  tmp[2]  = aes_sbox[state[10]];
+  tmp[3]  = aes_sbox[state[15]];
+  tmp[4]  = aes_sbox[state[4]];
+  tmp[5]  = aes_sbox[state[9]];
+  tmp[6]  = aes_sbox[state[14]];
+  tmp[7]  = aes_sbox[state[3]];
+  tmp[8]  = aes_sbox[state[8]];
+  tmp[9]  = aes_sbox[state[13]];
+  tmp[10] = aes_sbox[state[2]];
+  tmp[11] = aes_sbox[state[7]];
+  tmp[12] = aes_sbox[state[12]];
+  tmp[13] = aes_sbox[state[1]];
+  tmp[14] = aes_sbox[state[6]];
+  tmp[15] = aes_sbox[state[11]];
+
+  // Determine round key.
+  // aes_self_keyed: 0=keysched, 1=self-keyed (state), 2=custom (unscrambled)
+  const uint8_t* rk;
+  if (sm->swiss_map_state.aes_self_keyed == 1) {
+    rk = state;
+  } else if (sm->swiss_map_state.aes_self_keyed == 2) {
+    // Custom round key stored in hash_scratch.unscrambled (used for data-keyed
+    // AESENC in the 129+ block loop).
+    rk = sm->hash_scratch.unscrambled;
+  } else {
+    uint32_t off = sm->swiss_map_state.aes_rk_offset & 0x7f;
+    if (off > 112) off = 112;
+    rk = &g_swiss_aeskeysched[off];
+    sm->swiss_map_state.aes_rk_offset = off + 16;
+  }
+
+  // MixColumns + AddRoundKey.
+  uint8_t a0, a1, a2, a3, x0, x1, x2, x3;
+
+  a0 = tmp[0]; a1 = tmp[1]; a2 = tmp[2]; a3 = tmp[3];
+  x0 = xtime(a0); x1 = xtime(a1); x2 = xtime(a2); x3 = xtime(a3);
+  state[0] = x0 ^ x1 ^ a1 ^ a2 ^ a3 ^ rk[0];
+  state[1] = a0 ^ x1 ^ x2 ^ a2 ^ a3 ^ rk[1];
+  state[2] = a0 ^ a1 ^ x2 ^ x3 ^ a3 ^ rk[2];
+  state[3] = x0 ^ a0 ^ a1 ^ a2 ^ x3 ^ rk[3];
+
+  a0 = tmp[4]; a1 = tmp[5]; a2 = tmp[6]; a3 = tmp[7];
+  x0 = xtime(a0); x1 = xtime(a1); x2 = xtime(a2); x3 = xtime(a3);
+  state[4] = x0 ^ x1 ^ a1 ^ a2 ^ a3 ^ rk[4];
+  state[5] = a0 ^ x1 ^ x2 ^ a2 ^ a3 ^ rk[5];
+  state[6] = a0 ^ a1 ^ x2 ^ x3 ^ a3 ^ rk[6];
+  state[7] = x0 ^ a0 ^ a1 ^ a2 ^ x3 ^ rk[7];
+
+  a0 = tmp[8]; a1 = tmp[9]; a2 = tmp[10]; a3 = tmp[11];
+  x0 = xtime(a0); x1 = xtime(a1); x2 = xtime(a2); x3 = xtime(a3);
+  state[8]  = x0 ^ x1 ^ a1 ^ a2 ^ a3 ^ rk[8];
+  state[9]  = a0 ^ x1 ^ x2 ^ a2 ^ a3 ^ rk[9];
+  state[10] = a0 ^ a1 ^ x2 ^ x3 ^ a3 ^ rk[10];
+  state[11] = x0 ^ a0 ^ a1 ^ a2 ^ x3 ^ rk[11];
+
+  a0 = tmp[12]; a1 = tmp[13]; a2 = tmp[14]; a3 = tmp[15];
+  x0 = xtime(a0); x1 = xtime(a1); x2 = xtime(a2); x3 = xtime(a3);
+  state[12] = x0 ^ x1 ^ a1 ^ a2 ^ a3 ^ rk[12];
+  state[13] = a0 ^ x1 ^ x2 ^ a2 ^ a3 ^ rk[13];
+  state[14] = a0 ^ a1 ^ x2 ^ x3 ^ a3 ^ rk[14];
+  state[15] = x0 ^ a0 ^ a1 ^ a2 ^ x3 ^ rk[15];
+  return 0;
+}
+
+// ---------------------------------------------------------------------------
+// sm_swiss_map_aese: global noinline function for one arm64 AESE+AESMC round.
+// ARM64 AESE(state, rk) = ShiftRows(SubBytes(state XOR rk))
+// ARM64 AESMC(state) = MixColumns(state)
+// The key difference from x86 AESENC: round key is XORed BEFORE SubBytes,
+// and MixColumns has no AddRoundKey step.
+// When aes_skip_mc is set, MixColumns is omitted (arm64 final rounds).
+// ---------------------------------------------------------------------------
+__attribute__((noinline)) int
+sm_swiss_map_aese(stack_machine_t* sm) {
+  if (!sm) return -1;
+  uint8_t* state = sm->hash_scratch.state;
+  uint8_t* tmp = sm->hash_scratch.tmp;
+
+  // Determine round key (same selection logic as sm_swiss_map_aesenc).
+  const uint8_t* rk;
+  if (sm->swiss_map_state.aes_self_keyed == 1) {
+    rk = state;
+  } else if (sm->swiss_map_state.aes_self_keyed == 2) {
+    rk = sm->hash_scratch.unscrambled;
+  } else {
+    uint32_t off = sm->swiss_map_state.aes_rk_offset & 0x7f;
+    if (off > 112) off = 112;
+    rk = &g_swiss_aeskeysched[off];
+    if (!sm->swiss_map_state.aes_rk_no_advance)
+      sm->swiss_map_state.aes_rk_offset = off + 16;
+  }
+
+  // AESE: XOR round key into state, then SubBytes + ShiftRows.
+  // XOR in-place to avoid stack allocation.
+  state[0]  ^= rk[0];  state[1]  ^= rk[1];  state[2]  ^= rk[2];  state[3]  ^= rk[3];
+  state[4]  ^= rk[4];  state[5]  ^= rk[5];  state[6]  ^= rk[6];  state[7]  ^= rk[7];
+  state[8]  ^= rk[8];  state[9]  ^= rk[9];  state[10] ^= rk[10]; state[11] ^= rk[11];
+  state[12] ^= rk[12]; state[13] ^= rk[13]; state[14] ^= rk[14]; state[15] ^= rk[15];
+
+  // SubBytes + ShiftRows (same permutation as x86).
+  tmp[0]  = aes_sbox[state[0]];
+  tmp[1]  = aes_sbox[state[5]];
+  tmp[2]  = aes_sbox[state[10]];
+  tmp[3]  = aes_sbox[state[15]];
+  tmp[4]  = aes_sbox[state[4]];
+  tmp[5]  = aes_sbox[state[9]];
+  tmp[6]  = aes_sbox[state[14]];
+  tmp[7]  = aes_sbox[state[3]];
+  tmp[8]  = aes_sbox[state[8]];
+  tmp[9]  = aes_sbox[state[13]];
+  tmp[10] = aes_sbox[state[2]];
+  tmp[11] = aes_sbox[state[7]];
+  tmp[12] = aes_sbox[state[12]];
+  tmp[13] = aes_sbox[state[1]];
+  tmp[14] = aes_sbox[state[6]];
+  tmp[15] = aes_sbox[state[11]];
+
+  if (sm->swiss_map_state.aes_skip_mc) {
+    // AESE only (no AESMC) — arm64 final round.
+    copy16(state, tmp);
+    return 0;
+  }
+
+  // AESMC: MixColumns only (NO AddRoundKey — that was done before SubBytes).
+  uint8_t a0, a1, a2, a3, x0, x1, x2, x3;
+
+  a0 = tmp[0]; a1 = tmp[1]; a2 = tmp[2]; a3 = tmp[3];
+  x0 = xtime(a0); x1 = xtime(a1); x2 = xtime(a2); x3 = xtime(a3);
+  state[0] = x0 ^ x1 ^ a1 ^ a2 ^ a3;
+  state[1] = a0 ^ x1 ^ x2 ^ a2 ^ a3;
+  state[2] = a0 ^ a1 ^ x2 ^ x3 ^ a3;
+  state[3] = x0 ^ a0 ^ a1 ^ a2 ^ x3;
+
+  a0 = tmp[4]; a1 = tmp[5]; a2 = tmp[6]; a3 = tmp[7];
+  x0 = xtime(a0); x1 = xtime(a1); x2 = xtime(a2); x3 = xtime(a3);
+  state[4] = x0 ^ x1 ^ a1 ^ a2 ^ a3;
+  state[5] = a0 ^ x1 ^ x2 ^ a2 ^ a3;
+  state[6] = a0 ^ a1 ^ x2 ^ x3 ^ a3;
+  state[7] = x0 ^ a0 ^ a1 ^ a2 ^ x3;
+
+  a0 = tmp[8]; a1 = tmp[9]; a2 = tmp[10]; a3 = tmp[11];
+  x0 = xtime(a0); x1 = xtime(a1); x2 = xtime(a2); x3 = xtime(a3);
+  state[8]  = x0 ^ x1 ^ a1 ^ a2 ^ a3;
+  state[9]  = a0 ^ x1 ^ x2 ^ a2 ^ a3;
+  state[10] = a0 ^ a1 ^ x2 ^ x3 ^ a3;
+  state[11] = x0 ^ a0 ^ a1 ^ a2 ^ x3;
+
+  a0 = tmp[12]; a1 = tmp[13]; a2 = tmp[14]; a3 = tmp[15];
+  x0 = xtime(a0); x1 = xtime(a1); x2 = xtime(a2); x3 = xtime(a3);
+  state[12] = x0 ^ x1 ^ a1 ^ a2 ^ a3;
+  state[13] = a0 ^ x1 ^ x2 ^ a2 ^ a3;
+  state[14] = a0 ^ a1 ^ x2 ^ x3 ^ a3;
+  state[15] = x0 ^ a0 ^ a1 ^ a2 ^ x3;
+  return 0;
+}
+
 static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
   global_ctx_t* ctx = (global_ctx_t*)_ctx;
   scratch_buf_t* buf = ctx->buf;
@@ -986,6 +2096,9 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
       }
       return 0;
     }
+    // Save the dereference byte_len so subsequent ops (like SWISS_MAP_SETUP)
+    // know how much data was written at sm->offset.
+    sm->buf_offset_1 = byte_len;
   } break;
 
   case SM_OP_EXPR_SLICE_BOUNDS_CHECK: {
@@ -1709,6 +2822,187 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
       sm->condition_failed = true;
       LOG(1, "condition check failed");
       return 1; // Abort stack machine.
+    }
+  } break;
+
+  // ---------------------------------------------------------------------------
+  // Swiss map lookup opcodes. The compiler emits these 5 in sequence:
+  //   SETUP [params] → AESENC → HASH_FINISH → PROBE → CHECK_SLOT
+  // AESENC/HASH_FINISH may loop via PC replay for multiple AES rounds.
+  // PROBE/CHECK_SLOT may loop via PC replay for quadratic probing.
+  // ---------------------------------------------------------------------------
+
+  case SM_OP_SWISS_MAP_SETUP: {
+    LOG(4, "SWISS_MAP_SETUP: starting");
+    int rc = sm_swiss_map_setup(buf, sm);
+    if (rc <= 0) {
+      // nil map (0) or error (-1). OOB already written.
+      if (!sm_return(sm)) return 1;
+      break;
+    }
+    // Copy key data from bytecode to scratch buffer.
+    // SETUP set key_data_off past the map header and advanced PC past key data.
+    // We do the copy here (sm_loop frame) to avoid stack depth from
+    // sm_copy_from_code inside the global function.
+    // Copy key data. Use swiss_map_state fields as temps to avoid
+    // clobbering buf_offset_0 (used by HASH_FINISH for the header base).
+    {
+      uint32_t kdl = sm->swiss_map_state.key_data_len;
+      if (kdl > 516) kdl = 516;
+      barrier_var(kdl);
+      if (!sm_copy_from_code(buf, sm->swiss_map_state.key_data_off,
+                             sm->pc - kdl, kdl)) {
+        if (!sm_return(sm)) return 1;
+        break;
+      }
+    }
+    // AESENC follows (no-op on first pass since rounds_left=0),
+    // then HASH_FINISH handles PHASE_INIT.
+  } break;
+
+  case SM_OP_SWISS_MAP_AESENC: {
+    if (sm->swiss_map_state.aes_rounds_left == 0) {
+      // No-op: PHASE_INIT hasn't set up rounds yet. Fall through to HASH_FINISH.
+      break;
+    }
+    if (is_arm64) {
+      // On arm64, the final round of each batch skips MixColumns (AESE only).
+      sm->swiss_map_state.aes_skip_mc =
+          (sm->swiss_map_state.aes_final_skip_mc &&
+           sm->swiss_map_state.aes_rounds_left == 1) ? 1 : 0;
+      sm_swiss_map_aese(sm);
+    } else {
+      sm_swiss_map_aesenc(sm);
+    }
+    sm->swiss_map_state.aes_rounds_left--;
+    if (sm->swiss_map_state.aes_rounds_left > 0) {
+      sm->pc -= 1; // replay AESENC
+    }
+  } break;
+
+  case SM_OP_SWISS_MAP_HASH_FINISH: {
+    int hf_rc = sm_swiss_map_hash_finish(buf, sm);
+    if (hf_rc == 2) {
+      sm->pc -= 2; // back to AESENC for more rounds
+    } else if (hf_rc == 0) {
+      // Hash done, probe state set. Fall through to PROBE.
+    } else if (hf_rc == -2) {
+      // Key not found (null table). OOB already written.
+      if (!sm_return(sm)) return 1;
+    } else {
+      // Error.
+      if (!sm_return(sm)) return 1;
+    }
+  } break;
+
+  case SM_OP_SWISS_MAP_PROBE: {
+    // Read control word at current probe group.
+    // Store group_addr and ctrl_word in struct fields to avoid stack locals.
+    sm->swiss_map_state.group_addr =
+        sm->swiss_map_state.groups_data_ptr +
+        sm->swiss_map_state.probe_offset * sm->swiss_map_state.group_byte_size;
+
+    if (bpf_probe_read_user(&sm->value_0, 8,
+                             (void*)(sm->swiss_map_state.group_addr +
+                                     sm->swiss_map_state.ctrl_offset)) != 0) {
+      LOG(3, "swiss_map_probe: failed to read ctrl");
+      scratch_buf_set_len(buf, sm->expr_results_end_offset);
+      if (!sm_return(sm)) return 1;
+      break;
+    }
+
+    // Compute H2 match bitset and empty bitset.
+    // sm->value_0 holds the ctrl_word.
+    // Compute H2 match/empty bitsets. value_0 holds ctrl_word; reuse it for v.
+    sm->swiss_map_state.empty_matches =
+        (sm->value_0 & ~(sm->value_0 << 6)) & 0x8080808080808080ULL;
+    sm->value_0 ^= (0x0101010101010101ULL * (uint64_t)sm->swiss_map_state.h2);
+    sm->swiss_map_state.h2_matches =
+        ((sm->value_0 - 0x0101010101010101ULL) & ~sm->value_0) & 0x8080808080808080ULL;
+
+    if (sm->swiss_map_state.h2_matches) {
+      // H2 matches found — fall through to CHECK_SLOT.
+      break;
+    }
+    if (sm->swiss_map_state.empty_matches) {
+      // No H2 match and empty slot → key not in map.
+      LOG(4, "swiss_map_probe: key not found (empty slot)");
+      if (sm->swiss_map_state.expr_status_idx != EXPR_STATUS_IDX_NONE) {
+        expr_status_write(buf, sm->expr_results_offset,
+                          sm->swiss_map_state.expr_status_idx, EXPR_STATUS_OOB);
+      }
+      scratch_buf_set_len(buf, sm->expr_results_end_offset);
+      if (!sm_return(sm)) return 1;
+      break;
+    }
+    // No H2 match, no empty slot — advance probe.
+    sm->swiss_map_state.probe_index++;
+    sm->swiss_map_state.probe_offset =
+        (sm->swiss_map_state.probe_offset +
+         sm->swiss_map_state.probe_index) &
+        sm->swiss_map_state.length_mask;
+    sm->pc -= 1; // replay PROBE
+  } break;
+
+  case SM_OP_SWISS_MAP_CHECK_SLOT: {
+    // Find first H2-matching slot. Use value_0 as temp for m.
+    sm->value_0 = sm->swiss_map_state.h2_matches;
+    {
+      int slot = 0;
+      uint64_t m = sm->value_0;
+      if (!(m & 0x80))               { m >>= 8; slot = 1; }
+      if (slot == 1 && !(m & 0x80))  { m >>= 8; slot = 2; }
+      if (slot == 2 && !(m & 0x80))  { m >>= 8; slot = 3; }
+      if (slot == 3 && !(m & 0x80))  { m >>= 8; slot = 4; }
+      if (slot == 4 && !(m & 0x80))  { m >>= 8; slot = 5; }
+      if (slot == 5 && !(m & 0x80))  { m >>= 8; slot = 6; }
+      if (slot == 6 && !(m & 0x80))  { slot = 7; }
+
+      sm->swiss_map_state.h2_matches &= ~((uint64_t)0xFF << (slot * 8));
+
+      sm->value_0 = sm->swiss_map_state.group_addr +
+          sm->swiss_map_state.slots_offset +
+          (uint64_t)slot * sm->swiss_map_state.slot_size;
+    }
+    sm->swiss_map_state.slot_params.key_addr = sm->value_0 + sm->swiss_map_state.key_in_slot_offset;
+    sm->swiss_map_state.slot_params.val_addr = sm->value_0 + sm->swiss_map_state.val_in_slot_offset;
+    sm->swiss_map_state.slot_params.key_data_off = sm->swiss_map_state.key_data_off;
+    sm->swiss_map_state.slot_params.result_offset = sm->swiss_map_state.result_offset;
+    sm->swiss_map_state.slot_params.val_byte_size = sm->swiss_map_state.val_byte_size;
+    sm->swiss_map_state.slot_params.key_data_len = sm->swiss_map_state.key_data_len;
+    sm->swiss_map_state.slot_params.key_byte_size = sm->swiss_map_state.key_byte_size;
+    sm->swiss_map_state.slot_params.is_string_key = sm->swiss_map_state.is_string_key;
+    int result = swiss_map_check_slot(buf, &sm->swiss_map_state.slot_params);
+    if (result == 1) {
+      LOG(4, "swiss_map_check_slot: key found");
+      break; // Value written at result_offset. Done.
+    }
+    if (result < 0) {
+      LOG(3, "swiss_map_check_slot: error");
+      scratch_buf_set_len(buf, sm->expr_results_end_offset);
+      if (!sm_return(sm)) return 1;
+      break;
+    }
+    // No match for this slot.
+    if (sm->swiss_map_state.h2_matches) {
+      sm->pc -= 1; // replay CHECK_SLOT for next match
+    } else if (sm->swiss_map_state.empty_matches) {
+      // No more H2 matches + empty slot → key not in map.
+      LOG(4, "swiss_map_check_slot: key not found (exhausted h2 matches)");
+      if (sm->swiss_map_state.expr_status_idx != EXPR_STATUS_IDX_NONE) {
+        expr_status_write(buf, sm->expr_results_offset,
+                          sm->swiss_map_state.expr_status_idx, EXPR_STATUS_OOB);
+      }
+      scratch_buf_set_len(buf, sm->expr_results_end_offset);
+      if (!sm_return(sm)) return 1;
+    } else {
+      // Advance probe and go back to PROBE opcode.
+      sm->swiss_map_state.probe_index++;
+      sm->swiss_map_state.probe_offset =
+          (sm->swiss_map_state.probe_offset +
+           sm->swiss_map_state.probe_index) &
+          sm->swiss_map_state.length_mask;
+      sm->pc -= 2; // back to PROBE (1 byte CHECK_SLOT + 1 byte PROBE)
     }
   } break;
 

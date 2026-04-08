@@ -10,6 +10,20 @@
 
 typedef uint32_t type_t;
 
+// Parameters for swiss_map_check_slot, packed for 2-arg global function.
+// Defined here (rather than stack_machine.h) so it can be embedded in
+// swiss_map_state to avoid a large stack local in sm_loop.
+typedef struct swiss_map_slot_params {
+  target_ptr_t key_addr;
+  target_ptr_t val_addr;
+  buf_offset_t key_data_off;
+  buf_offset_t result_offset;
+  uint32_t val_byte_size;
+  uint16_t key_data_len;
+  uint8_t key_byte_size;
+  uint8_t is_string_key;
+} swiss_map_slot_params_t;
+
 typedef struct frame_data {
   uint16_t stack_idx;
   uint64_t cfa;
@@ -96,6 +110,68 @@ typedef struct stack_machine {
   resolved_go_any_type_t resolved_0, resolved_1;
   buf_offset_t buf_offset_0, buf_offset_1;
   di_data_item_header_t di_0;
+
+  // Swiss map hash scratch space for AES computation.
+  struct {
+    uint8_t state[16];        // current AESENC/AESE target (active lane)
+    uint8_t unscrambled[16];  // original seed state before scramble / custom rk
+    uint8_t tmp[16];          // scratch for SubBytes+ShiftRows
+    uint8_t lanes[8][16];     // 8 AES lanes for parallel hashing
+    uint8_t seeds[8][16];     // 8 scrambled seeds
+  } hash_scratch;
+
+  // Swiss map lookup state, persisted across sm_loop iterations.
+  // Written by SM_OP_SWISS_MAP_SETUP, read by subsequent opcodes.
+  struct {
+    // Probe state.
+    target_ptr_t groups_data_ptr;
+    uint64_t length_mask;
+    target_ptr_t group_addr;
+    uint64_t h2_matches;
+    uint64_t empty_matches;
+    uint64_t probe_offset;
+    uint64_t probe_index;
+
+    // Result/key locations in scratch buffer.
+    buf_offset_t key_data_off;
+    buf_offset_t result_offset;
+    uint32_t val_byte_size;
+    uint32_t expr_status_idx;
+    uint16_t key_data_len;
+
+    // Layout parameters (from bytecode).
+    uint16_t slot_size;
+    uint16_t group_byte_size;
+    uint8_t h2;
+    uint8_t ctrl_offset;
+    uint8_t slots_offset;
+    uint8_t key_in_slot_offset;
+    uint8_t val_in_slot_offset;
+    uint8_t key_byte_size;
+    uint8_t is_string_key;
+
+    // Hash computation state.
+    uint8_t hash_phase;
+    uint8_t aes_rounds_left;  // rounds remaining for current AESENC target
+    uint8_t use_aes;
+    uint8_t aes_self_keyed;
+    uint8_t aes_rk_offset;    // offset into g_swiss_aeskeysched
+    uint8_t aes_skip_mc;      // skip MixColumns for current round (arm64 final rounds)
+    uint8_t aes_final_skip_mc; // last round of current batch should skip MC
+    uint8_t aes_rk_no_advance; // don't advance aes_rk_offset between rounds
+
+    // Multi-lane hash state.
+    uint8_t num_lanes;         // total lanes for current hash tier (1,2,4,8)
+    uint8_t current_lane;      // index of lane currently being processed
+    uint8_t hash_key_len;      // cached key length (clamped to <=255 for uint8)
+    uint16_t hash_key_len_full; // full key length (up to 512)
+    uint16_t block_offset;     // byte offset into key data for 129+ block loop
+    uint16_t blocks_remaining; // number of 128-byte blocks left to process
+
+    // Slot check params — stored here to avoid a 40-byte stack local
+    // in sm_loop's CHECK_SLOT case (reduces combined stack usage).
+    swiss_map_slot_params_t slot_params;
+  } swiss_map_state;
 } stack_machine_t;
 
 struct {

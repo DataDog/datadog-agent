@@ -120,6 +120,55 @@ type SliceBoundsCheckOp struct {
 
 func (*SliceBoundsCheckOp) irOp() {}
 
+// SwissMapLookupOp performs a Go swiss table map key lookup. At runtime the
+// scratch buffer at sm->offset contains the map header (already dereferenced).
+// The op computes the hash of the compile-time literal key using the per-map
+// seed and per-process hash secret, then probes the swiss table to find the
+// matching slot. On success the value element is written at sm->offset. On
+// failure (key not found or nil map) ExprStatusOOB is written and the
+// expression is aborted.
+type SwissMapLookupOp struct {
+	// KeyData is the literal key encoded for comparison.
+	// Base types: raw little-endian bytes (1–8 bytes).
+	// Strings: [u32 len][bytes...] (max 4+MaxStringLiteralLength bytes).
+	KeyData []byte
+
+	// IsStringKey indicates the key is a Go string. When false the key is
+	// a base type and compared by raw byte equality.
+	IsStringKey bool
+
+	// KeyByteSize is the in-memory size of the key type in bytes.
+	// For base types: 1, 2, 4, or 8.
+	// For strings: 16 (the Go string header: ptr + len).
+	KeyByteSize uint8
+
+	// ValByteSize is the in-memory size of the value element in bytes.
+	ValByteSize uint32
+
+	// Map header field offsets (from DWARF, vary by Go version).
+	SeedOffset        uint8
+	DirPtrOffset      uint8
+	DirLenOffset      uint8
+	GlobalShiftOffset uint8
+
+	// Group layout.
+	CtrlOffset      uint8
+	SlotsOffset     uint8
+	SlotSize        uint16 // size of one slot (key + elem with alignment)
+	KeyInSlotOffset uint8  // offset of key within slot
+	ValInSlotOffset uint8  // offset of elem within slot
+
+	// Table struct → groupsReference field layout.
+	TableGroupsFieldOffset   uint8
+	GroupsDataFieldOffset    uint8
+	GroupsLenMaskFieldOffset uint8
+
+	// GroupByteSize is the total byte size of one group (ctrl word + all slots).
+	GroupByteSize uint16
+}
+
+func (*SwissMapLookupOp) irOp() {}
+
 // ConditionCheckOp reads a uint8 bool result at the current offset. If false
 // (0), it sets the condition_failed flag and aborts the stack machine.
 type ConditionCheckOp struct{}

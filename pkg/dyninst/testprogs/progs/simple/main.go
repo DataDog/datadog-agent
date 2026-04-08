@@ -9,6 +9,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"strings"
 )
 
 func main() {
@@ -199,6 +200,26 @@ func main() {
 		Arr:    &[2]indexMemberStruct{elem1, elem2},
 		PtrArr: &[2]*indexMemberStruct{&elem1, &elem2},
 	}, "wrapper")
+
+	// Map index expression tests: small maps (≤8 entries, no directory),
+	// large maps (>8 entries, uses directory + probing), and key-not-found.
+	mapIndexIntKey(map[int]string{1: "one", 2: "two", 3: "three"})
+	mapIndexStringKey(map[string]int{"alpha": 100, "beta": 200, "gamma": 300})
+	largeMap := make(map[string]int)
+	for i := 0; i < 10000; i++ {
+		largeMap[fmt.Sprintf("key%d", i)] = i * 10
+	}
+	mapIndexLargeMap(largeMap)
+	mapIndexMissing(map[string]int{"a": 1, "b": 2})
+
+	// Map index tests for different key length tiers (AES hash lanes).
+	// Each tier uses a large map (>8 entries) to exercise the full
+	// hash → table → group → slot lookup path.
+	mapIndexKeyLen8(makeLargeMapWithKeyLen(8, 1000))     // 1-16 byte tier
+	mapIndexKeyLen24(makeLargeMapWithKeyLen(24, 1000))   // 17-32 byte tier
+	mapIndexKeyLen48(makeLargeMapWithKeyLen(48, 1000))   // 33-64 byte tier
+	mapIndexKeyLen96(makeLargeMapWithKeyLen(96, 1000))   // 65-128 byte tier
+	mapIndexKeyLen200(makeLargeMapWithKeyLen(200, 1000)) // 129+ byte tier
 
 	// Generic function called with two different shape instantiations.
 	// int and string have different GC shapes, so the compiler emits two
@@ -645,6 +666,89 @@ func indexMemberWrapperArg(s *indexMemberWrapper, tag string) {
 	fmt.Println(s.Arr[0].Val, s.PtrArr[0].Val, tag)
 }
 
+// mapIndexIntKey takes a small map with int keys for map index tests.
+//
+//go:noinline
+func mapIndexIntKey(m map[int]string) {
+	fmt.Println(m)
+}
+
+// mapIndexStringKey takes a small map with string keys for map index tests.
+//
+//go:noinline
+func mapIndexStringKey(m map[string]int) {
+	fmt.Println(m)
+}
+
+// mapIndexLargeMap takes a map with >8 entries, forcing the runtime to use
+// directory + table indirection (dirLen > 0).
+//
+//go:noinline
+func mapIndexLargeMap(m map[string]int) {
+	fmt.Println(len(m))
+}
+
+// mapIndexMissing is used to test key-not-found cases.
+//
+//go:noinline
+func mapIndexMissing(m map[string]int) {
+	fmt.Println(m)
+}
+
+// makeLargeMapWithKeyLen creates a map with n entries where keys are
+// zero-padded strings of exactly keyLen bytes. Key "0" is padded to keyLen.
+// makeKey generates a string of exactly length bytes for map key i.
+// The key is a zero-padded hex representation, e.g. makeKey(8, 42) = "0000002a".
+func makeKey(length int, i int) string {
+	paddedDigits := min(length, 10)
+	extraPad := max(length-paddedDigits, 0)
+	pad := strings.Repeat("0", extraPad)
+	format := fmt.Sprintf("%%0%dx", paddedDigits)
+	return pad + fmt.Sprintf(format, i)
+}
+
+func makeLargeMapWithKeyLen(keyLen, n int) map[string]int {
+	m := make(map[string]int, n)
+	for i := range n {
+		m[makeKey(keyLen, i)] = i * 7
+	}
+	return m
+}
+
+// mapIndexKeyLen8 tests 1-16 byte key tier (8-byte keys).
+//
+//go:noinline
+func mapIndexKeyLen8(m map[string]int) {
+	fmt.Println(len(m))
+}
+
+// mapIndexKeyLen24 tests 17-32 byte key tier (24-byte keys).
+//
+//go:noinline
+func mapIndexKeyLen24(m map[string]int) {
+	fmt.Println(len(m))
+}
+
+// mapIndexKeyLen48 tests 33-64 byte key tier (48-byte keys).
+//
+//go:noinline
+func mapIndexKeyLen48(m map[string]int) {
+	fmt.Println(len(m))
+}
+
+// mapIndexKeyLen96 tests 65-128 byte key tier (96-byte keys).
+//
+//go:noinline
+func mapIndexKeyLen96(m map[string]int) {
+	fmt.Println(len(m))
+}
+
+// mapIndexKeyLen200 tests 129+ byte key tier (200-byte keys).
+//
+//go:noinline
+func mapIndexKeyLen200(m map[string]int) {
+	fmt.Println(len(m))
+}
 // genericIdentity is a generic function called with different shape types
 // (int vs string) to exercise dictionary-based type resolution and shared
 // throttling across shape instantiations.

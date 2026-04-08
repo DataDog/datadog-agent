@@ -227,6 +227,45 @@ type ExprSliceBoundsCheckOp struct {
 	ExprStatusIdx uint32 // expression index for writing OOB status; ^0 = none
 }
 
+// SwissMapSetupOp reads bytecode params, computes hash, initializes probe state.
+type SwissMapSetupOp struct {
+	baseOp
+	KeyData     []byte
+	IsStringKey bool
+	KeyByteSize uint8
+	ValByteSize uint32
+
+	SeedOffset        uint8
+	DirPtrOffset      uint8
+	DirLenOffset      uint8
+	GlobalShiftOffset uint8
+
+	CtrlOffset      uint8
+	SlotsOffset     uint8
+	SlotSize        uint16
+	KeyInSlotOffset uint8
+	ValInSlotOffset uint8
+
+	TableGroupsFieldOffset   uint8
+	GroupsDataFieldOffset    uint8
+	GroupsLenMaskFieldOffset uint8
+	GroupByteSize            uint16
+
+	ExprStatusIdx uint32
+}
+
+// SwissMapAesencOp performs one AESENC round; replays via PC for remaining rounds.
+type SwissMapAesencOp struct{ baseOp }
+
+// SwissMapHashFinishOp handles AES hash phase transitions and finalization.
+type SwissMapHashFinishOp struct{ baseOp }
+
+// SwissMapProbeOp reads the control word at the current group and computes match bitsets.
+type SwissMapProbeOp struct{ baseOp }
+
+// SwissMapCheckSlotOp checks one H2-matching slot against the literal key.
+type SwissMapCheckSlotOp struct{ baseOp }
+
 type ConditionBeginOp struct {
 	baseOp
 }
