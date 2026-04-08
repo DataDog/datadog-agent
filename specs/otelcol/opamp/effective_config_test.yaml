@@ -1,0 +1,67 @@
+kind: tests
+category: functional
+tests:
+- id: T036
+  ref: [OTELCOL031]
+  short: Effective configuration reported to the server contains the actual collector config
+  long: |
+    Verify that the `EffectiveConfig` sent to the OpAmp server is not empty and
+    contains the real, resolved collector configuration — including receivers,
+    exporters, and service pipelines that are actually running.
+
+    This ensures the `GetEffectiveConfig` callback serializes the live config
+    rather than returning a stub.
+  prereq: [T016]
+  steps:
+    - action: >-
+        Start the otel-agent with a known configuration containing an OTLP
+        receiver, a debug exporter, and the opamp extension
+      sample: |
+        extensions:
+          opamp:
+            server:
+              ws:
+                endpoint: ws://127.0.0.1:4320/v1/opamp
+        receivers:
+          otlp:
+            protocols:
+              grpc:
+        exporters:
+          debug:
+            verbosity: detailed
+        service:
+          extensions: [opamp]
+          pipelines:
+            traces:
+              receivers: [otlp]
+              exporters: [debug]
+      sample_lang: yaml
+    - action: >-
+        Verify the server received an EffectiveConfig with a non-empty ConfigMap
+        containing a valid YAML body. Parse the YAML and check that
+        exporters.debug.verbosity is "detailed", receivers.otlp.protocols.grpc.endpoint
+        contains port 4317, and extensions.opamp.server.ws.endpoint contains port 4320
+      sample: |
+        EffectiveConfig:
+          ConfigMap:
+            config.yaml: |
+              receivers:
+                otlp:
+                  protocols:
+                    grpc:
+                      endpoint: 0.0.0.0:4317
+              exporters:
+                debug:
+                  verbosity: detailed
+              extensions:
+                opamp:
+                  server:
+                    ws:
+                      endpoint: ws://127.0.0.1:4320/v1/opamp
+              service:
+                extensions: [opamp]
+                pipelines:
+                  traces:
+                    receivers: [otlp]
+                    exporters: [debug]
+      sample_lang: yaml

@@ -13,6 +13,7 @@ package opamptest
 import (
 	"context"
 	"net"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -23,6 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 	colmetricspb "go.opentelemetry.io/proto/otlp/collector/metrics/v1"
 	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
+	"go.yaml.in/yaml/v2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -626,6 +628,84 @@ func startMetricsSink(t *testing.T) (*metricsSink, string) {
 	t.Cleanup(func() { srv.Stop() })
 
 	return sink, lis.Addr().String()
+}
+
+// TestOpampEffectiveConfigContent verifies that the EffectiveConfig sent to the
+// OpAmp server contains the actual collector configuration — not an empty stub.
+// The config body must be valid YAML with the correct component settings.
+//
+// speky:DDOT#T036
+func TestOpampEffectiveConfigContent(t *testing.T) {
+	ts := newTestServer(t)
+	_, logFile := startAgent(t, configWithOpamp(""))
+
+	require.True(t, waitForLog(t, logFile, "Everything is ready", agentStartTimeout),
+		"agent did not reach ready state")
+	require.True(t, ts.waitForMessage(t, 1, messageTimeout),
+		"server did not receive any message")
+
+	// Wait for an EffectiveConfig with a non-empty config map.
+	var body string
+	deadline := time.Now().Add(messageTimeout)
+	for time.Now().Before(deadline) {
+		ts.mu.Lock()
+		for _, msg := range ts.messages {
+			if msg.EffectiveConfig != nil && msg.EffectiveConfig.ConfigMap != nil {
+				for _, entry := range msg.EffectiveConfig.ConfigMap.ConfigMap {
+					if entry != nil && len(entry.Body) > 0 {
+						body = string(entry.Body)
+						break
+					}
+				}
+			}
+		}
+		ts.mu.Unlock()
+		if body != "" {
+			break
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+
+	require.NotEmpty(t, body, "EffectiveConfig body is empty — GetEffectiveConfig may be returning a stub")
+
+	// Parse the YAML and verify specific configuration values.
+	var cfg map[string]interface{}
+	require.NoError(t, yaml.Unmarshal([]byte(body), &cfg), "EffectiveConfig body is not valid YAML")
+
+	// Verify the debug exporter has verbosity: detailed.
+	exporters, ok := cfg["exporters"].(map[interface{}]interface{})
+	require.True(t, ok, "exporters section missing")
+	debugExp, ok := exporters["debug"].(map[interface{}]interface{})
+	require.True(t, ok, "debug exporter missing")
+	verbosity, ok := debugExp["verbosity"].(string)
+	require.True(t, ok, "debug exporter verbosity missing")
+	assert.Equal(t, "detailed", strings.ToLower(verbosity), "debug exporter verbosity should be 'detailed'")
+
+	// Verify the otlp receiver declares the grpc protocol with its endpoint.
+	receivers, ok := cfg["receivers"].(map[interface{}]interface{})
+	require.True(t, ok, "receivers section missing")
+	otlpRcv, ok := receivers["otlp"].(map[interface{}]interface{})
+	require.True(t, ok, "otlp receiver missing")
+	protocols, ok := otlpRcv["protocols"].(map[interface{}]interface{})
+	require.True(t, ok, "otlp protocols missing")
+	grpcProto, ok := protocols["grpc"].(map[interface{}]interface{})
+	require.True(t, ok, "otlp grpc protocol missing")
+	endpoint, ok := grpcProto["endpoint"].(string)
+	require.True(t, ok, "otlp grpc endpoint missing")
+	assert.Contains(t, endpoint, "4317", "otlp grpc endpoint should contain port 4317")
+
+	// Verify the opamp extension is present with a ws endpoint.
+	extensions, ok := cfg["extensions"].(map[interface{}]interface{})
+	require.True(t, ok, "extensions section missing")
+	opampExt, ok := extensions["opamp"].(map[interface{}]interface{})
+	require.True(t, ok, "opamp extension missing")
+	server, ok := opampExt["server"].(map[interface{}]interface{})
+	require.True(t, ok, "opamp server config missing")
+	ws, ok := server["ws"].(map[interface{}]interface{})
+	require.True(t, ok, "opamp ws config missing")
+	wsEndpoint, ok := ws["endpoint"].(string)
+	require.True(t, ok, "opamp ws endpoint missing")
+	assert.Contains(t, wsEndpoint, "4320", "opamp ws endpoint should contain port 4320")
 }
 
 // TestOpampOwnMetrics verifies that when the OpAMP server pushes
