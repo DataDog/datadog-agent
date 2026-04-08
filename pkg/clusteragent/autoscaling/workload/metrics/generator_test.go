@@ -989,13 +989,13 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 					value float64
 					found bool
 				}{
-					"patch_ok":          {tag: "status:ok", value: 5},
-					"patch_error":       {tag: "status:error", value: 2},
-					"eviction_ok":       {tag: "status:ok", value: 3},
-					"eviction_error":    {tag: "status:error", value: 1},
-					"rollout_fallback":  {value: 1},
-					"pdb_blocked":       {value: 2},
-					"resize_completed":  {value: 4},
+					"patch_ok":         {tag: "status:ok", value: 5},
+					"patch_error":      {tag: "status:error", value: 2},
+					"eviction_ok":      {tag: "status:ok", value: 3},
+					"eviction_error":   {tag: "status:error", value: 1},
+					"rollout_fallback": {value: 1},
+					"pdb_blocked":      {value: 2},
+					"resize_completed": {value: 4},
 				}
 				for _, m := range metrics {
 					switch m.Name {
