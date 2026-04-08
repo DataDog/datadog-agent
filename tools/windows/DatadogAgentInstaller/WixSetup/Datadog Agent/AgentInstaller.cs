@@ -595,14 +595,6 @@ namespace WixSetup.Datadog_Agent
                 "LocalSystem",
                 null,
                 "--cfgpath=\"[APPLICATIONDATADIRECTORY]\\datadog.yaml\"");
-            var traceAgentService = GenerateDependentServiceInstaller(
-                new Id("ddagenttraceservice"),
-                Constants.TraceAgentServiceName,
-                "Datadog Trace Agent",
-                "Send tracing metrics to Datadog",
-                "[DDAGENTUSER_PROCESSED_FQ_NAME]",
-                "[DDAGENTUSER_PROCESSED_PASSWORD]",
-                "--config=\"[APPLICATIONDATADIRECTORY]\\datadog.yaml\"");
             var systemProbeService = GenerateDependentServiceInstaller(
                 new Id("ddagentsysprobeservice"),
                 Constants.SystemProbeServiceName,
@@ -629,14 +621,6 @@ namespace WixSetup.Datadog_Agent
                         Name = Constants.SystemProbeServiceName,
                         Log = "Application",
                         EventMessageFile = $"[AGENT]{Path.GetFileName(_agentBinaries.SystemProbe)}",
-                        AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes; KeyPath=yes"
-                    },
-                    new WixSharp.File(_agentBinaries.TraceAgent, traceAgentService),
-                    new EventSource
-                    {
-                        Name = Constants.TraceAgentServiceName,
-                        Log = "Application",
-                        EventMessageFile = $"[AGENT]{Path.GetFileName(_agentBinaries.TraceAgent)}",
                         AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes; KeyPath=yes"
                     },
                     new WixSharp.File(_agentBinaries.DatadogInterop)
