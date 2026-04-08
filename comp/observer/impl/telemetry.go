@@ -86,7 +86,7 @@ func newTelemetryHandler(telemetryComp telemetry.Component) *telemetryHandler {
 		"observer",
 		telemetryLogPatternExtractorPatternCount,
 		[]string{"detector"},
-		"Log pattern extractor new clusters added per processed log",
+		"Log pattern extractor number of patterns (clusters) that are active (not garbage collected)",
 	)
 	counters[telemetryObsChannelDropped] = telemetryComp.NewCounter(
 		"observer",

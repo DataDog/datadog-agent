@@ -221,6 +221,7 @@ func (e *engine) IngestLog(source string, l *logObs) ([]advanceRequest, []observ
 	for _, extractor := range e.extractors {
 		processingStartTime := time.Now()
 		out := extractor.ProcessLog(view)
+		e.removeContextRefsForEvictedKeys(extractor.Name(), out.EvictedContextKeys)
 		processingTime := time.Since(processingStartTime)
 		logTelemetry = append(logTelemetry, newTelemetryGauge([]string{"detector:" + extractor.Name()}, telemetryDetectorProcessingTimeNs, float64(processingTime.Nanoseconds()), l.timestampMs/1000))
 		for _, m := range out.Metrics {
@@ -265,6 +266,32 @@ func sliceContains(items []string, want string) bool {
 		}
 	}
 	return false
+}
+
+// removeContextRefsForEvictedKeys drops engine contextRefs whose extractor
+// namespace and context key match an eviction from extractor GC.
+func (e *engine) removeContextRefsForEvictedKeys(namespace string, evictedKeys []string) {
+	// No garbage collection done
+	if len(evictedKeys) == 0 {
+		return
+	}
+	want := make(map[string]struct{}, len(evictedKeys))
+	for _, k := range evictedKeys {
+		if k != "" {
+			want[k] = struct{}{}
+		}
+	}
+	if len(want) == 0 {
+		return
+	}
+	for seriesID, ref := range e.contextRefs {
+		if ref.namespace != namespace {
+			continue
+		}
+		if _, ok := want[ref.contextKey]; ok {
+			delete(e.contextRefs, seriesID)
+		}
+	}
 }
 
 // trackLatestDataTime updates latestDataTime if the given timestamp is newer.
