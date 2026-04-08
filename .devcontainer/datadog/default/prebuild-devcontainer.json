@@ -1,15 +1,6 @@
 {
     "name": "Datadog Agent Development Container",
     "image": "registry.ddbuild.io/ci/datadog-agent-buildimages/dev-env-linux_test_only:v105285331-600323d9",
-    "runArgs": [
-        "--cap-add=SYS_PTRACE",
-        "--security-opt",
-        "seccomp=unconfined",
-        "-w",
-        "/workspaces/${localWorkspaceFolderBasename}",
-        "--name",
-        "datadog-agent-devcontainer"
-    ],
     "features": {
         "registry.ddbuild.io/workspaces/features/base:0.4.100410934": {},
         "ghcr.io/devcontainers/features/docker-in-docker:2": {
@@ -17,39 +8,5 @@
         }
     },
     "forwardPorts": [22],
-    "remoteUser": "dog",
-    "mounts": [
-        "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind",
-        "source=${localEnv:HOME}/.ssh,target=/home/datadog/.ssh,type=bind"
-    ],
-    "customizations": {
-        "vscode": {
-            "settings": {
-                "go.toolsManagement.checkForUpdates": "local",
-                "go.useLanguageServer": true,
-                "go.gopath": "/home/datadog/go",
-                "go.goroot": "/usr/local/go",
-                "go.buildTags": "etcd,ncm,jmx,zstd,kubeapiserver,systemprobechecks,systemd,ec2,zk,datadog.no_waf,trivy,zlib,oracle,containerd,orchestrator,cel,consul,sharedlibrarycheck,trivy_no_javadb,podman,netcgo,docker,jetson,cri,nvml,fargateprocess,python,crio,no_dynamic_plugins,otlp,retrynotrace,grpcnotrace,kubelet,test",
-                "go.testTags": "etcd,ncm,jmx,zstd,kubeapiserver,systemprobechecks,systemd,ec2,zk,datadog.no_waf,trivy,zlib,oracle,containerd,orchestrator,cel,consul,sharedlibrarycheck,trivy_no_javadb,podman,netcgo,docker,jetson,cri,nvml,fargateprocess,python,crio,no_dynamic_plugins,otlp,retrynotrace,grpcnotrace,kubelet,test",
-                "go.lintTool": "golangci-lint",
-                "go.lintOnSave": "package",
-                "go.lintFlags": [
-                    "--build-tags",
-                    "etcd,ncm,jmx,zstd,kubeapiserver,systemprobechecks,systemd,ec2,zk,datadog.no_waf,trivy,zlib,oracle,containerd,orchestrator,cel,consul,sharedlibrarycheck,trivy_no_javadb,podman,netcgo,docker,jetson,cri,nvml,fargateprocess,python,crio,no_dynamic_plugins,otlp,retrynotrace,grpcnotrace,kubelet,test"
-                ],
-                "[go]": {
-                    "editor.formatOnSave": true
-                },
-                "gopls": {
-                    "formatting.local": "github.com/DataDog/datadog-agent"
-                }
-            },
-            "extensions": [
-                "golang.Go",
-                "ms-python.python",
-                "redhat.vscode-yaml"
-            ]
-        }
-    },
     "containerUser": "root"
 }
