@@ -183,6 +183,20 @@ int BPF_PROG(inet_csk_accept_exit, struct sock *orig_sk, int flags, int *err, bo
     return 0;
 }
 
+SEC("fexit/inet_csk_accept")
+int BPF_PROG(inet_csk_accept_exit_610, struct sock *orig_sk, struct proto_accept_arg *arg, struct sock *sk) {
+    sk_tcp_stats_t *sk_stats = bpf_sk_storage_get(&sk_tcp_stats, sk, 0, BPF_SK_STORAGE_GET_F_CREATE);
+    if (!sk_stats) {
+        return 0;
+    }
+    log_debug("inet_csk_accept: sk=%p", sk);
+    sk_stats->tup.pid = GET_USER_MODE_PID(bpf_get_current_pid_tgid());
+    sk_stats->start_ns = bpf_ktime_get_ns();
+    sk_stats->direction = CONN_DIRECTION_INCOMING;
+    sk_stats->state_transitions |= (1 << TCP_ESTABLISHED);
+    return 0;
+}
+
 SEC("fentry/tcp_finish_connect")
 int BPF_PROG(tcp_finish_connect_entry, struct sock *sk) {
     sk_tcp_stats_t *sk_stats = bpf_sk_storage_get(&sk_tcp_stats, sk, 0, BPF_SK_STORAGE_GET_F_CREATE);
