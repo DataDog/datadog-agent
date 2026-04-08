@@ -9,6 +9,7 @@ package spec
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -108,4 +109,138 @@ func AllConfiguredNVMLFieldValues() []nvml.FieldValue {
 		values[i] = nvml.FieldValue{FieldId: id}
 	}
 	return values
+}
+
+// EmittedMetric is a normalized emitted GPU metric sample used by spec-aware tests.
+type EmittedMetric struct {
+	Name string
+	Tags []string
+}
+
+// TagsToKeyValues converts Datadog-style tags to a key -> values map.
+func TagsToKeyValues(tags []string) map[string][]string {
+	result := make(map[string][]string, len(tags))
+	for _, tag := range tags {
+		key, value, ok := strings.Cut(tag, ":")
+		if !ok || key == "" || value == "" {
+			continue
+		}
+		result[key] = append(result[key], value)
+	}
+	return result
+}
+
+// ValidateMetricTagsAgainstSpec validates emitted tags against the spec for a metric.
+// If knownTagValues is provided, matching keys are additionally checked for exact values.
+// When allowDeviceOnlySubset is true, metrics that declare process/container tagsets may
+// emit a device-only subset, which matches live idle-GPU behavior.
+func ValidateMetricTagsAgainstSpec(t *testing.T, spec *MetricsSpec, metricName string, metricSpec MetricSpec, emittedMetrics []EmittedMetric, knownTagValues map[string]string, allowDeviceOnlySubset bool) {
+	t.Helper()
+	require.NotEmpty(t, emittedMetrics, "metric %s has no emitted samples to validate tags", metricName)
+
+	allowedTagCombos := buildAllowedTagCombos(spec, metricSpec, allowDeviceOnlySubset)
+	requiredTags := metricRequiredTags(spec, metricSpec)
+
+	for _, emittedMetric := range emittedMetrics {
+		tagsByKey := TagsToKeyValues(emittedMetric.Tags)
+
+		matchedCombo := false
+		for _, allowedTags := range allowedTagCombos {
+			if tagKeysMatchAllowedSet(tagsByKey, allowedTags) {
+				matchedCombo = true
+				break
+			}
+		}
+		require.True(t, matchedCombo, "metric %s has unexpected tag keys %v", metricName, sortedTagKeys(tagsByKey))
+
+		for key, values := range tagsByKey {
+			_, allowed := requiredTags[key]
+			require.True(t, allowed, "metric %s has unknown tag key %s", metricName, key)
+
+			for _, value := range values {
+				require.NotEmpty(t, value, "metric %s has empty value for tag %s", metricName, key)
+				if expectedValue, ok := knownTagValues[key]; ok {
+					require.Equal(t, expectedValue, value, "metric %s has unexpected value for tag %s", metricName, key)
+				}
+			}
+		}
+	}
+}
+
+func metricRequiredTags(spec *MetricsSpec, metricSpec MetricSpec) map[string]struct{} {
+	requiredTags := make(map[string]struct{})
+	for _, tagsetName := range metricSpec.Tagsets {
+		tagsetSpec, ok := spec.Tagsets[tagsetName]
+		if !ok {
+			continue
+		}
+		for _, tag := range tagsetSpec.Tags {
+			requiredTags[tag] = struct{}{}
+		}
+	}
+	for _, tag := range metricSpec.CustomTags {
+		requiredTags[tag] = struct{}{}
+	}
+	return requiredTags
+}
+
+func buildAllowedTagCombos(spec *MetricsSpec, metricSpec MetricSpec, allowDeviceOnlySubset bool) []map[string]struct{} {
+	requiredTags := metricRequiredTags(spec, metricSpec)
+	combos := []map[string]struct{}{requiredTags}
+
+	if !allowDeviceOnlySubset {
+		return combos
+	}
+
+	deviceTags := make(map[string]struct{})
+	for _, tag := range spec.Tagsets["device"].Tags {
+		if _, ok := requiredTags[tag]; ok {
+			deviceTags[tag] = struct{}{}
+		}
+	}
+
+	if len(deviceTags) == 0 {
+		return combos
+	}
+
+	hasNonDeviceTagset := false
+	for _, tagsetName := range metricSpec.Tagsets {
+		if tagsetName == "process" || tagsetName == "container" {
+			hasNonDeviceTagset = true
+			break
+		}
+	}
+	if !hasNonDeviceTagset {
+		return combos
+	}
+
+	deviceOnlyTags := make(map[string]struct{}, len(deviceTags)+len(metricSpec.CustomTags))
+	for tag := range deviceTags {
+		deviceOnlyTags[tag] = struct{}{}
+	}
+	for _, tag := range metricSpec.CustomTags {
+		deviceOnlyTags[tag] = struct{}{}
+	}
+	return append(combos, deviceOnlyTags)
+}
+
+func tagKeysMatchAllowedSet(tagsByKey map[string][]string, allowedTags map[string]struct{}) bool {
+	if len(tagsByKey) != len(allowedTags) {
+		return false
+	}
+	for key := range tagsByKey {
+		if _, ok := allowedTags[key]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
+func sortedTagKeys(tagsByKey map[string][]string) []string {
+	keys := make([]string, 0, len(tagsByKey))
+	for key := range tagsByKey {
+		keys = append(keys, key)
+	}
+	slices.Sort(keys)
+	return keys
 }
