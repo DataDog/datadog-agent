@@ -32,6 +32,9 @@ const (
 	WindowsEventType  = "windows_event"
 	StringChannelType = "string_channel"
 
+	// SyslogFormat for syslog-formatted log files (format: syslog)
+	SyslogFormat string = "syslog"
+
 	// UTF16BE for UTF-16 Big endian encoding
 	UTF16BE string = "utf-16-be"
 	// UTF16LE for UTF-16 Little Endian encoding
@@ -55,9 +58,11 @@ type LogsConfig struct {
 	TLS  *TLSListenerConfig `mapstructure:"tls" json:"tls,omitempty" yaml:"tls,omitempty"`
 	Path string             // File, Journald
 
+
 	Encoding     string           `mapstructure:"encoding" json:"encoding" yaml:"encoding"`                   // File
 	ExcludePaths StringSliceField `mapstructure:"exclude_paths" json:"exclude_paths" yaml:"exclude_paths"`    // File
 	TailingMode  string           `mapstructure:"start_position" json:"start_position" yaml:"start_position"` // File
+	Format       string           `mapstructure:"format" json:"format" yaml:"format"`                         // Parsing format: "syslog" or "" (unstructured)
 
 	ConfigID           string           `mapstructure:"config_id" json:"config_id" yaml:"config_id"`                            // Journald
 	IncludeSystemUnits StringSliceField `mapstructure:"include_units" json:"include_units" yaml:"include_units"`                // Journald
@@ -110,6 +115,10 @@ type LogsConfig struct {
 	// Downstream code will be responsible for parsing this string.
 	AutoMultiLineSamples []*AutoMultilineSample   `mapstructure:"auto_multi_line_detection_custom_samples" json:"auto_multi_line_detection_custom_samples" yaml:"auto_multi_line_detection_custom_samples"`
 	FingerprintConfig    *types.FingerprintConfig `mapstructure:"fingerprint_config" json:"fingerprint_config" yaml:"fingerprint_config"`
+
+	// MaxMessageSizeBytes overrides the global logs_config.max_message_size_bytes for this source.
+	// If nil, the global setting is used.
+	MaxMessageSizeBytes *int `mapstructure:"max_message_size_bytes" json:"max_message_size_bytes" yaml:"max_message_size_bytes"`
 
 	// IntegrationSource is the source of the integration file that contains this source.
 	IntegrationSource string `mapstructure:"integration_source" json:"integration_source" yaml:"integration_source"`
@@ -251,15 +260,24 @@ func (c *LogsConfig) Dump(multiline bool) string {
 			fmt.Fprintf(&b, ws("TLS: {CertFile: %#v, KeyFile: %#v, MinTLSVersion: %#v},"),
 				c.TLS.CertFile, c.TLS.KeyFile, c.TLS.MinTLSVersion)
 		}
+		if c.Format != "" {
+			fmt.Fprintf(&b, ws("Format: %#v,"), c.Format)
+
+		}
 	case UDPType:
 		fmt.Fprintf(&b, ws("Port: %d,"), c.Port)
-		fmt.Fprintf(&b, ws("IdleTimeout: %#v,"), c.IdleTimeout)
+		if c.Format != "" {
+			fmt.Fprintf(&b, ws("Format: %#v,"), c.Format)
+		}
 	case FileType:
 		fmt.Fprintf(&b, ws("Path: %#v,"), c.Path)
 		fmt.Fprintf(&b, ws("Encoding: %#v,"), c.Encoding)
 		fmt.Fprintf(&b, ws("Identifier: %#v,"), c.Identifier)
 		fmt.Fprintf(&b, ws("ExcludePaths: %#v,"), c.ExcludePaths)
 		fmt.Fprintf(&b, ws("TailingMode: %#v,"), c.TailingMode)
+		if c.Format != "" {
+			fmt.Fprintf(&b, ws("Format: %#v,"), c.Format)
+		}
 	case DockerType, ContainerdType:
 		fmt.Fprintf(&b, ws("Image: %#v,"), c.Image)
 		fmt.Fprintf(&b, ws("Label: %#v,"), c.Label)
@@ -386,6 +404,11 @@ func (mode TailingMode) String() string {
 	return ""
 }
 
+// ApplyDefaults populates any zero-value fields with their intended defaults.
+// This is called after the config is parsed but before Validate().
+func (c *LogsConfig) ApplyDefaults(_ pkgconfigmodel.Reader) {
+}
+
 // Validate returns an error if the config is misconfigured
 func (c *LogsConfig) Validate() error {
 	switch {
@@ -412,7 +435,11 @@ func (c *LogsConfig) Validate() error {
 		return err
 	}
 
-	// Validate fingerprint configuration
+	if c.Format != "" && c.Format != SyslogFormat {
+		return fmt.Errorf("unsupported format %%q (supported: %%q or empty)", c.Format, SyslogFormat)
+	}
+
+
 	err := ValidateFingerprintConfig(c.FingerprintConfig)
 	if err != nil {
 		return err
@@ -522,6 +549,15 @@ func (c *LogsConfig) ShouldProcessRawMessage() bool {
 		return *c.ProcessRawMessage
 	}
 	return true // default behaviour when nothing's been configured
+}
+
+// GetMaxMessageSizeBytes returns the per-source max message size if configured,
+// or falls back to the global logs_config.max_message_size_bytes setting.
+func (c *LogsConfig) GetMaxMessageSizeBytes(coreConfig pkgconfigmodel.Reader) int {
+	if c.MaxMessageSizeBytes != nil {
+		return *c.MaxMessageSizeBytes
+	}
+	return MaxMessageSizeBytes(coreConfig)
 }
 
 // ContainsWildcard returns true if the path contains any wildcard character
