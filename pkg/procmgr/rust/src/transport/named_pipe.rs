@@ -12,7 +12,7 @@ const DEFAULT_PIPE_PATH: &str = r"\\.\pipe\datadog-procmgrd";
 pub const DUMMY_ENDPOINT: &str = "http://[::]:50051";
 
 pub fn ipc_path() -> PathBuf {
-    std::env::var("DD_PM_PIPE_PATH")
+    std::env::var("DD_PM_SOCKET_PATH")
         .map(PathBuf::from)
         .unwrap_or_else(|_| PathBuf::from(DEFAULT_PIPE_PATH))
 }
