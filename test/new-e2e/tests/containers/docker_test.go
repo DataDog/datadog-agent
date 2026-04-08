@@ -21,13 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 )
 
-var busyboxImage = func() string {
-	reg, _ := runner.GetProfile().ParamStore().GetWithDefault(parameters.ImagePullRegistry, "")
-	if reg != "" {
-		return strings.SplitN(reg, ",", 2)[0] + "/dockerhub/library/busybox:1.37.0"
-	}
-	return "busybox:1.37.0"
-}()
+var busyboxImage = "busybox:1.37.0" // Default to public docker.io/library/busybox:1.37.0
 
 type DockerSuite struct {
 	baseSuite[environments.DockerHost]
@@ -42,6 +36,12 @@ func TestDockerSuite(t *testing.T) {
 }
 
 func (suite *DockerSuite) SetupSuite() {
+	// Initialize busyboxImage with the appropriate registry
+	reg, _ := runner.GetProfile().ParamStore().GetWithDefault(parameters.ImagePullRegistry, "")
+	if reg != "" {
+		busyboxImage = strings.SplitN(reg, ",", 2)[0] + "/dockerhub/library/busybox:1.37.0"
+	}
+
 	suite.baseSuite.SetupSuite()
 	suite.Fakeintake = suite.Env().FakeIntake.Client()
 }
