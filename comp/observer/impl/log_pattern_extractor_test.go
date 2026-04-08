@@ -177,10 +177,10 @@ func TestLogPatternExtractor_DeferredEmitUntilMinPatterns(t *testing.T) {
 func TestLogPatternExtractor_GarbageCollectRemovesStaleClusterAndContext(t *testing.T) {
 	e := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
 	e.config.MinClusterSizeBeforeEmit = 1
-	e.ClusterTimeToLiveSec = 10
+	e.config.ClusterTimeToLiveSec = 10
 	// GC scheduling uses wall-clock seconds; 0 means the next ProcessLog can run
 	// maybeGarbageCollect without waiting an extra second (tests run in one Unix second).
-	e.GarbageCollectionIntervalSec = 0
+	e.config.GarbageCollectionIntervalSec = 0
 
 	tags := []string{"service:api"}
 	// Distinct messages so the second log does not refresh the first cluster's LastSeenUnix.
@@ -226,14 +226,61 @@ func TestLogPatternExtractor_GarbageCollectRemovesStaleClusterAndContext(t *test
 	require.Len(t, remaining, 1, "stale cluster should be removed from tagged clusterer")
 }
 
+func TestLogPatternExtractor_DisableOptimizationsSkipsGarbageCollection(t *testing.T) {
+	cfg := DefaultLogPatternExtractorConfig()
+	cfg.DisableOptimizations = true
+	e := NewLogPatternExtractor(cfg)
+	require.Zero(t, e.config.ClusterTimeToLiveSec, "disable optimizations must clear TTL")
+	require.Zero(t, e.config.GarbageCollectionIntervalSec, "disable optimizations must clear GC interval")
+
+	tags := []string{"service:api"}
+	// Structurally different lines so the pattern clusterer keeps two clusters (unlike
+	// two strings that differ only by a numeric token, which often merge into one template).
+	msg1 := []byte(`10.143.180.25 - - [27/Aug/2020:00:27:02 +0000] "POST /api/v1/series HTTP/1.1" 202 16`)
+	msg2 := []byte(`2020-08-27 02:32:42 ERROR (connector.go:34) - Failed to connected to redis`)
+
+	const tsMs1 = 1_000_000 // unix sec = 1000
+	res1 := e.ProcessLog(&mockLogView{
+		content:     msg1,
+		status:      "warn",
+		tags:        tags,
+		timestampMs: tsMs1,
+	})
+	require.Len(t, res1.Metrics, 1)
+	ctxKey1 := res1.Metrics[0].ContextKey
+	_, ok := e.GetContextByKey(ctxKey1)
+	require.True(t, ok)
+
+	// Same timeline as TestLogPatternExtractor_GarbageCollectRemovesStaleClusterAndContext, where GC
+	// would evict cluster A — but with DisableOptimizations, TTL is off so A stays.
+	const tsMs2 = 1_015_000 // unix sec = 1015
+	res2 := e.ProcessLog(&mockLogView{
+		content:     msg2,
+		status:      "warn",
+		tags:        tags,
+		timestampMs: tsMs2,
+	})
+	require.Len(t, res2.Metrics, 1)
+	require.Empty(t, res2.EvictedContextKeys, "GC must not run when optimizations are disabled")
+	ctxKey2 := res2.Metrics[0].ContextKey
+
+	_, ok = e.GetContextByKey(ctxKey1)
+	require.True(t, ok, "first cluster context must remain without GC")
+	_, ok = e.GetContextByKey(ctxKey2)
+	require.True(t, ok)
+
+	remaining := e.taggedClusterer.GetAllClusters()
+	require.Len(t, remaining, 2, "both clusters should still exist when GC is disabled")
+}
+
 func TestLogPatternExtractor_GCEvictedContextKeysTwoTagSetsOneCluster(t *testing.T) {
 	// Two different tag-sets that share the same split dimensions (same sub-clusterer)
 	// produce two context keys for the same cluster. GC should evict both when the cluster
 	// becomes stale. Non-split tags (e.g. "version:") differ so the context keys differ.
 	e := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
 	e.config.MinClusterSizeBeforeEmit = 1
-	e.ClusterTimeToLiveSec = 10
-	e.GarbageCollectionIntervalSec = 0
+	e.config.ClusterTimeToLiveSec = 10
+	e.config.GarbageCollectionIntervalSec = 0
 	// Pin NextGarbageCollectionTime far in the future so GC does not fire during
 	// the setup phase. GarbageCollectionIntervalSec=0 would otherwise trigger GC
 	// on every ProcessLog call, evicting the cluster before both tags are ingested.
@@ -268,8 +315,8 @@ func TestLogPatternExtractor_GCEvictedContextKeysTwoTagSetsOneCluster(t *testing
 func TestLogPatternExtractor_NoGCBeforeInterval(t *testing.T) {
 	e := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
 	e.config.MinClusterSizeBeforeEmit = 1
-	e.ClusterTimeToLiveSec = 10
-	e.GarbageCollectionIntervalSec = 3600 // far in the future
+	e.config.ClusterTimeToLiveSec = 10
+	e.config.GarbageCollectionIntervalSec = 3600 // far in the future
 
 	msg := []byte("WARN connection refused to db host *")
 	res1 := e.ProcessLog(&mockLogView{content: msg, status: "warn", tags: nil, timestampMs: 1_000_000})
