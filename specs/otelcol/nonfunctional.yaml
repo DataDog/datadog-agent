@@ -1,5 +1,5 @@
 kind: requirements
-category: nonfunctional
+category: non-functional
 requirements:
   - id: OTELCOL019
     short: Expose internal metrics via Prometheus on port 8888

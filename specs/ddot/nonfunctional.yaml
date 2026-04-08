@@ -1,5 +1,5 @@
 kind: requirements
-category: nonfunctional
+category: non-functional
 requirements:
   - id: DDOT020
     short: Flare archive contains config, environment, and extension data
