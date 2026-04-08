@@ -11,17 +11,16 @@
 #include "ipv6.h"
 #include "netns.h"
 
-struct inode___new {
-    time64_t i_ctime_sec;
-    u32 i_ctime_nsec;
+struct inode___old {
+    struct timespec64 __i_ctime;
 };
 
 static __always_inline u64 read_inode_ctime(struct inode *inode) {
-    if (bpf_core_field_exists(((struct inode___new*)inode)->i_ctime_sec)) {
-        return ((u64)BPF_CORE_READ((struct inode___new*)inode, i_ctime_sec) * NSEC_PER_SEC) +
-            (u64)BPF_CORE_READ((struct inode___new*)inode, i_ctime_nsec);
+    if (bpf_core_field_exists(((struct inode___old*)inode)->__i_ctime)) {
+        return ((u64)BPF_CORE_READ((struct inode___old*)inode, __i_ctime.tv_sec) * NSEC_PER_SEC) +
+            (u64)BPF_CORE_READ((struct inode___old*)inode, __i_ctime.tv_nsec);
     }
-    return ((u64)inode->__i_ctime.tv_sec * NSEC_PER_SEC) + (u64)inode->__i_ctime.tv_nsec;
+    return ((u64)inode->i_ctime_sec * NSEC_PER_SEC) + (u64)inode->i_ctime_nsec;
 }
 
 static __always_inline void initialize_tcp_socket(struct sock *sk, struct task_struct *task, struct file *file) {

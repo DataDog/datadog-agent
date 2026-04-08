@@ -18,9 +18,9 @@ var programs = map[string]struct{}{
 	"bpf_iter__task_file_initial_sockets": {},
 	"bpf_iter__task_file_port_bindings":   {},
 
-	//"bpf_iter__dump_tcp":       {},
 	"tcp_connect_entry":        {},
 	"inet_csk_accept_exit":     {},
+	"inet_csk_accept_exit_610": {},
 	"tcp_finish_connect_entry": {},
 	"tcp_done_entry":           {},
 	"tcp_close_entry":          {},
@@ -29,19 +29,16 @@ var programs = map[string]struct{}{
 	"tcp_send_probe0_entry":    {},
 	"tcp_sockops":              {},
 
-	//"bpf_iter__dump_udp":      {},
 	"udp_sendpage_exit":       {},
 	"udpv6_sendmsg_exit":      {},
 	"udp_sendmsg_exit":        {},
 	"skb_consume_udp":         {},
 	"udp_destroy_sock_exit":   {},
 	"udpv6_destroy_sock_exit": {},
-	//"inet_bind_exit":          {},
-	//"inet6_bind_exit":         {},
-	"udp_post_bind4_cgroup": {},
-	"udp_post_bind6_cgroup": {},
-	"udp_send_skb_entry":    {},
-	"udp_v6_send_skb_entry": {},
+	"udp_post_bind4_cgroup":   {},
+	"udp_post_bind6_cgroup":   {},
+	"udp_send_skb_entry":      {},
+	"udp_v6_send_skb_entry":   {},
 }
 
 func enableProgram(enabled map[string]struct{}, name string) {
@@ -64,7 +61,6 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		enableProgram(enabled, "bpf_iter__task_file_initial_sockets")
 		enableProgram(enabled, "bpf_iter__task_file_port_bindings")
 		enableProgram(enabled, "tcp_connect_entry")
-		enableProgram(enabled, "inet_csk_accept_exit")
 		enableProgram(enabled, "tcp_finish_connect_entry")
 		enableProgram(enabled, "tcp_done_entry")
 		enableProgram(enabled, "tcp_close_entry")
@@ -72,6 +68,12 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		enableProgram(enabled, "tcp_enter_recovery_entry")
 		enableProgram(enabled, "tcp_send_probe0_entry")
 		enableProgram(enabled, "tcp_sockops")
+
+		if kv >= kernel.VersionCode(6, 10, 0) {
+			enableProgram(enabled, "inet_csk_accept_exit_610")
+		} else {
+			enableProgram(enabled, "inet_csk_accept_exit")
+		}
 	}
 
 	if c.CollectUDPv4Conns {
@@ -81,7 +83,6 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		enableProgram(enabled, "udp_sendmsg_exit")
 		enableProgram(enabled, "skb_consume_udp")
 		enableProgram(enabled, "udp_destroy_sock_exit")
-		//enableProgram(enabled, "inet_bind_exit")
 		enableProgram(enabled, "udp_post_bind4_cgroup")
 		enableProgram(enabled, "udp_send_skb_entry")
 	}
@@ -93,7 +94,6 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		enableProgram(enabled, "udpv6_sendmsg_exit")
 		enableProgram(enabled, "skb_consume_udp")
 		enableProgram(enabled, "udpv6_destroy_sock_exit")
-		//enableProgram(enabled, "inet6_bind_exit")
 		enableProgram(enabled, "udp_post_bind6_cgroup")
 		enableProgram(enabled, "udp_v6_send_skb_entry")
 	}
