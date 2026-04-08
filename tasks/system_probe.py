@@ -36,9 +36,7 @@ from tasks.libs.common.utils import (
     get_embedded_path,
     parse_kernel_version,
 )
-from tasks.libs.releasing.version import get_version_numeric_only
 from tasks.libs.types.arch import ALL_ARCHS, Arch
-from tasks.windows_resources import MESSAGESTRINGS_MC_PATH
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe"))
@@ -105,20 +103,6 @@ def get_ebpf_runtime_dir() -> Path:
     return Path("pkg/ebpf/bytecode/build/runtime")
 
 
-def ninja_define_windows_resources(ctx, nw: NinjaWriter):
-    maj_ver, min_ver, patch_ver = get_version_numeric_only(ctx).split(".")
-    nw.variable("maj_ver", maj_ver)
-    nw.variable("min_ver", min_ver)
-    nw.variable("patch_ver", patch_ver)
-    nw.variable("windrestarget", "pe-x86-64")
-    nw.rule(name="windmc", command="windmc --target $windrestarget -r $rcdir -h $rcdir $in")
-    nw.rule(
-        name="windres",
-        command="windres --define MAJ_VER=$maj_ver --define MIN_VER=$min_ver --define PATCH_VER=$patch_ver "
-        + "-i $in --target $windrestarget -O coff -o $out",
-    )
-
-
 def ninja_define_ebpf_compiler(
     nw: NinjaWriter,
     strip_object_files=False,
@@ -157,40 +141,6 @@ def ninja_define_exe_compiler(nw: NinjaWriter, compiler='clang'):
         command=f"{compiler} -MD -MF $out.d $exeflags $flags $in -o $out $exelibs",
         depfile="$out.d",
     )
-
-
-def ninja_generate(
-    ctx: Context,
-    ninja_path,
-    arch: str | Arch = CURRENT_ARCH,
-):
-    arch = Arch.from_str(arch)
-
-    with open(ninja_path, 'w') as ninja_file:
-        nw = NinjaWriter(ninja_file, width=120)
-
-        if is_windows:
-            ninja_define_windows_resources(ctx, nw)
-            # messagestrings
-            in_path = MESSAGESTRINGS_MC_PATH
-            in_name = os.path.splitext(os.path.basename(in_path))[0]
-            in_dir = os.path.dirname(in_path)
-            rcout = os.path.join(in_dir, f"{in_name}.rc")
-            hout = os.path.join(in_dir, f'{in_name}.h')
-            msgout = os.path.join(in_dir, 'MSG00409.bin')
-            nw.build(
-                inputs=[in_path],
-                outputs=[rcout],
-                implicit_outputs=[hout, msgout],
-                rule="windmc",
-                variables={"rcdir": in_dir},
-            )
-            nw.build(inputs=[rcout], outputs=[os.path.join(in_dir, "rsrc.syso")], rule="windres")
-            # system-probe
-            rcin = "cmd/system-probe/windows_resources/system-probe.rc"
-            nw.build(inputs=[rcin], outputs=["cmd/system-probe/rsrc.syso"], rule="windres")
-        else:
-            pass  # Runtime compilation is fully handled by Bazel (bazel_build_ebpf)
 
 
 @task
