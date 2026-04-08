@@ -8,7 +8,7 @@ default_stages:
 
 repos:
 - repo: https://github.com/jumanjihouse/pre-commit-hooks
-  rev: 7cc5848088fd8412905ab79feea6c8edc3ac76c6 # frozen: 2.1.5
+  rev: 9daf4ccb1f73e83c75517076bc2c1aafde20a082 # frozen: 2.1.6
   hooks:
     - id: shellcheck
       args: ["--severity=info", "-e", "SC2059", "-e", "SC2028"]
