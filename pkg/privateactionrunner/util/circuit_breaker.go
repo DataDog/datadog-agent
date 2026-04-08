@@ -32,13 +32,24 @@ func NewCircuitBreaker(name string, minBackoff, maxBackoff, waitBeforeRetry time
 	}
 }
 
+// Do runs fn with exponential backoff, retrying on any error until fn succeeds
+// or ctx is cancelled.
 func (breaker *CircuitBreaker) Do(ctx context.Context, fn func() error) {
+	alwaysRetry := func(error) bool { return true }
+	_ = breaker.DoWithCondition(ctx, fn, alwaysRetry)
+}
+
+// DoWithCondition runs fn with exponential backoff, retrying only when
+// shouldRetry(err) returns true. It returns nil on success, the first
+// non-retryable error immediately, or ctx.Err() if the context is cancelled
+// while waiting to retry. Retries indefinitely on retryable errors.
+func (breaker *CircuitBreaker) DoWithCondition(ctx context.Context, fn func() error, shouldRetry func(error) bool) error {
 	var attempt int32 = 1
 
 	for {
 		select {
 		case <-ctx.Done():
-			return
+			return ctx.Err()
 		default:
 		}
 
@@ -50,17 +61,21 @@ func (breaker *CircuitBreaker) Do(ctx context.Context, fn func() error) {
 		}
 
 		err := fn()
-		if err != nil {
-			backoff := time.Duration(float64(breaker.minBackoff) * math.Pow(2, float64(attempt-1)))
-			if backoff > breaker.maxBackoff {
-				backoff = breaker.maxBackoff
-			}
-
-			sleepWithCtx(ctx, backoff)
-			attempt++
-			continue
+		if err == nil {
+			return nil
 		}
-		break
+
+		if !shouldRetry(err) {
+			return err
+		}
+
+		backoff := time.Duration(float64(breaker.minBackoff) * math.Pow(2, float64(attempt-1)))
+		if backoff > breaker.maxBackoff {
+			backoff = breaker.maxBackoff
+		}
+
+		sleepWithCtx(ctx, backoff)
+		attempt++
 	}
 }
 

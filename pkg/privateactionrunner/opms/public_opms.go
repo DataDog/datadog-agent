@@ -107,7 +107,7 @@ func (p *publicClient) EnrollWithApiKey(
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to send runner creation request: %w", err)
+		return nil, &RetryableHTTPError{StatusCode: 0, cause: fmt.Errorf("failed to send runner creation request: %w", err)}
 	}
 	defer func() {
 		err = resp.Body.Close()
@@ -122,7 +122,11 @@ func (p *publicClient) EnrollWithApiKey(
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("runner creation failed with HTTP status code %d and response %s", resp.StatusCode, string(respBody))
+		httpErr := fmt.Errorf("runner creation failed with HTTP status code %d and response %s", resp.StatusCode, string(respBody))
+		if isRetryableStatusCode(resp.StatusCode) {
+			return nil, &RetryableHTTPError{StatusCode: resp.StatusCode, cause: httpErr}
+		}
+		return nil, httpErr
 	}
 
 	createRunnerResponse := new(par.CreateRunnerResponse)

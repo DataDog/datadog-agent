@@ -290,8 +290,16 @@ func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *pa
 		enrollmentHostname = ""
 	}
 
-	enrollmentResult, err := enrollment.SelfEnroll(ctx, ddSite, runnerNamePrefix, enrollmentHostname, apiKey, appKey)
-	if err != nil {
+	breaker := util.NewCircuitBreaker("enrollment", cfg.MinBackoff, cfg.MaxBackoff, cfg.WaitBeforeRetry, cfg.MaxAttempts)
+	var enrollmentResult *enrollment.Result
+	if err = breaker.DoWithCondition(ctx, func() error {
+		var innerErr error
+		enrollmentResult, innerErr = enrollment.SelfEnroll(ctx, ddSite, runnerNamePrefix, enrollmentHostname, apiKey, appKey)
+		if innerErr != nil && opms.IsRetryableHTTPError(innerErr) {
+			p.logger.Warnf("Enrollment failed with retryable error, will retry: %v", innerErr)
+		}
+		return innerErr
+	}, opms.IsRetryableHTTPError); err != nil {
 		return nil, fmt.Errorf("enrollment API call failed: %w", err)
 	}
 	p.logger.Info("Self-enrollment successful")
