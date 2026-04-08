@@ -16,7 +16,6 @@ from invoke.tasks import task
 
 import tasks.libs.cws.backend_doc_gen as backend_doc_gen
 import tasks.libs.cws.secl_doc_gen as secl_doc_gen
-from tasks.agent import generate_config
 from tasks.build_tags import get_default_build_tags
 from tasks.flavor import AgentFlavor
 from tasks.go import run_golangci_lint
@@ -113,17 +112,6 @@ def build(
         check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
         coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
     )
-
-    render_config(ctx, env=env, skip_assets=skip_assets)
-
-
-def render_config(ctx, env, skip_assets=False):
-    if not skip_assets:
-        dist_folder = os.path.join(BIN_DIR, "agent", "dist")
-        generate_config(ctx, build_type="security-agent", output_file="./cmd/agent/dist/security-agent.yaml", env=env)
-        if not os.path.exists(dist_folder):
-            os.makedirs(dist_folder)
-        shutil.copy("./cmd/agent/dist/security-agent.yaml", os.path.join(dist_folder, "security-agent.yaml"))
 
 
 @task

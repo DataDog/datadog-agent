@@ -8,7 +8,7 @@ default_stages:
 
 repos:
 - repo: https://github.com/jumanjihouse/pre-commit-hooks
-  rev: 7cc5848088fd8412905ab79feea6c8edc3ac76c6 # frozen: 2.1.5
+  rev: 38980559e3a605691d6579f96222c30778e5a69e # frozen: 3.0.0
   hooks:
     - id: shellcheck
       args: ["--severity=info", "-e", "SC2059", "-e", "SC2028"]
@@ -24,7 +24,7 @@ repos:
       - id: end-of-file-fixer
         files: release.json
 - repo: https://github.com/rhysd/actionlint
-  rev: 393031adb9afb225ee52ae2ccd7a5af5525e03e8 # frozen: v1.7.11
+  rev: 914e7df21a07ef503a81201c76d2b11c789d3fca # frozen: v1.7.12
   hooks:
     - id: actionlint
       args: [ "-ignore", "shellcheck" ]

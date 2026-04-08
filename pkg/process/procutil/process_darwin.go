@@ -132,6 +132,7 @@ func allProcesses() (map[int32]*Process, error) {
 			Pid:     pid,
 			Ppid:    int32(ppid),
 			Name:    bytesToString(k.Proc.P_comm[:]),
+			Comm:    bytesToString(k.Proc.P_comm[:]),
 			Cmdline: r[9:],
 			Uids:    []int32{int32(k.Eproc.Ucred.Uid)},
 			Gids: []int32{

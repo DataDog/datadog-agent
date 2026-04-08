@@ -13,7 +13,7 @@ rust-version = "1.91"
 
 [workspace.dependencies]
 anyhow = "1.0.98"
-cap-std = "3.4"
+cap-std = "4.0"
 caps = "0.5"
 clap = { version = "4.5", features = ["derive"] }
 elf = "0.8.0"
