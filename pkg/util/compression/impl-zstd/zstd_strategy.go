@@ -53,5 +53,32 @@ func (s *ZstdStrategy) ContentEncoding() string {
 
 // NewStreamCompressor returns a new zstd Writer
 func (s *ZstdStrategy) NewStreamCompressor(output *bytes.Buffer) compression.StreamCompressor {
-	return zstd.NewWriterLevel(output, s.level)
+	return &zstdStreamCompressor{inner: zstd.NewWriterLevel(output, s.level)}
+}
+
+type zstdStreamCompressor struct {
+	inner  *zstd.Writer
+	closed bool
+}
+
+func (z *zstdStreamCompressor) Write(p []byte) (int, error) {
+	if z.closed {
+		return 0, compression.ErrStreamClosed
+	}
+	return z.inner.Write(p)
+}
+
+func (z *zstdStreamCompressor) Flush() error {
+	if z.closed {
+		return compression.ErrStreamClosed
+	}
+	return z.inner.Flush()
+}
+
+func (z *zstdStreamCompressor) Close() error {
+	if z.closed {
+		return compression.ErrStreamClosed
+	}
+	z.closed = true
+	return z.inner.Close()
 }

@@ -92,5 +92,32 @@ func (s *ZlibStrategy) ContentEncoding() string {
 
 // NewStreamCompressor returns a new zlib writer
 func (s *ZlibStrategy) NewStreamCompressor(output *bytes.Buffer) compression.StreamCompressor {
-	return zlib.NewWriter(output)
+	return &zlibStreamCompressor{inner: zlib.NewWriter(output)}
+}
+
+type zlibStreamCompressor struct {
+	inner  *zlib.Writer
+	closed bool
+}
+
+func (z *zlibStreamCompressor) Write(p []byte) (int, error) {
+	if z.closed {
+		return 0, compression.ErrStreamClosed
+	}
+	return z.inner.Write(p)
+}
+
+func (z *zlibStreamCompressor) Flush() error {
+	if z.closed {
+		return compression.ErrStreamClosed
+	}
+	return z.inner.Flush()
+}
+
+func (z *zlibStreamCompressor) Close() error {
+	if z.closed {
+		return compression.ErrStreamClosed
+	}
+	z.closed = true
+	return z.inner.Close()
 }

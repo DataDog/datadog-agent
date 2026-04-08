@@ -122,6 +122,11 @@ contract Streaming {
         -- compressed frame, consistent with the ValidFrame
         -- invariant on one-shot compression.
 
+    @invariant PostCloseRejection
+        -- Write and Flush on a closed StreamCompressor return
+        -- an error. This prevents silent data corruption when
+        -- caller code accidentally operates on a finalized stream.
+
     @guidance
         -- A StreamCompressor instance is NOT safe for concurrent use.
         -- Each goroutine should obtain its own StreamCompressor

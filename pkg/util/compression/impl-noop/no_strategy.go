@@ -42,20 +42,35 @@ func (s *NoopStrategy) ContentEncoding() string {
 
 // NewStreamCompressor implements the NewStreamCompressor method for NoopStrategy to satisfy the Compressor interface
 func (s *NoopStrategy) NewStreamCompressor(buf *bytes.Buffer) compression.StreamCompressor {
-	return &noopStreamCompressor{buf}
+	return &noopStreamCompressor{buf: buf}
 }
 
-// NoopStreamCompressor is a no-op implementation of StreamCompressor
+// noopStreamCompressor is a no-op implementation of StreamCompressor
 type noopStreamCompressor struct {
-	*bytes.Buffer
+	buf    *bytes.Buffer
+	closed bool
+}
+
+func (n *noopStreamCompressor) Write(p []byte) (int, error) {
+	if n.closed {
+		return 0, compression.ErrStreamClosed
+	}
+	return n.buf.Write(p)
 }
 
 // Close closes the underlying writer
 func (n *noopStreamCompressor) Close() error {
+	if n.closed {
+		return compression.ErrStreamClosed
+	}
+	n.closed = true
 	return nil
 }
 
 // Flush is a no-op
 func (n *noopStreamCompressor) Flush() error {
+	if n.closed {
+		return compression.ErrStreamClosed
+	}
 	return nil
 }

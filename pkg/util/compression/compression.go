@@ -8,8 +8,13 @@ package compression
 
 import (
 	"bytes"
+	"errors"
 	"io"
 )
+
+// ErrStreamClosed is returned when Write, Flush, or Close is called on a
+// closed StreamCompressor.
+var ErrStreamClosed = errors.New("stream compressor is closed")
 
 // ZlibKind defines a const value for the zlib compressor
 const ZlibKind = "zlib"
