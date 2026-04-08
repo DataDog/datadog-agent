@@ -14,6 +14,7 @@ from tasks import (
     auth,
     bench,
     buildimages,
+    claude,
     cluster_agent,
     cluster_agent_cloudfoundry,
     collector,
@@ -199,6 +200,7 @@ ns.add_collection(agent)
 ns.add_collection(ami)
 ns.add_collection(agent_ci_api)
 ns.add_collection(buildimages)
+ns.add_collection(claude)
 ns.add_collection(cluster_agent)
 ns.add_collection(cluster_agent_cloudfoundry)
 ns.add_collection(components)

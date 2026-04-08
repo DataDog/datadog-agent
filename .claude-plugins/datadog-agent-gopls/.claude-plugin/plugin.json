@@ -1,0 +1,23 @@
+{
+  "name": "datadog-agent-gopls",
+  "description": "Go LSP (gopls) pre-configured for the datadog-agent repository with build tags and performance flags",
+  "author": {
+    "name": "L\u00e9na\u00efc Huard",
+    "email": "lenaic.huard@datadoghq.com"
+  },
+  "lspServers": {
+    "gopls": {
+      "command": "gopls",
+      "extensionToLanguage": {
+        ".go": "go"
+      },
+      "initializationOptions": {
+        "build.buildFlags": [
+          "-tags=cel,clusterchecks,consul,containerd,cri,crio,datadog.no_waf,docker,ec2,etcd,fargateprocess,grpcnotrace,jetson,jmx,kubeapiserver,kubelet,linux_bpf,ncm,netcgo,netgo,no_dynamic_plugins,npm,nvml,oracle,orchestrator,osusergo,otlp,pcap,podman,python,retrynotrace,seclmax,serverless,sharedlibrarycheck,systemd,systemprobechecks,test,trivy,trivy_no_javadb,zk,zlib,zstd",
+          "-buildvcs=false"
+        ],
+        "formatting.local": "github.com/DataDog/datadog-agent"
+      }
+    }
+  }
+}
