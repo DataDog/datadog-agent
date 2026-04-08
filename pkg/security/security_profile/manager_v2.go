@@ -409,7 +409,7 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 
 	// Try to resolve tags for this workload
 	workloadTags, err := m.resolvers.TagsResolver.ResolveWithErr(workloadID)
-	tagsResolved := err == nil && len(workloadTags) != 0 && utils.GetTagValue("image_tag", workloadTags) != ""
+	tagsResolved := err == nil && len(workloadTags) != 0 && utils.GetTagValue("image_name", workloadTags) != ""
 
 	if tagsResolved {
 		// Set resolved tags on the event for downstream processing
@@ -549,6 +549,9 @@ func (m *ManagerV2) onEventTagsResolved(event *model.Event) {
 		}
 		imageTag = utils.GetTagValue("version", tags)
 	}
+	if imageTag == "" {
+		imageTag = "latest"
+	}
 
 	if workloadID != nil {
 		m.FillProfileContextFromWorkloadID(workloadID, &event.SecurityProfileContext, imageTag)
@@ -648,6 +651,9 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 
 	// Insert the event into the profile's activity tree
 	imageTag := secprof.GetTagValue("image_tag")
+	if imageTag == "" {
+		imageTag = "latest"
+	}
 	inserted, processNode, err := secprof.Insert(event, true, imageTag, activity_tree.Runtime, m.resolvers)
 	if err != nil {
 		seclog.Errorf("couldn't insert event into profile: %v", err)
@@ -670,6 +676,8 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 				processNode: processNode,
 				imageTag:    imageTag,
 			})
+			seclog.Debugf("======= registerCookie: cookie=%d eventType=%s comm=%s process=%s imageTag=%s mapSize=%d",
+				sampleCookie, event.GetEventType(), event.ProcessContext.Process.Comm, processNode.Process.FileEvent.PathnameStr, imageTag, m.sampleCookieMap.Len())
 		}
 	}
 
@@ -1173,8 +1181,11 @@ func (m *ManagerV2) getNodesForAllWorkloads(containersOnly bool) map[activity_tr
 func (m *ManagerV2) HandleSampleRefresh(cookie uint32) {
 	entry, ok := m.sampleCookieMap.Get(cookie)
 	if !ok {
+		seclog.Debugf("======= HandleSampleRefresh: cookie=%d not found in LRU", cookie)
 		return
 	}
+	seclog.Debugf("======= HandleSampleRefresh: updating LastSeen for cookie=%d comm=%s process=%s imageTag=%s",
+		cookie, entry.processNode.Process.Comm, entry.processNode.Process.FileEvent.PathnameStr, entry.imageTag)
 	entry.processNode.AppendImageTag(entry.imageTag, time.Now())
 }
 
