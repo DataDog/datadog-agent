@@ -8,19 +8,20 @@
 package cluster
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
 
+	jsonpatch "github.com/evanphx/json-patch/v5"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/tools/record"
@@ -278,7 +279,7 @@ func (c *Controller) createNodePool(ctx context.Context, targetNp *karpenterv1.N
 }
 
 func (c *Controller) updateNodePool(ctx context.Context, targetNp, datadogNp *karpenterv1.NodePool, npi model.NodePoolInternal) error {
-	// New path: patch from manifest-provided NodePool when available
+	// New path: update from manifest-provided NodePool when available
 	if desired := npi.KarpenterNodePool().DeepCopy(); desired != nil {
 		if desired.Labels == nil {
 			desired.Labels = make(map[string]string)
@@ -288,16 +289,6 @@ func (c *Controller) updateNodePool(ctx context.Context, targetNp, datadogNp *ka
 		if _, ok := datadogNp.Labels[model.DatadogCreatedLabelKey]; ok {
 			desired.Labels[model.DatadogCreatedLabelKey] = "true"
 		}
-
-		// Preserve annotations added by Karpenter directly
-		mergedAnnotations := make(map[string]string, len(datadogNp.Annotations)+len(desired.Annotations))
-		for k, v := range datadogNp.Annotations {
-			mergedAnnotations[k] = v
-		}
-		for k, v := range desired.Annotations {
-			mergedAnnotations[k] = v
-		}
-		desired.Annotations = mergedAnnotations
 
 		// Use the NodeClass in the live NodePool if the manifest omits it
 		if desired.Spec.Template.Spec.NodeClassRef == nil && datadogNp.Spec.Template.Spec.NodeClassRef != nil {
@@ -315,27 +306,44 @@ func (c *Controller) updateNodePool(ctx context.Context, targetNp, datadogNp *ka
 		}
 		desired.Spec.Template.ObjectMeta.Labels[kubernetes.AutoscalingLabelKey] = "true"
 
-		if equality.Semantic.DeepEqual(datadogNp.Spec, desired.Spec) &&
+		// Use merge-patch for spec comparison so fields added to NodePool by default do not trigger unnecessary updates
+		liveSpecJSON, err := json.Marshal(datadogNp.Spec)
+		if err != nil {
+			return fmt.Errorf("unable to marshal live NodePool spec: %s, err: %v", npi.Name(), err)
+		}
+		desiredSpecJSON, err := json.Marshal(desired.Spec)
+		if err != nil {
+			return fmt.Errorf("unable to marshal desired NodePool spec: %s, err: %v", npi.Name(), err)
+		}
+		mergedSpecJSON, err := jsonpatch.MergePatch(liveSpecJSON, desiredSpecJSON)
+		if err != nil {
+			return fmt.Errorf("unable to compute spec merge patch for NodePool: %s, err: %v", npi.Name(), err)
+		}
+
+		// Ignore any annotations managed by Karpenter
+		annotationsMatch := true
+		for k, v := range desired.Annotations {
+			if datadogNp.Annotations[k] != v {
+				annotationsMatch = false
+				break
+			}
+		}
+
+		if bytes.Equal(liveSpecJSON, mergedSpecJSON) &&
 			maps.Equal(datadogNp.Labels, desired.Labels) &&
-			maps.Equal(datadogNp.Annotations, desired.Annotations) {
+			annotationsMatch {
 			log.Debugf("NodePool: %s has not changed, no action will be applied.", npi.Name())
 			return nil
 		}
 
-		log.Infof("Patching NodePool: %s", npi.Name())
-		patchData := map[string]any{
-			"metadata": map[string]any{
-				"labels":      desired.Labels,
-				"annotations": desired.Annotations,
-			},
-			"spec": desired.Spec,
-		}
-		patchBytes, err := json.Marshal(patchData)
+		log.Infof("Updating NodePool: %s", npi.Name())
+		desired.ResourceVersion = datadogNp.ResourceVersion
+		updatedUnstr, err := convertNodePoolToUnstructured(desired)
 		if err != nil {
-			c.eventRecorder.Eventf(datadogNp, corev1.EventTypeWarning, model.FailedNodepoolUpdateEventReason, "Failed to update NodePool: %v", err)
-			return fmt.Errorf("error marshaling patch data: %s, err: %v", npi.Name(), err)
+			c.eventRecorder.Eventf(datadogNp, corev1.EventTypeWarning, model.FailedNodepoolUpdateEventReason, "Failed to convert NodePool: %v", err)
+			return fmt.Errorf("error converting NodePool to unstructured: %s, err: %v", npi.Name(), err)
 		}
-		_, err = c.Client.Resource(nodePoolGVR).Patch(ctx, npi.Name(), types.MergePatchType, patchBytes, metav1.PatchOptions{})
+		_, err = c.Client.Resource(nodePoolGVR).Update(ctx, updatedUnstr, metav1.UpdateOptions{})
 		if err != nil {
 			c.eventRecorder.Eventf(datadogNp, corev1.EventTypeWarning, model.FailedNodepoolUpdateEventReason, "Failed to update NodePool: %v", err)
 			return fmt.Errorf("unable to update NodePool: %s, err: %v", npi.Name(), err)
