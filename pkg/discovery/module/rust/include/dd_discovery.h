@@ -39,6 +39,9 @@ struct dd_tracer_metadata {
   struct dd_str service_name;
   struct dd_str service_env;
   struct dd_str service_version;
+  struct dd_str process_tags;
+  struct dd_str container_id;
+  bool logs_collected;
 };
 
 struct dd_tracer_metadata_slice {
@@ -75,7 +78,6 @@ struct dd_service {
   struct dd_strs log_files;
   bool apm_instrumentation;
   struct dd_str language;
-  struct dd_str service_type;
 };
 
 struct dd_discovery_result {
@@ -97,13 +99,25 @@ struct dd_discovery_result {
  *   Pass NULL + 0 for none.
  *
  * # Returns
- * Pointer to a `dd_discovery_result`. The caller MUST pass it to
- * `dd_discovery_free` exactly once after reading the fields.
+ * A non-null pointer to a heap-allocated `dd_discovery_result` on success.
+ * Returns NULL if an internal panic occurs. On a NULL return no memory was
+ * allocated; the caller must NOT call `dd_discovery_free` on NULL.
+ * On a non-NULL return, the caller MUST pass the pointer to `dd_discovery_free`
+ * exactly once after reading the fields.
+ *
+ * # Panic safety
+ * The Rust nomicon states: "You must absolutely catch any panics at the FFI
+ * boundary" (<https://doc.rust-lang.org/nomicon/unwinding.html>), because an
+ * unwinding panic across a C ABI boundary is undefined behaviour. This
+ * function wraps its body in `std::panic::catch_unwind` and returns NULL on
+ * panic, matching the convention used by Go's `net/http` handler (which
+ * recovers panics per request) and Tokio (which catches panics in spawned
+ * tasks).
  *
  * # Safety
  * - If `new_pids` is non-NULL, it must point to a valid array of `new_pids_len` i32 values.
  * - If `heartbeat_pids` is non-NULL, it must point to a valid array of `heartbeat_pids_len` i32 values.
- * - The returned pointer must be freed with `dd_discovery_free` exactly once.
+ * - A non-NULL returned pointer must be freed with `dd_discovery_free` exactly once.
  */
 struct dd_discovery_result *dd_discovery_get_services(const int32_t *new_pids,
                                                       size_t new_pids_len,

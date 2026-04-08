@@ -1,0 +1,38 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("//bazel/rules/ebpf:ebpf.bzl", "ebpf_program_suite")
+
+exports_files(["tracer.c"])
+
+_NETWORK_HDRS = glob(
+    ["**/*.h"],
+    exclude = [
+        "prebuilt/**",
+        "co-re/**",
+        "runtime/**",
+    ],
+)
+
+cc_library(
+    name = "ebpf_c_network",
+    hdrs = _NETWORK_HDRS,
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "ebpf_c_network_files",
+    srcs = _NETWORK_HDRS,
+    visibility = ["//visibility:public"],
+)
+
+# tracer.c is a CO-RE program (built from top-level c/ dir)
+ebpf_program_suite(
+    name = "tracer",
+    src = "tracer.c",
+    core = True,
+    visibility = ["//visibility:public"],
+    deps = [
+        ":ebpf_c_network",
+        "//pkg/ebpf/c:ebpf_c_headers",
+    ],
+)

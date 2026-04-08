@@ -44,8 +44,11 @@ func NewTagsProvider(tagger tagger.Component) TagsProvider {
 func (p *taggerBasedTagsProvider) GetTags(ctx context.Context, runnerID, hostname string) []string {
 	tags := []string{
 		"runner-id:" + runnerID,
-		"hostname:" + hostname,
 		"agent_flavor:" + flavor.GetFlavor(),
+	}
+
+	if hostname != "" {
+		tags = append(tags, "hostname:"+hostname)
 	}
 
 	// Only attempt to get cluster tags if cluster_agent is enabled
@@ -57,11 +60,11 @@ func (p *taggerBasedTagsProvider) GetTags(ctx context.Context, runnerID, hostnam
 
 	for _, keyValue := range globalTags {
 		tagName, _, ok := strings.Cut(keyValue, ":")
-		if ok {
-			if _, found := tagSet[tagName]; found {
-
-				tags = append(tags, keyValue)
-			}
+		if !ok {
+			continue
+		}
+		if _, found := tagSet[tagName]; found {
+			tags = append(tags, keyValue)
 		}
 	}
 

@@ -53,6 +53,13 @@ var legacyTagReplacer = regexp.MustCompile(`[,+*\-/()\[\]{}\s]`)
 var multipleUnderscoreCleanup = regexp.MustCompile(`_+`)
 var dotUnderscoreCleanup = regexp.MustCompile(`\._`)
 
+// maxTagLen is the maximum length of a Datadog metric tag (key:value).
+// Tags exceeding this limit are truncated by the backend.
+const maxTagLen = 200
+
+// bootstrapServersTagKey is the tag key used by the kafka_consumer Python check.
+const bootstrapServersTagKey = "bootstrap_servers:"
+
 func normalizeBootstrapServers(servers string) string {
 	if servers == "" {
 		return ""
@@ -62,6 +69,13 @@ func normalizeBootstrapServers(servers string) string {
 	s = multipleUnderscoreCleanup.ReplaceAllString(s, "_")
 	s = dotUnderscoreCleanup.ReplaceAllString(s, ".")
 	s = strings.Trim(s, "_")
+	// The backend truncates tags to maxTagLen characters (key:value combined).
+	// Truncate the value to match so comparisons against backend-supplied
+	// bootstrap_servers values succeed even for long broker lists.
+	maxValueLen := maxTagLen - len(bootstrapServersTagKey)
+	if len(s) > maxValueLen {
+		s = s[:maxValueLen]
+	}
 	return s
 }
 
@@ -313,6 +327,15 @@ func extractAuthFromInstanceData(instanceData integration.Data) map[string]any {
 		"tls_ciphers",
 		"tls_crlfile",
 		"sasl_oauth_token_provider",
+		// Schema Registry configuration
+		"schema_registry_url",
+		"schema_registry_username",
+		"schema_registry_password",
+		"schema_registry_tls_verify",
+		"schema_registry_tls_ca_cert",
+		"schema_registry_tls_cert",
+		"schema_registry_tls_key",
+		"schema_registry_oauth_token_provider",
 	}
 	for _, k := range allowList {
 		if v, ok := raw[k]; ok {

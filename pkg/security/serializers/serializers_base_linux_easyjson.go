@@ -7,6 +7,7 @@ package serializers
 
 import (
 	json "encoding/json"
+	model "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	utils "github.com/DataDog/datadog-agent/pkg/security/utils"
 	easyjson "github.com/mailru/easyjson"
 	jlexer "github.com/mailru/easyjson/jlexer"
@@ -803,12 +804,6 @@ func easyjsonA1e47abeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers6(i
 				}
 				in.Delim(']')
 			}
-		case "variables":
-			if in.IsNull() {
-				in.Skip()
-			} else {
-				(out.Variables).UnmarshalEasyJSON(in)
-			}
 		case "truncated_ancestors":
 			if in.IsNull() {
 				in.Skip()
@@ -840,6 +835,12 @@ func easyjsonA1e47abeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers6(i
 				in.Skip()
 			} else {
 				out.Tid = uint32(in.Uint32())
+			}
+		case "fork_flags":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.ForkFlags = int(in.Int())
 			}
 		case "uid":
 			if in.IsNull() {
@@ -1246,26 +1247,18 @@ func easyjsonA1e47abeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers6(i
 		case "tracer":
 			if in.IsNull() {
 				in.Skip()
+				out.Tracer = nil
 			} else {
-				in.Delim('{')
-				if !in.IsDelim('}') {
-					out.Tracer = make(map[string]string)
-				} else {
-					out.Tracer = nil
+				if out.Tracer == nil {
+					out.Tracer = new(model.TracerMetadata)
 				}
-				for !in.IsDelim('}') {
-					key := string(in.String())
-					in.WantColon()
-					var v18 string
-					if in.IsNull() {
-						in.Skip()
-					} else {
-						v18 = string(in.String())
-					}
-					(out.Tracer)[key] = v18
-					in.WantComma()
-				}
-				in.Delim('}')
+				easyjsonA1e47abeDecodeGithubComDataDogDatadogAgentPkgDiscoveryTracermetadataModel(in, out.Tracer)
+			}
+		case "variables":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				(out.Variables).UnmarshalEasyJSON(in)
 			}
 		default:
 			in.SkipRecursive()
@@ -1297,28 +1290,18 @@ func easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers6(o
 		}
 		{
 			out.RawByte('[')
-			for v19, v20 := range in.Ancestors {
-				if v19 > 0 {
+			for v18, v19 := range in.Ancestors {
+				if v18 > 0 {
 					out.RawByte(',')
 				}
-				if v20 == nil {
+				if v19 == nil {
 					out.RawString("null")
 				} else {
-					(*v20).MarshalEasyJSON(out)
+					(*v19).MarshalEasyJSON(out)
 				}
 			}
 			out.RawByte(']')
 		}
-	}
-	if len(in.Variables) != 0 {
-		const prefix string = ",\"variables\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
-		(in.Variables).MarshalEasyJSON(out)
 	}
 	if in.TruncatedAncestors {
 		const prefix string = ",\"truncated_ancestors\":"
@@ -1361,13 +1344,18 @@ func easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers6(o
 		out.Uint32(uint32(in.Tid))
 	}
 	{
-		const prefix string = ",\"uid\":"
+		const prefix string = ",\"fork_flags\":"
 		if first {
 			first = false
 			out.RawString(prefix[1:])
 		} else {
 			out.RawString(prefix)
 		}
+		out.Int(int(in.ForkFlags))
+	}
+	{
+		const prefix string = ",\"uid\":"
+		out.RawString(prefix)
 		out.Int(int(in.UID))
 	}
 	{
@@ -1425,11 +1413,11 @@ func easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers6(o
 		out.RawString(prefix)
 		{
 			out.RawByte('[')
-			for v21, v22 := range in.CapsAttempted {
-				if v21 > 0 {
+			for v20, v21 := range in.CapsAttempted {
+				if v20 > 0 {
 					out.RawByte(',')
 				}
-				out.String(string(v22))
+				out.String(string(v21))
 			}
 			out.RawByte(']')
 		}
@@ -1439,11 +1427,11 @@ func easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers6(o
 		out.RawString(prefix)
 		{
 			out.RawByte('[')
-			for v23, v24 := range in.CapsUsed {
-				if v23 > 0 {
+			for v22, v23 := range in.CapsUsed {
+				if v22 > 0 {
 					out.RawByte(',')
 				}
-				out.String(string(v24))
+				out.String(string(v23))
 			}
 			out.RawByte(']')
 		}
@@ -1483,11 +1471,11 @@ func easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers6(o
 		out.RawString(prefix)
 		{
 			out.RawByte('[')
-			for v25, v26 := range in.Args {
-				if v25 > 0 {
+			for v24, v25 := range in.Args {
+				if v24 > 0 {
 					out.RawByte(',')
 				}
-				out.String(string(v26))
+				out.String(string(v25))
 			}
 			out.RawByte(']')
 		}
@@ -1502,11 +1490,11 @@ func easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers6(o
 		out.RawString(prefix)
 		{
 			out.RawByte('[')
-			for v27, v28 := range in.Envs {
-				if v27 > 0 {
+			for v26, v27 := range in.Envs {
+				if v26 > 0 {
 					out.RawByte(',')
 				}
-				out.String(string(v28))
+				out.String(string(v27))
 			}
 			out.RawByte(']')
 		}
@@ -1553,11 +1541,11 @@ func easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers6(o
 			out.RawString("null")
 		} else {
 			out.RawByte('[')
-			for v29, v30 := range *in.Syscalls {
-				if v29 > 0 {
+			for v28, v29 := range *in.Syscalls {
+				if v28 > 0 {
 					out.RawByte(',')
 				}
-				easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers7(out, v30)
+				easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers7(out, v29)
 			}
 			out.RawByte(']')
 		}
@@ -1567,37 +1555,28 @@ func easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers6(o
 		out.RawString(prefix)
 		{
 			out.RawByte('[')
-			for v31, v32 := range in.AWSSecurityCredentials {
-				if v31 > 0 {
+			for v30, v31 := range in.AWSSecurityCredentials {
+				if v30 > 0 {
 					out.RawByte(',')
 				}
-				if v32 == nil {
+				if v31 == nil {
 					out.RawString("null")
 				} else {
-					(*v32).MarshalEasyJSON(out)
+					(*v31).MarshalEasyJSON(out)
 				}
 			}
 			out.RawByte(']')
 		}
 	}
-	if len(in.Tracer) != 0 {
+	if in.Tracer != nil {
 		const prefix string = ",\"tracer\":"
 		out.RawString(prefix)
-		{
-			out.RawByte('{')
-			v33First := true
-			for v33Name, v33Value := range in.Tracer {
-				if v33First {
-					v33First = false
-				} else {
-					out.RawByte(',')
-				}
-				out.String(string(v33Name))
-				out.RawByte(':')
-				out.String(string(v33Value))
-			}
-			out.RawByte('}')
-		}
+		easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgDiscoveryTracermetadataModel(out, *in.Tracer)
+	}
+	if len(in.Variables) != 0 {
+		const prefix string = ",\"variables\":"
+		out.RawString(prefix)
+		(in.Variables).MarshalEasyJSON(out)
 	}
 	out.RawByte('}')
 }
@@ -1610,6 +1589,157 @@ func (v ProcessContextSerializer) MarshalEasyJSON(w *jwriter.Writer) {
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *ProcessContextSerializer) UnmarshalEasyJSON(l *jlexer.Lexer) {
 	easyjsonA1e47abeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers6(l, v)
+}
+func easyjsonA1e47abeDecodeGithubComDataDogDatadogAgentPkgDiscoveryTracermetadataModel(in *jlexer.Lexer, out *model.TracerMetadata) {
+	isTopLevel := in.IsStart()
+	if in.IsNull() {
+		if isTopLevel {
+			in.Consumed()
+		}
+		in.Skip()
+		return
+	}
+	in.Delim('{')
+	for !in.IsDelim('}') {
+		key := in.UnsafeFieldName(false)
+		in.WantColon()
+		switch key {
+		case "schema_version":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.SchemaVersion = uint8(in.Uint8())
+			}
+		case "runtime_id":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.RuntimeID = string(in.String())
+			}
+		case "tracer_language":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.TracerLanguage = string(in.String())
+			}
+		case "tracer_version":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.TracerVersion = string(in.String())
+			}
+		case "hostname":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Hostname = string(in.String())
+			}
+		case "service_name":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.ServiceName = string(in.String())
+			}
+		case "service_env":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.ServiceEnv = string(in.String())
+			}
+		case "service_version":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.ServiceVersion = string(in.String())
+			}
+		case "process_tags":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.ProcessTags = string(in.String())
+			}
+		case "container_id":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.ContainerID = string(in.String())
+			}
+		case "logs_collected":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.LogsCollected = bool(in.Bool())
+			}
+		default:
+			in.SkipRecursive()
+		}
+		in.WantComma()
+	}
+	in.Delim('}')
+	if isTopLevel {
+		in.Consumed()
+	}
+}
+func easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgDiscoveryTracermetadataModel(out *jwriter.Writer, in model.TracerMetadata) {
+	out.RawByte('{')
+	first := true
+	_ = first
+	{
+		const prefix string = ",\"schema_version\":"
+		out.RawString(prefix[1:])
+		out.Uint8(uint8(in.SchemaVersion))
+	}
+	if in.RuntimeID != "" {
+		const prefix string = ",\"runtime_id\":"
+		out.RawString(prefix)
+		out.String(string(in.RuntimeID))
+	}
+	{
+		const prefix string = ",\"tracer_language\":"
+		out.RawString(prefix)
+		out.String(string(in.TracerLanguage))
+	}
+	{
+		const prefix string = ",\"tracer_version\":"
+		out.RawString(prefix)
+		out.String(string(in.TracerVersion))
+	}
+	{
+		const prefix string = ",\"hostname\":"
+		out.RawString(prefix)
+		out.String(string(in.Hostname))
+	}
+	if in.ServiceName != "" {
+		const prefix string = ",\"service_name\":"
+		out.RawString(prefix)
+		out.String(string(in.ServiceName))
+	}
+	if in.ServiceEnv != "" {
+		const prefix string = ",\"service_env\":"
+		out.RawString(prefix)
+		out.String(string(in.ServiceEnv))
+	}
+	if in.ServiceVersion != "" {
+		const prefix string = ",\"service_version\":"
+		out.RawString(prefix)
+		out.String(string(in.ServiceVersion))
+	}
+	if in.ProcessTags != "" {
+		const prefix string = ",\"process_tags\":"
+		out.RawString(prefix)
+		out.String(string(in.ProcessTags))
+	}
+	if in.ContainerID != "" {
+		const prefix string = ",\"container_id\":"
+		out.RawString(prefix)
+		out.String(string(in.ContainerID))
+	}
+	if in.LogsCollected {
+		const prefix string = ",\"logs_collected\":"
+		out.RawString(prefix)
+		out.Bool(bool(in.LogsCollected))
+	}
+	out.RawByte('}')
 }
 func easyjsonA1e47abeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers7(in *jlexer.Lexer, out *SyscallSerializer) {
 	isTopLevel := in.IsStart()
@@ -1775,21 +1905,21 @@ func easyjsonA1e47abeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers9(i
 					out.Flows = (out.Flows)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v34 *FlowSerializer
+					var v32 *FlowSerializer
 					if in.IsNull() {
 						in.Skip()
-						v34 = nil
+						v32 = nil
 					} else {
-						if v34 == nil {
-							v34 = new(FlowSerializer)
+						if v32 == nil {
+							v32 = new(FlowSerializer)
 						}
 						if in.IsNull() {
 							in.Skip()
 						} else {
-							(*v34).UnmarshalEasyJSON(in)
+							(*v32).UnmarshalEasyJSON(in)
 						}
 					}
-					out.Flows = append(out.Flows, v34)
+					out.Flows = append(out.Flows, v32)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -1824,14 +1954,14 @@ func easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers9(o
 		}
 		{
 			out.RawByte('[')
-			for v35, v36 := range in.Flows {
-				if v35 > 0 {
+			for v33, v34 := range in.Flows {
+				if v33 > 0 {
 					out.RawByte(',')
 				}
-				if v36 == nil {
+				if v34 == nil {
 					out.RawString("null")
 				} else {
-					(*v36).MarshalEasyJSON(out)
+					(*v34).MarshalEasyJSON(out)
 				}
 			}
 			out.RawByte(']')
@@ -2117,13 +2247,13 @@ func easyjsonA1e47abeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers12(
 					out.Tags = (out.Tags)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v37 string
+					var v35 string
 					if in.IsNull() {
 						in.Skip()
 					} else {
-						v37 = string(in.String())
+						v35 = string(in.String())
 					}
-					out.Tags = append(out.Tags, v37)
+					out.Tags = append(out.Tags, v35)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -2180,11 +2310,11 @@ func easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers12(
 		}
 		{
 			out.RawByte('[')
-			for v38, v39 := range in.Tags {
-				if v38 > 0 {
+			for v36, v37 := range in.Tags {
+				if v36 > 0 {
 					out.RawByte(',')
 				}
-				out.String(string(v39))
+				out.String(string(v37))
 			}
 			out.RawByte(']')
 		}
@@ -2719,13 +2849,13 @@ func easyjsonA1e47abeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers18(
 					out.MatchedRules = (out.MatchedRules)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v40 MatchedRuleSerializer
+					var v38 MatchedRuleSerializer
 					if in.IsNull() {
 						in.Skip()
 					} else {
-						(v40).UnmarshalEasyJSON(in)
+						(v38).UnmarshalEasyJSON(in)
 					}
-					out.MatchedRules = append(out.MatchedRules, v40)
+					out.MatchedRules = append(out.MatchedRules, v38)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -2808,11 +2938,11 @@ func easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers18(
 		}
 		{
 			out.RawByte('[')
-			for v41, v42 := range in.MatchedRules {
-				if v41 > 0 {
+			for v39, v40 := range in.MatchedRules {
+				if v39 > 0 {
 					out.RawByte(',')
 				}
-				(v42).MarshalEasyJSON(out)
+				(v40).MarshalEasyJSON(out)
 			}
 			out.RawByte(']')
 		}

@@ -18,12 +18,12 @@
           {
             "function": "main.testDeepSlice7",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 146
+            "lineNumber": 165
           },
           {
             "function": "main.executeComplexFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 281
+            "lineNumber": 302
           },
           {
             "function": "main.main",
@@ -99,6 +99,7 @@
           }
         }
       },
+      "type": "snapshot",
       "evaluationErrors": [
         {
           "expr": "@duration",
@@ -107,6 +108,7 @@
       ]
     },
     "timestamp": "[ts]",
-    "message": "{a: [{a: [{a: [{interface: unknown type *main.deepSlice1}]}]}]}"
+    "message": "{a: [{a: [{a: [{interface: unknown type *main.deepSlice1}]}]}]}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

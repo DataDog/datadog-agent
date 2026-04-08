@@ -43,6 +43,131 @@ void __attribute__((always_inline)) monitor_event_rejected(u64 event_type) {
     __sync_fetch_and_add(&stats->event_rejected, 1);
 }
 
+struct event_sample_stats_t * __attribute__((always_inline)) get_active_event_sample_stats(u64 event_type) {
+    struct bpf_map_def *sample_stats = select_buffer(&fb_event_sample_stats, &bb_event_sample_stats, EVENT_SAMPLE_MONITOR_KEY);
+    if (sample_stats == NULL) {
+        return NULL;
+    }
+
+    u32 key = event_type;
+    return bpf_map_lookup_elem(sample_stats, &key);
+}
+
+void __attribute__((always_inline)) monitor_event_sample_total(u64 event_type) {
+    struct event_sample_stats_t *stats = get_active_event_sample_stats(event_type);
+    if (stats == NULL) {
+        return;
+    }
+    __sync_fetch_and_add(&stats->events_total, 1);
+}
+
+void __attribute__((always_inline)) monitor_event_sample_sampled(u64 event_type) {
+    struct event_sample_stats_t *stats = get_active_event_sample_stats(event_type);
+    if (stats == NULL) {
+        return;
+    }
+    __sync_fetch_and_add(&stats->events_sampled, 1);
+}
+
+
+enum SYSCALL_STATE __attribute__((always_inline)) approve_bind_sample(u32 pid, u16 family, u16 port, u16 protocol, u64 *addr) {
+    u64 event_sampling_bind_enabled = 0;
+    LOAD_CONSTANT("event_sampling_bind_enabled", event_sampling_bind_enabled);
+    u64 event_sampling_bind_rate = 0;
+    LOAD_CONSTANT("event_sampling_bind_rate", event_sampling_bind_rate);
+
+    if (!event_sampling_bind_enabled) {
+        return DISCARDED;
+    }
+
+    if (family != AF_INET && family != AF_INET6) {
+        return DISCARDED;
+    }
+
+    monitor_event_sample_total(EVENT_BIND);
+
+    struct bind_connect_sample_key_t key;
+    __builtin_memset(&key, 0, sizeof(key));
+    key.pid = pid;
+    key.family = family;
+    key.port = port;
+    key.protocol = protocol;
+    key.addr[0] = addr[0];
+    key.addr[1] = addr[1];
+
+    u8 value = 0;
+    if (bpf_map_update_elem(&bind_samples, &key, &value, BPF_NOEXIST) < 0) {
+        return DISCARDED;
+    }
+
+    if (event_sampling_bind_rate > 0 && !global_limiter_allow(BIND_SAMPLE_LIMITER, event_sampling_bind_rate, 1)) {
+        bpf_map_delete_elem(&bind_samples, &key);
+        return DISCARDED;
+    }
+
+    monitor_event_sample_sampled(EVENT_BIND);
+    return SAMPLED;
+}
+
+enum SYSCALL_STATE __attribute__((always_inline)) approve_dns_sample(u32 pid) {
+    u64 event_sampling_dns_enabled = 0;
+    LOAD_CONSTANT("event_sampling_dns_enabled", event_sampling_dns_enabled);
+    u64 event_sampling_dns_rate = 0;
+    LOAD_CONSTANT("event_sampling_dns_rate", event_sampling_dns_rate);
+
+    if (!event_sampling_dns_enabled) {
+        return DISCARDED;
+    }
+
+    monitor_event_sample_total(EVENT_DNS);
+
+    if (event_sampling_dns_rate > 0 && !global_limiter_allow(DNS_SAMPLE_LIMITER, event_sampling_dns_rate, 1)) {
+        return DISCARDED;
+    }
+
+    monitor_event_sample_sampled(EVENT_DNS);
+    return SAMPLED;
+}
+
+enum SYSCALL_STATE __attribute__((always_inline)) approve_connect_sample(u32 pid, u16 family, u16 port, u16 protocol, u64 *addr) {
+    u64 event_sampling_connect_enabled = 0;
+    LOAD_CONSTANT("event_sampling_connect_enabled", event_sampling_connect_enabled);
+    u64 event_sampling_connect_rate = 0;
+    LOAD_CONSTANT("event_sampling_connect_rate", event_sampling_connect_rate);
+
+    if (!event_sampling_connect_enabled) {
+        return DISCARDED;
+    }
+
+    if (family != AF_INET && family != AF_INET6) {
+        return DISCARDED;
+    }
+
+    monitor_event_sample_total(EVENT_CONNECT);
+
+    struct bind_connect_sample_key_t key;
+    __builtin_memset(&key, 0, sizeof(key));
+    key.pid = pid;
+    key.family = family;
+    key.port = port;
+    key.protocol = protocol;
+    key.addr[0] = addr[0];
+    key.addr[1] = addr[1];
+
+    u8 value = 0;
+    if (bpf_map_update_elem(&connect_samples, &key, &value, BPF_NOEXIST) < 0) {
+        return DISCARDED;
+    }
+
+    if (event_sampling_connect_rate > 0 && !global_limiter_allow(CONNECT_SAMPLE_LIMITER, event_sampling_connect_rate, 1)) {
+        bpf_map_delete_elem(&connect_samples, &key);
+        return DISCARDED;
+    }
+
+    monitor_event_sample_sampled(EVENT_CONNECT);
+    return SAMPLED;
+}
+
 enum SYSCALL_STATE __attribute__((always_inline)) approve_by_auid(struct syscall_cache_t *syscall, u64 event_type) {
     u32 pid = bpf_get_current_pid_tgid() >> 32;
     struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &pid);
@@ -267,6 +392,60 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_open_by_flags(struct s
     return DISCARDED;
 }
 
+enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(struct dentry *dentry, struct file_t *file) {
+    u64 event_sampling_open_enabled = 0;
+    LOAD_CONSTANT("event_sampling_open_enabled", event_sampling_open_enabled);
+
+    u64 event_sampling_open_rate = 0;
+    LOAD_CONSTANT("event_sampling_open_rate", event_sampling_open_rate);
+
+    if (!event_sampling_open_enabled) {
+        return DISCARDED;
+    }
+
+    // Track total open events that hit the sampling logic
+    monitor_event_sample_total(EVENT_OPEN);
+
+    u32 pid = bpf_get_current_pid_tgid() >> 32;
+    if (IS_KTHREAD(pid, pid)) {
+        return DISCARDED;
+    }
+
+    // Discard sampled open events from procfs, sysfs, cgroupfs, or devpts
+    if (is_procfs(dentry) || is_sysfs(dentry) || is_cgroupfs(dentry) || is_cgroup2fs(dentry) || is_devpts(dentry)) {
+        return DISCARDED;
+    }
+
+    struct path_key_t *process_path_key = bpf_map_lookup_elem(&pid_path_keys, &pid);
+    if (process_path_key == NULL) {
+        return DISCARDED;
+    }
+
+    u32 ppid = get_current_ppid();
+
+    struct process_path_key_t key = {
+        .ppid = ppid,
+        .process_path_key = *process_path_key,
+        .file_path_key = file->path_key,
+    };
+
+    u8 value = 0;
+    if (bpf_map_update_elem(&open_samples, &key, &value, BPF_NOEXIST) < 0) {
+        return DISCARDED;
+    }
+
+    if (event_sampling_open_rate > 0 && !global_limiter_allow(OPEN_SAMPLE_LIMITER, event_sampling_open_rate, 1)) {
+        bpf_map_delete_elem(&open_samples, &key);
+        return DISCARDED;
+    }
+
+    // Track open events that were sampled
+    monitor_event_sample_sampled(EVENT_OPEN);
+
+    return SAMPLED;
+}
+
+
 enum SYSCALL_STATE __attribute__((always_inline)) open_approvers(struct syscall_cache_t *syscall) {
     enum SYSCALL_STATE state = approve_by_basename(syscall->open.dentry, EVENT_OPEN);
     if (state == DISCARDED) {
@@ -277,6 +456,10 @@ enum SYSCALL_STATE __attribute__((always_inline)) open_approvers(struct syscall_
     }
     if (state == DISCARDED) {
         state = approve_by_in_upper_layer(EVENT_OPEN, &syscall->open.file);
+    }
+
+    if (state == DISCARDED && approve_open_sample(syscall->open.dentry, &syscall->open.file) == SAMPLED) {
+        return SAMPLED;
     }
 
     return state;
@@ -391,7 +574,16 @@ enum SYSCALL_STATE __attribute__((always_inline)) connect_approvers(struct sysca
     u32 key = 0;
     struct u64_flags_filter_t *filter = bpf_map_lookup_elem(&connect_addr_family_approvers, &key);
     u64 family = syscall->connect.family;
-    return flag_approver(filter, syscall->type, family);
+    enum SYSCALL_STATE state = flag_approver(filter, syscall->type, family);
+
+    if (state == DISCARDED) {
+        u32 pid = bpf_get_current_pid_tgid() >> 32;
+        if (approve_connect_sample(pid, syscall->connect.family, syscall->connect.port, syscall->connect.protocol, syscall->connect.addr) == SAMPLED) {
+            return SAMPLED;
+        }
+    }
+
+    return state;
 }
 
 static enum SYSCALL_STATE __attribute__((always_inline)) prctl_approvers(struct syscall_cache_t *syscall) {
@@ -449,6 +641,13 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_syscall_with_tgid(u32 
                 syscall->state = ACCEPTED;
             }
         }
+    }
+
+    if (syscall->state == SAMPLED) {
+        syscall->resolver.flags |= SAVED_BY_ACTIVITY_DUMP;
+
+        // force to be accepted as this event will be part of a dump
+        syscall->state = ACCEPTED;
     }
 
     return syscall->state;

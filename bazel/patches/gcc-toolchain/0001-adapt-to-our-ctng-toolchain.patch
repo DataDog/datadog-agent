@@ -1,0 +1,222 @@
+From a8916678b7545ba11107982bdde64340e6981e25 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Hugo=20Beauz=C3=A9e-Luyssen?= <hugo.beauzee@datadoghq.com>
+Date: Wed, 15 Oct 2025 08:55:15 +0200
+Subject: [PATCH 1/3] adapt to our ctng toolchain
+
+---
+ toolchain/defs.bzl              | 84 ++++++++++-----------------------
+ toolchain/module_extensions.bzl |  1 +
+ 2 files changed, 25 insertions(+), 60 deletions(-)
+
+diff --git a/toolchain/defs.bzl b/toolchain/defs.bzl
+index 0e55fd7..7c8787f 100644
+--- a/toolchain/defs.bzl
++++ b/toolchain/defs.bzl
+@@ -54,11 +54,11 @@ def _gcc_toolchain_impl(rctx):
+ 
+     include_prefix = None
+     if target_arch == ARCHS.aarch64:
+-        include_prefix = "aarch64-linux/"
++        include_prefix = "aarch64-unknown-linux-gnu/"
+     elif target_arch == ARCHS.armv7:
+         include_prefix = "arm-linux-gnueabihf/"
+     elif target_arch == ARCHS.x86_64:
+-        include_prefix = "x86_64-linux/"
++        include_prefix = "x86_64-unknown-linux-gnu/"
+ 
+     c_builtin_includes = [
+         include.format(
+@@ -71,7 +71,7 @@ def _gcc_toolchain_impl(rctx):
+         ] + ([
+             "%workspace%/{include_prefix}include",
+         ] if target_arch != ARCHS.x86_64 else []) + [
+-            "%workspace%/sysroot/usr/include",
++            "%workspace%/{include_prefix}sysroot/usr/include",
+         ]
+     ]
+ 
+@@ -195,14 +195,14 @@ def _gcc_toolchain_impl(rctx):
+             "-B%workspace%/{include_prefix}lib",
+             "-B%workspace%/lib64",
+             "-B%workspace%/{include_prefix}lib64",
+-            "-B%workspace%/sysroot/lib",
+-            "-B%workspace%/sysroot/usr/lib",
++            "-B%workspace%/{include_prefix}sysroot/lib",
++            "-B%workspace%/{include_prefix}sysroot/usr/lib",
+             "-L%workspace%/lib",
+             "-L%workspace%/{include_prefix}lib",
+             "-L%workspace%/lib64",
+             "-L%workspace%/{include_prefix}lib64",
+-            "-L%workspace%/sysroot/lib",
+-            "-L%workspace%/sysroot/usr/lib",
++            "-L%workspace%/{include_prefix}sysroot/lib",
++            "-L%workspace%/{include_prefix}sysroot/usr/lib",
+         ]
+     ]
+     extra_ldflags.extend(rctx.attr.extra_ldflags)
+@@ -219,6 +219,7 @@ def _gcc_toolchain_impl(rctx):
+     extra_asmflags.extend(rctx.attr.extra_asmflags)
+ 
+     rctx.file("BUILD.bazel", _TOOLCHAIN_BUILD_FILE_CONTENT.format(
++        target_arch = rctx.attr.target_arch,
+         gcc_toolchain_workspace_name = rctx.attr.gcc_toolchain_workspace_name,
+         enable_fortran = str(rctx.attr.enable_fortran),
+         target_compatible_with = target_compatible_with,
+@@ -298,60 +299,16 @@ fortran_toolchain(
+     )
+ 
+ AVAILABLE_GCC_VERSIONS = {
+-    "12.5.0": {
+-        "aarch64": {
+-            "url": "https://github.com/f0rmiga/gcc-builds/releases/download/18082025/gcc-toolchain-12.5.0-aarch64.tar.xz",
+-            "sha256": "7b0e25133a98d44b648a925ba11f64a3adc470e87668af80ce2c3af389ebe9be",
+-        },
+-        "armv7": {
+-            "url": "https://github.com/f0rmiga/gcc-builds/releases/download/18082025/gcc-toolchain-12.5.0-armv7.tar.xz",
+-            "sha256": "a0ef76c8cc517b3d76dd2f09b1a371975b2ff1082e2f9372ed79af01b9292934",
+-        },
++    "11.4.0": {
+         "x86_64": {
+-            "url": "https://github.com/f0rmiga/gcc-builds/releases/download/18082025/gcc-toolchain-12.5.0-x86_64.tar.xz",
+-            "sha256": "51076e175839b434bb2dc0006c0096916df585e8c44666d35b0e3ce821d535db",
++            "url": "https://dd-agent-omnibus.s3.amazonaws.com/bazel/datadog_agent_cc_toolchain_ubuntu_22_gcc_11.4.0_x86_64.tar.gz",
++            "sha256": "5d6d23c2ac58b4843b5b5cc2de76d655a4da71656627b1ab7160d8e96996b080",
+         },
+     },
+-    "13.4.0": {
++    "12.3.0": {
+         "aarch64": {
+-            "url": "https://github.com/f0rmiga/gcc-builds/releases/download/18082025/gcc-toolchain-13.4.0-aarch64.tar.xz",
+-            "sha256": "770cf6bf62bdf78763de526d3a9f5cae4c19f1a3aca0ef8f18b05f1a46d1ffaf",
+-        },
+-        "armv7": {
+-            "url": "https://github.com/f0rmiga/gcc-builds/releases/download/18082025/gcc-toolchain-13.4.0-armv7.tar.xz",
+-            "sha256": "1b2739b5003c5a3f0ab7c4cc7fb95cc99c0e933982512de7255c2bd9ced757ad",
+-        },
+-        "x86_64": {
+-            "url": "https://github.com/f0rmiga/gcc-builds/releases/download/18082025/gcc-toolchain-13.4.0-x86_64.tar.xz",
+-            "sha256": "d96071c1b98499afd7b7b56ebd69ad414020edf66e982004acffe7df8aaf7e02",
+-        },
+-    },
+-    "14.3.0": {
+-        "aarch64": {
+-            "url": "https://github.com/f0rmiga/gcc-builds/releases/download/18082025/gcc-toolchain-14.3.0-aarch64.tar.xz",
+-            "sha256": "74b1f0072769f8865b62897ab962f6fce174115dab2e6596765bb4e700ffe0d1",
+-        },
+-        "armv7": {
+-            "url": "https://github.com/f0rmiga/gcc-builds/releases/download/18082025/gcc-toolchain-14.3.0-armv7.tar.xz",
+-            "sha256": "0c20a130f424ce83dd4eb2a4ec8fbcd0c0ddc5f42f0b4660bcd0108cb8c0fb21",
+-        },
+-        "x86_64": {
+-            "url": "https://github.com/f0rmiga/gcc-builds/releases/download/18082025/gcc-toolchain-14.3.0-x86_64.tar.xz",
+-            "sha256": "0b365e5da451f5c7adc594f967885d7181ff6d187d6089a4bcf36f954bf3ccf9",
+-        },
+-    },
+-    "15.2.0": {
+-        "aarch64": {
+-            "url": "https://github.com/f0rmiga/gcc-builds/releases/download/18082025/gcc-toolchain-15.2.0-aarch64.tar.xz",
+-            "sha256": "e1ae45038d350b297bea4ac10f095a98e2218971a8a37b8ab95f3faad2ec69f8",
+-        },
+-        "armv7": {
+-            "url": "https://github.com/f0rmiga/gcc-builds/releases/download/18082025/gcc-toolchain-15.2.0-armv7.tar.xz",
+-            "sha256": "fda64b3ee1c3d7ddcb28378a1b131eadc5d3e3ff1cfab2aab71da7a3f899b601",
+-        },
+-        "x86_64": {
+-            "url": "https://github.com/f0rmiga/gcc-builds/releases/download/18082025/gcc-toolchain-15.2.0-x86_64.tar.xz",
+-            "sha256": "50dd28021365e7443853d5e77bc94ab1d1c947ad48fd91cbec44dbdfa61412c9",
++            "url": "https://dd-agent-omnibus.s3.amazonaws.com/bazel/datadog_agent_cc_toolchain_ubuntu_22_gcc_12.3.0_aarch64.tar.gz",
++            "sha256": "a599fdb7c5985db5bed1bfa06a6fa5aef73f0dba81c6ce12328d176738ec0d09",
+         },
+     },
+ }
+@@ -448,7 +405,7 @@ gcc_toolchain = repository_rule(
+ 
+ ATTRS_SHARED_WITH_MODULE_EXTENSION = {
+     attr_name: _FEATURE_ATTRS[attr_name]
+-    for attr_name in ["gcc_version", "gcc_versions", "enable_fortran", "extra_cflags", "extra_cxxflags", "extra_ldflags", "extra_fflags", "extra_asmflags"]
++    for attr_name in ["gcc_version", "gcc_versions", "enable_fortran", "extra_cflags", "extra_cxxflags", "extra_ldflags", "extra_fflags", "extra_asmflags", "binary_prefix"]
+ }
+ 
+ def _render_tool_paths(rctx, path_prefix, binary_prefix):
+@@ -606,7 +563,7 @@ toolchain(
+     name = "cc_toolchain",
+     exec_compatible_with = [
+         "@platforms//os:linux",
+-        "@platforms//cpu:x86_64",
++        "@platforms//cpu:{target_arch}",
+     ],
+     target_compatible_with = {target_compatible_with},
+     target_settings = {target_settings},
+@@ -683,6 +640,7 @@ filegroup(
+         ":ld",
+         ":ld.bfd",
+         "xbin/ld",
++        "bin/{binary_prefix}ld",
+     ],
+     visibility = ["//visibility:public"],
+ )
+@@ -694,7 +652,8 @@ filegroup(
+         "lib/gcc/{include_prefix}*/include/**",
+         "lib/gcc/{include_prefix}*/include-fixed/**",
+         "{include_prefix}include/**",
+-        "sysroot/usr/include/**",
++        "{include_prefix}sysroot/usr/include/**",
++        "{include_prefix}sysroot/usr/include/linux/**",
+ 
+         # C++ includes
+         "{include_prefix}include/c++/*/**",
+@@ -754,6 +713,7 @@ filegroup(
+     srcs = [
+         ":ar",
+         "xbin/ar",
++        "bin/{binary_prefix}ar",
+     ],
+     visibility = ["//visibility:public"],
+ )
+@@ -763,6 +723,7 @@ filegroup(
+     srcs = [
+         ":as",
+         "xbin/as",
++        "bin/{binary_prefix}as",
+     ],
+     visibility = ["//visibility:public"],
+ )
+@@ -778,6 +739,7 @@ filegroup(
+     srcs = [
+         ":objcopy",
+         "xbin/objcopy",
++        "bin/{binary_prefix}objcopy",
+     ],
+     visibility = ["//visibility:public"],
+ )
+@@ -787,6 +749,7 @@ filegroup(
+     srcs = [
+         ":strip",
+         "xbin/strip",
++        "bin/{binary_prefix}strip",
+     ],
+     visibility = ["//visibility:public"],
+ )
+@@ -796,6 +759,7 @@ filegroup(
+     srcs = [
+         ":gcov",
+         "xbin/gcov",
++        "bin/{binary_prefix}gcov",
+     ],
+     visibility = ["//visibility:public"],
+ )
+diff --git a/toolchain/module_extensions.bzl b/toolchain/module_extensions.bzl
+index 1eb37ab..b6b86d0 100644
+--- a/toolchain/module_extensions.bzl
++++ b/toolchain/module_extensions.bzl
+@@ -20,6 +20,7 @@ def _gcc_register_toolchain_module_extension(mctx):
+                 extra_cxxflags = declare.extra_cxxflags,
+                 extra_ldflags = declare.extra_ldflags,
+                 extra_fflags = declare.extra_fflags,
++                binary_prefix = declare.binary_prefix,
+             )
+ 
+     # Since we know that for each gcc toolchain repository we'll generate the same files, we mark the rule as reproducible.
+-- 
+2.43.0
+

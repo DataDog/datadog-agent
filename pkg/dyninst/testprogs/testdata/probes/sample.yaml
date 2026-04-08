@@ -1939,7 +1939,7 @@ probes:
       methodName: main.testLongFunctionWithChangingState
       sourceFile: complex.go
       lines:
-        - "211"
+        - "230"
     template: "testLongFunctionWithChangingState"
     segments:
       - str: "testLongFunctionWithChangingState"
@@ -1954,7 +1954,7 @@ probes:
       methodName: main.testLongFunctionWithChangingState
       sourceFile: complex.go
       lines:
-        - "218"
+        - "237"
     template: "testLongFunctionWithChangingState"
     segments:
       - str: "testLongFunctionWithChangingState"
@@ -1969,7 +1969,7 @@ probes:
       methodName: main.testLongFunctionWithChangingState
       sourceFile: complex.go
       lines:
-        - "223"
+        - "242"
     captureSnapshot: true
     sampling:
       snapshotsPerSecond: 100
@@ -2432,5 +2432,64 @@ probes:
           dsl: "x"
           json:
             ref: "x"
+    sampling:
+      snapshotsPerSecond: 100
+  - id: testCaptureExprLineCond
+    type: LOG_PROBE
+    where:
+      methodName: main.testInlinedPrint
+      sourceFile: inlined.go
+      lines:
+        - "14"
+    captureSnapshot: false
+    captureExpressions:
+      - name: "x_val"
+        expr:
+          dsl: "x"
+          json:
+            ref: "x"
+    when:
+      dsl: "x == 3"
+      json: {eq: [{"ref": "x"}, 3]}
+    sampling:
+      snapshotsPerSecond: 100
+  - id: testCaptureTenStringsMethodEntryCond
+    type: LOG_PROBE
+    where:
+      methodName: main.testTenStrings
+    captureSnapshot: false
+    when:
+      dsl: "x.tenth == \"ten\""
+      json: {eq: [{"getmember": [{"ref": "x"}, "tenth"]}, "ten"]}
+    sampling:
+      snapshotsPerSecond: 100
+    template: "x={x}"
+    segments:
+      - str: "x="
+      - json:
+          ref: "x"
+        dsl: "x"
+  # Test for error interface at line probe - captures error variable in scope
+  - id: testErrorAtLine
+    type: LOG_PROBE
+    tags:
+      - "config_diff:arch=amd64,toolchain=go1.26rc1"
+      - "skip_integration:arch=arm64,toolchain=go1.25.0" # https://github.com/golang/go/issues/74576
+    where:
+      methodName: main.testErrorAtLine
+      sourceFile: complex.go
+      lines:
+        - "108"
+    template: "x={x}, err={err}"
+    segments:
+      - str: "x="
+      - json:
+          ref: "x"
+        dsl: "x"
+      - str: ", err="
+      - json:
+          ref: "err"
+        dsl: "err"
+    captureSnapshot: true
     sampling:
       snapshotsPerSecond: 100

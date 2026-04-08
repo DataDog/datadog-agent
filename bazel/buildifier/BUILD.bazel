@@ -27,7 +27,6 @@ buildifier_test(
     buildifier = "@multitool//tools/buildifier",
     exclude_patterns = exclude_patterns,
     lint_mode = "warn",
-    lint_warnings = ["-module-docstring"],
     mode = "diff",
     no_sandbox = True,
     tags = ["manual"],  # not cacheable

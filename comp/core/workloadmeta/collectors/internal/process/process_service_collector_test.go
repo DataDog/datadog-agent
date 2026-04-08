@@ -26,7 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/discovery/core"
 	"github.com/DataDog/datadog-agent/pkg/discovery/language"
 	"github.com/DataDog/datadog-agent/pkg/discovery/model"
-	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
+	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
@@ -384,7 +384,7 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 			cfg.SetWithoutSource("language_detection.enabled", false)
 
 			c := setUpCollectorTest(t, cfg, sysConfigOverrides, nil)
-			defer c.cleanup()
+
 			ctx := t.Context()
 
 			socketPath, _ := startTestServer(t, tc.httpResponse, tc.shouldError)
@@ -589,7 +589,7 @@ func TestServiceStoreLifetime(t *testing.T) {
 
 			// Collector setup
 			c := setUpCollectorTest(t, cfg, sysConfigOverrides, nil)
-			defer c.cleanup()
+
 			ctx := t.Context()
 
 			// Create test server & override collector client
@@ -691,6 +691,7 @@ func TestProcessDeathRemovesServiceData(t *testing.T) {
 	cfg.SetWithoutSource("process_config.intervals.process", collectionIntervalSeconds)
 
 	c := setUpCollectorTest(t, cfg, sysConfigOverrides, nil)
+
 	ctx := t.Context()
 
 	// Set initial state: process entity in the store, SD was tracking a service,
@@ -821,7 +822,6 @@ func makeModelService(pid int32, name string) model.Service {
 		TCPPorts:           []uint16{3000, 4000},
 		APMInstrumentation: true,
 		Language:           "python",
-		Type:               "database",
 		LogFiles:           []string{"/var/log/" + name + ".log"},
 		UST: model.UST{
 			Service: "dd-model-" + name,
@@ -852,7 +852,6 @@ func makeProcessEntityService(pid int32, name string, injectionState workloadmet
 			},
 			TCPPorts:           []uint16{3000, 4000},
 			APMInstrumentation: true,
-			Type:               "database",
 			LogFiles:           []string{"/var/log/" + name + ".log"},
 			UST: workloadmeta.UST{
 				Service: "dd-model-" + name,
@@ -945,7 +944,6 @@ func assertStoredServices(t *testing.T, store workloadmetamock.Mock, expected []
 				assert.Equal(collectT, expectedProcess.Service.TCPPorts, entity.Service.TCPPorts)
 				assert.Equal(collectT, expectedProcess.Service.UDPPorts, entity.Service.UDPPorts)
 				assert.Equal(collectT, expectedProcess.Service.APMInstrumentation, entity.Service.APMInstrumentation)
-				assert.Equal(collectT, expectedProcess.Service.Type, entity.Service.Type)
 				assert.Equal(collectT, expectedProcess.Service.LogFiles, entity.Service.LogFiles)
 				assert.Equal(collectT, expectedProcess.Service.UST, entity.Service.UST)
 			}

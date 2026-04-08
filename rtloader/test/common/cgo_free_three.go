@@ -6,15 +6,56 @@
 package testcommon
 
 /*
-#cgo CFLAGS: -I../../common
-#cgo !windows LDFLAGS: -L../../three/ -ldatadog-agent-three
-#cgo windows LDFLAGS: -L../../three/ -ldatadog-agent-three.dll
-#include "cgo_free.h"
+#cgo !windows LDFLAGS: -ldl
 
-extern void cgo_free(void *ptr);
+// c_callCgoFree calls the cgo_free from the dynamically loaded `three` library.
+
+#ifdef _WIN32
+#include <windows.h>
+#include <stdio.h>
 
 void c_callCgoFree(void *ptr) {
-	cgo_free(ptr);
+    HMODULE handle = GetModuleHandleA("libdatadog-agent-three.dll");
+    if (handle == NULL) {
+        fprintf(stderr, "c_callCgoFree: libdatadog-agent-three.dll is not loaded\n");
+        return;
+    }
+    typedef void (*cgo_free_t)(void *);
+    cgo_free_t fn = (cgo_free_t)GetProcAddress(handle, "cgo_free");
+    if (fn == NULL) {
+        fprintf(stderr, "c_callCgoFree: cgo_free symbol not found in libdatadog-agent-three.dll\n");
+        return;
+    }
+    fn(ptr);
 }
+
+#else
+#include <dlfcn.h>
+#include <stdio.h>
+
+#if defined(__linux__) || defined(__FreeBSD__)
+#  define THREE_LIB "libdatadog-agent-three.so"
+#elif defined(__APPLE__)
+#  define THREE_LIB "libdatadog-agent-three.dylib"
+#endif
+
+void c_callCgoFree(void *ptr) {
+    void *handle = dlopen(THREE_LIB, RTLD_NOLOAD | RTLD_LAZY);
+    if (handle == NULL) {
+        fprintf(stderr, "c_callCgoFree: " THREE_LIB " is not loaded\n");
+        return;
+    }
+    typedef void (*cgo_free_t)(void *);
+    cgo_free_t fn = (cgo_free_t)dlsym(handle, "cgo_free");
+    if (fn == NULL) {
+        fprintf(stderr, "c_callCgoFree: cgo_free symbol not found in " THREE_LIB "\n");
+        dlclose(handle);
+        return;
+    }
+    fn(ptr);
+    dlclose(handle);
+}
+
+#endif
 */
 import "C"

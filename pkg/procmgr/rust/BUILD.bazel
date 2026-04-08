@@ -1,29 +1,116 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
-load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_test")
+load("@rules_proto//proto:defs.bzl", "proto_library")
+load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_test")
+load("@rules_rust_prost//:defs.bzl", "rust_prost_library")
 
-rust_binary(
-    name = "dd-procmgrd",
-    srcs = glob(["src/**/*.rs"]),
+# ============================================================================
+# Protobuf / gRPC
+# ============================================================================
+
+proto_library(
+    name = "process_manager_proto",
+    srcs = ["proto/process_manager.proto"],
+)
+
+rust_prost_library(
+    name = "process_manager_rust_proto",
+    proto = ":process_manager_proto",
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:public"],
+)
+
+# rust_prost_library propagates CcInfo from proto_library, which transitively
+# includes abseil-cpp (C++). The Rust linker does not add libstdc++ by default,
+# so we provide it explicitly.
+cc_library(
+    name = "cpp_stdlib",
+    linkopts = ["-lstdc++"],
+)
+
+# ============================================================================
+# Library
+# ============================================================================
+
+rust_library(
+    name = "dd-procmgrd-lib",
+    srcs = glob(
+        ["src/**/*.rs"],
+        exclude = ["src/bins/**"],
+    ),
+    crate_name = "dd_procmgrd",
     edition = "2024",
+    rustc_flags = ["--cfg=bazel"],
     target_compatible_with = [
         "@platforms//os:linux",
     ],
     visibility = ["//visibility:public"],
     deps = [
+        ":cpp_stdlib",
+        ":process_manager_rust_proto",
         "@crates//:anyhow",
         "@crates//:log",
         "@crates//:nix",
+        "@crates//:prost",
         "@crates//:serde",
         "@crates//:serde_yaml",
-        "@crates//:simple_logger",
         "@crates//:tokio",
+        "@crates//:tokio-stream",
+        "@crates//:tonic",
+        "@crates//:tonic-reflection",
+        "@crates//:uuid",
+    ],
+)
+
+# ============================================================================
+# Binaries
+# ============================================================================
+
+rust_binary(
+    name = "dd-procmgrd",
+    srcs = ["src/bins/dd-procmgrd.rs"],
+    edition = "2024",
+    rustc_flags = ["--cfg=bazel"],
+    target_compatible_with = [
+        "@platforms//os:linux",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":dd-procmgrd-lib",
+        "//comp/core/log/rust:dd-agent-log",
+        "@crates//:anyhow",
+        "@crates//:log",
+        "@crates//:tokio",
+    ],
+)
+
+rust_binary(
+    name = "dd-procmgr",
+    srcs = ["src/bins/dd-procmgr.rs"],
+    edition = "2024",
+    rustc_flags = ["--cfg=bazel"],
+    target_compatible_with = [
+        "@platforms//os:linux",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":dd-procmgrd-lib",
+        "@crates//:clap",
+        "@crates//:hyper-util",
+        "@crates//:serde_json",
+        "@crates//:tokio",
+        "@crates//:tonic",
+        "@crates//:tower",
     ],
 )
 
 pkg_files(
     name = "all_files",
-    srcs = [":dd-procmgrd"],
+    srcs = [
+        ":dd-procmgr",
+        ":dd-procmgrd",
+    ],
     attributes = pkg_attributes(
         mode = "0755",
     ),
@@ -41,31 +128,37 @@ pkg_install(
 
 rust_test(
     name = "dd-procmgrd_test",
-    crate = ":dd-procmgrd",
+    crate = ":dd-procmgrd-lib",
     edition = "2024",
+    rustc_flags = ["--cfg=bazel"],
     deps = [
+        "@crates//:hyper-util",
         "@crates//:tempfile",
+        "@crates//:tower",
     ],
 )
 
 rust_test(
-    name = "integration_test",
+    name = "e2e_test",
     srcs = [
+        "tests/e2e.rs",
         "tests/helpers/mod.rs",
-        "tests/integration.rs",
     ],
-    crate_root = "tests/integration.rs",
+    crate_root = "tests/e2e.rs",
     data = [
+        ":dd-procmgr",
         ":dd-procmgrd",
-        "//pkg/fleet/installer/packages/embedded/tmpl:datadog-agent-ddot.yaml.tmpl",
+        "//pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-ddot.yaml.tmpl",
     ],
     edition = "2024",
     rustc_env = {
+        "CARGO_BIN_EXE_dd-procmgr": "$(rootpath :dd-procmgr)",
         "CARGO_BIN_EXE_dd-procmgrd": "$(rootpath :dd-procmgrd)",
-        "DDOT_TEMPLATE_PATH": "$(rootpath //pkg/fleet/installer/packages/embedded/tmpl:datadog-agent-ddot.yaml.tmpl)",
+        "DDOT_TEMPLATE_PATH": "$(rootpath //pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-ddot.yaml.tmpl)",
     },
     deps = [
         "@crates//:nix",
+        "@crates//:serde_json",
         "@crates//:tempfile",
     ],
 )

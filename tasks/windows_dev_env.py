@@ -84,8 +84,7 @@ def run(
 def _start_windows_dev_env(ctx, name: str = "windows-dev-env"):
     start_time = time.time()
 
-    with ctx.cd('./test/e2e-framework'):
-        ctx.run("dda inv -- setup")
+    ctx.run("dda inv -- setup")
     if shutil.which("rsync") is None:
         raise Exception(
             "rsync is not installed. Please install rsync by running `brew install rsync` on macOS and try again."

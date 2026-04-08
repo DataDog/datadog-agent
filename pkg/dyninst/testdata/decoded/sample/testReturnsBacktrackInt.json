@@ -89,10 +89,12 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "testReturnsBacktrackInt"
+    "message": "testReturnsBacktrackInt",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

@@ -92,14 +92,22 @@ func (m NamespacesPodsStringsSet) Set(namespace, podName string, strings ...stri
 	m[namespace][podName].Insert(strings...)
 }
 
-// Delete deletes strings for a given namespace.
-func (m NamespacesPodsStringsSet) Delete(namespace string, strings ...string) {
+// Delete deletes strings for a given namespace. Returns true if any
+// modification was made.
+func (m NamespacesPodsStringsSet) Delete(namespace string, strings ...string) bool {
 	if _, ok := m[namespace]; !ok {
 		// Nothing to delete.
-		return
+		return false
 	}
+
+	modified := false
 	for podName, svcSet := range m[namespace] {
-		svcSet.Delete(strings...)
+		for _, s := range strings {
+			if svcSet.Has(s) {
+				svcSet.Delete(s)
+				modified = true
+			}
+		}
 
 		if svcSet.Len() == 0 {
 			delete(m[namespace], podName)
@@ -108,6 +116,8 @@ func (m NamespacesPodsStringsSet) Delete(namespace string, strings ...string) {
 	if len(m[namespace]) == 0 {
 		delete(m, namespace)
 	}
+
+	return modified
 }
 
 // MetadataResponseBundle maps pod names to associated metadata.

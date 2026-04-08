@@ -8,6 +8,8 @@ package discovery
 import (
 	_ "embed"
 	"encoding/json"
+	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -50,8 +52,8 @@ var systemProbeConfigFallbackStr string
 type discoveryMode string
 
 const (
-	discoveryModeSdAgent     discoveryMode = "sd-agent"
-	discoveryModeSystemProbe discoveryMode = "system-probe"
+	discoveryModeSystemProbeLite discoveryMode = "system-probe-lite"
+	discoveryModeSystemProbe     discoveryMode = "system-probe"
 )
 
 type linuxTestSuite struct {
@@ -87,7 +89,7 @@ func (s *linuxTestSuite) SetupSuite() {
 }
 
 func (s *linuxTestSuite) TestProcessCheckWithServiceDiscovery() {
-	for _, mode := range []discoveryMode{discoveryModeSdAgent, discoveryModeSystemProbe} {
+	for _, mode := range []discoveryMode{discoveryModeSystemProbeLite, discoveryModeSystemProbe} {
 		s.Run(string(mode), func() {
 			s.testProcessCheckWithServiceDiscovery(agentProcessConfigStr, systemProbeConfigByMode[mode], mode)
 		})
@@ -95,7 +97,7 @@ func (s *linuxTestSuite) TestProcessCheckWithServiceDiscovery() {
 }
 
 func (s *linuxTestSuite) TestProcessCheckWithServiceDiscoveryProcessCollectionDisabled() {
-	for _, mode := range []discoveryMode{discoveryModeSdAgent, discoveryModeSystemProbe} {
+	for _, mode := range []discoveryMode{discoveryModeSystemProbeLite, discoveryModeSystemProbe} {
 		s.Run(string(mode), func() {
 			s.testProcessCheckWithServiceDiscovery(agentProcessDisabledConfigStr, systemProbeConfigByMode[mode], mode)
 		})
@@ -539,24 +541,94 @@ func matchingTracerMetadata(expectedTracerMetadata []*agentmodel.TracerMetadata,
 }
 
 var systemProbeConfigByMode = map[discoveryMode]string{
-	discoveryModeSdAgent:     systemProbeConfigStr,
-	discoveryModeSystemProbe: systemProbeConfigFallbackStr,
+	discoveryModeSystemProbeLite: systemProbeConfigStr,
+	discoveryModeSystemProbe:     systemProbeConfigFallbackStr,
 }
 
 func (s *linuxTestSuite) validateDiscoveryMode(mode discoveryMode) {
-	ps := s.Env().RemoteHost.MustExecute("ps aux | grep -E '(system-probe|sd-agent)' | grep -v grep")
-	s.T().Logf("Process list:\n%s", ps)
-
-	// sd-agent execs into system-probe (process replacement), they don't run simultaneously
-	if mode == discoveryModeSdAgent {
-		// In sd-agent mode, sd-agent runs its own server (no exec)
-		require.Contains(s.T(), ps, "sd-agent", "sd-agent should be running in sd-agent mode")
-		s.T().Logf("Found sd-agent process (mode: %s)", mode)
+	// system-probe execs into system-probe-lite (process replacement), they don't run simultaneously
+	if mode == discoveryModeSystemProbeLite {
+		// In system-probe-lite mode, system-probe execs into system-probe-lite during startup.
+		// Retry because the exec happens after fx initialization completes.
+		require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+			ps := s.Env().RemoteHost.MustExecute("ps aux | grep 'system-probe' | grep -v grep")
+			s.T().Logf("Process list:\n%s", ps)
+			assert.Contains(c, ps, "system-probe-lite", "system-probe-lite should be running in system-probe-lite mode")
+		}, 1*time.Minute, 5*time.Second)
+		s.T().Logf("Found system-probe-lite process (mode: %s)", mode)
+		s.validateCapabilities()
 	} else if mode == discoveryModeSystemProbe {
-		// In system-probe mode, sd-agent exec'd into system-probe (replaced itself)
+		// In system-probe mode, system-probe should NOT exec into system-probe-lite.
+		// Wait for system-probe to finish startup before checking, to avoid
+		// false success if we check before the (incorrect) exec would happen.
+		time.Sleep(30 * time.Second)
+		ps := s.Env().RemoteHost.MustExecute("ps aux | grep 'system-probe' | grep -v grep")
+		s.T().Logf("Process list:\n%s", ps)
+		require.NotContains(s.T(), ps, "system-probe-lite", "system-probe-lite should not be running in system-probe mode (system-probe should not have exec'd into system-probe-lite)")
 		require.Contains(s.T(), ps, "system-probe", "system-probe should be running in system-probe mode")
 		s.T().Logf("Found system-probe process (mode: %s)", mode)
 	}
+}
+
+// capSysPtrace is the bitmask for CAP_SYS_PTRACE (capability 19).
+const capSysPtrace uint64 = 1 << 19
+
+// capDacReadSearch is the bitmask for CAP_DAC_READ_SEARCH (capability 2).
+const capDacReadSearch uint64 = 1 << 2
+
+// capRequired is the expected capability bitmask for system-probe-lite:
+// CAP_SYS_PTRACE (open /proc/<pid>/root and /proc/<pid>/ files) and
+// CAP_DAC_READ_SEARCH (traverse restricted directories in process root filesystems).
+const capRequired = capSysPtrace | capDacReadSearch
+
+// validateCapabilities asserts that system-probe-lite has been restricted to
+// {CAP_SYS_PTRACE, CAP_DAC_READ_SEARCH} in its effective and permitted sets,
+// and that the inheritable and ambient sets are empty.
+func (s *linuxTestSuite) validateCapabilities() {
+	t := s.T()
+	t.Helper()
+
+	pidStr := strings.TrimSpace(s.Env().RemoteHost.MustExecute("pgrep -f 'system-probe-lite run'"))
+	require.NotEmpty(t, pidStr, "system-probe-lite process not found")
+
+	status := s.Env().RemoteHost.MustExecute(fmt.Sprintf("cat /proc/%s/status", pidStr))
+	t.Logf("system-probe-lite /proc/%s/status cap fields:\n%s", pidStr,
+		func() string {
+			var lines []string
+			for _, l := range strings.Split(status, "\n") {
+				if strings.HasPrefix(l, "Cap") {
+					lines = append(lines, l)
+				}
+			}
+			return strings.Join(lines, "\n")
+		}())
+
+	for _, tc := range []struct {
+		field string
+		want  uint64
+	}{
+		{"CapEff", capRequired},
+		{"CapPrm", capRequired},
+		{"CapInh", 0},
+		{"CapAmb", 0},
+	} {
+		got := parseCapField(t, status, tc.field)
+		assert.Equalf(t, tc.want, got, "%s: expected 0x%016x (CAP_SYS_PTRACE|CAP_DAC_READ_SEARCH), got 0x%016x", tc.field, tc.want, got)
+	}
+}
+
+func parseCapField(t *testing.T, status, field string) uint64 {
+	t.Helper()
+	for _, line := range strings.Split(status, "\n") {
+		if strings.HasPrefix(line, field+":") {
+			hexStr := strings.TrimSpace(strings.TrimPrefix(line, field+":"))
+			val, err := strconv.ParseUint(hexStr, 16, 64)
+			require.NoErrorf(t, err, "failed to parse %s value %q", field, hexStr)
+			return val
+		}
+	}
+	t.Fatalf("%s field not found in /proc/pid/status", field)
+	return 0
 }
 
 func (s *linuxTestSuite) provisionServer() {

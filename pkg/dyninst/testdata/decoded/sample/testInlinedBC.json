@@ -52,10 +52,12 @@
             "method": "main.testInlinedBC"
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "testInlinedBC"
+    "message": "testInlinedBC",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

@@ -24,8 +24,9 @@
         files: [ .go-version, .python-version ]
       paths:
         - .cache/bazel/*/cache
-        - .cache/go*
-        - .cache/ms-go*
+        - .cache/bazel/disk-cache
+        - .cache/go
+        - .cache/ms-go
         - .cache/pip
       policy: pull$BAZEL_CACHE_POLICY_SUFFIX
       when: on_success
@@ -63,6 +64,10 @@
   extends: .bazel:defs:cache:progressive
   tags: [ "arch:amd64", "specific:true" ]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  variables:
+    KUBERNETES_CPU_REQUEST: 4
+    KUBERNETES_MEMORY_REQUEST: "12Gi"
+    KUBERNETES_MEMORY_LIMIT: "12Gi"
 
 .bazel:runner:linux-arm64:
   #extends: .bazel:defs:cache:persistent
@@ -70,6 +75,10 @@
   extends: .bazel:defs:cache:progressive
   tags: [ "arch:arm64", "specific:true" ]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  variables:
+    KUBERNETES_CPU_REQUEST: 4
+    KUBERNETES_MEMORY_REQUEST: "12Gi"
+    KUBERNETES_MEMORY_LIMIT: "12Gi"
 
 .bazel:runner:macos-amd64:
   extends: .bazel:defs:cache:macos

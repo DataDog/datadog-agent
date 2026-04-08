@@ -22,6 +22,7 @@ from invoke.tasks import task
 
 from tasks.build_tags import UNIT_TEST_TAGS, get_default_build_tags
 from tasks.flavor import AgentFlavor
+from tasks.libs.build.bazel import bazel
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.ciproviders.gitlab_api import ReferenceTag
 from tasks.libs.common.color import color_message
@@ -33,11 +34,10 @@ from tasks.libs.common.utils import (
     get_build_flags,
     get_common_test_args,
     get_embedded_path,
-    get_gobin,
     parse_kernel_version,
 )
 from tasks.libs.releasing.version import get_version_numeric_only
-from tasks.libs.types.arch import ALL_ARCHS, ARCH_ARM64, Arch
+from tasks.libs.types.arch import ALL_ARCHS, Arch
 from tasks.windows_resources import MESSAGESTRINGS_MC_PATH
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
@@ -71,7 +71,6 @@ TEST_TIMEOUTS = {
     "pkg/network/usm$": "55m",
     "pkg/network/usm/tests$": "55m",
 }
-CWS_PREBUILT_MINIMUM_KERNEL_VERSION = (5, 8, 0)
 EMBEDDED_SHARE_DIR = os.path.join("/opt", "datadog-agent", "embedded", "share", "system-probe", "ebpf")
 
 is_windows = sys.platform == "win32"
@@ -120,13 +119,6 @@ def ninja_define_windows_resources(ctx, nw: NinjaWriter):
     )
 
 
-def ninja_define_binary_compiler(nw: NinjaWriter):
-    nw.rule(
-        name="cbin",
-        command="$cc $cflags -o $out $in $ldflags",
-    )
-
-
 def ninja_define_ebpf_compiler(
     nw: NinjaWriter,
     strip_object_files=False,
@@ -159,16 +151,6 @@ def ninja_define_ebpf_compiler(
     )
 
 
-def ninja_define_co_re_compiler(nw: NinjaWriter, arch: Arch | None = None):
-    nw.variable("ebpfcoreflags", get_co_re_build_flags(arch))
-
-    nw.rule(
-        name="ebpfcoreclang",
-        command="/opt/datadog-agent/embedded/bin/clang-bpf -MD -MF $out.d -target bpf $ebpfcoreflags $flags -c $in -o $out",
-        depfile="$out.d",
-    )
-
-
 def ninja_define_exe_compiler(nw: NinjaWriter, compiler='clang'):
     nw.rule(
         name="exe" + compiler,
@@ -177,486 +159,12 @@ def ninja_define_exe_compiler(nw: NinjaWriter, compiler='clang'):
     )
 
 
-def ninja_ebpf_program(nw: NinjaWriter, infile, outfile, variables=None):
-    outdir, basefile = os.path.split(outfile)
-    basename = os.path.basename(os.path.splitext(basefile)[0])
-    out_base = f"{outdir}/{basename}"
-    nw.build(
-        inputs=[infile],
-        outputs=[f"{out_base}.bc"],
-        rule="ebpfclang",
-        variables=variables,
-    )
-    nw.build(
-        inputs=[f"{out_base}.bc"],
-        outputs=[f"{out_base}.o"],
-        rule="llc",
-    )
-
-
-def ninja_ebpf_co_re_program(nw: NinjaWriter, infile, outfile, variables=None):
-    outdir, basefile = os.path.split(outfile)
-    basename = os.path.basename(os.path.splitext(basefile)[0])
-    out_base = f"{outdir}/{basename}"
-    nw.build(
-        inputs=[infile],
-        outputs=[f"{out_base}.bc"],
-        rule="ebpfcoreclang",
-        variables=variables,
-    )
-    nw.build(
-        inputs=[f"{out_base}.bc"],
-        outputs=[f"{out_base}.o"],
-        rule="llc",
-    )
-
-
-def ninja_security_ebpf_programs(
-    nw: NinjaWriter, build_dir: Path, debug: bool, kernel_release: str | None, arch: Arch | None = None
-):
-    security_agent_c_dir = os.path.join("pkg", "security", "ebpf", "c")
-    security_agent_prebuilt_dir_include = os.path.join(security_agent_c_dir, "include")
-    security_agent_prebuilt_dir = os.path.join(security_agent_c_dir, "prebuilt")
-
-    kernel_headers = get_linux_header_dirs(
-        kernel_release=kernel_release, minimal_kernel_release=CWS_PREBUILT_MINIMUM_KERNEL_VERSION, arch=arch
-    )
-    kheaders = " ".join(f"-isystem{d}" for d in kernel_headers)
-    debugdef = "-DDEBUG=1" if debug else ""
-    security_flags = f"-g -I{security_agent_prebuilt_dir_include} {debugdef}"
-
-    outfiles = []
-
-    # basic
-    infile = os.path.join(security_agent_prebuilt_dir, "probe.c")
-    outfile = os.path.join(build_dir, "runtime-security.o")
-    ninja_ebpf_program(
-        nw,
-        infile=infile,
-        outfile=outfile,
-        variables={
-            "flags": security_flags,
-            "kheaders": kheaders,
-        },
-    )
-    outfiles.append(outfile)
-
-    # syscall wrapper
-    root, ext = os.path.splitext(outfile)
-    syscall_wrapper_outfile = f"{root}-syscall-wrapper{ext}"
-    ninja_ebpf_program(
-        nw,
-        infile=infile,
-        outfile=syscall_wrapper_outfile,
-        variables={
-            "flags": security_flags + " -DUSE_SYSCALL_WRAPPER",
-            "kheaders": kheaders,
-        },
-    )
-    outfiles.append(syscall_wrapper_outfile)
-
-    # fentry + syscall wrapper
-    root, ext = os.path.splitext(outfile)
-    syscall_wrapper_outfile = f"{root}-fentry{ext}"
-    ninja_ebpf_program(
-        nw,
-        infile=infile,
-        outfile=syscall_wrapper_outfile,
-        variables={
-            "flags": security_flags + " -DUSE_SYSCALL_WRAPPER -DUSE_FENTRY",
-            "kheaders": kheaders,
-        },
-    )
-    outfiles.append(syscall_wrapper_outfile)
-
-    # offset guesser
-    offset_guesser_outfile = os.path.join(build_dir, "runtime-security-offset-guesser.o")
-    ninja_ebpf_program(
-        nw,
-        infile=os.path.join(security_agent_prebuilt_dir, "offset-guesser.c"),
-        outfile=offset_guesser_outfile,
-        variables={
-            "flags": security_flags,
-            "kheaders": kheaders,
-        },
-    )
-    outfiles.append(offset_guesser_outfile)
-
-    nw.build(rule="phony", inputs=outfiles, outputs=["cws"])
-
-
-def ninja_network_ebpf_program(nw: NinjaWriter, infile, outfile, flags):
-    ninja_ebpf_program(nw, infile, outfile, {"flags": flags})
-    root, ext = os.path.splitext(outfile)
-    ninja_ebpf_program(nw, infile, f"{root}-debug{ext}", {"flags": flags + " -DDEBUG=1"})
-
-
-def ninja_telemetry_ebpf_co_re_programs(nw, infile, outfile, flags):
-    ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": flags})
-    root, ext = os.path.splitext(outfile)
-
-
-def ninja_telemetry_ebpf_programs(nw, build_dir, co_re_build_dir):
-    src_dir = os.path.join("pkg", "ebpf", "c")
-
-    telemetry_co_re_programs = [
-        "lock_contention",
-        "ksyms_iter",
-    ]
-    for prog in telemetry_co_re_programs:
-        infile = os.path.join(src_dir, f"{prog}.c")
-        outfile = os.path.join(co_re_build_dir, f"{prog}.c")
-
-        co_re_flags = [f"-I{src_dir}"]
-        ninja_telemetry_ebpf_co_re_programs(nw, infile, outfile, ' '.join(co_re_flags))
-
-
-def ninja_network_ebpf_co_re_program(nw: NinjaWriter, infile, outfile, flags):
-    ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": flags})
-    root, ext = os.path.splitext(outfile)
-    ninja_ebpf_co_re_program(nw, infile, f"{root}-debug{ext}", {"flags": flags + " -DDEBUG=1"})
-
-
-def ninja_network_ebpf_programs(nw: NinjaWriter, build_dir, co_re_build_dir):
-    network_bpf_dir = os.path.join("pkg", "network", "ebpf")
-    network_c_dir = os.path.join(network_bpf_dir, "c")
-
-    network_flags = "-Ipkg/network/ebpf/c -g"
-    network_programs = [
-        "prebuilt/dns",
-        "prebuilt/offset-guess",
-        "tracer",
-        "prebuilt/usm",
-        "prebuilt/usm_events_test",
-        "prebuilt/shared-libraries",
-        "prebuilt/conntrack",
-    ]
-
-    network_co_re_programs = [
-        "tracer",
-        "co-re/tracer-fentry",
-        "runtime/usm",
-        "runtime/shared-libraries",
-        "runtime/conntrack",
-    ]
-
-    for prog in network_programs:
-        infile = os.path.join(network_c_dir, f"{prog}.c")
-        outfile = os.path.join(build_dir, f"{os.path.basename(prog)}.o")
-        ninja_network_ebpf_program(nw, infile, outfile, network_flags)
-
-    for prog_path in network_co_re_programs:
-        prog = os.path.basename(prog_path)
-        src_dir = os.path.join(network_c_dir, os.path.dirname(prog_path))
-        network_co_re_flags = f"-I{src_dir} -Ipkg/network/ebpf/c"
-
-        infile = os.path.join(src_dir, f"{prog}.c")
-        outfile = os.path.join(co_re_build_dir, f"{prog}.o")
-        ninja_network_ebpf_co_re_program(nw, infile, outfile, network_co_re_flags)
-
-
-def ninja_kernel_bug_binaries(nw: NinjaWriter, arch: str | Arch):
-    arch = Arch.from_str(arch)
-
-    # do not build for arm64
-    if arch == ARCH_ARM64:
-        return
-
-    ebpf_c_dir = os.path.join("pkg", "ebpf", "kernelbugs", "c")
-    embedded_bins = ["detect-seccomp-bug"]
-
-    for binary in embedded_bins:
-        infile = os.path.join(ebpf_c_dir, f"{binary}.c")
-        outfile = os.path.join(ebpf_c_dir, binary)
-        cc = "gcc"
-
-        nw.build(
-            inputs=[infile],
-            outputs=[outfile],
-            rule="cbin",
-            variables={"cc": cc, "cflags": "-static", "ldflags": "-lseccomp"},
-        )
-
-
-def ninja_test_ebpf_program(nw: NinjaWriter, build_dir, ebpf_c_dir, test_flags, prog):
-    infile = os.path.join(ebpf_c_dir, f"{prog}.c")
-    outfile = os.path.join(build_dir, f"{os.path.basename(prog)}.o")
-    ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": test_flags})
-
-
-def ninja_test_ebpf_programs(nw: NinjaWriter, build_dir):
-    ebpf_bpf_dir = os.path.join("pkg", "ebpf")
-    ebpf_c_dir = os.path.join(ebpf_bpf_dir, "testdata", "c")
-    test_flags = "-g -DDEBUG=1"
-
-    test_programs = ["logdebug-test", "error_telemetry", "uprobe_attacher-test"]
-
-    for prog in test_programs:
-        ninja_test_ebpf_program(nw, build_dir, ebpf_c_dir, test_flags, prog)
-
-    # System-probe ebpf subcommand test programs
-    ebpf_subcommand_test_c_dir = os.path.join("cmd", "system-probe", "subcommands", "ebpf", "testdata")
-    ebpf_subcommand_test_programs = ["btf_test"]
-
-    for prog in ebpf_subcommand_test_programs:
-        ninja_test_ebpf_program(nw, build_dir, ebpf_subcommand_test_c_dir, test_flags, prog)
-
-
-def ninja_kernel_bugs_ebpf_programs(nw: NinjaWriter):
-    build_dir = os.path.join("pkg", "ebpf", "kernelbugs", "c")
-    ninja_test_ebpf_program(nw, build_dir, build_dir, "", "uprobe-trigger")
-
-
-def ninja_gpu_ebpf_programs(nw: NinjaWriter, co_re_build_dir: Path | str):
-    gpu_headers_dir = Path("pkg/gpu/ebpf/c")
-    gpu_c_dir = gpu_headers_dir / "runtime"
-    gpu_flags = f"-I{gpu_headers_dir} -I{gpu_c_dir} -Ipkg/network/ebpf/c"
-    gpu_programs = ["gpu"]
-
-    for prog in gpu_programs:
-        infile = os.path.join(gpu_c_dir, f"{prog}.c")
-        outfile = os.path.join(co_re_build_dir, f"{prog}.o")
-        ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": gpu_flags})
-        root, ext = os.path.splitext(outfile)
-        ninja_ebpf_co_re_program(nw, infile, f"{root}-debug{ext}", {"flags": gpu_flags + " -DDEBUG=1"})
-
-
-def ninja_corecheck_ebpf_programs(nw: NinjaWriter, co_re_build_dir):
-    corecheck_co_re_dir = os.path.join("pkg", "collector", "corechecks", "ebpf", "c", "runtime")
-    corecheck_co_re_flags = f"-I{corecheck_co_re_dir}"
-    corecheck_co_re_programs = ["oom-kill", "tcp-queue-length", "ebpf", "noisy-neighbor"]
-
-    for prog in corecheck_co_re_programs:
-        infile = os.path.join(corecheck_co_re_dir, f"{prog}-kern.c")
-        outfile = os.path.join(co_re_build_dir, f"{prog}.o")
-        ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": corecheck_co_re_flags})
-        root, ext = os.path.splitext(outfile)
-        ninja_ebpf_co_re_program(nw, infile, f"{root}-debug{ext}", {"flags": corecheck_co_re_flags + " -DDEBUG=1"})
-
-
-def ninja_dynamic_instrumentation_ebpf_programs(nw: NinjaWriter, co_re_build_dir):
-    dir = Path("pkg/dyninst/ebpf")
-    flags = f"-I{dir}"
-    programs = ["event"]
-
-    for prog in programs:
-        infile = os.path.join(dir, f"{prog}.c")
-        outfile = os.path.join(co_re_build_dir, f"dyninst_{prog}.o")
-        ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": flags})
-        root, ext = os.path.splitext(outfile)
-        ninja_ebpf_co_re_program(nw, infile, f"{root}-debug{ext}", {"flags": flags + " -DDYNINST_DEBUG=1"})
-
-
-def ninja_runtime_compilation_files(nw: NinjaWriter, gobin):
-    bc_dir = os.path.join("pkg", "ebpf", "bytecode")
-    build_dir = os.path.join(bc_dir, "build")
-
-    rc_tools = {
-        "pkg/ebpf/include_headers.go": "include_headers",
-        "pkg/ebpf/bytecode/runtime/integrity.go": "integrity",
-    }
-
-    toolpaths = []
-    nw.rule(name="rctool", command="go install $in")
-    for in_path, toolname in rc_tools.items():
-        toolpath = os.path.join(gobin, toolname)
-        toolpaths.append(toolpath)
-        nw.build(
-            inputs=[in_path],
-            outputs=[toolpath],
-            rule="rctool",
-        )
-
-    runtime_compiler_files = {
-        "pkg/collector/corechecks/ebpf/probe/oomkill/oom_kill.go": "oom-kill",
-        "pkg/collector/corechecks/ebpf/probe/tcpqueuelength/tcp_queue_length.go": "tcp-queue-length",
-        "pkg/network/usm/compile.go": "usm",
-        "pkg/network/usm/sharedlibraries/compile.go": "shared-libraries",
-        "pkg/network/tracer/compile.go": "conntrack",
-        "pkg/network/tracer/connection/kprobe/compile.go": "tracer",
-        "pkg/network/tracer/offsetguess_test.go": "offsetguess-test",
-        "pkg/security/ebpf/compile.go": "runtime-security",
-        "pkg/gpu/compile.go": "gpu",
-    }
-
-    nw.rule(
-        name="headerincl",
-        command="go generate -run=\"include_headers\" -mod=readonly -tags linux_bpf $in",
-        depfile="$out.d",
-    )
-    nw.rule(
-        name="integrity", command="go generate -run=\"integrity\" -mod=readonly -tags linux_bpf $in", depfile="$out.d"
-    )
-    hash_dir = os.path.join(bc_dir, "runtime")
-    rc_dir = os.path.join(build_dir, "runtime")
-    for in_path, out_filename in runtime_compiler_files.items():
-        c_file = os.path.join(rc_dir, f"{out_filename}.c")
-        hash_file = os.path.join(hash_dir, f"{out_filename}.go")
-        nw.build(
-            inputs=[in_path],
-            implicit=toolpaths,
-            outputs=[c_file],
-            rule="headerincl",
-        )
-        nw.build(
-            inputs=[in_path],
-            implicit=toolpaths + [c_file],
-            outputs=[hash_file],
-            rule="integrity",
-        )
-
-
-def ninja_cgo_type_files(nw: NinjaWriter):
-    # TODO we could probably preprocess the input files to find out the dependencies
-    nw.pool(name="cgo_pool", depth=1)
-    if is_windows:
-        go_platform = "windows"
-        def_files = {
-            "pkg/network/driver/types.go": [
-                "pkg/network/driver/ddnpmapi.h",
-            ],
-            "pkg/windowsdriver/procmon/types.go": [
-                "pkg/windowsdriver/include/procmonapi.h",
-            ],
-        }
-        nw.rule(
-            name="godefs",
-            pool="cgo_pool",
-            command="powershell -Command \"$$PSDefaultParameterValues['Out-File:Encoding'] = 'ascii';"
-            + "(cd $in_dir);"
-            + "(go tool cgo -godefs -- -fsigned-char $in_file | "
-            + "go run $script_path | Out-File -encoding ascii $out_file);"
-            + "exit $$LastExitCode\"",
-        )
-    else:
-        go_platform = "linux"
-        def_files = {
-            "pkg/network/ebpf/conntrack_types.go": ["pkg/network/ebpf/c/conntrack/types.h"],
-            "pkg/network/ebpf/tuple_types.go": ["pkg/network/ebpf/c/tracer/tracer.h"],
-            "pkg/network/ebpf/kprobe_types.go": [
-                "pkg/network/ebpf/c/tracer/tracer.h",
-                "pkg/network/ebpf/c/tcp_states.h",
-                "pkg/network/ebpf/c/prebuilt/offset-guess.h",
-                "pkg/network/ebpf/c/protocols/classification/defs.h",
-            ],
-            "pkg/network/protocols/ebpf_types.go": [
-                "pkg/network/ebpf/c/protocols/postgres/types.h",
-            ],
-            "pkg/network/protocols/http/gotls/go_tls_types.go": [
-                "pkg/network/ebpf/c/protocols/tls/go-tls-types.h",
-            ],
-            "pkg/network/protocols/http/types.go": [
-                "pkg/network/ebpf/c/tracer/tracer.h",
-                "pkg/network/ebpf/c/protocols/http/types.h",
-                "pkg/network/ebpf/c/protocols/classification/defs.h",
-            ],
-            "pkg/network/protocols/http2/types.go": [
-                "pkg/network/ebpf/c/tracer/tracer.h",
-                "pkg/network/ebpf/c/protocols/http2/decoding-defs.h",
-            ],
-            "pkg/network/protocols/kafka/types.go": [
-                "pkg/network/ebpf/c/tracer/tracer.h",
-                "pkg/network/ebpf/c/protocols/kafka/types.h",
-                "pkg/network/ebpf/c/protocols/kafka/defs.h",
-            ],
-            "pkg/network/protocols/postgres/ebpf/types.go": [
-                "pkg/network/ebpf/c/protocols/postgres/types.h",
-            ],
-            "pkg/network/protocols/redis/types.go": [
-                "pkg/network/ebpf/c/protocols/redis/types.h",
-            ],
-            "pkg/network/protocols/tls/types.go": [
-                "pkg/network/ebpf/c/protocols/tls/tags-types.h",
-            ],
-            "pkg/ebpf/telemetry/types.go": [
-                "pkg/ebpf/c/telemetry_types.h",
-            ],
-            "pkg/network/tracer/offsetguess/offsetguess_types.go": [
-                "pkg/network/ebpf/c/prebuilt/offset-guess.h",
-            ],
-            "pkg/network/protocols/events/types.go": [
-                "pkg/network/ebpf/c/protocols/events-types.h",
-            ],
-            "pkg/collector/corechecks/ebpf/probe/tcpqueuelength/tcp_queue_length_kern_types.go": [
-                "pkg/collector/corechecks/ebpf/c/runtime/tcp-queue-length-kern-user.h",
-            ],
-            "pkg/network/usm/sharedlibraries/types.go": [
-                "pkg/network/ebpf/c/shared-libraries/types.h",
-            ],
-            "pkg/collector/corechecks/ebpf/probe/ebpfcheck/c_types.go": [
-                "pkg/collector/corechecks/ebpf/c/runtime/ebpf-kern-user.h"
-            ],
-            "pkg/collector/corechecks/ebpf/probe/oomkill/c_types.go": [
-                "pkg/collector/corechecks/ebpf/c/runtime/oom-kill-kern-user.h",
-            ],
-            "pkg/ebpf/types.go": [
-                "pkg/ebpf/c/lock_contention.h",
-            ],
-            "pkg/gpu/ebpf/kprobe_types.go": [
-                "pkg/gpu/ebpf/c/types.h",
-            ],
-            "pkg/collector/corechecks/ebpf/probe/noisyneighbor/ebpf_types.go": [
-                "pkg/collector/corechecks/ebpf/c/runtime/noisy-neighbor-kern-user.h"
-            ],
-            "pkg/dyninst/output/framing.go": [
-                "pkg/dyninst/ebpf/framing.h",
-            ],
-            "pkg/dyninst/loader/types.go": [
-                "pkg/dyninst/ebpf/types.h",
-            ],
-        }
-        # TODO this uses the system clang, rather than the version-pinned copy we ship. Will this cause problems?
-        # It is only generating cgo type definitions and changes are reviewed, so risk is low
-        nw.rule(
-            name="godefs",
-            pool="cgo_pool",
-            command="cd $in_dir && "
-            + "CC=clang go tool cgo -godefs -- $rel_import -fsigned-char $in_file | "
-            + "go run $script_path $tests_file $package_name > $out_file",
-        )
-
-    script_path = os.path.join(os.getcwd(), "pkg", "ebpf", "cgo", "genpost.go")
-    for f, headers in def_files.items():
-        in_dir, in_file = os.path.split(f)
-        in_base, _ = os.path.splitext(in_file)
-        out_file = f"{in_base}_{go_platform}.go"
-        rel_import = f"-I {os.path.relpath('pkg/network/ebpf/c', in_dir)} -I {os.path.relpath('pkg/ebpf/c', in_dir)}"
-        tests_file = ""
-        package_name = ""
-        outputs = [os.path.join(in_dir, out_file)]
-        if go_platform == "linux":
-            tests_file = f"{in_base}_{go_platform}_test"
-            package_name = os.path.basename(in_dir)
-            outputs.append(os.path.join(in_dir, f"{tests_file}.go"))
-        nw.build(
-            inputs=[f],
-            outputs=outputs,
-            rule="godefs",
-            implicit=headers + [script_path],
-            variables={
-                "in_dir": in_dir,
-                "in_file": in_file,
-                "out_file": out_file,
-                "script_path": script_path,
-                "rel_import": rel_import,
-                "tests_file": tests_file,
-                "package_name": package_name,
-            },
-        )
-
-
 def ninja_generate(
     ctx: Context,
     ninja_path,
     arch: str | Arch = CURRENT_ARCH,
-    debug=False,
-    strip_object_files=False,
-    kernel_release: str | None = None,
-    with_unit_test=False,
 ):
     arch = Arch.from_str(arch)
-    build_dir = get_ebpf_build_dir(arch)
-    co_re_build_dir = os.path.join(build_dir, "co-re")
 
     with open(ninja_path, 'w') as ninja_file:
         nw = NinjaWriter(ninja_file, width=120)
@@ -682,22 +190,7 @@ def ninja_generate(
             rcin = "cmd/system-probe/windows_resources/system-probe.rc"
             nw.build(inputs=[rcin], outputs=["cmd/system-probe/rsrc.syso"], rule="windres")
         else:
-            gobin = get_gobin(ctx)
-            ninja_define_ebpf_compiler(nw, strip_object_files, kernel_release, with_unit_test, arch=arch)
-            ninja_define_binary_compiler(nw)
-            ninja_define_co_re_compiler(nw, arch=arch)
-            ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir)
-            ninja_test_ebpf_programs(nw, co_re_build_dir)
-            ninja_kernel_bugs_ebpf_programs(nw)
-            ninja_kernel_bug_binaries(nw, arch)
-            ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release, arch=arch)
-            ninja_corecheck_ebpf_programs(nw, co_re_build_dir)
-            ninja_runtime_compilation_files(nw, gobin)
-            ninja_telemetry_ebpf_programs(nw, build_dir, co_re_build_dir)
-            ninja_gpu_ebpf_programs(nw, co_re_build_dir)
-            ninja_dynamic_instrumentation_ebpf_programs(nw, co_re_build_dir)
-
-        ninja_cgo_type_files(nw)
+            pass  # Runtime compilation is fully handled by Bazel (bazel_build_ebpf)
 
 
 @task
@@ -714,7 +207,7 @@ def build_libpcap(ctx, env: dict, arch: Arch | None = None):
             ctx.run(f"echo 'libpcap version {version} already exists at {target_file}'")
             return
 
-    ctx.run(f"bazelisk run -- @libpcap//:install --destdir='{embedded_path}'")
+    bazel(ctx, "run", "--", "@libpcap//:install", f"--destdir={embedded_path}")
     ctx.run(f"strip -g {target_file}")
     return
 
@@ -1176,26 +669,6 @@ def e2e_prepare(ctx, kernel_release=None, ci=False, packages=""):
     ctx.run(f"echo {get_commit_sha(ctx)} > {BUILD_COMMIT}")
 
 
-def get_kernel_arch() -> Arch:
-    # Mapping used by the kernel, from https://elixir.bootlin.com/linux/latest/source/scripts/subarch.include
-    kernel_arch = (
-        check_output(
-            '''uname -m | sed -e s/i.86/x86/ -e s/x86_64/x86/ \
-                -e s/sun4u/sparc64/ \
-                -e s/arm.*/arm/ -e s/sa110/arm/ \
-                -e s/s390x/s390/ -e s/parisc64/parisc/ \
-                -e s/ppc.*/powerpc/ -e s/mips.*/mips/ \
-                -e s/sh[234].*/sh/ -e s/aarch64.*/arm64/ \
-                -e s/riscv.*/riscv/''',
-            shell=True,
-        )
-        .decode('utf-8')
-        .strip()
-    )
-
-    return Arch.from_str(kernel_arch)
-
-
 def get_linux_header_dirs(
     kernel_release: str | None = None,
     minimal_kernel_release: tuple[int, int, int] | None = None,
@@ -1374,31 +847,6 @@ def get_ebpf_build_flags(unit_test=False, arch: Arch | None = None):
     return flags
 
 
-def get_co_re_build_flags(arch: Arch | None = None):
-    flags = get_ebpf_build_flags(arch=arch)
-
-    flags.remove('-DCOMPILE_PREBUILT')
-    flags.remove('-DCONFIG_64BIT')
-    flags.remove('-include pkg/ebpf/c/asm_goto_workaround.h')
-
-    flags.extend(
-        [
-            "-DCOMPILE_CORE",
-            '-emit-llvm',
-            '-g',
-        ]
-    )
-
-    if arch is None:
-        arch = get_kernel_arch()
-
-    arch_define = f"-D__TARGET_ARCH_{arch.kernel_arch}"
-    if arch_define not in flags:
-        flags.append(arch_define)
-
-    return flags
-
-
 def get_kernel_headers_flags(kernel_release=None, minimal_kernel_release=None, arch: Arch | None = None):
     return [
         f"-isystem{d}"
@@ -1427,22 +875,10 @@ def run_ninja(
     target="",
     explain=False,
     arch: str | Arch = CURRENT_ARCH,
-    kernel_release=None,
-    debug=False,
-    strip_object_files=False,
-    with_unit_test=False,
 ) -> None:
     check_for_ninja(ctx)
     nf_path = os.path.join(ctx.cwd, 'system-probe.ninja')
-    ninja_generate(
-        ctx,
-        nf_path,
-        arch,
-        debug,
-        strip_object_files,
-        kernel_release,
-        with_unit_test,
-    )
+    ninja_generate(ctx, nf_path, arch)
 
     # generate full compilation database for easy clangd integration
     with open("compile_commands.json", "w") as compiledb:
@@ -1553,6 +989,217 @@ def validate_object_file_metadata(ctx: Context, build_dir: str | Path = "pkg/ebp
         print(f"All {total_metadata_files} object files have valid metadata")
 
 
+# All Bazel eBPF targets, grouped by output directory.
+# Prebuilt targets go to build_dir/, CO-RE targets go to build_dir/co-re/.
+_BAZEL_EBPF_PREBUILT_TARGETS = [
+    "//pkg/network/ebpf/c/prebuilt:dns",
+    "//pkg/network/ebpf/c/prebuilt:dns-debug",
+    "//pkg/network/ebpf/c/prebuilt:offset-guess",
+    "//pkg/network/ebpf/c/prebuilt:offset-guess-debug",
+    "//pkg/network/ebpf/c/prebuilt:tracer",
+    "//pkg/network/ebpf/c/prebuilt:tracer-debug",
+    "//pkg/network/ebpf/c/prebuilt:usm",
+    "//pkg/network/ebpf/c/prebuilt:usm-debug",
+    "//pkg/network/ebpf/c/prebuilt:usm_events_test",
+    "//pkg/network/ebpf/c/prebuilt:usm_events_test-debug",
+    "//pkg/network/ebpf/c/prebuilt:shared-libraries",
+    "//pkg/network/ebpf/c/prebuilt:shared-libraries-debug",
+    "//pkg/network/ebpf/c/prebuilt:conntrack",
+    "//pkg/network/ebpf/c/prebuilt:conntrack-debug",
+    "//pkg/security/ebpf/c/prebuilt:runtime-security",
+    "//pkg/security/ebpf/c/prebuilt:runtime-security-syscall-wrapper",
+    "//pkg/security/ebpf/c/prebuilt:runtime-security-fentry",
+    "//pkg/security/ebpf/c/prebuilt:runtime-security-offset-guesser",
+]
+
+_BAZEL_EBPF_CORE_TARGETS = [
+    "//pkg/ebpf/c:lock_contention",
+    "//pkg/ebpf/c:ksyms_iter",
+    "//pkg/network/ebpf/c:tracer",
+    "//pkg/network/ebpf/c:tracer-debug",
+    "//pkg/network/ebpf/c/co-re:tracer-fentry",
+    "//pkg/network/ebpf/c/co-re:tracer-fentry-debug",
+    "//pkg/network/ebpf/c/runtime:usm",
+    "//pkg/network/ebpf/c/runtime:usm-debug",
+    "//pkg/network/ebpf/c/runtime:shared-libraries",
+    "//pkg/network/ebpf/c/runtime:shared-libraries-debug",
+    "//pkg/network/ebpf/c/runtime:conntrack",
+    "//pkg/network/ebpf/c/runtime:conntrack-debug",
+    "//pkg/collector/corechecks/ebpf/c/runtime:oom-kill",
+    "//pkg/collector/corechecks/ebpf/c/runtime:oom-kill-debug",
+    "//pkg/collector/corechecks/ebpf/c/runtime:tcp-queue-length",
+    "//pkg/collector/corechecks/ebpf/c/runtime:tcp-queue-length-debug",
+    "//pkg/collector/corechecks/ebpf/c/runtime:ebpf",
+    "//pkg/collector/corechecks/ebpf/c/runtime:ebpf-debug",
+    "//pkg/collector/corechecks/ebpf/c/runtime:noisy-neighbor",
+    "//pkg/collector/corechecks/ebpf/c/runtime:noisy-neighbor-debug",
+    "//pkg/gpu/ebpf/c/runtime:gpu",
+    "//pkg/gpu/ebpf/c/runtime:gpu-debug",
+    "//pkg/dyninst/ebpf:dyninst_event",
+    "//pkg/dyninst/ebpf:dyninst_event-debug",
+    "//pkg/ebpf/testdata/c:logdebug-test",
+    "//pkg/ebpf/testdata/c:error_telemetry",
+    "//pkg/ebpf/testdata/c:uprobe_attacher-test",
+    "//cmd/system-probe/subcommands/ebpf/testdata:btf_test",
+]
+
+# Targets that go to their own source directory, not build_dir/co-re/
+_BAZEL_EBPF_INPLACE_TARGETS = {
+    "//pkg/ebpf/kernelbugs/c:uprobe-trigger": "pkg/ebpf/kernelbugs/c",
+    "//pkg/ebpf/kernelbugs/c:detect-seccomp-bug": "pkg/ebpf/kernelbugs/c",
+}
+
+_BAZEL_RUNTIME_FLAT_TARGETS = [
+    "//pkg/ebpf/bytecode:oom-kill_flat",
+    "//pkg/ebpf/bytecode:tcp-queue-length_flat",
+    "//pkg/ebpf/bytecode:usm_flat",
+    "//pkg/ebpf/bytecode:shared-libraries_flat",
+    "//pkg/ebpf/bytecode:conntrack_flat",
+    "//pkg/ebpf/bytecode:tracer_flat",
+    "//pkg/ebpf/bytecode:offsetguess-test_flat",
+    "//pkg/ebpf/bytecode:runtime-security_flat",
+    "//pkg/ebpf/bytecode:gpu_flat",
+]
+
+# _gen targets produce the Go integrity hash files (pkg/ebpf/bytecode/runtime/<name>.go).
+_BAZEL_RUNTIME_GEN_TARGETS = [
+    "//pkg/ebpf/bytecode:oom-kill_gen",
+    "//pkg/ebpf/bytecode:tcp-queue-length_gen",
+    "//pkg/ebpf/bytecode:usm_gen",
+    "//pkg/ebpf/bytecode:shared-libraries_gen",
+    "//pkg/ebpf/bytecode:conntrack_gen",
+    "//pkg/ebpf/bytecode:tracer_gen",
+    "//pkg/ebpf/bytecode:offsetguess-test_gen",
+    "//pkg/ebpf/bytecode:runtime-security_gen",
+    "//pkg/ebpf/bytecode:gpu_gen",
+]
+
+_NON_EBPF_TARGETS = frozenset(
+    [
+        "//pkg/ebpf/kernelbugs/c:detect-seccomp-bug",
+    ]
+)
+
+
+def _ebpf_strip_targets(targets, strip):
+    """Append .stripped suffix to eBPF targets when strip is requested.
+
+    Non-eBPF targets (e.g. cc_binary) are returned unchanged since they
+    don't have Bazel-side stripped variants.
+    """
+    if not strip:
+        return list(targets)
+    return [t + ".stripped" if t not in _NON_EBPF_TARGETS else t for t in targets]
+
+
+def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, runtime_dir: str, strip: bool = True) -> None:
+    """Build all eBPF artifacts via a single ``bazel build``.
+
+    Builds eBPF .o objects (prebuilt, CO-RE, inplace), runtime flattened .c
+    files, and Go integrity hash files, then copies outputs to the
+    appropriate staging directories and source tree.
+    """
+    import shutil
+
+    # detect-seccomp-bug is x86-only (has target_compatible_with in Bazel)
+    if arch == Arch.from_str("arm64"):
+        inplace_targets = {t: d for t, d in _BAZEL_EBPF_INPLACE_TARGETS.items() if "detect-seccomp-bug" not in t}
+    else:
+        inplace_targets = _BAZEL_EBPF_INPLACE_TARGETS
+
+    prebuilt = _ebpf_strip_targets(_BAZEL_EBPF_PREBUILT_TARGETS, strip)
+    core = _ebpf_strip_targets(_BAZEL_EBPF_CORE_TARGETS, strip)
+    inplace = {_ebpf_strip_targets([t], strip)[0]: d for t, d in inplace_targets.items()}
+
+    ebpf_targets = prebuilt + core + list(inplace.keys())
+    all_build_targets = ebpf_targets + list(_BAZEL_RUNTIME_FLAT_TARGETS) + list(_BAZEL_RUNTIME_GEN_TARGETS)
+    print(f"Building {len(all_build_targets)} eBPF + runtime targets via Bazel...")
+    bazel(ctx, "build", *all_build_targets)
+    bazel_bin = bazel(ctx, "info", "bazel-bin", capture_output=True).strip()
+
+    co_re_dir = os.path.join(build_dir, "co-re")
+    os.makedirs(build_dir, exist_ok=True)
+    os.makedirs(co_re_dir, exist_ok=True)
+    os.makedirs(runtime_dir, exist_ok=True)
+
+    def _copy_output(target: str, dest_dir: str):
+        label_path, name = target.lstrip("/").rsplit(":", 1)
+        dest_name = name.removesuffix(".stripped")
+
+        src_o = os.path.join(bazel_bin, label_path, f"{name}.o")
+        src_bin = os.path.join(bazel_bin, label_path, name)
+
+        # Only use mtime fast-path when strip mode hasn't changed.
+        same_mode = name == dest_name
+
+        if os.path.exists(src_o):
+            dst = os.path.join(dest_dir, f"{dest_name}.o")
+            if same_mode and os.path.exists(dst) and os.path.getmtime(dst) >= os.path.getmtime(src_o):
+                return
+            if os.path.exists(dst):
+                os.chmod(dst, 0o644)
+            shutil.copy2(src_o, dst)
+            os.chmod(dst, 0o644)
+        elif os.path.exists(src_bin):
+            dst = os.path.join(dest_dir, dest_name)
+            if same_mode and os.path.exists(dst) and os.path.getmtime(dst) >= os.path.getmtime(src_bin):
+                return
+            if os.path.exists(dst):
+                os.chmod(dst, 0o755)
+            shutil.copy2(src_bin, dst)
+            os.chmod(dst, 0o755)
+        else:
+            print(f"Warning: expected output {src_o} or {src_bin} not found")
+
+    for target in prebuilt:
+        _copy_output(target, build_dir)
+
+    for target in core:
+        _copy_output(target, co_re_dir)
+
+    for target, dest in inplace.items():
+        os.makedirs(dest, exist_ok=True)
+        _copy_output(target, dest)
+
+    print(f"Copied eBPF objects to {build_dir}")
+
+    # Copy runtime flattened .c files to staging directory.
+    for target in _BAZEL_RUNTIME_FLAT_TARGETS:
+        label_path, name = target.lstrip("/").rsplit(":", 1)
+        # run_binary output is under <name>/<out_name>.c; the directory
+        # name matches the macro name which equals out_name for all bundles.
+        bundle_name = name.removesuffix("_flat")
+        src = os.path.join(bazel_bin, label_path, bundle_name, f"{bundle_name}.c")
+        dst = os.path.join(runtime_dir, f"{bundle_name}.c")
+        if os.path.exists(src):
+            if os.path.exists(dst):
+                os.chmod(dst, 0o644)
+            shutil.copy2(src, dst)
+            os.chmod(dst, 0o644)
+        else:
+            print(f"Warning: expected runtime bundle output {src} not found")
+
+    print(f"Copied runtime bundles to {runtime_dir}")
+
+    # Copy generated Go integrity hash files to source tree.
+    go_dest = os.path.join("pkg", "ebpf", "bytecode", "runtime")
+    os.makedirs(go_dest, exist_ok=True)
+    for target in _BAZEL_RUNTIME_GEN_TARGETS:
+        label_path, name = target.lstrip("/").rsplit(":", 1)
+        bundle_name = name.removesuffix("_gen")
+        src = os.path.join(bazel_bin, label_path, bundle_name, f"{bundle_name}.go")
+        dst = os.path.join(go_dest, f"{bundle_name}.go")
+        if os.path.exists(src):
+            if os.path.exists(dst):
+                os.chmod(dst, 0o644)
+            shutil.copy2(src, dst)
+            os.chmod(dst, 0o644)
+        else:
+            print(f"Warning: expected runtime hash output {src} not found")
+
+    print(f"Copied runtime hash files to {go_dest}")
+
+
 @task(aliases=["object-files"])
 def build_object_files(
     ctx,
@@ -1568,20 +1215,23 @@ def build_object_files(
     runtime_dir = get_ebpf_runtime_dir()
 
     if not is_windows:
-        setup_runtime_clang(ctx)
         check_for_inline(ctx)
         ctx.run(f"mkdir -p -m 0755 {runtime_dir}")
         ctx.run(f"mkdir -p -m 0755 {build_dir}/co-re")
 
-    run_ninja(
-        ctx,
-        explain=True,
-        kernel_release=kernel_release,
-        debug=debug,
-        strip_object_files=strip_object_files,
-        with_unit_test=with_unit_test,
-        arch=arch,
-    )
+        # Install Bazel-managed LLVM BPF tools (needed for stripping and runtime compilation).
+        sudo = "" if is_root() else "sudo"
+        ctx.run(f"{sudo} mkdir -p /opt/datadog-agent/embedded/bin")
+        bazel(ctx, "run", "--", "@llvm_bpf//:install", "--destdir=/opt/datadog-agent", sudo=not is_root())
+
+        # Build eBPF .o files via Bazel
+        bazel_build_ebpf(ctx, arch_obj, build_dir, runtime_dir)
+
+    # Verify all committed cgo godefs files are up to date.
+    # The test_suite skips platform-incompatible tests via target_compatible_with.
+    bazel(ctx, "test", "//pkg/ebpf:verify_generated_files")
+
+    run_ninja(ctx, explain=True, arch=arch)
 
     validate_object_file_metadata(ctx, build_dir, verbose=False)
 
@@ -1630,16 +1280,23 @@ def build_rust_binaries(ctx: Context, arch: Arch, output_dir: Path | None = None
         "arm64": "//bazel/platforms:linux_arm64",
     }
 
-    platform_flag = ""
+    platform_flags = []
     if arch.kmt_arch in platform_map:
-        platform_flag = f"--platforms={platform_map[arch.kmt_arch]}"
+        platform_flags.append(f"--platforms={platform_map[arch.kmt_arch]}")
 
     for source_path in RUST_BINARIES:
         if packages and not any(source_path.startswith(package) for package in packages):
             continue
 
         install_dest = output_dir / source_path if output_dir else Path(source_path)
-        ctx.run(f"bazelisk run {platform_flag} -- @//{source_path}:install --destdir={install_dest}")
+        bazel(ctx, "run", *platform_flags, "--", f"@//{source_path}:install", f"--destdir={install_dest}")
+
+
+_BAZEL_CWS_BALOUM_TARGETS = {
+    "//pkg/security/ebpf/c/prebuilt:runtime-security-baloum": "runtime-security.o",
+    "//pkg/security/ebpf/c/prebuilt:runtime-security-syscall-wrapper-baloum": "runtime-security-syscall-wrapper.o",
+    "//pkg/security/ebpf/c/prebuilt:runtime-security-fentry-baloum": "runtime-security-fentry.o",
+}
 
 
 def build_cws_object_files(
@@ -1651,24 +1308,40 @@ def build_cws_object_files(
     with_unit_test=False,
     bundle_ebpf=False,
 ):
-    run_ninja(
-        ctx,
-        target="cws",
-        debug=debug,
-        strip_object_files=strip_object_files,
-        kernel_release=kernel_release,
-        with_unit_test=with_unit_test,
-    )
+    import shutil
+
+    arch_obj = Arch.from_str(arch)
+    build_dir = get_ebpf_build_dir(arch_obj)
+    runtime_dir = get_ebpf_runtime_dir()
+    bazel_build_ebpf(ctx, arch_obj, str(build_dir), str(runtime_dir))
+    bazel(ctx, "test", "//pkg/ebpf:verify_generated_files")
+
+    if with_unit_test:
+        targets = list(_BAZEL_CWS_BALOUM_TARGETS.keys())
+        bazel(ctx, "build", *targets)
+        bazel_bin = bazel(ctx, "info", "bazel-bin", capture_output=True).strip()
+
+        for target, dest_name in _BAZEL_CWS_BALOUM_TARGETS.items():
+            label_path, name = target.lstrip("/").rsplit(":", 1)
+            src = os.path.join(bazel_bin, label_path, f"{name}.o")
+            dst = os.path.join(str(build_dir), dest_name)
+            shutil.copy2(src, dst)
+            os.chmod(dst, 0o444)
 
 
-def clean_object_files(ctx, kernel_release=None, debug=False, strip_object_files=False):
-    run_ninja(
-        ctx,
-        task="clean",
-        debug=debug,
-        strip_object_files=strip_object_files,
-        kernel_release=kernel_release,
-    )
+def clean_object_files(ctx):
+    run_ninja(ctx, task="clean")
+
+    # Remove Bazel-copied eBPF .o files that ninja no longer tracks.
+    build_root = Path("pkg/ebpf/bytecode/build")
+    if build_root.exists():
+        shutil.rmtree(build_root)
+
+    for target, dest_dir in _BAZEL_EBPF_INPLACE_TARGETS.items():
+        name = target.rsplit(":", 1)[1]
+        for candidate in [Path(dest_dir) / f"{name}.o", Path(dest_dir) / name]:
+            if candidate.exists():
+                candidate.unlink()
 
 
 @task
@@ -1915,24 +1588,59 @@ def save_test_dockers(ctx, output_dir, arch, use_crane=False):
         return
 
     # crane does not accept 'x86_64' as a valid architecture
+    crane_arch = arch
     if arch == "x86_64":
-        arch = "amd64"
+        crane_arch = "amd64"
 
-    # only download images not present in preprepared vm disk
-    resp = requests.get('https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/docker.ls')
+    vmconfig_paths = [
+        "test/new-e2e/system-probe/config/vmconfig-system-probe.json",
+        "test/new-e2e/system-probe/config/vmconfig-security-agent.json",
+    ]
+    urls = set()
+    for vmconfig_path in vmconfig_paths:
+        with open(vmconfig_path) as vmconfig:
+            vmjson = json.load(vmconfig)
+            if "vmsets" not in vmjson:
+                continue
 
-    # remove the public.ecr.aws/docker/library/ prefix as we might be downloading official images
-    # from the AWS mirror instead of dockerhub to avoid rate limits
-    docker_ls = {line.removeprefix("public.ecr.aws/docker/library/") for line in resp.text.split('\n') if line.strip()}
+            for vmset in vmjson["vmsets"]:
+                if "disks" not in vmset:
+                    continue
+                if vmset["arch"] != arch:
+                    continue
+
+                for disk in vmset["disks"]:
+                    if "source" not in disk:
+                        continue
+
+                    root = disk["source"].removesuffix(f"/docker-{arch}.qcow2.xz")
+                    urls.add(f"{root}/docker.ls")
+
+    docker_ls = set()
+    for u in urls:
+        # only download images not present in preprepared vm disk
+        resp = requests.get(u)
+
+        # remove mirror prefixes as we might be downloading official images
+        # from the AWS or DD mirror instead of dockerhub to avoid rate limits
+        for line in resp.text.split('\n'):
+            if not line.strip():
+                continue
+
+            docker_ls.add(
+                line.removeprefix("public.ecr.aws/docker/library/")
+                .removeprefix("registry.ddbuild.io/images/mirror/library/")
+                .removeprefix("registry.ddbuild.io/images/mirror/")
+            )
 
     images = _test_docker_image_list()
     for image in images - docker_ls:
         output_path = image.translate(str.maketrans('', '', string.punctuation))
         output_file = f"{os.path.join(output_dir, output_path)}.tar"
         if use_crane:
-            ctx.run(f"crane pull --platform linux/{arch} {image} {output_file}")
+            ctx.run(f"crane pull --platform linux/{crane_arch} {image} {output_file}")
         else:
-            ctx.run(f"docker pull --platform linux/{arch} {image}")
+            ctx.run(f"docker pull --platform linux/{crane_arch} {image}")
             ctx.run(f"docker save {image} > {output_file}")
 
 
@@ -1964,7 +1672,7 @@ def _test_docker_image_list():
     images.remove("public.ecr.aws/b1o7r7e0/usm-team/go-httpbin:https")
 
     # Add images used in docker run commands
-    images.add("public.ecr.aws/docker/library/alpine:3.20.3")
+    images.add("alpine:3.20.3")
 
     return images
 
@@ -1996,6 +1704,61 @@ def save_build_outputs(ctx, destfile):
                 ctx.run(f"cp {outputitem['output']} {outdir}/")
                 outfiles.append(outputitem['output'])
                 count += 1
+
+        # Include Bazel-produced eBPF .o files (prebuilt + CO-RE) which are
+        # no longer tracked by the ninja compile database.
+        arch = Arch.local()
+        build_dir = get_ebpf_build_dir(arch)
+        for subdir in ["", "co-re"]:
+            src_dir = os.path.join(str(build_dir), subdir) if subdir else str(build_dir)
+            for obj in glob.glob(os.path.join(src_dir, "*.o")):
+                relpath = os.path.relpath(obj)
+                filedir, _ = os.path.split(relpath)
+                outdir = os.path.join(stagedir, filedir)
+                os.makedirs(outdir, exist_ok=True)
+                shutil.copy2(obj, outdir)
+                outfiles.append(relpath)
+                count += 1
+
+        # Include inplace targets (e.g. uprobe-trigger.o, detect-seccomp-bug)
+        # that live in their source directories rather than the central build dir.
+        for target, dest_dir in _BAZEL_EBPF_INPLACE_TARGETS.items():
+            name = target.rsplit(":", 1)[1]
+            # eBPF targets produce .o files, native cc_binary targets produce bare binaries
+            for candidate in [os.path.join(dest_dir, f"{name}.o"), os.path.join(dest_dir, name)]:
+                if os.path.exists(candidate):
+                    relpath = os.path.relpath(candidate)
+                    filedir, _ = os.path.split(relpath)
+                    outdir = os.path.join(stagedir, filedir)
+                    os.makedirs(outdir, exist_ok=True)
+                    shutil.copy2(candidate, outdir)
+                    outfiles.append(relpath)
+                    count += 1
+                    break
+
+        # Include runtime compilation flattened .c files (generated by Bazel,
+        # consumed by omnibus packaging) in the tarball.
+        runtime_dir = str(get_ebpf_runtime_dir())
+        for cfile in glob.glob(os.path.join(runtime_dir, "*.c")):
+            relpath = os.path.relpath(cfile)
+            filedir, _ = os.path.split(relpath)
+            outdir = os.path.join(stagedir, filedir)
+            os.makedirs(outdir, exist_ok=True)
+            shutil.copy2(cfile, outdir)
+            outfiles.append(relpath)
+            count += 1
+
+        # Include runtime compilation Go integrity hash files (gitignored,
+        # generated by Bazel) so the omnibus go build can find them.
+        go_hash_dir = os.path.join("pkg", "ebpf", "bytecode", "runtime")
+        for gofile in glob.glob(os.path.join(go_hash_dir, "*.go")):
+            relpath = os.path.relpath(gofile)
+            filedir, _ = os.path.split(relpath)
+            outdir = os.path.join(stagedir, filedir)
+            os.makedirs(outdir, exist_ok=True)
+            shutil.copy2(gofile, outdir)
+            outfiles.append(relpath)
+            count += 1
 
         if count == 0:
             raise Exit(message="no build outputs captured")

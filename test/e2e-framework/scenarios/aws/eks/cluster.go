@@ -6,10 +6,10 @@
 package eks
 
 import (
-	"github.com/pulumi/pulumi-aws/sdk/v6/go/aws/ec2"
-	awsEks "github.com/pulumi/pulumi-aws/sdk/v6/go/aws/eks"
-	awsIam "github.com/pulumi/pulumi-aws/sdk/v6/go/aws/iam"
-	"github.com/pulumi/pulumi-eks/sdk/v3/go/eks"
+	"github.com/pulumi/pulumi-aws/sdk/v7/go/aws/ec2"
+	awsEks "github.com/pulumi/pulumi-aws/sdk/v7/go/aws/eks"
+	awsIam "github.com/pulumi/pulumi-aws/sdk/v7/go/aws/iam"
+	"github.com/pulumi/pulumi-eks/sdk/v4/go/eks"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	appsv1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/apps/v1"
 	corev1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/core/v1"
@@ -88,40 +88,12 @@ func NewCluster(e aws.Environment, name string, opts ...Option) (*kubecomp.Clust
 			return err
 		}
 
-		// Fargate Configuration
-		var fargateProfileSelectors awsEks.FargateProfileSelectorArray
-		if fargateNamespace := e.EKSFargateNamespace(); fargateNamespace != "" {
-			fargateProfileSelectors = awsEks.FargateProfileSelectorArray{
-				awsEks.FargateProfileSelectorArgs{
-					Namespace: pulumi.String(fargateNamespace),
-				},
-			}
-		}
-
 		// Create an EKS cluster with the default configuration.
-		cluster, err := eks.NewCluster(e.Ctx(), e.Namer.ResourceName("eks"), &eks.ClusterArgs{
-			Name:                  e.CommonNamer().DisplayName(100),
-			Version:               pulumi.StringPtr(e.KubernetesVersion()),
-			EndpointPrivateAccess: pulumi.BoolPtr(true),
-			EndpointPublicAccess:  pulumi.BoolPtr(false),
-			Fargate: eks.FargateProfileArgs{
-				Selectors: append(awsEks.FargateProfileSelectorArray{
-					// Put CoreDNS pods on Fargate because this addon needs to be deployed
-					// before the node groups are created.
-					awsEks.FargateProfileSelectorArgs{
-						Namespace: pulumi.String("kube-system"),
-					},
-					// Automatically schedule on Fargate pods on which the Fargate agent sidecar
-					// container injection is requested.
-					awsEks.FargateProfileSelectorArgs{
-						Labels: pulumi.StringMap{
-							"agent.datadoghq.com/sidecar": pulumi.String("fargate"),
-						},
-						Namespace: pulumi.String("*"),
-					},
-				}, fargateProfileSelectors...),
-				SubnetIds: pulumi.ToStringArray(lo.Map(e.EKSPODSubnets(), func(subnet aws.DDInfraEKSPodSubnets, _ int) string { return subnet.SubnetID })),
-			},
+		clusterArgs := &eks.ClusterArgs{
+			Name:                         e.CommonNamer().DisplayName(100),
+			Version:                      pulumi.StringPtr(e.KubernetesVersion()),
+			EndpointPrivateAccess:        pulumi.BoolPtr(true),
+			EndpointPublicAccess:         pulumi.BoolPtr(false),
 			ClusterSecurityGroup:         clusterSG,
 			NodeAssociatePublicIpAddress: pulumi.BoolRef(false),
 			PrivateSubnetIds:             pulumi.ToStringArray(e.DefaultSubnets()),
@@ -150,7 +122,40 @@ func NewCluster(e aws.Environment, name string, opts ...Option) (*kubecomp.Clust
 					},
 				},
 			},
-		}, pulumi.Timeouts(&pulumi.CustomTimeouts{
+		}
+
+		// Fargate Configuration (enabled by default)
+		if !params.DisableFargate {
+			var fargateProfileSelectors awsEks.FargateProfileSelectorArray
+			if fargateNamespace := e.EKSFargateNamespace(); fargateNamespace != "" {
+				fargateProfileSelectors = awsEks.FargateProfileSelectorArray{
+					awsEks.FargateProfileSelectorArgs{
+						Namespace: pulumi.String(fargateNamespace),
+					},
+				}
+			}
+
+			clusterArgs.Fargate = eks.FargateProfileArgs{
+				Selectors: append(awsEks.FargateProfileSelectorArray{
+					// Put CoreDNS pods on Fargate because this addon needs to be deployed
+					// before the node groups are created.
+					awsEks.FargateProfileSelectorArgs{
+						Namespace: pulumi.String("kube-system"),
+					},
+					// Automatically schedule on Fargate pods on which the Fargate agent sidecar
+					// container injection is requested.
+					awsEks.FargateProfileSelectorArgs{
+						Labels: pulumi.StringMap{
+							"agent.datadoghq.com/sidecar": pulumi.String("fargate"),
+						},
+						Namespace: pulumi.String("*"),
+					},
+				}, fargateProfileSelectors...),
+				SubnetIds: pulumi.ToStringArray(lo.Map(e.EKSPODSubnets(), func(subnet aws.DDInfraEKSPodSubnets, _ int) string { return subnet.SubnetID })),
+			}
+		}
+
+		cluster, err := eks.NewCluster(e.Ctx(), e.Namer.ResourceName("eks"), clusterArgs, pulumi.Timeouts(&pulumi.CustomTimeouts{
 			Create: "30m",
 			Update: "30m",
 			Delete: "30m",

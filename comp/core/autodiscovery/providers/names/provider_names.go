@@ -24,6 +24,7 @@ const (
 	KubeEndpointSlices               = "kubernetes-endpointslices"
 	KubeEndpointsFile                = "kubernetes-endpoints-file"
 	KubeEndpointSlicesFile           = "kubernetes-endpointslices-file"
+	KubeCRD                          = "kubernetes-crd"
 	ProcessLog                       = "process_log"
 	PrometheusPods                   = "prometheus-pods"
 	PrometheusServices               = "prometheus-services"
@@ -33,6 +34,7 @@ const (
 	Zookeeper                        = "zookeeper"
 	GPU                              = "gpu"
 	DataStreamsLiveMessages          = "dsm-live-messages"
+	DOQueryActions                   = "do-query-actions"
 )
 
 // Internal Autodiscovery names for the config providers
@@ -50,6 +52,7 @@ const (
 	KubeServicesFileRegisterName   = "kube_services_file"
 	KubeEndpointsRegisterName      = "kube_endpoints"
 	KubeEndpointsFileRegisterName  = "kube_endpoints_file"
+	KubeCrdRegisterName            = "kube_crd"
 	PrometheusPodsRegisterName     = "prometheus_pods"
 	PrometheusServicesRegisterName = "prometheus_services"
 	RemoteConfigRegisterName       = "remote_config"

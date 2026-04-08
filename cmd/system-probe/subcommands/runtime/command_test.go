@@ -197,6 +197,14 @@ func TestCheckPoliciesCommand(t *testing.T) {
 		func() {})
 }
 
+func TestDumpPoliciesCommand(t *testing.T) {
+	fxutil.TestOneShotSubcommand(t,
+		Commands(&command.GlobalParams{}),
+		[]string{"runtime", "policy", "dump"},
+		dumpLoadedPolicies,
+		func() {})
+}
+
 func TestReloadRuntimePoliciesCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),

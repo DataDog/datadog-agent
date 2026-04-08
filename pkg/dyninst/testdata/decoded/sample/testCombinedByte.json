@@ -57,15 +57,12 @@
               "x": {
                 "type": "uint8",
                 "value": "3"
-              },
-              "y": {
-                "type": "float32",
-                "notCapturedReason": "unavailable"
               }
             }
           }
         }
       },
+      "type": "snapshot",
       "evaluationErrors": [
         {
           "expr": "@duration",
@@ -74,6 +71,7 @@
       ]
     },
     "timestamp": "[ts]",
-    "message": "2, 3, {unavailable}"
+    "message": "2, 3, {error: failed to resolve reference \"y\"}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

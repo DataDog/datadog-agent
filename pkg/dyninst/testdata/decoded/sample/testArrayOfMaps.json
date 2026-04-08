@@ -112,6 +112,7 @@
           }
         }
       },
+      "type": "snapshot",
       "evaluationErrors": [
         {
           "expr": "@duration",
@@ -120,6 +121,7 @@
       ]
     },
     "timestamp": "[ts]",
-    "message": "[map[foo: 1, bar: 2], map[foo: 1, bar: 2]]"
+    "message": "[map[foo: 1, bar: 2], map[foo: 1, bar: 2]]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

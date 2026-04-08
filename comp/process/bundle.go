@@ -17,13 +17,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/apiserver"
 	"github.com/DataDog/datadog-agent/comp/process/connectionscheck/connectionscheckimpl"
 	"github.com/DataDog/datadog-agent/comp/process/containercheck/containercheckimpl"
-	"github.com/DataDog/datadog-agent/comp/process/expvars/expvarsimpl"
+	expvarsfx "github.com/DataDog/datadog-agent/comp/process/expvars/fx"
 	"github.com/DataDog/datadog-agent/comp/process/forwarders/forwardersimpl"
 	gpusubscriber "github.com/DataDog/datadog-agent/comp/process/gpusubscriber/fx"
-	"github.com/DataDog/datadog-agent/comp/process/hostinfo/hostinfoimpl"
+	hostinfofx "github.com/DataDog/datadog-agent/comp/process/hostinfo/fx"
 	"github.com/DataDog/datadog-agent/comp/process/processcheck/processcheckimpl"
 	"github.com/DataDog/datadog-agent/comp/process/processdiscoverycheck/processdiscoverycheckimpl"
-	"github.com/DataDog/datadog-agent/comp/process/profiler/profilerimpl"
+	profilerimpl "github.com/DataDog/datadog-agent/comp/process/profiler/fx"
 	"github.com/DataDog/datadog-agent/comp/process/rtcontainercheck/rtcontainercheckimpl"
 	"github.com/DataDog/datadog-agent/comp/process/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/comp/process/submitter/submitterimpl"
@@ -51,8 +51,8 @@ func Bundle() fxutil.BundleOptions {
 
 		agentimpl.Module(),
 
-		hostinfoimpl.Module(),
-		expvarsimpl.Module(),
+		hostinfofx.Module(),
+		expvarsfx.Module(),
 
 		apiserver.Module(),
 		connectionsforwarderfx.Module(),

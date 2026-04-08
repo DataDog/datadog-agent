@@ -71,10 +71,12 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "testReturnsArray"
+    "message": "testReturnsArray",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

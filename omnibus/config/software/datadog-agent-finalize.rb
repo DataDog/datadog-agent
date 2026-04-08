@@ -31,9 +31,9 @@ build do
 
 	if linux_target?
 	    if heroku_target?
-               command_on_repo_root "bazelisk run -- //packages/agent/heroku:license_files_install --destdir=#{install_dir}"
+               command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- //packages/agent/heroku:license_files_install --destdir=#{install_dir}"
             else
-               command_on_repo_root "bazelisk run -- //packages/agent/linux:license_files_install --destdir=#{install_dir}"
+               command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- //packages/agent/linux:license_files_install --destdir=#{install_dir}"
             end
         end
 
@@ -60,6 +60,7 @@ build do
             # Delete the leftovers of static linking.
             delete "#{install_dir}/embedded/lib/libdbus-1.a"
             delete "#{install_dir}/embedded/include/dbus-1.0"
+            delete "#{install_dir}/embedded/lib/dbus-1.0/include"
         end
 
         # TODO: Rather than move these, let's install them to the right place to start
@@ -226,7 +227,7 @@ build do
                                  live_stream: Omnibus.logger.live_stream(:info),
                                  env: {
                                    ARCH: arm_target? ? "arm64" : "x86_64",
-                                   MIN_ACCEPTABLE_VERSION: "11.0",
+                                   MIN_ACCEPTABLE_VERSION: "12.0",
                                    INSTALL_DIR: install_dir,
                                    ALLOW_PATTERN: "(#{allow_list.join('|')})",
                                  }

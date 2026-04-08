@@ -107,10 +107,12 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "[51, 52], [63, 64, 65]"
+    "message": "[51, 52], [63, 64, 65]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

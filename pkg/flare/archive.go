@@ -14,9 +14,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"go.yaml.in/yaml/v2"
@@ -30,6 +33,7 @@ import (
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/flare/common"
 	"github.com/DataDog/datadog-agent/pkg/flare/priviledged"
+	"github.com/DataDog/datadog-agent/pkg/process/util/coreagent"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	systemprobeStatus "github.com/DataDog/datadog-agent/pkg/status/systemprobe"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
@@ -77,15 +81,17 @@ func ExtraFlareProviders(workloadmeta option.Option[workloadmeta.Component], ipc
 		flaretypes.NewFiller(provideInstallInfo),
 		flaretypes.NewFiller(provideAuthTokenPerm),
 		flaretypes.NewFiller(provideContainers(workloadmeta)),
+		flaretypes.NewFiller(provideRuntimeDebugInfo),
 	}
 
 	telemetryURL := fmt.Sprintf("http://127.0.0.1:%s/telemetry", pkgconfigsetup.Datadog().GetString("expvar_port"))
 
 	for filename, fromFunc := range map[string]func() ([]byte, error){
-		"envvars.log":         common.GetEnvVars,
-		"health.yaml":         getHealth,
-		"go-routine-dump.log": func() ([]byte, error) { return remote.GetGoRoutineDump() },
-		"telemetry.log":       func() ([]byte, error) { return remote.getHTTPCallContent(telemetryURL) },
+		"envvars.log":                         common.GetEnvVars,
+		"health.yaml":                         getHealth,
+		"go-routine-dump.log":                 func() ([]byte, error) { return remote.GetGoRoutineDump() },
+		"telemetry.log":                       func() ([]byte, error) { return remote.getHTTPCallContent(telemetryURL) },
+		"connectivity/resolved_endpoints.txt": getEndpointDNS,
 	} {
 		providers = append(providers, flaretypes.NewFiller(
 			func(fb flaretypes.FlareBuilder) error {
@@ -96,6 +102,70 @@ func ExtraFlareProviders(workloadmeta option.Option[workloadmeta.Component], ipc
 	}
 
 	return providers
+}
+
+// getEndpointDNS resolves the hostnames of all configured agent endpoints.
+// The results can be used to determine whether the agent is using PrivateLink
+// (private IPs) vs. the public Datadog intake.
+func getEndpointDNS() ([]byte, error) {
+	cfg := pkgconfigsetup.Datadog()
+	endpointDescriptors, err := configUtils.GetMultipleEndpoints(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("could not get endpoints: %w", err)
+	}
+
+	var buf bytes.Buffer
+
+	// Collect unique hostnames from all configured endpoint URLs.
+	seen := make(map[string]bool)
+	var hostnames []string
+	for domain := range endpointDescriptors {
+		u, parseErr := url.Parse(domain)
+		if parseErr != nil {
+			fmt.Fprintf(&buf, "%s: error parsing URL: %s\n", domain, parseErr)
+			continue
+		}
+		if u.Hostname() == "" {
+			continue
+		}
+		h := u.Hostname()
+		if !seen[h] {
+			seen[h] = true
+			hostnames = append(hostnames, h)
+		}
+	}
+	sort.Strings(hostnames)
+
+	// Use a single context with a fixed budget shared across all lookups so the
+	// aggregate runtime is bounded regardless of how many endpoints are configured.
+	// TODO: expose as a configurable timeout if needed in the future.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	resolver := &net.Resolver{}
+	for _, h := range hostnames {
+		// LookupIPAddr returns both IPv4 and IPv6 addresses; separate them for clarity.
+		addrs, lookupErr := resolver.LookupIPAddr(ctx, h)
+		if lookupErr != nil {
+			fmt.Fprintf(&buf, "%s: error: %s\n", h, lookupErr)
+			continue
+		}
+		var ipv4s, ipv6s []string
+		for _, addr := range addrs {
+			if addr.IP.To4() != nil {
+				ipv4s = append(ipv4s, addr.IP.String())
+			} else {
+				ipv6s = append(ipv6s, addr.IP.String())
+			}
+		}
+		if len(ipv4s) > 0 {
+			fmt.Fprintf(&buf, "%s IPv4: %s\n", h, strings.Join(ipv4s, ", "))
+		}
+		if len(ipv6s) > 0 {
+			fmt.Fprintf(&buf, "%s IPv6: %s\n", h, strings.Join(ipv6s, ", "))
+		}
+	}
+	return buf.Bytes(), nil
 }
 
 func provideContainers(workloadmeta option.Option[workloadmeta.Component]) func(fb flaretypes.FlareBuilder) error {
@@ -160,6 +230,11 @@ func provideSystemProbe(fb flaretypes.FlareBuilder) error {
 		_ = fb.AddFileFromFunc("system_probe_runtime_config_dump.yaml", getSystemProbeConfig)
 		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "vpc_subnets.log"), getVPCSubnetsForHost)
 		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "dyninst_goprocs.json"), getSystemProbeDyninstProcs)
+		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "dyninst_stats.json"), getSystemProbeDyninstStats)
+		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "dyninst_state.json"), getSystemProbeDyninstState)
+		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "dyninst_diagnostics.json"), getSystemProbeDyninstDiagnostics)
+		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "dyninst_config.json"), getSystemProbeDyninstConfig)
+		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "dyninst_symdb.json"), getSystemProbeDyninstSymDB)
 	} else {
 		// If system probe is disabled, we still want to include the system probe config file
 		_ = fb.AddFileFromFunc("system_probe_runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(pkgconfigsetup.SystemProbe().AllSettings()) })
@@ -175,7 +250,7 @@ func (r *RemoteFlareProvider) provideExtraFiles(fb flaretypes.FlareBuilder) erro
 	} else {
 		fb.AddFileFromFunc("tagger-list.json", r.getAgentTaggerList)    //nolint:errcheck
 		fb.AddFileFromFunc("workload-list.log", r.getAgentWorkloadList) //nolint:errcheck
-		if !pkgconfigsetup.Datadog().GetBool("process_config.run_in_core_agent.enabled") {
+		if !coreagent.ProcessChecksRunInCoreAgent() {
 			fb.AddFileFromFunc("process-agent_tagger-list.json", r.getProcessAgentTaggerList) //nolint:errcheck
 			r.getChecksFromProcessAgent(fb, getProcessAPIAddressPort)
 		}
@@ -220,6 +295,36 @@ func getSystemProbeConfig() ([]byte, error) {
 func getSystemProbeDyninstProcs() ([]byte, error) {
 	sysProbeClient := sysprobeclient.Get(priviledged.GetSystemProbeSocketPath())
 	url := sysprobeclient.URL("/dynamic_instrumentation/debug/goprocs")
+	return getHTTPData(sysProbeClient, url)
+}
+
+func getSystemProbeDyninstStats() ([]byte, error) {
+	sysProbeClient := sysprobeclient.Get(priviledged.GetSystemProbeSocketPath())
+	url := sysprobeclient.URL("/dynamic_instrumentation/debug/stats")
+	return getHTTPData(sysProbeClient, url)
+}
+
+func getSystemProbeDyninstState() ([]byte, error) {
+	sysProbeClient := sysprobeclient.Get(priviledged.GetSystemProbeSocketPath())
+	url := sysprobeclient.URL("/dynamic_instrumentation/debug/state")
+	return getHTTPData(sysProbeClient, url)
+}
+
+func getSystemProbeDyninstDiagnostics() ([]byte, error) {
+	sysProbeClient := sysprobeclient.Get(priviledged.GetSystemProbeSocketPath())
+	url := sysprobeclient.URL("/dynamic_instrumentation/debug/diagnostics")
+	return getHTTPData(sysProbeClient, url)
+}
+
+func getSystemProbeDyninstConfig() ([]byte, error) {
+	sysProbeClient := sysprobeclient.Get(priviledged.GetSystemProbeSocketPath())
+	url := sysprobeclient.URL("/dynamic_instrumentation/debug/config")
+	return getHTTPData(sysProbeClient, url)
+}
+
+func getSystemProbeDyninstSymDB() ([]byte, error) {
+	sysProbeClient := sysprobeclient.Get(priviledged.GetSystemProbeSocketPath())
+	url := sysprobeclient.URL("/dynamic_instrumentation/debug/symdb")
 	return getHTTPData(sysProbeClient, url)
 }
 

@@ -112,6 +112,31 @@ func NewDownloader(env *env.Env, client *http.Client) *Downloader {
 	}
 }
 
+// WithRegistryOverride returns a new Downloader with the given registry overrides applied.
+// The returned Downloader shares the same HTTP client as the original.
+// Image-scoped override maps (from DD_INSTALLER_REGISTRY_URL_<IMAGE> env vars) are
+// preserved and take precedence over the per-extension override, matching the
+// existing priority order.
+func (d *Downloader) WithRegistryOverride(url, auth, username, password string) *Downloader {
+	envCopy := *d.env
+	if url != "" {
+		envCopy.RegistryOverride = url
+	}
+	if auth != "" {
+		envCopy.RegistryAuthOverride = auth
+	}
+	if username != "" {
+		envCopy.RegistryUsername = username
+	}
+	if password != "" {
+		envCopy.RegistryPassword = password
+	}
+	return &Downloader{
+		env:    &envCopy,
+		client: d.client,
+	}
+}
+
 // Download downloads the Datadog Package referenced in the given Package struct.
 func (d *Downloader) Download(ctx context.Context, packageURL string) (*DownloadedPackage, error) {
 	log.Debugf("Downloading package from %s", packageURL)

@@ -28,7 +28,7 @@ func TestUptimeCheckLinux(t *testing.T) {
 	mockSender.On("FinalizeCheckServiceTag").Return()
 
 	uptimeCheck := new(Check)
-	uptimeCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	uptimeCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	// reset the check ID for the sake of correctness
 	mocksender.SetSender(mockSender, uptimeCheck.ID())

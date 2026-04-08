@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/netip"
-	"runtime"
 	"sort"
 	"strconv"
 	"time"
@@ -72,9 +71,10 @@ type ConnectionsCheck struct {
 	networkID              string
 	notInitializedLogLimit *log.Limit
 
-	dockerFilter     *parser.DockerProxy
-	serviceExtractor *parser.ServiceExtractor
-	processData      *ProcessData
+	dockerFilter         *parser.DockerProxy
+	serviceExtractor     *parser.ServiceExtractor
+	processNameExtractor *parser.ProcessNameExtractor
+	processData          *ProcessData
 
 	localresolver *resolver.LocalResolver
 	wmeta         workloadmeta.Component
@@ -113,8 +113,10 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 	useWindowsServiceName := c.sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
 	useImprovedAlgorithm := c.sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.use_improved_algorithm")
 	c.serviceExtractor = parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
+	c.processNameExtractor = parser.NewProcessNameExtractor()
 	c.processData.Register(c.dockerFilter)
 	c.processData.Register(c.serviceExtractor)
+	c.processData.Register(c.processNameExtractor)
 	c.hostTagProvider = hosttags.NewHostTagProviderWithDuration(c.sysprobeYamlConfig.GetDuration("system_probe_config.expected_tags_duration"))
 
 	// LocalResolver is a singleton LocalResolver
@@ -131,11 +133,6 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 
 // IsEnabled returns true if the check is enabled by configuration
 func (c *ConnectionsCheck) IsEnabled() bool {
-	// connection check is not supported on darwin, so we should fail gracefully in this case.
-	if runtime.GOOS == "darwin" {
-		return false
-	}
-
 	// connections check is only supported on the process agent
 	if flavor.GetFlavor() != flavor.ProcessAgent {
 		return false
@@ -189,7 +186,7 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 	getContainersCB := c.getContainerTagsCallback(c.getContainersForExplicitTagging(conns.Conns))
 	getProcessTagsCB := c.getProcessTagsCallback()
 	groupID := nextGroupID()
-	messages := batchConnections(c.hostInfo, c.hostTagProvider, getContainersCB, getProcessTagsCB, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor, conns.ResolvConfs)
+	messages := batchConnections(c.hostInfo, c.hostTagProvider, getContainersCB, getProcessTagsCB, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor, c.processNameExtractor, conns.ResolvConfs)
 	return StandardRunResult(messages), nil
 }
 
@@ -453,6 +450,7 @@ func batchConnections(
 	tags []string,
 	agentCfg *model.AgentConfiguration,
 	serviceExtractor *parser.ServiceExtractor,
+	processNameExtractor *parser.ProcessNameExtractor,
 	resolvConfs []string,
 ) []model.MessageBody {
 	groupSize := groupSize(len(cxs), maxConnsPerMessage)
@@ -520,6 +518,12 @@ func batchConnections(
 					log.Debugf("error getting tags for process %v: %v", c.Pid, err)
 				} else {
 					tagsStr = append(tagsStr, processTags...)
+				}
+			}
+
+			if processNameExtractor != nil {
+				if name := processNameExtractor.GetProcessName(c.Pid); name != "" {
+					tagsStr = append(tagsStr, "process_name:"+name)
 				}
 			}
 

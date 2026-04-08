@@ -21,6 +21,7 @@
           }
         }
       },
+      "type": "snapshot",
       "evaluationErrors": [
         {
           "expr": "@duration",
@@ -29,6 +30,7 @@
       ]
     },
     "timestamp": "[ts]",
-    "message": "{error: cannot access member \"anotherInt\" on type *ir.GoStringHeaderType (\"string\") in expression \"x.nested.anotherString.anotherInt\"} {error: failed to resolve field \"notAMember\" in expression \"x.notAMember\": type \"main.anotherStruct\" has no notAMember field}"
+    "message": "{error: cannot access member \"anotherInt\" on type *ir.GoStringHeaderType (\"string\") in expression \"x.nested.anotherString.anotherInt\"} {error: failed to resolve field \"notAMember\" in expression \"x.notAMember\": type \"main.anotherStruct\" has no notAMember field}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

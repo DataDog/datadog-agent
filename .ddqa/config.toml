@@ -34,6 +34,14 @@ github_team = "agent-configuration"
 github_labels = ["team/agent-configuration"]
 exclude_members = ["sgnn7"]
 
+[teams."Agent Health"]
+jira_project = "AGTHEAL"
+jira_issue_type = "QA"
+jira_statuses = ["To Do", "In Progress", "Done"]
+github_team = "agent-health"
+github_labels = ["team/agent-health"]
+exclude_members = ["iglendd", "kunalkxxxxxxxxr", "mwdd146980"]
+
 [teams."Agent Developer Experience"]
 jira_project = "ACIX"
 jira_issue_type = "QA"
@@ -82,8 +90,8 @@ github_labels = ["team/usm"]
 jira_project = "NDMC"
 jira_issue_type = "HighPriority"
 jira_statuses = ["To Do", "In Progress", "Done"]
-github_team = "ndm-core"
-github_labels = ["team/ndm-core"]
+github_team = "network-device-monitoring-core"
+github_labels = ["team/network-device-monitoring-core"]
 
 [teams."Network Device Monitoring - Integrations"]
 jira_project = "NDINT"

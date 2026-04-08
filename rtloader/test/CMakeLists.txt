@@ -22,14 +22,13 @@ endif()
 set (CGO_CFLAGS \"-I${CMAKE_SOURCE_DIR}/include -I${CMAKE_SOURCE_DIR}/common -Wno-deprecated-declarations\")
 
 if (WIN32)
-    set (CGO_LDFLAGS -L${PROJECT_BINARY_DIR}/rtloader -ldatadog-agent-rtloader -lstdc++ -static)
+    set (CGO_LDFLAGS \"-L${PROJECT_BINARY_DIR}/rtloader -ldatadog-agent-rtloader -lstdc++ -static\")
 elseif(APPLE)
-    set (CGO_LDFLAGS -L${PROJECT_BINARY_DIR}/rtloader -ldatadog-agent-rtloader -ldl -rpath ${PROJECT_BINARY_DIR}/../../dev/lib)
+    set (CGO_LDFLAGS \"-L${PROJECT_BINARY_DIR}/rtloader -ldatadog-agent-rtloader -ldl -rpath ${PROJECT_BINARY_DIR}/../../dev/lib\")
 else()
-    set (CGO_LDFLAGS -L${PROJECT_BINARY_DIR}/rtloader -ldatadog-agent-rtloader -ldl)
+    set (CGO_LDFLAGS \"-L${PROJECT_BINARY_DIR}/rtloader -ldatadog-agent-rtloader -ldl\")
 endif()
 
-set (CGO_LDFLAGS \"-L${PROJECT_BINARY_DIR}/three/ ${CGO_LDFLAGS}\")
 add_custom_command(
     OUTPUT testPy3
     COMMAND ${CMAKE_COMMAND} -E env CGO_CFLAGS=${CGO_CFLAGS} CGO_LDFLAGS=${CGO_LDFLAGS} DYLD_LIBRARY_PATH=${LIBS_PATH} LD_LIBRARY_PATH=${LIBS_PATH} go test -mod=readonly -count=1 -p=1 ${PKGS}
