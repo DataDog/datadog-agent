@@ -27,6 +27,8 @@ func (server *apiServer) startIPCServer(ipcServerAddr string, tmf observability.
 	server.ipcAddr = ipcListener.Addr()
 
 	configEndpointMux := configendpoint.GetConfigEndpointMuxCore(server.cfg)
+	// Pass "/config/v1" to preserve the full path since configEndpointMux is mounted via http.StripPrefix("/config/v1", ...).
+	configEndpointMux.Use(observability.CaptureRouteTemplateMiddlewareWithPrefix("/config/v1"))
 
 	ipcMux := http.NewServeMux()
 	ipcMux.Handle(

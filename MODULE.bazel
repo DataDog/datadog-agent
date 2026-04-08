@@ -10,6 +10,9 @@ env_vars(
     # Each variable needs a justification. Every time you use one, the
     # target using it is potentially uncachable.
     variables = [
+        # This gets set by omnibus builds in many cases. It's used in the script
+        # to set things like compression, so we'll mimic that for now.
+        "DEPLOY_AGENT",
         # For some tests we want to run with higher compression, but
         # not break caching and rebuild the binaries.
         "FORCED_PACKAGE_COMPRESSION_LEVEL",
@@ -321,6 +324,9 @@ include("//deps/secret_connector:secret_connector.MODULE.bazel")
 
 # buildifier: leave-alone
 include("//deps/security_agent_policies:security_agent_policies.MODULE.bazel")
+
+# buildifier: leave-alone
+include("//deps/setuptools:setuptools.MODULE.bazel")
 
 # buildifier: leave-alone
 include("//deps/snmp_traps:snmp_traps.MODULE.bazel")
