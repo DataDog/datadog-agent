@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "patterns",
+    srcs = [
+        "ErrorCode.go",
+        "Token.go",
+        "TokenKind.go",
+        "TokenizeResponse.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/patterns/tokenizer/rust/flatbuffers/patterns",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_google_flatbuffers//go"],
+)

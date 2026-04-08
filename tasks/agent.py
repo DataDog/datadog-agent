@@ -33,10 +33,12 @@ from tasks.libs.common.utils import (
     get_build_flags,
     get_embedded_path,
     get_goenv,
+    get_repo_root,
     get_version,
     gitlab_section,
 )
 from tasks.libs.releasing.version import create_version_json
+from tasks.patterns import build_library as build_patterns_library
 from tasks.rtloader import clean as rtloader_clean
 from tasks.rtloader import install as rtloader_install
 from tasks.rtloader import install_with_bazel as rtloader_install_with_bazel
@@ -223,6 +225,13 @@ def build(
 
     if not agent_bin:
         agent_bin = os.path.join(BIN_PATH, bin_name("agent"))
+
+    # Build Rust patterns library if rust_patterns tag is included.
+    # Skipped when vendored binaries exist at pkg/logs/patterns/tokenizer/rust/vendor/.
+    vendor_dir = os.path.join("pkg", "logs", "patterns", "tokenizer", "rust", "vendor")
+    if "rust_patterns" in build_tags and not os.path.isdir(vendor_dir):
+        with gitlab_section("Build Rust patterns library", collapsed=True):
+            build_patterns_library(ctx)
 
     flavor_cmd = "iot-agent" if flavor.is_iot() else "agent"
     with gitlab_section("Build agent", collapsed=True):
@@ -503,10 +512,13 @@ def hacky_dev_image_build(
     signed_pull=False,
     arch=None,
     development=True,
+    skip_build=False,
 ):
     """
     Builds the agent or cluster-agent Docker image.
     """
+    os.chdir(get_repo_root())
+
     if arch is None:
         arch = CONTAINER_PLATFORM_MAPPING.get(platform.machine().lower())
 
@@ -531,26 +543,40 @@ def hacky_dev_image_build(
                 latest_release = ver
         base_image = f"gcr.io/datadoghq/agent:{latest_release}"
 
-    # Extract the python library of the docker image
-    with tempfile.TemporaryDirectory() as extracted_python_dir:
-        ctx.run(
-            f"docker run --platform linux/{arch} --rm '{base_image}' bash -c 'tar --create /opt/datadog-agent/embedded/{{bin,lib,include}}/*python*' | tar --directory '{extracted_python_dir}' --extract"
-        )
+    if skip_build:
+        # Validate that the required artifacts already exist (e.g. built inside devcontainer)
+        required = [
+            "bin/agent/agent",
+            "dev/lib/libdatadog-agent-rtloader.so.0.1.0",
+            "dev/lib/libdatadog-agent-three.so",
+        ]
+        missing = [f for f in required if not os.path.exists(f)]
+        if missing:
+            print(f"--skip-build: missing required artifacts: {missing}", file=sys.stderr)
+            raise Exit(code=1)
+        print("Skipping build step — using existing artifacts in bin/ and dev/lib/")
+    else:
+        # Extract the python library of the docker image
+        # Use /usr/bin/tar explicitly to avoid dd-source's tar wrapper (which runs bzl from cwd and fails when cwd is datadog-agent)
+        with tempfile.TemporaryDirectory() as extracted_python_dir:
+            ctx.run(
+                f"docker run --platform linux/{arch} --rm '{base_image}' bash -c 'tar --create /opt/datadog-agent/embedded/{{bin,lib,include}}/*python*' | /usr/bin/tar --directory '{extracted_python_dir}' --extract"
+            )
 
-        if development:
-            os.environ["DELVE"] = "1"
-        os.environ["LD_LIBRARY_PATH"] = (
-            os.environ.get("LD_LIBRARY_PATH", "") + f":{extracted_python_dir}/opt/datadog-agent/embedded/lib"
-        )
-        build(
-            ctx,
-            race=race,
-            development=development,
-            cmake_options=f'-DPython3_ROOT_DIR={extracted_python_dir}/opt/datadog-agent/embedded -DPython3_FIND_STRATEGY=LOCATION',
-        )
-        ctx.run(
-            f'perl -0777 -pe \'s|{extracted_python_dir}(/opt/datadog-agent/embedded/lib/python\\d+\\.\\d+/../..)|substr $1."\\0"x length$&,0,length$&|e or die "pattern not found"\' -i dev/lib/libdatadog-agent-three.so'
-        )
+            if development:
+                os.environ["DELVE"] = "1"
+            os.environ["LD_LIBRARY_PATH"] = (
+                os.environ.get("LD_LIBRARY_PATH", "") + f":{extracted_python_dir}/opt/datadog-agent/embedded/lib"
+            )
+            build(
+                ctx,
+                race=race,
+                development=development,
+                cmake_options=f'-DPython3_ROOT_DIR={extracted_python_dir}/opt/datadog-agent/embedded -DPython3_FIND_STRATEGY=LOCATION',
+            )
+            ctx.run(
+                f'perl -0777 -pe \'s|{extracted_python_dir}(/opt/datadog-agent/embedded/lib/python\\d+\\.\\d+/../..)|substr $1."\\0"x length$&,0,length$&|e or die "pattern not found"\' -i dev/lib/libdatadog-agent-three.so'
+            )
 
     copy_extra_agents = ""
     if security_agent:
@@ -613,7 +639,33 @@ COPY {runtime_dir}/*.c       /opt/datadog-agent/embedded/share/system-probe/ebpf
 COPY --from=bin /opt/datadog-agent/embedded/share/system-probe/ebpf /opt/datadog-agent/embedded/share/system-probe/ebpf
 """
 
-    with tempfile.NamedTemporaryFile(mode='w') as dockerfile:
+    # Check if the Rust patterns library is available (optional).
+    # First check dev/lib/ (produced by patterns.build-library), then fall back to
+    # the vendored binary. agent.build skips the library build step when the vendor
+    # directory already exists, so dev/lib/libpatterns.so may not be present.
+    patterns_lib = os.path.join("dev", "lib", "libpatterns.so")
+    if not os.path.exists(patterns_lib):
+        vendor_candidate = os.path.join(
+            "pkg", "logs", "patterns", "tokenizer", "rust", "vendor", f"linux_{arch}", "libpatterns.so"
+        )
+        if os.path.exists(vendor_candidate):
+            os.makedirs(os.path.join("dev", "lib"), exist_ok=True)
+            shutil.copy(vendor_candidate, patterns_lib)
+            print(f"Copied vendored libpatterns.so ({vendor_candidate}) to {patterns_lib}")
+
+    if os.path.exists(patterns_lib):
+        copy_patterns_bin = "COPY dev/lib/libpatterns.so /opt/datadog-agent/embedded/lib/libpatterns.so\n"
+        patchelf_patterns = (
+            "RUN patchelf --set-rpath /opt/datadog-agent/embedded/lib /opt/datadog-agent/embedded/lib/libpatterns.so\n"
+        )
+        copy_patterns_final = "COPY --from=bin /opt/datadog-agent/embedded/lib/libpatterns.so /opt/datadog-agent/embedded/lib/libpatterns.so\n"
+        print("Including Rust patterns library (dev/lib/libpatterns.so) in image")
+    else:
+        copy_patterns_bin = ""
+        patchelf_patterns = ""
+        copy_patterns_final = ""
+
+    with tempfile.NamedTemporaryFile(mode='w', dir='.', suffix='.Dockerfile') as dockerfile:
         dockerfile.write(
             f'''FROM ubuntu:latest AS src
 
@@ -634,10 +686,11 @@ COPY bin/agent/dist/conf.d                      /etc/datadog-agent/conf.d
 COPY dev/lib/libdatadog-agent-rtloader.so.0.1.0 /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
 COPY dev/lib/libdatadog-agent-three.so          /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so
 {copy_ebpf_assets}
-
+{copy_patterns_bin}
 RUN patchelf --set-rpath /opt/datadog-agent/embedded/lib /opt/datadog-agent/bin/agent/agent
 RUN patchelf --set-rpath /opt/datadog-agent/embedded/lib /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
 RUN patchelf --set-rpath /opt/datadog-agent/embedded/lib /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so
+{patchelf_patterns}
 
 FROM golang:latest AS dlv
 
@@ -667,7 +720,7 @@ COPY --from=src /usr/src/datadog-agent {os.getcwd()}
 COPY --from=bin /opt/datadog-agent/bin/agent/agent                                 /opt/datadog-agent/bin/agent/agent
 COPY --from=bin /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0 /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
 COPY --from=bin /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so          /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so
-COPY --from=bin /etc/datadog-agent/conf.d /etc/datadog-agent/conf.d
+{copy_patterns_final}COPY --from=bin /etc/datadog-agent/conf.d /etc/datadog-agent/conf.d
 {copy_extra_agents}
 {copy_ebpf_assets_final}
 RUN agent          completion bash > /usr/share/bash-completion/completions/agent

@@ -274,7 +274,7 @@ func (e *Endpoint) UseSSL() bool {
 }
 
 // GetStatus returns the endpoint status
-func (e *Endpoint) GetStatus(prefix string, useHTTP bool) string {
+func (e *Endpoint) GetStatus(prefix string, useHTTP bool, useGRPC bool) string {
 	compression := "uncompressed"
 	if e.UseCompression {
 		compression = "compressed"
@@ -285,7 +285,13 @@ func (e *Endpoint) GetStatus(prefix string, useHTTP bool) string {
 	pathPrefix := e.PathPrefix
 	redactedAPIKey := scrubber.HideKeyExceptLastFourChars(e.GetAPIKey())
 	var protocol string
-	if useHTTP {
+	if useGRPC {
+		if e.UseSSL() {
+			protocol = "gRPC (TLS)"
+		} else {
+			protocol = "gRPC"
+		}
+	} else if useHTTP {
 		if e.UseSSL() {
 			protocol = "HTTPS"
 			if port == 0 {
@@ -387,6 +393,7 @@ type Endpoints struct {
 	Endpoints              []Endpoint
 	UseProto               bool
 	UseHTTP                bool
+	UseGRPC                bool
 	BatchWait              time.Duration
 	BatchMaxConcurrentSend int
 	BatchMaxSize           int
@@ -398,10 +405,10 @@ type Endpoints struct {
 func (e *Endpoints) GetStatus() []string {
 	result := make([]string, 0)
 	for _, endpoint := range e.GetReliableEndpoints() {
-		result = append(result, endpoint.GetStatus("Reliable: ", e.UseHTTP))
+		result = append(result, endpoint.GetStatus("Reliable: ", e.UseHTTP, e.UseGRPC))
 	}
 	for _, endpoint := range e.GetUnReliableEndpoints() {
-		result = append(result, endpoint.GetStatus("Unreliable: ", e.UseHTTP))
+		result = append(result, endpoint.GetStatus("Unreliable: ", e.UseHTTP, e.UseGRPC))
 	}
 	return result
 }
@@ -413,6 +420,23 @@ func NewEndpoints(main Endpoint, additionalEndpoints []Endpoint, useProto bool, 
 		additionalEndpoints,
 		useProto,
 		useHTTP,
+		false, // useGRPC defaults to false for backward compatibility
+		pkgconfigsetup.DefaultBatchWait,
+		pkgconfigsetup.DefaultBatchMaxConcurrentSend,
+		pkgconfigsetup.DefaultBatchMaxSize,
+		pkgconfigsetup.DefaultBatchMaxContentSize,
+		pkgconfigsetup.DefaultInputChanSize,
+	)
+}
+
+// NewEndpointsWithGRPC returns a new endpoints composite with gRPC support
+func NewEndpointsWithGRPC(main Endpoint, additionalEndpoints []Endpoint, useProto bool, useHTTP bool, useGRPC bool) *Endpoints {
+	return NewEndpointsWithBatchSettings(
+		main,
+		additionalEndpoints,
+		useProto,
+		useHTTP,
+		useGRPC,
 		pkgconfigsetup.DefaultBatchWait,
 		pkgconfigsetup.DefaultBatchMaxConcurrentSend,
 		pkgconfigsetup.DefaultBatchMaxSize,
@@ -422,12 +446,13 @@ func NewEndpoints(main Endpoint, additionalEndpoints []Endpoint, useProto bool, 
 }
 
 // NewEndpointsWithBatchSettings returns a new endpoints composite with non-default batching settings specified
-func NewEndpointsWithBatchSettings(main Endpoint, additionalEndpoints []Endpoint, useProto bool, useHTTP bool, batchWait time.Duration, batchMaxConcurrentSend int, batchMaxSize int, batchMaxContentSize int, inputChanSize int) *Endpoints {
+func NewEndpointsWithBatchSettings(main Endpoint, additionalEndpoints []Endpoint, useProto bool, useHTTP bool, useGRPC bool, batchWait time.Duration, batchMaxConcurrentSend int, batchMaxSize int, batchMaxContentSize int, inputChanSize int) *Endpoints {
 	return &Endpoints{
 		Main:                   main,
 		Endpoints:              append([]Endpoint{main}, additionalEndpoints...),
 		UseProto:               useProto,
 		UseHTTP:                useHTTP,
+		UseGRPC:                useGRPC,
 		BatchWait:              batchWait,
 		BatchMaxConcurrentSend: batchMaxConcurrentSend,
 		BatchMaxSize:           batchMaxSize,
