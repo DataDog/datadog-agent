@@ -160,11 +160,21 @@ func (s *safeNvml) SystemGetDriverVersion() (string, error) {
 
 // Shutdown shuts down the NVML library
 func (s *safeNvml) Shutdown() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	if err := s.lookup("nvmlShutdown"); err != nil {
 		return err
 	}
 	ret := s.lib.Shutdown()
-	return NewNvmlAPIErrorOrNil("Shutdown", ret)
+	if err := NewNvmlAPIErrorOrNil("Shutdown", ret); err != nil {
+		return err
+	}
+
+	// After shutdown the wrapper must reinitialize NVML before reuse.
+	s.lib = nil
+	s.capabilities = nil
+	return nil
 }
 
 // DeviceGetCount returns the number of NVIDIA devices in the system

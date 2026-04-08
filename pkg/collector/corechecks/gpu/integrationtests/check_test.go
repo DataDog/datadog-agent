@@ -8,8 +8,12 @@
 package integrationtests
 
 import (
+	"fmt"
+	"slices"
+	"strings"
 	"testing"
 
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -17,8 +21,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu"
+	gpuspec "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/spec"
 	"github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	mock_containers "github.com/DataDog/datadog-agent/pkg/process/util/containers/mocks"
@@ -67,6 +76,16 @@ type metricTestCase struct {
 	interval         *valueInterval // Valid range for the value (nil to skip interval check)
 }
 
+var expectedLiveDeviceMetrics = []string{
+	"core.limit",
+	"memory.limit",
+	"sm_active",
+	"temperature",
+	"power.usage",
+	"pci.throughput.rx",
+	"pci.throughput.tx",
+}
+
 // extractDeviceUUID extracts the GPU UUID from metric tags
 func extractDeviceUUID(tags []string) string {
 	for _, tag := range tags {
@@ -75,6 +94,99 @@ func extractDeviceUUID(tags []string) string {
 		}
 	}
 	return ""
+}
+
+func collectGPUMetrics(calls []mock.Call) map[string][]gpuspec.EmittedMetric {
+	metricsByName := make(map[string][]gpuspec.EmittedMetric)
+	for _, call := range calls {
+		if call.Method != "GaugeWithTimestamp" && call.Method != "CountWithTimestamp" {
+			continue
+		}
+
+		metricName, ok := call.Arguments[0].(string)
+		if !ok || !strings.HasPrefix(metricName, "gpu.") {
+			continue
+		}
+
+		tags, ok := call.Arguments[3].([]string)
+		if !ok {
+			continue
+		}
+
+		metricsByName[metricName] = append(metricsByName[metricName], gpuspec.EmittedMetric{
+			Name: metricName,
+			Tags: append([]string(nil), tags...),
+		})
+	}
+
+	return metricsByName
+}
+
+func gpuArchToSpecName(arch nvml.DeviceArchitecture) string {
+	switch arch {
+	case nvml.DEVICE_ARCH_KEPLER:
+		return "kepler"
+	case nvml.DEVICE_ARCH_MAXWELL:
+		return "maxwell"
+	case nvml.DEVICE_ARCH_PASCAL:
+		return "pascal"
+	case nvml.DEVICE_ARCH_VOLTA:
+		return "volta"
+	case nvml.DEVICE_ARCH_TURING:
+		return "turing"
+	case nvml.DEVICE_ARCH_AMPERE:
+		return "ampere"
+	case nvml.DEVICE_ARCH_ADA:
+		return "ada"
+	case nvml.DEVICE_ARCH_HOPPER:
+		return "hopper"
+	case 10:
+		return "blackwell"
+	case nvml.DEVICE_ARCH_UNKNOWN:
+		return "unknown"
+	default:
+		return "invalid"
+	}
+}
+
+func seedPhysicalGPUEntities(t *testing.T, fakeTagger taggermock.Mock, wmetaMock workloadmetamock.Mock, devices []safenvml.Device, driverVersion string) {
+	t.Helper()
+
+	for _, device := range devices {
+		deviceInfo := device.GetDeviceInfo()
+		gpuEntity := &workloadmeta.GPU{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindGPU,
+				ID:   deviceInfo.UUID,
+			},
+			EntityMeta: workloadmeta.EntityMeta{
+				Name: deviceInfo.Name,
+			},
+			Vendor:             "nvidia",
+			Device:             deviceInfo.Name,
+			DriverVersion:      driverVersion,
+			Index:              deviceInfo.Index,
+			Architecture:       gpuArchToSpecName(deviceInfo.Architecture),
+			TotalCores:         deviceInfo.CoreCount,
+			TotalMemory:        deviceInfo.Memory,
+			DeviceType:         workloadmeta.GPUDeviceTypePhysical,
+			VirtualizationMode: "none",
+		}
+		wmetaMock.Set(gpuEntity)
+		fakeTagger.SetTags(
+			taggertypes.NewEntityID(taggertypes.GPU, deviceInfo.UUID),
+			"integrationtests",
+			[]string{
+				"gpu_uuid:" + strings.ToLower(deviceInfo.UUID),
+				"gpu_device:" + strings.ToLower(strings.ReplaceAll(deviceInfo.Name, " ", "_")),
+				"gpu_vendor:nvidia",
+				"gpu_driver_version:" + driverVersion,
+			},
+			nil,
+			nil,
+			nil,
+		)
+	}
 }
 
 // assertMetricCase validates a metric against its test case
@@ -115,7 +227,6 @@ func assertMetricCase(t *testing.T, metricsByName map[string][]mock.Call, tc met
 func TestCheckRunWithRealHardware(t *testing.T) {
 	testutil.RequireGPU(t)
 
-	// Get device info for validation
 	lib, err := safenvml.GetSafeNvmlLib()
 	require.NoError(t, err)
 
@@ -126,7 +237,6 @@ func TestCheckRunWithRealHardware(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, devices)
 
-	// Set up the check with mocked agent components
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
 	senderManager := mocksender.CreateDefaultDemultiplexer()
@@ -136,10 +246,8 @@ func TestCheckRunWithRealHardware(t *testing.T) {
 	mockSender := mocksender.NewMockSenderWithSenderManager(checkInstance.ID(), senderManager)
 	mockSender.SetupAcceptAll()
 
-	// Enable GPU check
 	gpu.WithGPUConfigEnabled(t)
 
-	// Configure the check - need to set container provider before Configure
 	checkInternal, ok := checkInstance.(*gpu.Check)
 	require.True(t, ok)
 	checkInternal.SetContainerProvider(mock_containers.NewMockContainerProvider(gomock.NewController(t)))
@@ -148,11 +256,9 @@ func TestCheckRunWithRealHardware(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { checkInstance.Cancel() })
 
-	// Run the check
 	err = checkInstance.Run()
 	require.NoError(t, err, "Check.Run() should not return an error")
 
-	// Collect all metrics that were sent
 	calls := mockSender.Calls
 	metricsByName := make(map[string][]mock.Call)
 	for _, call := range calls {
@@ -162,7 +268,6 @@ func TestCheckRunWithRealHardware(t *testing.T) {
 		}
 	}
 
-	// Define test cases
 	maxPCIeThroughput := 64 * 1024 * 1024 * 1024.0
 	testCases := []metricTestCase{
 		{
@@ -187,7 +292,7 @@ func TestCheckRunWithRealHardware(t *testing.T) {
 		},
 		{
 			name:     "gpu.power.usage",
-			interval: &valueInterval{min: 0.0, max: 1000000.0}, // 0-1000W in milliwatts
+			interval: &valueInterval{min: 0.0, max: 1000000.0},
 		},
 		{
 			name:     "gpu.pci.throughput.tx",
@@ -199,10 +304,113 @@ func TestCheckRunWithRealHardware(t *testing.T) {
 		},
 	}
 
-	// Run all test cases
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			assertMetricCase(t, metricsByName, tc, cache)
+		})
+	}
+}
+
+func TestCheckRunMatchesSpecForPhysicalDevices(t *testing.T) {
+	testutil.RequireGPU(t)
+
+	metricsSpec, err := gpuspec.LoadMetricsSpec()
+	require.NoError(t, err)
+	architecturesSpec, err := gpuspec.LoadArchitecturesSpec()
+	require.NoError(t, err)
+
+	lib, err := safenvml.GetSafeNvmlLib()
+	require.NoError(t, err)
+
+	cache := safenvml.NewDeviceCache(safenvml.WithDeviceCacheLib(lib))
+	require.NoError(t, cache.Refresh())
+
+	devices, err := cache.AllPhysicalDevices()
+	require.NoError(t, err)
+	require.NotEmpty(t, devices)
+
+	driverVersion, err := lib.SystemGetDriverVersion()
+	require.NoError(t, err)
+
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	wmetaMock := testutil.GetWorkloadMetaMock(t)
+	seedPhysicalGPUEntities(t, fakeTagger, wmetaMock, devices, driverVersion)
+
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	checkInstance := gpu.NewCheck(fakeTagger, testutil.GetTelemetryMock(t), wmetaMock)
+	mockSender := mocksender.NewMockSenderWithSenderManager(checkInstance.ID(), senderManager)
+	mockSender.SetupAcceptAll()
+
+	gpu.WithGPUConfigEnabled(t)
+
+	checkInternal, ok := checkInstance.(*gpu.Check)
+	require.True(t, ok)
+	checkInternal.SetContainerProvider(mock_containers.NewMockContainerProvider(gomock.NewController(t)))
+
+	err = checkInstance.Configure(senderManager, integration.FakeConfigHash, []byte{}, []byte{}, "test", "provider")
+	require.NoError(t, err)
+	t.Cleanup(func() { checkInstance.Cancel() })
+
+	err = checkInstance.Run()
+	require.NoError(t, err, "Check.Run() should not return an error")
+
+	metricsByName := collectGPUMetrics(mockSender.Calls)
+	require.NotEmpty(t, metricsByName)
+
+	metricsByUUID := make(map[string]map[string][]gpuspec.EmittedMetric, len(devices))
+	for metricName, emittedSamples := range metricsByName {
+		for _, sample := range emittedSamples {
+			deviceUUID := strings.ToLower(extractDeviceUUID(sample.Tags))
+			if deviceUUID == "" {
+				continue
+			}
+			if metricsByUUID[deviceUUID] == nil {
+				metricsByUUID[deviceUUID] = make(map[string][]gpuspec.EmittedMetric)
+			}
+
+			specMetricName := strings.TrimPrefix(metricName, metricsSpec.MetricPrefix+".")
+			metricsByUUID[deviceUUID][specMetricName] = append(metricsByUUID[deviceUUID][specMetricName], sample)
+		}
+	}
+
+	for _, device := range devices {
+		deviceInfo := device.GetDeviceInfo()
+		deviceUUID := strings.ToLower(deviceInfo.UUID)
+		archName := gpuArchToSpecName(deviceInfo.Architecture)
+		if archName == "unknown" || archName == "invalid" {
+			t.Logf("Skipping GPU %s with unsupported architecture enum %v", deviceUUID, deviceInfo.Architecture)
+			continue
+		}
+
+		archSpec, ok := architecturesSpec.Architectures[archName]
+		require.True(t, ok, "architecture %s missing from architectures spec", archName)
+		require.True(t, gpuspec.IsModeSupportedByArchitecture(archSpec, gpuspec.DeviceModePhysical), "physical mode should be supported for architecture %s", archName)
+
+		deviceMetrics := metricsByUUID[deviceUUID]
+		require.NotEmpty(t, deviceMetrics, "expected emitted metrics for GPU %s", deviceUUID)
+
+		t.Run(fmt.Sprintf("gpu=%s", deviceUUID), func(t *testing.T) {
+			emittedNames := make([]string, 0, len(deviceMetrics))
+			for metricName, emittedSamples := range deviceMetrics {
+				emittedNames = append(emittedNames, metricName)
+
+				metricSpec, ok := metricsSpec.Metrics[metricName]
+				require.True(t, ok, "metric emitted by check is missing from spec: %s", metricName)
+				require.True(t, metricSpec.SupportsArchitecture(archName), "metric %s emitted on unsupported architecture %s", metricName, archName)
+				require.True(t, metricSpec.SupportsDeviceMode(gpuspec.DeviceModePhysical), "metric %s emitted in unsupported physical mode", metricName)
+				gpuspec.ValidateMetricTagsAgainstSpec(t, metricsSpec, metricName, metricSpec, emittedSamples, nil, true)
+			}
+
+			slices.Sort(emittedNames)
+			t.Logf("GPU %s (%s) emitted %d spec metrics", deviceUUID, archName, len(emittedNames))
+
+			for _, metricName := range expectedLiveDeviceMetrics {
+				metricSpec, ok := metricsSpec.Metrics[metricName]
+				require.True(t, ok, "baseline metric %s missing from spec", metricName)
+				require.True(t, metricSpec.SupportsArchitecture(archName), "baseline metric %s unsupported on architecture %s", metricName, archName)
+				require.True(t, metricSpec.SupportsDeviceMode(gpuspec.DeviceModePhysical), "baseline metric %s unsupported in physical mode", metricName)
+				require.Contains(t, deviceMetrics, metricName, "baseline device metric %s should be emitted for GPU %s on architecture %s", metricName, deviceUUID, archName)
+			}
 		})
 	}
 }
