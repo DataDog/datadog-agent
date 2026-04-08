@@ -33,3 +33,71 @@ func TestCompileShouldFailWithInvalidRules(t *testing.T) {
 		assert.Nil(t, rule.Regex)
 	}
 }
+
+func TestValidateRemapAttributeToSource(t *testing.T) {
+	t.Run("valid", func(t *testing.T) {
+		rules := []*ProcessingRule{{
+			Type: RemapAttributeToSource,
+			Name: "remap_test",
+			Mappings: []*SourceMappingEntry{
+				{Attribute: "siem.device_vendor", Value: "Security", RemapSourceTo: "arcsight"},
+				{Attribute: "siem.device_product", Value: "palo alto", RemapSourceTo: "pan"},
+			},
+		}}
+		assert.NoError(t, ValidateProcessingRules(rules))
+	})
+
+	t.Run("missing mappings", func(t *testing.T) {
+		rules := []*ProcessingRule{{
+			Type: RemapAttributeToSource,
+			Name: "remap_test",
+		}}
+		assert.ErrorContains(t, ValidateProcessingRules(rules), "no mappings provided")
+	})
+
+	t.Run("empty attribute", func(t *testing.T) {
+		rules := []*ProcessingRule{{
+			Type: RemapAttributeToSource,
+			Name: "remap_test",
+			Mappings: []*SourceMappingEntry{
+				{Attribute: "", Value: "x", RemapSourceTo: "y"},
+			},
+		}}
+		assert.ErrorContains(t, ValidateProcessingRules(rules), "empty attribute")
+	})
+
+	t.Run("empty value", func(t *testing.T) {
+		rules := []*ProcessingRule{{
+			Type: RemapAttributeToSource,
+			Name: "remap_test",
+			Mappings: []*SourceMappingEntry{
+				{Attribute: "a", Value: "", RemapSourceTo: "y"},
+			},
+		}}
+		assert.ErrorContains(t, ValidateProcessingRules(rules), "empty value")
+	})
+
+	t.Run("empty remap_source_to", func(t *testing.T) {
+		rules := []*ProcessingRule{{
+			Type: RemapAttributeToSource,
+			Name: "remap_test",
+			Mappings: []*SourceMappingEntry{
+				{Attribute: "a", Value: "b", RemapSourceTo: ""},
+			},
+		}}
+		assert.ErrorContains(t, ValidateProcessingRules(rules), "empty remap_source_to")
+	})
+}
+
+func TestCompileSkipsRemapAttributeToSource(t *testing.T) {
+	rules := []*ProcessingRule{{
+		Type: RemapAttributeToSource,
+		Name: "remap_test",
+		Mappings: []*SourceMappingEntry{
+			{Attribute: "siem.device_vendor", Value: "Security", RemapSourceTo: "arcsight"},
+		},
+	}}
+	err := CompileProcessingRules(rules)
+	assert.NoError(t, err)
+	assert.Nil(t, rules[0].Regex)
+}
