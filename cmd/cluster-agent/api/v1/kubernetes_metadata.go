@@ -76,7 +76,7 @@ func getNodeMetadata(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.
 	nodeName := vars["nodeName"]
 
 	var spanErr error
-	span, _ := tracer.StartSpanFromContext(r.Context(), "cluster_agent.metadata.node_lookup",
+	span, _ := tracer.StartSpanFromContext(r.Context(), "nodeLookup",
 		tracer.Tag("node_name", nodeName),
 		tracer.Tag("metadata_type", what),
 	)
@@ -159,7 +159,7 @@ func getNodeInfo(w http.ResponseWriter, r *http.Request, _ workloadmeta.Componen
 	nodeName := vars["nodeName"]
 
 	var spanErr error
-	span, ctx := tracer.StartSpanFromContext(r.Context(), "cluster_agent.metadata.node_info",
+	span, ctx := tracer.StartSpanFromContext(r.Context(), "nodeInfo",
 		tracer.Tag("node_name", nodeName),
 	)
 	defer func() { span.Finish(tracer.WithError(spanErr)) }()
@@ -207,7 +207,7 @@ func getNamespaceMetadataWithTransformerFunc[T any](w http.ResponseWriter, r *ht
 	nsName := vars["ns"]
 
 	var spanErr error
-	span, _ := tracer.StartSpanFromContext(r.Context(), "cluster_agent.metadata.namespace_lookup",
+	span, _ := tracer.StartSpanFromContext(r.Context(), "namespaceLookup",
 		tracer.Tag("namespace", nsName),
 	)
 	defer func() { span.Finish(tracer.WithError(spanErr)) }()
@@ -312,7 +312,7 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 	ns := vars["ns"]
 
 	var spanErr error
-	span, _ := tracer.StartSpanFromContext(r.Context(), "cluster_agent.metadata.pod_lookup",
+	span, _ := tracer.StartSpanFromContext(r.Context(), "podLookup",
 		tracer.Tag("node_name", nodeName),
 		tracer.Tag("namespace", ns),
 	)
@@ -350,7 +350,7 @@ func getPodMetadataForNode(w http.ResponseWriter, r *http.Request) {
 	nodeName := vars["nodeName"]
 
 	var spanErr error
-	span, _ := tracer.StartSpanFromContext(r.Context(), "cluster_agent.metadata.pod_metadata_for_node",
+	span, _ := tracer.StartSpanFromContext(r.Context(), "podMetadataForNode",
 		tracer.Tag("node_name", nodeName),
 	)
 	defer func() { span.Finish(tracer.WithError(spanErr)) }()
@@ -400,7 +400,7 @@ func getAllMetadata(w http.ResponseWriter, r *http.Request) {
 	*/
 
 	var spanErr error
-	span, _ := tracer.StartSpanFromContext(r.Context(), "cluster_agent.metadata.all_metadata")
+	span, _ := tracer.StartSpanFromContext(r.Context(), "allMetadata")
 	defer func() { span.Finish(tracer.WithError(spanErr)) }()
 
 	log.Trace("Computing metadata map on all nodes")
@@ -448,7 +448,7 @@ func getAllMetadata(w http.ResponseWriter, r *http.Request) {
 //nolint:revive // TODO(CINT) Fix revive linter
 func getClusterID(w http.ResponseWriter, r *http.Request) {
 	var spanErr error
-	span, _ := tracer.StartSpanFromContext(r.Context(), "cluster_agent.metadata.cluster_id")
+	span, _ := tracer.StartSpanFromContext(r.Context(), "clusterId")
 	defer func() { span.Finish(tracer.WithError(spanErr)) }()
 
 	// As HTTP query handler, we do not retry getting the APIServer

@@ -224,7 +224,7 @@ func TestGetNodeMetadata_SpanCreation(t *testing.T) {
 	spans := mt.FinishedSpans()
 	require.Len(t, spans, 1)
 	span := spans[0]
-	assert.Equal(t, "cluster_agent.metadata.node_lookup", span.OperationName())
+	assert.Equal(t, "nodeLookup", span.OperationName())
 	assert.Equal(t, testNode, span.Tag("node_name"))
 	assert.Equal(t, "labels", span.Tag("metadata_type"))
 	assert.Nil(t, span.Tag("error"))
@@ -254,7 +254,7 @@ func TestGetNodeMetadata_SpanError(t *testing.T) {
 	spans := mt.FinishedSpans()
 	require.Len(t, spans, 1)
 	span := spans[0]
-	assert.Equal(t, "cluster_agent.metadata.node_lookup", span.OperationName())
+	assert.Equal(t, "nodeLookup", span.OperationName())
 	assert.Equal(t, "missing_node", span.Tag("node_name"))
 	// Error should be set on the span
 	err, ok := span.Tag("error").(error)
@@ -294,7 +294,7 @@ func TestGetNamespaceMetadata_SpanCreation(t *testing.T) {
 	spans := mt.FinishedSpans()
 	require.Len(t, spans, 1)
 	span := spans[0]
-	assert.Equal(t, "cluster_agent.metadata.namespace_lookup", span.OperationName())
+	assert.Equal(t, "namespaceLookup", span.OperationName())
 	assert.Equal(t, "default", span.Tag("namespace"))
 	assert.Nil(t, span.Tag("error"))
 }
@@ -323,7 +323,7 @@ func TestGetNamespaceMetadata_SpanError(t *testing.T) {
 	spans := mt.FinishedSpans()
 	require.Len(t, spans, 1)
 	span := spans[0]
-	assert.Equal(t, "cluster_agent.metadata.namespace_lookup", span.OperationName())
+	assert.Equal(t, "namespaceLookup", span.OperationName())
 	assert.Equal(t, "missing_ns", span.Tag("namespace"))
 	err, ok := span.Tag("error").(error)
 	require.True(t, ok, "error tag should be an error object, got %T", span.Tag("error"))
@@ -347,7 +347,7 @@ func TestGetPodMetadata_SpanCreation(t *testing.T) {
 	spans := mt.FinishedSpans()
 	require.Len(t, spans, 1)
 	span := spans[0]
-	assert.Equal(t, "cluster_agent.metadata.pod_lookup", span.OperationName())
+	assert.Equal(t, "podLookup", span.OperationName())
 	assert.Equal(t, "node1", span.Tag("node_name"))
 	assert.Equal(t, "default", span.Tag("namespace"))
 	// pod_name should NOT be set (cardinality)
@@ -368,7 +368,7 @@ func TestGetPodMetadataForNode_SpanCreation(t *testing.T) {
 	spans := mt.FinishedSpans()
 	require.Len(t, spans, 1)
 	span := spans[0]
-	assert.Equal(t, "cluster_agent.metadata.pod_metadata_for_node", span.OperationName())
+	assert.Equal(t, "podMetadataForNode", span.OperationName())
 	assert.Equal(t, "node1", span.Tag("node_name"))
 	// Without a real apiserver, GetMetadataMapBundleOnNode fails, but this is a
 	// non-fatal path (the handler continues with partial results), so the span
@@ -394,7 +394,7 @@ func TestGetAllMetadata_SpanCreation(t *testing.T) {
 	spans := mt.FinishedSpans()
 	require.Len(t, spans, 1)
 	span := spans[0]
-	assert.Equal(t, "cluster_agent.metadata.all_metadata", span.OperationName())
+	assert.Equal(t, "allMetadata", span.OperationName())
 	err, ok := span.Tag("error").(error)
 	require.True(t, ok, "error tag should be an error object, got %T", span.Tag("error"))
 	assert.NotEmpty(t, err.Error())
@@ -417,7 +417,7 @@ func TestGetClusterID_SpanCreation(t *testing.T) {
 	spans := mt.FinishedSpans()
 	require.Len(t, spans, 1)
 	span := spans[0]
-	assert.Equal(t, "cluster_agent.metadata.cluster_id", span.OperationName())
+	assert.Equal(t, "clusterId", span.OperationName())
 	err, ok := span.Tag("error").(error)
 	require.True(t, ok, "error tag should be an error object, got %T", span.Tag("error"))
 	assert.NotEmpty(t, err.Error())
@@ -453,7 +453,7 @@ func TestGetNodeMetadata_SpanErrorWithTelemetryWrapper(t *testing.T) {
 	for _, s := range spans {
 		if s.OperationName() == "cluster_agent.api.request" {
 			parentSpan = s
-		} else if s.OperationName() == "cluster_agent.metadata.node_lookup" {
+		} else if s.OperationName() == "nodeLookup" {
 			childSpan = s
 		}
 	}
@@ -494,7 +494,7 @@ func TestGetNodeInfo_SpanCreation(t *testing.T) {
 	spans := mt.FinishedSpans()
 	require.Len(t, spans, 1)
 	span := spans[0]
-	assert.Equal(t, "cluster_agent.metadata.node_info", span.OperationName())
+	assert.Equal(t, "nodeInfo", span.OperationName())
 	assert.Equal(t, testNode, span.Tag("node_name"))
 	// Without a real apiserver, GetAPIClient fails, so the span should capture the error
 	spanErr, ok := span.Tag("error").(error)
