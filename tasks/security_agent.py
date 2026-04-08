@@ -770,7 +770,6 @@ def e2e_prepare_win(ctx):
         srcpath=srcpath,
         bundle_ebpf=False,
         race=False,
-        debug=True,
         skip_linters=True,
     )
 
