@@ -100,6 +100,12 @@ type LogsConfig struct {
 	// ProcessRawMessage is used to process the raw message instead of only the content part of the message.
 	ProcessRawMessage *bool `mapstructure:"process_raw_message" json:"process_raw_message" yaml:"process_raw_message"`
 
+	// SIEMParsing enables CEF/LEEF header detection and extraction within syslog
+	// message bodies. When true (the default), syslog messages whose body starts
+	// with "CEF:" or "LEEF:" are parsed into structured SIEM fields. Set to false
+	// to skip this detection and treat the message body as plain text.
+	SIEMParsing *bool `mapstructure:"siem_parsing" json:"siem_parsing" yaml:"siem_parsing"`
+
 	AutoMultiLine               *bool   `mapstructure:"auto_multi_line_detection" json:"auto_multi_line_detection" yaml:"auto_multi_line_detection"`
 	AutoMultiLineSampleSize     int     `mapstructure:"auto_multi_line_sample_size" json:"auto_multi_line_sample_size" yaml:"auto_multi_line_sample_size"`
 	AutoMultiLineMatchThreshold float64 `mapstructure:"auto_multi_line_match_threshold" json:"auto_multi_line_match_threshold" yaml:"auto_multi_line_match_threshold"`
