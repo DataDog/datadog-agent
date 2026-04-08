@@ -1,5 +1,6 @@
 exporters:
     otlphttp/datadoghq.eu_0:
+        compression: zstd
         headers:
             dd-api-key: test_key_123
             dd-evp-origin: host-profiler
@@ -10,6 +11,15 @@ extensions:
     ddprofiling/default: {}
     hpflare/default: {}
 processors:
+    cumulativetodelta: {}
+    filter:
+        metrics:
+            exclude:
+                match_type: regexp
+                metric_names:
+                    - ^scrape_.*$
+                    - ^up$
+                    - ^promhttp_metric_handler_errors_total$
     infraattributes/default:
         allow_hostname_override: true
         cardinality: 2
@@ -22,14 +32,37 @@ processors:
               key: profiler_version
               value: 7.0.0-test
 receivers:
-    hostprofiler:
+    profiling:
         symbol_uploader:
             enabled: true
             symbol_endpoints:
                 - api_key: test_key_123
                   site: datadoghq.eu
+    prometheus:
+        config:
+            scrape_configs:
+                - fallback_scrape_protocol: PrometheusText0.0.4
+                  job_name: host-profiler-internal
+                  metric_name_escaping_scheme: underscores
+                  metric_name_validation_scheme: legacy
+                  scrape_interval: 60s
+                  scrape_protocols:
+                    - PrometheusText0.0.4
+                  static_configs:
+                    - targets:
+                        - 127.0.0.1:8888
 service:
     pipelines:
+        metrics:
+            exporters:
+                - otlphttp/datadoghq.eu_0
+            processors:
+                - filter
+                - cumulativetodelta
+                - infraattributes/default
+                - resource/dd-profiler-internal-metadata
+            receivers:
+                - prometheus
         profiles:
             exporters:
                 - otlphttp/datadoghq.eu_0
@@ -37,7 +70,4 @@ service:
                 - infraattributes/default
                 - resource/dd-profiler-internal-metadata
             receivers:
-                - hostprofiler
-    telemetry:
-        metrics:
-            level: none
+                - profiling

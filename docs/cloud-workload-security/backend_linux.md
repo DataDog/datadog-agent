@@ -1481,11 +1481,8 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "description": "List of AWS Security Credentials that the process had access to"
                 },
                 "tracer": {
-                    "additionalProperties": {
-                        "type": "string"
-                    },
-                    "type": "object",
-                    "description": "Tags from an APM tracer instrumentation"
+                    "$ref": "#/$defs/TracerMetadata",
+                    "description": "Metadata from APM tracer instrumentation"
                 },
                 "variables": {
                     "$ref": "#/$defs/Variables",
@@ -1662,11 +1659,8 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "description": "List of AWS Security Credentials that the process had access to"
                 },
                 "tracer": {
-                    "additionalProperties": {
-                        "type": "string"
-                    },
-                    "type": "object",
-                    "description": "Tags from an APM tracer instrumentation"
+                    "$ref": "#/$defs/TracerMetadata",
+                    "description": "Metadata from APM tracer instrumentation"
                 },
                 "variables": {
                     "$ref": "#/$defs/Variables",
@@ -2237,6 +2231,51 @@ Workload Protection events for Linux systems have the following JSON schema:
             "additionalProperties": false,
             "type": "object",
             "description": "TLSContextSerializer defines a tls context serializer"
+        },
+        "TracerMetadata": {
+            "properties": {
+                "schema_version": {
+                    "type": "integer"
+                },
+                "runtime_id": {
+                    "type": "string"
+                },
+                "tracer_language": {
+                    "type": "string"
+                },
+                "tracer_version": {
+                    "type": "string"
+                },
+                "hostname": {
+                    "type": "string"
+                },
+                "service_name": {
+                    "type": "string"
+                },
+                "service_env": {
+                    "type": "string"
+                },
+                "service_version": {
+                    "type": "string"
+                },
+                "process_tags": {
+                    "type": "string"
+                },
+                "container_id": {
+                    "type": "string"
+                },
+                "logs_collected": {
+                    "type": "boolean"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "schema_version",
+                "tracer_language",
+                "tracer_version",
+                "hostname"
+            ]
         },
         "UserContext": {
             "properties": {
@@ -4637,11 +4676,8 @@ Workload Protection events for Linux systems have the following JSON schema:
             "description": "List of AWS Security Credentials that the process had access to"
         },
         "tracer": {
-            "additionalProperties": {
-                "type": "string"
-            },
-            "type": "object",
-            "description": "Tags from an APM tracer instrumentation"
+            "$ref": "#/$defs/TracerMetadata",
+            "description": "Metadata from APM tracer instrumentation"
         },
         "variables": {
             "$ref": "#/$defs/Variables",
@@ -4697,7 +4733,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `source` | Process source |
 | `syscalls` | List of syscalls captured to generate the event |
 | `aws_security_credentials` | List of AWS Security Credentials that the process had access to |
-| `tracer` | Tags from an APM tracer instrumentation |
+| `tracer` | Metadata from APM tracer instrumentation |
 | `variables` | Variable values |
 
 | References |
@@ -4708,6 +4744,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | [CGroupContext](#cgroupcontext) |
 | [ContainerContext](#containercontext) |
 | [SyscallsEvent](#syscallsevent) |
+| [TracerMetadata](#tracermetadata) |
 | [Variables](#variables) |
 
 ## `ProcessContext`
@@ -4875,11 +4912,8 @@ Workload Protection events for Linux systems have the following JSON schema:
             "description": "List of AWS Security Credentials that the process had access to"
         },
         "tracer": {
-            "additionalProperties": {
-                "type": "string"
-            },
-            "type": "object",
-            "description": "Tags from an APM tracer instrumentation"
+            "$ref": "#/$defs/TracerMetadata",
+            "description": "Metadata from APM tracer instrumentation"
         },
         "variables": {
             "$ref": "#/$defs/Variables",
@@ -4950,7 +4984,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `source` | Process source |
 | `syscalls` | List of syscalls captured to generate the event |
 | `aws_security_credentials` | List of AWS Security Credentials that the process had access to |
-| `tracer` | Tags from an APM tracer instrumentation |
+| `tracer` | Metadata from APM tracer instrumentation |
 | `variables` | Variable values |
 | `parent` | Parent process |
 | `ancestors` | Ancestor processes |
@@ -4964,6 +4998,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | [CGroupContext](#cgroupcontext) |
 | [ContainerContext](#containercontext) |
 | [SyscallsEvent](#syscallsevent) |
+| [TracerMetadata](#tracermetadata) |
 | [Variables](#variables) |
 | [Process](#process) |
 
@@ -5784,6 +5819,60 @@ Workload Protection events for Linux systems have the following JSON schema:
     "additionalProperties": false,
     "type": "object",
     "description": "TLSContextSerializer defines a tls context serializer"
+}
+
+{{< /code-block >}}
+
+
+
+## `TracerMetadata`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "schema_version": {
+            "type": "integer"
+        },
+        "runtime_id": {
+            "type": "string"
+        },
+        "tracer_language": {
+            "type": "string"
+        },
+        "tracer_version": {
+            "type": "string"
+        },
+        "hostname": {
+            "type": "string"
+        },
+        "service_name": {
+            "type": "string"
+        },
+        "service_env": {
+            "type": "string"
+        },
+        "service_version": {
+            "type": "string"
+        },
+        "process_tags": {
+            "type": "string"
+        },
+        "container_id": {
+            "type": "string"
+        },
+        "logs_collected": {
+            "type": "boolean"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+        "schema_version",
+        "tracer_language",
+        "tracer_version",
+        "hostname"
+    ]
 }
 
 {{< /code-block >}}

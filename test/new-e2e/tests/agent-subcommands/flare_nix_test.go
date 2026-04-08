@@ -1,0 +1,81 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+package agentsubcommands
+
+import (
+	_ "embed"
+	"strings"
+	"testing"
+
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
+	flarehelpers "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-subcommands/flare"
+)
+
+//go:embed flare/fixtures/datadog-agent.yaml
+var flareAgentConfiguration []byte
+
+//go:embed flare/fixtures/system-probe.yaml
+var systemProbeConfiguration []byte
+
+//go:embed flare/fixtures/security-agent.yaml
+var securityAgentConfiguration []byte
+
+type linuxFlareSuite struct {
+	baseFlareSuite
+}
+
+func TestLinuxFlareSuite(t *testing.T) {
+	t.Parallel()
+	e2e.Run(t, &linuxFlareSuite{}, e2e.WithProvisioner(awshost.Provisioner()))
+}
+
+// Add zz to name to run this test last in order to don't break other tests
+// Will need to rename it to TestFlareWithAllConfiguration after the fix of Paola's PR
+// To keep in mind that we will need to create the directory then create file in it and specify to delete file as the same time as the directory
+func (v *linuxFlareSuite) TestzzzFlareWithAllConfiguration() {
+	scenarioExpectedFiles := []string{
+		"telemetry.log",       // if telemetry.enabled
+		"registry.json",       // if Logs Agent is running
+		"expvar/system-probe", // if system probe is enabled
+	}
+
+	systemProbeDummyFiles := []string{"/tmp/dummy_dir", "/tmp/dummy_system_probe_config_bpf_dir"}
+	v.Env().RemoteHost.MustExecute("sudo mkdir -p " + strings.Join(systemProbeDummyFiles, " "))
+
+	confdPath := "/opt/datadog-agent/bin/agent/dist/conf.d/"
+	useSudo := true
+
+	withFiles := []agentparams.Option{
+		agentparams.WithSystemProbeConfig(string(systemProbeConfiguration)),
+		agentparams.WithSecurityAgentConfig(string(securityAgentConfiguration)),
+		agentparams.WithFile(confdPath+"test.yaml", "dummy content", useSudo),
+		agentparams.WithFile(confdPath+"test.yml", "dummy content", useSudo),
+		agentparams.WithFile(confdPath+"test.yml.test", "dummy content", useSudo),
+		agentparams.WithFile("/opt/datadog-agent/checks.d/test.yml", "dummy content", useSudo),
+	}
+
+	agentOptions := append(withFiles, agentparams.WithAgentConfig(string(flareAgentConfiguration)))
+
+	v.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(agentOptions...))))
+
+	flare, _ := requestAgentFlareAndFetchFromFakeIntake(&v.baseFlareSuite, agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
+
+	flarehelpers.AssertFilesExist(v.T(), flare, flarehelpers.LinuxFiles)
+	flarehelpers.AssertFilesExist(v.T(), flare, scenarioExpectedFiles)
+	flarehelpers.AssertFilesExist(v.T(), flare, flarehelpers.AllLogFiles)
+	flarehelpers.AssertFilesExist(v.T(), flare, flarehelpers.AllConfigFiles)
+
+	extraCustomConfigFiles := []string{"etc/confd/dist/test.yaml", "etc/confd/dist/test.yml", "etc/confd/dist/test.yml.test", "etc/confd/checksd/test.yml"}
+	flarehelpers.AssertFilesExist(v.T(), flare, extraCustomConfigFiles)
+
+	filesRegistredInPermissionsLog := append(systemProbeDummyFiles, "/etc/datadog-agent/auth_token")
+	flarehelpers.AssertFileContains(v.T(), flare, "permissions.log", filesRegistredInPermissionsLog...)
+}

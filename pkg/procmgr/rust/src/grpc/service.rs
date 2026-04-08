@@ -340,7 +340,7 @@ fn process_detail(proc: &ManagedProcess) -> proto::ProcessDetail {
 mod tests {
     use super::*;
     use crate::config::ProcessConfig;
-    use crate::process::tests::test_uuid;
+    use crate::test_helpers::test_uuid;
 
     #[test]
     fn test_state_to_proto_mapping() {
