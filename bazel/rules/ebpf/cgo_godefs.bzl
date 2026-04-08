@@ -30,7 +30,12 @@ def _cgo_godefs_impl(ctx):
 
     platform = go.sdk.goos
     base = src.basename.removesuffix(".go")
-    out_name = base + "_" + platform + ".go"
+
+    # Prefix with _ to avoid runfiles path collision with the committed source
+    # file of the same name. Without this, write_source_file's diff_test
+    # resolves both the generated and committed files to the same runfiles path,
+    # causing the test to compare a file against itself (always passes).
+    out_name = "_" + base + "_" + platform + ".go"
     out = ctx.actions.declare_file(out_name)
     outputs = [out]
 
@@ -61,7 +66,7 @@ def _cgo_godefs_impl(ctx):
     genpost_args = ""
     test_out = None
     if platform == "linux":
-        test_name = base + "_" + platform + "_test.go"
+        test_name = "_" + base + "_" + platform + "_test.go"
         test_out = ctx.actions.declare_file(test_name)
         outputs.append(test_out)
         test_path_no_ext = test_out.path.removesuffix(".go")
