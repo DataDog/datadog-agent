@@ -5,6 +5,9 @@ golang_deps_diff:
   stage: source_test
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
   rules:
     - !reference [.on_dev_branches]
     - when: on_success
@@ -15,14 +18,19 @@ golang_deps_diff:
     KUBERNETES_MEMORY_REQUEST: "16Gi"
     KUBERNETES_MEMORY_LIMIT: "16Gi"
   before_script:
+    - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.pr-comment)
     - !reference [.retrieve_linux_go_deps]
   script:
     # Get API key to send metrics
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
+<<<<<<< HEAD
     # Get GitHub app credentials to check PR draft status
     - GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_GITHUB_APP key_b64) || exit $?; export GITHUB_KEY_B64
     - GITHUB_APP_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_GITHUB_APP app_id) || exit $?; export GITHUB_APP_ID
     - dda inv -- -e github.is-pr-ready --git-ref "${CI_COMMIT_REF_NAME}" --target-branch main && REPORT_METRICS="--report-metrics" || REPORT_METRICS=""
+=======
+    - dda inv -- -e github.is-pr-ready --git-ref "${CI_COMMIT_REF_NAME}" && REPORT_METRICS="--report-metrics" || REPORT_METRICS=""
+>>>>>>> 6d1ca6b9e5b (Remove everything related to Github App)
     - dda inv -- -e go-deps.diff --report-file=deps-report.md ${REPORT_METRICS} --git-ref "${CI_COMMIT_REF_NAME}"
   artifacts:
     paths:
@@ -37,9 +45,12 @@ golang_deps_commenter:
     - !reference [.on_dev_branches]
     - when: on_success
   needs: ["golang_deps_diff"]
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
+  before_script:
+    - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.pr-comment)
   script:
-    - GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_GITHUB_APP key_b64) || exit $?; export GITHUB_KEY_B64
-    - GITHUB_APP_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_GITHUB_APP app_id) || exit $?; export GITHUB_APP_ID
     - if [ ! -s deps-report.md ]; then
         dda inv -- -e github.pr-commenter --title="Go Package Import Differences" --force-delete ;
       else
@@ -51,13 +62,14 @@ golang_deps_send_count_metrics:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
   needs: ["go_deps"]
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
   before_script:
+    - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.pr-comment)
     - !reference [.retrieve_linux_go_deps]
   script:
     # Get API key to send metrics
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
-    # Get GitHub app credentials to check PR draft status
-    - GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_GITHUB_APP key_b64) || exit $?; export GITHUB_KEY_B64
-    - GITHUB_APP_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_GITHUB_APP app_id) || exit $?; export GITHUB_APP_ID
     - dda inv -- -e github.is-pr-ready --git-ref "${CI_COMMIT_REF_NAME}" --target-branch main && NO_SEND_SERIES="" || NO_SEND_SERIES="--no-send-series"
     - dda inv -- -e go-deps.send-count-metrics --git-sha "${CI_COMMIT_SHA}" --git-ref "${CI_COMMIT_REF_NAME}" ${NO_SEND_SERIES}

@@ -19,12 +19,6 @@
     paths:
       - omnibus/vendor/bundle
 
-.setup_agent_github_app:
-  - GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_GITHUB_APP key_b64) || exit $?; export GITHUB_KEY_B64
-  - GITHUB_APP_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_GITHUB_APP app_id) || exit $?; export GITHUB_APP_ID
-  - GITHUB_INSTALLATION_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_GITHUB_APP installation_id) || exit $?; export GITHUB_INSTALLATION_ID
-  - echo "Using agent GitHub App"
-
 ## Shared `dd-pkg` steps:
 # - Install `dd-pkg`, logging the version in use for the job
 .setup_dd_pkg:

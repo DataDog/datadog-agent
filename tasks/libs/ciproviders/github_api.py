@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import base64
 import os
 import re
 from collections.abc import Iterable
@@ -20,7 +19,6 @@ try:
         Auth,
         Github,
         GithubException,
-        GithubIntegration,
         GithubObject,
         InputGitTreeElement,
         PullRequest,
@@ -534,23 +532,6 @@ class GithubAPI:
                 message="Github App Authentication is no longer supported in the CI, use dd-octo-sts instead",
                 code=1,
             )
-
-    @staticmethod
-    def get_token_from_app(app_id_env='GITHUB_APP_ID', pkey_env='GITHUB_KEY_B64'):
-        app_id = os.environ.get(app_id_env)
-        app_key_b64 = os.environ.get(pkey_env)
-        if app_id is None or app_key_b64 is None:
-            raise RuntimeError(f"Missing {app_id_env} or {pkey_env}")
-        app_key = base64.b64decode(app_key_b64).decode("ascii")
-
-        auth = Auth.AppAuth(app_id, app_key)
-        integration = GithubIntegration(auth=auth)
-        installations = integration.get_installations()
-        if installations.totalCount == 0:
-            raise RuntimeError("Failed to list app installations")
-        install_id = installations[0].id
-        auth_token = integration.get_access_token(install_id)
-        print(auth_token.token)
 
     def create_label(self, name, color, description="", exist_ok=False):
         """

@@ -169,13 +169,6 @@ def send_rate_limit_info_datadog(_, pipeline_id, app_instance):
     send_metrics([metric])
 
 
-@task
-def get_token_from_app(_, app_id_env='GITHUB_APP_ID', pkey_env='GITHUB_KEY_B64'):
-    from .libs.ciproviders.github_api import GithubAPI
-
-    GithubAPI.get_token_from_app(app_id_env, pkey_env)
-
-
 def _get_teams(changed_files, owners_file='.github/CODEOWNERS', best_teams_only=True) -> list[str]:
     """Returns a list of teams that are responsible for changed files
 

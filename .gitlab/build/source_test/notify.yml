@@ -2,13 +2,17 @@ unit_tests_notify:
   stage: source_test
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
   rules:
     - !reference [.except_main_release_or_mq]
     - !reference [.except_disable_unit_tests]
     - when: always
+  before_script:
+    - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.pr-comment)
   script:
     - dda self dep sync -f legacy-tasks
-    - !reference [.setup_agent_github_app]
     - dda inv -- notify.unit-tests --pipeline-id $CI_PIPELINE_ID --pipeline-url $CI_PIPELINE_URL --branch-name $CI_COMMIT_REF_NAME
   needs:
     - tests_linux-x64-py3

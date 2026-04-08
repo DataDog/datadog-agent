@@ -54,6 +54,9 @@ notify_gitlab_ci_changes:
   extends: .notify-job
   needs: [compute_gitlab_ci_config]
   tags: ["arch:amd64", "specific:true"]
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
   rules:
     - !reference [.except_mergequeue]
     - changes:
@@ -61,6 +64,8 @@ notify_gitlab_ci_changes:
           - .gitlab-ci.yml
           - .gitlab/**/*.yml
         compare_to: $COMPARE_TO_BRANCH
+  before_script:
+    - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.pr-comment)
   script:
     - python3 -m dda self dep sync -f legacy-tasks
     - dda inv -- -e notify.gitlab-ci-diff --from-diff artifacts/diff.gitlab-ci.yml --pr-comment

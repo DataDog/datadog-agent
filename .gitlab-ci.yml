@@ -320,7 +320,6 @@ variables:
   # Start vault variables
   AGENT_API_KEY_ORG2: agent-api-key-org-2 # agent-devx
   AGENT_APP_KEY_ORG2: agent-app-key-org-2 # agent-devx
-  AGENT_GITHUB_APP: agent-github-app # agent-devx
   AGENT_QA_E2E: agent-qa-e2e # agent-devx
   ATLASSIAN_WRITE: atlassian-write # agent-devx
   CODECOV: codecov # agent-devx
@@ -329,8 +328,6 @@ variables:
   E2E_AZURE: e2e-azure # agent-devx
   E2E_GCP: e2e-gcp # agent-devx
   INSTALL_SCRIPT_API_KEY_ORG2: install-script-api-key-org-2 # agent-devx
-  MACOS_GITHUB_APP_1: macos-github-app-one # agent-devx
-  MACOS_GITHUB_APP_2: macos-github-app-two # agent-devx
   MACOS_APPLE_APPLICATION_SIGNING: apple-application-signing # agent-delivery
   MACOS_APPLE_DEVELOPER_ACCOUNT: apple-developer-account # agent-delivery
   MACOS_APPLE_INSTALLER_SIGNING: apple-installer-signing # agent-delivery
