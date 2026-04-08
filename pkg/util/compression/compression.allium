@@ -85,9 +85,11 @@ contract Compression {
         -- decompress(compress(input)) = input
 
     @invariant ValidFrame
-        -- compress(empty) produces a valid compressed frame,
-        -- not empty output. This is a consequence of RoundtripIdentity
-        -- holding for empty input.
+        -- For compressors where kind != none: compress(empty)
+        -- produces a valid compressed frame, not empty output.
+        -- This is a consequence of RoundtripIdentity holding for
+        -- empty input. Noop is excluded: its Compress is the
+        -- identity function, so empty in produces empty out.
 
     @invariant CompressBoundCorrectness
         -- For all inputs:
