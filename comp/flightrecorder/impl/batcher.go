@@ -45,9 +45,23 @@ type batcher struct {
 	// seenContexts tracks context keys already sent with full name+tags.
 	seenContexts *contextSet
 
-	flushCh chan struct{} // capacity 1, non-blocking signal
-	stopCh  chan struct{}
-	wg      sync.WaitGroup
+	// Per-signal flush channels. Each signal type has its own flush
+	// goroutine so encoding one type cannot block another.
+	metricsFlushCh chan struct{}
+	logsFlushCh    chan struct{}
+	tssFlushCh     chan struct{}
+	stopCh         chan struct{}
+	wg             sync.WaitGroup
+}
+
+// initialCap returns a small starting capacity (1/8th of max, min 1000).
+// The ring grows adaptively from here up to maxCap as needed.
+func initialCap(maxCap int) int {
+	c := maxCap / 8
+	if c < 1000 {
+		c = 1000
+	}
+	return c
 }
 
 func newBatcher(transport Transport, flushInterval time.Duration, ptCapacity, defCapacity, logCapacity, traceStatsCapacity int, seenContexts *contextSet, c *counters) *batcher {
@@ -56,62 +70,68 @@ func newBatcher(transport Transport, flushInterval time.Duration, ptCapacity, de
 		flushInterval: flushInterval,
 		counters:      c,
 
-		pts:  newRingBuf[metricPoint](ptCapacity),
-		defs: newRingBuf[contextDef](defCapacity),
-		logs: newRingBuf[hook.LogSampleSnapshot](logCapacity),
-		tss:  newRingBuf[capturedTraceStat](traceStatsCapacity),
+		pts:  newRingBuf[metricPoint](initialCap(ptCapacity), ptCapacity),
+		defs: newRingBuf[contextDef](initialCap(defCapacity), defCapacity),
+		logs: newRingBuf[hook.LogSampleSnapshot](initialCap(logCapacity), logCapacity),
+		tss:  newRingBuf[capturedTraceStat](initialCap(traceStatsCapacity), traceStatsCapacity),
 
-		builderPool:  newBuilderPool(),
-		seenContexts: seenContexts,
-		flushCh:      make(chan struct{}, 1),
-		stopCh:       make(chan struct{}),
+		builderPool:    newBuilderPool(),
+		seenContexts:   seenContexts,
+		metricsFlushCh: make(chan struct{}, 1),
+		logsFlushCh:    make(chan struct{}, 1),
+		tssFlushCh:     make(chan struct{}, 1),
+		stopCh:         make(chan struct{}),
 	}
-	b.wg.Add(1)
-	go b.flushLoop()
+	b.wg.Add(3)
+	go b.flushLoopFn(b.metricsFlushCh, b.flushMetrics)
+	go b.flushLoopFn(b.logsFlushCh, b.flushLogs)
+	go b.flushLoopFn(b.tssFlushCh, b.flushTraceStats)
 	return b
 }
 
 // AddPoint enqueues a compact metric data point (known context, no strings).
 func (b *batcher) AddPoint(p metricPoint) {
 	if b.pts.add(p, func() { b.counters.incMetricsDroppedOverflow(1) }) {
-		b.signalFlush()
+		signalCh(b.metricsFlushCh)
 	}
 }
 
 // AddContextDef enqueues a context definition (first occurrence, with strings).
 func (b *batcher) AddContextDef(d contextDef) {
 	if b.defs.add(d, func() { b.counters.incMetricsDroppedOverflow(1) }) {
-		b.signalFlush()
+		signalCh(b.metricsFlushCh)
 	}
 }
 
 // AddLogBatch enqueues a batch of log snapshots with a single lock acquisition.
 func (b *batcher) AddLogBatch(batch []hook.LogSampleSnapshot) {
 	if b.logs.addBatch(batch, func() { b.counters.incLogsDroppedOverflow(1) }) {
-		b.signalFlush()
+		signalCh(b.logsFlushCh)
 	}
 }
 
 // AddTraceStat enqueues a trace stats entry.
 func (b *batcher) AddTraceStat(t capturedTraceStat) {
 	if b.tss.add(t, func() { b.counters.incTraceStatsDroppedOverflow(1) }) {
-		b.signalFlush()
+		signalCh(b.tssFlushCh)
 	}
 }
 
-func (b *batcher) flushLoop() {
+// flushLoopFn runs a flush loop for a single signal type. Each signal type
+// gets its own goroutine so encoding one type cannot block another.
+func (b *batcher) flushLoopFn(flushCh <-chan struct{}, flushFn func()) {
 	defer b.wg.Done()
 	ticker := time.NewTicker(b.flushInterval)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-b.stopCh:
-			b.flush()
+			flushFn()
 			return
 		case <-ticker.C:
-			b.flush()
-		case <-b.flushCh:
-			b.flush()
+			flushFn()
+		case <-flushCh:
+			flushFn()
 			select {
 			case <-ticker.C:
 			default:
@@ -120,17 +140,12 @@ func (b *batcher) flushLoop() {
 	}
 }
 
-func (b *batcher) signalFlush() {
+// signalCh sends a non-blocking signal to a flush channel.
+func signalCh(ch chan struct{}) {
 	select {
-	case b.flushCh <- struct{}{}:
+	case ch <- struct{}{}:
 	default:
 	}
-}
-
-func (b *batcher) flush() {
-	b.flushMetrics()
-	b.flushLogs()
-	b.flushTraceStats()
 }
 
 func (b *batcher) flushMetrics() {
@@ -146,20 +161,24 @@ func (b *batcher) flushMetrics() {
 	b.pts.active, b.pts.drain = b.pts.drain, b.pts.active
 	ptCount := b.pts.activeN
 	ptHead := b.pts.activeH
+	ptCap := b.pts.cap
+	ptDrain := b.pts.drain
 	b.pts.activeN = 0
 	b.pts.activeH = 0
 
 	b.defs.active, b.defs.drain = b.defs.drain, b.defs.active
 	defCount := b.defs.activeN
 	defHead := b.defs.activeH
+	defCap := b.defs.cap
+	defDrain := b.defs.drain
 	b.defs.activeN = 0
 	b.defs.activeH = 0
 
 	b.defs.mu.Unlock()
 	b.pts.mu.Unlock()
 
-	ptTail := (ptHead - ptCount + b.pts.cap) % b.pts.cap
-	defTail := (defHead - defCount + b.defs.cap) % b.defs.cap
+	ptTail := (ptHead - ptCount + ptCap) % ptCap
+	defTail := (defHead - defCount + defCap) % defCap
 
 	b.counters.setBatchSize("metrics", ptCount+defCount)
 	b.counters.incFlushCycles()
@@ -172,18 +191,18 @@ func (b *batcher) flushMetrics() {
 		if chunkDefs > maxChunkSize {
 			chunkDefs = maxChunkSize
 		}
-		chunkDefTail := (defTail + defSent) % b.defs.cap
+		chunkDefTail := (defTail + defSent) % defCap
 
 		chunkPts := ptCount - ptSent
 		if chunkPts > maxChunkSize {
 			chunkPts = maxChunkSize
 		}
-		chunkPtTail := (ptTail + ptSent) % b.pts.cap
+		chunkPtTail := (ptTail + ptSent) % ptCap
 
 		builder, err := EncodeSplitMetricBatch(
 			b.builderPool,
-			b.defs.drain, chunkDefTail, chunkDefs, b.defs.cap,
-			b.pts.drain, chunkPtTail, chunkPts, b.pts.cap,
+			defDrain, chunkDefTail, chunkDefs, defCap,
+			ptDrain, chunkPtTail, chunkPts, ptCap,
 		)
 		if err != nil {
 			b.counters.incMetricsDroppedTransport(uint64(chunkDefs + chunkPts))
@@ -205,7 +224,7 @@ func (b *batcher) flushMetrics() {
 		ptSent += chunkPts
 	}
 	b.counters.incMetricsSent(uint64(sent))
-	returnDefSlicesRing(b.defs.drain, defTail, defCount, b.defs.cap)
+	returnDefSlicesRing(defDrain, defTail, defCount, defCap)
 }
 
 func (b *batcher) flushLogs() {

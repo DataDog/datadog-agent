@@ -20,10 +20,14 @@ const maxChunkSize = 2000
 // ringBuf is a generic double-buffered ring that handles the swap/drain/chunk
 // pattern uniformly across all signal types (metrics, logs, trace stats).
 //
-// The type parameter T is the item type stored in the ring.
+// The ring is adaptive: it starts at initialCap and doubles when full, up to
+// maxCap. Only pods that actually need large buffers pay the memory cost.
+// Growth happens under the mutex during add() — a one-time O(n) copy that
+// occurs at most log2(maxCap/initialCap) times.
 type ringBuf[T any] struct {
 	mu        sync.Mutex
 	cap       int
+	maxCap    int
 	active    []T
 	drain     []T
 	activeN   int
@@ -31,25 +35,58 @@ type ringBuf[T any] struct {
 	watermark int
 }
 
-func newRingBuf[T any](capacity int) ringBuf[T] {
+func newRingBuf[T any](initialCap, maxCap int) ringBuf[T] {
+	if maxCap < initialCap {
+		maxCap = initialCap
+	}
 	return ringBuf[T]{
-		cap:       capacity,
-		active:    make([]T, capacity),
-		drain:     make([]T, capacity),
-		watermark: capacity * 4 / 5,
+		cap:       initialCap,
+		maxCap:    maxCap,
+		active:    make([]T, initialCap),
+		drain:     make([]T, initialCap),
+		watermark: initialCap * 4 / 5,
 	}
 }
 
+// grow doubles the ring capacity up to maxCap. Must be called with mu held.
+// Linearizes the circular active buffer into the new larger buffer.
+func (r *ringBuf[T]) grow() {
+	newCap := r.cap * 2
+	if newCap > r.maxCap {
+		newCap = r.maxCap
+	}
+	if newCap == r.cap {
+		return // already at max
+	}
+
+	newActive := make([]T, newCap)
+	// Copy items from circular buffer [tail..head) into linear [0..activeN).
+	tail := (r.activeH - r.activeN + r.cap) % r.cap
+	for i := 0; i < r.activeN; i++ {
+		newActive[i] = r.active[(tail+i)%r.cap]
+	}
+
+	r.active = newActive
+	r.drain = make([]T, newCap)
+	r.activeH = r.activeN // items are now at [0..activeN)
+	r.cap = newCap
+	r.watermark = newCap * 4 / 5
+}
+
 // add enqueues an item. Returns true if the watermark was reached (caller
-// should signal an early flush). If the ring is full, the item overwrites
-// the oldest entry and overflowFn is called.
+// should signal an early flush). If the ring is full and at maxCap, the item
+// overwrites the oldest entry and overflowFn is called. If below maxCap, the
+// ring grows instead.
 func (r *ringBuf[T]) add(item T, overflowFn func()) bool {
 	r.mu.Lock()
 	if r.activeN == r.cap {
-		if overflowFn != nil {
+		if r.cap < r.maxCap {
+			r.grow()
+		} else if overflowFn != nil {
 			overflowFn()
 		}
-	} else {
+	}
+	if r.activeN < r.cap {
 		r.activeN++
 	}
 	r.active[r.activeH] = item
@@ -64,10 +101,13 @@ func (r *ringBuf[T]) addBatch(items []T, overflowFn func()) bool {
 	r.mu.Lock()
 	for i := range items {
 		if r.activeN == r.cap {
-			if overflowFn != nil {
+			if r.cap < r.maxCap {
+				r.grow()
+			} else if overflowFn != nil {
 				overflowFn()
 			}
-		} else {
+		}
+		if r.activeN < r.cap {
 			r.activeN++
 		}
 		r.active[r.activeH] = items[i]
@@ -97,16 +137,18 @@ func (r *ringBuf[T]) swap() (swapResult[T], bool) {
 	r.active, r.drain = r.drain, r.active
 	count := r.activeN
 	head := r.activeH
+	cap := r.cap
+	drain := r.drain
 	r.activeN = 0
 	r.activeH = 0
 	r.mu.Unlock()
 
-	tail := (head - count + r.cap) % r.cap
+	tail := (head - count + cap) % cap
 	return swapResult[T]{
-		buf:   r.drain,
+		buf:   drain,
 		tail:  tail,
 		count: count,
-		cap:   r.cap,
+		cap:   cap,
 	}, true
 }
 

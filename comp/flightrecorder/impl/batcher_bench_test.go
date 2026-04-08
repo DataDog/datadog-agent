@@ -87,7 +87,7 @@ func BenchmarkBatcher_Flush_1000(b *testing.B) {
 		}
 		b.StartTimer()
 
-		bat.flush()
+		bat.flushMetrics()
 
 		b.StopTimer()
 		bat.Stop()
