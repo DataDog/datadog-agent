@@ -20,6 +20,7 @@ import (
 	"syscall"
 	"time"
 
+	pathrs "github.com/cyphar/filepath-securejoin/pathrs-lite"
 	"github.com/shirou/gopsutil/v4/process"
 	"golang.org/x/sys/unix"
 
@@ -152,37 +153,15 @@ func (r *resolvStripper) readResolvConf(entry *events.Process) (string, error) {
 	return r.stripResolvConf(int(stat.Size()), file)
 }
 
-// openResolvConf opens etc/resolv.conf within root using openat2 with
-// RESOLVE_IN_ROOT, so that absolute symlinks (e.g. /etc/resolv.conf ->
-// /run/systemd/resolve/resolv.conf) are resolved within the root rather than
-// escaping to the real filesystem root. Requires Linux 5.6+.
+// openResolvConf opens etc/resolv.conf within root, respecting absolute symlinks using pathrs.
 func openResolvConf(root string) (*os.File, error) {
-	dirfd, err := unix.Open(root, unix.O_PATH|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
+	handle, err := pathrs.OpenInRoot(root, "etc/resolv.conf")
 	if err != nil {
 		return nil, err
 	}
-	defer unix.Close(dirfd)
+	defer handle.Close()
 
-	fd, err := unix.Openat2(dirfd, "etc/resolv.conf", &unix.OpenHow{
-		Flags:   unix.O_RDONLY | unix.O_CLOEXEC,
-		Resolve: unix.RESOLVE_IN_ROOT,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return os.NewFile(uintptr(fd), root+"/etc/resolv.conf"), nil
-}
-
-// openat2Available probes for openat2 support (Linux 5.6+). On older kernels
-// the syscall returns ENOSYS.
-func openat2Available() bool {
-	_, err := unix.Openat2(0, "", &unix.OpenHow{
-		Flags:   unix.O_PATH | unix.O_CLOEXEC,
-		Resolve: unix.RESOLVE_IN_ROOT,
-	})
-	// Any error other than ENOSYS means the syscall exists (ENOENT, EBADF, etc. are fine).
-	return !errors.Is(err, unix.ENOSYS)
+	return pathrs.Reopen(handle, unix.O_RDONLY)
 }
 
 func (r *resolvStripper) stripResolvConf(size int, f io.Reader) (string, error) {
