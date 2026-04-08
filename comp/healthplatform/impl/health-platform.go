@@ -12,7 +12,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"path/filepath"
 	"sync"
 	"time"
@@ -29,11 +28,13 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	issuesmod "github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues"
+	configenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	// Import issue modules to trigger their init() registration
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues/checkfailure"
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues/dockerpermissions"
+	_ "github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues/rofspermissions"
 )
 
 // Requires defines the dependencies for the health-platform component
@@ -69,7 +70,7 @@ type healthPlatformImpl struct {
 
 	// Persistence
 	persistedIssues map[string]*PersistedIssue // Persisted issues with status tracking
-	persistencePath string                     // Path to the persistence file
+	persistence     issuesPersistence          // Persistence strategy (disk or noop)
 
 	// Issue module registry (combines checks + remediations)
 	issueRegistry *issuesmod.Registry
@@ -215,12 +216,24 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	reqs.Log.Info("Creating health platform component")
 
-	// Build persistence path: <run_path>/health-platform/issues.json
-	runPath := reqs.Config.GetString("run_path")
-	persistencePath := filepath.Join(runPath, "health-platform", "issues.json")
+	// Select persistence strategy: noop on Kubernetes (emptyDir makes disk persistence meaningless),
+	// disk-based elsewhere so issues survive agent restarts.
+	// Operators who mount run_path as a durable volume (hostPath, PVC) can opt in to disk
+	// persistence on Kubernetes by setting health_platform.persist_on_kubernetes: true.
+	var persistence issuesPersistence
+	persistOnKubernetes := reqs.Config.GetBool("health_platform.persist_on_kubernetes")
+	if configenv.IsKubernetes() && !persistOnKubernetes {
+		reqs.Log.Info("Running on Kubernetes: health platform persistence disabled (set health_platform.persist_on_kubernetes: true to enable)")
+		persistence = &noopPersistence{}
+	} else {
+		runPath := reqs.Config.GetString("run_path")
+		persistencePath := filepath.Join(runPath, "health-platform", "issues.json")
+		persistence = newDiskPersistence(persistencePath, reqs.Log)
+	}
+
 	// Create unified issue registry and register all self-registered modules
 	issueRegistry := issuesmod.NewRegistry()
-	for _, module := range issuesmod.GetAllModules() {
+	for _, module := range issuesmod.GetAllModules(reqs.Config) {
 		issueRegistry.RegisterModule(module)
 	}
 
@@ -241,7 +254,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 		// Persistence
 		persistedIssues: make(map[string]*PersistedIssue),
-		persistencePath: persistencePath,
+		persistence:     persistence,
 	}
 
 	// Initialize check runner (must be after comp is created as it needs the reporter interface)
@@ -249,6 +262,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	// Register built-in health checks from issue modules
 	for _, check := range issueRegistry.GetBuiltInChecks() {
+		if check.Once {
+			continue
+		}
+
 		if err := comp.RegisterCheck(check.ID, check.Name, check.CheckFn, check.Interval); err != nil {
 			reqs.Log.Warn("Failed to register health check " + check.ID + ": " + err.Error())
 		}
@@ -308,6 +325,8 @@ func (h *healthPlatformImpl) start(_ context.Context) error {
 	if h.forwarder != nil {
 		h.forwarder.Start()
 	}
+
+	h.startupChecks()
 
 	return nil
 }
@@ -386,6 +405,11 @@ func (h *healthPlatformImpl) ReportIssue(checkID string, checkName string, repor
 // If interval is 0 or negative, uses default of 15 minutes
 func (h *healthPlatformImpl) RegisterCheck(checkID string, checkName string, checkFn healthplatformdef.HealthCheckFunc, interval time.Duration) error {
 	return h.checkRunner.RegisterCheck(checkID, checkName, checkFn, interval)
+}
+
+// RunCheck runs a single health check immediately
+func (h *healthPlatformImpl) RunCheck(checkID, checkName string, checkFn healthplatformdef.HealthCheckFunc) error {
+	return h.checkRunner.RunCheck(checkID, checkName, checkFn)
 }
 
 // ============================================================================
@@ -593,20 +617,14 @@ func (h *healthPlatformImpl) initForwarder(reqs Requires) error {
 // Persistence Methods
 // ============================================================================
 
-// loadFromDisk loads persisted issues from disk
+// loadFromDisk loads persisted issues via the persistence layer
 func (h *healthPlatformImpl) loadFromDisk() error {
-	data, err := os.ReadFile(h.persistencePath)
+	state, err := h.persistence.load()
 	if err != nil {
-		if os.IsNotExist(err) {
-			h.log.Info("No persisted issues file found, starting fresh")
-			return nil
-		}
-		return fmt.Errorf("failed to read persisted issues: %w", err)
+		return err
 	}
-
-	var state PersistedState
-	if err := json.Unmarshal(data, &state); err != nil {
-		return fmt.Errorf("failed to unmarshal persisted issues: %w", err)
+	if state == nil {
+		return nil
 	}
 
 	h.issuesMux.Lock()
@@ -631,11 +649,11 @@ func (h *healthPlatformImpl) loadFromDisk() error {
 		}
 	}
 
-	h.log.Info(fmt.Sprintf("Loaded %d persisted issues from disk (%d active)", len(state.Issues), activeCount))
+	h.log.Info(fmt.Sprintf("Loaded %d persisted issues (%d active)", len(state.Issues), activeCount))
 	return nil
 }
 
-// saveToDisk persists issues to disk using atomic write (temp file + rename)
+// saveToDisk persists the current issue state via the persistence layer
 func (h *healthPlatformImpl) saveToDisk() error {
 	h.issuesMux.RLock()
 	// Make a deep copy to avoid race conditions during marshaling
@@ -648,7 +666,7 @@ func (h *healthPlatformImpl) saveToDisk() error {
 	}
 	h.issuesMux.RUnlock()
 
-	// Prune resolved issues older than the TTL before writing to disk
+	// Prune resolved issues older than the TTL before saving
 	pruneOldResolvedIssues(issuesCopy)
 
 	state := PersistedState{
@@ -656,29 +674,7 @@ func (h *healthPlatformImpl) saveToDisk() error {
 		Issues:    issuesCopy,
 	}
 
-	data, err := json.MarshalIndent(state, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal issues: %w", err)
-	}
-
-	// Ensure directory exists
-	dir := filepath.Dir(h.persistencePath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("failed to create persistence directory: %w", err)
-	}
-
-	// Write to temp file first
-	tmpPath := h.persistencePath + ".tmp"
-	if err := os.WriteFile(tmpPath, data, 0644); err != nil {
-		return fmt.Errorf("failed to write temp file: %w", err)
-	}
-
-	if err := os.Rename(tmpPath, h.persistencePath); err != nil {
-		os.Remove(tmpPath) // Clean up temp file on failure
-		return fmt.Errorf("failed to rename temp file: %w", err)
-	}
-
-	return nil
+	return h.persistence.save(&state)
 }
 
 // ============================================================================
@@ -745,4 +741,19 @@ func (h *healthPlatformImpl) fillFlare(_ context.Context, fb flaretypes.FlareBui
 	}
 
 	return fb.AddFile("health-platform-issues.json", data)
+}
+
+func (h *healthPlatformImpl) startupChecks() {
+	checks := h.issueRegistry.GetBuiltInChecks()
+	for _, check := range checks {
+		// Only one time checks should be run at startup
+		if !check.Once {
+			continue
+		}
+
+		err := h.RunCheck(check.ID, check.Name, check.CheckFn)
+		if err != nil {
+			h.log.Warnf("Failed to run startup check %s: %v", check.Name, err)
+		}
+	}
 }

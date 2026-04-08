@@ -5,6 +5,9 @@ edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 
+[features]
+test-helpers = []
+
 [lib]
 name = "dd_procmgrd"
 path = "src/lib.rs"
@@ -53,6 +56,10 @@ nix = { workspace = true, features = ["signal", "process", "user"] }
 
 [dev-dependencies]
 tempfile.workspace = true
+
+[[test]]
+name = "e2e"
+required-features = ["test-helpers"]
 
 [build-dependencies]
 protoc-gen-prost.workspace = true
