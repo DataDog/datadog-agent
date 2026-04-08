@@ -116,7 +116,6 @@ func (l *DBMAuroraListener) discoverAuroraClusters() {
 	}
 	if len(ids) == 0 {
 		log.Debugf("no aurora clusters found with provided tags %v", l.config.Tags)
-		return
 	}
 	auroraCluster, err := l.awsRdsClient.GetAuroraClusterEndpoints(ctx, ids, l.config)
 	if err != nil {
