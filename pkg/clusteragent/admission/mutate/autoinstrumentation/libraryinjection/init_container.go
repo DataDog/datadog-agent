@@ -69,9 +69,6 @@ func (p *InitContainerProvider) InjectInjector(pod *corev1.Pod, cfg InjectorConf
 		ReadOnly:  true,
 	})
 
-	// Timestamp file path for tracking init container completion
-	tsFilePath := injectorMount.MountPath + "/c-init-time." + InjectorInitContainerName
-
 	// Init container that copies injector files
 	initContainer := corev1.Container{
 		Name:    InjectorInitContainerName,
@@ -79,13 +76,12 @@ func (p *InitContainerProvider) InjectInjector(pod *corev1.Pod, cfg InjectorConf
 		Command: []string{"/bin/sh", "-c", "--"},
 		Args: []string{
 			fmt.Sprintf(
-				`cp -r /%s/* %s && echo %s > %s/%s && echo $(date +%%s) >> %s`,
+				`cp -r /%s/* %s && echo %s > %s/%s`,
 				injectorMount.SubPath,
 				injectorMount.MountPath,
 				asAbsPath(injectorFilePath("launcher.preload.so")),
 				etcMountPath,
 				ldSoPreloadFileName,
-				tsFilePath,
 			),
 		},
 		VolumeMounts: []corev1.VolumeMount{
@@ -125,18 +121,8 @@ func (p *InitContainerProvider) InjectLibrary(pod *corev1.Pod, cfg LibraryConfig
 		SubPath:   libraryPackagesDir + "/" + cfg.Language,
 	}
 
-	// Volume mount for injector (to write timestamp)
-	injectorMount := corev1.VolumeMount{
-		Name:      InstrumentationVolumeName,
-		MountPath: asAbsPath(injectPackageDir),
-		SubPath:   injectPackageDir,
-	}
-
 	// Init container name
 	containerName := fmt.Sprintf(LibraryInitContainerNameTemplate, cfg.Language)
-
-	// Timestamp file path
-	tsFilePath := injectorMount.MountPath + "/c-init-time." + containerName
 
 	// Init container that copies library files
 	initContainer := corev1.Container{
@@ -144,15 +130,10 @@ func (p *InitContainerProvider) InjectLibrary(pod *corev1.Pod, cfg LibraryConfig
 		Image:   cfg.Package.FullRef(),
 		Command: []string{"/bin/sh", "-c", "--"},
 		Args: []string{
-			fmt.Sprintf(
-				`sh copy-lib.sh %s && echo $(date +%%s) >> %s`,
-				initContainerMount.MountPath,
-				tsFilePath,
-			),
+			"sh copy-lib.sh " + initContainerMount.MountPath,
 		},
 		VolumeMounts: []corev1.VolumeMount{
 			initContainerMount,
-			injectorMount,
 		},
 		Resources: cfg.Context.ResourceRequirements,
 	}

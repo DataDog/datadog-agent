@@ -40,11 +40,15 @@ func NewAutoInstrumentation(datadogConfig config.Component, wmeta workloadmeta.C
 
 	// For auto instrumentation, we need all the mutators to be applied for SSI to function. Specifically, we need
 	// things like the Datadog socket to be mounted from the config webhook and the DD_ENV, DD_SERVICE, and DD_VERSION
-	// env vars to be set from labels if they are available..
+	// env vars to be set from labels if they are available.
+	//
+	// The APM mutator runs before the config webhook so that init containers created by library injection
+	// already exist when the config webhook injects agent connection env vars (DD_AGENT_HOST, DD_TRACE_AGENT_URL,
+	// socket volumes, etc.). This lets copy-lib.sh send telemetry to the trace agent without manual env var injection.
 	mutator := mutatecommon.NewMutators(
 		tagsfromlabels.NewMutator(tagsfromlabels.NewMutatorConfig(datadogConfig), apm),
-		configWebhook.NewMutator(configWebhook.NewMutatorConfig(datadogConfig), apm),
 		apm,
+		configWebhook.NewMutator(configWebhook.NewMutatorConfig(datadogConfig), apm),
 	)
 	labelSelectors := NewLabelSelectors(NewLabelSelectorsConfig(datadogConfig))
 	return NewWebhook(config.Webhook, mutator, labelSelectors)

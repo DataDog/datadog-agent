@@ -49,6 +49,9 @@ func TestInjectInjector(t *testing.T) {
 
 	// Check volume mounts were added to app container
 	require.Len(t, pod.Spec.Containers[0].VolumeMounts, 2)
+
+	// Check injector command does not contain timestamp writing
+	assert.NotContains(t, pod.Spec.InitContainers[0].Args[0], "c-init-time")
 }
 
 func TestInjectLibrary(t *testing.T) {
@@ -71,8 +74,20 @@ func TestInjectLibrary(t *testing.T) {
 
 	// Check init container was added
 	require.Len(t, pod.Spec.InitContainers, 1)
-	assert.Equal(t, "datadog-lib-java-init", pod.Spec.InitContainers[0].Name)
-	assert.Equal(t, "gcr.io/datadoghq/dd-lib-java-init:latest", pod.Spec.InitContainers[0].Image)
+	initContainer := pod.Spec.InitContainers[0]
+	assert.Equal(t, "datadog-lib-java-init", initContainer.Name)
+	assert.Equal(t, "gcr.io/datadoghq/dd-lib-java-init:latest", initContainer.Image)
+
+	// Check only the library volume mount is present (no injector mount)
+	require.Len(t, initContainer.VolumeMounts, 1)
+	assert.Equal(t, libraryinjection.InstrumentationVolumeName, initContainer.VolumeMounts[0].Name)
+
+	// Check no env vars are set directly (agent connection vars come from config mutator)
+	assert.Empty(t, initContainer.Env)
+
+	// Check command does not contain timestamp writing
+	assert.NotContains(t, initContainer.Args[0], "date")
+	assert.NotContains(t, initContainer.Args[0], "c-init-time")
 }
 
 func TestInjectInjector_SkipsWhenInsufficientResources(t *testing.T) {

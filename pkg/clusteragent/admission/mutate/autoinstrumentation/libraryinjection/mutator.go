@@ -72,6 +72,9 @@ func InjectAPMLibraries(pod *corev1.Pod, cfg LibraryInjectionConfig) error {
 
 		metrics.LibInjectionAttempts.Inc(lib.Language, strconv.FormatBool(injected), strconv.FormatBool(cfg.AutoDetected), cfg.InjectionType)
 
+		log.Infof("APM library injection: pod=%s language=%s status=%s type=%s",
+			mutatecommon.PodString(pod), lib.Language, libResult.Status, cfg.InjectionType)
+
 		if libResult.Status == MutationStatusInjected && lib.Package.CanonicalVersion != "" {
 			annotation.Set(pod, annotation.LibraryCanonicalVersion.Format(lib.Language), lib.Package.CanonicalVersion)
 		}

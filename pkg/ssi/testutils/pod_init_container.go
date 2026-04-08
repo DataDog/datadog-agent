@@ -99,7 +99,7 @@ func (v *initContainerInjectionValidator) RequireInjection(t *testing.T) {
 		},
 	}
 	validator.RequireVolumeMounts(t, expectedVolumeMounts)
-	validator.RequireCommand(t, "/bin/sh -c -- cp -r /opt/datadog-packages/datadog-apm-inject/* /datadog-inject && echo /opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so > /datadog-etc/ld.so.preload && echo $(date +%s) >> /datadog-inject/c-init-time.datadog-init-apm-inject")
+	validator.RequireCommand(t, "/bin/sh -c -- cp -r /opt/datadog-packages/datadog-apm-inject/* /datadog-inject && echo /opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so > /datadog-etc/ld.so.preload")
 
 	// Validate library init containers.
 	for lang := range v.libraryVersions {
@@ -111,14 +111,9 @@ func (v *initContainerInjectionValidator) RequireInjection(t *testing.T) {
 				MountPath: "/datadog-lib",
 				SubPath:   "opt/datadog/apm/library/" + lang,
 			},
-			{
-				Name:      "datadog-auto-instrumentation",
-				MountPath: "/opt/datadog-packages/datadog-apm-inject",
-				SubPath:   "opt/datadog-packages/datadog-apm-inject",
-			},
 		}
 		validator.RequireVolumeMounts(t, expectedVolumeMounts)
-		validator.RequireCommand(t, "/bin/sh -c -- sh copy-lib.sh /datadog-lib && echo $(date +%s) >> /opt/datadog-packages/datadog-apm-inject/c-init-time.datadog-lib-"+lang+"-init")
+		validator.RequireCommand(t, "/bin/sh -c -- sh copy-lib.sh /datadog-lib")
 	}
 }
 
