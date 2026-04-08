@@ -202,6 +202,7 @@ def eval_scenarios(
     config: str = "",
     scenario_output_dir: str = "/tmp",
     timeout: int = 0,
+    scenarios: str = "",
     _logger: StepLogger | None = None,
 ) -> dict[str, object]:
     """
@@ -234,6 +235,9 @@ def eval_scenarios(
             Defaults to /tmp. Set to a combo-specific folder to keep outputs co-located.
         timeout: Seconds before a single testbench invocation is killed and the
             scenario is skipped (None = no limit).
+        scenarios: Comma-separated scenario names to run (default: all SCENARIOS).
+            Overrides the global SCENARIOS list; ``scenario`` (singular) takes precedence
+            when both are set.
 
     Returns:
         Main report dict with ``score`` and per-scenario ``metadata``.
@@ -255,7 +259,8 @@ def eval_scenarios(
         build_testbench(ctx)
         build_scorer(ctx)
 
-    scenarios_to_run = [scenario] if scenario else SCENARIOS
+    scenarios_list = [s.strip() for s in scenarios.split(",") if s.strip()] if scenarios else SCENARIOS
+    scenarios_to_run = [scenario] if scenario else scenarios_list
     scenario_logger = _logger or StepLogger(len(scenarios_to_run), "Scenario")
 
     results = []
@@ -910,6 +915,7 @@ def eval_bayesian(
     build: bool = True,
     overwrite: bool = False,
     timeout: int = 0,
+    scenarios: str = "",
     _logger: StepLogger | None = None,
 ):
     """
@@ -940,6 +946,7 @@ def eval_bayesian(
         build: Whether to build observer-testbench and observer-scorer first.
         timeout: Seconds before a single testbench invocation is killed and the
             scenario is skipped (None = no limit). Passed to eval_scenarios.
+        scenarios: Comma-separated scenario names to run (default: all SCENARIOS).
 
     Examples:
         dda inv q.bayesian-eval                                                                       # all components
@@ -1037,6 +1044,7 @@ def eval_bayesian(
         failure_reason: str | None = None
         report = None
         try:
+            scenarios_list = [s.strip() for s in scenarios.split(",") if s.strip()] if scenarios else SCENARIOS
             report = eval_scenarios(
                 ctx,
                 scenarios_dir=scenarios_dir,
@@ -1046,7 +1054,8 @@ def eval_bayesian(
                 main_report_path=report_path,
                 scenario_output_dir=scenario_output_dir,
                 timeout=timeout,
-                _logger=trial_logger.child(len(SCENARIOS), "Scenario"),
+                scenarios=scenarios,
+                _logger=trial_logger.child(len(scenarios_list), "Scenario"),
             )
         except Exception as e:
             failure_reason = f"eval_scenarios raised {type(e).__name__}: {e}"
@@ -1189,6 +1198,7 @@ def eval_component(
     disable: str = "",
     lock: str = "",
     timeout: int = 0,
+    scenarios: str = "",
 ):
     """
     Evaluate whether adding a component improves observer accuracy via
@@ -1243,6 +1253,8 @@ def eval_component(
             scenario is skipped (None = no limit). Applied per scenario within each
             Bayesian trial — effectively a timeout for one complete pass over all
             scenarios.
+        scenarios: Comma-separated scenario names to evaluate (default: all SCENARIOS).
+            Useful to focus on a subset and reduce wall-clock time.
 
     Examples:
         dda inv q.eval-component --component scanmw
@@ -1252,10 +1264,23 @@ def eval_component(
         dda inv q.eval-component --component bocpd --enable cusum --disable rrcf
         dda inv q.eval-component --component bocpd --lock time_cluster
         dda inv q.eval-component --component bocpd --timeout 120
+        dda inv q.eval-component --component bocpd --scenarios 213_pagerduty,353_postmark
     """
     all_known = DETECTORS + CORRELATORS + EXTRACTORS
     if component not in all_known:
         print(color_message(f"Error: unknown component '{component}'. Known: {', '.join(all_known)}", Color.RED))
+        return
+
+    # --- parse and validate scenarios ---
+    scenario_names = [s.strip() for s in scenarios.split(",") if s.strip()] if scenarios else list(SCENARIOS)
+    unknown_scenarios = set(scenario_names) - set(SCENARIOS)
+    if unknown_scenarios:
+        print(
+            color_message(
+                f"Error: unknown scenarios: {', '.join(sorted(unknown_scenarios))}. Known: {', '.join(SCENARIOS)}",
+                Color.RED,
+            )
+        )
         return
 
     # --- parse and validate enable / disable / lock ---
@@ -1312,7 +1337,6 @@ def eval_component(
         n_subsets = len(subsets)
 
     # --- compute totals ---
-    scenario_names = sorted(d for d in os.listdir(scenarios_dir) if os.path.isdir(os.path.join(scenarios_dir, d)))
     n_scenarios = len(scenario_names)
     total_bayesian_runs = n_subsets * 2 * m_runs
     total_testbench_runs = total_bayesian_runs * n_trials * n_scenarios
@@ -1326,7 +1350,7 @@ def eval_component(
         build_scorer(ctx)
 
     # --- ensure scenarios are present ---
-    download_scenarios(ctx, scenarios_dir=scenarios_dir)
+    download_scenarios(ctx, scenarios_dir=scenarios_dir, skip_existing=True)
 
     print(color_message(f"\n{'=' * 70}", Color.BLUE))
     print(color_message("  Observer Component Evaluation", Color.BLUE))
@@ -1411,6 +1435,7 @@ def eval_component(
                     build=False,
                     overwrite=True,
                     timeout=timeout,
+                    scenarios=scenarios,
                     _logger=trial_logger,
                 )
 
@@ -1671,6 +1696,7 @@ def eval_component(
     elif recommendation == "keep":
         print(color_message("  Next step: update your config, then tune the new component using:", Color.BOLD))
         print(color_message(f"    dda inv q.eval-bayesian --only {component}", Color.BOLD))
+
     print(color_message(f"{'=' * 70}", Color.GREEN))
 
     # --- copy best "with" config to root ---
@@ -1824,7 +1850,12 @@ def _ensure_parquets(ctx, name, parquet_dir):
 
 
 @task
-def download_scenarios(ctx, scenario: str = "", scenarios_dir: str = "./comp/observer/scenarios"):
+def download_scenarios(
+    ctx,
+    scenario: str = "",
+    scenarios_dir: str = "./comp/observer/scenarios",
+    skip_existing: bool = False,
+):
     """
     Download scenario parquet data from S3.
 
@@ -1833,6 +1864,7 @@ def download_scenarios(ctx, scenario: str = "", scenarios_dir: str = "./comp/obs
     Args:
         scenario: Download a single scenario (e.g. "food_delivery_redis"). Default: all.
         scenarios_dir: Directory containing scenario subdirectories.
+        skip_existing: If True, skip scenarios whose parquet directory already contains files.
 
     Examples:
         inv q.download-scenarios
@@ -1841,6 +1873,9 @@ def download_scenarios(ctx, scenario: str = "", scenarios_dir: str = "./comp/obs
     scenarios_to_download = [scenario] if scenario else SCENARIOS
     for name in scenarios_to_download:
         parquet_dir = os.path.join(scenarios_dir, name, "parquet")
+        if skip_existing and os.path.isdir(parquet_dir) and os.listdir(parquet_dir):
+            print(color_message(f"Skipping download for '{name}' — parquet data already present", Color.BLUE))
+            continue
         # Download to a temp dir first, then swap -- preserves existing data if download fails.
         tmp_parquet_dir = parquet_dir + ".new"
         if os.path.isdir(tmp_parquet_dir):
