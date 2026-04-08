@@ -2,7 +2,7 @@ project = 'Datadog OpenTelemetry Agent'
 language = 'en'
 author = 'Datadog'
 copyright = '2016-2026'
-release = '7.78.0'
+release = '7.79.0'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
