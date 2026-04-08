@@ -434,7 +434,7 @@ func (d *delegatedAuthComponent) updateConfigWithAPIKey(instance *authInstance, 
 	// Update the config value using the Writer interface
 	// This will trigger OnUpdate callbacks for any components listening to this config
 	d.config.Set(instance.apiKeyConfigKey, apiKey, pkgconfigmodel.SourceAgentRuntime)
-	log.Infof("Updated config key '%s' with new delegated API key ending with: %s", instance.apiKeyConfigKey, scrubber.HideKeyExceptLastFourChars(apiKey))
+	log.Infof("Updated config key '%s' with new delegated API key ending with: %s", instance.apiKeyConfigKey, scrubber.HideKeyExceptLastChars(apiKey))
 }
 
 // Status Provider implementation for delegated auth

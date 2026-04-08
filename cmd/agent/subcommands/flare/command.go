@@ -376,7 +376,37 @@ func createArchive(flareComp flare.Component, pdata flaretypes.ProfileData, prov
 	return filePath, nil
 }
 
+// localDiagnoseTimeout caps how long runLocalDiagnose may block. The diagnose
+// step can hang indefinitely when Python check initialization stalls in CGo
+// (GIL acquisition), so we bound it to keep flare creation from blocking forever.
+// The goroutine is intentionally leaked on timeout; the flare CLI is short-lived.
+const localDiagnoseTimeout = 60 * time.Second
+
 func runLocalDiagnose(
+	diagnoseComponent diagnose.Component,
+	diagnoseConfig diagnose.Config,
+	log log.Component,
+	filterStore workloadfilter.Component,
+	wmeta option.Option[workloadmeta.Component],
+	ac autodiscovery.Component,
+	secretResolver secrets.Component,
+	tagger tagger.Component,
+	config config.Component) []byte {
+
+	ch := make(chan []byte, 1)
+	go func() {
+		ch <- runLocalDiagnoseInner(diagnoseComponent, diagnoseConfig, log, filterStore, wmeta, ac, secretResolver, tagger, config)
+	}()
+	select {
+	case result := <-ch:
+		return result
+	case <-time.After(localDiagnoseTimeout):
+		fmt.Fprint(color.Output, color.YellowString("Local diagnose timed out after %s, proceeding with flare creation\n", localDiagnoseTimeout))
+		return []byte(fmt.Sprintf("local diagnose timed out after %s", localDiagnoseTimeout))
+	}
+}
+
+func runLocalDiagnoseInner(
 	diagnoseComponent diagnose.Component,
 	diagnoseConfig diagnose.Config,
 	log log.Component,

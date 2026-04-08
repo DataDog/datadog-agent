@@ -9,8 +9,8 @@ package ddinjector
 
 /*
 //! These includes are needed to use constants defined in the ddprocmonapi
-#include <WinDef.h>
-#include <WinIoCtl.h>
+#include <windef.h>
+#include <winioctl.h>
 
 //! Defines the objects used to communicate with the driver as well as its control codes
 #include "../include/ddinjector_public.h"

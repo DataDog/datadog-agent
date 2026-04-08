@@ -820,7 +820,7 @@ func (r *secretResolver) addToAuditFile(secretResponse map[string]string) error 
 		secretValue := secretResponse[handle]
 		scrubbedValue := ""
 		if isLikelyAPIOrAppKey(handle, secretValue, r.origin) {
-			scrubbedValue = scrubber.HideKeyExceptLastFourChars(secretValue)
+			scrubbedValue = scrubber.HideKeyExceptLastChars(secretValue)
 		}
 		newRows = append(newRows, auditRecord{Handle: handle, Value: scrubbedValue})
 	}

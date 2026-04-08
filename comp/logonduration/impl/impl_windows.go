@@ -233,30 +233,31 @@ func buildTimelineMilestones(tl BootTimeline) []Milestone {
 	boot := tl.BootStart
 
 	candidates := []struct {
+		id       string
 		name     string
 		ts       time.Time
 		duration time.Duration
 	}{
-		{"Boot Start", tl.BootStart, 0},
-		{"SMSS Start", tl.SmssStart, 0},
-		{"User Session SMSS Start", tl.UserSmssStart, 0},
-		{"Winlogon Start", tl.WinlogonStart, 0},
-		{"Winlogon Init", tl.WinlogonInit, durationBetween(tl.WinlogonInit, tl.WinlogonInitDone)},
-		{"Login UI Start", tl.LoginUIStart, durationBetween(tl.LoginUIStart, tl.LoginUIDone)},
-		{"Computer Group Policy", tl.MachineGPStart, durationBetween(tl.MachineGPStart, tl.MachineGPEnd)},
-		{"User Group Policy", tl.UserGPStart, durationBetween(tl.UserGPStart, tl.UserGPEnd)},
-		{"User Session Winlogon Start", tl.UserWinlogonStart, 0},
-		{"User Logon", tl.LogonStart, durationBetween(tl.LogonStart, tl.LogonStop)},
-		{"Profile Loaded", tl.ProfileLoadStart, durationBetween(tl.ProfileLoadStart, tl.ProfileLoadEnd)},
-		{"Profile Created", tl.ProfileCreationStart, durationBetween(tl.ProfileCreationStart, tl.ProfileCreationEnd)},
-		{"Execute Shell Commands", tl.ExecuteShellCommandListStart, durationBetween(tl.ExecuteShellCommandListStart, tl.ExecuteShellCommandListEnd)},
-		{"Userinit.exe", tl.UserinitStart, durationBetween(tl.UserinitStart, tl.ExplorerStart)},
-		{"Explorer.exe Start", tl.ExplorerStart, 0},
-		{"Explorer Initializing", tl.ExplorerInitStart, durationBetween(tl.ExplorerInitStart, tl.ExplorerInitEnd)},
-		{"Desktop Created", tl.DesktopCreateStart, durationBetween(tl.DesktopCreateStart, tl.DesktopCreateEnd)},
-		{"Desktop Visible", tl.DesktopVisibleStart, durationBetween(tl.DesktopVisibleStart, tl.DesktopVisibleEnd)},
-		{"Desktop Startup Apps", tl.DesktopStartupAppsStart, durationBetween(tl.DesktopStartupAppsStart, tl.DesktopStartupAppsEnd)},
-		{"Desktop Ready", tl.DesktopReadyStart, durationBetween(tl.DesktopReadyStart, tl.DesktopReadyEnd)},
+		{"boot_start", "Boot Start", tl.BootStart, 0},
+		{"smss_start", "SMSS Start", tl.SmssStart, 0},
+		{"user_session_smss_start", "User Session SMSS Start", tl.UserSmssStart, 0},
+		{"winlogon_start", "Winlogon Start", tl.WinlogonStart, 0},
+		{"winlogon_init", "Winlogon Init", tl.WinlogonInit, durationBetween(tl.WinlogonInit, tl.WinlogonInitDone)},
+		{"login_ui_start", "Login UI Start", tl.LoginUIStart, durationBetween(tl.LoginUIStart, tl.LoginUIDone)},
+		{"computer_group_policy", "Computer Group Policy", tl.MachineGPStart, durationBetween(tl.MachineGPStart, tl.MachineGPEnd)},
+		{"user_group_policy", "User Group Policy", tl.UserGPStart, durationBetween(tl.UserGPStart, tl.UserGPEnd)},
+		{"user_session_winlogon_start", "User Session Winlogon Start", tl.UserWinlogonStart, 0},
+		{"user_logon", "User Logon", tl.SessionLogon, durationBetween(tl.SessionLogon, tl.DesktopVisibleStart)},
+		{"profile_loaded", "Profile Loaded", tl.ProfileLoadStart, durationBetween(tl.ProfileLoadStart, tl.ProfileLoadEnd)},
+		{"profile_created", "Profile Created", tl.ProfileCreationStart, durationBetween(tl.ProfileCreationStart, tl.ProfileCreationEnd)},
+		{"execute_shell_commands", "Execute Shell Commands", tl.ExecuteShellCommandListStart, durationBetween(tl.ExecuteShellCommandListStart, tl.ExecuteShellCommandListEnd)},
+		{"userinit_exe", "Userinit.exe", tl.UserinitStart, durationBetween(tl.UserinitStart, tl.ExplorerStart)},
+		{"explorer_exe_start", "Explorer.exe Start", tl.ExplorerStart, 0},
+		{"explorer_initializing", "Explorer Initializing", tl.ExplorerInitStart, durationBetween(tl.ExplorerInitStart, tl.ExplorerInitEnd)},
+		{"desktop_created", "Desktop Created", tl.DesktopCreateStart, durationBetween(tl.DesktopCreateStart, tl.DesktopCreateEnd)},
+		{"desktop_visible", "Desktop Visible", tl.DesktopVisibleStart, durationBetween(tl.DesktopVisibleStart, tl.DesktopVisibleEnd)},
+		{"desktop_startup_apps", "Desktop Startup Apps", tl.DesktopStartupAppsStart, durationBetween(tl.DesktopStartupAppsStart, tl.DesktopStartupAppsEnd)},
+		{"desktop_ready", "Desktop Ready", tl.DesktopReadyStart, durationBetween(tl.DesktopReadyStart, tl.DesktopReadyEnd)},
 	}
 
 	hasBootRef := !boot.IsZero()
@@ -268,13 +269,14 @@ func buildTimelineMilestones(tl BootTimeline) []Milestone {
 		}
 		var offset float64
 		if hasBootRef {
-			offset = c.ts.Sub(boot).Seconds()
+			offset = float64(c.ts.Sub(boot).Milliseconds())
 		}
 		milestones = append(milestones, Milestone{
-			Name:      c.name,
-			OffsetS:   offset,
-			Timestamp: c.ts.UTC().Format(tsFmt),
-			DurationS: c.duration.Seconds(),
+			ID:         c.id,
+			Name:       c.name,
+			OffsetMs:   offset,
+			Timestamp:  c.ts.UTC().Format(tsFmt),
+			DurationMs: float64(c.duration.Milliseconds()),
 		})
 	}
 	return milestones
@@ -283,7 +285,8 @@ func buildTimelineMilestones(tl BootTimeline) []Milestone {
 func buildCustomPayload(tl BootTimeline) map[string]interface{} {
 	custom := make(map[string]interface{})
 
-	custom["boot_timeline"] = buildTimelineMilestones(tl)
+	milestones := buildTimelineMilestones(tl)
+	custom["boot_timeline"] = milestones
 
 	durations := make(map[string]interface{})
 
@@ -292,20 +295,26 @@ func buildCustomPayload(tl BootTimeline) map[string]interface{} {
 
 	if !tl.BootStart.IsZero() && !tl.LoginUIStart.IsZero() {
 		bootMs = getDurationMilliseconds(tl.BootStart, tl.LoginUIStart)
-		durations["Boot Duration (ms)"] = bootMs
+		durations["boot_duration_ms"] = bootMs
 		haveBoot = true
 	}
 
-	if !tl.LogonStart.IsZero() && !tl.DesktopVisibleStart.IsZero() {
-		logonMs = getDurationMilliseconds(tl.LogonStart, tl.DesktopVisibleStart)
-		durations["Logon Duration (ms)"] = logonMs
+	if !tl.SessionLogon.IsZero() && !tl.DesktopVisibleStart.IsZero() {
+		logonMs = getDurationMilliseconds(tl.SessionLogon, tl.DesktopVisibleStart)
+		durations["logon_duration_ms"] = logonMs
 		haveLogon = true
 	}
 
 	// Total Boot Duration is the sum of Boot Duration and Logon Duration
 	// This is to ensure that the time spent idling in the login UI is not included in the total boot duration.
 	if haveBoot && haveLogon {
-		durations["Total Boot Duration (ms)"] = bootMs + logonMs
+		durations["total_boot_duration_ms"] = bootMs + logonMs
+	}
+
+	for _, milestone := range milestones {
+		if milestone.DurationMs > 0 {
+			durations[milestone.ID] = milestone.DurationMs
+		}
 	}
 
 	if len(durations) > 0 {
@@ -327,10 +336,10 @@ func (c *logonDurationComponent) submitEvent(result *AnalysisResult) error {
 		eventTimestamp = time.Now()
 	}
 
-	msg := "Windows logon duration analysis after reboot"
+	msg := "Total boot duration analysis after reboot"
 	if durations, ok := custom["durations"].(map[string]interface{}); ok {
-		if totalMs, ok := durations["Logon Duration (ms)"]; ok {
-			msg = fmt.Sprintf("Windows logon took %d ms", totalMs)
+		if totalMs, ok := durations["total_boot_duration_ms"]; ok {
+			msg = fmt.Sprintf("Total boot duration took %d ms.", totalMs)
 		}
 	}
 

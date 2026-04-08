@@ -1,0 +1,36 @@
+---
+# Cross-OS linting from Linux x64 runners.
+# These jobs run the go linting task targeting Windows and macOS using
+# cross-compilation toolchains (mingw-w64 and osxcross).
+
+.cross_lint:
+  stage: lint
+  extends: .linux_x64
+  needs: ["go_deps", "go_tools_deps"]
+  variables:
+    FLAVORS: '--flavor base'
+    KUBERNETES_CPU_REQUEST: 16
+    KUBERNETES_MEMORY_REQUEST: 32Gi
+    KUBERNETES_MEMORY_LIMIT: 32Gi
+  before_script:
+    - !reference [.retrieve_linux_go_deps]
+    - !reference [.retrieve_linux_go_tools_deps]
+
+lint_cross_windows-x64:
+  extends: .cross_lint
+  script:
+    - dda inv -- -e build-messagetable
+    - export GOOS=windows GOARCH=amd64
+    - !reference [.lint_script]
+
+lint_cross_macos-x64:
+  extends: .cross_lint
+  script:
+    - export GOOS=darwin GOARCH=amd64
+    - !reference [.lint_script]
+
+lint_cross_macos-arm64:
+  extends: .cross_lint
+  script:
+    - export GOOS=darwin GOARCH=arm64
+    - !reference [.lint_script]

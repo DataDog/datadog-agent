@@ -292,11 +292,20 @@ func TestParseWinlogon(t *testing.T) {
 		assert.Equal(t, ts, tl.ExecuteShellCommandListEnd)
 	})
 
-	t.Run("event 5001 sets LogonStart", func(t *testing.T) {
+	t.Run("event 7001 sets SessionLogon", func(t *testing.T) {
 		tl := &BootTimeline{}
 		p := &winlogonParser{timeline: tl}
-		p.Parse(nil, evtLogonStart, ts)
-		assert.Equal(t, ts, tl.LogonStart)
+		p.Parse(nil, evtSessionLogon, ts)
+		assert.Equal(t, ts, tl.SessionLogon)
+	})
+
+	t.Run("event 7001 first wins", func(t *testing.T) {
+		tl := &BootTimeline{}
+		p := &winlogonParser{timeline: tl}
+		p.Parse(nil, evtSessionLogon, ts)
+		ts2 := ts.Add(5 * time.Second)
+		p.Parse(nil, evtSessionLogon, ts2)
+		assert.Equal(t, ts, tl.SessionLogon)
 	})
 }
 
@@ -490,11 +499,11 @@ func TestProcessEvent(t *testing.T) {
 
 	t.Run("routes Winlogon event to winlogonParser", func(t *testing.T) {
 		coll := newCollector()
-		e := makeEvent(guidWinlogon, 5001, ts)
+		e := makeEvent(guidWinlogon, 7001, ts)
 
 		processEvent(coll, e)
 
-		assert.Equal(t, ts, coll.timeline.LogonStart)
+		assert.Equal(t, ts, coll.timeline.SessionLogon)
 	})
 
 	t.Run("routes UserProfile event to userProfileParser", func(t *testing.T) {
@@ -550,7 +559,7 @@ func TestCollector_FullBootSequence(t *testing.T) {
 		makeEvent(guidGroupPolicy, 8000, boot.Add(20*time.Second)),
 		makeEvent(guidKernelProcess, 1, boot.Add(25*time.Second),
 			property{Name: "ImageName", Value: "winlogon.exe"}),
-		makeEvent(guidWinlogon, 5001, boot.Add(30*time.Second)),
+		makeEvent(guidWinlogon, 7001, boot.Add(29*time.Second)),
 		makeEvent(guidUserProfile, 1001, boot.Add(31*time.Second)),
 		makeEvent(guidUserProfile, 1002, boot.Add(35*time.Second)),
 		makeEvent(guidWinlogon, 9, boot.Add(40*time.Second)),
@@ -565,7 +574,6 @@ func TestCollector_FullBootSequence(t *testing.T) {
 			property{Name: "psz", Value: "WaitForDesktopVisuals"}),
 		makeEvent(guidShellCore, 9649, boot.Add(60*time.Second),
 			property{Name: "psz", Value: "WaitForDesktopVisuals"}),
-		makeEvent(guidWinlogon, 5002, boot.Add(60*time.Second)),
 		makeEvent(guidShellCore, 9648, boot.Add(61*time.Second),
 			property{Name: "psz", Value: "Finalize"}),
 		makeEvent(guidShellCore, 9649, boot.Add(65*time.Second),
@@ -585,7 +593,7 @@ func TestCollector_FullBootSequence(t *testing.T) {
 	assert.Equal(t, boot.Add(12*time.Second), tl.MachineGPStart)
 	assert.Equal(t, boot.Add(20*time.Second), tl.MachineGPEnd)
 	assert.Equal(t, boot.Add(25*time.Second), tl.WinlogonStart)
-	assert.Equal(t, boot.Add(30*time.Second), tl.LogonStart)
+	assert.Equal(t, boot.Add(29*time.Second), tl.SessionLogon)
 	assert.Equal(t, boot.Add(31*time.Second), tl.ProfileCreationStart)
 	assert.Equal(t, boot.Add(35*time.Second), tl.ProfileCreationEnd)
 	assert.Equal(t, boot.Add(40*time.Second), tl.ExecuteShellCommandListStart)
@@ -596,13 +604,12 @@ func TestCollector_FullBootSequence(t *testing.T) {
 	assert.Equal(t, boot.Add(53*time.Second), tl.ExplorerInitEnd)
 	assert.Equal(t, boot.Add(55*time.Second), tl.DesktopVisibleStart)
 	assert.Equal(t, boot.Add(60*time.Second), tl.DesktopVisibleEnd)
-	assert.Equal(t, boot.Add(60*time.Second), tl.LogonStop)
 	assert.Equal(t, boot.Add(61*time.Second), tl.DesktopReadyStart)
 	assert.Equal(t, boot.Add(65*time.Second), tl.DesktopReadyEnd)
 
 	custom := buildCustomPayload(tl)
 	durations := custom["durations"].(map[string]interface{})
-	assert.Equal(t, int64(33000), durations["Total Boot Duration (ms)"])
-	assert.Equal(t, int64(8000), durations["Boot Duration (ms)"])
-	assert.Equal(t, int64(25000), durations["Logon Duration (ms)"])
+	assert.Equal(t, int64(34000), durations["total_boot_duration_ms"])
+	assert.Equal(t, int64(8000), durations["boot_duration_ms"])
+	assert.Equal(t, int64(26000), durations["logon_duration_ms"])
 }
