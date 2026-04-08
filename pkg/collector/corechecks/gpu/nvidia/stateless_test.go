@@ -670,3 +670,4 @@ func findAPICallByName(t *testing.T, apis []apiCallInfo, name string) apiCallInf
 	require.FailNowf(t, "api call not found", "expected API call %q to exist", name)
 	return apiCallInfo{}
 }
+
