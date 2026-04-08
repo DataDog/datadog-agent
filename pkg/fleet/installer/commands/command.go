@@ -44,6 +44,9 @@ const (
 	AnnotationHumanReadableErrors = "human-readable-errors"
 )
 
+// agentConfigDir is the directory containing datadog.yaml. Overridable in tests.
+var agentConfigDir = paths.AgentConfigDir
+
 type cmdOption func(*cmdConfig)
 type cmdConfig struct{ quiet bool }
 
@@ -211,7 +214,7 @@ func newTelemetry(env *env.Env) *telemetry.Telemetry {
 // applyDatadogYAMLRegistryConfig reads installer.registry from datadog.yaml and
 // applies any values not already set by environment variables.
 func applyDatadogYAMLRegistryConfig(e *env.Env) {
-	configPath := filepath.Join(paths.AgentConfigDir, "datadog.yaml")
+	configPath := filepath.Join(agentConfigDir, "datadog.yaml")
 	rawConfig, err := os.ReadFile(configPath)
 	if err != nil {
 		return

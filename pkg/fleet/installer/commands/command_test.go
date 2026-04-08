@@ -7,7 +7,10 @@ package commands
 
 import (
 	"context"
+	"fmt"
 	"os"
+	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -15,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 )
 
@@ -121,6 +125,153 @@ func TestConfigAndPackageStates(t *testing.T) {
 	}
 
 	assert.Equal(t, expected, res)
+}
+
+// testEnvAccessor allows tests to read any field of env.Env by name.
+type testEnvAccessor struct{ e *env.Env }
+
+func (a testEnvAccessor) GetEnv(field string) string {
+	v := reflect.ValueOf(a.e).Elem()
+	f := v.FieldByName(field)
+	if !f.IsValid() {
+		return fmt.Sprintf("<unknown field %q>", field)
+	}
+	return fmt.Sprintf("%v", f.Interface())
+}
+
+type testCmd struct {
+	*cmd
+	Test testEnvAccessor
+}
+
+// newTestingCmd creates a cmd via newCmd and exposes its env through Test.GetEnv.
+func newTestingCmd() *testCmd {
+	c := newCmd("unit_test", withQuiet())
+	return &testCmd{cmd: c, Test: testEnvAccessor{e: c.env}}
+}
+
+func TestNewCmd(t *testing.T) {
+	tests := []struct {
+		name    string
+		yaml    string            // written to temp dir as datadog.yaml; empty means no file
+		envVars map[string]string // set via t.Setenv before creating the cmd
+		checks  map[string]string // env.Env field name -> expected value
+	}{
+		{
+			name: "no config no env vars",
+			checks: map[string]string{
+				"RegistryAuthOverride": "",
+				"RegistryOverride":     "",
+				"RegistryUsername":     "",
+				"RegistryPassword":     "",
+			},
+		},
+		{
+			name: "env vars only",
+			envVars: map[string]string{
+				"DD_INSTALLER_REGISTRY_AUTH":     "gcr",
+				"DD_INSTALLER_REGISTRY_URL":      "env-registry.example.com",
+				"DD_INSTALLER_REGISTRY_USERNAME": "env-user",
+				"DD_INSTALLER_REGISTRY_PASSWORD": "env-pass",
+			},
+			checks: map[string]string{
+				"RegistryAuthOverride": "gcr",
+				"RegistryOverride":     "env-registry.example.com",
+				"RegistryUsername":     "env-user",
+				"RegistryPassword":     "env-pass",
+			},
+		},
+		{
+			name: "datadog.yaml only",
+			yaml: `
+installer:
+  registry:
+    url:      yaml-registry.example.com
+    auth:     gcr
+    username: yaml-user
+    password: yaml-pass
+`,
+			checks: map[string]string{
+				"RegistryAuthOverride": "gcr",
+				"RegistryOverride":     "yaml-registry.example.com",
+				"RegistryUsername":     "yaml-user",
+				"RegistryPassword":     "yaml-pass",
+			},
+		},
+		{
+			name: "env vars take precedence over datadog.yaml",
+			yaml: `
+installer:
+  registry:
+    url:      yaml-registry.example.com
+    auth:     yaml-auth
+    username: yaml-user
+    password: yaml-pass
+`,
+			envVars: map[string]string{
+				"DD_INSTALLER_REGISTRY_AUTH": "env-auth",
+				"DD_INSTALLER_REGISTRY_URL":  "env-registry.example.com",
+			},
+			checks: map[string]string{
+				"RegistryAuthOverride": "env-auth",
+				"RegistryOverride":     "env-registry.example.com",
+				// remaining fields not set by env var are filled from YAML
+				"RegistryUsername": "yaml-user",
+				"RegistryPassword": "yaml-pass",
+			},
+		},
+		{
+			name: "DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE takes precedence over yaml url",
+			yaml: `
+installer:
+  registry:
+    url: yaml-registry.example.com
+`,
+			envVars: map[string]string{
+				"DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE": "pkg-registry.example.com",
+			},
+			checks: map[string]string{
+				"RegistryOverride": "pkg-registry.example.com",
+			},
+		},
+		{
+			name: "partial yaml fills only provided fields",
+			yaml: `
+installer:
+  registry:
+    auth: gcr
+`,
+			checks: map[string]string{
+				"RegistryAuthOverride": "gcr",
+				"RegistryOverride":     "",
+				"RegistryUsername":     "",
+				"RegistryPassword":     "",
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			agentConfigDir = dir
+			t.Cleanup(func() { agentConfigDir = paths.AgentConfigDir })
+
+			if tc.yaml != "" {
+				err := os.WriteFile(filepath.Join(dir, "datadog.yaml"), []byte(tc.yaml), 0644)
+				assert.NoError(t, err)
+			}
+			for k, v := range tc.envVars {
+				t.Setenv(k, v)
+			}
+
+			cmd := newTestingCmd()
+			defer cmd.stop(nil)
+
+			for field, want := range tc.checks {
+				assert.Equal(t, want, cmd.Test.GetEnv(field), "field %s", field)
+			}
+		})
+	}
 }
 
 func TestSetupCommandHasHumanReadableAnnotation(t *testing.T) {
