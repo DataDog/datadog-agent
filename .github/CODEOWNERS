@@ -492,6 +492,7 @@
 /pkg/collector/corechecks/cluster/orchestrator/processors/ecs/    @DataDog/ecs-experiences
 /pkg/collector/corechecks/cluster/orchestrator/transformers/ecs/  @DataDog/ecs-experiences
 /pkg/collector/corechecks/containers/   @DataDog/container-integrations
+/pkg/collector/corechecks/containers/csi_driver/   @DataDog/container-platform
 /pkg/collector/corechecks/containerimage/       @DataDog/container-integrations
 /pkg/collector/corechecks/containerlifecycle/   @DataDog/container-integrations
 /pkg/collector/corechecks/discovery/ @DataDog/agent-discovery
