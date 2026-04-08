@@ -1,0 +1,30 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "repository",
+    srcs = [
+        "repositories.go",
+        "repository.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/repository",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/fleet/installer/paths",
+        "//pkg/fleet/installer/symlink",
+        "//pkg/util/log",
+        "@com_github_shirou_gopsutil_v4//disk",
+    ],
+)
+
+go_test(
+    name = "repository_test",
+    srcs = [
+        "repositories_test.go",
+        "repository_test.go",
+    ],
+    embed = [":repository"],
+    deps = [
+        "//pkg/fleet/installer/symlink",
+        "@com_github_stretchr_testify//assert",
+    ],
+)
