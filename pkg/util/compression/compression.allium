@@ -143,7 +143,13 @@ contract Streaming {
 -- Rules
 ------------------------------------------------------------
 
--- Selector: resolve a requested compression kind against what is available
+-- Selector: resolve a requested compression kind against what is available.
+--
+-- Build tags determine which kinds are available. Three configurations
+-- exist, selectable via --build-exclude on the invoke build command:
+--   zlib && zstd  — all four kinds (default for all agent builds)
+--   zlib && !zstd — zlib, gzip, none (zstd excluded, e.g. no-cgo builds)
+--   !zlib && !zstd — gzip, none only
 
 rule SelectCompressor {
     when: SelectCompressor(config, manifest)
@@ -160,22 +166,31 @@ rule SelectCompressor {
                 content_encoding: requested.encoding_for_kind
             )
         else:
-            CompressorFallback(requested: requested)
+            CompressorFallback(requested: requested, manifest: manifest)
 }
 
 rule CompressorFallback {
-    when: CompressorFallback(requested)
+    when: CompressorFallback(requested, manifest)
     ensures:
-        Compressor.created(
-            kind: gzip,
-            level: config.gzip_level,
-            content_encoding: gzip
-        )
+        if requested = "zstd" and zlib in manifest.available_kinds:
+            Compressor.created(
+                kind: zlib,
+                level: 0,
+                content_encoding: deflate
+            )
+        else:
+            Compressor.created(
+                kind: none,
+                level: 0,
+                content_encoding: identity
+            )
     @guidance
-        -- Emit an error-level log indicating the requested kind
-        -- is unavailable in this build and gzip is being used
-        -- as fallback. This covers both unrecognized kinds and
-        -- kinds excluded by build tags.
+        -- The zlib && !zstd build logs a warning when zstd is
+        -- requested and falls back to zlib. All other unrecognized
+        -- or unavailable kinds log an error and fall back to noop.
+        --
+        -- This means a misconfigured agent can silently send
+        -- uncompressed data. See open question below.
 }
 
 -- StreamCompressor lifecycle
@@ -233,17 +248,14 @@ invariant ZstdCrossCompatibility {
             compressor_b.decompress(compressor_a.compress(input)) = input
 }
 
-invariant FallbackIsAlwaysGzip {
-    -- When the requested kind is unavailable or unrecognized,
-    -- the selector produces a gzip compressor, never noop.
-    -- This ensures the agent always compresses data on the wire.
-    for compressor in Compressors:
-        compressor.kind in compressor.manifest.available_kinds
-        or compressor.kind = gzip
-}
+-- NOTE: There is no invariant guaranteeing compression on fallback.
+-- The current fallback can produce a noop compressor, which sends
+-- uncompressed data. See open question below.
 
 ------------------------------------------------------------
 -- Open Questions
 ------------------------------------------------------------
 
 open question "Compression level configurability is inconsistent: zstd exposes serializer_zstd_compressor_level in config, gzip is hardcoded to 6, and zlib has no level at all. This is accidental incompleteness, not intentional design. Should all algorithms expose a config key for level, or should we at minimum add serializer_gzip_compressor_level?"
+
+open question "Selector fallback can silently produce a noop compressor, sending uncompressed data to intake. This happens when an unrecognized kind is configured, or when a kind is requested in a build that excluded it (except zstd in a zlib-only build, which falls back to zlib). Should all fallback paths produce gzip instead of noop, ensuring the agent always compresses on the wire?"
