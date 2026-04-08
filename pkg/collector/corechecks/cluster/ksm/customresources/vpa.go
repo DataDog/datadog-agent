@@ -120,7 +120,7 @@ func (f *vpaFactory) MetricFamilyGenerators() []generator.FamilyGenerator {
 					vpav1.UpdateModeOff,
 					vpav1.UpdateModeInitial,
 					vpav1.UpdateModeRecreate,
-					vpav1.UpdateModeAuto,            //nolint:staticcheck // SA1019 still needed for backward-compat metrics
+					vpav1.UpdateModeAuto, //nolint:staticcheck // SA1019 still needed for backward-compat metrics
 					vpav1.UpdateModeInPlaceOrRecreate,
 				} {
 					var v float64
