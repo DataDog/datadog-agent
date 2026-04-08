@@ -1611,9 +1611,6 @@ def _test_docker_image_list():
 
 @task
 def save_build_outputs(ctx, destfile):
-    ignored_extensions = {".bc"}
-    ignored_files = {"cws", "integrity", "include_headers"}
-
     if not destfile.endswith(".tar.xz"):
         raise Exit(message="destfile must be a .tar.xz file")
 
@@ -1621,24 +1618,6 @@ def save_build_outputs(ctx, destfile):
     count = 0
     outfiles = []
     with tempfile.TemporaryDirectory() as stagedir:
-        with open("compile_commands.json") as compiledb:
-            for outputitem in json.load(compiledb):
-                if "output" not in outputitem:
-                    continue
-
-                filedir, file = os.path.split(outputitem["output"])
-                _, ext = os.path.splitext(file)
-                if ext in ignored_extensions or file in ignored_files:
-                    continue
-
-                outdir = os.path.join(stagedir, filedir)
-                ctx.run(f"mkdir -p {outdir}")
-                ctx.run(f"cp {outputitem['output']} {outdir}/")
-                outfiles.append(outputitem['output'])
-                count += 1
-
-        # Include Bazel-produced eBPF .o files (prebuilt + CO-RE) which are
-        # no longer tracked by the ninja compile database.
         arch = Arch.local()
         build_dir = get_ebpf_build_dir(arch)
         for subdir in ["", "co-re"]:
