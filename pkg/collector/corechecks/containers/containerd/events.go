@@ -118,6 +118,7 @@ type subscriber struct {
 	isCacheConfigValid bool
 	imageSizeCache     map[string]map[string]int64 // namespace -> image -> size
 	imageSizeCacheLock sync.RWMutex
+	lastOOMCache       map[string]struct{} // containerIDs with OOM since last Flush
 }
 
 func createEventSubscriber(name string, client ctrUtil.ContainerdItf, f []string, pauseFilter workloadfilter.FilterBundle) *subscriber {
@@ -128,6 +129,7 @@ func createEventSubscriber(name string, client ctrUtil.ContainerdItf, f []string
 		client:              client,
 		imageSizeCache:      make(map[string]map[string]int64),
 		pauseFilter:         pauseFilter,
+		lastOOMCache:        make(map[string]struct{}),
 	}
 }
 
@@ -359,6 +361,11 @@ func (s *subscriber) run(ctx context.Context) error {
 					continue
 				}
 
+				if _, seen := s.lastOOMCache[oomed.ContainerID]; seen {
+					continue
+				}
+
+				s.lastOOMCache[oomed.ContainerID] = struct{}{}
 				event := processMessage(oomed.ContainerID, message)
 				event.Message = fmt.Sprintf("Task %s ran out of memory", oomed.ContainerID)
 				s.addEvents(event)
@@ -433,6 +440,7 @@ func (s *subscriber) Flush(timestamp int64) []containerdEvent {
 	}
 	s.CollectionTimestamp = timestamp
 	ev := s.Events
+	s.lastOOMCache = make(map[string]struct{})
 	log.Debugf("Collecting %d events from Containerd", len(ev))
 	s.Events = nil
 	return ev
