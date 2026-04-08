@@ -81,7 +81,7 @@ func createOptions(params Params, config config.Component, log log.Component, se
 	for _, resolver := range options.DomainResolvers {
 		scrubbedKeys := []string{}
 		for _, k := range resolver.GetAPIKeys() {
-			scrubbedKeys = append(scrubbedKeys, scrubber.HideKeyExceptLastFourChars(k))
+			scrubbedKeys = append(scrubbedKeys, scrubber.HideKeyExceptLastChars(k))
 		}
 		log.Infof("domain '%s' has %d keys: %s", resolver.GetBaseDomain(), len(scrubbedKeys), strings.Join(scrubbedKeys, ", "))
 	}
