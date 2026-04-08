@@ -3,6 +3,7 @@ Dockerfiles/dogstatsd/alpine/static/
 
 # folders
 vendor/
+!pkg/logs/patterns/tokenizer/rust/vendor/
 .vendor-new/
 bin/
 /dev/
@@ -233,6 +234,12 @@ go.work.sum
 # Personal rules
 **/.cursor/rules/personal/
 
+# Cursor personal/generated files (not shared team rules)
+.cursor/merged.md
+.cursor/stateful-benchmark/
+.cursor/rules/optimization-workflow.mdc
+.cursor/rules/stateful-encoding.mdc
+
 # CLAUDE override file for personal use
 CLAUDE_PERSONAL.md
 
@@ -249,3 +256,14 @@ AUTO_JIRA.md
 
 # Zed config
 .zed
+
+# Go test binaries and benchmark profiling artifacts
+*.test
+pkg/logs/patterns/clustering/cpu.pprof
+pkg/logs/patterns/clustering/mem.pprof
+pkg/logs/patterns/clustering/merging/cpu.pprof
+pkg/logs/patterns/clustering/merging/mem.pprof
+
+# Shelved Go automaton tokenizer (kept locally for reference, not committed)
+pkg/logs/patterns/tokenizer/go/
+.mcp.json

@@ -4,6 +4,34 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package metrics provides telemetry metrics for the logs agent
+//
+// gRPC sender parity tracker
+// ===========================
+// This table tracks which metrics are emitted on the gRPC sending path.
+// "Shared" means the metric is set in a component common to all pipelines (e.g. processor, tailer).
+//
+// Metric                               | gRPC status    | Notes
+// -------------------------------------|----------------|----------------------------------------------
+// LogsDecoded / TlmLogsDecoded         | SHARED         | Set in processor.go for all pipelines
+// LogsProcessed / TlmLogsProcessed     | SHARED         | Set in processor.go for all pipelines
+// LogsSent / TlmLogsSent               | DONE           | gRPC: stream_worker.go handleBatchAck; HTTP: destination.go, sync_destination.go; TCP: destination.go
+// DestinationErrors / TlmDestErrors    | DONE           | gRPC: stream_worker.go signalStreamFailure; HTTP: destination.go, sync_destination.go; TCP: destination.go
+// DestinationLogsDropped / TlmDropped  | DONE           | gRPC: stream_worker.go handleBatchAck (auditor full); HTTP: destination.go; TCP: destination.go
+// BytesSent / TlmBytesSent             | DONE           | gRPC: stream_worker.go handleBatchAck; HTTP: destination.go; TCP: destination.go
+// RetryCount / TlmRetryCount           | TODO           | HTTP only: destination.go
+// RetryTimeSpent                       | TODO           | HTTP only: destination.go
+// EncodedBytesSent / TlmEncBytesSent   | DONE           | gRPC: stream_worker.go handleBatchAck; HTTP: destination.go; TCP: destination.go
+// BytesMissed / TlmBytesMissed         | SHARED         | Set in file tailer, not sender-specific
+// SenderLatency / TlmSenderLatency     | TODO           | HTTP only: destination.go
+// LogsTruncated / TlmTruncatedCount    | SHARED         | Set in processor.go and decoder handlers
+// DestHTTPResp / TlmDestHTTPResp       | N/A            | HTTP-specific, no gRPC equivalent needed
+// TlmUtilizationRatio/Items/Bytes      | SHARED         | Set via CapacityMonitor / UtilizationMonitor
+// TlmDestNumWorkers                    | N/A            | HTTP worker pool specific
+// TlmDestVirtualLatency                | N/A            | HTTP worker pool specific
+// TlmDestWorkerResets                  | N/A            | HTTP worker pool specific
+// TlmHTTPConnectivityCheck             | N/A            | HTTP restart/connectivity logic in agentimpl
+// TlmHTTPConnectivityRetryAttempt      | N/A            | HTTP restart/connectivity logic in agentimpl
+// TlmRestartAttempt                    | N/A            | HTTP restart/connectivity logic in agentimpl
 package metrics
 
 import (
@@ -64,6 +92,11 @@ var (
 	// encoded log bytes by agent type.
 	TlmEncodedBytesSent = telemetry.NewCounter("logs", "encoded_bytes_sent",
 		[]string{"remote_agent", "source", "compression_kind"}, "Total number of sent bytes after encoding if any")
+	// PreCompressionBytesSent is the total number of gRPC bytes before compression and after protobuf serialization
+	PreCompressionBytesSent = expvar.Int{}
+	// TlmPreCompressionBytesSent is the total number of gRPC bytes before compression and after protobuf serialization
+	TlmPreCompressionBytesSent = telemetry.NewCounter("logs", "pre_compression_bytes_sent",
+		[]string{"source"}, "Total number of gRPC bytes before compression and after protobuf serialization")
 	// BytesMissed is the number of bytes lost before they could be consumed by the agent, such as after a log rotation
 	BytesMissed = expvar.Int{}
 	// TlmBytesMissed is the number of bytes lost before they could be consumed by the agent, such as after log rotation
@@ -147,24 +180,20 @@ var (
 		[]string{"status", "transport"}, "Count of logs agent restart attempts with status and target transport")
 
 	// COAT telemetry for auto multiline default-on impact analysis.
-	// These counters only increment for sources that rely on the default value of
-	// auto_multi_line_detection (i.e. sources where changing the default would alter behavior).
-
-	// TlmAutoMultilineTotalLines counts all lines processed by the detecting aggregator
-	// for sources on the default path. Used as the denominator for both X% and Y% metrics.
 	TlmAutoMultilineTotalLines = telemetry.NewCounter("logs", "auto_multi_line_default_total_lines",
 		nil, "Total lines processed by the detecting aggregator for default-path sources")
-
-	// TlmAutoMultilineWouldCombine counts lines that would be merged into a preceding
-	// startGroup message if auto multiline were enabled by default.
 	TlmAutoMultilineWouldCombine = telemetry.NewCounter("logs", "auto_multi_line_default_would_combine",
 		nil, "Lines that would be combined if auto multiline were the default")
-
-	// TlmAutoMultilineWouldTruncate counts raw input lines belonging to multiline
-	// groups that would exceed maxContentSize due to combining. Single lines that are
-	// individually oversized are excluded (they'd be truncated regardless).
 	TlmAutoMultilineWouldTruncate = telemetry.NewCounter("logs", "auto_multi_line_default_would_truncate",
 		nil, "Lines belonging to groups that would be truncated if auto multiline were the default")
+
+	// TlmDatumCount tracks per-datum-type counts for stateful (gRPC) encoding.
+	TlmDatumCount = telemetry.NewCounter("logs", "datum_count",
+		[]string{"datum_type"}, "Per-datum-type count for stateful encoding")
+
+	// TlmDatumBytes tracks per-datum-type proto size for stateful (gRPC) encoding.
+	TlmDatumBytes = telemetry.NewCounter("logs", "datum_bytes",
+		[]string{"datum_type"}, "Per-datum-type proto.Size bytes for stateful encoding")
 )
 
 func init() {
@@ -178,6 +207,7 @@ func init() {
 	LogsExpvars.Set("RetryCount", &RetryCount)
 	LogsExpvars.Set("RetryTimeSpent", &RetryTimeSpent)
 	LogsExpvars.Set("EncodedBytesSent", &EncodedBytesSent)
+	LogsExpvars.Set("PreCompressionBytesSent", &PreCompressionBytesSent)
 	LogsExpvars.Set("BytesMissed", &BytesMissed)
 	LogsExpvars.Set("SenderLatency", &SenderLatency)
 	LogsExpvars.Set("HttpDestinationStats", &DestinationExpVars)

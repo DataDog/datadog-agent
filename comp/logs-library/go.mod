@@ -124,9 +124,18 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic => ../../pkg/logs/diagnostic
 	github.com/DataDog/datadog-agent/pkg/logs/message => ../../pkg/logs/message
 	github.com/DataDog/datadog-agent/pkg/logs/metrics => ../../pkg/logs/metrics
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/clustering => ../../pkg/logs/patterns/clustering
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/clustering/merging => ../../pkg/logs/patterns/clustering/merging
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/eviction => ../../pkg/logs/patterns/eviction
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/processor => ../../pkg/logs/patterns/processor
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/tags => ../../pkg/logs/patterns/tags
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/token => ../../pkg/logs/patterns/token
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/tokenizer/go => ../../pkg/logs/patterns/tokenizer/go
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/tokenizer/rust => ../../pkg/logs/patterns/tokenizer/rust
 	github.com/DataDog/datadog-agent/pkg/logs/pipeline => ../../pkg/logs/pipeline
 	github.com/DataDog/datadog-agent/pkg/logs/processor => ../../pkg/logs/processor
 	github.com/DataDog/datadog-agent/pkg/logs/sender => ../../pkg/logs/sender
+	github.com/DataDog/datadog-agent/pkg/logs/sender/grpc => ../../pkg/logs/sender/grpc
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../../pkg/logs/status/statusinterface
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ../../pkg/logs/status/utils
@@ -196,6 +205,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/startstop => ../../pkg/util/startstop
 	github.com/DataDog/datadog-agent/pkg/util/statstracker => ../../pkg/util/statstracker
 	github.com/DataDog/datadog-agent/pkg/util/system => ../../pkg/util/system
+	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../pkg/util/system/socket
 	github.com/DataDog/datadog-agent/pkg/util/testutil => ../../pkg/util/testutil
 	github.com/DataDog/datadog-agent/pkg/util/utilizationtracker => ../../pkg/util/utilizationtracker
 	github.com/DataDog/datadog-agent/pkg/util/uuid => ../../pkg/util/uuid

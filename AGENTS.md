@@ -196,6 +196,14 @@ Go build tags control feature inclusion, some examples are:
 - `README.md` - Project overview
 - `CONTRIBUTING.md` - Contribution guidelines
 
+## Personal knowledge base (Obsidian)
+
+Some workflows attach a **local Obsidian vault** (design notes, OKRs, RFCs) as an extra Cursor / IDE workspace root next to this repo.
+
+1. **Entry point:** open **`00 KB — Start here.md`** at the vault root first, then follow wikilinks—do not invent architecture when these notes exist.
+2. **Context:** use targeted `@Files` / `@Folders` on that index and 1–3 linked notes; avoid pulling in whole vault or vendored trees inside it (e.g. cloned `grpc-go`, benchmark harnesses) as source of truth for product behavior.
+3. **Machine-specific paths** (hub note location, copy-paste prompts for Claude/Codex): **`CLAUDE_PERSONAL.md`** in this repo (gitignored).
+
 ## CI/CD Pipeline
 
 ### GitLab CI
