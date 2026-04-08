@@ -221,20 +221,6 @@ installer:
 			},
 		},
 		{
-			name: "DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE takes precedence over yaml url",
-			yaml: `
-installer:
-  registry:
-    url: yaml-registry.example.com
-`,
-			envVars: map[string]string{
-				"DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE": "pkg-registry.example.com",
-			},
-			checks: map[string]string{
-				"RegistryOverride": "pkg-registry.example.com",
-			},
-		},
-		{
 			name: "partial yaml fills only provided fields",
 			yaml: `
 installer:

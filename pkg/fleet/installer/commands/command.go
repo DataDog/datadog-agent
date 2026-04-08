@@ -213,7 +213,7 @@ func newTelemetry(env *env.Env) *telemetry.Telemetry {
 
 // applyDatadogYAMLRegistryConfig reads installer.registry from datadog.yaml and
 // applies any values not already set by environment variables.
-func applyDatadogYAMLRegistryConfig(e *env.Env) {
+func applyDatadogYAMLRegistryConfig(env *env.Env) {
 	configPath := filepath.Join(agentConfigDir, "datadog.yaml")
 	rawConfig, err := os.ReadFile(configPath)
 	if err != nil {
@@ -224,21 +224,17 @@ func applyDatadogYAMLRegistryConfig(e *env.Env) {
 		return
 	}
 	r := config.Installer.Registry
-	if e.RegistryOverride == "" {
-		if agentURL := os.Getenv("DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE"); agentURL != "" {
-			e.RegistryOverride = agentURL
-		} else if r.URL != "" {
-			e.RegistryOverride = r.URL
-		}
+	if env.HasDefaultRegistryOverride() && r.Auth != "" {
+		env.RegistryOverride = r.URL
 	}
-	if e.RegistryAuthOverride == "" && r.Auth != "" {
-		e.RegistryAuthOverride = r.Auth
+	if env.HasDefaultRegistryAuthOverride() && r.Auth != "" {
+		env.RegistryAuthOverride = r.Auth
 	}
-	if e.RegistryUsername == "" && r.Username != "" {
-		e.RegistryUsername = r.Username
+	if env.HasDefaultRegistryUsername() && r.Username != "" {
+		env.RegistryUsername = r.Username
 	}
-	if e.RegistryPassword == "" && r.Password != "" {
-		e.RegistryPassword = r.Password
+	if env.HasDefaultRegistryPassword() && r.Password != "" {
+		env.RegistryPassword = r.Password
 	}
 }
 
