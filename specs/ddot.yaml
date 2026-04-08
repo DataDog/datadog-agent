@@ -1,0 +1,10 @@
+kind: project
+name: DDOT
+root_directory: ..
+files:
+  - specs/ddot/*.yaml
+  - specs/ddot/tests/*.yaml
+  - specs/otelcol.yaml
+code_sources: []
+source_links:
+  url: auto

@@ -1,0 +1,9 @@
+kind: project
+name: otelcol
+root_directory: ..
+files:
+  - specs/otelcol/*.yaml
+  - specs/otelcol/tests/*.yaml
+code_sources: []
+source_links:
+  url: auto
