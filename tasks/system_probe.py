@@ -1148,7 +1148,7 @@ def bazel_build_windows_resources(ctx: Context) -> None:
     ]
     for src, dst in copies:
         os.makedirs(os.path.dirname(dst), exist_ok=True)
-        shutil.copy(src, dst)
+        shutil.copyfile(src, dst)
 
     print("Copied Windows resource files to source tree")
 
