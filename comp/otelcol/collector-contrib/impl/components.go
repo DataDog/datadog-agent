@@ -11,7 +11,6 @@ import (
 	routingconnector "github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector"
 	spanmetricsconnector "github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector"
 	loadbalancingexporter "github.com/open-telemetry/opentelemetry-collector-contrib/exporter/loadbalancingexporter"
-	sapmexporter "github.com/open-telemetry/opentelemetry-collector-contrib/exporter/sapmexporter"
 	datadogextension "github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension"
 	healthcheckextension "github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension"
 	dockerobserver "github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/dockerobserver"
@@ -134,7 +133,6 @@ func components() (otelcol.Factories, error) {
 		nopexporter.NewFactory(),
 		otlpexporter.NewFactory(),
 		otlphttpexporter.NewFactory(),
-		sapmexporter.NewFactory(),
 	)
 	if err != nil {
 		return otelcol.Factories{}, err
@@ -145,7 +143,6 @@ func components() (otelcol.Factories, error) {
 		nopexporter.NewFactory().Type():           "go.opentelemetry.io/collector/exporter/nopexporter v0.147.0",
 		otlpexporter.NewFactory().Type():          "go.opentelemetry.io/collector/exporter/otlpexporter v0.147.0",
 		otlphttpexporter.NewFactory().Type():      "go.opentelemetry.io/collector/exporter/otlphttpexporter v0.147.0",
-		sapmexporter.NewFactory().Type():          "github.com/open-telemetry/opentelemetry-collector-contrib/exporter/sapmexporter v0.147.0",
 	})
 
 	factories.Processors, err = otelcol.MakeFactoryMap[processor.Factory](

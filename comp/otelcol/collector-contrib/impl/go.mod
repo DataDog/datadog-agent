@@ -9,7 +9,6 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector v0.147.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.147.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/loadbalancingexporter v0.147.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/sapmexporter v0.147.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension v0.147.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.147.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/dockerobserver v0.147.0
@@ -249,7 +248,6 @@ require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.0 // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
-	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/golang/snappy v1.0.0 // indirect
 	github.com/google/gnostic-models v0.7.1 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
@@ -342,8 +340,6 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/metadataproviders v0.149.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/pdatautil v0.147.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/sharedcomponent v0.147.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/internal/splunk v0.147.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/batchperresourceattr v0.147.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/batchpersignal v0.147.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/core/xidutils v0.147.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.149.0 // indirect
@@ -391,7 +387,6 @@ require (
 	github.com/shirou/gopsutil/v4 v4.26.2 // indirect
 	github.com/shoenig/go-m1cpu v0.1.7 // indirect
 	github.com/shurcooL/httpfs v0.0.0-20230704072500-f1e31cf0ba5c // indirect
-	github.com/signalfx/sapm-proto v0.18.0 // indirect
 	github.com/sirupsen/logrus v1.9.4 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/spf13/cobra v1.10.2 // indirect

@@ -1685,8 +1685,6 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmet
 core,github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector/internal/metrics,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/exporter/loadbalancingexporter,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/exporter/loadbalancingexporter/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
-core,github.com/open-telemetry/opentelemetry-collector-contrib/exporter/sapmexporter,Apache-2.0,Copyright The OpenTelemetry Authors
-core,github.com/open-telemetry/opentelemetry-collector-contrib/exporter/sapmexporter/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension/internal/componentchecker,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension/internal/httpserver,Apache-2.0,Copyright The OpenTelemetry Authors

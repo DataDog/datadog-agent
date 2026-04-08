@@ -4494,8 +4494,6 @@ github.com/open-telemetry/opentelemetry-collector-contrib/exporter/loadbalancing
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/loadbalancingexporter v0.147.0/go.mod h1:lYH6RurrGDHMWRSy1FQDL9cVxOPiyXqHb9+gSZed8Nc=
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusremotewriteexporter v0.147.0 h1:lF1zkn8hSBmZCK4UjmKuiob+w48QiJtfLaAxb/9PVOQ=
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusremotewriteexporter v0.147.0/go.mod h1:D3DB/PjNFYlR55EedzK2GIOUzpiBjPuvp4B4ykABPIA=
-github.com/open-telemetry/opentelemetry-collector-contrib/exporter/sapmexporter v0.147.0 h1:sd8NTDoFHhjyo8MApx5f7KPNMyQZIZ7uyWwymPoKIKA=
-github.com/open-telemetry/opentelemetry-collector-contrib/exporter/sapmexporter v0.147.0/go.mod h1:aVmsD2wCy0mf5ip57XJDLxg/V0JuSU/ON/SBgp7pz5U=
 github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.147.0 h1:pfSn3AhNXu+YWDPidCVWRAZcjAk0rPImioBF9P/Uv7M=
 github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.147.0/go.mod h1:m6GGqZbwf2okyQtylKTU/0cT56E6xdftYAkg3TE9jWE=
 github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer v0.147.0 h1:6tIXAmOQQvTa/e323EPhetYIWWbNZ3ABKrVzqseqVnA=
@@ -4540,10 +4538,6 @@ github.com/open-telemetry/opentelemetry-collector-contrib/internal/pdatautil v0.
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/pdatautil v0.147.0/go.mod h1:k0+eJUJNXUoKjF2XFjZnWfBmAHRd+Rb24uI2A72amYc=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/sharedcomponent v0.147.0 h1:kW909KXvwgrWlL6WMNHrTARtoUW24Ts+8J5UJZx9V9g=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/sharedcomponent v0.147.0/go.mod h1:sgFPVHa5KMwNHJYre5pwEohNY8j45YjcL00aGp/byk8=
-github.com/open-telemetry/opentelemetry-collector-contrib/internal/splunk v0.147.0 h1:IVIhnJGL3X8zZmNEwL2gHF1BEvVnyF/cx5KXtKm5BTg=
-github.com/open-telemetry/opentelemetry-collector-contrib/internal/splunk v0.147.0/go.mod h1:nygdEYYHNhkmb2ok6uzuqT0lgTtRFKkI2ArvL1IvwvI=
-github.com/open-telemetry/opentelemetry-collector-contrib/pkg/batchperresourceattr v0.147.0 h1:+DH++aootBKLDp11qaj9JM3rSGvk2sZvp68ztRjw3Uk=
-github.com/open-telemetry/opentelemetry-collector-contrib/pkg/batchperresourceattr v0.147.0/go.mod h1:LkYkAF9lhFSJS5NTMOq230JPF+LFfCkdla+Cm+pmsjg=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/batchpersignal v0.147.0 h1:TUbXDTIjnZpXCAA2MCXrRCVcsT6kwPflPd8DLzcWzsI=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/batchpersignal v0.147.0/go.mod h1:oHKqyWra+9FjEIJPR7W9D8QUEXrRwzE+uKgwqeOO2SE=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/core/xidutils v0.147.0 h1:e2UW/ZBN3Um+zHIRmCJl9rAOtIynPzTVAUQfpAt5Dtk=
@@ -4898,8 +4892,6 @@ github.com/shopspring/decimal v1.4.0/go.mod h1:gawqmDU56v4yIKSwfBSFip1HdCCXN8/+D
 github.com/shurcooL/httpfs v0.0.0-20230704072500-f1e31cf0ba5c h1:aqg5Vm5dwtvL+YgDpBcK1ITf3o96N/K7/wsRXQnUTEs=
 github.com/shurcooL/httpfs v0.0.0-20230704072500-f1e31cf0ba5c/go.mod h1:owqhoLW1qZoYLZzLnBw+QkPP9WZnjlSWihhxAJC1+/M=
 github.com/shurcooL/sanitized_anchor_name v1.0.0/go.mod h1:1NzhyTcUVG4SuEtjjoZeVRXNmyL/1OwPU0+IJeTBvfc=
-github.com/signalfx/sapm-proto v0.18.0 h1:7ABBw8ojT0FuBsFFVy/Luh603rDUhluf6SMxHULr7YM=
-github.com/signalfx/sapm-proto v0.18.0/go.mod h1:9781XTS+l1v7RfSjUNMeW9vMqVnl/rMvxuTu3GO/l54=
 github.com/sigstore/cosign/v2 v2.2.4 h1:iY4vtEacmu2hkNj1Fh+8EBqBwKs2DHM27/lbNWDFJro=
 github.com/sigstore/cosign/v2 v2.2.4/go.mod h1:JZlRD2uaEjVAvZ1XJ3QkkZJhTqSDVtLaet+C/TMR81Y=
 github.com/sigstore/rekor v1.3.9 h1:sUjRpKVh/hhgqGMs0t+TubgYsksArZ6poLEC3MsGAzU=
