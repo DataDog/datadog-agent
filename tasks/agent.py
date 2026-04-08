@@ -237,8 +237,6 @@ def render_config(ctx, env, flavor, skip_assets, build_tags, development, window
     if sys.platform != 'win32' or windows_sysprobe:
         generate_config(ctx, build_type="system-probe", output_file="./cmd/agent/dist/system-probe.yaml", env=env)
 
-    generate_config(ctx, build_type="security-agent", output_file="./cmd/agent/dist/security-agent.yaml", env=env)
-
     if not skip_assets:
         refresh_assets(ctx, build_tags, development=development, flavor=flavor.name, windows_sysprobe=windows_sysprobe)
 

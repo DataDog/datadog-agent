@@ -253,7 +253,7 @@ build do
     else
       copy 'bin/security-agent/security-agent', "#{install_dir}/embedded/bin"
     end
-    move 'bin/agent/dist/security-agent.yaml', "#{conf_dir}/security-agent.yaml.example"
+    move 'pkg/config/example/security-agent.yaml.example', "#{conf_dir}/security-agent.yaml.example"
   end
 
   # CWS Instrumentation

@@ -10,7 +10,6 @@ load("//packages/agent:defs.bzl", "ETC_DIR_SELECTOR")
 pkg_files(
     name = "config_files",
     srcs = [
-        "//pkg/config:security_agent_config",
         "//pkg/config:system_probe_config",
     ] + select({
         "//packages/agent:iot_flavor": [
