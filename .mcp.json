@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "speky": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/agagniere/speky",
+        "speky-mcp",
+        "specs/ddot.yaml"
+      ],
+      "env": {}
+    }
+  }
+}
