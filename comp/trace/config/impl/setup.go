@@ -597,6 +597,8 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if core.IsConfigured("apm_config.dd_agent_bin") {
 		if v := core.GetString("apm_config.dd_agent_bin"); v != "" {
 			c.DDAgentBin = v
+		} else {
+			log.Warn("apm_config.dd_agent_bin is configured but empty, keeping platform default")
 		}
 	}
 
