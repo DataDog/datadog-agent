@@ -95,7 +95,9 @@ func (c *ConnectionsClient) CreateConnection(ctx context.Context, definition Con
 	}
 
 	httpReq.Header.Set(apiKeyHeader, c.apiKey)
-	httpReq.Header.Set(appKeyHeader, c.appKey)
+	if c.appKey != "" {
+		httpReq.Header.Set(appKeyHeader, c.appKey)
+	}
 	httpReq.Header.Set(contentTypeHeader, contentType)
 	httpReq.Header.Set(userAgentHeader, "datadog-agent/"+version.AgentVersion)
 
