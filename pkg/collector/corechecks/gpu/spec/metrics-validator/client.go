@@ -50,8 +50,8 @@ func newMetricsClient(apiKey, appKey, site string) (*metricsClient, error) {
 	}, nil
 }
 
-func buildScalarQuery(name, query string) datadogV2.ScalarQuery {
-	q := datadogV2.NewMetricsScalarQuery(datadogV2.METRICSAGGREGATOR_AVG, datadogV2.METRICSDATASOURCE_METRICS, query)
+func buildScalarQuery(name, query string, aggregator datadogV2.MetricsAggregator) datadogV2.ScalarQuery {
+	q := datadogV2.NewMetricsScalarQuery(aggregator, datadogV2.METRICSDATASOURCE_METRICS, query)
 	q.SetName(name)
 	return datadogV2.MetricsScalarQueryAsScalarQuery(q)
 }
@@ -136,7 +136,7 @@ func splitScalarColumns(columns []datadogV2.ScalarColumn) ([]scalarResult, error
 func (c *metricsClient) queryDeviceCount(config gpuspec.GPUConfig, fromTS, toTS int64) (int, error) {
 	columns, err := c.runScalarQueries(
 		[]datadogV2.ScalarQuery{
-			buildScalarQuery("q0", fmt.Sprintf("avg:gpu.device.total{%s} by {gpu_uuid}", config.TagFilter())),
+			buildScalarQuery("q0", fmt.Sprintf("avg:gpu.device.total{%s} by {gpu_uuid}", config.TagFilter()), datadogV2.METRICSAGGREGATOR_AVG),
 		},
 		fromTS,
 		toTS,
@@ -158,7 +158,7 @@ func (c *metricsClient) queryExpectedMetricPresenceForGPUConfig(metricName strin
 		query = fmt.Sprintf("%s by {%s}", query, strings.Join(expectedTagNames, ","))
 	}
 
-	columns, err := c.runScalarQueries([]datadogV2.ScalarQuery{buildScalarQuery("q0", query)}, fromTS, toTS)
+	columns, err := c.runScalarQueries([]datadogV2.ScalarQuery{buildScalarQuery("q0", query, datadogV2.METRICSAGGREGATOR_AVG)}, fromTS, toTS)
 	if err != nil {
 		return nil, fmt.Errorf("query expected metric presence for %s: %w", metricName, err)
 	}
@@ -171,8 +171,9 @@ func (c *metricsClient) queryExpectedMetricPresenceForGPUConfig(metricName strin
 		}
 
 		observation := gpuspec.MetricObservation{
-			Name: metricName,
-			Tags: []string{},
+			Name:  metricName,
+			Tags:  []string{},
+			Value: value,
 		}
 		for tag := range expectedTags {
 			if isNullishGroupValue(result.tags[tag]) {
@@ -184,6 +185,31 @@ func (c *metricsClient) queryExpectedMetricPresenceForGPUConfig(metricName strin
 	}
 
 	return observations, nil
+}
+
+func (c *metricsClient) queryMetricValuesForGPUConfig(metricName string, queryFilter string, fromTS, toTS int64) ([]float64, error) {
+	queries := []datadogV2.ScalarQuery{
+		buildScalarQuery("min", fmt.Sprintf("min:%s{%s}", metricName, queryFilter), datadogV2.METRICSAGGREGATOR_MIN),
+		buildScalarQuery("max", fmt.Sprintf("max:%s{%s}", metricName, queryFilter), datadogV2.METRICSAGGREGATOR_MAX),
+	}
+
+	columns, err := c.runScalarQueries(queries, fromTS, toTS)
+	if err != nil {
+		return nil, fmt.Errorf("query metric values for %s: %w", metricName, err)
+	}
+
+	values := make([]float64, 0, len(columns)*2)
+	for _, result := range columns {
+		for _, queryName := range []string{"min", "max"} {
+			value, found := result.values[queryName]
+			if !found || value == nil {
+				continue
+			}
+			values = append(values, *value)
+		}
+	}
+
+	return values, nil
 }
 
 func (c *metricsClient) listObservedGPUMetricsForGPUConfig(config gpuspec.GPUConfig, lookbackSeconds int64, metricPrefix string) (map[string]struct{}, error) {

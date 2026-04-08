@@ -62,10 +62,17 @@ func GetEmittedGPUMetrics(mockSender *mocksender.MockSender) map[string][]gpuspe
 				tags = append([]string(nil), callTags...)
 			}
 		}
+		var value *float64
+		if len(call.Arguments) > 1 {
+			if metricValue, ok := call.Arguments.Get(1).(float64); ok {
+				value = &metricValue
+			}
+		}
 
 		metricsByName[specMetricName] = append(metricsByName[specMetricName], gpuspec.MetricObservation{
-			Name: specMetricName,
-			Tags: tags,
+			Name:  specMetricName,
+			Tags:  tags,
+			Value: value,
 		})
 	}
 

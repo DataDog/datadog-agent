@@ -52,6 +52,7 @@ func NewGPUConfigFromTags(architecture, slicingMode, virtualizationMode string) 
 type MetricObservation struct {
 	Name string
 	Tags []string
+	Value *float64
 }
 
 const (
@@ -277,17 +278,32 @@ func ValidateEmittedMetricsAgainstSpec(metricsSpec *MetricsSpec, config GPUConfi
 
 	expectedMetrics := ExpectedMetricsForConfig(metricsSpec, config)
 	for metricName, metricSpec := range expectedMetrics {
-		if _, found := emittedMetrics[metricName]; !found {
+		metricSamples, found := emittedMetrics[metricName]
+		if !found {
 			results.addError(metricName, ErrorMissing)
 			continue
 		}
 
-		tagResults, err := ValidateMetricTagsAgainstSpec(metricsSpec, metricSpec, emittedMetrics[metricName], knownTagValues)
+		tagResults, err := ValidateMetricTagsAgainstSpec(metricsSpec, metricSpec, metricSamples, knownTagValues)
 		if err != nil {
 			return results, fmt.Errorf("validate metric tags for %s: %w", metricName, err)
 		}
 
-		results.getMetricStatus(metricName).TagResults = tagResults
+		metricStatus := results.getMetricStatus(metricName)
+		metricStatus.TagResults = tagResults
+
+		if metricSpec.Validator == nil {
+			continue
+		}
+
+		for _, sample := range metricSamples {
+			if sample.Value == nil {
+				continue
+			}
+			if err := metricSpec.Validator.Validate(*sample.Value); err != nil {
+				metricStatus.Errors = append(metricStatus.Errors, fmt.Sprintf("%s: %v", ErrorInvalidValue, err))
+			}
+		}
 	}
 
 	return results, nil

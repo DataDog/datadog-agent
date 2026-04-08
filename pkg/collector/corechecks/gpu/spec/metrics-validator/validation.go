@@ -97,6 +97,22 @@ func validateGPUConfig(client *metricsClient, metricsSpec *gpuspec.MetricsSpec, 
 			if err != nil {
 				return fmt.Errorf("query expected metric presence for %s: %w", metricName, err)
 			}
+
+			metricSpec := expectedMetricsMap[metricName]
+			if metricSpec.Validator != nil {
+				metricValues, err := client.queryMetricValuesForGPUConfig(prefixedMetricName, config.TagFilter(), fromTS, toTS)
+				if err != nil {
+					return fmt.Errorf("query metric values for %s: %w", metricName, err)
+				}
+				for _, value := range metricValues {
+					valueCopy := value
+					metricObservations = append(metricObservations, gpuspec.MetricObservation{
+						Name:  metricName,
+						Value: &valueCopy,
+					})
+				}
+			}
+
 			for _, observation := range metricObservations {
 				observation.Name = metricName
 				mu.Lock()
