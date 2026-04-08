@@ -12,4 +12,5 @@ cgo_godefs(
     src = "kprobe_types.go",
     hdrs = ["//pkg/gpu/ebpf/c:gpu_headers"],
     visibility = ["//visibility:public"],
+    deps = ["//pkg/network/ebpf/c:ebpf_c_network"],
 )
