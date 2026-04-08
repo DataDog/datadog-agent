@@ -377,7 +377,12 @@ func deployOrchestratorJob(
 	// _shared/env.sh defines postmortem_chain_exit_trap and related helpers used
 	// by many postmortem episodes. Mount it at /episodes/_shared/ so episodes that
 	// source it work without modification.
-	sharedEnvPath := filepath.Join(episodeDataDir, "postmortems", "_shared", "env.sh")
+	// Support both repo-root (episodeDataDir=.../gensim-episodes) and legacy
+	// (episodeDataDir=.../postmortems) layouts when locating _shared/env.sh.
+	sharedEnvPath := filepath.Join(episodeDataDir, "_shared", "env.sh")
+	if _, statErr := os.Stat(sharedEnvPath); statErr != nil {
+		sharedEnvPath = filepath.Join(episodeDataDir, "postmortems", "_shared", "env.sh")
+	}
 	if sharedEnvContent, err := os.ReadFile(sharedEnvPath); err == nil {
 		sharedCM, cmErr := corev1.NewConfigMap(ctx, awsEnv.Namer.ResourceName("ep-cm-shared"),
 			&corev1.ConfigMapArgs{
