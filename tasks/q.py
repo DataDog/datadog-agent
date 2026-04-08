@@ -485,20 +485,22 @@ def _full_stack_combo(force_disable: list | None = None) -> dict:
     }
 
 
-def _anchor_combos(force_disable: list | None = None) -> list[dict]:
+def _anchor_combos(force_disable: list | None = None, force_enable: list | None = None) -> list[dict]:
     """Fixed anchor subsets derived from ANCHOR_COMBOS after filtering force_disable.
 
     Each anchor that ends up with at least one detector and one correlator is
     included.  Anchors whose key components are all removed are silently skipped
     so that evaluating a component that appears in an anchor does not break the
-    run.
+    run.  force_enable components are unconditionally added to every anchor.
     """
     fd = set(force_disable or [])
+    fe_dets = sorted(d for d in (force_enable or []) if d in DETECTORS and d not in fd)
+    fe_cors = sorted(c for c in (force_enable or []) if c in CORRELATORS and c not in fd)
     anchors = []
     seen_keys: set = set()
     for combo in ANCHOR_COMBOS:
-        dets = sorted(d for d in combo["detectors"] if d not in fd)
-        cors = sorted(c for c in combo["correlators"] if c not in fd)
+        dets = sorted({d for d in combo["detectors"] if d not in fd} | set(fe_dets))
+        cors = sorted({c for c in combo["correlators"] if c not in fd} | set(fe_cors))
         if not dets or not cors:
             continue
         key = (tuple(dets), tuple(cors))
@@ -1169,6 +1171,9 @@ def eval_component(
     build: bool = True,
     overwrite: bool = False,
     tune_evaluated_component: bool = False,
+    enable: str = "",
+    disable: str = "",
+    lock: str = "",
 ):
     """
     Evaluate whether adding a component improves observer accuracy via
@@ -1211,16 +1216,40 @@ def eval_component(
         tune_evaluated_component: If False (default), the target component is
             locked on ``with`` runs (same effective search complexity as ``without``).
             If True, Optuna also tunes the target component's hyperparameters.
+        enable: Comma-separated components to force-enable in every subset
+            (present in both ``without`` and ``with`` variants).
+        disable: Comma-separated components to force-disable from every subset
+            (absent in both variants; must not include the evaluated component).
+        lock: Comma-separated components to lock at Go defaults in every
+            Bayesian run (not tuned by Optuna, in addition to the evaluated
+            component which is locked on ``with`` runs unless
+            ``--tune-evaluated-component`` is set).
 
     Examples:
         dda inv q.eval-component --component scanmw
         dda inv q.eval-component --component log_pattern_extractor --n-subsets 3
         dda inv q.eval-component --component cusum --seed 42 --n-trials 10
         dda inv q.eval-component --component scanmw --tune-evaluated-component
+        dda inv q.eval-component --component bocpd --enable cusum --disable rrcf
+        dda inv q.eval-component --component bocpd --lock time_cluster
     """
     all_known = DETECTORS + CORRELATORS + EXTRACTORS
     if component not in all_known:
         print(color_message(f"Error: unknown component '{component}'. Known: {', '.join(all_known)}", Color.RED))
+        return
+
+    # --- parse and validate enable / disable / lock ---
+    force_enable_list = [c.strip() for c in enable.split(",") if c.strip()]
+    force_disable_extra_list = [c.strip() for c in disable.split(",") if c.strip()]
+    extra_lock_list = [c.strip() for c in lock.split(",") if c.strip()]
+
+    unknown = set(force_enable_list + force_disable_extra_list + extra_lock_list) - set(all_known)
+    if unknown:
+        print(color_message(f"Error: unknown components: {', '.join(sorted(unknown))}", Color.RED))
+        return
+
+    if component in force_disable_extra_list:
+        print(color_message(f"Error: cannot force-disable the evaluated component '{component}'", Color.RED))
         return
 
     if seed is None:
@@ -1236,18 +1265,19 @@ def eval_component(
 
     # --- generate subsets ---
     is_extractor = component in EXTRACTORS
-    force_disable_subsets: list[str] = [] if is_extractor else [component]
+    force_disable_subsets: list[str] = sorted(set(([] if is_extractor else [component]) + force_disable_extra_list))
 
     # Build fixed subsets: full stack, then anchors (minimal + medium), then random fill.
     # Anchors whose required components are disabled are silently skipped.
     full_stack = _full_stack_combo(force_disable=force_disable_subsets)
-    anchor_subsets = _anchor_combos(force_disable=force_disable_subsets)
+    anchor_subsets = _anchor_combos(force_disable=force_disable_subsets, force_enable=force_enable_list)
     fixed_subsets = [full_stack] + anchor_subsets
     fixed_keys = {(tuple(s["detectors"]), tuple(s["correlators"])) for s in fixed_subsets}
     random_count = max(0, n_subsets - len(fixed_subsets))
     random_subsets = random_component_combinations(
         random_count,
         seed=subset_seed,
+        force_enable=force_enable_list,
         force_disable=force_disable_subsets,
         exclude_combo_keys=fixed_keys,
     )
@@ -1290,6 +1320,12 @@ def eval_component(
     print(color_message(f"  total bayesian runs:   {total_bayesian_runs}", Color.BLUE))
     print(color_message(f"  total testbench runs:  {total_testbench_runs}", Color.BLUE))
     print(color_message(f"  output_dir:            {output_dir}", Color.BLUE))
+    if force_enable_list:
+        print(color_message(f"  force-enabled:         {', '.join(force_enable_list)}", Color.BLUE))
+    if force_disable_extra_list:
+        print(color_message(f"  force-disabled:        {', '.join(force_disable_extra_list)}", Color.BLUE))
+    if extra_lock_list:
+        print(color_message(f"  extra locked HPs:      {', '.join(extra_lock_list)}", Color.BLUE))
     if tune_evaluated_component:
         print(color_message("  target component HPs:  tuned (Optuna search on 'with')", Color.ORANGE))
     else:
@@ -1311,8 +1347,11 @@ def eval_component(
 
             # Build the full components list for this variant
             components_list = list(subset["detectors"]) + list(subset["correlators"])
+            disabled_set = set(force_disable_extra_list)
             for ext in EXTRACTORS:
-                if ext == component:
+                if ext in disabled_set:
+                    pass  # force-disabled extractor: skip in both variants
+                elif ext == component:
                     if variant == "with":
                         components_list.append(ext)
                     # "without" → skip this extractor
@@ -1332,7 +1371,10 @@ def eval_component(
 
                 run_logger.step(f"{variant} / {subset_label} / {run_label}  (seed={run_seed})")
                 run_logger.detail(f"components: {', '.join(components_list)}")
-                lock_for_run = component if variant == "with" and not tune_evaluated_component else ""
+                lock_components = list(extra_lock_list)
+                if variant == "with" and not tune_evaluated_component:
+                    lock_components.append(component)
+                lock_for_run = ",".join(sorted(set(lock_components)))
 
                 trial_logger = run_logger.child(n_trials, "Trial")
                 report = eval_bayesian(
