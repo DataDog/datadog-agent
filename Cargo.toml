@@ -51,7 +51,7 @@ walkdir = "2"
 yaml-rust2 = "0.9"
 zip = { version = "2.1", default-features = false, features = ["deflate"] }
 
-tower = { version = "0.4", features = ["util"] }
+tower = { version = "0.5", features = ["util"] }
 uuid = { version = "1", features = ["v4"] }
 windows-sys = { version = "0.59", features = [] }
 
