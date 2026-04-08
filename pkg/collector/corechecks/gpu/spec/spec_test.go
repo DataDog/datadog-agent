@@ -123,3 +123,71 @@ func TestMockCapabilitiesMatchArchitectureSpec(t *testing.T) {
 		}
 	}
 }
+
+func TestBuildMockOptionsCreatesCorrectDevices(t *testing.T) {
+	modes := []DeviceMode{DeviceModePhysical, DeviceModeMIG, DeviceModeVGPU}
+	archSpec, err := LoadArchitecturesSpec()
+	require.NoError(t, err)
+	archName := "blackwell"
+	require.Contains(t, archSpec.Architectures, archName)
+	arch := archSpec.Architectures[archName]
+
+	for _, mode := range modes {
+		require.True(t, IsModeSupportedByArchitecture(arch, mode))
+
+		t.Run(string(mode), func(t *testing.T) {
+			opts := BuildMockOptionsForArchAndMode(t, archName, mode, arch)
+			ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(opts...))
+
+			lib, err := ddnvml.GetSafeNvmlLib()
+			require.NoError(t, err, "should be able to get NVML lib")
+
+			count, err := lib.DeviceGetCount()
+			require.NoError(t, err, "should be able to get device count")
+			assert.Equal(t, 1, count, "should be 1 device for physical and vgpu modes")
+
+			for i := 0; i < count; i++ {
+				dev, err := lib.DeviceGetHandleByIndex(i)
+				require.NoError(t, err, "should be able to get device %d", i)
+
+				isMig, err := dev.IsMigDeviceHandle()
+				require.NoError(t, err, "should be able to check if device is a MIG device")
+				assert.False(t, isMig, "top-level devices should not be MIG devices")
+
+				virtMode, err := dev.GetVirtualizationMode()
+				require.NoError(t, err, "should be able to get virtualization mode")
+
+				migEnabled, _, err := dev.GetMigMode()
+				require.NoError(t, err, "should be able to get MIG mode")
+
+				if mode != DeviceModeMIG {
+					assert.False(t, isMig, "device %d should not be a MIG device", i)
+					if mode == DeviceModeVGPU {
+						assert.Equal(t, nvml.GPU_VIRTUALIZATION_MODE_VGPU, virtMode, "virtualization mode should be vGPU for vgpu mode")
+					} else {
+						assert.Equal(t, nvml.GPU_VIRTUALIZATION_MODE_NONE, virtMode, "virtualization mode should be none for physical device")
+					}
+				} else {
+					assert.Equal(t, nvml.DEVICE_MIG_ENABLE, migEnabled, "MIG mode should be enabled on the parent GPU")
+					migChildrenCount, err := dev.GetMaxMigDeviceCount()
+					require.NoError(t, err, "should be able to get MIG children count")
+					assert.Equal(t, 1, migChildrenCount, "should have 1 MIG child for mig mode")
+
+					for j := 0; j < migChildrenCount; j++ {
+						migChild, err := dev.GetMigDeviceHandleByIndex(j)
+						require.NoError(t, err, "should be able to get MIG child %d", j)
+
+						migChildIsMig, err := migChild.IsMigDeviceHandle()
+						require.NoError(t, err, "should be able to check if MIG child is a MIG device")
+						assert.True(t, migChildIsMig, "MIG child %d should be a MIG device", j)
+
+						migChildVirtMode, err := migChild.GetVirtualizationMode()
+						require.NoError(t, err, "should be able to get virtualization mode for MIG child")
+						assert.Equal(t, nvml.GPU_VIRTUALIZATION_MODE_NONE, migChildVirtMode, "virtualization mode should be none for MIG child")
+					}
+				}
+
+			}
+		})
+	}
+}

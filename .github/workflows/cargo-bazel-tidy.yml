@@ -32,7 +32,7 @@ jobs:
       - name: Generate Rust licenses
         run: |
           cargo install --git https://github.com/DataDog/rust-license-tool dd-rust-license-tool
-          cd pkg/discovery/module/rust && dd-rust-license-tool write
+          cd rust && dd-rust-license-tool --manifest-path ../Cargo.toml write
       - name: Create commit
         id: commit
         run: |

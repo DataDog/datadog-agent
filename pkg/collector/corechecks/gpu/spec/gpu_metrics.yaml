@@ -20,6 +20,11 @@ tagsets:
       - gpu_device
       - gpu_vendor
       - gpu_driver_version
+      - gpu_virtualization_mode
+      - gpu_architecture
+      - gpu_slicing_mode
+      - gpu_parent_uuid
+      - gpu_type
   process:
     tags:
       - pid
