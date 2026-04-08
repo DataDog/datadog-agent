@@ -155,17 +155,17 @@ func TestGetTracerouteInvalidJSON(t *testing.T) {
 
 func TestGetTracerouteStructuredError(t *testing.T) {
 	tests := []struct {
-		name           string
-		errorCode      traceroutelib.ErrorCode
-		errorMessage   string
-		expectedSubstr string
+		name         string
+		errorCode    traceroutelib.ErrorCode
+		errorMessage string
+		expectedCode traceroutelib.ErrorCode
 	}{
-		{"DNS error", traceroutelib.ErrCodeDNS, "failed to resolve host", "traceroute failed (DNS)"},
-		{"timeout error", traceroutelib.ErrCodeTimeout, "context deadline exceeded", "traceroute failed (TIMEOUT)"},
-		{"connection refused", traceroutelib.ErrCodeConnRefused, "connection refused", "traceroute failed (CONNREFUSED)"},
-		{"host unreachable", traceroutelib.ErrCodeHostUnreach, "host unreachable", "traceroute failed (HOSTUNREACH)"},
-		{"network unreachable", traceroutelib.ErrCodeNetUnreach, "network unreachable", "traceroute failed (NETUNREACH)"},
-		{"unknown error", traceroutelib.ErrCodeUnknown, "something went wrong", "traceroute failed (UNKNOWN)"},
+		{"DNS error", traceroutelib.ErrCodeDNS, "Failed to resolve the host name.", traceroutelib.ErrCodeDNS},
+		{"timeout error", traceroutelib.ErrCodeTimeout, "The request timed out.", traceroutelib.ErrCodeTimeout},
+		{"connection refused", traceroutelib.ErrCodeConnRefused, "The connection was refused by the remote host.", traceroutelib.ErrCodeConnRefused},
+		{"host unreachable", traceroutelib.ErrCodeHostUnreach, "The remote host is unreachable.", traceroutelib.ErrCodeHostUnreach},
+		{"network unreachable", traceroutelib.ErrCodeNetUnreach, "The remote server network is unreachable.", traceroutelib.ErrCodeNetUnreach},
+		{"unknown error", traceroutelib.ErrCodeUnknown, "An unknown error occurred.", traceroutelib.ErrCodeUnknown},
 	}
 
 	for _, tt := range tests {
@@ -196,9 +196,12 @@ func TestGetTracerouteStructuredError(t *testing.T) {
 
 			rt := &remoteTraceroute{sysprobeClient: client, log: logmock.New(t), hostname: hostnameComponent}
 			_, err = rt.Run(context.Background(), cfg)
-			assert.Error(t, err)
-			assert.Contains(t, err.Error(), tt.expectedSubstr)
-			assert.Contains(t, err.Error(), tt.errorMessage)
+			require.Error(t, err)
+
+			var trErr *traceroutelib.TracerouteError
+			require.ErrorAs(t, err, &trErr)
+			assert.Equal(t, tt.expectedCode, trErr.Code)
+			assert.Equal(t, tt.errorMessage, trErr.Message)
 		})
 	}
 }

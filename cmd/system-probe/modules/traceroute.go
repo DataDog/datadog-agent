@@ -118,8 +118,30 @@ func handleTracerouteReqError(w http.ResponseWriter, statusCode int, errString s
 	}
 }
 
+// userFacingMessages maps error codes to user-facing messages aligned with
+// synthetics-worker so the UI shows the same text regardless of the source.
+var userFacingMessages = map[traceroutelib.ErrorCode]string{
+	traceroutelib.ErrCodeDNS:            "Failed to resolve the host name.",
+	traceroutelib.ErrCodeTimeout:        "The request timed out.",
+	traceroutelib.ErrCodeConnRefused:    "The connection was refused by the remote host.",
+	traceroutelib.ErrCodeHostUnreach:    "The remote host is unreachable.",
+	traceroutelib.ErrCodeNetUnreach:     "The remote server network is unreachable.",
+	traceroutelib.ErrCodeDenied:         "Permission denied.",
+	traceroutelib.ErrCodeInvalidRequest: "Invalid request parameters.",
+	traceroutelib.ErrCodeFailedEncoding: "Failed to encode the response.",
+	traceroutelib.ErrCodeUnknown:        "An unknown error occurred.",
+}
+
+func userFacingMessage(code traceroutelib.ErrorCode, fallback string) string {
+	if msg, ok := userFacingMessages[code]; ok {
+		return msg
+	}
+	return fallback
+}
+
 func handleTracerouteStructuredError(w http.ResponseWriter, statusCode int, errResp traceroutelib.ErrorResponse, host string) {
 	log.Errorf("traceroute error for host %s: [%s] %s", host, errResp.Code, errResp.Message)
+	errResp.Message = userFacingMessage(errResp.Code, errResp.Message)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 	if err := json.NewEncoder(w).Encode(errResp); err != nil {

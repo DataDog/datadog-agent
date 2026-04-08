@@ -9,9 +9,12 @@ package modules
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	traceroutelib "github.com/DataDog/datadog-traceroute/traceroute"
 
 	tracerouteutil "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 
@@ -134,6 +137,45 @@ func TestHandleTracerouteReqError(t *testing.T) {
 
 			// Assert the response body
 			assert.Equal(t, tt.expectedBody, recorder.Body.String())
+		})
+	}
+}
+
+func TestHandleTracerouteStructuredError(t *testing.T) {
+	tests := []struct {
+		name            string
+		code            traceroutelib.ErrorCode
+		rawMessage      string
+		expectedCode    traceroutelib.ErrorCode
+		expectedMessage string
+	}{
+		{"DNS", traceroutelib.ErrCodeDNS, "lookup example.com: no such host", traceroutelib.ErrCodeDNS, "Failed to resolve the host name."},
+		{"timeout", traceroutelib.ErrCodeTimeout, "context deadline exceeded", traceroutelib.ErrCodeTimeout, "The request timed out."},
+		{"connection refused", traceroutelib.ErrCodeConnRefused, "connect: connection refused", traceroutelib.ErrCodeConnRefused, "The connection was refused by the remote host."},
+		{"host unreachable", traceroutelib.ErrCodeHostUnreach, "connect: host is unreachable", traceroutelib.ErrCodeHostUnreach, "The remote host is unreachable."},
+		{"network unreachable", traceroutelib.ErrCodeNetUnreach, "connect: network is unreachable", traceroutelib.ErrCodeNetUnreach, "The remote server network is unreachable."},
+		{"denied", traceroutelib.ErrCodeDenied, "operation not permitted", traceroutelib.ErrCodeDenied, "Permission denied."},
+		{"invalid request", traceroutelib.ErrCodeInvalidRequest, "invalid target: bad port", traceroutelib.ErrCodeInvalidRequest, "Invalid request parameters."},
+		{"failed encoding", traceroutelib.ErrCodeFailedEncoding, "json marshal error", traceroutelib.ErrCodeFailedEncoding, "Failed to encode the response."},
+		{"unknown", traceroutelib.ErrCodeUnknown, "something went wrong", traceroutelib.ErrCodeUnknown, "An unknown error occurred."},
+		{"unrecognized code falls back to raw message", "NEW_CODE", "some new error", "NEW_CODE", "some new error"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			errResp := traceroutelib.ErrorResponse{Code: tt.code, Message: tt.rawMessage}
+
+			handleTracerouteStructuredError(recorder, http.StatusInternalServerError, errResp, "example.com")
+
+			assert.Equal(t, http.StatusInternalServerError, recorder.Code)
+			assert.Equal(t, "application/json", recorder.Header().Get("Content-Type"))
+
+			var resp traceroutelib.ErrorResponse
+			err := json.Unmarshal(recorder.Body.Bytes(), &resp)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expectedCode, resp.Code)
+			assert.Equal(t, tt.expectedMessage, resp.Message)
 		})
 	}
 }
