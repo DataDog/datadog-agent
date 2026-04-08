@@ -509,7 +509,7 @@ mod tests {
             name: name.to_string(),
             config: ProcessConfig {
                 command: cmd.to_string(),
-                args: args.into_iter().map(|a| a.to_string()).collect(),
+                args,
                 ..Default::default()
             },
         }
@@ -618,7 +618,7 @@ mod tests {
         let (cmd, args) = test_helpers::true_cmd();
         let config = ProcessConfig {
             command: cmd.to_string(),
-            args: args.into_iter().map(|a| a.to_string()).collect(),
+            args,
             ..Default::default()
         };
         let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
@@ -635,7 +635,7 @@ mod tests {
         let (cmd, args) = test_helpers::true_cmd();
         let config = ProcessConfig {
             command: cmd.to_string(),
-            args: args.into_iter().map(|a| a.to_string()).collect(),
+            args,
             ..Default::default()
         };
         let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
@@ -652,7 +652,7 @@ mod tests {
         let (cmd, args) = test_helpers::true_cmd();
         let config = ProcessConfig {
             command: cmd.to_string(),
-            args: args.into_iter().map(|a| a.to_string()).collect(),
+            args,
             ..Default::default()
         };
         let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
@@ -669,7 +669,7 @@ mod tests {
         let (cmd, args) = test_helpers::true_cmd();
         let config = ProcessConfig {
             command: cmd.to_string(),
-            args: args.into_iter().map(|a| a.to_string()).collect(),
+            args,
             ..Default::default()
         };
         let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
@@ -754,7 +754,7 @@ mod tests {
             "runtime-svc".to_string(),
             ProcessConfig {
                 command: cmd.to_string(),
-                args: args.into_iter().map(|a| a.to_string()).collect(),
+                args,
                 auto_start: false,
                 ..Default::default()
             },
@@ -804,7 +804,7 @@ mod tests {
             "svc-b".to_string(),
             ProcessConfig {
                 command: cmd.to_string(),
-                args: args.into_iter().map(|a| a.to_string()).collect(),
+                args,
                 after: vec!["svc-a".to_string()],
                 auto_start: false,
                 ..Default::default()
@@ -833,7 +833,7 @@ mod tests {
             "auto-svc".to_string(),
             ProcessConfig {
                 command: cmd.to_string(),
-                args: args.into_iter().map(|a| a.to_string()).collect(),
+                args,
                 auto_start: true,
                 ..Default::default()
             },
@@ -867,7 +867,7 @@ mod tests {
             "manual-svc".to_string(),
             ProcessConfig {
                 command: cmd.to_string(),
-                args: args.into_iter().map(|a| a.to_string()).collect(),
+                args,
                 auto_start: false,
                 ..Default::default()
             },
@@ -920,7 +920,7 @@ mod tests {
             "cond-svc".to_string(),
             ProcessConfig {
                 command: cmd.to_string(),
-                args: args.into_iter().map(|a| a.to_string()).collect(),
+                args,
                 auto_start: true,
                 condition_path_exists: Some("/nonexistent/path/that/should/not/exist".to_string()),
                 ..Default::default()
@@ -957,7 +957,7 @@ mod tests {
                 name: "svc-api".to_string(),
                 config: ProcessConfig {
                     command: cmd.to_string(),
-                    args: args.into_iter().map(|a| a.to_string()).collect(),
+                    args,
                     after: vec!["svc-b".to_string()],
                     ..Default::default()
                 },
