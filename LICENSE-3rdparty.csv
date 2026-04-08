@@ -1774,8 +1774,6 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/metadata
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/metadataproviders/vultr,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/pdatautil,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/sharedcomponent,Apache-2.0,Copyright The OpenTelemetry Authors
-core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/splunk,Apache-2.0,Copyright The OpenTelemetry Authors
-core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/batchperresourceattr,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/batchpersignal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/core/xidutils,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2286,8 +2284,6 @@ core,github.com/shogo82148/go-shuffle,MIT,Copyright (c) 2017 Ichinose Shogo
 core,github.com/shopspring/decimal,MIT,"Copyright (c) 2013 Oguz Bilgic | Copyright (c) 2015 Spring, Inc"
 core,github.com/shurcooL/httpfs/filter,MIT,Copyright (c) 2015 Dmitri Shuralyov
 core,github.com/shurcooL/httpfs/union,MIT,Copyright (c) 2015 Dmitri Shuralyov
-core,github.com/signalfx/sapm-proto/client,Apache-2.0,"Copyright 2019 Splunk, Inc."
-core,github.com/signalfx/sapm-proto/gen,Apache-2.0,"Copyright 2019 Splunk, Inc."
 core,github.com/sijms/go-ora/v2,MIT,Copyright (c) 2020 Samy Sultan
 core,github.com/sijms/go-ora/v2/advanced_nego,MIT,Copyright (c) 2020 Samy Sultan
 core,github.com/sijms/go-ora/v2/advanced_nego/ntlmssp,MIT,Copyright (c) 2020 Samy Sultan
