@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	HelmVersion = "3.197.2"
+	HelmVersion = "3.155.1"
 )
 
 // HelmInstallationArgs is the set of arguments for creating a new HelmInstallation component
@@ -73,6 +73,9 @@ type HelmInstallationArgs struct {
 	WindowsImage bool
 	// TimeoutSeconds is the timeout for Helm operations in seconds (default: 300)
 	TimeoutSeconds int
+	// HelmChartVersion overrides the default HelmVersion for this installation.
+	// When empty, HelmVersion is used.
+	HelmChartVersion string
 }
 
 type HelmComponent struct {
@@ -208,13 +211,17 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 		valuesYAML = append(valuesYAML, config)
 	}
 
+	chartVersion := HelmVersion
+	if args.HelmChartVersion != "" {
+		chartVersion = args.HelmChartVersion
+	}
 	linux, err := helm.NewInstallation(e, helm.InstallArgs{
 		RepoURL:        args.RepoURL,
 		ChartName:      args.ChartPath,
 		InstallName:    linuxInstallName,
 		Namespace:      args.Namespace,
 		ValuesYAML:     valuesYAML,
-		Version:        pulumi.String(HelmVersion),
+		Version:        pulumi.String(chartVersion),
 		TimeoutSeconds: args.TimeoutSeconds,
 	}, opts...)
 	if err != nil {

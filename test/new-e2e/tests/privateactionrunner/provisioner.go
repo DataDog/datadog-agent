@@ -28,12 +28,14 @@ import (
 )
 
 const (
-	// fakeOpmsImageName is the image name within the internal e2e-tests registry.
-	// The registry host is resolved at runtime via awsEnv.InternalRegistry() — no hardcoding.
-	// Build with: docker buildx build --platform linux/amd64 --push \
-	//   -t $(aws-vault exec sso-agent-sandbox-account-admin -- \
-	//        aws ecr describe-repositories --query ...) test/fakeopms/
-	fakeOpmsImageName = "agent-e2e-tests:fakeopms-latest"
+	// fakeOpmsImage is the pre-built AMD64 fakeopms image in the agent-sandbox ECR test repository.
+	// This is the same repository used by `dda inv agent.hacky-dev-image-build --push` per
+	// https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/3958866373
+	// Build and push: docker buildx build --platform linux/amd64 --push \
+	//   -t 376334461865.dkr.ecr.us-east-1.amazonaws.com/agent-e2e-tests:fakeopms-latest \
+	//   test/fakeopms/
+	// TODO: move to a permanent internal registry once the CI build pipeline is in place.
+	fakeOpmsImage = "376334461865.dkr.ecr.us-east-1.amazonaws.com/agent-e2e-tests:fakeopms-latest"
 
 	fakeOpmsName      = "fake-opms"
 	fakeOpmsNamespace = "datadog"
@@ -106,8 +108,7 @@ func parK8sProvisioner(runnerURN, privateKeyB64 string) provisioners.Provisioner
 				return fmt.Errorf("kubernetes.NewProvider: %w", err)
 			}
 
-			// 3. Pull fakeopms image from internal registry and load into Kind
-			fakeOpmsImage := awsEnv.InternalRegistry() + "/" + fakeOpmsImageName
+			// 3. Pull fakeopms image from ECR and load into Kind
 			kindLoadCmd, err := loadFakeOpmsFromRegistry(&awsEnv, host, kindCluster, fakeOpmsImage, utils.PulumiDependsOn(kindCluster, installEcrCmd))
 			if err != nil {
 				return fmt.Errorf("loadFakeOpmsFromECR: %w", err)
@@ -141,6 +142,8 @@ func parK8sProvisioner(runnerURN, privateKeyB64 string) provisioners.Provisioner
 				kubernetesagentparams.WithHelmValues(helmValues),
 				kubernetesagentparams.WithClusterName(kindCluster.ClusterName),
 				kubernetesagentparams.WithTags([]string{"stackid:" + ctx.Stack()}),
+				// Require chart >= 3.197.1 which includes PAR sidecar support (PR #2517).
+				kubernetesagentparams.WithHelmChartVersion("3.197.2"),
 			)
 			if err != nil {
 				return fmt.Errorf("helm.NewKubernetesAgent: %w", err)
