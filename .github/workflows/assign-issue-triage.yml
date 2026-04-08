@@ -110,14 +110,9 @@ jobs:
               echo "⚠️ WARNING: Anthropic API key detected in $FILE"
               SENSITIVE_FOUND=true
             fi
-            # Check for GitHub classic tokens (ghp_...)
-            if grep -qE 'ghp_[A-Za-z0-9]{36}' "$FILE"; then
-              echo "⚠️ WARNING: GitHub classic token detected in $FILE"
-              SENSITIVE_FOUND=true
-            fi
-            # Check for GitHub fine-grained tokens (github_pat_...)
-            if grep -qE 'github_pat_[A-Za-z0-9_]{22,}' "$FILE"; then
-              echo "⚠️ WARNING: GitHub fine-grained token detected in $FILE"
+            # Check for GitHub tokens (ghp_, gho_, ghs_, ghu_, ghr_, github_pat_)
+            if grep -qE '(ghp_|gho_|ghs_|ghu_|ghr_|github_pat_)' "$FILE"; then
+              echo "⚠️ WARNING: GitHub token detected in $FILE"
               SENSITIVE_FOUND=true
             fi
             # Check for Slack tokens (xoxb-, xoxp-, xoxa-, xoxs-, xoxr-)
