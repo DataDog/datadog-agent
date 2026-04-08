@@ -24,6 +24,9 @@ import (
 )
 
 func TestReadResolvConfAbsoluteSymlink(t *testing.T) {
+	if !openat2Available() {
+		t.Skip("openat2 not available (requires Linux 5.6+)")
+	}
 	// Set up a fake procfs so kernel.HostProc("<pid>/root") points at our temp dir.
 	// This simulates the container case where /etc/resolv.conf is an absolute
 	// symlink (e.g. -> /run/systemd/resolve/resolv.conf) that must be resolved
