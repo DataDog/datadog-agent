@@ -9,13 +9,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"strings"
+	"text/tabwriter"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/fatih/color"
-	"github.com/olekukonko/tablewriter"
-	"github.com/olekukonko/tablewriter/renderer"
-	"github.com/olekukonko/tablewriter/tw"
 )
 
 // AgentDemultiplexerPrinter is used to output series, sketches, service checks
@@ -41,27 +40,7 @@ func (p AgentDemultiplexerPrinter) PrintMetrics(checkFileOutput *bytes.Buffer, f
 		if formatTable {
 			headers, data := series.MarshalStrings()
 			var buffer bytes.Buffer
-
-			// plain table with no borders
-			table := tablewriter.NewTable(&buffer,
-				tablewriter.WithRenderer(renderer.NewBlueprint(tw.Rendition{
-					Borders: tw.BorderNone,
-					Symbols: tw.NewSymbols(tw.StyleNone),
-					Settings: tw.Settings{
-						Separators: tw.Separators{BetweenColumns: tw.Off},
-						Lines:      tw.Lines{ShowHeaderLine: tw.Off},
-					},
-				})),
-				tablewriter.WithHeaderAlignment(tw.AlignLeft),
-				tablewriter.WithRowAlignment(tw.AlignLeft),
-				tablewriter.WithHeaderAutoWrap(tw.WrapNone),
-				tablewriter.WithRowAutoWrap(tw.WrapNone),
-				tablewriter.WithHeaderAutoFormat(tw.On),
-				tablewriter.WithPadding(tw.Padding{Left: "\t", Right: ""}),
-			)
-			table.Header(headers)
-			_ = table.Bulk(data)
-			_ = table.Render()
+			writeTable(&buffer, headers, data)
 			fmt.Println(buffer.String())
 			checkFileOutput.WriteString(buffer.String() + "\n")
 		} else {
@@ -84,27 +63,7 @@ func (p AgentDemultiplexerPrinter) PrintMetrics(checkFileOutput *bytes.Buffer, f
 		if formatTable {
 			headers, data := serviceChecks.MarshalStrings()
 			var buffer bytes.Buffer
-
-			// plain table with no borders
-			table := tablewriter.NewTable(&buffer,
-				tablewriter.WithRenderer(renderer.NewBlueprint(tw.Rendition{
-					Borders: tw.BorderNone,
-					Symbols: tw.NewSymbols(tw.StyleNone),
-					Settings: tw.Settings{
-						Separators: tw.Separators{BetweenColumns: tw.Off},
-						Lines:      tw.Lines{ShowHeaderLine: tw.Off},
-					},
-				})),
-				tablewriter.WithHeaderAlignment(tw.AlignLeft),
-				tablewriter.WithRowAlignment(tw.AlignLeft),
-				tablewriter.WithHeaderAutoWrap(tw.WrapNone),
-				tablewriter.WithRowAutoWrap(tw.WrapNone),
-				tablewriter.WithHeaderAutoFormat(tw.On),
-				tablewriter.WithPadding(tw.Padding{Left: "\t", Right: ""}),
-			)
-			table.Header(headers)
-			_ = table.Bulk(data)
-			_ = table.Render()
+			writeTable(&buffer, headers, data)
 			fmt.Println(buffer.String())
 			checkFileOutput.WriteString(buffer.String() + "\n")
 		} else {
@@ -135,6 +94,16 @@ func (p AgentDemultiplexerPrinter) PrintMetrics(checkFileOutput *bytes.Buffer, f
 			checkFileOutput.WriteString(string(j) + "\n")
 		}
 	}
+}
+
+// writeTable writes a tab-separated table with headers to w using text/tabwriter.
+func writeTable(w *bytes.Buffer, headers []string, data [][]string) {
+	tw := tabwriter.NewWriter(w, 0, 0, 1, ' ', 0)
+	fmt.Fprintln(tw, strings.ToUpper(strings.Join(headers, "\t")))
+	for _, row := range data {
+		fmt.Fprintln(tw, strings.Join(row, "\t"))
+	}
+	tw.Flush()
 }
 
 // toDebugEpEvents transforms the raw event platform messages to eventPlatformDebugEvents which are better for json formatting
