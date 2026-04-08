@@ -560,11 +560,11 @@ func newBuiltinCRDConfigs() []builtinCRDConfig {
 		newBuiltinCRDConfig(GatewayAPIGroup, "listenersets", isGatewayAPIEnabled, "v1alpha1"),
 
 		// Service mesh — Istio (resource-specific to avoid over-collection)
-		newBuiltinCRDConfig(IstioNetworkingAPIGroup, "virtualservices", isServiceMeshEnabled, "v1", "v1beta1"),
-		newBuiltinCRDConfig(IstioNetworkingAPIGroup, "gateways", isServiceMeshEnabled, "v1", "v1beta1"),
-		newBuiltinCRDConfig(IstioNetworkingAPIGroup, "destinationrules", isServiceMeshEnabled, "v1", "v1beta1"),
-		newBuiltinCRDConfig(IstioNetworkingAPIGroup, "serviceentries", isServiceMeshEnabled, "v1", "v1beta1"),
-		newBuiltinCRDConfig(IstioNetworkingAPIGroup, "sidecars", isServiceMeshEnabled, "v1", "v1beta1"),
+		newBuiltinCRDConfig(IstioNetworkingAPIGroup, "virtualservices", isServiceMeshEnabled, "v1", "v1beta1", "v1alpha3"),
+		newBuiltinCRDConfig(IstioNetworkingAPIGroup, "gateways", isServiceMeshEnabled, "v1", "v1beta1", "v1alpha3"),
+		newBuiltinCRDConfig(IstioNetworkingAPIGroup, "destinationrules", isServiceMeshEnabled, "v1", "v1beta1", "v1alpha3"),
+		newBuiltinCRDConfig(IstioNetworkingAPIGroup, "serviceentries", isServiceMeshEnabled, "v1", "v1beta1", "v1alpha3"),
+		newBuiltinCRDConfig(IstioNetworkingAPIGroup, "sidecars", isServiceMeshEnabled, "v1", "v1beta1", "v1alpha3"),
 
 		// Service mesh — other vendors (group-level, empty kind = all resources in group)
 		newBuiltinCRDConfig(EnvoyGatewayAPIGroup, "", isServiceMeshEnabled, "v1alpha1"),
