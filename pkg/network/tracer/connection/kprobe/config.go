@@ -174,7 +174,7 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[manage
 	return enabled, nil
 }
 
-func protocolClassificationTailCalls(cfg *config.Config) []manager.TailCallRoute {
+func protocolClassificationTailCalls(_ *config.Config) []manager.TailCallRoute {
 	tcs := []manager.TailCallRoute{
 		{
 			ProgArrayName: probes.ClassificationProgsMap,
