@@ -6,6 +6,7 @@
 package flare
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"sync/atomic"
@@ -339,4 +340,23 @@ func runFlareTestScenarios(t *testing.T, testCfg map[string]interface{}, scenari
 			flare.onAgentTaskEvent(rcclienttypes.TaskFlare, atc)
 		})
 	}
+}
+
+func TestLocalFlareFileContent(t *testing.T) {
+	var mockBuilder *helpers.FlareBuilderMock
+	fbFactory = func(localFlare bool, flareArgs types.FlareArgs) (types.FlareBuilder, error) {
+		mockBuilder = helpers.NewFlareBuilderMockWithArgs(t, localFlare, flareArgs)
+		return mockBuilder, nil
+	}
+	defer func() { fbFactory = helpers.NewFlareBuilder }()
+
+	errIpc := errors.New("connection refused")
+	flareComp := getFlareWithParams(t, NewLocalParams("", "", "", "", "", ""), nil)
+	// Save() is a no-op in the mock and returns an error; the local file is still written.
+	_, _ = flareComp.Create(types.ProfileData{}, 0, errIpc, []byte{})
+
+	require.NotNil(t, mockBuilder)
+	mockBuilder.AssertFileContentMatch(`unable to contact the agent to retrieve flare: connection refused`, "local")
+	mockBuilder.AssertFileContentMatch(`Flare creation time: \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}`, "local")
+	mockBuilder.AssertFileContentMatch(`Go version: go\d+\.\d+`, "local")
 }
