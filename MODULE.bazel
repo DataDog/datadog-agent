@@ -328,6 +328,9 @@ include("//deps/secret_connector:secret_connector.MODULE.bazel")
 include("//deps/security_agent_policies:security_agent_policies.MODULE.bazel")
 
 # buildifier: leave-alone
+include("//deps/setuptools:setuptools.MODULE.bazel")
+
+# buildifier: leave-alone
 include("//deps/snmp_traps:snmp_traps.MODULE.bazel")
 
 # buildifier: leave-alone

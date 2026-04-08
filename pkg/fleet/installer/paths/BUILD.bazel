@@ -1,0 +1,37 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "paths",
+    srcs = [
+        "installer_paths.go",
+        "installer_paths_utils.go",
+        "installer_paths_windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/paths",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/fleet/installer/env",
+            "//pkg/util/log",
+            "@com_github_microsoft_go_winio//:go-winio",
+            "@org_golang_x_sys//windows",
+            "@org_golang_x_sys//windows/registry",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "paths_test",
+    srcs = ["paths_windows_test.go"],
+    embed = [":paths"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "@com_github_microsoft_go_winio//:go-winio",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)
