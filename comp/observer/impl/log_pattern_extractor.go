@@ -18,6 +18,13 @@ import (
 // name in the catalog, and in notify formatting for log-derived anomalies.
 const LogPatternExtractorName = "log_pattern_extractor"
 
+// TODO(agent-q): Add a test to ensure this is >= the time we evict metrics
+// defaultClusterTimeToLive is the time to live for a cluster.
+// If a cluster hasn't been seen since this time, it will be removed.
+const defaultClusterTimeToLive = 4 * time.Hour
+
+const defaultGarbageCollectionInterval = 1 * time.Hour
+
 // LogPatternExtractorConfig holds hyperparameters for the log pattern extractor.
 type LogPatternExtractorConfig struct {
 	// MinClusterSizeBeforeEmit is the minimum number of logs matching a pattern
@@ -34,12 +41,25 @@ type LogPatternExtractorConfig struct {
 	// that must match for two log lines to merge into one pattern. Range (0,1];
 	// zero means the default 0.5 (Drain-style).
 	MinTokenMatchRatio float64 `json:"min_token_match_ratio,omitempty"`
+	// ClusterTimeToLiveSec is how long (seconds) a cluster may go without a matching log before it is removed.
+	// Zero disables cluster garbage collection.
+	ClusterTimeToLiveSec int64 `json:"cluster_time_to_live_sec,omitempty"`
+	// GarbageCollectionIntervalSec is the minimum time between GC passes when ClusterTimeToLiveSec > 0.
+	GarbageCollectionIntervalSec int64 `json:"garbage_collection_interval_sec,omitempty"`
 }
 
 // DefaultLogPatternExtractorConfig returns defaults aligned with the patterns package.
 func DefaultLogPatternExtractorConfig() LogPatternExtractorConfig {
+	parseHexDump := true
+
 	return LogPatternExtractorConfig{
-		MinClusterSizeBeforeEmit: 5,
+		MinClusterSizeBeforeEmit:     5,
+		ClusterTimeToLiveSec:         int64(defaultClusterTimeToLive.Seconds()),
+		GarbageCollectionIntervalSec: int64(defaultGarbageCollectionInterval.Seconds()),
+		MinTokenMatchRatio:           0.5,
+		MaxTokenizedStringLength:     12500,
+		MaxNumTokens:                 250,
+		ParseHexDump:                 &parseHexDump,
 	}
 }
 
@@ -57,13 +77,6 @@ func tokenizerFromConfig(cfg LogPatternExtractorConfig) *patterns.Tokenizer {
 	return t
 }
 
-// TODO(agent-q): Add a test to ensure this is >= the time we evict metrics
-// defaultClusterTimeToLive is the time to live for a cluster.
-// If a cluster hasn't been seen since this time, it will be removed.
-const defaultClusterTimeToLive = 4 * time.Hour
-
-const defaultGarbageCollectionInterval = 1 * time.Hour
-
 // PatternKeyInfo contains what can identify a pattern.
 type PatternKeyInfo struct {
 	ClusterID int64
@@ -73,12 +86,10 @@ type PatternKeyInfo struct {
 // LogPatternExtractor is a LogMetricsExtractor that clusters log messages into
 // patterns and emits a count metric per pattern.
 type LogPatternExtractor struct {
-	taggedClusterer              *TaggedPatternClusterer
-	registry                     *TagGroupByKeyRegistry
-	ctx                          logPatternExtractorContext
-	NextGarbageCollectionTime    int64
-	ClusterTimeToLiveSec         int
-	GarbageCollectionIntervalSec int
+	taggedClusterer           *TaggedPatternClusterer
+	registry                  *TagGroupByKeyRegistry
+	ctx                       logPatternExtractorContext
+	NextGarbageCollectionTime int64
 	// config is the resolved hyperparameters (MinClusterSizeBeforeEmit is never zero after init).
 	config LogPatternExtractorConfig
 }
@@ -145,11 +156,9 @@ func NewLogPatternExtractor(cfg LogPatternExtractorConfig) *LogPatternExtractor 
 		return patterns.NewPatternClustererWithTokenizer(tok, cfg.MinTokenMatchRatio)
 	}
 	return &LogPatternExtractor{
-		taggedClusterer:              NewTaggedPatternClustererWithFactory(registry, newSub),
-		registry:                     registry,
-		config:                       cfg,
-		ClusterTimeToLiveSec:         int(defaultClusterTimeToLive.Seconds()),
-		GarbageCollectionIntervalSec: int(defaultGarbageCollectionInterval.Seconds()),
+		taggedClusterer: NewTaggedPatternClustererWithFactory(registry, newSub),
+		registry:        registry,
+		config:          cfg,
 	}
 }
 
@@ -260,12 +269,12 @@ type gcResult struct {
 // maybeGarbageCollect removes stale clusters from all sub-clusterers and
 // returns the context keys evicted so the engine can drop matching contextRefs.
 func (e *LogPatternExtractor) maybeGarbageCollect(currentTime int64) gcResult {
-	if currentTime < e.NextGarbageCollectionTime {
+	if e.config.ClusterTimeToLiveSec == 0 || currentTime < e.NextGarbageCollectionTime {
 		return gcResult{}
 	}
-	e.NextGarbageCollectionTime = currentTime + int64(e.GarbageCollectionIntervalSec)
+	e.NextGarbageCollectionTime = currentTime + e.config.GarbageCollectionIntervalSec
 
-	cutoff := currentTime - int64(e.ClusterTimeToLiveSec)
+	cutoff := currentTime - e.config.ClusterTimeToLiveSec
 	evicted := e.taggedClusterer.GarbageCollectBefore(cutoff)
 	if len(evicted) == 0 {
 		return gcResult{}
