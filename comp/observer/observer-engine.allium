@@ -1,0 +1,836 @@
+-- allium: 3
+-- observer-engine.allium
+
+-- Scope: Observer engine pipeline orchestration
+-- Includes: Data ingestion, time-series storage, anomaly detection,
+--   correlation, reporting, replay, event subscription, scheduling,
+--   component registry, anomaly deduplication, context enrichment
+-- Excludes:
+--   - Individual detector algorithms (CUSUM, BOCPD, RRCF, ScanMW, ScanWelch)
+--   - Individual correlator algorithms (TimeCluster, CrossSignal internals)
+--   - Individual extractor implementations (LogMetricsExtractor, LogPatternExtractor)
+--   - Parquet file recording (separate recorder component)
+--   - HTML/testbench UI rendering
+--   - gRPC trace/profile fetching and trace stats decomposition (Handle layer)
+--   - Raw trace and profile analysis (unimplemented placeholders)
+--   - Go concurrency primitives (channels, mutexes, goroutines)
+--   - Fx component wiring and agent lifecycle
+--   - High-frequency check runner infrastructure
+--   - Scoring/benchmarking infrastructure
+
+------------------------------------------------------------
+-- Config
+------------------------------------------------------------
+
+config {
+    -- Anomaly tracking
+    raw_anomaly_window: Duration = 0.seconds       -- 0 = unlimited time window
+    max_raw_anomalies: Integer = 0                  -- 0 = unlimited count
+    max_unique_anomaly_sources: Integer = 500
+    max_accumulated_correlations: Integer = 500
+
+    -- Detection
+    default_detector_window: Duration = 300.seconds -- how far back series detectors read
+}
+
+------------------------------------------------------------
+-- External Entities
+------------------------------------------------------------
+
+-- Pipeline components are pluggable; the engine orchestrates but does
+-- not own their algorithms. Each is governed by its own implementation.
+
+external entity Detector {
+    name: String
+}
+
+external entity Correlator {
+    name: String
+}
+
+external entity LogMetricsExtractor {
+    name: String
+}
+
+external entity Reporter {
+    name: String
+}
+
+external entity ContextProvider {}
+
+external entity EventSink {}
+
+------------------------------------------------------------
+-- Enumerations
+------------------------------------------------------------
+
+enum AggregateKind { none | average | sum | count | min | max }
+
+enum AnomalyType { metric | log }
+
+enum ReplayPhase { idle | loading | detecting | done }
+
+enum AdvanceReason { input_driven | replay_end | manual }
+
+enum ComponentKind { detector | correlator | extractor }
+
+------------------------------------------------------------
+-- Value Types
+------------------------------------------------------------
+
+value MetricSample {
+    name: String
+    value: Decimal
+    tags: Set<String>
+    timestamp_sec: Integer
+}
+
+value LogMessage {
+    content: String
+    status: String
+    tags: Set<String>
+    hostname: String
+    timestamp_ms: Integer
+}
+
+value SeriesIdentity {
+    namespace: String           -- e.g. extractor name or "dogstatsd"
+    name: String                -- e.g. "cpu.user", "log.pattern.<hash>.count"
+    tags: Set<String>
+}
+
+value SeriesPoint {
+    timestamp: Integer          -- unix seconds
+    value: Decimal
+}
+
+-- One-second summary bucket: lossy but compact.
+-- Multiple samples in the same second are merged.
+value SummaryBucket {
+    timestamp: Integer          -- unix seconds
+    sum: Decimal
+    count: Integer
+    min: Decimal
+    max: Decimal
+}
+
+value MetricContext {
+    pattern: String             -- normalized pattern that generated this metric
+    example: String             -- recent raw input matching the pattern
+    source: String              -- originating component or data stream
+    split_tags: Set<String>     -- tag-group key/value pairs from sub-clusterer
+}
+
+value DetectionResult {
+    anomalies: Set<Anomaly>
+    telemetry: Set<TelemetryEntry>
+}
+
+value TelemetryEntry {
+    detector_name: String
+    metric_name: String
+    value: Decimal
+    tags: Set<String>
+    timestamp: Integer
+}
+
+value AdvanceResult {
+    anomalies: Set<Anomaly>
+    telemetry: Set<TelemetryEntry>
+}
+
+value ReplayProgress {
+    phase: ReplayPhase
+    timestamps_done: Integer
+    timestamps_total: Integer
+    advances: Integer
+    anomalies_found: Integer
+}
+
+value AdvanceRequest {
+    up_to_sec: Integer
+    reason: AdvanceReason
+}
+
+value SchedulerState {
+    last_analyzed_data_time: Integer
+    latest_data_time: Integer
+}
+
+value AnomalyDedupKey {
+    source_key: String
+    detector_name: String
+    timestamp: Integer
+    title: String
+}
+
+------------------------------------------------------------
+-- Entities
+------------------------------------------------------------
+
+-- Stored metric series. Each is bucketed into one-second SummaryBuckets.
+-- Aggregation (avg, sum, count, min, max) is chosen at READ time.
+entity StoredSeries {
+    identity: SeriesIdentity
+    ref: Integer                -- stable numeric handle, assigned once at creation
+    write_generation: Integer   -- increments on every write (including same-bucket merges)
+    point_count: Integer
+}
+
+-- A detected anomaly event.
+entity Anomaly {
+    type: AnomalyType
+    source: SeriesIdentity
+    source_aggregate: AggregateKind?
+    detector_name: String
+    title: String
+    description: String?
+    context: MetricContext?
+    timestamp: Integer          -- unix seconds, from data (not wall clock)
+    score: Decimal?
+}
+
+-- A detected correlation pattern across anomalies.
+entity Correlation {
+    pattern: String             -- pattern name, e.g. "kernel_bottleneck"
+    title: String
+    members: Set<SeriesIdentity>
+    anomalies: Set<Anomaly>
+    first_seen: Integer         -- unix seconds (from data)
+    last_updated: Integer       -- unix seconds (from data)
+}
+
+-- A registered pipeline component entry in the catalog.
+entity CatalogEntry {
+    name: String
+    display_name: String
+    kind: ComponentKind
+    default_enabled: Boolean
+}
+
+------------------------------------------------------------
+-- Engine
+------------------------------------------------------------
+
+given {
+    engine: Engine
+}
+
+-- The Engine is the shared orchestration core for the observer pipeline.
+-- It encapsulates storage, log extraction, detection, and correlation,
+-- providing a single execution path used by both the live observer
+-- and the testbench.
+--
+-- The engine does NOT own reporters or scheduling policy.
+-- It accepts explicit Advance calls and returns results that
+-- callers route to their own outputs.
+entity Engine {
+    -- Scheduling state
+    last_analyzed_data_time: Integer     -- up to which detection has run
+    latest_data_time: Integer            -- latest data timestamp ingested
+
+    -- Series tracking
+    series_generation: Integer           -- increments when new series appear
+    series_count: Integer
+
+    -- Raw anomaly tracking
+    total_anomaly_count: Integer         -- ever detected (uncapped)
+    raw_anomaly_count: Integer           -- in current window
+    unique_anomaly_source_count: Integer
+    current_data_time: Integer           -- latest anomaly timestamp seen
+
+    -- Correlation tracking
+    accumulated_correlation_count: Integer
+
+    -- Replay
+    replay_phase: ReplayPhase
+
+    -- Ingestion anomaly counters (reset after each advance)
+    late_points: Integer
+    dropped_observations: Integer
+}
+
+------------------------------------------------------------
+-- Rules: Ingestion
+------------------------------------------------------------
+
+-- A metric observation arrives from a Handle.
+-- The engine stores it and consults the scheduler.
+rule IngestMetric {
+    when: MetricObserved(engine, source, sample)
+
+    -- Store the sample into time-series storage.
+    -- If the series does not exist, create it; otherwise merge
+    -- into the appropriate one-second bucket.
+    ensures: MetricStored(engine, source, sample)
+
+    -- Track late points: samples whose timestamp was already analyzed
+    -- are stored but were invisible to detectors at analysis time.
+    ensures:
+        if sample.timestamp_sec <= engine.last_analyzed_data_time:
+            engine.late_points = engine.late_points + 1
+
+    ensures:
+        if sample.timestamp_sec > engine.latest_data_time:
+            engine.latest_data_time = sample.timestamp_sec
+
+    -- Consult the scheduler for advance requests.
+    ensures: SchedulerConsulted(engine, sample.timestamp_sec)
+}
+
+-- A log observation arrives from a Handle.
+-- The engine runs extractors to derive metrics, notifies log
+-- observers, and consults the scheduler.
+rule IngestLog {
+    when: LogObserved(engine, source, log_message)
+
+    let data_time_sec = log_message.timestamp_ms / 1000
+
+    -- Run all extractors synchronously. Each may produce zero or
+    -- more derived metrics stored under namespace = extractor.name.
+    ensures: ExtractorsProcessed(engine, log_message, source)
+
+    -- Notify detectors that also implement the LogObserver interface.
+    ensures: LogObserversNotified(engine, log_message)
+
+    ensures:
+        if data_time_sec > engine.latest_data_time:
+            engine.latest_data_time = data_time_sec
+
+    ensures: SchedulerConsulted(engine, data_time_sec)
+}
+
+------------------------------------------------------------
+-- Rules: Scheduling
+------------------------------------------------------------
+
+-- The default scheduling policy: when data at time T arrives,
+-- advance analysis to T-1. This "complete seconds" rule ensures
+-- deterministic results — only fully complete seconds are analyzed.
+rule ScheduleOnObservation {
+    when: SchedulerConsulted(engine, data_time_sec)
+
+    let analyze_up_to = data_time_sec - 1
+
+    requires: analyze_up_to > engine.last_analyzed_data_time
+
+    ensures: AdvanceRequested(engine, analyze_up_to, input_driven)
+}
+
+-- At end of replay, flush any remaining unanalyzed data.
+rule ScheduleOnReplayEnd {
+    when: ReplayEnded(engine)
+
+    requires: engine.latest_data_time > engine.last_analyzed_data_time
+
+    ensures: AdvanceRequested(engine, engine.latest_data_time, replay_end)
+}
+
+------------------------------------------------------------
+-- Rules: Advance (the core analysis cycle)
+------------------------------------------------------------
+
+-- Advance runs all detectors then all correlators up to a data time.
+-- This is the heartbeat of the detection pipeline.
+rule Advance {
+    when: AdvanceRequested(engine, up_to_sec, reason)
+
+    requires: up_to_sec > engine.last_analyzed_data_time
+
+    ensures: engine.last_analyzed_data_time = up_to_sec
+
+    -- Run all detectors against storage up to this time.
+    ensures: DetectorsRan(engine, up_to_sec)
+
+    -- Advance all correlators so they can update sliding windows.
+    ensures: CorrelatorsAdvanced(engine, up_to_sec)
+
+    -- Reset per-advance ingestion counters.
+    ensures: engine.late_points = 0
+    ensures: engine.dropped_observations = 0
+
+    -- Emit advance-completed event to all subscribers.
+    ensures: AdvanceCompleted(engine, up_to_sec, reason)
+}
+
+-- Each detector queries storage for whatever data it needs
+-- and returns DetectionResult containing anomalies.
+rule DetectAnomalies {
+    when: DetectorsRan(engine, data_time)
+
+    -- For each detector, call Detect(storage, dataTime).
+    -- For each anomaly returned:
+    --   1. Enrich with context from the originating extractor
+    --   2. Attempt deduplication
+    --   3. If new: route to correlators and emit anomaly event
+    ensures: AnomaliesProcessed(engine, data_time)
+
+    @guidance
+        -- SeriesDetector implementations are wrapped by an adapter
+        -- that iterates all series x aggregations (avg, count by default),
+        -- appending aggregate suffixes (:avg, :count) to metric names.
+        -- The adapter tracks visible point counts per series and skips
+        -- re-running when no new data has arrived.
+        -- An optional instrumented storage wrapper records all read
+        -- operations for live/replay parity debugging.
+}
+
+------------------------------------------------------------
+-- Rules: Anomaly Lifecycle
+------------------------------------------------------------
+
+-- Enrich an anomaly with context from the originating extractor.
+-- Runs automatically on every anomaly — detectors don't need to
+-- be aware of context providers.
+rule EnrichAnomaly {
+    when: AnomalyProduced(engine, anomaly)
+
+    -- Look up the series storage key to find a (namespace, contextKey).
+    -- Query the ContextProvider for that namespace.
+    -- Attach MetricContext (pattern, example, source) to the anomaly.
+    ensures: AnomalyEnriched(engine, anomaly)
+
+    @guidance
+        -- Context provides pattern signatures and example log lines
+        -- so anomaly reports are human-readable even when the
+        -- underlying metric is a synthesized pattern hash.
+        -- Lookup builds the storage key from Source fields
+        -- (namespace, name, tags) and maps to a provider namespace
+        -- and context key.
+}
+
+-- Deduplicate anomalies by (source, detector_name, timestamp, title).
+-- Only new anomalies proceed to correlation and event emission.
+rule DeduplicateAnomaly {
+    when: AnomalyEnriched(engine, anomaly)
+
+    let key = deduplicate_key(anomaly)     -- black box: builds AnomalyDedupKey
+
+    requires: not is_duplicate(engine, key) -- black box: O(1) index lookup
+
+    ensures: engine.total_anomaly_count = engine.total_anomaly_count + 1
+
+    ensures:
+        if anomaly.timestamp > engine.current_data_time:
+            engine.current_data_time = anomaly.timestamp
+
+    -- Route to correlators and emit event.
+    ensures: NewAnomalyAccepted(engine, anomaly)
+}
+
+-- Route a new anomaly to all correlators.
+rule RouteAnomalyToCorrelators {
+    when: NewAnomalyAccepted(engine, anomaly)
+
+    -- Each correlator receives ProcessAnomaly(anomaly)
+    -- to accumulate into its pattern detection state.
+    ensures: AnomalyCorrelated(engine, anomaly)
+}
+
+-- Evict old anomalies from the raw tracking set.
+-- Triggered after each new anomaly is accepted.
+rule EvictOldAnomalies {
+    when: NewAnomalyAccepted(engine, _)
+
+    -- If raw_anomaly_window > 0: remove anomalies older than
+    --   (current_data_time - raw_anomaly_window).
+    -- If max_raw_anomalies > 0: keep only the most recent N.
+    -- Rebuild the dedup index after any eviction.
+    ensures: AnomaliesEvicted(engine)
+
+    @guidance
+        -- Eviction uses in-place filtering. The dedup index
+        -- is rebuilt only when eviction actually removed entries.
+}
+
+------------------------------------------------------------
+-- Rules: Correlation Accumulation
+------------------------------------------------------------
+
+-- After correlators advance, accumulate their active correlations
+-- into the engine's historical set.
+rule AccumulateCorrelations {
+    when: CorrelatorsAdvanced(engine, data_time)
+
+    -- For each active correlation from each correlator:
+    --   If not in accumulated set: add it.
+    --   If already present: update if the new version has more
+    --     anomalies or a later last_updated timestamp.
+    -- Evict the oldest entry (by last_updated) when count exceeds
+    -- max_accumulated_correlations.
+    ensures: CorrelationsAccumulated(engine)
+}
+
+------------------------------------------------------------
+-- Rules: Event System
+------------------------------------------------------------
+
+-- After an advance completes, notify all reporters via event sinks.
+-- The reporter event sink builds a ReportOutput containing:
+--   - The data time the engine advanced to
+--   - New anomalies detected in this cycle
+--   - Active correlations (queried from stateView)
+rule NotifyReporters {
+    when: AdvanceCompleted(engine, advanced_to_sec, reason)
+
+    ensures: ReportersNotified(engine, advanced_to_sec)
+
+    @guidance
+        -- The reporterEventSink bridges engine events to the
+        -- Reporter interface. Reporters receive ReportOutput
+        -- without direct access to engine internals.
+}
+
+------------------------------------------------------------
+-- Rules: Replay
+------------------------------------------------------------
+
+-- Replay all stored data through the scheduler policy.
+-- For each unique data timestamp in storage (in order), consult
+-- the scheduler. This produces the same advance cadence as live.
+rule ReplayStoredData {
+    when: ReplayRequested(engine)
+
+    ensures: engine.replay_phase = detecting
+
+    -- For each unique timestamp in storage (ordered):
+    --   1. Update latest_data_time
+    --   2. Consult scheduler for advance requests
+    --   3. Execute any requested advances
+    --   4. Update replay progress counters (lock-free)
+    ensures: ReplayExecuted(engine)
+}
+
+rule ReplayCompletes {
+    when: ReplayExecuted(engine)
+
+    -- Final flush: advance to latest_data_time if not yet analyzed.
+    ensures: ReplayEnded(engine)
+    ensures: engine.replay_phase = done
+}
+
+------------------------------------------------------------
+-- Rules: Reset
+------------------------------------------------------------
+
+-- Reset clears analysis state so detectors re-analyze from scratch.
+-- Storage is NOT cleared — the caller manages storage lifecycle.
+rule ResetAnalysis {
+    when: ResetRequested(engine)
+
+    ensures: engine.last_analyzed_data_time = 0
+    ensures: engine.latest_data_time = 0
+
+    @guidance
+        -- Also resets all detectors, correlators, and extractors
+        -- that implement an optional Reset() interface.
+        -- Clears context references.
+}
+
+-- Full reset clears everything: analysis progress, raw anomalies,
+-- telemetry, and correlations. Storage is NOT cleared.
+rule ResetFull {
+    when: FullResetRequested(engine)
+
+    ensures: ResetRequested(engine)
+    ensures: engine.total_anomaly_count = 0
+    ensures: engine.unique_anomaly_source_count = 0
+    ensures: engine.current_data_time = 0
+}
+
+------------------------------------------------------------
+-- Rules: Component Hot-Swap
+------------------------------------------------------------
+
+-- Replace the engine's detectors at runtime.
+rule ReplaceDetectors {
+    when: DetectorsReplaced(engine, new_detectors)
+
+    ensures: DetectorsSwapped(engine)
+
+    @guidance
+        -- Used by the testbench when components are toggled.
+        -- After replacing, rebuild the cached logObservers list
+        -- by type-asserting each detector for the LogObserver interface.
+}
+
+-- Replace the engine's correlators at runtime.
+rule ReplaceCorrelators {
+    when: CorrelatorsReplaced(engine, new_correlators)
+
+    ensures: CorrelatorsSwapped(engine)
+}
+
+-- Replace the engine's extractors at runtime.
+rule ReplaceExtractors {
+    when: ExtractorsReplaced(engine, new_extractors)
+
+    ensures: ExtractorsSwapped(engine)
+
+    @guidance
+        -- Validates unique extractor names, rebuilds context
+        -- providers map, clears context references.
+}
+
+------------------------------------------------------------
+-- Invariants
+------------------------------------------------------------
+
+-- Anomaly deduplication: no two raw anomalies share the same
+-- composite key within the tracking window.
+invariant AnomalyUniqueness {
+    for a in Anomalies:
+        for b in Anomalies:
+            a != b implies
+                not (a.source = b.source
+                    and a.detector_name = b.detector_name
+                    and a.timestamp = b.timestamp
+                    and a.title = b.title)
+}
+
+-- Accumulated correlations are bounded.
+invariant CorrelationBound {
+    for e in Engines:
+        e.accumulated_correlation_count <= config.max_accumulated_correlations
+}
+
+-- Analysis progress is non-negative.
+invariant NonNegativeProgress {
+    for e in Engines:
+        e.last_analyzed_data_time >= 0
+}
+
+-- Series refs are unique across all stored series.
+invariant UniqueSeriesRefs {
+    for a in StoredSeries:
+        for b in StoredSeries:
+            a != b implies a.ref != b.ref
+}
+
+-- Total anomaly count is non-negative and reflects all anomalies
+-- ever detected (not just those in the current window).
+invariant AnomalyCountNonNegative {
+    for e in Engines:
+        e.total_anomaly_count >= 0
+}
+
+------------------------------------------------------------
+-- Contracts
+------------------------------------------------------------
+
+-- The contract between the engine and any Detector.
+contract DetectorContract {
+    detect: (storage: StorageReader, data_time: Integer) -> DetectionResult
+
+    @invariant Deterministic
+        -- For identical storage state and data_time, detect must
+        -- produce identical DetectionResult. This is what enables
+        -- deterministic replay: same data in same order produces
+        -- the same anomalies every time.
+
+    @invariant ReadOnly
+        -- Detectors receive read-only storage access.
+        -- They must not mutate storage or engine state.
+
+    @invariant NonBlocking
+        -- Detectors should perform local computation on data points.
+        -- No network calls, no I/O, no blocking operations.
+
+    @guidance
+        -- SeriesDetector adapters read at most config.default_detector_window
+        -- (300s) of history per series per advance cycle.
+        -- Detector implementations that query storage directly (e.g. RRCF)
+        -- manage their own read windows via incremental cursors.
+        -- The engine does not enforce a read window at the storage layer.
+}
+
+-- The contract between the engine and any Correlator.
+contract CorrelatorContract {
+    process_anomaly: (anomaly: Anomaly) -> Anomaly
+    advance: (data_time: Integer) -> Integer
+    active_correlations: () -> Set<Correlation>
+    reset: () -> Boolean
+
+    @invariant Stateful
+        -- Correlators are stateful. They accumulate anomalies
+        -- over a time window and produce correlation patterns
+        -- when sufficient evidence is gathered.
+
+    @invariant WindowEviction
+        -- Correlators must evict state outside their configured
+        -- time window during Advance calls to bound memory.
+}
+
+-- The contract between the engine and any LogMetricsExtractor.
+contract ExtractorContract {
+    process_log: (log: LogMessage) -> Set<MetricSample>
+
+    @invariant Fast
+        -- Extractors run synchronously on the dispatch path.
+        -- They must complete quickly without blocking.
+
+    @invariant UniqueNames
+        -- No two extractors in the same engine may share a name.
+        -- The name serves as the storage namespace for derived
+        -- metrics, preventing collisions.
+}
+
+-- The contract between the engine and StorageReader consumers.
+contract StorageReaderContract {
+    list_series: (filter: SeriesFilter) -> Set<StoredSeries>
+    get_series_range: (ref: Integer, start: Integer, end: Integer, agg: AggregateKind) -> Set<SeriesPoint>
+    point_count_up_to: (ref: Integer, end_time: Integer) -> Integer
+    sum_range: (ref: Integer, start: Integer, end: Integer, agg: AggregateKind) -> Decimal
+    write_generation: (ref: Integer) -> Integer
+    series_generation: () -> Integer
+
+    @invariant ImmutableRefs
+        -- SeriesRef handles are stable for the lifetime of the
+        -- storage instance. Once assigned at series creation,
+        -- a ref never changes.
+
+    @invariant ReadTimeAggregation
+        -- Storage always keeps the full summary (sum, count, min, max)
+        -- per one-second bucket. Aggregation kind is specified at
+        -- read time, not write time. This enables callers to choose
+        -- any aggregation without re-ingesting data.
+
+    @invariant NoGapFill
+        -- Storage returns only points that exist. No zero-fill,
+        -- interpolation, or last-value-hold is applied.
+        -- Detectors are responsible for their own gap-handling
+        -- strategy.
+}
+
+-- The contract for the scheduler policy.
+contract SchedulerPolicy {
+    on_observation: (data_time_sec: Integer, state: SchedulerState) -> Set<AdvanceRequest>
+    on_replay_end: (state: SchedulerState) -> Set<AdvanceRequest>
+
+    @invariant CompleteSeconds
+        -- The default policy advances to dataTimeSec-1 on each
+        -- observation, ensuring only fully complete seconds are
+        -- analyzed. This makes detection independent of arrival
+        -- order within a second, enabling deterministic replay.
+        -- Advances occur only on data arrival or replay end.
+        -- No timer-based or periodic advancement exists.
+}
+
+------------------------------------------------------------
+-- Surfaces
+------------------------------------------------------------
+
+-- StateView provides read-only introspection over engine state.
+-- This is the primary interface for consumers like the testbench UI
+-- and reporters. It computes views over existing engine state
+-- rather than maintaining a separate copy.
+surface StateView {
+    facing consumer: EventSink
+
+    context engine: Engine
+
+    exposes:
+        -- Storage
+        engine.series_generation
+        engine.series_count
+
+        -- Anomalies
+        engine.total_anomaly_count
+        engine.raw_anomaly_count
+        engine.unique_anomaly_source_count
+
+        -- Correlations
+        engine.accumulated_correlation_count
+
+        -- Scheduling
+        engine.last_analyzed_data_time
+        engine.latest_data_time
+
+        -- Replay
+        engine.replay_phase
+
+    provides:
+        -- Series queries
+        ListSeries(consumer, filter?)
+        GetSeriesRange(consumer, ref, start, end, agg)
+        ScenarioBounds(consumer)
+
+        -- Anomaly queries
+        GetAnomalies(consumer)
+        AnomaliesByDetector(consumer, detector_name?)
+        AnomaliesForSource(consumer, source)
+
+        -- Correlation queries
+        ActiveCorrelations(consumer)
+        CorrelationHistory(consumer)
+
+        -- Telemetry queries
+        GetTelemetry(consumer)
+
+    contracts:
+        fulfils StorageReaderContract
+
+    @guarantee ReadOnly
+        -- All operations are read-only. No mutation of engine
+        -- state is possible through StateView.
+
+    @guarantee ComputedOnRead
+        -- Views like AnomaliesByDetector and AnomaliesForSource
+        -- are computed on read by filtering the raw anomaly set.
+        -- No per-detector index is maintained.
+}
+
+-- ComponentCatalog is the surface for discovering and instantiating
+-- pipeline components. Both the live observer and testbench use
+-- this to build their component sets.
+surface ComponentCatalog {
+    facing consumer: EventSink
+
+    exposes:
+        for entry in CatalogEntries:
+            entry.name
+            entry.display_name
+            entry.kind
+            entry.default_enabled
+
+    provides:
+        InstantiateComponents(consumer, settings?)
+
+    @guarantee DeterministicOrder
+        -- Components are always iterated and returned in
+        -- catalog registration order for reproducibility.
+
+    @guarantee SharedCatalog
+        -- The live observer and testbench use the same catalog.
+        -- They diverge only in which ComponentSettings they
+        -- pass to Instantiate.
+}
+
+------------------------------------------------------------
+-- Deferred Specifications
+------------------------------------------------------------
+
+deferred SeriesDetectorAdapter.wrap       -- wraps SeriesDetector into Detector via aggregation iteration
+deferred InstrumentedStorage.digest       -- hashes storage reads for live/replay parity debugging
+deferred DetectDigestRecording.compare    -- compares live vs replay detector outputs for divergences
+deferred AdvanceLogRecording.compare      -- compares live vs replay advance sequences
+deferred GroupCompression.compress        -- compresses correlated group memberships via metric name tries
+
+------------------------------------------------------------
+-- Open Questions
+------------------------------------------------------------
+
+open question "Adaptive backoff under drop pressure: when the observation channel is full, samples are silently dropped (tracked by engine.dropped_observations per advance and a Prometheus counter by source). The likely correct solution is adaptive scheduler backoff — when drops per advance exceed a threshold, widen the advance gap (e.g. advance every 2s instead of 1s) to trade detection latency for completeness. This requires: (a) a config threshold for acceptable drop rate, (b) a new scheduler policy variant that widens advance gaps under pressure, (c) a recovery mechanism when drops subside. Blocked on broader design authority — the scheduling contract change affects all consumers."
+
+-- Trace and profile analysis: RESOLVED (out of scope for engine spec).
+-- Trace stats are decomposed into metrics at the Handle layer
+-- (processStatsView produces trace.{op}.hits/errors/duration/p50-p99)
+-- before reaching the engine. The engine only sees the resulting
+-- MetricSamples via IngestMetric. Raw trace and profile analysis
+-- are unimplemented placeholders — see the Handle layer spec.
+
+open question "Sequential advance may be an unintentional structural dependency: the engine's correctness currently depends on single-threaded Advance() calls. Evidence: (1) advanceWithReason snapshots detectors under mu.Lock, then releases before running detectors — concurrent calls would both pass the guard (upToSec > lastAnalyzedDataTime) and produce duplicate anomalies. (2) captureRawAnomaly uses a separate rawAnomalyMu but the dedup index assumes sequential anomaly insertion. (3) emit() delivers events synchronously — a blocking sink stalls the entire pipeline including ingestion. (4) The README states 'component implementations should not depend on or worry about the threading model', implying parallelism was intended as a future possibility. The tension: the README promises threading-model independence for components, but the engine itself structurally requires sequential execution. Is this intentional (the README refers only to component internals) or an accidental constraint that should be fixed to enable parallel detection?"
+
+open question "Metric type awareness — bet not yet validated: storage is metric-type agnostic (no Count vs Gauge vs Rate distinction). All samples are treated as (name, value, tags, timestamp) summaries. The SummaryBucket model (sum/count/min/max) with read-time aggregation works for the current detector set, but the bet has not been validated under diverse workloads. Known edge case: monotonic counters reported at >1s intervals produce single-sample buckets where count=1 and avg=sum=raw_value. A detector analyzing such a counter's 'avg' aggregation sees a flat line punctuated by spikes (each report interval), not a smooth rate. This may cause false positives in changepoint detectors. The question is whether type-specific storage logic (e.g. rate computation for counters, last-value semantics for gauges) will be needed as the detector set grows."
+
+open question "Zero-fill and RRCF multivariate alignment data loss: storage returns only points that exist — no zero-fill, interpolation, or last-value-hold. Per-series detectors (BOCPD, CUSUM, ScanMW/Welch) handle gaps naturally via incremental cursors. However, RRCF's alignByTimestamp() uses strict all-or-nothing alignment: a timestamp is included only if ALL input metrics have data at that second. With heterogeneous reporting intervals this causes severe data loss — e.g. CPU@1s + Memory@5s produces only ~1/5 aligned timestamps; CPU@1s + Memory@15s produces ~1/15. The options are: (a) accept as an algorithm-level limitation of RRCF (the engine shouldn't know about alignment), (b) add an optional FillStrategy parameter to StorageReader.GetSeriesRange (none | zero | last_value_hold) so RRCF can request filled data, (c) move alignment into RRCF itself with a configurable fill strategy. This is a real detection quality problem, not theoretical."
