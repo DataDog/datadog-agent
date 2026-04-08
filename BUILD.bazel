@@ -419,7 +419,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/util/kubelet
 # gazelle:exclude pkg/util/kubernetes
 # gazelle:exclude pkg/util/kubernetes/apiserver/common/namespace
-# gazelle:exclude pkg/util/log/setup
 # gazelle:exclude pkg/util/lsof
 # gazelle:exclude pkg/util/maps
 # gazelle:exclude pkg/util/net
