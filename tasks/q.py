@@ -809,49 +809,48 @@ def _sample_component_params(trial, component: str) -> dict:
     with no tunable hyperparameters (scanmw, scanwelch, log_metrics_extractor,
     connection_error_extractor).
     """
-    # TODO(celian): Reduce the search space, this contains every parameter
     space = {
         "bocpd": lambda: {
-            "warmup_points": trial.suggest_int("bocpd.warmup_points", 40, 300),
+            # "warmup_points": trial.suggest_int("bocpd.warmup_points", 40, 300),
             "hazard": trial.suggest_float("bocpd.hazard", 1e-3, 0.2, log=True),
             "cp_threshold": trial.suggest_float("bocpd.cp_threshold", 0.35, 0.9),
-            "short_run_length": trial.suggest_int("bocpd.short_run_length", 2, 20),
-            "cp_mass_threshold": trial.suggest_float("bocpd.cp_mass_threshold", 0.4, 0.95),
-            "max_run_length": trial.suggest_int("bocpd.max_run_length", 50, 400),
-            "prior_variance_scale": trial.suggest_float("bocpd.prior_variance_scale", 1.0, 50.0),
-            "min_variance": trial.suggest_float("bocpd.min_variance", 0.01, 5.0, log=True),
-            "recovery_points": trial.suggest_int("bocpd.recovery_points", 3, 40),
+            # "short_run_length": trial.suggest_int("bocpd.short_run_length", 2, 20),
+            # "cp_mass_threshold": trial.suggest_float("bocpd.cp_mass_threshold", 0.4, 0.95),
+            # "max_run_length": trial.suggest_int("bocpd.max_run_length", 50, 400),
+            # "prior_variance_scale": trial.suggest_float("bocpd.prior_variance_scale", 1.0, 50.0),
+            # "min_variance": trial.suggest_float("bocpd.min_variance", 0.01, 5.0, log=True),
+            # "recovery_points": trial.suggest_int("bocpd.recovery_points", 3, 40),
         },
         "cusum": lambda: {
-            "min_points": trial.suggest_int("cusum.min_points", 3, 30),
-            "baseline_fraction": trial.suggest_float("cusum.baseline_fraction", 0.05, 0.5),
-            "slack_factor": trial.suggest_float("cusum.slack_factor", 0.1, 2.0),
+            # "min_points": trial.suggest_int("cusum.min_points", 3, 30),
+            # "baseline_fraction": trial.suggest_float("cusum.baseline_fraction", 0.05, 0.5),
+            # "slack_factor": trial.suggest_float("cusum.slack_factor", 0.1, 2.0),
             "threshold_factor": trial.suggest_float("cusum.threshold_factor", 2.0, 10.0),
         },
         "rrcf": lambda: {
-            "num_trees": trial.suggest_int("rrcf.num_trees", 20, 200),
-            "tree_size": trial.suggest_int("rrcf.tree_size", 64, 512),
+            # "num_trees": trial.suggest_int("rrcf.num_trees", 20, 200),
+            # "tree_size": trial.suggest_int("rrcf.tree_size", 64, 512),
             "shingle_size": trial.suggest_int("rrcf.shingle_size", 1, 16),
             "threshold_sigma": trial.suggest_float("rrcf.threshold_sigma", 0.5, 6.0),
         },
         "cross_signal": lambda: {
-            "window_seconds": trial.suggest_int("cross_signal.window_seconds", 5, 180),
+            # "window_seconds": trial.suggest_int("cross_signal.window_seconds", 5, 180),
         },
         "time_cluster": lambda: {
-            "proximity_seconds": trial.suggest_int("time_cluster.proximity_seconds", 2, 60),
-            "window_seconds": trial.suggest_int("time_cluster.window_seconds", 30, 600),
-            "min_cluster_size": trial.suggest_int("time_cluster.min_cluster_size", 0, 8),
+            # "proximity_seconds": trial.suggest_int("time_cluster.proximity_seconds", 2, 60),
+            # "window_seconds": trial.suggest_int("time_cluster.window_seconds", 30, 600),
+            # "min_cluster_size": trial.suggest_int("time_cluster.min_cluster_size", 1, 8),
         },
         "log_pattern_extractor": lambda: {
-            "min_cluster_size_before_emit": trial.suggest_int(
-                "log_pattern_extractor.min_cluster_size_before_emit", 1, 30
-            ),
-            "max_tokenized_string_length": trial.suggest_int(
-                "log_pattern_extractor.max_tokenized_string_length", 2000, 16000
-            ),
-            "max_num_tokens": trial.suggest_int("log_pattern_extractor.max_num_tokens", 32, 512),
-            "parse_hex_dump": trial.suggest_categorical("log_pattern_extractor.parse_hex_dump", [True, False]),
-            "min_token_match_ratio": trial.suggest_float("log_pattern_extractor.min_token_match_ratio", 0.2, 0.95),
+            # "min_cluster_size_before_emit": trial.suggest_int(
+            #     "log_pattern_extractor.min_cluster_size_before_emit", 1, 30
+            # ),
+            # "max_tokenized_string_length": trial.suggest_int(
+            #     "log_pattern_extractor.max_tokenized_string_length", 2000, 16000
+            # ),
+            # "max_num_tokens": trial.suggest_int("log_pattern_extractor.max_num_tokens", 32, 512),
+            # "parse_hex_dump": trial.suggest_categorical("log_pattern_extractor.parse_hex_dump", [True, False]),
+            "min_token_match_ratio": trial.suggest_float("log_pattern_extractor.min_token_match_ratio", 0.25, 0.85),
         },
     }
     fn = space.get(component)
