@@ -1,7 +1,7 @@
 {{- with .apmStats }}
 {{- if .error }}
 
-  Status: Not running or unreachable on localhost:{{.port}}.
+  Status: Not running or unreachable
   Error: {{.error}}
 {{- else}}
   Status: Running
@@ -43,13 +43,17 @@
 
   Writer (previous minute)
   ========================
-    Traces: {{.trace_writer.Payloads}} payloads, {{.trace_writer.Traces}} traces, {{.trace_writer.Events}} events, {{humanize .trace_writer.Bytes}} bytes
-    {{- if gt .trace_writer.Errors 0.0}}
-    WARNING: Traces API errors (1 min): {{.trace_writer.Errors}}
+    {{- with .trace_writer}}
+    Traces: {{.Payloads}} payloads, {{.Traces}} traces, {{.Events}} events, {{humanize .Bytes}} bytes
+    {{- if gt .Errors 0.0}}
+    WARNING: Traces API errors (1 min): {{.Errors}}
     {{- end}}
-    Stats: {{.stats_writer.Payloads}} payloads, {{.stats_writer.StatsBuckets}} stats buckets, {{humanize .stats_writer.Bytes}} bytes
-    {{- if gt .stats_writer.Errors 0.0}}
-    WARNING: Stats API errors (1 min): {{.stats_writer.Errors}}
+    {{- end}}
+    {{- with .stats_writer}}
+    Stats: {{.Payloads}} payloads, {{.StatsBuckets}} stats buckets, {{humanize .Bytes}} bytes
+    {{- if gt .Errors 0.0}}
+    WARNING: Stats API errors (1 min): {{.Errors}}
+    {{- end}}
     {{- end}}
 {{- end}}
 {{- end}}

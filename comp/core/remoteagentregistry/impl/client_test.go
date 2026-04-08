@@ -173,7 +173,7 @@ func TestCallAgentsForService(t *testing.T) {
 			// Test callAgentsForService helper with status provider
 
 			start := time.Now()
-			statuses := callAgentsForService(component, StatusServiceName, grpcCall, processor)
+			statuses := callAgentsForService(component, StatusServiceName, "", grpcCall, processor)
 
 			elapsed := time.Since(start)
 			require.Less(t, elapsed, testCase.shouldSucceedInLessThan+deltaTime, "Should succeed in less than the expected time")

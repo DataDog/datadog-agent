@@ -8,6 +8,7 @@ package processimpl
 
 import (
 	"context"
+	"encoding/json"
 	"net"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -17,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/remoteagent/helper"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	processStatus "github.com/DataDog/datadog-agent/pkg/process/util/status"
 	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
@@ -60,6 +62,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	// Add your gRPC services implementations here:
 	pbcore.RegisterTelemetryProviderServer(remoteAgentServer.GetGRPCServer(), remoteagentImpl)
+	pbcore.RegisterStatusProviderServer(remoteAgentServer.GetGRPCServer(), remoteagentImpl)
 
 	provides := Provides{
 		Comp: remoteagentImpl,
@@ -75,6 +78,7 @@ type remoteagentImpl struct {
 
 	remoteAgentServer *helper.UnimplementedRemoteAgentServer
 	pbcore.UnimplementedTelemetryProviderServer
+	pbcore.UnimplementedStatusProviderServer
 }
 
 func (r *remoteagentImpl) GetTelemetry(_ context.Context, _ *pbcore.GetTelemetryRequest) (*pbcore.GetTelemetryResponse, error) {
@@ -89,6 +93,20 @@ func (r *remoteagentImpl) GetTelemetry(_ context.Context, _ *pbcore.GetTelemetry
 	return &pbcore.GetTelemetryResponse{
 		Payload: &pbcore.GetTelemetryResponse_PromText{
 			PromText: prometheusText,
+		},
+	}, nil
+}
+
+// GetStatusDetails returns the status details of the process agent
+func (r *remoteagentImpl) GetStatusDetails(_ context.Context, _ *pbcore.GetStatusDetailsRequest) (*pbcore.GetStatusDetailsResponse, error) {
+	st := processStatus.GetInProcessStatus()
+	statusBytes, err := json.Marshal(st)
+	if err != nil {
+		return &pbcore.GetStatusDetailsResponse{}, nil
+	}
+	return &pbcore.GetStatusDetailsResponse{
+		MainSection: &pbcore.StatusSection{
+			Fields: map[string]string{"status": string(statusBytes)},
 		},
 	}, nil
 }

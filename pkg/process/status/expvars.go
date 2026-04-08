@@ -50,6 +50,12 @@ var (
 	infoWlmExtractorCacheSize    atomic.Int64
 	infoWlmExtractorStaleDiffs   atomic.Int64
 	infoWlmExtractorDiffsDropped atomic.Int64
+
+	// Stored at InitExpvars time for direct access without going through expvar.
+	infoProcessModuleEnabled     bool
+	infoLanguageDetectionEnabled bool
+	infoConfig                   config.Component
+	infoHostname                 string
 )
 
 func publishUptime() interface{} {
@@ -243,8 +249,14 @@ func publishDropCheckPayloads() interface{} {
 }
 
 // InitExpvars initializes expvars
-func InitExpvars(config config.Component, hostname string, processModuleEnabled, languageDetectionEnabled bool, eps []apicfg.Endpoint) {
+func InitExpvars(cfg config.Component, hostname string, processModuleEnabled, languageDetectionEnabled bool, eps []apicfg.Endpoint) {
+	// Store for direct access via GetMetrics(), independent of expvar initialization.
+	infoProcessModuleEnabled = processModuleEnabled
+	infoLanguageDetectionEnabled = languageDetectionEnabled
+	infoConfig = cfg
+	infoHostname = hostname
 	infoOnce.Do(func() {
+		config := cfg
 		processExpvars := expvar.NewMap("process_agent")
 		hostString := expvar.NewString("host")
 		hostString.Set(hostname)
@@ -276,4 +288,91 @@ func InitExpvars(config config.Component, hostname string, processModuleEnabled,
 		processExpvars.Set("workloadmeta_extractor_diffs_dropped", publishInt(&infoWlmExtractorDiffsDropped))
 		processExpvars.Set("submission_error_count", publishInt(&infoSubmissionErrorCount))
 	})
+}
+
+// Metrics holds process agent runtime metrics read directly from internal state.
+// Used by GetMetrics() for the RAR gRPC path, bypassing expvar.
+type Metrics struct {
+	Pid                             int
+	Uptime                          int
+	UptimeNano                      int64
+	DockerSocket                    string
+	LastCollectTime                 string
+	ProcessCount                    int64
+	ContainerCount                  int64
+	ProcessQueueSize                int64
+	RTProcessQueueSize              int64
+	ConnectionsQueueSize            int64
+	ProcessQueueBytes               int64
+	RTProcessQueueBytes             int64
+	ConnectionsQueueBytes           int64
+	ContainerID                     string
+	EnabledChecks                   []string
+	Endpoints                       map[string][]string
+	DropCheckPayloads               []string
+	SystemProbeProcessModuleEnabled bool
+	LanguageDetectionEnabled        bool
+	WlmExtractorCacheSize           int64
+	WlmExtractorStaleDiffs          int64
+	WlmExtractorDiffsDropped        int64
+	SubmissionErrorCount            int64
+}
+
+// GetConfig returns the stored process agent config set by InitExpvars.
+func GetConfig() config.Component {
+	return infoConfig
+}
+
+// GetHostname returns the stored process agent hostname set by InitExpvars.
+func GetHostname() string {
+	return infoHostname
+}
+
+// GetMetrics reads process agent runtime metrics directly from internal state,
+// bypassing expvar. This is the data source for the RAR gRPC status path.
+func GetMetrics() Metrics {
+	infoMutex.RLock()
+	dockerSocket := infoDockerSocket
+	lastCollectTime := infoLastCollectTime
+	enabledChecks := slices.Clone(infoEnabledChecks)
+	dropCheckPayloads := slices.Clone(infoDropCheckPayloads)
+	infoMutex.RUnlock()
+
+	containerID := ""
+	if v := publishContainerID(); v != nil {
+		if s, ok := v.(string); ok {
+			containerID = s
+		}
+	}
+
+	var endpoints map[string][]string
+	if infoConfig != nil {
+		endpoints = getEndpointsInfo(infoConfig).(map[string][]string)
+	}
+
+	return Metrics{
+		Pid:                             os.Getpid(),
+		Uptime:                          int(time.Since(infoStart) / time.Second),
+		UptimeNano:                      infoStart.UnixNano(),
+		DockerSocket:                    dockerSocket,
+		LastCollectTime:                 lastCollectTime,
+		ProcessCount:                    infoProcCount.Load(),
+		ContainerCount:                  infoContainerCount.Load(),
+		ProcessQueueSize:                infoProcessQueueSize.Load(),
+		RTProcessQueueSize:              infoRTProcessQueueSize.Load(),
+		ConnectionsQueueSize:            infoConnectionsQueueSize.Load(),
+		ProcessQueueBytes:               infoProcessQueueBytes.Load(),
+		RTProcessQueueBytes:             infoRTProcessQueueBytes.Load(),
+		ConnectionsQueueBytes:           infoConnectionsQueueBytes.Load(),
+		ContainerID:                     containerID,
+		EnabledChecks:                   enabledChecks,
+		Endpoints:                       endpoints,
+		DropCheckPayloads:               dropCheckPayloads,
+		SystemProbeProcessModuleEnabled: infoProcessModuleEnabled,
+		LanguageDetectionEnabled:        infoLanguageDetectionEnabled,
+		WlmExtractorCacheSize:           infoWlmExtractorCacheSize.Load(),
+		WlmExtractorStaleDiffs:          infoWlmExtractorStaleDiffs.Load(),
+		WlmExtractorDiffsDropped:        infoWlmExtractorDiffsDropped.Load(),
+		SubmissionErrorCount:            infoSubmissionErrorCount.Load(),
+	}
 }
