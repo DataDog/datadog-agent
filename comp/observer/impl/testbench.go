@@ -461,7 +461,8 @@ func (tb *TestBench) LoadScenario(name string) error {
 }
 
 // loadParquetDir loads all parquet files from a directory using the recorder component.
-// Uses batch loading for efficiency - reads all metrics at once instead of streaming.
+// Uses streaming (ForEachMetric) to keep peak memory proportional to row-group size,
+// not to total metric count.
 func (tb *TestBench) loadParquetDir(dir string) error {
 	if tb.config.Recorder == nil {
 		return errors.New("recorder component not configured - cannot load parquet files")
@@ -469,32 +470,29 @@ func (tb *TestBench) loadParquetDir(dir string) error {
 
 	storage := tb.engine.Storage()
 
-	// Use batch loading - get all metrics at once
-	metrics, err := tb.config.Recorder.ReadAllMetrics(dir)
-	if err != nil {
-		return fmt.Errorf("reading parquet metrics: %w", err)
-	}
-
-	fmt.Printf("  Loading %d samples from parquet files\n", len(metrics))
-
 	byTimestampCounter := make(map[int64]int64)
 	byTimestampCardinality := make(map[int64]int64)
+	var totalLoaded int64
 
-	// Batch add all metrics to storage
-	for _, m := range metrics {
-		metricName := m.Name
-
+	err := tb.config.Recorder.ForEachMetric(dir, func(m recorderdef.MetricData) error {
 		// filter internal Datadog Agent telemetry
-		if strings.HasPrefix(metricName, "datadog.") {
-			continue
+		if strings.HasPrefix(m.Name, "datadog.") {
+			return nil
 		}
 
+		totalLoaded++
 		byTimestampCounter[m.Timestamp]++
 
-		if storage.Add("parquet", metricName, m.Value, m.Timestamp, m.Tags) {
+		if storage.Add("parquet", m.Name, m.Value, m.Timestamp, m.Tags) {
 			byTimestampCardinality[m.Timestamp]++
 		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("streaming parquet metrics: %w", err)
 	}
+
+	fmt.Printf("  Loaded %d samples from parquet files\n", totalLoaded)
 
 	// Telemetry for the number of metrics by timestamp
 	type byTimestampEntry struct {

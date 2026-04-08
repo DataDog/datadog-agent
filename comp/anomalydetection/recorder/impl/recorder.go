@@ -9,6 +9,8 @@ package recorderimpl
 import (
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
@@ -124,35 +126,29 @@ func (r *recorderImpl) GetHandle(handleFunc observer.HandleFunc) observer.Handle
 	}
 }
 
-// ReadAllMetrics reads all metrics from parquet files and returns them as a slice.
-// This is for batch loading scenarios where streaming via handles is not needed.
-func (r *recorderImpl) ReadAllMetrics(inputDir string) ([]recorderdef.MetricData, error) {
-	// Read all parquet files from the input directory
+// ForEachMetric streams metrics from parquet files without loading them all into memory.
+// For new-format directories (those with contexts.parquet), only one row group of column
+// buffers is live at a time. For legacy format, iterates the pre-loaded reader.
+func (r *recorderImpl) ForEachMetric(inputDir string, fn func(recorderdef.MetricData) error) error {
+	if _, err := os.Stat(filepath.Join(inputDir, "contexts.parquet")); err == nil {
+		return ForEachNewFormatMetric(inputDir, fn)
+	}
+	// Legacy FGM format — load once and iterate.
 	reader, err := newParquetReader(inputDir)
 	if err != nil {
-		return nil, fmt.Errorf("creating parquet reader: %w", err)
+		return fmt.Errorf("creating parquet reader: %w", err)
 	}
-
-	pkglog.Infof("ReadAllMetrics: loading %d metrics from %s", reader.Len(), inputDir)
-
-	// Pre-allocate slice for efficiency
-	metrics := make([]recorderdef.MetricData, 0, reader.Len())
-
 	for {
 		metric := reader.Next()
 		if metric == nil {
 			break
 		}
-
-		// Convert FGMMetric to MetricData
 		var value float64
 		if metric.ValueFloat != nil {
 			value = *metric.ValueFloat
 		} else if metric.ValueInt != nil {
 			value = float64(*metric.ValueInt)
 		}
-
-		// Convert tags map to slice
 		tags := make([]string, 0, len(metric.Tags))
 		for k, v := range metric.Tags {
 			if v != "" {
@@ -161,20 +157,30 @@ func (r *recorderImpl) ReadAllMetrics(inputDir string) ([]recorderdef.MetricData
 				tags = append(tags, k)
 			}
 		}
-
-		// Time is in milliseconds, convert to seconds
-		timestamp := metric.Time / 1000
-
-		metrics = append(metrics, recorderdef.MetricData{
+		if err := fn(recorderdef.MetricData{
 			Source:    metric.RunID,
 			Name:      metric.MetricName,
 			Value:     value,
-			Timestamp: timestamp,
+			Timestamp: metric.Time / 1000,
 			Tags:      tags,
-		})
+		}); err != nil {
+			return err
+		}
 	}
+	return nil
+}
 
-	pkglog.Infof("ReadAllMetrics: loaded %d metrics", len(metrics))
+// ReadAllMetrics reads all metrics from parquet files and returns them as a slice.
+// For large datasets, prefer ForEachMetric to avoid holding all metrics in memory at once.
+func (r *recorderImpl) ReadAllMetrics(inputDir string) ([]recorderdef.MetricData, error) {
+	var metrics []recorderdef.MetricData
+	if err := r.ForEachMetric(inputDir, func(m recorderdef.MetricData) error {
+		metrics = append(metrics, m)
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	pkglog.Infof("ReadAllMetrics: loaded %d metrics from %s", len(metrics), inputDir)
 	return metrics, nil
 }
 

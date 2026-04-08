@@ -27,9 +27,14 @@ type Component interface {
 	GetHandle(handleFunc observer.HandleFunc) observer.HandleFunc
 
 	// ReadAllMetrics reads all metrics from parquet files and returns them as a slice.
-	// This is for batch loading scenarios (like testbench) where streaming via handles
-	// is not needed and direct access to all metrics at once is more efficient.
+	// For large datasets, prefer ForEachMetric to avoid loading everything into memory.
 	ReadAllMetrics(inputDir string) ([]MetricData, error)
+
+	// ForEachMetric streams metrics from parquet files one row-group at a time,
+	// calling fn for each metric. Peak memory is O(row_group_size) rather than
+	// O(total_metrics). Tags slices are shared from the context map and must not
+	// be mutated by fn.
+	ForEachMetric(inputDir string, fn func(MetricData) error) error
 
 	// ReadAllTraces reads all traces from parquet files and returns them as a slice.
 	// Traces are stored as denormalized spans (one row per span) for efficient querying.
