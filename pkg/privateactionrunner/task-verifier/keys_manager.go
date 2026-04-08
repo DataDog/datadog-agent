@@ -37,9 +37,9 @@ type keysManager struct {
 // WaitForReady returns immediately. Used when DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION=true.
 type noOpKeysManager struct{}
 
-func (n *noOpKeysManager) Start(_ context.Context)           {}
-func (n *noOpKeysManager) GetKey(_ string) types.DecodedKey  { return nil }
-func (n *noOpKeysManager) WaitForReady()                     {}
+func (n *noOpKeysManager) Start(_ context.Context)          {}
+func (n *noOpKeysManager) GetKey(_ string) types.DecodedKey { return nil }
+func (n *noOpKeysManager) WaitForReady()                    {}
 
 // NewKeyManager returns a KeysManager appropriate for the current environment.
 // When DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION=true, a no-op manager is returned.

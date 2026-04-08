@@ -7,10 +7,8 @@ package privateactionrunner
 
 import (
 	"fmt"
+	"os"
 
-	appsv1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/apps/v1"
-	corev1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/core/v1"
-	metav1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/meta/v1"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
@@ -18,37 +16,32 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent/helm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
 	kubeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
-	componentsremote "github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+	awsFakeintake "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	awskubernetes "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
 )
 
 const (
-	// fakeOpmsImage is the pre-built AMD64 fakeopms image in the agent-sandbox ECR test repository.
-	// This is the same repository used by `dda inv agent.hacky-dev-image-build --push` per
-	// https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/3958866373
-	// Build and push: docker buildx build --platform linux/amd64 --push \
-	//   -t 376334461865.dkr.ecr.us-east-1.amazonaws.com/agent-e2e-tests:fakeopms-latest \
-	//   test/fakeopms/
-	// TODO: move to a permanent internal registry once the CI build pipeline is in place.
-	fakeOpmsImage = "376334461865.dkr.ecr.us-east-1.amazonaws.com/agent-e2e-tests:fakeopms-latest"
-
-	fakeOpmsName      = "fake-opms"
-	fakeOpmsNamespace = "datadog"
-	fakeOpmsPort      = 8080
+	// minHelmChartVersion is the earliest Datadog chart release that includes PAR sidecar support
+	// (helm-charts PR #2517). Drop this override once the e2e framework's global HelmVersion
+	// default is bumped to at least this value.
+	minHelmChartVersion = "3.197.2"
 )
 
-// parHelmValuesTemplate configures the agent with PAR enabled and pointing at the fake OPMS.
+// parHelmValuesTemplate configures the agent with PAR enabled.
+// The fakeintake URL is set via datadog.ddUrl (which maps to DD_DD_URL on all agent containers).
+// %s parameters: clusterName, fakeintakeURL, runnerURN, privateKeyB64, fakeintakeURL (repeated for PAR envDict)
 const parHelmValuesTemplate = `
 datadog:
   kubelet:
     tlsVerify: false
   clusterName: "%s"
-  ddUrl: "http://fake-opms.datadog.svc.cluster.local:8080"
+  ddUrl: "%s"
   privateActionRunner:
     enabled: true
     selfEnroll: false
@@ -60,11 +53,13 @@ agents:
     privateActionRunner:
       envDict:
         DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION: "true"
+        DD_DD_URL: "%s"
+        DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST: "com.datadoghq.remoteaction.rshell.runCommand"
 `
 
 // parK8sProvisioner provisions a Kind-on-EC2 cluster with:
-//   - fakeopms image pulled from ECR and loaded into Kind
-//   - Datadog Agent with PAR enabled (custom image via E2E_AGENT_IMAGE env var)
+//   - fakeintake deployed as ECS Fargate (HTTP, no load balancer) — PAR polls its OPMS endpoints
+//   - Datadog Agent with PAR enabled (custom image via --agent-image CLI flag)
 func parK8sProvisioner(runnerURN, privateKeyB64 string) provisioners.Provisioner {
 	p := provisioners.NewTypedPulumiProvisioner[environments.Kubernetes]("par-k8s",
 		func(ctx *pulumi.Context, env *environments.Kubernetes) error {
@@ -74,21 +69,35 @@ func parK8sProvisioner(runnerURN, privateKeyB64 string) provisioners.Provisioner
 				return fmt.Errorf("aws.NewEnvironment: %w", err)
 			}
 
-			// 1. Provision EC2 VM
+			// 1. Deploy fakeintake as ECS Fargate (HTTP, no load balancer).
+			// PAR inside the Kind cluster reaches it at fakeintake's private VPC IP.
+			// The test process also calls fakeintake directly for control operations (enqueue/result).
+			// FAKEINTAKE_IMAGE_OVERRIDE allows using a locally-built image during development
+			// (same pattern used by CI and docker_test.go).
+			var fiOpts []awsFakeintake.Option
+			if img := os.Getenv("FAKEINTAKE_IMAGE_OVERRIDE"); img != "" {
+				fiOpts = append(fiOpts, awsFakeintake.WithImageURL(img))
+			}
+			fi, err := awsFakeintake.NewECSFargateInstance(awsEnv, name, fiOpts...)
+			if err != nil {
+				return fmt.Errorf("fakeintake.NewECSFargateInstance: %w", err)
+			}
+			if err = fi.Export(ctx, &env.FakeIntake.FakeintakeOutput); err != nil {
+				return fmt.Errorf("fi.Export: %w", err)
+			}
+
+			// 2. Provision EC2 VM
 			host, err := ec2.NewVM(awsEnv, name)
 			if err != nil {
 				return fmt.Errorf("ec2.NewVM: %w", err)
 			}
 
-			installEcrCmd, err := ec2.InstallECRCredentialsHelper(awsEnv, host)
+			installEcrCmd, err := docker.InstallECRCredentialsHelper(awsEnv.Namer, host)
 			if err != nil {
-				return fmt.Errorf("ec2.InstallECRCredentialsHelper: %w", err)
+				return fmt.Errorf("docker.InstallECRCredentialsHelper: %w", err)
 			}
 
-			// We use our own fake OPMS instead of fakeintake.
-			env.DisableFakeIntake()
-
-			// 2. Create standard Kind cluster — also installs Docker
+			// 3. Create standard Kind cluster — also installs Docker
 			kindCluster, err := kubeComp.NewKindCluster(&awsEnv, host, name,
 				awsEnv.KubernetesVersion(),
 				utils.PulumiDependsOn(installEcrCmd),
@@ -108,12 +117,6 @@ func parK8sProvisioner(runnerURN, privateKeyB64 string) provisioners.Provisioner
 				return fmt.Errorf("kubernetes.NewProvider: %w", err)
 			}
 
-			// 3. Pull fakeopms image from ECR and load into Kind
-			kindLoadCmd, err := loadFakeOpmsFromRegistry(&awsEnv, host, kindCluster, fakeOpmsImage, utils.PulumiDependsOn(kindCluster, installEcrCmd))
-			if err != nil {
-				return fmt.Errorf("loadFakeOpmsFromECR: %w", err)
-			}
-
 			// 4. Plant test data file on the Kind node (accessible to PAR at /host/var/log/)
 			_, err = host.OS.Runner().Command(
 				awsEnv.CommonNamer().ResourceName("plant-testdata"),
@@ -129,21 +132,22 @@ func parK8sProvisioner(runnerURN, privateKeyB64 string) provisioners.Provisioner
 				return fmt.Errorf("plant testdata: %w", err)
 			}
 
-			// 5. Deploy fake OPMS as K8s Deployment + ClusterIP Service
-			if err = deployFakeOpms(ctx, kubeProvider, fakeOpmsImage, utils.PulumiDependsOn(kindLoadCmd)); err != nil {
-				return fmt.Errorf("deployFakeOpms: %w", err)
+			// 5. Deploy Datadog agent via Helm with PAR enabled.
+			// DD_DD_URL in the PAR container is set dynamically to fakeintake's URL so that
+			// PAR's OPMS polling reaches fakeintake (not the real Datadog backend).
+			withParHelmValues := func(p *kubernetesagentparams.Params) error {
+				asset := pulumi.Sprintf(parHelmValuesTemplate, ctx.Stack(), fi.URL, runnerURN, privateKeyB64, fi.URL).
+					ApplyT(func(v string) (pulumi.Asset, error) {
+						return pulumi.NewStringAsset(v), nil
+					}).(pulumi.AssetOutput)
+				p.HelmValues = append(p.HelmValues, asset)
+				return nil
 			}
-
-			// 6. Deploy Datadog agent via Helm with PAR enabled.
-			// Custom agent image (with local changes) is passed via --agent-image CLI flag
-			// which the framework reads automatically via e.AgentFullImagePath().
-			helmValues := fmt.Sprintf(parHelmValuesTemplate, ctx.Stack(), runnerURN, privateKeyB64)
 			agent, err := helm.NewKubernetesAgent(&awsEnv, name, kubeProvider,
-				kubernetesagentparams.WithHelmValues(helmValues),
+				withParHelmValues,
 				kubernetesagentparams.WithClusterName(kindCluster.ClusterName),
 				kubernetesagentparams.WithTags([]string{"stackid:" + ctx.Stack()}),
-				// Require chart >= 3.197.1 which includes PAR sidecar support (PR #2517).
-				kubernetesagentparams.WithHelmChartVersion("3.197.2"),
+				kubernetesagentparams.WithHelmChartVersion(minHelmChartVersion),
 			)
 			if err != nil {
 				return fmt.Errorf("helm.NewKubernetesAgent: %w", err)
@@ -158,77 +162,3 @@ func parK8sProvisioner(runnerURN, privateKeyB64 string) provisioners.Provisioner
 	p.SetDiagnoseFunc(awskubernetes.DiagnoseFunc)
 	return p
 }
-
-// loadFakeOpmsFromRegistry pulls the pre-built fakeopms image from the internal registry and loads it into Kind.
-func loadFakeOpmsFromRegistry(e *aws.Environment, vm *componentsremote.Host, kindCluster *kubeComp.Cluster, image string, opts ...pulumi.ResourceOption) (pulumi.Resource, error) {
-	pullCmd, err := vm.OS.Runner().Command(
-		e.CommonNamer().ResourceName("pull-fakeopms"),
-		&command.Args{
-			Create: pulumi.Sprintf("docker pull %s", image),
-		},
-		opts...,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("docker pull fakeopms: %w", err)
-	}
-
-	kindLoadCmd, err := vm.OS.Runner().Command(
-		e.CommonNamer().ResourceName("kind-load-fakeopms"),
-		&command.Args{
-			Create: pulumi.Sprintf("kind load docker-image %s --name %s", image, kindCluster.ClusterName),
-		},
-		utils.PulumiDependsOn(pullCmd),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("kind load fakeopms: %w", err)
-	}
-
-	return kindLoadCmd, nil
-}
-
-// deployFakeOpms creates a K8s Deployment and ClusterIP Service for the fake OPMS.
-// PAR accesses it via cluster-internal DNS: fake-opms.datadog.svc.cluster.local:8080
-func deployFakeOpms(ctx *pulumi.Context, kubeProvider *kubernetes.Provider, image string, opts ...pulumi.ResourceOption) error {
-	labels := pulumi.StringMap{"app": pulumi.String(fakeOpmsName)}
-	ns := pulumi.String(fakeOpmsNamespace)
-	pulumiOpts := append(opts, pulumi.Provider(kubeProvider))
-
-	_, err := appsv1.NewDeployment(ctx, fakeOpmsName, &appsv1.DeploymentArgs{
-		Metadata: &metav1.ObjectMetaArgs{Name: pulumi.String(fakeOpmsName), Namespace: ns, Labels: labels},
-		Spec: &appsv1.DeploymentSpecArgs{
-			Replicas: pulumi.Int(1),
-			Selector: &metav1.LabelSelectorArgs{MatchLabels: labels},
-			Template: &corev1.PodTemplateSpecArgs{
-				Metadata: &metav1.ObjectMetaArgs{Labels: labels},
-				Spec: &corev1.PodSpecArgs{
-					Containers: corev1.ContainerArray{
-						&corev1.ContainerArgs{
-							Name:  pulumi.String(fakeOpmsName),
-							Image: pulumi.String(image),
-							// IfNotPresent: image is loaded into Kind nodes via `kind load docker-image`.
-							ImagePullPolicy: pulumi.String("IfNotPresent"),
-							Ports: corev1.ContainerPortArray{
-								&corev1.ContainerPortArgs{ContainerPort: pulumi.Int(fakeOpmsPort)},
-							},
-						},
-					},
-				},
-			},
-		},
-	}, pulumiOpts...)
-	if err != nil {
-		return err
-	}
-
-	_, err = corev1.NewService(ctx, fakeOpmsName+"-svc", &corev1.ServiceArgs{
-		Metadata: &metav1.ObjectMetaArgs{Name: pulumi.String(fakeOpmsName), Namespace: ns},
-		Spec: &corev1.ServiceSpecArgs{
-			Selector: labels,
-			Ports: corev1.ServicePortArray{
-				&corev1.ServicePortArgs{Port: pulumi.Int(fakeOpmsPort), TargetPort: pulumi.Any(fakeOpmsPort)},
-			},
-		},
-	}, pulumiOpts...)
-	return err
-}
-

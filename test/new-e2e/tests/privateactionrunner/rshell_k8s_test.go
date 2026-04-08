@@ -8,19 +8,16 @@ package privateactionrunner
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/tools/portforward"
-	"k8s.io/client-go/transport/spdy"
 
-	fakeopsClient "github.com/DataDog/datadog-agent/test/fakeopms/client"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
 const (
@@ -30,16 +27,15 @@ const (
 	parContainerName = "private-action-runner"
 	agentNamespace   = "datadog"
 
-	// testDataFile is planted on the Kind node during provisioning.
-	testDataFile    = "/tmp/par-e2e-testdata.txt"
+	// testDataFile is planted on the Kind node by the provisioner at /var/log/,
+	// accessible inside the PAR container at /host/var/log/ via the host volume mount.
+	testDataFile    = "/host/var/log/par-e2e-testdata.txt"
 	testDataContent = "PAR_E2E_VALUE=hello_from_rshell"
 )
 
 type parK8sSuite struct {
 	e2e.BaseSuite[environments.Kubernetes]
-	fakeOpms  *fakeopsClient.Client
 	runnerURN string
-	stopPF    chan struct{} // closes the port-forward goroutine
 }
 
 func TestPARRshellK8sSuite(t *testing.T) {
@@ -49,107 +45,112 @@ func TestPARRshellK8sSuite(t *testing.T) {
 	e2e.Run(t, suite, e2e.WithProvisioner(parK8sProvisioner(urn, keyB64)))
 }
 
-// SetupSuite provisions infra, plants the test data file, and waits for PAR to be ready.
+// SetupSuite waits for PAR to be ready and actively polling fakeintake.
 func (s *parK8sSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 	defer s.CleanupOnSetupFailure()
-
-	// Plant test data file on all agent pods' /tmp via PodExec.
-	s.plantTestDataFile()
-
-	// Port-forward fake OPMS service to a local port so the test process can call it.
-	localPort, stopCh, err := s.startPortForward(fakeOpmsNamespace, fakeOpmsName, fakeOpmsPort)
-	s.Require().NoError(err, "failed to port-forward fake OPMS service")
-	s.stopPF = stopCh
-	s.fakeOpms = fakeopsClient.NewClient(fmt.Sprintf("http://localhost:%d", localPort))
-
-	// Wait for PAR container to be ready and actively polling the fake OPMS.
 	s.waitForPARReady()
-}
-
-func (s *parK8sSuite) TearDownSuite() {
-	if s.stopPF != nil {
-		close(s.stopPF)
-	}
-	s.BaseSuite.TearDownSuite()
 }
 
 func (s *parK8sSuite) BeforeTest(suiteName, testName string) {
 	s.BaseSuite.BeforeTest(suiteName, testName)
 	if !s.IsDevMode() {
-		_ = s.fakeOpms.Flush()
+		_ = s.Env().FakeIntake.Client().FlushPAR()
 	}
 }
 
-// TestRshellHappyFlow verifies PAR can execute a complex rshell script:
-// find the planted test file, read it, grep for the expected value.
+// TestRshellHappyFlow verifies PAR can execute a simple rshell command that reads the
+// planted test file. allowedCommands must include "rshell:cat" because rshell blocks
+// all commands unless explicitly listed.
 func (s *parK8sSuite) TestRshellHappyFlow() {
 	taskID := uuid.New().String()
-	err := s.fakeOpms.Enqueue(taskID, runCommandAction, map[string]interface{}{
-		"command": fmt.Sprintf("find /tmp -name par-e2e-testdata.txt | xargs cat | grep %q", "PAR_E2E_VALUE"),
+	err := s.Env().FakeIntake.Client().EnqueuePARTask(taskID, runCommandAction, map[string]interface{}{
+		"command":         "cat " + testDataFile,
+		"allowedCommands": []string{"rshell:cat"},
 	})
 	s.Require().NoError(err)
 
 	result := s.pollResult(taskID, 2*time.Minute)
-	s.Require().True(result.Success, "expected success, got error: %s", result.ErrorDetails)
+	s.Require().Equal(0, rshellExitCode(result), "expected exit code 0, got %d (stderr: %v)", rshellExitCode(result), result.Outputs["stderr"])
 	assert.Contains(s.T(), result.Outputs["stdout"], testDataContent)
 }
 
-// TestRshellBlockedPath verifies PAR rejects access to paths outside restricted_shell_allowed_paths.
+// TestRshellBlockedPath verifies rshell blocks access to paths outside restricted_shell_allowed_paths.
 func (s *parK8sSuite) TestRshellBlockedPath() {
 	taskID := uuid.New().String()
-	err := s.fakeOpms.Enqueue(taskID, runCommandAction, map[string]interface{}{
-		"command": "cat /etc/passwd",
+	err := s.Env().FakeIntake.Client().EnqueuePARTask(taskID, runCommandAction, map[string]interface{}{
+		"command":         "cat /etc/passwd",
+		"allowedCommands": []string{"rshell:cat"},
 	})
 	s.Require().NoError(err)
 
 	result := s.pollResult(taskID, 2*time.Minute)
-	s.Require().False(result.Success, "expected failure for blocked path")
-	assert.NotEmpty(s.T(), result.ErrorDetails, "expected a meaningful error message")
+	assert.NotEqual(s.T(), 0, rshellExitCode(result), "expected non-zero exit code for blocked path")
+	assert.NotEmpty(s.T(), result.Outputs["stderr"], "expected error message in stderr")
 }
 
-// TestRshellBlockedCommand verifies PAR rejects commands not in allowedCommands.
+// TestRshellBlockedCommand verifies rshell blocks commands not in allowedCommands.
 func (s *parK8sSuite) TestRshellBlockedCommand() {
 	taskID := uuid.New().String()
-	err := s.fakeOpms.Enqueue(taskID, runCommandAction, map[string]interface{}{
-		"command":         fmt.Sprintf("grep PAR_E2E_VALUE %s", testDataFile),
-		"allowedCommands": []string{"echo", "cat"},
+	err := s.Env().FakeIntake.Client().EnqueuePARTask(taskID, runCommandAction, map[string]interface{}{
+		"command":         "grep PAR_E2E_VALUE " + testDataFile,
+		"allowedCommands": []string{"rshell:echo", "rshell:cat"},
 	})
 	s.Require().NoError(err)
 
 	result := s.pollResult(taskID, 2*time.Minute)
-	s.Require().False(result.Success, "expected failure for blocked command")
-	assert.NotEmpty(s.T(), result.ErrorDetails, "expected a meaningful error message")
+	assert.NotEqual(s.T(), 0, rshellExitCode(result), "expected non-zero exit code for blocked command")
+	assert.NotEmpty(s.T(), result.Outputs["stderr"], "expected error message in stderr")
 }
 
-// TestRshellBlockedFlag verifies PAR rejects unsupported flags (-exec on find is not supported by rshell).
-func (s *parK8sSuite) TestRshellBlockedFlag() {
+// TestRshellBlockedExecCmd verifies rshell blocks the command inside -exec when it is not
+// in allowedCommands. find itself is allowed but rm is not, so the -exec validation fails.
+func (s *parK8sSuite) TestRshellBlockedExecCmd() {
 	taskID := uuid.New().String()
-	err := s.fakeOpms.Enqueue(taskID, runCommandAction, map[string]interface{}{
-		"command": "find /tmp -name par-e2e-testdata.txt -exec cat {} \\;",
+	err := s.Env().FakeIntake.Client().EnqueuePARTask(taskID, runCommandAction, map[string]interface{}{
+		"command":         fmt.Sprintf("find %s -exec rm {} \\;", testDataFile),
+		"allowedCommands": []string{"rshell:find"},
 	})
 	s.Require().NoError(err)
 
 	result := s.pollResult(taskID, 2*time.Minute)
-	s.Require().False(result.Success, "expected failure for unsupported -exec flag")
-	assert.NotEmpty(s.T(), result.ErrorDetails, "expected a meaningful error message")
+	assert.NotEqual(s.T(), 0, rshellExitCode(result), "expected non-zero exit code: rm not in allowedCommands so -exec should be blocked")
 }
 
 // --- helpers ---
 
-func (s *parK8sSuite) pollResult(taskID string, timeout time.Duration) *fakeopsClient.TaskResult {
-	result, err := s.fakeOpms.PollResult(taskID, timeout)
+func (s *parK8sSuite) pollResult(taskID string, timeout time.Duration) *api.PARTaskResult {
+	result, err := s.Env().FakeIntake.Client().GetPARTaskResult(taskID, timeout)
 	s.Require().NoError(err, "timed out waiting for task result")
 	return result
 }
 
+// rshellExitCode extracts the integer exit code from a task result's outputs.
+// rshell reports all outcomes (including blocked commands) as successful PAR tasks
+// with a non-zero exit code, so tests check exitCode rather than result.Success.
+func rshellExitCode(result *api.PARTaskResult) int {
+	if result.Outputs == nil {
+		return -1
+	}
+	v, ok := result.Outputs["exitCode"]
+	if !ok {
+		return -1
+	}
+	f, ok := v.(float64) // JSON numbers decode as float64
+	if !ok {
+		return -1
+	}
+	return int(f)
+}
+
 // waitForPARReady waits until the private-action-runner container is Ready
-// and the fake OPMS has received at least one health-check call from PAR.
+// and fakeintake is reachable (confirming the ECS task is up).
 func (s *parK8sSuite) waitForPARReady() {
+	selector := s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		pods, err := s.Env().KubernetesCluster.Client().CoreV1().
 			Pods(agentNamespace).List(context.Background(), metav1.ListOptions{
-			LabelSelector: "app=datadog-agent",
+			LabelSelector: "app=" + selector,
 		})
 		assert.NoError(c, err)
 		for _, pod := range pods.Items {
@@ -162,76 +163,11 @@ func (s *parK8sSuite) waitForPARReady() {
 		assert.Fail(c, "private-action-runner container not ready")
 	}, 5*time.Minute, 10*time.Second, "PAR container should become ready")
 
-	// Ensure PAR is actively polling by checking fake OPMS health-check hit count.
+	// Confirm PAR is actively polling fakeintake by waiting for at least one dequeue call.
+	// This guards against a race where the container is Ready but the dequeue loop hasn't started.
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
-		err := s.fakeOpms.GetHealth()
+		count, err := s.Env().FakeIntake.Client().GetPARDequeueCount()
 		assert.NoError(c, err)
-	}, 30*time.Second, 2*time.Second, "fake OPMS should be reachable")
-}
-
-// plantTestDataFile writes the test data file onto the Kind node so rshell scripts can access it.
-func (s *parK8sSuite) plantTestDataFile() {
-	pods, err := s.Env().KubernetesCluster.Client().CoreV1().
-		Pods(agentNamespace).List(context.Background(), metav1.ListOptions{
-		LabelSelector: "app=datadog-agent",
-	})
-	s.Require().NoError(err)
-	s.Require().NotEmpty(pods.Items, "no agent pods found")
-
-	for _, pod := range pods.Items {
-		_, _, err = s.Env().KubernetesCluster.KubernetesClient.PodExec(
-			agentNamespace, pod.Name, parContainerName,
-			[]string{"sh", "-c", fmt.Sprintf("echo %q > %s", testDataContent, testDataFile)},
-		)
-		s.Require().NoError(err, "failed to plant test data file in pod %s", pod.Name)
-	}
-}
-
-// startPortForward creates a Kubernetes port-forward from a local port to the fake OPMS service.
-// Returns the local port and a stop channel.
-func (s *parK8sSuite) startPortForward(namespace, serviceName string, remotePort int) (int, chan struct{}, error) {
-	k8sClient := s.Env().KubernetesCluster.KubernetesClient
-
-	// Find a pod backing the service.
-	pods, err := k8sClient.K8sClient.CoreV1().Pods(namespace).List(context.Background(), metav1.ListOptions{
-		LabelSelector: fmt.Sprintf("app=%s", serviceName),
-	})
-	if err != nil || len(pods.Items) == 0 {
-		return 0, nil, fmt.Errorf("no pods found for service %s: %w", serviceName, err)
-	}
-	podName := pods.Items[0].Name
-
-	// Build the SPDY upgrade URL.
-	restClient := k8sClient.K8sClient.CoreV1().RESTClient()
-	req := restClient.Post().
-		Resource("pods").
-		Namespace(namespace).
-		Name(podName).
-		SubResource("portforward")
-
-	transport, upgrader, err := spdy.RoundTripperFor(k8sClient.K8sConfig)
-	if err != nil {
-		return 0, nil, fmt.Errorf("spdy.RoundTripperFor: %w", err)
-	}
-	dialer := spdy.NewDialer(upgrader, &http.Client{Transport: transport}, http.MethodPost, req.URL())
-
-	stopCh := make(chan struct{})
-	readyCh := make(chan struct{})
-	// Use port 0 to get an OS-assigned free port.
-	ports := []string{fmt.Sprintf("0:%d", remotePort)}
-	fw, err := portforward.New(dialer, ports, stopCh, readyCh, nil, nil)
-	if err != nil {
-		return 0, nil, fmt.Errorf("portforward.New: %w", err)
-	}
-
-	go func() { _ = fw.ForwardPorts() }()
-	<-readyCh
-
-	forwardedPorts, err := fw.GetPorts()
-	if err != nil || len(forwardedPorts) == 0 {
-		close(stopCh)
-		return 0, nil, fmt.Errorf("could not get forwarded ports: %w", err)
-	}
-
-	return int(forwardedPorts[0].Local), stopCh, nil
+		assert.Greater(c, count, 0, "PAR has not yet called the dequeue endpoint")
+	}, 2*time.Minute, 3*time.Second, "PAR should start polling fakeintake")
 }

@@ -132,14 +132,15 @@ func NewClient(cfg *config.Config) Client {
 }
 
 // endpointURL constructs a full URL for the given path.
-// Production always uses https. When DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION=true (e2e tests only),
-// http is allowed so that tests can point PAR at an in-cluster HTTP server.
+// Production always uses https://api.<site>. When DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION=true
+// (e2e tests only) and DD_DD_URL points at an http:// server, use that host directly so PAR
+// can reach an in-cluster or ECS-hosted fake OPMS over plain HTTP.
 func (c *client) endpointURL(path string) string {
 	scheme := "https"
 	host := c.config.DDApiHost
-	if os.Getenv(app.InternalSkipTaskVerificationEnvVar) == "true" && strings.HasPrefix(host, "http://") {
+	if os.Getenv(app.InternalSkipTaskVerificationEnvVar) == "true" && strings.HasPrefix(c.config.DDHost, "http://") {
 		scheme = "http"
-		host = strings.TrimPrefix(host, "http://")
+		host = strings.TrimPrefix(c.config.DDHost, "http://")
 	}
 	return (&url.URL{Scheme: scheme, Host: host, Path: path}).String()
 }

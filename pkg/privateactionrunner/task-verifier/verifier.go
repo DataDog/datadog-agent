@@ -20,12 +20,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	aperrorpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/errorcode"
 	privateactionspb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // NewTaskVerifier returns a TaskVerifier appropriate for the current environment.
 // When DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION=true, a no-op verifier is returned for e2e tests.
 func NewTaskVerifier(keysManager KeysManager, cfg *config.Config) TaskVerifier {
 	if os.Getenv(app.InternalSkipTaskVerificationEnvVar) == "true" {
+		log.Warn("task verification disabled")
 		return &noOpTaskVerifier{}
 	}
 	return &signedEnvelopeTaskVerifier{keysManager: keysManager, config: cfg}
