@@ -1803,6 +1803,8 @@ def launch_testbench(
     verbose: bool = False,
     profile_path: str = "",
     config: str = "",
+    enable: str = "",
+    disable: str = "",
 ):
     """
     Will launch both the observer-testbench backend and UI.
@@ -1811,6 +1813,9 @@ def launch_testbench(
         scenarios_dir: The directory containing the scenarios to load.
         build: Whether to build the observer-testbench binary.
         profile: Whether to profile the observer-testbench binary (only in testbench headless mode).
+        config: JSON params file; if set, overrides --enable/--disable/--only (testbench behavior).
+        enable: Comma-separated components to enable (passed to testbench ``--enable``).
+        disable: Comma-separated components to disable (passed to testbench ``--disable``).
     """
     if build:
         print("Building observer-testbench...")
@@ -1820,7 +1825,12 @@ def launch_testbench(
     if verbose:
         flags += " --verbose"
     if config:
-        flags += f" --config {config}"
+        flags += f" --config {shlex.quote(config)}"
+    else:
+        if enable:
+            flags += f" --enable {shlex.quote(enable)}"
+        if disable:
+            flags += f" --disable {shlex.quote(disable)}"
 
     if headless_scenario:
         if not headless_output:
@@ -1842,12 +1852,14 @@ def launch_testbench(
             else:
                 print(f"To profile, run: go tool pprof -http=:8081 {profile_path}")
     else:
+        if not config and not enable and not disable:
+            flags += " --only scanmw,scanwelch,bocpd"
         print("Launching observer-testbench backend and UI, use ^C to exit")
         print(
             "To profile, run: go tool pprof -http=:8081 http://localhost:8080/debug/pprof/heap (8080 is the testbench API port)"
         )
         ctx.run(
-            f"bin/observer-testbench --scenarios-dir {scenarios_dir} --only scanmw,scanwelch,bocpd {flags} & ( cd cmd/observer-testbench/ui && npm install && npm run dev ) &"
+            f"bin/observer-testbench --scenarios-dir {scenarios_dir} {flags} & ( cd cmd/observer-testbench/ui && npm install && npm run dev ) &"
         )
 
 
