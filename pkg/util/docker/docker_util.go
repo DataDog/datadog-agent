@@ -382,7 +382,7 @@ func (d *DockerUtil) AllContainerLabels(ctx context.Context) (map[string]map[str
 func (d *DockerUtil) GetContainerStats(ctx context.Context, containerID string) (*dcontainer.StatsResponse, error) {
 	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
 	defer cancel()
-	stats, err := d.cli.ContainerStats(ctx, containerID, client.ContainerStatsOptions{IncludePreviousSample: true})
+	stats, err := d.cli.ContainerStats(ctx, containerID, client.ContainerStatsOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("unable to get Docker stats: %s", err)
 	}
