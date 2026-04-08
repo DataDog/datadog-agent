@@ -886,7 +886,7 @@ func TestMetricsFollowSpec(t *testing.T) {
 						t.Run(name, func(t *testing.T) {
 							metrics, found := emittedMetrics[name]
 							require.True(t, found, "spec metric is not emitted by check run: %s", name)
-							gpuspec.ValidateMetricTagsAgainstSpec(t, metricsSpec, name, m, metrics, knownTagValues, false)
+							gpuspec.ValidateMetricTagsAgainstSpec(t, metricsSpec, name, m, metrics, knownTagValues)
 						})
 					}
 				})

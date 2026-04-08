@@ -371,7 +371,7 @@ func TestCheckRunMatchesSpecForPhysicalDevices(t *testing.T) {
 				require.True(t, ok, "metric emitted by check is missing from spec: %s", metricName)
 				require.True(t, metricSpec.SupportsArchitecture(archName), "metric %s emitted on unsupported architecture %s", metricName, archName)
 				require.True(t, metricSpec.SupportsDeviceMode(gpuspec.DeviceModePhysical), "metric %s emitted in unsupported physical mode", metricName)
-				gpuspec.ValidateMetricTagsAgainstSpec(t, metricsSpec, metricName, metricSpec, emittedSamples, nil, true)
+				gpuspec.ValidateMetricTagsAgainstSpec(t, metricsSpec, metricName, metricSpec, emittedSamples, nil)
 			}
 
 			slices.Sort(emittedNames)
