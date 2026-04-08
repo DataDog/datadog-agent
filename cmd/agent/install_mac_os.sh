@@ -6,7 +6,7 @@
 
 # Datadog Agent install script for macOS.
 set -e
-install_script_version=1.0.0
+install_script_version=2.0.0
 
 # Terminal color detection
 # Colors are enabled only when outputting to a terminal (not when piped/redirected)
