@@ -824,7 +824,7 @@ func newSyscallsEventSerializer(e *model.SyscallsEvent) *SyscallsEventSerializer
 	ses := SyscallsEventSerializer{}
 	for _, s := range e.Syscalls {
 		ses = append(ses, SyscallSerializer{
-			ID:   int(s),
+			ID:   s.ToInt(),
 			Name: s.String(),
 		})
 	}

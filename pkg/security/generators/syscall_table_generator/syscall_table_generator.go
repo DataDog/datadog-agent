@@ -32,12 +32,14 @@ func main() {
 		outputEnumPath     string
 		outputStringerPath string
 		abis               string
+		arch               string
 	)
 
 	flag.StringVar(&inputTableURL, "table-url", "", "URL of the table to use for the generation")
 	flag.StringVar(&outputEnumPath, "output", "", "Output path of the generated file with the constant declarations")
 	flag.StringVar(&outputStringerPath, "output-string", "", "Output path of the generated file with the stringer code")
 	flag.StringVar(&abis, "abis", "", "Comma separated list of ABIs to keep")
+	flag.StringVar(&arch, "arch", "", "Architecture")
 	flag.Parse()
 
 	if inputTableURL == "" || outputEnumPath == "" || outputStringerPath == "" {
@@ -63,7 +65,7 @@ func main() {
 		panic(err)
 	}
 
-	outputContent, err := generateEnumCode(syscalls)
+	outputContent, err := generateEnumCode(arch, syscalls)
 	if err != nil {
 		panic(err)
 	}
@@ -72,7 +74,7 @@ func main() {
 		panic(err)
 	}
 
-	if err := generateStringer(outputEnumPath, outputStringerPath); err != nil {
+	if err := generateStringer(outputEnumPath, outputStringerPath, arch); err != nil {
 		panic(err)
 	}
 }
@@ -181,25 +183,47 @@ const outputTemplateContent = `
 
 package model
 
+import (
+	"strings"	
+)
+
 // Syscall represents a syscall identifier
-type Syscall int
+type {{.Arch}}Syscall int
 
 // Linux syscall identifiers
 const (
-	{{- range .}}
-	Sys{{.CamelCaseName}} Syscall = {{.Number}}
+	{{- range .Syscalls}}
+	{{$.Arch}}Sys{{.CamelCaseName}} {{$.Arch}}Syscall = {{.Number}}
 	{{- end}}
 )
+
+// MarshalText maps the syscall identifier to UTF-8-encoded text and returns the result
+func (s {{.Arch}}Syscall) MarshalText() ([]byte, error) {
+	return []byte(strings.ToLower(strings.TrimPrefix(s.String(), "Sys"))), nil
+}
+
+// ToInt returns the syscall number
+func (s {{.Arch}}Syscall) ToInt() int {
+	return int(s)
+}
 `
 
-func generateEnumCode(syscalls []*syscallDefinition) (string, error) {
+func generateEnumCode(arch string, syscalls []*syscallDefinition) (string, error) {
 	tmpl, err := template.New("enum-code").Parse(outputTemplateContent)
 	if err != nil {
 		return "", err
 	}
 
+	data := struct {
+		Arch     string
+		Syscalls []*syscallDefinition
+	}{
+		Arch:     snakeToCamelCase(arch),
+		Syscalls: syscalls,
+	}
+
 	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, syscalls); err != nil {
+	if err := tmpl.Execute(&buf, data); err != nil {
 		return "", err
 	}
 
@@ -239,6 +263,6 @@ func writeFileAndFormat(outputPath string, content string) error {
 	return os.Rename(tmpfile.Name(), outputPath)
 }
 
-func generateStringer(inputPath, outputPath string) error {
-	return exec.Command("go", "run", "golang.org/x/tools/cmd/stringer", "-type", "Syscall", "-output", outputPath, inputPath).Run()
+func generateStringer(inputPath, outputPath string, arch string) error {
+	return exec.Command("go", "run", "golang.org/x/tools/cmd/stringer", "-type", snakeToCamelCase(arch)+"Syscall", "-output", outputPath, inputPath).Run()
 }

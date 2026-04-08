@@ -8,11 +8,27 @@
 // Package model holds model related files
 package model
 
-import (
-	"strings"
-)
+import "runtime"
 
-// MarshalText maps the syscall identifier to UTF-8-encoded text and returns the result
-func (s Syscall) MarshalText() ([]byte, error) {
-	return []byte(strings.ToLower(strings.TrimPrefix(s.String(), "Sys"))), nil
+// Syscall defines a syscall
+type Syscall interface {
+	MarshalText() ([]byte, error)
+	String() string
+	ToInt() int
+}
+
+// NewSyscall returns a new syscall
+func NewSyscall(num int) Syscall {
+	if runtime.GOARCH == "arm64" {
+		return Arm64Syscall(num)
+	}
+	return Amd64Syscall(num)
+}
+
+// NewSyscallByArch returns a new syscall for the given arch
+func NewSyscallByArch(num int, arch string) Syscall {
+	if arch == "arm64" {
+		return Arm64Syscall(num)
+	}
+	return Amd64Syscall(num)
 }

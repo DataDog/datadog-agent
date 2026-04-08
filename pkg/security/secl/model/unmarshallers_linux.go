@@ -1366,7 +1366,7 @@ func (e *SyscallsEvent) UnmarshalBinary(data []byte) (int, error) {
 		// compute the ID of the syscall
 		for j := 0; j < 8; j++ {
 			if b&(1<<j) > 0 {
-				e.Syscalls = append(e.Syscalls, Syscall(i*8+j))
+				e.Syscalls = append(e.Syscalls, NewSyscall(i*8+j))
 			}
 		}
 	}

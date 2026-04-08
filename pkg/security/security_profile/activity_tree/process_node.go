@@ -225,7 +225,7 @@ func (pn *ProcessNode) InsertSyscalls(e *model.Event, imageTag string, syscallMa
 newSyscallLoop:
 	for _, newSyscall := range e.Syscalls.Syscalls {
 		for _, existingSyscall := range pn.Syscalls {
-			if existingSyscall.Syscall == int(newSyscall) {
+			if existingSyscall.Syscall == newSyscall.ToInt() {
 				existingSyscall.AppendImageTag(imageTag, e.ResolveEventTime())
 				continue newSyscallLoop
 			}
@@ -236,8 +236,8 @@ newSyscallLoop:
 			// exit early
 			break
 		}
-		pn.Syscalls = append(pn.Syscalls, NewSyscallNode(int(newSyscall), e.ResolveEventTime(), imageTag, Runtime))
-		syscallMask[int(newSyscall)] = int(newSyscall)
+		pn.Syscalls = append(pn.Syscalls, NewSyscallNode(newSyscall.ToInt(), e.ResolveEventTime(), imageTag, Runtime))
+		syscallMask[newSyscall.ToInt()] = newSyscall.ToInt()
 		stats.SyscallNodes++
 	}
 
