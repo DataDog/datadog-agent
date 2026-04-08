@@ -1072,6 +1072,20 @@ new-e2e-ssi-openshift:
     E2E_PRE_INITIALIZED: "true"
     EXTRA_PARAMS: "-c ddinfra:gcp/openshift/pullSecretPath=/tmp/crc-pull-secret.json"
 
+new-e2e-ssi-gradual-rollout:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_ssi_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_dca
+    - qa_agent
+    - qa_agent_full
+  variables:
+    TARGETS: ./tests/ssi-gradual-rollout
+    TEAM: apm-release-platform
+
 .new-e2e_package_signing:
   variables:
     TARGETS: ./tests/agent-platform/tests
