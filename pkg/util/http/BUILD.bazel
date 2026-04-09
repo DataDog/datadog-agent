@@ -1,5 +1,8 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
+# FIXME(agent-build): remove and rerun gazelle once ABLD-409 is merged
+# gazelle:exclude warnings_mock.go
+
 go_library(
     name = "http",
     srcs = [
@@ -22,16 +25,15 @@ go_library(
 go_test(
     name = "http_test",
     srcs = [
-        # warnings_mock.go has //go:build test; move back to go_library srcs once ABLD-409 is resolved
-        "warnings_mock.go",  # keep
         "client_test.go",
         "helpers_test.go",
         "token_test.go",
         "transport_test.go",
+        "warnings_mock.go",  # keep: ABLD-409
         "warnings_test.go",
     ],
     embed = [":http"],
-    gotags = ["test"],  # keep: needed for //go:build test files in srcs; remove once ABLD-409 is resolved
+    gotags = ["test"],  # keep: ABLD-409
     deps = [
         "//pkg/config/mock",
         "//pkg/config/model",

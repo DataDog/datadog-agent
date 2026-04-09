@@ -1,5 +1,8 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
+# FIXME(agent-build): remove and rerun gazelle once ABLD-409 is merged
+# gazelle:exclude test_helpers.go
+
 go_library(
     name = "setup",
     srcs = [
@@ -12,7 +15,7 @@ go_library(
         "config_init.go",
         "config_init_serverless.go",
         "config_nix.go",
-        "config_test_accessor.go",  # keep: //go:build test; mutually exclusive with config_accessor.go (!test); remove once ABLD-409 resolved
+        "config_test_accessor.go",  # keep: ABLD-409
         "config_windows.go",
         "ipc_address.go",
         "multi_region_failover.go",
@@ -26,7 +29,7 @@ go_library(
         "system_probe_cws_notwin.go",
         "system_probe_cws_windows.go",
         "system_probe_usm.go",
-        "test_config_accessor.go",  # keep: ditto
+        "test_config_accessor.go",  # keep: ABLD-409
         "unexpectedunicodefinder.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/config/setup",
@@ -83,8 +86,6 @@ go_library(
 go_test(
     name = "setup_test",
     srcs = [
-        # test_helpers.go has //go:build test; move back to go_library srcs once ABLD-409 is resolved
-        "test_helpers.go",  # keep: ABLD-409
         "config_change_checker_test.go",
         "config_secret_test.go",
         "config_test.go",
@@ -92,10 +93,11 @@ go_test(
         "privateactionrunner_test.go",
         "process_test.go",
         "system_probe_test.go",
+        "test_helpers.go",  # keep: ABLD-409
         "unexpectedunicodefinder_test.go",
     ],
     embed = [":setup"],
-    gotags = ["test"],  # keep: needed for //go:build test files in srcs; remove once ABLD-409 is resolved
+    gotags = ["test"],  # keep: ABLD-409
     deps = [
         "//comp/core/delegatedauth/mock",
         "//comp/core/secrets/mock",
