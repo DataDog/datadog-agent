@@ -229,6 +229,17 @@ func TestCheckDuplicate(t *testing.T) {
 			rawHash:        "abc123",
 			wantConfigUUID: "",
 		},
+		{
+			name: "existing metadata has same capturedAt ts - should break by config UUID order",
+			existing: []ConfigMetadata{
+				{ConfigUUID: "uuid-1", DeviceID: "device:10.0.0.1", ConfigType: "running", CapturedAt: 100, RawHash: "hash123"},
+				{ConfigUUID: "uuid-2", DeviceID: "device:10.0.0.1", ConfigType: "running", CapturedAt: 100, RawHash: "hash345"}, // will win from config UUID
+			},
+			deviceID:       "device:10.0.0.1",
+			configType:     "running",
+			rawHash:        "hash678",
+			wantConfigUUID: "",
+		},
 	}
 
 	for _, tt := range tests {

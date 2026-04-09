@@ -200,7 +200,7 @@ func (cs *ConfigStore) CheckDuplicate(deviceID string, configType string, rawHas
 				return err
 			}
 			if current.DeviceID == deviceID && current.ConfigType == configType {
-				if latest == nil || current.CapturedAt > latest.CapturedAt {
+				if latest == nil || current.CapturedAt > latest.CapturedAt || (current.CapturedAt == latest.CapturedAt && current.ConfigUUID > latest.ConfigUUID) {
 					latest = &current
 				}
 			}
