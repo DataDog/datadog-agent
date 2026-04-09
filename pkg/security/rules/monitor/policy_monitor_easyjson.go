@@ -1456,6 +1456,12 @@ func easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor3(
 			} else {
 				out.Inherited = bool(in.Bool())
 			}
+		case "private":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Private = bool(in.Bool())
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -1587,6 +1593,16 @@ func easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor3(
 			out.RawString(prefix)
 		}
 		out.Bool(bool(in.Inherited))
+	}
+	if in.Private {
+		const prefix string = ",\"private\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.Bool(bool(in.Private))
 	}
 	out.RawByte('}')
 }
