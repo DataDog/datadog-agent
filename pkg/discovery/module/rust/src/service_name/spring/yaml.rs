@@ -25,17 +25,17 @@ enum State {
 /// Only two variants exist — a zero-count skip is impossible by construction.
 enum SkipCount {
     /// Skip one value (the value of a non-matching simple key).
-    One,
-    /// Skip two values (a complex key's subtree, then its value).
-    Two,
+    Value,
+    /// Skip a complex key's subtree, then its value.
+    KeyAndValue,
 }
 
 impl SkipCount {
     /// Consume one item. Returns `Some` if more items remain, `None` if done.
     fn decrement(self) -> Option<Self> {
         match self {
-            Self::Two => Some(Self::One),
-            Self::One => None,
+            Self::KeyAndValue => Some(Self::Value),
+            Self::Value => None,
         }
     }
 }
@@ -93,14 +93,14 @@ pub fn parse_yaml<R: Read>(mut reader: R, target_key: &str) -> Option<String> {
                 // Non-matching simple key: skip its value (1 item).
                 Event::Scalar(..) | Event::Alias(..) => State::Skip {
                     nesting: 0,
-                    count: SkipCount::One,
+                    count: SkipCount::Value,
                 },
                 // Non-matching complex key (mapping/sequence used as a key):
                 // skip the key's own subtree (nesting=1) plus its value,
                 // so count=2 top-level items to consume.
                 Event::MappingStart(..) | Event::SequenceStart(..) => State::Skip {
                     nesting: 1,
-                    count: SkipCount::Two,
+                    count: SkipCount::KeyAndValue,
                 },
                 _ => return None,
             },
