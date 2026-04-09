@@ -27,7 +27,6 @@ mod ephemeral;
 mod errors;
 pub mod ffi;
 mod fs;
-mod injector;
 mod language;
 mod netns;
 mod params;

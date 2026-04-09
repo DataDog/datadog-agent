@@ -24,7 +24,7 @@ jobs:
         id: octo-sts
         with:
           scope: DataDog/datadog-agent
-          policy: self.assign-issue.label-issue
+          policy: self.check-issue-status.label-issue
 
       - name: Check if the latest comment is from a datadog member
         id: datadog-comment

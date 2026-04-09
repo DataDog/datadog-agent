@@ -4,9 +4,7 @@ load("//compliance:package_licenses.bzl", "package_licenses")
 
 filegroup(
     name = "all_deps",
-    srcs = [
-        "//deps:all_deps",
-    ],
+    srcs = [],
 )
 
 package_licenses(

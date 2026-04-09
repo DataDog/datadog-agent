@@ -238,6 +238,7 @@ type RuleSetAction struct {
 	Size         int         `json:"size,omitempty"`
 	TTL          string      `json:"ttl,omitempty"`
 	Inherited    bool        `json:"inherited,omitempty"`
+	Private      bool        `json:"private,omitempty"`
 }
 
 // RuleKillAction is used to report the 'kill' action
@@ -352,6 +353,7 @@ func RuleStateFromRule(rule *rules.PolicyRule, policy *rules.PolicyInfo, status 
 				Size:         action.Def.Set.Size,
 				Inherited:    action.Def.Set.Inherited,
 				ScopeField:   action.Def.Set.ScopeField,
+				Private:      action.Def.Set.Private,
 			}
 			if action.Def.Set.TTL != nil {
 				ruleAction.Set.TTL = action.Def.Set.TTL.String()
