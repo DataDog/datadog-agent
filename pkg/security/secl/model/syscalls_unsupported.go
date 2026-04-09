@@ -28,11 +28,11 @@ func (s UnsupportedSyscall) String() string {
 }
 
 // NewSyscall returns a new syscall
-func NewSyscall(num int) Syscall {
+func NewSyscall(_ int) Syscall {
 	return UnsupportedSyscall(0)
 }
 
 // NewSyscallByArch returns a new syscall for the given arch
-func NewSyscallByArch(num int, arch string) Syscall {
+func NewSyscallByArch(_ int, _ string) Syscall {
 	return UnsupportedSyscall(0)
 }
