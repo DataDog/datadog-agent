@@ -1118,6 +1118,14 @@ def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, runtime_dir: str,
     print(f"Copied runtime hash files to {go_dest}")
 
 
+# Paths under bazel-bin -> repo-relative destinations (also removed by clean_object_files).
+_BAZEL_WINDOWS_RESOURCE_COPIES = (
+    ("pkg/util/winutil/messagestrings/rsrc.syso", "pkg/util/winutil/messagestrings/rsrc.syso"),
+    ("pkg/util/winutil/messagestrings/messagestrings.h", "pkg/util/winutil/messagestrings/messagestrings.h"),
+    ("cmd/system-probe/windows_resources/rsrc.syso", "cmd/system-probe/rsrc.syso"),
+)
+
+
 def bazel_build_windows_resources(ctx: Context) -> None:
     """Build Windows resource files (.syso) via Bazel and copy to the source tree.
 
@@ -1135,17 +1143,7 @@ def bazel_build_windows_resources(ctx: Context) -> None:
     bazel(ctx, "build", *targets)
     bazel_bin = bazel(ctx, "info", "bazel-bin", capture_output=True).strip()
 
-    copies = [
-        (
-            os.path.join(bazel_bin, "pkg/util/winutil/messagestrings/rsrc.syso"),
-            "pkg/util/winutil/messagestrings/rsrc.syso",
-        ),
-        (
-            os.path.join(bazel_bin, "pkg/util/winutil/messagestrings/messagestrings.h"),
-            "pkg/util/winutil/messagestrings/messagestrings.h",
-        ),
-        (os.path.join(bazel_bin, "cmd/system-probe/windows_resources/rsrc.syso"), "cmd/system-probe/rsrc.syso"),
-    ]
+    copies = [(os.path.join(bazel_bin, bazel_rel), dst) for bazel_rel, dst in _BAZEL_WINDOWS_RESOURCE_COPIES]
     for src, dst in copies:
         os.makedirs(os.path.dirname(dst), exist_ok=True)
         shutil.copyfile(src, dst)
@@ -1287,6 +1285,19 @@ def clean_object_files(ctx):
         for candidate in [Path(dest_dir) / f"{name}.o", Path(dest_dir) / name]:
             if candidate.exists():
                 candidate.unlink()
+
+    go_runtime = Path("pkg/ebpf/bytecode/runtime")
+    for target in _BAZEL_RUNTIME_GEN_TARGETS:
+        name = target.rsplit(":", 1)[1]
+        bundle_name = name.removesuffix("_gen")
+        candidate = go_runtime / f"{bundle_name}.go"
+        if candidate.exists():
+            candidate.unlink()
+
+    for _, dst in _BAZEL_WINDOWS_RESOURCE_COPIES:
+        p = Path(dst)
+        if p.exists():
+            p.unlink()
 
 
 @task
