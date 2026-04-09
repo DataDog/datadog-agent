@@ -17,11 +17,9 @@ proto_library(
 rust_prost_library(
     name = "process_manager_rust_proto",
     proto = ":process_manager_proto",
-    target_compatible_with = select({
-        "@platforms//os:linux": [],
-        "@platforms//os:windows": [],
-        "//conditions:default": ["@platforms//:incompatible"],
-    }),
+    # Keep Linux-only: rust_prost_library requires a prost toolchain that
+    # is only configured for Linux. Widen when a Windows toolchain exists.
+    target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
 )
 
