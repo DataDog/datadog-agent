@@ -57,8 +57,10 @@ pub fn parse_yaml<R: Read>(mut reader: R, target_key: &str) -> Option<String> {
     let mut state = State::Preamble;
     // Safety limit: the event count is bounded by input size (capped at
     // 1 MiB by MAX_PARSE_FILE_SIZE), but guard against parser bugs that
-    // could produce infinite events.
-    let max_events = content.len().saturating_mul(10).max(100);
+    // could produce infinite events. The densest YAML (flow sequences/
+    // mappings) yields at most ~0.5 events per byte, so 2x gives
+    // comfortable headroom.
+    let max_events = content.len().saturating_mul(2).max(100);
 
     // Each YAML event drives a state transition. The parser walks a
     // path like "spring" → "application" → "name" by matching key
