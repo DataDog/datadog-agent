@@ -432,8 +432,14 @@ func (r *domainResolver) GetAuthorizers() (res []authHeader) {
 	return
 }
 
-func (r *domainResolver) Authorize(apiKeyIdx int, headers http.Header) {
-	r.GetAuthorizers()[apiKeyIdx].Authorize(headers)
+func (r *domainResolver) Authorize(apiKeyIdx int, headers http.Header, log log.Component) {
+	authorizers := r.GetAuthorizers()
+
+	if apiKeyIdx < len(authorizers) {
+		r.GetAuthorizers()[apiKeyIdx].Authorize(headers)
+	} else {
+		log.Errorf("API key index %d is greater than the number of available authorizers (%d)", apiKeyIdx, len(authorizers))
+	}
 }
 
 // GetConfigName returns the base url as it was originally written in the config.

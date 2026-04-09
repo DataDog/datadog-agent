@@ -225,7 +225,7 @@ func (d Destination) String() string {
 }
 
 type Authorizer interface {
-	Authorize(apiKeyIdx int, headers http.Header)
+	Authorize(apiKeyIdx int, headers http.Header, log log.Component)
 }
 
 // HTTPTransaction represents one Payload for one Endpoint on one Domain.
@@ -398,7 +398,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 		req.Header[k] = v
 	}
 	if t.Resolver != nil {
-		t.Resolver.Authorize(t.APIKeyIndex, req.Header)
+		t.Resolver.Authorize(t.APIKeyIndex, req.Header, log)
 	}
 	log.Tracef("Sending %s request to %s with body size %d and headers %v", req.Method, logURL, len(payload), t.Headers)
 	resp, err := client.Do(req)

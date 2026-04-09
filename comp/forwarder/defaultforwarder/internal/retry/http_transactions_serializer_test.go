@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
@@ -23,9 +24,9 @@ import (
 )
 
 // resolveKey applies the transaction's resolver at its stored index and returns the DD-Api-Key value.
-func resolveKey(txn *transaction.HTTPTransaction) string {
+func resolveKey(txn *transaction.HTTPTransaction, log log.Component) string {
 	h := make(http.Header)
-	txn.Resolver.Authorize(txn.APIKeyIndex, h)
+	txn.Resolver.Authorize(txn.APIKeyIndex, h, log)
 	return h.Get("DD-Api-Key")
 }
 
@@ -343,7 +344,7 @@ func TestDeserializedTransactionAuthorize(t *testing.T) {
 
 		deserialized := txns[0].(*transaction.HTTPTransaction)
 		assert.Empty(t, deserialized.Headers.Get("DD-Api-Key"), "t.Headers must never hold the API key")
-		assert.Equal(t, expectedKey, resolveKey(deserialized),
+		assert.Equal(t, expectedKey, resolveKey(deserialized, log),
 			"Authorize() should set DD-Api-Key to the key at index %d", wantIdx)
 	}
 }
@@ -376,7 +377,7 @@ func TestDeserializedTransactionAuthorizeMultipleKeys(t *testing.T) {
 	for _, txn := range txns {
 		d := txn.(*transaction.HTTPTransaction)
 		assert.Empty(t, d.Headers.Get("DD-Api-Key"), "t.Headers must never hold the API key")
-		gotKeys[d.APIKeyIndex] = resolveKey(d)
+		gotKeys[d.APIKeyIndex] = resolveKey(d, log)
 	}
 
 	for idx, expectedKey := range expectedKeys {
@@ -422,7 +423,7 @@ func TestDeserializeV2BackwardCompat(t *testing.T) {
 
 	// Authorize() applies the key at index 0 (apiKey1).
 	r.NotPanics(func() {
-		r.Equal(apiKey1, resolveKey(deserialized))
+		r.Equal(apiKey1, resolveKey(deserialized, log))
 	})
 }
 
@@ -529,7 +530,7 @@ func TestV1IndexExtraction(t *testing.T) {
 
 		// Authorize() should apply the correct key.
 		dedupedKeys := res.GetAPIKeys() // [apiKey3, apiKey1, apiKey2]
-		assert.Equal(t, dedupedKeys[wantIdx], resolveKey(deserialized),
+		assert.Equal(t, dedupedKeys[wantIdx], resolveKey(deserialized, log),
 			"Authorize() key at current index %d", wantIdx)
 	}
 }
@@ -612,7 +613,7 @@ func TestDeserializeV2(t *testing.T) {
 			// The placeholder has been stripped; the raw key is not in headers.
 			r.Empty(txn.Headers.Get("Key"), "Headers must not contain the API key value")
 			// Authorize() applies the correct key.
-			r.Equal(expectedKeys[i], resolveKey(txn))
+			r.Equal(expectedKeys[i], resolveKey(txn, log))
 			r.Equal(domain, txn.Domain)
 			// Placeholder is stripped from the route too.
 			r.Equal("route", txn.Endpoint.Route)

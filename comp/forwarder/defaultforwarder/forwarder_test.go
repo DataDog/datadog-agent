@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
@@ -32,9 +33,9 @@ import (
 )
 
 // resolveKey applies the transaction's resolver at its stored index and returns the DD-Api-Key value.
-func resolveKey(txn *transaction.HTTPTransaction) string {
+func resolveKey(txn *transaction.HTTPTransaction, log log.Component) string {
 	h := make(http.Header)
-	txn.Resolver.Authorize(txn.APIKeyIndex, h)
+	txn.Resolver.Authorize(txn.APIKeyIndex, h, log)
 	return h.Get("DD-Api-Key")
 }
 
@@ -233,7 +234,7 @@ func TestCreateHTTPTransactions(t *testing.T) {
 	assert.Equal(t, endpoint.Route, transactions[2].Endpoint.Route)
 	assert.Equal(t, endpoint.Route, transactions[3].Endpoint.Route)
 	assert.Len(t, transactions[0].Headers, 3)
-	assert.NotEmpty(t, resolveKey(transactions[0]))
+	assert.NotEmpty(t, resolveKey(transactions[0], log))
 	assert.Empty(t, transactions[0].Headers.Get("DD-Api-Key"))
 	assert.NotEmpty(t, transactions[0].Headers.Get("HTTP-MAGIC"))
 	assert.Equal(t, version.AgentVersion, transactions[0].Headers.Get("DD-Agent-Version"))
@@ -276,8 +277,8 @@ func TestCreateHTTPTransactionsWithMultipleDomains(t *testing.T) {
 	assert.Equal(t, len(txNormal), 2, "Two transactions should target the normal domain")
 	assert.Equal(t, len(txBar), 1, "One transactions should target the normal domain")
 
-	key0 := resolveKey(txNormal[0])
-	key1 := resolveKey(txNormal[1])
+	key0 := resolveKey(txNormal[0], log)
+	key1 := resolveKey(txNormal[1], log)
 	if key0 == "api-key-1" {
 		assert.Equal(t, "api-key-1", key0)
 		assert.Equal(t, "api-key-2", key1)
@@ -286,7 +287,7 @@ func TestCreateHTTPTransactionsWithMultipleDomains(t *testing.T) {
 		assert.Equal(t, "api-key-1", key1)
 	}
 
-	assert.Equal(t, "api-key-3", resolveKey(txBar[0]))
+	assert.Equal(t, "api-key-3", resolveKey(txBar[0], log))
 }
 
 func TestCreateHTTPTransactionsWithDifferentResolvers(t *testing.T) {
@@ -327,8 +328,8 @@ func TestCreateHTTPTransactionsWithDifferentResolvers(t *testing.T) {
 	assert.Equal(t, len(txNormal), 2, "Two transactions should target the normal domain")
 	assert.Equal(t, len(txBar), 1, "One transactions should target the normal domain")
 
-	key0 := resolveKey(txNormal[0])
-	key1 := resolveKey(txNormal[1])
+	key0 := resolveKey(txNormal[0], log)
+	key1 := resolveKey(txNormal[1], log)
 	if key0 == "api-key-1" {
 		assert.Equal(t, "api-key-1", key0)
 		assert.Equal(t, "api-key-2", key1)
@@ -336,8 +337,8 @@ func TestCreateHTTPTransactionsWithDifferentResolvers(t *testing.T) {
 		assert.Equal(t, "api-key-2", key0)
 		assert.Equal(t, "api-key-1", key1)
 	}
-	assert.Equal(t, "api-key-3", resolveKey(txBar[0]))
-	assert.Equal(t, "api-key-4", resolveKey(txVector[0]))
+	assert.Equal(t, "api-key-3", resolveKey(txBar[0], log))
+	assert.Equal(t, "api-key-4", resolveKey(txVector[0], log))
 }
 
 func TestCreateHTTPTransactionsWithOverrides(t *testing.T) {
