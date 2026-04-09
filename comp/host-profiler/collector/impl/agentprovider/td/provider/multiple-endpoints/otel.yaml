@@ -15,7 +15,6 @@ exporters:
         metrics_endpoint: https://otlp.datadoghq.eu/v1/metrics
         profiles_endpoint: https://intake.profile.datadoghq.eu/v1development/profiles
 extensions:
-    ddprofiling/default: {}
     hpflare/default: {}
 processors:
     infraattributes/default:
@@ -34,6 +33,8 @@ receivers:
                 - api_key: main_api_key
                   site: datadoghq.com
 service:
+    extensions:
+        - hpflare/default
     pipelines:
         profiles:
             exporters:

@@ -230,6 +230,16 @@ func TestProvider(t *testing.T) {
 			agentConfig:  "provider/add-headers-debug/agent.yaml",
 			expectedOTel: "provider/add-headers-debug/otel.yaml",
 		},
+		{
+			name:         "ddprofiling-enabled",
+			agentConfig:  "provider/ddprofiling-enabled/agent.yaml",
+			expectedOTel: "provider/ddprofiling-enabled/otel.yaml",
+		},
+		{
+			name:         "ddprofiling-period",
+			agentConfig:  "provider/ddprofiling-period/agent.yaml",
+			expectedOTel: "provider/ddprofiling-period/otel.yaml",
+		},
 	}
 
 	for _, tt := range tests {

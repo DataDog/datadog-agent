@@ -21,7 +21,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/sender v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/sources v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.64.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.73.0-rc.5
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/datadog-agent/pkg/util/option v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/startstop v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.59.0
@@ -42,6 +42,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/status v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.73.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/comp/logs-library v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/basic v0.0.0-20260211235139-a5361978c2b6 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/buildschema v0.0.0-00010101000000-000000000000 // indirect

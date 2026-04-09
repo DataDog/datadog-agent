@@ -72,6 +72,22 @@ where
     Ok(())
 }
 
+pub async fn connect(path: &Path) -> Result<tonic::transport::Channel> {
+    let path = path.to_path_buf();
+    let channel = tonic::transport::Endpoint::from_static(DUMMY_ENDPOINT)
+        .connect_with_connector(tower::service_fn(move |_| {
+            let p = path.clone();
+            async move {
+                tokio::net::UnixStream::connect(p)
+                    .await
+                    .map(hyper_util::rt::TokioIo::new)
+            }
+        }))
+        .await
+        .context("failed to connect to Unix socket")?;
+    Ok(channel)
+}
+
 pub fn cleanup(path: &Path) {
     match std::fs::remove_file(path) {
         Ok(()) => {}
