@@ -142,6 +142,10 @@ build do
             # removing the local folder to reduce package size by ~0.5MB
             delete "#{install_dir}/embedded/share/locale"
 
+            # Drop bundled unit-test directories from embedded Python wheels/deps (not used at agent runtime).
+            # Deepest paths first so nested tests/ trees are removed safely.
+            command "find #{install_dir}/embedded/lib -path '*/site-packages/*' -depth -type d -name tests -exec rm -rf {} +"
+
             # remove some debug ebpf object files to reduce the size of the package
             delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/oom-kill-debug.o"
             delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/tcp-queue-length-debug.o"

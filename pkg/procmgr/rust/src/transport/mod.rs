@@ -1,14 +1,14 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2026-present Datadog, Inc.
 
-//go:build jetson
+#[cfg(unix)]
+mod uds;
+#[cfg(unix)]
+pub use self::uds::*;
 
-package run
-
-import "go.uber.org/fx"
-
-func getSnmptrapsOptions() fx.Option {
-	return fx.Options()
-}
+#[cfg(windows)]
+mod named_pipe;
+#[cfg(windows)]
+pub use self::named_pipe::*;
