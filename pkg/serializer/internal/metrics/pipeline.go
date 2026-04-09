@@ -84,7 +84,7 @@ type forwarder interface {
 
 func (dest *PipelineDestination) send(payloads transaction.BytesPayloads, forwarder forwarder, headers http.Header) error {
 	domain := dest.Resolver.Resolve(dest.Endpoint)
-	for _, auth := range dest.Resolver.GetAuthorizers() {
+	for idx := range dest.Resolver.GetAuthorizers() {
 		for seq, payload := range payloads {
 			txn := transaction.NewHTTPTransaction()
 			txn.Domain = domain
@@ -99,7 +99,9 @@ func (dest *PipelineDestination) send(payloads transaction.BytesPayloads, forwar
 				txn.Headers.Set("X-Metrics-Request-Len", strconv.Itoa(len(payloads)))
 			}
 
-			auth.Authorize(txn.Headers)
+			txn.APIKeyIndex = idx
+			txn.Resolver = dest.Resolver
+
 			err := forwarder.SubmitTransaction(txn)
 			if err != nil {
 				return err
