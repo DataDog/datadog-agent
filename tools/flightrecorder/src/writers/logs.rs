@@ -3,32 +3,62 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
-use arrow::array::{ArrayRef, BinaryArray, Int64Array};
+use arrow::array::{ArrayRef, BinaryArray, Int64Array, MapBuilder, StringBuilder};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::record_batch::RecordBatch;
 
 use super::apply_permutation;
 use super::intern::StringInterner;
 use super::parquet_helpers::{dict_utf8_type, interner_to_dict_array, BaseWriter};
-use super::tags::{decompose_tags_into_interners, LOG_RESERVED_KEYS};
 use super::thread::{SignalWriter, WriterStats};
 use crate::generated::signals_generated::signals;
 
-/// Schema for the logs Parquet file (10 columns).
+/// Reserved tag keys extracted into their own dictionary-encoded columns.
+const RESERVED_KEYS: &[&str] = &["service", "env", "version", "team"];
+
+/// Schema for the logs Parquet file.
+///
+/// Reserved tags (service, env, version, team) get dedicated dictionary-encoded
+/// columns. All other tags go into a `tags` MAP<string, string> column for
+/// direct key-value queries (e.g. `WHERE tags['custom_key'] = 'value'`).
 fn logs_schema() -> Arc<Schema> {
     let dt = dict_utf8_type();
+    let map_field = Field::new(
+        "tags",
+        DataType::Map(
+            Arc::new(Field::new(
+                "entries",
+                DataType::Struct(
+                    vec![
+                        Field::new("keys", DataType::Utf8, false),
+                        Field::new("values", DataType::Utf8, true),
+                    ]
+                    .into(),
+                ),
+                false,
+            )),
+            false,
+        ),
+        true,
+    );
     Arc::new(Schema::new(vec![
         Field::new("hostname", dt.clone(), false),
         Field::new("source", dt.clone(), false),
         Field::new("status", dt.clone(), false),
-        Field::new("tag_service", dt.clone(), false),
-        Field::new("tag_env", dt.clone(), false),
-        Field::new("tag_version", dt.clone(), false),
-        Field::new("tag_team", dt.clone(), false),
-        Field::new("tags_overflow", dt, false),
+        Field::new("service", dt.clone(), false),
+        Field::new("env", dt.clone(), false),
+        Field::new("version", dt.clone(), false),
+        Field::new("team", dt, false),
+        map_field,
         Field::new("content", DataType::Binary, false),
         Field::new("timestamp_ns", DataType::Int64, false),
     ]))
+}
+
+/// Overflow tag key-value pair.
+struct TagKV {
+    key: String,
+    value: String,
 }
 
 /// Columnar accumulator for log entries.
@@ -39,11 +69,13 @@ pub struct LogsWriter {
     hostnames: StringInterner,
     sources: StringInterner,
     statuses: StringInterner,
-    tag_service: StringInterner,
-    tag_env: StringInterner,
-    tag_version: StringInterner,
-    tag_team: StringInterner,
-    tags_overflow: StringInterner,
+    service: StringInterner,
+    env: StringInterner,
+    version: StringInterner,
+    team: StringInterner,
+
+    // Overflow tags as key-value pairs per row.
+    overflow_tags: Vec<Vec<TagKV>>,
 
     // Plain columnar buffers.
     contents: Vec<Vec<u8>>,
@@ -62,11 +94,12 @@ impl LogsWriter {
             hostnames: StringInterner::with_capacity(flush_rows),
             sources: StringInterner::with_capacity(flush_rows),
             statuses: StringInterner::with_capacity(flush_rows),
-            tag_service: StringInterner::with_capacity(flush_rows),
-            tag_env: StringInterner::with_capacity(flush_rows),
-            tag_version: StringInterner::with_capacity(flush_rows),
-            tag_team: StringInterner::with_capacity(flush_rows),
-            tags_overflow: StringInterner::with_capacity(flush_rows),
+            service: StringInterner::with_capacity(flush_rows),
+            env: StringInterner::with_capacity(flush_rows),
+            version: StringInterner::with_capacity(flush_rows),
+            team: StringInterner::with_capacity(flush_rows),
+
+            overflow_tags: Vec::with_capacity(flush_rows),
 
             contents: Vec::with_capacity(flush_rows),
             timestamps: Vec::with_capacity(flush_rows),
@@ -89,17 +122,54 @@ impl LogsWriter {
                 self.sources.intern(e.source().unwrap_or(""));
                 self.statuses.intern(e.status().unwrap_or(""));
 
-                decompose_tags_into_interners(
-                    e.tags(),
-                    LOG_RESERVED_KEYS,
-                    &mut [
-                        &mut self.tag_service,
-                        &mut self.tag_env,
-                        &mut self.tag_version,
-                        &mut self.tag_team,
-                    ],
-                    &mut self.tags_overflow,
-                );
+                // Decompose tags into reserved columns + overflow MAP.
+                let mut reserved_found = [false; 4];
+                let mut overflow = Vec::new();
+
+                if let Some(tl) = e.tags() {
+                    for j in 0..tl.len() {
+                        let tag = tl.get(j);
+                        if let Some(colon) = tag.find(':') {
+                            let key = &tag[..colon];
+                            let value = &tag[colon + 1..];
+                            if let Some(idx) = RESERVED_KEYS.iter().position(|&k| k == key) {
+                                [
+                                    &mut self.service,
+                                    &mut self.env,
+                                    &mut self.version,
+                                    &mut self.team,
+                                ][idx]
+                                    .intern(value);
+                                reserved_found[idx] = true;
+                                continue;
+                            }
+                            overflow.push(TagKV {
+                                key: key.to_string(),
+                                value: value.to_string(),
+                            });
+                        } else {
+                            overflow.push(TagKV {
+                                key: tag.to_string(),
+                                value: String::new(),
+                            });
+                        }
+                    }
+                }
+
+                // Intern "" for reserved keys not found in this row.
+                let interners = [
+                    &mut self.service,
+                    &mut self.env,
+                    &mut self.version,
+                    &mut self.team,
+                ];
+                for (idx, found) in reserved_found.iter().enumerate() {
+                    if !found {
+                        interners[idx].intern("");
+                    }
+                }
+
+                self.overflow_tags.push(overflow);
 
                 self.contents.push(
                     e.content().map(|c| c.bytes().to_vec()).unwrap_or_default(),
@@ -125,11 +195,11 @@ impl LogsWriter {
         let (hostname_vals, hostname_codes) = self.hostnames.take();
         let (source_vals, source_codes) = self.sources.take();
         let (status_vals, status_codes) = self.statuses.take();
-        let (service_vals, service_codes) = self.tag_service.take();
-        let (env_vals, env_codes) = self.tag_env.take();
-        let (version_vals, version_codes) = self.tag_version.take();
-        let (team_vals, team_codes) = self.tag_team.take();
-        let (overflow_vals, overflow_codes) = self.tags_overflow.take();
+        let (service_vals, service_codes) = self.service.take();
+        let (env_vals, env_codes) = self.env.take();
+        let (version_vals, version_codes) = self.version.take();
+        let (team_vals, team_codes) = self.team.take();
+        let overflow_tags = std::mem::take(&mut self.overflow_tags);
         let contents = std::mem::take(&mut self.contents);
         let timestamps = std::mem::take(&mut self.timestamps);
 
@@ -142,6 +212,17 @@ impl LogsWriter {
             sorted_contents.iter().map(|v| v.as_slice()),
         ));
 
+        // Build the overflow tags MAP column in sorted order.
+        let sorted_overflow = apply_permutation(overflow_tags, &order);
+        let mut map_builder = MapBuilder::new(None, StringBuilder::new(), StringBuilder::new());
+        for row_tags in &sorted_overflow {
+            for kv in row_tags {
+                map_builder.keys().append_value(&kv.key);
+                map_builder.values().append_value(&kv.value);
+            }
+            map_builder.append(true).unwrap();
+        }
+
         let columns: Vec<ArrayRef> = vec![
             Arc::new(interner_to_dict_array(hostname_vals, hostname_codes, &order)),
             Arc::new(interner_to_dict_array(source_vals, source_codes, &order)),
@@ -150,7 +231,7 @@ impl LogsWriter {
             Arc::new(interner_to_dict_array(env_vals, env_codes, &order)),
             Arc::new(interner_to_dict_array(version_vals, version_codes, &order)),
             Arc::new(interner_to_dict_array(team_vals, team_codes, &order)),
-            Arc::new(interner_to_dict_array(overflow_vals, overflow_codes, &order)),
+            Arc::new(map_builder.finish()) as ArrayRef,
             content_array,
             Arc::new(Int64Array::from_iter_values(
                 order.iter().map(|&i| timestamps[i]),
@@ -225,11 +306,13 @@ mod tests {
             w.hostnames.intern("host1");
             w.sources.intern("app");
             w.statuses.intern("info");
-            w.tag_service.intern("");
-            w.tag_env.intern("test");
-            w.tag_version.intern("");
-            w.tag_team.intern("");
-            w.tags_overflow.intern("");
+            w.service.intern("api");
+            w.env.intern("test");
+            w.version.intern("");
+            w.team.intern("");
+            w.overflow_tags.push(vec![
+                TagKV { key: "custom".to_string(), value: format!("val{i}") },
+            ]);
             w.contents.push(format!("log line {i}").into_bytes());
             w.timestamps.push(i as i64 * 1000);
         }
@@ -250,67 +333,14 @@ mod tests {
     }
 
     #[test]
-    fn test_binary_content_roundtrip() {
+    fn test_column_names() {
         let dir = tempdir().unwrap();
         let mut w = make_writer(dir.path());
-        let binary_data = vec![0u8, 1, 2, 3, 255, 0];
-        w.hostnames.intern("h");
-        w.sources.intern("");
-        w.statuses.intern("info");
-        w.tag_service.intern("");
-        w.tag_env.intern("");
-        w.tag_version.intern("");
-        w.tag_team.intern("");
-        w.tags_overflow.intern("");
-        w.contents.push(binary_data.clone());
-        w.timestamps.push(42);
+        add_rows(&mut w, 1);
 
         let path = w.flush().unwrap();
         w.base.close().unwrap();
         let batch = read_parquet(&path);
-        assert_eq!(batch.num_rows(), 1);
-
-        // Verify binary content roundtrip.
-        let content_col = batch
-            .column_by_name("content")
-            .unwrap()
-            .as_any()
-            .downcast_ref::<arrow::array::BinaryArray>()
-            .unwrap();
-        assert_eq!(content_col.value(0), binary_data.as_slice());
-    }
-
-    #[test]
-    fn test_roundtrip_logs_inline() {
-        let dir = tempdir().unwrap();
-        let mut w = make_writer(dir.path());
-
-        w.hostnames.intern("server1");
-        w.sources.intern("syslog");
-        w.statuses.intern("warn");
-        w.tag_service.intern("");
-        w.tag_env.intern("");
-        w.tag_version.intern("");
-        w.tag_team.intern("ops");
-        w.tags_overflow.intern("");
-        w.contents.push(b"hello world".to_vec());
-        w.timestamps.push(12345);
-
-        w.hostnames.intern("server2");
-        w.sources.intern("app");
-        w.statuses.intern("error");
-        w.tag_service.intern("");
-        w.tag_env.intern("prod");
-        w.tag_version.intern("");
-        w.tag_team.intern("sre");
-        w.tags_overflow.intern("");
-        w.contents.push(b"something went wrong".to_vec());
-        w.timestamps.push(67890);
-
-        let path = w.flush().unwrap();
-        w.base.close().unwrap();
-        let batch = read_parquet(&path);
-        assert_eq!(batch.num_rows(), 2);
 
         let schema = batch.schema();
         let col_names: Vec<&str> = schema
@@ -321,19 +351,75 @@ mod tests {
         assert_eq!(
             col_names,
             vec![
-                "hostname", "source", "status", "tag_service", "tag_env",
-                "tag_version", "tag_team", "tags_overflow", "content", "timestamp_ns",
+                "hostname", "source", "status", "service", "env",
+                "version", "team", "tags", "content", "timestamp_ns",
             ]
         );
+    }
 
-        // Verify hostnames (sorted by timestamp: 12345, 67890).
-        let hostname_col = batch.column_by_name("hostname").unwrap();
-        let dict = hostname_col.as_dictionary::<UInt32Type>();
+    #[test]
+    fn test_overflow_tags_map() {
+        let dir = tempdir().unwrap();
+        let mut w = make_writer(dir.path());
+
+        w.hostnames.intern("h1");
+        w.sources.intern("src");
+        w.statuses.intern("info");
+        w.service.intern("api");
+        w.env.intern("prod");
+        w.version.intern("1.0");
+        w.team.intern("platform");
+        w.overflow_tags.push(vec![
+            TagKV { key: "region".to_string(), value: "us-east-1".to_string() },
+            TagKV { key: "cluster".to_string(), value: "main".to_string() },
+        ]);
+        w.contents.push(b"test log".to_vec());
+        w.timestamps.push(1000);
+
+        let path = w.flush().unwrap();
+        w.base.close().unwrap();
+        let batch = read_parquet(&path);
+
+        // Verify the tags column is a MAP
+        let tags_col = batch.column_by_name("tags").unwrap();
+        let map = tags_col.as_map();
+        assert_eq!(map.len(), 1); // 1 row
+
+        // Verify the service column has no tag_ prefix and contains the value
+        let service_col = batch.column_by_name("service").unwrap();
+        let dict = service_col.as_dictionary::<UInt32Type>();
         let vals = dict.values().as_string::<i32>();
-        let h0 = vals.value(dict.keys().value(0) as usize);
-        let h1 = vals.value(dict.keys().value(1) as usize);
-        assert_eq!(h0, "server1");
-        assert_eq!(h1, "server2");
+        assert_eq!(vals.value(dict.keys().value(0) as usize), "api");
+    }
+
+    #[test]
+    fn test_binary_content_roundtrip() {
+        let dir = tempdir().unwrap();
+        let mut w = make_writer(dir.path());
+        let binary_data = vec![0u8, 1, 2, 3, 255, 0];
+        w.hostnames.intern("h");
+        w.sources.intern("");
+        w.statuses.intern("info");
+        w.service.intern("");
+        w.env.intern("");
+        w.version.intern("");
+        w.team.intern("");
+        w.overflow_tags.push(vec![]);
+        w.contents.push(binary_data.clone());
+        w.timestamps.push(42);
+
+        let path = w.flush().unwrap();
+        w.base.close().unwrap();
+        let batch = read_parquet(&path);
+        assert_eq!(batch.num_rows(), 1);
+
+        let content_col = batch
+            .column_by_name("content")
+            .unwrap()
+            .as_any()
+            .downcast_ref::<arrow::array::BinaryArray>()
+            .unwrap();
+        assert_eq!(content_col.value(0), binary_data.as_slice());
     }
 
     #[test]
@@ -353,7 +439,6 @@ mod tests {
         let path = w.flush().unwrap();
         assert_eq!(w.base.flush_count, 1);
         assert_eq!(w.base.rows_written, 10);
-        // flush_bytes is updated on file rotation/close.
         w.base.close().unwrap();
         assert!(w.base.flush_bytes > 0);
         assert_eq!(w.base.flush_bytes, std::fs::metadata(&path).unwrap().len());

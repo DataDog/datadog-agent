@@ -1,39 +1,34 @@
-use std::path::PathBuf;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+//! Periodic disk cleanup using the in-memory DiskTracker.
+//!
+//! Runs every second. Calls `tracker.enforce_cap()` which deletes the
+//! oldest signal files until disk usage is within the configured cap.
+//! No filesystem scan needed — the tracker maintains an in-memory accounting
+//! of all signal files.
+
+use std::sync::Arc;
+use std::time::Duration;
 
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, info, warn};
+use tracing::info;
 
-use crate::signal_files;
+use crate::disk_tracker::DiskTracker;
 
-/// Periodically cleans up old `.parquet` signal files based on time-based
-/// retention and an optional disk usage cap.
+/// Periodically enforces the disk cap by deleting the oldest signal files.
 pub struct Janitor {
-    output_dir: PathBuf,
-    retention: Duration,
-    max_disk_bytes: u64, // 0 = unlimited
+    tracker: Arc<DiskTracker>,
     interval: Duration,
 }
 
 impl Janitor {
-    pub fn new(
-        output_dir: &str,
-        retention: Duration,
-        max_disk_bytes: u64,
-    ) -> Self {
+    pub fn new(tracker: Arc<DiskTracker>) -> Self {
         Self {
-            output_dir: PathBuf::from(output_dir),
-            retention,
-            max_disk_bytes,
-            interval: Duration::from_secs(30),
+            tracker,
+            interval: Duration::from_secs(1),
         }
     }
 
     pub async fn run(self, cancel: CancellationToken) {
         info!(
-            output_dir = %self.output_dir.display(),
-            retention_secs = self.retention.as_secs(),
-            max_disk_bytes = self.max_disk_bytes,
             interval_secs = self.interval.as_secs(),
             "janitor started"
         );
@@ -44,156 +39,44 @@ impl Janitor {
                     return;
                 }
                 _ = tokio::time::sleep(self.interval) => {
-                    if let Err(e) = self.cleanup().await {
-                        warn!("janitor cleanup error: {}", e);
-                    }
+                    self.tracker.enforce_cap();
                 }
             }
         }
-    }
-
-    async fn cleanup(&self) -> anyhow::Result<()> {
-        let now_ms = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_millis() as u64;
-        let retention_ms = self.retention.as_millis() as u64;
-
-        // Collect all signal files with their parsed timestamps and sizes.
-        let mut entries = signal_files::scan_signal_files(&self.output_dir).await?;
-
-        // Sort oldest first.
-        entries.sort_by_key(|e| e.timestamp_ms);
-
-        // Pass 1: time-based retention.
-        let mut deleted_time = 0u64;
-        let mut remaining: Vec<signal_files::SignalEntry> = Vec::with_capacity(entries.len());
-        for entry in entries {
-            if now_ms.saturating_sub(entry.timestamp_ms) > retention_ms {
-                if let Err(e) = tokio::fs::remove_file(&entry.path).await {
-                    warn!(path = %entry.path.display(), "failed to delete expired file: {}", e);
-                } else {
-                    info!(path = %entry.path.display(), age_hours = (now_ms - entry.timestamp_ms) / 3_600_000, "deleted expired signal file");
-                    deleted_time += 1;
-                }
-            } else {
-                remaining.push(entry);
-            }
-        }
-
-        // Pass 2: disk cap.
-        let mut deleted_cap = 0u64;
-        if self.max_disk_bytes > 0 {
-            let mut total_size: u64 = remaining.iter().map(|e| e.size).sum();
-            // remaining is already sorted oldest-first
-            while total_size > self.max_disk_bytes {
-                if let Some(oldest) = remaining.first() {
-                    let path = oldest.path.clone();
-                    let size = oldest.size;
-                    if let Err(e) = tokio::fs::remove_file(&path).await {
-                        warn!(path = %path.display(), "failed to delete file for disk cap: {}", e);
-                        remaining.remove(0);
-                    } else {
-                        info!(path = %path.display(), size_mb = size / (1024 * 1024), "deleted signal file (disk cap)");
-                        total_size -= size;
-                        deleted_cap += 1;
-                        remaining.remove(0);
-                    }
-                } else {
-                    break;
-                }
-            }
-        }
-
-        if deleted_time > 0 || deleted_cap > 0 {
-            debug!(
-                deleted_time,
-                deleted_cap,
-                remaining = remaining.len(),
-                "janitor cleanup complete"
-            );
-        }
-
-        Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tempfile::tempdir;
 
     #[tokio::test]
-    async fn test_cleanup_time_retention() {
-        let dir = tempfile::tempdir().unwrap();
-        let now_ms = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_millis() as u64;
-
-        // Create an "old" file (2 hours ago) and a "new" file (now).
-        let old_name = format!("flush-metrics-{}.parquet", now_ms - 7_200_000);
-        let new_name = format!("flush-metrics-{}.parquet", now_ms);
-        std::fs::write(dir.path().join(&old_name), "old").unwrap();
-        std::fs::write(dir.path().join(&new_name), "new").unwrap();
-
-        let janitor = Janitor::new(
-            dir.path().to_str().unwrap(),
-            Duration::from_secs(3600), // 1 hour retention
-            0,
-        );
-        janitor.cleanup().await.unwrap();
-
-        // Old file should be gone, new file should remain.
-        assert!(!dir.path().join(&old_name).exists());
-        assert!(dir.path().join(&new_name).exists());
-    }
-
-    #[tokio::test]
-    async fn test_cleanup_disk_cap() {
-        let dir = tempfile::tempdir().unwrap();
-        let now_ms = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_millis() as u64;
-
-        // Create 3 files, each ~100 bytes, with a 200-byte cap.
-        let data = vec![0u8; 100];
-        for i in 0..3 {
-            let name = format!("flush-metrics-{}.parquet", now_ms - (2 - i) * 1000);
-            std::fs::write(dir.path().join(&name), &data).unwrap();
+    async fn test_janitor_enforces_cap() {
+        let dir = tempdir().unwrap();
+        for i in 1..=5 {
+            let name = format!("metrics-{}.parquet", i * 1000);
+            std::fs::write(dir.path().join(&name), vec![0u8; 100]).unwrap();
         }
 
-        let janitor = Janitor::new(
-            dir.path().to_str().unwrap(),
-            Duration::from_secs(86400), // long retention so only cap kicks in
-            200,                         // cap at 200 bytes
-        );
-        janitor.cleanup().await.unwrap();
+        let tracker = Arc::new(DiskTracker::new(dir.path(), 300).unwrap());
+        assert_eq!(tracker.current_bytes(), 500);
 
-        // Should have deleted the oldest file, keeping 2 (200 bytes).
-        let remaining: Vec<_> = std::fs::read_dir(dir.path())
-            .unwrap()
-            .filter_map(|e| e.ok())
-            .filter(|e| e.file_name().to_str().unwrap().ends_with(".parquet"))
-            .collect();
-        assert_eq!(remaining.len(), 2);
-    }
+        let janitor = Janitor::new(tracker.clone());
+        let cancel = CancellationToken::new();
+        let cancel2 = cancel.clone();
 
-    #[tokio::test]
-    async fn test_cleanup_ignores_non_parquet() {
-        let dir = tempfile::tempdir().unwrap();
-        std::fs::write(dir.path().join("readme.txt"), "keep me").unwrap();
-        std::fs::write(dir.path().join("contexts.bin"), "keep me too").unwrap();
+        let handle = tokio::spawn(async move {
+            janitor.run(cancel2).await;
+        });
 
-        let janitor = Janitor::new(
-            dir.path().to_str().unwrap(),
-            Duration::from_secs(0), // delete everything by time
-            0,
-        );
-        janitor.cleanup().await.unwrap();
+        // Wait for one cleanup cycle.
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        cancel.cancel();
+        handle.await.unwrap();
 
-        // Non-parquet files should still exist.
-        assert!(dir.path().join("readme.txt").exists());
-        assert!(dir.path().join("contexts.bin").exists());
+        // Should have deleted 2 oldest files (500 → 300).
+        assert_eq!(tracker.current_bytes(), 300);
+        assert_eq!(tracker.file_count(), 3);
     }
 }

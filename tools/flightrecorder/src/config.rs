@@ -27,12 +27,8 @@ pub struct Config {
         default_value_t = 15)]
     pub flush_interval_secs: u64,
 
-    /// Hours to retain old signal files before deletion.
-    #[arg(long, env = const_format::concatcp!(ENV_PREFIX, "RETENTION_HOURS"),
-        default_value_t = 3)]
-    pub retention_hours: u64,
-
-    /// Maximum disk usage for signal files in MB. 0 = unlimited (time-based only).
+    /// Maximum disk usage for signal files in MB.
+    /// The janitor deletes the oldest files when this cap is exceeded.
     #[arg(long, env = const_format::concatcp!(ENV_PREFIX, "MAX_DISK_MB"),
         default_value_t = 5120)]
     pub max_disk_mb: u64,

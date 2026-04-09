@@ -2,6 +2,7 @@
 static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
 mod config;
+mod disk_tracker;
 mod framing;
 mod generated;
 mod heap_prof;
@@ -51,7 +52,6 @@ async fn main() -> Result<()> {
         output_dir = %cfg.output_dir,
         flush_rows = cfg.flush_rows,
         flush_interval_secs = cfg.flush_interval_secs,
-        retention_hours = cfg.retention_hours,
         max_disk_mb = cfg.max_disk_mb,
         "flightrecorder starting"
     );
@@ -59,15 +59,15 @@ async fn main() -> Result<()> {
     std::fs::create_dir_all(&cfg.output_dir)?;
 
     let cancel = tokio_util::sync::CancellationToken::new();
-    let janitor = janitor::Janitor::new(
-        &cfg.output_dir,
-        Duration::from_secs(cfg.retention_hours * 3600),
+    let tracker = Arc::new(disk_tracker::DiskTracker::new(
+        std::path::Path::new(&cfg.output_dir),
         cfg.max_disk_mb * 1024 * 1024,
-    );
+    )?);
+    let janitor = janitor::Janitor::new(tracker.clone());
     let janitor_cancel = cancel.clone();
     let janitor_handle = tokio::spawn(async move { janitor.run(janitor_cancel).await });
 
-    let result = run(cfg).await;
+    let result = run(cfg, tracker).await;
 
     cancel.cancel();
     let _ = janitor_handle.await;
@@ -75,21 +75,26 @@ async fn main() -> Result<()> {
     result
 }
 
-pub async fn run(cfg: config::Config) -> Result<()> {
+pub async fn run(cfg: config::Config, tracker: Arc<disk_tracker::DiskTracker>) -> Result<()> {
     let flush_interval = Duration::from_secs(cfg.flush_interval_secs);
 
     // Create writers and spawn dedicated threads.
     let context_store = writers::context_store::ContextStore::new(&cfg.output_dir)?;
-    let metrics_writer = writers::metrics::MetricsWriter::new(
+    let mut metrics_writer = writers::metrics::MetricsWriter::new(
         &cfg.output_dir,
         cfg.flush_rows,
         flush_interval,
         context_store,
     );
-    let logs_writer =
+    let mut logs_writer =
         writers::logs::LogsWriter::new(&cfg.output_dir, cfg.flush_rows, flush_interval);
-    let trace_stats_writer =
+    let mut trace_stats_writer =
         writers::trace_stats::TraceStatsWriter::new(&cfg.output_dir, cfg.flush_rows, flush_interval);
+
+    // Wire disk tracker into writers so file rotations are tracked in-memory.
+    metrics_writer.base.set_disk_tracker(tracker.clone());
+    logs_writer.base.set_disk_tracker(tracker.clone());
+    trace_stats_writer.base.set_disk_tracker(tracker.clone());
 
     let metrics_handle = Arc::new(Mutex::new(
         WriterHandle::spawn(metrics_writer, WRITER_RING_CAPACITY, "metrics"),
