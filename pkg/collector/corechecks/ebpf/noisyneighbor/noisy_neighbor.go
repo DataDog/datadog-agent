@@ -214,11 +214,22 @@ func (n *NoisyNeighborCheck) runLayer1(s sender.Sender) (flaggedIDs []uint64, st
 			continue
 		}
 		throttleRatio := float64(throttledDeltaNs) / checkIntervalNs
-		if psiAvg10 >= n.config.PSIThreshold &&
-			throttleRatio < n.config.ThrottleRatio &&
-			stealPct < n.config.StealThreshold &&
-			len(flaggedIDs) < maxWatchlistSize {
-			flaggedIDs = append(flaggedIDs, inode)
+		highPSI := psiAvg10 >= n.config.PSIThreshold
+		highThrottle := throttleRatio >= n.config.ThrottleRatio
+		highSteal := stealPct >= n.config.StealThreshold
+
+		// Flag for Layer 2 when:
+		// - PSI high + throttle low + steal low → probable noisy neighbor
+		// - PSI high + throttle high + steal high → multiple factors, neighbor may contribute
+		// Don't flag when pressure is fully explained by one cause:
+		// - PSI high + throttle high + steal low → self-inflicted (quota too low)
+		// - PSI high + throttle low + steal high → hypervisor-level neighbor
+		if highPSI && len(flaggedIDs) < maxWatchlistSize {
+			selfInflicted := highThrottle && !highSteal
+			hypervisorOnly := highSteal && !highThrottle
+			if !selfInflicted && !hypervisorOnly {
+				flaggedIDs = append(flaggedIDs, inode)
+			}
 		}
 	}
 
@@ -288,9 +299,18 @@ func (n *NoisyNeighborCheck) resolveTagsForCgroup(cgroupInode uint64) ([]string,
 }
 
 // emitLayer2Metrics emits detailed scheduling metrics for watched cgroups
+// and the synthesized noisy_neighbor.impacted signal.
 func (n *NoisyNeighborCheck) emitLayer2Metrics(s sender.Sender, stats []model.NoisyNeighborStats) {
 	for _, stat := range stats {
 		tags, _ := n.resolveTagsForCgroup(stat.CgroupID)
+
+		// Synthesized impact signal: 1.0 if foreign preemptions are elevated, 0.0 otherwise.
+		// This is the top-level "is this container being harmed by another container?" answer.
+		var impacted float64
+		if stat.ForeignPreemptionCount > 0 {
+			impacted = 1.0
+		}
+		s.Gauge("noisy_neighbor.impacted", impacted, "", tags)
 
 		if stat.TaskCount > 0 {
 			psl := float64(stat.SumLatenciesNs) / float64(stat.TaskCount)
