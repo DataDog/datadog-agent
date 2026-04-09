@@ -8,7 +8,7 @@
 package logonduration
 
 /*
-#cgo CFLAGS: -x objective-c
+#cgo CFLAGS: -x objective-c -mmacosx-version-min=10.15
 #cgo LDFLAGS: -framework Foundation -framework OSLog
 
 #include <stdlib.h>

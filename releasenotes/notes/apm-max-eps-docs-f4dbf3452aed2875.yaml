@@ -1,0 +1,4 @@
+---
+deprecations:
+  - |
+    APM : Document that ``DD_APM_MAX_EPS`` is deprecated (legacy App Analytics APM events only) and does not affect trace or span volumes.
