@@ -3,17 +3,22 @@ Schema generation tasks
 """
 
 import os
+import json
+import tempfile
 
 import yaml
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.schema.fixes import fix_schema
-from tasks.schema.template_parser import parse_template
+from tasks.schema.fix_schema import fix_schema
+from tasks.schema.parse_template_comments import parse_template
+from tasks.schema.generate_declare_settings import run_generator
+from tasks.schema.common_settings_analyzer import analyze_file
 
 SCHEMA_DIR = os.path.join("pkg", "config", "schema")
 CORE_TEMPLATE = os.path.join("pkg", "config", "config_template.yaml")
 SYSPROBE_TEMPLATE = os.path.join("pkg", "config", "system-probe_template.yaml")
+COMMON_SETTINGS = os.path.join("pkg", "config", "setup", "common_settings.go")
 
 _SCRIPTS_DIR = os.path.dirname(__file__)
 
@@ -66,6 +71,22 @@ def generate(ctx, agent_bin, output_dir=SCHEMA_DIR):
         yaml.safe_dump(core_schema, f)
     with open(sysprobe, "w") as f:
         yaml.safe_dump(sysprobe_schema, f)
+
+    #
+    hints = analyze_file(COMMON_SETTINGS)
+
+    # Debug only
+    hints_tmp_file = tempfile.NamedTemporaryFile(mode='w', delete=False, delete_on_close=False)
+    print('hints file = %s' % (hints_tmp_file.name,))
+    hints_tmp_file.file.write(json.dumps(hints))
+
+    tmpdir = tempfile.mkdtemp()
+    print('tmp out dir: %s' % tmpdir)
+    # Control whether:
+    #   False: settings are output in order from core_schema.yaml
+    #   True:  settings are output in order from common_settings.go
+    use_hints_order = False
+    run_generator(core_schema, hints, use_hints_order, tmpdir)
 
     print("Schema generation complete. Output files:")
     print(f"  {core}")
