@@ -354,7 +354,7 @@ func (fh *forwarderHealth) checkValidAPIKey() bool {
 func (fh *forwarderHealth) checkValidAPIKeys(domain string, keys []string) (apiError bool, validKey bool) {
 	for _, apiKey := range keys {
 		v, err := fh.validateAPIKey(apiKey, domain)
-		scrubbedAPIKey := scrubber.HideKeyExceptLastFourChars(apiKey)
+		scrubbedAPIKey := scrubber.HideKeyExceptLastChars(apiKey)
 		if err != nil {
 			fh.log.Debugf(
 				"api_key '%s' for domain %s could not be validated: %s",
