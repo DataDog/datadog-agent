@@ -310,11 +310,11 @@ def _update_e2e_yaml_file(new_versions: dict[str, dict[str, str]]) -> tuple[bool
     version_items = []
     for version_str, data in new_versions.items():
         parsed = _parse_version(version_str)
-        if parsed:
+        if parsed and not parsed.prerelease:
             version_items.append((parsed, version_str, data))
 
     if not version_items:
-        print("No valid versions found")
+        print("No stable versions found")
         return False, []
 
     version_items.sort(key=lambda x: x[0], reverse=True)
