@@ -48,7 +48,10 @@ func TestNoisyNeighborProbe(t *testing.T) {
 
 		// Read our own cgroup ID and add it to the watchlist
 		cgroupID := readSelfCgroupID(t)
-		if cgroupID != 0 {
+		if cgroupID == 0 {
+			t.Skip("could not determine self cgroup ID (cgroupv2 may not be available)")
+		}
+		{
 			err = probe.UpdateWatchlist([]uint64{cgroupID})
 			require.NoError(t, err)
 

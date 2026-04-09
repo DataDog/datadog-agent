@@ -36,10 +36,11 @@ const (
 	defaultPSIThreshold     = 5.0  // PSI avg10 "some" percentage
 	defaultThrottleRatio    = 0.10 // 10% of wall clock spent throttled
 	defaultStealThreshold   = 5.0  // steal time percentage
-	maxWatchlistSize        = 100
-	maxTopNPreemptors       = 5
-	maxNonContainerCgroups  = 100
-	checkIntervalNs         = float64(10 * time.Second)
+	maxWatchlistSize             = 100
+	maxTopNPreemptors            = 5
+	maxNonContainerCgroups       = 100
+	checkInterval                = float64(10 * time.Second) // in nanoseconds (time.Duration is int64 ns)
+	minForeignPreemptionsImpact  = 10                        // minimum foreign preemptions per interval to set impacted=1
 )
 
 // NoisyNeighborConfig holds check configuration
@@ -145,19 +146,32 @@ func (n *NoisyNeighborCheck) Run() error {
 		s.Gauge("noisy_neighbor.system.steal_time_pct", stealPct, "", nil)
 	}
 
+	// Flush stale eBPF data from the previous interval before updating the watchlist.
+	// This ensures we don't mix stats from the old watchlist with the new one.
+	if _, err := sysprobeclient.GetCheck[model.CheckResponse](n.sysProbeClient, sysconfig.NoisyNeighborModule); err != nil {
+		log.Warnf("noisy_neighbor: failed to flush stale check data: %v", err)
+	}
+
 	// Update watchlist in system-probe
 	watchlistReq := model.WatchlistRequest{CgroupIDs: flaggedCgroupIDs}
 	if _, err := sysprobeclient.Post[struct{}](n.sysProbeClient, "/watchlist", watchlistReq, sysconfig.NoisyNeighborModule); err != nil {
 		log.Warnf("noisy_neighbor: failed to update watchlist: %v", err)
 	}
 
-	// Layer 2+3: Fetch eBPF stats from system-probe
+	// Layer 2+3: Fetch eBPF stats collected under the current watchlist.
+	// On the first interval after a watchlist change, this may return sparse data
+	// since the eBPF program only just started collecting for the new cgroups.
 	resp, err := sysprobeclient.GetCheck[model.CheckResponse](n.sysProbeClient, sysconfig.NoisyNeighborModule)
 	if err != nil {
 		log.Warnf("noisy_neighbor: failed to get check data: %v", err)
 	} else {
 		n.emitLayer2Metrics(s, resp.CgroupStats)
 		n.emitLayer3Metrics(s, resp.PreemptorStats)
+	}
+
+	// Emit system-level counters
+	if resp.CgroupStats != nil {
+		s.Gauge("noisy_neighbor.system.cgroups_tracked", float64(len(resp.CgroupStats)), "", nil)
 	}
 
 	n.firstRun = false
@@ -170,8 +184,9 @@ func (n *NoisyNeighborCheck) Run() error {
 func (n *NoisyNeighborCheck) runLayer1(s sender.Sender) (flaggedIDs []uint64, stealPct float64) {
 	stealPct = n.readStealTime()
 
+	allCgroups := n.allCgroupReader.ListCgroups()
 	nonContainerCount := 0
-	for _, cg := range n.allCgroupReader.ListCgroups() {
+	for _, cg := range allCgroups {
 		inode := cg.Inode()
 		tags, isContainer := n.resolveTagsForCgroup(inode)
 
@@ -213,7 +228,7 @@ func (n *NoisyNeighborCheck) runLayer1(s sender.Sender) (flaggedIDs []uint64, st
 		if n.firstRun {
 			continue
 		}
-		throttleRatio := float64(throttledDeltaNs) / checkIntervalNs
+		throttleRatio := float64(throttledDeltaNs) / checkInterval
 		highPSI := psiAvg10 >= n.config.PSIThreshold
 		highThrottle := throttleRatio >= n.config.ThrottleRatio
 		highSteal := stealPct >= n.config.StealThreshold
@@ -234,8 +249,8 @@ func (n *NoisyNeighborCheck) runLayer1(s sender.Sender) (flaggedIDs []uint64, st
 	}
 
 	// Clean up stale throttle entries for cgroups that no longer exist
-	activeCgroups := make(map[uint64]struct{})
-	for _, cg := range n.allCgroupReader.ListCgroups() {
+	activeCgroups := make(map[uint64]struct{}, len(allCgroups))
+	for _, cg := range allCgroups {
 		activeCgroups[cg.Inode()] = struct{}{}
 	}
 	for inode := range n.lastThrottledNs {
@@ -304,10 +319,11 @@ func (n *NoisyNeighborCheck) emitLayer2Metrics(s sender.Sender, stats []model.No
 	for _, stat := range stats {
 		tags, _ := n.resolveTagsForCgroup(stat.CgroupID)
 
-		// Synthesized impact signal: 1.0 if foreign preemptions are elevated, 0.0 otherwise.
-		// This is the top-level "is this container being harmed by another container?" answer.
+		// Synthesized impact signal: 1.0 if foreign preemptions exceed the threshold, 0.0 otherwise.
+		// A small number of foreign preemptions is normal (kernel threads, CFS rotation).
+		// Only flag when the count indicates sustained pressure from another cgroup.
 		var impacted float64
-		if stat.ForeignPreemptionCount > 0 {
+		if stat.ForeignPreemptionCount >= minForeignPreemptionsImpact {
 			impacted = 1.0
 		}
 		s.Gauge("noisy_neighbor.impacted", impacted, "", tags)

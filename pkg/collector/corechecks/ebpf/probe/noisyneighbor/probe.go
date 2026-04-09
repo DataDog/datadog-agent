@@ -108,6 +108,11 @@ func (p *Probe) Close() {
 
 // UpdateWatchlist replaces the current watchlist with the given cgroup IDs.
 // It sets/clears the watchlist_active gate accordingly.
+//
+// Note: the clear-then-insert is not atomic with respect to the eBPF program.
+// During the brief window between deletion and insertion, the eBPF handler may
+// see a partially-updated watchlist. The effect is benign: a removed cgroup may
+// collect one extra interval of data, or a newly-added cgroup may miss one interval.
 func (p *Probe) UpdateWatchlist(cgroupIDs []uint64) error {
 	// Clear existing watchlist entries
 	var key uint64

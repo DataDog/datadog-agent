@@ -280,9 +280,9 @@ if [[ -n "$VICTIM_STATS" ]]; then
     info "Self preemptions: $SELF_PREEMPT, Foreign preemptions: $FOREIGN_PREEMPT"
 
     if [[ "$SELF_PREEMPT" -gt 0 ]]; then
-        pass "Self-preemptions detected (16 threads competing on limited CPU quota)"
+        pass "Self-preemptions detected (64 threads competing for CPUs)"
     else
-        fail "No self-preemptions detected (expected with 16 threads on limited quota)"
+        fail "No self-preemptions detected (expected with 64 threads competing for CPUs)"
     fi
 else
     fail "No stats for victim cgroup"

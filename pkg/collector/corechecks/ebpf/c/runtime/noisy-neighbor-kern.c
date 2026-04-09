@@ -95,11 +95,14 @@ int tp_sched_wakeup_new(u64 *ctx) {
 
 SEC("tp_btf/sched_switch")
 int tp_sched_switch(u64 *ctx) {
-    // Fast gate: skip all detailed work if no cgroups are being watched
+    // Fast gate: skip detailed work if no cgroups are being watched.
+    // Idle cost: ~15-25ns per sched_switch (map lookup + pointer deref + conditional
+    // task storage write). This is more than a bare map lookup because we keep
+    // enqueue timestamps warm so they're immediately available when the watchlist
+    // activates, avoiding a one-interval gap with no latency data.
     u32 zero_key = 0;
     u8 *active = bpf_map_lookup_elem(&watchlist_active, &zero_key);
     if (!active || !*active) {
-        // Still re-enqueue runnable tasks so timestamps are ready when watchlist activates
         struct task_struct *prev = (struct task_struct *)ctx[1];
         if (prev->__state == TASK_RUNNING) {
             enqueue_timestamp(prev);
