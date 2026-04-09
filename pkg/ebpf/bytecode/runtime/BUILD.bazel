@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_binary")
+
+# Hand-written: rules_go respects //go:build ignore, so strip it before compiling.
+genrule(
+    name = "integrity_src",
+    srcs = ["integrity.go"],
+    outs = ["integrity_gen.go"],
+    cmd = "grep -v '^//go:build ignore' $< > $@",
+)
+
+go_binary(
+    name = "integrity",
+    srcs = [":integrity_src"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/template/text",
+        "@org_golang_x_text//cases",
+        "@org_golang_x_text//language",
+    ],
+)

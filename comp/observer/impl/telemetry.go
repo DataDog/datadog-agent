@@ -14,6 +14,10 @@ import (
 const (
 	// Observer
 	telemetryDetectorProcessingTimeNs = "observer.detector.processing_time_ns"
+	// telemetryObsChannelDropped counts observations silently dropped because
+	// the internal observation channel was full. Tagged by source so per-pipeline
+	// pressure is visible (e.g. "system-checks-hf" vs "all-metrics").
+	telemetryObsChannelDropped = "observer.channel.dropped"
 	// Only in testbench
 	telemetryTbInputMetricsCount       = "observer.input_metrics.count"
 	telemetryTbInputMetricsCardinality = "observer.input_metrics.cardinality"
@@ -82,7 +86,13 @@ func newTelemetryHandler(telemetryComp telemetry.Component) *telemetryHandler {
 		"observer",
 		telemetryLogPatternExtractorPatternCount,
 		[]string{"detector"},
-		"Log pattern extractor new clusters added per processed log",
+		"Log pattern extractor number of patterns (clusters) that are active (not garbage collected)",
+	)
+	counters[telemetryObsChannelDropped] = telemetryComp.NewCounter(
+		"observer",
+		telemetryObsChannelDropped,
+		[]string{"source"},
+		"Observations dropped because the internal channel was full, tagged by source handle",
 	)
 
 	return &telemetryHandler{

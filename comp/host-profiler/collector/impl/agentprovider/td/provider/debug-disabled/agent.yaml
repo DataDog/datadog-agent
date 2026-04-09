@@ -1,0 +1,4 @@
+site: datadoghq.com
+api_key: test_api_key_123
+hostprofiler:
+    debug: {}

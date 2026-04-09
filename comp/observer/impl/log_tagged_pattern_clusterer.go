@@ -9,6 +9,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"hash/fnv"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/observer/impl/patterns"
@@ -139,7 +140,7 @@ func globalClusterHash(groupHash uint64, clusterID int64) string {
 	h := fnv.New64a()
 	_ = binary.Write(h, binary.LittleEndian, groupHash)
 	_ = binary.Write(h, binary.LittleEndian, clusterID)
-	return fmt.Sprintf("%x", h.Sum64())
+	return strconv.FormatUint(h.Sum64(), 16)
 }
 
 // TaggedPatternClusterer wraps one *patterns.PatternClusterer per tag-group
@@ -174,7 +175,8 @@ func NewTaggedPatternClustererWithFactory(registry *TagGroupByKeyRegistry, newPC
 
 // Process extracts the tag group from tags, routes the message to the matching
 // sub-clusterer (created lazily), and returns the group hash plus the cluster.
-func (tc *TaggedPatternClusterer) Process(tags []string, message string) (uint64, *patterns.Cluster, bool) {
+// unixSec is Unix seconds for timestamp tracking (use time.Now().Unix() when unknown).
+func (tc *TaggedPatternClusterer) Process(tags []string, message string, unixSec int64) (uint64, *patterns.Cluster, bool) {
 	group := extractTagGroupByKey(tags)
 	groupHash := tc.registry.Register(group)
 
@@ -184,7 +186,7 @@ func (tc *TaggedPatternClusterer) Process(tags []string, message string) (uint64
 		tc.subClusterers[groupHash] = sub
 	}
 
-	cluster, ok := sub.Process(message)
+	cluster, ok := sub.Process(message, unixSec)
 	if !ok {
 		return 0, nil, false
 	}
@@ -209,6 +211,30 @@ func (tc *TaggedPatternClusterer) Reset() {
 // NumSubClusterers returns the number of currently active sub-clusterers.
 func (tc *TaggedPatternClusterer) NumSubClusterers() int {
 	return len(tc.subClusterers)
+}
+
+// EvictedCluster identifies a cluster that was removed during garbage collection,
+// pairing its tag-group hash with its intra-clusterer ID.
+type EvictedCluster struct {
+	GroupHash uint64
+	ClusterID int64
+}
+
+// GarbageCollectBefore removes all clusters whose LastSeenUnix is strictly less
+// than cutoff from every sub-clusterer and returns the (GroupHash, ClusterID)
+// pairs that were removed.
+func (tc *TaggedPatternClusterer) GarbageCollectBefore(cutoff int64) []EvictedCluster {
+	var evicted []EvictedCluster
+	for groupHash, sub := range tc.subClusterers {
+		stale := sub.ClusterIDsBeforeUnix(cutoff)
+		for _, id := range stale {
+			evicted = append(evicted, EvictedCluster{GroupHash: groupHash, ClusterID: id})
+		}
+		if len(stale) > 0 {
+			_ = sub.RemoveClusters(stale)
+		}
+	}
+	return evicted
 }
 
 // TaggedClusterEntry pairs a cluster with its tag-group hash so callers can

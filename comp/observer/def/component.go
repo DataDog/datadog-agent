@@ -268,6 +268,9 @@ type MetricOutput struct {
 type LogMetricsExtractorOutput struct {
 	Metrics   []MetricOutput
 	Telemetry []ObserverTelemetry
+	// EvictedContextKeys lists context keys that are no longer valid (e.g. after
+	// extractor garbage collection). The engine removes matching contextRefs entries.
+	EvictedContextKeys []string
 }
 
 // SeriesDescriptor is the fully resolved identity of a time series.
