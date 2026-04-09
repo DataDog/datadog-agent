@@ -46,6 +46,7 @@ var validProducts = map[string]struct{}{
 	ProductFFEFlags:                     {},
 	ProductAgentFlags:                   {},
 	ProductDOQueryActions:               {},
+	ProductK8SActions:                   {},
 }
 
 const (
@@ -130,4 +131,6 @@ const (
 	ProductAgentFlags = "AGENT_FLAGS"
 	// ProductDOQueryActions is used for executing database queries remotely for Data Observability
 	ProductDOQueryActions = "DO_QUERY_ACTIONS"
+	// ProductK8SActions receives Kubernetes actions to execute on cluster resources
+	ProductK8SActions = "K8S_ACTIONS"
 )

@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package submitterimpl
 
 import (
@@ -14,15 +16,15 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	connectionsforwarder "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/def"
 	connectionsforwardermock "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/mock"
-	"github.com/DataDog/datadog-agent/comp/process/forwarders/forwardersimpl"
-	"github.com/DataDog/datadog-agent/comp/process/hostinfo/hostinfoimpl"
+	forwardersimpl "github.com/DataDog/datadog-agent/comp/process/forwarders/mock"
+	hostinfomock "github.com/DataDog/datadog-agent/comp/process/hostinfo/mock"
 	"github.com/DataDog/datadog-agent/comp/process/submitter"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestSubmitterLifecycle(t *testing.T) {
 	_ = fxutil.Test[submitter.Component](t, fx.Options(
-		hostinfoimpl.MockModule(),
+		hostinfomock.MockModule(),
 		core.MockBundle(),
 		fx.Provide(func() connectionsforwarder.Component { return connectionsforwardermock.Mock(t) }),
 		forwardersimpl.MockModule(),
