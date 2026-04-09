@@ -42,12 +42,13 @@ func newHarness(t *testing.T, fs afero.Fs, demux sampleSender, hn hostnameGetter
 	t.Helper()
 	lc := compdef.NewTestLifecycle(t)
 	h := &offlinereporterImpl{
-		log:          logmock.New(t),
-		fs:           fs,
-		filePath:     testFilePath,
-		demux:        demux,
-		hostnameComp: hn,
-		stopChan:     make(chan struct{}),
+		log:               logmock.New(t),
+		fs:                fs,
+		filePath:          testFilePath,
+		heartbeatInterval: 5 * time.Second,
+		demux:             demux,
+		hostnameComp:      hn,
+		stopChan:          make(chan struct{}),
 	}
 	lc.Append(compdef.Hook{
 		OnStart: func(ctx context.Context) error { return h.onStart(ctx) },
@@ -148,12 +149,13 @@ func TestDisabled(t *testing.T) {
 	// Build the impl directly without registering lifecycle hooks, mirroring
 	// what NewComponent does when telemetry.offlinereporter.enabled=false.
 	h := &offlinereporterImpl{
-		log:          logmock.New(t),
-		fs:           fs,
-		filePath:     testFilePath,
-		demux:        demux,
-		hostnameComp: &mockHostname{"host"},
-		stopChan:     make(chan struct{}),
+		log:               logmock.New(t),
+		fs:                fs,
+		filePath:          testFilePath,
+		heartbeatInterval: 5 * time.Second,
+		demux:             demux,
+		hostnameComp:      &mockHostname{"host"},
+		stopChan:          make(chan struct{}),
 	}
 
 	h.SendOfflineDuration("test.offline", nil)

@@ -62,26 +62,28 @@ type hostnameGetter interface {
 }
 
 type offlinereporterImpl struct {
-	log              log.Component
-	fs               afero.Fs
-	filePath         string
-	demux            sampleSender
-	hostnameComp     hostnameGetter
-	resolvedHostname string
-	lastHeartbeat    time.Time
-	hasLastBeat      bool
-	stopChan         chan struct{}
+	log               log.Component
+	fs                afero.Fs
+	filePath          string
+	heartbeatInterval time.Duration
+	demux             sampleSender
+	hostnameComp      hostnameGetter
+	resolvedHostname  string
+	lastHeartbeat     time.Time
+	hasLastBeat       bool
+	stopChan          chan struct{}
 }
 
 // NewComponent creates a new offlinereporter component.
 func NewComponent(reqs Requires) (Provides, error) {
 	h := &offlinereporterImpl{
-		log:          reqs.Log,
-		fs:           reqs.Params.Fs,
-		filePath:     filepath.Join(reqs.Config.GetString("run_path"), "agent_heartbeat"),
-		demux:        reqs.Demultiplexer,
-		hostnameComp: reqs.Hostname,
-		stopChan:     make(chan struct{}),
+		log:               reqs.Log,
+		fs:                reqs.Params.Fs,
+		filePath:          filepath.Join(reqs.Config.GetString("run_path"), "agent_heartbeat"),
+		heartbeatInterval: reqs.Config.GetDuration("telemetry.offlinereporter.heartbeat_interval"),
+		demux:             reqs.Demultiplexer,
+		hostnameComp:      reqs.Hostname,
+		stopChan:          make(chan struct{}),
 	}
 	if reqs.Config.GetBool("telemetry.offlinereporter.enabled") {
 		reqs.Lifecycle.Append(compdef.Hook{
@@ -117,7 +119,7 @@ func (h *offlinereporterImpl) loop() {
 	if err := h.writeNow(); err != nil {
 		h.log.Errorf("offlinereporter: failed to write heartbeat file %s: %w", h.filePath, err)
 	}
-	ticker := time.NewTicker(5 * time.Second)
+	ticker := time.NewTicker(h.heartbeatInterval)
 	defer ticker.Stop()
 	for {
 		select {
