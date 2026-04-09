@@ -80,12 +80,12 @@ func TestDDTagConceptLookup(t *testing.T) {
 	require.NoError(t, err)
 
 	meta := map[string]string{
-		"env":               "production",
-		"version":           "1.2.3",
-		"_dd.hostname":      "my-host",
+		"env":                "production",
+		"version":            "1.2.3",
+		"_dd.hostname":       "my-host",
 		"_dd.git.commit.sha": "abc123",
-		"_dd.p.dm":          "-4",
-		"_dd.apm_mode":      "apm",
+		"_dd.p.dm":           "-4",
+		"_dd.apm_mode":       "apm",
 	}
 	accessor := NewStringMapAccessor(meta)
 
