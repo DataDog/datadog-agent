@@ -526,7 +526,7 @@ class GithubAPI:
             return Auth.Token(os.environ["GITHUB_TOKEN"])
         if public_repo:
             return Auth.Login("user", "password")
-        
+
         raise Exit(
             message="No authentication found, you must pass a GITHUB_TOKEN in the CI, Github App authentication is no longer supported in the CI, use dd-octo-sts instead",
             code=1,
