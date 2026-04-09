@@ -215,10 +215,13 @@ func (sc *SpanConcentrator) NewStatSpanWithConfig(config StatSpanConfig) (statSp
 	spanKind := semantics.LookupString(ddRegistry, a, semantics.ConceptSpanKind)
 	eligibleSpanKind := sc.computeStatsBySpanKind && computeStatsForSpanKind(spanKind)
 	isTopLevel := traceutil.HasTopLevelMetrics(config.Metrics)
-	if !(isTopLevel || traceutil.IsMeasuredMetrics(config.Metrics) || eligibleSpanKind) {
+	isMeasured := traceutil.IsMeasuredMetrics(config.Metrics)
+	if !(isTopLevel || isMeasured || eligibleSpanKind) {
+		log.Debugf("Rejecting span from stats: service=%s resource=%s name=%s (isTopLevel=%v isMeasured=%v eligibleSpanKind=%v spanKind=%s)", config.Service, config.Resource, config.Name, isTopLevel, isMeasured, eligibleSpanKind, spanKind)
 		return nil, false
 	}
 	if traceutil.IsPartialSnapshotMetrics(config.Metrics) {
+		log.Debugf("Rejecting partial snapshot span from stats: service=%s resource=%s name=%s", config.Service, config.Resource, config.Name)
 		return nil, false
 	}
 	return &StatSpan{
@@ -248,10 +251,13 @@ func (sc *SpanConcentrator) NewStatSpanWithConfig(config StatSpanConfig) (statSp
 func (sc *SpanConcentrator) NewStatSpanFromV1(s *idx.InternalSpan, peerTags []string, spanDerivedPrimaryTagKeys []string) (statSpan *StatSpan, ok bool) {
 	eligibleSpanKind := sc.computeStatsBySpanKind && computeStatsForSpanKindV1(s.Kind())
 	isTopLevel := traceutil.HasTopLevelMetricsV1(s)
-	if !(isTopLevel || traceutil.IsMeasuredMetricsV1(s) || eligibleSpanKind) {
+	isMeasured := traceutil.IsMeasuredMetricsV1(s)
+	if !(isTopLevel || isMeasured || eligibleSpanKind) {
+		log.Debugf("Rejecting span from stats (v1): service=%s resource=%s name=%s (isTopLevel=%v isMeasured=%v eligibleSpanKind=%v spanKind=%s)", s.Service(), s.Resource(), s.Name(), isTopLevel, isMeasured, eligibleSpanKind, s.SpanKind())
 		return nil, false
 	}
 	if traceutil.IsPartialSnapshotMetricsV1(s) {
+		log.Debugf("Rejecting partial snapshot span from stats (v1): service=%s resource=%s name=%s", s.Service(), s.Resource(), s.Name())
 		return nil, false
 	}
 	spanError := 0
