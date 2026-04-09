@@ -96,6 +96,7 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.workloads_cache_size", 10)
 	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.enrichment_ticker", "1m")
 	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.host.enabled", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.generate_policies", false)
 
 	// CWS - Event sampling (per-type)
 	cfg.BindEnvAndSetDefault("runtime_security_config.event_sampling.open.enabled", false)

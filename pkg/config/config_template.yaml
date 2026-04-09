@@ -1360,6 +1360,9 @@ api_key:
 #   # @param max_events_per_second - integer - optional - default: 200
 #   # @env DD_APM_MAX_EPS - integer - optional - default: 200
 #   # @env DD_MAX_EPS - integer - optional - default: 200
+#   # **Deprecated.** APM events are a deprecated feature related to legacy App Analytics. This setting
+#   # caps sampling for that legacy path only. It does not limit trace volume, spans, or general APM
+#   # ingestion; for trace sampling, see `max_traces_per_second` and `target_traces_per_second` above.
 #   # Maximum number of APM events per second to sample.
 #
 #   max_events_per_second: 200
