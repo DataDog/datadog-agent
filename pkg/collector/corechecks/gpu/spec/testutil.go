@@ -136,7 +136,7 @@ func ValidateMetricTagsAgainstSpec(t *testing.T, spec *MetricsSpec, metricName s
 	t.Helper()
 	require.NotEmpty(t, emittedMetrics, "metric %s has no emitted samples to validate tags", metricName)
 
-	requiredTags := metricRequiredTags(spec, metricSpec)
+	requiredTags := metricRequiredTags(t, spec, metricSpec)
 
 	for _, emittedMetric := range emittedMetrics {
 		tagsByKey := TagsToKeyValues(emittedMetric.Tags)
@@ -159,13 +159,12 @@ func ValidateMetricTagsAgainstSpec(t *testing.T, spec *MetricsSpec, metricName s
 	}
 }
 
-func metricRequiredTags(spec *MetricsSpec, metricSpec MetricSpec) map[string]struct{} {
+func metricRequiredTags(t *testing.T, spec *MetricsSpec, metricSpec MetricSpec) map[string]struct{} {
 	requiredTags := make(map[string]struct{})
 	for _, tagsetName := range metricSpec.Tagsets {
 		tagsetSpec, ok := spec.Tagsets[tagsetName]
-		if !ok {
-			continue
-		}
+		require.True(t, ok, "unknown tagset %s", tagsetName)
+
 		for _, tag := range tagsetSpec.Tags {
 			requiredTags[tag] = struct{}{}
 		}
