@@ -3,12 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package fx provides the fx module for the networkdeviceconfig component
+// Package fx provides the fx module for the networkconfigmanagement component
 package fx
 
 import (
-	networkdeviceconfig "github.com/DataDog/datadog-agent/comp/networkdeviceconfig/def"
-	networkdeviceconfigimpl "github.com/DataDog/datadog-agent/comp/networkdeviceconfig/impl"
+	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
+	networkconfigmanagementimpl "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -16,8 +16,8 @@ import (
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(
-			networkdeviceconfigimpl.NewComponent,
+			networkconfigmanagementimpl.NewComponent,
 		),
-		fxutil.ProvideOptional[networkdeviceconfig.Component](),
+		fxutil.ProvideOptional[networkconfigmanagement.Component](),
 	)
 }

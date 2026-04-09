@@ -3,20 +3,22 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package networkdeviceconfigimpl implements the networkdeviceconfig component interface
-package networkdeviceconfigimpl
+// Package networkconfigmanagementimpl implements the networkconfigmanagement component interface
+package networkconfigmanagementimpl
 
 import (
 	"fmt"
+	"strings"
+
+	"golang.org/x/crypto/ssh"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	networkdeviceconfig "github.com/DataDog/datadog-agent/comp/networkdeviceconfig/def"
-	"golang.org/x/crypto/ssh"
-	"strings"
+	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
 )
 
-// Requires defines the dependencies for the networkdeviceconfig component
+// Requires defines the dependencies for the networkconfigmanagement component
 type Requires struct {
 	// Remove this field if the component has no lifecycle hooks
 	Lifecycle compdef.Lifecycle
@@ -24,9 +26,9 @@ type Requires struct {
 	Logger    log.Component
 }
 
-// Provides defines the output of the networkdeviceconfig component
+// Provides defines the output of the networkconfigmanagement component
 type Provides struct {
-	Comp networkdeviceconfig.Component
+	Comp networkconfigmanagement.Component
 }
 
 type networkDeviceConfigImpl struct {
@@ -35,7 +37,7 @@ type networkDeviceConfigImpl struct {
 	clientFactory RemoteClientFactory
 }
 
-// NewComponent creates a new networkdeviceconfig component
+// NewComponent creates a new networkconfigmanagement component
 func NewComponent(reqs Requires) (Provides, error) {
 	ncmConfig, err := newConfig(reqs.Config)
 	if err != nil {

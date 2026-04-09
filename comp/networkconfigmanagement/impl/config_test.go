@@ -3,13 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-package networkdeviceconfigimpl
+package networkconfigmanagementimpl
 
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func TestConfig(t *testing.T) {
