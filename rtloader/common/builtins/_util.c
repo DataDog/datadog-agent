@@ -34,6 +34,81 @@ static PyMethodDef methods[] = {
     { NULL, NULL } // guards
 };
 
+/*
+ * Sub-interpreter support (Python 3.13+): Multi-phase module initialization
+ * =========================================================================
+ *
+ * Converts the _util module from single-phase to multi-phase init to allow
+ * importing in Python sub-interpreters with per-interpreter GIL.
+ *
+ * This module has one callback pointer (cb_get_subprocess_output) and an
+ * addSubprocessException() function that registers a custom exception class
+ * (SubprocessOutputEmptyError) on the module object. The exec slot handles
+ * calling addSubprocessException() once per interpreter.
+ *
+ * m_size = 0: The callback pointer is a process-global static with set-once-
+ * read-many semantics. The exception class is a Python object stored in the
+ * module's Python dict via PyModule_AddObject(), NOT in C-level module state.
+ * Python automatically creates a separate module dict per sub-interpreter,
+ * so each interpreter gets its own exception class instance without needing
+ * any C-level per-interpreter storage.
+ *
+ * raiseEmptyOutputError() uses PyImport_ImportModule("_util") to look up
+ * the exception class, which is interpreter-aware — it returns the module
+ * from the current interpreter's sys.modules, getting the correct per-
+ * interpreter exception class automatically.
+ *
+ * See aggregator.c for a detailed explanation of multi-phase init, m_size,
+ * and Py_MOD_PER_INTERPRETER_GIL_SUPPORTED rationale.
+ */
+#if PY_VERSION_HEX >= 0x030D0000
+
+/*
+ * _util_exec: Registers the SubprocessOutputEmptyError exception class on the
+ * module object. This runs once per interpreter, ensuring each sub-interpreter
+ * gets its own exception class in its own module dict.
+ *
+ * addSubprocessException() calls PyErr_NewException() + PyModule_AddObject(),
+ * both of which can fail and set a Python exception. Since addSubprocessException()
+ * is a legacy void function that doesn't propagate errors, we check
+ * PyErr_Occurred() after the call to detect failures.
+ *
+ * Returns 0 on success, -1 if exception registration failed.
+ */
+static int _util_exec(PyObject *m)
+{
+    addSubprocessException(m);
+    if (PyErr_Occurred()) {
+        return -1;
+    }
+    return 0;
+}
+
+static PyModuleDef_Slot _util_slots[] = {
+    {Py_mod_exec, _util_exec},
+    {Py_mod_multiple_interpreters, Py_MOD_PER_INTERPRETER_GIL_SUPPORTED},
+    {0, NULL}  /* sentinel */
+};
+
+static struct PyModuleDef module_def = {
+    PyModuleDef_HEAD_INIT,
+    _UTIL_MODULE_NAME,     /* m_name: "_util" */
+    NULL,                  /* m_doc */
+    0,                     /* m_size: no per-interpreter C state (see comment above) */
+    methods,               /* m_methods */
+    _util_slots,           /* m_slots */
+    NULL,                  /* m_traverse */
+    NULL,                  /* m_clear */
+    NULL                   /* m_free */
+};
+
+PyMODINIT_FUNC PyInit__util(void)
+{
+    return PyModuleDef_Init(&module_def);
+}
+
+#else /* Python < 3.13: original single-phase initialization */
+
 static struct PyModuleDef module_def = { PyModuleDef_HEAD_INIT, _UTIL_MODULE_NAME, NULL, -1, methods };
 
 PyMODINIT_FUNC PyInit__util(void)
@@ -42,6 +117,8 @@ PyMODINIT_FUNC PyInit__util(void)
     addSubprocessException(m);
     return m;
 }
+
+#endif /* PY_VERSION_HEX >= 0x030D0000 */
 
 void _set_get_subprocess_output_cb(cb_get_subprocess_output_t cb)
 {
