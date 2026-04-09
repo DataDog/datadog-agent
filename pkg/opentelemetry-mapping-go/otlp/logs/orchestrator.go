@@ -457,14 +457,14 @@ func TranslateK8sObjects(ld plog.Logs, cache *gocache.Cache, logger *zap.Logger)
 
 		cid, ok := resource.Attributes().Get("k8s.cluster.uid")
 		if !ok {
-			logger.Error("missing k8s.cluster.uid, skipping resource")
+			logger.Error("Failed to get k8s cluster ID, skipping manifest payload")
 			continue
 		}
 		clusterID = cid.AsString()
 
 		cname, ok := resource.Attributes().Get("k8s.cluster.name")
 		if !ok {
-			logger.Error("missing k8s.cluster.name, skipping resource")
+			logger.Error("Failed to get k8s cluster name, skipping manifest payload")
 			continue
 		}
 		clusterName = cname.AsString()
@@ -475,7 +475,7 @@ func TranslateK8sObjects(ld plog.Logs, cache *gocache.Cache, logger *zap.Logger)
 				lr := sl.LogRecords().At(k)
 				manifest, isWatch, err := ToManifest(lr)
 				if err != nil {
-					logger.Error("failed to convert to manifest", zap.Error(err))
+					logger.Error("Failed to convert to manifest: "+err.Error(), zap.Error(err))
 					continue
 				}
 				isWatchEvent = isWatch

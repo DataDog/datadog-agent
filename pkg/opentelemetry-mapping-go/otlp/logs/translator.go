@@ -179,7 +179,7 @@ func (t *Translator) MapLogsAndRouteRUMEvents(ctx context.Context, ld plog.Logs,
 						service = s.AsString()
 					}
 				}
-				
+
 				payload := transform(logRecord, host, service, res, scope, t.set.Logger)
 				ddtags := payload.GetDdtags()
 				if ddtags != "" {
