@@ -16,7 +16,7 @@ enum State {
     Value,
     /// Intermediate key segment matched; next event must be MappingStart.
     Descend,
-    /// Skipping `count` top-level items (each possibly compound).
+    /// Skipping a non-matching key's value, or a complex key and its value.
     /// `nesting` tracks depth within a compound structure being skipped.
     Skip { nesting: u32, count: SkipCount },
 }
@@ -121,20 +121,18 @@ pub fn parse_yaml<R: Read>(mut reader: R, target_key: &str) -> Option<String> {
                 // spring.application.name) — can't descend further.
                 _ => return None,
             },
-            // Skip `count` top-level YAML values. Each value may be a
-            // scalar (consumed in one event) or a compound structure
-            // (mapping/sequence) whose events must be consumed until the
-            // matching end event.
+            // Skip one or two top-level YAML items, depending on
+            // whether we're skipping just a value (Value) or a complex
+            // key's subtree followed by its value (KeyAndValue).
+            //
+            // Each item may be a scalar (consumed in one event) or a
+            // compound structure (mapping/sequence) whose events must
+            // be consumed until the matching end event.
             //
             // `nesting` tracks depth inside a compound structure:
-            //   0 = not inside a compound, expecting the start of the
-            //       next value to skip
-            //   >0 = inside a compound, consuming events until nesting
-            //        drops back to 0
-            //
-            // Typical counts:
-            //   Value: skipping one value (for a non-matching simple key)
-            //   KeyAndValue: skipping a complex key's subtree + its value
+            //   0 = not inside a compound, expecting the next item
+            //   >0 = inside a compound, consuming until nesting drops
+            //        back to 0
             State::Skip { mut nesting, count } => {
                 let done = if nesting == 0 {
                     // Starting a new top-level item to skip.
