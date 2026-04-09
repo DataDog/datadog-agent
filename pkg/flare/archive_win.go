@@ -37,10 +37,21 @@ var (
 	execTimeout = 30 * time.Second
 )
 
+// commandContextForFlare returns a context for a subprocess bounded by both the provider ctx and perCommandTimeout.
+func commandContextForFlare(parent context.Context, perCommandTimeout time.Duration) (context.Context, context.CancelFunc) {
+	if parent == nil {
+		parent = context.Background()
+	}
+	return context.WithTimeout(parent, perCommandTimeout)
+}
+
 const (
 	evtExportLogChannelPath uint32 = 0x1
 )
 
+// getCounterStrings does not accept a context because it reads the Windows
+// performance counter registry directly via RegQueryValueEx (a Win32 API call),
+// which cannot be canceled through a Go context.
 func getCounterStrings(fb flaretypes.FlareBuilder) error {
 	return fb.AddFileFromFunc("counter_strings.txt",
 		func() ([]byte, error) {
@@ -80,8 +91,8 @@ func getCounterStrings(fb flaretypes.FlareBuilder) error {
 	)
 }
 
-func getTypeperfData(fb flaretypes.FlareBuilder) error {
-	cancelctx, cancelfunc := context.WithTimeout(context.Background(), execTimeout)
+func getTypeperfData(ctx context.Context, fb flaretypes.FlareBuilder) error {
+	cancelctx, cancelfunc := commandContextForFlare(ctx, execTimeout)
 	defer cancelfunc()
 
 	cmd := exec.CommandContext(cancelctx, "typeperf", "-qx")
@@ -96,8 +107,8 @@ func getTypeperfData(fb flaretypes.FlareBuilder) error {
 	return fb.AddFile("typeperf.txt", out.Bytes())
 }
 
-func getLodctrOutput(fb flaretypes.FlareBuilder) error {
-	cancelctx, cancelfunc := context.WithTimeout(context.Background(), execTimeout)
+func getLodctrOutput(ctx context.Context, fb flaretypes.FlareBuilder) error {
+	cancelctx, cancelfunc := commandContextForFlare(ctx, execTimeout)
 	defer cancelfunc()
 
 	cmd := exec.CommandContext(cancelctx, "lodctr.exe", "/q")
@@ -115,7 +126,9 @@ func getLodctrOutput(fb flaretypes.FlareBuilder) error {
 	return fb.AddFile("lodctr.txt", out.Bytes())
 }
 
-// getWindowsEventLogs exports Windows event logs.
+// getWindowsEventLogs exports Windows event logs. It does not accept a context
+// because it uses the EvtExportLog Win32 API directly, which cannot be canceled
+// through a Go context.
 func getWindowsEventLogs(fb flaretypes.FlareBuilder) error {
 	var err error
 
@@ -178,6 +191,9 @@ func exportWindowsEventLog(fb flaretypes.FlareBuilder, eventLogChannel, eventLog
 	return err
 }
 
+// getServiceStatus does not accept a context because it queries the Windows
+// Service Control Manager via Win32 API calls, which cannot be canceled through
+// a Go context.
 func getServiceStatus(fb flaretypes.FlareBuilder) error {
 	return fb.AddFileFromFunc(
 		"servicestatus.json",
@@ -210,7 +226,7 @@ func getServiceStatus(fb flaretypes.FlareBuilder) error {
 // The implementation is based on the invoking Windows built-in reg.exe command, which does all
 // heavy lifting (instead of relying on explicit and recursive Registry API calls).
 // More technical details can be found in the PR https://github.com/DataDog/datadog-agent/pull/11290
-func getDatadogRegistry(fb flaretypes.FlareBuilder) error {
+func getDatadogRegistry(ctx context.Context, fb flaretypes.FlareBuilder) error {
 	// Generate raw exported registry file which we will scrub just in case
 	rawf, err := fb.PrepareFilePath("datadog-raw.reg")
 	if err != nil {
@@ -219,7 +235,9 @@ func getDatadogRegistry(fb flaretypes.FlareBuilder) error {
 
 	// reg.exe is built in Windows utility which will be always present
 	// https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/reg
-	cmd := exec.Command("reg", "export", "HKLM\\Software\\Datadog", rawf, "/y")
+	regCtx, regCancel := commandContextForFlare(ctx, execTimeout)
+	defer regCancel()
+	cmd := exec.CommandContext(regCtx, "reg", "export", "HKLM\\Software\\Datadog", rawf, "/y")
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
@@ -240,24 +258,24 @@ func getDatadogRegistry(fb flaretypes.FlareBuilder) error {
 	return fb.AddFile("datadog.reg", data)
 }
 
-func getEventLogConfig(fb flaretypes.FlareBuilder) error {
-	cancelctx, cancelfunc := context.WithTimeout(context.Background(), execTimeout)
-	defer cancelfunc()
-
+func getEventLogConfig(ctx context.Context, fb flaretypes.FlareBuilder) error {
 	var out bytes.Buffer
 	// creating a buffer to append all cmd outputs
 	fullOutput := &bytes.Buffer{}
 	channels := [3]string{"Application", "System", "Security"}
 
 	for _, channel := range channels {
-		cmd := exec.CommandContext(cancelctx, "wevtutil", "gl", channel)
+		chCtx, chCancel := commandContextForFlare(ctx, execTimeout)
+		cmd := exec.CommandContext(chCtx, "wevtutil", "gl", channel)
 		cmd.Stdout = &out
 		err := cmd.Run()
 		if err != nil {
+			chCancel()
 			log.Warnf("Error getting config for %s: %v", channel, err)
 			return err
 		}
 		_, err = fullOutput.Write(out.Bytes())
+		chCancel()
 		if err != nil {
 			log.Warnf("Error writing file %v", err)
 			return err
@@ -280,8 +298,8 @@ func getEventLogConfig(fb flaretypes.FlareBuilder) error {
 // getIISData collects IIS web application information grouped by application pool.
 // This helps diagnose IIS-related issues by showing the distribution of web applications
 // across application pools.
-func getIISData(fb flaretypes.FlareBuilder) error {
-	cancelctx, cancelfunc := context.WithTimeout(context.Background(), execTimeout)
+func getIISData(ctx context.Context, fb flaretypes.FlareBuilder) error {
+	cancelctx, cancelfunc := commandContextForFlare(ctx, execTimeout)
 	defer cancelfunc()
 
 	// PowerShell command to get web applications grouped by application pool
@@ -306,14 +324,14 @@ func getIISData(fb flaretypes.FlareBuilder) error {
 	return fb.AddFile("iis_application_pools.txt", out.Bytes())
 }
 
-func getWindowsData(fb flaretypes.FlareBuilder) error {
-	getTypeperfData(fb)     //nolint:errcheck
-	getLodctrOutput(fb)     //nolint:errcheck
-	getCounterStrings(fb)   //nolint:errcheck
-	getWindowsEventLogs(fb) //nolint:errcheck
-	getServiceStatus(fb)    //nolint:errcheck
-	getDatadogRegistry(fb)  //nolint:errcheck
-	getEventLogConfig(fb)   //nolint:errcheck
-	getIISData(fb)          //nolint:errcheck
+func getWindowsData(ctx context.Context, fb flaretypes.FlareBuilder) error {
+	getTypeperfData(ctx, fb)    //nolint:errcheck
+	getLodctrOutput(ctx, fb)    //nolint:errcheck
+	getCounterStrings(fb)       //nolint:errcheck
+	getWindowsEventLogs(fb)     //nolint:errcheck
+	getServiceStatus(fb)        //nolint:errcheck
+	getDatadogRegistry(ctx, fb) //nolint:errcheck
+	getEventLogConfig(ctx, fb)  //nolint:errcheck
+	getIISData(ctx, fb)         //nolint:errcheck
 	return nil
 }

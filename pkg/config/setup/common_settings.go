@@ -733,6 +733,9 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("orchestrator_explorer.terminated_pods.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.terminated_pods_improved.enabled", false)
 	config.BindEnvAndSetDefault("orchestrator_explorer.custom_resources.ootb.enabled", true)
+	config.BindEnvAndSetDefault("orchestrator_explorer.custom_resources.ootb.gateway_api", false)
+	config.BindEnvAndSetDefault("orchestrator_explorer.custom_resources.ootb.service_mesh", false)
+	config.BindEnvAndSetDefault("orchestrator_explorer.custom_resources.ootb.ingress_controllers", false)
 	config.BindEnvAndSetDefault("orchestrator_explorer.kubelet_config_check.enabled", true, "DD_ORCHESTRATOR_EXPLORER_KUBELET_CONFIG_CHECK_ENABLED")
 	config.BindEnvAndSetDefault("auto_team_tag_collection", true)
 
@@ -1055,6 +1058,8 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// Host Profiler config
 	config.BindEnvAndSetDefault("hostprofiler.debug.verbosity", "")
 	config.BindEnvAndSetDefault("hostprofiler.additional_http_headers", map[string]string{})
+	config.BindEnvAndSetDefault("hostprofiler.ddprofiling.enabled", false)
+	config.BindEnvAndSetDefault("hostprofiler.ddprofiling.period", 0)
 }
 
 func agent(config pkgconfigmodel.Setup) {
