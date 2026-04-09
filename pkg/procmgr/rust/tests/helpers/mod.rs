@@ -32,13 +32,18 @@ impl DaemonHandle {
     /// Sets `DD_PM_CONFIG_DIR` and `DD_PM_SOCKET_PATH` environment variables.
     pub fn start(config_dir: &Path, socket_path: &Path) -> Self {
         let bin = env!("CARGO_BIN_EXE_dd-procmgrd");
-        let mut child = Command::new(bin)
-            .env("DD_PM_CONFIG_DIR", config_dir)
+        let mut cmd = Command::new(bin);
+        cmd.env("DD_PM_CONFIG_DIR", config_dir)
             .env("DD_PM_SOCKET_PATH", socket_path)
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .expect("failed to start dd-procmgrd");
+            .stderr(Stdio::piped());
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt as _;
+            use windows_sys::Win32::System::Threading::CREATE_NEW_PROCESS_GROUP;
+            cmd.creation_flags(CREATE_NEW_PROCESS_GROUP);
+        }
+        let mut child = cmd.spawn().expect("failed to start dd-procmgrd");
 
         let stdout = child.stdout.take().expect("failed to capture stdout");
         let stderr = child.stderr.take().expect("failed to capture stderr");
@@ -116,9 +121,8 @@ impl DaemonHandle {
         {
             use windows_sys::Win32::System::Console::{CTRL_BREAK_EVENT, GenerateConsoleCtrlEvent};
             let pid = self.child.id();
-            unsafe {
-                GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, pid);
-            }
+            let ok = unsafe { GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, pid) };
+            assert!(ok != 0, "GenerateConsoleCtrlEvent failed for pid {pid}");
         }
         self.wait_with_timeout(DEFAULT_TIMEOUT)
     }
