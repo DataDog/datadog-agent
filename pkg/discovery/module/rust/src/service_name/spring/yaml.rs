@@ -129,32 +129,18 @@ pub fn parse_yaml<R: Read>(mut reader: R, target_key: &str) -> Option<String> {
             // compound structure (mapping/sequence) whose events must
             // be consumed until the matching end event.
             //
-            // `nesting` tracks depth inside a compound structure:
-            //   0 = not inside a compound, expecting the next item
-            //   >0 = inside a compound, consuming until nesting drops
-            //        back to 0
+            // `nesting` tracks depth inside compound structures.
+            // Starts at 0; incremented on MappingStart/SequenceStart,
+            // decremented on their matching End. An item is finished
+            // when nesting returns to 0.
             State::Skip { mut nesting, count } => {
-                let done = if nesting == 0 {
-                    // Not inside a compound — this event is the start
-                    // of the next item. Scalars/aliases complete it
-                    // immediately; compounds enter nested tracking.
-                    match event {
-                        Event::Scalar(..) | Event::Alias(..) => true,
-                        Event::MappingStart(..) | Event::SequenceStart(..) => {
-                            nesting = 1;
-                            false
-                        }
-                        _ => return None,
-                    }
-                } else {
-                    // Inside a compound structure — track nesting depth.
-                    match event {
-                        Event::MappingStart(..) | Event::SequenceStart(..) => nesting += 1,
-                        Event::MappingEnd | Event::SequenceEnd => nesting -= 1,
-                        _ => {}
-                    }
-                    nesting == 0
-                };
+                match event {
+                    Event::MappingStart(..) | Event::SequenceStart(..) => nesting += 1,
+                    Event::MappingEnd | Event::SequenceEnd if nesting > 0 => nesting -= 1,
+                    Event::Scalar(..) | Event::Alias(..) => {}
+                    _ => return None,
+                }
+                let done = nesting == 0;
                 if done {
                     match count.decrement() {
                         // All items skipped; back to reading keys.
