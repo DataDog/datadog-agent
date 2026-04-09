@@ -2572,8 +2572,8 @@ github.com/vultr/govultr/v2 v2.17.2 h1:gej/rwr91Puc/tgh+j33p/BLR16UrIPnSr+AIwYWZ
 github.com/vultr/govultr/v2 v2.17.2/go.mod h1:ZFOKGWmgjytfyjeyAdhQlSWwTjh2ig+X49cAp50dzXI=
 github.com/wI2L/jsondiff v0.7.0 h1:1lH1G37GhBPqCfp/lrs91rf/2j3DktX6qYAKZkLuCQQ=
 github.com/wI2L/jsondiff v0.7.0/go.mod h1:KAEIojdQq66oJiHhDyQez2x+sRit0vIzC9KeK0yizxM=
-github.com/wehzzz/opentelemetry-ebpf-profiler v0.0.202615-0.20260408154251-204723f7f06c h1:i2ApROyu12S3F/pm+SROVG3EA56D+clfjRkyrV8xEVA=
-github.com/wehzzz/opentelemetry-ebpf-profiler v0.0.202615-0.20260408154251-204723f7f06c/go.mod h1:cSSsRVUkDp7C/dwi2Ajo+gVS9d3uRtl4vwME+w8H9j8=
+github.com/wehzzz/opentelemetry-ebpf-profiler v0.0.202615-0.20260409090115-4cf1decd0603 h1:eS1kCIo1EeU355z3LGlq0pURz9HuwwtquvPxl7FnUYM=
+github.com/wehzzz/opentelemetry-ebpf-profiler v0.0.202615-0.20260409090115-4cf1decd0603/go.mod h1:cSSsRVUkDp7C/dwi2Ajo+gVS9d3uRtl4vwME+w8H9j8=
 github.com/weppos/publicsuffix-go v0.50.3 h1:eT5dcjHQcVDNc0igpFEsGHKIip30feuB2zuuI9eJxiE=
 github.com/weppos/publicsuffix-go v0.50.3/go.mod h1:/rOa781xBykZhHK/I3QeHo92qdDKVmKZKF7s8qAEM/4=
 github.com/wk8/go-ordered-map/v2 v2.1.8 h1:5h/BUHu93oj4gIdvHHHGsScSTMijfx5PeYkE/fJgbpc=
