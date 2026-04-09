@@ -60,6 +60,7 @@ const (
 	numAllowedPIDsToResolvePerPeriod = 1
 	procFallbackLimiterPeriod        = 30 * time.Second // proc fallback period by pid
 	tryReparentMaxForkDepth          = 3                // max ancestor fork levels to check in TryReparentFromProcfs (execs not counted)
+	tryReparentMaxIterations         = 64               // hard cap on total loop iterations in tryReparentFromProcfs to prevent hangs on ancestor cycles or long exec chains
 )
 
 // EBPFResolver resolved process context
@@ -175,7 +176,13 @@ func (p *EBPFResolver) resolveParentFromProcfs(entry *model.ProcessCacheEntry, c
 func (p *EBPFResolver) tryReparentFromProcfs(entry *model.ProcessCacheEntry, callpathTag string, newEntryCb func(*model.ProcessCacheEntry, error)) {
 	var prev *model.ProcessCacheEntry
 	forkDepth := 0
+	iterations := 0
 	for pc := entry; pc != nil && pc.Pid != 1; prev, pc = pc, pc.Ancestor {
+		iterations++
+		if iterations > tryReparentMaxIterations {
+			break
+		}
+
 		if prev != nil && pc.Pid != prev.Pid {
 			forkDepth++
 

@@ -4,7 +4,7 @@
 // Copyright 2025-present Datadog, Inc.
 
 use nom::{
-    IResult,
+    IResult, Parser,
     branch::alt,
     bytes::complete::take_while1,
     character::complete::{char, one_of, space0},
@@ -37,10 +37,10 @@ fn parse_property_line(line: &str) -> Option<(String, String)> {
 fn property_parser(input: &str) -> IResult<&str, (String, String)> {
     let (input, _) = space0(input)?;
     // Fail if we're at EOF or at a comment character (# or !)
-    let (input, _) = not(peek(alt((value((), eof), value((), one_of("#!"))))))(input)?;
+    let (input, _) = not(peek(alt((value((), eof), value((), one_of("#!")))))).parse(input)?;
     let (input, key) = take_while1(|c: char| !c.is_whitespace() && c != '=' && c != ':')(input)?;
     let (input, _) = space0(input)?;
-    let (input, _) = alt((char('='), char(':')))(input)?;
+    let (input, _) = alt((char('='), char(':'))).parse(input)?;
     let (input, _) = space0(input)?;
     let (input, value) = rest(input)?;
     Ok((input, (key.to_string(), value.trim().to_string())))

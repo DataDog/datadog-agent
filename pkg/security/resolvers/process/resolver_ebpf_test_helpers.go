@@ -35,26 +35,31 @@ func NewTestEBPFResolver(
 	}
 
 	p := &EBPFResolver{
-		state:                     atomic.NewInt64(Snapshotting),
-		entryCache:                make(map[uint32]*model.ProcessCacheEntry),
-		argsEnvsCache:             argsEnvsCache,
-		timeResolver:              timeResolver,
-		pathResolver:              pathResolver,
-		mountResolver:             mountResolver,
-		userGroupResolver:         userGroupResolver,
-		hitsStats:                 make(map[string]*atomic.Int64),
-		missStats:                 atomic.NewInt64(0),
-		addedEntriesFromEvent:     atomic.NewInt64(0),
-		addedEntriesFromKernelMap: atomic.NewInt64(0),
-		addedEntriesFromProcFS:    atomic.NewInt64(0),
-		flushedEntries:            atomic.NewInt64(0),
-		pathErrStats:              atomic.NewInt64(0),
-		argsTruncated:             atomic.NewInt64(0),
-		argsSize:                  atomic.NewInt64(0),
-		envsTruncated:             atomic.NewInt64(0),
-		envsSize:                  atomic.NewInt64(0),
-		brokenLineage:             atomic.NewInt64(0),
-		inodeErrStats:             make(map[string]*atomic.Int64),
+		state:                        atomic.NewInt64(Snapshotting),
+		entryCache:                   make(map[uint32]*model.ProcessCacheEntry),
+		argsEnvsCache:                argsEnvsCache,
+		timeResolver:                 timeResolver,
+		pathResolver:                 pathResolver,
+		mountResolver:                mountResolver,
+		userGroupResolver:            userGroupResolver,
+		hitsStats:                    make(map[string]*atomic.Int64),
+		missStats:                    atomic.NewInt64(0),
+		addedEntriesFromEvent:        atomic.NewInt64(0),
+		addedEntriesFromKernelMap:    atomic.NewInt64(0),
+		addedEntriesFromProcFS:       atomic.NewInt64(0),
+		flushedEntries:               atomic.NewInt64(0),
+		pathErrStats:                 atomic.NewInt64(0),
+		argsTruncated:                atomic.NewInt64(0),
+		argsSize:                     atomic.NewInt64(0),
+		envsTruncated:                atomic.NewInt64(0),
+		envsSize:                     atomic.NewInt64(0),
+		brokenLineage:                atomic.NewInt64(0),
+		reparentSuccessStats:         make(map[string]*atomic.Int64),
+		reparentFailedStats:          make(map[string]*atomic.Int64),
+		reparentProcfsResolutionOk:   atomic.NewInt64(0),
+		reparentProcfsResolutionFail: atomic.NewInt64(0),
+		procFallbackLimiterDrop:      atomic.NewInt64(0),
+		inodeErrStats:                make(map[string]*atomic.Int64),
 	}
 
 	for _, t := range metrics.AllTypesTags {
@@ -63,6 +68,11 @@ func NewTestEBPFResolver(
 
 	for _, tag := range allInodeErrTags() {
 		p.inodeErrStats[tag] = atomic.NewInt64(0)
+	}
+
+	for _, tag := range metrics.AllReparentCallpathTags {
+		p.reparentSuccessStats[tag] = atomic.NewInt64(0)
+		p.reparentFailedStats[tag] = atomic.NewInt64(0)
 	}
 
 	return p, nil
