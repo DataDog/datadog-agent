@@ -370,4 +370,45 @@ spring:
         let result = parse_yaml(yaml.as_bytes(), "spring.application.name");
         assert_eq!(result, None);
     }
+
+    #[test]
+    fn test_parse_yaml_complex_keys() {
+        // A mapping used as a key (complex key). The parser must skip the
+        // key's subtree and its value before finding the real key.
+        let yaml = r#"
+? {complex: key}
+: ignored
+spring:
+  application:
+    name: found
+"#
+        .as_bytes();
+        let result = parse_yaml(yaml, "spring.application.name");
+        assert_eq!(result, Some("found".to_string()));
+
+        // A sequence used as a key.
+        let yaml = r#"
+? [1, 2, 3]
+: also-ignored
+spring:
+  application:
+    name: after-seq-key
+"#
+        .as_bytes();
+        let result = parse_yaml(yaml, "spring.application.name");
+        assert_eq!(result, Some("after-seq-key".to_string()));
+    }
+
+    #[test]
+    fn test_parse_yaml_root_not_mapping() {
+        // Root is a sequence — Preamble gets SequenceStart, returns None.
+        let yaml = "- item1\n- item2\n".as_bytes();
+        let result = parse_yaml(yaml, "spring.application.name");
+        assert_eq!(result, None);
+
+        // Root is a scalar.
+        let yaml = "just a string\n".as_bytes();
+        let result = parse_yaml(yaml, "key");
+        assert_eq!(result, None);
+    }
 }
