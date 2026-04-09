@@ -13,11 +13,27 @@ from invoke import task
 
 from tasks.build_tags import build_tags, compute_config_build_tags
 from tasks.flavor import AgentFlavor
+from tasks.libs.types.version import Version
 
 CLAUDE_PLUGINS_DIR = ".claude-plugins"
 PLUGIN_NAME = "datadog-agent-gopls"
 PLUGIN_DIR = os.path.join(CLAUDE_PLUGINS_DIR, PLUGIN_NAME, ".claude-plugin")
 PLUGIN_FILE = "plugin.json"
+DEFAULT_VERSION = "1.0.0"
+
+
+def _read_existing_plugin() -> tuple[Version, str | None]:
+    """Read the existing plugin.json if it exists, returning (version, build_flags_tag)."""
+    fullpath = os.path.join(PLUGIN_DIR, PLUGIN_FILE)
+    try:
+        with open(fullpath) as f:
+            plugin = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return Version.from_tag(DEFAULT_VERSION), None
+    version = Version.from_tag(plugin.get("version", DEFAULT_VERSION))
+    flags = plugin.get("lspServers", {}).get("gopls", {}).get("initializationOptions", {}).get("build.buildFlags", [])
+    tags_flag = next((f for f in flags if f.startswith("-tags=")), None)
+    return version, tags_flag
 
 
 @task(
@@ -27,12 +43,12 @@ PLUGIN_FILE = "plugin.json"
     }
 )
 def set_buildtags(
-    _,
-    targets="all",
-    build_include=None,
-    build_exclude=None,
-    flavor=AgentFlavor.base.name,
-):
+    _: object,
+    targets: str = "all",
+    build_include: str | None = None,
+    build_exclude: str | None = None,
+    flavor: str = AgentFlavor.base.name,
+) -> None:
     """
     Create/update Claude Code gopls plugin configuration with correct build tags
     """
@@ -46,8 +62,14 @@ def set_buildtags(
     if not os.path.exists(PLUGIN_DIR):
         os.makedirs(PLUGIN_DIR)
 
+    new_tags_flag = f"-tags={','.join(sorted(use_tags))}"
+    version, old_tags_flag = _read_existing_plugin()
+    if old_tags_flag is not None and old_tags_flag != new_tags_flag:
+        version = version.next_version(bump_patch=True)
+
     plugin = {
         "name": PLUGIN_NAME,
+        "version": str(version),
         "description": "Go LSP (gopls) pre-configured for the datadog-agent repository with build tags and performance flags",
         "author": {
             "name": "Lénaïc Huard",
@@ -61,7 +83,7 @@ def set_buildtags(
                 },
                 "initializationOptions": {
                     "build.buildFlags": [
-                        f"-tags={','.join(sorted(use_tags))}",
+                        new_tags_flag,
                         "-buildvcs=false",
                     ],
                     "formatting.local": "github.com/DataDog/datadog-agent",

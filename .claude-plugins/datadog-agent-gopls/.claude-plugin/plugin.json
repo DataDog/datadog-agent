@@ -1,5 +1,6 @@
 {
   "name": "datadog-agent-gopls",
+  "version": "1.0.0",
   "description": "Go LSP (gopls) pre-configured for the datadog-agent repository with build tags and performance flags",
   "author": {
     "name": "L\u00e9na\u00efc Huard",
