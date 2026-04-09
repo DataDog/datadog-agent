@@ -41,6 +41,7 @@ EXTRACTORS = [
     "log_metrics_extractor",
     "connection_error_extractor",
     "log_pattern_extractor",
+    "log_stat_extractor",
 ]
 
 # Fixed anchor subsets used by eval_component to anchor the evaluation at known
