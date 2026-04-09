@@ -391,10 +391,9 @@ func shouldSkipManifest(manifest *agentmodel.Manifest, isWatchEvent bool, cache 
 	return true
 }
 
-// chunkManifests splits manifests into chunks that each respect both a maximum count
-// and a maximum total content size (in bytes). This mirrors the limits applied by the
-// orchestrator collector to avoid intake endpoint rejections.
-func chunkManifests(manifests []*agentmodel.Manifest, maxCount, maxBytes int) [][]*agentmodel.Manifest {
+// chunkManifestsBySizeAndWeight chunks manifests based on both count and serialized size
+// to avoid intake endpoint rejections. This follows the same logic as the orchestrator collector.
+func chunkManifestsBySizeAndWeight(manifests []*agentmodel.Manifest, maxChunkSize, maxChunkWeight int) [][]*agentmodel.Manifest {
 	if len(manifests) == 0 {
 		return make([][]*agentmodel.Manifest, 0)
 	}
@@ -419,7 +418,7 @@ func chunkManifests(manifests []*agentmodel.Manifest, maxCount, maxBytes int) []
 		},
 	}
 
-	util.ChunkPayloadsBySizeAndWeight[[]interface{}, interface{}](list, chunker, maxCount, maxBytes)
+	util.ChunkPayloadsBySizeAndWeight[[]interface{}, interface{}](list, chunker, maxChunkSize, maxChunkWeight)
 
 	// Convert back to typed chunks
 	chunks := *chunker.GetChunks()
@@ -511,7 +510,7 @@ func TranslateK8sObjects(ld plog.Logs, cache *gocache.Cache, logger *zap.Logger)
 		}
 	}
 
-	chunks := chunkManifests(manifests, maxManifestsPerPayload, maxPayloadSizeBytes)
+	chunks := chunkManifestsBySizeAndWeight(manifests, maxManifestsPerPayload, maxPayloadSizeBytes)
 	logger.Debug("Sending manifests in chunks",
 		zap.Int("total_manifests", len(manifests)),
 		zap.Int("chunk_count", len(chunks)),
