@@ -219,6 +219,25 @@ func (cs *ConfigStore) GetConfig(configUUID string) (string, []ConfigBlock, *Con
 	return rawConfig, blocks, &metadata, secrets, nil
 }
 
+// DeleteConfig deletes all data associated with the given key (config UUID) from each bucket
+func (cs *ConfigStore) DeleteConfig(key string) error {
+	return cs.update(func(tx *bbolt.Tx) error {
+		bKey := []byte(key)
+
+		// Check existence via metadata bucket before deleting
+		if tx.Bucket([]byte(metadataBucket)).Get(bKey) == nil {
+			return fmt.Errorf("config not found for key: %s", key)
+		}
+
+		for _, bucketName := range []string{rawConfigBucket, configBlocksBucket, metadataBucket, secretsBucket} {
+			if err := tx.Bucket([]byte(bucketName)).Delete(bKey); err != nil {
+				return fmt.Errorf("error deleting config from bbolt bucket %s: %w", bucketName, err)
+			}
+		}
+		return nil
+	})
+}
+
 // hashConfig returns a SHA-256 hash of the config content as a string
 func hashConfig(raw string) string {
 	hash := sha256.Sum256([]byte(raw))

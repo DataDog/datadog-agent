@@ -126,6 +126,42 @@ func TestGetConfig(t *testing.T) {
 	})
 }
 
+func TestDeleteConfig(t *testing.T) {
+	t.Run("deletes config from all buckets", func(t *testing.T) {
+		cs := newTestConfigStore(t)
+		configUUID, err := cs.StoreConfig("device:10.0.0.1", "running", testRawConfig, testBlocks, testSecrets)
+		require.NoError(t, err)
+
+		err = cs.DeleteConfig(configUUID)
+		require.NoError(t, err)
+
+		_, _, _, _, err = cs.GetConfig(configUUID)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "not found")
+	})
+
+	t.Run("returns error for nonexistent key", func(t *testing.T) {
+		cs := newTestConfigStore(t)
+		err := cs.DeleteConfig("nonexistent-uuid")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "not found")
+	})
+
+	t.Run("deleting one config does not affect another", func(t *testing.T) {
+		cs := newTestConfigStore(t)
+		uuid1, err := cs.StoreConfig("device:10.0.0.1", "running", testRawConfig, testBlocks, testSecrets)
+		require.NoError(t, err)
+		uuid2, err := cs.StoreConfig("device:10.0.0.2", "running", testRawConfig, testBlocks, testSecrets)
+		require.NoError(t, err)
+
+		err = cs.DeleteConfig(uuid1)
+		require.NoError(t, err)
+
+		_, _, _, _, err = cs.GetConfig(uuid2)
+		require.NoError(t, err)
+	})
+}
+
 func TestHashConfig(t *testing.T) {
 	t.Run("deterministic", func(t *testing.T) {
 		h1 := hashConfig("hello")
