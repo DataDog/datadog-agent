@@ -13,7 +13,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	manager "github.com/DataDog/ebpf-manager"
-	lib "github.com/cilium/ebpf"
 )
 
 // RawPacketTCProgram returns the list of TC classifier sections
@@ -23,8 +22,6 @@ var RawPacketTCProgram = []string{
 }
 
 // GetRawPacketClassifierRouterMapName returns the prog-array map name associated to the index.
-// Userspace loads new tail-call programs there, then
-// flips raw_packet_router_sel once per ruleset apply.
 func GetRawPacketClassifierRouterMapName(index uint32) string {
 	switch index {
 	case 0:
@@ -41,20 +38,7 @@ const (
 	rawPacketRouterSelMapName = "raw_packet_router_sel"
 )
 
-func lookupRawPacketRouterSelValue(selMap *lib.Map) (uint32, error) {
-	if selMap == nil {
-		return 0, errors.New("raw_packet_router_sel map is nil")
-	}
-	var key uint32
-	var val uint32
-	if err := selMap.Lookup(&key, &val); err != nil {
-		return 0, err
-	}
-	return val, nil
-}
-
-// LookupRawPacketRouterSel reads BPF map raw_packet_router_sel at key 0 via ebpf-manager. The value
-// is the active router buffer index (0 or 1).
+// GetActiveRawPacketMapNumber returns the active raw packet map number
 func GetActiveRawPacketMapNumber(m *manager.Manager) (uint32, error) {
 	if m == nil {
 		return 0, errors.New("ebpf manager is nil")
@@ -66,9 +50,15 @@ func GetActiveRawPacketMapNumber(m *manager.Manager) (uint32, error) {
 	if !ok || selMap == nil {
 		return 0, errors.New("raw_packet_router_sel map not found")
 	}
-	return lookupRawPacketRouterSelValue(selMap)
+	var key uint32
+	var val uint32
+	if err := selMap.Lookup(&key, &val); err != nil {
+		return 0, err
+	}
+	return val, nil
 }
 
+// GetActiveRawPacketMapName returns the active raw packet map name based on the active index and the writeInactiveBuffer flag
 func GetActiveRawPacketMapName(active uint32, writeInactiveBuffer bool) string {
 	if writeInactiveBuffer {
 		return GetRawPacketClassifierRouterMapName(1 - active)

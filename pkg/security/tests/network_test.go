@@ -33,6 +33,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
+	ebpfprobes "github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes/rawpacket"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -203,6 +204,47 @@ func TestRawPacket(t *testing.T) {
 			})
 		})
 	})
+}
+func TestRawPacketRouterSelFlipOnRulesetReload(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	checkKernelCompatibility(t, "network feature", isRawPacketNotSupported)
+
+	rule := &rules.RuleDefinition{
+		ID:         "test_rule_raw_packet_router_sel",
+		Expression: `dns.question.name == "never.match.raw.packet.router.sel.test"`,
+	}
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{networkRawPacketEnabled: true}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	p, ok := test.probe.PlatformProbe.(*probe.EBPFProbe)
+	if !ok {
+		t.Fatal("expected *probe.EBPFProbe")
+	}
+
+	selBefore, err := ebpfprobes.GetActiveRawPacketMapNumber(p.Manager)
+	if err != nil {
+		t.Fatalf("raw_packet_router_sel (before reload): %v", err)
+	}
+	if selBefore != 0 && selBefore != 1 {
+		t.Fatalf("raw_packet_router_sel must be 0 or 1, got %d", selBefore)
+	}
+
+	if err := test.reloadPolicies(); err != nil {
+		t.Fatalf("reload policies: %v", err)
+	}
+
+	selAfter, err := ebpfprobes.GetActiveRawPacketMapNumber(p.Manager)
+	if err != nil {
+		t.Fatalf("raw_packet_router_sel (after reload): %v", err)
+	}
+
+	assert.Equal(t, uint32(1)-selBefore, selAfter,
+		"raw_packet_router_sel must be flipped after ruleset reload")
 }
 
 func TestRawPacketAction(t *testing.T) {
