@@ -151,6 +151,10 @@ static __always_inline int should_ignore_flags(int flags) {
     return flags & O_WRONLY;
 }
 
+static __always_inline int should_ignore_flags_openat2(u64 flags) {
+    return flags & O_WRONLY;
+}
+
 SEC("tracepoint/syscalls/sys_enter_open")
 int tracepoint__syscalls__sys_enter_open(enter_sys_open_ctx *args) {
     CHECK_BPF_PROGRAM_BYPASSED()
@@ -196,7 +200,7 @@ int tracepoint__syscalls__sys_enter_openat2(enter_sys_openat2_ctx *args) {
     if (args->how != NULL) {
         __u64 flags = 0;
         bpf_probe_read_user_with_telemetry(&flags, sizeof(flags), &args->how->flags);
-        if (should_ignore_flags(flags)) {
+        if (should_ignore_flags_openat2(flags)) {
             return 0;
         }
     }
@@ -223,7 +227,7 @@ static __always_inline int fexit_open_handler(void* ctx, const char *pathname, l
 static __always_inline int handle_sys_openat2(void* ctx, const struct pt_regs* regs, long ret) {
     const char *pathname;
     openat2_open_how* how;
-    int flags;
+    u64 flags;
 
     if (bpf_probe_read_kernel_with_telemetry(&how, sizeof(how), &PT_REGS_PARM3(regs)) < 0 || how == NULL)
         return 0;
@@ -231,7 +235,7 @@ static __always_inline int handle_sys_openat2(void* ctx, const struct pt_regs* r
     if (bpf_probe_read_user_with_telemetry(&flags, sizeof(flags), &how->flags) < 0)
         return 0;
 
-    if (should_ignore_flags(flags))
+    if (should_ignore_flags_openat2(flags))
         return 0;
 
     if (bpf_probe_read_kernel_with_telemetry(&pathname, sizeof(pathname), &PT_REGS_PARM2(regs)) < 0)
