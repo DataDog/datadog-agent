@@ -30,7 +30,13 @@ go_test(
         "warnings_test.go",
     ],
     embed = [":http"],
-    gotags = ["test"],
+    # keep
+    gotags = ["test"] + select({
+        "@platforms//os:linux": ["linux"],
+        "@platforms//os:macos": ["darwin"],
+        "@platforms//os:windows": ["windows"],
+        "//conditions:default": [],
+    }),
     deps = [
         "//pkg/config/mock",
         "//pkg/config/model",

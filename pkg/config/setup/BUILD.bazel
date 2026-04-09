@@ -94,7 +94,13 @@ go_test(
         "unexpectedunicodefinder_test.go",
     ],
     embed = [":setup"],
-    gotags = ["test"],
+    # keep
+    gotags = ["test"] + select({
+        "@platforms//os:linux": ["linux"],
+        "@platforms//os:macos": ["darwin"],
+        "@platforms//os:windows": ["windows"],
+        "//conditions:default": [],
+    }),
     deps = [
         "//comp/core/delegatedauth/mock",
         "//comp/core/secrets/mock",
