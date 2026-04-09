@@ -394,6 +394,13 @@ func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace
 	// each rspans is coming from a different resource and should be considered
 	// a separate payload; typically there is only one item in this slice
 	src, srcok := o.conf.OTLPReceiver.AttributesTranslator.ResourceToSource(ctx, rspans.Resource(), transform.SignalTypeSet, hostFromAttributesHandler)
+	hostFromMap := func(m map[string]string, key string) {
+		// hostFromMap sets the hostname to m[key] if it is set.
+		if v, ok := m[key]; ok {
+			src = source.Source{Kind: source.HostnameKind, Identifier: v}
+			srcok = true
+		}
+	}
 
 	attr := rspans.Resource().Attributes()
 	rattr := make(map[string]string, attr.Len())
@@ -402,10 +409,7 @@ func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace
 		return true
 	})
 	if !srcok {
-		if v := semantics.LookupString(registry, semantics.NewStringMapAccessor(rattr), semantics.ConceptDDHostname); v != "" {
-			src = source.Source{Kind: source.HostnameKind, Identifier: v}
-			srcok = true
-		}
+		hostFromMap(rattr, "_dd.hostname")
 	}
 	_, env := transform.GetFirstFromMap(rattr, string(semconv127.DeploymentEnvironmentNameKey), string(semconv.DeploymentEnvironmentKey))
 	lang := rattr[string(semconv.TelemetrySDKLanguageKey)]
@@ -444,14 +448,11 @@ func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace
 			if !srcok {
 				// if we didn't find a hostname at the resource level
 				// try and see if the span has a hostname set
-				if v := semantics.LookupString(registry, semantics.NewStringMapAccessor(ddspan.Meta), semantics.ConceptDDHostname); v != "" {
-					src = source.Source{Kind: source.HostnameKind, Identifier: v}
-					srcok = true
-				}
+				hostFromMap(ddspan.Meta, "_dd.hostname")
 			}
 			if env == "" {
 				// no env at resource level, try the first span
-				if v := semantics.LookupString(registry, semantics.NewStringMapAccessor(ddspan.Meta), semantics.ConceptDDEnv); v != "" {
+				if v := ddspan.Meta["env"]; v != "" {
 					env = v
 				}
 			}
@@ -459,7 +460,7 @@ func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace
 				// no cid at resource level, grab what we can
 				_, containerID = transform.GetFirstFromMap(ddspan.Meta, string(semconv.ContainerIDKey), string(semconv.K8SPodUIDKey))
 			}
-			if p, ok := semantics.LookupFloat64(registry, semantics.NewMetricsMapAccessor(ddspan.Metrics), semantics.ConceptSamplingPriority); ok {
+			if p, ok := ddspan.Metrics["_sampling_priority_v1"]; ok {
 				priorityByID[traceID] = sampler.SamplingPriority(p)
 			}
 			tracesByID[traceID] = append(tracesByID[traceID], ddspan)
