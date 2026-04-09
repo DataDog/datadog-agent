@@ -37,8 +37,6 @@ const (
 	tcpRecvMsgPre5190Return = "tcp_recvmsg_exit_pre_5_19_0"
 	// tcpClose traces the tcp_close() system call
 	tcpClose = "tcp_close"
-	// tcpCloseReturn traces the return of tcp_close() system call
-	tcpCloseReturn = "tcp_close_exit"
 
 	// We use the following two probes for UDP
 	udpRecvMsg              = "udp_recvmsg"
@@ -59,16 +57,21 @@ const (
 
 	// udpDestroySock traces the udp_destroy_sock() function
 	udpDestroySock = "udp_destroy_sock"
-	// udpDestroySockReturn traces the return of the udp_destroy_sock() system call
-	udpDestroySockReturn = "udp_destroy_sock_exit"
 
-	udpv6DestroySock       = "udpv6_destroy_sock"
-	udpv6DestroySockReturn = "udpv6_destroy_sock_exit"
+	udpv6DestroySock = "udpv6_destroy_sock"
 
 	// tcpRetransmit traces the tcp_retransmit_skb() kernel function
 	tcpRetransmit = "tcp_retransmit_skb"
 	// tcpRetransmitRet traces the return of the tcp_retransmit_skb() system call
 	tcpRetransmitRet = "tcp_retransmit_skb_exit"
+
+	// tcpEnterLoss traces tcp_enter_loss() to count RTO loss events.
+	// kprobe because the function is static (not exported via BTF).
+	tcpEnterLoss = "kprobe__tcp_enter_loss"
+	// tcpEnterRecovery traces tcp_enter_recovery() to count fast-recovery events.
+	tcpEnterRecovery = "kprobe__tcp_enter_recovery"
+	// tcpSendProbe0 traces tcp_send_probe0() to count zero-window probe events.
+	tcpSendProbe0 = "kprobe__tcp_send_probe0"
 
 	// inetCskAcceptReturn traces the return value for the inet_csk_accept syscall
 	inetCskAcceptReturn = "inet_csk_accept_exit"
@@ -92,15 +95,16 @@ var programs = map[string]struct{}{
 	inetCskListenStop:         {},
 	tcpRecvMsgReturn:          {},
 	tcpClose:                  {},
-	tcpCloseReturn:            {},
 	tcpConnect:                {},
 	tcpFinishConnect:          {},
 	tcpRetransmit:             {},
 	tcpRetransmitRet:          {},
+	tcpEnterLoss:              {},
+	tcpEnterRecovery:          {},
+	tcpSendProbe0:             {},
 	tcpSendMsgReturn:          {},
 	tcpSendPageReturn:         {},
 	udpDestroySock:            {},
-	udpDestroySockReturn:      {},
 	udpRecvMsg:                {},
 	udpRecvMsgReturn:          {},
 	udpSendMsgReturn:          {},
@@ -111,7 +115,6 @@ var programs = map[string]struct{}{
 	udpv6SendMsgReturn:        {},
 	udpv6SendSkb:              {},
 	udpv6DestroySock:          {},
-	udpv6DestroySockReturn:    {},
 	skbFreeDatagramLocked:     {},
 	__skbFreeDatagramLocked:   {},
 	skbConsumeUDP:             {},
@@ -147,6 +150,9 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		enableProgram(enabled, inetCskListenStop)
 		enableProgram(enabled, tcpRetransmit)
 		enableProgram(enabled, tcpRetransmitRet)
+		enableProgram(enabled, tcpEnterLoss)
+		enableProgram(enabled, tcpEnterRecovery)
+		enableProgram(enabled, tcpSendProbe0)
 
 		// TODO: see comments above on availability for these
 		//       hooks
@@ -156,9 +162,6 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		// 	enableProgram(enabled, sockFDLookupRet)
 		// }
 
-		if c.CustomBatchingEnabled {
-			enableProgram(enabled, tcpCloseReturn)
-		}
 		if hasSendPage {
 			enableProgram(enabled, tcpSendPageReturn)
 		}
@@ -172,10 +175,6 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		enableProgram(enabled, selectVersionBasedProbe(kv, udpRecvMsgReturn, udpRecvMsgPre5190Return, kv5190))
 		enableProgram(enabled, udpSendMsgReturn)
 		enableProgram(enabled, udpSendSkb)
-
-		if c.CustomBatchingEnabled {
-			enableProgram(enabled, udpDestroySockReturn)
-		}
 	}
 
 	if c.CollectUDPv6Conns {
@@ -186,10 +185,6 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		enableProgram(enabled, selectVersionBasedProbe(kv, udpv6RecvMsgReturn, udpv6RecvMsgPre5190Return, kv5190))
 		enableProgram(enabled, udpv6SendMsgReturn)
 		enableProgram(enabled, udpv6SendSkb)
-
-		if c.CustomBatchingEnabled {
-			enableProgram(enabled, udpv6DestroySockReturn)
-		}
 	}
 
 	if c.CollectUDPv4Conns || c.CollectUDPv6Conns {

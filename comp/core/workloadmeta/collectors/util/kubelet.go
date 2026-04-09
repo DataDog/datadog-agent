@@ -393,6 +393,7 @@ func extractReadinessProbe(spec *kubelet.ContainerSpec) *workloadmeta.ContainerP
 
 	return &workloadmeta.ContainerProbe{
 		InitialDelaySeconds: int32(spec.ReadinessProbe.InitialDelaySeconds),
+		FailureThreshold:    int32(spec.ReadinessProbe.FailureThreshold),
 	}
 }
 
@@ -586,9 +587,10 @@ func convertConditions(conditions []kubelet.Conditions) []workloadmeta.Kubernete
 
 	for i, condition := range conditions {
 		result[i] = workloadmeta.KubernetesPodCondition{
-			Type:   condition.Type,
-			Status: condition.Status,
-			Reason: condition.Reason,
+			Type:               condition.Type,
+			Status:             condition.Status,
+			Reason:             condition.Reason,
+			LastTransitionTime: condition.LastTransitionTime,
 		}
 	}
 

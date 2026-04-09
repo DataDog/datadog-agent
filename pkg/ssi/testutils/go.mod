@@ -27,7 +27,7 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20250910181357-589584f1c912 // indirect
-	k8s.io/utils v0.0.0-20251002143259-bc988d571ff4 // indirect
+	k8s.io/utils v0.0.0-20251222233032-718f0e51e6d2 // indirect
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.2-0.20260122202528-d9cc6641c482 // indirect
@@ -110,6 +110,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/api => ../../../pkg/api
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../pkg/collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/basic => ../../../pkg/config/basic
+	github.com/DataDog/datadog-agent/pkg/config/buildschema => ../../../pkg/config/buildschema
 	github.com/DataDog/datadog-agent/pkg/config/create => ../../../pkg/config/create
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../../pkg/config/env
 	github.com/DataDog/datadog-agent/pkg/config/helper => ../../../pkg/config/helper
@@ -123,6 +124,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig => ../../../pkg/config/teeconfig
 	github.com/DataDog/datadog-agent/pkg/config/utils => ../../../pkg/config/utils
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig => ../../../pkg/config/viperconfig
+	github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model => ../../../pkg/discovery/tracermetadata/model
 	github.com/DataDog/datadog-agent/pkg/errors => ../../../pkg/errors
 	github.com/DataDog/datadog-agent/pkg/fips => ../../../pkg/fips
 	github.com/DataDog/datadog-agent/pkg/fleet/installer => ../../../pkg/fleet/installer

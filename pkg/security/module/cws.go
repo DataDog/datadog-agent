@@ -17,10 +17,12 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
+	sbomapi "github.com/DataDog/datadog-agent/pkg/proto/pbgo/sbom"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
@@ -73,7 +75,7 @@ type CWSConsumer struct {
 }
 
 // NewCWSConsumer initializes the module with options
-func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityConfig, wmeta workloadmeta.Component, filterStore workloadfilter.Component, opts Opts, compression compression.Component, ipc ipc.Component, hostname string) (*CWSConsumer, error) {
+func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityConfig, wmeta workloadmeta.Component, filterStore workloadfilter.Component, opts Opts, compression compression.Component, ipc ipc.Component, hostname string, secretsComp secrets.Component) (*CWSConsumer, error) {
 	crtelemcfg := telemetry.ContainersRunningTelemetryConfig{
 		RuntimeEnabled: cfg.RuntimeEnabled,
 		FIMEnabled:     cfg.FIMEnabled,
@@ -106,7 +108,7 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 	}
 
 	family, socketPath := socket.GetSocketAddress(cmdSocketPath)
-	apiServer, err := NewAPIServer(cfg, evm.Probe, opts.MsgSender, evm.StatsdClient, selfTester, compression, hostname)
+	apiServer, err := NewAPIServer(cfg, evm.Probe, opts.MsgSender, evm.StatsdClient, selfTester, compression, hostname, secretsComp)
 	if err != nil {
 		return nil, err
 	}
@@ -162,15 +164,19 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 	seclog.SetTags(cfg.LogTags...)
 
 	// setup gRPC servers
+	seclog.Debugf("Registering API server")
 	api.RegisterSecurityModuleCmdServer(c.grpcCmdServer.ServiceRegistrar(), c.apiServer)
 	if cfg.EventGRPCServer != "security-agent" {
-		seclog.Infof("start security module event grpc server")
+		seclog.Infof("start security module event grpc server with %s", cfg.SocketPath)
 
 		family := common.GetFamilyAddress(cfg.SocketPath)
 		c.grpcEventServer = grpcutils.NewServer(family, cfg.SocketPath)
 
 		api.RegisterSecurityModuleEventServer(c.grpcEventServer.ServiceRegistrar(), c.apiServer)
 	}
+
+	seclog.Debugf("Registering SBOM collector server")
+	sbomapi.RegisterSBOMCollectorServer(c.grpcCmdServer.ServiceRegistrar(), c.apiServer)
 
 	// platform specific initialization
 	if err := c.init(evm, cfg, opts); err != nil {

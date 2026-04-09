@@ -73,7 +73,8 @@ func createTestNetworkCheck(mockNetStats networkStats) *NetworkCheck {
 		net: mockNetStats,
 		config: networkConfig{
 			instance: networkInstanceConfig{
-				CollectRateMetrics: true,
+				CollectRateMetrics:      true,
+				CombineConnectionStates: true,
 			},
 		},
 	}
@@ -81,9 +82,10 @@ func createTestNetworkCheck(mockNetStats networkStats) *NetworkCheck {
 
 func TestDefaultConfiguration(t *testing.T) {
 	check := createTestNetworkCheck(nil)
-	check.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, []byte(``), []byte(``), "test")
+	check.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, []byte(``), []byte(``), "test", "provider")
 
 	assert.Equal(t, false, check.config.instance.CollectConnectionState)
+	assert.Equal(t, true, check.config.instance.CombineConnectionStates)
 	assert.Equal(t, []string(nil), check.config.instance.ExcludedInterfaces)
 	assert.Equal(t, "", check.config.instance.ExcludedInterfaceRe)
 }
@@ -97,7 +99,7 @@ excluded_interfaces:
     - lo0
 excluded_interface_re: "eth.*"
 `)
-	err := check.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	err := check.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
 
 	assert.Nil(t, err)
 	assert.Equal(t, true, check.config.instance.CollectConnectionState)
@@ -292,7 +294,7 @@ collect_count_metrics: true
 `)
 
 	mockSender := mocksender.NewMockSender(networkCheck.ID())
-	err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
 	assert.Nil(t, err)
 
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -477,7 +479,7 @@ excluded_interfaces:
 `)
 
 	mockSender := mocksender.NewMockSender(networkCheck.ID())
-	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
 
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -588,7 +590,7 @@ excluded_interface_re: "eth[0-9]"
 `)
 
 	mockSender := mocksender.NewMockSender(networkCheck.ID())
-	err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
 	assert.Nil(t, err)
 
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -628,4 +630,104 @@ excluded_interface_re: "eth[0-9]"
 	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.count", float64(31), "", lo0Tags)
 	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.drop", float64(32), "", lo0Tags)
 	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.error", float64(33), "", lo0Tags)
+}
+
+func TestNetworkCheckUncombinedConnectionStates(t *testing.T) {
+	netStats := &fakeNetworkStats{
+		connectionStatsUDP4: []net.ConnectionStat{
+			{Status: ""},
+		},
+		connectionStatsUDP6: []net.ConnectionStat{
+			{Status: ""},
+			{Status: ""},
+		},
+		connectionStatsTCP4: []net.ConnectionStat{
+			{Status: "ESTABLISHED"},
+			{Status: "SYN_SENT"},
+			{Status: "SYN_RECEIVED"},
+			{Status: "FIN_WAIT_1"},
+			{Status: "FIN_WAIT_2"},
+			{Status: "TIME_WAIT"},
+			{Status: "CLOSED"},
+			{Status: "CLOSE_WAIT"},
+			{Status: "LAST_ACK"},
+			{Status: "LISTEN"},
+			{Status: "CLOSING"},
+		},
+		connectionStatsTCP6: []net.ConnectionStat{
+			{Status: "ESTABLISHED"},
+			{Status: "SYN_SENT"},
+			{Status: "SYN_RECEIVED"},
+			{Status: "FIN_WAIT_1"},
+			{Status: "FIN_WAIT_2"},
+			{Status: "TIME_WAIT"},
+			{Status: "CLOSED"},
+			{Status: "CLOSE_WAIT"},
+			{Status: "LAST_ACK"},
+			{Status: "LISTEN"},
+			{Status: "CLOSING"},
+			{Status: "ESTABLISHED"},
+			{Status: "SYN_SENT"},
+		},
+		tcp4Stats: &mibTCPStats{},
+		tcp6Stats: &mibTCPStats{},
+	}
+
+	networkCheck := createTestNetworkCheck(netStats)
+
+	rawInstanceConfig := []byte(`
+collect_connection_state: true
+combine_connection_states: false
+`)
+
+	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "")
+	assert.Nil(t, err)
+	assert.Equal(t, false, networkCheck.config.instance.CombineConnectionStates)
+
+	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Commit").Return()
+
+	err = networkCheck.Run()
+	assert.Nil(t, err)
+
+	var customTags []string
+
+	// Granular metrics expected for tcp4 (1 connection each state; LAST_ACK folds into time_wait)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.estab", float64(1), "", customTags)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.syn_sent", float64(1), "", customTags)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.syn_recv", float64(1), "", customTags)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.fin_wait_1", float64(1), "", customTags)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.fin_wait_2", float64(1), "", customTags)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.time_wait", float64(2), "", customTags) // TIME_WAIT(1) + LAST_ACK(1)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.close", float64(1), "", customTags)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.close_wait", float64(1), "", customTags)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.listen", float64(1), "", customTags)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp4.closing", float64(1), "", customTags)
+
+	// Granular metrics for tcp6 (11 states + 2 extra ESTABLISHED and SYN_SENT; LAST_ACK folds into time_wait)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.estab", float64(2), "", customTags)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.syn_sent", float64(2), "", customTags)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.syn_recv", float64(1), "", customTags)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.fin_wait_1", float64(1), "", customTags)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.fin_wait_2", float64(1), "", customTags)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.time_wait", float64(2), "", customTags) // TIME_WAIT(1) + LAST_ACK(1)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.close", float64(1), "", customTags)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.close_wait", float64(1), "", customTags)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.listen", float64(1), "", customTags)
+	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.closing", float64(1), "", customTags)
+
+	// Combined metrics must NOT be emitted
+	mockSender.AssertNotCalled(t, "Gauge", "system.net.tcp4.established", mock.Anything, mock.Anything, mock.Anything)
+	mockSender.AssertNotCalled(t, "Gauge", "system.net.tcp4.opening", mock.Anything, mock.Anything, mock.Anything)
+	mockSender.AssertNotCalled(t, "Gauge", "system.net.tcp4.closing_combined", mock.Anything, mock.Anything, mock.Anything)
+	mockSender.AssertNotCalled(t, "Gauge", "system.net.tcp4.listening", mock.Anything, mock.Anything, mock.Anything)
+
+	// UDP still emits "connections"
+	mockSender.AssertCalled(t, "Gauge", "system.net.udp4.connections", float64(1), "", customTags)
+	mockSender.AssertCalled(t, "Gauge", "system.net.udp6.connections", float64(2), "", customTags)
+
+	mockSender.AssertCalled(t, "Commit")
 }

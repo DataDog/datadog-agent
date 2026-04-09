@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    APM : Prevent an empty ``apm_config.dd_agent_bin`` value from overwriting
+    the platform default agent binary path in the trace-agent configuration.
+    This guards against a crash loop when all config keys are synced via the
+    config API and the key is present but empty.

@@ -6,7 +6,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.62.0-rc.7
 	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.67.0
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.70.0
-	github.com/DataDog/datadog-agent/pkg/config/model v0.73.0-rc.5
+	github.com/DataDog/datadog-agent/pkg/config/model v0.77.2
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.71.0-rc.1
@@ -25,6 +25,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.60.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/basic v0.0.0-20260211235139-a5361978c2b6 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/buildschema v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/create v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.73.0-devel.0.20251030121902-cd89eab046d6 // indirect
@@ -161,6 +162,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/api => ../../../../pkg/api
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../../pkg/collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/basic => ../../../../pkg/config/basic
+	github.com/DataDog/datadog-agent/pkg/config/buildschema => ../../../../pkg/config/buildschema
 	github.com/DataDog/datadog-agent/pkg/config/create => ../../../../pkg/config/create
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../../../pkg/config/env
 	github.com/DataDog/datadog-agent/pkg/config/helper => ../../../../pkg/config/helper
@@ -174,6 +176,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig => ../../../../pkg/config/teeconfig
 	github.com/DataDog/datadog-agent/pkg/config/utils => ../../../../pkg/config/utils
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig => ../../../../pkg/config/viperconfig
+	github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model => ../../../../pkg/discovery/tracermetadata/model
 	github.com/DataDog/datadog-agent/pkg/errors => ../../../../pkg/errors
 	github.com/DataDog/datadog-agent/pkg/fips => ../../../../pkg/fips
 	github.com/DataDog/datadog-agent/pkg/fleet/installer => ../../../../pkg/fleet/installer

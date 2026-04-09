@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// go:build render_config
-
 package main
 
 import (
@@ -41,6 +39,7 @@ type context struct {
 	AdmissionController bool
 	CloudFoundry        bool
 	PrivateActionRunner bool
+	SecurityAgent       bool
 }
 
 func mkContext(buildType string, osName string) context {
@@ -105,11 +104,6 @@ func mkContext(buildType string, osName string) context {
 			ClusterChecks: true,
 			CloudFoundry:  true,
 		}
-	// security-agent and system-probe use their own templating file, they only require OS
-	case "security-agent":
-		return context{
-			OS: osName,
-		}
 	case "system-probe":
 		return context{
 			OS: osName,
@@ -140,21 +134,20 @@ func render(destFile string, tplFile string, component string, osName string) {
 
 func renderAll(destFolder string, tplFolder string) {
 	for component, templateName := range map[string]string{
-		"agent-py3":      "config_template.yaml",
-		"iot-agent":      "config_template.yaml",
-		"dogstatsd":      "config_template.yaml",
-		"dca":            "config_template.yaml",
-		"dcacf":          "config_template.yaml",
-		"system-probe":   "system-probe_template.yaml",
-		"security-agent": "security-agent_template.yaml",
+		"agent-py3":    "config_template.yaml",
+		"iot-agent":    "config_template.yaml",
+		"dogstatsd":    "config_template.yaml",
+		"dca":          "config_template.yaml",
+		"dcacf":        "config_template.yaml",
+		"system-probe": "system-probe_template.yaml",
 	} {
 		for _, osName := range []string{"windows", "darwin", "linux"} {
 			destFile := filepath.Join(destFolder, component+"_"+osName+".yaml")
 			render(destFile, filepath.Join(tplFolder, templateName), component, osName)
+			fmt.Println("Successfully wrote", destFile)
 			if err := lint(destFile); err != nil {
 				panic(err)
 			}
-			fmt.Println("Successfully wrote", destFile)
 		}
 	}
 }
@@ -207,7 +200,7 @@ func lint(destFile string) error {
 		// if there are no nodes then all comments are removed, so this
 		// allows us to make a comparison even for files which only have comments,
 		// such as system-probe.yaml.
-		normalized = append(normalized, []byte("lint_testing: true # ignore me\n")...)
+		normalized = append(normalized, []byte("\nlint_testing: true # ignore me\n")...)
 		if err := yaml.Unmarshal(normalized, &root); err != nil {
 			return fmt.Errorf("lint: YAML unmarshal failed: %w", err)
 		}

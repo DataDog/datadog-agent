@@ -16,9 +16,11 @@ startup --max_idle_secs=28800 # Keep the server alive for at most 8 hours of ina
 common --@rules_python//python/config_settings:bootstrap_impl=script # https://github.com/bazel-contrib/rules_python/blob/main/BZLMOD_SUPPORT.md
 common --check_direct_dependencies=error # Escalate any bypassed `bazel_dep` to a resolution failure
 common --enable_platform_specific_config # Supported OS identifiers are linux, macos, windows, freebsd, and openbsd
+common --experimental_disk_cache_gc_max_size=5G # Cap applied whenever --disk_cache is also set, no-op otherwise
 common --experimental_ui_max_stdouterr_bytes=1073741819 # why?
 common --http_timeout_scaling=3.0 # At least one attempt reaches 30s (3,6,12,24,30,30,30,30) instead of only 10s (1,2,4,8,10,10,10,10)
 common --incompatible_strict_action_env # Do not leak local environment variables into the build context
+common --skip_incompatible_explicit_targets # Let target_compatible_with skip rather than fail
 common --test_output=errors # Print test errors to console output instead of only capturing them in buried test.log
 common --verbose_failures
 
@@ -31,16 +33,17 @@ common:lint --aspects=@rules_rust//rust:defs.bzl%rustfmt_aspect --output_groups=
 
 # Linux config ---------------------------------------------------------------------------------------------------------
 common:linux --strategy=sandboxed
-common:linux --remote_local_fallback_strategy=sandboxed
 
 # macOS config ---------------------------------------------------------------------------------------------------------
 common:macos --features=-macos_default_link_flags # https://github.com/bazelbuild/bazel/issues/23312
 common:macos --macos_minimum_os=11.0 # Keep in sync with https://docs.datadoghq.com/agent/supported_platforms/?tab=macos
 common:macos --strategy=sandboxed
-common:macos --remote_local_fallback_strategy=sandboxed
 
 # Windows config -------------------------------------------------------------------------------------------------------
 common:windows --strategy=standalone # Valid values are: [dynamic_worker, standalone, dynamic, remote, worker, local]
+# rules_python 1.9.0 transitions enable_runfiles to `true` for every py_ target on Windows. Pre-setting it here makes
+# that transition a no-op, so Bazel deduplicates python_win and avoids 2 concurrent MSBuild racing on shared resources.
+common:windows --enable_runfiles
 # Neither repo_env nor shell_executable affect action keys. It can be both an advantage and a disadvantage.
 # For instance, if we need to have some special behavior in bash we can add it, however, in some cases
 # it may lead to cache poisoning.
@@ -50,11 +53,10 @@ common:windows --shell_executable=C:/tools/msys64/usr/bin/bash.exe
 # Remote cache config --------------------------------------------------------------------------------------------------
 # datadog-agent virtually isolates caching instance from its parent (which is remote-caching).
 # If entry isn't found in datadog-agent, it will be searched in remote-caching.
-# Fallback doesn't work for --remote_cache, therefore, setting --remote_executor and --strategy to sandboxed
-# to use cache capabilities in combination with sandboxing.
-common:cache --remote_executor=grpcs://buildbarn-frontend.us1.ddbuild.io:443
+common:cache --remote_cache=grpcs://buildbarn-frontend.us1.ddbuild.io:443
 common:cache --remote_instance_name=ci/datadog-agent
 common:cache --remote_local_fallback # best-effort on transient connection errors (no such host)
+common:cache --incompatible_remote_local_fallback_for_remote_cache # works only if --remote_local_fallback is also set
 common:cache --remote_retries=1
 common:cache --remote_timeout=60
 
@@ -68,8 +70,13 @@ common:ci --noexperimental_convenience_symlinks # not CI-suitable: "These symlin
 import %workspace%/bazel/configs/rust.bazelrc
 
 # Global release config ------------------------------------------------------------------------------------------------
-# This should aggregate all the release configs for all the languages with enabled optimizations, stripping, etc.
+# This should aggregate all the release configs for all the languages with enabled optimizations,
+# stripping, etc.  It does not strictly mean that this build is the one to be released as a product.
+# It just selects all the flags we should use on product builds.  For example, we need to build with
+# optimization and compress packages in CI so that we can run performance and size gates, even
+# though we will never release that instance of the package to customers.
 common:release --config=rust-release
+common:release --//:release
 
 # Local development options --------------------------------------------------------------------------------------------
 try-import %workspace%/user.bazelrc

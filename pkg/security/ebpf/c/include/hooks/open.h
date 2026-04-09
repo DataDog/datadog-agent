@@ -11,7 +11,7 @@
 #include "helpers/syscalls.h"
 
 int __attribute__((always_inline)) trace__sys_openat2(const char *path, u8 async, int flags, umode_t mode, u64 pid_tgid) {
-    if (is_discarded_by_pid()) {
+    if (is_discarded_by_pid() || is_auid_discarder(EVENT_OPEN)) {
         return 0;
     }
 
@@ -101,9 +101,14 @@ int __attribute__((always_inline)) handle_open(ctx_t *ctx, struct path *path) {
     // do not pop, we want to keep track of the mount ref counter later in the stack
     approve_syscall(syscall, open_approvers);
 
+    if (is_cgroup2fs(syscall->open.dentry) && syscall->state != ACCEPTED) {
+        // do not discard INTERNAL events as we need to resolve the mode later in the call path
+        syscall->state = INTERNAL;
+    }
+
     syscall->resolver.key = syscall->open.file.path_key;
     syscall->resolver.dentry = syscall->open.dentry;
-    syscall->resolver.discarder_event_type = dentry_resolver_discarder_event_type(syscall);
+    syscall->resolver.discarder_event_type = syscall->state != INTERNAL ? dentry_resolver_discarder_event_type(syscall) : 0;
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
 
@@ -253,6 +258,11 @@ int __attribute__((always_inline)) _sys_open_ret(void *ctx, struct syscall_cache
     };
 
     fill_file(syscall->open.dentry, &event.file);
+
+    // cgroup internal event, allow only dir event
+    if (syscall->state == INTERNAL && !S_ISDIR(event.file.metadata.mode)) {
+        return 0;
+    }
 
     struct proc_cache_t *entry;
     if (syscall->open.pid_tgid != 0) {

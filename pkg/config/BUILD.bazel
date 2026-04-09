@@ -2,6 +2,8 @@
 
 load("//pkg/config/render_config:agent_config.bzl", "agent_config")
 
+package(default_visibility = ["//visibility:public"])
+
 agent_config(
     name = "agent_config",
     out = "datadog.yaml",
@@ -9,13 +11,19 @@ agent_config(
     template = "config_template.yaml",
 )
 
-# TODO: The tool should pick the template based on the build_type.
 agent_config(
-    name = "security_agent_config",
-    out = "security-agent.yaml",
-    build_type = "security-agent",
-    template = "security-agent_template.yaml",
+    name = "iot_agent_config",
+    out = "iot-agent.yaml",
+    build_type = "iot-agent",
+    template = "config_template.yaml",
 )
 
-# TODO: Add targets for each package, as needed: iot-agent, dogstatsd, dca, dcacf, system-probe.
-# That will get easier after we auto-pick the template based on the build type.
+agent_config(
+    name = "system_probe_config",
+    out = "system-probe.yaml",
+    build_type = "system-probe",
+    template = "system-probe_template.yaml",
+)
+
+# TODO: Add targets for each package, as needed: dogstatsd, dca, dcacf
+# That would get easier if we auto-pick the template based on the build type.

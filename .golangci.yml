@@ -171,8 +171,8 @@ linters:
             - "!**/comp/process/agent/agent_linux.go"
             - "!**/comp/process/agent/status.go"
             - "!**/comp/process/apiserver/apiserver.go"
-            - "!**/comp/process/expvars/expvarsimpl/expvars.go"
-            - "!**/comp/process/forwarders/forwardersimpl/forwarders.go"
+            - "!**/comp/process/expvars/impl/expvars.go"
+            - "!**/comp/process/forwarders/impl/forwarders.go"
             - "!**/comp/process/profiler/impl/profiler.go"
             - "!**/comp/process/status/statusimpl/status.go"
             - "!**/comp/remote-config/rcclient/rcclientimpl/rcclient.go"
@@ -351,6 +351,10 @@ linters:
   exclusions:
     generated: lax
     rules:
+    - linters:
+      - staticcheck
+      path: pkg/clusteragent/admission/mutate/cwsinstrumentation/
+      text: "SA1019: slices"
     # 'errcheck' errors in tools/dep_tree_resolver/go_deps.go
     - path: (.+)\.go$
       text: Error return value of `io.WriteString` is not checked

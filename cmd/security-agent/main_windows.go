@@ -43,7 +43,8 @@ import (
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	statsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
+	statsdFx "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/fx"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
@@ -116,14 +117,14 @@ func (s *service) Run(svcctx context.Context) error {
 		}),
 		core.Bundle(core.WithSecrets()),
 		remotehostnameimpl.Module(),
-		statsd.Module(),
+		statsdFx.Module(),
 
 		// workloadmeta setup
 		wmcatalog.GetCatalog(),
 		workloadmetafx.Module(workloadmeta.Params{
 			AgentType: workloadmeta.Remote,
 		}),
-		fx.Provide(func(log log.Component, config config.Component, statsd statsd.Component, compression logscompression.Component, hostname hostnameinterface.Component) (status.InformationProvider, *agent.RuntimeSecurityAgent, error) {
+		fx.Provide(func(log log.Component, config config.Component, statsd statsd.Component, compression logscompression.Component, hostname hostnameinterface.Component, secretsComp secrets.Component) (status.InformationProvider, *agent.RuntimeSecurityAgent, error) {
 			stopper := startstop.NewSerialStopper()
 
 			statsdClient, err := statsd.CreateForHostPort(configutils.GetBindHost(config), config.GetInt("dogstatsd_port"))
@@ -137,7 +138,7 @@ func (s *service) Run(svcctx context.Context) error {
 				return status.NewInformationProvider(nil), nil, err
 			}
 
-			runtimeAgent, err := agent.StartRuntimeSecurity(log, config, hostnameDetected, stopper, statsdClient, compression)
+			runtimeAgent, err := agent.StartRuntimeSecurity(log, config, hostnameDetected, stopper, statsdClient, compression, secretsComp)
 			if err != nil {
 				return status.NewInformationProvider(nil), nil, err
 			}

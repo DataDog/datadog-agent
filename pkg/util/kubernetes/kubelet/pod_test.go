@@ -8,10 +8,13 @@
 package kubelet
 
 import (
+	"encoding/json"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestPodOwners(t *testing.T) {
@@ -176,4 +179,24 @@ func TestPodGetPersistentVolumeClaimNames(t *testing.T) {
 			assert.EqualValues(t, tc.pvcs, tc.pod.GetPersistentVolumeClaimNames())
 		})
 	}
+}
+
+func TestConditionsLastTransitionTimeUnmarshal(t *testing.T) {
+	raw := `[{
+		"type": "Ready",
+		"status": "True",
+		"reason": "ContainersReady",
+		"lastTransitionTime": "2024-06-01T10:00:00Z"
+	}]`
+
+	var conditions []Conditions
+	require.NoError(t, json.Unmarshal([]byte(raw), &conditions))
+	require.Len(t, conditions, 1)
+
+	expected := time.Date(2024, time.June, 1, 10, 0, 0, 0, time.UTC)
+	assert.Equal(t, "Ready", conditions[0].Type)
+	assert.Equal(t, "True", conditions[0].Status)
+	assert.Equal(t, "ContainersReady", conditions[0].Reason)
+	assert.True(t, conditions[0].LastTransitionTime.Equal(expected),
+		"expected LastTransitionTime %v, got %v", expected, conditions[0].LastTransitionTime)
 }

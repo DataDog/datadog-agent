@@ -12,34 +12,29 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       id-token: write # This is required for getting the required OIDC token from GitHub
+      contents: read # Read-only token for Claude code action
+      issues: write # Required for adding labels
+      actions: read # Required for downloading artifacts
     environment:
       name: main
     steps:
-    - uses: DataDog/dd-octo-sts-action@acaa02eee7e3bb0839e4272dacb37b8f3b58ba80 # v1.0.3
-      id: octo-sts
-      with:
-        scope: DataDog/datadog-agent
-        policy: self.assign-issue.label-issue
 
     - name: Checkout repository
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      with:
-        token: ${{ steps.octo-sts.outputs.token }}
 
     - name: Download artifacts from prepare workflow
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
       with:
         name: triage-data
-        github-token: ${{ steps.octo-sts.outputs.token }}
+        github-token: ${{ github.token }}
         run-id: ${{ github.event.workflow_run.id }}
 
     - name: Intelligent Issue Triage
       id: claude
-      uses: anthropics/claude-code-action@cd77b50d2b0808657f8e6774085c8bf54484351c # v1.0.72
+      uses: anthropics/claude-code-action@58dbe8ed6879f0d3b02ac295b20d5fdfe7733e0c # v1.0.85
       with:
         anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-        claude_args : --allowedTools "Read,Write"
-        github_token: ${{ steps.octo-sts.outputs.token }}
+        claude_args : --allowedTools "Read(issue_details.json),Edit(claude.txt)"
         prompt: |
           # Datadog Agent - Intelligent Issue Triage System
 
@@ -100,31 +95,72 @@ jobs:
         else
           echo "team/agent-devx" > team_labels.txt
         fi
+        # Helper: strip Slack special mention tokens from a string
+        sanitize_slack() {
+          echo "$1" | sed -E 's/<!channel>//g; s/<!here>//g; s/<!everyone>//g; s/@channel//g; s/@here//g; s/@everyone//g'
+        }
+
         # Sanitise the generated text and extract information
         if [ -f claude.txt ] && [ -f issue_details.json ]; then
           SENSITIVE_FOUND=false
 
-          # Check for Anthropic API keys (sk-ant-api##-...)
-          if grep -qiE 'sk-ant-api[0-9]{2}-[A-Za-z0-9\-]{95,}' claude.txt || grep -qiE 'sk-ant-api[0-9]{2}-[A-Za-z0-9\-]{95,}' issue_details.json; then
-            echo "⚠️ WARNING: Anthropic API key detected in local files"
-            SENSITIVE_FOUND=true
+          for FILE in claude.txt issue_details.json; do
+            # Check for Anthropic API keys (sk-ant-api##-...)
+            if grep -qiE 'sk-ant-api[0-9]{2}-[A-Za-z0-9\-]{20,}' "$FILE"; then
+              echo "⚠️ WARNING: Anthropic API key detected in $FILE"
+              SENSITIVE_FOUND=true
+            fi
+            # Check for GitHub tokens (ghp_, gho_, ghs_, ghu_, ghr_, github_pat_)
+            if grep -qE '(ghp_|gho_|ghs_|ghu_|ghr_|github_pat_)' "$FILE"; then
+              echo "⚠️ WARNING: GitHub token detected in $FILE"
+              SENSITIVE_FOUND=true
+            fi
+            # Check for Slack tokens (xoxb-, xoxp-, xoxa-, xoxs-, xoxr-)
+            if grep -qE 'xox[bpasr]-[A-Za-z0-9\-]{10,}' "$FILE"; then
+              echo "⚠️ WARNING: Slack token detected in $FILE"
+              SENSITIVE_FOUND=true
+            fi
+            # Check for AWS access keys (AKIA...)
+            if grep -qE 'AKIA[A-Z0-9]{16}' "$FILE"; then
+              echo "⚠️ WARNING: AWS access key detected in $FILE"
+              SENSITIVE_FOUND=true
+            fi
+            # Check for Datadog API keys (32 hex chars often prefixed)
+            if grep -qiE '(dd_api_key|datadog_api_key|DD_API_KEY)[=:]["'"'"' ]*[a-f0-9]{32}' "$FILE"; then
+              echo "⚠️ WARNING: Datadog API key detected in $FILE"
+              SENSITIVE_FOUND=true
+            fi
+            # Check for private keys
+            if grep -qE 'BEGIN (RSA |EC |DSA |OPENSSH )?PRIVATE KEY' "$FILE"; then
+              echo "⚠️ WARNING: Private key detected in $FILE"
+              SENSITIVE_FOUND=true
+            fi
+          done
+
+          # Canary check: detect potential prompt injection artifacts in Claude output
+          if [ -f claude.txt ]; then
+            CANARY_FAILED=false
+            # Check for shell commands that Claude should never output
+            if grep -qiE '(curl|wget|\bnc\b|bash|sh -c|eval|exec)\s+' claude.txt; then
+              echo "⚠️ WARNING: Potential prompt injection detected (shell commands in output)"
+              CANARY_FAILED=true
+            fi
+            # Check for attempts to override workflow variables
+            if grep -qE '>>?\s*\$GITHUB_OUTPUT' claude.txt || grep -qE '>>?\s*\$GITHUB_ENV' claude.txt; then
+              echo "⚠️ WARNING: Potential prompt injection detected (workflow variable override attempt)"
+              CANARY_FAILED=true
+            fi
+            if [ "$CANARY_FAILED" = true ]; then
+              SENSITIVE_FOUND=true
+            fi
           fi
-          # Check for GitHub classic tokens (ghp_...)
-          if grep -qE 'ghp_[A-Za-z0-9]{36}' claude.txt || grep -qE 'ghp_[A-Za-z0-9]{36}' issue_details.json; then
-            echo "⚠️ WARNING: GitHub classic token detected in local files"
-            SENSITIVE_FOUND=true
-          fi
-          # Check for GitHub fine-grained tokens (github_pat_...)
-          if grep -qE 'github_pat_[A-Za-z0-9_]{82}' claude.txt || grep -qE 'github_pat_[A-Za-z0-9_]{82}' issue_details.json; then
-            echo "⚠️ WARNING: GitHub fine-grained token detected in local files"
-            SENSITIVE_FOUND=true
-          fi
+
           if [ "$SENSITIVE_FOUND" = true ]; then
-            echo "❌ Sensitive information detected in local files. Skipping processing for security."
+            echo "❌ Sensitive information or anomalous output detected. Skipping processing for security."
             echo "team=unknown" >> $GITHUB_OUTPUT
             echo "slack=agent-devx-ops" >> $GITHUB_OUTPUT
-            echo "confidence=low" >> $GITHUB_OUTPUT
-            echo "explanation=Sensitive information detected, processing skipped for security" >> $GITHUB_OUTPUT
+            echo "confidence=LOW" >> $GITHUB_OUTPUT
+            echo "explanation=Sensitive information or anomalous output detected, processing skipped for security" >> $GITHUB_OUTPUT
             echo "issue_number=unknown" >> $GITHUB_OUTPUT
             echo "issue_title=unknown" >> $GITHUB_OUTPUT
             echo "issue_url=unknown" >> $GITHUB_OUTPUT
@@ -137,20 +173,27 @@ jobs:
               echo "team=unknown" >> $GITHUB_OUTPUT
             fi
             SLACK=$(grep SLACK claude.txt | cut -d ':' -f2)
-            if grep -q "$SLACK" tasks/libs/pipeline/github_slack_map.yaml; then
+            if grep -qw "$SLACK" tasks/libs/pipeline/github_slack_map.yaml; then
               # We validate the slack channel against the github_slack_map.yaml file
               echo "slack=$SLACK" >> $GITHUB_OUTPUT
             else
               echo "slack=agent-devx-ops" >> $GITHUB_OUTPUT
             fi
-            CONFIDENCE=$(grep CONFIDENCE claude.txt | cut -d ':' -f2)
+            # Validate CONFIDENCE against allowed values, default to LOW
+            CONFIDENCE=$(grep CONFIDENCE claude.txt | cut -d ':' -f2 | tr '[:lower:]' '[:upper:]')
+            if [[ ! "$CONFIDENCE" =~ ^(HIGH|MEDIUM|LOW)$ ]]; then
+              CONFIDENCE="LOW"
+            fi
             echo "confidence=$CONFIDENCE" >> $GITHUB_OUTPUT
-            # We extract the explanation from the claude.txt file and remove the markdown links
+            # Extract explanation, remove markdown links, sanitize Slack tokens, and enforce 150-char limit
             EXPLANATION=$(grep EXPLANATION claude.txt | cut -d ':' -f2 | sed -E 's/\[([^]]+)\]\([^)]+\)/\1/g; s/<[^|]+\|([^>]+)>/\1/g')
+            EXPLANATION=$(sanitize_slack "$EXPLANATION" | cut -c1-150)
             echo "explanation=$EXPLANATION" >> $GITHUB_OUTPUT
             ISSUE_NUMBER=$(jq -r '.number' issue_details.json)
             echo "issue_number=$ISSUE_NUMBER" >> $GITHUB_OUTPUT
+            # Sanitize issue title against Slack injection
             ISSUE_TITLE=$(jq -r '.title' issue_details.json)
+            ISSUE_TITLE=$(sanitize_slack "$ISSUE_TITLE")
             echo "issue_title=$ISSUE_TITLE" >> $GITHUB_OUTPUT
             ISSUE_URL=$(jq -r '.url' issue_details.json)
             echo "issue_url=$ISSUE_URL" >> $GITHUB_OUTPUT
@@ -171,7 +214,6 @@ jobs:
         ISSUE_NUMBER: ${{ steps.extract-info.outputs.issue_number }}
         TEAM: ${{ steps.extract-info.outputs.team }}
       with:
-        github-token: ${{ steps.octo-sts.outputs.token }}
         script: |
           const teamLabel = process.env.TEAM;
           if (teamLabel && teamLabel !== 'unknown') {

@@ -12,14 +12,15 @@
 package model
 
 import (
-	"net"
 	"net/netip"
 	"runtime"
+	"syscall"
 	"time"
 	"unsafe"
 
 	"github.com/google/gopacket"
 
+	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
@@ -380,7 +381,6 @@ type Process struct {
 	CreatedAt uint64 `field:"created_at,handler:ResolveProcessCreatedAt"` // SECLDoc[created_at] Definition:`Timestamp of the creation of the process`
 
 	Cookie uint64 `field:"-"`
-	PPid   uint32 `field:"ppid"` // SECLDoc[ppid] Definition:`Parent process ID`
 
 	// credentials_t section of pid_cache_t
 	Credentials
@@ -392,7 +392,7 @@ type Process struct {
 
 	AWSSecurityCredentials []AWSSecurityCredentials `field:"-"`
 
-	TracerTags []string `field:"-"` // Tags from APM tracer instrumentation
+	TracerMetadata tracermetadata.TracerMetadata `field:"-"` // Metadata from APM tracer instrumentation
 
 	ArgsID uint64 `field:"-"`
 	EnvsID uint64 `field:"-"`
@@ -424,15 +424,7 @@ type Process struct {
 
 	Source uint64 `field:"-"`
 
-	// lineage
-	validLineageResult *validLineageResult `field:"-"`
-
 	IsThroughSymLink bool `field:"-"` // Indicates whether the process is through a symlink
-}
-
-type validLineageResult struct {
-	valid bool
-	err   error
 }
 
 // SetAncestorFields force the process cache entry to be valid
@@ -482,6 +474,11 @@ type FileFields struct {
 
 	NLink uint32 `field:"-"`
 	Flags int32  `field:"-"`
+}
+
+// IsDir reports whether the file mode represents a directory.
+func (f *FileFields) IsDir() bool {
+	return f.Mode&syscall.S_IFMT == syscall.S_IFDIR
 }
 
 // FileEvent is the common file event type
@@ -646,6 +643,7 @@ type PIDContext struct {
 	NetNS         uint32 `field:"netns"`      // SECLDoc[netns] Definition:`NetNS ID of the process`
 	MntNS         uint32 `field:"mntns"`      // SECLDoc[mntns] Definition:`MNTNS ID of the process`
 	IsKworker     bool   `field:"is_kworker"` // SECLDoc[is_kworker] Definition:`Indicates whether the process is a kworker`
+	PPid          uint32 `field:"ppid"`       // SECLDoc[ppid] Definition:`Parent process ID`
 	ExecInode     uint64 `field:"-"`          // used to track exec and event loss
 	UserSessionID uint64 `field:"-"`          // used to track user sessions from kernel space
 	// used for ebpfless
@@ -945,14 +943,6 @@ type OnDemandEvent struct {
 // LoginUIDWriteEvent is used to propagate login UID updates to user space
 type LoginUIDWriteEvent struct {
 	AUID uint32 `field:"-"`
-}
-
-// SnapshottedBoundSocket represents a snapshotted bound socket
-type SnapshottedBoundSocket struct {
-	IP       net.IP
-	Port     uint16
-	Family   uint16
-	Protocol uint16
 }
 
 // RawPacketEvent represents a packet event

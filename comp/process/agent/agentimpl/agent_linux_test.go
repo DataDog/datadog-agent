@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux
+//go:build test && linux
 
 package agentimpl
 
@@ -25,9 +25,9 @@ import (
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	statsdimpl "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/impl"
 	"github.com/DataDog/datadog-agent/comp/process/agent"
-	"github.com/DataDog/datadog-agent/comp/process/hostinfo/hostinfoimpl"
+	hostinfomock "github.com/DataDog/datadog-agent/comp/process/hostinfo/mock"
 	"github.com/DataDog/datadog-agent/comp/process/processcheck/processcheckimpl"
 	"github.com/DataDog/datadog-agent/comp/process/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/comp/process/submitter/submitterimpl"
@@ -99,9 +99,9 @@ func TestProcessAgentComponentOnLinux(t *testing.T) {
 
 			opts := []fx.Option{
 				runnerimpl.Module(),
-				hostinfoimpl.MockModule(),
+				hostinfomock.MockModule(),
 				submitterimpl.MockModule(),
-				statsd.MockModule(),
+				statsdimpl.MockModule(),
 				fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 				fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 				sysprobeconfigimpl.MockModule(),
@@ -164,9 +164,9 @@ func TestStatusProvider(t *testing.T) {
 
 			deps := fxutil.Test[dependencies](t, fx.Options(
 				runnerimpl.Module(),
-				hostinfoimpl.MockModule(),
+				hostinfomock.MockModule(),
 				submitterimpl.MockModule(),
-				statsd.MockModule(),
+				statsdimpl.MockModule(),
 				Module(),
 				processcheckimpl.MockModule(),
 				fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
@@ -211,9 +211,9 @@ func TestTelemetryCoreAgent(t *testing.T) {
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		runnerimpl.Module(),
-		hostinfoimpl.MockModule(),
+		hostinfomock.MockModule(),
 		submitterimpl.MockModule(),
-		statsd.MockModule(),
+		statsdimpl.MockModule(),
 		Module(),
 		processcheckimpl.MockModule(),
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),

@@ -36,17 +36,7 @@ static __always_inline void clean_protocol_classification(conn_tuple_t *tup) {
     bpf_map_delete_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple);
 }
 
-static __always_inline bool is_batching_enabled() {
-    __u64 batching_enabled = 0;
-    LOAD_CONSTANT("batching_enabled", batching_enabled);
-    return batching_enabled != 0;
-}
-
 __maybe_unused static __always_inline __u64 get_ringbuf_flags(size_t data_size) {
-    if (is_batching_enabled()) {
-        return 0;
-    }
-
     __u64 ringbuffer_wakeup_size = 0;
     LOAD_CONSTANT("ringbuffer_wakeup_size", ringbuffer_wakeup_size);
     if (ringbuffer_wakeup_size == 0) {
@@ -70,7 +60,9 @@ __maybe_unused static __always_inline void submit_closed_conn_event(void *ctx, i
 static __always_inline int cleanup_conn(void *ctx, conn_tuple_t *tup, struct sock *sk) {
     u32 cpu = bpf_get_smp_processor_id();
     // Will hold the full connection data to send through the perf or ring buffer
-    conn_t conn = { .tup = *tup };
+    conn_t conn = {};
+    bpf_memset(&conn, 0, sizeof(conn_t));
+    conn.tup = *tup;
     conn_stats_ts_t *cst = NULL;
     tcp_stats_t *tst = NULL;
     u32 *retrans = NULL;
@@ -101,6 +93,13 @@ static __always_inline int cleanup_conn(void *ctx, conn_tuple_t *tup, struct soc
                     increment_telemetry_count_times(tcp_syn_retransmit, *count);
                     bpf_map_delete_elem(&tcp_retransmits, &(conn.tup));
                 }
+#if !defined(COMPILE_PREBUILT)
+                // Clean up RTO/recovery stats (zero-PID keyed) before early return.
+                __u32 saved_pid = conn.tup.pid;
+                conn.tup.pid = 0;
+                bpf_map_delete_elem(&tcp_event_stats, &(conn.tup));
+                conn.tup.pid = saved_pid;
+#endif
                 return -1;
             }
         }
@@ -111,6 +110,15 @@ static __always_inline int cleanup_conn(void *ctx, conn_tuple_t *tup, struct soc
             conn.tcp_stats.retransmits = *retrans;
             bpf_map_delete_elem(&tcp_retransmits, &(conn.tup));
         }
+#if !defined(COMPILE_PREBUILT)
+        // Finalize RTO/recovery stats: copy from map into embedded struct.
+        // These are BPF-only event counters (no tcp_sock field to read).
+        tcp_event_stats_t *tes = bpf_map_lookup_elem(&tcp_event_stats, &(conn.tup));
+        if (tes) {
+            conn.tcp_stats.tcp_event_stats = *tes;
+            bpf_map_delete_elem(&tcp_event_stats, &(conn.tup));
+        }
+#endif
         conn.tup.pid = tup->pid;
         conn.tcp_stats.state_transitions |= (1 << TCP_CLOSE);
 
@@ -130,6 +138,9 @@ static __always_inline int cleanup_conn(void *ctx, conn_tuple_t *tup, struct soc
             if (total_retrans > conn.tcp_stats.retransmits) {
                 conn.tcp_stats.retransmits = total_retrans;
             }
+#if !defined(COMPILE_PREBUILT)
+            finalize_congestion_stats(sk, &conn.tcp_stats);
+#endif
         }
     }
 
@@ -142,68 +153,8 @@ static __always_inline int cleanup_conn(void *ctx, conn_tuple_t *tup, struct soc
     __u64 delta_ns = bpf_ktime_get_ns() - start_ns;
     conn.conn_stats.duration_ms = convert_ns_to_ms(delta_ns);
 
-    if (is_batching_enabled()) {
-        // Batch TCP closed connections before generating a perf event
-        batch_t *batch_ptr = bpf_map_lookup_elem(&conn_close_batch, &cpu);
-        if (batch_ptr == NULL) {
-            return -1;
-        }
-
-        // TODO: Can we turn this into a macro based on TCP_CLOSED_BATCH_SIZE?
-        switch (batch_ptr->len) {
-        case 0:
-            batch_ptr->c0 = conn;
-            batch_ptr->len++;
-            return 0;
-        case 1:
-            batch_ptr->c1 = conn;
-            batch_ptr->len++;
-            return 0;
-        case 2:
-            batch_ptr->c2 = conn;
-            batch_ptr->len++;
-            return 0;
-        case 3:
-            batch_ptr->c3 = conn;
-            batch_ptr->len++;
-            // In this case the batch is ready to be flushed, which we defer to kretprobe/tcp_close
-            // in order to cope with the eBPF stack limitation of 512 bytes.
-            return 0;
-        }
-    }
-
-    // If we hit this section it means we had one or more interleaved tcp_close calls.
-    // We send the connection outside of a batch anyway. This is likely not as
-    // frequent of a case to cause performance issues and avoid cases where
-    // we drop whole connections, which impacts things USM connection matching.
     submit_closed_conn_event(ctx, cpu, &conn, sizeof(conn_t));
-    if (is_batching_enabled()) {
-        if (is_tcp) {
-            increment_telemetry_count(unbatched_tcp_close);
-        }
-        if (is_udp) {
-            increment_telemetry_count(unbatched_udp_close);
-        }
-    }
     return 0;
-}
-
-static __always_inline void flush_conn_close_if_full(void *ctx) {
-    u32 cpu = bpf_get_smp_processor_id();
-    batch_t *batch_ptr = bpf_map_lookup_elem(&conn_close_batch, &cpu);
-    if (!batch_ptr || batch_ptr->len != CONN_CLOSED_BATCH_SIZE) {
-        return;
-    }
-
-    // Here we copy the batch data to a variable allocated in the eBPF stack
-    // This is necessary for older Kernel versions only (we validated this behavior on 4.4.0),
-    // since you can't directly write a map entry to the perf buffer.
-    batch_t batch_copy = {};
-    bpf_memcpy(&batch_copy, batch_ptr, sizeof(batch_copy));
-    batch_ptr->len = 0;
-    batch_ptr->id++;
-
-    submit_closed_conn_event(ctx, cpu, &batch_copy, sizeof(batch_t));
 }
 
 #endif // __TRACER_EVENTS_H

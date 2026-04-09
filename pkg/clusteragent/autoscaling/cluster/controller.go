@@ -37,8 +37,10 @@ type store = autoscaling.Store[model.NodePoolInternal]
 
 var (
 	nodePoolGVR = schema.GroupVersionResource{Group: "karpenter.sh", Version: "v1", Resource: "nodepools"}
-	// Only support EC2 for now
-	nodeClassGVR = schema.GroupVersionResource{Group: "karpenter.k8s.aws", Version: "v1", Resource: "ec2nodeclasses"}
+
+	// Supported node class GVRs, tried in order during discovery
+	ec2NodeClassGVR = schema.GroupVersionResource{Group: "karpenter.k8s.aws", Version: "v1", Resource: "ec2nodeclasses"}
+	eksNodeClassGVR = schema.GroupVersionResource{Group: "eks.amazonaws.com", Version: "v1", Resource: "nodeclasses"}
 
 	controllerID autoscaling.SenderID = "dca-c"
 )
@@ -203,22 +205,11 @@ func (c *Controller) createNodePool(ctx context.Context, targetNp *karpenterv1.N
 		log.Debugf("Building replica of NodePool: %s", npi.TargetName())
 		np = model.BuildReplicaNodePool(targetNp, npi)
 	} else {
-		// Get NodeClass. If there's none or more than one, then we should not create the NodePool
-		ncList, err := c.Client.Resource(nodeClassGVR).List(ctx, metav1.ListOptions{})
+		nodeClassRef, err := c.discoverNodeClass(ctx)
 		if err != nil {
-			return fmt.Errorf("unable to list NodeClasses: %w", err)
+			return err
 		}
-
-		if len(ncList.Items) == 0 {
-			return errors.New("no NodeClasses found, NodePool cannot be created")
-		}
-
-		if len(ncList.Items) > 1 {
-			return fmt.Errorf("too many NodeClasses found (%v), NodePool cannot be created", len(ncList.Items))
-		}
-
-		u := ncList.Items[0]
-		np = model.ConvertToKarpenterNodePool(npi, u.GetName())
+		np = model.ConvertToKarpenterNodePool(npi, nodeClassRef)
 	}
 
 	npUnstr, err := convertNodePoolToUnstructured(np)
@@ -277,6 +268,44 @@ func (c *Controller) deleteNodePool(ctx context.Context, name string, knp *karpe
 
 	c.eventRecorder.Eventf(knp, corev1.EventTypeNormal, model.SuccessfulNodepoolDeleteEventReason, "Deleted NodePool: %s", name)
 	return nil
+}
+
+// discoverNodeClass attempts to find a single node class from supported providers.
+// It tries manual Karpenter (EC2NodeClass) first, then falls back to EKS Auto Mode (NodeClass).
+// Returns the NodeClassReference for the discovered node class, or an error if none or too many are found.
+func (c *Controller) discoverNodeClass(ctx context.Context) (*karpenterv1.NodeClassReference, error) {
+	for _, provider := range []struct {
+		gvr  schema.GroupVersionResource
+		kind string
+	}{
+		{gvr: ec2NodeClassGVR, kind: "EC2NodeClass"},
+		{gvr: eksNodeClassGVR, kind: "NodeClass"},
+	} {
+		ncList, err := c.Client.Resource(provider.gvr).List(ctx, metav1.ListOptions{})
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				log.Debugf("NodeClass CRD %s/%s not found, trying next provider", provider.gvr.Group, provider.kind)
+				continue
+			}
+			return nil, fmt.Errorf("unable to list %s/%s NodeClasses: %w", provider.gvr.Group, provider.kind, err)
+		}
+
+		if len(ncList.Items) == 0 {
+			continue
+		}
+
+		if len(ncList.Items) > 1 {
+			return nil, fmt.Errorf("too many %s NodeClasses found (%d), NodePool cannot be created", provider.gvr.Group, len(ncList.Items))
+		}
+
+		return &karpenterv1.NodeClassReference{
+			Kind:  provider.kind,
+			Name:  ncList.Items[0].GetName(),
+			Group: provider.gvr.Group,
+		}, nil
+	}
+
+	return nil, errors.New("no NodeClasses found from any supported provider, NodePool cannot be created")
 }
 
 func isCreatedByDatadog(labels map[string]string) bool {

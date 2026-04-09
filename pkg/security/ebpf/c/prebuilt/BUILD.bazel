@@ -1,4 +1,6 @@
-load("//bazel/rules:ebpf.bzl", "ebpf_prog")
+load("//bazel/rules/ebpf:ebpf.bzl", "ebpf_prog")
+
+exports_files(["probe.c"])
 
 _COMMON_DEPS = [
     "//pkg/ebpf/c:ebpf_c_headers",
@@ -15,6 +17,7 @@ ebpf_prog(
     name = "runtime-security",
     src = "probe.c",
     extra_flags = _SECURITY_FLAGS,
+    visibility = ["//visibility:public"],
     deps = _COMMON_DEPS,
 )
 
@@ -23,6 +26,7 @@ ebpf_prog(
     name = "runtime-security-syscall-wrapper",
     src = "probe.c",
     extra_flags = _SECURITY_FLAGS + ["-DUSE_SYSCALL_WRAPPER"],
+    visibility = ["//visibility:public"],
     deps = _COMMON_DEPS,
 )
 
@@ -34,6 +38,7 @@ ebpf_prog(
         "-DUSE_SYSCALL_WRAPPER",
         "-DUSE_FENTRY",
     ],
+    visibility = ["//visibility:public"],
     deps = _COMMON_DEPS,
 )
 
@@ -47,6 +52,7 @@ ebpf_prog(
     name = "runtime-security-baloum",
     src = "probe.c",
     extra_flags = _BALOUM_FLAGS,
+    visibility = ["//visibility:public"],
     deps = _COMMON_DEPS,
 )
 
@@ -54,6 +60,7 @@ ebpf_prog(
     name = "runtime-security-syscall-wrapper-baloum",
     src = "probe.c",
     extra_flags = _BALOUM_FLAGS + ["-DUSE_SYSCALL_WRAPPER"],
+    visibility = ["//visibility:public"],
     deps = _COMMON_DEPS,
 )
 
@@ -64,6 +71,7 @@ ebpf_prog(
         "-DUSE_SYSCALL_WRAPPER",
         "-DUSE_FENTRY",
     ],
+    visibility = ["//visibility:public"],
     deps = _COMMON_DEPS,
 )
 
@@ -72,5 +80,6 @@ ebpf_prog(
     name = "runtime-security-offset-guesser",
     src = "offset-guesser.c",
     extra_flags = _SECURITY_FLAGS,
+    visibility = ["//visibility:public"],
     deps = _COMMON_DEPS,
 )

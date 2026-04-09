@@ -7,6 +7,7 @@ package scrubber
 
 import (
 	"fmt"
+	"math/bits"
 	"regexp"
 	"slices"
 	"strings"
@@ -60,6 +61,13 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		Repl:  []byte(`$1************************************$2`),
 
 		LastUpdated: defaultVersion,
+	}
+	prefixedAPPKeyReplacer := Replacer{
+		Regex: regexp.MustCompile(`ddapp_[a-zA-Z0-9]{28}_[a-zA-Z0-9]([a-zA-Z0-9]{4})`),
+		Hints: []string{"ddapp_"},
+		Repl:  []byte(`************************************$1`),
+
+		LastUpdated: parseVersion("7.78.0"),
 	}
 
 	// replacers are check one by one in order. We first try to scrub 64 bytes token, keeping the last 5 digit. If
@@ -145,18 +153,25 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		LastUpdated: parseVersion("7.73.1"),
 	}
 	tokenReplacer := matchYAMLKeyEnding(
-		`token`,
-		[]string{"token"},
+		`_?(token|jwt)`,
+		[]string{"token", "jwt"},
 		[]byte(`$1 "********"`),
 	)
-	tokenReplacer.LastUpdated = parseVersion("7.70.2")
+	tokenReplacer.LastUpdated = parseVersion("7.78.0") // https://github.com/DataDog/datadog-agent/pull/48017
 
-	secretReplacer := matchYAMLKey(
-		`(token_secret|consumer_secret)`,
-		[]string{"token_secret", "consumer_secret"},
+	secretReplacer := matchYAMLKeyEnding(
+		`_secret(_id)?`,
+		[]string{"secret", "secret_id"},
 		[]byte(`$1 "********"`),
 	)
-	secretReplacer.LastUpdated = parseVersion("7.70.0") // https://github.com/DataDog/datadog-agent/pull/40345
+	secretReplacer.LastUpdated = parseVersion("7.78.0") // https://github.com/DataDog/datadog-agent/pull/48017
+
+	accessKeyReplacer := matchYAMLKeyEnding(
+		`access_key`,
+		[]string{"access_key"},
+		[]byte(`$1 "********"`),
+	)
+	accessKeyReplacer.LastUpdated = parseVersion("7.78.0") // https://github.com/DataDog/datadog-agent/pull/48017
 
 	// OAuth credentials scrubbers for continuous_ai_netsuite and similar integrations
 	consumerKeyAndTokenIDReplacer := matchYAMLKey(
@@ -201,9 +216,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 				if apiKey == "" {
 					return ""
 				}
-				if len(apiKey) == 32 {
-					return HideKeyExceptLastFourChars(apiKey)
-				}
+				return HideKeyExceptLastChars(apiKey)
 			}
 			return defaultReplacement
 		},
@@ -218,9 +231,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 				if appKey == "" {
 					return ""
 				}
-				if len(appKey) == 40 {
-					return HideKeyExceptLastFourChars(appKey)
-				}
+				return HideKeyExceptLastChars(appKey)
 			}
 			return defaultReplacement
 		},
@@ -281,6 +292,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 
 	scrubber.AddReplacer(SingleLine, hintedAPIKeyReplacer)
 	scrubber.AddReplacer(SingleLine, hintedAPPKeyReplacer)
+	scrubber.AddReplacer(SingleLine, prefixedAPPKeyReplacer)
 	scrubber.AddReplacer(SingleLine, hintedBearerReplacer)
 	scrubber.AddReplacer(SingleLine, hintedBearerInvalidReplacer)
 	scrubber.AddReplacer(SingleLine, httpHeaderKeyReplacer)
@@ -300,6 +312,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	scrubber.AddReplacer(SingleLine, tokenReplacer)
 	scrubber.AddReplacer(SingleLine, consumerKeyAndTokenIDReplacer)
 	scrubber.AddReplacer(SingleLine, secretReplacer)
+	scrubber.AddReplacer(SingleLine, accessKeyReplacer)
 	scrubber.AddReplacer(SingleLine, snmpReplacer)
 
 	scrubber.AddReplacer(SingleLine, apiKeyYaml)
@@ -471,14 +484,39 @@ func ScrubDataObj(data *interface{}) {
 	DefaultScrubber.ScrubDataObj(data)
 }
 
-// HideKeyExceptLastFourChars replaces all characters in the key with "*", except
-// for the last 4 characters. If the key is an unrecognized length, replace
-// all of it with the default string of "*"s instead.
-func HideKeyExceptLastFourChars(key string) string {
-	if len(key) != 32 && len(key) != 40 {
+// HideKeyExceptLastChars replaces all characters in the key with "*", except
+// for the last N characters, where N scales logarithmically with key length:
+//   - ≤ 4 chars: fully replaced with defaultReplacement
+//   - 5–7 chars: show last 1 char
+//   - 8–15 chars: show last 2 chars
+//   - 16–31 chars: show last 3 chars
+//   - 32+ chars: show last 4 chars
+//
+// This avoids exposing a disproportionate share of shorter keys (e.g. 8–10 char
+// third-party keys) while preserving enough suffix for identification on longer ones.
+func HideKeyExceptLastChars(key string) string {
+	n := visibleKeyChars(len(key))
+	if n == 0 {
 		return defaultReplacement
 	}
-	return strings.Repeat("*", len(key)-4) + key[len(key)-4:]
+	return strings.Repeat("*", len(key)-n) + key[len(key)-n:]
+}
+
+// visibleKeyChars returns how many trailing characters of a key of the given
+// length should remain visible, clamped to [1, 4].
+func visibleKeyChars(keyLen int) int {
+	if keyLen <= 4 {
+		return 0
+	}
+	// bits.Len(n) == floor(log2(n)) + 1 for n > 0
+	n := bits.Len(uint(keyLen)) - 2
+	if n < 1 {
+		return 1
+	}
+	if n > 4 {
+		return 4
+	}
+	return n
 }
 
 // AddStrippedKeys adds to the set of YAML keys that will be recognized and have their values stripped. This modifies
