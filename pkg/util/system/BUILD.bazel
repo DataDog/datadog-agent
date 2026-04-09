@@ -99,13 +99,7 @@ go_test(
         "network_test.go",
     ],
     embed = [":system"],
-    # keep
-    gotags = ["test"] + select({
-        "@platforms//os:linux": ["linux"],
-        "@platforms//os:macos": ["darwin"],
-        "@platforms//os:windows": ["windows"],
-        "//conditions:default": [],
-    }),
+    gotags = ["test"],  # keep
     deps = [
         "@com_github_stretchr_testify//assert",
     ] + select({

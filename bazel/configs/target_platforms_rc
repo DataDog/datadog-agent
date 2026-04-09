@@ -1,0 +1,5 @@
+# Compilation flags which must vary by target platform.
+
+build:linux_target --@rules_go//go/config:tags=linux
+build:macos_target --@rules_go//go/config:tags=darwin
+build:windows_target --@rules_go//go/config:tags=windows
