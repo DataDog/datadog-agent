@@ -208,16 +208,12 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, tags infraTags) {
 		ProcessTagsHash: tags.processTagsHash,
 		BaseService:     semantics.LookupString(ddRegistry, semantics.NewDDSpanAccessor(pt.Root.Meta, pt.Root.Metrics), semantics.ConceptDDBaseService),
 	}
-	total := len(pt.TraceChunk.Spans)
-	accepted := 0
 	for _, s := range pt.TraceChunk.Spans {
 		statSpan, ok := c.spanConcentrator.NewStatSpanFromPB(s, c.peerTagKeys, c.spanDerivedPrimaryTagKeys)
 		if ok {
 			c.spanConcentrator.addSpan(statSpan, aggKey, tags, pt.TraceChunk.Origin, weight)
-			accepted++
 		}
 	}
-	log.Debugf("Concentrator addNow: accepted %d/%d spans for stats (env=%s version=%s)", accepted, total, env, aggKey.Version)
 }
 
 func (c *Concentrator) addNowV1(pt *traceutil.ProcessedTraceV1, tags infraTags) {
@@ -248,16 +244,12 @@ func (c *Concentrator) addNowV1(pt *traceutil.ProcessedTraceV1, tags infraTags) 
 		ProcessTagsHash: tags.processTagsHash,
 		BaseService:     baseService,
 	}
-	total := len(pt.TraceChunk.Spans)
-	accepted := 0
 	for _, s := range pt.TraceChunk.Spans {
 		statSpan, ok := c.spanConcentrator.NewStatSpanFromV1(s, c.peerTagKeys, c.spanDerivedPrimaryTagKeys)
 		if ok {
 			c.spanConcentrator.addSpan(statSpan, aggKey, tags, pt.TraceChunk.Origin(), weight)
-			accepted++
 		}
 	}
-	log.Debugf("Concentrator addNowV1: accepted %d/%d spans for stats (env=%s version=%s)", accepted, total, env, aggKey.Version)
 }
 
 // Flush deletes and returns complete statistic buckets.
