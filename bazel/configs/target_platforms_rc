@@ -1,4 +1,5 @@
 # Compilation flags which must vary by target platform.
+# Do not add infrastructure specific options here: https://datadoghq.atlassian.net/browse/ABLD-359
 
 build:linux_target --@rules_go//go/config:tags=linux
 build:macos_target --@rules_go//go/config:tags=darwin
