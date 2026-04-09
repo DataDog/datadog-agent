@@ -1,0 +1,28 @@
+properties:
+  all_private_children:
+    node_type: section
+    description: A public section whose direct children are all private.
+    visibility: public
+    properties:
+      private_child:
+        node_type: setting
+        type: string
+        default: hello
+  has_public_child:
+    node_type: section
+    description: A public section with one public child.
+    visibility: public
+    properties:
+      public_child:
+        node_type: setting
+        type: string
+        default: hello
+        description: A public child.
+        visibility: public
+  private_section_no_public_child:
+    node_type: section
+    properties:
+      private_child:
+        node_type: setting
+        type: string
+        default: hello

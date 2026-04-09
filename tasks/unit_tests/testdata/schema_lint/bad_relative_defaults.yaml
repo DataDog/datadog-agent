@@ -1,0 +1,32 @@
+properties:
+  unknown_var:
+    node_type: setting
+    type: string
+    default: "${bad_var}/some/path"
+  malformed_placeholder:
+    node_type: setting
+    type: string
+    default: "${unclosed/path"
+  valid_relative:
+    node_type: setting
+    type: string
+    default: "${run_path}/something"
+  platform_bad_var:
+    node_type: setting
+    type: string
+    platform_default:
+      other: "${unknown_var}/path"
+      linux: "${install_path}/bin"
+  platform_malformed:
+    node_type: setting
+    type: string
+    platform_default:
+      other: "${unclosed"
+  non_relative:
+    node_type: setting
+    type: string
+    default: "/absolute/path"
+  valid_conf_path:
+    node_type: setting
+    type: string
+    default: "${conf_path}/conf.d"
