@@ -11,6 +11,32 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestGetBool(t *testing.T) {
+	cases := []struct {
+		v   interface{}
+		exp bool
+		err bool
+	}{
+		{true, true, false},
+		{false, false, false},
+		{"true", true, false},
+		{"false", false, false},
+		{"invalid", false, true},
+		{1, false, true},
+		{nil, false, true},
+	}
+
+	for _, c := range cases {
+		v, err := GetBool(c.v)
+		if c.err {
+			assert.NotNil(t, err)
+		} else {
+			assert.NoError(t, err)
+			assert.Equal(t, c.exp, v)
+		}
+	}
+}
+
 func TestGetInt(t *testing.T) {
 	cases := []struct {
 		v   interface{}
