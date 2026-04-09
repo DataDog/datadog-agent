@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package networkdeviceconfig provides the component for retrieving network device configurations.
-package networkdeviceconfig
+// Package networkconfigmanagement provides the component for retrieving network device configurations.
+package networkconfigmanagement
 
 // team: ndm-integrations
 

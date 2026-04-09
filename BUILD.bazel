@@ -145,8 +145,7 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/netflow/server
 # gazelle:exclude comp/netflow/testutil
 # gazelle:exclude comp/netflow/topn
-# gazelle:exclude comp/networkdeviceconfig/fx
-# gazelle:exclude comp/networkdeviceconfig/impl
+# gazelle:exclude comp/networkconfigmanagement
 # gazelle:exclude comp/networkpath
 # gazelle:exclude comp/notableevents/fx
 # gazelle:exclude comp/notableevents/impl

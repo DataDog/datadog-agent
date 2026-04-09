@@ -5,5 +5,5 @@
 
 //go:build test
 
-// Package mock provides a mock for the networkdeviceconfig component
+// Package mock provides a mock for the networkconfigmanagement component
 package mock
