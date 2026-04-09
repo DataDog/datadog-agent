@@ -53,6 +53,11 @@
         "enabled": false
       },
       {
+        "matchManagers": ["dockerfile"],
+        "matchFileNames": ["test/fakeintake/Dockerfile"],
+        "enabled": false
+      },
+      {
         "matchManagers": ["cargo"],
         "labels": ["dependencies", "dependencies-cargo", "changelog/no-changelog", "qa/no-code-change"],
       },
