@@ -7,6 +7,7 @@
 package converterimpl
 
 import (
+	"context"
 	"crypto/rand"
 	"fmt"
 	"os"
@@ -57,10 +58,10 @@ func (c *ddConverter) ensureOpampInstanceUID(conf *confmap.Conf) {
 
 // enrichOpampAgentDescription injects DDOT deployment context into the opamp
 // extension's agent_description.non_identifying_attributes when they are absent.
-// This lets the OpAmp server know the site and deployment type without requiring
-// the user to configure them manually.
+// This lets the OpAmp server know the hostname, site, and deployment type
+// without requiring the user to configure them manually.
 //
-// speky:DDOT#OTELCOL028
+// speky:DDOT#OTELCOL028 speky:DDOT#OTELCOL038
 func (c *ddConverter) enrichOpampAgentDescription(opampCfg map[string]any) {
 	if c.coreConfig == nil {
 		return
@@ -76,6 +77,14 @@ func (c *ddConverter) enrichOpampAgentDescription(opampCfg map[string]any) {
 	nonIdent, _ := agentDesc["non_identifying_attributes"].(map[string]any)
 	if nonIdent == nil {
 		nonIdent = make(map[string]any)
+	}
+
+	if _, already := nonIdent["host.name"]; !already {
+		if c.hostname != nil {
+			if hn, err := c.hostname.Get(context.Background()); err == nil && hn != "" {
+				nonIdent["host.name"] = hn
+			}
+		}
 	}
 
 	if site := c.coreConfig.GetString("site"); site != "" {

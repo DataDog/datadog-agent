@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/confmap"
@@ -208,6 +209,70 @@ func TestEnrichOpampAgentDescription_PreservesUserValues(t *testing.T) {
 	assert.Equal(t, "custom-type", attrs["datadoghq.com/deployment_type"])
 }
 
+// TestEnrichOpampAgentDescription_InjectsHostname verifies that when the
+// hostname component is available and resolves, host.name is injected.
+//
+// speky:DDOT#T037
+func TestEnrichOpampAgentDescription_InjectsHostname(t *testing.T) {
+	hn, _ := hostnameinterface.NewMock(hostnameinterface.MockHostname("my-test-host"))
+	c := &ddConverter{
+		coreConfig: config.NewMockFromYAML(t, "site: datadoghq.eu"),
+		hostname:   hn,
+	}
+	cfg := map[string]any{}
+	c.enrichOpampAgentDescription(cfg)
+
+	desc := cfg["agent_description"].(map[string]any)
+	attrs := desc["non_identifying_attributes"].(map[string]any)
+	assert.Equal(t, "my-test-host", attrs["host.name"])
+	assert.Equal(t, "datadoghq.eu", attrs["datadoghq.com/site"])
+	assert.Equal(t, "daemonset", attrs["datadoghq.com/deployment_type"])
+}
+
+// TestEnrichOpampAgentDescription_NoHostnameComponent verifies that when the
+// hostname component is nil, host.name is omitted from the agent description.
+//
+// speky:DDOT#T038
+func TestEnrichOpampAgentDescription_NoHostnameComponent(t *testing.T) {
+	c := &ddConverter{
+		coreConfig: config.NewMockFromYAML(t, "site: datadoghq.com"),
+		hostname:   nil,
+	}
+	cfg := map[string]any{}
+	c.enrichOpampAgentDescription(cfg)
+
+	desc := cfg["agent_description"].(map[string]any)
+	attrs := desc["non_identifying_attributes"].(map[string]any)
+	_, hasHostName := attrs["host.name"]
+	assert.False(t, hasHostName, "host.name should not be set when hostname component is nil")
+	assert.NotEmpty(t, attrs["datadoghq.com/site"], "other attributes should still be populated")
+}
+
+// TestEnrichOpampAgentDescription_PreservesUserHostname verifies that a
+// user-supplied host.name is not overwritten by the converter.
+//
+// speky:DDOT#T037 speky:DDOT#T038
+func TestEnrichOpampAgentDescription_PreservesUserHostname(t *testing.T) {
+	hn, _ := hostnameinterface.NewMock(hostnameinterface.MockHostname("resolved-host"))
+	c := &ddConverter{
+		coreConfig: config.NewMockFromYAML(t, "site: datadoghq.com"),
+		hostname:   hn,
+	}
+	cfg := map[string]any{
+		"agent_description": map[string]any{
+			"non_identifying_attributes": map[string]any{
+				"host.name": "user-supplied-host",
+			},
+		},
+	}
+	c.enrichOpampAgentDescription(cfg)
+
+	desc := cfg["agent_description"].(map[string]any)
+	attrs := desc["non_identifying_attributes"].(map[string]any)
+	assert.Equal(t, "user-supplied-host", attrs["host.name"],
+		"user-supplied host.name should not be overwritten by the converter")
+}
+
 // TestConvertOpamp verifies the full converter pipeline for an opamp extension:
 // instance_uid is injected (valid UUID v4) and agent_description is enriched with
 // site and deployment_type from the core agent config.
@@ -248,6 +313,51 @@ service:
 
 	desc := opampCfg["agent_description"].(map[string]any)
 	attrs := desc["non_identifying_attributes"].(map[string]any)
+	assert.Equal(t, "datadoghq.eu", attrs["datadoghq.com/site"])
+	assert.Equal(t, "daemonset", attrs["datadoghq.com/deployment_type"])
+
+	// No hostname component provided — host.name should be absent.
+	_, hasHostName := attrs["host.name"]
+	assert.False(t, hasHostName, "host.name should not be set without a hostname component")
+}
+
+// TestConvertOpamp_WithHostname verifies the full converter pipeline with a
+// hostname component: host.name is injected alongside site and deployment_type.
+//
+// speky:DDOT#T030 speky:DDOT#T037
+func TestConvertOpamp_WithHostname(t *testing.T) {
+	dir := t.TempDir()
+	acfg := config.NewMockFromYAML(t, "run_path: "+dir+"\nsite: datadoghq.eu\notelcollector:\n  converter:\n    features: []")
+	hn, _ := hostnameinterface.NewMock(hostnameinterface.MockHostname("my-agent-host"))
+	converter, err := NewConverterForAgent(Requires{Conf: acfg, Hostname: hn})
+	require.NoError(t, err)
+
+	conf := confmapFromYAML(t, `
+extensions:
+  opamp:
+    server:
+      ws:
+        endpoint: ws://localhost:4320/v1/opamp
+receivers:
+  nop:
+exporters:
+  nop:
+service:
+  extensions: [opamp]
+  pipelines:
+    traces:
+      receivers: [nop]
+      exporters: [nop]
+`)
+	converter.Convert(context.Background(), conf)
+
+	m := conf.ToStringMap()
+	ext := m["extensions"].(map[string]any)
+	opampCfg := ext["opamp"].(map[string]any)
+
+	desc := opampCfg["agent_description"].(map[string]any)
+	attrs := desc["non_identifying_attributes"].(map[string]any)
+	assert.Equal(t, "my-agent-host", attrs["host.name"])
 	assert.Equal(t, "datadoghq.eu", attrs["datadoghq.com/site"])
 	assert.Equal(t, "daemonset", attrs["datadoghq.com/deployment_type"])
 }
