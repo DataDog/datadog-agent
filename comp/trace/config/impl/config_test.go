@@ -693,6 +693,20 @@ func TestUndocumentedYamlConfig(t *testing.T) {
 
 }
 
+func TestEmptyDDAgentBinDoesNotOverwriteDefault(t *testing.T) {
+	// Simulate the scenario where config sync (e.g. from the core agent's
+	// /config/v1/ endpoint) sets apm_config.dd_agent_bin to an empty string
+	// with a non-default source. The empty value must not overwrite the
+	// platform default, otherwise validation fails with
+	// "agent binary path not set".
+	config := buildConfigComponentFromOverrides(t, true, map[string]interface{}{
+		"apm_config.dd_agent_bin": "",
+	})
+	cfg := config.Object()
+	require.NotNil(t, cfg)
+	assert.Equal(t, defaultDDAgentBin, cfg.DDAgentBin)
+}
+
 func TestAcquireHostnameFallback(t *testing.T) {
 	c := traceconfig.New()
 	err := acquireHostnameFallback(c)
