@@ -872,15 +872,22 @@ def _sample_component_params(trial, component: str) -> dict:
             # "min_cluster_size": trial.suggest_int("time_cluster.min_cluster_size", 1, 8),
         },
         "log_pattern_extractor": lambda: {
-            # "min_cluster_size_before_emit": trial.suggest_int(
-            #     "log_pattern_extractor.min_cluster_size_before_emit", 1, 30
-            # ),
-            # "max_tokenized_string_length": trial.suggest_int(
-            #     "log_pattern_extractor.max_tokenized_string_length", 2000, 16000
-            # ),
-            # "max_num_tokens": trial.suggest_int("log_pattern_extractor.max_num_tokens", 32, 512),
-            # "parse_hex_dump": trial.suggest_categorical("log_pattern_extractor.parse_hex_dump", [True, False]),
-            "min_token_match_ratio": trial.suggest_float("log_pattern_extractor.min_token_match_ratio", 0.25, 0.85),
+            "disable_optimizations": trial.suggest_categorical(
+                "log_pattern_extractor.disable_optimizations", [True, False]
+            ),
+            "min_cluster_size_before_emit": trial.suggest_int(
+                "log_pattern_extractor.min_cluster_size_before_emit", 1, 30
+            ),
+            "max_tokenized_string_length": trial.suggest_int(
+                "log_pattern_extractor.max_tokenized_string_length", 2000, 16000
+            ),
+            "max_num_tokens": trial.suggest_int("log_pattern_extractor.max_num_tokens", 32, 512),
+            "parse_hex_dump": trial.suggest_categorical("log_pattern_extractor.parse_hex_dump", [True, False]),
+            "min_token_match_ratio": trial.suggest_float("log_pattern_extractor.min_token_match_ratio", 0.2, 0.95),
+            "cluster_time_to_live_sec": trial.suggest_int("log_pattern_extractor.cluster_time_to_live_sec", 600, 86400),
+            "garbage_collection_interval_sec": trial.suggest_int(
+                "log_pattern_extractor.garbage_collection_interval_sec", 60, 7200
+            ),
         },
     }
     fn = space.get(component)
@@ -989,6 +996,10 @@ def eval_bayesian(
     if only_list:
         # Expand to full component set and lock everything except the --only targets.
         all_components = DETECTORS + CORRELATORS + EXTRACTORS
+        unknown_only = set(only_list) - set(all_components)
+        if unknown_only:
+            print(color_message(f"Error: unknown components in --only: {', '.join(sorted(unknown_only))}", Color.RED))
+            return
         components_list = all_components
         locked_set = {c for c in all_components if c not in set(only_list)}
     else:
@@ -1349,6 +1360,13 @@ def eval_component(
                 Color.ORANGE,
             )
         )
+        n_subsets = len(subsets)
+    elif len(subsets) > n_subsets:
+        # Fixed subsets (full stack + anchors) exceed the requested n_subsets; generate
+        # run_seeds for the extra indices so the later loop doesn't raise KeyError.
+        for variant in ("without", "with"):
+            for si in range(n_subsets, len(subsets)):
+                run_seeds[(variant, si)] = [rng.randint(0, 2**32 - 1) for _ in range(m_runs)]
         n_subsets = len(subsets)
 
     # --- compute totals ---
@@ -1716,7 +1734,6 @@ def eval_component(
     elif recommendation == "keep":
         print(color_message("  Next step: update your config, then tune the new component using:", Color.BOLD))
         print(color_message(f"    dda inv q.eval-bayesian --only {component}", Color.BOLD))
-
     print(color_message(f"{'=' * 70}", Color.GREEN))
 
     # --- copy best "with" config to root ---

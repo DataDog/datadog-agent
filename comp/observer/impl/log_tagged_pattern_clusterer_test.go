@@ -114,9 +114,9 @@ func TestTaggedPatternClusterer_RoutesByTagGroup(t *testing.T) {
 	tagsA := []string{"service:api", "env:prod"}
 	tagsB := []string{"service:worker", "env:prod"}
 
-	hashA, _, ok := tc.Process(tagsA, "error connecting to db")
+	hashA, _, ok := tc.Process(tagsA, "error connecting to db", 1000)
 	require.True(t, ok)
-	hashB, _, ok := tc.Process(tagsB, "error connecting to db")
+	hashB, _, ok := tc.Process(tagsB, "error connecting to db", 1000)
 	require.True(t, ok)
 
 	assert.NotEqual(t, hashA, hashB, "different tag groups must yield different hashes")
@@ -127,9 +127,9 @@ func TestTaggedPatternClusterer_SameTagGroupSharesSubClusterer(t *testing.T) {
 	tc, _ := newTestTaggedClusterer()
 
 	tags := []string{"service:api", "env:prod"}
-	hash1, _, ok := tc.Process(tags, "error connecting to db")
+	hash1, _, ok := tc.Process(tags, "error connecting to db", 1000)
 	require.True(t, ok)
-	hash2, _, ok := tc.Process(tags, "error reading from db")
+	hash2, _, ok := tc.Process(tags, "error reading from db", 1001)
 	require.True(t, ok)
 
 	assert.Equal(t, hash1, hash2)
@@ -140,7 +140,7 @@ func TestTaggedPatternClusterer_GetClusterReturnsCorrectCluster(t *testing.T) {
 	tc, _ := newTestTaggedClusterer()
 
 	tags := []string{"service:api"}
-	groupHash, cluster, ok := tc.Process(tags, "timeout after 30s")
+	groupHash, cluster, ok := tc.Process(tags, "timeout after 30s", 1000)
 	require.True(t, ok)
 
 	got, err := tc.GetCluster(groupHash, cluster.ID)
@@ -159,7 +159,7 @@ func TestTaggedPatternClusterer_ResetDropsSubClusterers(t *testing.T) {
 	tc, reg := newTestTaggedClusterer()
 
 	tags := []string{"service:api"}
-	groupHash, _, ok := tc.Process(tags, "error connecting to db")
+	groupHash, _, ok := tc.Process(tags, "error connecting to db", 1000)
 	require.True(t, ok)
 	require.Equal(t, 1, tc.NumSubClusterers())
 

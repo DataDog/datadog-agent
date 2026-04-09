@@ -627,6 +627,7 @@ func provisionBuildVM(ctx *pulumi.Context, awsEnv resAws.Environment) (*remote.H
 			Create: pulumi.String(`yum install -y awscli`),
 			Sudo:   true,
 		},
+		pulumi.RetainOnDelete(true),
 	)
 	if err != nil {
 		return nil, nil, err
@@ -653,9 +654,15 @@ func buildEpisodeImages(
 ) error {
 	buildDir := "/tmp/gensim-build-" + episodeName
 
+	// Build VM resources are ephemeral — the VM is discarded after images are pushed.
+	// RetainOnDelete prevents Pulumi from SSH-ing back into a potentially-dead VM
+	// to "delete" these resources on subsequent runs; dropping them from state is enough.
+	retainOnDelete := pulumi.RetainOnDelete(true)
+
 	// Copy the episode's docker-compose.yaml and services/ directory to the build VM.
 	servicesCopy, err := buildHost.OS.FileManager().CopyAbsoluteFolder(
 		filepath.Join(episodePath, "services"), buildDir+"/",
+		retainOnDelete,
 	)
 	if err != nil {
 		return err
@@ -675,6 +682,7 @@ func buildEpisodeImages(
 			Sudo:   true,
 		},
 		utils.PulumiDependsOn(servicesCopy...),
+		retainOnDelete,
 	)
 	if err != nil {
 		return err
@@ -688,6 +696,7 @@ func buildEpisodeImages(
 			Sudo:   true,
 		},
 		utils.PulumiDependsOn(append(servicesCopy, dockerComposeCopy)...),
+		retainOnDelete,
 	)
 	if err != nil {
 		return err
@@ -792,6 +801,7 @@ fi`,
 			),
 		},
 		utils.PulumiDependsOn(installDep, fixPermsCmd),
+		retainOnDelete,
 	)
 	if err != nil {
 		return err

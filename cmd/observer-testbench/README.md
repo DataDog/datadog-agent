@@ -289,6 +289,19 @@ When `--config` is provided it takes full precedence over `--enable`/`--disable`
 | `window_seconds` | 120 | How long to keep anomalies before eviction |
 | `min_cluster_size` | 0 | Minimum cluster size to report (0 = report all) |
 
+#### `log_pattern_extractor`
+
+| Param | Default | Description |
+|-------|---------|-------------|
+| `disable_optimizations` | `false` | When `true`, skips deferred emit and cluster GC: emits on the first matching log per pattern and disables TTL/GC (`min_cluster_size_before_emit`, `cluster_time_to_live_sec`, and `garbage_collection_interval_sec` are forced to zero; other fields still apply). |
+| `min_cluster_size_before_emit` | 5 | Minimum matching logs on a pattern before emitting a metric |
+| `max_tokenized_string_length` | 12500 | Max input length before tokenization (0 = patterns package default) |
+| `max_num_tokens` | 250 | Max tokens per message (0 = patterns package default) |
+| `parse_hex_dump` | `true` | Recognize hex dumps in the tokenizer |
+| `min_token_match_ratio` | 0.5 | Minimum fraction of token positions that must match to merge lines (0 = default 0.5) |
+| `cluster_time_to_live_sec` | 14400 | Clusters with no matching log for this many seconds are removed during GC. `0` disables cluster garbage collection. |
+| `garbage_collection_interval_sec` | 3600 | Minimum seconds between GC passes when cluster TTL is enabled (nonzero `cluster_time_to_live_sec`) |
+
 #### `cross_signal`
 
 | Param | Default | Description |
