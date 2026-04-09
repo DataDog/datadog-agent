@@ -172,6 +172,71 @@ static void add_constants(PyObject *m)
     PyModule_AddIntConstant(m, "HIGH", DATADOG_AGENT_RTLOADER_TAGGER_HIGH);
 }
 
+/*
+ * Sub-interpreter support (Python 3.13+): Multi-phase module initialization
+ * =========================================================================
+ *
+ * Converts the tagger module from single-phase to multi-phase init to allow
+ * importing in Python sub-interpreters with per-interpreter GIL.
+ *
+ * This module has one callback pointer (cb_tags) and an add_constants()
+ * function that registers tagger cardinality constants (LOW, ORCHESTRATOR,
+ * HIGH) on the module object. The Py_mod_exec slot handles calling
+ * add_constants() once per interpreter.
+ *
+ * m_size = 0: The single callback pointer is a process-global static with
+ * set-once-read-many semantics, safe for concurrent access.
+ *
+ * See aggregator.c for a detailed explanation of multi-phase init, m_size,
+ * and Py_MOD_PER_INTERPRETER_GIL_SUPPORTED rationale.
+ */
+#if PY_VERSION_HEX >= 0x030D0000
+
+/*
+ * tagger_exec: Populates the module with cardinality constants (LOW,
+ * ORCHESTRATOR, HIGH) used by Python checks when requesting tags.
+ *
+ * add_constants() calls PyModule_AddIntConstant() which returns -1 and
+ * sets a Python exception on failure. Since add_constants() is a legacy
+ * void function that doesn't propagate errors, we check PyErr_Occurred()
+ * after the call to detect if any constant addition failed.
+ *
+ * Returns 0 on success, -1 if any PyModule_AddIntConstant call failed.
+ */
+static int tagger_exec(PyObject *m)
+{
+    add_constants(m);
+    if (PyErr_Occurred()) {
+        return -1;
+    }
+    return 0;
+}
+
+static PyModuleDef_Slot tagger_slots[] = {
+    {Py_mod_exec, tagger_exec},
+    {Py_mod_multiple_interpreters, Py_MOD_PER_INTERPRETER_GIL_SUPPORTED},
+    {0, NULL}  /* sentinel */
+};
+
+static struct PyModuleDef module_def = {
+    PyModuleDef_HEAD_INIT,
+    TAGGER_MODULE_NAME,    /* m_name: "tagger" */
+    NULL,                  /* m_doc */
+    0,                     /* m_size: no per-interpreter C state */
+    methods,               /* m_methods */
+    tagger_slots,          /* m_slots */
+    NULL,                  /* m_traverse */
+    NULL,                  /* m_clear */
+    NULL                   /* m_free */
+};
+
+PyMODINIT_FUNC PyInit_tagger(void)
+{
+    return PyModuleDef_Init(&module_def);
+}
+
+#else /* Python < 3.13: original single-phase initialization */
+
 static struct PyModuleDef module_def = { PyModuleDef_HEAD_INIT, TAGGER_MODULE_NAME, NULL, -1, methods };
 
 PyMODINIT_FUNC PyInit_tagger(void)
@@ -180,3 +245,5 @@ PyMODINIT_FUNC PyInit_tagger(void)
     add_constants(module);
     return module;
 }
+
+#endif /* PY_VERSION_HEX >= 0x030D0000 */
