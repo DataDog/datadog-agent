@@ -48,6 +48,7 @@ type pendingProfile struct {
 }
 
 type sampleCookieEntry struct {
+	profile     *profile.Profile
 	processNode *activity_tree.ProcessNode
 	imageTag    string
 }
@@ -673,6 +674,7 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 		}
 		if sampleCookie != 0 {
 			m.sampleCookieMap.Add(sampleCookie, sampleCookieEntry{
+				profile:     secprof,
 				processNode: processNode,
 				imageTag:    imageTag,
 			})
@@ -1180,7 +1182,10 @@ func (m *ManagerV2) HandleSampleRefresh(cookie uint32) {
 	if !ok {
 		return
 	}
-	// Node was evicted from the activity tree, remove stale cookie
+
+	entry.profile.Lock()
+	defer entry.profile.Unlock()
+
 	if entry.processNode == nil || len(entry.processNode.Seen) == 0 {
 		m.sampleCookieMap.Remove(cookie)
 		return

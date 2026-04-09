@@ -630,7 +630,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		SecurityProfileCacheSize:           pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.cache_size"),
 		SecurityProfileMaxCount:            pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.max_count"),
 		SecurityProfileDNSMatchMaxDepth:    pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.dns_match_max_depth"),
-		SecurityProfileNodeEvictionTimeout:  pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.node_eviction_timeout"),
+		SecurityProfileNodeEvictionTimeout: pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.node_eviction_timeout"),
 		SecurityProfileCleanupDelay:        pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.profile_cleanup_delay"),
 		SecurityProfileV2EventTypes:        parseEventTypeStringSlice(pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.security_profile.v2.event_types")),
 		SecurityProfileSampleRefreshPeriod: pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.v2.sample_refresh_period"),
