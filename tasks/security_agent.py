@@ -309,8 +309,6 @@ def build_functional_tests(
     static=False,
     skip_linters=False,
     race=False,
-    kernel_release=None,
-    debug=False,
     skip_object_files=False,
     syscall_tester_compiler='clang',
 ):
@@ -319,9 +317,6 @@ def build_functional_tests(
             build_cws_object_files(
                 ctx,
                 arch=arch,
-                kernel_release=kernel_release,
-                debug=debug,
-                bundle_ebpf=bundle_ebpf,
             )
         build_embed_syscall_tester(
             ctx,
@@ -399,7 +394,6 @@ def functional_tests(
     bundle_ebpf=True,
     testflags='',
     skip_linters=False,
-    kernel_release=None,
 ):
     build_functional_tests(
         ctx,
@@ -407,7 +401,6 @@ def functional_tests(
         bundle_ebpf=bundle_ebpf,
         skip_linters=skip_linters,
         race=race,
-        kernel_release=kernel_release,
     )
 
     run_functional_tests(
@@ -428,7 +421,6 @@ def ebpfless_functional_tests(
     bundle_ebpf=True,
     testflags='',
     skip_linters=False,
-    kernel_release=None,
 ):
     build_functional_tests(
         ctx,
@@ -436,7 +428,6 @@ def ebpfless_functional_tests(
         bundle_ebpf=bundle_ebpf,
         skip_linters=skip_linters,
         race=race,
-        kernel_release=kernel_release,
     )
 
     run_ebpfless_functional_tests(
@@ -456,7 +447,6 @@ def docker_functional_tests(
     testflags='',
     bundle_ebpf=True,
     skip_linters=False,
-    kernel_release=None,
 ):
     build_functional_tests(
         ctx,
@@ -465,7 +455,6 @@ def docker_functional_tests(
         static=True,
         skip_linters=skip_linters,
         race=race,
-        kernel_release=kernel_release,
     )
 
     image_tag = "ghcr.io/datadog/apps-cws-centos7:main"
@@ -756,7 +745,6 @@ def e2e_prepare_win(ctx):
         ctx,
         bundle_ebpf=False,
         race=False,
-        debug=True,
         output=testsuite_out_path,
         skip_linters=True,
     )
@@ -770,14 +758,13 @@ def e2e_prepare_win(ctx):
         srcpath=srcpath,
         bundle_ebpf=False,
         race=False,
-        debug=True,
         skip_linters=True,
     )
 
 
 @task
 def run_ebpf_unit_tests(ctx, verbose=False, trace=False, testflags=''):
-    build_cws_object_files(ctx, kernel_release=None, with_unit_test=True, bundle_ebpf=True, arch=CURRENT_ARCH)
+    build_cws_object_files(ctx, with_unit_test=True, arch=CURRENT_ARCH)
 
     env = {"CGO_ENABLED": "1"}
 

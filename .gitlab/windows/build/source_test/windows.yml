@@ -73,15 +73,14 @@ tests_windows-x64:
 .tests_windows_sysprobe:
   stage: source_test
   needs: ["go_deps", "go_tools_deps"]
-  extends: .windows_docker_default
+  extends: [.windows_docker_default, .bazel:defs:cache:windows]
   script:
     - $ErrorActionPreference = "Stop"
     - >
-      docker run --rm
+      .\tools\ci\docker-run-with-bazel-cache.ps1
       -m 16384M
       -v "$(Get-Location):c:\mnt"
       -e AWS_NETWORKING=true
-      -e CI
       -e CI_PIPELINE_ID
       -e CI_PROJECT_NAME
       -e SIGN_WINDOWS_DD_WCS=true
@@ -98,15 +97,14 @@ tests_windows-x64:
 .tests_windows_secagent:
   stage: source_test
   needs: ["go_deps", "go_tools_deps"]
-  extends: .windows_docker_default
+  extends: [.windows_docker_default, .bazel:defs:cache:windows]
   script:
     - $ErrorActionPreference = "Stop"
     - >
-      docker run --rm
+      .\tools\ci\docker-run-with-bazel-cache.ps1
       -m 16384M
       -v "$(Get-Location):c:\mnt"
       -e AWS_NETWORKING=true
-      -e CI
       -e CI_PIPELINE_ID
       -e CI_PROJECT_NAME
       -e SIGN_WINDOWS_DD_WCS=true

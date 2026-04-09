@@ -860,8 +860,8 @@ def rpath_edit(ctx, install_path, target_rpath_dd_folder, platform="linux"):
 
 @task
 def deduplicate_files(ctx, directory):
-    # Matches: .so, .so.X, .so.X.Y, .so.X.Y.Z, .bundle, .dll, .dylib, .pyd
-    LIB_PATTERN = re.compile(r"\.(bundle|dll|dylib|pyd|so(?:\.\d+)*)$")
+    # Matches: .a, .so, .so.X, .so.X.Y, .so.X.Y.Z, .bundle, .dll, .dylib, .pyd
+    LIB_PATTERN = re.compile(r"\.(a|bundle|dll|dylib|pyd|so(?:\.\d+)*)$")
 
     def hash_file(filepath):
         """Returns the SHA-256 hash of the file's contents."""

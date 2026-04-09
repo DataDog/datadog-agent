@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"slices"
 	"sync"
-	"time"
 
 	"go.uber.org/atomic"
 
@@ -188,7 +187,7 @@ func (cr *Resolver) pushNewCacheEntry(pid uint32, containerContext model.Contain
 	return cacheEntry
 }
 
-func (cr *Resolver) resolveAndPushNewCacheEntry(pid uint32, cgroupContext model.CGroupContext, createdAt time.Time) *cgroupModel.CacheEntry {
+func (cr *Resolver) resolveAndPushNewCacheEntry(pid uint32, cgroupContext model.CGroupContext) *cgroupModel.CacheEntry {
 	if cgroupContext.IsNull() {
 		return nil
 	}
@@ -206,8 +205,9 @@ func (cr *Resolver) resolveAndPushNewCacheEntry(pid uint32, cgroupContext model.
 	var containerContext model.ContainerContext
 	if containerID := containerutils.FindContainerID(cgroupContext.CGroupID); containerID != "" {
 		containerContext = model.ContainerContext{
-			ContainerID: containerID,
-			CreatedAt:   uint64(createdAt.UnixNano()),
+			ContainerID:     containerID,
+			CreatedAt:       cgroupContext.CreatedAt,
+			ContainerSource: model.ContainerSourceEvent,
 		}
 	}
 
@@ -235,11 +235,14 @@ func (cr *Resolver) resolveFromFallback(pid uint32, ppid uint32) *cgroupModel.Ca
 				MountID: cgroup.CGroupFileMountID,
 				Inode:   cgroup.CGroupFileInode,
 			},
-			CGroupID: cgroup.CGroupID,
+			CGroupID:     cgroup.CGroupID,
+			CGroupSource: model.CGroupSourceProcFS,
+			CreatedAt:    uint64(cgroup.CreatedAt.UnixNano()),
 		}
 		containerContext := model.ContainerContext{
-			ContainerID: cid,
-			CreatedAt:   uint64(cgroup.CreatedAt.UnixNano()),
+			ContainerID:     cid,
+			CreatedAt:       uint64(cgroup.CreatedAt.UnixNano()),
+			ContainerSource: model.ContainerSourceProcFS,
 		}
 		seclog.Tracef("fallback to resolve cgroup for pid %d: %s", pid, cgroup.CGroupID)
 		cr.fallbackSucceed.Inc()
@@ -270,11 +273,14 @@ func (cr *Resolver) resolveFromFallback(pid uint32, ppid uint32) *cgroupModel.Ca
 				MountID: cgroup.CGroupFileMountID,
 				Inode:   cgroup.CGroupFileInode,
 			},
-			CGroupID: cgroup.CGroupID,
+			CGroupID:     cgroup.CGroupID,
+			CGroupSource: model.CGroupSourceProcFS,
+			CreatedAt:    uint64(cgroup.CreatedAt.UnixNano()),
 		}
 		containerContext := model.ContainerContext{
-			ContainerID: cid,
-			CreatedAt:   uint64(cgroup.CreatedAt.UnixNano()),
+			ContainerID:     cid,
+			CreatedAt:       uint64(cgroup.CreatedAt.UnixNano()),
+			ContainerSource: model.ContainerSourceProcFS,
 		}
 		seclog.Tracef("fallback to resolve parent cgroup for ppid %d: %s", ppid, cgroup.CGroupID)
 		cr.fallbackSucceed.Inc()
@@ -289,7 +295,7 @@ func (cr *Resolver) resolveFromFallback(pid uint32, ppid uint32) *cgroupModel.Ca
 }
 
 // Add registers a new cgroup entry
-func (cr *Resolver) Add(cgroupContext model.CGroupContext, createdAt time.Time) *cgroupModel.CacheEntry {
+func (cr *Resolver) Add(cgroupContext model.CGroupContext) *cgroupModel.CacheEntry {
 	cr.Lock()
 	defer cr.Unlock()
 
@@ -299,7 +305,7 @@ func (cr *Resolver) Add(cgroupContext model.CGroupContext, createdAt time.Time) 
 
 	seclog.Tracef("add a new empty cgroup : %d", cgroupContext.CGroupPathKey.Inode)
 
-	return cr.resolveAndPushNewCacheEntry(0, cgroupContext, createdAt)
+	return cr.resolveAndPushNewCacheEntry(0, cgroupContext)
 }
 
 // Delete removes the cgroup associated with the given inode
@@ -329,7 +335,7 @@ func (cr *Resolver) Delete(inode uint64) {
 // AddPID update the cgroup cache to associates a cgroup and a pid
 // Returns true if the kernel maps need to be synced (if we update somehow the process)
 // the cgroup context doesn't have to be resolved, it will be resolved when the cgroup is created.
-func (cr *Resolver) AddPID(pid uint32, ppid uint32, createdAt time.Time, cgroupContext model.CGroupContext) *cgroupModel.CacheEntry {
+func (cr *Resolver) AddPID(pid uint32, ppid uint32, cgroupContext model.CGroupContext) *cgroupModel.CacheEntry {
 	cr.Lock()
 	defer cr.Unlock()
 
@@ -365,7 +371,7 @@ func (cr *Resolver) AddPID(pid uint32, ppid uint32, createdAt time.Time, cgroupC
 		}
 
 		// try to resolve the cgroup from the dentry resolver
-		if cacheEntry := cr.resolveAndPushNewCacheEntry(pid, cgroupContext, createdAt); cacheEntry != nil {
+		if cacheEntry := cr.resolveAndPushNewCacheEntry(pid, cgroupContext); cacheEntry != nil {
 			return cacheEntry
 		}
 	}
