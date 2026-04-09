@@ -355,6 +355,9 @@
               - fedora_38
             TEST_SET: no_usm
     - job: compute_gitlab_ci_config
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
   before_script:
     - python3 -m dda self dep sync -f legacy-tasks
     - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.comment-pr)

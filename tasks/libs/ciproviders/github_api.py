@@ -526,12 +526,11 @@ class GithubAPI:
             return Auth.Token(os.environ["GITHUB_TOKEN"])
         if public_repo:
             return Auth.Login("user", "password")
-
-        if "GITHUB_APP_ID" in os.environ or "GITHUB_KEY_B64" in os.environ:
-            raise Exit(
-                message="Github App Authentication is no longer supported in the CI, use dd-octo-sts instead",
-                code=1,
-            )
+        
+        raise Exit(
+            message="No authentication found, you must pass a GITHUB_TOKEN in the CI, Github App authentication is no longer supported in the CI, use dd-octo-sts instead",
+            code=1,
+        )
 
     def create_label(self, name, color, description="", exist_ok=False):
         """
