@@ -8,7 +8,6 @@
 package offlinereporterimpl
 
 import (
-	"context"
 	"strconv"
 	"testing"
 	"time"
@@ -16,116 +15,108 @@ import (
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 
-	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
+	config "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	compdef "github.com/DataDog/datadog-agent/comp/def"
+	offlinereporter "github.com/DataDog/datadog-agent/comp/offlinereporter/def"
+	logscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
+	metricscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
+const testRunPath = "/run"
 const testFilePath = "/run/agent_heartbeat"
 
-// mockDemux captures SendSamplesWithoutAggregation calls for assertions.
-type mockDemux struct {
-	samples []metrics.MetricSampleBatch
+type testDeps struct {
+	fx.In
+	Reporter offlinereporter.Component
+	Demux    demultiplexer.FakeSamplerMock
 }
 
-func (m *mockDemux) SendSamplesWithoutAggregation(batch metrics.MetricSampleBatch) {
-	m.samples = append(m.samples, batch)
-}
-
-func newHostnameMock(name string) hostnameinterface.Component {
-	c, _ := hostnameinterface.NewMock(hostnameinterface.MockHostname(name))
-	return c
-}
-
-// newHarness builds an offlinereporterImpl directly (bypassing NewComponent and fx)
-// so tests can inject an afero.MemMapFs, a minimal sampleSender mock, and a
-// hostname mock.
-func newHarness(t *testing.T, fs afero.Fs, demux sampleSender, hn hostnameinterface.Component) (*offlinereporterImpl, *compdef.TestLifecycle) {
-	t.Helper()
-	lc := compdef.NewTestLifecycle(t)
-	h := &offlinereporterImpl{
-		log:               logmock.New(t),
-		fs:                fs,
-		filePath:          testFilePath,
-		heartbeatInterval: 5 * time.Second,
-		demux:             demux,
-		hostname:          hn.GetSafe(context.Background()),
-		stopChan:          make(chan struct{}),
-	}
-	lc.Append(compdef.Hook{
-		OnStart: func(ctx context.Context) error { return h.onStart(ctx) },
-		OnStop:  func(_ context.Context) error { h.stopChan <- struct{}{}; return nil },
-	})
-	return h, lc
+// newTestOptions creates an in-memory filesystem and the fx options to wire a
+// real offlinereporter component against mock dependencies. The returned fs can
+// be used by callers to pre-seed or inspect the heartbeat file. Pass
+// enabled=false to simulate telemetry.offlinereporter.enabled=false.
+func newTestOptions(t *testing.T, enabled bool) (afero.Fs, fx.Option) {
+	fs := afero.NewMemMapFs()
+	return fs, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component {
+			return config.NewMockWithOverrides(t, map[string]interface{}{
+				"telemetry.offlinereporter.enabled":            enabled,
+				"telemetry.offlinereporter.heartbeat_interval": "5s",
+				"run_path":                                     testRunPath,
+			})
+		}),
+		fx.Supply(Params{Fs: fs}),
+		fxutil.ProvideComponentConstructor(NewComponent),
+		hostnameimpl.MockModule(),
+		demultiplexerimpl.FakeSamplerMockModule(),
+		logscompressionmock.MockModule(),
+		metricscompressionmock.MockModule(),
+		// FakeSamplerMock's concrete type (*fakeSamplerMock) embeds *AgentDemultiplexer
+		// and therefore implements demultiplexer.Component. Provide an explicit adapter
+		// so fx can satisfy Requires.Demultiplexer.
+		fx.Provide(func(m demultiplexer.FakeSamplerMock) demultiplexer.Component {
+			return m.(demultiplexer.Component)
+		}),
+	)
 }
 
 // TestFirstRun verifies SendOfflineDuration is a no-op when no previous file exists.
 func TestFirstRun(t *testing.T) {
-	fs := afero.NewMemMapFs()
-	demux := &mockDemux{}
+	_, opts := newTestOptions(t, true)
+	deps := fxutil.Test[testDeps](t, opts)
 
-	h, lc := newHarness(t, fs, demux, newHostnameMock("host"))
-	ctx := context.Background()
-	require.NoError(t, lc.Start(ctx))
-	defer lc.Stop(ctx) //nolint:errcheck
+	deps.Reporter.SendOfflineDuration("test.offline", nil)
 
-	h.SendOfflineDuration("test.offline", nil)
-	assert.Empty(t, demux.samples, "expected no samples on first run")
+	_, timed := deps.Demux.WaitForSamples(50 * time.Millisecond)
+	assert.Empty(t, timed, "expected no samples on first run")
 }
 
 // TestSecondRun verifies SendOfflineDuration sends a gauge ≈ seconds since
 // the previous heartbeat.
 func TestSecondRun(t *testing.T) {
-	fs := afero.NewMemMapFs()
-	demux := &mockDemux{}
-
-	// Simulate a previous run that finished 10 seconds ago.
+	fs, opts := newTestOptions(t, true)
 	pastTs := time.Now().Add(-10 * time.Second).Unix()
 	require.NoError(t, afero.WriteFile(fs, testFilePath, []byte(strconv.FormatInt(pastTs, 10)), 0600))
 
-	h, lc := newHarness(t, fs, demux, newHostnameMock("myhost"))
-	ctx := context.Background()
-	require.NoError(t, lc.Start(ctx))
-	defer lc.Stop(ctx) //nolint:errcheck
+	deps := fxutil.Test[testDeps](t, opts)
 
-	h.SendOfflineDuration("test.offline", []string{"env:test"})
+	deps.Reporter.SendOfflineDuration("test.offline", []string{"env:test"})
 
-	require.Len(t, demux.samples, 1)
-	require.Len(t, demux.samples[0], 1)
-	sample := demux.samples[0][0]
+	_, timed := deps.Demux.WaitForSamples(1 * time.Second)
+	require.Len(t, timed, 1)
+	sample := timed[0]
 	assert.Equal(t, "test.offline", sample.Name)
-	assert.Equal(t, "myhost", sample.Host)
+	assert.Equal(t, "my-hostname", sample.Host)
 	assert.Equal(t, metrics.GaugeType, sample.Mtype)
 	assert.InDelta(t, 10.0, sample.Value, 2.0, "offline duration should be ~10s")
 }
 
 // TestCorruptFile verifies that a corrupt heartbeat file is treated as a first run.
 func TestCorruptFile(t *testing.T) {
-	fs := afero.NewMemMapFs()
-	demux := &mockDemux{}
-
+	fs, opts := newTestOptions(t, true)
 	require.NoError(t, afero.WriteFile(fs, testFilePath, []byte("not-a-timestamp"), 0600))
 
-	h, lc := newHarness(t, fs, demux, newHostnameMock("host"))
-	ctx := context.Background()
-	require.NoError(t, lc.Start(ctx))
-	defer lc.Stop(ctx) //nolint:errcheck
+	deps := fxutil.Test[testDeps](t, opts)
 
-	h.SendOfflineDuration("test.offline", nil)
-	assert.Empty(t, demux.samples, "corrupt file should be treated as first run")
+	deps.Reporter.SendOfflineDuration("test.offline", nil)
+
+	_, timed := deps.Demux.WaitForSamples(50 * time.Millisecond)
+	assert.Empty(t, timed, "corrupt file should be treated as first run")
 }
 
 // TestOnStart_WritesFile verifies the heartbeat file is created on startup.
 func TestOnStart_WritesFile(t *testing.T) {
-	fs := afero.NewMemMapFs()
-	demux := &mockDemux{}
-
-	_, lc := newHarness(t, fs, demux, newHostnameMock("host"))
-	ctx := context.Background()
-	require.NoError(t, lc.Start(ctx))
-	defer lc.Stop(ctx) //nolint:errcheck
+	fs, opts := newTestOptions(t, true)
+	fxutil.Test[testDeps](t, opts)
 
 	var secs int64
 	require.Eventually(t, func() bool {
@@ -139,41 +130,27 @@ func TestOnStart_WritesFile(t *testing.T) {
 	assert.InDelta(t, time.Now().Unix(), secs, 2.0)
 }
 
-// TestDisabled verifies that when lifecycle hooks are not registered (simulating
-// telemetry.offlinereporter.enabled=false), SendOfflineDuration is a no-op even when
-// a previous heartbeat file exists.
+// TestDisabled verifies that when telemetry.offlinereporter.enabled=false,
+// SendOfflineDuration is a no-op even when a previous heartbeat file exists.
+// NewComponent skips registering lifecycle hooks, so onStart (and readLastHeartbeat)
+// are never called.
 func TestDisabled(t *testing.T) {
-	fs := afero.NewMemMapFs()
-	demux := &mockDemux{}
-
-	// Simulate a previous run that finished 10 seconds ago.
+	fs, opts := newTestOptions(t, false)
 	pastTs := time.Now().Add(-10 * time.Second).Unix()
 	require.NoError(t, afero.WriteFile(fs, testFilePath, []byte(strconv.FormatInt(pastTs, 10)), 0600))
 
-	// Build the impl directly without registering lifecycle hooks, mirroring
-	// what NewComponent does when telemetry.offlinereporter.enabled=false.
-	h := &offlinereporterImpl{
-		log:               logmock.New(t),
-		fs:                fs,
-		filePath:          testFilePath,
-		heartbeatInterval: 5 * time.Second,
-		demux:             demux,
-		hostname:          newHostnameMock("host").GetSafe(context.Background()),
-		stopChan:          make(chan struct{}),
-	}
+	deps := fxutil.Test[testDeps](t, opts)
 
-	h.SendOfflineDuration("test.offline", nil)
-	assert.Empty(t, demux.samples, "disabled heartbeat should not send samples")
+	deps.Reporter.SendOfflineDuration("test.offline", nil)
+
+	_, timed := deps.Demux.WaitForSamples(50 * time.Millisecond)
+	assert.Empty(t, timed, "disabled component should not send samples")
 }
 
-// TestOnStop_StopsLoop verifies the background goroutine exits cleanly.
-// If OnStop blocks forever the test runner will time out.
+// TestOnStop_StopsLoop verifies the background goroutine exits cleanly on shutdown.
+// fxutil.Test registers app.RequireStop() as a cleanup function; if OnStop blocks,
+// the test runner will time out.
 func TestOnStop_StopsLoop(t *testing.T) {
-	fs := afero.NewMemMapFs()
-	demux := &mockDemux{}
-
-	_, lc := newHarness(t, fs, demux, newHostnameMock("host"))
-	ctx := context.Background()
-	require.NoError(t, lc.Start(ctx))
-	require.NoError(t, lc.Stop(ctx))
+	_, opts := newTestOptions(t, true)
+	fxutil.Test[testDeps](t, opts)
 }
