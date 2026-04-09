@@ -1,8 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
-# FIXME(agent-build): remove and rerun gazelle once ABLD-409 is merged
-# gazelle:exclude warnings_mock.go
-
 go_library(
     name = "http",
     srcs = [
@@ -11,6 +8,7 @@ go_library(
         "token.go",
         "transport.go",
         "warnings.go",
+        "warnings_mock.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/http",
     visibility = ["//visibility:public"],
@@ -29,11 +27,10 @@ go_test(
         "helpers_test.go",
         "token_test.go",
         "transport_test.go",
-        "warnings_mock.go",  # keep: ABLD-409
         "warnings_test.go",
     ],
     embed = [":http"],
-    # keep: ABLD-409
+    # keep
     gotags = ["test"] + select({
         "@platforms//os:linux": ["linux"],
         "@platforms//os:macos": ["darwin"],
