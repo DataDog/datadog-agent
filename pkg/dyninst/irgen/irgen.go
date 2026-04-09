@@ -519,6 +519,54 @@ type analyzedProbe struct {
 	isSnapshot bool
 }
 
+// cleanReturnNames computes display names for return variables used as field
+// names under @return in multi-return snapshots. For single returns, it returns
+// nil (the caller should use "@return" directly). For multiple returns, it
+// strips the leading ~ from compiler-generated names and resolves conflicts
+// with underscore prefixing.
+func cleanReturnNames(vars []*ir.Variable) map[*ir.Variable]string {
+	if len(vars) <= 1 {
+		return nil
+	}
+	// First pass: strip ~ prefix from each name, track which are compiler-generated.
+	type entry struct {
+		cleaned   string
+		generated bool // true if original name had ~ prefix
+	}
+	entries := make([]entry, len(vars))
+	for i, v := range vars {
+		if strings.HasPrefix(v.Name, "~") {
+			entries[i] = entry{cleaned: v.Name[1:], generated: true}
+		} else {
+			entries[i] = entry{cleaned: v.Name, generated: false}
+		}
+	}
+	// Collect all names that are taken (user-chosen names always win).
+	taken := make(map[string]bool, len(vars))
+	for _, e := range entries {
+		if !e.generated {
+			taken[e.cleaned] = true
+		}
+	}
+	// Second pass: resolve conflicts for generated names.
+	result := make(map[*ir.Variable]string, len(vars))
+	for i, v := range vars {
+		e := entries[i]
+		if e.generated {
+			name := e.cleaned
+			for taken[name] {
+				name = "_" + name
+			}
+			taken[name] = true
+			result[v] = name
+		} else {
+			taken[e.cleaned] = true
+			result[v] = e.cleaned
+		}
+	}
+	return result
+}
+
 // extractRootVariableName extracts the root variable name from an expression.
 func extractRootVariableName(expr exprlang.Expr) (string, bool) {
 	const maxDepth = 30
