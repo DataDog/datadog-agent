@@ -8,6 +8,7 @@ go_library(
     ],
     cgo = True,
     importpath = "github.com/DataDog/datadog-agent/pkg/util/winutil/iphelper",
+    tags = ["windows"],
     target_compatible_with = ["@platforms//os:windows"],  # keep
     visibility = ["//visibility:public"],
     deps = select({
