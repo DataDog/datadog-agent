@@ -18,11 +18,11 @@ enum State {
     Descend,
     /// Skipping a non-matching key's value, or a complex key and its value.
     /// `nesting` tracks depth within a compound structure being skipped.
-    Skip { nesting: u32, count: SkipCount },
+    Skip { nesting: u32, items: SkipCount },
 }
 
 /// Number of top-level YAML values remaining to skip.
-/// Only two variants exist — a zero-count skip is impossible by construction.
+/// Only two variants exist — a zero-item skip is impossible by construction.
 enum SkipCount {
     /// Skip one value (the value of a non-matching simple key).
     Value,
@@ -93,14 +93,14 @@ pub fn parse_yaml<R: Read>(mut reader: R, target_key: &str) -> Option<String> {
                 // Non-matching simple key: skip its value (1 item).
                 Event::Scalar(..) | Event::Alias(..) => State::Skip {
                     nesting: 0,
-                    count: SkipCount::Value,
+                    items: SkipCount::Value,
                 },
                 // Non-matching complex key (mapping/sequence used as a key):
                 // skip the key's own subtree (nesting=1) plus its value,
                 // so we skip two top-level items (KeyAndValue).
                 Event::MappingStart(..) | Event::SequenceStart(..) => State::Skip {
                     nesting: 1,
-                    count: SkipCount::KeyAndValue,
+                    items: SkipCount::KeyAndValue,
                 },
                 _ => return None,
             },
@@ -133,7 +133,7 @@ pub fn parse_yaml<R: Read>(mut reader: R, target_key: &str) -> Option<String> {
             // Starts at 0; incremented on MappingStart/SequenceStart,
             // decremented on their matching End. An item is finished
             // when nesting returns to 0.
-            State::Skip { mut nesting, count } => {
+            State::Skip { mut nesting, items } => {
                 match event {
                     Event::MappingStart(..) | Event::SequenceStart(..) => nesting += 1,
                     Event::MappingEnd | Event::SequenceEnd if nesting > 0 => nesting -= 1,
@@ -141,12 +141,12 @@ pub fn parse_yaml<R: Read>(mut reader: R, target_key: &str) -> Option<String> {
                     _ => return None,
                 }
                 if nesting > 0 {
-                    State::Skip { nesting, count }
+                    State::Skip { nesting, items }
                 } else {
-                    match count.decrement() {
+                    match items.decrement() {
                         // All items skipped; back to reading keys.
                         None => State::Key,
-                        Some(count) => State::Skip { nesting, count },
+                        Some(items) => State::Skip { nesting, items },
                     }
                 }
             }
