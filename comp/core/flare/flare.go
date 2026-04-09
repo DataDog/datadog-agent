@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	runtimedebug "runtime/debug"
 	"strconv"
 	"time"
 
@@ -247,7 +248,17 @@ func (f *flare) create(flareArgs types.FlareArgs, providerTimeout time.Duration,
 		if ipcError != nil {
 			msg = fmt.Sprintf("unable to contact the agent to retrieve flare: %s", ipcError)
 		}
-		fb.AddFile("local", []byte(msg)) //nolint:errcheck
+		content := fmt.Sprintf("%s\nFlare creation time: %s", msg, time.Now().UTC().Format(time.RFC3339))
+		if bi, ok := runtimedebug.ReadBuildInfo(); ok {
+			content += "\nGo version: " + bi.GoVersion
+			for _, s := range bi.Settings {
+				switch s.Key {
+				case "vcs.revision", "vcs.time", "vcs.modified":
+					content += fmt.Sprintf("\n%s: %s", s.Key, s.Value)
+				}
+			}
+		}
+		fb.AddFile("local", []byte(content)) //nolint:errcheck
 	}
 
 	for name, data := range pdata {

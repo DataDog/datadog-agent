@@ -1,0 +1,15 @@
+issuer: https://gitlab.ddbuild.io
+
+subject_pattern: "project_path:DataDog/datadog-agent:.*"
+
+claim_pattern:
+  project_path: "DataDog/datadog-agent"
+  project_id: "4670"
+  ref_type: "branch"
+  ref: ".+"
+
+# GitLab CI jobs that post or update GitHub issue comments on PRs (e.g. notify.gitlab-ci-diff --pr-comment).
+# Permissions mirror self.add-dependabot-pr-to-mq.comment-pr.sts.yaml (issue comments on PRs).
+permissions:
+  contents: read
+  pull_requests: write
