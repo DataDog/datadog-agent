@@ -9,7 +9,10 @@ go_library(
 
 go_test(
     name = "origindetection_test",
-    srcs = ["origindetection_test.go"],
+    srcs = [
+        "origindetection_fuzz_test.go",
+        "origindetection_test.go",
+    ],
     embed = [":origindetection"],
     deps = ["@com_github_stretchr_testify//assert"],
 )

@@ -41,6 +41,7 @@ go_test(
         "agent_payload_gen_test.go",
         "agent_payload_marshal_test.go",
         "convert_test.go",
+        "decoder_bytes_fuzz_test.go",
         "decoder_bytes_test.go",
         "decoder_v05_test.go",
         "span_gen_modifs_test.go",
