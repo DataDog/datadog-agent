@@ -73,6 +73,10 @@ func TestNoisyNeighborProbe(t *testing.T) {
 	})
 }
 
+// TestUpdateWatchlist is a functional smoke test that verifies the watchlist
+// API doesn't error. It does not verify BPF map contents (watchlist_active gate);
+// that's covered by the integration test script (test_layered_check.sh) which
+// observes the behavioral effect (no stats with empty watchlist, stats when populated).
 func TestUpdateWatchlist(t *testing.T) {
 	ebpftest.TestBuildMode(t, ebpftest.CORE, "", func(t *testing.T) {
 		if kv < minimumKernelVersion {

@@ -337,6 +337,23 @@ else
     info "No preemptor stats (foreign preemptions may not have occurred)"
 fi
 
+# ─── Test 4b: Impacted signal precondition ────────────────────────────────────
+
+# The noisy_neighbor.impacted signal (computed agent-side) fires when
+# ForeignPreemptionCount >= min_foreign_preemptions_impact (default 10).
+# Verify the eBPF data would trigger it.
+if [[ -n "$VICTIM_STATS" ]]; then
+    FOREIGN_PREEMPT=$(echo "$VICTIM_STATS" | jq '.ForeignPreemptionCount')
+    IMPACT_THRESHOLD=10  # default min_foreign_preemptions_impact
+    if [[ "$FOREIGN_PREEMPT" -ge "$IMPACT_THRESHOLD" ]]; then
+        pass "Foreign preemptions ($FOREIGN_PREEMPT) >= threshold ($IMPACT_THRESHOLD) — impacted signal would be 1.0"
+    elif [[ "$FOREIGN_PREEMPT" -gt 0 ]]; then
+        info "Foreign preemptions ($FOREIGN_PREEMPT) below threshold ($IMPACT_THRESHOLD) — impacted signal would be 0.0 (topology-dependent)"
+    else
+        info "No foreign preemptions — impacted signal would be 0.0"
+    fi
+fi
+
 # ─── Test 5: Latency histogram buckets ────────────────────────────────────────
 
 header "Test 5: Latency Histogram Buckets"
@@ -391,7 +408,7 @@ THROTTLE_VAL=$(read_throttle "$VICTIM_CG")
 info "Victim cgroup PSI avg10: $PSI_VAL"
 info "Victim cgroup throttled_usec: $THROTTLE_VAL"
 
-# With 16 threads on 50% quota, PSI should be elevated
+# With 64+64 threads running, PSI should be elevated on the victim cgroup
 if (( $(echo "$PSI_VAL > 0" | bc -l) )); then
     pass "PSI is non-zero for contended cgroup ($PSI_VAL%)"
 else

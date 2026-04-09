@@ -78,9 +78,8 @@ func (n noisyNeighborModule) Register(httpMux *module.Router) error {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		const maxWatchlistEntries = 128 // must match BPF watchlist map max_entries
-		if len(watchlistReq.CgroupIDs) > maxWatchlistEntries {
-			http.Error(w, fmt.Sprintf("watchlist too large: %d entries (max %d)", len(watchlistReq.CgroupIDs), maxWatchlistEntries), http.StatusBadRequest)
+		if len(watchlistReq.CgroupIDs) > noisyneighbor.MaxWatchlistEntries {
+			http.Error(w, fmt.Sprintf("watchlist too large: %d entries (max %d)", len(watchlistReq.CgroupIDs), noisyneighbor.MaxWatchlistEntries), http.StatusBadRequest)
 			return
 		}
 		if err := n.Probe.UpdateWatchlist(watchlistReq.CgroupIDs); err != nil {

@@ -25,6 +25,10 @@ import (
 // 5.13 for kfuncs, 6.2 for bpf_rcu_read_lock kfunc
 var minimumKernelVersion = kernel.VersionCode(6, 2, 0)
 
+// MaxWatchlistEntries is the maximum number of cgroup IDs the BPF watchlist map can hold.
+// This must match the max_entries value in the BPF_HASH_MAP(watchlist, ...) definition.
+const MaxWatchlistEntries = 128
+
 // Probe is the eBPF side of the noisy neighbor check
 type Probe struct {
 	mgr                *ddebpf.Manager

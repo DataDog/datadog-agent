@@ -65,10 +65,11 @@ type NoisyNeighborCheck struct {
 	allCgroupReader *cgroups.Reader    // all cgroups (for Layer 1 PSI reading)
 
 	// Layer 1 state
-	lastThrottledNs map[uint64]uint64 // cgroup inode -> last throttled_time in ns
-	lastStealTime   float64
-	lastTotalCPU    float64
-	firstRun        bool
+	lastThrottledNs  map[uint64]uint64 // cgroup inode -> last throttled_time in ns
+	lastStealTime    float64
+	lastTotalCPU     float64
+	firstRun         bool
+	lastWatchlistIDs map[uint64]struct{} // previous interval's flagged cgroup IDs
 }
 
 func Factory(tagger tagger.Component) option.Option[func() check.Check] {
@@ -163,19 +164,24 @@ func (n *NoisyNeighborCheck) Run() error {
 		s.Gauge("noisy_neighbor.system.steal_time_pct", stealPct, "", nil)
 	}
 
-	// Flush stale eBPF data from the previous interval before updating the watchlist.
-	// This ensures we don't mix stats from the old watchlist with the new one.
-	if _, err := sysprobeclient.GetCheck[model.CheckResponse](n.sysProbeClient, sysconfig.NoisyNeighborModule); err != nil {
-		log.Warnf("noisy_neighbor: failed to flush stale check data: %v", err)
+	// Check if the watchlist changed since last interval
+	watchlistChanged := n.watchlistChanged(flaggedCgroupIDs)
+
+	if watchlistChanged {
+		// Flush stale eBPF data before updating the watchlist to avoid mixing
+		// stats from old and new watched cgroups.
+		if _, err := sysprobeclient.GetCheck[model.CheckResponse](n.sysProbeClient, sysconfig.NoisyNeighborModule); err != nil {
+			log.Warnf("noisy_neighbor: failed to flush stale check data: %v", err)
+		}
+
+		// Update watchlist in system-probe
+		watchlistReq := model.WatchlistRequest{CgroupIDs: flaggedCgroupIDs}
+		if _, err := sysprobeclient.Post[struct{}](n.sysProbeClient, "/watchlist", watchlistReq, sysconfig.NoisyNeighborModule); err != nil {
+			log.Warnf("noisy_neighbor: failed to update watchlist: %v", err)
+		}
 	}
 
-	// Update watchlist in system-probe
-	watchlistReq := model.WatchlistRequest{CgroupIDs: flaggedCgroupIDs}
-	if _, err := sysprobeclient.Post[struct{}](n.sysProbeClient, "/watchlist", watchlistReq, sysconfig.NoisyNeighborModule); err != nil {
-		log.Warnf("noisy_neighbor: failed to update watchlist: %v", err)
-	}
-
-	// Layer 2+3: Fetch eBPF stats collected under the current watchlist.
+	// Layer 2+3: Fetch eBPF stats.
 	// On the first interval after a watchlist change, this may return sparse data
 	// since the eBPF program only just started collecting for the new cgroups.
 	resp, err := sysprobeclient.GetCheck[model.CheckResponse](n.sysProbeClient, sysconfig.NoisyNeighborModule)
@@ -184,11 +190,9 @@ func (n *NoisyNeighborCheck) Run() error {
 	} else {
 		n.emitLayer2Metrics(s, resp.CgroupStats)
 		n.emitLayer3Metrics(s, resp.PreemptorStats)
-	}
-
-	// Emit system-level counters
-	if resp.CgroupStats != nil {
-		s.Gauge("noisy_neighbor.system.cgroups_tracked", float64(len(resp.CgroupStats)), "", nil)
+		if resp.CgroupStats != nil {
+			s.Gauge("noisy_neighbor.system.cgroups_tracked", float64(len(resp.CgroupStats)), "", nil)
+		}
 	}
 
 	n.firstRun = false
@@ -277,6 +281,28 @@ func (n *NoisyNeighborCheck) runLayer1(s sender.Sender) (flaggedIDs []uint64, st
 	}
 
 	return flaggedIDs, stealPct
+}
+
+// watchlistChanged returns true if flaggedIDs differs from the previous interval,
+// and updates lastWatchlistIDs for the next comparison.
+func (n *NoisyNeighborCheck) watchlistChanged(flaggedIDs []uint64) bool {
+	newSet := make(map[uint64]struct{}, len(flaggedIDs))
+	for _, id := range flaggedIDs {
+		newSet[id] = struct{}{}
+	}
+
+	changed := len(newSet) != len(n.lastWatchlistIDs)
+	if !changed {
+		for id := range newSet {
+			if _, ok := n.lastWatchlistIDs[id]; !ok {
+				changed = true
+				break
+			}
+		}
+	}
+
+	n.lastWatchlistIDs = newSet
+	return changed
 }
 
 // readStealTime reads /proc/stat and computes steal time percentage since last call
