@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build !linux
+//go:build !linux && test
 
 package agentimpl
 
@@ -69,7 +69,7 @@ func TestProcessAgentComponent(t *testing.T) {
 
 			opts := []fx.Option{
 				runnerimpl.Module(),
-			hostinfomock.MockModule(),
+				hostinfomock.MockModule(),
 				submittermock.MockModule(),
 				taggerfxmock.MockModule(),
 				statsdimpl.MockModule(),
