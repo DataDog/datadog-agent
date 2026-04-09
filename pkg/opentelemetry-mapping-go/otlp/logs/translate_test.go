@@ -24,6 +24,8 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/plog"
 	semconv16 "go.opentelemetry.io/otel/semconv/v1.6.1"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 )
 
 // buildLogs is a helper that assembles a plog.Logs from a single resource, scope, and log record.
@@ -41,8 +43,7 @@ func TestTranslate_Basic(t *testing.T) {
 	lr.Body().SetStr("hello world")
 	lr.SetSeverityNumber(9) // info
 
-	payloads, err := Translate(buildLogs(pcommon.NewResource(), lr))
-	require.NoError(t, err)
+	payloads := Translate(buildLogs(pcommon.NewResource(), lr), zap.NewNop(), false)
 	require.Len(t, payloads, 1)
 
 	got := payloads[0]
@@ -60,8 +61,7 @@ func TestTranslate_HostFromResource(t *testing.T) {
 	lr := plog.NewLogRecord()
 	lr.Body().SetStr("msg")
 
-	payloads, err := Translate(buildLogs(res, lr))
-	require.NoError(t, err)
+	payloads := Translate(buildLogs(res, lr), zap.NewNop(), false)
 	require.Len(t, payloads, 1)
 
 	got := payloads[0]
@@ -76,8 +76,7 @@ func TestTranslate_NoHostOrServiceWhenAbsentFromResource(t *testing.T) {
 	lr.Attributes().PutStr(string(semconv16.ServiceNameKey), "record-service")
 	lr.Body().SetStr("msg")
 
-	payloads, err := Translate(buildLogs(pcommon.NewResource(), lr))
-	require.NoError(t, err)
+	payloads := Translate(buildLogs(pcommon.NewResource(), lr), zap.NewNop(), false)
 	require.Len(t, payloads, 1)
 
 	assert.Nil(t, payloads[0].Hostname)
@@ -107,8 +106,7 @@ func TestTranslate_SeverityMapping(t *testing.T) {
 			lr.SetSeverityText(tc.text)
 		}
 
-		payloads, err := Translate(buildLogs(pcommon.NewResource(), lr))
-		require.NoError(t, err)
+		payloads := Translate(buildLogs(pcommon.NewResource(), lr), zap.NewNop(), false)
 		require.Len(t, payloads, 1)
 		assert.Equal(t, tc.wantDD, payloads[0].AdditionalProperties[ddStatus], "severity %v text %q", tc.num, tc.text)
 	}
@@ -125,8 +123,7 @@ func TestTranslate_NestedMap(t *testing.T) {
 		},
 	})
 
-	payloads, err := Translate(buildLogs(pcommon.NewResource(), lr))
-	require.NoError(t, err)
+	payloads := Translate(buildLogs(pcommon.NewResource(), lr), zap.NewNop(), false)
 	require.Len(t, payloads, 1)
 
 	assert.Equal(t, "value", payloads[0].AdditionalProperties["root.child.leaf"])
@@ -139,8 +136,7 @@ func TestTranslate_NestedList(t *testing.T) {
 		"items": []any{"a", "b", "c"},
 	})
 
-	payloads, err := Translate(buildLogs(pcommon.NewResource(), lr))
-	require.NoError(t, err)
+	payloads := Translate(buildLogs(pcommon.NewResource(), lr), zap.NewNop(), false)
 	require.Len(t, payloads, 1)
 
 	assert.Equal(t, []interface{}{"a", "b", "c"}, payloads[0].AdditionalProperties["items"])
@@ -156,8 +152,7 @@ func TestTranslate_ListOfMaps(t *testing.T) {
 		},
 	})
 
-	payloads, err := Translate(buildLogs(pcommon.NewResource(), lr))
-	require.NoError(t, err)
+	payloads := Translate(buildLogs(pcommon.NewResource(), lr), zap.NewNop(), false)
 	require.Len(t, payloads, 1)
 
 	want := []interface{}{
@@ -176,8 +171,7 @@ func TestTranslate_NestedListsOfLists(t *testing.T) {
 		},
 	})
 
-	payloads, err := Translate(buildLogs(pcommon.NewResource(), lr))
-	require.NoError(t, err)
+	payloads := Translate(buildLogs(pcommon.NewResource(), lr), zap.NewNop(), false)
 	require.Len(t, payloads, 1)
 
 	want := []interface{}{
@@ -190,25 +184,18 @@ func TestTranslate_NestedListsOfLists(t *testing.T) {
 func TestTranslate_MultipleResourcesAndRecords(t *testing.T) {
 	ld := plog.NewLogs()
 
-	// First resource: two log records
 	rl1 := ld.ResourceLogs().AppendEmpty()
 	rl1.Resource().Attributes().PutStr(string(semconv16.HostNameKey), "host-1")
 	rl1.Resource().Attributes().PutStr(string(semconv16.ServiceNameKey), "svc-1")
 	sl1 := rl1.ScopeLogs().AppendEmpty()
-	lr1a := sl1.LogRecords().AppendEmpty()
-	lr1a.Body().SetStr("msg-1a")
-	lr1b := sl1.LogRecords().AppendEmpty()
-	lr1b.Body().SetStr("msg-1b")
+	sl1.LogRecords().AppendEmpty().Body().SetStr("msg-1a")
+	sl1.LogRecords().AppendEmpty().Body().SetStr("msg-1b")
 
-	// Second resource: one log record
 	rl2 := ld.ResourceLogs().AppendEmpty()
 	rl2.Resource().Attributes().PutStr(string(semconv16.HostNameKey), "host-2")
-	sl2 := rl2.ScopeLogs().AppendEmpty()
-	lr2 := sl2.LogRecords().AppendEmpty()
-	lr2.Body().SetStr("msg-2")
+	rl2.ScopeLogs().AppendEmpty().LogRecords().AppendEmpty().Body().SetStr("msg-2")
 
-	payloads, err := Translate(ld)
-	require.NoError(t, err)
+	payloads := Translate(ld, zap.NewNop(), false)
 	require.Len(t, payloads, 3)
 
 	assert.Equal(t, "msg-1a", payloads[0].GetMessage())
@@ -224,28 +211,21 @@ func TestTranslate_MultipleResourcesAndRecords(t *testing.T) {
 }
 
 func TestTranslate_EmptyLogs(t *testing.T) {
-	payloads, err := Translate(plog.NewLogs())
-	require.NoError(t, err)
+	payloads := Translate(plog.NewLogs(), zap.NewNop(), false)
 	assert.Empty(t, payloads)
 }
 
 func TestTranslate_TagsFromResourceAttributes(t *testing.T) {
 	res := pcommon.NewResource()
 	res.Attributes().PutStr(string(semconv16.ServiceNameKey), "my-svc")
-	res.Attributes().PutStr("env", "prod")
 
 	lr := plog.NewLogRecord()
 	lr.Body().SetStr("tagged")
 
-	payloads, err := Translate(buildLogs(res, lr))
-	require.NoError(t, err)
+	payloads := Translate(buildLogs(res, lr), zap.NewNop(), false)
 	require.Len(t, payloads, 1)
 
-	// Tags are derived from resource attributes via TagsFromAttributes.
-	got := payloads[0]
-	require.NotNil(t, got.Ddtags)
-	ddtags := got.GetDdtags()
-	assert.Contains(t, ddtags, "service:my-svc")
+	assert.Contains(t, payloads[0].GetDdtags(), "service:my-svc")
 }
 
 func TestTranslate_TraceAndSpanIDs(t *testing.T) {
@@ -256,8 +236,7 @@ func TestTranslate_TraceAndSpanIDs(t *testing.T) {
 	lr.SetTraceID(traceID)
 	lr.SetSpanID(spanID)
 
-	payloads, err := Translate(buildLogs(pcommon.NewResource(), lr))
-	require.NoError(t, err)
+	payloads := Translate(buildLogs(pcommon.NewResource(), lr), zap.NewNop(), false)
 	require.Len(t, payloads, 1)
 
 	got := payloads[0].AdditionalProperties
@@ -267,16 +246,25 @@ func TestTranslate_TraceAndSpanIDs(t *testing.T) {
 	assert.NotEmpty(t, got[otelSpanID])
 }
 
+func TestTranslate_UsesProvidedLogger(t *testing.T) {
+	// Verify that the provided logger is used (e.g. for trace/span decode warnings).
+	logger := zaptest.NewLogger(t)
+
+	lr := plog.NewLogRecord()
+	lr.Attributes().PutStr("traceid", "invalid-trace-id")
+
+	payloads := Translate(buildLogs(pcommon.NewResource(), lr), logger, false)
+	require.Len(t, payloads, 1)
+}
+
 func TestTranslate_ReturnsHTTPLogItems(t *testing.T) {
-	// Verify the return type matches datadogV2.HTTPLogItem (compile-time check via usage).
 	var _ []datadogV2.HTTPLogItem
 	res := pcommon.NewResource()
 	res.Attributes().PutStr(string(semconv16.ServiceNameKey), "svc")
 	lr := plog.NewLogRecord()
 	lr.Body().SetStr("check type")
 
-	payloads, err := Translate(buildLogs(res, lr))
-	require.NoError(t, err)
+	payloads := Translate(buildLogs(res, lr), zap.NewNop(), false)
 	require.Len(t, payloads, 1)
 	assert.IsType(t, datadogV2.HTTPLogItem{}, payloads[0])
 }

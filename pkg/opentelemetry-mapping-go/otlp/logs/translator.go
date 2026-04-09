@@ -94,6 +94,7 @@ func (t *Translator) hostFromAttributes(ctx context.Context, attrs pcommon.Map) 
 }
 
 // MapLogsAndRouteRUMEvents from OTLP format to Datadog format if shouldForwardOTLPRUMToDDRUM is true.
+// Deprecated: This was part of a previous attempt to implement RUM <> OTel integration, now abandoned.
 func (t *Translator) MapLogsAndRouteRUMEvents(ctx context.Context, ld plog.Logs, hostFromAttributesHandler attributes.HostFromAttributesHandler, shouldForwardOTLPRUMToDDRUM bool, rumIntakeURL string) ([]datadogV2.HTTPLogItem, error) {
 	if t.httpClient == nil {
 		return nil, errors.New("httpClient is nil")
@@ -168,6 +169,15 @@ func (t *Translator) MapLogsAndRouteRUMEvents(ctx context.Context, ld plog.Logs,
 						continue
 					}
 				}
+				// HACK: Check for host and service in log record attributes
+				if host == "" {
+					host = t.hostFromAttributes(ctx, logRecord.Attributes())
+				}
+				if service == "" {
+					if s, ok := logRecord.Attributes().Get(string(conventions.ServiceNameKey)); ok {
+						service = s.AsString()
+					}
+				}
 				payload := transform(logRecord, host, service, res, scope, t.set.Logger)
 				ddtags := payload.GetDdtags()
 				if ddtags != "" {
@@ -182,21 +192,25 @@ func (t *Translator) MapLogsAndRouteRUMEvents(ctx context.Context, ld plog.Logs,
 	return payloads, nil
 }
 
-// Translate converts plog.Logs to Datadog log items without requiring a Translator instance,
-// logger, or context. It uses attributes.GetHost and attributes.GetService to extract
+// Translate converts plog.Logs to Datadog log items without requiring a Translator instance
+// or context. It uses attributes.GetHost and attributes.GetService to extract
 // hostname and service from resource attributes.
-func Translate(ld plog.Logs) ([]datadogV2.HTTPLogItem, error) {
+//
+// When shouldFallbackOnLogAttributes is true, host and service are also looked up on
+// individual log record attributes if absent from the resource. This preserves backwards
+// compatibility for existing consumers (e.g. datadogexporter) that relied on this behaviour.
+// New consumers should pass false.
+func Translate(ld plog.Logs, logger *zap.Logger, shouldFallbackOnLogAttributes bool) []datadogV2.HTTPLogItem {
 	rsl := ld.ResourceLogs()
 	var payloads []datadogV2.HTTPLogItem
-	logger := zap.NewNop()
 	for i := 0; i < rsl.Len(); i++ {
 		rl := rsl.At(i)
 		res := rl.Resource()
 
-		host := attributes.GetHost(res.Attributes(), "")
-		svc := attributes.GetService(res.Attributes(), false)
-		if svc == attributes.DefaultServiceName {
-			svc = ""
+		resHost := attributes.GetHost(res.Attributes(), "")
+		resSvc := attributes.GetService(res.Attributes(), false)
+		if resSvc == attributes.DefaultServiceName {
+			resSvc = ""
 		}
 
 		sls := rl.ScopeLogs()
@@ -206,17 +220,28 @@ func Translate(ld plog.Logs) ([]datadogV2.HTTPLogItem, error) {
 			scope := sl.Scope()
 			for k := 0; k < lsl.Len(); k++ {
 				lr := lsl.At(k)
+				host, svc := resHost, resSvc
+				if shouldFallbackOnLogAttributes {
+					if host == "" {
+						host = attributes.GetHost(lr.Attributes(), "")
+					}
+					if svc == "" {
+						if s := attributes.GetService(lr.Attributes(), false); s != attributes.DefaultServiceName {
+							svc = s
+						}
+					}
+				}
 				payloads = append(payloads, transform(lr, host, svc, res, scope, logger))
 			}
 		}
 	}
-	return payloads, nil
+	return payloads
 }
 
 // MapLogs from OTLP format to Datadog format.
 // Deprecated: Deprecated in favor of MapLogsAndRouteRUMEvents.
 func (t *Translator) MapLogs(_ context.Context, ld plog.Logs, _ attributes.HostFromAttributesHandler) []datadogV2.HTTPLogItem {
-	payloads, _ := Translate(ld)
+	payloads := Translate(ld, t.set.Logger, true)
 	for i := range payloads {
 		ddtags := payloads[i].GetDdtags()
 		if ddtags != "" {

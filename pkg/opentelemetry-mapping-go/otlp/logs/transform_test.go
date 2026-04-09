@@ -152,6 +152,7 @@ func generateTranslatorTestCases(traceID [16]byte, spanID [8]byte, ddTr uint64, 
 			want: datadogV2.HTTPLogItem{
 				Ddtags:  datadog.PtrString("otel_source:test"),
 				Message: *datadog.PtrString(""),
+				Service: datadog.PtrString("otlp_col"),
 				AdditionalProperties: map[string]interface{}{
 					"app":              "test",
 					"status":           "debug",
@@ -178,6 +179,7 @@ func generateTranslatorTestCases(traceID [16]byte, spanID [8]byte, ddTr uint64, 
 			want: datadogV2.HTTPLogItem{
 				Ddtags:  datadog.PtrString("otel_source:test"),
 				Message: *datadog.PtrString(""),
+				Service: datadog.PtrString("otlp_col"),
 				AdditionalProperties: map[string]interface{}{
 					"app":              "test",
 					"status":           "debug",
@@ -208,6 +210,7 @@ func generateTranslatorTestCases(traceID [16]byte, spanID [8]byte, ddTr uint64, 
 			want: datadogV2.HTTPLogItem{
 				Ddtags:  datadog.PtrString("otel_source:test"),
 				Message: *datadog.PtrString(""),
+				Service: datadog.PtrString("otlp_col"),
 				AdditionalProperties: map[string]interface{}{
 					"app":              "test",
 					"status":           "debug",
@@ -238,6 +241,7 @@ func generateTranslatorTestCases(traceID [16]byte, spanID [8]byte, ddTr uint64, 
 			want: datadogV2.HTTPLogItem{
 				Ddtags:  datadog.PtrString("otel_source:test"),
 				Message: *datadog.PtrString(""),
+				Service: datadog.PtrString("otlp_col"),
 				AdditionalProperties: map[string]interface{}{
 					"app":              "test",
 					"status":           "debug",
@@ -268,6 +272,7 @@ func generateTranslatorTestCases(traceID [16]byte, spanID [8]byte, ddTr uint64, 
 			want: datadogV2.HTTPLogItem{
 				Ddtags:  datadog.PtrString("otel_source:test"),
 				Message: *datadog.PtrString(""),
+				Service: datadog.PtrString("otlp_col"),
 				AdditionalProperties: map[string]interface{}{
 					"app":              "test",
 					"status":           "debug",
@@ -296,6 +301,7 @@ func generateTranslatorTestCases(traceID [16]byte, spanID [8]byte, ddTr uint64, 
 			want: datadogV2.HTTPLogItem{
 				Ddtags:  datadog.PtrString("otel_source:test"),
 				Message: *datadog.PtrString(""),
+				Service: datadog.PtrString("otlp_col"),
 				AdditionalProperties: map[string]interface{}{
 					"app":              "test",
 					"status":           "debug",
@@ -324,6 +330,7 @@ func generateTranslatorTestCases(traceID [16]byte, spanID [8]byte, ddTr uint64, 
 			want: datadogV2.HTTPLogItem{
 				Ddtags:  datadog.PtrString("otel_source:test"),
 				Message: *datadog.PtrString(""),
+				Service: datadog.PtrString("otlp_col"),
 				AdditionalProperties: map[string]interface{}{
 					"app":              "test",
 					"status":           "alert",
@@ -356,6 +363,7 @@ func generateTranslatorTestCases(traceID [16]byte, spanID [8]byte, ddTr uint64, 
 			want: datadogV2.HTTPLogItem{
 				Ddtags:  datadog.PtrString("otel_source:test"),
 				Message: *datadog.PtrString(""),
+				Service: datadog.PtrString("otlp_col"),
 				AdditionalProperties: map[string]interface{}{
 					"message":          "This is log",
 					"app":              "test",
@@ -388,6 +396,7 @@ func generateTranslatorTestCases(traceID [16]byte, spanID [8]byte, ddTr uint64, 
 			want: datadogV2.HTTPLogItem{
 				Ddtags:  datadog.PtrString("otel_source:test"),
 				Message: *datadog.PtrString(""),
+				Service: datadog.PtrString("otlp_col"),
 				AdditionalProperties: map[string]interface{}{
 					"message":      "This is log",
 					"app":          "test",
