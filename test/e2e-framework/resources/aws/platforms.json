@@ -2,6 +2,7 @@
     "amazon-linux": {
         "arm64": {
             "2": "ami-0a37ff68b81b844bb",
+            "2-docker": "ami-087dc54ec708cc71d",
             "2-4-14": "ami-090230ed0c6b13c74",
             "2-5-10": "ami-09e51988f56677f44",
             "2022-5-15": "ami-0acc51c3357f26240",
@@ -9,6 +10,7 @@
         },
         "x86_64": {
             "2": "ami-09e48b5e3f7502ead",
+            "2-docker": "ami-0ab0d8953c5e69533",
             "2-4-14": "ami-038b3df3312ddf25d",
             "2-5-10": "ami-06a0cd9728546d178",
             "2018": "ami-0882eaa2fa1a8a2b2",
@@ -32,7 +34,8 @@
         },
         "x86_64": {
             "610": "ami-0506f01ccb6dddeda",
-            "79": "ami-036de472bb001ae9c"
+            "79": "ami-036de472bb001ae9c",
+            "79-docker": "ami-095d368a862b60ccb"
         }
     },
     "debian": {

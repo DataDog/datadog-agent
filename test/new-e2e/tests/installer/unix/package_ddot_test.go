@@ -61,7 +61,7 @@ func (s *packageDDOTSuite) RunInstallScript(params ...string) {
 	switch s.installMethod {
 	case InstallMethodInstallScript:
 		// bugfix for https://major.io/p/systemd-in-fedora-22-failed-to-restart-service-access-denied/
-		if s.os.Flavor == e2eos.CentOS && s.os.Version == e2eos.CentOS7.Version {
+		if s.os.Flavor == e2eos.CentOS && (s.os.Version == e2eos.CentOS7.Version || s.os.Version == e2eos.CentOS7Docker.Version) {
 			s.Env().RemoteHost.MustExecute("sudo systemctl daemon-reexec")
 		}
 		err := s.RunInstallScriptWithError(params...)

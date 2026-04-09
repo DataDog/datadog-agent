@@ -36,22 +36,22 @@ type packageTestsWithSkippedFlavors struct {
 var (
 	amd64Flavors = []e2eos.Descriptor{
 		e2eos.Ubuntu2404Docker,
-		e2eos.AmazonLinux2,
+		e2eos.AmazonLinux2Docker,
 		e2eos.Debian12Docker,
 		e2eos.RedHat9Docker,
 		// e2eos.FedoraDefault, // Skipped instead of marked as flaky to avoid useless logs
-		e2eos.CentOS7,
+		e2eos.CentOS7Docker,
 		e2eos.Suse154Docker,
 	}
 	arm64Flavors = []e2eos.Descriptor{
 		e2eos.Ubuntu2404Docker,
-		e2eos.AmazonLinux2,
+		e2eos.AmazonLinux2Docker,
 		e2eos.Suse154Docker,
 	}
 	packagesTestsWithSkippedFlavors = []packageTestsWithSkippedFlavors{
 		{t: testAgent},
 		{t: testDDOT, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
-		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9Docker, e2eos.FedoraDefault, e2eos.AmazonLinux2}},
+		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7Docker, e2eos.RedHat9Docker, e2eos.FedoraDefault, e2eos.AmazonLinux2Docker}},
 		{t: testUpgradeScenario},
 	}
 )
@@ -204,7 +204,7 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 	switch s.installMethod {
 	case InstallMethodInstallScript:
 		// bugfix for https://major.io/p/systemd-in-fedora-22-failed-to-restart-service-access-denied/
-		if s.os.Flavor == e2eos.CentOS && s.os.Version == e2eos.CentOS7.Version {
+		if s.os.Flavor == e2eos.CentOS && (s.os.Version == e2eos.CentOS7.Version || s.os.Version == e2eos.CentOS7Docker.Version) {
 			s.Env().RemoteHost.MustExecute("sudo systemctl daemon-reexec")
 		}
 		err := s.RunInstallScriptWithError(params...)
@@ -303,12 +303,20 @@ func (s *packageBaseSuite) installAnsible(flavor e2eos.Descriptor) string {
 	case e2eos.Fedora:
 		s.Env().RemoteHost.MustExecute("sudo dnf install -y ansible")
 	case e2eos.CentOS:
+		if flavor.Version == e2eos.CentOS7Docker.Version {
+			// ansible is pre-baked globally (via sudo pip3) in CentOS7Docker
+			break
+		}
 		// Can't install ansible with yum install because the available package on centos is max ansible 2.9, EOL since May 2022
 		s.Env().RemoteHost.MustExecute("sudo yum install -y python3 curl")
 		s.Env().RemoteHost.MustExecute("curl https://bootstrap.pypa.io/pip/3.6/get-pip.py -o get-pip.py && python3 get-pip.py && rm get-pip.py")
 		s.Env().RemoteHost.MustExecute("python3 -m pip install ansible")
 		pathPrefix = "/home/centos/.local/bin/"
 	case e2eos.AmazonLinux:
+		if flavor.Version == e2eos.AmazonLinux2Docker.Version {
+			// ansible is pre-baked globally (via sudo pip3) in AmazonLinux2Docker
+			break
+		}
 		s.Env().RemoteHost.MustExecute("sudo yum install -y python3 python3-pip && yes | pip3 install ansible")
 		pathPrefix = "/home/ec2-user/.local/bin/"
 	case e2eos.RedHat:

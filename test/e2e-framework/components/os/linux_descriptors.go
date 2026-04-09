@@ -20,10 +20,11 @@ var (
 	Debian12       = NewDescriptor(Debian, "12")
 	Debian12Docker = NewDescriptor(Debian, "12-docker")
 
-	AmazonLinuxDefault = AmazonLinux2023
-	AmazonLinux2023    = NewDescriptor(AmazonLinux, "2023")
-	AmazonLinux2       = NewDescriptor(AmazonLinux, "2")
-	AmazonLinux2018    = NewDescriptor(AmazonLinux, "2018")
+	AmazonLinuxDefault  = AmazonLinux2023
+	AmazonLinux2023     = NewDescriptor(AmazonLinux, "2023")
+	AmazonLinux2        = NewDescriptor(AmazonLinux, "2")
+	AmazonLinux2018     = NewDescriptor(AmazonLinux, "2018")
+	AmazonLinux2Docker  = NewDescriptor(AmazonLinux, "2-docker")
 
 	AmazonLinuxECSDefault = AmazonLinuxECS2
 	AmazonLinuxECS2023    = NewDescriptor(AmazonLinuxECS, "2023")
@@ -46,6 +47,7 @@ var (
 
 	CentOSDefault = CentOS7
 	CentOS7       = NewDescriptor(CentOS, "79")
+	CentOS7Docker = NewDescriptor(CentOS, "79-docker")
 )
 
 var LinuxDescriptorsDefault = map[Flavor]Descriptor{
