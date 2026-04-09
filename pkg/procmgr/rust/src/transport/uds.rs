@@ -4,8 +4,11 @@
 // Copyright 2026-present Datadog, Inc.
 
 use anyhow::{Context, Result};
-use log::warn;
+use log::{info, warn};
+use std::future::Future;
 use std::path::{Path, PathBuf};
+use tokio::net::UnixListener;
+use tokio_stream::wrappers::UnixListenerStream;
 
 const DEFAULT_SOCKET_PATH: &str = "/var/run/datadog-procmgrd/dd-procmgrd.sock";
 const SOCKET_PERMISSIONS: u32 = 0o660;
@@ -43,6 +46,30 @@ pub fn set_permissions(path: &Path) {
     {
         warn!("failed to set socket permissions: {e}");
     }
+}
+
+pub async fn serve<F>(router: tonic::transport::server::Router, shutdown: F) -> Result<()>
+where
+    F: Future<Output = ()>,
+{
+    let path = ipc_path();
+    prepare(&path)?;
+
+    let uds = UnixListener::bind(&path)
+        .with_context(|| format!("failed to bind Unix socket: {}", path.display()))?;
+    set_permissions(&path);
+    info!("gRPC server listening on {}", path.display());
+
+    let uds_stream = UnixListenerStream::new(uds);
+
+    router
+        .serve_with_incoming_shutdown(uds_stream, shutdown)
+        .await
+        .context("gRPC server error")?;
+
+    info!("gRPC server stopped");
+    cleanup(&path);
+    Ok(())
 }
 
 pub fn cleanup(path: &Path) {

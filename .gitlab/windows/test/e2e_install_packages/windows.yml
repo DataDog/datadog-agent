@@ -155,6 +155,12 @@ new-e2e-windows-ddot-package-a7-x86_64:
     - CURRENT_AGENT_ASSERT_VERSION=$(dda inv agent.version) || exit $?; export CURRENT_AGENT_ASSERT_VERSION
     - CURRENT_AGENT_ASSERT_PACKAGE_VERSION=$(dda inv agent.version --url-safe)-1 || exit $?; export CURRENT_AGENT_ASSERT_PACKAGE_VERSION
     - !reference [.new_e2e_template, before_script]
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run "TestDDOTExtensionViaMSI$/TestInstallAndUninstallDDOTExtension$"
+      - EXTRA_PARAMS: --run "TestDDOTExtensionViaMSI$/TestUpgradeEnablesDDOTExtension$"
+      - EXTRA_PARAMS: --run "TestDDOTExtensionMSIUpgrade$/TestUpgradePreservesDDOTExtension$"
+      - EXTRA_PARAMS: --run "TestDDOTExtensionViaInstallScript$/TestInstallAndPurgeDDOTExtension$"
   rules:
     - !reference [.on_deploy]
     - !reference [.on_e2e_or_windows_installer_changes]
