@@ -69,8 +69,8 @@ func TestTranslate_HostFromResource(t *testing.T) {
 	assert.Equal(t, datadog.PtrString("my-service"), got.Service)
 }
 
-func TestTranslate_HostFromLogAttrs(t *testing.T) {
-	// HACK: host and service absent from resource but present in log record attributes.
+func TestTranslate_NoHostOrServiceWhenAbsentFromResource(t *testing.T) {
+	// host/service on log record attributes are ignored — must come from resource.
 	lr := plog.NewLogRecord()
 	lr.Attributes().PutStr(string(semconv16.HostNameKey), "record-host")
 	lr.Attributes().PutStr(string(semconv16.ServiceNameKey), "record-service")
@@ -80,27 +80,8 @@ func TestTranslate_HostFromLogAttrs(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, payloads, 1)
 
-	got := payloads[0]
-	assert.Equal(t, datadog.PtrString("record-host"), got.Hostname)
-	assert.Equal(t, datadog.PtrString("record-service"), got.Service)
-}
-
-func TestTranslate_ResourceHostTakesPrecedenceOverLogAttrs(t *testing.T) {
-	res := pcommon.NewResource()
-	res.Attributes().PutStr(string(semconv16.HostNameKey), "resource-host")
-	res.Attributes().PutStr(string(semconv16.ServiceNameKey), "resource-service")
-
-	lr := plog.NewLogRecord()
-	lr.Attributes().PutStr(string(semconv16.HostNameKey), "record-host")
-	lr.Attributes().PutStr(string(semconv16.ServiceNameKey), "record-service")
-
-	payloads, err := Translate(buildLogs(res, lr))
-	require.NoError(t, err)
-	require.Len(t, payloads, 1)
-
-	got := payloads[0]
-	assert.Equal(t, datadog.PtrString("resource-host"), got.Hostname)
-	assert.Equal(t, datadog.PtrString("resource-service"), got.Service)
+	assert.Nil(t, payloads[0].Hostname)
+	assert.Nil(t, payloads[0].Service)
 }
 
 func TestTranslate_SeverityMapping(t *testing.T) {
