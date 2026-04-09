@@ -1,13 +1,16 @@
 exporters:
-    otlphttp/datadoghq.eu_0:
+    otlphttp/datadoghq.com_0:
         compression: zstd
         headers:
-            dd-api-key: eu_key_1
+            dd-api-key: test_api_key_123
             dd-evp-origin: host-profiler
             dd-evp-origin-version: 7.0.0-test
-        metrics_endpoint: https://otlp.datadoghq.eu/v1/metrics
-        profiles_endpoint: https://intake.profile.datadoghq.eu/v1development/profiles
+        metrics_endpoint: https://otlp.datadoghq.com/v1/metrics
+        profiles_endpoint: https://intake.profile.datadoghq.com/v1development/profiles
 extensions:
+    ddprofiling/default:
+        profiler_options:
+            period: 30
     hpflare/default: {}
 processors:
     cumulativetodelta: {}
@@ -35,8 +38,8 @@ receivers:
         symbol_uploader:
             enabled: true
             symbol_endpoints:
-                - api_key: eu_key_1
-                  site: datadoghq.eu
+                - api_key: test_api_key_123
+                  site: datadoghq.com
     prometheus:
         config:
             scrape_configs:
@@ -53,10 +56,11 @@ receivers:
 service:
     extensions:
         - hpflare/default
+        - ddprofiling/default
     pipelines:
         metrics:
             exporters:
-                - otlphttp/datadoghq.eu_0
+                - otlphttp/datadoghq.com_0
             processors:
                 - filter
                 - cumulativetodelta
@@ -66,7 +70,7 @@ service:
                 - prometheus
         profiles:
             exporters:
-                - otlphttp/datadoghq.eu_0
+                - otlphttp/datadoghq.com_0
             processors:
                 - infraattributes/default
                 - resource/dd-profiler-internal-metadata

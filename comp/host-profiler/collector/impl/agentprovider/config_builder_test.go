@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build test
+//go:build linux && test
 
 package agentprovider
 
@@ -63,6 +63,85 @@ func TestBuildExportersNoAdditionalHTTPHeaders(t *testing.T) {
 
 	assert.Equal(t, "test_key", headers["dd-api-key"])
 	assert.Len(t, headers, 3) // dd-api-key, dd-evp-origin, dd-evp-origin-version
+}
+
+func TestBuildConfigDDProfilingEnabled(t *testing.T) {
+	agent := configManager{
+		endpoints: []endpoint{{
+			site:    "datadoghq.com",
+			apiKeys: []string{"test_key"},
+		}},
+		endpointsTotalLength: 1,
+		hostProfilerConfig: hostProfilerConfig{
+			DDProfilingEnabled: true,
+		},
+	}
+	conf := buildConfig(agent, testCollectorParams{})
+
+	extensions, ok := conf["extensions"].(confMap)
+	require.True(t, ok)
+	ddprofiling, ok := extensions["ddprofiling/default"].(confMap)
+	require.True(t, ok)
+	assert.Empty(t, ddprofiling, "ddprofiling config should be empty when period is not set")
+
+	service, ok := conf["service"].(confMap)
+	require.True(t, ok)
+	svcExtensions, ok := service["extensions"].([]any)
+	require.True(t, ok)
+	assert.Contains(t, svcExtensions, "ddprofiling/default")
+	assert.Contains(t, svcExtensions, "hpflare/default")
+}
+
+func TestBuildConfigDDProfilingEnabledWithPeriod(t *testing.T) {
+	agent := configManager{
+		endpoints: []endpoint{{
+			site:    "datadoghq.com",
+			apiKeys: []string{"test_key"},
+		}},
+		endpointsTotalLength: 1,
+		hostProfilerConfig: hostProfilerConfig{
+			DDProfilingEnabled: true,
+			DDProfilingPeriod:  30,
+		},
+	}
+	conf := buildConfig(agent, testCollectorParams{})
+
+	extensions, ok := conf["extensions"].(confMap)
+	require.True(t, ok)
+	ddprofiling, ok := extensions["ddprofiling/default"].(confMap)
+	require.True(t, ok)
+	profilerOptions, ok := ddprofiling["profiler_options"].(confMap)
+	require.True(t, ok)
+	assert.Equal(t, 30, profilerOptions["period"])
+
+	service, ok := conf["service"].(confMap)
+	require.True(t, ok)
+	svcExtensions, ok := service["extensions"].([]any)
+	require.True(t, ok)
+	assert.Contains(t, svcExtensions, "ddprofiling/default")
+}
+
+func TestBuildConfigDDProfilingDisabled(t *testing.T) {
+	agent := configManager{
+		endpoints: []endpoint{{
+			site:    "datadoghq.com",
+			apiKeys: []string{"test_key"},
+		}},
+		endpointsTotalLength: 1,
+	}
+	conf := buildConfig(agent, testCollectorParams{})
+
+	extensions, ok := conf["extensions"].(confMap)
+	require.True(t, ok)
+	_, ok = extensions["ddprofiling/default"]
+	assert.False(t, ok, "ddprofiling extension should not be present when disabled")
+
+	service, ok := conf["service"].(confMap)
+	require.True(t, ok)
+	svcExtensions, ok := service["extensions"].([]any)
+	require.True(t, ok)
+	assert.NotContains(t, svcExtensions, "ddprofiling/default")
+	assert.Contains(t, svcExtensions, "hpflare/default")
 }
 
 func TestBuildExportersAdditionalHTTPHeadersDoNotOverrideRequired(t *testing.T) {

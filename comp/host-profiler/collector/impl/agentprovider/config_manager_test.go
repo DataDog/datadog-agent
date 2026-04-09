@@ -79,3 +79,73 @@ site: datadoghq.com
 
 	assert.Empty(t, mgr.hostProfilerConfig.AdditionalHTTPHeaders)
 }
+
+func TestNewConfigManagerDDProfilingEnabledFromYAML(t *testing.T) {
+	cfg := config.NewMockFromYAML(t, `
+api_key: test-key
+site: datadoghq.com
+hostprofiler:
+  ddprofiling:
+    enabled: true
+`)
+	mgr := newConfigManager(cfg)
+
+	assert.True(t, mgr.hostProfilerConfig.DDProfilingEnabled)
+}
+
+func TestNewConfigManagerDDProfilingEnabledFromEnvVar(t *testing.T) {
+	t.Setenv("DD_HOSTPROFILER_DDPROFILING_ENABLED", "true")
+
+	cfg := config.NewMockFromYAML(t, `
+api_key: test-key
+site: datadoghq.com
+`)
+	mgr := newConfigManager(cfg)
+
+	assert.True(t, mgr.hostProfilerConfig.DDProfilingEnabled)
+}
+
+func TestNewConfigManagerDDProfilingEnabledDefault(t *testing.T) {
+	cfg := config.NewMockFromYAML(t, `
+api_key: test-key
+site: datadoghq.com
+`)
+	mgr := newConfigManager(cfg)
+
+	assert.False(t, mgr.hostProfilerConfig.DDProfilingEnabled)
+}
+
+func TestNewConfigManagerDDProfilingPeriodFromYAML(t *testing.T) {
+	cfg := config.NewMockFromYAML(t, `
+api_key: test-key
+site: datadoghq.com
+hostprofiler:
+  ddprofiling:
+    period: 30
+`)
+	mgr := newConfigManager(cfg)
+
+	assert.Equal(t, 30, mgr.hostProfilerConfig.DDProfilingPeriod)
+}
+
+func TestNewConfigManagerDDProfilingPeriodFromEnvVar(t *testing.T) {
+	t.Setenv("DD_HOSTPROFILER_DDPROFILING_PERIOD", "45")
+
+	cfg := config.NewMockFromYAML(t, `
+api_key: test-key
+site: datadoghq.com
+`)
+	mgr := newConfigManager(cfg)
+
+	assert.Equal(t, 45, mgr.hostProfilerConfig.DDProfilingPeriod)
+}
+
+func TestNewConfigManagerDDProfilingPeriodDefault(t *testing.T) {
+	cfg := config.NewMockFromYAML(t, `
+api_key: test-key
+site: datadoghq.com
+`)
+	mgr := newConfigManager(cfg)
+
+	assert.Equal(t, 0, mgr.hostProfilerConfig.DDProfilingPeriod)
+}
