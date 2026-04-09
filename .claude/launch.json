@@ -1,0 +1,35 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "agent",
+      "runtimeExecutable": "dda",
+      "runtimeArgs": ["inv", "agent.run", "--skip-build"],
+      "port": 5001
+    },
+    {
+      "name": "dogstatsd",
+      "runtimeExecutable": "dda",
+      "runtimeArgs": ["inv", "dogstatsd.run", "--skip-build"],
+      "port": 8125
+    },
+    {
+      "name": "trace-agent",
+      "runtimeExecutable": "./bin/trace-agent/trace-agent",
+      "runtimeArgs": ["--config", "bin/agent/dist/datadog.yaml"],
+      "port": 8126
+    },
+    {
+      "name": "system-probe",
+      "runtimeExecutable": "sudo",
+      "runtimeArgs": ["./bin/system-probe/system-probe", "run", "--config", "bin/system-probe/dist/system-probe.yaml"],
+      "port": 0
+    },
+    {
+      "name": "fakeintake",
+      "runtimeExecutable": "docker",
+      "runtimeArgs": ["compose", "-f", "test/fakeintake/docker-compose.yaml", "up"],
+      "port": 80
+    }
+  ]
+}
