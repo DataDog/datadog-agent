@@ -34,6 +34,7 @@ func autoDiscoverySuiteProvisioner(agentConfig string) provisioners.Provisioner 
 }
 
 func TestAutoDiscoverySuite(t *testing.T) {
+	t.Parallel()
 	e2e.Run(t, &autoDiscoverySuite{}, e2e.WithProvisioner(autoDiscoverySuiteProvisioner(``)))
 }
 

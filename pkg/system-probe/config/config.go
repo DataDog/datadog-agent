@@ -123,12 +123,13 @@ func load() (*types.Config, error) {
 	npmEnabled := cfg.GetBool(netNS("enabled"))
 	usmEnabled := cfg.GetBool(smNS("enabled"))
 	ccmEnabled := cfg.GetBool(ccmNS("enabled"))
+	eudmEnabled := coreCfg.GetString("infrastructure_mode") == "end_user_device"
 	csmEnabled := cfg.GetBool(secNS("enabled"))
 	gpuEnabled := cfg.GetBool(gpuNS("enabled"))
 	diEnabled := cfg.GetBool(diNS("enabled"))
 	swEnabled := coreCfg.GetBool(swNS("enabled"))
 
-	if npmEnabled || usmEnabled || ccmEnabled || (csmEnabled && cfg.GetBool(secNS("network_monitoring.enabled"))) {
+	if npmEnabled || usmEnabled || ccmEnabled || eudmEnabled || (csmEnabled && cfg.GetBool(secNS("network_monitoring.enabled"))) {
 		c.EnabledModules[NetworkTracerModule] = struct{}{}
 	}
 	if cfg.GetBool(spNS("enable_tcp_queue_length")) {
@@ -223,21 +224,6 @@ func load() (*types.Config, error) {
 		if len(c.EnabledModules) > 0 && injectorDefaultEnabled {
 			c.EnabledModules[InjectorModule] = struct{}{}
 		}
-	}
-
-	// Enable discovery by default on Linux if system-probe has any modules
-	// enabled, unless the user has explicitly configured the discovery.enabled
-	// config key.
-	//
-	// Note that besides the support in system-probe itself (currently only
-	// implemented on Linux), the WorkloadMeta-based process collector in the
-	// core agent needs to be supported on the platform for discovery to work
-	// correctly.
-	if runtime.GOOS == "linux" &&
-		len(c.EnabledModules) > 0 &&
-		!c.ModuleIsEnabled(DiscoveryModule) &&
-		applyDefault(cfg, discoveryNS("enabled"), true) {
-		c.EnabledModules[DiscoveryModule] = struct{}{}
 	}
 
 	c.Enabled = len(c.EnabledModules) > 0

@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux
-
 // Package agentprovider generates OpenTelemetry Collector configuration from Datadog Agent configuration.
 package agentprovider
 
@@ -64,11 +62,12 @@ func buildExporters(conf confMap, agent configManager) []any {
 		return confMap{
 			"profiles_endpoint": fmt.Sprintf(profilesEndpointFormat, site),
 			"metrics_endpoint":  fmt.Sprintf(metricsEndpointFormat, site),
+			"compression":       "zstd",
 			"headers":           headers,
 		}
 	}
 
-	debugEnabled := len(agent.hostProfilerConfig.Debug) > 0
+	debugEnabled := agent.hostProfilerConfig.DebugVerbosity != ""
 	capacity := agent.endpointsTotalLength
 	if debugEnabled {
 		capacity++
@@ -87,7 +86,9 @@ func buildExporters(conf confMap, agent configManager) []any {
 	}
 
 	if debugEnabled {
-		exporters[debugExporterName] = agent.hostProfilerConfig.Debug
+		exporters[debugExporterName] = confMap{
+			"verbosity": agent.hostProfilerConfig.DebugVerbosity,
+		}
 		profilesExporters = append(profilesExporters, debugExporterName)
 	}
 
