@@ -81,6 +81,7 @@ func (im *windowsImpl) AppendListeningPorts(base []Port) ([]Port, error) {
 			port: Port{
 				Proto:   "tcp",
 				Port:    e.Local.Port(),
+				IP:      e.Local.Addr().Unmap().String(),
 				Process: process,
 				Pid:     e.Pid,
 			},

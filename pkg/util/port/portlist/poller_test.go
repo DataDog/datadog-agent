@@ -78,6 +78,30 @@ func TestEqualLessThan(t *testing.T) {
 			Port{Proto: "tcp", Port: 100, Process: "proc1"},
 			false,
 		},
+		{
+			"IP a < b",
+			Port{Proto: "tcp", Port: 100, IP: "0.0.0.0", Process: "proc1"},
+			Port{Proto: "tcp", Port: 100, IP: "127.0.0.1", Process: "proc1"},
+			true,
+		},
+		{
+			"IP a > b",
+			Port{Proto: "tcp", Port: 100, IP: "127.0.0.1", Process: "proc1"},
+			Port{Proto: "tcp", Port: 100, IP: "0.0.0.0", Process: "proc1"},
+			false,
+		},
+		{
+			"IP evaluated third",
+			Port{Proto: "tcp", Port: 100, IP: "0.0.0.0", Process: "proc2"},
+			Port{Proto: "tcp", Port: 100, IP: "127.0.0.1", Process: "proc1"},
+			true,
+		},
+		{
+			"equal with IP",
+			Port{Proto: "tcp", Port: 100, IP: "0.0.0.0", Process: "proc1"},
+			Port{Proto: "tcp", Port: 100, IP: "0.0.0.0", Process: "proc1"},
+			false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -140,6 +164,29 @@ func TestSortAndDedup(t *testing.T) {
 			List{
 				{Port: 80, Proto: "tcp", Process: "nginx"},
 				{Port: 8080, Proto: "tcp", Process: "node"},
+			},
+		},
+		{
+			"Same port different IPs preserved",
+			List{
+				{Port: 80, Proto: "tcp", IP: "127.0.0.1", Process: "nginx"},
+				{Port: 80, Proto: "tcp", IP: "0.0.0.0", Process: "nginx"},
+			},
+			List{
+				{Port: 80, Proto: "tcp", IP: "0.0.0.0", Process: "nginx"},
+				{Port: 80, Proto: "tcp", IP: "127.0.0.1", Process: "nginx"},
+			},
+		},
+		{
+			"Dedup by proto port and IP",
+			List{
+				{Port: 80, Proto: "tcp", IP: "0.0.0.0", Process: "nginx"},
+				{Port: 80, Proto: "tcp", IP: "0.0.0.0", Process: "apache"},
+				{Port: 80, Proto: "tcp", IP: "127.0.0.1", Process: "nginx"},
+			},
+			List{
+				{Port: 80, Proto: "tcp", IP: "0.0.0.0", Process: "apache"},
+				{Port: 80, Proto: "tcp", IP: "127.0.0.1", Process: "nginx"},
 			},
 		},
 	}
@@ -233,4 +280,33 @@ func TestPoller(t *testing.T) {
 	if containsPort(p3) {
 		t.Error("unexpectedly found ephemeral port in p3, after it was closed", port)
 	}
+}
+
+func TestPollerIPPopulated(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping test on Windows -- not implemented yet")
+	}
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Skipf("failed to bind: %v", err)
+	}
+	defer ln.Close()
+	ta := ln.Addr().(*net.TCPAddr)
+	port := uint16(ta.Port)
+
+	var p Poller
+	p.IncludeLocalhost = true
+	pl, _, err := p.Poll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range pl {
+		if entry.Proto == "tcp" && entry.Port == port {
+			if entry.IP != "127.0.0.1" {
+				t.Errorf("expected IP 127.0.0.1 for port %d, got %q", port, entry.IP)
+			}
+			return
+		}
+	}
+	t.Errorf("port %d not found in poll results", port)
 }

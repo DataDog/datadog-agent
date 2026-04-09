@@ -14,8 +14,10 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"net/netip"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"unsafe"
 
@@ -117,8 +119,44 @@ func (li *linuxImpl) AppendListeningPorts(base []Port) ([]Port, error) {
 	return sortAndDedup(ret), nil
 }
 
+// parseHexIPv4 parses an 8-character hex string from /proc/net/tcp
+// representing an IPv4 address in host byte order and returns the
+// canonical IP string (e.g. "0.0.0.0", "127.0.0.1").
+func parseHexIPv4(hexStr string) string {
+	v, err := strconv.ParseUint(hexStr, 16, 32)
+	if err != nil {
+		return ""
+	}
+	addr := netip.AddrFrom4([4]byte{
+		byte(v), byte(v >> 8), byte(v >> 16), byte(v >> 24),
+	})
+	return addr.String()
+}
+
+// parseHexIPv6 parses a 32-character hex string from /proc/net/tcp6
+// representing an IPv6 address as four 32-bit words in host byte order
+// and returns the canonical IP string (e.g. "::", "::1").
+func parseHexIPv6(hexStr string) string {
+	if len(hexStr) != 32 {
+		return ""
+	}
+	var b [16]byte
+	for i := 0; i < 4; i++ {
+		v, err := strconv.ParseUint(hexStr[i*8:(i+1)*8], 16, 32)
+		if err != nil {
+			return ""
+		}
+		b[i*4] = byte(v)
+		b[i*4+1] = byte(v >> 8)
+		b[i*4+2] = byte(v >> 16)
+		b[i*4+3] = byte(v >> 24)
+	}
+	return netip.AddrFrom16(b).Unmap().String()
+}
+
 func (li *linuxImpl) parseProcNetFile(r *bufio.Reader, fileBase string) error {
 	proto := strings.TrimSuffix(fileBase, "6")
+	isIPv6 := strings.HasSuffix(fileBase, "6")
 
 	// skip header row
 	_, err := r.ReadSlice('\n')
@@ -129,7 +167,7 @@ func (li *linuxImpl) parseProcNetFile(r *bufio.Reader, fileBase string) error {
 	fields := make([]mem.RO, 0, 20) // 17 current fields + some future slop
 
 	wantRemote := mem.S(v4Any)
-	if strings.HasSuffix(fileBase, "6") {
+	if isIPv6 {
 		wantRemote = mem.S(v6Any)
 	}
 
@@ -214,12 +252,21 @@ func (li *linuxImpl) parseProcNetFile(r *bufio.Reader, fileBase string) error {
 			pm.keep = true
 			// Rest should be unchanged.
 		} else {
+			localCopy := local.StringCopy()
+			ipHex := localCopy[:i]
+			var ipStr string
+			if isIPv6 {
+				ipStr = parseHexIPv6(ipHex)
+			} else {
+				ipStr = parseHexIPv4(ipHex)
+			}
 			li.known[string(inoBuf)] = &portMeta{
 				needsProcName: true,
 				keep:          true,
 				port: Port{
 					Proto: proto,
 					Port:  uint16(portv),
+					IP:    ipStr,
 				},
 			}
 		}

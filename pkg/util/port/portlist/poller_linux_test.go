@@ -65,7 +65,7 @@ func TestParsePorts(t *testing.T) {
 `,
 			want: map[string]*portMeta{
 				"socket:[34062]": {
-					port: Port{Proto: "tcp", Port: 22},
+					port: Port{Proto: "tcp", Port: 22, IP: "0.0.0.0"},
 				},
 			},
 		},
@@ -80,10 +80,30 @@ func TestParsePorts(t *testing.T) {
 `,
 			want: map[string]*portMeta{
 				"socket:[142240557]": {
-					port: Port{Proto: "tcp", Port: 8081},
+					port: Port{Proto: "tcp", Port: 8081, IP: "::"},
 				},
 				"socket:[34064]": {
-					port: Port{Proto: "tcp", Port: 22},
+					port: Port{Proto: "tcp", Port: 22, IP: "::"},
+				},
+			},
+		},
+		{
+			name: "ipv4_localhost_included",
+			file: "tcp",
+			in: `header line
+  0: 0100007F:0277 00000000:0000 0A 00000000:00000000 00:00000000 00000000     0        0 22303 1 0000000000000000 100 0 0 10 0
+`,
+			want: map[string]*portMeta{},
+		},
+		{
+			name: "ipv4_specific_ip",
+			file: "tcp",
+			in: `header line
+  0: 0101A8C0:01BB 00000000:0000 0A 00000000:00000000 00:00000000 00000000     0        0 99999 1 0000000000000000 100 0 0 10 0
+`,
+			want: map[string]*portMeta{
+				"socket:[99999]": {
+					port: Port{Proto: "tcp", Port: 443, IP: "192.168.1.1"},
 				},
 			},
 		},
@@ -110,6 +130,43 @@ func TestParsePorts(t *testing.T) {
 				t.Errorf("unexpected parsed ports (-got+want):\n%s", diff)
 			}
 		})
+	}
+}
+
+func TestParseHexIPv4(t *testing.T) {
+	tests := []struct {
+		in   string
+		want string
+	}{
+		{"00000000", "0.0.0.0"},
+		{"0100007F", "127.0.0.1"},
+		{"0101A8C0", "192.168.1.1"},
+		{"0200000A", "10.0.0.2"},
+		{"invalid", ""},
+	}
+	for _, tt := range tests {
+		got := parseHexIPv4(tt.in)
+		if got != tt.want {
+			t.Errorf("parseHexIPv4(%q) = %q, want %q", tt.in, got, tt.want)
+		}
+	}
+}
+
+func TestParseHexIPv6(t *testing.T) {
+	tests := []struct {
+		in   string
+		want string
+	}{
+		{"00000000000000000000000000000000", "::"},
+		{"00000000000000000000000001000000", "::1"},
+		{"00000000000000000000FFFF0100007F", "127.0.0.1"},
+		{"short", ""},
+	}
+	for _, tt := range tests {
+		got := parseHexIPv6(tt.in)
+		if got != tt.want {
+			t.Errorf("parseHexIPv6(%q) = %q, want %q", tt.in, got, tt.want)
+		}
 	}
 }
 
