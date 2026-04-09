@@ -3,6 +3,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "log",
     srcs = [
+        "capture.go",
         "klog_redirect.go",
         "levels.go",
         "log.go",
@@ -18,6 +19,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/util/log/slog",
+        "//pkg/util/log/slog/handlers",
         "//pkg/util/log/types",
         "//pkg/util/scrubber",
         "@org_golang_x_time//rate",

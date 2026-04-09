@@ -4,6 +4,7 @@ go_library(
     name = "handlers",
     srcs = [
         "async.go",
+        "capture.go",
         "disabled.go",
         "docs.go",
         "format.go",
