@@ -82,15 +82,14 @@ func BuildMockOptionsForArchAndMode(t *testing.T, archName string, mode DeviceMo
 		testutil.WithArchitecture(archName),
 		testutil.WithCapabilities(caps),
 		testutil.WithMockAllFunctions(),
+		testutil.WithDeviceCount(1),
+		testutil.WithDeviceFeatureMode(testMode),
 	}
 
-	switch mode {
-	case DeviceModePhysical:
-		opts = append([]testutil.NvmlMockOption{testutil.WithDeviceCount(1), testutil.WithMIGDisabled()}, opts...)
-	case DeviceModeMIG:
-		opts = append([]testutil.NvmlMockOption{testutil.WithDeviceFeatureMode(testMode)}, opts...)
-	case DeviceModeVGPU:
-		opts = append([]testutil.NvmlMockOption{testutil.WithDeviceCount(1), testutil.WithDeviceFeatureMode(testMode)}, opts...)
+	if mode == DeviceModeMIG {
+		opts = append(opts, testutil.WithMIGChildCount(1))
+	} else {
+		opts = append(opts, testutil.WithMIGDisabled())
 	}
 
 	return opts

@@ -5,8 +5,8 @@
 
 //go:build test
 
-// Package forwardersimpl implements a component to provide forwarders used by the process agent.
-package forwardersimpl
+// Package forwardersmock provides the mock module for the forwarders component.
+package forwardersmock
 
 import (
 	"testing"
@@ -15,20 +15,16 @@ import (
 
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
-	"github.com/DataDog/datadog-agent/comp/process/forwarders"
+	forwardersimpl "github.com/DataDog/datadog-agent/comp/process/forwarders/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // MockModule is the mock module for process forwarders
 func MockModule() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(newMockForwarders),
+		fxutil.ProvideComponentConstructor(forwardersimpl.NewMockForwarders),
 		//TODO: Fix the MockForwarder to be a real mock,
 		// and remove the need of including the MockSecrets for tests that use only the Forwarder.
 		fx.Provide(func(t testing.TB) secrets.Component { return secretsmock.New(t) }),
 	)
-}
-
-func newMockForwarders(deps dependencies) (forwarders.Component, error) {
-	return newForwarders(deps)
 }

@@ -1092,6 +1092,13 @@ def _ebpf_strip_targets(targets, strip):
     return [t + ".stripped" if t not in _NON_EBPF_TARGETS else t for t in targets]
 
 
+def ebpf_bazel_flags(arch: Arch) -> list[str]:
+    """Return extra Bazel flags needed for eBPF cross-compilation."""
+    if arch.is_cross_compiling():
+        return [f"--//bazel/rules/ebpf:target_arch={arch.gcc_arch}"]
+    return []
+
+
 def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, runtime_dir: str, strip: bool = True) -> None:
     """Build all eBPF artifacts via a single ``bazel build``.
 
@@ -1113,8 +1120,11 @@ def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, runtime_dir: str,
 
     ebpf_targets = prebuilt + core + list(inplace.keys())
     all_build_targets = ebpf_targets + list(_BAZEL_RUNTIME_FLAT_TARGETS) + list(_BAZEL_RUNTIME_GEN_TARGETS)
+
+    extra_flags = ebpf_bazel_flags(arch)
+
     print(f"Building {len(all_build_targets)} eBPF + runtime targets via Bazel...")
-    bazel(ctx, "build", *all_build_targets)
+    bazel(ctx, "build", *extra_flags, *all_build_targets)
     bazel_bin = bazel(ctx, "info", "bazel-bin", capture_output=True).strip()
 
     co_re_dir = os.path.join(build_dir, "co-re")
@@ -1214,6 +1224,8 @@ def build_object_files(
     build_dir = get_ebpf_build_dir(arch_obj)
     runtime_dir = get_ebpf_runtime_dir()
 
+    arch_flags = ebpf_bazel_flags(arch_obj)
+
     if not is_windows:
         check_for_inline(ctx)
         ctx.run(f"mkdir -p -m 0755 {runtime_dir}")
@@ -1222,14 +1234,14 @@ def build_object_files(
         # Install Bazel-managed LLVM BPF tools (needed for stripping and runtime compilation).
         sudo = "" if is_root() else "sudo"
         ctx.run(f"{sudo} mkdir -p /opt/datadog-agent/embedded/bin")
-        bazel(ctx, "run", "--", "@llvm_bpf//:install", "--destdir=/opt/datadog-agent", sudo=not is_root())
+        bazel(ctx, "run", *arch_flags, "--", "@llvm_bpf//:install", "--destdir=/opt/datadog-agent", sudo=not is_root())
 
         # Build eBPF .o files via Bazel
         bazel_build_ebpf(ctx, arch_obj, build_dir, runtime_dir)
 
     # Verify all committed cgo godefs files are up to date.
     # The test_suite skips platform-incompatible tests via target_compatible_with.
-    bazel(ctx, "test", "//pkg/ebpf:verify_generated_files")
+    bazel(ctx, "test", *arch_flags, "//pkg/ebpf:verify_generated_files")
 
     run_ninja(ctx, explain=True, arch=arch)
 
@@ -1311,14 +1323,15 @@ def build_cws_object_files(
     import shutil
 
     arch_obj = Arch.from_str(arch)
+    arch_flags = ebpf_bazel_flags(arch_obj)
     build_dir = get_ebpf_build_dir(arch_obj)
     runtime_dir = get_ebpf_runtime_dir()
     bazel_build_ebpf(ctx, arch_obj, str(build_dir), str(runtime_dir))
-    bazel(ctx, "test", "//pkg/ebpf:verify_generated_files")
+    bazel(ctx, "test", *arch_flags, "//pkg/ebpf:verify_generated_files")
 
     if with_unit_test:
         targets = list(_BAZEL_CWS_BALOUM_TARGETS.keys())
-        bazel(ctx, "build", *targets)
+        bazel(ctx, "build", *arch_flags, *targets)
         bazel_bin = bazel(ctx, "info", "bazel-bin", capture_output=True).strip()
 
         for target, dest_name in _BAZEL_CWS_BALOUM_TARGETS.items():
