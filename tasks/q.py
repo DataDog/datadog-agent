@@ -6,6 +6,7 @@ import re
 import shlex
 import shutil
 import tempfile
+import time
 import zipfile
 
 from invoke import Exit, task
@@ -201,6 +202,8 @@ def eval_scenarios(
     main_report_path: str = "/tmp/observer-eval-main-report.json",
     config: str = "",
     scenario_output_dir: str = "/tmp",
+    timeout: int = 0,
+    scenarios: str = "",
     _logger: StepLogger | None = None,
 ) -> dict[str, object]:
     """
@@ -231,6 +234,13 @@ def eval_scenarios(
         config: Path to observer-testbench JSON params file (--config). Empty: omit flag.
         scenario_output_dir: Directory where per-scenario testbench JSON outputs are written.
             Defaults to /tmp. Set to a combo-specific folder to keep outputs co-located.
+        timeout: Per-scenario time budget in seconds. A total budget of
+            ``timeout × len(scenarios_to_run)`` is shared across all scenarios:
+            unused time from fast scenarios rolls over to later ones. A scenario
+            that exhausts the remaining budget is killed and skipped. 0 = no limit.
+        scenarios: Comma-separated scenario names to run (default: all SCENARIOS).
+            Overrides the global SCENARIOS list; ``scenario`` (singular) takes precedence
+            when both are set.
 
     Returns:
         Main report dict with ``score`` and per-scenario ``metadata``.
@@ -252,10 +262,14 @@ def eval_scenarios(
         build_testbench(ctx)
         build_scorer(ctx)
 
-    scenarios_to_run = [scenario] if scenario else SCENARIOS
+    scenarios_list = [s.strip() for s in scenarios.split(",") if s.strip()] if scenarios else SCENARIOS
+    scenarios_to_run = [scenario] if scenario else scenarios_list
     scenario_logger = _logger or StepLogger(len(scenarios_to_run), "Scenario")
 
     results = []
+    # Rolling budget: total = timeout * #scenarios. Each scenario gets whatever
+    # time remains; unused time rolls over to subsequent scenarios.
+    budget_remaining = timeout * len(scenarios_to_run) if timeout else 0
     for name in scenarios_to_run:
         parquet_dir = os.path.join(scenarios_dir, name, "parquet")
         scenario_root = os.path.join(scenarios_dir, name)
@@ -272,9 +286,37 @@ def eval_scenarios(
 
         only_part = f" --only {shlex.quote(only_flag)}" if only_flag else ""
         config_part = f" --config {shlex.quote(config)}" if config else ""
-        ctx.run(
-            f"bin/observer-testbench --headless {shlex.quote(name)} --output {shlex.quote(output_path)} --scenarios-dir {shlex.quote(scenarios_dir)}{only_part}{config_part}"
-        )
+        scenario_start = time.monotonic()
+        try:
+            ctx.run(
+                f"bin/observer-testbench --headless {shlex.quote(name)} --output {shlex.quote(output_path)} --scenarios-dir {shlex.quote(scenarios_dir)}{only_part}{config_part}",
+                timeout=None if timeout == 0 else max(1, int(budget_remaining)),
+            )
+        except Exception as e:
+            if type(e).__name__ == "CommandTimedOut":
+                scenario_logger.detail(
+                    f"testbench timed out (budget {budget_remaining:.0f}s remaining) — scoring as zero",
+                    Color.ORANGE,
+                )
+                results.append(
+                    {
+                        "name": name,
+                        "f1": 0.0,
+                        "precision": 0.0,
+                        "recall": 0.0,
+                        "alpha": -1,
+                        "num_predictions": 0,
+                        "num_baseline_fps": 0,
+                        "num_filtered_warmup": 0,
+                        "num_filtered_cascading": 0,
+                        "timed_out": True,
+                    }
+                )
+                continue
+            raise
+        finally:
+            if timeout:
+                budget_remaining -= time.monotonic() - scenario_start
 
         if not os.path.isfile(output_path):
             scenario_logger.detail(f"testbench did not produce output at {output_path}", Color.RED)
@@ -323,9 +365,11 @@ def eval_scenarios(
         for r in results:
             alpha = r.get("alpha", -1)
             alpha_str = f"{alpha:.4f}" if alpha >= 0 else "  n/a"
+            timed_out_suffix = "  [TIMEOUT]" if r.get("timed_out") else ""
             print(
                 f"{r['name']:<25}  {r['f1']:>6.4f}  {r['precision']:>9.4f}  {r['recall']:>6.4f}"
                 f"  {alpha_str:>7}  {r['num_predictions']:>6}  {r['num_baseline_fps']:>12}  {r['num_filtered_warmup']:>13}  {r['num_filtered_cascading']:>16}"
+                f"{timed_out_suffix}"
             )
             duration = r.get("baseline_duration_seconds", 0)
             if duration > 0:
@@ -341,7 +385,8 @@ def eval_scenarios(
         print(f"\nOutput JSONs: /tmp/observer-eval-*.json (sigma={sigma}s)")
 
     # Create main report
-    main_score = sum(r["f1"] for r in results) / len(results)
+    f1_scores: list[float] = [float(r["f1"]) for r in results]
+    main_score = sum(f1_scores) / len(f1_scores) if f1_scores else 0.0
     main_report = {"score": main_score, "metadata": {r["name"]: r for r in results}, "component_configs": config_obj}
     with open(main_report_path, "w") as f:
         json.dump(main_report, f, indent=4)
@@ -485,20 +530,22 @@ def _full_stack_combo(force_disable: list | None = None) -> dict:
     }
 
 
-def _anchor_combos(force_disable: list | None = None) -> list[dict]:
+def _anchor_combos(force_disable: list | None = None, force_enable: list | None = None) -> list[dict]:
     """Fixed anchor subsets derived from ANCHOR_COMBOS after filtering force_disable.
 
     Each anchor that ends up with at least one detector and one correlator is
     included.  Anchors whose key components are all removed are silently skipped
     so that evaluating a component that appears in an anchor does not break the
-    run.
+    run.  force_enable components are unconditionally added to every anchor.
     """
     fd = set(force_disable or [])
+    fe_dets = sorted(d for d in (force_enable or []) if d in DETECTORS and d not in fd)
+    fe_cors = sorted(c for c in (force_enable or []) if c in CORRELATORS and c not in fd)
     anchors = []
     seen_keys: set = set()
     for combo in ANCHOR_COMBOS:
-        dets = sorted(d for d in combo["detectors"] if d not in fd)
-        cors = sorted(c for c in combo["correlators"] if c not in fd)
+        dets = sorted({d for d in combo["detectors"] if d not in fd} | set(fe_dets))
+        cors = sorted({c for c in combo["correlators"] if c not in fd} | set(fe_cors))
         if not dets or not cors:
             continue
         key = (tuple(dets), tuple(cors))
@@ -809,56 +856,57 @@ def _sample_component_params(trial, component: str) -> dict:
     with no tunable hyperparameters (scanmw, scanwelch, log_metrics_extractor,
     connection_error_extractor).
     """
-    # TODO(celian): Reduce the search space, this contains every parameter
+    # Commented hyperparameters are the ones that have the less impact, this is used
+    # to reduce the search space and speed up the evaluation
     space = {
         "bocpd": lambda: {
-            "warmup_points": trial.suggest_int("bocpd.warmup_points", 40, 300),
+            # "warmup_points": trial.suggest_int("bocpd.warmup_points", 40, 300),
             "hazard": trial.suggest_float("bocpd.hazard", 1e-3, 0.2, log=True),
             "cp_threshold": trial.suggest_float("bocpd.cp_threshold", 0.35, 0.9),
-            "short_run_length": trial.suggest_int("bocpd.short_run_length", 2, 20),
-            "cp_mass_threshold": trial.suggest_float("bocpd.cp_mass_threshold", 0.4, 0.95),
-            "max_run_length": trial.suggest_int("bocpd.max_run_length", 50, 400),
-            "prior_variance_scale": trial.suggest_float("bocpd.prior_variance_scale", 1.0, 50.0),
-            "min_variance": trial.suggest_float("bocpd.min_variance", 0.01, 5.0, log=True),
-            "recovery_points": trial.suggest_int("bocpd.recovery_points", 3, 40),
+            # "short_run_length": trial.suggest_int("bocpd.short_run_length", 2, 20),
+            # "cp_mass_threshold": trial.suggest_float("bocpd.cp_mass_threshold", 0.4, 0.95),
+            # "max_run_length": trial.suggest_int("bocpd.max_run_length", 50, 400),
+            # "prior_variance_scale": trial.suggest_float("bocpd.prior_variance_scale", 1.0, 50.0),
+            # "min_variance": trial.suggest_float("bocpd.min_variance", 0.01, 5.0, log=True),
+            # "recovery_points": trial.suggest_int("bocpd.recovery_points", 3, 40),
         },
         "cusum": lambda: {
-            "min_points": trial.suggest_int("cusum.min_points", 3, 30),
-            "baseline_fraction": trial.suggest_float("cusum.baseline_fraction", 0.05, 0.5),
-            "slack_factor": trial.suggest_float("cusum.slack_factor", 0.1, 2.0),
+            # "min_points": trial.suggest_int("cusum.min_points", 3, 30),
+            # "baseline_fraction": trial.suggest_float("cusum.baseline_fraction", 0.05, 0.5),
+            # "slack_factor": trial.suggest_float("cusum.slack_factor", 0.1, 2.0),
             "threshold_factor": trial.suggest_float("cusum.threshold_factor", 2.0, 10.0),
         },
         "rrcf": lambda: {
-            "num_trees": trial.suggest_int("rrcf.num_trees", 20, 200),
-            "tree_size": trial.suggest_int("rrcf.tree_size", 64, 512),
+            # "num_trees": trial.suggest_int("rrcf.num_trees", 20, 200),
+            # "tree_size": trial.suggest_int("rrcf.tree_size", 64, 512),
             "shingle_size": trial.suggest_int("rrcf.shingle_size", 1, 16),
             "threshold_sigma": trial.suggest_float("rrcf.threshold_sigma", 0.5, 6.0),
         },
         "cross_signal": lambda: {
-            "window_seconds": trial.suggest_int("cross_signal.window_seconds", 5, 180),
+            # "window_seconds": trial.suggest_int("cross_signal.window_seconds", 5, 180),
         },
         "time_cluster": lambda: {
-            "proximity_seconds": trial.suggest_int("time_cluster.proximity_seconds", 2, 60),
-            "window_seconds": trial.suggest_int("time_cluster.window_seconds", 30, 600),
-            "min_cluster_size": trial.suggest_int("time_cluster.min_cluster_size", 0, 8),
+            # "proximity_seconds": trial.suggest_int("time_cluster.proximity_seconds", 2, 60),
+            # "window_seconds": trial.suggest_int("time_cluster.window_seconds", 30, 600),
+            # "min_cluster_size": trial.suggest_int("time_cluster.min_cluster_size", 1, 8),
         },
         "log_pattern_extractor": lambda: {
-            "disable_optimizations": trial.suggest_categorical(
-                "log_pattern_extractor.disable_optimizations", [True, False]
-            ),
-            "min_cluster_size_before_emit": trial.suggest_int(
-                "log_pattern_extractor.min_cluster_size_before_emit", 1, 30
-            ),
-            "max_tokenized_string_length": trial.suggest_int(
-                "log_pattern_extractor.max_tokenized_string_length", 2000, 16000
-            ),
-            "max_num_tokens": trial.suggest_int("log_pattern_extractor.max_num_tokens", 32, 512),
-            "parse_hex_dump": trial.suggest_categorical("log_pattern_extractor.parse_hex_dump", [True, False]),
+            # "disable_optimizations": trial.suggest_categorical(
+            #     "log_pattern_extractor.disable_optimizations", [True, False]
+            # ),
+            # "min_cluster_size_before_emit": trial.suggest_int(
+            #     "log_pattern_extractor.min_cluster_size_before_emit", 1, 30
+            # ),
+            # "max_tokenized_string_length": trial.suggest_int(
+            #     "log_pattern_extractor.max_tokenized_string_length", 2000, 16000
+            # ),
+            # "max_num_tokens": trial.suggest_int("log_pattern_extractor.max_num_tokens", 32, 512),
+            # "parse_hex_dump": trial.suggest_categorical("log_pattern_extractor.parse_hex_dump", [True, False]),
             "min_token_match_ratio": trial.suggest_float("log_pattern_extractor.min_token_match_ratio", 0.2, 0.95),
-            "cluster_time_to_live_sec": trial.suggest_int("log_pattern_extractor.cluster_time_to_live_sec", 600, 86400),
-            "garbage_collection_interval_sec": trial.suggest_int(
-                "log_pattern_extractor.garbage_collection_interval_sec", 60, 7200
-            ),
+            # "cluster_time_to_live_sec": trial.suggest_int("log_pattern_extractor.cluster_time_to_live_sec", 600, 86400),
+            # "garbage_collection_interval_sec": trial.suggest_int(
+            #     "log_pattern_extractor.garbage_collection_interval_sec", 60, 7200
+            # ),
         },
     }
     fn = space.get(component)
@@ -905,6 +953,8 @@ def eval_bayesian(
     seed: int = None,
     build: bool = True,
     overwrite: bool = False,
+    timeout: int = 0,
+    scenarios: str = "",
     _logger: StepLogger | None = None,
 ):
     """
@@ -933,6 +983,10 @@ def eval_bayesian(
         sigma: Gaussian width in seconds for F1 scoring.
         seed: Random seed for TPE sampler reproducibility (default: None = random).
         build: Whether to build observer-testbench and observer-scorer first.
+        timeout: Per-scenario time budget in seconds, forwarded to eval_scenarios.
+            Total budget per trial = ``timeout × #scenarios``; unused time rolls over.
+            0 = no limit.
+        scenarios: Comma-separated scenario names to run (default: all SCENARIOS).
 
     Examples:
         dda inv q.bayesian-eval                                                                       # all components
@@ -1034,6 +1088,7 @@ def eval_bayesian(
         failure_reason: str | None = None
         report = None
         try:
+            scenarios_list = [s.strip() for s in scenarios.split(",") if s.strip()] if scenarios else SCENARIOS
             report = eval_scenarios(
                 ctx,
                 scenarios_dir=scenarios_dir,
@@ -1042,7 +1097,9 @@ def eval_bayesian(
                 build=False,
                 main_report_path=report_path,
                 scenario_output_dir=scenario_output_dir,
-                _logger=trial_logger.child(len(SCENARIOS), "Scenario"),
+                timeout=timeout,
+                scenarios=scenarios,
+                _logger=trial_logger.child(len(scenarios_list), "Scenario"),
             )
         except Exception as e:
             failure_reason = f"eval_scenarios raised {type(e).__name__}: {e}"
@@ -1181,6 +1238,13 @@ def eval_component(
     build: bool = True,
     overwrite: bool = False,
     tune_evaluated_component: bool = False,
+    enable: str = "",
+    # We currently disable cusum because it's slowing down the evaluation significantly
+    disable: str = "cusum",
+    lock: str = "",
+    # By default, allow 5m x #scenarios per run
+    timeout: int = 300,
+    scenarios: str = "",
 ):
     """
     Evaluate whether adding a component improves observer accuracy via
@@ -1205,7 +1269,8 @@ def eval_component(
         <output_dir>/without/subset_NNN/run_NNN/  - bayesian_eval output
         <output_dir>/with/subset_NNN/run_NNN/      - bayesian_eval output
         <output_dir>/report.json                   - comparison report including
-            per_subset, per_subset_scenario (Δ F1 per scenario), and
+            full_eval_wall_time_seconds (build + runs + aggregation; stops before
+            summary stdout), per_subset, per_subset_scenario (Δ F1 per scenario), and
             per_scenario_summary (mean/min/max Δ across subsets).
 
     Args:
@@ -1223,16 +1288,59 @@ def eval_component(
         tune_evaluated_component: If False (default), the target component is
             locked on ``with`` runs (same effective search complexity as ``without``).
             If True, Optuna also tunes the target component's hyperparameters.
+        enable: Comma-separated components to force-enable in every subset
+            (present in both ``without`` and ``with`` variants).
+        disable: Comma-separated components to force-disable from every subset
+            (absent in both variants; must not include the evaluated component).
+        lock: Comma-separated components to lock at Go defaults in every
+            Bayesian run (not tuned by Optuna, in addition to the evaluated
+            component which is locked on ``with`` runs unless
+            ``--tune-evaluated-component`` is set).
+        timeout: Per-scenario time budget in seconds. Total budget per Bayesian run
+            = ``timeout × #scenarios``; unused time from fast scenarios rolls over
+            to later ones. 0 = no limit.
+        scenarios: Comma-separated scenario names to evaluate (default: all SCENARIOS).
+            Useful to focus on a subset and reduce wall-clock time.
 
     Examples:
         dda inv q.eval-component --component scanmw
         dda inv q.eval-component --component log_pattern_extractor --n-subsets 3
         dda inv q.eval-component --component cusum --seed 42 --n-trials 10
         dda inv q.eval-component --component scanmw --tune-evaluated-component
+        dda inv q.eval-component --component bocpd --enable cusum --disable rrcf
+        dda inv q.eval-component --component bocpd --lock time_cluster
+        dda inv q.eval-component --component bocpd --timeout 120
+        dda inv q.eval-component --component bocpd --scenarios 213_pagerduty,353_postmark
     """
     all_known = DETECTORS + CORRELATORS + EXTRACTORS
     if component not in all_known:
         print(color_message(f"Error: unknown component '{component}'. Known: {', '.join(all_known)}", Color.RED))
+        return
+
+    # --- parse and validate scenarios ---
+    scenario_names = [s.strip() for s in scenarios.split(",") if s.strip()] if scenarios else list(SCENARIOS)
+    unknown_scenarios = set(scenario_names) - set(SCENARIOS)
+    if unknown_scenarios:
+        print(
+            color_message(
+                f"Error: unknown scenarios: {', '.join(sorted(unknown_scenarios))}. Known: {', '.join(SCENARIOS)}",
+                Color.RED,
+            )
+        )
+        return
+
+    # --- parse and validate enable / disable / lock ---
+    force_enable_list = [c.strip() for c in enable.split(",") if c.strip()]
+    force_disable_extra_list = [c.strip() for c in disable.split(",") if c.strip()]
+    extra_lock_list = [c.strip() for c in lock.split(",") if c.strip()]
+
+    unknown = set(force_enable_list + force_disable_extra_list + extra_lock_list) - set(all_known)
+    if unknown:
+        print(color_message(f"Error: unknown components: {', '.join(sorted(unknown))}", Color.RED))
+        return
+
+    if component in force_disable_extra_list:
+        print(color_message(f"Error: cannot force-disable the evaluated component '{component}'", Color.RED))
         return
 
     if seed is None:
@@ -1248,18 +1356,19 @@ def eval_component(
 
     # --- generate subsets ---
     is_extractor = component in EXTRACTORS
-    force_disable_subsets: list[str] = [] if is_extractor else [component]
+    force_disable_subsets: list[str] = sorted(set(([] if is_extractor else [component]) + force_disable_extra_list))
 
     # Build fixed subsets: full stack, then anchors (minimal + medium), then random fill.
     # Anchors whose required components are disabled are silently skipped.
     full_stack = _full_stack_combo(force_disable=force_disable_subsets)
-    anchor_subsets = _anchor_combos(force_disable=force_disable_subsets)
+    anchor_subsets = _anchor_combos(force_disable=force_disable_subsets, force_enable=force_enable_list)
     fixed_subsets = [full_stack] + anchor_subsets
     fixed_keys = {(tuple(s["detectors"]), tuple(s["correlators"])) for s in fixed_subsets}
     random_count = max(0, n_subsets - len(fixed_subsets))
     random_subsets = random_component_combinations(
         random_count,
         seed=subset_seed,
+        force_enable=force_enable_list,
         force_disable=force_disable_subsets,
         exclude_combo_keys=fixed_keys,
     )
@@ -1281,7 +1390,6 @@ def eval_component(
         n_subsets = len(subsets)
 
     # --- compute totals ---
-    scenario_names = sorted(d for d in os.listdir(scenarios_dir) if os.path.isdir(os.path.join(scenarios_dir, d)))
     n_scenarios = len(scenario_names)
     total_bayesian_runs = n_subsets * 2 * m_runs
     total_testbench_runs = total_bayesian_runs * n_trials * n_scenarios
@@ -1289,13 +1397,15 @@ def eval_component(
     if not _prepare_eval_output_dir(output_dir, overwrite=overwrite):
         return
 
+    eval_start = time.perf_counter()
+
     # --- build once ---
     if build:
         build_testbench(ctx)
         build_scorer(ctx)
 
     # --- ensure scenarios are present ---
-    download_scenarios(ctx, scenarios_dir=scenarios_dir)
+    download_scenarios(ctx, scenarios_dir=scenarios_dir, skip_existing=True)
 
     print(color_message(f"\n{'=' * 70}", Color.BLUE))
     print(color_message("  Observer Component Evaluation", Color.BLUE))
@@ -1309,6 +1419,19 @@ def eval_component(
     print(color_message(f"  total bayesian runs:   {total_bayesian_runs}", Color.BLUE))
     print(color_message(f"  total testbench runs:  {total_testbench_runs}", Color.BLUE))
     print(color_message(f"  output_dir:            {output_dir}", Color.BLUE))
+    if force_enable_list:
+        print(color_message(f"  force-enabled:         {', '.join(force_enable_list)}", Color.BLUE))
+    if force_disable_extra_list:
+        print(color_message(f"  force-disabled:        {', '.join(force_disable_extra_list)}", Color.BLUE))
+    if extra_lock_list:
+        print(color_message(f"  extra locked HPs:      {', '.join(extra_lock_list)}", Color.BLUE))
+    if timeout:
+        print(
+            color_message(
+                f"  timeout:               {timeout}s/scenario ({timeout * n_scenarios}s total budget per run)",
+                Color.BLUE,
+            )
+        )
     if tune_evaluated_component:
         print(color_message("  target component HPs:  tuned (Optuna search on 'with')", Color.ORANGE))
     else:
@@ -1330,8 +1453,11 @@ def eval_component(
 
             # Build the full components list for this variant
             components_list = list(subset["detectors"]) + list(subset["correlators"])
+            disabled_set = set(force_disable_extra_list)
             for ext in EXTRACTORS:
-                if ext == component:
+                if ext in disabled_set:
+                    pass  # force-disabled extractor: skip in both variants
+                elif ext == component:
                     if variant == "with":
                         components_list.append(ext)
                     # "without" → skip this extractor
@@ -1351,7 +1477,14 @@ def eval_component(
 
                 run_logger.step(f"{variant} / {subset_label} / {run_label}  (seed={run_seed})")
                 run_logger.detail(f"components: {', '.join(components_list)}")
-                lock_for_run = component if variant == "with" and not tune_evaluated_component else ""
+                active_set = set(components_list)
+                # Only lock components that are actually active in this run; extra_lock_list
+                # entries absent from the subset would cause eval_bayesian to abort with
+                # "locked components not in active set".
+                lock_components = [c for c in extra_lock_list if c in active_set]
+                if variant == "with" and not tune_evaluated_component:
+                    lock_components.append(component)
+                lock_for_run = ",".join(sorted(set(lock_components)))
 
                 trial_logger = run_logger.child(n_trials, "Trial")
                 report = eval_bayesian(
@@ -1365,6 +1498,8 @@ def eval_component(
                     seed=run_seed,
                     build=False,
                     overwrite=True,
+                    timeout=timeout,
+                    scenarios=scenarios,
                     _logger=trial_logger,
                 )
 
@@ -1538,6 +1673,17 @@ def eval_component(
         recommendation = "discard"
         rec_clr = Color.RED
 
+    full_eval_wall_time_seconds = round(time.perf_counter() - eval_start, 3)
+
+    def _fmt_wall_dur(s: float) -> str:
+        if s >= 3600:
+            return f"{int(s // 3600)}h {int((s % 3600) // 60)}m {s % 60:.1f}s"
+        if s >= 60:
+            return f"{int(s // 60)}m {s % 60:.1f}s"
+        return f"{s:.1f}s"
+
+    _wall_str = _fmt_wall_dur(full_eval_wall_time_seconds)
+
     # --- print summary (primary max-score block last) ---
     print(color_message(f"\n{'=' * 70}", Color.GREEN))
     print(color_message("  Component Evaluation Summary", Color.GREEN))
@@ -1625,6 +1771,7 @@ def eval_component(
     elif recommendation == "keep":
         print(color_message("  Next step: update your config, then tune the new component using:", Color.BOLD))
         print(color_message(f"    dda inv q.eval-bayesian --only {component}", Color.BOLD))
+    print(color_message(f"  Full eval wall time: {_wall_str} ({full_eval_wall_time_seconds:.3f}s)", Color.GREEN))
     print(color_message(f"{'=' * 70}", Color.GREEN))
 
     # --- copy best "with" config to root ---
@@ -1646,6 +1793,7 @@ def eval_component(
         "n_subsets": n_subsets,
         "m_runs": m_runs,
         "n_trials": n_trials,
+        "full_eval_wall_time_seconds": full_eval_wall_time_seconds,
         "total_bayesian_runs": total_bayesian_runs,
         "total_testbench_runs": total_testbench_runs,
         "best_config_path": best_config_path,
@@ -1671,6 +1819,7 @@ def eval_component(
         json.dump(final_report, f, indent=4)
 
     print(color_message(f"\n  Report:      {report_path}", Color.GREEN))
+    print(color_message(f"  Wall time:   {_wall_str} ({full_eval_wall_time_seconds:.3f}s)", Color.GREEN))
     if best_config_path:
         score_str = (
             f"{best_with_run['best_score']:.4f}" if best_with_run and best_with_run["best_score"] is not None else "n/a"
@@ -1778,7 +1927,12 @@ def _ensure_parquets(ctx, name, parquet_dir):
 
 
 @task
-def download_scenarios(ctx, scenario: str = "", scenarios_dir: str = "./comp/observer/scenarios"):
+def download_scenarios(
+    ctx,
+    scenario: str = "",
+    scenarios_dir: str = "./comp/observer/scenarios",
+    skip_existing: bool = False,
+):
     """
     Download scenario parquet data from S3.
 
@@ -1787,6 +1941,7 @@ def download_scenarios(ctx, scenario: str = "", scenarios_dir: str = "./comp/obs
     Args:
         scenario: Download a single scenario (e.g. "food_delivery_redis"). Default: all.
         scenarios_dir: Directory containing scenario subdirectories.
+        skip_existing: If True, skip scenarios whose parquet directory already contains files.
 
     Examples:
         inv q.download-scenarios
@@ -1795,6 +1950,9 @@ def download_scenarios(ctx, scenario: str = "", scenarios_dir: str = "./comp/obs
     scenarios_to_download = [scenario] if scenario else SCENARIOS
     for name in scenarios_to_download:
         parquet_dir = os.path.join(scenarios_dir, name, "parquet")
+        if skip_existing and os.path.isdir(parquet_dir) and os.listdir(parquet_dir):
+            print(color_message(f"Skipping download for '{name}' — parquet data already present", Color.BLUE))
+            continue
         # Download to a temp dir first, then swap -- preserves existing data if download fails.
         tmp_parquet_dir = parquet_dir + ".new"
         if os.path.isdir(tmp_parquet_dir):
@@ -1822,6 +1980,9 @@ def launch_testbench(
     verbose: bool = False,
     profile_path: str = "",
     config: str = "",
+    enable: str = "",
+    disable: str = "",
+    timeout: int = 0,
 ):
     """
     Will launch both the observer-testbench backend and UI.
@@ -1830,6 +1991,11 @@ def launch_testbench(
         scenarios_dir: The directory containing the scenarios to load.
         build: Whether to build the observer-testbench binary.
         profile: Whether to profile the observer-testbench binary (only in testbench headless mode).
+        config: JSON params file; if set, overrides --enable/--disable/--only (testbench behavior).
+        enable: Comma-separated components to enable (passed to testbench ``--enable``).
+        disable: Comma-separated components to disable (passed to testbench ``--disable``).
+        timeout: Seconds before the headless testbench process is killed (0 = no limit;
+            ignored in interactive mode).
     """
     if build:
         print("Building observer-testbench...")
@@ -1839,7 +2005,12 @@ def launch_testbench(
     if verbose:
         flags += " --verbose"
     if config:
-        flags += f" --config {config}"
+        flags += f" --config {shlex.quote(config)}"
+    else:
+        if enable:
+            flags += f" --enable {shlex.quote(enable)}"
+        if disable:
+            flags += f" --disable {shlex.quote(disable)}"
 
     if headless_scenario:
         if not headless_output:
@@ -1851,9 +2022,16 @@ def launch_testbench(
         print(
             f"Launching observer-testbench in headless mode for scenario {headless_scenario}, output to {headless_output}"
         )
-        ctx.run(
-            f"bin/observer-testbench --headless {headless_scenario} --scenarios-dir {scenarios_dir} --output {headless_output} {flags}"
-        )
+        try:
+            ctx.run(
+                f"bin/observer-testbench --headless {headless_scenario} --scenarios-dir {scenarios_dir} --output {headless_output} {flags}",
+                timeout=None if timeout == 0 else timeout,
+            )
+        except Exception as e:
+            if type(e).__name__ == "CommandTimedOut":
+                print(color_message(f"testbench timed out after {timeout}s", Color.ORANGE))
+            else:
+                raise
         if profile:
             if open_pprof:
                 print('Running pprof...')
@@ -1861,12 +2039,14 @@ def launch_testbench(
             else:
                 print(f"To profile, run: go tool pprof -http=:8081 {profile_path}")
     else:
+        if not config and not enable and not disable:
+            flags += " --only scanmw,scanwelch,bocpd"
         print("Launching observer-testbench backend and UI, use ^C to exit")
         print(
             "To profile, run: go tool pprof -http=:8081 http://localhost:8080/debug/pprof/heap (8080 is the testbench API port)"
         )
         ctx.run(
-            f"bin/observer-testbench --scenarios-dir {scenarios_dir} --only scanmw,scanwelch,bocpd {flags} & ( cd cmd/observer-testbench/ui && npm install && npm run dev ) &"
+            f"bin/observer-testbench --scenarios-dir {scenarios_dir} {flags} & ( cd cmd/observer-testbench/ui && npm install && npm run dev ) &"
         )
 
 
@@ -2087,6 +2267,8 @@ def eval_component_workspace_report(
 
     dest = local_dir.strip() or os.path.join("eval-results", ws_name)
     os.makedirs(dest, exist_ok=True)
+
+    print(color_message(f"Copying report from {ssh_host}:{remote_report} to {dest}...", Color.BLUE))
 
     if only_report:
         ctx.run(f"scp {shlex.quote(f'{ssh_host}:{remote_report}')} {shlex.quote(dest)}/")
