@@ -153,7 +153,7 @@ func (i *InventoryPayload) FlareProvider() flaretypes.Provider {
 	// instead of:
 	//   'comp/metadata/internal/util.(*InventoryPayload).fillFlare-fm'
 	return flaretypes.NewProvider(
-		func(fb flaretypes.FlareBuilder) error {
+		func(_ context.Context, fb flaretypes.FlareBuilder) error {
 			path := filepath.Join("metadata", "inventory", i.FlareFileName)
 			if !i.Enabled {
 				fb.AddFile(path, []byte("inventory metadata is disabled")) //nolint:errcheck
