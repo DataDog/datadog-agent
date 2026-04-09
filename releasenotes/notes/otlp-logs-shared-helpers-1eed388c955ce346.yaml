@@ -1,0 +1,10 @@
+---
+enhancements:
+  - |
+    Added Translate, ShouldSkipManifest, NewManifestCache, and
+    ChunkManifests to otlp/logs so exporters can share log translation
+    and manifest deduplication logic without duplicating code.
+deprecations:
+  - |
+    MapLogsAndRouteRUMEvents on the logs Translator is deprecated
+    (abandoned RUM/OTel integration attempt).
