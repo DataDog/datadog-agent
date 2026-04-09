@@ -248,7 +248,6 @@ receivers:
             - targets:
                 - 0.0.0.0:8888
           track_timestamps_staleness: false
-    report_extra_scrape_metrics: false
     target_allocator: null
     trim_metric_suffixes: false
 service:
