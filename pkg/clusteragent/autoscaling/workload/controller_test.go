@@ -1469,6 +1469,182 @@ func TestProfileManagedDPA(t *testing.T) {
 		assert.Equal(t, "high-cpu", pai.ProfileName())
 		assert.True(t, pai.IsProfileManaged())
 	})
+
+	t.Run("Create in K8s with burstable annotation", func(t *testing.T) {
+		testTime := time.Now()
+		f := newFixture(t, testTime)
+
+		dpaSpec := datadoghq.DatadogPodAutoscalerSpec{
+			TargetRef: autoscalingv2.CrossVersionObjectReference{
+				Kind: "Deployment", Name: "web-app", APIVersion: "apps/v1",
+			},
+			Owner: datadoghqcommon.DatadogPodAutoscalerLocalOwner,
+		}
+
+		dpaInternal := model.FakePodAutoscalerInternal{
+			Namespace:                  "prod",
+			Name:                       "web-app-a1b2c3d4",
+			ProfileName:                "high-cpu",
+			DesiredProfileTemplateHash: "hash1-burstable",
+			UpstreamCR: &datadoghq.DatadogPodAutoscaler{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:   "prod",
+					Name:        "web-app-a1b2c3d4",
+					Annotations: map[string]string{model.BurstableAnnotation: "true"},
+				},
+				Spec: dpaSpec,
+			},
+		}
+		f.store.Set("prod/web-app-a1b2c3d4", dpaInternal.Build(), "pw")
+
+		expectedDPA := &datadoghq.DatadogPodAutoscaler{
+			TypeMeta: podAutoscalerMeta,
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "prod",
+				Name:      "web-app-a1b2c3d4",
+				Labels:    map[string]string{model.ProfileLabelKey: "high-cpu"},
+				Annotations: map[string]string{
+					model.ProfileTemplateHashAnnotation: "hash1-burstable",
+					model.BurstableAnnotation:           "true",
+				},
+			},
+			Spec: dpaSpec,
+			Status: datadoghqcommon.DatadogPodAutoscalerStatus{
+				Conditions: []datadoghqcommon.DatadogPodAutoscalerCondition{
+					condition(datadoghqcommon.DatadogPodAutoscalerErrorCondition, corev1.ConditionFalse, "", "", testTime),
+					condition(datadoghqcommon.DatadogPodAutoscalerActiveCondition, corev1.ConditionTrue, "", "", testTime),
+					condition(datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToRecommendCondition, corev1.ConditionUnknown, "", "", testTime),
+					condition(datadoghqcommon.DatadogPodAutoscalerVerticalAbleToRecommendCondition, corev1.ConditionUnknown, "", "", testTime),
+					condition(datadoghqcommon.DatadogPodAutoscalerHorizontalScalingLimitedCondition, corev1.ConditionFalse, "", "", testTime),
+					condition(datadoghqcommon.DatadogPodAutoscalerVerticalScalingLimitedCondition, corev1.ConditionFalse, "", "", testTime),
+					condition(datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToScaleCondition, corev1.ConditionUnknown, "", "", testTime),
+					condition(datadoghqcommon.DatadogPodAutoscalerVerticalAbleToApply, corev1.ConditionUnknown, "", "", testTime),
+				},
+			},
+		}
+		f.ExpectCreateAction(mustUnstructured(t, expectedDPA))
+		f.RunControllerSync(true, "prod/web-app-a1b2c3d4")
+	})
+
+	t.Run("Update in K8s sets burstable annotation when profile becomes burstable", func(t *testing.T) {
+		testTime := time.Now()
+		f := newFixture(t, testTime)
+
+		dpaSpec := datadoghq.DatadogPodAutoscalerSpec{
+			TargetRef: autoscalingv2.CrossVersionObjectReference{
+				Kind: "Deployment", Name: "web-app", APIVersion: "apps/v1",
+			},
+			Owner: datadoghqcommon.DatadogPodAutoscalerLocalOwner,
+		}
+
+		// K8s object exists without burstable annotation (applied hash = "hash1")
+		dpa, dpaTyped := newFakePodAutoscaler("prod", "web-app-a1b2c3d4", 1, testTime, dpaSpec, datadoghqcommon.DatadogPodAutoscalerStatus{})
+		dpaTyped.Labels = map[string]string{model.ProfileLabelKey: "high-cpu"}
+		dpaTyped.Annotations = map[string]string{model.ProfileTemplateHashAnnotation: "hash1"}
+		dpa.SetLabels(dpaTyped.Labels)
+		dpa.SetAnnotations(dpaTyped.Annotations)
+		f.InformerObjects = append(f.InformerObjects, dpa)
+		f.Objects = append(f.Objects, dpaTyped)
+
+		// Store: desired hash changed to include -burstable suffix
+		dpaInternal := model.FakePodAutoscalerInternal{
+			Namespace:                  "prod",
+			Name:                       "web-app-a1b2c3d4",
+			Generation:                 1,
+			ProfileName:                "high-cpu",
+			DesiredProfileTemplateHash: "hash1-burstable",
+			AppliedProfileHash:         "hash1",
+			UpstreamCR: &datadoghq.DatadogPodAutoscaler{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:   "prod",
+					Name:        "web-app-a1b2c3d4",
+					Annotations: map[string]string{model.BurstableAnnotation: "true"},
+				},
+				Spec: dpaSpec,
+			},
+		}
+		f.store.Set("prod/web-app-a1b2c3d4", dpaInternal.Build(), "pw")
+
+		expectedUpdate := &datadoghq.DatadogPodAutoscaler{
+			TypeMeta: podAutoscalerMeta,
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace:         "prod",
+				Name:              "web-app-a1b2c3d4",
+				Generation:        1,
+				UID:               dpaTyped.UID,
+				CreationTimestamp: metav1.NewTime(testTime),
+				Labels:            map[string]string{model.ProfileLabelKey: "high-cpu"},
+				Annotations: map[string]string{
+					model.ProfileTemplateHashAnnotation: "hash1-burstable",
+					model.BurstableAnnotation:           "true",
+				},
+			},
+			Spec: dpaSpec,
+		}
+		f.ExpectUpdateAction(mustUnstructured(t, expectedUpdate))
+		f.RunControllerSync(true, "prod/web-app-a1b2c3d4")
+	})
+
+	t.Run("Update in K8s removes burstable annotation when profile no longer burstable", func(t *testing.T) {
+		testTime := time.Now()
+		f := newFixture(t, testTime)
+
+		dpaSpec := datadoghq.DatadogPodAutoscalerSpec{
+			TargetRef: autoscalingv2.CrossVersionObjectReference{
+				Kind: "Deployment", Name: "web-app", APIVersion: "apps/v1",
+			},
+			Owner: datadoghqcommon.DatadogPodAutoscalerLocalOwner,
+		}
+
+		// K8s object exists with burstable annotation (applied hash = "hash1-burstable")
+		dpa, dpaTyped := newFakePodAutoscaler("prod", "web-app-a1b2c3d4", 1, testTime, dpaSpec, datadoghqcommon.DatadogPodAutoscalerStatus{})
+		dpaTyped.Labels = map[string]string{model.ProfileLabelKey: "high-cpu"}
+		dpaTyped.Annotations = map[string]string{
+			model.ProfileTemplateHashAnnotation: "hash1-burstable",
+			model.BurstableAnnotation:           "true",
+		}
+		dpa.SetLabels(dpaTyped.Labels)
+		dpa.SetAnnotations(dpaTyped.Annotations)
+		f.InformerObjects = append(f.InformerObjects, dpa)
+		f.Objects = append(f.Objects, dpaTyped)
+
+		// Store: desired hash reverted to "hash1" (burstable removed)
+		dpaInternal := model.FakePodAutoscalerInternal{
+			Namespace:                  "prod",
+			Name:                       "web-app-a1b2c3d4",
+			Generation:                 1,
+			ProfileName:                "high-cpu",
+			DesiredProfileTemplateHash: "hash1",
+			AppliedProfileHash:         "hash1-burstable",
+			UpstreamCR: &datadoghq.DatadogPodAutoscaler{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "prod",
+					Name:      "web-app-a1b2c3d4",
+					// No burstable annotation
+				},
+				Spec: dpaSpec,
+			},
+		}
+		f.store.Set("prod/web-app-a1b2c3d4", dpaInternal.Build(), "pw")
+
+		expectedUpdate := &datadoghq.DatadogPodAutoscaler{
+			TypeMeta: podAutoscalerMeta,
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace:         "prod",
+				Name:              "web-app-a1b2c3d4",
+				Generation:        1,
+				UID:               dpaTyped.UID,
+				CreationTimestamp: metav1.NewTime(testTime),
+				Labels:            map[string]string{model.ProfileLabelKey: "high-cpu"},
+				Annotations: map[string]string{
+					model.ProfileTemplateHashAnnotation: "hash1",
+				},
+			},
+			Spec: dpaSpec,
+		}
+		f.ExpectUpdateAction(mustUnstructured(t, expectedUpdate))
+		f.RunControllerSync(true, "prod/web-app-a1b2c3d4")
+	})
 }
 
 func mustUnstructured(t *testing.T, structIn any) *unstructured.Unstructured {
