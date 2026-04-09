@@ -37,6 +37,7 @@ const (
 	defaultThrottleRatio               = 0.10 // 10% of wall clock spent throttled
 	defaultStealThreshold              = 5.0  // steal time percentage
 	defaultMaxWatchlistSize            = 100
+	hardMaxWatchlistSize               = 128 // must match noisyneighbor.MaxWatchlistEntries / BPF map max_entries
 	defaultMaxTopNPreemptors           = 5
 	defaultMaxNonContainerCgroups      = 100
 	defaultMinForeignPreemptionsImpact = 10 // minimum foreign preemptions per interval to set impacted=1
@@ -103,6 +104,10 @@ func (c *NoisyNeighborConfig) Parse(data []byte) error {
 	}
 	if c.MaxWatchlistSize == 0 {
 		c.MaxWatchlistSize = defaultMaxWatchlistSize
+	}
+	if c.MaxWatchlistSize > hardMaxWatchlistSize {
+		log.Warnf("noisy_neighbor: max_watchlist_size %d exceeds BPF map capacity %d, clamping", c.MaxWatchlistSize, hardMaxWatchlistSize)
+		c.MaxWatchlistSize = hardMaxWatchlistSize
 	}
 	if c.MaxTopNPreemptors == 0 {
 		c.MaxTopNPreemptors = defaultMaxTopNPreemptors
@@ -285,6 +290,9 @@ func (n *NoisyNeighborCheck) runLayer1(s sender.Sender) (flaggedIDs []uint64, st
 
 // watchlistChanged returns true if flaggedIDs differs from the previous interval,
 // and updates lastWatchlistIDs for the next comparison.
+// Note: lastWatchlistIDs starts as nil. This works correctly because len(nil map) == 0,
+// so an empty flaggedIDs on the first call returns changed=false (no-op), and a non-empty
+// flaggedIDs returns changed=true (triggers initial watchlist setup).
 func (n *NoisyNeighborCheck) watchlistChanged(flaggedIDs []uint64) bool {
 	newSet := make(map[uint64]struct{}, len(flaggedIDs))
 	for _, id := range flaggedIDs {
