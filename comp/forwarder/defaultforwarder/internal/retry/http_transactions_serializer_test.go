@@ -95,8 +95,7 @@ func TestPartialDeserialize(t *testing.T) {
 
 // TestHTTPTransactionSerializerMissingAPIKey verifies that when a V3 transaction is
 // deserialized by a resolver that has fewer keys than the stored APIKeyIndex, the
-// transaction is still returned without a deserialization error. The wrong index will
-// cause an authorization failure at send time, not at deserialization time.
+// transaction is dropped with an error rather than being returned with an invalid index.
 func TestHTTPTransactionSerializerMissingAPIKey(t *testing.T) {
 	r := require.New(t)
 	log := logmock.New(t)
@@ -116,15 +115,15 @@ func TestHTTPTransactionSerializerMissingAPIKey(t *testing.T) {
 	r.Equal(0, errorCount)
 	r.Equal(1, txns[0].(*transaction.HTTPTransaction).APIKeyIndex)
 
-	// Deserializing with a resolver that only has apiKey1: the index survives deserialization
-	// without error. The wrong key will only surface at send time.
+	// Deserializing with a resolver that only has apiKey1: the transaction is dropped
+	// because APIKeyIndex 1 is out of range for a single-key resolver.
 	res2, err := resolver.NewSingleDomainResolver(domain, []utils.APIKeys{utils.NewAPIKeys("path", apiKey1)})
 	require.NoError(t, err)
 	serializerSmaller := NewHTTPTransactionsSerializer(log, res2)
 	txns2, errorCount, err := serializerSmaller.Deserialize(bytes)
 	r.NoError(err)
-	r.Equal(0, errorCount)
-	r.Equal(1, txns2[0].(*transaction.HTTPTransaction).APIKeyIndex)
+	r.Equal(1, errorCount)
+	r.Empty(txns2)
 }
 
 // TestHTTPTransactionSerializerUpdateAPIKey verifies that after a key rotation the

@@ -171,8 +171,12 @@ func (s *HTTPTransactionsSerializer) Deserialize(bytes []byte) ([]transaction.Tr
 		if err == nil {
 			if collection.Version >= 3 {
 				// Version 3+ stores the API key index directly in the proto field.
-				resolverAuth = s.resolver
 				apiKeyIndex = int(tr.APIKeyIndex)
+				if apiKeyIndex >= len(s.resolver.GetAuthorizers()) {
+					err = fmt.Errorf("APIKeyIndex %d is out of range (have %d keys)", apiKeyIndex, len(s.resolver.GetAuthorizers()))
+				} else {
+					resolverAuth = s.resolver
+				}
 			} else {
 				// Versions 1 and 2 embedded the API key as a placeholder token
 				// (\xfeAPI_KEY\xfeN\xfe) in the route and/or header values. Extract the
