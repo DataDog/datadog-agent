@@ -55,8 +55,8 @@ func (d *dummyProcess) GetMachineData() process.MachineData {
 	return process.MachineData{}
 }
 
-func (d *dummyProcess) GetMappings() ([]process.Mapping, uint32, error) {
-	return nil, 0, errors.New("not implemented")
+func (d *dummyProcess) IterateMappings(_ func(m process.RawMapping) bool) (uint32, error) {
+	return 0, errors.New("not implemented")
 }
 
 func (d *dummyProcess) GetThreads() ([]process.ThreadInfo, error) {
@@ -67,16 +67,16 @@ func (d *dummyProcess) GetRemoteMemory() remotememory.RemoteMemory {
 	return remotememory.RemoteMemory{}
 }
 
-func (d *dummyProcess) GetMappingFileLastModified(_ *process.Mapping) int64 {
+func (d *dummyProcess) GetMappingFileLastModified(_ *process.RawMapping) int64 {
 	return 0
 }
 
-func (d *dummyProcess) CalculateMappingFileID(m *process.Mapping) (libpf.FileID, error) {
-	return libpf.FileIDFromExecutableFile(m.Path.String())
+func (d *dummyProcess) CalculateMappingFileID(m *process.RawMapping) (libpf.FileID, error) {
+	return libpf.FileIDFromExecutableFile(m.Path)
 }
 
-func (d *dummyProcess) OpenMappingFile(m *process.Mapping) (process.ReadAtCloser, error) {
-	return os.Open(m.Path.String())
+func (d *dummyProcess) OpenMappingFile(m *process.RawMapping) (process.ReadAtCloser, error) {
+	return os.Open(m.Path)
 }
 
 func (d *dummyProcess) OpenELF(name string) (*pfelf.File, error) {
@@ -109,8 +109,8 @@ func newExecutableMetadata(t *testing.T, filePath, goBuildID string) *reporter.E
 		GoBuildID:  goBuildID,
 	})
 	pr := &dummyProcess{pid: libpf.PID(os.Getpid())}
-	m := &process.Mapping{
-		Path: libpf.Intern(filePath),
+	m := &process.RawMapping{
+		Path: libpf.Intern(filePath).String(),
 	}
 	return &reporter.ExecutableMetadata{
 		MappingFile:       mf,
