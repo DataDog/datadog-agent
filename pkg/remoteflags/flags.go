@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -162,7 +163,7 @@ func (c *Client) SubscribeWithHandler(handler FlagHandler) error {
 	if handler == nil {
 		return errors.New("handler cannot be nil")
 	}
-	flag := handler.FlagName()
+	flag := FlagName(strings.ToLower(string(handler.FlagName())))
 	if flag == "" {
 		return errors.New("flag name cannot be empty")
 	}
@@ -209,6 +210,7 @@ func (c *Client) OnUpdate(updates map[string]state.RawConfig, applyStateCallback
 
 		// Process each flag in the array
 		for _, flag := range flagConfig.Flags {
+			flag.Name = strings.ToLower(flag.Name)
 			flagName := FlagName(flag.Name)
 			processedFlags[flagName] = struct{}{}
 
@@ -388,7 +390,7 @@ func (c *Client) GetCurrentValue(flag FlagName) (FlagValue, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	value, exists := c.currentValues[flag]
+	value, exists := c.currentValues[FlagName(strings.ToLower(string(flag)))]
 	return value, exists
 }
 
