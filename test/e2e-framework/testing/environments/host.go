@@ -183,10 +183,6 @@ func (e *Host) getAgentCoverageCommands(family os.Family) ([]CoverageTargetSpec,
 			AgentName:       "system-probe",
 			CoverageCommand: []string{"sudo", "/opt/datadog-agent/embedded/bin/system-probe", "coverage", "generate"},
 			Required:        false,
-		}, {
-			AgentName:       "otel-agent",
-			CoverageCommand: []string{"sudo", "/opt/datadog-agent/embedded/bin/otel-agent", "coverage"},
-			Required:        false,
 		}}, nil
 	case os.WindowsFamily:
 		installPath := client.DefaultWindowsAgentInstallPath(e.RemoteHost.Host)
@@ -209,10 +205,6 @@ func (e *Host) getAgentCoverageCommands(family os.Family) ([]CoverageTargetSpec,
 		}, {
 			AgentName:       "system-probe",
 			CoverageCommand: []string{fmt.Sprintf(`& "%s\bin\agent\system-probe.exe" "coverage" "generate"`, installPath)},
-			Required:        false,
-		}, {
-			AgentName:       "otel-agent",
-			CoverageCommand: []string{fmt.Sprintf(`& "%s\bin\agent\otel-agent.exe" "coverage"`, installPath)},
 			Required:        false,
 		}}, nil
 	}

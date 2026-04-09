@@ -156,11 +156,6 @@ func (e *DockerHost) getAgentCoverageCommands() []CoverageTargetSpec {
 			CoverageCommand: []string{"system-probe", "coverage", "generate"},
 			Required:        false,
 		},
-		{
-			AgentName:       "otel-agent",
-			CoverageCommand: []string{"otel-agent", "coverage"},
-			Required:        false,
-		},
 	}
 }
 
