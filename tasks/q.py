@@ -1477,7 +1477,11 @@ def eval_component(
 
                 run_logger.step(f"{variant} / {subset_label} / {run_label}  (seed={run_seed})")
                 run_logger.detail(f"components: {', '.join(components_list)}")
-                lock_components = list(extra_lock_list)
+                active_set = set(components_list)
+                # Only lock components that are actually active in this run; extra_lock_list
+                # entries absent from the subset would cause eval_bayesian to abort with
+                # "locked components not in active set".
+                lock_components = [c for c in extra_lock_list if c in active_set]
                 if variant == "with" and not tune_evaluated_component:
                     lock_components.append(component)
                 lock_for_run = ",".join(sorted(set(lock_components)))
