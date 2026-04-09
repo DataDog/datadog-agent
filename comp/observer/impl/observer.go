@@ -718,7 +718,8 @@ func (o *observerImpl) GetHandle(name string) observerdef.Handle {
 // with hfFilteredHandle to suppress 15s samples for checks that have a 1s HF
 // counterpart active — the scorer should only see the higher-resolution stream.
 func (o *observerImpl) innerHandle(name string) observerdef.Handle {
-	h := &handle{ch: o.obsCh, source: name, dropCount: &o.engine.droppedObs, dropCounter: o.dropCounter}
+	h := &handle{ch: o.obsCh, source: name, dropCounter: o.dropCounter}
+	o.engine.registerHandle(h)
 	if len(o.hfFilterSources) > 0 && name == "all-metrics" {
 		return &hfFilteredHandle{inner: h, sources: o.hfFilterSources}
 	}
@@ -811,7 +812,7 @@ func (o *observerImpl) DumpMetrics(path string) error {
 type handle struct {
 	ch          chan<- observation
 	source      string
-	dropCount   *atomic.Int64     // shared with engine.droppedObs for parity debugging; may be nil
+	dropCount   atomic.Int64      // per-handle drop counter, collected by engine at advance time
 	dropCounter telemetry.Counter // tagged by source for Prometheus visibility; may be nil
 }
 
@@ -843,9 +844,7 @@ func (h *handle) ObserveMetric(sample observerdef.MetricView) {
 	select {
 	case h.ch <- obs:
 	default:
-		if h.dropCount != nil {
-			h.dropCount.Add(1)
-		}
+		h.dropCount.Add(1)
 		if h.dropCounter != nil {
 			h.dropCounter.Add(1, h.source)
 		}
@@ -872,9 +871,7 @@ func (h *handle) ObserveLog(msg observerdef.LogView) {
 	select {
 	case h.ch <- obs:
 	default:
-		if h.dropCount != nil {
-			h.dropCount.Add(1)
-		}
+		h.dropCount.Add(1)
 		if h.dropCounter != nil {
 			h.dropCounter.Add(1, h.source)
 		}
@@ -928,9 +925,7 @@ func (h *handle) ObserveTrace(trace observerdef.TraceView) {
 	select {
 	case h.ch <- obs:
 	default:
-		if h.dropCount != nil {
-			h.dropCount.Add(1)
-		}
+		h.dropCount.Add(1)
 		if h.dropCounter != nil {
 			h.dropCounter.Add(1, h.source)
 		}
@@ -970,9 +965,7 @@ func (h *handle) ObserveProfile(profile observerdef.ProfileView) {
 	select {
 	case h.ch <- obs:
 	default:
-		if h.dropCount != nil {
-			h.dropCount.Add(1)
-		}
+		h.dropCount.Add(1)
 		if h.dropCounter != nil {
 			h.dropCounter.Add(1, h.source)
 		}

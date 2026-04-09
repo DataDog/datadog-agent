@@ -18,10 +18,12 @@ const advanceLogFileName = "advances.jsonl"
 // advanceEntry records a single advance call, including data ingestion counters
 // accumulated since the previous advance.
 type advanceEntry struct {
-	DataTime   int64  `json:"data_time"`
-	Reason     string `json:"reason"`
-	LatePoints int64  `json:"late_points,omitempty"` // points ingested after their timestamp was analyzed
-	DroppedObs int64  `json:"dropped_obs,omitempty"` // observations dropped due to full channel
+	DataTime           int64            `json:"data_time"`
+	Reason             string           `json:"reason"`
+	LatePoints         int64            `json:"late_points,omitempty"`            // points ingested after their timestamp was analyzed
+	LatePointsBySource map[string]int64 `json:"late_points_by_source,omitempty"` // per-source breakdown
+	DroppedObs         int64            `json:"dropped_obs,omitempty"`            // observations dropped due to full channel
+	DroppedBySource    map[string]int64 `json:"dropped_by_source,omitempty"`     // per-source breakdown
 }
 
 func advanceReasonString(r advanceReason) string {
@@ -70,12 +72,14 @@ func (r *advanceLogRecorder) close() error {
 
 // advanceLogComparator compares advance sequences between live and replay.
 type advanceLogComparator struct {
-	liveAdvances    map[int64]advanceEntry // dataTime → full entry
-	replayOnly      []advanceEntry
-	liveOnly        []advanceEntry
-	matched         int
-	totalLatePoints int64
-	totalDroppedObs int64
+	liveAdvances           map[int64]advanceEntry // dataTime → full entry
+	replayOnly             []advanceEntry
+	liveOnly               []advanceEntry
+	matched                int
+	totalLatePoints        int64
+	totalDroppedObs        int64
+	totalLateBySource      map[string]int64
+	totalDroppedBySource   map[string]int64
 }
 
 func newAdvanceLogComparator(path string) (*advanceLogComparator, error) {
@@ -87,6 +91,8 @@ func newAdvanceLogComparator(path string) (*advanceLogComparator, error) {
 
 	advances := make(map[int64]advanceEntry)
 	var totalLate, totalDropped int64
+	lateBySource := make(map[string]int64)
+	droppedBySource := make(map[string]int64)
 	dec := json.NewDecoder(f)
 	for dec.More() {
 		var e advanceEntry
@@ -96,12 +102,20 @@ func newAdvanceLogComparator(path string) (*advanceLogComparator, error) {
 		advances[e.DataTime] = e
 		totalLate += e.LatePoints
 		totalDropped += e.DroppedObs
+		for src, count := range e.LatePointsBySource {
+			lateBySource[src] += count
+		}
+		for src, count := range e.DroppedBySource {
+			droppedBySource[src] += count
+		}
 	}
 
 	return &advanceLogComparator{
-		liveAdvances:    advances,
-		totalLatePoints: totalLate,
-		totalDroppedObs: totalDropped,
+		liveAdvances:         advances,
+		totalLatePoints:      totalLate,
+		totalDroppedObs:      totalDropped,
+		totalLateBySource:    lateBySource,
+		totalDroppedBySource: droppedBySource,
 	}, nil
 }
 
@@ -131,6 +145,20 @@ func (c *advanceLogComparator) printSummary() {
 	if c.totalLatePoints > 0 || c.totalDroppedObs > 0 {
 		fmt.Printf("[testbench] Live ingestion anomalies: %d late points, %d dropped observations\n",
 			c.totalLatePoints, c.totalDroppedObs)
+		if len(c.totalLateBySource) > 0 {
+			fmt.Printf("[testbench] Late points by source:")
+			for src, count := range c.totalLateBySource {
+				fmt.Printf(" %s=%d", src, count)
+			}
+			fmt.Println()
+		}
+		if len(c.totalDroppedBySource) > 0 {
+			fmt.Printf("[testbench] Dropped observations by source:")
+			for src, count := range c.totalDroppedBySource {
+				fmt.Printf(" %s=%d", src, count)
+			}
+			fmt.Println()
+		}
 	}
 
 	if len(c.replayOnly) == 0 && len(c.liveOnly) == 0 {
