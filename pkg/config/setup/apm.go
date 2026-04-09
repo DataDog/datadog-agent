@@ -102,44 +102,44 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	// We pin to a major version by default.
 	config.BindEnvAndSetDefault("apm_config.instrumentation.injector_image_tag", "0", "DD_APM_INSTRUMENTATION_INJECTOR_IMAGE_TAG")
 
-	config.BindEnv("apm_config.max_catalog_services", "DD_APM_MAX_CATALOG_SERVICES")                                           //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("apm_config.receiver_timeout", "DD_APM_RECEIVER_TIMEOUT")                                                   //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("apm_config.max_payload_size", "DD_APM_MAX_PAYLOAD_SIZE")                                                   //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("apm_config.trace_buffer", "DD_APM_TRACE_BUFFER")                                                           //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("apm_config.decoders", "DD_APM_DECODERS")                                                                   //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("apm_config.max_connections", "DD_APM_MAX_CONNECTIONS")                                                     //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("apm_config.decoder_timeout", "DD_APM_DECODER_TIMEOUT")                                                     //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("apm_config.log_file", "DD_APM_LOG_FILE")                                                                   //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("apm_config.max_events_per_second", "DD_APM_MAX_EPS", "DD_MAX_EPS")                                         //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("apm_config.max_traces_per_second", "DD_APM_MAX_TPS", "DD_MAX_TPS")                                         //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // deprecated
-	config.BindEnv("apm_config.target_traces_per_second", "DD_APM_TARGET_TPS")                                                 //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("apm_config.errors_per_second", "DD_APM_ERROR_TPS")                                                         //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("apm_config.enable_rare_sampler", "DD_APM_ENABLE_RARE_SAMPLER")                                             //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("apm_config.disable_rare_sampler", "DD_APM_DISABLE_RARE_SAMPLER")                                           //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // Deprecated
-	config.BindEnv("apm_config.max_remote_traces_per_second", "DD_APM_MAX_REMOTE_TPS")                                         //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("apm_config.probabilistic_sampler.enabled", "DD_APM_PROBABILISTIC_SAMPLER_ENABLED")                         //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("apm_config.probabilistic_sampler.sampling_percentage", "DD_APM_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("apm_config.probabilistic_sampler.hash_seed", "DD_APM_PROBABILISTIC_SAMPLER_HASH_SEED")                     //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("apm_config.max_catalog_services", 0, "DD_APM_MAX_CATALOG_SERVICES")
+	config.BindEnvAndSetDefault("apm_config.receiver_timeout", 0, "DD_APM_RECEIVER_TIMEOUT")
+	config.BindEnvAndSetDefault("apm_config.max_payload_size", int64(25*1024*1024), "DD_APM_MAX_PAYLOAD_SIZE")
+	config.BindEnvAndSetDefault("apm_config.trace_buffer", 0, "DD_APM_TRACE_BUFFER")
+	config.BindEnvAndSetDefault("apm_config.decoders", 0, "DD_APM_DECODERS")
+	config.BindEnvAndSetDefault("apm_config.max_connections", 1000, "DD_APM_MAX_CONNECTIONS")
+	config.BindEnvAndSetDefault("apm_config.decoder_timeout", 1000, "DD_APM_DECODER_TIMEOUT")
+	config.BindEnvAndSetDefault("apm_config.log_file", "", "DD_APM_LOG_FILE")
+	config.BindEnvAndSetDefault("apm_config.max_events_per_second", 200.0, "DD_APM_MAX_EPS", "DD_MAX_EPS")
+	config.BindEnvAndSetDefault("apm_config.max_traces_per_second", 0.0, "DD_APM_MAX_TPS", "DD_MAX_TPS") // deprecated
+	config.BindEnvAndSetDefault("apm_config.target_traces_per_second", 10.0, "DD_APM_TARGET_TPS")
+	config.BindEnvAndSetDefault("apm_config.errors_per_second", 10.0, "DD_APM_ERROR_TPS")
+	config.BindEnvAndSetDefault("apm_config.enable_rare_sampler", false, "DD_APM_ENABLE_RARE_SAMPLER")
+	config.BindEnvAndSetDefault("apm_config.disable_rare_sampler", false, "DD_APM_DISABLE_RARE_SAMPLER") // Deprecated
+	config.BindEnvAndSetDefault("apm_config.max_remote_traces_per_second", 100.0, "DD_APM_MAX_REMOTE_TPS")
+	config.BindEnvAndSetDefault("apm_config.probabilistic_sampler.enabled", false, "DD_APM_PROBABILISTIC_SAMPLER_ENABLED")
+	config.BindEnvAndSetDefault("apm_config.probabilistic_sampler.sampling_percentage", 0.0, "DD_APM_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE")
+	config.BindEnvAndSetDefault("apm_config.probabilistic_sampler.hash_seed", 0, "DD_APM_PROBABILISTIC_SAMPLER_HASH_SEED")
 	config.BindEnvAndSetDefault("apm_config.error_tracking_standalone.enabled", false, "DD_APM_ERROR_TRACKING_STANDALONE_ENABLED")
 
-	config.BindEnv("apm_config.max_memory", "DD_APM_MAX_MEMORY")                                    //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("apm_config.max_cpu_percent", "DD_APM_MAX_CPU_PERCENT")                          //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("apm_config.env", "DD_APM_ENV")                                                  //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("apm_config.apm_non_local_traffic", "DD_APM_NON_LOCAL_TRAFFIC")                  //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("apm_config.apm_dd_url", "DD_APM_DD_URL")                                        //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("apm_config.connection_limit", "DD_APM_CONNECTION_LIMIT", "DD_CONNECTION_LIMIT") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("apm_config.connection_reset_interval", "DD_APM_CONNECTION_RESET_INTERVAL")      //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("apm_config.max_sender_retries", "DD_APM_MAX_SENDER_RETRIES")                    //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("apm_config.max_memory", 5e8, "DD_APM_MAX_MEMORY")
+	config.BindEnvAndSetDefault("apm_config.max_cpu_percent", 50.0, "DD_APM_MAX_CPU_PERCENT")
+	config.BindEnvAndSetDefault("apm_config.env", "", "DD_APM_ENV")
+	config.BindEnvAndSetDefault("apm_config.apm_non_local_traffic", false, "DD_APM_NON_LOCAL_TRAFFIC")
+	config.BindEnvAndSetDefault("apm_config.apm_dd_url", "", "DD_APM_DD_URL")
+	config.BindEnvAndSetDefault("apm_config.connection_limit", 0, "DD_APM_CONNECTION_LIMIT", "DD_CONNECTION_LIMIT")
+	config.BindEnvAndSetDefault("apm_config.connection_reset_interval", 0, "DD_APM_CONNECTION_RESET_INTERVAL")
+	config.BindEnvAndSetDefault("apm_config.max_sender_retries", 4, "DD_APM_MAX_SENDER_RETRIES")
 	config.BindEnvAndSetDefault("apm_config.client_stats_flush_interval", 1, "DD_APM_CLIENT_STATS_FLUSH_INTERVAL")
-	config.BindEnv("apm_config.profiling_dd_url", "DD_APM_PROFILING_DD_URL")                             //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("apm_config.profiling_additional_endpoints", "DD_APM_PROFILING_ADDITIONAL_ENDPOINTS") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("apm_config.profiling_receiver_timeout", "DD_APM_PROFILING_RECEIVER_TIMEOUT")         //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("apm_config.profiling_dd_url", "", "DD_APM_PROFILING_DD_URL")
+	config.BindEnvAndSetDefault("apm_config.profiling_additional_endpoints", map[string][]string{}, "DD_APM_PROFILING_ADDITIONAL_ENDPOINTS")
+	config.BindEnvAndSetDefault("apm_config.profiling_receiver_timeout", 0, "DD_APM_PROFILING_RECEIVER_TIMEOUT")
 	config.BindEnvAndSetDefault("apm_config.additional_profile_tags", map[string]string{}, "DD_APM_ADDITIONAL_PROFILE_TAGS")
-	config.BindEnv("apm_config.additional_endpoints", "DD_APM_ADDITIONAL_ENDPOINTS")               //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("apm_config.replace_tags", "DD_APM_REPLACE_TAGS")                               //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("apm_config.analyzed_spans", "DD_APM_ANALYZED_SPANS")                           //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("apm_config.ignore_resources", "DD_APM_IGNORE_RESOURCES", "DD_IGNORE_RESOURCE") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("apm_config.instrumentation.targets", "DD_APM_INSTRUMENTATION_TARGETS")         //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("apm_config.additional_endpoints", map[string][]string{}, "DD_APM_ADDITIONAL_ENDPOINTS")
+	config.BindEnvAndSetDefault("apm_config.replace_tags", []map[string]string{}, "DD_APM_REPLACE_TAGS")
+	config.BindEnvAndSetDefault("apm_config.analyzed_spans", map[string]interface{}{}, "DD_APM_ANALYZED_SPANS")
+	config.BindEnvAndSetDefault("apm_config.ignore_resources", []string{}, "DD_APM_IGNORE_RESOURCES", "DD_IGNORE_RESOURCE")
+	config.BindEnvAndSetDefault("apm_config.instrumentation.targets", []interface{}{}, "DD_APM_INSTRUMENTATION_TARGETS")
 	config.ParseEnvAsSlice("apm_config.instrumentation.targets", func(in string) []interface{} {
 		var mappings []interface{}
 		if err := json.Unmarshal([]byte(in), &mappings); err != nil {
@@ -148,27 +148,27 @@ func setupAPM(config pkgconfigmodel.Setup) {
 		return mappings
 	})
 	config.BindEnvAndSetDefault("apm_config.receiver_socket", defaultReceiverSocket, "DD_APM_RECEIVER_SOCKET")
-	config.BindEnv("apm_config.windows_pipe_name", "DD_APM_WINDOWS_PIPE_NAME")                                                 //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("apm_config.windows_pipe_name", "", "DD_APM_WINDOWS_PIPE_NAME")
 	config.BindEnvAndSetDefault("apm_config.filter_tags.require", []string{}, "DD_APM_FILTER_TAGS_REQUIRE")                    //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.BindEnvAndSetDefault("apm_config.filter_tags.reject", []string{}, "DD_APM_FILTER_TAGS_REJECT")                      //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.BindEnvAndSetDefault("apm_config.filter_tags_regex.reject", []string{}, "DD_APM_FILTER_TAGS_REGEX_REJECT")          //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.BindEnvAndSetDefault("apm_config.filter_tags_regex.require", []string{}, "DD_APM_FILTER_TAGS_REGEX_REQUIRE")        //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("apm_config.internal_profiling.enabled", "DD_APM_INTERNAL_PROFILING_ENABLED")                               //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("apm_config.debugger_dd_url", "DD_APM_DEBUGGER_DD_URL")                                                     //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("apm_config.debugger_api_key", "DD_APM_DEBUGGER_API_KEY")                                                   //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("apm_config.debugger_additional_endpoints", "DD_APM_DEBUGGER_ADDITIONAL_ENDPOINTS")                         //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("apm_config.debugger_diagnostics_dd_url", "DD_APM_DEBUGGER_DIAGNOSTICS_DD_URL")                             //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("apm_config.debugger_diagnostics_api_key", "DD_APM_DEBUGGER_DIAGNOSTICS_API_KEY")                           //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("apm_config.debugger_diagnostics_additional_endpoints", "DD_APM_DEBUGGER_DIAGNOSTICS_ADDITIONAL_ENDPOINTS") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("apm_config.symdb_dd_url", "DD_APM_SYMDB_DD_URL")                                                           //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("apm_config.symdb_api_key", "DD_APM_SYMDB_API_KEY")                                                         //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("apm_config.symdb_additional_endpoints", "DD_APM_SYMDB_ADDITIONAL_ENDPOINTS")                               //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("apm_config.internal_profiling.enabled", false, "DD_APM_INTERNAL_PROFILING_ENABLED")
+	config.BindEnvAndSetDefault("apm_config.debugger_dd_url", "", "DD_APM_DEBUGGER_DD_URL")
+	config.BindEnvAndSetDefault("apm_config.debugger_api_key", "", "DD_APM_DEBUGGER_API_KEY")
+	config.BindEnvAndSetDefault("apm_config.debugger_additional_endpoints", map[string][]string{}, "DD_APM_DEBUGGER_ADDITIONAL_ENDPOINTS")
+	config.BindEnvAndSetDefault("apm_config.debugger_diagnostics_dd_url", "", "DD_APM_DEBUGGER_DIAGNOSTICS_DD_URL")
+	config.BindEnvAndSetDefault("apm_config.debugger_diagnostics_api_key", "", "DD_APM_DEBUGGER_DIAGNOSTICS_API_KEY")
+	config.BindEnvAndSetDefault("apm_config.debugger_diagnostics_additional_endpoints", map[string][]string{}, "DD_APM_DEBUGGER_DIAGNOSTICS_ADDITIONAL_ENDPOINTS")
+	config.BindEnvAndSetDefault("apm_config.symdb_dd_url", "", "DD_APM_SYMDB_DD_URL")
+	config.BindEnvAndSetDefault("apm_config.symdb_api_key", "", "DD_APM_SYMDB_API_KEY")
+	config.BindEnvAndSetDefault("apm_config.symdb_additional_endpoints", map[string][]string{}, "DD_APM_SYMDB_ADDITIONAL_ENDPOINTS")
 	config.BindEnvAndSetDefault("apm_config.telemetry.enabled", true, "DD_APM_TELEMETRY_ENABLED")
-	config.BindEnv("apm_config.telemetry.dd_url", "DD_APM_TELEMETRY_DD_URL")                             //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("apm_config.telemetry.additional_endpoints", "DD_APM_TELEMETRY_ADDITIONAL_ENDPOINTS") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("apm_config.install_id", "DD_INSTRUMENTATION_INSTALL_ID")                             //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("apm_config.install_type", "DD_INSTRUMENTATION_INSTALL_TYPE")                         //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("apm_config.install_time", "DD_INSTRUMENTATION_INSTALL_TIME")                         //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("apm_config.telemetry.dd_url", "", "DD_APM_TELEMETRY_DD_URL")
+	config.BindEnvAndSetDefault("apm_config.telemetry.additional_endpoints", map[string][]string{}, "DD_APM_TELEMETRY_ADDITIONAL_ENDPOINTS")
+	config.BindEnvAndSetDefault("apm_config.install_id", "", "DD_INSTRUMENTATION_INSTALL_ID")
+	config.BindEnvAndSetDefault("apm_config.install_type", "", "DD_INSTRUMENTATION_INSTALL_TYPE")
+	config.BindEnvAndSetDefault("apm_config.install_time", 0, "DD_INSTRUMENTATION_INSTALL_TIME")
 	config.BindEnvAndSetDefault("apm_config.obfuscation.credit_cards.enabled", true, "DD_APM_OBFUSCATION_CREDIT_CARDS_ENABLED")
 	config.BindEnvAndSetDefault("apm_config.obfuscation.credit_cards.luhn", false, "DD_APM_OBFUSCATION_CREDIT_CARDS_LUHN")
 	config.BindEnvAndSetDefault("apm_config.obfuscation.credit_cards.keep_values", []string{}, "DD_APM_OBFUSCATION_CREDIT_CARDS_KEEP_VALUES")
@@ -223,7 +223,7 @@ func setupAPM(config pkgconfigmodel.Setup) {
 		return out
 	})
 
-	config.BindEnv("apm_config.peer_tags", "DD_APM_PEER_TAGS") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("apm_config.peer_tags", []string{}, "DD_APM_PEER_TAGS")
 	config.ParseEnvAsStringSlice("apm_config.peer_tags", func(in string) []string {
 		var out []string
 		if err := json.Unmarshal([]byte(in), &out); err != nil {

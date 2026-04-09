@@ -240,7 +240,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if core.IsSet("apm_config.enabled") {
 		c.Enabled = utils.IsAPMEnabled(core)
 	}
-	if pkgconfigsetup.Datadog().IsSet("apm_config.log_file") {
+	if pkgconfigsetup.Datadog().IsConfigured("apm_config.log_file") {
 		c.LogFilePath = pkgconfigsetup.Datadog().GetString("apm_config.log_file")
 	}
 
@@ -262,7 +262,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if core.IsSet("apm_config.receiver_socket") {
 		c.ReceiverSocket = core.GetString("apm_config.receiver_socket")
 	}
-	if core.IsSet("apm_config.connection_limit") {
+	if core.IsConfigured("apm_config.connection_limit") {
 		c.ConnectionLimit = core.GetInt("apm_config.connection_limit")
 	}
 	if core.IsSet("apm_config.sql_obfuscation_mode") {
@@ -282,7 +282,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 
 	c.ComputeStatsBySpanKind = core.GetBool("apm_config.compute_stats_by_span_kind")
 
-	if core.IsSet("apm_config.peer_tags") {
+	if core.IsConfigured("apm_config.peer_tags") {
 		c.PeerTags = core.GetStringSlice("apm_config.peer_tags")
 	}
 
@@ -294,20 +294,20 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if core.IsConfigured("apm_config.extra_sample_rate") {
 		c.ExtraSampleRate = core.GetFloat64("apm_config.extra_sample_rate")
 	}
-	if core.IsSet("apm_config.max_events_per_second") {
+	if core.IsConfigured("apm_config.max_events_per_second") {
 		c.MaxEPS = core.GetFloat64("apm_config.max_events_per_second")
 	}
-	if core.IsSet("apm_config.max_traces_per_second") {
+	if core.IsConfigured("apm_config.max_traces_per_second") {
 		log.Warn("`apm_config.max_traces_per_second` is deprecated, please use `apm_config.target_traces_per_second` instead")
 		c.TargetTPS = core.GetFloat64("apm_config.max_traces_per_second")
 	}
-	if core.IsSet("apm_config.target_traces_per_second") {
+	if core.IsConfigured("apm_config.target_traces_per_second") {
 		c.TargetTPS = core.GetFloat64("apm_config.target_traces_per_second")
 	}
-	if core.IsSet("apm_config.errors_per_second") {
+	if core.IsConfigured("apm_config.errors_per_second") {
 		c.ErrorTPS = core.GetFloat64("apm_config.errors_per_second")
 	}
-	if core.IsSet("apm_config.enable_rare_sampler") {
+	if core.IsConfigured("apm_config.enable_rare_sampler") {
 		c.RareSamplerEnabled = core.GetBool("apm_config.enable_rare_sampler")
 	}
 	if core.IsSet("apm_config.rare_sampler.tps") {
@@ -320,13 +320,13 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		c.RareSamplerCardinality = core.GetInt("apm_config.rare_sampler.cardinality")
 	}
 
-	if core.IsSet("apm_config.probabilistic_sampler.enabled") {
+	if core.IsConfigured("apm_config.probabilistic_sampler.enabled") {
 		c.ProbabilisticSamplerEnabled = core.GetBool("apm_config.probabilistic_sampler.enabled")
 	}
-	if core.IsSet("apm_config.probabilistic_sampler.sampling_percentage") {
+	if core.IsConfigured("apm_config.probabilistic_sampler.sampling_percentage") {
 		c.ProbabilisticSamplerSamplingPercentage = float32(core.GetFloat64("apm_config.probabilistic_sampler.sampling_percentage"))
 	}
-	if core.IsSet("apm_config.probabilistic_sampler.hash_seed") {
+	if core.IsConfigured("apm_config.probabilistic_sampler.hash_seed") {
 		c.ProbabilisticSamplerHashSeed = uint32(core.GetInt("apm_config.probabilistic_sampler.hash_seed"))
 	}
 
@@ -334,7 +334,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		c.ErrorTrackingStandalone = core.GetBool("apm_config.error_tracking_standalone.enabled")
 	}
 
-	if core.IsSet("apm_config.max_remote_traces_per_second") {
+	if core.IsConfigured("apm_config.max_remote_traces_per_second") {
 		c.MaxRemoteTPS = core.GetFloat64("apm_config.max_remote_traces_per_second")
 	}
 	if k := "apm_config.features"; core.IsConfigured(k) {
@@ -348,30 +348,22 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		log.Infof("Found APM feature flags: %s", feats)
 	}
 
-	if k := "apm_config.ignore_resources"; core.IsSet(k) {
+	if k := "apm_config.ignore_resources"; core.IsConfigured(k) {
 		c.Ignore["resource"] = core.GetStringSlice(k)
 	}
-	if k := "apm_config.max_payload_size"; core.IsSet(k) {
+	if k := "apm_config.max_payload_size"; core.IsConfigured(k) {
 		c.MaxRequestBytes = core.GetInt64(k)
 	}
-	if core.IsSet("apm_config.trace_buffer") {
+	if core.IsConfigured("apm_config.trace_buffer") {
 		c.TraceBuffer = core.GetInt("apm_config.trace_buffer")
 	}
-	if core.IsSet("apm_config.decoders") {
+	if core.IsConfigured("apm_config.decoders") {
 		c.Decoders = core.GetInt("apm_config.decoders")
 	}
-	if core.IsSet("apm_config.max_connections") {
-		c.MaxConnections = core.GetInt("apm_config.max_connections")
-	} else {
-		c.MaxConnections = 1000
-	}
-	if core.IsSet("apm_config.decoder_timeout") {
-		c.DecoderTimeout = core.GetInt("apm_config.decoder_timeout")
-	} else {
-		c.DecoderTimeout = 1000
-	}
+	c.MaxConnections = core.GetInt("apm_config.max_connections")
+	c.DecoderTimeout = core.GetInt("apm_config.decoder_timeout")
 
-	if k := "apm_config.replace_tags"; core.IsSet(k) {
+	if k := "apm_config.replace_tags"; core.IsConfigured(k) {
 		rt := make([]*config.ReplaceRule, 0)
 		if err := structure.UnmarshalKey(core, k, &rt); err != nil {
 			log.Errorf("Bad format for %q it should be of the form '[{\"name\": \"tag_name\",\"pattern\":\"pattern\",\"repl\":\"replace_str\"}]', error: %v", "apm_config.replace_tags", err)
@@ -384,14 +376,14 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		}
 	}
 
-	if core.IsSet("bind_host") || core.IsSet("apm_config.apm_non_local_traffic") {
+	if core.IsSet("bind_host") || core.IsConfigured("apm_config.apm_non_local_traffic") {
 		if core.IsSet("bind_host") {
 			host := core.GetString("bind_host")
 			c.StatsdHost = host
 			c.ReceiverHost = host
 		}
 
-		if core.IsSet("apm_config.apm_non_local_traffic") && core.GetBool("apm_config.apm_non_local_traffic") {
+		if core.IsConfigured("apm_config.apm_non_local_traffic") && core.GetBool("apm_config.apm_non_local_traffic") {
 			c.ReceiverHost = "0.0.0.0"
 		}
 	} else if env.IsContainerized() {
@@ -432,15 +424,15 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		GrpcMaxRecvMsgSizeMib:  core.GetInt("otlp_config.receiver.protocols.grpc.max_recv_msg_size_mib"),
 	}
 
-	if core.IsSet("apm_config.install_id") {
+	if core.IsConfigured("apm_config.install_id") {
 		c.InstallSignature.Found = true
 		c.InstallSignature.InstallID = core.GetString("apm_config.install_id")
 	}
-	if core.IsSet("apm_config.install_time") {
+	if core.IsConfigured("apm_config.install_time") {
 		c.InstallSignature.Found = true
 		c.InstallSignature.InstallTime = core.GetInt64("apm_config.install_time")
 	}
-	if core.IsSet("apm_config.install_type") {
+	if core.IsConfigured("apm_config.install_type") {
 		c.InstallSignature.Found = true
 		c.InstallSignature.InstallType = core.GetString("apm_config.install_type")
 	}
@@ -539,15 +531,11 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 			log.Errorf("Error reading writer config %q: %v", key, err)
 		}
 	}
-	if core.IsSet("apm_config.connection_reset_interval") {
+	if core.IsConfigured("apm_config.connection_reset_interval") {
 		c.ConnectionResetInterval = getDuration(core.GetInt("apm_config.connection_reset_interval"))
 	}
-	if core.IsSet("apm_config.max_sender_retries") {
-		c.MaxSenderRetries = core.GetInt("apm_config.max_sender_retries")
-	} else {
-		// Default of 4 was chosen through experimentation, but may not be the optimal value.
-		c.MaxSenderRetries = 4
-	}
+	// Default of 4 was chosen through experimentation, but may not be the optimal value.
+	c.MaxSenderRetries = core.GetInt("apm_config.max_sender_retries")
 	if core.IsSet("secret_refresh_on_api_key_failure_interval") {
 		// Use the global secret refresh interval for throttling API key refresh at the sender level
 		c.APIKeyRefreshThrottleInterval = time.Duration(core.GetInt("secret_refresh_on_api_key_failure_interval")) * time.Minute
@@ -569,7 +557,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		}
 	}
 	// undocumented
-	if k := "apm_config.analyzed_spans"; core.IsSet(k) {
+	if k := "apm_config.analyzed_spans"; core.IsConfigured(k) {
 		for key, rate := range core.GetStringMap("apm_config.analyzed_spans") {
 			serviceName, operationName, err := parseServiceAndOp(key)
 			if err != nil {
@@ -602,49 +590,47 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if v := core.GetInt("apm_config.max_catalog_entries"); v > 0 {
 		c.MaxCatalogEntries = v
 	}
-	if k := "apm_config.profiling_dd_url"; core.IsSet(k) {
+	if k := "apm_config.profiling_dd_url"; core.IsConfigured(k) {
 		c.ProfilingProxy.DDURL = core.GetString(k)
 	}
-	if k := "apm_config.profiling_additional_endpoints"; core.IsSet(k) {
+	if k := "apm_config.profiling_additional_endpoints"; core.IsConfigured(k) {
 		c.ProfilingProxy.AdditionalEndpoints = core.GetStringMapStringSlice(k)
 	}
-	if k := "apm_config.profiling_receiver_timeout"; core.IsSet(k) {
+	if k := "apm_config.profiling_receiver_timeout"; core.IsConfigured(k) {
 		c.ProfilingProxy.ReceiverTimeout = core.GetInt(k)
 	}
-	if k := "apm_config.debugger_dd_url"; core.IsSet(k) {
+	if k := "apm_config.debugger_dd_url"; core.IsConfigured(k) {
 		c.DebuggerProxy.DDURL = core.GetString(k)
 	}
-	if k := "apm_config.debugger_api_key"; core.IsSet(k) {
+	if k := "apm_config.debugger_api_key"; core.IsConfigured(k) {
 		c.DebuggerProxy.APIKey = core.GetString(k)
 	}
-	if k := "apm_config.debugger_additional_endpoints"; core.IsSet(k) {
+	if k := "apm_config.debugger_additional_endpoints"; core.IsConfigured(k) {
 		c.DebuggerProxy.AdditionalEndpoints = core.GetStringMapStringSlice(k)
 	}
-	if k := "apm_config.debugger_diagnostics_dd_url"; core.IsSet(k) {
+	if k := "apm_config.debugger_diagnostics_dd_url"; core.IsConfigured(k) {
 		c.DebuggerIntakeProxy.DDURL = core.GetString(k)
 	}
-	if k := "apm_config.debugger_diagnostics_api_key"; core.IsSet(k) {
+	if k := "apm_config.debugger_diagnostics_api_key"; core.IsConfigured(k) {
 		c.DebuggerIntakeProxy.APIKey = core.GetString(k)
 	}
-	if k := "apm_config.debugger_diagnostics_additional_endpoints"; core.IsSet(k) {
+	if k := "apm_config.debugger_diagnostics_additional_endpoints"; core.IsConfigured(k) {
 		c.DebuggerIntakeProxy.AdditionalEndpoints = core.GetStringMapStringSlice(k)
 	}
-	if k := "apm_config.symdb_dd_url"; core.IsSet(k) {
+	if k := "apm_config.symdb_dd_url"; core.IsConfigured(k) {
 		c.SymDBProxy.DDURL = core.GetString(k)
 	}
-	if k := "apm_config.symdb_api_key"; core.IsSet(k) {
+	if k := "apm_config.symdb_api_key"; core.IsConfigured(k) {
 		c.SymDBProxy.APIKey = core.GetString(k)
 	}
-	if k := "apm_config.symdb_additional_endpoints"; core.IsSet(k) {
+	if k := "apm_config.symdb_additional_endpoints"; core.IsConfigured(k) {
 		c.SymDBProxy.AdditionalEndpoints = core.GetStringMapStringSlice(k)
 	}
-	if k := "evp_proxy_config.enabled"; core.IsSet(k) {
-		c.EVPProxy.Enabled = core.GetBool(k)
-	}
-	if k := "evp_proxy_config.dd_url"; core.IsSet(k) {
+	c.EVPProxy.Enabled = core.GetBool("evp_proxy_config.enabled")
+	if k := "evp_proxy_config.dd_url"; core.IsConfigured(k) {
 		c.EVPProxy.DDURL = core.GetString(k)
 	}
-	if k := "evp_proxy_config.api_key"; core.IsSet(k) {
+	if k := "evp_proxy_config.api_key"; core.IsConfigured(k) {
 		c.EVPProxy.APIKey = core.GetString(k)
 	}
 	if k := "evp_proxy_config.app_key"; core.IsSet(k) {
@@ -653,30 +639,24 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		// Default to the agent-wide app_key if set
 		c.EVPProxy.ApplicationKey = core.GetString("app_key")
 	}
-	if k := "evp_proxy_config.additional_endpoints"; core.IsSet(k) {
+	if k := "evp_proxy_config.additional_endpoints"; core.IsConfigured(k) {
 		c.EVPProxy.AdditionalEndpoints = core.GetStringMapStringSlice(k)
 	}
-	if k := "evp_proxy_config.max_payload_size"; core.IsSet(k) {
-		c.EVPProxy.MaxPayloadSize = core.GetInt64(k)
-	}
-	if k := "evp_proxy_config.receiver_timeout"; core.IsSet(k) {
+	c.EVPProxy.MaxPayloadSize = core.GetInt64("evp_proxy_config.max_payload_size")
+	if k := "evp_proxy_config.receiver_timeout"; core.IsConfigured(k) {
 		c.EVPProxy.ReceiverTimeout = core.GetInt(k)
 	}
-	if k := "ol_proxy_config.enabled"; core.IsSet(k) {
-		c.OpenLineageProxy.Enabled = core.GetBool(k)
-	}
-	if k := "ol_proxy_config.dd_url"; core.IsSet(k) {
+	c.OpenLineageProxy.Enabled = core.GetBool("ol_proxy_config.enabled")
+	if k := "ol_proxy_config.dd_url"; core.IsConfigured(k) {
 		c.OpenLineageProxy.DDURL = core.GetString(k)
 	}
-	if k := "ol_proxy_config.api_key"; core.IsSet(k) {
+	if k := "ol_proxy_config.api_key"; core.IsConfigured(k) {
 		c.OpenLineageProxy.APIKey = core.GetString(k)
 	}
-	if k := "ol_proxy_config.additional_endpoints"; core.IsSet(k) {
+	if k := "ol_proxy_config.additional_endpoints"; core.IsConfigured(k) {
 		c.OpenLineageProxy.AdditionalEndpoints = core.GetStringMapStringSlice(k)
 	}
-	if k := "ol_proxy_config.api_version"; core.IsSet(k) {
-		c.OpenLineageProxy.APIVersion = core.GetInt(k)
-	}
+	c.OpenLineageProxy.APIVersion = core.GetInt("ol_proxy_config.api_version")
 	if k := "apm_config.debug_v1_payloads"; core.IsSet(k) {
 		c.DebugV1Payloads = core.GetBool("apm_config.debug_v1_payloads")
 	}
@@ -704,14 +684,14 @@ func loadDeprecatedValues(c *config.AgentConfig) error {
 		d := time.Duration(cfg.GetInt("apm_config.bucket_size_seconds"))
 		c.BucketInterval = d * time.Second
 	}
-	if cfg.IsSet("apm_config.receiver_timeout") {
+	if cfg.IsConfigured("apm_config.receiver_timeout") {
 		c.ReceiverTimeout = cfg.GetInt("apm_config.receiver_timeout")
 	}
 	if cfg.IsConfigured("apm_config.watchdog_check_delay") {
 		d := time.Duration(cfg.GetInt("apm_config.watchdog_check_delay"))
 		c.WatchdogInterval = d * time.Second
 	}
-	if cfg.IsSet("apm_config.disable_rare_sampler") {
+	if cfg.IsConfigured("apm_config.disable_rare_sampler") {
 		log.Warn("apm_config.disable_rare_sampler/DD_APM_DISABLE_RARE_SAMPLER is deprecated and the rare sampler is now disabled by default. To enable the rare sampler use apm_config.enable_rare_sampler or DD_APM_ENABLE_RARE_SAMPLER")
 	}
 	return nil

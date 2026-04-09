@@ -893,20 +893,20 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("runtime_security_config.event_grpc_server", "")
 
 	// trace-agent's evp_proxy
-	config.BindEnv("evp_proxy_config.enabled")              //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("evp_proxy_config.dd_url")               //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("evp_proxy_config.api_key")              //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("evp_proxy_config.additional_endpoints") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("evp_proxy_config.max_payload_size")     //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("evp_proxy_config.receiver_timeout")     //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("evp_proxy_config.enabled", true)
+	config.BindEnvAndSetDefault("evp_proxy_config.dd_url", "")
+	config.BindEnvAndSetDefault("evp_proxy_config.api_key", "")
+	config.BindEnvAndSetDefault("evp_proxy_config.additional_endpoints", map[string][]string{})
+	config.BindEnvAndSetDefault("evp_proxy_config.max_payload_size", int64(10*1024*1024))
+	config.BindEnvAndSetDefault("evp_proxy_config.receiver_timeout", 0)
 	// Delegated authentication for evp_proxy
 	bindDelegatedAuthConfig(config, "evp_proxy_config")
 
 	// trace-agent's ol_proxy
 	config.BindEnvAndSetDefault("ol_proxy_config.enabled", true)
-	config.BindEnv("ol_proxy_config.dd_url")               //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("ol_proxy_config.api_key")              //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("ol_proxy_config.additional_endpoints") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("ol_proxy_config.dd_url", "")
+	config.BindEnvAndSetDefault("ol_proxy_config.api_key", "")
+	config.BindEnvAndSetDefault("ol_proxy_config.additional_endpoints", map[string][]string{})
 	config.BindEnvAndSetDefault("ol_proxy_config.api_version", 2)
 	// Delegated authentication for ol_proxy_config
 	bindDelegatedAuthConfig(config, "ol_proxy_config")
