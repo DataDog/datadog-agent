@@ -49,13 +49,9 @@ go_test(
     deps = [
         "//pkg/fleet/installer/env",
         "//pkg/fleet/installer/exec",
+        "//pkg/fleet/installer/paths",
         "//pkg/fleet/installer/repository",
         "@com_github_spf13_cobra//:cobra",
         "@com_github_stretchr_testify//assert",
-    ] + select({
-        "@rules_go//go/platform:windows": [
-            "//pkg/fleet/installer/paths",
-        ],
-        "//conditions:default": [],
-    }),
+    ],
 )

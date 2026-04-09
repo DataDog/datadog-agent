@@ -58,7 +58,7 @@
       },
       {
         "matchManagers": ["cargo"],
-        "matchDepNames": ["prost", "prost-types", "prost-build", "tonic", "tonic-build", "tonic-reflection", "protoc-gen-prost", "protoc-gen-tonic"],
+        "matchDepNames": ["prost", "prost-types", "prost-build", "tonic", "tonic-build", "tonic-prost", "tonic-prost-build", "tonic-reflection", "protoc-gen-prost", "protoc-gen-tonic"],
         "groupName": "prost/tonic protobuf stack"
       },
       {
@@ -120,15 +120,6 @@
         "versioningTemplate": "regex:^(ltsc2022-)?v(?<major>\\d+)-.*$",
         "datasourceTemplate": "custom.windows-images",
         "extractVersionTemplate": "^(ltsc2022-)?(?<version>.*)$"
-      },
-      {
-        "customType": "regex",
-        "managerFilePatterns": [".protoc-version"],
-        "matchStrings": [
-          "(?<currentValue>[0-9]+.[0-9]+)"
-        ],
-        "depNameTemplate": "protocolbuffers/protobuf",
-        "datasourceTemplate": "github-releases"
       },
       {
         "customType": "regex",
