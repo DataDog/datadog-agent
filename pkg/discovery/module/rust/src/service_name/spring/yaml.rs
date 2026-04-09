@@ -18,19 +18,19 @@ enum State {
     Descend,
     /// Skipping a non-matching key's value, or a complex key and its value.
     /// `nesting` tracks depth within a compound structure being skipped.
-    Skip { nesting: u32, items: SkipCount },
+    Skip { nesting: u32, items: SkipItems },
 }
 
 /// Number of top-level YAML values remaining to skip.
 /// Only two variants exist — a zero-item skip is impossible by construction.
-enum SkipCount {
+enum SkipItems {
     /// Skip one value (the value of a non-matching simple key).
     Value,
     /// Skip a complex key's subtree, then its value.
     KeyAndValue,
 }
 
-impl SkipCount {
+impl SkipItems {
     /// Consume one item. Returns `Some` if more items remain, `None` if done.
     fn decrement(self) -> Option<Self> {
         match self {
@@ -93,14 +93,14 @@ pub fn parse_yaml<R: Read>(mut reader: R, target_key: &str) -> Option<String> {
                 // Non-matching simple key: skip its value (1 item).
                 Event::Scalar(..) | Event::Alias(..) => State::Skip {
                     nesting: 0,
-                    items: SkipCount::Value,
+                    items: SkipItems::Value,
                 },
                 // Non-matching complex key (mapping/sequence used as a key):
                 // skip the key's own subtree (nesting=1) plus its value,
                 // so we skip two top-level items (KeyAndValue).
                 Event::MappingStart(..) | Event::SequenceStart(..) => State::Skip {
                     nesting: 1,
-                    items: SkipCount::KeyAndValue,
+                    items: SkipItems::KeyAndValue,
                 },
                 _ => return None,
             },
@@ -140,14 +140,14 @@ pub fn parse_yaml<R: Read>(mut reader: R, target_key: &str) -> Option<String> {
                     Event::Scalar(..) | Event::Alias(..) => {}
                     _ => return None,
                 }
-                if nesting > 0 {
-                    State::Skip { nesting, items }
-                } else {
+                if nesting == 0 {
                     match items.decrement() {
                         // All items skipped; back to reading keys.
                         None => State::Key,
                         Some(items) => State::Skip { nesting, items },
                     }
+                } else {
+                    State::Skip { nesting, items }
                 }
             }
         };
