@@ -58,7 +58,7 @@ var dummyTrapDB = oidresolver.TrapDBFileContent{
 		"1.3.6.1.2.1.2.2.1.1":      oidresolver.VariableMetadata{Name: "ifIndex"},
 		"1.3.6.1.2.1.2.2.1.7":      oidresolver.VariableMetadata{Name: "ifAdminStatus", Enumeration: map[int]string{1: "up", 2: "down", 3: "testing"}},
 		"1.3.6.1.2.1.2.2.1.8":      oidresolver.VariableMetadata{Name: "ifOperStatus", Enumeration: map[int]string{1: "up", 2: "down", 3: "testing", 4: "unknown", 5: "dormant", 6: "notPresent", 7: "lowerLayerDown"}},
-		"1.3.6.1.4.1.8072.2.3.2.1": oidresolver.VariableMetadata{Name: "netSnmpExampleHeartbeatRate"},
+		"1.3.6.1.4.1.8072.2.3.2.1": oidresolver.VariableMetadata{Name: "netSnmpExampleHeartbeatRate", Description: "Rate of heartbeat notifications"},
 		"1.3.6.1.2.1.200.1.1.1.3": oidresolver.VariableMetadata{Name: "pwCepSonetConfigErrorOrStatus", Bits: map[int]string{
 			0:  "other",
 			1:  "timeslotInUse",

@@ -61,9 +61,11 @@ type JSONFormatter struct {
 }
 
 type trapVariable struct {
-	OID     string      `json:"oid"`
-	VarType string      `json:"type"`
-	Value   interface{} `json:"value"`
+	OID         string      `json:"oid"`
+	VarType     string      `json:"type"`
+	Value       interface{} `json:"value"`
+	Name        string      `json:"name,omitempty"`
+	Description string      `json:"description,omitempty"`
 }
 
 const (
@@ -319,6 +321,9 @@ func (f JSONFormatter) parseVariables(trapOID string, variables []gosnmp.SnmpPDU
 			parsedVariables = append(parsedVariables, tv)
 			continue
 		}
+
+		tv.Name = varMetadata.Name
+		tv.Description = varMetadata.Description
 
 		if len(varMetadata.Enumeration) > 0 && len(varMetadata.Bits) > 0 {
 			f.logger.Errorf("Unable to enrich variable, trap variable %q has mappings for both integer enum and bits.", varMetadata.Name)

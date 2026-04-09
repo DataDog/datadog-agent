@@ -332,11 +332,15 @@ func TestFormatPacketToJSON(t *testing.T) {
 	assert.Equal(t, heartBeatRate["oid"], "1.3.6.1.4.1.8072.2.3.2.1")
 	assert.EqualValues(t, heartBeatRate["type"], "integer")
 	assert.EqualValues(t, heartBeatRate["value"], 1024)
+	assert.Equal(t, heartBeatRate["name"], "netSnmpExampleHeartbeatRate")
+	assert.Equal(t, heartBeatRate["description"], "Rate of heartbeat notifications")
 
 	heartBeatName := variables[1]
 	assert.Equal(t, heartBeatName["oid"], "1.3.6.1.4.1.8072.2.3.2.2")
 	assert.EqualValues(t, heartBeatName["type"], "string")
 	assert.EqualValues(t, heartBeatName["value"], "test")
+	assert.Nil(t, heartBeatName["name"])        // no metadata for this OID
+	assert.Nil(t, heartBeatName["description"]) // no metadata for this OID
 }
 
 func TestFormatPacketToJSONShouldFailIfNotEnoughVariables(t *testing.T) {
@@ -395,9 +399,11 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 				"netSnmpExampleHeartbeatRate": float64(1024),
 				"variables": []interface{}{
 					map[string]interface{}{
-						"oid":   "1.3.6.1.4.1.8072.2.3.2.1",
-						"type":  "integer",
-						"value": float64(1024),
+						"oid":         "1.3.6.1.4.1.8072.2.3.2.1",
+						"type":        "integer",
+						"value":       float64(1024),
+						"name":        "netSnmpExampleHeartbeatRate",
+						"description": "Rate of heartbeat notifications",
 					},
 					map[string]interface{}{
 						"oid":   "1.3.6.1.4.1.8072.2.3.2.2",
@@ -426,16 +432,19 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 						"oid":   "1.3.6.1.2.1.2.2.1.1",
 						"type":  "integer",
 						"value": float64(9001),
+						"name":  "ifIndex",
 					},
 					map[string]interface{}{
 						"oid":   "1.3.6.1.2.1.2.2.1.7",
 						"type":  "integer",
 						"value": float64(2),
+						"name":  "ifAdminStatus",
 					},
 					map[string]interface{}{
 						"oid":   "1.3.6.1.2.1.2.2.1.8",
 						"type":  "integer",
 						"value": float64(7),
+						"name":  "ifOperStatus",
 					},
 				},
 			},
@@ -459,16 +468,19 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 						"oid":   "1.3.6.1.2.1.2.2.1.1",
 						"type":  "integer",
 						"value": float64(9001),
+						"name":  "ifIndex",
 					},
 					map[string]interface{}{
 						"oid":   "1.3.6.1.2.1.2.2.1.7",
 						"type":  "integer",
 						"value": "test",
+						"name":  "ifAdminStatus",
 					},
 					map[string]interface{}{
 						"oid":   "1.3.6.1.2.1.2.2.1.8",
 						"type":  "integer",
 						"value": float64(7),
+						"name":  "ifOperStatus",
 					},
 				},
 			},
@@ -492,16 +504,19 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 						"oid":   "1.3.6.1.2.1.2.2.1.1",
 						"type":  "integer",
 						"value": float64(9001),
+						"name":  "ifIndex",
 					},
 					map[string]interface{}{
 						"oid":   "1.3.6.1.2.1.2.2.1.7",
 						"type":  "integer",
 						"value": float64(8),
+						"name":  "ifAdminStatus",
 					},
 					map[string]interface{}{
 						"oid":   "1.3.6.1.2.1.2.2.1.8",
 						"type":  "integer",
 						"value": float64(7),
+						"name":  "ifOperStatus",
 					},
 				},
 			},
@@ -526,21 +541,25 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 						"oid":   "1.3.6.1.2.1.2.2.1.1",
 						"type":  "integer",
 						"value": float64(9001),
+						"name":  "ifIndex",
 					},
 					map[string]interface{}{
 						"oid":   "1.3.6.1.2.1.2.2.1.7",
 						"type":  "integer",
 						"value": float64(2),
+						"name":  "ifAdminStatus",
 					},
 					map[string]interface{}{
 						"oid":   "1.3.6.1.2.1.2.2.1.8",
 						"type":  "integer",
 						"value": float64(7),
+						"name":  "ifOperStatus",
 					},
 					map[string]interface{}{
 						"oid":   "1.3.6.1.2.1.200.1.1.1.3",
 						"type":  "string",
 						"value": "0xC000",
+						"name":  "pwCepSonetConfigErrorOrStatus",
 					},
 				},
 			},
@@ -576,21 +595,25 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 						"oid":   "1.3.6.1.2.1.2.2.1.1",
 						"type":  "integer",
 						"value": float64(9001),
+						"name":  "ifIndex",
 					},
 					map[string]interface{}{
 						"oid":   "1.3.6.1.2.1.2.2.1.7",
 						"type":  "integer",
 						"value": float64(2),
+						"name":  "ifAdminStatus",
 					},
 					map[string]interface{}{
 						"oid":   "1.3.6.1.2.1.2.2.1.8",
 						"type":  "integer",
 						"value": float64(7),
+						"name":  "ifOperStatus",
 					},
 					map[string]interface{}{
 						"oid":   "1.3.6.1.2.1.200.1.3.1.5",
 						"type":  "string",
 						"value": "0xF00F000000000000000000800000000020",
+						"name":  "myFakeVarType",
 					},
 				},
 			},
@@ -613,11 +636,13 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 						"oid":   "1.3.6.1.2.1.2.2.1.1",
 						"type":  "integer",
 						"value": float64(9001),
+						"name":  "ifIndex",
 					},
 					map[string]interface{}{
 						"oid":   "1.3.6.1.2.1.200.1.3.1.5",
 						"type":  "string",
 						"value": float64(1),
+						"name":  "myFakeVarType",
 					},
 				},
 			},
@@ -641,21 +666,25 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 						"oid":   "1.3.6.1.2.1.2.2.1.1",
 						"type":  "integer",
 						"value": float64(9001),
+						"name":  "ifIndex",
 					},
 					map[string]interface{}{
 						"oid":   "1.3.6.1.2.1.2.2.1.7",
 						"type":  "integer",
 						"value": float64(2),
+						"name":  "ifAdminStatus",
 					},
 					map[string]interface{}{
 						"oid":   "1.3.6.1.2.1.2.2.1.8",
 						"type":  "integer",
 						"value": float64(7),
+						"name":  "ifOperStatus",
 					},
 					map[string]interface{}{
 						"oid":   "1.3.6.1.2.1.200.1.3.1.6",
 						"type":  "string",
 						"value": base64.StdEncoding.EncodeToString([]byte{0xf0, 0x0f, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x80, 0, 0, 0, 0, 0x20}),
+						"name":  "myBadVarType",
 					},
 				},
 			},
@@ -680,21 +709,25 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 						"oid":   "1.3.6.1.2.1.2.2.1.1",
 						"type":  "integer",
 						"value": float64(9001),
+						"name":  "ifIndex",
 					},
 					map[string]interface{}{
 						"oid":   "1.3.6.1.2.1.2.2.1.7",
 						"type":  "integer",
 						"value": float64(2),
+						"name":  "ifAdminStatus",
 					},
 					map[string]interface{}{
 						"oid":   "1.3.6.1.2.1.2.2.1.8",
 						"type":  "integer",
 						"value": float64(7),
+						"name":  "ifOperStatus",
 					},
 					map[string]interface{}{
 						"oid":   "1.3.6.1.2.1.200.1.3.1.5",
 						"type":  "string",
 						"value": "0x0000000000000000000000000000000000",
+						"name":  "myFakeVarType",
 					},
 				},
 			},
