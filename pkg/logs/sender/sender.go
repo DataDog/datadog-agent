@@ -196,14 +196,34 @@ func (s *Sender) Start() {
 }
 
 // Stop stops all sender workers and the disk retry replay loop.
+// After workers finish, any payloads remaining in queue channels are
+// drained back to disk so they survive an agent restart.
 func (s *Sender) Stop() {
 	log.Debug("sender mux stopping")
 	s.retrier.Stop()
-	for _, s := range s.workers {
-		s.stop()
+	for _, w := range s.workers {
+		w.stop()
 	}
+	// Workers are stopped — no goroutine is reading from the queues anymore.
+	// Drain any payloads that were enqueued (e.g. by the replay loop) but
+	// never picked up by a worker, persisting them back to disk.
 	for _, q := range s.queues {
+		s.drainQueueToDisk(q)
 		close(q)
+	}
+}
+
+// drainQueueToDisk saves all remaining payloads in a queue channel to disk.
+func (s *Sender) drainQueueToDisk(q chan *message.Payload) {
+	for {
+		select {
+		case payload := <-q:
+			if err := s.retrier.Store(payload); err != nil {
+				log.Warnf("Disk retry: failed to drain payload on shutdown: %v", err)
+			}
+		default:
+			return
+		}
 	}
 }
 

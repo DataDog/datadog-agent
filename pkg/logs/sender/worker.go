@@ -147,6 +147,12 @@ func (s *worker) run() {
 					// All reliable destinations are retrying (network outage).
 					// Try to save to disk instead of blocking the pipeline.
 					if err := s.retrier.Store(payload); err == nil {
+						// Update the auditor so the tailer advances past these
+						// offsets and won't re-read them on agent restart.
+						select {
+						case reliableOutputChan <- payload:
+						default:
+						}
 						sent = true
 						storedToDisk = true
 						break
