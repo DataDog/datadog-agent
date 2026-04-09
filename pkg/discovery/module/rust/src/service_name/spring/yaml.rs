@@ -140,15 +140,14 @@ pub fn parse_yaml<R: Read>(mut reader: R, target_key: &str) -> Option<String> {
                     Event::Scalar(..) | Event::Alias(..) => {}
                     _ => return None,
                 }
-                let done = nesting == 0;
-                if done {
+                if nesting > 0 {
+                    State::Skip { nesting, count }
+                } else {
                     match count.decrement() {
                         // All items skipped; back to reading keys.
                         None => State::Key,
                         Some(count) => State::Skip { nesting, count },
                     }
-                } else {
-                    State::Skip { nesting, count }
                 }
             }
         };
