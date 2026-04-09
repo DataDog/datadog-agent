@@ -21,8 +21,13 @@ enum State {
     Skip { nesting: u32, count: u8 },
 }
 
-/// Parser for YAML that searches for a specific string property in dot
-/// notation. Uses a streaming event parser to avoid building a full DOM tree.
+/// Searches for a dot-separated key path (e.g. "spring.application.name") in
+/// YAML and returns its scalar value. Uses a streaming event parser to avoid
+/// building a full DOM tree.
+///
+/// Only returns the *first* occurrence of a matching key at each level. If the
+/// YAML contains a duplicate key (e.g. `spring: 1` before `spring: {app: ...}`),
+/// the parser matches the first one and won't reach the second.
 pub fn parse_yaml<R: Read>(mut reader: R, target_key: &str) -> Option<String> {
     let mut content = String::new();
     reader.read_to_string(&mut content).ok()?;
@@ -32,68 +37,106 @@ pub fn parse_yaml<R: Read>(mut reader: R, target_key: &str) -> Option<String> {
     let mut depth: usize = 0;
     let mut state = State::Preamble;
 
+    // Each YAML event drives a state transition. The parser walks a
+    // path like "spring" → "application" → "name" by matching key
+    // scalars at increasing depth and skipping unrelated entries.
     for result in &mut parser {
         let (event, _) = result.ok()?;
         state = match state {
+            // Wait for the root mapping. StreamStart/DocumentStart are
+            // boilerplate; the first real structure must be a mapping.
             State::Preamble => match event {
                 Event::StreamStart | Event::DocumentStart(_) => State::Preamble,
                 Event::MappingStart(..) => State::Key,
                 _ => return None,
             },
+            // Inside a mapping, expecting a key. A YAML mapping emits
+            // events as: MappingStart, key, value, key, value, …, MappingEnd.
+            // We're positioned at a "key" slot.
             State::Key => match event {
+                // Exhausted all keys without a match.
                 Event::MappingEnd => return None,
+                // Key matches the current path segment.
                 Event::Scalar(ref key, ..) if segments.get(depth) == Some(&key.as_ref()) => {
                     if depth == segments.len() - 1 {
+                        // Last segment — next event is the target value.
                         State::Value
                     } else {
+                        // Intermediate segment — next event must open a
+                        // nested mapping so we can continue matching.
                         State::Descend
                     }
                 }
+                // Non-matching simple key: skip its value (1 item).
                 Event::Scalar(..) | Event::Alias(..) => State::Skip {
                     nesting: 0,
                     count: 1,
                 },
-                Event::MappingStart(..) | Event::SequenceStart(..) => {
-                    // Complex key: skip its subtree (nesting=1) then skip its value.
-                    State::Skip {
-                        nesting: 1,
-                        count: 2,
-                    }
-                }
+                // Non-matching complex key (mapping/sequence used as a key):
+                // skip the key's own subtree (nesting=1) plus its value,
+                // so count=2 top-level items to consume.
+                Event::MappingStart(..) | Event::SequenceStart(..) => State::Skip {
+                    nesting: 1,
+                    count: 2,
+                },
                 _ => return None,
             },
+            // The final key segment matched; consume the value.
             State::Value => match event {
                 Event::Scalar(value, ..) => return Some(value.into_owned()),
+                // Value is a mapping, sequence, or alias — not a string.
                 _ => return None,
             },
+            // An intermediate key segment matched; the value must be a
+            // mapping so we can descend into it and keep matching.
             State::Descend => match event {
                 Event::MappingStart(..) => {
                     depth += 1;
                     State::Key
                 }
+                // Value isn't a mapping (e.g. "spring: 1" when we need
+                // spring.application.name) — can't descend further.
                 _ => return None,
             },
+            // Skip `count` top-level YAML values. Each value may be a
+            // scalar (consumed in one event) or a compound structure
+            // (mapping/sequence) whose events must be consumed until the
+            // matching end event.
+            //
+            // `nesting` tracks depth inside a compound structure:
+            //   0 = not inside a compound, expecting the start of the
+            //       next value to skip
+            //   >0 = inside a compound, consuming events until nesting
+            //        drops back to 0
+            //
+            // Typical counts:
+            //   count=1: skipping one value (for a non-matching simple key)
+            //   count=2: skipping a complex key's subtree + its value
             State::Skip {
                 mut nesting,
                 mut count,
             } => {
                 if nesting == 0 {
+                    // Starting a new top-level item to skip.
                     match event {
                         Event::Scalar(..) | Event::Alias(..) => count -= 1,
                         Event::MappingStart(..) | Event::SequenceStart(..) => nesting = 1,
                         _ => return None,
                     }
                 } else {
+                    // Inside a compound structure — track nesting depth.
                     match event {
                         Event::MappingStart(..) | Event::SequenceStart(..) => nesting += 1,
                         Event::MappingEnd | Event::SequenceEnd => nesting -= 1,
                         _ => {}
                     }
                     if nesting == 0 {
+                        // Finished one compound item.
                         count -= 1;
                     }
                 }
                 if count == 0 {
+                    // All items skipped; back to reading keys.
                     State::Key
                 } else {
                     State::Skip { nesting, count }
