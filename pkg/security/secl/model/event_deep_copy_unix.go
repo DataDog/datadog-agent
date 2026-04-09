@@ -581,6 +581,7 @@ func deepCopyBindEvent(fieldToCopy BindEvent) BindEvent {
 	copied.Addr = deepCopyIPPortContext(fieldToCopy.Addr)
 	copied.AddrFamily = fieldToCopy.AddrFamily
 	copied.Protocol = fieldToCopy.Protocol
+	copied.SampleCookie = fieldToCopy.SampleCookie
 	copied.SyscallEvent = deepCopySyscallEvent(fieldToCopy.SyscallEvent)
 	return copied
 }
@@ -672,6 +673,7 @@ func deepCopyConnectEvent(fieldToCopy ConnectEvent) ConnectEvent {
 	copied.AddrFamily = fieldToCopy.AddrFamily
 	copied.Hostnames = deepCopystringArr(fieldToCopy.Hostnames)
 	copied.Protocol = fieldToCopy.Protocol
+	copied.SampleCookie = fieldToCopy.SampleCookie
 	copied.SyscallEvent = deepCopySyscallEvent(fieldToCopy.SyscallEvent)
 	return copied
 }
@@ -953,6 +955,7 @@ func deepCopyOpenEvent(fieldToCopy OpenEvent) OpenEvent {
 	copied.File = deepCopyFileEvent(fieldToCopy.File)
 	copied.Flags = fieldToCopy.Flags
 	copied.Mode = fieldToCopy.Mode
+	copied.SampleCookie = fieldToCopy.SampleCookie
 	copied.SyscallContext = deepCopySyscallContext(fieldToCopy.SyscallContext)
 	copied.SyscallEvent = deepCopySyscallEvent(fieldToCopy.SyscallEvent)
 	copied.SyscallFlags = fieldToCopy.SyscallFlags

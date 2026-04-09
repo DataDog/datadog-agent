@@ -44,7 +44,6 @@ int __attribute__((always_inline)) sys_connect_ret(void *ctx, int retval) {
     if (syscall->state == DISCARDED && (syscall->resolver.flags & SAMPLE_REFRESH_NEEDED)) {
         struct sample_refresh_event_t ev = {};
         ev.cookie = syscall->sample_cookie;
-        ev.original_event_type = EVENT_CONNECT;
         send_event(ctx, EVENT_SAMPLE_REFRESH, ev);
     }
 

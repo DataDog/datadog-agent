@@ -1368,13 +1368,12 @@ func (e *ConnectEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *SampleRefreshEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 8 {
+	if len(data) < 4 {
 		return 0, ErrNotEnoughData
 	}
 
 	e.Cookie = binary.NativeEndian.Uint32(data[0:4])
-	e.OriginalEventType = binary.NativeEndian.Uint32(data[4:8])
-	return 8, nil
+	return 4, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself

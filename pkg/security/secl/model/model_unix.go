@@ -868,8 +868,7 @@ type ConnectEvent struct {
 // SampleRefreshEvent is a lightweight internal event sent when a dedup map
 // detects a duplicate and wants to refresh the cookie timestamp in userspace.
 type SampleRefreshEvent struct {
-	Cookie            uint32
-	OriginalEventType uint32
+	Cookie uint32
 }
 
 // AcceptEvent represents an accept event

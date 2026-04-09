@@ -81,7 +81,6 @@ int __attribute__((always_inline)) sys_bind_ret(void *ctx, int retval) {
         } else if (bind_refresh_needed) {
             struct sample_refresh_event_t ev = {};
             ev.cookie = bind_cookie;
-            ev.original_event_type = EVENT_BIND;
             send_event(ctx, EVENT_SAMPLE_REFRESH, ev);
         }
     }

@@ -223,7 +223,6 @@ int __attribute__((always_inline)) _sys_open_ret(void *ctx, struct syscall_cache
     if (syscall->state == DISCARDED && (syscall->resolver.flags & SAMPLE_REFRESH_NEEDED)) {
         struct sample_refresh_event_t ev = {};
         ev.cookie = syscall->sample_cookie;
-        ev.original_event_type = EVENT_OPEN;
         send_event(ctx, EVENT_SAMPLE_REFRESH, ev);
     }
 

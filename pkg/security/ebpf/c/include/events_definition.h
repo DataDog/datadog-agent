@@ -597,7 +597,6 @@ struct tracer_memfd_seal_event_t {
 struct sample_refresh_event_t {
     struct kevent_t event;
     u32 cookie;
-    u32 original_event_type;
 };
 
 struct nop_event_t {

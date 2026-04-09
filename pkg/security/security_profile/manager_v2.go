@@ -19,7 +19,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
-	simplelru "github.com/hashicorp/golang-lru/v2/simplelru"
+	lru "github.com/hashicorp/golang-lru/v2"
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -92,7 +92,7 @@ type ManagerV2 struct {
 	pendingProfileRemovalsLock sync.Mutex
 
 	// Sample refresh: maps kernel dedup cookie → (process node, imageTag)
-	sampleCookieMap *simplelru.LRU[uint32, sampleCookieEntry]
+	sampleCookieMap *lru.Cache[uint32, sampleCookieEntry]
 }
 
 func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, dumpHandler backend.ActivityDumpHandler, sendAnomalyDetection func(*model.Event), hostname string) (*ManagerV2, error) {
@@ -124,7 +124,7 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resol
 		"",
 	))
 
-	cookieMap, _ := simplelru.NewLRU[uint32, sampleCookieEntry](sampleCookieMapSize, nil)
+	cookieMap, _ := lru.New[uint32, sampleCookieEntry](sampleCookieMapSize)
 
 	m := &ManagerV2{
 		config:                    cfg,
@@ -1173,7 +1173,6 @@ func (m *ManagerV2) getNodesForAllWorkloads(containersOnly bool) map[activity_tr
 // These methods will be removed once V2 is fully validated and V1 is deprecated.
 // ============================================================================
 
-// LookupEventInProfiles lookups event in profiles.
 // HandleSampleRefresh handles a sample refresh event from the kernel.
 // It updates the LastSeen timestamp of the process node associated with the given cookie.
 func (m *ManagerV2) HandleSampleRefresh(cookie uint32) {
@@ -1181,9 +1180,15 @@ func (m *ManagerV2) HandleSampleRefresh(cookie uint32) {
 	if !ok {
 		return
 	}
+	// Node was evicted from the activity tree, remove stale cookie
+	if entry.processNode == nil || len(entry.processNode.Seen) == 0 {
+		m.sampleCookieMap.Remove(cookie)
+		return
+	}
 	entry.processNode.AppendImageTag(entry.imageTag, time.Now())
 }
 
+// LookupEventInProfiles lookups event in profiles.
 // NO-OP in V2: Event filtering is handled differently through ProcessEvent which builds
 // profiles from activity dump samples. The profile lookup/filtering logic from V1 is not
 // applicable to the V2 lifecycle.
