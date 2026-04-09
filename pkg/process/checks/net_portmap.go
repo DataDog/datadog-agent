@@ -8,6 +8,7 @@
 package checks
 
 import (
+	"maps"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -49,5 +50,5 @@ func getListeningPortToPIDMap() map[int32]int32 {
 		}
 	}
 	cachedPortMap = result
-	return result
+	return maps.Clone(result)
 }
