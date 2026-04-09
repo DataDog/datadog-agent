@@ -55,10 +55,12 @@ func TestOpampConnect(t *testing.T) {
 }
 
 // TestOpampAgentDescription verifies that the AgentDescription sent by the
-// agent includes service.name=otel-agent and the Datadog-specific attributes
-// datadoghq.com/site and datadoghq.com/deployment_type.
+// agent includes the expected identifying and non-identifying attributes:
+// identifying: service.name, service.version
+// non-identifying: host.name, os.type, host.arch, datadoghq.com/site,
+// datadoghq.com/deployment_type
 //
-// speky:DDOT#T018
+// speky:DDOT#T018 speky:DDOT#T037
 func TestOpampAgentDescription(t *testing.T) {
 	ts := newTestServer(t)
 	_, logFile := startAgent(t, configWithOpamp(""))
@@ -73,18 +75,7 @@ func TestOpampAgentDescription(t *testing.T) {
 
 	desc := msg.AgentDescription
 
-	// Gather all non-identifying attributes into a map for easy lookup.
-	nonIdent := make(map[string]string)
-	for _, kv := range desc.NonIdentifyingAttributes {
-		if sv := kv.Value.GetStringValue(); sv != "" {
-			nonIdent[kv.Key] = sv
-		}
-	}
-
-	assert.NotEmpty(t, nonIdent["datadoghq.com/site"], "datadoghq.com/site should be set")
-	assert.NotEmpty(t, nonIdent["datadoghq.com/deployment_type"], "datadoghq.com/deployment_type should be set")
-
-	// service.name must be among the identifying attributes.
+	// Gather identifying attributes.
 	idAttrs := make(map[string]string)
 	for _, kv := range desc.IdentifyingAttributes {
 		if sv := kv.Value.GetStringValue(); sv != "" {
@@ -92,6 +83,24 @@ func TestOpampAgentDescription(t *testing.T) {
 		}
 	}
 	assert.Equal(t, "otel-agent", idAttrs["service.name"], "service.name should be otel-agent")
+	assert.NotEmpty(t, idAttrs["service.version"], "service.version should be set")
+
+	// Gather non-identifying attributes.
+	nonIdent := make(map[string]string)
+	for _, kv := range desc.NonIdentifyingAttributes {
+		if sv := kv.Value.GetStringValue(); sv != "" {
+			nonIdent[kv.Key] = sv
+		}
+	}
+
+	// Automatic attributes from the extension.
+	assert.NotEmpty(t, nonIdent["os.type"], "os.type should be set")
+	assert.NotEmpty(t, nonIdent["host.arch"], "host.arch should be set")
+
+	// Converter-injected attributes.
+	assert.NotEmpty(t, nonIdent["datadoghq.com/site"], "datadoghq.com/site should be set")
+	assert.NotEmpty(t, nonIdent["datadoghq.com/deployment_type"], "datadoghq.com/deployment_type should be set")
+	assert.NotEmpty(t, nonIdent["host.name"], "host.name should be set by the converter")
 }
 
 // TestOpampRemoteConfig verifies that a RemoteConfig pushed from the server is

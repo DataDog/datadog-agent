@@ -1,0 +1,54 @@
+kind: tests
+category: functional
+tests:
+- id: T037
+  ref: [OTELCOL038]
+  short: Agent description includes the resolved hostname
+  long: |
+    Verify that when the hostname component successfully resolves a hostname,
+    the converter injects it as the `host.name` non-identifying attribute in
+    the opamp extension's agent_description. Also verify that the full
+    converter pipeline produces host.name alongside site and deployment_type,
+    and that a user-supplied host.name is never overwritten by the converter.
+  prereq: [T018]
+  steps:
+    - action: >-
+        Configure the converter with a hostname component that resolves to
+        "my-test-host" and a core config with site set
+    - action: >-
+        Run enrichOpampAgentDescription and verify that
+        non_identifying_attributes contains host.name = "my-test-host"
+      sample: |
+        agent_description:
+          non_identifying_attributes:
+            host.name: my-test-host
+            datadoghq.com/site: datadoghq.eu
+            datadoghq.com/deployment_type: daemonset
+      sample_lang: yaml
+    - action: >-
+        Configure the converter with a hostname component and a user-supplied
+        host.name = "user-supplied-host", run enrichOpampAgentDescription,
+        and verify the user value is preserved
+    - action: >-
+        Run the full Convert pipeline with an opamp extension and a hostname
+        component, and verify host.name appears in the resulting confmap
+
+- id: T038
+  ref: [OTELCOL038]
+  short: Agent description omits hostname when resolution fails
+  long: |
+    Verify that when the hostname component is unavailable (nil) or returns
+    an error, the `host.name` attribute is omitted from the agent description
+    rather than being set to an empty or fallback value. Other attributes
+    (site, deployment_type) must still be populated.
+  prereq: [T018]
+  steps:
+    - action: >-
+        Configure the converter with no hostname component (nil) and run
+        enrichOpampAgentDescription
+    - action: >-
+        Verify that non_identifying_attributes does not contain a host.name
+        key, while other attributes (site, deployment_type) are still present
+    - action: >-
+        Run the full Convert pipeline without a hostname component and verify
+        host.name is absent from the resulting confmap

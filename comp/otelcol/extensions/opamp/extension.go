@@ -12,6 +12,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net/http"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -307,6 +308,10 @@ func (e *ddotOpampExtension) onOpampConnectionSettings(
 
 // buildAgentDescription constructs the AgentDescription from the extension
 // settings and the agent_description config injected by the converter.
+//
+// Automatic non-identifying attributes (os.type, host.arch) are populated
+// first; config-supplied attributes (including host.name, site, deployment
+// type injected by the converter) are merged on top so they take precedence.
 func (e *ddotOpampExtension) buildAgentDescription() *protobufs.AgentDescription {
 	buildInfo := e.set.BuildInfo
 
@@ -316,10 +321,28 @@ func (e *ddotOpampExtension) buildAgentDescription() *protobufs.AgentDescription
 		kv("service.version", buildInfo.Version),
 	}
 
-	// Non-identifying attributes: whatever the converter injected.
-	var nonIdentifying []*protobufs.KeyValue
+	// Automatic non-identifying attributes (like upstream opampextension).
+	attrs := map[string]string{
+		"os.type":   runtime.GOOS,
+		"host.arch": runtime.GOARCH,
+	}
+
+	// Merge config-supplied attributes on top (converter-injected values win).
+	// This includes host.name, datadoghq.com/site, datadoghq.com/deployment_type.
 	for k, v := range e.cfg.AgentDescription.NonIdentifyingAttributes {
-		nonIdentifying = append(nonIdentifying, kv(k, v))
+		attrs[k] = v
+	}
+
+	// Sort for deterministic order.
+	keys := make([]string, 0, len(attrs))
+	for k := range attrs {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	nonIdentifying := make([]*protobufs.KeyValue, 0, len(attrs))
+	for _, k := range keys {
+		nonIdentifying = append(nonIdentifying, kv(k, attrs[k]))
 	}
 
 	return &protobufs.AgentDescription{

@@ -233,3 +233,21 @@ requirements:
     properties:
       source: https://opentelemetry.io/docs/specs/opamp/#available-components
     ref: [OTELCOL025, OTELCOL028]
+
+  - id: OTELCOL038
+    short: Include the resolved hostname in the agent description
+    client_statement: |
+      The Agent SHOULD include identifying or non-identifying attributes
+      that describe the host it is running on. The `host.name` attribute is
+      a commonly used non-identifying attribute.
+    long: |
+      The Collector shall include the hostname as the `host.name`
+      non-identifying attribute in the `AgentDescription` sent to the OpAmp
+      server.
+
+      If hostname resolution is unavailable or fails, the attribute shall be
+      omitted rather than populated with a fallback value.
+    tags: [opamp, identity]
+    properties:
+      source: https://opentelemetry.io/docs/specs/opamp/#agentdescription-message
+    ref: [OTELCOL025, OTELCOL028]

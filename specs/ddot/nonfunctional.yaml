@@ -70,3 +70,17 @@ requirements:
       drop telemetry.
     tags: [reliability]
     ref: [DDOT014]
+
+  - id: DDOT038
+    short: Resolve the OpAmp hostname using the Datadog hostname resolution chain
+    long: |
+      When populating the `host.name` attribute for the OpAmp agent description,
+      DDOT shall use the core Agent's hostname component, which follows the
+      standard Datadog hostname resolution chain (agent config, cloud provider
+      metadata, OS hostname).
+
+      This ensures the hostname reported to the OpAmp server matches the one
+      used by other Datadog products, allowing operators to correlate
+      OpAmp-managed collectors with their Datadog infrastructure hosts.
+    tags: [opamp, identity]
+    ref: [DDOT037, OTELCOL038]
