@@ -1123,6 +1123,11 @@ func toWorkloadmetaKubernetesPod(protoKubernetesPod *pb.KubernetesPod) (*workloa
 		owners = append(owners, toWorkloadmetaPodOwner(protoPodOwner))
 	}
 
+	var initContainers []workloadmeta.OrchestratorContainer
+	for _, protoContainer := range protoKubernetesPod.InitContainers {
+		initContainers = append(initContainers, toWorkloadmetaOrchestratorContainer(protoContainer))
+	}
+
 	var containers []workloadmeta.OrchestratorContainer
 	for _, protoContainer := range protoKubernetesPod.Containers {
 		containers = append(containers, toWorkloadmetaOrchestratorContainer(protoContainer))
@@ -1138,6 +1143,7 @@ func toWorkloadmetaKubernetesPod(protoKubernetesPod *pb.KubernetesPod) (*workloa
 		EntityMeta:                 toWorkloadmetaEntityMeta(protoKubernetesPod.EntityMeta),
 		Owners:                     owners,
 		PersistentVolumeClaimNames: protoKubernetesPod.PersistentVolumeClaimNames,
+		InitContainers:             initContainers,
 		Containers:                 containers,
 		EphemeralContainers:        ephemeralContainers,
 		Ready:                      protoKubernetesPod.Ready,

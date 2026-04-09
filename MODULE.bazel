@@ -50,7 +50,7 @@ archive_override(
 bazel_dep(name = "bazel_lib", version = "3.2.2")
 bazel_dep(name = "bazel_skylib", version = "1.9.0")
 bazel_dep(name = "gawk", version = "5.3.2.bcr.3")
-bazel_dep(name = "gazelle", version = "0.48.0")
+bazel_dep(name = "gazelle", version = "0.50.0")
 bazel_dep(name = "gcc_toolchain", version = "0.9.2")
 bazel_dep(name = "libarchive", version = "3.8.1.bcr.2")
 bazel_dep(name = "platforms", version = "1.0.0")
@@ -76,13 +76,6 @@ single_version_override(
     module_name = "protobuf",
     patch_strip = 1,
     patches = ["//bazel/patches:protobuf/0001-add-libstdcpp-to-link-opts.patch"],
-)
-
-# Temporary until gazelle > 0.48.0 with ignore_local_replaced_modules is in BCR
-git_override(
-    module_name = "gazelle",
-    commit = "7c548446d7044d3d5c57a74096851ae6b0a9192f",  # main as of Mar 29, 2026
-    remote = "https://github.com/bazel-contrib/bazel-gazelle.git",
 )
 
 # Temporary until rules_go > 0.60.0 with go.work support is in BCR
@@ -176,8 +169,10 @@ use_repo(llvm_bpf_ext, "llvm_bpf")
 register_toolchains("@llvm_bpf//:llvm_bpf_toolchain")
 
 ## Linux kernel headers for eBPF prebuilt compilation
+## Registers three repos: host auto-detect + explicit x86_64 + explicit aarch64
+## for cross-compilation via --//bazel/rules/ebpf:target_arch=<arch>.
 linux_headers_ext = use_extension("//bazel/toolchains/linux_headers:linux_headers.bzl", "linux_headers_extension")
-use_repo(linux_headers_ext, "linux_headers")
+use_repo(linux_headers_ext, "linux_headers", "linux_headers_aarch64", "linux_headers_x86_64")
 
 ######################################
 ## Compilers and toolchains        ##
@@ -324,6 +319,9 @@ include("//deps/secret_connector:secret_connector.MODULE.bazel")
 
 # buildifier: leave-alone
 include("//deps/security_agent_policies:security_agent_policies.MODULE.bazel")
+
+# buildifier: leave-alone
+include("//deps/setuptools:setuptools.MODULE.bazel")
 
 # buildifier: leave-alone
 include("//deps/snmp_traps:snmp_traps.MODULE.bazel")
