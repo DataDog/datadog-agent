@@ -740,6 +740,9 @@ def _sample_component_params(trial, component: str) -> dict:
             "min_cluster_size": trial.suggest_int("time_cluster.min_cluster_size", 0, 8),
         },
         "log_pattern_extractor": lambda: {
+            "disable_optimizations": trial.suggest_categorical(
+                "log_pattern_extractor.disable_optimizations", [True, False]
+            ),
             "min_cluster_size_before_emit": trial.suggest_int(
                 "log_pattern_extractor.min_cluster_size_before_emit", 1, 30
             ),
@@ -749,6 +752,10 @@ def _sample_component_params(trial, component: str) -> dict:
             "max_num_tokens": trial.suggest_int("log_pattern_extractor.max_num_tokens", 32, 512),
             "parse_hex_dump": trial.suggest_categorical("log_pattern_extractor.parse_hex_dump", [True, False]),
             "min_token_match_ratio": trial.suggest_float("log_pattern_extractor.min_token_match_ratio", 0.2, 0.95),
+            "cluster_time_to_live_sec": trial.suggest_int("log_pattern_extractor.cluster_time_to_live_sec", 600, 86400),
+            "garbage_collection_interval_sec": trial.suggest_int(
+                "log_pattern_extractor.garbage_collection_interval_sec", 60, 7200
+            ),
         },
     }
     fn = space.get(component)
