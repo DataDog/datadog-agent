@@ -6,7 +6,6 @@
 package observerimpl
 
 import (
-	"fmt"
 	"testing"
 
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
@@ -34,7 +33,7 @@ func makeTestAnomaly(name string, ts int64) observer.Anomaly {
 		Source:       observer.SeriesDescriptor{Namespace: "ns", Name: name, Aggregate: observer.AggregateAverage},
 		DetectorName: "scanmw",
 		Timestamp:    ts,
-		Description:  fmt.Sprintf("%s changed", name),
+		Description:  name + " changed",
 	}
 }
 
