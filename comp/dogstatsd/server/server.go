@@ -33,6 +33,7 @@ import (
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
+	offlinereporter "github.com/DataDog/datadog-agent/comp/offlinereporter/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
@@ -85,7 +86,8 @@ type dependencies struct {
 	WMeta      option.Option[workloadmeta.Component]
 	Telemetry  telemetry.Component
 	Hostname   hostnameinterface.Component
-	FilterList filterlist.Component
+	FilterList      filterlist.Component
+	OfflineReporter offlinereporter.Component
 }
 
 type provides struct {
@@ -167,7 +169,8 @@ type server struct {
 
 	enrichConfig
 
-	wmeta option.Option[workloadmeta.Component]
+	wmeta           option.Option[workloadmeta.Component]
+	offlineReporter offlinereporter.Component
 
 	// telemetry
 	telemetry               telemetry.Component
@@ -201,6 +204,7 @@ func initTelemetry() {
 // TODO: (components) - merge with newServerCompat once NewServerlessServer is removed
 func newServer(deps dependencies) provides {
 	s := newServerCompat(deps.Config, deps.Log, deps.Hostname, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry, deps.FilterList)
+	s.offlineReporter = deps.OfflineReporter
 
 	dsdConfig := dsdconfig.NewConfig(s.config)
 	if dsdConfig.EnabledInternal() {
@@ -550,6 +554,10 @@ func (s *server) handleMessages() {
 
 	for _, l := range s.listeners {
 		l.Listen()
+	}
+
+	if s.offlineReporter != nil {
+		s.offlineReporter.SendOfflineDuration("datadog.dogstatsd.offline_duration", nil)
 	}
 
 	// create and start all the workers

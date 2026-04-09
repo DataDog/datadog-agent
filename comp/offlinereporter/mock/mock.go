@@ -15,7 +15,7 @@ import (
 )
 
 // Mock returns a no-op offlinereporter component.
-func Mock(_ *testing.T) offlinereporter.Component {
+func Mock(_ testing.TB) offlinereporter.Component {
 	return &mockOfflineReporter{}
 }
 
