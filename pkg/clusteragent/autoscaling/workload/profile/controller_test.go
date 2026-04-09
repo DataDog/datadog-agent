@@ -172,3 +172,49 @@ func TestSyncProfileDeleteNotifiesObservers(t *testing.T) {
 
 	assert.True(t, deleted, "Delete observer should fire when profile is removed")
 }
+
+func TestSyncProfileBurstableAnnotation(t *testing.T) {
+	c, profileStore := newTestProfileController()
+	ctx := context.Background()
+
+	t.Run("burstable=true when annotation present", func(t *testing.T) {
+		profile := newTestProfile("p1", 1, validTemplate())
+		profile.Annotations = map[string]string{model.BurstableAnnotation: "true"}
+		_, err := c.syncProfile(ctx, "p1", profile)
+		require.NoError(t, err)
+
+		pi, ok := profileStore.Get("p1")
+		require.True(t, ok)
+		assert.True(t, pi.Burstable())
+	})
+
+	t.Run("burstable=false when annotation absent", func(t *testing.T) {
+		profile := newTestProfile("p2", 1, validTemplate())
+		_, err := c.syncProfile(ctx, "p2", profile)
+		require.NoError(t, err)
+
+		pi, ok := profileStore.Get("p2")
+		require.True(t, ok)
+		assert.False(t, pi.Burstable())
+	})
+
+	t.Run("burstable removed on annotation drop", func(t *testing.T) {
+		profile := newTestProfile("p3", 1, validTemplate())
+		profile.Annotations = map[string]string{model.BurstableAnnotation: "true"}
+		_, _ = c.syncProfile(ctx, "p3", profile)
+
+		pi, _ := profileStore.Get("p3")
+		assert.True(t, pi.Burstable())
+
+		// Remove annotation and re-sync.
+		// The fake K8s client doesn't have the CRD registered so the status update
+		// will return an error — that's expected. The store is still updated.
+		profile.Annotations = nil
+		profile.Generation = 2
+		_, _ = c.syncProfile(ctx, "p3", profile)
+
+		pi, ok := profileStore.Get("p3")
+		require.True(t, ok)
+		assert.False(t, pi.Burstable(), "burstable should be false after annotation is removed")
+	})
+}

@@ -515,7 +515,7 @@ func TestProfileManagedPodAutoscaler(t *testing.T) {
 	}
 
 	t.Run("NewPodAutoscalerFromProfile", func(t *testing.T) {
-		pai := NewPodAutoscalerFromProfile("prod", "web-app-a1b2c3d4", "high-cpu", template, targetRef, "hash1")
+		pai := NewPodAutoscalerFromProfile("prod", "web-app-a1b2c3d4", "high-cpu", template, targetRef, "hash1", false)
 
 		assert.Equal(t, "prod", pai.Namespace())
 		assert.Equal(t, "web-app-a1b2c3d4", pai.Name())
@@ -531,7 +531,7 @@ func TestProfileManagedPodAutoscaler(t *testing.T) {
 	})
 
 	t.Run("UpdateFromProfile same profile", func(t *testing.T) {
-		pai := NewPodAutoscalerFromProfile("prod", "web-app-a1b2c3d4", "high-cpu", template, targetRef, "hash1")
+		pai := NewPodAutoscalerFromProfile("prod", "web-app-a1b2c3d4", "high-cpu", template, targetRef, "hash1", false)
 
 		// Simulate some scaling state
 		pai.SetCurrentReplicas(5)
@@ -545,7 +545,7 @@ func TestProfileManagedPodAutoscaler(t *testing.T) {
 				MaxReplicas: &newMaxReplicas,
 			},
 		}
-		pai.UpdateFromProfile("high-cpu", newTemplate, targetRef, "hash2")
+		pai.UpdateFromProfile("high-cpu", newTemplate, targetRef, "hash2", false)
 
 		assert.Equal(t, "high-cpu", pai.ProfileName())
 		assert.True(t, pai.IsProfileManaged())
@@ -556,14 +556,14 @@ func TestProfileManagedPodAutoscaler(t *testing.T) {
 	})
 
 	t.Run("UpdateFromProfile different profile", func(t *testing.T) {
-		pai := NewPodAutoscalerFromProfile("prod", "web-app-a1b2c3d4", "low-cpu", template, targetRef, "hash1")
+		pai := NewPodAutoscalerFromProfile("prod", "web-app-a1b2c3d4", "low-cpu", template, targetRef, "hash1", false)
 
 		newTemplate := &datadoghq.DatadogPodAutoscalerTemplate{
 			Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{
 				{Type: datadoghqcommon.DatadogPodAutoscalerCustomQueryObjectiveType},
 			},
 		}
-		pai.UpdateFromProfile("high-mem", newTemplate, targetRef, "hash3")
+		pai.UpdateFromProfile("high-mem", newTemplate, targetRef, "hash3", false)
 
 		assert.Equal(t, "high-mem", pai.ProfileName())
 		assert.True(t, pai.IsProfileManaged())
@@ -572,7 +572,7 @@ func TestProfileManagedPodAutoscaler(t *testing.T) {
 
 	t.Run("IsProfileManaged true/false", func(t *testing.T) {
 		// Profile-managed
-		pai := NewPodAutoscalerFromProfile("ns", "name", "prof", template, targetRef, "")
+		pai := NewPodAutoscalerFromProfile("ns", "name", "prof", template, targetRef, "", false)
 		assert.True(t, pai.IsProfileManaged())
 		assert.Equal(t, "prof", pai.ProfileName())
 
@@ -618,5 +618,28 @@ func TestProfileManagedPodAutoscaler(t *testing.T) {
 		pai := fake.Build()
 		assert.Equal(t, "my-profile", pai.ProfileName())
 		assert.True(t, pai.IsProfileManaged())
+	})
+
+	t.Run("NewPodAutoscalerFromProfile burstable=true sets annotation on upstreamCR", func(t *testing.T) {
+		pai := NewPodAutoscalerFromProfile("prod", "web-app-a1b2c3d4", "high-cpu", template, targetRef, "hash1", true)
+		assert.True(t, pai.IsBurstable())
+	})
+
+	t.Run("NewPodAutoscalerFromProfile burstable=false does not set annotation", func(t *testing.T) {
+		pai := NewPodAutoscalerFromProfile("prod", "web-app-a1b2c3d4", "high-cpu", template, targetRef, "hash1", false)
+		assert.False(t, pai.IsBurstable())
+	})
+
+	t.Run("UpdateFromProfile burstable toggling", func(t *testing.T) {
+		pai := NewPodAutoscalerFromProfile("prod", "web-app-a1b2c3d4", "high-cpu", template, targetRef, "hash1", false)
+		assert.False(t, pai.IsBurstable())
+
+		// Enable burstable
+		pai.UpdateFromProfile("high-cpu", template, targetRef, "hash1-burstable", true)
+		assert.True(t, pai.IsBurstable())
+
+		// Disable burstable
+		pai.UpdateFromProfile("high-cpu", template, targetRef, "hash1", false)
+		assert.False(t, pai.IsBurstable())
 	})
 }

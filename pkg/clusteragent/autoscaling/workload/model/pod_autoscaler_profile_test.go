@@ -11,8 +11,64 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+
+	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
+	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 )
+
+func minimalProfile(name string) *datadoghq.DatadogPodAutoscalerClusterProfile {
+	maxReplicas := int32(5)
+	return &datadoghq.DatadogPodAutoscalerClusterProfile{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Generation: 1},
+		Spec: datadoghq.DatadogPodAutoscalerProfileSpec{
+			Template: datadoghq.DatadogPodAutoscalerTemplate{
+				Constraints: &datadoghqcommon.DatadogPodAutoscalerConstraints{MaxReplicas: &maxReplicas},
+			},
+		},
+	}
+}
+
+func TestPodAutoscalerProfileInternal_Burstable(t *testing.T) {
+	t.Run("false by default (no annotation)", func(t *testing.T) {
+		profile := minimalProfile("p1")
+		pi, err := NewPodAutoscalerProfileInternal(profile)
+		require.NoError(t, err)
+		assert.False(t, pi.Burstable())
+	})
+
+	t.Run("true when annotation is set to 'true'", func(t *testing.T) {
+		profile := minimalProfile("p1")
+		profile.Annotations = map[string]string{BurstableAnnotation: "true"}
+		pi, err := NewPodAutoscalerProfileInternal(profile)
+		require.NoError(t, err)
+		assert.True(t, pi.Burstable())
+	})
+
+	t.Run("false when annotation value is not 'true'", func(t *testing.T) {
+		profile := minimalProfile("p1")
+		profile.Annotations = map[string]string{BurstableAnnotation: "false"}
+		pi, err := NewPodAutoscalerProfileInternal(profile)
+		require.NoError(t, err)
+		assert.False(t, pi.Burstable())
+	})
+
+	t.Run("UpdateFromProfile removes burstable when annotation dropped", func(t *testing.T) {
+		profile := minimalProfile("p1")
+		profile.Annotations = map[string]string{BurstableAnnotation: "true"}
+		pi, err := NewPodAutoscalerProfileInternal(profile)
+		require.NoError(t, err)
+		assert.True(t, pi.Burstable())
+
+		// Simulate annotation removal
+		profile.Annotations = nil
+		err = pi.UpdateFromProfile(profile)
+		require.NoError(t, err)
+		assert.False(t, pi.Burstable())
+	})
+}
 
 func TestGenerateDPAName(t *testing.T) {
 	name := generateDPAName(NamespacedObjectReference{GroupKind: schema.GroupKind{Group: "apps", Kind: "Deployment"}, Namespace: "prod", Name: "web-app"})

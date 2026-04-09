@@ -492,6 +492,12 @@ func (c *Controller) createPodAutoscaler(ctx context.Context, podAutoscalerInter
 				model.ProfileTemplateHashAnnotation: h,
 			}
 		}
+		if podAutoscalerInternal.IsBurstable() {
+			if autoscalerObj.Annotations == nil {
+				autoscalerObj.Annotations = make(map[string]string)
+			}
+			autoscalerObj.Annotations[model.BurstableAnnotation] = "true"
+		}
 	}
 
 	obj, err := autoscaling.ToUnstructured(autoscalerObj)
@@ -526,6 +532,14 @@ func (c *Controller) updatePodAutoscalerSpec(ctx context.Context, podAutoscalerI
 				autoscalerObj.Annotations = make(map[string]string)
 			}
 			autoscalerObj.Annotations[model.ProfileTemplateHashAnnotation] = h
+		}
+		if podAutoscalerInternal.IsBurstable() {
+			if autoscalerObj.Annotations == nil {
+				autoscalerObj.Annotations = make(map[string]string)
+			}
+			autoscalerObj.Annotations[model.BurstableAnnotation] = "true"
+		} else {
+			delete(autoscalerObj.Annotations, model.BurstableAnnotation)
 		}
 	}
 

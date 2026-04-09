@@ -212,6 +212,7 @@ func NewPodAutoscalerFromProfile(
 	template *datadoghq.DatadogPodAutoscalerTemplate,
 	targetRef autoscalingv2.CrossVersionObjectReference,
 	templateHash string,
+	burstable bool,
 ) PodAutoscalerInternal {
 	pai := PodAutoscalerInternal{
 		namespace: ns,
@@ -223,7 +224,7 @@ func NewPodAutoscalerFromProfile(
 			},
 		},
 	}
-	pai.UpdateFromProfile(profileName, template, targetRef, templateHash)
+	pai.UpdateFromProfile(profileName, template, targetRef, templateHash, burstable)
 
 	return pai
 }
@@ -234,11 +235,14 @@ func NewPodAutoscalerFromProfile(
 
 // UpdateFromProfile updates the spec from a profile template while preserving scaling state.
 // The templateHash must be the hash of the profile template that produced this spec.
+// burstable mirrors the BurstableAnnotation on the source DPAC: when true the annotation is
+// set on upstreamCR so that IsBurstable() returns true for this DPA; when false it is removed.
 func (p *PodAutoscalerInternal) UpdateFromProfile(
 	profileName string,
 	template *datadoghq.DatadogPodAutoscalerTemplate,
 	targetRef autoscalingv2.CrossVersionObjectReference,
 	templateHash string,
+	burstable bool,
 ) {
 	dpaSpec := BuildDPASpecFromProfile(template, targetRef)
 
@@ -250,6 +254,15 @@ func (p *PodAutoscalerInternal) UpdateFromProfile(
 	p.targetGVK = schema.GroupVersionKind{}
 	// Compute the horizontal events retention again in case .Spec.ApplyPolicy has changed
 	p.horizontalEventsRetention, p.horizontalRecommendationsRetention = getHorizontalRetentionValues(dpaSpec.ApplyPolicy)
+
+	if burstable {
+		if p.upstreamCR.Annotations == nil {
+			p.upstreamCR.Annotations = make(map[string]string)
+		}
+		p.upstreamCR.Annotations[BurstableAnnotation] = "true"
+	} else if p.upstreamCR.Annotations != nil {
+		delete(p.upstreamCR.Annotations, BurstableAnnotation)
+	}
 }
 
 // UpdateFromPodAutoscaler updates the PodAutoscalerInternal from a PodAutoscaler object inside K8S

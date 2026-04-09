@@ -461,7 +461,7 @@ func TestAutoscalerSyncerRebuildOwnershipCleansOrphans(t *testing.T) {
 	targetRef := autoscalingv2.CrossVersionObjectReference{
 		Kind: "Deployment", Name: "web-app", APIVersion: "apps/v1",
 	}
-	orphanDPA := model.NewPodAutoscalerFromProfile("prod", "web-app-9526aeb3", "high-cpu", prof.Template(), targetRef, prof.TemplateHash())
+	orphanDPA := model.NewPodAutoscalerFromProfile("prod", "web-app-9526aeb3", "high-cpu", prof.Template(), targetRef, prof.TemplateHash(), false)
 	dpaStore.Set("prod/web-app-9526aeb3", orphanDPA, "dpa-c")
 
 	s := &AutoscalerSyncer{
@@ -503,7 +503,7 @@ func TestAutoscalerSyncerRebuildOwnershipKeepsActiveDPAs(t *testing.T) {
 		Kind: "Deployment", Name: "web-app", APIVersion: "apps/v1",
 	}
 	_, dpaName, _ := cache.SplitMetaNamespaceKey(dpaKey)
-	existingDPA := model.NewPodAutoscalerFromProfile("prod", dpaName, "high-cpu", prof.Template(), targetRef, prof.TemplateHash())
+	existingDPA := model.NewPodAutoscalerFromProfile("prod", dpaName, "high-cpu", prof.Template(), targetRef, prof.TemplateHash(), false)
 	dpaStore.Set(dpaKey, existingDPA, "dpa-c")
 
 	s := &AutoscalerSyncer{
@@ -523,6 +523,82 @@ func TestAutoscalerSyncerRebuildOwnershipKeepsActiveDPAs(t *testing.T) {
 	require.True(t, found)
 	assert.False(t, pai.Deleted(), "Active DPA should NOT be deleted after rebuild + reconcile")
 	assert.Equal(t, "high-cpu", s.dpaOwnership[dpaKey])
+}
+
+func testProfileWithWorkloadsAndAnnotations(name string, workloads []model.NamespacedObjectReference, annotations map[string]string) model.PodAutoscalerProfileInternal {
+	maxReplicas := int32(10)
+	tmpl := datadoghq.DatadogPodAutoscalerTemplate{
+		Constraints: &datadoghqcommon.DatadogPodAutoscalerConstraints{
+			MaxReplicas: &maxReplicas,
+		},
+	}
+
+	pi, _ := model.NewPodAutoscalerProfileInternal(&datadoghq.DatadogPodAutoscalerClusterProfile{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Generation: 1, Annotations: annotations},
+		Spec:       datadoghq.DatadogPodAutoscalerProfileSpec{Template: tmpl},
+	})
+
+	if len(workloads) > 0 {
+		pi.UpdateWorkloads(workloads)
+	}
+	return pi
+}
+
+func TestAutoscalerSyncerBurstableAnnotationPropagatedToDPA(t *testing.T) {
+	s, profileStore, dpaStore := newTestSyncer()
+
+	ref := testRef("prod", "web-app")
+	prof := testProfileWithWorkloadsAndAnnotations("high-cpu", []model.NamespacedObjectReference{ref},
+		map[string]string{model.BurstableAnnotation: "true"})
+	profileStore.Set("high-cpu", prof, "test")
+
+	s.reconcile()
+
+	for dpaKey := range prof.Workloads() {
+		pai, found := dpaStore.Get(dpaKey)
+		require.True(t, found)
+		assert.True(t, pai.IsBurstable(), "generated DPA should be burstable when profile carries the annotation")
+		assert.Contains(t, pai.DesiredProfileTemplateHash(), "-burstable",
+			"template hash should include -burstable suffix")
+	}
+}
+
+func TestAutoscalerSyncerBurstableHashChangeTriggersUpdate(t *testing.T) {
+	s, profileStore, dpaStore := newTestSyncer()
+
+	ref := testRef("prod", "web-app")
+
+	// First reconcile: burstable=false
+	prof := testProfileWithWorkloads("high-cpu", []model.NamespacedObjectReference{ref})
+	profileStore.Set("high-cpu", prof, "test")
+	s.reconcile()
+
+	var dpaKey string
+	for k := range prof.Workloads() {
+		dpaKey = k
+	}
+	pai, found := dpaStore.Get(dpaKey)
+	require.True(t, found)
+	assert.False(t, pai.IsBurstable())
+
+	// Second reconcile: burstable=true — hash changes, update must be triggered
+	burstableProf := testProfileWithWorkloadsAndAnnotations("high-cpu", []model.NamespacedObjectReference{ref},
+		map[string]string{model.BurstableAnnotation: "true"})
+	profileStore.Set("high-cpu", burstableProf, "test")
+	s.reconcile()
+
+	pai, found = dpaStore.Get(dpaKey)
+	require.True(t, found)
+	assert.True(t, pai.IsBurstable(), "DPA should become burstable after profile annotation is added")
+
+	// Third reconcile: burstable removed — hash reverts, update must be triggered again
+	nonBurstableProf := testProfileWithWorkloads("high-cpu", []model.NamespacedObjectReference{ref})
+	profileStore.Set("high-cpu", nonBurstableProf, "test")
+	s.reconcile()
+
+	pai, found = dpaStore.Get(dpaKey)
+	require.True(t, found)
+	assert.False(t, pai.IsBurstable(), "DPA should revert to non-burstable when annotation is removed from profile")
 }
 
 // TestAutoscalerSyncerOrphanByLabelRemoval verifies that when a customer

@@ -162,6 +162,7 @@ type desiredDPA struct {
 	ref          model.NamespacedObjectReference
 	template     *datadoghq.DatadogPodAutoscalerTemplate
 	templateHash string
+	burstable    bool
 }
 
 // reconcile performs a full sync between the profile store and the DPA store.
@@ -184,12 +185,18 @@ func (s *AutoscalerSyncer) buildDesiredState() map[string]desiredDPA {
 		if !profileInternal.Valid() || profileInternal.Template() == nil {
 			continue
 		}
+		burstable := profileInternal.Burstable()
+		templateHash := profileInternal.TemplateHash()
+		if burstable {
+			templateHash += "-burstable"
+		}
 		for dpaKey, ref := range profileInternal.Workloads() {
 			desired[dpaKey] = desiredDPA{
 				profileName:  profileInternal.Name(),
 				ref:          ref,
 				template:     profileInternal.Template(),
-				templateHash: profileInternal.TemplateHash(),
+				templateHash: templateHash,
+				burstable:    burstable,
 			}
 		}
 	}
@@ -271,7 +278,7 @@ func (s *AutoscalerSyncer) ensureDPA(dpaKey string, d desiredDPA) {
 	if !found {
 		_, name, _ := cache.SplitMetaNamespaceKey(dpaKey)
 		log.Infof("Creating DPA %s for profile %s", dpaKey, d.profileName)
-		pai = model.NewPodAutoscalerFromProfile(d.ref.Namespace, name, d.profileName, d.template, targetRef, d.templateHash)
+		pai = model.NewPodAutoscalerFromProfile(d.ref.Namespace, name, d.profileName, d.template, targetRef, d.templateHash, d.burstable)
 		s.dpaStore.UnlockSet(dpaKey, pai, syncerStoreID)
 		return
 	}
@@ -286,7 +293,7 @@ func (s *AutoscalerSyncer) ensureDPA(dpaKey string, d desiredDPA) {
 		return
 	}
 
-	pai.UpdateFromProfile(d.profileName, d.template, targetRef, d.templateHash)
+	pai.UpdateFromProfile(d.profileName, d.template, targetRef, d.templateHash, d.burstable)
 	s.dpaStore.UnlockSet(dpaKey, pai, syncerStoreID)
 }
 
