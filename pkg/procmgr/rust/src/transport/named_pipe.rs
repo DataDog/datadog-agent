@@ -4,6 +4,7 @@
 // Copyright 2026-present Datadog, Inc.
 
 use anyhow::Result;
+use std::future::Future;
 use std::path::{Path, PathBuf};
 
 const DEFAULT_PIPE_PATH: &str = r"\\.\pipe\datadog-procmgrd";
@@ -22,5 +23,12 @@ pub fn prepare(_path: &Path) -> Result<()> {
 }
 
 pub fn set_permissions(_path: &Path) {}
+
+pub async fn serve<F>(_router: tonic::transport::server::Router, _shutdown: F) -> Result<()>
+where
+    F: Future<Output = ()>,
+{
+    anyhow::bail!("Named Pipe transport is not yet implemented on Windows")
+}
 
 pub fn cleanup(_path: &Path) {}
