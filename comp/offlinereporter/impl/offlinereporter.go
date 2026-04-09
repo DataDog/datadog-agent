@@ -56,19 +56,13 @@ type sampleSender interface {
 	SendSamplesWithoutAggregation(metrics.MetricSampleBatch)
 }
 
-// hostnameGetter is the subset of hostnameinterface.Component used by offlinereporterImpl.
-type hostnameGetter interface {
-	GetSafe(context.Context) string
-}
-
 type offlinereporterImpl struct {
 	log               log.Component
 	fs                afero.Fs
 	filePath          string
 	heartbeatInterval time.Duration
 	demux             sampleSender
-	hostnameComp      hostnameGetter
-	resolvedHostname  string
+	hostname          string
 	lastHeartbeat     time.Time
 	hasLastBeat       bool
 	stopChan          chan struct{}
@@ -82,7 +76,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		filePath:          filepath.Join(reqs.Config.GetString("run_path"), "agent_heartbeat"),
 		heartbeatInterval: reqs.Config.GetDuration("telemetry.offlinereporter.heartbeat_interval"),
 		demux:             reqs.Demultiplexer,
-		hostnameComp:      reqs.Hostname,
+		hostname:          reqs.Hostname.GetSafe(context.Background()),
 		stopChan:          make(chan struct{}),
 	}
 	if reqs.Config.GetBool("telemetry.offlinereporter.enabled") {
@@ -95,7 +89,6 @@ func NewComponent(reqs Requires) (Provides, error) {
 }
 
 func (h *offlinereporterImpl) onStart(ctx context.Context) error {
-	h.resolvedHostname = h.hostnameComp.GetSafe(ctx)
 	if data, err := afero.ReadFile(h.fs, h.filePath); err == nil {
 		if secs, err := strconv.ParseInt(strings.TrimSpace(string(data)), 10, 64); err == nil {
 			h.lastHeartbeat = time.Unix(secs, 0)
@@ -144,7 +137,7 @@ func (h *offlinereporterImpl) SendOfflineDuration(metricName string, tags []stri
 			Value:      time.Since(h.lastHeartbeat).Seconds(),
 			Mtype:      metrics.GaugeType,
 			Tags:       tags,
-			Host:       h.resolvedHostname,
+			Host:       h.hostname,
 			SampleRate: 1.0,
 			Timestamp:  float64(time.Now().Unix()),
 		},

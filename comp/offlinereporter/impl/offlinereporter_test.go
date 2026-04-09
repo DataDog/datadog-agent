@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
+//go:build test
+
 package offlinereporterimpl
 
 import (
@@ -15,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -31,14 +34,15 @@ func (m *mockDemux) SendSamplesWithoutAggregation(batch metrics.MetricSampleBatc
 	m.samples = append(m.samples, batch)
 }
 
-type mockHostname struct{ name string }
-
-func (m *mockHostname) GetSafe(_ context.Context) string { return m.name }
+func newHostnameMock(name string) hostnameinterface.Component {
+	c, _ := hostnameinterface.NewMock(hostnameinterface.MockHostname(name))
+	return c
+}
 
 // newHarness builds an offlinereporterImpl directly (bypassing NewComponent and fx)
 // so tests can inject an afero.MemMapFs, a minimal sampleSender mock, and a
 // hostname mock.
-func newHarness(t *testing.T, fs afero.Fs, demux sampleSender, hn hostnameGetter) (*offlinereporterImpl, *compdef.TestLifecycle) {
+func newHarness(t *testing.T, fs afero.Fs, demux sampleSender, hn hostnameinterface.Component) (*offlinereporterImpl, *compdef.TestLifecycle) {
 	t.Helper()
 	lc := compdef.NewTestLifecycle(t)
 	h := &offlinereporterImpl{
@@ -47,7 +51,7 @@ func newHarness(t *testing.T, fs afero.Fs, demux sampleSender, hn hostnameGetter
 		filePath:          testFilePath,
 		heartbeatInterval: 5 * time.Second,
 		demux:             demux,
-		hostnameComp:      hn,
+		hostname:          hn.GetSafe(context.Background()),
 		stopChan:          make(chan struct{}),
 	}
 	lc.Append(compdef.Hook{
@@ -62,7 +66,7 @@ func TestFirstRun(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	demux := &mockDemux{}
 
-	h, lc := newHarness(t, fs, demux, &mockHostname{"host"})
+	h, lc := newHarness(t, fs, demux, newHostnameMock("host"))
 	ctx := context.Background()
 	require.NoError(t, lc.Start(ctx))
 	defer lc.Stop(ctx) //nolint:errcheck
@@ -81,7 +85,7 @@ func TestSecondRun(t *testing.T) {
 	pastTs := time.Now().Add(-10 * time.Second).Unix()
 	require.NoError(t, afero.WriteFile(fs, testFilePath, []byte(strconv.FormatInt(pastTs, 10)), 0600))
 
-	h, lc := newHarness(t, fs, demux, &mockHostname{"myhost"})
+	h, lc := newHarness(t, fs, demux, newHostnameMock("myhost"))
 	ctx := context.Background()
 	require.NoError(t, lc.Start(ctx))
 	defer lc.Stop(ctx) //nolint:errcheck
@@ -104,7 +108,7 @@ func TestCorruptFile(t *testing.T) {
 
 	require.NoError(t, afero.WriteFile(fs, testFilePath, []byte("not-a-timestamp"), 0600))
 
-	h, lc := newHarness(t, fs, demux, &mockHostname{"host"})
+	h, lc := newHarness(t, fs, demux, newHostnameMock("host"))
 	ctx := context.Background()
 	require.NoError(t, lc.Start(ctx))
 	defer lc.Stop(ctx) //nolint:errcheck
@@ -118,7 +122,7 @@ func TestOnStart_WritesFile(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	demux := &mockDemux{}
 
-	_, lc := newHarness(t, fs, demux, &mockHostname{"host"})
+	_, lc := newHarness(t, fs, demux, newHostnameMock("host"))
 	ctx := context.Background()
 	require.NoError(t, lc.Start(ctx))
 	defer lc.Stop(ctx) //nolint:errcheck
@@ -154,7 +158,7 @@ func TestDisabled(t *testing.T) {
 		filePath:          testFilePath,
 		heartbeatInterval: 5 * time.Second,
 		demux:             demux,
-		hostnameComp:      &mockHostname{"host"},
+		hostname:          newHostnameMock("host").GetSafe(context.Background()),
 		stopChan:          make(chan struct{}),
 	}
 
@@ -168,7 +172,7 @@ func TestOnStop_StopsLoop(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	demux := &mockDemux{}
 
-	_, lc := newHarness(t, fs, demux, &mockHostname{"host"})
+	_, lc := newHarness(t, fs, demux, newHostnameMock("host"))
 	ctx := context.Background()
 	require.NoError(t, lc.Start(ctx))
 	require.NoError(t, lc.Stop(ctx))
