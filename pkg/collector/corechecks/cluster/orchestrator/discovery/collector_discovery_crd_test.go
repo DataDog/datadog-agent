@@ -131,6 +131,46 @@ func TestDiscoveryCollector_List(t *testing.T) {
 			},
 		},
 		{
+			name: "does not match v1beta1 when exact version v1 is requested",
+			setup: func() *DiscoveryCollector {
+				return &DiscoveryCollector{
+					cache: DiscoveryCache{
+						CollectorForVersion: map[CollectorVersion]struct{}{
+							{GroupVersion: "eks.amazonaws.com/v1", Kind: "nodeclasses"}:      {},
+							{GroupVersion: "eks.amazonaws.com/v1beta1", Kind: "nodeclasses"}: {},
+						},
+					},
+				}
+			},
+			group:   "eks.amazonaws.com",
+			version: "v1",
+			kind:    "nodeclasses",
+			expected: []CollectorVersion{
+				{GroupVersion: "eks.amazonaws.com/v1", Kind: "nodeclasses"},
+			},
+		},
+		{
+			name: "does not match v1beta1 resources when v1 is requested without kind filter",
+			setup: func() *DiscoveryCollector {
+				return &DiscoveryCollector{
+					cache: DiscoveryCache{
+						CollectorForVersion: map[CollectorVersion]struct{}{
+							{GroupVersion: "apps/v1", Kind: "deployments"}:      {},
+							{GroupVersion: "apps/v1beta1", Kind: "deployments"}: {},
+							{GroupVersion: "apps/v1", Kind: "statefulsets"}:     {},
+						},
+					},
+				}
+			},
+			group:   "apps",
+			version: "v1",
+			kind:    "",
+			expected: []CollectorVersion{
+				{GroupVersion: "apps/v1", Kind: "deployments"},
+				{GroupVersion: "apps/v1", Kind: "statefulsets"},
+			},
+		},
+		{
 			name: "no matches",
 			setup: func() *DiscoveryCollector {
 				return &DiscoveryCollector{

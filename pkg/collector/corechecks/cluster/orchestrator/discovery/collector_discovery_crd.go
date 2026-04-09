@@ -190,9 +190,17 @@ func (d *DiscoveryCollector) List(group, version, kind string) []CollectorVersio
 			continue
 		}
 
-		// Match version prefix
-		if !strings.HasPrefix(cv.GroupVersion, groupVersion) {
-			continue
+		// Match version: use prefix when version is empty (match any version within
+		// the group), otherwise require exact equality to avoid "v1" accidentally
+		// matching "v1beta1" via prefix.
+		if version == "" {
+			if !strings.HasPrefix(cv.GroupVersion, groupVersion) {
+				continue
+			}
+		} else {
+			if cv.GroupVersion != groupVersion {
+				continue
+			}
 		}
 
 		// If kind is specified, only include matching name
