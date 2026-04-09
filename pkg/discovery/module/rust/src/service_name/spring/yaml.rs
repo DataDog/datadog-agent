@@ -135,7 +135,9 @@ pub fn parse_yaml<R: Read>(mut reader: R, target_key: &str) -> Option<String> {
             //        back to 0
             State::Skip { mut nesting, count } => {
                 let done = if nesting == 0 {
-                    // Starting a new top-level item to skip.
+                    // Not inside a compound — this event is the start
+                    // of the next item. Scalars/aliases complete it
+                    // immediately; compounds enter nested tracking.
                     match event {
                         Event::Scalar(..) | Event::Alias(..) => true,
                         Event::MappingStart(..) | Event::SequenceStart(..) => {
