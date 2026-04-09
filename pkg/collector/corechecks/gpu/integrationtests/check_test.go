@@ -108,7 +108,7 @@ func TestCheckRunMatchesSpecForPhysicalDevices(t *testing.T) {
 	metricsByName := gpu.GetEmittedGPUMetrics(mockSender)
 	require.NotEmpty(t, metricsByName)
 
-	metricsByUUID := make(map[string]map[string][]gpuspec.EmittedMetric, len(devices))
+	metricsByUUID := make(map[string]map[string][]gpuspec.MetricObservation, len(devices))
 	for metricName, emittedSamples := range metricsByName {
 		for _, sample := range emittedSamples {
 			deviceUUID := strings.ToLower(extractDeviceUUID(sample.Tags))
@@ -116,7 +116,7 @@ func TestCheckRunMatchesSpecForPhysicalDevices(t *testing.T) {
 				continue
 			}
 			if metricsByUUID[deviceUUID] == nil {
-				metricsByUUID[deviceUUID] = make(map[string][]gpuspec.EmittedMetric)
+				metricsByUUID[deviceUUID] = make(map[string][]gpuspec.MetricObservation)
 			}
 
 			metricsByUUID[deviceUUID][metricName] = append(metricsByUUID[deviceUUID][metricName], sample)

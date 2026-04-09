@@ -3,8 +3,9 @@ package main
 import (
 	"testing"
 
-	gpuspec "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/spec"
 	"github.com/stretchr/testify/require"
+
+	gpuspec "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/spec"
 )
 
 func TestGetExpectedMetricsForGPUConfigSkipsUnsupportedEntries(t *testing.T) {
@@ -36,11 +37,7 @@ func TestGetExpectedMetricsForGPUConfigSkipsUnsupportedEntries(t *testing.T) {
 		},
 	}
 
-	result := getExpectedMetricsForGPUConfig(spec, gpuConfig{
-		Architecture: "ampere",
-		DeviceMode:   gpuspec.DeviceModePhysical,
-		IsKnown:      true,
-	})
+	result := gpuspec.ExpectedMetricsForConfig(spec, "ampere", gpuspec.DeviceModePhysical)
 
 	require.Equal(t, map[string]gpuspec.MetricSpec{
 		"gpu.device.total": spec.Metrics["device.total"],
@@ -52,9 +49,9 @@ func TestCombineKnownAndLiveGPUConfigsAddsUnknownLiveConfig(t *testing.T) {
 		{Architecture: "ampere", DeviceMode: gpuspec.DeviceModePhysical, IsKnown: true},
 	}
 
-	result := combineKnownAndLiveGPUConfigs(known, map[string]struct{}{
-		"hopper|mig":      {},
-		"ampere|physical": {},
+	result := combineKnownAndLiveGPUConfigs(known, []gpuConfig{
+		{Architecture: "hopper", DeviceMode: gpuspec.DeviceModeMIG, IsKnown: false},
+		{Architecture: "ampere", DeviceMode: gpuspec.DeviceModePhysical, IsKnown: true},
 	})
 
 	require.Len(t, result, 2)

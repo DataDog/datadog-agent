@@ -867,7 +867,7 @@ func TestMetricsFollowSpec(t *testing.T) {
 // collectMetricSamples runs the GPU check with a capability-driven mock
 // for the given architecture and device mode, then returns emitted metrics (without "gpu." prefix)
 // and their tags.
-func collectMetricSamples(t *testing.T, archName string, mode gpuspec.DeviceMode, archSpec gpuspec.ArchitectureSpec) (map[string][]gpuspec.EmittedMetric, map[string]string) {
+func collectMetricSamples(t *testing.T, archName string, mode gpuspec.DeviceMode, archSpec gpuspec.ArchitectureSpec) (map[string][]gpuspec.MetricObservation, map[string]string) {
 	t.Helper()
 
 	collectionSetup := setupMockCheckForMetricCollection(t, archName, mode, archSpec)

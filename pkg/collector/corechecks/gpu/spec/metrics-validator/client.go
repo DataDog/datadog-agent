@@ -5,22 +5,11 @@ import (
 	"fmt"
 	"strings"
 
-	gpuspec "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/spec"
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadog"
 	datadogV2 "github.com/DataDog/datadog-api-client-go/v2/api/datadogV2"
+
+	gpuspec "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/spec"
 )
-
-var nullishGroupValues = map[string]struct{}{
-	"":     {},
-	"none": {},
-	"null": {},
-	"n/a":  {},
-}
-
-type scalarColumns struct {
-	group  map[string][][]string
-	number map[string][]*float64
-}
 
 type metricsClient struct {
 	api *datadogV2.MetricsApi
@@ -48,10 +37,8 @@ func newMetricsClient(apiKey, appKey, site string) (*metricsClient, error) {
 	)
 	ctx = context.WithValue(ctx, datadog.ContextServerVariables, map[string]string{"site": site})
 
-	cfg := datadog.NewConfiguration()
-
 	return &metricsClient{
-		api: datadogV2.NewMetricsApi(datadog.NewAPIClient(cfg)),
+		api: datadogV2.NewMetricsApi(datadog.NewAPIClient(datadog.NewConfiguration())),
 		ctx: ctx,
 	}, nil
 }
@@ -62,7 +49,12 @@ func buildScalarQuery(name, query string) datadogV2.ScalarQuery {
 	return datadogV2.MetricsScalarQueryAsScalarQuery(q)
 }
 
-func (c *metricsClient) runScalarQueries(queries []datadogV2.ScalarQuery, fromTS, toTS int64) (scalarColumns, error) {
+type scalarResult struct {
+	tags   map[string]string
+	values map[string]*float64
+}
+
+func (c *metricsClient) runScalarQueries(queries []datadogV2.ScalarQuery, fromTS, toTS int64) ([]scalarResult, error) {
 	attrs := datadogV2.NewScalarFormulaRequestAttributes(fromTS*1000, queries, toTS*1000)
 	req := datadogV2.NewScalarFormulaRequest(*attrs, datadogV2.SCALARFORMULAREQUESTTYPE_SCALAR_REQUEST)
 	body := datadogV2.NewScalarFormulaQueryRequest(*req)
@@ -72,45 +64,72 @@ func (c *metricsClient) runScalarQueries(queries []datadogV2.ScalarQuery, fromTS
 		_ = httpResp.Body.Close()
 	}
 	if err != nil {
-		return scalarColumns{}, fmt.Errorf("query scalar data: %w", err)
+		return nil, fmt.Errorf("query scalar data: %w", err)
 	}
 	if response.Errors != nil && strings.TrimSpace(*response.Errors) != "" {
-		return scalarColumns{}, fmt.Errorf("query scalar data returned errors: %s", strings.TrimSpace(*response.Errors))
+		return nil, fmt.Errorf("query scalar data returned errors: %s", strings.TrimSpace(*response.Errors))
 	}
 	if response.Data == nil || response.Data.Attributes == nil {
-		return scalarColumns{
-			group:  map[string][][]string{},
-			number: map[string][]*float64{},
-		}, nil
+		return nil, fmt.Errorf("query scalar data returned no data")
 	}
 
-	return splitScalarColumns(response.Data.Attributes.Columns), nil
+	return splitScalarColumns(response.Data.Attributes.Columns)
 }
 
-func splitScalarColumns(columns []datadogV2.ScalarColumn) scalarColumns {
-	groupColumns := make(map[string][][]string, len(columns))
-	numberColumns := make(map[string][]*float64, len(columns))
+func splitScalarColumns(columns []datadogV2.ScalarColumn) ([]scalarResult, error) {
+	var results []scalarResult
+	numResults := 0
 
 	for _, column := range columns {
-		switch {
-		case column.GroupScalarColumn != nil:
-			groupColumns[column.GroupScalarColumn.GetName()] = column.GroupScalarColumn.GetValues()
-		case column.DataScalarColumn != nil:
-			numberColumns[column.DataScalarColumn.GetName()] = column.DataScalarColumn.GetValues()
+		if column.DataScalarColumn != nil {
+			if results == nil {
+				numResults = len(column.DataScalarColumn.GetValues())
+				results = make([]scalarResult, numResults)
+				for idx := range results {
+					results[idx] = scalarResult{
+						tags:   map[string]string{},
+						values: map[string]*float64{},
+					}
+				}
+			}
+
+			for idx, value := range column.DataScalarColumn.GetValues() {
+				if idx >= numResults {
+					return nil, fmt.Errorf("query scalar data returned unexpected number of results, expected %d but got %d", numResults, idx+1)
+				}
+
+				if value != nil {
+					valueCopy := *value
+					results[idx].values[column.DataScalarColumn.GetName()] = &valueCopy
+				}
+			}
+		} else if column.GroupScalarColumn != nil {
+			if results == nil {
+				numResults = len(column.GroupScalarColumn.GetValues())
+				results = make([]scalarResult, numResults)
+				for idx := range results {
+					results[idx] = scalarResult{
+						tags:   map[string]string{},
+						values: map[string]*float64{},
+					}
+				}
+			}
+
+			for idx, tags := range column.GroupScalarColumn.GetValues() {
+				if idx >= numResults {
+					return nil, fmt.Errorf("query scalar data returned unexpected number of results, expected %d but got %d", numResults, idx+1)
+				}
+
+				if tags != nil {
+					results[idx].tags[column.GroupScalarColumn.GetName()] = strings.Join(tags, ",")
+				}
+			}
+		} else {
+			return nil, fmt.Errorf("query scalar data returned unexpected column type: %T", column)
 		}
 	}
 
-	return scalarColumns{
-		group:  groupColumns,
-		number: numberColumns,
-	}
-}
-
-func normalizeGroupValue(values []string) string {
-	if len(values) == 0 {
-		return ""
-	}
-	return values[0]
+	return results, nil
 }
 
 func normalizeDeviceMode(slicingMode, virtualizationMode string) string {
@@ -135,19 +154,14 @@ func (c *metricsClient) queryDeviceCount(config gpuConfig, fromTS, toTS int64) (
 		return 0, fmt.Errorf("query device count for %s/%s: %w", config.Architecture, config.DeviceMode, err)
 	}
 
-	count := 0
-	for _, value := range columns.number["q0"] {
-		if value != nil && *value > 0 {
-			count++
-		}
-	}
-	return count, nil
+	return len(columns), nil
 }
 
-func (c *metricsClient) discoverLiveGPUConfigs(fromTS, toTS int64) (map[string]struct{}, error) {
+func (c *metricsClient) discoverLiveGPUConfigs(fromTS, toTS int64) ([]gpuConfig, error) {
+	deviceTotalQuery := "q0"
 	columns, err := c.runScalarQueries(
 		[]datadogV2.ScalarQuery{
-			buildScalarQuery("q0", "avg:gpu.device.total{*} by {gpu_architecture,gpu_slicing_mode,gpu_virtualization_mode}"),
+			buildScalarQuery(deviceTotalQuery, "avg:gpu.device.total{*} by {gpu_architecture,gpu_slicing_mode,gpu_virtualization_mode}"),
 		},
 		fromTS,
 		toTS,
@@ -156,48 +170,34 @@ func (c *metricsClient) discoverLiveGPUConfigs(fromTS, toTS int64) (map[string]s
 		return nil, fmt.Errorf("discover live gpu configs: %w", err)
 	}
 
-	result := map[string]struct{}{}
-	values := columns.number["q0"]
-	architectures := columns.group["gpu_architecture"]
-	slicingModes := columns.group["gpu_slicing_mode"]
-	virtualizationModes := columns.group["gpu_virtualization_mode"]
-
-	for idx, value := range values {
-		if value == nil || *value <= 0 {
+	var configs []gpuConfig
+	for _, result := range columns {
+		value, found := result.values[deviceTotalQuery]
+		if !found || value == nil || *value <= 0 {
 			continue
 		}
 
-		arch := ""
-		if idx < len(architectures) {
-			arch = strings.ToLower(strings.TrimSpace(normalizeGroupValue(architectures[idx])))
-		}
-		if arch == "" || arch == "n/a" || arch == "na" || arch == "none" || arch == "unknown" {
+		arch := result.tags["gpu_architecture"]
+		slicingMode := result.tags["gpu_slicing_mode"]
+		virtualizationMode := result.tags["gpu_virtualization_mode"]
+
+		if isNullishGroupValue(arch) {
 			continue
 		}
 
-		slicingMode := ""
-		if idx < len(slicingModes) {
-			slicingMode = normalizeGroupValue(slicingModes[idx])
-		}
-		virtualizationMode := ""
-		if idx < len(virtualizationModes) {
-			virtualizationMode = normalizeGroupValue(virtualizationModes[idx])
-		}
-
-		config := gpuConfig{
+		configs = append(configs, gpuConfig{
 			Architecture: arch,
 			DeviceMode:   gpuspecDeviceMode(normalizeDeviceMode(slicingMode, virtualizationMode)),
 			IsKnown:      false,
-		}
-		result[config.key()] = struct{}{}
+		})
 	}
 
-	return result, nil
+	return configs, nil
 }
 
-func (c *metricsClient) queryExpectedMetricsPresenceForGPUConfig(metricNames []string, expectedTagsByMetric map[string]map[string]struct{}, queryFilter string, fromTS, toTS int64) (map[string]struct{}, map[string][]string, error) {
+func (c *metricsClient) queryExpectedMetricsPresenceForGPUConfig(metricNames []string, expectedTagsByMetric map[string]map[string]struct{}, queryFilter string, fromTS, toTS int64) (map[string]gpuspec.MetricObservation, error) {
 	if len(metricNames) == 0 {
-		return map[string]struct{}{}, map[string][]string{}, nil
+		return map[string]gpuspec.MetricObservation{}, nil
 	}
 
 	queries := make([]datadogV2.ScalarQuery, 0, len(metricNames))
@@ -221,64 +221,41 @@ func (c *metricsClient) queryExpectedMetricsPresenceForGPUConfig(metricNames []s
 
 	columns, err := c.runScalarQueries(queries, fromTS, toTS)
 	if err != nil {
-		return nil, nil, fmt.Errorf("query expected metrics presence: %w", err)
+		return nil, fmt.Errorf("query expected metrics presence: %w", err)
 	}
 
-	presentMetrics := map[string]struct{}{}
-	tagFailures := map[string][]string{}
-
-	for queryName, metricName := range queryNameToMetric {
-		values := columns.number[queryName]
-		presentRowIndexes := make([]int, 0, len(values))
-		for rowIdx, value := range values {
-			if value != nil {
-				presentRowIndexes = append(presentRowIndexes, rowIdx)
-			}
-		}
-		if len(presentRowIndexes) == 0 {
-			continue
-		}
-
-		presentMetrics[metricName] = struct{}{}
-		expectedTags := expectedTagsByMetric[metricName]
-		if len(expectedTags) == 0 {
-			continue
-		}
-
-		nonNullSeen := make(map[string]bool, len(expectedTags))
-		for tag := range expectedTags {
-			nonNullSeen[tag] = false
-		}
-
-		for _, rowIdx := range presentRowIndexes {
-			for tag := range expectedTags {
-				tagValues := columns.group[tag]
-				if rowIdx >= len(tagValues) {
-					continue
-				}
-				normalizedValue := strings.TrimSpace(strings.ToLower(normalizeGroupValue(tagValues[rowIdx])))
-				if normalizedValue == "" {
-					continue
-				}
-				if _, nullish := nullishGroupValues[normalizedValue]; nullish {
-					continue
-				}
-				nonNullSeen[tag] = true
-			}
-		}
-
-		missingTags := make([]string, 0, len(nonNullSeen))
-		for tag, seen := range nonNullSeen {
-			if !seen {
-				missingTags = append(missingTags, tag)
-			}
-		}
-		if len(missingTags) > 0 {
-			tagFailures[metricName] = missingTags
+	observations := make(map[string]gpuspec.MetricObservation, len(metricNames))
+	for _, metricName := range metricNames {
+		observations[metricName] = gpuspec.MetricObservation{
+			Name: metricName,
+			Tags: []string{},
 		}
 	}
 
-	return presentMetrics, tagFailures, nil
+	for _, result := range columns {
+		for queryName, value := range result.values {
+			if value == nil {
+				continue
+			}
+
+			metricName, found := queryNameToMetric[queryName]
+			if !found {
+				continue
+			}
+
+			observation := observations[metricName]
+			for tag := range expectedTagsByMetric[metricName] {
+				if isNullishGroupValue(result.tags[tag]) {
+					continue
+				}
+				observation.Tags = append(observation.Tags, tag+":"+result.tags[tag])
+			}
+
+			observations[metricName] = observation
+		}
+	}
+
+	return observations, nil
 }
 
 func (c *metricsClient) listObservedGPUMetricsForGPUConfig(config gpuConfig, lookbackSeconds int64, metricPrefix string) (map[string]struct{}, error) {
@@ -339,4 +316,9 @@ func gpuspecDeviceMode(value string) gpuspec.DeviceMode {
 	default:
 		return gpuspec.DeviceModePhysical
 	}
+}
+
+func isNullishGroupValue(value string) bool {
+	normalizedValue := strings.TrimSpace(strings.ToLower(value))
+	return normalizedValue == "" || normalizedValue == "none" || normalizedValue == "null" || normalizedValue == "n/a"
 }

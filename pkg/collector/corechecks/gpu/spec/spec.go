@@ -30,6 +30,13 @@ const (
 	DeviceModeVGPU     DeviceMode = "vgpu"
 )
 
+// AllDeviceModes lists every device mode modeled by the GPU spec.
+var AllDeviceModes = []DeviceMode{
+	DeviceModePhysical,
+	DeviceModeMIG,
+	DeviceModeVGPU,
+}
+
 // MetricsSpec is the YAML metric specification.
 type MetricsSpec struct {
 	MetricPrefix string                `yaml:"metric_prefix"`
