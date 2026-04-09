@@ -240,14 +240,41 @@ func Translate(ld plog.Logs, logger *zap.Logger, shouldFallbackOnLogAttributes b
 
 // MapLogs from OTLP format to Datadog format.
 // Deprecated: Deprecated in favor of MapLogsAndRouteRUMEvents.
-func (t *Translator) MapLogs(_ context.Context, ld plog.Logs, _ attributes.HostFromAttributesHandler) []datadogV2.HTTPLogItem {
-	payloads := Translate(ld, t.set.Logger, true)
-	for i := range payloads {
-		ddtags := payloads[i].GetDdtags()
-		if ddtags != "" {
-			payloads[i].SetDdtags(ddtags + "," + t.otelTag)
-		} else {
-			payloads[i].SetDdtags(t.otelTag)
+func (t *Translator) MapLogs(ctx context.Context, ld plog.Logs, hostFromAttributesHandler attributes.HostFromAttributesHandler) []datadogV2.HTTPLogItem {
+	rsl := ld.ResourceLogs()
+	var payloads []datadogV2.HTTPLogItem
+	for i := 0; i < rsl.Len(); i++ {
+		rl := rsl.At(i)
+		sls := rl.ScopeLogs()
+		res := rl.Resource()
+		host, service := t.hostNameAndServiceNameFromResource(ctx, res, hostFromAttributesHandler)
+		for j := 0; j < sls.Len(); j++ {
+			sl := sls.At(j)
+			lsl := sl.LogRecords()
+			scope := sl.Scope()
+			// iterate over Logs
+			for k := 0; k < lsl.Len(); k++ {
+				log := lsl.At(k)
+				// HACK: Check for host and service in log record attributes
+				// This is not aligned with the specification and will be removed in the future.
+				if host == "" {
+					host = t.hostFromAttributes(ctx, log.Attributes())
+				}
+				if service == "" {
+					if s, ok := log.Attributes().Get(string(conventions.ServiceNameKey)); ok {
+						service = s.AsString()
+					}
+				}
+
+				payload := transform(log, host, service, res, scope, t.set.Logger)
+				ddtags := payload.GetDdtags()
+				if ddtags != "" {
+					payload.SetDdtags(ddtags + "," + t.otelTag)
+				} else {
+					payload.SetDdtags(t.otelTag)
+				}
+				payloads = append(payloads, payload)
+			}
 		}
 	}
 	return payloads

@@ -20,20 +20,14 @@ import (
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
 	orchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator/util"
 )
 
 const (
-	// ManifestCacheTTL is the time-to-live for manifest cache entries.
-	// Matches the orchestrator collector's default (3 minutes).
-	ManifestCacheTTL = 3 * time.Minute
-	// ManifestCachePurge is the interval for purging expired cache entries.
-	ManifestCachePurge = 30 * time.Second
-	// MaxManifestsPerPayload is the maximum number of manifests per payload chunk.
-	// Matches the orchestrator collector's default.
-	MaxManifestsPerPayload = 100
-	// MaxPayloadSizeBytes is the maximum total manifest content size (in bytes) per payload chunk.
-	// Matches the orchestrator collector's default (10 MB).
-	MaxPayloadSizeBytes = 10 * 1000 * 1000
+	manifestCacheTTL       = 3 * time.Minute
+	manifestCachePurge     = 30 * time.Second
+	maxManifestsPerPayload = 100
+	maxPayloadSizeBytes    = 10 * 1000 * 1000
 )
 
 var (
@@ -357,7 +351,7 @@ func CreateClusterManifest(clusterID string, nodes []*agentmodel.Manifest, logge
 // NewManifestCache creates a new manifest deduplication cache with the standard TTL and purge interval.
 // Callers are responsible for managing the cache lifetime (e.g., as a singleton).
 func NewManifestCache() *gocache.Cache {
-	return gocache.New(ManifestCacheTTL, ManifestCachePurge)
+	return gocache.New(manifestCacheTTL, manifestCachePurge)
 }
 
 // shouldSkipManifest reports whether the manifest should be suppressed because an identical
@@ -368,40 +362,75 @@ func shouldSkipManifest(manifest *agentmodel.Manifest, isWatchEvent bool, cache 
 	if cache == nil || manifest == nil || manifest.Uid == "" {
 		return false
 	}
+
+	// Watch events should always bypass the cache to ensure real-time updates
 	if isWatchEvent {
 		return false
 	}
-	if cached, hit := cache.Get(manifest.Uid); hit {
-		if cachedVersion, ok := cached.(string); ok && cachedVersion == manifest.ResourceVersion {
-			return true
-		}
+
+	cacheKey := manifest.Uid
+
+	// Check if we have this resource in cache
+	value, hit := cache.Get(cacheKey)
+
+	if !hit {
+		// Cache miss - this is a new resource, add it to cache
+		cache.Set(cacheKey, manifest.ResourceVersion, manifestCacheTTL)
+		return false
 	}
-	cache.Set(manifest.Uid, manifest.ResourceVersion, ManifestCacheTTL)
-	return false
+
+	// Cache hit - check if the resourceVersion changed
+	cachedVersion, ok := value.(string)
+	if !ok || cachedVersion != manifest.ResourceVersion {
+		// ResourceVersion changed - update cache and don't skip
+		cache.Set(cacheKey, manifest.ResourceVersion, manifestCacheTTL)
+		return false
+	}
+
+	// Cache hit with same resourceVersion - skip this manifest
+	return true
 }
 
 // chunkManifests splits manifests into chunks that each respect both a maximum count
 // and a maximum total content size (in bytes). This mirrors the limits applied by the
 // orchestrator collector to avoid intake endpoint rejections.
 func chunkManifests(manifests []*agentmodel.Manifest, maxCount, maxBytes int) [][]*agentmodel.Manifest {
-	var chunks [][]*agentmodel.Manifest
-	var current []*agentmodel.Manifest
-	currentBytes := 0
+	if len(manifests) == 0 {
+		return make([][]*agentmodel.Manifest, 0)
+	}
 
+	// Convert to interface{} for the chunking utility
+	interfaceManifests := make([]interface{}, 0, len(manifests))
 	for _, m := range manifests {
-		size := len(m.Content)
-		if len(current) > 0 && (len(current) >= maxCount || currentBytes+size > maxBytes) {
-			chunks = append(chunks, current)
-			current = nil
-			currentBytes = 0
+		interfaceManifests = append(interfaceManifests, m)
+	}
+
+	chunker := &util.ChunkAllocator[[]interface{}, interface{}]{
+		AppendToChunk: func(chunk *[]interface{}, payloads []interface{}) {
+			*chunk = append(*chunk, payloads...)
+		},
+	}
+
+	list := &util.PayloadList[interface{}]{
+		Items: interfaceManifests,
+		WeightAt: func(i int) int {
+			// Use the serialized manifest content size as the weight
+			return len(manifests[i].Content)
+		},
+	}
+
+	util.ChunkPayloadsBySizeAndWeight[[]interface{}, interface{}](list, chunker, maxCount, maxBytes)
+
+	// Convert back to typed chunks
+	chunks := *chunker.GetChunks()
+	result := make([][]*agentmodel.Manifest, len(chunks))
+	for i, chunk := range chunks {
+		result[i] = make([]*agentmodel.Manifest, len(chunk))
+		for j, item := range chunk {
+			result[i][j] = item.(*agentmodel.Manifest)
 		}
-		current = append(current, m)
-		currentBytes += size
 	}
-	if len(current) > 0 {
-		chunks = append(chunks, current)
-	}
-	return chunks
+	return result
 }
 
 // K8sTranslationResult holds the output of TranslateK8sObjects.
@@ -455,23 +484,42 @@ func TranslateK8sObjects(ld plog.Logs, cache *gocache.Cache, logger *zap.Logger)
 					nodes = append(nodes, manifest)
 				}
 				if shouldSkipManifest(manifest, isWatch, cache) {
+					logger.Debug("Skipping manifest (cache hit)",
+						zap.String("uid", manifest.Uid),
+						zap.String("kind", manifest.Kind),
+						zap.String("resourceVersion", manifest.ResourceVersion))
 					continue
 				}
+				logger.Debug("Sending manifest",
+					zap.String("uid", manifest.Uid),
+					zap.String("kind", manifest.Kind),
+					zap.String("resourceVersion", manifest.ResourceVersion))
 				manifests = append(manifests, manifest)
 			}
 		}
 	}
 
 	if len(nodes) > 0 && !isWatchEvent {
+		logger.Debug("Creating Cluster manifest after collecting nodes", zap.Int("total_nodes", len(nodes)))
 		if clusterManifest := CreateClusterManifest(clusterID, nodes, logger); clusterManifest != nil {
 			if !shouldSkipManifest(clusterManifest, false, cache) {
 				manifests = append(manifests, clusterManifest)
+				logger.Debug("Added Cluster manifest to payload",
+					zap.String("uid", clusterManifest.Uid),
+					zap.Int("total_nodes", len(nodes)))
 			}
 		}
 	}
 
+	chunks := chunkManifests(manifests, maxManifestsPerPayload, maxPayloadSizeBytes)
+	logger.Debug("Sending manifests in chunks",
+		zap.Int("total_manifests", len(manifests)),
+		zap.Int("chunk_count", len(chunks)),
+		zap.Int("max_manifests_per_chunk", maxManifestsPerPayload),
+		zap.Int("max_payload_size_bytes", maxPayloadSizeBytes))
+
 	return &K8sTranslationResult{
-		Chunks:      chunkManifests(manifests, MaxManifestsPerPayload, MaxPayloadSizeBytes),
+		Chunks:      chunks,
 		ClusterName: clusterName,
 		ClusterID:   clusterID,
 	}
