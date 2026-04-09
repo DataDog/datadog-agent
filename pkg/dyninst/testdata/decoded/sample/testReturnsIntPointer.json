@@ -58,7 +58,7 @@
           },
           "return": {
             "locals": {
-              "~r0": {
+              "@return": {
                 "type": "*int",
                 "address": "[addr]",
                 "value": "142"

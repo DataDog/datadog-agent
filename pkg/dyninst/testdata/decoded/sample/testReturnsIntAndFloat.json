@@ -58,13 +58,17 @@
           },
           "return": {
             "locals": {
-              "~r0": {
-                "type": "int",
-                "value": "142"
-              },
-              "~r1": {
-                "type": "float64",
-                "notCapturedReason": "unavailable"
+              "@return": {
+                "fields": {
+                  "r0": {
+                    "type": "int",
+                    "value": "142"
+                  },
+                  "r1": {
+                    "type": "float64",
+                    "notCapturedReason": "unavailable"
+                  }
+                }
               }
             }
           }

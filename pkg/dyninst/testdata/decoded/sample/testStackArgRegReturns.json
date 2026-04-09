@@ -80,17 +80,21 @@
           },
           "return": {
             "locals": {
-              "~r0": {
-                "type": "int",
-                "value": "45"
-              },
-              "~r1": {
-                "type": "int",
-                "value": "42"
-              },
-              "~r2": {
-                "type": "int",
-                "value": "43"
+              "@return": {
+                "fields": {
+                  "r0": {
+                    "type": "int",
+                    "value": "45"
+                  },
+                  "r1": {
+                    "type": "int",
+                    "value": "42"
+                  },
+                  "r2": {
+                    "type": "int",
+                    "value": "43"
+                  }
+                }
               }
             }
           }

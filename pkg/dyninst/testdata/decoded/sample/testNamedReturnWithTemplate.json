@@ -58,7 +58,7 @@
           },
           "return": {
             "locals": {
-              "result": {
+              "@return": {
                 "type": "int",
                 "value": "80"
               }

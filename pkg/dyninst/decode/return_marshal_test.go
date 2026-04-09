@@ -111,8 +111,10 @@ func (b *jsonBuf) Write(p []byte) (int, error) {
 }
 
 func TestReturnMarshalSingleReturn(t *testing.T) {
+	// IR generation renames single returns to "@return", so the expression
+	// name arriving at the marshaling layer is already "@return".
 	ce := makeCaptureEvent(t,
-		[]string{"~r0"},
+		[]string{"@return"},
 		[]int64{142},
 		true, // isReturn
 	)
@@ -121,7 +123,6 @@ func TestReturnMarshalSingleReturn(t *testing.T) {
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(raw, &got))
 
-	// Single return: all locals should be collapsed into a single "@return" key.
 	locals, ok := got["locals"].(map[string]any)
 	require.True(t, ok, "expected 'locals' object, got: %s", raw)
 
@@ -130,15 +131,13 @@ func TestReturnMarshalSingleReturn(t *testing.T) {
 
 	require.Equal(t, "int", ret["type"])
 	require.Equal(t, "142", ret["value"])
-
-	// Should NOT have the raw DWARF name.
-	_, hasRaw := locals["~r0"]
-	require.False(t, hasRaw, "should not have raw DWARF name '~r0' in output")
 }
 
 func TestReturnMarshalSingleNamedReturn(t *testing.T) {
+	// Even named returns get renamed to "@return" by IR generation for
+	// single-return functions.
 	ce := makeCaptureEvent(t,
-		[]string{"result"},
+		[]string{"@return"},
 		[]int64{80},
 		true,
 	)
@@ -149,12 +148,9 @@ func TestReturnMarshalSingleNamedReturn(t *testing.T) {
 
 	locals := got["locals"].(map[string]any)
 	ret, ok := locals["@return"].(map[string]any)
-	require.True(t, ok, "single named return should also use '@return', got: %s", raw)
+	require.True(t, ok, "single named return should use '@return', got: %s", raw)
 	require.Equal(t, "int", ret["type"])
 	require.Equal(t, "80", ret["value"])
-
-	_, hasRaw := locals["result"]
-	require.False(t, hasRaw, "should not have original name 'result' in output")
 }
 
 func TestReturnMarshalMultipleReturns(t *testing.T) {

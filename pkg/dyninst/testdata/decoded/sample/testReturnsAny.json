@@ -58,7 +58,7 @@
           },
           "return": {
             "locals": {
-              "~r0": {
+              "@return": {
                 "type": "interface {}",
                 "isNull": true
               }
@@ -137,7 +137,7 @@
           },
           "return": {
             "locals": {
-              "~r0": {
+              "@return": {
                 "type": "interface {}",
                 "fields": {
                   "data": {
@@ -222,7 +222,7 @@
           },
           "return": {
             "locals": {
-              "~r0": {
+              "@return": {
                 "type": "interface {}",
                 "fields": {
                   "data": {

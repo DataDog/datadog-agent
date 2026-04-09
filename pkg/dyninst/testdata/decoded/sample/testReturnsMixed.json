@@ -50,25 +50,29 @@
         "captures": {
           "return": {
             "locals": {
-              "~r0": {
-                "type": "int",
-                "value": "1"
-              },
-              "~r1": {
-                "type": "float64",
-                "notCapturedReason": "unavailable"
-              },
-              "~r2": {
-                "type": "int",
-                "value": "3"
-              },
-              "~r3": {
-                "type": "float64",
-                "notCapturedReason": "unavailable"
-              },
-              "~r4": {
-                "type": "string",
-                "value": "test"
+              "@return": {
+                "fields": {
+                  "r0": {
+                    "type": "int",
+                    "value": "1"
+                  },
+                  "r1": {
+                    "type": "float64",
+                    "notCapturedReason": "unavailable"
+                  },
+                  "r2": {
+                    "type": "int",
+                    "value": "3"
+                  },
+                  "r3": {
+                    "type": "float64",
+                    "notCapturedReason": "unavailable"
+                  },
+                  "r4": {
+                    "type": "string",
+                    "value": "test"
+                  }
+                }
               }
             }
           }

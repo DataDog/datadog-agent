@@ -50,7 +50,7 @@
         "captures": {
           "return": {
             "locals": {
-              "~r0": {
+              "@return": {
                 "type": "main.structWithArray",
                 "fields": {
                   "arr": {

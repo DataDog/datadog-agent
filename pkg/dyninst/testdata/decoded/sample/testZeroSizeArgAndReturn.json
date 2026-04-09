@@ -63,14 +63,18 @@
           },
           "return": {
             "locals": {
-              "~r0": {
-                "type": "int",
-                "value": "982"
-              },
-              "~r1": {
-                "type": "[0]int",
-                "size": "0",
-                "elements": []
+              "@return": {
+                "fields": {
+                  "r0": {
+                    "type": "int",
+                    "value": "982"
+                  },
+                  "r1": {
+                    "type": "[0]int",
+                    "size": "0",
+                    "elements": []
+                  }
+                }
               }
             }
           }

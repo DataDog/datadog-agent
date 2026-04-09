@@ -6733,7 +6733,7 @@ Types:
       ByteSize: 9
       ExprStatusArraySize: 1
       Expressions:
-        - Name: ~r0
+        - Name: '@return'
           Offset: 1
           Kind: local
           Expression:
@@ -9163,7 +9163,7 @@ Types:
       ByteSize: 9
       ExprStatusArraySize: 1
       Expressions:
-        - Name: ~r0
+        - Name: '@return'
           Offset: 1
           Kind: local
           Expression:

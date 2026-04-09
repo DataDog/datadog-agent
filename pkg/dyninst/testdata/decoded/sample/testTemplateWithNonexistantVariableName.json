@@ -58,13 +58,17 @@
           },
           "return": {
             "locals": {
-              "result": {
-                "type": "int",
-                "value": "82"
-              },
-              "result2": {
-                "type": "int",
-                "value": "123"
+              "@return": {
+                "fields": {
+                  "result": {
+                    "type": "int",
+                    "value": "82"
+                  },
+                  "result2": {
+                    "type": "int",
+                    "value": "123"
+                  }
+                }
               }
             }
           }
