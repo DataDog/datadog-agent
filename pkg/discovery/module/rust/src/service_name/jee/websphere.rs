@@ -3,46 +3,89 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+use super::xml_parser::{self, Action, XmlHandler, XmlParser};
 use super::{Deployment, DeploymentType, Error};
 use crate::procfs::Cmdline;
 use crate::service_name::context::DetectionContext;
-use serde::Deserialize;
 use std::io::BufReader;
 use std::path::Path;
-
-/// WebSphere app deployment descriptor
-#[derive(Debug, Deserialize)]
-struct AppDeployment {
-    #[serde(rename = "deployedObject", default)]
-    deployed_object: DeployedObject,
-    #[serde(rename = "deploymentTargets", default)]
-    deployment_targets: Vec<DeploymentTarget>,
-}
-
-#[derive(Debug, Deserialize, Default)]
-struct DeployedObject {
-    #[serde(rename = "targetMappings", default)]
-    target_mappings: Vec<TargetMapping>,
-}
+use xml::attribute::OwnedAttribute;
 
 /// Target mapping for deployments
-#[derive(Debug, Deserialize)]
+#[derive(Debug)]
 struct TargetMapping {
-    #[serde(rename = "@enable", default)]
     enable: bool,
-    #[serde(rename = "@target")]
     server_target: String,
 }
 
 /// Deployment target information
-#[derive(Debug, Deserialize)]
+#[derive(Debug)]
 struct DeploymentTarget {
-    #[serde(rename = "@id")]
     id: String,
-    #[serde(rename = "@name")]
     server_name: String,
-    #[serde(rename = "@nodeName")]
     node_name: String,
+}
+
+enum DeploymentState {
+    Top,
+    InDeployment,
+    InDeployedObject,
+}
+
+struct DeploymentHandler {
+    target_mappings: Vec<TargetMapping>,
+    deployment_targets: Vec<DeploymentTarget>,
+}
+
+impl XmlHandler for DeploymentHandler {
+    type State = DeploymentState;
+
+    fn start_element(
+        &mut self,
+        state: Self::State,
+        name: &str,
+        attributes: &[OwnedAttribute],
+    ) -> Action<Self::State> {
+        match (state, name) {
+            (DeploymentState::Top, "Deployment") => Action::Descend(DeploymentState::InDeployment),
+            (DeploymentState::InDeployment, "deployedObject") => {
+                Action::Descend(DeploymentState::InDeployedObject)
+            }
+            (DeploymentState::InDeployedObject, "targetMappings") => {
+                let enable = xml_parser::get_attr(attributes, "enable")
+                    .map(|v| v == "true" || v == "1")
+                    .unwrap_or(false);
+                let target = xml_parser::get_attr(attributes, "target").unwrap_or_default();
+                self.target_mappings.push(TargetMapping {
+                    enable,
+                    server_target: target,
+                });
+                Action::Same(DeploymentState::InDeployedObject)
+            }
+            (DeploymentState::InDeployment, "deploymentTargets") => {
+                let id = xml_parser::get_attr(attributes, "id").unwrap_or_default();
+                let name_val = xml_parser::get_attr(attributes, "name").unwrap_or_default();
+                let node = xml_parser::get_attr(attributes, "nodeName").unwrap_or_default();
+                self.deployment_targets.push(DeploymentTarget {
+                    id,
+                    server_name: name_val,
+                    node_name: node,
+                });
+                Action::Same(DeploymentState::InDeployment)
+            }
+            (s, _) => Action::Same(s),
+        }
+    }
+
+    fn end_element(&mut self, state: Self::State, name: &str) -> Action<Self::State> {
+        match (state, name) {
+            (DeploymentState::InDeployedObject, "deployedObject") => {
+                Action::Ascend(DeploymentState::InDeployment)
+            }
+            (DeploymentState::InDeployment, "Deployment") => Action::Break,
+            (s, _) => Action::Same(s),
+        }
+    }
 }
 
 fn is_application_deployed(
@@ -53,25 +96,29 @@ fn is_application_deployed(
 ) -> Result<bool, Error> {
     let file = ctx.fs.open(descriptor_path)?;
     let reader = BufReader::new(file.verify(None)?);
-    let app_deployment: AppDeployment = quick_xml::de::from_reader(reader)
-        .map_err(|e| Error::XmlParse(format!("Failed to parse deployment.xml: {}", e)))?;
+    let mut parser = XmlParser::new(reader);
+    let mut handler = DeploymentHandler {
+        target_mappings: Vec::new(),
+        deployment_targets: Vec::new(),
+    };
+    parser.run(&mut handler, DeploymentState::Top)?;
 
     // Find matching target
-    let matching_target = app_deployment
+    let matching_target = handler
         .deployment_targets
         .iter()
         .find(|t| t.node_name == node_name && t.server_name == server_name)
         .map(|t| &t.id)
         .ok_or_else(|| {
             Error::MissingConfig(format!(
-                "No deployment target found for node '{}' and server '{}'",
+                "No deployment target found for \
+                 node '{}' and server '{}'",
                 node_name, server_name
             ))
         })?;
 
     // Check if any enabled mapping references this target
-    let is_deployed = app_deployment
-        .deployed_object
+    let is_deployed = handler
         .target_mappings
         .iter()
         .any(|m| m.enable && &m.server_target == matching_target);
@@ -406,5 +453,48 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// Worst-case memory test: many target mappings and deployment targets
+    /// with large attribute values, sized to fit within the 1 MiB file size cap.
+    /// Measured peak heap with massif: ~2.4 MiB.
+    #[test]
+    fn test_worst_case_memory() {
+        let n = 1_150;
+        let pad: String = "x".repeat(200);
+
+        let mut xml =
+            String::from("<Deployment xmlns:xmi=\"http://www.omg.org/XMI\"><deployedObject>");
+        for i in 0..n {
+            xml.push_str(&format!(
+                "<targetMappings enable=\"true\" target=\"ST_{i}{pad}\"/>"
+            ));
+        }
+        xml.push_str("</deployedObject>");
+        for i in 0..n {
+            xml.push_str(&format!(
+                "<deploymentTargets xmi:id=\"ST_{i}{pad}\" \
+                 name=\"srv{pad}\" nodeName=\"node{pad}\"/>"
+            ));
+        }
+        xml.push_str("</Deployment>");
+
+        let tmp_dir = TempDir::new().unwrap();
+        fs::write(tmp_dir.path().join("deployment.xml"), &xml).unwrap();
+
+        let fs_root = SubDirFs::new(tmp_dir.path()).unwrap();
+        let envs = HashMap::new();
+        let ctx = DetectionContext::new(1, envs, &fs_root);
+
+        assert!(xml.len() <= 1024 * 1024, "XML exceeds 1 MiB cap");
+
+        // Function accumulates all data then searches for a match.
+        // No match is fine — we're measuring peak memory during parsing.
+        let _ = is_application_deployed(
+            &ctx,
+            Path::new("deployment.xml"),
+            &format!("node{pad}"),
+            &format!("srv{pad}"),
+        );
     }
 }

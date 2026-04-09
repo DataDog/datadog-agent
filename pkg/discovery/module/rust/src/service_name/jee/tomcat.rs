@@ -3,58 +3,117 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+use super::xml_parser::{self, Action, XmlHandler, XmlParser};
 use super::{Deployment, DeploymentType, Error, abs};
 use crate::service_name::context::DetectionContext;
-use serde::Deserialize;
 use std::collections::HashSet;
 use std::ffi::OsStr;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
+use xml::attribute::OwnedAttribute;
 
 const SERVER_XML_PATH: &str = "conf/server.xml";
 const ROOT_WEB_APP: &str = "ROOT";
 
-/// Tomcat server.xml structure
-#[derive(Debug, Deserialize)]
+/// Parsed Tomcat server.xml: only the engines (with their hosts) matter.
+#[derive(Debug)]
 struct ServerXML {
-    #[serde(rename = "Service", default)]
-    services: Vec<Service>,
+    engines: Vec<Engine>,
 }
 
-#[derive(Debug, Deserialize)]
-struct Service {
-    #[serde(rename = "Engine", default)]
-    engine: Option<Engine>,
-}
-
-#[derive(Debug, Deserialize)]
+#[derive(Debug)]
 struct Engine {
-    #[serde(rename = "Host", default)]
     hosts: Vec<Host>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug)]
 struct Host {
-    #[serde(rename = "@appBase")]
     app_base: String,
-    #[serde(rename = "Context", default)]
     contexts: Vec<TomcatContext>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug)]
 struct TomcatContext {
-    #[serde(rename = "@docBase", default)]
     doc_base: String,
-    #[serde(rename = "@path", default)]
     path: String,
+}
+
+enum ServerXmlState {
+    Top,
+    InServer,
+    InService,
+    InEngine { hosts: Vec<Host> },
+    InHost { hosts: Vec<Host>, current: Host },
+}
+
+struct ServerXmlHandler {
+    result: ServerXML,
+}
+
+impl XmlHandler for ServerXmlHandler {
+    type State = ServerXmlState;
+
+    fn start_element(
+        &mut self,
+        state: Self::State,
+        name: &str,
+        attributes: &[OwnedAttribute],
+    ) -> Action<Self::State> {
+        match (state, name) {
+            (ServerXmlState::Top, "Server") => Action::Descend(ServerXmlState::InServer),
+            (ServerXmlState::InServer, "Service") => Action::Descend(ServerXmlState::InService),
+            (ServerXmlState::InService, "Engine") => {
+                Action::Descend(ServerXmlState::InEngine { hosts: Vec::new() })
+            }
+            (ServerXmlState::InEngine { hosts }, "Host") => {
+                let app_base = xml_parser::get_attr(attributes, "appBase").unwrap_or_default();
+                Action::Descend(ServerXmlState::InHost {
+                    hosts,
+                    current: Host {
+                        app_base,
+                        contexts: Vec::new(),
+                    },
+                })
+            }
+            (ServerXmlState::InHost { hosts, mut current }, "Context") => {
+                let doc_base = xml_parser::get_attr(attributes, "docBase").unwrap_or_default();
+                let path = xml_parser::get_attr(attributes, "path").unwrap_or_default();
+                current.contexts.push(TomcatContext { doc_base, path });
+                Action::Same(ServerXmlState::InHost { hosts, current })
+            }
+            (s, _) => Action::Same(s),
+        }
+    }
+
+    fn end_element(&mut self, state: Self::State, name: &str) -> Action<Self::State> {
+        match (state, name) {
+            (ServerXmlState::InHost { mut hosts, current }, "Host") => {
+                hosts.push(current);
+                Action::Ascend(ServerXmlState::InEngine { hosts })
+            }
+            (ServerXmlState::InEngine { hosts }, "Engine") => {
+                self.result.engines.push(Engine { hosts });
+                Action::Ascend(ServerXmlState::InService)
+            }
+            (ServerXmlState::InService, "Service") => Action::Ascend(ServerXmlState::InServer),
+            (ServerXmlState::InServer, "Server") => Action::Break,
+            (s, _) => Action::Same(s),
+        }
+    }
 }
 
 fn parse_server_xml(ctx: &DetectionContext, domain_home: &Path) -> Result<ServerXML, Error> {
     let xml_path = domain_home.join(SERVER_XML_PATH);
     let file = ctx.fs.open(&xml_path)?;
     let reader = BufReader::new(file.verify(None)?);
-    quick_xml::de::from_reader(reader)
-        .map_err(|e| Error::XmlParse(format!("Failed to parse server.xml: {}", e)))
+    let mut parser = XmlParser::new(reader);
+    let mut handler = ServerXmlHandler {
+        result: ServerXML {
+            engines: Vec::new(),
+        },
+    };
+    parser.run(&mut handler, ServerXmlState::Top)?;
+    Ok(handler.result)
 }
 
 fn scan_dir_for_deployments(
@@ -88,11 +147,7 @@ pub fn find_deployed_apps(
     let mut deployments = Vec::new();
     let mut uniques: HashSet<(String, PathBuf)> = HashSet::new();
 
-    for service in server_xml.services {
-        let Some(engine) = service.engine else {
-            continue;
-        };
-
+    for engine in server_xml.engines {
         for host in engine.hosts {
             let app_base = abs(&host.app_base, domain_home);
 
@@ -439,6 +494,47 @@ mod tests {
                     check_error(&err);
                 }
             }
+        }
+    }
+
+    /// Worst-case memory test: many hosts × many contexts with large
+    /// attributes, sized to fit within the 1 MiB file size cap.
+    /// Measured peak heap with massif: ~2.1 MiB.
+    #[test]
+    fn test_worst_case_memory() {
+        let n_hosts = 10;
+        let n_contexts = 235;
+        let pad: String = "x".repeat(200);
+
+        let tmp_dir = TempDir::new().unwrap();
+        let base = tmp_dir.path();
+
+        let mut xml = String::from("<Server><Service name=\"s\"><Engine name=\"e\">");
+        for h in 0..n_hosts {
+            xml.push_str(&format!("<Host name=\"h{h}\" appBase=\"webapps{h}\">"));
+            for c in 0..n_contexts {
+                xml.push_str(&format!(
+                    "<Context docBase=\"app{c}{pad}\" path=\"/ctx{c}{pad}\"/>"
+                ));
+            }
+            xml.push_str("</Host>");
+        }
+        xml.push_str("</Engine></Service></Server>");
+        assert!(xml.len() <= 1024 * 1024, "XML exceeds 1 MiB cap");
+
+        let conf_dir = base.join("conf");
+        fs::create_dir(&conf_dir).unwrap();
+        fs::write(conf_dir.join("server.xml"), &xml).unwrap();
+
+        let fs_root = SubDirFs::new(base).unwrap();
+        let envs = HashMap::new();
+        let ctx = DetectionContext::new(1, envs, &fs_root);
+
+        let result = parse_server_xml(&ctx, Path::new(".")).unwrap();
+        assert_eq!(result.engines.len(), 1);
+        assert_eq!(result.engines[0].hosts.len(), n_hosts);
+        for host in &result.engines[0].hosts {
+            assert_eq!(host.contexts.len(), n_contexts);
         }
     }
 }
