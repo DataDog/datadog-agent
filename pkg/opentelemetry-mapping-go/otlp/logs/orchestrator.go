@@ -28,6 +28,12 @@ const (
 	ManifestCacheTTL = 3 * time.Minute
 	// ManifestCachePurge is the interval for purging expired cache entries.
 	ManifestCachePurge = 30 * time.Second
+	// MaxManifestsPerPayload is the maximum number of manifests per payload chunk.
+	// Matches the orchestrator collector's default.
+	MaxManifestsPerPayload = 100
+	// MaxPayloadSizeBytes is the maximum total manifest content size (in bytes) per payload chunk.
+	// Matches the orchestrator collector's default (10 MB).
+	MaxPayloadSizeBytes = 10 * 1000 * 1000
 )
 
 var (
@@ -354,12 +360,12 @@ func NewManifestCache() *gocache.Cache {
 	return gocache.New(ManifestCacheTTL, ManifestCachePurge)
 }
 
-// ShouldSkipManifest reports whether the manifest should be suppressed because an identical
+// shouldSkipManifest reports whether the manifest should be suppressed because an identical
 // (same UID + resourceVersion) manifest was already sent within the cache TTL.
 // Watch events always bypass the cache so real-time updates are never dropped.
-// cache must not be nil.
-func ShouldSkipManifest(manifest *agentmodel.Manifest, isWatchEvent bool, cache *gocache.Cache) bool {
-	if manifest == nil || manifest.Uid == "" {
+// If cache is nil, deduplication is skipped.
+func shouldSkipManifest(manifest *agentmodel.Manifest, isWatchEvent bool, cache *gocache.Cache) bool {
+	if cache == nil || manifest == nil || manifest.Uid == "" {
 		return false
 	}
 	if isWatchEvent {
@@ -374,10 +380,10 @@ func ShouldSkipManifest(manifest *agentmodel.Manifest, isWatchEvent bool, cache 
 	return false
 }
 
-// ChunkManifests splits manifests into chunks that each respect both a maximum count
+// chunkManifests splits manifests into chunks that each respect both a maximum count
 // and a maximum total content size (in bytes). This mirrors the limits applied by the
 // orchestrator collector to avoid intake endpoint rejections.
-func ChunkManifests(manifests []*agentmodel.Manifest, maxCount, maxBytes int) [][]*agentmodel.Manifest {
+func chunkManifests(manifests []*agentmodel.Manifest, maxCount, maxBytes int) [][]*agentmodel.Manifest {
 	var chunks [][]*agentmodel.Manifest
 	var current []*agentmodel.Manifest
 	currentBytes := 0
@@ -396,6 +402,79 @@ func ChunkManifests(manifests []*agentmodel.Manifest, maxCount, maxBytes int) []
 		chunks = append(chunks, current)
 	}
 	return chunks
+}
+
+// K8sTranslationResult holds the output of TranslateK8sObjects.
+type K8sTranslationResult struct {
+	// Chunks holds manifests split into payload-sized groups ready to send.
+	Chunks [][]*agentmodel.Manifest
+	// ClusterName extracted from k8s.cluster.name resource attribute.
+	ClusterName string
+	// ClusterID extracted from k8s.cluster.uid resource attribute.
+	ClusterID string
+}
+
+// TranslateK8sObjects converts k8sobjectsreceiver logs into chunked orchestrator manifest payloads.
+// It handles deduplication via cache (pass nil to disable), cluster manifest creation, and chunking.
+// Individual record errors are logged and skipped rather than aborting the batch.
+func TranslateK8sObjects(ld plog.Logs, cache *gocache.Cache, logger *zap.Logger) *K8sTranslationResult {
+	var manifests []*agentmodel.Manifest
+	var nodes []*agentmodel.Manifest
+	var isWatchEvent bool
+	var clusterID, clusterName string
+
+	for i := 0; i < ld.ResourceLogs().Len(); i++ {
+		rl := ld.ResourceLogs().At(i)
+		resource := rl.Resource()
+
+		cid, ok := resource.Attributes().Get("k8s.cluster.uid")
+		if !ok {
+			logger.Error("missing k8s.cluster.uid, skipping resource")
+			continue
+		}
+		clusterID = cid.AsString()
+
+		cname, ok := resource.Attributes().Get("k8s.cluster.name")
+		if !ok {
+			logger.Error("missing k8s.cluster.name, skipping resource")
+			continue
+		}
+		clusterName = cname.AsString()
+
+		for j := 0; j < rl.ScopeLogs().Len(); j++ {
+			sl := rl.ScopeLogs().At(j)
+			for k := 0; k < sl.LogRecords().Len(); k++ {
+				lr := sl.LogRecords().At(k)
+				manifest, isWatch, err := ToManifest(lr)
+				if err != nil {
+					logger.Error("failed to convert to manifest", zap.Error(err))
+					continue
+				}
+				isWatchEvent = isWatch
+				if manifest.Kind == "Node" {
+					nodes = append(nodes, manifest)
+				}
+				if shouldSkipManifest(manifest, isWatch, cache) {
+					continue
+				}
+				manifests = append(manifests, manifest)
+			}
+		}
+	}
+
+	if len(nodes) > 0 && !isWatchEvent {
+		if clusterManifest := CreateClusterManifest(clusterID, nodes, logger); clusterManifest != nil {
+			if !shouldSkipManifest(clusterManifest, false, cache) {
+				manifests = append(manifests, clusterManifest)
+			}
+		}
+	}
+
+	return &K8sTranslationResult{
+		Chunks:      chunkManifests(manifests, MaxManifestsPerPayload, MaxPayloadSizeBytes),
+		ClusterName: clusterName,
+		ClusterID:   clusterID,
+	}
 }
 
 func getManifestType(kind string) int {
