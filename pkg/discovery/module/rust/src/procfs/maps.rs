@@ -120,9 +120,6 @@ pub fn read_maps_info_from_reader<R: BufRead>(reader: R) -> MapsInfo {
 ///
 /// Matches paths like:
 ///   /opt/datadog-packages/datadog-apm-inject/<version>/inject/launcher.preload.so
-///
-/// Operates on raw bytes — no UTF-8 conversion needed since the matched path
-/// is pure ASCII.
 fn is_injector_line(line: &[u8]) -> bool {
     if !line.ends_with(INJECTOR_SUFFIX) {
         return false;
