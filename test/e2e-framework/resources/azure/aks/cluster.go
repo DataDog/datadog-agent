@@ -64,11 +64,22 @@ func NewCluster(e azure.Environment, name string, kataNodePoolEnabled bool, opts
 		return nil, pulumi.StringOutput{}, err
 	}
 
+	managedKubeletIdentityAssignment, err := authorization.NewRoleAssignment(e.Ctx(), "role-assignment-kubelet", &authorization.RoleAssignmentArgs{
+		PrincipalId:      identity.PrincipalId,
+		PrincipalType:    pulumi.String("ServicePrincipal"),
+		Scope:            pulumi.Sprintf("/subscriptions/%s", e.DefaultSubscriptionID()),
+		RoleDefinitionId: pulumi.Sprintf("/subscriptions/%s/providers/Microsoft.Authorization/roleDefinitions/f1a07417-d97a-45cb-824c-7a7467783830", e.DefaultSubscriptionID()), // Managed Identity Operator built-in role
+	}, opts...)
+	if err != nil {
+		return nil, pulumi.StringOutput{}, err
+	}
+
 	// get kubelet pre-created identity
-	kubeletIdentityResourceID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.ManagedIdentity/userAssignedIdentities/aks-kubelet-identity-acr-pull", e.DefaultSubscriptionID(), e.DefaultResourceGroup())
+	resourceName := "aks-kubelet-identity-acr-pull"
+	resourceID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.ManagedIdentity/userAssignedIdentities/%s", e.DefaultSubscriptionID(), e.DefaultResourceGroup(), resourceName)
 	kubeletIdentity, err := managedidentity.LookupUserAssignedIdentity(e.Ctx(), &managedidentity.LookupUserAssignedIdentityArgs{
 		ResourceGroupName: e.DefaultResourceGroup(),
-		ResourceName:      kubeletIdentityResourceID,
+		ResourceName:      resourceName,
 	}, e.WithProvider(config.ProviderAzure))
 	if err != nil {
 		return nil, pulumi.StringOutput{}, err
@@ -108,13 +119,13 @@ func NewCluster(e azure.Environment, name string, kataNodePoolEnabled bool, opts
 		},
 		IdentityProfile: &containerservice.UserAssignedIdentityMap{
 			"kubeletidentity": containerservice.UserAssignedIdentityArgs{
-				ResourceId: pulumi.String(kubeletIdentityResourceID),
+				ResourceId: pulumi.String(resourceID),
 				ClientId:   pulumi.String(kubeletIdentity.ClientId),
 				ObjectId:   pulumi.String(kubeletIdentity.PrincipalId),
 			},
 		},
 		Tags: e.ResourcesTags(),
-	}, append(opts, pulumi.DependsOn([]pulumi.Resource{nwcontributorRoleAssignment}))...)
+	}, append(opts, pulumi.DependsOn([]pulumi.Resource{nwcontributorRoleAssignment, managedKubeletIdentityAssignment}))...)
 	if err != nil {
 		return nil, pulumi.StringOutput{}, err
 	}
