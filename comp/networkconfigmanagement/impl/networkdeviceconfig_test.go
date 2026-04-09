@@ -5,14 +5,16 @@
 
 //go:build test
 
-package networkdeviceconfigimpl
+package networkconfigmanagementimpl
 
 import (
 	"fmt"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 type fakeFactory struct {
