@@ -122,7 +122,13 @@ impl DaemonHandle {
             use windows_sys::Win32::System::Console::{CTRL_BREAK_EVENT, GenerateConsoleCtrlEvent};
             let pid = self.child.id();
             let ok = unsafe { GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, pid) };
-            assert!(ok != 0, "GenerateConsoleCtrlEvent failed for pid {pid}");
+            if ok == 0 {
+                eprintln!(
+                    "GenerateConsoleCtrlEvent(CTRL_BREAK, {pid}) failed: {}, falling back to kill",
+                    std::io::Error::last_os_error()
+                );
+                let _ = self.child.kill();
+            }
         }
         self.wait_with_timeout(DEFAULT_TIMEOUT)
     }
