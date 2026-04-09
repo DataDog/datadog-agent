@@ -32,7 +32,7 @@ require (
 	go.opentelemetry.io/collector/component v1.55.0 // indirect
 	go.opentelemetry.io/collector/consumer v1.55.0
 	go.opentelemetry.io/collector/pdata v1.55.0
-	go.opentelemetry.io/collector/processor/processortest v0.147.0
+	go.opentelemetry.io/collector/processor/processortest v0.149.0
 	go.opentelemetry.io/otel v1.42.0
 	go.opentelemetry.io/otel/metric v1.42.0
 	go.uber.org/atomic v1.11.0
@@ -58,7 +58,7 @@ require (
 	go.opentelemetry.io/collector/component/componenttest v0.149.0
 )
 
-require go.opentelemetry.io/collector/processor v1.53.0 // indirect
+require go.opentelemetry.io/collector/processor v1.55.0 // indirect
 
 require go.opentelemetry.io/collector/internal/componentalias v0.149.0 // indirect
 
@@ -66,8 +66,8 @@ require (
 	github.com/hashicorp/go-version v1.8.0 // indirect
 	go.opentelemetry.io/collector/consumer/xconsumer v0.149.0 // indirect
 	go.opentelemetry.io/collector/featuregate v1.55.0 // indirect
-	go.opentelemetry.io/collector/processor/processorhelper v0.147.0 // indirect
-	go.opentelemetry.io/collector/processor/xprocessor v0.147.0 // indirect
+	go.opentelemetry.io/collector/processor/processorhelper v0.149.0 // indirect
+	go.opentelemetry.io/collector/processor/xprocessor v0.149.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
@@ -120,22 +120,17 @@ require (
 	github.com/vmihailenco/tagparser v0.1.2 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
-	go.opentelemetry.io/collector/component/componentstatus v0.147.0 // indirect
+	go.opentelemetry.io/collector/component/componentstatus v0.149.0 // indirect
 	go.opentelemetry.io/collector/confmap v1.55.0 // indirect
 	go.opentelemetry.io/collector/confmap/xconfmap v0.149.0 // indirect
-	go.opentelemetry.io/collector/connector/connectortest v0.149.0 // indirect
 	go.opentelemetry.io/collector/consumer/consumertest v0.149.0 // indirect
-	go.opentelemetry.io/collector/exporter/exportertest v0.149.0 // indirect
-	go.opentelemetry.io/collector/extension/extensiontest v0.149.0 // indirect
+	go.opentelemetry.io/collector/otelcol/otelcoltest v0.149.0 // indirect
 	go.opentelemetry.io/collector/pdata/pprofile v0.149.0 // indirect
 	go.opentelemetry.io/collector/pdata/testdata v0.149.0 // indirect
 	go.opentelemetry.io/collector/pipeline v1.55.0 // indirect
-	go.opentelemetry.io/collector/receiver/receivertest v0.149.0 // indirect
-	go.opentelemetry.io/otel/exporters/prometheus v0.61.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.42.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.42.0 // indirect
 	go.opentelemetry.io/otel/trace v1.42.0 // indirect
-	go.opentelemetry.io/proto/otlp v1.10.0 // indirect
 	go.uber.org/dig v1.19.0 // indirect
 	go.uber.org/fx v1.24.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
@@ -147,7 +142,7 @@ require (
 	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/text v0.35.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260209200024-4cfbd4190f57 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260226221140-a57be14db171 // indirect
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually

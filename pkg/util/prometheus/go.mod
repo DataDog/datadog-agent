@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	github.com/prometheus/common v0.67.5
-	github.com/prometheus/prometheus v0.309.2-0.20260113170727-c7bc56cf6c8f
+	github.com/prometheus/prometheus v0.310.0
 	github.com/stretchr/testify v1.11.1
 )
 
@@ -30,7 +30,7 @@ require (
 	golang.org/x/net v0.52.0 // indirect
 	golang.org/x/oauth2 v0.35.0 // indirect
 	golang.org/x/text v0.35.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260209200024-4cfbd4190f57 // indirect
+	google.golang.org/api v0.270.0 // indirect
 	google.golang.org/grpc v1.79.3 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	k8s.io/client-go v0.35.3 // indirect
