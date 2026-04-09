@@ -118,6 +118,7 @@ func run(secretComp secrets.Component, delegatedAuthComp delegatedauth.Component
 		}
 
 		metricAgent.WaitForPendingSamples() // wait for worker to consume them
+		tracingCtx.TraceAgent.FlushStats()  // force-flush concentrator stats before lastFlush sends them
 	}()
 
 	return err

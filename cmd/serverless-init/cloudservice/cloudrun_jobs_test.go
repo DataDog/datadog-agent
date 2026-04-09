@@ -47,6 +47,10 @@ func (m *mockTraceProcessor) Stop() {
 	// no-op for tests
 }
 
+func (m *mockTraceProcessor) FlushStats() {
+	// no-op for tests
+}
+
 func skipOnWindows(t *testing.T) {
 	t.Helper()
 	if runtime.GOOS == "windows" {
@@ -226,6 +230,8 @@ func TestCloudRunJobsSpanCreation(t *testing.T) {
 		assert.Equal(t, uint64(0), jobs.jobSpan.ParentID)
 		assert.NotNil(t, jobs.jobSpan.Meta)
 		assert.Equal(t, "cloudrunjobs", jobs.jobSpan.Meta["origin"])
+		// Verify _dd.measured=1 is set for stats computation
+		assert.Equal(t, float64(1), jobs.jobSpan.Metrics["_dd.measured"])
 	}
 }
 

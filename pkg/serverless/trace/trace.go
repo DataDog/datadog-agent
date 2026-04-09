@@ -40,6 +40,7 @@ import (
 type ServerlessTraceAgent interface {
 	Stop()
 	Flush()
+	FlushStats()
 	Process(p *api.Payload)
 	SetTags(map[string]string)
 	SetTargetTPS(float64)
@@ -176,6 +177,13 @@ func (t *serverlessTraceAgent) Flush() {
 	t.ta.FlushSync()
 }
 
+// FlushStats force-flushes all concentrator stats buckets to the stats writer.
+// This must be called before Flush/FlushSync to ensure stats are written out
+// during shutdown, since the concentrator's periodic flush skips recent buckets.
+func (t *serverlessTraceAgent) FlushStats() {
+	t.ta.Concentrator.Stop()
+}
+
 // Process processes a payload in the trace agent.
 func (t *serverlessTraceAgent) Process(p *api.Payload) {
 	t.ta.Process(p)
@@ -279,6 +287,7 @@ type noopTraceAgent struct{}
 
 func (t noopTraceAgent) Stop()                               {}
 func (t noopTraceAgent) Flush()                              {}
+func (t noopTraceAgent) FlushStats()                         {}
 func (t noopTraceAgent) Process(*api.Payload)                {}
 func (t noopTraceAgent) SetTags(map[string]string)           {}
 func (t noopTraceAgent) SetTargetTPS(float64)                {}
