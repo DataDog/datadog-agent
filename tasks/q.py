@@ -980,6 +980,12 @@ def eval_pipeline(
     force_enable_list = [c.strip() for c in force_enable.split(",") if c.strip()]
     force_disable_list = [c.strip() for c in force_disable.split(",") if c.strip()]
 
+    all_known = DETECTORS + CORRELATORS + EXTRACTORS
+    unknown = set(force_enable_list + force_disable_list) - set(all_known)
+    if unknown:
+        print(color_message(f"Error: unknown components: {', '.join(sorted(unknown))}", Color.RED))
+        return
+
     # --- generate combinations (same pattern as eval_component subset generation) ---
     full_combo = _full_stack_combo(force_disable=force_disable_list)
     anchor_list = _anchor_combos(force_disable=force_disable_list, force_enable=force_enable_list)
@@ -1129,7 +1135,7 @@ def eval_pipeline(
         scenarios=scenarios,
     )
 
-    if not tune_result:
+    if not tune_result or tune_result.get("completed_trials", 0) == 0:
         print(color_message("Error: fine-tuning produced no results.", Color.RED))
         return
 
