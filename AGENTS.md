@@ -47,13 +47,13 @@ wrapper tasks (defined in `tasks/`) compute the right build tags automatically.
 
 **Never run these commands directly:**
 
-| Instead of              | Use                                           |
-|-------------------------|-----------------------------------------------|
-| `go build …`           | `dda inv agent.build`, `dda inv cluster-agent.build`, etc. |
-| `go test …`            | `dda inv test --targets=./pkg/…`              |
-| `go mod tidy`          | `dda inv tidy`                                |
-| `go vet …`             | `dda inv linter.go`                           |
-| `golangci-lint run …`  | `dda inv linter.go`                           |
+| Instead of | Use |
+|---|---|
+| `go build …` | `dda inv agent.build`, `dda inv cluster-agent.build`, etc. |
+| `go test …` | `dda inv test --targets=./pkg/…` |
+| `go mod tidy` | `dda inv tidy` |
+| `go vet …` | `dda inv linter.go` |
+| `golangci-lint run …` | `dda inv linter.go` |
 
 This also applies to indirect usage — do not shell out to `go build` or
 `go test` for compilation checks. If you need to verify that code compiles,
