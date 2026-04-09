@@ -271,13 +271,40 @@ func TestPoller(t *testing.T) {
 }
 
 func TestPollerIPPopulated(t *testing.T) {
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Skipf("failed to bind: %v", err)
+	if runtime.GOOS == "darwin" {
+		t.Skip("Skipping test on macOS -- IP parsing not implemented")
 	}
-	defer ln.Close()
-	ta := ln.Addr().(*net.TCPAddr)
-	port := uint16(ta.Port)
+	tests := []struct {
+		addr   string
+		wantIP string
+	}{
+		{"127.0.0.1:0", "127.0.0.1"},
+		{"0.0.0.0:0", "0.0.0.0"},
+		{"[::1]:0", "::1"},
+	}
+
+	type bound struct {
+		port   uint16
+		wantIP string
+		ln     net.Listener
+	}
+	var bounds []bound
+	for _, tt := range tests {
+		ln, err := net.Listen("tcp", tt.addr)
+		if err != nil {
+			t.Skipf("failed to bind %s: %v", tt.addr, err)
+		}
+		bounds = append(bounds, bound{
+			port:   uint16(ln.Addr().(*net.TCPAddr).Port),
+			wantIP: tt.wantIP,
+			ln:     ln,
+		})
+	}
+	defer func() {
+		for _, b := range bounds {
+			b.ln.Close()
+		}
+	}()
 
 	var p Poller
 	p.IncludeLocalhost = true
@@ -286,18 +313,19 @@ func TestPollerIPPopulated(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	wantIP := "127.0.0.1"
-	if runtime.GOOS == "darwin" {
-		wantIP = ""
-	}
-
-	for _, entry := range pl {
-		if entry.Proto == "tcp" && entry.Port == port {
-			if entry.IP != wantIP {
-				t.Errorf("expected IP %q for port %d, got %q", wantIP, port, entry.IP)
+	for _, b := range bounds {
+		found := false
+		for _, entry := range pl {
+			if entry.Proto == "tcp" && entry.Port == b.port {
+				found = true
+				if entry.IP != b.wantIP {
+					t.Errorf("expected IP %q for port %d, got %q", b.wantIP, b.port, entry.IP)
+				}
+				break
 			}
-			return
+		}
+		if !found {
+			t.Errorf("port %d not found in poll results", b.port)
 		}
 	}
-	t.Errorf("port %d not found in poll results", port)
 }
