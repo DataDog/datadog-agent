@@ -497,10 +497,10 @@ def _ensure_parquets(ctx, name, parquet_dir):
                     if member.startswith("tmp/gensim-archive/parquet/") and not member.endswith("/"):
                         filename = os.path.basename(member)
                         with zf.open(member) as src, open(os.path.join(parquet_dir, filename), "wb") as dst:
-                            dst.write(src.read())
+                            shutil.copyfileobj(src, dst)
                     elif member.startswith("tmp/gensim-archive/results/") and member.endswith(".json"):
                         with zf.open(member) as src, open(os.path.join(scenario_dir, "episode.json"), "wb") as dst:
-                            dst.write(src.read())
+                            shutil.copyfileobj(src, dst)
         except (zipfile.BadZipFile, OSError) as e:
             print(color_message(f"Failed to extract {zip_key}: {e}", Color.RED))
             shutil.rmtree(parquet_dir, ignore_errors=True)
