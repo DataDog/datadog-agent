@@ -10,6 +10,21 @@ endif()
 
 project(datadog-agent-three VERSION 0.1.0 DESCRIPTION "CPython backend for the Datadog Agent")
 
+# Python 3.13+ sub-interpreter support.
+# Pass -DENABLE_SUBINTERPRETERS=ON to cmake to enable. Requires Python 3.13+.
+# Define RTLOADER_HAS_SUBINTERPRETERS preprocessor macro
+# Builds without this flag are completely unaffected.
+option(ENABLE_SUBINTERPRETERS "Enable experimental Python sub-interpreter support (requires Python 3.13+)" OFF)
+
+if(ENABLE_SUBINTERPRETERS)
+  if(Python3_VERSION VERSION_LESS "3.13")
+    message(FATAL_ERROR
+      "ENABLE_SUBINTERPRETERS=ON requires Python 3.13+, but found Python ${Python3_VERSION}")
+  endif()
+  add_compile_definitions(RTLOADER_HAS_SUBINTERPRETERS)
+  message(STATUS "Sub-interpreter support enabled (Python ${Python3_VERSION}, RTLOADER_HAS_SUBINTERPRETERS)")
+endif()
+
 if(WIN32)
   if(MSVC)
     # explicitly set the compiler flags to use the static C runtime (/MT(d) instead of the DLL
@@ -48,6 +63,11 @@ add_library(datadog-agent-three SHARED
     ../common/builtins/kubeutil.c
     ../common/builtins/containers.c
 )
+
+# Compile three_subinterp.cpp only when ENABLE_SUBINTERPRETERS is ON
+if(ENABLE_SUBINTERPRETERS)
+  target_sources(datadog-agent-three PRIVATE three_subinterp.cpp)
+endif()
 
 if(WIN32)
   set_target_properties(datadog-agent-three PROPERTIES LINK_FLAGS -static)
