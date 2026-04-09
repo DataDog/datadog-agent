@@ -7,7 +7,7 @@
   - mkdir -p $GOPATH/pkg/mod/cache && zstd -dc modcache.tar.zst | tar xf - -C $GOPATH/pkg/mod/cache
   - rm -f modcache.tar.zst
 
-.retrieve_linux_go_tools_deps:
+.retrieve_linux_go_tools_deps: 
   - mkdir -p $GOPATH/bin $GOPATH/pkg/mod/cache && zstd -dc modcache_tools.tar.zst | tar xf - -C $GOPATH
   - rm -f modcache_tools.tar.zst
   - export PATH=$PATH:$GOPATH/bin

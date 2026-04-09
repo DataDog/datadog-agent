@@ -828,9 +828,20 @@ func (p *EBPFResolver) insertEntry(entry *model.ProcessCacheEntry, cgroupContext
 		if entry.ExecTime.After(createdAt) {
 			createdAt = entry.ExecTime
 		}
+		cgroupContext.CreatedAt = uint64(createdAt.UnixNano())
+
+		// resolve the cgroup source
+		switch source {
+		case model.ProcessCacheEntryFromEvent:
+			cgroupContext.CGroupSource = model.CGroupSourceEvent
+		case model.ProcessCacheEntryFromProcFS, model.ProcessCacheEntryFromSnapshot:
+			cgroupContext.CGroupSource = model.CGroupSourceProcFS
+		default:
+			cgroupContext.CGroupSource = model.CGroupSourceUnknown
+		}
 
 		// add the new PID in the right cgroup_resolver bucket
-		if cacheEntry := p.cgroupResolver.AddPID(entry.Pid, entry.PPid, createdAt, cgroupContext); cacheEntry != nil {
+		if cacheEntry := p.cgroupResolver.AddPID(entry.Pid, entry.PPid, cgroupContext); cacheEntry != nil {
 			entry.CGroup = cacheEntry.GetCGroupContext()
 			entry.Process.ContainerContext = cacheEntry.GetContainerContext()
 		}

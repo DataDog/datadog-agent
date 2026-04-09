@@ -217,6 +217,15 @@
           "type": "string",
           "description": "CGroup manager"
         },
+        "source": {
+          "type": "string",
+          "description": "Source of the cgroup entry (event or procfs)"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of the creation of the cgroup"
+        },
         "variables": {
           "$ref": "#/$defs/Variables",
           "description": "Variable values"
@@ -291,6 +300,10 @@
         "id": {
           "type": "string",
           "description": "Container ID"
+        },
+        "source": {
+          "type": "string",
+          "description": "Source of the container entry (event or procfs)"
         },
         "created_at": {
           "type": "string",

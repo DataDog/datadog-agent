@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "internal",
+    srcs = [
+        "helpers.go",
+        "imds_helpers.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/aws/creds/internal",
+    visibility = [
+        "//pkg/util/aws/creds:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_util_aws_creds//:__subpackages__",
+    ],
+    deps = [
+        "//pkg/config/setup",
+        "//pkg/config/utils",
+        "//pkg/util/http",
+        "//pkg/util/log",
+    ],
+)

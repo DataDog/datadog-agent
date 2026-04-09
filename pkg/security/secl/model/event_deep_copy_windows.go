@@ -124,6 +124,7 @@ func deepCopystringArr(fieldToCopy []string) []string {
 func deepCopyContainerContext(fieldToCopy ContainerContext) ContainerContext {
 	copied := ContainerContext{}
 	copied.ContainerID = fieldToCopy.ContainerID
+	copied.ContainerSource = fieldToCopy.ContainerSource
 	copied.CreatedAt = fieldToCopy.CreatedAt
 	copied.Releasable = deepCopyReleasablePtr(fieldToCopy.Releasable)
 	copied.Tags = deepCopystringArr(fieldToCopy.Tags)

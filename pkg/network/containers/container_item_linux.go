@@ -15,13 +15,14 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
+	pathrs "github.com/cyphar/filepath-securejoin/pathrs-lite"
 	"github.com/shirou/gopsutil/v4/process"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/network/events"
@@ -133,25 +134,14 @@ func (r *resolvStripper) readResolvConf(entry *events.Process) (string, error) {
 		rootPath = kernel.HostProc(strconv.Itoa(int(entry.Pid)), "root")
 	}
 
-	resolvConfPath := filepath.Join(rootPath, "etc/resolv.conf")
-
-	resolvConf, err := r.stripResolvConfFilepath(resolvConfPath)
-	if errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ESRCH) {
+	file, err := openResolvConf(rootPath)
+	if errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ENOENT) || errors.Is(err, syscall.ESRCH) {
 		// report no file. don't turn this into an error, since if the process exited,
 		// that will be checked later by isProcessStillRunning
 		return "<missing>", nil
 	}
 	if err != nil {
-		return "", resolvConfReadError(resolvConfPath, err)
-	}
-
-	return resolvConf, nil
-}
-
-func (r *resolvStripper) stripResolvConfFilepath(path string) (string, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return "", err
+		return "", resolvConfReadError(rootPath+"/etc/resolv.conf", err)
 	}
 	defer file.Close()
 
@@ -161,6 +151,17 @@ func (r *resolvStripper) stripResolvConfFilepath(path string) (string, error) {
 	}
 
 	return r.stripResolvConf(int(stat.Size()), file)
+}
+
+// openResolvConf opens etc/resolv.conf within root, respecting absolute symlinks using pathrs.
+func openResolvConf(root string) (*os.File, error) {
+	handle, err := pathrs.OpenInRoot(root, "etc/resolv.conf")
+	if err != nil {
+		return nil, err
+	}
+	defer handle.Close()
+
+	return pathrs.Reopen(handle, unix.O_RDONLY)
 }
 
 func (r *resolvStripper) stripResolvConf(size int, f io.Reader) (string, error) {

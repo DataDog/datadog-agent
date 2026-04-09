@@ -10,7 +10,6 @@ package cgroup
 import (
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -114,7 +113,7 @@ func TestResolvePidCgroupFallback_SuccessFromHistory(t *testing.T) {
 		CGroupID:      "parent-cgroup-id",
 		CGroupPathKey: parentPathKey,
 	}
-	cacheEntry := resolver.AddPID(1234, 5678, time.Now(), parentCgroupContext)
+	cacheEntry := resolver.AddPID(1234, 5678, parentCgroupContext)
 	assert.NotNil(t, cacheEntry)
 	assert.NotNil(t, cacheEntry.GetCGroupContext().Releasable)
 
@@ -322,7 +321,7 @@ func TestResolveForceFallbackIfCGroupIsNull(t *testing.T) {
 		nil,
 	)
 
-	cacheEntry = resolver.AddPID(1234, 5678, time.Now(), model.CGroupContext{})
+	cacheEntry = resolver.AddPID(1234, 5678, model.CGroupContext{})
 
 	assert.NotNil(t, cacheEntry)
 	assert.Equal(t, containerutils.CGroupID("fallback-cgroup-id"), cacheEntry.GetCGroupID())

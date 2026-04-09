@@ -1,0 +1,11 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "creds",
+    srcs = [
+        "credentials_noec2.go",
+        "detection_noec2.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/aws/creds",
+    visibility = ["//visibility:public"],
+)
