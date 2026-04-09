@@ -563,8 +563,6 @@ func (e *EbpfProgram) initializeProbes() ([]manager.ProbeIdentificationPair, err
 	if strings.HasPrefix(runtime.GOARCH, "arm") {
 		arch = "__arm64_"
 		disabledArch = "__x64_"
-
-		log.Info("arm64 runtime detected")
 	}
 
 	// Tracing represents fentry/fexit probes.
