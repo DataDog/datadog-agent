@@ -171,7 +171,7 @@ whether this is intentional).
 dda inv test --targets=./comp/observer/...
 
 # Run benchmarks
-go test -bench=. ./comp/observer/impl/
+dda inv test --targets=./comp/observer/impl/ -- -bench=.
 ```
 
 The testbench (`impl/testbench.go`) replays parquet scenario data through

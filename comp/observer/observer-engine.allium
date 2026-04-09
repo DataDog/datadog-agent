@@ -345,12 +345,14 @@ rule Advance {
     -- Advance all correlators so they can update sliding windows.
     ensures: CorrelatorsAdvanced(engine, up_to_sec)
 
-    -- Reset per-advance ingestion counters.
-    ensures: engine.late_points = 0
-    ensures: engine.dropped_observations = 0
-
     -- Emit advance-completed event to all subscribers.
     ensures: AdvanceCompleted(engine, up_to_sec, reason)
+
+    @guidance
+        -- When advance logging is enabled (debug/parity recording),
+        -- late_points and dropped_observations are swapped to zero
+        -- and recorded in the advance log entry. In normal production
+        -- runs these counters are cumulative and never reset.
 }
 
 -- Each detector queries storage for whatever data it needs
