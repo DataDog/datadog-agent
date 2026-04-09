@@ -27,6 +27,7 @@ type windowsImpl struct {
 type famPort struct {
 	proto string
 	port  uint16
+	ip    string
 	pid   uint32
 }
 
@@ -63,6 +64,7 @@ func (im *windowsImpl) AppendListeningPorts(base []Port) ([]Port, error) {
 		fp := famPort{
 			proto: "tcp",
 			port:  e.Local.Port(),
+			ip:    e.Local.Addr().Unmap().String(),
 			pid:   uint32(e.Pid),
 		}
 		pm, ok := im.known[fp]
