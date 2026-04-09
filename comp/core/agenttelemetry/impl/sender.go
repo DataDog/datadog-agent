@@ -39,6 +39,7 @@ const (
 	telemetryPath                   = "/api/v2/apmtelemetry"
 
 	metricPayloadType = "agent-metrics"
+	logPayloadType    = "agent-logs"
 	batchPayloadType  = "message-batch"
 
 	httpClientResetInterval = 5 * time.Minute
@@ -52,6 +53,7 @@ type sender interface {
 	flushSession(ss *senderSession) error
 
 	sendAgentMetricPayloads(ss *senderSession, metrics []*agentmetric)
+	sendAgentLogPayloads(ss *senderSession, logs []LogPayload)
 	sendEventPayload(ss *senderSession, eventInfo *Event, eventPayload map[string]interface{})
 }
 
@@ -122,6 +124,9 @@ type senderSession struct {
 	// metric payloads
 	metricPayloads []*AgentMetricsPayload
 
+	// log payload
+	logPayload *AgentLogsPayload
+
 	// event payload
 	eventInfo    *Event
 	eventPayload map[string]interface{}
@@ -141,6 +146,27 @@ type BatchPayloadWrapper struct {
 type AgentMetricsPayload struct {
 	Message string                 `json:"message"`
 	Metrics map[string]interface{} `json:"metrics"`
+}
+
+// -------------------
+// AGENT LOGS
+//
+
+// AgentLogsPayload is the top-level payload for a batch of internal agent error logs.
+type AgentLogsPayload struct {
+	Message  string               `json:"message"`
+	Metadata AgentMetadataPayload `json:"agent_metadata"`
+	Logs     []LogPayload         `json:"logs"`
+}
+
+// LogPayload is a single captured log entry. Attrs contains both the engineer-defined
+// slog attributes and a "count" field when deduplication collapsed multiple identical
+// (level + message) records within the collection window.
+type LogPayload struct {
+	Level       string            `json:"level"`
+	Message     string            `json:"message"`
+	TimestampMs int64             `json:"timestamp_ms"`
+	Attrs       map[string]string `json:"attrs,omitempty"`
 }
 
 // MetricPayload defines Metric object
@@ -348,6 +374,9 @@ func (s *senderImpl) startSession(cancelCtx context.Context) *senderSession {
 
 func (ss *senderSession) payloadCount() int {
 	payloadCount := len(ss.metricPayloads)
+	if ss.logPayload != nil {
+		payloadCount++
+	}
 	if ss.eventPayload != nil {
 		payloadCount++
 	}
@@ -358,6 +387,7 @@ func (ss *senderSession) flush() Payload {
 	defer func() {
 		// Clear payloads when done
 		ss.metricPayloads = nil
+		ss.logPayload = nil
 		ss.eventInfo = nil
 		ss.eventPayload = nil
 	}()
@@ -375,12 +405,15 @@ func (ss *senderSession) flush() Payload {
 	}
 
 	if ss.payloadCount() == 1 {
-		// Either metric or event payload (single payload will be sent directly using the request type of the payload)
-		if len(ss.metricPayloads) == 1 {
-			mp := ss.metricPayloads[0]
+		// Single payload: send directly with its own request type
+		switch {
+		case len(ss.metricPayloads) == 1:
 			payload.RequestType = metricPayloadType
-			payload.Payload = mp
-		} else {
+			payload.Payload = ss.metricPayloads[0]
+		case ss.logPayload != nil:
+			payload.RequestType = logPayloadType
+			payload.Payload = ss.logPayload
+		default:
 			payload.RequestType = ss.eventInfo.RequestType
 			payload.Payload = eventWrapPayload
 		}
@@ -392,6 +425,14 @@ func (ss *senderSession) flush() Payload {
 				BatchPayloadWrapper{
 					RequestType: metricPayloadType,
 					Payload:     payloadInfo{metricPayloadType, mp}.payload,
+				})
+		}
+		// add log payload if present
+		if ss.logPayload != nil {
+			batch = append(batch,
+				BatchPayloadWrapper{
+					RequestType: logPayloadType,
+					Payload:     payloadInfo{logPayloadType, ss.logPayload}.payload,
 				})
 		}
 		// add event payload if present
@@ -500,6 +541,17 @@ func (s *senderImpl) sendAgentMetricPayloads(ss *senderSession, metrics []*agent
 			payload = ss.metricPayloads[idx]
 			s.addMetricPayload(am.name, am.family, m, payload)
 		}
+	}
+}
+
+func (s *senderImpl) sendAgentLogPayloads(ss *senderSession, logs []LogPayload) {
+	if len(logs) == 0 {
+		return
+	}
+	ss.logPayload = &AgentLogsPayload{
+		Message:  "Agent logs",
+		Metadata: s.metadataPayloadTemplate,
+		Logs:     logs,
 	}
 }
 

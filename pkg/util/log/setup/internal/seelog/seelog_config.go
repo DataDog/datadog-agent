@@ -112,6 +112,12 @@ func (c *Config) SlogLogger() (types.LoggerInterface, *stdslog.LevelVar, error) 
 	levelVar.Set(types.ToSlogLevel(lvl))
 	levelHandler := handlers.NewLevel(levelVar, asyncHandler)
 
+	// capture handler sits above the level handler so that Error/Critical records
+	// are buffered regardless of the configured output log level.
+	const captureBufSize = 1000
+	captureHandler := handlers.NewCapture(levelHandler, captureBufSize)
+	log.RegisterCaptureHandler(captureHandler)
+
 	// Close async handler first so it drains and stops writing, then close writers.
 	// Otherwise the async goroutine can still call Write() while the file writer is closed (data race).
 	closeFunc := func() {
@@ -121,7 +127,7 @@ func (c *Config) SlogLogger() (types.LoggerInterface, *stdslog.LevelVar, error) 
 		}
 	}
 
-	logger := slog.NewWrapperWithCloseAndFlush(levelHandler, asyncHandler.Flush, closeFunc)
+	logger := slog.NewWrapperWithCloseAndFlush(captureHandler, asyncHandler.Flush, closeFunc)
 
 	return logger, levelVar, nil
 }
