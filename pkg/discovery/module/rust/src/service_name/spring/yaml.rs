@@ -22,7 +22,6 @@ enum State {
 }
 
 /// Number of top-level YAML values remaining to skip.
-/// Only two variants exist — a zero-item skip is impossible by construction.
 enum SkipItems {
     /// Skip one value (the value of a non-matching simple key).
     Value,
@@ -55,12 +54,11 @@ pub fn parse_yaml<R: Read>(mut reader: R, target_key: &str) -> Option<String> {
     let parser = Parser::new_from_str(&content);
     let mut depth: usize = 0;
     let mut state = State::Preamble;
-    // Safety limit: the event count is bounded by input size (capped at
-    // 1 MiB by MAX_PARSE_FILE_SIZE), but guard against parser bugs that
-    // could produce infinite events. The densest YAML (flow sequences/
-    // mappings) yields at most ~0.5 events per byte, so 2x gives
-    // comfortable headroom.
-    let max_events = content.len().saturating_mul(2).max(100);
+    // Safety limit: the input size is capped to MAX_PARSE_FILE_SIZE in
+    // the caller, but guard against parser bugs that could produce infinite
+    // events. The densest YAML (flow sequences/ mappings) yields at most ~0.5
+    // events per byte, so 1 event per byte gives comfortable headroom.
+    let max_events = content.len();
 
     // Each YAML event drives a state transition. The parser walks a
     // path like "spring" → "application" → "name" by matching key
@@ -144,9 +142,9 @@ pub fn parse_yaml<R: Read>(mut reader: R, target_key: &str) -> Option<String> {
                 }
                 if nesting == 0 {
                     match items.decrement() {
+                        Some(items) => State::Skip { nesting, items },
                         // All items skipped; back to reading keys.
                         None => State::Key,
-                        Some(items) => State::Skip { nesting, items },
                     }
                 } else {
                     State::Skip { nesting, items }
