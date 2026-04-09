@@ -97,7 +97,7 @@ pub fn parse_yaml<R: Read>(mut reader: R, target_key: &str) -> Option<String> {
                 },
                 // Non-matching complex key (mapping/sequence used as a key):
                 // skip the key's own subtree (nesting=1) plus its value,
-                // so count=2 top-level items to consume.
+                // so we skip two top-level items (KeyAndValue).
                 Event::MappingStart(..) | Event::SequenceStart(..) => State::Skip {
                     nesting: 1,
                     count: SkipCount::KeyAndValue,
@@ -133,8 +133,8 @@ pub fn parse_yaml<R: Read>(mut reader: R, target_key: &str) -> Option<String> {
             //        drops back to 0
             //
             // Typical counts:
-            //   count=1: skipping one value (for a non-matching simple key)
-            //   count=2: skipping a complex key's subtree + its value
+            //   Value: skipping one value (for a non-matching simple key)
+            //   KeyAndValue: skipping a complex key's subtree + its value
             State::Skip { mut nesting, count } => {
                 let done = if nesting == 0 {
                     // Starting a new top-level item to skip.
