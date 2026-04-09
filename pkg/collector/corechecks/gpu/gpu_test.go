@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
-	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -1059,37 +1058,4 @@ func setupMockCheckForMetricCollection(t *testing.T, archName string, mode gpusp
 
 func getEmittedGPUMetricsWithTags(mockSender *mocksender.MockSender) map[string][]gpuspec.EmittedMetric {
 	return GetEmittedGPUMetrics(mockSender)
-}
-
-func newMockWorkloadMetaGPU(uuid string, index int, deviceType workloadmeta.GPUDeviceType, parentUUID string) *workloadmeta.GPU {
-	gpu := &workloadmeta.GPU{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindGPU,
-			ID:   uuid,
-		},
-		EntityMeta: workloadmeta.EntityMeta{
-			Name: testutil.DefaultGPUName,
-		},
-		Vendor:             "nvidia",
-		Device:             testutil.DefaultGPUName,
-		DriverVersion:      testutil.DefaultNvidiaDriverVersion,
-		Index:              index,
-		DeviceType:         deviceType,
-		VirtualizationMode: "none",
-	}
-
-	if parentUUID != "" {
-		gpu.ParentGPUUUID = parentUUID
-	}
-
-	return gpu
-}
-
-func gpuTagsFromWorkloadMetaGPU(gpu *workloadmeta.GPU) []string {
-	return []string{
-		"gpu_uuid:" + gpu.ID,
-		"gpu_device:" + strings.ToLower(strings.ReplaceAll(gpu.Device, " ", "_")),
-		"gpu_vendor:" + strings.ToLower(gpu.Vendor),
-		"gpu_driver_version:" + gpu.DriverVersion,
-	}
 }

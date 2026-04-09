@@ -362,7 +362,7 @@ func TestCheckRunMatchesSpecForPhysicalDevices(t *testing.T) {
 		deviceMetrics := metricsByUUID[deviceUUID]
 		require.NotEmpty(t, deviceMetrics, "expected emitted metrics for GPU %s", deviceUUID)
 
-		t.Run(fmt.Sprintf("gpu=%s", deviceUUID), func(t *testing.T) {
+		t.Run("gpu="+deviceUUID, func(t *testing.T) {
 			emittedNames := make([]string, 0, len(deviceMetrics))
 			for metricName, emittedSamples := range deviceMetrics {
 				emittedNames = append(emittedNames, metricName)

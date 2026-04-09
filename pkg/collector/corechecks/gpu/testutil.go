@@ -12,8 +12,8 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	gpuspec "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/spec"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // WithGPUConfigEnabled enables the GPU check configuration for testing
