@@ -356,6 +356,7 @@ func (s *message) init(
 	var returnHeader *output.EventHeader
 	var durationMissingReason *string
 	if event.Return != nil {
+		decoder._return.isReturn = true
 		if err := decoder._return.init(
 			event.Return, decoder.program.Types, &s.Debugger.EvaluationErrors,
 		); err != nil {

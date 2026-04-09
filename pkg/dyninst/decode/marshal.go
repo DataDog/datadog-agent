@@ -272,6 +272,7 @@ type captureEvent struct {
 	rootType         *ir.EventRootType
 	evaluationErrors *[]evaluationError
 	skippedIndices   bitset
+	isReturn         bool
 }
 
 // resolveDictType checks if a variable's type can be resolved via the runtime
@@ -316,6 +317,7 @@ func (ce *captureEvent) clear() {
 	ce.rootData = nil
 	ce.rootType = nil
 	ce.evaluationErrors = nil
+	ce.isReturn = false
 
 	clear(ce.dataItems)
 	clear(ce.currentlyEncoding)
@@ -496,6 +498,18 @@ func (ce *captureEvent) MarshalJSONTo(enc *jsontext.Encoder) error {
 		{kind: ir.RootExpressionKindLocal, token: jsontext.String("locals")},
 		{kind: ir.RootExpressionKindCaptureExpression, token: jsontext.String("captureExpressions")},
 	} {
+		// Count expressions of this kind (needed for multi-return wrapping).
+		multiReturn := false
+		if ce.isReturn && kind.kind == ir.RootExpressionKindLocal {
+			n := 0
+			for _, expr := range ce.rootType.Expressions {
+				if expr.Kind == kind.kind {
+					n++
+				}
+			}
+			multiReturn = n > 1
+		}
+
 		// We iterate over the 'Expressions' of the EventRoot which contains
 		// metadata and raw bytes of the parameters of this function.
 		var haveKind bool
@@ -508,10 +522,21 @@ func (ce *captureEvent) MarshalJSONTo(enc *jsontext.Encoder) error {
 			}
 			if !haveKind {
 				haveKind = true
-				if err := writeTokens(
-					enc, kind.token, jsontext.BeginObject,
-				); err != nil {
-					return err
+				if multiReturn {
+					// Multiple returns: locals > @return > fields > ...
+					if err := writeTokens(enc,
+						kind.token, jsontext.BeginObject,
+						jsontext.String("@return"), jsontext.BeginObject,
+						jsontext.String("fields"), jsontext.BeginObject,
+					); err != nil {
+						return err
+					}
+				} else {
+					if err := writeTokens(
+						enc, kind.token, jsontext.BeginObject,
+					); err != nil {
+						return err
+					}
 				}
 			}
 			err := ce.processExpression(enc, expr, statusArray, i)
@@ -525,8 +550,17 @@ func (ce *captureEvent) MarshalJSONTo(enc *jsontext.Encoder) error {
 			}
 		}
 		if haveKind {
-			if err := writeTokens(enc, jsontext.EndObject); err != nil {
-				return err
+			if multiReturn {
+				// Close fields, @return, and locals.
+				if err := writeTokens(enc,
+					jsontext.EndObject, jsontext.EndObject, jsontext.EndObject,
+				); err != nil {
+					return err
+				}
+			} else {
+				if err := writeTokens(enc, jsontext.EndObject); err != nil {
+					return err
+				}
 			}
 		}
 	}
