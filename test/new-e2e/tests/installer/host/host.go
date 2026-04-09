@@ -107,7 +107,18 @@ func (h *Host) installECRCredentialHelper() {
 	} else {
 		// No official amazon-ecr-credential-helper package for non-apt distros (zypper, yum on CentOS, etc.);
 		// download the binary directly.
-		h.remote.MustExecute(`ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/') && sudo curl -fsSL "https://amazon-ecr-credential-helper-releases.s3.us-east-2.amazonaws.com/0.12.0/linux-${ARCH}/docker-credential-ecr-login" -o /usr/bin/docker-credential-ecr-login && sudo chmod +x /usr/bin/docker-credential-ecr-login`)
+		var helperArch string
+		helperVersion := "0.12.0"
+		switch h.arch {
+		case e2eos.AMD64Arch:
+			helperArch = "amd64"
+		case e2eos.ARM64Arch:
+			helperArch = "arm64"
+		default:
+			h.t().Fatalf("unsupported architecture for ECR credential helper: %s", h.arch)
+		}
+		helperURL := fmt.Sprintf("https://amazon-ecr-credential-helper-releases.s3.us-east-2.amazonaws.com/%s/linux-%s/docker-credential-ecr-login", helperVersion, helperArch)
+		h.remote.MustExecute(fmt.Sprintf(`sudo curl -fsSL "%s" -o /usr/bin/docker-credential-ecr-login && sudo chmod +x /usr/bin/docker-credential-ecr-login`, helperURL))
 	}
 }
 
