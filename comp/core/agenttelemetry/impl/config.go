@@ -271,6 +271,8 @@ var defaultProfiles = `
           aggregate_tags:
             - code
             - endpoint
+    logs:
+      enabled: true
     schedule:
       start_after: 30
       iterations: 0
