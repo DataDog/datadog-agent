@@ -655,20 +655,14 @@ func New() *AgentConfig {
 
 		GlobalTags: computeGlobalTags(),
 
-
-		Proxy:                     http.ProxyFromEnvironment,
-		OTLPReceiver:              &OTLP{},
-		ContainerTags:             noopContainerTagsFunc,
-		ContainerTagsBuffer:       false, // disabled here for otlp collector exporter, enabled in comp/trace-agent
-		ContainerIDFromOriginInfo: NoopContainerIDFromOriginInfoFunc,
-
 		Proxy:                         http.ProxyFromEnvironment,
 		OTLPReceiver:                  &OTLP{},
 		ContainerTags:                 noopContainerTagsFunc,
 		ContainerTagsWithCompleteness: noopContainerTagsWithCompletenessFunc,
 		ContainerTagsBuffer:           false, // disabled here for otlp collector exporter, enabled in comp/trace-agent
 		ContainerIDFromOriginInfo:     NoopContainerIDFromOriginInfoFunc,
-    HasContainerFeatures:          true, // default so remote/standalone trace-agent keeps full container ID resolution until setup sets it from env
+		HasContainerFeatures:          true, // default so remote/standalone trace-agent keeps full container ID resolution until setup sets it from env
+
 		TelemetryConfig: &TelemetryConfig{
 			Endpoints: []*Endpoint{{Host: TelemetryEndpointPrefix + "datadoghq.com"}},
 		},
