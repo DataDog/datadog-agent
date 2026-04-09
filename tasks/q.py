@@ -8,7 +8,7 @@ import shutil
 import tempfile
 import zipfile
 
-from invoke import task
+from invoke import Exit, task
 
 from tasks.libs.common.color import Color, color_message
 
@@ -36,6 +36,18 @@ EXTRACTORS = [
     "log_metrics_extractor",
     "connection_error_extractor",
     "log_pattern_extractor",
+]
+
+# Fixed anchor subsets used by eval_component to anchor the evaluation at known
+# reference configurations regardless of the random seed.
+#   [0] minimal: smallest meaningful stack (1 detector + 1 correlator)
+#   [1] medium:  a richer mid-complexity stack for a second anchor point
+# Components missing from the pool (because they are force-disabled or are the
+# evaluated component) are stripped; an anchor is omitted entirely if it ends up
+# with no detectors or no correlators after filtering.
+ANCHOR_COMBOS = [
+    {"detectors": ["bocpd"], "correlators": ["time_cluster"]},
+    {"detectors": ["bocpd", "rrcf"], "correlators": ["cross_signal", "time_cluster"]},
 ]
 
 
@@ -109,6 +121,72 @@ def build_scorer(ctx):
     Builds the observer-scorer binary.
     """
     ctx.run("go build -o bin/observer-scorer ./cmd/observer-scorer")
+
+
+def _prepare_eval_output_dir(output_dir: str, *, overwrite: bool) -> bool:
+    """Ensure ``output_dir`` is empty and ready for a fresh eval run.
+
+    If the path exists and contains ``report.json``, the run is aborted unless
+    ``overwrite`` is True (avoids silently deleting completed experiments).
+
+    Returns True if the directory is ready, False if the caller should stop.
+    """
+    if os.path.isfile(output_dir):
+        print(color_message(f"Error: output path is a file, not a directory: {output_dir}", Color.RED))
+        return False
+    report_path = os.path.join(output_dir, "report.json")
+    if os.path.isfile(report_path) and not overwrite:
+        print(
+            color_message(
+                f"Error: output directory already contains report.json: {report_path}\n"
+                f"Use --overwrite to replace it, or choose a different --output-dir.",
+                Color.RED,
+            )
+        )
+        return False
+    if os.path.exists(output_dir):
+        shutil.rmtree(output_dir)
+    os.makedirs(output_dir)
+    return True
+
+
+def _scenario_f1_from_bayesian_report(report: dict | None) -> dict[str, float]:
+    """Per-scenario F1 from the best trial's eval_scenarios report (metadata)."""
+    if not report:
+        return {}
+    best = report.get("best_combination")
+    if not isinstance(best, dict):
+        return {}
+    path = best.get("report_path")
+    if not path or not os.path.isfile(path):
+        return {}
+    try:
+        with open(path) as f:
+            main = json.load(f)
+    except (OSError, json.JSONDecodeError, TypeError):
+        return {}
+    meta = main.get("metadata")
+    if not isinstance(meta, dict):
+        return {}
+    out: dict[str, float] = {}
+    for name, row in meta.items():
+        if isinstance(row, dict) and "f1" in row:
+            try:
+                out[str(name)] = float(row["f1"])
+            except (TypeError, ValueError):
+                continue
+    return out
+
+
+def _best_run_index(runs: list[dict]) -> int:
+    """Index of the run with highest best_score among non-failed runs (first on ties).
+
+    Returns -1 if there are no runs or all runs failed.
+    """
+    valid = [i for i, r in enumerate(runs) if not r.get("failed") and r.get("best_score") is not None]
+    if not valid:
+        return -1
+    return max(valid, key=lambda i: runs[i]["best_score"])
 
 
 # --- Eval ---
@@ -407,7 +485,30 @@ def _full_stack_combo(force_disable: list | None = None) -> dict:
     }
 
 
-# TODO(celian): Add heuristics to prioritize combinations that are more likely to be useful.
+def _anchor_combos(force_disable: list | None = None) -> list[dict]:
+    """Fixed anchor subsets derived from ANCHOR_COMBOS after filtering force_disable.
+
+    Each anchor that ends up with at least one detector and one correlator is
+    included.  Anchors whose key components are all removed are silently skipped
+    so that evaluating a component that appears in an anchor does not break the
+    run.
+    """
+    fd = set(force_disable or [])
+    anchors = []
+    seen_keys: set = set()
+    for combo in ANCHOR_COMBOS:
+        dets = sorted(d for d in combo["detectors"] if d not in fd)
+        cors = sorted(c for c in combo["correlators"] if c not in fd)
+        if not dets or not cors:
+            continue
+        key = (tuple(dets), tuple(cors))
+        if key in seen_keys:
+            continue
+        seen_keys.add(key)
+        anchors.append({"detectors": dets, "correlators": cors})
+    return anchors
+
+
 def random_component_combinations(
     n: int,
     seed: int = None,
@@ -518,6 +619,7 @@ def eval_combinations(
     sigma: float = 30.0,
     seed: int = None,
     build: bool = True,
+    overwrite: bool = False,
     force_enable: str = "",
     force_disable: str = "",
 ):
@@ -540,7 +642,9 @@ def eval_combinations(
         n: Total combinations to evaluate: one full-stack plus (n - 1) random
             (default: 10). Use n=1 for only the full-stack baseline.
         output_dir: Root directory for per-combo results and summary. If this
-            path already exists, it is removed first.
+            path already exists and contains report.json, the task aborts unless
+            overwrite is True; otherwise the directory is removed first.
+        overwrite: Allow replacing an existing output_dir that contains report.json.
         scenarios_dir: Directory containing scenario subdirectories.
         sigma: Gaussian width in seconds for F1 scoring.
         seed: Random seed for reproducibility (default: None = random).
@@ -555,9 +659,8 @@ def eval_combinations(
         dda inv q.eval-combinations --n 5 --output-dir /tmp/ablation
         dda inv q.eval-combinations --n 10 --force-enable bocpd --force-disable scanmw,scanwelch
     """
-    if os.path.exists(output_dir):
-        shutil.rmtree(output_dir)
-    os.makedirs(output_dir)
+    if not _prepare_eval_output_dir(output_dir, overwrite=overwrite):
+        return
 
     if build:
         build_testbench(ctx)
@@ -794,12 +897,14 @@ def eval_bayesian(
     ctx,
     components: str = ",".join(DETECTORS + CORRELATORS + EXTRACTORS),
     lock: str = "",
+    only: str = "",
     n_trials: int = 10,
     output_dir: str = "/tmp/observer-optuna-eval",
     scenarios_dir: str = "./comp/observer/scenarios",
     sigma: float = 30.0,
     seed: int = None,
     build: bool = True,
+    overwrite: bool = False,
     _logger: StepLogger | None = None,
 ):
     """
@@ -818,8 +923,12 @@ def eval_bayesian(
     Args:
         components: Comma-separated component names to enable (detectors, correlators, extractors; default: all).
         lock: Comma-separated components to enable but not tune (keep at Go defaults).
+        only: Shorthand: enable all components but tune only the listed ones (locks everything else).
+            Mutually exclusive with --lock.
         n_trials: Number of Optuna trials (default: 50).
-        output_dir: Root output directory. Removed and recreated if it exists.
+        output_dir: Root output directory. If it already contains report.json,
+            the task aborts unless overwrite is True; otherwise it is removed first.
+        overwrite: Allow replacing an existing output_dir that contains report.json.
         scenarios_dir: Directory containing scenario subdirectories.
         sigma: Gaussian width in seconds for F1 scoring.
         seed: Random seed for TPE sampler reproducibility (default: None = random).
@@ -829,14 +938,37 @@ def eval_bayesian(
         dda inv q.bayesian-eval                                                                       # all components
         dda inv q.bayesian-eval --components bocpd,rrcf,time_cluster,log_pattern_extractor            # fixed subset
         dda inv q.bayesian-eval --components bocpd,rrcf,time_cluster --lock time_cluster              # freeze one
+        dda inv q.bayesian-eval --only bocpd                                                          # tune one, lock rest
         dda inv q.bayesian-eval --n-trials 100 --seed 42
     """
     import pickle
 
-    import optuna
+    try:
+        import optuna
+    except Exception:
+        import sys
+
+        print(color_message('Please use dda inv --dep optuna ... to run this task', Color.RED), file=sys.stderr)
+        raise Exit(1) from None
+
+    only_list = [c.strip() for c in only.split(",") if c.strip()]
+    if only_list and lock:
+        print(color_message("Error: --only and --lock are mutually exclusive", Color.RED))
+        return
 
     components_list = [c.strip() for c in components.split(",") if c.strip()]
-    locked_set = {c.strip() for c in lock.split(",") if c.strip()}
+
+    if only_list:
+        # Expand to full component set and lock everything except the --only targets.
+        all_components = DETECTORS + CORRELATORS + EXTRACTORS
+        unknown_only = set(only_list) - set(all_components)
+        if unknown_only:
+            print(color_message(f"Error: unknown components in --only: {', '.join(sorted(unknown_only))}", Color.RED))
+            return
+        components_list = all_components
+        locked_set = {c for c in all_components if c not in set(only_list)}
+    else:
+        locked_set = {c.strip() for c in lock.split(",") if c.strip()}
 
     if not components_list:
         print(color_message("Error: at least one component is required (--components)", Color.RED))
@@ -855,9 +987,8 @@ def eval_bayesian(
     if seed is None:
         seed = random.randint(0, 2**32 - 1)
 
-    if os.path.exists(output_dir):
-        shutil.rmtree(output_dir)
-    os.makedirs(output_dir)
+    if not _prepare_eval_output_dir(output_dir, overwrite=overwrite):
+        return
 
     if build:
         build_testbench(ctx)
@@ -879,7 +1010,8 @@ def eval_bayesian(
         print(color_message(f"  output_dir:  {output_dir}", Color.BLUE))
         print(color_message(f"  seed:        {seed}", Color.BLUE))
 
-    completed_trials = []
+    completed_trials: list[dict] = []
+    failed_trials: list[dict] = []
 
     def objective(trial):
         trial_label = f"trial_{trial.number:03d}"
@@ -899,6 +1031,8 @@ def eval_bayesian(
         scenario_output_dir = os.path.join(trial_dir, "scenarios")
         os.makedirs(scenario_output_dir, exist_ok=True)
 
+        failure_reason: str | None = None
+        report = None
         try:
             report = eval_scenarios(
                 ctx,
@@ -911,10 +1045,24 @@ def eval_bayesian(
                 _logger=trial_logger.child(len(SCENARIOS), "Scenario"),
             )
         except Exception as e:
-            trial_logger.detail(f"eval_scenarios failed: {e}", Color.RED)
+            failure_reason = f"eval_scenarios raised {type(e).__name__}: {e}"
+
+        if failure_reason is None and report is None:
+            failure_reason = "eval_scenarios returned None (no report produced)"
+
+        if failure_reason is not None:
+            trial_logger.detail(f"Trial failed: {failure_reason}", Color.RED)
+            failed_trials.append(
+                {
+                    "trial": trial.number,
+                    "label": trial_label,
+                    "reason": failure_reason,
+                    "config_path": config_path,
+                }
+            )
             return float("-inf")
 
-        score = report.get("score", 0.0) if report else 0.0
+        score = report.get("score", 0.0)
         trial_logger.score(score)
 
         completed_trials.append(
@@ -945,6 +1093,22 @@ def eval_bayesian(
     avg_score = sum(scores) / len(scores) if scores else 0.0
     best = completed_trials[0] if completed_trials else None
 
+    n_failed = len(failed_trials)
+    if n_failed > 0:
+        fail_pct = 100 * n_failed / n_trials
+        clr = Color.RED if not completed_trials else Color.ORANGE
+        print(
+            color_message(
+                f"Warning: {n_failed}/{n_trials} trials failed ({fail_pct:.0f}%).  "
+                f"Failed trials are excluded from scoring.",
+                clr,
+            )
+        )
+        for ft in failed_trials:
+            print(color_message(f"  [{ft['label']}] {ft['reason']}", clr))
+        if not completed_trials:
+            print(color_message("Error: all trials failed — scores are meaningless.", Color.RED))
+
     if completed_trials:
         print(color_message(f"\n{'=' * 70}", Color.GREEN))
         print(color_message("  Bayesian Optimization Summary", Color.GREEN))
@@ -970,11 +1134,13 @@ def eval_bayesian(
         "avg_eval_score": avg_score,
         "n_trials": n_trials,
         "completed_trials": len(completed_trials),
+        "failed_trials": n_failed,
         "seed": seed,
         "components": components_list,
         "locked": sorted(locked_set),
         "best_combination": best,
         "trials": completed_trials,
+        "failures": failed_trials,
     }
     report_path = os.path.join(output_dir, "report.json")
     with open(report_path, "w") as f:
@@ -1013,6 +1179,8 @@ def eval_component(
     sigma: float = 30.0,
     seed: int = None,
     build: bool = True,
+    overwrite: bool = False,
+    tune_evaluated_component: bool = False,
 ):
     """
     Evaluate whether adding a component improves observer accuracy via
@@ -1024,29 +1192,43 @@ def eval_component(
       - Compare the max best-score across the M runs per subset, averaged
         over all subsets.
 
+    By default the evaluated component is locked at Go defaults on the ``with``
+    runs (``--lock`` in Bayesian eval), so the Optuna search space matches the
+    ``without`` side and n_trials is a fair comparison. Pass
+    ``--tune-evaluated-component`` to include the target in the HP search
+    (larger space on ``with``; use a higher trial budget if you enable this).
+
     All seeds are derived deterministically from a single base seed so the
     entire experiment is fully reproducible.
 
     Output layout:
         <output_dir>/without/subset_NNN/run_NNN/  - bayesian_eval output
         <output_dir>/with/subset_NNN/run_NNN/      - bayesian_eval output
-        <output_dir>/report.json                   - comparison report
+        <output_dir>/report.json                   - comparison report including
+            per_subset, per_subset_scenario (Δ F1 per scenario), and
+            per_scenario_summary (mean/min/max Δ across subsets).
 
     Args:
         component: Component to evaluate (any detector, correlator, or extractor).
         n_subsets: Number of random detector/correlator subsets (default: 5).
         n_trials: Optuna trials per Bayesian run (default: 5).
         m_runs: Independent Bayesian optimisation runs per subset per variant (default: 1).
-        output_dir: Root output directory (removed and recreated).
+        output_dir: Root output directory. If it already contains report.json,
+            the task aborts unless overwrite is True.
+        overwrite: Allow replacing an existing output_dir that contains report.json.
         scenarios_dir: Directory containing scenario subdirectories.
         sigma: Gaussian width in seconds for F1 scoring.
         seed: Base seed for deterministic reproducibility (default: random).
         build: Whether to build testbench and scorer first.
+        tune_evaluated_component: If False (default), the target component is
+            locked on ``with`` runs (same effective search complexity as ``without``).
+            If True, Optuna also tunes the target component's hyperparameters.
 
     Examples:
         dda inv q.eval-component --component scanmw
         dda inv q.eval-component --component log_pattern_extractor --n-subsets 3
         dda inv q.eval-component --component cusum --seed 42 --n-trials 10
+        dda inv q.eval-component --component scanmw --tune-evaluated-component
     """
     all_known = DETECTORS + CORRELATORS + EXTRACTORS
     if component not in all_known:
@@ -1066,11 +1248,22 @@ def eval_component(
 
     # --- generate subsets ---
     is_extractor = component in EXTRACTORS
-    subsets = random_component_combinations(
-        n_subsets,
+    force_disable_subsets: list[str] = [] if is_extractor else [component]
+
+    # Build fixed subsets: full stack, then anchors (minimal + medium), then random fill.
+    # Anchors whose required components are disabled are silently skipped.
+    full_stack = _full_stack_combo(force_disable=force_disable_subsets)
+    anchor_subsets = _anchor_combos(force_disable=force_disable_subsets)
+    fixed_subsets = [full_stack] + anchor_subsets
+    fixed_keys = {(tuple(s["detectors"]), tuple(s["correlators"])) for s in fixed_subsets}
+    random_count = max(0, n_subsets - len(fixed_subsets))
+    random_subsets = random_component_combinations(
+        random_count,
         seed=subset_seed,
-        force_disable=[] if is_extractor else [component],
+        force_disable=force_disable_subsets,
+        exclude_combo_keys=fixed_keys,
     )
+    subsets = fixed_subsets + random_subsets
     if len(subsets) < n_subsets:
         print(
             color_message(
@@ -1079,6 +1272,13 @@ def eval_component(
             )
         )
         n_subsets = len(subsets)
+    elif len(subsets) > n_subsets:
+        # Fixed subsets (full stack + anchors) exceed the requested n_subsets; generate
+        # run_seeds for the extra indices so the later loop doesn't raise KeyError.
+        for variant in ("without", "with"):
+            for si in range(n_subsets, len(subsets)):
+                run_seeds[(variant, si)] = [rng.randint(0, 2**32 - 1) for _ in range(m_runs)]
+        n_subsets = len(subsets)
 
     # --- compute totals ---
     scenario_names = sorted(d for d in os.listdir(scenarios_dir) if os.path.isdir(os.path.join(scenarios_dir, d)))
@@ -1086,14 +1286,16 @@ def eval_component(
     total_bayesian_runs = n_subsets * 2 * m_runs
     total_testbench_runs = total_bayesian_runs * n_trials * n_scenarios
 
+    if not _prepare_eval_output_dir(output_dir, overwrite=overwrite):
+        return
+
     # --- build once ---
     if build:
         build_testbench(ctx)
         build_scorer(ctx)
 
-    if os.path.exists(output_dir):
-        shutil.rmtree(output_dir)
-    os.makedirs(output_dir)
+    # --- ensure scenarios are present ---
+    download_scenarios(ctx, scenarios_dir=scenarios_dir)
 
     print(color_message(f"\n{'=' * 70}", Color.BLUE))
     print(color_message("  Observer Component Evaluation", Color.BLUE))
@@ -1107,6 +1309,10 @@ def eval_component(
     print(color_message(f"  total bayesian runs:   {total_bayesian_runs}", Color.BLUE))
     print(color_message(f"  total testbench runs:  {total_testbench_runs}", Color.BLUE))
     print(color_message(f"  output_dir:            {output_dir}", Color.BLUE))
+    if tune_evaluated_component:
+        print(color_message("  target component HPs:  tuned (Optuna search on 'with')", Color.ORANGE))
+    else:
+        print(color_message("  target component HPs:  locked at defaults ('with' vs fair baseline)", Color.BLUE))
     print(color_message(f"{'=' * 70}\n", Color.BLUE))
 
     # --- run evaluations ---
@@ -1145,34 +1351,51 @@ def eval_component(
 
                 run_logger.step(f"{variant} / {subset_label} / {run_label}  (seed={run_seed})")
                 run_logger.detail(f"components: {', '.join(components_list)}")
+                lock_for_run = component if variant == "with" and not tune_evaluated_component else ""
 
                 trial_logger = run_logger.child(n_trials, "Trial")
                 report = eval_bayesian(
                     ctx,
                     components=",".join(components_list),
+                    lock=lock_for_run,
                     n_trials=n_trials,
                     output_dir=run_dir,
                     scenarios_dir=scenarios_dir,
                     sigma=sigma,
                     seed=run_seed,
                     build=False,
+                    overwrite=True,
                     _logger=trial_logger,
                 )
 
-                best_score = report.get("score", 0.0) if report else 0.0
-                run_scores.append(best_score)
+                run_failed = report is None or report.get("completed_trials", 0) == 0
+                if run_failed:
+                    if report is None:
+                        reason = "eval_bayesian returned None (aborted before producing a report)"
+                    else:
+                        n_ft = report.get("failed_trials", 0)
+                        reason = f"all {n_ft} trials failed — no completed trials in report"
+                    run_logger.detail(f"Warning: {variant}/{subset_label}/{run_label} failed: {reason}", Color.RED)
+
+                best_score = report.get("score") if report and not run_failed else None
+                avg_score_val = report.get("avg_eval_score") if report and not run_failed else None
+                if not run_failed:
+                    run_scores.append(best_score)
                 run_details.append(
                     {
                         "run": run_label,
                         "seed": run_seed,
+                        "failed": run_failed,
                         "best_score": best_score,
-                        "avg_score": report.get("avg_eval_score", 0.0) if report else 0.0,
+                        "avg_score": avg_score_val,
                         "report_path": os.path.join(run_dir, "report.json"),
+                        "scenario_f1": _scenario_f1_from_bayesian_report(report) if not run_failed else {},
                     }
                 )
 
-            max_score = max(run_scores) if run_scores else 0.0
-            mean_score = sum(run_scores) / len(run_scores) if run_scores else 0.0
+            max_score = max(run_scores) if run_scores else None
+            mean_score = sum(run_scores) / len(run_scores) if run_scores else None
+            n_failed_runs = sum(1 for r in run_details if r["failed"])
 
             variant_results[variant].append(
                 {
@@ -1183,6 +1406,7 @@ def eval_component(
                     "run_scores": run_scores,
                     "max_score": max_score,
                     "mean_score": mean_score,
+                    "failed_runs": n_failed_runs,
                     "runs": run_details,
                 }
             )
@@ -1192,35 +1416,129 @@ def eval_component(
     for si in range(n_subsets):
         wo = variant_results["without"][si]
         wi = variant_results["with"][si]
+        wo_max = wo["max_score"]
+        wi_max = wi["max_score"]
+        wo_mean = wo["mean_score"]
+        wi_mean = wi["mean_score"]
+        delta_max_ps = (wi_max - wo_max) if wo_max is not None and wi_max is not None else None
+        delta_mean_ps = (wi_mean - wo_mean) if wo_mean is not None and wi_mean is not None else None
+        failed_runs_total = wo["failed_runs"] + wi["failed_runs"]
         per_subset.append(
             {
                 "subset": wo["subset"],
                 "detectors": wo["detectors"],
                 "correlators": wo["correlators"],
-                "without_max": wo["max_score"],
-                "with_max": wi["max_score"],
-                "delta_max": wi["max_score"] - wo["max_score"],
-                "without_mean": wo["mean_score"],
-                "with_mean": wi["mean_score"],
-                "delta_mean": wi["mean_score"] - wo["mean_score"],
+                "without_max": wo_max,
+                "with_max": wi_max,
+                "delta_max": delta_max_ps,
+                "without_mean": wo_mean,
+                "with_mean": wi_mean,
+                "delta_mean": delta_mean_ps,
+                "failed_runs": failed_runs_total,
                 "without_run_scores": wo["run_scores"],
                 "with_run_scores": wi["run_scores"],
             }
         )
 
-    without_maxs = [r["max_score"] for r in variant_results["without"]]
-    with_maxs = [r["max_score"] for r in variant_results["with"]]
-    without_means = [r["mean_score"] for r in variant_results["without"]]
-    with_means = [r["mean_score"] for r in variant_results["with"]]
+    # --- per-scenario deltas (best run per variant per subset) ---
+    per_subset_scenario: list[dict] = []
+    for si in range(n_subsets):
+        wo_runs = variant_results["without"][si]["runs"]
+        wi_runs = variant_results["with"][si]["runs"]
+        iwo = _best_run_index(wo_runs)
+        iwi = _best_run_index(wi_runs)
+        wo_f1 = wo_runs[iwo]["scenario_f1"] if iwo >= 0 else {}
+        wi_f1 = wi_runs[iwi]["scenario_f1"] if iwi >= 0 else {}
+        names = sorted(set(wo_f1.keys()) | set(wi_f1.keys()))
+        by_scenario: dict[str, dict] = {}
+        for s in names:
+            a = wo_f1.get(s)
+            b = wi_f1.get(s)
+            delta = (b - a) if a is not None and b is not None else None
+            by_scenario[s] = {
+                "without_f1": a,
+                "with_f1": b,
+                "delta_f1": delta,
+            }
+        per_subset_scenario.append(
+            {
+                "subset": variant_results["without"][si]["subset"],
+                "by_scenario": by_scenario,
+            }
+        )
 
-    avg_max_without = sum(without_maxs) / len(without_maxs) if without_maxs else 0.0
-    avg_max_with = sum(with_maxs) / len(with_maxs) if with_maxs else 0.0
-    avg_mean_without = sum(without_means) / len(without_means) if without_means else 0.0
-    avg_mean_with = sum(with_means) / len(with_means) if with_means else 0.0
-    delta_max = avg_max_with - avg_max_without
-    delta_mean = avg_mean_with - avg_mean_without
+    all_scenario_names: set[str] = set()
+    for pss in per_subset_scenario:
+        all_scenario_names.update(pss["by_scenario"].keys())
 
-    # --- print summary ---
+    per_scenario_summary: dict[str, dict] = {}
+    for s in sorted(all_scenario_names):
+        deltas = []
+        for pss in per_subset_scenario:
+            row = pss["by_scenario"].get(s)
+            if row and row.get("delta_f1") is not None:
+                deltas.append(row["delta_f1"])
+        if not deltas:
+            per_scenario_summary[s] = {
+                "mean_delta_f1": None,
+                "min_delta_f1": None,
+                "max_delta_f1": None,
+                "n_subsets": 0,
+            }
+        else:
+            per_scenario_summary[s] = {
+                "mean_delta_f1": sum(deltas) / len(deltas),
+                "min_delta_f1": min(deltas),
+                "max_delta_f1": max(deltas),
+                "n_subsets": len(deltas),
+            }
+
+    # Only include subsets where both variants produced at least one successful run.
+    valid_deltas_max = [ps["delta_max"] for ps in per_subset if ps["delta_max"] is not None]
+    valid_deltas_mean = [ps["delta_mean"] for ps in per_subset if ps["delta_mean"] is not None]
+    n_failed_subsets = sum(1 for ps in per_subset if ps["delta_max"] is None)
+    total_failed_runs = sum(ps["failed_runs"] for ps in per_subset)
+
+    if n_failed_subsets > 0:
+        print(
+            color_message(
+                f"Warning: {n_failed_subsets}/{n_subsets} subsets had fully failed runs and are excluded from the final delta.",
+                Color.ORANGE,
+            )
+        )
+    if total_failed_runs > 0 and n_failed_subsets == 0:
+        print(
+            color_message(
+                f"Warning: {total_failed_runs} individual run(s) failed across subsets; "
+                "partial results were excluded from per-subset scores.",
+                Color.ORANGE,
+            )
+        )
+
+    delta_max = sum(valid_deltas_max) / len(valid_deltas_max) if valid_deltas_max else None
+    delta_mean = sum(valid_deltas_mean) / len(valid_deltas_mean) if valid_deltas_mean else None
+
+    avg_max_without_vals = [ps["without_max"] for ps in per_subset if ps["without_max"] is not None]
+    avg_max_with_vals = [ps["with_max"] for ps in per_subset if ps["with_max"] is not None]
+    avg_mean_without_vals = [ps["without_mean"] for ps in per_subset if ps["without_mean"] is not None]
+    avg_mean_with_vals = [ps["with_mean"] for ps in per_subset if ps["with_mean"] is not None]
+
+    avg_max_without = sum(avg_max_without_vals) / len(avg_max_without_vals) if avg_max_without_vals else None
+    avg_max_with = sum(avg_max_with_vals) / len(avg_max_with_vals) if avg_max_with_vals else None
+    avg_mean_without = sum(avg_mean_without_vals) / len(avg_mean_without_vals) if avg_mean_without_vals else None
+    avg_mean_with = sum(avg_mean_with_vals) / len(avg_mean_with_vals) if avg_mean_with_vals else None
+
+    if delta_max is None:
+        recommendation = "inconclusive"
+        rec_clr = Color.ORANGE
+    elif delta_max > 0:
+        recommendation = "keep"
+        rec_clr = Color.GREEN
+    else:
+        recommendation = "discard"
+        rec_clr = Color.RED
+
+    # --- print summary (primary max-score block last) ---
     print(color_message(f"\n{'=' * 70}", Color.GREEN))
     print(color_message("  Component Evaluation Summary", Color.GREEN))
     print(color_message(f"{'=' * 70}\n", Color.GREEN))
@@ -1230,29 +1548,87 @@ def eval_component(
     print(header)
     print(f"  {'-' * 44}")
     for ps in per_subset:
-        delta_clr = Color.GREEN if ps["delta_max"] > 0 else Color.RED
-        line = f"  {ps['subset']:<12}  {ps['without_max']:>8.4f}  {ps['with_max']:>8.4f}  "
-        print(line + color_message(f"{ps['delta_max']:>+8.4f}", delta_clr))
+        wo_str = f"{ps['without_max']:>8.4f}" if ps["without_max"] is not None else f"{'FAILED':>8}"
+        wi_str = f"{ps['with_max']:>8.4f}" if ps["with_max"] is not None else f"{'FAILED':>8}"
+        if ps["delta_max"] is None:
+            delta_str = color_message(f"{'n/a':>8}", Color.ORANGE)
+        else:
+            delta_clr = Color.GREEN if ps["delta_max"] > 0 else Color.RED
+            delta_str = color_message(f"{ps['delta_max']:>+8.4f}", delta_clr)
+        fail_note = f"  [{ps['failed_runs']} run(s) failed]" if ps["failed_runs"] > 0 else ""
+        print(f"  {ps['subset']:<12}  {wo_str}  {wi_str}  {delta_str}{fail_note}")
 
     print()
-    print(color_message(f"  Avg max score without:  {avg_max_without:.4f}", Color.BLUE))
-    print(color_message(f"  Avg max score with:     {avg_max_with:.4f}", Color.BLUE))
-    delta_clr = Color.GREEN if delta_max > 0 else Color.RED
-    print(color_message(f"  Delta (max):            {delta_max:+.4f}", delta_clr))
-    print()
-    print(color_message(f"  Avg mean score without: {avg_mean_without:.4f}", Color.BLUE))
-    print(color_message(f"  Avg mean score with:    {avg_mean_with:.4f}", Color.BLUE))
-    delta_clr = Color.GREEN if delta_mean > 0 else Color.RED
-    print(color_message(f"  Delta (mean):           {delta_mean:+.4f}", delta_clr))
+    print(
+        color_message(
+            "  Per-scenario Δ F1 (best Bayesian trial per run; best run per variant per subset)",
+            Color.BLUE,
+        )
+    )
+    print(
+        color_message(
+            "  Columns: mean / min / max of Δ across subsets (helps spot inconsistent scenarios)",
+            Color.BLUE,
+        )
+    )
+    ps_header = f"  {'Scenario':<26}  {'mean Δ':>8}  {'min Δ':>8}  {'max Δ':>8}"
+    print(ps_header)
+    print(f"  {'-' * len(ps_header.strip())}")
 
-    recommendation = "keep" if delta_max > 0 else "discard"
-    rec_clr = Color.GREEN if delta_max > 0 else Color.RED
+    def _scenario_sort_key(item: tuple[str, dict]) -> tuple:
+        m = item[1].get("mean_delta_f1")
+        if m is None:
+            return (1, 0.0)
+        return (0, -m)
+
+    for scen, row in sorted(per_scenario_summary.items(), key=_scenario_sort_key):
+        mean_d = row["mean_delta_f1"]
+        min_d = row["min_delta_f1"]
+        max_d = row["max_delta_f1"]
+        if mean_d is None:
+            print(color_message(f"  {scen:<26}  {'n/a':>8}  {'n/a':>8}  {'n/a':>8}", Color.ORANGE))
+        else:
+            mean_clr = Color.GREEN if mean_d > 0 else Color.RED if mean_d < 0 else Color.BLUE
+            msg = f"  {scen:<26}  {mean_d:>+8.4f}  {min_d:>+8.4f}  {max_d:>+8.4f}"
+            print(color_message(msg, mean_clr))
+
+    def _fmt(v: float | None, signed: bool = False) -> str:
+        if v is None:
+            return "n/a"
+        return f"{v:+.4f}" if signed else f"{v:.4f}"
+
+    print()
+    print(color_message("  Secondary: mean of trial-mean scores (across subsets)", Color.BLUE))
+    print(color_message(f"  Avg mean score without: {_fmt(avg_mean_without)}", Color.BLUE))
+    print(color_message(f"  Avg mean score with:    {_fmt(avg_mean_with)}", Color.BLUE))
+    if delta_mean is None:
+        print(color_message("  Delta (mean):           n/a (no valid subsets)", Color.ORANGE))
+    else:
+        delta_clr = Color.GREEN if delta_mean > 0 else Color.RED
+        print(color_message(f"  Delta (mean):           {delta_mean:+.4f}", delta_clr))
+
+    print()
+    print(color_message(f"  {'-' * 66}", Color.GREEN))
+    print(color_message("  Primary metric — max best-trial score (avg across subsets)", Color.GREEN))
+    print(color_message(f"  {'-' * 66}", Color.GREEN))
+    print(color_message(f"  Avg max score without:  {_fmt(avg_max_without)}", Color.GREEN))
+    print(color_message(f"  Avg max score with:     {_fmt(avg_max_with)}", Color.GREEN))
+    if delta_max is None:
+        print(color_message("  Delta (max):            n/a (no valid subsets)", Color.ORANGE))
+    else:
+        delta_clr = Color.GREEN if delta_max > 0 else Color.RED
+        print(color_message(f"  Delta (max):            {delta_max:+.4f}", delta_clr))
     print()
     print(color_message(f"  Recommendation: {recommendation.upper()} {component}", rec_clr))
+    if recommendation == "inconclusive":
+        print(color_message("  All subsets failed — cannot make a reliable recommendation.", Color.ORANGE))
+    elif recommendation == "keep":
+        print(color_message("  Next step: update your config, then tune the new component using:", Color.BOLD))
+        print(color_message(f"    dda inv q.eval-bayesian --only {component}", Color.BOLD))
     print(color_message(f"{'=' * 70}", Color.GREEN))
 
     # --- copy best "with" config to root ---
-    all_with_runs = [run for subset in variant_results["with"] for run in subset["runs"]]
+    all_with_runs = [run for subset in variant_results["with"] for run in subset["runs"] if not run.get("failed")]
     best_with_run = max(all_with_runs, key=lambda r: r["best_score"]) if all_with_runs else None
     best_config_path = None
     if best_with_run:
@@ -1264,6 +1640,7 @@ def eval_component(
     # --- write report ---
     final_report = {
         "component": component,
+        "tune_evaluated_component": tune_evaluated_component,
         "recommendation": recommendation,
         "seed": seed,
         "n_subsets": n_subsets,
@@ -1280,8 +1657,12 @@ def eval_component(
             "avg_mean_score_without": avg_mean_without,
             "avg_mean_score_with": avg_mean_with,
             "delta_mean": delta_mean,
+            "failed_subsets": n_failed_subsets,
+            "total_failed_runs": total_failed_runs,
         },
         "per_subset": per_subset,
+        "per_subset_scenario": per_subset_scenario,
+        "per_scenario_summary": per_scenario_summary,
         "without": variant_results["without"],
         "with": variant_results["with"],
     }
@@ -1291,9 +1672,10 @@ def eval_component(
 
     print(color_message(f"\n  Report:      {report_path}", Color.GREEN))
     if best_config_path:
-        print(
-            color_message(f"  Best config: {best_config_path}  (score={best_with_run['best_score']:.4f})", Color.GREEN)
+        score_str = (
+            f"{best_with_run['best_score']:.4f}" if best_with_run and best_with_run["best_score"] is not None else "n/a"
         )
+        print(color_message(f"  Best config: {best_config_path}  (score={score_str})", Color.GREEN))
 
     return final_report
 
@@ -1311,7 +1693,6 @@ def _resolve_zip_from_runs_jsonl(ctx, name):
         result = ctx.run(
             f"aws-vault exec {AWS_PROFILE} -- aws s3 cp s3://{S3_BUCKET}/runs.jsonl {shlex.quote(tmp_path)}",
             warn=True,
-            hide=True,
         )
         if result is None or result.failed:
             return None
@@ -1632,12 +2013,12 @@ def _print_benchmark_summary(output):
         has_params = any(r[0] for r in rows)
         if has_params:
             print(f"  {'param':<22}  {'time/op':>10}  {'B/op':>8}  {'allocs':>7}")
-            print("  " + "-" * 54)
+            print(f"  {'-' * 54}")
             for param, ns_op, b_op, allocs in rows:
                 print(f"  {param:<22}  {_fmt_ns(ns_op):>10}  {b_op:>8.0f}  {allocs:>7.0f}")
         else:
             print(f"  {'time/op':>10}  {'B/op':>8}  {'allocs':>7}")
-            print("  " + "-" * 30)
+            print(f"  {'-' * 30}")
             for _, ns_op, b_op, allocs in rows:
                 print(f"  {_fmt_ns(ns_op):>10}  {b_op:>8.0f}  {allocs:>7.0f}")
         print()
@@ -1652,3 +2033,67 @@ def _fmt_ns(ns):
     if ns >= 1_000:
         return f"{ns / 1_000:.2f}µs"
     return f"{ns:.0f}ns"
+
+
+@task
+def eval_component_workspace_report(
+    ctx,
+    workspace_name: str,
+    output_dir: str = "/tmp/observer-component-eval",
+    local_dir: str = "",
+    only_report: bool = False,
+):
+    """
+    After ``q.eval-component`` on a remote dev workspace, copy results to your machine.
+
+    SSH host is ``workspace-<workspace_name>`` (same as ``workspaces.create``). If
+    ``report.json`` exists under ``output_dir``, copies the tree to ``local_dir``
+    via ``scp -r`` (or only ``report.json`` with ``--only-report``). If the report
+    is missing, eval may still be running — reattach to the tmux session on the host.
+
+    Args:
+        workspace_name: Workspace name (SSH: ``workspace-<name>``).
+        output_dir:     Remote directory passed to ``q.eval-component`` (default: ``/tmp/observer-component-eval``).
+        local_dir:      Local destination (default: ``./eval-results/<workspace_name>``).
+        only_report:    Copy only ``report.json`` instead of the full output directory.
+
+    Example:
+        dda inv q.eval-component-workspace-report --workspace-name eval-bocpd
+        dda inv q.eval-component-workspace-report --workspace-name eval-bocpd --only-report
+    """
+    ws_name = workspace_name.strip()
+    if not ws_name:
+        raise Exit("workspace_name is required")
+
+    ssh_host = f"workspace-{ws_name}"
+    remote_report = f"{output_dir}/report.json"
+
+    # Check whether the report exists yet.
+    check = ctx.run(
+        f"ssh {shlex.quote(ssh_host)} test -f {shlex.quote(remote_report)}",
+        warn=True,
+        hide=True,
+    )
+    if check is None or check.failed:
+        print(
+            color_message(
+                f"Report not found at {remote_report} on {ssh_host} — eval may still be running.",
+                Color.ORANGE,
+            )
+        )
+        print(color_message("  Reattach to the workspace tmux session to watch progress:", Color.BLUE))
+        print(color_message(f"    dda inv workspaces.tmux-attach --name {ws_name}", Color.BLUE))
+        return
+
+    dest = local_dir.strip() or os.path.join("eval-results", ws_name)
+    os.makedirs(dest, exist_ok=True)
+
+    if only_report:
+        ctx.run(f"scp {shlex.quote(f'{ssh_host}:{remote_report}')} {shlex.quote(dest)}/")
+        print(color_message(f"report.json copied to {dest}/report.json", Color.GREEN))
+    else:
+        # scp -r copies the remote directory tree into dest.
+        ctx.run(f"scp -r {shlex.quote(f'{ssh_host}:{output_dir}/.')} {shlex.quote(dest)}/")
+        print(color_message(f"Results copied to {dest}/", Color.GREEN))
+
+    print(color_message(f"  report.json: {os.path.join(dest, 'report.json')}", Color.GREEN))
