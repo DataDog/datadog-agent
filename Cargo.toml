@@ -53,7 +53,7 @@ zip = { version = "2.1", default-features = false, features = ["deflate"] }
 
 tower = { version = "0.5", features = ["util"] }
 uuid = { version = "1", features = ["v4"] }
-windows-sys = { version = "0.59", features = [] }
+windows-sys = { version = "0.61", features = [] }
 
 # dev-dependencies
 dircpy = "0.3.19"
