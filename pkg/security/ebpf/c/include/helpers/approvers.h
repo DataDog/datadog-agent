@@ -96,7 +96,6 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_bind_sample(struct bin
 
     if (bpf_map_update_elem(&bind_samples, key, &new_entry, BPF_NOEXIST) < 0) {
         if (sample_refresh_period_ns > 0 && out_cookie != NULL && out_refresh_needed != NULL) {
-            // V2: duplicate hit with cookie/refresh logic
             struct sample_entry_t *existing = bpf_map_lookup_elem(&bind_samples, key);
             if (existing != NULL) {
                 if (existing->cookie == 0) {
@@ -122,20 +121,15 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_bind_sample(struct bin
     }
 
     if (event_sampling_bind_rate > 0 && !global_limiter_allow(BIND_SAMPLE_LIMITER, event_sampling_bind_rate, 1)) {
-        if (sample_refresh_period_ns > 0) {
-            // V2: keep entry, mark as not yet delivered
-            struct sample_entry_t *entry = bpf_map_lookup_elem(&bind_samples, key);
-            if (entry != NULL) {
-                entry->cookie = 0;
-            }
-        } else {
-            // V1: delete entry (original behavior)
-            bpf_map_delete_elem(&bind_samples, key);
+        // Keep entry but mark as not yet delivered so we can retry later
+        struct sample_entry_t *entry = bpf_map_lookup_elem(&bind_samples, key);
+        if (entry != NULL) {
+            entry->cookie = 0;
         }
         return DISCARDED;
     }
 
-    if (sample_refresh_period_ns > 0 && out_cookie != NULL) {
+    if (out_cookie != NULL) {
         *out_cookie = new_entry.cookie;
     }
 
@@ -189,7 +183,6 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_connect_sample(struct 
 
     if (bpf_map_update_elem(&connect_samples, key, &new_entry, BPF_NOEXIST) < 0) {
         if (sample_refresh_period_ns > 0 && syscall != NULL) {
-            // V2: duplicate hit with cookie/refresh logic
             struct sample_entry_t *existing = bpf_map_lookup_elem(&connect_samples, key);
             if (existing != NULL) {
                 if (existing->cookie == 0) {
@@ -215,20 +208,15 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_connect_sample(struct 
     }
 
     if (event_sampling_connect_rate > 0 && !global_limiter_allow(CONNECT_SAMPLE_LIMITER, event_sampling_connect_rate, 1)) {
-        if (sample_refresh_period_ns > 0) {
-            // V2: keep entry, mark as not yet delivered
-            struct sample_entry_t *entry = bpf_map_lookup_elem(&connect_samples, key);
-            if (entry != NULL) {
-                entry->cookie = 0;
-            }
-        } else {
-            // V1: delete entry (original behavior)
-            bpf_map_delete_elem(&connect_samples, key);
+        // Keep entry but mark as not yet delivered so we can retry later
+        struct sample_entry_t *entry = bpf_map_lookup_elem(&connect_samples, key);
+        if (entry != NULL) {
+            entry->cookie = 0;
         }
         return DISCARDED;
     }
 
-    if (sample_refresh_period_ns > 0 && syscall != NULL) {
+    if (syscall != NULL) {
         syscall->sample_cookie = new_entry.cookie;
     }
 
@@ -512,7 +500,6 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(struct den
 
     if (bpf_map_update_elem(&open_samples, &key, &new_entry, BPF_NOEXIST) < 0) {
         if (sample_refresh_period_ns > 0 && syscall != NULL) {
-            // V2: duplicate hit with cookie/refresh logic
             struct sample_entry_t *existing = bpf_map_lookup_elem(&open_samples, &key);
             if (existing != NULL) {
                 if (existing->cookie == 0) {
@@ -538,21 +525,15 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(struct den
     }
 
     if (event_sampling_open_rate > 0 && !global_limiter_allow(OPEN_SAMPLE_LIMITER, event_sampling_open_rate, 1)) {
-        if (sample_refresh_period_ns > 0) {
-            // V2: keep entry, mark as not yet delivered
-            struct sample_entry_t *entry = bpf_map_lookup_elem(&open_samples, &key);
-            if (entry != NULL) {
-                entry->cookie = 0;
-            }
-        } else {
-            // V1: delete entry (original behavior)
-            bpf_map_delete_elem(&open_samples, &key);
+        // Keep entry but mark as not yet delivered so we can retry later
+        struct sample_entry_t *entry = bpf_map_lookup_elem(&open_samples, &key);
+        if (entry != NULL) {
+            entry->cookie = 0;
         }
         return DISCARDED;
     }
 
-    // Store cookie for the full event
-    if (sample_refresh_period_ns > 0 && syscall != NULL) {
+    if (syscall != NULL) {
         syscall->sample_cookie = new_entry.cookie;
     }
 
