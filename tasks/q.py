@@ -542,7 +542,7 @@ def eval_combinations(
 @task
 def eval_bayesian(
     ctx,
-    components: str = ",".join(DETECTORS + CORRELATORS + EXTRACTORS),
+    components: str = "",
     lock: str = "",
     only: str = "",
     n_trials: int = 10,
@@ -572,7 +572,10 @@ def eval_bayesian(
     Args:
         components: Comma-separated component names to enable (detectors, correlators, extractors; default: all).
         lock: Comma-separated components to enable but not tune (keep at Go defaults).
-        only: Shorthand: enable all components but tune only the listed ones (locks everything else).
+        only: Tune only the listed components; lock everything else.
+            Without --components: enables all components and locks all except --only targets.
+            With --components: enables only the given subset and locks all except --only targets
+            (--only targets must be a subset of --components).
             Mutually exclusive with --lock.
         n_trials: Number of Optuna trials (default: 50).
         output_dir: Root output directory. If it already contains report.json,
@@ -591,7 +594,8 @@ def eval_bayesian(
         dda inv q.bayesian-eval                                                                       # all components
         dda inv q.bayesian-eval --components bocpd,rrcf,time_cluster,log_pattern_extractor            # fixed subset
         dda inv q.bayesian-eval --components bocpd,rrcf,time_cluster --lock time_cluster              # freeze one
-        dda inv q.bayesian-eval --only bocpd                                                          # tune one, lock rest
+        dda inv q.bayesian-eval --only bocpd                                                          # tune one, lock rest (all components enabled)
+        dda inv q.bayesian-eval --components bocpd,rrcf,time_cluster --only bocpd                     # tune bocpd, lock rrcf+time_cluster, disable the rest
         dda inv q.bayesian-eval --n-trials 100 --seed 42
     """
     import pickle
@@ -612,15 +616,29 @@ def eval_bayesian(
     components_list = [c.strip() for c in components.split(",") if c.strip()]
 
     if only_list:
-        # Expand to full component set and lock everything except the --only targets.
         all_components = DETECTORS + CORRELATORS + EXTRACTORS
         unknown_only = set(only_list) - set(all_components)
         if unknown_only:
             print(color_message(f"Error: unknown components in --only: {', '.join(sorted(unknown_only))}", Color.RED))
             return
-        components_list = all_components
-        locked_set = {c for c in all_components if c not in set(only_list)}
+        if not components_list:
+            # No --components given: expand to full set and lock everything except --only.
+            components_list = all_components
+        else:
+            # --components was given: respect it, lock within that subset.
+            unknown_only_in_subset = set(only_list) - set(components_list)
+            if unknown_only_in_subset:
+                print(
+                    color_message(
+                        f"Error: --only targets not in --components: {', '.join(sorted(unknown_only_in_subset))}",
+                        Color.RED,
+                    )
+                )
+                return
+        locked_set = {c for c in components_list if c not in set(only_list)}
     else:
+        if not components_list:
+            components_list = DETECTORS + CORRELATORS + EXTRACTORS
         locked_set = {c.strip() for c in lock.split(",") if c.strip()}
 
     if not components_list:
