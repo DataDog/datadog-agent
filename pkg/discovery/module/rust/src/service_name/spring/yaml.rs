@@ -5,7 +5,6 @@
 
 use saphyr_parser::{Event, Parser};
 use std::io::Read;
-use std::num::NonZeroU8;
 
 /// State machine for navigating YAML events to find a target key path.
 enum State {
@@ -19,14 +18,27 @@ enum State {
     Descend,
     /// Skipping `count` top-level items (each possibly compound).
     /// `nesting` tracks depth within a compound structure being skipped.
-    /// `count` is NonZeroU8 to prevent constructing a no-op skip that
-    /// would underflow on the first decrement.
-    Skip { nesting: u32, count: NonZeroU8 },
+    Skip { nesting: u32, count: SkipCount },
 }
 
-// Evaluated at compile time so the unwrap() never runs at runtime.
-const SKIP_ONE: NonZeroU8 = NonZeroU8::new(1).unwrap();
-const SKIP_TWO: NonZeroU8 = NonZeroU8::new(2).unwrap();
+/// Number of top-level YAML values remaining to skip.
+/// Only two variants exist — a zero-count skip is impossible by construction.
+enum SkipCount {
+    /// Skip one value (the value of a non-matching simple key).
+    One,
+    /// Skip two values (a complex key's subtree, then its value).
+    Two,
+}
+
+impl SkipCount {
+    /// Consume one item. Returns `Some` if more items remain, `None` if done.
+    fn decrement(self) -> Option<Self> {
+        match self {
+            Self::Two => Some(Self::One),
+            Self::One => None,
+        }
+    }
+}
 
 /// Searches for a dot-separated key path (e.g. "spring.application.name") in
 /// YAML and returns its scalar value. Uses a streaming event parser to avoid
@@ -81,14 +93,14 @@ pub fn parse_yaml<R: Read>(mut reader: R, target_key: &str) -> Option<String> {
                 // Non-matching simple key: skip its value (1 item).
                 Event::Scalar(..) | Event::Alias(..) => State::Skip {
                     nesting: 0,
-                    count: SKIP_ONE,
+                    count: SkipCount::One,
                 },
                 // Non-matching complex key (mapping/sequence used as a key):
                 // skip the key's own subtree (nesting=1) plus its value,
                 // so count=2 top-level items to consume.
                 Event::MappingStart(..) | Event::SequenceStart(..) => State::Skip {
                     nesting: 1,
-                    count: SKIP_TWO,
+                    count: SkipCount::Two,
                 },
                 _ => return None,
             },
@@ -124,12 +136,14 @@ pub fn parse_yaml<R: Read>(mut reader: R, target_key: &str) -> Option<String> {
             //   count=1: skipping one value (for a non-matching simple key)
             //   count=2: skipping a complex key's subtree + its value
             State::Skip { mut nesting, count } => {
-                let mut remaining = count.get();
-                if nesting == 0 {
+                let done = if nesting == 0 {
                     // Starting a new top-level item to skip.
                     match event {
-                        Event::Scalar(..) | Event::Alias(..) => remaining -= 1,
-                        Event::MappingStart(..) | Event::SequenceStart(..) => nesting = 1,
+                        Event::Scalar(..) | Event::Alias(..) => true,
+                        Event::MappingStart(..) | Event::SequenceStart(..) => {
+                            nesting = 1;
+                            false
+                        }
                         _ => return None,
                     }
                 } else {
@@ -139,15 +153,16 @@ pub fn parse_yaml<R: Read>(mut reader: R, target_key: &str) -> Option<String> {
                         Event::MappingEnd | Event::SequenceEnd => nesting -= 1,
                         _ => {}
                     }
-                    if nesting == 0 {
-                        // Finished one compound item.
-                        remaining -= 1;
+                    nesting == 0
+                };
+                if done {
+                    match count.decrement() {
+                        // All items skipped; back to reading keys.
+                        None => State::Key,
+                        Some(count) => State::Skip { nesting, count },
                     }
-                }
-                match NonZeroU8::new(remaining) {
-                    // All items skipped; back to reading keys.
-                    None => State::Key,
-                    Some(count) => State::Skip { nesting, count },
+                } else {
+                    State::Skip { nesting, count }
                 }
             }
         };
