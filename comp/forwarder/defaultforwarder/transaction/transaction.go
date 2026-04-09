@@ -377,17 +377,6 @@ func (t *HTTPTransaction) Process(ctx context.Context, config config.Component, 
 	return nil
 }
 
-// AuthorizedHeaders returns a clone of the transaction's headers with auth applied.
-// The transaction's own Headers field is never mutated, so the API key is only
-// present on the copy used for the outgoing HTTP request.
-func (t *HTTPTransaction) AuthorizedHeaders() http.Header {
-	headers := t.Headers.Clone()
-	if t.Resolver != nil {
-		t.Resolver.Authorize(t.APIKeyIndex, headers)
-	}
-	return headers
-}
-
 // internalProcess does the  work of actually sending the http request to the specified domain
 // This will return  (http status code, response body, error).
 func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Component, log log.Component, secrets secrets.Component, client *http.Client) (int, []byte, error) {
@@ -405,7 +394,12 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 		transactionsSentRequestErrors.Add(1)
 		return 0, nil, nil
 	}
-	req.Header = t.AuthorizedHeaders()
+	for k, v := range t.Headers {
+		req.Header[k] = v
+	}
+	if t.Resolver != nil {
+		t.Resolver.Authorize(t.APIKeyIndex, req.Header)
+	}
 	log.Tracef("Sending %s request to %s with body size %d and headers %v", req.Method, logURL, len(payload), t.Headers)
 	resp, err := client.Do(req)
 

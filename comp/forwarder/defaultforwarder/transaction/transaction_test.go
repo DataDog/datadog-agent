@@ -191,6 +191,39 @@ func Test_truncateBodyForLog(t *testing.T) {
 	}
 }
 
+type mockAuthorizer struct{}
+
+func (mockAuthorizer) Authorize(_ int, h http.Header) { h.Set("DD-Api-Key", "secret") }
+
+// TestProcessDoesNotMutateHeaders verifies that internalProcess does not add the
+// API key (or any other header) to the transaction's own Headers field.
+func TestProcessDoesNotMutateHeaders(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "secret", r.Header.Get("DD-Api-Key"), "request should carry the API key")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+
+	transaction := NewHTTPTransaction()
+	transaction.Domain = ts.URL
+	transaction.Endpoint.Route = "/"
+	transaction.Payload = NewBytesPayloadWithoutMetaData([]byte("payload"))
+	transaction.Resolver = mockAuthorizer{}
+	transaction.Headers.Set("Content-Type", "application/json")
+
+	headersBefore := transaction.Headers.Clone()
+
+	client := &http.Client{}
+	mockConfig := configmock.New(t)
+	log := logmock.New(t)
+	secrets := secretsmock.New(t)
+	err := transaction.Process(context.Background(), mockConfig, log, secrets, client)
+	assert.NoError(t, err)
+
+	assert.Equal(t, headersBefore, transaction.Headers, "t.Headers must not be mutated by Process")
+	assert.Empty(t, transaction.Headers.Get("DD-Api-Key"), "API key must not appear in t.Headers")
+}
+
 func TestTransaction403TriggersSecretRefresh(t *testing.T) {
 	triggered := false
 

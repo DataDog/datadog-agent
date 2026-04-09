@@ -22,6 +22,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
+// resolveKey applies the transaction's resolver at its stored index and returns the DD-Api-Key value.
+func resolveKey(txn *transaction.HTTPTransaction) string {
+	h := make(http.Header)
+	txn.Resolver.Authorize(txn.APIKeyIndex, h)
+	return h.Get("DD-Api-Key")
+}
+
 const apiKey1 = "apiKey1"
 const apiKey2 = "apiKey2"
 const apiKey3 = "apiKey3"
@@ -335,11 +342,9 @@ func TestDeserializedTransactionAuthorize(t *testing.T) {
 		require.Len(t, txns, 1)
 
 		deserialized := txns[0].(*transaction.HTTPTransaction)
-		// AuthorizedHeaders() is called by internalProcess before sending; simulate that here.
-		authorizedHeaders := deserialized.AuthorizedHeaders()
 		assert.Empty(t, deserialized.Headers.Get("DD-Api-Key"), "t.Headers must never hold the API key")
-		assert.Equal(t, expectedKey, authorizedHeaders.Get("DD-Api-Key"),
-			"AuthorizedHeaders() should set DD-Api-Key to the key at index %d", wantIdx)
+		assert.Equal(t, expectedKey, resolveKey(deserialized),
+			"Authorize() should set DD-Api-Key to the key at index %d", wantIdx)
 	}
 }
 
@@ -370,9 +375,8 @@ func TestDeserializedTransactionAuthorizeMultipleKeys(t *testing.T) {
 	gotKeys := make(map[int]string)
 	for _, txn := range txns {
 		d := txn.(*transaction.HTTPTransaction)
-		authorizedHeaders := d.AuthorizedHeaders()
 		assert.Empty(t, d.Headers.Get("DD-Api-Key"), "t.Headers must never hold the API key")
-		gotKeys[d.APIKeyIndex] = authorizedHeaders.Get("DD-Api-Key")
+		gotKeys[d.APIKeyIndex] = resolveKey(d)
 	}
 
 	for idx, expectedKey := range expectedKeys {
@@ -384,7 +388,7 @@ func TestDeserializedTransactionAuthorizeMultipleKeys(t *testing.T) {
 // TestDeserializeV2BackwardCompat verifies that transactions serialized in the old V2 format
 // are correctly deserialized under the new design: the placeholder index is extracted from
 // the stored route/headers and written to APIKeyIndex, the Resolver is set, and
-// AuthorizedHeaders() applies the correct key without it being stored in Headers.
+// Authorize() applies the correct key without it being stored in Headers.
 func TestDeserializeV2BackwardCompat(t *testing.T) {
 	r := require.New(t)
 	log := logmock.New(t)
@@ -409,17 +413,16 @@ func TestDeserializeV2BackwardCompat(t *testing.T) {
 	deserialized := txns[0].(*transaction.HTTPTransaction)
 
 	// The placeholder index 0 is extracted and written to APIKeyIndex; Resolver is set so
-	// AuthorizedHeaders() can apply the key at send time.
+	// Authorize() can apply the key at send time.
 	r.NotNil(deserialized.Resolver, "V2 transactions should have Resolver set so Authorize() works")
 	r.Equal(0, deserialized.APIKeyIndex, "placeholder index 0 maps to APIKeyIndex 0 for V2")
 
 	// The placeholder has been stripped from the headers; the raw key is not present.
 	r.Empty(deserialized.Headers.Get("Key"), "Headers must not contain the API key value")
 
-	// AuthorizedHeaders() applies the key at index 0 (apiKey1).
+	// Authorize() applies the key at index 0 (apiKey1).
 	r.NotPanics(func() {
-		authHeaders := deserialized.AuthorizedHeaders()
-		r.Equal(apiKey1, authHeaders.Get("DD-Api-Key"))
+		r.Equal(apiKey1, resolveKey(deserialized))
 	})
 }
 
@@ -524,11 +527,10 @@ func TestV1IndexExtraction(t *testing.T) {
 			"V1 sorted index %d should map to current index %d", sortedIdx, wantIdx)
 		assert.NotNil(t, deserialized.Resolver)
 
-		// AuthorizedHeaders should apply the correct key.
+		// Authorize() should apply the correct key.
 		dedupedKeys := res.GetAPIKeys() // [apiKey3, apiKey1, apiKey2]
-		authHeaders := deserialized.AuthorizedHeaders()
-		assert.Equal(t, dedupedKeys[wantIdx], authHeaders.Get("DD-Api-Key"),
-			"AuthorizedHeaders key at current index %d", wantIdx)
+		assert.Equal(t, dedupedKeys[wantIdx], resolveKey(deserialized),
+			"Authorize() key at current index %d", wantIdx)
 	}
 }
 
@@ -573,7 +575,7 @@ func TestV2IndexFromHeaderPlaceholder(t *testing.T) {
 
 // TestDeserializeV2 ensures that newer agent versions can read files created by old agent
 // versions (V2 format). The placeholder index is extracted from the stored data, written to
-// APIKeyIndex, and AuthorizedHeaders() applies the correct key.
+// APIKeyIndex, and Authorize() applies the correct key.
 func TestDeserializeV2(t *testing.T) {
 	r := require.New(t)
 	log := logmock.New(t)
@@ -609,8 +611,8 @@ func TestDeserializeV2(t *testing.T) {
 			r.NotNil(txn.Resolver, "Resolver must be set for V2 transactions")
 			// The placeholder has been stripped; the raw key is not in headers.
 			r.Empty(txn.Headers.Get("Key"), "Headers must not contain the API key value")
-			// AuthorizedHeaders() applies the correct key.
-			r.Equal(expectedKeys[i], txn.AuthorizedHeaders().Get("DD-Api-Key"))
+			// Authorize() applies the correct key.
+			r.Equal(expectedKeys[i], resolveKey(txn))
 			r.Equal(domain, txn.Domain)
 			// Placeholder is stripped from the route too.
 			r.Equal("route", txn.Endpoint.Route)
