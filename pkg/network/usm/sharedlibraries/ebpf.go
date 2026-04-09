@@ -639,7 +639,7 @@ func (e *EbpfProgram) initializeProbes() ([]manager.ProbeIdentificationPair, err
 			// Only fentry/fexit/fmod_ret, lsm, iter, uprobe, and struct_ops programs can be sleepable
 			ok, err := modifiers.SleepableSyscallsSupported()
 			if err != nil {
-				return nil, fmt.Errorf("failed to check if sleepable syscalls are enabled: %w", err)
+				log.Errorf("failed to check if sleepable syscalls are enabled: %v", err)
 			}
 			if ok {
 				sleepableIDs = slices.Clone(e.enabledProbes)
