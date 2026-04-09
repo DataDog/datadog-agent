@@ -92,22 +92,16 @@ pub fn read_maps_info_from_reader<R: BufRead>(reader: R) -> MapsInfo {
     for line in reader.split(b'\n').map_while(Result::ok) {
         if !info.has_gpu_nvidia && GPU_LIB_FINDERS.iter().any(|f| f.find(&line).is_some()) {
             info.has_gpu_nvidia = true;
-        }
-
-        if !info.has_ddtrace && DDTRACE_FINDER.find(&line).is_some() {
+        } else if !info.has_ddtrace && DDTRACE_FINDER.find(&line).is_some() {
             info.has_ddtrace = true;
-        }
-
-        if !info.has_datadog_trace_dll && line.ends_with(b"Datadog.Trace.dll") {
+        } else if !info.has_datadog_trace_dll && line.ends_with(b"Datadog.Trace.dll") {
             info.has_datadog_trace_dll = true;
-        }
-
-        if !info.has_system_runtime_dll && line.ends_with(b"/System.Runtime.dll") {
+        } else if !info.has_system_runtime_dll && line.ends_with(b"/System.Runtime.dll") {
             info.has_system_runtime_dll = true;
-        }
-
-        if !info.has_apm_injector && is_injector_line(&line) {
+        } else if !info.has_apm_injector && is_injector_line(&line) {
             info.has_apm_injector = true;
+        } else {
+            continue;
         }
 
         if info.all_found() {
