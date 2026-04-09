@@ -2,7 +2,7 @@
     "name": "Datadog Agent Development Container",
     "image": "registry.ddbuild.io/ci/datadog-agent-buildimages/dev-env-linux_test_only:v106825651-487409bc",
     "features": {
-        "registry.ddbuild.io/workspaces/features/base:0.4.100410934": {},
+        "registry.ddbuild.io/workspaces/features/base:0.4.100410934": {}
     },
     "forwardPorts": [22],
     "containerUser": "root"
