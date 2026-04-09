@@ -10,7 +10,6 @@ package(default_visibility = ["//visibility:public"])
 # The list of go tags to be used by gazelle
 ALL_BUILD_TAGS = [
     "clusterchecks",
-    "hack_no_include",
     "otlp",
     "test",
     "seclmax",
@@ -382,7 +381,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/util/aggregatingqueue
 # gazelle:exclude pkg/util/archive
 # gazelle:exclude pkg/util/atomicstats
-# gazelle:exclude pkg/util/aws
 # gazelle:exclude pkg/util/cachedfetch
 # gazelle:exclude pkg/util/cli
 # gazelle:exclude pkg/util/cloudproviders

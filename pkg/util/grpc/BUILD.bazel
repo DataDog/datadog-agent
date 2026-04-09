@@ -1,5 +1,9 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
+# hack.go uses //go:build hack_no_include (blank import to pin cloud.google.com/go/compute)
+# scope tag here, not in root ALL_BUILD_TAGS.
+# gazelle:build_tags hack_no_include
+
 go_library(
     name = "grpc",
     srcs = [
