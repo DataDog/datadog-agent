@@ -158,11 +158,10 @@ func (s *safeNvml) SystemGetDriverVersion() (string, error) {
 	return driverVersion, NewNvmlAPIErrorOrNil("SystemGetDriverVersion", ret)
 }
 
-// Shutdown shuts down the NVML library
+// Shutdown shuts down the NVML library. Not thread safe (the underlying shutdown call is not thread safe either).
+// The caller must ensure that no other threads are using the library.
+// Should only be used for testing purposes/clean up before re-creating the library.
 func (s *safeNvml) Shutdown() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	if err := s.lookup("nvmlShutdown"); err != nil {
 		return err
 	}
