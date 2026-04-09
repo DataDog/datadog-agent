@@ -28,7 +28,7 @@ exec > $LOG_FILE 2>&1
 
 echo "# State at the beginning"
 echo "## Agent version"
-datadog-agent version || true
+$INSTALL_DIR/bin/agent/agent version || true
 echo "## $INSTALL_DIR"
 ls -al $INSTALL_DIR || true
 echo "## $APP_DIR/Contents/Resources"
@@ -208,7 +208,7 @@ rm -rf "$INSTALL_STAGING_DIR"
 # A little debriefing won't hurt
 echo "# State at the end"
 echo "## Agent version"
-datadog-agent version || true
+$INSTALL_DIR/bin/agent/agent version || true
 echo "## $INSTALL_DIR"
 ls -al $INSTALL_DIR || true
 echo "## $APP_DIR/Contents/Resources"
