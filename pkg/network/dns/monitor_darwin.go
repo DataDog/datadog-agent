@@ -20,8 +20,9 @@ const (
 	// DNS traffic is low-volume so 1 MB is sufficient.
 	dnsBPFBufferSize = 1 * 1024 * 1024
 	// dnsSnapLen is the maximum bytes captured per packet for DNS.
-	// DNS messages fit comfortably within 512 bytes for UDP.
-	dnsSnapLen = 512
+	// Matches the standard EDNS0 buffer size (RFC 6891) and the Linux default,
+	// ensuring full DNS responses including frame headers are captured.
+	dnsSnapLen = 4096
 )
 
 // NewReverseDNS starts DNS traffic monitoring on macOS and returns a ReverseDNS
