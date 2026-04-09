@@ -3,94 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
-
-DEVICE_MODES = ("physical", "mig", "vgpu")
-
-
-class Support(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    unsupported_architectures: list[str] = Field(default_factory=list)
-    device_modes: dict[str, bool] = Field(default_factory=dict)
-
-    @field_validator("device_modes")
-    @classmethod
-    def validate_device_modes(cls, value: dict[str, bool]) -> dict[str, bool]:
-        allowed_modes = set(DEVICE_MODES)
-        invalid_modes = sorted(set(value.keys()) - allowed_modes)
-        if invalid_modes:
-            raise ValueError(
-                f"invalid device modes: {', '.join(invalid_modes)} (expected {', '.join(sorted(allowed_modes))})"
-            )
-        return value
-
-
-class Metric(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    type: str | None = None
-    tagsets: list[str]
-    custom_tags: list[str] = Field(default_factory=list)
-    support: Support = Field(default_factory=Support)
-    deprecated: bool = False
-
-
-class Tagset(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    tags: list[str]
-
-
-class Spec(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    metric_prefix: str
-    tagsets: dict[str, Tagset]
-    metrics: dict[str, Metric]
-
-
-class Architecture(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-    unsupported_device_modes: list[str] = Field(default_factory=list)
-
-
-@dataclass(slots=True)
-class GPUConfig:
-    architecture: str
-    device_mode: str
-    is_known: bool = True
-
-    def to_tag_filter(self) -> str:
-        parts = [f"gpu_architecture:{self.architecture}"]
-        if self.device_mode == "mig":
-            parts.append("gpu_slicing_mode:mig")
-        elif self.device_mode == "vgpu":
-            parts.append("gpu_virtualization_mode:vgpu")
-        else:
-            parts.append("gpu_virtualization_mode:passthrough")
-        return ",".join(parts)
-
-    def to_filter_expression(self) -> str:
-        parts = [f"gpu_architecture:{self.architecture}"]
-        if self.device_mode == "mig":
-            parts.append("gpu_slicing_mode:mig")
-        elif self.device_mode == "vgpu":
-            parts.append("gpu_virtualization_mode:vgpu")
-        else:
-            parts.append("gpu_virtualization_mode:passthrough")
-        return " AND ".join(parts)
-
-
-class ArchitecturesSpec(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    architectures: dict[str, Architecture]
-
-    def build_combinations(self) -> list[GPUConfig]:
-        combos: list[GPUConfig] = []
-        for arch_name, arch in self.architectures.items():
-            unsupported = {x.lower() for x in arch.unsupported_device_modes}
-            for mode in DEVICE_MODES:
-                if mode not in unsupported:
-                    combos.append(GPUConfig(architecture=arch_name.lower(), device_mode=mode, is_known=True))
-        return combos
-
 
 class GPUConfigValidationState(Enum):
     FAIL = 0
@@ -98,6 +10,20 @@ class GPUConfigValidationState(Enum):
     UNKNOWN = 2
     MISSING = 3
 
+
+STATE_BY_NAME = {
+    "fail": GPUConfigValidationState.FAIL,
+    "ok": GPUConfigValidationState.OK,
+    "unknown": GPUConfigValidationState.UNKNOWN,
+    "missing": GPUConfigValidationState.MISSING,
+}
+
+
+@dataclass(slots=True)
+class GPUConfig:
+    architecture: str
+    device_mode: str
+    is_known: bool = True
 
 @dataclass(slots=True)
 class GPUConfigValidationResult:
@@ -154,3 +80,29 @@ class ValidationResults:
                 result_index[other_result.index_key] = other_result
 
         self.results = list(result_index.values())
+
+
+def validation_results_from_dict(payload: dict, *, site: str) -> ValidationResults:
+    results = [
+        GPUConfigValidationResult(
+            config=GPUConfig(
+                architecture=item["config"]["architecture"],
+                device_mode=item["config"]["device_mode"],
+                is_known=item["config"].get("is_known", True),
+            ),
+            device_count=item["device_count"],
+            expected_metrics=set(item.get("expected_metrics", [])),
+            state=STATE_BY_NAME[item["state"]],
+            present_metrics=set(item.get("present_metrics", [])),
+            unknown_metrics=set(item.get("unknown_metrics", [])),
+            tag_failures=dict(item.get("tag_failures", {})),
+        )
+        for item in payload.get("results", [])
+    ]
+    return ValidationResults(
+        results=results,
+        site=site,
+        metrics_count=payload["metrics_count"],
+        architectures_count=payload["architectures_count"],
+        failing_count=payload["failing_count"],
+    )

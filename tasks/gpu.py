@@ -1,32 +1,38 @@
 from __future__ import annotations
 
-# Run with:
-# dda inv --dep "datadog-api-client>=2.52.0" --dep "pydantic>=2.0" --dep "pyyaml>=6.0" --dep "tabulate>=0.9.0"
-from invoke import task
+import json
+import os
+import shlex
+
 from invoke.exceptions import Exit
+from invoke.tasks import task
 
 from tasks.libs.common.auth import dd_auth_api_app_keys
+
+VALIDATOR_PACKAGE = "./pkg/collector/corechecks/gpu/spec/metrics-validator"
+VALIDATOR_BINARY = f"{VALIDATOR_PACKAGE}/gpu-metrics-validator"
+VALIDATOR_SITE = "datadoghq.com"
+
+
+def build_validator_binary(ctx) -> str:
+    ctx.run(f"go build -o {shlex.quote(VALIDATOR_BINARY)} {VALIDATOR_PACKAGE}")
+    return VALIDATOR_BINARY
 
 
 @task(
     name="validate-metrics",
     help={
-        "spec": "Path to gpu_metrics.yaml",
-        "architectures": "Path to architectures.yaml",
         "lookback_seconds": "Metrics lookback window in seconds",
         "org": "Datadog org filter: prod, staging. If not provided, use all configured orgs",
     },
 )
-def validate_metrics(ctx, spec=None, architectures=None, lookback_seconds=3600, org: str | None = None):
+def validate_metrics(ctx, lookback_seconds=3600, org: str | None = None):
     """
     Validate live GPU metrics for the selected Datadog org(s).
     """
-    # Import here to avoid bringing in dependencies that are not always installed
     from tasks.libs.gpu.render import render_results
-    from tasks.libs.gpu.types import ValidationResults
-    from tasks.libs.gpu.validation import compute_validation, require_api_keys, resolve_spec_paths
+    from tasks.libs.gpu.types import ValidationResults, validation_results_from_dict
 
-    spec_path, architectures_path = resolve_spec_paths(spec, architectures)
     orgs_by_name = {
         "prod": ("prod", "app.datadoghq.com"),
         "staging": ("staging", "ddstaging.datadoghq.com"),
@@ -37,19 +43,21 @@ def validate_metrics(ctx, spec=None, architectures=None, lookback_seconds=3600, 
     else:
         orgs = list(orgs_by_name.values())
 
+    binary_path = build_validator_binary(ctx)
     results: ValidationResults | None = None
     org_errors: list[str] = []
     for org_name, dd_auth_domain in orgs:
         print(f"\n== Running GPU validation for {org_name} ({dd_auth_domain}) ==")
         try:
             with dd_auth_api_app_keys(ctx, dd_auth_domain):
-                require_api_keys()
-                result = compute_validation(
-                    spec_path,
-                    architectures_path,
-                    "datadoghq.com",
-                    int(lookback_seconds),
-                    progress_writer=print,
+                command = (
+                    f"{shlex.quote(binary_path)} "
+                    f"--site {shlex.quote(VALIDATOR_SITE)} "
+                    f"--lookback-seconds {int(lookback_seconds)}"
+                )
+                result = validation_results_from_dict(
+                    json.loads(ctx.run(command, hide=True).stdout),
+                    site=VALIDATOR_SITE,
                 )
                 if results is None:
                     results = result
