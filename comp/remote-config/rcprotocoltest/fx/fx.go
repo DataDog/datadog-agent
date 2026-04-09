@@ -7,6 +7,9 @@
 package fx
 
 import (
+	uberfx "go.uber.org/fx"
+
+	rcprotocoltest "github.com/DataDog/datadog-agent/comp/remote-config/rcprotocoltest/def"
 	rcprotocoltestimpl "github.com/DataDog/datadog-agent/comp/remote-config/rcprotocoltest/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -15,5 +18,6 @@ import (
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(rcprotocoltestimpl.New),
+		uberfx.Invoke(func(_ rcprotocoltest.Component) {}),
 	)
 }
