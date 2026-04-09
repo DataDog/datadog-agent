@@ -24,14 +24,10 @@ import (
 	nvmlmock "github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	taggercollectors "github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -845,12 +841,6 @@ func TestMetricsFollowSpec(t *testing.T) {
 	archFile, err := gpuspec.LoadArchitecturesSpec()
 	require.NoError(t, err)
 
-	// Build spec metric set for quick membership checks.
-	specMetrics := make(map[string]struct{}, len(metricsSpec.Metrics))
-	for name := range metricsSpec.Metrics {
-		specMetrics[name] = struct{}{}
-	}
-
 	deviceModes := []gpuspec.DeviceMode{
 		gpuspec.DeviceModePhysical,
 		gpuspec.DeviceModeMIG,
@@ -867,27 +857,7 @@ func TestMetricsFollowSpec(t *testing.T) {
 				t.Run("mode="+string(mode), func(t *testing.T) {
 					emittedMetrics, knownTagValues := collectMetricSamples(t, archName, mode, archSpec)
 
-					t.Run("_emits_only_expected_metrics", func(t *testing.T) {
-						for metricName := range emittedMetrics {
-							assert.Contains(t, specMetrics, metricName, "metric emitted by check is missing from spec: %s", metricName)
-
-							metricSpec := metricsSpec.Metrics[metricName]
-							assert.True(t, metricSpec.SupportsArchitecture(archName), "metric %s emitted on unsupported architecture %s", metricName, archName)
-							assert.False(t, metricSpec.IsDeviceModeExplicitlyUnsupported(mode), "metric %s emitted on unsupported device mode %s", metricName, mode)
-						}
-					})
-
-					for name, m := range metricsSpec.Metrics {
-						if !m.SupportsArchitecture(archName) || !m.SupportsDeviceMode(mode) {
-							continue
-						}
-
-						t.Run(name, func(t *testing.T) {
-							metrics, found := emittedMetrics[name]
-							require.True(t, found, "spec metric is not emitted by check run: %s", name)
-							gpuspec.ValidateMetricTagsAgainstSpec(t, metricsSpec, name, m, metrics, knownTagValues)
-						})
-					}
+					ValidateEmittedMetricsAgainstSpec(t, metricsSpec, archName, mode, emittedMetrics, knownTagValues)
 				})
 			}
 		})
@@ -903,7 +873,7 @@ func collectMetricSamples(t *testing.T, archName string, mode gpuspec.DeviceMode
 	collectionSetup := setupMockCheckForMetricCollection(t, archName, mode, archSpec)
 	collectionSetup.runCollection()
 
-	return getEmittedGPUMetricsWithTags(collectionSetup.mockSender), collectionSetup.knownTagValues
+	return GetEmittedGPUMetrics(collectionSetup.mockSender), collectionSetup.knownTagValues
 }
 
 type metricCollectionSetup struct {
@@ -946,37 +916,7 @@ func setupMockCheckForMetricCollection(t *testing.T, archName string, mode gpusp
 	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(opts...))
 
 	wmeta := testutil.GetWorkloadMetaMock(t)
-
-	// Create the NVML collector to ensure we get the data in the same way as with real checks
-	cfg := config.NewMockWithOverrides(t, map[string]interface{}{
-		"gpu.integrate_with_workloadmeta_processes": false,
-	})
-	nvmlCollector := collectors.GetNvmlCollector(t, cfg)
-	ctx := t.Context()
-	require.NoError(t, nvmlCollector.Start(ctx, wmeta), "failed to start NVML collector")
-	require.NoError(t, nvmlCollector.Pull(ctx), "failed to pull NVML collector")
-
-	// Iterate all GPUs from workloadmeta and set the tags in the tagger
-	wmetaGpus := wmeta.ListGPUs()
-
-	if mode == gpuspec.DeviceModeMIG {
-		require.Len(t, wmetaGpus, 2, "expected 2 GPUs in MIG mode (parent + child)")
-	} else {
-		require.Len(t, wmetaGpus, 1, "expected 1 GPU in non-MIG mode")
-	}
-	for _, gpu := range wmetaGpus {
-		tags := taglist.NewTagList()
-		taggercollectors.ExtractGPUTags(gpu, tags)
-		low, orch, high, standard := tags.Compute()
-		fakeTagger.SetTags(
-			taggertypes.NewEntityID(taggertypes.GPU, gpu.ID),
-			"spec-test",
-			low,
-			orch,
-			high,
-			standard,
-		)
-	}
+	SetupWorkloadmetaGPUs(t, wmeta, fakeTagger, mode, false)
 
 	pidToContainerID := map[int]string{
 		1:    "container-1",
@@ -1054,8 +994,4 @@ func setupMockCheckForMetricCollection(t *testing.T, archName string, mode gpusp
 		runCollection:  runCollection,
 		knownTagValues: knownTagValues,
 	}
-}
-
-func getEmittedGPUMetricsWithTags(mockSender *mocksender.MockSender) map[string][]gpuspec.EmittedMetric {
-	return GetEmittedGPUMetrics(mockSender)
 }

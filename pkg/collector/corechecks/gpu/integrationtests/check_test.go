@@ -8,8 +8,6 @@
 package integrationtests
 
 import (
-	"fmt"
-	"slices"
 	"strings"
 	"testing"
 
@@ -28,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu"
 	gpuspec "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/spec"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	mock_containers "github.com/DataDog/datadog-agent/pkg/process/util/containers/mocks"
@@ -287,6 +286,7 @@ func TestCheckRunWithRealHardware(t *testing.T) {
 
 func TestCheckRunMatchesSpecForPhysicalDevices(t *testing.T) {
 	testutil.RequireGPU(t)
+	env.SetFeatures(t, env.NVML)
 
 	metricsSpec, err := gpuspec.LoadMetricsSpec()
 	require.NoError(t, err)
@@ -303,12 +303,9 @@ func TestCheckRunMatchesSpecForPhysicalDevices(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, devices)
 
-	driverVersion, err := lib.SystemGetDriverVersion()
-	require.NoError(t, err)
-
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
-	seedPhysicalGPUEntities(t, fakeTagger, wmetaMock, devices, driverVersion)
+	gpu.SetupWorkloadmetaGPUs(t, wmetaMock, fakeTagger, gpuspec.DeviceModePhysical, false)
 
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	checkInstance := gpu.NewCheck(fakeTagger, testutil.GetTelemetryMock(t), wmetaMock)
@@ -363,27 +360,7 @@ func TestCheckRunMatchesSpecForPhysicalDevices(t *testing.T) {
 		require.NotEmpty(t, deviceMetrics, "expected emitted metrics for GPU %s", deviceUUID)
 
 		t.Run("gpu="+deviceUUID, func(t *testing.T) {
-			emittedNames := make([]string, 0, len(deviceMetrics))
-			for metricName, emittedSamples := range deviceMetrics {
-				emittedNames = append(emittedNames, metricName)
-
-				metricSpec, ok := metricsSpec.Metrics[metricName]
-				require.True(t, ok, "metric emitted by check is missing from spec: %s", metricName)
-				require.True(t, metricSpec.SupportsArchitecture(archName), "metric %s emitted on unsupported architecture %s", metricName, archName)
-				require.True(t, metricSpec.SupportsDeviceMode(gpuspec.DeviceModePhysical), "metric %s emitted in unsupported physical mode", metricName)
-				gpuspec.ValidateMetricTagsAgainstSpec(t, metricsSpec, metricName, metricSpec, emittedSamples, nil)
-			}
-
-			slices.Sort(emittedNames)
-			t.Logf("GPU %s (%s) emitted %d spec metrics", deviceUUID, archName, len(emittedNames))
-
-			for _, metricName := range expectedLiveDeviceMetrics {
-				metricSpec, ok := metricsSpec.Metrics[metricName]
-				require.True(t, ok, "baseline metric %s missing from spec", metricName)
-				require.True(t, metricSpec.SupportsArchitecture(archName), "baseline metric %s unsupported on architecture %s", metricName, archName)
-				require.True(t, metricSpec.SupportsDeviceMode(gpuspec.DeviceModePhysical), "baseline metric %s unsupported in physical mode", metricName)
-				require.Contains(t, deviceMetrics, metricName, "baseline device metric %s should be emitted for GPU %s on architecture %s", metricName, deviceUUID, archName)
-			}
+			gpu.ValidateEmittedMetricsAgainstSpec(t, metricsSpec, archName, gpuspec.DeviceModePhysical, deviceMetrics, nil)
 		})
 	}
 }
