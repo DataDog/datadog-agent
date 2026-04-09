@@ -159,12 +159,14 @@ rule SelectCompressor {
         else if requested = "gzip": config.gzip_level
         else: 0
     ensures:
-        if requested in manifest.available_kinds:
-            Compressor.created(
-                kind: requested,
-                level: level,
-                content_encoding: requested.encoding_for_kind
-            )
+        if requested = "zlib" and zlib in manifest.available_kinds:
+            Compressor.created(kind: zlib, level: level, content_encoding: deflate)
+        else if requested = "zstd" and zstd in manifest.available_kinds:
+            Compressor.created(kind: zstd, level: level, content_encoding: zstd)
+        else if requested = "gzip":
+            Compressor.created(kind: gzip, level: level, content_encoding: gzip)
+        else if requested = "none":
+            Compressor.created(kind: none, level: 0, content_encoding: identity)
         else:
             CompressorFallback(requested: requested, manifest: manifest)
 }
