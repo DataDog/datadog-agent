@@ -18,7 +18,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/process/agent"
-	"github.com/DataDog/datadog-agent/comp/process/forwarders"
+	forwarders "github.com/DataDog/datadog-agent/comp/process/forwarders/def"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo/def"
 	submitterComp "github.com/DataDog/datadog-agent/comp/process/submitter"
 	"github.com/DataDog/datadog-agent/comp/process/types"
