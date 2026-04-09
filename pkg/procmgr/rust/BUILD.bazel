@@ -78,6 +78,7 @@ rust_library(
 
 rust_library(
     name = "dd-procmgrd-lib-testhelpers",
+    testonly = True,
     srcs = _LIB_SRCS,
     crate_features = ["test-helpers"],
     crate_name = "dd_procmgrd",
@@ -86,7 +87,6 @@ rust_library(
     target_compatible_with = [
         "@platforms//os:linux",
     ],
-    testonly = True,
     deps = _LIB_DEPS,
 )
 
