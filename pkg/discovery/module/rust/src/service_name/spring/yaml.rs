@@ -224,4 +224,59 @@ spring:
         let result = parse_yaml(yaml, "spring.application.name");
         assert_eq!(result, Some("null".to_string()));
     }
+
+    #[test]
+    fn test_parse_yaml_target_key_not_first() {
+        // Target key is last at every level of nesting.
+        let yaml = r#"
+logging:
+  level: DEBUG
+server:
+  port: 8080
+  context-path: /api
+spring:
+  profiles:
+    active: prod
+  datasource:
+    url: jdbc:mysql://localhost/db
+  application:
+    description: My cool app
+    name: myapp
+"#
+        .as_bytes();
+        let result = parse_yaml(yaml, "spring.application.name");
+        assert_eq!(result, Some("myapp".to_string()));
+
+        // Target key after compound values (arrays, nested objects) that must be skipped.
+        let yaml = r#"
+spring:
+  application:
+    tags:
+      - tag1
+      - tag2
+    config:
+      timeout: 30
+      retries: 3
+    name: after-compounds
+"#
+        .as_bytes();
+        let result = parse_yaml(yaml, "spring.application.name");
+        assert_eq!(result, Some("after-compounds".to_string()));
+
+        // Single key in the file, but not at the top.
+        let yaml = r#"
+unrelated:
+  deeply:
+    nested:
+      structure:
+        with:
+          many: levels
+spring:
+  application:
+    name: found-it
+"#
+        .as_bytes();
+        let result = parse_yaml(yaml, "spring.application.name");
+        assert_eq!(result, Some("found-it".to_string()));
+    }
 }
