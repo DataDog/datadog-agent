@@ -369,7 +369,7 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourcePinot,
 		metrics.MetricSourceDellPowerFlex,
 		metrics.MetricSourceHPEArubaEdgeConnect,
-		metrics.MetricSourceNifi:
+		metrics.MetricSourceNiFi:
 		return 11 // integrationMetrics
 	case metrics.MetricSourceGPU:
 		return 72 // ref: https://github.com/DataDog/dd-source/blob/276882b71d84785ec89c31973046ab66d5a01807/domains/metrics/shared/libs/proto/origin/origin.proto#L427
@@ -1145,7 +1145,7 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 514
 	case metrics.MetricSourceHPEArubaEdgeConnect:
 		return 515
-	case metrics.MetricSourceNifi:
+	case metrics.MetricSourceNiFi:
 		return 516
 	default:
 		return 0

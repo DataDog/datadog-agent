@@ -342,7 +342,7 @@ const (
 	MetricSourcePinot
 	MetricSourceDellPowerFlex
 	MetricSourceHPEArubaEdgeConnect
-	MetricSourceNifi
+	MetricSourceNiFi
 	// OpenTelemetry Collector receivers
 	MetricSourceOpenTelemetryCollectorUnknown
 	MetricSourceOpenTelemetryCollectorDockerstatsReceiver
@@ -1138,7 +1138,7 @@ func (ms MetricSource) String() string {
 		return "dell_powerflex"
 	case MetricSourceHPEArubaEdgeConnect:
 		return "hpe_aruba_edgeconnect"
-	case MetricSourceNifi:
+	case MetricSourceNiFi:
 		return "nifi"
 	default:
 		return "<unknown>"
@@ -1833,7 +1833,7 @@ func CheckNameToMetricSource(name string) MetricSource {
 	case "hpe_aruba_edgeconnect":
 		return MetricSourceHPEArubaEdgeConnect
 	case "nifi":
-		return MetricSourceNifi
+		return MetricSourceNiFi
 	default:
 		return MetricSourceUnknown
 	}
