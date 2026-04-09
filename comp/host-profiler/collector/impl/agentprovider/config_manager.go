@@ -15,6 +15,8 @@ import (
 type hostProfilerConfig struct {
 	DebugVerbosity        string
 	AdditionalHTTPHeaders map[string]string
+	DDProfilingEnabled    bool
+	DDProfilingPeriod     int
 }
 
 type endpoint struct {
@@ -88,6 +90,8 @@ func newConfigManager(config config.Component) configManager {
 	hostProfilerConfig := hostProfilerConfig{
 		DebugVerbosity:        config.GetString("hostprofiler.debug.verbosity"),
 		AdditionalHTTPHeaders: config.GetStringMapString("hostprofiler.additional_http_headers"),
+		DDProfilingEnabled:    config.GetBool("hostprofiler.ddprofiling.enabled"),
+		DDProfilingPeriod:     config.GetInt("hostprofiler.ddprofiling.period"),
 	}
 
 	return configManager{
