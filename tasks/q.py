@@ -1252,7 +1252,8 @@ def eval_component(
         <output_dir>/without/subset_NNN/run_NNN/  - bayesian_eval output
         <output_dir>/with/subset_NNN/run_NNN/      - bayesian_eval output
         <output_dir>/report.json                   - comparison report including
-            per_subset, per_subset_scenario (Δ F1 per scenario), and
+            full_eval_wall_time_seconds (build + runs + aggregation; stops before
+            summary stdout), per_subset, per_subset_scenario (Δ F1 per scenario), and
             per_scenario_summary (mean/min/max Δ across subsets).
 
     Args:
@@ -1378,6 +1379,8 @@ def eval_component(
 
     if not _prepare_eval_output_dir(output_dir, overwrite=overwrite):
         return
+
+    eval_start = time.perf_counter()
 
     # --- build once ---
     if build:
@@ -1649,6 +1652,17 @@ def eval_component(
         recommendation = "discard"
         rec_clr = Color.RED
 
+    full_eval_wall_time_seconds = round(time.perf_counter() - eval_start, 3)
+
+    def _fmt_wall_dur(s: float) -> str:
+        if s >= 3600:
+            return f"{int(s // 3600)}h {int((s % 3600) // 60)}m {s % 60:.1f}s"
+        if s >= 60:
+            return f"{int(s // 60)}m {s % 60:.1f}s"
+        return f"{s:.1f}s"
+
+    _wall_str = _fmt_wall_dur(full_eval_wall_time_seconds)
+
     # --- print summary (primary max-score block last) ---
     print(color_message(f"\n{'=' * 70}", Color.GREEN))
     print(color_message("  Component Evaluation Summary", Color.GREEN))
@@ -1736,6 +1750,7 @@ def eval_component(
     elif recommendation == "keep":
         print(color_message("  Next step: update your config, then tune the new component using:", Color.BOLD))
         print(color_message(f"    dda inv q.eval-bayesian --only {component}", Color.BOLD))
+    print(color_message(f"  Full eval wall time: {_wall_str} ({full_eval_wall_time_seconds:.3f}s)", Color.GREEN))
     print(color_message(f"{'=' * 70}", Color.GREEN))
 
     # --- copy best "with" config to root ---
@@ -1757,6 +1772,7 @@ def eval_component(
         "n_subsets": n_subsets,
         "m_runs": m_runs,
         "n_trials": n_trials,
+        "full_eval_wall_time_seconds": full_eval_wall_time_seconds,
         "total_bayesian_runs": total_bayesian_runs,
         "total_testbench_runs": total_testbench_runs,
         "best_config_path": best_config_path,
@@ -1782,6 +1798,7 @@ def eval_component(
         json.dump(final_report, f, indent=4)
 
     print(color_message(f"\n  Report:      {report_path}", Color.GREEN))
+    print(color_message(f"  Wall time:   {_wall_str} ({full_eval_wall_time_seconds:.3f}s)", Color.GREEN))
     if best_config_path:
         score_str = (
             f"{best_with_run['best_score']:.4f}" if best_with_run and best_with_run["best_score"] is not None else "n/a"
