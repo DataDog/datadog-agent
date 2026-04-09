@@ -9,6 +9,7 @@ package(default_visibility = ["//visibility:public"])
 
 # The list of go tags to be used by gazelle
 ALL_BUILD_TAGS = [
+    "clusterchecks",
     "otlp",
     "test",
     "seclmax",
@@ -30,12 +31,12 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/checks
 # gazelle:exclude comp/collector
 # gazelle:exclude comp/connectivitychecker
-# gazelle:exclude comp/core/agenttelemetry
 # gazelle:exclude comp/core/autodiscovery
+# gazelle:exclude comp/core/agenttelemetry/fx
+# gazelle:exclude comp/core/agenttelemetry/impl
 # gazelle:exclude comp/core/config
 # gazelle:exclude comp/core/configstream
 # gazelle:exclude comp/core/configsync
-# gazelle:exclude comp/core/delegatedauth
 # gazelle:exclude comp/core/diagnose
 # gazelle:exclude comp/core/flare/flareimpl
 # gazelle:exclude comp/core/flare/helpers
@@ -197,20 +198,13 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/commonchecks
 # gazelle:exclude pkg/compliance
 # gazelle:exclude pkg/config/autodiscovery
-# gazelle:exclude pkg/config/create
-# gazelle:exclude pkg/config/env
 # gazelle:exclude pkg/config/fetcher
 # gazelle:exclude pkg/config/fetcher/sysprobe
 # gazelle:exclude pkg/config/fetcher/tracers
 # gazelle:exclude pkg/config/legacy
-# gazelle:exclude pkg/config/mock
-# gazelle:exclude pkg/config/nodetreemodel
 # gazelle:exclude pkg/config/remote
 # gazelle:exclude pkg/config/settings
 # gazelle:exclude pkg/config/settings/http
-# gazelle:exclude pkg/config/setup
-# gazelle:exclude pkg/config/structure
-# gazelle:exclude pkg/config/utils
 # gazelle:exclude pkg/containerlifecycle
 # gazelle:exclude pkg/databasemonitoring
 # gazelle:exclude pkg/diagnose
@@ -250,8 +244,7 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/dyninst/uprobe
 # gazelle:exclude pkg/eventmonitor
 # gazelle:exclude pkg/flare
-# gazelle:exclude pkg/fleet
-# gazelle:exclude pkg/gohai/cpu
+# gazelle:exclude pkg/fleet/daemon
 # gazelle:exclude pkg/gpu
 # gazelle:exclude pkg/hosttags
 # gazelle:exclude pkg/inventory
@@ -388,8 +381,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/util/aggregatingqueue
 # gazelle:exclude pkg/util/archive
 # gazelle:exclude pkg/util/atomicstats
-# gazelle:exclude pkg/util/aws
-# gazelle:exclude pkg/util/aws/creds
 # gazelle:exclude pkg/util/cachedfetch
 # gazelle:exclude pkg/util/cli
 # gazelle:exclude pkg/util/cloudproviders
@@ -413,7 +404,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/util/goroutinesdump
 # gazelle:exclude pkg/util/gpu
 # gazelle:exclude pkg/util/grpc
-# gazelle:exclude pkg/util/http
 # gazelle:exclude pkg/util/input
 # gazelle:exclude pkg/util/installinfo
 # gazelle:exclude pkg/util/intern
@@ -440,7 +430,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/util/strings
 # gazelle:exclude pkg/util/subscriptions
 # gazelle:exclude pkg/util/sync
-# gazelle:exclude pkg/util/system
 # gazelle:exclude pkg/util/tags
 # gazelle:exclude pkg/util/tmplvar
 # gazelle:exclude pkg/util/trie
