@@ -50,6 +50,7 @@ rust_library(
         ":cpp_stdlib",
         ":process_manager_rust_proto",
         "@crates//:anyhow",
+        "@crates//:hyper-util",
         "@crates//:log",
         "@crates//:nix",
         "@crates//:prost",
@@ -59,6 +60,7 @@ rust_library(
         "@crates//:tokio-stream",
         "@crates//:tonic",
         "@crates//:tonic-reflection",
+        "@crates//:tower",
         "@crates//:uuid",
     ],
 )
@@ -97,11 +99,9 @@ rust_binary(
     deps = [
         ":dd-procmgrd-lib",
         "@crates//:clap",
-        "@crates//:hyper-util",
         "@crates//:serde_json",
         "@crates//:tokio",
         "@crates//:tonic",
-        "@crates//:tower",
     ],
 )
 
@@ -148,13 +148,13 @@ rust_test(
     data = [
         ":dd-procmgr",
         ":dd-procmgrd",
-        "//pkg/fleet/installer/packages/embedded/tmpl:datadog-agent-ddot.yaml.tmpl",
+        "//pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-ddot.yaml.tmpl",
     ],
     edition = "2024",
     rustc_env = {
         "CARGO_BIN_EXE_dd-procmgr": "$(rootpath :dd-procmgr)",
         "CARGO_BIN_EXE_dd-procmgrd": "$(rootpath :dd-procmgrd)",
-        "DDOT_TEMPLATE_PATH": "$(rootpath //pkg/fleet/installer/packages/embedded/tmpl:datadog-agent-ddot.yaml.tmpl)",
+        "DDOT_TEMPLATE_PATH": "$(rootpath //pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-ddot.yaml.tmpl)",
     },
     deps = [
         "@crates//:nix",

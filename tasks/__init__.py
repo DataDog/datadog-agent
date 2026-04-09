@@ -70,6 +70,7 @@ from tasks import (
     release,
     rtloader,
     sbomgen,
+    schema,
     secret_generic_connector,
     security_agent,
     selinux,
@@ -129,7 +130,6 @@ from tasks.gotest import (
 from tasks.install_tasks import (
     download_tools,
     install_devcontainer_cli,
-    install_protoc,
     install_rust_license_tool,
     install_shellcheck,
     install_tools,
@@ -167,7 +167,6 @@ ns.add_task(audit_tag_impact)
 ns.add_task(print_default_build_tags)
 ns.add_task(e2e_tests)
 ns.add_task(install_shellcheck)
-ns.add_task(install_protoc)
 ns.add_task(install_rust_license_tool)
 ns.add_task(install_devcontainer_cli)
 ns.add_task(download_tools)
@@ -266,6 +265,7 @@ ns.add_collection(debug)
 ns.add_collection(winbuild)
 ns.add_collection(windows_dev_env)
 ns.add_collection(worktree)
+ns.add_collection(schema)
 ns.add_collection(sbomgen)
 ns.add_collection(pkg_template)
 ns.add_collection(virustotal)
