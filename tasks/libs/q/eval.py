@@ -17,14 +17,15 @@ from tasks.libs.common.color import Color, color_message
 
 # --- Constants ---
 
-SCENARIOS = ["213_pagerduty", "353_postmark", "food_delivery_redis"]
+_GENSIM_EVAL_SCENARIOS_PATH = os.path.join(os.path.dirname(__file__), "../../../q_branch/gensim-eval-scenarios.json")
+
+with open(_GENSIM_EVAL_SCENARIOS_PATH) as _f:
+    _GENSIM_EVAL_SCENARIOS = json.load(_f)
 
 # Maps short scenario names to episode names used in runs.jsonl
-SCENARIO_EPISODE_NAMES = {
-    "213_pagerduty": "213_PagerDuty_June_2014_Outage",
-    "353_postmark": "353_postmark_upstream_cloud_provider_outage",
-    "food_delivery_redis": "food-delivery-redis-cpu-saturation",
-}
+SCENARIO_EPISODE_NAMES = {entry["scenario"]: entry["episode"] for entry in _GENSIM_EVAL_SCENARIOS}
+
+SCENARIOS = list(SCENARIO_EPISODE_NAMES.keys())
 
 S3_BUCKET = "qbranch-gensim-recordings"
 AWS_PROFILE = "sso-agent-sandbox-account-admin"
