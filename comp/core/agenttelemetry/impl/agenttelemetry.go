@@ -485,7 +485,11 @@ func (a *atel) reportAgentLogs(session *senderSession, p *Profile) {
 		return
 	}
 
-	captured := a.logComp.DrainErrorLogs()
+	drainer, ok := a.logComp.(log.LogDrainer)
+	if !ok {
+		return
+	}
+	captured := drainer.DrainErrorLogs()
 	if len(captured) == 0 {
 		return
 	}

@@ -67,9 +67,13 @@ type Component interface {
 
 	// Flush will flush the contents of the logs to the sinks
 	Flush()
+}
 
+// LogDrainer is an optional extension of Component implemented by log components
+// that support buffering Error/Critical entries for export (e.g. to COAT).
+// Callers should type-assert Component to LogDrainer before calling DrainErrorLogs.
+type LogDrainer interface {
 	// DrainErrorLogs returns and clears all Error/Critical log entries buffered
-	// since the last call. Intended for use by agenttelemetry to export internal
-	// agent error logs to COAT. Returns nil if no entries were captured.
+	// since the last call. Returns nil if no entries were captured.
 	DrainErrorLogs() []CapturedLog
 }
