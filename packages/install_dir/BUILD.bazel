@@ -29,7 +29,6 @@ filegroup(
         "@zlib//:z",
     ] + select({
         "//packages/agent:linux_default": [
-            ":embedded",
             "//deps/nfsiostat:all_files",
             "//deps/openscap:all_deps",
             "@curl//:all_files",
@@ -39,7 +38,6 @@ filegroup(
             "@nghttp2",
         ],
         "//packages/agent:linux_fips": [
-            ":embedded",
             "//deps/nfsiostat:all_files",
             "//deps/openscap:all_deps",
             "@curl//:all_files",
@@ -49,7 +47,6 @@ filegroup(
             "@nghttp2",
         ],
         "//packages/agent:linux_heroku": [
-            ":embedded",
             "@curl//:all_files",
             "@gpg-error",
             "@lua//:liblua",
