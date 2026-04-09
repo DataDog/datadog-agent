@@ -402,3 +402,40 @@ func TestDiscoveryCollector_OptimalVersion(t *testing.T) {
 		})
 	}
 }
+
+func TestMatchesGroupVersion(t *testing.T) {
+	tests := []struct {
+		name     string
+		cv       string
+		group    string
+		version  string
+		expected bool
+	}{
+		// both empty → match all
+		{name: "both empty matches anything", cv: "apps/v1", group: "", version: "", expected: true},
+		{name: "both empty matches core group", cv: "v1", group: "", version: "", expected: true},
+
+		// version empty → match any version in the group (prefix)
+		{name: "version empty matches any version in group", cv: "apps/v1", group: "apps", version: "", expected: true},
+		{name: "version empty matches v1beta1 in group", cv: "apps/v1beta1", group: "apps", version: "", expected: true},
+		{name: "version empty does not match different group", cv: "extensions/v1beta1", group: "apps", version: "", expected: false},
+		{name: "version empty does not match group with shared prefix", cv: "appsextended/v1", group: "apps", version: "", expected: false},
+
+		// group empty → core group exact version match
+		{name: "group empty matches exact core version", cv: "v1", group: "", version: "v1", expected: true},
+		{name: "group empty does not match v1beta1 when v1 requested", cv: "v1beta1", group: "", version: "v1", expected: false},
+		{name: "group empty does not match grouped resource", cv: "apps/v1", group: "", version: "v1", expected: false},
+
+		// both set → exact match
+		{name: "exact match", cv: "apps/v1", group: "apps", version: "v1", expected: true},
+		{name: "does not match v1beta1 when v1 requested", cv: "apps/v1beta1", group: "apps", version: "v1", expected: false},
+		{name: "does not match different group", cv: "extensions/v1", group: "apps", version: "v1", expected: false},
+		{name: "does not match different version", cv: "apps/v2", group: "apps", version: "v1", expected: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, matchesGroupVersion(tt.cv, tt.group, tt.version))
+		})
+	}
+}

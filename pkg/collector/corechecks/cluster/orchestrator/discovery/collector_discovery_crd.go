@@ -176,42 +176,39 @@ func (d *DiscoveryCollector) isSupportTerminatedPodCollector(collector collector
 func (d *DiscoveryCollector) List(group, version, kind string) []CollectorVersion {
 	var result []CollectorVersion
 
-	// Construct groupVersion prefix for matching
-	var groupVersion string
-	if group == "" {
-		groupVersion = version
-	} else {
-		groupVersion = fmt.Sprintf("%s/%s", group, version)
-	}
-
 	for cv := range d.cache.CollectorForVersion {
-		// Skip "/status" entries
 		if strings.HasSuffix(cv.Kind, "/status") {
 			continue
 		}
-
-		// Match version: use prefix when version is empty (match any version within
-		// the group), otherwise require exact equality to avoid "v1" accidentally
-		// matching "v1beta1" via prefix.
-		if version == "" {
-			if !strings.HasPrefix(cv.GroupVersion, groupVersion) {
-				continue
-			}
-		} else {
-			if cv.GroupVersion != groupVersion {
-				continue
-			}
+		if !matchesGroupVersion(cv.GroupVersion, group, version) {
+			continue
 		}
-
-		// If kind is specified, only include matching name
 		if kind != "" && cv.Kind != kind {
 			continue
 		}
-
 		result = append(result, cv)
 	}
 
 	return result
+}
+
+// matchesGroupVersion reports whether a cached GroupVersion string (e.g. "apps/v1")
+// matches the requested group and version filter.
+// An empty group or version acts as a wildcard.
+func matchesGroupVersion(cv, group, version string) bool {
+	switch {
+	case group == "" && version == "":
+		return true
+	case version == "":
+		// Match any version within the group. Use "group/" prefix to avoid
+		// "apps" incorrectly matching "appsextended/v1".
+		return strings.HasPrefix(cv, group+"/")
+	case group == "":
+		// Core-group resources are stored without a group prefix (e.g. "v1").
+		return cv == version
+	default:
+		return cv == group+"/"+version
+	}
 }
 
 // OptimalVersion returns the best available version for a given group.
