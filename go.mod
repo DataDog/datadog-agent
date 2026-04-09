@@ -982,7 +982,7 @@ require (
 	github.com/creack/pty v1.1.24
 	github.com/frapposelli/wwhrd v0.4.0
 	github.com/go-enry/go-license-detector/v4 v4.3.1
-	github.com/go-jose/go-jose/v4 v4.1.3
+	github.com/go-jose/go-jose/v4 v4.1.4
 	github.com/goware/modvendor v0.5.0
 	github.com/hashicorp/vault v1.21.2
 	github.com/hashicorp/vault/api v1.22.0
@@ -1080,7 +1080,7 @@ require (
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/go-git/go-billy/v5 v5.6.2 // indirect
 	github.com/go-git/go-git/v5 v5.14.0 // indirect
-	github.com/go-jose/go-jose/v3 v3.0.4 // indirect
+	github.com/go-jose/go-jose/v3 v3.0.5 // indirect
 	github.com/go-ozzo/ozzo-validation v3.6.0+incompatible // indirect
 	github.com/godbus/dbus v4.1.0+incompatible // indirect
 	github.com/google/certificate-transparency-go v1.3.2 // indirect
