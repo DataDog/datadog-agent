@@ -612,36 +612,6 @@ func TestPrivateActionRunnerConfig(t *testing.T) {
 	}, datadog)
 }
 
-func TestPrivateActionRunnerConfigWithoutAppKey(t *testing.T) {
-	tempDir := t.TempDir()
-
-	cfg := Config{}
-	cfg.DatadogYAML.APIKey = "test_key"
-	cfg.DatadogYAML.PrivateActionRunner.Enabled = BoolToPtr(true)
-	cfg.DatadogYAML.PrivateActionRunner.SelfEnroll = BoolToPtr(true)
-	cfg.DatadogYAML.PrivateActionRunner.ActionsAllowlist = []string{
-		"com.datadoghq.script.runPredefinedScript",
-	}
-
-	err := WriteConfigs(cfg, tempDir)
-	assert.NoError(t, err)
-
-	datadog := readDatadogYAML(t, tempDir)
-	assert.Equal(t, map[string]interface{}{
-		"api_key": "test_key",
-		"private_action_runner": map[string]interface{}{
-			"enabled":     true,
-			"self_enroll": true,
-			"actions_allowlist": []interface{}{
-				"com.datadoghq.script.runPredefinedScript",
-			},
-		},
-	}, datadog)
-	// Verify app_key is NOT present in the output
-	_, hasAppKey := datadog["app_key"]
-	assert.False(t, hasAppKey, "app_key should not be present when not configured")
-}
-
 func TestPrivateActionRunnerConfigDisabled(t *testing.T) {
 	tempDir := t.TempDir()
 

@@ -8,6 +8,7 @@ package autoconnections
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -80,6 +81,10 @@ func buildConnectionRequest(definition ConnectionDefinition, runnerID, runnerNam
 }
 
 func (c *ConnectionsClient) CreateConnection(ctx context.Context, definition ConnectionDefinition, runnerID, runnerName string, tags []string) error {
+	if c.appKey == "" {
+		return errors.New("app key is required to create connections")
+	}
+
 	reqBody := buildConnectionRequest(definition, runnerID, runnerName, tags)
 
 	body, err := jsonapi.Marshal(reqBody, jsonapi.MarshalClientMode())
@@ -95,9 +100,7 @@ func (c *ConnectionsClient) CreateConnection(ctx context.Context, definition Con
 	}
 
 	httpReq.Header.Set(apiKeyHeader, c.apiKey)
-	if c.appKey != "" {
-		httpReq.Header.Set(appKeyHeader, c.appKey)
-	}
+	httpReq.Header.Set(appKeyHeader, c.appKey)
 	httpReq.Header.Set(contentTypeHeader, contentType)
 	httpReq.Header.Set(userAgentHeader, "datadog-agent/"+version.AgentVersion)
 
