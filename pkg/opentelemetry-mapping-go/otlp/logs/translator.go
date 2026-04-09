@@ -170,6 +170,7 @@ func (t *Translator) MapLogsAndRouteRUMEvents(ctx context.Context, ld plog.Logs,
 					}
 				}
 				// HACK: Check for host and service in log record attributes
+				// This is not aligned with the specification and will be removed in the future.
 				if host == "" {
 					host = t.hostFromAttributes(ctx, logRecord.Attributes())
 				}
@@ -178,6 +179,7 @@ func (t *Translator) MapLogsAndRouteRUMEvents(ctx context.Context, ld plog.Logs,
 						service = s.AsString()
 					}
 				}
+				
 				payload := transform(logRecord, host, service, res, scope, t.set.Logger)
 				ddtags := payload.GetDdtags()
 				if ddtags != "" {
