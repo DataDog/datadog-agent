@@ -24,7 +24,7 @@ replace (
 	// To update the Datadog/opentelemetry-ebpf-profiler dependency on latest commit on datadog branch, change the following line to:
 	// replace go.opentelemetry.io/ebpf-profiler => github.com/DataDog/opentelemetry-ebpf-profiler datadog
 	// and run `go mod tidy` then `dda inv tidy`
-	go.opentelemetry.io/ebpf-profiler => github.com/wehzzz/opentelemetry-ebpf-profiler v0.0.202615-0.20260409090115-4cf1decd0603
+	go.opentelemetry.io/ebpf-profiler => github.com/wehzzz/opentelemetry-ebpf-profiler v0.0.202615-0.20260409092828-57c478142d14
 )
 
 require (
