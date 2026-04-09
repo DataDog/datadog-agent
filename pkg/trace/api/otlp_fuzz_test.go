@@ -37,6 +37,7 @@ func FuzzOTLPReceiveResourceSpansV2(f *testing.F) {
 	defer close(out)
 	// Drain the output channel to prevent blocking.
 	go func() {
+		//nolint:revive // draining channel to prevent blocking
 		for range out {
 		}
 	}()
@@ -97,7 +98,7 @@ func FuzzOTLPReceiveResourceSpansV2(f *testing.F) {
 		f.Add(bts)
 	}
 
-	f.Fuzz(func(t *testing.T, data []byte) {
+	f.Fuzz(func(_ *testing.T, data []byte) {
 		req := ptraceotlp.NewExportRequest()
 		if err := req.UnmarshalProto(data); err != nil {
 			return // invalid protobuf, skip
@@ -130,6 +131,7 @@ func FuzzOTLPReceiveResourceSpansV1(f *testing.F) {
 	out := make(chan *Payload, 100)
 	defer close(out)
 	go func() {
+		//nolint:revive // draining channel to prevent blocking
 		for range out {
 		}
 	}()
@@ -151,7 +153,7 @@ func FuzzOTLPReceiveResourceSpansV1(f *testing.F) {
 	}
 	f.Add(bts)
 
-	f.Fuzz(func(t *testing.T, data []byte) {
+	f.Fuzz(func(_ *testing.T, data []byte) {
 		req := ptraceotlp.NewExportRequest()
 		if err := req.UnmarshalProto(data); err != nil {
 			return
