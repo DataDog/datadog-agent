@@ -38,7 +38,7 @@ go_test(
     ],
     data = ["tests/datadog_secrets.yaml"],
     embed = [":utils"],
-    gotags = ["test"],
+    gotags = ["test"],  # keep: ABLD-409
     deps = [
         "//pkg/config/mock",
         "//pkg/config/model",

@@ -17,10 +17,10 @@ go_library(
         "//comp/core/delegatedauth/def",
         "//comp/core/status",
         "//pkg/config/model",
+        "//pkg/util/aws/creds",
         "//pkg/util/log",
         "//pkg/util/scrubber",
         "@com_github_cenkalti_backoff_v5//:backoff",
-        "@com_github_datadog_datadog_agent_pkg_util_aws_creds//:creds",
     ],
 )
 
