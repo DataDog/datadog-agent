@@ -48,6 +48,7 @@ tonic-prost-build = "0.14"
 tonic-reflection = "0.14"
 uzers = "0.12"
 walkdir = "2"
+saphyr-parser = "0.0.6"
 yaml-rust2 = "0.9"
 zip = { version = "2.1", default-features = false, features = ["deflate"] }
 

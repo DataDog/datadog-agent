@@ -3,35 +3,105 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+use saphyr_parser::{Event, Parser};
 use std::io::Read;
-use yaml_rust2::{Yaml, YamlLoader};
+
+/// State machine for navigating YAML events to find a target key path.
+enum State {
+    /// Consuming preamble events until the root MappingStart.
+    Preamble,
+    /// Inside a mapping, expecting a key event.
+    Key,
+    /// Final key segment matched; next event is the target value.
+    Value,
+    /// Intermediate key segment matched; next event must be MappingStart.
+    Descend,
+    /// Skipping `count` top-level items (each possibly compound).
+    /// `nesting` tracks depth within a compound structure being skipped.
+    Skip { nesting: u32, count: u8 },
+}
 
 /// Parser for YAML that searches for a specific string property in dot
-/// notation.
+/// notation. Uses a streaming event parser to avoid building a full DOM tree.
 pub fn parse_yaml<R: Read>(mut reader: R, target_key: &str) -> Option<String> {
-    // Read the YAML content
     let mut content = String::new();
     reader.read_to_string(&mut content).ok()?;
 
-    // Parse YAML. This could use a streaming parser, but since that is quite
-    // complex, just load the entire document since it should be small (And the
-    // size has been restricted by the caller).
-    let docs = YamlLoader::load_from_str(&content).ok()?;
-    let doc = docs.first()?;
+    let segments: Vec<&str> = target_key.split('.').collect();
+    let mut parser = Parser::new_from_str(&content);
+    let mut depth: usize = 0;
+    let mut state = State::Preamble;
 
-    // Split target key into path components and navigate
-    let mut current = doc;
-    for key in target_key.split('.') {
-        current = &current[key];
-        if current.is_badvalue() {
-            return None;
-        }
+    for result in &mut parser {
+        let (event, _) = result.ok()?;
+        state = match state {
+            State::Preamble => match event {
+                Event::StreamStart | Event::DocumentStart(_) => State::Preamble,
+                Event::MappingStart(..) => State::Key,
+                _ => return None,
+            },
+            State::Key => match event {
+                Event::MappingEnd => return None,
+                Event::Scalar(ref key, ..) if segments.get(depth) == Some(&key.as_ref()) => {
+                    if depth == segments.len() - 1 {
+                        State::Value
+                    } else {
+                        State::Descend
+                    }
+                }
+                Event::Scalar(..) | Event::Alias(..) => State::Skip {
+                    nesting: 0,
+                    count: 1,
+                },
+                Event::MappingStart(..) | Event::SequenceStart(..) => {
+                    // Complex key: skip its subtree (nesting=1) then skip its value.
+                    State::Skip {
+                        nesting: 1,
+                        count: 2,
+                    }
+                }
+                _ => return None,
+            },
+            State::Value => match event {
+                Event::Scalar(value, ..) => return Some(value.into_owned()),
+                _ => return None,
+            },
+            State::Descend => match event {
+                Event::MappingStart(..) => {
+                    depth += 1;
+                    State::Key
+                }
+                _ => return None,
+            },
+            State::Skip {
+                mut nesting,
+                mut count,
+            } => {
+                if nesting == 0 {
+                    match event {
+                        Event::Scalar(..) | Event::Alias(..) => count -= 1,
+                        Event::MappingStart(..) | Event::SequenceStart(..) => nesting = 1,
+                        _ => return None,
+                    }
+                } else {
+                    match event {
+                        Event::MappingStart(..) | Event::SequenceStart(..) => nesting += 1,
+                        Event::MappingEnd | Event::SequenceEnd => nesting -= 1,
+                        _ => {}
+                    }
+                    if nesting == 0 {
+                        count -= 1;
+                    }
+                }
+                if count == 0 {
+                    State::Key
+                } else {
+                    State::Skip { nesting, count }
+                }
+            }
+        };
     }
-
-    match current {
-        Yaml::String(s) => Some(s.clone()),
-        _ => None,
-    }
+    None
 }
 #[cfg(test)]
 mod tests {
@@ -68,7 +138,7 @@ other:
     }
 
     #[test]
-    fn test_parse_yaml_invalid_types() {
+    fn test_parse_yaml_non_scalar_types() {
         let yaml = r#"
 spring:
   application:
@@ -83,19 +153,17 @@ spring:
 "#
         .as_bytes();
 
-        // Test integer value returns None
+        // Scalar values are returned as-is (no type discrimination).
         let result = parse_yaml(yaml, "spring.application.port");
-        assert_eq!(result, None);
+        assert_eq!(result, Some("8080".to_string()));
 
-        // Test boolean value returns None
         let result = parse_yaml(yaml, "spring.application.enabled");
-        assert_eq!(result, None);
+        assert_eq!(result, Some("true".to_string()));
 
-        // Test array value returns None
+        // Non-scalar values (arrays, objects) return None.
         let result = parse_yaml(yaml, "spring.application.tags");
         assert_eq!(result, None);
 
-        // Test hash/object value returns None
         let result = parse_yaml(yaml, "spring.application.config");
         assert_eq!(result, None);
     }
@@ -112,12 +180,25 @@ spring:
         let result = parse_yaml(yaml, "spring.application.name");
         assert_eq!(result, None);
 
-        // Test malformed YAML
+        // Test malformed YAML — the streaming parser returns the value if it
+        // appears before the malformed section, since it doesn't validate the
+        // entire document upfront.
         let yaml = r#"
 spring:
   application:
     name: myapp
   invalid indentation
+"#
+        .as_bytes();
+        let result = parse_yaml(yaml, "spring.application.name");
+        assert_eq!(result, Some("myapp".to_string()));
+
+        // Malformed YAML where the target key cannot be reached returns None.
+        let yaml = r#"
+  invalid indentation
+spring:
+  application:
+    name: myapp
 "#
         .as_bytes();
         let result = parse_yaml(yaml, "spring.application.name");
@@ -133,7 +214,7 @@ spring:
         let result = parse_yaml(yaml, "spring.application.name");
         assert_eq!(result, Some("".to_string()));
 
-        // Test null value
+        // Null is returned as the string "null" (no type discrimination).
         let yaml = r#"
 spring:
   application:
@@ -141,6 +222,6 @@ spring:
 "#
         .as_bytes();
         let result = parse_yaml(yaml, "spring.application.name");
-        assert_eq!(result, None);
+        assert_eq!(result, Some("null".to_string()));
     }
 }
