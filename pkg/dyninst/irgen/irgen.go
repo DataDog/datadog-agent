@@ -567,6 +567,85 @@ func cleanReturnNames(vars []*ir.Variable) map[*ir.Variable]string {
 	return result
 }
 
+// resolveReturnSegment resolves a template segment referencing @return to the
+// corresponding return variable for multi-return functions. It extracts the
+// member name from a getmember(@return, "field") expression and finds the
+// matching return variable by its cleaned display name.
+func resolveReturnSegment(
+	seg *ir.JSONSegment,
+	returnVars []*ir.Variable,
+	displayNames map[*ir.Variable]string,
+) *ir.Variable {
+	gme, ok := seg.JSON.(*exprlang.GetMemberExpr)
+	if !ok {
+		return nil
+	}
+	for _, v := range returnVars {
+		if displayNames[v] == gme.Member {
+			return v
+		}
+	}
+	return nil
+}
+
+// rewriteReturnRef rewrites all RefExpr("@return") nodes in an expression
+// tree to RefExpr(varName), preserving wrapping operators (len, isEmpty, eq,
+// getmember). For multi-return, it also strips the outermost getmember that
+// selected the return field, since the root variable is already resolved to
+// that field's variable.
+func rewriteReturnRef(expr exprlang.Expr, varName string) exprlang.Expr {
+	switch e := expr.(type) {
+	case *exprlang.RefExpr:
+		return &exprlang.RefExpr{Ref: varName}
+	case *exprlang.GetMemberExpr:
+		return &exprlang.GetMemberExpr{
+			Base:   rewriteReturnRef(e.Base, varName),
+			Member: e.Member,
+		}
+	case *exprlang.LenExpr:
+		return &exprlang.LenExpr{Operand: rewriteReturnRef(e.Operand, varName)}
+	case *exprlang.IsEmptyExpr:
+		return &exprlang.IsEmptyExpr{Operand: rewriteReturnRef(e.Operand, varName)}
+	case *exprlang.EqExpr:
+		return &exprlang.EqExpr{
+			Left:  rewriteReturnRef(e.Left, varName),
+			Right: e.Right,
+		}
+	default:
+		return expr
+	}
+}
+
+// resolveReturnCaptureExpr resolves a capture expression referencing @return
+// to return variable(s). For single returns, maps @return to the variable.
+// For multiple returns with getmember, extracts the field name and finds the
+// matching variable. Returns the root variable and the rewritten expression.
+func resolveReturnCaptureExpr(
+	parsedExpr exprlang.Expr,
+	returnVars []*ir.Variable,
+	displayNames map[*ir.Variable]string,
+) (*ir.Variable, exprlang.Expr) {
+	if len(returnVars) == 1 {
+		// Single return: rewrite ref(@return) -> ref(varName), preserving
+		// any wrapping operators (len, isEmpty, etc.).
+		v := returnVars[0]
+		return v, rewriteReturnRef(parsedExpr, v.Name)
+	}
+	// Multiple returns: the outermost expression must be
+	// getmember(ref(@return), "field"). Strip the getmember (since we resolve
+	// directly to the field's variable) and rewrite the base ref.
+	gme, ok := parsedExpr.(*exprlang.GetMemberExpr)
+	if !ok {
+		return nil, nil
+	}
+	for _, v := range returnVars {
+		if displayNames[v] == gme.Member {
+			return v, rewriteReturnRef(gme.Base, v.Name)
+		}
+	}
+	return nil, nil
+}
+
 // extractRootVariableName extracts the root variable name from an expression.
 func extractRootVariableName(expr exprlang.Expr) (string, bool) {
 	const maxDepth = 30
@@ -712,6 +791,17 @@ func analyzeAllProbes(
 				}
 			}
 
+			// Pre-scan: collect return variables and compute display names.
+			var returnVars []*ir.Variable
+			if haveReturn {
+				for _, v := range inst.Subprogram.Variables {
+					if v.Role == ir.VariableRoleReturn {
+						returnVars = append(returnVars, v)
+					}
+				}
+			}
+			returnDisplayNames := cleanReturnNames(returnVars) // nil for 0 or 1 returns
+
 			// Process each variable.
 			for _, v := range inst.Subprogram.Variables {
 				var evKind ir.EventKind
@@ -757,9 +847,18 @@ func analyzeAllProbes(
 				// Capture expression probes only capture explicitly listed
 				// expressions (handled below), not all variables.
 				if isSnapshot && !isCaptureExpression {
+					// Compute the display name for this expression.
+					name := v.Name
+					if v.Role == ir.VariableRoleReturn {
+						if returnDisplayNames == nil {
+							name = "@return"
+						} else {
+							name = returnDisplayNames[v]
+						}
+					}
 					ap.expressions = append(ap.expressions, analyzedExpression{
 						expr:         &exprlang.RefExpr{Ref: v.Name},
-						dsl:          v.Name,
+						dsl:          name,
 						rootVariable: v,
 						eventKind:    evKind,
 						exprKind:     exprKind,
@@ -769,7 +868,8 @@ func analyzeAllProbes(
 					addRoot(v.Type.GetID(), budget)
 				}
 
-				// Match template segments to this variable.
+				// Match template segments to this variable by its original name.
+				// Named returns (e.g., "result") remain accessible by name.
 				//
 				// Note: there's no risk of picking the wrong variable due to
 				// shadowing, but there should be! In materializePending we ensure
@@ -802,6 +902,45 @@ func analyzeAllProbes(
 				delete(segmentRefs, v.Name)
 			}
 
+			// Handle @return references in template segments.
+			if segs, ok := segmentRefs["@return"]; ok && len(returnVars) > 0 {
+				for _, seg := range segs {
+					if len(returnVars) == 1 {
+						// Single return: rewrite ref(@return) to target the
+						// actual variable, preserving any wrapping operators.
+						v := returnVars[0]
+						ap.expressions = append(ap.expressions, analyzedExpression{
+							expr:         rewriteReturnRef(seg.segment.JSON, v.Name),
+							dsl:          seg.segment.DSL,
+							rootVariable: v,
+							eventKind:    ir.EventKindReturn,
+							exprKind:     ir.RootExpressionKindTemplateSegment,
+							segment:      seg.segment,
+							segmentIdx:   seg.index,
+						})
+						addRoot(v.Type.GetID(), budget)
+					} else {
+						// Multiple returns: @return.field → resolve the field
+						// to the matching return variable, rewriting the
+						// expression to target the variable directly.
+						rv := resolveReturnSegment(seg.segment, returnVars, returnDisplayNames)
+						if rv != nil {
+							ap.expressions = append(ap.expressions, analyzedExpression{
+								expr:         &exprlang.RefExpr{Ref: rv.Name},
+								dsl:          seg.segment.DSL,
+								rootVariable: rv,
+								eventKind:    ir.EventKindReturn,
+								exprKind:     ir.RootExpressionKindTemplateSegment,
+								segment:      seg.segment,
+								segmentIdx:   seg.index,
+							})
+							addRoot(rv.Type.GetID(), budget)
+						}
+					}
+				}
+				delete(segmentRefs, "@return")
+			}
+
 			// Process capture expressions.
 			for _, ce := range probe.ProbeDefinition.GetCaptureExpressions() {
 				parsedExpr, err := exprlang.Parse(ce.GetJSON())
@@ -812,7 +951,15 @@ func analyzeAllProbes(
 				if !ok {
 					continue
 				}
-				rootVar := varByName[rootVarName]
+				// Handle @return references in capture expressions.
+				var rootVar *ir.Variable
+				if rootVarName == "@return" && len(returnVars) > 0 {
+					rootVar, parsedExpr = resolveReturnCaptureExpr(
+						parsedExpr, returnVars, returnDisplayNames,
+					)
+				} else {
+					rootVar = varByName[rootVarName]
+				}
 				if rootVar == nil {
 					continue
 				}
