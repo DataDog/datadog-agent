@@ -17,14 +17,13 @@ from tasks.libs.common.color import Color, color_message
 
 # --- Constants ---
 
-SCENARIOS = ["213_pagerduty", "353_postmark", "food_delivery_redis"]
+_MANIFEST_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "..", "q_branch", "gensim-eval-scenarios.json")
+with open(_MANIFEST_PATH) as _f:
+    _EVAL_MANIFEST = json.load(_f)
 
-# Maps short scenario names to episode names used in runs.jsonl
-SCENARIO_EPISODE_NAMES = {
-    "213_pagerduty": "213_PagerDuty_June_2014_Outage",
-    "353_postmark": "353_postmark_upstream_cloud_provider_outage",
-    "food_delivery_redis": "food-delivery-redis-cpu-saturation",
-}
+# Short name → full episode name, loaded from the eval corpus manifest.
+SCENARIO_EPISODE_NAMES = {entry["short"]: entry["episode"] for entry in _EVAL_MANIFEST}
+SCENARIOS = list(SCENARIO_EPISODE_NAMES.keys())
 
 S3_BUCKET = "qbranch-gensim-recordings"
 AWS_PROFILE = "sso-agent-sandbox-account-admin"
@@ -441,22 +440,36 @@ def _resolve_zip_from_runs_jsonl(ctx, name):
                 except json.JSONDecodeError:
                     continue  # skip malformed records
 
-        # Find the latest entry matching this episode
-        matches = [entry for entry in lines if entry.get("episode") == episode_name]
+        # Find the latest successful entry matching this episode.
+        # parquet_count < 100 indicates a failed or incomplete run (empirically: 0 or 2).
+        matches = [
+            entry for entry in lines if entry.get("episode") == episode_name and entry.get("parquet_count", 0) >= 100
+        ]
         if not matches:
             return None
 
-        latest = matches[-1]
-        zip_key = latest.get("zip")
-        if zip_key:
+        # Walk newest-first, return the first zip that actually exists in S3.
+        for entry in reversed(matches):
+            zip_key = entry.get("zip")
+            if not zip_key:
+                continue
+            check = ctx.run(
+                f"aws-vault exec {AWS_PROFILE} -- aws s3api head-object --bucket {S3_BUCKET} --key {shlex.quote(zip_key)}",
+                warn=True,
+                hide=True,
+            )
+            if check is None or check.failed:
+                print(color_message(f"  '{zip_key}' not found in S3, trying previous run...", Color.BLUE))
+                continue
             print(
                 color_message(
                     f"Resolved '{name}' from runs.jsonl: {zip_key} "
-                    f"(image: {latest.get('image', '?')}, {latest.get('timestamp', '?')})",
+                    f"(image: {entry.get('image', '?')}, {entry.get('timestamp', '?')})",
                     Color.BLUE,
                 )
             )
-        return zip_key
+            return zip_key
+        return None
     except (OSError, json.JSONDecodeError):
         return None
     finally:
