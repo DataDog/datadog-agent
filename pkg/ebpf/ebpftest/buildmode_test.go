@@ -19,7 +19,6 @@ import (
 
 func TestBuildModeConstants(t *testing.T) {
 	TestBuildMode(t, Prebuilt, "", func(t *testing.T) {
-		mock.NewSystemProbe(t)
 		cfg := ebpf.NewConfig()
 		assert.False(t, cfg.EnableRuntimeCompiler)
 		assert.False(t, cfg.EnableCORE)
@@ -32,7 +31,6 @@ func TestBuildModeConstants(t *testing.T) {
 		assert.Equal(t, Prebuilt, GetBuildMode())
 	})
 	TestBuildMode(t, RuntimeCompiled, "", func(t *testing.T) {
-		mock.NewSystemProbe(t)
 		cfg := ebpf.NewConfig()
 		assert.True(t, cfg.EnableRuntimeCompiler)
 		assert.False(t, cfg.EnableCORE)
@@ -44,7 +42,6 @@ func TestBuildModeConstants(t *testing.T) {
 		assert.Equal(t, RuntimeCompiled, GetBuildMode())
 	})
 	TestBuildMode(t, CORE, "", func(t *testing.T) {
-		mock.NewSystemProbe(t)
 		cfg := ebpf.NewConfig()
 		assert.False(t, cfg.EnableRuntimeCompiler)
 		assert.True(t, cfg.EnableCORE)
@@ -56,7 +53,6 @@ func TestBuildModeConstants(t *testing.T) {
 		assert.Equal(t, CORE, GetBuildMode())
 	})
 	TestBuildMode(t, Fentry, "", func(t *testing.T) {
-		mock.NewSystemProbe(t)
 		cfg := ebpf.NewConfig()
 		assert.False(t, cfg.EnableRuntimeCompiler)
 		assert.True(t, cfg.EnableCORE)
@@ -68,7 +64,6 @@ func TestBuildModeConstants(t *testing.T) {
 		assert.Equal(t, Fentry, GetBuildMode())
 	})
 	TestBuildMode(t, Ebpfless, "", func(t *testing.T) {
-		mock.NewSystemProbe(t)
 		cfg := ebpf.NewConfig()
 		assert.False(t, cfg.EnableRuntimeCompiler)
 		assert.False(t, cfg.EnableCORE)
