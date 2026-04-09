@@ -1002,6 +1002,78 @@ func Test_fetchColumnOids_alreadyProcessed(t *testing.T) {
 	assert.Equal(t, 1, strings.Count(logs, "[DEBUG] fetchColumnOids: fetch column: OID already processed: 1.1.2.5"), logs)
 }
 
+func Test_fetchColumnOids_truncatedResponse_retriesAdvancedCursor(t *testing.T) {
+	sess := session.CreateMockSession()
+
+	bulkPacket1 := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{
+				Name:  "1.1.1.1",
+				Type:  gosnmp.TimeTicks,
+				Value: 11,
+			},
+			{
+				Name:  "1.1.2.1",
+				Type:  gosnmp.TimeTicks,
+				Value: 21,
+			},
+		},
+	}
+	bulkPacket2 := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{
+				Name:  "1.1.1.2",
+				Type:  gosnmp.TimeTicks,
+				Value: 12,
+			},
+		},
+	}
+	bulkPacket3 := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{
+				Name:  "1.1.3.1",
+				Type:  gosnmp.TimeTicks,
+				Value: 31,
+			},
+			{
+				Name:  "1.1.2.2",
+				Type:  gosnmp.TimeTicks,
+				Value: 22,
+			},
+		},
+	}
+	bulkPacket4 := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{
+				Name:  "1.1.3.1",
+				Type:  gosnmp.TimeTicks,
+				Value: 31,
+			},
+		},
+	}
+
+	sess.On("GetBulk", []string{"1.1.1", "1.1.2"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket1, nil)
+	sess.On("GetBulk", []string{"1.1.1.1", "1.1.2.1"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket2, nil)
+	sess.On("GetBulk", []string{"1.1.1.2", "1.1.2.1"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket3, nil)
+	sess.On("GetBulk", []string{"1.1.2.2"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket4, nil)
+
+	oids := []string{"1.1.1", "1.1.2"}
+	batchSizeOptimizer := newOidBatchSizeOptimizer(snmpGetBulk, 100)
+
+	columnValues, err := fetchColumnOidsWithBatching(sess, oids, batchSizeOptimizer, checkconfig.DefaultBulkMaxRepetitions, useGetBulk)
+	assert.Nil(t, err)
+	assert.Equal(t, valuestore.ColumnResultValuesType{
+		"1.1.1": {
+			"1": valuestore.ResultValue{Value: float64(11)},
+			"2": valuestore.ResultValue{Value: float64(12)},
+		},
+		"1.1.2": {
+			"1": valuestore.ResultValue{Value: float64(21)},
+			"2": valuestore.ResultValue{Value: float64(22)},
+		},
+	}, columnValues)
+}
+
 func Test_batchSizeOptimizers(t *testing.T) {
 	now := time.Now()
 

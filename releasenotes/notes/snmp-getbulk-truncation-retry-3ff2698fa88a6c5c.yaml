@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    SNMP: Retry column OIDs that receive no response varbind due to GetBulk PDU truncation,
+    preventing silent metric loss on devices with large batch sizes.

@@ -66,6 +66,7 @@ func fetchColumnOidsWithBatching(sess session.Session, oids []string, batchSizeO
 func fetchColumnOids(sess session.Session, oids []string, bulkMaxRepetitions uint32, fetchStrategy columnFetchStrategy) (valuestore.ColumnResultValuesType, error) {
 	returnValues := make(valuestore.ColumnResultValuesType, len(oids))
 	alreadyProcessedOids := make(map[string]bool)
+	retriedOids := make(map[string]bool)
 	curOids := make(map[string]string, len(oids))
 	for _, oid := range oids {
 		curOids[oid] = oid
@@ -96,8 +97,19 @@ func fetchColumnOids(sess session.Session, oids []string, bulkMaxRepetitions uin
 		if err != nil {
 			return nil, err
 		}
-		newValues, nextOids := valuestore.ResultToColumnValues(columnOids, results)
+		newValues, nextOids := valuestore.ResultToColumnValues(columnOids, curOids, results)
 		updateColumnResultValues(returnValues, newValues)
+
+		// Retry each cursor at most once in case the device truncated the
+		// response. If the retry is also truncated, the OID is dropped.
+		// Reducing oid_batch_size is the fix for that case, or adding more retries.
+		for k, v := range curOids {
+			if nextOids[k] == v && !retriedOids[v] {
+				retriedOids[v] = true
+				delete(alreadyProcessedOids, v)
+			}
+		}
+
 		curOids = nextOids
 	}
 	return returnValues, nil
