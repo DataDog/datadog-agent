@@ -18,7 +18,13 @@ go_test(
     name = "flavor_test",
     srcs = ["flavor_test.go"],
     embed = [":flavor"],
-    gotags = ["test"],
+    # keep
+    gotags = ["test"] + select({
+        "@platforms//os:linux": ["linux"],
+        "@platforms//os:macos": ["darwin"],
+        "@platforms//os:windows": ["windows"],
+        "//conditions:default": [],
+    }),
     deps = [
         "//pkg/config/mock",
         "@com_github_stretchr_testify//assert",
