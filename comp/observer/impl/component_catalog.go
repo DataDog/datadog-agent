@@ -122,6 +122,13 @@ func defaultCatalog() *componentCatalog {
 				defaultEnabled: true,
 			},
 			{
+				name:           "log_stat_extractor",
+				displayName:    "Log Stat Extractor",
+				kind:           componentExtractor,
+				factory:        func(any) any { return NewLogStatExtractor() },
+				defaultEnabled: true,
+			},
+			{
 				name:           "log_pattern_extractor",
 				displayName:    "Log Pattern Extractor",
 				kind:           componentExtractor,
