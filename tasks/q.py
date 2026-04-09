@@ -295,8 +295,22 @@ def eval_scenarios(
         except Exception as e:
             if type(e).__name__ == "CommandTimedOut":
                 scenario_logger.detail(
-                    f"testbench timed out (budget {budget_remaining:.0f}s remaining) — skipping scenario",
+                    f"testbench timed out (budget {budget_remaining:.0f}s remaining) — scoring as zero",
                     Color.ORANGE,
+                )
+                results.append(
+                    {
+                        "name": name,
+                        "f1": 0.0,
+                        "precision": 0.0,
+                        "recall": 0.0,
+                        "alpha": -1,
+                        "num_predictions": 0,
+                        "num_baseline_fps": 0,
+                        "num_filtered_warmup": 0,
+                        "num_filtered_cascading": 0,
+                        "timed_out": True,
+                    }
                 )
                 continue
             raise
@@ -351,9 +365,11 @@ def eval_scenarios(
         for r in results:
             alpha = r.get("alpha", -1)
             alpha_str = f"{alpha:.4f}" if alpha >= 0 else "  n/a"
+            timed_out_suffix = "  [TIMEOUT]" if r.get("timed_out") else ""
             print(
                 f"{r['name']:<25}  {r['f1']:>6.4f}  {r['precision']:>9.4f}  {r['recall']:>6.4f}"
                 f"  {alpha_str:>7}  {r['num_predictions']:>6}  {r['num_baseline_fps']:>12}  {r['num_filtered_warmup']:>13}  {r['num_filtered_cascading']:>16}"
+                f"{timed_out_suffix}"
             )
             duration = r.get("baseline_duration_seconds", 0)
             if duration > 0:
@@ -369,7 +385,8 @@ def eval_scenarios(
         print(f"\nOutput JSONs: /tmp/observer-eval-*.json (sigma={sigma}s)")
 
     # Create main report
-    main_score = sum(r["f1"] for r in results) / len(results)
+    f1_scores: list[float] = [float(r["f1"]) for r in results]
+    main_score = sum(f1_scores) / len(f1_scores) if f1_scores else 0.0
     main_report = {"score": main_score, "metadata": {r["name"]: r for r in results}, "component_configs": config_obj}
     with open(main_report_path, "w") as f:
         json.dump(main_report, f, indent=4)
