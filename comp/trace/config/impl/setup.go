@@ -127,6 +127,9 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component, ipc ipc.Com
 		return tagger.Tag(types.NewEntityID(types.ContainerID, cid), types.HighCardinality)
 	}
 	cfg.HasContainerFeatures = env.IsAnyContainerFeaturePresent()
+	cfg.ContainerTagsWithCompleteness = func(cid string) ([]string, bool, error) {
+		return tagger.TagWithCompleteness(types.NewEntityID(types.ContainerID, cid), types.HighCardinality)
+	}
 	cfg.ContainerIDFromOriginInfo = func(originInfo origindetection.OriginInfo) (string, error) {
 		return tagger.GenerateContainerIDFromOriginInfo(originInfo)
 	}

@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	workloadpatcher "github.com/DataDog/datadog-agent/pkg/clusteragent/patcher"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -30,6 +31,12 @@ const (
 	// for StatefulSets and DaemonSets. This is managed by Kubernetes itself and changes whenever
 	// any part of the pod template changes.
 	controllerRevisionHashLabel = "controller-revision-hash"
+
+	// defaultResizePendingPeriod is the default delay for the resize pending period in seconds
+	defaultResizePendingPeriod int32 = 600
+
+	// defaultRolloutFallbackDelay is the default delay for the rollout fallback in seconds
+	defaultRolloutFallbackDelay int32 = 1200
 )
 
 const inPlaceResizeSupportedCacheTTL = 15 * time.Minute
@@ -195,7 +202,7 @@ func shouldTriggerRollout(
 	}
 
 	// Step 2: Check if we already triggered a rollout for THIS recommendation
-	if lastAction != nil && lastAction.Version == recommendationID {
+	if lastAction != nil && lastAction.Type == datadoghqcommon.DatadogPodAutoscalerRolloutTriggeredVerticalActionType && lastAction.Version == recommendationID {
 		log.Debugf("Rollout already triggered for recommendation %s on autoscaler %s, waiting for completion",
 			recommendationID, autoscalerID)
 		return rolloutDecisionWait
@@ -482,17 +489,34 @@ func clampResourceList(rl corev1.ResourceList, minAllowed, maxAllowed corev1.Res
 	return modified
 }
 
-// shouldFallbackToRollout returns true if any pod in toEvict has been stuck in its
-// unresolvable state longer than RolloutFallbackDelay seconds, indicating that
-// eviction is not making progress and a full rollout should be triggered instead.
-func shouldFallbackToRollout(toEvict []classifiedPod, podAutoscaler *datadoghq.DatadogPodAutoscaler, now time.Time) bool {
-	if podAutoscaler.Spec.ApplyPolicy == nil || podAutoscaler.Spec.ApplyPolicy.Update == nil {
+// shouldEvictDeferred returns true if the time since the last action is greater than the resize pending period, false otherwise
+func shouldEvictDeferred(podAutoscaler *datadoghq.DatadogPodAutoscaler, now time.Time) bool {
+	period := defaultResizePendingPeriod
+	// If the DPA has a configured resize pending period, use that instead of the default
+	if podAutoscaler.Spec.ApplyPolicy != nil && podAutoscaler.Spec.ApplyPolicy.Update != nil && podAutoscaler.Spec.ApplyPolicy.Update.ResizePendingPeriod > 0 {
+		period = podAutoscaler.Spec.ApplyPolicy.Update.ResizePendingPeriod
+	}
+
+	if podAutoscaler.Status.Vertical == nil || podAutoscaler.Status.Vertical.LastAction == nil {
 		return false
 	}
-	delay := podAutoscaler.Spec.ApplyPolicy.Update.RolloutFallbackDelay
-	if delay <= 0 {
-		return false
+
+	return now.Sub(podAutoscaler.Status.Vertical.LastAction.Time.Time) > time.Duration(period)*time.Second
+}
+
+// shouldFallbackToRollout returns true if a rollout should be triggered instead
+// of continuing to attempt in-place resizing
+func shouldFallbackToRollout(toEvict []classifiedPod, podAutoscaler *datadoghq.DatadogPodAutoscaler, now time.Time, patchForbidden bool) bool {
+	if patchForbidden {
+		return true
 	}
+
+	delay := defaultRolloutFallbackDelay
+	// If the DPA has a configured rollout fallback delay, use that instead of the default
+	if podAutoscaler.Spec.ApplyPolicy != nil && podAutoscaler.Spec.ApplyPolicy.Update != nil && podAutoscaler.Spec.ApplyPolicy.Update.RolloutFallbackDelay > 0 {
+		delay = podAutoscaler.Spec.ApplyPolicy.Update.RolloutFallbackDelay
+	}
+
 	threshold := time.Duration(delay) * time.Second
 	for _, cp := range toEvict {
 		if !cp.lastTransitionTime.IsZero() && now.Sub(cp.lastTransitionTime) > threshold {
@@ -503,14 +527,19 @@ func shouldFallbackToRollout(toEvict []classifiedPod, podAutoscaler *datadoghq.D
 }
 
 // isRolloutRequired checks if a rollout is required for the podAutoscaler.
-// The default mode is in-place (Auto); only an explicit TriggerRollout mode forces a rollout.
+// A rollout is required when:
+//
+//	a) The global config flag (autoscaling.workload.in_place_vertical_scaling.enabled) is disabled, or
+//	b) The DPA explicitly sets Strategy: TriggerRollout
 func isRolloutRequired(autoscalerInternal *model.PodAutoscalerInternal) bool {
+	if !pkgconfigsetup.Datadog().GetBool("autoscaling.workload.in_place_vertical_scaling.enabled") {
+		return true
+	}
 	spec := autoscalerInternal.Spec()
 	if spec == nil || spec.ApplyPolicy == nil || spec.ApplyPolicy.Update == nil {
 		return false
 	}
-
-	return spec.ApplyPolicy.Update.Mode == datadoghqcommon.DatadogPodAutoscalerTriggerRolloutMode
+	return spec.ApplyPolicy.Update.Strategy == datadoghqcommon.DatadogPodAutoscalerTriggerRolloutUpdateStrategy
 }
 
 // getPodResizeStatus returns the resize status of pod and the LastTransitionTime
@@ -548,16 +577,17 @@ func getPodResizeStatus(pod *workloadmeta.KubernetesPod, recommendationID string
 func fromAutoscalerToContainerResourcePatches(autoscalerInternal *model.PodAutoscalerInternal, pod *workloadmeta.KubernetesPod) []workloadpatcher.ContainerResourcePatch {
 	containersResources := autoscalerInternal.ScalingValues().Vertical.ContainerResources
 
-	// Build a set of containers that actually exist in the pod so we only patch
-	// containers present in the running pod, not every container in the recommendation.
-	podContainers := make(map[string]struct{}, len(pod.Containers))
-	for _, c := range pod.Containers {
-		podContainers[c.Name] = struct{}{}
+	// Build a map from container name to container resources.
+	recoByName := make(map[string]datadoghqcommon.DatadogPodAutoscalerContainerResources, len(containersResources))
+	for _, cr := range containersResources {
+		recoByName[cr.Name] = cr
 	}
 
+	// Build the list of patches ordered to API server pod container order.
 	patches := make([]workloadpatcher.ContainerResourcePatch, 0, len(containersResources))
-	for _, cr := range containersResources {
-		if _, ok := podContainers[cr.Name]; !ok {
+	for _, c := range pod.Containers {
+		cr, ok := recoByName[c.Name]
+		if !ok {
 			continue
 		}
 		patches = append(patches, workloadpatcher.ContainerResourcePatch{

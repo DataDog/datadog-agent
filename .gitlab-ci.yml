@@ -39,6 +39,9 @@
   - pkg/logs/util/windowsevent/**/*
   - pkg/network/driver/**/*
 
+  # Global packages likely to impact windows
+  - pkg/config/**/*
+
   # cmd/
   - cmd/agent/**/*
   - cmd/process-agent/**/*
@@ -104,6 +107,7 @@
   - test/new-e2e/tests/installer/windows/**/*
   - test/new-e2e/tests/windows/**/*
   - test/new-e2e/tests/sysprobe-functional/**/*
+  - test/new-e2e/tests/process/**/*
 
 include:
   - local: .adms/**/*.yaml
@@ -258,25 +262,25 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v102144341-64dad9f8
+  CI_IMAGE_BTF_GEN: v105206457-cb3f8790
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v102144341-64dad9f8
+  CI_IMAGE_DOCKER_X64: v105206457-cb3f8790
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v102144341-64dad9f8
+  CI_IMAGE_DOCKER_ARM64: v105206457-cb3f8790
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v102144341-64dad9f8
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v105206457-cb3f8790
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v102144341-64dad9f8
+  CI_IMAGE_LINUX: v105206457-cb3f8790
   CI_IMAGE_LINUX_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v102144341-64dad9f8
+  CI_IMAGE_RPM_X64: v105206457-cb3f8790
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v102144341-64dad9f8
+  CI_IMAGE_RPM_ARM64: v105206457-cb3f8790
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v102144341-64dad9f8
+  CI_IMAGE_RPM_ARMHF: v105206457-cb3f8790
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v102144341-64dad9f8
+  CI_IMAGE_WIN_LTSC2022_X64: v105206457-cb3f8790
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2025_X64: v102144341-64dad9f8
+  CI_IMAGE_WIN_LTSC2025_X64: v105206457-cb3f8790
   CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -484,7 +488,6 @@ variables:
     paths:
       - omnibus/**/*
       - pkg/config/config_template.yaml
-      - pkg/config/security-agent_template.yaml
       - pkg/config/system-probe_template.yaml
     compare_to: $COMPARE_TO_BRANCH
 
@@ -706,7 +709,7 @@ workflow:
   - <<: *on_build_changes
   - changes:
       paths:
-        - test/new-e2e/tests/agent-platform/install-script/**/*
+        - test/new-e2e/tests/agent-platform/tests/install_script*
         - test/e2e-framework/**/*
 
 .on_ddot_tests:
@@ -717,7 +720,7 @@ workflow:
   - <<: *on_build_changes
   - changes:
       paths:
-        - test/new-e2e/tests/agent-platform/ddot/**/*
+        - test/new-e2e/tests/agent-platform/tests/ddot*
         - test/e2e-framework/**/*
 
 .on_step_by_step_tests:
@@ -728,7 +731,7 @@ workflow:
   - <<: *on_build_changes
   - changes:
       paths:
-        - test/new-e2e/tests/agent-platform/step-by-step/**/*
+        - test/new-e2e/tests/agent-platform/tests/step_by_step*
         - test/e2e-framework/**/*
 
 .on_upgrade_tests:
@@ -739,7 +742,7 @@ workflow:
   - <<: *on_build_changes
   - changes:
       paths:
-        - test/new-e2e/tests/agent-platform/upgrade/**/*
+        - test/new-e2e/tests/agent-platform/tests/upgrade*
         - test/e2e-framework/**/*
 
 .on_persisting_integrations_tests:
@@ -750,7 +753,7 @@ workflow:
   - <<: *on_build_changes
   - changes:
       paths:
-        - test/new-e2e/tests/agent-platform/persisting-integrations/**/*
+        - test/new-e2e/tests/agent-platform/tests/persisting_integrations*
         - test/e2e-framework/**/*
 
 .on_rpm_tests:
@@ -761,7 +764,7 @@ workflow:
   - <<: *on_build_changes
   - changes:
       paths:
-        - test/new-e2e/tests/agent-platform/rpm/**/*
+        - test/new-e2e/tests/agent-platform/tests/rpm*
         - test/e2e-framework/**/*
 
 .on_package_signing_tests:
@@ -772,7 +775,7 @@ workflow:
   - <<: *on_build_changes
   - changes:
       paths:
-        - test/new-e2e/tests/agent-platform/package-signing/**/*
+        - test/new-e2e/tests/agent-platform/tests/package_signing*
         - test/e2e-framework/**/*
 
 .security_agent_change_paths: &security_agent_change_paths

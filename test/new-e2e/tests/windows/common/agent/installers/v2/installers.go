@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 )
 
 // Arch is the architecture-specific URL for an installer
@@ -82,7 +83,11 @@ func ListVersions(url string) (*Installers, error) {
 	return &installers, nil
 }
 
-// GetProductURL returns the URL for a product/version/arch pair from a installers_v2.json URL
+// GetProductURL returns the URL for a product/version/arch pair from a installers_v2.json URL.
+//
+// It first tries an exact version match. If that fails, it tries the opposite "-1" suffix
+// form (trimming it if present, or appending it if absent). This handles version format
+// differences across flavors (e.g. base uses "7.75.0-1", fips uses "7.75.0").
 func GetProductURL(url string, product string, version string, arch string) (string, error) {
 	versions, err := ListVersions(url)
 	if err != nil {
@@ -93,10 +98,23 @@ func GetProductURL(url string, product string, version string, arch string) (str
 	if !ok {
 		return "", fmt.Errorf("product %s not found", product)
 	}
+
 	v, ok := p.Version[version]
 	if !ok {
-		return "", fmt.Errorf("version %s not found", version)
+		// Some flavors omit the "-1" suffix (e.g. fips uses "7.75.0" while base uses "7.75.0-1").
+		// Try the opposite form before giving up.
+		var alt string
+		if strings.HasSuffix(version, "-1") {
+			alt = strings.TrimSuffix(version, "-1")
+		} else {
+			alt = version + "-1"
+		}
+		v, ok = p.Version[alt]
+		if !ok {
+			return "", fmt.Errorf("version %s not found for product %s (also tried %s)", version, product, alt)
+		}
 	}
+
 	a, ok := v.Arch[arch]
 	if !ok {
 		return "", fmt.Errorf("arch %s not found", arch)

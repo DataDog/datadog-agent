@@ -1,0 +1,36 @@
+Subject: [PATCH] Pass cc flags as CPPFLAGS
+
+This ensures that any cc flags coming from the toolchain that are
+meant to provide hermeticity are also applied when invoking the C
+preprocessor.
+---
+ foreign_cc/private/make_env_vars.bzl | 6 +-----
+ 1 file changed, 1 insertion(+), 5 deletions(-)
+
+diff --git a/foreign_cc/private/make_env_vars.bzl b/foreign_cc/private/make_env_vars.bzl
+index 1914012..378f43b 100644
+--- a/foreign_cc/private/make_env_vars.bzl
++++ b/foreign_cc/private/make_env_vars.bzl
+@@ -110,6 +110,7 @@ _MAKE_FLAGS = {
+     "CFLAGS": "cc",
+     "CXXFLAGS": "cxx",
+     "LDFLAGS": "cxx_linker_executable",
++    "CPPFLAGS": "cc",
+     # missing: cxx_linker_shared
+ }
+ 
+@@ -124,11 +125,6 @@ _MAKE_TOOLS = {
+ def _get_make_variables(workspace_name, tools, flags, user_env_vars, make_commands):
+     vars = _merge_env_vars(flags, _MAKE_FLAGS, user_env_vars)
+ 
+-    # Add user defined CPPFLAGS
+-    user_cpp_flags = [flag for flag in user_env_vars.get("CPPFLAGS", "").split(" ") if flag]
+-    if user_cpp_flags:
+-        vars["CPPFLAGS"] = user_cpp_flags
+-
+     tools_dict = {}
+     for tool in _MAKE_TOOLS:
+         tool_value = getattr(tools, _MAKE_TOOLS[tool])
+-- 
+2.52.0
+

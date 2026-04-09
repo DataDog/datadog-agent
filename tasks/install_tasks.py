@@ -1,15 +1,17 @@
+import multiprocessing
 import os
 import platform
+import subprocess
 import sys
 import zipfile
 from pathlib import Path
+from time import sleep
 
 from invoke import Context, Exit, task
 
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.go import download_go_dependencies
-from tasks.libs.common.retry import run_command_with_retry
 from tasks.libs.common.utils import environ, get_gobin, gitlab_section, link_or_copy
 
 TOOL_LIST = [
@@ -41,6 +43,17 @@ TOOLS = {
 }
 
 
+def _install_tool(args):
+    """Worker function to install a single Go tool via subprocess."""
+    path, tool, env, verbose = args
+    cmd = ['go', 'install']
+    if verbose:
+        cmd.append('-x')
+    cmd.append(tool)
+    result = subprocess.run(cmd, cwd=path, env=env, capture_output=True, text=True)
+    return path, tool, result.returncode, result.stdout, result.stderr
+
+
 @task
 def download_tools(ctx):
     """Download all Go tools for testing."""
@@ -50,19 +63,42 @@ def download_tools(ctx):
 
 
 @task
-def install_tools(ctx: Context, max_retry: int = 3):
+def install_tools(ctx: Context, max_retry: int = 3, verbose: bool = False):
     """Install all Go tools for testing."""
     with gitlab_section("Installing Go tools", collapsed=True):
-        env = {'GO111MODULE': 'on'}
+        env = {**os.environ, 'GO111MODULE': 'on'}
         if os.getenv('DD_CC'):
             env['CC'] = os.getenv('DD_CC')
         if os.getenv('DD_CXX'):
             env['CXX'] = os.getenv('DD_CXX')
-        with environ(env):
-            for path, tools in TOOLS.items():
-                with ctx.cd(path):
-                    for tool in tools:
-                        run_command_with_retry(ctx, f"go install {tool}", max_retry=max_retry)
+
+        pending = [(path, tool) for path, tools in TOOLS.items() for tool in tools]
+        for attempt in range(max_retry):
+            last = attempt == max_retry - 1
+
+            with multiprocessing.Pool() as pool:
+                results = pool.map(_install_tool, [(path, tool, env, verbose) for path, tool in pending])
+
+            failed = [(path, tool) for path, tool, rc, _, _ in results if rc != 0]
+            if last:
+                for path, tool, rc, stdout, stderr in results:
+                    if verbose and (stdout or stderr):
+                        print(f"[{tool}]\n{stdout}{stderr}")
+                    elif rc != 0:
+                        print(f"Failed to install {tool} (in {path}):\n{stderr}")
+            elif failed:
+                wait = 10**attempt
+                failed_names = [tool.rsplit('/', 1)[-1] for _, tool in failed]
+                print(
+                    f"[{attempt + 1} / {max_retry}] {len(failed)} tool(s) failed, retrying in {wait}s: {failed_names}"
+                )
+                sleep(wait)
+            pending = failed
+
+        if pending:
+            failed_list = '\n'.join(f"  {path}: {tool}" for path, tool in pending)
+            raise Exit(f"Failed to install tools:\n{failed_list}", code=1)
+
         for bazelisk in Path(get_gobin(ctx)).glob('bazelisk*'):
             link_or_copy(bazelisk, bazelisk.with_stem(bazelisk.stem.replace('isk', '')))
 

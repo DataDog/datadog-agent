@@ -130,6 +130,7 @@ enum SYSCALL_STATE
     APPROVED,        // approved but can be discarded later
     DISCARDED,       // discarded
     SAMPLED,         // sampled
+    INTERNAL,        // internal event
 };
 
 enum MONITOR_KEYS
@@ -229,6 +230,7 @@ enum erpc_op
     GET_RINGBUF_USAGE,
     USER_SESSION_CONTEXT_OP,
     PRCTL_DISCARDER,
+    AUID_DISCARDER,
     NOP_EVENT_OP,
 };
 

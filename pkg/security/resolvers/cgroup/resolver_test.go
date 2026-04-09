@@ -10,7 +10,6 @@ package cgroup
 import (
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -63,7 +62,7 @@ func TestResolvePidCgroupFallback_SuccessDirectResolution(t *testing.T) {
 		nil,
 	)
 
-	cacheEntry := resolver.resolveFromFallback(1234, 5678, time.Now())
+	cacheEntry := resolver.resolveFromFallback(1234, 5678)
 	assert.NotNil(t, cacheEntry)
 	assert.Equal(t, containerutils.CGroupID("test-cgroup-id"), cacheEntry.GetCGroupID())
 	assert.Equal(t, uint64(9876), cacheEntry.GetCGroupInode())
@@ -83,7 +82,7 @@ func TestResolvePidCgroupFallback_FailInvalidPPid(t *testing.T) {
 		errors.New("not found"),
 	)
 
-	cacheEntry := resolver.resolveFromFallback(1234, 1234, time.Now())
+	cacheEntry := resolver.resolveFromFallback(1234, 1234)
 	assert.Nil(t, cacheEntry)
 
 	// Test case 2: PPid is 0
@@ -94,7 +93,7 @@ func TestResolvePidCgroupFallback_FailInvalidPPid(t *testing.T) {
 		errors.New("not found"),
 	)
 
-	cacheEntry = resolver.resolveFromFallback(1234, 0, time.Now())
+	cacheEntry = resolver.resolveFromFallback(1234, 0)
 	assert.Nil(t, cacheEntry)
 
 	mockFS.AssertExpectations(t)
@@ -114,7 +113,7 @@ func TestResolvePidCgroupFallback_SuccessFromHistory(t *testing.T) {
 		CGroupID:      "parent-cgroup-id",
 		CGroupPathKey: parentPathKey,
 	}
-	cacheEntry := resolver.AddPID(1234, 5678, time.Now(), parentCgroupContext)
+	cacheEntry := resolver.AddPID(1234, 5678, parentCgroupContext)
 	assert.NotNil(t, cacheEntry)
 	assert.NotNil(t, cacheEntry.GetCGroupContext().Releasable)
 
@@ -126,7 +125,7 @@ func TestResolvePidCgroupFallback_SuccessFromHistory(t *testing.T) {
 		errors.New("not found"),
 	)
 
-	cacheEntry = resolver.resolveFromFallback(1234, 5678, time.Now())
+	cacheEntry = resolver.resolveFromFallback(1234, 5678)
 	assert.NotNil(t, cacheEntry)
 	assert.Equal(t, containerutils.CGroupID("parent-cgroup-id"), cacheEntry.GetCGroupID())
 	assert.Equal(t, parentPathKey, cacheEntry.GetCGroupContext().CGroupPathKey)
@@ -161,7 +160,7 @@ func TestResolvePidCgroupFallback_SuccessFromParentProc(t *testing.T) {
 		nil,
 	)
 
-	cacheEntry := resolver.resolveFromFallback(1234, 5678, time.Now())
+	cacheEntry := resolver.resolveFromFallback(1234, 5678)
 	assert.NotNil(t, cacheEntry)
 	assert.Equal(t, containerutils.CGroupID("parent-cgroup-id"), cacheEntry.GetCGroupID())
 	assert.Equal(t, expectedContext.CGroupFileInode, cacheEntry.GetCGroupInode())
@@ -189,7 +188,7 @@ func TestResolvePidCgroupFallback_CompleteFailure(t *testing.T) {
 		errors.New("parent not found"),
 	)
 
-	cacheEntry := resolver.resolveFromFallback(1234, 5678, time.Now())
+	cacheEntry := resolver.resolveFromFallback(1234, 5678)
 	assert.Nil(t, cacheEntry)
 
 	mockFS.AssertExpectations(t)
@@ -223,7 +222,7 @@ func TestResolvePidCgroupFallback_HistoryFoundButCGroupMissing(t *testing.T) {
 		nil,
 	)
 
-	cacheEntry := resolver.resolveFromFallback(1234, 5678, time.Now())
+	cacheEntry := resolver.resolveFromFallback(1234, 5678)
 	assert.NotNil(t, cacheEntry)
 	assert.Equal(t, containerutils.CGroupID("fallback-cgroup-id"), cacheEntry.GetCGroupID())
 	assert.Equal(t, expectedContext.CGroupFileInode, cacheEntry.GetCGroupInode())
@@ -255,7 +254,7 @@ func TestResolvePidCgroupFallback_EmptyCGroupIDIgnored(t *testing.T) {
 		errors.New("parent not found"),
 	)
 
-	cacheEntry := resolver.resolveFromFallback(1234, 5678, time.Now())
+	cacheEntry := resolver.resolveFromFallback(1234, 5678)
 	assert.Nil(t, cacheEntry)
 
 	mockFS.AssertExpectations(t)
@@ -276,7 +275,7 @@ func TestResolvePidCgroupFallback_UpdateExistingCacheEntry(t *testing.T) {
 		nil,
 	)
 
-	cacheEntry := resolver.resolveFromFallback(1234, 9999, time.Now())
+	cacheEntry := resolver.resolveFromFallback(1234, 9999)
 	assert.NotNil(t, cacheEntry)
 
 	// Mock resolution that returns empty CGroupID (should be ignored)
@@ -291,7 +290,7 @@ func TestResolvePidCgroupFallback_UpdateExistingCacheEntry(t *testing.T) {
 		nil,
 	)
 
-	cacheEntry = resolver.resolveFromFallback(5678, 9999, time.Now())
+	cacheEntry = resolver.resolveFromFallback(5678, 9999)
 	assert.NotNil(t, cacheEntry)
 	assert.Equal(t, containerutils.CGroupID("fallback-cgroup-id-success"), cacheEntry.GetCGroupID())
 
@@ -322,7 +321,7 @@ func TestResolveForceFallbackIfCGroupIsNull(t *testing.T) {
 		nil,
 	)
 
-	cacheEntry = resolver.AddPID(1234, 5678, time.Now(), model.CGroupContext{})
+	cacheEntry = resolver.AddPID(1234, 5678, model.CGroupContext{})
 
 	assert.NotNil(t, cacheEntry)
 	assert.Equal(t, containerutils.CGroupID("fallback-cgroup-id"), cacheEntry.GetCGroupID())

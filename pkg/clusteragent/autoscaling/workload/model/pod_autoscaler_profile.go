@@ -16,8 +16,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
+
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 )
 
 const (
@@ -185,7 +186,6 @@ func (p *PodAutoscalerProfileInternal) UpdateWorkloads(workloads []NamespacedObj
 // BuildStatus constructs a DatadogPodAutoscalerClusterProfileStatus from the internal state.
 func (p *PodAutoscalerProfileInternal) BuildStatus(currentTime metav1.Time, currentStatus *datadoghq.DatadogPodAutoscalerProfileStatus) datadoghq.DatadogPodAutoscalerProfileStatus {
 	status := datadoghq.DatadogPodAutoscalerProfileStatus{
-		ObservedGeneration:    p.generation,
 		TemplateHash:          p.templateHash,
 		ControlledAutoscalers: int32(len(p.workloads)),
 	}

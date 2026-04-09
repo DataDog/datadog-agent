@@ -25,9 +25,8 @@ bazel:test:macos-arm64:
 
 bazel:test:windows-amd64:
   extends: [ .bazel:test, .bazel:runner:windows-amd64 ]
-  rules:
-    - !reference [ .except_skip_windows ]
-    - when: on_success
   variables:
-    POWERSHELL_SCRIPT: |-
-      bazel test //bazel/tests/... //rtloader/...
+    POWERSHELL_SCRIPT: >-
+      bazel test //... --
+      -//bazel/rules/dd_packaging/...
+      -//packages/agent/linux/...

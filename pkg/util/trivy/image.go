@@ -117,9 +117,13 @@ func (img *image) ConfigFile() (*v1.ConfigFile, error) {
 		return nil, fmt.Errorf("unable to get diff IDs: %w", err)
 	}
 
-	created, err := time.Parse(time.RFC3339Nano, img.inspect.Created)
-	if err != nil {
-		return nil, fmt.Errorf("failed parsing created %s: %w", img.inspect.Created, err)
+	var created time.Time
+	if img.inspect.Created != "" {
+		var err error
+		created, err = time.Parse(time.RFC3339Nano, img.inspect.Created)
+		if err != nil {
+			return nil, fmt.Errorf("failed parsing created %s: %w", img.inspect.Created, err)
+		}
 	}
 
 	return &v1.ConfigFile{

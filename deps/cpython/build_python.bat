@@ -3,6 +3,7 @@ for %%F in (%SRCFILE%) do set sourcedir=%%~dpF
 :: Make sure input paths are proper Windows paths as needed
 for %%F in (%OUTDIR%) do set destdir=%%~fF\\
 for %%F in (%MSBUILD%) do set MSBUILD=%%~fF
+for %%F in (%PYTHON_FOR_BUILD%) do set PYTHON_FOR_BUILD=%%~fF
 
 set build_outdir=%sourcedir%\PCbuild\amd64
 

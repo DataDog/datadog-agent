@@ -1029,7 +1029,7 @@ func (fh *EBPFFieldHandlers) ResolveSessionIdentity(e *model.Event, evtCtx *mode
 	if evtCtx.K8SUsername != "" {
 		sessionIdentity = evtCtx.K8SUsername
 	} else if evtCtx.SSHClientPort != 0 {
-		sessionIdentity = evtCtx.SSHClientIP.String() + ":" + strconv.Itoa(evtCtx.SSHClientPort)
+		sessionIdentity = utils.GetIPStringFromIPNet(evtCtx.SSHClientIP) + ":" + strconv.Itoa(evtCtx.SSHClientPort)
 	} else {
 		sessionIdentity = e.ProcessContext.User
 	}

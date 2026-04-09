@@ -198,9 +198,10 @@ func testDyninst(
 		Updates: []process.Config{
 			{
 				Info: process.Info{
-					ProcessID:  process.ID{PID: int32(sampleProc.Process.Pid)},
-					Executable: exe,
-					Service:    service,
+					ProcessID:   process.ID{PID: int32(sampleProc.Process.Pid)},
+					Executable:  exe,
+					Service:     service,
+					ProcessTags: []string{"entrypoint.name:sample", "svc.user:sample"},
 				},
 				RuntimeID:         runtimeID,
 				Probes:            slices.Clone(probes),
@@ -245,7 +246,7 @@ func testDyninst(
 		}
 	}
 
-	timeout := time.Second
+	timeout := 5 * time.Second
 	if !rewriteEnabled {
 		// In CI the machines seem to get very overloaded and this takes a
 		// shocking amount of time. Given we don't wait for this timeout in
@@ -279,6 +280,7 @@ func testDyninst(
 		makeRedactorForFunctionWithChangingState())
 	for _, log := range testServer.getLogs() {
 		redacted := redactJSON(t, "", log.body, redactors)
+		t.Logf("Snapshot [probe=%s]: %s", log.id, string(log.body))
 		if debugEnabled {
 			t.Logf("Output: %v\n", string(log.body))
 			t.Logf("Sorted and redacted: %v\n", string(redacted))

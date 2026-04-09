@@ -278,8 +278,9 @@ func (g *generator) addConditionHandler(
 			ops = opsAfter
 		case *ir.DereferenceOp:
 			ops = append(ops, ExprDereferencePtrOp{
-				Bias: op.Bias,
-				Len:  op.ByteSize,
+				Bias:      op.Bias,
+				Len:       op.ByteSize,
+				NilBitIdx: ^uint32(0),
 			})
 		case *ir.ExprPushOffsetOp:
 			ops = append(ops, ExprPushOffsetOp{ByteSize: op.ByteSize})
@@ -353,9 +354,20 @@ func (g *generator) addExpressionHandler(injectionPC uint64, rootType *ir.EventR
 			}
 			lastOpSize = op.ByteSize
 			ops = append(ops, ExprDereferencePtrOp{
-				Bias: op.Bias,
-				Len:  op.ByteSize,
+				Bias:      op.Bias,
+				Len:       op.ByteSize,
+				NilBitIdx: 2*exprIdx + 1,
 			})
+		case *ir.ExprPushOffsetOp:
+			ops = append(ops, ExprPushOffsetOp{ByteSize: op.ByteSize})
+		case *ir.ExprLoadLiteralOp:
+			ops = append(ops, ExprLoadLiteralOp{Data: op.Data})
+		case *ir.ExprReadStringOp:
+			ops = append(ops, ExprReadStringOp{MaxLen: op.MaxLen})
+		case *ir.ExprCmpEqBaseOp:
+			ops = append(ops, ExprCmpEqBaseOp{ByteSize: op.ByteSize})
+		case *ir.ExprCmpEqStringOp:
+			ops = append(ops, ExprCmpEqStringOp{})
 		default:
 			panic(fmt.Sprintf("unexpected ir.Operation: %#v", op))
 		}
@@ -761,8 +773,24 @@ func offsetOfUint8(fields []ir.Field, name string) (uint8, error) {
 	return uint8(offset), nil
 }
 
+// hasDuplicateInterfacePieces returns true if an interface type has both
+// pieces claiming the same register. Interface types have two distinct
+// pointers (type/itab and data) that can never have the same value, so
+// duplicate registers indicate invalid DWARF. Seen on ARM64 with go1.26rc1.
+func hasDuplicateInterfacePieces(typ ir.Type, pieces []ir.Piece) bool {
+	switch typ.(type) {
+	case *ir.GoInterfaceType, *ir.GoEmptyInterfaceType:
+		// Interfaces always have exactly 2 pieces
+		if len(pieces) == 2 && pieces[0].Op == pieces[1].Op {
+			return true
+		}
+	}
+	return false
+}
+
 // `ops` is used as an output buffer for the encoded instructions.
 func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]Op, error) {
+outer:
 	for _, loclist := range op.Variable.Locations {
 		if pc < loclist.Range[0] || pc >= loclist.Range[1] {
 			continue
@@ -781,15 +809,25 @@ func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]
 			// Nothing needs to be read.
 			return ops, nil
 		}
+
+		// Check if the matching location list is unavailable. If so, by
+		// breaking here we'll make sure we don't mark the variable as
+		// available.
+		//
+		// Also check for duplicate interface pieces where both claim the same
+		// register (seen on ARM64 with go1.26rc1). Interface types have two
+		// distinct pointers that can never share a register.
+		if len(loclist.Pieces) == 0 ||
+			hasDuplicateInterfacePieces(op.Variable.Type, loclist.Pieces) {
+			break
+		}
+
 		layoutPieces, err := g.typeMemoryLayout(op.Variable.Type)
 		if err != nil {
 			return nil, err
 		}
 		layoutIdx := 0
-		if len(loclist.Pieces) == 0 {
-			// Variable has loclist entry for relevant PC range, but it is still unavailable.
-			break
-		}
+		origLen := len(ops)
 		for _, piece := range loclist.Pieces {
 			if layoutIdx >= len(layoutPieces) {
 				return nil, fmt.Errorf(
@@ -805,7 +843,21 @@ func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]
 			}
 			// Layout pieces in [layoutIdx, nextLayoutIdx) range correspond to current locPiece.
 			layoutIdx = nextLayoutIdx
+
 			switch p := piece.Op.(type) {
+			case nil:
+				// If this piece is unavailable, only bail out if it
+				// overlaps with the requested byte range. This avoids
+				// rejecting narrowed field captures (e.g. foo.bar) when an
+				// unrelated field in the same parent struct is unavailable.
+				pieceEnd := paddedOffset + piece.Size
+				if op.Offset < pieceEnd && paddedOffset < op.Offset+op.ByteSize {
+					// Overlaps with requested range — variable is
+					// partially unavailable, treat as unavailable.
+					// Discard any ops emitted for earlier pieces.
+					ops = ops[:origLen]
+					break outer
+				}
 			case ir.Register:
 				// Register pieces are small and map to individual layout
 				// pieces. Check whether this piece's padded position falls
@@ -839,6 +891,10 @@ func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]
 				}
 			case ir.Addr:
 				return nil, errUnsupportedAddrLocationOp
+			default:
+				return nil, fmt.Errorf(
+					"internal error: unexpected piece op: %#v (%T)", p, p,
+				)
 			}
 		}
 		return ops, nil

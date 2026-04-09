@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"path"
 	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
@@ -22,6 +21,7 @@ import (
 	"github.com/google/gopacket/layers"
 	"golang.org/x/sys/unix"
 
+	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/sysctl"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
@@ -332,8 +332,8 @@ type ProcessSerializer struct {
 	Syscalls *SyscallsEventSerializer `json:"syscalls,omitempty"`
 	// List of AWS Security Credentials that the process had access to
 	AWSSecurityCredentials []*AWSSecurityCredentialsSerializer `json:"aws_security_credentials,omitempty"`
-	// Tags from an APM tracer instrumentation
-	Tracer map[string]string `json:"tracer,omitempty"`
+	// Metadata from APM tracer instrumentation
+	Tracer *tracermetadata.TracerMetadata `json:"tracer,omitempty"`
 	// Variable values
 	Variables Variables `json:"variables,omitempty"`
 }
@@ -1006,27 +1006,24 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			}
 		}
 
-		if len(ps.TracerTags) > 0 {
-			tracerTags := make(map[string]string, len(ps.TracerTags))
-			for _, tag := range ps.TracerTags {
-				key, value, found := strings.Cut(tag, ":")
-				if found {
-					tracerTags[key] = value
-				}
-			}
-			psSerializer.Tracer = tracerTags
+		if (ps.TracerMetadata != tracermetadata.TracerMetadata{}) {
+			tmetaCopy := ps.TracerMetadata
+			psSerializer.Tracer = &tmetaCopy
 		}
 
 		if len(ps.ContainerContext.ContainerID) != 0 {
 			psSerializer.Container = &ContainerContextSerializer{
 				ID:        string(ps.ContainerContext.ContainerID),
+				Source:    ps.ContainerContext.ContainerSource.String(),
 				CreatedAt: utils.NewEasyjsonTimeIfNotZero(ps.ContainerContext.UnixCreatedAt()),
 			}
 		}
 
 		if len(ps.CGroup.CGroupID) > 0 {
 			psSerializer.CGroup = &CGroupContextSerializer{
-				ID: string(ps.CGroup.CGroupID),
+				ID:        string(ps.CGroup.CGroupID),
+				Source:    ps.CGroup.CGroupSource.String(),
+				CreatedAt: utils.NewEasyjsonTimeIfNotZero(ps.CGroup.UnixCreatedAt()),
 			}
 		}
 
@@ -1057,20 +1054,10 @@ func serializeK8sContext(e *model.Event, ctx *model.UserSessionContext, userSess
 }
 
 func serializeSSHContext(ctx *model.UserSessionContext, userSessionContextSerializer *UserSessionContextSerializer) {
-	sshClientIP := ctx.SSHClientIP.IP.String()
-	if sshClientIP == "<nil>" {
-		sshClientIP = ""
-	}
-
-	sshAuthMethod := model.SSHAuthMethodToString(usersession.AuthType(ctx.SSHAuthMethod))
-	if sshAuthMethod == "<nil>" {
-		sshAuthMethod = ""
-	}
-
 	userSessionContextSerializer.SSHSessionID = strconv.FormatUint(uint64(ctx.SSHSessionID), 16)
 	userSessionContextSerializer.SSHClientPort = ctx.SSHClientPort
-	userSessionContextSerializer.SSHClientIP = sshClientIP
-	userSessionContextSerializer.SSHAuthMethod = sshAuthMethod
+	userSessionContextSerializer.SSHClientIP = utils.GetIPStringFromIPNet(ctx.SSHClientIP)
+	userSessionContextSerializer.SSHAuthMethod = model.SSHAuthMethodToString(usersession.AuthType(ctx.SSHAuthMethod))
 	userSessionContextSerializer.SSHPublicKey = ctx.SSHPublicKey
 }
 
@@ -1612,6 +1599,7 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Sc
 	if !event.ProcessContext.ContainerContext.IsNull() {
 		s.ContainerContextSerializer = &ContainerContextSerializer{
 			ID:        string(event.ProcessContext.ContainerContext.ContainerID),
+			Source:    event.ProcessContext.ContainerContext.ContainerSource.String(),
 			CreatedAt: utils.NewEasyjsonTimeIfNotZero(time.Unix(0, int64(event.ProcessContext.ContainerContext.CreatedAt))),
 			Variables: newVariablesContext(event, rule, "container."),
 		}
@@ -1620,6 +1608,8 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Sc
 	if !event.ProcessContext.CGroup.IsNull() {
 		s.CGroupContextSerializer = &CGroupContextSerializer{
 			ID:        string(event.ProcessContext.CGroup.CGroupID),
+			Source:    event.ProcessContext.CGroup.CGroupSource.String(),
+			CreatedAt: utils.NewEasyjsonTimeIfNotZero(event.ProcessContext.CGroup.UnixCreatedAt()),
 			Variables: newVariablesContext(event, rule, "cgroup."),
 		}
 	}

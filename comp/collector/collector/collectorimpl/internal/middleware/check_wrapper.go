@@ -86,11 +86,11 @@ func (c *CheckWrapper) String() string {
 }
 
 // Configure implements Check#Configure
-func (c *CheckWrapper) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
+func (c *CheckWrapper) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string, provider string) error {
 	if c.senderManager == nil {
 		c.senderManager = senderManager
 	}
-	return c.inner.Configure(c.senderManager, integrationConfigDigest, config, initConfig, source)
+	return c.inner.Configure(c.senderManager, integrationConfigDigest, config, initConfig, source, provider)
 }
 
 // Interval implements Check#Interval
@@ -121,6 +121,11 @@ func (c *CheckWrapper) Version() string {
 // ConfigSource implements Check#ConfigSource
 func (c *CheckWrapper) ConfigSource() string {
 	return c.inner.ConfigSource()
+}
+
+// ConfigProvider implements Check#ConfigProvider
+func (c *CheckWrapper) ConfigProvider() string {
+	return c.inner.ConfigProvider()
 }
 
 // Loader returns the name of the check loader

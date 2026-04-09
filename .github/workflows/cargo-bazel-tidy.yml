@@ -1,0 +1,55 @@
+---
+name: "Tidy Bazel Lockfile And Generate Rust Licenses"
+on:
+  pull_request:
+    types:
+      - labeled
+      - synchronize
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "**/Cargo.toml"
+      - "**/Cargo.lock"
+
+permissions: {}
+jobs:
+  repin_and_generate_licenses:
+    if: ${{ github.repository == 'DataDog/datadog-agent' && github.event.pull_request.user.login == 'renovate[bot]' && contains(github.event.pull_request.labels.*.name, 'dependencies-cargo') }}
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.head_ref }}
+      - uses: ./.github/actions/bazel-cache
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1
+        with:
+          toolchain: stable
+      - name: Repin Bazel Rust lockfile
+        run: bazel mod tidy
+      - name: Generate Rust licenses
+        run: |
+          cargo install --git https://github.com/DataDog/rust-license-tool dd-rust-license-tool
+          cd rust && dd-rust-license-tool --manifest-path ../Cargo.toml write
+      - name: Create commit
+        id: commit
+        run: |
+          if git diff --quiet; then
+            echo "No changes to commit"
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          else
+            git config --global user.name "Login will be determined by the Github API based on the creator of the token"
+            git config --global user.email ""
+            git commit -am "[renovate skip] Auto-repin Bazel lockfile and regenerate Rust licenses"
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          fi
+      - name: "Push signed commits"
+        if: steps.commit.outputs.has_changes == 'true'
+        uses: chouetz/push-signed-commits@9b123e8898e6176af65b9427b434e07aebe7f72f
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          local_branch_name: ${{ github.head_ref }}
+          remote_name: "origin"
+          remote_branch_name: ${{ github.head_ref }}

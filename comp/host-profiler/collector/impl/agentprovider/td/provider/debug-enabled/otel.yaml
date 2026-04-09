@@ -1,0 +1,78 @@
+exporters:
+    debug:
+        verbosity: detailed
+    otlphttp/datadoghq.com_0:
+        compression: zstd
+        headers:
+            dd-api-key: test_api_key_123
+            dd-evp-origin: host-profiler
+            dd-evp-origin-version: 7.0.0-test
+        metrics_endpoint: https://otlp.datadoghq.com/v1/metrics
+        profiles_endpoint: https://intake.profile.datadoghq.com/v1development/profiles
+extensions:
+    hpflare/default: {}
+processors:
+    cumulativetodelta: {}
+    filter:
+        metrics:
+            exclude:
+                match_type: regexp
+                metric_names:
+                    - ^scrape_.*$
+                    - ^up$
+                    - ^promhttp_metric_handler_errors_total$
+    infraattributes/default:
+        allow_hostname_override: true
+        cardinality: 2
+    resource/dd-profiler-internal-metadata:
+        attributes:
+            - action: upsert
+              key: profiler_name
+              value: host-profiler
+            - action: upsert
+              key: profiler_version
+              value: 7.0.0-test
+receivers:
+    profiling:
+        symbol_uploader:
+            enabled: true
+            symbol_endpoints:
+                - api_key: test_api_key_123
+                  site: datadoghq.com
+    prometheus:
+        config:
+            scrape_configs:
+                - fallback_scrape_protocol: PrometheusText0.0.4
+                  job_name: host-profiler-internal
+                  metric_name_escaping_scheme: underscores
+                  metric_name_validation_scheme: legacy
+                  scrape_interval: 60s
+                  scrape_protocols:
+                    - PrometheusText0.0.4
+                  static_configs:
+                    - targets:
+                        - 127.0.0.1:8888
+service:
+    extensions:
+        - hpflare/default
+    pipelines:
+        metrics:
+            exporters:
+                - otlphttp/datadoghq.com_0
+                - debug
+            processors:
+                - filter
+                - cumulativetodelta
+                - infraattributes/default
+                - resource/dd-profiler-internal-metadata
+            receivers:
+                - prometheus
+        profiles:
+            exporters:
+                - otlphttp/datadoghq.com_0
+                - debug
+            processors:
+                - infraattributes/default
+                - resource/dd-profiler-internal-metadata
+            receivers:
+                - profiling
