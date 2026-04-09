@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package submitterimpl_test
+package submitterimpl
 
 import (
 	"testing"
@@ -17,7 +17,6 @@ import (
 	forwardersimpl "github.com/DataDog/datadog-agent/comp/process/forwarders/mock"
 	hostinfomock "github.com/DataDog/datadog-agent/comp/process/hostinfo/mock"
 	submitter "github.com/DataDog/datadog-agent/comp/process/submitter/def"
-	submitterfx "github.com/DataDog/datadog-agent/comp/process/submitter/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -30,6 +29,6 @@ func TestSubmitterLifecycle(t *testing.T) {
 		fx.Provide(func() statsd.ClientInterface {
 			return &statsd.NoOpClient{}
 		}),
-		submitterfx.Module(),
+		fxutil.ProvideComponentConstructor(NewComponent),
 	))
 }
