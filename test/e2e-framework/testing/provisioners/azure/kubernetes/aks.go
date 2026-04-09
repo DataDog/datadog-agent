@@ -85,14 +85,6 @@ func AKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 		// to reach the Kubelet. Thus we need to use `tlsVerify: false` and `and `status.hostIP` as `host` in
 		// the Helm values
 		customValues := `
-datadog:
-  kubelet:
-    host:
-      valueFrom:
-        fieldRef:
-          fieldPath: status.hostIP
-    hostCAPath: /etc/kubernetes/certs/kubeletserver.crt
-    tlsVerify: false
 providers:
   aks:
     enabled: true
