@@ -33,21 +33,26 @@ import (
 )
 
 const (
-	defaultPSIThreshold     = 5.0  // PSI avg10 "some" percentage
-	defaultThrottleRatio    = 0.10 // 10% of wall clock spent throttled
-	defaultStealThreshold   = 5.0  // steal time percentage
-	maxWatchlistSize             = 100
-	maxTopNPreemptors            = 5
-	maxNonContainerCgroups       = 100
-	checkInterval                = float64(10 * time.Second) // in nanoseconds (time.Duration is int64 ns)
-	minForeignPreemptionsImpact  = 10                        // minimum foreign preemptions per interval to set impacted=1
+	defaultPSIThreshold                = 5.0  // PSI avg10 "some" percentage
+	defaultThrottleRatio               = 0.10 // 10% of wall clock spent throttled
+	defaultStealThreshold              = 5.0  // steal time percentage
+	defaultMaxWatchlistSize            = 100
+	defaultMaxTopNPreemptors           = 5
+	defaultMaxNonContainerCgroups      = 100
+	defaultMinForeignPreemptionsImpact = 10 // minimum foreign preemptions per interval to set impacted=1
+	checkInterval                      = float64(10 * time.Second) // in nanoseconds (time.Duration is int64 ns)
 )
 
-// NoisyNeighborConfig holds check configuration
+// NoisyNeighborConfig holds check configuration.
+// All thresholds are configurable via check YAML to allow tuning without rebuilding.
 type NoisyNeighborConfig struct {
-	PSIThreshold   float64 `yaml:"psi_threshold"`
-	ThrottleRatio  float64 `yaml:"throttle_ratio"`
-	StealThreshold float64 `yaml:"steal_threshold"`
+	PSIThreshold                float64 `yaml:"psi_threshold"`
+	ThrottleRatio               float64 `yaml:"throttle_ratio"`
+	StealThreshold              float64 `yaml:"steal_threshold"`
+	MaxWatchlistSize            int     `yaml:"max_watchlist_size"`
+	MaxTopNPreemptors           int     `yaml:"max_top_n_preemptors"`
+	MaxNonContainerCgroups      int     `yaml:"max_non_container_cgroups"`
+	MinForeignPreemptionsImpact uint64  `yaml:"min_foreign_preemptions_impact"`
 }
 
 // NoisyNeighborCheck implements the 3-layer noisy neighbor detection check
@@ -94,6 +99,18 @@ func (c *NoisyNeighborConfig) Parse(data []byte) error {
 	}
 	if c.StealThreshold == 0 {
 		c.StealThreshold = defaultStealThreshold
+	}
+	if c.MaxWatchlistSize == 0 {
+		c.MaxWatchlistSize = defaultMaxWatchlistSize
+	}
+	if c.MaxTopNPreemptors == 0 {
+		c.MaxTopNPreemptors = defaultMaxTopNPreemptors
+	}
+	if c.MaxNonContainerCgroups == 0 {
+		c.MaxNonContainerCgroups = defaultMaxNonContainerCgroups
+	}
+	if c.MinForeignPreemptionsImpact == 0 {
+		c.MinForeignPreemptionsImpact = defaultMinForeignPreemptionsImpact
 	}
 	return nil
 }
@@ -192,7 +209,7 @@ func (n *NoisyNeighborCheck) runLayer1(s sender.Sender) (flaggedIDs []uint64, st
 
 		if !isContainer {
 			nonContainerCount++
-			if nonContainerCount > maxNonContainerCgroups {
+			if nonContainerCount > n.config.MaxNonContainerCgroups {
 				continue
 			}
 		}
@@ -239,7 +256,7 @@ func (n *NoisyNeighborCheck) runLayer1(s sender.Sender) (flaggedIDs []uint64, st
 		// Don't flag when pressure is fully explained by one cause:
 		// - PSI high + throttle high + steal low → self-inflicted (quota too low)
 		// - PSI high + throttle low + steal high → hypervisor-level neighbor
-		if highPSI && len(flaggedIDs) < maxWatchlistSize {
+		if highPSI && len(flaggedIDs) < n.config.MaxWatchlistSize {
 			selfInflicted := highThrottle && !highSteal
 			hypervisorOnly := highSteal && !highThrottle
 			if !selfInflicted && !hypervisorOnly {
@@ -323,7 +340,7 @@ func (n *NoisyNeighborCheck) emitLayer2Metrics(s sender.Sender, stats []model.No
 		// A small number of foreign preemptions is normal (kernel threads, CFS rotation).
 		// Only flag when the count indicates sustained pressure from another cgroup.
 		var impacted float64
-		if stat.ForeignPreemptionCount >= minForeignPreemptionsImpact {
+		if stat.ForeignPreemptionCount >= n.config.MinForeignPreemptionsImpact {
 			impacted = 1.0
 		}
 		s.Gauge("noisy_neighbor.impacted", impacted, "", tags)
@@ -377,7 +394,7 @@ func (n *NoisyNeighborCheck) emitLayer3Metrics(s sender.Sender, preemptorStats [
 
 		victimTags, _ := n.resolveTagsForCgroup(victimCgroupID)
 
-		limit := maxTopNPreemptors
+		limit := n.config.MaxTopNPreemptors
 		if len(entries) < limit {
 			limit = len(entries)
 		}
