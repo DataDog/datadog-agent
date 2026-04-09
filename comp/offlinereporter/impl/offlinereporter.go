@@ -88,17 +88,26 @@ func NewComponent(reqs Requires) (Provides, error) {
 	return Provides{Comp: h}, nil
 }
 
-func (h *offlinereporterImpl) onStart(ctx context.Context) error {
-	if data, err := afero.ReadFile(h.fs, h.filePath); err == nil {
-		if secs, err := strconv.ParseInt(strings.TrimSpace(string(data)), 10, 64); err == nil {
-			h.lastHeartbeat = time.Unix(secs, 0)
-			h.hasLastBeat = true
-		} else {
-			h.log.Warnf("offlinereporter: failed to parse previous timestamp in %s: %w", h.filePath, err)
-		}
-	} else if !os.IsNotExist(err) {
-		h.log.Warnf("offlinereporter: failed to read heartbeat file %s: %w", h.filePath, err)
+func (h *offlinereporterImpl) readLastHeartbeat() {
+	data, err := afero.ReadFile(h.fs, h.filePath)
+	if os.IsNotExist(err) {
+		return
 	}
+	if err != nil {
+		h.log.Warnf("offlinereporter: failed to read heartbeat file %s: %w", h.filePath, err)
+		return
+	}
+	secs, err := strconv.ParseInt(strings.TrimSpace(string(data)), 10, 64)
+	if err != nil {
+		h.log.Warnf("offlinereporter: failed to parse previous timestamp in %s: %w", h.filePath, err)
+		return
+	}
+	h.lastHeartbeat = time.Unix(secs, 0)
+	h.hasLastBeat = true
+}
+
+func (h *offlinereporterImpl) onStart(_ context.Context) error {
+	h.readLastHeartbeat()
 	go h.loop()
 	return nil
 }
