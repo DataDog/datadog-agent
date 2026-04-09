@@ -18,17 +18,17 @@ type TimeClusterConfig struct {
 	// ProximitySeconds is the maximum time difference between anomaly timestamps
 	// for them to be considered part of the same cluster.
 	// Default: 10 seconds.
-	ProximitySeconds int64
+	ProximitySeconds int64 `json:"proximity_seconds"`
 
 	// WindowSeconds is how long to keep anomalies before eviction.
 	// Default: 60 seconds.
-	WindowSeconds int64
+	WindowSeconds int64 `json:"window_seconds"`
 
 	// MinClusterSize is the minimum number of anomalies a cluster must contain
 	// to be included in output (ActiveCorrelations, GetClusters).
 	// Clusters below this threshold are still tracked internally but not reported.
 	// Default: 0 (no minimum).
-	MinClusterSize int
+	MinClusterSize int `json:"min_cluster_size"`
 }
 
 // DefaultTimeClusterConfig returns a TimeClusterConfig with default values.

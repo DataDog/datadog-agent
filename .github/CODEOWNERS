@@ -200,6 +200,7 @@
 /chocolatey/                            @DataDog/windows-products
 
 /cmd/                                   @DataDog/agent-configuration
+/cmd/observer-testbench/                @DataDog/q-branch
 /cmd/trace-agent/                       @DataDog/agent-apm
 /cmd/agent/subcommands/controlsvc       @DataDog/windows-products
 /cmd/agent/subcommands/check            @DataDog/agent-runtimes @DataDog/agent-integrations
@@ -338,7 +339,7 @@
 /comp/ndmtmp @DataDog/network-device-monitoring-core
 /comp/netflow @DataDog/ndm-integrations
 /comp/networkpath @DataDog/network-path
-/comp/observer @DataDog/agent-metric-pipelines
+/comp/observer @DataDog/q-branch
 /comp/otelcol @DataDog/opentelemetry-agent
 /comp/process @DataDog/container-experiences
 /comp/remote-config @DataDog/remote-config
@@ -380,7 +381,7 @@
 /comp/trace-telemetry @DataDog/agent-runtimes
 /comp/updater/daemonchecker @DataDog/fleet
 /comp/updater/ssistatus @DataDog/fleet
-/comp/anomalydetection/recorder @DataDog/agent-metric-pipelines
+/comp/anomalydetection/recorder @DataDog/q-branch
 /comp/autoscaling/datadogclient @DataDog/container-integrations
 /comp/connectivitychecker @DataDog/fleet
 /comp/dataobs/queryactions @DataDog/data-observability
@@ -472,6 +473,7 @@
 /comp/core/autodiscovery/providers/remote_config*.go  @DataDog/fleet
 /comp/core/autodiscovery/providers/datastreams @DataDog/data-streams-monitoring
 /comp/core/gui/guiimpl/systray/ @DataDog/windows-products @DataDog/agent-configuration
+/comp/healthplatform/impl/issues/rofspermissions @DataDog/container-platform @DataDog/agent-health
 /pkg/cloudfoundry                       @DataDog/agent-integrations
 /pkg/clusteragent/                      @DataDog/container-platform
 /pkg/clusteragent/autoscaling/          @DataDog/container-autoscaling
@@ -530,7 +532,7 @@
 /pkg/config/autodiscovery/              @DataDog/container-integrations @DataDog/container-platform @DataDog/agent-configuration
 /pkg/config/env                         @DataDog/container-integrations @DataDog/container-platform @DataDog/agent-configuration
 /pkg/config/setup                            @DataDog/agent-configuration
-/pkg/config/setup/privateactionrunner*.go      @DataDog/action-platform
+/pkg/config/setup/privateactionrunner*.go      @DataDog/action-platform @DataDog/agent-configuration
 /pkg/config/setup/process*.go                 @DataDog/container-experiences @DataDog/agent-configuration
 /pkg/config/setup/system_probe.go               @DataDog/ebpf-platform @DataDog/agent-configuration
 /pkg/config/setup/system_probe_cws.go           @DataDog/agent-security @DataDog/agent-configuration
@@ -744,6 +746,7 @@
 /tasks/system_probe.py                  @DataDog/ebpf-platform
 /tasks/ebpf.py                          @DataDog/ebpf-platform
 /tasks/kmt.py                           @DataDog/ebpf-platform
+/tasks/gpu.py                           @DataDog/ebpf-platform
 /tasks/kernel_matrix_testing/           @DataDog/ebpf-platform
 /tasks/ebpf_verifier/                   @DataDog/ebpf-platform
 /tasks/trace_agent.py                   @DataDog/agent-apm
@@ -756,6 +759,7 @@
 /tasks/sbomgen.py                       @DataDog/agent-security
 /tasks/libs/build/                      @DataDog/agent-build
 /tasks/libs/cws/                        @DataDog/agent-security
+/tasks/libs/gpu/                        @DataDog/ebpf-platform
 /tasks/systray.py                       @DataDog/windows-products
 /tasks/winbuildscripts/                 @DataDog/windows-products
 /tasks/winbuild.py                      @DataDog/windows-products
@@ -810,22 +814,20 @@
 /test/new-e2e/scenarios/system-probe          @DataDog/ebpf-platform
 /test/new-e2e/tests/agent-platform            @DataDog/agent-devx
 /test/new-e2e/tests/agent-platform/common/agent_integration.go @DataDog/agent-integrations
-/test/new-e2e/tests/agent-platform/macos      @DataDog/windows-products
+/test/new-e2e/tests/agent-platform/tests/macos*      @DataDog/windows-products
 /test/new-e2e/tests/agent-runtimes            @DataDog/agent-runtimes
 /test/new-e2e/tests/agent-configuration       @DataDog/agent-configuration
 /test/new-e2e/tests/agent-health              @DataDog/agent-health
 /test/new-e2e/tests/agent-metric-pipelines    @DataDog/agent-metric-pipelines
-/test/new-e2e/tests/agent-subcommands             @DataDog/agent-configuration
-/test/new-e2e/tests/agent-subcommands/check       @DataDog/agent-runtimes
-/test/new-e2e/tests/agent-subcommands/health      @DataDog/agent-runtimes
-/test/new-e2e/tests/agent-subcommands/hostname    @DataDog/agent-runtimes
-/test/new-e2e/tests/agent-subcommands/configcheck @DataDog/agent-runtimes @DataDog/agent-integrations
-/test/new-e2e/tests/agent-subcommands/run         @DataDog/agent-runtimes
-/test/new-e2e/tests/agent-subcommands/config      @DataDog/agent-configuration
-/test/new-e2e/tests/agent-subcommands/diagnose    @DataDog/agent-configuration
-/test/new-e2e/tests/agent-subcommands/flare       @DataDog/agent-configuration
-/test/new-e2e/tests/agent-subcommands/secret      @DataDog/agent-configuration
-/test/new-e2e/tests/agent-subcommands/status      @DataDog/agent-configuration
+/test/new-e2e/tests/agent-subcommands                @DataDog/agent-configuration
+/test/new-e2e/tests/agent-subcommands/config*         @DataDog/agent-configuration
+/test/new-e2e/tests/agent-subcommands/check*          @DataDog/agent-runtimes
+/test/new-e2e/tests/agent-subcommands/health*        @DataDog/agent-runtimes
+/test/new-e2e/tests/agent-subcommands/hostname*      @DataDog/agent-runtimes
+/test/new-e2e/tests/agent-subcommands/configcheck*   @DataDog/agent-runtimes @DataDog/agent-integrations
+/test/new-e2e/tests/agent-subcommands/run*           @DataDog/agent-runtimes
+/test/new-e2e/tests/agent-subcommands/flare*          @DataDog/agent-configuration
+/test/new-e2e/tests/agent-subcommands/status*         @DataDog/agent-configuration
 /test/new-e2e/tests/containers                @DataDog/container-integrations @DataDog/container-platform
 /test/new-e2e/tests/containers/cluster_agent_sgc_binary_test.go    @DataDog/agent-configuration
 /test/new-e2e/tests/containers/ecs_test.go    @DataDog/ecs-experiences
@@ -908,4 +910,4 @@
 /pkg/util/scrubber/go.sum                @DataDog/agent-runtimes
 
 /q_branch/                               @DataDog/q-branch
-/tasks/q.py                              @scottopell @lukesteensen
+/tasks/q.py                              @DataDog/q-branch

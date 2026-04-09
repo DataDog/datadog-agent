@@ -168,7 +168,7 @@ func (fm *FileManager) CopyFSFolder(
 			return nil, err
 		}
 		remotePath := path.Join(remoteFolder, destFolder)
-		resources, err := fm.CreateDirectory(remotePath, useSudo, pulumi.DependsOn([]pulumi.Resource{folderCommand}))
+		resources, err := fm.CreateDirectory(remotePath, useSudo, append(opts, pulumi.DependsOn([]pulumi.Resource{folderCommand}))...)
 		if err != nil {
 			return nil, err
 		}
@@ -189,7 +189,7 @@ func (fm *FileManager) CopyFSFolder(
 		fileCommand, err := fm.CopyInlineFile(
 			pulumi.String(fileContent),
 			path.Join(remoteFolder, destFile),
-			pulumi.DependsOn(folderResources))
+			append(opts, pulumi.DependsOn(folderResources))...)
 		if err != nil {
 			return nil, err
 		}

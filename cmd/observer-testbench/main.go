@@ -29,9 +29,9 @@ import (
 )
 
 type CLIParams struct {
-	ScenariosDir string
-	HTTPAddr     string
-	Enabled      map[string]bool
+	ScenariosDir      string
+	HTTPAddr          string
+	ComponentSettings observerimpl.ComponentSettings
 
 	// Headless mode: run a scenario and exit (no HTTP server)
 	Headless   string // scenario name to run (empty = interactive mode)
@@ -49,6 +49,7 @@ func main() {
 	enableStr := flag.String("enable", "", "Comma-separated components to enable (overrides defaults)")
 	disableStr := flag.String("disable", "", "Comma-separated components to disable (overrides defaults)")
 	onlyStr := flag.String("only", "", "Enable ONLY these components (plus extractors); disable everything else. Mutually exclusive with --enable/--disable.")
+	configFile := flag.String("config", "", "Path to JSON params file for component enabled state and hyperparameters (for Bayesian optimization). Overrides --enable/--disable/--only.")
 	headless := flag.String("headless", "", "Run scenario in headless mode (no HTTP server) and exit")
 	output := flag.String("output", "", "Path for eval JSON output (headless mode only)")
 	verbose := flag.Bool("verbose", false, "Include full detail in JSON output (headless mode only)")
@@ -56,39 +57,51 @@ func main() {
 	sendAnomalyEvent := flag.String("send-anomaly-event", "", "Run scenario and send one Datadog event per correlation, then exit")
 	flag.Parse()
 
-	overrides := make(map[string]bool)
-	if *onlyStr != "" {
-		// --only: enable listed components + extractors, disable everything else.
-		onlySet := make(map[string]bool)
-		for _, name := range strings.Split(*onlyStr, ",") {
-			name = strings.TrimSpace(name)
-			if name != "" {
-				onlySet[name] = true
-			}
+	// --config takes full precedence over --enable/--disable/--only.
+	var componentSettings observerimpl.ComponentSettings
+	if *configFile != "" {
+		loaded, err := observerimpl.LoadTestbenchParams(*configFile)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to load config file: %v\n", err)
+			os.Exit(1)
 		}
-		for _, entry := range observerimpl.TestbenchCatalogEntries() {
-			if entry.Kind == "extractor" {
-				continue // extractors always enabled
-			}
-			overrides[entry.Name] = onlySet[entry.Name]
-		}
+		componentSettings = loaded
 	} else {
-		if *enableStr != "" {
-			for _, name := range strings.Split(*enableStr, ",") {
+		overrides := make(map[string]bool)
+		if *onlyStr != "" {
+			// --only: enable listed components + extractors, disable everything else.
+			onlySet := make(map[string]bool)
+			for _, name := range strings.Split(*onlyStr, ",") {
 				name = strings.TrimSpace(name)
 				if name != "" {
-					overrides[name] = true
+					onlySet[name] = true
+				}
+			}
+			for _, entry := range observerimpl.TestbenchCatalogEntries() {
+				if entry.Kind == "extractor" {
+					continue // extractors always enabled
+				}
+				overrides[entry.Name] = onlySet[entry.Name]
+			}
+		} else {
+			if *enableStr != "" {
+				for _, name := range strings.Split(*enableStr, ",") {
+					name = strings.TrimSpace(name)
+					if name != "" {
+						overrides[name] = true
+					}
+				}
+			}
+			if *disableStr != "" {
+				for _, name := range strings.Split(*disableStr, ",") {
+					name = strings.TrimSpace(name)
+					if name != "" {
+						overrides[name] = false
+					}
 				}
 			}
 		}
-		if *disableStr != "" {
-			for _, name := range strings.Split(*disableStr, ",") {
-				name = strings.TrimSpace(name)
-				if name != "" {
-					overrides[name] = false
-				}
-			}
-		}
+		componentSettings = observerimpl.ComponentSettings{Enabled: overrides}
 	}
 
 	if *headless == "" {
@@ -106,14 +119,14 @@ func main() {
 			LogParams:    log.ForOneShot("", "off", true),
 		}),
 		fx.Supply(CLIParams{
-			ScenariosDir:     *scenariosDir,
-			HTTPAddr:         *httpAddr,
-			Enabled:          overrides,
-			Headless:         *headless,
-			Output:           *output,
-			Verbose:          *verbose,
-			MemProfile:       *memProfile,
-			SendAnomalyEvent: *sendAnomalyEvent,
+			ScenariosDir:      *scenariosDir,
+			HTTPAddr:          *httpAddr,
+			ComponentSettings: componentSettings,
+			Headless:          *headless,
+			Output:            *output,
+			Verbose:           *verbose,
+			MemProfile:        *memProfile,
+			SendAnomalyEvent:  *sendAnomalyEvent,
 		}),
 	)
 	if err != nil {
@@ -125,14 +138,12 @@ func main() {
 func run(recorder recorderdef.Component, cfg config.Component, logger log.Component, params CLIParams) error {
 	// Create the test bench
 	tb, err := observerimpl.NewTestBench(observerimpl.TestBenchConfig{
-		ScenariosDir: params.ScenariosDir,
-		HTTPAddr:     params.HTTPAddr,
-		Recorder:     recorder,
-		Cfg:          cfg,
-		Logger:       logger,
-		ComponentSettings: observerimpl.ComponentSettings{
-			Enabled: params.Enabled,
-		},
+		ScenariosDir:      params.ScenariosDir,
+		HTTPAddr:          params.HTTPAddr,
+		Recorder:          recorder,
+		Cfg:               cfg,
+		Logger:            logger,
+		ComponentSettings: params.ComponentSettings,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create test bench: %v\n", err)

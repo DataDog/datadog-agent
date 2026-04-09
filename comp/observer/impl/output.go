@@ -23,13 +23,17 @@ type ObserverOutput struct {
 
 // ObserverMetadata describes the scenario and pipeline configuration.
 type ObserverMetadata struct {
-	Scenario            string       `json:"scenario"`
-	TimelineStart       int64        `json:"timeline_start"`
-	TimelineEnd         int64        `json:"timeline_end"`
-	DetectorsEnabled    []string     `json:"detectors_enabled"`
-	CorrelatorsEnabled  []string     `json:"correlators_enabled"`
-	TotalAnomalyPeriods int          `json:"total_anomaly_periods"`
-	Stats               *ReplayStats `json:"stats,omitempty"`
+	Scenario            string   `json:"scenario"`
+	TimelineStart       int64    `json:"timeline_start"`
+	TimelineEnd         int64    `json:"timeline_end"`
+	DetectorsEnabled    []string `json:"detectors_enabled"`
+	CorrelatorsEnabled  []string `json:"correlators_enabled"`
+	TotalAnomalyPeriods int      `json:"total_anomaly_periods"`
+	// ComponentConfigs holds the active configuration of every component in the
+	// --config params-file format: { "bocpd": { "enabled": true, "hazard": 0.05, ... }, ... }.
+	// This can be copy-pasted into a file and passed to --config to reproduce the run.
+	ComponentConfigs map[string]map[string]any `json:"component_configs,omitempty"`
+	Stats            *ReplayStats              `json:"stats,omitempty"`
 }
 
 // ObserverCorrelation is one correlation cluster.
@@ -65,10 +69,24 @@ func (tb *TestBench) WriteObserverOutput(path string, verbose bool) error {
 	scenario := tb.loadedScenario
 	timelineStart, timelineEnd, hasBounds := tb.engine.Storage().TimeBounds()
 
-	// Collect enabled detector and correlator names
+	// Collect enabled detector / correlator names and build the full component config map.
 	var detectorNames []string
 	var correlatorNames []string
+	componentConfigs := make(map[string]map[string]any, len(tb.components))
 	for name, ci := range tb.components {
+		entry := map[string]any{"enabled": ci.enabled}
+		if ci.activeConfig != nil {
+			if raw, err := json.Marshal(ci.activeConfig); err == nil {
+				var fields map[string]any
+				if err := json.Unmarshal(raw, &fields); err == nil {
+					for k, v := range fields {
+						entry[k] = v
+					}
+				}
+			}
+		}
+		componentConfigs[name] = entry
+
 		if !ci.enabled {
 			continue
 		}
@@ -101,7 +119,7 @@ func (tb *TestBench) WriteObserverOutput(path string, verbose bool) error {
 
 		if verbose {
 			oc.Title = corr.Title
-			oc.Message = correlationMessage(corr)
+			oc.Message = buildChangeMessage(corr, tb.engine.Storage())
 			oc.Tags = []string{"source:agent-q-branch-observer", "pattern:" + corr.Pattern}
 			oc.MemberSeries = make([]string, len(corr.Members))
 			for j, m := range corr.Members {
@@ -133,6 +151,7 @@ func (tb *TestBench) WriteObserverOutput(path string, verbose bool) error {
 			DetectorsEnabled:    detectorNames,
 			CorrelatorsEnabled:  correlatorNames,
 			TotalAnomalyPeriods: len(outCorrelations),
+			ComponentConfigs:    componentConfigs,
 			Stats:               replayStats,
 		},
 		AnomalyPeriods: outCorrelations,

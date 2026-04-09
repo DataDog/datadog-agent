@@ -1,0 +1,14 @@
+[
+  {"episode": "059_Fortnite_34M_CCU_Service_Outage",             "scenario": "memcached-saturation",          "sha": "395b848541436fa2d1947619d8c6542f84e562cf"},
+  {"episode": "063_Twilio_Redis_Billing",                        "scenario": "redis-cascade-billing",         "sha": "3b369d10102839a1282e29e5dd4d9c019e513958"},
+  {"episode": "093_cloudflare_byzantine_failure",                "scenario": "byzantine-fault-cascade",       "sha": "54e27ec6cd6fa89a0a547f80a0f369fd3425dddb"},
+  {"episode": "211_DoorDash_June_2021_Outage",                   "scenario": "cascading-payment-failure",     "sha": "654ed430f82c9d5836f6a3f2266763ea1b6490c5"},
+  {"episode": "213_PagerDuty_June_2014_Outage",                  "scenario": "cassandra-repair-degradation",  "sha": "209ba5c62a4279a9913ca15f8b870ee9cc844b35"},
+  {"episode": "221_Base_September_2024_Outage",                  "scenario": "block-building-outage",         "sha": "fe29f66dc7fe5ef73f2c58a8ab954db58abd96c3"},
+  {"episode": "353_postmark_upstream_cloud_provider_outage",     "scenario": "dns-upstream-outage",           "sha": "f9bc9ca63cda0089334637cf9a2e86746ea860cb"},
+  {"episode": "546_cloudflare_october_2022_tiered_cache_outage", "scenario": "tiered-cache-header-corruption","sha": "3b490e26a0a626aa2acd9df691916af777f2ae8e"},
+  {"episode": "703_shopify_bfcm_incident",                       "scenario": "kafka-partition-saturation",    "sha": "0b1d495b0f308d913b461bc1117c8616f49645d2"},
+  {"episode": "casino-postgresql-lock-contention",               "scenario": "lock-contention",               "sha": "2c6a147b9e223f8df2553d1b559edb9200da9230"},
+  {"episode": "ehr-pgbouncer-pool-saturation",                   "scenario": "pool-saturation",               "sha": "62dfc29875afc61e8d0836015fa48009fca9e894"},
+  {"episode": "food-delivery-redis-cpu-saturation",              "scenario": "redis-cpu-saturation",          "sha": "4c52202d84aa1949d591905b6aefa48f79f107a9"}
+]

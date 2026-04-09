@@ -14,7 +14,7 @@ type CorrelatorConfig struct {
 	// WindowSeconds is the time window (in seconds) for clustering anomalies.
 	// Anomalies with data timestamps older than (currentDataTime - WindowSeconds) are evicted.
 	// Default: 30 seconds.
-	WindowSeconds int64
+	WindowSeconds int64 `json:"window_seconds"`
 }
 
 // DefaultCorrelatorConfig returns a CorrelatorConfig with default values.

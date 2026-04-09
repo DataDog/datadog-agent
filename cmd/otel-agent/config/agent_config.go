@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 
@@ -26,6 +27,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
+	dogtelextensionimpl "github.com/DataDog/datadog-agent/comp/otelcol/dogtelextension/impl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -228,6 +230,97 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 		pkgconfig.Set("proxy.https", ddc.ProxyURL, pkgconfigmodel.SourceLocalConfigProcess)
 	}
 
+	// Always load proxy env vars (DD_PROXY_HTTP, DD_PROXY_HTTPS, DD_PROXY_NO_PROXY,
+	// HTTP_PROXY, HTTPS_PROXY, NO_PROXY) regardless of whether --core-config was provided.
+	// Without this, LoadDatadog is never called when no core config is given, and proxy
+	// env vars are silently ignored.
+	pkgconfigsetup.LoadProxyFromEnv(pkgconfig)
+
+	// Apply dogtelextension config only in standalone mode. In connected mode
+	// the core agent owns these settings; we must not override them here.
+	if pkgconfig.GetBool("otel_standalone") {
+		extcfg, err := getDogtelExtensionConfig(cfg)
+		if err != nil {
+			return nil, err
+		}
+		if extcfg != nil {
+			if extcfg.EnableMetadataCollection != nil {
+				pkgconfig.Set("enable_metadata_collection", *extcfg.EnableMetadataCollection, pkgconfigmodel.SourceFile)
+			}
+			// MetadataInterval configures the host metadata provider collection interval.
+			// The host provider reads this from the "metadata_providers" list entry named "host".
+			// Merge into the existing list rather than replacing it wholesale, so that
+			// other providers configured in datadog.yaml (e.g. "resources") are preserved.
+			if extcfg.MetadataInterval > 0 {
+				existing := pkgconfig.Get("metadata_providers")
+				var providers []map[string]interface{}
+				switch ev := existing.(type) {
+				case []map[string]interface{}:
+					providers = ev
+				case []interface{}:
+					// YAML v2 stores maps within sequences as map[interface{}]interface{};
+					// convert each entry to map[string]interface{} before modifying.
+					for _, item := range ev {
+						switch m := item.(type) {
+						case map[string]interface{}:
+							providers = append(providers, m)
+						default:
+							if rv := reflect.ValueOf(item); rv.Kind() == reflect.Map {
+								converted := make(map[string]interface{}, rv.Len())
+								for _, k := range rv.MapKeys() {
+									converted[fmt.Sprintf("%v", k.Interface())] = rv.MapIndex(k).Interface()
+								}
+								providers = append(providers, converted)
+							}
+						}
+					}
+				}
+				found := false
+				for _, p := range providers {
+					if p["name"] == "host" {
+						p["interval"] = extcfg.MetadataInterval
+						found = true
+						break
+					}
+				}
+				if !found {
+					providers = append(providers, map[string]interface{}{
+						"name":     "host",
+						"interval": extcfg.MetadataInterval,
+					})
+				}
+				pkgconfig.Set("metadata_providers", providers, pkgconfigmodel.SourceFile)
+			}
+			if extcfg.Hostname != "" {
+				pkgconfig.Set("hostname", extcfg.Hostname, pkgconfigmodel.SourceFile)
+			}
+			if extcfg.SecretBackendCommand != "" {
+				pkgconfig.Set("secret_backend_command", extcfg.SecretBackendCommand, pkgconfigmodel.SourceFile)
+			}
+			if len(extcfg.SecretBackendArguments) > 0 {
+				pkgconfig.Set("secret_backend_arguments", extcfg.SecretBackendArguments, pkgconfigmodel.SourceFile)
+			}
+			if extcfg.SecretBackendTimeout > 0 {
+				pkgconfig.Set("secret_backend_timeout", extcfg.SecretBackendTimeout, pkgconfigmodel.SourceFile)
+			}
+			if extcfg.SecretBackendOutputMaxSize > 0 {
+				pkgconfig.Set("secret_backend_output_max_size", extcfg.SecretBackendOutputMaxSize, pkgconfigmodel.SourceFile)
+			}
+			if extcfg.KubernetesKubeletHost != "" {
+				pkgconfig.Set("kubernetes_kubelet_host", extcfg.KubernetesKubeletHost, pkgconfigmodel.SourceFile)
+			}
+			if extcfg.KubeletTLSVerify != nil {
+				pkgconfig.Set("kubelet_tls_verify", *extcfg.KubeletTLSVerify, pkgconfigmodel.SourceFile)
+			}
+			if extcfg.KubernetesHTTPKubeletPort > 0 {
+				pkgconfig.Set("kubernetes_http_kubelet_port", extcfg.KubernetesHTTPKubeletPort, pkgconfigmodel.SourceFile)
+			}
+			if extcfg.KubernetesHTTPSKubeletPort > 0 {
+				pkgconfig.Set("kubernetes_https_kubelet_port", extcfg.KubernetesHTTPSKubeletPort, pkgconfigmodel.SourceFile)
+			}
+		}
+	}
+
 	return pkgconfig, nil
 }
 
@@ -246,6 +339,49 @@ func getServiceConfig(cfg *confmap.Conf) (*service.Config, error) {
 		return nil, fmt.Errorf("failed to unmarshal pipeline config %w", err)
 	}
 	return pipelineConfig, nil
+}
+
+// getDogtelExtensionConfig parses the first "dogtel*" entry in the
+// extensions section of the OTel config and returns the typed
+// dogtelextensionimpl.Config. Returns nil (no error) when no dogtelextension
+// is present. Pointer fields (EnableMetadataCollection, KubeletTLSVerify) are
+// nil when the user did not set them, preserving the DD agent defaults.
+func getDogtelExtensionConfig(cfg *confmap.Conf) (*dogtelextensionimpl.Config, error) {
+	for k, v := range cfg.ToStringMap() {
+		if k != "extensions" {
+			continue
+		}
+		extensions, ok := v.(map[string]any)
+		if !ok {
+			return nil, errors.New("invalid extensions config")
+		}
+		var dogtelNames []string
+		for name := range extensions {
+			if strings.HasPrefix(name, "dogtel") {
+				dogtelNames = append(dogtelNames, name)
+			}
+		}
+		if len(dogtelNames) > 1 {
+			return nil, fmt.Errorf("multiple dogtel extensions found (%s): only one is allowed", strings.Join(dogtelNames, ", "))
+		}
+		for name, val := range extensions {
+			if !strings.HasPrefix(name, "dogtel") {
+				continue
+			}
+			extcfg := &dogtelextensionimpl.Config{}
+			if val != nil {
+				m, ok := val.(map[string]any)
+				if !ok {
+					return nil, fmt.Errorf("invalid dogtelextension config for %q", name)
+				}
+				if err := confmap.NewFromStringMap(m).Unmarshal(extcfg); err != nil {
+					return nil, fmt.Errorf("failed to unmarshal dogtelextension config: %w", err)
+				}
+			}
+			return extcfg, nil
+		}
+	}
+	return nil, nil
 }
 
 func getDDExporterConfig(cfg *confmap.Conf) (*datadogconfig.Config, error) {

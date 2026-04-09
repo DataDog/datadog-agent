@@ -60,18 +60,18 @@ type RRCFMetricDef struct {
 // RRCFConfig holds configuration for the RRCF analysis.
 type RRCFConfig struct {
 	// NumTrees is the number of trees in the forest. More trees = more robust but slower.
-	NumTrees int
+	NumTrees int `json:"num_trees"`
 	// TreeSize is the maximum number of points per tree (sliding window size).
-	TreeSize int
+	TreeSize int `json:"tree_size"`
 	// ShingleSize is the number of consecutive timestamps to combine into one point.
 	// ShingleSize=4 means each "point" is 4 consecutive samples, enabling temporal pattern detection.
-	ShingleSize int
+	ShingleSize int `json:"shingle_size"`
 	// ThresholdSigma controls dynamic anomaly thresholding. A point is flagged if its
 	// CoDisp score exceeds mean + ThresholdSigma*stddev of the recent score window.
 	// Set to 0 to disable anomaly detection (scores still computed for analysis).
-	ThresholdSigma float64
+	ThresholdSigma float64 `json:"threshold_sigma"`
 	// Metrics defines which series to include. If nil, uses DefaultRRCFMetrics().
-	Metrics []RRCFMetricDef
+	Metrics []RRCFMetricDef `json:"-"`
 }
 
 // DefaultRRCFConfig returns sensible defaults for RRCF.

@@ -95,7 +95,7 @@ func TestHandleSeriesListMarksLogPatternExtractorSeriesAsVirtual(t *testing.T) {
 	require.NoError(t, err)
 	api := NewTestBenchAPI(tb)
 	if ext := tb.getLogPatternExtractor(); ext != nil {
-		ext.MinPatternsBeforeEmit = 1
+		ext.config.MinClusterSizeBeforeEmit = 1
 	}
 
 	_, _ = tb.engine.IngestLog("test-source", &logObs{

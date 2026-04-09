@@ -6,43 +6,102 @@
 package observerimpl
 
 import (
-	"fmt"
 	"strings"
+	"time"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 	"github.com/DataDog/datadog-agent/comp/observer/impl/patterns"
 )
 
-// defaultMinClusterSizeBeforeEmitMetrics is the minimum number of logs
-// inside a cluster (pattern) before we emit a metric.
-const defaultMinClusterSizeBeforeEmitMetrics = 5
+// LogPatternExtractorName is the canonical name for the log pattern extractor.
+// It is used as the storage namespace for emitted metrics, as the component
+// name in the catalog, and in notify formatting for log-derived anomalies.
+const LogPatternExtractorName = "log_pattern_extractor"
+
+// TODO(agent-q): Add a test to ensure this is >= the time we evict metrics
+// defaultClusterTimeToLive is the time to live for a cluster.
+// If a cluster hasn't been seen since this time, it will be removed.
+const defaultClusterTimeToLive = 4 * time.Hour
+
+const defaultGarbageCollectionInterval = 1 * time.Hour
+
+// LogPatternExtractorConfig holds hyperparameters for the log pattern extractor.
+type LogPatternExtractorConfig struct {
+	// This will disable all optimizations like MinClusterSizeBeforeEmit, ClusterTimeToLiveSec, etc.
+	DisableOptimizations bool `json:"disable_optimizations,omitempty"`
+	// MinClusterSizeBeforeEmit is the minimum number of logs matching a pattern
+	// before emitting metrics. Zero means the default from DefaultLogPatternExtractorConfig.
+	MinClusterSizeBeforeEmit int `json:"min_cluster_size_before_emit,omitempty"`
+	// MaxTokenizedStringLength caps input length before tokenization (0 = patterns default).
+	MaxTokenizedStringLength int `json:"max_tokenized_string_length,omitempty"`
+	// MaxNumTokens caps token count per message (0 = patterns default).
+	MaxNumTokens int `json:"max_num_tokens,omitempty"`
+	// ParseHexDump controls hex-dump recognition in the tokenizer. When nil, the
+	// patterns package default applies (true).
+	ParseHexDump *bool `json:"parse_hex_dump,omitempty"`
+	// MinTokenMatchRatio is the minimum fraction of token positions (by value)
+	// that must match for two log lines to merge into one pattern. Range (0,1];
+	// zero means the default 0.5 (Drain-style).
+	MinTokenMatchRatio float64 `json:"min_token_match_ratio,omitempty"`
+	// ClusterTimeToLiveSec is how long (seconds) a cluster may go without a matching log before it is removed.
+	// Zero disables cluster garbage collection.
+	ClusterTimeToLiveSec int64 `json:"cluster_time_to_live_sec,omitempty"`
+	// GarbageCollectionIntervalSec is the minimum time between GC passes when ClusterTimeToLiveSec > 0.
+	GarbageCollectionIntervalSec int64 `json:"garbage_collection_interval_sec,omitempty"`
+}
+
+// DefaultLogPatternExtractorConfig returns defaults aligned with the patterns package.
+func DefaultLogPatternExtractorConfig() LogPatternExtractorConfig {
+	parseHexDump := true
+
+	return LogPatternExtractorConfig{
+		MinClusterSizeBeforeEmit:     5,
+		ClusterTimeToLiveSec:         int64(defaultClusterTimeToLive.Seconds()),
+		GarbageCollectionIntervalSec: int64(defaultGarbageCollectionInterval.Seconds()),
+		MinTokenMatchRatio:           0.5,
+		MaxTokenizedStringLength:     12500,
+		MaxNumTokens:                 250,
+		ParseHexDump:                 &parseHexDump,
+	}
+}
+
+func (c *LogPatternExtractorConfig) RefreshConfig() {
+	if c.DisableOptimizations {
+		c.MinClusterSizeBeforeEmit = 0
+		c.ClusterTimeToLiveSec = 0
+		c.GarbageCollectionIntervalSec = 0
+	}
+}
+
+func tokenizerFromConfig(cfg LogPatternExtractorConfig) *patterns.Tokenizer {
+	t := patterns.NewTokenizer()
+	if cfg.MaxTokenizedStringLength > 0 {
+		t.MaxStringLen = cfg.MaxTokenizedStringLength
+	}
+	if cfg.MaxNumTokens > 0 {
+		t.MaxTokens = cfg.MaxNumTokens
+	}
+	if cfg.ParseHexDump != nil {
+		t.ParseHexDump = *cfg.ParseHexDump
+	}
+	return t
+}
 
 // PatternKeyInfo contains what can identify a pattern.
 type PatternKeyInfo struct {
 	ClusterID int64
-}
-
-// NewPatternKeyInfo creates a PatternKeyInfo for the given cluster ID.
-func NewPatternKeyInfo(clusterID int64) PatternKeyInfo {
-	return PatternKeyInfo{ClusterID: clusterID}
-}
-
-// LogPatternExtractorConfig holds configuration for the LogPatternExtractor.
-type LogPatternExtractorConfig struct{}
-
-// DefaultLogPatternExtractorConfig returns a LogPatternExtractorConfig with default values.
-func DefaultLogPatternExtractorConfig() LogPatternExtractorConfig {
-	return LogPatternExtractorConfig{}
+	GroupHash uint64
 }
 
 // LogPatternExtractor is a LogMetricsExtractor that clusters log messages into
 // patterns and emits a count metric per pattern.
 type LogPatternExtractor struct {
-	PatternClusterer *patterns.PatternClusterer
-	patternContext   map[string]patternMetricContext
-	// MinPatternsBeforeEmit is the minimum number of distinct patterns (clusters)
-	// before emitting metrics. Zero means defaultMinPatternsBeforeEmitMetrics.
-	MinPatternsBeforeEmit int
+	taggedClusterer           *TaggedPatternClusterer
+	registry                  *TagGroupByKeyRegistry
+	ctx                       logPatternExtractorContext
+	NextGarbageCollectionTime int64
+	// config is the resolved hyperparameters (MinClusterSizeBeforeEmit is never zero after init).
+	config LogPatternExtractorConfig
 }
 
 var _ observerdef.LogMetricsExtractor = (*LogPatternExtractor)(nil)
@@ -53,15 +112,74 @@ type patternMetricContext struct {
 	example string
 }
 
+// logPatternExtractorContext holds per-metric context for GetContextByKey and
+// indexes keys by tagged cluster (globalClusterHash) for O(cluster) deletion on GC.
+// The tagged key encodes both groupHash and clusterID so that different sub-clusterers
+// with coincidentally equal cluster IDs don't collide.
+type logPatternExtractorContext struct {
+	byKey               map[string]patternMetricContext
+	keysByTaggedCluster map[string][]string // key: globalClusterHash(groupHash, clusterID)
+}
+
+func (c *logPatternExtractorContext) get(key string) (patternMetricContext, bool) {
+	if c.byKey == nil {
+		return patternMetricContext{}, false
+	}
+	v, ok := c.byKey[key]
+	return v, ok
+}
+
+func (c *logPatternExtractorContext) put(groupHash uint64, clusterID int64, contextKey string, entry patternMetricContext) {
+	taggedKey := globalClusterHash(groupHash, clusterID)
+	if c.byKey == nil {
+		c.byKey = make(map[string]patternMetricContext)
+	}
+	if _, exists := c.byKey[contextKey]; !exists {
+		if c.keysByTaggedCluster == nil {
+			c.keysByTaggedCluster = make(map[string][]string)
+		}
+		c.keysByTaggedCluster[taggedKey] = append(c.keysByTaggedCluster[taggedKey], contextKey)
+		c.byKey[contextKey] = entry
+	}
+}
+
+func (c *logPatternExtractorContext) removeTaggedCluster(taggedKey string) {
+	if c.byKey == nil {
+		return
+	}
+	for _, k := range c.keysByTaggedCluster[taggedKey] {
+		delete(c.byKey, k)
+	}
+	delete(c.keysByTaggedCluster, taggedKey)
+}
+
 // NewLogPatternExtractor creates a new LogPatternExtractor.
-func NewLogPatternExtractor() *LogPatternExtractor {
+// A zero-value cfg is accepted; zero fields fall back to DefaultLogPatternExtractorConfig values.
+func NewLogPatternExtractor(cfg LogPatternExtractorConfig) *LogPatternExtractor {
+	// Apply defaults first and then refresh config to finalize it
+	defaults := DefaultLogPatternExtractorConfig()
+	if cfg.MinClusterSizeBeforeEmit <= 0 {
+		cfg.MinClusterSizeBeforeEmit = defaults.MinClusterSizeBeforeEmit
+	}
+	if !cfg.DisableOptimizations {
+		if cfg.ClusterTimeToLiveSec <= 0 {
+			cfg.ClusterTimeToLiveSec = defaults.ClusterTimeToLiveSec
+		}
+		if cfg.GarbageCollectionIntervalSec <= 0 {
+			cfg.GarbageCollectionIntervalSec = defaults.GarbageCollectionIntervalSec
+		}
+	}
+	cfg.RefreshConfig()
+
+	registry := NewTagGroupByKeyRegistry()
+	tok := tokenizerFromConfig(cfg)
+	newSub := func() *patterns.PatternClusterer {
+		return patterns.NewPatternClustererWithTokenizer(tok, cfg.MinTokenMatchRatio)
+	}
 	return &LogPatternExtractor{
-		PatternClusterer: patterns.NewPatternClusterer(patterns.IDComputeInfo{
-			Offset: 0,
-			Stride: 1,
-			Index:  0,
-		}),
-		MinPatternsBeforeEmit: defaultMinClusterSizeBeforeEmitMetrics,
+		taggedClusterer: NewTaggedPatternClustererWithFactory(registry, newSub),
+		registry:        registry,
+		config:          cfg,
 	}
 }
 
@@ -71,37 +189,34 @@ func (e *LogPatternExtractor) Name() string {
 }
 
 // Reset clears clustering and cached per-series context so reanalysis starts
-// from the currently observed logs.
+// from the currently observed logs. The registry is kept so that previously
+// registered hashes remain resolvable.
 func (e *LogPatternExtractor) Reset() {
-	e.PatternClusterer = patterns.NewPatternClusterer(patterns.IDComputeInfo{
-		Offset: 0,
-		Stride: 1,
-		Index:  0,
-	})
-	e.patternContext = nil
+	e.taggedClusterer.Reset()
+	e.ctx = logPatternExtractorContext{}
+	e.NextGarbageCollectionTime = 0
 }
 
 // GetContextByKey implements observerdef.ContextProvider for pattern metrics
 // emitted by this extractor.
 func (e *LogPatternExtractor) GetContextByKey(key string) (observerdef.MetricContext, bool) {
-	if e.patternContext == nil {
-		return observerdef.MetricContext{}, false
-	}
-	entry, ok := e.patternContext[key]
+	entry, ok := e.ctx.get(key)
 	if !ok {
 		return observerdef.MetricContext{}, false
 	}
 
 	pattern := ""
-	cluster, err := e.PatternClusterer.GetCluster(entry.keyInfo.ClusterID)
+	cluster, err := e.taggedClusterer.GetCluster(entry.keyInfo.GroupHash, entry.keyInfo.ClusterID)
 	if err == nil && cluster != nil {
 		pattern = cluster.PatternString()
 	}
 
+	group, _ := e.registry.Lookup(entry.keyInfo.GroupHash)
 	return observerdef.MetricContext{
-		Pattern: pattern,
-		Example: entry.example,
-		Source:  e.Name(),
+		Pattern:   pattern,
+		Example:   entry.example,
+		Source:    e.Name(),
+		SplitTags: group.AsMap(),
 	}, true
 }
 
@@ -118,42 +233,81 @@ func logSeverityIsWarnPlus(log observerdef.LogView) bool {
 
 // ProcessLog clusters the log message and emits a count metric for its pattern.
 func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.LogMetricsExtractorOutput {
-	if !logSeverityIsWarnPlus(log) {
-		return observerdef.LogMetricsExtractorOutput{}
+	logUnixSec := log.GetTimestampUnixMilli() / 1000
+	if logUnixSec == 0 {
+		logUnixSec = time.Now().Unix()
 	}
+	gc := e.maybeGarbageCollect(logUnixSec)
 	telemetry := []observerdef.ObserverTelemetry{}
-	message := string(log.GetContent())
-	cluster, ok := e.PatternClusterer.Process(message)
-	if !ok {
-		return observerdef.LogMetricsExtractorOutput{}
+	result := observerdef.LogMetricsExtractorOutput{
+		EvictedContextKeys: gc.contextKeys,
 	}
-	// Not enough patterns yet, don't emit metric.
-	// It's not directly a new pattern but the first time we reach the threshold and we emit a metric.
-	if cluster.Count == e.MinPatternsBeforeEmit {
-		telemetry = append(telemetry, newTelemetryCounter([]string{"detector:" + e.Name()}, telemetryLogPatternExtractorPatternCount, 1, log.GetTimestampUnixMilli()/1000))
-	} else if cluster.Count < e.MinPatternsBeforeEmit {
-		return observerdef.LogMetricsExtractorOutput{}
+	if gc.clustersEvicted > 0 {
+		// We count active patterns so we remove them
+		telemetry = append(telemetry, newTelemetryCounter([]string{"detector:" + e.Name()}, telemetryLogPatternExtractorPatternCount, -float64(gc.clustersEvicted), logUnixSec))
+	}
+	if !logSeverityIsWarnPlus(log) {
+		return result
+	}
+	message := string(log.GetContent())
+	groupTags := tagsForPatternGrouping(log.GetTags(), log.GetHostname())
+	groupHash, cluster, ok := e.taggedClusterer.Process(groupTags, message, logUnixSec)
+	if !ok {
+		return result
+	}
+	// Not enough patterns yet, don't emit metric
+	// It's not directly a new pattern but the first time we reach the threshold and we emit a metric
+	if cluster.Count == e.config.MinClusterSizeBeforeEmit {
+		telemetry = append(telemetry, newTelemetryCounter([]string{"detector:" + e.Name()}, telemetryLogPatternExtractorPatternCount, 1, logUnixSec))
+	} else if cluster.Count < e.config.MinClusterSizeBeforeEmit {
+		return result
 	}
 
-	patternKey := NewPatternKeyInfo(cluster.ID)
-	metricName := fmt.Sprintf("log.%s.%x.count", e.Name(), cluster.ID+1)
+	metricName := "log." + e.Name() + "." + globalClusterHash(groupHash, cluster.ID) + ".count"
 	contextKey := metricContextKey(metricName, log.GetTags())
 
-	if e.patternContext == nil {
-		e.patternContext = make(map[string]patternMetricContext)
-	}
-	e.patternContext[contextKey] = patternMetricContext{
-		keyInfo: patternKey,
+	e.ctx.put(groupHash, cluster.ID, contextKey, patternMetricContext{
+		keyInfo: PatternKeyInfo{ClusterID: cluster.ID, GroupHash: groupHash},
 		example: message,
-	}
+	})
 
-	return observerdef.LogMetricsExtractorOutput{
-		Metrics: []observerdef.MetricOutput{{
-			Name:       metricName,
-			Value:      1,
-			Tags:       log.GetTags(),
-			ContextKey: contextKey,
-		}},
-		Telemetry: telemetry,
+	result.Metrics = []observerdef.MetricOutput{{
+		Name:       metricName,
+		Value:      1,
+		Tags:       log.GetTags(),
+		ContextKey: contextKey,
+	}}
+	result.Telemetry = telemetry
+	return result
+}
+
+// gcResult holds what was evicted during a garbage-collection pass.
+type gcResult struct {
+	contextKeys     []string
+	clustersEvicted int
+}
+
+// maybeGarbageCollect removes stale clusters from all sub-clusterers and
+// returns the context keys evicted so the engine can drop matching contextRefs.
+func (e *LogPatternExtractor) maybeGarbageCollect(currentTime int64) gcResult {
+	if e.config.ClusterTimeToLiveSec == 0 || currentTime < e.NextGarbageCollectionTime {
+		return gcResult{}
 	}
+	e.NextGarbageCollectionTime = currentTime + e.config.GarbageCollectionIntervalSec
+
+	cutoff := currentTime - e.config.ClusterTimeToLiveSec
+	evicted := e.taggedClusterer.GarbageCollectBefore(cutoff)
+	if len(evicted) == 0 {
+		return gcResult{}
+	}
+	var result gcResult
+	for _, ev := range evicted {
+		taggedKey := globalClusterHash(ev.GroupHash, ev.ClusterID)
+		if e.ctx.keysByTaggedCluster != nil {
+			result.contextKeys = append(result.contextKeys, e.ctx.keysByTaggedCluster[taggedKey]...)
+		}
+		e.ctx.removeTaggedCluster(taggedKey)
+	}
+	result.clustersEvicted = len(evicted)
+	return result
 }
