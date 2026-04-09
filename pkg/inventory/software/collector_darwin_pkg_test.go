@@ -171,16 +171,13 @@ func TestTopLevelTokenFromLine(t *testing.T) {
 	}
 }
 
-func TestIsSafeForShell(t *testing.T) {
-	assert.True(t, isSafeForShell("/var/db/receipts/com.example.bom"))
-	assert.True(t, isSafeForShell("/var/db/receipts/Some App.bom"))
-
-	assert.False(t, isSafeForShell("/var/db/receipts/evil'file.bom"))
-	assert.False(t, isSafeForShell("/var/db/receipts/evil`file.bom"))
-	assert.False(t, isSafeForShell("/var/db/receipts/evil\nfile.bom"))
-}
-
 func TestBomCache_HitsWithinTTL(t *testing.T) {
+	originalCacheToggle := enableBomDigestCache
+	enableBomDigestCache = true
+	t.Cleanup(func() {
+		enableBomDigestCache = originalCacheToggle
+	})
+
 	c := &bomCache{
 		entries:    make(map[string]*bomCacheEntry),
 		ttl:        time.Hour,
@@ -203,6 +200,12 @@ func TestBomCache_HitsWithinTTL(t *testing.T) {
 }
 
 func TestBomCache_ExpiredEntryRefetches(t *testing.T) {
+	originalCacheToggle := enableBomDigestCache
+	enableBomDigestCache = true
+	t.Cleanup(func() {
+		enableBomDigestCache = originalCacheToggle
+	})
+
 	originalFetcher := batchLsbomFetcher
 	t.Cleanup(func() {
 		batchLsbomFetcher = originalFetcher
@@ -243,6 +246,12 @@ func TestBomCache_ExpiredEntryRefetches(t *testing.T) {
 }
 
 func TestBomCache_EvictsWhenFull(t *testing.T) {
+	originalCacheToggle := enableBomDigestCache
+	enableBomDigestCache = true
+	t.Cleanup(func() {
+		enableBomDigestCache = originalCacheToggle
+	})
+
 	originalFetcher := batchLsbomFetcher
 	t.Cleanup(func() {
 		batchLsbomFetcher = originalFetcher
@@ -277,6 +286,12 @@ func TestBomCache_EvictsWhenFull(t *testing.T) {
 }
 
 func TestBomCache_DoesNotCacheNonCacheableFetches(t *testing.T) {
+	originalCacheToggle := enableBomDigestCache
+	enableBomDigestCache = true
+	t.Cleanup(func() {
+		enableBomDigestCache = originalCacheToggle
+	})
+
 	originalFetcher := batchLsbomFetcher
 	t.Cleanup(func() {
 		batchLsbomFetcher = originalFetcher

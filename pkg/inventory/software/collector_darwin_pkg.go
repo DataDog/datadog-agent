@@ -10,7 +10,6 @@ package software
 import (
 	"bufio"
 	"context"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -40,14 +39,12 @@ type pkgSummary struct {
 }
 
 const (
-	defaultBomCacheTTL        = 1 * time.Hour
-	defaultBomCacheMaxEntries = 512
-	lsbomBatchTimeout         = 60 * time.Second
-	lsbomSingleTimeout        = 30 * time.Second
-	lsbomScannerMaxTokenSize  = 2 * 1024 * 1024
-	maxTopLevelPathsPerPkg    = 128
-	bomDelimiterPrefix        = "===BOM:"
-	bomDelimiterSuffix        = "==="
+	defaultBomCacheTTL          = 1 * time.Hour
+	defaultBomCacheMaxEntries   = 512
+	lsbomSingleTimeout          = 30 * time.Second
+	lsbomScannerMaxTokenSize    = 2 * 1024 * 1024
+	maxTopLevelPathsPerPkg      = 128
+	enableBomDigestCacheDefault = true
 )
 
 // topLevelToken stores a prefix-neutral top-level path candidate derived from one
@@ -86,9 +83,10 @@ type bomFetchOutcome struct {
 }
 
 var (
-	globalBomCache     *bomCache
-	globalBomCacheOnce sync.Once
-	batchLsbomFetcher  = batchLsbom // test seam for hermetic cache tests
+	globalBomCache       *bomCache
+	globalBomCacheOnce   sync.Once
+	batchLsbomFetcher    = batchLsbom                  // test seam for hermetic cache tests
+	enableBomDigestCache = enableBomDigestCacheDefault // Set false for cold-cache experiments.
 )
 
 func getGlobalBomCache() *bomCache {
@@ -103,8 +101,21 @@ func getGlobalBomCache() *bomCache {
 }
 
 // getBomDigests returns cached compact BOM digests for the given BOM paths.
-// Uncached or expired entries are fetched in a single batched subprocess flow.
+// Uncached or expired entries are fetched by running lsbom per BOM file.
 func (c *bomCache) getBomDigests(bomPaths []string) map[string]bomDigest {
+	if !enableBomDigestCache {
+		fetched := batchLsbomFetcher(bomPaths)
+		result := make(map[string]bomDigest, len(bomPaths))
+		for _, bp := range bomPaths {
+			if outcome, ok := fetched[bp]; ok {
+				result[bp] = outcome.Digest
+			} else {
+				result[bp] = bomDigest{}
+			}
+		}
+		return result
+	}
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -171,17 +182,6 @@ func (c *bomCache) evictOldestLocked() {
 	}
 }
 
-// shellUnsafeChars contains characters that could enable command injection inside
-// single-quoted shell strings. BOM paths containing any of these are handled via
-// a dedicated exec.Command instead of the batched shell script.
-const shellUnsafeChars = "'\"`$;|&(){}!\\#~<>?\n\r\x00"
-
-// isSafeForShell reports whether a path can be safely embedded in a single-quoted
-// shell argument without risk of command injection.
-func isSafeForShell(path string) bool {
-	return !strings.ContainsAny(path, shellUnsafeChars)
-}
-
 // singleLsbom runs lsbom -sd for one BOM file and streams output directly into
 // digest accumulation. It bypasses the shell and is injection-safe for any name.
 func singleLsbom(bomPath string) bomFetchOutcome {
@@ -219,110 +219,15 @@ func singleLsbom(bomPath string) bomFetchOutcome {
 	return bomFetchOutcome{Digest: builder.result(), Cacheable: true}
 }
 
-// batchLsbomShell runs a single shell subprocess that invokes lsbom -sd for multiple
-// BOM files, producing delimited output that is streamed into digest builders.
-// Only safe paths should be passed here.
-func batchLsbomShell(bomPaths []string) (map[string]bomDigest, error) {
-	if len(bomPaths) == 0 {
-		return nil, nil
-	}
-
-	var script strings.Builder
-	for _, bp := range bomPaths {
-		fmt.Fprintf(&script, "printf '===BOM:%s===\\n'; lsbom -sd '%s' 2>/dev/null; ", bp, bp)
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), lsbomBatchTimeout)
-	defer cancel()
-
-	cmd := exec.CommandContext(ctx, "sh", "-c", script.String())
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create batched lsbom stdout pipe: %w", err)
-	}
-	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("failed to start batched lsbom: %w", err)
-	}
-
-	result := make(map[string]bomDigest, len(bomPaths))
-	builders := make(map[string]*bomDigestBuilder, len(bomPaths))
-	var currentBom string
-	scanner := bufio.NewScanner(stdout)
-	scanner.Buffer(make([]byte, 0, 64*1024), lsbomScannerMaxTokenSize)
-	for scanner.Scan() {
-		line := scanner.Text()
-		if strings.HasPrefix(line, bomDelimiterPrefix) && strings.HasSuffix(line, bomDelimiterSuffix) {
-			currentBom = line[len(bomDelimiterPrefix) : len(line)-len(bomDelimiterSuffix)]
-			if _, exists := builders[currentBom]; !exists {
-				builders[currentBom] = newBomDigestBuilder()
-			}
-			continue
-		}
-		if currentBom != "" {
-			builders[currentBom].addLine(line)
-		}
-	}
-	scanErr := scanner.Err()
-	waitErr := cmd.Wait()
-	if scanErr != nil && waitErr != nil {
-		return nil, fmt.Errorf("batched lsbom scan failed: %v; wait error: %w", scanErr, waitErr)
-	}
-	if scanErr != nil {
-		return nil, fmt.Errorf("batched lsbom scan failed: %w", scanErr)
-	}
-	if waitErr != nil {
-		return nil, fmt.Errorf("batched lsbom failed: %w", waitErr)
-	}
-
-	for bomPath, builder := range builders {
-		result[bomPath] = builder.result()
-	}
-	// Preserve previous behavior: include requested keys even when there are no
-	// payload lines (or if lsbom produced no output for that BOM).
-	for _, bp := range bomPaths {
-		if _, exists := result[bp]; !exists {
-			result[bp] = bomDigest{}
-		}
-	}
-
-	return result, nil
-}
-
-// batchLsbom fetches lsbom -sd output for all given BOM paths.
-// Safe paths are batched into a single shell subprocess for performance.
-// Paths with shell metacharacters are handled via individual exec.Command calls.
+// batchLsbom fetches lsbom -sd output for all given BOM paths using direct
+// exec.Command invocations only, avoiding shell execution entirely.
 func batchLsbom(bomPaths []string) map[string]bomFetchOutcome {
 	if len(bomPaths) == 0 {
 		return nil
 	}
 
-	var safePaths, unsafePaths []string
-	for _, bp := range bomPaths {
-		if isSafeForShell(bp) {
-			safePaths = append(safePaths, bp)
-		} else {
-			unsafePaths = append(unsafePaths, bp)
-		}
-	}
-
 	result := make(map[string]bomFetchOutcome, len(bomPaths))
-	if len(safePaths) > 0 {
-		safeDigests, err := batchLsbomShell(safePaths)
-		if err != nil {
-			log.Warnf("batched lsbom failed, falling back to per-BOM execution: %v", err)
-			for _, bp := range safePaths {
-				result[bp] = singleLsbom(bp)
-			}
-		} else {
-			for _, bp := range safePaths {
-				result[bp] = bomFetchOutcome{
-					Digest:    safeDigests[bp],
-					Cacheable: true,
-				}
-			}
-		}
-	}
-	for _, bp := range unsafePaths {
+	for _, bp := range bomPaths {
 		result[bp] = singleLsbom(bp)
 	}
 	return result
