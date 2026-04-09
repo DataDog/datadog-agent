@@ -373,6 +373,43 @@ func deployOrchestratorJob(
 		})
 	}
 
+	// ── Shared postmortem helpers ConfigMap ─────────────────────────────────
+	// _shared/env.sh defines postmortem_chain_exit_trap and related helpers used
+	// by many postmortem episodes. Mount it at /episodes/_shared/ so episodes that
+	// source it work without modification.
+	// Support both repo-root (episodeDataDir=.../gensim-episodes) and legacy
+	// (episodeDataDir=.../postmortems) layouts when locating _shared/env.sh.
+	sharedEnvPath := filepath.Join(episodeDataDir, "_shared", "env.sh")
+	if _, statErr := os.Stat(sharedEnvPath); statErr != nil {
+		sharedEnvPath = filepath.Join(episodeDataDir, "postmortems", "_shared", "env.sh")
+	}
+	if sharedEnvContent, err := os.ReadFile(sharedEnvPath); err == nil {
+		sharedCM, cmErr := corev1.NewConfigMap(ctx, awsEnv.Namer.ResourceName("ep-cm-shared"),
+			&corev1.ConfigMapArgs{
+				Metadata: metav1.ObjectMetaArgs{
+					Name:      pulumi.String("gensim-ep-shared"),
+					Namespace: pulumi.String(namespace),
+				},
+				Data: pulumi.StringMap{
+					"env.sh": pulumi.String(string(sharedEnvContent)),
+				},
+			}, kubeOpts...)
+		if cmErr != nil {
+			return cmErr
+		}
+		episodeConfigMaps = append(episodeConfigMaps, sharedCM)
+		episodeVolumes = append(episodeVolumes, corev1.VolumeArgs{
+			Name: pulumi.String("ep-shared"),
+			ConfigMap: &corev1.ConfigMapVolumeSourceArgs{
+				Name: pulumi.String("gensim-ep-shared"),
+			},
+		})
+		episodeVolumeMounts = append(episodeVolumeMounts, corev1.VolumeMountArgs{
+			Name:      pulumi.String("ep-shared"),
+			MountPath: pulumi.String("/episodes/_shared"),
+		})
+	}
+
 	// ── Agent values ConfigMap ───────────────────────────────────────────────
 	renderedValues, err := renderAgentValues(agentImage, mode)
 	if err != nil {
