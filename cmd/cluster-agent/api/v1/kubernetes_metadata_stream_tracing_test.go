@@ -104,6 +104,7 @@ func TestStreamKubeMetadata_SessionSpan(t *testing.T) {
 
 	require.NotNil(t, sessionSpan, "expected session span to be created")
 	assert.Equal(t, "cluster_agent.metadata_stream.session", sessionSpan.OperationName())
+	assert.Equal(t, "session", sessionSpan.Tag("resource.name"))
 	assert.Equal(t, "test-node", sessionSpan.Tag("node_name"))
 }
 
@@ -146,6 +147,7 @@ func TestStreamKubeMetadata_InitialFullStateSendSpan(t *testing.T) {
 	}
 
 	require.NotNil(t, fullStateSpan, "expected send_full_state span to be created")
+	assert.Equal(t, "sendFullState", fullStateSpan.Tag("resource.name"))
 	assert.Nil(t, fullStateSpan.Tag("error"))
 }
 
@@ -182,6 +184,7 @@ func TestStreamKubeMetadata_InitialFullStateSendErrorSpan(t *testing.T) {
 	}
 
 	require.NotNil(t, fullStateSpan, "expected send_full_state span on error")
+	assert.Equal(t, "sendFullState", fullStateSpan.Tag("resource.name"))
 	assert.NotNil(t, fullStateSpan.Tag("error"))
 }
 
