@@ -60,20 +60,8 @@ type PidTs struct {
 	Tgid      uint64
 	Timestamp uint64
 }
-type Batch struct {
-	Id    uint64
-	Cpu   uint32
-	Len   uint16
-	X_pad uint16
-	C0    Conn
-	C1    Conn
-	C2    Conn
-	C3    Conn
-}
 type Telemetry struct {
 	Tcp_sent_miscounts              uint64
-	Unbatched_tcp_close             uint64
-	Unbatched_udp_close             uint64
 	Udp_sends_processed             uint64
 	Udp_sends_missed                uint64
 	Udp_dropped_conns               uint64
@@ -171,9 +159,6 @@ const (
 	RInit   ConnFlags = 0x2
 	Assured ConnFlags = 0x4
 )
-
-const BatchSize = 0x4
-const SizeofBatch = 0x270
 
 const SizeofConn = 0x98
 

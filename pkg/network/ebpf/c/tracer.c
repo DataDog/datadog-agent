@@ -235,12 +235,6 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
     return 0;
 }
 
-SEC("kretprobe/tcp_done")
-int BPF_KRETPROBE(kretprobe__tcp_done_flush) {
-    flush_conn_close_if_full(ctx);
-    return 0;
-}
-
 SEC("kprobe/tcp_close")
 int BPF_BYPASSABLE_KPROBE(kprobe__tcp_close, struct sock *sk) {
     conn_tuple_t t = {};
@@ -283,16 +277,6 @@ int BPF_BYPASSABLE_KRETPROBE(kretprobe__tcp_close_clean_protocols) {
         bpf_map_delete_elem(&tcp_close_args, &pid_tgid);
     }
 
-    if (is_batching_enabled()) {
-        bpf_tail_call_compat(ctx, &tcp_close_progs, 0);
-    }
-
-    return 0;
-}
-
-SEC("kretprobe/tcp_close")
-int BPF_KRETPROBE(kretprobe__tcp_close_flush) {
-    flush_conn_close_if_full(ctx);
     return 0;
 }
 
@@ -1065,18 +1049,6 @@ int BPF_BYPASSABLE_KPROBE(kprobe__udp_destroy_sock, struct sock *sk) {
 SEC("kprobe/udpv6_destroy_sock")
 int BPF_BYPASSABLE_KPROBE(kprobe__udpv6_destroy_sock, struct sock *sk) {
     return handle_udp_destroy_sock(ctx, sk);
-}
-
-SEC("kretprobe/udp_destroy_sock")
-int BPF_BYPASSABLE_KRETPROBE(kretprobe__udp_destroy_sock) {
-    flush_conn_close_if_full(ctx);
-    return 0;
-}
-
-SEC("kretprobe/udpv6_destroy_sock")
-int BPF_BYPASSABLE_KRETPROBE(kretprobe__udpv6_destroy_sock) {
-    flush_conn_close_if_full(ctx);
-    return 0;
 }
 
 SEC("kprobe/inet_bind")

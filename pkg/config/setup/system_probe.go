@@ -206,7 +206,6 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("system_probe_config.enable_conntrack_all_namespaces", true, "DD_SYSTEM_PROBE_ENABLE_CONNTRACK_ALL_NAMESPACES")
 	cfg.BindEnvAndSetDefault("network_config.enable_protocol_classification", true, "DD_ENABLE_PROTOCOL_CLASSIFICATION")
 	cfg.BindEnvAndSetDefault("network_config.enable_ringbuffers", true, "DD_SYSTEM_PROBE_NETWORK_ENABLE_RINGBUFFERS")
-	cfg.BindEnvAndSetDefault("network_config.enable_custom_batching", false, "DD_SYSTEM_PROBE_NETWORK_ENABLE_CUSTOM_BATCHING")
 	cfg.BindEnvAndSetDefault("network_config.enable_tcp_failed_connections", true, "DD_SYSTEM_PROBE_NETWORK_ENABLE_FAILED_CONNS")
 	cfg.BindEnvAndSetDefault("network_config.ignore_conntrack_init_failure", false, "DD_SYSTEM_PROBE_NETWORK_IGNORE_CONNTRACK_INIT_FAILURE")
 	cfg.BindEnvAndSetDefault("network_config.conntrack_init_timeout", 10*time.Second)
