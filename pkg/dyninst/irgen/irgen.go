@@ -524,6 +524,12 @@ func extractRootVariableName(expr exprlang.Expr) (string, bool) {
 			return e.Ref, true
 		case *exprlang.GetMemberExpr:
 			expr = e.Base
+		case *exprlang.LenExpr:
+			expr = e.Operand
+		case *exprlang.IsEmptyExpr:
+			expr = e.Operand
+		case *exprlang.EqExpr:
+			expr = e.Left
 		default:
 			return "", false
 		}
@@ -827,14 +833,19 @@ func analyzeAllProbes(
 					Message: fmt.Sprintf("failed to parse condition: %v", err),
 				}
 			}
-			eqExpr, ok := condExpr.(*exprlang.EqExpr)
-			if !ok {
+			var rootExpr exprlang.Expr
+			switch ce := condExpr.(type) {
+			case *exprlang.EqExpr:
+				rootExpr = ce.Left
+			case *exprlang.IsEmptyExpr:
+				rootExpr = ce.Operand
+			default:
 				return nil, ir.Issue{
 					Kind:    ir.IssueKindUnsupportedFeature,
 					Message: fmt.Sprintf("unsupported condition expression type: %T", condExpr),
 				}
 			}
-			rootVarName, ok := extractRootVariableName(eqExpr.Left)
+			rootVarName, ok := extractRootVariableName(rootExpr)
 			if !ok {
 				return nil, ir.Issue{
 					Kind:    ir.IssueKindUnsupportedFeature,
@@ -873,6 +884,19 @@ func analyzeAllProbes(
 			}
 		}
 
+		// Put the template segments first, so we explore their values earlier
+		// than snapshot values. If we're going to run out of space, we may as
+		// well do it for data that shows up below the fold rather than in the
+		// message.
+		exprKindToInt := func(kind ir.RootExpressionKind) int {
+			if kind == ir.RootExpressionKindTemplateSegment {
+				return 0
+			}
+			return 1
+		}
+		slices.SortStableFunc(ap.expressions, func(a, b analyzedExpression) int {
+			return cmp.Compare(exprKindToInt(a.exprKind), exprKindToInt(b.exprKind))
+		})
 		analyzed = append(analyzed, ap)
 	}
 
@@ -914,6 +938,9 @@ func newTemplate(td ir.TemplateDefinition) *ir.Template {
 						continue
 					}
 				case *exprlang.GetMemberExpr:
+				case *exprlang.LenExpr:
+				case *exprlang.IsEmptyExpr:
+				case *exprlang.EqExpr:
 				case *exprlang.UnsupportedExpr:
 					msg := "unsupported operation: " + expr.Operation
 					addInvalid(segment, msg)
@@ -3166,21 +3193,29 @@ func exploreTypesForExpressions(
 
 		// Validate condition types.
 		if cond := ap.condition; cond != nil {
-			eqExpr, ok := cond.expr.(*exprlang.EqExpr)
-			if !ok {
+			var condExploreExpr exprlang.Expr
+			switch ce := cond.expr.(type) {
+			case *exprlang.EqExpr:
+				condExploreExpr = ce.Left
+			case *exprlang.IsEmptyExpr:
+				condExploreExpr = ce.Operand
+			default:
 				ap.conditionIssue = ir.Issue{
 					Kind:    ir.IssueKindUnsupportedFeature,
 					Message: fmt.Sprintf("unsupported condition expression type: %T", cond.expr),
 				}
 				ap.condition = nil
-			} else if _, err := exploreExpressionTypes(
-				eqExpr.Left, cond.rootVariable.Type, tc, "",
-			); err != nil {
-				ap.conditionIssue = ir.Issue{
-					Kind:    ir.IssueKindConditionExpressionUnresolvable,
-					Message: fmt.Sprintf("condition type exploration failed: %v", err),
+			}
+			if condExploreExpr != nil {
+				if _, err := exploreExpressionTypes(
+					condExploreExpr, cond.rootVariable.Type, tc, "",
+				); err != nil {
+					ap.conditionIssue = ir.Issue{
+						Kind:    ir.IssueKindConditionExpressionUnresolvable,
+						Message: fmt.Sprintf("condition type exploration failed: %v", err),
+					}
+					ap.condition = nil
 				}
-				ap.condition = nil
 			}
 		}
 	}
@@ -3370,6 +3405,12 @@ func exploreExpressionTypes(
 		}
 
 		return curType, nil
+	case *exprlang.LenExpr:
+		return exploreLenExprTypes(e.Operand, currentType, tc, exprPath)
+
+	case *exprlang.IsEmptyExpr:
+		return exploreLenExprTypes(e.Operand, currentType, tc, exprPath)
+
 	case *exprlang.EqExpr:
 		// Resolve the left and right expressions.
 		_, err := exploreExpressionTypes(e.Left, currentType, tc, exprPath)
@@ -3388,6 +3429,102 @@ func exploreExpressionTypes(
 		// Unknown expression type - nothing to explore.
 		return currentType, nil
 	}
+}
+
+// exploreLenExprTypes explores types for a len/isEmpty operand, resolving
+// through pointers and validating the collection type has a length field.
+func exploreLenExprTypes(
+	operand exprlang.Expr,
+	currentType ir.Type,
+	tc *typeCatalog,
+	exprPath string,
+) (ir.Type, error) {
+	// Explore the operand to resolve its type.
+	resolvedType, err := exploreExpressionTypes(operand, currentType, tc, exprPath)
+	if err != nil {
+		return nil, err
+	}
+
+	// Look up the canonical type from the catalog (may have been promoted
+	// from StructureType to GoStringHeaderType etc. by completeGoTypes).
+	resolvedType = tc.typesByID[resolvedType.GetID()]
+
+	// Unwrap GoMapType to its header type (maps are pointers to headers).
+	_, isMap := resolvedType.(*ir.GoMapType)
+	resolvedType = unwrapMapType(resolvedType, tc)
+
+	// If result is a pointer, dereference to get the collection type.
+	if ptrType, ok := resolvedType.(*ir.PointerType); ok {
+		pointee := ptrType.Pointee
+		pointee = tc.typesByID[pointee.GetID()]
+		if ppt, ok := pointee.(*pointeePlaceholderType); ok {
+			newT, err := tc.addType(ppt.offset)
+			if err != nil {
+				return nil, fmt.Errorf("failed to resolve pointee for len: %w", err)
+			}
+			resolvedType = newT
+		} else {
+			resolvedType = pointee
+		}
+	}
+
+	// Get the struct and field for the length.
+	structType, fieldName, err := lenFieldInfo(resolvedType)
+	if err != nil {
+		return nil, err
+	}
+
+	f, err := field(tc, structType, fieldName)
+	if err != nil {
+		return nil, fmt.Errorf("len field lookup failed: %w", err)
+	}
+
+	// Normalize map count types to uint64 for consistency across
+	// Go versions and architectures.
+	if isMap && tc.uint64Type != 0 {
+		return tc.typesByID[tc.uint64Type], nil
+	}
+	return f.Type, nil
+}
+
+// lenFieldInfo maps a collection type to the struct and field name containing
+// its length.
+func lenFieldInfo(typ ir.Type) (*ir.StructureType, string, error) {
+	switch t := typ.(type) {
+	case *ir.GoStringHeaderType:
+		return t.StructureType, "len", nil
+	case *ir.GoSliceHeaderType:
+		return t.StructureType, "len", nil
+	case *ir.GoHMapHeaderType:
+		return t.StructureType, "count", nil
+	case *ir.GoSwissMapHeaderType:
+		return t.StructureType, "used", nil
+	default:
+		var kindString string
+		if kind, ok := typ.GetGoKind(); ok {
+			kindString = kind.String()
+		} else {
+			// It's not clear how one could get here, but just in case
+			// we'll state the name of internal ir type. It might help
+			// debug the situation.
+			kindString = reflect.TypeOf(typ).Name()
+		}
+		return nil, "", fmt.Errorf(
+			"len/isEmpty not supported on type %q (%s)",
+			typ.GetName(), kindString,
+		)
+	}
+}
+
+// unwrapMapType returns the map's header type if typ is a GoMapType, otherwise
+// returns typ unchanged. GoMapType is an IR-level wrapper that hides the
+// pointer-to-header representation of Go maps; callers that need the header
+// (e.g. len/isEmpty) must see through it.
+func unwrapMapType(typ ir.Type, tc *typeCatalog) ir.Type {
+	if m, ok := typ.(*ir.GoMapType); ok {
+		return tc.typesByID[m.HeaderType.GetID()]
+	}
+	return typ
 }
 
 // resolveExpression resolves an expression AST to an IR Expression.
@@ -3572,11 +3709,114 @@ func resolveExpression(
 			Operations: operations,
 		}, nil
 
+	case *exprlang.LenExpr:
+		return resolveLenExpression(e.Operand, rootVar, tc)
+
+	case *exprlang.IsEmptyExpr:
+		return resolveIsEmptyComparison(e, rootVar, tc)
+
+	case *exprlang.EqExpr:
+		lhsExpr, err := resolveExpression(e.Left, rootVar, tc)
+		if err != nil {
+			return ir.Expression{}, fmt.Errorf("failed to resolve eq LHS: %w", err)
+		}
+		litExpr, ok := e.Right.(*exprlang.LiteralExpr)
+		if !ok {
+			return ir.Expression{}, fmt.Errorf(
+				"unsupported eq RHS type: %T (only literals are supported)",
+				e.Right,
+			)
+		}
+		return resolveEqComparison(lhsExpr, litExpr, tc)
+
 	default:
 		return ir.Expression{}, fmt.Errorf(
 			"unsupported expression type: %T", expr,
 		)
 	}
+}
+
+// resolveLenExpression resolves a len/isEmpty operand to an IR expression
+// that reads the length field from the collection header.
+func resolveLenExpression(
+	operand exprlang.Expr,
+	rootVar *ir.Variable,
+	tc *typeCatalog,
+) (ir.Expression, error) {
+	// Resolve the operand expression.
+	baseExpr, err := resolveExpression(operand, rootVar, tc)
+	if err != nil {
+		return ir.Expression{}, fmt.Errorf("failed to resolve len operand: %w", err)
+	}
+
+	currentType := tc.typesByID[baseExpr.Type.GetID()]
+	operations := baseExpr.Operations
+
+	// GoMapType is a pointer to a map header; unwrap and dereference.
+	isMap := false
+	if m, ok := currentType.(*ir.GoMapType); ok {
+		isMap = true
+		headerType := tc.typesByID[m.HeaderType.GetID()]
+		operations = append(operations, &ir.DereferenceOp{
+			Bias:     0,
+			ByteSize: headerType.GetByteSize(),
+		})
+		currentType = headerType
+	}
+
+	// If the resolved type is a pointer to a collection, dereference it.
+	if _, ok := currentType.(*ir.PointerType); ok {
+		pointee, err := resolvePointeeType[ir.Type](tc, currentType)
+		if err != nil {
+			return ir.Expression{}, fmt.Errorf("failed to resolve pointee for len: %w", err)
+		}
+
+		pointeeSize := pointee.GetByteSize()
+		operations = append(operations, &ir.DereferenceOp{
+			Bias:     0,
+			ByteSize: pointeeSize,
+		})
+		currentType = tc.typesByID[pointee.GetID()]
+	}
+
+	// Look up the length field info.
+	structType, fieldName, err := lenFieldInfo(currentType)
+	if err != nil {
+		return ir.Expression{}, err
+	}
+
+	f, err := field(tc, structType, fieldName)
+	if err != nil {
+		return ir.Expression{}, fmt.Errorf("len field %q not found: %w", fieldName, err)
+	}
+
+	// Adjust the operations to read just the length field.
+	// This follows the same pattern as GetMemberExpr field access.
+	if len(operations) >= 1 {
+		lastOp := operations[len(operations)-1]
+		switch op := lastOp.(type) {
+		case *ir.LocationOp:
+			op.Offset += f.Offset
+			op.ByteSize = f.Type.GetByteSize()
+		case *ir.DereferenceOp:
+			op.Bias += f.Offset
+			op.ByteSize = f.Type.GetByteSize()
+		}
+	}
+
+	// Map count fields have varying types across Go versions and architectures
+	// (int vs uint64 etc.). Normalize to uint64 so that snapshots and
+	// downstream consumers see a consistent type. Note that it's only for the
+	// old hmap's that its an int and not a uint64.
+	exprType := f.Type
+	if isMap && tc.uint64Type != 0 {
+		exprType = tc.typesByID[tc.uint64Type]
+	}
+
+	return ir.Expression{
+		Type:       exprType,
+		Operations: operations,
+	}, nil
 }
 
 // coerceLiteral encodes a literal value into bytes matching the target type's
@@ -3768,6 +4008,98 @@ func coerceLiteral(value any, targetKind reflect.Kind, byteSize uint32) ([]byte,
 	return litData, nil
 }
 
+// resolveEqComparison builds comparison ops for an equality check.
+// Returns a bool-typed Expression without ConditionCheckOp.
+func resolveEqComparison(
+	lhsExpr ir.Expression,
+	litExpr *exprlang.LiteralExpr,
+	tc *typeCatalog,
+) (ir.Expression, error) {
+	lhsType := lhsExpr.Type
+	ops := lhsExpr.Operations
+
+	// Check if LHS is a string type.
+	if _, isString := lhsType.(*ir.GoStringHeaderType); isString {
+		// String equality comparison.
+		litStr, ok := litExpr.Value.(string)
+		if !ok {
+			return ir.Expression{}, fmt.Errorf(
+				"eq: string variable compared with non-string literal %T",
+				litExpr.Value,
+			)
+		}
+		if len(litStr) > ir.MaxStringLiteralLength {
+			return ir.Expression{}, fmt.Errorf(
+				"eq: string literal too long (%d bytes, max %d)",
+				len(litStr), ir.MaxStringLiteralLength,
+			)
+		}
+
+		// Read the string content from userspace.
+		ops = append(ops, &ir.ExprReadStringOp{MaxLen: ir.MaxStringLiteralLength})
+
+		// Load the literal as [u32 len][bytes...].
+		litData := make([]byte, 4+len(litStr))
+		binary.LittleEndian.PutUint32(litData[:4], uint32(len(litStr)))
+		copy(litData[4:], litStr)
+		ops = append(ops, &ir.ExprLoadLiteralOp{Data: litData})
+
+		// Compare strings.
+		ops = append(ops, &ir.ExprCmpEqStringOp{})
+	} else if baseType, isBase := lhsType.(*ir.BaseType); isBase {
+		// Base type equality comparison.
+		byteSize := baseType.GetByteSize()
+		if byteSize > 8 {
+			return ir.Expression{}, fmt.Errorf(
+				"eq: base type too large for comparison (%d bytes)",
+				byteSize,
+			)
+		}
+
+		// Push LHS offset and advance.
+		ops = append(ops, &ir.ExprPushOffsetOp{ByteSize: uint32(byteSize)})
+
+		// Determine target kind for coercion.
+		targetKind := reflect.Invalid
+		if goKind, ok := baseType.GetGoKind(); ok {
+			targetKind = goKind
+		}
+
+		// Encode the literal value with type coercion.
+		litData, err := coerceLiteral(litExpr.Value, targetKind, byteSize)
+		if err != nil {
+			return ir.Expression{}, err
+		}
+		ops = append(ops, &ir.ExprLoadLiteralOp{Data: litData})
+
+		// Compare base values.
+		ops = append(ops, &ir.ExprCmpEqBaseOp{ByteSize: uint8(byteSize)})
+	} else {
+		return ir.Expression{}, fmt.Errorf(
+			"eq: unsupported LHS type %T for equality comparison",
+			lhsType,
+		)
+	}
+
+	boolType := tc.typesByID[tc.boolType]
+	return ir.Expression{Type: boolType, Operations: ops}, nil
+}
+
+// resolveIsEmptyComparison resolves isEmpty(x) as len(x) == 0, returning a
+// bool-typed Expression without ConditionCheckOp.
+func resolveIsEmptyComparison(
+	ie *exprlang.IsEmptyExpr,
+	rootVar *ir.Variable,
+	tc *typeCatalog,
+) (ir.Expression, error) {
+	lenExpr, err := resolveLenExpression(ie.Operand, rootVar, tc)
+	if err != nil {
+		return ir.Expression{}, fmt.Errorf("failed to resolve isEmpty operand: %w", err)
+	}
+	zeroLit := &exprlang.LiteralExpr{Value: int64(0)}
+	return resolveEqComparison(lenExpr, zeroLit, tc)
+}
+
 // resolveCondition resolves a condition expression AST into an IR Expression
 // that evaluates to bool. Only eq comparisons with literal values are supported.
 func resolveCondition(
@@ -3775,6 +4107,11 @@ func resolveCondition(
 	rootVar *ir.Variable,
 	tc *typeCatalog,
 ) (*ir.Expression, error) {
+	// Handle isEmpty as a standalone condition: semantically len(x) == 0.
+	if ie, ok := condExpr.(*exprlang.IsEmptyExpr); ok {
+		return resolveIsEmptyCondition(ie, rootVar, tc)
+	}
+
 	eqExpr, ok := condExpr.(*exprlang.EqExpr)
 	if !ok {
 		return nil, fmt.Errorf("unsupported condition expression type: %T", condExpr)
@@ -3795,79 +4132,26 @@ func resolveCondition(
 		)
 	}
 
-	lhsType := lhsExpr.Type
-	ops := lhsExpr.Operations
-
-	// Check if LHS is a string type.
-	if _, isString := lhsType.(*ir.GoStringHeaderType); isString {
-		// String equality comparison.
-		litStr, ok := litExpr.Value.(string)
-		if !ok {
-			return nil, fmt.Errorf(
-				"condition: string variable compared with non-string literal %T",
-				litExpr.Value,
-			)
-		}
-		if len(litStr) > ir.MaxStringLiteralLength {
-			return nil, fmt.Errorf(
-				"condition: string literal too long (%d bytes, max %d)",
-				len(litStr), ir.MaxStringLiteralLength,
-			)
-		}
-
-		// Read the string content from userspace.
-		ops = append(ops, &ir.ExprReadStringOp{MaxLen: ir.MaxStringLiteralLength})
-
-		// Load the literal as [u32 len][bytes...].
-		litData := make([]byte, 4+len(litStr))
-		binary.LittleEndian.PutUint32(litData[:4], uint32(len(litStr)))
-		copy(litData[4:], litStr)
-		ops = append(ops, &ir.ExprLoadLiteralOp{Data: litData})
-
-		// Compare strings.
-		ops = append(ops, &ir.ExprCmpEqStringOp{})
-	} else if baseType, isBase := lhsType.(*ir.BaseType); isBase {
-		// Base type equality comparison.
-		byteSize := baseType.GetByteSize()
-		if byteSize > 8 {
-			return nil, fmt.Errorf(
-				"condition: base type too large for comparison (%d bytes)",
-				byteSize,
-			)
-		}
-
-		// Push LHS offset and advance.
-		ops = append(ops, &ir.ExprPushOffsetOp{ByteSize: uint32(byteSize)})
-
-		// Determine target kind for coercion.
-		targetKind := reflect.Invalid
-		if goKind, ok := baseType.GetGoKind(); ok {
-			targetKind = goKind
-		}
-
-		// Encode the literal value with type coercion.
-		litData, err := coerceLiteral(litExpr.Value, targetKind, byteSize)
-		if err != nil {
-			return nil, err
-		}
-		ops = append(ops, &ir.ExprLoadLiteralOp{Data: litData})
-
-		// Compare base values.
-		ops = append(ops, &ir.ExprCmpEqBaseOp{ByteSize: uint8(byteSize)})
-	} else {
-		return nil, fmt.Errorf(
-			"condition: unsupported LHS type %T for equality comparison",
-			lhsType,
-		)
+	expr, err := resolveEqComparison(lhsExpr, litExpr, tc)
+	if err != nil {
+		return nil, err
 	}
+	expr.Operations = append(expr.Operations, &ir.ConditionCheckOp{})
+	return &expr, nil
+}
 
-	// Check the result.
-	ops = append(ops, &ir.ConditionCheckOp{})
-
-	return &ir.Expression{
-		Type:       lhsType,
-		Operations: ops,
-	}, nil
+// resolveIsEmptyCondition resolves an isEmpty condition: semantically len(x) == 0.
+func resolveIsEmptyCondition(
+	ie *exprlang.IsEmptyExpr,
+	rootVar *ir.Variable,
+	tc *typeCatalog,
+) (*ir.Expression, error) {
+	expr, err := resolveIsEmptyComparison(ie, rootVar, tc)
+	if err != nil {
+		return nil, err
+	}
+	expr.Operations = append(expr.Operations, &ir.ConditionCheckOp{})
+	return &expr, nil
 }
 
 func populateProbeEventsExpressions(
@@ -3971,7 +4255,7 @@ func populateEventExpressions(
 			Expression: resolvedExpr,
 		})
 	}
-	presenceBitsetSize := uint32((len(expressions) + 7) / 8)
+	presenceBitsetSize := uint32((2*len(expressions) + 7) / 8)
 	byteSize := uint64(presenceBitsetSize)
 	for _, e := range expressions {
 		e.Offset = uint32(byteSize)
@@ -4053,7 +4337,7 @@ func newProbe(
 			injectionPoints,
 			skipReturnEvents,
 		)
-		if issue != (ir.Issue{}) || err != nil {
+		if !issue.IsNone() || err != nil {
 			return nil, issue, err
 		}
 	}
@@ -4133,6 +4417,7 @@ func pickInjectionPoint(
 			Message: lines.err.Error(),
 		}, nil
 	}
+	hasLineInfo := len(lines.lines) > 0
 	addr := rootRanges[0][0]
 	funcByteLen := rootRanges[0][1] - addr
 	frameless := lines.prologueEnd == 0
@@ -4175,6 +4460,10 @@ func pickInjectionPoint(
 				return nil, nil, ir.Issue{}, err
 			}
 
+			// Functions without line info shouldn't have return probes.
+			// Don't collect return locations if we lack line info.
+			collectReturnLocations := !skipReturnEvents && hasLineInfo
+
 			// Disassemble the function to find return locations and validate the
 			// injection PC.
 			returnLocations, issue := disassembleFunction(
@@ -4183,7 +4472,7 @@ func pickInjectionPoint(
 				call.pc,
 				call.frameless,
 				body,
-				!skipReturnEvents,
+				collectReturnLocations,
 			)
 			if !issue.IsNone() {
 				return buf, nil, issue, nil
@@ -4194,6 +4483,9 @@ func pickInjectionPoint(
 			if skipReturnEvents {
 				hasAssociatedReturn = false
 				noReturnReason = ir.NoReturnReasonReturnsDisabled
+			} else if !hasLineInfo {
+				hasAssociatedReturn = false
+				noReturnReason = ir.NoReturnReasonNoBody
 			} else if len(returnLocations) == 1 && returnLocations[0].PC == call.pc {
 				// Add a workaround for the fact that single-instruction
 				// functions would have the same entry and exit probes, but the
@@ -4407,7 +4699,10 @@ func disassembleAmd64Function(
 		}
 		if !frameless &&
 			instruction.Op == x86asm.POP && instruction.Args[0] == x86asm.RBP &&
-			prevInst.Op == x86asm.ADD && prevInst.Args[0] == x86asm.RSP {
+			// Sometimes we see negative subtractions instead of additions,
+			// but at the time of writing, not sure why.
+			((prevInst.Op == x86asm.ADD || prevInst.Op == x86asm.SUB) &&
+				prevInst.Args[0] == x86asm.RSP) {
 
 			epilogueStart := addr + uint64(offset) - uint64(prevInst.Len)
 			maybeRet, err := x86asm.Decode(body[offset+instruction.Len:], 64)
@@ -4438,9 +4733,9 @@ func disassembleAmd64Function(
 					}
 				}
 			}
-			offset += nopLen + instruction.Len
 			instruction = maybeRet
 			if instruction.Op == x86asm.RET && collectReturnLocations {
+				offset += nopLen + instruction.Len
 				returnLocations = append(returnLocations, ir.InjectionPoint{
 					PC:                  epilogueStart,
 					Frameless:           frameless,
@@ -4556,37 +4851,55 @@ func collectLineDataForRange(
 	// TODO: Find a way to seek to the first entry in a range rather than just
 	// the entry that covers this PC. See https://github.com/golang/go/issues/73996.
 	err := lineReader.SeekPC(r[0], &lineEntry)
-	// Workaround for holes: When SeekPC fails with ErrUnknownPC, the reader
-	// is experimentally observed to be left positioned at a preceding
-	// end_sequence marker. If that marker's address is at or before r[0],
-	// we can recover by:
-	//   1. Reading the next entry to find where the next sequence starts
-	//   2. Restoring the reader to prevPos (since seeking backward through
-	//      line tables is very inefficient - it requires restarting from
-	//      the beginning of the table)
-	//   3. Seeking to (next_address - 1) to land within the prior entry
-	//   4. If that puts us at an address >= r[0], we've found valid data
+	// Workaround for holes: SeekPC fails with ErrUnknownPC when the function's
+	// start PC falls in a gap between line table sequences (common for functions
+	// at sequence boundaries). After failure, SeekPC leaves the reader past the
+	// first entry of the next sequence (see Go's debug/dwarf SeekPC impl). We
+	// try two recovery strategies:
 	//
-	// The -1 works because lineEntry.Address marks an entry's start, so
-	// (address - 1) falls within the previous entry's range, and SeekPC
-	// will position us at that entry's start (a valid instruction boundary).
-	if err != nil &&
-		errors.Is(err, dwarf.ErrUnknownPC) &&
-		lineEntry.Address <= r[0] {
+	// 1. Read the next entry (which SeekPC left us near) and use
+	//    SeekPC(addr-1) to land on the first entry of that sequence.
+	// 2. If that fails, do a full scan from the beginning of the CU's line
+	//    table. Sequences may not be in PC order, so we must scan all entries
+	//    without breaking early on out-of-range addresses.
+	if errors.Is(err, dwarf.ErrUnknownPC) {
 		nextErr := lineReader.Next(&lineEntry)
-		if nextErr == nil {
+		if nextErr == nil && lineEntry.Address > r[0] && lineEntry.Address < r[1] {
 			lineReader.Seek(prevPos)
 			nextErr = lineReader.SeekPC(lineEntry.Address-1, &lineEntry)
+			if nextErr == nil && lineEntry.Address >= r[0] {
+				err = nil
+			}
 		}
-		if nextErr == nil && lineEntry.Address >= r[0] {
-			err = nil
+		if err != nil {
+			// Full scan: sequences in the line table may not be in PC order,
+			// so we scan all entries to find one in [r[0], r[1]).
+			lineReader.Reset()
+			for {
+				nextErr := lineReader.Next(&lineEntry)
+				if nextErr != nil {
+					break
+				}
+				if lineEntry.EndSequence {
+					continue
+				}
+				if lineEntry.Address >= r[0] && lineEntry.Address < r[1] {
+					err = nil
+					break
+				}
+			}
 		}
 	}
 	if err != nil {
-		// Restore the reader to prevPos so the next call to this function
-		// can seek forward efficiently. The caller explores ranges in PC
-		// order, so prevPos is likely close to the next range we'll query.
+		// Functions without DWARF line information (compiler-generated stubs,
+		// assembly wrappers, functions at sequence boundaries with no coverage)
+		// are acceptable - they just won't have line info or return probes.
+		// Restore the reader to prevPos for efficient forward seeking.
 		lineReader.Seek(prevPos)
+		if errors.Is(err, dwarf.ErrUnknownPC) {
+			return lineData{}
+		}
+		// Other errors are genuine problems
 		return lineData{err: err}
 	}
 	prologueEnd := uint64(0)

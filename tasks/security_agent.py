@@ -16,7 +16,6 @@ from invoke.tasks import task
 
 import tasks.libs.cws.backend_doc_gen as backend_doc_gen
 import tasks.libs.cws.secl_doc_gen as secl_doc_gen
-from tasks.agent import generate_config
 from tasks.build_tags import get_default_build_tags
 from tasks.flavor import AgentFlavor
 from tasks.go import run_golangci_lint
@@ -113,17 +112,6 @@ def build(
         check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
         coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
     )
-
-    render_config(ctx, env=env, skip_assets=skip_assets)
-
-
-def render_config(ctx, env, skip_assets=False):
-    if not skip_assets:
-        dist_folder = os.path.join(BIN_DIR, "agent", "dist")
-        generate_config(ctx, build_type="security-agent", output_file="./cmd/agent/dist/security-agent.yaml", env=env)
-        if not os.path.exists(dist_folder):
-            os.makedirs(dist_folder)
-        shutil.copy("./cmd/agent/dist/security-agent.yaml", os.path.join(dist_folder, "security-agent.yaml"))
 
 
 @task
@@ -741,7 +729,7 @@ def go_generate_check(ctx):
     if failing_tasks:
         for ft in failing_tasks:
             task = ft.name.replace("_", "-")
-            print(f"Task `dda inv {task}` resulted in dirty files, please re-run it:")
+            print(f"Task `dda inv security-agent.{task}` resulted in dirty files, please re-run it:")
             for file in ft.dirty_files:
                 print(f"* {file}")
         raise Exit(code=1)
@@ -838,9 +826,19 @@ def sync_secl_win_pkg(ctx):
         ("iterator.go", None),
     ]
 
-    ctx.run("rm -r pkg/security/seclwin/model")
-    ctx.run("mkdir -p pkg/security/seclwin/model")
+    seclwin_model = "pkg/security/seclwin/model"
+    build_bazel = os.path.join(seclwin_model, "BUILD.bazel")
+    preserve_build = os.path.exists(build_bazel)
+    if preserve_build:
+        build_bazel_content = open(build_bazel).read()
+
+    ctx.run(f"rm -r {seclwin_model}")
+    ctx.run(f"mkdir -p {seclwin_model}")
     ctx.run("cp pkg/security/secl/doc.go pkg/security/seclwin/doc.go")
+
+    if preserve_build:
+        with open(build_bazel, "w") as f:
+            f.write(build_bazel_content)
 
     for ffrom, fto in files_to_copy:
         if not fto:

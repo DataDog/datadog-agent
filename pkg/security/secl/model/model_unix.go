@@ -14,11 +14,13 @@ package model
 import (
 	"net/netip"
 	"runtime"
+	"syscall"
 	"time"
 	"unsafe"
 
 	"github.com/google/gopacket"
 
+	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
@@ -206,12 +208,43 @@ func (e *Event) GetContainerID() string {
 	return string(e.ProcessContext.Process.ContainerContext.ContainerID)
 }
 
+// CGroupSource indicates the origin of a cgroup entry
+type CGroupSource uint64
+
+const (
+	// CGroupSourceUnknown defines a cgroup entry from an unknown source
+	CGroupSourceUnknown CGroupSource = iota
+	// CGroupSourceEvent defines a cgroup entry populated from a kernel event
+	CGroupSourceEvent
+	// CGroupSourceProcFS defines a cgroup entry populated from the procfs fallback
+	CGroupSourceProcFS
+)
+
+// String returns a string representation of the cgroup source
+func (s CGroupSource) String() string {
+	switch s {
+	case CGroupSourceEvent:
+		return "event"
+	case CGroupSourceProcFS:
+		return "procfs"
+	default:
+		return "unknown"
+	}
+}
+
 // CGroupContext holds the cgroup context of an event
 type CGroupContext struct {
 	*Releasable
 	CGroupID      containerutils.CGroupID `field:"id"` // SECLDoc[id] Definition:`ID of the cgroup`
 	CGroupPathKey PathKey                 `field:"file"`
 	CGroupVersion int                     `field:"version,handler:ResolveCGroupVersion"` // SECLDoc[version] Definition:`[Experimental] Version of the cgroup API`
+	CGroupSource  CGroupSource            `field:"-"`
+	CreatedAt     uint64                  `field:"created_at,opts:gen_getters"` // SECLDoc[created_at] Definition:`Timestamp of the creation of the cgroup`
+}
+
+// UnixCreatedAt returns the creation time of the cgroup
+func (cg *CGroupContext) UnixCreatedAt() time.Time {
+	return time.Unix(0, int64(cg.CreatedAt))
 }
 
 // IsNull returns true if the cgroup context is null
@@ -390,7 +423,7 @@ type Process struct {
 
 	AWSSecurityCredentials []AWSSecurityCredentials `field:"-"`
 
-	TracerTags []string `field:"-"` // Tags from APM tracer instrumentation
+	TracerMetadata tracermetadata.TracerMetadata `field:"-"` // Metadata from APM tracer instrumentation
 
 	ArgsID uint64 `field:"-"`
 	EnvsID uint64 `field:"-"`
@@ -472,6 +505,11 @@ type FileFields struct {
 
 	NLink uint32 `field:"-"`
 	Flags int32  `field:"-"`
+}
+
+// IsDir reports whether the file mode represents a directory.
+func (f *FileFields) IsDir() bool {
+	return f.Mode&syscall.S_IFMT == syscall.S_IFDIR
 }
 
 // FileEvent is the common file event type

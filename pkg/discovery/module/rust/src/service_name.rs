@@ -7,12 +7,14 @@ mod context;
 mod dotnet;
 mod gunicorn;
 mod java;
+#[cfg(feature = "jee")]
 mod jee;
 mod nodejs;
 mod php;
 mod python;
 mod rails;
 mod ruby;
+#[cfg(feature = "spring")]
 mod spring;
 mod uvicorn;
 
@@ -59,10 +61,15 @@ pub enum ServiceNameSource {
     Nodejs,
     Gunicorn,
     Rails,
+    #[cfg(feature = "spring")]
     Spring,
+    #[cfg(feature = "jee")]
     Jboss,
+    #[cfg(feature = "jee")]
     Tomcat,
+    #[cfg(feature = "jee")]
     Weblogic,
+    #[cfg(feature = "jee")]
     Websphere,
 }
 
@@ -76,10 +83,15 @@ impl ServiceNameSource {
             Self::Nodejs => "nodejs",
             Self::Gunicorn => "gunicorn",
             Self::Rails => "rails",
+            #[cfg(feature = "spring")]
             Self::Spring => "spring",
+            #[cfg(feature = "jee")]
             Self::Jboss => "jboss",
+            #[cfg(feature = "jee")]
             Self::Tomcat => "tomcat",
+            #[cfg(feature = "jee")]
             Self::Weblogic => "weblogic",
+            #[cfg(feature = "jee")]
             Self::Websphere => "websphere",
         }
     }

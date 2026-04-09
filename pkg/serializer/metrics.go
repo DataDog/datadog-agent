@@ -46,10 +46,14 @@ func metricsValidateV3(config config.Component, kind metricsKind) bool {
 	return config.GetBool(fmt.Sprintf("serializer_experimental_use_v3_api.%s.validate", kind))
 }
 
-func metricsEndpointFor(kind metricsKind, useV3 bool) transaction.Endpoint {
+func metricsEndpointFor(kind metricsKind, useV3 bool, config config.Component) transaction.Endpoint {
 	switch kind {
 	case metricsKindSeries:
 		if useV3 {
+			if config.GetBool("serializer_experimental_use_v3_api.series.use_beta") {
+				route := config.GetString("serializer_experimental_use_v3_api.series.beta_route")
+				return transaction.Endpoint{Route: route, Name: endpoints.V3BetaSeriesEndpoint.Name}
+			}
 			return endpoints.V3SeriesEndpoint
 		}
 		return endpoints.SeriesEndpoint
@@ -80,7 +84,7 @@ func (s *Serializer) buildPipelines(kind metricsKind) metrics.PipelineSet {
 
 		dest := metrics.PipelineDestination{
 			Resolver:          resolver,
-			Endpoint:          metricsEndpointFor(kind, useV3),
+			Endpoint:          metricsEndpointFor(kind, useV3, s.config),
 			ValidationBatchID: batchID,
 		}
 
@@ -117,7 +121,7 @@ func (s *Serializer) buildPipelines(kind metricsKind) metrics.PipelineSet {
 				}
 				vdest := metrics.PipelineDestination{
 					Resolver:          resolver,
-					Endpoint:          metricsEndpointFor(kind, false),
+					Endpoint:          metricsEndpointFor(kind, false, s.config),
 					ValidationBatchID: batchID,
 				}
 				pipelines.Add(vconf, vdest)

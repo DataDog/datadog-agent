@@ -1,50 +1,223 @@
 # Global build settings
 
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_file")
-load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
+load("@bazel_skylib//rules:common_settings.bzl", "bool_flag", "string_flag")
 load("@bazel_skylib//rules:run_binary.bzl", "run_binary")
 load("@gazelle//:def.bzl", "DEFAULT_LANGUAGES", "gazelle", "gazelle_binary")
 
 package(default_visibility = ["//visibility:public"])
 
+# The list of go tags to be used by gazelle
+ALL_BUILD_TAGS = [
+    "clusterchecks",
+    "otlp",
+    "test",
+    "seclmax",
+    "serverless",
+]
+
 # TODO(agent-build): remove below `gazelle:exclude` directives (automatically updates @bazelify_go_work//:go.work)
 # gazelle:exclude cmd
-# gazelle:exclude comp
+# gazelle:exclude comp/agent
+# gazelle:exclude comp/aggregator
+# gazelle:exclude comp/api/bundle.go
+# gazelle:exclude comp/api/bundle_test.go
+# gazelle:exclude comp/api/authtoken
+# gazelle:exclude comp/api/commonendpoints
+# gazelle:exclude comp/api/grpcserver
+# gazelle:exclude comp/api/api/apiimpl
+# gazelle:exclude comp/api/api/utils
+# gazelle:exclude comp/autoscaling
+# gazelle:exclude comp/checks
+# gazelle:exclude comp/collector
+# gazelle:exclude comp/connectivitychecker
+# gazelle:exclude comp/core/autodiscovery
+# gazelle:exclude comp/core/agenttelemetry/fx
+# gazelle:exclude comp/core/agenttelemetry/impl
+# gazelle:exclude comp/core/config
+# gazelle:exclude comp/core/configstream
+# gazelle:exclude comp/core/configsync
+# gazelle:exclude comp/core/diagnose
+# gazelle:exclude comp/core/flare/flareimpl
+# gazelle:exclude comp/core/flare/helpers
+# gazelle:exclude comp/core/fxinstrumentation
+# gazelle:exclude comp/core/gui
+# gazelle:exclude comp/core/healthprobe
+# gazelle:exclude comp/core/hostname/hostnameimpl
+# gazelle:exclude comp/core/hostname/remotehostnameimpl
+# gazelle:exclude comp/core/ipc
+# gazelle:exclude comp/core/ipc/fx
+# gazelle:exclude comp/core/ipc/fx-none
+# gazelle:exclude comp/core/ipc/httphelpers
+# gazelle:exclude comp/core/ipc/impl
+# gazelle:exclude comp/core/ipc/impl-none
+# gazelle:exclude comp/core/ipc/mock
+# gazelle:exclude comp/core/log
+# gazelle:exclude comp/core/log/fx
+# gazelle:exclude comp/core/log/fx-systemprobe
+# gazelle:exclude comp/core/log/fx-trace
+# gazelle:exclude comp/core/log/impl
+# gazelle:exclude comp/core/log/impl-systemprobe
+# gazelle:exclude comp/core/log/impl-trace
+# gazelle:exclude comp/core/log/rust
+# gazelle:exclude comp/core/lsof
+# gazelle:exclude comp/core/pid
+# gazelle:exclude comp/core/profiler
+# gazelle:exclude comp/core/remoteagent
+# gazelle:exclude comp/core/remoteagentregistry
+# gazelle:exclude comp/core/secrets/fx
+# gazelle:exclude comp/core/secrets/fx-noop
+# gazelle:exclude comp/core/secrets/impl
+# gazelle:exclude comp/core/settings
+# gazelle:exclude comp/core/status/statusimpl
+# gazelle:exclude comp/core/sysprobeconfig
+# gazelle:exclude comp/core/tagger/api
+# gazelle:exclude comp/core/tagger/collectors
+# gazelle:exclude comp/core/tagger/common
+# gazelle:exclude comp/core/tagger/def
+# gazelle:exclude comp/core/tagger/fx
+# gazelle:exclude comp/core/tagger/fx-dual
+# gazelle:exclude comp/core/tagger/fx-mock
+# gazelle:exclude comp/core/tagger/fx-noop
+# gazelle:exclude comp/core/tagger/fx-optional-remote
+# gazelle:exclude comp/core/tagger/fx-remote
+# gazelle:exclude comp/core/tagger/impl
+# gazelle:exclude comp/core/tagger/impl-dual
+# gazelle:exclude comp/core/tagger/impl-noop
+# gazelle:exclude comp/core/tagger/impl-optional-remote
+# gazelle:exclude comp/core/tagger/impl-remote
+# gazelle:exclude comp/core/tagger/k8s_metadata
+# gazelle:exclude comp/core/tagger/kubetags
+# gazelle:exclude comp/core/tagger/mock
+# gazelle:exclude comp/core/tagger/proto
+# gazelle:exclude comp/core/tagger/server
+# gazelle:exclude comp/core/tagger/taglist
+# gazelle:exclude comp/core/tagger/tagstore
+# gazelle:exclude comp/core/workloadfilter
+# gazelle:exclude comp/core/workloadmeta
+# gazelle:exclude comp/core/workloadmeta
+# gazelle:exclude comp/dataobs
+# gazelle:exclude comp/dogstatsd
+# gazelle:exclude comp/etw
+# gazelle:exclude comp/filterlist
+# gazelle:exclude comp/fleetstatus
+# gazelle:exclude comp/forwarder
+# gazelle:exclude comp/haagent
+# gazelle:exclude comp/healthplatform
+# gazelle:exclude comp/host-profiler/collector
+# gazelle:exclude comp/host-profiler/flare
+# gazelle:exclude comp/host-profiler/oom
+# gazelle:exclude comp/host-profiler/symboluploader/cgroup
+# gazelle:exclude comp/host-profiler/symboluploader/pclntab
+# gazelle:exclude comp/host-profiler/symboluploader/pipeline
+# gazelle:exclude comp/host-profiler/symboluploader/symbol
+# gazelle:exclude comp/host-profiler/symboluploader/symbolcopier
+# gazelle:exclude comp/host-profiler/version
+# gazelle:exclude comp/languagedetection
+# gazelle:exclude comp/logonduration
+# gazelle:exclude comp/logs
+# gazelle:exclude comp/logs-library
+# gazelle:exclude comp/metadata
+# gazelle:exclude comp/ndmtmp
+# gazelle:exclude comp/netflow/common
+# gazelle:exclude comp/netflow/config
+# gazelle:exclude comp/netflow/flowaggregator
+# gazelle:exclude comp/netflow/format
+# gazelle:exclude comp/netflow/goflowlib
+# gazelle:exclude comp/netflow/portrollup
+# gazelle:exclude comp/netflow/server
+# gazelle:exclude comp/netflow/testutil
+# gazelle:exclude comp/netflow/topn
+# gazelle:exclude comp/networkdeviceconfig
+# gazelle:exclude comp/networkpath
+# gazelle:exclude comp/notableevents
+# gazelle:exclude comp/otelcol/collector
+# gazelle:exclude comp/otelcol/collector-contrib/fx
+# gazelle:exclude comp/otelcol/collector-contrib/impl
+# gazelle:exclude comp/otelcol/converter/examples
+# gazelle:exclude comp/otelcol/converter/fx
+# gazelle:exclude comp/otelcol/converter/impl
+# gazelle:exclude comp/otelcol/ddflareextension/fx
+# gazelle:exclude comp/otelcol/ddflareextension/image
+# gazelle:exclude comp/otelcol/ddflareextension/impl
+# gazelle:exclude comp/otelcol/ddprofilingextension/fx
+# gazelle:exclude comp/otelcol/ddprofilingextension/impl
+# gazelle:exclude comp/otelcol/dogtelextension/fx
+# gazelle:exclude comp/otelcol/dogtelextension/impl
+# gazelle:exclude comp/otelcol/logsagentpipeline
+# gazelle:exclude comp/otelcol/otlp
+# gazelle:exclude comp/otelcol/status/fx
+# gazelle:exclude comp/otelcol/status/impl
+# gazelle:exclude comp/privateactionrunner
+# gazelle:exclude comp/process
+# gazelle:exclude comp/publishermetadatacache
+# gazelle:exclude comp/rdnsquerier
+# gazelle:exclude comp/remote-config
+# gazelle:exclude comp/serializer
+# gazelle:exclude comp/snmpscan
+# gazelle:exclude comp/snmpscanmanager
+# gazelle:exclude comp/snmptraps
+# gazelle:exclude comp/softwareinventory
+# gazelle:exclude comp/syntheticstestscheduler
+# gazelle:exclude comp/systray
+# gazelle:exclude comp/trace-telemetry
+# gazelle:exclude comp/trace/agent/fx
+# gazelle:exclude comp/trace/agent/fx-mock
+# gazelle:exclude comp/trace/agent/impl
+# gazelle:exclude comp/trace/compression/fx-gzip
+# gazelle:exclude comp/trace/compression/fx-zstd
+# gazelle:exclude comp/trace/config
+# gazelle:exclude comp/trace/etwtracer
+# gazelle:exclude comp/trace/payload-modifier
+# gazelle:exclude comp/trace/status
+# gazelle:exclude comp/updater
+# gazelle:exclude comp/workloadselection
 # gazelle:exclude internal/remote-agent
 # gazelle:exclude internal/third_party
-# gazelle:exclude internal/tools/gotest-custom
-# gazelle:exclude pkg/aggregator
+# gazelle:exclude pkg/aggregator/internal
+# gazelle:exclude pkg/aggregator/mocksender
+# gazelle:exclude pkg/aggregator/sender
+# gazelle:exclude pkg/aggregator/internal
 # gazelle:exclude pkg/api
 # gazelle:exclude pkg/cli
 # gazelle:exclude pkg/cloudfoundry
 # gazelle:exclude pkg/clusteragent
-# gazelle:exclude pkg/collector
+# gazelle:exclude pkg/collector/aggregator
+# gazelle:exclude pkg/collector/corechecks
+# gazelle:exclude pkg/collector/externalhost
+# gazelle:exclude pkg/collector/loaders
+# gazelle:exclude pkg/collector/python
+# gazelle:exclude pkg/collector/runner
+# gazelle:exclude pkg/collector/scheduler
+# gazelle:exclude pkg/collector/sharedlibrary
+# gazelle:exclude pkg/collector/worker
+# gazelle:exclude pkg/collector/check/id
+# gazelle:exclude pkg/collector/check/stats
+# gazelle:exclude pkg/collector/check/stub
+# gazelle:exclude pkg/collector/check/testdata
 # gazelle:exclude pkg/commonchecks
 # gazelle:exclude pkg/compliance
 # gazelle:exclude pkg/config/autodiscovery
-# gazelle:exclude pkg/config/basic
-# gazelle:exclude pkg/config/create
-# gazelle:exclude pkg/config/env
 # gazelle:exclude pkg/config/fetcher
 # gazelle:exclude pkg/config/fetcher/sysprobe
 # gazelle:exclude pkg/config/fetcher/tracers
-# gazelle:exclude pkg/config/helper
 # gazelle:exclude pkg/config/legacy
-# gazelle:exclude pkg/config/mock
-# gazelle:exclude pkg/config/model
-# gazelle:exclude pkg/config/nodetreemodel
 # gazelle:exclude pkg/config/remote
 # gazelle:exclude pkg/config/settings
 # gazelle:exclude pkg/config/settings/http
-# gazelle:exclude pkg/config/setup
-# gazelle:exclude pkg/config/structure
-# gazelle:exclude pkg/config/teeconfig
-# gazelle:exclude pkg/config/utils
-# gazelle:exclude pkg/config/viperconfig
 # gazelle:exclude pkg/containerlifecycle
 # gazelle:exclude pkg/databasemonitoring
 # gazelle:exclude pkg/diagnose
-# gazelle:exclude pkg/discovery
+# gazelle:exclude pkg/discovery/apm
+# gazelle:exclude pkg/discovery/core
+# gazelle:exclude pkg/discovery/envs
+# gazelle:exclude pkg/discovery/language
+# gazelle:exclude pkg/discovery/model
+# gazelle:exclude pkg/discovery/module
+# gazelle:exclude pkg/discovery/module
+# gazelle:exclude pkg/discovery/testdata
+# gazelle:exclude pkg/discovery/tracermetadata/language
+# gazelle:exclude pkg/discovery/usm
 # gazelle:exclude pkg/dyninst/decode
 # gazelle:exclude pkg/dyninst/dispatcher
 # gazelle:exclude pkg/dyninst/dwarf
@@ -65,17 +238,13 @@ package(default_visibility = ["//visibility:public"])
 # gazelle:exclude pkg/dyninst/procsubscribe
 # gazelle:exclude pkg/dyninst/symbol
 # gazelle:exclude pkg/dyninst/symdb
-# gazelle:exclude pkg/dyninst/testdata
 # gazelle:exclude pkg/dyninst/testprogs
 # gazelle:exclude pkg/dyninst/trietest
 # gazelle:exclude pkg/dyninst/uploader
 # gazelle:exclude pkg/dyninst/uprobe
-# gazelle:exclude pkg/errors
 # gazelle:exclude pkg/eventmonitor
-# gazelle:exclude pkg/fips
 # gazelle:exclude pkg/flare
-# gazelle:exclude pkg/fleet
-# gazelle:exclude pkg/gohai
+# gazelle:exclude pkg/fleet/daemon
 # gazelle:exclude pkg/gpu
 # gazelle:exclude pkg/hosttags
 # gazelle:exclude pkg/inventory
@@ -83,9 +252,42 @@ package(default_visibility = ["//visibility:public"])
 # gazelle:exclude pkg/kubestatemetrics
 # gazelle:exclude pkg/languagedetection
 # gazelle:exclude pkg/logonduration
-# gazelle:exclude pkg/logs
+# gazelle:exclude pkg/logs/client
+# gazelle:exclude pkg/logs/diagnostic
+# gazelle:exclude pkg/logs/internal
+# gazelle:exclude pkg/logs/launchers
+# gazelle:exclude pkg/logs/message
+# gazelle:exclude pkg/logs/pipeline
+# gazelle:exclude pkg/logs/processor
+# gazelle:exclude pkg/logs/schedulers
+# gazelle:exclude pkg/logs/sender
+# gazelle:exclude pkg/logs/service
+# gazelle:exclude pkg/logs/sources
+# gazelle:exclude pkg/logs/status/builder.go
+# gazelle:exclude pkg/logs/status/status.go
+# gazelle:exclude pkg/logs/status/status_test.go
+# gazelle:exclude pkg/logs/status/test_utils.go
+# gazelle:exclude pkg/logs/tailers
+# gazelle:exclude pkg/logs/util
 # gazelle:exclude pkg/metrics
-# gazelle:exclude pkg/network
+# gazelle:exclude pkg/network/config
+# gazelle:exclude pkg/network/containers
+# gazelle:exclude pkg/network/dns
+# gazelle:exclude pkg/network/ebpf
+# gazelle:exclude pkg/network/encoding
+# gazelle:exclude pkg/network/events
+# gazelle:exclude pkg/network/filter
+# gazelle:exclude pkg/network/go
+# gazelle:exclude pkg/network/indexedset
+# gazelle:exclude pkg/network/netlink
+# gazelle:exclude pkg/network/protocols
+# gazelle:exclude pkg/network/sender
+# gazelle:exclude pkg/network/slice
+# gazelle:exclude pkg/network/testdata
+# gazelle:exclude pkg/network/testutil
+# gazelle:exclude pkg/network/tracer
+# gazelle:exclude pkg/network/types
+# gazelle:exclude pkg/network/usm
 # gazelle:exclude pkg/networkconfigmanagement
 # gazelle:exclude pkg/networkdevice/pinger
 # gazelle:exclude pkg/networkdevice/sender
@@ -94,48 +296,100 @@ package(default_visibility = ["//visibility:public"])
 # gazelle:exclude pkg/networkdevice/integrations
 # gazelle:exclude pkg/networkdevice/metadata
 # gazelle:exclude pkg/networkdevice/testutils
-# gazelle:exclude pkg/networkpath
-# gazelle:exclude pkg/opentelemetry-mapping-go
-# gazelle:exclude pkg/orchestrator
+# gazelle:exclude pkg/networkpath/metricsender
+# gazelle:exclude pkg/networkpath/telemetry
+# gazelle:exclude pkg/networkpath/traceroute
+# gazelle:exclude pkg/opentelemetry-mapping-go/inframetadata
+# gazelle:exclude pkg/orchestrator/config
 # gazelle:exclude pkg/persistentcache
 # gazelle:exclude pkg/pidfile
 # gazelle:exclude pkg/privateactionrunner
 # gazelle:exclude pkg/privileged-logs
 # gazelle:exclude pkg/process
 # gazelle:exclude pkg/procmgr
-# gazelle:exclude pkg/proto
+# Proto definitions under pkg/proto/datadog/ use pre-generated Go code checked
+# into pkg/proto/pbgo/. Gazelle's proto mode is disabled because multiple proto
+# directories share the same go_package ("pkg/proto/pbgo/core"), making
+# per-directory go_proto_library targets impossible. Additionally, some directories
+# (remoteagent, privateactionrunner) contain multiple proto packages which
+# gazelle cannot handle at all.
+# gazelle:exclude pkg/proto/datadog
+# Vendored proto definitions used only for protoc code-gen, not Bazel builds.
+# gazelle:exclude pkg/proto/protodep
 # gazelle:exclude pkg/redact
-# gazelle:exclude pkg/remoteconfig
 # gazelle:exclude pkg/runtime
 # gazelle:exclude pkg/sbom
-# gazelle:exclude pkg/security
+# gazelle:exclude pkg/security/agent
+# gazelle:exclude pkg/security/clihelpers
+# gazelle:exclude pkg/security/common
+# gazelle:exclude pkg/security/config
+# gazelle:exclude pkg/security/ebpf
+# gazelle:exclude pkg/security/events
+# gazelle:exclude pkg/security/generators
+# gazelle:exclude pkg/security/metrics
+# gazelle:exclude pkg/security/module
+# gazelle:exclude pkg/security/probe
+# gazelle:exclude pkg/security/process_list
+# gazelle:exclude pkg/security/proto
+# gazelle:exclude pkg/security/ptracer
+# gazelle:exclude pkg/security/rconfig
+# gazelle:exclude pkg/security/reporter
+# gazelle:exclude pkg/security/resolvers
+# gazelle:exclude pkg/security/rules
+# gazelle:exclude pkg/security/seclog
+# gazelle:exclude pkg/security/security_profile
+# gazelle:exclude pkg/security/serializers
+# gazelle:exclude pkg/security/telemetry
+# gazelle:exclude pkg/security/tests
+# gazelle:exclude pkg/security/utils
 # gazelle:exclude pkg/serializer
 # gazelle:exclude pkg/serverless
 # gazelle:exclude pkg/snmp
-# gazelle:exclude pkg/ssi
-# gazelle:exclude pkg/status
+# gazelle:exclude pkg/status/clusteragent
+# gazelle:exclude pkg/status/collector
+# gazelle:exclude pkg/status/endpoints
+# gazelle:exclude pkg/status/httpproxy
+# gazelle:exclude pkg/status/jmx
+# gazelle:exclude pkg/status/render
+# gazelle:exclude pkg/status/status.go
+# gazelle:exclude pkg/status/status_test.go
+# gazelle:exclude pkg/status/systemprobe
+# gazelle:exclude pkg/status/types.go
 # gazelle:exclude pkg/system-probe
-# gazelle:exclude pkg/tagger
-# gazelle:exclude pkg/tagset
-# gazelle:exclude pkg/telemetry
-# gazelle:exclude pkg/trace
+# gazelle:exclude pkg/trace/agent
+# gazelle:exclude pkg/trace/api
+# gazelle:exclude pkg/trace/config
+# gazelle:exclude pkg/trace/containertags
+# gazelle:exclude pkg/trace/event
+# gazelle:exclude pkg/trace/filters
+# gazelle:exclude pkg/trace/info
+# gazelle:exclude pkg/trace/otel
+# gazelle:exclude pkg/trace/payload
+# gazelle:exclude pkg/trace/pb
+# gazelle:exclude pkg/trace/remoteconfighandler
+# gazelle:exclude pkg/trace/sampler
+# gazelle:exclude pkg/trace/semantics
+# gazelle:exclude pkg/trace/stats
+# gazelle:exclude pkg/trace/telemetry
+# gazelle:exclude pkg/trace/teststatsd
+# gazelle:exclude pkg/trace/testutil
+# gazelle:exclude pkg/trace/timing
+# gazelle:exclude pkg/trace/transform
+# gazelle:exclude pkg/trace/version
+# gazelle:exclude pkg/trace/watchdog
+# gazelle:exclude pkg/trace/writer
 # gazelle:exclude pkg/util/aggregatingqueue
 # gazelle:exclude pkg/util/archive
 # gazelle:exclude pkg/util/atomicstats
-# gazelle:exclude pkg/util/aws
-# gazelle:exclude pkg/util/aws/creds
-# gazelle:exclude pkg/util/backoff
-# gazelle:exclude pkg/util/buf
-# gazelle:exclude pkg/util/cache
 # gazelle:exclude pkg/util/cachedfetch
-# gazelle:exclude pkg/util/cgroups
 # gazelle:exclude pkg/util/cli
 # gazelle:exclude pkg/util/cloudproviders
 # gazelle:exclude pkg/util/clusteragent
 # gazelle:exclude pkg/util/compression
 # gazelle:exclude pkg/util/containerd
-# gazelle:exclude pkg/util/containers
-# gazelle:exclude pkg/util/containers/image
+# gazelle:exclude pkg/util/containers/cri
+# gazelle:exclude pkg/util/containers/metadata
+# gazelle:exclude pkg/util/containers/metrics
 # gazelle:exclude pkg/util/coredump
 # gazelle:exclude pkg/util/crashreport
 # gazelle:exclude pkg/util/crio
@@ -144,83 +398,66 @@ package(default_visibility = ["//visibility:public"])
 # gazelle:exclude pkg/util/docker
 # gazelle:exclude pkg/util/ec2
 # gazelle:exclude pkg/util/ecs
-# gazelle:exclude pkg/util/executable
 # gazelle:exclude pkg/util/fargate
-# gazelle:exclude pkg/util/filesystem
 # gazelle:exclude pkg/util/flavor
 # gazelle:exclude pkg/util/funcs
-# gazelle:exclude pkg/util/fxutil
 # gazelle:exclude pkg/util/goroutinesdump
 # gazelle:exclude pkg/util/gpu
 # gazelle:exclude pkg/util/grpc
-# gazelle:exclude pkg/util/hostinfo
-# gazelle:exclude pkg/util/hostname
-# gazelle:exclude pkg/util/hostname/validate
-# gazelle:exclude pkg/util/http
 # gazelle:exclude pkg/util/input
 # gazelle:exclude pkg/util/installinfo
 # gazelle:exclude pkg/util/intern
-# gazelle:exclude pkg/util/jsonquery
 # gazelle:exclude pkg/util/kernel
 # gazelle:exclude pkg/util/ktime
 # gazelle:exclude pkg/util/kubelet
 # gazelle:exclude pkg/util/kubernetes
 # gazelle:exclude pkg/util/kubernetes/apiserver/common/namespace
-# gazelle:exclude pkg/util/log
 # gazelle:exclude pkg/util/log/setup
 # gazelle:exclude pkg/util/lsof
 # gazelle:exclude pkg/util/maps
 # gazelle:exclude pkg/util/net
-# gazelle:exclude pkg/util/option
 # gazelle:exclude pkg/util/os
-# gazelle:exclude pkg/util/otel
 # gazelle:exclude pkg/util/pdhutil
 # gazelle:exclude pkg/util/podman
-# gazelle:exclude pkg/util/pointer
 # gazelle:exclude pkg/util/port
 # gazelle:exclude pkg/util/procfilestats
 # gazelle:exclude pkg/util/profiling
-# gazelle:exclude pkg/util/quantile
-# gazelle:exclude pkg/util/quantile/sketchtest
 # gazelle:exclude pkg/util/retry
 # gazelle:exclude pkg/util/safeelf
-# gazelle:exclude pkg/util/scrubber
 # gazelle:exclude pkg/util/size
 # gazelle:exclude pkg/util/slices
-# gazelle:exclude pkg/util/sort
-# gazelle:exclude pkg/util/startstop
 # gazelle:exclude pkg/util/stat
-# gazelle:exclude pkg/util/statstracker
 # gazelle:exclude pkg/util/strings
 # gazelle:exclude pkg/util/subscriptions
 # gazelle:exclude pkg/util/sync
-# gazelle:exclude pkg/util/system
 # gazelle:exclude pkg/util/tags
-# gazelle:exclude pkg/util/testutil
 # gazelle:exclude pkg/util/tmplvar
 # gazelle:exclude pkg/util/trie
 # gazelle:exclude pkg/util/trivy
-# gazelle:exclude pkg/util/utilizationtracker
-# gazelle:exclude pkg/util/uuid
-# gazelle:exclude pkg/util/winutil
 # gazelle:exclude pkg/util/workqueue
 # gazelle:exclude pkg/util/xc
-# gazelle:exclude pkg/version
 # gazelle:exclude pkg/windowsdriver
-# TODO(agent-build): This exclusion is ready for removal, blocked by issues caused by the interaction of
-# Bazel with directories named `build` created by the CMake builds. We can remove this once we remove CMake
-# support or we upgrade to a Bazel version containing a fix: https://github.com/bazelbuild/bazel/pull/26842
-# In the meantime, temporarily remove this exclusion locally if regeneration of BUILD files is required
-# gazelle:exclude rtloader
 # gazelle:exclude tasks
 # gazelle:exclude test
-# gazelle:exclude tools
-# gazelle:exclude .gitlab
-# gazelle:prefix github.com/DataDog/datadog-agent
+# gazelle:exclude tools/NamedPipeCmd
+# gazelle:exclude tools/agent_QA
+# gazelle:exclude tools/ci
+# gazelle:exclude tools/ebpf
+# gazelle:exclude tools/gdb
+# gazelle:exclude tools/go-update
+# gazelle:exclude tools/host-profiler
+# gazelle:exclude tools/retry_file_dump
+# gazelle:exclude tools/windows
 gazelle(
     name = "gazelle",
-    args = ["-external=static"],  # don't use the network: https://github.com/bazel-contrib/bazel-gazelle/issues/1385
+    build_tags = ALL_BUILD_TAGS,
+    external = "static",  # don't use the network: https://github.com/bazel-contrib/bazel-gazelle/issues/1385
+    extra_args = [
+        "-build_file_name=BUILD.bazel",  # avoid BUILD/build mess: https://github.com/docker/desktop-feedback/issues/251
+        "-strict",  # don't swallow syntax errors or unknown directives
+    ],
     gazelle = ":gazelle_binary",
+    prefix = "github.com/DataDog/datadog-agent",
 )
 
 gazelle_binary(
@@ -233,7 +470,7 @@ gazelle_binary(
 # bazel run //:go -- ...
 alias(
     name = "go",
-    actual = "@rules_go//go",
+    actual = "@go_fast",  #TODO(agent-build): move back to "@rules_go//go" when golang/go#77889 is addressed
 )
 
 # bazel run //:go_mod_tidy_all -- -x
@@ -354,4 +591,20 @@ string_flag(
     name = "output_config_dir",
     build_setting_default = "/tmp",
     make_variable = "OUTPUT_CONFIG_DIR",
+)
+
+# Use this configuration setting to select options that should be applied for
+# to a non-developer version of the product. It does not mean this is a delivery
+# pipeline. This is set for most CI runs, so that size and performance tests
+# are accurate.
+bool_flag(
+    name = "release",
+    build_setting_default = False,
+)
+
+config_setting(
+    name = "is_release",
+    flag_values = {
+        "//:release": "True",
+    },
 )

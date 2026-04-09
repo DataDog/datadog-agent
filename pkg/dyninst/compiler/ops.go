@@ -77,8 +77,9 @@ type ExprReadRegisterOp struct {
 
 type ExprDereferencePtrOp struct {
 	baseOp
-	Bias uint32
-	Len  uint32
+	Bias      uint32
+	Len       uint32
+	NilBitIdx uint32
 }
 
 // Special type processing ops, that evaluate data of a specific type (already

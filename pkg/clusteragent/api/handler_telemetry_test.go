@@ -8,6 +8,7 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -59,7 +60,7 @@ func TestWithTelemetryWrapper_SpanCreation(t *testing.T) {
 	assert.Equal(t, "GET", span.Tag("http.method"))
 	assert.Equal(t, "/clusterchecks/configs/node1", span.Tag("http.url"))
 	assert.Equal(t, 200, span.Tag("http.status_code"))
-	assert.Equal(t, false, span.Tag("error"))
+	assert.Nil(t, span.Tag("error"))
 }
 
 func TestWithTelemetryWrapper_5xxSetsErrorTag(t *testing.T) {
@@ -102,4 +103,152 @@ func TestWithTelemetryWrapper_4xxSetsErrorTag(t *testing.T) {
 	require.Len(t, spans, 1)
 	assert.Equal(t, 404, spans[0].Tag("http.status_code"))
 	assert.Equal(t, true, spans[0].Tag("error"))
+}
+
+func TestWithTelemetryWrapper_PanicCapturesErrorDetails(t *testing.T) {
+	mt := mocktracer.Start()
+	defer mt.Stop()
+
+	th := &TelemetryHandler{
+		handlerName: "panicHandler",
+		handler: func(_ http.ResponseWriter, _ *http.Request) {
+			panic("something went wrong")
+		},
+	}
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	rec := httptest.NewRecorder()
+
+	assert.Panics(t, func() {
+		th.handle(rec, req)
+	})
+
+	spans := mt.FinishedSpans()
+	require.Len(t, spans, 1)
+	span := spans[0]
+	// mocktracer stores the error object in the "error" tag via WithError
+	err, ok := span.Tag("error").(error)
+	require.True(t, ok, "error tag should be an error object from WithError")
+	assert.Equal(t, "panic: something went wrong", err.Error())
+}
+
+type customError struct{ msg string }
+
+func (e *customError) Error() string { return e.msg }
+
+func TestWithTelemetryWrapper_PanicWithErrorPreservesType(t *testing.T) {
+	mt := mocktracer.Start()
+	defer mt.Stop()
+
+	panicErr := &customError{msg: "runtime failure"}
+	th := &TelemetryHandler{
+		handlerName: "panicErrorHandler",
+		handler: func(_ http.ResponseWriter, _ *http.Request) {
+			panic(panicErr)
+		},
+	}
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	rec := httptest.NewRecorder()
+
+	assert.Panics(t, func() {
+		th.handle(rec, req)
+	})
+
+	spans := mt.FinishedSpans()
+	require.Len(t, spans, 1)
+	span := spans[0]
+	err, ok := span.Tag("error").(*customError)
+	require.True(t, ok, "error tag should preserve the original error type, got %T", span.Tag("error"))
+	assert.Equal(t, "runtime failure", err.Error())
+}
+
+func TestWithTelemetryWrapper_SetSpanError(t *testing.T) {
+	mt := mocktracer.Start()
+	defer mt.Stop()
+
+	testErr := errors.New("workloadmeta lookup failed")
+	th := &TelemetryHandler{
+		handlerName: "errorDetailHandler",
+		handler: func(w http.ResponseWriter, _ *http.Request) {
+			SetSpanError(w, testErr)
+			w.WriteHeader(http.StatusInternalServerError)
+		},
+	}
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	rec := httptest.NewRecorder()
+	th.handle(rec, req)
+
+	spans := mt.FinishedSpans()
+	require.Len(t, spans, 1)
+	span := spans[0]
+	assert.Equal(t, 500, span.Tag("http.status_code"))
+	// mocktracer stores the error object in the "error" tag via WithError
+	err, ok := span.Tag("error").(error)
+	require.True(t, ok, "error tag should be an error object from WithError")
+	assert.Equal(t, "workloadmeta lookup failed", err.Error())
+}
+
+func TestWithTelemetryWrapper_ForwardedTag(t *testing.T) {
+	mt := mocktracer.Start()
+	defer mt.Stop()
+
+	th := &TelemetryHandler{
+		handlerName: "forwardedHandler",
+		handler: func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set(respForwarded, "true")
+			w.WriteHeader(http.StatusOK)
+		},
+	}
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	rec := httptest.NewRecorder()
+	th.handle(rec, req)
+
+	spans := mt.FinishedSpans()
+	require.Len(t, spans, 1)
+	assert.Equal(t, true, spans[0].Tag("forwarded"))
+}
+
+func TestWithTelemetryWrapper_NotForwarded(t *testing.T) {
+	mt := mocktracer.Start()
+	defer mt.Stop()
+
+	th := &TelemetryHandler{
+		handlerName: "localHandler",
+		handler: func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		},
+	}
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	rec := httptest.NewRecorder()
+	th.handle(rec, req)
+
+	spans := mt.FinishedSpans()
+	require.Len(t, spans, 1)
+	// forwarded tag should not be set when request is not forwarded
+	assert.Nil(t, spans[0].Tag("forwarded"))
+}
+
+func TestWithTelemetryWrapper_NoErrorWhenNilCapturedErr(t *testing.T) {
+	mt := mocktracer.Start()
+	defer mt.Stop()
+
+	th := &TelemetryHandler{
+		handlerName: "okHandler",
+		handler: func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		},
+	}
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	rec := httptest.NewRecorder()
+	th.handle(rec, req)
+
+	spans := mt.FinishedSpans()
+	require.Len(t, spans, 1)
+	// When capturedErr is nil, WithError(nil) should not set error tags
+	assert.Nil(t, spans[0].Tag("error"))
 }

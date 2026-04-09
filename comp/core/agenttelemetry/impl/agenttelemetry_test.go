@@ -440,6 +440,14 @@ agent_telemetry:
 `
 	a := getTestAtel(t, nil, c, nil, nil, nil)
 	assert.False(t, a.enabled)
+
+	c2 := `
+site: "ddog-gov.mil"
+agent_telemetry:
+  enabled: true
+`
+	a2 := getTestAtel(t, nil, c2, nil, nil, nil)
+	assert.False(t, a2.enabled)
 }
 
 func TestDisableIfLongGovCloud(t *testing.T) {
@@ -450,6 +458,14 @@ agent_telemetry:
 `
 	a := getTestAtel(t, nil, c, nil, nil, nil)
 	assert.False(t, a.enabled)
+
+	c2 := `
+site: "xxxx99.ddog-gov.mil"
+agent_telemetry:
+  enabled: true
+`
+	a2 := getTestAtel(t, nil, c2, nil, nil, nil)
+	assert.False(t, a2.enabled)
 }
 
 func TestEnableIfNotGovCloud(t *testing.T) {
@@ -1180,7 +1196,7 @@ func TestGetAsJSONScrub(t *testing.T) {
 	assert.Equal(t, "********", metric.(MetricPayload).Tags["password"])
 	metric, ok = metrics["foo.bar_key"]
 	require.True(t, ok)
-	assert.Equal(t, "********", metric.(MetricPayload).Tags["api_key"])
+	assert.Equal(t, "********90", metric.(MetricPayload).Tags["api_key"])
 	metric, ok = metrics["foo.bar_text"]
 	require.True(t, ok)
 	assert.Equal(t, "test", metric.(MetricPayload).Tags["text"])

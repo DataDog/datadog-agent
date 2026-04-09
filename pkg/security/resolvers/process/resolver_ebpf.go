@@ -34,7 +34,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/procfs"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/envvars"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
@@ -829,9 +828,20 @@ func (p *EBPFResolver) insertEntry(entry *model.ProcessCacheEntry, cgroupContext
 		if entry.ExecTime.After(createdAt) {
 			createdAt = entry.ExecTime
 		}
+		cgroupContext.CreatedAt = uint64(createdAt.UnixNano())
+
+		// resolve the cgroup source
+		switch source {
+		case model.ProcessCacheEntryFromEvent:
+			cgroupContext.CGroupSource = model.CGroupSourceEvent
+		case model.ProcessCacheEntryFromProcFS, model.ProcessCacheEntryFromSnapshot:
+			cgroupContext.CGroupSource = model.CGroupSourceProcFS
+		default:
+			cgroupContext.CGroupSource = model.CGroupSourceUnknown
+		}
 
 		// add the new PID in the right cgroup_resolver bucket
-		if cacheEntry := p.cgroupResolver.AddPID(entry.Pid, entry.PPid, createdAt, cgroupContext); cacheEntry != nil {
+		if cacheEntry := p.cgroupResolver.AddPID(entry.Pid, entry.PPid, cgroupContext); cacheEntry != nil {
 			entry.CGroup = cacheEntry.GetCGroupContext()
 			entry.Process.ContainerContext = cacheEntry.GetContainerContext()
 		}
@@ -1410,17 +1420,12 @@ func (p *EBPFResolver) AddTracerMetadata(pid uint32, event *model.Event) error {
 		return fmt.Errorf("failed to read tracer metadata: %w", err)
 	}
 
-	tags := tmeta.GetTags()
-	if len(tags) == 0 {
-		return nil
-	}
-
 	p.Lock()
 	defer p.Unlock()
 
 	entry := p.entryCache[pid]
 	if entry != nil {
-		entry.TracerTags = tags
+		entry.TracerMetadata = tmeta
 	}
 
 	return nil
@@ -1589,17 +1594,6 @@ func (p *EBPFResolver) newEntryFromProcfs(proc *process.Process, filledProc *uti
 	if err := p.enrichEventFromProcfs(entry, proc, filledProc); err != nil {
 		seclog.Trace(err)
 		return nil
-	}
-
-	var err error
-	entry.SnapshottedMmapedFiles, err = procfs.GetMmapedFiles(proc)
-	if err != nil {
-		seclog.Debugf("mmaped files snapshot failed for (pid: %v): %s", proc.Pid, err)
-	}
-
-	entry.SnapshottedBoundSockets, err = procfs.NewBoundSocketSnapshotter().GetBoundSockets(proc)
-	if err != nil {
-		seclog.Debugf("error while listing sockets (pid: %v): %s", proc.Pid, err)
 	}
 
 	// use the inode from the pid context if set so that we don't propagate a potentially wrong inode

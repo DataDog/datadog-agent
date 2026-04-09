@@ -100,8 +100,8 @@ func OnUpdateConfig(resolver DomainResolver, log log.Component, config config.Co
 
 			log.Infof("rotating API key for '%s': %s -> %s",
 				setting,
-				scrubber.HideKeyExceptLastFourChars(oldAPIKey),
-				scrubber.HideKeyExceptLastFourChars(newAPIKey),
+				scrubber.HideKeyExceptLastChars(oldAPIKey),
+				scrubber.HideKeyExceptLastChars(newAPIKey),
 			)
 
 			return
@@ -234,7 +234,7 @@ func missing(a []string, b []string) []string {
 // scrubKeys scrubs the API key to avoid leaking the key when logging.
 func scrubKeys(keys []string) []string {
 	for i, key := range keys {
-		keys[i] = scrubber.HideKeyExceptLastFourChars(key)
+		keys[i] = scrubber.HideKeyExceptLastChars(key)
 	}
 	return keys
 }

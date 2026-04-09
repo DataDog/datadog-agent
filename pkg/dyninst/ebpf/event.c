@@ -224,7 +224,7 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
     process_steps = stack_machine_process_frame(&global_ctx, &frame_data,
                                                 params->stack_machine_pc);
   }
-  header->condition_eval_error = global_ctx.stack_machine->condition_eval_error ? 1 : 0;
+  header->condition_eval_error = global_ctx.stack_machine->condition_eval_error ? (global_ctx.stack_machine->condition_nil_deref ? 2 : 1) : 0;
   if (global_ctx.stack_machine->condition_failed) {
     LOG(4, "probe_run: condition failed, skipping event");
     if (params->kind == EVENT_KIND_RETURN) {

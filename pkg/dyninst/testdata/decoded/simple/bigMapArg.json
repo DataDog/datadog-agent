@@ -18,7 +18,7 @@
           {
             "function": "main.bigMapArg",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 187
+            "lineNumber": 226
           },
           {
             "function": "main.main",
@@ -617,6 +617,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "m: map[b: {Field1: 1, Field2: 0, Field3: 0, Field4: 0, Field5: 0, ...}}]"
+    "message": "m: map[b: {Field1: 1, Field2: 0, Field3: 0, Field4: 0, Field5: 0, ...}}]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

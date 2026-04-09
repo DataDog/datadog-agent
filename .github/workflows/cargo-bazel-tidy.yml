@@ -25,12 +25,14 @@ jobs:
       - uses: ./.github/actions/bazel-cache
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1
+        with:
+          toolchain: stable
       - name: Repin Bazel Rust lockfile
         run: bazel mod tidy
       - name: Generate Rust licenses
         run: |
           cargo install --git https://github.com/DataDog/rust-license-tool dd-rust-license-tool
-          cd pkg/discovery/module/rust && dd-rust-license-tool write
+          cd rust && dd-rust-license-tool --manifest-path ../Cargo.toml write
       - name: Create commit
         id: commit
         run: |

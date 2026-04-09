@@ -33,12 +33,13 @@ from tasks import (
     fakeintake,
     files_inventory,
     fips,
-    full_host_profiler,
     git,
     github_tasks,
     gitlab_helpers,
     go,
     go_deps,
+    gpu,
+    host_profiler,
     installer,
     invoke_unit_tests,
     issue,
@@ -69,6 +70,7 @@ from tasks import (
     release,
     rtloader,
     sbomgen,
+    schema,
     secret_generic_connector,
     security_agent,
     selinux,
@@ -222,6 +224,7 @@ ns.add_collection(github_tasks, "github")
 ns.add_collection(gitlab_helpers, "gitlab")
 ns.add_collection(issue)
 ns.add_collection(loader)
+ns.add_collection(gpu)
 ns.add_collection(package)
 ns.add_collection(pipeline)
 ns.add_collection(quality_gates)
@@ -231,7 +234,7 @@ ns.add_collection(notes)
 ns.add_collection(notify)
 ns.add_collection(oracle)
 ns.add_collection(otel_agent)
-ns.add_collection(full_host_profiler)
+ns.add_collection(host_profiler)
 ns.add_collection(selinux)
 ns.add_collection(setup)
 ns.add_collection(systray)
@@ -264,6 +267,7 @@ ns.add_collection(debug)
 ns.add_collection(winbuild)
 ns.add_collection(windows_dev_env)
 ns.add_collection(worktree)
+ns.add_collection(schema)
 ns.add_collection(sbomgen)
 ns.add_collection(pkg_template)
 ns.add_collection(virustotal)

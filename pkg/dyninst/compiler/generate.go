@@ -278,8 +278,9 @@ func (g *generator) addConditionHandler(
 			ops = opsAfter
 		case *ir.DereferenceOp:
 			ops = append(ops, ExprDereferencePtrOp{
-				Bias: op.Bias,
-				Len:  op.ByteSize,
+				Bias:      op.Bias,
+				Len:       op.ByteSize,
+				NilBitIdx: ^uint32(0),
 			})
 		case *ir.ExprPushOffsetOp:
 			ops = append(ops, ExprPushOffsetOp{ByteSize: op.ByteSize})
@@ -353,9 +354,20 @@ func (g *generator) addExpressionHandler(injectionPC uint64, rootType *ir.EventR
 			}
 			lastOpSize = op.ByteSize
 			ops = append(ops, ExprDereferencePtrOp{
-				Bias: op.Bias,
-				Len:  op.ByteSize,
+				Bias:      op.Bias,
+				Len:       op.ByteSize,
+				NilBitIdx: 2*exprIdx + 1,
 			})
+		case *ir.ExprPushOffsetOp:
+			ops = append(ops, ExprPushOffsetOp{ByteSize: op.ByteSize})
+		case *ir.ExprLoadLiteralOp:
+			ops = append(ops, ExprLoadLiteralOp{Data: op.Data})
+		case *ir.ExprReadStringOp:
+			ops = append(ops, ExprReadStringOp{MaxLen: op.MaxLen})
+		case *ir.ExprCmpEqBaseOp:
+			ops = append(ops, ExprCmpEqBaseOp{ByteSize: op.ByteSize})
+		case *ir.ExprCmpEqStringOp:
+			ops = append(ops, ExprCmpEqStringOp{})
 		default:
 			panic(fmt.Sprintf("unexpected ir.Operation: %#v", op))
 		}

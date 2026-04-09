@@ -9,6 +9,7 @@
 package model
 
 import (
+	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
 	"github.com/google/gopacket"
@@ -201,8 +202,6 @@ func deepCopyProcessCacheEntryPtr(fieldToCopy *ProcessCacheEntry) *ProcessCacheE
 	}
 	copied := &ProcessCacheEntry{}
 	copied.ProcessContext = deepCopyProcessContext(fieldToCopy.ProcessContext)
-	copied.SnapshottedBoundSockets = deepCopySnapshottedBoundSocketArr(fieldToCopy.SnapshottedBoundSockets)
-	copied.SnapshottedMmapedFiles = deepCopySnapshottedMmapedFileArr(fieldToCopy.SnapshottedMmapedFiles)
 	return copied
 }
 func deepCopyProcessContext(fieldToCopy ProcessContext) ProcessContext {
@@ -257,7 +256,7 @@ func deepCopyProcessPtr(fieldToCopy *Process) *Process {
 	copied.SymlinkPathnameStr = fieldToCopy.SymlinkPathnameStr
 	copied.TTYName = fieldToCopy.TTYName
 	copied.TraceID = deepCopyTraceID(fieldToCopy.TraceID)
-	copied.TracerTags = deepCopystringArr(fieldToCopy.TracerTags)
+	copied.TracerMetadata = deepCopyTracerMetadata(fieldToCopy.TracerMetadata)
 	copied.UserSession = deepCopyUserSessionContext(fieldToCopy.UserSession)
 	return copied
 }
@@ -295,7 +294,9 @@ func deepCopyCGroupContext(fieldToCopy CGroupContext) CGroupContext {
 	copied := CGroupContext{}
 	copied.CGroupID = fieldToCopy.CGroupID
 	copied.CGroupPathKey = deepCopyPathKey(fieldToCopy.CGroupPathKey)
+	copied.CGroupSource = fieldToCopy.CGroupSource
 	copied.CGroupVersion = fieldToCopy.CGroupVersion
+	copied.CreatedAt = fieldToCopy.CreatedAt
 	copied.Releasable = deepCopyReleasablePtr(fieldToCopy.Releasable)
 	return copied
 }
@@ -316,6 +317,7 @@ func deepCopyReleasablePtr(fieldToCopy *Releasable) *Releasable {
 func deepCopyContainerContext(fieldToCopy ContainerContext) ContainerContext {
 	copied := ContainerContext{}
 	copied.ContainerID = fieldToCopy.ContainerID
+	copied.ContainerSource = fieldToCopy.ContainerSource
 	copied.CreatedAt = fieldToCopy.CreatedAt
 	copied.Releasable = deepCopyReleasablePtr(fieldToCopy.Releasable)
 	copied.Tags = deepCopystringArr(fieldToCopy.Tags)
@@ -402,6 +404,21 @@ func deepCopyTraceID(fieldToCopy utils.TraceID) utils.TraceID {
 	copied.Lo = fieldToCopy.Lo
 	return copied
 }
+func deepCopyTracerMetadata(fieldToCopy tracermetadata.TracerMetadata) tracermetadata.TracerMetadata {
+	copied := tracermetadata.TracerMetadata{}
+	copied.ContainerID = fieldToCopy.ContainerID
+	copied.Hostname = fieldToCopy.Hostname
+	copied.LogsCollected = fieldToCopy.LogsCollected
+	copied.ProcessTags = fieldToCopy.ProcessTags
+	copied.RuntimeID = fieldToCopy.RuntimeID
+	copied.SchemaVersion = fieldToCopy.SchemaVersion
+	copied.ServiceEnv = fieldToCopy.ServiceEnv
+	copied.ServiceName = fieldToCopy.ServiceName
+	copied.ServiceVersion = fieldToCopy.ServiceVersion
+	copied.TracerLanguage = fieldToCopy.TracerLanguage
+	copied.TracerVersion = fieldToCopy.TracerVersion
+	return copied
+}
 func deepCopyUserSessionContext(fieldToCopy UserSessionContext) UserSessionContext {
 	copied := UserSessionContext{}
 	copied.ID = fieldToCopy.ID
@@ -483,51 +500,8 @@ func deepCopyProcess(fieldToCopy Process) Process {
 	copied.SymlinkPathnameStr = fieldToCopy.SymlinkPathnameStr
 	copied.TTYName = fieldToCopy.TTYName
 	copied.TraceID = deepCopyTraceID(fieldToCopy.TraceID)
-	copied.TracerTags = deepCopystringArr(fieldToCopy.TracerTags)
+	copied.TracerMetadata = deepCopyTracerMetadata(fieldToCopy.TracerMetadata)
 	copied.UserSession = deepCopyUserSessionContext(fieldToCopy.UserSession)
-	return copied
-}
-func deepCopySnapshottedBoundSocketArr(fieldToCopy []SnapshottedBoundSocket) []SnapshottedBoundSocket {
-	if fieldToCopy == nil {
-		return nil
-	}
-	copied := make([]SnapshottedBoundSocket, len(fieldToCopy))
-	for i := range fieldToCopy {
-		copied[i] = deepCopySnapshottedBoundSocket(fieldToCopy[i])
-	}
-	return copied
-}
-func deepCopybyteArr(fieldToCopy []byte) []byte {
-	if fieldToCopy == nil {
-		return nil
-	}
-	copied := make([]byte, len(fieldToCopy))
-	for i := range fieldToCopy {
-		copied[i] = fieldToCopy[i]
-	}
-	return copied
-}
-func deepCopySnapshottedBoundSocket(fieldToCopy SnapshottedBoundSocket) SnapshottedBoundSocket {
-	copied := SnapshottedBoundSocket{}
-	copied.Family = fieldToCopy.Family
-	copied.IP = deepCopybyteArr(fieldToCopy.IP)
-	copied.Port = fieldToCopy.Port
-	copied.Protocol = fieldToCopy.Protocol
-	return copied
-}
-func deepCopySnapshottedMmapedFileArr(fieldToCopy []SnapshottedMmapedFile) []SnapshottedMmapedFile {
-	if fieldToCopy == nil {
-		return nil
-	}
-	copied := make([]SnapshottedMmapedFile, len(fieldToCopy))
-	for i := range fieldToCopy {
-		copied[i] = deepCopySnapshottedMmapedFile(fieldToCopy[i])
-	}
-	return copied
-}
-func deepCopySnapshottedMmapedFile(fieldToCopy SnapshottedMmapedFile) SnapshottedMmapedFile {
-	copied := SnapshottedMmapedFile{}
-	copied.Path = fieldToCopy.Path
 	return copied
 }
 func deepCopyProcessContextPtr(fieldToCopy *ProcessContext) *ProcessContext {
@@ -775,6 +749,16 @@ func deepCopyExitEvent(fieldToCopy ExitEvent) ExitEvent {
 func deepCopyFailedDNSEvent(fieldToCopy FailedDNSEvent) FailedDNSEvent {
 	copied := FailedDNSEvent{}
 	copied.Payload = deepCopybyteArr(fieldToCopy.Payload)
+	return copied
+}
+func deepCopybyteArr(fieldToCopy []byte) []byte {
+	if fieldToCopy == nil {
+		return nil
+	}
+	copied := make([]byte, len(fieldToCopy))
+	for i := range fieldToCopy {
+		copied[i] = fieldToCopy[i]
+	}
 	return copied
 }
 func deepCopyIMDSEvent(fieldToCopy IMDSEvent) IMDSEvent {
