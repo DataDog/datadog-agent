@@ -207,20 +207,7 @@ func TestUnscheduleConfigRemovesSource(t *testing.T) {
 	assert.Equal(t, "a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b", logSource.Config.Identifier)
 }
 
-func TestCreateSourcesSkipsContainerCollectAllWithoutServiceID(t *testing.T) {
-	adConfig := integration.Config{
-		Name:         "container_collect_all",
-		LogsConfig:   []byte(`[{}]`),
-		Provider:     names.Container,
-		ServiceID:    "",
-		ClusterCheck: false,
-	}
-	sources, err := CreateSources(adConfig)
-	require.NoError(t, err)
-	require.Empty(t, sources, "should not schedule container_collect_all until ServiceID is resolved")
-}
-
-func TestUnscheduleRemovesSourcesWhenServiceIDEmpty(t *testing.T) {
+func TestScheduleDoesNotAddSourceForContainerCollectAllWithoutServiceID(t *testing.T) {
 	scheduler, spy := setup()
 
 	adConfig := integration.Config{
@@ -231,18 +218,10 @@ func TestUnscheduleRemovesSourcesWhenServiceIDEmpty(t *testing.T) {
 		ClusterCheck: false,
 	}
 
-	// CreateSources no longer emits invalid sources for this case; simulate a stale source left from an older agent.
-	stale := sourcesPkg.NewLogSource("container_collect_all", &config.LogsConfig{Type: "", Identifier: ""})
-	stale.Status.Error(assert.AnError)
-	require.Empty(t, stale.Config.Identifier)
-
-	spy.Sources = []*sourcesPkg.LogSource{stale}
-	scheduler.Unschedule([]integration.Config{adConfig})
-
-	require.Len(t, spy.Events, 1,
-		"expected RemoveSource when ServiceID is empty and source Identifier is empty (stale bad AD row)")
-	require.False(t, spy.Events[0].Add)
-	assert.Same(t, stale, spy.Events[0].Source)
+	scheduler.Schedule([]integration.Config{adConfig})
+	require.Empty(t, spy.Events,
+		"container_collect_all with empty ServiceID must not create sources; "+
+			"CreateSources skips until entity is resolved to avoid 'a config must have a type' errors")
 }
 
 func TestIgnoreConfigIfLogsExcluded(t *testing.T) {
