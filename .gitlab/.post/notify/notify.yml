@@ -65,7 +65,7 @@ notify_gitlab_ci_changes:
           - .gitlab/**/*.yml
         compare_to: $COMPARE_TO_BRANCH
   before_script:
-    - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.pr-comment)
+    - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.comment-pr)
   script:
     - python3 -m dda self dep sync -f legacy-tasks
     - dda inv -- -e notify.gitlab-ci-diff --from-diff artifacts/diff.gitlab-ci.yml --pr-comment

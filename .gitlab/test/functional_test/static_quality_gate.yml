@@ -52,7 +52,7 @@ static_quality_gates:
     - job: windows_msi_and_bosh_zip_x64-a7
       optional: true
   before_script:
-    - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.pr-comment)
+    - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.comment-pr)
   script:
     - !reference [.login_to_docker_readonly_crane]
     # `datadog-ci` relies on `DATADOG_API_KEY` so we get that here.

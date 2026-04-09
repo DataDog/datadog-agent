@@ -10,7 +10,7 @@ unit_tests_notify:
     - !reference [.except_disable_unit_tests]
     - when: always
   before_script:
-    - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.pr-comment)
+    - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.comment-pr)
   script:
     - dda self dep sync -f legacy-tasks
     - dda inv -- notify.unit-tests --pipeline-id $CI_PIPELINE_ID --pipeline-url $CI_PIPELINE_URL --branch-name $CI_COMMIT_REF_NAME

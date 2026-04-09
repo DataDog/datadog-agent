@@ -18,7 +18,7 @@ golang_deps_diff:
     KUBERNETES_MEMORY_REQUEST: "16Gi"
     KUBERNETES_MEMORY_LIMIT: "16Gi"
   before_script:
-    - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.pr-comment)
+    - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.comment-pr)
     - !reference [.retrieve_linux_go_deps]
   script:
     # Get API key to send metrics
@@ -49,7 +49,7 @@ golang_deps_commenter:
     DDOCTOSTS_ID_TOKEN:
       aud: dd-octo-sts
   before_script:
-    - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.pr-comment)
+    - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.comment-pr)
   script:
     - if [ ! -s deps-report.md ]; then
         dda inv -- -e github.pr-commenter --title="Go Package Import Differences" --force-delete ;
@@ -66,7 +66,7 @@ golang_deps_send_count_metrics:
     DDOCTOSTS_ID_TOKEN:
       aud: dd-octo-sts
   before_script:
-    - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.pr-comment)
+    - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.comment-pr)
     - !reference [.retrieve_linux_go_deps]
   script:
     # Get API key to send metrics

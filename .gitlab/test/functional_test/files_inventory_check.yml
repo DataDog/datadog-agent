@@ -16,7 +16,7 @@ files_inventory_check:
   needs:
     - agent_deb-x64-a7
   before_script:
-    - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.pr-comment)
+    - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.comment-pr)
   script:
     - dda inv -- files-inventory.check ${CI_COMMIT_BRANCH} ${OMNIBUS_PACKAGE_DIR}
   artifacts:
