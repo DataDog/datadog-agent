@@ -218,7 +218,7 @@ func (e *EbpfProgram) setupManagerAndPerfHandlers() error {
 		PatchPerfEventOutput: perfOutputRedundant,
 	})
 
-	e.Manager = ddebpf.NewManager(mgr, "shared_libraries", managerMods...)
+	e.Manager = ddebpf.NewManager(mgr, "shared-libraries", managerMods...)
 
 	return nil
 }
