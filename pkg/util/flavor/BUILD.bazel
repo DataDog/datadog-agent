@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "flavor",
+    srcs = [
+        "flavor.go",
+        "flavor_test_util.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/flavor",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/model",
+        "//pkg/config/setup",
+    ],
+)
+
+go_test(
+    name = "flavor_test",
+    srcs = ["flavor_test.go"],
+    embed = [":flavor"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/config/mock",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

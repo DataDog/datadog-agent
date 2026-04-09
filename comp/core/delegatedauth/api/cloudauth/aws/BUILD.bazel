@@ -1,0 +1,29 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "aws",
+    srcs = ["aws.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/aws",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/delegatedauth/api/cloudauth/config",
+        "//comp/core/delegatedauth/common",
+        "//pkg/config/model",
+        "//pkg/util/log",
+        "//pkg/version",
+        "@com_github_aws_aws_sdk_go_v2//aws",
+        "@com_github_aws_aws_sdk_go_v2//aws/signer/v4:signer",
+        "@com_github_datadog_datadog_agent_pkg_util_aws_creds//:creds",
+    ],
+)
+
+go_test(
+    name = "aws_test",
+    srcs = ["aws_test.go"],
+    embed = [":aws"],
+    deps = [
+        "@com_github_datadog_datadog_agent_pkg_util_aws_creds//:creds",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -37,7 +37,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/core/config
 # gazelle:exclude comp/core/configstream
 # gazelle:exclude comp/core/configsync
-# gazelle:exclude comp/core/delegatedauth
 # gazelle:exclude comp/core/diagnose
 # gazelle:exclude comp/core/flare/flareimpl
 # gazelle:exclude comp/core/flare/helpers
@@ -203,12 +202,9 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/config/fetcher/sysprobe
 # gazelle:exclude pkg/config/fetcher/tracers
 # gazelle:exclude pkg/config/legacy
-# gazelle:exclude pkg/config/mock
 # gazelle:exclude pkg/config/remote
 # gazelle:exclude pkg/config/settings
 # gazelle:exclude pkg/config/settings/http
-# gazelle:exclude pkg/config/setup
-# gazelle:exclude pkg/config/utils
 # gazelle:exclude pkg/containerlifecycle
 # gazelle:exclude pkg/databasemonitoring
 # gazelle:exclude pkg/diagnose
@@ -386,7 +382,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/util/archive
 # gazelle:exclude pkg/util/atomicstats
 # gazelle:exclude pkg/util/aws
-# gazelle:exclude pkg/util/aws/creds
 # gazelle:exclude pkg/util/cachedfetch
 # gazelle:exclude pkg/util/cli
 # gazelle:exclude pkg/util/cloudproviders
@@ -405,12 +400,10 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/util/ec2
 # gazelle:exclude pkg/util/ecs
 # gazelle:exclude pkg/util/fargate
-# gazelle:exclude pkg/util/flavor
 # gazelle:exclude pkg/util/funcs
 # gazelle:exclude pkg/util/goroutinesdump
 # gazelle:exclude pkg/util/gpu
 # gazelle:exclude pkg/util/grpc
-# gazelle:exclude pkg/util/http
 # gazelle:exclude pkg/util/input
 # gazelle:exclude pkg/util/installinfo
 # gazelle:exclude pkg/util/intern
