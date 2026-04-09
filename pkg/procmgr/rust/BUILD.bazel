@@ -17,21 +17,35 @@ proto_library(
 rust_prost_library(
     name = "process_manager_rust_proto",
     proto = ":process_manager_proto",
-    target_compatible_with = ["@platforms//os:linux"],
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "@platforms//os:windows": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
     visibility = ["//visibility:public"],
 )
 
 # rust_prost_library propagates CcInfo from proto_library, which transitively
 # includes abseil-cpp (C++). The Rust linker does not add libstdc++ by default,
-# so we provide it explicitly.
+# so we provide it explicitly. On Windows the MSVC toolchain links the C++
+# runtime automatically.
 cc_library(
     name = "cpp_stdlib",
-    linkopts = ["-lstdc++"],
+    linkopts = select({
+        "@platforms//os:windows": [],
+        "//conditions:default": ["-lstdc++"],
+    }),
 )
 
 # ============================================================================
 # Library
 # ============================================================================
+
+_TARGET_COMPAT = select({
+    "@platforms//os:linux": [],
+    "@platforms//os:windows": [],
+    "//conditions:default": ["@platforms//:incompatible"],
+})
 
 _LIB_SRCS = glob(
     ["src/**/*.rs"],
@@ -70,9 +84,7 @@ rust_library(
     crate_name = "dd_procmgrd",
     edition = "2024",
     rustc_flags = ["--cfg=bazel"],
-    target_compatible_with = [
-        "@platforms//os:linux",
-    ],
+    target_compatible_with = _TARGET_COMPAT,
     visibility = ["//visibility:public"],
     deps = _LIB_DEPS,
 )
@@ -85,9 +97,7 @@ rust_library(
     crate_name = "dd_procmgrd",
     edition = "2024",
     rustc_flags = ["--cfg=bazel"],
-    target_compatible_with = [
-        "@platforms//os:linux",
-    ],
+    target_compatible_with = _TARGET_COMPAT,
     deps = _LIB_DEPS,
 )
 
@@ -100,9 +110,7 @@ rust_binary(
     srcs = ["src/bins/dd-procmgrd.rs"],
     edition = "2024",
     rustc_flags = ["--cfg=bazel"],
-    target_compatible_with = [
-        "@platforms//os:linux",
-    ],
+    target_compatible_with = _TARGET_COMPAT,
     visibility = ["//visibility:public"],
     deps = [
         ":dd-procmgrd-lib",
@@ -118,9 +126,7 @@ rust_binary(
     srcs = ["src/bins/dd-procmgr.rs"],
     edition = "2024",
     rustc_flags = ["--cfg=bazel"],
-    target_compatible_with = [
-        "@platforms//os:linux",
-    ],
+    target_compatible_with = _TARGET_COMPAT,
     visibility = ["//visibility:public"],
     deps = [
         ":dd-procmgrd-lib",
@@ -184,8 +190,15 @@ rust_test(
     },
     deps = [
         ":dd-procmgrd-lib-testhelpers",
-        "@crates//:nix",
         "@crates//:serde_json",
         "@crates//:tempfile",
-    ],
+    ] + select({
+        "@platforms//os:linux": [
+            "@crates//:nix",
+        ],
+        "@platforms//os:windows": [
+            "@crates//:windows-sys",
+        ],
+        "//conditions:default": [],
+    }),
 )

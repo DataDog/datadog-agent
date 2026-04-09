@@ -112,12 +112,13 @@ impl DaemonHandle {
     pub fn stop(&mut self) -> ExitStatus {
         #[cfg(unix)]
         self.send_signal(Signal::SIGTERM);
-        // TODO(S19): replace with GenerateConsoleCtrlEvent for graceful shutdown;
-        // child.kill() is a force-kill placeholder until the Windows platform
-        // module implements proper signal delivery.
         #[cfg(windows)]
         {
-            let _ = self.child.kill();
+            use windows_sys::Win32::System::Console::{CTRL_BREAK_EVENT, GenerateConsoleCtrlEvent};
+            let pid = self.child.id();
+            unsafe {
+                GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, pid);
+            }
         }
         self.wait_with_timeout(DEFAULT_TIMEOUT)
     }
