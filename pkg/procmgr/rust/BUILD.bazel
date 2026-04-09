@@ -46,6 +46,7 @@ _LIB_DEPS = [
     "@crates//:log",
     "@crates//:prost",
     "@crates//:serde",
+    "@crates//:serde_json",
     "@crates//:serde_yaml",
     "@crates//:tokio",
     "@crates//:tonic",
