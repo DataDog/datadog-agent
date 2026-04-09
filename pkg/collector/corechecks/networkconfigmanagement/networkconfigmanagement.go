@@ -13,11 +13,13 @@ import (
 	"slices"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 	"github.com/benbjohnson/clock"
+
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -38,6 +40,7 @@ type Check struct {
 	checkContext  *ncmconfig.NcmCheckContext
 	sender        *ncmsender.NCMSender
 	agentConfig   config.Component
+	ncmComp       networkconfigmanagement.Component
 	remoteClient  ncmremote.Client
 	clock         clock.Clock
 	lastCheckTime time.Time
@@ -162,17 +165,21 @@ func (c *Check) Interval() time.Duration {
 }
 
 // Factory creates a new check factory
-func Factory(agentConfig config.Component) option.Option[func() check.Check] {
+func Factory(agentConfig config.Component, ncmComp networkconfigmanagement.Component) option.Option[func() check.Check] {
+	if ncmComp == nil {
+		return option.None[func() check.Check]()
+	}
 	return option.New(func() check.Check {
-		return newCheck(agentConfig)
+		return newCheck(agentConfig, ncmComp)
 	})
 }
 
 // newCheck creates a new instance of the Check with the provided agent configuration
-func newCheck(agentConfig config.Component) check.Check {
+func newCheck(agentConfig config.Component, ncmComp networkconfigmanagement.Component) check.Check {
 	return &Check{
 		CheckBase:   core.NewCheckBase(CheckName),
 		agentConfig: agentConfig,
+		ncmComp:     ncmComp,
 	}
 }
 

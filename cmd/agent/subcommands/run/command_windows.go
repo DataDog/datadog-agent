@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
+	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	"github.com/DataDog/datadog-agent/comp/trace/etwtracer"
 	"github.com/DataDog/datadog-agent/comp/trace/etwtracer/etwtracerimpl"
@@ -148,6 +149,8 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			snmpScanManager snmpscanmanager.Component,
 			traceroute traceroute.Component,
 			healthplatformComp healthplatform.Component,
+			ncmComp networkconfigmanagement.Component,
+
 		) error {
 			defer StopAgentWithDefaults(config, sysprobeConf)
 
@@ -175,6 +178,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				snmpScanManager,
 				traceroute,
 				healthplatformComp,
+				ncmComp,
 			)
 			if err != nil {
 				return err

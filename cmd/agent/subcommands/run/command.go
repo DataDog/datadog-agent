@@ -42,6 +42,8 @@ import (
 
 	doqueryactionsfx "github.com/DataDog/datadog-agent/comp/dataobs/queryactions/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
+	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
+	networkconfigmanagementfx "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/fx"
 	snmpscanfx "github.com/DataDog/datadog-agent/comp/snmpscan/fx"
 	snmpscanmanagerfx "github.com/DataDog/datadog-agent/comp/snmpscanmanager/fx"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -312,6 +314,7 @@ func run(log log.Component,
 	ipc ipc.Component,
 	snmpScanManager snmpscanmanager.Component,
 	traceroute traceroute.Component,
+	ncmComp networkconfigmanagement.Component,
 ) error {
 	defer func() {
 		stopAgent(cfg, sysprobeConf)
@@ -375,6 +378,7 @@ func run(log log.Component,
 		snmpScanManager,
 		traceroute,
 		healthplatformComp,
+		ncmComp,
 	); err != nil {
 		return err
 	}
@@ -523,6 +527,7 @@ func getSharedFxOption() fx.Option {
 		getSnmptrapsOptions(),
 		snmpscanfx.Module(),
 		snmpscanmanagerfx.Module(),
+		networkconfigmanagementfx.Module(),
 		collectorimpl.Module(),
 		fx.Provide(func(demux demultiplexer.Component, hostname hostnameinterface.Component) (ddgostatsd.ClientInterface, error) {
 			return aggregator.NewStatsdDirect(demux, hostname)
@@ -605,6 +610,7 @@ func startAgent(
 	snmpScanManager snmpscanmanager.Component,
 	traceroute traceroute.Component,
 	healthplatformComp healthplatform.Component,
+	ncmComp networkconfigmanagement.Component,
 ) error {
 	var err error
 
@@ -694,7 +700,7 @@ func startAgent(
 	jmxfetch.RegisterWith(ac)
 
 	// Set up check collector
-	commonchecks.RegisterChecks(wmeta, filterStore, tagger, cfg, telemetry, rcclient, flare, snmpScanManager, traceroute)
+	commonchecks.RegisterChecks(wmeta, filterStore, tagger, cfg, telemetry, rcclient, flare, snmpScanManager, traceroute, ncmComp)
 	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(option.New(collectorComponent), demultiplexer, logReceiver, tagger, filterStore), true)
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)
