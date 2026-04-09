@@ -7,7 +7,9 @@ package flightrecorderimpl
 
 import (
 	"context"
+	"hash/fnv"
 	"net"
+	"sort"
 	"sync"
 	"time"
 
@@ -187,6 +189,12 @@ func (s *flightrecorderImpl) activate(ctx context.Context) <-chan struct{} {
 				for i := range batch {
 					ms := &batch[i]
 					ckey := ms.ContextKey
+					// Check metrics (from check_sampler) have ContextKey=0
+					// because the check sampler doesn't run a context resolver.
+					// Compute one from name+tags so the sidecar can track contexts.
+					if ckey == 0 && ms.Name != "" {
+						ckey = computeContextKey(ms.Name, ms.RawTags)
+					}
 					ts := int64(ms.Timestamp * float64(time.Second/time.Nanosecond))
 
 					if bat.IsContextKnown(ckey) {
@@ -276,4 +284,21 @@ func (s *flightrecorderImpl) activate(ctx context.Context) <-chan struct{} {
 	}
 
 	return done
+}
+
+// computeContextKey produces a deterministic 64-bit key from a metric name
+// and its tags. Used for check metrics where the aggregator's ContextKey is 0.
+// Tags are sorted before hashing for stability.
+func computeContextKey(name string, tags []string) uint64 {
+	h := fnv.New64a()
+	h.Write([]byte(name))
+	h.Write([]byte{0}) // separator
+	sorted := make([]string, len(tags))
+	copy(sorted, tags)
+	sort.Strings(sorted)
+	for _, t := range sorted {
+		h.Write([]byte(t))
+		h.Write([]byte{0})
+	}
+	return h.Sum64()
 }
