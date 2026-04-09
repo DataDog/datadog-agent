@@ -33,14 +33,18 @@ pub fn parse_yaml<R: Read>(mut reader: R, target_key: &str) -> Option<String> {
     reader.read_to_string(&mut content).ok()?;
 
     let segments: Vec<&str> = target_key.split('.').collect();
-    let mut parser = Parser::new_from_str(&content);
+    let parser = Parser::new_from_str(&content);
     let mut depth: usize = 0;
     let mut state = State::Preamble;
+    // Safety limit: the event count is bounded by input size (capped at
+    // 1 MiB by MAX_PARSE_FILE_SIZE), but guard against parser bugs that
+    // could produce infinite events.
+    let max_events = content.len().saturating_mul(10).max(100);
 
     // Each YAML event drives a state transition. The parser walks a
     // path like "spring" → "application" → "name" by matching key
     // scalars at increasing depth and skipping unrelated entries.
-    for result in &mut parser {
+    for result in parser.take(max_events) {
         let (event, _) = result.ok()?;
         state = match state {
             // Wait for the root mapping. StreamStart/DocumentStart are
