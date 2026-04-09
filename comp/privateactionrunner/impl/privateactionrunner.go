@@ -187,6 +187,7 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	p.logger.Info("Private action runner starting")
 	p.logger.Info("==> Version : " + parversion.RunnerVersion)
 	p.logger.Info("==> Site : " + cfg.DatadogSite)
+	p.logger.Info("==> API Host : " + cfg.DDApiHost)
 	p.logger.Info("==> URN : " + cfg.Urn)
 
 	keysManager := taskverifier.NewKeyManager(p.rcClient)
