@@ -9,7 +9,6 @@ package kubeapiserver
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
 
@@ -32,17 +31,6 @@ import (
 )
 
 const dummySubscriber = "dummy-subscriber"
-
-// TestMain disables the WatchListClient feature gate for the entire package.
-// In client-go v0.35.3, WatchListClient is enabled by default but
-// fake.NewSimpleClientset does not support the watch-list protocol (it never
-// sends the required initial bookmark event), causing the reflector to hang.
-// This must be done in TestMain rather than per-test because callers use
-// t.Parallel() and SetFeatureDuringTest would conflict across parallel tests.
-func TestMain(m *testing.M) {
-	os.Setenv("KUBE_FEATURE_WatchListClient", "false")
-	os.Exit(m.Run())
-}
 
 func testCollectEvent(t *testing.T, createResource func(*fake.Clientset) error, newStore storeGenerator, expected workloadmeta.EventBundle) {
 	// Create a fake client to mock API calls.
