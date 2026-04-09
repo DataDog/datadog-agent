@@ -48,6 +48,133 @@ static void add_constants(PyObject *m)
     PyModule_AddIntConstant(m, "HISTORATE", DATADOG_AGENT_RTLOADER_HISTORATE);
 }
 
+/*
+ * Sub-interpreter support (Python 3.13+): Multi-phase module initialization
+ * =========================================================================
+ *
+ * Background:
+ *   Python sub-interpreters (PEP 684, Python 3.12+) allow running multiple
+ *   isolated Python interpreters within a single process. Each sub-interpreter
+ *   has its own GIL, sys.modules, and global state - providing true isolation
+ *   between Python checks running in the Datadog Agent.
+ *
+ *   For a C extension module to be importable in sub-interpreters, it must use
+ *   "multi-phase initialization" (PEP 489) instead of the legacy "single-phase"
+ *   approach. This section converts the aggregator module accordingly.
+ *
+ * Why multi-phase init is required:
+ *   Single-phase init (PyModule_Create with m_size = -1) tells Python: "this
+ *   module has unsharable global state and cannot be re-initialized." Python
+ *   refuses to import such modules in sub-interpreters when the interpreter is
+ *   configured with check_multi_interp_extensions = 1.
+ *
+ *   Multi-phase init separates module creation (handled by Python internally)
+ *   from module population (our "exec" function). Python calls our exec function
+ *   once per interpreter, giving each a fresh module object.
+ *
+ * Why m_size = 0 (no per-interpreter C state):
+ *   m_size controls how many bytes of C-level state Python allocates per
+ *   interpreter for this module (accessed via PyModule_GetState()).
+ *
+ *   We set m_size = 0 because our callback pointers (cb_submit_metric, etc.)
+ *   are process-global C statics with a "set-once-read-many" access pattern:
+ *     - Written exactly once during agent startup (from Go via CGO)
+ *     - Read concurrently by any interpreter thereafter
+ *     - Never modified or cleared after initialization
+ *
+ *   This pattern is safe for concurrent reads even with per-interpreter GIL
+ *   (no data race on read-only data). Each callback receives a check_id
+ *   parameter that routes data to the correct Go-side sender, so the same
+ *   function pointer serves all interpreters correctly.
+ *
+ *   IMPORTANT: If mutable per-interpreter state is ever added to this module,
+ *   m_size must be increased to sizeof(that_state_struct) and all functions
+ *   must retrieve state via PyModule_GetState() instead of using globals.
+ *
+ * Py_MOD_PER_INTERPRETER_GIL_SUPPORTED:
+ *   This declares that the module is safe to use when each sub-interpreter
+ *   has its own GIL (true parallelism). This is a stronger guarantee than
+ *   Py_MOD_MULTIPLE_INTERPRETERS_SUPPORTED (which only covers shared-GIL).
+ *   Our set-once-read-many callback pattern satisfies this requirement because
+ *   concurrent reads of immutable-after-init data need no synchronization.
+ *
+ * For Python < 3.13, we preserve the original single-phase init unchanged
+ * to maintain backward compatibility.
+ */
+#if PY_VERSION_HEX >= 0x030D0000
+
+/*
+ * aggregator_exec: Multi-phase init "exec" slot callback.
+ *
+ * Called by Python once per interpreter during module import. Receives a
+ * freshly-created (empty) module object and populates it with the metric
+ * type integer constants (GAUGE, RATE, COUNT, MONOTONIC_COUNT, COUNTER,
+ * HISTOGRAM, HISTORATE) that Python check code uses when submitting metrics.
+ *
+ * Returns 0 on success, -1 with a Python exception set on failure.
+ *
+ * Error handling note:
+ *   add_constants() calls PyModule_AddIntConstant() for each metric type.
+ *   PyModule_AddIntConstant() returns -1 and sets a Python exception on
+ *   failure (e.g., out of memory), but add_constants() is a legacy void
+ *   function that doesn't propagate errors. Rather than changing its
+ *   signature (which would affect the legacy init path), we check
+ *   PyErr_Occurred() after the call to detect if any constant addition
+ *   failed. If so, we return -1 to tell Python the module exec failed,
+ *   and Python will propagate the already-set exception.
+ */
+static int aggregator_exec(PyObject *m)
+{
+    add_constants(m);
+
+    /* Check if any PyModule_AddIntConstant call inside add_constants failed */
+    if (PyErr_Occurred()) {
+        return -1;
+    }
+    return 0;
+}
+
+/*
+ * Module slot definitions for multi-phase initialization.
+ *
+ * Py_mod_exec:                     Points to aggregator_exec which populates
+ *                                  the module with metric type constants.
+ * Py_mod_multiple_interpreters:    Declares per-interpreter GIL support,
+ *                                  enabling true parallel execution across
+ *                                  sub-interpreters. Safe because all shared
+ *                                  C state (callback pointers) is immutable
+ *                                  after agent startup.
+ */
+static PyModuleDef_Slot aggregator_slots[] = {
+    {Py_mod_exec, aggregator_exec},
+    {Py_mod_multiple_interpreters, Py_MOD_PER_INTERPRETER_GIL_SUPPORTED},
+    {0, NULL}  /* sentinel */
+};
+
+static struct PyModuleDef module_def = {
+    PyModuleDef_HEAD_INIT,
+    AGGREGATOR_MODULE_NAME,   /* m_name: "aggregator" */
+    NULL,                     /* m_doc */
+    0,                        /* m_size: 0 = no per-interpreter C state (see comment above) */
+    methods,                  /* m_methods */
+    aggregator_slots,         /* m_slots: multi-phase init slot definitions */
+    NULL,                     /* m_traverse: no cyclic GC needed */
+    NULL,                     /* m_clear: no cyclic GC needed */
+    NULL                      /* m_free: no cleanup needed */
+};
+
+/*
+ * Multi-phase init entry point: returns the PyModuleDef to Python, which
+ * handles module object creation internally. Python will then call our
+ * aggregator_exec slot to populate the module.
+ */
+PyMODINIT_FUNC PyInit_aggregator(void)
+{
+    return PyModuleDef_Init(&module_def);
+}
+
+#else /* Python < 3.13: original single-phase initialization */
+
 static struct PyModuleDef module_def = { PyModuleDef_HEAD_INIT, AGGREGATOR_MODULE_NAME, NULL, -1, methods };
 
 PyMODINIT_FUNC PyInit_aggregator(void)
@@ -56,6 +183,8 @@ PyMODINIT_FUNC PyInit_aggregator(void)
     add_constants(m);
     return m;
 }
+
+#endif /* PY_VERSION_HEX >= 0x030D0000 */
 
 void _set_submit_metric_cb(cb_submit_metric_t cb)
 {

@@ -70,12 +70,63 @@ static PyMethodDef methods[] = {
     { NULL, NULL } // guards
 };
 
+/*
+ * Sub-interpreter support (Python 3.13+): Multi-phase module initialization
+ * =========================================================================
+ *
+ * Converts the datadog_agent module from single-phase to multi-phase init
+ * to allow importing in Python sub-interpreters with per-interpreter GIL.
+ *
+ * This module exposes 17 callback pointers (cb_get_config, cb_get_hostname,
+ * cb_get_version, etc.) as process-global C statics. These follow the
+ * set-once-read-many pattern: written once at agent startup from Go via CGO,
+ * then only read by any interpreter. This makes them safe for concurrent
+ * access under per-interpreter GIL without additional synchronization.
+ *
+ * No Py_mod_exec slot is needed: unlike aggregator or tagger, this module
+ * has no constants or setup work to perform after module creation. The
+ * module's methods are registered via m_methods and are available immediately.
+ *
+ * m_size = 0: No per-interpreter C state needed. The callbacks are shared
+ * across all interpreters and route via check_id on the Go side.
+ *
+ * See aggregator.c for a detailed explanation of multi-phase init, m_size,
+ * and Py_MOD_PER_INTERPRETER_GIL_SUPPORTED rationale.
+ */
+#if PY_VERSION_HEX >= 0x030D0000
+
+static PyModuleDef_Slot datadog_agent_slots[] = {
+    {Py_mod_multiple_interpreters, Py_MOD_PER_INTERPRETER_GIL_SUPPORTED},
+    {0, NULL}  /* sentinel */
+};
+
+static struct PyModuleDef module_def = {
+    PyModuleDef_HEAD_INIT,
+    DATADOG_AGENT_MODULE_NAME,  /* m_name: "datadog_agent" */
+    NULL,                       /* m_doc */
+    0,                          /* m_size: no per-interpreter C state */
+    methods,                    /* m_methods */
+    datadog_agent_slots,        /* m_slots */
+    NULL,                       /* m_traverse */
+    NULL,                       /* m_clear */
+    NULL                        /* m_free */
+};
+
+PyMODINIT_FUNC PyInit_datadog_agent(void)
+{
+    return PyModuleDef_Init(&module_def);
+}
+
+#else /* Python < 3.13: original single-phase initialization */
+
 static struct PyModuleDef module_def = { PyModuleDef_HEAD_INIT, DATADOG_AGENT_MODULE_NAME, NULL, -1, methods };
 
 PyMODINIT_FUNC PyInit_datadog_agent(void)
 {
     return PyModule_Create(&module_def);
 }
+
+#endif /* PY_VERSION_HEX >= 0x030D0000 */
 
 void _set_get_version_cb(cb_get_version_t cb)
 {
