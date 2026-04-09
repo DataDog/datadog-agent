@@ -628,6 +628,20 @@ new-e2e-sbom:
     matrix:
       - EXTRA_PARAMS: --run "TestSBOMKindSuite"
 
+new-e2e-usm:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - agent_deb-x64-a7
+    - qa_agent_linux
+  rules:
+    - !reference [.on_systemprobe_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/usm
+    EXTRA_PARAMS: --run "TestPythonRemoteTagsLinuxSuite|TestPythonRemoteTagsDirectLinuxSuite"
+    TEAM: universal-service-monitoring
+
 new-e2e-discovery:
   extends: .new_e2e_template
   needs:

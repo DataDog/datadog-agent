@@ -1286,15 +1286,17 @@ workflow:
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
-.on_windows_systemprobe_or_e2e_changes:
+.on_systemprobe_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
         - pkg/discovery/module/*
         - pkg/network/**/*
+        - pkg/process/checks/**/*
         - pkg/process/monitor/*
         - pkg/util/kernel/**/*
         - test/new-e2e/tests/sysprobe-functional/**/*
+        - test/new-e2e/tests/usm/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
