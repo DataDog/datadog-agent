@@ -12,10 +12,11 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.71.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/basic v0.0.0-20260211235139-a5361978c2b6 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/buildschema v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/create v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.73.0-devel.0.20251030121902-cd89eab046d6 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/model v0.73.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/model v0.77.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.77.0-devel.0.20260211235139-a5361978c2b6 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.64.1 // indirect
@@ -44,7 +45,7 @@ require (
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
-	github.com/shirou/gopsutil/v4 v4.26.2 // indirect
+	github.com/shirou/gopsutil/v4 v4.26.3 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
@@ -137,6 +138,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/api => ../../../../../../pkg/api
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../../../../pkg/collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/basic => ../../../../../../pkg/config/basic
+	github.com/DataDog/datadog-agent/pkg/config/buildschema => ../../../../../../pkg/config/buildschema
 	github.com/DataDog/datadog-agent/pkg/config/create => ../../../../../../pkg/config/create
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../../../../../pkg/config/env
 	github.com/DataDog/datadog-agent/pkg/config/helper => ../../../../../../pkg/config/helper

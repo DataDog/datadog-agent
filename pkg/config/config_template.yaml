@@ -1360,6 +1360,9 @@ api_key:
 #   # @param max_events_per_second - integer - optional - default: 200
 #   # @env DD_APM_MAX_EPS - integer - optional - default: 200
 #   # @env DD_MAX_EPS - integer - optional - default: 200
+#   # **Deprecated.** APM events are a deprecated feature related to legacy App Analytics. This setting
+#   # caps sampling for that legacy path only. It does not limit trace volume, spans, or general APM
+#   # ingestion; for trace sampling, see `max_traces_per_second` and `target_traces_per_second` above.
 #   # Maximum number of APM events per second to sample.
 #
 #   max_events_per_second: 200
@@ -4328,30 +4331,6 @@ api_key:
 #             - match_field: index
 #               match_value: '2'
 #               disabled: true
-#
-#         # @param ping - custom object - optional
-#         # Configure ICMP pings for all hosts in SNMP autodiscovery
-#         # Devices will be pinged with these settings each time the SNMP
-#         # check is run.
-#         #
-#         # By default, Datadog tries to use an unprivileged UDP socket to send ICMP
-#         # pings, but some linux systems require using a raw socket.
-#         #
-#         # If `linux.use_raw_socket` is set, you must enable the `ping` module
-#         # of system-probe for elevated privileges. See
-#         # system-probe.yaml.example for details.
-#
-#         ping:
-#           enabled: true             # Disabled by default
-#           timeout: 3000             # Timeout in milliseconds
-#           count: 2                  # Number of ping packets to send per check run
-#           interval: 10              # Time between sending pings (up to `count` packets) in milliseconds
-#           linux:                    # Linux-specific configuration
-#             use_raw_socket: true    # Send pings in a privileged fashion using a raw socket.
-#                                     # This may be required if your system doesn't support
-#                                     # sending pings in an unprivileged fashion (using a UDP socket).
-#                                     # If `use_raw_socket` is set to true, you MUST also enable
-#                                     # system-probe which has elevated privileges. To enable it, see system-probe.yaml.example.
 
 #   # @param snmp_traps - custom object - optional
 #   # This section configures SNMP traps collection.
