@@ -23,6 +23,7 @@ import (
 	npmodel "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/hook"
 	"github.com/DataDog/datadog-agent/pkg/hosttags"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	netEncoding "github.com/DataDog/datadog-agent/pkg/network/encoding/unmarshal"
@@ -49,7 +50,7 @@ var (
 )
 
 // NewConnectionsCheck returns an instance of the ConnectionsCheck.
-func NewConnectionsCheck(config, sysprobeYamlConfig pkgconfigmodel.Reader, syscfg *sysconfigtypes.Config, wmeta workloadmeta.Component, npCollector npcollector.Component, tagger tagger.Component) *ConnectionsCheck {
+func NewConnectionsCheck(config, sysprobeYamlConfig pkgconfigmodel.Reader, syscfg *sysconfigtypes.Config, wmeta workloadmeta.Component, npCollector npcollector.Component, tagger tagger.Component, connHook hook.Hook[[]hook.ConnectionView]) *ConnectionsCheck {
 	return &ConnectionsCheck{
 		config:             config,
 		syscfg:             syscfg,
@@ -57,6 +58,7 @@ func NewConnectionsCheck(config, sysprobeYamlConfig pkgconfigmodel.Reader, syscf
 		wmeta:              wmeta,
 		npCollector:        npCollector,
 		tagger:             tagger,
+		connHook:           connHook,
 	}
 }
 
@@ -85,6 +87,7 @@ type ConnectionsCheck struct {
 	hostTagProvider *hosttags.HostTagProvider
 	tagger          tagger.Component
 	clock           clock.Clock
+	connHook        hook.Hook[[]hook.ConnectionView]
 }
 
 // Init initializes a ConnectionsCheck instance.
@@ -175,6 +178,15 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 	}
 	// Resolve the Raddr side of connections for local containers
 	c.localresolver.Resolve(conns)
+
+	// Publish to flight recorder (if subscribed).
+	if c.connHook != nil && c.connHook.HasSubscribers() {
+		views := make([]hook.ConnectionView, len(conns.Conns))
+		for i, conn := range conns.Conns {
+			views[i] = &connectionViewAdapter{conn: conn}
+		}
+		c.connHook.Publish("connections-check", views)
+	}
 
 	log.Debugf("collected connections in %s", time.Since(start))
 

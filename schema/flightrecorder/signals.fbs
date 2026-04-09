@@ -61,7 +61,41 @@ table TraceStatsBatch {
   entries:[TraceStatEntry];
 }
 
-union SignalPayload { MetricBatch, LogBatch, TraceStatsBatch }
+table ConnectionEntry {
+  pid:int;
+  local_ip:string;
+  local_port:int;
+  local_container_id:string;
+  remote_ip:string;
+  remote_port:int;
+  remote_container_id:string;
+  family:uint;           // ConnectionFamily: 0=AF_INET, 1=AF_INET6
+  conn_type:uint;        // ConnectionType: 0=TCP, 1=UDP
+  direction:uint;        // ConnectionDirection: 0=unspecified, 1=incoming, 2=outgoing, 3=local
+  net_ns:uint;
+  bytes_sent:ulong;
+  bytes_received:ulong;
+  packets_sent:ulong;
+  packets_received:ulong;
+  retransmits:uint;
+  rtt:uint;              // microseconds
+  rtt_var:uint;          // microseconds
+  intra_host:bool;
+  dns_successful_responses:uint;
+  dns_failed_responses:uint;
+  dns_timeouts:uint;
+  dns_success_latency_sum:ulong;
+  dns_failure_latency_sum:ulong;
+  tcp_established:uint;
+  tcp_closed:uint;
+  timestamp_ns:long;
+}
+
+table ConnectionBatch {
+  entries:[ConnectionEntry];
+}
+
+union SignalPayload { MetricBatch, LogBatch, TraceStatsBatch, ConnectionBatch }
 
 table SignalEnvelope {
   payload:SignalPayload;

@@ -46,7 +46,7 @@ func TestBatcher_ConcurrentAddAndFlush(t *testing.T) {
 	transport := &recordingTransport{}
 	c := &counters{}
 	cs := newContextSet(50000)
-	bat := newBatcher(transport, 10*time.Millisecond, 1000, 100, 500, 100, cs, c)
+	bat := newBatcher(transport, 10*time.Millisecond, 1000, 100, 500, 100, 0, cs, c)
 
 	const numGoroutines = 4
 	const itemsPerGoroutine = 500
@@ -131,7 +131,7 @@ func TestBatcher_FlushLoopDrainsRing(t *testing.T) {
 	c := &counters{}
 	cs := newContextSet(50000)
 	// Large ring (10K), fast flush (5ms)
-	bat := newBatcher(transport, 5*time.Millisecond, 10000, 1000, 5000, 1000, cs, c)
+	bat := newBatcher(transport, 5*time.Millisecond, 10000, 1000, 5000, 1000, 0, cs, c)
 
 	// Add 500 points — should be well within ring capacity.
 	for i := 0; i < 500; i++ {
@@ -182,7 +182,7 @@ func TestBatcher_HighVolumeProducer(t *testing.T) {
 	c := &counters{}
 	cs := newContextSet(50000)
 	// Match production config: 100K ring, 100ms flush
-	bat := newBatcher(transport, 100*time.Millisecond, 100000, 10000, 25000, 5000, cs, c)
+	bat := newBatcher(transport, 100*time.Millisecond, 100000, 10000, 25000, 5000, 0, cs, c)
 
 	// Produce 5K items
 	const totalItems = 5000
@@ -226,7 +226,7 @@ func TestBatcher_LargeLogBatchIsChunked(t *testing.T) {
 	c := &counters{}
 	cs := newContextSet(50000)
 	// Large ring to hold all items, fast flush.
-	bat := newBatcher(transport, 5*time.Millisecond, 1000, 100, 50000, 100, cs, c)
+	bat := newBatcher(transport, 5*time.Millisecond, 1000, 100, 50000, 100, 0, cs, c)
 
 	// Add 25,000 log entries — each ~1 KB content. Without chunking this
 	// would be a single ~25 MB frame.
@@ -278,7 +278,7 @@ func TestBatcher_LargeTraceStatsBatchIsChunked(t *testing.T) {
 	transport := &recordingTransport{}
 	c := &counters{}
 	cs := newContextSet(50000)
-	bat := newBatcher(transport, 5*time.Millisecond, 1000, 100, 1000, 10000, cs, c)
+	bat := newBatcher(transport, 5*time.Millisecond, 1000, 100, 1000, 10000, 0, cs, c)
 
 	// Add 5,000 trace stat entries.
 	for i := 0; i < 5000; i++ {
@@ -337,7 +337,7 @@ func TestBatcher_LargeContextDefBatchIsChunked(t *testing.T) {
 	transport := &recordingTransport{}
 	c := &counters{}
 	cs := newContextSet(50000)
-	bat := newBatcher(transport, 5*time.Millisecond, 100000, 15000, 1000, 100, cs, c)
+	bat := newBatcher(transport, 5*time.Millisecond, 100000, 15000, 1000, 100, 0, cs, c)
 
 	// Add 10,000 context definitions with realistic name + tags.
 	for i := 0; i < 10000; i++ {

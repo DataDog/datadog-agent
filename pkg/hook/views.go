@@ -63,6 +63,36 @@ type LogSampleSnapshot struct {
 	TimestampNs int64
 }
 
+// ConnectionView provides read-only access to a network connection.
+type ConnectionView interface {
+	GetPid() int32
+	GetLocalIP() string
+	GetLocalPort() int32
+	GetLocalContainerID() string
+	GetRemoteIP() string
+	GetRemotePort() int32
+	GetRemoteContainerID() string
+	GetFamily() uint32    // ConnectionFamily enum (0=AF_INET, 1=AF_INET6)
+	GetConnType() uint32  // ConnectionType enum (0=TCP, 1=UDP)
+	GetDirection() uint32 // ConnectionDirection enum
+	GetNetNS() uint32
+	GetLastBytesSent() uint64
+	GetLastBytesReceived() uint64
+	GetLastPacketsSent() uint64
+	GetLastPacketsReceived() uint64
+	GetLastRetransmits() uint32
+	GetRtt() uint32    // microseconds
+	GetRttVar() uint32 // microseconds
+	GetIntraHost() bool
+	GetDnsSuccessfulResponses() uint32
+	GetDnsFailedResponses() uint32
+	GetDnsTimeouts() uint32
+	GetDnsSuccessLatencySum() uint64
+	GetDnsFailureLatencySum() uint64
+	GetLastTcpEstablished() uint32
+	GetLastTcpClosed() uint32
+}
+
 // TraceStatsView provides read-only access to an aggregated trace stats entry.
 type TraceStatsView interface {
 	// Grouped stats fields (from ClientGroupedStats).

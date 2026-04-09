@@ -36,6 +36,7 @@ type Requires struct {
 	MetricsHooks    []hook.Hook[[]hook.MetricSampleSnapshot] `group:"hook"`
 	LogsHooks       []hook.Hook[[]hook.LogSampleSnapshot]    `group:"hook"`
 	TraceStatsHooks []hook.Hook[hook.TraceStatsView]         `group:"hook"`
+	ConnectionHooks []hook.Hook[[]hook.ConnectionView]       `group:"hook"`
 }
 
 // Provides defines what the component exposes to the fx graph.
@@ -57,6 +58,7 @@ type flightrecorderImpl struct {
 	defCapacity        int
 	logCapacity        int
 	traceStatsCapacity int
+	connCapacity       int
 	hookBufSize        int
 	contextCap         int
 
@@ -70,6 +72,7 @@ type flightrecorderImpl struct {
 	metricsHooks    []hook.Hook[[]hook.MetricSampleSnapshot]
 	logsHooks       []hook.Hook[[]hook.LogSampleSnapshot]
 	traceStatsHooks []hook.Hook[hook.TraceStatsView]
+	connectionHooks []hook.Hook[[]hook.ConnectionView]
 
 	// Lifecycle.
 	cancel context.CancelFunc
@@ -86,6 +89,10 @@ func NewComponent(req Requires) (Provides, error) {
 	defCapacity := req.Config.GetInt("flightrecorder.def_buffer_capacity")
 	logCapacity := req.Config.GetInt("flightrecorder.log_buffer_capacity")
 	traceStatsCapacity := req.Config.GetInt("flightrecorder.trace_stats_buffer_capacity")
+	connCapacity := req.Config.GetInt("flightrecorder.connection_buffer_capacity")
+	if connCapacity == 0 {
+		connCapacity = 50000
+	}
 	hookBufSize := req.Config.GetInt("flightrecorder.hook_buffer_size")
 	contextCap := req.Config.GetInt("flightrecorder.context_set_capacity")
 
@@ -99,12 +106,14 @@ func NewComponent(req Requires) (Provides, error) {
 		defCapacity:        defCapacity,
 		logCapacity:        logCapacity,
 		traceStatsCapacity: traceStatsCapacity,
+		connCapacity:       connCapacity,
 		hookBufSize:        hookBufSize,
 		contextCap:         contextCap,
 		seenContexts:       newContextSet(contextCap),
 		metricsHooks:       req.MetricsHooks,
 		logsHooks:          req.LogsHooks,
 		traceStatsHooks:    req.TraceStatsHooks,
+		connectionHooks:    req.ConnectionHooks,
 		cancel:             cancel,
 	}
 
@@ -168,7 +177,7 @@ func (s *flightrecorderImpl) activate(ctx context.Context) <-chan struct{} {
 	c := s.counters
 	transport := newUnixTransport(ctx, s.socketPath)
 	bat := newBatcher(transport, s.flushInterval,
-		s.ptCapacity, s.defCapacity, s.logCapacity, s.traceStatsCapacity, s.seenContexts, c)
+		s.ptCapacity, s.defCapacity, s.logCapacity, s.traceStatsCapacity, s.connCapacity, s.seenContexts, c)
 
 	// Subscribe to all hooks, collect unsubscribe functions.
 	var unsubs []func()
@@ -263,8 +272,52 @@ func (s *flightrecorderImpl) activate(ctx context.Context) <-chan struct{} {
 		unsubs = append(unsubs, unsub)
 	}
 
-	s.log.Infof("flightrecorder: activated (socket=%s flush=%s pts=%d defs=%d logs=%d tss=%d hook_buf=%d ctx_cap=%d)",
-		s.socketPath, s.flushInterval, s.ptCapacity, s.defCapacity, s.logCapacity, s.traceStatsCapacity, s.hookBufSize, s.contextCap)
+	for _, ch := range s.connectionHooks {
+		if ch == nil {
+			continue
+		}
+		unsub := ch.Subscribe("flightrecorder-connections", func(batch []hook.ConnectionView) {
+			ts := time.Now().UnixNano()
+			conns := make([]capturedConnection, len(batch))
+			for i := range batch {
+				cv := batch[i]
+				conns[i] = capturedConnection{
+					Pid:                    cv.GetPid(),
+					LocalIP:                cv.GetLocalIP(),
+					LocalPort:              cv.GetLocalPort(),
+					LocalContainerID:       cv.GetLocalContainerID(),
+					RemoteIP:               cv.GetRemoteIP(),
+					RemotePort:             cv.GetRemotePort(),
+					RemoteContainerID:      cv.GetRemoteContainerID(),
+					Family:                 cv.GetFamily(),
+					ConnType:               cv.GetConnType(),
+					Direction:              cv.GetDirection(),
+					NetNS:                  cv.GetNetNS(),
+					BytesSent:              cv.GetLastBytesSent(),
+					BytesReceived:          cv.GetLastBytesReceived(),
+					PacketsSent:            cv.GetLastPacketsSent(),
+					PacketsReceived:        cv.GetLastPacketsReceived(),
+					Retransmits:            cv.GetLastRetransmits(),
+					Rtt:                    cv.GetRtt(),
+					RttVar:                 cv.GetRttVar(),
+					IntraHost:              cv.GetIntraHost(),
+					DnsSuccessfulResponses: cv.GetDnsSuccessfulResponses(),
+					DnsFailedResponses:     cv.GetDnsFailedResponses(),
+					DnsTimeouts:            cv.GetDnsTimeouts(),
+					DnsSuccessLatencySum:   cv.GetDnsSuccessLatencySum(),
+					DnsFailureLatencySum:   cv.GetDnsFailureLatencySum(),
+					TcpEstablished:         cv.GetLastTcpEstablished(),
+					TcpClosed:              cv.GetLastTcpClosed(),
+					TimestampNs:            ts,
+				}
+			}
+			bat.AddConnectionBatch(conns)
+		}, hook.WithBufferSize[[]hook.ConnectionView](s.hookBufSize))
+		unsubs = append(unsubs, unsub)
+	}
+
+	s.log.Infof("flightrecorder: activated (socket=%s flush=%s pts=%d defs=%d logs=%d tss=%d conns=%d hook_buf=%d ctx_cap=%d)",
+		s.socketPath, s.flushInterval, s.ptCapacity, s.defCapacity, s.logCapacity, s.traceStatsCapacity, s.connCapacity, s.hookBufSize, s.contextCap)
 
 	// Set transport disconnect handler: tear down everything and signal discovery loop.
 	transport.onDisconnect = func() {

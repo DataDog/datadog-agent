@@ -38,6 +38,8 @@ type batcher struct {
 	logs ringBuf[hook.LogSampleSnapshot]
 	// Trace stats ring.
 	tss ringBuf[capturedTraceStat]
+	// Connections ring.
+	conns ringBuf[capturedConnection]
 
 	// FlatBuffers builder pool.
 	builderPool *builderPool
@@ -50,6 +52,7 @@ type batcher struct {
 	metricsFlushCh chan struct{}
 	logsFlushCh    chan struct{}
 	tssFlushCh     chan struct{}
+	connsFlushCh   chan struct{}
 	stopCh         chan struct{}
 	wg             sync.WaitGroup
 }
@@ -64,28 +67,31 @@ func initialCap(maxCap int) int {
 	return c
 }
 
-func newBatcher(transport Transport, flushInterval time.Duration, ptCapacity, defCapacity, logCapacity, traceStatsCapacity int, seenContexts *contextSet, c *counters) *batcher {
+func newBatcher(transport Transport, flushInterval time.Duration, ptCapacity, defCapacity, logCapacity, traceStatsCapacity, connCapacity int, seenContexts *contextSet, c *counters) *batcher {
 	b := &batcher{
 		transport:     transport,
 		flushInterval: flushInterval,
 		counters:      c,
 
-		pts:  newRingBuf[metricPoint](initialCap(ptCapacity), ptCapacity),
-		defs: newRingBuf[contextDef](initialCap(defCapacity), defCapacity),
-		logs: newRingBuf[hook.LogSampleSnapshot](initialCap(logCapacity), logCapacity),
-		tss:  newRingBuf[capturedTraceStat](initialCap(traceStatsCapacity), traceStatsCapacity),
+		pts:   newRingBuf[metricPoint](initialCap(ptCapacity), ptCapacity),
+		defs:  newRingBuf[contextDef](initialCap(defCapacity), defCapacity),
+		logs:  newRingBuf[hook.LogSampleSnapshot](initialCap(logCapacity), logCapacity),
+		tss:   newRingBuf[capturedTraceStat](initialCap(traceStatsCapacity), traceStatsCapacity),
+		conns: newRingBuf[capturedConnection](initialCap(connCapacity), connCapacity),
 
 		builderPool:    newBuilderPool(),
 		seenContexts:   seenContexts,
 		metricsFlushCh: make(chan struct{}, 1),
 		logsFlushCh:    make(chan struct{}, 1),
 		tssFlushCh:     make(chan struct{}, 1),
+		connsFlushCh:   make(chan struct{}, 1),
 		stopCh:         make(chan struct{}),
 	}
-	b.wg.Add(3)
+	b.wg.Add(4)
 	go b.flushLoopFn(b.metricsFlushCh, b.flushMetrics)
 	go b.flushLoopFn(b.logsFlushCh, b.flushLogs)
 	go b.flushLoopFn(b.tssFlushCh, b.flushTraceStats)
+	go b.flushLoopFn(b.connsFlushCh, b.flushConnections)
 	return b
 }
 
@@ -114,6 +120,13 @@ func (b *batcher) AddLogBatch(batch []hook.LogSampleSnapshot) {
 func (b *batcher) AddTraceStat(t capturedTraceStat) {
 	if b.tss.add(t, func() { b.counters.incTraceStatsDroppedOverflow(1) }) {
 		signalCh(b.tssFlushCh)
+	}
+}
+
+// AddConnectionBatch enqueues a batch of connection snapshots.
+func (b *batcher) AddConnectionBatch(batch []capturedConnection) {
+	if b.conns.addBatch(batch, func() { b.counters.incConnectionsDroppedOverflow(1) }) {
+		signalCh(b.connsFlushCh)
 	}
 }
 
@@ -254,6 +267,21 @@ func (b *batcher) flushTraceStats() {
 		"trace_stats",
 		b.counters.incTraceStatsSent,
 		b.counters.incTraceStatsDroppedTransport,
+	)
+}
+
+func (b *batcher) flushConnections() {
+	flushChunked(
+		&b.conns,
+		func(pool *builderPool, buf []capturedConnection, tail, count, cap int) (*flatbuffers.Builder, error) {
+			return EncodeConnectionBatchRing(pool, buf, tail, count, cap)
+		},
+		b.builderPool,
+		b.transport,
+		b.counters,
+		"connections",
+		b.counters.incConnectionsSent,
+		b.counters.incConnectionsDroppedTransport,
 	)
 }
 

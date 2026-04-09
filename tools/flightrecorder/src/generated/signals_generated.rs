@@ -21,14 +21,15 @@ pub mod signals {
 #[deprecated(since = "2.0.0", note = "Use associated constants instead. This will no longer be generated in 2021.")]
 pub const ENUM_MIN_SIGNAL_PAYLOAD: u8 = 0;
 #[deprecated(since = "2.0.0", note = "Use associated constants instead. This will no longer be generated in 2021.")]
-pub const ENUM_MAX_SIGNAL_PAYLOAD: u8 = 3;
+pub const ENUM_MAX_SIGNAL_PAYLOAD: u8 = 4;
 #[deprecated(since = "2.0.0", note = "Use associated constants instead. This will no longer be generated in 2021.")]
 #[allow(non_camel_case_types)]
-pub const ENUM_VALUES_SIGNAL_PAYLOAD: [SignalPayload; 4] = [
+pub const ENUM_VALUES_SIGNAL_PAYLOAD: [SignalPayload; 5] = [
   SignalPayload::NONE,
   SignalPayload::MetricBatch,
   SignalPayload::LogBatch,
   SignalPayload::TraceStatsBatch,
+  SignalPayload::ConnectionBatch,
 ];
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
@@ -40,14 +41,16 @@ impl SignalPayload {
   pub const MetricBatch: Self = Self(1);
   pub const LogBatch: Self = Self(2);
   pub const TraceStatsBatch: Self = Self(3);
+  pub const ConnectionBatch: Self = Self(4);
 
   pub const ENUM_MIN: u8 = 0;
-  pub const ENUM_MAX: u8 = 3;
+  pub const ENUM_MAX: u8 = 4;
   pub const ENUM_VALUES: &'static [Self] = &[
     Self::NONE,
     Self::MetricBatch,
     Self::LogBatch,
     Self::TraceStatsBatch,
+    Self::ConnectionBatch,
   ];
   /// Returns the variant's name or "" if unknown.
   pub fn variant_name(self) -> Option<&'static str> {
@@ -56,6 +59,7 @@ impl SignalPayload {
       Self::MetricBatch => Some("MetricBatch"),
       Self::LogBatch => Some("LogBatch"),
       Self::TraceStatsBatch => Some("TraceStatsBatch"),
+      Self::ConnectionBatch => Some("ConnectionBatch"),
       _ => None,
     }
   }
@@ -142,8 +146,8 @@ impl<'a> MetricSample<'a> {
     MetricSample { _tab: table }
   }
   #[allow(unused_mut)]
-  pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-    _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+  pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr, A: flatbuffers::Allocator + 'bldr>(
+    _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr, A>,
     args: &'args MetricSampleArgs<'args>
   ) -> flatbuffers::WIPOffset<MetricSample<'bldr>> {
     let mut builder = MetricSampleBuilder::new(_fbb);
@@ -251,11 +255,11 @@ impl<'a> Default for MetricSampleArgs<'a> {
   }
 }
 
-pub struct MetricSampleBuilder<'a: 'b, 'b> {
-  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+pub struct MetricSampleBuilder<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a, A>,
   start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
 }
-impl<'a: 'b, 'b> MetricSampleBuilder<'a, 'b> {
+impl<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> MetricSampleBuilder<'a, 'b, A> {
   #[inline]
   pub fn add_name(&mut self, name: flatbuffers::WIPOffset<&'b  str>) {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(MetricSample::VT_NAME, name);
@@ -285,7 +289,7 @@ impl<'a: 'b, 'b> MetricSampleBuilder<'a, 'b> {
     self.fbb_.push_slot::<u64>(MetricSample::VT_CONTEXT_KEY, context_key, 0);
   }
   #[inline]
-  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> MetricSampleBuilder<'a, 'b> {
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a, A>) -> MetricSampleBuilder<'a, 'b, A> {
     let start = _fbb.start_table();
     MetricSampleBuilder {
       fbb_: _fbb,
@@ -340,8 +344,8 @@ impl<'a> LogEntry<'a> {
     LogEntry { _tab: table }
   }
   #[allow(unused_mut)]
-  pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-    _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+  pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr, A: flatbuffers::Allocator + 'bldr>(
+    _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr, A>,
     args: &'args LogEntryArgs<'args>
   ) -> flatbuffers::WIPOffset<LogEntry<'bldr>> {
     let mut builder = LogEntryBuilder::new(_fbb);
@@ -438,11 +442,11 @@ impl<'a> Default for LogEntryArgs<'a> {
   }
 }
 
-pub struct LogEntryBuilder<'a: 'b, 'b> {
-  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+pub struct LogEntryBuilder<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a, A>,
   start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
 }
-impl<'a: 'b, 'b> LogEntryBuilder<'a, 'b> {
+impl<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> LogEntryBuilder<'a, 'b, A> {
   #[inline]
   pub fn add_content(&mut self, content: flatbuffers::WIPOffset<flatbuffers::Vector<'b , u8>>) {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(LogEntry::VT_CONTENT, content);
@@ -468,7 +472,7 @@ impl<'a: 'b, 'b> LogEntryBuilder<'a, 'b> {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(LogEntry::VT_SOURCE, source);
   }
   #[inline]
-  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> LogEntryBuilder<'a, 'b> {
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a, A>) -> LogEntryBuilder<'a, 'b, A> {
     let start = _fbb.start_table();
     LogEntryBuilder {
       fbb_: _fbb,
@@ -517,8 +521,8 @@ impl<'a> MetricBatch<'a> {
     MetricBatch { _tab: table }
   }
   #[allow(unused_mut)]
-  pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-    _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+  pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr, A: flatbuffers::Allocator + 'bldr>(
+    _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr, A>,
     args: &'args MetricBatchArgs<'args>
   ) -> flatbuffers::WIPOffset<MetricBatch<'bldr>> {
     let mut builder = MetricBatchBuilder::new(_fbb);
@@ -560,17 +564,17 @@ impl<'a> Default for MetricBatchArgs<'a> {
   }
 }
 
-pub struct MetricBatchBuilder<'a: 'b, 'b> {
-  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+pub struct MetricBatchBuilder<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a, A>,
   start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
 }
-impl<'a: 'b, 'b> MetricBatchBuilder<'a, 'b> {
+impl<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> MetricBatchBuilder<'a, 'b, A> {
   #[inline]
   pub fn add_samples(&mut self, samples: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<MetricSample<'b >>>>) {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(MetricBatch::VT_SAMPLES, samples);
   }
   #[inline]
-  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> MetricBatchBuilder<'a, 'b> {
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a, A>) -> MetricBatchBuilder<'a, 'b, A> {
     let start = _fbb.start_table();
     MetricBatchBuilder {
       fbb_: _fbb,
@@ -614,8 +618,8 @@ impl<'a> LogBatch<'a> {
     LogBatch { _tab: table }
   }
   #[allow(unused_mut)]
-  pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-    _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+  pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr, A: flatbuffers::Allocator + 'bldr>(
+    _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr, A>,
     args: &'args LogBatchArgs<'args>
   ) -> flatbuffers::WIPOffset<LogBatch<'bldr>> {
     let mut builder = LogBatchBuilder::new(_fbb);
@@ -657,17 +661,17 @@ impl<'a> Default for LogBatchArgs<'a> {
   }
 }
 
-pub struct LogBatchBuilder<'a: 'b, 'b> {
-  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+pub struct LogBatchBuilder<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a, A>,
   start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
 }
-impl<'a: 'b, 'b> LogBatchBuilder<'a, 'b> {
+impl<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> LogBatchBuilder<'a, 'b, A> {
   #[inline]
   pub fn add_entries(&mut self, entries: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<LogEntry<'b >>>>) {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(LogBatch::VT_ENTRIES, entries);
   }
   #[inline]
-  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> LogBatchBuilder<'a, 'b> {
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a, A>) -> LogBatchBuilder<'a, 'b, A> {
     let start = _fbb.start_table();
     LogBatchBuilder {
       fbb_: _fbb,
@@ -727,77 +731,158 @@ impl<'a> TraceStatEntry<'a> {
   pub unsafe fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
     TraceStatEntry { _tab: table }
   }
+  #[allow(unused_mut)]
+  pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr, A: flatbuffers::Allocator + 'bldr>(
+    _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr, A>,
+    args: &'args TraceStatEntryArgs<'args>
+  ) -> flatbuffers::WIPOffset<TraceStatEntry<'bldr>> {
+    let mut builder = TraceStatEntryBuilder::new(_fbb);
+    builder.add_timestamp_ns(args.timestamp_ns);
+    builder.add_bucket_duration_ns(args.bucket_duration_ns);
+    builder.add_bucket_start_ns(args.bucket_start_ns);
+    builder.add_top_level_hits(args.top_level_hits);
+    builder.add_duration_ns(args.duration_ns);
+    builder.add_errors(args.errors);
+    builder.add_hits(args.hits);
+    if let Some(x) = args.version { builder.add_version(x); }
+    if let Some(x) = args.env { builder.add_env(x); }
+    if let Some(x) = args.hostname { builder.add_hostname(x); }
+    if let Some(x) = args.error_summary { builder.add_error_summary(x); }
+    if let Some(x) = args.ok_summary { builder.add_ok_summary(x); }
+    builder.add_http_status_code(args.http_status_code);
+    if let Some(x) = args.span_kind { builder.add_span_kind(x); }
+    if let Some(x) = args.type_ { builder.add_type_(x); }
+    if let Some(x) = args.resource { builder.add_resource(x); }
+    if let Some(x) = args.name { builder.add_name(x); }
+    if let Some(x) = args.service { builder.add_service(x); }
+    builder.finish()
+  }
+
 
   #[inline]
   pub fn service(&self) -> Option<&'a str> {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
     unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(TraceStatEntry::VT_SERVICE, None)}
   }
   #[inline]
   pub fn name(&self) -> Option<&'a str> {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
     unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(TraceStatEntry::VT_NAME, None)}
   }
   #[inline]
   pub fn resource(&self) -> Option<&'a str> {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
     unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(TraceStatEntry::VT_RESOURCE, None)}
   }
   #[inline]
   pub fn type_(&self) -> Option<&'a str> {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
     unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(TraceStatEntry::VT_TYPE_, None)}
   }
   #[inline]
   pub fn span_kind(&self) -> Option<&'a str> {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
     unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(TraceStatEntry::VT_SPAN_KIND, None)}
   }
   #[inline]
   pub fn http_status_code(&self) -> u32 {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
     unsafe { self._tab.get::<u32>(TraceStatEntry::VT_HTTP_STATUS_CODE, Some(0)).unwrap()}
   }
   #[inline]
   pub fn hits(&self) -> u64 {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
     unsafe { self._tab.get::<u64>(TraceStatEntry::VT_HITS, Some(0)).unwrap()}
   }
   #[inline]
   pub fn errors(&self) -> u64 {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
     unsafe { self._tab.get::<u64>(TraceStatEntry::VT_ERRORS, Some(0)).unwrap()}
   }
   #[inline]
   pub fn duration_ns(&self) -> u64 {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
     unsafe { self._tab.get::<u64>(TraceStatEntry::VT_DURATION_NS, Some(0)).unwrap()}
   }
   #[inline]
   pub fn top_level_hits(&self) -> u64 {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
     unsafe { self._tab.get::<u64>(TraceStatEntry::VT_TOP_LEVEL_HITS, Some(0)).unwrap()}
   }
   #[inline]
   pub fn ok_summary(&self) -> Option<flatbuffers::Vector<'a, u8>> {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
     unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u8>>>(TraceStatEntry::VT_OK_SUMMARY, None)}
   }
   #[inline]
   pub fn error_summary(&self) -> Option<flatbuffers::Vector<'a, u8>> {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
     unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u8>>>(TraceStatEntry::VT_ERROR_SUMMARY, None)}
   }
   #[inline]
   pub fn hostname(&self) -> Option<&'a str> {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
     unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(TraceStatEntry::VT_HOSTNAME, None)}
   }
   #[inline]
   pub fn env(&self) -> Option<&'a str> {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
     unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(TraceStatEntry::VT_ENV, None)}
   }
   #[inline]
   pub fn version(&self) -> Option<&'a str> {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
     unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(TraceStatEntry::VT_VERSION, None)}
   }
   #[inline]
   pub fn bucket_start_ns(&self) -> i64 {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
     unsafe { self._tab.get::<i64>(TraceStatEntry::VT_BUCKET_START_NS, Some(0)).unwrap()}
   }
   #[inline]
   pub fn bucket_duration_ns(&self) -> i64 {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
     unsafe { self._tab.get::<i64>(TraceStatEntry::VT_BUCKET_DURATION_NS, Some(0)).unwrap()}
   }
   #[inline]
   pub fn timestamp_ns(&self) -> i64 {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
     unsafe { self._tab.get::<i64>(TraceStatEntry::VT_TIMESTAMP_NS, Some(0)).unwrap()}
   }
 }
@@ -829,6 +914,143 @@ impl flatbuffers::Verifiable for TraceStatEntry<'_> {
      .visit_field::<i64>("timestamp_ns", Self::VT_TIMESTAMP_NS, false)?
      .finish();
     Ok(())
+  }
+}
+pub struct TraceStatEntryArgs<'a> {
+    pub service: Option<flatbuffers::WIPOffset<&'a str>>,
+    pub name: Option<flatbuffers::WIPOffset<&'a str>>,
+    pub resource: Option<flatbuffers::WIPOffset<&'a str>>,
+    pub type_: Option<flatbuffers::WIPOffset<&'a str>>,
+    pub span_kind: Option<flatbuffers::WIPOffset<&'a str>>,
+    pub http_status_code: u32,
+    pub hits: u64,
+    pub errors: u64,
+    pub duration_ns: u64,
+    pub top_level_hits: u64,
+    pub ok_summary: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a, u8>>>,
+    pub error_summary: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a, u8>>>,
+    pub hostname: Option<flatbuffers::WIPOffset<&'a str>>,
+    pub env: Option<flatbuffers::WIPOffset<&'a str>>,
+    pub version: Option<flatbuffers::WIPOffset<&'a str>>,
+    pub bucket_start_ns: i64,
+    pub bucket_duration_ns: i64,
+    pub timestamp_ns: i64,
+}
+impl<'a> Default for TraceStatEntryArgs<'a> {
+  #[inline]
+  fn default() -> Self {
+    TraceStatEntryArgs {
+      service: None,
+      name: None,
+      resource: None,
+      type_: None,
+      span_kind: None,
+      http_status_code: 0,
+      hits: 0,
+      errors: 0,
+      duration_ns: 0,
+      top_level_hits: 0,
+      ok_summary: None,
+      error_summary: None,
+      hostname: None,
+      env: None,
+      version: None,
+      bucket_start_ns: 0,
+      bucket_duration_ns: 0,
+      timestamp_ns: 0,
+    }
+  }
+}
+
+pub struct TraceStatEntryBuilder<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a, A>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> TraceStatEntryBuilder<'a, 'b, A> {
+  #[inline]
+  pub fn add_service(&mut self, service: flatbuffers::WIPOffset<&'b  str>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(TraceStatEntry::VT_SERVICE, service);
+  }
+  #[inline]
+  pub fn add_name(&mut self, name: flatbuffers::WIPOffset<&'b  str>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(TraceStatEntry::VT_NAME, name);
+  }
+  #[inline]
+  pub fn add_resource(&mut self, resource: flatbuffers::WIPOffset<&'b  str>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(TraceStatEntry::VT_RESOURCE, resource);
+  }
+  #[inline]
+  pub fn add_type_(&mut self, type_: flatbuffers::WIPOffset<&'b  str>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(TraceStatEntry::VT_TYPE_, type_);
+  }
+  #[inline]
+  pub fn add_span_kind(&mut self, span_kind: flatbuffers::WIPOffset<&'b  str>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(TraceStatEntry::VT_SPAN_KIND, span_kind);
+  }
+  #[inline]
+  pub fn add_http_status_code(&mut self, http_status_code: u32) {
+    self.fbb_.push_slot::<u32>(TraceStatEntry::VT_HTTP_STATUS_CODE, http_status_code, 0);
+  }
+  #[inline]
+  pub fn add_hits(&mut self, hits: u64) {
+    self.fbb_.push_slot::<u64>(TraceStatEntry::VT_HITS, hits, 0);
+  }
+  #[inline]
+  pub fn add_errors(&mut self, errors: u64) {
+    self.fbb_.push_slot::<u64>(TraceStatEntry::VT_ERRORS, errors, 0);
+  }
+  #[inline]
+  pub fn add_duration_ns(&mut self, duration_ns: u64) {
+    self.fbb_.push_slot::<u64>(TraceStatEntry::VT_DURATION_NS, duration_ns, 0);
+  }
+  #[inline]
+  pub fn add_top_level_hits(&mut self, top_level_hits: u64) {
+    self.fbb_.push_slot::<u64>(TraceStatEntry::VT_TOP_LEVEL_HITS, top_level_hits, 0);
+  }
+  #[inline]
+  pub fn add_ok_summary(&mut self, ok_summary: flatbuffers::WIPOffset<flatbuffers::Vector<'b , u8>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(TraceStatEntry::VT_OK_SUMMARY, ok_summary);
+  }
+  #[inline]
+  pub fn add_error_summary(&mut self, error_summary: flatbuffers::WIPOffset<flatbuffers::Vector<'b , u8>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(TraceStatEntry::VT_ERROR_SUMMARY, error_summary);
+  }
+  #[inline]
+  pub fn add_hostname(&mut self, hostname: flatbuffers::WIPOffset<&'b  str>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(TraceStatEntry::VT_HOSTNAME, hostname);
+  }
+  #[inline]
+  pub fn add_env(&mut self, env: flatbuffers::WIPOffset<&'b  str>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(TraceStatEntry::VT_ENV, env);
+  }
+  #[inline]
+  pub fn add_version(&mut self, version: flatbuffers::WIPOffset<&'b  str>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(TraceStatEntry::VT_VERSION, version);
+  }
+  #[inline]
+  pub fn add_bucket_start_ns(&mut self, bucket_start_ns: i64) {
+    self.fbb_.push_slot::<i64>(TraceStatEntry::VT_BUCKET_START_NS, bucket_start_ns, 0);
+  }
+  #[inline]
+  pub fn add_bucket_duration_ns(&mut self, bucket_duration_ns: i64) {
+    self.fbb_.push_slot::<i64>(TraceStatEntry::VT_BUCKET_DURATION_NS, bucket_duration_ns, 0);
+  }
+  #[inline]
+  pub fn add_timestamp_ns(&mut self, timestamp_ns: i64) {
+    self.fbb_.push_slot::<i64>(TraceStatEntry::VT_TIMESTAMP_NS, timestamp_ns, 0);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a, A>) -> TraceStatEntryBuilder<'a, 'b, A> {
+    let start = _fbb.start_table();
+    TraceStatEntryBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<TraceStatEntry<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    flatbuffers::WIPOffset::new(o.value())
   }
 }
 
@@ -878,9 +1100,22 @@ impl<'a> TraceStatsBatch<'a> {
   pub unsafe fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
     TraceStatsBatch { _tab: table }
   }
+  #[allow(unused_mut)]
+  pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr, A: flatbuffers::Allocator + 'bldr>(
+    _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr, A>,
+    args: &'args TraceStatsBatchArgs<'args>
+  ) -> flatbuffers::WIPOffset<TraceStatsBatch<'bldr>> {
+    let mut builder = TraceStatsBatchBuilder::new(_fbb);
+    if let Some(x) = args.entries { builder.add_entries(x); }
+    builder.finish()
+  }
+
 
   #[inline]
   pub fn entries(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<TraceStatEntry<'a>>>> {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
     unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<TraceStatEntry>>>>(TraceStatsBatch::VT_ENTRIES, None)}
   }
 }
@@ -897,10 +1132,681 @@ impl flatbuffers::Verifiable for TraceStatsBatch<'_> {
     Ok(())
   }
 }
+pub struct TraceStatsBatchArgs<'a> {
+    pub entries: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<TraceStatEntry<'a>>>>>,
+}
+impl<'a> Default for TraceStatsBatchArgs<'a> {
+  #[inline]
+  fn default() -> Self {
+    TraceStatsBatchArgs {
+      entries: None,
+    }
+  }
+}
+
+pub struct TraceStatsBatchBuilder<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a, A>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> TraceStatsBatchBuilder<'a, 'b, A> {
+  #[inline]
+  pub fn add_entries(&mut self, entries: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<TraceStatEntry<'b >>>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(TraceStatsBatch::VT_ENTRIES, entries);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a, A>) -> TraceStatsBatchBuilder<'a, 'b, A> {
+    let start = _fbb.start_table();
+    TraceStatsBatchBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<TraceStatsBatch<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
 
 impl core::fmt::Debug for TraceStatsBatch<'_> {
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     let mut ds = f.debug_struct("TraceStatsBatch");
+      ds.field("entries", &self.entries());
+      ds.finish()
+  }
+}
+pub enum ConnectionEntryOffset {}
+#[derive(Copy, Clone, PartialEq)]
+
+pub struct ConnectionEntry<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for ConnectionEntry<'a> {
+  type Inner = ConnectionEntry<'a>;
+  #[inline]
+  unsafe fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+    Self { _tab: flatbuffers::Table::new(buf, loc) }
+  }
+}
+
+impl<'a> ConnectionEntry<'a> {
+  pub const VT_PID: flatbuffers::VOffsetT = 4;
+  pub const VT_LOCAL_IP: flatbuffers::VOffsetT = 6;
+  pub const VT_LOCAL_PORT: flatbuffers::VOffsetT = 8;
+  pub const VT_LOCAL_CONTAINER_ID: flatbuffers::VOffsetT = 10;
+  pub const VT_REMOTE_IP: flatbuffers::VOffsetT = 12;
+  pub const VT_REMOTE_PORT: flatbuffers::VOffsetT = 14;
+  pub const VT_REMOTE_CONTAINER_ID: flatbuffers::VOffsetT = 16;
+  pub const VT_FAMILY: flatbuffers::VOffsetT = 18;
+  pub const VT_CONN_TYPE: flatbuffers::VOffsetT = 20;
+  pub const VT_DIRECTION: flatbuffers::VOffsetT = 22;
+  pub const VT_NET_NS: flatbuffers::VOffsetT = 24;
+  pub const VT_BYTES_SENT: flatbuffers::VOffsetT = 26;
+  pub const VT_BYTES_RECEIVED: flatbuffers::VOffsetT = 28;
+  pub const VT_PACKETS_SENT: flatbuffers::VOffsetT = 30;
+  pub const VT_PACKETS_RECEIVED: flatbuffers::VOffsetT = 32;
+  pub const VT_RETRANSMITS: flatbuffers::VOffsetT = 34;
+  pub const VT_RTT: flatbuffers::VOffsetT = 36;
+  pub const VT_RTT_VAR: flatbuffers::VOffsetT = 38;
+  pub const VT_INTRA_HOST: flatbuffers::VOffsetT = 40;
+  pub const VT_DNS_SUCCESSFUL_RESPONSES: flatbuffers::VOffsetT = 42;
+  pub const VT_DNS_FAILED_RESPONSES: flatbuffers::VOffsetT = 44;
+  pub const VT_DNS_TIMEOUTS: flatbuffers::VOffsetT = 46;
+  pub const VT_DNS_SUCCESS_LATENCY_SUM: flatbuffers::VOffsetT = 48;
+  pub const VT_DNS_FAILURE_LATENCY_SUM: flatbuffers::VOffsetT = 50;
+  pub const VT_TCP_ESTABLISHED: flatbuffers::VOffsetT = 52;
+  pub const VT_TCP_CLOSED: flatbuffers::VOffsetT = 54;
+  pub const VT_TIMESTAMP_NS: flatbuffers::VOffsetT = 56;
+
+  #[inline]
+  pub unsafe fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+    ConnectionEntry { _tab: table }
+  }
+  #[allow(unused_mut)]
+  pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr, A: flatbuffers::Allocator + 'bldr>(
+    _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr, A>,
+    args: &'args ConnectionEntryArgs<'args>
+  ) -> flatbuffers::WIPOffset<ConnectionEntry<'bldr>> {
+    let mut builder = ConnectionEntryBuilder::new(_fbb);
+    builder.add_timestamp_ns(args.timestamp_ns);
+    builder.add_dns_failure_latency_sum(args.dns_failure_latency_sum);
+    builder.add_dns_success_latency_sum(args.dns_success_latency_sum);
+    builder.add_packets_received(args.packets_received);
+    builder.add_packets_sent(args.packets_sent);
+    builder.add_bytes_received(args.bytes_received);
+    builder.add_bytes_sent(args.bytes_sent);
+    builder.add_tcp_closed(args.tcp_closed);
+    builder.add_tcp_established(args.tcp_established);
+    builder.add_dns_timeouts(args.dns_timeouts);
+    builder.add_dns_failed_responses(args.dns_failed_responses);
+    builder.add_dns_successful_responses(args.dns_successful_responses);
+    builder.add_rtt_var(args.rtt_var);
+    builder.add_rtt(args.rtt);
+    builder.add_retransmits(args.retransmits);
+    builder.add_net_ns(args.net_ns);
+    builder.add_direction(args.direction);
+    builder.add_conn_type(args.conn_type);
+    builder.add_family(args.family);
+    if let Some(x) = args.remote_container_id { builder.add_remote_container_id(x); }
+    builder.add_remote_port(args.remote_port);
+    if let Some(x) = args.remote_ip { builder.add_remote_ip(x); }
+    if let Some(x) = args.local_container_id { builder.add_local_container_id(x); }
+    builder.add_local_port(args.local_port);
+    if let Some(x) = args.local_ip { builder.add_local_ip(x); }
+    builder.add_pid(args.pid);
+    builder.add_intra_host(args.intra_host);
+    builder.finish()
+  }
+
+
+  #[inline]
+  pub fn pid(&self) -> i32 {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<i32>(ConnectionEntry::VT_PID, Some(0)).unwrap()}
+  }
+  #[inline]
+  pub fn local_ip(&self) -> Option<&'a str> {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(ConnectionEntry::VT_LOCAL_IP, None)}
+  }
+  #[inline]
+  pub fn local_port(&self) -> i32 {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<i32>(ConnectionEntry::VT_LOCAL_PORT, Some(0)).unwrap()}
+  }
+  #[inline]
+  pub fn local_container_id(&self) -> Option<&'a str> {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(ConnectionEntry::VT_LOCAL_CONTAINER_ID, None)}
+  }
+  #[inline]
+  pub fn remote_ip(&self) -> Option<&'a str> {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(ConnectionEntry::VT_REMOTE_IP, None)}
+  }
+  #[inline]
+  pub fn remote_port(&self) -> i32 {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<i32>(ConnectionEntry::VT_REMOTE_PORT, Some(0)).unwrap()}
+  }
+  #[inline]
+  pub fn remote_container_id(&self) -> Option<&'a str> {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(ConnectionEntry::VT_REMOTE_CONTAINER_ID, None)}
+  }
+  #[inline]
+  pub fn family(&self) -> u32 {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<u32>(ConnectionEntry::VT_FAMILY, Some(0)).unwrap()}
+  }
+  #[inline]
+  pub fn conn_type(&self) -> u32 {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<u32>(ConnectionEntry::VT_CONN_TYPE, Some(0)).unwrap()}
+  }
+  #[inline]
+  pub fn direction(&self) -> u32 {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<u32>(ConnectionEntry::VT_DIRECTION, Some(0)).unwrap()}
+  }
+  #[inline]
+  pub fn net_ns(&self) -> u32 {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<u32>(ConnectionEntry::VT_NET_NS, Some(0)).unwrap()}
+  }
+  #[inline]
+  pub fn bytes_sent(&self) -> u64 {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<u64>(ConnectionEntry::VT_BYTES_SENT, Some(0)).unwrap()}
+  }
+  #[inline]
+  pub fn bytes_received(&self) -> u64 {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<u64>(ConnectionEntry::VT_BYTES_RECEIVED, Some(0)).unwrap()}
+  }
+  #[inline]
+  pub fn packets_sent(&self) -> u64 {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<u64>(ConnectionEntry::VT_PACKETS_SENT, Some(0)).unwrap()}
+  }
+  #[inline]
+  pub fn packets_received(&self) -> u64 {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<u64>(ConnectionEntry::VT_PACKETS_RECEIVED, Some(0)).unwrap()}
+  }
+  #[inline]
+  pub fn retransmits(&self) -> u32 {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<u32>(ConnectionEntry::VT_RETRANSMITS, Some(0)).unwrap()}
+  }
+  #[inline]
+  pub fn rtt(&self) -> u32 {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<u32>(ConnectionEntry::VT_RTT, Some(0)).unwrap()}
+  }
+  #[inline]
+  pub fn rtt_var(&self) -> u32 {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<u32>(ConnectionEntry::VT_RTT_VAR, Some(0)).unwrap()}
+  }
+  #[inline]
+  pub fn intra_host(&self) -> bool {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<bool>(ConnectionEntry::VT_INTRA_HOST, Some(false)).unwrap()}
+  }
+  #[inline]
+  pub fn dns_successful_responses(&self) -> u32 {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<u32>(ConnectionEntry::VT_DNS_SUCCESSFUL_RESPONSES, Some(0)).unwrap()}
+  }
+  #[inline]
+  pub fn dns_failed_responses(&self) -> u32 {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<u32>(ConnectionEntry::VT_DNS_FAILED_RESPONSES, Some(0)).unwrap()}
+  }
+  #[inline]
+  pub fn dns_timeouts(&self) -> u32 {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<u32>(ConnectionEntry::VT_DNS_TIMEOUTS, Some(0)).unwrap()}
+  }
+  #[inline]
+  pub fn dns_success_latency_sum(&self) -> u64 {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<u64>(ConnectionEntry::VT_DNS_SUCCESS_LATENCY_SUM, Some(0)).unwrap()}
+  }
+  #[inline]
+  pub fn dns_failure_latency_sum(&self) -> u64 {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<u64>(ConnectionEntry::VT_DNS_FAILURE_LATENCY_SUM, Some(0)).unwrap()}
+  }
+  #[inline]
+  pub fn tcp_established(&self) -> u32 {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<u32>(ConnectionEntry::VT_TCP_ESTABLISHED, Some(0)).unwrap()}
+  }
+  #[inline]
+  pub fn tcp_closed(&self) -> u32 {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<u32>(ConnectionEntry::VT_TCP_CLOSED, Some(0)).unwrap()}
+  }
+  #[inline]
+  pub fn timestamp_ns(&self) -> i64 {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<i64>(ConnectionEntry::VT_TIMESTAMP_NS, Some(0)).unwrap()}
+  }
+}
+
+impl flatbuffers::Verifiable for ConnectionEntry<'_> {
+  #[inline]
+  fn run_verifier(
+    v: &mut flatbuffers::Verifier, pos: usize
+  ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
+    use self::flatbuffers::Verifiable;
+    v.visit_table(pos)?
+     .visit_field::<i32>("pid", Self::VT_PID, false)?
+     .visit_field::<flatbuffers::ForwardsUOffset<&str>>("local_ip", Self::VT_LOCAL_IP, false)?
+     .visit_field::<i32>("local_port", Self::VT_LOCAL_PORT, false)?
+     .visit_field::<flatbuffers::ForwardsUOffset<&str>>("local_container_id", Self::VT_LOCAL_CONTAINER_ID, false)?
+     .visit_field::<flatbuffers::ForwardsUOffset<&str>>("remote_ip", Self::VT_REMOTE_IP, false)?
+     .visit_field::<i32>("remote_port", Self::VT_REMOTE_PORT, false)?
+     .visit_field::<flatbuffers::ForwardsUOffset<&str>>("remote_container_id", Self::VT_REMOTE_CONTAINER_ID, false)?
+     .visit_field::<u32>("family", Self::VT_FAMILY, false)?
+     .visit_field::<u32>("conn_type", Self::VT_CONN_TYPE, false)?
+     .visit_field::<u32>("direction", Self::VT_DIRECTION, false)?
+     .visit_field::<u32>("net_ns", Self::VT_NET_NS, false)?
+     .visit_field::<u64>("bytes_sent", Self::VT_BYTES_SENT, false)?
+     .visit_field::<u64>("bytes_received", Self::VT_BYTES_RECEIVED, false)?
+     .visit_field::<u64>("packets_sent", Self::VT_PACKETS_SENT, false)?
+     .visit_field::<u64>("packets_received", Self::VT_PACKETS_RECEIVED, false)?
+     .visit_field::<u32>("retransmits", Self::VT_RETRANSMITS, false)?
+     .visit_field::<u32>("rtt", Self::VT_RTT, false)?
+     .visit_field::<u32>("rtt_var", Self::VT_RTT_VAR, false)?
+     .visit_field::<bool>("intra_host", Self::VT_INTRA_HOST, false)?
+     .visit_field::<u32>("dns_successful_responses", Self::VT_DNS_SUCCESSFUL_RESPONSES, false)?
+     .visit_field::<u32>("dns_failed_responses", Self::VT_DNS_FAILED_RESPONSES, false)?
+     .visit_field::<u32>("dns_timeouts", Self::VT_DNS_TIMEOUTS, false)?
+     .visit_field::<u64>("dns_success_latency_sum", Self::VT_DNS_SUCCESS_LATENCY_SUM, false)?
+     .visit_field::<u64>("dns_failure_latency_sum", Self::VT_DNS_FAILURE_LATENCY_SUM, false)?
+     .visit_field::<u32>("tcp_established", Self::VT_TCP_ESTABLISHED, false)?
+     .visit_field::<u32>("tcp_closed", Self::VT_TCP_CLOSED, false)?
+     .visit_field::<i64>("timestamp_ns", Self::VT_TIMESTAMP_NS, false)?
+     .finish();
+    Ok(())
+  }
+}
+pub struct ConnectionEntryArgs<'a> {
+    pub pid: i32,
+    pub local_ip: Option<flatbuffers::WIPOffset<&'a str>>,
+    pub local_port: i32,
+    pub local_container_id: Option<flatbuffers::WIPOffset<&'a str>>,
+    pub remote_ip: Option<flatbuffers::WIPOffset<&'a str>>,
+    pub remote_port: i32,
+    pub remote_container_id: Option<flatbuffers::WIPOffset<&'a str>>,
+    pub family: u32,
+    pub conn_type: u32,
+    pub direction: u32,
+    pub net_ns: u32,
+    pub bytes_sent: u64,
+    pub bytes_received: u64,
+    pub packets_sent: u64,
+    pub packets_received: u64,
+    pub retransmits: u32,
+    pub rtt: u32,
+    pub rtt_var: u32,
+    pub intra_host: bool,
+    pub dns_successful_responses: u32,
+    pub dns_failed_responses: u32,
+    pub dns_timeouts: u32,
+    pub dns_success_latency_sum: u64,
+    pub dns_failure_latency_sum: u64,
+    pub tcp_established: u32,
+    pub tcp_closed: u32,
+    pub timestamp_ns: i64,
+}
+impl<'a> Default for ConnectionEntryArgs<'a> {
+  #[inline]
+  fn default() -> Self {
+    ConnectionEntryArgs {
+      pid: 0,
+      local_ip: None,
+      local_port: 0,
+      local_container_id: None,
+      remote_ip: None,
+      remote_port: 0,
+      remote_container_id: None,
+      family: 0,
+      conn_type: 0,
+      direction: 0,
+      net_ns: 0,
+      bytes_sent: 0,
+      bytes_received: 0,
+      packets_sent: 0,
+      packets_received: 0,
+      retransmits: 0,
+      rtt: 0,
+      rtt_var: 0,
+      intra_host: false,
+      dns_successful_responses: 0,
+      dns_failed_responses: 0,
+      dns_timeouts: 0,
+      dns_success_latency_sum: 0,
+      dns_failure_latency_sum: 0,
+      tcp_established: 0,
+      tcp_closed: 0,
+      timestamp_ns: 0,
+    }
+  }
+}
+
+pub struct ConnectionEntryBuilder<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a, A>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> ConnectionEntryBuilder<'a, 'b, A> {
+  #[inline]
+  pub fn add_pid(&mut self, pid: i32) {
+    self.fbb_.push_slot::<i32>(ConnectionEntry::VT_PID, pid, 0);
+  }
+  #[inline]
+  pub fn add_local_ip(&mut self, local_ip: flatbuffers::WIPOffset<&'b  str>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(ConnectionEntry::VT_LOCAL_IP, local_ip);
+  }
+  #[inline]
+  pub fn add_local_port(&mut self, local_port: i32) {
+    self.fbb_.push_slot::<i32>(ConnectionEntry::VT_LOCAL_PORT, local_port, 0);
+  }
+  #[inline]
+  pub fn add_local_container_id(&mut self, local_container_id: flatbuffers::WIPOffset<&'b  str>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(ConnectionEntry::VT_LOCAL_CONTAINER_ID, local_container_id);
+  }
+  #[inline]
+  pub fn add_remote_ip(&mut self, remote_ip: flatbuffers::WIPOffset<&'b  str>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(ConnectionEntry::VT_REMOTE_IP, remote_ip);
+  }
+  #[inline]
+  pub fn add_remote_port(&mut self, remote_port: i32) {
+    self.fbb_.push_slot::<i32>(ConnectionEntry::VT_REMOTE_PORT, remote_port, 0);
+  }
+  #[inline]
+  pub fn add_remote_container_id(&mut self, remote_container_id: flatbuffers::WIPOffset<&'b  str>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(ConnectionEntry::VT_REMOTE_CONTAINER_ID, remote_container_id);
+  }
+  #[inline]
+  pub fn add_family(&mut self, family: u32) {
+    self.fbb_.push_slot::<u32>(ConnectionEntry::VT_FAMILY, family, 0);
+  }
+  #[inline]
+  pub fn add_conn_type(&mut self, conn_type: u32) {
+    self.fbb_.push_slot::<u32>(ConnectionEntry::VT_CONN_TYPE, conn_type, 0);
+  }
+  #[inline]
+  pub fn add_direction(&mut self, direction: u32) {
+    self.fbb_.push_slot::<u32>(ConnectionEntry::VT_DIRECTION, direction, 0);
+  }
+  #[inline]
+  pub fn add_net_ns(&mut self, net_ns: u32) {
+    self.fbb_.push_slot::<u32>(ConnectionEntry::VT_NET_NS, net_ns, 0);
+  }
+  #[inline]
+  pub fn add_bytes_sent(&mut self, bytes_sent: u64) {
+    self.fbb_.push_slot::<u64>(ConnectionEntry::VT_BYTES_SENT, bytes_sent, 0);
+  }
+  #[inline]
+  pub fn add_bytes_received(&mut self, bytes_received: u64) {
+    self.fbb_.push_slot::<u64>(ConnectionEntry::VT_BYTES_RECEIVED, bytes_received, 0);
+  }
+  #[inline]
+  pub fn add_packets_sent(&mut self, packets_sent: u64) {
+    self.fbb_.push_slot::<u64>(ConnectionEntry::VT_PACKETS_SENT, packets_sent, 0);
+  }
+  #[inline]
+  pub fn add_packets_received(&mut self, packets_received: u64) {
+    self.fbb_.push_slot::<u64>(ConnectionEntry::VT_PACKETS_RECEIVED, packets_received, 0);
+  }
+  #[inline]
+  pub fn add_retransmits(&mut self, retransmits: u32) {
+    self.fbb_.push_slot::<u32>(ConnectionEntry::VT_RETRANSMITS, retransmits, 0);
+  }
+  #[inline]
+  pub fn add_rtt(&mut self, rtt: u32) {
+    self.fbb_.push_slot::<u32>(ConnectionEntry::VT_RTT, rtt, 0);
+  }
+  #[inline]
+  pub fn add_rtt_var(&mut self, rtt_var: u32) {
+    self.fbb_.push_slot::<u32>(ConnectionEntry::VT_RTT_VAR, rtt_var, 0);
+  }
+  #[inline]
+  pub fn add_intra_host(&mut self, intra_host: bool) {
+    self.fbb_.push_slot::<bool>(ConnectionEntry::VT_INTRA_HOST, intra_host, false);
+  }
+  #[inline]
+  pub fn add_dns_successful_responses(&mut self, dns_successful_responses: u32) {
+    self.fbb_.push_slot::<u32>(ConnectionEntry::VT_DNS_SUCCESSFUL_RESPONSES, dns_successful_responses, 0);
+  }
+  #[inline]
+  pub fn add_dns_failed_responses(&mut self, dns_failed_responses: u32) {
+    self.fbb_.push_slot::<u32>(ConnectionEntry::VT_DNS_FAILED_RESPONSES, dns_failed_responses, 0);
+  }
+  #[inline]
+  pub fn add_dns_timeouts(&mut self, dns_timeouts: u32) {
+    self.fbb_.push_slot::<u32>(ConnectionEntry::VT_DNS_TIMEOUTS, dns_timeouts, 0);
+  }
+  #[inline]
+  pub fn add_dns_success_latency_sum(&mut self, dns_success_latency_sum: u64) {
+    self.fbb_.push_slot::<u64>(ConnectionEntry::VT_DNS_SUCCESS_LATENCY_SUM, dns_success_latency_sum, 0);
+  }
+  #[inline]
+  pub fn add_dns_failure_latency_sum(&mut self, dns_failure_latency_sum: u64) {
+    self.fbb_.push_slot::<u64>(ConnectionEntry::VT_DNS_FAILURE_LATENCY_SUM, dns_failure_latency_sum, 0);
+  }
+  #[inline]
+  pub fn add_tcp_established(&mut self, tcp_established: u32) {
+    self.fbb_.push_slot::<u32>(ConnectionEntry::VT_TCP_ESTABLISHED, tcp_established, 0);
+  }
+  #[inline]
+  pub fn add_tcp_closed(&mut self, tcp_closed: u32) {
+    self.fbb_.push_slot::<u32>(ConnectionEntry::VT_TCP_CLOSED, tcp_closed, 0);
+  }
+  #[inline]
+  pub fn add_timestamp_ns(&mut self, timestamp_ns: i64) {
+    self.fbb_.push_slot::<i64>(ConnectionEntry::VT_TIMESTAMP_NS, timestamp_ns, 0);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a, A>) -> ConnectionEntryBuilder<'a, 'b, A> {
+    let start = _fbb.start_table();
+    ConnectionEntryBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<ConnectionEntry<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+impl core::fmt::Debug for ConnectionEntry<'_> {
+  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    let mut ds = f.debug_struct("ConnectionEntry");
+      ds.field("pid", &self.pid());
+      ds.field("local_ip", &self.local_ip());
+      ds.field("local_port", &self.local_port());
+      ds.field("local_container_id", &self.local_container_id());
+      ds.field("remote_ip", &self.remote_ip());
+      ds.field("remote_port", &self.remote_port());
+      ds.field("remote_container_id", &self.remote_container_id());
+      ds.field("family", &self.family());
+      ds.field("conn_type", &self.conn_type());
+      ds.field("direction", &self.direction());
+      ds.field("net_ns", &self.net_ns());
+      ds.field("bytes_sent", &self.bytes_sent());
+      ds.field("bytes_received", &self.bytes_received());
+      ds.field("packets_sent", &self.packets_sent());
+      ds.field("packets_received", &self.packets_received());
+      ds.field("retransmits", &self.retransmits());
+      ds.field("rtt", &self.rtt());
+      ds.field("rtt_var", &self.rtt_var());
+      ds.field("intra_host", &self.intra_host());
+      ds.field("dns_successful_responses", &self.dns_successful_responses());
+      ds.field("dns_failed_responses", &self.dns_failed_responses());
+      ds.field("dns_timeouts", &self.dns_timeouts());
+      ds.field("dns_success_latency_sum", &self.dns_success_latency_sum());
+      ds.field("dns_failure_latency_sum", &self.dns_failure_latency_sum());
+      ds.field("tcp_established", &self.tcp_established());
+      ds.field("tcp_closed", &self.tcp_closed());
+      ds.field("timestamp_ns", &self.timestamp_ns());
+      ds.finish()
+  }
+}
+pub enum ConnectionBatchOffset {}
+#[derive(Copy, Clone, PartialEq)]
+
+pub struct ConnectionBatch<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for ConnectionBatch<'a> {
+  type Inner = ConnectionBatch<'a>;
+  #[inline]
+  unsafe fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+    Self { _tab: flatbuffers::Table::new(buf, loc) }
+  }
+}
+
+impl<'a> ConnectionBatch<'a> {
+  pub const VT_ENTRIES: flatbuffers::VOffsetT = 4;
+
+  #[inline]
+  pub unsafe fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+    ConnectionBatch { _tab: table }
+  }
+  #[allow(unused_mut)]
+  pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr, A: flatbuffers::Allocator + 'bldr>(
+    _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr, A>,
+    args: &'args ConnectionBatchArgs<'args>
+  ) -> flatbuffers::WIPOffset<ConnectionBatch<'bldr>> {
+    let mut builder = ConnectionBatchBuilder::new(_fbb);
+    if let Some(x) = args.entries { builder.add_entries(x); }
+    builder.finish()
+  }
+
+
+  #[inline]
+  pub fn entries(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<ConnectionEntry<'a>>>> {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<ConnectionEntry>>>>(ConnectionBatch::VT_ENTRIES, None)}
+  }
+}
+
+impl flatbuffers::Verifiable for ConnectionBatch<'_> {
+  #[inline]
+  fn run_verifier(
+    v: &mut flatbuffers::Verifier, pos: usize
+  ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
+    use self::flatbuffers::Verifiable;
+    v.visit_table(pos)?
+     .visit_field::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'_, flatbuffers::ForwardsUOffset<ConnectionEntry>>>>("entries", Self::VT_ENTRIES, false)?
+     .finish();
+    Ok(())
+  }
+}
+pub struct ConnectionBatchArgs<'a> {
+    pub entries: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<ConnectionEntry<'a>>>>>,
+}
+impl<'a> Default for ConnectionBatchArgs<'a> {
+  #[inline]
+  fn default() -> Self {
+    ConnectionBatchArgs {
+      entries: None,
+    }
+  }
+}
+
+pub struct ConnectionBatchBuilder<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a, A>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> ConnectionBatchBuilder<'a, 'b, A> {
+  #[inline]
+  pub fn add_entries(&mut self, entries: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<ConnectionEntry<'b >>>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(ConnectionBatch::VT_ENTRIES, entries);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a, A>) -> ConnectionBatchBuilder<'a, 'b, A> {
+    let start = _fbb.start_table();
+    ConnectionBatchBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<ConnectionBatch<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+impl core::fmt::Debug for ConnectionBatch<'_> {
+  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    let mut ds = f.debug_struct("ConnectionBatch");
       ds.field("entries", &self.entries());
       ds.finish()
   }
@@ -929,8 +1835,8 @@ impl<'a> SignalEnvelope<'a> {
     SignalEnvelope { _tab: table }
   }
   #[allow(unused_mut)]
-  pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-    _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+  pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr, A: flatbuffers::Allocator + 'bldr>(
+    _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr, A>,
     args: &'args SignalEnvelopeArgs
   ) -> flatbuffers::WIPOffset<SignalEnvelope<'bldr>> {
     let mut builder = SignalEnvelopeBuilder::new(_fbb);
@@ -999,6 +1905,21 @@ impl<'a> SignalEnvelope<'a> {
     }
   }
 
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn payload_as_connection_batch(&self) -> Option<ConnectionBatch<'a>> {
+    if self.payload_type() == SignalPayload::ConnectionBatch {
+      self.payload().map(|t| {
+       // Safety:
+       // Created from a valid Table for this object
+       // Which contains a valid union in this slot
+       unsafe { ConnectionBatch::init_from_table(t) }
+     })
+    } else {
+      None
+    }
+  }
+
 }
 
 impl flatbuffers::Verifiable for SignalEnvelope<'_> {
@@ -1013,6 +1934,7 @@ impl flatbuffers::Verifiable for SignalEnvelope<'_> {
           SignalPayload::MetricBatch => v.verify_union_variant::<flatbuffers::ForwardsUOffset<MetricBatch>>("SignalPayload::MetricBatch", pos),
           SignalPayload::LogBatch => v.verify_union_variant::<flatbuffers::ForwardsUOffset<LogBatch>>("SignalPayload::LogBatch", pos),
           SignalPayload::TraceStatsBatch => v.verify_union_variant::<flatbuffers::ForwardsUOffset<TraceStatsBatch>>("SignalPayload::TraceStatsBatch", pos),
+          SignalPayload::ConnectionBatch => v.verify_union_variant::<flatbuffers::ForwardsUOffset<ConnectionBatch>>("SignalPayload::ConnectionBatch", pos),
           _ => Ok(()),
         }
      })?
@@ -1034,11 +1956,11 @@ impl<'a> Default for SignalEnvelopeArgs {
   }
 }
 
-pub struct SignalEnvelopeBuilder<'a: 'b, 'b> {
-  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+pub struct SignalEnvelopeBuilder<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a, A>,
   start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
 }
-impl<'a: 'b, 'b> SignalEnvelopeBuilder<'a, 'b> {
+impl<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> SignalEnvelopeBuilder<'a, 'b, A> {
   #[inline]
   pub fn add_payload_type(&mut self, payload_type: SignalPayload) {
     self.fbb_.push_slot::<SignalPayload>(SignalEnvelope::VT_PAYLOAD_TYPE, payload_type, SignalPayload::NONE);
@@ -1048,7 +1970,7 @@ impl<'a: 'b, 'b> SignalEnvelopeBuilder<'a, 'b> {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(SignalEnvelope::VT_PAYLOAD, payload);
   }
   #[inline]
-  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> SignalEnvelopeBuilder<'a, 'b> {
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a, A>) -> SignalEnvelopeBuilder<'a, 'b, A> {
     let start = _fbb.start_table();
     SignalEnvelopeBuilder {
       fbb_: _fbb,
@@ -1083,6 +2005,13 @@ impl core::fmt::Debug for SignalEnvelope<'_> {
         },
         SignalPayload::TraceStatsBatch => {
           if let Some(x) = self.payload_as_trace_stats_batch() {
+            ds.field("payload", &x)
+          } else {
+            ds.field("payload", &"InvalidFlatbuffer: Union discriminant does not match value.")
+          }
+        },
+        SignalPayload::ConnectionBatch => {
+          if let Some(x) = self.payload_as_connection_batch() {
             ds.field("payload", &x)
           } else {
             ds.field("payload", &"InvalidFlatbuffer: Union discriminant does not match value.")
@@ -1157,14 +2086,14 @@ pub unsafe fn size_prefixed_root_as_signal_envelope_unchecked(buf: &[u8]) -> Sig
   flatbuffers::size_prefixed_root_unchecked::<SignalEnvelope>(buf)
 }
 #[inline]
-pub fn finish_signal_envelope_buffer<'a, 'b>(
-    fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+pub fn finish_signal_envelope_buffer<'a, 'b, A: flatbuffers::Allocator + 'a>(
+    fbb: &'b mut flatbuffers::FlatBufferBuilder<'a, A>,
     root: flatbuffers::WIPOffset<SignalEnvelope<'a>>) {
   fbb.finish(root, None);
 }
 
 #[inline]
-pub fn finish_size_prefixed_signal_envelope_buffer<'a, 'b>(fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>, root: flatbuffers::WIPOffset<SignalEnvelope<'a>>) {
+pub fn finish_size_prefixed_signal_envelope_buffer<'a, 'b, A: flatbuffers::Allocator + 'a>(fbb: &'b mut flatbuffers::FlatBufferBuilder<'a, A>, root: flatbuffers::WIPOffset<SignalEnvelope<'a>>) {
   fbb.finish_size_prefixed(root, None);
 }
 }  // pub mod signals

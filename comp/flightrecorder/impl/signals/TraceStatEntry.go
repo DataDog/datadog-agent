@@ -41,7 +41,6 @@ func (rcv *TraceStatEntry) Table() flatbuffers.Table {
 	return rcv._tab
 }
 
-// field 0: service (string)
 func (rcv *TraceStatEntry) Service() []byte {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(4))
 	if o != 0 {
@@ -50,7 +49,6 @@ func (rcv *TraceStatEntry) Service() []byte {
 	return nil
 }
 
-// field 1: name (string)
 func (rcv *TraceStatEntry) Name() []byte {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(6))
 	if o != 0 {
@@ -59,7 +57,6 @@ func (rcv *TraceStatEntry) Name() []byte {
 	return nil
 }
 
-// field 2: resource (string)
 func (rcv *TraceStatEntry) Resource() []byte {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(8))
 	if o != 0 {
@@ -68,7 +65,6 @@ func (rcv *TraceStatEntry) Resource() []byte {
 	return nil
 }
 
-// field 3: type (string)
 func (rcv *TraceStatEntry) Type() []byte {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(10))
 	if o != 0 {
@@ -77,7 +73,6 @@ func (rcv *TraceStatEntry) Type() []byte {
 	return nil
 }
 
-// field 4: span_kind (string)
 func (rcv *TraceStatEntry) SpanKind() []byte {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(12))
 	if o != 0 {
@@ -86,7 +81,6 @@ func (rcv *TraceStatEntry) SpanKind() []byte {
 	return nil
 }
 
-// field 5: http_status_code (uint)
 func (rcv *TraceStatEntry) HttpStatusCode() uint32 {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(14))
 	if o != 0 {
@@ -99,7 +93,6 @@ func (rcv *TraceStatEntry) MutateHttpStatusCode(n uint32) bool {
 	return rcv._tab.MutateUint32Slot(14, n)
 }
 
-// field 6: hits (ulong)
 func (rcv *TraceStatEntry) Hits() uint64 {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(16))
 	if o != 0 {
@@ -112,7 +105,6 @@ func (rcv *TraceStatEntry) MutateHits(n uint64) bool {
 	return rcv._tab.MutateUint64Slot(16, n)
 }
 
-// field 7: errors (ulong)
 func (rcv *TraceStatEntry) Errors() uint64 {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(18))
 	if o != 0 {
@@ -125,7 +117,6 @@ func (rcv *TraceStatEntry) MutateErrors(n uint64) bool {
 	return rcv._tab.MutateUint64Slot(18, n)
 }
 
-// field 8: duration_ns (ulong)
 func (rcv *TraceStatEntry) DurationNs() uint64 {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(20))
 	if o != 0 {
@@ -138,7 +129,6 @@ func (rcv *TraceStatEntry) MutateDurationNs(n uint64) bool {
 	return rcv._tab.MutateUint64Slot(20, n)
 }
 
-// field 9: top_level_hits (ulong)
 func (rcv *TraceStatEntry) TopLevelHits() uint64 {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(22))
 	if o != 0 {
@@ -151,7 +141,6 @@ func (rcv *TraceStatEntry) MutateTopLevelHits(n uint64) bool {
 	return rcv._tab.MutateUint64Slot(22, n)
 }
 
-// field 10: ok_summary ([ubyte])
 func (rcv *TraceStatEntry) OkSummary(j int) byte {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(24))
 	if o != 0 {
@@ -177,7 +166,15 @@ func (rcv *TraceStatEntry) OkSummaryBytes() []byte {
 	return nil
 }
 
-// field 11: error_summary ([ubyte])
+func (rcv *TraceStatEntry) MutateOkSummary(j int, n byte) bool {
+	o := flatbuffers.UOffsetT(rcv._tab.Offset(24))
+	if o != 0 {
+		a := rcv._tab.Vector(o)
+		return rcv._tab.MutateByte(a+flatbuffers.UOffsetT(j*1), n)
+	}
+	return false
+}
+
 func (rcv *TraceStatEntry) ErrorSummary(j int) byte {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(26))
 	if o != 0 {
@@ -203,7 +200,15 @@ func (rcv *TraceStatEntry) ErrorSummaryBytes() []byte {
 	return nil
 }
 
-// field 12: hostname (string)
+func (rcv *TraceStatEntry) MutateErrorSummary(j int, n byte) bool {
+	o := flatbuffers.UOffsetT(rcv._tab.Offset(26))
+	if o != 0 {
+		a := rcv._tab.Vector(o)
+		return rcv._tab.MutateByte(a+flatbuffers.UOffsetT(j*1), n)
+	}
+	return false
+}
+
 func (rcv *TraceStatEntry) Hostname() []byte {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(28))
 	if o != 0 {
@@ -212,7 +217,6 @@ func (rcv *TraceStatEntry) Hostname() []byte {
 	return nil
 }
 
-// field 13: env (string)
 func (rcv *TraceStatEntry) Env() []byte {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(30))
 	if o != 0 {
@@ -221,7 +225,6 @@ func (rcv *TraceStatEntry) Env() []byte {
 	return nil
 }
 
-// field 14: version (string)
 func (rcv *TraceStatEntry) Version() []byte {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(32))
 	if o != 0 {
@@ -230,7 +233,6 @@ func (rcv *TraceStatEntry) Version() []byte {
 	return nil
 }
 
-// field 15: bucket_start_ns (long)
 func (rcv *TraceStatEntry) BucketStartNs() int64 {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(34))
 	if o != 0 {
@@ -243,7 +245,6 @@ func (rcv *TraceStatEntry) MutateBucketStartNs(n int64) bool {
 	return rcv._tab.MutateInt64Slot(34, n)
 }
 
-// field 16: bucket_duration_ns (long)
 func (rcv *TraceStatEntry) BucketDurationNs() int64 {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(36))
 	if o != 0 {
@@ -256,7 +257,6 @@ func (rcv *TraceStatEntry) MutateBucketDurationNs(n int64) bool {
 	return rcv._tab.MutateInt64Slot(36, n)
 }
 
-// field 17: timestamp_ns (long)
 func (rcv *TraceStatEntry) TimestampNs() int64 {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(38))
 	if o != 0 {
@@ -281,8 +281,8 @@ func TraceStatEntryAddName(builder *flatbuffers.Builder, name flatbuffers.UOffse
 func TraceStatEntryAddResource(builder *flatbuffers.Builder, resource flatbuffers.UOffsetT) {
 	builder.PrependUOffsetTSlot(2, flatbuffers.UOffsetT(resource), 0)
 }
-func TraceStatEntryAddType(builder *flatbuffers.Builder, typ flatbuffers.UOffsetT) {
-	builder.PrependUOffsetTSlot(3, flatbuffers.UOffsetT(typ), 0)
+func TraceStatEntryAddType(builder *flatbuffers.Builder, type_ flatbuffers.UOffsetT) {
+	builder.PrependUOffsetTSlot(3, flatbuffers.UOffsetT(type_), 0)
 }
 func TraceStatEntryAddSpanKind(builder *flatbuffers.Builder, spanKind flatbuffers.UOffsetT) {
 	builder.PrependUOffsetTSlot(4, flatbuffers.UOffsetT(spanKind), 0)

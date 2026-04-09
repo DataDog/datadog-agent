@@ -90,6 +90,8 @@ pub async fn run(cfg: config::Config) -> Result<()> {
         writers::logs::LogsWriter::new(&cfg.output_dir, cfg.flush_rows, flush_interval);
     let trace_stats_writer =
         writers::trace_stats::TraceStatsWriter::new(&cfg.output_dir, cfg.flush_rows, flush_interval);
+    let connections_writer =
+        writers::connections::ConnectionsWriter::new(&cfg.output_dir, cfg.flush_rows, flush_interval);
 
     let metrics_handle = Arc::new(Mutex::new(
         WriterHandle::spawn(metrics_writer, WRITER_RING_CAPACITY, "metrics"),
@@ -99,6 +101,9 @@ pub async fn run(cfg: config::Config) -> Result<()> {
     ));
     let traces_handle = Arc::new(Mutex::new(
         WriterHandle::spawn(trace_stats_writer, WRITER_RING_CAPACITY, "traces"),
+    ));
+    let conns_handle = Arc::new(Mutex::new(
+        WriterHandle::spawn(connections_writer, WRITER_RING_CAPACITY, "connections"),
     ));
 
     let conn_stats = Arc::new(telemetry::ConnectionStats::new());
@@ -162,6 +167,7 @@ pub async fn run(cfg: config::Config) -> Result<()> {
         let mh = metrics_handle.clone();
         let lh = logs_handle.clone();
         let th = traces_handle.clone();
+        let ch = conns_handle.clone();
         let token = cancel.clone();
         let cs = conn_stats.clone();
         cs.active_connections.fetch_add(1, Ordering::Relaxed);
@@ -213,6 +219,9 @@ pub async fn run(cfg: config::Config) -> Result<()> {
                     signals::SignalPayload::TraceStatsBatch => {
                         th.lock().unwrap().send_frame(buf);
                     }
+                    signals::SignalPayload::ConnectionBatch => {
+                        ch.lock().unwrap().send_frame(buf);
+                    }
                     _ => {
                         warn!("unknown SignalPayload variant");
                     }
@@ -239,6 +248,7 @@ pub async fn run(cfg: config::Config) -> Result<()> {
     metrics_handle.lock().unwrap().shutdown();
     logs_handle.lock().unwrap().shutdown();
     traces_handle.lock().unwrap().shutdown();
+    conns_handle.lock().unwrap().shutdown();
 
     info!("flightrecorder stopped");
     Ok(())

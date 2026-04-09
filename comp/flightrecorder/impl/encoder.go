@@ -76,6 +76,37 @@ type capturedTraceStat struct {
 	TimestampNs      int64
 }
 
+// capturedConnection is an internal copy of a network connection entry.
+type capturedConnection struct {
+	Pid                    int32
+	LocalIP                string
+	LocalPort              int32
+	LocalContainerID       string
+	RemoteIP               string
+	RemotePort             int32
+	RemoteContainerID      string
+	Family                 uint32
+	ConnType               uint32
+	Direction              uint32
+	NetNS                  uint32
+	BytesSent              uint64
+	BytesReceived          uint64
+	PacketsSent            uint64
+	PacketsReceived        uint64
+	Retransmits            uint32
+	Rtt                    uint32
+	RttVar                 uint32
+	IntraHost              bool
+	DnsSuccessfulResponses uint32
+	DnsFailedResponses     uint32
+	DnsTimeouts            uint32
+	DnsSuccessLatencySum   uint64
+	DnsFailureLatencySum   uint64
+	TcpEstablished         uint32
+	TcpClosed              uint32
+	TimestampNs            int64
+}
+
 // capturedLog is a type alias for hook.LogSampleSnapshot, used in encoder and batcher.
 type capturedLog = hook.LogSampleSnapshot
 
@@ -509,6 +540,71 @@ func EncodeTraceStatsBatchRing(pool *builderPool, buf []capturedTraceStat, tail,
 
 	b.Finish(envOff)
 
+	return b, nil
+}
+
+// EncodeConnectionBatchRing encodes connections directly from a ring buffer segment.
+func EncodeConnectionBatchRing(pool *builderPool, buf []capturedConnection, tail, count, capacity int) (*flatbuffers.Builder, error) {
+	b := pool.get()
+
+	offSp, entryOffsets := pool.getOffsets(count)
+	for ri := count - 1; ri >= 0; ri-- {
+		idx := (tail + ri) % capacity
+		e := &buf[idx]
+
+		localIPOff := b.CreateSharedString(e.LocalIP)
+		localContainerOff := b.CreateSharedString(e.LocalContainerID)
+		remoteIPOff := b.CreateSharedString(e.RemoteIP)
+		remoteContainerOff := b.CreateSharedString(e.RemoteContainerID)
+
+		signals.ConnectionEntryStart(b)
+		signals.ConnectionEntryAddPid(b, e.Pid)
+		signals.ConnectionEntryAddLocalIp(b, localIPOff)
+		signals.ConnectionEntryAddLocalPort(b, e.LocalPort)
+		signals.ConnectionEntryAddLocalContainerId(b, localContainerOff)
+		signals.ConnectionEntryAddRemoteIp(b, remoteIPOff)
+		signals.ConnectionEntryAddRemotePort(b, e.RemotePort)
+		signals.ConnectionEntryAddRemoteContainerId(b, remoteContainerOff)
+		signals.ConnectionEntryAddFamily(b, e.Family)
+		signals.ConnectionEntryAddConnType(b, e.ConnType)
+		signals.ConnectionEntryAddDirection(b, e.Direction)
+		signals.ConnectionEntryAddNetNs(b, e.NetNS)
+		signals.ConnectionEntryAddBytesSent(b, e.BytesSent)
+		signals.ConnectionEntryAddBytesReceived(b, e.BytesReceived)
+		signals.ConnectionEntryAddPacketsSent(b, e.PacketsSent)
+		signals.ConnectionEntryAddPacketsReceived(b, e.PacketsReceived)
+		signals.ConnectionEntryAddRetransmits(b, e.Retransmits)
+		signals.ConnectionEntryAddRtt(b, e.Rtt)
+		signals.ConnectionEntryAddRttVar(b, e.RttVar)
+		signals.ConnectionEntryAddIntraHost(b, e.IntraHost)
+		signals.ConnectionEntryAddDnsSuccessfulResponses(b, e.DnsSuccessfulResponses)
+		signals.ConnectionEntryAddDnsFailedResponses(b, e.DnsFailedResponses)
+		signals.ConnectionEntryAddDnsTimeouts(b, e.DnsTimeouts)
+		signals.ConnectionEntryAddDnsSuccessLatencySum(b, e.DnsSuccessLatencySum)
+		signals.ConnectionEntryAddDnsFailureLatencySum(b, e.DnsFailureLatencySum)
+		signals.ConnectionEntryAddTcpEstablished(b, e.TcpEstablished)
+		signals.ConnectionEntryAddTcpClosed(b, e.TcpClosed)
+		signals.ConnectionEntryAddTimestampNs(b, e.TimestampNs)
+		entryOffsets[ri] = signals.ConnectionEntryEnd(b)
+	}
+
+	signals.ConnectionBatchStartEntriesVector(b, count)
+	for i := len(entryOffsets) - 1; i >= 0; i-- {
+		b.PrependUOffsetT(entryOffsets[i])
+	}
+	entriesVec := b.EndVector(count)
+	pool.putOffsets(offSp, entryOffsets)
+
+	signals.ConnectionBatchStart(b)
+	signals.ConnectionBatchAddEntries(b, entriesVec)
+	batchOff := signals.ConnectionBatchEnd(b)
+
+	signals.SignalEnvelopeStart(b)
+	signals.SignalEnvelopeAddPayloadType(b, signals.SignalPayloadConnectionBatch)
+	signals.SignalEnvelopeAddPayload(b, batchOff)
+	envOff := signals.SignalEnvelopeEnd(b)
+
+	b.Finish(envOff)
 	return b, nil
 }
 

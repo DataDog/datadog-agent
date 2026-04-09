@@ -26,6 +26,10 @@ var (
 		"Total number of log entries dropped")
 	tlmTraceStatsDropped = telemetry.NewCounter(subsystem, "trace_stats_dropped_total", []string{"reason"},
 		"Total number of trace stats entries dropped")
+	tlmConnectionsSent = telemetry.NewCounter(subsystem, "connections_sent_total", nil,
+		"Total number of connection entries successfully sent")
+	tlmConnectionsDropped = telemetry.NewCounter(subsystem, "connections_dropped_total", []string{"reason"},
+		"Total number of connection entries dropped")
 	tlmBytesSent = telemetry.NewCounter(subsystem, "bytes_sent_total", []string{"type"},
 		"Total bytes written to the transport, by signal type")
 	tlmReconnects = telemetry.NewCounter(subsystem, "reconnects_total", nil,
@@ -50,8 +54,10 @@ type counters struct {
 	traceStatsSent    atomic.Uint64
 	metricsDropped    atomic.Uint64
 	logsDropped       atomic.Uint64
-	traceStatsDropped atomic.Uint64
-	bytesSent         atomic.Uint64
+	traceStatsDropped  atomic.Uint64
+	connectionsSent    atomic.Uint64
+	connectionsDropped atomic.Uint64
+	bytesSent          atomic.Uint64
 	reconnects        atomic.Uint64
 }
 
@@ -104,6 +110,21 @@ func (c *counters) incTraceStatsDroppedOverflow(n uint64) {
 func (c *counters) incTraceStatsDroppedTransport(n uint64) {
 	c.traceStatsDropped.Add(n)
 	tlmTraceStatsDropped.Add(float64(n), dropReasonTransport)
+}
+
+func (c *counters) incConnectionsSent(n uint64) {
+	c.connectionsSent.Add(n)
+	tlmConnectionsSent.Add(float64(n))
+}
+
+func (c *counters) incConnectionsDroppedOverflow(n uint64) {
+	c.connectionsDropped.Add(n)
+	tlmConnectionsDropped.Add(float64(n), dropReasonOverflow)
+}
+
+func (c *counters) incConnectionsDroppedTransport(n uint64) {
+	c.connectionsDropped.Add(n)
+	tlmConnectionsDropped.Add(float64(n), dropReasonTransport)
 }
 
 func (c *counters) setBatchSize(typ string, n int) {

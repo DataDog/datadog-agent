@@ -1,3 +1,4 @@
+pub mod connections;
 pub mod context_store;
 pub mod intern;
 pub mod logs;

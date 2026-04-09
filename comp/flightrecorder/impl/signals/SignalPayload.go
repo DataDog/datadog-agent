@@ -11,6 +11,7 @@ const (
 	SignalPayloadMetricBatch     SignalPayload = 1
 	SignalPayloadLogBatch        SignalPayload = 2
 	SignalPayloadTraceStatsBatch SignalPayload = 3
+	SignalPayloadConnectionBatch SignalPayload = 4
 )
 
 var EnumNamesSignalPayload = map[SignalPayload]string{
@@ -18,6 +19,7 @@ var EnumNamesSignalPayload = map[SignalPayload]string{
 	SignalPayloadMetricBatch:     "MetricBatch",
 	SignalPayloadLogBatch:        "LogBatch",
 	SignalPayloadTraceStatsBatch: "TraceStatsBatch",
+	SignalPayloadConnectionBatch: "ConnectionBatch",
 }
 
 var EnumValuesSignalPayload = map[string]SignalPayload{
@@ -25,6 +27,7 @@ var EnumValuesSignalPayload = map[string]SignalPayload{
 	"MetricBatch":     SignalPayloadMetricBatch,
 	"LogBatch":        SignalPayloadLogBatch,
 	"TraceStatsBatch": SignalPayloadTraceStatsBatch,
+	"ConnectionBatch": SignalPayloadConnectionBatch,
 }
 
 func (v SignalPayload) String() string {

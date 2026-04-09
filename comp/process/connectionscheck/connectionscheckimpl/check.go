@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
 	"github.com/DataDog/datadog-agent/comp/process/connectionscheck"
 	"github.com/DataDog/datadog-agent/comp/process/types"
+	"github.com/DataDog/datadog-agent/pkg/hook"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -45,19 +46,22 @@ type dependencies struct {
 type result struct {
 	fx.Out
 
-	Check     types.ProvidesCheck
-	Component connectionscheck.Component
+	Check          types.ProvidesCheck
+	Component      connectionscheck.Component
+	ConnectionHook hook.Hook[[]hook.ConnectionView] `group:"hook"`
 }
 
 func newCheck(deps dependencies) result {
+	connHook := hook.NewHook[[]hook.ConnectionView]("connections-pipeline")
 	c := &check{
-		connectionsCheck: checks.NewConnectionsCheck(deps.Config, deps.Sysconfig, deps.Sysconfig.SysProbeObject(), deps.WMeta, deps.NpCollector, deps.Tagger),
+		connectionsCheck: checks.NewConnectionsCheck(deps.Config, deps.Sysconfig, deps.Sysconfig.SysProbeObject(), deps.WMeta, deps.NpCollector, deps.Tagger, connHook),
 	}
 	return result{
 		Check: types.ProvidesCheck{
 			CheckComponent: c,
 		},
-		Component: c,
+		Component:      c,
+		ConnectionHook: connHook,
 	}
 }
 
