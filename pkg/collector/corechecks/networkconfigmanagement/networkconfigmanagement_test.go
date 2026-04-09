@@ -15,19 +15,21 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
-	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/report"
-	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
-	devicemetadata "github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
-	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/report"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
+	devicemetadata "github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	agentconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	ncmcomp "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	ncmremote "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/remote"
@@ -140,7 +142,8 @@ func (m *MockRemoteSession) Close() error {
 
 func createTestCheck(t *testing.T) *Check {
 	cfg := agentconfig.NewMock(t)
-	return newCheck(cfg).(*Check)
+	comp := ncmcomp.Mock(t)
+	return newCheck(cfg, comp).(*Check)
 }
 
 // Configuration test data
