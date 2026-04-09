@@ -448,17 +448,28 @@ def _resolve_zip_from_runs_jsonl(ctx, name):
         if not matches:
             return None
 
-        latest = matches[-1]
-        zip_key = latest.get("zip")
-        if zip_key:
+        # Walk newest-first, return the first zip that actually exists in S3.
+        for entry in reversed(matches):
+            zip_key = entry.get("zip")
+            if not zip_key:
+                continue
+            check = ctx.run(
+                f"aws-vault exec {AWS_PROFILE} -- aws s3api head-object --bucket {S3_BUCKET} --key {shlex.quote(zip_key)}",
+                warn=True,
+                hide=True,
+            )
+            if check is None or check.failed:
+                print(color_message(f"  '{zip_key}' not found in S3, trying previous run...", Color.BLUE))
+                continue
             print(
                 color_message(
                     f"Resolved '{name}' from runs.jsonl: {zip_key} "
-                    f"(image: {latest.get('image', '?')}, {latest.get('timestamp', '?')})",
+                    f"(image: {entry.get('image', '?')}, {entry.get('timestamp', '?')})",
                     Color.BLUE,
                 )
             )
-        return zip_key
+            return zip_key
+        return None
     except (OSError, json.JSONDecodeError):
         return None
     finally:
