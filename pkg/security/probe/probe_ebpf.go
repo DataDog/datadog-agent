@@ -1332,8 +1332,10 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if fs == "cgroup2" && event.Open.File.PathKey.Inode != 0 && event.Open.File.FileFields.IsDir() {
 			cgroupContext := model.CGroupContext{
 				CGroupPathKey: event.Open.File.PathKey,
+				CGroupSource:  model.CGroupSourceEvent,
+				CreatedAt:     uint64(time.Now().UnixNano()),
 			}
-			p.Resolvers.CGroupResolver.Add(cgroupContext, time.Now())
+			p.Resolvers.CGroupResolver.Add(cgroupContext)
 		}
 	case model.FileMkdirEventType:
 		if !p.regularUnmarshalEvent(&event.Mkdir, eventType, offset, dataLen, data) {
@@ -1706,11 +1708,11 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 
 		cgroupContext := model.CGroupContext{
 			CGroupPathKey: event.CgroupWrite.File.PathKey,
+			CGroupSource:  model.CGroupSourceEvent,
+			CreatedAt:     uint64(event.GetTimestamp().UnixNano()),
 		}
 
-		createdAt := event.GetTimestamp()
-
-		if cacheEntry := p.Resolvers.CGroupResolver.AddPID(pce.Pid, pce.PPid, createdAt, cgroupContext); cacheEntry == nil {
+		if cacheEntry := p.Resolvers.CGroupResolver.AddPID(pce.Pid, pce.PPid, cgroupContext); cacheEntry == nil {
 			seclog.Debugf("Failed to resolve cgroup for pid %d: %+v", pid, event.CgroupWrite.File.PathKey)
 		} else {
 			p.Resolvers.ProcessResolver.UpdateProcessContexts(pce, cacheEntry.GetCGroupContext(), cacheEntry.GetContainerContext())
@@ -2300,17 +2302,22 @@ func (p *EBPFProbe) Walk(callback func(*model.ProcessCacheEntry)) {
 // Stop the probe
 func (p *EBPFProbe) Stop() {
 	_ = p.Manager.StopReaders(manager.CleanAll)
+
+	// Cancel the context and wait for all goroutines to exit before proceeding.
+	// This must happen before event consumers are stopped
+	// and reporter channels are closed, to avoid sending on a closed channel.
+	p.cancelFnc()
+	// wait for the following goroutines to exit:
+	// - the perfmap reorderer (if used/enabled)
+	// - the perfmap reorderer monitor (if used/enabled)
+	// - the security profile manager
+	// - the process killer goroutine
+	// - the startSysCtlSnapshotLoop goroutine
+	p.wg.Wait()
 }
 
 // Close the probe
 func (p *EBPFProbe) Close() error {
-	// Cancelling the context will stop the reorderer = we won't dequeue events anymore and new events from the
-	// perf map reader are ignored
-	p.cancelFnc()
-
-	// we wait until both the reorderer and the monitor are stopped
-	p.wg.Wait()
-
 	if p.rawPacketFilterCollection != nil {
 		p.rawPacketFilterCollection.Close()
 	}

@@ -1,0 +1,46 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "installer",
+    srcs = [
+        "default_packages.go",
+        "installer.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/fleet/installer/config",
+        "//pkg/fleet/installer/db",
+        "//pkg/fleet/installer/env",
+        "//pkg/fleet/installer/errors",
+        "//pkg/fleet/installer/oci",
+        "//pkg/fleet/installer/packages",
+        "//pkg/fleet/installer/packages/extensions",
+        "//pkg/fleet/installer/paths",
+        "//pkg/fleet/installer/repository",
+        "//pkg/fleet/installer/telemetry",
+        "//pkg/util/log",
+        "//pkg/version",
+    ],
+)
+
+go_test(
+    name = "installer_test",
+    srcs = [
+        "default_packages_test.go",
+        "installer_test.go",
+    ],
+    embed = [":installer"],
+    deps = [
+        "//pkg/fleet/installer/config",
+        "//pkg/fleet/installer/db",
+        "//pkg/fleet/installer/env",
+        "//pkg/fleet/installer/fixtures",
+        "//pkg/fleet/installer/oci",
+        "//pkg/fleet/installer/packages",
+        "//pkg/fleet/installer/packages/extensions",
+        "//pkg/fleet/installer/repository",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
+    ],
+)

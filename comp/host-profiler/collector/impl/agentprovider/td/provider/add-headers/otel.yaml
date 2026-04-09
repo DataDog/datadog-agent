@@ -1,5 +1,6 @@
 exporters:
     otlphttp/datadoghq.com_0:
+        compression: zstd
         headers:
             dd-api-key: test_api_key_123
             dd-evp-origin: host-profiler
@@ -33,7 +34,7 @@ processors:
               key: profiler_version
               value: 7.0.0-test
 receivers:
-    hostprofiler:
+    profiling:
         symbol_uploader:
             enabled: true
             symbol_endpoints:
@@ -71,4 +72,4 @@ service:
                 - infraattributes/default
                 - resource/dd-profiler-internal-metadata
             receivers:
-                - hostprofiler
+                - profiling

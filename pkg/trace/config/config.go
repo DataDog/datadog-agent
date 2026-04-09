@@ -520,6 +520,10 @@ type AgentConfig struct {
 
 	// ContainerTags ...
 	ContainerTags func(cid string) ([]string, error) `json:"-"`
+	// ContainerTagsWithCompleteness returns the tags for a given container ID
+	// along with a completeness flag indicating whether all expected tag
+	// sources have reported data for this container.
+	ContainerTagsWithCompleteness func(cid string) ([]string, bool, error) `json:"-"`
 	// ContainerTagsBuffer enables buffering of payloads until full container tags extraction
 	ContainerTagsBuffer bool
 
@@ -647,11 +651,12 @@ func New() *AgentConfig {
 
 		GlobalTags: computeGlobalTags(),
 
-		Proxy:                     http.ProxyFromEnvironment,
-		OTLPReceiver:              &OTLP{},
-		ContainerTags:             noopContainerTagsFunc,
-		ContainerTagsBuffer:       false, // disabled here for otlp collector exporter, enabled in comp/trace-agent
-		ContainerIDFromOriginInfo: NoopContainerIDFromOriginInfoFunc,
+		Proxy:                         http.ProxyFromEnvironment,
+		OTLPReceiver:                  &OTLP{},
+		ContainerTags:                 noopContainerTagsFunc,
+		ContainerTagsWithCompleteness: noopContainerTagsWithCompletenessFunc,
+		ContainerTagsBuffer:           false, // disabled here for otlp collector exporter, enabled in comp/trace-agent
+		ContainerIDFromOriginInfo:     NoopContainerIDFromOriginInfoFunc,
 		TelemetryConfig: &TelemetryConfig{
 			Endpoints: []*Endpoint{{Host: TelemetryEndpointPrefix + "datadoghq.com"}},
 		},
@@ -687,6 +692,10 @@ var ErrContainerTagsFuncNotDefined = errors.New("containerTags function not defi
 
 func noopContainerTagsFunc(_ string) ([]string, error) {
 	return nil, ErrContainerTagsFuncNotDefined
+}
+
+func noopContainerTagsWithCompletenessFunc(_ string) ([]string, bool, error) {
+	return nil, false, ErrContainerTagsFuncNotDefined
 }
 
 // ErrContainerIDFromOriginInfoFuncNotDefined is returned when the ContainerIDFromOriginInfo function is not defined.
