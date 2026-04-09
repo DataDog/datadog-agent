@@ -283,9 +283,6 @@ func TestPoller(t *testing.T) {
 }
 
 func TestPollerIPPopulated(t *testing.T) {
-	if runtime.GOOS == "darwin" {
-		t.Skip("Skipping test on macOS -- IP parsing not implemented")
-	}
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Skipf("failed to bind: %v", err)
@@ -300,10 +297,16 @@ func TestPollerIPPopulated(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	wantIP := "127.0.0.1"
+	if runtime.GOOS == "darwin" {
+		wantIP = ""
+	}
+
 	for _, entry := range pl {
 		if entry.Proto == "tcp" && entry.Port == port {
-			if entry.IP != "127.0.0.1" {
-				t.Errorf("expected IP 127.0.0.1 for port %d, got %q", port, entry.IP)
+			if entry.IP != wantIP {
+				t.Errorf("expected IP %q for port %d, got %q", wantIP, port, entry.IP)
 			}
 			return
 		}
