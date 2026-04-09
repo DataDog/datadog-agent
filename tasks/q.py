@@ -542,7 +542,7 @@ def eval_combinations(
 @task
 def eval_bayesian(
     ctx,
-    components: str = ",".join(DETECTORS + CORRELATORS + EXTRACTORS),
+    components: str = "",
     lock: str = "",
     only: str = "",
     n_trials: int = 10,
@@ -572,7 +572,10 @@ def eval_bayesian(
     Args:
         components: Comma-separated component names to enable (detectors, correlators, extractors; default: all).
         lock: Comma-separated components to enable but not tune (keep at Go defaults).
-        only: Shorthand: enable all components but tune only the listed ones (locks everything else).
+        only: Tune only the listed components; lock everything else.
+            Without --components: enables all components and locks all except --only targets.
+            With --components: enables only the given subset and locks all except --only targets
+            (--only targets must be a subset of --components).
             Mutually exclusive with --lock.
         n_trials: Number of Optuna trials (default: 50).
         output_dir: Root output directory. If it already contains report.json,
@@ -591,7 +594,8 @@ def eval_bayesian(
         dda inv q.bayesian-eval                                                                       # all components
         dda inv q.bayesian-eval --components bocpd,rrcf,time_cluster,log_pattern_extractor            # fixed subset
         dda inv q.bayesian-eval --components bocpd,rrcf,time_cluster --lock time_cluster              # freeze one
-        dda inv q.bayesian-eval --only bocpd                                                          # tune one, lock rest
+        dda inv q.bayesian-eval --only bocpd                                                          # tune one, lock rest (all components enabled)
+        dda inv q.bayesian-eval --components bocpd,rrcf,time_cluster --only bocpd                     # tune bocpd, lock rrcf+time_cluster, disable the rest
         dda inv q.bayesian-eval --n-trials 100 --seed 42
     """
     import pickle
@@ -612,15 +616,29 @@ def eval_bayesian(
     components_list = [c.strip() for c in components.split(",") if c.strip()]
 
     if only_list:
-        # Expand to full component set and lock everything except the --only targets.
         all_components = DETECTORS + CORRELATORS + EXTRACTORS
         unknown_only = set(only_list) - set(all_components)
         if unknown_only:
             print(color_message(f"Error: unknown components in --only: {', '.join(sorted(unknown_only))}", Color.RED))
             return
-        components_list = all_components
-        locked_set = {c for c in all_components if c not in set(only_list)}
+        if not components_list:
+            # No --components given: expand to full set and lock everything except --only.
+            components_list = all_components
+        else:
+            # --components was given: respect it, lock within that subset.
+            unknown_only_in_subset = set(only_list) - set(components_list)
+            if unknown_only_in_subset:
+                print(
+                    color_message(
+                        f"Error: --only targets not in --components: {', '.join(sorted(unknown_only_in_subset))}",
+                        Color.RED,
+                    )
+                )
+                return
+        locked_set = {c for c in components_list if c not in set(only_list)}
     else:
+        if not components_list:
+            components_list = DETECTORS + CORRELATORS + EXTRACTORS
         locked_set = {c.strip() for c in lock.split(",") if c.strip()}
 
     if not components_list:
@@ -792,6 +810,377 @@ def eval_bayesian(
     print_eval_bayesian_summary(completed_trials, best, max_score, avg_score, output_dir, study_path)
 
     return final_report
+
+
+# --- Shared helpers ---
+
+
+def _run_bayesian_runs(
+    ctx,
+    components_list: list,
+    m_runs: int,
+    n_trials: int,
+    seeds: list,
+    output_dir: str,
+    scenarios_dir: str,
+    sigma: float,
+    timeout: int,
+    scenarios: str,
+    lock: str = "",
+    run_logger: StepLogger | None = None,
+    step_label_prefix: str = "",
+) -> dict:
+    """Run M independent Bayesian optimisations on a fixed component set.
+
+    Each run gets its own subdirectory (``output_dir/run_NNN``) and seed.
+    Logs progress through ``run_logger`` when provided.
+
+    Returns a dict with keys:
+        run_scores, run_details, max_score, mean_score, failed_runs
+    """
+    run_scores: list[float] = []
+    run_details: list[dict] = []
+
+    for ri in range(m_runs):
+        run_label = f"run_{ri:03d}"
+        run_dir = os.path.join(output_dir, run_label)
+        run_seed = seeds[ri]
+
+        if run_logger:
+            step_title = (
+                f"{step_label_prefix} / {run_label}  (seed={run_seed})"
+                if step_label_prefix
+                else f"{run_label}  (seed={run_seed})"
+            )
+            run_logger.step(step_title)
+            run_logger.detail(f"components: {', '.join(components_list)}")
+
+        trial_logger = run_logger.child(n_trials, "Trial") if run_logger else None
+        report = eval_bayesian(
+            ctx,
+            components=",".join(components_list),
+            lock=lock,
+            n_trials=n_trials,
+            output_dir=run_dir,
+            scenarios_dir=scenarios_dir,
+            sigma=sigma,
+            seed=run_seed,
+            build=False,
+            overwrite=True,
+            timeout=timeout,
+            scenarios=scenarios,
+            _logger=trial_logger,
+        )
+
+        run_failed = report is None or report.get("completed_trials", 0) == 0
+        if run_failed and run_logger:
+            if report is None:
+                reason = "eval_bayesian returned None (aborted before producing a report)"
+            else:
+                n_ft = report.get("failed_trials", 0)
+                reason = f"all {n_ft} trials failed — no completed trials in report"
+            run_logger.detail(f"Warning: {run_label} failed: {reason}", Color.RED)
+
+        best_score = report.get("score") if report and not run_failed else None
+        avg_score_val = report.get("avg_eval_score") if report and not run_failed else None
+        if not run_failed:
+            run_scores.append(best_score)
+        run_details.append(
+            {
+                "run": run_label,
+                "seed": run_seed,
+                "failed": run_failed,
+                "best_score": best_score,
+                "avg_score": avg_score_val,
+                "report_path": os.path.join(run_dir, "report.json"),
+                "scenario_f1": _scenario_f1_from_bayesian_report(report) if not run_failed else {},
+            }
+        )
+
+    return {
+        "run_scores": run_scores,
+        "run_details": run_details,
+        "max_score": max(run_scores) if run_scores else None,
+        "mean_score": sum(run_scores) / len(run_scores) if run_scores else None,
+        "failed_runs": sum(1 for r in run_details if r["failed"]),
+    }
+
+
+# --- Pipeline Fine-Tuning ---
+
+
+@task
+def eval_pipeline(
+    ctx,
+    n_combos: int = 10,
+    n_trials_search: int = 5,
+    n_trials_tune: int = 20,
+    m_runs: int = 1,
+    output_dir: str = "/tmp/observer-pipeline-eval",
+    scenarios_dir: str = "./comp/observer/scenarios",
+    sigma: float = 30.0,
+    seed: int = None,
+    build: bool = True,
+    overwrite: bool = False,
+    force_enable: str = "",
+    force_disable: str = "",
+    timeout: int = 0,
+    scenarios: str = "",
+):
+    """
+    Full pipeline fine-tuning: Bayesian search over component combinations, then deep tuning on the winner.
+
+    Step 1 — Search: for each of n_combos combinations (full stack + anchor subsets + random),
+        run Bayesian HP optimisation with n_trials_search trials. The combination with the
+        highest optimised score wins. Fixed subsets (full stack, minimal, medium anchors)
+        are always included regardless of n_combos.
+    Step 2 — Tune: runs a deeper Bayesian optimisation (n_trials_tune trials) on the winner.
+
+    Use --force-enable to pin a newly added component to every combination after
+    eval_component recommends KEEP for it.
+
+    All seeds are derived deterministically from a single base seed.
+
+    Output layout:
+        <output_dir>/search/combo_NNN/run_NNN/  - Bayesian search runs per combination
+        <output_dir>/tune/                      - deep Bayesian tuning on the winner
+        <output_dir>/report.json                - best combo, best HP config, final score
+
+    Args:
+        n_combos: Target number of combinations to evaluate in Step 1 (default: 10).
+            Fixed subsets (full stack + anchors) are always included; random combinations
+            fill up to n_combos. Actual count may exceed n_combos if fixed subsets do.
+        n_trials_search: Optuna trials per combination during the search phase (default: 5).
+        n_trials_tune: Optuna trials for the final fine-tuning pass on the winner (default: 20).
+        m_runs: Independent Bayesian runs per combination (averages out randomness; default: 1).
+        output_dir: Root output directory. Aborts if report.json exists unless overwrite is True.
+        overwrite: Allow replacing an existing output_dir that contains report.json.
+        scenarios_dir: Directory containing scenario subdirectories.
+        sigma: Gaussian width in seconds for F1 scoring.
+        seed: Base seed for deterministic reproducibility.
+        build: Whether to build testbench and scorer first.
+        force_enable: Comma-separated components always present in every combination.
+        force_disable: Comma-separated components never included (also excluded from extractors).
+        timeout: Per-scenario time budget in seconds (0 = no limit).
+        scenarios: Comma-separated scenario names to run (default: all SCENARIOS).
+
+    Examples:
+        dda inv q.eval-pipeline
+        dda inv q.eval-pipeline --n-combos 20 --n-trials-search 10 --n-trials-tune 50 --seed 42
+        dda inv q.eval-pipeline --force-enable scanmw  # after eval_component KEEP for scanmw
+        dda inv q.eval-pipeline --force-disable cusum,scanwelch
+    """
+    if not _prepare_eval_output_dir(output_dir, overwrite=overwrite):
+        return
+
+    if seed is None:
+        seed = random.randint(0, 2**32 - 1)
+
+    rng = random.Random(seed)
+    force_enable_list = [c.strip() for c in force_enable.split(",") if c.strip()]
+    force_disable_list = [c.strip() for c in force_disable.split(",") if c.strip()]
+
+    all_known = DETECTORS + CORRELATORS + EXTRACTORS
+    unknown = set(force_enable_list + force_disable_list) - set(all_known)
+    if unknown:
+        print(color_message(f"Error: unknown components: {', '.join(sorted(unknown))}", Color.RED))
+        return
+
+    # --- generate combinations (same pattern as eval_component subset generation) ---
+    full_combo = _full_stack_combo(force_disable=force_disable_list)
+    anchor_list = _anchor_combos(force_disable=force_disable_list, force_enable=force_enable_list)
+    fixed_combos = [full_combo] + anchor_list
+    fixed_keys = {(tuple(c["detectors"]), tuple(c["correlators"])) for c in fixed_combos}
+    combo_seed = rng.randint(0, 2**32 - 1)
+    random_count = max(0, n_combos - len(fixed_combos))
+    random_combos = random_component_combinations(
+        random_count,
+        seed=combo_seed,
+        force_enable=force_enable_list,
+        force_disable=force_disable_list,
+        exclude_combo_keys=fixed_keys,
+    )
+    combos = fixed_combos + random_combos
+    actual_n_combos = len(combos)
+
+    # --- derive seeds deterministically ---
+    combo_run_seeds = [[rng.randint(0, 2**32 - 1) for _ in range(m_runs)] for _ in range(actual_n_combos)]
+    tune_seed = rng.randint(0, 2**32 - 1)
+
+    n_scenarios = len([s.strip() for s in scenarios.split(",") if s.strip()] if scenarios else SCENARIOS)
+    total_search_runs = actual_n_combos * m_runs
+    total_testbench_runs = total_search_runs * n_trials_search * n_scenarios
+
+    if build:
+        build_testbench(ctx)
+        build_scorer(ctx)
+
+    download_scenarios(ctx, scenarios_dir=scenarios_dir, skip_existing=True)
+
+    print(color_message(f"\n{'=' * 70}", Color.BLUE))
+    print(color_message("  Observer Pipeline Eval", Color.BLUE))
+    print(color_message(f"{'=' * 70}", Color.BLUE))
+    print(color_message(f"  n_combos:            {actual_n_combos}", Color.BLUE))
+    print(color_message(f"  n_trials_search:     {n_trials_search} (per combo)", Color.BLUE))
+    print(color_message(f"  n_trials_tune:       {n_trials_tune} (winner fine-tune)", Color.BLUE))
+    print(color_message(f"  m_runs:              {m_runs}", Color.BLUE))
+    print(color_message(f"  total search runs:   {total_search_runs}", Color.BLUE))
+    print(color_message(f"  total testbench:     {total_testbench_runs}", Color.BLUE))
+    print(color_message(f"  seed:                {seed}", Color.BLUE))
+    print(color_message(f"  output_dir:          {output_dir}", Color.BLUE))
+    if force_enable_list:
+        print(color_message(f"  force-enabled:       {', '.join(force_enable_list)}", Color.BLUE))
+    if force_disable_list:
+        print(color_message(f"  force-disabled:      {', '.join(force_disable_list)}", Color.BLUE))
+    print(color_message(f"{'=' * 70}\n", Color.BLUE))
+
+    # --- Step 1: search ---
+    print(color_message(f"\n{'=' * 70}", Color.BLUE))
+    print(color_message("  Pipeline Eval — Step 1/2: Combination Search", Color.BLUE))
+    print(color_message(f"{'=' * 70}", Color.BLUE))
+
+    search_dir = os.path.join(output_dir, "search")
+    os.makedirs(search_dir, exist_ok=True)
+    run_logger = StepLogger(total_search_runs, "Search run")
+
+    combo_results = []
+    for ci, combo in enumerate(combos):
+        combo_label = f"combo_{ci:03d}"
+        combo_dir = os.path.join(search_dir, combo_label)
+        os.makedirs(combo_dir, exist_ok=True)
+
+        components_list = sorted(
+            set(
+                list(combo["detectors"])
+                + list(combo["correlators"])
+                + [e for e in EXTRACTORS if e not in force_disable_list]
+            )
+        )
+
+        combo_name = f"{combo_label} (full stack)" if ci == 0 else combo_label
+        run_logger.detail(combo_name)
+        run_logger.detail(f"detectors:   {', '.join(combo['detectors'])}")
+        run_logger.detail(f"correlators: {', '.join(combo['correlators'])}")
+
+        run_result = _run_bayesian_runs(
+            ctx,
+            components_list=components_list,
+            m_runs=m_runs,
+            n_trials=n_trials_search,
+            seeds=combo_run_seeds[ci],
+            output_dir=combo_dir,
+            scenarios_dir=scenarios_dir,
+            sigma=sigma,
+            timeout=timeout,
+            scenarios=scenarios,
+            run_logger=run_logger,
+            step_label_prefix=combo_label,
+        )
+
+        combo_results.append(
+            {
+                "combo": combo_label,
+                "detectors": combo["detectors"],
+                "correlators": combo["correlators"],
+                "components": components_list,
+                "max_score": run_result["max_score"],
+                "mean_score": run_result["mean_score"],
+                "failed_runs": run_result["failed_runs"],
+                "runs": run_result["run_details"],
+            }
+        )
+
+    # rank by max_score
+    valid_combos = [c for c in combo_results if c["max_score"] is not None]
+    if not valid_combos:
+        print(color_message("Error: all combinations failed — aborting.", Color.RED))
+        return
+
+    valid_combos.sort(key=lambda c: c["max_score"], reverse=True)
+    best_combo = valid_combos[0]
+
+    print(color_message(f"\n{'=' * 60}", Color.GREEN))
+    print(color_message("  Combination Search Summary", Color.GREEN))
+    print(color_message(f"{'=' * 60}\n", Color.GREEN))
+    header = f"  {'Combo':<12}  {'Score':>6}  {'Detectors':<30}  Correlators"
+    print(header)
+    print(f"  {'-' * 70}")
+    for c in valid_combos:
+        print(
+            f"  {c['combo']:<12}  {c['max_score']:>6.4f}"
+            f"  {', '.join(c['detectors']):<30}  {', '.join(c['correlators'])}"
+        )
+
+    # --- Step 2: fine-tune on winner ---
+    print(color_message(f"\n{'=' * 70}", Color.BLUE))
+    print(color_message("  Pipeline Eval — Step 2/2: Fine-Tuning on Winner", Color.BLUE))
+    print(color_message(f"{'=' * 70}", Color.BLUE))
+    print(
+        color_message(f"  Winner:     {best_combo['combo']}  (search score={best_combo['max_score']:.4f})", Color.BLUE)
+    )
+    print(color_message(f"  Components: {', '.join(best_combo['components'])}", Color.BLUE))
+
+    tune_dir = os.path.join(output_dir, "tune")
+    tune_result = eval_bayesian(
+        ctx,
+        components=",".join(best_combo["components"]),
+        n_trials=n_trials_tune,
+        output_dir=tune_dir,
+        scenarios_dir=scenarios_dir,
+        sigma=sigma,
+        seed=tune_seed,
+        build=False,
+        overwrite=True,
+        timeout=timeout,
+        scenarios=scenarios,
+    )
+
+    if not tune_result or tune_result.get("completed_trials", 0) == 0:
+        print(color_message("Error: fine-tuning produced no results.", Color.RED))
+        return
+
+    final_score = tune_result.get("score", 0.0)
+    best_config_path = os.path.join(tune_dir, "best_config.json")
+
+    report = {
+        "score": final_score,
+        "seed": seed,
+        "force_enable": force_enable_list,
+        "force_disable": force_disable_list,
+        "n_combos": actual_n_combos,
+        "n_trials_search": n_trials_search,
+        "n_trials_tune": n_trials_tune,
+        "best_combo": best_combo,
+        "tune": {
+            "components": best_combo["components"],
+            "score": final_score,
+            "best_config_path": best_config_path,
+            "report_path": os.path.join(tune_dir, "report.json"),
+        },
+        "combo_results": combo_results,
+    }
+    report_path = os.path.join(output_dir, "report.json")
+    with open(report_path, "w") as f:
+        json.dump(report, f, indent=4)
+
+    print(color_message(f"\n{'=' * 70}", Color.GREEN))
+    print(color_message("  Pipeline Eval — Final Summary", Color.GREEN))
+    print(color_message(f"{'=' * 70}", Color.GREEN))
+    print(
+        color_message(
+            f"  Winner:        {best_combo['combo']}  ({', '.join(best_combo['detectors'] + best_combo['correlators'])})",
+            Color.GREEN,
+        )
+    )
+    print(color_message(f"  Search score:  {best_combo['max_score']:.4f}", Color.GREEN))
+    print(color_message(f"  Final score:   {final_score:.4f}", Color.GREEN))
+    print(color_message(f"  Best config:   {best_config_path}", Color.GREEN))
+    print(color_message(f"  Report:        {report_path}", Color.GREEN))
+    print(color_message("\n  Verify with:", Color.BOLD))
+    print(color_message(f"    dda inv q.eval-scenarios --config {best_config_path}", Color.BOLD))
+    print(color_message(f"{'=' * 70}", Color.GREEN))
+
+    return report
 
 
 # --- Component Evaluation ---
@@ -1040,70 +1429,30 @@ def eval_component(
                 components_list.append(component)
             components_list = sorted(set(components_list))
 
-            run_scores: list[float] = []
-            run_details: list[dict] = []
+            active_set = set(components_list)
+            # Only lock components that are actually active in this run; extra_lock_list
+            # entries absent from the subset would cause eval_bayesian to abort with
+            # "locked components not in active set".
+            lock_components = [c for c in extra_lock_list if c in active_set]
+            if variant == "with" and not tune_evaluated_component:
+                lock_components.append(component)
+            lock_for_run = ",".join(sorted(set(lock_components)))
 
-            for ri in range(m_runs):
-                run_label = f"run_{ri:03d}"
-                run_dir = os.path.join(subset_dir, run_label)
-                run_seed = run_seeds[(variant, si)][ri]
-
-                run_logger.step(f"{variant} / {subset_label} / {run_label}  (seed={run_seed})")
-                run_logger.detail(f"components: {', '.join(components_list)}")
-                active_set = set(components_list)
-                # Only lock components that are actually active in this run; extra_lock_list
-                # entries absent from the subset would cause eval_bayesian to abort with
-                # "locked components not in active set".
-                lock_components = [c for c in extra_lock_list if c in active_set]
-                if variant == "with" and not tune_evaluated_component:
-                    lock_components.append(component)
-                lock_for_run = ",".join(sorted(set(lock_components)))
-
-                trial_logger = run_logger.child(n_trials, "Trial")
-                report = eval_bayesian(
-                    ctx,
-                    components=",".join(components_list),
-                    lock=lock_for_run,
-                    n_trials=n_trials,
-                    output_dir=run_dir,
-                    scenarios_dir=scenarios_dir,
-                    sigma=sigma,
-                    seed=run_seed,
-                    build=False,
-                    overwrite=True,
-                    timeout=timeout,
-                    scenarios=scenarios,
-                    _logger=trial_logger,
-                )
-
-                run_failed = report is None or report.get("completed_trials", 0) == 0
-                if run_failed:
-                    if report is None:
-                        reason = "eval_bayesian returned None (aborted before producing a report)"
-                    else:
-                        n_ft = report.get("failed_trials", 0)
-                        reason = f"all {n_ft} trials failed — no completed trials in report"
-                    run_logger.detail(f"Warning: {variant}/{subset_label}/{run_label} failed: {reason}", Color.RED)
-
-                best_score = report.get("score") if report and not run_failed else None
-                avg_score_val = report.get("avg_eval_score") if report and not run_failed else None
-                if not run_failed:
-                    run_scores.append(best_score)
-                run_details.append(
-                    {
-                        "run": run_label,
-                        "seed": run_seed,
-                        "failed": run_failed,
-                        "best_score": best_score,
-                        "avg_score": avg_score_val,
-                        "report_path": os.path.join(run_dir, "report.json"),
-                        "scenario_f1": _scenario_f1_from_bayesian_report(report) if not run_failed else {},
-                    }
-                )
-
-            max_score = max(run_scores) if run_scores else None
-            mean_score = sum(run_scores) / len(run_scores) if run_scores else None
-            n_failed_runs = sum(1 for r in run_details if r["failed"])
+            run_result = _run_bayesian_runs(
+                ctx,
+                components_list=components_list,
+                m_runs=m_runs,
+                n_trials=n_trials,
+                seeds=run_seeds[(variant, si)],
+                output_dir=subset_dir,
+                scenarios_dir=scenarios_dir,
+                sigma=sigma,
+                timeout=timeout,
+                scenarios=scenarios,
+                lock=lock_for_run,
+                run_logger=run_logger,
+                step_label_prefix=f"{variant} / {subset_label}",
+            )
 
             variant_results[variant].append(
                 {
@@ -1111,11 +1460,11 @@ def eval_component(
                     "detectors": subset["detectors"],
                     "correlators": subset["correlators"],
                     "components": components_list,
-                    "run_scores": run_scores,
-                    "max_score": max_score,
-                    "mean_score": mean_score,
-                    "failed_runs": n_failed_runs,
-                    "runs": run_details,
+                    "run_scores": run_result["run_scores"],
+                    "max_score": run_result["max_score"],
+                    "mean_score": run_result["mean_score"],
+                    "failed_runs": run_result["failed_runs"],
+                    "runs": run_result["run_details"],
                 }
             )
 
@@ -1478,6 +1827,65 @@ def eval_component_workspace_report(
         print(color_message(f"report.json copied to {dest}/report.json", Color.GREEN))
     else:
         # scp -r copies the remote directory tree into dest.
+        ctx.run(f"scp -r {shlex.quote(f'{ssh_host}:{output_dir}/.')} {shlex.quote(dest)}/")
+        print(color_message(f"Results copied to {dest}/", Color.GREEN))
+
+    print(color_message(f"  report.json: {os.path.join(dest, 'report.json')}", Color.GREEN))
+
+
+@task
+def eval_pipeline_workspace_report(
+    ctx,
+    workspace_name: str,
+    output_dir: str = "/tmp/observer-pipeline-eval",
+    local_dir: str = "",
+    only_report: bool = False,
+):
+    """
+    After ``q.eval-pipeline`` on a remote dev workspace, copy results to your machine.
+
+    Args:
+        workspace_name: Workspace name (SSH: ``workspace-<name>``).
+        output_dir:     Remote directory passed to ``q.eval-pipeline`` (default: ``/tmp/observer-pipeline-eval``).
+        local_dir:      Local destination (default: ``./eval-results/<workspace_name>``).
+        only_report:    Copy only ``report.json`` instead of the full output directory.
+
+    Examples:
+        dda inv q.eval-pipeline-workspace-report --workspace-name finetune
+        dda inv q.eval-pipeline-workspace-report --workspace-name finetune --only-report
+    """
+    ws_name = workspace_name.strip()
+    if not ws_name:
+        raise Exit("workspace_name is required")
+
+    ssh_host = f"workspace-{ws_name}"
+    remote_report = f"{output_dir}/report.json"
+
+    check = ctx.run(
+        f"ssh {shlex.quote(ssh_host)} test -f {shlex.quote(remote_report)}",
+        warn=True,
+        hide=True,
+    )
+    if check is None or check.failed:
+        print(
+            color_message(
+                f"Report not found at {remote_report} on {ssh_host} — eval may still be running.",
+                Color.ORANGE,
+            )
+        )
+        print(color_message("  Reattach to the workspace tmux session to watch progress:", Color.BLUE))
+        print(color_message(f"    dda inv workspaces.tmux-attach --name {ws_name}", Color.BLUE))
+        return
+
+    dest = local_dir.strip() or os.path.join("eval-results", ws_name)
+    os.makedirs(dest, exist_ok=True)
+
+    print(color_message(f"Copying report from {ssh_host}:{output_dir} to {dest}...", Color.BLUE))
+
+    if only_report:
+        ctx.run(f"scp {shlex.quote(f'{ssh_host}:{remote_report}')} {shlex.quote(dest)}/")
+        print(color_message(f"report.json copied to {dest}/report.json", Color.GREEN))
+    else:
         ctx.run(f"scp -r {shlex.quote(f'{ssh_host}:{output_dir}/.')} {shlex.quote(dest)}/")
         print(color_message(f"Results copied to {dest}/", Color.GREEN))
 

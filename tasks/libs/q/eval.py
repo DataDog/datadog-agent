@@ -842,7 +842,9 @@ def print_eval_component_summary(
     if recommendation == "inconclusive":
         print(color_message("  All subsets failed — cannot make a reliable recommendation.", Color.ORANGE))
     elif recommendation == "keep":
-        print(color_message("  Next step: update your config, then tune the new component using:", Color.BOLD))
+        print(color_message("  Next step: tune the full pipeline with the new component:", Color.BOLD))
+        print(color_message(f"    dda inv q.eval-pipeline --force-enable {component}", Color.BOLD))
+        print(color_message("  Or tune only this component's hyperparameters:", Color.BOLD))
         print(color_message(f"    dda inv q.eval-bayesian --only {component}", Color.BOLD))
     print(color_message(f"  Full eval wall time: {wall_str}", Color.GREEN))
     print(color_message(f"{'=' * 70}", Color.GREEN))
