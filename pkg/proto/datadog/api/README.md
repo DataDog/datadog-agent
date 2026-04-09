@@ -6,8 +6,20 @@ files, run the following from the repository root:
 dda inv protobuf.generate
 ```
 
-All required tools (`protoc`, `protoc-gen-go`, etc.) are managed
-hermetically by Bazel and do not need to be installed separately.
+This invokes Bazel to resolve all required tools (`protoc`,
+`protoc-gen-go`, etc.) hermetically; they do not need to be
+installed separately. To build the tools directly with Bazel:
+```
+bazel build \
+  //bazel/toolchains/protoc \
+  @com_github_favadi_protoc_go_inject_tag//:protoc-go-inject-tag \
+  @com_github_golang_mock//mockgen \
+  @com_github_planetscale_vtprotobuf//cmd/protoc-gen-go-vtproto \
+  @com_github_tinylib_msgp//:msgp \
+  @org_golang_google_grpc_cmd_protoc_gen_go_grpc//:protoc-gen-go-grpc \
+  @org_golang_google_protobuf//cmd/protoc-gen-go \
+  @rules_go//go
+```
 
 ### Notes
 

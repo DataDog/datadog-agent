@@ -1,4 +1,3 @@
-import ast
 import glob
 import os
 import re
@@ -6,7 +5,7 @@ from pathlib import Path
 
 from invoke import Exit, task
 
-from tasks.libs.build.bazel import bazel
+from tasks.libs.build.bazel import BazelTools
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import get_unstaged_files, get_untracked_files
 
@@ -64,7 +63,7 @@ def generate(ctx, pre_commit=False):
     proto_file = re.compile(r"pkg/proto/pbgo/.*\.pb\.go$")
     old_unstaged_proto_files = set(get_unstaged_files(ctx, re_filter=proto_file, include_deleted_files=True))
     old_untracked_proto_files = set(get_untracked_files(ctx, re_filter=proto_file))
-    tools = Tools(ctx)
+    bt = BazelTools(ctx)
     base = os.path.dirname(os.path.abspath(__file__))
     repo_root = os.path.abspath(os.path.join(base, ".."))
     proto_root = os.path.join(repo_root, "pkg", "proto")
@@ -101,7 +100,7 @@ def generate(ctx, pre_commit=False):
             if pkg in CLI_EXTRAS_GRPC:
                 cli_extras_grpc = CLI_EXTRAS_GRPC[pkg]
             ctx.run(
-                f"{tools.protoc} {tools.plugin("protoc-gen-go")} {tools.plugin("protoc-gen-go-grpc")} -I{proto_root} -I{protodep_root} --go_out={repo_root} {cli_extras} --go-grpc_out={repo_root} {cli_extras_grpc} {targets}"
+                f"{bt.protoc} {bt.protoc_plugin("protoc-gen-go")} {bt.protoc_plugin("protoc-gen-go-grpc")} -I{proto_root} -I{protodep_root} --go_out={repo_root} {cli_extras} --go-grpc_out={repo_root} {cli_extras_grpc} {targets}"
             )
 
             if pkg in PKG_PLUGINS:
@@ -111,14 +110,14 @@ def generate(ctx, pre_commit=False):
                     cli_extras = PKG_CLI_EXTRAS[pkg]
 
                 ctx.run(
-                    f"{tools.protoc} {tools.plugin("protoc-gen-go-vtproto")} -I{proto_root} -I{protodep_root} {output_generator}{repo_root} {cli_extras} {targets}"
+                    f"{bt.protoc} {bt.protoc_plugin("protoc-gen-go-vtproto")} -I{proto_root} -I{protodep_root} {output_generator}{repo_root} {cli_extras} {targets}"
                 )
 
             if inject_tags:
                 inject_path = os.path.join(proto_root, "pbgo", pkg)
                 # inject_tags logic
                 for target in INJECT_TAG_TARGETS[pkg]:
-                    ctx.run(f"{tools.protoc_go_inject_tag} -input={os.path.join(inject_path, target)}")
+                    ctx.run(f"{bt.protoc_go_inject_tag} -input={os.path.join(inject_path, target)}")
 
         # Mockgen (not done in pre-commit as it is slow)
         if not pre_commit:
@@ -131,8 +130,8 @@ def generate(ctx, pre_commit=False):
 
             # Generate mocks from the gRPC file (api_grpc.pb.go) which contains the client/server interfaces
             ctx.run(
-                f"{tools.mockgen} -source={pbgo_rel}/core/api_grpc.pb.go -destination={mockgen_out}/core/api_mockgen.pb.go",
-                env=tools.go_env,
+                f"{bt.mockgen} -source={pbgo_rel}/core/api_grpc.pb.go -destination={mockgen_out}/core/api_mockgen.pb.go",
+                env=bt.go_env,
             )
 
     # Generate messagepack marshallers
@@ -152,8 +151,7 @@ def generate(ctx, pre_commit=False):
             dst = os.path.splitext(os.path.basename(src))[0]  # .go
             dst = os.path.splitext(dst)[0]  # .pb
             ctx.run(
-                f"{tools.msgp} -file {pbgo_dir}/{pkg}/{src} -o={pbgo_dir}/{pkg}/{dst}_gen.go -io={io_gen}",
-                env=tools.go_env,
+                f"{bt.msgp} -file {pbgo_dir}/{pkg}/{src} -o={pbgo_dir}/{pkg}/{dst}_gen.go -io={io_gen}", env=bt.go_env
             )
 
     # Apply msgp patches
@@ -186,45 +184,3 @@ def generate(ctx, pre_commit=False):
             print("Generation complete and new files were updated, don't forget to commit and push")
     else:
         print(f"[{color_message('WARN', Color.ORANGE)}] Generation complete and no new files were updated")
-
-
-class Tools:
-    """Hermetic Bazel-managed tool paths; populated once on first instantiation."""
-
-    _paths = {}
-
-    def __new__(cls, ctx):
-        if not cls._paths:
-            labels = (
-                "//bazel/toolchains/protoc",
-                "@com_github_favadi_protoc_go_inject_tag//:protoc-go-inject-tag",
-                "@com_github_golang_mock//mockgen",
-                "@com_github_planetscale_vtprotobuf//cmd/protoc-gen-go-vtproto",
-                "@com_github_tinylib_msgp//:msgp",
-                "@org_golang_google_grpc_cmd_protoc_gen_go_grpc//:protoc-gen-go-grpc",
-                "@org_golang_google_protobuf//cmd/protoc-gen-go",
-                "@rules_go//go",
-            )
-            bazel(ctx, "build", *labels)
-            root = bazel(ctx, "info", "execution_root", capture_output=True).strip()
-            for line in bazel(
-                ctx,
-                "cquery",
-                f"config(set({" ".join(labels)}), target)",
-                "--output=starlark",
-                "--starlark:expr=target.label.name,target.files_to_run.executable.path",
-                capture_output=True,
-            ).splitlines():
-                name, path = ast.literal_eval(line)
-                cls._paths[name] = Path(root, path)
-        return super().__new__(cls)
-
-    def __getattr__(self, name):
-        return self._paths[name.replace("_", "-")]
-
-    @property
-    def go_env(self):
-        return {"PATH": f"{self._paths["go_bin_runner"].parent}{os.pathsep}{os.getenv("PATH", "")}"}
-
-    def plugin(self, name):
-        return f"--plugin={name}={self._paths[name]}"

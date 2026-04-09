@@ -16,6 +16,7 @@ import tasks.libs.cws.secl_doc_gen as secl_doc_gen
 from tasks.build_tags import get_default_build_tags
 from tasks.flavor import AgentFlavor
 from tasks.go import run_golangci_lint
+from tasks.libs.build.bazel import BazelTools
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.common.git import get_commit_sha, get_common_ancestor, get_current_branch
 from tasks.libs.common.go import go_build
@@ -28,7 +29,6 @@ from tasks.libs.common.utils import (
 )
 from tasks.libs.types.arch import ARCH_AMD64, Arch
 from tasks.process_agent import TempDir
-from tasks.protobuf import Tools
 from tasks.system_probe import (
     CURRENT_ARCH,
     build_cws_object_files,
@@ -647,18 +647,18 @@ def split_btfhub_constants(ctx):
 
 @task
 def generate_cws_proto(ctx):
-    tools = Tools(ctx)
+    bt = BazelTools(ctx)
     plugin_opts = " ".join(
         [
-            tools.plugin("protoc-gen-go"),
-            tools.plugin("protoc-gen-go-grpc"),
-            tools.plugin("protoc-gen-go-vtproto"),
+            bt.protoc_plugin("protoc-gen-go"),
+            bt.protoc_plugin("protoc-gen-go-grpc"),
+            bt.protoc_plugin("protoc-gen-go-vtproto"),
         ]
     )
 
     # API
     ctx.run(
-        f"{tools.protoc} {plugin_opts} -I. -Ipkg/proto/protodep --go_out=paths=source_relative:. --go-vtproto_out=. --go-vtproto_opt=features=marshal+unmarshal+size --go-grpc_out=paths=source_relative:. pkg/security/proto/api/api.proto"
+        f"{bt.protoc} {plugin_opts} -I. -Ipkg/proto/protodep --go_out=paths=source_relative:. --go-vtproto_out=. --go-vtproto_opt=features=marshal+unmarshal+size --go-grpc_out=paths=source_relative:. pkg/security/proto/api/api.proto"
     )
     # no need to strip protoc version from headers: hermetic tools guarantee it's identical on all execution platforms
 
