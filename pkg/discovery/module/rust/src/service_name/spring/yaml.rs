@@ -279,4 +279,44 @@ spring:
         let result = parse_yaml(yaml, "spring.application.name");
         assert_eq!(result, Some("found-it".to_string()));
     }
+
+    /// Billion laughs: N levels of anchor/alias nesting produce 10^N copies
+    /// when a DOM parser expands aliases. With yaml-rust2's YamlLoader, 554
+    /// bytes of YAML caused 30+ GB allocation and OOM.
+    ///
+    /// The streaming parser is immune because it never expands aliases — they
+    /// appear as opaque Event::Alias tokens that are skipped or rejected.
+    #[test]
+    fn test_parse_yaml_billion_laughs() {
+        // Build a billion-laughs payload: each level references the previous
+        // anchor 10 times. 8 levels = 10^8 logical copies.
+        fn make_billion_laughs(levels: usize) -> String {
+            let mut lines = vec!["a0: &a0 \"AAAAAAAAAA\"".to_string()];
+            for i in 1..=levels {
+                let refs: Vec<String> = (0..10).map(|_| format!("*a{}", i - 1)).collect();
+                lines.push(format!("a{i}: &a{i} [{}]", refs.join(", ")));
+            }
+            lines.push(format!("bomb: *a{levels}"));
+            lines.join("\n")
+        }
+
+        // Pure billion-laughs payload (no matching key) — should return None instantly.
+        let yaml = make_billion_laughs(8);
+        let result = parse_yaml(yaml.as_bytes(), "spring.application.name");
+        assert_eq!(result, None);
+
+        // Target key exists alongside alias bombs — aliases are skipped,
+        // the real value is returned.
+        let yaml = format!(
+            "{}\nspring:\n  application:\n    name: safe-value\n",
+            make_billion_laughs(8)
+        );
+        let result = parse_yaml(yaml.as_bytes(), "spring.application.name");
+        assert_eq!(result, Some("safe-value".to_string()));
+
+        // Target value is itself an alias — returns None (not a scalar).
+        let yaml = "anchor: &bomb \"kaboom\"\nspring:\n  application:\n    name: *bomb\n";
+        let result = parse_yaml(yaml.as_bytes(), "spring.application.name");
+        assert_eq!(result, None);
+    }
 }
