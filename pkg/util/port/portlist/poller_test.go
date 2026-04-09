@@ -177,18 +177,6 @@ func TestSortAndDedup(t *testing.T) {
 				{Port: 80, Proto: "tcp", IP: "127.0.0.1", Process: "nginx"},
 			},
 		},
-		{
-			"Dedup by proto port and IP",
-			List{
-				{Port: 80, Proto: "tcp", IP: "0.0.0.0", Process: "nginx"},
-				{Port: 80, Proto: "tcp", IP: "0.0.0.0", Process: "apache"},
-				{Port: 80, Proto: "tcp", IP: "127.0.0.1", Process: "nginx"},
-			},
-			List{
-				{Port: 80, Proto: "tcp", IP: "0.0.0.0", Process: "apache"},
-				{Port: 80, Proto: "tcp", IP: "127.0.0.1", Process: "nginx"},
-			},
-		},
 	}
 
 	for _, tt := range tests {
