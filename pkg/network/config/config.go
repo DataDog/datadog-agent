@@ -205,9 +205,6 @@ type Config struct {
 	// EnableFentry enables the experimental fentry tracer (disabled by default)
 	EnableFentry bool
 
-	// CustomBatchingEnabled enables the use of custom batching for eBPF perf events with perf buffers
-	CustomBatchingEnabled bool
-
 	// ExpectedTagsDuration is the duration for which we add host and container tags to our payloads, to handle the race
 	// in the backend for processing host/container tags and resolving them in our own pipelines.
 	ExpectedTagsDuration time.Duration
@@ -267,7 +264,6 @@ func New() *Config {
 		ProtocolClassificationEnabled: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_protocol_classification")),
 
 		NPMRingbuffersEnabled: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_ringbuffers")),
-		CustomBatchingEnabled: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_custom_batching")),
 
 		// Embed USM configuration
 		USMConfig: NewUSMConfig(cfg),
