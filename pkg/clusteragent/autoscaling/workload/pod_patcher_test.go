@@ -171,6 +171,35 @@ func patcherTestStoreWithData() *store {
 		},
 	}.Build(), "")
 
+	// ns1/autoscaler-burstable targets "burstable-deployment" with the burstable annotation set
+	store.Set("ns1/autoscaler-burstable", model.FakePodAutoscalerInternal{
+		Namespace: "ns1",
+		Name:      "autoscaler-burstable",
+		UpstreamCR: &datadoghq.DatadogPodAutoscaler{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace:   "ns1",
+				Name:        "autoscaler-burstable",
+				Annotations: map[string]string{model.BurstableAnnotation: "true"},
+			},
+			Spec: datadoghq.DatadogPodAutoscalerSpec{
+				TargetRef: autoscalingv2.CrossVersionObjectReference{
+					Kind:       "Deployment",
+					APIVersion: "apps/v1",
+					Name:       "burstable-deployment",
+				},
+			},
+		},
+		ScalingValues: model.ScalingValues{
+			Vertical: &model.VerticalScalingValues{
+				Source:        datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+				ResourcesHash: "version1",
+				ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+					{Name: "app", Limits: corev1.ResourceList{"cpu": resource.MustParse("500m"), "memory": resource.MustParse("512Mi")}, Requests: corev1.ResourceList{"cpu": resource.MustParse("250m")}},
+				},
+			},
+		},
+	}.Build(), "")
+
 	return store
 }
 
@@ -708,6 +737,114 @@ func TestPatcherApplyRecommendations(t *testing.T) {
 				},
 			},
 		},
+		// burstable annotation: rec-id and CPU limit behaviour
+		{
+			name: "burstable: rec-id stamped with -burstable suffix, CPU limit removed",
+			pod: corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "ns1",
+					Name:      "burstable-pod",
+					OwnerReferences: []metav1.OwnerReference{{
+						Kind:       "ReplicaSet",
+						Name:       "burstable-deployment-968f49d86",
+						APIVersion: "apps/v1",
+					}},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Name: "app",
+						Resources: corev1.ResourceRequirements{
+							Limits:   corev1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")},
+							Requests: corev1.ResourceList{"cpu": resource.MustParse("100m")},
+						},
+					}},
+				},
+			},
+			wantInjected: true,
+			wantPod: corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "ns1",
+					Name:      "burstable-pod",
+					OwnerReferences: []metav1.OwnerReference{{
+						Kind:       "ReplicaSet",
+						Name:       "burstable-deployment-968f49d86",
+						APIVersion: "apps/v1",
+					}},
+					Annotations: map[string]string{
+						model.RecommendationIDAnnotation: "version1-burstable",
+						model.AutoscalerIDAnnotation:     "ns1/autoscaler-burstable",
+					},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Name: "app",
+						Resources: corev1.ResourceRequirements{
+							// cpu limit must be absent; memory limit and cpu request applied
+							Limits:   corev1.ResourceList{"memory": resource.MustParse("512Mi")},
+							Requests: corev1.ResourceList{"cpu": resource.MustParse("250m")},
+						},
+					}},
+				},
+			},
+		},
+		{
+			// When the burstable annotation is removed the effective rec-id reverts to the
+			// plain hash. A pod whose rec-id still carries the "-burstable" suffix is
+			// therefore considered stale → re-patched and the CPU limit is restored.
+			name: "burstable annotation removed: rec-id reverts to plain hash, CPU limit restored",
+			pod: corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "ns1",
+					Name:      "pod1",
+					OwnerReferences: []metav1.OwnerReference{{
+						Kind:       "ReplicaSet",
+						Name:       "test-deployment-968f49d86",
+						APIVersion: "apps/v1",
+					}},
+					// pod still carries the old "-burstable" rec-id from before the annotation was removed
+					Annotations: map[string]string{
+						model.RecommendationIDAnnotation: "version1-burstable",
+						model.AutoscalerIDAnnotation:     "ns1/autoscaler1",
+					},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Name: "container1",
+						// CPU limit was previously removed while burstable was active
+						Resources: corev1.ResourceRequirements{
+							Requests: corev1.ResourceList{"memory": resource.MustParse("256Mi")},
+						},
+					}},
+				},
+			},
+			wantInjected: true,
+			wantPod: corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "ns1",
+					Name:      "pod1",
+					OwnerReferences: []metav1.OwnerReference{{
+						Kind:       "ReplicaSet",
+						Name:       "test-deployment-968f49d86",
+						APIVersion: "apps/v1",
+					}},
+					// rec-id reverts to plain hash (no -burstable suffix)
+					Annotations: map[string]string{
+						model.RecommendationIDAnnotation: "version1",
+						model.AutoscalerIDAnnotation:     "ns1/autoscaler1",
+					},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Name: "container1",
+						Resources: corev1.ResourceRequirements{
+							// CPU limit is restored from the recommendation
+							Limits:   corev1.ResourceList{"cpu": resource.MustParse("500m")},
+							Requests: corev1.ResourceList{"memory": resource.MustParse("256Mi")},
+						},
+					}},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -887,6 +1024,7 @@ func TestPatchContainerResources(t *testing.T) {
 		name             string
 		recommendation   datadoghqcommon.DatadogPodAutoscalerContainerResources
 		container        *corev1.Container
+		burstable        bool
 		expectedPatched  bool
 		expectedLimits   corev1.ResourceList
 		expectedRequests corev1.ResourceList
@@ -942,13 +1080,66 @@ func TestPatchContainerResources(t *testing.T) {
 			expectedLimits:   corev1.ResourceList{"cpu": resource.MustParse("500m")},
 			expectedRequests: corev1.ResourceList{"memory": resource.MustParse("256Mi")},
 		},
+		// burstable mode tests
+		{
+			name: "burstable: existing cpu limit is removed, memory limit kept",
+			recommendation: datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				Name:     "test-container",
+				Limits:   corev1.ResourceList{"cpu": resource.MustParse("500m"), "memory": resource.MustParse("512Mi")},
+				Requests: corev1.ResourceList{"cpu": resource.MustParse("250m")},
+			},
+			container: &corev1.Container{
+				Name: "test-container",
+				Resources: corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")},
+				},
+			},
+			burstable:        true,
+			expectedPatched:  true,
+			expectedLimits:   corev1.ResourceList{"memory": resource.MustParse("512Mi")},
+			expectedRequests: corev1.ResourceList{"cpu": resource.MustParse("250m")},
+		},
+		{
+			name: "burstable: container with no cpu limit is unchanged for limits, requests still applied",
+			recommendation: datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				Name:     "test-container",
+				Limits:   corev1.ResourceList{"memory": resource.MustParse("512Mi")},
+				Requests: corev1.ResourceList{"cpu": resource.MustParse("250m")},
+			},
+			container: &corev1.Container{
+				Name: "test-container",
+				Resources: corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{"memory": resource.MustParse("1Gi")},
+				},
+			},
+			burstable:        true,
+			expectedPatched:  true,
+			expectedLimits:   corev1.ResourceList{"memory": resource.MustParse("512Mi")},
+			expectedRequests: corev1.ResourceList{"cpu": resource.MustParse("250m")},
+		},
+		{
+			name: "non-burstable: cpu limit from recommendation is applied normally",
+			recommendation: datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				Name:     "test-container",
+				Limits:   corev1.ResourceList{"cpu": resource.MustParse("500m"), "memory": resource.MustParse("512Mi")},
+				Requests: corev1.ResourceList{"cpu": resource.MustParse("250m")},
+			},
+			container: &corev1.Container{
+				Name:      "test-container",
+				Resources: corev1.ResourceRequirements{},
+			},
+			burstable:        false,
+			expectedPatched:  true,
+			expectedLimits:   corev1.ResourceList{"cpu": resource.MustParse("500m"), "memory": resource.MustParse("512Mi")},
+			expectedRequests: corev1.ResourceList{"cpu": resource.MustParse("250m")},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			containerCopy := tt.container.DeepCopy()
 
-			patched := patchContainerResources(tt.recommendation, containerCopy)
+			patched := patchContainerResources(tt.recommendation, containerCopy, tt.burstable)
 
 			assert.Equal(t, tt.expectedPatched, patched, "patchContainerResources should return expected patch status")
 			assert.Equal(t, tt.expectedLimits, containerCopy.Resources.Limits, "Container limits should match expected values")
@@ -962,6 +1153,7 @@ func TestPatchPod(t *testing.T) {
 		name             string
 		recommendation   datadoghqcommon.DatadogPodAutoscalerContainerResources
 		pod              *corev1.Pod
+		burstable        bool
 		expectedPatched  bool
 		expectedLimits   corev1.ResourceList
 		expectedRequests corev1.ResourceList
@@ -1090,7 +1282,7 @@ func TestPatchPod(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			podCopy := tt.pod.DeepCopy()
 
-			patched := patchPod(tt.recommendation, podCopy)
+			patched := patchPod(tt.recommendation, podCopy, tt.burstable)
 
 			assert.Equal(t, tt.expectedPatched, patched, "patchPod should return expected patch status")
 

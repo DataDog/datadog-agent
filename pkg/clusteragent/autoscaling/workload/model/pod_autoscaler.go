@@ -609,6 +609,16 @@ func (p *PodAutoscalerInternal) IsHorizontalScalingEnabled() bool {
 	return !(scaleUpDisabled && scaleDownDisabled)
 }
 
+// IsBurstable returns true if the DPA has the burstable annotation set to "true".
+// In burstable mode the controller removes the CPU limit from containers while still
+// applying CPU request recommendations.
+func (p *PodAutoscalerInternal) IsBurstable() bool {
+	if p.upstreamCR == nil || p.upstreamCR.Annotations == nil {
+		return false
+	}
+	return p.upstreamCR.Annotations[BurstableAnnotation] == "true"
+}
+
 func (p *PodAutoscalerInternal) IsVerticalScalingEnabled() bool {
 	spec := p.Spec()
 	if spec == nil || spec.ApplyPolicy == nil {

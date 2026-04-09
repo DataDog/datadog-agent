@@ -89,15 +89,22 @@ func (pa podPatcher) ApplyRecommendations(pod *corev1.Pod) (bool, error) {
 		return patched, nil
 	}
 
-	// Patching the pod with the recommendations
-	if pod.Annotations[model.RecommendationIDAnnotation] != autoscaler.ScalingValues().Vertical.ResourcesHash {
-		pod.Annotations[model.RecommendationIDAnnotation] = autoscaler.ScalingValues().Vertical.ResourcesHash
+	// Patching the pod with the recommendations.
+	// The effective ID incorporates the burstable mode so that toggling the annotation
+	// forces a re-patch even when the backend recommendation hash is unchanged.
+	effectiveRecommendationID := autoscaler.ScalingValues().Vertical.ResourcesHash
+	if autoscaler.IsBurstable() {
+		effectiveRecommendationID += "-burstable"
+	}
+	if pod.Annotations[model.RecommendationIDAnnotation] != effectiveRecommendationID {
+		pod.Annotations[model.RecommendationIDAnnotation] = effectiveRecommendationID
 		patched = true
 	}
 
 	// Even if annotation matches, we still verify the resources are correct, in case the POD was modified.
+	burstable := autoscaler.IsBurstable()
 	for _, reco := range autoscaler.ScalingValues().Vertical.ContainerResources {
-		patched = patchPod(reco, pod) || patched
+		patched = patchPod(reco, pod, burstable) || patched
 	}
 
 	return patched, nil
@@ -202,11 +209,11 @@ func (pa podPatcher) observedPodCallback(ctx context.Context, pod *workloadmeta.
 
 // K8s guarantees that the name for an init container or normal container are unique among all containers.
 // It means that dispatching recommendations just by container names is sufficient
-func patchPod(reco datadoghqcommon.DatadogPodAutoscalerContainerResources, pod *corev1.Pod) (patched bool) {
+func patchPod(reco datadoghqcommon.DatadogPodAutoscalerContainerResources, pod *corev1.Pod, burstable bool) (patched bool) {
 	for i := range pod.Spec.Containers {
 		cont := &pod.Spec.Containers[i]
 		if cont.Name == reco.Name {
-			return patchContainerResources(reco, cont)
+			return patchContainerResources(reco, cont, burstable)
 		}
 	}
 
@@ -217,14 +224,14 @@ func patchPod(reco datadoghqcommon.DatadogPodAutoscalerContainerResources, pod *
 		// sidecar container by definition is an init container with `restartPolicy: Always`
 		isInitSidecarContainer := cont.RestartPolicy != nil && *cont.RestartPolicy == corev1.ContainerRestartPolicyAlways
 		if cont.Name == reco.Name && isInitSidecarContainer {
-			return patchContainerResources(reco, cont)
+			return patchContainerResources(reco, cont, burstable)
 		}
 	}
 
 	return false
 }
 
-func patchContainerResources(reco datadoghqcommon.DatadogPodAutoscalerContainerResources, cont *corev1.Container) (patched bool) {
+func patchContainerResources(reco datadoghqcommon.DatadogPodAutoscalerContainerResources, cont *corev1.Container, burstable bool) (patched bool) {
 	patched = false
 
 	if cont.Resources.Limits == nil {
@@ -242,6 +249,12 @@ func patchContainerResources(reco datadoghqcommon.DatadogPodAutoscalerContainerR
 	for resource, request := range reco.Requests {
 		if request != cont.Resources.Requests[resource] {
 			cont.Resources.Requests[resource] = request
+			patched = true
+		}
+	}
+	if burstable {
+		if _, hasCPULimit := cont.Resources.Limits[corev1.ResourceCPU]; hasCPULimit {
+			delete(cont.Resources.Limits, corev1.ResourceCPU)
 			patched = true
 		}
 	}

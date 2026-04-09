@@ -100,6 +100,9 @@ func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.
 	autoscalerInternal.SetConstrainedVerticalScaling(constrainedVertical, limitErr)
 
 	recommendationID := constrainedVertical.ResourcesHash
+	if autoscalerInternal.IsBurstable() {
+		recommendationID += "-burstable"
+	}
 
 	// Get the pods for the pod owner
 	pods := u.podWatcher.GetPodsForOwner(target)

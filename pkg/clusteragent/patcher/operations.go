@@ -145,6 +145,9 @@ type ContainerResourcePatch struct {
 	Requests map[string]string
 	// Limits is the desired resource limits (e.g. {"cpu": "500m", "memory": "1Gi"}).
 	Limits map[string]string
+	// LimitsToDelete lists resource names (e.g. "cpu") whose limits should be removed.
+	// These are emitted as null in the patch body, which removes them via merge patch.
+	LimitsToDelete []string
 }
 
 // setContainerResources sets spec.containers[*].resources for the listed containers
@@ -175,10 +178,13 @@ func (o *setContainerResources) build() map[string]interface{} {
 			resources["requests"] = requests
 		}
 
-		if len(c.Limits) > 0 {
-			limits := make(map[string]interface{}, len(c.Limits))
+		if len(c.Limits) > 0 || len(c.LimitsToDelete) > 0 {
+			limits := make(map[string]interface{}, len(c.Limits)+len(c.LimitsToDelete))
 			for k, v := range c.Limits {
 				limits[k] = v
+			}
+			for _, k := range c.LimitsToDelete {
+				limits[k] = nil // nil serializes as JSON null, removing the field via merge patch
 			}
 			resources["limits"] = limits
 		}

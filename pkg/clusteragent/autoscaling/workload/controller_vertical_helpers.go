@@ -583,6 +583,8 @@ func fromAutoscalerToContainerResourcePatches(autoscalerInternal *model.PodAutos
 		recoByName[cr.Name] = cr
 	}
 
+	burstable := autoscalerInternal.IsBurstable()
+
 	// Build the list of patches ordered to API server pod container order.
 	patches := make([]workloadpatcher.ContainerResourcePatch, 0, len(containersResources))
 	for _, c := range pod.Containers {
@@ -590,11 +592,16 @@ func fromAutoscalerToContainerResourcePatches(autoscalerInternal *model.PodAutos
 		if !ok {
 			continue
 		}
-		patches = append(patches, workloadpatcher.ContainerResourcePatch{
+		patch := workloadpatcher.ContainerResourcePatch{
 			Name:     cr.Name,
 			Requests: resourceListToStringMap(cr.Requests),
 			Limits:   resourceListToStringMap(cr.Limits),
-		})
+		}
+		if burstable {
+			delete(patch.Limits, string(corev1.ResourceCPU)) // don't re-set CPU limit
+			patch.LimitsToDelete = []string{string(corev1.ResourceCPU)}
+		}
+		patches = append(patches, patch)
 	}
 	return patches
 }

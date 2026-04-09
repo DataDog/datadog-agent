@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
+	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 )
 
 func TestHasLimitIncrease_Detected(t *testing.T) {
@@ -655,4 +656,61 @@ func TestFromAutoscalerToContainerResourcePatches_PreservesPodOrder(t *testing.T
 	assert.Equal(t, "c1", patches[0].Name, "patch order must follow pod container order")
 	assert.Equal(t, "c2", patches[1].Name)
 	assert.Equal(t, "c3", patches[2].Name)
+}
+
+func TestFromAutoscalerToContainerResourcePatches_Burstable(t *testing.T) {
+	sv := &model.VerticalScalingValues{
+		ResourcesHash: "r1",
+		ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+			{
+				Name:     "app",
+				Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("250m")},
+				Limits:   corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("500m"), corev1.ResourceMemory: resource.MustParse("512Mi")},
+			},
+		},
+	}
+
+	pod := &workloadmeta.KubernetesPod{
+		EntityID:   workloadmeta.EntityID{ID: "pod1"},
+		Containers: []workloadmeta.OrchestratorContainer{{Name: "app"}},
+	}
+
+	t.Run("burstable: cpu removed from limits, LimitsToDelete set", func(t *testing.T) {
+		ai := (&model.FakePodAutoscalerInternal{
+			Namespace:     "default",
+			Name:          "ai",
+			ScalingValues: model.ScalingValues{Vertical: sv},
+			UpstreamCR: &datadoghq.DatadogPodAutoscaler{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:   "default",
+					Name:        "ai",
+					Annotations: map[string]string{model.BurstableAnnotation: "true"},
+				},
+			},
+		}).Build()
+
+		patches := fromAutoscalerToContainerResourcePatches(&ai, pod)
+
+		require.Len(t, patches, 1)
+		p := patches[0]
+		assert.Equal(t, "app", p.Name)
+		assert.NotContains(t, p.Limits, "cpu", "cpu must not be set in limits when burstable")
+		assert.Equal(t, "512Mi", p.Limits["memory"], "memory limit must be unchanged")
+		assert.Equal(t, []string{"cpu"}, p.LimitsToDelete, "cpu must be listed for deletion")
+	})
+
+	t.Run("non-burstable: cpu limit set normally, LimitsToDelete empty", func(t *testing.T) {
+		ai := (&model.FakePodAutoscalerInternal{
+			Namespace:     "default",
+			Name:          "ai",
+			ScalingValues: model.ScalingValues{Vertical: sv},
+		}).Build()
+
+		patches := fromAutoscalerToContainerResourcePatches(&ai, pod)
+
+		require.Len(t, patches, 1)
+		p := patches[0]
+		assert.Equal(t, "500m", p.Limits["cpu"], "cpu limit must be set when not burstable")
+		assert.Empty(t, p.LimitsToDelete, "LimitsToDelete must be empty when not burstable")
+	})
 }
