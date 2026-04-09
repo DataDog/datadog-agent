@@ -2230,6 +2230,8 @@ def eval_component_workspace_report(
     dest = local_dir.strip() or os.path.join("eval-results", ws_name)
     os.makedirs(dest, exist_ok=True)
 
+    print(color_message(f"Copying report from {ssh_host}:{remote_report} to {dest}...", Color.BLUE))
+
     if only_report:
         ctx.run(f"scp {shlex.quote(f'{ssh_host}:{remote_report}')} {shlex.quote(dest)}/")
         print(color_message(f"report.json copied to {dest}/report.json", Color.GREEN))
