@@ -39,6 +39,7 @@ type CheckSampler struct {
 	allowSketchBucketReset bool
 
 	metricHook hook.Hook[[]hook.MetricSampleSnapshot]
+	hookBatch  []hook.MetricSampleSnapshot
 }
 
 // newCheckSampler returns a newly initialized CheckSampler
@@ -65,12 +66,13 @@ func newCheckSampler(
 		logThrottling:          util.NewSimpleThrottler(5, 5*time.Minute, ""),
 		allowSketchBucketReset: allowSketchBucketReset,
 		metricHook:             metricHook,
+		hookBatch:              []hook.MetricSampleSnapshot{},
 	}
 }
 
 func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample, tagFilterList filterlist.TagMatcher) {
-	if cs.metricHook.HasSubscribers() {
-		cs.metricHook.Publish("checks", []hook.MetricSampleSnapshot{hook.NewMetricSampleSnapshot(metricSample)})
+	if cs.metricHook != nil && cs.metricHook.HasSubscribers() {
+		cs.hookBatch = append(cs.hookBatch, hook.NewMetricSampleSnapshot(metricSample))
 	}
 	contextKey := cs.contextResolver.trackContext(metricSample, tagFilterList)
 	if metricSample.Mtype == metrics.DistributionType {
@@ -232,7 +234,19 @@ func (cs *CheckSampler) commitSketches(timestamp float64, filterList *utilstring
 	}
 }
 
+// flushHookBatch publishes the accumulated metric snapshots to hook subscribers
+// and resets the batch. Called at commit time (end of a check run) so all
+// metrics from one check execution are sent as a single batch.
+func (cs *CheckSampler) flushHookBatch() {
+	if len(cs.hookBatch) == 0 || cs.metricHook == nil {
+		return
+	}
+	cs.metricHook.Publish("checks", cs.hookBatch)
+	cs.hookBatch = cs.hookBatch[:0]
+}
+
 func (cs *CheckSampler) commit(timestamp float64, filterList *utilstrings.Matcher) {
+	cs.flushHookBatch()
 	cs.commitSeries(timestamp, filterList)
 	cs.commitSketches(timestamp, filterList)
 
