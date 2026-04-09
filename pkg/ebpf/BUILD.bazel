@@ -24,7 +24,6 @@ cgo_godefs(
     name = "types_godefs",
     src = "types.go",
     visibility = ["//visibility:public"],
-    deps = ["//pkg/network/ebpf/c:ebpf_c_network"],
 )
 
 # Hand-written: rules_go respects //go:build ignore, so strip it before compiling.

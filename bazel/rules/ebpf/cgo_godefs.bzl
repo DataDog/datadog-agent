@@ -154,7 +154,7 @@ _STD_LINUX_DEPS = [
 ]
 
 def _cgo_godefs_macro_impl(name, visibility, src, deps, hdrs, platform):
-    all_deps = deps + (_STD_LINUX_DEPS if platform == "linux" else [])
+    all_deps = (_STD_LINUX_DEPS if platform == "linux" else []) + deps
 
     gen = name + "_gen"
     _cgo_godefs(

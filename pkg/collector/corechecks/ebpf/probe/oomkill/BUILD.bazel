@@ -12,5 +12,4 @@ cgo_godefs(
     src = "c_types.go",
     hdrs = ["//pkg/collector/corechecks/ebpf/c/runtime:corecheck_ebpf_headers"],
     visibility = ["//visibility:public"],
-    deps = ["//pkg/network/ebpf/c:ebpf_c_network"],
 )
