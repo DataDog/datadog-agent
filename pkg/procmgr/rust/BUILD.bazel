@@ -39,11 +39,9 @@ cc_library(
 # Library
 # ============================================================================
 
-_TARGET_COMPAT = select({
-    "@platforms//os:linux": [],
-    "@platforms//os:windows": [],
-    "//conditions:default": ["@platforms//:incompatible"],
-})
+# The Rust source is cross-platform, but Bazel targets remain Linux-only
+# because :process_manager_rust_proto requires a prost toolchain that only
+# exists for Linux. Widen to Linux+Windows when the toolchain is ported.
 
 _LIB_SRCS = glob(
     ["src/**/*.rs"],
@@ -82,7 +80,7 @@ rust_library(
     crate_name = "dd_procmgrd",
     edition = "2024",
     rustc_flags = ["--cfg=bazel"],
-    target_compatible_with = _TARGET_COMPAT,
+    target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
     deps = _LIB_DEPS,
 )
@@ -95,7 +93,7 @@ rust_library(
     crate_name = "dd_procmgrd",
     edition = "2024",
     rustc_flags = ["--cfg=bazel"],
-    target_compatible_with = _TARGET_COMPAT,
+    target_compatible_with = ["@platforms//os:linux"],
     deps = _LIB_DEPS,
 )
 
@@ -108,7 +106,7 @@ rust_binary(
     srcs = ["src/bins/dd-procmgrd.rs"],
     edition = "2024",
     rustc_flags = ["--cfg=bazel"],
-    target_compatible_with = _TARGET_COMPAT,
+    target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
     deps = [
         ":dd-procmgrd-lib",
@@ -124,7 +122,7 @@ rust_binary(
     srcs = ["src/bins/dd-procmgr.rs"],
     edition = "2024",
     rustc_flags = ["--cfg=bazel"],
-    target_compatible_with = _TARGET_COMPAT,
+    target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
     deps = [
         ":dd-procmgrd-lib",
