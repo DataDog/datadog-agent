@@ -188,6 +188,8 @@ rust_test(
         "CARGO_BIN_EXE_dd-procmgrd": "$(rootpath :dd-procmgrd)",
         "DDOT_TEMPLATE_PATH": "$(rootpath //pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-ddot.yaml.tmpl)",
     },
+    # Keep Linux-only until transport/named_pipe.rs is implemented
+    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         ":dd-procmgrd-lib-testhelpers",
         "@crates//:serde_json",
