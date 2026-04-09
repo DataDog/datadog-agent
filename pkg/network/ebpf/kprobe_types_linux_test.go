@@ -36,10 +36,6 @@ func TestCgoAlignment_PidTs(t *testing.T) {
 	ebpftest.TestCgoAlignment[PidTs](t)
 }
 
-func TestCgoAlignment_Batch(t *testing.T) {
-	ebpftest.TestCgoAlignment[Batch](t)
-}
-
 func TestCgoAlignment_Telemetry(t *testing.T) {
 	ebpftest.TestCgoAlignment[Telemetry](t)
 }
