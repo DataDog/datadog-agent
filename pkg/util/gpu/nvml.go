@@ -10,6 +10,7 @@ package gpu
 
 import "github.com/NVIDIA/go-nvml/pkg/nvml"
 
+// ArchToString converts a NVML device architecture to a string.
 func ArchToString(arch nvml.DeviceArchitecture) string {
 	switch arch {
 	case nvml.DEVICE_ARCH_KEPLER:
