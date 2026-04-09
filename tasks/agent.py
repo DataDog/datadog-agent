@@ -240,6 +240,10 @@ def build(
             check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
             coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
         )
+        build_path = os.path.join(BIN_PATH, "BUILD.bazel")
+        if not os.path.exists(build_path):
+            with open(build_path, "w") as build_file:
+                build_file.write("""exports_files(glob(["**"]))\n""")
 
     if embedded_path is None:
         embedded_path = get_embedded_path(ctx)
@@ -253,8 +257,13 @@ def build(
         bundled_agent_bin = os.path.join(bundled_agent_dir, bin_name(build))
         agent_fullpath = os.path.normpath(os.path.join(embedded_path, "..", "bin", "agent", bin_name("agent")))
 
-        if not os.path.exists(os.path.dirname(bundled_agent_bin)):
-            os.mkdir(os.path.dirname(bundled_agent_bin))
+        bin_dir = os.path.dirname(bundled_agent_bin)
+        if not os.path.exists(bin_dir):
+            os.mkdir(bin_dir)
+        build_path = os.path.join(bin_dir, "BUILD.bazel")
+        if not os.path.exists(build_path):
+            with open(build_path, "w") as build_file:
+                build_file.write("""exports_files(glob(["**"]))\n""")
 
         create_launcher(ctx, build, agent_fullpath, bundled_agent_bin)
 

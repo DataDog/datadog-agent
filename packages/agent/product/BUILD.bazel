@@ -33,6 +33,7 @@ pkg_filegroup(
         # we'll do that in April.
         # "//packages/agent/dependencies:all_files",
         ":dirs",
+        ":agent_binary",
         ":example_config",
         "//cmd/agent/dist:all_files",
         "//cmd/agent/dist:all_python_files",
@@ -129,4 +130,13 @@ pkg_files(
     renames = {
         "//pkg/config:agent_config": "datadog.yaml.example",
     },
+)
+
+pkg_files(
+    name = "agent_binary",
+    srcs = [
+        "//bin/agent",
+    ],
+    attributes = pkg_attributes(mode = "755"),
+    prefix = "bin/agent_dup",
 )
