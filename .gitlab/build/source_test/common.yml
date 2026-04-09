@@ -9,8 +9,9 @@
 
 .upload_coverage_datadog:
   # Upload coverage files to Datadog Code Coverage. Never fail on coverage upload.
+  - curl -L --fail "https://github.com/DataDog/datadog-ci/releases/latest/download/datadog-ci_linux-x64" -o /tmp/datadog-ci && chmod +x /tmp/datadog-ci || true
   - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
-  - datadog-ci coverage upload --format=go-coverprofile coverage.out || true
+  - /tmp/datadog-ci coverage upload --format=go-coverprofile coverage.out || true
 
 .unit_test_base:
   extends: .bazel:defs:cache:progressive
