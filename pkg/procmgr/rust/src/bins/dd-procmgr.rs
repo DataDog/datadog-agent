@@ -6,12 +6,11 @@
 use clap::{Parser, Subcommand};
 use dd_procmgrd::grpc::proto;
 use dd_procmgrd::grpc::proto::process_manager_client::ProcessManagerClient;
-use dd_procmgrd::grpc::server::socket_path;
+use dd_procmgrd::transport;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::ExitCode;
-use tonic::transport::{Channel, Endpoint};
-use tower::service_fn;
+use tonic::transport::Channel;
 
 #[derive(Parser)]
 #[command(name = "dd-procmgr", about = "CLI for dd-procmgrd process manager")]
@@ -116,18 +115,9 @@ async fn main() -> ExitCode {
 async fn connect(socket_override: Option<&str>) -> Result<ProcessManagerClient<Channel>, String> {
     let path: PathBuf = match socket_override {
         Some(s) => PathBuf::from(s),
-        None => socket_path(),
+        None => transport::ipc_path(),
     };
-    let path_clone = path.clone();
-    let channel = Endpoint::from_static(dd_procmgrd::transport::DUMMY_ENDPOINT)
-        .connect_with_connector(service_fn(move |_| {
-            let p = path_clone.clone();
-            async move {
-                tokio::net::UnixStream::connect(p)
-                    .await
-                    .map(hyper_util::rt::TokioIo::new)
-            }
-        }))
+    let channel = transport::connect(&path)
         .await
         .map_err(|e| format!("failed to connect to {}: {e}", path.display()))?;
     Ok(ProcessManagerClient::new(channel))
