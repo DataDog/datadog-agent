@@ -23,6 +23,20 @@ if(ARCH_I386)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m32")
 endif()
 
+## Python 3.13+ sub-interpreter support
+## Defines RTLOADER_HAS_SUBINTERPRETERS for every target in this directory and below
+option(ENABLE_SUBINTERPRETERS "Enable experimental Python sub-interpreter support (requires Python 3.13+)" OFF)
+
+if(ENABLE_SUBINTERPRETERS)
+  find_package(Python3 COMPONENTS Interpreter Development)
+  if(Python3_VERSION VERSION_LESS "3.13")
+    message(FATAL_ERROR
+      "ENABLE_SUBINTERPRETERS=ON requires Python 3.13+, but found Python ${Python3_VERSION}")
+  endif()
+  add_compile_definitions(RTLOADER_HAS_SUBINTERPRETERS)
+  message(STATUS "Sub-interpreter support enabled (Python ${Python3_VERSION})")
+endif()
+
 ## Add Build Targets
 add_subdirectory(three)
 add_subdirectory(rtloader)

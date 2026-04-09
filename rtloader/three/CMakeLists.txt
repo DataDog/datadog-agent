@@ -49,6 +49,12 @@ add_library(datadog-agent-three SHARED
     ../common/builtins/containers.c
 )
 
+# Sub-interpreter source: three_subinterp.cpp must be added here because target_sources
+# must reference an existing target, and datadog-agent-three is created in this file.
+if(ENABLE_SUBINTERPRETERS)
+  target_sources(datadog-agent-three PRIVATE three_subinterp.cpp)
+endif()
+
 if(WIN32)
   set_target_properties(datadog-agent-three PROPERTIES LINK_FLAGS -static)
 elseif(APPLE)
