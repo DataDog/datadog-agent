@@ -60,19 +60,11 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.UDPSendPageReturn,
 }
 
-var batchProbes = []probes.ProbeFuncName{
-	probes.TCPDoneFlushReturn,
-	probes.TCPCloseFlushReturn,
-	probes.UDPDestroySockReturn,
-	probes.UDPv6DestroySockReturn,
-}
-
 func initManager(mgr *ddebpf.Manager, runtimeTracer bool) error {
 	mgr.Maps = []*manager.Map{
 		{Name: probes.ConnMap},
 		{Name: probes.TCPStatsMap},
 		{Name: probes.TCPOngoingConnectPid},
-		{Name: probes.ConnCloseBatchMap},
 		{Name: "udp_recv_sock"},
 		{Name: "udpv6_recv_sock"},
 		{Name: probes.PortBindingsMap},
@@ -86,7 +78,6 @@ func initManager(mgr *ddebpf.Manager, runtimeTracer bool) error {
 		{Name: probes.IPMakeSkbArgsMap},
 		{Name: probes.TCPRecvMsgArgsMap},
 		{Name: probes.ClassificationProgsMap},
-		{Name: probes.TCPCloseProgsMap},
 		{Name: probes.SSLCertsStatemArgsMap},
 		{Name: probes.SSLCertsI2DX509ArgsMap},
 		{Name: probes.SSLHandshakeStateMap},
@@ -113,7 +104,6 @@ func initManager(mgr *ddebpf.Manager, runtimeTracer bool) error {
 	mgr.Probes = append(mgr.Probes, slices.Map(ssluprobes.OpenSSLUProbes, funcNameToSSLProbe)...)
 	mgr.Probes = append(mgr.Probes, ssluprobes.GetSchedExitProbeSSL())
 
-	mgr.Probes = append(mgr.Probes, slices.Map(batchProbes, funcNameToProbe)...)
 	mgr.Probes = append(mgr.Probes, slices.Map([]probes.ProbeFuncName{
 		probes.SKBFreeDatagramLocked,
 		probes.UnderscoredSKBFreeDatagramLocked,

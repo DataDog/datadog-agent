@@ -22,7 +22,19 @@
   # Touch .instance_not_found to mark the failure reason to the tag-ci-job task later
   - |
     COUNTER=0
-    while [[ $(aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_STATE $FILTER_PIPELINE $FILTER_TEST_COMPONENT $FILTER_INSTANCE_TYPE --output text --query $QUERY_INSTANCE_IDS  | wc -l ) != "1" && $COUNTER -le 80 ]]; do COUNTER=$[$COUNTER +1]; echo "[${COUNTER}] Waiting for instance"; sleep 30; done
+    WAIT_INTERVAL_SECONDS=${KMT_SETUP_WAIT_INTERVAL_SECONDS:-30}
+    WAIT_TIMEOUT_MINUTES=${KMT_SETUP_WAIT_TIMEOUT_MINUTES:-90}
+    WAIT_TIMEOUT_SECONDS=$((WAIT_TIMEOUT_MINUTES * 60))
+    START_TIME_SECONDS=$(date +%s)
+    while [[ $(aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_STATE $FILTER_PIPELINE $FILTER_TEST_COMPONENT $FILTER_INSTANCE_TYPE --output text --query $QUERY_INSTANCE_IDS | wc -l ) != "1" ]]; do
+        ELAPSED_SECONDS=$(( $(date +%s) - START_TIME_SECONDS ))
+        if [[ $ELAPSED_SECONDS -ge $WAIT_TIMEOUT_SECONDS ]]; then
+            break
+        fi
+        COUNTER=$((COUNTER + 1))
+        echo "[${COUNTER}] Waiting for instance (${ELAPSED_SECONDS}s/${WAIT_TIMEOUT_SECONDS}s)"
+        sleep $WAIT_INTERVAL_SECONDS
+    done
     # check that instance is ready, or fail
     if [ $(aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_STATE $FILTER_PIPELINE $FILTER_TEST_COMPONENT $FILTER_INSTANCE_TYPE --output text --query $QUERY_INSTANCE_IDS | wc -l) -ne "1" ]; then
         echo "Instance NOT found"
