@@ -50,10 +50,11 @@ func readTimeClusterConfig(reader ConfigReader, prefix string) any {
 
 // timeCluster represents a group of temporally-related anomalies.
 type timeCluster struct {
-	id           int
-	anomalies    []observer.Anomaly
-	minTimestamp int64 // earliest anomaly timestamp
-	maxTimestamp int64 // latest anomaly timestamp
+	id                  int
+	anomalies           []observer.Anomaly
+	minTimestamp        int64 // earliest anomaly timestamp
+	maxTimestamp        int64 // latest anomaly timestamp
+	maxSamplingInterval int64 // max SamplingIntervalSec across all anomalies in cluster
 }
 
 // TimeClusterCorrelator clusters anomalies based on timestamp proximity.
@@ -98,7 +99,7 @@ func (c *TimeClusterCorrelator) ProcessAnomaly(anomaly observer.Anomaly) {
 	// Find clusters this anomaly is within proximity of
 	var nearby []*timeCluster
 	for _, cluster := range c.clusters {
-		if c.isNearCluster(anomaly.Timestamp, cluster) {
+		if c.isNearCluster(anomaly.Timestamp, anomaly.SamplingIntervalSec, cluster) {
 			nearby = append(nearby, cluster)
 		}
 	}
@@ -107,10 +108,11 @@ func (c *TimeClusterCorrelator) ProcessAnomaly(anomaly observer.Anomaly) {
 		// No nearby cluster - create new cluster
 		c.nextClusterID++
 		newCluster := &timeCluster{
-			id:           c.nextClusterID,
-			anomalies:    []observer.Anomaly{anomaly},
-			minTimestamp: anomaly.Timestamp,
-			maxTimestamp: anomaly.Timestamp,
+			id:                  c.nextClusterID,
+			anomalies:           []observer.Anomaly{anomaly},
+			minTimestamp:        anomaly.Timestamp,
+			maxTimestamp:        anomaly.Timestamp,
+			maxSamplingInterval: anomaly.SamplingIntervalSec,
 		}
 		c.clusters = append(c.clusters, newCluster)
 	} else if len(nearby) == 1 {
@@ -124,14 +126,28 @@ func (c *TimeClusterCorrelator) ProcessAnomaly(anomaly observer.Anomaly) {
 	}
 }
 
-// isNearCluster checks if a timestamp is within proximity of any anomaly in the cluster.
-func (c *TimeClusterCorrelator) isNearCluster(ts int64, cluster *timeCluster) bool {
+// isNearCluster checks if a timestamp is within proximity of the cluster's time range.
+// Proximity is widened by the max SamplingIntervalSec across the cluster and the
+// incoming anomaly, so slow-sampling series (e.g. 15s redis checks) can join
+// clusters formed by faster-sampling series.
+func (c *TimeClusterCorrelator) isNearCluster(ts int64, incomingInterval int64, cluster *timeCluster) bool {
 	proximity := c.config.ProximitySeconds
-	// Check if timestamp is within proximity of the cluster's time range
+	if cluster.maxSamplingInterval > proximity {
+		proximity = cluster.maxSamplingInterval
+	}
+	if incomingInterval > proximity {
+		proximity = incomingInterval
+	}
+	// Cap proximity at half the window to prevent pathological sampling intervals
+	// (e.g. 3600s) from clustering all anomalies together.
+	maxProximity := c.config.WindowSeconds / 2
+	if maxProximity > 0 && proximity > maxProximity {
+		proximity = maxProximity
+	}
 	return ts >= cluster.minTimestamp-proximity && ts <= cluster.maxTimestamp+proximity
 }
 
-// addToCluster adds an anomaly to a cluster, updating timestamps.
+// addToCluster adds an anomaly to a cluster, updating timestamps and sampling interval.
 func (c *TimeClusterCorrelator) addToCluster(cluster *timeCluster, anomaly observer.Anomaly) {
 	cluster.anomalies = append(cluster.anomalies, anomaly)
 
@@ -140,6 +156,9 @@ func (c *TimeClusterCorrelator) addToCluster(cluster *timeCluster, anomaly obser
 	}
 	if anomaly.Timestamp > cluster.maxTimestamp {
 		cluster.maxTimestamp = anomaly.Timestamp
+	}
+	if anomaly.SamplingIntervalSec > cluster.maxSamplingInterval {
+		cluster.maxSamplingInterval = anomaly.SamplingIntervalSec
 	}
 }
 
@@ -160,6 +179,9 @@ func (c *TimeClusterCorrelator) mergeClusters(clusters []*timeCluster) *timeClus
 		}
 		if other.maxTimestamp > merged.maxTimestamp {
 			merged.maxTimestamp = other.maxTimestamp
+		}
+		if other.maxSamplingInterval > merged.maxSamplingInterval {
+			merged.maxSamplingInterval = other.maxSamplingInterval
 		}
 	}
 

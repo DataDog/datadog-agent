@@ -373,6 +373,13 @@ type Anomaly struct {
 	Context   *MetricContext
 	Timestamp int64    // when the anomaly was detected (unix seconds)
 	Score     *float64 // confidence/severity score (nil if not available)
+	// SamplingIntervalSec is the median interval between consecutive data points
+	// for the source series, in seconds. Set by scan detectors (ScanMW, ScanWelch)
+	// at detection time from the actual point buffer. Zero if unknown.
+	// Correlators use this to dynamically scale proximity windows so that
+	// slow-sampling series (e.g. 15s redis check) can join clusters formed
+	// by faster-sampling series (e.g. 10s trace stats).
+	SamplingIntervalSec int64
 	// DebugInfo contains detector-specific debug information explaining the detection.
 	DebugInfo *AnomalyDebugInfo
 }
