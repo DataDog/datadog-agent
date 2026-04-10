@@ -413,7 +413,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/util/ec2
 # gazelle:exclude pkg/util/ecs
 # gazelle:exclude pkg/util/fargate
-# gazelle:exclude pkg/util/goroutinesdump
 # gazelle:exclude pkg/util/gpu
 # gazelle:exclude pkg/util/input
 # gazelle:exclude pkg/util/installinfo
