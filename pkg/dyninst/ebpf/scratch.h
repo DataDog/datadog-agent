@@ -73,14 +73,55 @@ static di_event_header_t* events_scratch_buf_init(scratch_buf_t** scratch_buf) {
   return (di_event_header_t*)*scratch_buf;
 }
 
-static bool events_scratch_buf_submit(scratch_buf_t* scratch_buf) {
+static bool events_scratch_buf_submit(scratch_buf_t* scratch_buf,
+                                      uint64_t ktime_ns) {
   di_event_header_t* header = (di_event_header_t*)scratch_buf;
-  header->ktime_ns = bpf_ktime_get_ns();
+  header->ktime_ns = ktime_ns;
   uint64_t len = scratch_buf_len(scratch_buf);
   if (len > SCRATCH_BUF_LEN) {
     len = SCRATCH_BUF_LEN;
   }
   return bpf_ringbuf_output(&out_ringbuf, scratch_buf, len, 0) == 0;
+}
+
+// Flush the current scratch buffer as a continuation fragment and reinitialize
+// for the next fragment. Returns true on success, false if the ringbuf is full.
+// start_ns is the original probe invocation timestamp, used to correlate all
+// fragments of a single logical event.
+static bool scratch_buf_flush_and_continue(scratch_buf_t* scratch_buf,
+                                           uint16_t* continuation_seq,
+                                           uint64_t start_ns) {
+  di_event_header_t* header = (di_event_header_t*)scratch_buf;
+  header->continuation_seq = *continuation_seq;
+  header->continuation_flags = 1; // more fragments follow
+
+  // Save header fields before submit.
+  uint32_t prog_id = header->prog_id;
+  uint64_t goid = header->goid;
+  uint32_t stack_byte_depth = header->stack_byte_depth;
+  uint32_t probe_id = header->probe_id;
+  unsigned char event_pairing_expectation = header->event_pairing_expectation;
+
+  if (!events_scratch_buf_submit(scratch_buf, start_ns)) {
+    return false;
+  }
+
+  (*continuation_seq)++;
+
+  // Reinitialize the buffer with a continuation header.
+  scratch_buf_set_len(scratch_buf, sizeof(di_event_header_t));
+  di_event_header_t* new_header = (di_event_header_t*)scratch_buf;
+  *new_header = (di_event_header_t){
+      .data_byte_len = sizeof(di_event_header_t),
+      .prog_id = prog_id,
+      .goid = goid,
+      .stack_byte_depth = stack_byte_depth,
+      .probe_id = probe_id,
+      .stack_byte_len = 0, // no stack trace in continuations
+      .event_pairing_expectation = event_pairing_expectation,
+      .ktime_ns = start_ns, // same timestamp for fragment correlation
+  };
+  return true;
 }
 
 typedef struct copy_stack_loop_ctx {

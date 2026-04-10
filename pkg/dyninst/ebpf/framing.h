@@ -57,7 +57,18 @@ typedef struct di_event_header {
   // (e.g. nil pointer in the dereference chain). The event is still emitted
   // (condition error treated as pass) but userspace should report the error.
   unsigned char condition_eval_error;
-  char __padding[4];
+
+  // Continuation support for events that exceed the 32KiB scratch buffer.
+  // When an event is split across multiple ringbuf submissions:
+  //   seq=0, flags=0: single-fragment event (legacy, backward compatible)
+  //   seq=0, flags&1: first fragment, more to follow
+  //   seq>0, flags&1: middle fragment
+  //   seq>0, flags=0: final fragment
+  // All fragments share the same (goid, stack_byte_depth, probe_id, ktime_ns).
+  uint16_t continuation_seq;
+  // Bit 0: more fragments follow (1 = not final).
+  unsigned char continuation_flags;
+  char __padding[1];
 
   // Hash of the stack trace that follows this header.
   uint64_t stack_hash;

@@ -12,7 +12,9 @@ type EventHeader struct {
 	Stack_byte_len            uint16
 	Event_pairing_expectation uint8
 	Condition_eval_error      uint8
-	X__padding                [4]int8
+	Continuation_seq          uint16
+	Continuation_flags        uint8
+	X__padding                [1]int8
 	Stack_hash                uint64
 	Ktime_ns                  uint64
 	Entry_ktime_ns            uint64
