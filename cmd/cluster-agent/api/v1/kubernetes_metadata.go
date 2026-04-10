@@ -13,11 +13,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gorilla/mux"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
-
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
@@ -25,6 +20,10 @@ import (
 	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	apicommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
+	"github.com/gorilla/mux"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 )
 
 func installKubernetesMetadataEndpoints(r *mux.Router, wmeta workloadmeta.Component) {
