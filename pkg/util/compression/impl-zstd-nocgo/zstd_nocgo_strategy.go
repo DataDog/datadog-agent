@@ -100,5 +100,32 @@ func (s *ZstdNoCgoStrategy) NewStreamCompressor(output *bytes.Buffer) compressio
 	writer, _ := zstd.NewWriter(output,
 		zstd.WithEncoderLevel(zstd.EncoderLevelFromZstd(s.level)),
 		zstd.WithZeroFrames(true))
-	return writer
+	return &zstdNoCgoStreamCompressor{inner: writer}
+}
+
+type zstdNoCgoStreamCompressor struct {
+	inner  *zstd.Encoder
+	closed bool
+}
+
+func (z *zstdNoCgoStreamCompressor) Write(p []byte) (int, error) {
+	if z.closed {
+		return 0, compression.ErrStreamClosed
+	}
+	return z.inner.Write(p)
+}
+
+func (z *zstdNoCgoStreamCompressor) Flush() error {
+	if z.closed {
+		return compression.ErrStreamClosed
+	}
+	return z.inner.Flush()
+}
+
+func (z *zstdNoCgoStreamCompressor) Close() error {
+	if z.closed {
+		return compression.ErrStreamClosed
+	}
+	z.closed = true
+	return z.inner.Close()
 }

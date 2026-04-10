@@ -142,5 +142,32 @@ func (s *GzipStrategy) NewStreamCompressor(output *bytes.Buffer) compression.Str
 		writer = gzip.NewWriter(output)
 	}
 
-	return writer
+	return &gzipStreamCompressor{inner: writer}
+}
+
+type gzipStreamCompressor struct {
+	inner  *gzip.Writer
+	closed bool
+}
+
+func (g *gzipStreamCompressor) Write(p []byte) (int, error) {
+	if g.closed {
+		return 0, compression.ErrStreamClosed
+	}
+	return g.inner.Write(p)
+}
+
+func (g *gzipStreamCompressor) Flush() error {
+	if g.closed {
+		return compression.ErrStreamClosed
+	}
+	return g.inner.Flush()
+}
+
+func (g *gzipStreamCompressor) Close() error {
+	if g.closed {
+		return compression.ErrStreamClosed
+	}
+	g.closed = true
+	return g.inner.Close()
 }
