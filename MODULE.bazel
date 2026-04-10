@@ -72,12 +72,6 @@ bazel_dep(name = "supply_chain_tools", version = "0.0.1")
 
 bazel_dep(name = "rules_testing", version = "0.9.0", dev_dependency = True)
 
-single_version_override(
-    module_name = "protobuf",
-    patch_strip = 1,
-    patches = ["//bazel/patches:protobuf/0001-add-libstdcpp-to-link-opts.patch"],
-)
-
 # Temporary until rules_go > 0.60.0 with go.work support is in BCR
 git_override(
     module_name = "rules_go",

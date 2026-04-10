@@ -83,7 +83,7 @@ int classifier_raw_packet_ingress(struct __sk_buff *skb) {
         return TC_ACT_UNSPEC;
     }
 
-    bpf_tail_call_compat(skb, &raw_packet_classifier_router, RAW_PACKET_FILTER);
+    tail_call_raw_packet_router(skb, RAW_PACKET_FILTER);
 
     return TC_ACT_UNSPEC;
 };
@@ -115,7 +115,7 @@ int classifier_raw_packet_egress(struct __sk_buff *skb) {
 
     // call the drop action
     if (pkt->pid > 0 || pkt->cgroup_id > 0) {
-        bpf_tail_call_compat(skb, &raw_packet_classifier_router, RAW_PACKET_DROP_ACTION);
+        tail_call_raw_packet_router(skb, RAW_PACKET_DROP_ACTION);
     }
 
     // mostly a rate limiter
@@ -124,7 +124,7 @@ int classifier_raw_packet_egress(struct __sk_buff *skb) {
     }
 
     // call regular filter
-    bpf_tail_call_compat(skb, &raw_packet_classifier_router, RAW_PACKET_FILTER);
+    tail_call_raw_packet_router(skb, RAW_PACKET_FILTER);
 
     return TC_ACT_UNSPEC;
 };
