@@ -10,24 +10,18 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
-
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestStatusOut(t *testing.T) {
-	deps := fxutil.Test[dependencies](t, fx.Options(
-		fx.Provide(func() config.Component { return config.NewMock(t) }),
-		fx.Provide(func() ipc.HTTPClient {
-			return ipcmock.New(t).GetClient()
-		}),
-	))
+	reqs := Requires{
+		Config: config.NewMock(t),
+		Client: ipcmock.New(t).GetClient(),
+	}
 
-	provides := newStatus(deps)
+	provides := NewComponent(reqs)
 
 	headerProvider := provides.StatusProvider.Provider
 

@@ -37,6 +37,7 @@ pkg_filegroup(
         "//cmd/agent/dist:all_files",
         "//cmd/agent/dist:all_python_files",
         "//rtloader:all_files",
+        ":dda_built_agent_binary",
 
         # TODO: sysprobe - windows
         # TODO: systray - windows
@@ -126,4 +127,12 @@ pkg_files(
     renames = {
         "//pkg/config:agent_config": "datadog.yaml.example",
     },
+)
+
+pkg_files(
+    name = "dda_built_agent_binary",
+    srcs = [
+        "@agent_binary//:agent",
+    ],
+    prefix = "bin/agent",
 )
