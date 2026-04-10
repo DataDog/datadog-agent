@@ -67,6 +67,36 @@ func TestZstdValidFrameEmpty(t *testing.T) {
 	}
 }
 
+// Asserts that closing a StreamCompressor without writing produces a valid
+// compressed frame (non-empty output that decompresses to empty). Derived from
+// the EmptyStreamProducesValidFrame invariant in compression.allium.
+func TestZstdEmptyStreamProducesValidFrame(t *testing.T) {
+	levels := []int{1, 3, 5, 10, 15, 22}
+
+	for _, level := range levels {
+		c := New(Requires{Level: compression.ZstdCompressionLevel(level)})
+		var buf bytes.Buffer
+		stream := c.NewStreamCompressor(&buf)
+
+		if err := stream.Close(); err != nil {
+			t.Fatalf("Close failed at level %d: %v", level, err)
+		}
+
+		if buf.Len() == 0 {
+			t.Errorf("Close without Write produced empty output at level %d; expected a valid zstd frame", level)
+		}
+
+		decompressed, err := c.Decompress(buf.Bytes())
+		if err != nil {
+			t.Fatalf("Decompress of empty stream frame failed at level %d: %v", level, err)
+		}
+
+		if len(decompressed) != 0 {
+			t.Errorf("Empty stream frame decompressed to non-empty output at level %d: %v", level, decompressed)
+		}
+	}
+}
+
 // Asserts that len(compress(b)) <= CompressBound(len(b)) for all b and levels.
 func FuzzZstdCompressBound(f *testing.F) {
 	f.Add([]byte("hello world"), 1)
