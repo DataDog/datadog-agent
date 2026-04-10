@@ -432,7 +432,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/util/sync
 # gazelle:exclude pkg/util/tags
 # gazelle:exclude pkg/util/tmplvar
-# gazelle:exclude pkg/util/trie
 # gazelle:exclude pkg/util/trivy
 # gazelle:exclude pkg/util/workqueue
 # gazelle:exclude pkg/util/xc
