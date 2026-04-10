@@ -103,8 +103,10 @@ type engine struct {
 	onAdvance      func(advanceEntry) // scheduler trace
 
 	// Counters for data ingestion anomalies, reset after each advance.
-	latePoints atomic.Int64 // points ingested after their timestamp was already analyzed
-	droppedObs atomic.Int64 // observations dropped due to full channel
+	latePoints         atomic.Int64      // points ingested after their timestamp was already analyzed
+	latePointsBySource map[string]int64  // per-source breakdown (single-goroutine access from run loop)
+	handles            []*handle         // registered handles for per-source drop collection
+	handlesMu          sync.Mutex        // protects handles slice
 }
 
 // engineConfig holds the parameters for constructing an engine.
@@ -197,6 +199,14 @@ func (e *engine) emit(evt engineEvent) {
 	}
 }
 
+// registerHandle adds a handle to the engine's handle list so that per-source
+// drop counts can be collected at advance time.
+func (e *engine) registerHandle(h *handle) {
+	e.handlesMu.Lock()
+	e.handles = append(e.handles, h)
+	e.handlesMu.Unlock()
+}
+
 // IngestMetric stores a metric observation and consults the scheduler policy
 // to determine whether detectors should advance. Returns advance requests
 // that the caller should execute via Advance.
@@ -206,6 +216,10 @@ func (e *engine) IngestMetric(source string, m *metricObs) []advanceRequest {
 	// These points are in storage but were invisible to detectors at analysis time.
 	if m.timestamp <= e.lastAnalyzedDataTime {
 		e.latePoints.Add(1)
+		if e.latePointsBySource == nil {
+			e.latePointsBySource = make(map[string]int64)
+		}
+		e.latePointsBySource[source]++
 	}
 	e.trackLatestDataTime(m.timestamp)
 	return e.scheduler.onObservation(m.timestamp, e.schedulerState())
@@ -339,11 +353,32 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 	e.mu.Unlock()
 
 	if e.onAdvance != nil {
+		var lateBySource map[string]int64
+		if len(e.latePointsBySource) > 0 {
+			lateBySource = e.latePointsBySource
+			e.latePointsBySource = nil
+		}
+		var totalDrops int64
+		var dropsBySource map[string]int64
+		e.handlesMu.Lock()
+		for _, h := range e.handles {
+			n := h.dropCount.Swap(0)
+			if n > 0 {
+				totalDrops += n
+				if dropsBySource == nil {
+					dropsBySource = make(map[string]int64)
+				}
+				dropsBySource[h.source] += n
+			}
+		}
+		e.handlesMu.Unlock()
 		e.onAdvance(advanceEntry{
-			DataTime:   upToSec,
-			Reason:     advanceReasonString(reason),
-			LatePoints: e.latePoints.Swap(0),
-			DroppedObs: e.droppedObs.Swap(0),
+			DataTime:           upToSec,
+			Reason:             advanceReasonString(reason),
+			LatePoints:         e.latePoints.Swap(0),
+			LatePointsBySource: lateBySource,
+			DroppedObs:         totalDrops,
+			DroppedBySource:    dropsBySource,
 		})
 	}
 
