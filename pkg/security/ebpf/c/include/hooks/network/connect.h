@@ -52,7 +52,7 @@ int __attribute__((always_inline)) sys_connect_ret(void *ctx, int retval) {
         .family = syscall->connect.family,
         .port = syscall->connect.port,
         .protocol = syscall->connect.protocol,
-        .event.flags = (syscall->resolver.flags & SAVED_BY_ACTIVITY_DUMP ? (EVENT_FLAGS_SAVED_BY_AD | EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE) : 0),
+        .event.flags = (syscall->resolver.flags & RESOLVER_FLAG_SAVED_BY_ACTIVITY_DUMP ? (EVENT_FLAGS_SAVED_BY_AD | EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE) : 0),
     };
 
     struct proc_cache_t *entry;

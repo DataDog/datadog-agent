@@ -77,18 +77,28 @@ int hook_vfs_unlink(ctx_t *ctx) {
         expire_inode_discarders(syscall->unlink.file.path_key.mount_id, syscall->unlink.file.path_key.ino);
     }
 
-    if (approve_syscall(syscall, unlink_approvers) == DISCARDED) {
-        // do not pop, we want to invalidate the inode even if the syscall is discarded
-        return 0;
-    }
-    if (is_auid_discarder(EVENT_UNLINK)) {
+    approve_syscall(syscall, unlink_approvers);
+
+    if (syscall->state != DISCARDED && is_auid_discarder(EVENT_UNLINK)) {
         syscall->state = DISCARDED;
+    }
+
+    u8 is_cgroupfs = is_cgroup2fs(dentry) && !is_runtime_request();
+
+    if (syscall->state != ACCEPTED && is_cgroupfs) {
+        syscall->state = INTERNAL;
+    }
+
+    if (syscall->state == DISCARDED) {
         return 0;
     }
+
     // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
     syscall->resolver.dentry = dentry;
     syscall->resolver.key = syscall->unlink.file.path_key;
-    syscall->resolver.discarder_event_type = dentry_resolver_discarder_event_type(syscall);
+    // disable the dentry-resolver discarder for cgroupfs events: userspace needs them
+    // to track cgroup lifecycle, and a discarder match here would drop them.
+    syscall->resolver.discarder_event_type = !is_cgroupfs ? dentry_resolver_discarder_event_type(syscall) : 0;
     syscall->resolver.callback = DR_UNLINK_CALLBACK_KPROBE_KEY;
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
@@ -141,6 +151,12 @@ int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
 
             send_event(ctx, EVENT_RMDIR, event);
         } else {
+            // INTERNAL here means a cgroupfs unlink on a non-directory; the userspace
+            // cgroup resolver only consumes directory events, so drop these.
+            if (syscall->state == INTERNAL) {
+                return 0;
+            }
+
             struct unlink_event_t event = {
                 .syscall.retval = retval,
                 .syscall_ctx.id = syscall->ctx_id,

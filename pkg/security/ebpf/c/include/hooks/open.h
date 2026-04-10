@@ -98,17 +98,25 @@ int __attribute__((always_inline)) handle_open(ctx_t *ctx, struct path *path) {
 
     set_file_inode(dentry, &syscall->open.file, PATH_ID_INVALIDATE_TYPE_NONE);
 
-    // do not pop, we want to keep track of the mount ref counter later in the stack
     approve_syscall(syscall, open_approvers);
 
-    if (is_cgroup2fs(syscall->open.dentry) && syscall->state != ACCEPTED) {
-        // do not discard INTERNAL events as we need to resolve the mode later in the call path
+    // the runtime itself opens cgroupfs paths during cgroup resolution; those reads
+    // must not be promoted to INTERNAL events or they would feed the resolver in a loop.
+    u8 is_cgroupfs = is_cgroup2fs(syscall->open.dentry) && !is_runtime_request();
+
+    if (syscall->state != ACCEPTED && is_cgroupfs) {
         syscall->state = INTERNAL;
+    }
+
+    if (syscall->state == DISCARDED) {
+        return 0;
     }
 
     syscall->resolver.key = syscall->open.file.path_key;
     syscall->resolver.dentry = syscall->open.dentry;
-    syscall->resolver.discarder_event_type = syscall->state != INTERNAL ? dentry_resolver_discarder_event_type(syscall) : 0;
+    // disable the dentry-resolver discarder for cgroupfs events: userspace needs them
+    // to track cgroup lifecycle, and a discarder match here would drop them.
+    syscall->resolver.discarder_event_type = !is_cgroupfs ? dentry_resolver_discarder_event_type(syscall) : 0;
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
 
@@ -242,8 +250,8 @@ int __attribute__((always_inline)) _sys_open_ret(void *ctx, struct syscall_cache
         .syscall.retval = syscall->retval,
         .syscall_ctx.id = syscall->ctx_id,
         .event.flags = (syscall->async ? EVENT_FLAGS_ASYNC : 0) |
-                       (syscall->resolver.flags & SAVED_BY_ACTIVITY_DUMP ? EVENT_FLAGS_SAVED_BY_AD : 0) |
-                       (syscall->resolver.flags & ACTIVITY_DUMP_RUNNING ? EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE : 0) |
+                       (syscall->resolver.flags & RESOLVER_FLAG_SAVED_BY_ACTIVITY_DUMP ? EVENT_FLAGS_SAVED_BY_AD : 0) |
+                       (syscall->resolver.flags & RESOLVER_FLAG_ACTIVITY_DUMP_RUNNING ? EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE : 0) |
                        (syscall->state == INTERNAL ? EVENT_FLAGS_INTERNAL : 0),
         .file = syscall->open.file,
         .flags = syscall->open.flags,
@@ -252,7 +260,8 @@ int __attribute__((always_inline)) _sys_open_ret(void *ctx, struct syscall_cache
 
     fill_file(syscall->open.dentry, &event.file);
 
-    // cgroup internal event, allow only dir event
+    // INTERNAL cgroupfs events are forwarded only to feed the userspace cgroup resolver,
+    // which only cares about directory entries; drop the rest.
     if (syscall->state == INTERNAL && !S_ISDIR(event.file.metadata.mode)) {
         return 0;
     }
