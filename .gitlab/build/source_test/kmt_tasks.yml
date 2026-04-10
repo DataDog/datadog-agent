@@ -4,9 +4,6 @@
 .test_kmt_local_setup:
   stage: source_test
   needs: []
-  id_tokens:
-    DDOCTOSTS_ID_TOKEN:
-      aud: dd-octo-sts
   rules:
     - !reference [.on_invoke_tasks_changes]
     - !reference [.except_mergequeue]
@@ -15,7 +12,7 @@
           - .gitlab/build/source_test/kmt_tasks.yml
         compare_to: $COMPARE_TO_BRANCH
   before_script:
-    - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.read)
+    - !reference [.setup_github_token_read]
   script:
     # Avoid rate limits when running kmt.init (pulumi queries the Github API to get the releases of plugins)
     - dda inv -- kmt.init --remote-setup-only --skip-ssh-setup --exclude-requirements $KMT_EXCLUDE_REQUIREMENTS --images ""

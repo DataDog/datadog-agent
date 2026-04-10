@@ -51,12 +51,11 @@ send_pipeline_stats:
 
 notify_gitlab_ci_changes:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  extends: .notify-job
+  extends:
+    - .notify-job
+    - .dd_octo_sts
   needs: [compute_gitlab_ci_config]
   tags: ["arch:amd64", "specific:true"]
-  id_tokens:
-    DDOCTOSTS_ID_TOKEN:
-      aud: dd-octo-sts
   rules:
     - !reference [.except_mergequeue]
     - changes:
@@ -65,7 +64,7 @@ notify_gitlab_ci_changes:
           - .gitlab/**/*.yml
         compare_to: $COMPARE_TO_BRANCH
   before_script:
-    - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.comment-pr)
+    - !reference [.setup_github_token_comment_pr]
   script:
     - python3 -m dda self dep sync -f legacy-tasks
     - dda inv -- -e notify.gitlab-ci-diff --from-diff artifacts/diff.gitlab-ci.yml --pr-comment

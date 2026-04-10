@@ -5,9 +5,7 @@ files_inventory_check:
     - !reference [.on_dev_branches_with_artifact_changes]
     - !reference [.except_mergequeue]
     - when: on_success
-  id_tokens:
-    DDOCTOSTS_ID_TOKEN:
-      aud: dd-octo-sts
+  extends: .dd_octo_sts
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
   variables:
@@ -16,7 +14,7 @@ files_inventory_check:
   needs:
     - agent_deb-x64-a7
   before_script:
-    - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.comment-pr)
+    - !reference [.setup_github_token_comment_pr]
   script:
     - dda inv -- files-inventory.check ${CI_COMMIT_BRANCH} ${OMNIBUS_PACKAGE_DIR}
   artifacts:

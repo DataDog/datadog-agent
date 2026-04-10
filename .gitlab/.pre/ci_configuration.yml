@@ -14,14 +14,12 @@ test_gitlab_compare_to:
   stage: .pre
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64"]
-  id_tokens:
-    DDOCTOSTS_ID_TOKEN:
-      aud: dd-octo-sts
+  extends: .dd_octo_sts
   rules:
     - !reference [.except_mergequeue]
     - !reference [.on_gitlab_changes]
   before_script:
-    - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.write)
+    - !reference [.setup_github_token_write]
   script:
     - dda self dep sync -f legacy-tasks
     - dda inv -- pipeline.compare-to-itself

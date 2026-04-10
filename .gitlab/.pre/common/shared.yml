@@ -1,4 +1,22 @@
 ---
+# DD Octo STS id_tokens template - extend this to get the DDOCTOSTS_ID_TOKEN
+# Usage: extends: .dd_octo_sts (or add to extends list)
+.dd_octo_sts:
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
+
+# GitHub token setup scripts - use with !reference in before_script
+# Example: - !reference [.setup_github_token_comment_pr]
+.setup_github_token_comment_pr:
+  - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.comment-pr)
+
+.setup_github_token_read:
+  - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.read)
+
+.setup_github_token_write:
+  - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.write)
+
 # Sets up a cache for gems used by Omnibus
 # Usage:
 # !reference [.cache_omnibus_ruby_deps, setup] somewhere ahead of invoking bundle

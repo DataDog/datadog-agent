@@ -323,7 +323,9 @@
     fi
 
 .notify_ebpf_complexity_changes:
-  extends: .notify-job
+  extends:
+    - .notify-job
+    - .dd_octo_sts
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
   timeout: 15m
@@ -355,12 +357,9 @@
               - fedora_38
             TEST_SET: no_usm
     - job: compute_gitlab_ci_config
-  id_tokens:
-    DDOCTOSTS_ID_TOKEN:
-      aud: dd-octo-sts
   before_script:
     - python3 -m dda self dep sync -f legacy-tasks
-    - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.comment-pr)
+    - !reference [.setup_github_token_comment_pr]
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
   script:
     - dda inv -- -e ebpf.generate-complexity-summary-for-pr --gitlab-config-file artifacts/after.gitlab-ci.yml $EXTRA_ARGS
