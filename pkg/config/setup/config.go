@@ -131,6 +131,9 @@ const (
 	// DefaultLogsSenderBackoffRecoveryInterval is the default logs sender backoff recovery interval
 	DefaultLogsSenderBackoffRecoveryInterval = 2
 
+	// DefaultMaxInflightPayloads is the default maximum number of inflight payloads for the gRPC stateful transport
+	DefaultMaxInflightPayloads = 50
+
 	// DefaultLogsStreamLifetime is the default gRPC stream lifetime in seconds (15 minutes)
 	DefaultLogsStreamLifetime = 900
 
@@ -1465,9 +1468,31 @@ func bindEnvAndSetLogsConfigKeys(config pkgconfigmodel.Setup, prefix string) {
 	config.BindEnvAndSetDefault(prefix+"sender_recovery_interval", DefaultForwarderRecoveryInterval)
 	config.BindEnvAndSetDefault(prefix+"sender_recovery_reset", false)
 	config.BindEnvAndSetDefault(prefix+"use_v2_api", true)
-	config.BindEnvAndSetDefault(prefix+"use_grpc", false)
-	config.BindEnvAndSetDefault(prefix+"stream_lifetime", DefaultLogsStreamLifetime)
 	config.SetDefault(prefix+"dev_mode_no_ssl", false)
+
+	config.BindEnvAndSetDefault(prefix+"use_grpc", false)
+	config.BindEnvAndSetDefault(prefix+"use_rust_tokenizer", false)
+	config.BindEnvAndSetDefault(prefix+"stream_lifetime", DefaultLogsStreamLifetime)
+	config.BindEnvAndSetDefault("logs_config.grpc.max_inflight_payloads", DefaultMaxInflightPayloads)
+	config.BindEnvAndSetDefault("logs_config.message_channel_size", 100)
+
+	config.BindEnvAndSetDefault("logs_config.patterns.max_pattern_count", 700)
+	config.BindEnvAndSetDefault("logs_config.patterns.max_memory_bytes", 4*1024*1024)
+	config.BindEnvAndSetDefault("logs_config.patterns.eviction_high_watermark", 0.95)
+	config.BindEnvAndSetDefault("logs_config.patterns.eviction_low_watermark", 0.85)
+	config.BindEnvAndSetDefault("logs_config.patterns.age_decay_factor", 0.5)
+	config.BindEnvAndSetDefault("logs_config.patterns.eviction_grace_period_seconds", 30)
+	config.BindEnvAndSetDefault("logs_config.patterns.first_word_protection", true)
+	config.BindEnvAndSetDefault("logs_config.patterns.first_word_max_cardinality", 100)
+	config.BindEnvAndSetDefault("logs_config.patterns.saturation_threshold", 50)
+	config.BindEnvAndSetDefault("logs_config.patterns.max_patterns_per_cluster", 0)
+	config.BindEnvAndSetDefault("logs_config.patterns.pattern_scan_budget", 0)
+
+	config.BindEnvAndSetDefault("logs_config.tags.max_tag_count", 700)
+	config.BindEnvAndSetDefault("logs_config.tags.max_memory_bytes", 4*1024*1024)
+	config.BindEnvAndSetDefault("logs_config.tags.eviction_high_watermark", 0.80)
+	config.BindEnvAndSetDefault("logs_config.tags.eviction_low_watermark", 0.70)
+	config.BindEnvAndSetDefault("logs_config.tags.age_decay_factor", 0.5)
 }
 
 // pathExists returns true if the given path exists

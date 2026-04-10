@@ -57,3 +57,7 @@ pkg/fleet/installer/fixtures/** text=auto eol=lf
 *.ODF diff
 *.odt diff
 *.ODT diff
+
+# Vendored native libraries (binary, no diff/merge)
+pkg/logs/patterns/tokenizer/rust/vendor/**/*.so binary
+pkg/logs/patterns/tokenizer/rust/vendor/**/*.dylib binary
