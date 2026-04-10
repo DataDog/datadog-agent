@@ -5,6 +5,8 @@
 
 #include "process.h"
 
+// --- Datadog proprietary span TLS (existing mechanism) ---
+
 int __attribute__((always_inline)) handle_register_span_memory(void *data) {
     struct span_tls_t tls = {};
     bpf_probe_read(&tls, sizeof(tls), data);
@@ -26,10 +28,16 @@ int __attribute__((always_inline)) unregister_span_memory() {
     return 0;
 }
 
+// --- OTel Thread Local Context Record helpers (separate file) ---
+#include "span_otel.h"
+
+// --- Unified span context fill ---
+
 void __attribute__((always_inline)) fill_span_context(struct span_context_t *span) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
 
+    // Try Datadog proprietary TLS first (existing behavior).
     struct span_tls_t *tls = bpf_map_lookup_elem(&span_tls, &tgid);
     if (tls) {
         u32 tid = pid_tgid;
@@ -42,11 +50,19 @@ void __attribute__((always_inline)) fill_span_context(struct span_context_t *spa
 
         int offset = (tid % tls->max_threads) * sizeof(struct span_context_t);
         int ret = bpf_probe_read_user(span, sizeof(struct span_context_t), tls->base + offset);
-        if (ret < 0) {
-            span->span_id = 0;
-            span->trace_id[0] = span->trace_id[1] = 0;
+        if (ret >= 0 && (span->span_id != 0 || span->trace_id[0] != 0 || span->trace_id[1] != 0)) {
+            return;
         }
     }
+
+    // Fall back to OTel Thread Local Context Record (native applications only).
+    if (fill_span_context_otel(span)) {
+        return;
+    }
+
+    // No span context available.
+    span->span_id = 0;
+    span->trace_id[0] = span->trace_id[1] = 0;
 }
 
 void __attribute__((always_inline)) reset_span_context(struct span_context_t *span) {

@@ -17,6 +17,9 @@ const (
 	RPCCmd uint64 = 0xdeadc001
 	// RegisterSpanTLSOp defines the span TLS register op code
 	RegisterSpanTLSOp uint8 = 6
+	// registerOTelTLSOpDeprecated is deprecated: OTel TLS is now discovered via ELF dynsym parsing.
+	// Kept as a comment to document the value was 15; do not reuse.
+	// registerOTelTLSOpDeprecated uint8 = 15
 )
 
 func registerERPCHandlers(handlers map[int]syscallHandler) []string {
