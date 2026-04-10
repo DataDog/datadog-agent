@@ -15,6 +15,8 @@ import (
 	"strings"
 
 	delegatedauthnooptypes "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl/types"
+	secretsimpl "github.com/DataDog/datadog-agent/comp/core/secrets/impl"
+	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
 	ddfg "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/featuregates"
 	"go.opentelemetry.io/collector/confmap"
@@ -235,6 +237,20 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	// Without this, LoadDatadog is never called when no core config is given, and proxy
 	// env vars are silently ignored.
 	pkgconfigsetup.LoadProxyFromEnv(pkgconfig)
+
+	// Resolve ENC[] secrets in config values (e.g. DD_HOSTNAME, DD_API_KEY) before
+	// any component reads them.  LoadDatadog above uses SecretNoop and is skipped
+	// entirely when no --core-config file is provided, so ENC[] handles in env vars
+	// would otherwise reach the hostname/credentials components unresolved.
+	// Only run when a secret backend is actually configured to avoid the overhead of
+	// spawning a subprocess on every startup.
+	secretBackendCmd := pkgconfig.GetString("secret_backend_command")
+	if secretBackendCmd != "" {
+		resolver := secretsimpl.NewEnabledResolver(noopsimpl.GetCompatComponent())
+		if resolveErr := pkgconfigsetup.ResolveSecrets(pkgconfig, resolver, "agent_config"); resolveErr != nil {
+			return nil, fmt.Errorf("failed to resolve secrets: %w", resolveErr)
+		}
+	}
 
 	// Apply dogtelextension config only in standalone mode. In connected mode
 	// the core agent owns these settings; we must not override them here.

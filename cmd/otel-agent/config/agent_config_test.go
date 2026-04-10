@@ -9,6 +9,8 @@ import (
 	"context"
 	"io/fs"
 	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 
 	"go.opentelemetry.io/collector/confmap"
@@ -786,6 +788,35 @@ func TestGetDogtelExtensionConfig_SingleNamedDogtelEntry(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, extcfg)
 	assert.Equal(t, "myhost", extcfg.Hostname)
+}
+
+// TestSecretsResolutionViaEnvVar verifies that ENC[] handles in DD_HOSTNAME (and
+// other DD_* env vars) are resolved by the real secrets backend before any
+// downstream component reads them.  This guards against the regression where
+// NewConfigComponent used SecretNoop / skipped LoadDatadog entirely when no
+// --core-config file was provided, causing the raw ENC[] literal to reach the
+// hostname component.
+func (suite *ConfigTestSuite) TestSecretsResolutionViaEnvVar() {
+	if runtime.GOOS == "windows" {
+		suite.T().Skip("shell secret backend script not applicable on Windows")
+	}
+	t := suite.T()
+
+	// Write a minimal secret backend script: ignore stdin, return a fixed value.
+	scriptDir := t.TempDir()
+	scriptPath := filepath.Join(scriptDir, "secret_backend.sh")
+	script := "#!/bin/sh\necho '{\"hostname_secret\": {\"value\": \"resolved-hostname-from-secret\"}}'\n"
+	require.NoError(t, os.WriteFile(scriptPath, []byte(script), 0700)) //nolint:gosec
+
+	t.Setenv("DD_HOSTNAME", "ENC[hostname_secret]")
+	t.Setenv("DD_SECRET_BACKEND_COMMAND", scriptPath)
+
+	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_default.yaml"})
+	require.NoError(t, err)
+
+	assert.Equal(t, "resolved-hostname-from-secret", c.GetString("hostname"),
+		"ENC[hostname_secret] should be resolved to the script's output value; "+
+			"raw value would indicate secrets resolution was skipped in NewConfigComponent")
 }
 
 // TestSuite runs the CalculatorTestSuite
