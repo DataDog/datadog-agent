@@ -16,6 +16,14 @@ import (
 	"golang.org/x/sys/windows"
 )
 
+func TestPerFlowDataSize(t *testing.T) {
+	actual := unsafe.Sizeof(PerFlowData{})
+	assert.Equal(t, uintptr(PerFlowDataSize), actual,
+		"PerFlowData struct size mismatch: expected 0x%x (%d), got 0x%x (%d). "+
+			"Update PerFlowDataSize or check struct field alignment.",
+		PerFlowDataSize, PerFlowDataSize, actual, actual)
+}
+
 func TestDriverRequiresPath(t *testing.T) {
 	p, err := windows.UTF16PtrFromString(deviceName)
 	assert.Nil(t, err)
