@@ -82,6 +82,7 @@ func computeRawsTable() map[string]uint64 {
 		OffsetNameSockCommonStructSKCNum:          14,
 		SizeOfPipeBuffer:                          40,
 		OffsetNamePipeBufferStructFlags:           24,
+		OffsetNameCgroupDentry:                    72,
 		OffsetNameKernfsOpenFileFile:              24,
 		OffsetNameModuleName:                      24,
 		OffsetNameRtnlLinkOpsKind:                 16,

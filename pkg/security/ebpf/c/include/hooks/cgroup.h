@@ -106,7 +106,9 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
     }
     case CGROUP_CENTOS_7: {
         void *cgroup = (void *)CTX_PARM1(ctx);
-        bpf_probe_read(&container_d, sizeof(container_d), cgroup + 72); // offsetof(struct cgroup, dentry)
+        u64 cgroup_dentry_offset;
+        LOAD_CONSTANT("cgroup_dentry_offset", cgroup_dentry_offset);
+        bpf_probe_read(&container_d, sizeof(container_d), cgroup + cgroup_dentry_offset);
 
 #ifdef DEBUG_CGROUP
         container_qstr = get_dentry_qstr(container_d);

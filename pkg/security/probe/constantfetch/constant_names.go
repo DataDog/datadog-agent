@@ -135,6 +135,9 @@ const (
 	// Interpreter constants
 	OffsetNameLinuxBinprmStructFile = "binprm_file_offset"
 
+	// cgroup constants
+	OffsetNameCgroupDentry = "cgroup_dentry_offset"
+
 	// kernfs constants
 	OffsetNameKernfsOpenFileFile = "kernfs_open_file_file_offset"
 

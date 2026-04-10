@@ -3494,6 +3494,7 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameVfsmountMntRoot, "struct vfsmount", "mnt_root")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameVfsmountMntSb, "struct vfsmount", "mnt_sb")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameRtnlLinkOpsKind, "struct rtnl_link_ops", "kind")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameCgroupDentry, "struct cgroup", "dentry")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameKernfsOpenFileFile, "struct kernfs_open_file", "file")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameModuleName, "struct module", "name")
 }
