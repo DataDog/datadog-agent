@@ -38,6 +38,7 @@ except ImportError:
 DOCKER_HUB_API_URL = "https://hub.docker.com/v2/repositories/kindest/node/tags"
 VERSIONS_FILE = "k8s_versions.json"
 E2E_YAML_PATH = ".gitlab/test/e2e/e2e.yml"
+KIND_VERSIONS_JSON_PATH = "test/e2e-framework/components/kubernetes/kind_versions.json"
 
 # Regex pattern for Kubernetes version (release and RC supported)
 # Matches: v1.35.0, v1.35.0-rc.1, etc.
@@ -114,6 +115,25 @@ def _extract_index_digest(tag_data: dict) -> str | None:
     return tag_data.get('digest')
 
 
+def _get_latest_kind_release() -> str | None:
+    """
+    Fetch the latest released kind version from GitHub.
+    Returns the tag name (e.g. "v0.31.0") or None on failure.
+    """
+    try:
+        resp = requests.get(
+            "https://api.github.com/repos/kubernetes-sigs/kind/releases/latest",
+            headers={"Accept": "application/vnd.github+json"},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        return resp.json().get("tag_name")
+    except Exception as e:
+        print(f"Warning: could not fetch latest kind release: {e}", file=sys.stderr)
+        return None
+
+
+
 def _get_latest_k8s_versions(use_dockerhub: bool = True, use_github: bool = True) -> dict[str, dict[str, str]]:
     """
     Fetch and parse the latest Kubernetes version from Docker Hub (stable) and/or GitHub (RC).
@@ -160,8 +180,8 @@ def _get_latest_k8s_versions(use_dockerhub: bool = True, use_github: bool = True
         rc = latest.get('rc')
 
         # Build return dictionary
-        # Structure: {tag_name: {'tag': tag_name, 'digest': digest?, 'rc': bool?}}
-        # Final releases include 'digest', RC releases include 'rc'
+        # Structure: {tag_name: {'tag': tag_name, 'digest': digest?, 'kind_version': str?, 'rc': bool?}}
+        # Final releases include 'digest' and 'kind_version'; RC releases include 'rc'
         if tag:
             result = {tag: {'tag': tag}}
             if digest:
@@ -475,6 +495,103 @@ def update_e2e_yaml(_, versions_file=VERSIONS_FILE):
 
 
 @task
+def update_kind_versions_file(_, versions_file=VERSIONS_FILE):
+    """
+    Update the embedded kind_versions.json with new Kubernetes versions.
+
+    Reads k8s_versions.json (full version → {tag, digest, kind_version?}), fetches
+    kind_version from the kindest/node image labels if not already stored, then
+    upserts into kind_versions.json keyed by minor version ("1.35", etc.).
+
+    Args:
+        versions_file: Path to the JSON file containing versions (default: k8s_versions.json)
+    """
+    _check_dependencies()
+
+    if not os.path.exists(versions_file):
+        print("No versions file found - nothing to update")
+        return
+
+    with open(versions_file) as f:
+        all_versions = json.load(f)
+
+    # Load existing kind_versions.json
+    kind_versions = {}
+    if os.path.exists(KIND_VERSIONS_JSON_PATH):
+        with open(KIND_VERSIONS_JSON_PATH) as f:
+            kind_versions = json.load(f)
+
+    # Fetch the latest kind release once — used as fallback when label fetch fails
+    latest_kind_release = None
+
+    updated = False
+    versions_file_dirty = False
+    for full_version, data in all_versions.items():
+        tag = data.get('tag')
+        digest = data.get('digest')
+        kind_version = data.get('kind_version')
+
+        if not tag or not digest:
+            print(f"Skipping {full_version}: missing tag or digest")
+            continue
+
+        # Derive minor version key ("1.35" from "v1.35.1")
+        parsed = _parse_version(full_version)
+        if not parsed:
+            print(f"Skipping {full_version}: could not parse version")
+            continue
+        minor_key = f"{parsed.major}.{parsed.minor}"
+
+        # Resolve kind_version: prefer what's already in k8s_versions.json, then
+        # fall back to the latest kind release from GitHub.
+        if not kind_version:
+            if latest_kind_release is None:
+                latest_kind_release = _get_latest_kind_release()
+            kind_version = latest_kind_release
+            if not kind_version:
+                print(f"Warning: could not determine kind version for {tag}, skipping", file=sys.stderr)
+                continue
+            print(f"Using latest kind release {kind_version} for {minor_key}")
+
+        # Persist the resolved kind_version back to k8s_versions.json so future
+        # runs skip the label/GitHub fetch
+        if not data.get('kind_version'):
+            all_versions[full_version]['kind_version'] = kind_version
+            versions_file_dirty = True
+
+        node_image_version = f"{tag}@{digest}"
+        existing = kind_versions.get(minor_key, {})
+
+        if (
+            existing.get('kind_version') != kind_version
+            or existing.get('node_image_version') != node_image_version
+        ):
+            kind_versions[minor_key] = {
+                'kind_version': kind_version,
+                'node_image_version': node_image_version,
+            }
+            print(f"Updated {minor_key}: kind_version={kind_version}, node_image_version={node_image_version}")
+            updated = True
+
+    if versions_file_dirty:
+        _save_versions(all_versions, versions_file)
+
+    if updated:
+        # Sort descending by minor version for stable diffs
+        def _version_key(k):
+            parts = k.split('.')
+            return [int(p) for p in parts]
+
+        sorted_versions = dict(sorted(kind_versions.items(), key=lambda x: _version_key(x[0]), reverse=True))
+        with open(KIND_VERSIONS_JSON_PATH, 'w') as f:
+            json.dump(sorted_versions, f, indent=2)
+            f.write('\n')
+        print(f"\nSuccessfully updated {KIND_VERSIONS_JSON_PATH}")
+    else:
+        print("\nNo updates needed for kind_versions.json")
+
+
+@task
 def save_versions(_, versions, versions_file=VERSIONS_FILE):
     """
     Save multiple Kubernetes versions to the versions file.
@@ -507,6 +624,8 @@ def save_versions(_, versions, versions_file=VERSIONS_FILE):
             continue
 
         existing_versions[outer_tag] = {'tag': inner_tag, 'digest': digest}
+        if version.get('kind_version'):
+            existing_versions[outer_tag]['kind_version'] = version['kind_version']
 
     # Save to file
     _save_versions(existing_versions, versions_file)
