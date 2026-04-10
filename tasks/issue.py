@@ -17,7 +17,7 @@ from tasks.libs.pipeline.notifications import (
 def ask_reviews(_, pr_id, action, team_slugs):
     gh = GithubAPI()
     pr = gh.repo.get_pull(int(pr_id))
-    if pr.base.ref != 'main':
+    if pr.base.ref != gh.repo.default_branch and action != "labeled":
         print("We don't ask for reviews on non main target PRs.")
         return
     if action != "labeled" and _is_revert(pr):

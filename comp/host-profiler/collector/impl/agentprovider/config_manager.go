@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux
-
 package agentprovider
 
 import (
@@ -17,6 +15,8 @@ import (
 type hostProfilerConfig struct {
 	DebugVerbosity        string
 	AdditionalHTTPHeaders map[string]string
+	DDProfilingEnabled    bool
+	DDProfilingPeriod     int
 }
 
 type endpoint struct {
@@ -90,6 +90,8 @@ func newConfigManager(config config.Component) configManager {
 	hostProfilerConfig := hostProfilerConfig{
 		DebugVerbosity:        config.GetString("hostprofiler.debug.verbosity"),
 		AdditionalHTTPHeaders: config.GetStringMapString("hostprofiler.additional_http_headers"),
+		DDProfilingEnabled:    config.GetBool("hostprofiler.ddprofiling.enabled"),
+		DDProfilingPeriod:     config.GetInt("hostprofiler.ddprofiling.period"),
 	}
 
 	return configManager{

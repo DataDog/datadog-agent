@@ -221,6 +221,22 @@ type Env struct {
 	IsFromDaemon bool
 }
 
+func (e *Env) HasDefaultRegistryOverride() bool {
+	return e.RegistryOverride == defaultEnv.RegistryOverride
+}
+
+func (e *Env) HasDefaultRegistryAuthOverride() bool {
+	return e.RegistryAuthOverride == defaultEnv.RegistryAuthOverride
+}
+
+func (e *Env) HasDefaultRegistryUsername() bool {
+	return e.RegistryUsername == defaultEnv.RegistryUsername
+}
+
+func (e *Env) HasDefaultRegistryPassword() bool {
+	return e.RegistryPassword == defaultEnv.RegistryPassword
+}
+
 // HTTPClient returns an HTTP client with the proxy settings from the environment.
 func (e *Env) HTTPClient() *http.Client {
 	proxyConfig := &httpproxy.Config{
