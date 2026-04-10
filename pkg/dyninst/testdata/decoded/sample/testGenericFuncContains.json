@@ -18,12 +18,12 @@
           {
             "function": "main.genericContains[go.shape.string]",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go",
-            "lineNumber": 81
+            "lineNumber": 82
           },
           {
             "function": "main.executeGenericFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go",
-            "lineNumber": 216
+            "lineNumber": 217
           },
           {
             "function": "main.main",
@@ -110,12 +110,12 @@
           {
             "function": "main.genericContains[go.shape.int]",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go",
-            "lineNumber": 81
+            "lineNumber": 82
           },
           {
             "function": "main.executeGenericFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go",
-            "lineNumber": 217
+            "lineNumber": 218
           },
           {
             "function": "main.main",
@@ -202,12 +202,12 @@
           {
             "function": "main.genericContains[go.shape.int]",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go",
-            "lineNumber": 81
+            "lineNumber": 82
           },
           {
             "function": "main.executeGenericFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go",
-            "lineNumber": 221
+            "lineNumber": 222
           },
           {
             "function": "main.main",
@@ -294,12 +294,12 @@
           {
             "function": "main.genericContains[go.shape.int]",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go",
-            "lineNumber": 81
+            "lineNumber": 82
           },
           {
             "function": "main.executeGenericFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go",
-            "lineNumber": 262
+            "lineNumber": 263
           },
           {
             "function": "main.main",
@@ -386,12 +386,12 @@
           {
             "function": "main.genericContains[go.shape.int]",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go",
-            "lineNumber": 81
+            "lineNumber": 82
           },
           {
             "function": "main.executeGenericFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go",
-            "lineNumber": 263
+            "lineNumber": 264
           },
           {
             "function": "main.main",

@@ -18,12 +18,12 @@
           {
             "function": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Map[go.shape.int,go.shape.string]",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib/lib.go",
-            "lineNumber": 60
+            "lineNumber": 95
           },
           {
             "function": "main.executeGenericFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go",
-            "lineNumber": 277
+            "lineNumber": 278
           },
           {
             "function": "main.main",

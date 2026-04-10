@@ -46,6 +46,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/loclist"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/exprlang"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/gosymname"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
@@ -5221,9 +5222,10 @@ const runtimePackageName = "runtime"
 // genericPattern represents a probe target with [...] wildcards that should
 // match any generic type parameter instantiation in DWARF.
 type genericPattern struct {
-	prefix string // everything before "[...]"
-	suffix string // everything after "[...]"
-	probes []ir.ProbeDefinition
+	// segments are the literal parts of the pattern split on "[...]".
+	// For "A[...]B[...]C" the segments are ["A", "B", "C"].
+	segments []string
+	probes   []ir.ProbeDefinition
 }
 
 type interests struct {
@@ -5279,65 +5281,63 @@ func makeInterests(cfg []ir.ProbeDefinition) (interests, []ir.ProbeIssue) {
 // addProbe routes a probe to either the exact-match subprograms map or the
 // generic patterns list, depending on whether the name contains "[...]".
 func (i *interests) addProbe(methodName string, probe ir.ProbeDefinition) {
-	if idx := strings.Index(methodName, "[...]"); idx != -1 {
-		// Split into prefix (before "[...]") and suffix (after "[...]").
-		prefix := methodName[:idx]
-		suffix := methodName[idx+5:] // len("[...]") == 5
-
-		// Check if this pattern already exists.
-		for j := range i.genericPatterns {
-			if i.genericPatterns[j].prefix == prefix && i.genericPatterns[j].suffix == suffix {
-				i.genericPatterns[j].probes = append(i.genericPatterns[j].probes, probe)
-				return
-			}
-		}
-		i.genericPatterns = append(i.genericPatterns, genericPattern{
-			prefix: prefix,
-			suffix: suffix,
-			probes: []ir.ProbeDefinition{probe},
-		})
-	} else {
+	if !strings.Contains(methodName, "[...]") {
 		i.subprograms[methodName] = append(i.subprograms[methodName], probe)
+		return
 	}
+	// Split on every "[...]" to get the literal segments.
+	segments := strings.Split(methodName, "[...]")
+
+	// Check if this pattern already exists.
+	for j := range i.genericPatterns {
+		if slices.Equal(i.genericPatterns[j].segments, segments) {
+			i.genericPatterns[j].probes = append(i.genericPatterns[j].probes, probe)
+			return
+		}
+	}
+	i.genericPatterns = append(i.genericPatterns, genericPattern{
+		segments: segments,
+		probes:   []ir.ProbeDefinition{probe},
+	})
 }
 
 // matchGenericPatterns checks if a DWARF subprogram name matches any generic
-// pattern. A pattern "prefix[...]suffix" matches "prefix[<anything>]suffix"
-// where <anything> is non-empty. Returns the matching probes, or nil.
+// pattern. Each "[...]" in the pattern matches a balanced bracket group
+// "[<anything>]" in the name. Multiple "[...]" segments are supported.
+// Returns the matching probes, or nil.
 func (i *interests) matchGenericPatterns(name string) []ir.ProbeDefinition {
 	for _, pat := range i.genericPatterns {
-		if !strings.HasPrefix(name, pat.prefix) {
-			continue
-		}
-		rest := name[len(pat.prefix):]
-		if len(rest) == 0 || rest[0] != '[' {
-			continue
-		}
-		// Find matching ']' using bracket-depth counting.
-		depth := 0
-		bracketEnd := -1
-		for j := 0; j < len(rest); j++ {
-			switch rest[j] {
-			case '[':
-				depth++
-			case ']':
-				depth--
-				if depth == 0 {
-					bracketEnd = j
-				}
-			}
-			if bracketEnd >= 0 {
-				break
-			}
-		}
-		if bracketEnd < 2 { // must contain at least one char between brackets
-			continue
-		}
-		if rest[bracketEnd+1:] == pat.suffix {
+		if matchGenericSegments(name, pat.segments) {
 			return pat.probes
 		}
 	}
 	return nil
+}
+
+// matchGenericSegments checks whether name matches the pattern defined by
+// segments. segments[0] must be a literal prefix; each subsequent segment
+// must appear after consuming one balanced bracket group "[…]".
+func matchGenericSegments(name string, segments []string) bool {
+	if !strings.HasPrefix(name, segments[0]) {
+		return false
+	}
+	rest := name[len(segments[0]):]
+	for _, seg := range segments[1:] {
+		// Expect a '[' at the current position.
+		if len(rest) == 0 || rest[0] != '[' {
+			return false
+		}
+		bracketEnd := gosymname.MatchBracket(rest, 0)
+		if bracketEnd < 2 { // must contain at least one char between brackets
+			return false
+		}
+		rest = rest[bracketEnd+1:]
+		if !strings.HasPrefix(rest, seg) {
+			return false
+		}
+		rest = rest[len(seg):]
+	}
+	return len(rest) == 0
 }
 
 // Note that this heuristic is flawed: it doesn't handle generics, linkname

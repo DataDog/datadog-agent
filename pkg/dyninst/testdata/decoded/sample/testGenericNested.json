@@ -18,12 +18,12 @@
           {
             "function": "main.nestedGeneric[go.shape.string]",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go",
-            "lineNumber": 202
+            "lineNumber": 203
           },
           {
             "function": "main.executeGenericFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go",
-            "lineNumber": 284
+            "lineNumber": 285
           },
           {
             "function": "main.main",
@@ -97,12 +97,12 @@
           {
             "function": "main.nestedGeneric[go.shape.int]",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go",
-            "lineNumber": 202
+            "lineNumber": 203
           },
           {
             "function": "main.executeGenericFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go",
-            "lineNumber": 285
+            "lineNumber": 286
           },
           {
             "function": "main.main",
