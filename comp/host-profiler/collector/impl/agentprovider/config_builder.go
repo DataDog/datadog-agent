@@ -125,26 +125,28 @@ func buildProcessors(conf confMap) []any {
 	return []any{"infraattributes/default", "resource/dd-profiler-internal-metadata"}
 }
 
-func buildMetricsPipeline(conf confMap, enableGoRuntimeMetrics bool, profilesProcessors, profilesExporters []any) {
+func buildMetricsPipeline(conf confMap, enableGoRuntimeMetrics bool, healthMetrics healthMetricsConfig, profilesProcessors, profilesExporters []any) {
+	if !healthMetrics.Enabled && !enableGoRuntimeMetrics {
+		return
+	}
+
 	metricsPipeline, _ := converters.Ensure[confMap](conf, "service::pipelines::metrics")
-
 	receivers, _ := converters.Ensure[confMap](conf, "receivers")
-	receivers["prometheus"] = converters.PrometheusReceiverConfig()
-
 	processors, _ := converters.Ensure[confMap](conf, "processors")
-	processors["cumulativetodelta"] = confMap{}
-	processors["filter"] = converters.FilterProcessorConfig()
 
-	metricsProcessors := []any{"filter", "cumulativetodelta"}
-	metricsProcessors = append(metricsProcessors, profilesProcessors...)
-	metricsReceivers := []any{"prometheus"}
+	var metricsReceivers []any
+	metricsProcessors := profilesProcessors
+
+	if healthMetrics.Enabled {
+		receivers["prometheus"] = converters.PrometheusReceiverConfigWithTargets(healthMetrics.Targets)
+		processors["filter"] = converters.FilterProcessorConfig()
+		processors["cumulativetodelta"] = confMap{}
+		metricsProcessors = append([]any{"filter", "cumulativetodelta"}, profilesProcessors...)
+		metricsReceivers = append(metricsReceivers, "prometheus")
+	}
+
 	if enableGoRuntimeMetrics {
-		receivers["otlp"] = confMap{
-			"protocols": confMap{
-				"grpc": nil,
-				"http": nil,
-			},
-		}
+		receivers["otlp"] = confMap{"protocols": confMap{"grpc": nil, "http": nil}}
 		metricsReceivers = append(metricsReceivers, "otlp")
 	}
 
@@ -166,7 +168,7 @@ func buildConfig(agent configManager, p params.CollectorParams) confMap {
 	profilesPipeline["exporters"] = profilesExporters
 	profilesPipeline["receivers"] = profilesReceivers
 
-	buildMetricsPipeline(config, p.GetGoRuntimeMetrics(), profilesProcessors, profilesExporters)
+	buildMetricsPipeline(config, p.GetGoRuntimeMetrics(), agent.hostProfilerConfig.HealthMetrics, profilesProcessors, profilesExporters)
 
 	_ = converters.Set(config, "extensions::hpflare/default", confMap{})
 	serviceExtensions := []any{"hpflare/default"}

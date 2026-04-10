@@ -1,0 +1,7 @@
+site: datadoghq.com
+api_key: test_api_key_123
+hostprofiler:
+    health_metrics:
+        enabled: true
+        targets:
+            - "127.0.0.1:9999"

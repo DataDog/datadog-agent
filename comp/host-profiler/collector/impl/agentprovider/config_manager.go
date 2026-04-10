@@ -11,12 +11,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// healthMetricsConfig holds configuration for the internal health metrics pipeline.
+type healthMetricsConfig struct {
+	Enabled bool
+	Targets []string
+}
+
 // hostProfilerConfig holds host-profiler settings extracted from the Agent config.
 type hostProfilerConfig struct {
 	DebugVerbosity        string
 	AdditionalHTTPHeaders map[string]string
 	DDProfilingEnabled    bool
 	DDProfilingPeriod     int
+	HealthMetrics         healthMetricsConfig
 }
 
 type endpoint struct {
@@ -92,6 +99,10 @@ func newConfigManager(config config.Component) configManager {
 		AdditionalHTTPHeaders: config.GetStringMapString("hostprofiler.additional_http_headers"),
 		DDProfilingEnabled:    config.GetBool("hostprofiler.ddprofiling.enabled"),
 		DDProfilingPeriod:     config.GetInt("hostprofiler.ddprofiling.period"),
+		HealthMetrics: healthMetricsConfig{
+			Enabled: config.GetBool("hostprofiler.health_metrics.enabled"),
+			Targets: config.GetStringSlice("hostprofiler.health_metrics.targets"),
+		},
 	}
 
 	return configManager{

@@ -1067,6 +1067,8 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("hostprofiler.additional_http_headers", map[string]string{})
 	config.BindEnvAndSetDefault("hostprofiler.ddprofiling.enabled", false)
 	config.BindEnvAndSetDefault("hostprofiler.ddprofiling.period", 0)
+	config.BindEnvAndSetDefault("hostprofiler.health_metrics.enabled", true)
+	config.BindEnvAndSetDefault("hostprofiler.health_metrics.targets", []string{"127.0.0.1:8888"})
 }
 
 func agent(config pkgconfigmodel.Setup) {
