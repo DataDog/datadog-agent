@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"runtime"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -311,6 +312,85 @@ func TestGoSpan(t *testing.T) {
 				assert.Equal(t, uint64(123456789), event.SpanContext.TraceID.Lo,
 					"trace ID lo should match the local root span ID label value")
 			}, "test_go_span_rule_open")
+		})
+	})
+}
+
+// TestDDTraceGoSpan tests the full dd-trace-go integration: dd-trace-go creates
+// a real span which internally sets pprof labels ("span id", "local root span id"),
+// and the eBPF Go labels reader extracts them from the goroutine's label storage.
+func TestDDTraceGoSpan(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_ddtrace_span_rule_open",
+			Expression: `open.file.path == "{{.Root}}/test-ddtrace-span"`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	goSyscallTester, err := loadSyscallTester(t, test, "syscall_go_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("ddtrace_span", func(t *testing.T) {
+		test.RunMultiMode(t, "open", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+			testFile, _, err := test.Path("test-ddtrace-span")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer os.Remove(testFile)
+
+			args := []string{
+				"-ddtrace-span-test",
+				"-ddtrace-span-file-path", testFile,
+			}
+			envs := []string{}
+
+			// Capture the tester's stdout to extract the span IDs
+			// that dd-trace-go generated at runtime.
+			var expectedSpanID, expectedLocalRootSpanID uint64
+
+			test.WaitSignalFromRule(t, func() error {
+				cmd := cmdFunc(goSyscallTester, args, envs)
+				out, err := cmd.CombinedOutput()
+
+				if err != nil {
+					return fmt.Errorf("%s: %w", out, err)
+				}
+
+				// Parse the span IDs from the tester's output.
+				for _, line := range strings.Split(string(out), "\n") {
+					if strings.HasPrefix(line, "ddtrace_span_id=") {
+						val := strings.TrimPrefix(line, "ddtrace_span_id=")
+						expectedSpanID, _ = strconv.ParseUint(strings.TrimSpace(val), 10, 64)
+					}
+					if strings.HasPrefix(line, "ddtrace_local_root_span_id=") {
+						val := strings.TrimPrefix(line, "ddtrace_local_root_span_id=")
+						expectedLocalRootSpanID, _ = strconv.ParseUint(strings.TrimSpace(val), 10, 64)
+					}
+				}
+
+				if expectedSpanID == 0 {
+					return fmt.Errorf("failed to parse ddtrace_span_id from output: %s", out)
+				}
+
+				return nil
+			}, func(event *model.Event, rule *rules.Rule) {
+				assertTriggeredRule(t, rule, "test_ddtrace_span_rule_open")
+
+				assert.Equal(t, expectedSpanID, event.SpanContext.SpanID,
+					"span ID should match the dd-trace-go generated value")
+				assert.Equal(t, expectedLocalRootSpanID, event.SpanContext.TraceID.Lo,
+					"trace ID lo should match the dd-trace-go local root span ID")
+			}, "test_ddtrace_span_rule_open")
 		})
 	})
 }
