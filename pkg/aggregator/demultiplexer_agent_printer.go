@@ -9,11 +9,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"strings"
+	"text/tabwriter"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/fatih/color"
-	"github.com/olekukonko/tablewriter"
 )
 
 // AgentDemultiplexerPrinter is used to output series, sketches, service checks
@@ -40,22 +41,7 @@ func (p AgentDemultiplexerPrinter) PrintMetrics(checkFileOutput *bytes.Buffer, f
 			headers, data := series.MarshalStrings()
 			var buffer bytes.Buffer
 
-			// plain table with no borders
-			table := tablewriter.NewWriter(&buffer)
-			table.SetHeader(headers)
-			table.SetAutoWrapText(false)
-			table.SetAutoFormatHeaders(true)
-			table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
-			table.SetAlignment(tablewriter.ALIGN_LEFT)
-			table.SetCenterSeparator("")
-			table.SetColumnSeparator("")
-			table.SetRowSeparator("")
-			table.SetHeaderLine(false)
-			table.SetBorder(false)
-			table.SetTablePadding("\t")
-
-			table.AppendBulk(data)
-			table.Render()
+			writeTable(&buffer, headers, data)
 			fmt.Println(buffer.String())
 			checkFileOutput.WriteString(buffer.String() + "\n")
 		} else {
@@ -79,22 +65,7 @@ func (p AgentDemultiplexerPrinter) PrintMetrics(checkFileOutput *bytes.Buffer, f
 			headers, data := serviceChecks.MarshalStrings()
 			var buffer bytes.Buffer
 
-			// plain table with no borders
-			table := tablewriter.NewWriter(&buffer)
-			table.SetHeader(headers)
-			table.SetAutoWrapText(false)
-			table.SetAutoFormatHeaders(true)
-			table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
-			table.SetAlignment(tablewriter.ALIGN_LEFT)
-			table.SetCenterSeparator("")
-			table.SetColumnSeparator("")
-			table.SetRowSeparator("")
-			table.SetHeaderLine(false)
-			table.SetBorder(false)
-			table.SetTablePadding("\t")
-
-			table.AppendBulk(data)
-			table.Render()
+			writeTable(&buffer, headers, data)
 			fmt.Println(buffer.String())
 			checkFileOutput.WriteString(buffer.String() + "\n")
 		} else {
@@ -125,6 +96,24 @@ func (p AgentDemultiplexerPrinter) PrintMetrics(checkFileOutput *bytes.Buffer, f
 			checkFileOutput.WriteString(string(j) + "\n")
 		}
 	}
+}
+
+// writeTable writes a tab-separated table with headers to w using text/tabwriter.
+// Cell values are sanitized to replace all characters that text/tabwriter treats
+// specially (\t, \v, \f, \n, \r) with spaces, preventing corruption of column
+// alignment or unexpected row splitting.
+func writeTable(w *bytes.Buffer, headers []string, data [][]string) {
+	tw := tabwriter.NewWriter(w, 0, 0, 1, ' ', 0)
+	fmt.Fprintln(tw, strings.ToUpper(strings.Join(headers, "\t")))
+	sanitizer := strings.NewReplacer("\t", " ", "\n", " ", "\r", " ", "\v", " ", "\f", " ")
+	for _, row := range data {
+		sanitized := make([]string, len(row))
+		for i, cell := range row {
+			sanitized[i] = sanitizer.Replace(cell)
+		}
+		fmt.Fprintln(tw, strings.Join(sanitized, "\t"))
+	}
+	tw.Flush()
 }
 
 // toDebugEpEvents transforms the raw event platform messages to eventPlatformDebugEvents which are better for json formatting

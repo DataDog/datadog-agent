@@ -11,3 +11,5 @@ py_library(
         "@py_dev_requirements//pyyaml",
     ],
 )
+
+exports_files(["core_checks.py"])

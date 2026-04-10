@@ -12,13 +12,9 @@ load(
     "pkg_files",
     "pkg_mkdirs",
 )
+load("//packages/agent:defs.bzl", "ETC_DIR_SELECTOR")
 
 package(default_visibility = ["//packages:__subpackages__"])
-
-CONF_DIR_PREFIX_SELECT = {
-    "@platforms//os:macos": "etc",
-    "//conditions:default": "etc/datadog-agent",
-}
 
 # All the components to be installed in {install_dir}
 # This list is probably too long because it includes transitive deps of some
@@ -84,13 +80,15 @@ pkg_filegroup(
 
 # All the components to be installed in {install_dir} during the build during the migration.
 # This is the subset of :all_files that we need to place in install_dir so the omnibus
-# pacakging can pick them up. When we can build the packages with bazel rules, this goes
+# packaging can pick them up. When we can build the packages with bazel rules, this goes
 # away.
 pkg_filegroup(
     name = "all_install_dir_files",
     srcs = [
         ":dirs",
         ":example_config",
+        "//cmd/agent/dist:all_files",
+        "//cmd/agent/dist:all_python_files",
     ],
 )
 
@@ -126,7 +124,7 @@ pkg_files(
     srcs = [
         "//pkg/config:agent_config",
     ],
-    prefix = select(CONF_DIR_PREFIX_SELECT),
+    prefix = select(ETC_DIR_SELECTOR),
     renames = {
         "//pkg/config:agent_config": "datadog.yaml.example",
     },
