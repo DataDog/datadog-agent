@@ -905,6 +905,7 @@
 # Each team can individually decide to update CODEOWNERS to be requested for a review on each modification of their go.mod/sum
 /**/go.mod                              # do not notify anyone
 /**/go.sum                              # do not notify anyone
+/deps/go.MODULE.bazel                   # do not notify anyone
 
 # Add here modules that need explicit review from the team owning them
 /pkg/util/scrubber/go.mod                @DataDog/agent-runtimes
