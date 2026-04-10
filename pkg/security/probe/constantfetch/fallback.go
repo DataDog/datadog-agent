@@ -61,6 +61,8 @@ func computeRawsTable() map[string]uint64 {
 		OffsetNameSockCommonStructSKCFamily:       16,
 		OffsetNameDentryDSb:                       104,
 		OffsetNameNetDeviceStructName:             0,
+		OffsetNameVMAreaStructVMStart:             0,
+		OffsetNameVMAreaStructVMEnd:               8,
 		OffsetNameRenameStructOldDentry:           16,
 		OffsetNameRenameStructNewDentry:           40,
 		OffsetNameSbDev:                           16,
