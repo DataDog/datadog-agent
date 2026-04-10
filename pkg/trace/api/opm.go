@@ -71,17 +71,20 @@ func fetchOPM(ctx context.Context, client *config.ResetClient, cfg *config.Agent
 }
 
 // setOrgPropMarker stores opm atomically and updates the agentState hash.
-// If computeStateHash has not yet been set by makeInfoHandler (possible when
-// the OPM arrives very early), the agentState update is deferred — makeInfoHandler
-// reads orgPropMarker before computing its initial hash, so the state is still correct.
+// The orgPropMarker write is outside the mutex (it is an atomic.String so
+// always safe), but the agentState write is held under computeStateHashMu so
+// that it cannot interleave with makeInfoHandler's own agentState initialisation.
+// If computeStateHash has not yet been set by makeInfoHandler, the agentState
+// update is skipped — makeInfoHandler reads orgPropMarker under the same mutex,
+// so it will pick up the already-stored value and initialise agentState correctly.
 func (r *HTTPReceiver) setOrgPropMarker(opm string) {
 	r.orgPropMarker.Store(opm)
 	r.computeStateHashMu.Lock()
 	fn := r.computeStateHash
-	r.computeStateHashMu.Unlock()
 	if fn != nil {
 		r.agentState.Store(fn(opm))
 	}
+	r.computeStateHashMu.Unlock()
 }
 
 // OrgPropMarker returns the current Org Propagation Marker, or the empty string

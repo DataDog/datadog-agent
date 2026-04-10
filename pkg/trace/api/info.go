@@ -218,14 +218,15 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		return hex.EncodeToString(h[:])
 	}
 
+	// Hold the mutex across the entire assignment + read + store so that
+	// setOrgPropMarker cannot interleave. Without this, setOrgPropMarker could
+	// write the correct OPM-based agentState between our unlock and our Store,
+	// and our Store would then revert it to the stale pre-OPM hash.
 	r.computeStateHashMu.Lock()
 	r.computeStateHash = computeStateHashFn
-	r.computeStateHashMu.Unlock()
-
-	// Initialise agentState using the OPM that may have already been stored by
-	// startOPMFetch (possible when the fetch completes before buildMux runs).
-	initialHash := computeStateHashFn(r.OrgPropMarker())
+	initialHash := computeStateHashFn(r.orgPropMarker.Load())
 	r.agentState.Store(initialHash)
+	r.computeStateHashMu.Unlock()
 
 	return initialHash, func(w http.ResponseWriter, req *http.Request) {
 		opm := r.OrgPropMarker()
