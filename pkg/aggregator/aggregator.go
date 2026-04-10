@@ -801,6 +801,9 @@ func (agg *BufferedAggregator) run() {
 		case matcher := <-agg.filterListChan:
 			agg.flushFilterList = matcher
 		case matcher := <-agg.tagFilterListChan:
+			for _, cs := range agg.checkSamplers {
+				cs.clearStripCache()
+			}
 			agg.tagFilterList = matcher
 		case <-agg.health.C:
 		case checkItem := <-agg.checkItems:

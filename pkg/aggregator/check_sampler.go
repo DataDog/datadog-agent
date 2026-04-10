@@ -255,6 +255,10 @@ func (cs *CheckSampler) flush() (metrics.Series, metrics.SketchSeriesList) {
 	return series, sketches
 }
 
+func (cs *CheckSampler) clearStripCache() {
+	cs.contextResolver.resolver.clearStripCache()
+}
+
 func (cs *CheckSampler) release() {
 	cs.releaseMetrics()
 	cs.contextResolver.release()
