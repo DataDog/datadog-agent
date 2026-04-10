@@ -14,6 +14,7 @@ import (
 	"github.com/cilium/ebpf/features"
 	"github.com/cilium/ebpf/link"
 
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/kernelbugs"
 )
 
@@ -56,4 +57,17 @@ func SupportsFentry(funcName string) bool {
 	defer l.Close()
 
 	return true
+}
+
+// HasIteratorType returns whether the kernel supports the iterator
+// `name` should not contain the `bpf_iter_` prefix
+func HasIteratorType(name string) (bool, error) {
+	iterSymbol := "bpf_iter_" + name
+	missingSymbols, err := ddebpf.VerifyKernelFuncs(iterSymbol)
+	if err != nil {
+		return false, err
+	}
+
+	_, isMissing := missingSymbols[iterSymbol]
+	return !isMissing, nil
 }

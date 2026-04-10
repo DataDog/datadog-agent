@@ -24,7 +24,6 @@ import (
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 const probeUID = "net"
@@ -74,8 +73,7 @@ var KernelSupported = funcs.MemoizeNoError(func() bool {
 	if features.HaveMapType(ebpf.SkStorage) != nil {
 		return false
 	}
-	// TODO find better feature tests for iterator types
-	if kv, err := kernel.HostVersion(); err != nil || kv < kernel.VersionCode(5, 8, 0) {
+	if ok, err := ddfeatures.HasIteratorType("task_file"); err != nil || !ok {
 		return false
 	}
 	return true
