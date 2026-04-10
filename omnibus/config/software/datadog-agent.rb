@@ -75,9 +75,8 @@ build do
 
   # we assume the go deps are already installed before running omnibus
   if windows_target?
-    platform = windows_arch_i386? ? "x86" : "x64"
     do_windows_sysprobe = ""
-    if not windows_arch_i386? and ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
+    if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
       do_windows_sysprobe = "--windows-sysprobe"
     end
     command_on_repo_root "bazelisk run #{bazel_flags} -- //rtloader:install --destdir=\"#{install_dir}"
@@ -125,7 +124,6 @@ build do
     mkdir Omnibus::Config.package_dir() unless Dir.exists?(Omnibus::Config.package_dir())
   end
 
-  platform = windows_arch_i386? ? "x86" : "x64"
   command "dda inv -- -e trace-agent.build --install-path=#{install_dir} --flavor #{flavor_arg}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
 
   # Build the installer
@@ -243,7 +241,7 @@ build do
     else
       copy 'bin/security-agent/security-agent', "#{install_dir}/embedded/bin"
     end
-    move 'bin/agent/dist/security-agent.yaml', "#{conf_dir}/security-agent.yaml.example"
+    move 'pkg/config/example/security-agent.yaml.example', "#{conf_dir}/security-agent.yaml.example"
   end
 
   # CWS Instrumentation

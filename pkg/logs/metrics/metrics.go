@@ -126,6 +126,11 @@ var (
 	TlmRotationSizeDifferences = telemetry.NewHistogram("logs", "rotation_size_differences",
 		nil, "Distribution of absolute file size differences observed between consecutive file rotation checks", []float64{256, 1024, 4096, 16384, 65536, 262144, 1048576, 10485760, 104857600})
 
+	// TlmPayloadFlushed is the total number of payloads flushed by the batch strategy.
+	// Tags: pipeline, flush_reason (max_count, max_bytes, timer, flush, shutdown)
+	TlmPayloadFlushed = telemetry.NewCounter("logs", "batch_payload_flushed",
+		[]string{"pipeline", "flush_reason"}, "Total number of payloads flushed, tagged by the reason the flush was triggered")
+
 	// TlmHTTPConnectivityCheck tracks HTTP connectivity check results
 	// Tags: status (success/failure)
 	TlmHTTPConnectivityCheck = telemetry.NewCounter("logs", "http_connectivity_check",
@@ -140,6 +145,26 @@ var (
 	// Tags: status (success/failure/timeout), transport (tcp/http)
 	TlmRestartAttempt = telemetry.NewCounter("logs", "restart_attempt",
 		[]string{"status", "transport"}, "Count of logs agent restart attempts with status and target transport")
+
+	// COAT telemetry for auto multiline default-on impact analysis.
+	// These counters only increment for sources that rely on the default value of
+	// auto_multi_line_detection (i.e. sources where changing the default would alter behavior).
+
+	// TlmAutoMultilineTotalLines counts all lines processed by the detecting aggregator
+	// for sources on the default path. Used as the denominator for both X% and Y% metrics.
+	TlmAutoMultilineTotalLines = telemetry.NewCounter("logs", "auto_multi_line_default_total_lines",
+		nil, "Total lines processed by the detecting aggregator for default-path sources")
+
+	// TlmAutoMultilineWouldCombine counts lines that would be merged into a preceding
+	// startGroup message if auto multiline were enabled by default.
+	TlmAutoMultilineWouldCombine = telemetry.NewCounter("logs", "auto_multi_line_default_would_combine",
+		nil, "Lines that would be combined if auto multiline were the default")
+
+	// TlmAutoMultilineWouldTruncate counts raw input lines belonging to multiline
+	// groups that would exceed maxContentSize due to combining. Single lines that are
+	// individually oversized are excluded (they'd be truncated regardless).
+	TlmAutoMultilineWouldTruncate = telemetry.NewCounter("logs", "auto_multi_line_default_would_truncate",
+		nil, "Lines belonging to groups that would be truncated if auto multiline were the default")
 )
 
 func init() {

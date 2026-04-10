@@ -20,6 +20,11 @@ tagsets:
       - gpu_device
       - gpu_vendor
       - gpu_driver_version
+      - gpu_virtualization_mode
+      - gpu_architecture
+      - gpu_slicing_mode
+      - gpu_parent_uuid
+      - gpu_type
   process:
     tags:
       - pid
@@ -42,7 +47,7 @@ metrics:
       device_modes:
         mig: false
         physical: true
-        vgpu: true
+        vgpu: false
   clock.speed.memory:
     tagsets:
       - device
@@ -60,7 +65,7 @@ metrics:
       device_modes:
         mig: false
         physical: true
-        vgpu: true
+        vgpu: false
   clock.speed.sm:
     tagsets:
       - device
@@ -78,7 +83,7 @@ metrics:
       device_modes:
         mig: false
         physical: true
-        vgpu: true
+        vgpu: false
   clock.speed.video:
     tagsets:
       - device
@@ -98,7 +103,7 @@ metrics:
       device_modes:
         mig: false
         physical: true
-        vgpu: true
+        vgpu: false
   clock.throttle_reasons.applications_clocks_setting:
     tagsets:
       - device
@@ -438,11 +443,10 @@ metrics:
         - fermi
         - kepler
         - maxwell
-        - ada
       device_modes:
         mig: false
         physical: true
-        vgpu: false
+        vgpu: true
   nvlink.count.inactive:
     tagsets:
       - device
@@ -451,11 +455,10 @@ metrics:
         - fermi
         - kepler
         - maxwell
-        - ada
       device_modes:
         mig: false
         physical: true
-        vgpu: false
+        vgpu: true
   nvlink.count.total:
     tagsets:
       - device
@@ -464,11 +467,10 @@ metrics:
         - fermi
         - kepler
         - maxwell
-        - ada
       device_modes:
         mig: false
         physical: true
-        vgpu: false
+        vgpu: true
   nvlink.errors.crc.data:
     tagsets:
       - device
@@ -543,7 +545,6 @@ metrics:
         - kepler
         - maxwell
         - pascal
-        - ada
       device_modes:
         mig: false
         physical: true

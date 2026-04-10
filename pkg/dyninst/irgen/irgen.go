@@ -4337,7 +4337,7 @@ func newProbe(
 			injectionPoints,
 			skipReturnEvents,
 		)
-		if issue != (ir.Issue{}) || err != nil {
+		if !issue.IsNone() || err != nil {
 			return nil, issue, err
 		}
 	}
@@ -4417,6 +4417,7 @@ func pickInjectionPoint(
 			Message: lines.err.Error(),
 		}, nil
 	}
+	hasLineInfo := len(lines.lines) > 0
 	addr := rootRanges[0][0]
 	funcByteLen := rootRanges[0][1] - addr
 	frameless := lines.prologueEnd == 0
@@ -4459,6 +4460,10 @@ func pickInjectionPoint(
 				return nil, nil, ir.Issue{}, err
 			}
 
+			// Functions without line info shouldn't have return probes.
+			// Don't collect return locations if we lack line info.
+			collectReturnLocations := !skipReturnEvents && hasLineInfo
+
 			// Disassemble the function to find return locations and validate the
 			// injection PC.
 			returnLocations, issue := disassembleFunction(
@@ -4467,7 +4472,7 @@ func pickInjectionPoint(
 				call.pc,
 				call.frameless,
 				body,
-				!skipReturnEvents,
+				collectReturnLocations,
 			)
 			if !issue.IsNone() {
 				return buf, nil, issue, nil
@@ -4478,6 +4483,9 @@ func pickInjectionPoint(
 			if skipReturnEvents {
 				hasAssociatedReturn = false
 				noReturnReason = ir.NoReturnReasonReturnsDisabled
+			} else if !hasLineInfo {
+				hasAssociatedReturn = false
+				noReturnReason = ir.NoReturnReasonNoBody
 			} else if len(returnLocations) == 1 && returnLocations[0].PC == call.pc {
 				// Add a workaround for the fact that single-instruction
 				// functions would have the same entry and exit probes, but the
@@ -4843,37 +4851,55 @@ func collectLineDataForRange(
 	// TODO: Find a way to seek to the first entry in a range rather than just
 	// the entry that covers this PC. See https://github.com/golang/go/issues/73996.
 	err := lineReader.SeekPC(r[0], &lineEntry)
-	// Workaround for holes: When SeekPC fails with ErrUnknownPC, the reader
-	// is experimentally observed to be left positioned at a preceding
-	// end_sequence marker. If that marker's address is at or before r[0],
-	// we can recover by:
-	//   1. Reading the next entry to find where the next sequence starts
-	//   2. Restoring the reader to prevPos (since seeking backward through
-	//      line tables is very inefficient - it requires restarting from
-	//      the beginning of the table)
-	//   3. Seeking to (next_address - 1) to land within the prior entry
-	//   4. If that puts us at an address >= r[0], we've found valid data
+	// Workaround for holes: SeekPC fails with ErrUnknownPC when the function's
+	// start PC falls in a gap between line table sequences (common for functions
+	// at sequence boundaries). After failure, SeekPC leaves the reader past the
+	// first entry of the next sequence (see Go's debug/dwarf SeekPC impl). We
+	// try two recovery strategies:
 	//
-	// The -1 works because lineEntry.Address marks an entry's start, so
-	// (address - 1) falls within the previous entry's range, and SeekPC
-	// will position us at that entry's start (a valid instruction boundary).
-	if err != nil &&
-		errors.Is(err, dwarf.ErrUnknownPC) &&
-		lineEntry.Address <= r[0] {
+	// 1. Read the next entry (which SeekPC left us near) and use
+	//    SeekPC(addr-1) to land on the first entry of that sequence.
+	// 2. If that fails, do a full scan from the beginning of the CU's line
+	//    table. Sequences may not be in PC order, so we must scan all entries
+	//    without breaking early on out-of-range addresses.
+	if errors.Is(err, dwarf.ErrUnknownPC) {
 		nextErr := lineReader.Next(&lineEntry)
-		if nextErr == nil {
+		if nextErr == nil && lineEntry.Address > r[0] && lineEntry.Address < r[1] {
 			lineReader.Seek(prevPos)
 			nextErr = lineReader.SeekPC(lineEntry.Address-1, &lineEntry)
+			if nextErr == nil && lineEntry.Address >= r[0] {
+				err = nil
+			}
 		}
-		if nextErr == nil && lineEntry.Address >= r[0] {
-			err = nil
+		if err != nil {
+			// Full scan: sequences in the line table may not be in PC order,
+			// so we scan all entries to find one in [r[0], r[1]).
+			lineReader.Reset()
+			for {
+				nextErr := lineReader.Next(&lineEntry)
+				if nextErr != nil {
+					break
+				}
+				if lineEntry.EndSequence {
+					continue
+				}
+				if lineEntry.Address >= r[0] && lineEntry.Address < r[1] {
+					err = nil
+					break
+				}
+			}
 		}
 	}
 	if err != nil {
-		// Restore the reader to prevPos so the next call to this function
-		// can seek forward efficiently. The caller explores ranges in PC
-		// order, so prevPos is likely close to the next range we'll query.
+		// Functions without DWARF line information (compiler-generated stubs,
+		// assembly wrappers, functions at sequence boundaries with no coverage)
+		// are acceptable - they just won't have line info or return probes.
+		// Restore the reader to prevPos for efficient forward seeking.
 		lineReader.Seek(prevPos)
+		if errors.Is(err, dwarf.ErrUnknownPC) {
+			return lineData{}
+		}
+		// Other errors are genuine problems
 		return lineData{err: err}
 	}
 	prologueEnd := uint64(0)

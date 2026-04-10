@@ -31,9 +31,9 @@ build do
 
 	if linux_target?
 	    if heroku_target?
-               command_on_repo_root "bazelisk run -- //packages/agent/heroku:license_files_install --destdir=#{install_dir}"
+               command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- //packages/agent/heroku:license_files_install --destdir=#{install_dir}"
             else
-               command_on_repo_root "bazelisk run -- //packages/agent/linux:license_files_install --destdir=#{install_dir}"
+               command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- //packages/agent/linux:license_files_install --destdir=#{install_dir}"
             end
         end
 
@@ -141,6 +141,10 @@ build do
 
             # removing the local folder to reduce package size by ~0.5MB
             delete "#{install_dir}/embedded/share/locale"
+
+            # Drop bundled unit-test directories from embedded Python wheels/deps (not used at agent runtime).
+            # Deepest paths first so nested tests/ trees are removed safely.
+            command "find #{install_dir}/embedded/lib -path '*/site-packages/*' -depth -type d -name tests -exec rm -rf {} +"
 
             # remove some debug ebpf object files to reduce the size of the package
             delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/oom-kill-debug.o"

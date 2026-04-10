@@ -2,6 +2,69 @@
 Release Notes
 =============
 
+.. _Release Notes_7.77.3:
+
+7.77.3
+======
+
+.. _Release Notes_7.77.3_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-04-08
+
+- Please refer to the `7.77.3 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7773>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.77.3_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes an issue where Cloud Network Monitoring would not resolve NAT'd cluster IPs when using Cilium to replace kube-proxy.
+
+
+.. _Release Notes_7.77.2:
+
+7.77.2
+======
+
+.. _Release Notes_7.77.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-04-01
+
+- Please refer to the `7.77.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7772>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.77.2_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Hide GUI app by default for MacOS agent per-user install.
+
+- Windows: Add PAR self-enrollment to installer.
+
+
+.. _Release Notes_7.77.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes Workload Protection raw-packet eBPF programs when multiple packet filters are
+  compiled together. The generated assembly reused register R8 both as the event
+  pointer expected by the filter chain and to hold immediate values, which corrupted the pointer 
+  and caused the kernel BPF verifier to reject the program. 
+  The code now uses a separate register for those
+  immediates so the pointer is preserved across filters.
+
+- Workload Protection: resolves an issue in in-kernel cgroup tracking, enabling packet filtering to be correctly applied to containers.
+
+
 .. _Release Notes_7.77.1:
 
 7.77.1

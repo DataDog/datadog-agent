@@ -759,8 +759,8 @@ api_key:
 #
 #     url: "http://127.0.0.1:8080"
 {{- end -}}
+{{- if .Agent }}
 
-{{if .Agent -}}
 ############################
 ## Advanced Configuration ##
 ############################
@@ -864,9 +864,9 @@ api_key:
 ## integrations and affect their behavior if they rely on the psutil python package.
 #
 # procfs_path: <PROCFS_PATH>
-{{- end }}
+{{- end -}}
+{{- if .CoreAgent }}
 
-{{ if .CoreAgent -}}
 ## @param disable_py3_validation - boolean - optional - default: false
 ## @env DD_DISABLE_PY3_VALIDATION - boolean - optional - default: false
 ## Disable Python3 validation of python checks.
@@ -912,8 +912,9 @@ api_key:
 ## Disabled by default, so we only load Python libraries bundled with the Agent.
 #
 # windows_use_pythonpath: false
-{{- end }}
-{{- if .Agent -}}
+{{- end -}}
+{{- if .Agent }}
+
 ## @param secret_backend_type - string - optional - default: ""
 ## @env DD_SECRET_BACKEND_TYPE - string - optional - default: ""
 ## `secret_backend_type` is the type of backend where secrets are stored.
@@ -1069,8 +1070,7 @@ api_key:
 #   log_file: <TRAY_LOG_FILE_PATH>
 {{- end -}}
 {{- end -}}
-
-{{- if .LogsAgent -}}
+{{- if .LogsAgent }}
 
 ##################################
 ## Log collection Configuration ##
@@ -1265,9 +1265,9 @@ api_key:
 #     #   * Linux: /var/log/datadog/streamlogs_info/streamlogs.log
 #
 #     streamlogs_log_file: <path_to_streamlogs_log_file>
-{{ end -}}
+{{- end -}}
+{{- if .TraceAgent }}
 
-{{ if .TraceAgent -}}
 ####################################
 ## Trace Collection Configuration ##
 ####################################
@@ -1301,24 +1301,16 @@ api_key:
 #   # Set to 0 to disable the HTTP receiver.
 #
 #   receiver_port: 8126
-{{ if (eq .OS "windows") }}
-#   # @param receiver_socket - string - optional - default: ""
-#   # @env DD_APM_RECEIVER_SOCKET - string - optional - default: ""
-#   # Please note that UDS receiver is not available in Windows.
-#   # Enabling this setting may result in unexpected behavior.
-#   #
-#   # Accept traces through Unix Domain Sockets.
-#   # Set to "" to disable the UDS receiver.
-#
-#   receiver_socket: ""
-{{- else -}}
+
 #   # @param receiver_socket - string - optional - default: {{ if (eq .OS "linux") }}"/var/run/datadog/apm.socket"{{else}}""{{end}}
 #   # @env DD_APM_RECEIVER_SOCKET - string - optional - default: {{ if (eq .OS "linux") }}"/var/run/datadog/apm.socket"{{else}}""{{end}}
 #   # Accept traces through Unix Domain Sockets.
 #   # Set to "" to disable the UDS receiver.
+#   #
+#   # Please note that UDS receiver is not available in Windows.
+#   # Enabling this setting may result in unexpected behavior.
 #
 #   receiver_socket: {{ if (eq .OS "linux") }}"/var/run/datadog/apm.socket"{{else}}""{{end}}
-{{- end }}
 
 #   # @param apm_non_local_traffic - boolean - optional - default: false
 #   # @env DD_APM_NON_LOCAL_TRAFFIC - boolean - optional - default: false
@@ -1368,6 +1360,9 @@ api_key:
 #   # @param max_events_per_second - integer - optional - default: 200
 #   # @env DD_APM_MAX_EPS - integer - optional - default: 200
 #   # @env DD_MAX_EPS - integer - optional - default: 200
+#   # **Deprecated.** APM events are a deprecated feature related to legacy App Analytics. This setting
+#   # caps sampling for that legacy path only. It does not limit trace volume, spans, or general APM
+#   # ingestion; for trace sampling, see `max_traces_per_second` and `target_traces_per_second` above.
 #   # Maximum number of APM events per second to sample.
 #
 #   max_events_per_second: 200
@@ -1905,9 +1900,9 @@ api_key:
 #   # DD_APM_ADDITIONAL_PROFILE_TAGS='{"_dd.origin":"appservice","secondtag":"custom"}'
 #
 #   additional_profile_tags: {}
-{{ end -}}
+{{- end -}}
+{{- if .CoreAgent }}
 
-{{ if .CoreAgent -}}
 ######################################
 ## Process Collection Configuration ##
 ######################################
@@ -2278,7 +2273,6 @@ api_key:
 #   enabled: false
 
 #   # @param host - custom object - optional
-#   # uncomment the sections below to enable where the vulnerability scanning is done
 #
 #   host:
 
@@ -2287,8 +2281,8 @@ api_key:
 #     # set to true to enable Infrastructure Vulnerabiltilies
 #
 #     enabled: false
+{{- if (eq .OS "linux") }}
 
-{{ if (eq .OS "linux") -}}
 #   # @param container_image - custom object - optional
 #
 #   container_image:
@@ -2297,10 +2291,10 @@ api_key:
 #     # @env DD_SBOM_CONTAINER_IMAGE_ENABLED - boolean - optional - default: false
 #
 #     enabled: false
+{{- end -}}
+{{- end -}}
+{{- if .Dogstatsd }}
 
-{{ end -}}
-{{ end -}}
-{{ if .Dogstatsd -}}
 #############################
 ## DogStatsD Configuration ##
 #############################
@@ -2328,24 +2322,16 @@ api_key:
 #
 # bind_host: localhost
 
-{{ if (eq .OS "windows") -}}
-## @param dogstatsd_socket - string - optional - default: ""
-## @env DD_DOGSTATSD_SOCKET - string - optional - default: ""
-## Please note that UDS receiver is not available in Windows.
-## Enabling this setting may result in unexpected behavior.
-## Listen for Dogstatsd metrics on a Unix Socket (*nix only).
-## Set to "" to disable this feature.
-#
-# dogstatsd_socket: ""
-{{- else -}}
 ## @param dogstatsd_socket - string - optional - default: {{ if (eq .OS "linux") }}"/var/run/datadog/dsd.socket"{{else}}""{{end}}
 ## @env DD_DOGSTATSD_SOCKET - string - optional - default: {{ if (eq .OS "linux") }}"/var/run/datadog/dsd.socket"{{else}}""{{end}}
 ## Listen for Dogstatsd metrics on a Unix Socket (*nix only).
 ## Set to a valid and existing filesystem path to enable.
 ## Set to "" to disable this feature.
+##
+## Please note that UDS receiver is not available in Windows.
+## Enabling this setting may result in unexpected behavior.
 #
 # dogstatsd_socket: {{ if (eq .OS "linux") }}"/var/run/datadog/dsd.socket"{{else}}""{{end}}
-{{- end }}
 
 ## @param dogstatsd_origin_detection - boolean - optional - default: false
 ## @env DD_DOGSTATSD_ORIGIN_DETECTION - boolean - optional - default: false
@@ -2523,9 +2509,9 @@ api_key:
 ## Each metric received is prefixed with the namespace before it's sent to Datadog.
 #
 # statsd_metric_namespace: ""
+{{- end -}}
+{{- if .Agent }}
 
-{{ end -}}
-{{ if .Agent -}}
 ## @param metadata_providers - list of object - optional - default: []
 ## Metadata providers, add or remove from the list to enable or disable collection.
 ## Intervals are expressed in seconds. You can also set a provider's interval to 0
@@ -2534,9 +2520,9 @@ api_key:
 # metadata_providers:
 #   - name: k8s
 #     interval: 60
+{{- end -}}
+{{- if .CoreAgent }}
 
-{{ end -}}
-{{ if .CoreAgent -}}
 #######################
 ## JMX Configuration ##
 #######################
@@ -2652,9 +2638,9 @@ api_key:
 ## set in the check templates. If that is the case, force custom jars here.
 #
 # jmx_java_tool_options: -javaagent:/path/to/agent.jar -XX:+UseG1GC
-{{ end -}}
+{{- end -}}
+{{- if .Logging }}
 
-{{ if .Logging -}}
 ###########################
 ## Logging Configuration ##
 ###########################
@@ -2740,9 +2726,9 @@ api_key:
 ## of all the goroutines are logged.
 #
 # log_all_goroutines_when_unhealthy: false
-{{ end -}}
+{{- end -}}
+{{- if .CoreAgent }}
 
-{{ if .CoreAgent -}}
 ##############################
 ## Autoconfig Configuration ##
 ##############################
@@ -2969,9 +2955,9 @@ api_key:
 ## When left empty, the Agent auto-discovers accessible Podman databases for root and all users under /home/.
 #
 # podman_db_path: ""
-{{ end -}}
+{{- end -}}
+{{- if .ClusterAgent }}
 
-{{ if .ClusterAgent -}}
 #################################
 ## Cluster Agent Configuration ##
 #################################
@@ -3074,9 +3060,9 @@ api_key:
 #     # Default is 0.1 (10%) for safety. Set to 1.0 to trace all operations.
 #
 #     sample_rate: 0.1
-{{ end -}}
+{{- end -}}
+{{- if .ClusterChecks }}
 
-{{ if .ClusterChecks -}}
 #################################
 ## Cluster check Configuration ##
 #################################
@@ -3144,9 +3130,9 @@ api_key:
 #   # check runners and collect their stats.
 #
 #   clc_runners_port: 5005
-{{ end -}}
+{{- end -}}
+{{- if .AdmissionController }}
 
-{{ if .AdmissionController -}}
 ########################################
 ## Admission controller Configuration ##
 ########################################
@@ -3370,9 +3356,9 @@ api_key:
 #     # Env var example: DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_INIT_SECURITY_CONTEXT='{"privileged": false}'
 #
 #     init_security_context: '{"privileged": false}'
-{{ end -}}
+{{- end -}}
+{{- if .DockerTagging }}
 
-{{ if .DockerTagging -}}
 ###########################
 ## Docker tag extraction ##
 ###########################
@@ -3397,9 +3383,9 @@ api_key:
 #
 # docker_env_as_tags:
 #   <ENVVAR_NAME>: <TAG_KEY>
-{{ end -}}
+{{- end -}}
+{{- if .KubernetesTagging }}
 
-{{ if .KubernetesTagging -}}
 ###############################
 ## Kubernetes tag extraction ##
 ###############################
@@ -3454,9 +3440,9 @@ api_key:
 # container_labels_as_tags:
 #   <LABEL_NAME>: <TAG_KEY>
 #   <HIGH_CARDINALITY_LABEL_NAME>: +<TAG_KEY>
-{{ end -}}
+{{- end -}}
+{{- if .ECS }}
 
-{{ if .ECS -}}
 ###################################
 ## ECS integration Configuration ##
 ###################################
@@ -3514,9 +3500,9 @@ api_key:
 ## launch type as EC2.
 #
 # ecs_deployment_mode: "auto"
-{{ end -}}
+{{- end -}}
+{{- if .CoreAgent }}
 
-{{ if .CoreAgent -}}
 ##################################################
 ## CRI and Containerd integration Configuration ##
 ##################################################
@@ -3578,9 +3564,9 @@ api_key:
 #
 # containerd_exclude_namespaces:
 #   - moby
-{{ end -}}
+{{- end -}}
+{{- if .Kubelet }}
 
-{{ if .Kubelet -}}
 ###################################################
 ## Kubernetes kubelet connectivity Configuration ##
 ###################################################
@@ -3650,9 +3636,9 @@ api_key:
 ## Set the duration to 0 to disable this filtering.
 #
 # kubernetes_pod_expiration_duration: 900
-{{ end -}}
+{{- end -}}
+{{- if .KubeApiServer }}
 
-{{ if .KubeApiServer -}}
 ####################################################
 ## Kubernetes apiserver integration Configuration ##
 ####################################################
@@ -3812,9 +3798,9 @@ api_key:
 #
 # kubernetes_ad_tags_disabled:
 #   - kube_service
-{{ end -}}
+{{- end -}}
+{{- if .CoreAgent }}
 
-{{ if .CoreAgent -}}
 ## @param prometheus_scrape - custom object - optional
 ## This section configures the Autodiscovery based on the Prometheus annotations
 #
@@ -3843,9 +3829,9 @@ api_key:
 #   # Version of the openmetrics check to be scheduled by the Prometheus auto-discovery
 #
 #   version: 1
-{{ end -}}
+{{- end -}}
+{{- if .CloudFoundry }}
 
-{{ if .CloudFoundry -}}
 #######################################################
 ## Cloud Foundry BBS Configuration for Autodiscovery ##
 #######################################################
@@ -3944,9 +3930,9 @@ api_key:
 #   # Number of apps per page to collect when calling the list apps endpoint of the CC API. Max 5000.
 #
 #   apps_batch_size: 5000
-{{ end -}}
+{{- end -}}
+{{- if .CoreAgent }}
 
-{{ if .CoreAgent -}}
 ###################################
 ## Network Devices Configuration ##
 ###################################
@@ -4079,8 +4065,8 @@ api_key:
 #
 #       enabled: false
 
-#       # @param timeout - integer - optional - default: 5
-#       # @env DD_NETWORK_DEVICES_AUTODISCOVERY_PING_TIMEOUT - integer - optional - default: 5
+#       # @param timeout - integer - optional - default: 3000
+#       # @env DD_NETWORK_DEVICES_AUTODISCOVERY_PING_TIMEOUT - integer - optional - default: 3000
 #       # Timeout in milliseconds
 #
 #       timeout: 3000
@@ -4345,30 +4331,6 @@ api_key:
 #             - match_field: index
 #               match_value: '2'
 #               disabled: true
-
-#         # @param ping - custom object - optional
-#         # Configure ICMP pings for all hosts in SNMP autodiscovery
-#         # Devices will be pinged with these settings each time the SNMP
-#         # check is run.
-#         #
-#         # By default, Datadog tries to use an unprivileged UDP socket to send ICMP
-#         # pings, but some linux systems require using a raw socket.
-#         #
-#         # If `linux.use_raw_socket` is set, you must enable the `ping` module
-#         # of system-probe for elevated privileges. See
-#         # system-probe.yaml.example for details.
-#
-#         ping:
-#           enabled: true             # Disabled by default
-#           timeout: 3000             # Timeout in milliseconds
-#           count: 2                  # Number of ping packets to send per check run
-#           interval: 10              # Time between sending pings (up to `count` packets) in milliseconds
-#           linux:                    # Linux-specific configuration
-#             use_raw_socket: true    # Send pings in a privileged fashion using a raw socket.
-#                                     # This may be required if your system doesn't support
-#                                     # sending pings in an unprivileged fashion (using a UDP socket).
-#                                     # If `use_raw_socket` is set to true, you MUST also enable
-#                                     # system-probe which has elevated privileges. To enable it, see system-probe.yaml.example.
 
 #   # @param snmp_traps - custom object - optional
 #   # This section configures SNMP traps collection.
@@ -4639,11 +4601,11 @@ api_key:
 #
 #       grpc:
 
-#         # @param endpoint - string - optional - default: "0.0.0.0:4317"
-#         # @env DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT - string - optional - default: "0.0.0.0:4317"
+#         # @param endpoint - string - optional - default: "localhost:4317"
+#         # @env DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT - string - optional - default: "localhost:4317"
 #         # The OTLP/gRPC listener endpoint.
 #
-#         endpoint: 0.0.0.0:4317
+#         endpoint: localhost:4317
 
 #         # @param transport - string - optional - default: "tcp"
 #         # @env DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_TRANSPORT - string - optional - default: "tcp"
@@ -4652,11 +4614,12 @@ api_key:
 #
 #         transport: tcp
 
-#         # @param max_recv_msg_size_mib - integer - optional - default: 4
-#         # @env DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_MAX_RECV_MSG_SIZE_MIB - integer - optional - default: 4
+#         # @param max_recv_msg_size_mib - integer - optional - default: 0
+#         # @env DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_MAX_RECV_MSG_SIZE_MIB - integer - optional - default: 0
 #         # The maximum size (in MiB) of messages accepted by the OTLP/gRPC endpoint.
+#         # When set to 0 (the default), grpc-go applies its built-in 4 MiB limit.
 #
-#         max_recv_msg_size_mib: 4
+#         max_recv_msg_size_mib: 0
 
 #       # @param http - custom object - optional
 #       # Configuration for OTLP/HTTP listener.
@@ -4664,11 +4627,11 @@ api_key:
 #
 #       http:
 
-#         # @param endpoint - string - optional - default: "0.0.0.0:4318"
-#         # @env DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT - string - optional - default: "0.0.0.0:4318"
+#         # @param endpoint - string - optional - default: "localhost:4318"
+#         # @env DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT - string - optional - default: "localhost:4318"
 #         # The OTLP/HTTP listener endpoint.
 #
-#         endpoint: 0.0.0.0:4318
+#         endpoint: localhost:4318
 
 #   # @param metrics - custom object - optional
 #   # Metrics-specific configuration for OTLP ingest in the Datadog Agent.
@@ -4910,16 +4873,16 @@ api_key:
 #
 #   debug:
 
-#     # @param verbosity - string - optional - default: "normal"
-#     # @env DD_OTLP_CONFIG_DEBUG_VERBOSITY - string - optional - default: "normal"
+#     # @param verbosity - string - optional - default: "basic"
+#     # @env DD_OTLP_CONFIG_DEBUG_VERBOSITY - string - optional - default: "basic"
 #     # Verbosity of debug logs when Datadog Agent receives otlp traces/metrics.
 #     # Valid values are basic, normal, detailed, none.
 #
-#     verbosity: normal
+#     verbosity: basic
 
 {{- end -}}
+{{- if .PrivateActionRunner }}
 
-{{ if .PrivateActionRunner -}}
 #########################################
 ## Private Action Runner Configuration ##
 #########################################
@@ -4946,16 +4909,13 @@ api_key:
 #
 #   self_enroll: true
 
-#   # @param actions_allowlist - list of strings - optional - default: {{ if eq .OS "windows" }}["com.datadoghq.script.runPredefinedPowershellScript"]{{ else }}["com.datadoghq.script.runPredefinedScript"]{{ end }}
-#   # @env DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST - comma separated list of strings - optional - default: {{ if eq .OS "windows" }}"com.datadoghq.script.runPredefinedPowershellScript"{{ else }}"com.datadoghq.script.runPredefinedScript"{{ end }}
+#   # @param actions_allowlist - list of strings - optional
+#   # @env DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST - comma separated list of strings - optional
 #   # List of actions that the Private Action Runner is allowed to execute.
 #   # See http://docs.datadoghq.com/actions/private_actions/use_private_actions#change-the-allowlist-of-a-runner
 #   # for the list of available actions.
 #
 #   actions_allowlist:
-{{ if (eq .OS "windows") -}}
-#     - com.datadoghq.script.runPredefinedPowershellScript
-{{ else -}}
-#     - com.datadoghq.script.runPredefinedScript
-{{ end -}}
+#     - com.datadoghq.script.runPredefinedPowershellScript   # on Windows
+#     - com.datadoghq.script.runPredefinedScript                       # on Linux and Darwin
 {{ end -}}
