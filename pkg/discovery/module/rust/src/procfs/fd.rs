@@ -38,6 +38,16 @@ struct FdInfo {
 
 pub fn get_open_files_info(pid: i32) -> Result<OpenFilesInfo, std::io::Error> {
     let fd_path = root_path().join(pid.to_string()).join("fd");
+    collect_open_files(&fd_path)
+}
+
+fn collect_open_files(fd_path: &Path) -> Result<OpenFilesInfo, std::io::Error> {
+    Ok(collect_from_entries(read_dir(fd_path)?))
+}
+
+fn collect_from_entries(
+    entries: impl Iterator<Item = std::io::Result<std::fs::DirEntry>>,
+) -> OpenFilesInfo {
     let mut result = OpenFilesInfo {
         sockets: Vec::new(),
         logs: Vec::new(),
@@ -46,8 +56,8 @@ pub fn get_open_files_info(pid: i32) -> Result<OpenFilesInfo, std::io::Error> {
         has_gpu_device: false,
     };
 
-    read_dir(fd_path)?
-        .map_while(|entry_result| entry_result.ok())
+    entries
+        .filter_map(|entry_result| entry_result.ok())
         .filter_map(|entry| {
             let path = entry.path();
             let link = read_link(&path).ok()?;
@@ -75,7 +85,7 @@ pub fn get_open_files_info(pid: i32) -> Result<OpenFilesInfo, std::io::Error> {
             }
         });
 
-    Ok(result)
+    result
 }
 
 pub fn get_log_files(pid: i32, candidates: &[FdPath]) -> Vec<String> {
@@ -677,6 +687,100 @@ mod tests {
             assert!(!is_gpu_device(Path::new("nvidia0")));
             assert!(!is_gpu_device(Path::new("/dev/nvidia 0")));
             assert!(!is_gpu_device(Path::new("/dev/NVIDIA0")));
+        }
+    }
+
+    /// Tests that `collect_from_entries` survives I/O errors mid-iteration.
+    ///
+    /// On `/proc/PID/fd/`, file descriptors open and close while we scan,
+    /// so `ReadDir` can yield transient `Err` items.
+    #[cfg(unix)]
+    #[allow(clippy::expect_used)]
+    mod collect_from_entries_resilience {
+        use std::fs;
+        use std::os::unix::fs::symlink;
+
+        use super::super::collect_from_entries;
+
+        /// Wraps a real `ReadDir` and injects one `Err` at position
+        /// `fault_at`, simulating an fd that vanished during enumeration.
+        struct FaultyReadDir {
+            inner: fs::ReadDir,
+            fault_at: usize,
+            index: usize,
+        }
+
+        impl Iterator for FaultyReadDir {
+            type Item = std::io::Result<fs::DirEntry>;
+
+            fn next(&mut self) -> Option<Self::Item> {
+                let i = self.index;
+                self.index += 1;
+                if i == self.fault_at {
+                    return Some(Err(std::io::Error::new(
+                        std::io::ErrorKind::NotFound,
+                        "simulated vanished fd",
+                    )));
+                }
+                self.inner.next()
+            }
+        }
+
+        #[test]
+        fn error_at_start_does_not_discard_remaining_entries() {
+            let dir = tempfile::TempDir::new().expect("Failed to create temp dir");
+            let fd_dir = dir.path();
+
+            // Symlink targets mimic real /proc/PID/fd/ readlink values.
+            // The targets need not exist on disk; read_link returns the
+            // raw symlink value regardless.
+            symlink("socket:[11111]", fd_dir.join("0")).expect("Failed to create symlink");
+            symlink("/var/log/app.log", fd_dir.join("1")).expect("Failed to create symlink");
+            symlink("socket:[22222]", fd_dir.join("2")).expect("Failed to create symlink");
+            symlink("/dev/nvidia0", fd_dir.join("3")).expect("Failed to create symlink");
+            symlink("socket:[33333]", fd_dir.join("4")).expect("Failed to create symlink");
+
+            let entries = FaultyReadDir {
+                inner: fs::read_dir(fd_dir).expect("Failed to read dir"),
+                fault_at: 0,
+                index: 0,
+            };
+
+            let info = collect_from_entries(entries);
+
+            assert_eq!(info.sockets.len(), 3, "expected 3 sockets");
+            assert!(info.sockets.contains(&11111));
+            assert!(info.sockets.contains(&22222));
+            assert!(info.sockets.contains(&33333));
+            assert_eq!(info.logs.len(), 1, "expected 1 log file");
+            assert!(info.has_gpu_device, "expected gpu device");
+        }
+
+        #[test]
+        fn error_mid_iteration_does_not_discard_remaining_entries() {
+            let dir = tempfile::TempDir::new().expect("Failed to create temp dir");
+            let fd_dir = dir.path();
+
+            symlink("socket:[11111]", fd_dir.join("0")).expect("Failed to create symlink");
+            symlink("/var/log/app.log", fd_dir.join("1")).expect("Failed to create symlink");
+            symlink("socket:[22222]", fd_dir.join("2")).expect("Failed to create symlink");
+            symlink("/dev/nvidia0", fd_dir.join("3")).expect("Failed to create symlink");
+            symlink("socket:[33333]", fd_dir.join("4")).expect("Failed to create symlink");
+
+            // Error at position 2: the first two real entries pass,
+            // then the error fires, then three more real entries follow.
+            // map_while would lose those last three.
+            let entries = FaultyReadDir {
+                inner: fs::read_dir(fd_dir).expect("Failed to read dir"),
+                fault_at: 2,
+                index: 0,
+            };
+
+            let info = collect_from_entries(entries);
+
+            // All 5 real entries must be present regardless of readdir order.
+            let total = info.sockets.len() + info.logs.len() + info.has_gpu_device as usize;
+            assert_eq!(total, 5, "all entries must survive the mid-iteration error");
         }
     }
 }
