@@ -9,7 +9,7 @@
 // Supported architectures: x86_64 (fsbase), ARM64 (tpidr_el0 / uw.tp_value).
 // The otel_tls BPF map is populated by user-space after parsing the ELF dynsym table
 // for the `otel_thread_ctx_v1` TLS symbol. No eRPC registration is used.
-// Support for additional runtimes (e.g., Go via pprof labels) will be added later.
+// Go runtime support uses pprof labels instead (see span_go.h).
 
 int __attribute__((always_inline)) unregister_otel_tls() {
     u64 pid_tgid = bpf_get_current_pid_tgid();
@@ -65,7 +65,7 @@ static int __attribute__((always_inline)) fill_span_context_otel(struct span_con
     }
 
     // Only resolve TLS-based context for native runtimes.
-    // Go uses a different mechanism (pprof labels) that will be added later.
+    // Go uses pprof labels instead (see span_go.h / fill_span_context_go).
     if (otls->runtime != OTEL_RUNTIME_NATIVE) {
         return 0;
     }

@@ -31,6 +31,9 @@ int __attribute__((always_inline)) unregister_span_memory() {
 // --- OTel Thread Local Context Record helpers (separate file) ---
 #include "span_otel.h"
 
+// --- Go pprof labels helpers (separate file) ---
+#include "span_go.h"
+
 // --- Unified span context fill ---
 
 void __attribute__((always_inline)) fill_span_context(struct span_context_t *span) {
@@ -57,6 +60,11 @@ void __attribute__((always_inline)) fill_span_context(struct span_context_t *spa
 
     // Fall back to OTel Thread Local Context Record (native applications only).
     if (fill_span_context_otel(span)) {
+        return;
+    }
+
+    // Fall back to Go pprof labels (dd-trace-go sets "span id" / "local root span id").
+    if (fill_span_context_go(span)) {
         return;
     }
 
