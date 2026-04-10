@@ -21,6 +21,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// dacDataset is the DAC dataset name for teeconfig diff logs, used to restrict log visibility to the agent-configuration team
+const dacDataset = "teeconfig_config_diffs"
+
 // teeConfig is a combination of two configs, both get written to but only baseline is read
 type teeConfig struct {
 	baseline   model.BuildableConfig
@@ -39,7 +42,7 @@ func (t *teeConfig) warnOnce(method, key, detailFormat string, detailArgs ...int
 	dedupKey := method + "(" + key + ")"
 	if _, loaded := t.loggedOnce.LoadOrStore(dedupKey, struct{}{}); !loaded {
 		detail := fmt.Sprintf(detailFormat, detailArgs...)
-		log.Warnf("difference in config: %s(%s) -> %s", method, key, detail)
+		log.Warnc(fmt.Sprintf("difference in config: %s(%s) -> %s", method, key, detail), "dac.dataset", dacDataset)
 	}
 }
 
@@ -186,7 +189,7 @@ func (t *teeConfig) AllKeysLowercased() []string {
 	compare := t.compare.AllKeysLowercased()
 	if !reflect.DeepEqual(base, compare) {
 		if _, loaded := t.loggedOnce.LoadOrStore("AllKeysLowercased()", struct{}{}); !loaded {
-			log.Warnf("difference in config: AllKeysLowercased() -> base len: %d | compare len: %d", len(base), len(compare))
+			log.Warnc(fmt.Sprintf("difference in config: AllKeysLowercased() -> base len: %d | compare len: %d", len(base), len(compare)), "dac.dataset", dacDataset)
 
 			i := 0
 			j := 0
@@ -198,10 +201,10 @@ func (t *teeConfig) AllKeysLowercased() []string {
 				}
 
 				if strings.Compare(base[i], compare[j]) == -1 {
-					log.Warnf("difference in config: allkeyslowercased() missing key in compare -> base[%d]: %#v", i, base[i])
+					log.Warnc(fmt.Sprintf("difference in config: allkeyslowercased() missing key in compare -> base[%d]: %#v", i, base[i]), "dac.dataset", dacDataset)
 					i++
 				} else {
-					log.Warnf("difference in config: allkeyslowercased() extra key in compare -> --- | compare[%d]: %#v", j, compare[j])
+					log.Warnc(fmt.Sprintf("difference in config: allkeyslowercased() extra key in compare -> --- | compare[%d]: %#v", j, compare[j]), "dac.dataset", dacDataset)
 					j++
 				}
 			}
@@ -473,14 +476,14 @@ func (t *teeConfig) AllSettings() map[string]interface{} {
 	compare := t.compare.AllSettings()
 	if !reflect.DeepEqual(base, compare) {
 		if _, loaded := t.loggedOnce.LoadOrStore("AllSettings()", struct{}{}); !loaded {
-			log.Warnf("difference in config: AllSettings() -> base len: %v | compare len: %v", len(base), len(compare))
+			log.Warnc(fmt.Sprintf("difference in config: AllSettings() -> base len: %v | compare len: %v", len(base), len(compare)), "dac.dataset", dacDataset)
 			for key := range base {
 				if _, ok := compare[key]; !ok {
-					log.Warnf("\titem %s missing from compare", key)
+					log.Warnc(fmt.Sprintf("\titem %s missing from compare", key), "dac.dataset", dacDataset)
 					continue
 				}
 				if !reflect.DeepEqual(base[key], compare[key]) {
-					log.Warnf("\titem %s: %#v | %#v", key, base[key], compare[key])
+					log.Warnc(fmt.Sprintf("\titem %s: %#v | %#v", key, base[key], compare[key]), "dac.dataset", dacDataset)
 				}
 				log.Flush()
 			}

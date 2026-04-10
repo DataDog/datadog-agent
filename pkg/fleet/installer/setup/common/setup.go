@@ -127,7 +127,9 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 
 	// Map DD_PRIVATE_ACTION_RUNNER_ENABLED env var into datadog.yaml
 	if parEnabledEnv := os.Getenv("DD_PRIVATE_ACTION_RUNNER_ENABLED"); strings.EqualFold(parEnabledEnv, "true") {
-		s.Config.DatadogYAML.AppKey = os.Getenv("DD_APP_KEY")
+		if appKey := os.Getenv("DD_APP_KEY"); appKey != "" {
+			s.Config.DatadogYAML.AppKey = appKey
+		}
 		s.Config.DatadogYAML.PrivateActionRunner.Enabled = config.BoolToPtr(true)
 		s.Config.DatadogYAML.PrivateActionRunner.SelfEnroll = config.BoolToPtr(true)
 		_, statErr := os.Stat(filepath.Join(paths.DatadogDataDir, "datadog.yaml"))

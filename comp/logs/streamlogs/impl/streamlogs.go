@@ -7,6 +7,7 @@
 package streamlogsimpl
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -131,7 +132,7 @@ func exportStreamLogs(la logsAgent.Component, logger logger.Component, streamLog
 }
 
 // exportStreamLogsIfEnabled streams logs to a file if the enable_streamlogs config is set
-func (sl *streamlogsimpl) exportStreamLogsIfEnabled(logsAgent logsAgent.Component, streamlogsLogFilePath string, fb flaretypes.FlareBuilder) error {
+func (sl *streamlogsimpl) exportStreamLogsIfEnabled(_ context.Context, logsAgent logsAgent.Component, streamlogsLogFilePath string, fb flaretypes.FlareBuilder) error {
 
 	slDuration := fb.GetFlareArgs().StreamLogsDuration
 	if slDuration <= 0 {
@@ -150,10 +151,10 @@ func (sl *streamlogsimpl) exportStreamLogsIfEnabled(logsAgent logsAgent.Componen
 // Currently flare args are only populated (and this function is only enabled) via
 // the RC flare generation flow. The goal is to shift other flare generation flows
 // to utilize this provider over time, which will require additional plumbing.
-func (sl *streamlogsimpl) fillFlare(fb flaretypes.FlareBuilder) error {
+func (sl *streamlogsimpl) fillFlare(ctx context.Context, fb flaretypes.FlareBuilder) error {
 	streamlogsLogFile := sl.config.GetString("logs_config.streaming.streamlogs_log_file")
 
-	if err := sl.exportStreamLogsIfEnabled(sl.logsAgent, streamlogsLogFile, fb); err != nil {
+	if err := sl.exportStreamLogsIfEnabled(ctx, sl.logsAgent, streamlogsLogFile, fb); err != nil {
 		return err
 	}
 

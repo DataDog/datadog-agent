@@ -1,15 +1,12 @@
 import multiprocessing
 import os
-import platform
 import subprocess
 import sys
-import zipfile
 from pathlib import Path
 from time import sleep
 
 from invoke import Context, Exit, task
 
-from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.go import download_go_dependencies
 from tasks.libs.common.utils import environ, get_gobin, gitlab_section, link_or_copy
@@ -28,13 +25,9 @@ TOOL_LIST = [
     'github.com/aarzilli/whydeadcode',
 ]
 
+# TODO(agent-build): replace `//go:generate mockgen` by `//go:generate go run github.com/golang/mock/mockgen` to remove:
 TOOL_LIST_PROTO = [
-    'github.com/favadi/protoc-go-inject-tag',
-    'google.golang.org/protobuf/cmd/protoc-gen-go',
-    'google.golang.org/grpc/cmd/protoc-gen-go-grpc',
     'github.com/golang/mock/mockgen',
-    'github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto',
-    'github.com/tinylib/msgp',
 ]
 
 TOOLS = {
@@ -133,48 +126,6 @@ def install_rust_license_tool(ctx):
     """
     ctx.run("cargo install --git https://github.com/DataDog/rust-license-tool dd-rust-license-tool")
     ctx.run("cargo install cargo-deny --locked")
-
-
-@task
-def install_protoc(ctx, version=None):
-    """
-    Installs the requested version of protoc in the specified folder (by default /usr/local/bin).
-    Required generate the golang code based on .prod (dda inv protobuf.generate).
-    """
-    if version is None:
-        version_file = ".protoc-version"
-        with open(version_file) as f:
-            version = f.read().strip()
-    if sys.platform == 'win32':
-        print("protoc is not supported on Windows")
-        raise Exit(code=1)
-    if sys.platform.startswith('darwin'):
-        platform_os = "osx"
-    if sys.platform.startswith('linux'):
-        platform_os = "linux"
-
-    platform_arch = platform.machine().lower()
-    if platform_arch == "amd64":
-        platform_arch = "x86_64"
-    elif platform_arch in {"aarch64", "arm64"}:
-        platform_arch = "aarch_64"
-
-    # Download the artifact thanks to the Github API class
-    artifact_url = f"https://github.com/protocolbuffers/protobuf/releases/download/v{version}/protoc-{version}-{platform_os}-{platform_arch}.zip"
-    zip_path = "/tmp"
-    zip_name = "protoc"
-    zip_file = os.path.join(zip_path, f"{zip_name}.zip")
-
-    gh = GithubAPI(public_repo=True)
-    # the download_from_url expect to have the path and the name of the file separated and without the extension
-    gh.download_from_url(artifact_url, zip_path, zip_name)
-
-    # Unzip it in the target destination
-    destination = os.path.join(Path.home(), ".local")
-    with zipfile.ZipFile(zip_file, "r") as zip_ref:
-        zip_ref.extract('bin/protoc', path=destination)
-    ctx.run(f"chmod +x {destination}/bin/protoc")
-    ctx.run(f"rm {zip_file}")
 
 
 @task
