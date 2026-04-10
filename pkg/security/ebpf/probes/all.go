@@ -283,6 +283,10 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 			MaxEntries: uint32(opts.SpanTrackMaxCount),
 			EditorFlag: manager.EditMaxEntries,
 		},
+		"go_labels_procs": {
+			MaxEntries: uint32(opts.SpanTrackMaxCount),
+			EditorFlag: manager.EditMaxEntries,
+		},
 		"capabilities_usage": {
 			MaxEntries: capabilitiesUsageMaxEntries,
 			EditorFlag: manager.EditMaxEntries,

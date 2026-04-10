@@ -86,6 +86,7 @@ type EBPFResolver struct {
 	pidCacheMap  ebpf.Map
 	pathIDMap    ebpf.Map
 	otelTLSMap   ebpf.Map
+	goLabelsMap  ebpf.Map
 	opts         ResolverOpts
 
 	// stats
@@ -1437,12 +1438,19 @@ func (p *EBPFResolver) AddTracerMetadata(pid uint32, event *model.Event) error {
 	}
 	p.Unlock()
 
-	// Attempt OTel TLS resolution. Done outside the lock to avoid holding it
-	// during ELF I/O. Non-fatal: the symbol may not be present if the application
-	// doesn't use OTel thread-local context.
-	if p.otelTLSMap != nil {
-		if err := p.resolveAndUpdateOTelTLS(pid, tmeta.TracerLanguage); err != nil {
-			seclog.Debugf("OTel TLS resolution for pid %d: %s", pid, err)
+	// Attempt span context resolution based on the tracer language.
+	// Done outside the lock to avoid holding it during ELF I/O.
+	if tmeta.TracerLanguage == "go" {
+		// Go: resolve pprof label offsets for goroutine-level span context.
+		if err := p.resolveGoLabels(pid); err != nil {
+			seclog.Debugf("Go labels resolution for pid %d: %s", pid, err)
+		}
+	} else {
+		// Native: resolve OTel TLS symbol for TLSDESC-based span context.
+		if p.otelTLSMap != nil {
+			if err := p.resolveAndUpdateOTelTLS(pid, tmeta.TracerLanguage); err != nil {
+				seclog.Debugf("OTel TLS resolution for pid %d: %s", pid, err)
+			}
 		}
 	}
 
@@ -1527,8 +1535,9 @@ func (p *EBPFResolver) Start(ctx context.Context) error {
 		return err
 	}
 
-	// otel_tls map is optional — non-fatal if not found.
+	// otel_tls and go_labels_procs maps are optional — non-fatal if not found.
 	p.otelTLSMap, _ = managerhelper.Map(p.manager, "otel_tls")
+	p.goLabelsMap, _ = managerhelper.Map(p.manager, "go_labels_procs")
 
 	go p.cacheFlush(ctx)
 
