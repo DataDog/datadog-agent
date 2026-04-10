@@ -400,7 +400,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/trace/version
 # gazelle:exclude pkg/trace/watchdog
 # gazelle:exclude pkg/trace/writer
-# gazelle:exclude pkg/util/aggregatingqueue
 # gazelle:exclude pkg/util/archive
 # gazelle:exclude pkg/util/atomicstats
 # gazelle:exclude pkg/util/cli
