@@ -12,8 +12,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/client"
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/client"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -80,32 +80,32 @@ func TestResolveImageNameFromContainer(t *testing.T) {
 		{
 			name: "test empty config image name",
 			input: container.InspectResponse{
-				ContainerJSONBase: &container.ContainerJSONBase{Image: imageSha},
-				Config:            &container.Config{},
+				Image:  imageSha,
+				Config: &container.Config{},
 			},
 			expectedImage: imageName,
 		},
 		{
 			name: "test standard config image name",
 			input: container.InspectResponse{
-				ContainerJSONBase: &container.ContainerJSONBase{Image: "ignored"},
-				Config:            &container.Config{Image: imageName},
+				Image:  "ignored",
+				Config: &container.Config{Image: imageName},
 			},
 			expectedImage: imageName,
 		},
 		{
 			name: "test config image name as sha tag",
 			input: container.InspectResponse{
-				ContainerJSONBase: &container.ContainerJSONBase{Image: imageSha},
-				Config:            &container.Config{Image: imageSha},
+				Image:  imageSha,
+				Config: &container.Config{Image: imageSha},
 			},
 			expectedImage: imageName,
 		},
 		{
 			name: "test config image name with sha tag",
 			input: container.InspectResponse{
-				ContainerJSONBase: &container.ContainerJSONBase{Image: imageSha},
-				Config:            &container.Config{Image: imageWithShaTag},
+				Image:  imageSha,
+				Config: &container.Config{Image: imageWithShaTag},
 			},
 			expectedImage: imageName,
 		},
@@ -124,7 +124,7 @@ func TestResolveImageNameFromContainerError(t *testing.T) {
 	assert := assert.New(t)
 
 	// This returns a nil client because the transport verification fails
-	cli, _ := client.NewClientWithOpts(client.FromEnv)
+	cli, _ := client.New(client.FromEnv)
 
 	globalDockerUtil = &DockerUtil{
 		cfg:            &Config{CollectNetwork: false},
@@ -133,8 +133,8 @@ func TestResolveImageNameFromContainerError(t *testing.T) {
 	}
 
 	input := container.InspectResponse{
-		ContainerJSONBase: &container.ContainerJSONBase{Image: imageSha},
-		Config:            &container.Config{Image: imageSha},
+		Image:  imageSha,
+		Config: &container.Config{Image: imageSha},
 	}
 
 	result, err := globalDockerUtil.ResolveImageNameFromContainer(ctx, input)

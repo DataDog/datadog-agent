@@ -12,8 +12,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/docker/docker/api/types/swarm"
-	"github.com/docker/docker/client"
+	"github.com/moby/moby/api/types/swarm"
+	"github.com/moby/moby/client"
 )
 
 // GetTags returns tags that are automatically added to metrics and events on a
@@ -28,16 +28,16 @@ func GetTags(ctx context.Context) ([]string, error) {
 	return getTags(ctx, du.cli)
 }
 
-func getTags(ctx context.Context, client client.SystemAPIClient) ([]string, error) {
+func getTags(ctx context.Context, c client.SystemAPIClient) ([]string, error) {
 	tags := []string{}
-	info, err := client.Info(ctx)
+	result, err := c.Info(ctx, client.InfoOptions{})
 	if err != nil {
 		return tags, err
 	}
-	switch info.Swarm.LocalNodeState {
+	switch result.Info.Swarm.LocalNodeState {
 	case swarm.LocalNodeStateActive:
 		nodeRole := swarm.NodeRoleWorker
-		if info.Swarm.ControlAvailable {
+		if result.Info.Swarm.ControlAvailable {
 			nodeRole = swarm.NodeRoleManager
 		}
 		tags = append(tags, fmt.Sprintf("docker_swarm_node_role:%s", nodeRole))

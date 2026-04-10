@@ -224,6 +224,9 @@ func ConvertDDSketchIntoSketch(inputSketch *ddsketch.DDSketch) (*Sketch, error) 
 	if err != nil {
 		return nil, fmt.Errorf("couldn't convert input ddsketch into ddsketch with compatible parameters: %w", err)
 	}
+	// Return the intermediate sketch's pooled stores once we are done reading them.
+	defer putDenseStore(compatibleDDSketch.GetPositiveValueStore())
+	defer putDenseStore(compatibleDDSketch.GetNegativeValueStore())
 
 	outputSketch, err := convertDDSketchIntoSketch(sketchConfig, compatibleDDSketch)
 	if err != nil {
