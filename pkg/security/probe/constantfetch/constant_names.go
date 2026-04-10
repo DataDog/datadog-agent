@@ -133,7 +133,9 @@ const (
 	OffsetNameNsproxyNetNs = "nsproxy_net_ns_offset"
 
 	// Interpreter constants
-	OffsetNameLinuxBinprmStructFile = "binprm_file_offset"
+	OffsetNameLinuxBinprmStructFile     = "binprm_file_offset"
+	OffsetNameLinuxBinprmStructFilename = "linux_binprm_filename_offset"
+	OffsetNameLinuxBinprmStructInterp   = "linux_binprm_interp_offset"
 
 	// cgroup constants
 	OffsetNameCgroupDentry = "cgroup_dentry_offset"

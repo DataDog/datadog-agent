@@ -664,11 +664,16 @@ int __attribute__((always_inline)) fetch_interpreter(void *ctx, struct linux_bin
 
     bpf_printk("interpreter file: %llx", interpreter);
 
+    u64 binprm_filename_offset;
+    LOAD_CONSTANT("linux_binprm_filename_offset", binprm_filename_offset);
+    u64 binprm_interp_offset;
+    LOAD_CONSTANT("linux_binprm_interp_offset", binprm_interp_offset);
+
     const char *s;
-    bpf_probe_read(&s, sizeof(s), &bprm->filename);
+    bpf_probe_read(&s, sizeof(s), (char *)bprm + binprm_filename_offset);
     bpf_printk("*filename from binprm: %s", s);
 
-    bpf_probe_read(&s, sizeof(s), &bprm->interp);
+    bpf_probe_read(&s, sizeof(s), (char *)bprm + binprm_interp_offset);
     bpf_printk("*interp from binprm: %s", s);
 #endif
 
