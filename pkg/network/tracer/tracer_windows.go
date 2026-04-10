@@ -66,7 +66,8 @@ type Tracer struct {
 	// windows event handle for stopping the closed connection event loop
 	hStopClosedLoopEvent windows.Handle
 
-	processCache *processCache
+	processCache  *processCache
+	vpnClassifier *VPNClassifier
 }
 
 // NewTracer returns an initialized tracer struct
@@ -123,6 +124,8 @@ func NewTracer(config *config.Config, telemetry telemetry.Component, _ statsd.Cl
 		destExcludes:         filter.ParseConnectionFilters(config.ExcludedDestinationConnections),
 		hStopClosedLoopEvent: stopEvent,
 	}
+	tr.vpnClassifier = NewVPNClassifier()
+
 	if config.EnableProcessEventMonitoring {
 		if tr.processCache, err = newProcessCache(config.MaxProcessesTracked); err != nil {
 			return nil, fmt.Errorf("could not create process cache; %w", err)
@@ -163,6 +166,7 @@ func NewTracer(config *config.Config, telemetry telemetry.Component, _ statsd.Cl
 
 				for i := range closedConnStats {
 					tr.addProcessInfo(&closedConnStats[i])
+					tr.addVPNInfo(&closedConnStats[i])
 					tr.state.StoreClosedConnection(&closedConnStats[i])
 				}
 
@@ -185,6 +189,9 @@ func (t *Tracer) Stop() {
 		_ = t.usmMonitor.Stop()
 	}
 	t.reverseDNS.Close()
+	if t.vpnClassifier != nil {
+		t.vpnClassifier.Close()
+	}
 
 	windows.SetEvent(t.hStopClosedLoopEvent)
 	t.closedEventLoop.Wait()
@@ -228,9 +235,11 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, fu
 
 	for i := range activeConnStats {
 		t.addProcessInfo(&activeConnStats[i])
+		t.addVPNInfo(&activeConnStats[i])
 	}
 	for i := range closedConnStats {
 		t.addProcessInfo(&closedConnStats[i])
+		t.addVPNInfo(&closedConnStats[i])
 		t.state.StoreClosedConnection(&closedConnStats[i])
 	}
 
@@ -368,4 +377,22 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 	if p.ContainerID != nil {
 		c.ContainerID.Source = p.ContainerID
 	}
+}
+
+func (t *Tracer) addVPNInfo(c *network.ConnectionStats) {
+	if t.vpnClassifier == nil || c.InterfaceIndex == 0 {
+		return
+	}
+	result := t.vpnClassifier.Classify(c.InterfaceIndex)
+	if !result.IsVPN {
+		log.Debugf("vpnclassifier: ifIndex=%d not classified as VPN", c.InterfaceIndex)
+		return
+	}
+	log.Infof("vpnclassifier: tagging connection ifIndex=%d as vpn_name:%s vpn_type:%s", c.InterfaceIndex, result.VPNName, result.VPNType)
+	c.Tags = append(c.Tags,
+		intern.GetByString("is_vpn:true"),
+		intern.GetByString("vpn_name:"+result.VPNName),
+		intern.GetByString("vpn_type:"+result.VPNType),
+		intern.GetByString("vpn_interface:"+result.Interface),
+	)
 }

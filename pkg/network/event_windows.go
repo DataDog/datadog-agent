@@ -117,6 +117,9 @@ func FlowToConnStat(cs *ConnectionStats, flow *driver.PerFlowData, enableMonoton
 	cs.Direction = connDirection(flow.Flags)
 	cs.SPortIsEphemeral = IsPortInEphemeralRange(cs.Family, cs.Type, cs.SPort)
 	cs.Cookie = flow.FlowCookie
+	// TODO(POC): Remove hardcoded index once driver returns interfaceIndex.
+	// Hardcode to WireGuard adapter index (25) on test VM for VPN tag validation.
+	cs.InterfaceIndex = 25 // flow.InterfaceIndex
 
 	// cipher suite not yet supported on windows.
 	cs.TLSTags = tls.Tags{

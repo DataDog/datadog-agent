@@ -16,7 +16,7 @@ typedef __int64 LONG64;
 typedef unsigned char       uint8_t;
 
 // define a version signature so that the driver won't load out of date structures, etc.
-#define DD_NPMDRIVER_VERSION       0x17
+#define DD_NPMDRIVER_VERSION       0x18
 #define DD_NPMDRIVER_SIGNATURE     ((uint64_t)0xDDFD << 32 | DD_NPMDRIVER_VERSION)
 
 // for more information on defining control codes, see
@@ -307,6 +307,9 @@ typedef struct _userFlowData {
     } protocol_u;
 
     uint16_t tls_cipher_suite;
+
+    uint16_t _pad_iface;       // alignment padding
+    uint32_t interfaceIndex;   // network interface index from WFP classify
 } USER_FLOW_DATA;
 
 #define CLASSIFICATION_UNCLASSIFIED                 (0)

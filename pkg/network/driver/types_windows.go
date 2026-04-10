@@ -3,6 +3,7 @@
 
 package driver
 
+// TODO(POC): Revert to 0xddfd00000018 once driver is rebuilt with interfaceIndex field
 const Signature = 0xddfd00000017
 
 const (
@@ -137,6 +138,8 @@ type PerFlowData struct {
 	Tls_alpn_chosen          uint64
 	Protocol_u               [36]byte
 	Tls_cipher_suite         uint16
+	_PadIface                uint16
+	InterfaceIndex           uint32
 }
 type TCPFlowData struct {
 	IRTT             uint64
@@ -149,7 +152,7 @@ type UDPFlowData struct {
 	Reserved uint64
 }
 
-const PerFlowDataSize = 0xbe
+const PerFlowDataSize = 0xc4
 
 const (
 	FlowDirectionMask     = 0x300
