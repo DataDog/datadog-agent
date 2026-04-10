@@ -44,7 +44,7 @@ go_test(
     name = "grpc_test",
     srcs = ["agent_client_test.go"],
     embed = [":grpc"],
-    gotags = ["test"],
+    gotags = ["test"],  # keep: log.Default from pkg/util/log; nodetreemodel test-only assert
     deps = [
         "//pkg/util/log",
         "@com_github_stretchr_testify//assert",

@@ -400,6 +400,7 @@ func TestNewBuiltinCRDConfigs(t *testing.T) {
 	expectedConfigs := []string{
 		// Datadog resources
 		"datadoghq.com/v1alpha2/datadogpodautoscalers",
+		"datadoghq.com/v1alpha2/datadogpodautoscalerclusterprofiles",
 		"datadoghq.com/v2alpha1/datadogagents",
 		"datadoghq.com/v1alpha1/datadogslos",
 		"datadoghq.com/v1alpha1/datadogdashboards",

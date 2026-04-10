@@ -1,0 +1,13 @@
+{
+  "enabledPlugins": {
+    "datadog-agent-gopls@datadog-agent-local": true
+  },
+  "extraKnownMarketplaces": {
+    "datadog-agent-local": {
+      "source": {
+        "source": "directory",
+        "path": ".claude-plugins"
+      }
+    }
+  }
+}

@@ -4,6 +4,7 @@
 // Copyright 2026-present Datadog, Inc.
 
 use anyhow::Result;
+use std::path::PathBuf;
 
 /// Configure the child process for Windows: create a new process group
 /// and assign to a Job Object so all descendants can be managed together.
@@ -24,6 +25,11 @@ pub fn send_force_kill(_pid: u32) -> Result<()> {
 /// On Windows, processes don't have Unix signals.
 pub fn last_signal(_status: &std::process::ExitStatus) -> Option<i32> {
     None
+}
+
+pub fn default_config_dir() -> PathBuf {
+    let base = std::env::var("ProgramData").unwrap_or_else(|_| r"C:\ProgramData".to_string());
+    PathBuf::from(base).join(r"Datadog\dd-procmgr\processes.d")
 }
 
 /// Wait for a shutdown trigger (Ctrl+C or service stop event).

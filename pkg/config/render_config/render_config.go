@@ -8,11 +8,11 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"html/template"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"text/template"
 
 	"github.com/pmezard/go-difflib/difflib"
 	"go.yaml.in/yaml/v3"
@@ -39,7 +39,6 @@ type context struct {
 	AdmissionController bool
 	CloudFoundry        bool
 	PrivateActionRunner bool
-	SecurityAgent       bool
 }
 
 func mkContext(buildType string, osName string) context {

@@ -29,6 +29,8 @@ decided at runtime by the Agent, OS based description and more.
 #     windows: c:\programdata\datadog\logs
 
 core_defaults = {
+    "container_cgroup_root": "/host/sys/fs/cgroup/",
+    "container_proc_root": "/host/proc",
     "sbom.cache_directory": "${run_path}/sbom-agent",
     "agent_ipc.socket_path": "${run_path}/agent_ipc.socket",
     "logs_config.open_files_limit": {
@@ -133,6 +135,9 @@ def fix_defaults(core_schema, sysprobe_schema):
             node = schema
             for k in key.split("."):
                 node = node["properties"][k]
+
+            if "example" in node:
+                del node["example"]
 
             if isinstance(default, str):
                 node["default"] = default
