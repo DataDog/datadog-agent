@@ -328,6 +328,13 @@
         "trace_id": {
           "type": "string",
           "description": "Trace ID used for APM correlation"
+        },
+        "attributes": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object",
+          "description": "Attributes contains custom OTel thread-local attributes from the span context"
         }
       },
       "additionalProperties": false,
@@ -2268,6 +2275,12 @@
         },
         "logs_collected": {
           "type": "boolean"
+        },
+        "threadlocal_attribute_keys": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
         }
       },
       "additionalProperties": false,

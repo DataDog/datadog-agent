@@ -213,16 +213,23 @@ static void u64_to_be_bytes(uint64_t val, uint8_t *out) {
 // Create and seal a tracer-info memfd with native (cpp) tracer metadata.
 // This triggers the agent's memfd seal event, which in turn triggers ELF dynsym
 // resolution for the otel_thread_ctx_v1 TLS symbol.
+// Includes threadlocal_attribute_keys so the agent can parse attrs_data.
 // Returns the fd (kept open so the agent can read via /proc/pid/fd/).
 static int create_tracer_memfd() {
-    // Msgpack-encoded TracerMetadata with tracer_language="cpp".
+    // Msgpack-encoded TracerMetadata with tracer_language="cpp" and
+    // threadlocal_attribute_keys=["http.method", "http.target", "http.user"].
     const char tracer_data[] =
-        "\x85"                              // fixmap with 5 entries
-        "\xae" "schema_version" "\x02"      // "schema_version": 2
-        "\xaf" "tracer_language" "\xa3" "cpp" // "tracer_language": "cpp"
-        "\xae" "tracer_version" "\xa5" "0.0.1" // "tracer_version": "0.0.1"
-        "\xa8" "hostname" "\xa4" "test"     // "hostname": "test"
-        "\xac" "service_name" "\xa8" "oteltest"; // "service_name": "oteltest"
+        "\x86"                                    // fixmap with 6 entries
+        "\xae" "schema_version" "\x02"            // "schema_version": 2
+        "\xaf" "tracer_language" "\xa3" "cpp"     // "tracer_language": "cpp"
+        "\xae" "tracer_version" "\xa5" "0.0.1"   // "tracer_version": "0.0.1"
+        "\xa8" "hostname" "\xa4" "test"           // "hostname": "test"
+        "\xac" "service_name" "\xa8" "oteltest"   // "service_name": "oteltest"
+        "\xba" "threadlocal_attribute_keys"       // key (26 chars = 0xa0 | 26 = 0xba)
+        "\x93"                                    // fixarray with 3 elements
+        "\xab" "http.method"                      // str (11 chars)
+        "\xab" "http.target"                      // str (11 chars)
+        "\xa9" "http.user";                       // str (9 chars)
 
     int fd = memfd_create("datadog-tracer-info-oteltest", MFD_ALLOW_SEALING);
     if (fd < 0) {
@@ -245,6 +252,13 @@ static int create_tracer_memfd() {
 
     return fd;
 }
+
+// OTel Thread Local Context Record with inline attrs_data buffer.
+// Used for testing: 28-byte header + up to 64 bytes of attrs.
+struct otel_record_with_attrs {
+    struct otel_thread_ctx_record header;
+    uint8_t attrs_data[64];
+};
 
 struct otel_thread_opts {
     char **argv;
@@ -270,27 +284,45 @@ static void *thread_otel_open(void *data) {
     otel_thread_ctx_v1 = NULL;
     __atomic_signal_fence(__ATOMIC_SEQ_CST);
 
-    // Step 2: Build the record in a separate buffer.
+    // Step 2: Build the record with custom attributes in a separate buffer.
     __int128_t trace_id = atouint128(opts->argv[1]);
     uint64_t span_id = (uint64_t)atol(opts->argv[2]);
 
-    struct otel_thread_ctx_record record;
-    memset(&record, 0, sizeof(record));
+    struct otel_record_with_attrs full_record;
+    memset(&full_record, 0, sizeof(full_record));
 
     uint64_t trace_hi = (uint64_t)(trace_id >> 64);
     uint64_t trace_lo = (uint64_t)(trace_id);
-    u64_to_be_bytes(trace_hi, &record.trace_id[0]);
-    u64_to_be_bytes(trace_lo, &record.trace_id[8]);
-    u64_to_be_bytes(span_id, record.span_id);
-    record.attrs_data_size = 0;
+    u64_to_be_bytes(trace_hi, &full_record.header.trace_id[0]);
+    u64_to_be_bytes(trace_lo, &full_record.header.trace_id[8]);
+    u64_to_be_bytes(span_id, full_record.header.span_id);
+
+    // Build attrs_data: repeated [key(u8) + length(u8) + val(u8[length])]
+    // Attr 0: key=0 ("http.method"),  len=3,  val="GET"
+    // Attr 1: key=1 ("http.target"),  len=5,  val="/test"
+    // Attr 2: key=2 ("http.user"),    len=18, val="will@datadoghq.com"
+    uint8_t *p = full_record.attrs_data;
+    int off = 0;
+
+    p[off++] = 0; p[off++] = 3;
+    memcpy(&p[off], "GET", 3); off += 3;
+
+    p[off++] = 1; p[off++] = 5;
+    memcpy(&p[off], "/test", 5); off += 5;
+
+    p[off++] = 2; p[off++] = 18;
+    memcpy(&p[off], "will@datadoghq.com", 18); off += 18;
+
+    full_record.header.attrs_data_size = off;
 
     // Step 3: Mark the record as valid.
     __atomic_signal_fence(__ATOMIC_SEQ_CST);
-    record.valid = 1;
+    full_record.header.valid = 1;
 
-    // Step 4: Publish the pointer to the record.
+    // Step 4: Publish the pointer to the record header.
+    // The eBPF code reads the 28-byte header first, then attrs_data from header+28.
     __atomic_signal_fence(__ATOMIC_SEQ_CST);
-    otel_thread_ctx_v1 = &record;
+    otel_thread_ctx_v1 = &full_record.header;
     __atomic_signal_fence(__ATOMIC_SEQ_CST);
 
     // Trigger the syscall that the test is waiting for.
@@ -1521,6 +1553,48 @@ int test_tracer_memfd(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
+int test_tracer_memfd_with_keys(int argc, char **argv) {
+    // TracerMetadata with threadlocal_attribute_keys=["http.method", "http.target", "http.user"]
+    const char tracer_data[] =
+        "\x89"                                    // fixmap with 9 entries
+        "\xae" "schema_version" "\x02"            // "schema_version": 2
+        "\xaf" "tracer_language" "\xa3" "cpp"     // "tracer_language": "cpp"
+        "\xae" "tracer_version" "\xa5" "0.0.1"   // "tracer_version": "0.0.1"
+        "\xa8" "hostname" "\xa4" "test"           // "hostname": "test"
+        "\xac" "service_name"
+        "\xac" "test-service"
+        "\xab" "service_env"
+        "\xa8" "test-env"
+        "\xaf" "service_version"
+        "\xa5" "1.0.0"
+        "\xac" "process_tags"
+        "\xb0" "custom.tag:value"
+        "\xba" "threadlocal_attribute_keys"       // key (26 chars)
+        "\x93"                                    // fixarray with 3 elements
+        "\xab" "http.method"                      // str (11 chars)
+        "\xab" "http.target"                      // str (11 chars)
+        "\xa9" "http.user";                       // str (9 chars)
+
+    int fd = memfd_create("datadog-tracer-info-keytest0", MFD_ALLOW_SEALING);
+    if (fd < 0) {
+        err(1, "%s failed", "memfd_create");
+    }
+
+    ssize_t written = write(fd, tracer_data, sizeof(tracer_data) - 1);
+    if (written != (ssize_t)(sizeof(tracer_data) - 1)) {
+        err(1, "%s failed: wrote %zd bytes, expected %lu", "write", written, sizeof(tracer_data) - 1);
+    }
+
+    if (fcntl(fd, F_ADD_SEALS, F_SEAL_WRITE | F_SEAL_SHRINK | F_SEAL_GROW) < 0) {
+        err(1, "%s failed", "fcntl F_ADD_SEALS");
+    }
+
+    sleep(3);
+
+    close(fd);
+    return EXIT_SUCCESS;
+}
+
 int test_new_netns_exec(int argc, char **argv) {
     if (argc < 2) {
         fprintf(stderr, "Please specify at least an executable path\n");
@@ -2377,6 +2451,8 @@ int main(int argc, char **argv) {
             exit_code = test_memfd_create(sub_argc, sub_argv);
         } else if (strcmp(cmd, "tracer-memfd") == 0) {
             exit_code = test_tracer_memfd(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "tracer-memfd-with-keys") == 0) {
+            exit_code = test_tracer_memfd_with_keys(sub_argc, sub_argv);
         } else if (strcmp(cmd, "new_netns_exec") == 0) {
             exit_code = test_new_netns_exec(sub_argc, sub_argv);
         } else if (strcmp(cmd, "slow-cat") == 0) {

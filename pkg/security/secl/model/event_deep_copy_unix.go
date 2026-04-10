@@ -415,6 +415,7 @@ func deepCopyTracerMetadata(fieldToCopy tracermetadata.TracerMetadata) tracermet
 	copied.ServiceEnv = fieldToCopy.ServiceEnv
 	copied.ServiceName = fieldToCopy.ServiceName
 	copied.ServiceVersion = fieldToCopy.ServiceVersion
+	copied.ThreadlocalAttributeKeys = deepCopystringArr(fieldToCopy.ThreadlocalAttributeKeys)
 	copied.TracerLanguage = fieldToCopy.TracerLanguage
 	copied.TracerVersion = fieldToCopy.TracerVersion
 	return copied
@@ -1122,6 +1123,8 @@ func deepCopySignalEvent(fieldToCopy SignalEvent) SignalEvent {
 }
 func deepCopySpanContext(fieldToCopy SpanContext) SpanContext {
 	copied := SpanContext{}
+	copied.Attributes = deepCopystringMap(fieldToCopy.Attributes)
+	copied.HasExtraAttrs = fieldToCopy.HasExtraAttrs
 	copied.SpanID = fieldToCopy.SpanID
 	copied.TraceID = deepCopyTraceID(fieldToCopy.TraceID)
 	return copied

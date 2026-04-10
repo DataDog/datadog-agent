@@ -10,6 +10,7 @@ package probe
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"math"
@@ -19,6 +20,7 @@ import (
 	"runtime"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -157,8 +159,11 @@ type EBPFProbe struct {
 	discarderPushedCallbacksLock sync.RWMutex
 	discarderRateLimiter         *rate.Limiter
 
+	// OTel span attributes
+	otelSpanAttrsMap *lib.Map
+
 	// kill action
-	killListMap           *lib.Map
+	killListMap *lib.Map
 	supportsBPFSendSignal bool
 	processKiller         *ProcessKiller
 
@@ -580,6 +585,9 @@ func (p *EBPFProbe) Init() error {
 	}
 
 	p.eventStream.SetMonitor(p.monitors.eventStreamMonitor)
+
+	// otel_span_attrs map is optional — non-fatal if not found.
+	p.otelSpanAttrsMap, _ = managerhelper.Map(p.Manager, "otel_span_attrs")
 
 	p.killListMap, err = managerhelper.Map(p.Manager, "kill_list")
 	if err != nil {
@@ -1037,6 +1045,66 @@ func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event, cgroupCon
 	return read, nil
 }
 
+// resolveOTelSpanAttrs looks up OTel custom attributes from the otel_span_attrs BPF map
+// and parses them using the ThreadlocalAttributeKeys from the process's TracerMetadata.
+func (p *EBPFProbe) resolveOTelSpanAttrs(event *model.Event) {
+	// Build the map key: span_id + trace_id[2]
+	key := make([]byte, 24)
+	binary.NativeEndian.PutUint64(key[0:8], event.SpanContext.SpanID)
+	binary.NativeEndian.PutUint64(key[8:16], event.SpanContext.TraceID.Lo)
+	binary.NativeEndian.PutUint64(key[16:24], event.SpanContext.TraceID.Hi)
+
+	data, err := p.otelSpanAttrsMap.LookupBytes(key)
+	if err != nil || len(data) < 2 {
+		return
+	}
+
+	// Delete the entry after reading (one-shot consumption).
+	_ = p.otelSpanAttrsMap.Delete(key)
+
+	// Parse the value: u16 size + data[OTEL_ATTRS_MAX_SIZE]
+	size := binary.NativeEndian.Uint16(data[0:2])
+	if size == 0 || int(size)+2 > len(data) {
+		return
+	}
+	attrsData := data[2 : 2+size]
+
+	// Get the ThreadlocalAttributeKeys from the process's TracerMetadata.
+	// ProcessContext may not be resolved yet at unmarshal time, so guard against nil.
+	var keyNames []string
+	if event.ProcessContext != nil {
+		keyNames = event.ProcessContext.Process.TracerMetadata.ThreadlocalAttributeKeys
+	}
+
+	// Parse attrs_data: repeated [key(u8) + length(u8) + val(u8[length])]
+	attrs := make(map[string]string)
+	off := 0
+	for off+2 <= len(attrsData) {
+		keyIdx := attrsData[off]
+		valLen := int(attrsData[off+1])
+		off += 2
+
+		if off+valLen > len(attrsData) {
+			break
+		}
+		val := string(attrsData[off : off+valLen])
+		off += valLen
+
+		// Map key index to attribute name.
+		var keyName string
+		if int(keyIdx) < len(keyNames) {
+			keyName = keyNames[keyIdx]
+		} else {
+			keyName = strconv.Itoa(int(keyIdx))
+		}
+		attrs[keyName] = val
+	}
+
+	if len(attrs) > 0 {
+		event.SpanContext.Attributes = attrs
+	}
+}
+
 func eventWithNoProcessContext(eventType model.EventType) bool {
 	switch eventType {
 	case model.ShortDNSResponseEventType,
@@ -1253,6 +1321,11 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	// resolve process context
 	if !p.setProcessContext(eventType, event, newEntryCb) {
 		return
+	}
+
+	// Resolve OTel custom attributes now that process context (and TracerMetadata) is available.
+	if event.SpanContext.HasExtraAttrs && p.otelSpanAttrsMap != nil {
+		p.resolveOTelSpanAttrs(event)
 	}
 
 	// handle regular events

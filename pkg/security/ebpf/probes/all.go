@@ -287,6 +287,10 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 			MaxEntries: uint32(opts.SpanTrackMaxCount),
 			EditorFlag: manager.EditMaxEntries,
 		},
+		"otel_span_attrs": {
+			MaxEntries: uint32(opts.SpanTrackMaxCount),
+			EditorFlag: manager.EditMaxEntries,
+		},
 		"capabilities_usage": {
 			MaxEntries: capabilitiesUsageMaxEntries,
 			EditorFlag: manager.EditMaxEntries,

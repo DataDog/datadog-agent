@@ -52,6 +52,10 @@ static u64 __attribute__((always_inline)) read_thread_pointer() {
     return tp;
 }
 
+// Per-CPU scratch buffer for OTel span attributes.
+// Avoids placing the 258-byte otel_span_attrs_t on the stack.
+BPF_PERCPU_ARRAY_MAP(otel_span_attrs_gen, struct otel_span_attrs_t, 1)
+
 // Try to fill span context from an OTel Thread Local Context Record.
 // Returns 1 on success, 0 otherwise.
 // Only attempts TLS resolution for native runtimes (not Go).
@@ -102,6 +106,33 @@ static int __attribute__((always_inline)) fill_span_context_otel(struct span_con
     span->trace_id[1] = otel_bytes_to_u64(&record.trace_id[0]);  // Hi
     span->trace_id[0] = otel_bytes_to_u64(&record.trace_id[8]);  // Lo
     span->span_id = otel_bytes_to_u64(record.span_id);
+
+    // If the record has custom attributes, read them and store in the otel_span_attrs map.
+    if (record.attrs_data_size > 0) {
+        u32 zero = 0;
+        struct otel_span_attrs_t *attrs_val = bpf_map_lookup_elem(&otel_span_attrs_gen, &zero);
+        if (attrs_val) {
+            u16 attrs_size = record.attrs_data_size;
+            if (attrs_size > OTEL_ATTRS_MAX_SIZE) {
+                attrs_size = OTEL_ATTRS_MAX_SIZE;
+            }
+
+            __builtin_memset(attrs_val, 0, sizeof(*attrs_val));
+            attrs_val->size = attrs_size;
+
+            // Read attrs_data from right after the 28-byte fixed header.
+            ret = bpf_probe_read_user(attrs_val->data, attrs_size & 0xff,
+                                      record_ptr + sizeof(struct otel_thread_ctx_record_t));
+            if (ret >= 0) {
+                struct otel_span_attrs_key_t attrs_key = {
+                    .span_id = span->span_id,
+                    .trace_id = { span->trace_id[0], span->trace_id[1] },
+                };
+                bpf_map_update_elem(&otel_span_attrs, &attrs_key, attrs_val, BPF_ANY);
+                span->has_extra_attrs = 1;
+            }
+        }
+    }
 
     return 1;
 }

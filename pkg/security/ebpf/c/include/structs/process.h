@@ -88,7 +88,25 @@ struct otel_thread_ctx_record_t {
     u8 span_id[8];       // W3C Trace Context byte order (big-endian)
     u8 valid;            // must be 1 for the record to be considered valid
     u8 _reserved;        // padding for alignment
-    u16 attrs_data_size; // size of custom attributes data (not read)
+    u16 attrs_data_size; // size of custom attributes data following this header
+};
+
+// Maximum size of OTel custom attributes data stored in the otel_span_attrs map.
+// The RFC allows up to 65535 bytes (u16), but typical records are <=64 bytes.
+// 256 bytes is generous while keeping BPF map value size reasonable.
+#define OTEL_ATTRS_MAX_SIZE 256
+
+// Key for the otel_span_attrs map: uniquely identifies a span.
+struct otel_span_attrs_key_t {
+    u64 span_id;
+    u64 trace_id[2];
+};
+
+// Value for the otel_span_attrs map: raw attrs_data bytes from the OTel record.
+// Format per RFC: repeated [key(u8) + length(u8) + val(u8[length])].
+struct otel_span_attrs_t {
+    u16 size;                        // actual size of attrs_data
+    u8  data[OTEL_ATTRS_MAX_SIZE];   // raw attribute bytes
 };
 
 // OTel TLSDESC-based TLS registration for a process.
