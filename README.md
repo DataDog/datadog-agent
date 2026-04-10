@@ -6,6 +6,8 @@
 
 This repository contains the source code of the Datadog Agent version 7 and version 6. Please refer to the [Agent user documentation](https://docs.datadoghq.com/agent/) for information about differences between Agent v5, Agent v6 and Agent v7. Additionally, we provide a list of prepackaged binaries for an easy install process [here](https://app.datadoghq.com/fleet/install-agent/latest?platform=overview).
 
+<!-- Note: test branch for PR workflow validation -->
+
 ## Documentation
 
 The [developer docs site](https://datadoghq.dev/datadog-agent/setup/) contains information about how to develop the Datadog Agent itself.
