@@ -7,7 +7,9 @@
 package networkconfigmanagementimpl
 
 import (
+	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"golang.org/x/crypto/ssh"
@@ -16,6 +18,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
+	ncmstore "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/store"
 )
 
 // Requires defines the dependencies for the networkconfigmanagement component
@@ -35,6 +38,7 @@ type networkDeviceConfigImpl struct {
 	config        *ProcessedNcmConfig
 	log           log.Component
 	clientFactory RemoteClientFactory
+	store         *ncmstore.ConfigStore
 }
 
 // NewComponent creates a new networkconfigmanagement component
@@ -43,15 +47,32 @@ func NewComponent(reqs Requires) (Provides, error) {
 	if err != nil {
 		return Provides{}, reqs.Logger.Errorf("Failed to read network device configuration: %v", err)
 	}
+
+	runPath := reqs.Config.GetString("run_path")
+	dbPath := filepath.Join(runPath, "ncm_config.db")
+	store, err := ncmstore.Open(dbPath)
+	if err != nil {
+		return Provides{}, err
+	}
+
+	close := func(context.Context) error { return store.Close() }
+	reqs.Lifecycle.Append(compdef.Hook{OnStop: close})
+
 	impl := &networkDeviceConfigImpl{
 		config:        ncmConfig,
 		log:           reqs.Logger,
 		clientFactory: &SSHClientFactory{},
+		store:         store,
 	}
+
 	provides := Provides{
 		Comp: impl,
 	}
 	return provides, nil
+}
+
+func (n *networkDeviceConfigImpl) GetConfigStore() *ncmstore.ConfigStore {
+	return n.store
 }
 
 // RetrieveRunningConfig retrieves the running configuration for a given network device IP
