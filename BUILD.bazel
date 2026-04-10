@@ -403,7 +403,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/util/aggregatingqueue
 # gazelle:exclude pkg/util/archive
 # gazelle:exclude pkg/util/atomicstats
-# gazelle:exclude pkg/util/cachedfetch
 # gazelle:exclude pkg/util/cli
 # gazelle:exclude pkg/util/cloudproviders
 # gazelle:exclude pkg/util/clusteragent
@@ -415,7 +414,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/util/coredump
 # gazelle:exclude pkg/util/crashreport
 # gazelle:exclude pkg/util/crio
-# gazelle:exclude pkg/util/dmi
 # gazelle:exclude pkg/util/docker
 # gazelle:exclude pkg/util/ec2
 # gazelle:exclude pkg/util/ecs
@@ -448,7 +446,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/util/port
 # gazelle:exclude pkg/util/procfilestats
 # gazelle:exclude pkg/util/profiling
-# gazelle:exclude pkg/util/retry
 # gazelle:exclude pkg/util/safeelf
 # gazelle:exclude pkg/util/size
 # gazelle:exclude pkg/util/slices
