@@ -1,9 +1,7 @@
 package main
 
 import (
-	"errors"
 	"fmt"
-	"maps"
 	"slices"
 	"time"
 
@@ -59,7 +57,13 @@ func validateGPUConfig(client *metricsClient, metricsSpec *gpuspec.MetricsSpec, 
 	}
 
 	observations := make(map[string][]gpuspec.MetricObservation, len(expectedMetricsMap))
-	for _, batch := range batchMetricNames(maps.Keys(expectedMetricsMap), scalarQueryBatchSize) {
+	expectedMetricNames := make([]string, 0, len(expectedMetricsMap))
+	for metricName := range expectedMetricsMap {
+		expectedMetricNames = append(expectedMetricNames, metricName)
+	}
+	slices.Sort(expectedMetricNames)
+
+	for _, batch := range batchMetricNames(expectedMetricNames, scalarQueryBatchSize) {
 		batchObservations, err := client.queryExpectedMetricsPresenceForGPUConfig(batch, expectedTagsByMetric, config.tagFilter(), fromTS, toTS)
 		if err != nil {
 			return result, fmt.Errorf("validate expected metrics for %s/%s: %w", config.Architecture, config.DeviceMode, err)
@@ -88,15 +92,15 @@ func validateGPUConfig(client *metricsClient, metricsSpec *gpuspec.MetricsSpec, 
 	}
 
 	for _, status := range result.DetailedResult.Metrics {
-		for _, error := range status.Errors {
-			if errors.Is(error, gpuspec.ErrorMissing) {
-				result.MissingMetrics++
-			} else if errors.Is(error, gpuspec.ErrorUnknown) {
-				result.UnknownMetrics++
-			}
+		if len(status.TagErrors) > 0 {
+			result.TagFailures++
+		}
 
-			if len(status.TagErrors) > 0 {
-				result.TagFailures++
+		for _, statusError := range status.Errors {
+			if statusError == gpuspec.ErrorMissing {
+				result.MissingMetrics++
+			} else if statusError == gpuspec.ErrorUnknown || statusError == gpuspec.ErrorUnsupported {
+				result.UnknownMetrics++
 			}
 		}
 	}

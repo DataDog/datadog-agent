@@ -6,7 +6,6 @@
 package spec
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 )
@@ -23,14 +22,16 @@ type MetricObservation struct {
 	Tags []string
 }
 
-var ErrorMissing = errors.New("missing")
-var ErrorUnknown = errors.New("unknown")
-var ErrorUnsupported = errors.New("unsupported")
-var ErrorInvalidValue = errors.New("invalid value")
+const (
+	ErrorMissing      = "missing"
+	ErrorUnknown      = "unknown"
+	ErrorUnsupported  = "unsupported"
+	ErrorInvalidValue = "invalid value"
+)
 
 type MetricStatus struct {
-	Errors    []error            `json:"errors"`
-	TagErrors map[string][]error `json:"tag_errors"`
+	Errors    []string            `json:"errors"`
+	TagErrors map[string][]string `json:"tag_errors"`
 }
 
 // ValidationResult holds validation failures derived from spec expectations.
@@ -45,7 +46,7 @@ func (r *ValidationResult) getMetricStatus(metricName string) *MetricStatus {
 	return r.Metrics[metricName]
 }
 
-func (r *ValidationResult) addError(metricName string, err error) {
+func (r *ValidationResult) addError(metricName string, err string) {
 	r.getMetricStatus(metricName).Errors = append(r.getMetricStatus(metricName).Errors, err)
 }
 
@@ -97,6 +98,19 @@ func UnprefixedMetricName(metricsSpec *MetricsSpec, metricName string) string {
 	return strings.TrimPrefix(metricName, metricsSpec.MetricPrefix+".")
 }
 
+// TagsToKeyValues converts Datadog-style tags to a key -> values map.
+func TagsToKeyValues(tags []string) map[string][]string {
+	result := make(map[string][]string, len(tags))
+	for _, tag := range tags {
+		key, value, ok := strings.Cut(tag, ":")
+		if !ok || key == "" || value == "" {
+			continue
+		}
+		result[key] = append(result[key], value)
+	}
+	return result
+}
+
 // RequiredTagsForMetric expands the required tags for a metric from tagsets and custom tags.
 func RequiredTagsForMetric(metricsSpec *MetricsSpec, metricSpec MetricSpec) (map[string]struct{}, error) {
 	if metricsSpec == nil {
@@ -137,8 +151,8 @@ func RequiredTagsByMetric(metricsSpec *MetricsSpec, metrics map[string]MetricSpe
 
 // ValidateMetricTagsAgainstSpec validates emitted tags against the spec for a metric.
 // If knownTagValues is provided, matching keys are additionally checked for exact values.
-func ValidateMetricTagsAgainstSpec(spec *MetricsSpec, metricName string, metricSpec MetricSpec, metricSamples []MetricObservation, knownTagValues map[string]string) (map[string][]error, error) {
-	tagErrors := make(map[string][]error)
+func ValidateMetricTagsAgainstSpec(spec *MetricsSpec, metricName string, metricSpec MetricSpec, metricSamples []MetricObservation, knownTagValues map[string]string) (map[string][]string, error) {
+	tagErrors := make(map[string][]string)
 
 	requiredTags, err := RequiredTagsForMetric(spec, metricSpec)
 	if err != nil {
@@ -189,7 +203,7 @@ func ValidateEmittedMetricsAgainstSpec(metricsSpec *MetricsSpec, archName string
 		}
 
 		if !metricSpec.SupportsArchitecture(archName) || !metricSpec.SupportsDeviceMode(mode) {
-			results.addError(metricName, fmt.Errorf("%w: architecture=%s, mode=%s", ErrorUnsupported, archName, mode))
+			results.addError(metricName, ErrorUnsupported)
 		}
 	}
 

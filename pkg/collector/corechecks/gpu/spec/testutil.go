@@ -9,7 +9,6 @@ package spec
 
 import (
 	"slices"
-	"strings"
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -111,15 +110,3 @@ func AllConfiguredNVMLFieldValues() []nvml.FieldValue {
 	return values
 }
 
-// TagsToKeyValues converts Datadog-style tags to a key -> values map.
-func TagsToKeyValues(tags []string) map[string][]string {
-	result := make(map[string][]string, len(tags))
-	for _, tag := range tags {
-		key, value, ok := strings.Cut(tag, ":")
-		if !ok || key == "" || value == "" {
-			continue
-		}
-		result[key] = append(result[key], value)
-	}
-	return result
-}

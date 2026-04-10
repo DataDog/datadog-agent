@@ -3,6 +3,8 @@ from __future__ import annotations
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.gpu.types import GPUConfigValidationResult, GPUConfigValidationState, ValidationResults
 
+SPACER = "  "
+
 
 def color_status(status: GPUConfigValidationState) -> str:
     colors = {
@@ -35,8 +37,8 @@ def print_summary_table(title: str, results: list[GPUConfigValidationResult]) ->
             row.config.device_mode,
             color_status(row.state),
             row.device_count,
-            color_metric_counts(len(row.missing_metrics), len(row.present_metrics), len(row.unknown_metrics)),
-            color_tag_failures(len(row.tag_failures)),
+            color_metric_counts(row.missing_metrics, row.present_metrics, row.unknown_metrics),
+            color_tag_failures(row.tag_failures),
         ]
         for row in results
     ]
@@ -64,19 +66,23 @@ def print_result_details(results: list[GPUConfigValidationResult]) -> None:
         if not result.has_failures or result.device_count == 0:
             continue
         print(f"\n-- {result.config.architecture} {result.config.device_mode} --")
-        print(f"  found devices: {result.device_count}")
-        if result.missing_metrics:
-            print("  missing metric names:")
-            for name in result.missing_metrics:
-                print(f"    - MISSING {name}")
-        if result.unknown_metrics:
-            print("  unknown metric names:")
-            for name in result.unknown_metrics:
-                print(f"    - UNKNOWN {name}")
-        if result.tag_failures:
-            print("  tag failure details:")
-            for metric_name, tags in result.tag_failures.items():
-                print(f"    - TAG FAIL {metric_name}: missing/non-null [{', '.join(tags)}]")
+        print(f"{SPACER}found devices: {result.device_count}")
+        print(f"{SPACER}summary")
+        print(f"{SPACER * 2}missing={result.missing_metrics}")
+        print(f"{SPACER * 2}known={result.present_metrics}")
+        print(f"{SPACER * 2}unknown={result.unknown_metrics}")
+        print(f"{SPACER * 2}tag failures={result.tag_failures}")
+        if result.detailed_result.metrics:
+            print(f"{SPACER}metric details")
+            for metric_name, metric_status in sorted(result.detailed_result.metrics.items()):
+                if not metric_status.errors and not metric_status.tag_errors:
+                    continue
+                print(f"{SPACER * 2}- {metric_name}")
+                if metric_status.errors:
+                    for error in metric_status.errors:
+                        print(f"{SPACER * 3}- {error}")
+                for tag_name, tag_errors in sorted(metric_status.tag_errors.items()):
+                    print(f"{SPACER * 3}- tag {tag_name}: [{', '.join(tag_errors)}]")
 
 
 def render_results(result: ValidationResults) -> None:

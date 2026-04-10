@@ -25,34 +25,45 @@ class GPUConfig:
     device_mode: str
     is_known: bool = True
 
+
+@dataclass(slots=True)
+class MetricStatus:
+    errors: list[str] = field(default_factory=list)
+    tag_errors: dict[str, list[str]] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class DetailedValidationResult:
+    metrics: dict[str, MetricStatus] = field(default_factory=dict)
+
+
 @dataclass(slots=True)
 class GPUConfigValidationResult:
     config: GPUConfig
     device_count: int
-    expected_metrics: set[str]
+    detailed_result: DetailedValidationResult
+    expected_metrics: int
+    present_metrics: int
+    missing_metrics: int
+    unknown_metrics: int
+    tag_failures: int
     state: GPUConfigValidationState = GPUConfigValidationState.UNKNOWN
-    present_metrics: set[str] = field(default_factory=set)
-    unknown_metrics: set[str] = field(default_factory=set)
-    tag_failures: dict[str, list[str]] = field(default_factory=dict)
-
-    @property
-    def missing_metrics(self) -> set[str]:
-        return self.expected_metrics - self.present_metrics
 
     @property
     def has_failures(self) -> bool:
-        return self.device_count > 0 and (
-            len(self.missing_metrics) + len(self.unknown_metrics) + len(self.tag_failures) > 0
-        )
+        return self.device_count > 0 and (self.missing_metrics + self.unknown_metrics + self.tag_failures > 0)
 
     def update(self, other: GPUConfigValidationResult) -> None:
         if other.state.value < self.state.value:
             self.state = other.state
 
-        self.present_metrics.update(other.present_metrics)
-        self.unknown_metrics.update(other.unknown_metrics)
-        self.tag_failures.update(other.tag_failures)
+        self.expected_metrics = max(self.expected_metrics, other.expected_metrics)
+        self.present_metrics += other.present_metrics
+        self.missing_metrics += other.missing_metrics
+        self.unknown_metrics += other.unknown_metrics
+        self.tag_failures += other.tag_failures
         self.device_count += other.device_count
+        self.detailed_result.metrics.update(other.detailed_result.metrics)
 
     @property
     def index_key(self) -> tuple[str, str]:
@@ -91,11 +102,21 @@ def validation_results_from_dict(payload: dict, *, site: str) -> ValidationResul
                 is_known=item["config"].get("is_known", True),
             ),
             device_count=item["device_count"],
-            expected_metrics=set(item.get("expected_metrics", [])),
+            detailed_result=DetailedValidationResult(
+                metrics={
+                    metric_name: MetricStatus(
+                        errors=list(metric_status.get("errors", [])),
+                        tag_errors={tag: list(errors) for tag, errors in metric_status.get("tag_errors", {}).items()},
+                    )
+                    for metric_name, metric_status in item.get("detailed_result", {}).get("metrics", {}).items()
+                }
+            ),
+            expected_metrics=int(item.get("expected_metrics", 0)),
+            present_metrics=int(item.get("present_metrics", 0)),
+            missing_metrics=int(item.get("missing_metrics", 0)),
+            unknown_metrics=int(item.get("unknown_metrics", 0)),
+            tag_failures=int(item.get("tag_failures", 0)),
             state=STATE_BY_NAME[item["state"]],
-            present_metrics=set(item.get("present_metrics", [])),
-            unknown_metrics=set(item.get("unknown_metrics", [])),
-            tag_failures=dict(item.get("tag_failures", {})),
         )
         for item in payload.get("results", [])
     ]
