@@ -70,7 +70,6 @@ func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawCon
 	// the RC platform
 	for configPath, v := range updates {
 		fl.log.Debugf("received filterlist config: %q", string(v.Config))
-
 		var config statsdFilterListUpdate
 		if err := json.Unmarshal(v.Config, &config); err != nil {
 			applyStateCallback(configPath, state.ApplyStatus{

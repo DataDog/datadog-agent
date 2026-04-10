@@ -64,8 +64,6 @@ func (m sketchMap) getOrCreate(ts int64, ck ckey.ContextKey) *quantile.Agent {
 		m[ts][ck] = s
 	}
 
-	tlmSketchMapSize.Set(float64(len(m)))
-	tlmSketchMapTotalSize.Set(float64(m.Len()))
 	return s
 }
 
@@ -85,7 +83,5 @@ func (m sketchMap) flushBefore(beforeTs int64, f func(ckey.ContextKey, metrics.S
 		}
 
 		delete(m, ts)
-		tlmSketchMapSize.Set(float64(len(m)))
-		tlmSketchMapTotalSize.Set(float64(m.Len()))
 	}
 }

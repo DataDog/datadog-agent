@@ -132,8 +132,6 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 
 	if filterList != nil && metricSampleContext.GetMetricType() == metrics.DistributionType {
 		if tagMatcher, strip := filterList.ShouldStripTags(metricSampleContext.GetName()); strip {
-			tlmTaggerTags.Set(float64(cr.taggerBuffer.Len()))
-
 			// Generate a pre-strip context key to use as the cache lookup key.
 			// generateContextKey sorts and deduplicates the buffers in place.
 			preCacheKey, _, _ := cr.generateContextKey(metricSampleContext)
