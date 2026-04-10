@@ -10,7 +10,9 @@ Create a pull request for the current branch following the Datadog Agent contrib
 
 ## Instructions
 
-1. **Check the current branch** and ensure it's not `main`
+1. **Check the current branch**. If the current branch is `main` (or the default branch):
+   - Check for uncommitted or staged changes (`git status`). If there are changes, create a new feature branch from the default branch (`git checkout -b <branch-name>`), stage the changes, commit, and push.
+   - If there are no changes at all, stop and inform the user there is nothing to open a PR for.
 2. **Get the commits** on this branch compared to `main` using `git log main..HEAD`
 3. **Get the diff** using `git diff main..HEAD` to understand all changes
 4. **Read the PR template** from `.github/PULL_REQUEST_TEMPLATE.md`
@@ -29,7 +31,7 @@ Create a pull request for the current branch following the Datadog Agent contrib
    - **What does this PR do?**: A clear description of what is changed. Must be readable independently, tying back to the changed code.
    - **Motivation**: A reason why the change is made. Point to an issue if applicable. Include drawbacks or tradeoffs if any.
    - **Describe how you validated your changes**: How you validated the change (tests added/run, benchmarks, manual testing). Only needed when testing included work not covered by test suites.
-   - **Additional Notes**: Any extra context, links to predecessor PRs if part of a chain, notes that make code understanding easier.
+   - **Additional Notes**: Any extra context, links to predecessor PRs if part of a chain, notes that make code understanding easier. **Only include this section if there is genuinely useful context to add** — omit it entirely rather than filling it with filler.
 
 ## PR Description Guidelines (from CONTRIBUTING.md)
 
