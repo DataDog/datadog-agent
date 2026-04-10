@@ -23,6 +23,8 @@ else
     BLUE=''
     NC=''
 fi
+install_log_file=/tmp/ddagent-install.log
+exec > >(tee "$install_log_file") 2>&1
 dmg_file=/tmp/datadog-agent.dmg
 dmg_base_url="https://s3.amazonaws.com/dd-agent"
 # Root-only staging directory for install-time data (API key, saved config).
@@ -158,16 +160,21 @@ if [ -z "$apikey" ]; then
 fi
 
 function on_error() {
-    printf "${RED}$ERROR_MESSAGE
+    printf "${RED}
 It looks like you hit an issue when trying to install the Agent.
 
-Troubleshooting and basic usage information for the Agent are available at:
+Troubleshooting information for the Agent is available at:
 
-    https://docs.datadoghq.com/agent/basic_agent_usage/
+    https://docs.datadoghq.com/agent/troubleshooting/
 
 If you're still having problems, please send an email to support@datadoghq.com
-with the contents of ddagent-install.log and we'll do our very best to help you
-solve your problem.\n${NC}\n"
+with the contents of the following log files and we'll do our very best to help
+you solve your problem:
+
+    - $install_log_file
+    - /opt/datadog-agent/logs/preinstall.log
+    - /opt/datadog-agent/logs/postinstall.log
+${NC}\n"
 }
 trap on_error ERR
 
@@ -226,18 +233,26 @@ cd / && $sudo_cmd /usr/sbin/installer -pkg "`find "/Volumes/datadog_agent" -name
 printf "${BLUE}\n    - Unmounting the DMG installer ...\n${NC}"
 $sudo_cmd hdiutil detach "/Volumes/datadog_agent" >/dev/null
 
-printf "${GREEN}
+if $sudo_cmd launchctl print system/com.datadoghq.agent 2>/dev/null | grep -q "pid ="; then
+    printf "${GREEN}
 
-Your Agent (${dmg_version}) is running properly. It will continue to run in the
+Your Agent is running properly. It will continue to run in the
 background and submit metrics to Datadog.
 
 You can check the agent status using the \"datadog-agent status\" command
 or by opening the webui using the \"datadog-agent launch-gui\" command.
 
-${NC}"
-
-printf "${GREEN}
 To stop the Agent:  sudo launchctl kill SIGTERM system/com.datadoghq.agent
 To start the Agent: sudo launchctl kickstart system/com.datadoghq.agent
 The Agent will start automatically at system startup.
 ${NC}"
+else
+    printf "${YELLOW}
+
+WARNING: The Agent was installed successfully, but the agent service
+failed to start.
+
+Check the postinstall log for details:
+    /opt/datadog-agent/logs/postinstall.log
+${NC}"
+fi

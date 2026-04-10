@@ -120,7 +120,6 @@ if [ -e "$CONF_DIR/datadog.yaml" ]; then
     echo '# Stopping running services'
     launchctl bootout system/com.datadoghq.agent 2>/dev/null || true
     launchctl bootout system/com.datadoghq.sysprobe 2>/dev/null || true
-    rm -f /Library/LaunchDaemons/com.datadoghq.sysprobe.plist
 
     # Stop GUI for all logged-in users
     for logged_user in $(who | awk '{print $1}' | sort -u); do
