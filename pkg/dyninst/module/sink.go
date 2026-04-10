@@ -211,9 +211,16 @@ func (s *sink) HandleEvent(msg dispatcher.Message) error {
 	default:
 		return fmt.Errorf("unknown event pairing expectation: %d", evHeader.Event_pairing_expectation)
 	}
+	var entryFragmented, returnFragmented output.FragmentedEvent
+	if entryEvent != nil {
+		entryFragmented = output.SingleEvent(entryEvent)
+	}
+	if returnEvent != nil {
+		returnFragmented = output.SingleEvent(returnEvent)
+	}
 	decodedBytes, probe, err = s.decoder.Decode(decode.Event{
-		EntryOrLine: entryEvent,
-		Return:      returnEvent,
+		EntryOrLine: entryFragmented,
+		Return:      returnFragmented,
 		ServiceName: s.service,
 		ProcessTags: s.processTags,
 	}, s.symbolicator, &s.missingTypes, decodedBytes)
