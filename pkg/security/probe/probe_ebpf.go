@@ -1113,7 +1113,7 @@ func (p *EBPFProbe) triggerNopEvent() error {
 }
 
 // setProcessContext set the process context, should return false if the event shouldn't be dispatched
-func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Event, newEntryCb func(entry *model.ProcessCacheEntry, err error)) bool {
+func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Event, cgroupContext model.CGroupContext, newEntryCb func(entry *model.ProcessCacheEntry, err error)) bool {
 	entry, isResolved := p.fieldHandlers.ResolveProcessCacheEntry(event, newEntryCb)
 	event.ProcessCacheEntry = entry
 	if event.ProcessCacheEntry == nil {
@@ -1145,6 +1145,15 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 			if _, err := entry.HasValidLineage(); err != nil {
 				event.Error = &model.ErrProcessBrokenLineage{Err: err}
 				p.Resolvers.ProcessResolver.CountBrokenLineage()
+			}
+
+			// check the cgroup transition
+			if entry.CGroup.CGroupPathKey.Inode != cgroupContext.CGroupPathKey.Inode {
+				if cacheEntry := p.Resolvers.CGroupResolver.AddPID(entry.Pid, entry.PPid, cgroupContext); cacheEntry == nil {
+					seclog.Debugf("Failed to resolve cgroup for pid %d: %+v", entry.Pid, cgroupContext.CGroupPathKey)
+				} else {
+					p.Resolvers.ProcessResolver.UpdateProcessContexts(entry, cacheEntry.GetCGroupContext(), cacheEntry.GetContainerContext())
+				}
 			}
 		}
 	}
@@ -1271,7 +1280,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		return
 	}
 	// resolve process context
-	if !p.setProcessContext(eventType, event, newEntryCb) {
+	if !p.setProcessContext(eventType, event, cgroupContext, newEntryCb) {
 		return
 	}
 

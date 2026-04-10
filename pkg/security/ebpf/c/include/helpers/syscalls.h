@@ -122,6 +122,18 @@ static void __attribute__((always_inline)) cache_syscall(struct syscall_cache_t 
 
     bpf_map_update_elem(&syscalls, &pid_tgid, syscall, BPF_ANY);
 
+    // update the cgroup id
+    u64 has_current_cgroup_id_helper = 0;
+    LOAD_CONSTANT("has_current_cgroup_id_helper", has_current_cgroup_id_helper);
+    if (has_current_cgroup_id_helper) {
+        u64 cgroup_id = bpf_get_current_cgroup_id();
+
+        struct proc_cache_t *entry = get_proc_cache(pid);
+        if (entry && entry->cgroup.cgroup_file.ino != cgroup_id) {
+            entry->cgroup.cgroup_file.ino = cgroup_id;
+        }
+    }
+
     monitor_syscalls(syscall->type, 1);
 }
 
