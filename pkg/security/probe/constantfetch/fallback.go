@@ -73,6 +73,7 @@ func computeRawsTable() map[string]uint64 {
 		OffsetNameSuperblockSType:                 40,
 		OffsetNameVfsmountMntRoot:                 0,
 		OffsetNameDentryDName:                     32,
+		OffsetNameDentryDParent:                   24,
 		OffsetNameVfsmountMntSb:                   8,
 		OffsetNameSockCommonStructSKCNum:          14,
 		SizeOfPipeBuffer:                          40,
