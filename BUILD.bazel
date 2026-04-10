@@ -429,7 +429,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/util/os
 # gazelle:exclude pkg/util/port
 # gazelle:exclude pkg/util/profiling
-# gazelle:exclude pkg/util/safeelf
 # gazelle:exclude pkg/util/size
 # gazelle:exclude pkg/util/stat
 # gazelle:exclude pkg/util/strings
