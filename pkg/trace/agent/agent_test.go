@@ -66,11 +66,11 @@ func NewTestAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollec
 }
 
 type mockTraceWriter struct {
-	mu          sync.Mutex
-	payloads    []*writer.SampledChunks
-	payloadsV1  []*writer.SampledChunksV1
-	apiKey      string
-	flushed     int
+	mu         sync.Mutex
+	payloads   []*writer.SampledChunks
+	payloadsV1 []*writer.SampledChunksV1
+	apiKey     string
+	flushed    int
 }
 
 func (m *mockTraceWriter) Stop() {}
