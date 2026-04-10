@@ -253,3 +253,64 @@ func TestOTelSpan(t *testing.T) {
 		})
 	})
 }
+
+// TestGoSpan tests Go pprof label-based span context collection.
+// dd-trace-go sets goroutine labels "span id" and "local root span id" as decimal strings.
+// The eBPF code traverses TLS -> runtime.g -> runtime.m -> curg -> labels to read them.
+func TestGoSpan(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_go_span_rule_open",
+			Expression: `open.file.path == "{{.Root}}/test-go-span"`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	goSyscallTester, err := loadSyscallTester(t, test, "syscall_go_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("valid_span", func(t *testing.T) {
+		test.RunMultiMode(t, "open", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+			testFile, _, err := test.Path("test-go-span")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer os.Remove(testFile)
+
+			args := []string{
+				"-go-span-test",
+				"-go-span-span-id", "987654321",
+				"-go-span-local-root-span-id", "123456789",
+				"-go-span-file-path", testFile,
+			}
+			envs := []string{}
+
+			test.WaitSignalFromRule(t, func() error {
+				cmd := cmdFunc(goSyscallTester, args, envs)
+				out, err := cmd.CombinedOutput()
+
+				if err != nil {
+					return fmt.Errorf("%s: %w", out, err)
+				}
+
+				return nil
+			}, func(event *model.Event, rule *rules.Rule) {
+				assertTriggeredRule(t, rule, "test_go_span_rule_open")
+
+				assert.Equal(t, uint64(987654321), event.SpanContext.SpanID,
+					"span ID should match the pprof label value")
+				assert.Equal(t, uint64(123456789), event.SpanContext.TraceID.Lo,
+					"trace ID lo should match the local root span ID label value")
+			}, "test_go_span_rule_open")
+		})
+	})
+}
