@@ -90,6 +90,25 @@ func (z *TracerMetadata) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "LogsCollected")
 				return
 			}
+		case "threadlocal_attribute_keys":
+			var zb0002 uint32
+			zb0002, err = dc.ReadArrayHeader()
+			if err != nil {
+				err = msgp.WrapError(err, "ThreadlocalAttributeKeys")
+				return
+			}
+			if cap(z.ThreadlocalAttributeKeys) >= int(zb0002) {
+				z.ThreadlocalAttributeKeys = (z.ThreadlocalAttributeKeys)[:zb0002]
+			} else {
+				z.ThreadlocalAttributeKeys = make([]string, zb0002)
+			}
+			for za0001 := range z.ThreadlocalAttributeKeys {
+				z.ThreadlocalAttributeKeys[za0001], err = dc.ReadString()
+				if err != nil {
+					err = msgp.WrapError(err, "ThreadlocalAttributeKeys", za0001)
+					return
+				}
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -104,8 +123,8 @@ func (z *TracerMetadata) DecodeMsg(dc *msgp.Reader) (err error) {
 // EncodeMsg implements msgp.Encodable
 func (z *TracerMetadata) EncodeMsg(en *msgp.Writer) (err error) {
 	// check for omitted fields
-	zb0001Len := uint32(11)
-	var zb0001Mask uint16 /* 11 bits */
+	zb0001Len := uint32(12)
+	var zb0001Mask uint16 /* 12 bits */
 	_ = zb0001Mask
 	if z.RuntimeID == "" {
 		zb0001Len--
@@ -134,6 +153,10 @@ func (z *TracerMetadata) EncodeMsg(en *msgp.Writer) (err error) {
 	if z.LogsCollected == false {
 		zb0001Len--
 		zb0001Mask |= 0x400
+	}
+	if z.ThreadlocalAttributeKeys == nil {
+		zb0001Len--
+		zb0001Mask |= 0x800
 	}
 	// variable map header, size zb0001Len
 	err = en.Append(0x80 | uint8(zb0001Len))
@@ -267,6 +290,25 @@ func (z *TracerMetadata) EncodeMsg(en *msgp.Writer) (err error) {
 				return
 			}
 		}
+		if (zb0001Mask & 0x800) == 0 { // if not omitted
+			// write "threadlocal_attribute_keys"
+			err = en.Append(0xba, 0x74, 0x68, 0x72, 0x65, 0x61, 0x64, 0x6c, 0x6f, 0x63, 0x61, 0x6c, 0x5f, 0x61, 0x74, 0x74, 0x72, 0x69, 0x62, 0x75, 0x74, 0x65, 0x5f, 0x6b, 0x65, 0x79, 0x73)
+			if err != nil {
+				return
+			}
+			err = en.WriteArrayHeader(uint32(len(z.ThreadlocalAttributeKeys)))
+			if err != nil {
+				err = msgp.WrapError(err, "ThreadlocalAttributeKeys")
+				return
+			}
+			for za0001 := range z.ThreadlocalAttributeKeys {
+				err = en.WriteString(z.ThreadlocalAttributeKeys[za0001])
+				if err != nil {
+					err = msgp.WrapError(err, "ThreadlocalAttributeKeys", za0001)
+					return
+				}
+			}
+		}
 	}
 	return
 }
@@ -275,8 +317,8 @@ func (z *TracerMetadata) EncodeMsg(en *msgp.Writer) (err error) {
 func (z *TracerMetadata) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 	// check for omitted fields
-	zb0001Len := uint32(11)
-	var zb0001Mask uint16 /* 11 bits */
+	zb0001Len := uint32(12)
+	var zb0001Mask uint16 /* 12 bits */
 	_ = zb0001Mask
 	if z.RuntimeID == "" {
 		zb0001Len--
@@ -305,6 +347,10 @@ func (z *TracerMetadata) MarshalMsg(b []byte) (o []byte, err error) {
 	if z.LogsCollected == false {
 		zb0001Len--
 		zb0001Mask |= 0x400
+	}
+	if z.ThreadlocalAttributeKeys == nil {
+		zb0001Len--
+		zb0001Mask |= 0x800
 	}
 	// variable map header, size zb0001Len
 	o = append(o, 0x80|uint8(zb0001Len))
@@ -357,6 +403,14 @@ func (z *TracerMetadata) MarshalMsg(b []byte) (o []byte, err error) {
 			// string "logs_collected"
 			o = append(o, 0xae, 0x6c, 0x6f, 0x67, 0x73, 0x5f, 0x63, 0x6f, 0x6c, 0x6c, 0x65, 0x63, 0x74, 0x65, 0x64)
 			o = msgp.AppendBool(o, z.LogsCollected)
+		}
+		if (zb0001Mask & 0x800) == 0 { // if not omitted
+			// string "threadlocal_attribute_keys"
+			o = append(o, 0xba, 0x74, 0x68, 0x72, 0x65, 0x61, 0x64, 0x6c, 0x6f, 0x63, 0x61, 0x6c, 0x5f, 0x61, 0x74, 0x74, 0x72, 0x69, 0x62, 0x75, 0x74, 0x65, 0x5f, 0x6b, 0x65, 0x79, 0x73)
+			o = msgp.AppendArrayHeader(o, uint32(len(z.ThreadlocalAttributeKeys)))
+			for za0001 := range z.ThreadlocalAttributeKeys {
+				o = msgp.AppendString(o, z.ThreadlocalAttributeKeys[za0001])
+			}
 		}
 	}
 	return
@@ -446,6 +500,25 @@ func (z *TracerMetadata) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "LogsCollected")
 				return
 			}
+		case "threadlocal_attribute_keys":
+			var zb0002 uint32
+			zb0002, bts, err = msgp.ReadArrayHeaderBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "ThreadlocalAttributeKeys")
+				return
+			}
+			if cap(z.ThreadlocalAttributeKeys) >= int(zb0002) {
+				z.ThreadlocalAttributeKeys = (z.ThreadlocalAttributeKeys)[:zb0002]
+			} else {
+				z.ThreadlocalAttributeKeys = make([]string, zb0002)
+			}
+			for za0001 := range z.ThreadlocalAttributeKeys {
+				z.ThreadlocalAttributeKeys[za0001], bts, err = msgp.ReadStringBytes(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "ThreadlocalAttributeKeys", za0001)
+					return
+				}
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -460,6 +533,9 @@ func (z *TracerMetadata) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *TracerMetadata) Msgsize() (s int) {
-	s = 1 + 15 + msgp.Uint8Size + 11 + msgp.StringPrefixSize + len(z.RuntimeID) + 16 + msgp.StringPrefixSize + len(z.TracerLanguage) + 15 + msgp.StringPrefixSize + len(z.TracerVersion) + 9 + msgp.StringPrefixSize + len(z.Hostname) + 13 + msgp.StringPrefixSize + len(z.ServiceName) + 12 + msgp.StringPrefixSize + len(z.ServiceEnv) + 16 + msgp.StringPrefixSize + len(z.ServiceVersion) + 13 + msgp.StringPrefixSize + len(z.ProcessTags) + 13 + msgp.StringPrefixSize + len(z.ContainerID) + 15 + msgp.BoolSize
+	s = 1 + 15 + msgp.Uint8Size + 11 + msgp.StringPrefixSize + len(z.RuntimeID) + 16 + msgp.StringPrefixSize + len(z.TracerLanguage) + 15 + msgp.StringPrefixSize + len(z.TracerVersion) + 9 + msgp.StringPrefixSize + len(z.Hostname) + 13 + msgp.StringPrefixSize + len(z.ServiceName) + 12 + msgp.StringPrefixSize + len(z.ServiceEnv) + 16 + msgp.StringPrefixSize + len(z.ServiceVersion) + 13 + msgp.StringPrefixSize + len(z.ProcessTags) + 13 + msgp.StringPrefixSize + len(z.ContainerID) + 15 + msgp.BoolSize + 27 + msgp.ArrayHeaderSize
+	for za0001 := range z.ThreadlocalAttributeKeys {
+		s += msgp.StringPrefixSize + len(z.ThreadlocalAttributeKeys[za0001])
+	}
 	return
 }

@@ -53,6 +53,8 @@ const (
 	DiscardAuidOp
 	// NopEventOp is used to nop an event
 	NopEventOp
+	// registerOTelTLSOpDeprecated is deprecated: OTel TLS is now discovered via ELF dynsym parsing.
+	_ //nolint:revive
 )
 
 // ERPC defines a krpc object

@@ -86,6 +86,7 @@ type EBPFResolver struct {
 	pidCacheMap         ebpf.Map
 	pathIDMap           ebpf.Map
 	kernelThreadPidsMap ebpf.Map
+	otelTLSMap   ebpf.Map
 	opts                ResolverOpts
 
 	// stats
@@ -1465,7 +1466,9 @@ func (p *EBPFResolver) UpdateLoginUID(pid uint32, e *model.Event) {
 	}
 }
 
-// AddTracerMetadata reads tracer metadata from a memfd and adds it to the process cache entry
+// AddTracerMetadata reads tracer metadata from a memfd and adds it to the process cache entry.
+// If the metadata is successfully parsed, it also attempts to resolve the OTel TLS symbol
+// from the process's ELF binary and populate the otel_tls BPF map.
 func (p *EBPFResolver) AddTracerMetadata(pid uint32, event *model.Event) error {
 	fd := event.TracerMemfdSeal.Fd
 	fdPath := kernel.HostProc(strconv.Itoa(int(pid)), "fd", strconv.Itoa(int(fd)))
@@ -1476,14 +1479,34 @@ func (p *EBPFResolver) AddTracerMetadata(pid uint32, event *model.Event) error {
 	}
 
 	p.Lock()
-	defer p.Unlock()
-
 	entry := p.entryCache[pid]
 	if entry != nil {
 		entry.TracerMetadata = tmeta
 	}
+	p.Unlock()
+
+	// Attempt OTel TLS resolution. Done outside the lock to avoid holding it
+	// during ELF I/O. Non-fatal: the symbol may not be present if the application
+	// doesn't use OTel thread-local context.
+	if p.otelTLSMap != nil {
+		if err := p.resolveAndUpdateOTelTLS(pid, tmeta.TracerLanguage); err != nil {
+			seclog.Debugf("OTel TLS resolution for pid %d: %s", pid, err)
+		}
+	}
 
 	return nil
+}
+
+// resolveAndUpdateOTelTLS resolves the OTel TLS symbol from the process's ELF
+// binary and writes the offset + runtime to the otel_tls BPF map.
+func (p *EBPFResolver) resolveAndUpdateOTelTLS(pid uint32, tracerLanguage string) error {
+	offset, runtimeLang, err := resolveOTelTLS(pid, tracerLanguage)
+	if err != nil {
+		return err
+	}
+
+	value := serializeOTelTLSValue(offset, runtimeLang)
+	return p.otelTLSMap.Put(pid, value)
 }
 
 // UpdateAWSSecurityCredentials updates the list of AWS Security Credentials
@@ -1549,10 +1572,6 @@ func (p *EBPFResolver) Start(ctx context.Context) error {
 	}
 
 	if p.pathIDMap, err = managerhelper.Map(p.manager, "pid_path_keys"); err != nil {
-		return err
-	}
-
-	if p.kernelThreadPidsMap, err = managerhelper.Map(p.manager, "kernel_thread_pids"); err != nil {
 		return err
 	}
 

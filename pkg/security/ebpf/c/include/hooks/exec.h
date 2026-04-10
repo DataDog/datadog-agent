@@ -374,6 +374,7 @@ int __attribute__((always_inline)) handle_do_exit(ctx_t *ctx) {
         send_event(ctx, EVENT_EXIT, event);
 
         unregister_span_memory();
+        unregister_otel_tls();
 
         // [activity_dump] cleanup tracing state for this pid
         cleanup_traced_state(tgid);
@@ -871,6 +872,7 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
 
     // as previously registered memory will become unreachable, we'll have to unregister the TLS
     unregister_span_memory();
+    unregister_otel_tls();
 
     return 0;
 }
