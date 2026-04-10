@@ -115,28 +115,35 @@ type EBPFResolver struct {
 
 	exitedQueue []uint32
 
-	// activeTrace is set by the caller before Resolve and cleared after.
-	// It is safe to use because the write lock is held during resolution
-	// and the ring buffer dispatcher is single-goroutine.
+	// debug tracing
+	traceLock       sync.RWMutex
 	activeTrace     *[]model.ProcessingCheckpoint
 	activeStartTime time.Time
 }
 
 // traceCheckpoint appends a checkpoint to the active trace if set
 func (p *EBPFResolver) traceCheckpoint(name string) {
-	if p.activeTrace != nil && !p.activeStartTime.IsZero() {
+	p.traceLock.RLock()
+	trace := p.activeTrace
+	startTime := p.activeStartTime
+	p.traceLock.RUnlock()
+	if trace != nil && !startTime.IsZero() {
+		p.traceLock.Lock()
 		*p.activeTrace = append(*p.activeTrace, model.ProcessingCheckpoint{
 			Name:      name,
-			ElapsedUs: time.Since(p.activeStartTime).Microseconds(),
+			ElapsedUs: time.Since(startTime).Microseconds(),
 		})
+		p.traceLock.Unlock()
 	}
 }
 
 // SetActiveTrace sets the trace target for subsequent Resolve calls.
 // Must be called before Resolve and cleared (with nil) after.
 func (p *EBPFResolver) SetActiveTrace(trace *[]model.ProcessingCheckpoint, startTime time.Time) {
+	p.traceLock.Lock()
 	p.activeTrace = trace
 	p.activeStartTime = startTime
+	p.traceLock.Unlock()
 	if pr, ok := p.pathResolver.(*spath.Resolver); ok {
 		pr.SetActiveTrace(trace, startTime)
 	}

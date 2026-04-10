@@ -78,24 +78,33 @@ type Resolver struct {
 	erpcResolutionTimesLock sync.Mutex
 
 	// debug tracing
+	traceLock       sync.RWMutex
 	activeTrace     *[]model.ProcessingCheckpoint
 	activeStartTime time.Time
 }
 
 // traceCheckpoint appends a checkpoint to the active trace if set
 func (dr *Resolver) traceCheckpoint(name string) {
-	if dr.activeTrace != nil && !dr.activeStartTime.IsZero() {
+	dr.traceLock.RLock()
+	trace := dr.activeTrace
+	startTime := dr.activeStartTime
+	dr.traceLock.RUnlock()
+	if trace != nil && !startTime.IsZero() {
+		dr.traceLock.Lock()
 		*dr.activeTrace = append(*dr.activeTrace, model.ProcessingCheckpoint{
 			Name:      name,
-			ElapsedUs: time.Since(dr.activeStartTime).Microseconds(),
+			ElapsedUs: time.Since(startTime).Microseconds(),
 		})
+		dr.traceLock.Unlock()
 	}
 }
 
 // SetActiveTrace sets the trace target for subsequent calls
 func (dr *Resolver) SetActiveTrace(trace *[]model.ProcessingCheckpoint, startTime time.Time) {
+	dr.traceLock.Lock()
 	dr.activeTrace = trace
 	dr.activeStartTime = startTime
+	dr.traceLock.Unlock()
 }
 
 // ErrEntryNotFound is thrown when a path key was not found in the cache

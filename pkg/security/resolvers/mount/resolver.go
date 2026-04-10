@@ -63,25 +63,34 @@ type Resolver struct {
 	procHitsStats  atomic.Int64
 	procMissStats  atomic.Int64
 
-	// debug tracing (set by caller, safe because lock is held)
+	// debug tracing
+	traceLock       sync.RWMutex
 	activeTrace     *[]model.ProcessingCheckpoint
 	activeStartTime time.Time
 }
 
 // traceCheckpoint appends a checkpoint to the active trace if set
 func (mr *Resolver) traceCheckpoint(name string) {
-	if mr.activeTrace != nil && !mr.activeStartTime.IsZero() {
+	mr.traceLock.RLock()
+	trace := mr.activeTrace
+	startTime := mr.activeStartTime
+	mr.traceLock.RUnlock()
+	if trace != nil && !startTime.IsZero() {
+		mr.traceLock.Lock()
 		*mr.activeTrace = append(*mr.activeTrace, model.ProcessingCheckpoint{
 			Name:      name,
-			ElapsedUs: time.Since(mr.activeStartTime).Microseconds(),
+			ElapsedUs: time.Since(startTime).Microseconds(),
 		})
+		mr.traceLock.Unlock()
 	}
 }
 
 // SetActiveTrace sets the trace target for subsequent calls
 func (mr *Resolver) SetActiveTrace(trace *[]model.ProcessingCheckpoint, startTime time.Time) {
+	mr.traceLock.Lock()
 	mr.activeTrace = trace
 	mr.activeStartTime = startTime
+	mr.traceLock.Unlock()
 }
 
 // IsMountIDValid returns whether the mountID is valid
