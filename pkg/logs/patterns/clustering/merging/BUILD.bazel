@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "merging",
+    srcs = ["merging.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/patterns/clustering/merging",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/logs/patterns/token"],
+)
+
+go_test(
+    name = "merging_test",
+    srcs = ["merging_test.go"],
+    embed = [":merging"],
+    deps = [
+        "//pkg/logs/patterns/token",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
