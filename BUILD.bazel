@@ -425,7 +425,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/util/kubernetes/apiserver/controllers
 # gazelle:exclude pkg/util/kubernetes/apiserver/leaderelection
 # gazelle:exclude pkg/util/log/setup
-# gazelle:exclude pkg/util/net
 # gazelle:exclude pkg/util/os
 # gazelle:exclude pkg/util/pdhutil
 # gazelle:exclude pkg/util/podman
