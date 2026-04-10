@@ -414,7 +414,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/util/ecs
 # gazelle:exclude pkg/util/fargate
 # gazelle:exclude pkg/util/kernel
-# gazelle:exclude pkg/util/ktime
 # gazelle:exclude pkg/util/kubelet
 # gazelle:exclude pkg/util/kubernetes/autoscalers
 # gazelle:exclude pkg/util/kubernetes/certificate
