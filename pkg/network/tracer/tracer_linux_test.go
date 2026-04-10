@@ -24,6 +24,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -40,6 +41,7 @@ import (
 	"github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 	vnetns "github.com/vishvananda/netns"
 	"go4.org/intern"
 	"golang.org/x/sys/unix"
@@ -60,6 +62,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/sk"
 	ssluprobes "github.com/DataDog/datadog-agent/pkg/network/tracer/connection/ssl-uprobes"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	tracertestutil "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
@@ -77,6 +80,23 @@ var kv = kernel.MustHostVersion()
 
 func platformInit() {
 	// linux-specific tasks here
+}
+
+func supportedNetworkBuildModes() []ebpftest.BuildMode {
+	modes := ebpftest.SupportedBuildModes()
+	if !slices.Contains(modes, ebpftest.Ebpfless) {
+		modes = append(modes, ebpftest.Ebpfless)
+	}
+	if !slices.Contains(modes, ebpftest.SK) && sk.KernelSupported() {
+		modes = append(modes, ebpftest.SK)
+	}
+	return modes
+}
+
+func TestTracerSuite(t *testing.T) {
+	ebpftest.TestBuildModes(t, supportedNetworkBuildModes(), "", func(t *testing.T) {
+		suite.Run(t, new(TracerSuite))
+	})
 }
 
 func (s *TracerSuite) TestTCPRemoveEntries() {
