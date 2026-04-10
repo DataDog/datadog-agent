@@ -28,6 +28,14 @@ def color_tag_failures(count: int) -> str:
     return color_message(str(count), Color.RED) if count > 0 else str(count)
 
 
+def tag_result_has_failures(tag_result) -> bool:
+    return tag_result.missing > 0 or tag_result.unknown > 0 or tag_result.invalid_value > 0
+
+
+def metric_status_has_failures(metric_status) -> bool:
+    return bool(metric_status.errors) or any(tag_result_has_failures(tag_result) for tag_result in metric_status.tag_results.values())
+
+
 def print_summary_table(title: str, results: list[GPUConfigValidationResult]) -> None:
     from tabulate import tabulate
 
@@ -74,17 +82,33 @@ def print_result_details(results: list[GPUConfigValidationResult]) -> None:
         print(f"{SPACER * 2}unknown={result.unknown_metrics}")
         print(f"{SPACER * 2}tag failures={result.tag_failures}")
 
-        if result.detailed_result.metrics:
+        failing_metrics = [
+            (metric_name, metric_status)
+            for metric_name, metric_status in sorted(result.detailed_result.metrics.items())
+            if metric_status_has_failures(metric_status)
+        ]
+
+        if failing_metrics:
             print(f"{SPACER}metric failures")
 
-            for metric_name, metric_status in sorted(result.detailed_result.metrics.items()):
-                if not metric_status.errors and not metric_status.tag_errors:
-                    continue
-
+            for metric_name, metric_status in failing_metrics:
                 print(f"{SPACER * 2}- {metric_name}: {', '.join(metric_status.errors)}")
 
-                for tag_name, tag_errors in sorted(metric_status.tag_errors.items()):
-                    print(f"{SPACER * 3}- tag {tag_name}: [{', '.join(tag_errors)}]")
+                for tag_name, tag_result in sorted(metric_status.tag_results.items()):
+                    if not tag_result_has_failures(tag_result):
+                        continue
+                    details: list[str] = []
+                    if tag_result.missing > 0:
+                        total = tag_result.found + tag_result.missing
+                        missing_rate = 0.0 if total == 0 else (tag_result.missing / total) * 100
+                        details.append(f"missing {tag_result.missing}/{total} ({missing_rate:.1f}%)")
+                    if tag_result.unknown > 0:
+                        details.append(f"unknown={tag_result.unknown}")
+                    if tag_result.invalid_value > 0:
+                        details.append(f"invalid={tag_result.invalid_value}")
+                    if not details:
+                        continue
+                    print(f"{SPACER * 3}- tag {tag_name}: {', '.join(details)}")
 
 
 def render_results(result: ValidationResults) -> None:

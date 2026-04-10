@@ -12,18 +12,20 @@ import (
 func main() {
 	var site string
 	var lookbackSeconds int64
+	var outputFile string
 
 	flag.StringVar(&site, "site", "", "Datadog site")
 	flag.Int64Var(&lookbackSeconds, "lookback-seconds", 3600, "Metrics lookback window in seconds")
+	flag.StringVar(&outputFile, "output-file", "", "Write JSON results to the given file instead of stdout")
 	flag.Parse()
 
-	apiKey, appKey, err := authKeysFromEnv()
-	if err != nil {
+	if err := validateFlags(site, lookbackSeconds, outputFile); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "gpu metrics validation failed: %v\n", err)
 		os.Exit(1)
 	}
 
-	if err := validateFlags(site, lookbackSeconds); err != nil {
+	apiKey, appKey, err := authKeysFromEnv()
+	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "gpu metrics validation failed: %v\n", err)
 		os.Exit(1)
 	}
@@ -34,20 +36,37 @@ func main() {
 		os.Exit(1)
 	}
 
-	encoder := json.NewEncoder(os.Stdout)
-	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(results); err != nil {
+	if err := writeResults(results, outputFile); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "gpu metrics validation failed: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func validateFlags(site string, lookbackSeconds int64) error {
+func writeResults(results orgValidationResults, outputFile string) error {
+	outputPath := strings.TrimSpace(outputFile)
+	file, err := os.Create(outputPath)
+	if err != nil {
+		return fmt.Errorf("create output file %q: %w", outputPath, err)
+	}
+	defer file.Close()
+
+	encoder := json.NewEncoder(file)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(results); err != nil {
+		return fmt.Errorf("encode validation results: %w", err)
+	}
+	return nil
+}
+
+func validateFlags(site string, lookbackSeconds int64, outputFile string) error {
 	if strings.TrimSpace(site) == "" {
 		return fmt.Errorf("--site is required")
 	}
 	if lookbackSeconds <= 0 {
 		return fmt.Errorf("--lookback-seconds must be greater than 0")
+	}
+	if strings.TrimSpace(outputFile) == "" {
+		return fmt.Errorf("--output-file is required")
 	}
 	return nil
 }

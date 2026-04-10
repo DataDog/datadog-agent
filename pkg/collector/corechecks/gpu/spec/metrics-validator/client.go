@@ -195,64 +195,39 @@ func (c *metricsClient) discoverLiveGPUConfigs(fromTS, toTS int64) ([]gpuConfig,
 	return configs, nil
 }
 
-func (c *metricsClient) queryExpectedMetricsPresenceForGPUConfig(metricNames []string, expectedTagsByMetric map[string]map[string]struct{}, queryFilter string, fromTS, toTS int64) (map[string]gpuspec.MetricObservation, error) {
-	if len(metricNames) == 0 {
-		return map[string]gpuspec.MetricObservation{}, nil
+func (c *metricsClient) queryExpectedMetricPresenceForGPUConfig(metricName string, expectedTags map[string]struct{}, queryFilter string, fromTS, toTS int64) ([]gpuspec.MetricObservation, error) {
+	query := fmt.Sprintf("avg:%s{%s}", metricName, queryFilter)
+	expectedTagNames := make([]string, 0, len(expectedTags))
+	for tag := range expectedTags {
+		expectedTagNames = append(expectedTagNames, tag)
+	}
+	if len(expectedTagNames) > 0 {
+		query = fmt.Sprintf("%s by {%s}", query, strings.Join(expectedTagNames, ","))
 	}
 
-	queries := make([]datadogV2.ScalarQuery, 0, len(metricNames))
-	queryNameToMetric := make(map[string]string, len(metricNames))
-
-	for idx, metricName := range metricNames {
-		queryName := fmt.Sprintf("q%d", idx)
-		query := fmt.Sprintf("avg:%s{%s}", metricName, queryFilter)
-
-		expectedTags := make([]string, 0, len(expectedTagsByMetric[metricName]))
-		for tag := range expectedTagsByMetric[metricName] {
-			expectedTags = append(expectedTags, tag)
-		}
-		if len(expectedTags) > 0 {
-			query = fmt.Sprintf("%s by {%s}", query, strings.Join(expectedTags, ","))
-		}
-
-		queries = append(queries, buildScalarQuery(queryName, query))
-		queryNameToMetric[queryName] = metricName
-	}
-
-	columns, err := c.runScalarQueries(queries, fromTS, toTS)
+	columns, err := c.runScalarQueries([]datadogV2.ScalarQuery{buildScalarQuery("q0", query)}, fromTS, toTS)
 	if err != nil {
-		return nil, fmt.Errorf("query expected metrics presence: %w", err)
+		return nil, fmt.Errorf("query expected metric presence for %s: %w", metricName, err)
 	}
 
-	observations := make(map[string]gpuspec.MetricObservation, len(metricNames))
-	for _, metricName := range metricNames {
-		observations[metricName] = gpuspec.MetricObservation{
+	observations := make([]gpuspec.MetricObservation, 0, len(columns))
+	for _, result := range columns {
+		value, found := result.values["q0"]
+		if !found || value == nil {
+			continue
+		}
+
+		observation := gpuspec.MetricObservation{
 			Name: metricName,
 			Tags: []string{},
 		}
-	}
-
-	for _, result := range columns {
-		for queryName, value := range result.values {
-			if value == nil {
+		for tag := range expectedTags {
+			if isNullishGroupValue(result.tags[tag]) {
 				continue
 			}
-
-			metricName, found := queryNameToMetric[queryName]
-			if !found {
-				continue
-			}
-
-			observation := observations[metricName]
-			for tag := range expectedTagsByMetric[metricName] {
-				if isNullishGroupValue(result.tags[tag]) {
-					continue
-				}
-				observation.Tags = append(observation.Tags, tag+":"+result.tags[tag])
-			}
-
-			observations[metricName] = observation
+			observation.Tags = append(observation.Tags, tag+":"+result.tags[tag])
 		}
+		observations = append(observations, observation)
 	}
 
 	return observations, nil
@@ -289,7 +264,7 @@ func (c *metricsClient) listObservedGPUMetricsForGPUConfig(config gpuConfig, loo
 				metricName = item.MetricTagConfiguration.GetId()
 			}
 			if strings.HasPrefix(metricName, metricPrefix+".") {
-				metrics[metricName] = struct{}{}
+				metrics[strings.TrimPrefix(metricName, metricPrefix+".")] = struct{}{}
 			}
 		}
 
@@ -320,5 +295,5 @@ func gpuspecDeviceMode(value string) gpuspec.DeviceMode {
 
 func isNullishGroupValue(value string) bool {
 	normalizedValue := strings.TrimSpace(strings.ToLower(value))
-	return normalizedValue == "" || normalizedValue == "none" || normalizedValue == "null" || normalizedValue == "n/a"
+	return normalizedValue == "" || normalizedValue == "n/a"
 }

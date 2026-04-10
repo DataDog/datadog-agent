@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
 import shlex
+import tempfile
 
 from invoke.exceptions import Exit
 from invoke.tasks import task
@@ -51,16 +53,17 @@ def validate_metrics(ctx, lookback_seconds=3600, org: str | None = None):
         try:
             print(" - fetching API/App keys...")
             with dd_auth_api_app_keys(ctx, dd_auth_domain):
-                command = (
-                    f"{shlex.quote(binary_path)} "
-                    f"--site {shlex.quote(VALIDATOR_SITE)} "
-                    f"--lookback-seconds {int(lookback_seconds)}"
-                )
-                print(f" - running validator...")
-                result = validation_results_from_dict(
-                    json.loads(ctx.run(command, hide=True).stdout),
-                    site=VALIDATOR_SITE,
-                )
+                with tempfile.NamedTemporaryFile(prefix="gpu-metrics-validator-", suffix=".json", delete=False) as tmp:
+                    command = (
+                        f"{shlex.quote(binary_path)} "
+                        f"--site {shlex.quote(VALIDATOR_SITE)} "
+                        f"--lookback-seconds {int(lookback_seconds)} "
+                        f"--output-file {shlex.quote(tmp.name)}"
+                    )
+                    print(" - running validator...")
+                    ctx.run(command)
+                    result = validation_results_from_dict(json.load(tmp), site=VALIDATOR_SITE)
+
                 if results is None:
                     results = result
                 else:

@@ -30,8 +30,15 @@ const (
 )
 
 type MetricStatus struct {
-	Errors    []string            `json:"errors"`
-	TagErrors map[string][]string `json:"tag_errors"`
+	Errors     []string               `json:"errors"`
+	TagResults map[string]*TagSummary `json:"tag_results"`
+}
+
+type TagSummary struct {
+	Found        int `json:"found"`
+	Missing      int `json:"missing"`
+	Unknown      int `json:"unknown"`
+	InvalidValue int `json:"invalid_value"`
 }
 
 // ValidationResult holds validation failures derived from spec expectations.
@@ -42,8 +49,8 @@ type ValidationResult struct {
 func (r *ValidationResult) getMetricStatus(metricName string) *MetricStatus {
 	if _, found := r.Metrics[metricName]; !found {
 		r.Metrics[metricName] = &MetricStatus{
-			Errors:    []string{},
-			TagErrors: map[string][]string{},
+			Errors:     []string{},
+			TagResults: map[string]*TagSummary{},
 		}
 	}
 	return r.Metrics[metricName]
@@ -75,7 +82,7 @@ func KnownGPUConfigs(architectures *ArchitecturesSpec) []GPUConfig {
 	return configs
 }
 
-// ExpectedMetricsForConfig returns the fully-prefixed metrics expected for an architecture + mode.
+// ExpectedMetricsForConfig returns the spec metric names expected for an architecture + mode.
 func ExpectedMetricsForConfig(metricsSpec *MetricsSpec, arch string, mode DeviceMode) map[string]MetricSpec {
 	expected := make(map[string]MetricSpec)
 	if metricsSpec == nil {
@@ -86,10 +93,23 @@ func ExpectedMetricsForConfig(metricsSpec *MetricsSpec, arch string, mode Device
 		if !metricSpec.SupportsArchitecture(arch) || !metricSpec.SupportsDeviceMode(mode) {
 			continue
 		}
-		expected[metricsSpec.MetricPrefix+"."+metricName] = metricSpec
+		expected[metricName] = metricSpec
 	}
 
 	return expected
+}
+
+// PrefixedMetricName adds the spec metric prefix to a metric name if needed.
+func PrefixedMetricName(metricsSpec *MetricsSpec, metricName string) string {
+	if metricsSpec == nil || metricsSpec.MetricPrefix == "" {
+		return metricName
+	}
+
+	if strings.HasPrefix(metricName, metricsSpec.MetricPrefix+".") {
+		return metricName
+	}
+
+	return metricsSpec.MetricPrefix + "." + metricName
 }
 
 // UnprefixedMetricName strips the spec metric prefix from an emitted metric name.
@@ -154,43 +174,53 @@ func RequiredTagsByMetric(metricsSpec *MetricsSpec, metrics map[string]MetricSpe
 
 // ValidateMetricTagsAgainstSpec validates emitted tags against the spec for a metric.
 // If knownTagValues is provided, matching keys are additionally checked for exact values.
-func ValidateMetricTagsAgainstSpec(spec *MetricsSpec, metricName string, metricSpec MetricSpec, metricSamples []MetricObservation, knownTagValues map[string]string) (map[string][]string, error) {
-	tagErrors := make(map[string][]string)
+func ValidateMetricTagsAgainstSpec(spec *MetricsSpec, metricName string, metricSpec MetricSpec, metricSamples []MetricObservation, knownTagValues map[string]string) (map[string]*TagSummary, error) {
+	tagResults := make(map[string]*TagSummary)
 
 	requiredTags, err := RequiredTagsForMetric(spec, metricSpec)
 	if err != nil {
 		return nil, fmt.Errorf("required tags for %s: %w", metricName, err)
 	}
 
+	getTagSummary := func(tag string) *TagSummary {
+		if _, found := tagResults[tag]; !found {
+			tagResults[tag] = &TagSummary{}
+		}
+		return tagResults[tag]
+	}
+
 	for _, sample := range metricSamples {
 		tagsByKey := TagsToKeyValues(sample.Tags)
 
 		for tag := range requiredTags {
-			if _, found := tagsByKey[tag]; !found {
-				tagErrors[tag] = append(tagErrors[tag], ErrorMissing)
+			summary := getTagSummary(tag)
+			if values, found := tagsByKey[tag]; !found || len(values) == 0 {
+				summary.Missing++
+			} else {
+				summary.Found++
 			}
 		}
 
 		for tag, values := range tagsByKey {
 			_, allowed := requiredTags[tag]
 			if !allowed {
-				tagErrors[tag] = append(tagErrors[tag], ErrorUnknown)
+				getTagSummary(tag).Unknown++
 				continue
 			}
 
 			for _, value := range values {
 				if value == "" {
-					tagErrors[tag] = append(tagErrors[tag], ErrorInvalidValue)
+					getTagSummary(tag).InvalidValue++
 					continue
 				}
 				if expectedValue, ok := knownTagValues[tag]; ok && value != expectedValue {
-					tagErrors[tag] = append(tagErrors[tag], ErrorInvalidValue)
+					getTagSummary(tag).InvalidValue++
 				}
 			}
 		}
 	}
 
-	return tagErrors, nil
+	return tagResults, nil
 }
 
 func ValidateEmittedMetricsAgainstSpec(metricsSpec *MetricsSpec, archName string, mode DeviceMode, emittedMetrics map[string][]MetricObservation, knownTagValues map[string]string) (ValidationResult, error) {
@@ -220,12 +250,12 @@ func ValidateEmittedMetricsAgainstSpec(metricsSpec *MetricsSpec, archName string
 			continue
 		}
 
-		tagErrors, err := ValidateMetricTagsAgainstSpec(metricsSpec, metricName, metricSpec, emittedMetrics[metricName], knownTagValues)
+		tagResults, err := ValidateMetricTagsAgainstSpec(metricsSpec, metricName, metricSpec, emittedMetrics[metricName], knownTagValues)
 		if err != nil {
 			return results, fmt.Errorf("validate metric tags for %s: %w", metricName, err)
 		}
 
-		results.getMetricStatus(metricName).TagErrors = tagErrors
+		results.getMetricStatus(metricName).TagResults = tagResults
 	}
 
 	return results, nil

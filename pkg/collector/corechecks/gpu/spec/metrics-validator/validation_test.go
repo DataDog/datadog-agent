@@ -40,7 +40,7 @@ func TestGetExpectedMetricsForGPUConfigSkipsUnsupportedEntries(t *testing.T) {
 	result := gpuspec.ExpectedMetricsForConfig(spec, "ampere", gpuspec.DeviceModePhysical)
 
 	require.Equal(t, map[string]gpuspec.MetricSpec{
-		"gpu.device.total": spec.Metrics["device.total"],
+		"device.total": spec.Metrics["device.total"],
 	}, result)
 }
 

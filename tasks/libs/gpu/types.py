@@ -27,9 +27,17 @@ class GPUConfig:
 
 
 @dataclass(slots=True)
+class TagSummary:
+    found: int = 0
+    missing: int = 0
+    unknown: int = 0
+    invalid_value: int = 0
+
+
+@dataclass(slots=True)
 class MetricStatus:
     errors: list[str] = field(default_factory=list)
-    tag_errors: dict[str, list[str]] = field(default_factory=dict)
+    tag_results: dict[str, TagSummary] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -106,7 +114,15 @@ def validation_results_from_dict(payload: dict, *, site: str) -> ValidationResul
                 metrics={
                     metric_name: MetricStatus(
                         errors=list(metric_status.get("errors", [])),
-                        tag_errors={tag: list(errors) for tag, errors in (metric_status.get("tag_errors") or {}).items()},
+                        tag_results={
+                            tag: TagSummary(
+                                found=int(tag_result.get("found", 0)),
+                                missing=int(tag_result.get("missing", 0)),
+                                unknown=int(tag_result.get("unknown", 0)),
+                                invalid_value=int(tag_result.get("invalid_value", 0)),
+                            )
+                            for tag, tag_result in (metric_status.get("tag_results") or {}).items()
+                        },
                     )
                     for metric_name, metric_status in ((item.get("detailed_result") or {}).get("metrics") or {}).items()
                 }

@@ -2,13 +2,12 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"slices"
 	"time"
 
 	gpuspec "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/spec"
 )
-
-const scalarQueryBatchSize = 50
 
 func buildKnownGPUConfigs(architectures *gpuspec.ArchitecturesSpec) []gpuConfig {
 	specConfigs := gpuspec.KnownGPUConfigs(architectures)
@@ -21,15 +20,6 @@ func buildKnownGPUConfigs(architectures *gpuspec.ArchitecturesSpec) []gpuConfig 
 		})
 	}
 	return configs
-}
-
-func batchMetricNames(metricNames []string, chunkSize int) [][]string {
-	batches := make([][]string, 0, (len(metricNames)+chunkSize-1)/chunkSize)
-	for start := 0; start < len(metricNames); start += chunkSize {
-		end := min(start+chunkSize, len(metricNames))
-		batches = append(batches, metricNames[start:end])
-	}
-	return batches
 }
 
 func validateGPUConfig(client *metricsClient, metricsSpec *gpuspec.MetricsSpec, config gpuConfig, fromTS, toTS int64) (gpuConfigValidationResult, error) {
@@ -63,12 +53,14 @@ func validateGPUConfig(client *metricsClient, metricsSpec *gpuspec.MetricsSpec, 
 	}
 	slices.Sort(expectedMetricNames)
 
-	for _, batch := range batchMetricNames(expectedMetricNames, scalarQueryBatchSize) {
-		batchObservations, err := client.queryExpectedMetricsPresenceForGPUConfig(batch, expectedTagsByMetric, config.tagFilter(), fromTS, toTS)
+	for _, metricName := range expectedMetricNames {
+		prefixedMetricName := gpuspec.PrefixedMetricName(metricsSpec, metricName)
+		metricObservations, err := client.queryExpectedMetricPresenceForGPUConfig(prefixedMetricName, expectedTagsByMetric[metricName], config.tagFilter(), fromTS, toTS)
 		if err != nil {
 			return result, fmt.Errorf("validate expected metrics for %s/%s: %w", config.Architecture, config.DeviceMode, err)
 		}
-		for metricName, observation := range batchObservations {
+		for _, observation := range metricObservations {
+			observation.Name = metricName
 			observations[metricName] = append(observations[metricName], observation)
 		}
 	}
@@ -92,8 +84,11 @@ func validateGPUConfig(client *metricsClient, metricsSpec *gpuspec.MetricsSpec, 
 	}
 
 	for _, status := range result.DetailedResult.Metrics {
-		if len(status.TagErrors) > 0 {
-			result.TagFailures++
+		for _, tagResult := range status.TagResults {
+			if tagResult.Missing > 0 || tagResult.Unknown > 0 || tagResult.InvalidValue > 0 {
+				result.TagFailures++
+				break
+			}
 		}
 
 		for _, statusError := range status.Errors {
