@@ -65,7 +65,9 @@ int __attribute__((always_inline)) fetch_mod_name_common(struct module *m) {
         return 0;
     }
 
-    bpf_probe_read_str(&syscall->init_module.name, sizeof(syscall->init_module.name), &m->name);
+    u64 module_name_offset;
+    LOAD_CONSTANT("module_name_offset", module_name_offset);
+    bpf_probe_read_str(&syscall->init_module.name, sizeof(syscall->init_module.name), (void *)m + module_name_offset);
     return 0;
 }
 
