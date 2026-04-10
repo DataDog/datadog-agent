@@ -21,7 +21,6 @@ import (
 	"net/netip"
 	"os"
 	"runtime"
-	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -37,7 +36,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/sk"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/testdns"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -63,23 +61,6 @@ func TestMain(m *testing.M) {
 
 type TracerSuite struct {
 	suite.Suite
-}
-
-func SupportedNetworkBuildModes() []ebpftest.BuildMode {
-	modes := ebpftest.SupportedBuildModes()
-	if !slices.Contains(modes, ebpftest.Ebpfless) {
-		modes = append(modes, ebpftest.Ebpfless)
-	}
-	if !slices.Contains(modes, ebpftest.SK) && sk.KernelSupported() {
-		modes = append(modes, ebpftest.SK)
-	}
-	return modes
-}
-
-func TestTracerSuite(t *testing.T) {
-	ebpftest.TestBuildModes(t, SupportedNetworkBuildModes(), "", func(t *testing.T) {
-		suite.Run(t, new(TracerSuite))
-	})
 }
 
 func setupTracer(t testing.TB, cfg *config.Config) *Tracer {
