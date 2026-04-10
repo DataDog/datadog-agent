@@ -40,15 +40,15 @@ func NewKindCluster(env config.Env, vm *remote.Host, name string, kubeVersion st
 }
 
 func validateKubeVersionFormat(kubeVersion string) error {
-	// Pattern: v{semver}@sha256:{hash}
+	// Pattern: v{semver}@sha256:{hash} (with optional prerelease, e.g. -rc.0)
 	// Example: v1.32.0@sha256:c48c62eac5da28cdadcf560d1d8616cfa6783b58f0d94cf63ad1bf49600cb027
-	pattern := `^v\d+\.\d+\.\d+@sha256:[a-f0-9]{64}$`
+	pattern := `^v\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?@sha256:[a-f0-9]{64}$`
 	matched, err := regexp.MatchString(pattern, kubeVersion)
 	if err != nil {
 		return fmt.Errorf("error validating kubeVersion format: %w", err)
 	}
 	if !matched {
-		return fmt.Errorf("kubeVersion must be in format 'v{semver}@sha256:{hash}' (e.g., v1.32.0@sha256:c48c62eac5da28cdadcf560d1d8616cfa6783b58f0d94cf63ad1bf49600cb027), got: %s", kubeVersion)
+		return fmt.Errorf("kubeVersion must be in format 'v{major}.{minor}.{patch}[-prerelease]@sha256:{hash}' (e.g., v1.32.0@sha256:c48c62eac5da28cdadcf560d1d8616cfa6783b58f0d94cf63ad1bf49600cb027 or v1.36.0-rc.0@sha256:...), got: %s", kubeVersion)
 	}
 	return nil
 }
