@@ -184,6 +184,14 @@ func (cr *Resolver) pushNewCacheEntry(pid uint32, containerContext model.Contain
 
 	cr.addedCgroups.Inc()
 
+	// When the entry is created with a real pid (pid != 0), it means a process already exists
+	// in this cgroup — this covers both snapshot discovery and runtime cases where no prior
+	// Add() call was made. Entries pre-created with pid=0 (via Add()) will fire CGroupCreated
+	// later when AddPID transitions their count from 0 to 1.
+	if pid != 0 {
+		cr.NotifyListeners(CGroupCreated, cacheEntry)
+	}
+
 	return cacheEntry
 }
 

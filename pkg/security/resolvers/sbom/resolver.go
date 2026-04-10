@@ -858,6 +858,25 @@ func (r *Resolver) GetWorkload(id containerutils.ContainerID) *SBOM {
 	return sbom
 }
 
+// OnCGroupCreatedEvent is used to handle a CGroupCreated event. It queues an SBOM scan for
+// the container as soon as the cgroup is known, without waiting for tag resolution.
+func (r *Resolver) OnCGroupCreatedEvent(cgroup *cgroupModel.CacheEntry) {
+	id := cgroup.GetContainerID()
+	if len(id) == 0 {
+		return
+	}
+
+	r.sbomsLock.Lock()
+	defer r.sbomsLock.Unlock()
+
+	if _, ok := r.sboms.Get(id); ok {
+		return
+	}
+
+	sbom := r.newSBOM(id, cgroup, workloadKey(id))
+	r.triggerScan(sbom)
+}
+
 // OnCGroupDeletedEvent is used to handle a CGroupDeleted event
 func (r *Resolver) OnCGroupDeletedEvent(cgroup *cgroupModel.CacheEntry) {
 	if !cgroup.IsContainerContextNull() {
