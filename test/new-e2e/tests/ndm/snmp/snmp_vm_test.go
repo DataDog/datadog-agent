@@ -49,6 +49,7 @@ func snmpVMProvisioner(opts ...awshost.ProvisionerOption) provisioners.Provision
 }
 
 func TestSnmpVMSuite(t *testing.T) {
+	t.Parallel()
 	e2e.Run(t, &snmpVMSuite{}, e2e.WithProvisioner(snmpVMProvisioner()))
 }
 
