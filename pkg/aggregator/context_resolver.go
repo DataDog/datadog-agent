@@ -247,6 +247,10 @@ func (cr *contextResolver) release() {
 	for _, c := range cr.contextsByKey {
 		c.context.release()
 	}
+	cr.clearStripCache()
+}
+
+func (cr *contextResolver) clearStripCache() {
 	clear(cr.stripCache)
 	clear(cr.stripCacheReverse)
 }
