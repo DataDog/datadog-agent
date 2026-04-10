@@ -94,12 +94,12 @@ func (h *offlinereporterImpl) readLastHeartbeat() {
 		return
 	}
 	if err != nil {
-		h.log.Warnf("offlinereporter: failed to read heartbeat file %s: %w", h.filePath, err)
+		h.log.Warnf("offlinereporter: failed to read heartbeat file %q: %v", h.filePath, err)
 		return
 	}
 	secs, err := strconv.ParseInt(strings.TrimSpace(string(data)), 10, 64)
 	if err != nil {
-		h.log.Warnf("offlinereporter: failed to parse previous timestamp in %s: %w", h.filePath, err)
+		h.log.Warnf("offlinereporter: failed to parse previous timestamp in %q: %v", h.filePath, err)
 		return
 	}
 	h.lastHeartbeat = time.Unix(secs, 0)
@@ -119,7 +119,7 @@ func (h *offlinereporterImpl) writeNow() error {
 
 func (h *offlinereporterImpl) loop() {
 	if err := h.writeNow(); err != nil {
-		h.log.Errorf("offlinereporter: failed to write heartbeat file %s: %w", h.filePath, err)
+		h.log.Errorf("offlinereporter: failed to write heartbeat file %q: %v", h.filePath, err)
 	}
 	ticker := time.NewTicker(h.heartbeatInterval)
 	defer ticker.Stop()
