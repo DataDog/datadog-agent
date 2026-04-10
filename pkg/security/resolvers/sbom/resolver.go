@@ -685,6 +685,15 @@ func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEven
 	}
 
 	sbom.Lock()
+
+	// If the SBOM scan hasn't completed yet, queue this access so it is replayed once
+	// the scan finishes (processPendingFileEvents is called at the end of analyzeWorkload).
+	if !sbom.IsComputed() {
+		sbom.Unlock()
+		r.queuePendingFileEvent(pc.ContainerContext.ContainerID, file.PathnameStr, file.Mode, pc.UID)
+		return nil
+	}
+
 	defer sbom.Unlock()
 
 	// replay any file accesses that arrived before the SBOM was ready
