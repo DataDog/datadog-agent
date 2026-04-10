@@ -7,7 +7,7 @@ require (
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/atomic v1.11.0
-	golang.org/x/sys v0.42.0
+	golang.org/x/sys v0.43.0
 )
 
 require gopkg.in/yaml.v3 v3.0.1 // indirect
@@ -20,7 +20,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
-	golang.org/x/time v0.14.0 // indirect
+	golang.org/x/time v0.15.0 // indirect
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually

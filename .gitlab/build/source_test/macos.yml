@@ -38,6 +38,8 @@ include:
   retry: !reference [.retry_only_infra_failure, retry]
 
 tests_macos_gitlab_amd64:
+  rules:
+    - !reference [.on_main_or_release_branch]
   extends: .tests_macos_gitlab
   tags: ["macos:sonoma-amd64", "specific:true"]
 
