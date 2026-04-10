@@ -296,12 +296,14 @@ func getGlobalLRUCandidate(configsPerDevice map[string]int, sortedEntries []*Con
 // Both the updated configsPerDevice map and sortedEntries slice are returned to make
 // it explicit that both structures are outputs of this operation.
 func updateEvictionIndex(configsPerDevice map[string]int, sortedEntries []*ConfigMetadata, key string) (map[string]int, []*ConfigMetadata) {
-	configsPerDevice[entry.DeviceID]--
-	
+
 	var remaining []*ConfigMetadata
-	for _, entry := range sortedEntries {
+
+	for i, entry := range sortedEntries {
 		if entry.ConfigUUID == key {
-			continue
+			configsPerDevice[entry.DeviceID]--
+			remaining = append(remaining, sortedEntries[i+1:]...)
+			return configsPerDevice, remaining
 		}
 		remaining = append(remaining, entry)
 	}
