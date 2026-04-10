@@ -30,12 +30,16 @@ int hook_security_file_mprotect(ctx_t *ctx) {
 
     u64 flags_offset;
     LOAD_CONSTANT("vm_area_struct_flags_offset", flags_offset);
+    u64 vm_start_offset;
+    LOAD_CONSTANT("vm_area_struct_vm_start_offset", vm_start_offset);
+    u64 vm_end_offset;
+    LOAD_CONSTANT("vm_area_struct_vm_end_offset", vm_end_offset);
 
     // Retrieve vma information
     struct vm_area_struct *vma = (struct vm_area_struct *)CTX_PARM1(ctx);
     bpf_probe_read(&syscall->mprotect.vm_protection, sizeof(syscall->mprotect.vm_protection), (char *)vma + flags_offset);
-    bpf_probe_read(&syscall->mprotect.vm_start, sizeof(syscall->mprotect.vm_start), &vma->vm_start);
-    bpf_probe_read(&syscall->mprotect.vm_end, sizeof(syscall->mprotect.vm_end), &vma->vm_end);
+    bpf_probe_read(&syscall->mprotect.vm_start, sizeof(syscall->mprotect.vm_start), (char *)vma + vm_start_offset);
+    bpf_probe_read(&syscall->mprotect.vm_end, sizeof(syscall->mprotect.vm_end), (char *)vma + vm_end_offset);
     syscall->mprotect.req_protection = (u64)CTX_PARM2(ctx);
     return 0;
 }
