@@ -241,7 +241,7 @@ func NewConfig() (*Config, error) {
 		// Mount resolver
 		SnapshotUsingListmount: getBool("snapshot_using_listmount"),
 	}
-	
+
 	if err := c.sanitize(); err != nil {
 		return nil, err
 	}

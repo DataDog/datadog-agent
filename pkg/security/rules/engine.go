@@ -753,13 +753,13 @@ func newSlowProcessingEvent(event *model.Event) *slowProcessingEvent {
 	}
 
 	return &slowProcessingEvent{
-		EventType:             event.GetEventType().String(),
-		DurationUs:            durationUs,
+		EventType:              event.GetEventType().String(),
+		DurationUs:             durationUs,
 		ProcessingTimeMicrosec: uint32(durationUs),
-		ProcessingTrace:       append([]model.ProcessingCheckpoint(nil), event.ProcessingTrace...),
-		MaxProcessingGapUs:    maxGapUs,
-		MaxProcessingGapFrom:  maxGapFrom,
-		MaxProcessingGapTo:    maxGapTo,
+		ProcessingTrace:        append([]model.ProcessingCheckpoint(nil), event.ProcessingTrace...),
+		MaxProcessingGapUs:     maxGapUs,
+		MaxProcessingGapFrom:   maxGapFrom,
+		MaxProcessingGapTo:     maxGapTo,
 	}
 }
 
