@@ -288,6 +288,103 @@ func TestTimeClusterCorrelator_MinClusterSize(t *testing.T) {
 	assert.Len(t, correlations, 2)
 }
 
+func TestTimeClusterCorrelator_SamplingIntervalWidensProximity(t *testing.T) {
+	c := NewTimeClusterCorrelator(TimeClusterConfig{
+		ProximitySeconds: 10,
+		WindowSeconds:    120,
+	})
+
+	// Two anomalies 15s apart — beyond the 10s proximity window.
+	// But both have SamplingIntervalSec=15, so the effective proximity
+	// should widen to 15s and they should cluster together.
+	c.ProcessAnomaly(observer.Anomaly{
+		Source:              observer.SeriesDescriptor{Name: "redis.cpu.sys"},
+		Timestamp:           100,
+		SamplingIntervalSec: 15,
+	})
+	c.ProcessAnomaly(observer.Anomaly{
+		Source:              observer.SeriesDescriptor{Name: "redis.info.latency_ms"},
+		Timestamp:           115,
+		SamplingIntervalSec: 15,
+	})
+
+	correlations := c.ActiveCorrelations()
+	require.Len(t, correlations, 1, "slow-sampling anomalies 15s apart should cluster with SamplingIntervalSec=15")
+	assert.Len(t, correlations[0].Anomalies, 2)
+}
+
+func TestTimeClusterCorrelator_SamplingIntervalNoEffectWhenClose(t *testing.T) {
+	c := NewTimeClusterCorrelator(TimeClusterConfig{
+		ProximitySeconds: 10,
+		WindowSeconds:    120,
+	})
+
+	// Two anomalies 5s apart — within the base 10s proximity.
+	// SamplingIntervalSec shouldn't change the result.
+	c.ProcessAnomaly(observer.Anomaly{
+		Source:              observer.SeriesDescriptor{Name: "trace.hits"},
+		Timestamp:           100,
+		SamplingIntervalSec: 10,
+	})
+	c.ProcessAnomaly(observer.Anomaly{
+		Source:              observer.SeriesDescriptor{Name: "trace.latency"},
+		Timestamp:           105,
+		SamplingIntervalSec: 10,
+	})
+
+	correlations := c.ActiveCorrelations()
+	require.Len(t, correlations, 1)
+	assert.Len(t, correlations[0].Anomalies, 2)
+}
+
+func TestTimeClusterCorrelator_SamplingIntervalMixed(t *testing.T) {
+	c := NewTimeClusterCorrelator(TimeClusterConfig{
+		ProximitySeconds: 10,
+		WindowSeconds:    120,
+	})
+
+	// Fast-sampling anomaly at t=100, slow-sampling at t=120 (20s gap).
+	// The slow anomaly's SamplingIntervalSec=20 should widen proximity
+	// enough to join the existing cluster.
+	c.ProcessAnomaly(observer.Anomaly{
+		Source:              observer.SeriesDescriptor{Name: "trace.hits"},
+		Timestamp:           100,
+		SamplingIntervalSec: 10,
+	})
+	c.ProcessAnomaly(observer.Anomaly{
+		Source:              observer.SeriesDescriptor{Name: "redis.cpu.sys"},
+		Timestamp:           120,
+		SamplingIntervalSec: 20,
+	})
+
+	correlations := c.ActiveCorrelations()
+	require.Len(t, correlations, 1, "slow-sampling anomaly should join fast-sampling cluster when SamplingIntervalSec covers the gap")
+	assert.Len(t, correlations[0].Anomalies, 2)
+}
+
+func TestTimeClusterCorrelator_SamplingIntervalTooFar(t *testing.T) {
+	c := NewTimeClusterCorrelator(TimeClusterConfig{
+		ProximitySeconds: 10,
+		WindowSeconds:    120,
+	})
+
+	// Two anomalies 30s apart. SamplingIntervalSec=15 widens to 15s
+	// but 30s is still too far.
+	c.ProcessAnomaly(observer.Anomaly{
+		Source:              observer.SeriesDescriptor{Name: "redis.cpu.sys"},
+		Timestamp:           100,
+		SamplingIntervalSec: 15,
+	})
+	c.ProcessAnomaly(observer.Anomaly{
+		Source:              observer.SeriesDescriptor{Name: "redis.mem.rss"},
+		Timestamp:           130,
+		SamplingIntervalSec: 15,
+	})
+
+	correlations := c.ActiveCorrelations()
+	assert.Len(t, correlations, 2, "30s gap exceeds even widened proximity of 15s — should be separate clusters")
+}
+
 func TestTimeClusterCorrelator_DefaultConfig(t *testing.T) {
 	config := DefaultTimeClusterConfig()
 	assert.Equal(t, int64(10), config.ProximitySeconds)

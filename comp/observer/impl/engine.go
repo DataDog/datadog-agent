@@ -103,8 +103,10 @@ type engine struct {
 	onAdvance      func(advanceEntry) // scheduler trace
 
 	// Counters for data ingestion anomalies, reset after each advance.
-	latePoints atomic.Int64 // points ingested after their timestamp was already analyzed
-	droppedObs atomic.Int64 // observations dropped due to full channel
+	latePoints         atomic.Int64      // points ingested after their timestamp was already analyzed
+	latePointsBySource map[string]int64  // per-source breakdown (single-goroutine access from run loop)
+	handles            []*handle         // registered handles for per-source drop collection
+	handlesMu          sync.Mutex        // protects handles slice
 }
 
 // engineConfig holds the parameters for constructing an engine.
@@ -197,6 +199,14 @@ func (e *engine) emit(evt engineEvent) {
 	}
 }
 
+// registerHandle adds a handle to the engine's handle list so that per-source
+// drop counts can be collected at advance time.
+func (e *engine) registerHandle(h *handle) {
+	e.handlesMu.Lock()
+	e.handles = append(e.handles, h)
+	e.handlesMu.Unlock()
+}
+
 // IngestMetric stores a metric observation and consults the scheduler policy
 // to determine whether detectors should advance. Returns advance requests
 // that the caller should execute via Advance.
@@ -206,6 +216,10 @@ func (e *engine) IngestMetric(source string, m *metricObs) []advanceRequest {
 	// These points are in storage but were invisible to detectors at analysis time.
 	if m.timestamp <= e.lastAnalyzedDataTime {
 		e.latePoints.Add(1)
+		if e.latePointsBySource == nil {
+			e.latePointsBySource = make(map[string]int64)
+		}
+		e.latePointsBySource[source]++
 	}
 	e.trackLatestDataTime(m.timestamp)
 	return e.scheduler.onObservation(m.timestamp, e.schedulerState())
@@ -339,11 +353,32 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 	e.mu.Unlock()
 
 	if e.onAdvance != nil {
+		var lateBySource map[string]int64
+		if len(e.latePointsBySource) > 0 {
+			lateBySource = e.latePointsBySource
+			e.latePointsBySource = nil
+		}
+		var totalDrops int64
+		var dropsBySource map[string]int64
+		e.handlesMu.Lock()
+		for _, h := range e.handles {
+			n := h.dropCount.Swap(0)
+			if n > 0 {
+				totalDrops += n
+				if dropsBySource == nil {
+					dropsBySource = make(map[string]int64)
+				}
+				dropsBySource[h.source] += n
+			}
+		}
+		e.handlesMu.Unlock()
 		e.onAdvance(advanceEntry{
-			DataTime:   upToSec,
-			Reason:     advanceReasonString(reason),
-			LatePoints: e.latePoints.Swap(0),
-			DroppedObs: e.droppedObs.Swap(0),
+			DataTime:           upToSec,
+			Reason:             advanceReasonString(reason),
+			LatePoints:         e.latePoints.Swap(0),
+			LatePointsBySource: lateBySource,
+			DroppedObs:         totalDrops,
+			DroppedBySource:    dropsBySource,
 		})
 	}
 
@@ -366,10 +401,18 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 
 // runDetectorsAndCorrelatorsSnapshot runs the given detectors and correlators.
 // Uses explicit slices so the caller can snapshot them under a lock.
+//
+// Scan detectors (ScanMW, ScanWelch) emit anomalies with historical changepoint
+// timestamps that may be hundreds of seconds behind upTo. The correlator's
+// currentDataTime persists across calls at the previous upTo, so advancing
+// correlators to upTo after processing would evict just-formed clusters before
+// they can be accumulated. We accumulate correlations BEFORE advancing so
+// clusters are captured while still alive.
 func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []observerdef.Detector, correlators []observerdef.Correlator) advanceResult {
 	var allAnomalies []observerdef.Anomaly
 	var allTelemetry []observerdef.ObserverTelemetry
 
+	// Detect, deduplicate, and feed anomalies to correlators.
 	for _, detector := range detectors {
 		// Use instrumented storage when digest recording is active.
 		storageForDetect := observerdef.StorageReader(e.storage)
@@ -409,12 +452,11 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 		for _, anomaly := range result.Anomalies {
 			e.enrichAnomaly(&anomaly)
 			if !e.captureRawAnomaly(anomaly) {
-				continue // duplicate — skip correlators, events, and reporters
+				continue // duplicate
 			}
 			correlatorTelemetry := e.processAnomaly(anomaly)
 			allAnomalies = append(allAnomalies, anomaly)
 			allTelemetry = append(allTelemetry, correlatorTelemetry...)
-
 			e.emit(engineEvent{
 				kind:      eventAnomalyCreated,
 				timestamp: anomaly.Timestamp,
@@ -426,12 +468,13 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 		allTelemetry = append(allTelemetry, result.Telemetry...)
 	}
 
-	// Advance correlators so they can update their internal state.
+	// Accumulate correlations before advancing — captures clusters formed from
+	// historical-timestamp anomalies before Advance(upTo) evicts them.
 	for _, correlator := range correlators {
+		e.accumulateCorrelations(correlator.ActiveCorrelations())
 		advanceStart := time.Now()
 		correlator.Advance(upTo)
 		allTelemetry = append(allTelemetry, newTelemetryGauge([]string{"detector:" + correlator.Name()}, telemetryDetectorProcessingTimeNs, float64(time.Since(advanceStart).Nanoseconds()), upTo))
-		e.accumulateCorrelations(correlator.ActiveCorrelations())
 		e.emit(engineEvent{
 			kind:      eventCorrelationUpdated,
 			timestamp: upTo,

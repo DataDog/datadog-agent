@@ -75,7 +75,11 @@ func (s *reporterEventSink) onEngineEvent(evt engineEvent) {
 			NewAnomalies:  ac.anomalies,
 		}
 		if s.state != nil {
-			output.ActiveCorrelations = s.state.ActiveCorrelations()
+			// Use CorrelationHistory (accumulated) rather than ActiveCorrelations
+			// (post-eviction) so that batch detector clusters are visible to
+			// reporters even when their changepoint timestamps are old enough
+			// to be evicted.
+			output.ActiveCorrelations = s.state.CorrelationHistory()
 		}
 		for _, r := range s.reporters {
 			r.Report(output)
