@@ -106,9 +106,9 @@ def validation_results_from_dict(payload: dict, *, site: str) -> ValidationResul
                 metrics={
                     metric_name: MetricStatus(
                         errors=list(metric_status.get("errors", [])),
-                        tag_errors={tag: list(errors) for tag, errors in metric_status.get("tag_errors", {}).items()},
+                        tag_errors={tag: list(errors) for tag, errors in (metric_status.get("tag_errors") or {}).items()},
                     )
-                    for metric_name, metric_status in item.get("detailed_result", {}).get("metrics", {}).items()
+                    for metric_name, metric_status in ((item.get("detailed_result") or {}).get("metrics") or {}).items()
                 }
             ),
             expected_metrics=int(item.get("expected_metrics", 0)),

@@ -42,18 +42,21 @@ def validate_metrics(ctx, lookback_seconds=3600, org: str | None = None):
     else:
         orgs = list(orgs_by_name.values())
 
+    print("== Building validator binary ==")
     binary_path = build_validator_binary(ctx)
     results: ValidationResults | None = None
     org_errors: list[str] = []
     for org_name, dd_auth_domain in orgs:
         print(f"\n== Running GPU validation for {org_name} ({dd_auth_domain}) ==")
         try:
+            print(" - fetching API/App keys...")
             with dd_auth_api_app_keys(ctx, dd_auth_domain):
                 command = (
                     f"{shlex.quote(binary_path)} "
                     f"--site {shlex.quote(VALIDATOR_SITE)} "
                     f"--lookback-seconds {int(lookback_seconds)}"
                 )
+                print(f" - running validator...")
                 result = validation_results_from_dict(
                     json.loads(ctx.run(command, hide=True).stdout),
                     site=VALIDATOR_SITE,

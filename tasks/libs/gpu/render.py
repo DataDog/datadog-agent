@@ -65,6 +65,7 @@ def print_result_details(results: list[GPUConfigValidationResult]) -> None:
     for result in results:
         if not result.has_failures or result.device_count == 0:
             continue
+
         print(f"\n-- {result.config.architecture} {result.config.device_mode} --")
         print(f"{SPACER}found devices: {result.device_count}")
         print(f"{SPACER}summary")
@@ -72,15 +73,16 @@ def print_result_details(results: list[GPUConfigValidationResult]) -> None:
         print(f"{SPACER * 2}known={result.present_metrics}")
         print(f"{SPACER * 2}unknown={result.unknown_metrics}")
         print(f"{SPACER * 2}tag failures={result.tag_failures}")
+
         if result.detailed_result.metrics:
-            print(f"{SPACER}metric details")
+            print(f"{SPACER}metric failures")
+
             for metric_name, metric_status in sorted(result.detailed_result.metrics.items()):
                 if not metric_status.errors and not metric_status.tag_errors:
                     continue
-                print(f"{SPACER * 2}- {metric_name}")
-                if metric_status.errors:
-                    for error in metric_status.errors:
-                        print(f"{SPACER * 3}- {error}")
+
+                print(f"{SPACER * 2}- {metric_name}: {', '.join(metric_status.errors)}")
+
                 for tag_name, tag_errors in sorted(metric_status.tag_errors.items()):
                     print(f"{SPACER * 3}- tag {tag_name}: [{', '.join(tag_errors)}]")
 

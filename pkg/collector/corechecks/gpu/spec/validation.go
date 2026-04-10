@@ -41,7 +41,10 @@ type ValidationResult struct {
 
 func (r *ValidationResult) getMetricStatus(metricName string) *MetricStatus {
 	if _, found := r.Metrics[metricName]; !found {
-		r.Metrics[metricName] = &MetricStatus{}
+		r.Metrics[metricName] = &MetricStatus{
+			Errors:    []string{},
+			TagErrors: map[string][]string{},
+		}
 	}
 	return r.Metrics[metricName]
 }

@@ -149,6 +149,7 @@ func computeValidation(apiKey, appKey, site string, lookbackSeconds int64) (orgV
 	failingCount := 0
 
 	for _, config := range configs {
+		log.Printf("validating gpu config %s/%s", config.Architecture, config.DeviceMode)
 		result, err := validateGPUConfig(client, metricsSpec, config, fromTS, now)
 		if err != nil {
 			return orgValidationResults{}, fmt.Errorf("validate gpu config %s/%s: %w", config.Architecture, config.DeviceMode, err)
