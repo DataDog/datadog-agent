@@ -161,6 +161,31 @@ func TestTracerMemfd(t *testing.T) {
 		assert.Contains(t, tmeta.ProcessTags, "custom.tag:value", "ProcessTags should contain custom.tag")
 	})
 
+	test.RunMultiMode(t, "validate-threadlocal-attribute-keys", func(t *testing.T, _ wrapperType, cmd func(bin string, args []string, envs []string) *exec.Cmd) {
+		consumer.eventReceived.Store(false)
+		consumer.capturedPid.Store(0)
+		consumer.capturedFd.Store(0)
+
+		cmdExec := cmd(syscallTester, []string{"tracer-memfd-with-keys"}, nil)
+		_ = cmdExec.Run()
+
+		require.Eventually(t, consumer.eventReceived.Load, 2*time.Second, 200*time.Millisecond, "tracer-memfd event should be received")
+
+		consumer.capturedMutex.Lock()
+		tmeta := consumer.capturedMetadata
+		consumer.capturedMutex.Unlock()
+
+		require.NotEmpty(t, tmeta.ServiceName, "ServiceName should not be empty")
+		assert.Equal(t, "test-service", tmeta.ServiceName, "ServiceName mismatch")
+		assert.Equal(t, "cpp", tmeta.TracerLanguage, "TracerLanguage mismatch")
+
+		// Verify threadlocal_attribute_keys are parsed from the memfd
+		require.Len(t, tmeta.ThreadlocalAttributeKeys, 3, "should have 3 threadlocal attribute keys")
+		assert.Equal(t, "http.method", tmeta.ThreadlocalAttributeKeys[0])
+		assert.Equal(t, "http.target", tmeta.ThreadlocalAttributeKeys[1])
+		assert.Equal(t, "http.user", tmeta.ThreadlocalAttributeKeys[2])
+	})
+
 	test.RunMultiMode(t, "validate-tracer-serialization", func(t *testing.T, _ wrapperType, cmd func(bin string, args []string, envs []string) *exec.Cmd) {
 		consumer.eventReceived.Store(false)
 		consumer.capturedPid.Store(0)

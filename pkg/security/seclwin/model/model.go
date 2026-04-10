@@ -195,8 +195,10 @@ func (nc *NetworkContext) IsZero() bool {
 
 // SpanContext describes a span context
 type SpanContext struct {
-	SpanID  uint64        `field:"-"`
-	TraceID utils.TraceID `field:"-"`
+	SpanID        uint64            `field:"-"`
+	TraceID       utils.TraceID     `field:"-"`
+	HasExtraAttrs bool              `field:"-"`
+	Attributes    map[string]string `field:"-"`
 }
 
 // RuleContext defines a rule context
