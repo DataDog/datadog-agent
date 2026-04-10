@@ -21,7 +21,6 @@ type TraceAgent interface {
 	Process(*api.Payload)
 	Flush()
 	Stop()
-	FlushStats()
 }
 
 // TracingContext holds tracing dependencies used by cloud services that need them.

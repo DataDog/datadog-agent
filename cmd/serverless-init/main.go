@@ -109,7 +109,8 @@ func run(secretComp secrets.Component, delegatedAuthComp delegatedauth.Component
 	err := modeConf.Runner(logConfig)
 
 	// Defers are LIFO. We want to run the cloud service shutdown logic before last flush.
-	defer lastFlush(logConfig.FlushTimeout, metricAgent, tracingCtx.TraceAgent, logsAgent)
+	defer lastFlush(logConfig.FlushTimeout, metricAgent, logsAgent)
+	defer tracingCtx.TraceAgent.Stop() // synchronous: drains traces, flushes stats, sends to network
 	defer func() {
 		cloudService.Shutdown(*metricAgent, enhancedMetricsEnabled, err) // submits task.ended metric
 
@@ -118,7 +119,6 @@ func run(secretComp secrets.Component, delegatedAuthComp delegatedauth.Component
 		}
 
 		metricAgent.WaitForPendingSamples() // wait for worker to consume them
-		tracingCtx.TraceAgent.FlushStats()  // force-flush concentrator stats before lastFlush sends them
 	}()
 
 	return err
@@ -328,12 +328,11 @@ func flushMetricsAgent(metricAgent *metrics.ServerlessMetricAgent) {
 	}
 }
 
-func lastFlush(flushTimeout time.Duration, metricAgent serverless.FlushableAgent, traceAgent serverless.FlushableAgent, logsAgent logsAgent.ServerlessLogsAgent) bool {
+func lastFlush(flushTimeout time.Duration, metricAgent serverless.FlushableAgent, logsAgent logsAgent.ServerlessLogsAgent) bool {
 	hasTimeout := atomic.NewInt32(0)
 	wg := &sync.WaitGroup{}
-	wg.Add(3)
+	wg.Add(2)
 	go flushAndWait(flushTimeout, wg, metricAgent, hasTimeout)
-	go flushAndWait(flushTimeout, wg, traceAgent, hasTimeout)
 	childCtx, cancel := context.WithTimeout(context.Background(), flushTimeout)
 	defer cancel()
 	go func(wg *sync.WaitGroup, ctx context.Context) {

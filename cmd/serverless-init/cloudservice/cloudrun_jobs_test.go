@@ -47,10 +47,6 @@ func (m *mockTraceProcessor) Stop() {
 	// no-op for tests
 }
 
-func (m *mockTraceProcessor) FlushStats() {
-	// no-op for tests
-}
-
 func skipOnWindows(t *testing.T) {
 	t.Helper()
 	if runtime.GOOS == "windows" {
