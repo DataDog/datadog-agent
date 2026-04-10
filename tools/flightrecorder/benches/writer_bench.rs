@@ -9,6 +9,7 @@ use std::time::{Duration, Instant};
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use tempfile::TempDir;
 
+use flightrecorder::disk_tracker::DiskTracker;
 use flightrecorder::generated::signals_generated::signals;
 use flightrecorder::writers::context_store::ContextStore;
 use flightrecorder::writers::logs::LogsWriter;
@@ -18,44 +19,61 @@ use flightrecorder::writers::metrics::MetricsWriter;
 // Frame builders
 // ---------------------------------------------------------------------------
 
-/// Build a MetricBatch frame with `n` context-key samples.
+/// Build a MetricBatch frame with `n` context entries and `n` point entries.
 fn build_metric_frame(n: usize) -> Vec<u8> {
     let mut fbb = flatbuffers::FlatBufferBuilder::with_capacity(4096);
 
-    let mut offsets = Vec::with_capacity(n);
+    // Build context entries.
+    let mut ctx_offsets = Vec::with_capacity(n);
     for i in (0..n).rev() {
         let name = fbb.create_string(&format!("cpu.user.{}", i % 100));
         let source = fbb.create_string("dogstatsd");
         let t1 = fbb.create_string(&format!("host:web-{}", i % 50));
         let t2 = fbb.create_string("env:staging");
         let tags = fbb.create_vector(&[t1, t2]);
-        let sample = signals::MetricSample::create(
+        let ctx = signals::ContextEntry::create(
             &mut fbb,
-            &signals::MetricSampleArgs {
-                name: Some(name),
-                value: i as f64 * 1.1,
-                tags: Some(tags),
-                timestamp_ns: 1_700_000_000_000_000_000 + i as i64 * 1_000_000,
-                sample_rate: 1.0,
-                source: Some(source),
+            &signals::ContextEntryArgs {
                 context_key: (i as u64) % 5000 + 1,
+                name: Some(name),
+                tags: Some(tags),
+                source: Some(source),
             },
         );
-        offsets.push(sample);
+        ctx_offsets.push(ctx);
     }
-    offsets.reverse();
-    let vec = fbb.create_vector(&offsets);
+    ctx_offsets.reverse();
+    let ctx_vec = fbb.create_vector(&ctx_offsets);
+
+    // Build point entries.
+    let mut pt_offsets = Vec::with_capacity(n);
+    for i in (0..n).rev() {
+        let pt = signals::PointEntry::create(
+            &mut fbb,
+            &signals::PointEntryArgs {
+                context_key: (i as u64) % 5000 + 1,
+                value: i as f64 * 1.1,
+                timestamp_ns: 1_700_000_000_000_000_000 + i as i64 * 1_000_000,
+                sample_rate: 1.0,
+            },
+        );
+        pt_offsets.push(pt);
+    }
+    pt_offsets.reverse();
+    let pt_vec = fbb.create_vector(&pt_offsets);
+
     let batch = signals::MetricBatch::create(
         &mut fbb,
         &signals::MetricBatchArgs {
-            samples: Some(vec),
+            contexts: Some(ctx_vec),
+            points: Some(pt_vec),
         },
     );
     let env = signals::SignalEnvelope::create(
         &mut fbb,
         &signals::SignalEnvelopeArgs {
-            payload_type: signals::SignalPayload::MetricBatch,
-            payload: Some(batch.as_union_value()),
+            metric_batch: Some(batch),
+            ..Default::default()
         },
     );
     fbb.finish(env, None);
@@ -71,7 +89,6 @@ fn build_log_frame(n: usize) -> Vec<u8> {
         let content = fbb.create_vector(format!("Log line {} with some realistic content for benchmarking the writer pipeline", i).as_bytes());
         let status = fbb.create_string("info");
         let hostname = fbb.create_string(&format!("web-{}", i % 50));
-        let source = fbb.create_string("docker");
         let t1 = fbb.create_string("service:api");
         let t2 = fbb.create_string("env:staging");
         let tags = fbb.create_vector(&[t1, t2]);
@@ -83,7 +100,6 @@ fn build_log_frame(n: usize) -> Vec<u8> {
                 tags: Some(tags),
                 hostname: Some(hostname),
                 timestamp_ns: 1_700_000_000_000_000_000 + i as i64 * 1_000_000,
-                source: Some(source),
             },
         );
         offsets.push(entry);
@@ -99,8 +115,8 @@ fn build_log_frame(n: usize) -> Vec<u8> {
     let env = signals::SignalEnvelope::create(
         &mut fbb,
         &signals::SignalEnvelopeArgs {
-            payload_type: signals::SignalPayload::LogBatch,
-            payload: Some(batch.as_union_value()),
+            log_batch: Some(batch),
+            ..Default::default()
         },
     );
     fbb.finish(env, None);
@@ -128,10 +144,11 @@ fn bench_metrics_push(c: &mut Criterion) {
                     100_000, // high threshold to avoid flushing during push
                     Duration::from_secs(3600),
                     store,
+                    Arc::new(DiskTracker::noop()),
                 );
 
                 let env = flatbuffers::root::<signals::SignalEnvelope>(frame).unwrap();
-                let batch = env.payload_as_metric_batch().unwrap();
+                let batch = env.metric_batch().unwrap();
 
                 let start = Instant::now();
                 for _ in 0..iters {
@@ -159,10 +176,11 @@ fn bench_logs_push(c: &mut Criterion) {
                     dir.path(),
                     100_000,
                     Duration::from_secs(3600),
+                    Arc::new(DiskTracker::noop()),
                 );
 
                 let env = flatbuffers::root::<signals::SignalEnvelope>(frame).unwrap();
-                let batch = env.payload_as_log_batch().unwrap();
+                let batch = env.log_batch().unwrap();
 
                 let start = Instant::now();
                 for _ in 0..iters {
@@ -197,10 +215,11 @@ fn bench_metrics_push_flush(c: &mut Criterion) {
                     n,
                     Duration::from_secs(3600),
                     store,
+                    Arc::new(DiskTracker::noop()),
                 );
 
                 let env = flatbuffers::root::<signals::SignalEnvelope>(frame).unwrap();
-                let batch = env.payload_as_metric_batch().unwrap();
+                let batch = env.metric_batch().unwrap();
 
                 let start = Instant::now();
                 for _ in 0..iters {
@@ -228,10 +247,11 @@ fn bench_logs_push_flush(c: &mut Criterion) {
                     dir.path(),
                     n,
                     Duration::from_secs(3600),
+                    Arc::new(DiskTracker::noop()),
                 );
 
                 let env = flatbuffers::root::<signals::SignalEnvelope>(frame).unwrap();
-                let batch = env.payload_as_log_batch().unwrap();
+                let batch = env.log_batch().unwrap();
 
                 let start = Instant::now();
                 for _ in 0..iters {
@@ -272,6 +292,7 @@ fn bench_rtrb_e2e(c: &mut Criterion) {
                     5000,
                     Duration::from_secs(15),
                     store,
+                    Arc::new(DiskTracker::noop()),
                 );
                 let mut handle = WriterHandle::spawn(writer, 512, "bench");
 

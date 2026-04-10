@@ -13,42 +13,41 @@ use signals_generated::signals;
 // Frame builder helpers
 // ---------------------------------------------------------------------------
 
-/// Encode a metric batch of `n_samples` into a size-prefixed FlatBuffers buffer.
+/// Encode a metric batch of `n_samples` context entries into a size-prefixed FlatBuffers buffer.
 fn encode_metric_frame(n_samples: usize) -> Vec<u8> {
     let mut builder = flatbuffers::FlatBufferBuilder::with_capacity(1024);
 
-    let mut sample_offsets = Vec::with_capacity(n_samples);
+    let mut ctx_offsets = Vec::with_capacity(n_samples);
     for i in (0..n_samples).rev() {
         let name = builder.create_string(&format!("metric_{}", i));
         let source = builder.create_string("");
-        let sample = signals::MetricSample::create(
+        let ctx = signals::ContextEntry::create(
             &mut builder,
-            &signals::MetricSampleArgs {
+            &signals::ContextEntryArgs {
+                context_key: i as u64 + 1,
                 name: Some(name),
-                value: i as f64 * 1.1,
                 tags: None,
-                timestamp_ns: 1_000_000 + i as i64,
-                sample_rate: 1.0,
                 source: Some(source),
             },
         );
-        sample_offsets.push(sample);
+        ctx_offsets.push(ctx);
     }
-    sample_offsets.reverse();
-    let samples_vec = builder.create_vector(&sample_offsets);
+    ctx_offsets.reverse();
+    let ctx_vec = builder.create_vector(&ctx_offsets);
 
     let batch = signals::MetricBatch::create(
         &mut builder,
         &signals::MetricBatchArgs {
-            samples: Some(samples_vec),
+            contexts: Some(ctx_vec),
+            ..Default::default()
         },
     );
 
     let env = signals::SignalEnvelope::create(
         &mut builder,
         &signals::SignalEnvelopeArgs {
-            payload_type: signals::SignalPayload::MetricBatch,
-            payload: Some(batch.as_union_value()),
+            metric_batch: Some(batch),
+            ..Default::default()
         },
     );
 

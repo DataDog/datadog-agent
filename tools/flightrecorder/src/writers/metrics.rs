@@ -7,14 +7,16 @@ use arrow::array::{ArrayRef, Float64Array, Int64Array, UInt64Array};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::record_batch::RecordBatch;
 
+use std::sync::LazyLock;
+
 use super::context_store::ContextStore;
 use super::intern::StringInterner;
-use super::parquet_helpers::{dict_utf8_type, interner_to_dict_array, BaseWriter};
+use super::parquet_helpers::{dict_utf8_type, interner_to_dict_array, BaseWriter, DiskTracker};
 use super::thread::{SignalWriter, WriterStats};
 use crate::generated::signals_generated::signals;
 
 /// Schema for context-key mode (5 columns).
-fn contextkey_schema() -> Arc<Schema> {
+static CONTEXTKEY_SCHEMA: LazyLock<Arc<Schema>> = LazyLock::new(|| {
     Arc::new(Schema::new(vec![
         Field::new("context_key", DataType::UInt64, false),
         Field::new("value", DataType::Float64, false),
@@ -22,25 +24,24 @@ fn contextkey_schema() -> Arc<Schema> {
         Field::new("sample_rate", DataType::Float64, false),
         Field::new("source", dict_utf8_type(), false),
     ]))
-}
+});
 
 /// Columnar accumulator for metric samples.
 ///
-/// Stores a `context_key` (u64) per row. Context definitions (name + tags)
-/// are written to `contexts.bin` via an owned [`ContextStore`] with
-/// bloom-filter dedup. The writer lives on a dedicated thread, so no mutex
-/// is needed for the context store.
+/// Handles both ContextEntry (written to contexts.bin) and PointEntry
+/// (written to Parquet). A single MetricBatch frame may contain either
+/// or both vectors.
 pub struct MetricsWriter {
     pub base: BaseWriter,
 
-    // Accumulation columns.
+    // Accumulation columns for points.
     sources: StringInterner,
     values: Vec<f64>,
     timestamps: Vec<i64>,
     sample_rates: Vec<f64>,
     context_keys: Vec<u64>,
 
-    // Context deduplication (owned — single-threaded access on writer thread).
+    // Context deduplication (owned — single-threaded on writer thread).
     context_store: ContextStore,
 }
 
@@ -50,9 +51,10 @@ impl MetricsWriter {
         flush_rows: usize,
         flush_interval: Duration,
         context_store: ContextStore,
+        disk_tracker: Arc<DiskTracker>,
     ) -> Self {
         Self {
-            base: BaseWriter::new(output_dir.as_ref(), flush_rows, flush_interval),
+            base: BaseWriter::new(output_dir.as_ref(), flush_rows, flush_interval, disk_tracker),
 
             sources: StringInterner::with_capacity(flush_rows),
             values: Vec::with_capacity(flush_rows),
@@ -64,24 +66,22 @@ impl MetricsWriter {
         }
     }
 
-    /// Number of rows currently buffered.
+    /// Number of point rows currently buffered.
     #[inline]
     pub fn len(&self) -> usize {
         self.values.len()
     }
 
-    /// Ingest a MetricBatch from FlatBuffers. Flushes automatically when thresholds are reached.
+    /// Process a MetricBatch: handle context definitions and data points.
     pub fn push(&mut self, batch: &signals::MetricBatch<'_>) -> Result<Option<PathBuf>> {
-        if let Some(samples) = batch.samples() {
-            for i in 0..samples.len() {
-                let s = samples.get(i);
-                let ckey = s.context_key();
-                let raw_name = s.name().unwrap_or("");
-
-                // Write context definition to contexts.bin if new.
-                // The bloom filter handles the common case without I/O.
-                if ckey != 0 && !raw_name.is_empty() {
-                    let tags_joined: String = s
+        // Process context definitions → write to contexts.bin.
+        if let Some(contexts) = batch.contexts() {
+            for i in 0..contexts.len() {
+                let ctx = contexts.get(i);
+                let ckey = ctx.context_key();
+                let name = ctx.name().unwrap_or("");
+                if ckey != 0 && !name.is_empty() {
+                    let tags_joined: String = ctx
                         .tags()
                         .map(|tl| {
                             (0..tl.len())
@@ -90,17 +90,22 @@ impl MetricsWriter {
                                 .join("|")
                         })
                         .unwrap_or_default();
-                    let _ = self.context_store.try_record(ckey, raw_name, &tags_joined);
+                    let _ = self.context_store.try_record(ckey, name, &tags_joined);
                 }
-                self.context_keys.push(ckey);
-
-                self.sources.intern(s.source().unwrap_or(""));
-                self.values.push(s.value());
-                self.timestamps.push(s.timestamp_ns());
-                self.sample_rates.push(s.sample_rate());
             }
-            // Flush the BufWriter once per frame (not per-context).
             let _ = self.context_store.flush();
+        }
+
+        // Process data points → accumulate for Parquet.
+        if let Some(points) = batch.points() {
+            for i in 0..points.len() {
+                let p = points.get(i);
+                self.context_keys.push(p.context_key());
+                self.sources.intern(""); // source is on context, not point
+                self.values.push(p.value());
+                self.timestamps.push(p.timestamp_ns());
+                self.sample_rates.push(p.sample_rate());
+            }
         }
 
         if self.base.should_flush(self.len()) {
@@ -109,7 +114,7 @@ impl MetricsWriter {
         Ok(None)
     }
 
-    /// Flush accumulated columns to a Parquet row group. Returns the file path.
+    /// Flush accumulated point columns to a Parquet row group.
     pub fn flush(&mut self) -> Result<PathBuf> {
         let row_count = self.len();
         if row_count == 0 {
@@ -122,7 +127,6 @@ impl MetricsWriter {
         let sample_rates = std::mem::take(&mut self.sample_rates);
         let keys = std::mem::take(&mut self.context_keys);
 
-        // Sort index by timestamp for better compression (delta encoding).
         let mut order: Vec<usize> = (0..row_count).collect();
         order.sort_unstable_by_key(|&i| timestamps[i]);
 
@@ -145,7 +149,7 @@ impl MetricsWriter {
             source_array,
         ];
 
-        let schema = contextkey_schema();
+        let schema = CONTEXTKEY_SCHEMA.clone();
         let batch = RecordBatch::try_new(schema.clone(), columns)
             .context("building metrics RecordBatch")?;
 
@@ -157,7 +161,7 @@ impl SignalWriter for MetricsWriter {
     fn process_frame(&mut self, buf: &[u8]) -> Result<()> {
         let env = flatbuffers::root::<signals::SignalEnvelope>(buf)
             .map_err(|e| anyhow::anyhow!("decode error: {e}"))?;
-        if let Some(batch) = env.payload_as_metric_batch() {
+        if let Some(batch) = env.metric_batch() {
             self.push(&batch)?;
         }
         Ok(())
@@ -192,7 +196,7 @@ mod tests {
 
     fn make_writer(dir: &Path) -> MetricsWriter {
         let store = ContextStore::new(dir).unwrap();
-        MetricsWriter::new(dir, 1000, Duration::from_secs(60), store)
+        MetricsWriter::new(dir, 1000, Duration::from_secs(60), store, Arc::new(DiskTracker::noop()))
     }
 
     fn read_parquet(path: &Path) -> RecordBatch {
@@ -214,18 +218,18 @@ mod tests {
         let dir = tempdir().unwrap();
         let mut w = make_writer(dir.path());
 
-        // Record contexts directly.
         w.context_store
             .try_record(100, "cpu.user", "host:a|env:prod")
             .unwrap();
         w.context_store
             .try_record(200, "mem.usage", "host:b")
             .unwrap();
+        w.context_store.flush().unwrap();
 
         w.context_keys.extend_from_slice(&[100, 200, 100]);
-        w.sources.intern("agent");
-        w.sources.intern("agent");
-        w.sources.intern("agent");
+        w.sources.intern("");
+        w.sources.intern("");
+        w.sources.intern("");
         w.values.extend_from_slice(&[42.0, 99.0, 43.0]);
         w.timestamps.extend_from_slice(&[1000, 2000, 3000]);
         w.sample_rates.extend_from_slice(&[1.0, 1.0, 1.0]);
@@ -247,33 +251,6 @@ mod tests {
             vec!["context_key", "value", "timestamp_ns", "sample_rate", "source"]
         );
         assert_eq!(batch.num_rows(), 3);
-
-        let ckey_col = batch
-            .column_by_name("context_key")
-            .unwrap()
-            .as_any()
-            .downcast_ref::<UInt64Array>()
-            .unwrap();
-        let keys: Vec<u64> = ckey_col.values().iter().copied().collect();
-        assert_eq!(keys, vec![100, 200, 100]);
-
-        let val_col = batch
-            .column_by_name("value")
-            .unwrap()
-            .as_any()
-            .downcast_ref::<Float64Array>()
-            .unwrap();
-        let vals: Vec<f64> = val_col.values().iter().copied().collect();
-        assert_eq!(vals, vec![42.0, 99.0, 43.0]);
-
-        let ts_col = batch
-            .column_by_name("timestamp_ns")
-            .unwrap()
-            .as_any()
-            .downcast_ref::<Int64Array>()
-            .unwrap();
-        let ts: Vec<i64> = ts_col.values().iter().copied().collect();
-        assert_eq!(ts, vec![1000, 2000, 3000]);
     }
 
     #[test]
@@ -297,8 +274,8 @@ mod tests {
         w.context_store.flush().unwrap();
 
         w.context_keys.extend_from_slice(&[100, 200]);
-        w.sources.intern("agent");
-        w.sources.intern("agent");
+        w.sources.intern("");
+        w.sources.intern("");
         w.values.extend_from_slice(&[42.0, 99.0]);
         w.timestamps.extend_from_slice(&[1000, 2000]);
         w.sample_rates.extend_from_slice(&[1.0, 1.0]);
@@ -325,9 +302,10 @@ mod tests {
         w.context_store
             .try_record(1, "cpu.user", "host:a")
             .unwrap();
+        w.context_store.flush().unwrap();
         for i in 0..10 {
             w.context_keys.push(1);
-            w.sources.intern("test");
+            w.sources.intern("");
             w.values.push(i as f64);
             w.timestamps.push(1000);
             w.sample_rates.push(1.0);

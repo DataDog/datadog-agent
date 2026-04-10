@@ -1,5 +1,5 @@
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use std::time::Duration;
 
 use anyhow::{Context, Result};
@@ -9,12 +9,12 @@ use arrow::record_batch::RecordBatch;
 
 use super::apply_permutation;
 use super::intern::StringInterner;
-use super::parquet_helpers::{dict_utf8_type, interner_to_dict_array, BaseWriter};
+use super::parquet_helpers::{dict_utf8_type, interner_to_dict_array, BaseWriter, DiskTracker};
 use super::thread::{SignalWriter, WriterStats};
 use crate::generated::signals_generated::signals;
 
 /// Schema for the trace stats Parquet file (18 columns).
-fn trace_stats_schema() -> Arc<Schema> {
+static TRACE_STATS_SCHEMA: LazyLock<Arc<Schema>> = LazyLock::new(|| {
     let dt = dict_utf8_type();
     Arc::new(Schema::new(vec![
         Field::new("service", dt.clone(), false),
@@ -36,7 +36,7 @@ fn trace_stats_schema() -> Arc<Schema> {
         Field::new("bucket_duration_ns", DataType::Int64, false),
         Field::new("timestamp_ns", DataType::Int64, false),
     ]))
-}
+});
 
 /// Columnar accumulator for trace stats entries.
 ///
@@ -75,10 +75,11 @@ impl TraceStatsWriter {
         output_dir: impl AsRef<Path>,
         flush_rows: usize,
         flush_interval: Duration,
+        disk_tracker: Arc<DiskTracker>,
     ) -> Self {
         let output_dir = output_dir.as_ref();
         Self {
-            base: BaseWriter::new(output_dir, flush_rows, flush_interval),
+            base: BaseWriter::new(output_dir, flush_rows, flush_interval, disk_tracker),
 
             services: StringInterner::with_capacity(flush_rows),
             names: StringInterner::with_capacity(flush_rows),
@@ -239,7 +240,7 @@ impl TraceStatsWriter {
             )),
         ];
 
-        let schema = trace_stats_schema();
+        let schema = TRACE_STATS_SCHEMA.clone();
         let batch = RecordBatch::try_new(schema.clone(), columns)
             .context("building trace_stats RecordBatch")?;
 
@@ -251,7 +252,7 @@ impl SignalWriter for TraceStatsWriter {
     fn process_frame(&mut self, buf: &[u8]) -> Result<()> {
         let env = flatbuffers::root::<signals::SignalEnvelope>(buf)
             .map_err(|e| anyhow::anyhow!("decode error: {e}"))?;
-        if let Some(batch) = env.payload_as_trace_stats_batch() {
+        if let Some(batch) = env.trace_stats_batch() {
             self.push(&batch)?;
         }
         Ok(())
@@ -285,7 +286,7 @@ mod tests {
     use tempfile::tempdir;
 
     fn make_writer(dir: &Path) -> TraceStatsWriter {
-        TraceStatsWriter::new(dir, 1000, Duration::from_secs(60))
+        TraceStatsWriter::new(dir, 1000, Duration::from_secs(60), Arc::new(DiskTracker::noop()))
     }
 
     fn read_parquet(path: &Path) -> RecordBatch {

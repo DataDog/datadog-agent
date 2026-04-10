@@ -1,5 +1,5 @@
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use std::time::Duration;
 
 use anyhow::{Context, Result};
@@ -11,6 +11,7 @@ use super::apply_permutation;
 use super::intern::StringInterner;
 use super::parquet_helpers::{dict_utf8_type, interner_to_dict_array, BaseWriter};
 use super::thread::{SignalWriter, WriterStats};
+use crate::disk_tracker::DiskTracker;
 use crate::generated::signals_generated::signals;
 
 /// Reserved tag keys extracted into their own dictionary-encoded columns.
@@ -21,7 +22,7 @@ const RESERVED_KEYS: &[&str] = &["service", "env", "version", "team"];
 /// Reserved tags (service, env, version, team) get dedicated dictionary-encoded
 /// columns. All other tags go into a `tags` MAP<string, string> column for
 /// direct key-value queries (e.g. `WHERE tags['custom_key'] = 'value'`).
-fn logs_schema() -> Arc<Schema> {
+static LOGS_SCHEMA: LazyLock<Arc<Schema>> = LazyLock::new(|| {
     let dt = dict_utf8_type();
     let map_field = Field::new(
         "tags",
@@ -53,7 +54,7 @@ fn logs_schema() -> Arc<Schema> {
         Field::new("content", DataType::Binary, false),
         Field::new("timestamp_ns", DataType::Int64, false),
     ]))
-}
+});
 
 /// Overflow tag key-value pair.
 struct TagKV {
@@ -87,9 +88,10 @@ impl LogsWriter {
         output_dir: impl AsRef<Path>,
         flush_rows: usize,
         flush_interval: Duration,
+        disk_tracker: Arc<DiskTracker>,
     ) -> Self {
         Self {
-            base: BaseWriter::new(output_dir.as_ref(), flush_rows, flush_interval),
+            base: BaseWriter::new(output_dir.as_ref(), flush_rows, flush_interval, disk_tracker),
 
             hostnames: StringInterner::with_capacity(flush_rows),
             sources: StringInterner::with_capacity(flush_rows),
@@ -119,7 +121,7 @@ impl LogsWriter {
                 let e = entries.get(i);
 
                 self.hostnames.intern(e.hostname().unwrap_or(""));
-                self.sources.intern(e.source().unwrap_or(""));
+                self.sources.intern("");
                 self.statuses.intern(e.status().unwrap_or(""));
 
                 // Decompose tags into reserved columns + overflow MAP.
@@ -238,7 +240,7 @@ impl LogsWriter {
             )),
         ];
 
-        let schema = logs_schema();
+        let schema = LOGS_SCHEMA.clone();
         let batch = RecordBatch::try_new(schema.clone(), columns)
             .context("building logs RecordBatch")?;
 
@@ -250,7 +252,7 @@ impl SignalWriter for LogsWriter {
     fn process_frame(&mut self, buf: &[u8]) -> Result<()> {
         let env = flatbuffers::root::<signals::SignalEnvelope>(buf)
             .map_err(|e| anyhow::anyhow!("decode error: {e}"))?;
-        if let Some(batch) = env.payload_as_log_batch() {
+        if let Some(batch) = env.log_batch() {
             self.push(&batch)?;
         }
         Ok(())
@@ -284,7 +286,7 @@ mod tests {
     use tempfile::tempdir;
 
     fn make_writer(dir: &Path) -> LogsWriter {
-        LogsWriter::new(dir, 1000, Duration::from_secs(60))
+        LogsWriter::new(dir, 1000, Duration::from_secs(60), Arc::new(DiskTracker::noop()))
     }
 
     fn read_parquet(path: &Path) -> RecordBatch {

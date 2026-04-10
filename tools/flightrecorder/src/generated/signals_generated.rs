@@ -18,139 +18,38 @@ pub mod signals {
   extern crate flatbuffers;
   use self::flatbuffers::{EndianScalar, Follow};
 
-#[deprecated(since = "2.0.0", note = "Use associated constants instead. This will no longer be generated in 2021.")]
-pub const ENUM_MIN_SIGNAL_PAYLOAD: u8 = 0;
-#[deprecated(since = "2.0.0", note = "Use associated constants instead. This will no longer be generated in 2021.")]
-pub const ENUM_MAX_SIGNAL_PAYLOAD: u8 = 3;
-#[deprecated(since = "2.0.0", note = "Use associated constants instead. This will no longer be generated in 2021.")]
-#[allow(non_camel_case_types)]
-pub const ENUM_VALUES_SIGNAL_PAYLOAD: [SignalPayload; 4] = [
-  SignalPayload::NONE,
-  SignalPayload::MetricBatch,
-  SignalPayload::LogBatch,
-  SignalPayload::TraceStatsBatch,
-];
-
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
-#[repr(transparent)]
-pub struct SignalPayload(pub u8);
-#[allow(non_upper_case_globals)]
-impl SignalPayload {
-  pub const NONE: Self = Self(0);
-  pub const MetricBatch: Self = Self(1);
-  pub const LogBatch: Self = Self(2);
-  pub const TraceStatsBatch: Self = Self(3);
-
-  pub const ENUM_MIN: u8 = 0;
-  pub const ENUM_MAX: u8 = 3;
-  pub const ENUM_VALUES: &'static [Self] = &[
-    Self::NONE,
-    Self::MetricBatch,
-    Self::LogBatch,
-    Self::TraceStatsBatch,
-  ];
-  /// Returns the variant's name or "" if unknown.
-  pub fn variant_name(self) -> Option<&'static str> {
-    match self {
-      Self::NONE => Some("NONE"),
-      Self::MetricBatch => Some("MetricBatch"),
-      Self::LogBatch => Some("LogBatch"),
-      Self::TraceStatsBatch => Some("TraceStatsBatch"),
-      _ => None,
-    }
-  }
-}
-impl core::fmt::Debug for SignalPayload {
-  fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
-    if let Some(name) = self.variant_name() {
-      f.write_str(name)
-    } else {
-      f.write_fmt(format_args!("<UNKNOWN {:?}>", self.0))
-    }
-  }
-}
-impl<'a> flatbuffers::Follow<'a> for SignalPayload {
-  type Inner = Self;
-  #[inline]
-  unsafe fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-    let b = flatbuffers::read_scalar_at::<u8>(buf, loc);
-    Self(b)
-  }
-}
-
-impl flatbuffers::Push for SignalPayload {
-    type Output = SignalPayload;
-    #[inline]
-    unsafe fn push(&self, dst: &mut [u8], _written_len: usize) {
-        flatbuffers::emplace_scalar::<u8>(dst, self.0);
-    }
-}
-
-impl flatbuffers::EndianScalar for SignalPayload {
-  type Scalar = u8;
-  #[inline]
-  fn to_little_endian(self) -> u8 {
-    self.0.to_le()
-  }
-  #[inline]
-  #[allow(clippy::wrong_self_convention)]
-  fn from_little_endian(v: u8) -> Self {
-    let b = u8::from_le(v);
-    Self(b)
-  }
-}
-
-impl<'a> flatbuffers::Verifiable for SignalPayload {
-  #[inline]
-  fn run_verifier(
-    v: &mut flatbuffers::Verifier, pos: usize
-  ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
-    use self::flatbuffers::Verifiable;
-    u8::run_verifier(v, pos)
-  }
-}
-
-impl flatbuffers::SimpleToVerifyInSlice for SignalPayload {}
-pub struct SignalPayloadUnionTableOffset {}
-
-pub enum MetricSampleOffset {}
+pub enum ContextEntryOffset {}
 #[derive(Copy, Clone, PartialEq)]
 
-pub struct MetricSample<'a> {
+pub struct ContextEntry<'a> {
   pub _tab: flatbuffers::Table<'a>,
 }
 
-impl<'a> flatbuffers::Follow<'a> for MetricSample<'a> {
-  type Inner = MetricSample<'a>;
+impl<'a> flatbuffers::Follow<'a> for ContextEntry<'a> {
+  type Inner = ContextEntry<'a>;
   #[inline]
   unsafe fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
     Self { _tab: flatbuffers::Table::new(buf, loc) }
   }
 }
 
-impl<'a> MetricSample<'a> {
-  pub const VT_NAME: flatbuffers::VOffsetT = 4;
-  pub const VT_VALUE: flatbuffers::VOffsetT = 6;
+impl<'a> ContextEntry<'a> {
+  pub const VT_CONTEXT_KEY: flatbuffers::VOffsetT = 4;
+  pub const VT_NAME: flatbuffers::VOffsetT = 6;
   pub const VT_TAGS: flatbuffers::VOffsetT = 8;
-  pub const VT_TIMESTAMP_NS: flatbuffers::VOffsetT = 10;
-  pub const VT_SAMPLE_RATE: flatbuffers::VOffsetT = 12;
-  pub const VT_SOURCE: flatbuffers::VOffsetT = 14;
-  pub const VT_CONTEXT_KEY: flatbuffers::VOffsetT = 16;
+  pub const VT_SOURCE: flatbuffers::VOffsetT = 10;
 
   #[inline]
   pub unsafe fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
-    MetricSample { _tab: table }
+    ContextEntry { _tab: table }
   }
   #[allow(unused_mut)]
-  pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-    _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-    args: &'args MetricSampleArgs<'args>
-  ) -> flatbuffers::WIPOffset<MetricSample<'bldr>> {
-    let mut builder = MetricSampleBuilder::new(_fbb);
+  pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr, A: flatbuffers::Allocator + 'bldr>(
+    _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr, A>,
+    args: &'args ContextEntryArgs<'args>
+  ) -> flatbuffers::WIPOffset<ContextEntry<'bldr>> {
+    let mut builder = ContextEntryBuilder::new(_fbb);
     builder.add_context_key(args.context_key);
-    builder.add_sample_rate(args.sample_rate);
-    builder.add_timestamp_ns(args.timestamp_ns);
-    builder.add_value(args.value);
     if let Some(x) = args.source { builder.add_source(x); }
     if let Some(x) = args.tags { builder.add_tags(x); }
     if let Some(x) = args.name { builder.add_name(x); }
@@ -159,156 +58,373 @@ impl<'a> MetricSample<'a> {
 
 
   #[inline]
+  pub fn context_key(&self) -> u64 {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<u64>(ContextEntry::VT_CONTEXT_KEY, Some(0)).unwrap()}
+  }
+  #[inline]
   pub fn name(&self) -> Option<&'a str> {
     // Safety:
     // Created from valid Table for this object
     // which contains a valid value in this slot
-    unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(MetricSample::VT_NAME, None)}
-  }
-  #[inline]
-  pub fn value(&self) -> f64 {
-    // Safety:
-    // Created from valid Table for this object
-    // which contains a valid value in this slot
-    unsafe { self._tab.get::<f64>(MetricSample::VT_VALUE, Some(0.0)).unwrap()}
+    unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(ContextEntry::VT_NAME, None)}
   }
   #[inline]
   pub fn tags(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<&'a str>>> {
     // Safety:
     // Created from valid Table for this object
     // which contains a valid value in this slot
-    unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<&'a str>>>>(MetricSample::VT_TAGS, None)}
-  }
-  #[inline]
-  pub fn timestamp_ns(&self) -> i64 {
-    // Safety:
-    // Created from valid Table for this object
-    // which contains a valid value in this slot
-    unsafe { self._tab.get::<i64>(MetricSample::VT_TIMESTAMP_NS, Some(0)).unwrap()}
-  }
-  #[inline]
-  pub fn sample_rate(&self) -> f64 {
-    // Safety:
-    // Created from valid Table for this object
-    // which contains a valid value in this slot
-    unsafe { self._tab.get::<f64>(MetricSample::VT_SAMPLE_RATE, Some(0.0)).unwrap()}
+    unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<&'a str>>>>(ContextEntry::VT_TAGS, None)}
   }
   #[inline]
   pub fn source(&self) -> Option<&'a str> {
     // Safety:
     // Created from valid Table for this object
     // which contains a valid value in this slot
-    unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(MetricSample::VT_SOURCE, None)}
-  }
-  #[inline]
-  pub fn context_key(&self) -> u64 {
-    // Safety:
-    // Created from valid Table for this object
-    // which contains a valid value in this slot
-    unsafe { self._tab.get::<u64>(MetricSample::VT_CONTEXT_KEY, Some(0)).unwrap()}
+    unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(ContextEntry::VT_SOURCE, None)}
   }
 }
 
-impl flatbuffers::Verifiable for MetricSample<'_> {
+impl flatbuffers::Verifiable for ContextEntry<'_> {
   #[inline]
   fn run_verifier(
     v: &mut flatbuffers::Verifier, pos: usize
   ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
     use self::flatbuffers::Verifiable;
     v.visit_table(pos)?
-     .visit_field::<flatbuffers::ForwardsUOffset<&str>>("name", Self::VT_NAME, false)?
-     .visit_field::<f64>("value", Self::VT_VALUE, false)?
-     .visit_field::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'_, flatbuffers::ForwardsUOffset<&'_ str>>>>("tags", Self::VT_TAGS, false)?
-     .visit_field::<i64>("timestamp_ns", Self::VT_TIMESTAMP_NS, false)?
-     .visit_field::<f64>("sample_rate", Self::VT_SAMPLE_RATE, false)?
-     .visit_field::<flatbuffers::ForwardsUOffset<&str>>("source", Self::VT_SOURCE, false)?
      .visit_field::<u64>("context_key", Self::VT_CONTEXT_KEY, false)?
+     .visit_field::<flatbuffers::ForwardsUOffset<&str>>("name", Self::VT_NAME, false)?
+     .visit_field::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'_, flatbuffers::ForwardsUOffset<&'_ str>>>>("tags", Self::VT_TAGS, false)?
+     .visit_field::<flatbuffers::ForwardsUOffset<&str>>("source", Self::VT_SOURCE, false)?
      .finish();
     Ok(())
   }
 }
-pub struct MetricSampleArgs<'a> {
-    pub name: Option<flatbuffers::WIPOffset<&'a str>>,
-    pub value: f64,
-    pub tags: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<&'a str>>>>,
-    pub timestamp_ns: i64,
-    pub sample_rate: f64,
-    pub source: Option<flatbuffers::WIPOffset<&'a str>>,
+pub struct ContextEntryArgs<'a> {
     pub context_key: u64,
+    pub name: Option<flatbuffers::WIPOffset<&'a str>>,
+    pub tags: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<&'a str>>>>,
+    pub source: Option<flatbuffers::WIPOffset<&'a str>>,
 }
-impl<'a> Default for MetricSampleArgs<'a> {
+impl<'a> Default for ContextEntryArgs<'a> {
   #[inline]
   fn default() -> Self {
-    MetricSampleArgs {
-      name: None,
-      value: 0.0,
-      tags: None,
-      timestamp_ns: 0,
-      sample_rate: 0.0,
-      source: None,
+    ContextEntryArgs {
       context_key: 0,
+      name: None,
+      tags: None,
+      source: None,
     }
   }
 }
 
-pub struct MetricSampleBuilder<'a: 'b, 'b> {
-  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+pub struct ContextEntryBuilder<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a, A>,
   start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
 }
-impl<'a: 'b, 'b> MetricSampleBuilder<'a, 'b> {
+impl<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> ContextEntryBuilder<'a, 'b, A> {
   #[inline]
-  pub fn add_name(&mut self, name: flatbuffers::WIPOffset<&'b  str>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(MetricSample::VT_NAME, name);
+  pub fn add_context_key(&mut self, context_key: u64) {
+    self.fbb_.push_slot::<u64>(ContextEntry::VT_CONTEXT_KEY, context_key, 0);
   }
   #[inline]
-  pub fn add_value(&mut self, value: f64) {
-    self.fbb_.push_slot::<f64>(MetricSample::VT_VALUE, value, 0.0);
+  pub fn add_name(&mut self, name: flatbuffers::WIPOffset<&'b  str>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(ContextEntry::VT_NAME, name);
   }
   #[inline]
   pub fn add_tags(&mut self, tags: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<&'b  str>>>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(MetricSample::VT_TAGS, tags);
-  }
-  #[inline]
-  pub fn add_timestamp_ns(&mut self, timestamp_ns: i64) {
-    self.fbb_.push_slot::<i64>(MetricSample::VT_TIMESTAMP_NS, timestamp_ns, 0);
-  }
-  #[inline]
-  pub fn add_sample_rate(&mut self, sample_rate: f64) {
-    self.fbb_.push_slot::<f64>(MetricSample::VT_SAMPLE_RATE, sample_rate, 0.0);
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(ContextEntry::VT_TAGS, tags);
   }
   #[inline]
   pub fn add_source(&mut self, source: flatbuffers::WIPOffset<&'b  str>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(MetricSample::VT_SOURCE, source);
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(ContextEntry::VT_SOURCE, source);
   }
   #[inline]
-  pub fn add_context_key(&mut self, context_key: u64) {
-    self.fbb_.push_slot::<u64>(MetricSample::VT_CONTEXT_KEY, context_key, 0);
-  }
-  #[inline]
-  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> MetricSampleBuilder<'a, 'b> {
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a, A>) -> ContextEntryBuilder<'a, 'b, A> {
     let start = _fbb.start_table();
-    MetricSampleBuilder {
+    ContextEntryBuilder {
       fbb_: _fbb,
       start_: start,
     }
   }
   #[inline]
-  pub fn finish(self) -> flatbuffers::WIPOffset<MetricSample<'a>> {
+  pub fn finish(self) -> flatbuffers::WIPOffset<ContextEntry<'a>> {
     let o = self.fbb_.end_table(self.start_);
     flatbuffers::WIPOffset::new(o.value())
   }
 }
 
-impl core::fmt::Debug for MetricSample<'_> {
+impl core::fmt::Debug for ContextEntry<'_> {
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-    let mut ds = f.debug_struct("MetricSample");
+    let mut ds = f.debug_struct("ContextEntry");
+      ds.field("context_key", &self.context_key());
       ds.field("name", &self.name());
-      ds.field("value", &self.value());
       ds.field("tags", &self.tags());
+      ds.field("source", &self.source());
+      ds.finish()
+  }
+}
+pub enum PointEntryOffset {}
+#[derive(Copy, Clone, PartialEq)]
+
+pub struct PointEntry<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for PointEntry<'a> {
+  type Inner = PointEntry<'a>;
+  #[inline]
+  unsafe fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+    Self { _tab: flatbuffers::Table::new(buf, loc) }
+  }
+}
+
+impl<'a> PointEntry<'a> {
+  pub const VT_CONTEXT_KEY: flatbuffers::VOffsetT = 4;
+  pub const VT_VALUE: flatbuffers::VOffsetT = 6;
+  pub const VT_TIMESTAMP_NS: flatbuffers::VOffsetT = 8;
+  pub const VT_SAMPLE_RATE: flatbuffers::VOffsetT = 10;
+
+  #[inline]
+  pub unsafe fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+    PointEntry { _tab: table }
+  }
+  #[allow(unused_mut)]
+  pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr, A: flatbuffers::Allocator + 'bldr>(
+    _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr, A>,
+    args: &'args PointEntryArgs
+  ) -> flatbuffers::WIPOffset<PointEntry<'bldr>> {
+    let mut builder = PointEntryBuilder::new(_fbb);
+    builder.add_sample_rate(args.sample_rate);
+    builder.add_timestamp_ns(args.timestamp_ns);
+    builder.add_value(args.value);
+    builder.add_context_key(args.context_key);
+    builder.finish()
+  }
+
+
+  #[inline]
+  pub fn context_key(&self) -> u64 {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<u64>(PointEntry::VT_CONTEXT_KEY, Some(0)).unwrap()}
+  }
+  #[inline]
+  pub fn value(&self) -> f64 {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<f64>(PointEntry::VT_VALUE, Some(0.0)).unwrap()}
+  }
+  #[inline]
+  pub fn timestamp_ns(&self) -> i64 {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<i64>(PointEntry::VT_TIMESTAMP_NS, Some(0)).unwrap()}
+  }
+  #[inline]
+  pub fn sample_rate(&self) -> f64 {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<f64>(PointEntry::VT_SAMPLE_RATE, Some(0.0)).unwrap()}
+  }
+}
+
+impl flatbuffers::Verifiable for PointEntry<'_> {
+  #[inline]
+  fn run_verifier(
+    v: &mut flatbuffers::Verifier, pos: usize
+  ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
+    use self::flatbuffers::Verifiable;
+    v.visit_table(pos)?
+     .visit_field::<u64>("context_key", Self::VT_CONTEXT_KEY, false)?
+     .visit_field::<f64>("value", Self::VT_VALUE, false)?
+     .visit_field::<i64>("timestamp_ns", Self::VT_TIMESTAMP_NS, false)?
+     .visit_field::<f64>("sample_rate", Self::VT_SAMPLE_RATE, false)?
+     .finish();
+    Ok(())
+  }
+}
+pub struct PointEntryArgs {
+    pub context_key: u64,
+    pub value: f64,
+    pub timestamp_ns: i64,
+    pub sample_rate: f64,
+}
+impl<'a> Default for PointEntryArgs {
+  #[inline]
+  fn default() -> Self {
+    PointEntryArgs {
+      context_key: 0,
+      value: 0.0,
+      timestamp_ns: 0,
+      sample_rate: 0.0,
+    }
+  }
+}
+
+pub struct PointEntryBuilder<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a, A>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> PointEntryBuilder<'a, 'b, A> {
+  #[inline]
+  pub fn add_context_key(&mut self, context_key: u64) {
+    self.fbb_.push_slot::<u64>(PointEntry::VT_CONTEXT_KEY, context_key, 0);
+  }
+  #[inline]
+  pub fn add_value(&mut self, value: f64) {
+    self.fbb_.push_slot::<f64>(PointEntry::VT_VALUE, value, 0.0);
+  }
+  #[inline]
+  pub fn add_timestamp_ns(&mut self, timestamp_ns: i64) {
+    self.fbb_.push_slot::<i64>(PointEntry::VT_TIMESTAMP_NS, timestamp_ns, 0);
+  }
+  #[inline]
+  pub fn add_sample_rate(&mut self, sample_rate: f64) {
+    self.fbb_.push_slot::<f64>(PointEntry::VT_SAMPLE_RATE, sample_rate, 0.0);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a, A>) -> PointEntryBuilder<'a, 'b, A> {
+    let start = _fbb.start_table();
+    PointEntryBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<PointEntry<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+impl core::fmt::Debug for PointEntry<'_> {
+  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    let mut ds = f.debug_struct("PointEntry");
+      ds.field("context_key", &self.context_key());
+      ds.field("value", &self.value());
       ds.field("timestamp_ns", &self.timestamp_ns());
       ds.field("sample_rate", &self.sample_rate());
-      ds.field("source", &self.source());
-      ds.field("context_key", &self.context_key());
+      ds.finish()
+  }
+}
+pub enum MetricBatchOffset {}
+#[derive(Copy, Clone, PartialEq)]
+
+pub struct MetricBatch<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for MetricBatch<'a> {
+  type Inner = MetricBatch<'a>;
+  #[inline]
+  unsafe fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+    Self { _tab: flatbuffers::Table::new(buf, loc) }
+  }
+}
+
+impl<'a> MetricBatch<'a> {
+  pub const VT_CONTEXTS: flatbuffers::VOffsetT = 4;
+  pub const VT_POINTS: flatbuffers::VOffsetT = 6;
+
+  #[inline]
+  pub unsafe fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+    MetricBatch { _tab: table }
+  }
+  #[allow(unused_mut)]
+  pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr, A: flatbuffers::Allocator + 'bldr>(
+    _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr, A>,
+    args: &'args MetricBatchArgs<'args>
+  ) -> flatbuffers::WIPOffset<MetricBatch<'bldr>> {
+    let mut builder = MetricBatchBuilder::new(_fbb);
+    if let Some(x) = args.points { builder.add_points(x); }
+    if let Some(x) = args.contexts { builder.add_contexts(x); }
+    builder.finish()
+  }
+
+
+  #[inline]
+  pub fn contexts(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<ContextEntry<'a>>>> {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<ContextEntry>>>>(MetricBatch::VT_CONTEXTS, None)}
+  }
+  #[inline]
+  pub fn points(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<PointEntry<'a>>>> {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<PointEntry>>>>(MetricBatch::VT_POINTS, None)}
+  }
+}
+
+impl flatbuffers::Verifiable for MetricBatch<'_> {
+  #[inline]
+  fn run_verifier(
+    v: &mut flatbuffers::Verifier, pos: usize
+  ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
+    use self::flatbuffers::Verifiable;
+    v.visit_table(pos)?
+     .visit_field::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'_, flatbuffers::ForwardsUOffset<ContextEntry>>>>("contexts", Self::VT_CONTEXTS, false)?
+     .visit_field::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'_, flatbuffers::ForwardsUOffset<PointEntry>>>>("points", Self::VT_POINTS, false)?
+     .finish();
+    Ok(())
+  }
+}
+pub struct MetricBatchArgs<'a> {
+    pub contexts: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<ContextEntry<'a>>>>>,
+    pub points: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<PointEntry<'a>>>>>,
+}
+impl<'a> Default for MetricBatchArgs<'a> {
+  #[inline]
+  fn default() -> Self {
+    MetricBatchArgs {
+      contexts: None,
+      points: None,
+    }
+  }
+}
+
+pub struct MetricBatchBuilder<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a, A>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> MetricBatchBuilder<'a, 'b, A> {
+  #[inline]
+  pub fn add_contexts(&mut self, contexts: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<ContextEntry<'b >>>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(MetricBatch::VT_CONTEXTS, contexts);
+  }
+  #[inline]
+  pub fn add_points(&mut self, points: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<PointEntry<'b >>>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(MetricBatch::VT_POINTS, points);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a, A>) -> MetricBatchBuilder<'a, 'b, A> {
+    let start = _fbb.start_table();
+    MetricBatchBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<MetricBatch<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+impl core::fmt::Debug for MetricBatch<'_> {
+  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    let mut ds = f.debug_struct("MetricBatch");
+      ds.field("contexts", &self.contexts());
+      ds.field("points", &self.points());
       ds.finish()
   }
 }
@@ -333,20 +449,18 @@ impl<'a> LogEntry<'a> {
   pub const VT_TAGS: flatbuffers::VOffsetT = 8;
   pub const VT_HOSTNAME: flatbuffers::VOffsetT = 10;
   pub const VT_TIMESTAMP_NS: flatbuffers::VOffsetT = 12;
-  pub const VT_SOURCE: flatbuffers::VOffsetT = 14;
 
   #[inline]
   pub unsafe fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
     LogEntry { _tab: table }
   }
   #[allow(unused_mut)]
-  pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-    _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+  pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr, A: flatbuffers::Allocator + 'bldr>(
+    _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr, A>,
     args: &'args LogEntryArgs<'args>
   ) -> flatbuffers::WIPOffset<LogEntry<'bldr>> {
     let mut builder = LogEntryBuilder::new(_fbb);
     builder.add_timestamp_ns(args.timestamp_ns);
-    if let Some(x) = args.source { builder.add_source(x); }
     if let Some(x) = args.hostname { builder.add_hostname(x); }
     if let Some(x) = args.tags { builder.add_tags(x); }
     if let Some(x) = args.status { builder.add_status(x); }
@@ -390,13 +504,6 @@ impl<'a> LogEntry<'a> {
     // which contains a valid value in this slot
     unsafe { self._tab.get::<i64>(LogEntry::VT_TIMESTAMP_NS, Some(0)).unwrap()}
   }
-  #[inline]
-  pub fn source(&self) -> Option<&'a str> {
-    // Safety:
-    // Created from valid Table for this object
-    // which contains a valid value in this slot
-    unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(LogEntry::VT_SOURCE, None)}
-  }
 }
 
 impl flatbuffers::Verifiable for LogEntry<'_> {
@@ -411,7 +518,6 @@ impl flatbuffers::Verifiable for LogEntry<'_> {
      .visit_field::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'_, flatbuffers::ForwardsUOffset<&'_ str>>>>("tags", Self::VT_TAGS, false)?
      .visit_field::<flatbuffers::ForwardsUOffset<&str>>("hostname", Self::VT_HOSTNAME, false)?
      .visit_field::<i64>("timestamp_ns", Self::VT_TIMESTAMP_NS, false)?
-     .visit_field::<flatbuffers::ForwardsUOffset<&str>>("source", Self::VT_SOURCE, false)?
      .finish();
     Ok(())
   }
@@ -422,7 +528,6 @@ pub struct LogEntryArgs<'a> {
     pub tags: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<&'a str>>>>,
     pub hostname: Option<flatbuffers::WIPOffset<&'a str>>,
     pub timestamp_ns: i64,
-    pub source: Option<flatbuffers::WIPOffset<&'a str>>,
 }
 impl<'a> Default for LogEntryArgs<'a> {
   #[inline]
@@ -433,16 +538,15 @@ impl<'a> Default for LogEntryArgs<'a> {
       tags: None,
       hostname: None,
       timestamp_ns: 0,
-      source: None,
     }
   }
 }
 
-pub struct LogEntryBuilder<'a: 'b, 'b> {
-  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+pub struct LogEntryBuilder<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a, A>,
   start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
 }
-impl<'a: 'b, 'b> LogEntryBuilder<'a, 'b> {
+impl<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> LogEntryBuilder<'a, 'b, A> {
   #[inline]
   pub fn add_content(&mut self, content: flatbuffers::WIPOffset<flatbuffers::Vector<'b , u8>>) {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(LogEntry::VT_CONTENT, content);
@@ -464,11 +568,7 @@ impl<'a: 'b, 'b> LogEntryBuilder<'a, 'b> {
     self.fbb_.push_slot::<i64>(LogEntry::VT_TIMESTAMP_NS, timestamp_ns, 0);
   }
   #[inline]
-  pub fn add_source(&mut self, source: flatbuffers::WIPOffset<&'b  str>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(LogEntry::VT_SOURCE, source);
-  }
-  #[inline]
-  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> LogEntryBuilder<'a, 'b> {
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a, A>) -> LogEntryBuilder<'a, 'b, A> {
     let start = _fbb.start_table();
     LogEntryBuilder {
       fbb_: _fbb,
@@ -490,104 +590,6 @@ impl core::fmt::Debug for LogEntry<'_> {
       ds.field("tags", &self.tags());
       ds.field("hostname", &self.hostname());
       ds.field("timestamp_ns", &self.timestamp_ns());
-      ds.field("source", &self.source());
-      ds.finish()
-  }
-}
-pub enum MetricBatchOffset {}
-#[derive(Copy, Clone, PartialEq)]
-
-pub struct MetricBatch<'a> {
-  pub _tab: flatbuffers::Table<'a>,
-}
-
-impl<'a> flatbuffers::Follow<'a> for MetricBatch<'a> {
-  type Inner = MetricBatch<'a>;
-  #[inline]
-  unsafe fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-    Self { _tab: flatbuffers::Table::new(buf, loc) }
-  }
-}
-
-impl<'a> MetricBatch<'a> {
-  pub const VT_SAMPLES: flatbuffers::VOffsetT = 4;
-
-  #[inline]
-  pub unsafe fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
-    MetricBatch { _tab: table }
-  }
-  #[allow(unused_mut)]
-  pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-    _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-    args: &'args MetricBatchArgs<'args>
-  ) -> flatbuffers::WIPOffset<MetricBatch<'bldr>> {
-    let mut builder = MetricBatchBuilder::new(_fbb);
-    if let Some(x) = args.samples { builder.add_samples(x); }
-    builder.finish()
-  }
-
-
-  #[inline]
-  pub fn samples(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<MetricSample<'a>>>> {
-    // Safety:
-    // Created from valid Table for this object
-    // which contains a valid value in this slot
-    unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<MetricSample>>>>(MetricBatch::VT_SAMPLES, None)}
-  }
-}
-
-impl flatbuffers::Verifiable for MetricBatch<'_> {
-  #[inline]
-  fn run_verifier(
-    v: &mut flatbuffers::Verifier, pos: usize
-  ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
-    use self::flatbuffers::Verifiable;
-    v.visit_table(pos)?
-     .visit_field::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'_, flatbuffers::ForwardsUOffset<MetricSample>>>>("samples", Self::VT_SAMPLES, false)?
-     .finish();
-    Ok(())
-  }
-}
-pub struct MetricBatchArgs<'a> {
-    pub samples: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<MetricSample<'a>>>>>,
-}
-impl<'a> Default for MetricBatchArgs<'a> {
-  #[inline]
-  fn default() -> Self {
-    MetricBatchArgs {
-      samples: None,
-    }
-  }
-}
-
-pub struct MetricBatchBuilder<'a: 'b, 'b> {
-  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
-  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
-}
-impl<'a: 'b, 'b> MetricBatchBuilder<'a, 'b> {
-  #[inline]
-  pub fn add_samples(&mut self, samples: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<MetricSample<'b >>>>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(MetricBatch::VT_SAMPLES, samples);
-  }
-  #[inline]
-  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> MetricBatchBuilder<'a, 'b> {
-    let start = _fbb.start_table();
-    MetricBatchBuilder {
-      fbb_: _fbb,
-      start_: start,
-    }
-  }
-  #[inline]
-  pub fn finish(self) -> flatbuffers::WIPOffset<MetricBatch<'a>> {
-    let o = self.fbb_.end_table(self.start_);
-    flatbuffers::WIPOffset::new(o.value())
-  }
-}
-
-impl core::fmt::Debug for MetricBatch<'_> {
-  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-    let mut ds = f.debug_struct("MetricBatch");
-      ds.field("samples", &self.samples());
       ds.finish()
   }
 }
@@ -614,8 +616,8 @@ impl<'a> LogBatch<'a> {
     LogBatch { _tab: table }
   }
   #[allow(unused_mut)]
-  pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-    _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+  pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr, A: flatbuffers::Allocator + 'bldr>(
+    _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr, A>,
     args: &'args LogBatchArgs<'args>
   ) -> flatbuffers::WIPOffset<LogBatch<'bldr>> {
     let mut builder = LogBatchBuilder::new(_fbb);
@@ -657,17 +659,17 @@ impl<'a> Default for LogBatchArgs<'a> {
   }
 }
 
-pub struct LogBatchBuilder<'a: 'b, 'b> {
-  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+pub struct LogBatchBuilder<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a, A>,
   start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
 }
-impl<'a: 'b, 'b> LogBatchBuilder<'a, 'b> {
+impl<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> LogBatchBuilder<'a, 'b, A> {
   #[inline]
   pub fn add_entries(&mut self, entries: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<LogEntry<'b >>>>) {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(LogBatch::VT_ENTRIES, entries);
   }
   #[inline]
-  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> LogBatchBuilder<'a, 'b> {
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a, A>) -> LogBatchBuilder<'a, 'b, A> {
     let start = _fbb.start_table();
     LogBatchBuilder {
       fbb_: _fbb,
@@ -727,77 +729,158 @@ impl<'a> TraceStatEntry<'a> {
   pub unsafe fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
     TraceStatEntry { _tab: table }
   }
+  #[allow(unused_mut)]
+  pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr, A: flatbuffers::Allocator + 'bldr>(
+    _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr, A>,
+    args: &'args TraceStatEntryArgs<'args>
+  ) -> flatbuffers::WIPOffset<TraceStatEntry<'bldr>> {
+    let mut builder = TraceStatEntryBuilder::new(_fbb);
+    builder.add_timestamp_ns(args.timestamp_ns);
+    builder.add_bucket_duration_ns(args.bucket_duration_ns);
+    builder.add_bucket_start_ns(args.bucket_start_ns);
+    builder.add_top_level_hits(args.top_level_hits);
+    builder.add_duration_ns(args.duration_ns);
+    builder.add_errors(args.errors);
+    builder.add_hits(args.hits);
+    if let Some(x) = args.version { builder.add_version(x); }
+    if let Some(x) = args.env { builder.add_env(x); }
+    if let Some(x) = args.hostname { builder.add_hostname(x); }
+    if let Some(x) = args.error_summary { builder.add_error_summary(x); }
+    if let Some(x) = args.ok_summary { builder.add_ok_summary(x); }
+    builder.add_http_status_code(args.http_status_code);
+    if let Some(x) = args.span_kind { builder.add_span_kind(x); }
+    if let Some(x) = args.type_ { builder.add_type_(x); }
+    if let Some(x) = args.resource { builder.add_resource(x); }
+    if let Some(x) = args.name { builder.add_name(x); }
+    if let Some(x) = args.service { builder.add_service(x); }
+    builder.finish()
+  }
+
 
   #[inline]
   pub fn service(&self) -> Option<&'a str> {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
     unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(TraceStatEntry::VT_SERVICE, None)}
   }
   #[inline]
   pub fn name(&self) -> Option<&'a str> {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
     unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(TraceStatEntry::VT_NAME, None)}
   }
   #[inline]
   pub fn resource(&self) -> Option<&'a str> {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
     unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(TraceStatEntry::VT_RESOURCE, None)}
   }
   #[inline]
   pub fn type_(&self) -> Option<&'a str> {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
     unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(TraceStatEntry::VT_TYPE_, None)}
   }
   #[inline]
   pub fn span_kind(&self) -> Option<&'a str> {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
     unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(TraceStatEntry::VT_SPAN_KIND, None)}
   }
   #[inline]
   pub fn http_status_code(&self) -> u32 {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
     unsafe { self._tab.get::<u32>(TraceStatEntry::VT_HTTP_STATUS_CODE, Some(0)).unwrap()}
   }
   #[inline]
   pub fn hits(&self) -> u64 {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
     unsafe { self._tab.get::<u64>(TraceStatEntry::VT_HITS, Some(0)).unwrap()}
   }
   #[inline]
   pub fn errors(&self) -> u64 {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
     unsafe { self._tab.get::<u64>(TraceStatEntry::VT_ERRORS, Some(0)).unwrap()}
   }
   #[inline]
   pub fn duration_ns(&self) -> u64 {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
     unsafe { self._tab.get::<u64>(TraceStatEntry::VT_DURATION_NS, Some(0)).unwrap()}
   }
   #[inline]
   pub fn top_level_hits(&self) -> u64 {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
     unsafe { self._tab.get::<u64>(TraceStatEntry::VT_TOP_LEVEL_HITS, Some(0)).unwrap()}
   }
   #[inline]
   pub fn ok_summary(&self) -> Option<flatbuffers::Vector<'a, u8>> {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
     unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u8>>>(TraceStatEntry::VT_OK_SUMMARY, None)}
   }
   #[inline]
   pub fn error_summary(&self) -> Option<flatbuffers::Vector<'a, u8>> {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
     unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u8>>>(TraceStatEntry::VT_ERROR_SUMMARY, None)}
   }
   #[inline]
   pub fn hostname(&self) -> Option<&'a str> {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
     unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(TraceStatEntry::VT_HOSTNAME, None)}
   }
   #[inline]
   pub fn env(&self) -> Option<&'a str> {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
     unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(TraceStatEntry::VT_ENV, None)}
   }
   #[inline]
   pub fn version(&self) -> Option<&'a str> {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
     unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(TraceStatEntry::VT_VERSION, None)}
   }
   #[inline]
   pub fn bucket_start_ns(&self) -> i64 {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
     unsafe { self._tab.get::<i64>(TraceStatEntry::VT_BUCKET_START_NS, Some(0)).unwrap()}
   }
   #[inline]
   pub fn bucket_duration_ns(&self) -> i64 {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
     unsafe { self._tab.get::<i64>(TraceStatEntry::VT_BUCKET_DURATION_NS, Some(0)).unwrap()}
   }
   #[inline]
   pub fn timestamp_ns(&self) -> i64 {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
     unsafe { self._tab.get::<i64>(TraceStatEntry::VT_TIMESTAMP_NS, Some(0)).unwrap()}
   }
 }
@@ -829,6 +912,143 @@ impl flatbuffers::Verifiable for TraceStatEntry<'_> {
      .visit_field::<i64>("timestamp_ns", Self::VT_TIMESTAMP_NS, false)?
      .finish();
     Ok(())
+  }
+}
+pub struct TraceStatEntryArgs<'a> {
+    pub service: Option<flatbuffers::WIPOffset<&'a str>>,
+    pub name: Option<flatbuffers::WIPOffset<&'a str>>,
+    pub resource: Option<flatbuffers::WIPOffset<&'a str>>,
+    pub type_: Option<flatbuffers::WIPOffset<&'a str>>,
+    pub span_kind: Option<flatbuffers::WIPOffset<&'a str>>,
+    pub http_status_code: u32,
+    pub hits: u64,
+    pub errors: u64,
+    pub duration_ns: u64,
+    pub top_level_hits: u64,
+    pub ok_summary: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a, u8>>>,
+    pub error_summary: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a, u8>>>,
+    pub hostname: Option<flatbuffers::WIPOffset<&'a str>>,
+    pub env: Option<flatbuffers::WIPOffset<&'a str>>,
+    pub version: Option<flatbuffers::WIPOffset<&'a str>>,
+    pub bucket_start_ns: i64,
+    pub bucket_duration_ns: i64,
+    pub timestamp_ns: i64,
+}
+impl<'a> Default for TraceStatEntryArgs<'a> {
+  #[inline]
+  fn default() -> Self {
+    TraceStatEntryArgs {
+      service: None,
+      name: None,
+      resource: None,
+      type_: None,
+      span_kind: None,
+      http_status_code: 0,
+      hits: 0,
+      errors: 0,
+      duration_ns: 0,
+      top_level_hits: 0,
+      ok_summary: None,
+      error_summary: None,
+      hostname: None,
+      env: None,
+      version: None,
+      bucket_start_ns: 0,
+      bucket_duration_ns: 0,
+      timestamp_ns: 0,
+    }
+  }
+}
+
+pub struct TraceStatEntryBuilder<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a, A>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> TraceStatEntryBuilder<'a, 'b, A> {
+  #[inline]
+  pub fn add_service(&mut self, service: flatbuffers::WIPOffset<&'b  str>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(TraceStatEntry::VT_SERVICE, service);
+  }
+  #[inline]
+  pub fn add_name(&mut self, name: flatbuffers::WIPOffset<&'b  str>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(TraceStatEntry::VT_NAME, name);
+  }
+  #[inline]
+  pub fn add_resource(&mut self, resource: flatbuffers::WIPOffset<&'b  str>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(TraceStatEntry::VT_RESOURCE, resource);
+  }
+  #[inline]
+  pub fn add_type_(&mut self, type_: flatbuffers::WIPOffset<&'b  str>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(TraceStatEntry::VT_TYPE_, type_);
+  }
+  #[inline]
+  pub fn add_span_kind(&mut self, span_kind: flatbuffers::WIPOffset<&'b  str>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(TraceStatEntry::VT_SPAN_KIND, span_kind);
+  }
+  #[inline]
+  pub fn add_http_status_code(&mut self, http_status_code: u32) {
+    self.fbb_.push_slot::<u32>(TraceStatEntry::VT_HTTP_STATUS_CODE, http_status_code, 0);
+  }
+  #[inline]
+  pub fn add_hits(&mut self, hits: u64) {
+    self.fbb_.push_slot::<u64>(TraceStatEntry::VT_HITS, hits, 0);
+  }
+  #[inline]
+  pub fn add_errors(&mut self, errors: u64) {
+    self.fbb_.push_slot::<u64>(TraceStatEntry::VT_ERRORS, errors, 0);
+  }
+  #[inline]
+  pub fn add_duration_ns(&mut self, duration_ns: u64) {
+    self.fbb_.push_slot::<u64>(TraceStatEntry::VT_DURATION_NS, duration_ns, 0);
+  }
+  #[inline]
+  pub fn add_top_level_hits(&mut self, top_level_hits: u64) {
+    self.fbb_.push_slot::<u64>(TraceStatEntry::VT_TOP_LEVEL_HITS, top_level_hits, 0);
+  }
+  #[inline]
+  pub fn add_ok_summary(&mut self, ok_summary: flatbuffers::WIPOffset<flatbuffers::Vector<'b , u8>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(TraceStatEntry::VT_OK_SUMMARY, ok_summary);
+  }
+  #[inline]
+  pub fn add_error_summary(&mut self, error_summary: flatbuffers::WIPOffset<flatbuffers::Vector<'b , u8>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(TraceStatEntry::VT_ERROR_SUMMARY, error_summary);
+  }
+  #[inline]
+  pub fn add_hostname(&mut self, hostname: flatbuffers::WIPOffset<&'b  str>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(TraceStatEntry::VT_HOSTNAME, hostname);
+  }
+  #[inline]
+  pub fn add_env(&mut self, env: flatbuffers::WIPOffset<&'b  str>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(TraceStatEntry::VT_ENV, env);
+  }
+  #[inline]
+  pub fn add_version(&mut self, version: flatbuffers::WIPOffset<&'b  str>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(TraceStatEntry::VT_VERSION, version);
+  }
+  #[inline]
+  pub fn add_bucket_start_ns(&mut self, bucket_start_ns: i64) {
+    self.fbb_.push_slot::<i64>(TraceStatEntry::VT_BUCKET_START_NS, bucket_start_ns, 0);
+  }
+  #[inline]
+  pub fn add_bucket_duration_ns(&mut self, bucket_duration_ns: i64) {
+    self.fbb_.push_slot::<i64>(TraceStatEntry::VT_BUCKET_DURATION_NS, bucket_duration_ns, 0);
+  }
+  #[inline]
+  pub fn add_timestamp_ns(&mut self, timestamp_ns: i64) {
+    self.fbb_.push_slot::<i64>(TraceStatEntry::VT_TIMESTAMP_NS, timestamp_ns, 0);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a, A>) -> TraceStatEntryBuilder<'a, 'b, A> {
+    let start = _fbb.start_table();
+    TraceStatEntryBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<TraceStatEntry<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    flatbuffers::WIPOffset::new(o.value())
   }
 }
 
@@ -878,9 +1098,22 @@ impl<'a> TraceStatsBatch<'a> {
   pub unsafe fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
     TraceStatsBatch { _tab: table }
   }
+  #[allow(unused_mut)]
+  pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr, A: flatbuffers::Allocator + 'bldr>(
+    _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr, A>,
+    args: &'args TraceStatsBatchArgs<'args>
+  ) -> flatbuffers::WIPOffset<TraceStatsBatch<'bldr>> {
+    let mut builder = TraceStatsBatchBuilder::new(_fbb);
+    if let Some(x) = args.entries { builder.add_entries(x); }
+    builder.finish()
+  }
+
 
   #[inline]
   pub fn entries(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<TraceStatEntry<'a>>>> {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
     unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<TraceStatEntry>>>>(TraceStatsBatch::VT_ENTRIES, None)}
   }
 }
@@ -895,6 +1128,41 @@ impl flatbuffers::Verifiable for TraceStatsBatch<'_> {
      .visit_field::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'_, flatbuffers::ForwardsUOffset<TraceStatEntry>>>>("entries", Self::VT_ENTRIES, false)?
      .finish();
     Ok(())
+  }
+}
+pub struct TraceStatsBatchArgs<'a> {
+    pub entries: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<TraceStatEntry<'a>>>>>,
+}
+impl<'a> Default for TraceStatsBatchArgs<'a> {
+  #[inline]
+  fn default() -> Self {
+    TraceStatsBatchArgs {
+      entries: None,
+    }
+  }
+}
+
+pub struct TraceStatsBatchBuilder<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a, A>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> TraceStatsBatchBuilder<'a, 'b, A> {
+  #[inline]
+  pub fn add_entries(&mut self, entries: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<TraceStatEntry<'b >>>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(TraceStatsBatch::VT_ENTRIES, entries);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a, A>) -> TraceStatsBatchBuilder<'a, 'b, A> {
+    let start = _fbb.start_table();
+    TraceStatsBatchBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<TraceStatsBatch<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    flatbuffers::WIPOffset::new(o.value())
   }
 }
 
@@ -921,84 +1189,48 @@ impl<'a> flatbuffers::Follow<'a> for SignalEnvelope<'a> {
 }
 
 impl<'a> SignalEnvelope<'a> {
-  pub const VT_PAYLOAD_TYPE: flatbuffers::VOffsetT = 4;
-  pub const VT_PAYLOAD: flatbuffers::VOffsetT = 6;
+  pub const VT_METRIC_BATCH: flatbuffers::VOffsetT = 4;
+  pub const VT_LOG_BATCH: flatbuffers::VOffsetT = 6;
+  pub const VT_TRACE_STATS_BATCH: flatbuffers::VOffsetT = 8;
 
   #[inline]
   pub unsafe fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
     SignalEnvelope { _tab: table }
   }
   #[allow(unused_mut)]
-  pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-    _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-    args: &'args SignalEnvelopeArgs
+  pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr, A: flatbuffers::Allocator + 'bldr>(
+    _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr, A>,
+    args: &'args SignalEnvelopeArgs<'args>
   ) -> flatbuffers::WIPOffset<SignalEnvelope<'bldr>> {
     let mut builder = SignalEnvelopeBuilder::new(_fbb);
-    if let Some(x) = args.payload { builder.add_payload(x); }
-    builder.add_payload_type(args.payload_type);
+    if let Some(x) = args.trace_stats_batch { builder.add_trace_stats_batch(x); }
+    if let Some(x) = args.log_batch { builder.add_log_batch(x); }
+    if let Some(x) = args.metric_batch { builder.add_metric_batch(x); }
     builder.finish()
   }
 
 
   #[inline]
-  pub fn payload_type(&self) -> SignalPayload {
+  pub fn metric_batch(&self) -> Option<MetricBatch<'a>> {
     // Safety:
     // Created from valid Table for this object
     // which contains a valid value in this slot
-    unsafe { self._tab.get::<SignalPayload>(SignalEnvelope::VT_PAYLOAD_TYPE, Some(SignalPayload::NONE)).unwrap()}
+    unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<MetricBatch>>(SignalEnvelope::VT_METRIC_BATCH, None)}
   }
   #[inline]
-  pub fn payload(&self) -> Option<flatbuffers::Table<'a>> {
+  pub fn log_batch(&self) -> Option<LogBatch<'a>> {
     // Safety:
     // Created from valid Table for this object
     // which contains a valid value in this slot
-    unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Table<'a>>>(SignalEnvelope::VT_PAYLOAD, None)}
+    unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<LogBatch>>(SignalEnvelope::VT_LOG_BATCH, None)}
   }
   #[inline]
-  #[allow(non_snake_case)]
-  pub fn payload_as_metric_batch(&self) -> Option<MetricBatch<'a>> {
-    if self.payload_type() == SignalPayload::MetricBatch {
-      self.payload().map(|t| {
-       // Safety:
-       // Created from a valid Table for this object
-       // Which contains a valid union in this slot
-       unsafe { MetricBatch::init_from_table(t) }
-     })
-    } else {
-      None
-    }
+  pub fn trace_stats_batch(&self) -> Option<TraceStatsBatch<'a>> {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<TraceStatsBatch>>(SignalEnvelope::VT_TRACE_STATS_BATCH, None)}
   }
-
-  #[inline]
-  #[allow(non_snake_case)]
-  pub fn payload_as_log_batch(&self) -> Option<LogBatch<'a>> {
-    if self.payload_type() == SignalPayload::LogBatch {
-      self.payload().map(|t| {
-       // Safety:
-       // Created from a valid Table for this object
-       // Which contains a valid union in this slot
-       unsafe { LogBatch::init_from_table(t) }
-     })
-    } else {
-      None
-    }
-  }
-
-  #[inline]
-  #[allow(non_snake_case)]
-  pub fn payload_as_trace_stats_batch(&self) -> Option<TraceStatsBatch<'a>> {
-    if self.payload_type() == SignalPayload::TraceStatsBatch {
-      self.payload().map(|t| {
-       // Safety:
-       // Created from a valid Table for this object
-       // Which contains a valid union in this slot
-       unsafe { TraceStatsBatch::init_from_table(t) }
-     })
-    } else {
-      None
-    }
-  }
-
 }
 
 impl flatbuffers::Verifiable for SignalEnvelope<'_> {
@@ -1008,47 +1240,48 @@ impl flatbuffers::Verifiable for SignalEnvelope<'_> {
   ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
     use self::flatbuffers::Verifiable;
     v.visit_table(pos)?
-     .visit_union::<SignalPayload, _>("payload_type", Self::VT_PAYLOAD_TYPE, "payload", Self::VT_PAYLOAD, false, |key, v, pos| {
-        match key {
-          SignalPayload::MetricBatch => v.verify_union_variant::<flatbuffers::ForwardsUOffset<MetricBatch>>("SignalPayload::MetricBatch", pos),
-          SignalPayload::LogBatch => v.verify_union_variant::<flatbuffers::ForwardsUOffset<LogBatch>>("SignalPayload::LogBatch", pos),
-          SignalPayload::TraceStatsBatch => v.verify_union_variant::<flatbuffers::ForwardsUOffset<TraceStatsBatch>>("SignalPayload::TraceStatsBatch", pos),
-          _ => Ok(()),
-        }
-     })?
+     .visit_field::<flatbuffers::ForwardsUOffset<MetricBatch>>("metric_batch", Self::VT_METRIC_BATCH, false)?
+     .visit_field::<flatbuffers::ForwardsUOffset<LogBatch>>("log_batch", Self::VT_LOG_BATCH, false)?
+     .visit_field::<flatbuffers::ForwardsUOffset<TraceStatsBatch>>("trace_stats_batch", Self::VT_TRACE_STATS_BATCH, false)?
      .finish();
     Ok(())
   }
 }
-pub struct SignalEnvelopeArgs {
-    pub payload_type: SignalPayload,
-    pub payload: Option<flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>>,
+pub struct SignalEnvelopeArgs<'a> {
+    pub metric_batch: Option<flatbuffers::WIPOffset<MetricBatch<'a>>>,
+    pub log_batch: Option<flatbuffers::WIPOffset<LogBatch<'a>>>,
+    pub trace_stats_batch: Option<flatbuffers::WIPOffset<TraceStatsBatch<'a>>>,
 }
-impl<'a> Default for SignalEnvelopeArgs {
+impl<'a> Default for SignalEnvelopeArgs<'a> {
   #[inline]
   fn default() -> Self {
     SignalEnvelopeArgs {
-      payload_type: SignalPayload::NONE,
-      payload: None,
+      metric_batch: None,
+      log_batch: None,
+      trace_stats_batch: None,
     }
   }
 }
 
-pub struct SignalEnvelopeBuilder<'a: 'b, 'b> {
-  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+pub struct SignalEnvelopeBuilder<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a, A>,
   start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
 }
-impl<'a: 'b, 'b> SignalEnvelopeBuilder<'a, 'b> {
+impl<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> SignalEnvelopeBuilder<'a, 'b, A> {
   #[inline]
-  pub fn add_payload_type(&mut self, payload_type: SignalPayload) {
-    self.fbb_.push_slot::<SignalPayload>(SignalEnvelope::VT_PAYLOAD_TYPE, payload_type, SignalPayload::NONE);
+  pub fn add_metric_batch(&mut self, metric_batch: flatbuffers::WIPOffset<MetricBatch<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<MetricBatch>>(SignalEnvelope::VT_METRIC_BATCH, metric_batch);
   }
   #[inline]
-  pub fn add_payload(&mut self, payload: flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(SignalEnvelope::VT_PAYLOAD, payload);
+  pub fn add_log_batch(&mut self, log_batch: flatbuffers::WIPOffset<LogBatch<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<LogBatch>>(SignalEnvelope::VT_LOG_BATCH, log_batch);
   }
   #[inline]
-  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> SignalEnvelopeBuilder<'a, 'b> {
+  pub fn add_trace_stats_batch(&mut self, trace_stats_batch: flatbuffers::WIPOffset<TraceStatsBatch<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<TraceStatsBatch>>(SignalEnvelope::VT_TRACE_STATS_BATCH, trace_stats_batch);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a, A>) -> SignalEnvelopeBuilder<'a, 'b, A> {
     let start = _fbb.start_table();
     SignalEnvelopeBuilder {
       fbb_: _fbb,
@@ -1065,34 +1298,9 @@ impl<'a: 'b, 'b> SignalEnvelopeBuilder<'a, 'b> {
 impl core::fmt::Debug for SignalEnvelope<'_> {
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     let mut ds = f.debug_struct("SignalEnvelope");
-      ds.field("payload_type", &self.payload_type());
-      match self.payload_type() {
-        SignalPayload::MetricBatch => {
-          if let Some(x) = self.payload_as_metric_batch() {
-            ds.field("payload", &x)
-          } else {
-            ds.field("payload", &"InvalidFlatbuffer: Union discriminant does not match value.")
-          }
-        },
-        SignalPayload::LogBatch => {
-          if let Some(x) = self.payload_as_log_batch() {
-            ds.field("payload", &x)
-          } else {
-            ds.field("payload", &"InvalidFlatbuffer: Union discriminant does not match value.")
-          }
-        },
-        SignalPayload::TraceStatsBatch => {
-          if let Some(x) = self.payload_as_trace_stats_batch() {
-            ds.field("payload", &x)
-          } else {
-            ds.field("payload", &"InvalidFlatbuffer: Union discriminant does not match value.")
-          }
-        },
-        _ => {
-          let x: Option<()> = None;
-          ds.field("payload", &x)
-        },
-      };
+      ds.field("metric_batch", &self.metric_batch());
+      ds.field("log_batch", &self.log_batch());
+      ds.field("trace_stats_batch", &self.trace_stats_batch());
       ds.finish()
   }
 }
@@ -1157,14 +1365,14 @@ pub unsafe fn size_prefixed_root_as_signal_envelope_unchecked(buf: &[u8]) -> Sig
   flatbuffers::size_prefixed_root_unchecked::<SignalEnvelope>(buf)
 }
 #[inline]
-pub fn finish_signal_envelope_buffer<'a, 'b>(
-    fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+pub fn finish_signal_envelope_buffer<'a, 'b, A: flatbuffers::Allocator + 'a>(
+    fbb: &'b mut flatbuffers::FlatBufferBuilder<'a, A>,
     root: flatbuffers::WIPOffset<SignalEnvelope<'a>>) {
   fbb.finish(root, None);
 }
 
 #[inline]
-pub fn finish_size_prefixed_signal_envelope_buffer<'a, 'b>(fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>, root: flatbuffers::WIPOffset<SignalEnvelope<'a>>) {
+pub fn finish_size_prefixed_signal_envelope_buffer<'a, 'b, A: flatbuffers::Allocator + 'a>(fbb: &'b mut flatbuffers::FlatBufferBuilder<'a, A>, root: flatbuffers::WIPOffset<SignalEnvelope<'a>>) {
   fbb.finish_size_prefixed(root, None);
 }
 }  // pub mod signals

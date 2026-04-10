@@ -109,6 +109,18 @@ impl DiskTracker {
         })
     }
 
+    /// Create a no-op DiskTracker (unlimited cap, no files).
+    /// Used in tests where disk tracking is not relevant.
+    pub fn noop() -> Self {
+        Self {
+            max_bytes: u64::MAX,
+            inner: Mutex::new(Inner {
+                current_bytes: 0,
+                files: VecDeque::new(),
+            }),
+        }
+    }
+
     /// Record a newly closed Parquet file. Called by writer threads after
     /// file rotation.
     pub fn file_closed(&self, path: PathBuf, size: u64) {

@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use flightrecorder::disk_tracker::DiskTracker;
 use flightrecorder::writers::logs::LogsWriter;
-use flightrecorder::writers::thread::{SignalWriter, WriterStats};
+use flightrecorder::writers::thread::SignalWriter;
 
 use tempfile::tempdir;
 
@@ -22,7 +22,6 @@ fn build_log_frame(n: usize) -> Vec<u8> {
         );
         let status = fbb.create_string("info");
         let hostname = fbb.create_string("test-host");
-        let source = fbb.create_string("integration-test");
         let t1 = fbb.create_string("service:test-svc");
         let t2 = fbb.create_string("env:test");
         let t3 = fbb.create_string("custom_tag:custom_value");
@@ -35,7 +34,6 @@ fn build_log_frame(n: usize) -> Vec<u8> {
                 tags: Some(tags),
                 hostname: Some(hostname),
                 timestamp_ns: 1_700_000_000_000_000_000 + i as i64 * 1_000_000,
-                source: Some(source),
             },
         );
         offsets.push(entry);
@@ -51,9 +49,8 @@ fn build_log_frame(n: usize) -> Vec<u8> {
     let env = flightrecorder::generated::signals_generated::signals::SignalEnvelope::create(
         &mut fbb,
         &flightrecorder::generated::signals_generated::signals::SignalEnvelopeArgs {
-            payload_type:
-                flightrecorder::generated::signals_generated::signals::SignalPayload::LogBatch,
-            payload: Some(batch.as_union_value()),
+            log_batch: Some(batch),
+            ..Default::default()
         },
     );
     fbb.finish(env, None);
@@ -72,9 +69,8 @@ fn test_disk_cap_enforcement() {
     // flush_rows=500, flush_interval=0 so every batch triggers a flush.
     // Rotation happens every 60s by default, so we simulate multiple files
     // by creating separate writers (each opens a new file).
-    for batch in 0..10 {
-        let mut writer = LogsWriter::new(output_dir, 500, Duration::from_secs(3600));
-        writer.base.set_disk_tracker(tracker.clone());
+    for _batch in 0..10 {
+        let mut writer = LogsWriter::new(output_dir, 500, Duration::from_secs(3600), tracker.clone());
 
         let frame = build_log_frame(500);
         writer.process_frame(&frame).unwrap();
@@ -137,8 +133,7 @@ fn test_disk_cap_zero_means_unlimited() {
     // So we use a very large cap to simulate "unlimited".
     let tracker = Arc::new(DiskTracker::new(output_dir, u64::MAX).unwrap());
 
-    let mut writer = LogsWriter::new(output_dir, 50, Duration::from_secs(3600));
-    writer.base.set_disk_tracker(tracker.clone());
+    let mut writer = LogsWriter::new(output_dir, 50, Duration::from_secs(3600), tracker.clone());
 
     let frame = build_log_frame(50);
     for _ in 0..10 {

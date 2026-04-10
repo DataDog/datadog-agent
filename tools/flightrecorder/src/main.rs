@@ -26,6 +26,61 @@ use tracing::{error, info, warn};
 use generated::signals_generated::signals;
 use writers::thread::WriterHandle;
 
+/// Handle a single client connection: read frames and route to writer threads.
+async fn handle_connection(
+    stream: UnixStream,
+    mh: Arc<Mutex<WriterHandle>>,
+    lh: Arc<Mutex<WriterHandle>>,
+    th: Arc<Mutex<WriterHandle>>,
+    token: tokio_util::sync::CancellationToken,
+    cs: Arc<telemetry::ConnectionStats>,
+) {
+    let mut reader = BufReader::new(stream);
+    let mut buf = Vec::new();
+    loop {
+        let frame_result = tokio::select! {
+            _ = token.cancelled() => break,
+            r = framing::read_frame(&mut reader, &mut buf) => r,
+        };
+
+        match frame_result {
+            Ok(None) => {
+                info!("client disconnected");
+                break;
+            }
+            Ok(Some(_len)) => {}
+            Err(e) => {
+                warn!("frame read error: {}", e);
+                break;
+            }
+        }
+
+        let env = match flatbuffers::root::<signals::SignalEnvelope>(&buf) {
+            Ok(e) => e,
+            Err(e) => {
+                warn!("failed to decode SignalEnvelope: {}", e);
+                continue;
+            }
+        };
+
+        cs.frames_received.fetch_add(1, Ordering::Relaxed);
+
+        // Route to the appropriate writer thread based on which field
+        // is present (flat table, no union discriminant). The buf is
+        // cloned into the ring — the writer thread decodes it.
+        if env.metric_batch().is_some() {
+            mh.lock().unwrap().send_frame(buf.clone());
+        } else if env.log_batch().is_some() {
+            lh.lock().unwrap().send_frame(buf.clone());
+        } else if env.trace_stats_batch().is_some() {
+            th.lock().unwrap().send_frame(buf.clone());
+        } else {
+            warn!("empty SignalEnvelope (no batch field set)");
+        }
+    }
+    cs.active_connections.fetch_sub(1, Ordering::Relaxed);
+}
+
 /// Ring buffer capacity for the writer threads.
 /// Each slot holds a Vec<u8> (24 bytes). With 512 slots the ring overhead
 /// is ~12 KB. Worst-case heap with full ring: 512 × ~500 KB = ~256 MB.
@@ -80,21 +135,17 @@ pub async fn run(cfg: config::Config, tracker: Arc<disk_tracker::DiskTracker>) -
 
     // Create writers and spawn dedicated threads.
     let context_store = writers::context_store::ContextStore::new(&cfg.output_dir)?;
-    let mut metrics_writer = writers::metrics::MetricsWriter::new(
+    let metrics_writer = writers::metrics::MetricsWriter::new(
         &cfg.output_dir,
         cfg.flush_rows,
         flush_interval,
         context_store,
+        tracker.clone(),
     );
-    let mut logs_writer =
-        writers::logs::LogsWriter::new(&cfg.output_dir, cfg.flush_rows, flush_interval);
-    let mut trace_stats_writer =
-        writers::trace_stats::TraceStatsWriter::new(&cfg.output_dir, cfg.flush_rows, flush_interval);
-
-    // Wire disk tracker into writers so file rotations are tracked in-memory.
-    metrics_writer.base.set_disk_tracker(tracker.clone());
-    logs_writer.base.set_disk_tracker(tracker.clone());
-    trace_stats_writer.base.set_disk_tracker(tracker.clone());
+    let logs_writer =
+        writers::logs::LogsWriter::new(&cfg.output_dir, cfg.flush_rows, flush_interval, tracker.clone());
+    let trace_stats_writer =
+        writers::trace_stats::TraceStatsWriter::new(&cfg.output_dir, cfg.flush_rows, flush_interval, tracker.clone());
 
     let metrics_handle = Arc::new(Mutex::new(
         WriterHandle::spawn(metrics_writer, WRITER_RING_CAPACITY, "metrics"),
@@ -171,60 +222,9 @@ pub async fn run(cfg: config::Config, tracker: Arc<disk_tracker::DiskTracker>) -
         let cs = conn_stats.clone();
         cs.active_connections.fetch_add(1, Ordering::Relaxed);
 
-        client_tasks.push(tokio::spawn(async move {
-            // Context keys are deterministic hashes — the bloom filter
-            // persists across connections. Duplicate contexts from
-            // reconnecting agents are silently deduplicated.
-
-            let mut reader = BufReader::new(stream);
-            loop {
-                let frame_result = tokio::select! {
-                    _ = token.cancelled() => break,
-                    r = framing::read_frame(&mut reader) => r,
-                };
-
-                let buf = match frame_result {
-                    Ok(Some(b)) => b,
-                    Ok(None) => {
-                        info!("client disconnected");
-                        break;
-                    }
-                    Err(e) => {
-                        warn!("frame read error: {}", e);
-                        break;
-                    }
-                };
-
-                // Peek at the payload type to route to the correct writer
-                // thread. The full frame (buf) is moved into the ring — the
-                // writer thread decodes it.
-                let env = match flatbuffers::root::<signals::SignalEnvelope>(&buf) {
-                    Ok(e) => e,
-                    Err(e) => {
-                        warn!("failed to decode SignalEnvelope: {}", e);
-                        continue;
-                    }
-                };
-
-                cs.frames_received.fetch_add(1, Ordering::Relaxed);
-
-                match env.payload_type() {
-                    signals::SignalPayload::MetricBatch => {
-                        mh.lock().unwrap().send_frame(buf);
-                    }
-                    signals::SignalPayload::LogBatch => {
-                        lh.lock().unwrap().send_frame(buf);
-                    }
-                    signals::SignalPayload::TraceStatsBatch => {
-                        th.lock().unwrap().send_frame(buf);
-                    }
-                    _ => {
-                        warn!("unknown SignalPayload variant");
-                    }
-                }
-            }
-            cs.active_connections.fetch_sub(1, Ordering::Relaxed);
-        }));
+        client_tasks.push(tokio::spawn(
+            handle_connection(stream, mh, lh, th, token, cs),
+        ));
 
         // Clean up completed client tasks.
         client_tasks.retain(|t| !t.is_finished());

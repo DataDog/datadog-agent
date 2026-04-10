@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use crate::disk_tracker::DiskTracker;
+pub use crate::disk_tracker::DiskTracker;
 
 use anyhow::{Context, Result};
 use arrow::array::{DictionaryArray, StringArray, UInt32Array};
@@ -54,10 +54,10 @@ pub struct BaseWriter {
     // Currently open writer + path (None until first write).
     active_writer: Option<ActiveFile>,
 
-    // In-memory disk usage tracker. When set, file_closed() is called on
-    // rotation and close so the janitor can enforce the disk cap without
-    // scanning the filesystem.
-    disk_tracker: Option<Arc<DiskTracker>>,
+    // In-memory disk usage tracker. file_closed() is called on rotation
+    // and close so the janitor can enforce the disk cap without scanning
+    // the filesystem.
+    disk_tracker: Arc<DiskTracker>,
 
     // Telemetry counters (read by the telemetry reporter).
     pub flush_count: u64,
@@ -74,7 +74,12 @@ struct ActiveFile {
 }
 
 impl BaseWriter {
-    pub fn new(output_dir: &Path, flush_rows: usize, flush_interval: Duration) -> Self {
+    pub fn new(
+        output_dir: &Path,
+        flush_rows: usize,
+        flush_interval: Duration,
+        disk_tracker: Arc<DiskTracker>,
+    ) -> Self {
         Self {
             output_dir: output_dir.to_path_buf(),
             flush_rows,
@@ -82,23 +87,11 @@ impl BaseWriter {
             last_flush: Instant::now(),
             rotation_interval: Duration::from_secs(60),
             active_writer: None,
-            disk_tracker: None,
+            disk_tracker,
             flush_count: 0,
             flush_bytes: 0,
             rows_written: 0,
             last_flush_duration_ns: 0,
-        }
-    }
-
-    /// Set the disk tracker for in-memory disk accounting.
-    pub fn set_disk_tracker(&mut self, tracker: Arc<DiskTracker>) {
-        self.disk_tracker = Some(tracker);
-    }
-
-    /// Notify the disk tracker that a file was closed with the given size.
-    fn notify_file_closed(&self, path: &Path, size: u64) {
-        if let Some(ref tracker) = self.disk_tracker {
-            tracker.file_closed(path.to_path_buf(), size);
         }
     }
 
@@ -156,7 +149,7 @@ impl BaseWriter {
                 .map(|m| m.len())
                 .unwrap_or(0);
             self.flush_bytes += bytes;
-            self.notify_file_closed(&af.path, bytes);
+            self.disk_tracker.file_closed(af.path.clone(), bytes);
         }
 
         let ts_ms = SystemTime::now()
@@ -191,7 +184,7 @@ impl BaseWriter {
                 .map(|m| m.len())
                 .unwrap_or(0);
             self.flush_bytes += bytes;
-            self.notify_file_closed(&af.path, bytes);
+            self.disk_tracker.file_closed(af.path.clone(), bytes);
         }
         Ok(())
     }
