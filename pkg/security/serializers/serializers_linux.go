@@ -1006,7 +1006,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			}
 		}
 
-		if (ps.TracerMetadata != tracermetadata.TracerMetadata{}) {
+		if !ps.TracerMetadata.IsZero() {
 			tmetaCopy := ps.TracerMetadata
 			psSerializer.Tracer = &tmetaCopy
 		}

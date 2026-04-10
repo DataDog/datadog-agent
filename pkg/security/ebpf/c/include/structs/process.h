@@ -79,4 +79,27 @@ struct span_tls_t {
     void *base;
 };
 
+// OTel Thread Local Context Record (per OTel spec PR #4947).
+// This is the fixed 28-byte header that OTel SDKs publish via ELF TLSDESC.
+// Targets native applications (C, C++, Rust, Java/JNI, .NET/FFI, etc.) on x86_64 and ARM64.
+// Support for additional runtimes (e.g., Go via pprof labels) will be added later.
+struct otel_thread_ctx_record_t {
+    u8 trace_id[16];     // W3C Trace Context byte order (big-endian)
+    u8 span_id[8];       // W3C Trace Context byte order (big-endian)
+    u8 valid;            // must be 1 for the record to be considered valid
+    u8 _reserved;        // padding for alignment
+    u16 attrs_data_size; // size of custom attributes data (not read)
+};
+
+// OTel TLSDESC-based TLS registration for a process.
+// The tls_offset is discovered by user-space by parsing the ELF dynsym table for
+// the `otel_thread_ctx_v1` TLS symbol, then pushed to the otel_tls BPF map.
+// x86_64: reads fsbase from task_struct->thread.fsbase
+// ARM64:  reads tp_value from task_struct->thread.uw.tp_value
+struct otel_tls_t {
+    s64 tls_offset; // signed offset from thread pointer to the TLS variable
+    u32 runtime;    // enum otel_runtime_language
+    u32 _pad;
+};
+
 #endif
