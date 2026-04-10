@@ -1,11 +1,16 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
+# hack.go uses //go:build hack_no_include (blank import to pin cloud.google.com/go/compute)
+# scope tag here, not in root ALL_BUILD_TAGS.
+# gazelle:build_tags hack_no_include
+
 go_library(
     name = "grpc",
     srcs = [
         "agent_client.go",
         "auth.go",
         "cert.go",
+        "hack.go",
         "interceptors.go",
         "logger.go",
         "metrics.go",
@@ -24,6 +29,7 @@ go_library(
         "//pkg/util/system/socket",
         "@com_github_grpc_ecosystem_go_grpc_middleware//auth",
         "@com_github_mdlayher_vsock//:vsock",
+        "@com_google_cloud_go_compute//apiv1",
         "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//backoff",
         "@org_golang_google_grpc//codes",
