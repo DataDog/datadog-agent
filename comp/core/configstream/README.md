@@ -273,6 +273,6 @@ log_level: debug
 
 ## Contact
 
-- **Teams:** agent-metric-pipelines, agent-configuration
+- **Team:** agent-configuration
 - **Component:** `comp/core/configstream`
 - **Test Client:** `cmd/config-stream-client`
