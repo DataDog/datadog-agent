@@ -22,6 +22,8 @@ struct syscall_context_t {
 struct span_context_t {
     u64 span_id;
     u64 trace_id[2];
+    u8  has_extra_attrs; // 1 if extra OTel attributes are available in the otel_span_attrs map
+    u8  _pad[7];
 };
 
 struct process_context_t {

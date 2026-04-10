@@ -84,6 +84,23 @@ func TestGetTracerMetadata(t *testing.T) {
 		}, tags)
 	})
 
+	t.Run("cpp_with_threadlocal_attribute_keys", func(t *testing.T) {
+		loadTracerMetadata(t, "testdata/tracer_cpp_with_attrs.data")
+		trm, err := GetTracerMetadata(pid, procfs)
+		require.NoError(t, err)
+		require.Equal(t, "otel-test-service", trm.ServiceName)
+		require.Equal(t, "cpp", trm.TracerLanguage)
+		require.Equal(t, "v1.0.0", trm.TracerVersion)
+		require.Equal(t, "test-host", trm.Hostname)
+		require.Equal(t, uint8(2), trm.SchemaVersion)
+
+		// Verify threadlocal_attribute_keys are parsed
+		require.Len(t, trm.ThreadlocalAttributeKeys, 3, "should have 3 threadlocal attribute keys")
+		assert.Equal(t, "http.method", trm.ThreadlocalAttributeKeys[0])
+		assert.Equal(t, "http.target", trm.ThreadlocalAttributeKeys[1])
+		assert.Equal(t, "http.user", trm.ThreadlocalAttributeKeys[2])
+	})
+
 	t.Run("invalid data", func(t *testing.T) {
 		createTracerMemfd(t, []byte("invalid data"))
 		trm, err := GetTracerMetadata(pid, procfs)
