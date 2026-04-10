@@ -12,15 +12,19 @@ import (
 	"fmt"
 
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/features"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
-	bugs "github.com/DataDog/datadog-agent/pkg/ebpf/kernelbugs"
+	ddfeatures "github.com/DataDog/datadog-agent/pkg/ebpf/features"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/perf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
+	"github.com/DataDog/datadog-agent/pkg/util/funcs"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 const probeUID = "net"
@@ -33,21 +37,16 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHa
 	if !config.EnableSKTracer {
 		return nil, nil, ErrorDisabled
 	}
-
-	hasPotentialFentryDeadlock, err := bugs.HasTasksRCUExitLockSymbol()
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to check HasTasksRCUExitLockSymbol: %w", err)
-	}
-	if hasPotentialFentryDeadlock {
-		return nil, nil, errors.New("unable to load fentry because this kernel version has a potential deadlock (fixed in kernel v6.9+)")
+	if !KernelSupported() {
+		return nil, nil, errors.New("sk tracer unsupported on this platform")
 	}
 
 	m := ddebpf.NewManagerWithDefault(&manager.Manager{}, "network", &ebpftelemetry.ErrorsTelemetryModifier{}, connCloseEventHandler)
-	err = ddebpf.LoadCOREAsset(netebpf.ModuleFileName("sk_tracer", config.BPFDebug), func(ar bytecode.AssetReader, o manager.Options) error {
+	err := ddebpf.LoadCOREAsset(netebpf.ModuleFileName("sk_tracer", config.BPFDebug), func(ar bytecode.AssetReader, o manager.Options) error {
 		o.RemoveRlimit = mgrOpts.RemoveRlimit
 		o.MapSpecEditors = mgrOpts.MapSpecEditors
 		o.ConstantEditors = mgrOpts.ConstantEditors
-		return initFentryTracer(ar, o, config, m)
+		return initSKTracer(ar, o, config, m)
 	})
 
 	if err != nil {
@@ -56,8 +55,33 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHa
 	return m, nil, nil
 }
 
-// Use a function so someone doesn't accidentally use mgrOpts from the outer scope in LoadTracer
-func initFentryTracer(ar bytecode.AssetReader, o manager.Options, config *config.Config, m *ddebpf.Manager) error {
+// KernelSupported returns whether the kernel supports all the eBPF features needed for the SK tracer
+// bpf_iter__task_file - 5.8
+// fentry - 5.5
+// BPF_MAP_TYPE_SK_STORAGE - 5.2
+// BPF_PROG_TYPE_CGROUP_SOCK - ctx fields - src_ip4/6, dst_ip4/6, src/dst_port - 5.1
+// BPF_PROG_TYPE_SOCK_OPS - BPF_SOCK_OPS_STATE_CB - 4.16
+var KernelSupported = funcs.MemoizeNoError(func() bool {
+	if !ddfeatures.SupportsFentry("tcp_connect") {
+		return false
+	}
+	if features.HaveProgramType(ebpf.CGroupSock) != nil {
+		return false
+	}
+	if features.HaveProgramType(ebpf.SockOps) != nil {
+		return false
+	}
+	if features.HaveMapType(ebpf.SkStorage) != nil {
+		return false
+	}
+	// TODO find better feature tests for iterator types
+	if kv, err := kernel.HostVersion(); err != nil || kv < kernel.VersionCode(5, 8, 0) {
+		return false
+	}
+	return true
+})
+
+func initSKTracer(ar bytecode.AssetReader, o manager.Options, config *config.Config, m *ddebpf.Manager) error {
 	if config.FailedConnectionsSupported() {
 		util.AddBoolConst(&o, "tcp_failed_connections_enabled", true)
 	}

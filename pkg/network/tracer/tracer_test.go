@@ -37,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/sk"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/testdns"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -69,7 +70,7 @@ func SupportedNetworkBuildModes() []ebpftest.BuildMode {
 	if !slices.Contains(modes, ebpftest.Ebpfless) {
 		modes = append(modes, ebpftest.Ebpfless)
 	}
-	if !slices.Contains(modes, ebpftest.SK) {
+	if !slices.Contains(modes, ebpftest.SK) && sk.KernelSupported() {
 		modes = append(modes, ebpftest.SK)
 	}
 	return modes
