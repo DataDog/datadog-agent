@@ -36,8 +36,8 @@ require (
 	go.opentelemetry.io/otel v1.42.0
 	go.opentelemetry.io/otel/metric v1.42.0
 	go.uber.org/atomic v1.11.0
-	golang.org/x/sys v0.42.0
-	golang.org/x/time v0.14.0
+	golang.org/x/sys v0.43.0
+	golang.org/x/time v0.15.0
 	google.golang.org/grpc v1.79.3
 	google.golang.org/protobuf v1.36.11
 	k8s.io/apimachinery v0.35.1
@@ -54,7 +54,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/trace/stats v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/go-viper/mapstructure/v2 v2.5.0
-	github.com/shirou/gopsutil/v4 v4.26.2
+	github.com/shirou/gopsutil/v4 v4.26.3
 	go.opentelemetry.io/collector/component/componenttest v0.147.0
 )
 
@@ -136,9 +136,9 @@ require (
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/exp v0.0.0-20260312153236-7ab1446f8b90 // indirect
-	golang.org/x/net v0.52.0 // indirect
+	golang.org/x/net v0.53.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
-	golang.org/x/text v0.35.0 // indirect
+	golang.org/x/text v0.36.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260209200024-4cfbd4190f57 // indirect
 )

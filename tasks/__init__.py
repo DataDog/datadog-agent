@@ -14,6 +14,7 @@ from tasks import (
     auth,
     bench,
     buildimages,
+    claude,
     cluster_agent,
     cluster_agent_cloudfoundry,
     collector,
@@ -130,7 +131,6 @@ from tasks.gotest import (
 from tasks.install_tasks import (
     download_tools,
     install_devcontainer_cli,
-    install_protoc,
     install_rust_license_tool,
     install_shellcheck,
     install_tools,
@@ -168,7 +168,6 @@ ns.add_task(audit_tag_impact)
 ns.add_task(print_default_build_tags)
 ns.add_task(e2e_tests)
 ns.add_task(install_shellcheck)
-ns.add_task(install_protoc)
 ns.add_task(install_rust_license_tool)
 ns.add_task(install_devcontainer_cli)
 ns.add_task(download_tools)
@@ -199,6 +198,7 @@ ns.add_collection(agent)
 ns.add_collection(ami)
 ns.add_collection(agent_ci_api)
 ns.add_collection(buildimages)
+ns.add_collection(claude)
 ns.add_collection(cluster_agent)
 ns.add_collection(cluster_agent_cloudfoundry)
 ns.add_collection(components)

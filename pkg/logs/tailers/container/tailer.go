@@ -16,7 +16,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/docker/docker/api/types/container"
+	dockerclient "github.com/moby/moby/client"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -39,7 +39,7 @@ const defaultSleepDuration = 1 * time.Second
 // DockerContainerLogInterface is an interface that exposes only the required function from DockerUtil
 // located at pkg/util/docker/docker_util.go
 type DockerContainerLogInterface interface {
-	ContainerLogs(ctx context.Context, container string, options container.LogsOptions) (io.ReadCloser, error)
+	ContainerLogs(ctx context.Context, container string, options dockerclient.ContainerLogsOptions) (io.ReadCloser, error)
 }
 
 func newAPILogReader(client kubelet.KubeUtilInterface, namespace string, podName string, containerName string) func(context.Context, time.Time) (io.ReadCloser, error) {
@@ -55,7 +55,7 @@ func newAPILogReader(client kubelet.KubeUtilInterface, namespace string, podName
 
 func newDockerLogReader(docker DockerContainerLogInterface, containerID string) func(context.Context, time.Time) (io.ReadCloser, error) {
 	return func(ctx context.Context, since time.Time) (io.ReadCloser, error) {
-		options := container.LogsOptions{
+		options := dockerclient.ContainerLogsOptions{
 			ShowStdout: true,
 			ShowStderr: true,
 			Follow:     true,

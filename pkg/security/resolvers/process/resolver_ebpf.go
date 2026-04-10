@@ -60,6 +60,7 @@ const (
 	numAllowedPIDsToResolvePerPeriod = 1
 	procFallbackLimiterPeriod        = 30 * time.Second // proc fallback period by pid
 	tryReparentMaxForkDepth          = 3                // max ancestor fork levels to check in TryReparentFromProcfs (execs not counted)
+	tryReparentMaxIterations         = 64               // hard cap on total loop iterations in tryReparentFromProcfs to prevent hangs on ancestor cycles or long exec chains
 )
 
 // EBPFResolver resolved process context
@@ -175,7 +176,13 @@ func (p *EBPFResolver) resolveParentFromProcfs(entry *model.ProcessCacheEntry, c
 func (p *EBPFResolver) tryReparentFromProcfs(entry *model.ProcessCacheEntry, callpathTag string, newEntryCb func(*model.ProcessCacheEntry, error)) {
 	var prev *model.ProcessCacheEntry
 	forkDepth := 0
+	iterations := 0
 	for pc := entry; pc != nil && pc.Pid != 1; prev, pc = pc, pc.Ancestor {
+		iterations++
+		if iterations > tryReparentMaxIterations {
+			break
+		}
+
 		if prev != nil && pc.Pid != prev.Pid {
 			forkDepth++
 
@@ -828,9 +835,20 @@ func (p *EBPFResolver) insertEntry(entry *model.ProcessCacheEntry, cgroupContext
 		if entry.ExecTime.After(createdAt) {
 			createdAt = entry.ExecTime
 		}
+		cgroupContext.CreatedAt = uint64(createdAt.UnixNano())
+
+		// resolve the cgroup source
+		switch source {
+		case model.ProcessCacheEntryFromEvent:
+			cgroupContext.CGroupSource = model.CGroupSourceEvent
+		case model.ProcessCacheEntryFromProcFS, model.ProcessCacheEntryFromSnapshot:
+			cgroupContext.CGroupSource = model.CGroupSourceProcFS
+		default:
+			cgroupContext.CGroupSource = model.CGroupSourceUnknown
+		}
 
 		// add the new PID in the right cgroup_resolver bucket
-		if cacheEntry := p.cgroupResolver.AddPID(entry.Pid, entry.PPid, createdAt, cgroupContext); cacheEntry != nil {
+		if cacheEntry := p.cgroupResolver.AddPID(entry.Pid, entry.PPid, cgroupContext); cacheEntry != nil {
 			entry.CGroup = cacheEntry.GetCGroupContext()
 			entry.Process.ContainerContext = cacheEntry.GetContainerContext()
 		}
