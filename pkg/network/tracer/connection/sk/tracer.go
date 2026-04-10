@@ -13,6 +13,7 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/asm"
 	"github.com/cilium/ebpf/features"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -55,25 +56,29 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHa
 }
 
 // KernelSupported returns whether the kernel supports all the eBPF features needed for the SK tracer
+// bpf_sk_storage_get in BPF_PROG_TYPE_TRACING - 5.11
 // bpf_iter__task_file - 5.8
 // fentry - 5.5
 // BPF_MAP_TYPE_SK_STORAGE - 5.2
 // BPF_PROG_TYPE_CGROUP_SOCK - ctx fields - src_ip4/6, dst_ip4/6, src/dst_port - 5.1
 // BPF_PROG_TYPE_SOCK_OPS - BPF_SOCK_OPS_STATE_CB - 4.16
 var KernelSupported = funcs.MemoizeNoError(func() bool {
+	if features.HaveProgramHelper(ebpf.Tracing, asm.FnSkStorageGet) != nil {
+		return false
+	}
+	if ok, err := ddfeatures.HasIteratorType("task_file"); err != nil || !ok {
+		return false
+	}
 	if !ddfeatures.SupportsFentry("tcp_connect") {
+		return false
+	}
+	if features.HaveMapType(ebpf.SkStorage) != nil {
 		return false
 	}
 	if features.HaveProgramType(ebpf.CGroupSock) != nil {
 		return false
 	}
 	if features.HaveProgramType(ebpf.SockOps) != nil {
-		return false
-	}
-	if features.HaveMapType(ebpf.SkStorage) != nil {
-		return false
-	}
-	if ok, err := ddfeatures.HasIteratorType("task_file"); err != nil || !ok {
 		return false
 	}
 	return true
