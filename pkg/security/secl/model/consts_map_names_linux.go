@@ -95,6 +95,7 @@ var bpfMapNames = []string{
 	"process_event_g",
 	"raw_packet_enab",
 	"raw_packet_even",
+	"raw_packet_rout",
 	"register_netdev",
 	"secprofs_syscal",
 	"security_profil",

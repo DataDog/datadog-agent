@@ -251,6 +251,9 @@ def parse_template(tmpl, schema):
     with open(tmpl) as f:
         template = f.read()
 
+    # fix the one edge case or the API key not being formated like the rest of the template
+    template = template.replace("\napi_key:\n", "\n# api_key: \"\"\n")
+
     parser = Parser()
     parser.run(template, schema["properties"])
 
