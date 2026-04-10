@@ -11,22 +11,21 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/docker/docker/api/types/filters"
-	"github.com/docker/docker/api/types/volume"
+	"github.com/moby/moby/client"
 )
 
 // buildDockerFilter creates a filter.Args object from an even
 // number of strings, used as key, value pairs
 // An empty "catch-all" filter can be created by passing no argument
-func buildDockerFilter(args ...string) (volume.ListOptions, error) {
-	filter := filters.NewArgs()
+func buildDockerFilter(args ...string) (client.VolumeListOptions, error) {
+	filter := make(client.Filters)
 	if len(args)%2 != 0 {
-		return volume.ListOptions{Filters: filter}, errors.New("an even number of arguments is required")
+		return client.VolumeListOptions{Filters: filter}, errors.New("an even number of arguments is required")
 	}
 	for i := 0; i < len(args); i += 2 {
 		filter.Add(args[i], args[i+1])
 	}
-	return volume.ListOptions{Filters: filter}, nil
+	return client.VolumeListOptions{Filters: filter}, nil
 }
 
 // GetInspectCacheKey returns the key to a given container ID inspect in the agent cache

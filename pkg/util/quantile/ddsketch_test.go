@@ -7,6 +7,7 @@ package quantile
 
 import (
 	"fmt"
+	"sync/atomic"
 	"testing"
 
 	"github.com/DataDog/sketches-go/ddsketch"
@@ -456,6 +457,47 @@ func TestConvertDDSketchIntoSketch_PoolCorruption(t *testing.T) {
 			"non-monotonic bin keys at index %d: key %d > key %d",
 			i, binsAfter[i-1].k, binsAfter[i].k)
 	}
+}
+
+// TestConvertDDSketchIntoSketch_DenseStorePoolReuse verifies that every
+// getDenseStore call inside ConvertDDSketchIntoSketch is matched by exactly one
+// putDenseStore call. This is the real invariant: the pool must not leak.
+//
+// Strategy: swap the get/put function variables for counters so the test is
+// deterministic regardless of sync.Pool scheduling or GC timing. Asserting
+// "no allocation on the second call" would be flaky because sync.Pool can drop
+// entries on any GC cycle; asserting gets == puts is always correct.
+func TestConvertDDSketchIntoSketch_DenseStorePoolReuse(t *testing.T) {
+	var gets, puts int32
+
+	origGet := denseStoreGetFn
+	origPut := denseStorePutFn
+	denseStoreGetFn = func() store.Store {
+		atomic.AddInt32(&gets, 1)
+		return store.NewDenseStore()
+	}
+	denseStorePutFn = func(s store.Store) {
+		atomic.AddInt32(&puts, 1)
+		s.Clear()
+	}
+	t.Cleanup(func() {
+		denseStoreGetFn = origGet
+		denseStorePutFn = origPut
+	})
+
+	input, err := ddsketch.NewDefaultDDSketch(0.01)
+	require.NoError(t, err)
+	for i := 1; i <= 100; i++ {
+		require.NoError(t, input.Add(float64(i)))
+	}
+
+	_, err = ConvertDDSketchIntoSketch(input)
+	require.NoError(t, err)
+
+	g := atomic.LoadInt32(&gets)
+	p := atomic.LoadInt32(&puts)
+	assert.Equal(t, g, p,
+		"every getDenseStore call must be matched by a putDenseStore call: got %d get(s) but %d put(s)", g, p)
 }
 
 // BenchmarkDDSketchConversion benchmarks the DDSketch to Sketch conversion

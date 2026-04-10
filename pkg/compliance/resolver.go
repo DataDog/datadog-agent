@@ -19,12 +19,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/distribution/reference"
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/image"
-	"github.com/docker/docker/api/types/network"
-
 	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/distribution/reference"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance/metrics"
 	"github.com/DataDog/datadog-agent/pkg/compliance/utils"
@@ -32,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
-	docker "github.com/docker/docker/client"
+	docker "github.com/moby/moby/client"
 
 	"github.com/shirou/gopsutil/v4/process"
 
@@ -563,46 +559,46 @@ func (r *defaultResolver) resolveDocker(ctx context.Context, spec InputSpecDocke
 	var resolved []interface{}
 	switch spec.Kind {
 	case "image":
-		list, err := cl.ImageList(ctx, image.ListOptions{All: true})
+		listResult, err := cl.ImageList(ctx, docker.ImageListOptions{All: true})
 		if err != nil {
 			return nil, err
 		}
-		for _, im := range list {
-			image, err := cl.ImageInspect(ctx, im.ID)
+		for _, im := range listResult.Items {
+			imageResult, err := cl.ImageInspect(ctx, im.ID)
 			if err != nil {
 				return nil, err
 			}
 			resolved = append(resolved, map[string]interface{}{
-				"id":      image.ID,
-				"tags":    image.RepoTags,
-				"inspect": image,
+				"id":      imageResult.ID,
+				"tags":    imageResult.RepoTags,
+				"inspect": imageResult.InspectResponse,
 			})
 		}
 	case "container":
-		list, err := cl.ContainerList(ctx, container.ListOptions{All: true})
+		listResult, err := cl.ContainerList(ctx, docker.ContainerListOptions{All: true})
 		if err != nil {
 			return nil, err
 		}
-		for _, cn := range list {
-			container, _, err := cl.ContainerInspectWithRaw(ctx, cn.ID, false)
+		for _, cn := range listResult.Items {
+			inspectResult, err := cl.ContainerInspect(ctx, cn.ID, docker.ContainerInspectOptions{})
 			if err != nil {
 				return nil, err
 			}
-			imageRepo := parseImageRepo(container.Config.Image)
+			imageRepo := parseImageRepo(inspectResult.Container.Config.Image)
 			resolved = append(resolved, map[string]interface{}{
-				"id":         container.ID,
-				"name":       container.Name,
-				"image":      container.Image,
+				"id":         inspectResult.Container.ID,
+				"name":       inspectResult.Container.Name,
+				"image":      inspectResult.Container.Image,
 				"image_repo": imageRepo,
-				"inspect":    container,
+				"inspect":    inspectResult.Container,
 			})
 		}
 	case "network":
-		networks, err := cl.NetworkList(ctx, network.ListOptions{})
+		networkResult, err := cl.NetworkList(ctx, docker.NetworkListOptions{})
 		if err != nil {
 			return nil, err
 		}
-		for _, nw := range networks {
+		for _, nw := range networkResult.Items {
 			resolved = append(resolved, map[string]interface{}{
 				"id":      nw.ID,
 				"name":    nw.Name,
@@ -610,26 +606,36 @@ func (r *defaultResolver) resolveDocker(ctx context.Context, spec InputSpecDocke
 			})
 		}
 	case "info":
-		info, err := cl.Info(ctx)
+		infoResult, err := cl.Info(ctx, docker.InfoOptions{})
 		if err != nil {
 			return nil, err
 		}
 		resolved = append(resolved, map[string]interface{}{
-			"inspect": info,
+			"inspect": infoResult.Info,
 		})
 	case "version":
-		version, err := cl.ServerVersion(ctx)
+		versionResult, err := cl.ServerVersion(ctx, docker.ServerVersionOptions{})
 		if err != nil {
 			return nil, err
 		}
+		// KernelVersion was removed from client.ServerVersionResult in v29
+		// but is still available in the Engine component details.
+		kernelVersion := ""
+		for _, comp := range versionResult.Components {
+			if comp.Name == "Engine" {
+				if kv, ok := comp.Details["KernelVersion"]; ok {
+					kernelVersion = kv
+				}
+			}
+		}
 		resolved = append(resolved, map[string]interface{}{
-			"version":       version.Version,
-			"apiVersion":    version.APIVersion,
-			"platform":      version.Platform.Name,
-			"experimental":  version.Experimental,
-			"os":            version.Os,
-			"arch":          version.Arch,
-			"kernelVersion": version.KernelVersion,
+			"version":       versionResult.Version,
+			"apiVersion":    versionResult.APIVersion,
+			"platform":      versionResult.Platform.Name,
+			"experimental":  versionResult.Experimental, //nolint:staticcheck // SA1019: field is deprecated upstream but still needed for compliance checks
+			"os":            versionResult.Os,
+			"arch":          versionResult.Arch,
+			"kernelVersion": kernelVersion,
 		})
 	default:
 		return nil, fmt.Errorf("unsupported docker object kind '%q'", spec.Kind)
