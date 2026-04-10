@@ -58,7 +58,7 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
             }
         }
 
-        bpf_probe_read(&qstr, sizeof(qstr), &dentry->d_name);
+        qstr = get_dentry_qstr(dentry);
 
         long len = bpf_probe_read_str(&map_value.name, sizeof(map_value.name), (void *)qstr.name);
         if (len < 0) {
