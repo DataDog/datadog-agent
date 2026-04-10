@@ -86,8 +86,10 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
     case CGROUP_DEFAULT: {
         // Retrieve the container ID from the cgroup path.
         struct kernfs_open_file *kern_f = (struct kernfs_open_file *)CTX_PARM1(ctx);
+        u64 kernfs_open_file_file_offset;
+        LOAD_CONSTANT("kernfs_open_file_file_offset", kernfs_open_file_file_offset);
         struct file *f;
-        bpf_probe_read(&f, sizeof(f), &kern_f->file);
+        bpf_probe_read(&f, sizeof(f), (void *)kern_f + kernfs_open_file_file_offset);
         struct dentry *dentry = get_file_dentry(f);
 
         // The last dentry in the cgroup path should be `cgroup.procs`, thus the container ID should be its parent.
