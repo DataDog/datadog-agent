@@ -81,6 +81,10 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
     return;
   }
   global_ctx.regs = NULL;
+  // Continuation state lives in stack_machine_t (a per-CPU map value) so it
+  // does not bloat probe_run_with_cookie's stack frame. continuation_seq is
+  // initialized to 0 by stack_machine_ctx_load.
+  global_ctx.stack_machine->start_ns = start_ns;
 
   // TODO: Move this check to after we've interacted with the call state.
   const int64_t out_ringbuf_avail_data =
@@ -249,7 +253,7 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
       header->event_pairing_expectation = EVENT_PAIRING_EXPECTATION_CONDITION_FAILED;
       // TODO: If the ring buffer is full here, we leak the entry event in
       // userspace. We accept this as a known limitation for now.
-      if (!events_scratch_buf_submit(global_ctx.buf)) {
+      if (!events_scratch_buf_submit(global_ctx.buf, start_ns)) {
         LOG(1, "probe_run: failed to submit condition-failed signal for return event");
       }
     }
@@ -264,7 +268,7 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
       header->data_byte_len = sizeof(di_event_header_t);
       header->stack_byte_len = 0;
       header->event_pairing_expectation = EVENT_PAIRING_EXPECTATION_CONDITION_FAILED;
-      if (!events_scratch_buf_submit(global_ctx.buf)) {
+      if (!events_scratch_buf_submit(global_ctx.buf, start_ns)) {
         LOG(1, "probe_run: failed to submit throttled condition-failed signal");
       }
     }
@@ -300,7 +304,12 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
     }
   }
   chase_steps = stack_machine_chase_pointers(&global_ctx);
-  if (!events_scratch_buf_submit(global_ctx.buf)) {
+  // Set final fragment metadata. If continuation_seq > 0, earlier fragments
+  // were already submitted inline by SM_OP_CHASE_POINTERS.
+  di_event_header_t* final_header = (di_event_header_t*)global_ctx.buf;
+  final_header->continuation_seq = global_ctx.stack_machine->continuation_seq;
+  final_header->continuation_flags = 0; // final fragment
+  if (!events_scratch_buf_submit(global_ctx.buf, start_ns)) {
     // TODO: Report dropped events metric.
     LOG(1, "probe_run output dropped");
   } else if (stack_hash != 0) {

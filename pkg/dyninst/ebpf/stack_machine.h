@@ -315,9 +315,19 @@ sm_chase_pointer(global_ctx_t* ctx, pointers_queue_item_t item) {
     }
     break;
   }
-  sm->offset = scratch_buf_serialize(ctx->buf, &item.di, byte_len);
+  // For dynamically-sized objects (strings, slices), byte_len is the
+  // configured upper limit (e.g. maxLength). Clamp it to the actual runtime
+  // length so the size-class dispatch picks an appropriate class. Without
+  // this, a large maxLength (e.g. 65536) would fail the size-class lookup
+  // even for short strings.
+  uint32_t serialize_len = byte_len;
+  if (item.di.length != ENQUEUE_LEN_SENTINEL && item.di.length < serialize_len) {
+    serialize_len = item.di.length;
+  }
+  sm->offset = scratch_buf_serialize(ctx->buf, &item.di, serialize_len);
   if (!sm->offset) {
-    LOG(3, "chase: failed to serialize type %d", item.di.type);
+    LOG(3, "chase: buffer full for type %d", item.di.type);
+    sm->buffer_full = true;
     return true;
   }
 
@@ -2244,6 +2254,25 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
       LOG(4, "chasing pointer @%llx", item->di.address);
       sm->pc--;
       sm_chase_pointer(ctx, *item);
+
+      if (sm->buffer_full) {
+        sm->buffer_full = false;
+        // Scratch buffer is full. Flush it as a continuation fragment
+        // and retry this item in the fresh buffer.
+        if (!scratch_buf_flush_and_continue(
+                ctx->buf, &sm->continuation_seq, sm->start_ns)) {
+          // Ringbuf is full — stop chasing, submit what we have.
+          return 1;
+        }
+        sm_chase_pointer(ctx, *item);
+        if (sm->buffer_full) {
+          // The item itself is larger than an empty scratch buffer can hold
+          // (e.g. a slice whose collection_size_limit * element_byte_size
+          // exceeds ~32KiB minus headers). Skip it.
+          LOG(2, "chase: item too large for single buffer, skipping");
+          sm->buffer_full = false;
+        }
+      }
     }
   } break;
 

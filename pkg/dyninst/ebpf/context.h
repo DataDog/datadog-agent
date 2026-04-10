@@ -109,11 +109,27 @@ typedef struct stack_machine {
   // condition evaluation to abort. Used together with condition_eval_error
   // to distinguish nil-caused failures from other evaluation errors.
   bool condition_nil_deref;
+  // Set to true by sm_chase_pointer when scratch_buf_serialize fails due to
+  // insufficient buffer space. Checked and cleared by SM_OP_CHASE_POINTERS
+  // to trigger a flush-and-continue.
+  bool buffer_full;
 
   // Dictionary pointer for generic shape functions. Set by
   // SM_OP_PROCESS_GO_DICT_TYPE on entry, propagated through call context
   // for return probes.
   uint64_t saved_dict_ptr;
+
+  // Continuation state. These live in stack_machine_t (which is backed by
+  // a per-CPU array map) rather than on global_ctx (which is a stack local
+  // in probe_run) because the verifier's combined stack budget across
+  // nested subprog calls is 512 bytes and we have very little slack on
+  // the probe_run_with_cookie -> sm_loop -> sm_swiss_map_aese path.
+  //
+  // continuation_seq: how many fragments have been submitted so far.
+  uint16_t continuation_seq;
+  // Original probe invocation timestamp, shared across all continuation
+  // fragments for correlation.
+  uint64_t start_ns;
 
   // Temporary data, stored here to save on stack space.
   uint64_t value_0;
@@ -210,6 +226,8 @@ static stack_machine_t* stack_machine_ctx_load(const probe_params_t* probe_param
   stack_machine->string_size_limit = probe_params->string_size_limit;
   stack_machine->pointers_queue.len = 0;
   stack_machine->saved_dict_ptr = 0;
+  stack_machine->continuation_seq = 0;
+  // start_ns is set explicitly by probe_run before use.
   return stack_machine;
 }
 
