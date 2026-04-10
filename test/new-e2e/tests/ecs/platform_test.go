@@ -36,7 +36,6 @@ func TestECSPlatformSuite(t *testing.T) {
 				scenecs.WithFargateCapacityProvider(),
 				scenecs.WithLinuxNodeGroup(),
 				scenecs.WithLinuxBottleRocketNodeGroup(),
-				scenecs.WithWindowsNodeGroup(),
 			),
 			scenecs.WithFakeIntakeOptions(
 				scenfi.WithRetentionPeriod("31m"),

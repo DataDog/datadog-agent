@@ -327,12 +327,6 @@ new-e2e-ecs:
     TEAM: ecs-experiences
     ON_NIGHTLY_FIPS: "true"
   retry: !reference [.retry_only_infra_failure, retry]
-  parallel:
-    matrix:
-      - EXTRA_PARAMS: --run TestECSAPMSuite
-      - EXTRA_PARAMS: --run TestECSManagedSuite
-      - EXTRA_PARAMS: --run TestECSChecksSuite
-      - EXTRA_PARAMS: --run TestECSPlatformSuite
 
 # TODO: Re-enable when openshift test infrastructure is stable
 new-e2e-containers-openshift-init:

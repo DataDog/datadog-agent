@@ -6,7 +6,6 @@
 package ecs
 
 import (
-	"context"
 	"fmt"
 	"time"
 
@@ -24,8 +23,7 @@ func WaitForContainerInstances(e aws.Environment, clusterArn pulumi.StringOutput
 	return pulumi.All(clusterArn).ApplyT(func(args []interface{}) (string, error) {
 		clusterArnStr := args[0].(string)
 
-		ctx := context.Background()
-		cfg, err := awsconfig.LoadDefaultConfig(ctx,
+		cfg, err := awsconfig.LoadDefaultConfig(e.Ctx().Context(),
 			awsconfig.WithRegion(e.Region()),
 			awsconfig.WithSharedConfigProfile(e.Profile()),
 		)
@@ -46,7 +44,7 @@ func WaitForContainerInstances(e aws.Environment, clusterArn pulumi.StringOutput
 				return "", fmt.Errorf("timeout waiting for container instances after %v", maxWaitTime)
 			}
 
-			listOutput, err := ecsClient.ListContainerInstances(ctx, &ecs.ListContainerInstancesInput{
+			listOutput, err := ecsClient.ListContainerInstances(e.Ctx().Context(), &ecs.ListContainerInstancesInput{
 				Cluster: awssdk.String(clusterArnStr),
 				Status:  "ACTIVE",
 			})

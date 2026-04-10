@@ -124,10 +124,6 @@ func ecsLinuxAgentSingleContainerDefinition(e config.Env, apiKeySSMParamName pul
 				Value: pulumi.StringPtr("/host/proc"),
 			},
 			ecs.TaskDefinitionKeyValuePairArgs{
-				Name:  pulumi.StringPtr("DD_LOG_LEVEL"),
-				Value: pulumi.StringPtr("debug"),
-			},
-			ecs.TaskDefinitionKeyValuePairArgs{
 				Name:  pulumi.StringPtr("DD_APM_LOG_FILE"),
 				Value: pulumi.StringPtr("stdout"),
 			},
