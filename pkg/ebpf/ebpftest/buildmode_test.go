@@ -79,7 +79,6 @@ func TestBuildModeConstants(t *testing.T) {
 		assert.Equal(t, Ebpfless, GetBuildMode())
 	})
 	TestBuildMode(t, SK, "", func(t *testing.T) {
-		mock.NewSystemProbe(t)
 		cfg := ebpf.NewConfig()
 		assert.False(t, cfg.EnableRuntimeCompiler)
 		assert.True(t, cfg.EnableCORE)
