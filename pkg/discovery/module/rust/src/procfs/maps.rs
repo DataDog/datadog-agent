@@ -28,6 +28,10 @@ static GPU_LIB_FINDERS: LazyLock<[Finder<'static>; 7]> = LazyLock::new(|| {
 
 static DDTRACE_FINDER: LazyLock<Finder<'static>> = LazyLock::new(|| Finder::new(b"/ddtrace/"));
 
+static INJECTOR_PREFIX_FINDER: LazyLock<Finder<'static>> =
+    LazyLock::new(|| Finder::new(b"/opt/datadog-packages/datadog-apm-inject/"));
+const INJECTOR_SUFFIX: &[u8] = b"/inject/launcher.preload.so";
+
 /// Consolidated information extracted from a single scan of /proc/[pid]/maps.
 #[derive(Debug, Default)]
 pub struct MapsInfo {
@@ -117,31 +121,16 @@ pub fn read_maps_info_from_reader<R: BufRead>(reader: R) -> MapsInfo {
 /// Matches paths like:
 ///   /opt/datadog-packages/datadog-apm-inject/<version>/inject/launcher.preload.so
 fn is_injector_line(line: &[u8]) -> bool {
-    let Ok(line) = std::str::from_utf8(line) else {
-        return false;
-    };
-
-    let Some(filename) = line.split_whitespace().last() else {
-        return false;
-    };
-
-    let Some(after_prefix) = filename.strip_prefix("/opt/datadog-packages/datadog-apm-inject/")
-    else {
-        return false;
-    };
-
-    let Some(slash_pos) = after_prefix.find('/') else {
-        return false;
-    };
-
-    // Non-empty version component
-    if slash_pos == 0 {
+    if !line.ends_with(INJECTOR_SUFFIX) {
         return false;
     }
-
-    after_prefix
-        .get(slash_pos..)
-        .is_some_and(|remainder| remainder == "/inject/launcher.preload.so")
+    let Some(pos) = INJECTOR_PREFIX_FINDER.find(line) else {
+        return false;
+    };
+    let version_start = pos + INJECTOR_PREFIX_FINDER.needle().len();
+    let suffix_start = line.len() - INJECTOR_SUFFIX.len();
+    // Version component between prefix and suffix must be non-empty
+    suffix_start > version_start
 }
 
 #[cfg(test)]
@@ -493,5 +482,14 @@ ffffb7360000-ffffb74ec000 r-xp 00000000 00:22 13920  /opt/datadog-packages/datad
                 lib
             );
         }
+    }
+
+    #[test]
+    fn test_maps_info_apm_injector_empty_version() {
+        // Empty version component (consecutive slashes)
+        let info = maps_info_from(
+            "ffffb7360000-ffffb74ec000 r-xp 00000000 00:22 13920  /opt/datadog-packages/datadog-apm-inject//inject/launcher.preload.so\n",
+        );
+        assert!(!info.has_apm_injector);
     }
 }

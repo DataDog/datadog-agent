@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+use crate::platform;
 use anyhow::{Context, Result};
 use log::{debug, info, warn};
 use serde::Deserialize;
@@ -137,8 +138,6 @@ impl ConfigLoader for YamlConfigLoader {
         configs
     }
 }
-
-const DEFAULT_CONFIG_DIR: &str = "/etc/datadog-agent/processes.d";
 
 fn default_true() -> bool {
     true
@@ -278,7 +277,7 @@ impl ProcessConfig {
 pub fn config_dir() -> PathBuf {
     std::env::var("DD_PM_CONFIG_DIR")
         .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from(DEFAULT_CONFIG_DIR))
+        .unwrap_or_else(|_| platform::default_config_dir())
 }
 
 /// Scan a directory for `*.yaml` files and parse each into a ProcessConfig.
