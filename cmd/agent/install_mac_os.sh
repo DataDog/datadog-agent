@@ -162,18 +162,15 @@ fi
 function on_error() {
     printf "${RED}
 It looks like you hit an issue when trying to install the Agent.
-
-Troubleshooting information for the Agent is available at:
-
-    https://docs.datadoghq.com/agent/troubleshooting/
-
-If you're still having problems, please send an email to support@datadoghq.com
-with the contents of the following log files and we'll do our very best to help
-you solve your problem:
+See the following log files for details:
 
     - $install_log_file
     - /opt/datadog-agent/logs/preinstall.log
     - /opt/datadog-agent/logs/postinstall.log
+
+If you're still having problems, please send an email to support@datadoghq.com
+with the contents of the log files and we'll do our very best to help
+you solve your problem.
 ${NC}\n"
 }
 trap on_error ERR
@@ -245,6 +242,9 @@ or by opening the webui using the \"datadog-agent launch-gui\" command.
 To stop the Agent:  sudo launchctl kill SIGTERM system/com.datadoghq.agent
 To start the Agent: sudo launchctl kickstart system/com.datadoghq.agent
 The Agent will start automatically at system startup.
+
+Troubleshooting information for the Agent is available at:
+    https://docs.datadoghq.com/agent/troubleshooting/
 ${NC}"
 else
     printf "${YELLOW}
@@ -254,5 +254,8 @@ failed to start.
 
 Check the postinstall log for details:
     /opt/datadog-agent/logs/postinstall.log
+
+Troubleshooting information for the Agent is available at:
+    https://docs.datadoghq.com/agent/troubleshooting/
 ${NC}"
 fi

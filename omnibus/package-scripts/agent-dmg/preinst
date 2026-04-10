@@ -95,6 +95,56 @@ create_ddagent_user() {
     echo "Created $DDAGENT_USER (UID $uid)"
 }
 
+cleanup_per_user_installations() {
+    echo '# Checking for legacy per-user installations'
+    local failed=false
+
+    for user_home in /Users/*; do
+        [ -d "$user_home/Library/LaunchAgents" ] || continue
+        local username=$(basename "$user_home")
+        [ "$username" = "Shared" ] && continue
+        local uid=$(id -u "$username" 2>/dev/null) || continue
+        [ "$uid" -ge 500 ] || continue
+
+        local agent_plist="$user_home/Library/LaunchAgents/com.datadoghq.agent.plist"
+        local gui_plist="$user_home/Library/LaunchAgents/com.datadoghq.gui.plist"
+
+        if [ -f "$agent_plist" ] || [ -f "$gui_plist" ]; then
+            echo "Per-user Datadog Agent installation detected for user '$username' (UID $uid)"
+
+            # Stop services (best-effort — user may not be logged in)
+            launchctl bootout "gui/$uid/com.datadoghq.agent" 2>/dev/null || true
+            launchctl bootout "gui/$uid/com.datadoghq.gui" 2>/dev/null || true
+
+            # Remove plists
+            rm -f "$agent_plist"
+            rm -f "$gui_plist"
+
+            # Verify: plists must be gone AND services must no longer be registered
+            if [ -f "$agent_plist" ] || [ -f "$gui_plist" ]; then
+                echo "ERROR: Failed to remove per-user plists for user '$username'"
+                failed=true
+            elif launchctl print "gui/$uid/com.datadoghq.agent" >/dev/null 2>&1; then
+                echo "ERROR: Per-user agent service still registered with launchctl for user '$username'"
+                failed=true
+            elif launchctl print "gui/$uid/com.datadoghq.gui" >/dev/null 2>&1; then
+                echo "ERROR: Per-user GUI service still registered with launchctl for user '$username'"
+                failed=true
+            else
+                echo "Cleaned up per-user installation for user '$username'"
+            fi
+        fi
+    done
+
+    if [ "$failed" = true ]; then
+        echo "ERROR: Could not fully remove per-user Datadog Agent installation(s)."
+        echo "Please uninstall the Agent manually before installing this version:"
+        echo "    https://docs.datadoghq.com/agent/supported_platforms/osx/#uninstall-the-agent"
+        exit 1
+    fi
+}
+
+cleanup_per_user_installations
 create_ddagent_user
 
 # Log folder migration
