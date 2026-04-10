@@ -52,6 +52,7 @@ _LIB_DEPS = [
     "@crates//:serde_json",
     "@crates//:serde_yaml",
     "@crates//:tokio",
+    "@crates//:tokio-stream",
     "@crates//:tonic",
     "@crates//:tonic-reflection",
     "@crates//:tower",
@@ -59,7 +60,6 @@ _LIB_DEPS = [
 ] + select({
     "@platforms//os:linux": [
         "@crates//:nix",
-        "@crates//:tokio-stream",
     ],
     "@platforms//os:windows": [
         "@crates//:windows-sys",
