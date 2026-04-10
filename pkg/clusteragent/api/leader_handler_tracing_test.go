@@ -60,7 +60,7 @@ func TestRejectOrForwardLeaderQuery_AsFollower_NoError(t *testing.T) {
 	require.Len(t, spans, 1)
 	span := spans[0]
 	assert.Equal(t, "cluster_agent.api.request", span.OperationName())
-	assert.Nil(t, span.Tag("error"), "No error on successful forward")
+	assert.Nil(t, span.Tag("error.message"), "No error on successful forward")
 }
 
 func TestRejectOrForwardLeaderQuery_NoForwarder_PropagatesError(t *testing.T) {
@@ -90,7 +90,7 @@ func TestRejectOrForwardLeaderQuery_NoForwarder_PropagatesError(t *testing.T) {
 	require.Len(t, spans, 1)
 	span := spans[0]
 	assert.Equal(t, "cluster_agent.api.request", span.OperationName())
-	assert.NotNil(t, span.Tag("error"), "forwarder unavailable error should propagate to parent span")
+	assert.NotNil(t, span.Tag("error.message"), "forwarder unavailable error should propagate to parent span")
 }
 
 func TestRejectOrForwardLeaderQuery_GetLeaderIPError_PropagatesError(t *testing.T) {
@@ -120,7 +120,7 @@ func TestRejectOrForwardLeaderQuery_GetLeaderIPError_PropagatesError(t *testing.
 	require.Len(t, spans, 1)
 	span := spans[0]
 	assert.Equal(t, "cluster_agent.api.request", span.OperationName())
-	assert.NotNil(t, span.Tag("error"), "leader IP error should propagate to parent span")
+	assert.NotNil(t, span.Tag("error.message"), "leader IP error should propagate to parent span")
 }
 
 func TestRejectOrForwardLeaderQuery_Disabled(t *testing.T) {

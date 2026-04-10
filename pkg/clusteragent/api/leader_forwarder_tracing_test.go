@@ -42,7 +42,7 @@ func TestLeaderForwarder_Forward_NilProxy_PropagatesError(t *testing.T) {
 	require.Len(t, spans, 1)
 	span := spans[0]
 	assert.Equal(t, "cluster_agent.api.request", span.OperationName())
-	assert.NotNil(t, span.Tag("error"), "nil proxy error should propagate to parent span")
+	assert.NotNil(t, span.Tag("error.message"), "nil proxy error should propagate to parent span")
 }
 
 func TestLeaderForwarder_Forward_LoopDetection_PropagatesError(t *testing.T) {
@@ -76,7 +76,7 @@ func TestLeaderForwarder_Forward_LoopDetection_PropagatesError(t *testing.T) {
 	require.Len(t, spans, 1)
 	span := spans[0]
 	assert.Equal(t, "cluster_agent.api.request", span.OperationName())
-	assert.NotNil(t, span.Tag("error"), "loop detection error should propagate to parent span")
+	assert.NotNil(t, span.Tag("error.message"), "loop detection error should propagate to parent span")
 }
 
 func TestLeaderForwarder_Forward_UpstreamError_502(t *testing.T) {
@@ -112,7 +112,7 @@ func TestLeaderForwarder_Forward_UpstreamError_502(t *testing.T) {
 	span := spans[0]
 	assert.Equal(t, "cluster_agent.api.request", span.OperationName())
 	// SetSpanError should have propagated the upstream error to the parent span
-	assert.NotNil(t, span.Tag("error"), "upstream error should propagate to parent span")
+	assert.NotNil(t, span.Tag("error.message"), "upstream error should propagate to parent span")
 }
 
 func TestLeaderForwarder_Forward_WithLeader_NoError(t *testing.T) {
@@ -145,5 +145,5 @@ func TestLeaderForwarder_Forward_WithLeader_NoError(t *testing.T) {
 	require.Len(t, spans, 1)
 	span := spans[0]
 	assert.Equal(t, "cluster_agent.api.request", span.OperationName())
-	assert.Nil(t, span.Tag("error"), "successful forward should not have error on span")
+	assert.Nil(t, span.Tag("error.message"), "successful forward should not have error on span")
 }
