@@ -89,12 +89,17 @@ where
     let path = ipc_path();
     let pipe_name = path.as_os_str().to_os_string();
 
+    let server = ServerOptions::new()
+        .first_pipe_instance(true)
+        .create(&pipe_name)
+        .context("failed to create named pipe")?;
+
     info!("gRPC server listening on {}", path.display());
 
     let (tx, rx) = tokio::sync::mpsc::channel::<io::Result<NamedPipeIo>>(4);
 
     let accept_handle = tokio::spawn(async move {
-        if let Err(e) = accept_loop(pipe_name, tx).await {
+        if let Err(e) = accept_loop(pipe_name, server, tx).await {
             log::error!("named pipe accept loop error: {e}");
         }
     });
@@ -116,13 +121,9 @@ where
 /// so the next client can connect.
 async fn accept_loop(
     pipe_name: OsString,
+    mut server: NamedPipeServer,
     tx: tokio::sync::mpsc::Sender<io::Result<NamedPipeIo>>,
 ) -> Result<()> {
-    let mut server = ServerOptions::new()
-        .first_pipe_instance(true)
-        .create(&pipe_name)
-        .context("failed to create first named pipe instance")?;
-
     loop {
         if let Err(e) = server.connect().await {
             let _ = tx.send(Err(e)).await;
