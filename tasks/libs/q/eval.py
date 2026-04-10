@@ -872,7 +872,7 @@ def print_eval_scenarios_summary(results: list, sigma: float) -> None:
     print(color_message("  Observer Eval Summary", Color.GREEN))
     print(color_message(f"{'=' * 60}\n", Color.GREEN))
 
-    header = f"{'Scenario':<25}  {'F1':>6}  {'Precision':>9}  {'Recall':>6}  {'Alpha':>7}  {'Detections':>10}  {'Baseline FPs':>12}  {'Warmup (excl)':>13}  {'Post-onset (excl)':>18}"
+    header = f"{'Scenario':<25}  {'F1':>6}  {'Precision':>9}  {'Recall':>6}  {'Alpha':>7}  {'Detections':>10}  {'Baseline FPs':>12}  {'Warmup (ign)':>12}  {'Post-onset (ign)':>17}"
     print(header)
     print("-" * len(header))
 
