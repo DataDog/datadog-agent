@@ -31,4 +31,8 @@ where
     anyhow::bail!("Named Pipe transport is not yet implemented on Windows")
 }
 
+pub async fn connect(_path: &Path) -> Result<tonic::transport::Channel> {
+    anyhow::bail!("Named Pipe client transport is not yet implemented on Windows")
+}
+
 pub fn cleanup(_path: &Path) {}

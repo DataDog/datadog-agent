@@ -72,12 +72,6 @@ bazel_dep(name = "supply_chain_tools", version = "0.0.1")
 
 bazel_dep(name = "rules_testing", version = "0.9.0", dev_dependency = True)
 
-single_version_override(
-    module_name = "protobuf",
-    patch_strip = 1,
-    patches = ["//bazel/patches:protobuf/0001-add-libstdcpp-to-link-opts.patch"],
-)
-
 # Temporary until rules_go > 0.60.0 with go.work support is in BCR
 git_override(
     module_name = "rules_go",
@@ -341,3 +335,16 @@ include("//deps:go.MODULE.bazel")
 bazel_dep(name = "apple_support", version = "2.3.0")
 
 use_extension("//bazel/tools:bazelisk_check.bzl", "bazelisk_check")
+
+###########################################################################
+## Hybrid build. Capture binaries built with dda (or whatever) as if they
+## were built as bazel targets.
+###########################################################################
+
+prebuilt_file = use_repo_rule("//bazel/repo:prebuilt_file.bzl", "prebuilt_file")
+
+prebuilt_file(
+    name = "agent_binary",
+    target_label = "@@//:bin/agent/agent",
+    target_name = "agent",
+)
