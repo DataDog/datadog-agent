@@ -3,13 +3,21 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-use anyhow::Result;
+use anyhow::{Context as _, Result};
+use log::info;
+use std::ffi::OsString;
 use std::future::Future;
+use std::io;
 use std::path::{Path, PathBuf};
+use std::pin::Pin;
+use std::task::{Context, Poll};
+use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+use tokio::net::windows::named_pipe::{ClientOptions, NamedPipeServer, ServerOptions};
 
 const DEFAULT_PIPE_PATH: &str = r"\\.\pipe\datadog-procmgrd";
 
 /// Placeholder URI for tonic Endpoint when connecting over Named Pipes.
+/// The actual address is irrelevant because `connect_with_connector` bypasses it.
 pub const DUMMY_ENDPOINT: &str = "http://[::]:50051";
 
 pub fn ipc_path() -> PathBuf {
@@ -18,21 +26,137 @@ pub fn ipc_path() -> PathBuf {
         .unwrap_or_else(|_| PathBuf::from(DEFAULT_PIPE_PATH))
 }
 
+/// Named pipes don't require filesystem preparation.
 pub fn prepare(_path: &Path) -> Result<()> {
     Ok(())
 }
 
+/// Named pipe permissions are set via security descriptors at creation time.
 pub fn set_permissions(_path: &Path) {}
 
-pub async fn serve<F>(_router: tonic::transport::server::Router, _shutdown: F) -> Result<()>
+/// Named pipes are kernel objects; no filesystem cleanup needed.
+pub fn cleanup(_path: &Path) {}
+
+// ---------------------------------------------------------------------------
+// NamedPipeIo — wrapper for tonic's `Connected` trait
+// ---------------------------------------------------------------------------
+
+/// Newtype around [`NamedPipeServer`] that implements
+/// [`tonic::transport::server::Connected`] so tonic can serve over it.
+struct NamedPipeIo(NamedPipeServer);
+
+impl tonic::transport::server::Connected for NamedPipeIo {
+    type ConnectInfo = ();
+    fn connect_info(&self) -> Self::ConnectInfo {}
+}
+
+impl AsyncRead for NamedPipeIo {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<io::Result<()>> {
+        Pin::new(&mut self.0).poll_read(cx, buf)
+    }
+}
+
+impl AsyncWrite for NamedPipeIo {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
+        Pin::new(&mut self.0).poll_write(cx, buf)
+    }
+
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Pin::new(&mut self.0).poll_flush(cx)
+    }
+
+    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Pin::new(&mut self.0).poll_shutdown(cx)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Server
+// ---------------------------------------------------------------------------
+
+pub async fn serve<F>(router: tonic::transport::server::Router, shutdown: F) -> Result<()>
 where
     F: Future<Output = ()>,
 {
-    anyhow::bail!("Named Pipe transport is not yet implemented on Windows")
+    let path = ipc_path();
+    let pipe_name = path.as_os_str().to_os_string();
+
+    info!("gRPC server listening on {}", path.display());
+
+    let (tx, rx) = tokio::sync::mpsc::channel::<io::Result<NamedPipeIo>>(4);
+
+    let accept_handle = tokio::spawn(async move {
+        if let Err(e) = accept_loop(pipe_name, tx).await {
+            log::error!("named pipe accept loop error: {e}");
+        }
+    });
+
+    let incoming = tokio_stream::wrappers::ReceiverStream::new(rx);
+
+    router
+        .serve_with_incoming_shutdown(incoming, shutdown)
+        .await
+        .context("gRPC server error")?;
+
+    accept_handle.abort();
+    info!("gRPC server stopped");
+    Ok(())
 }
 
-pub async fn connect(_path: &Path) -> Result<tonic::transport::Channel> {
-    anyhow::bail!("Named Pipe client transport is not yet implemented on Windows")
+/// Accept connections on the named pipe, sending each connected instance
+/// through the channel. Creates a new pipe instance after each connection
+/// so the next client can connect.
+async fn accept_loop(
+    pipe_name: OsString,
+    tx: tokio::sync::mpsc::Sender<io::Result<NamedPipeIo>>,
+) -> Result<()> {
+    let mut server = ServerOptions::new()
+        .first_pipe_instance(true)
+        .create(&pipe_name)
+        .context("failed to create first named pipe instance")?;
+
+    loop {
+        if let Err(e) = server.connect().await {
+            let _ = tx.send(Err(e)).await;
+            anyhow::bail!("named pipe accept failed");
+        }
+
+        let connected = server;
+        server = ServerOptions::new()
+            .create(&pipe_name)
+            .context("failed to create next named pipe instance")?;
+
+        if tx.send(Ok(NamedPipeIo(connected))).await.is_err() {
+            break;
+        }
+    }
+
+    Ok(())
 }
 
-pub fn cleanup(_path: &Path) {}
+// ---------------------------------------------------------------------------
+// Client
+// ---------------------------------------------------------------------------
+
+pub async fn connect(path: &Path) -> Result<tonic::transport::Channel> {
+    let pipe_name = path.as_os_str().to_os_string();
+    let channel = tonic::transport::Endpoint::from_static(DUMMY_ENDPOINT)
+        .connect_with_connector(tower::service_fn(move |_| {
+            let name = pipe_name.clone();
+            async move {
+                let client = ClientOptions::new().open(&name)?;
+                Ok::<_, io::Error>(hyper_util::rt::TokioIo::new(client))
+            }
+        }))
+        .await
+        .context("failed to connect to named pipe")?;
+    Ok(channel)
+}
