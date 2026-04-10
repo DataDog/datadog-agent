@@ -227,7 +227,7 @@ func TestGetNodeMetadata_SpanCreation(t *testing.T) {
 	assert.Equal(t, "nodeLookup", span.Tag("resource.name"))
 	assert.Equal(t, testNode, span.Tag("node_name"))
 	assert.Equal(t, "labels", span.Tag("metadata_type"))
-	assert.Nil(t, span.Tag("error"))
+	assert.Nil(t, span.Tag("error.message"))
 }
 
 func TestGetNodeMetadata_SpanError(t *testing.T) {
@@ -258,9 +258,7 @@ func TestGetNodeMetadata_SpanError(t *testing.T) {
 	assert.Equal(t, "nodeLookup", span.Tag("resource.name"))
 	assert.Equal(t, "missing_node", span.Tag("node_name"))
 	// Error should be set on the span
-	err, ok := span.Tag("error").(error)
-	require.True(t, ok, "error tag should be an error object, got %T", span.Tag("error"))
-	assert.NotEmpty(t, err.Error())
+	assert.NotNil(t, span.Tag("error.message"))
 }
 
 func TestGetNamespaceMetadata_SpanCreation(t *testing.T) {
@@ -298,7 +296,7 @@ func TestGetNamespaceMetadata_SpanCreation(t *testing.T) {
 	assert.Equal(t, "cluster_agent.metadata.namespace_lookup", span.OperationName())
 	assert.Equal(t, "namespaceLookup", span.Tag("resource.name"))
 	assert.Equal(t, "default", span.Tag("namespace"))
-	assert.Nil(t, span.Tag("error"))
+	assert.Nil(t, span.Tag("error.message"))
 }
 
 func TestGetNamespaceMetadata_SpanError(t *testing.T) {
@@ -328,9 +326,7 @@ func TestGetNamespaceMetadata_SpanError(t *testing.T) {
 	assert.Equal(t, "cluster_agent.metadata.namespace_lookup", span.OperationName())
 	assert.Equal(t, "namespaceLookup", span.Tag("resource.name"))
 	assert.Equal(t, "missing_ns", span.Tag("namespace"))
-	err, ok := span.Tag("error").(error)
-	require.True(t, ok, "error tag should be an error object, got %T", span.Tag("error"))
-	assert.NotEmpty(t, err.Error())
+	assert.NotNil(t, span.Tag("error.message"))
 }
 
 func TestGetPodMetadata_SpanCreation(t *testing.T) {
@@ -378,7 +374,7 @@ func TestGetPodMetadataForNode_SpanCreation(t *testing.T) {
 	// Without a real apiserver, GetMetadataMapBundleOnNode fails, but this is a
 	// non-fatal path (the handler continues with partial results), so the span
 	// should not be marked as errored.
-	assert.Nil(t, span.Tag("error"), "span should not be marked as errored for partial failures")
+	assert.Nil(t, span.Tag("error.message"), "span should not be marked as errored for partial failures")
 }
 
 func TestGetAllMetadata_SpanCreation(t *testing.T) {
@@ -401,9 +397,7 @@ func TestGetAllMetadata_SpanCreation(t *testing.T) {
 	span := spans[0]
 	assert.Equal(t, "cluster_agent.metadata.all_metadata", span.OperationName())
 	assert.Equal(t, "allMetadata", span.Tag("resource.name"))
-	err, ok := span.Tag("error").(error)
-	require.True(t, ok, "error tag should be an error object, got %T", span.Tag("error"))
-	assert.NotEmpty(t, err.Error())
+	assert.NotNil(t, span.Tag("error.message"))
 }
 
 func TestGetClusterID_SpanCreation(t *testing.T) {
@@ -425,9 +419,7 @@ func TestGetClusterID_SpanCreation(t *testing.T) {
 	span := spans[0]
 	assert.Equal(t, "cluster_agent.metadata.cluster_id", span.OperationName())
 	assert.Equal(t, "clusterID", span.Tag("resource.name"))
-	err, ok := span.Tag("error").(error)
-	require.True(t, ok, "error tag should be an error object, got %T", span.Tag("error"))
-	assert.NotEmpty(t, err.Error())
+	assert.NotNil(t, span.Tag("error.message"))
 }
 
 func TestGetNodeMetadata_SpanErrorWithTelemetryWrapper(t *testing.T) {
@@ -456,7 +448,7 @@ func TestGetNodeMetadata_SpanErrorWithTelemetryWrapper(t *testing.T) {
 	require.Len(t, spans, 2, "expected parent (telemetry) span and child (node_lookup) span")
 
 	// Find the parent telemetry span
-	var parentSpan, childSpan mocktracer.Span
+	var parentSpan, childSpan *mocktracer.Span
 	for _, s := range spans {
 		if s.OperationName() == "cluster_agent.api.request" {
 			parentSpan = s
@@ -468,14 +460,10 @@ func TestGetNodeMetadata_SpanErrorWithTelemetryWrapper(t *testing.T) {
 	require.NotNil(t, childSpan, "child node_lookup span should exist")
 
 	// Child span should have the error from spanErr
-	childErr, ok := childSpan.Tag("error").(error)
-	require.True(t, ok, "child span error tag should be an error, got %T", childSpan.Tag("error"))
-	assert.NotEmpty(t, childErr.Error())
+	assert.NotNil(t, childSpan.Tag("error.message"), "child span should have error.message")
 
 	// Parent span should also have the error from SetSpanError
-	parentErr, ok := parentSpan.Tag("error").(error)
-	require.True(t, ok, "parent span error tag should be an error from SetSpanError, got %T", parentSpan.Tag("error"))
-	assert.NotEmpty(t, parentErr.Error())
+	assert.NotNil(t, parentSpan.Tag("error.message"), "parent span should have error.message from SetSpanError")
 }
 
 func TestGetNodeInfo_SpanCreation(t *testing.T) {
@@ -505,7 +493,5 @@ func TestGetNodeInfo_SpanCreation(t *testing.T) {
 	assert.Equal(t, "nodeInfo", span.Tag("resource.name"))
 	assert.Equal(t, testNode, span.Tag("node_name"))
 	// Without a real apiserver, GetAPIClient fails, so the span should capture the error
-	spanErr, ok := span.Tag("error").(error)
-	require.True(t, ok, "error tag should be an error object, got %T", span.Tag("error"))
-	assert.NotEmpty(t, spanErr.Error())
+	assert.NotNil(t, span.Tag("error.message"))
 }
