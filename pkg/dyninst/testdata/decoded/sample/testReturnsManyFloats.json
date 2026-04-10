@@ -112,10 +112,7 @@
                     "type": "float64",
                     "notCapturedReason": "unavailable"
                   },
-                  "onlyOnAmd64_16": {
-                    "type": "float64",
-                    "value": "16"
-                  },
+                  "onlyOnAmd64_16": "[onlyOnAmd64]",
                   "bothArmAndAmd64": {
                     "type": "float64",
                     "value": "17"
