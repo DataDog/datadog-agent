@@ -103,16 +103,19 @@ where
 
     let incoming = tokio_stream::wrappers::ReceiverStream::new(rx);
 
-    router
+    let serve_result = router
         .serve_with_incoming_shutdown(incoming, shutdown)
         .await
-        .context("gRPC server error")?;
+        .context("gRPC server error");
 
+    // Always cancel the accept loop before returning — even on error — so we
+    // don't leak a background task blocked on server.connect().
     accept_handle.abort();
 
-    // If the accept loop finished before we aborted it (i.e. it hit a fatal
-    // error and dropped the sender, which ended the incoming stream), surface
-    // that error instead of returning Ok.
+    // Surface the accept-loop error when tonic returned successfully (e.g. the
+    // incoming stream ended because the accept loop hit a fatal error and
+    // dropped the sender).
+    serve_result?;
     match accept_handle.await {
         Ok(Ok(())) => {}
         Ok(Err(e)) => return Err(e).context("named pipe accept loop failed"),
