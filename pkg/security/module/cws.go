@@ -108,7 +108,7 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 	}
 
 	family, socketPath := socket.GetSocketAddress(cmdSocketPath)
-	apiServer, err := NewAPIServer(cfg, evm.Probe, opts.MsgSender, evm.StatsdClient, selfTester, compression, hostname, secretsComp)
+	apiServer, err := NewAPIServer(cfg, evm.Probe, opts.MsgSender, evm.StatsdClient, selfTester, compression, hostname, secretsComp, filterStore)
 	if err != nil {
 		return nil, err
 	}

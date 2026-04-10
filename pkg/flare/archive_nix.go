@@ -8,9 +8,11 @@
 package flare
 
 import (
+	"context"
+
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 )
 
-func getWindowsData(_ flaretypes.FlareBuilder) error {
+func getWindowsData(_ context.Context, _ flaretypes.FlareBuilder) error {
 	return nil
 }

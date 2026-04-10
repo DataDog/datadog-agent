@@ -1,4 +1,4 @@
-FROM golang:1.25.8-trixie
+FROM golang:1.25.9-trixie
 
 RUN cross_debian_arch=$(uname -m | sed -e 's/aarch64/amd64/'  -e 's/x86_64/arm64/'); \
     cross_pkg_arch=$(uname -m | sed -e 's/aarch64/x86-64/' -e 's/x86_64/aarch64/'); \

@@ -10,6 +10,7 @@ package flareimpl
 
 import (
 	"bytes"
+	"context"
 	"strconv"
 	"testing"
 	"text/template"
@@ -41,7 +42,7 @@ func TestOTelExtFlareBuilder(t *testing.T) {
 	// Fill the flare
 	f := helpers.NewFlareBuilderMock(t, false)
 	flareImpl := &flareImpl{}
-	flareImpl.fillFlare(f)
+	flareImpl.fillFlare(context.Background(), f)
 
 	f.AssertFileContent(strconv.Quote(toJSON(config)), "host-profiler/runtime.cfg")
 }

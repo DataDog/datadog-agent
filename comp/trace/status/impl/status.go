@@ -12,32 +12,25 @@ import (
 	"fmt"
 	"io"
 
-	"go.uber.org/fx"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-type dependencies struct {
-	fx.In
-
+// Requires defines the dependencies of the status component.
+type Requires struct {
 	Config config.Component
 	Client ipc.HTTPClient
 }
 
-type provides struct {
-	fx.Out
+// Provides defines the output of the status component.
+type Provides struct {
+	compdef.Out
 
 	StatusProvider status.InformationProvider
-}
-
-// Module defines the fx options for the status component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newStatus))
 }
 
 type statusProvider struct {
@@ -45,12 +38,10 @@ type statusProvider struct {
 	Client ipc.HTTPClient
 }
 
-func newStatus(deps dependencies) provides {
-	return provides{
-		StatusProvider: status.NewInformationProvider(statusProvider{
-			Config: deps.Config,
-			Client: deps.Client,
-		}),
+// NewComponent creates a new trace agent status component.
+func NewComponent(reqs Requires) Provides {
+	return Provides{
+		StatusProvider: status.NewInformationProvider(statusProvider(reqs)),
 	}
 }
 
@@ -89,14 +80,14 @@ func (s statusProvider) populateStatus() map[string]interface{} {
 		}
 	}
 
-	status := make(map[string]interface{})
-	if err := json.Unmarshal(resp, &status); err != nil {
+	statusMap := make(map[string]interface{})
+	if err := json.Unmarshal(resp, &statusMap); err != nil {
 		return map[string]interface{}{
 			"port":  port,
 			"error": err.Error(),
 		}
 	}
-	return status
+	return statusMap
 }
 
 // JSON populates the status map

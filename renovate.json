@@ -123,15 +123,6 @@
       },
       {
         "customType": "regex",
-        "managerFilePatterns": [".protoc-version"],
-        "matchStrings": [
-          "(?<currentValue>[0-9]+.[0-9]+)"
-        ],
-        "depNameTemplate": "protocolbuffers/protobuf",
-        "datasourceTemplate": "github-releases"
-      },
-      {
-        "customType": "regex",
         "managerFilePatterns": [".dda/version"],
         "matchStrings": [
           "(?<currentValue>[0-9]+.[0-9]+.[0-9]+)"

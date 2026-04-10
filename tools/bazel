@@ -50,4 +50,6 @@ if [[ $# -gt 0 && ${#extra_args[@]} -gt 0 ]]; then
   set -- "${args[@]}"
 fi
 
+# Prevent rules_android from loading a system Android SDK - TODO(regis): replace with --experimental_strict_repo_env
+unset ANDROID_HOME
 exec "$BAZEL_REAL" "$@"

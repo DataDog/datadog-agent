@@ -224,8 +224,8 @@ func TestFromDDConfig(t *testing.T) {
 			assert.Equal(t, tt.expectedDDHost, cfg.DDHost, "DDHost mismatch")
 			assert.Equal(t, tt.expectedDDSite, cfg.DatadogSite, "DatadogSite mismatch")
 
-			// Verify DDApiHost is also set to the same value as DDHost
-			assert.Equal(t, tt.expectedDDHost, cfg.DDApiHost, "DDApiHost should match DDHost")
+			// Verify DDApiHost is derived from site, not from dd_url
+			assert.Equal(t, "api."+tt.expectedDDSite, cfg.DDApiHost, "DDApiHost should be api.<site>")
 		})
 	}
 }
