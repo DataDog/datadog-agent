@@ -22,14 +22,11 @@ rust_prost_library(
 
 # rust_prost_library propagates CcInfo from proto_library, which transitively
 # includes abseil-cpp (C++). The Rust linker does not add libstdc++ by default,
-# so we provide it explicitly. On Windows the MSVC toolchain links the C++
-# runtime automatically.
+# so we provide it explicitly via -lstdc++ (works for both Unix and Windows GNU
+# toolchains).
 cc_library(
     name = "cpp_stdlib",
-    linkopts = select({
-        "@platforms//os:windows": [],
-        "//conditions:default": ["-lstdc++"],
-    }),
+    linkopts = ["-lstdc++"],
 )
 
 # ============================================================================
