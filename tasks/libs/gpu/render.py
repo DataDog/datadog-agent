@@ -28,14 +28,6 @@ def color_tag_failures(count: int) -> str:
     return color_message(str(count), Color.RED) if count > 0 else str(count)
 
 
-def tag_result_has_failures(tag_result) -> bool:
-    return tag_result.missing > 0 or tag_result.unknown > 0 or tag_result.invalid_value > 0
-
-
-def metric_status_has_failures(metric_status) -> bool:
-    return bool(metric_status.errors) or any(tag_result_has_failures(tag_result) for tag_result in metric_status.tag_results.values())
-
-
 def print_summary_table(title: str, results: list[GPUConfigValidationResult]) -> None:
     from tabulate import tabulate
 
@@ -71,7 +63,7 @@ def print_summary_table(title: str, results: list[GPUConfigValidationResult]) ->
 def print_result_details(results: list[GPUConfigValidationResult]) -> None:
     print("\nValidation details (showing only failures on configs with devices present):")
     for result in results:
-        if not result.has_failures or result.device_count == 0:
+        if result.state is not GPUConfigValidationState.FAIL or result.device_count == 0:
             continue
 
         print(f"\n-- {result.config.architecture} {result.config.device_mode} --")
@@ -85,7 +77,7 @@ def print_result_details(results: list[GPUConfigValidationResult]) -> None:
         failing_metrics = [
             (metric_name, metric_status)
             for metric_name, metric_status in sorted(result.detailed_result.metrics.items())
-            if metric_status_has_failures(metric_status)
+            if metric_status.has_failures
         ]
 
         if failing_metrics:
@@ -95,7 +87,7 @@ def print_result_details(results: list[GPUConfigValidationResult]) -> None:
                 print(f"{SPACER * 2}- {metric_name}: {', '.join(metric_status.errors)}")
 
                 for tag_name, tag_result in sorted(metric_status.tag_results.items()):
-                    if not tag_result_has_failures(tag_result):
+                    if not tag_result.has_failures:
                         continue
                     details: list[str] = []
                     if tag_result.missing > 0:

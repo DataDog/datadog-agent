@@ -77,50 +77,19 @@ type ValidationResult struct {
 	Metrics map[string]*MetricStatus `json:"metrics"`
 }
 
-// ValidationSummary holds aggregate counts derived from a ValidationResult.
-type ValidationSummary struct {
-	MissingMetrics int
-	UnknownMetrics int
-	TagFailures    int
-	PresentMetrics int
-}
-
-// Summarize returns aggregate counts from the validation result.
-func (r *ValidationResult) Summarize() ValidationSummary {
-	var s ValidationSummary
-	for _, status := range r.Metrics {
-		hasTagFailure := false
-		for _, tagResult := range status.TagResults {
-			if tagResult.Missing > 0 || tagResult.Unknown > 0 || tagResult.InvalidValue > 0 {
-				hasTagFailure = true
-				break
-			}
-		}
-		if hasTagFailure {
-			s.TagFailures++
-		}
-
-		isMissing := false
-		for _, err := range status.Errors {
-			switch err {
-			case ErrorMissing:
-				s.MissingMetrics++
-				isMissing = true
-			case ErrorUnknown, ErrorUnsupported:
-				s.UnknownMetrics++
-			}
-		}
-		if !isMissing {
-			s.PresentMetrics++
-		}
-	}
-	return s
-}
-
 // HasFailures returns true when the result contains any missing, unknown, or tag-level failures.
 func (r *ValidationResult) HasFailures() bool {
-	s := r.Summarize()
-	return s.MissingMetrics+s.UnknownMetrics+s.TagFailures > 0
+	for _, status := range r.Metrics {
+		if len(status.Errors) > 0 {
+			return true
+		}
+		for _, tagResult := range status.TagResults {
+			if tagResult.Missing > 0 || tagResult.Unknown > 0 || tagResult.InvalidValue > 0 {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (r *ValidationResult) getMetricStatus(metricName string) *MetricStatus {

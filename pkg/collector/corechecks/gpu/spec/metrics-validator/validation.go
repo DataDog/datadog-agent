@@ -27,7 +27,6 @@ func computeValidation(apiKey, appKey, site string, lookbackSeconds int64) (orgV
 
 	configs := gpuspec.KnownGPUConfigs(architecturesSpec)
 	results := make([]gpuConfigValidationResult, 0, len(configs))
-	failingCount := 0
 
 	for _, config := range configs {
 		log.Printf("validating gpu config %s/%s", config.Architecture, config.DeviceMode)
@@ -37,16 +36,12 @@ func computeValidation(apiKey, appKey, site string, lookbackSeconds int64) (orgV
 		}
 
 		results = append(results, result)
-		if result.hasFailures() {
-			failingCount++
-		}
 	}
 
 	return orgValidationResults{
 		Results:            results,
 		MetricsCount:       len(metricsSpec.Metrics),
 		ArchitecturesCount: len(architecturesSpec.Architectures),
-		FailingCount:       failingCount,
 	}, nil
 }
 
@@ -56,7 +51,6 @@ func validateGPUConfig(client *metricsClient, metricsSpec *gpuspec.MetricsSpec, 
 	}
 
 	expectedMetricsMap := gpuspec.ExpectedMetricsForConfig(metricsSpec, config)
-	result.ExpectedMetrics = len(expectedMetricsMap)
 
 	var err error
 	result.DeviceCount, err = client.queryDeviceCount(config, fromTS, toTS)
@@ -109,11 +103,6 @@ func validateGPUConfig(client *metricsClient, metricsSpec *gpuspec.MetricsSpec, 
 		return result, fmt.Errorf("validate observations for %+v: %w", config, err)
 	}
 
-	summary := result.DetailedResult.Summarize()
-	result.PresentMetrics = summary.PresentMetrics
-	result.MissingMetrics = summary.MissingMetrics
-	result.UnknownMetrics = summary.UnknownMetrics
-	result.TagFailures = summary.TagFailures
 	result.State = determineResultState(result)
 
 	return result, nil
