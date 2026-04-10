@@ -29,8 +29,6 @@ import (
 	pulumik8s "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 )
 
-const nvkindPackage = "github.com/NVIDIA/nvkind/cmd/nvkind"
-
 const nvkindClusterValues = `
 image: %s
 workers:
@@ -127,54 +125,28 @@ func configureContainerToolkit(env config.Env, vm *remote.Host, clusterOpts *Kin
 	)
 }
 
-// installNvkind installs the nvkind tool with all the necessary requisites
+// installNvkind sets up the necessary requisites for nvkind.
+// nvkind, Go, kubectl, and kind are pre-baked in the GPU AMI (Ubuntu2204GPUTools).
 func installNvkind(env config.Env, vm *remote.Host, kindVersion string, clusterOpts *KindClusterOptions, opts ...pulumi.ResourceOption) (command.Command, error) {
-	// kind is a requisite for nvkind, as it calls it under the hood
+	// kind is a requisite for nvkind; symlink the pre-baked versioned binary
 	kindInstall, err := kubernetes.InstallKindBinary(env, vm, kindVersion, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to install kind: %w", err)
 	}
 
-	// kubectl is a requisite for nvkind, it's called under the hood
+	// kubectl is a requisite for nvkind; symlink the pre-baked versioned binary
 	kubectlInstall, err := vm.OS.Runner().Command(
 		env.CommonNamer().ResourceName("kubectl-install"),
 		&command.Args{
-			// use snap installer as it contains multiple versions, rather than APT
-			Create: pulumi.Sprintf("sudo snap install kubectl --classic --channel=%s/stable", clusterOpts.kubeVersion),
+			Create: pulumi.Sprintf("sudo ln -sf /usr/local/bin/kubectl-%s /usr/local/bin/kubectl", clusterOpts.kubeVersion),
 		},
-		opts...,
+		utils.MergeOptions(opts, utils.PulumiDependsOn(kindInstall))...,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to install kubectl: %w", err)
 	}
 
-	// We need Go to install nvkind as it's a go package
-	golangInstall, err := vm.OS.Runner().Command(
-		env.CommonNamer().ResourceName("golang-install"),
-		&command.Args{
-			// use snap installer as it contains multiple versions, rather than APT
-			Create: pulumi.Sprintf("sudo snap install --classic go --channel=%s/stable", clusterOpts.hostGoVersion),
-		},
-		opts...,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to install golang: %w", err)
-	}
-
-	// Install nvkind using go install
-	nvkindInstall, err := vm.OS.Runner().Command(
-		env.CommonNamer().ResourceName("nvkind-install"),
-		&command.Args{
-			// Ensure it gets installed to the global $PATH to avoid having to copy it or change $PATH
-			Create: pulumi.Sprintf("sudo GOBIN=/usr/local/bin go install %s@%s", nvkindPackage, clusterOpts.nvkindVersion),
-		},
-		utils.MergeOptions(opts, utils.PulumiDependsOn(golangInstall, kindInstall, kubectlInstall))...,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to install nvkind: %w", err)
-	}
-
-	return nvkindInstall, nil
+	return kubectlInstall, nil
 }
 
 // inivtNvkindCluster creates a new Kubernetes cluster using nvkind so that nodes can be GPU-enabled, installing

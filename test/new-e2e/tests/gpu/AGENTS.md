@@ -109,14 +109,18 @@ Each system has specific configuration:
 
 ```go
 gpuSystemUbuntu2204: {
-    ami:                          "ami-03ee78da2beb5b622",
-    os:                           os.Ubuntu2204,
+    os:                           os.Ubuntu2204GPU,      // AMI resolved via platforms.json
+    k8sOS:                        os.Ubuntu2204GPUTools, // set after K8s AMI is rebuilt with kind
     cudaSanityCheckImage:         "nvidia/cuda:12.6.3-base-ubuntu22.04",
     hasEcrCredentialsHelper:      false, // needs to be installed
     hasAllNVMLCriticalAPIs:       true,
     supportsSystemProbeComponent: true,
 }
 ```
+
+The `os` field selects the AMI for host tests; `k8sOS` (when set) overrides it for Kubernetes
+tests. AMIs are looked up from `test/e2e-framework/resources/aws/platforms.json` via the
+descriptor — no hardcoded AMI IDs in test code.
 
 ## GPU Instance Type
 

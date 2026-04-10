@@ -46,7 +46,7 @@ type RunOption = func(*RunParams) error
 func GetRunParams(opts ...RunOption) *RunParams {
 	p := &RunParams{
 		Name:                defaultKindName,
-		vmOptions:           []ec2.VMOption{},
+		vmOptions:           []ec2.VMOption{ec2.WithOS(os.Ubuntu2204K8s)},
 		agentOptions:        nil, // nil by default - Agent is only deployed when options are explicitly provided
 		fakeintakeOptions:   []fakeintake.Option{},
 		workloadAppFuncs:    []kubecomp.WorkloadAppFunc{},
@@ -68,8 +68,9 @@ func ParamsFromEnvironment(e aws.Environment) *RunParams {
 		Name: defaultKindName,
 	}
 
-	// VM: pick OS from InfraOSDescriptor
-	osDesc := os.DescriptorFromString(e.InfraOSDescriptor(), os.AmazonLinuxECSDefault)
+	// VM: pick OS from InfraOSDescriptor; fall back to Ubuntu2204K8s which has
+	// kind, kubectl, and go pre-baked.
+	osDesc := os.DescriptorFromString(e.InfraOSDescriptor(), os.Ubuntu2204K8s)
 	p.vmOptions = append(p.vmOptions, ec2.WithOS(osDesc))
 
 	// Agent defaults
