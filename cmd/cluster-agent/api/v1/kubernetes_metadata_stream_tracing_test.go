@@ -93,7 +93,7 @@ func TestStreamKubeMetadata_SessionSpan(t *testing.T) {
 	require.NoError(t, err)
 
 	spans := mt.FinishedSpans()
-	var sessionSpan mocktracer.Span
+	var sessionSpan *mocktracer.Span
 	for _, s := range spans {
 		if s.OperationName() == "cluster_agent.metadata_stream.session" {
 			sessionSpan = s
@@ -137,7 +137,7 @@ func TestStreamKubeMetadata_InitialFullStateSendSpan(t *testing.T) {
 	require.NoError(t, err)
 
 	spans := mt.FinishedSpans()
-	var fullStateSpan mocktracer.Span
+	var fullStateSpan *mocktracer.Span
 	for _, s := range spans {
 		if s.OperationName() == "cluster_agent.metadata_stream.send_full_state" {
 			fullStateSpan = s
@@ -147,7 +147,7 @@ func TestStreamKubeMetadata_InitialFullStateSendSpan(t *testing.T) {
 
 	require.NotNil(t, fullStateSpan, "expected send_full_state span to be created")
 	assert.Equal(t, "sendFullState", fullStateSpan.Tag("resource.name"))
-	assert.Nil(t, fullStateSpan.Tag("error"))
+	assert.Nil(t, fullStateSpan.Tag("error.message"))
 }
 
 func TestStreamKubeMetadata_InitialFullStateSendErrorSpan(t *testing.T) {
@@ -174,7 +174,7 @@ func TestStreamKubeMetadata_InitialFullStateSendErrorSpan(t *testing.T) {
 	require.Error(t, err)
 
 	spans := mt.FinishedSpans()
-	var fullStateSpan mocktracer.Span
+	var fullStateSpan *mocktracer.Span
 	for _, s := range spans {
 		if s.OperationName() == "cluster_agent.metadata_stream.send_full_state" {
 			fullStateSpan = s
@@ -184,7 +184,7 @@ func TestStreamKubeMetadata_InitialFullStateSendErrorSpan(t *testing.T) {
 
 	require.NotNil(t, fullStateSpan, "expected send_full_state span on error")
 	assert.Equal(t, "sendFullState", fullStateSpan.Tag("resource.name"))
-	assert.NotNil(t, fullStateSpan.Tag("error"))
+	assert.NotNil(t, fullStateSpan.Tag("error.message"))
 }
 
 func TestStreamKubeMetadata_InitialSendErrorSpan(t *testing.T) {
@@ -211,7 +211,7 @@ func TestStreamKubeMetadata_InitialSendErrorSpan(t *testing.T) {
 	require.Error(t, err)
 
 	spans := mt.FinishedSpans()
-	var sessionSpan mocktracer.Span
+	var sessionSpan *mocktracer.Span
 	for _, s := range spans {
 		if s.OperationName() == "cluster_agent.metadata_stream.session" {
 			sessionSpan = s
@@ -222,5 +222,5 @@ func TestStreamKubeMetadata_InitialSendErrorSpan(t *testing.T) {
 	require.NotNil(t, sessionSpan, "expected session span to be created on error")
 	assert.Equal(t, "test-node", sessionSpan.Tag("node_name"))
 	// The session span should have the error tag set
-	assert.NotNil(t, sessionSpan.Tag("error"))
+	assert.NotNil(t, sessionSpan.Tag("error.message"))
 }
