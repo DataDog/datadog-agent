@@ -117,6 +117,25 @@ rust_binary(
     ],
 )
 
+# Windows service binary — functionally identical to dd-procmgrd, different
+# name for the Windows installer. Skipped until S22 enables the Windows prost
+# toolchain.
+rust_binary(
+    name = "dd-procmgr-service",
+    srcs = ["src/bins/dd-procmgr-service.rs"],
+    edition = "2024",
+    rustc_flags = ["--cfg=bazel"],
+    target_compatible_with = ["@platforms//os:windows"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":dd-procmgrd-lib",
+        "//comp/core/log/rust:dd-agent-log",
+        "@crates//:anyhow",
+        "@crates//:log",
+        "@crates//:tokio",
+    ],
+)
+
 rust_binary(
     name = "dd-procmgr",
     srcs = ["src/bins/dd-procmgr.rs"],
@@ -137,6 +156,7 @@ pkg_files(
     name = "all_files",
     srcs = [
         ":dd-procmgr",
+        ":dd-procmgr-service",
         ":dd-procmgrd",
     ],
     attributes = pkg_attributes(
@@ -176,12 +196,14 @@ rust_test(
     crate_root = "tests/e2e.rs",
     data = [
         ":dd-procmgr",
+        ":dd-procmgr-service",
         ":dd-procmgrd",
         "//pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-ddot.yaml.tmpl",
     ],
     edition = "2024",
     rustc_env = {
         "CARGO_BIN_EXE_dd-procmgr": "$(rootpath :dd-procmgr)",
+        "CARGO_BIN_EXE_dd-procmgr-service": "$(rootpath :dd-procmgr-service)",
         "CARGO_BIN_EXE_dd-procmgrd": "$(rootpath :dd-procmgrd)",
         "DDOT_TEMPLATE_PATH": "$(rootpath //pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-ddot.yaml.tmpl)",
     },
