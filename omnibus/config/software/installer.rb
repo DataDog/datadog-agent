@@ -49,7 +49,6 @@ build do
     elsif redhat_target? || suse_target?
       command_on_repo_root "bazelisk build --config=release //packages/installer/linux:rpm"
     end
-    command_on_repo_root "/bin/ls -l bazel-out/*/bin/packages/installer/linux", :live_stream => Omnibus.logger.live_stream(:info)
   elsif windows_target?
     command "dda inv -- -e installer.build --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     copy 'bin/installer/installer.exe', "#{install_dir}/datadog-installer.exe"
