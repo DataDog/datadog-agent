@@ -46,7 +46,7 @@ func computeRawsTable() map[string]uint64 {
 	return map[string]uint64{
 		OffsetInodeIno:                            64,
 		OffsetInodeMode:                           0,
-		OffsetInodeUid:                            4,
+		OffsetInodeUID:                            4,
 		OffsetInodeGid:                            8,
 		OffsetInodeNlink:                          72,
 		OffsetInodeMtime:                          104,
