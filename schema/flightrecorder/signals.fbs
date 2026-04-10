@@ -5,18 +5,27 @@
 
 namespace signals;
 
-table MetricSample {
+// A context definition: the first occurrence of a metric with a given
+// context_key. Carries the full metric name and tags for deduplication
+// in the sidecar's contexts.bin bloom filter.
+table ContextEntry {
+  context_key:ulong;
   name:string;
-  value:double;
   tags:[string];
+  source:string;
+}
+
+// A compact metric data point referencing a previously-sent context.
+table PointEntry {
+  context_key:ulong;
+  value:double;
   timestamp_ns:long;
   sample_rate:double;
-  source:string;
-  // context_key is a 64-bit FNV-1a hash of (name, sorted tags). When non-zero,
-  // the sidecar uses it to deduplicate context definitions: the first sample
-  // with a given key carries full name+tags (context definition), subsequent
-  // samples with the same key omit name+tags (context reference).
-  context_key:ulong;
+}
+
+table MetricBatch {
+  contexts:[ContextEntry];
+  points:[PointEntry];
 }
 
 table LogEntry {
@@ -25,11 +34,6 @@ table LogEntry {
   tags:[string];
   hostname:string;
   timestamp_ns:long;
-  source:string;
-}
-
-table MetricBatch {
-  samples:[MetricSample];
 }
 
 table LogBatch {
@@ -61,10 +65,13 @@ table TraceStatsBatch {
   entries:[TraceStatEntry];
 }
 
-union SignalPayload { MetricBatch, LogBatch, TraceStatsBatch }
-
+// Single envelope table with optional batch fields (no union).
+// Per FlatBuffers efficiency guidelines: non-present fields are cheap,
+// and avoiding unions simplifies routing on the receiver side.
 table SignalEnvelope {
-  payload:SignalPayload;
+  metric_batch:MetricBatch;
+  log_batch:LogBatch;
+  trace_stats_batch:TraceStatsBatch;
 }
 
 root_type SignalEnvelope;

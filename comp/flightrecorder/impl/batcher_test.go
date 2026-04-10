@@ -64,7 +64,6 @@ func TestBatcher_ConcurrentAddAndFlush(t *testing.T) {
 					Value:       float64(i),
 					TimestampNs: int64(i),
 					SampleRate:  1.0,
-					Source:      "test",
 				})
 			}
 		}(g)
@@ -76,13 +75,10 @@ func TestBatcher_ConcurrentAddAndFlush(t *testing.T) {
 		defer wg.Done()
 		for i := 0; i < itemsPerGoroutine; i++ {
 			bat.AddContextDef(contextDef{
-				ContextKey:  uint64(i + 100000),
-				Name:        "metric.name",
-				Value:       float64(i),
-				Tags:        []string{"tag:value"},
-				TimestampNs: int64(i),
-				SampleRate:  1.0,
-				Source:      "test",
+				ContextKey: uint64(i + 100000),
+				Name:       "metric.name",
+				Tags:       []string{"tag:value"},
+				Source:     "test",
 			})
 		}
 	}()
@@ -140,7 +136,6 @@ func TestBatcher_FlushLoopDrainsRing(t *testing.T) {
 			Value:       float64(i),
 			TimestampNs: int64(i),
 			SampleRate:  1.0,
-			Source:      "test",
 		})
 	}
 
@@ -154,7 +149,6 @@ func TestBatcher_FlushLoopDrainsRing(t *testing.T) {
 			Value:       float64(i),
 			TimestampNs: int64(i),
 			SampleRate:  1.0,
-			Source:      "test",
 		})
 	}
 
@@ -196,7 +190,6 @@ func TestBatcher_HighVolumeProducer(t *testing.T) {
 				Value:       float64(i),
 				TimestampNs: int64(i * 1000),
 				SampleRate:  1.0,
-				Source:      "dogstatsd",
 			})
 		}
 	}()
@@ -342,13 +335,10 @@ func TestBatcher_LargeContextDefBatchIsChunked(t *testing.T) {
 	// Add 10,000 context definitions with realistic name + tags.
 	for i := 0; i < 10000; i++ {
 		bat.AddContextDef(contextDef{
-			ContextKey:  uint64(i + 1),
-			Name:        "system.cpu.user.by_host_and_env",
-			Value:       float64(i),
-			Tags:        []string{"host:web-" + string(rune('a'+i%26)), "env:production", "service:api-gateway", "version:2.1.0", "team:platform"},
-			TimestampNs: int64(i * 1000),
-			SampleRate:  1.0,
-			Source:      "dogstatsd",
+			ContextKey: uint64(i + 1),
+			Name:       "system.cpu.user.by_host_and_env",
+			Tags:       []string{"host:web-" + string(rune('a'+i%26)), "env:production", "service:api-gateway", "version:2.1.0", "team:platform"},
+			Source:     "dogstatsd",
 		})
 	}
 

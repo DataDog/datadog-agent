@@ -87,7 +87,7 @@ func BenchmarkBatcher_Flush_1000(b *testing.B) {
 		}
 		b.StartTimer()
 
-		bat.flushMetrics()
+		bat.flushPoints()
 
 		b.StopTimer()
 		bat.Stop()
@@ -113,11 +113,9 @@ func BenchmarkSubscriberCallback(b *testing.B) {
 		bat.AddContextDef(contextDef{
 			ContextKey:   uint64(i),
 			Name:         "bench.callback",
-			Value:        42.0,
 			Tags:         tags,
 			TagPoolSlice: sp,
-			TimestampNs:  time.Now().UnixNano(),
-			SampleRate:   1.0,
+			Source:       "dogstatsd",
 		})
 	}
 }

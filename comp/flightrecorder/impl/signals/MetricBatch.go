@@ -17,21 +17,6 @@ func GetRootAsMetricBatch(buf []byte, offset flatbuffers.UOffsetT) *MetricBatch 
 	return x
 }
 
-func FinishMetricBatchBuffer(builder *flatbuffers.Builder, offset flatbuffers.UOffsetT) {
-	builder.Finish(offset)
-}
-
-func GetSizePrefixedRootAsMetricBatch(buf []byte, offset flatbuffers.UOffsetT) *MetricBatch {
-	n := flatbuffers.GetUOffsetT(buf[offset+flatbuffers.SizeUint32:])
-	x := &MetricBatch{}
-	x.Init(buf, n+offset+flatbuffers.SizeUint32)
-	return x
-}
-
-func FinishSizePrefixedMetricBatchBuffer(builder *flatbuffers.Builder, offset flatbuffers.UOffsetT) {
-	builder.FinishSizePrefixed(offset)
-}
-
 func (rcv *MetricBatch) Init(buf []byte, i flatbuffers.UOffsetT) {
 	rcv._tab.Bytes = buf
 	rcv._tab.Pos = i
@@ -41,7 +26,7 @@ func (rcv *MetricBatch) Table() flatbuffers.Table {
 	return rcv._tab
 }
 
-func (rcv *MetricBatch) Samples(obj *MetricSample, j int) bool {
+func (rcv *MetricBatch) Contexts(obj *ContextEntry, j int) bool {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(4))
 	if o != 0 {
 		x := rcv._tab.Vector(o)
@@ -53,7 +38,7 @@ func (rcv *MetricBatch) Samples(obj *MetricSample, j int) bool {
 	return false
 }
 
-func (rcv *MetricBatch) SamplesLength() int {
+func (rcv *MetricBatch) ContextsLength() int {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(4))
 	if o != 0 {
 		return rcv._tab.VectorLen(o)
@@ -61,13 +46,39 @@ func (rcv *MetricBatch) SamplesLength() int {
 	return 0
 }
 
+func (rcv *MetricBatch) Points(obj *PointEntry, j int) bool {
+	o := flatbuffers.UOffsetT(rcv._tab.Offset(6))
+	if o != 0 {
+		x := rcv._tab.Vector(o)
+		x += flatbuffers.UOffsetT(j) * 4
+		x = rcv._tab.Indirect(x)
+		obj.Init(rcv._tab.Bytes, x)
+		return true
+	}
+	return false
+}
+
+func (rcv *MetricBatch) PointsLength() int {
+	o := flatbuffers.UOffsetT(rcv._tab.Offset(6))
+	if o != 0 {
+		return rcv._tab.VectorLen(o)
+	}
+	return 0
+}
+
 func MetricBatchStart(builder *flatbuffers.Builder) {
-	builder.StartObject(1)
+	builder.StartObject(2)
 }
-func MetricBatchAddSamples(builder *flatbuffers.Builder, samples flatbuffers.UOffsetT) {
-	builder.PrependUOffsetTSlot(0, flatbuffers.UOffsetT(samples), 0)
+func MetricBatchAddContexts(builder *flatbuffers.Builder, contexts flatbuffers.UOffsetT) {
+	builder.PrependUOffsetTSlot(0, flatbuffers.UOffsetT(contexts), 0)
 }
-func MetricBatchStartSamplesVector(builder *flatbuffers.Builder, numElems int) flatbuffers.UOffsetT {
+func MetricBatchStartContextsVector(builder *flatbuffers.Builder, numElems int) flatbuffers.UOffsetT {
+	return builder.StartVector(4, numElems, 4)
+}
+func MetricBatchAddPoints(builder *flatbuffers.Builder, points flatbuffers.UOffsetT) {
+	builder.PrependUOffsetTSlot(1, flatbuffers.UOffsetT(points), 0)
+}
+func MetricBatchStartPointsVector(builder *flatbuffers.Builder, numElems int) flatbuffers.UOffsetT {
 	return builder.StartVector(4, numElems, 4)
 }
 func MetricBatchEnd(builder *flatbuffers.Builder) flatbuffers.UOffsetT {

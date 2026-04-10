@@ -17,21 +17,6 @@ func GetRootAsLogEntry(buf []byte, offset flatbuffers.UOffsetT) *LogEntry {
 	return x
 }
 
-func FinishLogEntryBuffer(builder *flatbuffers.Builder, offset flatbuffers.UOffsetT) {
-	builder.Finish(offset)
-}
-
-func GetSizePrefixedRootAsLogEntry(buf []byte, offset flatbuffers.UOffsetT) *LogEntry {
-	n := flatbuffers.GetUOffsetT(buf[offset+flatbuffers.SizeUint32:])
-	x := &LogEntry{}
-	x.Init(buf, n+offset+flatbuffers.SizeUint32)
-	return x
-}
-
-func FinishSizePrefixedLogEntryBuffer(builder *flatbuffers.Builder, offset flatbuffers.UOffsetT) {
-	builder.FinishSizePrefixed(offset)
-}
-
 func (rcv *LogEntry) Init(buf []byte, i flatbuffers.UOffsetT) {
 	rcv._tab.Bytes = buf
 	rcv._tab.Pos = i
@@ -120,16 +105,8 @@ func (rcv *LogEntry) MutateTimestampNs(n int64) bool {
 	return rcv._tab.MutateInt64Slot(12, n)
 }
 
-func (rcv *LogEntry) Source() []byte {
-	o := flatbuffers.UOffsetT(rcv._tab.Offset(14))
-	if o != 0 {
-		return rcv._tab.ByteVector(o + rcv._tab.Pos)
-	}
-	return nil
-}
-
 func LogEntryStart(builder *flatbuffers.Builder) {
-	builder.StartObject(6)
+	builder.StartObject(5)
 }
 func LogEntryAddContent(builder *flatbuffers.Builder, content flatbuffers.UOffsetT) {
 	builder.PrependUOffsetTSlot(0, flatbuffers.UOffsetT(content), 0)
@@ -151,9 +128,6 @@ func LogEntryAddHostname(builder *flatbuffers.Builder, hostname flatbuffers.UOff
 }
 func LogEntryAddTimestampNs(builder *flatbuffers.Builder, timestampNs int64) {
 	builder.PrependInt64Slot(4, timestampNs, 0)
-}
-func LogEntryAddSource(builder *flatbuffers.Builder, source flatbuffers.UOffsetT) {
-	builder.PrependUOffsetTSlot(5, flatbuffers.UOffsetT(source), 0)
 }
 func LogEntryEnd(builder *flatbuffers.Builder) flatbuffers.UOffsetT {
 	return builder.EndObject()

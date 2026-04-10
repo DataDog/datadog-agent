@@ -17,21 +17,6 @@ func GetRootAsSignalEnvelope(buf []byte, offset flatbuffers.UOffsetT) *SignalEnv
 	return x
 }
 
-func FinishSignalEnvelopeBuffer(builder *flatbuffers.Builder, offset flatbuffers.UOffsetT) {
-	builder.Finish(offset)
-}
-
-func GetSizePrefixedRootAsSignalEnvelope(buf []byte, offset flatbuffers.UOffsetT) *SignalEnvelope {
-	n := flatbuffers.GetUOffsetT(buf[offset+flatbuffers.SizeUint32:])
-	x := &SignalEnvelope{}
-	x.Init(buf, n+offset+flatbuffers.SizeUint32)
-	return x
-}
-
-func FinishSizePrefixedSignalEnvelopeBuffer(builder *flatbuffers.Builder, offset flatbuffers.UOffsetT) {
-	builder.FinishSizePrefixed(offset)
-}
-
 func (rcv *SignalEnvelope) Init(buf []byte, i flatbuffers.UOffsetT) {
 	rcv._tab.Bytes = buf
 	rcv._tab.Pos = i
@@ -41,35 +26,56 @@ func (rcv *SignalEnvelope) Table() flatbuffers.Table {
 	return rcv._tab
 }
 
-func (rcv *SignalEnvelope) PayloadType() SignalPayload {
+func (rcv *SignalEnvelope) MetricBatch(obj *MetricBatch) *MetricBatch {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(4))
 	if o != 0 {
-		return SignalPayload(rcv._tab.GetByte(o + rcv._tab.Pos))
+		x := rcv._tab.Indirect(o + rcv._tab.Pos)
+		if obj == nil {
+			obj = new(MetricBatch)
+		}
+		obj.Init(rcv._tab.Bytes, x)
+		return obj
 	}
-	return 0
+	return nil
 }
 
-func (rcv *SignalEnvelope) MutatePayloadType(n SignalPayload) bool {
-	return rcv._tab.MutateByteSlot(4, byte(n))
-}
-
-func (rcv *SignalEnvelope) Payload(obj *flatbuffers.Table) bool {
+func (rcv *SignalEnvelope) LogBatch(obj *LogBatch) *LogBatch {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(6))
 	if o != 0 {
-		rcv._tab.Union(obj, o)
-		return true
+		x := rcv._tab.Indirect(o + rcv._tab.Pos)
+		if obj == nil {
+			obj = new(LogBatch)
+		}
+		obj.Init(rcv._tab.Bytes, x)
+		return obj
 	}
-	return false
+	return nil
+}
+
+func (rcv *SignalEnvelope) TraceStatsBatch(obj *TraceStatsBatch) *TraceStatsBatch {
+	o := flatbuffers.UOffsetT(rcv._tab.Offset(8))
+	if o != 0 {
+		x := rcv._tab.Indirect(o + rcv._tab.Pos)
+		if obj == nil {
+			obj = new(TraceStatsBatch)
+		}
+		obj.Init(rcv._tab.Bytes, x)
+		return obj
+	}
+	return nil
 }
 
 func SignalEnvelopeStart(builder *flatbuffers.Builder) {
-	builder.StartObject(2)
+	builder.StartObject(3)
 }
-func SignalEnvelopeAddPayloadType(builder *flatbuffers.Builder, payloadType SignalPayload) {
-	builder.PrependByteSlot(0, byte(payloadType), 0)
+func SignalEnvelopeAddMetricBatch(builder *flatbuffers.Builder, metricBatch flatbuffers.UOffsetT) {
+	builder.PrependUOffsetTSlot(0, flatbuffers.UOffsetT(metricBatch), 0)
 }
-func SignalEnvelopeAddPayload(builder *flatbuffers.Builder, payload flatbuffers.UOffsetT) {
-	builder.PrependUOffsetTSlot(1, flatbuffers.UOffsetT(payload), 0)
+func SignalEnvelopeAddLogBatch(builder *flatbuffers.Builder, logBatch flatbuffers.UOffsetT) {
+	builder.PrependUOffsetTSlot(1, flatbuffers.UOffsetT(logBatch), 0)
+}
+func SignalEnvelopeAddTraceStatsBatch(builder *flatbuffers.Builder, traceStatsBatch flatbuffers.UOffsetT) {
+	builder.PrependUOffsetTSlot(2, flatbuffers.UOffsetT(traceStatsBatch), 0)
 }
 func SignalEnvelopeEnd(builder *flatbuffers.Builder) flatbuffers.UOffsetT {
 	return builder.EndObject()

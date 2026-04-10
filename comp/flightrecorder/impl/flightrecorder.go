@@ -197,24 +197,20 @@ func (s *flightrecorderImpl) activate(ctx context.Context) <-chan struct{} {
 					}
 					ts := int64(ms.Timestamp * float64(time.Second/time.Nanosecond))
 
-					if bat.IsContextKnown(ckey) {
-						bat.AddPoint(metricPoint{
-							ContextKey:  ckey,
-							Value:       ms.Value,
-							TimestampNs: ts,
-							SampleRate:  ms.SampleRate,
-							Source:      source,
-						})
-					} else {
+					// Always send the data point.
+					bat.AddPoint(metricPoint{
+						ContextKey:  ckey,
+						Value:       ms.Value,
+						TimestampNs: ts,
+						SampleRate:  ms.SampleRate,
+					})
+					// Send context definition on first occurrence.
+					if !bat.IsContextKnown(ckey) {
 						bat.AddContextDef(contextDef{
-							ContextKey:   ckey,
-							Name:         ms.Name,
-							Value:        ms.Value,
-							Tags:         ms.RawTags,
-							TagPoolSlice: nil,
-							TimestampNs:  ts,
-							SampleRate:   ms.SampleRate,
-							Source:       source,
+							ContextKey: ckey,
+							Name:       ms.Name,
+							Tags:       ms.RawTags,
+							Source:     source,
 						})
 					}
 				}

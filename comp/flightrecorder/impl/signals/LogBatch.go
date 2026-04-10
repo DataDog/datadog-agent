@@ -17,21 +17,6 @@ func GetRootAsLogBatch(buf []byte, offset flatbuffers.UOffsetT) *LogBatch {
 	return x
 }
 
-func FinishLogBatchBuffer(builder *flatbuffers.Builder, offset flatbuffers.UOffsetT) {
-	builder.Finish(offset)
-}
-
-func GetSizePrefixedRootAsLogBatch(buf []byte, offset flatbuffers.UOffsetT) *LogBatch {
-	n := flatbuffers.GetUOffsetT(buf[offset+flatbuffers.SizeUint32:])
-	x := &LogBatch{}
-	x.Init(buf, n+offset+flatbuffers.SizeUint32)
-	return x
-}
-
-func FinishSizePrefixedLogBatchBuffer(builder *flatbuffers.Builder, offset flatbuffers.UOffsetT) {
-	builder.FinishSizePrefixed(offset)
-}
-
 func (rcv *LogBatch) Init(buf []byte, i flatbuffers.UOffsetT) {
 	rcv._tab.Bytes = buf
 	rcv._tab.Pos = i
