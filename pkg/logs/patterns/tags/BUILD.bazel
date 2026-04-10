@@ -11,10 +11,10 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/patterns/tags",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/config/setup",
         "//pkg/logs/patterns/eviction",
-        "//pkg/proto/pbgo/statefulpb",
         "//pkg/util/log",
-        "@com_github_datadog_datadog_agent_pkg_config_setup//:setup",
+        "@com_github_datadog_agent_payload_v5//statefulpb",
     ],
 )
 
@@ -25,6 +25,7 @@ go_test(
         "tag_manager_test.go",
     ],
     embed = [":tags"],
+    gotags = ["test"],
     deps = [
         "//pkg/logs/patterns/eviction",
         "@com_github_stretchr_testify//assert",

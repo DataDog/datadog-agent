@@ -74,7 +74,15 @@ require (
 )
 
 require (
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/clustering v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/clustering/merging v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/eviction v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/processor v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/tags v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/token v0.0.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/tokenizer/rust v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/sender/grpc v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/log v0.77.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostport v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.76.3 // indirect
 	github.com/DataDog/go-acl v1.0.1 // indirect
@@ -91,6 +99,7 @@ require (
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/gofrs/flock v0.13.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
+	github.com/google/flatbuffers v25.2.10+incompatible // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20260216142805-b3301c5f2a88 // indirect
 	github.com/magiconair/properties v1.8.10 // indirect
@@ -231,6 +240,13 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/client => ../../../pkg/logs/client
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic => ../../../pkg/logs/diagnostic
 	github.com/DataDog/datadog-agent/pkg/logs/message => ../../../pkg/logs/message
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/clustering => ../../../pkg/logs/patterns/clustering
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/clustering/merging => ../../../pkg/logs/patterns/clustering/merging
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/eviction => ../../../pkg/logs/patterns/eviction
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/processor => ../../../pkg/logs/patterns/processor
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/tags => ../../../pkg/logs/patterns/tags
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/token => ../../../pkg/logs/patterns/token
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/tokenizer/rust => ../../../pkg/logs/patterns/tokenizer/rust
 	github.com/DataDog/datadog-agent/pkg/logs/sender/grpc => ../../../pkg/logs/sender/grpc
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../../pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../../../pkg/logs/status/statusinterface

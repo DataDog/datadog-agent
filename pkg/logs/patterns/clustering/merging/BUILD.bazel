@@ -12,6 +12,7 @@ go_test(
     name = "merging_test",
     srcs = ["merging_test.go"],
     embed = [":merging"],
+    gotags = ["test"],
     deps = [
         "//pkg/logs/patterns/token",
         "@com_github_stretchr_testify//assert",

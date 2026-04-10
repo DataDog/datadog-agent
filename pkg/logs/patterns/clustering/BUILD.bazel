@@ -12,12 +12,12 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/patterns/clustering",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/config/setup",
         "//pkg/logs/patterns/clustering/merging",
         "//pkg/logs/patterns/eviction",
         "//pkg/logs/patterns/token",
         "//pkg/trace/log",
         "//pkg/util/log",
-        "@com_github_datadog_datadog_agent_pkg_config_setup//:setup",
     ],
 )
 
@@ -31,6 +31,7 @@ go_test(
         "pattern_test.go",
     ],
     embed = [":clustering"],
+    gotags = ["test"],
     deps = [
         "//pkg/logs/patterns/clustering/merging",
         "//pkg/logs/patterns/eviction",

@@ -4,6 +4,8 @@
 
 This document describes the new gRPC-based stateful transport layer introduced in `pkg/logs/sender/grpc/`. This transport provides a bidirectional streaming alternative to the existing HTTP and TCP transports, with support for stateful encoding, delta compression, and stream lifecycle management.
 
+> **Companion document:** The pattern extraction pipeline (tokenization, clustering, eviction, tags) that produces `PatternDefine`, `DictEntryDefine`, and `StructuredLog` datums is documented in [`pkg/logs/patterns/DESIGN.md`](../../patterns/DESIGN.md).
+
 ## Architecture Summary
 
 ### Data Flow (per Pipeline)
