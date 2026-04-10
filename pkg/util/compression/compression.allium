@@ -17,15 +17,6 @@ enum CompressionKind { zlib | zstd | gzip | none }
 enum ContentEncoding { deflate | zstd | gzip | identity }
 
 ------------------------------------------------------------
--- Value Types
-------------------------------------------------------------
-
-value CompressedFrame {
-    data: ByteArray
-    encoding: ContentEncoding
-}
-
-------------------------------------------------------------
 -- External Entities
 ------------------------------------------------------------
 
@@ -247,7 +238,8 @@ invariant ZstdCrossCompatibility {
     -- This holds for all compression levels.
     for compressor_a in Compressors where kind = zstd:
         for compressor_b in Compressors where kind = zstd:
-            compressor_b.decompress(compressor_a.compress(input)) = input
+            for input in ByteArrays:
+                compressor_b.decompress(compressor_a.compress(input)) = input
 }
 
 -- NOTE: There is no invariant guaranteeing compression on fallback.
