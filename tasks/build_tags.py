@@ -64,6 +64,7 @@ ALL_TAGS = {
     "podman",
     "python",
     "requirefips",  # used for Linux FIPS mode to avoid having to set GOFIPS
+    "rust_patterns",  # Rust tokenizer for log pattern clustering
     "seclmax",  # used for security agent/system-probe to compile the full feature set of secl
     "serverless",
     "sharedlibrarycheck",
@@ -104,6 +105,7 @@ AGENT_TAGS = {
     "otlp",
     "podman",
     "python",
+    "rust_patterns",
     "sharedlibrarycheck",
     "systemd",
     "systemprobechecks",
