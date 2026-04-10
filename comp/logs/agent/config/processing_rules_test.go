@@ -33,3 +33,149 @@ func TestCompileShouldFailWithInvalidRules(t *testing.T) {
 		assert.Nil(t, rule.Regex)
 	}
 }
+
+func TestValidateRoutingRules(t *testing.T) {
+	t.Run("EdgeOnly_valid", func(t *testing.T) {
+		rules := []*ProcessingRule{{
+			Name: "test",
+			Type: EdgeOnly,
+			Match: &RoutingMatch{
+				Services:   []string{"web-*"},
+				Severities: []string{"error"},
+			},
+		}}
+		assert.NoError(t, ValidateProcessingRules(rules))
+	})
+
+	t.Run("ExcludeFromObserver_valid", func(t *testing.T) {
+		rules := []*ProcessingRule{{
+			Name: "test",
+			Type: ExcludeFromObserver,
+			Match: &RoutingMatch{
+				Sources: []string{"nginx", "apache-*"},
+			},
+		}}
+		assert.NoError(t, ValidateProcessingRules(rules))
+	})
+
+	t.Run("missing_match_block", func(t *testing.T) {
+		rules := []*ProcessingRule{{Name: "test", Type: EdgeOnly}}
+		assert.Error(t, ValidateProcessingRules(rules))
+	})
+
+	t.Run("invalid_severity", func(t *testing.T) {
+		rules := []*ProcessingRule{{
+			Name:  "test",
+			Type:  EdgeOnly,
+			Match: &RoutingMatch{Severities: []string{"verbose"}},
+		}}
+		assert.Error(t, ValidateProcessingRules(rules))
+	})
+
+	t.Run("invalid_service_glob", func(t *testing.T) {
+		rules := []*ProcessingRule{{
+			Name:  "test",
+			Type:  EdgeOnly,
+			Match: &RoutingMatch{Services: []string{"[invalid"}},
+		}}
+		assert.Error(t, ValidateProcessingRules(rules))
+	})
+}
+
+func TestCompileRoutingRules(t *testing.T) {
+	rules := []*ProcessingRule{{
+		Name: "test",
+		Type: EdgeOnly,
+		Match: &RoutingMatch{
+			Services:   []string{"web-*", "api"},
+			Sources:    []string{"nginx"},
+			Severities: []string{"Error", "warn"},
+		},
+	}}
+	assert.NoError(t, CompileProcessingRules(rules))
+	assert.NotNil(t, rules[0].CompiledMatch)
+}
+
+func TestCompiledRoutingMatchMatches(t *testing.T) {
+	compile := func(m *RoutingMatch) *CompiledRoutingMatch {
+		c := compileRoutingMatch(m)
+		return c
+	}
+
+	tests := []struct {
+		name    string
+		match   *RoutingMatch
+		service string
+		source  string
+		status  string
+		want    bool
+	}{
+		{
+			name:    "all_criteria_match",
+			match:   &RoutingMatch{Services: []string{"web-*"}, Sources: []string{"nginx"}, Severities: []string{"error"}},
+			service: "web-app", source: "nginx", status: "error",
+			want: true,
+		},
+		{
+			name:    "service_no_match",
+			match:   &RoutingMatch{Services: []string{"web-*"}},
+			service: "db", source: "", status: "",
+			want: false,
+		},
+		{
+			name:    "source_no_match",
+			match:   &RoutingMatch{Sources: []string{"nginx"}},
+			service: "", source: "apache", status: "",
+			want: false,
+		},
+		{
+			name:    "severity_no_match",
+			match:   &RoutingMatch{Severities: []string{"error"}},
+			service: "", source: "", status: "info",
+			want: false,
+		},
+		{
+			name:    "empty_criteria_matches_all",
+			match:   &RoutingMatch{},
+			service: "any", source: "any", status: "any",
+			want: true,
+		},
+		{
+			name:    "wildcard_service_matches_empty",
+			match:   &RoutingMatch{Services: []string{"*"}},
+			service: "", source: "", status: "",
+			want: true,
+		},
+		{
+			name:    "prefix_glob_no_match_empty_service",
+			match:   &RoutingMatch{Services: []string{"web-*"}},
+			service: "", source: "", status: "",
+			want: false,
+		},
+		{
+			name:    "severity_warning_normalized",
+			match:   &RoutingMatch{Severities: []string{"warn"}},
+			service: "", source: "", status: "warning",
+			want: true,
+		},
+		{
+			name:    "multiple_service_patterns_or",
+			match:   &RoutingMatch{Services: []string{"web-*", "api-*"}},
+			service: "api-gateway", source: "", status: "",
+			want: true,
+		},
+		{
+			name:    "case_insensitive_severity",
+			match:   &RoutingMatch{Severities: []string{"Error"}},
+			service: "", source: "", status: "error",
+			want: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := compile(tt.match)
+			assert.Equal(t, tt.want, c.Matches(tt.service, tt.source, tt.status))
+		})
+	}
+}

@@ -201,12 +201,14 @@ func (m *MessageContent) SetEncoded(content []byte) {
 // E.g. Timestamp is used by the docker parsers to transmit a tailing offset.
 type ParsingExtra struct {
 	// Used by docker parsers to transmit an offset.
-	Timestamp   string
-	IsPartial   bool
-	IsTruncated bool
-	IsMultiLine bool
-	IsMRFAllow  bool
-	Tags        []string
+	Timestamp              string
+	IsPartial              bool
+	IsTruncated            bool
+	IsMultiLine            bool
+	IsMRFAllow             bool
+	IsEdgeOnly             bool
+	IsExcludedFromObserver bool
+	Tags                   []string
 }
 
 // ServerlessExtra ships extra information from logs processing in serverless envs.

@@ -207,9 +207,14 @@ func (p *Processor) processMessage(msg *message.Message) {
 		// report this message to diagnostic receivers (e.g. `stream-logs` command)
 		p.diagnosticMessageReceiver.HandleMessage(msg, rendered, "")
 
-		// report to observer if available
-		if p.observerHandle != nil {
+		// report to observer if available, unless this message is excluded from observer processing
+		if p.observerHandle != nil && !msg.IsExcludedFromObserver {
 			p.observerHandle.ObserveLog(msg)
+		}
+
+		// edge_only messages are processed by the observer but not forwarded to the backend
+		if msg.IsEdgeOnly {
+			return
 		}
 
 		if p.failoverConfig.isFailoverActive {
@@ -261,6 +266,15 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 		extraRules = msg.Origin.LogSource.Config.ProcessingRules
 	}
 	rules := append(p.processingRules, extraRules...)
+
+	// Extract routing fields once, used by edge_only and exclude_from_observer rules.
+	var service, source string
+	if msg.Origin != nil {
+		service = msg.Origin.Service()
+		source = msg.Origin.Source()
+	}
+	status := msg.GetStatus()
+
 	for _, rule := range rules {
 		switch rule.Type {
 		case config.ExcludeAtMatch:
@@ -288,7 +302,18 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 				msg.RecordProcessingRule(rule.Type, rule.Name)
 				return false
 			}
-
+		case config.EdgeOnly:
+			// Observer processes this log but it is not forwarded to the backend.
+			if rule.CompiledMatch != nil && rule.CompiledMatch.Matches(service, source, status) {
+				msg.IsEdgeOnly = true
+				msg.RecordProcessingRule(rule.Type, rule.Name)
+			}
+		case config.ExcludeFromObserver:
+			// Log is forwarded to the backend but skipped by the observer.
+			if rule.CompiledMatch != nil && rule.CompiledMatch.Matches(service, source, status) {
+				msg.IsExcludedFromObserver = true
+				msg.RecordProcessingRule(rule.Type, rule.Name)
+			}
 		}
 	}
 

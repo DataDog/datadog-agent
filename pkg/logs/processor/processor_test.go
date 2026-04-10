@@ -13,7 +13,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	observer "github.com/DataDog/datadog-agent/comp/observer/def"
+	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
@@ -377,6 +380,101 @@ func newStructuredMessage(content []byte, source *sources.LogSource, status stri
 	msg := message.NewStructuredMessage(&structuredContent, message.NewOrigin(source), status, 0)
 	msg.SetContent(content)
 	return msg
+}
+
+// routing rule tests
+// ------------------
+
+// mockObserverHandle records observed logs for testing.
+type mockObserverHandle struct {
+	logs []string
+}
+
+func (m *mockObserverHandle) ObserveLog(msg observer.LogView) {
+	m.logs = append(m.logs, string(msg.GetContent()))
+}
+func (m *mockObserverHandle) ObserveMetric(_ observer.MetricView)         {}
+func (m *mockObserverHandle) ObserveTrace(_ observer.TraceView)           {}
+func (m *mockObserverHandle) ObserveTraceStats(_ observer.TraceStatsView) {}
+func (m *mockObserverHandle) ObserveProfile(_ observer.ProfileView)       {}
+
+// noopEncoder is an Encoder that does nothing, used in routing tests.
+type noopEncoder struct{}
+
+func (noopEncoder) Encode(_ *message.Message, _ string) error { return nil }
+
+func newRoutingRule(ruleType string, match *config.RoutingMatch) *config.ProcessingRule {
+	rule := &config.ProcessingRule{
+		Name:  ruleName,
+		Type:  ruleType,
+		Match: match,
+	}
+	_ = config.CompileProcessingRules([]*config.ProcessingRule{rule})
+	return rule
+}
+
+func newRoutingProcessor(rules []*config.ProcessingRule, obs *mockObserverHandle) *Processor {
+	pm := metrics.NewNoopPipelineMonitor("test")
+	return &Processor{
+		processingRules:           rules,
+		observerHandle:            obs,
+		diagnosticMessageReceiver: &diagnostic.NoopMessageReceiver{},
+		encoder:                   noopEncoder{},
+		outputChan:                make(chan *message.Message, 10),
+		pipelineMonitor:           pm,
+		utilization:               pm.MakeUtilizationMonitor(metrics.ProcessorTlmName, "test"),
+	}
+}
+
+func TestEdgeOnlyRule(t *testing.T) {
+	obs := &mockObserverHandle{}
+	p := newRoutingProcessor(
+		[]*config.ProcessingRule{newRoutingRule(config.EdgeOnly, &config.RoutingMatch{Services: []string{"web-*"}})},
+		obs,
+	)
+
+	src := sources.NewLogSource("", &config.LogsConfig{Service: "web-app"})
+	msg := newMessage([]byte("hello"), src, "info")
+	p.processMessage(msg)
+
+	// Observer must have seen the log
+	assert.Equal(t, []string{"hello"}, obs.logs, "observer should receive edge_only logs")
+	// Output channel must be empty — log must not be forwarded to backend
+	assert.Empty(t, p.outputChan, "edge_only logs must not reach the output channel")
+}
+
+func TestEdgeOnlyRuleNoMatchSendsToBackend(t *testing.T) {
+	obs := &mockObserverHandle{}
+	p := newRoutingProcessor(
+		[]*config.ProcessingRule{newRoutingRule(config.EdgeOnly, &config.RoutingMatch{Services: []string{"web-*"}})},
+		obs,
+	)
+
+	src := sources.NewLogSource("", &config.LogsConfig{Service: "db"})
+	msg := newMessage([]byte("hello"), src, "info")
+	p.processMessage(msg)
+
+	// Observer sees the log (not excluded)
+	assert.Equal(t, []string{"hello"}, obs.logs)
+	// Output channel has the message — not edge-only
+	assert.Len(t, p.outputChan, 1)
+}
+
+func TestExcludeFromObserverRule(t *testing.T) {
+	obs := &mockObserverHandle{}
+	p := newRoutingProcessor(
+		[]*config.ProcessingRule{newRoutingRule(config.ExcludeFromObserver, &config.RoutingMatch{Services: []string{"noisy-*"}})},
+		obs,
+	)
+
+	src := sources.NewLogSource("", &config.LogsConfig{Service: "noisy-service"})
+	msg := newMessage([]byte("hello"), src, "info")
+	p.processMessage(msg)
+
+	// Observer must NOT have seen the log
+	assert.Empty(t, obs.logs, "observer should not receive exclude_from_observer logs")
+	// Output channel has the message — still forwarded to backend
+	assert.Len(t, p.outputChan, 1)
 }
 
 func BenchmarkMaskSequences(b *testing.B) {
