@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "eviction",
+    srcs = [
+        "eviction.go",
+        "eviction_manager.go",
+        "score.go",
+        "types.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/patterns/eviction",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "eviction_test",
+    srcs = [
+        "eviction_manager_test.go",
+        "eviction_test.go",
+        "score_test.go",
+    ],
+    embed = [":eviction"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
