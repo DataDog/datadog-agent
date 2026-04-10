@@ -17,14 +17,13 @@ from tasks.libs.common.color import Color, color_message
 
 # --- Constants ---
 
-SCENARIOS = ["213_pagerduty", "353_postmark", "food_delivery_redis"]
+_MANIFEST_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "..", "q_branch", "gensim-eval-scenarios.json")
+with open(_MANIFEST_PATH) as _f:
+    _EVAL_MANIFEST = json.load(_f)
 
-# Maps short scenario names to episode names used in runs.jsonl
-SCENARIO_EPISODE_NAMES = {
-    "213_pagerduty": "213_PagerDuty_June_2014_Outage",
-    "353_postmark": "353_postmark_upstream_cloud_provider_outage",
-    "food_delivery_redis": "food-delivery-redis-cpu-saturation",
-}
+# Short name → full episode name, loaded from the eval corpus manifest.
+SCENARIO_EPISODE_NAMES = {entry["short"]: entry["episode"] for entry in _EVAL_MANIFEST}
+SCENARIOS = list(SCENARIO_EPISODE_NAMES.keys())
 
 S3_BUCKET = "qbranch-gensim-recordings"
 AWS_PROFILE = "sso-agent-sandbox-account-admin"
@@ -441,22 +440,36 @@ def _resolve_zip_from_runs_jsonl(ctx, name):
                 except json.JSONDecodeError:
                     continue  # skip malformed records
 
-        # Find the latest entry matching this episode
-        matches = [entry for entry in lines if entry.get("episode") == episode_name]
+        # Find the latest successful entry matching this episode.
+        # parquet_count < 100 indicates a failed or incomplete run (empirically: 0 or 2).
+        matches = [
+            entry for entry in lines if entry.get("episode") == episode_name and entry.get("parquet_count", 0) >= 100
+        ]
         if not matches:
             return None
 
-        latest = matches[-1]
-        zip_key = latest.get("zip")
-        if zip_key:
+        # Walk newest-first, return the first zip that actually exists in S3.
+        for entry in reversed(matches):
+            zip_key = entry.get("zip")
+            if not zip_key:
+                continue
+            check = ctx.run(
+                f"aws-vault exec {AWS_PROFILE} -- aws s3api head-object --bucket {S3_BUCKET} --key {shlex.quote(zip_key)}",
+                warn=True,
+                hide=True,
+            )
+            if check is None or check.failed:
+                print(color_message(f"  '{zip_key}' not found in S3, trying previous run...", Color.BLUE))
+                continue
             print(
                 color_message(
                     f"Resolved '{name}' from runs.jsonl: {zip_key} "
-                    f"(image: {latest.get('image', '?')}, {latest.get('timestamp', '?')})",
+                    f"(image: {entry.get('image', '?')}, {entry.get('timestamp', '?')})",
                     Color.BLUE,
                 )
             )
-        return zip_key
+            return zip_key
+        return None
     except (OSError, json.JSONDecodeError):
         return None
     finally:
@@ -859,7 +872,7 @@ def print_eval_scenarios_summary(results: list, sigma: float) -> None:
     print(color_message("  Observer Eval Summary", Color.GREEN))
     print(color_message(f"{'=' * 60}\n", Color.GREEN))
 
-    header = f"{'Scenario':<25}  {'F1':>6}  {'Precision':>9}  {'Recall':>6}  {'Alpha':>7}  {'Scored':>6}  {'Baseline FPs':>12}  {'Warmup (excl)':>13}  {'Cascading (excl)':>16}"
+    header = f"{'Scenario':<25}  {'F1':>6}  {'Precision':>9}  {'Recall':>6}  {'Alpha':>7}  {'Detections':>10}  {'Baseline FPs':>12}  {'Warmup (excl)':>13}  {'Post-onset (excl)':>18}"
     print(header)
     print("-" * len(header))
 
@@ -871,7 +884,7 @@ def print_eval_scenarios_summary(results: list, sigma: float) -> None:
         timed_out_suffix = "  [TIMEOUT]" if r.get("timed_out") else ""
         print(
             f"{r['name']:<25}  {r['f1']:>6.4f}  {r['precision']:>9.4f}  {r['recall']:>6.4f}"
-            f"  {alpha_str:>7}  {r['num_predictions']:>6}  {r['num_baseline_fps']:>12}  {r['num_filtered_warmup']:>13}  {r['num_filtered_cascading']:>16}"
+            f"  {alpha_str:>7}  {r['num_predictions']:>10}  {r['num_baseline_fps']:>12}  {r['num_filtered_warmup']:>13}  {r['num_filtered_cascading']:>18}"
             f"{timed_out_suffix}"
         )
         duration = r.get("baseline_duration_seconds", 0)
