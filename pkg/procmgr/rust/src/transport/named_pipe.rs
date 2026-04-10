@@ -99,11 +99,7 @@ where
 
     let (tx, rx) = tokio::sync::mpsc::channel::<io::Result<NamedPipeIo>>(4);
 
-    let accept_handle = tokio::spawn(async move {
-        if let Err(e) = accept_loop(pipe_name, server, tx).await {
-            log::error!("named pipe accept loop error: {e}");
-        }
-    });
+    let accept_handle = tokio::spawn(accept_loop(pipe_name, server, tx));
 
     let incoming = tokio_stream::wrappers::ReceiverStream::new(rx);
 
@@ -113,6 +109,17 @@ where
         .context("gRPC server error")?;
 
     accept_handle.abort();
+
+    // If the accept loop finished before we aborted it (i.e. it hit a fatal
+    // error and dropped the sender, which ended the incoming stream), surface
+    // that error instead of returning Ok.
+    match accept_handle.await {
+        Ok(Ok(())) => {}
+        Ok(Err(e)) => return Err(e).context("named pipe accept loop failed"),
+        Err(join_err) if join_err.is_cancelled() => {}
+        Err(join_err) => std::panic::resume_unwind(join_err.into_panic()),
+    }
+
     info!("gRPC server stopped");
     Ok(())
 }
