@@ -133,11 +133,11 @@ func (cr *Resolver) removeCacheEntry(cacheEntry *cgroupModel.CacheEntry) {
 	cr.deletedCgroups.Inc()
 }
 
-// syncOrDeleteCaheEntry uses the cgroupFS to check if the cgroup still contains pids.
+// syncOrDeleteCacheEntry uses the cgroupFS to check if the cgroup still contains pids.
 // If there is no pid left, or the only one being the one we want to delete,
 // remove the cgroup from the caches.
 // Otherwise, sync it with new values.
-func (cr *Resolver) syncOrDeleteCaheEntry(cacheEntry *cgroupModel.CacheEntry, deletedPid uint32) {
+func (cr *Resolver) syncOrDeleteCacheEntry(cacheEntry *cgroupModel.CacheEntry, deletedPid uint32) {
 	// check if the cgroup still contains pids
 	pids, err := cr.cgroupFS.GetCGroupPids(string(cacheEntry.GetCGroupID()))
 	if err != nil {
@@ -361,7 +361,7 @@ func (cr *Resolver) AddPID(pid uint32, ppid uint32, cgroupContext model.CGroupCo
 			// it means that the process has been migrated to a different cgroup.
 			if cacheEntry.RemovePID(pid) == 0 {
 				// try to sync the cgroup with the pid in order to detect the migration.
-				cr.syncOrDeleteCaheEntry(cacheEntry, pid)
+				cr.syncOrDeleteCacheEntry(cacheEntry, pid)
 			}
 		}
 
@@ -469,7 +469,7 @@ func (cr *Resolver) deleteCacheEntryPID(pid uint32, cacheEntry *cgroupModel.Cach
 
 	// check if the cacheEntry should be deleted
 	if cacheEntry.RemovePID(pid) == 0 {
-		cr.syncOrDeleteCaheEntry(cacheEntry, pid)
+		cr.syncOrDeleteCacheEntry(cacheEntry, pid)
 	}
 }
 
