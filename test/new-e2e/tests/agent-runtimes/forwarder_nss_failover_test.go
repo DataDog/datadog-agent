@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
@@ -113,7 +114,7 @@ func multiFakeIntakeAWS(agentOptions ...agentparams.Option) provisioners.Provisi
 			return err
 		}
 
-		host, err := ec2.NewVM(awsEnv, "nssfailover")
+		host, err := ec2.NewVM(awsEnv, "nssfailover", ec2.WithOS(os.Ubuntu2204Docker))
 		if err != nil {
 			return err
 		}

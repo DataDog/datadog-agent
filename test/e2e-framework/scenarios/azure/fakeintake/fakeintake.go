@@ -30,7 +30,12 @@ func NewVMInstance(e azure.Environment, option ...Option) (*fakeintake.Fakeintak
 		if err != nil {
 			return err
 		}
-		manager, err := docker.NewManager(&e, vm, pulumi.Parent(vm))
+		// Azure VMs have no pre-baked Docker image; install explicitly.
+		dockerInstall, err := vm.OS.PackageManager().Ensure("docker", nil, "docker", os.WithPulumiResourceOptions(pulumi.Parent(vm)))
+		if err != nil {
+			return err
+		}
+		manager, err := docker.NewManager(&e, vm, pulumi.Parent(vm), utils.PulumiDependsOn(dockerInstall))
 		if err != nil {
 			return err
 		}

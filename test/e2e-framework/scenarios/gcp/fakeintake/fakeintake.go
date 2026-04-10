@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/gcp"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/gcp/compute"
 )
@@ -31,7 +32,12 @@ func NewVMInstance(e gcp.Environment, option ...Option) (*fakeintake.Fakeintake,
 		if err != nil {
 			return err
 		}
-		manager, err := docker.NewManager(&e, vm, pulumi.Parent(vm))
+		// GCP VMs have no pre-baked Docker image; install explicitly.
+		dockerInstall, err := vm.OS.PackageManager().Ensure("docker", nil, "docker", os.WithPulumiResourceOptions(pulumi.Parent(vm)))
+		if err != nil {
+			return err
+		}
+		manager, err := docker.NewManager(&e, vm, pulumi.Parent(vm), utils.PulumiDependsOn(dockerInstall))
 		if err != nil {
 			return err
 		}
