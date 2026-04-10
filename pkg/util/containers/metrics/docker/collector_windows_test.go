@@ -10,7 +10,7 @@ package docker
 import (
 	"testing"
 
-	"github.com/docker/docker/api/types/container"
+	"github.com/moby/moby/api/types/container"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
@@ -138,20 +138,16 @@ func Test_computeCPULimit(t *testing.T) {
 		{
 			name: "No CPU Limit",
 			spec: &container.InspectResponse{
-				ContainerJSONBase: &container.ContainerJSONBase{
-					HostConfig: &container.HostConfig{},
-				},
+				HostConfig: &container.HostConfig{},
 			},
 			expectedLimit: 100 * float64(system.HostCPUCount()),
 		},
 		{
 			name: "Nano CPUs",
 			spec: &container.InspectResponse{
-				ContainerJSONBase: &container.ContainerJSONBase{
-					HostConfig: &container.HostConfig{
-						Resources: container.Resources{
-							NanoCPUs: 5000000000,
-						},
+				HostConfig: &container.HostConfig{
+					Resources: container.Resources{
+						NanoCPUs: 5000000000,
 					},
 				},
 			},
@@ -160,11 +156,9 @@ func Test_computeCPULimit(t *testing.T) {
 		{
 			name: "CPU Percent",
 			spec: &container.InspectResponse{
-				ContainerJSONBase: &container.ContainerJSONBase{
-					HostConfig: &container.HostConfig{
-						Resources: container.Resources{
-							CPUPercent: 50,
-						},
+				HostConfig: &container.HostConfig{
+					Resources: container.Resources{
+						CPUPercent: 50,
 					},
 				},
 			},
@@ -173,11 +167,9 @@ func Test_computeCPULimit(t *testing.T) {
 		{
 			name: "CPU Count",
 			spec: &container.InspectResponse{
-				ContainerJSONBase: &container.ContainerJSONBase{
-					HostConfig: &container.HostConfig{
-						Resources: container.Resources{
-							CPUCount: 2,
-						},
+				HostConfig: &container.HostConfig{
+					Resources: container.Resources{
+						CPUCount: 2,
 					},
 				},
 			},

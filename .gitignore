@@ -159,7 +159,7 @@ devenv/packer_cache
 test_output*.json
 module_test_output.json
 e2e_test_output.json
-e2e_test_output.json.*.part
+e2e_test_output*.json.*.part
 junit-out-AgentFlavor.base-*.xml
 
 # doxygen doc & error log

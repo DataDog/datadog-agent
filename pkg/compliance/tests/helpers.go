@@ -18,7 +18,7 @@ import (
 	"testing"
 	"text/template"
 
-	docker "github.com/docker/docker/client"
+	docker "github.com/moby/moby/client"
 
 	"github.com/stretchr/testify/assert"
 	"k8s.io/client-go/dynamic"

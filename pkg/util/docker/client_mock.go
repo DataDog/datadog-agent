@@ -12,9 +12,9 @@ import (
 	"time"
 
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/image"
-	"github.com/docker/docker/client"
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/image"
+	"github.com/moby/moby/client"
 )
 
 // MockClient is a mock implementation of docker.Client interface
@@ -38,7 +38,7 @@ func (d *MockClient) RawClient() *client.Client {
 }
 
 // RawContainerList is a mock method
-func (d *MockClient) RawContainerList(context.Context, container.ListOptions) ([]container.Summary, error) {
+func (d *MockClient) RawContainerList(context.Context, client.ContainerListOptions) ([]container.Summary, error) {
 	return d.FakeContainerList, d.FakeError
 }
 
