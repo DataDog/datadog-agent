@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "api",
+    srcs = [
+        "payload.go",
+        "weighted_queue.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/process/util/api",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/telemetry",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_gogo_protobuf//proto",
+    ],
+)
+
+go_test(
+    name = "api_test",
+    srcs = ["weighted_queue_test.go"],
+    embed = [":api"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

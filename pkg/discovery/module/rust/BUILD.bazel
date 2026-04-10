@@ -188,7 +188,7 @@ rust_test(
         # Optional deps needed when spring/jee features are enabled
         "@crates//:quick-xml",
         "@crates//:walkdir",
-        "@crates//:yaml-rust2",
+        "@crates//:saphyr-parser",
         "@crates//:zip",
     ],
 )
