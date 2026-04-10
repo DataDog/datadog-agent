@@ -123,7 +123,9 @@ const (
 	OffsetNameRtnlLinkOpsKind   = "rtnl_link_ops_kind_offset"
 
 	// Interpreter constants
-	OffsetNameLinuxBinprmStructFile = "binprm_file_offset"
+	OffsetNameLinuxBinprmStructFile     = "binprm_file_offset"
+	OffsetNameLinuxBinprmStructFilename = "linux_binprm_filename_offset"
+	OffsetNameLinuxBinprmStructInterp   = "linux_binprm_interp_offset"
 
 	// iouring constants
 	OffsetNameIoKiocbStructCtx = "iokiocb_ctx_offset"
