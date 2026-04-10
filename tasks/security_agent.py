@@ -2,13 +2,10 @@ from __future__ import annotations
 
 import datetime
 import errno
-import glob
 import json
 import os
-import re
 import shutil
 import sys
-import tempfile
 from subprocess import check_output
 
 from invoke.exceptions import Exit
@@ -19,13 +16,13 @@ import tasks.libs.cws.secl_doc_gen as secl_doc_gen
 from tasks.build_tags import get_default_build_tags
 from tasks.flavor import AgentFlavor
 from tasks.go import run_golangci_lint
+from tasks.libs.build.bazel import BazelTools
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.common.git import get_commit_sha, get_common_ancestor, get_current_branch
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
-    environ,
     get_build_flags,
     get_go_version,
     get_version,
@@ -309,8 +306,6 @@ def build_functional_tests(
     static=False,
     skip_linters=False,
     race=False,
-    kernel_release=None,
-    debug=False,
     skip_object_files=False,
     syscall_tester_compiler='clang',
 ):
@@ -319,9 +314,6 @@ def build_functional_tests(
             build_cws_object_files(
                 ctx,
                 arch=arch,
-                kernel_release=kernel_release,
-                debug=debug,
-                bundle_ebpf=bundle_ebpf,
             )
         build_embed_syscall_tester(
             ctx,
@@ -399,7 +391,6 @@ def functional_tests(
     bundle_ebpf=True,
     testflags='',
     skip_linters=False,
-    kernel_release=None,
 ):
     build_functional_tests(
         ctx,
@@ -407,7 +398,6 @@ def functional_tests(
         bundle_ebpf=bundle_ebpf,
         skip_linters=skip_linters,
         race=race,
-        kernel_release=kernel_release,
     )
 
     run_functional_tests(
@@ -428,7 +418,6 @@ def ebpfless_functional_tests(
     bundle_ebpf=True,
     testflags='',
     skip_linters=False,
-    kernel_release=None,
 ):
     build_functional_tests(
         ctx,
@@ -436,7 +425,6 @@ def ebpfless_functional_tests(
         bundle_ebpf=bundle_ebpf,
         skip_linters=skip_linters,
         race=race,
-        kernel_release=kernel_release,
     )
 
     run_ebpfless_functional_tests(
@@ -456,7 +444,6 @@ def docker_functional_tests(
     testflags='',
     bundle_ebpf=True,
     skip_linters=False,
-    kernel_release=None,
 ):
     build_functional_tests(
         ctx,
@@ -465,7 +452,6 @@ def docker_functional_tests(
         static=True,
         skip_linters=skip_linters,
         race=race,
-        kernel_release=kernel_release,
     )
 
     image_tag = "ghcr.io/datadog/apps-cws-centos7:main"
@@ -650,35 +636,20 @@ def split_btfhub_constants(ctx):
 
 @task
 def generate_cws_proto(ctx):
-    with tempfile.TemporaryDirectory() as temp_gobin:
-        with environ({"GOBIN": temp_gobin}):
-            ctx.run("go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.3")
-            ctx.run("go install github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto@v0.6.0")
-            ctx.run("go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1")
+    bt = BazelTools(ctx)
+    plugin_opts = " ".join(
+        [
+            bt.protoc_plugin("protoc-gen-go"),
+            bt.protoc_plugin("protoc-gen-go-grpc"),
+            bt.protoc_plugin("protoc-gen-go-vtproto"),
+        ]
+    )
 
-            plugin_opts = " ".join(
-                [
-                    f"--plugin protoc-gen-go=\"{temp_gobin}/protoc-gen-go\"",
-                    f"--plugin protoc-gen-go-grpc=\"{temp_gobin}/protoc-gen-go-grpc\"",
-                    f"--plugin protoc-gen-go-vtproto=\"{temp_gobin}/protoc-gen-go-vtproto\"",
-                ]
-            )
-
-            # API
-            ctx.run(
-                f"protoc -I. {plugin_opts} --go_out=paths=source_relative:. --go-vtproto_out=. --go-vtproto_opt=features=marshal+unmarshal+size --go-grpc_out=paths=source_relative:. pkg/security/proto/api/api.proto"
-            )
-
-    security_files = glob.glob("pkg/security/**/*.pb.go", recursive=True)
-    for path in security_files:
-        print(f"replacing protoc version in {path}")
-        with open(path) as f:
-            content = f.read()
-
-        replaced_content = re.sub(r"\/\/\s*protoc\s*v\d+\.\d+\.\d+", "//  protoc", content)
-        replaced_content = re.sub(r"\/\/\s*-\s+protoc\s*v\d+\.\d+\.\d+", "// - protoc", replaced_content)
-        with open(path, "w") as f:
-            f.write(replaced_content)
+    # API
+    ctx.run(
+        f"{bt.protoc} {plugin_opts} -I. -Ipkg/proto/protodep --go_out=paths=source_relative:. --go-vtproto_out=. --go-vtproto_opt=features=marshal+unmarshal+size --go-grpc_out=paths=source_relative:. pkg/security/proto/api/api.proto"
+    )
+    # no need to strip protoc version from headers: hermetic tools guarantee it's identical on all execution platforms
 
 
 def get_git_dirty_files():
@@ -756,7 +727,6 @@ def e2e_prepare_win(ctx):
         ctx,
         bundle_ebpf=False,
         race=False,
-        debug=True,
         output=testsuite_out_path,
         skip_linters=True,
     )
@@ -770,14 +740,13 @@ def e2e_prepare_win(ctx):
         srcpath=srcpath,
         bundle_ebpf=False,
         race=False,
-        debug=True,
         skip_linters=True,
     )
 
 
 @task
 def run_ebpf_unit_tests(ctx, verbose=False, trace=False, testflags=''):
-    build_cws_object_files(ctx, kernel_release=None, with_unit_test=True, bundle_ebpf=True, arch=CURRENT_ARCH)
+    build_cws_object_files(ctx, with_unit_test=True, arch=CURRENT_ARCH)
 
     env = {"CGO_ENABLED": "1"}
 

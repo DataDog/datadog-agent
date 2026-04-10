@@ -357,6 +357,95 @@ func TestDBMAuroraListener(t *testing.T) {
 				},
 			},
 		},
+		{
+			// When an instance's non-hashed fields change (DbmEnabled, DbName,
+			// GlobalViewDb), the listener should detect the change and emit a
+			// delete + re-create so autodiscovery picks up the new configuration.
+			name: "changed non-hashed instance fields are picked up on rediscovery",
+			config: aws.Config{
+				DiscoveryInterval: 1,
+				Region:            "us-east-1",
+				Tags:              []string{defaultADTag},
+				DbmTag:            defaultDbmTag,
+			},
+			numDiscoveryIntervals: 0,
+			initialServices: map[string]Service{
+				"f7fee36c58e3da8a": &DBMAuroraService{
+					adIdentifier: dbmPostgresAuroraADIdentifier,
+					entityID:     "f7fee36c58e3da8a",
+					checkName:    "postgres",
+					clusterID:    "my-cluster-1",
+					region:       "us-east-1",
+					instance: &aws.Instance{
+						Endpoint:   "my-endpoint",
+						Port:       5432,
+						IamEnabled: true,
+						Engine:     "aurora-postgresql",
+						DbmEnabled: true,
+						DbName:     "",
+					},
+				},
+			},
+			rdsClientConfigurer: func(k *aws.MockRdsClient) {
+				k.EXPECT().GetAuroraClustersFromTags(gomock.Any(), []string{defaultADTag}).Return([]string{"my-cluster-1"}, nil).AnyTimes()
+				k.EXPECT().GetAuroraClusterEndpoints(gomock.Any(), []string{"my-cluster-1"}, aws.Config{
+					DiscoveryInterval: 1,
+					Region:            "us-east-1",
+					Tags:              []string{defaultADTag},
+					DbmTag:            defaultDbmTag,
+				}).Return(
+					map[string]*aws.AuroraCluster{
+						"my-cluster-1": {
+							Instances: []*aws.Instance{
+								{
+									Endpoint:   "my-endpoint",
+									Port:       5432,
+									IamEnabled: true,
+									Engine:     "aurora-postgresql",
+									DbmEnabled: false,
+									DbName:     "mydb",
+								},
+							},
+						},
+					}, nil).AnyTimes()
+			},
+			// Only the updated service should be emitted as new
+			expectedServices: []*DBMAuroraService{
+				{
+					adIdentifier: dbmPostgresAuroraADIdentifier,
+					entityID:     "f7fee36c58e3da8a",
+					checkName:    "postgres",
+					clusterID:    "my-cluster-1",
+					region:       "us-east-1",
+					instance: &aws.Instance{
+						Endpoint:   "my-endpoint",
+						Port:       5432,
+						IamEnabled: true,
+						Engine:     "aurora-postgresql",
+						DbmEnabled: false,
+						DbName:     "mydb",
+					},
+				},
+			},
+			// The original service should be deleted
+			expectedDelServices: []*DBMAuroraService{
+				{
+					adIdentifier: dbmPostgresAuroraADIdentifier,
+					entityID:     "f7fee36c58e3da8a",
+					checkName:    "postgres",
+					clusterID:    "my-cluster-1",
+					region:       "us-east-1",
+					instance: &aws.Instance{
+						Endpoint:   "my-endpoint",
+						Port:       5432,
+						IamEnabled: true,
+						Engine:     "aurora-postgresql",
+						DbmEnabled: true,
+						DbName:     "",
+					},
+				},
+			},
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
