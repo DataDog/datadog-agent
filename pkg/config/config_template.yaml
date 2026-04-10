@@ -1114,13 +1114,23 @@ api_key:
 #   # @param processing_rules - list of custom objects - optional - default: []
 #   # @env DD_LOGS_CONFIG_PROCESSING_RULES - list of custom objects - optional - default: "[]"
 #   # Global processing rules that are applied to all logs. The available rules are
-#   # "exclude_at_match", "include_at_match" and "mask_sequences". More information in Datadog documentation:
+#   # "exclude_at_match", "include_at_match", "mask_sequences", "multi_line",
+#   # "exclude_truncated", and "local_processing_only". More information in Datadog documentation:
 #   # https://docs.datadoghq.com/agent/logs/advanced_log_collection/#global-processing-rules
 #
 #   processing_rules:
+#     # Pattern-based rules (exclude_at_match, include_at_match, mask_sequences, multi_line):
 #     - type: <RULE_TYPE>
 #       name: <RULE_NAME>
 #       pattern: <RULE_PATTERN>
+#
+#     # local_processing_only: logs from matching services are observed locally but
+#     # never forwarded to the Datadog backend.
+#     - type: local_processing_only
+#       name: <RULE_NAME>
+#       match:
+#         services:
+#           - <SERVICE_NAME>
 
 #   # @param auto_multi_line_detection - boolean - optional - default: false
 #   # @env DD_LOGS_CONFIG_AUTO_MULTI_LINE_DETECTION - boolean - optional - default: false
