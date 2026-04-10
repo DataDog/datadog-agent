@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 )
 
-// Transport is the transport used by logs-agent, i.e TCP or HTTP
+// Transport is the transport used by logs-agent, i.e TCP, HTTP, or gRPC
 type Transport string
 
 const (
@@ -26,6 +26,8 @@ const (
 	TransportHTTP Transport = "HTTP"
 	// TransportTCP indicates logs-agent is using TCP transport
 	TransportTCP Transport = "TCP"
+	// TransportGRPC indicates logs-agent is using gRPC transport
+	TransportGRPC Transport = "gRPC"
 
 	// StatusNotStarted means that the logs agent is not started
 	StatusNotStarted = 0
@@ -44,7 +46,7 @@ var (
 	warnings *config.Messages
 	errors   *config.Messages
 
-	// currentTransport is the current transport used by logs-agent, i.e TCP or HTTP
+	// currentTransport is the current transport used by logs-agent, i.e TCP, HTTP, or gRPC
 	currentTransport Transport
 )
 
@@ -82,6 +84,7 @@ type Status struct {
 	Errors           []string          `json:"errors"`
 	Warnings         []string          `json:"warnings"`
 	UseHTTP          bool              `json:"use_http"`
+	Transport        string            `json:"transport"`
 }
 
 // SetCurrentTransport sets the current transport used by the log agent.
