@@ -218,8 +218,8 @@ require (
 	github.com/cyphar/filepath-securejoin v0.6.0
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/distribution/reference v0.6.0
-	github.com/docker/docker v28.5.2+incompatible
-	github.com/docker/go-connections v0.6.0
+	github.com/docker/docker v28.5.2+incompatible // indirect
+	github.com/docker/go-connections v0.6.0 // indirect
 	github.com/dustin/go-humanize v1.0.1
 	github.com/elastic/go-libaudit/v2 v2.6.2
 	github.com/elastic/go-seccomp-bpf v1.6.0
@@ -688,7 +688,6 @@ require (
 	github.com/moby/docker-image-spec v1.3.1
 	github.com/moby/locker v1.0.1 // indirect
 	github.com/moby/spdystream v0.5.0 // indirect
-	github.com/moby/sys/atomicwriter v0.1.0 // indirect
 	github.com/moby/sys/sequential v0.6.0 // indirect
 	github.com/moby/sys/signal v0.7.1 // indirect
 	github.com/moby/sys/user v0.4.0 // indirect
@@ -997,6 +996,8 @@ require (
 	github.com/hashicorp/vault/api/auth/userpass v0.11.0
 	github.com/jarcoal/httpmock v1.4.1
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c
+	github.com/moby/moby/api v1.54.1
+	github.com/moby/moby/client v0.4.0
 	github.com/modelcontextprotocol/go-sdk v1.4.1
 	github.com/qri-io/jsonpointer v0.1.1
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
@@ -1165,8 +1166,6 @@ require (
 	github.com/mattn/go-zglob v0.0.2-0.20191112051448-a8912a37f9e7 // indirect
 	github.com/minio/simdjson-go v0.4.5 // indirect
 	github.com/mitchellh/pointerstructure v1.2.1 // indirect
-	github.com/moby/moby/api v1.52.0 // indirect
-	github.com/moby/moby/client v0.2.1 // indirect
 	github.com/montanaflynn/stats v0.7.1 // indirect
 	github.com/nexus-rpc/sdk-go v0.5.1 // indirect
 	github.com/nicolai86/scaleway-sdk v1.10.2-0.20180628010248-798f60e20bb2 // indirect
@@ -1234,8 +1233,12 @@ replace github.com/hashicorp/vault/api/auth/aws => github.com/DataDog/vault/api/
 
 // Use custom Trivy fork to reduce binary size
 // Pull in replacements needed by upstream Trivy
-// Maps to Trivy fork https://github.com/DataDog/trivy/commits/djc/main-dd-060-no-buildinfo
-replace github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20251216175138-81422df93657
+// Maps to Trivy fork https://github.com/DataDog/trivy/pull/32
+replace github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20260407220859-6cf8ddc1826c
+
+// github.com/docker/docker v28 has known security vulnerabilities (CVE-2026-34040, CVE-2026-33997).
+// Pin to the 28.x branch head which includes the backported security fixes (not yet tagged).
+replace github.com/docker/docker => github.com/docker/docker v28.5.3-0.20260325154711-31a1689cb0a1+incompatible
 
 // Prevent dependencies to be bumped by Trivy
 // github.com/DataDog/aptly@v1.5.3 depends on gopenpgp/v2, so we use latest version of go-crypto before the move to gopenpgp/v3
