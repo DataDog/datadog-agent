@@ -70,23 +70,23 @@ func UnsupportedFieldIDsForMode(t *testing.T, archSpec ArchitectureSpec, mode De
 }
 
 // BuildMockOptionsForArchAndMode creates canonical NVML mock options from spec capabilities.
-func BuildMockOptionsForArchAndMode(t *testing.T, archName string, mode DeviceMode, archSpec ArchitectureSpec) []testutil.NvmlMockOption {
+func BuildMockOptionsForConfig(t *testing.T, config GPUConfig, archSpec ArchitectureSpec) []testutil.NvmlMockOption {
 	t.Helper()
 
-	testMode := testutil.DeviceFeatureMode(mode)
+	testMode := testutil.DeviceFeatureMode(config.DeviceMode)
 	caps := testutil.Capabilities{
 		GPM:               archSpec.Capabilities.GPM,
-		UnsupportedFields: UnsupportedFieldIDsForMode(t, archSpec, mode),
+		UnsupportedFields: UnsupportedFieldIDsForMode(t, archSpec, config.DeviceMode),
 	}
 	opts := []testutil.NvmlMockOption{
-		testutil.WithArchitecture(archName),
+		testutil.WithArchitecture(config.Architecture),
 		testutil.WithCapabilities(caps),
 		testutil.WithMockAllFunctions(),
 		testutil.WithDeviceCount(1),
 		testutil.WithDeviceFeatureMode(testMode),
 	}
 
-	if mode == DeviceModeMIG {
+	if config.DeviceMode == DeviceModeMIG {
 		opts = append(opts, testutil.WithMIGChildCount(1))
 	} else {
 		opts = append(opts, testutil.WithMIGDisabled())
@@ -109,4 +109,3 @@ func AllConfiguredNVMLFieldValues() []nvml.FieldValue {
 	}
 	return values
 }
-

@@ -77,75 +77,59 @@ func (c *metricsClient) runScalarQueries(queries []datadogV2.ScalarQuery, fromTS
 }
 
 func splitScalarColumns(columns []datadogV2.ScalarColumn) ([]scalarResult, error) {
-	var results []scalarResult
+	var dataCols []*datadogV2.DataScalarColumn
+	var groupCols []*datadogV2.GroupScalarColumn
 	numResults := 0
 
 	for _, column := range columns {
 		if column.DataScalarColumn != nil {
-			if results == nil {
-				numResults = len(column.DataScalarColumn.GetValues())
-				results = make([]scalarResult, numResults)
-				for idx := range results {
-					results[idx] = scalarResult{
-						tags:   map[string]string{},
-						values: map[string]*float64{},
-					}
-				}
-			}
-
-			for idx, value := range column.DataScalarColumn.GetValues() {
-				if idx >= numResults {
-					return nil, fmt.Errorf("query scalar data returned unexpected number of results, expected %d but got %d", numResults, idx+1)
-				}
-
-				if value != nil {
-					valueCopy := *value
-					results[idx].values[column.DataScalarColumn.GetName()] = &valueCopy
-				}
-			}
+			dataCols = append(dataCols, column.DataScalarColumn)
+			numResults = max(numResults, len(column.DataScalarColumn.GetValues()))
 		} else if column.GroupScalarColumn != nil {
-			if results == nil {
-				numResults = len(column.GroupScalarColumn.GetValues())
-				results = make([]scalarResult, numResults)
-				for idx := range results {
-					results[idx] = scalarResult{
-						tags:   map[string]string{},
-						values: map[string]*float64{},
-					}
-				}
+			groupCols = append(groupCols, column.GroupScalarColumn)
+			numResults = max(numResults, len(column.GroupScalarColumn.GetValues()))
+		}
+	}
+
+	results := make([]scalarResult, numResults)
+	for idx := range results {
+		results[idx] = scalarResult{
+			tags:   map[string]string{},
+			values: map[string]*float64{},
+		}
+	}
+
+	for _, column := range dataCols {
+		for idx, value := range column.GetValues() {
+			if idx >= numResults {
+				return nil, fmt.Errorf("query scalar data returned unexpected number of results, expected %d but got %d", numResults, idx+1)
 			}
 
-			for idx, tags := range column.GroupScalarColumn.GetValues() {
-				if idx >= numResults {
-					return nil, fmt.Errorf("query scalar data returned unexpected number of results, expected %d but got %d", numResults, idx+1)
-				}
-
-				if tags != nil {
-					results[idx].tags[column.GroupScalarColumn.GetName()] = strings.Join(tags, ",")
-				}
+			if value != nil {
+				results[idx].values[column.GetName()] = value
 			}
-		} else {
-			return nil, fmt.Errorf("query scalar data returned unexpected column type: %T", column)
+		}
+	}
+
+	for _, column := range groupCols {
+		for idx, tags := range column.GetValues() {
+			if idx >= numResults {
+				return nil, fmt.Errorf("query scalar data returned unexpected number of results, expected %d but got %d", numResults, idx+1)
+			}
+
+			if tags != nil {
+				results[idx].tags[column.GetName()] = strings.Join(tags, ",")
+			}
 		}
 	}
 
 	return results, nil
 }
 
-func normalizeDeviceMode(slicingMode, virtualizationMode string) string {
-	if strings.EqualFold(slicingMode, "mig") {
-		return "mig"
-	}
-	if strings.EqualFold(virtualizationMode, "vgpu") {
-		return "vgpu"
-	}
-	return "physical"
-}
-
-func (c *metricsClient) queryDeviceCount(config gpuConfig, fromTS, toTS int64) (int, error) {
+func (c *metricsClient) queryDeviceCount(config gpuspec.GPUConfig, fromTS, toTS int64) (int, error) {
 	columns, err := c.runScalarQueries(
 		[]datadogV2.ScalarQuery{
-			buildScalarQuery("q0", fmt.Sprintf("avg:gpu.device.total{%s} by {gpu_uuid}", config.tagFilter())),
+			buildScalarQuery("q0", fmt.Sprintf("avg:gpu.device.total{%s} by {gpu_uuid}", config.TagFilter())),
 		},
 		fromTS,
 		toTS,
@@ -155,44 +139,6 @@ func (c *metricsClient) queryDeviceCount(config gpuConfig, fromTS, toTS int64) (
 	}
 
 	return len(columns), nil
-}
-
-func (c *metricsClient) discoverLiveGPUConfigs(fromTS, toTS int64) ([]gpuConfig, error) {
-	deviceTotalQuery := "q0"
-	columns, err := c.runScalarQueries(
-		[]datadogV2.ScalarQuery{
-			buildScalarQuery(deviceTotalQuery, fmt.Sprintf("avg:gpu.device.total{%s} by {gpu_architecture,gpu_slicing_mode,gpu_virtualization_mode}", strings.Join(baseTagFilterParts(), ","))),
-		},
-		fromTS,
-		toTS,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("discover live gpu configs: %w", err)
-	}
-
-	var configs []gpuConfig
-	for _, result := range columns {
-		value, found := result.values[deviceTotalQuery]
-		if !found || value == nil || *value <= 0 {
-			continue
-		}
-
-		arch := result.tags["gpu_architecture"]
-		slicingMode := result.tags["gpu_slicing_mode"]
-		virtualizationMode := result.tags["gpu_virtualization_mode"]
-
-		if isNullishGroupValue(arch) {
-			continue
-		}
-
-		configs = append(configs, gpuConfig{
-			Architecture: arch,
-			DeviceMode:   gpuspecDeviceMode(normalizeDeviceMode(slicingMode, virtualizationMode)),
-			IsKnown:      false,
-		})
-	}
-
-	return configs, nil
 }
 
 func (c *metricsClient) queryExpectedMetricPresenceForGPUConfig(metricName string, expectedTags map[string]struct{}, queryFilter string, fromTS, toTS int64) ([]gpuspec.MetricObservation, error) {
@@ -233,64 +179,36 @@ func (c *metricsClient) queryExpectedMetricPresenceForGPUConfig(metricName strin
 	return observations, nil
 }
 
-func (c *metricsClient) listObservedGPUMetricsForGPUConfig(config gpuConfig, lookbackSeconds int64, metricPrefix string) (map[string]struct{}, error) {
+func (c *metricsClient) listObservedGPUMetricsForGPUConfig(config gpuspec.GPUConfig, lookbackSeconds int64, metricPrefix string) (map[string]struct{}, error) {
 	metrics := map[string]struct{}{}
-	pageCursor := ""
+	options := datadogV2.NewListTagConfigurationsOptionalParameters().
+		WithFilterTags(config.TagFilter()).
+		WithFilterQueried(true).
+		WithWindowSeconds(max(lookbackSeconds, int64(3600))).
+		WithPageSize(1000) // we don't have that many metrics, no need to paginate
 
-	for {
-		options := datadogV2.NewListTagConfigurationsOptionalParameters().
-			WithFilterTags(config.filterExpression()).
-			WithFilterQueried(true).
-			WithWindowSeconds(max(lookbackSeconds, int64(3600))).
-			WithPageSize(1000)
-		if pageCursor != "" {
-			options.WithPageCursor(pageCursor)
-		}
+	response, httpResp, err := c.api.ListTagConfigurations(c.ctx, *options)
+	if httpResp != nil && httpResp.Body != nil {
+		_ = httpResp.Body.Close()
+	}
+	if err != nil {
+		return nil, fmt.Errorf("list tag configurations for %+v: %w", config, err)
+	}
 
-		response, httpResp, err := c.api.ListTagConfigurations(c.ctx, *options)
-		if httpResp != nil && httpResp.Body != nil {
-			_ = httpResp.Body.Close()
+	for _, item := range response.Data {
+		metricName := ""
+		switch {
+		case item.Metric != nil:
+			metricName = item.Metric.GetId()
+		case item.MetricTagConfiguration != nil:
+			metricName = item.MetricTagConfiguration.GetId()
 		}
-		if err != nil {
-			return nil, fmt.Errorf("list tag configurations for %s/%s: %w", config.Architecture, config.DeviceMode, err)
-		}
-
-		for _, item := range response.Data {
-			metricName := ""
-			switch {
-			case item.Metric != nil:
-				metricName = item.Metric.GetId()
-			case item.MetricTagConfiguration != nil:
-				metricName = item.MetricTagConfiguration.GetId()
-			}
-			if strings.HasPrefix(metricName, metricPrefix+".") {
-				metrics[strings.TrimPrefix(metricName, metricPrefix+".")] = struct{}{}
-			}
-		}
-
-		pageCursor = ""
-		if response.Meta != nil && response.Meta.Pagination != nil && response.Meta.Pagination.NextCursor.IsSet() {
-			if nextCursor := response.Meta.Pagination.NextCursor.Get(); nextCursor != nil {
-				pageCursor = strings.TrimSpace(*nextCursor)
-			}
-		}
-		if pageCursor == "" {
-			break
+		if strings.HasPrefix(metricName, metricPrefix+".") {
+			metrics[strings.TrimPrefix(metricName, metricPrefix+".")] = struct{}{}
 		}
 	}
 
 	return metrics, nil
-}
-
-func gpuspecDeviceMode(value string) gpuspec.DeviceMode {
-	switch value {
-	case "mig":
-		return gpuspec.DeviceModeMIG
-	case "vgpu":
-		return gpuspec.DeviceModeVGPU
-	default:
-		return gpuspec.DeviceModePhysical
-	}
 }
 
 func isNullishGroupValue(value string) bool {

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"strings"
 )
@@ -26,19 +27,16 @@ func main() {
 
 	apiKey, appKey, err := authKeysFromEnv()
 	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "gpu metrics validation failed: %v\n", err)
-		os.Exit(1)
+		log.Fatalf("gpu metrics validation failed: %v", err)
 	}
 
 	results, err := computeValidation(apiKey, appKey, site, lookbackSeconds)
 	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "gpu metrics validation failed: %v\n", err)
-		os.Exit(1)
+		log.Fatalf("gpu metrics validation failed: %v", err)
 	}
 
 	if err := writeResults(results, outputFile); err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "gpu metrics validation failed: %v\n", err)
-		os.Exit(1)
+		log.Fatalf("gpu metrics validation failed: %v", err)
 	}
 }
 

@@ -16,6 +16,37 @@ type GPUConfig struct {
 	DeviceMode   DeviceMode
 }
 
+// Equals checks if two GPU configs are equal.
+func (c *GPUConfig) Equals(other GPUConfig) bool {
+	return c.Architecture == other.Architecture && c.DeviceMode == other.DeviceMode
+}
+
+// TagFilter returns the Datadog tag filter expression for a GPU config.
+func (c *GPUConfig) TagFilter() string {
+	// kube_cluster_name:* is required to exclude hosts that are not part of the standard clusters (e.g., workspaces)
+	parts := []string{"kube_cluster_name:*", "gpu_architecture:" + c.Architecture}
+	switch c.DeviceMode {
+	case DeviceModeMIG:
+		parts = append(parts, "gpu_slicing_mode:mig")
+	case DeviceModeVGPU:
+		parts = append(parts, "gpu_virtualization_mode:*vgpu")
+	default:
+		parts = append(parts, "NOT gpu_virtualization_mode:*vgpu", "NOT gpu_slicing_mode:mig")
+	}
+
+	return strings.Join(parts, " AND ")
+}
+
+func NewGPUConfigFromTags(architecture, slicingMode, virtualizationMode string) GPUConfig {
+	deviceMode := DeviceModePhysical
+	if slicingMode == "mig" {
+		deviceMode = DeviceModeMIG
+	} else if virtualizationMode == "vgpu" {
+		deviceMode = DeviceModeVGPU
+	}
+	return GPUConfig{Architecture: architecture, DeviceMode: deviceMode}
+}
+
 // MetricObservation is the normalized observation used by shared validation.
 type MetricObservation struct {
 	Name string
@@ -44,6 +75,52 @@ type TagSummary struct {
 // ValidationResult holds validation failures derived from spec expectations.
 type ValidationResult struct {
 	Metrics map[string]*MetricStatus `json:"metrics"`
+}
+
+// ValidationSummary holds aggregate counts derived from a ValidationResult.
+type ValidationSummary struct {
+	MissingMetrics int
+	UnknownMetrics int
+	TagFailures    int
+	PresentMetrics int
+}
+
+// Summarize returns aggregate counts from the validation result.
+func (r *ValidationResult) Summarize() ValidationSummary {
+	var s ValidationSummary
+	for _, status := range r.Metrics {
+		hasTagFailure := false
+		for _, tagResult := range status.TagResults {
+			if tagResult.Missing > 0 || tagResult.Unknown > 0 || tagResult.InvalidValue > 0 {
+				hasTagFailure = true
+				break
+			}
+		}
+		if hasTagFailure {
+			s.TagFailures++
+		}
+
+		isMissing := false
+		for _, err := range status.Errors {
+			switch err {
+			case ErrorMissing:
+				s.MissingMetrics++
+				isMissing = true
+			case ErrorUnknown, ErrorUnsupported:
+				s.UnknownMetrics++
+			}
+		}
+		if !isMissing {
+			s.PresentMetrics++
+		}
+	}
+	return s
+}
+
+// HasFailures returns true when the result contains any missing, unknown, or tag-level failures.
+func (r *ValidationResult) HasFailures() bool {
+	s := r.Summarize()
+	return s.MissingMetrics+s.UnknownMetrics+s.TagFailures > 0
 }
 
 func (r *ValidationResult) getMetricStatus(metricName string) *MetricStatus {
@@ -82,15 +159,11 @@ func KnownGPUConfigs(architectures *ArchitecturesSpec) []GPUConfig {
 	return configs
 }
 
-// ExpectedMetricsForConfig returns the spec metric names expected for an architecture + mode.
-func ExpectedMetricsForConfig(metricsSpec *MetricsSpec, arch string, mode DeviceMode) map[string]MetricSpec {
+// ExpectedMetricsForConfig returns the spec metric names expected for a GPU config.
+func ExpectedMetricsForConfig(metricsSpec *MetricsSpec, config GPUConfig) map[string]MetricSpec {
 	expected := make(map[string]MetricSpec)
-	if metricsSpec == nil {
-		return expected
-	}
-
 	for metricName, metricSpec := range metricsSpec.Metrics {
-		if !metricSpec.SupportsArchitecture(arch) || !metricSpec.SupportsDeviceMode(mode) {
+		if !metricSpec.SupportsConfig(config) {
 			continue
 		}
 		expected[metricName] = metricSpec
@@ -110,15 +183,6 @@ func PrefixedMetricName(metricsSpec *MetricsSpec, metricName string) string {
 	}
 
 	return metricsSpec.MetricPrefix + "." + metricName
-}
-
-// UnprefixedMetricName strips the spec metric prefix from an emitted metric name.
-func UnprefixedMetricName(metricsSpec *MetricsSpec, metricName string) string {
-	if metricsSpec == nil || metricsSpec.MetricPrefix == "" {
-		return metricName
-	}
-
-	return strings.TrimPrefix(metricName, metricsSpec.MetricPrefix+".")
 }
 
 // TagsToKeyValues converts Datadog-style tags to a key -> values map.
@@ -174,12 +238,12 @@ func RequiredTagsByMetric(metricsSpec *MetricsSpec, metrics map[string]MetricSpe
 
 // ValidateMetricTagsAgainstSpec validates emitted tags against the spec for a metric.
 // If knownTagValues is provided, matching keys are additionally checked for exact values.
-func ValidateMetricTagsAgainstSpec(spec *MetricsSpec, metricName string, metricSpec MetricSpec, metricSamples []MetricObservation, knownTagValues map[string]string) (map[string]*TagSummary, error) {
+func ValidateMetricTagsAgainstSpec(spec *MetricsSpec, metricSpec MetricSpec, metricSamples []MetricObservation, knownTagValues map[string]string) (map[string]*TagSummary, error) {
 	tagResults := make(map[string]*TagSummary)
 
 	requiredTags, err := RequiredTagsForMetric(spec, metricSpec)
 	if err != nil {
-		return nil, fmt.Errorf("required tags for %s: %w", metricName, err)
+		return nil, fmt.Errorf("required tags failed: %w", err)
 	}
 
 	getTagSummary := func(tag string) *TagSummary {
@@ -223,7 +287,8 @@ func ValidateMetricTagsAgainstSpec(spec *MetricsSpec, metricName string, metricS
 	return tagResults, nil
 }
 
-func ValidateEmittedMetricsAgainstSpec(metricsSpec *MetricsSpec, archName string, mode DeviceMode, emittedMetrics map[string][]MetricObservation, knownTagValues map[string]string) (ValidationResult, error) {
+// ValidateEmittedMetricsAgainstSpec validates emitted metrics against the spec for a given GPU config.
+func ValidateEmittedMetricsAgainstSpec(metricsSpec *MetricsSpec, config GPUConfig, emittedMetrics map[string][]MetricObservation, knownTagValues map[string]string) (ValidationResult, error) {
 	results := ValidationResult{
 		Metrics: make(map[string]*MetricStatus),
 	}
@@ -235,22 +300,19 @@ func ValidateEmittedMetricsAgainstSpec(metricsSpec *MetricsSpec, archName string
 			continue
 		}
 
-		if !metricSpec.SupportsArchitecture(archName) || !metricSpec.SupportsDeviceMode(mode) {
+		if !metricSpec.SupportsConfig(config) {
 			results.addError(metricName, ErrorUnsupported)
 		}
 	}
 
-	for metricName, metricSpec := range metricsSpec.Metrics {
-		if !metricSpec.SupportsArchitecture(archName) || !metricSpec.SupportsDeviceMode(mode) {
-			continue
-		}
-
+	expectedMetrics := ExpectedMetricsForConfig(metricsSpec, config)
+	for metricName, metricSpec := range expectedMetrics {
 		if _, found := emittedMetrics[metricName]; !found {
 			results.addError(metricName, ErrorMissing)
 			continue
 		}
 
-		tagResults, err := ValidateMetricTagsAgainstSpec(metricsSpec, metricName, metricSpec, emittedMetrics[metricName], knownTagValues)
+		tagResults, err := ValidateMetricTagsAgainstSpec(metricsSpec, metricSpec, emittedMetrics[metricName], knownTagValues)
 		if err != nil {
 			return results, fmt.Errorf("validate metric tags for %s: %w", metricName, err)
 		}
