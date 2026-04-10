@@ -43,11 +43,11 @@ func TestBuildTagSetExcludesDualSendUUID(t *testing.T) {
 	assert.True(t, strings.Contains(allTags, "hostname:hostname"))
 	assert.True(t, strings.Contains(allTags, "service:service"))
 	assert.True(t, strings.Contains(allTags, "ddsource:source"))
-	assert.True(t, strings.Contains(allTags, "status:info"))
+	assert.False(t, strings.Contains(allTags, "status:"), "status should not be in tag set, it is sent separately")
 }
 
 func TestBuildStructuredLogSetsUUID(t *testing.T) {
-	datum := buildStructuredLog(123, 456, nil, nil, "uuid-123", nil, 0, nil)
+	datum := buildStructuredLog(123, 456, nil, nil, "uuid-123", nil, 0, nil, nil)
 
 	require.NotNil(t, datum.GetLogs())
 	assert.Equal(t, "uuid-123", datum.GetLogs().GetUuid())

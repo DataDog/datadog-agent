@@ -61,10 +61,11 @@ type batchStrategy struct {
 	grpcDatums []*statefulpb.Datum
 
 	// Delta encoding state - tracks previous values within current batch
-	lastTimestamp              int64  // milliseconds since epoch
-	lastPatternID              uint64 // pattern identifier
-	lastTagsDictIndex          uint64 // dictionary index of tag string
-	lastMessageKeyDictIndex    uint64 // dictionary index of json_message_key
+	lastTimestamp           int64  // milliseconds since epoch
+	lastPatternID           uint64 // pattern identifier
+	lastTagsDictIndex       uint64 // dictionary index of tag string
+	lastMessageKeyDictIndex uint64 // dictionary index of json_message_key
+	lastStatusDictIndex     uint64 // dictionary index of status string
 
 	// Telemetry
 	pipelineMonitor metrics.PipelineMonitor
@@ -233,6 +234,17 @@ func (s *batchStrategy) applyDeltaEncoding(logDatum *statefulpb.Log) {
 			}
 		}
 	}
+
+	// Status delta encoding (omit when unchanged from previous log)
+	if status := logDatum.Status; status != nil {
+		if dictIndex := status.GetDictIndex(); dictIndex != 0 {
+			if dictIndex == s.lastStatusDictIndex {
+				logDatum.Status = nil // omit unchanged status
+			} else {
+				s.lastStatusDictIndex = dictIndex
+			}
+		}
+	}
 }
 
 // Mostly copy/pasted from batch.go
@@ -278,6 +290,7 @@ func (s *batchStrategy) flushBuffer(outputChan chan *message.Payload) {
 	s.lastPatternID = 0
 	s.lastTagsDictIndex = 0
 	s.lastMessageKeyDictIndex = 0
+	s.lastStatusDictIndex = 0
 
 	s.sendMessagesWithDatums(messagesMetadata, grpcDatums, outputChan)
 }

@@ -158,6 +158,25 @@ func (tm *TagManager) Count() int {
 	return len(tm.stringToEntry)
 }
 
+// EvictStaleEntries removes all entries that haven't been accessed within the given TTL.
+// Returns the IDs of evicted entries so callers can send DictEntryDelete messages.
+func (tm *TagManager) EvictStaleEntries(ttl time.Duration) []uint64 {
+	cutoff := time.Now().Add(-ttl)
+
+	tm.mu.Lock()
+	defer tm.mu.Unlock()
+
+	var evictedIDs []uint64
+	for str, entry := range tm.stringToEntry {
+		if entry.lastAccessAt.Before(cutoff) {
+			evictedIDs = append(evictedIDs, entry.id)
+			delete(tm.stringToEntry, str)
+			delete(tm.idToEntry, entry.id)
+		}
+	}
+	return evictedIDs
+}
+
 // dictIndexValue converts a dictionary ID to a DynamicValue proto message
 func dictIndexValue(id uint64) *statefulpb.DynamicValue {
 	return &statefulpb.DynamicValue{

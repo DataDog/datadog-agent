@@ -153,3 +153,29 @@ func (cm *ClusterManager) EvictToMemoryTarget(targetBytesToFree int64, decayFact
 	}
 	return patterns
 }
+
+// EvictStalePatterns removes all patterns that haven't been matched within the given TTL.
+// Returns the evicted patterns so callers can send PatternDelete messages.
+func (cm *ClusterManager) EvictStalePatterns(ttl time.Duration) []*Pattern {
+	cutoff := time.Now().Add(-ttl)
+
+	// Collect stale patterns under read lock
+	cm.mu.RLock()
+	var stale []*Pattern
+	for _, clusters := range cm.hashBuckets {
+		for _, cluster := range clusters {
+			for _, pattern := range cluster.Patterns {
+				if pattern.LastAccessAt.Before(cutoff) {
+					stale = append(stale, pattern)
+				}
+			}
+		}
+	}
+	cm.mu.RUnlock()
+
+	// Remove each stale pattern (removePattern takes its own write lock)
+	for _, pattern := range stale {
+		cm.removePattern(pattern)
+	}
+	return stale
+}

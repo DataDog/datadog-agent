@@ -23,6 +23,9 @@ import (
 
 const nanoToMillis = 1000000
 
+const staleTTL = 5 * time.Minute
+const staleSweepInterval = 30 * time.Second
+
 // MessageTranslator handles translation of message.Message to message.StatefulMessage
 // It manages pattern extraction, clustering, and stateful message creation
 type MessageTranslator struct {
@@ -31,7 +34,8 @@ type MessageTranslator struct {
 	tagManager             *tags.TagManager
 	tagEvictionManager     *tags.TagEvictionManager
 
-	pipelineName string
+	pipelineName   string
+	lastStaleSweep time.Time
 }
 
 // NewMessageTranslator creates a new MessageTranslator instance
@@ -43,17 +47,10 @@ func NewMessageTranslator(pipelineName string) *MessageTranslator {
 		tagManager:             tags.NewTagManager(),
 		tagEvictionManager:     tags.NewTagEvictionManager(),
 		pipelineName:           pipelineName,
+		lastStaleSweep:         time.Now(),
 	}
 	tlmPipelineStateSize.Set(0, pipelineName)
 	return mt
-
-	// Would be shared cluster manager instead across pipelines when implemented.
-	// if clusterManager == nil {
-	// 	clusterManager = clustering.NewClusterManager()
-	// }
-	// return &MessageTranslator{
-	// 	clusterManager: clusterManager,
-	// }
 }
 
 // Start starts a goroutine that translates message.Message to message.StatefulMessage
@@ -146,6 +143,19 @@ func (mt *MessageTranslator) processMessage(msg *message.Message, outputChan cha
 		mt.tagEvictionManager.Evict(mt.tagManager, tagCount, tagMemoryBytes, tagCountOverLimit, tagBytesOverLimit)
 	}
 
+	// Periodic TTL sweep: remove entries not accessed in the last 5 minutes.
+	// This prevents stale entries from accumulating in state and inflating snapshot replays.
+	if time.Since(mt.lastStaleSweep) >= staleSweepInterval {
+		mt.lastStaleSweep = time.Now()
+
+		for _, evictedPattern := range mt.clusterManager.EvictStalePatterns(staleTTL) {
+			mt.sendPatternDelete(evictedPattern.PatternID, msg, outputChan)
+		}
+		for _, evictedID := range mt.tagManager.EvictStaleEntries(staleTTL) {
+			mt.sendDictEntryDelete(outputChan, msg, evictedID)
+		}
+	}
+
 	// Send PatternDefine for new or updated patterns
 	if patternDatum != nil {
 		mt.sendPatternDefine(patternDatum, msg, outputChan, &patternDefineSent, &patternDefineParamCount)
@@ -183,39 +193,65 @@ func (mt *MessageTranslator) processMessage(msg *message.Message, outputChan cha
 			mt.sendDictEntryDefine(outputChan, msg, jsonContextSchemaID, jsonContextSchema)
 		}
 
-		// Encode each JSON context value as a DynamicValue (int64 or dict-encoded)
+		// Parse schema keys so we can decide per-key whether to dict-encode the value.
+		schemaKeys := strings.Split(jsonContextSchema, ",")
+
+		// Encode each JSON context value as a DynamicValue.
+		// Only dict-encode values for keys known to be low-cardinality (e.g. "level", "logger").
+		// All other values are sent inline as strings since they're typically high-cardinality
+		// (timestamps, PIDs, paths, durations) and would bloat dictionary state.
 		jsonContextValuesDV = make([]*statefulpb.DynamicValue, len(jsonContextValues))
 		for i, val := range jsonContextValues {
-			encoded, valDictID, valIsNew := mt.encodeDynamicValue(val)
-			jsonContextValuesDV[i] = encoded
-			if valIsNew {
-				mt.sendDictEntryDefine(outputChan, msg, valDictID, val)
+			var key string
+			if i < len(schemaKeys) {
+				key = schemaKeys[i]
+			}
+
+			if shouldDictEncodeJSONValue(key) {
+				encoded, valDictID, valIsNew := mt.encodeDynamicValue(val)
+				jsonContextValuesDV[i] = encoded
+				if valIsNew {
+					mt.sendDictEntryDefine(outputChan, msg, valDictID, val)
+				}
+			} else {
+				jsonContextValuesDV[i] = encodeInlineString(val)
 			}
 		}
 	}
 
-	// Build complete tag list and encode as TagSet
+	// Build complete tag list and encode as TagSet (excludes status)
 	tagSet, allTagsString, dictID, isNew := mt.buildTagSet(msg)
 	if isNew {
 		mt.sendDictEntryDefine(outputChan, msg, dictID, allTagsString)
 	}
 
+	// Encode status as a separate DynamicValue (dict-encoded, few distinct values)
+	var statusDV *statefulpb.DynamicValue
+	if status := msg.MessageMetadata.GetStatus(); status != "" {
+		encoded, statusDictID, statusIsNew := mt.encodeDynamicValue(status)
+		statusDV = encoded
+		if statusIsNew {
+			mt.sendDictEntryDefine(outputChan, msg, statusDictID, status)
+		}
+	}
+
 	// Send StructuredLog with all fields
 	tsMillis := ts.UnixNano() / nanoToMillis
-	mt.sendStructuredLog(outputChan, msg, tsMillis, patternID, dynamicValues, tagSet, messageKeyDV, jsonContextSchemaID, jsonContextValuesDV)
+	mt.sendStructuredLog(outputChan, msg, tsMillis, patternID, dynamicValues, tagSet, messageKeyDV, jsonContextSchemaID, jsonContextValuesDV, statusDV)
 }
 
 // buildTagSet constructs the complete tag list for a message and encodes it as a TagSet.
-// This includes log-level fields (hostname, service, ddsource, status) as tags,
+// This includes log-level fields (hostname, service, ddsource) as tags,
 // plus all other tags from the message metadata (container tags, source config tags, processing tags).
-// All tags are joined as a single string, encoded as a single dictionary entry in the TagSet
+// Status is excluded — it varies per log and is sent as a separate field to improve delta encoding.
+// All tags are joined as a single string, encoded as a single dictionary entry in the TagSet.
 func (mt *MessageTranslator) buildTagSet(msg *message.Message) (*statefulpb.TagSet, string, uint64, bool) {
 	// Start with metadata tags (container tags, source config tags, processing tags)
 	tagStrings := msg.MessageMetadata.Tags()
 
 	// Add log-level fields as tags (these are separate JSON fields in HTTP pipeline)
 	// Required tags per proto: hostname, service
-	// Other tags per proto: status, source (ddsource)
+	// Note: status is sent separately on Log.Status to avoid defeating tag delta encoding.
 
 	if hostname := msg.MessageMetadata.Hostname; hostname != "" {
 		tagStrings = append(tagStrings, "hostname:"+hostname)
@@ -227,10 +263,6 @@ func (mt *MessageTranslator) buildTagSet(msg *message.Message) (*statefulpb.TagS
 
 	if source := msg.Origin.Source(); source != "" {
 		tagStrings = append(tagStrings, "ddsource:"+source)
-	}
-
-	if status := msg.MessageMetadata.GetStatus(); status != "" {
-		tagStrings = append(tagStrings, "status:"+status)
 	}
 
 	allTagsString := strings.Join(tagStrings, ",")
@@ -319,9 +351,28 @@ func (mt *MessageTranslator) sendDictEntryDefine(outputChan chan *message.Statef
 	}
 }
 
+// sendDictEntryDelete creates and sends a DictEntryDelete datum
+func (mt *MessageTranslator) sendDictEntryDelete(outputChan chan *message.StatefulMessage, msg *message.Message, id uint64) {
+	deleteDatum := &statefulpb.Datum{
+		Data: &statefulpb.Datum_DictEntryDelete{
+			DictEntryDelete: &statefulpb.DictEntryDelete{
+				Id: id,
+			},
+		},
+	}
+
+	bytesRemoved := float64(proto.Size(deleteDatum))
+	tlmPipelineStateSize.Sub(bytesRemoved, mt.pipelineName)
+
+	outputChan <- &message.StatefulMessage{
+		Datum:    deleteDatum,
+		Metadata: &msg.MessageMetadata,
+	}
+}
+
 // sendStructuredLog creates and sends a StructuredLog datum
-func (mt *MessageTranslator) sendStructuredLog(outputChan chan *message.StatefulMessage, msg *message.Message, timestamp int64, patternID uint64, dynamicValues []*statefulpb.DynamicValue, tagSet *statefulpb.TagSet, messageKey *statefulpb.DynamicValue, jsonContextSchemaID uint64, jsonContextValues []*statefulpb.DynamicValue) {
-	logDatum := buildStructuredLog(timestamp, patternID, dynamicValues, tagSet, msg.MessageMetadata.DualSendUUID, messageKey, jsonContextSchemaID, jsonContextValues)
+func (mt *MessageTranslator) sendStructuredLog(outputChan chan *message.StatefulMessage, msg *message.Message, timestamp int64, patternID uint64, dynamicValues []*statefulpb.DynamicValue, tagSet *statefulpb.TagSet, messageKey *statefulpb.DynamicValue, jsonContextSchemaID uint64, jsonContextValues []*statefulpb.DynamicValue, status *statefulpb.DynamicValue) {
+	logDatum := buildStructuredLog(timestamp, patternID, dynamicValues, tagSet, msg.MessageMetadata.DualSendUUID, messageKey, jsonContextSchemaID, jsonContextValues, status)
 
 	tlmPipelinePatternLogsProcessed.Inc(mt.pipelineName)
 	tlmPipelinePatternLogsProcessedBytes.Add(float64(proto.Size(logDatum)), mt.pipelineName)
@@ -411,6 +462,48 @@ func (mt *MessageTranslator) encodeDynamicValue(value string) (*statefulpb.Dynam
 	}, dictID, isNew
 }
 
+// dictEncodableJSONKeys is the set of JSON context keys whose values are low-cardinality
+// and benefit from dictionary encoding. All other keys' values are sent inline.
+var dictEncodableJSONKeys = map[string]bool{
+	"level":    true,
+	"severity": true,
+	"logger":   true,
+	"caller":   true,
+	"source":   true,
+	"agent":    true,
+	"status":   true,
+	"method":   true,
+	"func":     true,
+}
+
+// shouldDictEncodeJSONValue returns true if the JSON context value for the given key
+// should be dict-encoded. Only low-cardinality fields benefit from dict encoding;
+// all others are sent inline to avoid bloating dictionary state.
+func shouldDictEncodeJSONValue(key string) bool {
+	return dictEncodableJSONKeys[key]
+}
+
+// encodeInlineString encodes a value as an inline string DynamicValue, bypassing the dictionary.
+// Integers are still encoded as int_value for compactness.
+func encodeInlineString(value string) *statefulpb.DynamicValue {
+	// Still try int encoding — it's smaller than a string on the wire
+	hasLeadingZero := len(value) > 1 && (value[0] == '0' || (value[0] == '-' && len(value) > 2 && value[1] == '0'))
+	if !hasLeadingZero {
+		if intVal, err := strconv.ParseInt(value, 10, 64); err == nil {
+			return &statefulpb.DynamicValue{
+				Value: &statefulpb.DynamicValue_IntValue{
+					IntValue: intVal,
+				},
+			}
+		}
+	}
+	return &statefulpb.DynamicValue{
+		Value: &statefulpb.DynamicValue_StringValue{
+			StringValue: value,
+		},
+	}
+}
+
 // shouldInlineString returns true for values that are likely high-cardinality and should
 // be sent as inline strings rather than dict-encoded. This avoids bloating the dictionary
 // state with values that are never reused (UUIDs, timestamps, JSON blobs, epoch floats).
@@ -468,7 +561,7 @@ func buildRawLog(content string, timestamp time.Time, tagSet *statefulpb.TagSet,
 }
 
 // buildStructuredLog creates a Datum containing a StructuredLog
-func buildStructuredLog(timestamp int64, patternID uint64, dynamicValues []*statefulpb.DynamicValue, tagSet *statefulpb.TagSet, uuid string, messageKey *statefulpb.DynamicValue, jsonContextSchemaID uint64, jsonContextValues []*statefulpb.DynamicValue) *statefulpb.Datum {
+func buildStructuredLog(timestamp int64, patternID uint64, dynamicValues []*statefulpb.DynamicValue, tagSet *statefulpb.TagSet, uuid string, messageKey *statefulpb.DynamicValue, jsonContextSchemaID uint64, jsonContextValues []*statefulpb.DynamicValue, status *statefulpb.DynamicValue) *statefulpb.Datum {
 	log := &statefulpb.Log{
 		Timestamp: timestamp,
 		Content: &statefulpb.Log_Structured{
@@ -480,7 +573,8 @@ func buildStructuredLog(timestamp int64, patternID uint64, dynamicValues []*stat
 				JsonContextValues:   jsonContextValues,
 			},
 		},
-		Tags: tagSet,
+		Tags:   tagSet,
+		Status: status,
 	}
 	if uuid != "" {
 		log.Uuid = &uuid
