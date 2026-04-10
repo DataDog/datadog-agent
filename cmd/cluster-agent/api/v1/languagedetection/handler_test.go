@@ -62,11 +62,9 @@ func TestPreHandlerSpan_FeatureDisabled(t *testing.T) {
 
 	assert.Equal(t, "cluster_agent.language_detection.pre_handler", span.OperationName())
 	assert.Equal(t, "preHandler", span.Tag("resource.name"))
-	assert.Equal(t, false, span.Tag("feature_enabled"))
-	// mocktracer stores the error object in the "error" tag via WithError
-	err, ok := span.Tag("error").(error)
-	require.True(t, ok, "error tag should be an error object from WithError")
-	assert.Equal(t, "language detection feature is disabled", err.Error())
+	assert.Equal(t, "false", span.Tag("feature_enabled"))
+	// In dd-trace-go v2, WithError stores the message in "error.message"
+	assert.Equal(t, "language detection feature is disabled", span.Tag("error.message"))
 }
 
 func TestPreHandlerSpan_NilBody(t *testing.T) {
@@ -97,10 +95,8 @@ func TestPreHandlerSpan_NilBody(t *testing.T) {
 
 	assert.Equal(t, "cluster_agent.language_detection.pre_handler", span.OperationName())
 	assert.Equal(t, "preHandler", span.Tag("resource.name"))
-	assert.Equal(t, true, span.Tag("feature_enabled"))
-	err, ok := span.Tag("error").(error)
-	require.True(t, ok, "error tag should be an error object from WithError")
-	assert.Equal(t, "request body is empty", err.Error())
+	assert.Equal(t, "true", span.Tag("feature_enabled"))
+	assert.Equal(t, "request body is empty", span.Tag("error.message"))
 }
 
 func TestLeaderHandlerSpan_Success(t *testing.T) {
@@ -152,8 +148,8 @@ func TestLeaderHandlerSpan_Success(t *testing.T) {
 
 	assert.Equal(t, "cluster_agent.language_detection.leader_handler", span.OperationName())
 	assert.Equal(t, "leaderHandler", span.Tag("resource.name"))
-	assert.Equal(t, 1, span.Tag("owner_count"))
-	assert.Nil(t, span.Tag("error"))
+	assert.EqualValues(t, 1, span.Tag("owner_count"))
+	assert.Nil(t, span.Tag("error.message"))
 }
 
 func TestLeaderHandlerSpan_UnmarshalError(t *testing.T) {
@@ -184,9 +180,9 @@ func TestLeaderHandlerSpan_UnmarshalError(t *testing.T) {
 
 	assert.Equal(t, "cluster_agent.language_detection.leader_handler", span.OperationName())
 	assert.Equal(t, "leaderHandler", span.Tag("resource.name"))
-	err, ok := span.Tag("error").(error)
-	require.True(t, ok, "error tag should be an error object from WithError")
-	assert.Contains(t, err.Error(), "failed to unmarshal request body")
+	errMsg, ok := span.Tag("error.message").(string)
+	require.True(t, ok, "error.message tag should be a string")
+	assert.Contains(t, errMsg, "failed to unmarshal request body")
 }
 
 func TestHandleLeadershipState_BecameLeader(t *testing.T) {
