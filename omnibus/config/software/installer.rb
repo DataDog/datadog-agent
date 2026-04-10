@@ -43,17 +43,16 @@ build do
     command "invoke installer.build --no-cgo --run-path=/opt/datadog-packages/run --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     mkdir "#{install_dir}/bin"
     copy 'bin/installer', "#{install_dir}/bin/"
-    command_on_repo_root "bazelisk build --config=release //packages/installer/linux:whole_distro_tar"
-    if ENV.has_key?("OMNIBUS_FORCE_PACKAGES")
-      if debian_target?
-        command_on_repo_root "bazelisk build --config=release //packages/installer/linux:debian"
-      elsif redhat_target? || suse_target?
-        command_on_repo_root "bazelisk build --config=release //packages/installer/linux:rpm"
-      end
+    command_on_repo_root "bazelisk build --config=release //packages/installer/linux:whole_distro_tar", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+    if debian_target?
+      command_on_repo_root "bazelisk build --config=release //packages/installer/linux:debian"
+    elsif redhat_target? || suse_target?
+      command_on_repo_root "bazelisk build --config=release //packages/installer/linux:rpm"
     end
+    command_on_repo_root "/bin/ls -l bazel-bin/packages/installer/linux", :live_stream => Omnibus.logger.live_stream(:info)
   elsif windows_target?
     command "dda inv -- -e installer.build --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     copy 'bin/installer/installer.exe', "#{install_dir}/datadog-installer.exe"
-    command_on_repo_root "bazelisk build --config=release //packages/installer/windows:whole_distro_tar"
+    command_on_repo_root "bazelisk build --config=release //packages/installer/windows:whole_distro_tar", :live_stream => Omnibus.logger.live_stream(:info)
   end
 end
