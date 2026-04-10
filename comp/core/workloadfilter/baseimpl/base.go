@@ -21,7 +21,6 @@ import (
 	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/catalog"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
-	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/legacy"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/program"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/telemetry"
 )
@@ -218,26 +217,6 @@ func (f *BaseFilterStore) GetContainerComplianceFilters() workloadfilter.FilterB
 // GetContainerCWSAdmissionFilters returns the pre-computed container CWS admission webhook filters
 func (f *BaseFilterStore) GetContainerCWSAdmissionFilters() workloadfilter.FilterBundle {
 	return f.GetContainerFilters(f.selection.containerCWSAdmission)
-}
-
-// CreateAdHocBundle creates a one-off FilterBundle from raw legacy-format include/exclude lists.
-// Unlike pre-registered bundles, the bundle is constructed on each call.
-// Errors from parsing the lists are stored in the bundle and accessible via GetErrors().
-func (f *BaseFilterStore) CreateAdHocBundle(include, exclude []string) workloadfilter.FilterBundle {
-	var initErrors []error
-	filter, err := legacy.NewFilter(legacy.GlobalFilter, include, exclude)
-	if err != nil {
-		initErrors = append(initErrors, err)
-	}
-	prg := program.LegacyFilterProgram{
-		Name:                 "ad-hoc-legacy",
-		Filter:               filter,
-		InitializationErrors: initErrors,
-	}
-	return &filterBundle{
-		log:        f.Log,
-		filterSets: [][]program.FilterProgram{{prg}},
-	}
 }
 
 // GetContainerFilters returns the filter bundle for the given container filters

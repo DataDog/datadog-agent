@@ -9,12 +9,11 @@ package tagsfromlabels
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 )
 
 // NewFilter creates a new MutationFilter from the provided FilterConfig.
-func NewFilter(datadogConfig config.Component, filterStore workloadfilter.Component) (mutatecommon.MutationFilter, error) {
+func NewFilter(datadogConfig config.Component) (mutatecommon.MutationFilter, error) {
 	enabled := datadogConfig.GetBool("admission_controller.inject_tags.enabled")
-	return mutatecommon.NewDefaultFilter(enabled, nil, nil, filterStore)
+	return mutatecommon.NewDefaultFilter(enabled, nil, nil)
 }
