@@ -37,6 +37,11 @@ The Datadog Agent is a comprehensive monitoring and observability agent written 
 
 - `/rtloader/` - Runtime loader for Python checks
 
+- `/packages/` - The declarations of what goes into each package we build for distribution.
+
+- `/omnibus/` - The legacy build system.
+
+
 ## Development Workflow
 
 ### Common Commands
@@ -57,6 +62,13 @@ dda inv agent.build --build-exclude=systemd
 dda inv dogstatsd.build
 dda inv trace-agent.build
 dda inv system-probe.build
+
+# Build specific packages
+bazel build //packages/agent/linux:debian
+
+# Keep BUILD.bazel files in sync with go dependencies
+bazel run //:gazelle
+dda inv tidy
 ```
 
 #### Testing
@@ -66,6 +78,7 @@ dda inv test
 
 # Test specific package
 dda inv test --targets=./pkg/aggregator
+bazel test //pkg/aggregator/...
 
 # Run Go linters
 dda inv linter.go
@@ -239,12 +252,12 @@ tasks.
 - **Linux**: Full support (amd64, arm64)
 - **Windows**: Full support (Server 2016+, Windows 10+)
 - **macOS**: Supported
-- **AIX**: No support in this codebase
+- **AIX**: No support in this codebase yet, but we are working towards it.
 - **Container**: Docker, Kubernetes, ECS, containerd, and more
 
 ## Best Practices
 1. **Always run linters before committing**: `dda inv linter.go`
-2. **Always test your changes**: `dda inv test --targets=<your_package>`
+2. **Always test your changes**: `dda inv test --targets=<your_package>` `bazel test //pkg/... //comp/...`
 3. **Follow Go conventions**: Use gofmt, follow project structure
 4. **Update documentation**: Keep docs in sync with code changes
 6. **Check for security implications**: Review security-sensitive changes carefully
