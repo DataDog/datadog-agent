@@ -28,6 +28,18 @@ func TestCanonicalizeGenerics(t *testing.T) {
 			"pkg.(*TimestampSpansMap).Keys[...].func2",
 		},
 		{"generic with cross-package", "pkg.(*Set[go.shape.*github.com/foo/bar.Type]).Range", "pkg.(*Set[...]).Range"},
+		// The cases below use type-like strings to show how every bracket pair
+		// is rewritten. The results can look like nonsense compared to real Go
+		// types; that is expected because CanonicalizeGenerics targets symbol
+		// names, not type syntax (see doc comment on CanonicalizeGenerics).
+		{"slice type name", "[]int", "[...]int"},
+		{"map type name", "map[string]int", "map[...]int"},
+		{"array type name", "[4]int", "[...]int"},
+		{"slice of map", "[]map[string]int", "[...]map[...]int"},
+		{"map value is slice", "map[string][]int", "map[...][...]int"},
+		// [][]T is two [] pairs, each rewritten, not one nested [[...]] span.
+		{"slice of slice", "[][]int", "[...][...]int"},
+		{"slice of map with slice value", "[]map[string][]int", "[...]map[...][...]int"},
 		{"bare name", "indexbytebody", "indexbytebody"},
 		{"unmatched bracket", "broken[stuff", "broken[stuff"},
 	}

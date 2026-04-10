@@ -5,7 +5,9 @@
 
 package gosymname
 
-import "strings"
+import (
+	"strings"
+)
 
 // Parse parses a Go symbol name and returns a Symbol with the package split
 // computed eagerly and interpretation generation deferred.
@@ -280,34 +282,17 @@ func buildInterpretations(s *Symbol) {
 			OuterFunction: s.raw,
 		})
 		return
-	case ClassBareName:
+	case ClassBareName,
+		ClassCFunction,
+		ClassGlobalClosure,
+		ClassMapInit,
+		ClassInit:
 		s.interps = append(s.interps, Interpretation{
 			OuterFunction: s.local,
 		})
 		return
-	case ClassCFunction:
-		s.interps = append(s.interps, Interpretation{
-			OuterFunction: s.local,
-		})
-		return
-	case ClassGlobalClosure:
-		s.interps = append(s.interps, Interpretation{
-
-			OuterFunction: s.local,
-		})
-		return
-	case ClassMapInit:
-		s.interps = append(s.interps, Interpretation{
-
-			OuterFunction: s.local,
-		})
-		return
-	case ClassInit:
-		s.interps = append(s.interps, Interpretation{
-
-			OuterFunction: s.local,
-		})
-		return
+	case ClassFunction, ClassClosure:
+		break
 	}
 
 	// Decompose the local name into segments.
@@ -315,7 +300,6 @@ func buildInterpretations(s *Symbol) {
 	segments := decomposeChain(segBuf[:0], s.local)
 	if len(segments) == 0 {
 		s.interps = append(s.interps, Interpretation{
-
 			OuterFunction: s.local,
 		})
 		return
@@ -335,7 +319,6 @@ func buildInterpretations(s *Symbol) {
 		// Only closure segments — shouldn't happen with a valid symbol, but
 		// handle gracefully.
 		s.interps = append(s.interps, Interpretation{
-
 			OuterFunction: s.local,
 			ClosureSuffix: closureSuffix,
 			ClosureDepth:  closureDepth,

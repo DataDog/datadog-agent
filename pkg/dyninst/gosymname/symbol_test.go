@@ -251,6 +251,12 @@ func TestSplitPackage(t *testing.T) {
 		{"escaped", "gopkg.in/square/go-jose%2ev2.newBuffer", SourceDWARF, "gopkg.in/square/go-jose.v2", "newBuffer"},
 		{"bare", "indexbytebody", SourceNM, "", "indexbytebody"},
 		{"runtime", "runtime.gcMarkDone", SourcePclntab, "runtime", "gcMarkDone"},
+		// Compiler/linker names use ".." infixes; split is still first dot after
+		// the last '/' (or from the start when there is no '/'), so one dot of a
+		// ".." run can end up in the package segment and the rest in local.
+		{"compiler_runtime_inittask", "runtime..inittask", SourcePclntab, "runtime", ".inittask"},
+		{"compiler_type_hash", "type..hash.runtime.hmap", SourcePclntab, "type", ".hash.runtime.hmap"},
+		{"compiler_dict", "pkg/foo.bar..dict.baz", SourcePclntab, "pkg/foo", "bar..dict.baz"},
 		{"malformed_escape", "example%ZZ.Function", SourceDWARF, "example%ZZ", "Function"},
 	}
 	for _, tt := range tests {
