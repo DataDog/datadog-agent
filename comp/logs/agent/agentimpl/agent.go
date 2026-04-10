@@ -53,7 +53,7 @@ import (
 )
 
 const (
-	// key used to display a warning message on the agent status
+	// keys used to display error/warning messages on the agent status
 	invalidProcessingRules   = "invalid_global_processing_rules"
 	invalidEndpoints         = "invalid_endpoints"
 	invalidFingerprintConfig = "invalid_fingerprint_config"
@@ -235,7 +235,9 @@ func (a *logAgent) setupAgent() error {
 
 // configureAgent validates and retrieves configuration settings needed for agent operation.
 func (a *logAgent) configureAgent() ([]*config.ProcessingRule, *types.FingerprintConfig, error) {
-	if a.endpoints.UseHTTP {
+	if a.endpoints.UseGRPC {
+		status.SetCurrentTransport(status.TransportGRPC)
+	} else if a.endpoints.UseHTTP {
 		status.SetCurrentTransport(status.TransportHTTP)
 	} else {
 		status.SetCurrentTransport(status.TransportTCP)
@@ -270,7 +272,7 @@ func (a *logAgent) configureAgent() ([]*config.ProcessingRule, *types.Fingerprin
 	return processingRules, fingerprintConfig, nil
 }
 
-// Start starts all the elements of the data pipeline
+// startPipeline starts all the elements of the data pipeline
 // in the right order to prevent data loss
 func (a *logAgent) startPipeline() {
 

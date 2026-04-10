@@ -61,6 +61,7 @@ func (b *Builder) BuildStatus(verbose bool) Status {
 		Warnings:         b.getWarnings(),
 		Errors:           b.getErrors(),
 		UseHTTP:          b.getUseHTTP(),
+		Transport:        b.getTransport(),
 	}
 }
 
@@ -73,6 +74,15 @@ func (b *Builder) getIsRunning() bool {
 
 func (b *Builder) getUseHTTP() bool {
 	return b.endpoints.UseHTTP
+}
+
+func (b *Builder) getTransport() string {
+	if b.endpoints.UseGRPC {
+		return "gRPC"
+	} else if b.endpoints.UseHTTP {
+		return "HTTP"
+	}
+	return "TCP"
 }
 
 func (b *Builder) getEndpoints() []string {
@@ -114,7 +124,7 @@ func (b *Builder) getIntegrations() []Integration {
 	return integrations
 }
 
-// getTailers returns all the information about the logs integrations.
+// getTailers returns all the information about the active log tailers.
 func (b *Builder) getTailers() []Tailer {
 	tailers := b.tailers.All()
 	tailerStatus := make([]Tailer, 0, len(tailers))
