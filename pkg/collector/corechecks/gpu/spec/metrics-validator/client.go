@@ -161,7 +161,7 @@ func (c *metricsClient) discoverLiveGPUConfigs(fromTS, toTS int64) ([]gpuConfig,
 	deviceTotalQuery := "q0"
 	columns, err := c.runScalarQueries(
 		[]datadogV2.ScalarQuery{
-			buildScalarQuery(deviceTotalQuery, "avg:gpu.device.total{*} by {gpu_architecture,gpu_slicing_mode,gpu_virtualization_mode}"),
+			buildScalarQuery(deviceTotalQuery, fmt.Sprintf("avg:gpu.device.total{%s} by {gpu_architecture,gpu_slicing_mode,gpu_virtualization_mode}", strings.Join(baseTagFilterParts(), ","))),
 		},
 		fromTS,
 		toTS,

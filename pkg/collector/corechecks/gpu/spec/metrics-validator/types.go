@@ -21,8 +21,12 @@ type gpuConfig struct {
 	IsKnown      bool               `json:"is_known"`
 }
 
+func baseTagFilterParts() []string {
+	return []string{"kube_cluster_name:*"}
+}
+
 func (c gpuConfig) tagFilter() string {
-	parts := []string{"gpu_architecture:" + c.Architecture}
+	parts := append(baseTagFilterParts(), "gpu_architecture:"+c.Architecture)
 	switch c.DeviceMode {
 	case gpuspec.DeviceModeMIG:
 		parts = append(parts, "gpu_slicing_mode:mig")
@@ -35,7 +39,7 @@ func (c gpuConfig) tagFilter() string {
 }
 
 func (c gpuConfig) filterExpression() string {
-	parts := []string{"gpu_architecture:" + c.Architecture}
+	parts := append(baseTagFilterParts(), "gpu_architecture:"+c.Architecture)
 	switch c.DeviceMode {
 	case gpuspec.DeviceModeMIG:
 		parts = append(parts, "gpu_slicing_mode:mig")
