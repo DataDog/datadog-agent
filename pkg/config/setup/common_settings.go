@@ -733,6 +733,9 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("orchestrator_explorer.terminated_pods.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.terminated_pods_improved.enabled", false)
 	config.BindEnvAndSetDefault("orchestrator_explorer.custom_resources.ootb.enabled", true)
+	config.BindEnvAndSetDefault("orchestrator_explorer.custom_resources.ootb.gateway_api", false)
+	config.BindEnvAndSetDefault("orchestrator_explorer.custom_resources.ootb.service_mesh", false)
+	config.BindEnvAndSetDefault("orchestrator_explorer.custom_resources.ootb.ingress_controllers", false)
 	config.BindEnvAndSetDefault("orchestrator_explorer.kubelet_config_check.enabled", true, "DD_ORCHESTRATOR_EXPLORER_KUBELET_CONFIG_CHECK_ENABLED")
 	config.BindEnvAndSetDefault("auto_team_tag_collection", true)
 
@@ -1055,6 +1058,8 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// Host Profiler config
 	config.BindEnvAndSetDefault("hostprofiler.debug.verbosity", "")
 	config.BindEnvAndSetDefault("hostprofiler.additional_http_headers", map[string]string{})
+	config.BindEnvAndSetDefault("hostprofiler.ddprofiling.enabled", false)
+	config.BindEnvAndSetDefault("hostprofiler.ddprofiling.period", 0)
 }
 
 func agent(config pkgconfigmodel.Setup) {
@@ -1940,6 +1945,7 @@ func kubernetes(config pkgconfigmodel.Setup) {
 	// used by workloadmeta that already defines its own pull frequency and has
 	// its own storage, so no need for an extra cache.
 	config.BindEnvAndSetDefault("kubelet_cache_pods_duration", 0)
+	config.BindEnvAndSetDefault("kubelet_collector_pull_interval", 0) // not exposed yet. In seconds. 0 means use workloadmeta default
 	config.BindEnvAndSetDefault("kubernetes_collect_metadata_tags", true)
 	config.BindEnvAndSetDefault("kubernetes_use_endpoint_slices", false)
 	config.BindEnvAndSetDefault("kubernetes_metadata_tag_update_freq", 60) // Polling frequency of the Agent to the DCA in seconds (gets the local cache if the DCA is disabled)

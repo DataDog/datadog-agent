@@ -572,7 +572,7 @@ func (p *EBPFProbe) Init() error {
 			return err
 		}
 	} else {
-		p.profileManager, err = securityprofile.NewManager(p.config, p.statsdClient, p.Manager, p.Resolvers, p.kernelVersion, p.NewEvent, p.activityDumpHandler, p.hostname)
+		p.profileManager, err = securityprofile.NewManager(p.config, p.statsdClient, p.Manager, p.Resolvers, p.kernelVersion, p.NewEvent, p.activityDumpHandler, p.hostname, p.opts.FilterStore)
 		if err != nil {
 			return err
 		}
@@ -1332,8 +1332,10 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if fs == "cgroup2" && event.Open.File.PathKey.Inode != 0 && event.Open.File.FileFields.IsDir() {
 			cgroupContext := model.CGroupContext{
 				CGroupPathKey: event.Open.File.PathKey,
+				CGroupSource:  model.CGroupSourceEvent,
+				CreatedAt:     uint64(time.Now().UnixNano()),
 			}
-			p.Resolvers.CGroupResolver.Add(cgroupContext, time.Now())
+			p.Resolvers.CGroupResolver.Add(cgroupContext)
 		}
 	case model.FileMkdirEventType:
 		if !p.regularUnmarshalEvent(&event.Mkdir, eventType, offset, dataLen, data) {
@@ -1706,11 +1708,11 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 
 		cgroupContext := model.CGroupContext{
 			CGroupPathKey: event.CgroupWrite.File.PathKey,
+			CGroupSource:  model.CGroupSourceEvent,
+			CreatedAt:     uint64(event.GetTimestamp().UnixNano()),
 		}
 
-		createdAt := event.GetTimestamp()
-
-		if cacheEntry := p.Resolvers.CGroupResolver.AddPID(pce.Pid, pce.PPid, createdAt, cgroupContext); cacheEntry == nil {
+		if cacheEntry := p.Resolvers.CGroupResolver.AddPID(pce.Pid, pce.PPid, cgroupContext); cacheEntry == nil {
 			seclog.Debugf("Failed to resolve cgroup for pid %d: %+v", pid, event.CgroupWrite.File.PathKey)
 		} else {
 			p.Resolvers.ProcessResolver.UpdateProcessContexts(pce, cacheEntry.GetCGroupContext(), cacheEntry.GetContainerContext())
