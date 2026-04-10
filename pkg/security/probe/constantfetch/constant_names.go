@@ -113,6 +113,7 @@ const (
 	OffsetNameSockCommonStructSKCNet    = "sock_common_skc_net_offset"
 	OffsetNameSocketStructSK            = "socket_sock_offset"
 	OffsetNameNFConnStructCTNet         = "nf_conn_ct_net_offset"
+	OffsetNameNFConnStructTuplehash     = "nf_conn_tuplehash_offset"
 	OffsetNameSockCommonStructSKCFamily = "sock_common_skc_family_offset"
 	OffsetNameSockCommonStructSKCNum    = "sock_common_skc_num_offset"
 	OffsetNameFlowI4StructSADDR         = "flowi4_saddr_offset"
