@@ -530,6 +530,10 @@ type AgentConfig struct {
 	// ContainerIDFromOriginInfo ...
 	ContainerIDFromOriginInfo func(originInfo origindetection.OriginInfo) (string, error) `json:"-"`
 
+	// HasContainerFeatures indicates whether any container feature is present in the environment.
+	// When false, the trace API uses a noop IDProvider that does not read HTTP headers or call ContainerIDFromOriginInfo.
+	HasContainerFeatures bool
+
 	// ContainerProcRoot is the root dir for `proc` info
 	ContainerProcRoot string
 
@@ -657,6 +661,8 @@ func New() *AgentConfig {
 		ContainerTagsWithCompleteness: noopContainerTagsWithCompletenessFunc,
 		ContainerTagsBuffer:           false, // disabled here for otlp collector exporter, enabled in comp/trace-agent
 		ContainerIDFromOriginInfo:     NoopContainerIDFromOriginInfoFunc,
+		HasContainerFeatures:          true, // default so remote/standalone trace-agent keeps full container ID resolution until setup sets it from env
+
 		TelemetryConfig: &TelemetryConfig{
 			Endpoints: []*Endpoint{{Host: TelemetryEndpointPrefix + "datadoghq.com"}},
 		},

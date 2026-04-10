@@ -36,7 +36,7 @@ go_test(
         "tags_test.go",
         "telemetry_test.go",
     ],
-    data = glob(["tests/**"]),
+    data = ["tests/datadog_secrets.yaml"],
     embed = [":utils"],
     gotags = ["test"],  # keep: ABLD-409
     deps = [

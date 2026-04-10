@@ -333,7 +333,7 @@ func (ac *AutoConfig) buildConfigCheckResponse(scrub bool) integration.ConfigChe
 }
 
 // fillFlare add the config-checks log to flares.
-func (ac *AutoConfig) fillFlare(fb flaretypes.FlareBuilder) error {
+func (ac *AutoConfig) fillFlare(_ context.Context, fb flaretypes.FlareBuilder) error {
 	fb.AddFileFromFunc("config-check.log", func() ([]byte, error) { //nolint:errcheck
 		var b bytes.Buffer
 

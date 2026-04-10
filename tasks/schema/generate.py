@@ -62,6 +62,18 @@ def generate(ctx, agent_bin, output_dir=SCHEMA_DIR):
     print("Applying OS-specific fixes...")
     core_schema, sysprobe_schema = fix_schema(core_schema, sysprobe_schema)
 
+    # adding header
+    core_schema["$schema"] = "https://json-schema.org/draft/2020-12/schema"
+    sysprobe_schema["$schema"] = "https://json-schema.org/draft/2020-12/schema"
+
+    core_schema["$id"] = "https://raw.githubusercontent.com/DataDog/schema/main/agent/datadog.yaml.schema.json"
+    core_schema["title"] = "DataDog Agent configuration schema"
+    core_schema["description"] = "The schema to validate the datadog.yaml configuration for the DataDog Agent"
+
+    sysprobe_schema["$id"] = "https://raw.githubusercontent.com/DataDog/schema/main/agent/system-probe.yaml.schema.json"
+    sysprobe_schema["title"] = "System Probe configuration schema"
+    sysprobe_schema["description"] = "The schema to validate the system-probe.yaml configuration for the DataDog Agent"
+
     with open(core, "w") as f:
         yaml.safe_dump(core_schema, f)
     with open(sysprobe, "w") as f:

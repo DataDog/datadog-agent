@@ -2,6 +2,29 @@
 Release Notes
 =============
 
+.. _Release Notes_7.77.3:
+
+7.77.3
+======
+
+.. _Release Notes_7.77.3_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-04-08
+
+- Please refer to the `7.77.3 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7773>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.77.3_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes an issue where Cloud Network Monitoring would not resolve NAT'd cluster IPs when using Cilium to replace kube-proxy.
+
+
 .. _Release Notes_7.77.2:
 
 7.77.2

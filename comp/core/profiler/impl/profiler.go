@@ -8,6 +8,7 @@ package profilerimpl
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net"
@@ -217,7 +218,7 @@ func (p profiler) setProfilerSetting(settingName string, newValue int, fb flaret
 // to utilize this provider over time, which will require additional plumbing. For
 // example, the flare api call must be expanded to take in an optional profile duration
 // before the cli command can be fully ported over.
-func (p profiler) fillFlare(fb flaretypes.FlareBuilder) error {
+func (p profiler) fillFlare(_ context.Context, fb flaretypes.FlareBuilder) error {
 	duration := fb.GetFlareArgs().ProfileDuration
 
 	if duration <= 0 {

@@ -8,7 +8,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/atomic v1.11.0
 	go.uber.org/zap v1.27.1
-	golang.org/x/time v0.14.0
+	golang.org/x/time v0.15.0
 )
 
 require gopkg.in/yaml.v3 v3.0.1 // indirect

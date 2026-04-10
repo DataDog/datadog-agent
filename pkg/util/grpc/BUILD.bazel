@@ -1,0 +1,52 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+# hack.go uses //go:build hack_no_include (blank import to pin cloud.google.com/go/compute)
+# scope tag here, not in root ALL_BUILD_TAGS.
+# gazelle:build_tags hack_no_include
+
+go_library(
+    name = "grpc",
+    srcs = [
+        "agent_client.go",
+        "auth.go",
+        "cert.go",
+        "hack.go",
+        "interceptors.go",
+        "logger.go",
+        "metrics.go",
+        "mock_server.go",
+        "server.go",
+        "timeout.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/grpc",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/setup",
+        "//pkg/proto/pbgo/core",
+        "//pkg/telemetry",
+        "//pkg/util/grpc/context",
+        "//pkg/util/log",
+        "//pkg/util/system/socket",
+        "@com_github_grpc_ecosystem_go_grpc_middleware//auth",
+        "@com_github_mdlayher_vsock//:vsock",
+        "@com_google_cloud_go_compute//apiv1",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//backoff",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//credentials",
+        "@org_golang_google_grpc//grpclog",
+        "@org_golang_google_grpc//peer",
+        "@org_golang_google_grpc//status",
+    ],
+)
+
+go_test(
+    name = "grpc_test",
+    srcs = ["agent_client_test.go"],
+    embed = [":grpc"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/util/log",
+        "@com_github_stretchr_testify//assert",
+    ],
+)
