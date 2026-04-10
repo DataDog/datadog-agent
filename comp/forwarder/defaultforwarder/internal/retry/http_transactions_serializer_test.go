@@ -427,6 +427,47 @@ func TestDeserializeV2BackwardCompat(t *testing.T) {
 	})
 }
 
+// TestDeserializeV2MissingAPIKey verifies that a V2 transaction whose placeholder index
+// refers to a key that is absent from the current resolver is dropped with an error,
+// preserving the behaviour of the old placeholder-based restoreAPIKeys path.
+//
+// The byte blob is identical to the one in TestDeserializeV2BackwardCompat except that
+// the two placeholder index bytes are 0x31 ('1') instead of 0x30 ('0'), so the
+// transaction references apiKey2 (index 1). Deserializing with a single-key resolver
+// that only knows apiKey1 should produce errorCount == 1.
+func TestDeserializeV2MissingAPIKey(t *testing.T) {
+	r := require.New(t)
+	log := logmock.New(t)
+
+	// Binary blob of a V2 collection with placeholder index 1 (\xfeAPI_KEY\xfe1\xfe)
+	// embedded in both the route and the "Key" header — identical to the blob in
+	// TestDeserializeV2BackwardCompat but with 0x30 → 0x31 at the two index positions.
+	var v2Bytes = []byte{
+		0x8, 0x2, 0x12, 0x45, 0x12, 0x18, 0xa, 0x10, 0x72, 0x6f, 0x75, 0x74, 0x65, 0xfe, 0x41, 0x50, 0x49, 0x5f, 0x4b,
+		0x45, 0x59, 0xfe, 0x31, 0xfe, 0x12, 0x4, 0x6e, 0x61, 0x6d, 0x65, 0x1a, 0x14, 0xa, 0x3, 0x4b, 0x65, 0x79, 0x12,
+		0xd, 0xa, 0xb, 0xfe, 0x41, 0x50, 0x49, 0x5f, 0x4b, 0x45, 0x59, 0xfe, 0x31, 0xfe, 0x22, 0x3, 0x1, 0x2, 0x3, 0x28,
+		0x1, 0x30, 0xae, 0xcc, 0xc3, 0xcb, 0x6, 0x38, 0x1, 0x40, 0x1, 0x48, 0xa, 0x50, 0x1,
+	}
+
+	// Two-key resolver: the blob is valid (index 1 → apiKey2).
+	res2, err := resolver.NewSingleDomainResolver(domain, []utils.APIKeys{utils.NewAPIKeys("path", apiKey1, apiKey2)})
+	r.NoError(err)
+	serializerFull := NewHTTPTransactionsSerializer(log, res2)
+	txns, errorCount, err := serializerFull.Deserialize(v2Bytes)
+	r.NoError(err)
+	r.Equal(0, errorCount)
+	r.Len(txns, 1)
+
+	// One-key resolver: index 1 is out of range — transaction must be dropped.
+	res1, err := resolver.NewSingleDomainResolver(domain, []utils.APIKeys{utils.NewAPIKeys("path", apiKey1)})
+	r.NoError(err)
+	serializerSmaller := NewHTTPTransactionsSerializer(log, res1)
+	txns, errorCount, err = serializerSmaller.Deserialize(v2Bytes)
+	r.NoError(err)
+	r.Equal(1, errorCount, "V2 transaction referencing a missing key must be dropped")
+	r.Empty(txns)
+}
+
 // TestExtractPlaceholderIndex verifies the low-level token parser.
 func TestExtractPlaceholderIndex(t *testing.T) {
 	cases := []struct {

@@ -183,7 +183,11 @@ func (s *HTTPTransactionsSerializer) Deserialize(bytes []byte) ([]transaction.Tr
 				// index N instead of substituting back the actual key string.
 				apiKeyIndex, err = s.apiKeyIndexFromProto(tr, collection.Version)
 				if err == nil {
-					resolverAuth = s.resolver
+					if apiKeyIndex >= len(s.resolver.GetAuthorizers()) {
+						err = fmt.Errorf("APIKeyIndex %d is out of range (have %d keys)", apiKeyIndex, len(s.resolver.GetAuthorizers()))
+					} else {
+						resolverAuth = s.resolver
+					}
 				}
 			}
 		}
@@ -296,9 +300,9 @@ func (s *HTTPTransactionsSerializer) apiKeyIndexFromProto(tr *HttpTransactionPro
 		// Local transactions have a fixed Authorizer added at idx 0
 		// that adds an `Authorization` header.
 		return 0, nil
-	} else {
-		return -1, nil
 	}
+
+	return -1, nil
 }
 
 // resolvePlaceholderIndex converts a raw placeholder index to the current APIKeyIndex,

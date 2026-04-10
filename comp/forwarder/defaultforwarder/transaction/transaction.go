@@ -400,7 +400,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 	if t.Resolver != nil {
 		t.Resolver.Authorize(t.APIKeyIndex, req.Header, log)
 	}
-	log.Tracef("Sending %s request to %s with body size %d and headers %v", req.Method, logURL, len(payload), t.Headers)
+	log.Tracef("Sending %s request to %s with body size %d and headers %v", req.Method, logURL, len(payload), req.Header)
 	resp, err := client.Do(req)
 
 	if err != nil {
@@ -449,8 +449,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 		return resp.StatusCode, body, nil
 	} else if resp.StatusCode == 403 {
 		// Trigger throttled secret refresh based on secret_refresh_on_api_key_failure_interval on API key error
-		if secrets != nil {
-			secrets.Refresh()
+		if secrets != nil && secrets.Refresh() {
 			t.ErrorCount++
 			transactionsErrors.Add(1)
 			tlmTxErrors.Inc(t.Domain, transactionEndpointName, "403")

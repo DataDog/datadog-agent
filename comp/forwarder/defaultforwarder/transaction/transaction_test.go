@@ -7,6 +7,7 @@ package transaction
 
 import (
 	"context"
+	"expvar"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -111,6 +113,9 @@ func TestProcessHTTPError(t *testing.T) {
 	mockConfig := configmock.New(t)
 	log := logmock.New(t)
 	secrets := secretsmock.New(t)
+	secrets.SetRefreshHook(func() bool {
+		return true
+	})
 	err := transaction.Process(context.Background(), mockConfig, log, secrets, client)
 	assert.NotNil(t, err)
 	assert.Contains(t, err.Error(), "error \"503 Service Unavailable\" while sending transaction")
@@ -193,7 +198,7 @@ func Test_truncateBodyForLog(t *testing.T) {
 
 type mockAuthorizer struct{}
 
-func (mockAuthorizer) Authorize(_ int, h http.Header) { h.Set("DD-Api-Key", "secret") }
+func (mockAuthorizer) Authorize(_ int, h http.Header, _ log.Component) { h.Set("DD-Api-Key", "secret") }
 
 // TestProcessDoesNotMutateHeaders verifies that internalProcess does not add the
 // API key (or any other header) to the transaction's own Headers field.
@@ -252,4 +257,40 @@ func TestTransaction403TriggersSecretRefresh(t *testing.T) {
 	assert.NotNil(t, err)
 
 	assert.True(t, triggered, "secrets.Refresh(false) should be called when transaction receives 403")
+}
+
+func TestTransaction403DropsWhenNoSecrets(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+	}))
+	defer ts.Close()
+
+	transaction := NewHTTPTransaction()
+	transaction.Domain = ts.URL
+	transaction.Endpoint.Route = "/endpoint/test"
+	transaction.Endpoint.Name = "test"
+	transaction.Payload = NewBytesPayloadWithoutMetaData([]byte("test payload"))
+
+	secrets := secretsmock.New(t)
+	secrets.SetRefreshHook(func() bool {
+		// The secrets have not been set up.
+		return false
+	})
+
+	client := &http.Client{}
+	mockConfig := configmock.New(t)
+	log := logmock.New(t)
+
+	droppedBefore := TransactionsDropped.Value()
+	droppedByEndpointBefore := int64(0)
+	if v := TransactionsDroppedByEndpoint.Get("test"); v != nil {
+		droppedByEndpointBefore = v.(*expvar.Int).Value()
+	}
+
+	err := transaction.Process(context.Background(), mockConfig, log, secrets, client)
+
+	assert.NoError(t, err, "a 403 with no secrets backend should drop the transaction, not reschedule it")
+	assert.Equal(t, 0, transaction.ErrorCount, "ErrorCount should not be incremented when the transaction is dropped")
+	assert.Equal(t, droppedBefore+1, TransactionsDropped.Value(), "TransactionsDropped should be incremented")
+	assert.Equal(t, droppedByEndpointBefore+1, TransactionsDroppedByEndpoint.Get("test").(*expvar.Int).Value(), "TransactionsDroppedByEndpoint should be incremented for the endpoint")
 }
