@@ -47,7 +47,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/core/autodiscovery
 # gazelle:exclude comp/core/agenttelemetry/fx
 # gazelle:exclude comp/core/agenttelemetry/impl
-# gazelle:exclude comp/core/config
 # gazelle:exclude comp/core/configstream
 # gazelle:exclude comp/core/configsync
 # gazelle:exclude comp/core/diagnose
@@ -80,7 +79,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/core/remoteagentregistry
 # gazelle:exclude comp/core/secrets/fx
 # gazelle:exclude comp/core/secrets/fx-noop
-# gazelle:exclude comp/core/secrets/impl
 # gazelle:exclude comp/core/settings
 # gazelle:exclude comp/core/status/statusimpl
 # gazelle:exclude comp/core/sysprobeconfig
@@ -391,7 +389,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/trace/remoteconfighandler
 # gazelle:exclude pkg/trace/sampler
 # gazelle:exclude pkg/trace/semantics
-# gazelle:exclude pkg/trace/stats
 # gazelle:exclude pkg/trace/telemetry
 # gazelle:exclude pkg/trace/teststatsd
 # gazelle:exclude pkg/trace/testutil
