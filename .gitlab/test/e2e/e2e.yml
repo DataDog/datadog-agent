@@ -119,10 +119,8 @@
     - |
       if [ -d "$E2E_COVERAGE_OUT_DIR" ]; then
         DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
-        for folder in "$E2E_COVERAGE_OUT_DIR"/*/; do
-          if [ -f "${folder}coverage.txt" ]; then
-            datadog-ci coverage upload --format=go-coverprofile "${folder}coverage.txt" || true
-          fi
+        for coverage in "$E2E_COVERAGE_OUT_DIR"/*/coverage.txt; do
+          datadog-ci coverage upload --format=go-coverprofile "$coverage" || true
         done
       fi
   artifacts:
