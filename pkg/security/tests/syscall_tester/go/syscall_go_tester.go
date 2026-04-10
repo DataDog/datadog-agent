@@ -17,12 +17,14 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"runtime"
 	"runtime/pprof"
 	"strconv"
 	"syscall"
 	"time"
 	"unsafe"
 
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/syndtr/gocapability/capability"
 	"github.com/vishvananda/netlink"
@@ -55,6 +57,8 @@ var (
 	goSpanSpanID          string
 	goSpanLocalRootSpanID string
 	goSpanFilePath        string
+	ddtraceSpanTest       bool
+	ddtraceSpanFilePath   string
 )
 
 //go:embed ebpf_probe.o
@@ -340,6 +344,89 @@ func RunGoSpanTest(spanID, localRootSpanID, filePath string) error {
 	return nil
 }
 
+// RunDDTraceSpanTest uses dd-trace-go to create a real span, which sets pprof
+// labels automatically via the profiler code hotspots integration. This tests
+// the full dd-trace-go → pprof labels → eBPF Go labels reader pipeline.
+func RunDDTraceSpanTest(filePath string) error {
+	// Create and seal a tracer-info memfd with tracer_language="go".
+	type TracerMeta struct {
+		SchemaVersion  uint8  `msgpack:"schema_version"`
+		TracerLanguage string `msgpack:"tracer_language"`
+		TracerVersion  string `msgpack:"tracer_version"`
+		Hostname       string `msgpack:"hostname"`
+		ServiceName    string `msgpack:"service_name"`
+	}
+	meta := TracerMeta{
+		SchemaVersion:  2,
+		TracerLanguage: "go",
+		TracerVersion:  "0.0.1-test",
+		Hostname:       "test",
+		ServiceName:    "ddtrace-test",
+	}
+	data, err := msgpack.Marshal(&meta)
+	if err != nil {
+		return fmt.Errorf("msgpack marshal: %w", err)
+	}
+
+	fd, err := unix.MemfdCreate("datadog-tracer-info-ddtrace0", unix.MFD_ALLOW_SEALING)
+	if err != nil {
+		return fmt.Errorf("memfd_create: %w", err)
+	}
+	defer unix.Close(fd)
+
+	if _, err := unix.Write(fd, data); err != nil {
+		return fmt.Errorf("memfd write: %w", err)
+	}
+	const fAddSeals = 1033
+	const fSealWrite = 0x0008
+	const fSealShrink = 0x0002
+	const fSealGrow = 0x0004
+	if _, _, errno := syscall.Syscall(syscall.SYS_FCNTL, uintptr(fd), fAddSeals, fSealWrite|fSealShrink|fSealGrow); errno != 0 {
+		return fmt.Errorf("memfd seal: %w", errno)
+	}
+
+	// Wait for the agent to process the memfd seal event and populate the BPF map.
+	time.Sleep(500 * time.Millisecond)
+
+	// Start dd-trace-go with:
+	// - WithTestDefaults: uses a dummy transport (no real agent needed)
+	// - WithProfilerCodeHotspots: enables "span id" and "local root span id" pprof labels
+	// - WithService: set a service name
+	tracer.Start(
+		tracer.WithTestDefaults(nil),
+		tracer.WithProfilerCodeHotspots(true),
+		tracer.WithService("ddtrace-test"),
+		tracer.WithLogStartup(false),
+	)
+	defer tracer.Stop()
+
+	// Create a span. dd-trace-go will automatically set pprof labels
+	// "span id" and "local root span id" on the current goroutine.
+	span, ctx := tracer.StartSpanFromContext(context.Background(), "test.operation")
+
+	// Print the span ID and local root span ID so the test can parse and verify them.
+	spanID := span.Context().SpanID()
+	localRootSpanID := span.Root().Context().SpanID()
+	fmt.Printf("ddtrace_span_id=%d\n", spanID)
+	fmt.Printf("ddtrace_local_root_span_id=%d\n", localRootSpanID)
+
+	_ = ctx
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	// Trigger the file open that the CWS rule is watching.
+	f, err := os.Create(filePath)
+	if err != nil {
+		span.Finish()
+		return fmt.Errorf("create file: %w", err)
+	}
+	f.Close()
+	os.Remove(filePath)
+
+	span.Finish()
+	return nil
+}
+
 func main() {
 	flag.BoolVar(&bpfLoad, "load-bpf", false, "load the eBPF programs")
 	flag.BoolVar(&bpfClone, "clone-bpf", false, "clone maps")
@@ -360,6 +447,8 @@ func main() {
 	flag.StringVar(&goSpanSpanID, "go-span-span-id", "", "span ID for the Go span test (decimal string)")
 	flag.StringVar(&goSpanLocalRootSpanID, "go-span-local-root-span-id", "", "local root span ID for the Go span test (decimal string)")
 	flag.StringVar(&goSpanFilePath, "go-span-file-path", "", "file path to open for the Go span test")
+	flag.BoolVar(&ddtraceSpanTest, "ddtrace-span-test", false, "when set, runs the dd-trace-go span test")
+	flag.StringVar(&ddtraceSpanFilePath, "ddtrace-span-file-path", "", "file path to open for the dd-trace-go span test")
 
 	flag.Parse()
 
@@ -423,6 +512,12 @@ func main() {
 
 	if goSpanTest {
 		if err := RunGoSpanTest(goSpanSpanID, goSpanLocalRootSpanID, goSpanFilePath); err != nil {
+			panic(err)
+		}
+	}
+
+	if ddtraceSpanTest {
+		if err := RunDDTraceSpanTest(ddtraceSpanFilePath); err != nil {
 			panic(err)
 		}
 	}
