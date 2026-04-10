@@ -87,7 +87,7 @@ func getBackendCommandBinary(t *testing.T) (string, func()) {
 			binName += ".exe"
 		}
 		srcBin := filepath.Join(testSrcDir, os.Getenv("TEST_WORKSPACE"),
-			"comp/core/secrets/impl/test/src/test_command/test_command_/test_command")
+			"comp/core/secrets/impl/test/src/test_command/test_command_", binName)
 		require.FileExists(t, srcBin, "pre-built test_command binary not found in runfiles")
 
 		tmpDir := t.TempDir()
