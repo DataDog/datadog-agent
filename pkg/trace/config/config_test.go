@@ -169,3 +169,9 @@ func TestDefaultAPMMode(t *testing.T) {
 		assert.Empty(t, cfg.APMMode)
 	})
 }
+
+func TestEnableOPMFetchDefault(t *testing.T) {
+	cfg := New()
+	assert.False(t, cfg.EnableOPMFetch, "EnableOPMFetch must default to false so library users of pkg/trace are unaffected")
+	assert.Empty(t, cfg.OPMValidateURL, "OPMValidateURL must default to empty when EnableOPMFetch is false")
+}

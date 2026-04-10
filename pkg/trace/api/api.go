@@ -127,6 +127,22 @@ type HTTPReceiver struct {
 	// outOfCPUCounter is counter to throttle the out of cpu warning log
 	outOfCPUCounter *atomic.Uint32
 
+	// orgPropMarker holds the Org Propagation Marker once the background fetch
+	// succeeds. An empty string means the marker is not yet available.
+	orgPropMarker atomic.String
+
+	// agentState is the Datadog-Agent-State hash served on all endpoints via
+	// the Datadog-Agent-State response header. Initialised from the static /info
+	// payload in makeInfoHandler and updated when orgPropMarker is set.
+	agentState atomic.String
+
+	// computeStateHashMu protects computeStateHash.
+	computeStateHashMu sync.Mutex
+
+	// computeStateHash is set by makeInfoHandler. Given an OPM value (may be
+	// empty), it returns the SHA-256 hex hash of the full /info payload.
+	computeStateHash func(opm string) string
+
 	statsd   statsd.ClientInterface
 	timing   timing.Reporter
 	info     *watchdog.CurrentInfo
@@ -208,7 +224,7 @@ func (r *HTTPReceiver) buildMux() *http.ServeMux {
 
 	defaultTimeout := getConfiguredRequestTimeoutDuration(r.conf)
 
-	hash, infoHandler := r.makeInfoHandler()
+	_, infoHandler := r.makeInfoHandler()
 	for _, e := range endpoints {
 		if e.IsEnabled != nil && !e.IsEnabled(r.conf) {
 			continue
@@ -217,7 +233,7 @@ func (r *HTTPReceiver) buildMux() *http.ServeMux {
 		if e.TimeoutOverride != nil {
 			timeout = e.TimeoutOverride(r.conf)
 		}
-		h := replyWithVersion(hash, r.conf.AgentVersion, timeoutMiddleware(timeout, e.Handler(r)))
+		h := replyWithVersion(r.agentState.Load, r.conf.AgentVersion, timeoutMiddleware(timeout, e.Handler(r)))
 		r.Handlers[e.Pattern] = h
 		mux.Handle(e.Pattern, h)
 	}
@@ -228,11 +244,13 @@ func (r *HTTPReceiver) buildMux() *http.ServeMux {
 }
 
 // replyWithVersion returns an http.Handler which calls h with an addition of some
-// HTTP headers containing version and state information.
-func replyWithVersion(hash string, version string, h http.Handler) http.Handler {
+// HTTP headers containing version and state information. stateGetter is called on
+// every request so that the Datadog-Agent-State header always reflects the latest
+// agent state (which may change when the Org Propagation Marker is fetched).
+func replyWithVersion(stateGetter func() string, version string, h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Datadog-Agent-Version", version)
-		w.Header().Set("Datadog-Agent-State", hash)
+		w.Header().Set("Datadog-Agent-State", stateGetter())
 		h.ServeHTTP(w, r)
 	})
 }

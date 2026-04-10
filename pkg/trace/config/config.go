@@ -571,6 +571,19 @@ type AgentConfig struct {
 	// When true, the tag "_dd.otel.gateway" will be attached to the AgentPayload.
 	OTelGateway bool
 
+	// EnableOPMFetch controls whether the trace-agent will make a background
+	// request to the /api/v2/validate intake endpoint to derive an Org
+	// Propagation Marker (OPM) and expose it in the /info endpoint.
+	// Disabled by default so library users of pkg/trace are unaffected.
+	EnableOPMFetch bool
+
+	// OPMValidateURL is the full URL of the /api/v2/validate endpoint used by
+	// the OPM background fetch. Set by the binary's prepareConfig using
+	// utils.GetMainEndpoint so that IDNA normalisation, site-FQDN conversion,
+	// and any apm_config.opm_dd_url override are all applied correctly.
+	// Empty when EnableOPMFetch is false.
+	OPMValidateURL string
+
 	// SecretsRefreshFn is called when a 403 response is received to trigger
 	// API key refresh from the secrets backend. It blocks until the refresh
 	// completes and returns a message and any error encountered.

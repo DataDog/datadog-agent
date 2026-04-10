@@ -10,10 +10,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"regexp"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -372,6 +374,97 @@ func TestInfoHandler(t *testing.T) {
 	assert.NoError(t, ensureKeys(expectedKeys, m, ""))
 	expectedContainerHash := fmt.Sprintf("%x", sha256.Sum256([]byte(strings.Join([]string{"kube_cluster_name:clusterA", "kube_namespace:namespace1"}, ","))))
 	assert.Equal(t, expectedContainerHash, rec.Header().Get(containerTagsHashHeader))
+}
+
+func TestInfoHandler_OPMAbsent(t *testing.T) {
+	conf := config.New()
+	conf.Endpoints = []*config.Endpoint{{Host: "http://localhost:8126", APIKey: "test"}}
+	rcv := newTestReceiverFromConfig(conf)
+
+	_, h := rcv.makeInfoHandler()
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/info", nil)
+	h.ServeHTTP(rec, req)
+
+	var m map[string]any
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&m))
+	_, hasOPM := m["org_prop_marker"]
+	assert.False(t, hasOPM, "org_prop_marker must be absent from /info when OPM is not set")
+}
+
+func TestInfoHandler_OPMPresent(t *testing.T) {
+	conf := config.New()
+	conf.Endpoints = []*config.Endpoint{{Host: "http://localhost:8126", APIKey: "test"}}
+	rcv := newTestReceiverFromConfig(conf)
+
+	_, h := rcv.makeInfoHandler()
+	rcv.setOrgPropMarker("testOPM123")
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/info", nil)
+	h.ServeHTTP(rec, req)
+
+	var m map[string]any
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&m))
+	opm, ok := m["org_prop_marker"]
+	assert.True(t, ok, "org_prop_marker should be present in /info when OPM is set")
+	assert.Equal(t, "testOPM123", opm)
+}
+
+func TestInfoHandler_AgentStateHashChanges(t *testing.T) {
+	conf := config.New()
+	conf.Endpoints = []*config.Endpoint{{Host: "http://localhost:8126", APIKey: "test"}}
+	rcv := newTestReceiverFromConfig(conf)
+
+	_, _ = rcv.makeInfoHandler()
+	hashBefore := rcv.agentState.Load()
+
+	rcv.setOrgPropMarker("newOPMValue")
+	hashAfter := rcv.agentState.Load()
+
+	assert.NotEmpty(t, hashBefore)
+	assert.NotEmpty(t, hashAfter)
+	assert.NotEqual(t, hashBefore, hashAfter, "Datadog-Agent-State hash must change when OPM is set")
+
+	// Verify the post-OPM hash matches what computeStateHash produces
+	rcv.computeStateHashMu.Lock()
+	fn := rcv.computeStateHash
+	rcv.computeStateHashMu.Unlock()
+	require.NotNil(t, fn)
+	assert.Equal(t, fn("newOPMValue"), hashAfter)
+}
+
+func TestInfoHandler_OPMConcurrent(t *testing.T) {
+	conf := config.New()
+	conf.Endpoints = []*config.Endpoint{{Host: "http://localhost:8126", APIKey: "test"}}
+	rcv := newTestReceiverFromConfig(conf)
+
+	_, h := rcv.makeInfoHandler()
+
+	done := make(chan struct{})
+	// Writer goroutine: repeatedly update the OPM
+	go func() {
+		defer close(done)
+		for i := 0; i < 100; i++ {
+			rcv.setOrgPropMarker("opm-concurrent")
+			time.Sleep(time.Microsecond)
+		}
+	}()
+
+	// 50 reader goroutines hit /info concurrently
+	var wg sync.WaitGroup
+	for i := 0; i < 50; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest("GET", "/info", nil)
+			h.ServeHTTP(rec, req)
+			assert.Equal(t, http.StatusOK, rec.Code)
+		}()
+	}
+	wg.Wait()
+	<-done
 }
 
 func TestInfoHandlerFilterTags(t *testing.T) {

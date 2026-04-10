@@ -19,6 +19,27 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 )
 
+// infoPayload is the JSON structure served by the /info endpoint.
+type infoPayload struct {
+	Version                string        `json:"version"`
+	GitCommit              string        `json:"git_commit"`
+	Endpoints              []string      `json:"endpoints"`
+	FeatureFlags           []string      `json:"feature_flags,omitempty"`
+	ClientDropP0s          bool          `json:"client_drop_p0s"`
+	SpanMetaStructs        bool          `json:"span_meta_structs"`
+	LongRunningSpans       bool          `json:"long_running_spans"`
+	SpanEvents             bool          `json:"span_events"`
+	EvpProxyAllowedHeaders []string      `json:"evp_proxy_allowed_headers"`
+	Config                 reducedConfig `json:"config"`
+	PeerTags               []string      `json:"peer_tags"`
+	SpanKindsStatsComputed []string      `json:"span_kinds_stats_computed"`
+	ObfuscationVersion     int           `json:"obfuscation_version"`
+	FilterTags             *filterTags   `json:"filter_tags,omitempty"`
+	FilterTagsRegex        *filterTags   `json:"filter_tags_regex,omitempty"`
+	IgnoreResources        []string      `json:"ignore_resources,omitempty"`
+	OrgPropMarker          string        `json:"org_prop_marker,omitempty"`
+}
+
 const (
 	containerTagsHashHeader = "Datadog-Container-Tags-Hash"
 )
@@ -71,6 +92,9 @@ type filterTags struct {
 }
 
 // makeInfoHandler returns a new handler for handling the discovery endpoint.
+// As a side effect it initialises r.computeStateHash and r.agentState so that
+// the Datadog-Agent-State header reflects the current /info payload (including
+// any already-fetched Org Propagation Marker).
 func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc) {
 	var all []string
 	for _, e := range endpoints {
@@ -149,24 +173,8 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		ignoreResources = patterns
 	}
 
-	txt, err := json.MarshalIndent(struct {
-		Version                string        `json:"version"`
-		GitCommit              string        `json:"git_commit"`
-		Endpoints              []string      `json:"endpoints"`
-		FeatureFlags           []string      `json:"feature_flags,omitempty"`
-		ClientDropP0s          bool          `json:"client_drop_p0s"`
-		SpanMetaStructs        bool          `json:"span_meta_structs"`
-		LongRunningSpans       bool          `json:"long_running_spans"`
-		SpanEvents             bool          `json:"span_events"`
-		EvpProxyAllowedHeaders []string      `json:"evp_proxy_allowed_headers"`
-		Config                 reducedConfig `json:"config"`
-		PeerTags               []string      `json:"peer_tags"`
-		SpanKindsStatsComputed []string      `json:"span_kinds_stats_computed"`
-		ObfuscationVersion     int           `json:"obfuscation_version"`
-		FilterTags             *filterTags   `json:"filter_tags,omitempty"`
-		FilterTagsRegex        *filterTags   `json:"filter_tags_regex,omitempty"`
-		IgnoreResources        []string      `json:"ignore_resources,omitempty"`
-	}{
+	// staticPayload holds every field that does not change after startup.
+	staticPayload := infoPayload{
 		Version:                r.conf.AgentVersion,
 		GitCommit:              r.conf.GitCommit,
 		Endpoints:              all,
@@ -197,18 +205,44 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 			Obfuscation:            oconf,
 		},
 		PeerTags: r.conf.ConfiguredPeerTags(),
-	}, "", "\t")
-	if err != nil {
-		panic(fmt.Errorf("Error making /info handler: %v", err))
 	}
-	h := sha256.Sum256(txt)
-	return hex.EncodeToString(h[:]), func(w http.ResponseWriter, req *http.Request) {
+
+	// computeStateHash produces the Datadog-Agent-State hash for a given OPM.
+	// Stored on the receiver so setOrgPropMarker can reuse it without re-parsing
+	// the configuration.
+	computeStateHashFn := func(opm string) string {
+		p := staticPayload
+		p.OrgPropMarker = opm
+		b, _ := json.Marshal(p)
+		h := sha256.Sum256(b)
+		return hex.EncodeToString(h[:])
+	}
+
+	r.computeStateHashMu.Lock()
+	r.computeStateHash = computeStateHashFn
+	r.computeStateHashMu.Unlock()
+
+	// Initialise agentState using the OPM that may have already been stored by
+	// startOPMFetch (possible when the fetch completes before buildMux runs).
+	initialHash := computeStateHashFn(r.OrgPropMarker())
+	r.agentState.Store(initialHash)
+
+	return initialHash, func(w http.ResponseWriter, req *http.Request) {
+		opm := r.OrgPropMarker()
+		payload := staticPayload
+		payload.OrgPropMarker = opm
+
 		containerID := r.containerIDProvider.GetContainerID(req.Context(), req.Header)
 		if containerTags, err := r.conf.ContainerTags(containerID); err == nil {
-			hash := computeContainerTagsHash(containerTags)
-			w.Header().Add(containerTagsHashHeader, hash)
+			w.Header().Add(containerTagsHashHeader, computeContainerTagsHash(containerTags))
 		}
-		fmt.Fprintf(w, "%s", txt)
+
+		txt, err := json.MarshalIndent(payload, "", "\t")
+		if err != nil {
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+		w.Write(txt) //nolint:errcheck
 	}
 }
 

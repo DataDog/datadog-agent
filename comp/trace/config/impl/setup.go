@@ -140,6 +140,12 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component, ipc ipc.Com
 	cfg.HTTPTransportFunc = func() *http.Transport {
 		return httputils.CreateHTTPTransport(coreConfigObject)
 	}
+	cfg.EnableOPMFetch = true
+	cfg.OPMValidateURL = utils.GetMainEndpoint(
+		pkgconfigsetup.Datadog(),
+		"https://api.",
+		"apm_config.opm_dd_url",
+	) + "/api/v2/validate"
 
 	return cfg, nil
 }
