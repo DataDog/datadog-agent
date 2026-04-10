@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent/helm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	kubeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
@@ -46,7 +47,7 @@ type ProvisionerParams struct {
 func newProvisionerParams() *ProvisionerParams {
 	return &ProvisionerParams{
 		name:              defaultVMName,
-		vmOptions:         []ec2.VMOption{},
+		vmOptions:         []ec2.VMOption{ec2.WithOS(os.Ubuntu2204K8s)},
 		agentOptions:      []kubernetesagentparams.Option{},
 		fakeintakeOptions: []fakeintake.Option{},
 		extraConfigParams: runner.ConfigMap{},

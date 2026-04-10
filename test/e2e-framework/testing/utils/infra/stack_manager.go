@@ -292,7 +292,7 @@ func (sm *StackManager) getLoggingOptions() (debug.LoggingOptions, error) {
 		return debug.LoggingOptions{}, err
 	}
 	pulumiLogLevel := uint(logLevel)
-	pulumiLogToStdErr, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.PulumiLogToStdErr, false)
+	pulumiLogToStdErr, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.PulumiLogToStdErr, true)
 	if err != nil {
 		return debug.LoggingOptions{}, err
 	}
@@ -305,7 +305,7 @@ func (sm *StackManager) getLoggingOptions() (debug.LoggingOptions, error) {
 }
 
 func (sm *StackManager) getProgressStreamsOnUp(logger io.Writer) optup.Option {
-	progressStreams, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.PulumiVerboseProgressStreams, false)
+	progressStreams, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.PulumiVerboseProgressStreams, true)
 	if err != nil {
 		return optup.ErrorProgressStreams(logger)
 	}
@@ -318,7 +318,7 @@ func (sm *StackManager) getProgressStreamsOnUp(logger io.Writer) optup.Option {
 }
 
 func (sm *StackManager) getProgressStreamsOnDestroy(logger io.Writer) optdestroy.Option {
-	progressStreams, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.PulumiVerboseProgressStreams, false)
+	progressStreams, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.PulumiVerboseProgressStreams, true)
 	if err != nil {
 		return optdestroy.ErrorProgressStreams(logger)
 	}

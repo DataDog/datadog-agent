@@ -40,8 +40,14 @@ var agentConfigStr string
 var systemProbeConfigStr string
 
 type systemData struct {
-	ami string
-	os  os.Descriptor
+	// os is the OS descriptor used for host-based tests. It is also used for
+	// Kubernetes-based tests when k8sOS is not set.
+	os os.Descriptor
+
+	// k8sOS is the OS descriptor used for Kubernetes-based tests. When set, it
+	// overrides os for Kubernetes provisioning (e.g., to select a GPU AMI that
+	// also has kind/kubectl/nvkind pre-baked). When zero, os is used instead.
+	k8sOS os.Descriptor
 
 	// cudaSanityCheckImage is a Docker image that contains a CUDA sample to
 	// validate the GPU setup with the default CUDA installation. Note that the CUDA
@@ -164,7 +170,7 @@ func gpuHostProvisioner(params *provisionerParams) provisioners.Provisioner {
 		// Create the EC2 instance
 		host, err := ec2.NewVM(awsEnv, name,
 			ec2.WithInstanceType(params.instanceType),
-			ec2.WithAMI(params.systemData.ami, params.systemData.os, os.AMD64Arch),
+			ec2.WithOS(params.systemData.os),
 			ec2.WithUserData(ddAgentSetup),
 		)
 		if err != nil {
@@ -243,9 +249,13 @@ func gpuK8sProvisioner(params *provisionerParams) provisioners.Provisioner {
 			return fmt.Errorf("aws.NewEnvironment: %w", err)
 		}
 
+		k8sOS := params.systemData.os
+		if params.systemData.k8sOS != (os.Descriptor{}) {
+			k8sOS = params.systemData.k8sOS
+		}
 		host, err := ec2.NewVM(awsEnv, name,
 			ec2.WithInstanceType(params.instanceType),
-			ec2.WithAMI(params.systemData.ami, params.systemData.os, os.AMD64Arch),
+			ec2.WithOS(k8sOS),
 		)
 		if err != nil {
 			return fmt.Errorf("ec2.NewVM: %w", err)
