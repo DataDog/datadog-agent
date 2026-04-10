@@ -110,5 +110,5 @@ pkg_rpm(
     },
     summary = "Datadog Installer",
     url = "http://www.datadoghq.com",
-    version = "7",  # TODO: stamp from pipeline (ABLD-364)
+    version = "7",  # TODO: pick up from pipeline
 )

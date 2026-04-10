@@ -85,7 +85,7 @@ packages/installer/
 ├── linux/
 │   └── BUILD.bazel     ← pkg_tar, pkg_deb, pkg_rpm
 ├── macos/
-│   └── BUILD.bazel     ← pkg_tar only (no DMG rule yet)
+│   └── BUILD.bazel     ← pkg_tar only (no PKG or DMG rule yet)
 └── windows/
     └── BUILD.bazel     ← pkg_tar only (no MSI rule yet)
 ```
@@ -276,7 +276,7 @@ Expected output includes:
 
 ### Phase 3 — Create `packages/installer/macos/BUILD.bazel`
 
-macOS uses `pkg_tar` only; no DMG rule exists yet. The install path is identical
+macOS uses `pkg_tar` only; no PKG rule exists yet. The install path is identical
 to Linux.
 
 Note: on macOS the binary is built **with** CGO (unlike Linux `--no-cgo`). The
@@ -330,7 +330,7 @@ pkg_tar(
     owner = "0.0",
 )
 
-# TODO: DMG target when pkg_dmg rule is available.
+# TODO: PKG target when pkg_pkg rule is available.
 ```
 
 ---
