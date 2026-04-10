@@ -35,7 +35,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
 const logDir = "var/log"
@@ -453,15 +452,8 @@ func sshAuthLogPathCandidates() []string {
 		"messages", // openSUSE/others
 	}
 	var hostRoots []string
-	if hr := os.Getenv("HOST_ROOT"); hr != "" {
+	if hr := os.Getenv("HOST_ROOT"); hr != "" && env.IsContainerized() {
 		hostRoots = append(hostRoots, hr)
-	} else if env.IsContainerized() {
-		seclog.Infof("HOST_ROOT is not set with containerized environment, defaulting to /host/root")
-		hostRoots = append(hostRoots, "/host/root")
-		if filesystem.FileExists("/host") {
-			hostRoots = append(hostRoots, "/host")
-			seclog.Infof("HOST_ROOT is not set with containerized environment, adding /host to the list")
-		}
 	}
 	out := make([]string, 0, len(names)*(1+len(hostRoots)))
 	for _, root := range hostRoots {
