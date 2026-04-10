@@ -26,6 +26,15 @@ static __attribute__((always_inline)) struct inode* get_dentry_inode(struct dent
     return inode;
 }
 
+static struct dentry *__attribute__((always_inline)) get_dentry_parent(struct dentry *dentry) {
+    u64 offset;
+    LOAD_CONSTANT("dentry_d_parent_offset", offset);
+
+    struct dentry *parent;
+    bpf_probe_read(&parent, sizeof(parent), (void *)dentry + offset);
+    return parent;
+}
+
 static dev_t __attribute__((always_inline)) get_sb_dev(struct super_block *sb) {
     u64 sb_dev_offset;
     LOAD_CONSTANT("sb_dev_offset", sb_dev_offset);
