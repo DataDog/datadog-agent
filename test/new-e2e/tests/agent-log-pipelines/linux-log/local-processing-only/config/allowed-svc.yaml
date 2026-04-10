@@ -1,0 +1,5 @@
+logs:
+  - type: file
+    path: '/var/log/e2e_test_logs/allowed-svc.log'
+    service: allowed-svc
+    source: custom_log

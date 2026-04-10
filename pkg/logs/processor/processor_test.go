@@ -13,9 +13,30 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
+
+// mockObserverHandle is a lightweight observer.Handle that records which logs it observed.
+type mockObserverHandle struct {
+	observed []observer.LogView
+}
+
+func (m *mockObserverHandle) ObserveMetric(observer.MetricView)         {}
+func (m *mockObserverHandle) ObserveTrace(observer.TraceView)           {}
+func (m *mockObserverHandle) ObserveTraceStats(observer.TraceStatsView) {}
+func (m *mockObserverHandle) ObserveProfile(observer.ProfileView)       {}
+func (m *mockObserverHandle) ObserveLog(msg observer.LogView) {
+	// Store status so tests can assert which messages were observed.
+	m.observed = append(m.observed, msg)
+}
+
+// mockDiagnosticReceiver satisfies diagnostic.MessageReceiver without any side effects.
+type mockDiagnosticReceiver struct{}
+
+func (m *mockDiagnosticReceiver) HandleMessage(*message.Message, []byte, string) {}
 
 type processorTestCase struct {
 	source        sources.LogSource
@@ -377,6 +398,109 @@ func newStructuredMessage(content []byte, source *sources.LogSource, status stri
 	msg := message.NewStructuredMessage(&structuredContent, message.NewOrigin(source), status, 0)
 	msg.SetContent(content)
 	return msg
+}
+
+// ---- LocalProcessingOnly routing tests ----
+
+// newProcessingRuleRouting creates a LocalProcessingOnly
+// rule with a pre-compiled CompiledRoutingMatch for the given service glob.
+func newProcessingRuleRouting(ruleType, serviceGlob string) *config.ProcessingRule {
+	return &config.ProcessingRule{
+		Name:          ruleName,
+		Type:          ruleType,
+		Match:         &config.RoutingMatch{Services: []string{serviceGlob}},
+		CompiledMatch: &config.CompiledRoutingMatch{ServiceGlobs: []string{serviceGlob}},
+	}
+}
+
+// newSourceWithService creates a LogSource whose Config has the given service set.
+func newSourceWithService(svc string) *sources.LogSource {
+	return sources.NewLogSource("", &config.LogsConfig{Service: svc})
+}
+
+func TestLocalProcessingOnlySetsFlag(t *testing.T) {
+	p := &Processor{
+		processingRules: []*config.ProcessingRule{
+			newProcessingRuleRouting(config.LocalProcessingOnly, "suppressed-svc"),
+		},
+	}
+	src := newSourceWithService("suppressed-svc")
+	msg := newMessage([]byte("hello"), src, "info")
+
+	shouldProcess := p.applyRedactingRules(msg)
+	assert.True(t, shouldProcess, "local_processing_only should not drop the message")
+	assert.True(t, msg.IsLocalProcessingOnly)
+}
+
+func TestLocalProcessingOnlyDoesNotMatchOtherService(t *testing.T) {
+	p := &Processor{
+		processingRules: []*config.ProcessingRule{
+			newProcessingRuleRouting(config.LocalProcessingOnly, "suppressed-svc"),
+		},
+	}
+	src := newSourceWithService("allowed-svc")
+	msg := newMessage([]byte("hello"), src, "info")
+
+	shouldProcess := p.applyRedactingRules(msg)
+	assert.True(t, shouldProcess)
+	assert.False(t, msg.IsLocalProcessingOnly)
+}
+
+// newTestProcessor creates a Processor wired up for processMessage testing.
+func newTestProcessor(
+	rules []*config.ProcessingRule,
+	inputChan, outputChan chan *message.Message,
+	obs *mockObserverHandle,
+) *Processor {
+	return &Processor{
+		processingRules:           rules,
+		inputChan:                 inputChan,
+		outputChan:                outputChan,
+		encoder:                   JSONEncoder,
+		diagnosticMessageReceiver: &mockDiagnosticReceiver{},
+		pipelineMonitor:           metrics.NewNoopPipelineMonitor("test"),
+		utilization:               metrics.NewNoopPipelineMonitor("test").MakeUtilizationMonitor("test", ""),
+		observerHandle:            obs,
+		done:                      make(chan struct{}),
+	}
+}
+
+func TestProcessMessageLocalProcessingOnlySkipsOutput(t *testing.T) {
+	inputChan := make(chan *message.Message, 1)
+	outputChan := make(chan *message.Message, 1)
+	obs := &mockObserverHandle{}
+
+	p := newTestProcessor(
+		[]*config.ProcessingRule{newProcessingRuleRouting(config.LocalProcessingOnly, "suppressed-svc")},
+		inputChan, outputChan, obs,
+	)
+
+	src := newSourceWithService("suppressed-svc")
+	msg := newMessage([]byte("hello"), src, "info")
+	p.processMessage(msg)
+
+	// The message must have been observed by the observer…
+	assert.Len(t, obs.observed, 1)
+	// …but must NOT have been sent to the output channel.
+	assert.Empty(t, outputChan)
+}
+
+func TestProcessMessageLocalProcessingOnlyAllowedServiceReachesOutput(t *testing.T) {
+	inputChan := make(chan *message.Message, 1)
+	outputChan := make(chan *message.Message, 1)
+	obs := &mockObserverHandle{}
+
+	p := newTestProcessor(
+		[]*config.ProcessingRule{newProcessingRuleRouting(config.LocalProcessingOnly, "suppressed-svc")},
+		inputChan, outputChan, obs,
+	)
+
+	src := newSourceWithService("allowed-svc")
+	msg := newMessage([]byte("hello"), src, "info")
+	p.processMessage(msg)
+
+	// Unmatched message should reach the output channel.
+	assert.Len(t, outputChan, 1)
 }
 
 func BenchmarkMaskSequences(b *testing.B) {

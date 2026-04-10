@@ -207,6 +207,9 @@ type ParsingExtra struct {
 	IsMultiLine bool
 	IsMRFAllow  bool
 	Tags        []string
+	// Set by a local_processing_only routing rule: the log is processed by the
+	// observer but must not be forwarded to the Datadog backend.
+	IsLocalProcessingOnly bool
 }
 
 // ServerlessExtra ships extra information from logs processing in serverless envs.

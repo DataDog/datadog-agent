@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -31,6 +32,9 @@ const (
 	configMRFFailoverLogs     = "multi_region_failover.failover_logs"
 	configMRFServiceAllowlist = "multi_region_failover.logs_service_allowlist"
 )
+
+var tlmLocalOnlyLogs = telemetry.NewCounter("logs_processor", "local_only_logs_total",
+	nil, "Number of logs suppressed from backend sending by a local_processing_only rule")
 
 type failoverConfig struct {
 	isFailoverActive         bool
@@ -212,6 +216,12 @@ func (p *Processor) processMessage(msg *message.Message) {
 			p.observerHandle.ObserveLog(msg)
 		}
 
+		// local_processing_only logs are observed but must not reach the backend
+		if msg.IsLocalProcessingOnly {
+			tlmLocalOnlyLogs.Inc()
+			return
+		}
+
 		if p.failoverConfig.isFailoverActive {
 			p.filterMRFMessages(msg)
 		}
@@ -253,6 +263,12 @@ func (p *Processor) filterMRFMessages(msg *message.Message) {
 func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 	var content = msg.GetContent()
 
+	// Extract service once for use by LocalProcessingOnly / RemoteProcessingOnly rules.
+	var service string
+	if msg.Origin != nil {
+		service = msg.Origin.Service()
+	}
+
 	// Use the internal scrubbing implementation of the Agent
 	// ---------------------------
 
@@ -288,7 +304,10 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 				msg.RecordProcessingRule(rule.Type, rule.Name)
 				return false
 			}
-
+		case config.LocalProcessingOnly:
+			if rule.CompiledMatch != nil && rule.CompiledMatch.Matches(service) {
+				msg.IsLocalProcessingOnly = true
+			}
 		}
 	}
 

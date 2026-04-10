@@ -1,0 +1,7 @@
+logs_config:
+  processing_rules:
+    - type: local_processing_only
+      name: suppress-svc
+      match:
+        services:
+          - suppressed-svc
