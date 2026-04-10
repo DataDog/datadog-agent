@@ -181,7 +181,10 @@ async fn open_pipe_with_retry(
     for attempt in 0..PIPE_BUSY_RETRIES {
         match ClientOptions::new().open(name) {
             Ok(client) => return Ok(hyper_util::rt::TokioIo::new(client)),
-            Err(e) if e.raw_os_error() == Some(ERROR_PIPE_BUSY as i32) && attempt + 1 < PIPE_BUSY_RETRIES => {
+            Err(e)
+                if e.raw_os_error() == Some(ERROR_PIPE_BUSY as i32)
+                    && attempt + 1 < PIPE_BUSY_RETRIES =>
+            {
                 tokio::time::sleep(std::time::Duration::from_millis(backoff)).await;
                 backoff *= 2;
             }
