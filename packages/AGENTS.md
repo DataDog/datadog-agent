@@ -212,10 +212,9 @@ This target is removed once the omnibus recipe is deleted.
 
 ## Known TODOs Across All Products
 
-- **Version stamping**: all products currently hardcode `version = "7"`. Pipeline
-  stamping (equivalent to `build_version ENV['PACKAGE_VERSION']`) is tracked in ABLD-364.
-- **RHEL vs SUSE constraint**: `requires_contextual` and `conflicts` use RHEL values
-  for all RPM builds. A proper `select()` needs a RHEL vs SUSE platform constraint.
+- **Version stamping**: all products currently hardcode `version = "7"`. In the future
+  we will get that from the pipeine (equivalent to `build_version ENV['PACKAGE_VERSION']`).
+- **RHEL vs SUSE constraint**: omnibus distinguishes RHEL and SUSE builds in different pipelines. Going forward we'll just have different targets for them, and always build both in the same pipeline.
 - **Symbol stripping / signing**: `strip_build`, `windows_symbol_stripping_file`,
   `inspect_binary`, and `sign_file` are not yet migrated.
 - **Transitive deps**: `//packages/agent/linux:transitive_deps` is a temporary
