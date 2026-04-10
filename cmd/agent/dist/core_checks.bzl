@@ -1,5 +1,5 @@
 """
-Agent checks. This file is both checks.py and checks.bzl
+Agent checks. This file is both cmd/agent/dist/core_checks.bzl and tasks/checks.py
 """
 
 AGENT_CORECHECKS = [
