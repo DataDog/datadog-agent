@@ -91,14 +91,8 @@ func (srv *KubeMetadataStreamServer) Start(ctx context.Context) {
 
 // StreamKubeMetadata streams pod-to-service mappings and namespace metadata to
 // the requesting node agent.
-func (srv *KubeMetadataStreamServer) StreamKubeMetadata(req *pb.KubeMetadataStreamRequest, stream pb.AgentSecure_StreamKubeMetadataServer) (retErr error) {
+func (srv *KubeMetadataStreamServer) StreamKubeMetadata(req *pb.KubeMetadataStreamRequest, stream pb.AgentSecure_StreamKubeMetadataServer) error {
 	nodeName := req.GetNodeName()
-
-	sessionSpan, ctx := tracer.StartSpanFromContext(stream.Context(), "cluster_agent.metadata_stream.session",
-		tracer.ResourceName("session"),
-		tracer.Tag("node_name", nodeName),
-	)
-	defer func() { sessionSpan.Finish(tracer.WithError(retErr)) }()
 
 	podServicesNotifyCh := srv.store.Subscribe(nodeName)
 	defer srv.store.Unsubscribe(nodeName, podServicesNotifyCh)
@@ -110,8 +104,9 @@ func (srv *KubeMetadataStreamServer) StreamKubeMetadata(req *pb.KubeMetadataStre
 	lastSentPodServicesState := srv.buildPodServiceMappingsSnapshot(nodeName)
 	lastSentNamespacesState := srv.buildNamespacesSnapshot()
 	initialResp := fullStateResponse(lastSentPodServicesState, lastSentNamespacesState)
-	initialSendSpan, _ := tracer.StartSpanFromContext(ctx, "cluster_agent.metadata_stream.send_full_state",
+	initialSendSpan := tracer.StartSpan("cluster_agent.metadata_stream.send_full_state",
 		tracer.ResourceName("sendFullState"),
+		tracer.Tag("node_name", nodeName),
 	)
 	if err := grpc.DoWithTimeout(func() error {
 		return stream.Send(initialResp)
@@ -125,6 +120,7 @@ func (srv *KubeMetadataStreamServer) StreamKubeMetadata(req *pb.KubeMetadataStre
 	ticker := time.NewTicker(keepAliveInterval)
 	defer ticker.Stop()
 
+	ctx := stream.Context()
 	for {
 		select {
 		case <-ctx.Done():
@@ -140,8 +136,9 @@ func (srv *KubeMetadataStreamServer) StreamKubeMetadata(req *pb.KubeMetadataStre
 				IsFullState: false,
 				Mappings:    podServiceMappingsDiff,
 			}
-			sendSpan, _ := tracer.StartSpanFromContext(ctx, "cluster_agent.metadata_stream.send_diff",
+			sendSpan := tracer.StartSpan("cluster_agent.metadata_stream.send_diff",
 				tracer.ResourceName("sendDiff"),
+				tracer.Tag("node_name", nodeName),
 				tracer.Tag("event_type", "pod_services"),
 			)
 			if err := grpc.DoWithTimeout(func() error {
@@ -165,8 +162,9 @@ func (srv *KubeMetadataStreamServer) StreamKubeMetadata(req *pb.KubeMetadataStre
 				IsFullState:       false,
 				NamespaceMetadata: namespacesDiff,
 			}
-			sendSpan, _ := tracer.StartSpanFromContext(ctx, "cluster_agent.metadata_stream.send_diff",
+			sendSpan := tracer.StartSpan("cluster_agent.metadata_stream.send_diff",
 				tracer.ResourceName("sendDiff"),
+				tracer.Tag("node_name", nodeName),
 				tracer.Tag("event_type", "namespaces"),
 			)
 			if err := grpc.DoWithTimeout(func() error {
@@ -182,8 +180,9 @@ func (srv *KubeMetadataStreamServer) StreamKubeMetadata(req *pb.KubeMetadataStre
 
 		case <-ticker.C:
 			// Send empty keepalive
-			keepaliveSpan, _ := tracer.StartSpanFromContext(ctx, "cluster_agent.metadata_stream.send_keepalive",
+			keepaliveSpan := tracer.StartSpan("cluster_agent.metadata_stream.send_keepalive",
 				tracer.ResourceName("sendKeepalive"),
+				tracer.Tag("node_name", nodeName),
 			)
 			if err := grpc.DoWithTimeout(func() error {
 				return stream.Send(&pb.KubeMetadataStreamResponse{})

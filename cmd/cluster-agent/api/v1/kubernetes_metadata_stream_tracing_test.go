@@ -62,51 +62,6 @@ func newTestWmetaAndStore(t *testing.T) (workloadmetamock.Mock, *controllers.Met
 	return wmetaMock, store
 }
 
-func TestStreamKubeMetadata_SessionSpan(t *testing.T) {
-	mt := mocktracer.Start()
-	defer mt.Stop()
-
-	wmetaMock, store := newTestWmetaAndStore(t)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	srv := NewKubeMetadataStreamServer(store, wmetaMock)
-	srv.Start(ctx)
-
-	sendCount := 0
-	stream := &mockStream{
-		ctx: ctx,
-		sendFunc: func(_ *pb.KubeMetadataStreamResponse) error {
-			sendCount++
-			// Cancel context after initial full state send
-			if sendCount == 1 {
-				cancel()
-			}
-			return nil
-		},
-	}
-
-	req := &pb.KubeMetadataStreamRequest{
-		NodeName: "test-node",
-	}
-
-	err := srv.StreamKubeMetadata(req, stream)
-	require.NoError(t, err)
-
-	spans := mt.FinishedSpans()
-	var sessionSpan *mocktracer.Span
-	for _, s := range spans {
-		if s.OperationName() == "cluster_agent.metadata_stream.session" {
-			sessionSpan = s
-			break
-		}
-	}
-
-	require.NotNil(t, sessionSpan, "expected session span to be created")
-	assert.Equal(t, "cluster_agent.metadata_stream.session", sessionSpan.OperationName())
-	assert.Equal(t, "session", sessionSpan.Tag("resource.name"))
-	assert.Equal(t, "test-node", sessionSpan.Tag("node_name"))
-}
-
 func TestStreamKubeMetadata_InitialFullStateSendSpan(t *testing.T) {
 	mt := mocktracer.Start()
 	defer mt.Stop()
@@ -147,6 +102,7 @@ func TestStreamKubeMetadata_InitialFullStateSendSpan(t *testing.T) {
 
 	require.NotNil(t, fullStateSpan, "expected send_full_state span to be created")
 	assert.Equal(t, "sendFullState", fullStateSpan.Tag("resource.name"))
+	assert.Equal(t, "test-node", fullStateSpan.Tag("node_name"))
 	assert.Nil(t, fullStateSpan.Tag("error.message"))
 }
 
@@ -184,43 +140,6 @@ func TestStreamKubeMetadata_InitialFullStateSendErrorSpan(t *testing.T) {
 
 	require.NotNil(t, fullStateSpan, "expected send_full_state span on error")
 	assert.Equal(t, "sendFullState", fullStateSpan.Tag("resource.name"))
+	assert.Equal(t, "test-node", fullStateSpan.Tag("node_name"))
 	assert.NotNil(t, fullStateSpan.Tag("error.message"))
-}
-
-func TestStreamKubeMetadata_InitialSendErrorSpan(t *testing.T) {
-	mt := mocktracer.Start()
-	defer mt.Stop()
-
-	wmetaMock, store := newTestWmetaAndStore(t)
-
-	ctx := context.Background()
-	srv := NewKubeMetadataStreamServer(store, wmetaMock)
-	srv.Start(ctx)
-
-	sendErr := errors.New("send failed")
-	stream := &mockStream{
-		ctx:     ctx,
-		sendErr: sendErr,
-	}
-
-	req := &pb.KubeMetadataStreamRequest{
-		NodeName: "test-node",
-	}
-
-	err := srv.StreamKubeMetadata(req, stream)
-	require.Error(t, err)
-
-	spans := mt.FinishedSpans()
-	var sessionSpan *mocktracer.Span
-	for _, s := range spans {
-		if s.OperationName() == "cluster_agent.metadata_stream.session" {
-			sessionSpan = s
-			break
-		}
-	}
-
-	require.NotNil(t, sessionSpan, "expected session span to be created on error")
-	assert.Equal(t, "test-node", sessionSpan.Tag("node_name"))
-	// The session span should have the error tag set
-	assert.NotNil(t, sessionSpan.Tag("error.message"))
 }
