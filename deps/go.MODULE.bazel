@@ -431,6 +431,7 @@ use_repo(
     "com_github_xi2_xz",
     "com_github_yusufpapurcu_wmi",
     "com_gitlab_gitlab_org_api_client_go",
+    "com_google_cloud_go_compute",
     "com_google_cloud_go_compute_metadata",
     "in_gopkg_evanphx_json_patch_v4",
     "in_gopkg_yaml_v3",
