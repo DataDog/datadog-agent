@@ -210,8 +210,8 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 		err := s.RunInstallScriptWithError(params...)
 		require.NoErrorf(s.T(), err, "installer not properly installed. logs: \n%s\n%s", s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stdout.log || true"), s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stderr.log || true"))
 	case InstallMethodAnsible:
-		if (s.os.Flavor == e2eos.AmazonLinux && s.os.Version == e2eos.AmazonLinux2.Version) ||
-			(s.os.Flavor == e2eos.CentOS && s.os.Version == e2eos.CentOS7.Version) {
+		if (s.os.Flavor == e2eos.AmazonLinux && (s.os.Version == e2eos.AmazonLinux2.Version || s.os.Version == e2eos.AmazonLinux2Docker.Version)) ||
+			(s.os.Flavor == e2eos.CentOS && (s.os.Version == e2eos.CentOS7.Version || s.os.Version == e2eos.CentOS7Docker.Version)) {
 			s.T().Skip("Ansible doesn't install support Python2 anymore")
 		}
 		// Install ansible then install the agent
