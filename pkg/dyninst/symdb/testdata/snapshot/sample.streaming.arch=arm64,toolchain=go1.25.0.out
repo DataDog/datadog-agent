@@ -17,9 +17,9 @@ Package: main
 		Var: esotericStack: main.esotericStack (declared at line 53, available: [51-69])
 	Function: executeEsoteric.func1 (main.executeEsoteric.func1) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/esoteric.go [58:58] injectible: [58-58]
 		Var: &capture: *int (declared at line 58, available: )
-	Function: executeGenericFuncs (main.executeGenericFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go [19:25] injectible: [19-19], [21-21], [24-25]
-		Var: y: main.typeWithGenerics[int] (declared at line 23, available: )
-		Var: x: main.typeWithGenerics[string] (declared at line 20, available: )
+	Function: executeGenericFuncs (main.executeGenericFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go [25:33] injectible: [25-25], [27-27], [30-30], [32-33]
+		Var: y: main.typeWithGenerics[int] (declared at line 29, available: )
+		Var: x: main.typeWithGenerics[string] (declared at line 26, available: )
 	Function: executeInlined (main.executeInlined) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/inlined.go [97:106] injectible: [97-98], [100-106]
 		Var: x: int (declared at line 99, available: )
 		Var: y: int (declared at line 100, available: [97-106])
@@ -823,6 +823,10 @@ Package: main
 		Arg: b: int (declared at line 368, available: [368-371])
 		Arg: ~r0: int (declared at line 368, available: )
 		Arg: ~r1: [0]int (declared at line 368, available: )
+	Function: useCrossPackageGenerics (main.useCrossPackageGenerics) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go [1:52] injectible: [1-1], [42-47], [49-49], [51-52]
+		Var: set: *github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.ImmutableSet[string] (declared at line 43, available: [1-52])
+		Scope: 1-49
+			Var: s: string (declared at line 44, available: [46-49])
 	Type: main.aStruct
 		Field: aBool: bool
 		Field: aString: string
