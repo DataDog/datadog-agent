@@ -349,8 +349,11 @@ func (w *WorkloadWatcher) scanNsInformerWorkloads(
 			continue
 		}
 
-		// Skip workloads with direct labeling for profile
-		if _, hasLabel := unstructuredObj.GetLabels()[model.ProfileLabelKey]; hasLabel {
+		labels := unstructuredObj.GetLabels()
+		if _, hasLabel := labels[model.ProfileLabelKey]; hasLabel {
+			continue
+		}
+		if labels[model.ProfileDisabledLabelKey] == "true" {
 			continue
 		}
 

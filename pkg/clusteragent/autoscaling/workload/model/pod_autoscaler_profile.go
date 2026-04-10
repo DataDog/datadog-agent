@@ -26,6 +26,10 @@ const (
 	// and to mark generated DPAs as profile-managed.
 	ProfileLabelKey = "autoscaling.datadoghq.com/profile"
 
+	// ProfileDisabledLabelKey is the label key used to exclude a workload from
+	// namespace-level autoscaling profile discovery.
+	ProfileDisabledLabelKey = "autoscaling.datadoghq.com/profile-disabled"
+
 	// ProfileTemplateHashAnnotation stores the applied profile template hash on
 	// profile-managed DPA objects so it survives controller restarts.
 	ProfileTemplateHashAnnotation = "autoscaling.datadoghq.com/profile-hash"
