@@ -184,6 +184,12 @@ func getNodeInfo(w http.ResponseWriter, r *http.Request, _ workloadmeta.Componen
 		return
 	}
 
+	if node == nil {
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprintf(w, "Could not find node %s", nodeName)
+		return
+	}
+
 	// Marshal whole struct, unmarshal only takes what is needed on caller side.
 	data, err := json.Marshal(&node.Status.NodeInfo)
 	if err != nil {
