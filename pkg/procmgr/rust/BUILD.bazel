@@ -61,6 +61,9 @@ _LIB_DEPS = [
     "@platforms//os:linux": [
         "@crates//:nix",
     ],
+    "@platforms//os:macos": [
+        "@crates//:nix",
+    ],
     "@platforms//os:windows": [
         "@crates//:windows-sys",
     ],
