@@ -178,6 +178,7 @@ use_repo(
     "com_github_datadog_datadog_agent_pkg_opentelemetry_mapping_go_otlp_attributes",
     "com_github_datadog_datadog_agent_pkg_opentelemetry_mapping_go_otlp_rum",
     "com_github_datadog_datadog_agent_pkg_orchestrator_model",
+    "com_github_datadog_datadog_agent_pkg_orchestrator_util",
     "com_github_datadog_datadog_agent_pkg_process_util_api",
     "com_github_datadog_datadog_agent_pkg_proto",
     "com_github_datadog_datadog_agent_pkg_remoteconfig_state",
