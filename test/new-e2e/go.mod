@@ -34,9 +34,9 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/xeipuuv/gojsonschema v1.2.0
 	go.yaml.in/yaml/v2 v2.4.3
-	golang.org/x/crypto v0.49.0
-	golang.org/x/sys v0.42.0
-	golang.org/x/term v0.41.0
+	golang.org/x/crypto v0.50.0
+	golang.org/x/sys v0.43.0
+	golang.org/x/term v0.42.0
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
 	k8s.io/api v0.35.1
 	k8s.io/apimachinery v0.35.1
@@ -181,13 +181,13 @@ require (
 	go.uber.org/atomic v1.11.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.4
 	golang.org/x/exp v0.0.0-20260312153236-7ab1446f8b90
-	golang.org/x/mod v0.34.0
-	golang.org/x/net v0.52.0
-	golang.org/x/oauth2 v0.35.0 // indirect
+	golang.org/x/mod v0.35.0
+	golang.org/x/net v0.53.0
+	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
-	golang.org/x/text v0.35.0
-	golang.org/x/time v0.14.0 // indirect
-	golang.org/x/tools v0.43.0 // indirect
+	golang.org/x/text v0.36.0
+	golang.org/x/time v0.15.0 // indirect
+	golang.org/x/tools v0.44.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260209200024-4cfbd4190f57 // indirect
 	google.golang.org/grpc v1.79.3 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
@@ -214,7 +214,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/ssi/testutils v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/datadog-agent/pkg/trace v0.76.0-rc.4
 	github.com/DataDog/datadog-go/v5 v5.8.3
-	github.com/DataDog/dd-trace-go/v2 v2.5.0
+	github.com/DataDog/dd-trace-go/v2 v2.7.0-rc.1
 	github.com/DataDog/orchestrion v1.4.0
 	github.com/avast/retry-go/v4 v4.7.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.97.1
@@ -255,7 +255,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.77.0-devel.0.20260211235139-a5361978c2b6 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.76.0-rc.4 // indirect
 	github.com/DataDog/go-libddwaf/v4 v4.8.0 // indirect
-	github.com/DataDog/go-runtime-metrics-internal v0.0.4-0.20250721125240-fdf1ef85b633 // indirect
+	github.com/DataDog/go-runtime-metrics-internal v0.0.4-0.20260217080614-b0f4edc38a6d // indirect
 	github.com/DataDog/go-sqllexer v0.2.1 // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/sketches-go v1.4.8 // indirect
@@ -294,6 +294,7 @@ require (
 	github.com/jmespath/go-jmespath v0.4.1-0.20220621161143-b0104c826a24 // indirect
 	github.com/klauspost/compress v1.18.4 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
+	github.com/linkdata/deadlock v0.5.5 // indirect
 	github.com/lufia/plan9stats v0.0.0-20251013123823-9fd1530e3ec3 // indirect
 	github.com/minio/highwayhash v1.0.3 // indirect
 	github.com/minio/simdjson-go v0.4.5 // indirect
@@ -306,6 +307,7 @@ require (
 	github.com/nats-io/nkeys v0.4.10 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/outcaste-io/ristretto v0.2.3 // indirect
+	github.com/petermattis/goid v0.0.0-20250813065127-a731cc31b4fe // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.81.0 // indirect
@@ -327,9 +329,9 @@ require (
 	github.com/secure-systems-lab/go-securesystemslib v0.9.0 // indirect
 	github.com/shirou/gopsutil/v4 v4.26.3 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
-	github.com/theckman/httpforwarded v0.4.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.16 // indirect
 	github.com/tklauser/numcpus v0.11.0 // indirect
+	github.com/trailofbits/go-mutexasserts v0.0.0-20250514102930-c1f3d2e37561 // indirect
 	github.com/twinj/uuid v0.0.0-20151029044442-89173bcdda19 // indirect
 	github.com/urfave/cli/v2 v2.27.6 // indirect
 	github.com/vbatts/tar-split v0.12.2 // indirect
