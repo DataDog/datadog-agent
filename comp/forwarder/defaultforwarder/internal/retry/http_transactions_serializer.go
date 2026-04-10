@@ -291,8 +291,14 @@ func (s *HTTPTransactionsSerializer) apiKeyIndexFromProto(tr *HttpTransactionPro
 		return s.resolvePlaceholderIndex(placeholderIdx, protoVersion)
 	}
 
-	// No placeholder found; the transaction had no API key embedded (e.g. a local-domain transaction).
-	return 0, nil
+	// No placeholder found; the transaction had no API key embedded
+	if s.resolver.IsLocal() {
+		// Local transactions have a fixed Authorizer added at idx 0
+		// that adds an `Authorization` header.
+		return 0, nil
+	} else {
+		return -1, nil
+	}
 }
 
 // resolvePlaceholderIndex converts a raw placeholder index to the current APIKeyIndex,

@@ -435,10 +435,10 @@ func (r *domainResolver) GetAuthorizers() (res []authHeader) {
 func (r *domainResolver) Authorize(apiKeyIdx int, headers http.Header, log log.Component) {
 	authorizers := r.GetAuthorizers()
 
-	if apiKeyIdx < len(authorizers) {
-		r.GetAuthorizers()[apiKeyIdx].Authorize(headers)
-	} else {
+	if apiKeyIdx >= len(authorizers) {
 		log.Errorf("API key index %d is greater than the number of available authorizers (%d)", apiKeyIdx, len(authorizers))
+	} else if apiKeyIdx >= 0 {
+		authorizers[apiKeyIdx].Authorize(headers)
 	}
 }
 
