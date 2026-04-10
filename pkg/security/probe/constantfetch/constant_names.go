@@ -54,6 +54,8 @@ const (
 	// inode
 	OffsetInodeIno   = "inode_ino_offset"
 	OffsetInodeNlink = "inode_nlink_offset"
+	OffsetInodeMode  = "inode_mode_offset"
+	OffsetInodeUid   = "inode_uid_offset"
 	OffsetInodeGid   = "inode_gid_offset"
 	OffsetInodeMtime = "inode_mtime_offset"
 	OffsetInodeCtime = "inode_ctime_offset"

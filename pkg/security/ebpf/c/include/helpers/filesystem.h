@@ -89,11 +89,15 @@ static __attribute__((always_inline)) void fill_file(struct dentry *dentry, stru
       file->metadata.nlink = nlink;
     }
 
+    u64 inode_mode_offset;
+    LOAD_CONSTANT("inode_mode_offset", inode_mode_offset);
+    u64 inode_uid_offset;
+    LOAD_CONSTANT("inode_uid_offset", inode_uid_offset);
     u64 inode_gid_offset;
     LOAD_CONSTANT("inode_gid_offset", inode_gid_offset);
 
-    bpf_probe_read(&file->metadata.mode, sizeof(file->metadata.mode), &d_inode->i_mode);
-    bpf_probe_read(&file->metadata.uid, sizeof(file->metadata.uid), &d_inode->i_uid);
+    bpf_probe_read(&file->metadata.mode, sizeof(file->metadata.mode), (void *)d_inode + inode_mode_offset);
+    bpf_probe_read(&file->metadata.uid, sizeof(file->metadata.uid), (void *)d_inode + inode_uid_offset);
     bpf_probe_read(&file->metadata.gid, sizeof(file->metadata.gid), (void *)d_inode + inode_gid_offset);
 
     u64 inode_ctime_sec_offset;
