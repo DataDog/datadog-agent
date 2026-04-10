@@ -818,9 +818,9 @@ Package: main
 		Arg: b: int (declared at line 368, available: [368-371])
 		Arg: ~r0: int (declared at line 368, available: )
 		Arg: ~r1: [0]int (declared at line 368, available: )
-	Function: useCrossPackageGenerics (main.useCrossPackageGenerics) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go [1:52] injectible: [1-1], [42-47], [49-49], [51-52]
-		Var: set: *github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.ImmutableSet[string] (declared at line 43, available: [1-51])
-		Scope: 1-49
+	Function: useCrossPackageGenerics (main.useCrossPackageGenerics) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go [42:52] injectible: [42-47], [49-49], [51-52]
+		Var: set: *github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.ImmutableSet[string] (declared at line 43, available: [44-51])
+		Scope: 44-49
 			Var: s: string (declared at line 44, available: [44-47])
 	Type: main.aStruct
 		Field: aBool: bool
