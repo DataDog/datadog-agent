@@ -9,7 +9,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"sync/atomic"
 	"time"
 
 	"github.com/benbjohnson/clock"
@@ -19,20 +18,51 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/DataDog/agent-payload/v5/statefulpb"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// TODO For PoC Stage 1
+// - telemetries (send/recv, failure, rotations)
+
+// TODO for PoC Stage 2
+// - better handle unrecoverable errors - auth/perm, protocol, stream-level gRPC status
+// - implement more graceful shutdown, the current version we could lose some acks
+// - implement jitter is stream lifetime, otherwise all streams will rotate at the same time
+// - implement proper "stream/ordered" backpressure
+
+// TODO for production
+// - implement stream neotiation (state size, etc), able to downgrade to HTTP transport
+// - Testing plan
+
+// Notes on failure handling and backoff strategy:
+// Unlike HTTP transport, stateful transport is stream-based. Once the stream is established,
+// it's unlikely to fail sporadically at request level. The failure mode is likely to be:
+// - Proxy is not available
+//   fail in asyncCreateNewStream after connectionTimeout (10s)
+// - Proxy is available, but Intake is not available
+//   succeed in asyncCreateNewStream, but currentStream fails to send or receive any message
+// - Stream is functioning, but agent has wrong credentials configuration
+//   succeed in asyncCreateNewStream, but recv will fail with auth/perm error consistently
+// Note: again unlike HTTP transport where a Intake back-pressure shows up a rejection at request
+// level, in stateful transport, the back-pressure is more likely to show up as blocking send on
+// a functioning stream.
+// Due to reasons above, we will track the failures at stream level, and implement backoff
+// for stream creation only. We use the same backoff policy as HTTP transport (defined for endpoint)
+// with 1 tweak.
+//   - nbErrors is incremented for each send/recv/protocol-error/stream-creation failures
+//   - first time an valid ack is received on a new stream, we consider the stream established
+//     and reset nbErrors to 0 (via RecoveryReset=true)
+
 const (
-	// Various constants - may become configurable
 	ioChanBufferSize  = 10
-	maxInflight       = 10000
 	connectionTimeout = 10 * time.Second
 	drainTimeout      = 5 * time.Second
 )
@@ -74,7 +104,6 @@ type batchAck struct {
 
 // streamWorker manages a single gRPC bidirectional stream with Master - 2 Slave threading model
 // Architecture: One supervisor goroutine + one sender goroutine + one receiver goroutine per stream
-// See DESIGN.md for more details.
 type streamWorker struct {
 	// Configuration
 	workerID            string
@@ -91,7 +120,7 @@ type streamWorker struct {
 
 	// Stream management
 	currentStream   *streamInfo
-	streamState     atomic.Int32              // Since stream_worker_test reads this value from a separate goroutine, we need to use an atomic.Int32 to ensure proper synchronization.
+	streamState     streamState
 	streamFailureCh chan *streamInfo          // Signal sender/receiver failure with stream identity
 	streamReadyCh   chan streamCreationResult // Signal when async stream creation completes
 	streamLifetime  time.Duration
@@ -119,14 +148,6 @@ type streamWorker struct {
 	clock    clock.Clock
 }
 
-func (s *streamWorker) getStreamState() streamState {
-	return streamState(s.streamState.Load())
-}
-
-func (s *streamWorker) setStreamState(state streamState) {
-	s.streamState.Store(int32(state))
-}
-
 // newStreamWorker creates a new gRPC stream worker
 func newStreamWorker(
 	workerID string,
@@ -138,9 +159,10 @@ func newStreamWorker(
 	endpoint config.Endpoint,
 	streamLifetime time.Duration,
 	compressor compression.Compressor,
+	maxInflight int,
 ) *streamWorker {
 	return newStreamWorkerWithClock(workerID, inputChan, destinationsCtx, conn, client, sink,
-		endpoint, streamLifetime, compressor, clock.New(), nil)
+		endpoint, streamLifetime, compressor, clock.New(), nil, maxInflight)
 }
 
 // newStreamWorkerWithClock creates a new gRPC stream worker with injectable clock for testing
@@ -156,6 +178,7 @@ func newStreamWorkerWithClock(
 	compressor compression.Compressor,
 	clock clock.Clock,
 	inflightTracker *inflightTracker,
+	maxInflight int,
 ) *streamWorker {
 	backoffPolicy := backoff.NewExpBackoffPolicy(
 		endpoint.BackoffFactor,
@@ -178,6 +201,7 @@ func newStreamWorkerWithClock(
 		sink:                sink,
 		conn:                conn,
 		client:              client,
+		streamState:         disconnected,
 		streamFailureCh:     make(chan *streamInfo),
 		batchAckCh:          make(chan *batchAck, ioChanBufferSize),
 		streamReadyCh:       make(chan streamCreationResult),
@@ -193,7 +217,6 @@ func newStreamWorkerWithClock(
 		backoffTimer:        createStoppedTimer(clock, 0),
 		drainTimer:          createStoppedTimer(clock, 0),
 	}
-	worker.setStreamState(disconnected)
 
 	return worker
 }
@@ -228,7 +251,7 @@ func (s *streamWorker) supervisorLoop() {
 
 	// supervisor loop starts without a stream, but asyncCreateNewStream is called
 	// right after in streamWorker's start(), so we are in connecting state right away
-	s.setStreamState(connecting)
+	s.streamState = connecting
 
 	for {
 		// Conditional inputChan - only enabled when inflight tracker has space
@@ -246,7 +269,7 @@ func (s *streamWorker) supervisorLoop() {
 		// so if write to sendChan is blocked, next iteration will try again with the same batch.
 		var nextBatch *statefulpb.StatefulBatch
 		var sendChan chan<- *statefulpb.StatefulBatch
-		if s.getStreamState() == active && s.inflight.hasUnSent() {
+		if s.streamState == active && s.inflight.hasUnSent() {
 			sendChan = s.batchToSendCh // Enable sending
 			nextBatch = s.getNextBatch()
 		} else {
@@ -343,6 +366,25 @@ func (s *streamWorker) handleBatchAck(ack *batchAck) {
 
 	// Pop the acknowledged payload and send to auditor
 	payload := s.inflight.pop()
+
+	// Update shared agent-level metrics so gRPC sends are reflected in agent status.
+	// payloadLogCount excludes state-change datums (PatternDefine/DictEntryDefine)
+	// so LogsSent only counts actual user logs, not stateful encoding protocol overhead.
+	logCount := payloadLogCount(payload)
+	metrics.LogsSent.Add(logCount)
+	metrics.TlmLogsSent.Add(float64(logCount))
+	// BytesSent tracks raw log content size (pre-encoding), matching the HTTP path's use of
+	// UnencodedSize. Note: this is NOT the protobuf-serialized size — computing proto.Size()
+	// per ack would be relatively CPU expensive and is avoided here.
+	metrics.BytesSent.Add(int64(payload.UnencodedSize))
+	metrics.TlmBytesSent.Add(float64(payload.UnencodedSize), metrics.GetAgentIdentityTag(), "logs")
+	if extra, ok := payload.StatefulExtra.(*StatefulExtra); ok && extra != nil {
+		metrics.PreCompressionBytesSent.Add(int64(extra.PreCompressionBytes))
+		metrics.TlmPreCompressionBytesSent.Add(float64(extra.PreCompressionBytes), "logs")
+	}
+	metrics.EncodedBytesSent.Add(int64(len(payload.Encoded)))
+	metrics.TlmEncodedBytesSent.Add(float64(len(payload.Encoded)), metrics.GetAgentIdentityTag(), "logs", payload.Encoding)
+
 	if s.outputChan != nil {
 		select {
 		case s.outputChan <- payload:
@@ -353,15 +395,13 @@ func (s *streamWorker) handleBatchAck(ack *batchAck) {
 
 			// TODO: is this the only possible drop?
 			tlmWorkerBytesDropped.Add(float64(len(payload.Encoded)), s.workerID)
-			// TODO: update this metric with # logs (requires parsing payload)
-			// metrics.DestinationLogsDropped.Set(s.endpoint.Host, &expvar.Int{})
-			// metrics.LogsDropped.Inc(s.workerID, 1)
-			// TODO: other general metrics to update?
+			metrics.DestinationLogsDropped.Add(s.workerID, logCount)
+			metrics.TlmLogsDropped.Add(float64(logCount), s.workerID)
 		}
 	}
 
 	// If in Draining state and all acks received, transition to Connecting
-	if s.getStreamState() == draining && !s.inflight.hasUnacked() {
+	if s.streamState == draining && !s.inflight.hasUnacked() {
 		log.Infof("Worker %s: All acks received in draining state, proceeding with rotation", s.workerID)
 		s.drainTimer.Stop()
 		s.tryBeginStreamRotation(false)
@@ -371,18 +411,18 @@ func (s *streamWorker) handleBatchAck(ack *batchAck) {
 // handleStreamFailure processes sender/receiver failure signals
 func (s *streamWorker) handleStreamFailure(failedStream *streamInfo) {
 	// Ignore if: stale signal OR not in active/draining state
-	if failedStream != s.currentStream || (s.getStreamState() != active && s.getStreamState() != draining) {
+	if failedStream != s.currentStream || (s.streamState != active && s.streamState != draining) {
 		return
 	}
 
 	log.Infof("Worker %s: Sender or Receiver reported failure (state: %v), terminating stream",
-		s.workerID, s.getStreamState())
+		s.workerID, s.streamState)
 	s.tryBeginStreamRotation(true)
 }
 
 // handleStreamReady processes async stream creation results
 func (s *streamWorker) handleStreamReady(result streamCreationResult) {
-	if s.getStreamState() != connecting {
+	if s.streamState != connecting {
 		return
 	}
 
@@ -398,14 +438,14 @@ func (s *streamWorker) handleStreamReady(result streamCreationResult) {
 
 // handleStreamTimeout processes stream lifetime expiration
 func (s *streamWorker) handleStreamTimeout() {
-	if s.getStreamState() != active {
+	if s.streamState != active {
 		return
 	}
 
 	if s.inflight.hasUnacked() {
 		log.Infof("Worker %s: Stream lifetime expired with %d unacked payloads, entering Draining state",
 			s.workerID, s.inflight.sentCount())
-		s.setStreamState(draining)
+		s.streamState = draining
 		s.drainTimer.Reset(drainTimeout)
 	} else {
 		log.Infof("Worker %s: Stream lifetime expired with no unacked payloads, rotating immediately",
@@ -416,7 +456,7 @@ func (s *streamWorker) handleStreamTimeout() {
 
 // handleDrainTimeout handles drain timer expiration
 func (s *streamWorker) handleDrainTimeout() {
-	if s.getStreamState() != draining {
+	if s.streamState != draining {
 		return
 	}
 
@@ -427,12 +467,12 @@ func (s *streamWorker) handleDrainTimeout() {
 
 // handleBackoffTimeout processes backoff timer expiration and retries stream creation
 func (s *streamWorker) handleBackoffTimeout() {
-	if s.getStreamState() != disconnected {
+	if s.streamState != disconnected {
 		return
 	}
 
 	log.Infof("Worker %s: Backoff timer expired, retrying stream creation (error count: %d)", s.workerID, s.nbErrors)
-	s.setStreamState(connecting)
+	s.streamState = connecting
 	s.asyncCreateNewStream()
 }
 
@@ -471,12 +511,12 @@ func (s *streamWorker) tryBeginStreamRotation(dueToFailure bool) {
 	}
 
 	if !dueToFailure || backoffDuration == 0 {
-		log.Infof("Worker %s: Beginning stream creation (state: %v → connecting)", s.workerID, s.getStreamState())
-		s.setStreamState(connecting)
+		log.Infof("Worker %s: Beginning stream creation (state: %v → connecting)", s.workerID, s.streamState)
+		s.streamState = connecting
 		s.asyncCreateNewStream()
 	} else {
 		log.Infof("Worker %s: Backing off stream creation for %v (error count: %d)", s.workerID, backoffDuration, s.nbErrors)
-		s.setStreamState(disconnected)
+		s.streamState = disconnected
 		s.backoffTimer.Reset(backoffDuration)
 	}
 }
@@ -489,7 +529,7 @@ func (s *streamWorker) finishStreamRotation(streamInfo *streamInfo) {
 
 	batchToSendCh := make(chan *statefulpb.StatefulBatch, ioChanBufferSize)
 	s.currentStream = streamInfo
-	s.setStreamState(active)
+	s.streamState = active
 	s.batchToSendCh = batchToSendCh
 
 	// Start sender and receiver goroutines for this stream
@@ -536,6 +576,13 @@ func (s *streamWorker) asyncCreateNewStream() {
 		} else {
 			// Create per-stream context derived from destinations context
 			streamCtx, streamCancel := context.WithCancel(s.destinationsContext.Context())
+
+			// // Attach compression encoding as gRPC metadata so the server knows how to decompress.
+			// // The server reads "dd-content-encoding" to select the decompression path; if absent it
+			// // assumes raw (uncompressed) proto bytes and will fail to parse compressed payloads.
+			// if enc := s.compression.ContentEncoding(); enc != "" && enc != compression.NoneKind {
+			// 	streamCtx = metadata.NewOutgoingContext(streamCtx, metadata.Pairs("dd-content-encoding", enc))
+			// }
 
 			// Create the stream, shouldn't block at this point.
 			stream, err := s.client.LogsStream(streamCtx)
@@ -686,6 +733,8 @@ func (s *streamWorker) receiverLoop(streamInfo *streamInfo) {
 // signalStreamFailure signals the supervisor to rotate the stream
 func (s *streamWorker) signalStreamFailure(streamInfo *streamInfo, reason string) {
 	tlmWorkerStreamErrors.Inc(s.workerID, reason)
+	metrics.DestinationErrors.Add(1)
+	metrics.TlmDestinationErrors.Inc()
 
 	// This signaling is blocking by design, it's okay to block the sender/receiver,
 	// since the only way we get here is through a stream error.
@@ -726,6 +775,17 @@ func createBatch(data []byte, batchID uint32) *statefulpb.StatefulBatch {
 		BatchId: batchID,
 		Data:    data,
 	}
+}
+
+// payloadLogCount returns the number of actual log messages in a payload,
+// excluding state-change datums (pattern/dict define/delete) which are
+// stateful encoding protocol overhead, not user logs.
+func payloadLogCount(p *message.Payload) int64 {
+	count := p.Count()
+	if extra, ok := p.StatefulExtra.(*StatefulExtra); ok && extra != nil {
+		count -= int64(len(extra.StateChanges))
+	}
+	return count
 }
 
 // createStoppedTimer creates a timer that is stopped and has its channel drained
