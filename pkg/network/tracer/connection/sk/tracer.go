@@ -63,10 +63,10 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHa
 // BPF_PROG_TYPE_CGROUP_SOCK - ctx fields - src_ip4/6, dst_ip4/6, src/dst_port - 5.1
 // BPF_PROG_TYPE_SOCK_OPS - BPF_SOCK_OPS_STATE_CB - 4.16
 var KernelSupported = funcs.MemoizeNoError(func() bool {
-	if features.HaveProgramHelper(ebpf.Tracing, asm.FnSkStorageGet) != nil {
+	if ddfeatures.HaveHelperInFentry(asm.FnSkStorageGet) != nil {
 		return false
 	}
-	if ok, err := ddfeatures.HasIteratorType("task_file"); err != nil || !ok {
+	if ddfeatures.HaveIteratorType("task_file") != nil {
 		return false
 	}
 	if !ddfeatures.SupportsFentry("tcp_connect") {
