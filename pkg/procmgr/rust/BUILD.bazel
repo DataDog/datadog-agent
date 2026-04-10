@@ -197,12 +197,14 @@ rust_test(
     crate_root = "tests/e2e.rs",
     data = [
         ":dd-procmgr",
+        ":dd-procmgr-service",
         ":dd-procmgrd",
         "//pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-ddot.yaml.tmpl",
     ],
     edition = "2024",
     rustc_env = {
         "CARGO_BIN_EXE_dd-procmgr": "$(rootpath :dd-procmgr)",
+        "CARGO_BIN_EXE_dd-procmgr-service": "$(rootpath :dd-procmgr-service)",
         "CARGO_BIN_EXE_dd-procmgrd": "$(rootpath :dd-procmgrd)",
         "DDOT_TEMPLATE_PATH": "$(rootpath //pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-ddot.yaml.tmpl)",
     },
