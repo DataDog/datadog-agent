@@ -43,9 +43,8 @@ const (
 	// SourceAgentRuntime are the values configured by the agent itself. The agent can dynamically compute the best
 	// value for some settings when not set by the user.
 	SourceAgentRuntime Source = "agent-runtime"
-	// SourceLocalConfigProcess are the values mirrored from the config process. The config process is the
-	// core-agent. This is used when side process like security-agent or trace-agent pull their configuration from
-	// the core-agent.
+	// SourceLocalConfigProcess are the values mirrored from the config process via the configsync HTTP
+	// polling mechanism.
 	SourceLocalConfigProcess Source = "local-config-process"
 	// SourceRC are the values loaded from remote-config (aka Datadog backend)
 	SourceRC Source = "remote-config"

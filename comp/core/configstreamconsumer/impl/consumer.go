@@ -329,8 +329,8 @@ func (c *consumer) applySnapshot(snapshot *pb.ConfigSnapshot, startTime time.Tim
 	c.lastSeqIDMetric.Set(float64(snapshot.SequenceId))
 
 	if c.configWriter != nil {
-		for key, val := range newConfig {
-			c.configWriter.Set(key, val, model.SourceLocalConfigProcess)
+		for _, setting := range snapshot.Settings {
+			c.configWriter.Set(setting.Key, newConfig[setting.Key], model.Source(setting.Source))
 		}
 	}
 
@@ -377,7 +377,7 @@ func (c *consumer) applyUpdate(update *pb.ConfigUpdate) error {
 	c.lastSeqIDMetric.Set(float64(update.SequenceId))
 
 	if c.configWriter != nil {
-		c.configWriter.Set(update.Setting.Key, newValue, model.SourceLocalConfigProcess)
+		c.configWriter.Set(update.Setting.Key, newValue, model.Source(update.Setting.Source))
 	}
 
 	return nil
