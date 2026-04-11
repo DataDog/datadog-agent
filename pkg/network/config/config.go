@@ -205,6 +205,9 @@ type Config struct {
 	// EnableFentry enables the experimental fentry tracer (disabled by default)
 	EnableFentry bool
 
+	// EnableCORETracer enables the CO-RE version of the tracer
+	EnableCORETracer bool
+
 	// ExpectedTagsDuration is the duration for which we add host and container tags to our payloads, to handle the race
 	// in the backend for processing host/container tags and resolving them in our own pipelines.
 	ExpectedTagsDuration time.Duration
@@ -294,8 +297,9 @@ func New() *Config {
 
 		EnableNPMConnectionRollup: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_connection_rollup")),
 
-		EnableEbpfless: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_ebpfless")),
-		EnableFentry:   cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_fentry")),
+		EnableCORETracer: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_co_re")),
+		EnableEbpfless:   cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_ebpfless")),
+		EnableFentry:     cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_fentry")),
 
 		ExpectedTagsDuration: cfg.GetDuration(sysconfig.FullKeyPath(spNS, "expected_tags_duration")),
 
