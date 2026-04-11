@@ -360,6 +360,26 @@ sm_record_pointer(global_ctx_t* ctx, type_t type, target_ptr_t addr,
   return true;
 }
 
+// lookup_go_dict_type resolves a runtime type to its actual IR type ID
+// (without the pointer-to-pointee dereferencing that lookup_go_interface does).
+// Used by dict resolution where we need the type as declared, not the
+// interface-adjusted pointee.
+static type_t lookup_go_dict_type(uint32_t go_runtime_type) {
+  if (go_runtime_type == 0) {
+    return 0;
+  }
+  uint32_t idx = lookup_type_id_by_go_runtime_type(go_runtime_type);
+  uint32_t* got = bpf_map_lookup_elem(&go_runtime_types, &idx);
+  if (!got || *got != go_runtime_type) {
+    return 0;
+  }
+  uint32_t* type_id = bpf_map_lookup_elem(&go_runtime_type_direct_ids, &idx);
+  if (!type_id) {
+    return 0;
+  }
+  return *type_id;
+}
+
 static inline __attribute__((always_inline)) bool
 sm_record_go_interface_impl(global_ctx_t* global_ctx, uint64_t go_runtime_type,
                             target_ptr_t addr) {
@@ -1129,6 +1149,131 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     if (!sm_record_go_interface_impl(ctx, r.go_runtime_type, r.addr)) {
       LOG(3, "enqueue: failed interface chase");
     }
+  } break;
+
+  case SM_OP_PROCESS_GO_DICT_TYPE: {
+    // Resolve a generic shape type parameter to its concrete type by
+    // reading the runtime dictionary. For entry probes, the dict pointer
+    // is read from a CPU register (captured via PT_REGS). For return
+    // probes, bit 7 of dict_register is set and the dict pointer is
+    // read from sm->saved_dict_ptr (restored from call context).
+    uint32_t dict_index = sm_read_program_uint32(sm);
+    uint8_t dict_register = sm_read_program_uint8(sm);
+    uint32_t output_offset = sm_read_program_uint32(sm);
+
+    // Compute absolute output position: event root start + offset.
+    // Use barrier_var to help the verifier track bounds.
+    buf_offset_t write_pos = sm->buf_offset_0;
+    barrier_var(write_pos);
+    write_pos += output_offset;
+    barrier_var(write_pos);
+
+    // Read the dict pointer: from saved state (return) or register (entry).
+    uint64_t dict_ptr = 0;
+    if (dict_register & 0x80) {
+      // Return probe: dict pointer was saved at entry time and restored
+      // from call context into sm->saved_dict_ptr by event.c.
+      dict_ptr = sm->saved_dict_ptr;
+    } else {
+      // Entry probe: read from the register value saved in PT_REGS.
+      struct pt_regs* regs = ctx->regs;
+      if (regs) {
+        switch (dict_register) {
+        case 0: dict_ptr = regs->DWARF_REGISTER(0); break;
+        case 1: dict_ptr = regs->DWARF_REGISTER(1); break;
+        case 2: dict_ptr = regs->DWARF_REGISTER(2); break;
+        case 3: dict_ptr = regs->DWARF_REGISTER(3); break;
+        case 4: dict_ptr = regs->DWARF_REGISTER(4); break;
+        case 5: dict_ptr = regs->DWARF_REGISTER(5); break;
+        case 6: dict_ptr = regs->DWARF_REGISTER(6); break;
+        case 7: dict_ptr = regs->DWARF_REGISTER(7); break;
+        case 8: dict_ptr = regs->DWARF_REGISTER(8); break;
+        case 9: dict_ptr = regs->DWARF_REGISTER(9); break;
+        case 10: dict_ptr = regs->DWARF_REGISTER(10); break;
+        case 11: dict_ptr = regs->DWARF_REGISTER(11); break;
+        case 12: dict_ptr = regs->DWARF_REGISTER(12); break;
+        case 13: dict_ptr = regs->DWARF_REGISTER(13); break;
+        case 14: dict_ptr = regs->DWARF_REGISTER(14); break;
+        case 15: dict_ptr = regs->DWARF_REGISTER(15); break;
+        default: break;
+        }
+      }
+    }
+    // Always stash for entry path: event.c reads this after the stack
+    // machine runs and stores it in the call context for return probes.
+    sm->saved_dict_ptr = dict_ptr;
+    LOG(4, "dict: reg=%d idx=%d ptr=%llx", dict_register, dict_index, dict_ptr);
+    if (dict_ptr == 0) {
+      LOG(3, "dict: null dict pointer from register %d", dict_register);
+      if (scratch_buf_bounds_check(&write_pos, sizeof(uint64_t))) {
+        *(uint64_t*)(&(*buf)[write_pos]) = 0;
+      }
+      break;
+    }
+
+    // Read dict[dict_index] from user memory.
+    uint64_t type_ptr = 0;
+    if (bpf_probe_read_user(&type_ptr, sizeof(uint64_t),
+                            (void*)(dict_ptr + (uint64_t)dict_index * sizeof(uint64_t)))) {
+      LOG(3, "dict: failed to read dict[%d] at %llx", dict_index, dict_ptr);
+      if (scratch_buf_bounds_check(&write_pos, sizeof(uint64_t))) {
+        *(uint64_t*)(&(*buf)[write_pos]) = 0;
+      }
+      break;
+    }
+
+    // Convert to runtime type offset.
+    uint64_t runtime_type = 0;
+    if (type_ptr != 0) {
+      runtime_type = go_runtime_type_from_ptr(type_ptr);
+    }
+    LOG(4, "dict: type_ptr=%llx runtime_type=%llx", type_ptr, runtime_type);
+
+    // Write the resolved runtime type offset at the designated position
+    // in the event root data.
+    if (scratch_buf_bounds_check(&write_pos, sizeof(uint64_t))) {
+      *(uint64_t*)(&(*buf)[write_pos]) = runtime_type;
+    }
+  } break;
+
+  case SM_OP_CALL_DICT_RESOLVED: {
+    // Dynamically dispatch to the concrete type's ProcessType function
+    // based on the dict-resolved runtime type. Falls back to the shape
+    // type's ProcessType if resolution fails.
+    uint32_t output_offset = sm_read_program_uint32(sm);
+    uint32_t fallback_pc = sm_read_program_uint32(sm);
+
+    // Read the resolved runtime type from the event root data.
+    // Use expr_results_offset as the base, not buf_offset_0, because
+    // ExprSave clobbers buf_offset_0 for presence bitset tracking.
+    // expr_results_offset is set by PrepareEventRoot and not modified.
+    buf_offset_t read_pos = sm->expr_results_offset;
+    barrier_var(read_pos);
+    read_pos += output_offset;
+    barrier_var(read_pos);
+
+    uint32_t target_pc = fallback_pc;
+    if (scratch_buf_bounds_check(&read_pos, sizeof(uint64_t))) {
+      uint64_t runtime_type = *(uint64_t*)(&(*buf)[read_pos]);
+      if (runtime_type != 0 && runtime_type != (uint64_t)(-1)) {
+        type_t concrete_type = lookup_go_dict_type(runtime_type);
+        if (concrete_type != 0) {
+          const type_info_t* info;
+          if (get_type_info(concrete_type, &info) && info->enqueue_pc != 0) {
+            target_pc = info->enqueue_pc;
+          }
+        }
+      }
+    }
+
+    // Call: push return address and jump.
+    if (sm->pc_stack_pointer >= ENQUEUE_STACK_DEPTH) {
+      LOG(2, "dict_call: call stack limit reached");
+      return 1;
+    }
+    sm->pc_stack[sm->pc_stack_pointer] = sm->pc;
+    sm->pc_stack_pointer++;
+    sm->pc = target_pc;
   } break;
 
   case SM_OP_PROCESS_GO_HMAP: {
