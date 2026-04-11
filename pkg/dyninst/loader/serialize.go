@@ -41,7 +41,8 @@ type serializedProgram struct {
 
 type goRuntimeTypeIDs struct {
 	goRuntimeTypes []uint64
-	typeIDs        []uint64
+	typeIDs        []uint64 // interface-adjusted: pointer types map to their pointee
+	directTypeIDs  []uint64 // unadjusted: always the actual type ID (for dict resolution)
 }
 
 var _ sort.Interface = (*goRuntimeTypeIDs)(nil)
@@ -51,9 +52,10 @@ func (g *goRuntimeTypeIDs) Less(i int, j int) bool {
 	return g.goRuntimeTypes[i] < g.goRuntimeTypes[j]
 }
 func (g *goRuntimeTypeIDs) Swap(i int, j int) {
-	grts, tids := g.goRuntimeTypes, g.typeIDs
+	grts, tids, dtids := g.goRuntimeTypes, g.typeIDs, g.directTypeIDs
 	grts[i], grts[j] = grts[j], grts[i]
 	tids[i], tids[j] = tids[j], tids[i]
+	dtids[i], dtids[j] = dtids[j], dtids[i]
 }
 
 // BPFAttachPoint specifies how the eBPF program should be attached to the user process.
@@ -122,6 +124,7 @@ func serializeProgram(
 	serialized.goRuntimeTypeIDs = goRuntimeTypeIDs{
 		goRuntimeTypes: make([]uint64, 0, len(program.Types)),
 		typeIDs:        make([]uint64, 0, len(program.Types)),
+		directTypeIDs:  make([]uint64, 0, len(program.Types)),
 	}
 	grts := &serialized.goRuntimeTypeIDs
 	for i, t := range program.Types {
@@ -134,6 +137,9 @@ func serializeProgram(
 		}
 		if goRuntimeType, ok := t.GetGoRuntimeType(); ok {
 			grts.goRuntimeTypes = append(grts.goRuntimeTypes, uint64(goRuntimeType))
+			// directTypeIDs stores the actual type ID without any dereferencing.
+			// Used by dict resolution where we need the type as-is.
+			grts.directTypeIDs = append(grts.directTypeIDs, typeID)
 			// If the t is a reference type, the value is not indirected when
 			// put into an interface box. Put differently, the data being
 			// pointed to is the pointee of the reference type. For all other

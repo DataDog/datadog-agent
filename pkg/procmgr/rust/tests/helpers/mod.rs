@@ -459,6 +459,26 @@ impl TestEnv {
         self
     }
 
+    /// Create a sleep process via CLI with optional extra args
+    /// (e.g. `["--no-auto-start"]`, `["--env", "K=V"]`).
+    pub fn create_sleep(&self, name: &str, extra_args: &[&str]) -> CliOutput {
+        let (cmd, args) = test_helpers::sleep_cmd(300);
+        let mut cli_args: Vec<String> = vec![
+            "create".into(),
+            "--name".into(),
+            name.into(),
+            "--command".into(),
+            cmd.into(),
+        ];
+        if !args.is_empty() {
+            cli_args.push("--args".into());
+            cli_args.extend(args);
+        }
+        cli_args.extend(extra_args.iter().map(|s| s.to_string()));
+        let refs: Vec<&str> = cli_args.iter().map(String::as_str).collect();
+        self.cli(&refs)
+    }
+
     /// Run a CLI command against this environment's daemon.
     pub fn cli(&self, args: &[&str]) -> CliOutput {
         let runner = CliRunner::new(&self.socket_path);
@@ -507,6 +527,8 @@ fn spawn_log_reader<R: std::io::Read + Send + 'static>(
         }
     })
 }
+
+use dd_procmgrd::test_helpers;
 
 /// Write a YAML config file into `dir` with the given process `name`.
 pub fn write_config(dir: &Path, name: &str, yaml: &str) {

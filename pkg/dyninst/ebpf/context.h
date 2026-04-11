@@ -86,6 +86,11 @@ typedef struct stack_machine {
   // to distinguish nil-caused failures from other evaluation errors.
   bool condition_nil_deref;
 
+  // Dictionary pointer for generic shape functions. Set by
+  // SM_OP_PROCESS_GO_DICT_TYPE on entry, propagated through call context
+  // for return probes.
+  uint64_t saved_dict_ptr;
+
   // Temporary data, stored here to save on stack space.
   uint64_t value_0;
   resolved_go_any_type_t resolved_0, resolved_1;
@@ -118,6 +123,7 @@ static stack_machine_t* stack_machine_ctx_load(const probe_params_t* probe_param
   stack_machine->collection_size_limit = probe_params->collection_size_limit;
   stack_machine->string_size_limit = probe_params->string_size_limit;
   stack_machine->pointers_queue.len = 0;
+  stack_machine->saved_dict_ptr = 0;
   return stack_machine;
 }
 
@@ -169,6 +175,7 @@ typedef struct global_ctx {
 typedef struct call_depths_entry {
   uint32_t depth;
   uint32_t probe_id;
+  uint64_t dict_ptr; // dictionary pointer for generic shape functions (0 if N/A)
 } call_depths_entry_t;
 
 #define CALL_DEPTHS_SIZE 8
@@ -188,11 +195,12 @@ struct {
 } in_progress_calls SEC(".maps");
 
 static inline __attribute__((always_inline)) bool call_depths_insert(
-    call_depths_t* depths, uint32_t depth, uint32_t probe_id) {
+    call_depths_t* depths, uint32_t depth, uint32_t probe_id, uint64_t dict_ptr) {
   for (int i = 0; i < CALL_DEPTHS_SIZE; i++) {
     if (depths->depths[i].depth == 0 && depths->depths[i].probe_id == 0) {
       depths->depths[i].depth = depth;
       depths->depths[i].probe_id = probe_id;
+      depths->depths[i].dict_ptr = dict_ptr;
       return true;
     }
   }
@@ -200,12 +208,17 @@ static inline __attribute__((always_inline)) bool call_depths_insert(
 }
 
 static inline __attribute__((always_inline)) bool call_depths_delete(
-    call_depths_t* depths, uint32_t depth, uint32_t probe_id, int* remaining) {
+    call_depths_t* depths, uint32_t depth, uint32_t probe_id,
+    int* remaining, uint64_t* out_dict_ptr) {
   bool found = false;
   for (int i = 0; i < CALL_DEPTHS_SIZE; i++) {
     if (depths->depths[i].depth == depth && depths->depths[i].probe_id == probe_id) {
+      if (out_dict_ptr) {
+        *out_dict_ptr = depths->depths[i].dict_ptr;
+      }
       depths->depths[i].depth = 0;
       depths->depths[i].probe_id = 0;
+      depths->depths[i].dict_ptr = 0;
       found = true;
     } else if (depths->depths[i].depth != 0 || depths->depths[i].probe_id != 0) {
       (*remaining)++;

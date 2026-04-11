@@ -606,10 +606,14 @@ func (m *symdbManager) performUpload(
 	log.Infof("SymDB: uploading symbols for process %v (service: %s, version: %s, executable: %s)",
 		procID.pid, procID.service, procID.version, executablePath)
 	startTime := time.Now()
+	extractOpts := symdb.ExtractOptions{Scope: symdb.ExtractScopeModulesFromSameOrg}
+	if dc, ok := m.objectLoader.(*object.DiskCache); ok {
+		extractOpts.DiskCache = dc
+	}
 	it, err := symdb.PackagesIterator(
 		executablePath,
 		m.objectLoader,
-		symdb.ExtractOptions{Scope: symdb.ExtractScopeModulesFromSameOrg})
+		extractOpts)
 	if err != nil {
 		return fmt.Errorf("failed to read symbols for process %v (executable: %s): %w",
 			procID.pid, executablePath, err)

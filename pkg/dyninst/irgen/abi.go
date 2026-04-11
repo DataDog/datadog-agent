@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"reflect"
 	"slices"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
@@ -52,6 +53,89 @@ var arm64ABI = &abiConfig{
 	stackBase:  8,  // Link register storage
 }
 
+// abiForArch returns the ABI configuration for the given architecture.
+// It panics for unsupported architectures (callers should validate early).
+func abiForArch(arch object.Architecture) *abiConfig {
+	switch arch {
+	case "amd64":
+		return amd64ABI
+	case "arm64":
+		return arm64ABI
+	default:
+		panic(fmt.Sprintf("unsupported architecture: %s", arch))
+	}
+}
+
+// findDictRegister returns the DWARF register number where the dictionary
+// pointer lives at function entry, or nil if the subprogram has no
+// dict-indexed variables. The dict is a hidden parameter passed in a
+// register per the Go ABI:
+//   - For free functions: dict is the first int register (intReg[0]).
+//   - For methods: dict comes after the receiver. If the receiver fits
+//     in registers, dict is in the next int register. If the receiver is
+//     too large for register assignment (passed entirely on the stack),
+//     dict is in intReg[0] since the receiver consumed no registers.
+//
+// Per the Go ABI spec (src/cmd/compile/abi-internal.md, assignment
+// algorithm step 4): when register assignment fails for a parameter,
+// I and FP are reset and the value is placed on the stack. There is no
+// hidden-pointer indirection — the value is passed by copy on the stack
+// and consumes zero registers.
+func findDictRegister(sp *ir.Subprogram, abi *abiConfig) *uint8 {
+	// Check whether any variable references a dict index.
+	hasDictVar := false
+	for _, v := range sp.Variables {
+		if v.DictIndex >= 0 {
+			hasDictVar = true
+			break
+		}
+	}
+	if !hasDictVar {
+		return nil
+	}
+
+	// Determine whether this is a generic free function or a method on a
+	// generic type. A generic free function's shape name ends with ']':
+	//   main.genericContains[go.shape.int]
+	// A method on a generic type has content after the ']':
+	//   main.typeWithGenerics[go.shape.int].Guess
+	//   main.(*Pair[go.shape.int,go.shape.bool]).SetValue
+	isMethod := !strings.HasSuffix(sp.Name, "]")
+	if !isMethod {
+		reg := abi.intRegs[0]
+		return &reg
+	}
+
+	// For methods, find the receiver (first parameter) and check if it
+	// fits in registers. If the receiver is too large for register
+	// assignment, the Go compiler passes it entirely on the stack and
+	// the dict gets intReg[0]. Otherwise the receiver consumes
+	// register(s) and the dict gets the next available int register.
+	for _, v := range sp.Variables {
+		if v.Role != ir.VariableRoleParameter {
+			continue
+		}
+		// First parameter is the receiver.
+		if v.Type == nil {
+			break
+		}
+		regs := registerState{}
+		_, fitsInRegs, _ := tryRegisterAssign(v.Type, &regs, abi)
+		if !fitsInRegs {
+			// Receiver passed on stack — dict gets intReg[0].
+			reg := abi.intRegs[0]
+			return &reg
+		}
+		// Receiver fit in registers — dict gets the next int register.
+		reg := abi.intRegs[regs.intReg]
+		return &reg
+	}
+
+	// Fallback: no receiver found (shouldn't happen for a method).
+	reg := abi.intRegs[0]
+	return &reg
+}
+
 // augmentReturnLocationsFromABI adds ABI-derived location information for
 // return variables at return probe points. It computes register and stack
 // assignments based on the Go internal ABI and updates variable locations
@@ -61,28 +145,19 @@ var arm64ABI = &abiConfig{
 func augmentReturnLocationsFromABI(
 	arch object.Architecture,
 	subprogram *ir.Subprogram,
-	probes []*ir.Probe,
+	instances []*ir.ProbeInstance,
 ) error {
-	// Select architecture-specific ABI configuration.
-	var abi *abiConfig
-	switch arch {
-	case "amd64":
-		abi = amd64ABI
-	case "arm64":
-		abi = arm64ABI
-	default:
-		return fmt.Errorf("unsupported architecture: %s", arch)
-	}
+	abi := abiForArch(arch)
 	ptrSize := int32(arch.PointerSize())
 
 	align := func(offset int32) int32 {
 		return ((offset + ptrSize - 1) / ptrSize) * ptrSize
 	}
 
-	// Collect return PCs from all return events in probes.
+	// Collect return PCs from all return events in instances.
 	var returnPCs []uint64
-	for _, probe := range probes {
-		for _, event := range probe.Events {
+	for _, inst := range instances {
+		for _, event := range inst.Events {
 			if event.Kind != ir.EventKindReturn {
 				continue
 			}
