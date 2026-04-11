@@ -379,6 +379,16 @@ func (syntheticType) GetGoKind() (reflect.Kind, bool) {
 	return reflect.Invalid, false
 }
 
+// DictEntry describes a runtime dictionary entry that will be resolved at
+// probe time for generic shape functions. The eBPF reads the dict pointer
+// from DictRegister, indexes into it at DictIndex, and writes the resolved
+// *runtime._type offset into the event output at Offset.
+type DictEntry struct {
+	DictIndex    int    // flat index into the dictionary array
+	DictRegister uint8  // DWARF register number for the dict pointer
+	Offset       uint32 // byte offset in the event output where the resolved type is written
+}
+
 // EventRootType is the type of the event output.
 type EventRootType struct {
 	TypeCommon
@@ -389,6 +399,10 @@ type EventRootType struct {
 	// Bitset tracking successful expression evaluation (one bit per
 	// expression).
 	PresenceBitsetSize uint32
+	// DictEntries describes runtime dictionary entries to resolve at probe
+	// time. Each entry occupies 8 bytes in the event output (after the
+	// presence bitset, before expressions). Empty for non-generic probes.
+	DictEntries []DictEntry
 	// Expressions is the list of expressions that are used to evaluate the
 	// value of the event.
 	Expressions []*RootExpression
@@ -411,6 +425,11 @@ type RootExpression struct {
 	// Expression is the logical operations to be evaluated to produce the
 	// value of the event.
 	Expression Expression
+	// DictIndex is the dictionary index for generic shape type resolution.
+	// -1 means no dict resolution needed. When >= 0, the decoder should
+	// read the resolved runtime type from the corresponding DictEntry
+	// in the EventRootType.
+	DictIndex int
 }
 
 // RootExpressionKind is the kind of a root expression.

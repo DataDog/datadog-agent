@@ -101,6 +101,10 @@ type Subprogram struct {
 	InlinePCRanges []InlinePCRanges
 	// Variables are the variables that are used in the subprogram.
 	Variables []*Variable
+	// DictRegister is the ABI register number holding the dictionary pointer
+	// for shape-instantiated generic functions. Nil for non-generic functions.
+	// See pkg/dyninst/irgen/go_generics.md for details.
+	DictRegister *uint8
 }
 
 // VariableRole is the role of a variable within a subprogram.
@@ -139,6 +143,11 @@ type Variable struct {
 	Locations []Location
 	// Role is the role of the variable within the subprogram.
 	Role VariableRole
+	// DictIndex is the index into the runtime dictionary where the concrete
+	// *runtime._type for this variable's shape type can be found. -1 means
+	// no dict resolution is needed (the variable is not a generic shape type).
+	// See pkg/dyninst/irgen/go_generics.md for details.
+	DictIndex int
 }
 
 // PCRange is the range of PC values that will be probed.
@@ -191,13 +200,29 @@ type DurationSegment struct{}
 func (s *DurationSegment) templateSegment() {}
 
 // Probe represents a probe from the config as it applies to the program.
+// A single probe may target multiple subprograms (e.g. different shape
+// instantiations of a generic function), each represented as a
+// ProbeInstance. Throttling is shared across all instances.
 type Probe struct {
 	ProbeDefinition
-	// The subprogram to which the probe is attached.
+	// Instances are the per-subprogram instances of this probe. There is
+	// one instance per matching subprogram (shape function). For
+	// non-generic probes there is exactly one instance.
+	Instances []ProbeInstance
+}
+
+// ProbeInstance represents a single subprogram targeted by a probe. Each
+// instance has its own events and template because expression indices may
+// differ across shape instantiations.
+type ProbeInstance struct {
+	// Subprogram is the subprogram targeted by this instance.
 	Subprogram *Subprogram
-	// The events that trigger the probe.
+	// Events are the events that trigger this instance.
 	Events []*Event
-	// Template contains the concrete template structure for this probe.
+	// Template contains the concrete template structure for this instance.
+	// The template string is the same across all instances of a probe, but
+	// the JSONSegment.EventExpressionIndex values may differ because
+	// expression resolution can produce different results per shape.
 	Template *Template
 }
 

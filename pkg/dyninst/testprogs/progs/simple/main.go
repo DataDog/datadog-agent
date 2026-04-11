@@ -154,6 +154,14 @@ func main() {
 	// len/isEmpty error cases: unsupported types
 	lenErrInt(42, "err")
 	lenErrStruct(condFields{I32: 1}, "err")
+
+	// Generic function called with two different shape instantiations.
+	// int and string have different GC shapes, so the compiler emits two
+	// distinct shape functions (go.shape.int, go.shape.string). A single
+	// probe targeting genericIdentity[...] will match both, exercising
+	// shared throttling across shapes and runtime dictionary resolution.
+	genericIdentity(42)
+	genericIdentity("hello")
 }
 
 //go:noinline
@@ -497,4 +505,14 @@ func usesMapsOfMapsThatDoNotAppearAsArguments() map[byte]map[int]aStructNotUsedA
 	return map[byte]map[int]aStructNotUsedAsAnArgument{
 		'a': m["a"],
 	}
+}
+
+// genericIdentity is a generic function called with different shape types
+// (int vs string) to exercise dictionary-based type resolution and shared
+// throttling across shape instantiations.
+//
+//go:noinline
+func genericIdentity[T any](x T) T {
+	fmt.Println(x)
+	return x
 }

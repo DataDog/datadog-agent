@@ -1,0 +1,90 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Map[...]",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Map[go.shape.int,go.shape.string]",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib/lib.go",
+            "lineNumber": 95
+          },
+          {
+            "function": "main.executeGenericFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go",
+            "lineNumber": 278
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 49
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testGenericLibMap",
+          "location": {
+            "method": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Map[...]"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "box": {
+                "type": "lib.Box[int]",
+                "fields": {
+                  "Value": {
+                    "type": "go.shape.int",
+                    "value": "42"
+                  }
+                }
+              },
+              "f": {
+                "type": "func(int) string",
+                "notCapturedReason": "unimplemented"
+              }
+            }
+          },
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "lib.Box[string]",
+                "fields": {
+                  "Value": {
+                    "type": "go.shape.string",
+                    "value": "42"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "type": "snapshot"
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "message": "box={Value: 42}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  }
+]

@@ -9,6 +9,7 @@ package decode
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"time"
@@ -18,6 +19,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/time/rate"
 
+	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symbol"
@@ -172,9 +174,16 @@ func (m *messageData) processJSONSegment(
 		return nil
 	}
 
+	// Resolve the type for formatting — use concrete type if dict resolution
+	// succeeded, otherwise fall back to the shape type.
+	exprType := expr.Expression.Type
+	if resolvedType, _, ok := ev.resolveDictType(expr.DictIndex); ok && resolvedType != nil {
+		exprType = resolvedType
+	}
+
 	// Get expression data.
 	exprDataStart := expr.Offset
-	exprDataEnd := exprDataStart + expr.Expression.Type.GetByteSize()
+	exprDataEnd := exprDataStart + exprType.GetByteSize()
 	if exprDataEnd > uint32(len(ev.rootData)) {
 		return errors.New("expression data out of bounds")
 	}
@@ -184,7 +193,7 @@ func (m *messageData) processJSONSegment(
 	// formatType already consumes bytes internally, so we don't need to
 	// track here.
 	if err := formatType(
-		&ev.encodingContext, result, expr.Expression.Type, exprData, limits,
+		&ev.encodingContext, result, exprType, exprData, limits,
 	); err != nil {
 		return fmt.Errorf("error formatting expression: %w", err)
 	}
@@ -263,6 +272,44 @@ type captureEvent struct {
 	rootType         *ir.EventRootType
 	evaluationErrors *[]evaluationError
 	skippedIndices   bitset
+}
+
+// resolveDictType checks if a variable's type can be resolved via the runtime
+// dictionary. Returns (concreteType, name, true) on success. If concreteType
+// is non-nil, it's an IR type from the catalog that should be used for
+// decoding (matching what the eBPF used). If concreteType is nil but name is
+// non-empty, only the display name was resolved (via gotype fallback) and the
+// shape type should still be used for decoding.
+func (ce *captureEvent) resolveDictType(dictIndex int) (ir.Type, string, bool) {
+	if ce.rootType == nil || len(ce.rootType.DictEntries) == 0 || dictIndex < 0 {
+		return nil, "", false
+	}
+	for _, de := range ce.rootType.DictEntries {
+		if de.DictIndex != dictIndex {
+			continue
+		}
+		off := de.Offset
+		if int(off)+8 > len(ce.rootData) {
+			return nil, "", false
+		}
+		runtimeType := binary.NativeEndian.Uint64(ce.rootData[off : off+8])
+		if runtimeType == 0 || runtimeType == ^uint64(0) {
+			return nil, "", false
+		}
+		// Try to resolve to a full IR type in the catalog.
+		if typeID, ok := ce.getTypeIDByGoRuntimeType(uint32(runtimeType)); ok {
+			if t, ok := ce.getType(typeID); ok {
+				irType := t.irType()
+				return irType, irType.GetName(), true
+			}
+		}
+		// Fallback: resolve name only from gotype.
+		if name, err := ce.ResolveTypeName(gotype.TypeID(runtimeType)); err == nil {
+			return nil, name, true
+		}
+		return nil, "", false
+	}
+	return nil, "", false
 }
 
 func (ce *captureEvent) clear() {
@@ -370,6 +417,20 @@ func (ce *captureEvent) processExpression(
 ) error {
 	parameterType := expr.Expression.Type
 	parameterSize := parameterType.GetByteSize()
+	// For generic shape types, try to resolve the concrete type from the
+	// runtime dictionary. If the concrete type is in our catalog, use it
+	// for both the type name AND the type ID (so that data items enqueued
+	// by the concrete ProcessType in eBPF match what the decoder expects).
+	// If the concrete type is not in the catalog, fall back to the shape
+	// type for decoding but still use the resolved name for display.
+	typeName := parameterType.GetName()
+	if resolvedType, resolvedName, ok := ce.resolveDictType(expr.DictIndex); ok {
+		typeName = resolvedName
+		if resolvedType != nil {
+			// Concrete type is in the catalog — use it for decoding too.
+			parameterType = resolvedType
+		}
+	}
 	ub := expr.Offset + parameterSize
 	if int(ub) > len(ce.rootData) {
 		*ce.evaluationErrors = append(
@@ -391,7 +452,7 @@ func (ce *captureEvent) processExpression(
 		if err := writeTokens(enc,
 			jsontext.BeginObject,
 			jsontext.String("type"),
-			jsontext.String(parameterType.GetName()),
+			jsontext.String(typeName),
 			tokenNotCapturedReason,
 			tokenNotCapturedReasonUnavailable,
 			jsontext.EndObject,
@@ -401,7 +462,7 @@ func (ce *captureEvent) processExpression(
 		return nil
 	}
 	err := encodeValue(
-		&ce.encodingContext, enc, parameterType.GetID(), data, parameterType.GetName(),
+		&ce.encodingContext, enc, parameterType.GetID(), data, typeName,
 	)
 	if err != nil {
 		*ce.evaluationErrors = append(*ce.evaluationErrors, evaluationError{

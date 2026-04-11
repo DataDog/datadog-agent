@@ -125,6 +125,39 @@ type ProcessGoInterfaceOp struct {
 	baseOp
 }
 
+// ProcessGoDictTypeOp resolves a generic shape type parameter to its concrete
+// type by reading the runtime dictionary at probe time. The eBPF stack machine:
+// 1. Reads the dict pointer from the register specified by DictRegister
+// 2. Indexes into the dict array at DictIndex
+// 3. Reads the *runtime._type at that slot
+// 4. Converts to a types-base offset and records for type resolution
+//
+// DictRegister encoding:
+//   - Bit 7 clear (0-15): read dict pointer from pt_regs register (entry probes)
+//   - Bit 7 set (0x80|reg): read dict pointer from saved call context (return probes)
+//
+// On the entry path, the handler always stashes the dict pointer into
+// stack_machine_t.saved_dict_ptr, which event.c propagates through the call
+// context so that return probes can use it.
+type ProcessGoDictTypeOp struct {
+	baseOp
+	DictIndex    int32  // flat index into the dictionary array
+	DictRegister uint8  // DWARF register number; bit 7 = use saved dict ptr
+	OutputOffset uint32 // byte offset within the event root data to write the resolved type
+}
+
+// CallDictResolvedOp dynamically dispatches to the concrete type's ProcessType
+// function based on a dict-resolved runtime type. It reads the resolved
+// *runtime._type offset from the event root data at OutputOffset (where
+// ProcessGoDictTypeOp wrote it), looks up the concrete type's enqueue_pc,
+// and calls it. If resolution fails, falls back to calling the FallbackFunc
+// (the shape type's ProcessType).
+type CallDictResolvedOp struct {
+	baseOp
+	OutputOffset uint32     // byte offset in event root where resolved runtime type was written
+	FallbackFunc FunctionID // shape type's ProcessType function ID
+}
+
 type ProcessGoHmapOp struct {
 	baseOp
 	BucketsType      *ir.GoSliceDataType

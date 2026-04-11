@@ -1,0 +1,35 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "gosymname",
+    srcs = [
+        "class.go",
+        "doc.go",
+        "escape.go",
+        "generic.go",
+        "interpretation.go",
+        "parse.go",
+        "source.go",
+        "symbol.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/gosymname",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "gosymname_test",
+    srcs = [
+        "benchmark_test.go",
+        "comparison_test.go",
+        "fuzz_test.go",
+        "generic_test.go",
+        "symbol_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":gosymname"],
+    deps = [
+        "@com_github_goccy_go_yaml//:go-yaml",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

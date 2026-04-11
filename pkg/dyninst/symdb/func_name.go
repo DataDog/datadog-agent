@@ -9,52 +9,24 @@ package symdb
 
 import (
 	"fmt"
-	"regexp"
 	"strconv"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/DataDog/datadog-agent/pkg/dyninst/gosymname"
 )
 
 // Utilities for parsing Go function names.
-
-var (
-	// Regex for parsing a package name. It consumes:
-	// - an optional package path (greedily up to the last slash)
-	// - everything up to the following dot (lazily)
-	// - the trailing dot, outside of the named capture
-	pkgNameRegex = `^(?P<pkg>(.*/)?[^.]*?)\.`
-
-	methodWithPtrReceiverRE = regexp.MustCompile(
-		pkgNameRegex + `\(\*(?P<type>\w*)\)\.(?P<name>.*)$`)
-	methodWithPtrReceiverREPkgIdx  = methodWithPtrReceiverRE.SubexpIndex("pkg")
-	methodWithPtrReceiverRETypeIdx = methodWithPtrReceiverRE.SubexpIndex("type")
-	methodWithPtrReceiverRENameIdx = methodWithPtrReceiverRE.SubexpIndex("name")
-
-	methodWithValueReceiverRE = regexp.MustCompile(
-		pkgNameRegex + `(?P<type>\w+)\.(?P<name>.*)$`)
-	methodWithValueReceiverREPkgIdx  = methodWithValueReceiverRE.SubexpIndex("pkg")
-	methodWithValueReceiverRETypeIdx = methodWithValueReceiverRE.SubexpIndex("type")
-	methodWithValueReceiverRENameIdx = methodWithValueReceiverRE.SubexpIndex("name")
-
-	// If a function's name starts with func1 or ends with -range1, it's an
-	// anonymous function (as opposed to a method).
-	anonymousFuncRE = regexp.MustCompile(`(^(func)?\d+)|(-range\d+$)`)
-
-	standaloneFuncRE = regexp.MustCompile(
-		pkgNameRegex + `(?P<name>.*)$`)
-	standaloneFuncREPkgIdx  = standaloneFuncRE.SubexpIndex("pkg")
-	standaloneFuncRENameIdx = standaloneFuncRE.SubexpIndex("name")
-)
 
 type parseFuncNameFailureReason int
 
 const (
 	parseFuncNameFailureReasonUndefined parseFuncNameFailureReason = iota
-	// parseFuncNameFailureReasonGenericFunction is used if the function takes
-	// type arguments.
-	parseFuncNameFailureReasonGenericFunction
 	// Functions like time.map.init.0 that initialize statically-defined maps.
 	parseFuncNameFailureReasonMapInit
+	// parseFuncNameFailureReasonUnsupported covers compiler-generated symbols,
+	// assembly stubs, C functions, and other non-Go functions we can't instrument.
+	parseFuncNameFailureReasonUnsupported
 )
 
 // funcName is the result of parsing a Go function name by parseFuncName().
@@ -63,10 +35,13 @@ type funcName struct {
 	// Type is the type of the receiver, if any. Empty if this function is not a
 	// method. The type is not a pointer type even if the method has a
 	// pointer-receiver; the base type is returned, without the '*'.
+	// For generic types, the type parameters are replaced with [...], e.g.
+	// "typeWithGenerics[...]".
 	Type string
 	Name string
-	// QualifiedName looks like
-	// github.com/cockroachdb/cockroach/pkg/kv/kvserver.(*raftSchedulerShard).worker
+	// QualifiedName is the canonical name used to identify the function for
+	// probing. For generic functions, type parameters are replaced with [...],
+	// e.g. "main.typeWithGenerics[...].Guess".
 	QualifiedName string
 }
 
@@ -84,138 +59,160 @@ type parseFuncNameResult struct {
 	funcName funcName
 }
 
-// parseFuncName parses a Go qualified function name. For a qualifiedName name
-// like:
+// parseFuncName parses a Go qualified function name using the gosymname
+// library. For a qualifiedName like:
 // github.com/cockroachdb/cockroach/pkg/kv/kvserver.(*raftSchedulerShard).worker
 // the package is: github.com/cockroachdb/cockroach/pkg/kv/kvserver
-// the type is: raftSchedulerShard (note that it doesn't include the '*' signifying a pointer receiver).
+// the type is: raftSchedulerShard
 // the name is: worker
 //
+// Generic type parameters are canonicalized to [...], e.g.
+// main.typeWithGenerics[go.shape.int].Guess becomes
+// main.typeWithGenerics[...].Guess.
+//
 // Some functions are not supported. For these, failureReason is set on the
-// result and a nil error is returned. A returned error indicates an unexpected
-// failure.
-//
-// Cases we need to support:
-// github.com/cockroachdb/cockroach/pkg/kv/kvserver.(*raftSchedulerShard).worker
-// github.com/cockroachdb/cockroach/pkg/ccl/changefeedccl/kvfeed.rangefeedFactory.Run
-// github.com/klauspost/compress/zstd.sequenceDecs_decode_amd64
-// indexbytebody
-// github.com/.../pkg.myFunc.func0
-// internal/bytealg.init.0
-//
-// Cases we don't currently support, but we should:
-// - Anonymous functions defined inside methods with value receivers, e.g.:
-// github.com/cockroachdb/pebble/wal.FailoverOptions.EnsureDefaults.func1
-// (we don't support these because we confuse them with anonymous functions
-// called from inlined functions)
-// - Nested anonymous functions, e.g.:
-// github.com/cockroachdb/cockroach/pkg/server.(*apiV2Server).execSQL.func8.1.3.2
-// (we don't support these because we also confuse them with anonymous functions
-// called from inlined functions)
+// result and a nil error is returned.
 func parseFuncName(qualifiedName string) (parseFuncNameResult, error) {
-	// Ignore generic functions, e.g.
-	// os.init.OnceValue[go.shape.interface { Error() string }].func3
-	// Note that this name is weird -- os.init is neither a package nor a type,
-	// but rather it has something to do with the generic function's caller.
-	if strings.ContainsRune(qualifiedName, '[') {
-		return parseFuncNameResult{
-			failureReason: parseFuncNameFailureReasonGenericFunction,
-		}, nil
-	}
+	sym := gosymname.Parse(qualifiedName, gosymname.SourceDWARF)
 
-	// Ignore map initialization functions like time.map.init.0. These initialize
-	// global map variables.
-	if strings.Contains(qualifiedName, ".map.init.") {
+	switch sym.Class() {
+	case gosymname.ClassMapInit:
 		return parseFuncNameResult{
 			failureReason: parseFuncNameFailureReasonMapInit,
 		}, nil
-	}
-
-	// Parse the function name as either a method on a pointer receiver, a
-	// method on a value receiver, or a standalone function.
-	var pkg, typ, name string
-	groups := methodWithPtrReceiverRE.FindStringSubmatch(qualifiedName)
-	if groups != nil {
-		pkg = groups[methodWithPtrReceiverREPkgIdx]
-		typ = groups[methodWithPtrReceiverRETypeIdx]
-		name = groups[methodWithPtrReceiverRENameIdx]
-	} else if groups = methodWithValueReceiverRE.FindStringSubmatch(qualifiedName); groups != nil {
-		pkg = groups[methodWithValueReceiverREPkgIdx]
-		typ = groups[methodWithValueReceiverRETypeIdx]
-		name = groups[methodWithValueReceiverRENameIdx]
-
-		// Disambiguate between two cases:
-		// The following example function:
-		// github.com/getsentry/sentry-go.NewClient.func1
-		// could either be a method called func1 on a type called NewClient, or
-		// an anonymous function defined inside a function called NewClient. We
-		// recognize certain names as indicating anonymous functions.
-		if anonymousFuncRE.MatchString(name) {
-			name = typ + "." + name
-			typ = ""
-		}
-	} else {
-		// If the function is not a method, it should be a standalone function.
-		groups = standaloneFuncRE.FindStringSubmatch(qualifiedName)
-		if groups == nil {
-			return parseFuncNameResult{}, fmt.Errorf("failed to parse function qualified name: %s", qualifiedName)
-		}
-		pkg = groups[standaloneFuncREPkgIdx]
-		name = groups[standaloneFuncRENameIdx]
-	}
-
-	// If the last element of the package's import path contains dots, they are
-	// replaced with %2e in DWARF to differentiate them from the dot
-	// that separates the package path from the function name.
-	// For example, functions in package "gopkg.in/square/go-jose.v2" will
-	// appear in DWARF as "gopkg.in/square/go-jose%2ev2.newBuffer".
-	// See https://groups.google.com/g/golang-nuts/c/Can9WXHrqHg/m/kMfx1x6sBgAJ
-	pkg = strings.ReplaceAll(pkg, "%2e", ".")
-
-	// Check whether we're with anonymous functions. If we are, they might have
-	// parsed as a method, but they are not actually methods, so we need to
-	// rectify the results of the parsing and wipe the type.
-	cnt := strings.Count(name, ".")
-	if cnt == 0 {
-		// This is the straight-forward case; this is a standalone function or a
-		// method, not an anonymous function.
+	case gosymname.ClassCompilerGenerated, gosymname.ClassBareName, gosymname.ClassCFunction:
+		// Not a Go function we should index.
 		return parseFuncNameResult{
-			funcName: funcName{
-				Package:       pkg,
-				Type:          typ,
-				Name:          name,
-				QualifiedName: qualifiedName,
-			},
+			failureReason: parseFuncNameFailureReasonUnsupported,
+		}, nil
+	case gosymname.ClassGlobalClosure:
+		// glob.funcN — not interesting for probing.
+		return parseFuncNameResult{
+			failureReason: parseFuncNameFailureReasonUnsupported,
 		}, nil
 	}
-	// There are two possibilities (including their more deeply nested cases):
-	// 1. This is an anonymous function defined inside a function/method, like:
-	// github.com/andrei/project/pkg/mypkg.myFunc.func1
-	// github.com/andrei/project/pkg/mypkg.myType.myMethod.func1
-	// 2. This is an instantiation of an anonymous function defined inside another function
-	// that's called from a function that was inlined in our function.method, like:
-	// github.com/andrei/project/pkg/mypkg.myFunc.anotherFunc.func1
-	// github.com/andrei/project/pkg/mypkg.myType.myMethod.anotherFunc.func1
-	//
-	// In either case, this function is not a method.
-	// TODO: We should try to distinguish the second case and ignore
-	// these functions; a user shouldn't see them (ideally we'd
-	// treat them as inlined instances of the respective anonymous
-	// function, but unfortunately Go's DWARF does not provide a
-	// link to the "real" function).
 
-	finalName := name
-	if typ != "" {
-		finalName = typ + "." + name
+	interps := sym.Interpretations()
+	if len(interps) == 0 {
+		return parseFuncNameResult{
+			failureReason: parseFuncNameFailureReasonUnsupported,
+		}, nil
 	}
+
+	// Find the best interpretation, preferring the method interpretation
+	// for backward compatibility with the old regex-based parser which
+	// treated any "pkg.Type.Name" as a value-receiver method.
+	best := findPreferredInterpretation(interps)
+
+	canonicalQName := gosymname.CanonicalizeGenerics(qualifiedName)
+
+	// Determine the receiver type (if any) and the display name.
+	// The old parser's behavior:
+	// - Simple method (no closures/inlined): Type=receiver, Name=method
+	// - Method with closures/inlined: Type="", Name="receiver.method.func1..."
+	// - Function (no receiver): Type="", Name=Local()
+	//
+	// We replicate this by checking: if there's a receiver AND the local name
+	// has no dots beyond the "Type.Method" boundary (i.e. no closures, no
+	// inlined), keep Type separate. Otherwise, collapse everything into Name.
+
+	var typ, name string
+	local := sym.Local()
+	canonicalLocal := gosymname.CanonicalizeGenerics(local)
+
+	if best.IsMethod() {
+		// Construct the receiver type (without '*', with canonicalized generics).
+		recvType := best.OuterReceiver
+		if best.OuterReceiverGenerics != nil {
+			recvType += "[...]"
+		}
+
+		// Check if this is a "simple" method (no closures, no inlined calls).
+		if !best.HasInlinedCalls() && best.ClosureSuffix == "" {
+			typ = recvType
+			name = best.OuterFunction
+		} else {
+			// Complex case: collapse receiver into name.
+			// The old parser's behavior: include the bare receiver type name
+			// (without '*' or parens) as part of Name.
+			// E.g. "(*apiV2Server).execSQL.func8" → "apiV2Server.execSQL.func8"
+			typ = ""
+			name = collapseReceiverIntoName(canonicalLocal)
+		}
+	} else {
+		typ = ""
+		name = canonicalLocal
+	}
+
 	return parseFuncNameResult{
 		funcName: funcName{
-			Package:       pkg,
-			Type:          "",
-			Name:          finalName,
-			QualifiedName: qualifiedName,
+			Package:       sym.Package(),
+			Type:          typ,
+			Name:          name,
+			QualifiedName: canonicalQName,
 		},
 	}, nil
+}
+
+// findPreferredInterpretation selects the interpretation to use for symdb.
+// When there are multiple interpretations (ambiguous symbol), prefer the
+// method interpretation (value-receiver) over the function+inlined
+// interpretation. This matches the old regex parser behavior which treated
+// "pkg.Type.Name" as a value-receiver method. When there's a closure suffix,
+// prefer the non-method interpretation (the old parser collapsed these).
+func findPreferredInterpretation(interps []gosymname.Interpretation) *gosymname.Interpretation {
+	if len(interps) == 1 {
+		return &interps[0]
+	}
+
+	// For ambiguous symbols with closures, prefer the non-method
+	// interpretation — the old parser treated these as functions, not methods.
+	hasClosure := false
+	for i := range interps {
+		if interps[i].ClosureSuffix != "" {
+			hasClosure = true
+			break
+		}
+	}
+	if hasClosure {
+		// Prefer non-method interpretation.
+		for i := range interps {
+			if !interps[i].IsMethod() {
+				return &interps[i]
+			}
+		}
+	}
+
+	// For simple ambiguous symbols (no closures), prefer the method
+	// interpretation — the old parser matched these as value-receiver methods.
+	for i := range interps {
+		if interps[i].IsMethod() {
+			return &interps[i]
+		}
+	}
+
+	return &interps[0]
+}
+
+// collapseReceiverIntoName transforms a local name by stripping the pointer
+// receiver syntax but keeping the type name. For example:
+//
+//	"(*apiV2Server).execSQL.func8" → "apiV2Server.execSQL.func8"
+//	"(*Type[...]).Method.func1"   → "Type[...].Method.func1"
+//	"Foo.Bar.func1"               → "Foo.Bar.func1" (unchanged, no ptr syntax)
+func collapseReceiverIntoName(local string) string {
+	if !strings.HasPrefix(local, "(*") {
+		return local
+	}
+	// Find matching ')' then '.'
+	closeIdx := strings.IndexByte(local, ')')
+	if closeIdx == -1 || closeIdx+1 >= len(local) || local[closeIdx+1] != '.' {
+		return local
+	}
+	// Extract the type name between (* and ), then append the rest.
+	typeName := local[2:closeIdx]
+	rest := local[closeIdx+2:]
+	return typeName + "." + rest
 }
 
 // splitPkg splits a full linker symbol name into package (full import path) and

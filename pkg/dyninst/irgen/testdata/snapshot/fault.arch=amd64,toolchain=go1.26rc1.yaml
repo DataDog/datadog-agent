@@ -8,16 +8,17 @@ Probes:
       template: ""
       segments: []
       captureSnapshot: true
-      subprogram: {subprogram: 1}
-      events:
-        - Kind: Entry
-          Type: 120 EventRootType Probe[main.callMe]
-          InjectionPoints: [{PC: "0x4c404e", Frameless: false}]
-          Condition: null
-        - Kind: Return
-          Type: 121 EventRootType Probe[main.callMe]Return
-          InjectionPoints: [{PC: "0x4c40f2", Frameless: false}]
-          Condition: null
+      instances:
+        - subprogram: {subprogram: 1}
+          events:
+            - Kind: Entry
+              Type: 120 EventRootType Probe[main.callMe]
+              InjectionPoints: [{PC: "0x4c404e", Frameless: false}]
+              Condition: null
+            - Kind: Return
+              Type: 121 EventRootType Probe[main.callMe]Return
+              InjectionPoints: [{PC: "0x4c40f2", Frameless: false}]
+              Condition: null
 Subprograms:
     - ID: 1
       Name: main.callMe
@@ -34,6 +35,7 @@ Subprograms:
                 - Size: 8
                   Op: {RegNo: 3, Shift: 0}
           Role: Parameter
+          DictIndex: -1
         - Name: s2
           Type: 9 GoStringHeaderType string
           Locations:
@@ -56,6 +58,7 @@ Subprograms:
                 - Size: 8
                   Op: {CfaOffset: 24}
           Role: Parameter
+          DictIndex: -1
         - Name: i
           Type: 104 PointerType *int
           Locations:
@@ -64,6 +67,8 @@ Subprograms:
             - Range: 0x4c4085..0x4c4134
               Pieces: [{Size: 8, Op: {CfaOffset: 32}}]
           Role: Parameter
+          DictIndex: -1
+      DictRegister: null
 Types:
     - __kind: PointerType
       ID: 67
@@ -303,6 +308,7 @@ Types:
                   Variable: {subprogram: 1, index: 0, name: s1}
                   Offset: 0
                   ByteSize: 16
+          DictIndex: -1
         - Name: s2
           Offset: 17
           Kind: argument
@@ -313,6 +319,7 @@ Types:
                   Variable: {subprogram: 1, index: 1, name: s2}
                   Offset: 0
                   ByteSize: 16
+          DictIndex: -1
         - Name: i
           Offset: 33
           Kind: argument
@@ -323,6 +330,7 @@ Types:
                   Variable: {subprogram: 1, index: 2, name: i}
                   Offset: 0
                   ByteSize: 8
+          DictIndex: -1
     - __kind: EventRootType
       ID: 121
       Name: Probe[main.callMe]Return

@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib2"
 	lib_v2 "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2"
 )
 
@@ -41,6 +42,7 @@ func main() {
 	var it iterExample
 	it.rangeOverIterator()
 	lib.InlinedFunc()
+	lib2.UseGenericsWithFloat64()
 
 	// unsupported for MVP, should not cause failures
 	executeEsoteric()
