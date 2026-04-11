@@ -33,12 +33,40 @@ cc_library(
 # Library
 # ============================================================================
 
+_LIB_SRCS = glob(
+    ["src/**/*.rs"],
+    exclude = ["src/bins/**"],
+)
+
+_LIB_DEPS = [
+    ":cpp_stdlib",
+    ":process_manager_rust_proto",
+    "@crates//:anyhow",
+    "@crates//:hyper-util",
+    "@crates//:log",
+    "@crates//:prost",
+    "@crates//:serde",
+    "@crates//:serde_json",
+    "@crates//:serde_yaml",
+    "@crates//:tokio",
+    "@crates//:tonic",
+    "@crates//:tonic-reflection",
+    "@crates//:tower",
+    "@crates//:uuid",
+] + select({
+    "@platforms//os:linux": [
+        "@crates//:nix",
+        "@crates//:tokio-stream",
+    ],
+    "@platforms//os:windows": [
+        "@crates//:windows-sys",
+    ],
+    "//conditions:default": [],
+})
+
 rust_library(
     name = "dd-procmgrd-lib",
-    srcs = glob(
-        ["src/**/*.rs"],
-        exclude = ["src/bins/**"],
-    ),
+    srcs = _LIB_SRCS,
     crate_name = "dd_procmgrd",
     edition = "2024",
     rustc_flags = ["--cfg=bazel"],
@@ -46,30 +74,21 @@ rust_library(
         "@platforms//os:linux",
     ],
     visibility = ["//visibility:public"],
-    deps = [
-        ":cpp_stdlib",
-        ":process_manager_rust_proto",
-        "@crates//:anyhow",
-        "@crates//:hyper-util",
-        "@crates//:log",
-        "@crates//:prost",
-        "@crates//:serde",
-        "@crates//:serde_yaml",
-        "@crates//:tokio",
-        "@crates//:tonic",
-        "@crates//:tonic-reflection",
-        "@crates//:tower",
-        "@crates//:uuid",
-    ] + select({
-        "@platforms//os:linux": [
-            "@crates//:nix",
-            "@crates//:tokio-stream",
-        ],
-        "@platforms//os:windows": [
-            "@crates//:windows-sys",
-        ],
-        "//conditions:default": [],
-    }),
+    deps = _LIB_DEPS,
+)
+
+rust_library(
+    name = "dd-procmgrd-lib-testhelpers",
+    testonly = True,
+    srcs = _LIB_SRCS,
+    crate_features = ["test-helpers"],
+    crate_name = "dd_procmgrd",
+    edition = "2024",
+    rustc_flags = ["--cfg=bazel"],
+    target_compatible_with = [
+        "@platforms//os:linux",
+    ],
+    deps = _LIB_DEPS,
 )
 
 # ============================================================================
@@ -164,6 +183,7 @@ rust_test(
         "DDOT_TEMPLATE_PATH": "$(rootpath //pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-ddot.yaml.tmpl)",
     },
     deps = [
+        ":dd-procmgrd-lib-testhelpers",
         "@crates//:nix",
         "@crates//:serde_json",
         "@crates//:tempfile",
