@@ -183,3 +183,11 @@ func limitMaxInt64(cfg model.Config, key string, max int64) {
 		cfg.Set(key, max, model.SourceAgentRuntime)
 	}
 }
+
+// disableConfig sets `key` to false, if set to `true`, and logs a warning with the `reason`.
+func disableConfig(cfg model.Config, key string, reason string) {
+	if cfg.GetBool(key) {
+		log.Warnf("disabling %s: %s", key, reason)
+		cfg.Set(key, false, model.SourceAgentRuntime)
+	}
+}
