@@ -55,11 +55,9 @@ func main() {
 		log.Fatalf("unable to resolve path to %s: %s", args[1], err)
 	}
 
-	err = runProcessing(root, inputFile, outputFile, args[2:])
-	if err != nil {
+	if err := runProcessing(root, inputFile, outputFile, args[2:]); err != nil {
 		log.Fatalf("error including headers: %s", err)
 	}
-	fmt.Printf("successfully included headers from %s => %s\n", inputFile, outputFile)
 }
 
 func resolvePath(root, path string) (string, error) {
@@ -142,7 +140,6 @@ func processIncludes(path string, out io.Writer, ps *pathSearcher, includedFiles
 		return nil
 	}
 	includedFiles[path] = struct{}{}
-	log.Printf("included %s\n", path)
 
 	sourceReader, err := os.Open(path)
 	if err != nil {

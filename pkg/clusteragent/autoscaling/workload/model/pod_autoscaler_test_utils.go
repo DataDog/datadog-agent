@@ -53,6 +53,13 @@ type FakePodAutoscalerInternal struct {
 	VerticalLastLimitReason            error
 	VerticalActionErrorCount           uint
 	VerticalActionSuccessCount         uint
+	InPlacePatchSuccessCount           uint
+	InPlacePatchErrorCount             uint
+	InPlaceEvictionSuccessCount        uint
+	InPlaceEvictionErrorCount          uint
+	InPlaceRolloutFallbackCount        uint
+	InPlacePDBBlockedCount             uint
+	InPlaceResizeCompletedCount        uint
 	CurrentReplicas                    *int32
 	ScaledReplicas                     *int32
 	EvictedReplicas                    *int32
@@ -102,6 +109,13 @@ func (f FakePodAutoscalerInternal) Build() PodAutoscalerInternal {
 		verticalLastLimitReason:            f.VerticalLastLimitReason,
 		verticalActionErrorCount:           f.VerticalActionErrorCount,
 		verticalActionSuccessCount:         f.VerticalActionSuccessCount,
+		inPlacePatchSuccessCount:           f.InPlacePatchSuccessCount,
+		inPlacePatchErrorCount:             f.InPlacePatchErrorCount,
+		inPlaceEvictionSuccessCount:        f.InPlaceEvictionSuccessCount,
+		inPlaceEvictionErrorCount:          f.InPlaceEvictionErrorCount,
+		inPlaceRolloutFallbackCount:        f.InPlaceRolloutFallbackCount,
+		inPlacePDBBlockedCount:             f.InPlacePDBBlockedCount,
+		inPlaceResizeCompletedCount:        f.InPlaceResizeCompletedCount,
 		currentReplicas:                    f.CurrentReplicas,
 		scaledReplicas:                     f.ScaledReplicas,
 		evictedReplicas:                    f.EvictedReplicas,

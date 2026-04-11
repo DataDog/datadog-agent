@@ -50,7 +50,7 @@ uzers = "0.12"
 walkdir = "2"
 saphyr-parser = "0.0.6"
 yaml-rust2 = "0.11"
-zip = { version = "2.1", default-features = false, features = ["deflate"] }
+zip = { version = "8.0", default-features = false, features = ["deflate"] }
 
 tower = { version = "0.5", features = ["util"] }
 uuid = { version = "1", features = ["v4"] }

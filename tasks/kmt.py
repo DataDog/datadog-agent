@@ -1623,7 +1623,7 @@ def ssh_config(
                 print(f"    HostName {domain.ip}")
                 if instance.arch != "local":
                     print(f"    ProxyJump kmt-{stack_name}-{instance.arch}")
-                print(f"    IdentityFile {ddvm_rsa}")
+                print(f"    IdentityFile {os.path.abspath(ddvm_rsa)}")
                 print("    IdentitiesOnly yes")
                 print("    User root")
 

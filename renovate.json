@@ -67,7 +67,40 @@
       },
       {
         "matchManagers": ["gomod"],
+        "labels": ["dependencies", "dependencies-go", "changelog/no-changelog", "qa/no-code-change"]
+      },
+      {
+        "matchManagers": ["gomod"],
+        "matchDepNames": [
+          "github.com/DataDog/datadog-agent/**",
+          "golang.org/x/**",
+          "go.opentelemetry.io/**",
+          "github.com/open-telemetry/opentelemetry-collector-contrib/**",
+          "github.com/spf13/cast",
+          "github.com/mailru/easyjson"
+        ],
         "enabled": false
+      },
+      {
+        "matchManagers": ["gomod"],
+        "matchDepNames": ["github.com/twmb/franz-go{,/**}"],
+        "groupName": "franz-go"
+      },
+      {
+        "matchManagers": ["gomod"],
+        "matchDepNames": ["github.com/uptrace/bun{,/**}"],
+        "groupName": "bun"
+      },
+      {
+        "matchManagers": ["gomod"],
+        "matchDepNames": ["github.com/aws/aws-sdk-go-v2{,/**}"],
+        "groupName": "aws-sdk-go-v2"
+      },
+      {
+        "matchManagers": ["gomod"],
+        "matchDepNames": ["k8s.io/**"],
+        "matchUpdateTypes": ["patch"],
+        "groupName": "k8s-io"
       },
       {
         "matchManagers": ["pyenv"],
