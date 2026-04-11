@@ -71,6 +71,16 @@ struct {
   __type(value, uint32_t);
 } go_runtime_type_ids SEC(".maps");
 
+// Like go_runtime_type_ids but without pointer-to-pointee dereferencing.
+// Used by dict resolution where we need the actual type, not the interface-
+// adjusted pointee type.
+struct {
+  __uint(type, BPF_MAP_TYPE_ARRAY);
+  __uint(max_entries, 0);
+  __type(key, uint32_t);
+  __type(value, uint32_t);
+} go_runtime_type_direct_ids SEC(".maps");
+
 volatile const uint32_t num_go_runtime_types = 0;
 
 #endif // __PROGRAM_H__

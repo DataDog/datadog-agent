@@ -21,19 +21,19 @@
             "lineNumber": 29
           },
           {
-            "function": "main.testReturnsInterface",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 84
+            "function": "main.genericDo[go.shape.struct { main.s string }]",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go",
+            "lineNumber": 105
           },
           {
-            "function": "main.executeReturns",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 390
+            "function": "main.executeGenericFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go",
+            "lineNumber": 234
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 50
+            "lineNumber": 49
           },
           {
             "function": "runtime.main",
@@ -57,21 +57,29 @@
             "arguments": {
               "b": {
                 "type": "main.firstBehavior",
-                "notCapturedReason": "unavailable"
+                "fields": {
+                  "s": {
+                    "type": "string",
+                    "value": "first"
+                  }
+                }
+              }
+            }
+          },
+          "return": {
+            "locals": {
+              "~r0": {
+                "type": "string",
+                "value": "{first}\n"
               }
             }
           }
         }
       },
-      "type": "snapshot",
-      "evaluationErrors": [
-        {
-          "expr": "@duration",
-          "message": "not available: function was inlined"
-        }
-      ]
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
+    "duration": "[duration]",
     "message": "testWhollyInlinedSubroutine",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   }

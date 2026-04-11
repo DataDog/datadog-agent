@@ -7,18 +7,20 @@ Probes:
       template: ""
       segments: []
       captureSnapshot: true
-      subprogram: {subprogram: 1}
-      events:
-        - Kind: Entry
-          Type: 105 EventRootType Probe[main.noop]
-          InjectionPoints: [{PC: "0x4a5f60", Frameless: true}]
-          Condition: null
+      instances:
+        - subprogram: {subprogram: 1}
+          events:
+            - Kind: Entry
+              Type: 105 EventRootType Probe[main.noop]
+              InjectionPoints: [{PC: "0x4a5f60", Frameless: true}]
+              Condition: null
 Subprograms:
     - ID: 1
       Name: main.noop
       OutOfLinePCRanges: [0x4a5f60..0x4a5f61]
       InlinePCRanges: []
       Variables: []
+      DictRegister: null
 Types:
     - __kind: PointerType
       ID: 39

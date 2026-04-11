@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux_bpf && test
 
 package irgen_test
 
@@ -16,7 +16,6 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -25,10 +24,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
-	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
+
+var verboseIssues = os.Getenv("IRGEN_VERBOSE_ISSUES") != ""
 
 func TestIRGenAllProbes(t *testing.T) {
 	if testing.Short() {
@@ -36,6 +36,7 @@ func TestIRGenAllProbes(t *testing.T) {
 	}
 	programs := testprogs.MustGetPrograms(t)
 	cfgs := testprogs.MustGetCommonConfigs(t)
+	sem := dyninsttest.MakeSemaphore()
 
 	// Find objcopy for each architecture.
 	// Native arch uses plain 'objcopy', cross-arch needs arch-specific toolchain.
@@ -66,8 +67,13 @@ func TestIRGenAllProbes(t *testing.T) {
 		t.Run(pkg, func(t *testing.T) {
 			for _, cfg := range cfgs {
 				t.Run(cfg.String(), func(t *testing.T) {
+					t.Parallel()
 					bin := testprogs.MustGetBinary(t, pkg, cfg)
-					testAllProbes(t, bin)
+
+					defer sem.Acquire()()
+					probes := buildAllSymDBProbes(t, bin)
+					testAllProbes(t, bin, probes)
+
 					version, ok := object.ParseGoVersion(cfg.GOTOOLCHAIN)
 					require.True(t, ok)
 					if version.Minor >= 25 {
@@ -84,7 +90,7 @@ func TestIRGenAllProbes(t *testing.T) {
 						if err != nil {
 							t.Errorf("failed to objcopy a loclist section for %s: %v", cfg.String(), err)
 						}
-						testAllProbes(t, modified)
+						testAllProbes(t, modified, probes)
 					})
 				})
 			}
@@ -113,8 +119,7 @@ func addLoclistSection(binPath, objcopy, tmpDir string) (modifiedBinPath string,
 	return modifiedBinPath, nil
 }
 
-func testAllProbes(t *testing.T, binPath string) {
-	probes := buildAllSymbolProbes(t, binPath)
+func testAllProbes(t *testing.T, binPath string, probes []ir.ProbeDefinition) {
 	obj, err := object.OpenElfFileWithDwarf(binPath)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, obj.Close()) }()
@@ -137,21 +142,27 @@ func verifyIR(t *testing.T, p *ir.Program) {
 	noBodyCount := 0
 	singleInstrCount := 0
 	for _, probe := range p.Probes {
-		for _, event := range probe.Events {
-			for _, ip := range event.InjectionPoints {
-				if ip.NoReturnReason == ir.NoReturnReasonNoBody {
-					ranges := probe.Subprogram.OutOfLinePCRanges
-					if len(ranges) > 0 {
-						size := ranges[0][1] - ranges[0][0]
-						if ip.HasAssociatedReturn == false && size <= 1 {
-							singleInstrCount++
+		for _, instance := range probe.Instances {
+			for _, event := range instance.Events {
+				for _, ip := range event.InjectionPoints {
+					if ip.NoReturnReason == ir.NoReturnReasonNoBody {
+						ranges := instance.Subprogram.OutOfLinePCRanges
+						if len(ranges) > 0 {
+							size := ranges[0][1] - ranges[0][0]
+							if ip.HasAssociatedReturn == false && size <= 1 {
+								singleInstrCount++
+							} else {
+								noBodyCount++
+								if verboseIssues {
+									t.Logf("noBody function: %s (pc=0x%x, size=%d)", instance.Subprogram.Name, ranges[0][0], size)
+								}
+							}
 						} else {
 							noBodyCount++
-							t.Logf("noBody function: %s (pc=0x%x, size=%d)", probe.Subprogram.Name, ranges[0][0], size)
+							if verboseIssues {
+								t.Logf("noBody function: %s (no out-of-line ranges)", instance.Subprogram.Name)
+							}
 						}
-					} else {
-						noBodyCount++
-						t.Logf("noBody function: %s (no out-of-line ranges)", probe.Subprogram.Name)
 					}
 				}
 			}
@@ -183,35 +194,26 @@ func verifyIR(t *testing.T, p *ir.Program) {
 			// Some functions contain instructions the disassembler can't
 			// decode (e.g. AVX-512, LSE atomics) or have injection PCs that
 			// don't land on instruction boundaries. Log instead of fail.
-			t.Logf("%s: disassembly failed: %s", loc, issue.Message)
-		case ir.IssueKindInvalidProbeDefinition:
-			t.Logf("%s: invalid probe definition: %s", loc, issue.Message)
-		case ir.IssueKindMalformedExecutable:
-			t.Logf("%s: malformed executable: %s", loc, issue.Message)
-		case ir.IssueKindTargetNotFoundInBinary:
-			if permittedTargetNotFoundInBinary(loc) {
-				t.Logf("(permitted) %s: target not found in binary: %s", loc, issue.Message)
-			} else {
-				t.Errorf("%s: target not found in binary: %s", loc, issue.Message)
+			if verboseIssues {
+				t.Logf("%s: disassembly failed: %s", loc, issue.Message)
 			}
+		case ir.IssueKindInvalidProbeDefinition:
+			if verboseIssues {
+				t.Logf("%s: invalid probe definition: %s", loc, issue.Message)
+			}
+		case ir.IssueKindMalformedExecutable:
+			if verboseIssues {
+				t.Logf("%s: malformed executable: %s", loc, issue.Message)
+			}
+		case ir.IssueKindTargetNotFoundInBinary:
+			t.Errorf("%s: target not found in binary: %s", loc, issue.Message)
 		case ir.IssueKindUnsupportedFeature:
-			t.Logf("%s: unsupported feature: %s", loc, issue.Message)
+			if verboseIssues {
+				t.Logf("%s: unsupported feature: %s", loc, issue.Message)
+			}
 		default:
 			t.Errorf("%s: unexpected issue kind: %#v", loc, issue.Kind)
 		}
-	}
-}
-
-func permittedTargetNotFoundInBinary(loc string) bool {
-	switch loc {
-	// Some weird thing where the type of a different package gets moved
-	// and then it should have a center dot but for the symbol table it becomes
-	// a period.
-	case "mime/multipart.(*writerOnly.1).Write",
-		"mime/multipart.writerOnly.1.Write":
-		return true
-	default:
-		return false
 	}
 }
 
@@ -225,7 +227,7 @@ func BenchmarkIRGenAllSymbols(b *testing.B) {
 			for _, cfg := range cfgs {
 				b.Run(cfg.String(), func(b *testing.B) {
 					binPath := testprogs.MustGetBinary(b, pkg, cfg)
-					probes := buildAllSymbolProbes(b, binPath)
+					probes := buildAllSymDBProbes(b, binPath)
 
 					obj, err := object.OpenElfFileWithDwarf(binPath)
 					require.NoError(b, err)
@@ -244,48 +246,32 @@ func BenchmarkIRGenAllSymbols(b *testing.B) {
 	}
 }
 
-// buildAllSymbolProbes creates probe definitions for all function symbols in the binary.
-func buildAllSymbolProbes(tb testing.TB, binPath string) []ir.ProbeDefinition {
+// buildAllSymDBProbes uses symdb to discover all functions and injectable
+// lines in the binary and creates a probe for each one.
+func buildAllSymDBProbes(tb testing.TB, binPath string) []ir.ProbeDefinition {
 	tb.Helper()
-	binary, err := os.Open(binPath)
+	symbols, err := symdb.ExtractSymbols(
+		binPath,
+		object.NewInMemoryLoader(),
+		symdb.ExtractOptions{
+			Scope: symdb.ExtractScopeAllSymbols,
+		},
+	)
 	require.NoError(tb, err)
-	elf, err := safeelf.NewFile(binary)
-	require.NoError(tb, err)
-	defer func() { require.NoError(tb, binary.Close()) }()
 
 	var probes []ir.ProbeDefinition
-	symbols, err := elf.Symbols()
-	require.NoError(tb, err)
-
-	for i, s := range symbols {
-		if int(s.Section) >= len(elf.Sections) ||
-			elf.Sections[s.Section].Name != ".text" {
-			continue
+	probeID := 0
+	var methodCount, lineCount int
+	for _, pkg := range symbols.Packages {
+		probes, probeID, methodCount, lineCount = collectFunctionProbes(
+			probes, probeID, methodCount, lineCount, pkg.Functions,
+		)
+		for _, typ := range pkg.Types {
+			probes, probeID, methodCount, lineCount = collectFunctionProbes(
+				probes, probeID, methodCount, lineCount, typ.Methods,
+			)
 		}
-		// Skip automatically generated symbols that cause problems.
-		if s.Name == "runtime.text" ||
-			s.Name == "runtime.etext" ||
-			s.Name == "" ||
-			strings.HasPrefix(s.Name, "go:") ||
-			strings.HasPrefix(s.Name, "type:.") ||
-			strings.HasPrefix(s.Name, "runtime.vdso") ||
-			strings.HasSuffix(s.Name, ".abi0") ||
-			strings.Contains(s.Name, "..typeAssert") ||
-			strings.Contains(s.Name, "..dict") ||
-			strings.Contains(s.Name, "..gobytes") ||
-			strings.Contains(s.Name, "..interfaceSwitch") ||
-			strings.Contains(s.Name, "go.shape") {
-			continue
-		}
-
-		probes = append(probes, &rcjson.SnapshotProbe{
-			LogProbeCommon: rcjson.LogProbeCommon{
-				ProbeCommon: rcjson.ProbeCommon{
-					ID:    fmt.Sprintf("probe_%d", i),
-					Where: &rcjson.Where{MethodName: s.Name},
-				},
-			},
-		})
 	}
+	tb.Logf("built %d probes (%d method, %d line) from symdb", len(probes), methodCount, lineCount)
 	return probes
 }

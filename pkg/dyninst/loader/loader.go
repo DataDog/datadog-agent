@@ -378,6 +378,7 @@ func (l *Loader) loadData(
 		// be set to zero.
 		grts.goRuntimeTypes = []uint64{0}
 		grts.typeIDs = []uint64{0}
+		grts.directTypeIDs = []uint64{0}
 	}
 	goRuntimeTypeIDsMapSpec, goRuntimeTypeIDsMap, err := makeArrayMap(
 		goRuntimeTypeIDsMapName, grts.typeIDs, allowMultipleMapEntries,
@@ -401,6 +402,19 @@ func (l *Loader) loadData(
 	defer func() {
 		if goRuntimeTypesMap != nil {
 			goRuntimeTypesMap.Close()
+		}
+	}()
+	const goRuntimeTypeDirectIDsMapName = "go_runtime_type_direct_ids"
+	goRuntimeTypeDirectIDsMapSpec, goRuntimeTypeDirectIDsMap, err := makeArrayMap(
+		goRuntimeTypeDirectIDsMapName, grts.directTypeIDs, allowMultipleMapEntries,
+	)
+	spec.Maps[goRuntimeTypeDirectIDsMapName] = goRuntimeTypeDirectIDsMapSpec
+	if err != nil {
+		return nil, fmt.Errorf("failed to create go_runtime_type_direct_ids map: %w", err)
+	}
+	defer func() {
+		if goRuntimeTypeDirectIDsMap != nil {
+			goRuntimeTypeDirectIDsMap.Close()
 		}
 	}()
 	if err := setVariable(
@@ -470,13 +484,14 @@ func (l *Loader) loadData(
 	}
 
 	m := map[string]*ebpf.Map{
-		codeMapName:             codeMap,
-		typeIDsMapName:          typeIDsMap,
-		typeInfoMapName:         typeInfoMap,
-		throttlerMapName:        throttlerMap,
-		probeParamsMapName:      probeParamsMap,
-		goRuntimeTypeIDsMapName: goRuntimeTypeIDsMap,
-		goRuntimeTypesMapName:   goRuntimeTypesMap,
+		codeMapName:                   codeMap,
+		typeIDsMapName:                typeIDsMap,
+		typeInfoMapName:               typeInfoMap,
+		throttlerMapName:              throttlerMap,
+		probeParamsMapName:            probeParamsMap,
+		goRuntimeTypeIDsMapName:       goRuntimeTypeIDsMap,
+		goRuntimeTypesMapName:         goRuntimeTypesMap,
+		goRuntimeTypeDirectIDsMapName: goRuntimeTypeDirectIDsMap,
 	}
 	codeMap = nil
 	typeIDsMap = nil
@@ -485,6 +500,7 @@ func (l *Loader) loadData(
 	probeParamsMap = nil
 	goRuntimeTypeIDsMap = nil
 	goRuntimeTypesMap = nil
+	goRuntimeTypeDirectIDsMap = nil
 	return m, nil
 }
 

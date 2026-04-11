@@ -134,6 +134,22 @@ func makeInstruction(op Op) codeFragment {
 			bytes:  []byte{},
 		}
 
+	case ProcessGoDictTypeOp:
+		bytes := make([]byte, 0, 9)
+		bytes = binary.LittleEndian.AppendUint32(bytes, uint32(op.DictIndex))
+		bytes = append(bytes, op.DictRegister)
+		bytes = binary.LittleEndian.AppendUint32(bytes, op.OutputOffset)
+		return staticInstruction{
+			opcode: OpcodeProcessGoDictType,
+			bytes:  bytes,
+		}
+
+	case CallDictResolvedOp:
+		return callDictResolvedInstruction{
+			outputOffset: op.OutputOffset,
+			fallback:     op.FallbackFunc,
+		}
+
 	case ProcessGoHmapOp:
 		bytes := make([]byte, 0, 12)
 		bytes = binary.LittleEndian.AppendUint32(bytes, uint32(op.BucketsType.GetID()))
