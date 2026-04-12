@@ -279,8 +279,8 @@ func TestPollerIPPopulated(t *testing.T) {
 		wantIP string
 	}{
 		{"127.0.0.1:0", "127.0.0.1"},
-		{"0.0.0.0:0", "0.0.0.0"},
 		{"[::1]:0", "::1"},
+		{"[::]:0", "::"},
 	}
 
 	type bound struct {
@@ -316,16 +316,13 @@ func TestPollerIPPopulated(t *testing.T) {
 	for _, b := range bounds {
 		found := false
 		for _, entry := range pl {
-			if entry.Proto == "tcp" && entry.Port == b.port {
+			if entry.Proto == "tcp" && entry.Port == b.port && entry.IP == b.wantIP {
 				found = true
-				if entry.IP != b.wantIP {
-					t.Errorf("expected IP %q for port %d, got %q", b.wantIP, b.port, entry.IP)
-				}
 				break
 			}
 		}
 		if !found {
-			t.Errorf("port %d not found in poll results", b.port)
+			t.Errorf("tcp (port=%d, IP=%q) not found in poll results", b.port, b.wantIP)
 		}
 	}
 }

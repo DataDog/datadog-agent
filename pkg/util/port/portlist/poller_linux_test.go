@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -160,6 +161,7 @@ func TestParseHexIPv6(t *testing.T) {
 		{"00000000000000000000000000000000", "::"},
 		{"00000000000000000000000001000000", "::1"},
 		{"0000000000000000FFFF00000100007F", "127.0.0.1"},
+		{"0000000000000000FFFF0000010120AC", "172.32.1.1"},
 		{"short", ""},
 	}
 	for _, tt := range tests {
@@ -309,6 +311,59 @@ func TestArgvSubject(t *testing.T) {
 		got := argvSubject(test.in...)
 		if got != test.want {
 			t.Errorf("argvSubject(%v) = %q, want %q", test.in, got, test.want)
+		}
+	}
+}
+
+func TestPollerUDPIPPopulated(t *testing.T) {
+	tests := []struct {
+		addr   string
+		wantIP string
+	}{
+		{"127.0.0.1:0", "127.0.0.1"},
+		{"[::1]:0", "::1"},
+	}
+
+	type bound struct {
+		port   uint16
+		wantIP string
+		conn   net.PacketConn
+	}
+	var bounds []bound
+	for _, tt := range tests {
+		conn, err := net.ListenPacket("udp", tt.addr)
+		if err != nil {
+			t.Skipf("failed to bind udp %s: %v", tt.addr, err)
+		}
+		bounds = append(bounds, bound{
+			port:   uint16(conn.LocalAddr().(*net.UDPAddr).Port),
+			wantIP: tt.wantIP,
+			conn:   conn,
+		})
+	}
+	defer func() {
+		for _, b := range bounds {
+			b.conn.Close()
+		}
+	}()
+
+	var p Poller
+	p.IncludeLocalhost = true
+	pl, _, err := p.Poll()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, b := range bounds {
+		found := false
+		for _, entry := range pl {
+			if entry.Proto == "udp" && entry.Port == b.port && entry.IP == b.wantIP {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("udp (port=%d, IP=%q) not found in poll results", b.port, b.wantIP)
 		}
 	}
 }
