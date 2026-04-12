@@ -7,6 +7,8 @@
 
 package store
 
+import "context"
+
 // BlockType represents enums for configuration blocks (currently focused on separating text from sensitive data)
 type BlockType string
 
@@ -40,4 +42,13 @@ type ConfigMetadata struct {
 // RawConfig is a temporary backup method until blocks logic is stable
 type RawConfig struct {
 	Content string `json:"content"`
+}
+
+// ConfigStore implements persistent KV store for configurations for rollbacks
+// whenever a config is retrieved, we will store agent-side along with the payload sent
+// to intake to enable "rollbacks" without sending sensitive data (in configs) back and forth
+type ConfigStore interface {
+	Close(context.Context) error
+	StoreConfig(deviceID, configType string, rawConfig string, blocks []ConfigBlock, secrets map[string]string) (string, error)
+	GetConfig(configUUID string) (string, []ConfigBlock, *ConfigMetadata, map[string]string, error)
 }

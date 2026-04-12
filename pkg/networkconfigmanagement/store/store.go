@@ -10,6 +10,7 @@
 package store
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -37,17 +38,16 @@ const (
 	databaseLockTimeout = 1 * time.Second
 )
 
-// ConfigStore implements persistent KV store for configurations for rollbacks
-// whenever a config is retrieved, we will store agent-side along with the payload sent
-// to intake to enable "rollbacks" without sending sensitive data (in configs) back and forth
-type ConfigStore struct {
+type configStore struct {
 	db         *bbolt.DB
 	lock       sync.RWMutex
 	compressor compression.Compressor
 }
 
+var _ ConfigStore = (*configStore)(nil)
+
 // Open creates a new ConfigStore and initializes the underlying boltDB + required buckets
-func Open(path string) (*ConfigStore, error) {
+func Open(path string) (ConfigStore, error) {
 	db, err := bbolt.Open(path, ownerRWFileMode, &bbolt.Options{
 		Timeout: databaseLockTimeout,
 	})
@@ -55,7 +55,7 @@ func Open(path string) (*ConfigStore, error) {
 		return nil, fmt.Errorf("failed to open NCM bbolt config store at %s: %w", path, err)
 	}
 
-	cs := &ConfigStore{
+	cs := &configStore{
 		db:         db,
 		compressor: selector.NewCompressor(compression.ZstdKind, 3), // Level 3 is default for compression, can tune iteratively
 	}
@@ -70,7 +70,7 @@ func Open(path string) (*ConfigStore, error) {
 		return nil
 	})
 	if err != nil {
-		cs.Close()
+		cs.Close(context.TODO())
 		return nil, err
 	}
 
@@ -78,7 +78,7 @@ func Open(path string) (*ConfigStore, error) {
 }
 
 // Close cleans up / releases DB resources
-func (cs *ConfigStore) Close() error {
+func (cs *configStore) Close(_ context.Context) error {
 	cs.lock.Lock()
 	defer cs.lock.Unlock()
 	return cs.db.Close()
@@ -87,14 +87,14 @@ func (cs *ConfigStore) Close() error {
 // Base helper transaction functions for the DB
 
 // view wraps the bbolt View transaction with a read lock (for ease of use)
-func (cs *ConfigStore) view(fn func(tx *bbolt.Tx) error) error {
+func (cs *configStore) view(fn func(tx *bbolt.Tx) error) error {
 	cs.lock.RLock()
 	defer cs.lock.RUnlock()
 	return cs.db.View(fn)
 }
 
 // update wraps the bbolt Update transaction with a write lock (for ease of use)
-func (cs *ConfigStore) update(fn func(tx *bbolt.Tx) error) error {
+func (cs *configStore) update(fn func(tx *bbolt.Tx) error) error {
 	cs.lock.Lock()
 	defer cs.lock.Unlock()
 	return cs.db.Update(fn)
@@ -104,7 +104,7 @@ func (cs *ConfigStore) update(fn func(tx *bbolt.Tx) error) error {
 
 // StoreConfig is responsible for checking if the config for the device is new,
 // if so, it will create a new entry in each bucket (for the config, metadata, and secrets)
-func (cs *ConfigStore) StoreConfig(deviceID, configType string, rawConfig string, blocks []ConfigBlock, secrets map[string]string) (string, error) {
+func (cs *configStore) StoreConfig(deviceID, configType string, rawConfig string, blocks []ConfigBlock, secrets map[string]string) (string, error) {
 	// Setup + marshal everything first (does not require DB lock)
 	configUUID := uuid.New().String()
 	now := time.Now().Unix()
@@ -194,7 +194,7 @@ func (cs *ConfigStore) StoreConfig(deviceID, configType string, rawConfig string
 // and checks for configs that match the device ID and config type (e.g. default:10.0.0.1, "running")
 // and compares the hashes with the incoming config retrieved to help check if we need to store it
 // TODO: nice to have optimization since we check duplicates more than we'd check by exact UUID is having a composite key / prefix scan
-func (cs *ConfigStore) checkDuplicateInTx(tx *bbolt.Tx, deviceID string, configType string, rawHash string) (string, error) {
+func (cs *configStore) checkDuplicateInTx(tx *bbolt.Tx, deviceID string, configType string, rawHash string) (string, error) {
 	var latest *ConfigMetadata
 	err := tx.Bucket([]byte(metadataBucket)).ForEach(func(_, v []byte) error {
 		var current ConfigMetadata
@@ -219,7 +219,7 @@ func (cs *ConfigStore) checkDuplicateInTx(tx *bbolt.Tx, deviceID string, configT
 }
 
 // CheckDuplicate is the wrapper around the checkDuplicateInTx function that contains the logic including locking the DB
-func (cs *ConfigStore) CheckDuplicate(deviceID string, configType string, rawHash string) (string, error) {
+func (cs *configStore) CheckDuplicate(deviceID string, configType string, rawHash string) (string, error) {
 	var configID string
 	err := cs.view(func(tx *bbolt.Tx) error {
 		var txErr error
@@ -230,7 +230,7 @@ func (cs *ConfigStore) CheckDuplicate(deviceID string, configType string, rawHas
 }
 
 // GetConfig retrieves all the data associated with a config given its UUID
-func (cs *ConfigStore) GetConfig(configUUID string) (string, []ConfigBlock, *ConfigMetadata, map[string]string, error) {
+func (cs *configStore) GetConfig(configUUID string) (string, []ConfigBlock, *ConfigMetadata, map[string]string, error) {
 	var rawConfig string
 	var blocks []ConfigBlock
 	var metadata ConfigMetadata
@@ -293,7 +293,7 @@ func (cs *ConfigStore) GetConfig(configUUID string) (string, []ConfigBlock, *Con
 }
 
 // DeleteConfig deletes all data associated with the given key (config UUID) from each bucket
-func (cs *ConfigStore) DeleteConfig(key string) error {
+func (cs *configStore) DeleteConfig(key string) error {
 	return cs.update(func(tx *bbolt.Tx) error {
 		bKey := []byte(key)
 
