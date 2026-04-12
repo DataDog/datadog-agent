@@ -12,7 +12,5 @@ import ncmstore "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/st
 
 // Component is the component type.
 type Component interface {
-	RetrieveRunningConfig(ipAddress string) (string, error)
-	RetrieveStartupConfig(ipAddress string) (string, error)
 	GetConfigStore() ncmstore.ConfigStore
 }
