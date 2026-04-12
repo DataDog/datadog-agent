@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build ncm
-
 // Package networkconfigmanagement provides the component for retrieving network device configurations.
 package networkconfigmanagement
 
@@ -16,5 +14,5 @@ import ncmstore "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/st
 type Component interface {
 	RetrieveRunningConfig(ipAddress string) (string, error)
 	RetrieveStartupConfig(ipAddress string) (string, error)
-	GetConfigStore() *ncmstore.ConfigStore
+	GetConfigStore() ncmstore.ConfigStore
 }

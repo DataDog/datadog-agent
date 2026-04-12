@@ -7,7 +7,6 @@
 package networkconfigmanagementimpl
 
 import (
-	"context"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -38,7 +37,7 @@ type networkDeviceConfigImpl struct {
 	config        *ProcessedNcmConfig
 	log           log.Component
 	clientFactory RemoteClientFactory
-	store         *ncmstore.ConfigStore
+	store         ncmstore.ConfigStore
 }
 
 // NewComponent creates a new networkconfigmanagement component
@@ -55,8 +54,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, err
 	}
 
-	close := func(context.Context) error { return store.Close() }
-	reqs.Lifecycle.Append(compdef.Hook{OnStop: close})
+	reqs.Lifecycle.Append(compdef.Hook{OnStop: store.Close})
 
 	impl := &networkDeviceConfigImpl{
 		config:        ncmConfig,
@@ -71,7 +69,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	return provides, nil
 }
 
-func (n *networkDeviceConfigImpl) GetConfigStore() *ncmstore.ConfigStore {
+func (n *networkDeviceConfigImpl) GetConfigStore() ncmstore.ConfigStore {
 	return n.store
 }
 

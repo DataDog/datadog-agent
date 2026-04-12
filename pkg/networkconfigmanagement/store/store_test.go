@@ -8,6 +8,7 @@
 package store
 
 import (
+	"context"
 	"encoding/json"
 	"path/filepath"
 	"testing"
@@ -36,13 +37,13 @@ var testSecrets = map[string]string{
 	"secret-2": "cg6#107X",
 }
 
-func newTestConfigStore(t *testing.T) *ConfigStore {
+func newTestConfigStore(t *testing.T) *configStore {
 	t.Helper()
 	dbPath := filepath.Join(t.TempDir(), "test.db")
 	cs, err := Open(dbPath)
 	require.NoError(t, err)
-	t.Cleanup(func() { cs.Close() })
-	return cs
+	t.Cleanup(func() { cs.Close(context.Background()) })
+	return cs.(*configStore)
 }
 
 func TestOpen(t *testing.T) {
