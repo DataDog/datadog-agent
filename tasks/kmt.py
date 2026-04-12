@@ -86,7 +86,6 @@ from tasks.system_probe import (
     get_test_timeout,
     go_package_dirs,
     ninja_add_dyninst_test_programs,
-    ninja_generate,
     setup_runtime_clang,
 )
 
@@ -830,12 +829,11 @@ def kmt_secagent_prepare(
     kmt_paths = KMTPaths(stack, arch)
     kmt_paths.secagent_tests.mkdir(exist_ok=True, parents=True)
 
-    build_object_files(ctx, f"{kmt_paths.arch_dir}/kmt-secagent-obj-files.ninja", arch)
+    build_object_files(ctx, arch)
     build_functional_tests(
         ctx,
         bundle_ebpf=False,
         race=True,
-        debug=True,
         output=f"{kmt_paths.secagent_tests}/pkg/security/testsuite",
         skip_linters=True,
         skip_object_files=True,
@@ -1047,16 +1045,12 @@ def build_target_packages(filter_packages: list[str], build_tags: list[str]):
     return [pkg for pkg in all_packages if os.path.relpath(pkg) in filter_packages]
 
 
-def build_object_files(ctx, fp, arch: Arch):
+def build_object_files(ctx, arch: Arch):
     info("[+] Building eBPF object files via Bazel...")
     build_dir = get_ebpf_build_dir(arch)
     runtime_dir = get_ebpf_runtime_dir()
     bazel_build_ebpf(ctx, arch, str(build_dir), str(runtime_dir), strip=False)
     bazel(ctx, "test", *ebpf_bazel_flags(arch), "//pkg/ebpf:verify_generated_files")
-
-    info(f"[+] Building non-eBPF artifacts via ninja... {fp}")
-    ninja_generate(ctx, fp, arch=arch)
-    ctx.run(f"ninja -d explain -f {fp}")
 
 
 def compute_package_dependencies(ctx: Context, packages: list[str], build_tags: list[str]) -> dict[str, set[str]]:
@@ -1123,7 +1117,7 @@ def kmt_sysprobe_prepare(
     if go_root:
         go_path = os.path.join(go_root, "bin", "go")
 
-    build_object_files(ctx, f"{kmt_paths.arch_dir}/kmt-object-files.ninja", arch)
+    build_object_files(ctx, arch)
 
     info("[+] Computing Go dependencies for test packages...")
     build_tags = get_sysprobe_test_buildtags(False, False)
@@ -1629,7 +1623,7 @@ def ssh_config(
                 print(f"    HostName {domain.ip}")
                 if instance.arch != "local":
                     print(f"    ProxyJump kmt-{stack_name}-{instance.arch}")
-                print(f"    IdentityFile {ddvm_rsa}")
+                print(f"    IdentityFile {os.path.abspath(ddvm_rsa)}")
                 print("    IdentitiesOnly yes")
                 print("    User root")
 

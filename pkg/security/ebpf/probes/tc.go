@@ -158,21 +158,25 @@ func getTCTailCallRoutes(withRawPacket bool) []manager.TailCallRoute {
 	}
 
 	if withRawPacket {
-		tcr = append(tcr, manager.TailCallRoute{
-			ProgArrayName: "raw_packet_classifier_router",
-			Key:           TCRawPacketSenderKey,
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: tailCallClassifierFnc("raw_packet_sender"),
-			},
-		})
+		// Put the programs in both maps
+		for i := 0; i < 2; i++ {
+			name := GetRawPacketClassifierRouterMapName(uint32(i))
+			tcr = append(tcr, manager.TailCallRoute{
+				ProgArrayName: name,
+				Key:           TCRawPacketSenderKey,
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: tailCallClassifierFnc("raw_packet_sender"),
+				},
+			})
+			tcr = append(tcr, manager.TailCallRoute{
+				ProgArrayName: name,
+				Key:           TCRawPacketDropActionShotKey,
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: tailCallClassifierFnc("raw_packet_drop_action_cb"),
+				},
+			})
+		}
 
-		tcr = append(tcr, manager.TailCallRoute{
-			ProgArrayName: "raw_packet_classifier_router",
-			Key:           TCRawPacketDropActionShotKey,
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: tailCallClassifierFnc("raw_packet_drop_action_cb"),
-			},
-		})
 	}
 
 	return tcr
