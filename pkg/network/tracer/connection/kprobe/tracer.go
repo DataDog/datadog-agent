@@ -46,11 +46,6 @@ const (
 )
 
 var (
-	// The kernel has to be newer than 4.11.0 since we are using bpf_skb_load_bytes (4.5.0+), which
-	// was added to socket filters in 4.11.0:
-	// - 2492d3b867043f6880708d095a7a5d65debcfc32
-	classificationMinimumKernel = kernel.VersionCode(4, 11, 0)
-
 	// these primarily exist for mocking out in tests
 	coreTracerLoader          = loadCORETracer
 	rcTracerLoader            = loadRuntimeCompiledTracer
@@ -59,43 +54,12 @@ var (
 	tracerOffsetGuesserRunner = offsetguess.TracerOffsets.Offsets
 
 	errCORETracerNotSupported = errors.New("CO-RE tracer not supported on this platform")
-
-	rhel9KernelVersion = kernel.VersionCode(5, 14, 0)
 )
 
 // ClassificationSupported returns true if the current kernel version supports the classification feature.
-// The kernel has to be newer than 4.11.0 since we are using bpf_skb_load_bytes (4.5.0+) method which was added to
-// socket filters in 4.11.0, and a tracepoint (4.7.0+)
+// Delegates to util.ClassificationSupported for the shared implementation.
 func ClassificationSupported(config *config.Config) bool {
-	if !config.ProtocolClassificationEnabled {
-		return false
-	}
-	if !config.CollectTCPv4Conns && !config.CollectTCPv6Conns {
-		return false
-	}
-	currentKernelVersion, err := kernel.HostVersion()
-	if err != nil {
-		log.Warn("could not determine the current kernel version. classification monitoring disabled.")
-		return false
-	}
-
-	if currentKernelVersion < classificationMinimumKernel {
-		return false
-	}
-
-	// TODO: fix protocol classification is not supported on RHEL 9+
-	family, err := kernel.Family()
-	if err != nil {
-		log.Warnf("could not determine OS family: %s", err)
-		return false
-	}
-
-	if family == "rhel" && currentKernelVersion >= rhel9KernelVersion {
-		log.Warn("protocol classification is currently not supported on RHEL 9+")
-		return false
-	}
-
-	return true
+	return util.ClassificationSupported(config)
 }
 
 // LoadTracer loads the co-re/prebuilt/runtime compiled network tracer, depending on config

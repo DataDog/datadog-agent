@@ -26,6 +26,11 @@ func initManager(mgr *ddebpf.Manager) {
 		{Name: probes.UDPPortBindingsMap},
 		{Name: "pending_bind"},
 		{Name: probes.TelemetryMap},
+		// Protocol classification maps
+		{Name: probes.ConnectionProtocolMap},
+		{Name: probes.ClassificationProgsMap},
+		{Name: probes.ConnectionTupleToSocketSKBConnMap},
+		{Name: probes.EnhancedTLSTagsMap},
 	}
 	for funcName := range programs {
 		p := &manager.Probe{
@@ -36,4 +41,9 @@ func initManager(mgr *ddebpf.Manager) {
 		}
 		mgr.Probes = append(mgr.Probes, p)
 	}
+
+	// Raw tracepoint for net_dev_queue (protocol classification NAT correlation)
+	mgr.Probes = append(mgr.Probes,
+		&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.NetDevQueueRawTracepoint, UID: probeUID}, TracepointName: "net_dev_queue", TracepointCategory: "net"},
+	)
 }
