@@ -84,13 +84,13 @@
       <Version>6.1.2</Version>
     </PackageReference>
     <PackageReference Include="System.Threading.Tasks.Extensions">
-      <Version>4.5.4</Version>
+      <Version>4.6.3</Version>
     </PackageReference>
     <PackageReference Include="xunit">
-      <Version>2.4.2</Version>
+      <Version>2.9.2</Version>
     </PackageReference>
     <PackageReference Include="xunit.analyzers">
-      <Version>1.1.0</Version>
+      <Version>1.27.0</Version>
     </PackageReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
