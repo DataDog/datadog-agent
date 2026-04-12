@@ -1009,8 +1009,6 @@ core,github.com/docker/docker/api/types/time,Apache-2.0,"Copyright 2012-2017 Doc
 core,github.com/docker/docker/api/types/versions,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/docker/api/types/volume,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/docker/client,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
-core,github.com/docker/docker/pkg/stdcopy,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
-core,github.com/docker/docker/pkg/system,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/go-connections/nat,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/go-connections/sockets,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/go-connections/tlsconfig,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
@@ -1643,6 +1641,28 @@ core,github.com/mitchellh/reflectwalk,MIT,Copyright (c) 2013 Mitchell Hashimoto
 core,github.com/mkrautz/goar,BSD-3-Clause,Copyright (c) 2011 Mikkel Krautz
 core,github.com/moby/docker-image-spec/specs-go/v1,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/moby/locker,Apache-2.0,"Copyright 2013-2018 Docker, Inc"
+core,github.com/moby/moby/api/types,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
+core,github.com/moby/moby/api/types/blkiodev,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
+core,github.com/moby/moby/api/types/build,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
+core,github.com/moby/moby/api/types/checkpoint,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
+core,github.com/moby/moby/api/types/common,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
+core,github.com/moby/moby/api/types/container,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
+core,github.com/moby/moby/api/types/events,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
+core,github.com/moby/moby/api/types/image,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
+core,github.com/moby/moby/api/types/jsonstream,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
+core,github.com/moby/moby/api/types/mount,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
+core,github.com/moby/moby/api/types/network,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
+core,github.com/moby/moby/api/types/plugin,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
+core,github.com/moby/moby/api/types/registry,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
+core,github.com/moby/moby/api/types/storage,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
+core,github.com/moby/moby/api/types/swarm,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
+core,github.com/moby/moby/api/types/system,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
+core,github.com/moby/moby/api/types/volume,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
+core,github.com/moby/moby/client,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
+core,github.com/moby/moby/client/internal,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
+core,github.com/moby/moby/client/internal/mod,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
+core,github.com/moby/moby/client/internal/timestamp,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
+core,github.com/moby/moby/client/pkg/versions,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/moby/spdystream,Apache-2.0,"Copyright 2013-2021 Docker, inc. Released under the [Apache 2.0 license](LICENSE) | Copyright 2014-2021 Docker Inc"
 core,github.com/moby/spdystream/spdy,Apache-2.0,"Copyright 2013-2021 Docker, inc. Released under the [Apache 2.0 license](LICENSE) | Copyright 2014-2021 Docker Inc"
 core,github.com/moby/sys/mountinfo,Apache-2.0,Copyright (c) 2014-2018 The Docker & Go Authors. All rights reserved.
@@ -1685,7 +1705,6 @@ core,github.com/netsampler/goflow2/utils,BSD-3-Clause,"Copyright (c) 2021, NetSa
 core,github.com/nexus-rpc/sdk-go/nexus,MIT,Copyright (c) 2023 Temporal Technologies Inc. All Rights Reserved
 core,github.com/oklog/ulid,Apache-2.0,- Peter Bourgon (@peterbourgon) | - Tomás Senart (@tsenart)
 core,github.com/oklog/ulid/v2,Apache-2.0,- Peter Bourgon (@peterbourgon) | - Tomás Senart (@tsenart)
-core,github.com/olekukonko/tablewriter,MIT,Copyright (C) 2014 by Oleku Konko
 core,github.com/oliveagle/jsonpath,MIT,Copyright (c) 2015 oliver
 core,github.com/open-policy-agent/opa/capabilities,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/bundle,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
