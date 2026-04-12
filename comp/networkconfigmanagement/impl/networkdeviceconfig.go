@@ -7,11 +7,7 @@
 package networkconfigmanagementimpl
 
 import (
-	"fmt"
 	"path/filepath"
-	"strings"
-
-	"golang.org/x/crypto/ssh"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -34,10 +30,9 @@ type Provides struct {
 }
 
 type networkDeviceConfigImpl struct {
-	config        *ProcessedNcmConfig
-	log           log.Component
-	clientFactory RemoteClientFactory
-	store         ncmstore.ConfigStore
+	config *ProcessedNcmConfig
+	log    log.Component
+	store  ncmstore.ConfigStore
 }
 
 // NewComponent creates a new networkconfigmanagement component
@@ -57,10 +52,9 @@ func NewComponent(reqs Requires) (Provides, error) {
 	reqs.Lifecycle.Append(compdef.Hook{OnStop: store.Close})
 
 	impl := &networkDeviceConfigImpl{
-		config:        ncmConfig,
-		log:           reqs.Logger,
-		clientFactory: &SSHClientFactory{},
-		store:         store,
+		config: ncmConfig,
+		log:    reqs.Logger,
+		store:  store,
 	}
 
 	provides := Provides{
@@ -71,68 +65,4 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 func (n *networkDeviceConfigImpl) GetConfigStore() ncmstore.ConfigStore {
 	return n.store
-}
-
-// RetrieveRunningConfig retrieves the running configuration for a given network device IP
-func (n networkDeviceConfigImpl) RetrieveRunningConfig(ipAddress string) (string, error) {
-	commands := []string{
-		`show running-config`,
-	}
-	return n.retrieveConfiguration(ipAddress, commands)
-}
-
-// RetrieveStartupConfig retrieves the startup configuration for a given network device IP
-func (n networkDeviceConfigImpl) RetrieveStartupConfig(ipAddress string) (string, error) {
-	commands := []string{
-		`show startup-config`,
-	}
-	return n.retrieveConfiguration(ipAddress, commands)
-}
-
-// retrieveConfiguration retrieves the configuration for a given network device IP
-func (n networkDeviceConfigImpl) retrieveConfiguration(ipAddress string, commands []string) (string, error) {
-	deviceConfig, ok := n.config.Devices[ipAddress]
-	if !ok {
-		return "", n.log.Errorf("No authentication credentials found for device %s", ipAddress)
-	}
-	client, err := n.clientFactory.Connect(ipAddress, deviceConfig.Auth)
-	if err != nil {
-		return "", n.log.Errorf("Failed to connect to host %s: %v", ipAddress, err)
-	}
-	defer client.Close()
-
-	result := []string{}
-
-	for _, cmd := range commands {
-		session, err := client.NewSession()
-		if err != nil {
-			return "", n.log.Errorf("Failed to create session to device %s: %s", ipAddress, err)
-		}
-		n.log.Debugf("Running command: %s\n", cmd)
-		output, err := session.CombinedOutput(cmd)
-		if err != nil {
-			session.Close()
-			return "", n.log.Errorf("Command %s on device %s failed: %s\n", cmd, ipAddress, err)
-		}
-		result = append(result, string(output))
-		session.Close()
-	}
-	return strings.Join(result[:], "\n"), nil
-}
-
-// connectToHost establishes an SSH connection to the specified IP address using the provided authentication credentials
-func connectToHost(ipAddress string, ac AuthCredentials) (*ssh.Client, error) {
-	sshConfig := &ssh.ClientConfig{
-		User: ac.Username,
-		Auth: []ssh.AuthMethod{ssh.Password(ac.Password)},
-	}
-	// ⚠️TODO: Use a proper host key callback in production code (pull in known hosts file from user, etc.)
-	sshConfig.HostKeyCallback = ssh.InsecureIgnoreHostKey()
-
-	host := fmt.Sprintf("%s:%s", ipAddress, ac.Port)
-	client, err := ssh.Dial(ac.Protocol, host, sshConfig)
-	if err != nil {
-		return nil, err
-	}
-	return client, nil
 }
