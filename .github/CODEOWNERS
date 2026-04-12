@@ -24,7 +24,7 @@
 
 # Bazel configuration
 /*.bazel*                               @DataDog/agent-build
-/.adms/                                 @DataDog/agent-build
+/.adms/                                 @DataDog/agent-supply-chain
 /.bazel*                                @DataDog/agent-build
 /.buildifier.json                       @DataDog/agent-build
 /bazel/                                 @DataDog/agent-build
@@ -50,16 +50,16 @@
 
 /mkdocs.yml                             @DataDog/agent-devx
 /release.json                           @DataDog/agent-build @DataDog/agent-delivery @DataDog/agent-integrations
-/renovate.json                          @DataDog/agent-devx
+/renovate.json                          @DataDog/agent-supply-chain
 /pyproject.toml                         @DataDog/agent-devx
 /repository.datadog.yml                 @DataDog/agent-devx
 /code-coverage.datadog.yml              @DataDog/agent-devx
 /generate_tools.go                      @DataDog/agent-devx
 /service.datadog.yaml                   @DataDog/agent-delivery @DataDog/agent-devx
 /static-analysis.datadog.yml            @DataDog/agent-devx
-/rust-toolchain.toml			@DataDog/agent-build
-/Cargo.toml                             @DataDog/agent-build
-/Cargo.lock                             @DataDog/agent-build
+/rust-toolchain.toml                    @DataDog/agent-build
+/Cargo.toml                             @DataDog/agent-supply-chain
+/Cargo.lock                             @DataDog/agent-supply-chain
 
 /modules.yml                            @DataDog/agent-runtimes
 # if go.work changes then either .go-version or modules.yml changed too, so ASC might as well own it
@@ -90,7 +90,7 @@
 # Files containing job contents are owned by teams in charge of the jobs + agent-devx or agent-delivery or agent-build
 # Files that only describe structure (eg. includes, rules) are owned by agent-devx
 
-/.gitlab/.ci-linters.yml                             @DataDog/agent-devx
+/.gitlab/.ci-linters.yml                             @DataDog/agent-supply-chain
 /.gitlab/.pre/*                                      @DataDog/agent-devx
 /.gitlab/.post/*                                     @DataDog/agent-devx
 /.gitlab/build/bazel/*                                     @DataDog/agent-build
