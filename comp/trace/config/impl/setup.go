@@ -126,6 +126,7 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component, ipc ipc.Com
 	cfg.ContainerTags = func(cid string) ([]string, error) {
 		return tagger.Tag(types.NewEntityID(types.ContainerID, cid), types.HighCardinality)
 	}
+	cfg.HasContainerFeatures = env.IsAnyContainerFeaturePresent()
 	cfg.ContainerTagsWithCompleteness = func(cid string) ([]string, bool, error) {
 		return tagger.TagWithCompleteness(types.NewEntityID(types.ContainerID, cid), types.HighCardinality)
 	}
@@ -590,16 +591,9 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		}
 	}
 
-	// Only override when a non-empty path is explicitly configured so that
-	// empty values (e.g. from the config API "all config" response synced
-	// with SourceLocalConfigProcess) do not overwrite the platform default
-	// and cause validation to fail with "agent binary path not set".
+	// undocumented
 	if core.IsConfigured("apm_config.dd_agent_bin") {
-		if v := core.GetString("apm_config.dd_agent_bin"); v != "" {
-			c.DDAgentBin = v
-		} else {
-			log.Warn("apm_config.dd_agent_bin is configured but empty, keeping platform default")
-		}
+		c.DDAgentBin = core.GetString("apm_config.dd_agent_bin")
 	}
 
 	if err := loadDeprecatedValues(c); err != nil {

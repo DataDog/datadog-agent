@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/dwarfutil"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/loclist"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gosym"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/gosymname"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/network/go/dwarfutils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -386,6 +387,12 @@ type packagesIterator struct {
 
 	abstractFunctions map[dwarf.Offset]*abstractFunction
 
+	// displacedFunctions accumulates functions that were found in a compile
+	// unit different from where they are defined (e.g. generic shape functions
+	// instantiated in a different package). Keyed by the function's actual
+	// package name.
+	displacedFunctions map[string]*Package
+
 	// typesCache will accumulate types as we look them up to resolve variables
 	// and functions. The cache is indexed by DWARF offset.
 	typesCache *dwarfutils.TypeFinder
@@ -402,6 +409,21 @@ type packagesIterator struct {
 	// Information about compile units, indexed by the unit's offset (the offset
 	// of the corresponding DIE).
 	offsetToUnit map[dwarf.Offset]dwarfutil.CompileUnitHeader
+	// sortedCUOffsets is the sorted slice of CU offsets from offsetToUnit,
+	// used for binary search to find which CU contains a given DWARF offset.
+	sortedCUOffsets []dwarf.Offset
+
+	// genericIndex maps canonicalized qualified names to DWARF offsets for
+	// generic shape functions found across all compile units. Built during a
+	// lightweight pre-pass in buildGenericIndex().
+	genericIndex genericFuncIndex
+	// genericTypeIndex maps canonicalized qualified type names to DWARF offsets
+	// for generic struct type instantiations. Used to populate fields on
+	// displaced generic types.
+	genericTypeIndex genericFuncIndex
+	// cuContextCache caches CU context (file table, etc.) for foreign compile
+	// units accessed when processing displaced generic functions.
+	cuContextCache map[dwarf.Offset]*cachedCUContext
 }
 
 type compileUnitInfo struct {
@@ -413,6 +435,67 @@ type compileUnitInfo struct {
 
 	// The Package being constructed based on the current compile unit's data.
 	outputPkg *Package
+}
+
+// cachedCUContext stores a compile unit's context for processing displaced
+// generic functions that live in a foreign CU.
+type cachedCUContext struct {
+	entry  *dwarf.Entry
+	name   string
+	length uint64
+	files  []string
+}
+
+// hasFunctionQName returns true if the compile unit's output package already
+// has a function with the given qualified name. Used to dedup generic shape
+// instantiations that canonicalize to the same name.
+func (c *compileUnitInfo) hasFunctionQName(qname string) bool {
+	return slices.ContainsFunc(c.outputPkg.Functions, func(f Function) bool {
+		return f.QualifiedName == qname
+	})
+}
+
+// addFunctionToPackage adds a function to the correct package. If the
+// function's package (extracted from its qualified name) matches the current
+// compile unit, it goes into the compile unit's output package. Otherwise it
+// is accumulated in displacedFunctions for later yielding under the correct
+// package name. This handles generic shape functions that the Go compiler
+// places in the instantiating package's compile unit rather than the defining
+// package's compile unit.
+func (b *packagesIterator) addFunctionToPackage(function Function) {
+	// Extract the function's package from its qualified name.
+	sym := gosymname.Parse(function.QualifiedName, gosymname.SourceDWARF)
+	funcPkg := sym.Package()
+
+	if funcPkg == "" || funcPkg == b.currentCompileUnit.name {
+		b.currentCompileUnit.outputPkg.Functions = append(
+			b.currentCompileUnit.outputPkg.Functions, function)
+		return
+	}
+
+	// Function belongs to a different package. If it's a canonicalized
+	// generic (contains "[...]"), the generic index will handle it via
+	// augmentWithDisplacedGenerics — skip accumulating it here.
+	if b.genericIndex != nil && strings.Contains(function.QualifiedName, "[...]") {
+		return
+	}
+
+	// Non-generic function from a different package — accumulate it in
+	// displacedFunctions for merging when that package's CU is processed.
+	pkg, ok := b.displacedFunctions[funcPkg]
+	if !ok {
+		pkg = &Package{
+			Name:  funcPkg,
+			Types: make(map[string]*Type),
+		}
+		b.displacedFunctions[funcPkg] = pkg
+	}
+	// Dedup by qualified name.
+	if !slices.ContainsFunc(pkg.Functions, func(f Function) bool {
+		return f.QualifiedName == function.QualifiedName
+	}) {
+		pkg.Functions = append(pkg.Functions, function)
+	}
 }
 
 // abstractFunction aggregates data for an inlined function.
@@ -504,12 +587,25 @@ func (p *Package) maybeAddType(t godwarf.Type) error {
 		unescapedName = t.Common().Name
 	}
 
-	// Check if the type is already present.
-	if _, ok := p.Types[unescapedName]; ok {
+	canonicalName := gosymname.CanonicalizeGenerics(unescapedName)
+
+	if existing, ok := p.Types[canonicalName]; ok {
+		if s, isStruct := t.(*godwarf.StructType); isStruct {
+			newFields := structFields(s)
+			if len(existing.Fields) == 0 {
+				// Type was created bare (e.g. by method-receiver fallback).
+				existing.Fields = newFields
+			} else {
+				// Merge: compare fields from this instantiation with existing.
+				// Any field whose type differs is a type-parameter-dependent
+				// field — mark it with a generic placeholder.
+				mergeStructFields(existing.Fields, newFields)
+			}
+		}
 		return nil
 	}
 
-	// We don't support parametric types (generics).
+	// Skip parametric types (uninstantiated generics with type params).
 	if _, ok := t.(*godwarf.ParametricType); ok {
 		return nil
 	}
@@ -522,30 +618,67 @@ func (p *Package) maybeAddType(t godwarf.Type) error {
 		return fmt.Errorf("type unescapedName for non-pointer unexpectedly starting with '*': %s", unescapedName)
 	}
 
-	// Skip anonymous types, generic types, array types and structs
-	// corresponding to slices.
-	if strings.ContainsAny(unescapedName, "{<[") {
+	// Skip anonymous types, array types, and structs corresponding to slices.
+	if strings.ContainsAny(unescapedName, "{<") {
 		return nil
 	}
 
 	typ := &Type{
-		Name:   unescapedName,
+		Name:   canonicalName,
 		Fields: nil,
 		// Methods will be populated later, as we discover them in DWARF.
 		Methods: nil,
 	}
 	if s, isStruct := t.(*godwarf.StructType); isStruct {
-		for _, field := range s.Field {
-			typ.Fields = append(typ.Fields, Field{
-				Name: field.Name,
-				Type: field.Type.Common().Name,
-			})
-		}
+		typ.Fields = structFields(s)
 	}
 
-	p.Types[unescapedName] = typ
+	p.Types[canonicalName] = typ
 	return nil
 }
+
+// structFields extracts fields from a DWARF struct type, canonicalizing
+// generic type names in field types so that fields from a specific
+// instantiation (e.g. lib.Box[float64]) show as lib.Box[...].
+func structFields(s *godwarf.StructType) []Field {
+	fields := make([]Field, 0, len(s.Field))
+	for _, field := range s.Field {
+		fieldType := field.Type.Common().Name
+		// Only canonicalize names containing generic shape instantiations.
+		// DWARF type names can also contain brackets for slices ([]T),
+		// arrays ([N]T), and maps (map[K]V) which should not be touched.
+		if strings.Contains(fieldType, "[go.shape.") {
+			fieldType = gosymname.CanonicalizeGenerics(fieldType)
+		}
+		fields = append(fields, Field{
+			Name: field.Name,
+			Type: fieldType,
+		})
+	}
+	return fields
+}
+
+// mergeStructFields compares two field lists from different instantiations of
+// the same generic type. For each field, if the type differs between
+// instantiations, the field type is replaced with a generic placeholder.
+// This lets us deduce which fields are type-parameter-dependent by observing
+// multiple concrete instantiations.
+func mergeStructFields(existing, incoming []Field) {
+	n := min(len(existing), len(incoming))
+	for i := 0; i < n; i++ {
+		if existing[i].Type == genericFieldType {
+			continue // already marked as generic
+		}
+		if existing[i].Type != incoming[i].Type {
+			existing[i].Type = genericFieldType
+		}
+	}
+}
+
+// genericFieldType is the placeholder used for struct fields whose type
+// varies across instantiations, indicating the field depends on a type
+// parameter.
+const genericFieldType = "<T>"
 
 // codeBlock abstracts LexicalBlocks and Subprograms. They all correspond to a
 // list of PC ranges.
@@ -659,18 +792,24 @@ func newPackagesIterator(bin binaryInfo, opt ExtractOptions) *packagesIterator {
 		firstPartyPkgPrefix: bin.firstPartyPkgPrefix,
 		filesFilter:         bin.filesFilter,
 		abstractFunctions:   make(map[dwarf.Offset]*abstractFunction),
+		displacedFunctions:  make(map[string]*Package),
 		typesCache:          dwarfutils.NewTypeFinder(bin.obj.DwarfData()),
 		types: typesCollection{
 			scopeFilter:         opt.Scope,
 			mainModule:          bin.mainModule,
 			firstPartyPkgPrefix: bin.firstPartyPkgPrefix,
 		},
-		cleanupFuncs: []func(){func() { _ = bin.goDebugSections.Close() }, func() { _ = bin.obj.Close() }},
-		offsetToUnit: make(map[dwarf.Offset]dwarfutil.CompileUnitHeader), // filled in below
+		cleanupFuncs:   []func(){func() { _ = bin.goDebugSections.Close() }, func() { _ = bin.obj.Close() }},
+		offsetToUnit:   make(map[dwarf.Offset]dwarfutil.CompileUnitHeader), // filled in below
+		cuContextCache: make(map[dwarf.Offset]*cachedCUContext),
 	}
-	for _, h := range bin.obj.UnitHeaders() {
+	headers := bin.obj.UnitHeaders()
+	b.sortedCUOffsets = make([]dwarf.Offset, 0, len(headers))
+	for _, h := range headers {
 		b.offsetToUnit[h.Offset] = h
+		b.sortedCUOffsets = append(b.sortedCUOffsets, h.Offset)
 	}
+	slices.Sort(b.sortedCUOffsets)
 	return b
 }
 
@@ -759,28 +898,41 @@ type PackageWithFinal struct {
 func (b *packagesIterator) iterator() iter.Seq2[PackageWithFinal, error] {
 	return func(yield func(pkg PackageWithFinal, err error) bool) {
 		var prev *Package
-		var err error
-		for pkg, err := range b.innerIterator() {
+		var iterErr error
+		var stopped bool
+		// Call innerIterator's closure directly instead of using range-over-func
+		// to avoid nested range-over-func, which can panic when the consumer
+		// breaks out of the outer range loop mid-iteration (Go runtime issue
+		// with nested iterator coroutine teardown).
+		b.innerIterator()(func(pkg Package, err error) bool {
 			if err != nil {
-				break
+				iterErr = err
+				return false
 			}
 			if prev != nil {
-				if !yield(PackageWithFinal{Package: *prev, Final: false}, nil /* err */) {
-					return
+				if !yield(PackageWithFinal{Package: *prev, Final: false}, nil) {
+					stopped = true
+					return false
 				}
 			}
 			prev = &pkg
+			return true
+		})
+		if stopped {
+			return
 		}
 		if prev != nil {
-			yield(PackageWithFinal{
+			if !yield(PackageWithFinal{
 				Package: *prev,
 				// NOTE: We set the Final field even if the iteration terminated
 				// because of an error.
 				Final: true,
-			}, nil /* err */)
+			}, nil) {
+				return
+			}
 		}
-		if err != nil {
-			yield(PackageWithFinal{}, err)
+		if iterErr != nil {
+			yield(PackageWithFinal{}, iterErr)
 		}
 	}
 }
@@ -803,6 +955,26 @@ func (b *packagesIterator) innerIterator() iter.Seq2[Package, error] {
 	seenPackages := make(map[string]struct{})
 	return func(yield func(pkg Package, err error) bool) {
 		defer b.close()
+
+		// Build generic indexes via a lightweight pre-scan of all DWARF
+		// compile units. These indexes let us find displaced generic shape
+		// functions and struct types regardless of CU ordering.
+		b.genericIndex, b.genericTypeIndex, err = b.buildGenericIndexes()
+		if err != nil {
+			yield(Package{}, fmt.Errorf("failed to build generic indexes: %w", err))
+			return
+		}
+		defer func() {
+			if b.genericIndex != nil {
+				_ = b.genericIndex.Close()
+				b.genericIndex = nil
+			}
+			if b.genericTypeIndex != nil {
+				_ = b.genericTypeIndex.Close()
+				b.genericTypeIndex = nil
+			}
+		}()
+
 		entryReader := b.dwarfData.Reader()
 
 		// Recognize compile units, which are the top-level entries in the DWARF
@@ -831,24 +1003,45 @@ func (b *packagesIterator) innerIterator() iter.Seq2[Package, error] {
 			}
 
 			// Move all accumulated abstract functions to the output package.
-			// Note that we may have discovered abstract functions belonging to
-			// different packages while exploring this compile unit; we pretend
-			// that they're part of this package since that seems better than
-			// the alternative (i.e. not reporting those functions to SymDB at
-			// all).
 			b.addAbstractFunctions(pkg)
+
+			// Augment the package with displaced generic shape functions
+			// found in other compile units via the pre-built index.
+			unitHeader := b.offsetToUnit[entry.Offset]
+			if err = b.augmentWithDisplacedGenerics(pkg, entry.Offset, unitHeader.Length); err != nil {
+				break
+			}
+
+			// Merge in any displaced functions that belong to this package.
+			// This handles non-generic abstract functions from other CUs.
+			if displaced, ok := b.displacedFunctions[pkg.Name]; ok {
+				pkg.Functions = append(pkg.Functions, displaced.Functions...)
+				delete(b.displacedFunctions, pkg.Name)
+			}
 
 			// Yield the package if it's not empty.
 			pkgEmpty := len(pkg.Functions) == 0 && len(pkg.Types) == 0
 			if !pkgEmpty {
 				if !yield(*pkg, nil /* error */) {
-					break
+					return
 				}
 				seenPackages[pkg.Name] = struct{}{}
 			}
 		}
 		if err != nil {
 			yield(Package{}, err)
+			return
+		}
+
+		// Yield packages for functions that were found in a compile unit
+		// different from their defining package (e.g. abstract inlined
+		// functions from other packages).
+		for _, pkg := range b.displacedFunctions {
+			if len(pkg.Functions) > 0 {
+				if !yield(*pkg, nil) {
+					return
+				}
+			}
 		}
 	}
 }
@@ -871,6 +1064,296 @@ func interestingPackage(pkgName string, mainModule string, firstPartyPkgPrefix s
 	default:
 		panic(fmt.Sprintf("unsupported extract scope: %d", scopeFilter))
 	}
+}
+
+// findCUForOffset returns the CU offset of the compile unit that contains the
+// given DWARF offset. It binary searches the sorted CU offsets for the largest
+// CU offset ≤ the given offset.
+func (b *packagesIterator) findCUForOffset(offset dwarf.Offset) (dwarf.Offset, bool) {
+	// Find the rightmost CU offset that is ≤ offset.
+	i, _ := slices.BinarySearch(b.sortedCUOffsets, offset)
+	// BinarySearch returns the insertion point. If offset matches exactly, i
+	// points at it. Otherwise i points one past the last element < offset.
+	if i < len(b.sortedCUOffsets) && b.sortedCUOffsets[i] == offset {
+		return b.sortedCUOffsets[i], true
+	}
+	if i == 0 {
+		return 0, false
+	}
+	return b.sortedCUOffsets[i-1], true
+}
+
+// getCUContext returns the cached CU context for the given CU offset, building
+// it if necessary by seeking to the CU and reading its file table.
+func (b *packagesIterator) getCUContext(cuOffset dwarf.Offset) (*cachedCUContext, error) {
+	if ctx, ok := b.cuContextCache[cuOffset]; ok {
+		return ctx, nil
+	}
+
+	reader := b.dwarfData.Reader()
+	reader.Seek(cuOffset)
+	entry, err := reader.Next()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read CU entry at 0x%x: %w", cuOffset, err)
+	}
+	if entry == nil || entry.Tag != dwarf.TagCompileUnit {
+		return nil, fmt.Errorf("expected TagCompileUnit at 0x%x, got %v", cuOffset, entry)
+	}
+
+	name, _ := entry.Val(dwarf.AttrName).(string)
+
+	unitHeader, ok := b.offsetToUnit[cuOffset]
+	if !ok {
+		return nil, fmt.Errorf("header missing for CU at 0x%x", cuOffset)
+	}
+
+	cuLineReader, err := b.dwarfData.LineReader(entry)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get line reader for CU at 0x%x: %w", cuOffset, err)
+	}
+	var files []string
+	if cuLineReader != nil {
+		files = make([]string, 0, len(cuLineReader.Files()))
+		for i, file := range cuLineReader.Files() {
+			if file == nil {
+				if i != 0 {
+					return nil, fmt.Errorf("CU at 0x%x has invalid nil file entry at index %d", cuOffset, i)
+				}
+				files = append(files, "")
+				continue
+			}
+			files = append(files, file.Name)
+		}
+	}
+
+	ctx := &cachedCUContext{
+		entry:  entry,
+		name:   name,
+		length: unitHeader.Length,
+		files:  files,
+	}
+	b.cuContextCache[cuOffset] = ctx
+	return ctx, nil
+}
+
+// buildGenericIndexes performs a lightweight pre-scan of all DWARF compile
+// units, recording the canonicalized qualified name and DWARF offset of every
+// generic shape function and struct type. Returns sorted indexes for
+// prefix-based package lookup.
+func (b *packagesIterator) buildGenericIndexes() (funcIdx genericFuncIndex, typeIdx genericFuncIndex, retErr error) {
+	newBuilder := func(suffix string) (genericFuncIndexBuilder, error) {
+		if b.options.DiskCache != nil {
+			return newOnDiskGenericFuncIndexBuilder(b.options.DiskCache, suffix)
+		}
+		return &inMemGenericFuncIndexBuilder{}, nil
+	}
+
+	funcBuilder, err := newBuilder("funcs")
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create generic func index builder: %w", err)
+	}
+	defer funcBuilder.Close()
+
+	typeBuilder, err := newBuilder("types")
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create generic type index builder: %w", err)
+	}
+	defer typeBuilder.Close()
+
+	reader := b.dwarfData.Reader()
+	for {
+		entry, err := reader.Next()
+		if err != nil {
+			return nil, nil, fmt.Errorf("generic index pre-scan: %w", err)
+		}
+		if entry == nil {
+			break
+		}
+
+		switch entry.Tag {
+		case dwarf.TagCompileUnit:
+			// Process children of all CUs — don't skip any.
+			continue
+
+		case dwarf.TagSubprogram:
+			// Skip trampolines.
+			if entry.AttrField(dwarf.AttrTrampoline) != nil {
+				reader.SkipChildren()
+				continue
+			}
+
+			name, ok := entry.Val(dwarf.AttrName).(string)
+			if !ok || !strings.Contains(name, "[go.shape.") {
+				reader.SkipChildren()
+				continue
+			}
+
+			// Parse the function's package from its qualified name.
+			result, err := parseFuncName(name)
+			if err != nil || result.failureReason != parseFuncNameFailureReasonUndefined {
+				reader.SkipChildren()
+				continue
+			}
+
+			pkg := result.funcName.Package
+			if !interestingPackage(pkg, b.mainModule, b.firstPartyPkgPrefix, b.options.Scope) {
+				reader.SkipChildren()
+				continue
+			}
+
+			// parseFuncName already canonicalizes generics in QualifiedName.
+			if err := funcBuilder.add(result.funcName.QualifiedName, entry.Offset); err != nil {
+				return nil, nil, err
+			}
+			reader.SkipChildren()
+
+		case dwarf.TagStructType:
+			name, ok := entry.Val(dwarf.AttrName).(string)
+			if !ok || !strings.Contains(name, "[go.shape.") {
+				reader.SkipChildren()
+				continue
+			}
+
+			// Extract the package from the struct type name.
+			typePkg, _, _, err := parseLinkFuncName(name)
+			if err != nil || typePkg == "" {
+				reader.SkipChildren()
+				continue
+			}
+			if !interestingPackage(typePkg, b.mainModule, b.firstPartyPkgPrefix, b.options.Scope) {
+				reader.SkipChildren()
+				continue
+			}
+
+			canonicalName := gosymname.CanonicalizeGenerics(name)
+			// Unescape the package path in the canonical name.
+			if unescaped, err := unescapeSymbol(canonicalName); err == nil {
+				canonicalName = unescaped
+			}
+			if err := typeBuilder.add(canonicalName, entry.Offset); err != nil {
+				return nil, nil, err
+			}
+			reader.SkipChildren()
+
+		default:
+			reader.SkipChildren()
+		}
+	}
+
+	funcIdx, err = funcBuilder.build()
+	if err != nil {
+		return nil, nil, err
+	}
+	typeIdx, err = typeBuilder.build()
+	if err != nil {
+		_ = funcIdx.Close()
+		return nil, nil, err
+	}
+	return funcIdx, typeIdx, nil
+}
+
+// augmentWithDisplacedGenerics queries the generic index for all shape
+// functions belonging to pkg and processes any that weren't already found in
+// the compile unit identified by cuOffset/cuLength.
+func (b *packagesIterator) augmentWithDisplacedGenerics(pkg *Package, cuOffset dwarf.Offset, cuLength uint64) error {
+	if b.genericIndex == nil {
+		return nil
+	}
+
+	cuEnd := uint64(cuOffset) + cuLength
+
+	for name, funcOffset := range b.genericIndex.forPackage(pkg.Name) {
+		// Skip functions that are within the current CU — they were already
+		// processed during normal exploration.
+		if uint64(funcOffset) >= uint64(cuOffset) && uint64(funcOffset) < cuEnd {
+			continue
+		}
+
+		// Skip if the package already has this function.
+		if packageHasFunctionQName(pkg, name) {
+			continue
+		}
+
+		// Find the CU containing this function.
+		foreignCUOffset, ok := b.findCUForOffset(funcOffset)
+		if !ok {
+			continue
+		}
+
+		// Get or build the foreign CU context.
+		foreignCU, err := b.getCUContext(foreignCUOffset)
+		if err != nil {
+			return fmt.Errorf("augmentWithDisplacedGenerics: %w", err)
+		}
+
+		// Save the current CU context and set up the foreign one.
+		savedCU := b.currentCompileUnit
+		b.currentCompileUnit = compileUnitInfo{
+			entry:     foreignCU.entry,
+			name:      foreignCU.name,
+			length:    foreignCU.length,
+			files:     foreignCU.files,
+			outputPkg: pkg, // methods land in the target package's types
+		}
+
+		// Seek to the function and process it.
+		funcReader := b.dwarfData.Reader()
+		funcReader.Seek(funcOffset)
+		funcEntry, err := funcReader.Next()
+		if err != nil {
+			b.currentCompileUnit = savedCU
+			return fmt.Errorf("augmentWithDisplacedGenerics: failed to read entry at 0x%x: %w", funcOffset, err)
+		}
+
+		function, err := b.exploreSubprogram(funcEntry, funcReader)
+
+		// Restore the original CU context.
+		b.currentCompileUnit = savedCU
+
+		if err != nil {
+			return fmt.Errorf("augmentWithDisplacedGenerics: %w", err)
+		}
+
+		// Methods return an empty Function since they're added to Types
+		// inside exploreSubprogram. Freestanding functions are returned.
+		if !function.empty() && !packageHasFunctionQName(pkg, function.QualifiedName) {
+			pkg.Functions = append(pkg.Functions, function)
+		}
+	}
+
+	// Process displaced generic struct types. Multiple instantiations of
+	// the same type (e.g. lib.Box[go.shape.int] and lib.Box[go.shape.float64])
+	// are compared field-by-field in maybeAddType to deduce which fields are
+	// type-parameter-dependent.
+	if b.genericTypeIndex != nil {
+		for _, typeOffset := range b.genericTypeIndex.forPackage(pkg.Name) {
+			// Skip types within the current CU.
+			if uint64(typeOffset) >= uint64(cuOffset) && uint64(typeOffset) < cuEnd {
+				continue
+			}
+
+			// Resolve the DWARF type and call maybeAddType which will either
+			// create the type, populate fields on a bare type, or merge
+			// fields from a different instantiation.
+			typ, err := b.typesCache.FindTypeByOffset(typeOffset)
+			if err != nil {
+				continue // type resolution can fail for unsupported types
+			}
+			if err := pkg.maybeAddType(typ); err != nil {
+				return fmt.Errorf("augmentWithDisplacedGenerics type: %w", err)
+			}
+		}
+	}
+
+	return nil
+}
+
+// packageHasFunctionQName returns true if the package already has a function
+// with the given qualified name.
+func packageHasFunctionQName(pkg *Package, qname string) bool {
+	return slices.ContainsFunc(pkg.Functions, func(f Function) bool {
+		return f.QualifiedName == qname
+	})
 }
 
 // addAbstractFunctions takes the aggregated data about inlined functions
@@ -944,6 +1427,26 @@ func (b *packagesIterator) addAbstractFunctions(targetPackage *Package) {
 				targetPackage.Types[af.receiver] = t
 			}
 			t.Methods = append(t.Methods, f)
+		} else if af.pkg != targetPackage.Name {
+			// Freestanding function from a different package. If it's a
+			// canonicalized generic, the generic index handles it — skip.
+			if b.genericIndex != nil && strings.Contains(f.QualifiedName, "[...]") {
+				continue
+			}
+			// Non-generic displaced function: route to displacedFunctions.
+			pkg, ok := b.displacedFunctions[af.pkg]
+			if !ok {
+				pkg = &Package{
+					Name:  af.pkg,
+					Types: make(map[string]*Type),
+				}
+				b.displacedFunctions[af.pkg] = pkg
+			}
+			if !slices.ContainsFunc(pkg.Functions, func(existing Function) bool {
+				return existing.QualifiedName == f.QualifiedName
+			}) {
+				pkg.Functions = append(pkg.Functions, f)
+			}
 		} else {
 			targetPackage.Functions = append(targetPackage.Functions, f)
 		}
@@ -976,6 +1479,10 @@ type typeInfo struct {
 // binary.
 type ExtractOptions struct {
 	Scope ExtractScope
+	// DiskCache, if non-nil, enables the on-disk generic function index which
+	// reduces memory usage for large binaries. When nil, the in-memory index
+	// is used instead.
+	DiskCache *object.DiskCache
 }
 
 // exploreCompileUnit processes a compile unit entry (entry's tag is
@@ -1075,8 +1582,8 @@ func (b *packagesIterator) exploreCompileUnit(
 			if err != nil {
 				return nil, err
 			}
-			if !function.empty() {
-				b.currentCompileUnit.outputPkg.Functions = append(b.currentCompileUnit.outputPkg.Functions, function)
+			if !function.empty() && !b.currentCompileUnit.hasFunctionQName(function.QualifiedName) {
+				b.addFunctionToPackage(function)
 			}
 		default:
 			reader.SkipChildren()
@@ -1167,6 +1674,15 @@ func (b *packagesIterator) exploreSubprogram(
 		return earlyExit()
 	}
 
+	// Check if the function's own package is interesting. This is needed
+	// because generic shape functions can appear in a compile unit different
+	// from where they are defined (they end up in the instantiating package's
+	// compile unit). Without this check, a dependency's generic function
+	// instantiated in first-party code would be incorrectly included.
+	if !interestingPackage(funcName.Package, b.mainModule, b.firstPartyPkgPrefix, b.options.Scope) {
+		return earlyExit()
+	}
+
 	fileIdx, ok := entry.Val(dwarf.AttrDeclFile).(int64)
 	if !ok || fileIdx == 0 { // fileIdx == 0 means unknown file, as per DWARF spec
 		// TODO: log if this ever happens. I haven't seen it.
@@ -1245,7 +1761,7 @@ func (b *packagesIterator) exploreSubprogram(
 
 	res := Function{
 		Name:            funcName.Name,
-		QualifiedName:   funcQualifiedName,
+		QualifiedName:   funcName.QualifiedName,
 		File:            fileName,
 		InjectibleLines: lineRanges,
 		Scope: Scope{
@@ -1260,6 +1776,17 @@ func (b *packagesIterator) exploreSubprogram(
 	// respective type instead of returning it as a stand-alone function.
 	if funcName.Type != "" {
 		typeQualifiedName := funcName.Package + "." + funcName.Type
+
+		// Skip displaced generic methods — they belong to a different
+		// package and will be processed by augmentWithDisplacedGenerics
+		// when that package is yielded. This prevents creating a foreign
+		// type (e.g. lib.Box[...]) under the wrong package (e.g. main).
+		if b.genericIndex != nil &&
+			funcName.Package != b.currentCompileUnit.outputPkg.Name &&
+			strings.Contains(typeQualifiedName, "[...]") {
+			return Function{}, nil
+		}
+
 		// We generally expect the type of the receiver to have been populated
 		// by the exploreCode() call above.
 		t, ok := b.currentCompileUnit.outputPkg.Types[typeQualifiedName]
@@ -1271,6 +1798,12 @@ func (b *packagesIterator) exploreSubprogram(
 				Name: typeQualifiedName,
 			}
 			b.currentCompileUnit.outputPkg.Types[typeQualifiedName] = t
+		}
+		// For generic types, dedup methods by name (first shape wins).
+		for _, m := range t.Methods {
+			if m.Name == res.Name {
+				return Function{}, nil
+			}
 		}
 		t.Methods = append(t.Methods, res)
 		// We don't return a Function for methods.
@@ -1413,6 +1946,9 @@ func (b *packagesIterator) exploreInlinedCode(
 			if err != nil {
 				return err
 			}
+		case dwarf.TagTypedef:
+			// Typedefs in generic shape functions for dictionary type
+			// parameters (.param0, .param1). Skip.
 		default:
 			return fmt.Errorf("unexpected child tag %s in inlined instance at 0x%x", child.Tag, child.Offset)
 		}
@@ -1594,6 +2130,9 @@ func (b *packagesIterator) parseAbstractFunction(offset dwarf.Offset, reader *dw
 				Variable: v,
 				typeSize: uint32(typ.size),
 			}
+		case dwarf.TagTypedef:
+			// Typedefs in generic shape functions for dictionary type
+			// parameters (.param0, .param1). Skip.
 		default:
 			return nil, fmt.Errorf("unexpected child tag %s in abstract function at 0x%x", child.Tag, child.Offset)
 		}

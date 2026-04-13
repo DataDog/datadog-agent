@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "cachedfetch",
+    srcs = ["fetcher.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/cachedfetch",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/util/log"],
+)
+
+go_test(
+    name = "cachedfetch_test",
+    srcs = ["fetcher_test.go"],
+    embed = [":cachedfetch"],
+    deps = ["@com_github_stretchr_testify//require"],
+)
