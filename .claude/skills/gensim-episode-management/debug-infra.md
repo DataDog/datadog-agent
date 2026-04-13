@@ -94,7 +94,7 @@ print(json.dumps(state))
 " | pulumi stack import -s <stack-name> --file /dev/stdin
 ```
 
-Then resubmit. This is a one-time cleanup per stack.
+Then resubmit.
 
 ### Build VM SSH timeout during refresh
 
