@@ -105,6 +105,12 @@ func TestCheckRunMatchesSpecForPhysicalDevices(t *testing.T) {
 	err = checkInstance.Run()
 	require.NoError(t, err, "Check.Run() should not return an error")
 
+	// Run the check a second time so rate-derived field metrics such as NVLink
+	// throughput have a previous sample to compare against and can be emitted.
+	mockSender.ResetCalls()
+	err = checkInstance.Run()
+	require.NoError(t, err, "Second Check.Run() should not return an error")
+
 	metricsByName := gpu.GetEmittedGPUMetrics(mockSender)
 	require.NotEmpty(t, metricsByName)
 
