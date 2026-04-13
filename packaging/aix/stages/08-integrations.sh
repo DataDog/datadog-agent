@@ -29,7 +29,7 @@ fi
 : "${INTEGRATIONS_CORE:?INTEGRATIONS_CORE must be set}"
 : "${WHEEL_CACHE:?WHEEL_CACHE must be set}"
 
-PIP=$EMBEDDED_DESTDIR/bin/pip3.13
+PIP=$EMBEDDED_DESTDIR/bin/pip${PYTHON_MAJ_MIN}
 
 # --- Pre-flight checks ---
 if [ ! -x "$PIP" ]; then

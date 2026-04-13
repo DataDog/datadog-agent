@@ -10,7 +10,6 @@ STAGE_NAME="02-python"
 SENTINEL="$BUILD_DIR/.done/$STAGE_NAME"
 LOG="$BUILD_DIR/logs/$STAGE_NAME.log"
 
-PYTHON_VERSION="3.13.12"
 PYTHON_TARBALL="Python-${PYTHON_VERSION}.tgz"
 PYTHON_URL="https://www.python.org/ftp/python/${PYTHON_VERSION}/${PYTHON_TARBALL}"
 PYTHON_SRC="$BUILD_DIR/build/Python-${PYTHON_VERSION}"
@@ -54,10 +53,10 @@ cleanup() {
         log "ERROR: $STAGE_NAME failed. Removing partial outputs."
         # Remove the partial Python build tree
         rm -rf "$PYTHON_SRC"
-        # Remove partial install (python3.13 binary is the last step indicator)
-        if [ -f "$EMBEDDED_DESTDIR/bin/python3.13" ]; then
-            log "Removing partial $EMBEDDED_DESTDIR/bin/python3.13"
-            rm -f "$EMBEDDED_DESTDIR/bin/python3.13"
+        # Remove partial install (python${PYTHON_MAJ_MIN} binary is the last step indicator)
+        if [ -f "$EMBEDDED_DESTDIR/bin/python${PYTHON_MAJ_MIN}" ]; then
+            log "Removing partial $EMBEDDED_DESTDIR/bin/python${PYTHON_MAJ_MIN}"
+            rm -f "$EMBEDDED_DESTDIR/bin/python${PYTHON_MAJ_MIN}"
         fi
         # Do NOT remove $STAGING entirely — other stages may have already run.
     fi
@@ -132,11 +131,11 @@ else
     log "INFO: libintl.h not found in Python/gettext.c — patch not needed."
 fi
 
-# Patch: Disable __thread TLS in libpython3.13.so on AIX
+# Patch: Disable __thread TLS in libpython${PYTHON_MAJ_MIN}.so on AIX
 #
 # On AIX, GCC's __thread (and C11's _Thread_local) storage class uses the
 # XCOFF "local-exec" TLS model.  This model is ONLY valid for the main
-# executable.  When Python uses __thread in libpython3.13.so (a startup-linked
+# executable.  When Python uses __thread in libpython${PYTHON_MAJ_MIN}.so (a startup-linked
 # shared library), AIX's loader rejects the program with:
 #   0509-187 The local-exec model was used for thread-local storage,
 #            but the module is not the main program.
@@ -380,46 +379,51 @@ cd "$PYTHON_SRC"
 make install DESTDIR="$STAGING"
 
 log "Install to staging complete."
-log "Python executable: $EMBEDDED_DESTDIR/bin/python3.13"
+log "Python executable: $EMBEDDED_DESTDIR/bin/python${PYTHON_MAJ_MIN}"
 
 # Verify the executable landed where expected
-if [ ! -f "$EMBEDDED_DESTDIR/bin/python3.13" ]; then
-    log "ERROR: $EMBEDDED_DESTDIR/bin/python3.13 not found after make install — install failed."
+if [ ! -f "$EMBEDDED_DESTDIR/bin/python${PYTHON_MAJ_MIN}" ]; then
+    log "ERROR: $EMBEDDED_DESTDIR/bin/python${PYTHON_MAJ_MIN} not found after make install — install failed."
     exit 1
 fi
 
 # ─── Step 7: Bootstrap pip ───────────────────────────────────────────────────
 #
 # We configured with --without-ensurepip, so we must bootstrap pip manually.
-# We invoke the STAGING executable ($EMBEDDED_DESTDIR/bin/python3.13).
+# We invoke the STAGING executable ($EMBEDDED_DESTDIR/bin/python${PYTHON_MAJ_MIN}).
 # Python discovers sys.prefix from its executable path at runtime, so it finds
-# its stdlib under $EMBEDDED_DESTDIR/lib/python3.13/ and installs packages into
+# its stdlib under $EMBEDDED_DESTDIR/lib/python${PYTHON_MAJ_MIN}/ and installs packages into
 # the staging tree — not into $EMBEDDED (which does not exist yet on this host).
 # At runtime on the user's system the files are at $EMBEDDED, which is correct.
 
 log "Bootstrapping pip using staging Python executable"
-"$EMBEDDED_DESTDIR/bin/python3.13" -m ensurepip
+"$EMBEDDED_DESTDIR/bin/python${PYTHON_MAJ_MIN}" -m ensurepip
 log "ensurepip complete."
 
 log "Upgrading pip to 24.0, setuptools to 75.1.0, and installing wheel"
-"$EMBEDDED_DESTDIR/bin/pip3.13" install --upgrade "pip==24.0" "setuptools==75.1.0" "wheel"
+"$EMBEDDED_DESTDIR/bin/pip${PYTHON_MAJ_MIN}" install --upgrade "pip==24.0" "setuptools==75.1.0" "wheel"
 log "pip bootstrap complete."
 
-# ─── Step 7b: Create AIX .a archive wrapper for libpython3.13.so ─────────────
+# ─── Step 7b: Create AIX .a archive wrapper for libpython${PYTHON_MAJ_MIN}.so ─────────────
 #
 # On AIX, Go's CGO requires shared libraries to be wrapped in .a archives.
 # Without this, the Go cgo tool cannot generate correct //go:cgo_import_dynamic
-# directives (which must reference "libpython3.13.a/libpython3.13.so").
+# directives (which must reference "libpython${PYTHON_MAJ_MIN}.a/libpython${PYTHON_MAJ_MIN}.so").
 # This archive is created in-place next to the .so file.
 
-log "Creating libpython3.13.a archive wrapper (required for AIX CGO)"
+log "Creating libpython${PYTHON_MAJ_MIN}.a archive wrapper (required for AIX CGO)"
 # On AIX, Go's compiler requires archive member names to end in ".o" or contain ".so."
 # Convention: name the 64-bit shared module member "shr_64.o" inside the .a archive.
 cd "$EMBEDDED_DESTDIR/lib"
-cp libpython3.13.so shr_64.o
-ar -X64 -r libpython3.13.a shr_64.o
+cp "libpython${PYTHON_MAJ_MIN}.so" shr_64.o
+ar -X64 -r "libpython${PYTHON_MAJ_MIN}.a" shr_64.o
 rm -f shr_64.o
-log "Created: $EMBEDDED_DESTDIR/lib/libpython3.13.a (member: shr_64.o)"
+log "Created: $EMBEDDED_DESTDIR/lib/libpython${PYTHON_MAJ_MIN}.a (member: shr_64.o)"
+
+# Create a version-agnostic symlink so Go code can link with -lpython3 instead
+# of hardcoding the minor version.
+ln -sf "libpython${PYTHON_MAJ_MIN}.a" "$EMBEDDED_DESTDIR/lib/libpython3.a"
+log "Created symlink: libpython3.a -> libpython${PYTHON_MAJ_MIN}.a"
 
 # ─── Step 7c: Create runtime-path symlink (needed to build C extensions) ─────
 #
@@ -443,16 +447,16 @@ fi
 
 # ─── Step 8: Convenience symlinks ────────────────────────────────────────────
 
-log "Creating convenience symlinks python3 -> python3.13 and pip3 -> pip3.13"
-ln -sf python3.13 "$EMBEDDED_DESTDIR/bin/python3"
-ln -sf pip3.13    "$EMBEDDED_DESTDIR/bin/pip3"
+log "Creating convenience symlinks python3 -> python${PYTHON_MAJ_MIN} and pip3 -> pip${PYTHON_MAJ_MIN}"
+ln -sf "python${PYTHON_MAJ_MIN}" "$EMBEDDED_DESTDIR/bin/python3"
+ln -sf "pip${PYTHON_MAJ_MIN}"    "$EMBEDDED_DESTDIR/bin/pip3"
 log "Symlinks created."
 
 # ─── Step 9: Remove test directories to save space ───────────────────────────
 
 log "Removing Python test directories to reduce package size"
-rm -rf "$EMBEDDED_DESTDIR/lib/python3.13/test"
-rm -rf "$EMBEDDED_DESTDIR/lib/python3.13/unittest/test"
+rm -rf "$EMBEDDED_DESTDIR/lib/python${PYTHON_MAJ_MIN}/test"
+rm -rf "$EMBEDDED_DESTDIR/lib/python${PYTHON_MAJ_MIN}/unittest/test"
 log "Test directories removed."
 
 # --- Mark complete ---

@@ -58,7 +58,7 @@ package python
 // installed by installp, and LIBPATH in the agent-svc wrapper includes it.
 
 /*
-#cgo LDFLAGS: -L${SRCDIR}/../../../embedded/lib -lpython3.13
+#cgo LDFLAGS: -L${SRCDIR}/../../../embedded/lib -lpython3
 
 // Forward declaration — we do not include Python.h to avoid pulling in
 // the entire CPython header tree; Py_IsInitialized has a stable ABI.

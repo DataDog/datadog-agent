@@ -8,6 +8,11 @@
 # No validation of required variables is done here; each script validates its
 # own inputs after sourcing this file.
 
+# ── Python version ────────────────────────────────────────────────────────────
+PYTHON_VERSION="3.13.12"
+PYTHON_MAJ_MIN="${PYTHON_VERSION%.*}"   # e.g. 3.13
+export PYTHON_VERSION PYTHON_MAJ_MIN
+
 # ── Build tree layout ─────────────────────────────────────────────────────────
 
 BUILD_DIR=/opt/dd-build

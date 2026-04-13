@@ -30,17 +30,17 @@ fi
 : "${WHEEL_CACHE:?WHEEL_CACHE must be set}"
 : "${INTEGRATIONS_CORE:?INTEGRATIONS_CORE must be set}"
 
-PIP=$EMBEDDED_DESTDIR/bin/pip3.13
-PYTHON_BIN=$EMBEDDED_DESTDIR/bin/python3.13
+PIP=$EMBEDDED_DESTDIR/bin/pip${PYTHON_MAJ_MIN}
+PYTHON_BIN=$EMBEDDED_DESTDIR/bin/python${PYTHON_MAJ_MIN}
 
-# --- Pre-flight: confirm pip3.13 exists ---
+# --- Pre-flight: confirm pip${PYTHON_MAJ_MIN} exists ---
 if [ ! -x "$PIP" ]; then
     log "ERROR: $PIP not found — did Stage 02 (02-python) complete successfully?"
     exit 1
 fi
 
 # --- Pre-flight: confirm integrations-core is checked out ---
-LOCKFILE="$INTEGRATIONS_CORE/.deps/resolved/linux-x86_64_3.13.txt"
+LOCKFILE="$INTEGRATIONS_CORE/.deps/resolved/linux-x86_64_${PYTHON_MAJ_MIN}.txt"
 if [ ! -f "$LOCKFILE" ]; then
     log "ERROR: $LOCKFILE not found — did Stage 00 (00-checkout) complete successfully?"
     exit 1

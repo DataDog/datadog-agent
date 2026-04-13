@@ -61,9 +61,9 @@ log "Removing build-time artefacts (headers, pkgconfig, man pages, .c/.h files)"
 rm -rf "$EMBEDDED_DESTDIR/include"
 rm -rf "$EMBEDDED_DESTDIR/lib/pkgconfig"
 rm -rf "$EMBEDDED_DESTDIR/share/man"
-find "$EMBEDDED_DESTDIR/lib/python3.13" -name "*.c" -exec rm -f {} \;
-find "$EMBEDDED_DESTDIR/lib/python3.13" -name "*.h" -exec rm -f {} \;
-find "$EMBEDDED_DESTDIR/lib/python3.13" -name "*.pyc" -exec rm -f {} \; 2>/dev/null || true
+find "$EMBEDDED_DESTDIR/lib/python${PYTHON_MAJ_MIN}" -name "*.c" -exec rm -f {} \;
+find "$EMBEDDED_DESTDIR/lib/python${PYTHON_MAJ_MIN}" -name "*.h" -exec rm -f {} \;
+find "$EMBEDDED_DESTDIR/lib/python${PYTHON_MAJ_MIN}" -name "*.pyc" -exec rm -f {} \; 2>/dev/null || true
 log "Build artefacts removed"
 
 # ─── Step 3: Compile .py to .pyc for faster agent startup ─────────────────────
@@ -74,9 +74,9 @@ log "Build artefacts removed"
 # fail to compile (e.g. Python 2-only syntax in vendored code); do not abort
 # the stage for these.
 
-log "Compiling .py to .pyc under $EMBEDDED_DESTDIR/lib/python3.13/site-packages"
-"$EMBEDDED_DESTDIR/bin/python3.13" -m compileall \
-    "$EMBEDDED_DESTDIR/lib/python3.13/site-packages" \
+log "Compiling .py to .pyc under $EMBEDDED_DESTDIR/lib/python${PYTHON_MAJ_MIN}/site-packages"
+"$EMBEDDED_DESTDIR/bin/python${PYTHON_MAJ_MIN}" -m compileall \
+    "$EMBEDDED_DESTDIR/lib/python${PYTHON_MAJ_MIN}/site-packages" \
     -x 'test/' -q 2>/dev/null || true
 log "Bytecode compilation complete"
 

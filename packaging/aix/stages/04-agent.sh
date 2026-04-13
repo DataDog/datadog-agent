@@ -69,7 +69,7 @@ mkdir -p "$STAGING/opt/datadog-agent/bin"
 log "Setting rtloader CGO flags"
 export CGO_CFLAGS="$CGO_CFLAGS -I/opt/datadog-agent/rtloader/include"
 #
-# -lpython3.13 causes libpython3.13.a(shr_64.o) to appear in the agent binary's
+# -lpython3 (via libpython3.a symlink) causes libpython3.a(shr_64.o) to appear in the agent binary's
 # XCOFF startup-load chain.  This is necessary but not sufficient: the binary
 # must also EXPORT Python API symbols so that extension modules with IMPid="."
 # (which means "look in the main program's export table") can find them.
@@ -78,8 +78,10 @@ export CGO_CFLAGS="$CGO_CFLAGS -I/opt/datadog-agent/rtloader/include"
 # EXP (export) table.  Go's CGO security filter rejects -bE in #cgo LDFLAGS,
 # so it must be passed here via CGO_LDFLAGS instead.  The python_aix.go file
 # handles the Py_IsInitialized() call that creates the live Go→CGO reference
-# needed to trigger the //go:cgo_import_dynamic for libpython3.13.a(shr_64.o).
-PYTHON_EXP="$EMBEDDED_DESTDIR/lib/python3.13/config-3.13/python.exp"
+# needed to trigger the //go:cgo_import_dynamic for the Python shared library.
+#
+# The libpython3.a -> libpython3.X.a symlink is created by Stage 02.
+PYTHON_EXP="$EMBEDDED_DESTDIR/lib/python${PYTHON_MAJ_MIN}/config-${PYTHON_MAJ_MIN}/python.exp"
 if [ ! -f "$PYTHON_EXP" ]; then
     log "ERROR: $PYTHON_EXP not found — did Stage 02 (02-python) complete?"
     exit 1
@@ -89,7 +91,7 @@ export CGO_LDFLAGS="$CGO_LDFLAGS \
   -L/opt/datadog-agent/rtloader/build/rtloader \
   -L/opt/datadog-agent/rtloader/build/three \
   -L$EMBEDDED_DESTDIR/lib \
-  -lpython3.13 \
+  -lpython3 \
   -Wl,-bE:$PYTHON_EXP \
   -Wl,-blibpath:/opt/datadog-agent/rtloader:/opt/datadog-agent/embedded/lib:/opt/freeware/lib64:/opt/freeware/lib:/usr/lib:/lib"
 

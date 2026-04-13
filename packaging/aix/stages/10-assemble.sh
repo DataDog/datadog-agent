@@ -106,7 +106,7 @@ log "Default check configs installed"
 # extension using libunwind) is imported.
 
 SITECUSTOMIZE_SRC="$(dirname "$0")/../sitecustomize.py"
-PYTHON_LIB_DIR="$EMBEDDED_DESTDIR/lib/python3.13"
+PYTHON_LIB_DIR="$EMBEDDED_DESTDIR/lib/python${PYTHON_MAJ_MIN}"
 if [ ! -f "$SITECUSTOMIZE_SRC" ]; then
     log "ERROR: sitecustomize.py not found at $SITECUSTOMIZE_SRC"
     exit 1
