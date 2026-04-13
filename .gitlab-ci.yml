@@ -1316,12 +1316,6 @@ workflow:
 .on_privateactionrunner_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
-      <<: *fakeintake_paths
-      compare_to: $COMPARE_TO_BRANCH
-    variables:
-      FAKEINTAKE_IMAGE_OVERRIDE: "public.ecr.aws/datadog/fakeintake:v$CI_COMMIT_SHORT_SHA"
-    when: on_success
-  - changes:
       paths:
         - cmd/privateactionrunner/**/*
         - comp/privateactionrunner/**/*
