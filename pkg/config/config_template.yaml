@@ -4941,8 +4941,8 @@ api_key:
 #
 #   task_timeout_seconds: 60
 
-#   # @param actions_allowlist - list of strings - optional
-#   # @env DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST - comma separated list of strings - optional
+#   # @param actions_allowlist - list of strings - optional - default: []
+#   # @env DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST - comma separated list of strings - optional - default: []
 #   # List of actions that the Private Action Runner is allowed to execute.
 #   # See http://docs.datadoghq.com/actions/private_actions/use_private_actions#change-the-allowlist-of-a-runner
 #   # for the list of available actions.
@@ -4957,8 +4957,8 @@ api_key:
 #
 #   http_timeout_seconds: 30
 
-#   # @param http_allowlist - list of strings - optional
-#   # @env DD_PRIVATE_ACTION_RUNNER_HTTP_ALLOWLIST - comma separated list of strings - optional
+#   # @param http_allowlist - list of strings - optional - default: []
+#   # @env DD_PRIVATE_ACTION_RUNNER_HTTP_ALLOWLIST - space-separated list of strings - optional - default: []
 #   # List of allowed URL patterns for HTTP actions.
 #
 #   http_allowlist: []
