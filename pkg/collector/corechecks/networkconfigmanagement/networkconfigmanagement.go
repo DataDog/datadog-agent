@@ -89,13 +89,20 @@ func (c *Check) Run() error {
 	if checkErr != nil {
 		return checkErr
 	}
+	store := c.ncmComp.GetConfigStore()
 
 	runningConfig, metadata, checkErr := c.checkContext.ProfileCache.Profile.ProcessCommandOutput(profile.Running, rawRunningConfig)
 	if checkErr != nil {
 		log.Warnf("unable to process rules for running config for device %s, using agent collection ts: %s", deviceID, checkErr)
 	}
 	// TODO: helper fn to take metadata that needs to be emitted as metrics + emit them
-	configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, c.checkContext.Device.IPAddress, ncmreport.RUNNING, metadata, deviceTags, runningConfig))
+	_, err := store.StoreConfig(deviceID, ncmreport.RUNNING, string(runningConfig), nil, nil)
+	if err != nil {
+		log.Warnf("unable to store running config: %v", err)
+	} else {
+		// only report config if we were able to store it
+		configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, c.checkContext.Device.IPAddress, ncmreport.RUNNING, metadata, deviceTags, runningConfig))
+	}
 
 	rawStartupConfig, checkErr := c.remoteClient.RetrieveStartupConfig()
 	if checkErr != nil {
@@ -107,7 +114,12 @@ func (c *Check) Run() error {
 			log.Warnf("unable to process rules for startup config for device %s, using agent collection ts: %s", deviceID, checkErr)
 		}
 		// add the startup config to the payload if it was retrieved successfully
-		configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, c.checkContext.Device.IPAddress, ncmreport.STARTUP, metadata, deviceTags, startupConfig))
+		_, err := store.StoreConfig(deviceID, ncmreport.STARTUP, string(startupConfig), nil, nil)
+		if err != nil {
+			log.Warnf("unable to store startup config: %v", err)
+		} else {
+			configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, c.checkContext.Device.IPAddress, ncmreport.STARTUP, metadata, deviceTags, startupConfig))
+		}
 	}
 
 	checkErr = c.sender.SendNCMConfig(ncmreport.ToNCMPayload(c.checkContext.Namespace, configs, c.clock.Now().Unix()))
