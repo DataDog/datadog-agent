@@ -43,6 +43,36 @@ func TestTokenizer(t *testing.T) {
 		{input: "Z0NE", expectedToken: "ZONEDCC"},
 		{input: "abc!📀🐶📊123", expectedToken: "CCC!CCCCCCCCCCDDD"},
 		{input: "!!!$$$###", expectedToken: "!$#"}, // Symobl runs get truncated
+
+		// Critical severity keyword promotion
+		{input: "FATAL", expectedToken: "FATAL"},
+		{input: "fatal", expectedToken: "FATAL"},     // case insensitive
+		{input: "Fatal", expectedToken: "FATAL"},     // mixed case
+		{input: "ERROR", expectedToken: "ERROR"},
+		{input: "PANIC", expectedToken: "PANIC"},
+		{input: "ALERT", expectedToken: "ALERT"},
+		{input: "SEVERE", expectedToken: "SEVERE"},
+		{input: "WARN", expectedToken: "WARN"},
+		{input: "WARNING", expectedToken: "WARN"},
+		{input: "CRIT", expectedToken: "CRIT"},
+		{input: "CRITICAL", expectedToken: "CRIT"},
+		{input: "EMERG", expectedToken: "EMERG"},
+		{input: "EMERGENCY", expectedToken: "EMERG"},
+		{input: "EXCEPTION", expectedToken: "EXCEPTION"},
+		{input: "CRASH", expectedToken: "CRASH"},
+		{input: "CRASHED", expectedToken: "CRASH"},
+		{input: "FAILED", expectedToken: "FAILURE"},
+		{input: "FAILURE", expectedToken: "FAILURE"},
+		{input: "DEADLOCK", expectedToken: "DEADLOCK"},
+		{input: "TIMEOUT", expectedToken: "TIMEOUT"},
+
+		// False-positive safety: longer words must NOT match
+		{input: "EXCEPTIONS", expectedToken: "CCCCCCCCCC"}, // 10 chars → C10, no match
+		{input: "FATALIZER", expectedToken: "CCCCCCCCC"},   // 9 chars, not a keyword → C9
+
+		// In-context: critical keywords separated by non-alpha chars
+		{input: "[ERROR] something", expectedToken: "[ERROR] CCCCCCCCC"},
+		{input: "FATAL: disk full", expectedToken: "FATAL: CCCC CCCC"},
 	}
 
 	tokenizer := NewTokenizer(0)
