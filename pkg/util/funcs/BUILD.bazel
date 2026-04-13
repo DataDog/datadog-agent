@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "funcs",
+    srcs = [
+        "cache.go",
+        "memoize.go",
+        "memoize_arg.go",
+        "memoize_arg_noerror.go",
+        "memoize_noerror.go",
+        "memoize_noerror_unsafe.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/funcs",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "funcs_test",
+    srcs = ["memoize_test.go"],
+    embed = [":funcs"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

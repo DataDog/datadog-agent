@@ -1733,7 +1733,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 			CreatedAt:     uint64(event.GetTimestamp().UnixNano()),
 		}
 
-		if cacheEntry := p.Resolvers.CGroupResolver.AddPID(pce.Pid, pce.PPid, cgroupContext); cacheEntry == nil {
+		if cacheEntry := p.Resolvers.CGroupResolver.AddPID(pce.Pid, cgroupContext); cacheEntry == nil {
 			seclog.Debugf("Failed to resolve cgroup for pid %d: %+v", pid, event.CgroupWrite.File.PathKey)
 		} else {
 			p.Resolvers.ProcessResolver.UpdateProcessContexts(pce, cacheEntry.GetCGroupContext(), cacheEntry.GetContainerContext())
