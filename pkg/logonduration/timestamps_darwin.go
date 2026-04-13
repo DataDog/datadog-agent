@@ -8,7 +8,8 @@
 package logonduration
 
 /*
-#cgo CFLAGS: -x objective-c -mmacosx-version-min=10.15
+// Keep in sync with https://docs.datadoghq.com/agent/supported_platforms/?tab=macos
+#cgo CFLAGS: -x objective-c -mmacosx-version-min=12.0
 #cgo LDFLAGS: -framework Foundation -framework OSLog
 
 #include <stdlib.h>

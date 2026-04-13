@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "slices",
+    srcs = ["map.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/slices",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "slices_test",
+    srcs = ["map_test.go"],
+    embed = [":slices"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

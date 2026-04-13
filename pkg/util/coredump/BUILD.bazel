@@ -1,0 +1,78 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "coredump",
+    srcs = [
+        "core.go",
+        "core_windows.go",
+        "docs.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/coredump",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/config/model",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/config/model",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/config/model",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/config/model",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/config/model",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/config/model",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/config/model",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:js": [
+            "//pkg/config/model",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/config/model",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/config/model",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/config/model",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/config/model",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//pkg/config/model",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//pkg/config/model",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/config/model",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/config/model",
+        ],
+        "//conditions:default": [],
+    }),
+)

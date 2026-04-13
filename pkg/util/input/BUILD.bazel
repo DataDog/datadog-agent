@@ -1,0 +1,8 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "input",
+    srcs = ["input.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/input",
+    visibility = ["//visibility:public"],
+)
