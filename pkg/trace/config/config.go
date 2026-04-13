@@ -152,6 +152,13 @@ func obfuscationMode(conf *AgentConfig, sqllexerEnabled bool) obfuscate.Obfuscat
 	return ""
 }
 
+// EffectiveSQLObfuscationMode returns the SQL obfuscation mode the agent
+// actually uses at runtime. When SQLObfuscationMode is not explicitly set,
+// the mode is derived from feature flags (e.g. sqllexer → obfuscate_only).
+func (c *AgentConfig) EffectiveSQLObfuscationMode() string {
+	return string(obfuscationMode(c, c.HasFeature("sqllexer")))
+}
+
 // Export returns an obfuscate.Config matching o.
 func (o *ObfuscationConfig) Export(conf *AgentConfig) obfuscate.Config {
 	return obfuscate.Config{
@@ -160,7 +167,7 @@ func (o *ObfuscationConfig) Export(conf *AgentConfig) obfuscate.Config {
 			ReplaceDigits:    conf.HasFeature("quantize_sql_tables") || conf.HasFeature("replace_sql_digits"),
 			KeepSQLAlias:     conf.HasFeature("keep_sql_alias"),
 			DollarQuotedFunc: conf.HasFeature("dollar_quoted_func"),
-			ObfuscationMode:  obfuscationMode(conf, conf.HasFeature("sqllexer")),
+			ObfuscationMode:  conf.EffectiveSQLObfuscationMode(),
 		},
 		ES:                   o.ES,
 		OpenSearch:           o.OpenSearch,

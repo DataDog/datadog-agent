@@ -155,6 +155,25 @@ func TestSQLObfuscationMode(t *testing.T) {
 	})
 }
 
+func TestEffectiveSQLObfuscationMode(t *testing.T) {
+	t.Run("sqllexer_enabled_no_explicit_mode", func(t *testing.T) {
+		cfg := New()
+		cfg.Features = map[string]struct{}{"sqllexer": {}}
+		// SQLObfuscationMode is empty; effective mode must be obfuscate_only
+		assert.Equal(t, string(obfuscate.ObfuscateOnly), cfg.EffectiveSQLObfuscationMode())
+	})
+	t.Run("explicit_mode_takes_precedence", func(t *testing.T) {
+		cfg := New()
+		cfg.Features = map[string]struct{}{"sqllexer": {}}
+		cfg.SQLObfuscationMode = string(obfuscate.ObfuscateAndNormalize)
+		assert.Equal(t, string(obfuscate.ObfuscateAndNormalize), cfg.EffectiveSQLObfuscationMode())
+	})
+	t.Run("no_sqllexer_no_explicit_mode", func(t *testing.T) {
+		cfg := New()
+		assert.Equal(t, "", cfg.EffectiveSQLObfuscationMode())
+	})
+}
+
 func TestInECSManagedInstancesSidecar(t *testing.T) {
 	t.Setenv("DD_ECS_DEPLOYMENT_MODE", "sidecar")
 	t.Setenv("AWS_EXECUTION_ENV", "AWS_ECS_MANAGED_INSTANCES")

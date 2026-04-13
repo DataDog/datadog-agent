@@ -88,7 +88,7 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		oconf.Mongo = o.Mongo.Enabled
 		oconf.SQLExecPlan = o.SQLExecPlan.Enabled
 		oconf.SQLExecPlanNormalize = o.SQLExecPlanNormalize.Enabled
-		oconf.SQLObfuscationMode = r.conf.SQLObfuscationMode
+		oconf.SQLObfuscationMode = r.conf.EffectiveSQLObfuscationMode()
 		oconf.HTTP = o.HTTP
 		oconf.RemoveStackTraces = o.RemoveStackTraces
 		oconf.Redis = o.Redis
