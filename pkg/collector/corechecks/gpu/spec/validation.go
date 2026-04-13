@@ -12,8 +12,8 @@ import (
 
 // GPUConfig identifies an architecture + device mode pair from the spec.
 type GPUConfig struct {
-	Architecture string
-	DeviceMode   DeviceMode
+	Architecture string     `json:"architecture"`
+	DeviceMode   DeviceMode `json:"device_mode"`
 }
 
 // Equals checks if two GPU configs are equal.
