@@ -76,8 +76,8 @@ bazel_dep(name = "rules_testing", version = "0.9.0", dev_dependency = True)
 # Temporary until rules_go > 0.60.0 with go.work support is in BCR
 git_override(
     module_name = "rules_go",
-    commit = "2ce3598fc987420d180649847f3bf1cc044494e6",  # main as of Feb 11, 2026
-    remote = "https://github.com/bazel-contrib/rules_go.git",
+    commit = "4cb2eab3d1aec456573f0cefd8e8800e9c68ae7d",
+    remote = "https://github.com/chouquette/rules_go.git",
 )
 
 # Temporary until rules_pkg > 1.2.0 is in BCR
