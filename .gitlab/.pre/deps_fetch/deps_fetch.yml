@@ -7,7 +7,7 @@
   - mkdir -p $GOPATH/pkg/mod/cache && zstd -dc modcache.tar.zst | tar xf - -C $GOPATH/pkg/mod/cache
   - rm -f modcache.tar.zst
 
-.retrieve_linux_go_tools_deps:
+.retrieve_linux_go_tools_deps: 
   - mkdir -p $GOPATH/bin $GOPATH/pkg/mod/cache && zstd -dc modcache_tools.tar.zst | tar xf - -C $GOPATH
   - rm -f modcache_tools.tar.zst
   - export PATH=$PATH:$GOPATH/bin
@@ -112,13 +112,12 @@ go_tools_deps_arm64:
         - modcache_tools_arm64.tar.zst
 
 go_e2e_deps:
-  id_tokens:
-    DDOCTOSTS_ID_TOKEN:
-      aud: dd-octo-sts
-  extends: .cache
+  extends:
+    - .cache
+    - .dd_octo_sts
   tags: ["arch:amd64", "specific:true"]
   before_script:
-    - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.read)
+    - !reference [.setup_github_token_read]
   script:
     - |
       if [ ! -f modcache_e2e.tar.zst ]; then

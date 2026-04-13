@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands/controlsvc"
+	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands/coverage"
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands/flare"
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands/run"
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands/status"
@@ -72,6 +73,8 @@ func makeCommands(globalParams *subcommands.GlobalParams) *cobra.Command {
 	for _, cmd := range commands {
 		otelAgentCmd.AddCommand(cmd)
 	}
+
+	coverage.SetupCoverageCommand(globalConfGetter, &otelAgentCmd)
 
 	flagSet := flags(featuregate.GlobalRegistry(), globalParams)
 	otelAgentCmd.PersistentFlags().AddGoFlagSet(flagSet)
