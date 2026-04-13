@@ -10,6 +10,7 @@ package networkconfigmanagement
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -18,6 +19,6 @@ import (
 const CheckName = "network_config_management"
 
 // Factory returns a stub implementation of the network configuration management check.
-func Factory(_ config.Component) option.Option[func() check.Check] {
+func Factory(_ config.Component, _ networkconfigmanagement.Component) option.Option[func() check.Check] {
 	return option.None[func() check.Check]()
 }
