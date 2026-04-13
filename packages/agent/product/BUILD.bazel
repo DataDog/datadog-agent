@@ -37,11 +37,12 @@ pkg_filegroup(
 
         # TODO: sysprobe - windows
         # TODO: systray - windows
-        # TODO: agent main binary
-        # TODO: trace-loader
-        # TODO: trace-agent
         # TODO: installer
-        # TODO: private-action-runner
+        "//cmd/loader:trace_loader",
+        ":dda_built_trace_agent_binary",
+        ":dda_built_process_agent_binary",
+        ":dda_built_privateactionrunner_binary",
+
         # TODO: system-probe
         # TODO: system-probe - selinux policy
         # TODO: system-probe - eBPF
@@ -133,4 +134,28 @@ pkg_files(
         "@agent_binary//:agent",
     ],
     prefix = "bin/agent",
+)
+
+pkg_files(
+    name = "dda_built_process_agent_binary",
+    srcs = [
+        "@process_agent_binary//:process_agent",
+    ],
+    prefix = "bin/agent",
+)
+
+pkg_files(
+    name = "dda_built_privateactionrunner_binary",
+    srcs = [
+        "@privateactionrunner_binary//:privateactionrunner",
+    ],
+    prefix = "embedded/bin",
+)
+
+pkg_files(
+    name = "dda_built_trace_agent_binary",
+    srcs = [
+        "@trace_agent_binary//:trace_agent",
+    ],
+    prefix = "embedded/bin",
 )
