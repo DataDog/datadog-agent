@@ -9,10 +9,6 @@ blackhole:
   - datadog:
       v2:
         binding_addr: "127.0.0.1:9091"
-  # - http:
-  #     binding_addr: "127.0.0.1:9092"
-  # - http:
-  #     binding_addr: "127.0.0.1:9093"
 
 target_metrics:
   - prometheus: # core agent telemetry

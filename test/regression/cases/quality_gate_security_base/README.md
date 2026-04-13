@@ -9,8 +9,6 @@ while staying within defined memory bounds.
 
 Enabled features:
 - **Threat Detection** (CWS runtime security) with network monitoring
-- **Compliance Config** (CSPM host benchmarks)
-- **SBOM Scanning** (host vulnerability management)
 
 ## Owners
 

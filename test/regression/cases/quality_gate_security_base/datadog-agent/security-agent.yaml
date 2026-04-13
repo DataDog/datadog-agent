@@ -3,7 +3,3 @@
 runtime_security_config:
   enabled: true
 
-compliance_config:
-  enabled: true
-  host_benchmarks:
-    enabled: true

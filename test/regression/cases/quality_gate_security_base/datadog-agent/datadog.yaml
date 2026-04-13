@@ -11,31 +11,8 @@ logs_enabled: true
 
 telemetry:
   enabled: true
-  # checks: '*'
-# no_ntp_check: true
-
-# process_config:
-#   process_dd_url: http://localhost:9093
-#   process_collection:
-#     enabled: false
-#   container_collection:
-#     enabled: false
-#   process_discovery:
-#     enabled: false
 
 # Per https://docs.datadoghq.com/security/workload_protection/setup/agent/linux/
-
 runtime_security_config:
   enabled: true
 
-compliance_config:
-  enabled: true
-  host_benchmarks:
-    enabled: true
-
-sbom:
-  enabled: true
-  container_image:
-    enabled: true
-  host:
-    enabled: true
