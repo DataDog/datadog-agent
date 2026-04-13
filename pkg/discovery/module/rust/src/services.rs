@@ -173,8 +173,6 @@ fn get_service(
     let apm_instrumentation =
         tracer_metadata.is_some() || apm::detect(language.as_ref(), &cmdline, &envs, maps_info);
 
-    let tracer_metadata_vec = tracer_metadata.into_iter().collect();
-
     Some(Service {
         pid,
         generated_name: name_metadata.as_ref().map(|meta| meta.name.clone()),
@@ -182,7 +180,7 @@ fn get_service(
         additional_generated_names: name_metadata
             .map(|meta| meta.additional_names)
             .unwrap_or_default(),
-        tracer_metadata: tracer_metadata_vec,
+        tracer_metadata: tracer_metadata.into_iter().collect(),
         ust: UST::from_envs(&envs),
         tcp_ports,
         udp_ports,
