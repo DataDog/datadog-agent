@@ -31,18 +31,6 @@ Root `BUILD.bazel` defines `ALL_BUILD_TAGS`, passed to `gazelle` via `build_tags
 - When **`bazel test` / `bazel build` fails** in a way that points to wrong or missing symbols from tag-gated sources — add the needed tags on that package’s `go_test` (and/or `go_library`) so the compiler enables the same constraints.
 - When you follow the **`//go:build test`** pattern below (library sources with `test` in the build line) — use `gotags = ["test"]  # keep` on the embedding `go_test`.
 - For **k8s-style tags** (`kubeapiserver`, `kubelet`, etc.) — add `gotags` **per package** only when that package’s **sources or tests** are actually behind those `//go:build` lines (including tag-gated `*_test.go`). Do not add them speculatively to every test under a tree.
-- For **OS-specific test files** (e.g. `poller_darwin_test.go`, `poller_linux_test.go`) that rely on the platform being set as a build tag — use a `select()` to pass the right OS tag at test time:
-
-  ```python
-  gotags = select({  # keep
-      "@platforms//os:linux": ["linux"],
-      "@platforms//os:macos": ["darwin"],
-      "@platforms//os:windows": ["windows"],
-      "//conditions:default": [],
-  }),
-  ```
-
-  Reference: `pkg/util/flavor/BUILD.bazel` uses this pattern. Note that `gotags` controls which source files are compiled; it does **not** grant access to host binaries. If a test shells out to a host tool (e.g. `netstat`) that is absent from the Bazel sandbox, the `gotags` fix will not help — that requires a different approach (e.g. backing out the package).
 
 ## BUILD.bazel editing rules
 
