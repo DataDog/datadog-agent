@@ -89,7 +89,7 @@ func validateGPUConfig(client *metricsClient, metricsSpec *gpuspec.MetricsSpec, 
 	var group errgroup.Group
 	group.SetLimit(metricQueryConcurrency)
 
-	for metricName, _ := range expectedMetricsMap {
+	for metricName := range expectedMetricsMap {
 		metricName := metricName
 		group.Go(func() error {
 			prefixedMetricName := gpuspec.PrefixedMetricName(metricsSpec, metricName)

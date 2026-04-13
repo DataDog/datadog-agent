@@ -75,7 +75,7 @@ func main() {
 
 func validateFlags(mode, site string, lookbackSeconds, windowSeconds int64) error {
 	if strings.TrimSpace(mode) == "" {
-		return fmt.Errorf("--mode is required")
+		return errors.New("--mode is required")
 	}
 	if strings.TrimSpace(site) == "" {
 		return errors.New("--site is required")
