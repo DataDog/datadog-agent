@@ -2,7 +2,6 @@
 enhancements:
   - |
     The Private Action Runner now includes default enabled actions that are
-    automatically allowed without explicit allowlist configuration. The
-    ``rshell.runCommand`` action is enabled by default. To opt out, set
-    ``private_action_runner.default_actions_enabled`` to ``false`` in
-    ``datadog.yaml``.
+    automatically allowed. To opt out, set ``private_action_runner.default_actions_enabled``
+    to ``false`` in ``datadog.yaml``. This still requires explicit opt-in into the Private
+    Action Runner feature.

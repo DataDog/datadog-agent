@@ -4938,4 +4938,12 @@ api_key:
 #   actions_allowlist:
 #     - com.datadoghq.script.runPredefinedPowershellScript   # on Windows
 #     - com.datadoghq.script.runPredefinedScript             # on Linux and Darwin
+
+#   # @param default_actions_enabled - boolean - optional - default: true
+#   # @env DD_PRIVATE_ACTION_RUNNER_DEFAULT_ACTIONS_ENABLED - boolean - optional - default: true
+#   # When true, a set of default actions are automatically
+#   # allowed without needing to be listed in actions_allowlist.
+#   # Set to false to disable these default actions.
+#
+#   default_actions_enabled: true
 {{ end -}}
