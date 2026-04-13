@@ -34,10 +34,19 @@ type BundleInheritedAllowedAction struct {
 	ExpectedPrefix string
 }
 
+// defaultCommonActionFQNs is a list of action FQNs that are enabled by default
+// regardless of the agent flavor.
+var defaultCommonActionFQNs = []string{
+	// Network path
+	"com.datadoghq.remoteaction.networks.runNetworkPath",
+	// Remote shell
+	"com.datadoghq.remoteaction.rshell.runCommand",
+}
+
 // DefaultClusterAgentActionFQNs is a list of action FQNs that are enabled by default
 // when the agent runs as a Cluster Agent flavor.
 // Users can opt out by setting private_action_runner.default_actions_enabled to false.
-var DefaultClusterAgentActionFQNs = []string{
+var DefaultClusterAgentActionFQNs = append([]string{
 	// k8s apps — Deployments
 	"com.datadoghq.kubernetes.apps.listDeployment",
 	"com.datadoghq.kubernetes.apps.getDeployment",
@@ -68,14 +77,12 @@ var DefaultClusterAgentActionFQNs = []string{
 	"com.datadoghq.kubernetes.batch.listJob",
 	"com.datadoghq.kubernetes.batch.getCronJob",
 	"com.datadoghq.kubernetes.batch.listCronJob",
-}
+}, defaultCommonActionFQNs...)
 
 // DefaultActionFQNs is a list of action FQNs that are enabled by default
 // for non-Cluster-Agent flavors.
 // Users can opt out by setting private_action_runner.default_actions_enabled to false.
-var DefaultActionFQNs = []string{
-	"com.datadoghq.remoteaction.rshell.runCommand",
-}
+var DefaultActionFQNs = append([]string{}, defaultCommonActionFQNs...)
 
 // BundleInheritedAllowedActions is a list of actions that are automatically allowed
 // if at least one other action matching their expected prefix is allowed

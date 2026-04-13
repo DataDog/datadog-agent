@@ -240,28 +240,14 @@ func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 		assert.True(t, allowlist["com.datadoghq.kubernetes.apps"].Has("listDeployment"))
 		assert.True(t, allowlist["com.datadoghq.kubernetes.core"].Has("getPod"))
 		assert.True(t, allowlist["com.datadoghq.kubernetes.batch"].Has("getJob"))
+		// common actions should also be present
+		assert.True(t, allowlist["com.datadoghq.remoteaction.networks"].Has("runNetworkPath"))
+		assert.True(t, allowlist["com.datadoghq.remoteaction.rshell"].Has("runCommand"))
 		// inherited actions should also be present for the kubernetes prefix
 		assert.True(t, allowlist["com.datadoghq.kubernetes.core"].Has("testConnection"))
 	})
 
-	t.Run("non-cluster-agent flavor returns default rshell actions", func(t *testing.T) {
-		flavor.SetFlavor(flavor.DefaultAgent)
-		defer flavor.SetFlavor(flavor.DefaultAgent)
-
-		mockConfig := configmock.New(t)
-		mockConfig.SetWithoutSource(setup.PARActionsAllowlist, []string{})
-		mockConfig.SetWithoutSource(setup.PARDefaultActionsEnabled, true)
-
-		allowlist := makeActionsAllowlist(mockConfig)
-
-		assert.True(t, allowlist["com.datadoghq.kubernetes.apps"].Has("listDeployment"))
-		assert.True(t, allowlist["com.datadoghq.kubernetes.core"].Has("getPod"))
-		assert.True(t, allowlist["com.datadoghq.kubernetes.batch"].Has("getJob"))
-		// inherited actions should also be present for the kubernetes prefix
-		assert.True(t, allowlist["com.datadoghq.kubernetes.core"].Has("testConnection"))
-	})
-
-	t.Run("non-cluster-agent flavor returns empty default actions", func(t *testing.T) {
+	t.Run("non-cluster-agent flavor returns common default actions only", func(t *testing.T) {
 		flavor.SetFlavor(flavor.DefaultAgent)
 
 		mockConfig := configmock.New(t)
@@ -270,7 +256,12 @@ func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 
 		allowlist := makeActionsAllowlist(mockConfig)
 
-		assert.Empty(t, allowlist)
+		// common actions should be present
+		assert.True(t, allowlist["com.datadoghq.remoteaction.networks"].Has("runNetworkPath"))
+		assert.True(t, allowlist["com.datadoghq.remoteaction.rshell"].Has("runCommand"))
+		// cluster-agent-specific actions should NOT be present
+		_, hasK8sApps := allowlist["com.datadoghq.kubernetes.apps"]
+		assert.False(t, hasK8sApps)
 	})
 
 	t.Run("default actions are excluded when default_actions_enabled is false", func(t *testing.T) {
