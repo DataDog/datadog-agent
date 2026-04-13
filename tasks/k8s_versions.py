@@ -498,8 +498,11 @@ def update_kind_versions_file(_, versions_file=VERSIONS_FILE):
     """
     Update kind_versions.json with new Kubernetes versions.
 
-    Reads versions_file, fetches kind_version from the kindest/node image labels
-    if not already stored, then upserts into kind_versions.json keyed by minor version ("1.35", etc.).
+    Reads versions_file (k8s_versions.json) to discover which Kubernetes minor versions
+    exist, then upserts into kind_versions.json keyed by minor version ("1.35", etc.).
+    The kind_version to use is taken from the existing kind_versions.json entry for that
+    minor version; if no entry exists yet, the latest kind release is fetched from GitHub.
+    The versions_file itself is never modified.
 
     Args:
         versions_file: Path to the JSON file containing versions (default: VERSIONS_FILE)
@@ -523,11 +526,9 @@ def update_kind_versions_file(_, versions_file=VERSIONS_FILE):
     latest_kind_release = None
 
     updated = False
-    versions_file_dirty = False
     for full_version, data in all_versions.items():
         tag = data.get('tag')
         digest = data.get('digest')
-        kind_version = data.get('kind_version')
 
         if not tag or not digest:
             print(f"Skipping {full_version}: missing tag or digest")
@@ -540,8 +541,10 @@ def update_kind_versions_file(_, versions_file=VERSIONS_FILE):
             continue
         minor_key = f"{parsed.major}.{parsed.minor}"
 
-        # Resolve kind_version: prefer what's already in k8s_versions.json, then
+        # Resolve kind_version: prefer what's already in kind_versions.json, then
         # fall back to the latest kind release from GitHub.
+        existing = kind_versions.get(minor_key, {})
+        kind_version = existing.get('kind_version')
         if not kind_version:
             if latest_kind_release is None:
                 latest_kind_release = _get_latest_kind_release()
@@ -551,14 +554,7 @@ def update_kind_versions_file(_, versions_file=VERSIONS_FILE):
                 continue
             print(f"Using latest kind release {kind_version} for {minor_key}")
 
-        # Persist the resolved kind_version back to k8s_versions.json so future
-        # runs skip the label/GitHub fetch
-        if not data.get('kind_version'):
-            all_versions[full_version]['kind_version'] = kind_version
-            versions_file_dirty = True
-
         node_image_version = f"{tag}@{digest}"
-        existing = kind_versions.get(minor_key, {})
 
         if existing.get('kind_version') != kind_version or existing.get('node_image_version') != node_image_version:
             kind_versions[minor_key] = {
@@ -567,9 +563,6 @@ def update_kind_versions_file(_, versions_file=VERSIONS_FILE):
             }
             print(f"Updated {minor_key}: kind_version={kind_version}, node_image_version={node_image_version}")
             updated = True
-
-    if versions_file_dirty:
-        _save_versions(all_versions, versions_file)
 
     if updated:
         # Sort descending by minor version for stable diffs
