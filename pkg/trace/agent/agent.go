@@ -295,8 +295,14 @@ func (a *Agent) FlushSync() {
 
 // WaitForStopped blocks until the agent's Run() method has fully returned,
 // meaning all components have been stopped and the shutdown sequence is complete.
-func (a *Agent) WaitForStopped() {
-	<-a.stopped
+// It returns nil on clean shutdown, or the context's error if ctx is done first.
+func (a *Agent) WaitForStopped(ctx context.Context) error {
+	select {
+	case <-a.stopped:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // UpdateAPIKey receives the API Key update signal and propagates it across all internal

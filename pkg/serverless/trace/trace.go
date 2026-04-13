@@ -11,6 +11,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
@@ -199,7 +200,11 @@ func (t *serverlessTraceAgent) SetTags(tags map[string]string) {
 // all writers and components.
 func (t *serverlessTraceAgent) Stop() {
 	t.cancel()
-	t.ta.WaitForStopped()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := t.ta.WaitForStopped(ctx); err != nil {
+		log.Warnf("Trace agent did not stop in time, continuing shutdown: %v", err)
+	}
 }
 
 // SetTargetTPS sets the target TPS to the trace agent.

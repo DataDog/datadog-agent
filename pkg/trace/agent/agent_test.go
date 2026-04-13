@@ -4544,7 +4544,7 @@ func TestWaitForStopped(t *testing.T) {
 	// WaitForStopped should not return until we cancel the context.
 	done := make(chan struct{})
 	go func() {
-		agnt.WaitForStopped()
+		agnt.WaitForStopped(context.Background())
 		close(done)
 	}()
 
@@ -4632,7 +4632,7 @@ func TestShutdownFlushSyncInSyncMode(t *testing.T) {
 	// 3. FlushSync (sends buffer to our test server)
 	// 4. Stop writers
 	cancel()
-	agnt.WaitForStopped()
+	agnt.WaitForStopped(context.Background())
 
 	select {
 	case <-received:
@@ -4640,4 +4640,24 @@ func TestShutdownFlushSyncInSyncMode(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("Stats were not flushed to the server during shutdown")
 	}
+}
+
+func TestWaitForStoppedTimeout(t *testing.T) {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	cfg.ReceiverPort = 0
+	cfg.ReceiverSocket = filepath.Join(t.TempDir(), "trace.sock")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+
+	go agnt.Run()
+
+	// WaitForStopped with a short timeout should return context.DeadlineExceeded
+	// while the agent is still running.
+	waitCtx, waitCancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer waitCancel()
+	err := agnt.WaitForStopped(waitCtx)
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
 }
