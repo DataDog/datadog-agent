@@ -132,15 +132,11 @@ func makeInstance(db types.DBInstance, cluster *types.DBCluster, config Config) 
 	} else {
 		instance.GlobalViewDb = instanceGlobalViewDb
 	}
-	if instanceDbmEnabled == false {
+	if !instanceDbmEnabled {
 		instance.DbmEnabled = clusterDbmEnabled
 	} else {
 		instance.DbmEnabled = instanceDbmEnabled
 	}
 
 	return &instance, nil
-}
-
-func makePtr[T any](value T) *T {
-	return &value
 }
