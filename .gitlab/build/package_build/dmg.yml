@@ -26,12 +26,13 @@
   stage: package_build
   needs: ["go_mod_tidy_check"]
   rules:
-     - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/
+     - if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/
        variables:
-         SIGN: true  # for `main` and release branches
+         SIGN: true  # sign only for release branches
      - if: $CI_COMMIT_BRANCH =~ /notarization/
        variables:
          SIGN: true  # for branches with "notarization" in their name - should we need to tune it
+     - if: $CI_COMMIT_BRANCH == "main"
      - !reference [.on_macos_files_change]
      - !reference [.on_packaging_change]
      - !reference [.on_all_builds]
