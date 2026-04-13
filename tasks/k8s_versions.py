@@ -542,16 +542,15 @@ def update_kind_versions_file(_, versions_file=VERSIONS_FILE):
         minor_key = f"{parsed.major}.{parsed.minor}"
 
         # Resolve kind_version: prefer what's already in kind_versions.json, then
-        # fall back to the latest kind release from GitHub.
+        # the version in k8s_versions.json, then fallback to the latest kind release from GitHub.
         existing = kind_versions.get(minor_key, {})
-        kind_version = existing.get('kind_version')
+        kind_version = existing.get('kind_version') or data.get('kind_version')
         if not kind_version:
             if latest_kind_release is None:
                 latest_kind_release = _get_latest_kind_release()
             kind_version = latest_kind_release
             if not kind_version:
-                print(f"Warning: could not determine kind version for {tag}, skipping", file=sys.stderr)
-                continue
+                raise Exit(f"Could not determine kind version for {tag}", code=1)
             print(f"Using latest kind release {kind_version} for {minor_key}")
 
         node_image_version = f"{tag}@{digest}"

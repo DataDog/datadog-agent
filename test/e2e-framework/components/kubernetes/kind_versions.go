@@ -17,9 +17,9 @@ import (
 
 // KindConfig contains the kind version and the kind node image to use
 type KindConfig struct {
-	KindVersion            string
-	NodeImageVersion       string
-	UseNewContainerdConfig bool
+	KindVersion            string `json:"kind_version"`
+	NodeImageVersion       string `json:"node_image_version"`
+	UseNewContainerdConfig bool   `json:"-"` // default false
 }
 
 // KindConfigFlags contains flags to generate a kind cluster configuration
@@ -41,21 +41,13 @@ var kindVersionsJSON []byte
 var kubeToKindVersion map[string]KindConfig
 
 func init() {
-	type kindVersionEntry struct {
-		KindVersion      string `json:"kind_version"`
-		NodeImageVersion string `json:"node_image_version"`
-	}
-	var raw map[string]kindVersionEntry
-	if err := json.Unmarshal(kindVersionsJSON, &raw); err != nil {
+	var kubeToKindVersion map[string]KindConfig
+	if err := json.Unmarshal(kindVersionsJSON, &kubeToKindVersion); err != nil {
 		panic(fmt.Sprintf("failed to parse kind_versions.json: %v", err))
 	}
-	kubeToKindVersion = make(map[string]KindConfig, len(raw))
-	for k, v := range raw {
-		kubeToKindVersion[k] = KindConfig{
-			KindVersion:            v.KindVersion,
-			NodeImageVersion:       v.NodeImageVersion,
-			UseNewContainerdConfig: kindUsesNewContainerdConfig(v.KindVersion),
-		}
+	for k, v := range kubeToKindVersion {
+		v.UseNewContainerdConfig = kindUsesNewContainerdConfig(v.KindVersion)
+		kubeToKindVersion[k] = v
 	}
 }
 
