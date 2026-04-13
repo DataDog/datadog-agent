@@ -16,6 +16,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.etcd.io/bbolt"
+
+	ncmreport "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/report"
 )
 
 var testRawConfig = `
@@ -102,7 +104,7 @@ func TestGetConfig(t *testing.T) {
 
 		assert.Equal(t, configUUID, metadata.ConfigUUID)
 		assert.Equal(t, "device:10.0.0.1", metadata.DeviceID)
-		assert.Equal(t, "running", metadata.ConfigType)
+		assert.Equal(t, ncmreport.RUNNING, metadata.ConfigType)
 		assert.NotZero(t, metadata.CapturedAt)
 		assert.Equal(t, metadata.CapturedAt, metadata.LastAccessedAt)
 		assert.Equal(t, hashConfig(testRawConfig), metadata.RawHash)
@@ -192,7 +194,7 @@ func TestCheckDuplicate(t *testing.T) {
 		name           string
 		existing       []ConfigMetadata // seed these into the metadata bucket
 		deviceID       string
-		configType     string
+		configType     ncmreport.ConfigType
 		rawHash        string
 		wantConfigUUID string // empty means no match expected
 	}{

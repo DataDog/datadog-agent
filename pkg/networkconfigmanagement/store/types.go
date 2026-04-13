@@ -7,7 +7,11 @@
 
 package store
 
-import "context"
+import (
+	"context"
+
+	ncmreport "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/report"
+)
 
 // BlockType represents enums for configuration blocks (currently focused on separating text from sensitive data)
 type BlockType string
@@ -29,14 +33,14 @@ type ConfigBlock struct {
 
 // ConfigMetadata holds the metadata for configs - used to help validate rollbacks and its underlying functions
 type ConfigMetadata struct {
-	ConfigUUID     string `json:"config_uuid"`
-	DeviceID       string `json:"device_id"`        // NDM device ID (e.g. namespace:ip_address)
-	ConfigType     string `json:"config_type"`      // "running", "startup" (from payload pkg's ConfigType)
-	CapturedAt     int64  `json:"captured_at"`      // unix timestamp when the config was stored in bbolt
-	LastAccessedAt int64  `json:"last_accessed_at"` // updated on read, to be used for LRU evictions later
-	RawHash        string `json:"raw_hash"`         // hex of the unredacted config
-	IsPinned       bool   `json:"is_pinned"`        // determines if a config is up for eviction
-	AgentVersion   string `json:"agent_version"`    // TODO: should it be useful to include as part of the payload?
+	ConfigUUID     string               `json:"config_uuid"`
+	DeviceID       string               `json:"device_id"`        // NDM device ID (e.g. namespace:ip_address)
+	ConfigType     ncmreport.ConfigType `json:"config_type"`      // "running", "startup" (from payload pkg's ConfigType)
+	CapturedAt     int64                `json:"captured_at"`      // unix timestamp when the config was stored in bbolt
+	LastAccessedAt int64                `json:"last_accessed_at"` // updated on read, to be used for LRU evictions later
+	RawHash        string               `json:"raw_hash"`         // hex of the unredacted config
+	IsPinned       bool                 `json:"is_pinned"`        // determines if a config is up for eviction
+	AgentVersion   string               `json:"agent_version"`    // TODO: should it be useful to include as part of the payload?
 }
 
 // RawConfig is a temporary backup method until blocks logic is stable
@@ -49,6 +53,6 @@ type RawConfig struct {
 // to intake to enable "rollbacks" without sending sensitive data (in configs) back and forth
 type ConfigStore interface {
 	Close(context.Context) error
-	StoreConfig(deviceID, configType string, rawConfig string, blocks []ConfigBlock, secrets map[string]string) (string, error)
+	StoreConfig(deviceID string, configType ncmreport.ConfigType, rawConfig string, blocks []ConfigBlock, secrets map[string]string) (string, error)
 	GetConfig(configUUID string) (string, []ConfigBlock, *ConfigMetadata, map[string]string, error)
 }

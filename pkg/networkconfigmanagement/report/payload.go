@@ -39,13 +39,13 @@ type NCMPayload struct {
 
 // NetworkDeviceConfig contains network device configuration for a single device
 type NetworkDeviceConfig struct {
-	DeviceID     string   `json:"device_id"`
-	DeviceIP     string   `json:"device_ip"`
-	ConfigType   string   `json:"config_type"`
-	ConfigSource string   `json:"config_source"`
-	Timestamp    int64    `json:"timestamp"`
-	Tags         []string `json:"tags"`
-	Content      string   `json:"content"`
+	DeviceID     string     `json:"device_id"`
+	DeviceIP     string     `json:"device_ip"`
+	ConfigType   ConfigType `json:"config_type"`
+	ConfigSource string     `json:"config_source"`
+	Timestamp    int64      `json:"timestamp"`
+	Tags         []string   `json:"tags"`
+	Content      string     `json:"content"`
 }
 
 // ToNCMPayload converts the given parameters into a NCMPayload (sent to event platform / backend).
@@ -74,7 +74,7 @@ func ToNetworkDeviceConfig(deviceID, deviceIP string, configType ConfigType, ext
 	return NetworkDeviceConfig{
 		DeviceID:     deviceID,
 		DeviceIP:     deviceIP,
-		ConfigType:   string(configType),
+		ConfigType:   configType,
 		ConfigSource: string(CLI),
 		Timestamp:    ts,
 		Tags:         tags,
