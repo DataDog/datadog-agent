@@ -355,6 +355,10 @@ func (s *packageAgentSuite) TestInstallWithNSSUser() {
 	// user/group exist in NSS (Name Service Switch) but not in /etc/passwd or /etc/group.
 	// This simulates scenarios where users are managed via LDAP, Active Directory, or other
 	// NSS-compatible systems.
+	// libnss-extrausers is only available on Debian-family distros. It should be pre-baked in the Docker-based AMIs.
+	if s.os.Flavor != e2eos.Ubuntu && s.os.Flavor != e2eos.Debian {
+		s.T().Skip("libnss-extrausers is only available on Ubuntu and Debian")
+	}
 
 	// Step 1: Clean up any existing dd-agent user/group
 	s.host.Run("sudo userdel dd-agent 2>/dev/null || true")
@@ -367,15 +371,6 @@ func (s *packageAgentSuite) TestInstallWithNSSUser() {
 	// Step 2: Set up NSS extrausers
 	// We use libnss-extrausers which reads from /var/lib/extrausers
 	// This works through nsswitch.conf without needing environment variables
-
-	// Install libnss-extrausers (pre-baked on apt-based and zypper-based Docker AMIs)
-	if s.host.GetPkgManager() == "yum" {
-		_, err := s.Env().RemoteHost.Execute("sudo yum install -y libnss-extrausers")
-		if err != nil {
-			s.T().Skip("libnss-extrausers not available on this system")
-			return
-		}
-	}
 
 	// Create the extrausers directory structure
 	s.host.Run("sudo mkdir -p /var/lib/extrausers")
