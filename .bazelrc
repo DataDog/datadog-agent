@@ -51,6 +51,10 @@ common:macos --strategy=sandboxed
 # Windows config -------------------------------------------------------------------------------------------------------
 common:windows --credential_helper=*.us1.ddbuild.io=%workspace%/bazel/tools/credential-helper.bat
 common:windows --strategy=standalone # Valid values are: [dynamic_worker, standalone, dynamic, remote, worker, local]
+# The Windows CI uses MinGW (GNU ld) as its C++ toolchain. rules_rust defaults
+# to MSVC-style stdlib link flags (advapi32.lib, ws2_32.lib, ...) which GNU ld
+# cannot resolve. Override them with GNU-style -l flags.
+common:windows --repo_env=BAZEL_RUST_STDLIB_LINKFLAGS=-ladvapi32:-lws2_32:-luserenv:-lbcrypt
 # rules_python 1.9.0 transitions enable_runfiles to `true` for every py_ target on Windows. Pre-setting it here makes
 # that transition a no-op, so Bazel deduplicates python_win and avoids 2 concurrent MSBuild racing on shared resources.
 common:windows --enable_runfiles
