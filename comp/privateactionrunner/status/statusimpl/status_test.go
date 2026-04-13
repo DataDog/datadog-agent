@@ -38,7 +38,7 @@ func TestStatusEnabled(t *testing.T) {
 		assert.Equal(t, true, parStats["DefaultActionsEnabled"])
 		assert.Equal(t, "urn:datadog:action-runner:abcdef123456", parStats["URN"])
 		assert.Contains(t, parStats["ActionsAllowlist"], "com.datadoghq.http.request")
-		assert.Contains(t, parStats["ActionsAllowlist"], "com.datadoghq.remoteaction.rshell.runCommand")
+		assert.Contains(t, parStats["ActionsAllowlist"], "com.datadoghq.kubernetes.core.getPod")
 	})
 
 	t.Run("Text", func(t *testing.T) {
@@ -50,7 +50,7 @@ func TestStatusEnabled(t *testing.T) {
 		assert.Contains(t, output, "Enabled")
 		assert.Contains(t, output, "123456")
 		assert.Contains(t, output, "Default Actions Enabled: true")
-		assert.Contains(t, output, "com.datadoghq.remoteaction.rshell.runCommand")
+		assert.Contains(t, output, "com.datadoghq.kubernetes.core.getPod")
 	})
 
 	t.Run("HTML", func(t *testing.T) {
@@ -62,7 +62,7 @@ func TestStatusEnabled(t *testing.T) {
 		assert.Contains(t, output, "Enabled")
 		assert.Contains(t, output, "123456")
 		assert.Contains(t, output, "Default Actions Enabled: true")
-		assert.Contains(t, output, "com.datadoghq.remoteaction.rshell.runCommand")
+		assert.Contains(t, output, "com.datadoghq.kubernetes.core.getPod")
 	})
 }
 
