@@ -9,6 +9,7 @@ package api
 
 import (
 	"crypto/tls"
+	"errors"
 	stdLog "log"
 	"net"
 	"net/http"
@@ -86,7 +87,9 @@ func (lf *LeaderForwarder) Forward(rw http.ResponseWriter, req *http.Request) {
 	rw.Header().Set(respForwarded, "true")
 
 	if req.Header.Get(forwardHeader) != "" {
-		http.Error(rw, "Query was already forwarded from: "+req.RemoteAddr, http.StatusLoopDetected)
+		err := errors.New("query was already forwarded from: " + req.RemoteAddr)
+		SetSpanError(rw, err)
+		http.Error(rw, err.Error(), http.StatusLoopDetected)
 		return
 	}
 
@@ -96,7 +99,9 @@ func (lf *LeaderForwarder) Forward(rw http.ResponseWriter, req *http.Request) {
 	lf.proxyLock.RUnlock()
 
 	if currentProxy == nil {
-		http.Error(rw, "", http.StatusServiceUnavailable)
+		err := errors.New("leader proxy is not available")
+		SetSpanError(rw, err)
+		http.Error(rw, err.Error(), http.StatusServiceUnavailable)
 		return
 	}
 
@@ -121,6 +126,11 @@ func (lf *LeaderForwarder) SetLeaderIP(leaderIP string) {
 		},
 		Transport: lf.transport,
 		ErrorLog:  lf.logger,
+		ErrorHandler: func(rw http.ResponseWriter, _ *http.Request, err error) {
+			lf.logger.Printf("error forwarding request to leader: %v", err)
+			SetSpanError(rw, err)
+			http.Error(rw, "forwarding to leader failed", http.StatusBadGateway)
+		},
 	}
 }
 
