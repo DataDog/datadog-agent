@@ -151,7 +151,7 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 				return h.Get, nil
 			}),
 			telemetryimpl.Module(),
-			remotehostnameimpl.Module(),
+			remotehostnameimpl.Module(remotehostnameimpl.NewParams()),
 			collectorcontribFx.Module(),
 			collectorfx.ModuleNoAgent(),
 			fx.Options(opts...),
@@ -308,7 +308,7 @@ func connectedAgentFxOptions(params *cliParams) fx.Option {
 		// Noop secrets; core agent resolves ENC[] handles
 		secretsnoopfx.Module(),
 		// Ask core agent for hostname first, fall back to local resolution
-		remotehostnameimpl.Module(),
+		remotehostnameimpl.Module(remotehostnameimpl.NewParams()),
 		// Sync config from core agent on init and periodically
 		configsyncimpl.Module(configsyncimpl.NewParams(params.SyncTimeout, true, params.SyncOnInitTimeout)),
 		// Remote tagger proxying tag lookups to core agent

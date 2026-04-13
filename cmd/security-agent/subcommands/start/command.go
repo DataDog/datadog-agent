@@ -103,7 +103,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					LogParams:            log.ForDaemon(command.LoggerName, "security_agent.log_file", pkgconfigsetup.DefaultSecurityAgentLogFile),
 				}),
 				core.Bundle(core.WithSecrets()),
-				remotehostnameimpl.Module(),
+				remotehostnameimpl.Module(remotehostnameimpl.NewParams()),
 				statsdFx.Module(),
 				// workloadmeta setup
 				wmcatalog.GetCatalog(),
