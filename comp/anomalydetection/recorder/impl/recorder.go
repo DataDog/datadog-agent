@@ -171,6 +171,7 @@ func (r *recorderImpl) ReadAllMetrics(inputDir string) ([]recorderdef.MetricData
 			Value:     value,
 			Timestamp: timestamp,
 			Tags:      tags,
+			Dropped:   metric.Dropped,
 		})
 	}
 
@@ -239,6 +240,12 @@ func (r *recorderImpl) ReadAllLogs(inputDir string) ([]recorderdef.LogData, erro
 	return logs, nil
 }
 
+// dropReporter is an optional interface that handles can implement to report
+// whether the last observation was dropped by the live channel.
+type dropReporter interface {
+	LastDropped() bool
+}
+
 // recordingHandle wraps an observer handle to record observations.
 type recordingHandle struct {
 	inner    observer.Handle
@@ -246,10 +253,24 @@ type recordingHandle struct {
 	name     string
 }
 
+// innerDropped returns true if the inner handle dropped the last observation.
+// Returns false if the inner handle doesn't implement dropReporter (e.g., in tests).
+func (h *recordingHandle) innerDropped() bool {
+	if dr, ok := h.inner.(dropReporter); ok {
+		return dr.LastDropped()
+	}
+	return false
+}
+
 // ObserveMetric forwards the metric to the inner handle and records it.
+// The dropped flag is read from the inner handle's lastDropped field to
+// mark observations that the live channel rejected.
 func (h *recordingHandle) ObserveMetric(sample observer.MetricView) {
-	// Forward to inner handle first
+	// Forward to inner handle first (sets lastDropped)
 	h.inner.ObserveMetric(sample)
+
+	// Check if the inner handle dropped this observation.
+	dropped := h.innerDropped()
 
 	// Record to parquet if writer is available
 	timestamp := sample.GetTimestampUnix()
@@ -262,6 +283,7 @@ func (h *recordingHandle) ObserveMetric(sample observer.MetricView) {
 		sample.GetValue(),
 		sample.GetRawTags(),
 		timestamp,
+		dropped,
 	)
 }
 

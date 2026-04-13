@@ -28,6 +28,7 @@ type FGMMetric struct {
 	ValueInt   *uint64
 	ValueFloat *float64
 	Tags       map[string]string
+	Dropped    bool // true if the live observer's channel dropped this observation
 }
 
 // parquetMetricReader reads FGM parquet files and provides metrics in chronological order.
@@ -208,6 +209,7 @@ func extractMetricsFromRecord(record arrow.Record) ([]FGMMetric, error) {
 	metricNameIdx := findColumnIndexInSchema(schema, "metricname")
 	valueFloatIdx := findColumnIndexInSchema(schema, "valuefloat")
 	tagsIdx := findColumnIndexInSchema(schema, "tags")
+	droppedIdx := findColumnIndexInSchema(schema, "dropped")
 
 	// Helper to read int64 values from either Int64 or Timestamp columns
 	readTimeValue := func(col arrow.Array, i int) int64 {
@@ -229,6 +231,7 @@ func extractMetricsFromRecord(record arrow.Record) ([]FGMMetric, error) {
 	var metricNameCol *array.String
 	var valueFloatCol *array.Float64
 	var tagsCol *array.List
+	var droppedCol *array.Boolean
 	var timeColRaw arrow.Array
 
 	if runIDIdx >= 0 {
@@ -252,6 +255,11 @@ func extractMetricsFromRecord(record arrow.Record) ([]FGMMetric, error) {
 	if tagsIdx >= 0 {
 		if c, ok := record.Column(tagsIdx).(*array.List); ok {
 			tagsCol = c
+		}
+	}
+	if droppedIdx >= 0 {
+		if c, ok := record.Column(droppedIdx).(*array.Boolean); ok {
+			droppedCol = c
 		}
 	}
 
@@ -320,12 +328,18 @@ func extractMetricsFromRecord(record arrow.Record) ([]FGMMetric, error) {
 			}
 		}
 
+		var dropped bool
+		if droppedCol != nil && !droppedCol.IsNull(i) {
+			dropped = droppedCol.Value(i)
+		}
+
 		metrics[i] = FGMMetric{
 			RunID:      runID,
 			Time:       timestamp,
 			MetricName: metricName,
 			ValueFloat: valueFloat,
 			Tags:       tags,
+			Dropped:    dropped,
 		}
 	}
 

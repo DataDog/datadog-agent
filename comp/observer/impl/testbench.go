@@ -480,7 +480,8 @@ func (tb *TestBench) loadParquetDir(dir string) error {
 	byTimestampCounter := make(map[int64]int64)
 	byTimestampCardinality := make(map[int64]int64)
 
-	// Batch add all metrics to storage
+	// Batch add all metrics to storage, skipping dropped observations.
+	var droppedCount int
 	for _, m := range metrics {
 		metricName := m.Name
 
@@ -489,11 +490,20 @@ func (tb *TestBench) loadParquetDir(dir string) error {
 			continue
 		}
 
+		// Skip observations that were dropped by the live observer's channel.
+		if m.Dropped {
+			droppedCount++
+			continue
+		}
+
 		byTimestampCounter[m.Timestamp]++
 
 		if storage.Add("parquet", metricName, m.Value, m.Timestamp, m.Tags) {
 			byTimestampCardinality[m.Timestamp]++
 		}
+	}
+	if droppedCount > 0 {
+		fmt.Printf("  Skipped %d dropped observations from parquet\n", droppedCount)
 	}
 
 	// Telemetry for the number of metrics by timestamp
@@ -524,28 +534,15 @@ func (tb *TestBench) loadParquetDir(dir string) error {
 		tb.handleTelemetry([]observerdef.ObserverTelemetry{newTelemetryCounter([]string{}, telemetryTbInputMetricsCardinality, float64(entry.Count), entry.Timestamp)}, "parquet", entry.Timestamp)
 	}
 
-	// Load trace stats and derive trace.* metrics via processStatsView
+	// Skip trace stats loading — trace stats are deprioritized and the ~21s structural
+	// delay from the trace-agent concentrator is the dominant source of live/testbench
+	// divergence. Excluding them produces parity-accurate replay for non-trace metrics.
+	// Data is still recorded in parquet for future analysis if needed.
 	traceStats, err := tb.config.Recorder.ReadAllTraceStats(dir)
 	if err != nil {
-		return fmt.Errorf("reading parquet trace stats: %w", err)
-	}
-
-	if len(traceStats) > 0 {
-		fmt.Printf("  Loading %d trace stat rows from parquet files\n", len(traceStats))
-
-		sh := &storageHandle{namespace: "parquet", storage: storage}
-
-		// Group by (AgentHostname, AgentEnv) so each view carries the correct agent context
-		type agentKey struct{ hostname, env string }
-		groups := make(map[agentKey][]recorderdef.TraceStatsData)
-		for _, s := range traceStats {
-			key := agentKey{s.AgentHostname, s.AgentEnv}
-			groups[key] = append(groups[key], s)
-		}
-		for key, rows := range groups {
-			view := &parquetTraceStatsView{agentHostname: key.hostname, agentEnv: key.env, rows: rows}
-			processStatsView(sh, view)
-		}
+		fmt.Printf("  Warning: could not read trace stats: %v\n", err)
+	} else if len(traceStats) > 0 {
+		fmt.Printf("  Skipping %d trace stat rows (trace stats deprioritized)\n", len(traceStats))
 	}
 
 	// Load logs from parquet files
@@ -560,77 +557,6 @@ func (tb *TestBench) loadParquetDir(dir string) error {
 
 	return nil
 }
-
-// storageHandle implements observerdef.Handle backed by timeSeriesStorage.
-// Only ObserveMetric is meaningful; other methods are no-ops.
-type storageHandle struct {
-	namespace string
-	storage   *timeSeriesStorage
-}
-
-func (h *storageHandle) ObserveMetric(sample observerdef.MetricView) {
-	h.storage.Add(h.namespace, sample.GetName(), sample.GetValue(), sample.GetTimestampUnix(), sample.GetRawTags())
-}
-func (h *storageHandle) ObserveLog(_ observerdef.LogView)               {}
-func (h *storageHandle) ObserveTrace(_ observerdef.TraceView)           {}
-func (h *storageHandle) ObserveTraceStats(_ observerdef.TraceStatsView) {}
-func (h *storageHandle) ObserveProfile(_ observerdef.ProfileView)       {}
-
-// parquetTraceStatsView adapts a slice of TraceStatsData (sharing the same AgentHostname/AgentEnv)
-// to the TraceStatsView interface for use with processStatsView.
-type parquetTraceStatsView struct {
-	agentHostname string
-	agentEnv      string
-	rows          []recorderdef.TraceStatsData
-}
-
-func (v *parquetTraceStatsView) GetAgentHostname() string { return v.agentHostname }
-func (v *parquetTraceStatsView) GetAgentEnv() string      { return v.agentEnv }
-func (v *parquetTraceStatsView) GetRows() observerdef.TraceStatsRowIterator {
-	return &parquetTraceStatsIterator{rows: v.rows, idx: -1}
-}
-
-type parquetTraceStatsIterator struct {
-	rows []recorderdef.TraceStatsData
-	idx  int
-}
-
-func (it *parquetTraceStatsIterator) Next() bool {
-	it.idx++
-	return it.idx < len(it.rows)
-}
-
-func (it *parquetTraceStatsIterator) Row() observerdef.TraceStatRow {
-	return &parquetTraceStatRow{data: it.rows[it.idx]}
-}
-
-type parquetTraceStatRow struct {
-	data recorderdef.TraceStatsData
-}
-
-func (r *parquetTraceStatRow) GetClientHostname() string    { return r.data.ClientHostname }
-func (r *parquetTraceStatRow) GetClientEnv() string         { return r.data.ClientEnv }
-func (r *parquetTraceStatRow) GetClientVersion() string     { return r.data.ClientVersion }
-func (r *parquetTraceStatRow) GetClientContainerID() string { return r.data.ClientContainerID }
-func (r *parquetTraceStatRow) GetBucketStartUnixNano() uint64 {
-	return r.data.BucketStart
-}
-func (r *parquetTraceStatRow) GetBucketDurationNano() uint64 { return r.data.BucketDuration }
-func (r *parquetTraceStatRow) GetService() string            { return r.data.Service }
-func (r *parquetTraceStatRow) GetName() string               { return r.data.Name }
-func (r *parquetTraceStatRow) GetResource() string           { return r.data.Resource }
-func (r *parquetTraceStatRow) GetType() string               { return r.data.Type }
-func (r *parquetTraceStatRow) GetHTTPStatusCode() uint32     { return r.data.HTTPStatusCode }
-func (r *parquetTraceStatRow) GetSpanKind() string           { return r.data.SpanKind }
-func (r *parquetTraceStatRow) GetIsTraceRoot() int32         { return r.data.IsTraceRoot }
-func (r *parquetTraceStatRow) GetSynthetics() bool           { return r.data.Synthetics }
-func (r *parquetTraceStatRow) GetHits() uint64               { return r.data.Hits }
-func (r *parquetTraceStatRow) GetErrors() uint64             { return r.data.Errors }
-func (r *parquetTraceStatRow) GetTopLevelHits() uint64       { return r.data.TopLevelHits }
-func (r *parquetTraceStatRow) GetDurationNano() uint64       { return r.data.Duration }
-func (r *parquetTraceStatRow) GetOkSummary() []byte          { return r.data.OkSummary }
-func (r *parquetTraceStatRow) GetErrorSummary() []byte       { return r.data.ErrorSummary }
-func (r *parquetTraceStatRow) GetPeerTags() []string         { return r.data.PeerTags }
 
 // resetAllState resets all registered components that support Reset().
 func (tb *TestBench) resetAllState() {

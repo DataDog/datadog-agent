@@ -814,6 +814,18 @@ type handle struct {
 	source      string
 	dropCount   atomic.Int64      // per-handle drop counter, collected by engine at advance time
 	dropCounter telemetry.Counter // tagged by source for Prometheus visibility; may be nil
+	lastDropped atomic.Bool       // set after each ObserveMetric: true if dropped, false if accepted
+}
+
+// LastDropped returns whether the last ObserveMetric call was dropped by the channel.
+// Used by the recording handle to mark dropped observations in parquet.
+//
+// Note: this is best-effort. If multiple goroutines call ObserveMetric on the same
+// handle concurrently, the flag may not correspond to the caller's observation.
+// In practice each data source has its own handle, so concurrent calls on the
+// same handle are not expected.
+func (h *handle) LastDropped() bool {
+	return h.lastDropped.Load()
 }
 
 // ObserveMetric observes a DogStatsD metric sample.
@@ -843,7 +855,9 @@ func (h *handle) ObserveMetric(sample observerdef.MetricView) {
 	// Non-blocking send - drop if channel is full.
 	select {
 	case h.ch <- obs:
+		h.lastDropped.Store(false)
 	default:
+		h.lastDropped.Store(true)
 		h.dropCount.Add(1)
 		if h.dropCounter != nil {
 			h.dropCounter.Add(1, h.source)
