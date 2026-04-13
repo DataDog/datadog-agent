@@ -743,7 +743,7 @@ probes:
     methodName: main.condLine
     sourceFile: main.go
     lines:
-      - "389"
+      - "396"
   when:
     dsl: "n == 7"
     json: {eq: [{ref: "n"}, 7]}
@@ -768,7 +768,7 @@ probes:
     methodName: main.condLine
     sourceFile: main.go
     lines:
-      - "389"
+      - "396"
   sampling:
     snapshotsPerSecond: 10
 
@@ -1644,3 +1644,17 @@ probes:
   captureSnapshot: true
   where:
     methodName: "main.genericIdentity[...]"
+
+# --- Inlined method inside trampoline ---
+# Exercises probing an inlined function whose only concrete instance lives
+# inside a compiler-generated trampoline (-fm wrapper). When a method value
+# is taken (e.g. obj.Method), Go emits a trampoline with DW_AT_trampoline.
+# If the method is small enough to be inlined, the trampoline is the sole
+# container of the inlined subroutine. We must still discover and probe it.
+- id: inlinedMethod
+  type: LOG_PROBE
+  tags:
+    - issue:MalformedExecutable # this is due to a bug
+  captureSnapshot: true
+  where:
+    methodName: "main.(*methodValueReceiver).inlinedMethod"
