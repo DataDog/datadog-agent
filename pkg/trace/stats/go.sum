@@ -59,10 +59,10 @@ github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd/go.mod h1:6dJ
 github.com/modern-go/reflect2 v1.0.2/go.mod h1:yWuevngMOJpCy52FWWMvUC8ws7m/LJsjYzDa0/r8luk=
 github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee h1:W5t00kpgFdJifH4BDsTlE89Zl93FEloxaWZfGcifgq8=
 github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee/go.mod h1:yWuevngMOJpCy52FWWMvUC8ws7m/LJsjYzDa0/r8luk=
-github.com/open-telemetry/opentelemetry-collector-contrib/pkg/sampling v0.147.0 h1:giBpdFTrjPFKwqSmLljq1E47JKwY9/73Ll/3EZVZihQ=
-github.com/open-telemetry/opentelemetry-collector-contrib/pkg/sampling v0.147.0/go.mod h1:Lbs/2bXiy9UVh3M3H2mNXk396ffeMYj4jewYY2NE4BA=
-github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor v0.147.0 h1:c7rbFBMmlUdOlOycADQUkxLIV/O16jYO5A4QWb0BviA=
-github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor v0.147.0/go.mod h1:cZIivH3UzVVSUvx56MlxfSDDJQtYDRpUKDiBQjoPfwM=
+github.com/open-telemetry/opentelemetry-collector-contrib/pkg/sampling v0.149.0 h1:xcb/4/F+N409xFiibytUEjd+d97NXKdvsXJTIz4/ARo=
+github.com/open-telemetry/opentelemetry-collector-contrib/pkg/sampling v0.149.0/go.mod h1:77AZ11G8aPc83Zxw9yhIvDoRVhoeI7dsuE3bJGEZyeo=
+github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor v0.149.0 h1:W09jbCUPjS+DG49JDF9KE4+RK0og9+9+1k3x1DeE8QY=
+github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor v0.149.0/go.mod h1:x6G8ZT8jGgdEQJIYsGz6mRxcYmvT4i45NXppOn9bYgY=
 github.com/outcaste-io/ristretto v0.2.3 h1:AK4zt/fJ76kjlYObOeNwh4T3asEuaCmp26pOvUOL9w0=
 github.com/outcaste-io/ristretto v0.2.3/go.mod h1:W8HywhmtlopSB1jeMg3JtdIhf+DYkLAr0VN/s4+MHac=
 github.com/philhofer/fwd v1.2.0 h1:e6DnBTl7vGY+Gz322/ASL4Gyp1FspeMvx1RNDoToZuM=

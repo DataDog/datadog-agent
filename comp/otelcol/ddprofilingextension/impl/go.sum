@@ -263,10 +263,10 @@ github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatatest v0.149.0
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatatest v0.149.0/go.mod h1:sycQ9JOpSQY+iTiDOVcQL84TgYUIj7fF3z5Yc6nOwnc=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.149.0 h1:OZKthV+cLQO5MCFhBQme3AveZ5vorqaFwb0Qn8jvSQQ=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.149.0/go.mod h1:eB74l+/1nW5tofwCjD5TKRqHFYnBSWo0j0xWD8BHYuE=
-github.com/open-telemetry/opentelemetry-collector-contrib/pkg/sampling v0.147.0 h1:giBpdFTrjPFKwqSmLljq1E47JKwY9/73Ll/3EZVZihQ=
-github.com/open-telemetry/opentelemetry-collector-contrib/pkg/sampling v0.147.0/go.mod h1:Lbs/2bXiy9UVh3M3H2mNXk396ffeMYj4jewYY2NE4BA=
-github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor v0.147.0 h1:c7rbFBMmlUdOlOycADQUkxLIV/O16jYO5A4QWb0BviA=
-github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor v0.147.0/go.mod h1:cZIivH3UzVVSUvx56MlxfSDDJQtYDRpUKDiBQjoPfwM=
+github.com/open-telemetry/opentelemetry-collector-contrib/pkg/sampling v0.149.0 h1:xcb/4/F+N409xFiibytUEjd+d97NXKdvsXJTIz4/ARo=
+github.com/open-telemetry/opentelemetry-collector-contrib/pkg/sampling v0.149.0/go.mod h1:77AZ11G8aPc83Zxw9yhIvDoRVhoeI7dsuE3bJGEZyeo=
+github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor v0.149.0 h1:W09jbCUPjS+DG49JDF9KE4+RK0og9+9+1k3x1DeE8QY=
+github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor v0.149.0/go.mod h1:x6G8ZT8jGgdEQJIYsGz6mRxcYmvT4i45NXppOn9bYgY=
 github.com/openshift/api v3.9.0+incompatible h1:fJ/KsefYuZAjmrr3+5U9yZIZbTOpVkDDLDLFresAeYs=
 github.com/openshift/api v3.9.0+incompatible/go.mod h1:dh9o4Fs58gpFXGSYfnVxGR9PnV53I8TW84pQaJDdGiY=
 github.com/openshift/client-go v0.0.0-20251015124057-db0dee36e235 h1:9JBeIXmnHlpXTQPi7LPmu1jdxznBhAE7bb1K+3D8gxY=

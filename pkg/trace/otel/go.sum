@@ -156,10 +156,10 @@ github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 h1:RWengNIwukTxcDr9
 github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826/go.mod h1:TaXosZuwdSHYgviHp1DAtfrULt5eUgsSMsZf+YrPgl8=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 h1:C3w9PqII01/Oq1c1nUAm88MOHcQC9l5mIlSMApZMrHA=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822/go.mod h1:+n7T8mK8HuQTcFwEeznm/DIxMOiR9yIdICNftLE1DvQ=
-github.com/open-telemetry/opentelemetry-collector-contrib/pkg/sampling v0.147.0 h1:giBpdFTrjPFKwqSmLljq1E47JKwY9/73Ll/3EZVZihQ=
-github.com/open-telemetry/opentelemetry-collector-contrib/pkg/sampling v0.147.0/go.mod h1:Lbs/2bXiy9UVh3M3H2mNXk396ffeMYj4jewYY2NE4BA=
-github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor v0.147.0 h1:c7rbFBMmlUdOlOycADQUkxLIV/O16jYO5A4QWb0BviA=
-github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor v0.147.0/go.mod h1:cZIivH3UzVVSUvx56MlxfSDDJQtYDRpUKDiBQjoPfwM=
+github.com/open-telemetry/opentelemetry-collector-contrib/pkg/sampling v0.149.0 h1:xcb/4/F+N409xFiibytUEjd+d97NXKdvsXJTIz4/ARo=
+github.com/open-telemetry/opentelemetry-collector-contrib/pkg/sampling v0.149.0/go.mod h1:77AZ11G8aPc83Zxw9yhIvDoRVhoeI7dsuE3bJGEZyeo=
+github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor v0.149.0 h1:W09jbCUPjS+DG49JDF9KE4+RK0og9+9+1k3x1DeE8QY=
+github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor v0.149.0/go.mod h1:x6G8ZT8jGgdEQJIYsGz6mRxcYmvT4i45NXppOn9bYgY=
 github.com/opentracing/opentracing-go v1.1.0/go.mod h1:UkNAQd3GIcIGf0SeVgPpRdFStlNbqXla1AfSYxPUl2o=
 github.com/outcaste-io/ristretto v0.2.3 h1:AK4zt/fJ76kjlYObOeNwh4T3asEuaCmp26pOvUOL9w0=
 github.com/outcaste-io/ristretto v0.2.3/go.mod h1:W8HywhmtlopSB1jeMg3JtdIhf+DYkLAr0VN/s4+MHac=
