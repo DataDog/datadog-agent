@@ -92,6 +92,10 @@ type TestBenchConfig struct {
 	// ComponentSettings provides per-component configuration and enabled
 	// state. Components not mentioned use their catalog defaults.
 	ComponentSettings ComponentSettings
+
+	// SkipDroppedMetrics filters out metrics marked as dropped by the live
+	// observer's channel during parquet load. Off by default.
+	SkipDroppedMetrics bool
 }
 
 // TestBench is the main controller for the observer test bench.
@@ -121,6 +125,7 @@ type TestBench struct {
 	compCorrThreshold  float64
 	compCorrGeneration uint64
 	corrGeneration     uint64 // bumped after each rerunDetectorsLocked
+	liveAdvanceTimes   []int64 // when set, replay uses live advance schedule
 
 	// SSE broadcast hub for pushing events to connected browsers.
 	sse     *sseHub
@@ -329,6 +334,7 @@ func (tb *TestBench) LoadScenario(name string) error {
 	tb.rawLogs = nil
 	tb.logAnomalies = []observerdef.Anomaly{}
 	tb.logAnomaliesByDetector = make(map[string][]observerdef.Anomaly)
+	tb.liveAdvanceTimes = nil
 	tb.ready = false
 	tb.loadedScenario = name
 	tb.engine.replayPhase.Store("loading")
@@ -428,6 +434,7 @@ func (tb *TestBench) LoadScenario(name string) error {
 		} else {
 			advComp = comp
 			tb.engine.onAdvance = advComp.compare
+			tb.liveAdvanceTimes = comp.liveAdvanceTimes()
 			fmt.Printf("[testbench] Advance log comparison enabled (%d live advances loaded)\n", len(comp.liveAdvances))
 		}
 	}
@@ -491,7 +498,7 @@ func (tb *TestBench) loadParquetDir(dir string) error {
 		}
 
 		// Skip observations that were dropped by the live observer's channel.
-		if m.Dropped {
+		if tb.config.SkipDroppedMetrics && m.Dropped {
 			droppedCount++
 			continue
 		}
@@ -532,15 +539,6 @@ func (tb *TestBench) loadParquetDir(dir string) error {
 	})
 	for _, entry := range byCardOrdered {
 		tb.handleTelemetry([]observerdef.ObserverTelemetry{newTelemetryCounter([]string{}, telemetryTbInputMetricsCardinality, float64(entry.Count), entry.Timestamp)}, "parquet", entry.Timestamp)
-	}
-
-	// Skip trace stats loading — trace stats are deprioritized 
-	// Data is still recorded in parquet for future analysis if needed.
-	traceStats, err := tb.config.Recorder.ReadAllTraceStats(dir)
-	if err != nil {
-		fmt.Printf("  Warning: could not read trace stats: %v\n", err)
-	} else if len(traceStats) > 0 {
-		fmt.Printf("  Skipping %d trace stat rows (trace stats deprioritized)\n", len(traceStats))
 	}
 
 	// Load logs from parquet files
@@ -664,9 +662,17 @@ func (tb *TestBench) rerunDetectorsLocked() {
 	}
 
 	// Replay all stored data through the scheduler policy.
-	// The engine's captureRawAnomaly deduplicates anomalies internally,
-	// so stateView.Anomalies() returns a clean deduplicated set.
-	result := tb.engine.ReplayStoredData()
+	// When liveAdvanceTimes is available (from advances.jsonl), replay at the
+	// exact timestamps the live observer advanced. This matches live's advance
+	// cadence so detectors see the same data windows. Without it, replay
+	// advances at every stored data timestamp (much more frequently than live).
+	var result advanceResult
+	if tb.liveAdvanceTimes != nil {
+		fmt.Printf("  Using live-scheduled replay (%d advance times)\n", len(tb.liveAdvanceTimes))
+		result = tb.engine.ReplayWithLiveSchedule(tb.liveAdvanceTimes)
+	} else {
+		result = tb.engine.ReplayStoredData()
+	}
 	unsub()
 
 	allTelemetry = append(allTelemetry, result.telemetry...)

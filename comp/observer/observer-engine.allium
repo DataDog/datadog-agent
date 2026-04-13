@@ -825,11 +825,9 @@ deferred GroupCompression.compress        -- compresses correlated group members
 open question "Adaptive backoff under drop pressure: when the observation channel is full, samples are silently dropped (tracked by engine.dropped_observations per advance and a Prometheus counter by source). The likely correct solution is adaptive scheduler backoff — when drops per advance exceed a threshold, widen the advance gap (e.g. advance every 2s instead of 1s) to trade detection latency for completeness. This requires: (a) a config threshold for acceptable drop rate, (b) a new scheduler policy variant that widens advance gaps under pressure, (c) a recovery mechanism when drops subside. Blocked on broader design authority — the scheduling contract change affects all consumers."
 
 -- Trace and profile analysis: RESOLVED (out of scope for engine spec).
--- Trace stats are decomposed into metrics at the Handle layer
--- (processStatsView produces trace.{op}.hits/errors/duration/p50-p99)
--- before reaching the engine. The engine only sees the resulting
--- MetricSamples via IngestMetric. Raw trace and profile analysis
--- are unimplemented placeholders — see the Handle layer spec.
+-- Trace stats processing is disabled — ObserveTraceStats is a no-op.
+-- Raw trace and profile analysis are unimplemented placeholders —
+-- see the Handle layer spec.
 
 open question "Sequential advance may be an unintentional structural dependency: the engine's correctness currently depends on single-threaded Advance() calls. Evidence: (1) advanceWithReason snapshots detectors under mu.Lock, then releases before running detectors — concurrent calls would both pass the guard (upToSec > lastAnalyzedDataTime) and produce duplicate anomalies. (2) captureRawAnomaly uses a separate rawAnomalyMu but the dedup index assumes sequential anomaly insertion. (3) emit() delivers events synchronously — a blocking sink stalls the entire pipeline including ingestion. (4) The README states 'component implementations should not depend on or worry about the threading model', implying parallelism was intended as a future possibility. The tension: the README promises threading-model independence for components, but the engine itself structurally requires sequential execution. Is this intentional (the README refers only to component internals) or an accidental constraint that should be fixed to enable parallel detection?"
 

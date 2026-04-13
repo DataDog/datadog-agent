@@ -509,6 +509,55 @@ func TestReplayStoredDataEmitsEventsViaScheduler(t *testing.T) {
 	assert.Equal(t, advanceReasonReplayEnd, advances[4].advanceCompleted.reason)
 }
 
+func TestReplayWithLiveScheduleOnlyAdvancesAtLiveTimestamps(t *testing.T) {
+	storage := newTimeSeriesStorage()
+	// Add data at timestamps 10, 11, 12, 13, 14, 15.
+	for sec := int64(10); sec <= 15; sec++ {
+		storage.Add("ns", "cpu", 1.0, sec, nil)
+	}
+
+	e := newEngine(engineConfig{storage: storage})
+
+	sink := &collectingSink{}
+	e.Subscribe(sink)
+
+	// Live advanced only at timestamps 11 and 14.
+	liveAdvanceTimes := []int64{11, 14}
+	e.ReplayWithLiveSchedule(liveAdvanceTimes)
+
+	advances := sink.eventsOfKind(eventAdvanceCompleted)
+	// Should advance at 11, 14, then onReplayEnd flushes at 15 (latestDataTime).
+	require.Len(t, advances, 3)
+	assert.Equal(t, int64(11), advances[0].advanceCompleted.advancedToSec)
+	assert.Equal(t, advanceReasonInputDriven, advances[0].advanceCompleted.reason)
+	assert.Equal(t, int64(14), advances[1].advanceCompleted.advancedToSec)
+	assert.Equal(t, advanceReasonInputDriven, advances[1].advanceCompleted.reason)
+	assert.Equal(t, int64(15), advances[2].advanceCompleted.advancedToSec)
+	assert.Equal(t, advanceReasonReplayEnd, advances[2].advanceCompleted.reason)
+}
+
+func TestReplayWithLiveScheduleNoMatchingTimestamps(t *testing.T) {
+	storage := newTimeSeriesStorage()
+	for sec := int64(10); sec <= 13; sec++ {
+		storage.Add("ns", "cpu", 1.0, sec, nil)
+	}
+
+	e := newEngine(engineConfig{storage: storage})
+
+	sink := &collectingSink{}
+	e.Subscribe(sink)
+
+	// Live advanced at timestamps that don't exist in storage.
+	liveAdvanceTimes := []int64{99, 100}
+	e.ReplayWithLiveSchedule(liveAdvanceTimes)
+
+	advances := sink.eventsOfKind(eventAdvanceCompleted)
+	// No live timestamps match, but onReplayEnd still flushes at latestDataTime (13).
+	require.Len(t, advances, 1)
+	assert.Equal(t, int64(13), advances[0].advanceCompleted.advancedToSec)
+	assert.Equal(t, advanceReasonReplayEnd, advances[0].advanceCompleted.reason)
+}
+
 func TestEngineResetResetsDetectorsAndCorrelators(t *testing.T) {
 	detector := &resettableDetector{name: "detector"}
 	correlator := &resettableCorrelator{name: "correlator"}

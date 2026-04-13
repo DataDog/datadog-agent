@@ -857,3 +857,57 @@ func (e *engine) ReplayStoredData() advanceResult {
 		telemetry: allTelemetry,
 	}
 }
+
+// ReplayWithLiveSchedule replays stored data but only advances at the timestamps
+// recorded in the live advance log.
+func (e *engine) ReplayWithLiveSchedule(liveAdvanceTimes []int64) advanceResult {
+	var allAnomalies []observerdef.Anomaly
+	var allTelemetry []observerdef.ObserverTelemetry
+
+	timestamps := e.storage.DataTimestamps()
+
+	e.replayPhase.Store("detecting")
+	e.replayTimestampsTotal.Store(int64(len(timestamps)))
+	e.replayTimestampsDone.Store(0)
+	e.replayAdvances.Store(0)
+	e.replayAnomalies.Store(0)
+
+	liveSet := make(map[int64]bool, len(liveAdvanceTimes))
+	for _, t := range liveAdvanceTimes {
+		liveSet[t] = true
+	}
+
+	advances := 0
+	for i, ts := range timestamps {
+		e.trackLatestDataTime(ts)
+
+		if liveSet[ts] {
+			result := e.advanceWithReason(ts, advanceReasonInputDriven)
+			allAnomalies = append(allAnomalies, result.anomalies...)
+			allTelemetry = append(allTelemetry, result.telemetry...)
+			advances++
+		}
+
+		e.replayTimestampsDone.Store(int64(i + 1))
+		e.replayAdvances.Store(int64(advances))
+		e.replayAnomalies.Store(int64(len(allAnomalies)))
+	}
+
+	// Final flush for any remaining data not yet analyzed.
+	endRequests := e.scheduler.onReplayEnd(e.schedulerState())
+	for _, req := range endRequests {
+		result := e.advanceWithReason(req.upToSec, req.reason)
+		allAnomalies = append(allAnomalies, result.anomalies...)
+		allTelemetry = append(allTelemetry, result.telemetry...)
+		advances++
+	}
+
+	e.replayAdvances.Store(int64(advances))
+	e.replayAnomalies.Store(int64(len(allAnomalies)))
+	e.replayPhase.Store("done")
+
+	return advanceResult{
+		anomalies: allAnomalies,
+		telemetry: allTelemetry,
+	}
+}

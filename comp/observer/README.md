@@ -41,7 +41,7 @@ Data enters through lightweight **Handles** that copy and send observations over
 - `ObserveMetric(MetricView)` — a DogStatsD metric sample
 - `ObserveLog(LogView)` — a log message
 - `ObserveTrace(TraceView)` — a trace (collection of spans)
-- `ObserveTraceStats(TraceStatsView)` — aggregated APM stats (decomposed into metrics at the handle layer)
+- `ObserveTraceStats(TraceStatsView)` — no-op (trace stats processing is disabled)
 - `ObserveProfile(ProfileView)` — a profiling sample
 
 Each method copies the data synchronously, then does a **non-blocking send** to a buffered channel (capacity 1000). If the channel is full, the observation is silently dropped. This ensures the observer never blocks data ingestion, even if analysis is slow.
