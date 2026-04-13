@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux
-
 // Package agentprovider generates OpenTelemetry Collector configuration from Datadog Agent configuration.
 package agentprovider
 
@@ -64,6 +62,7 @@ func buildExporters(conf confMap, agent configManager) []any {
 		return confMap{
 			"profiles_endpoint": fmt.Sprintf(profilesEndpointFormat, site),
 			"metrics_endpoint":  fmt.Sprintf(metricsEndpointFormat, site),
+			"compression":       "zstd",
 			"headers":           headers,
 		}
 	}
@@ -169,8 +168,17 @@ func buildConfig(agent configManager, p params.CollectorParams) confMap {
 
 	buildMetricsPipeline(config, p.GetGoRuntimeMetrics(), profilesProcessors, profilesExporters)
 
-	_ = converters.Set(config, "extensions::ddprofiling/default", confMap{})
 	_ = converters.Set(config, "extensions::hpflare/default", confMap{})
+	serviceExtensions := []any{"hpflare/default"}
+	if agent.hostProfilerConfig.DDProfilingEnabled {
+		ddprofilingConfig := make(confMap)
+		if agent.hostProfilerConfig.DDProfilingPeriod > 0 {
+			_ = converters.Set(ddprofilingConfig, "profiler_options::period", agent.hostProfilerConfig.DDProfilingPeriod)
+		}
+		_ = converters.Set(config, "extensions::ddprofiling/default", ddprofilingConfig)
+		serviceExtensions = append(serviceExtensions, "ddprofiling/default")
+	}
+	_ = converters.Set(config, "service::extensions", serviceExtensions)
 
 	log.Debugf("Generated configuration: %+v", config)
 

@@ -84,13 +84,16 @@ impl<R: Read + io::Seek> UnverifiedZipArchive<R> {
     pub fn by_index(
         &mut self,
         index: usize,
-    ) -> Result<UnverifiedZipFile<'_>, zip::result::ZipError> {
+    ) -> Result<UnverifiedZipFile<'_, R>, zip::result::ZipError> {
         Ok(UnverifiedZipFile(self.0.by_index(index)?))
     }
 
     /// Gets a ZIP entry by name, returning an UnverifiedZipFile.
     /// To read the entry contents, call .verify(max_size) on the returned file.
-    pub fn by_name(&mut self, name: &str) -> Result<UnverifiedZipFile<'_>, zip::result::ZipError> {
+    pub fn by_name(
+        &mut self,
+        name: &str,
+    ) -> Result<UnverifiedZipFile<'_, R>, zip::result::ZipError> {
         Ok(UnverifiedZipFile(self.0.by_name(name)?))
     }
 
@@ -113,10 +116,10 @@ impl<R: Read + io::Seek> UnverifiedZipArchive<R> {
 /// This ensures compile-time enforcement of size verification for ZIP entry reads.
 ///
 /// Metadata access (name, size) is allowed without verification.
-pub struct UnverifiedZipFile<'a>(zip::read::ZipFile<'a>);
+pub struct UnverifiedZipFile<'a, R: Read + ?Sized>(zip::read::ZipFile<'a, R>);
 
 #[cfg(feature = "java-archives")]
-impl<'a> UnverifiedZipFile<'a> {
+impl<'a, R: Read + ?Sized> UnverifiedZipFile<'a, R> {
     /// Verifies the ZIP entry and returns a reader that can be used to read the contents.
     pub fn verify(self, max_size: Option<u64>) -> io::Result<impl Read + 'a> {
         let max_size = max_size.unwrap_or(MAX_PARSE_FILE_SIZE);
@@ -243,8 +246,8 @@ fn verified_zip_archive(
 
 #[cfg(feature = "java-archives")]
 /// Returns a reader for a ZIP entry after verifying the size doesn't exceed max_size.
-fn size_verified_zip_reader<'a>(
-    zip_file: zip::read::ZipFile<'a>,
+fn size_verified_zip_reader<'a, R: Read + ?Sized>(
+    zip_file: zip::read::ZipFile<'a, R>,
     max_size: u64,
 ) -> io::Result<impl Read + 'a> {
     let size = zip_file.size();

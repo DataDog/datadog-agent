@@ -131,7 +131,7 @@ SEC("tracepoint/module/module_load")
 int module_load(struct tracepoint_module_module_load_t *args) {
     // check if the tracepoint is hit by a kworker
     u32 pid = bpf_get_current_pid_tgid();
-    u32 *is_kworker = bpf_map_lookup_elem(&pid_ignored, &pid);
+    void *is_kworker = bpf_map_lookup_elem(&pid_ignored, &pid);
     if (!is_kworker) {
         return 0;
     }

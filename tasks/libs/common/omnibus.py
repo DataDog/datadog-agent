@@ -19,6 +19,9 @@ ENV_PASSHTROUGH = {
     'CI': "dda and `bazel` rely on this to be able to tell whether they're running on CI and adapt behavior",
     'DD_CC': 'Points at c compiler',
     'DD_CXX': 'Points at c++ compiler',
+    'GONOSUMDB': 'Go module checksum bypass, set by .adms/go/gitlab.yaml and forwarded to Bazel via --repo_env',
+    'GOPRIVATE': 'Go private module patterns, set by .adms/go/gitlab.yaml and forwarded to Bazel via --repo_env',
+    'GOPROXY': 'Go module proxy, set by .adms/go/gitlab.yaml and forwarded to Bazel via --repo_env',
     'SKIP_PKG_COMPRESSION': 'Skip package XZ compression (set to true for faster local builds)',
     'DDA_NO_DYNAMIC_DEPS': 'Variable affecting dda behavior',
     'E2E_COVERAGE_PIPELINE': 'Used to do a special build of the agent to generate coverage data',
@@ -95,7 +98,13 @@ OS_SPECIFIC_ENV_PASSTHROUGH = {
         'AGENT_DATA_PLANE_HASH_FIPS_LINUX_AMD64': 'Agent Data Plane Hash for FIPS Linux AMD64',
         'AGENT_DATA_PLANE_HASH_FIPS_LINUX_ARM64': 'Agent Data Plane Hash for FIPS Linux ARM64',
     },
-    'darwin': {},
+    'darwin': {
+        'APPLE_ACCOUNT': 'Apple developer account used for notarization',
+        'NOTARIZATION_ATTEMPTS': 'Number of retries for notarization steps',
+        'NOTARIZATION_PWD': 'App-specific password for notarization',
+        'NOTARIZATION_TIMEOUT': 'Timeout for xcrun notarytool wait',
+        'TEAM_ID': 'Apple developer team ID used for notarization',
+    },
 }
 
 
@@ -111,6 +120,9 @@ def _get_environment_for_cache(env: dict[str, str]) -> dict:
         'DEB_SIGNING_PASSPHRASE',
         'GEM_HOME',
         'GEM_PATH',
+        'GONOSUMDB',
+        'GOPRIVATE',
+        'GOPROXY',
         'HOME',
         'JARSIGN_JAR',
         'LD_PRELOAD',

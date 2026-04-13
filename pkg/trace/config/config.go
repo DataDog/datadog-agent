@@ -152,6 +152,13 @@ func obfuscationMode(conf *AgentConfig, sqllexerEnabled bool) obfuscate.Obfuscat
 	return ""
 }
 
+// EffectiveSQLObfuscationMode returns the SQL obfuscation mode the agent
+// actually uses at runtime. When SQLObfuscationMode is not explicitly set,
+// the mode is derived from feature flags (e.g. sqllexer → obfuscate_only).
+func (c *AgentConfig) EffectiveSQLObfuscationMode() obfuscate.ObfuscationMode {
+	return obfuscationMode(c, c.HasFeature("sqllexer"))
+}
+
 // Export returns an obfuscate.Config matching o.
 func (o *ObfuscationConfig) Export(conf *AgentConfig) obfuscate.Config {
 	return obfuscate.Config{
@@ -160,7 +167,7 @@ func (o *ObfuscationConfig) Export(conf *AgentConfig) obfuscate.Config {
 			ReplaceDigits:    conf.HasFeature("quantize_sql_tables") || conf.HasFeature("replace_sql_digits"),
 			KeepSQLAlias:     conf.HasFeature("keep_sql_alias"),
 			DollarQuotedFunc: conf.HasFeature("dollar_quoted_func"),
-			ObfuscationMode:  obfuscationMode(conf, conf.HasFeature("sqllexer")),
+			ObfuscationMode:  conf.EffectiveSQLObfuscationMode(),
 		},
 		ES:                   o.ES,
 		OpenSearch:           o.OpenSearch,
@@ -530,6 +537,10 @@ type AgentConfig struct {
 	// ContainerIDFromOriginInfo ...
 	ContainerIDFromOriginInfo func(originInfo origindetection.OriginInfo) (string, error) `json:"-"`
 
+	// HasContainerFeatures indicates whether any container feature is present in the environment.
+	// When false, the trace API uses a noop IDProvider that does not read HTTP headers or call ContainerIDFromOriginInfo.
+	HasContainerFeatures bool
+
 	// ContainerProcRoot is the root dir for `proc` info
 	ContainerProcRoot string
 
@@ -657,6 +668,8 @@ func New() *AgentConfig {
 		ContainerTagsWithCompleteness: noopContainerTagsWithCompletenessFunc,
 		ContainerTagsBuffer:           false, // disabled here for otlp collector exporter, enabled in comp/trace-agent
 		ContainerIDFromOriginInfo:     NoopContainerIDFromOriginInfoFunc,
+		HasContainerFeatures:          true, // default so remote/standalone trace-agent keeps full container ID resolution until setup sets it from env
+
 		TelemetryConfig: &TelemetryConfig{
 			Endpoints: []*Endpoint{{Host: TelemetryEndpointPrefix + "datadoghq.com"}},
 		},
