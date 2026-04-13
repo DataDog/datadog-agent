@@ -10,9 +10,7 @@ target:
   environment:
     DD_API_KEY: a0000001
     DD_HOSTNAME: smp-regression
-    DD_RUNTIME_SECURITY_CONFIG_ENABLED: true
 
-# TODO: review this more in depth
   profiling_environment:
     # internal profiling
     DD_INTERNAL_PROFILING_ENABLED: true

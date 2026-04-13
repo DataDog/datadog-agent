@@ -1,8 +1,5 @@
 # Per https://docs.datadoghq.com/security/workload_protection/setup/agent/linux/
-
 runtime_security_config:
   enabled: true
-
-system_probe_config:
-  debug_port: 7654
-  telemetry_enabled: true
+  remote_configuration:
+    enabled: true

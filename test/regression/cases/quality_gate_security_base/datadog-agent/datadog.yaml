@@ -13,6 +13,20 @@ telemetry:
   enabled: true
 
 # Per https://docs.datadoghq.com/security/workload_protection/setup/agent/linux/
+remote_configuration:
+  enabled: true
+
 runtime_security_config:
   enabled: true
 
+compliance_config:
+  enabled: true
+  host_benchmarks:
+    enabled: true
+
+sbom:
+  enabled: true
+  container_image:
+    enabled: true
+  host:
+    enabled: true
