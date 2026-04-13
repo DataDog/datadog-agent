@@ -115,6 +115,17 @@ const (
 	ConceptOTelTraceID      Concept = "otel.trace_id"
 	ConceptDDTraceIDHigh    Concept = "_dd.p.tid"
 	ConceptDDPartialVersion Concept = "_dd.partial_version"
+	ConceptDDOrigin         Concept = "_dd.origin"
+)
+
+// DD tags
+const (
+	ConceptDDEnv           Concept = "env"
+	ConceptDDVersion       Concept = "version"
+	ConceptDDHostname      Concept = "_dd.hostname"
+	ConceptDDGitCommitSHA  Concept = "_dd.git.commit.sha"
+	ConceptDDDecisionMaker Concept = "_dd.p.dm"
+	ConceptDDAPMMode       Concept = "_dd.apm_mode"
 )
 
 // TagInfo contains metadata about a semantic attribute and its location.

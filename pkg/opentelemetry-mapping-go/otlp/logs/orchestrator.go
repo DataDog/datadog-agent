@@ -11,13 +11,23 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
+	gocache "github.com/patrickmn/go-cache"
 	"github.com/twmb/murmur3"
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.uber.org/zap"
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
 	orchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator/util"
+)
+
+const (
+	manifestCacheTTL       = 3 * time.Minute
+	manifestCachePurge     = 30 * time.Second
+	maxManifestsPerPayload = 100
+	maxPayloadSizeBytes    = 10 * 1000 * 1000
 )
 
 var (
@@ -335,6 +345,182 @@ func CreateClusterManifest(clusterID string, nodes []*agentmodel.Manifest, logge
 		IsTerminated:    false,
 		ApiVersion:      "virtual.datadoghq.com/v1",
 		Kind:            "Cluster",
+	}
+}
+
+// NewManifestCache creates a new manifest deduplication cache with the standard TTL and purge interval.
+// Callers are responsible for managing the cache lifetime (e.g., as a singleton).
+func NewManifestCache() *gocache.Cache {
+	return gocache.New(manifestCacheTTL, manifestCachePurge)
+}
+
+// shouldSkipManifest reports whether the manifest should be suppressed because an identical
+// (same UID + resourceVersion) manifest was already sent within the cache TTL.
+// Watch events always bypass the cache so real-time updates are never dropped.
+// If cache is nil, deduplication is skipped.
+func shouldSkipManifest(manifest *agentmodel.Manifest, isWatchEvent bool, cache *gocache.Cache) bool {
+	if cache == nil || manifest == nil || manifest.Uid == "" {
+		return false
+	}
+
+	// Watch events should always bypass the cache to ensure real-time updates
+	if isWatchEvent {
+		return false
+	}
+
+	cacheKey := manifest.Uid
+
+	// Check if we have this resource in cache
+	value, hit := cache.Get(cacheKey)
+
+	if !hit {
+		// Cache miss - this is a new resource, add it to cache
+		cache.Set(cacheKey, manifest.ResourceVersion, manifestCacheTTL)
+		return false
+	}
+
+	// Cache hit - check if the resourceVersion changed
+	cachedVersion, ok := value.(string)
+	if !ok || cachedVersion != manifest.ResourceVersion {
+		// ResourceVersion changed - update cache and don't skip
+		cache.Set(cacheKey, manifest.ResourceVersion, manifestCacheTTL)
+		return false
+	}
+
+	// Cache hit with same resourceVersion - skip this manifest
+	return true
+}
+
+// chunkManifestsBySizeAndWeight chunks manifests based on both count and serialized size
+// to avoid intake endpoint rejections. This follows the same logic as the orchestrator collector.
+func chunkManifestsBySizeAndWeight(manifests []*agentmodel.Manifest, maxChunkSize, maxChunkWeight int) [][]*agentmodel.Manifest {
+	if len(manifests) == 0 {
+		return make([][]*agentmodel.Manifest, 0)
+	}
+
+	// Convert to interface{} for the chunking utility
+	interfaceManifests := make([]interface{}, 0, len(manifests))
+	for _, m := range manifests {
+		interfaceManifests = append(interfaceManifests, m)
+	}
+
+	chunker := &util.ChunkAllocator[[]interface{}, interface{}]{
+		AppendToChunk: func(chunk *[]interface{}, payloads []interface{}) {
+			*chunk = append(*chunk, payloads...)
+		},
+	}
+
+	list := &util.PayloadList[interface{}]{
+		Items: interfaceManifests,
+		WeightAt: func(i int) int {
+			// Use the serialized manifest content size as the weight
+			return len(manifests[i].Content)
+		},
+	}
+
+	util.ChunkPayloadsBySizeAndWeight[[]interface{}, interface{}](list, chunker, maxChunkSize, maxChunkWeight)
+
+	// Convert back to typed chunks
+	chunks := *chunker.GetChunks()
+	result := make([][]*agentmodel.Manifest, len(chunks))
+	for i, chunk := range chunks {
+		result[i] = make([]*agentmodel.Manifest, len(chunk))
+		for j, item := range chunk {
+			result[i][j] = item.(*agentmodel.Manifest)
+		}
+	}
+	return result
+}
+
+// K8sTranslationResult holds the output of TranslateK8sObjects.
+type K8sTranslationResult struct {
+	// Chunks holds manifests split into payload-sized groups ready to send.
+	Chunks [][]*agentmodel.Manifest
+	// ClusterName extracted from k8s.cluster.name resource attribute.
+	ClusterName string
+	// ClusterID extracted from k8s.cluster.uid resource attribute.
+	ClusterID string
+}
+
+// TranslateK8sObjects converts k8sobjectsreceiver logs into chunked orchestrator manifest payloads.
+// It handles deduplication via cache (pass nil to disable), cluster manifest creation, and chunking.
+// Individual record errors are logged and skipped rather than aborting the batch.
+func TranslateK8sObjects(ld plog.Logs, cache *gocache.Cache, logger *zap.Logger) *K8sTranslationResult {
+	var manifests []*agentmodel.Manifest
+	var nodes []*agentmodel.Manifest
+	var isWatchEvent bool
+	var clusterID, clusterName string
+
+	for i := 0; i < ld.ResourceLogs().Len(); i++ {
+		rl := ld.ResourceLogs().At(i)
+		resource := rl.Resource()
+
+		cid, ok := resource.Attributes().Get("k8s.cluster.uid")
+		if !ok {
+			logger.Error("Failed to get k8s cluster ID, skipping manifest payload")
+			continue
+		}
+		clusterID = cid.AsString()
+
+		cname, ok := resource.Attributes().Get("k8s.cluster.name")
+		if !ok {
+			logger.Error("Failed to get k8s cluster name, skipping manifest payload")
+			continue
+		}
+		clusterName = cname.AsString()
+
+		for j := 0; j < rl.ScopeLogs().Len(); j++ {
+			sl := rl.ScopeLogs().At(j)
+			for k := 0; k < sl.LogRecords().Len(); k++ {
+				lr := sl.LogRecords().At(k)
+				manifest, isWatch, err := ToManifest(lr)
+				if err != nil {
+					logger.Error("Failed to convert to manifest: "+err.Error(), zap.Error(err))
+					continue
+				}
+				isWatchEvent = isWatch
+				if manifest.Kind == "Node" {
+					nodes = append(nodes, manifest)
+				}
+				if shouldSkipManifest(manifest, isWatch, cache) {
+					logger.Debug("Skipping manifest (cache hit)",
+						zap.String("uid", manifest.Uid),
+						zap.String("kind", manifest.Kind),
+						zap.String("resourceVersion", manifest.ResourceVersion))
+					continue
+				}
+				logger.Debug("Sending manifest",
+					zap.String("uid", manifest.Uid),
+					zap.String("kind", manifest.Kind),
+					zap.String("resourceVersion", manifest.ResourceVersion))
+				manifests = append(manifests, manifest)
+			}
+		}
+	}
+
+	if len(nodes) > 0 && !isWatchEvent {
+		logger.Debug("Creating Cluster manifest after collecting nodes", zap.Int("total_nodes", len(nodes)))
+		if clusterManifest := CreateClusterManifest(clusterID, nodes, logger); clusterManifest != nil {
+			if !shouldSkipManifest(clusterManifest, false, cache) {
+				manifests = append(manifests, clusterManifest)
+				logger.Debug("Added Cluster manifest to payload",
+					zap.String("uid", clusterManifest.Uid),
+					zap.Int("total_nodes", len(nodes)))
+			}
+		}
+	}
+
+	chunks := chunkManifestsBySizeAndWeight(manifests, maxManifestsPerPayload, maxPayloadSizeBytes)
+	logger.Debug("Sending manifests in chunks",
+		zap.Int("total_manifests", len(manifests)),
+		zap.Int("chunk_count", len(chunks)),
+		zap.Int("max_manifests_per_chunk", maxManifestsPerPayload),
+		zap.Int("max_payload_size_bytes", maxPayloadSizeBytes))
+
+	return &K8sTranslationResult{
+		Chunks:      chunks,
+		ClusterName: clusterName,
+		ClusterID:   clusterID,
 	}
 }
 

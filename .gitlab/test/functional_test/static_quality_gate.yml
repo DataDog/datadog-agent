@@ -13,6 +13,7 @@ static_quality_gates:
         compare_to: $COMPARE_TO_BRANCH
     - when: manual
       allow_failure: true
+  extends: .dd_octo_sts
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   tags: ["arch:amd64", "specific:true"]
   needs:
@@ -48,6 +49,8 @@ static_quality_gates:
     - iot_agent_suse-x64
     - job: windows_msi_and_bosh_zip_x64-a7
       optional: true
+  before_script:
+    - !reference [.setup_github_token_comment_pr]
   script:
     - !reference [.login_to_docker_readonly_crane]
     # `datadog-ci` relies on `DATADOG_API_KEY` so we get that here.
@@ -55,7 +58,6 @@ static_quality_gates:
     - export DD_API_KEY="$DATADOG_API_KEY"
     # DD_APP_KEY is required for querying metrics (e.g., fetching ancestor metrics for relative size calculation)
     - DD_APP_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_APP_KEY_ORG2" token)" || exit $?; export DD_APP_KEY
-    - !reference [ .setup_agent_github_app ]
     - SLACK_DATADOG_AGENT_BOT_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_DATADOG_AGENT_BOT_TOKEN
     - dda inv -- quality-gates.parse-and-trigger-gates || exit $?
   retry:
@@ -89,12 +91,14 @@ manual_gate_threshold_update:
     - !reference [.on_dev_branches_with_artifact_changes_manual]
     - when: manual
       allow_failure: true
+  extends: .dd_octo_sts
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   tags: ["arch:amd64", "specific:true"]
   needs:
     - static_quality_gates
+  before_script:
+    - !reference [.setup_github_token_write]
   script:
     - !reference [.login_to_docker_readonly_crane]
-    - !reference [.setup_agent_github_app]
     - SLACK_DATADOG_AGENT_BOT_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_DATADOG_AGENT_BOT_TOKEN
     - dda inv -- quality-gates.manual-threshold-update || exit $?
