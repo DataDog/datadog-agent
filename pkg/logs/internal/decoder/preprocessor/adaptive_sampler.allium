@@ -211,7 +211,7 @@ config {
     burst_size: Decimal = 1000.0
 
     -- Fraction of tokens (positionally) that must match for two
-    -- token sequences to be considered the same pattern. Range [0, 1].
+    -- token sequences to be considered the same pattern. Range (0, 1].
     match_threshold: Decimal = 0.9
 
     -- Maximum bytes of the log message's first line to tokenize.
@@ -413,6 +413,19 @@ invariant SampledCountNonNegative {
 --   at most burst_size + rate_limit * T logs of one pattern are
 --   emitted (burst_size for the initial allowance, then rate_limit
 --   per second in steady state).
+
+------------------------------------------------------------
+-- Deferred Specifications
+------------------------------------------------------------
+
+deferred "ValidateMatchThreshold"
+    -- The adaptive sampler must reject match_threshold values
+    -- outside (0, 1] at construction time. A threshold of 0 would
+    -- match everything regardless of token content, defeating
+    -- pattern discrimination. The UserSamples path already enforces
+    -- this range (user_samples.go); the same validation needs to be
+    -- added when match_threshold is wired up as user-configurable
+    -- for the adaptive sampler.
 
 ------------------------------------------------------------
 -- Open Questions
