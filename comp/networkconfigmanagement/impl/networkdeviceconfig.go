@@ -9,6 +9,7 @@ package networkconfigmanagementimpl
 import (
 	"path/filepath"
 
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -26,7 +27,8 @@ type Requires struct {
 
 // Provides defines the output of the networkconfigmanagement component
 type Provides struct {
-	Comp networkconfigmanagement.Component
+	Comp     networkconfigmanagement.Component
+	Endpoint api.EndpointProvider `group:"agent_endpoint"`
 }
 
 type networkDeviceConfigImpl struct {
@@ -58,7 +60,8 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}
 
 	provides := Provides{
-		Comp: impl,
+		Comp:     impl,
+		Endpoint: api.NewAgentEndpointProvider(newConfigEndpointHandler(store), "/agent/ncm/config", "GET").Provider,
 	}
 	return provides, nil
 }
