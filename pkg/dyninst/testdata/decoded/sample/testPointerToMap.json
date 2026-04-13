@@ -28,7 +28,7 @@
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 48
+            "lineNumber": 50
           },
           {
             "function": "runtime.main",
@@ -90,6 +90,7 @@
       ]
     },
     "timestamp": "[ts]",
-    "message": "map[foo: 1, bar: 2]"
+    "message": "map[foo: 1, bar: 2]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

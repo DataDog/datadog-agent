@@ -2,6 +2,7 @@ exporters:
     debug:
         verbosity: detailed
     otlphttp/datadoghq.com_0:
+        compression: zstd
         headers:
             dd-api-key: test_api_key_123
             dd-evp-origin: host-profiler
@@ -10,7 +11,6 @@ exporters:
         metrics_endpoint: https://otlp.datadoghq.com/v1/metrics
         profiles_endpoint: https://intake.profile.datadoghq.com/v1development/profiles
 extensions:
-    ddprofiling/default: {}
     hpflare/default: {}
 processors:
     cumulativetodelta: {}
@@ -34,7 +34,7 @@ processors:
               key: profiler_version
               value: 7.0.0-test
 receivers:
-    hostprofiler:
+    profiling:
         symbol_uploader:
             enabled: true
             symbol_endpoints:
@@ -54,6 +54,8 @@ receivers:
                     - targets:
                         - 127.0.0.1:8888
 service:
+    extensions:
+        - hpflare/default
     pipelines:
         metrics:
             exporters:
@@ -74,4 +76,4 @@ service:
                 - infraattributes/default
                 - resource/dd-profiler-internal-metadata
             receivers:
-                - hostprofiler
+                - profiling

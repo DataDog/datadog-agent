@@ -14,6 +14,7 @@ from tasks import (
     auth,
     bench,
     buildimages,
+    claude,
     cluster_agent,
     cluster_agent_cloudfoundry,
     collector,
@@ -38,6 +39,7 @@ from tasks import (
     gitlab_helpers,
     go,
     go_deps,
+    gpu,
     host_profiler,
     installer,
     invoke_unit_tests,
@@ -69,6 +71,7 @@ from tasks import (
     release,
     rtloader,
     sbomgen,
+    schema,
     secret_generic_connector,
     security_agent,
     selinux,
@@ -128,7 +131,6 @@ from tasks.gotest import (
 from tasks.install_tasks import (
     download_tools,
     install_devcontainer_cli,
-    install_protoc,
     install_rust_license_tool,
     install_shellcheck,
     install_tools,
@@ -166,7 +168,6 @@ ns.add_task(audit_tag_impact)
 ns.add_task(print_default_build_tags)
 ns.add_task(e2e_tests)
 ns.add_task(install_shellcheck)
-ns.add_task(install_protoc)
 ns.add_task(install_rust_license_tool)
 ns.add_task(install_devcontainer_cli)
 ns.add_task(download_tools)
@@ -197,6 +198,7 @@ ns.add_collection(agent)
 ns.add_collection(ami)
 ns.add_collection(agent_ci_api)
 ns.add_collection(buildimages)
+ns.add_collection(claude)
 ns.add_collection(cluster_agent)
 ns.add_collection(cluster_agent_cloudfoundry)
 ns.add_collection(components)
@@ -222,6 +224,7 @@ ns.add_collection(github_tasks, "github")
 ns.add_collection(gitlab_helpers, "gitlab")
 ns.add_collection(issue)
 ns.add_collection(loader)
+ns.add_collection(gpu)
 ns.add_collection(package)
 ns.add_collection(pipeline)
 ns.add_collection(quality_gates)
@@ -264,6 +267,7 @@ ns.add_collection(debug)
 ns.add_collection(winbuild)
 ns.add_collection(windows_dev_env)
 ns.add_collection(worktree)
+ns.add_collection(schema)
 ns.add_collection(sbomgen)
 ns.add_collection(pkg_template)
 ns.add_collection(virustotal)

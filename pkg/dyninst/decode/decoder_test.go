@@ -80,8 +80,9 @@ type (
 		} `json:"evaluationErrors,omitempty"`
 	}
 	eventCaptures struct {
-		Debugger debugger
-		Message  string `json:"message,omitempty"`
+		Debugger    debugger
+		Message     string `json:"message,omitempty"`
+		ProcessTags string `json:"process_tags,omitempty"`
 	}
 )
 
@@ -116,6 +117,37 @@ func TestDecoderManually(t *testing.T) {
 			require.Zero(t, decoder.message)
 		})
 	}
+}
+
+func TestDecoderProcessTags(t *testing.T) {
+	c := cases[0]
+	irProg := generateIrForProbes(t, "simple", c.goVersion, c.probeName)
+	item := c.eventConstructor(t, irProg)
+
+	t.Run("present", func(t *testing.T) {
+		decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
+		require.NoError(t, err)
+		buf, _, err := decoder.Decode(Event{
+			EntryOrLine: output.Event(item),
+			ServiceName: "foo",
+			ProcessTags: "entrypoint.name:myapp,svc.user:my-service",
+		}, &noopSymbolicator{}, nil, []byte{})
+		require.NoError(t, err)
+		var e eventCaptures
+		require.NoError(t, json.Unmarshal(buf, &e))
+		require.Equal(t, "entrypoint.name:myapp,svc.user:my-service", e.ProcessTags)
+	})
+
+	t.Run("empty_omitted", func(t *testing.T) {
+		decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
+		require.NoError(t, err)
+		buf, _, err := decoder.Decode(Event{
+			EntryOrLine: output.Event(item),
+			ServiceName: "foo",
+		}, &noopSymbolicator{}, nil, []byte{})
+		require.NoError(t, err)
+		require.NotContains(t, string(buf), "process_tags")
+	})
 }
 
 func BenchmarkDecoder(b *testing.B) {
@@ -226,7 +258,7 @@ func simpleStringArgEvent(t testing.TB, irProg *ir.Program) []byte {
 		return p.GetID() == "stringArg"
 	})
 	require.NotEqual(t, -1, probe)
-	events := irProg.Probes[probe].Events
+	events := irProg.Probes[probe].Instances[0].Events
 	require.GreaterOrEqual(t, len(events), 1)
 	eventType := events[0].Type
 	var stringType *ir.GoStringHeaderType
@@ -302,7 +334,7 @@ func simpleMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
 		return p.GetID() == "mapArg"
 	})
 	require.NotEqual(t, -1, probe)
-	events := irProg.Probes[probe].Events
+	events := irProg.Probes[probe].Instances[0].Events
 	require.GreaterOrEqual(t, len(events), 1)
 	eventType := events[0].Type
 
@@ -483,7 +515,7 @@ func simpleSwissMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
 		return p.GetID() == "mapArg"
 	})
 	require.NotEqual(t, -1, probe)
-	events := irProg.Probes[probe].Events
+	events := irProg.Probes[probe].Instances[0].Events
 	require.GreaterOrEqual(t, len(events), 1)
 	eventType := events[0].Type
 
@@ -668,7 +700,7 @@ func simpleSwissMapTablesArgEvent(t testing.TB, irProg *ir.Program) []byte {
 		return p.GetID() == "mapArg"
 	})
 	require.NotEqual(t, -1, probe)
-	events := irProg.Probes[probe].Events
+	events := irProg.Probes[probe].Instances[0].Events
 	require.GreaterOrEqual(t, len(events), 1)
 	eventType := events[0].Type
 
@@ -955,7 +987,7 @@ func simpleBigMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
 		return p.GetID() == "bigMapArg"
 	})
 	require.NotEqual(t, -1, probe)
-	events := irProg.Probes[probe].Events
+	events := irProg.Probes[probe].Instances[0].Events
 	require.GreaterOrEqual(t, len(events), 1)
 	eventType := events[0].Type
 
@@ -1124,7 +1156,7 @@ func simplePointerChainArgEvent(t testing.TB, irProg *ir.Program) []byte {
 		return p.GetID() == "PointerChainArg"
 	})
 	require.NotEqual(t, -1, probe)
-	events := irProg.Probes[probe].Events
+	events := irProg.Probes[probe].Instances[0].Events
 	require.Len(t, events, 1)
 	eventType := events[0].Type
 	rootLen := int(eventType.GetByteSize())

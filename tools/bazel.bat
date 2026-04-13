@@ -38,11 +38,10 @@ if defined XDG_CACHE_HOME (
   :: https://github.com/bazelbuild/bazel/issues/27808
   set "bazel_home=%XDG_CACHE_HOME%\bazel"
   set bazel_home_startup_option="--output_user_root=!bazel_home!"
-  if defined CI if not defined GITHUB_ACTIONS set "extra_args=--config=ci"
+  set extra_args="--disk_cache=!bazel_home!\disk-cache"
   :: https://github.com/bazelbuild/bazel/issues/26384
-  for %%i in ("%~dp0..\.cache") do if "!XDG_CACHE_HOME!" == "%%~fi" (
-    if defined extra_args (set "extra_args=!extra_args! --repo_contents_cache=") else set "extra_args=--repo_contents_cache="
-  )
+  for %%i in ("%~dp0..\.cache") do if "!XDG_CACHE_HOME!" == "%%~fi" set "extra_args=!extra_args! --repo_contents_cache="
+  if defined CI if not defined GITHUB_ACTIONS set "extra_args=!extra_args! --config=ci"
 )
 
 :: Check legacy max path length of 260 characters got lifted, or fail with instructions
@@ -60,6 +59,8 @@ if not exist "!more_than_260_chars!" (
 
 set "args=%*"
 if defined args if defined extra_args call :insert_extra_args
+:: Prevent rules_android from loading a system Android SDK - TODO(regis): replace with --experimental_strict_repo_env
+set "ANDROID_HOME="
 "%BAZEL_REAL%" !bazel_home_startup_option! !args!
 exit /b !errorlevel!
 

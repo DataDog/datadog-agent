@@ -19,6 +19,7 @@ runs:
         key: bazel-${{ hashFiles('.go-version', '.python-version') }}
         path: |
           .cache/bazel/*/cache
+          .cache/bazel/disk-cache
           .cache/go
           .cache/ms-go
           .cache/pip

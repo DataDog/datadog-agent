@@ -20,18 +20,38 @@ alwaysApply: false
 
 4. **Verify `//...`** still works after migration — intermediate BUILD files that reference external repos for local modules trigger the `bazelify_go_work` / `go_deps` `@rules_go` visibility bug.
 
+## Custom `//go:build` tags and root `ALL_BUILD_TAGS`
+
+Root `BUILD.bazel` defines `ALL_BUILD_TAGS`, passed to `gazelle` via `build_tags = ALL_BUILD_TAGS`. If you migrate a package whose sources use **project-specific** tags (anything beyond plain OS tags), add those tag names here so Gazelle resolves `//go:build` constraints and imports correctly. Cross-check names with `tasks/build_tags.py` (`ALL_TAGS`) so spelling matches the rest of the repo — e.g. `kubeapiserver`, `kubelet`, `orchestrator`, `docker`, `local_debug` appear under `pkg/util/kubernetes`.
+
+**Important:** `ALL_BUILD_TAGS` affects **Gazelle analysis only**; it does **not** turn on tags for `bazel build` / `bazel test`. Do not bulk-add tags to every test target just because you extended `ALL_BUILD_TAGS`.
+
+**When to add `gotags` on specific `go_test` targets:**
+
+- When **`bazel test` / `bazel build` fails** in a way that points to wrong or missing symbols from tag-gated sources — add the needed tags on that package’s `go_test` (and/or `go_library`) so the compiler enables the same constraints.
+- When you follow the **`//go:build test`** pattern below (library sources with `test` in the build line) — use `gotags = ["test"]  # keep` on the embedding `go_test`.
+- For **k8s-style tags** (`kubeapiserver`, `kubelet`, etc.) — add `gotags` **per package** only when that package’s **sources or tests** are actually behind those `//go:build` lines (including tag-gated `*_test.go`). Do not add them speculatively to every test under a tree.
+
 ## BUILD.bazel editing rules
 
 - **Never manually edit Gazelle-generated BUILD.bazel files** for content that Gazelle manages (srcs, deps, imports). Re-run Gazelle instead.
 - The **only** manual edits allowed on generated BUILD files:
-  - `gotags = ["test"]  # keep` on `go_test` targets (see below).
+  - `gotags = [...]  # keep` on `go_test` / `go_library` when required (see “When to add `gotags`” under custom tags above, and `//go:build test` below).
+  - `target_compatible_with = ["@platforms//os:linux"]  # keep` on OS-specific targets (see below).
   - `# keep` comments to pin specific lines Gazelle would otherwise overwrite.
+- **Root `BUILD.bazel` only:** extend `ALL_BUILD_TAGS` when migrating trees that rely on custom build tags (section above).
 
 ## `//go:build test` sources
 
 Gazelle places files with `//go:build test` into `go_library` srcs (not `go_test`), because it treats `test` as a regular build tag. Bazel does not set the `test` tag during library compilation, so these symbols become undefined in test targets.
 
 **Fix:** add `gotags = ["test"]  # keep` to the `go_test` target that embeds the library. Do NOT move the source file between targets manually.
+
+## OS-specific modules
+
+Gazelle lists all source files unconditionally in `srcs` even when they carry `//go:build linux` (or another OS constraint). `rules_go` filters them at compile time, so compilation is correct. However, `//...` expansion will still attempt to analyze the target on all platforms, producing empty libraries or confusing errors.
+
+**Fix:** add `target_compatible_with = ["@platforms//os:linux"]  # keep` (or the appropriate OS) to both `go_library` and `go_test` targets. The `# keep` comment prevents Gazelle from stripping the line on re-runs.
 
 ## Proto handling
 
