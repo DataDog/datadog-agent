@@ -11,7 +11,6 @@ go_library(
         "//pkg/util/http",
         "//pkg/util/log",
         "//pkg/version",
-        "@com_github_gorilla_websocket//:websocket",
         "@org_golang_google_protobuf//proto",
     ],
 )
@@ -24,7 +23,6 @@ go_test(
     deps = [
         "//pkg/config/mock",
         "@com_github_coreos_go_semver//semver",
-        "@com_github_gorilla_websocket//:websocket",
         "@com_github_stretchr_testify//assert",
     ],
 )

@@ -7,8 +7,58 @@
 package basic
 
 import (
+	"fmt"
 	"reflect"
 )
+
+// StructToMap recursively converts a struct to map[string]interface{} using
+// mapstructure tags for keys (falling back to field name). This produces only
+// basic types that pass ValidateBasicTypes. Zero-value fields are omitted.
+func StructToMap(v interface{}) interface{} {
+	rv := reflect.ValueOf(v)
+	if rv.Kind() == reflect.Pointer {
+		if rv.IsNil() {
+			return nil
+		}
+		rv = rv.Elem()
+	}
+	switch rv.Kind() {
+	case reflect.Struct:
+		m := make(map[string]interface{})
+		rt := rv.Type()
+		for i := 0; i < rt.NumField(); i++ {
+			f := rt.Field(i)
+			if !f.IsExported() {
+				continue
+			}
+			fv := rv.Field(i)
+			if fv.IsZero() {
+				continue
+			}
+			key := f.Tag.Get("mapstructure")
+			if key == "" || key == "-" {
+				key = f.Name
+			}
+			m[key] = StructToMap(fv.Interface())
+		}
+		return m
+	case reflect.Slice:
+		s := make([]interface{}, rv.Len())
+		for i := 0; i < rv.Len(); i++ {
+			s[i] = StructToMap(rv.Index(i).Interface())
+		}
+		return s
+	case reflect.Map:
+		m := make(map[string]interface{})
+		iter := rv.MapRange()
+		for iter.Next() {
+			m[fmt.Sprintf("%v", iter.Key().Interface())] = StructToMap(iter.Value().Interface())
+		}
+		return m
+	default:
+		return v
+	}
+}
 
 // ValidateBasicTypes returns true if the argument is made of only basic types
 func ValidateBasicTypes(value interface{}) bool {
