@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
+	ddlog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type CommonRunner struct {
@@ -51,6 +52,8 @@ func (n *CommonRunner) healthCheckLoop(ctx context.Context) {
 	ticker := time.NewTicker(time.Millisecond * time.Duration(n.config.HealthCheckInterval))
 	defer ticker.Stop()
 
+	healthCheckLogLimit := ddlog.NewLogLimit(1, 10*time.Minute)
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -64,8 +67,10 @@ func (n *CommonRunner) healthCheckLoop(ctx context.Context) {
 			}
 			if err != nil {
 				logger.Error("health check failed", log.ErrorField(err))
-			} else {
+			} else if healthCheckLogLimit.ShouldLog() {
 				logger.Info("health check succeeded")
+			} else {
+				logger.Debug("health check succeeded")
 			}
 		}
 	}
