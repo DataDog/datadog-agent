@@ -11,15 +11,26 @@
 #include "ipv6.h"
 #include "netns.h"
 
-struct inode___old {
+struct inode___418 {
+    struct timespec64 i_ctime;
+};
+
+struct inode___66 {
     struct timespec64 __i_ctime;
 };
 
 static __always_inline u64 read_inode_ctime(struct inode *inode) {
-    if (bpf_core_field_exists(((struct inode___old*)inode)->__i_ctime)) {
-        return ((u64)BPF_CORE_READ((struct inode___old*)inode, __i_ctime.tv_sec) * NSEC_PER_SEC) +
-            (u64)BPF_CORE_READ((struct inode___old*)inode, __i_ctime.tv_nsec);
+    // 4.18 - https://github.com/torvalds/linux/commit/95582b00838837fc07e042979320caf917ce3fe6
+    if (bpf_core_field_exists(((struct inode___418*)inode)->i_ctime)) {
+        return ((u64)BPF_CORE_READ((struct inode___418*)inode, i_ctime.tv_sec) * NSEC_PER_SEC) +
+            (u64)BPF_CORE_READ((struct inode___418*)inode, i_ctime.tv_nsec);
     }
+    // 6.6 - https://github.com/torvalds/linux/commit/13bc24457850583a2e7203ded05b7209ab4bc5ef
+    if (bpf_core_field_exists(((struct inode___66*)inode)->__i_ctime)) {
+        return ((u64)BPF_CORE_READ((struct inode___66*)inode, __i_ctime.tv_sec) * NSEC_PER_SEC) +
+            (u64)BPF_CORE_READ((struct inode___66*)inode, __i_ctime.tv_nsec);
+    }
+    // 6.11 - https://github.com/torvalds/linux/commit/3aa63a569c64e708df547a8913c84e64a06e7853
     return ((u64)inode->i_ctime_sec * NSEC_PER_SEC) + (u64)inode->i_ctime_nsec;
 }
 
