@@ -1653,8 +1653,6 @@ probes:
 # container of the inlined subroutine. We must still discover and probe it.
 - id: inlinedMethod
   type: LOG_PROBE
-  tags:
-    - issue:MalformedExecutable # this is due to a bug
   captureSnapshot: true
   where:
     methodName: "main.(*methodValueReceiver).inlinedMethod"

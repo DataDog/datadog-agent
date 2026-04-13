@@ -1574,6 +1574,20 @@ Probes:
               Type: 396 EventRootType Probe[main.inlined]Return
               InjectionPoints: [{PC: "0xb8c4c", Frameless: false}]
               Condition: null
+    - id: inlinedMethod
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.(*methodValueReceiver).inlinedMethod}
+      template: ""
+      segments: []
+      captureSnapshot: true
+      instances:
+        - subprogram: {subprogram: 46}
+          events:
+            - Kind: Entry
+              Type: 399 EventRootType Probe[main.(*methodValueReceiver).inlinedMethod]
+              InjectionPoints: [{PC: "0xba754", Frameless: true}]
+              Condition: null
     - id: intArg
       version: 0
       type: LOG_PROBE
@@ -4284,6 +4298,21 @@ Subprograms:
           Role: Parameter
           DictIndex: -1
       DictRegister: null
+    - ID: 46
+      Name: main.(*methodValueReceiver).inlinedMethod
+      OutOfLinePCRanges: []
+      InlinePCRanges:
+        - Ranges: [0xba754..0xba758]
+          RootRanges: [0xba750..0xba760]
+      Variables:
+        - Name: m
+          Type: 137 PointerType *main.methodValueReceiver
+          Locations:
+            - Range: 0xba754..0xba760
+              Pieces: [{Size: 8, Op: {RegNo: 1, Shift: 0}}]
+          Role: Parameter
+          DictIndex: -1
+      DictRegister: null
 Types:
     - __kind: PointerType
       ID: 134
@@ -4458,7 +4487,7 @@ Types:
       Name: '*main.methodValueReceiver'
       ByteSize: 8
       GoKind: 22
-      Pointee: 138 UnresolvedPointeeType main.methodValueReceiver
+      Pointee: 138 StructureType main.methodValueReceiver
     - __kind: PointerType
       ID: 177
       Name: '*map<int,main.aStructNotUsedAsAnArgument>'
@@ -4650,6 +4679,23 @@ Types:
       GoRuntimeType: 30656
       GoKind: 22
       Pointee: 1 BaseType uintptr
+    - __kind: EventRootType
+      ID: 399
+      Name: Probe[main.(*methodValueReceiver).inlinedMethod]
+      ByteSize: 9
+      PresenceBitsetSize: 1
+      Expressions:
+        - Name: m
+          Offset: 1
+          Kind: argument
+          Expression:
+            Type: 137 PointerType *main.methodValueReceiver
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 46, index: 0, name: m}
+                  Offset: 0
+                  ByteSize: 8
+          DictIndex: -1
     - __kind: EventRootType
       ID: 397
       Name: Probe[main.PointerChainArg]
@@ -7788,10 +7834,12 @@ Types:
         - Name: pad
           Offset: 64
           Type: 122 ArrayType [3]int16
-    - __kind: UnresolvedPointeeType
+    - __kind: StructureType
       ID: 138
       Name: main.methodValueReceiver
       ByteSize: 8
+      GoKind: 25
+      RawFields: [{Name: val, Offset: 0, Type: 7 BaseType int}]
     - __kind: GoSwissMapHeaderType
       ID: 178
       Name: map<int,main.aStructNotUsedAsAnArgument>
@@ -9018,7 +9066,7 @@ Types:
       ByteSize: 8
       GoRuntimeType: 45024
       GoKind: 26
-MaxTypeID: 398
+MaxTypeID: 399
 Issues:
     - probe_definition:
         id: condErr_bad_field
@@ -9249,19 +9297,6 @@ Issues:
       issue:
         Kind: 7
         Message: condition variable "x" not available at any event
-    - probe_definition:
-        id: inlinedMethod
-        version: 0
-        type: LOG_PROBE
-        where: {methodName: main.(*methodValueReceiver).inlinedMethod}
-        tags: ['issue:MalformedExecutable']
-        capture: {maxReferenceDepth: 1}
-        template: ""
-        segments: []
-        captureSnapshot: true
-      issue:
-        Kind: 4
-        Message: subprogram main.(*methodValueReceiver).inlinedMethod has no pc ranges
     - probe_definition:
         id: lenErr_int_isEmpty_cond
         version: 0
