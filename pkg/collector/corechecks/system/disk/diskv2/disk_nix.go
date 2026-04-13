@@ -20,9 +20,11 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/benbjohnson/clock"
 	gopsutil_disk "github.com/shirou/gopsutil/v4/disk"
 	"github.com/spf13/afero"
 	"golang.org/x/sys/unix"
@@ -497,4 +499,34 @@ func (c *Check) loadRootDevices() (map[string]string, error) {
 	}
 
 	return rootDevices, nil
+}
+
+// diskUsageInterruptible runs fn(mountpoint) with a timeout.
+// On non-Windows platforms, if the timeout expires the underlying goroutine may
+// continue running until the OS-level I/O completes. For remote mounts (NFS/CIFS),
+// configure OS-level timeouts (e.g. NFS soft mount with timeo/retrans) to bound
+// how long the kernel can block.
+// TODO: implement tgkill-based interruption for Linux (works for TASK_INTERRUPTIBLE
+// sleep states; modern NFS uses TASK_KILLABLE which only SIGKILL can interrupt).
+func diskUsageInterruptible(fn func(string) (*gopsutil_disk.UsageStat, error), mountpoint string, timeout time.Duration, clk clock.Clock) (*gopsutil_disk.UsageStat, error) {
+	type result struct {
+		usage *gopsutil_disk.UsageStat
+		err   error
+	}
+	resultCh := make(chan result, 1)
+	timeoutCh := clk.After(timeout)
+	go func() {
+		usage, err := fn(mountpoint)
+		// Use select to avoid blocking on resultCh if the caller already timed out.
+		select {
+		case resultCh <- result{usage, err}:
+		case <-timeoutCh:
+		}
+	}()
+	select {
+	case r := <-resultCh:
+		return r.usage, r.err
+	case <-timeoutCh:
+		return nil, fmt.Errorf("disk usage call timed out after %s", timeout)
+	}
 }
