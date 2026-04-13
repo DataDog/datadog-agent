@@ -685,7 +685,11 @@ def docker_build(
         'mkdir -p /omnibus-state/opt/datadog-agent && '
         'rm -rf /opt/datadog-agent && '
         'ln -sfn /omnibus-state/opt/datadog-agent /opt/datadog-agent && '
-        'dda inv -- -e omnibus.build --base-dir=/omnibus --gem-path=/gems'
+        'dda inv -- -e system-probe.build && '
+        'cp /opt/datadog-agent/embedded/bin/clang-bpf bin/system-probe/ && '
+        'cp /opt/datadog-agent/embedded/bin/llc-bpf bin/system-probe/ && '
+        '(cp /opt/datadog-agent/embedded/share/system-probe/ebpf/co-re/btf/minimized-btfs.tar.xz bin/system-probe/ 2>/dev/null || touch bin/system-probe/minimized-btfs.tar.xz) && '
+        'dda inv -- -e omnibus.build --base-dir=/omnibus --gem-path=/gems --system-probe-bin=/go/src/github.com/DataDog/datadog-agent/bin/system-probe'
         '"'
     )
     docker_cmd = (
