@@ -128,7 +128,7 @@ int BPF_PROG(udpv6_sendmsg_exit, struct sock *sk, struct msghdr *msg, size_t len
             // TODO this is probably not correct to store in sk_stats since it is per-msg, not per-sock
             if (msg->msg_namelen >= sizeof(struct sockaddr_in6)) {
                 struct sockaddr_in6 usin;
-                BPF_CORE_READ_INTO(&usin, msg, msg_name);
+                bpf_core_read(&usin, sizeof(struct sockaddr_in6), msg->msg_name);
                 if (usin.sin6_family == AF_INET6) {
                     read_in6_addr(&sk_stats->tup.daddr_h, &sk_stats->tup.daddr_l, &usin.sin6_addr);
                     sk_stats->tup.dport = bpf_ntohs(usin.sin6_port);
@@ -230,7 +230,7 @@ int BPF_PROG(udp_sendmsg_exit, struct sock *sk, struct msghdr *msg, size_t len, 
             // TODO this is probably not correct to store in sk_stats since it is per-msg, not per-sock
             if (msg->msg_namelen >= sizeof(struct sockaddr_in)) {
                 struct sockaddr_in usin;
-                BPF_CORE_READ_INTO(&usin, msg, msg_name);
+                bpf_core_read(&usin, sizeof(struct sockaddr_in), msg->msg_name);
                 if (usin.sin_family == AF_INET) {
                     sk_stats->tup.daddr_l = usin.sin_addr.s_addr;
                     sk_stats->tup.dport = bpf_ntohs(usin.sin_port);
