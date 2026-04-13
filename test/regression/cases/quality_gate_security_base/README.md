@@ -31,7 +31,7 @@ Enabled features
 
 ## Additional Information
 
-The key metric that determines the load is `datadog.runtime_security.perf_buffer.events.write`. This represents the number of File System events which are being seen.
+The key metric that determines the load is `datadog.runtime_security.perf_buffer.events.write`. This represents the number of filesystem events which are being seen.
 
 SMP runs emit an equivalent metric called `single_machine_performance.regression_detector.capture.datadog.runtime_security.perf_buffer.events.write`.
 
