@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import os
-import time
 from collections import Counter
 
 from invoke.context import Context
@@ -18,7 +17,7 @@ from tasks.libs.ciproviders.github_actions_tools import (
     trigger_windows_bump_workflow,
 )
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.datadog_api import create_gauge, send_event, send_metrics
+from tasks.libs.common.datadog_api import send_event
 from tasks.libs.owners.linter import codeowner_has_orphans, directory_has_packages_without_owner
 from tasks.libs.owners.parsing import read_owners
 from tasks.libs.pipeline.notifications import DEFAULT_SLACK_CHANNEL, GITHUB_SLACK_MAP

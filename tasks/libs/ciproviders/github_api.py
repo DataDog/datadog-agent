@@ -389,12 +389,6 @@ class GithubAPI:
             if RELEASE_BRANCH_PATTERN.match(branch.name):
                 yield branch
 
-    def get_rate_limit_info(self):
-        """
-        Gets the current rate limit info.
-        """
-        return self._github.rate_limiting
-
     def publish_comment(self, pr, comment):
         """
         Publish a comment on a given PR.
