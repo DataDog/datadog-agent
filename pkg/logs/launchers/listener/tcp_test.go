@@ -618,6 +618,7 @@ func TestTCPMTLSOptionalAcceptsNoClientCert(t *testing.T) {
 	assert.Equal(t, "optional no cert", string(msg.GetContent()))
 
 	listener.Stop()
+}
 
 func TestTCPNoIPFilterAcceptsAll(t *testing.T) {
 	pp := mock.NewMockProvider()

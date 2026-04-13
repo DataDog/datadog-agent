@@ -61,7 +61,6 @@ type LogsConfig struct {
 	DeniedIPs  StringSliceField   `mapstructure:"denied_ips" json:"denied_ips,omitempty" yaml:"denied_ips,omitempty"`    // Network (tcp, udp)
 	Path       string             // File, Journald
 
-
 	Encoding     string           `mapstructure:"encoding" json:"encoding" yaml:"encoding"`                   // File
 	ExcludePaths StringSliceField `mapstructure:"exclude_paths" json:"exclude_paths" yaml:"exclude_paths"`    // File
 	TailingMode  string           `mapstructure:"start_position" json:"start_position" yaml:"start_position"` // File
@@ -474,7 +473,7 @@ func (c *LogsConfig) Validate() error {
 	}
 
 	if c.Format != "" && c.Format != SyslogFormat {
-		return fmt.Errorf("unsupported format %%q (supported: %%q or empty)", c.Format, SyslogFormat)
+		return fmt.Errorf("unsupported format %q (supported: %q or empty)", c.Format, SyslogFormat)
 	}
 
 	if err := c.validateIPFilter(); err != nil {

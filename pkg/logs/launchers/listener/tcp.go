@@ -107,9 +107,9 @@ func NewTCPListener(pipelineProvider pipeline.Provider, source *sources.LogSourc
 		tailers:          []startstop.StartStoppable{},
 		connSem:          make(chan struct{}, maxConns),
 
-		stop:             make(chan struct{}, 1),
-		ctx:              ctx,
-		cancel:           cancel,
+		stop:   make(chan struct{}, 1),
+		ctx:    ctx,
+		cancel: cancel,
 	}, nil
 }
 
