@@ -1,11 +1,13 @@
 exporters:
     logging: {}
     otlphttp/prod:
+        compression: zstd
         headers:
             dd-api-key: "11111"
             dd-evp-origin: host-profiler
             dd-evp-origin-version: 7.0.0-test
     otlphttp/staging:
+        compression: zstd
         headers:
             dd-api-key: staging-key
             dd-evp-origin: host-profiler
