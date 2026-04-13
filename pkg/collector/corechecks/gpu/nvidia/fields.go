@@ -102,24 +102,6 @@ func (c *fieldsCollector) removeUnsupportedMetrics() {
 	}
 }
 
-func (c *fieldsCollector) shouldTreatFieldAsUnsupported(val nvml.FieldValue) bool {
-	if val.NvmlReturn == uint32(nvml.ERROR_NOT_SUPPORTED) {
-		return true
-	}
-
-	if val.NvmlReturn != uint32(nvml.ERROR_INVALID_ARGUMENT) {
-		return false
-	}
-
-	for _, fm := range c.fieldMetrics {
-		if fm.fieldValueID == val.FieldId && fm.markUnsupportedOnInvalidArgument {
-			return true
-		}
-	}
-
-	return false
-}
-
 func (c *fieldsCollector) getFieldValues() ([]nvml.FieldValue, error) {
 	fields := make([]nvml.FieldValue, len(c.fieldMetrics))
 	for i, metric := range c.fieldMetrics {
