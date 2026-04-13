@@ -17,5 +17,15 @@ powershell_script_signing:
       - $WINDOWS_POWERSHELL_DIR
   script:
     - mkdir $WINDOWS_POWERSHELL_DIR
-    - docker run --rm -v "$(Get-Location):c:\mnt" -e AWS_NETWORKING=true -e CI -e IS_AWS_CONTAINER=true ${WINBUILDIMAGE} powershell -C "dd-wcs sign \mnt\tools\windows\DatadogAgentInstallScript\Install-Datadog.ps1"
+    # documentation: https://github.com/DataDog/windows-code-signer
+    - docker run --rm
+      -v "$(Get-Location):c:\mnt"
+      -e AWS_NETWORKING=true
+      -e CI
+      -e IS_AWS_CONTAINER=true
+      -e CI_IDENTITIES_GITLAB_ID_TOKEN
+      -e CI_JOB_NAME_SLUG
+      ${WINBUILDIMAGE}
+      powershell -C "windows-code-signer.exe
+      sign \mnt\tools\windows\DatadogAgentInstallScript\Install-Datadog.ps1"
     - copy .\tools\windows\DatadogAgentInstallScript\Install-Datadog.ps1 $WINDOWS_POWERSHELL_DIR\Install-Datadog.ps1
