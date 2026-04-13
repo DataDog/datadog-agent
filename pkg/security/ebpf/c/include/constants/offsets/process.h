@@ -51,4 +51,32 @@ u64 __attribute__((always_inline)) get_task_struct_pid_offset() {
     return task_struct_pid_offset;
 }
 
+// OTel TLSDESC thread pointer access.
+// Two offsets are summed to compute the address of the thread pointer within a task_struct:
+//   x86_64: fsbase_addr   = (void *)task + thread_offset + fsbase_offset
+//   ARM64:  tp_value_addr = (void *)task + thread_offset + uw_offset
+// They are split because the BTF constant fetcher does not support dot-path
+// traversal for named (non-anonymous) nested struct members.
+u64 __attribute__((always_inline)) get_task_struct_thread_offset() {
+    u64 offset;
+    LOAD_CONSTANT("task_struct_thread_offset", offset);
+    return offset;
+}
+
+#if defined(__x86_64__)
+u64 __attribute__((always_inline)) get_thread_struct_fsbase_offset() {
+    u64 offset;
+    LOAD_CONSTANT("thread_struct_fsbase_offset", offset);
+    return offset;
+}
+#elif defined(__aarch64__)
+// thread_struct.uw.tp_value: tp_value is the first member of uw (offset 0),
+// so the offset of uw within thread_struct gives us the tp_value address.
+u64 __attribute__((always_inline)) get_thread_struct_uw_offset() {
+    u64 offset;
+    LOAD_CONSTANT("thread_struct_uw_offset", offset);
+    return offset;
+}
+#endif
+
 #endif

@@ -1006,7 +1006,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			}
 		}
 
-		if (ps.TracerMetadata != tracermetadata.TracerMetadata{}) {
+		if !ps.TracerMetadata.IsZero() {
 			tmetaCopy := ps.TracerMetadata
 			psSerializer.Tracer = &tmetaCopy
 		}
@@ -1446,6 +1446,8 @@ type DDContextSerializer struct {
 	SpanID string `json:"span_id,omitempty"`
 	// Trace ID used for APM correlation
 	TraceID string `json:"trace_id,omitempty"`
+	// Attributes contains custom OTel thread-local attributes from the span context
+	Attributes map[string]string `json:"attributes,omitempty"`
 }
 
 func newDDContextSerializer(e *model.Event) *DDContextSerializer {
@@ -1453,6 +1455,7 @@ func newDDContextSerializer(e *model.Event) *DDContextSerializer {
 	if e.SpanContext.SpanID != 0 && (e.SpanContext.TraceID.Hi != 0 || e.SpanContext.TraceID.Lo != 0) {
 		s.SpanID = strconv.FormatUint(e.SpanContext.SpanID, 10)
 		s.TraceID = fmt.Sprintf("%x%x", e.SpanContext.TraceID.Hi, e.SpanContext.TraceID.Lo)
+		s.Attributes = e.SpanContext.Attributes
 		return s
 	}
 

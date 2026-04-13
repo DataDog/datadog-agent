@@ -122,6 +122,14 @@ const (
 	OffsetNameFlowI6StructProto = "flowi6_proto_offset"
 	OffsetNameRtnlLinkOpsKind   = "rtnl_link_ops_kind_offset"
 
+	// OTel TLSDESC thread pointer offsets.
+	// Used to read the thread pointer from task_struct for OTel Thread Local Context Record support.
+	// x86_64: task_struct->thread.fsbase
+	// ARM64:  task_struct->thread.uw.tp_value (tp_value is first member of uw, offset within uw = 0)
+	OffsetNameTaskStructThread   = "task_struct_thread_offset"
+	OffsetNameThreadStructFsbase = "thread_struct_fsbase_offset"
+	OffsetNameThreadStructUw     = "thread_struct_uw_offset"
+
 	// Interpreter constants
 	OffsetNameLinuxBinprmStructFile = "binprm_file_offset"
 

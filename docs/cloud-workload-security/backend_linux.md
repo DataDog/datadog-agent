@@ -339,6 +339,13 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "trace_id": {
                     "type": "string",
                     "description": "Trace ID used for APM correlation"
+                },
+                "attributes": {
+                    "additionalProperties": {
+                        "type": "string"
+                    },
+                    "type": "object",
+                    "description": "Attributes contains custom OTel thread-local attributes from the span context"
                 }
             },
             "additionalProperties": false,
@@ -2279,6 +2286,12 @@ Workload Protection events for Linux systems have the following JSON schema:
                 },
                 "logs_collected": {
                     "type": "boolean"
+                },
+                "threadlocal_attribute_keys": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array"
                 }
             },
             "additionalProperties": false,
@@ -3072,6 +3085,13 @@ Workload Protection events for Linux systems have the following JSON schema:
         "trace_id": {
             "type": "string",
             "description": "Trace ID used for APM correlation"
+        },
+        "attributes": {
+            "additionalProperties": {
+                "type": "string"
+            },
+            "type": "object",
+            "description": "Attributes contains custom OTel thread-local attributes from the span context"
         }
     },
     "additionalProperties": false,
@@ -3085,6 +3105,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | ----- | ----------- |
 | `span_id` | Span ID used for APM correlation |
 | `trace_id` | Trace ID used for APM correlation |
+| `attributes` | Attributes contains custom OTel thread-local attributes from the span context |
 
 
 ## `DNSEvent`
@@ -5892,6 +5913,12 @@ Workload Protection events for Linux systems have the following JSON schema:
         },
         "logs_collected": {
             "type": "boolean"
+        },
+        "threadlocal_attribute_keys": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array"
         }
     },
     "additionalProperties": false,

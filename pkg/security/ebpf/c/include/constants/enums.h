@@ -147,6 +147,12 @@ enum tls_format
     DEFAULT_TLS_FORMAT
 };
 
+enum otel_runtime_language
+{
+    OTEL_RUNTIME_NATIVE = 0,
+    OTEL_RUNTIME_GOLANG = 1,
+};
+
 enum bpf_cmd_def
 {
     BPF_MAP_CREATE_CMD,
@@ -232,6 +238,7 @@ enum erpc_op
     PRCTL_DISCARDER,
     AUID_DISCARDER,
     NOP_EVENT_OP,
+    REGISTER_OTEL_TLS_OP_DEPRECATED, // DEPRECATED: replaced by dynsym-based discovery
 };
 
 enum selinux_source_event_t
