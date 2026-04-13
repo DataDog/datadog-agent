@@ -81,6 +81,9 @@ var KernelSupported = funcs.MemoizeNoError(func() bool {
 	if features.HaveProgramType(ebpf.SockOps) != nil {
 		return false
 	}
+	if features.HaveMapType(ebpf.RingBuf) != nil {
+		return false
+	}
 	return true
 })
 
