@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	ncmreport "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/report"
+	ncmstore "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/store"
 )
 
 func TestNCMSender_SendNCMConfig_Success(t *testing.T) {
@@ -40,7 +41,7 @@ func TestNCMSender_SendNCMConfig_Success(t *testing.T) {
 		{
 			DeviceID:     "default:10.0.0.1",
 			DeviceIP:     "10.0.0.1",
-			ConfigType:   ncmreport.RUNNING,
+			ConfigType:   ncmstore.RUNNING,
 			ConfigSource: string(ncmreport.CLI),
 			Timestamp:    mockClock.Now().Unix(),
 			Tags:         []string{"device_ip:10.0.0.1"},
@@ -158,7 +159,7 @@ func TestNCMSender_SendMetricsFromExtractedMetadata(t *testing.T) {
 	tests := []struct {
 		name              string
 		extractedMetadata profile.ExtractedMetadata
-		configType        ncmreport.ConfigType
+		configType        ncmstore.ConfigType
 		tags              []string
 		expectedMetrics   []expectedMetric
 	}{

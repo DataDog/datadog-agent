@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
+	ncmstore "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/store"
 )
 
 func TestNetworkDeviceConfig_Creation(t *testing.T) {
@@ -23,7 +24,7 @@ func TestNetworkDeviceConfig_Creation(t *testing.T) {
 
 	deviceID := "default:10.0.0.1"
 	deviceIP := "10.0.0.1"
-	configType := RUNNING
+	configType := ncmstore.RUNNING
 	configSource := CLI
 
 	metadata := &profile.ExtractedMetadata{
@@ -46,19 +47,19 @@ func TestNetworkDeviceConfig_Creation(t *testing.T) {
 func TestNetworkDeviceConfig_ConfigTypes(t *testing.T) {
 	tests := []struct {
 		name         string
-		configType   ConfigType
+		configType   ncmstore.ConfigType
 		configSource ConfigSource
-		expected     ConfigType
+		expected     ncmstore.ConfigType
 	}{
 		{
 			name:         "running config",
-			configType:   RUNNING,
+			configType:   ncmstore.RUNNING,
 			configSource: CLI,
 			expected:     "running",
 		},
 		{
 			name:         "startup config",
-			configType:   STARTUP,
+			configType:   ncmstore.STARTUP,
 			configSource: CLI,
 			expected:     "startup",
 		},
@@ -83,7 +84,7 @@ func TestNetworkDevicesConfigPayload_Creation(t *testing.T) {
 		{
 			DeviceID:     "default:10.0.0.1",
 			DeviceIP:     "10.0.0.1",
-			ConfigType:   RUNNING,
+			ConfigType:   ncmstore.RUNNING,
 			ConfigSource: string(CLI),
 			Timestamp:    timestamp,
 			Tags:         []string{"device_type:router"},
@@ -92,7 +93,7 @@ func TestNetworkDevicesConfigPayload_Creation(t *testing.T) {
 		{
 			DeviceID:     "default:10.0.0.1",
 			DeviceIP:     "10.0.0.1",
-			ConfigType:   STARTUP,
+			ConfigType:   ncmstore.STARTUP,
 			ConfigSource: string(CLI),
 			Timestamp:    timestamp,
 			Tags:         []string{"device_type:router"},
@@ -125,7 +126,7 @@ func TestNetworkDevicesConfigPayload_EmptyTimestamps(t *testing.T) {
 	ndc := NetworkDeviceConfig{
 		DeviceID:     "default:10.0.0.1",
 		DeviceIP:     "10.0.0.1",
-		ConfigType:   RUNNING,
+		ConfigType:   ncmstore.RUNNING,
 		ConfigSource: string(CLI),
 		Timestamp:    0,
 	}
@@ -134,7 +135,7 @@ func TestNetworkDevicesConfigPayload_EmptyTimestamps(t *testing.T) {
 	expected := NetworkDeviceConfig{
 		DeviceID:     "default:10.0.0.1",
 		DeviceIP:     "10.0.0.1",
-		ConfigType:   RUNNING,
+		ConfigType:   ncmstore.RUNNING,
 		ConfigSource: string(CLI),
 		Timestamp:    agentTs,
 	}
