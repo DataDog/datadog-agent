@@ -3,9 +3,9 @@ dist:
   module: github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl
   name: otelcol-contrib
   description: Valid (default) datadog converged Agent ocb manifest (should pass collector_tests.py)
-  version: 0.147.0
+  version: 0.149.0
   output_path: ./comp/otelcol/collector-contrib/impl
-  otelcol_version: 0.147.0
+  otelcol_version: 0.149.0
 
 extensions:
   - gomod: go.opentelemetry.io/collector/extension/zpagesextension v0.149.0

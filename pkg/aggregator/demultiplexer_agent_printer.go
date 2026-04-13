@@ -40,6 +40,7 @@ func (p AgentDemultiplexerPrinter) PrintMetrics(checkFileOutput *bytes.Buffer, f
 		if formatTable {
 			headers, data := series.MarshalStrings()
 			var buffer bytes.Buffer
+
 			writeTable(&buffer, headers, data)
 			fmt.Println(buffer.String())
 			checkFileOutput.WriteString(buffer.String() + "\n")
@@ -63,6 +64,7 @@ func (p AgentDemultiplexerPrinter) PrintMetrics(checkFileOutput *bytes.Buffer, f
 		if formatTable {
 			headers, data := serviceChecks.MarshalStrings()
 			var buffer bytes.Buffer
+
 			writeTable(&buffer, headers, data)
 			fmt.Println(buffer.String())
 			checkFileOutput.WriteString(buffer.String() + "\n")
