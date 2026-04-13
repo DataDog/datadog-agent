@@ -21,9 +21,8 @@ import (
 // enrichment are not billed for CWS.
 type UsageConsumer struct {
 	*CommandServer
-	config     *config.RuntimeSecurityConfig
-	probe      *probe.Probe
-	sbomServer *SBOMAPIServer
+	config *config.RuntimeSecurityConfig
+	probe  *probe.Probe
 }
 
 // NewUsageConsumer initializes the UsageConsumer

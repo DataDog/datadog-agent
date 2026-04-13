@@ -75,7 +75,7 @@ func (c *CommandServer) Stop() {
 }
 
 // NewCommandServer initializes the gRPC server for the module command API
-func NewCommandServer(cfg *config.RuntimeSecurityConfig, stopChan chan struct{}) (*CommandServer, error) {
+func NewCommandServer(cfg *config.RuntimeSecurityConfig) (*CommandServer, error) {
 	cmdSocketPath, err := common.GetCmdSocketPath(cfg.SocketPath, cfg.CmdSocketPath)
 	if err != nil {
 		return nil, err

@@ -72,7 +72,7 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDepen
 	if cwsEnabled || runtimeUsageEnabled {
 		stopChan := make(chan struct{})
 
-		cmdServer, err := secmodule.NewCommandServer(secconfig.RuntimeSecurity, stopChan)
+		cmdServer, err := secmodule.NewCommandServer(secconfig.RuntimeSecurity)
 		if err != nil {
 			return nil, err
 		}
