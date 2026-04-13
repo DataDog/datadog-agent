@@ -149,26 +149,6 @@ def get_milestone_id(_, milestone):
     print(m.number)
 
 
-@task
-def send_rate_limit_info_datadog(_, pipeline_id, app_instance):
-    from tasks.libs.ciproviders.github_api import GithubAPI
-
-    gh = GithubAPI()
-    rate_limit_info = gh.get_rate_limit_info()
-    print(f"Remaining rate limit for app instance {app_instance}: {rate_limit_info[0]}/{rate_limit_info[1]}")
-    metric = create_gauge(
-        metric_name='github.rate_limit.remaining',
-        timestamp=int(time.time()),
-        value=rate_limit_info[0],
-        tags=[
-            'source:github',
-            'repository:datadog-agent',
-            f'app_instance:{app_instance}',
-        ],
-    )
-    send_metrics([metric])
-
-
 def _get_teams(changed_files, owners_file='.github/CODEOWNERS', best_teams_only=True) -> list[str]:
     """Returns a list of teams that are responsible for changed files
 
