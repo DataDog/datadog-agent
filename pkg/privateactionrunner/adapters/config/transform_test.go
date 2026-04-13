@@ -68,13 +68,13 @@ func TestGetBundleInheritedAllowedActions(t *testing.T) {
 				"com.datadoghq.gitlab.users":    sets.New[string]("action2"),
 				"com.datadoghq.kubernetes.core": sets.New[string]("action3"),
 				"com.datadoghq.kubernetes.apps": sets.New[string]("action4"),
-				"com.datadoghq.ddagent":         sets.New[string]("action5"),
+				"com.datadoghq.remoteaction":    sets.New[string]("action5"),
 			},
 			expectedInheritedActions: map[string]sets.Set[string]{
 				"com.datadoghq.script":          sets.New[string]("testConnection", "enrichScript"),
 				"com.datadoghq.gitlab.users":    sets.New[string]("testConnection"),
 				"com.datadoghq.kubernetes.core": sets.New[string]("testConnection"),
-				"com.datadoghq.ddagent":         sets.New[string]("testConnection"),
+				"com.datadoghq.remoteaction":    sets.New[string]("testConnection"),
 			},
 		},
 		{
@@ -244,8 +244,9 @@ func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 		assert.True(t, allowlist["com.datadoghq.kubernetes.core"].Has("testConnection"))
 	})
 
-	t.Run("non-cluster-agent flavor returns empty default actions", func(t *testing.T) {
+	t.Run("non-cluster-agent flavor returns default rshell actions", func(t *testing.T) {
 		flavor.SetFlavor(flavor.DefaultAgent)
+		defer flavor.SetFlavor(flavor.DefaultAgent)
 
 		mockConfig := configmock.New(t)
 		mockConfig.SetWithoutSource(setup.PARActionsAllowlist, []string{})
@@ -253,7 +254,9 @@ func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 
 		allowlist := makeActionsAllowlist(mockConfig)
 
-		assert.Empty(t, allowlist)
+		assert.True(t, allowlist["com.datadoghq.remoteaction.rshell"].Has("runCommand"))
+		// inherited actions should also be present for the remoteaction prefix
+		assert.True(t, allowlist["com.datadoghq.remoteaction"].Has("testConnection"))
 	})
 
 	t.Run("default actions are excluded when default_actions_enabled is false", func(t *testing.T) {
