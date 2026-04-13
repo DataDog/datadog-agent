@@ -36,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/common"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/connfilter"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
+	"github.com/DataDog/datadog-agent/pkg/config/basic"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
@@ -1810,7 +1811,7 @@ network_path:
 				"network_path.collector.disable_intra_vpc_collection": true,
 				"network_path.collector.source_excludes":              tt.sourceExcludes,
 				"network_path.collector.dest_excludes":                tt.destExcludes,
-				"network_path.collector.filters":                      configs,
+				"network_path.collector.filters":                      basic.StructToMap(configs),
 				"network_path.collector.monitor_ip_without_domain":    tt.monitorIPWithoutDomain,
 			}
 			stats := &teststatsd.Client{}
