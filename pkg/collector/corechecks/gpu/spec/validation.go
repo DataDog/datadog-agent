@@ -8,6 +8,7 @@ package spec
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -59,6 +60,8 @@ const (
 	ErrorUnknown      = "unknown"
 	ErrorUnsupported  = "unsupported"
 	ErrorInvalidValue = "invalid value"
+
+	maxInvalidValueSamples = 5
 )
 
 type MetricStatus struct {
@@ -67,10 +70,20 @@ type MetricStatus struct {
 }
 
 type TagSummary struct {
-	Found        int `json:"found"`
-	Missing      int `json:"missing"`
-	Unknown      int `json:"unknown"`
-	InvalidValue int `json:"invalid_value"`
+	Found               int      `json:"found"`
+	Missing             int      `json:"missing"`
+	Unknown             int      `json:"unknown"`
+	InvalidValue        int      `json:"invalid_value"`
+	InvalidValueSamples []string `json:"invalid_value_samples"`
+}
+
+func (t *TagSummary) addInvalidValue(value string) {
+	t.InvalidValue++
+
+	if slices.Contains(t.InvalidValueSamples, value) || len(t.InvalidValueSamples) >= maxInvalidValueSamples {
+		return
+	}
+	t.InvalidValueSamples = append(t.InvalidValueSamples, value)
 }
 
 // ValidationResult holds validation failures derived from spec expectations.
@@ -251,16 +264,12 @@ func ValidateMetricTagsAgainstSpec(tagsSpec *TagsSpec, metricSpec MetricSpec, me
 			}
 
 			for _, value := range values {
-				if value == "" {
-					getTagSummary(tag).InvalidValue++
+				expectedValue, hasExpectedValue := knownTagValues[tag]
+				tagSpec, hasTagSpec := requiredTags[tag]
+
+				if value == "" || (hasExpectedValue && value != expectedValue) || (hasTagSpec && tagSpec.Regex != nil && !tagSpec.Regex.MatchString(value)) {
+					getTagSummary(tag).addInvalidValue(value)
 					continue
-				}
-				if expectedValue, ok := knownTagValues[tag]; ok && value != expectedValue {
-					getTagSummary(tag).InvalidValue++
-					continue
-				}
-				if tagSpec, ok := requiredTags[tag]; ok && tagSpec.Regex != nil && !tagSpec.Regex.MatchString(value) {
-					getTagSummary(tag).InvalidValue++
 				}
 			}
 		}

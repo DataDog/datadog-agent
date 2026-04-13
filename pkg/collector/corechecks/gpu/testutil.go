@@ -83,7 +83,7 @@ func ValidateEmittedMetricsAgainstSpec(t *testing.T, metricsSpec *gpuspec.Metric
 			for tag, tagResult := range status.TagResults {
 				assert.Zero(t, tagResult.Missing, "metric %s: tag %s missing in %d cases", metricName, tag, tagResult.Missing)
 				assert.Zero(t, tagResult.Unknown, "metric %s: tag %s unknown in %d cases", metricName, tag, tagResult.Unknown)
-				assert.Zero(t, tagResult.InvalidValue, "metric %s: tag %s invalid in %d cases", metricName, tag, tagResult.InvalidValue)
+				assert.Zero(t, tagResult.InvalidValue, "metric %s: tag %s invalid in %d cases (samples: %v)", metricName, tag, tagResult.InvalidValue, tagResult.InvalidValueSamples)
 			}
 		})
 	}
