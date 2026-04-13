@@ -167,6 +167,12 @@ Two special flags on `repository_rule`:
 - `local = True` — also re-fetches on Bazel server restart (for rules that probe the local machine).
 - `configure = True` — only re-fetches on `bazel fetch --force --configure` (not plain `--force`).
 
+`.bazelrc` sets `--experimental_strict_repo_env`, which restricts repository rules to only `PATH`/`PATHEXT` plus
+variables explicitly forwarded via `--repo_env`. `MODULE.bazel` declares `@agent_volatile` via `env_vars()` to read
+packaging variables (`DEPLOY_AGENT`, `FORCED_PACKAGE_COMPRESSION_LEVEL`, `PACKAGE_VERSION`, `SIGN_MAC`). Each must have
+a matching `--repo_env=VAR` in `.bazelrc`; without it the variable arrives as `None` and packaging silently falls back
+to non-CI defaults. When extending `env_vars()`, add a `--repo_env=VAR` to `.bazelrc` in the same change.
+
 ## BUILD file style
 
 Follow the upstream [BUILD style guide](https://bazel.build/build/style-guide). Highlights:
