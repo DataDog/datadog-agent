@@ -91,7 +91,7 @@ func TestIntegrationCompareWithPowerShell(t *testing.T) {
 			}
 			reader := csv.NewReader(bytes.NewReader(csvBytes))
 			records, err := reader.ReadAll()
-			require.NoError(t, err, "Failed to parse CSV output")
+			require.NoError(t, err, "Failed to parse CSV output:\nstdout:\n%s\nstderr:\n%s", string(csvBytes), stderr.String())
 
 			// Skip header row and build map
 			for i := 1; i < len(records); i++ {
