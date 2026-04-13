@@ -9,10 +9,15 @@ package main
 import (
 	"fmt"
 	"log"
+	"sync"
 	"time"
+
+	"golang.org/x/sync/errgroup"
 
 	gpuspec "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/spec"
 )
+
+const metricQueryConcurrency = 4
 
 func computeValidation(apiKey, appKey, site string, lookbackSeconds int64) (orgValidationResults, error) {
 	metricsSpec, err := gpuspec.LoadMetricsSpec()
@@ -80,16 +85,30 @@ func validateGPUConfig(client *metricsClient, metricsSpec *gpuspec.MetricsSpec, 
 		expectedMetricNames = append(expectedMetricNames, metricName)
 	}
 
+	var mu sync.Mutex
+	var group errgroup.Group
+	group.SetLimit(metricQueryConcurrency)
+
 	for _, metricName := range expectedMetricNames {
-		prefixedMetricName := gpuspec.PrefixedMetricName(metricsSpec, metricName)
-		metricObservations, err := client.queryExpectedMetricPresenceForGPUConfig(prefixedMetricName, expectedTagsByMetric[metricName], config.TagFilter(), fromTS, toTS)
-		if err != nil {
-			return result, fmt.Errorf("validate expected metrics for %+v: %w", config, err)
-		}
-		for _, observation := range metricObservations {
-			observation.Name = metricName
-			observations[metricName] = append(observations[metricName], observation)
-		}
+		metricName := metricName
+		group.Go(func() error {
+			prefixedMetricName := gpuspec.PrefixedMetricName(metricsSpec, metricName)
+			metricObservations, err := client.queryExpectedMetricPresenceForGPUConfig(prefixedMetricName, expectedTagsByMetric[metricName], config.TagFilter(), fromTS, toTS)
+			if err != nil {
+				return fmt.Errorf("query expected metric presence for %s: %w", metricName, err)
+			}
+			for _, observation := range metricObservations {
+				observation.Name = metricName
+				mu.Lock()
+				observations[metricName] = append(observations[metricName], observation)
+				mu.Unlock()
+			}
+			return nil
+		})
+	}
+
+	if err := group.Wait(); err != nil {
+		return result, fmt.Errorf("validate expected metrics for %+v: %w", config, err)
 	}
 
 	// Get any other metrics that were emitted with the GPU prefix but aren't in the expected metrics.
