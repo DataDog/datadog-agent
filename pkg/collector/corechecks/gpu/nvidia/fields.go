@@ -18,6 +18,7 @@ import (
 
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const computeRate = true
@@ -61,6 +62,7 @@ func (c *fieldsCollector) removeUnsupportedMetrics() {
 	if err != nil {
 		// If the entire field values API is unsupported, remove all metrics
 		if ddnvml.IsAPIUnsupportedOnDevice(err, c.device) {
+			log.Debugf("GPU fields collector removing all field metrics for device %s because GetFieldValues is unsupported", c.DeviceUUID())
 			c.fieldMetrics = nil
 		}
 		// Otherwise, do nothing and keep all metrics
@@ -71,7 +73,17 @@ func (c *fieldsCollector) removeUnsupportedMetrics() {
 	for _, val := range fieldValues {
 		if val.NvmlReturn == uint32(nvml.ERROR_NOT_SUPPORTED) {
 			c.fieldMetrics = slices.DeleteFunc(c.fieldMetrics, func(fm fieldValueMetric) bool {
-				return fm.fieldValueID == val.FieldId
+				if fm.fieldValueID == val.FieldId {
+					log.Debugf(
+						"GPU fields collector removing unsupported metric %s for device %s (field_id=%d scope_id=%d)",
+						fm.name,
+						c.DeviceUUID(),
+						fm.fieldValueID,
+						fm.scopeID,
+					)
+					return true
+				}
+				return false
 			})
 		}
 	}
