@@ -81,7 +81,7 @@ single_version_override(
 # Temporary until rules_go > 0.60.0 with go.work support is in BCR
 git_override(
     module_name = "rules_go",
-    commit = "b3a8e14fbfa57227bb3a0a95b00c6d74579e0f35",
+    commit = "f14f8b8e12e19867622df87fe64dbfc9641b4749",
     remote = "https://github.com/chouquette/rules_go.git",
 )
 
