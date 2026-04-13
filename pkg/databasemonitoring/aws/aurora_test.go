@@ -997,7 +997,11 @@ func TestGetAuroraClustersFromTags(t *testing.T) {
 				return
 			}
 			assert.NoError(t, err)
-			assert.ElementsMatch(t, tt.expectedClusterIDs, clusters)
+			clusterIDs := make([]string, len(clusters))
+			for i, cluster := range clusters {
+				clusterIDs[i] = *cluster.DBClusterIdentifier
+			}
+			assert.ElementsMatch(t, tt.expectedClusterIDs, clusterIDs)
 		})
 	}
 }

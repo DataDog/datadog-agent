@@ -32,7 +32,7 @@ func (c *Client) GetAuroraClusterEndpoints(ctx context.Context, clusters []types
 	if len(clusters) == 0 {
 		return nil, nil
 	}
-	instances := make([]Instance, len(clusters))
+	instances := make([]Instance, 0, len(clusters))
 	for _, cluster := range clusters {
 		// TODO: Seth Samuel: This method is not paginated, so if there are more than 100 instances in a cluster, we will only get the first 100
 		// We should add pagination support to this method at some point
