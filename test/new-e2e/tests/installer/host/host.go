@@ -17,11 +17,14 @@ import (
 	"testing"
 	"time"
 
-	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
 )
 
@@ -77,6 +80,49 @@ func (h *Host) setSystemdVersion() {
 	h.systemdVersion = version
 }
 
+// dockerImage returns the ECR pull-through URL for ecrPath when a registry is configured,
+// or publicFallback otherwise.
+func (h *Host) dockerImage(ecrPath, publicFallback string) string {
+	reg, _ := runner.GetProfile().ParamStore().GetWithDefault(parameters.ImagePullRegistry, "")
+	if reg == "" {
+		return publicFallback
+	}
+	return strings.SplitN(reg, ",", 2)[0] + "/" + ecrPath
+}
+
+// configureDockerECRCredentialHelper writes credsStore: ecr-login into root's Docker config,
+// enabling automatic IAM-role-based authentication for ECR registries (including pull-through caches).
+// The amazon-ecr-credential-helper binary must already be on PATH.
+func (h *Host) configureDockerECRCredentialHelper() {
+	h.remote.MustExecute(`sudo mkdir -p /root/.docker && printf '{"credsStore":"ecr-login"}\n' | sudo tee /root/.docker/config.json > /dev/null`)
+}
+
+// installECRCredentialHelper installs the amazon-ecr-credential-helper binary if not already present.
+func (h *Host) installECRCredentialHelper() {
+	if _, err := h.remote.Execute("command -v docker-credential-ecr-login"); err == nil {
+		return
+	}
+	if h.pkgManager == "apt" {
+		h.remote.MustExecute("sudo apt-get install -y amazon-ecr-credential-helper")
+	} else {
+		// No official amazon-ecr-credential-helper package for non-apt distros (zypper, yum on CentOS, etc.);
+		// download the binary directly.
+		var helperArch string
+		helperVersion := "0.12.0"
+		switch h.arch {
+		case e2eos.AMD64Arch:
+			helperArch = "amd64"
+		case e2eos.ARM64Arch:
+			helperArch = "arm64"
+		default:
+			h.t().Fatalf("unsupported architecture for ECR credential helper: %s", h.arch)
+		}
+		helperURL := fmt.Sprintf("https://amazon-ecr-credential-helper-releases.s3.us-east-2.amazonaws.com/%s/linux-%s/docker-credential-ecr-login", helperVersion, helperArch)
+		h.remote.MustExecute(fmt.Sprintf(`sudo curl -fsSL "%s" -o /usr/bin/docker-credential-ecr-login && sudo chmod +x /usr/bin/docker-credential-ecr-login`, helperURL))
+	}
+}
+
+// TODO[@agent-devx]: Probably move this to the proper docker component defined in components/docker/component.go
 // InstallDocker installs Docker on the host if it is not already installed.
 func (h *Host) InstallDocker() {
 	defer func() {
@@ -99,6 +145,8 @@ func (h *Host) InstallDocker() {
 		require.NoErrorf(h.t(), err, "failed to start Docker, logs: %s", h.remote.MustExecute("sudo journalctl -xeu docker"))
 	}()
 	if _, err := h.remote.Execute("command -v docker"); err == nil {
+		h.installECRCredentialHelper()
+		h.configureDockerECRCredentialHelper()
 		return
 	}
 
@@ -113,6 +161,9 @@ func (h *Host) InstallDocker() {
 	default:
 		h.t().Fatalf("unsupported package manager: %s", h.pkgManager)
 	}
+
+	h.installECRCredentialHelper()
+	h.configureDockerECRCredentialHelper()
 }
 
 // GetDockerRuntimePath returns the runtime path of a docker runtime
@@ -510,7 +561,8 @@ func (h *Host) SetUmask(mask string) (oldmask string) {
 func (h *Host) SetupProxy() {
 	// Install Docker & the Squid Proxy
 	h.InstallDocker()
-	h.remote.MustExecute("sudo docker run -d --name squid-proxy -v /opt/fixtures/squid.conf:/etc/squid/squid.conf -p 3128:3128 public.ecr.aws/ubuntu/squid:4.10-20.04_beta")
+	h.remote.MustExecute("sudo docker run -d --name squid-proxy -v /opt/fixtures/squid.conf:/etc/squid/squid.conf -p 3128:3128 " +
+		h.dockerImage("ecr-public/ubuntu/squid:4.10-20.04_beta", "public.ecr.aws/ubuntu/squid:4.10-20.04_beta"))
 
 	squidIP := strings.TrimSpace(h.remote.MustExecute("sudo docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' squid-proxy"))
 

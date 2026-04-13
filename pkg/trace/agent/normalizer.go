@@ -28,16 +28,12 @@ const (
 	// tagOrigin specifies the origin of the trace.
 	// DEPRECATED: Origin is now specified as a TraceChunk field.
 	tagOrigin = "_dd.origin"
-	// tagSamplingPriority specifies the sampling priority of the trace.
-	// DEPRECATED: Priority is now specified as a TraceChunk field.
-	tagSamplingPriority = "_sampling_priority_v1"
 )
 
 var (
 	// Year2000NanosecTS is an arbitrary cutoff to spot weird-looking values
 	Year2000NanosecTS = time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC).UnixNano()
-	// normalizerRegistry is the semantic registry used for tag lookups in span normalization.
-	normalizerRegistry = semantics.DefaultRegistry()
+	registry          = semantics.DefaultRegistry()
 )
 
 // normalizeService handles service normalization for both pb.Span and idx.InternalSpan
@@ -235,15 +231,15 @@ func (a *Agent) normalize(ts *info.TagStats, s *pb.Span) error {
 	s.Service = svc
 
 	spanAccessor := semantics.NewDDSpanAccessor(s.Meta, s.Metrics)
-	if pSvc := semantics.LookupString(normalizerRegistry, spanAccessor, semantics.ConceptPeerService); pSvc != "" {
+	if pSvc := semantics.LookupString(registry, spanAccessor, semantics.ConceptPeerService); pSvc != "" {
 		s.Meta[string(semantics.ConceptPeerService)] = a.normalizePeerService(ts, pSvc)
 	}
-	if bSvc := semantics.LookupString(normalizerRegistry, spanAccessor, semantics.ConceptDDBaseService); bSvc != "" {
+	if bSvc := semantics.LookupString(registry, spanAccessor, semantics.ConceptDDBaseService); bSvc != "" {
 		s.Meta[string(semantics.ConceptDDBaseService)] = a.normalizeBaseService(ts, bSvc)
 	}
 
 	if a.conf.HasFeature("component2name") {
-		if v := semantics.LookupString(normalizerRegistry, spanAccessor, semantics.ConceptComponent); v != "" {
+		if v := semantics.LookupString(registry, spanAccessor, semantics.ConceptComponent); v != "" {
 			s.Name = v
 		}
 	}
@@ -266,7 +262,7 @@ func (a *Agent) normalize(ts *info.TagStats, s *pb.Span) error {
 
 	s.Type = a.validateAndFixType(ts, s.Type)
 
-	if env, ok := s.Meta["env"]; ok {
+	if env := semantics.LookupString(registry, spanAccessor, semantics.ConceptDDEnv); env != "" {
 		s.Meta["env"] = normalizeutil.NormalizeTagValue(env)
 	}
 
@@ -296,10 +292,10 @@ func (a *Agent) normalizeV1(ts *info.TagStats, s *idx.InternalSpan) error {
 	s.SetService(svc)
 
 	spanAccessorV1 := semantics.NewDDSpanAccessorV1(s)
-	if pSvc := semantics.LookupString(normalizerRegistry, spanAccessorV1, semantics.ConceptPeerService); pSvc != "" {
+	if pSvc := semantics.LookupString(registry, spanAccessorV1, semantics.ConceptPeerService); pSvc != "" {
 		s.SetStringAttribute(string(semantics.ConceptPeerService), a.normalizePeerService(ts, pSvc))
 	}
-	if bSvc := semantics.LookupString(normalizerRegistry, spanAccessorV1, semantics.ConceptDDBaseService); bSvc != "" {
+	if bSvc := semantics.LookupString(registry, spanAccessorV1, semantics.ConceptDDBaseService); bSvc != "" {
 		s.SetStringAttribute(string(semantics.ConceptDDBaseService), a.normalizeBaseService(ts, bSvc))
 	}
 
@@ -356,11 +352,11 @@ func setChunkAttributes(chunk *pb.TraceChunk, root *pb.Span) {
 	// check if priority is already populated
 	if chunk.Priority == int32(sampler.PriorityNone) {
 		// Older tracers set sampling priority in the root span.
-		if p, ok := root.Metrics[tagSamplingPriority]; ok {
+		if p, ok := semantics.LookupFloat64(registry, semantics.NewMetricsMapAccessor(root.Metrics), semantics.ConceptSamplingPriority); ok {
 			chunk.Priority = int32(p)
 		} else {
 			for _, s := range chunk.Spans {
-				if p, ok := s.Metrics[tagSamplingPriority]; ok {
+				if p, ok := semantics.LookupFloat64(registry, semantics.NewMetricsMapAccessor(s.Metrics), semantics.ConceptSamplingPriority); ok {
 					chunk.Priority = int32(p)
 					break
 				}
@@ -369,7 +365,7 @@ func setChunkAttributes(chunk *pb.TraceChunk, root *pb.Span) {
 	}
 	if chunk.Origin == "" && root.Meta != nil {
 		// Older tracers set origin in the root span.
-		chunk.Origin = root.Meta[tagOrigin]
+		chunk.Origin = semantics.LookupString(registry, semantics.NewStringMapAccessor(root.Meta), semantics.ConceptDDOrigin)
 	}
 
 	if _, ok := chunk.Tags[tagDecisionMaker]; !ok {

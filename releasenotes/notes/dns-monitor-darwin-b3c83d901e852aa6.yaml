@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add DNS monitoring support on macOS using libpcap packet capture.

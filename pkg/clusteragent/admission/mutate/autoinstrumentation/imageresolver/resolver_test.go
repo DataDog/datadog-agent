@@ -100,6 +100,36 @@ func TestIsDatadoghqRegistry(t *testing.T) {
 			expected: true,
 		},
 		{
+			name:     "datadoghq_azurecr_io",
+			registry: "datadoghq.azurecr.io",
+			expected: true,
+		},
+		{
+			name:     "us_docker_pkg_dev_datadoghq",
+			registry: "us-docker.pkg.dev/datadoghq/gcr.io",
+			expected: true,
+		},
+		{
+			name:     "europe_docker_pkg_dev_datadoghq",
+			registry: "europe-docker.pkg.dev/datadoghq/eu.gcr.io",
+			expected: true,
+		},
+		{
+			name:     "asia_docker_pkg_dev_datadoghq",
+			registry: "asia-docker.pkg.dev/datadoghq/asia.gcr.io",
+			expected: true,
+		},
+		{
+			name:     "registry_datad0g_com",
+			registry: "registry.datad0g.com",
+			expected: true,
+		},
+		{
+			name:     "registry_datadoghq_com",
+			registry: "registry.datadoghq.com",
+			expected: true,
+		},
+		{
 			name:     "docker_io_not_datadog",
 			registry: "docker.io",
 			expected: false,

@@ -67,7 +67,7 @@ def deploy(
 
     # Verify image deployed and not outdated in s3
     if deploy_job is not None and pipeline_id is not None:
-        cmd = f"inv -e check-s3-image-exists --pipeline-id={pipeline_id} --deploy-job={deploy_job}"
+        cmd = f"inv -e e2e.check-s3-image-exists --pipeline-id={pipeline_id} --deploy-job={deploy_job}"
         cmd = tool.get_aws_wrapper(aws_account) + cmd
         output = ctx.run(cmd, warn=True)
 
