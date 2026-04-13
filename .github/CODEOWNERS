@@ -45,6 +45,7 @@
 /NOTICE                                 @DataDog/agent-delivery
 
 /LICENSE*                               # do not notify anyone
+/rust/LICENSE*				# do not notify anyone
 
 /mkdocs.yml                             @DataDog/agent-devx
 /release.json                           @DataDog/agent-build @DataDog/agent-delivery @DataDog/agent-integrations
@@ -492,6 +493,7 @@
 /pkg/collector/corechecks/cluster/orchestrator/processors/ecs/    @DataDog/ecs-experiences
 /pkg/collector/corechecks/cluster/orchestrator/transformers/ecs/  @DataDog/ecs-experiences
 /pkg/collector/corechecks/containers/   @DataDog/container-integrations
+/pkg/collector/corechecks/containers/csi_driver/   @DataDog/container-platform
 /pkg/collector/corechecks/containerimage/       @DataDog/container-integrations
 /pkg/collector/corechecks/containerlifecycle/   @DataDog/container-integrations
 /pkg/collector/corechecks/discovery/ @DataDog/agent-discovery
