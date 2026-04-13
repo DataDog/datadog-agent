@@ -36,9 +36,8 @@ type KindConfigFlags struct {
 var kindVersionsJSON []byte
 
 // kubeToKindVersion maps Kubernetes minor version (e.g. "1.35") to kind config.
-// Populated at init time from kind_versions.json, which is updated automatically
+// Populated at init time from kindVersionsJSON, which is updated automatically
 // by the update-kubernetes-versions CI workflow.
-// Source: https://github.com/kubernetes-sigs/kind/releases
 var kubeToKindVersion map[string]KindConfig
 
 func init() {

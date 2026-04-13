@@ -496,14 +496,13 @@ def update_e2e_yaml(_, versions_file=VERSIONS_FILE):
 @task
 def update_kind_versions_file(_, versions_file=VERSIONS_FILE):
     """
-    Update the embedded kind_versions.json with new Kubernetes versions.
+    Update kind_versions.json with new Kubernetes versions.
 
-    Reads k8s_versions.json (full version → {tag, digest, kind_version?}), fetches
-    kind_version from the kindest/node image labels if not already stored, then
-    upserts into kind_versions.json keyed by minor version ("1.35", etc.).
+    Reads versions_file, fetches kind_version from the kindest/node image labels
+    if not already stored, then upserts into kind_versions.json keyed by minor version ("1.35", etc.).
 
     Args:
-        versions_file: Path to the JSON file containing versions (default: k8s_versions.json)
+        versions_file: Path to the JSON file containing versions (default: VERSIONS_FILE)
     """
     _check_dependencies()
 
@@ -520,7 +519,7 @@ def update_kind_versions_file(_, versions_file=VERSIONS_FILE):
         with open(KIND_VERSIONS_JSON_PATH) as f:
             kind_versions = json.load(f)
 
-    # Fetch the latest kind release once — used as fallback when label fetch fails
+    # We fetch the latest kind release later if needed
     latest_kind_release = None
 
     updated = False
