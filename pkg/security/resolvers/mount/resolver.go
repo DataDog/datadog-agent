@@ -360,7 +360,7 @@ func (mr *Resolver) ResolveFilesystem(mountID uint32, pid uint32) (string, error
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
-	mount, _, _, err := mr.resolveMount(mountID, pid)
+	mount, _, _, err := mr.resolveMount(mountID)
 	if err != nil {
 		return model.UnknownFS, err
 	}
@@ -536,7 +536,7 @@ func (mr *Resolver) getMountPath(mountID uint32, pid uint32) (string, model.Moun
 func (mr *Resolver) ResolveMountRoot(mountID uint32, pid uint32) (string, model.MountSource, model.MountOrigin, error) {
 	mr.lock.Lock()
 
-	root, source, origin, err := mr.resolveMountRoot(mountID, pid)
+	root, source, origin, err := mr.resolveMountRoot(mountID)
 	if err == nil {
 		mr.lock.Unlock()
 		return root, source, origin, nil
@@ -559,7 +559,7 @@ func (mr *Resolver) ResolveMountRoot(mountID uint32, pid uint32) (string, model.
 			mr.mounts.Remove(m.MountID)
 			mr.insert(m)
 		}
-		root, source, origin, err = mr.resolveMountRoot(mountID, pid)
+		root, source, origin, err = mr.resolveMountRoot(mountID)
 		mr.lock.Unlock()
 		if err == nil {
 			mr.procHitsStats.Inc()
@@ -571,8 +571,8 @@ func (mr *Resolver) ResolveMountRoot(mountID uint32, pid uint32) (string, model.
 	return "", model.MountSourceUnknown, model.MountOriginUnknown, &ErrMountNotFound{MountID: mountID}
 }
 
-func (mr *Resolver) resolveMountRoot(mountID uint32, pid uint32) (string, model.MountSource, model.MountOrigin, error) {
-	mount, source, origin, err := mr.resolveMount(mountID, pid)
+func (mr *Resolver) resolveMountRoot(mountID uint32) (string, model.MountSource, model.MountOrigin, error) {
+	mount, source, origin, err := mr.resolveMount(mountID)
 	if err != nil {
 		return "", source, origin, err
 	}
@@ -641,7 +641,7 @@ func (mr *Resolver) resolveMountPath(mountID uint32, pid uint32) (string, model.
 func (mr *Resolver) ResolveMount(mountID uint32, pid uint32) (*model.Mount, model.MountSource, model.MountOrigin, error) {
 	mr.lock.Lock()
 
-	mount, source, origin, err := mr.resolveMount(mountID, pid)
+	mount, source, origin, err := mr.resolveMount(mountID)
 	if err == nil {
 		mr.lock.Unlock()
 		return mount, source, origin, nil
@@ -665,7 +665,7 @@ func (mr *Resolver) ResolveMount(mountID uint32, pid uint32) (*model.Mount, mode
 			mr.mounts.Remove(m.MountID)
 			mr.insert(m)
 		}
-		mount, source, origin, err = mr.resolveMount(mountID, pid)
+		mount, source, origin, err = mr.resolveMount(mountID)
 		mr.lock.Unlock()
 		if err == nil {
 			mr.procHitsStats.Inc()
@@ -677,7 +677,7 @@ func (mr *Resolver) ResolveMount(mountID uint32, pid uint32) (*model.Mount, mode
 	return nil, model.MountSourceUnknown, model.MountOriginUnknown, &ErrMountNotFound{MountID: mountID}
 }
 
-func (mr *Resolver) resolveMount(mountID uint32, _pid uint32) (*model.Mount, model.MountSource, model.MountOrigin, error) {
+func (mr *Resolver) resolveMount(mountID uint32) (*model.Mount, model.MountSource, model.MountOrigin, error) {
 	if _, err := mr.IsMountIDValid(mountID); err != nil {
 		return nil, model.MountSourceUnknown, model.MountOriginUnknown, err
 	}
@@ -690,12 +690,6 @@ func (mr *Resolver) resolveMount(mountID uint32, _pid uint32) (*model.Mount, mod
 		return mount, source, origin, nil
 	}
 	mr.cacheMissStats.Inc()
-
-	mr.traceCheckpoint("mount_cache_miss_sync")
-	if mr.opts.UseProcFS {
-		mr.requestProcfsSync(pid)
-	}
-	mr.traceCheckpoint("mount_cache_miss_sync_done")
 
 	return nil, model.MountSourceUnknown, model.MountOriginUnknown, &ErrMountNotFound{MountID: mountID}
 }
