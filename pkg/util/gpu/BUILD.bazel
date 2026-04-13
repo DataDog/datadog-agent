@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "gpu",
+    srcs = [
+        "common.go",
+        "doc.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/gpu",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "gpu_test",
+    srcs = ["common_test.go"],
+    embed = [":gpu"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

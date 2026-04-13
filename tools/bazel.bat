@@ -59,6 +59,8 @@ if not exist "!more_than_260_chars!" (
 
 set "args=%*"
 if defined args if defined extra_args call :insert_extra_args
+:: Prevent rules_android from loading a system Android SDK - TODO(regis): replace with --experimental_strict_repo_env
+set "ANDROID_HOME="
 "%BAZEL_REAL%" !bazel_home_startup_option! !args!
 exit /b !errorlevel!
 
