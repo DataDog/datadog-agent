@@ -15,7 +15,6 @@ import (
 
 	"github.com/google/uuid"
 
-	ncmreport "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/report"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -41,7 +40,7 @@ func (m *memConfigStore) Close(_ context.Context) error {
 }
 
 // StoreConfig stores a device configuration, deduplicating against the latest stored config for the same device+type.
-func (m *memConfigStore) StoreConfig(deviceID string, configType ncmreport.ConfigType, rawConfig string) (string, error) {
+func (m *memConfigStore) StoreConfig(deviceID string, configType ConfigType, rawConfig string) (string, error) {
 	rawHash := hashConfig(rawConfig)
 	now := time.Now().Unix()
 
@@ -70,7 +69,7 @@ func (m *memConfigStore) StoreConfig(deviceID string, configType ncmreport.Confi
 
 // findLatestMatch returns the UUID of the latest stored config for the given device+type if its hash matches.
 // Must be called with m.lock held.
-func (m *memConfigStore) findLatestMatch(deviceID string, configType ncmreport.ConfigType, rawHash string) string {
+func (m *memConfigStore) findLatestMatch(deviceID string, configType ConfigType, rawHash string) string {
 	var latest *ConfigMetadata
 	for _, meta := range m.metadata {
 		if meta.DeviceID != deviceID || meta.ConfigType != configType {
@@ -87,7 +86,7 @@ func (m *memConfigStore) findLatestMatch(deviceID string, configType ncmreport.C
 }
 
 // CheckDuplicate returns the UUID of the latest stored config for the given device+type if its hash matches, or empty string otherwise.
-func (m *memConfigStore) CheckDuplicate(deviceID string, configType ncmreport.ConfigType, rawHash string) (string, error) {
+func (m *memConfigStore) CheckDuplicate(deviceID string, configType ConfigType, rawHash string) (string, error) {
 	m.lock.RLock()
 	defer m.lock.RUnlock()
 	return m.findLatestMatch(deviceID, configType, rawHash), nil

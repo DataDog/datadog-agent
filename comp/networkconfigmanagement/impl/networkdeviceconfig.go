@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+//go:build ncm
+
 // Package networkconfigmanagementimpl implements the networkconfigmanagement component interface
 package networkconfigmanagementimpl
 
