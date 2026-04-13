@@ -80,9 +80,11 @@ func fetchOPM(ctx context.Context, client *config.ResetClient, cfg *config.Agent
 func (r *HTTPReceiver) setOrgPropMarker(opm string) {
 	r.orgPropMarker.Store(opm)
 	r.computeStateHashMu.Lock()
-	fn := r.computeStateHash
-	if fn != nil {
+	if fn := r.computeStateHash; fn != nil {
 		r.agentState.Store(fn(opm))
+	}
+	if fn := r.computeInfoResponse; fn != nil {
+		r.cachedInfoResponse.Store(fn(opm))
 	}
 	r.computeStateHashMu.Unlock()
 }

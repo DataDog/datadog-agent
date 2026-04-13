@@ -136,12 +136,21 @@ type HTTPReceiver struct {
 	// payload in makeInfoHandler and updated when orgPropMarker is set.
 	agentState atomic.String
 
-	// computeStateHashMu protects computeStateHash.
+	// computeStateHashMu protects computeStateHash and computeInfoResponse.
 	computeStateHashMu sync.Mutex
 
 	// computeStateHash is set by makeInfoHandler. Given an OPM value (may be
 	// empty), it returns the SHA-256 hex hash of the full /info payload.
 	computeStateHash func(opm string) string
+
+	// computeInfoResponse is set by makeInfoHandler. Given an OPM value (may be
+	// empty), it returns the pre-serialised JSON body for GET /info.
+	computeInfoResponse func(opm string) []byte
+
+	// cachedInfoResponse holds the pre-serialised JSON body for GET /info.
+	// Value type: []byte. Initialised by makeInfoHandler and updated by
+	// setOrgPropMarker so the handler never needs to marshal on the hot path.
+	cachedInfoResponse atomic.Value
 
 	statsd   statsd.ClientInterface
 	timing   timing.Reporter

@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
@@ -207,7 +208,7 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		PeerTags: r.conf.ConfiguredPeerTags(),
 	}
 
-	// computeStateHash produces the Datadog-Agent-State hash for a given OPM.
+	// computeStateHashFn produces the Datadog-Agent-State hash for a given OPM.
 	// Stored on the receiver so setOrgPropMarker can reuse it without re-parsing
 	// the configuration.
 	computeStateHashFn := func(opm string) string {
@@ -218,32 +219,38 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		return hex.EncodeToString(h[:])
 	}
 
+	// computeInfoResponseFn produces the full pre-serialised JSON body for a
+	// given OPM. Stored on the receiver so setOrgPropMarker can refresh the
+	// cache without re-parsing the configuration.
+	computeInfoResponseFn := func(opm string) []byte {
+		p := staticPayload
+		p.OrgPropMarker = opm
+		b, _ := json.MarshalIndent(p, "", "\t")
+		return b
+	}
+
 	// Hold the mutex across the entire assignment + read + store so that
 	// setOrgPropMarker cannot interleave. Without this, setOrgPropMarker could
 	// write the correct OPM-based agentState between our unlock and our Store,
 	// and our Store would then revert it to the stale pre-OPM hash.
 	r.computeStateHashMu.Lock()
 	r.computeStateHash = computeStateHashFn
-	initialHash := computeStateHashFn(r.orgPropMarker.Load())
+	r.computeInfoResponse = computeInfoResponseFn
+	opm := r.orgPropMarker.Load()
+	initialHash := computeStateHashFn(opm)
 	r.agentState.Store(initialHash)
+	r.cachedInfoResponse.Store(computeInfoResponseFn(opm))
 	r.computeStateHashMu.Unlock()
 
 	return initialHash, func(w http.ResponseWriter, req *http.Request) {
-		opm := r.OrgPropMarker()
-		payload := staticPayload
-		payload.OrgPropMarker = opm
-
 		containerID := r.containerIDProvider.GetContainerID(req.Context(), req.Header)
 		if containerTags, err := r.conf.ContainerTags(containerID); err == nil {
 			w.Header().Add(containerTagsHashHeader, computeContainerTagsHash(containerTags))
 		}
 
-		txt, err := json.MarshalIndent(payload, "", "\t")
-		if err != nil {
-			http.Error(w, "internal error", http.StatusInternalServerError)
-			return
-		}
-		w.Write(txt) //nolint:errcheck
+		body := r.cachedInfoResponse.Load().([]byte)
+		w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+		w.Write(body) //nolint:errcheck
 	}
 }
 

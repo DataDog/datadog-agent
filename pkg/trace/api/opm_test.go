@@ -207,28 +207,53 @@ func TestSetOrgPropMarker_UpdatesAgentState(t *testing.T) {
 	_, _ = rcv.makeInfoHandler()
 
 	before := rcv.agentState.Load()
+	beforeBytes, ok := rcv.cachedInfoResponse.Load().([]byte)
+	require.True(t, ok)
+
 	rcv.setOrgPropMarker("test-opm")
+
 	after := rcv.agentState.Load()
+	afterBytes, ok := rcv.cachedInfoResponse.Load().([]byte)
+	require.True(t, ok)
 
 	assert.NotEmpty(t, before)
 	assert.NotEmpty(t, after)
 	assert.NotEqual(t, before, after, "agentState should change when OPM is set")
 	assert.Equal(t, "test-opm", rcv.OrgPropMarker())
+
+	assert.NotEmpty(t, beforeBytes)
+	assert.NotEmpty(t, afterBytes)
+	assert.NotEqual(t, beforeBytes, afterBytes, "cachedInfoResponse should change when OPM is set")
+
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal(afterBytes, &payload))
+	assert.Equal(t, "test-opm", payload["org_prop_marker"])
 }
 
 func TestSetOrgPropMarker_BeforeMakeInfoHandler(t *testing.T) {
-	// Simulate OPM arriving before makeInfoHandler initialises computeStateHash.
+	// Simulate OPM arriving before makeInfoHandler initialises computeStateHash
+	// and computeInfoResponse.
 	rcv := newTestReceiverFromConfig(newTestReceiverConfig())
 
-	// setOrgPropMarker should not panic even when computeStateHash is nil.
+	// setOrgPropMarker should not panic even when the compute functions are nil.
 	rcv.setOrgPropMarker("early-opm")
 	assert.Equal(t, "early-opm", rcv.OrgPropMarker())
+	// cachedInfoResponse must not be set yet — makeInfoHandler has not run.
+	assert.Nil(t, rcv.cachedInfoResponse.Load())
 
 	// makeInfoHandler should pick up the already-stored OPM.
 	hash, h := rcv.makeInfoHandler()
 	assert.NotEmpty(t, hash)
 	_ = h
+
 	// agentState should reflect the early OPM.
-	expectedHash := rcv.agentState.Load()
-	assert.NotEmpty(t, expectedHash)
+	assert.NotEmpty(t, rcv.agentState.Load())
+
+	// cachedInfoResponse should now be populated and include the early OPM.
+	cachedBytes, ok := rcv.cachedInfoResponse.Load().([]byte)
+	require.True(t, ok)
+	require.NotEmpty(t, cachedBytes)
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal(cachedBytes, &payload))
+	assert.Equal(t, "early-opm", payload["org_prop_marker"])
 }
