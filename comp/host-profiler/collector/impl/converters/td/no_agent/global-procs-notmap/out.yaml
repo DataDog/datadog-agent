@@ -6,6 +6,7 @@ exporters:
             dd-evp-origin: host-profiler
             dd-evp-origin-version: 7.0.0-test
 processors:
+    ddhostname/default: {}
     resource/dd-profiler-internal-metadata:
         attributes:
             - action: upsert
@@ -39,6 +40,7 @@ service:
             processors:
                 - batch
                 - resourcedetection/default
+                - ddhostname/default
                 - resource/dd-profiler-internal-metadata
             receivers:
                 - profiling
