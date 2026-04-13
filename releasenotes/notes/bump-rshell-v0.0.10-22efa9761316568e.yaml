@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Bump ``rshell`` dependency from v0.0.9 to v0.0.10 for the Private Action Runner.
