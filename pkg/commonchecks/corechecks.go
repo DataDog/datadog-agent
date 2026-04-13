@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containerlifecycle"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/containerd"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/cri"
+	csidriver "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/csi_driver"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/docker"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kata"
@@ -128,6 +129,7 @@ func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Com
 	corecheckLoader.RegisterCheck(containerd.CheckName, containerd.Factory(store, filterStore, tagger))
 	corecheckLoader.RegisterCheck(cri.CheckName, cri.Factory(store, filterStore, tagger))
 	corecheckLoader.RegisterCheck(kata.CheckName, kata.Factory(store, tagger))
+	corecheckLoader.RegisterCheck(csidriver.CheckName, csidriver.Factory())
 	corecheckLoader.RegisterCheck(ciscosdwan.CheckName, ciscosdwan.Factory())
 	corecheckLoader.RegisterCheck(discovery.CheckName, discovery.Factory())
 	corecheckLoader.RegisterCheck(versa.CheckName, versa.Factory())
