@@ -13,9 +13,9 @@ import (
 
 func TestGetBool(t *testing.T) {
 	cases := []struct {
-		v   interface{}
-		exp bool
-		err bool
+		value         interface{}
+		expected      bool
+		expectedError bool
 	}{
 		{true, true, false},
 		{false, false, false},
@@ -27,21 +27,21 @@ func TestGetBool(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		v, err := GetBool(c.v)
-		if c.err {
+		v, err := GetBool(c.value)
+		if c.expectedError {
 			assert.NotNil(t, err)
 		} else {
 			assert.NoError(t, err)
-			assert.Equal(t, c.exp, v)
+			assert.Equal(t, c.expected, v)
 		}
 	}
 }
 
 func TestGetInt(t *testing.T) {
 	cases := []struct {
-		v   interface{}
-		exp int
-		err bool
+		value         interface{}
+		expected      int
+		expectedError bool
 	}{
 		{0, 0, false},
 		{1, 1, false},
@@ -58,12 +58,12 @@ func TestGetInt(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		v, err := GetInt(c.v)
-		if c.err {
+		v, err := GetInt(c.value)
+		if c.expectedError {
 			assert.NotNil(t, err)
 		} else {
 			assert.NoError(t, err)
-			assert.Equal(t, v, c.exp)
+			assert.Equal(t, v, c.expected)
 		}
 	}
 }
