@@ -1084,9 +1084,9 @@ new-e2e-package-signing-debian-a7-x86_64:
     - .new_e2e_template
     - .new-e2e_package_signing
   variables:
-    E2E_DESCRIPTORS: "debian/x86_64/9,debian/x86_64/10,debian/x86_64/11,debian/x86_64/12"
-    E2E_CWS_SUPPORTED_DESCRIPTORS: "debian/x86_64/10,debian/x86_64/11"
-    E2E_BRANCH_DESCRIPTORS: "debian/x86_64/11"
+    E2E_DESCRIPTORS: "debian/x86_64/10-agent-platform,debian/x86_64/11-agent-platform,debian/x86_64/12-agent-platform"
+    E2E_CWS_SUPPORTED_DESCRIPTORS: "debian/x86_64/10-agent-platform,debian/x86_64/11-agent-platform"
+    E2E_BRANCH_DESCRIPTORS: "debian/x86_64/11-agent-platform"
   needs:
     - !reference [.needs_new_e2e_template]
     - agent_deb-x64-a7

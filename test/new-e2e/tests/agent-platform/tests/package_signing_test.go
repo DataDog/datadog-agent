@@ -72,10 +72,6 @@ func TestPackageSigningComponent(t *testing.T) {
 func (is *packageSigningTestSuite) TestPackageSigning() {
 	// Install the signing keys
 	if is.osName == "ubuntu" || is.osName == "debian" {
-		// TODO(ACIX-1305): apt-transport-https, curl, gnupg are prerequisites for
-		// APT repo setup, not the thing being tested. Pre-bake them into the AMI
-		// and remove this install step.
-		is.Env().RemoteHost.MustExecute("sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y apt-transport-https curl gnupg")
 		aptUsrShareKeyring := "/usr/share/keyrings/datadog-archive-keyring.gpg"
 		is.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo touch %s && sudo chmod a+r %s", aptUsrShareKeyring, aptUsrShareKeyring))
 		keys := []string{"DATADOG_APT_KEY_CURRENT.public", "DATADOG_APT_KEY_C0962C7D.public", "DATADOG_APT_KEY_F14F620E.public", "DATADOG_APT_KEY_382E94DE.public"}

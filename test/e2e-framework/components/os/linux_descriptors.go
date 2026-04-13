@@ -13,8 +13,21 @@ var (
 	Ubuntu2204    = NewDescriptor(Ubuntu, "22-04")
 	Ubuntu2004    = NewDescriptor(Ubuntu, "20-04")
 
+	// Agent-platform variants: apt-transport-https, curl, gnupg pre-installed
+	// so that agent installation tests can set up the Datadog APT repo without
+	// a runtime install step.
+	Ubuntu1604AgentPlatform = NewDescriptor(Ubuntu, "16-04-agent-platform")
+	Ubuntu1804AgentPlatform = NewDescriptor(Ubuntu, "18-04-agent-platform")
+	Ubuntu2004AgentPlatform = NewDescriptor(Ubuntu, "20-04-agent-platform")
+	Ubuntu2404AgentPlatform = NewDescriptor(Ubuntu, "24-04-agent-platform")
+
 	// Tool-baked Ubuntu variants (tools pre-installed in AMI)
 	Ubuntu2204ServiceDiscovery = NewDescriptor(Ubuntu, "22-04-service-discovery")
+
+	// Agent-platform Debian variants
+	Debian10AgentPlatform = NewDescriptor(Debian, "10-agent-platform")
+	Debian11AgentPlatform = NewDescriptor(Debian, "11-agent-platform")
+	Debian12AgentPlatform = NewDescriptor(Debian, "12-agent-platform")
 
 	DebianDefault = Debian12
 	Debian12      = NewDescriptor(Debian, "12")

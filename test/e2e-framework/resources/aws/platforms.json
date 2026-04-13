@@ -38,13 +38,17 @@
     "debian": {
         "arm64": {
             "10": "ami-0c16c1621703293be",
+            "10-agent-platform": "ami-0c78be796c9209670",
             "11": "ami-0d5d89e4c13bccc6b",
             "12": "ami-087f0b4a55254d753"
         },
         "x86_64": {
             "10": "ami-0d95ff0dda748a90f",
+            "10-agent-platform": "ami-075cecde91d4a72ff",
             "11": "ami-05a170eabaee7530d",
+            "11-agent-platform": "ami-0b0705198ade57956",
             "12": "ami-014a91af7c12de024",
+            "12-agent-platform": "ami-09376b9dcd23cafdd",
             "9": "ami-0182559468c1975fe"
         }
     },
@@ -92,24 +96,32 @@
     "ubuntu": {
         "arm64": {
             "18-04": "ami-095f2b8e3f2694a03",
+            "18-04-agent-platform": "ami-059f1f32c602775e9",
             "20-04": "ami-0e3a00372d5d82afd",
             "20-04-2": "ami-023f1e40b096c3ebc",
+            "20-04-agent-platform": "ami-06d77a202a5791b8b",
             "21-04": "ami-070ae1b4c24077da1",
             "22-04": "ami-0ecccbb39816a0f31",
             "23-04": "ami-0a20fb27318b71251",
             "23-10": "ami-0dea732dd5f1da0a8",
-            "24-04": "ami-09ffc2931cd758420"
+            "24-04": "ami-09ffc2931cd758420",
+            "24-04-agent-platform": "ami-0c0c35dcb22ed4934"
         },
         "x86_64": {
             "14-04": "ami-013d633d3b6cdb22c",
             "16-04": "ami-0e42c5f8e0ed852a5",
+            "16-04-agent-platform": "ami-09ff3d6c25bf0d18c",
             "18-04": "ami-03109f689cb21ed2d",
+            "18-04-agent-platform": "ami-0495ac3b0187ec826",
             "20-04": "ami-0b8dcb0798b04a2ce",
+            "20-04-agent-platform": "ami-090a7b25d1044660d",
             "22-04": "ami-0347d82d55205687d",
+            "22-04-agent-platform": "ami-0416d334bd632c7a8",
             "22-04-service-discovery": "ami-055c2fba14f0e1bcc",
             "23-04": "ami-07faed25a1239aef5",
             "23-10": "ami-0949b45ef274e55a1",
-            "24-04": "ami-0348254a9473213cf"
+            "24-04": "ami-0348254a9473213cf",
+            "24-04-agent-platform": "ami-0e7682080ca630c25"
         }
     },
     "windows-server": {
