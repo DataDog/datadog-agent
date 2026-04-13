@@ -859,7 +859,9 @@ func (e *engine) ReplayStoredData() advanceResult {
 }
 
 // ReplayWithLiveSchedule replays stored data but only advances at the timestamps
-// recorded in the live advance log.
+// recorded in the live advance log. The live advance log records upToSec values
+// (typically dataTimeSec-1 from the scheduler), which may not match data timestamps
+// exactly. We advance at each live time once the data stream has reached or passed it.
 func (e *engine) ReplayWithLiveSchedule(liveAdvanceTimes []int64) advanceResult {
 	var allAnomalies []observerdef.Anomaly
 	var allTelemetry []observerdef.ObserverTelemetry
@@ -872,20 +874,21 @@ func (e *engine) ReplayWithLiveSchedule(liveAdvanceTimes []int64) advanceResult 
 	e.replayAdvances.Store(0)
 	e.replayAnomalies.Store(0)
 
-	liveSet := make(map[int64]bool, len(liveAdvanceTimes))
-	for _, t := range liveAdvanceTimes {
-		liveSet[t] = true
-	}
-
+	// liveAdvanceTimes must be sorted (guaranteed by liveAdvanceTimes()).
+	liveIdx := 0
 	advances := 0
 	for i, ts := range timestamps {
 		e.trackLatestDataTime(ts)
 
-		if liveSet[ts] {
-			result := e.advanceWithReason(ts, advanceReasonInputDriven)
+		// Advance at all live advance times that the data stream has reached.
+		// Live advance times are upToSec values (often dataTimeSec-1), so they
+		// may not appear in DataTimestamps(). We trigger when ts >= advanceTime.
+		for liveIdx < len(liveAdvanceTimes) && liveAdvanceTimes[liveIdx] <= ts {
+			result := e.advanceWithReason(liveAdvanceTimes[liveIdx], advanceReasonInputDriven)
 			allAnomalies = append(allAnomalies, result.anomalies...)
 			allTelemetry = append(allTelemetry, result.telemetry...)
 			advances++
+			liveIdx++
 		}
 
 		e.replayTimestampsDone.Store(int64(i + 1))

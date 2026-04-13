@@ -846,9 +846,12 @@ func (h *handle) ObserveLog(msg observerdef.LogView) {
 }
 
 // ObserveTrace is a no-op. Trace processing is not used.
+// Note: this also means the recorder's ObserveTrace (which wraps this handle)
+// is never called for live data, so trace parquet files are no longer populated.
+// This is intentional — traces are abandoned for the observer.
 func (h *handle) ObserveTrace(_ observerdef.TraceView) {}
 
-// ObserveTraceStats is a no-op. Trace stats processing is deprioritized.
+// ObserveTraceStats is a no-op. Trace stats processing is not used.
 func (h *handle) ObserveTraceStats(_ observerdef.TraceStatsView) {}
 
 // ObserveProfile observes a profiling sample.

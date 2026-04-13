@@ -536,6 +536,33 @@ func TestReplayWithLiveScheduleOnlyAdvancesAtLiveTimestamps(t *testing.T) {
 	assert.Equal(t, advanceReasonReplayEnd, advances[2].advanceCompleted.reason)
 }
 
+func TestReplayWithLiveScheduleSparseData(t *testing.T) {
+	storage := newTimeSeriesStorage()
+	// Sparse data: timestamps 100 and 105 only.
+	storage.Add("ns", "cpu", 1.0, 100, nil)
+	storage.Add("ns", "cpu", 2.0, 105, nil)
+
+	e := newEngine(engineConfig{storage: storage})
+
+	sink := &collectingSink{}
+	e.Subscribe(sink)
+
+	// Live scheduler uses analyzeUpTo = dataTimeSec - 1, so live advance times
+	// are 99 and 104 — neither exists in DataTimestamps().
+	liveAdvanceTimes := []int64{99, 104}
+	e.ReplayWithLiveSchedule(liveAdvanceTimes)
+
+	advances := sink.eventsOfKind(eventAdvanceCompleted)
+	// 99 triggers when data reaches ts=100 (100 >= 99).
+	// 104 triggers when data reaches ts=105 (105 >= 104).
+	// onReplayEnd flushes at 105.
+	require.Len(t, advances, 3)
+	assert.Equal(t, int64(99), advances[0].advanceCompleted.advancedToSec)
+	assert.Equal(t, int64(104), advances[1].advanceCompleted.advancedToSec)
+	assert.Equal(t, int64(105), advances[2].advanceCompleted.advancedToSec)
+	assert.Equal(t, advanceReasonReplayEnd, advances[2].advanceCompleted.reason)
+}
+
 func TestReplayWithLiveScheduleNoMatchingTimestamps(t *testing.T) {
 	storage := newTimeSeriesStorage()
 	for sec := int64(10); sec <= 13; sec++ {
@@ -547,12 +574,13 @@ func TestReplayWithLiveScheduleNoMatchingTimestamps(t *testing.T) {
 	sink := &collectingSink{}
 	e.Subscribe(sink)
 
-	// Live advanced at timestamps that don't exist in storage.
+	// Live advanced at timestamps beyond all stored data.
 	liveAdvanceTimes := []int64{99, 100}
 	e.ReplayWithLiveSchedule(liveAdvanceTimes)
 
 	advances := sink.eventsOfKind(eventAdvanceCompleted)
-	// No live timestamps match, but onReplayEnd still flushes at latestDataTime (13).
+	// No live timestamps are reached by the data (max data ts=13 < 99).
+	// onReplayEnd still flushes at latestDataTime (13).
 	require.Len(t, advances, 1)
 	assert.Equal(t, int64(13), advances[0].advanceCompleted.advancedToSec)
 	assert.Equal(t, advanceReasonReplayEnd, advances[0].advanceCompleted.reason)
