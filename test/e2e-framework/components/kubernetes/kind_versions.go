@@ -41,7 +41,7 @@ var kindVersionsJSON []byte
 var kubeToKindVersion map[string]KindConfig
 
 func init() {
-	var kubeToKindVersion map[string]KindConfig
+	kubeToKindVersion = make(map[string]KindConfig)
 	if err := json.Unmarshal(kindVersionsJSON, &kubeToKindVersion); err != nil {
 		panic(fmt.Sprintf("failed to parse kind_versions.json: %v", err))
 	}
