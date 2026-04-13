@@ -99,6 +99,11 @@ func FromDDConfig(config config.Component) (*Config, error) {
 func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 	allowlist := make(map[string]sets.Set[string])
 	actionFqns := config.GetStringSlice(setup.PARActionsAllowlist)
+
+	if config.GetBool(setup.PARDefaultActionsEnabled) {
+		actionFqns = append(actionFqns, DefaultEnabledActionFQNs...)
+	}
+
 	for _, fqn := range actionFqns {
 		bundleName, actionName := actions.SplitFQN(fqn)
 		previous, ok := allowlist[bundleName]

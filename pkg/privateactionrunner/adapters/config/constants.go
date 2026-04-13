@@ -34,6 +34,12 @@ type BundleInheritedAllowedAction struct {
 	ExpectedPrefix string
 }
 
+// DefaultEnabledActionFQNs is a list of action FQNs that are enabled by default.
+// Users can opt out by setting private_action_runner.default_actions_enabled to false.
+var DefaultEnabledActionFQNs = []string{
+	"com.datadoghq.remoteaction.rshell.runCommand",
+}
+
 // BundleInheritedAllowedActions is a list of actions that are automatically allowed
 // if at least one other action matching their expected prefix is allowed
 var BundleInheritedAllowedActions = []BundleInheritedAllowedAction{

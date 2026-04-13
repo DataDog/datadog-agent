@@ -230,6 +230,53 @@ func TestFromDDConfig(t *testing.T) {
 	}
 }
 
+func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
+	t.Run("default actions are included when default_actions_enabled is true", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetWithoutSource(setup.PARActionsAllowlist, []string{})
+		mockConfig.SetWithoutSource(setup.PARDefaultActionsEnabled, true)
+
+		allowlist := makeActionsAllowlist(mockConfig)
+
+		assert.True(t, allowlist["com.datadoghq.remoteaction.rshell"].Has("runCommand"))
+		// inherited actions should also be present for the remoteaction prefix
+		assert.True(t, allowlist["com.datadoghq.remoteaction"].Has("testConnection"))
+	})
+
+	t.Run("default actions are excluded when default_actions_enabled is false", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetWithoutSource(setup.PARActionsAllowlist, []string{})
+		mockConfig.SetWithoutSource(setup.PARDefaultActionsEnabled, false)
+
+		allowlist := makeActionsAllowlist(mockConfig)
+
+		assert.Empty(t, allowlist)
+	})
+
+	t.Run("default actions merge with explicit allowlist", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetWithoutSource(setup.PARActionsAllowlist, []string{"com.datadoghq.http.sendRequest"})
+		mockConfig.SetWithoutSource(setup.PARDefaultActionsEnabled, true)
+
+		allowlist := makeActionsAllowlist(mockConfig)
+
+		assert.True(t, allowlist["com.datadoghq.remoteaction.rshell"].Has("runCommand"))
+		assert.True(t, allowlist["com.datadoghq.http"].Has("sendRequest"))
+	})
+
+	t.Run("explicit allowlist works without default actions", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetWithoutSource(setup.PARActionsAllowlist, []string{"com.datadoghq.http.sendRequest"})
+		mockConfig.SetWithoutSource(setup.PARDefaultActionsEnabled, false)
+
+		allowlist := makeActionsAllowlist(mockConfig)
+
+		assert.True(t, allowlist["com.datadoghq.http"].Has("sendRequest"))
+		_, hasRshell := allowlist["com.datadoghq.remoteaction.rshell"]
+		assert.False(t, hasRshell)
+	})
+}
+
 func TestFromDDConfigPARRestrictedShellAllowedPaths(t *testing.T) {
 	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource(setup.PARPrivateKey, "")
