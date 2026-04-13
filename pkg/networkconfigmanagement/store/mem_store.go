@@ -3,14 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//go:build test && ncm
+//go:build ncm
 
 package store
 
 import (
 	"context"
 	"fmt"
-	"slices"
 	"sync"
 	"time"
 
@@ -23,9 +22,7 @@ import (
 type memConfigStore struct {
 	lock       sync.RWMutex
 	rawConfigs map[string]string
-	blocks     map[string][]ConfigBlock
 	metadata   map[string]ConfigMetadata
-	secrets    map[string]map[string]string
 }
 
 var _ ConfigStore = (*memConfigStore)(nil)
@@ -34,9 +31,7 @@ var _ ConfigStore = (*memConfigStore)(nil)
 func NewMemStore() ConfigStore {
 	return &memConfigStore{
 		rawConfigs: make(map[string]string),
-		blocks:     make(map[string][]ConfigBlock),
 		metadata:   make(map[string]ConfigMetadata),
-		secrets:    make(map[string]map[string]string),
 	}
 }
 
@@ -46,7 +41,7 @@ func (m *memConfigStore) Close(_ context.Context) error {
 }
 
 // StoreConfig stores a device configuration, deduplicating against the latest stored config for the same device+type.
-func (m *memConfigStore) StoreConfig(deviceID string, configType ncmreport.ConfigType, rawConfig string, blocks []ConfigBlock, secrets map[string]string) (string, error) {
+func (m *memConfigStore) StoreConfig(deviceID string, configType ncmreport.ConfigType, rawConfig string) (string, error) {
 	rawHash := hashConfig(rawConfig)
 	now := time.Now().Unix()
 
@@ -60,8 +55,6 @@ func (m *memConfigStore) StoreConfig(deviceID string, configType ncmreport.Confi
 	configUUID := uuid.New().String()
 	m.rawConfigs[configUUID] = rawConfig
 
-	m.blocks[configUUID] = slices.Clone(blocks)
-
 	m.metadata[configUUID] = ConfigMetadata{
 		ConfigUUID:     configUUID,
 		DeviceID:       deviceID,
@@ -71,12 +64,6 @@ func (m *memConfigStore) StoreConfig(deviceID string, configType ncmreport.Confi
 		RawHash:        rawHash,
 		AgentVersion:   version.AgentVersion,
 	}
-
-	secretsCopy := make(map[string]string, len(secrets))
-	for k, v := range secrets {
-		secretsCopy[k] = v
-	}
-	m.secrets[configUUID] = secretsCopy
 
 	return configUUID, nil
 }
@@ -107,24 +94,16 @@ func (m *memConfigStore) CheckDuplicate(deviceID string, configType ncmreport.Co
 }
 
 // GetConfig retrieves all data for a config by UUID.
-func (m *memConfigStore) GetConfig(configUUID string) (string, []ConfigBlock, *ConfigMetadata, map[string]string, error) {
+func (m *memConfigStore) GetConfig(configUUID string) (string, *ConfigMetadata, error) {
 	m.lock.RLock()
 	defer m.lock.RUnlock()
 
 	rawConfig, ok := m.rawConfigs[configUUID]
 	if !ok {
-		return "", nil, nil, nil, fmt.Errorf("raw config not found for UUID: %s", configUUID)
+		return "", nil, fmt.Errorf("raw config not found for UUID: %s", configUUID)
 	}
-
-	blocksCopy := make([]ConfigBlock, len(m.blocks[configUUID]))
-	copy(blocksCopy, m.blocks[configUUID])
 
 	meta := m.metadata[configUUID]
 
-	secretsCopy := make(map[string]string, len(m.secrets[configUUID]))
-	for k, v := range m.secrets[configUUID] {
-		secretsCopy[k] = v
-	}
-
-	return rawConfig, blocksCopy, &meta, secretsCopy, nil
+	return rawConfig, &meta, nil
 }

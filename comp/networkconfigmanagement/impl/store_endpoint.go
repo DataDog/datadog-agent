@@ -34,7 +34,7 @@ func newConfigEndpointHandler(store ncmstore.ConfigStore) http.HandlerFunc {
 			return
 		}
 
-		rawConfig, _, metadata, _, err := store.GetConfig(uuid)
+		rawConfig, metadata, err := store.GetConfig(uuid)
 		if err != nil {
 			httputils.SetJSONError(w, err, http.StatusNotFound)
 			return

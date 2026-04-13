@@ -96,7 +96,7 @@ func (c *Check) Run() error {
 		log.Warnf("unable to process rules for running config for device %s, using agent collection ts: %s", deviceID, checkErr)
 	}
 	// TODO: helper fn to take metadata that needs to be emitted as metrics + emit them
-	_, err := store.StoreConfig(deviceID, ncmreport.RUNNING, string(runningConfig), nil, nil)
+	_, err := store.StoreConfig(deviceID, ncmreport.RUNNING, string(runningConfig))
 	if err != nil {
 		log.Warnf("unable to store running config: %v", err)
 	} else {
@@ -114,7 +114,7 @@ func (c *Check) Run() error {
 			log.Warnf("unable to process rules for startup config for device %s, using agent collection ts: %s", deviceID, checkErr)
 		}
 		// add the startup config to the payload if it was retrieved successfully
-		_, err := store.StoreConfig(deviceID, ncmreport.STARTUP, string(startupConfig), nil, nil)
+		_, err := store.StoreConfig(deviceID, ncmreport.STARTUP, string(startupConfig))
 		if err != nil {
 			log.Warnf("unable to store startup config: %v", err)
 		} else {

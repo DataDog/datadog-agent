@@ -13,24 +13,6 @@ import (
 	ncmreport "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/report"
 )
 
-// BlockType represents enums for configuration blocks (currently focused on separating text from sensitive data)
-type BlockType string
-
-const (
-	// TextBlock represents a regular config text
-	TextBlock BlockType = "text"
-	// SecretBlock is a placeholder for sensitive data that can be referenced by a UUID
-	SecretBlock BlockType = "secret"
-)
-
-// ConfigBlock represents a segment of the device configuration
-// A list of blocks represents a full configuration for a device
-type ConfigBlock struct {
-	Type  BlockType `json:"type"`
-	Value string    `json:"value,omitempty"` // plain text (for TextBlock only)
-	ID    string    `json:"id,omitempty"`    // reference UUID (for SecretBlock only)
-}
-
 // ConfigMetadata holds the metadata for configs - used to help validate rollbacks and its underlying functions
 type ConfigMetadata struct {
 	ConfigUUID     string               `json:"config_uuid"`
@@ -53,7 +35,7 @@ type RawConfig struct {
 // to intake to enable "rollbacks" without sending sensitive data (in configs) back and forth
 type ConfigStore interface {
 	Close(context.Context) error
-	StoreConfig(deviceID string, configType ncmreport.ConfigType, rawConfig string, blocks []ConfigBlock, secrets map[string]string) (string, error)
-	GetConfig(configUUID string) (string, []ConfigBlock, *ConfigMetadata, map[string]string, error)
+	StoreConfig(deviceID string, configType ncmreport.ConfigType, rawConfig string) (string, error)
+	GetConfig(configUUID string) (string, *ConfigMetadata, error)
 	CheckDuplicate(deviceID string, configType ncmreport.ConfigType, rawHash string) (string, error)
 }
