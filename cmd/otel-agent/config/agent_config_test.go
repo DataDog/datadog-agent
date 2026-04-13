@@ -793,11 +793,7 @@ func TestGetDogtelExtensionConfig_SingleNamedDogtelEntry(t *testing.T) {
 }
 
 // TestSecretsResolutionViaEnvVar verifies that ENC[] handles in DD_HOSTNAME (and
-// other DD_* env vars) are resolved by the real secrets backend before any
-// downstream component reads them.  This guards against the regression where
-// NewConfigComponent used SecretNoop / skipped LoadDatadog entirely when no
-// --core-config file was provided, causing the raw ENC[] literal to reach the
-// hostname component.
+// other DD_* env vars) are resolved by the real secrets backend in standalone mode.
 func (suite *ConfigTestSuite) TestSecretsResolutionViaEnvVar() {
 	if runtime.GOOS == "windows" {
 		suite.T().Skip("shell secret backend script not applicable on Windows")
@@ -810,6 +806,7 @@ func (suite *ConfigTestSuite) TestSecretsResolutionViaEnvVar() {
 	script := "#!/bin/sh\necho '{\"hostname_secret\": {\"value\": \"resolved-hostname-from-secret\"}}'\n"
 	require.NoError(t, os.WriteFile(scriptPath, []byte(script), 0700)) //nolint:gosec
 
+	t.Setenv("DD_OTEL_STANDALONE", "true")
 	t.Setenv("DD_HOSTNAME", "ENC[hostname_secret]")
 	t.Setenv("DD_SECRET_BACKEND_COMMAND", scriptPath)
 
@@ -821,6 +818,35 @@ func (suite *ConfigTestSuite) TestSecretsResolutionViaEnvVar() {
 			"raw value would indicate secrets resolution was skipped in NewConfigComponent")
 }
 
+// TestSecretsNotResolvedInConnectedMode verifies that ENC[] handles are NOT
+// resolved locally when otel_standalone is false (connected mode). In connected
+// mode the core agent owns secret resolution and the otel-agent must not attempt
+// to run a local backend — doing so would fail for backends that are only
+// accessible to the core agent and abort otel-agent startup.
+func (suite *ConfigTestSuite) TestSecretsNotResolvedInConnectedMode() {
+	if runtime.GOOS == "windows" {
+		suite.T().Skip("shell secret backend script not applicable on Windows")
+	}
+	t := suite.T()
+
+	// Provide a working script so the test would resolve if the gate opened.
+	scriptDir := t.TempDir()
+	scriptPath := filepath.Join(scriptDir, "secret_backend.sh")
+	script := "#!/bin/sh\necho '{\"hostname_secret\": {\"value\": \"resolved-hostname-from-secret\"}}'\n"
+	require.NoError(t, os.WriteFile(scriptPath, []byte(script), 0700)) //nolint:gosec
+
+	// Connected mode (DD_OTEL_STANDALONE not set / false).
+	t.Setenv("DD_HOSTNAME", "ENC[hostname_secret]")
+	t.Setenv("DD_SECRET_BACKEND_COMMAND", scriptPath)
+
+	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_default.yaml"})
+	require.NoError(t, err, "NewConfigComponent must not error in connected mode even when a secret backend is configured")
+
+	assert.Equal(t, "ENC[hostname_secret]", c.GetString("hostname"),
+		"ENC[] handle must remain unresolved in connected mode; "+
+			"the core agent resolves secrets and the otel-agent must not run a local backend")
+}
+
 // TestSecretBackendTypeGate verifies that secret_backend_type alone (without
 // secret_backend_command) opens the resolution gate in NewConfigComponent.
 // When no ENC[] handles are present in the config, the resolver exits early
@@ -828,6 +854,7 @@ func (suite *ConfigTestSuite) TestSecretsResolutionViaEnvVar() {
 // secret-generic-connector binary.
 func (suite *ConfigTestSuite) TestSecretBackendTypeGate() {
 	t := suite.T()
+	t.Setenv("DD_OTEL_STANDALONE", "true")
 	t.Setenv("DD_SECRET_BACKEND_TYPE", "file.json")
 
 	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_default.yaml"})
@@ -863,6 +890,7 @@ func (suite *ConfigTestSuite) TestSecretsResolutionViaBackendType() {
 	require.NoError(t, os.WriteFile(secretsFile,
 		[]byte(`{"hostname_secret": "resolved-hostname-from-secret"}`), 0644))
 
+	t.Setenv("DD_OTEL_STANDALONE", "true")
 	t.Setenv("DD_HOSTNAME", "ENC[hostname_secret]")
 	t.Setenv("DD_SECRET_BACKEND_TYPE", "file.json")
 

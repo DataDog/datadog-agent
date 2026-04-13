@@ -238,8 +238,11 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	// env vars are silently ignored.
 	pkgconfigsetup.LoadProxyFromEnv(pkgconfig)
 
-	// Apply dogtelextension config only in standalone mode. In connected mode
-	// the core agent owns these settings; we must not override them here.
+	// Apply dogtelextension config and resolve ENC[] secrets only in standalone
+	// mode. In connected mode the core agent owns both settings and secret
+	// resolution; the otel-agent receives already-resolved values via IPC config
+	// sync, so running a local resolver here would fail for backends that are
+	// only accessible to the core agent process.
 	if pkgconfig.GetBool("otel_standalone") {
 		extcfg, err := getDogtelExtensionConfig(cfg)
 		if err != nil {
@@ -321,24 +324,16 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 				pkgconfig.Set("kubernetes_https_kubelet_port", extcfg.KubernetesHTTPSKubeletPort, pkgconfigmodel.SourceFile)
 			}
 		}
-	}
 
-	// Resolve ENC[] secrets in config values (e.g. DD_HOSTNAME, DD_API_KEY) before
-	// any component reads them.  LoadDatadog above uses SecretNoop and is skipped
-	// entirely when no --core-config file is provided, so ENC[] handles in env vars
-	// would otherwise reach the hostname/credentials components unresolved.
-	// This block intentionally runs after the dogtelextension standalone config is
-	// applied above: in standalone mode secret_backend_command may come from the
-	// extensions.dogtel section rather than a DD_* env var, so we must read it
-	// after that block executes.
-	// Check both secret_backend_command (custom script) and secret_backend_type
-	// (native backend via secret-generic-connector, e.g. aws.secrets, k8s.secrets).
-	// Either alone is sufficient to configure the resolver; only skipping the call
-	// when neither is set avoids the overhead of spawning a subprocess on every startup.
-	if pkgconfig.GetString("secret_backend_command") != "" || pkgconfig.GetString("secret_backend_type") != "" {
-		secretResolver := secretsimpl.NewEnabledResolver(noopsimpl.GetCompatComponent())
-		if resolveErr := pkgconfigsetup.ResolveSecrets(pkgconfig, secretResolver, "agent_config"); resolveErr != nil {
-			return nil, fmt.Errorf("failed to resolve secrets: %w", resolveErr)
+		// Resolve ENC[] secrets after dogtelextension config is applied so that
+		// secret_backend_command set via extensions.dogtel is visible here.
+		// Check both secret_backend_command (custom script) and secret_backend_type
+		// (native backend via secret-generic-connector, e.g. aws.secrets, k8s.secrets).
+		if pkgconfig.GetString("secret_backend_command") != "" || pkgconfig.GetString("secret_backend_type") != "" {
+			secretResolver := secretsimpl.NewEnabledResolver(noopsimpl.GetCompatComponent())
+			if resolveErr := pkgconfigsetup.ResolveSecrets(pkgconfig, secretResolver, "agent_config"); resolveErr != nil {
+				return nil, fmt.Errorf("failed to resolve secrets: %w", resolveErr)
+			}
 		}
 	}
 
