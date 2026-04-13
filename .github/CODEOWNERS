@@ -45,6 +45,7 @@
 /NOTICE                                 @DataDog/agent-delivery
 
 /LICENSE*                               # do not notify anyone
+/rust/LICENSE*				# do not notify anyone
 
 /mkdocs.yml                             @DataDog/agent-devx
 /release.json                           @DataDog/agent-build @DataDog/agent-delivery @DataDog/agent-integrations
