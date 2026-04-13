@@ -4,6 +4,7 @@
 .test_kmt_local_setup:
   stage: source_test
   needs: []
+  extends: .dd_octo_sts
   rules:
     - !reference [.on_invoke_tasks_changes]
     - !reference [.except_mergequeue]
