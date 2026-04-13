@@ -224,17 +224,6 @@ go_e2e_test_binaries:
     - job: qa_agent_jmx
       optional: true
 
-new-e2e-containers-ecs:
-  extends: .new_e2e_template_needs_container_deploy
-  rules:
-    - !reference [.on_container_or_e2e_changes]
-    - !reference [.manual]
-  variables:
-    TARGETS: ./tests/containers
-    TEAM: container-integrations
-    ON_NIGHTLY_FIPS: "true"
-    EXTRA_PARAMS: --run TestECSSuite
-
 new-e2e-containers:
   extends:
     - .new_e2e_template_needs_container_deploy_linux
@@ -312,13 +301,7 @@ new-e2e-containers-eks:
   retry: !reference [.retry_only_infra_failure, retry]
 
 new-e2e-ecs:
-  extends: .new_e2e_template
-  needs:
-    - !reference [.needs_new_e2e_template]
-    - qa_agent
-    - qa_agent_jmx
-    - qa_dca
-    - qa_dogstatsd
+  extends: .new_e2e_template_needs_container_deploy_linux
   rules:
     - !reference [.on_container_or_e2e_changes]
     - !reference [.manual]

@@ -178,26 +178,28 @@ func (suite *ecsAPMSuite) TestTraceTCP() {
 // The bundled _dd.tags.container value is a comma-separated string of key:value pairs
 // containing ECS metadata, image metadata, and git metadata.
 func (suite *ecsAPMSuite) testTrace(taskName string) {
-	// Build validation patterns for the bundled _dd.tags.container value
+	// Build validation patterns for the bundled _dd.tags.container value.
+	// Each pattern is matched against individual comma-separated tags, so
+	// ^ and $ anchors correctly validate the full tag value.
 	patterns := []*regexp.Regexp{
 		// Core ECS metadata
-		regexp.MustCompile(`ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName)),
-		regexp.MustCompile(`task_arn:`),
-		regexp.MustCompile(`container_name:`),
-		regexp.MustCompile(`ecs_container_name:tracegen`),
-		regexp.MustCompile(`task_family:.*-` + regexp.QuoteMeta(taskName) + `-ec2`),
-		regexp.MustCompile(`task_name:.*-` + regexp.QuoteMeta(taskName) + `-ec2`),
-		regexp.MustCompile(`task_version:[[:digit:]]+`),
+		regexp.MustCompile(`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`),
+		regexp.MustCompile(`^task_arn:`),
+		regexp.MustCompile(`^container_name:`),
+		regexp.MustCompile(`^ecs_container_name:tracegen$`),
+		regexp.MustCompile(`^task_family:.*-` + regexp.QuoteMeta(taskName) + `-ec2$`),
+		regexp.MustCompile(`^task_name:.*-` + regexp.QuoteMeta(taskName) + `-ec2$`),
+		regexp.MustCompile(`^task_version:[[:digit:]]+$`),
 
 		// Image metadata
-		regexp.MustCompile(`docker_image:ghcr\.io/datadog/apps-tracegen:` + regexp.QuoteMeta(apps.Version)),
-		regexp.MustCompile(`image_name:ghcr\.io/datadog/apps-tracegen`),
-		regexp.MustCompile(`image_tag:` + regexp.QuoteMeta(apps.Version)),
-		regexp.MustCompile(`short_image:apps-tracegen`),
+		regexp.MustCompile(`^docker_image:ghcr\.io/datadog/apps-tracegen:` + regexp.QuoteMeta(apps.Version) + `$`),
+		regexp.MustCompile(`^image_name:ghcr\.io/datadog/apps-tracegen$`),
+		regexp.MustCompile(`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`),
+		regexp.MustCompile(`^short_image:apps-tracegen$`),
 
 		// Git metadata
-		regexp.MustCompile(`git\.commit\.sha:[[:xdigit:]]{40}`),
-		regexp.MustCompile(`git.repository_url:https://github.com/DataDog/test-infra-definitions`),
+		regexp.MustCompile(`^git\.commit\.sha:[[:xdigit:]]{40}$`),
+		regexp.MustCompile(`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`),
 	}
 
 	suite.EventuallyWithTf(func(c *assert.CollectT) {
@@ -217,10 +219,19 @@ func (suite *ecsAPMSuite) testTrace(taskName string) {
 					continue
 				}
 
-				// Validate all patterns match the bundled tag value
+				// Split the comma-separated bundled tags so anchored patterns
+				// validate each tag individually.
+				tags := strings.Split(containerTags, ",")
 				allMatch := true
 				for _, pattern := range patterns {
-					if !pattern.MatchString(containerTags) {
+					matched := false
+					for _, tag := range tags {
+						if pattern.MatchString(tag) {
+							matched = true
+							break
+						}
+					}
+					if !matched {
 						allMatch = false
 						break
 					}

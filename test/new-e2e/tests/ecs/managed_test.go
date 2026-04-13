@@ -7,6 +7,7 @@ package ecs
 
 import (
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -70,10 +71,13 @@ func (suite *ecsManagedSuite) TestManagedInstanceAgentHealth() {
 func (suite *ecsManagedSuite) TestManagedInstanceTraceCollection() {
 	// Test trace collection from managed instances
 	suite.Run("Managed instance trace collection", func() {
-		// ECS metadata on traces is bundled in _dd.tags.container within TracerPayload.Tags
-		clusterNamePattern := regexp.MustCompile(`ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName))
-		taskArnPattern := regexp.MustCompile(`task_arn:`)
-		containerNamePattern := regexp.MustCompile(`container_name:`)
+		// ECS metadata on traces is bundled in _dd.tags.container within TracerPayload.Tags.
+		// Patterns use ^ and $ anchors and are matched against individual comma-separated tags.
+		patterns := []*regexp.Regexp{
+			regexp.MustCompile(`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`),
+			regexp.MustCompile(`^task_arn:`),
+			regexp.MustCompile(`^container_name:`),
+		}
 
 		suite.EventuallyWithTf(func(c *assert.CollectT) {
 			traces, err := suite.Fakeintake.GetTraces()
@@ -92,9 +96,22 @@ func (suite *ecsManagedSuite) TestManagedInstanceTraceCollection() {
 					if !exists {
 						continue
 					}
-					if clusterNamePattern.MatchString(containerTags) &&
-						taskArnPattern.MatchString(containerTags) &&
-						containerNamePattern.MatchString(containerTags) {
+					tags := strings.Split(containerTags, ",")
+					allMatch := true
+					for _, pattern := range patterns {
+						matched := false
+						for _, tag := range tags {
+							if pattern.MatchString(tag) {
+								matched = true
+								break
+							}
+						}
+						if !matched {
+							allMatch = false
+							break
+						}
+					}
+					if allMatch {
 						found = true
 						break
 					}
