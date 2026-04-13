@@ -50,8 +50,8 @@ func NewGPUConfigFromTags(architecture, slicingMode, virtualizationMode string) 
 
 // MetricObservation is the normalized observation used by shared validation.
 type MetricObservation struct {
-	Name string
-	Tags []string
+	Name  string
+	Tags  []string
 	Value *float64
 }
 

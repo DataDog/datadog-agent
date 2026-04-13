@@ -8,6 +8,7 @@ package spec
 
 import (
 	"embed"
+	"errors"
 	"fmt"
 	"math"
 
@@ -92,9 +93,6 @@ func (v *MetricValidator) Validate(value float64) error {
 		return fmt.Errorf("metric value %v is not finite", value)
 	}
 	if v.Range != nil {
-		if v.Range.Min == nil || v.Range.Max == nil {
-			return fmt.Errorf("metric validator range must define both min and max")
-		}
 		if value < *v.Range.Min || value > *v.Range.Max {
 			return fmt.Errorf("metric value %v is outside inclusive range [%v, %v]", value, *v.Range.Min, *v.Range.Max)
 		}
@@ -119,14 +117,14 @@ func (v *MetricValidator) validateDefinition() error {
 
 	switch {
 	case hasRange && hasValues:
-		return fmt.Errorf("metric validator must define exactly one of range or values")
+		return errors.New("metric validator must define exactly one of range or values")
 	case !hasRange && !hasValues:
-		return fmt.Errorf("metric validator must define exactly one of range or values")
+		return errors.New("metric validator must define exactly one of range or values")
 	}
 
 	if hasRange {
 		if v.Range.Min == nil || v.Range.Max == nil {
-			return fmt.Errorf("metric validator range must define both min and max")
+			return errors.New("metric validator range must define both min and max")
 		}
 		if math.IsNaN(*v.Range.Min) || math.IsInf(*v.Range.Min, 0) {
 			return fmt.Errorf("metric validator range min must be finite, got %v", *v.Range.Min)
