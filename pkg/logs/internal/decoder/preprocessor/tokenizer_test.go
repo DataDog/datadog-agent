@@ -46,8 +46,8 @@ func TestTokenizer(t *testing.T) {
 
 		// Critical severity keyword promotion
 		{input: "FATAL", expectedToken: "FATAL"},
-		{input: "fatal", expectedToken: "FATAL"},     // case insensitive
-		{input: "Fatal", expectedToken: "FATAL"},     // mixed case
+		{input: "fatal", expectedToken: "FATAL"}, // case insensitive
+		{input: "Fatal", expectedToken: "FATAL"}, // mixed case
 		{input: "ERROR", expectedToken: "ERROR"},
 		{input: "PANIC", expectedToken: "PANIC"},
 		{input: "ALERT", expectedToken: "ALERT"},
