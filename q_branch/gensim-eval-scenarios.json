@@ -10,5 +10,6 @@
   {"episode": "703_shopify_bfcm_incident",                       "scenario": "kafka-partition-saturation",    "sha": "0b1d495b0f308d913b461bc1117c8616f49645d2"},
   {"episode": "casino-postgresql-lock-contention",               "scenario": "lock-contention",               "sha": "2c6a147b9e223f8df2553d1b559edb9200da9230"},
   {"episode": "ehr-pgbouncer-pool-saturation",                   "scenario": "pool-saturation",               "sha": "62dfc29875afc61e8d0836015fa48009fca9e894"},
-  {"episode": "food-delivery-redis-cpu-saturation",              "scenario": "redis-cpu-saturation",          "sha": "4c52202d84aa1949d591905b6aefa48f79f107a9"}
+  {"episode": "food-delivery-redis-cpu-saturation",              "scenario": "redis-cpu-saturation",          "sha": "4c52202d84aa1949d591905b6aefa48f79f107a9"},
+  {"episode": "19706_system-probe_OOM_kills_and_CPU_increase_on_eu1proddog", "scenario": "ebpf-lru-contention", "sha": "b6442da6e5ecf93db238f296399b5801244d73a2"}
 ]
