@@ -90,7 +90,6 @@ func validateGPUConfig(client *metricsClient, metricsSpec *gpuspec.MetricsSpec, 
 	group.SetLimit(metricQueryConcurrency)
 
 	for metricName := range expectedMetricsMap {
-		metricName := metricName
 		group.Go(func() error {
 			prefixedMetricName := gpuspec.PrefixedMetricName(metricsSpec, metricName)
 			metricObservations, err := client.queryExpectedMetricPresenceForGPUConfig(prefixedMetricName, expectedTagsByMetric[metricName], config.TagFilter(), fromTS, toTS)
