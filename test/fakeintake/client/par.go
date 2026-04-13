@@ -14,7 +14,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/fakeintake/server"
+	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
 // EnqueuePARTask enqueues a task for the Private Action Runner to dequeue and execute.
@@ -43,7 +43,7 @@ func (c *Client) EnqueuePARTask(taskID, actionFQN string, inputs map[string]inte
 
 // GetPARTaskResult polls fakeintake for the result of the given task until it appears
 // or the timeout expires.
-func (c *Client) GetPARTaskResult(taskID string, timeout time.Duration) (*server.PARTaskResult, error) {
+func (c *Client) GetPARTaskResult(taskID string, timeout time.Duration) (*api.PARTaskResult, error) {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		result, err := c.getPARResult(taskID)
@@ -88,7 +88,7 @@ func (c *Client) GetPARDequeueCount() (int, error) {
 	return stats.DequeueCalls, nil
 }
 
-func (c *Client) getPARResult(taskID string) (*server.PARTaskResult, error) {
+func (c *Client) getPARResult(taskID string) (*api.PARTaskResult, error) {
 	resp, err := http.Get(fmt.Sprintf("%s/fakeintake/par/result?taskID=%s", c.fakeIntakeURL, taskID))
 	if err != nil {
 		return nil, err
@@ -101,7 +101,7 @@ func (c *Client) getPARResult(taskID string) (*server.PARTaskResult, error) {
 		b, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("get PAR result: status %d: %s", resp.StatusCode, b)
 	}
-	var result server.PARTaskResult
+	var result api.PARTaskResult
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("decode PAR result: %w", err)
 	}

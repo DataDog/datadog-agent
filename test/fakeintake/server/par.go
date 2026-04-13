@@ -11,6 +11,8 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+
+	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
 // parServerState holds the in-memory task queue and result map for PAR e2e tests.
@@ -20,7 +22,7 @@ import (
 type parServerState struct {
 	mu           sync.Mutex
 	queue        []parQueuedTask
-	results      map[string]*PARTaskResult
+	results      map[string]*api.PARTaskResult
 	dequeueCalls int // counts how many times PAR has called the dequeue endpoint
 }
 
@@ -28,15 +30,6 @@ type parQueuedTask struct {
 	TaskID    string                 `json:"task_id"`
 	ActionFQN string                 `json:"action_fqn"`
 	Inputs    map[string]interface{} `json:"inputs"`
-}
-
-// PARTaskResult captures what PAR published for a completed task.
-type PARTaskResult struct {
-	TaskID       string                 `json:"task_id"`
-	Success      bool                   `json:"success"`
-	Outputs      map[string]interface{} `json:"outputs,omitempty"`
-	ErrorCode    int                    `json:"error_code,omitempty"`
-	ErrorDetails string                 `json:"error_details,omitempty"`
 }
 
 // --- PAR-facing handlers (called by the agent) ---
@@ -109,7 +102,7 @@ func (fi *Server) handlePARPublish(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result := &PARTaskResult{
+	result := &api.PARTaskResult{
 		TaskID:       req.Data.Attributes.TaskID,
 		Success:      req.Data.ID == "succeed_task",
 		Outputs:      req.Data.Attributes.Payload.Outputs,
@@ -185,7 +178,7 @@ func (fi *Server) handlePARResult(w http.ResponseWriter, r *http.Request) {
 func (fi *Server) handlePARFlush(w http.ResponseWriter, _ *http.Request) {
 	fi.par.mu.Lock()
 	fi.par.queue = nil
-	fi.par.results = make(map[string]*PARTaskResult)
+	fi.par.results = make(map[string]*api.PARTaskResult)
 	fi.par.dequeueCalls = 0
 	fi.par.mu.Unlock()
 	w.WriteHeader(http.StatusOK)
