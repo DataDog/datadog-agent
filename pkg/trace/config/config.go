@@ -155,8 +155,8 @@ func obfuscationMode(conf *AgentConfig, sqllexerEnabled bool) obfuscate.Obfuscat
 // EffectiveSQLObfuscationMode returns the SQL obfuscation mode the agent
 // actually uses at runtime. When SQLObfuscationMode is not explicitly set,
 // the mode is derived from feature flags (e.g. sqllexer → obfuscate_only).
-func (c *AgentConfig) EffectiveSQLObfuscationMode() string {
-	return string(obfuscationMode(c, c.HasFeature("sqllexer")))
+func (c *AgentConfig) EffectiveSQLObfuscationMode() obfuscate.ObfuscationMode {
+	return obfuscationMode(c, c.HasFeature("sqllexer"))
 }
 
 // Export returns an obfuscate.Config matching o.

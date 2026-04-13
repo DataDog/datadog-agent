@@ -41,7 +41,7 @@ type reducedObfuscationConfig struct {
 	Mongo                bool                      `json:"mongo"`
 	SQLExecPlan          bool                      `json:"sql_exec_plan"`
 	SQLExecPlanNormalize bool                      `json:"sql_exec_plan_normalize"`
-	SQLObfuscationMode   string                    `json:"sql_obfuscation_mode"`
+	SQLObfuscationMode   obfuscate.ObfuscationMode `json:"sql_obfuscation_mode"`
 	HTTP                 obfuscate.HTTPConfig      `json:"http"`
 	RemoveStackTraces    bool                      `json:"remove_stack_traces"`
 	Redis                obfuscate.RedisConfig     `json:"redis"`
