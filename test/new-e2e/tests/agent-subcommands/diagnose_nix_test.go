@@ -11,7 +11,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	"github.com/stretchr/testify/assert"
 
-	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 	svcmanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/svc-manager"
@@ -29,8 +28,9 @@ func TestLinuxDiagnoseSuite(t *testing.T) {
 }
 
 func (v *linuxDiagnoseSuite) TestDiagnoseOtherCmdPort() {
-	params := agentparams.WithAgentConfig("cmd_port: 4567")
-	v.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(params))))
+	e2e.SetAgentConfig(v.T(), v.Env().RemoteHost, v.Env().Agent.Client,
+		agentparams.WithAgentConfig("cmd_port: 4567"),
+	)
 
 	diagnose := getDiagnoseOutput(&v.baseDiagnoseSuite)
 	v.AssertOutputNotError(diagnose)

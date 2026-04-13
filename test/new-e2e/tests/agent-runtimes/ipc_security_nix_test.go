@@ -48,7 +48,10 @@ func (v *ipcSecurityLinuxSuite) TestServersideIPCCertUsage() {
 	}
 	coreconfig := fillTmplConfig(v.T(), coreConfigTmpl, templateVars)
 
-	// start the agent with that configuration
+	// This test enables the security-agent and system-probe services which
+	// are not running in the default provisioning. It requires a full
+	// Pulumi re-provision to start these services, so UpdateEnv is used
+	// rather than SetAgentConfig.
 	v.UpdateEnv(awshost.Provisioner(
 		awshost.WithRunOptions(
 			ec2.WithAgentOptions(

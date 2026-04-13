@@ -54,7 +54,9 @@ func (v *linuxStatusSuite) TestFIPSProxyStatus() {
 		shouldContains = []string{"FIPS Mode: proxy", "FIPS proxy"}
 	}
 
-	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig("fips.enabled: true")))))
+	e2e.SetAgentConfig(v.T(), v.Env().RemoteHost, v.Env().Agent.Client,
+		agentparams.WithAgentConfig("fips.enabled: true"),
+	)
 
 	expectedSections := []expectedSection{
 		{
@@ -70,10 +72,10 @@ func (v *linuxStatusSuite) TestFIPSProxyStatus() {
 
 // This test asserts the presence of metadata sent by Python checks in the status subcommand output.
 func (v *linuxStatusSuite) TestChecksMetadataUnix() {
-	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(scenec2.WithAgentOptions(
+	e2e.SetAgentConfig(v.T(), v.Env().RemoteHost, v.Env().Agent.Client,
 		agentparams.WithIntegration("custom_check.d", string(statusCustomCheckYaml)),
 		agentparams.WithFile("/etc/datadog-agent/checks.d/custom_check.py", string(statusCustomCheckPython), true),
-	))))
+	)
 
 	expectedSections := []expectedSection{
 		{

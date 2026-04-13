@@ -9,9 +9,8 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/stretchr/testify/require"
-
-	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 )
 
 func (s *languageDetectionSuite) installPython() {
@@ -21,33 +20,33 @@ func (s *languageDetectionSuite) installPython() {
 }
 
 func (s *languageDetectionSuite) TestPythonDetectionCoreAgent() {
-	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(getProvisionerOptions([]func(*agentparams.Params) error{
+	e2e.SetAgentConfig(s.T(), s.Env().RemoteHost, s.Env().Agent.Client,
 		agentparams.WithAgentConfig(coreConfigStr),
-	})...))
+	)
 	pid := s.startPython()
 	s.checkDetectedLanguage(pid, "python", "process_collector")
 }
 
 func (s *languageDetectionSuite) TestPythonDetectionCoreAgentNoCheck() {
-	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(getProvisionerOptions([]func(*agentparams.Params) error{
+	e2e.SetAgentConfig(s.T(), s.Env().RemoteHost, s.Env().Agent.Client,
 		agentparams.WithAgentConfig(coreConfigNoCheckStr),
-	})...))
+	)
 	pid := s.startPython()
 	s.checkDetectedLanguage(pid, "python", "process_collector")
 }
 
 func (s *languageDetectionSuite) TestPythonDetectionProcessAgent() {
-	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(getProvisionerOptions([]func(*agentparams.Params) error{
+	e2e.SetAgentConfig(s.T(), s.Env().RemoteHost, s.Env().Agent.Client,
 		agentparams.WithAgentConfig(processConfigStr),
-	})...))
+	)
 	pid := s.startPython()
 	s.checkDetectedLanguage(pid, "python", "process_collector")
 }
 
 func (s *languageDetectionSuite) TestPythonDetectionProcessAgentNoCheck() {
-	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(getProvisionerOptions([]func(*agentparams.Params) error{
+	e2e.SetAgentConfig(s.T(), s.Env().RemoteHost, s.Env().Agent.Client,
 		agentparams.WithAgentConfig(processConfigNoCheckStr),
-	})...))
+	)
 	pid := s.startPython()
 	s.checkDetectedLanguage(pid, "python", "process_collector")
 }

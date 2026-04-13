@@ -33,8 +33,8 @@ func (v *agentSuiteEx4) TestLogDebug() {
 }
 
 func (v *agentSuiteEx4) TestLogInfo() {
-	v.UpdateEnv(awshost.Provisioner(
-		awshost.WithRunOptions(ec2.WithAgentOptions(agentparams.WithAgentConfig("log_level: info"))),
-	))
+	e2e.SetAgentConfig(v.T(), v.Env().RemoteHost, v.Env().Agent.Client,
+		agentparams.WithAgentConfig("log_level: info"),
+	)
 	assert.Contains(v.T(), v.Env().Agent.Client.Config(), "log_level: info")
 }

@@ -192,11 +192,9 @@ func (s *linuxTestSuite) testProcessCheckWithServiceDiscovery(agentConfigStr str
 	t := s.T()
 	s.startServices()
 	defer s.stopServices()
-	s.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(
-		scenec2.WithAgentOptions(
-			agentparams.WithAgentConfig(agentConfigStr),
-			agentparams.WithSystemProbeConfig(systemProbeConfigStr)),
-	)),
+	e2e.SetAgentConfig(s.T(), s.Env().RemoteHost, s.Env().Agent.Client,
+		agentparams.WithAgentConfig(agentConfigStr),
+		agentparams.WithSystemProbeConfig(systemProbeConfigStr),
 	)
 	s.validateDiscoveryMode(mode)
 	client := s.Env().FakeIntake.Client()
@@ -341,11 +339,9 @@ func (s *linuxTestSuite) testProcessCheckWithServiceDiscoveryPrivilegedLogs(agen
 	t := s.T()
 	s.startServicesFromList(servicesToStart)
 	defer s.stopServicesFromList(servicesToStart)
-	s.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(
-		scenec2.WithAgentOptions(
-			agentparams.WithAgentConfig(agentConfigStr),
-			agentparams.WithSystemProbeConfig(systemProbeConfigStr)),
-	)),
+	e2e.SetAgentConfig(s.T(), s.Env().RemoteHost, s.Env().Agent.Client,
+		agentparams.WithAgentConfig(agentConfigStr),
+		agentparams.WithSystemProbeConfig(systemProbeConfigStr),
 	)
 	client := s.Env().FakeIntake.Client()
 	err := client.FlushServerAndResetAggregators()
