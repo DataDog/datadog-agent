@@ -1,0 +1,14 @@
+---
+enhancements:
+  - |
+    Bump ``rshell`` to v0.0.10 for the Private Action Runner. Notable changes:
+
+    - Symlinks whose targets resolve within a different allowed root are now followed correctly.
+    - In containerized environments, symlink targets on host-mounted volumes are resolved
+      with the ``/host`` prefix.
+    - The ``ALLOWED_PATHS`` environment variable is now exposed inside the shell so scripts
+      can discover accessible directories.
+    - ``ls -l`` displays symlink targets (``-> target``), matching GNU ls behaviour.
+    - ``head``/``tail`` accept bare number shorthand (e.g. ``head -5``).
+    - The ``help`` builtin is no longer implicitly allowed and must be included in the
+      allowlist like any other command.
