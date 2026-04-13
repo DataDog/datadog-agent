@@ -12,7 +12,7 @@ import (
 	reflect "reflect"
 
 	rds "github.com/aws/aws-sdk-go-v2/service/rds"
-	"github.com/aws/aws-sdk-go-v2/service/rds/types"
+	types "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	gomock "github.com/golang/mock/gomock"
 )
 
@@ -49,9 +49,9 @@ func (m *MockRdsClient) GetAuroraClusterEndpoints(ctx context.Context, clusters 
 }
 
 // GetAuroraClusterEndpoints indicates an expected call of GetAuroraClusterEndpoints.
-func (mr *MockRdsClientMockRecorder) GetAuroraClusterEndpoints(ctx, dbClusterIdentifiers, config interface{}) *gomock.Call {
+func (mr *MockRdsClientMockRecorder) GetAuroraClusterEndpoints(ctx, clusters, config interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuroraClusterEndpoints", reflect.TypeOf((*MockRdsClient)(nil).GetAuroraClusterEndpoints), ctx, dbClusterIdentifiers, config)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuroraClusterEndpoints", reflect.TypeOf((*MockRdsClient)(nil).GetAuroraClusterEndpoints), ctx, clusters, config)
 }
 
 // GetAuroraClustersFromTags mocks base method.
