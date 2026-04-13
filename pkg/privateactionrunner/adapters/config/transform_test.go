@@ -261,6 +261,18 @@ func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 		assert.True(t, allowlist["com.datadoghq.kubernetes.core"].Has("testConnection"))
 	})
 
+	t.Run("non-cluster-agent flavor returns empty default actions", func(t *testing.T) {
+		flavor.SetFlavor(flavor.DefaultAgent)
+
+		mockConfig := configmock.New(t)
+		mockConfig.SetWithoutSource(setup.PARActionsAllowlist, []string{})
+		mockConfig.SetWithoutSource(setup.PARDefaultActionsEnabled, true)
+
+		allowlist := makeActionsAllowlist(mockConfig)
+
+		assert.Empty(t, allowlist)
+	})
+
 	t.Run("default actions are excluded when default_actions_enabled is false", func(t *testing.T) {
 		flavor.SetFlavor(flavor.ClusterAgent)
 		defer flavor.SetFlavor(flavor.DefaultAgent)
