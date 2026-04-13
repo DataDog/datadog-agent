@@ -1,0 +1,34 @@
+---
+# Default opt-in scenario: no specific tag will use the default version defined in the languageVersions map,
+# and opt in to the gradual rollout feature.
+clusterAgent:
+  admissionController:
+    configMode: "hostip"
+  volumes:
+    - name: mock-registry-ca
+      secret:
+        secretName: mock-registry-ca
+  volumeMounts:
+    - name: mock-registry-ca
+      mountPath: /etc/ssl/certs/mock-registry-ca.crt
+      subPath: ca.crt
+      readOnly: true
+  env:
+    - name: DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_CONTAINER_REGISTRY
+      value: "mock-registry.mock-registry.svc.cluster.local:5000"
+    - name: DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_DEFAULT_DD_REGISTRIES
+      value: '["mock-registry.mock-registry.svc.cluster.local:5000"]'
+
+datadog:
+  apm:
+    instrumentation:
+      enabled: true
+      injector:
+        imageTag: "0.52.0"
+      enabledNamespaces:
+        - "gradual-rollout-default"
+      targets:
+        - name: "python-apps"
+          namespaceSelector:
+            matchNames:
+              - "gradual-rollout-default"
