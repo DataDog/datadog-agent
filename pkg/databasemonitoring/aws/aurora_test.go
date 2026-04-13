@@ -40,8 +40,8 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 				k.EXPECT().DescribeDBInstances(gomock.Any(), gomock.Any()).Return(&rds.DescribeDBInstancesOutput{}, nil).Times(1)
 			},
 			clusters:                       []types.DBCluster{{DBClusterIdentifier: aws.String("test-cluster")}},
-			expectedAuroraClusterEndpoints: nil,
-			expectedErr:                    errors.New("no endpoints found for aurora clusters with id(s): test-cluster"),
+			expectedAuroraClusterEndpoints: []Instance{},
+			expectedErr:                    nil,
 		},
 		{
 			name: "single cluster id returns error response from API",
@@ -591,7 +591,7 @@ func TestGetAuroraClusterEndpointsDbName(t *testing.T) {
 			},
 		},
 		{
-			name: "missing engine returns error",
+			name: "missing engine returns empty list",
 			configureClient: func(k *MockrdsService) {
 				k.EXPECT().DescribeDBInstances(gomock.Any(), gomock.Any()).Return(&rds.DescribeDBInstancesOutput{
 					DBInstances: []types.DBInstance{
@@ -608,8 +608,9 @@ func TestGetAuroraClusterEndpointsDbName(t *testing.T) {
 					},
 				}, nil).Times(1)
 			},
-			clusters:    []types.DBCluster{{DBClusterIdentifier: aws.String("test-cluster")}},
-			expectedErr: errors.New("no endpoints found for aurora clusters with id(s): test-cluster"),
+			clusters:                       []types.DBCluster{{DBClusterIdentifier: aws.String("test-cluster")}},
+			expectedAuroraClusterEndpoints: []Instance{},
+			expectedErr:                    nil,
 		},
 		{
 			name: "unsupported engine returns error",
@@ -630,8 +631,9 @@ func TestGetAuroraClusterEndpointsDbName(t *testing.T) {
 					},
 				}, nil).Times(1)
 			},
-			clusters:    []types.DBCluster{{DBClusterIdentifier: aws.String("test-cluster")}},
-			expectedErr: errors.New("no endpoints found for aurora clusters with id(s): test-cluster"),
+			clusters:                       []types.DBCluster{{DBClusterIdentifier: aws.String("test-cluster")}},
+			expectedAuroraClusterEndpoints: []Instance{},
+			expectedErr:                    nil,
 		},
 	}
 	for _, tt := range testCases {
