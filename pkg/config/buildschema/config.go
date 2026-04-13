@@ -295,7 +295,7 @@ func (b *builder) Set(_ string, _ interface{}, _ model.Source) {
 	b.notImplemented()
 }
 
-func (b *builder) SetWithoutSource(_ string, _ interface{}) {
+func (b *builder) SetInTest(_ string, _ interface{}) {
 	b.notImplemented()
 }
 

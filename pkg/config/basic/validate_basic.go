@@ -8,22 +8,7 @@ package basic
 
 import (
 	"reflect"
-	"runtime"
-	"strings"
 )
-
-// TODO: Callers that are using SetWithoutSource improperly, need to be fixed
-var allowlistCaller = []string{
-	// Fixing this test by updating its use of SetWithoutSources causes other failures, needs investigation
-	"comp/core/autodiscovery/listeners/snmp_test.go",
-
-	// TestNewConfig has an expectedConfig, which has embedded structs pathteststore.Config and connfilter.Config
-	"comp/networkpath/npcollector/npcollectorimpl/config_test.go",
-	"comp/networkpath/npcollector/npcollectorimpl/npcollector_testutils.go",
-
-	// TestFullConfig assigns an object usersV3, which is a list of structs
-	"comp/snmptraps/config/def/config_test.go",
-}
 
 // ValidateBasicTypes returns true if the argument is made of only basic types
 func ValidateBasicTypes(value interface{}) bool {
@@ -31,21 +16,7 @@ func ValidateBasicTypes(value interface{}) bool {
 		return true
 	}
 	v := reflect.ValueOf(value)
-	if validate(v) {
-		return true
-	}
-
-	// Allow existing callers that are using SetWithoutSource. Fix these later
-	for _, stackSkip := range []int{2, 3, 4} {
-		_, absfile, _, _ := runtime.Caller(stackSkip)
-		for _, allowSource := range allowlistCaller {
-			if strings.HasSuffix(absfile, allowSource) {
-				return true
-			}
-		}
-	}
-
-	return false
+	return validate(v)
 }
 
 func validate(v reflect.Value) bool {

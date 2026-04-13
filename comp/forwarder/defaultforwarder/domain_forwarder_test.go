@@ -122,10 +122,10 @@ func TestDomainForwarderSendHTTPTransactions(t *testing.T) {
 
 func TestDomainForwarderHAPreFailover(t *testing.T) {
 	mockConfig := mock.New(t)
-	mockConfig.SetWithoutSource("multi_region_failover.enabled", "true")
-	mockConfig.SetWithoutSource("multi_region_failover.failover_metrics", "false")
-	mockConfig.SetWithoutSource("multi_region_failover.apikey", "foo")
-	mockConfig.SetWithoutSource("multi_region_failover.site", "bar.ddhq.com")
+	mockConfig.SetInTest("multi_region_failover.enabled", "true")
+	mockConfig.SetInTest("multi_region_failover.failover_metrics", "false")
+	mockConfig.SetInTest("multi_region_failover.apikey", "foo")
+	mockConfig.SetInTest("multi_region_failover.site", "bar.ddhq.com")
 
 	log := logmock.New(t)
 	// HA forwarder
@@ -167,10 +167,10 @@ func TestDomainForwarderHAPreFailover(t *testing.T) {
 
 func TestDomainForwarderHAFailover(t *testing.T) {
 	mockConfig := mock.New(t)
-	mockConfig.SetWithoutSource("multi_region_failover.enabled", "true")
-	mockConfig.SetWithoutSource("multi_region_failover.failover_metrics", "true")
-	mockConfig.SetWithoutSource("multi_region_failover.apikey", "foo")
-	mockConfig.SetWithoutSource("multi_region_failover.site", "bar.ddhq.com")
+	mockConfig.SetInTest("multi_region_failover.enabled", "true")
+	mockConfig.SetInTest("multi_region_failover.failover_metrics", "true")
+	mockConfig.SetInTest("multi_region_failover.apikey", "foo")
+	mockConfig.SetInTest("multi_region_failover.site", "bar.ddhq.com")
 
 	log := logmock.New(t)
 	// HA forwarder
@@ -427,7 +427,7 @@ forwarder_requeue_buffer_size: 1300
 }
 
 func newDomainForwarderForTest(t *testing.T, config config.Component, log log.Component, connectionResetInterval time.Duration, ha bool) *domainForwarder {
-	config.SetWithoutSource("forwarder_max_concurrent_requests", 1)
+	config.SetInTest("forwarder_max_concurrent_requests", 1)
 
 	sorter := transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true}
 	telemetry := retry.NewTransactionRetryQueueTelemetry("domain")

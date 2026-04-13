@@ -81,7 +81,7 @@ func TestDiscoveryUseSystemProbeLite(t *testing.T) {
 	t.Run("enabled from config", func(t *testing.T) {
 		cfg := newEmptyMockConf(t)
 		InitSystemProbeConfig(cfg)
-		cfg.SetWithoutSource("discovery.use_system_probe_lite", true)
+		cfg.SetInTest("discovery.use_system_probe_lite", true)
 		assert.True(t, cfg.GetBool("discovery.use_system_probe_lite"))
 	})
 }

@@ -57,7 +57,7 @@ func TestSketchSeriesMarshalSplitCompressEmpty(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			mockConfig := mock.New(t)
-			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
+			mockConfig.SetInTest("serializer_compressor_kind", tc.kind)
 			sl := SketchSeriesList{SketchesSource: metrics.NewSketchesSourceTest()}
 
 			pipelines := testPipelines()
@@ -88,8 +88,8 @@ func TestSketchSeriesMarshalSplitCompressItemTooBigIsDropped(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			mockConfig := mock.New(t)
-			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
-			mockConfig.SetWithoutSource("serializer_max_uncompressed_payload_size", tc.maxUncompressedSize)
+			mockConfig.SetInTest("serializer_compressor_kind", tc.kind)
+			mockConfig.SetInTest("serializer_max_uncompressed_payload_size", tc.maxUncompressedSize)
 
 			sl := metrics.NewSketchesSourceTest()
 			// A big item (to be dropped)
@@ -139,7 +139,7 @@ func TestSketchSeriesMarshalSplitCompress(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			mockConfig := mock.New(t)
-			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
+			mockConfig.SetInTest("serializer_compressor_kind", tc.kind)
 			sl := metrics.NewSketchesSourceTest()
 
 			for i := 0; i < 2; i++ {
@@ -198,8 +198,8 @@ func TestSketchSeriesMarshalSplitCompressSplit(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			mockConfig := mock.New(t)
-			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
-			mockConfig.SetWithoutSource("serializer_max_uncompressed_payload_size", tc.maxUncompressedSize)
+			mockConfig.SetInTest("serializer_compressor_kind", tc.kind)
+			mockConfig.SetInTest("serializer_max_uncompressed_payload_size", tc.maxUncompressedSize)
 
 			sl := metrics.NewSketchesSourceTest()
 
@@ -267,7 +267,7 @@ func TestSketchSeriesMarshalSplitCompressMultiple(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			mockConfig := mock.New(t)
-			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
+			mockConfig.SetInTest("serializer_compressor_kind", tc.kind)
 			sl := metrics.NewSketchesSourceTest()
 
 			for i := 0; i < 2; i++ {

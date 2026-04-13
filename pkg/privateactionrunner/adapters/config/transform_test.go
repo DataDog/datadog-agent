@@ -202,15 +202,15 @@ func TestFromDDConfig(t *testing.T) {
 
 			// Set required configuration values
 			if tt.site != "" {
-				mockConfig.SetWithoutSource("site", tt.site)
+				mockConfig.SetInTest("site", tt.site)
 			}
 			if tt.ddURL != "" {
-				mockConfig.SetWithoutSource("dd_url", tt.ddURL)
+				mockConfig.SetInTest("dd_url", tt.ddURL)
 			}
 
 			// Set minimal required PAR config to avoid errors
-			mockConfig.SetWithoutSource(setup.PARPrivateKey, "")
-			mockConfig.SetWithoutSource(setup.PARUrn, "")
+			mockConfig.SetInTest(setup.PARPrivateKey, "")
+			mockConfig.SetInTest(setup.PARUrn, "")
 
 			// Call FromDDConfig
 			cfg, err := FromDDConfig(mockConfig)
@@ -306,9 +306,9 @@ func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 
 func TestFromDDConfigPARRestrictedShellAllowedPaths(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource(setup.PARPrivateKey, "")
-	mockConfig.SetWithoutSource(setup.PARUrn, "")
-	mockConfig.SetWithoutSource(setup.PARRestrictedShellAllowedPaths, []string{"/var/log", "/tmp"})
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+	mockConfig.SetInTest(setup.PARRestrictedShellAllowedPaths, []string{"/var/log", "/tmp"})
 
 	cfg, err := FromDDConfig(mockConfig)
 	require.NoError(t, err)

@@ -75,9 +75,9 @@ func testRequires(t *testing.T, lifecycle *mockLifecycle) Requires {
 	t.Setenv("KUBERNETES", "")
 
 	cfg := config.NewMock(t)
-	cfg.SetWithoutSource("health_platform.enabled", true)
+	cfg.SetInTest("health_platform.enabled", true)
 	// Use temp directory to avoid test interference
-	cfg.SetWithoutSource("run_path", t.TempDir())
+	cfg.SetInTest("run_path", t.TempDir())
 
 	if lifecycle == nil {
 		lifecycle = newMockLifecycle()
@@ -97,8 +97,8 @@ func testRequires(t *testing.T, lifecycle *mockLifecycle) Requires {
 // testRequiresWithRunPath creates a Requires struct with a custom run_path for persistence testing
 func testRequiresWithRunPath(t *testing.T, lifecycle *mockLifecycle, runPath string) Requires {
 	cfg := config.NewMock(t)
-	cfg.SetWithoutSource("health_platform.enabled", true)
-	cfg.SetWithoutSource("run_path", runPath)
+	cfg.SetInTest("health_platform.enabled", true)
+	cfg.SetInTest("run_path", runPath)
 
 	if lifecycle == nil {
 		lifecycle = newMockLifecycle()
@@ -423,7 +423,7 @@ func TestIssueTimestamp(t *testing.T) {
 // TestComponentDisabled tests that component is disabled when config flag is false
 func TestComponentDisabled(t *testing.T) {
 	cfg := config.NewMock(t)
-	cfg.SetWithoutSource("health_platform.enabled", false)
+	cfg.SetInTest("health_platform.enabled", false)
 
 	hostnameMock, _ := hostnameinterface.NewMock("test-hostname")
 
@@ -818,9 +818,9 @@ func TestNewComponentUsesDiskPersistenceOnKubernetesWhenOptedIn(t *testing.T) {
 
 	tmpDir := t.TempDir()
 	cfg := config.NewMock(t)
-	cfg.SetWithoutSource("health_platform.enabled", true)
-	cfg.SetWithoutSource("health_platform.persist_on_kubernetes", true)
-	cfg.SetWithoutSource("run_path", tmpDir)
+	cfg.SetInTest("health_platform.enabled", true)
+	cfg.SetInTest("health_platform.persist_on_kubernetes", true)
+	cfg.SetInTest("run_path", tmpDir)
 
 	hostnameMock, _ := hostnameinterface.NewMock("test-hostname")
 	reqs := Requires{

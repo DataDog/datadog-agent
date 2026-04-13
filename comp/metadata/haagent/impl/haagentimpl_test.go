@@ -23,7 +23,7 @@ import (
 func getProvides(t *testing.T, confOverrides map[string]any) (Provides, error) {
 	cfg := config.NewMock(t)
 	for k, v := range confOverrides {
-		cfg.SetWithoutSource(k, v)
+		cfg.SetInTest(k, v)
 	}
 	r := Requires{
 		Log:        logmock.New(t),

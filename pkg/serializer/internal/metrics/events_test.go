@@ -134,8 +134,8 @@ func TestEventsMarshaler2(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("serializer_max_payload_size", 500)
-			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
+			mockConfig.SetInTest("serializer_max_payload_size", 500)
+			mockConfig.SetInTest("serializer_compressor_kind", tc.kind)
 			events := createEvents("3", "3", "2", "2", "1", "1")
 
 			bytePayloads, err := MarshalEvents(
@@ -166,8 +166,8 @@ func TestEventsMarshaler2Split(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("serializer_max_payload_size", 400)
-			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
+			mockConfig.SetInTest("serializer_max_payload_size", 400)
+			mockConfig.SetInTest("serializer_compressor_kind", tc.kind)
 			events := createEvents("3", "3", "2", "2", "1", "1")
 
 			bytePayloads, err := MarshalEvents(
@@ -201,8 +201,8 @@ func TestEventsMarshaler2Drop(t *testing.T) {
 
 			largeText := strings.Repeat("1", 500)
 
-			mockConfig.SetWithoutSource("serializer_max_payload_size", 400)
-			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
+			mockConfig.SetInTest("serializer_max_payload_size", 400)
+			mockConfig.SetInTest("serializer_compressor_kind", tc.kind)
 			events := createEvents("3", "3", "2", "2", "2", "1", "1", largeText)
 			events[3].Text = largeText
 

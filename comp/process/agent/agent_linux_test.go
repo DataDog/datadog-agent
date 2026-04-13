@@ -72,13 +72,12 @@ func TestEnabledHelper(t *testing.T) {
 
 			// Create mock config
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("clc_runner_enabled", tc.isCLCRunner)
+			mockConfig.SetInTest("clc_runner_enabled", tc.isCLCRunner)
 
 			if tc.isCLCRunner {
 				// Add the clusterchecks config provider to the config
-				mockConfig.SetWithoutSource("config_providers", []map[string]interface{}{
-					{"name": "clusterchecks"},
-				})
+				mockConfig.SetInTest("config_providers", []map[string]interface{}{{"name": "clusterchecks"}})
+
 			}
 
 			// Call the function under test and assert the result

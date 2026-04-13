@@ -41,7 +41,7 @@ func TestGetPublicIPv4(t *testing.T) {
 	ec2internal.MetadataURL = ts.URL
 	conf := configmock.New(t)
 	defer resetPackageVars()
-	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
+	conf.SetInTest("ec2_metadata_timeout", 1000)
 
 	val, err := GetPublicIPv4(ctx)
 	require.NoError(t, err)
@@ -74,7 +74,7 @@ func TestGetNetworkID(t *testing.T) {
 	ec2internal.TokenURL = ts.URL
 	conf := configmock.New(t)
 	defer resetPackageVars()
-	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
+	conf.SetInTest("ec2_metadata_timeout", 1000)
 
 	val, err := GetNetworkID(ctx)
 	assert.NoError(t, err)
@@ -98,7 +98,7 @@ func TestGetInstanceIDNoMac(t *testing.T) {
 	ec2internal.TokenURL = ts.URL
 	conf := configmock.New(t)
 	defer resetPackageVars()
-	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
+	conf.SetInTest("ec2_metadata_timeout", 1000)
 
 	_, err := GetNetworkID(ctx)
 	require.Error(t, err)
@@ -136,7 +136,7 @@ func TestGetInstanceIDMultipleVPC(t *testing.T) {
 	ec2internal.TokenURL = ts.URL
 	conf := configmock.New(t)
 	defer resetPackageVars()
-	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
+	conf.SetInTest("ec2_metadata_timeout", 1000)
 
 	_, err := GetNetworkID(ctx)
 	require.Error(t, err)
@@ -178,7 +178,7 @@ func TestGetVPCSubnets(t *testing.T) {
 	ec2internal.MetadataURL = ts.URL
 	ec2internal.TokenURL = ts.URL
 	conf := configmock.New(t)
-	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
+	conf.SetInTest("ec2_metadata_timeout", 1000)
 
 	subnets, err := GetVPCSubnetsForHost(ctx)
 	require.NoError(t, err)
@@ -235,7 +235,7 @@ func TestGetVPCSubnets404(t *testing.T) {
 	ec2internal.MetadataURL = ts.URL
 	ec2internal.TokenURL = ts.URL
 	conf := configmock.New(t)
-	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
+	conf.SetInTest("ec2_metadata_timeout", 1000)
 
 	subnets, err := GetVPCSubnetsForHost(ctx)
 	require.NoError(t, err)

@@ -23,7 +23,7 @@ import (
 func TestCollect(t *testing.T) {
 	ctx := context.Background()
 	cfg := mock.New(t)
-	cfg.SetWithoutSource("ignore_autoconf", []string{"ignored"})
+	cfg.SetInTest("ignore_autoconf", []string{"ignored"})
 	paths := []string{"tests", "foo/bar"}
 
 	telemetry := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())

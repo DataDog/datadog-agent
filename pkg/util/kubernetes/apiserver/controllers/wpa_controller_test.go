@@ -57,7 +57,7 @@ func init() {
 // TestupdateExternalMetrics checks the reconciliation between the local cache and the global store logic
 func TestUpdateWPA(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("kube_resources_namespace", "nsfoo")
+	mockConfig.SetInTest("kube_resources_namespace", "nsfoo")
 
 	name := custommetrics.GetConfigmapName()
 	store, client := newFakeConfigMapStore(t, "nsfoo", name, nil)
@@ -230,7 +230,7 @@ func TestWPAController(t *testing.T) {
 	wpaName := "wpa_1"
 
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("kube_resources_namespace", "nsfoo")
+	mockConfig.SetInTest("kube_resources_namespace", "nsfoo")
 
 	penTime := (int(time.Now().Unix()) - int(maxAge.Seconds()/2)) * 1000
 	name := custommetrics.GetConfigmapName()

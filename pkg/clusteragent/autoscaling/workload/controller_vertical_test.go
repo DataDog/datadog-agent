@@ -696,9 +696,9 @@ func TestPatchInPlace_NeedsPatch_PatchesResources(t *testing.T) {
 // It enables the in_place_vertical_scaling config and sets Mode: Auto on the DPA.
 func (f *verticalControllerFixture) runSyncInPlaceMode(t *testing.T, dpa *datadoghq.DatadogPodAutoscaler, sv *model.VerticalScalingValues, recommendationID string, pods []*workloadmeta.KubernetesPod) (autoscaling.ProcessResult, error) {
 	t.Helper()
-	pkgconfigsetup.Datadog().SetWithoutSource("autoscaling.workload.in_place_vertical_scaling.enabled", true)
+	pkgconfigsetup.Datadog().SetInTest("autoscaling.workload.in_place_vertical_scaling.enabled", true)
 	t.Cleanup(func() {
-		pkgconfigsetup.Datadog().SetWithoutSource("autoscaling.workload.in_place_vertical_scaling.enabled", false)
+		pkgconfigsetup.Datadog().SetInTest("autoscaling.workload.in_place_vertical_scaling.enabled", false)
 	})
 
 	gvk := schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: kubernetes.DeploymentKind}
@@ -1096,8 +1096,8 @@ func TestSyncInternal_ConfigDisabled_AutoStrategy_UsesRolloutPath(t *testing.T) 
 // TestSyncInternal_InPlaceEnabled_NoApplyPolicy_UsesInPlacePath verifies that with the
 // config flag enabled and no ApplyPolicy on the DPA, in-place is used (Auto strategy is assumed).
 func TestSyncInternal_InPlaceEnabled_NoApplyPolicy_UsesInPlacePath(t *testing.T) {
-	pkgconfigsetup.Datadog().SetWithoutSource("autoscaling.workload.in_place_vertical_scaling.enabled", true)
-	defer pkgconfigsetup.Datadog().SetWithoutSource("autoscaling.workload.in_place_vertical_scaling.enabled", false)
+	pkgconfigsetup.Datadog().SetInTest("autoscaling.workload.in_place_vertical_scaling.enabled", true)
+	defer pkgconfigsetup.Datadog().SetInTest("autoscaling.workload.in_place_vertical_scaling.enabled", false)
 
 	f := newVerticalControllerFixture(t, time.Now())
 
@@ -1135,8 +1135,8 @@ func TestSyncInternal_InPlaceEnabled_NoApplyPolicy_UsesInPlacePath(t *testing.T)
 // TestSyncInternal_InPlaceEnabled_AutoStrategy_UsesInPlacePath verifies that in-place scaling
 // is used only when the config flag is enabled AND the DPA explicitly sets Strategy: Auto.
 func TestSyncInternal_InPlaceEnabled_AutoStrategy_UsesInPlacePath(t *testing.T) {
-	pkgconfigsetup.Datadog().SetWithoutSource("autoscaling.workload.in_place_vertical_scaling.enabled", true)
-	defer pkgconfigsetup.Datadog().SetWithoutSource("autoscaling.workload.in_place_vertical_scaling.enabled", false)
+	pkgconfigsetup.Datadog().SetInTest("autoscaling.workload.in_place_vertical_scaling.enabled", true)
+	defer pkgconfigsetup.Datadog().SetInTest("autoscaling.workload.in_place_vertical_scaling.enabled", false)
 
 	f := newVerticalControllerFixture(t, time.Now())
 

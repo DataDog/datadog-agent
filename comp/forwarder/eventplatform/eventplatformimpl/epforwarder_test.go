@@ -58,7 +58,7 @@ func (suite *EventPlatformForwarderTestSuite) TestNewHTTPPassthroughPipelineComp
 		{
 			name: "additional endpoints",
 			configSetup: func(c config.Component) {
-				c.SetWithoutSource("database_monitoring.metrics.additional_endpoints", `[{"api_key":"foo","host":"bar"}]`)
+				c.SetInTest("database_monitoring.metrics.additional_endpoints", `[{"api_key":"foo","host":"bar"}]`)
 			},
 			expectedKind:   gzipCompressionKind,
 			expectedLevel:  defaultGzipCompressionLevel,
@@ -67,7 +67,7 @@ func (suite *EventPlatformForwarderTestSuite) TestNewHTTPPassthroughPipelineComp
 		{
 			name: "no compression",
 			configSetup: func(c config.Component) {
-				c.SetWithoutSource("database_monitoring.metrics.use_compression", false)
+				c.SetInTest("database_monitoring.metrics.use_compression", false)
 			},
 			expectedKind:   "none",
 			expectedLevel:  0,
@@ -83,8 +83,8 @@ func (suite *EventPlatformForwarderTestSuite) TestNewHTTPPassthroughPipelineComp
 		{
 			name: "zstd custom compression level",
 			configSetup: func(c config.Component) {
-				c.SetWithoutSource("database_monitoring.metrics.compression_kind", "zstd")
-				c.SetWithoutSource("database_monitoring.metrics.zstd_compression_level", 3)
+				c.SetInTest("database_monitoring.metrics.compression_kind", "zstd")
+				c.SetInTest("database_monitoring.metrics.zstd_compression_level", 3)
 			},
 			expectedKind:   zstdCompressionKind,
 			expectedLevel:  3,
@@ -93,7 +93,7 @@ func (suite *EventPlatformForwarderTestSuite) TestNewHTTPPassthroughPipelineComp
 		{
 			name: "gzip compression",
 			configSetup: func(c config.Component) {
-				c.SetWithoutSource("database_monitoring.metrics.compression_kind", "gzip")
+				c.SetInTest("database_monitoring.metrics.compression_kind", "gzip")
 			},
 			expectedKind:   gzipCompressionKind,
 			expectedLevel:  defaultGzipCompressionLevel,
@@ -102,8 +102,8 @@ func (suite *EventPlatformForwarderTestSuite) TestNewHTTPPassthroughPipelineComp
 		{
 			name: "gzip custom compression level",
 			configSetup: func(c config.Component) {
-				c.SetWithoutSource("database_monitoring.metrics.compression_kind", "gzip")
-				c.SetWithoutSource("database_monitoring.metrics.compression_level", 8)
+				c.SetInTest("database_monitoring.metrics.compression_kind", "gzip")
+				c.SetInTest("database_monitoring.metrics.compression_level", 8)
 			},
 			expectedKind:   gzipCompressionKind,
 			expectedLevel:  8,
@@ -112,8 +112,8 @@ func (suite *EventPlatformForwarderTestSuite) TestNewHTTPPassthroughPipelineComp
 		{
 			name: "invalid compression",
 			configSetup: func(c config.Component) {
-				c.SetWithoutSource("database_monitoring.metrics.use_compression", true)
-				c.SetWithoutSource("database_monitoring.metrics.compression_kind", "gipz")
+				c.SetInTest("database_monitoring.metrics.use_compression", true)
+				c.SetInTest("database_monitoring.metrics.compression_kind", "gipz")
 			},
 			expectedKind:   zstdCompressionKind,
 			expectedLevel:  defaultZstdCompressionLevel,
@@ -181,10 +181,10 @@ func (suite *EventPlatformForwarderTestSuite) TestGetECSFargateTaskARN() {
 
 func (suite *EventPlatformForwarderTestSuite) resetCompression() {
 	// Reset compression settings to default state
-	suite.config.SetWithoutSource("database_monitoring.metrics.use_compression", true)
-	suite.config.SetWithoutSource("database_monitoring.metrics.compression_kind", "zstd")
-	suite.config.SetWithoutSource("database_monitoring.metrics.compression_level", 6)
-	suite.config.SetWithoutSource("database_monitoring.metrics.zstd_compression_level", defaultZstdCompressionLevel)
-	suite.config.SetWithoutSource("database_monitoring.metrics.additional_endpoints", "{}")
+	suite.config.SetInTest("database_monitoring.metrics.use_compression", true)
+	suite.config.SetInTest("database_monitoring.metrics.compression_kind", "zstd")
+	suite.config.SetInTest("database_monitoring.metrics.compression_level", 6)
+	suite.config.SetInTest("database_monitoring.metrics.zstd_compression_level", defaultZstdCompressionLevel)
+	suite.config.SetInTest("database_monitoring.metrics.additional_endpoints", "{}")
 
 }

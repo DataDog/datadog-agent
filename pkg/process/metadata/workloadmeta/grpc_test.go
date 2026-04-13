@@ -32,14 +32,14 @@ import (
 func TestGetGRPCStreamPort(t *testing.T) {
 	t.Run("invalid port", func(t *testing.T) {
 		cfg := configmock.New(t)
-		cfg.SetWithoutSource("process_config.language_detection.grpc_port", "lorem ipsum")
+		cfg.SetInTest("process_config.language_detection.grpc_port", "lorem ipsum")
 
 		assert.Equal(t, pkgconfigsetup.DefaultProcessEntityStreamPort, getGRPCStreamPort(cfg))
 	})
 
 	t.Run("valid port", func(t *testing.T) {
 		cfg := configmock.New(t)
-		cfg.SetWithoutSource("process_config.language_detection.grpc_port", "1234")
+		cfg.SetInTest("process_config.language_detection.grpc_port", "1234")
 
 		assert.Equal(t, 1234, getGRPCStreamPort(cfg))
 	})
@@ -60,7 +60,7 @@ func TestStartStop(t *testing.T) {
 	ipcMock := ipcmock.New(t)
 
 	port := testutil.FreeTCPPort(t)
-	cfg.SetWithoutSource("process_config.language_detection.grpc_port", port)
+	cfg.SetInTest("process_config.language_detection.grpc_port", port)
 	srv := NewGRPCServer(configmock.New(t), extractor, ipcMock.GetTLSServerConfig())
 
 	err := srv.Start()
@@ -96,7 +96,7 @@ func TestStreamServer(t *testing.T) {
 	ipcMock := ipcmock.New(t)
 
 	port := testutil.FreeTCPPort(t)
-	cfg.SetWithoutSource("process_config.language_detection.grpc_port", port)
+	cfg.SetInTest("process_config.language_detection.grpc_port", port)
 	srv := NewGRPCServer(cfg, extractor, ipcMock.GetTLSServerConfig())
 	require.NoError(t, srv.Start())
 	require.NotNil(t, srv.addr)
@@ -179,7 +179,7 @@ func TestStreamServerDropRedundantCacheDiff(t *testing.T) {
 	ipcMock := ipcmock.New(t)
 
 	port := testutil.FreeTCPPort(t)
-	cfg.SetWithoutSource("process_config.language_detection.grpc_port", port)
+	cfg.SetInTest("process_config.language_detection.grpc_port", port)
 	srv := NewGRPCServer(cfg, extractor, ipcMock.GetTLSServerConfig())
 	require.NoError(t, srv.Start())
 	require.NotNil(t, srv.addr)
@@ -379,7 +379,7 @@ func setupGRPCTest(t *testing.T) (*WorkloadMetaExtractor, *GRPCServer, *grpc.Cli
 	cfg := configmock.New(t)
 	port, err := testutil.FindTCPPort()
 	require.NoError(t, err)
-	cfg.SetWithoutSource("process_config.language_detection.grpc_port", port)
+	cfg.SetInTest("process_config.language_detection.grpc_port", port)
 	fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule()).Reset()
 	extractor := NewWorkloadMetaExtractor(cfg)
 

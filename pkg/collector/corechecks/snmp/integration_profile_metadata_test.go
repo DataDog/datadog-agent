@@ -35,7 +35,7 @@ import (
 func setupHostname(t *testing.T) {
 	mockConfig := configmock.New(t)
 	cache.Cache.Delete(cache.BuildAgentKey("hostname"))
-	mockConfig.SetWithoutSource("hostname", "my-hostname")
+	mockConfig.SetInTest("hostname", "my-hostname")
 }
 
 func TestProfileMetadata_f5(t *testing.T) {
@@ -44,7 +44,7 @@ func TestProfileMetadata_f5(t *testing.T) {
 	timeNow = common.MockTimeNow
 	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour, filterlistimpl.NewNoopFilterList())
 	invalidPath, _ := filepath.Abs(filepath.Join("internal", "test", "metadata.d"))
-	cfg.SetWithoutSource("confd_path", invalidPath)
+	cfg.SetInTest("confd_path", invalidPath)
 
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {

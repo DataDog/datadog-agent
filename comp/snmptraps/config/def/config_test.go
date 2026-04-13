@@ -10,14 +10,15 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
-	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 const mockedHostname = "VeryLongHostnameThatDoesNotFitIntoTheByteArray"
@@ -96,15 +97,25 @@ var usmUsers = []*gosnmp.UsmSecurityParameters{
 func buildDDConfig(t testing.TB, trapConfig *TrapsConfig, globalNamespace string) config.Component {
 	ddcfg := configmock.New(t)
 	if globalNamespace != "" {
-		ddcfg.SetWithoutSource("network_devices.namespace", globalNamespace)
+		ddcfg.SetInTest("network_devices.namespace", globalNamespace)
 	}
 	if trapConfig != nil {
 		rawTrapConfig := make(map[string]any)
 		err := mapstructure.Decode(trapConfig, &rawTrapConfig)
 		require.NoError(t, err)
 		for k, v := range rawTrapConfig {
-			k = "network_devices.snmp_traps." + k
-			ddcfg.SetWithoutSource(k, v)
+			// convert []UserV3 structs to []map[string]interface{} so only basic types are stored
+			if users, ok := v.([]UserV3); ok {
+				basicUsers := make([]interface{}, len(users))
+				for i, u := range users {
+					var m map[string]interface{}
+					err := mapstructure.Decode(u, &m)
+					require.NoError(t, err)
+					basicUsers[i] = m
+				}
+				v = basicUsers
+			}
+			ddcfg.SetInTest("network_devices.snmp_traps."+k, v)
 		}
 	}
 	return ddcfg

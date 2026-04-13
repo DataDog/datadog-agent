@@ -17,17 +17,17 @@ import (
 // InjectConnectionFailures injects a failure in TestReadProfileDataErrors.
 func InjectConnectionFailures(mockSysProbeConfig model.Config, mockConfig model.Config) {
 	// Explicitly enabled system probe to exercise connections to it.
-	mockSysProbeConfig.SetWithoutSource("system_probe_config.enabled", true)
+	mockSysProbeConfig.SetInTest("system_probe_config.enabled", true)
 
 	// Exercise a connection failure for a Windows system probe named pipe client by
 	// making them use a bad path.
 	// The system probe http server must be setup before this override.
-	mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", `\\.\pipe\dd_system_probe_test_bad`)
+	mockSysProbeConfig.SetInTest("system_probe_config.sysprobe_socket", `\\.\pipe\dd_system_probe_test_bad`)
 
 	// The security-agent connection is expected to fail too in this test, but
 	// by enabling system probe, a port will be provided to it (security agent).
 	// Here we make sure the security agent port is a bad one.
-	mockConfig.SetWithoutSource("security_agent.expvar_port", 0)
+	mockConfig.SetInTest("security_agent.expvar_port", 0)
 }
 
 // CheckExpectedConnectionFailures checks the expected errors after simulated
