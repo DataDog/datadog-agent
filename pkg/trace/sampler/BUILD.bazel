@@ -22,6 +22,7 @@ go_library(
         "//pkg/proto/pbgo/trace/idx",
         "//pkg/trace/config",
         "//pkg/trace/log",
+        "//pkg/trace/semantics",
         "//pkg/trace/traceutil",
         "//pkg/trace/watchdog",
         "@com_github_datadog_datadog_go_v5//statsd",
