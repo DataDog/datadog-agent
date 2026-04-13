@@ -77,6 +77,10 @@ mkdir -vp "$RUN_DIR/ipc"
 find "$RUN_DIR/ipc" -maxdepth 1 -name 'gui-*.sock' -exec rm -fv {} \;
 chown -vR root:wheel "$RUN_DIR/ipc"
 chmod -v 1777 "$RUN_DIR/ipc"  # Sticky bit: users can create GUI sockets but not delete others' files
+# GUI sockets are created by per-user LaunchAgents (owned by the logged-in user).
+# The agent runs as _dd-agent and needs to connect to them. Inheritable ACL
+# ensures sockets created by bind() in this directory grant _dd-agent access.
+chmod +a "user:_dd-agent allow read,write,readattr,readextattr,readsecurity,list,search,file_inherit,directory_inherit" "$RUN_DIR/ipc"
 
 # Reset location permission prompt attempt count for all users so each user gets a fresh 2 prompt
 # attempts after each installation (per-installation behavior). UserDefaults key is in
@@ -139,6 +143,20 @@ echo "# Setting correct rights on conf"
 chown -vR "$DDAGENT_USER:admin" $CONF_DIR
 chmod -v 770 $CONF_DIR
 find $CONF_DIR -type f -exec chmod 660 {} \;
+
+# Ensure _dd-agent can read/write config even after a user edits a file with
+# an editor that replaces the file (TextEdit, VS Code, vim, etc.), changing
+# Unix ownership.  macOS editors use atomic save (write temp + rename), which
+# replaces the inode and changes the owner to the editing user.
+#
+# Two layers of protection:
+#   1. Inheritable ACLs on directories — covers files created directly in the
+#      directory (open(O_CREAT)), e.g. new check configs, agent-generated files.
+#   2. Explicit ACLs on existing files — macOS NSDocument (used by TextEdit,
+#      VS Code, etc.) preserves ACLs from the original file during atomic save,
+#      so the replacement file retains _dd-agent access.
+find "$CONF_DIR" -type d -exec chmod +a "user:_dd-agent allow read,write,readattr,writeattr,readextattr,writeextattr,readsecurity,list,search,add_file,add_subdirectory,file_inherit,directory_inherit" {} \;
+find "$CONF_DIR" -type f -exec chmod +a "user:_dd-agent allow read,write,readattr,writeattr,readextattr,writeextattr,readsecurity" {} \;
 
 # `datadog-agent` command line
 mkdir -vp /usr/local/bin
