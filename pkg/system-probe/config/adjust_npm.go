@@ -26,7 +26,6 @@ const (
 
 func adjustNetwork(cfg model.Config) {
 	ebpflessEnabled := cfg.GetBool(netNS("enable_ebpfless"))
-	skEnabled := cfg.GetBool(netNS("enable_sk_tracer"))
 
 	deprecateInt(cfg, spNS("closed_connection_flush_threshold"), netNS("closed_connection_flush_threshold"))
 	deprecateInt(cfg, spNS("closed_channel_size"), netNS("closed_channel_size"))
@@ -121,9 +120,14 @@ func adjustNetwork(cfg model.Config) {
 		disableConfig(cfg, evNS("network_process", "enabled"), notSupportedEbpfless)
 	}
 	if !cfg.GetBool(spNS("enable_co_re")) {
-		disableConfig(cfg, netNS("enable_co_re"), "not supported when CO-RE is disabled in system-probe")
+		const notSupportedCORE = "not supported when CO-RE is disabled in system-probe"
+		disableConfig(cfg, netNS("enable_co_re"), notSupportedCORE)
+		disableConfig(cfg, netNS("enable_sk_tracer"), notSupportedCORE)
 	}
-	if skEnabled {
+	if !cfg.GetBool(netNS("enable_ringbuffers")) {
+		disableConfig(cfg, netNS("enable_sk_tracer"), "not supported when ring buffers disabled")
+	}
+	if cfg.GetBool(netNS("enable_sk_tracer")) {
 		const notSupportedSK = "not supported when sk tracer is enabled"
 		disableConfig(cfg, netNS("enable_protocol_classification"), notSupportedSK)
 		disableConfig(cfg, netNS("enable_cert_collection"), notSupportedSK)
