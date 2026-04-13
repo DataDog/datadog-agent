@@ -163,6 +163,10 @@ type Reader interface {
 
 	AllSettings() map[string]interface{}
 	AllSettingsWithoutDefault() map[string]interface{}
+	// AllSettingsWithoutSecrets returns all settings excluding the secrets layer.
+	AllSettingsWithoutSecrets() map[string]interface{}
+	// AllSettingsWithoutDefaultOrSecrets returns settings excluding both defaults and the secrets layer.
+	AllSettingsWithoutDefaultOrSecrets() map[string]interface{}
 	AllSettingsBySource() map[Source]interface{}
 	// AllKeysLowercased returns all config keys in the config, no matter how they are set.
 	// Note that it returns the keys lowercased.

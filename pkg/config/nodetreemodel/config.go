@@ -490,8 +490,9 @@ func (c *ntmConfig) checkKnownKey(key string) {
 	log.Warnf("config key %v is unknown", key)
 }
 
-func (c *ntmConfig) mergeAllLayers() error {
-	treeList := []*nodeImpl{
+// layerList returns all config layers in ascending priority order.
+func (c *ntmConfig) layerList() []*nodeImpl {
+	return []*nodeImpl{
 		c.defaults,
 		c.unknown,
 		c.file,
@@ -503,16 +504,33 @@ func (c *ntmConfig) mergeAllLayers() error {
 		c.remoteConfig,
 		c.cli,
 	}
+}
 
+// mergeLayers merges all layers except those in exclude.
+func (c *ntmConfig) mergeLayers(exclude ...*nodeImpl) (*nodeImpl, error) {
+	excludeSet := make(map[*nodeImpl]struct{}, len(exclude))
+	for _, e := range exclude {
+		excludeSet[e] = struct{}{}
+	}
 	merged := newInnerNode(nil)
-	for _, tree := range treeList {
+	for _, tree := range c.layerList() {
+		if _, skip := excludeSet[tree]; skip {
+			continue
+		}
 		next, err := merged.Merge(tree)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		merged = next
 	}
+	return merged, nil
+}
 
+func (c *ntmConfig) mergeAllLayers() error {
+	merged, err := c.mergeLayers()
+	if err != nil {
+		return err
+	}
 	c.root = merged
 	return nil
 }
@@ -936,6 +954,34 @@ func (c *ntmConfig) AllSettingsWithoutDefault() map[string]interface{} {
 	return c.root.dumpSettings(false)
 }
 
+// AllSettingsWithoutSecrets returns all settings excluding the secrets layer
+func (c *ntmConfig) AllSettingsWithoutSecrets() map[string]interface{} {
+	c.maybeRebuild()
+	c.RLock()
+	defer c.RUnlock()
+
+	merged, err := c.mergeLayers(c.secrets)
+	if err != nil {
+		log.Errorf("error merging config layers without secrets: %v", err)
+		return map[string]interface{}{}
+	}
+	return merged.dumpSettings(true)
+}
+
+// AllSettingsWithoutDefaultOrSecrets returns settings excluding both defaults and secrets
+func (c *ntmConfig) AllSettingsWithoutDefaultOrSecrets() map[string]interface{} {
+	c.maybeRebuild()
+	c.RLock()
+	defer c.RUnlock()
+
+	merged, err := c.mergeLayers(c.defaults, c.secrets)
+	if err != nil {
+		log.Errorf("error merging config layers without defaults or secrets: %v", err)
+		return map[string]interface{}{}
+	}
+	return merged.dumpSettings(false)
+}
+
 // AllSettingsBySource returns the settings from each source (file, env vars, ...)
 func (c *ntmConfig) AllSettingsBySource() map[model.Source]interface{} {
 	c.maybeRebuild()
@@ -943,7 +989,13 @@ func (c *ntmConfig) AllSettingsBySource() map[model.Source]interface{} {
 	c.RLock()
 	defer c.RUnlock()
 
-	// We don't return include unknown settings
+	// SourceProvided excludes secrets so resolved values don't leak in metadata payloads.
+	providedWithoutSecrets, err := c.mergeLayers(c.defaults, c.secrets)
+	if err != nil {
+		log.Errorf("error building provided configuration without secrets: %v", err)
+		providedWithoutSecrets = newInnerNode(nil)
+	}
+
 	return map[model.Source]interface{}{
 		model.SourceDefault:            c.defaults.dumpSettings(true),
 		model.SourceUnknown:            c.unknown.dumpSettings(true),
@@ -953,10 +1005,9 @@ func (c *ntmConfig) AllSettingsBySource() map[model.Source]interface{} {
 		model.SourceFleetPolicies:      c.fleetPolicies.dumpSettings(true),
 		model.SourceAgentRuntime:       c.runtime.dumpSettings(true),
 		model.SourceLocalConfigProcess: c.localConfigProcess.dumpSettings(true),
-		model.SourceSecretBackend:      c.secrets.dumpSettings(true),
 		model.SourceRC:                 c.remoteConfig.dumpSettings(true),
 		model.SourceCLI:                c.cli.dumpSettings(true),
-		model.SourceProvided:           c.root.dumpSettings(false),
+		model.SourceProvided:           providedWithoutSecrets.dumpSettings(false),
 	}
 }
 
