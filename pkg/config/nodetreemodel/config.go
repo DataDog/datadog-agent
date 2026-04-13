@@ -36,6 +36,7 @@ var sources = []model.Source{
 	model.SourceFleetPolicies,
 	model.SourceAgentRuntime,
 	model.SourceLocalConfigProcess,
+	model.SourceSecretBackend,
 	model.SourceRC,
 	model.SourceCLI,
 }
@@ -82,6 +83,8 @@ type ntmConfig struct {
 	// localConfigProcess contains the settings pulled from the config process (process owning the source of truth
 	// for the coniguration and mirrored by other processes).
 	localConfigProcess *nodeImpl
+	// secrets contains values resolved from a secrets backend (ENC[...] placeholders).
+	secrets *nodeImpl
 	// remoteConfig contains the settings pulled from Remote Config.
 	remoteConfig *nodeImpl
 	// fleetPolicies contains the settings pulled from fleetPolicies.
@@ -162,6 +165,8 @@ func (c *ntmConfig) getTreeBySource(source model.Source) (*nodeImpl, error) {
 		return c.runtime, nil
 	case model.SourceLocalConfigProcess:
 		return c.localConfigProcess, nil
+	case model.SourceSecretBackend:
+		return c.secrets, nil
 	case model.SourceRC:
 		return c.remoteConfig, nil
 	case model.SourceFleetPolicies:
@@ -494,6 +499,7 @@ func (c *ntmConfig) mergeAllLayers() error {
 		c.fleetPolicies,
 		c.runtime,
 		c.localConfigProcess,
+		c.secrets,
 		c.remoteConfig,
 		c.cli,
 	}
@@ -947,6 +953,7 @@ func (c *ntmConfig) AllSettingsBySource() map[model.Source]interface{} {
 		model.SourceFleetPolicies:      c.fleetPolicies.dumpSettings(true),
 		model.SourceAgentRuntime:       c.runtime.dumpSettings(true),
 		model.SourceLocalConfigProcess: c.localConfigProcess.dumpSettings(true),
+		model.SourceSecretBackend:      c.secrets.dumpSettings(true),
 		model.SourceRC:                 c.remoteConfig.dumpSettings(true),
 		model.SourceCLI:                c.cli.dumpSettings(true),
 		model.SourceProvided:           c.root.dumpSettings(false),
@@ -1103,6 +1110,7 @@ func NewNodeTreeConfig(name string, envPrefix string, envKeyReplacer *strings.Re
 		envs:               newInnerNode(nil),
 		runtime:            newInnerNode(nil),
 		localConfigProcess: newInnerNode(nil),
+		secrets:            newInnerNode(nil),
 		remoteConfig:       newInnerNode(nil),
 		fleetPolicies:      newInnerNode(nil),
 		cli:                newInnerNode(nil),

@@ -47,6 +47,8 @@ const (
 	// core-agent. This is used when side process like security-agent or trace-agent pull their configuration from
 	// the core-agent.
 	SourceLocalConfigProcess Source = "local-config-process"
+	// SourceSecretBackend are values resolved from a secrets backend (ENC[...] placeholders).
+	SourceSecretBackend Source = "secret_backend"
 	// SourceRC are the values loaded from remote-config (aka Datadog backend)
 	SourceRC Source = "remote-config"
 	// SourceFleetPolicies are the values loaded from remote-config file
@@ -67,6 +69,7 @@ var Sources = []Source{
 	SourceFleetPolicies,
 	SourceAgentRuntime,
 	SourceLocalConfigProcess,
+	SourceSecretBackend,
 	SourceRC,
 	SourceCLI,
 }
@@ -83,8 +86,9 @@ var sourcesPriority = map[Source]int{
 	SourceFleetPolicies:      5,
 	SourceAgentRuntime:       6,
 	SourceLocalConfigProcess: 7,
-	SourceRC:                 8,
-	SourceCLI:                9,
+	SourceSecretBackend:      8,
+	SourceRC:                 9,
+	SourceCLI:                10,
 }
 
 // ValueWithSource is a tuple for a source and a value, not necessarily the applied value in the main config
