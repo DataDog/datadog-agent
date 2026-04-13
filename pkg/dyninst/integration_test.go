@@ -127,6 +127,7 @@ func testDyninst(
 		loader.WithAdditionalSerializer(&compiler.DebugSerializer{
 			Out: codeDump,
 		}),
+		loader.WithRingBufSize(8 << 20), // 8 MiB
 	}
 	if debug {
 		loaderOpts = append(loaderOpts, loader.WithDebugLevel(100))
@@ -169,8 +170,9 @@ func testDyninst(
 	}()
 
 	// On failure in debug mode, output trace_pipe logs for this process.
+	forceTracePipePrint, _ := strconv.ParseBool(os.Getenv("FORCE_TRACE_PIPE_PRINT"))
 	t.Cleanup(func() {
-		if collector == nil || !t.Failed() || !debug {
+		if collector == nil || !debug || (!t.Failed() && !forceTracePipePrint) {
 			return
 		}
 		if err := collector.Flush(); err != nil {
@@ -280,6 +282,7 @@ func testDyninst(
 		makeRedactorForFunctionWithChangingState())
 	for _, log := range testServer.getLogs() {
 		redacted := redactJSON(t, "", log.body, redactors)
+		t.Logf("Snapshot [probe=%s]: %s", log.id, string(log.body))
 		if debugEnabled {
 			t.Logf("Output: %v\n", string(log.body))
 			t.Logf("Sorted and redacted: %v\n", string(redacted))
