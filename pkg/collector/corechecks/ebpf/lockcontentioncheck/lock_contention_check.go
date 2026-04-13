@@ -51,8 +51,8 @@ func (c *LockContentionConfig) Parse(data []byte) error {
 }
 
 // Configure parses the check configuration and init the check
-func (m *LockContentionCheck) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
-	if err := m.CommonConfigure(senderManager, initConfig, config, source); err != nil {
+func (m *LockContentionCheck) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string, provider string) error {
+	if err := m.CommonConfigure(senderManager, initConfig, config, source, provider); err != nil {
 		return err
 	}
 	if err := m.config.Parse(config); err != nil {
