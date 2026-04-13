@@ -1122,7 +1122,7 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 
 	event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
 
-	if process.IsKThread(event.ProcessContext.PPid, event.ProcessContext.Pid) {
+	if process.IsKworker(event.ProcessContext.PPid, event.ProcessContext.Pid) {
 		return false
 	}
 
