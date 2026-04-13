@@ -43,7 +43,7 @@ func dbNameFromEngine(engine string) (string, error) {
 	}
 }
 
-func makeInstance(db types.DBInstance, config Config) (*Instance, error) {
+func makeInstance(db types.DBInstance, cluster *types.DBCluster, config Config) (*Instance, error) {
 	if db.Endpoint == nil || db.Endpoint.Address == nil {
 		return nil, fmt.Errorf("DBInstance %v missing endpoint", db)
 	}
@@ -88,6 +88,10 @@ func makeInstance(db types.DBInstance, config Config) (*Instance, error) {
 			return nil, fmt.Errorf("engine is nil for instance %v", db)
 		}
 	}
+
+	// If the instance is part of a cluster, fallback to the cluster's tags for the global view db and dbm enabled
+	var instanceGlobalViewDb string
+	var instanceDbmEnabled bool
 	for _, tag := range db.TagList {
 		tagString := ""
 		if tag.Key != nil {
@@ -97,12 +101,46 @@ func makeInstance(db types.DBInstance, config Config) (*Instance, error) {
 			tagString += ":" + *tag.Value
 		}
 		if tag.Key != nil && *tag.Key == config.GlobalViewDbTag && tag.Value != nil {
-			instance.GlobalViewDb = *tag.Value
+			instanceGlobalViewDb = *tag.Value
 		}
 		if tagString == config.DbmTag {
-			instance.DbmEnabled = true
-			break
+			instanceDbmEnabled = true
 		}
 	}
+	var clusterGlobalViewDb string
+	var clusterDbmEnabled bool
+	if cluster != nil {
+		for _, tag := range cluster.TagList {
+			tagString := ""
+			if tag.Key != nil {
+				tagString += *tag.Key
+			}
+			if tag.Value != nil {
+				tagString += ":" + *tag.Value
+			}
+			if tag.Key != nil && *tag.Key == config.GlobalViewDbTag && tag.Value != nil {
+				clusterGlobalViewDb = *tag.Value
+			}
+			if tagString == config.DbmTag {
+				clusterDbmEnabled = true
+			}
+		}
+	}
+
+	if instanceGlobalViewDb == "" {
+		instance.GlobalViewDb = clusterGlobalViewDb
+	} else {
+		instance.GlobalViewDb = instanceGlobalViewDb
+	}
+	if instanceDbmEnabled == false {
+		instance.DbmEnabled = clusterDbmEnabled
+	} else {
+		instance.DbmEnabled = instanceDbmEnabled
+	}
+
 	return &instance, nil
+}
+
+func makePtr[T any](value T) *T {
+	return &value
 }

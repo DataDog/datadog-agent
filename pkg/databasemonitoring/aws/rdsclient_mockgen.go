@@ -12,6 +12,7 @@ import (
 	reflect "reflect"
 
 	rds "github.com/aws/aws-sdk-go-v2/service/rds"
+	"github.com/aws/aws-sdk-go-v2/service/rds/types"
 	gomock "github.com/golang/mock/gomock"
 )
 
@@ -39,10 +40,10 @@ func (m *MockRdsClient) EXPECT() *MockRdsClientMockRecorder {
 }
 
 // GetAuroraClusterEndpoints mocks base method.
-func (m *MockRdsClient) GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentifiers []string, config Config) (map[string]*AuroraCluster, error) {
+func (m *MockRdsClient) GetAuroraClusterEndpoints(ctx context.Context, clusters []types.DBCluster, config Config) ([]Instance, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAuroraClusterEndpoints", ctx, dbClusterIdentifiers, config)
-	ret0, _ := ret[0].(map[string]*AuroraCluster)
+	ret := m.ctrl.Call(m, "GetAuroraClusterEndpoints", ctx, clusters, config)
+	ret0, _ := ret[0].([]Instance)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -54,10 +55,10 @@ func (mr *MockRdsClientMockRecorder) GetAuroraClusterEndpoints(ctx, dbClusterIde
 }
 
 // GetAuroraClustersFromTags mocks base method.
-func (m *MockRdsClient) GetAuroraClustersFromTags(ctx context.Context, tags []string) ([]string, error) {
+func (m *MockRdsClient) GetAuroraClustersFromTags(ctx context.Context, tags []string) ([]types.DBCluster, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetAuroraClustersFromTags", ctx, tags)
-	ret0, _ := ret[0].([]string)
+	ret0, _ := ret[0].([]types.DBCluster)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

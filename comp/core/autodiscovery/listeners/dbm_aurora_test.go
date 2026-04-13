@@ -70,7 +70,7 @@ func TestDBMAuroraListener(t *testing.T) {
 						Tags:              []string{defaultADTag},
 						DbmTag:            defaultDbmTag,
 					}).DoAndReturn(
-						func(ctx context.Context, _ []string, _ aws.Config) (map[string]*aws.AuroraCluster, error) {
+						func(ctx context.Context, _ []string, _ aws.Config) ([]aws.Instance, error) {
 							<-ctx.Done()
 							return nil, ctx.Err()
 						}).AnyTimes(),
@@ -135,17 +135,13 @@ func TestDBMAuroraListener(t *testing.T) {
 					Tags:              []string{defaultADTag},
 					DbmTag:            defaultDbmTag,
 				}).Return(
-					map[string]*aws.AuroraCluster{
-						"my-cluster-1": {
-							Instances: []*aws.Instance{
-								{
-									Endpoint:   "my-endpoint",
-									Port:       5432,
-									IamEnabled: true,
-									Engine:     "aurora-postgresql",
-									DbmEnabled: true,
-								},
-							},
+					[]aws.Instance{
+						{
+							Endpoint:   "my-endpoint",
+							Port:       5432,
+							IamEnabled: true,
+							Engine:     "aurora-postgresql",
+							DbmEnabled: true,
 						},
 					}, nil).AnyTimes()
 			},
@@ -187,18 +183,14 @@ func TestDBMAuroraListener(t *testing.T) {
 					DbmTag:            defaultDbmTag,
 					GlobalViewDbTag:   "datadoghq.com/globalview",
 				}).Return(
-					map[string]*aws.AuroraCluster{
-						"my-cluster-1": {
-							Instances: []*aws.Instance{
-								{
-									Endpoint:     "my-endpoint",
-									Port:         5432,
-									IamEnabled:   true,
-									Engine:       "aurora-postgresql",
-									DbmEnabled:   true,
-									GlobalViewDb: "mydb",
-								},
-							},
+					[]aws.Instance{
+						{
+							Endpoint:     "my-endpoint",
+							Port:         5432,
+							IamEnabled:   true,
+							Engine:       "aurora-postgresql",
+							DbmEnabled:   true,
+							GlobalViewDb: "mydb",
 						},
 					}, nil).AnyTimes()
 			},
@@ -239,28 +231,24 @@ func TestDBMAuroraListener(t *testing.T) {
 					Tags:              []string{defaultADTag},
 					DbmTag:            defaultDbmTag,
 				}).Return(
-					map[string]*aws.AuroraCluster{
-						"my-cluster-1": {
-							Instances: []*aws.Instance{
-								{
-									Endpoint:   "my-endpoint",
-									Port:       5432,
-									IamEnabled: true,
-									Engine:     "aurora-postgresql",
-								},
-								{
-									Endpoint:   "foo-endpoint",
-									Port:       5432,
-									IamEnabled: true,
-									Engine:     "aurora-postgresql",
-								},
-								{
-									Endpoint:   "bar-endpoint",
-									Port:       5444,
-									IamEnabled: false,
-									Engine:     "aurora-postgresql",
-								},
-							},
+					[]aws.Instance{
+						{
+							Endpoint:   "my-endpoint",
+							Port:       5432,
+							IamEnabled: true,
+							Engine:     "aurora-postgresql",
+						},
+						{
+							Endpoint:   "foo-endpoint",
+							Port:       5432,
+							IamEnabled: true,
+							Engine:     "aurora-postgresql",
+						},
+						{
+							Endpoint:   "bar-endpoint",
+							Port:       5444,
+							IamEnabled: false,
+							Engine:     "aurora-postgresql",
 						},
 					}, nil).AnyTimes()
 			},
@@ -394,18 +382,14 @@ func TestDBMAuroraListener(t *testing.T) {
 					Tags:              []string{defaultADTag},
 					DbmTag:            defaultDbmTag,
 				}).Return(
-					map[string]*aws.AuroraCluster{
-						"my-cluster-1": {
-							Instances: []*aws.Instance{
-								{
-									Endpoint:   "my-endpoint",
-									Port:       5432,
-									IamEnabled: true,
-									Engine:     "aurora-postgresql",
-									DbmEnabled: false,
-									DbName:     "mydb",
-								},
-							},
+					[]aws.Instance{
+						{
+							Endpoint:   "my-endpoint",
+							Port:       5432,
+							IamEnabled: true,
+							Engine:     "aurora-postgresql",
+							DbmEnabled: false,
+							DbName:     "mydb",
 						},
 					}, nil).AnyTimes()
 			},
