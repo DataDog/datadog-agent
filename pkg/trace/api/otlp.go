@@ -346,7 +346,7 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 			}
 			ddspan := transform.OtelSpanToDDSpan(otelspan, otelres, libspans.Scope(), o.conf)
 
-			if p, ok := ddspan.Metrics["_sampling_priority_v1"]; ok {
+			if p, ok := semantics.LookupFloat64(registry, semantics.NewMetricsMapAccessor(ddspan.Metrics), semantics.ConceptSamplingPriority); ok {
 				priorityByID[traceID] = sampler.SamplingPriority(p)
 			}
 			tracesByID[traceID] = append(tracesByID[traceID], ddspan)
