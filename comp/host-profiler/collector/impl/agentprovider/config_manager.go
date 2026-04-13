@@ -14,7 +14,7 @@ import (
 // healthMetricsConfig holds configuration for the internal health metrics pipeline.
 type healthMetricsConfig struct {
 	Enabled bool
-	Targets []string
+	Target  string
 }
 
 // hostProfilerConfig holds host-profiler settings extracted from the Agent config.
@@ -101,7 +101,7 @@ func newConfigManager(config config.Component) configManager {
 		DDProfilingPeriod:     config.GetInt("hostprofiler.ddprofiling.period"),
 		HealthMetrics: healthMetricsConfig{
 			Enabled: config.GetBool("hostprofiler.health_metrics.enabled"),
-			Targets: config.GetStringSlice("hostprofiler.health_metrics.targets"),
+			Target:  config.GetString("hostprofiler.health_metrics.target"),
 		},
 	}
 

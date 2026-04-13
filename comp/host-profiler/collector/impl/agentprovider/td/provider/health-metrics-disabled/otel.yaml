@@ -40,3 +40,6 @@ service:
                 - resource/dd-profiler-internal-metadata
             receivers:
                 - profiling
+    telemetry:
+        metrics:
+            level: none

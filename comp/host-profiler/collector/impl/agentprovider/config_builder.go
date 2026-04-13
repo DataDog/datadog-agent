@@ -8,6 +8,8 @@ package agentprovider
 
 import (
 	"fmt"
+	"net"
+	"strconv"
 
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/converters"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/params"
@@ -125,6 +127,18 @@ func buildProcessors(conf confMap) []any {
 	return []any{"infraattributes/default", "resource/dd-profiler-internal-metadata"}
 }
 
+func buildMetricsTelemetry(conf confMap, healthMetrics healthMetricsConfig) {
+	if !healthMetrics.Enabled {
+		_ = converters.Set(conf, "service::telemetry::metrics::level", "none")
+		return
+	}
+	host, portStr, _ := net.SplitHostPort(healthMetrics.Target)
+	port, _ := strconv.Atoi(portStr)
+	_ = converters.Set(conf, "service::telemetry::metrics::readers", []any{
+		confMap{"pull": confMap{"exporter": confMap{"prometheus": confMap{"host": host, "port": port}}}},
+	})
+}
+
 func buildMetricsPipeline(conf confMap, enableGoRuntimeMetrics bool, healthMetrics healthMetricsConfig, profilesProcessors, profilesExporters []any) {
 	if !healthMetrics.Enabled && !enableGoRuntimeMetrics {
 		return
@@ -138,7 +152,7 @@ func buildMetricsPipeline(conf confMap, enableGoRuntimeMetrics bool, healthMetri
 	metricsProcessors := profilesProcessors
 
 	if healthMetrics.Enabled {
-		receivers["prometheus"] = converters.PrometheusReceiverConfigWithTargets(healthMetrics.Targets)
+		receivers["prometheus"] = converters.PrometheusReceiverConfigWithTarget(healthMetrics.Target)
 		processors["filter"] = converters.FilterProcessorConfig()
 		processors["cumulativetodelta"] = confMap{}
 		metricsProcessors = append([]any{"filter", "cumulativetodelta"}, profilesProcessors...)
@@ -168,6 +182,7 @@ func buildConfig(agent configManager, p params.CollectorParams) confMap {
 	profilesPipeline["exporters"] = profilesExporters
 	profilesPipeline["receivers"] = profilesReceivers
 
+	buildMetricsTelemetry(config, agent.hostProfilerConfig.HealthMetrics)
 	buildMetricsPipeline(config, p.GetGoRuntimeMetrics(), agent.hostProfilerConfig.HealthMetrics, profilesProcessors, profilesExporters)
 
 	_ = converters.Set(config, "extensions::hpflare/default", confMap{})
