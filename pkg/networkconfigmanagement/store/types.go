@@ -55,4 +55,5 @@ type ConfigStore interface {
 	Close(context.Context) error
 	StoreConfig(deviceID string, configType ncmreport.ConfigType, rawConfig string, blocks []ConfigBlock, secrets map[string]string) (string, error)
 	GetConfig(configUUID string) (string, []ConfigBlock, *ConfigMetadata, map[string]string, error)
+	CheckDuplicate(deviceID string, configType ncmreport.ConfigType, rawHash string) (string, error)
 }
