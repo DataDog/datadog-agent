@@ -9,6 +9,7 @@ import (
 	"context"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
 )
 
 const (
@@ -23,16 +24,16 @@ type clusterNameLabelType struct {
 	key string
 	// shouldOverride if set to true override previous cluster-name
 	shouldOverride bool
+	// parser is used to parse label content to grab cluster name for AKS for example
+	parser func(string) string
 }
 
-var (
-	// We use a slice to define the default Node label key to keep the ordering
-	defaultClusterNameLabelKeyConfigs = []clusterNameLabelType{
-		{key: eksClusterNameLabelKey, shouldOverride: false},
-		{key: aksClusterNameLabelKey, shouldOverride: false},
-		{key: datadogADClusterNameLabelKey, shouldOverride: true},
-	}
-)
+// We use a slice to define the default Node label key to keep the ordering
+var defaultClusterNameLabelKeyConfigs = []clusterNameLabelType{
+	{key: eksClusterNameLabelKey, shouldOverride: false},
+	{key: aksClusterNameLabelKey, shouldOverride: false, parser: aksClusterNameLabelParser},
+	{key: datadogADClusterNameLabelKey, shouldOverride: true},
+}
 
 // GetNodeClusterNameLabel returns clustername by fetching a node label
 func (n *NodeInfo) GetNodeClusterNameLabel(ctx context.Context, clusterName string) (string, error) {
@@ -52,6 +53,9 @@ func (n *NodeInfo) GetNodeClusterNameLabel(ctx context.Context, clusterName stri
 
 	for _, labelConfig := range clusterNameLabelKeys {
 		if v, ok := nodeLabels[labelConfig.key]; ok {
+			if labelConfig.parser != nil {
+				v = labelConfig.parser(v)
+			}
 			if clusterName == "" {
 				clusterName = v
 				continue
@@ -63,4 +67,14 @@ func (n *NodeInfo) GetNodeClusterNameLabel(ctx context.Context, clusterName stri
 		}
 	}
 	return clusterName, nil
+}
+
+// aksClusterNameLabelParser tries to parse cluster name from resource group.
+// If parsed cluster name is empty label is used unparsed instead.
+func aksClusterNameLabelParser(label string) string {
+	n, _ := azure.ParseClusterNameFromResouceGroup(label)
+	if n != "" {
+		return n
+	}
+	return label
 }

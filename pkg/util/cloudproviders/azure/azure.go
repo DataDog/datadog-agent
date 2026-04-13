@@ -79,16 +79,21 @@ var resourceGroupNameFetcher = cachedfetch.Fetcher{
 }
 
 // GetClusterName returns the name of the cluster containing the current VM by parsing the resource group name.
-// It expects the resource group name to have the format (MC|mc)_resource-group_cluster-name_zone
+
 func GetClusterName(ctx context.Context) (string, error) {
 	all, err := resourceGroupNameFetcher.FetchString(ctx)
 	if err != nil {
 		return "", err
 	}
 
-	splitAll := strings.Split(all, "_")
+	return ParseClusterNameFromResouceGroup(all)
+}
+
+// ParseClusterNameFromResouceGroup expects the rg name to have the format (MC|mc)_resource-group_cluster-name_zone
+func ParseClusterNameFromResouceGroup(rg string) (string, error) {
+	splitAll := strings.Split(rg, "_")
 	if len(splitAll) < 4 || strings.ToLower(splitAll[0]) != "mc" {
-		return "", fmt.Errorf("cannot parse the clustername from resource group name: %s", all)
+		return "", fmt.Errorf("cannot parse the clustername from resource group name: %s", rg)
 	}
 
 	return splitAll[len(splitAll)-2], nil
