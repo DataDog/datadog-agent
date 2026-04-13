@@ -26,7 +26,7 @@
   stage: package_build
   needs: ["go_mod_tidy_check"]
   rules:
-     - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/
+     - if: $CI_COMMIT_BRANCH == "nightly" || $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/
        variables:
          SIGN: true  # for `main` and release branches
      - if: $CI_COMMIT_BRANCH =~ /notarization/
