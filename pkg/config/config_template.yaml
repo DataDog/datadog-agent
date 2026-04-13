@@ -4929,6 +4929,18 @@ api_key:
 #
 #   self_enroll: true
 
+#   # @param task_concurrency - integer - optional - default: 5
+#   # @env DD_PRIVATE_ACTION_RUNNER_TASK_CONCURRENCY - integer - optional - default: 5
+#   # Maximum number of actions that can be executed concurrently.
+#
+#   task_concurrency: 5
+
+#   # @param task_timeout_seconds - integer - optional - default: 60
+#   # @env DD_PRIVATE_ACTION_RUNNER_TASK_TIMEOUT_SECONDS - integer - optional - default: 60
+#   # Maximum time in seconds an action is allowed to run before being terminated. Must be > 1.
+#
+#   task_timeout_seconds: 60
+
 #   # @param actions_allowlist - list of strings - optional - default: []
 #   # @env DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST - comma separated list of strings - optional - default: []
 #   # List of actions that the Private Action Runner is allowed to execute.
@@ -4938,4 +4950,22 @@ api_key:
 #   actions_allowlist:
 #     - com.datadoghq.script.runPredefinedPowershellScript   # on Windows
 #     - com.datadoghq.script.runPredefinedScript             # on Linux and Darwin
+
+#   # @param http_timeout_seconds - integer - optional - default: 30
+#   # @env DD_PRIVATE_ACTION_RUNNER_HTTP_TIMEOUT_SECONDS - integer - optional - default: 30
+#   # Maximum time in seconds for HTTP actions before timing out. Must be > 1.
+#
+#   http_timeout_seconds: 30
+
+#   # @param http_allowlist - list of strings - optional - default: []
+#   # @env DD_PRIVATE_ACTION_RUNNER_HTTP_ALLOWLIST - space-separated list of strings - optional - default: []
+#   # List of allowed URL patterns for HTTP actions.
+#
+#   http_allowlist: []
+
+#   # @param http_allow_imds_endpoint - boolean - optional - default: false
+#   # @env DD_PRIVATE_ACTION_RUNNER_HTTP_ALLOW_IMDS_ENDPOINT - boolean - optional - default: false
+#   # Allow HTTP actions to reach cloud instance metadata service (IMDS) endpoints.
+#
+#   http_allow_imds_endpoint: false
 {{ end -}}
