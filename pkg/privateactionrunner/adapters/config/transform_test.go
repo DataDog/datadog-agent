@@ -254,9 +254,11 @@ func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 
 		allowlist := makeActionsAllowlist(mockConfig)
 
-		assert.True(t, allowlist["com.datadoghq.remoteaction.rshell"].Has("runCommand"))
-		// inherited actions should also be present for the remoteaction prefix
-		assert.True(t, allowlist["com.datadoghq.remoteaction"].Has("testConnection"))
+		assert.True(t, allowlist["com.datadoghq.kubernetes.apps"].Has("listDeployment"))
+		assert.True(t, allowlist["com.datadoghq.kubernetes.core"].Has("getPod"))
+		assert.True(t, allowlist["com.datadoghq.kubernetes.batch"].Has("getJob"))
+		// inherited actions should also be present for the kubernetes prefix
+		assert.True(t, allowlist["com.datadoghq.kubernetes.core"].Has("testConnection"))
 	})
 
 	t.Run("default actions are excluded when default_actions_enabled is false", func(t *testing.T) {
