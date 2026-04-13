@@ -307,3 +307,45 @@ func TestFieldsCollectorRemovesUnsupportedField(t *testing.T) {
 		require.NotEqual(t, "nvlink.errors.effective", metric.name)
 	}
 }
+
+func TestFieldsCollectorTreatsInvalidArgumentAsUnsupportedOnlyWhenConfigured(t *testing.T) {
+	returnValues := copyMockFieldValues()
+	device := setupMockDevice(t, func(d *mock.Device) *mock.Device {
+		d.GetFieldValuesFunc = func(fv []nvml.FieldValue) nvml.Return {
+			for i := range fv {
+				switch fv[i].FieldId {
+				case nvml.FI_DEV_C2C_LINK_ERROR_INTR:
+					fv[i].NvmlReturn = uint32(nvml.ERROR_INVALID_ARGUMENT)
+				case nvml.FI_DEV_NVLINK_COUNT_EFFECTIVE_ERRORS:
+					fv[i].NvmlReturn = uint32(nvml.ERROR_INVALID_ARGUMENT)
+				default:
+					fv[i].NvmlReturn = uint32(nvml.SUCCESS)
+					fv[i].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_INT)
+					binary.LittleEndian.PutUint32(fv[i].Value[:], returnValues[fv[i].FieldId])
+				}
+			}
+			return nvml.SUCCESS
+		}
+		return d
+	})
+
+	collector, err := newFieldsCollector(device, nil)
+	require.NoError(t, err)
+
+	fc, ok := collector.(*fieldsCollector)
+	require.True(t, ok, "expected *fieldsCollector")
+
+	foundC2CInterrupt := false
+	foundNvlinkEffective := false
+	for _, metric := range fc.fieldMetrics {
+		switch metric.name {
+		case "c2c.errors.interrupt":
+			foundC2CInterrupt = true
+		case "nvlink.errors.effective":
+			foundNvlinkEffective = true
+		}
+	}
+
+	require.False(t, foundC2CInterrupt, "c2c.errors.interrupt should be removed when INVALID_ARGUMENT is explicitly mapped to unsupported")
+	require.True(t, foundNvlinkEffective, "nvlink.errors.effective should remain when INVALID_ARGUMENT is not explicitly mapped to unsupported")
+}

@@ -71,22 +71,53 @@ func (c *fieldsCollector) removeUnsupportedMetrics() {
 
 	// Remove individual unsupported fields
 	for _, val := range fieldValues {
-		if val.NvmlReturn == uint32(nvml.ERROR_NOT_SUPPORTED) {
-			c.fieldMetrics = slices.DeleteFunc(c.fieldMetrics, func(fm fieldValueMetric) bool {
-				if fm.fieldValueID == val.FieldId {
-					log.Debugf(
-						"GPU fields collector removing unsupported metric %s for device %s (field_id=%d scope_id=%d)",
-						fm.name,
-						c.DeviceUUID(),
-						fm.fieldValueID,
-						fm.scopeID,
-					)
-					return true
-				}
-				return false
+		if val.NvmlReturn == uint32(nvml.ERROR_NOT_SUPPORTED) || (val.NvmlReturn == uint32(nvml.ERROR_INVALID_ARGUMENT)) {
+			fieldValueIdx := slices.IndexFunc(c.fieldMetrics, func(fm fieldValueMetric) bool {
+				return fm.fieldValueID == val.FieldId
 			})
+			if fieldValueIdx == -1 {
+				log.Warnf("Unexpected field ID %d returned for device %s (scope_id=%d): return value is %s",
+					val.FieldId,
+					c.DeviceUUID(),
+					val.ScopeId,
+					nvml.ErrorString(nvml.Return(val.NvmlReturn)),
+				)
+				continue
+			}
+
+			fieldMetric := c.fieldMetrics[fieldValueIdx]
+			if val.NvmlReturn == uint32(nvml.ERROR_INVALID_ARGUMENT) && !fieldMetric.markUnsupportedOnInvalidArgument {
+				continue
+			}
+
+			log.Debugf("GPU fields collector removing unsupported metric %s for device %s (field_id=%d scope_id=%d)",
+				fieldMetric.name,
+				c.DeviceUUID(),
+				fieldMetric.fieldValueID,
+				fieldMetric.scopeID,
+			)
+
+			c.fieldMetrics = slices.Delete(c.fieldMetrics, fieldValueIdx, 1)
 		}
 	}
+}
+
+func (c *fieldsCollector) shouldTreatFieldAsUnsupported(val nvml.FieldValue) bool {
+	if val.NvmlReturn == uint32(nvml.ERROR_NOT_SUPPORTED) {
+		return true
+	}
+
+	if val.NvmlReturn != uint32(nvml.ERROR_INVALID_ARGUMENT) {
+		return false
+	}
+
+	for _, fm := range c.fieldMetrics {
+		if fm.fieldValueID == val.FieldId && fm.markUnsupportedOnInvalidArgument {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (c *fieldsCollector) getFieldValues() ([]nvml.FieldValue, error) {
@@ -178,10 +209,14 @@ type fieldValueMetric struct {
 	fieldValueID uint32 // No specific type, but these are constants prefixed with FI_DEV in the nvml package
 	// some fields require scopeID to be filled for the GetFieldValues to work properly
 	// (e.g: https://github.com/NVIDIA/nvidia-settings/blob/main/src/nvml.h#L2175-L2177)
-	scopeID     uint32
-	metricType  metrics.MetricType
-	computeRate bool
-	priority    MetricPriority
+	scopeID uint32
+	// Some fields on older architectures return INVALID_ARGUMENT immediately
+	// instead of cleanly reporting ERROR_NOT_SUPPORTED. Mark those fields here
+	// so collector initialization can treat INVALID_ARGUMENT as unsupported.
+	markUnsupportedOnInvalidArgument bool
+	metricType                       metrics.MetricType
+	computeRate                      bool
+	priority                         MetricPriority
 }
 
 // allFieldMetrics lists all candidate field-value metrics. When multiple entries
@@ -238,7 +273,7 @@ var allFieldMetrics = []fieldValueMetric{
 	{name: "nvlink.ber.symbol", fieldValueID: nvml.FI_DEV_NVLINK_COUNT_SYMBOL_BER, metricType: metrics.GaugeType},
 
 	// -- C2C link error counters --
-	{name: "c2c.errors.interrupt", fieldValueID: nvml.FI_DEV_C2C_LINK_ERROR_INTR, metricType: metrics.GaugeType},
-	{name: "c2c.errors.replay", fieldValueID: nvml.FI_DEV_C2C_LINK_ERROR_REPLAY, metricType: metrics.GaugeType},
-	{name: "c2c.errors.replay.b2b", fieldValueID: nvml.FI_DEV_C2C_LINK_ERROR_REPLAY_B2B, metricType: metrics.GaugeType},
+	{name: "c2c.errors.interrupt", fieldValueID: nvml.FI_DEV_C2C_LINK_ERROR_INTR, markUnsupportedOnInvalidArgument: true, metricType: metrics.GaugeType},
+	{name: "c2c.errors.replay", fieldValueID: nvml.FI_DEV_C2C_LINK_ERROR_REPLAY, markUnsupportedOnInvalidArgument: true, metricType: metrics.GaugeType},
+	{name: "c2c.errors.replay.b2b", fieldValueID: nvml.FI_DEV_C2C_LINK_ERROR_REPLAY_B2B, markUnsupportedOnInvalidArgument: true, metricType: metrics.GaugeType},
 }

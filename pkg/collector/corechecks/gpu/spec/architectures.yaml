@@ -14,6 +14,23 @@ architectures:
       unsupported_fields_by_device_mode:
         - device_modes: [physical, mig, vgpu]
           fields:
+            - FI_DEV_NVLINK_COUNT_XMIT_PACKETS
+            - FI_DEV_NVLINK_COUNT_RCV_PACKETS
+            - FI_DEV_NVLINK_COUNT_XMIT_DISCARDS
+            - FI_DEV_NVLINK_COUNT_MALFORMED_PACKET_ERRORS
+            - FI_DEV_NVLINK_COUNT_BUFFER_OVERRUN_ERRORS
+            - FI_DEV_NVLINK_COUNT_RCV_ERRORS
+            - FI_DEV_NVLINK_COUNT_RCV_REMOTE_ERRORS
+            - FI_DEV_NVLINK_COUNT_RCV_GENERAL_ERRORS
+            - FI_DEV_NVLINK_COUNT_LOCAL_LINK_INTEGRITY_ERRORS
+            - FI_DEV_NVLINK_COUNT_LINK_RECOVERY_SUCCESSFUL_EVENTS
+            - FI_DEV_NVLINK_COUNT_LINK_RECOVERY_FAILED_EVENTS
+            - FI_DEV_NVLINK_COUNT_EFFECTIVE_ERRORS
+            - FI_DEV_NVLINK_COUNT_EFFECTIVE_BER
+            - FI_DEV_NVLINK_COUNT_SYMBOL_ERRORS
+            - FI_DEV_NVLINK_COUNT_SYMBOL_BER
+        - device_modes: [physical, mig, vgpu]
+          fields:
             - FI_DEV_MEMORY_TEMP
             - FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT
             - FI_DEV_C2C_LINK_ERROR_INTR
@@ -34,21 +51,6 @@ architectures:
             - FI_DEV_NVLINK_ECC_DATA_ERROR_COUNT_TOTAL
             - FI_DEV_NVLINK_RECOVERY_ERROR_COUNT_TOTAL
             - FI_DEV_NVLINK_REPLAY_ERROR_COUNT_TOTAL
-            - FI_DEV_NVLINK_COUNT_XMIT_PACKETS
-            - FI_DEV_NVLINK_COUNT_RCV_PACKETS
-            - FI_DEV_NVLINK_COUNT_XMIT_DISCARDS
-            - FI_DEV_NVLINK_COUNT_MALFORMED_PACKET_ERRORS
-            - FI_DEV_NVLINK_COUNT_BUFFER_OVERRUN_ERRORS
-            - FI_DEV_NVLINK_COUNT_RCV_ERRORS
-            - FI_DEV_NVLINK_COUNT_RCV_REMOTE_ERRORS
-            - FI_DEV_NVLINK_COUNT_RCV_GENERAL_ERRORS
-            - FI_DEV_NVLINK_COUNT_LOCAL_LINK_INTEGRITY_ERRORS
-            - FI_DEV_NVLINK_COUNT_LINK_RECOVERY_SUCCESSFUL_EVENTS
-            - FI_DEV_NVLINK_COUNT_LINK_RECOVERY_FAILED_EVENTS
-            - FI_DEV_NVLINK_COUNT_EFFECTIVE_ERRORS
-            - FI_DEV_NVLINK_COUNT_EFFECTIVE_BER
-            - FI_DEV_NVLINK_COUNT_SYMBOL_ERRORS
-            - FI_DEV_NVLINK_COUNT_SYMBOL_BER
             - FI_DEV_C2C_LINK_ERROR_INTR
             - FI_DEV_C2C_LINK_ERROR_REPLAY
             - FI_DEV_C2C_LINK_ERROR_REPLAY_B2B
@@ -60,26 +62,6 @@ architectures:
       unsupported_fields_by_device_mode:
         - device_modes: [physical, mig, vgpu]
           fields:
-            - FI_DEV_MEMORY_TEMP
-            - FI_DEV_C2C_LINK_ERROR_INTR
-            - FI_DEV_C2C_LINK_ERROR_REPLAY
-            - FI_DEV_C2C_LINK_ERROR_REPLAY_B2B
-        - device_modes: [vgpu, mig]
-          fields:
-            - FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT
-            - FI_DEV_PCIE_REPLAY_COUNTER
-            - FI_DEV_PERF_POLICY_THERMAL
-            - FI_DEV_NVLINK_SPEED_MBPS_COMMON
-            - FI_DEV_NVLINK_GET_SPEED
-            - FI_DEV_NVLINK_THROUGHPUT_DATA_RX
-            - FI_DEV_NVLINK_THROUGHPUT_DATA_TX
-            - FI_DEV_NVLINK_THROUGHPUT_RAW_RX
-            - FI_DEV_NVLINK_THROUGHPUT_RAW_TX
-            - FI_DEV_NVLINK_CRC_DATA_ERROR_COUNT_TOTAL
-            - FI_DEV_NVLINK_CRC_FLIT_ERROR_COUNT_TOTAL
-            - FI_DEV_NVLINK_ECC_DATA_ERROR_COUNT_TOTAL
-            - FI_DEV_NVLINK_RECOVERY_ERROR_COUNT_TOTAL
-            - FI_DEV_NVLINK_REPLAY_ERROR_COUNT_TOTAL
             - FI_DEV_NVLINK_COUNT_XMIT_PACKETS
             - FI_DEV_NVLINK_COUNT_RCV_PACKETS
             - FI_DEV_NVLINK_COUNT_XMIT_DISCARDS
@@ -95,15 +77,6 @@ architectures:
             - FI_DEV_NVLINK_COUNT_EFFECTIVE_BER
             - FI_DEV_NVLINK_COUNT_SYMBOL_ERRORS
             - FI_DEV_NVLINK_COUNT_SYMBOL_BER
-            - FI_DEV_C2C_LINK_ERROR_INTR
-            - FI_DEV_C2C_LINK_ERROR_REPLAY
-            - FI_DEV_C2C_LINK_ERROR_REPLAY_B2B
-    unsupported_device_modes:
-      - mig
-  turing:
-    capabilities:
-      gpm: false
-      unsupported_fields_by_device_mode:
         - device_modes: [physical, mig, vgpu]
           fields:
             - FI_DEV_MEMORY_TEMP
@@ -126,6 +99,17 @@ architectures:
             - FI_DEV_NVLINK_ECC_DATA_ERROR_COUNT_TOTAL
             - FI_DEV_NVLINK_RECOVERY_ERROR_COUNT_TOTAL
             - FI_DEV_NVLINK_REPLAY_ERROR_COUNT_TOTAL
+            - FI_DEV_C2C_LINK_ERROR_INTR
+            - FI_DEV_C2C_LINK_ERROR_REPLAY
+            - FI_DEV_C2C_LINK_ERROR_REPLAY_B2B
+    unsupported_device_modes:
+      - mig
+  turing:
+    capabilities:
+      gpm: false
+      unsupported_fields_by_device_mode:
+        - device_modes: [physical, mig, vgpu]
+          fields:
             - FI_DEV_NVLINK_COUNT_XMIT_PACKETS
             - FI_DEV_NVLINK_COUNT_RCV_PACKETS
             - FI_DEV_NVLINK_COUNT_XMIT_DISCARDS
@@ -141,6 +125,28 @@ architectures:
             - FI_DEV_NVLINK_COUNT_EFFECTIVE_BER
             - FI_DEV_NVLINK_COUNT_SYMBOL_ERRORS
             - FI_DEV_NVLINK_COUNT_SYMBOL_BER
+        - device_modes: [physical, mig, vgpu]
+          fields:
+            - FI_DEV_MEMORY_TEMP
+            - FI_DEV_C2C_LINK_ERROR_INTR
+            - FI_DEV_C2C_LINK_ERROR_REPLAY
+            - FI_DEV_C2C_LINK_ERROR_REPLAY_B2B
+        - device_modes: [vgpu, mig]
+          fields:
+            - FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT
+            - FI_DEV_PCIE_REPLAY_COUNTER
+            - FI_DEV_PERF_POLICY_THERMAL
+            - FI_DEV_NVLINK_SPEED_MBPS_COMMON
+            - FI_DEV_NVLINK_GET_SPEED
+            - FI_DEV_NVLINK_THROUGHPUT_DATA_RX
+            - FI_DEV_NVLINK_THROUGHPUT_DATA_TX
+            - FI_DEV_NVLINK_THROUGHPUT_RAW_RX
+            - FI_DEV_NVLINK_THROUGHPUT_RAW_TX
+            - FI_DEV_NVLINK_CRC_DATA_ERROR_COUNT_TOTAL
+            - FI_DEV_NVLINK_CRC_FLIT_ERROR_COUNT_TOTAL
+            - FI_DEV_NVLINK_ECC_DATA_ERROR_COUNT_TOTAL
+            - FI_DEV_NVLINK_RECOVERY_ERROR_COUNT_TOTAL
+            - FI_DEV_NVLINK_REPLAY_ERROR_COUNT_TOTAL
             - FI_DEV_C2C_LINK_ERROR_INTR
             - FI_DEV_C2C_LINK_ERROR_REPLAY
             - FI_DEV_C2C_LINK_ERROR_REPLAY_B2B
@@ -150,6 +156,23 @@ architectures:
     capabilities:
       gpm: false
       unsupported_fields_by_device_mode:
+        - device_modes: [physical, mig, vgpu]
+          fields:
+            - FI_DEV_NVLINK_COUNT_XMIT_PACKETS
+            - FI_DEV_NVLINK_COUNT_RCV_PACKETS
+            - FI_DEV_NVLINK_COUNT_XMIT_DISCARDS
+            - FI_DEV_NVLINK_COUNT_MALFORMED_PACKET_ERRORS
+            - FI_DEV_NVLINK_COUNT_BUFFER_OVERRUN_ERRORS
+            - FI_DEV_NVLINK_COUNT_RCV_ERRORS
+            - FI_DEV_NVLINK_COUNT_RCV_REMOTE_ERRORS
+            - FI_DEV_NVLINK_COUNT_RCV_GENERAL_ERRORS
+            - FI_DEV_NVLINK_COUNT_LOCAL_LINK_INTEGRITY_ERRORS
+            - FI_DEV_NVLINK_COUNT_LINK_RECOVERY_SUCCESSFUL_EVENTS
+            - FI_DEV_NVLINK_COUNT_LINK_RECOVERY_FAILED_EVENTS
+            - FI_DEV_NVLINK_COUNT_EFFECTIVE_ERRORS
+            - FI_DEV_NVLINK_COUNT_EFFECTIVE_BER
+            - FI_DEV_NVLINK_COUNT_SYMBOL_ERRORS
+            - FI_DEV_NVLINK_COUNT_SYMBOL_BER
         - device_modes: [physical]
           fields:
             - FI_DEV_C2C_LINK_ERROR_INTR
@@ -172,6 +195,19 @@ architectures:
             - FI_DEV_NVLINK_ECC_DATA_ERROR_COUNT_TOTAL
             - FI_DEV_NVLINK_RECOVERY_ERROR_COUNT_TOTAL
             - FI_DEV_NVLINK_REPLAY_ERROR_COUNT_TOTAL
+            - FI_DEV_C2C_LINK_ERROR_INTR
+            - FI_DEV_C2C_LINK_ERROR_REPLAY
+            - FI_DEV_C2C_LINK_ERROR_REPLAY_B2B
+    unsupported_device_modes: []
+  hopper:
+    capabilities:
+      gpm: true
+      unsupported_fields_by_device_mode:
+        - device_modes: [physical, mig, vgpu]
+          fields:
+            - FI_DEV_C2C_LINK_ERROR_INTR
+            - FI_DEV_C2C_LINK_ERROR_REPLAY
+            - FI_DEV_C2C_LINK_ERROR_REPLAY_B2B
             - FI_DEV_NVLINK_COUNT_XMIT_PACKETS
             - FI_DEV_NVLINK_COUNT_RCV_PACKETS
             - FI_DEV_NVLINK_COUNT_XMIT_DISCARDS
@@ -187,14 +223,6 @@ architectures:
             - FI_DEV_NVLINK_COUNT_EFFECTIVE_BER
             - FI_DEV_NVLINK_COUNT_SYMBOL_ERRORS
             - FI_DEV_NVLINK_COUNT_SYMBOL_BER
-            - FI_DEV_C2C_LINK_ERROR_INTR
-            - FI_DEV_C2C_LINK_ERROR_REPLAY
-            - FI_DEV_C2C_LINK_ERROR_REPLAY_B2B
-    unsupported_device_modes: []
-  hopper:
-    capabilities:
-      gpm: true
-      unsupported_fields_by_device_mode:
         - device_modes: [vgpu, mig]
           fields:
             - FI_DEV_MEMORY_TEMP
@@ -212,21 +240,6 @@ architectures:
             - FI_DEV_NVLINK_ECC_DATA_ERROR_COUNT_TOTAL
             - FI_DEV_NVLINK_RECOVERY_ERROR_COUNT_TOTAL
             - FI_DEV_NVLINK_REPLAY_ERROR_COUNT_TOTAL
-            - FI_DEV_NVLINK_COUNT_XMIT_PACKETS
-            - FI_DEV_NVLINK_COUNT_RCV_PACKETS
-            - FI_DEV_NVLINK_COUNT_XMIT_DISCARDS
-            - FI_DEV_NVLINK_COUNT_MALFORMED_PACKET_ERRORS
-            - FI_DEV_NVLINK_COUNT_BUFFER_OVERRUN_ERRORS
-            - FI_DEV_NVLINK_COUNT_RCV_ERRORS
-            - FI_DEV_NVLINK_COUNT_RCV_REMOTE_ERRORS
-            - FI_DEV_NVLINK_COUNT_RCV_GENERAL_ERRORS
-            - FI_DEV_NVLINK_COUNT_LOCAL_LINK_INTEGRITY_ERRORS
-            - FI_DEV_NVLINK_COUNT_LINK_RECOVERY_SUCCESSFUL_EVENTS
-            - FI_DEV_NVLINK_COUNT_LINK_RECOVERY_FAILED_EVENTS
-            - FI_DEV_NVLINK_COUNT_EFFECTIVE_ERRORS
-            - FI_DEV_NVLINK_COUNT_EFFECTIVE_BER
-            - FI_DEV_NVLINK_COUNT_SYMBOL_ERRORS
-            - FI_DEV_NVLINK_COUNT_SYMBOL_BER
             - FI_DEV_C2C_LINK_ERROR_INTR
             - FI_DEV_C2C_LINK_ERROR_REPLAY
             - FI_DEV_C2C_LINK_ERROR_REPLAY_B2B
@@ -284,6 +297,11 @@ architectures:
     capabilities:
       gpm: true
       unsupported_fields_by_device_mode:
+        - device_modes: [physical, mig, vgpu]
+          fields:
+            - FI_DEV_C2C_LINK_ERROR_INTR
+            - FI_DEV_C2C_LINK_ERROR_REPLAY
+            - FI_DEV_C2C_LINK_ERROR_REPLAY_B2B
         - device_modes: [vgpu, mig]
           fields:
             - FI_DEV_MEMORY_TEMP
@@ -316,7 +334,4 @@ architectures:
             - FI_DEV_NVLINK_COUNT_EFFECTIVE_BER
             - FI_DEV_NVLINK_COUNT_SYMBOL_ERRORS
             - FI_DEV_NVLINK_COUNT_SYMBOL_BER
-            - FI_DEV_C2C_LINK_ERROR_INTR
-            - FI_DEV_C2C_LINK_ERROR_REPLAY
-            - FI_DEV_C2C_LINK_ERROR_REPLAY_B2B
     unsupported_device_modes: []

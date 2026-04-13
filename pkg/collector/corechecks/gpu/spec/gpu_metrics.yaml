@@ -478,6 +478,7 @@ metrics:
       unsupported_architectures:
         - fermi
         - kepler
+        - hopper
         - maxwell
         - ada
       device_modes:
@@ -491,6 +492,7 @@ metrics:
       unsupported_architectures:
         - fermi
         - kepler
+        - hopper
         - maxwell
         - ada
       device_modes:
@@ -530,6 +532,7 @@ metrics:
       unsupported_architectures:
         - fermi
         - kepler
+        - hopper
         - maxwell
         - ada
       device_modes:
@@ -556,6 +559,7 @@ metrics:
       unsupported_architectures:
         - fermi
         - kepler
+        - hopper
         - maxwell
         - ada
       device_modes:
@@ -569,6 +573,7 @@ metrics:
       unsupported_architectures:
         - fermi
         - kepler
+        - hopper
         - maxwell
         - ada
       device_modes:
@@ -582,6 +587,7 @@ metrics:
       unsupported_architectures:
         - fermi
         - kepler
+        - hopper
         - maxwell
         - ada
       device_modes:
@@ -621,6 +627,7 @@ metrics:
       unsupported_architectures:
         - fermi
         - kepler
+        - hopper
         - maxwell
         - ada
       device_modes:
@@ -634,6 +641,7 @@ metrics:
       unsupported_architectures:
         - fermi
         - kepler
+        - hopper
         - maxwell
         - ada
       device_modes:
@@ -647,6 +655,7 @@ metrics:
       unsupported_architectures:
         - fermi
         - kepler
+        - hopper
         - maxwell
         - ada
       device_modes:
@@ -660,6 +669,7 @@ metrics:
       unsupported_architectures:
         - fermi
         - kepler
+        - hopper
         - maxwell
         - ada
       device_modes:
@@ -699,6 +709,7 @@ metrics:
       unsupported_architectures:
         - fermi
         - kepler
+        - hopper
         - maxwell
         - ada
       device_modes:
@@ -712,6 +723,7 @@ metrics:
       unsupported_architectures:
         - fermi
         - kepler
+        - hopper
         - maxwell
         - ada
       device_modes:
@@ -725,6 +737,7 @@ metrics:
       unsupported_architectures:
         - fermi
         - kepler
+        - hopper
         - maxwell
         - ada
       device_modes:
@@ -790,6 +803,7 @@ metrics:
       unsupported_architectures:
         - fermi
         - kepler
+        - hopper
         - maxwell
         - ada
       device_modes:
@@ -803,6 +817,7 @@ metrics:
       unsupported_architectures:
         - fermi
         - kepler
+        - hopper
         - maxwell
         - ada
       device_modes:
@@ -814,6 +829,8 @@ metrics:
       - device
     support:
       unsupported_architectures:
+        - blackwell
+        - hopper
         - fermi
         - kepler
         - maxwell
@@ -831,6 +848,8 @@ metrics:
       - device
     support:
       unsupported_architectures:
+        - blackwell
+        - hopper
         - fermi
         - kepler
         - maxwell
@@ -848,6 +867,8 @@ metrics:
       - device
     support:
       unsupported_architectures:
+        - blackwell
+        - hopper
         - fermi
         - kepler
         - maxwell
