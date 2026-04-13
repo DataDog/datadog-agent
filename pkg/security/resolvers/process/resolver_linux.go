@@ -15,8 +15,8 @@ import (
 
 const memfdPrefix = "memfd:"
 
-// IsKThread returns whether given pids are from kthreads
-func IsKThread(ppid, pid uint32) bool {
+// IsKworker returns whether given pids are from kworker/kthreads
+func IsKworker(ppid, pid uint32) bool {
 	return ppid == 2 || pid == 2
 }
 

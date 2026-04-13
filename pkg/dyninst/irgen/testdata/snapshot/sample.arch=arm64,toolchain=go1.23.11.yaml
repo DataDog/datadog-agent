@@ -5483,7 +5483,11 @@ Probes:
           events:
             - Kind: Entry
               Type: 1468 EventRootType Probe[main.firstBehavior.DoSomething]
-              InjectionPoints: [{PC: "0x88f798", Frameless: false}]
+              InjectionPoints:
+                - PC: "0x88f798"
+                  Frameless: false
+                - PC: "0x896f4c"
+                  Frameless: false
               Condition: null
             - Kind: Return
               Type: 1469 EventRootType Probe[main.firstBehavior.DoSomething]Return
@@ -10683,7 +10687,9 @@ Subprograms:
     - ID: 190
       Name: main.firstBehavior.DoSomething
       OutOfLinePCRanges: [0x88f780..0x88f800]
-      InlinePCRanges: []
+      InlinePCRanges:
+        - Ranges: [0x896f4c..0x896f80]
+          RootRanges: [0x896f20..0x896fd0]
       Variables:
         - Name: b
           Type: 349 StructureType main.firstBehavior
