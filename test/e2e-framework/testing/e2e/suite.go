@@ -855,7 +855,6 @@ func (bs *BaseSuite[Env]) SessionOutputDir() string {
 // Unfortunately, we cannot use `s Suite[Env]` as Go is not able to match it with a struct
 // However it's able to verify the same constraint on T
 func Run[Env any, T Suite[Env]](t *testing.T, s T, options ...SuiteOption) {
-	t.Parallel()
 	devMode, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.DevMode, false)
 	if err != nil {
 		utils.Logf(t, "Unable to get DevMode value, DevMode will be disabled, error: %v", err)
