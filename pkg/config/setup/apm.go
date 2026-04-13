@@ -111,7 +111,7 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("apm_config.decoder_timeout", 1000, "DD_APM_DECODER_TIMEOUT")
 	config.BindEnvAndSetDefault("apm_config.log_file", "", "DD_APM_LOG_FILE")
 	config.BindEnvAndSetDefault("apm_config.max_events_per_second", 200.0, "DD_APM_MAX_EPS", "DD_MAX_EPS")
-	config.BindEnvAndSetDefault("apm_config.max_traces_per_second", 0.0, "DD_APM_MAX_TPS", "DD_MAX_TPS") // deprecated
+	config.BindEnvAndSetDefault("apm_config.max_traces_per_second", 10.0, "DD_APM_MAX_TPS", "DD_MAX_TPS") // deprecated
 	config.BindEnvAndSetDefault("apm_config.target_traces_per_second", 10.0, "DD_APM_TARGET_TPS")
 	config.BindEnvAndSetDefault("apm_config.errors_per_second", 10.0, "DD_APM_ERROR_TPS")
 	config.BindEnvAndSetDefault("apm_config.enable_rare_sampler", false, "DD_APM_ENABLE_RARE_SAMPLER")
@@ -127,13 +127,13 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("apm_config.env", "", "DD_APM_ENV")
 	config.BindEnvAndSetDefault("apm_config.apm_non_local_traffic", false, "DD_APM_NON_LOCAL_TRAFFIC")
 	config.BindEnvAndSetDefault("apm_config.apm_dd_url", "", "DD_APM_DD_URL")
-	config.BindEnvAndSetDefault("apm_config.connection_limit", 0, "DD_APM_CONNECTION_LIMIT", "DD_CONNECTION_LIMIT")
+	config.BindEnvAndSetDefault("apm_config.connection_limit", 2000, "DD_APM_CONNECTION_LIMIT", "DD_CONNECTION_LIMIT")
 	config.BindEnvAndSetDefault("apm_config.connection_reset_interval", 0, "DD_APM_CONNECTION_RESET_INTERVAL")
 	config.BindEnvAndSetDefault("apm_config.max_sender_retries", 4, "DD_APM_MAX_SENDER_RETRIES")
 	config.BindEnvAndSetDefault("apm_config.client_stats_flush_interval", 1, "DD_APM_CLIENT_STATS_FLUSH_INTERVAL")
 	config.BindEnvAndSetDefault("apm_config.profiling_dd_url", "", "DD_APM_PROFILING_DD_URL")
 	config.BindEnvAndSetDefault("apm_config.profiling_additional_endpoints", map[string][]string{}, "DD_APM_PROFILING_ADDITIONAL_ENDPOINTS")
-	config.BindEnvAndSetDefault("apm_config.profiling_receiver_timeout", 0, "DD_APM_PROFILING_RECEIVER_TIMEOUT")
+	config.BindEnvAndSetDefault("apm_config.profiling_receiver_timeout", 5, "DD_APM_PROFILING_RECEIVER_TIMEOUT")
 	config.BindEnvAndSetDefault("apm_config.additional_profile_tags", map[string]string{}, "DD_APM_ADDITIONAL_PROFILE_TAGS")
 	config.BindEnvAndSetDefault("apm_config.additional_endpoints", map[string][]string{}, "DD_APM_ADDITIONAL_ENDPOINTS")
 	config.BindEnvAndSetDefault("apm_config.replace_tags", []map[string]string{}, "DD_APM_REPLACE_TAGS")
@@ -149,10 +149,10 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	})
 	config.BindEnvAndSetDefault("apm_config.receiver_socket", defaultReceiverSocket, "DD_APM_RECEIVER_SOCKET")
 	config.BindEnvAndSetDefault("apm_config.windows_pipe_name", "", "DD_APM_WINDOWS_PIPE_NAME")
-	config.BindEnvAndSetDefault("apm_config.filter_tags.require", []string{}, "DD_APM_FILTER_TAGS_REQUIRE")                    //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnvAndSetDefault("apm_config.filter_tags.reject", []string{}, "DD_APM_FILTER_TAGS_REJECT")                      //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnvAndSetDefault("apm_config.filter_tags_regex.reject", []string{}, "DD_APM_FILTER_TAGS_REGEX_REJECT")          //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnvAndSetDefault("apm_config.filter_tags_regex.require", []string{}, "DD_APM_FILTER_TAGS_REGEX_REQUIRE")        //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("apm_config.filter_tags.require", []string{}, "DD_APM_FILTER_TAGS_REQUIRE")
+	config.BindEnvAndSetDefault("apm_config.filter_tags.reject", []string{}, "DD_APM_FILTER_TAGS_REJECT")
+	config.BindEnvAndSetDefault("apm_config.filter_tags_regex.reject", []string{}, "DD_APM_FILTER_TAGS_REGEX_REJECT")
+	config.BindEnvAndSetDefault("apm_config.filter_tags_regex.require", []string{}, "DD_APM_FILTER_TAGS_REGEX_REQUIRE")
 	config.BindEnvAndSetDefault("apm_config.internal_profiling.enabled", false, "DD_APM_INTERNAL_PROFILING_ENABLED")
 	config.BindEnvAndSetDefault("apm_config.debugger_dd_url", "", "DD_APM_DEBUGGER_DD_URL")
 	config.BindEnvAndSetDefault("apm_config.debugger_api_key", "", "DD_APM_DEBUGGER_API_KEY")
