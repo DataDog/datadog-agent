@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2026-present Datadog, Inc.
+
+// Package main validates emitted GPU metrics against the shared spec.
 package main
 
 import (
@@ -13,10 +19,10 @@ const (
 )
 
 type gpuConfigValidationResult struct {
-	Config          gpuspec.GPUConfig        `json:"config"`
-	DeviceCount     int                      `json:"device_count"`
-	DetailedResult  gpuspec.ValidationResult `json:"detailed_result"`
-	State           validationState          `json:"state"`
+	Config         gpuspec.GPUConfig        `json:"config"`
+	DeviceCount    int                      `json:"device_count"`
+	DetailedResult gpuspec.ValidationResult `json:"detailed_result"`
+	State          validationState          `json:"state"`
 }
 
 func (r *gpuConfigValidationResult) hasFailures() bool {

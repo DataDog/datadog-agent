@@ -1,7 +1,14 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2026-present Datadog, Inc.
+
+// Package main validates emitted GPU metrics against the shared spec.
 package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -18,13 +25,13 @@ type metricsClient struct {
 
 func newMetricsClient(apiKey, appKey, site string) (*metricsClient, error) {
 	if strings.TrimSpace(apiKey) == "" {
-		return nil, fmt.Errorf("api key is required")
+		return nil, errors.New("api key is required")
 	}
 	if strings.TrimSpace(appKey) == "" {
-		return nil, fmt.Errorf("app key is required")
+		return nil, errors.New("app key is required")
 	}
 	if strings.TrimSpace(site) == "" {
-		return nil, fmt.Errorf("site is required")
+		return nil, errors.New("site is required")
 	}
 
 	ctx := context.WithValue(
@@ -70,7 +77,7 @@ func (c *metricsClient) runScalarQueries(queries []datadogV2.ScalarQuery, fromTS
 		return nil, fmt.Errorf("query scalar data returned errors: %s", strings.TrimSpace(*response.Errors))
 	}
 	if response.Data == nil || response.Data.Attributes == nil {
-		return nil, fmt.Errorf("query scalar data returned no data")
+		return nil, errors.New("query scalar data returned no data")
 	}
 
 	return splitScalarColumns(response.Data.Attributes.Columns)

@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2026-present Datadog, Inc.
+
+// Package main validates emitted GPU metrics against the shared spec.
 package main
 
 import (
@@ -58,13 +64,13 @@ func writeResults(results orgValidationResults, outputFile string) error {
 
 func validateFlags(site string, lookbackSeconds int64, outputFile string) error {
 	if strings.TrimSpace(site) == "" {
-		return fmt.Errorf("--site is required")
+		return errors.New("--site is required")
 	}
 	if lookbackSeconds <= 0 {
-		return fmt.Errorf("--lookback-seconds must be greater than 0")
+		return errors.New("--lookback-seconds must be greater than 0")
 	}
 	if strings.TrimSpace(outputFile) == "" {
-		return fmt.Errorf("--output-file is required")
+		return errors.New("--output-file is required")
 	}
 	return nil
 }

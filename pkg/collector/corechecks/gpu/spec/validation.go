@@ -6,6 +6,7 @@
 package spec
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -170,7 +171,7 @@ func TagsToKeyValues(tags []string) map[string][]string {
 // RequiredTagsForMetric expands the required tags for a metric from tagsets and custom tags.
 func RequiredTagsForMetric(metricsSpec *MetricsSpec, metricSpec MetricSpec) (map[string]struct{}, error) {
 	if metricsSpec == nil {
-		return nil, fmt.Errorf("metrics spec is nil")
+		return nil, errors.New("metrics spec is nil")
 	}
 
 	requiredTags := make(map[string]struct{})

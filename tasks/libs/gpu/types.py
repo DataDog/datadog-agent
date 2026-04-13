@@ -105,7 +105,11 @@ class GPUConfigValidationResult:
 
     @property
     def tag_failures(self) -> int:
-        return sum(1 for metric_status in self.detailed_result.metrics.values() if metric_status.has_failures and metric_status.tag_results)
+        return sum(
+            1
+            for metric_status in self.detailed_result.metrics.values()
+            if metric_status.has_failures and metric_status.tag_results
+        )
 
 
 @dataclass
@@ -130,7 +134,9 @@ class ValidationResults:
 
     @property
     def failing_count(self) -> int:
-        return sum(1 for result in self.results if result.device_count > 0 and result.state is GPUConfigValidationState.FAIL)
+        return sum(
+            1 for result in self.results if result.device_count > 0 and result.state is GPUConfigValidationState.FAIL
+        )
 
 
 def validation_results_from_dict(payload: dict, *, site: str) -> ValidationResults:
