@@ -143,7 +143,10 @@ pkg_files(
         "@process_agent_binary//:process_agent",
     ],
     attributes = pkg_attributes(mode = "755"),
-    prefix = "bin/agent",
+    prefix = select({
+        "@platforms//os:windows": "bin/agent",
+        "//conditions:default": "embedded/bin",
+    }),
 )
 
 pkg_files(
