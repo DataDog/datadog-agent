@@ -21,6 +21,16 @@ import (
 // ErrorMsgSet contains a list of unique configuration errors for a provider
 type ErrorMsgSet map[string]struct{}
 
+// ErrorSource identifies the origin of an autodiscovery configuration error.
+type ErrorSource string
+
+const (
+	// ContainerLabelSource indicates errors from Docker/CRI container labels (com.datadoghq.ad.*)
+	ContainerLabelSource ErrorSource = "container_label"
+	// PodAnnotationSource indicates errors from Kubernetes pod annotations (ad.datadoghq.com/*)
+	PodAnnotationSource ErrorSource = "pod_annotation"
+)
+
 // ConfigProviderFactory is any function capable to create a ConfigProvider instance
 type ConfigProviderFactory func(providerConfig *pkgconfigsetup.ConfigurationProviders, wmeta workloadmeta.Component, taggerComp tagger.Component, filterComp workloadfilter.Component, hp healthplatform.Component, telemetryStore *telemetry.Store) (ConfigProvider, error)
 

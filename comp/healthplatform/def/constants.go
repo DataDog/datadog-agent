@@ -6,9 +6,9 @@
 package healthplatform
 
 const (
-	// ADAnnotationIssueID is the unique identifier for AD annotation misconfiguration issues
-	ADAnnotationIssueID = "ad-annotation-misconfiguration"
+	// ADMisconfigurationIssueID is the unique identifier for AD misconfiguration issues
+	ADMisconfigurationIssueID = "ad-misconfiguration"
 
-	// ADAnnotationCheckName is the name of the check for AD annotation misconfigurations
-	ADAnnotationCheckName = "Autodiscovery Annotation Misconfiguration"
+	// ADMisconfigurationCheckName is the name of the check for AD misconfigurations
+	ADMisconfigurationCheckName = "Autodiscovery Misconfiguration"
 )

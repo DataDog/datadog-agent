@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-package adannotation
+package admisconfig
 
 import (
 	"testing"
@@ -14,47 +14,65 @@ import (
 
 func TestBuildIssue(t *testing.T) {
 	tests := []struct {
-		name            string
-		context         map[string]string
-		expectedTitle   string
-		expectedDescSub string
-		expectErr       bool
+		name              string
+		context           map[string]string
+		expectedTitle     string
+		expectedDescSub   string
+		expectedStepCount int
+		expectErr         bool
 	}{
 		{
-			name: "valid context",
+			name: "pod annotation error",
 			context: map[string]string{
 				"entityName":   "default/my-pod (abc123)",
 				"errorMessage": "annotation ad.datadoghq.com/nonmatching.check_names is invalid: nonmatching doesn't match a container identifier",
+				"errorSource":  "pod_annotation",
 			},
-			expectedTitle:   "AD Annotation Error on 'default/my-pod (abc123)'",
-			expectedDescSub: "nonmatching doesn't match a container identifier",
+			expectedTitle:     "AD Misconfiguration on 'default/my-pod (abc123)'",
+			expectedDescSub:   "pod annotation error",
+			expectedStepCount: 4,
 		},
 		{
-			name:            "empty context uses defaults",
-			context:         map[string]string{},
-			expectedTitle:   "AD Annotation Error on 'unknown'",
-			expectedDescSub: failedMsg,
+			name: "container label error",
+			context: map[string]string{
+				"entityName":   "docker://abc123",
+				"errorMessage": "could not extract checks config: in checks: failed to unmarshal JSON",
+				"errorSource":  "container_label",
+			},
+			expectedTitle:     "AD Misconfiguration on 'docker://abc123'",
+			expectedDescSub:   "container label error",
+			expectedStepCount: 3,
 		},
 		{
-			name:            "nil context uses defaults",
-			context:         nil,
-			expectedTitle:   "AD Annotation Error on 'unknown'",
-			expectedDescSub: failedMsg,
+			name:              "empty context defaults to pod annotation remediation",
+			context:           map[string]string{},
+			expectedTitle:     "AD Misconfiguration on 'unknown'",
+			expectedDescSub:   failedMsg,
+			expectedStepCount: 4,
 		},
 		{
-			name: "malformed JSON error message",
+			name:              "nil context defaults to pod annotation remediation",
+			context:           nil,
+			expectedTitle:     "AD Misconfiguration on 'unknown'",
+			expectedDescSub:   failedMsg,
+			expectedStepCount: 4,
+		},
+		{
+			name: "malformed JSON error message with pod annotation source",
 			context: map[string]string{
 				"entityName":   "kube-system/nginx-pod (def456)",
 				"errorMessage": "could not extract checks config: in checks: failed to unmarshal JSON",
+				"errorSource":  "pod_annotation",
 			},
-			expectedTitle:   "AD Annotation Error on 'kube-system/nginx-pod (def456)'",
-			expectedDescSub: "failed to unmarshal JSON",
+			expectedTitle:     "AD Misconfiguration on 'kube-system/nginx-pod (def456)'",
+			expectedDescSub:   "failed to unmarshal JSON",
+			expectedStepCount: 4,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			template := NewADAnnotationIssue()
+			template := NewADMisconfigurationIssue()
 			issue, err := template.BuildIssue(tt.context)
 
 			if tt.expectErr {
@@ -65,7 +83,7 @@ func TestBuildIssue(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, issue)
 
-			assert.Equal(t, "ad-annotation-misconfiguration", issue.Id)
+			assert.Equal(t, "ad-misconfiguration", issue.Id)
 			assert.Equal(t, issueName, issue.IssueName)
 			assert.Equal(t, tt.expectedTitle, issue.Title)
 			assert.Contains(t, issue.Description, tt.expectedDescSub)
@@ -77,13 +95,14 @@ func TestBuildIssue(t *testing.T) {
 			// Verify remediation
 			require.NotNil(t, issue.Remediation)
 			assert.NotEmpty(t, issue.Remediation.Steps)
-			assert.Equal(t, 4, len(issue.Remediation.Steps))
+			assert.Equal(t, tt.expectedStepCount, len(issue.Remediation.Steps))
 
 			// Verify extra fields
 			require.NotNil(t, issue.Extra)
 			fields := issue.Extra.GetFields()
 			assert.NotNil(t, fields["entity_name"])
 			assert.NotNil(t, fields["error_message"])
+			assert.NotNil(t, fields["error_source"])
 			assert.NotNil(t, fields["impact"])
 
 			// Verify tags

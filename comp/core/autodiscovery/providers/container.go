@@ -109,14 +109,14 @@ func (k *ContainerConfigProvider) processEvents(evBundle workloadmeta.EventBundl
 
 		switch event.Type {
 		case workloadmeta.EventTypeSet:
-			configs, err := k.generateConfig(event.Entity)
+			configs, err, errorSource := k.generateConfig(event.Entity)
 
 			if err != nil {
 				k.configErrors[entityName] = err
-				k.reportAnnotationErrors(entityName, err)
+				k.reportConfigurationError(entityName, err, errorSource)
 			} else {
 				delete(k.configErrors, entityName)
-				k.clearAnnotationErrors(entityName)
+				k.clearConfigurationErrors(entityName)
 			}
 
 			configCache, ok := k.configCache[entityName]
@@ -154,7 +154,7 @@ func (k *ContainerConfigProvider) processEvents(evBundle workloadmeta.EventBundl
 				changes.UnscheduleConfig(oldConfig)
 			}
 
-			k.clearAnnotationErrors(entityName)
+			k.clearConfigurationErrors(entityName)
 			delete(k.configCache, entityName)
 			delete(k.configErrors, entityName)
 
@@ -170,15 +170,17 @@ func (k *ContainerConfigProvider) processEvents(evBundle workloadmeta.EventBundl
 	return changes
 }
 
-func (k *ContainerConfigProvider) generateConfig(e workloadmeta.Entity) ([]integration.Config, types.ErrorMsgSet) {
+func (k *ContainerConfigProvider) generateConfig(e workloadmeta.Entity) ([]integration.Config, types.ErrorMsgSet, types.ErrorSource) {
 	var (
-		errMsgSet types.ErrorMsgSet
-		errs      []error
-		configs   []integration.Config
+		errMsgSet   types.ErrorMsgSet
+		errs        []error
+		configs     []integration.Config
+		errorSource types.ErrorSource
 	)
 
 	switch entity := e.(type) {
 	case *workloadmeta.Container:
+		errorSource = types.ContainerLabelSource
 		// kubernetes containers need to be handled together with their
 		// pod, so they generate a single []integration.Config.
 		// otherwise, it's possible for a container that belongs to an
@@ -197,6 +199,7 @@ func (k *ContainerConfigProvider) generateConfig(e workloadmeta.Entity) ([]integ
 		}
 
 	case *workloadmeta.KubernetesPod:
+		errorSource = types.PodAnnotationSource
 		containerIdentifiers := map[string]struct{}{}
 		containerNames := map[string]struct{}{}
 		for _, podContainer := range entity.GetAllContainers() {
@@ -276,7 +279,7 @@ func (k *ContainerConfigProvider) generateConfig(e workloadmeta.Entity) ([]integ
 		}
 	}
 
-	return configs, errMsgSet
+	return configs, errMsgSet, errorSource
 }
 
 func (k *ContainerConfigProvider) generateContainerConfig(container *workloadmeta.Container) ([]integration.Config, []error) {
@@ -304,8 +307,8 @@ func (k *ContainerConfigProvider) GetConfigErrors() map[string]types.ErrorMsgSet
 	return errors
 }
 
-// reportAnnotationErrors reports each annotation error to the health platform.
-func (k *ContainerConfigProvider) reportAnnotationErrors(entityName string, errMsgSet types.ErrorMsgSet) {
+// reportConfigurationError reports the AD configuration errors to the health platform.
+func (k *ContainerConfigProvider) reportConfigurationError(entityName string, errMsgSet types.ErrorMsgSet, errorSource types.ErrorSource) {
 	if k.healthPlatform == nil {
 		return
 	}
@@ -320,27 +323,28 @@ func (k *ContainerConfigProvider) reportAnnotationErrors(entityName string, errM
 
 	checkID := "ad-annotation:" + entityName
 	report := &healthplatformpayload.IssueReport{
-		IssueId: healthplatform.ADAnnotationIssueID,
+		IssueId: healthplatform.ADMisconfigurationIssueID,
 		Context: map[string]string{
 			"entityName":   entityName,
 			"errorMessage": errorMsg,
+			"errorSource":  string(errorSource),
 		},
 	}
 
-	if err := k.healthPlatform.ReportIssue(checkID, healthplatform.ADAnnotationCheckName, report); err != nil {
+	if err := k.healthPlatform.ReportIssue(checkID, healthplatform.ADMisconfigurationCheckName, report); err != nil {
 		log.Debugf("Failed to report AD annotation issue for %s: %v", entityName, err)
 	}
 }
 
-// clearAnnotationErrors clears all previously reported annotation errors for the given entity.
-func (k *ContainerConfigProvider) clearAnnotationErrors(entityName string) {
+// clearConfigurationErrors clears all previously reported configuration errors for the given entity.
+func (k *ContainerConfigProvider) clearConfigurationErrors(entityName string) {
 	if k.healthPlatform == nil {
 		return
 	}
 
 	checkID := "ad-annotation:" + entityName
 	// Passing nil report clears the issue
-	if err := k.healthPlatform.ReportIssue(checkID, healthplatform.ADAnnotationCheckName, nil); err != nil {
+	if err := k.healthPlatform.ReportIssue(checkID, healthplatform.ADMisconfigurationCheckName, nil); err != nil {
 		log.Debugf("Failed to clear AD annotation issue %s: %v", checkID, err)
 	}
 }

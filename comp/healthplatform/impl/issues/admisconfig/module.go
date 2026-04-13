@@ -3,10 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package adannotation provides an issue module for autodiscovery annotation misconfigurations.
+// Package admisconfig provides an issue module for autodiscovery misconfigurations.
 // This module only provides remediation (no built-in check) as annotation errors
 // are reported by external integrations (the container config provider).
-package adannotation
+package admisconfig
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -18,29 +18,29 @@ func init() {
 	issues.RegisterModuleFactory(NewModule)
 }
 
-// adAnnotationModule implements issues.Module
-type adAnnotationModule struct {
-	template *ADAnnotationIssue
+// adMisconfigurationModule implements issues.Module
+type adMisconfigurationModule struct {
+	template *ADMisconfigurationIssue
 }
 
 // NewModule creates a new AD annotation issue module
 func NewModule(config.Component) issues.Module {
-	return &adAnnotationModule{
-		template: NewADAnnotationIssue(),
+	return &adMisconfigurationModule{
+		template: NewADMisconfigurationIssue(),
 	}
 }
 
 // IssueID returns the unique identifier for this issue type
-func (m *adAnnotationModule) IssueID() string {
-	return healthplatform.ADAnnotationIssueID
+func (m *adMisconfigurationModule) IssueID() string {
+	return healthplatform.ADMisconfigurationIssueID
 }
 
 // IssueTemplate returns the template for building complete issues
-func (m *adAnnotationModule) IssueTemplate() issues.IssueTemplate {
+func (m *adMisconfigurationModule) IssueTemplate() issues.IssueTemplate {
 	return m.template
 }
 
 // BuiltInCheck returns nil - annotation errors are reported by the container config provider
-func (m *adAnnotationModule) BuiltInCheck() *issues.BuiltInCheck {
+func (m *adMisconfigurationModule) BuiltInCheck() *issues.BuiltInCheck {
 	return nil
 }
