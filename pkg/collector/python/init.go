@@ -34,7 +34,11 @@ import (
 )
 
 /*
-#cgo !windows LDFLAGS: -L${SRCDIR}/../../../rtloader/build/rtloader -ldatadog-agent-rtloader -ldl
+// On AIX, Go's CGO requires shared libraries to be wrapped in .a archives.
+// The stage 03 build script (03-rtloader.sh) creates libdatadog-agent-rtloader.a
+// from the .so file using "ar -X64 -r".  We then use -L/-l to reference it.
+#cgo aix LDFLAGS: -L${SRCDIR}/../../../rtloader/build/rtloader -ldatadog-agent-rtloader -ldl
+#cgo !aix,!windows LDFLAGS: -L${SRCDIR}/../../../rtloader/build/rtloader -ldatadog-agent-rtloader -ldl
 #cgo windows LDFLAGS: -L${SRCDIR}/../../../rtloader/build/rtloader -ldatadog-agent-rtloader -lstdc++ -static
 #cgo CFLAGS: -I "${SRCDIR}/../../../rtloader/include"  -I "${SRCDIR}/../../../rtloader/common"
 
