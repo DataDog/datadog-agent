@@ -133,6 +133,7 @@ pkg_files(
     srcs = [
         "@agent_binary//:agent",
     ],
+    attributes = pkg_attributes(mode = "755"),
     prefix = "bin/agent",
 )
 
@@ -141,6 +142,7 @@ pkg_files(
     srcs = [
         "@process_agent_binary//:process_agent",
     ],
+    attributes = pkg_attributes(mode = "755"),
     prefix = "bin/agent",
 )
 
@@ -149,6 +151,7 @@ pkg_files(
     srcs = [
         "@privateactionrunner_binary//:privateactionrunner",
     ],
+    attributes = pkg_attributes(mode = "755"),
     prefix = "embedded/bin",
 )
 
@@ -157,5 +160,6 @@ pkg_files(
     srcs = [
         "@trace_agent_binary//:trace_agent",
     ],
+    attributes = pkg_attributes(mode = "755"),
     prefix = "embedded/bin",
 )

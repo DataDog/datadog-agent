@@ -19,23 +19,18 @@ pkg_files(
         "//packages/agent:linux_fips": [
             "@trace_loader_binary//:trace_loader",
         ],
+        # This shouldn't be needed in practice, but it is used by the systemd
+        # service, which is used when installing the deb manually.
         "//packages/agent:linux_heroku": [
-            ":fake_trace_loader",
+            "main_noop.sh",
         ],
         "//conditions:default": [],
     }),
-    prefix = "embedded/bin",
-    target_compatible_with = ["@platforms//os:linux"],
-)
-
-# This shouldn't be needed in practice, but it is used by the systemd service,
-# which is used when installing the deb manually.
-pkg_files(
-    name = "fake_trace_loader",
-    srcs = ["main_noop.sh"],
     attributes = pkg_attributes(mode = "755"),
     prefix = "embedded/bin",
-    renames = {
-        ":main_noop.sh": "trace-loader",
-    },
+    renames = select({
+        "//packages/agent:linux_heroku": {":main_noop.sh": "trace-loader"},
+        "//conditions:default": {},
+    }),
+    target_compatible_with = ["@platforms//os:linux"],
 )
