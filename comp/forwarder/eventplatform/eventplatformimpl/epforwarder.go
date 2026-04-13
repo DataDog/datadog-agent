@@ -303,7 +303,7 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			category:                      "Kubernetes Actions",
 			contentType:                   logshttp.JSONContentType,
 			endpointsConfigPrefix:         "kubeactions.forwarder.",
-			hostnameEndpointPrefix:        "TESTVALUE.",
+			hostnameEndpointPrefix:        "kubeops-intake.",
 			intakeTrackType:               "kubeactions",
 			defaultBatchMaxConcurrentSend: 10,
 			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
