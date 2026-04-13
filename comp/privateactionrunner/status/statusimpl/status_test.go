@@ -21,6 +21,7 @@ func TestStatusEnabled(t *testing.T) {
 	configComponent.SetWithoutSource("private_action_runner.urn", "urn:datadog:action-runner:abcdef123456")
 	configComponent.SetWithoutSource("private_action_runner.self_enroll", true)
 	configComponent.SetWithoutSource("private_action_runner.actions_allowlist", []string{"com.datadoghq.http.request"})
+	configComponent.SetWithoutSource("private_action_runner.default_actions_enabled", true)
 
 	provider := statusProvider{config: configComponent}
 
@@ -34,7 +35,10 @@ func TestStatusEnabled(t *testing.T) {
 
 		assert.Equal(t, true, parStats["Enabled"])
 		assert.Equal(t, true, parStats["SelfEnroll"])
+		assert.Equal(t, true, parStats["DefaultActionsEnabled"])
 		assert.Equal(t, "urn:datadog:action-runner:abcdef123456", parStats["URN"])
+		assert.Contains(t, parStats["ActionsAllowlist"], "com.datadoghq.http.request")
+		assert.Contains(t, parStats["ActionsAllowlist"], "com.datadoghq.remoteaction.rshell.runCommand")
 	})
 
 	t.Run("Text", func(t *testing.T) {
@@ -45,6 +49,8 @@ func TestStatusEnabled(t *testing.T) {
 		output := b.String()
 		assert.Contains(t, output, "Enabled")
 		assert.Contains(t, output, "123456")
+		assert.Contains(t, output, "Default Actions Enabled: true")
+		assert.Contains(t, output, "com.datadoghq.remoteaction.rshell.runCommand")
 	})
 
 	t.Run("HTML", func(t *testing.T) {
@@ -55,6 +61,8 @@ func TestStatusEnabled(t *testing.T) {
 		output := b.String()
 		assert.Contains(t, output, "Enabled")
 		assert.Contains(t, output, "123456")
+		assert.Contains(t, output, "Default Actions Enabled: true")
+		assert.Contains(t, output, "com.datadoghq.remoteaction.rshell.runCommand")
 	})
 }
 
