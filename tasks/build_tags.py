@@ -267,18 +267,15 @@ AGENT_TEST_TAGS = AGENT_TAGS.union({"clusterchecks"})
 ### Tag exclusion lists
 
 # List of tags to always remove when not building on Linux
-LINUX_ONLY_TAGS = {"netcgo", "systemd", "jetson", "linux_bpf", "nvml", "pcap", "podman", "trivy"}
+LINUX_ONLY_TAGS = {"netcgo", "systemd", "jetson", "linux_bpf", "nvml", "pcap", "podman", "trivy", "crio"}
 
 # List of tags to always remove when building on Windows
 WINDOWS_EXCLUDE_TAGS = {
-    "linux_bpf",
-    "nvml",
     "requirefips",
-    "crio",
 }
 
 # List of tags to always remove when building on Darwin/macOS
-DARWIN_EXCLUDED_TAGS = {"docker", "containerd", "nvml", "cri", "crio"}
+DARWIN_EXCLUDED_TAGS = {"docker", "containerd", "cri"}
 
 # Unit test build tags
 UNIT_TEST_TAGS = {"test"}
