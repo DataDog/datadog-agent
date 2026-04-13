@@ -23,37 +23,34 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/discovery/model"
 )
 
-func (s *discovery) getServices(params core.Params) (*model.ServicesResponse, error) {
+// getServicesRust invokes the Rust library and converts the result into Go
+// memory. The mutex is held for the full duration so that C allocation and
+// deallocation are kept together under the same lock.
+func (s *discovery) getServicesRust(params core.Params) (*model.ServicesResponse, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 
-	return rustGetServices(params.NewPids, params.HeartbeatPids), nil
-}
-
-// rustGetServices invokes the Rust library with the given PID lists and copies
-// the response into Go memory.
-func rustGetServices(newPids, hbPids []int32) *model.ServicesResponse {
 	var newPidsPtr *C.int32_t
 	var newPidsLen C.size_t
-	if len(newPids) > 0 {
-		newPidsPtr = (*C.int32_t)(unsafe.Pointer(&newPids[0]))
-		newPidsLen = C.size_t(len(newPids))
+	if len(params.NewPids) > 0 {
+		newPidsPtr = (*C.int32_t)(unsafe.Pointer(&params.NewPids[0]))
+		newPidsLen = C.size_t(len(params.NewPids))
 	}
 
 	var hbPidsPtr *C.int32_t
 	var hbPidsLen C.size_t
-	if len(hbPids) > 0 {
-		hbPidsPtr = (*C.int32_t)(unsafe.Pointer(&hbPids[0]))
-		hbPidsLen = C.size_t(len(hbPids))
+	if len(params.HeartbeatPids) > 0 {
+		hbPidsPtr = (*C.int32_t)(unsafe.Pointer(&params.HeartbeatPids[0]))
+		hbPidsLen = C.size_t(len(params.HeartbeatPids))
 	}
 
 	result := C.dd_discovery_get_services(newPidsPtr, newPidsLen, hbPidsPtr, hbPidsLen)
 	if result == nil {
-		return &model.ServicesResponse{Services: make([]model.Service, 0)}
+		return &model.ServicesResponse{Services: make([]model.Service, 0)}, nil
 	}
 	defer C.dd_discovery_free(result)
 
-	return convertNativeResult(result)
+	return convertNativeResult(result), nil
 }
 
 // convertNativeResult translates a C dd_discovery_result into a ServicesResponse.

@@ -16,11 +16,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	configfx "github.com/DataDog/datadog-agent/comp/snmptraps/config/fx"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/formatter"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/formatter/formatterimpl"
+	formatter "github.com/DataDog/datadog-agent/comp/snmptraps/formatter/def"
+	formatterfx "github.com/DataDog/datadog-agent/comp/snmptraps/formatter/fx"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/forwarder"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/listener"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/listener/listenerimpl"
+	listener "github.com/DataDog/datadog-agent/comp/snmptraps/listener/def"
+	listenerfx "github.com/DataDog/datadog-agent/comp/snmptraps/listener/fx"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/senderhelper"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -42,8 +42,8 @@ func setUp(t *testing.T) *services {
 	s := fxutil.Test[services](t,
 		configfx.MockModule(),
 		senderhelper.Opts,
-		formatterimpl.MockModule(),
-		listenerimpl.MockModule(),
+		formatterfx.MockModule(),
+		listenerfx.MockModule(),
 		Module(),
 	)
 	return &s

@@ -99,7 +99,7 @@ func NewWorkloadMeta(deps Dependencies) Provider {
 		eventCh:               make(chan []wmdef.CollectorEvent, eventChBufferSize),
 		ongoingPulls:          make(map[string]time.Time),
 		collectorsInitialized: wmdef.CollectorsNotStarted,
-		expectedSources:       initExpectedSources(),
+		expectedSources:       initExpectedSources(deps.Params.AgentType),
 	}
 
 	deps.Lc.Append(compdef.Hook{OnStart: func(_ context.Context) error {
@@ -160,10 +160,16 @@ func (w *workloadmeta) writeResponse(writer http.ResponseWriter, r *http.Request
 // TODO: This will be handled later.
 // - Kubernetes Deployments: reported by the kubeapiserver collector and
 // language detection code. Completeness tracking is not needed for deployments.
-func initExpectedSources() map[wmdef.Kind][]wmdef.Source {
+func initExpectedSources(agentType wmdef.AgentType) map[wmdef.Kind][]wmdef.Source {
 	expectedSources := make(map[wmdef.Kind][]wmdef.Source)
 
 	if !env.IsFeaturePresent(env.Kubernetes) {
+		return expectedSources
+	}
+
+	// Only the Node Agent runs multiple collectors that need to report
+	// for an entity to be complete
+	if agentType != wmdef.NodeAgent {
 		return expectedSources
 	}
 

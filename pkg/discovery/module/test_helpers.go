@@ -161,8 +161,9 @@ func getServices(t require.TestingT, discovery *testDiscoveryModule) *model.Serv
 
 type discoveryTestSuite struct {
 	suite.Suite
-	setupModule func(t *testing.T) *testDiscoveryModule
-	discovery   *testDiscoveryModule
+	setupModule            func(t *testing.T) *testDiscoveryModule
+	expectedImplementation string
+	discovery              *testDiscoveryModule
 }
 
 func (s *discoveryTestSuite) SetupTest() {

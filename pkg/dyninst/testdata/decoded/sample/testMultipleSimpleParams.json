@@ -83,6 +83,7 @@
       ]
     },
     "timestamp": "[ts]",
-    "message": "false, 42, 122, 1337, xyz"
+    "message": "false, 42, 122, 1337, xyz",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

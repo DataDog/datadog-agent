@@ -11,7 +11,9 @@ package module
 
 import (
 	"context"
+	"encoding/json"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -35,9 +37,28 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls/nodejs"
 	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	globalutils "github.com/DataDog/datadog-agent/pkg/util/testutil"
 	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
 )
+
+// TestState checks that the /state endpoint reports the correct implementation name.
+func (s *discoveryTestSuite) TestState() {
+	t := s.T()
+
+	url := s.discovery.url + "/" + string(config.DiscoveryModule) + "/state"
+	resp, err := s.discovery.client.Get(url)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var state map[string]interface{}
+	err = json.NewDecoder(resp.Body).Decode(&state)
+	require.NoError(t, err)
+
+	require.Equal(t, s.expectedImplementation, state["implementation"])
+}
 
 // Check that we get (only) listening processes for all expected protocols using the services endpoint.
 func (s *discoveryTestSuite) TestServicesBasic() {

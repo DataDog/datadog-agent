@@ -21,7 +21,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/DataDog/ebpf-manager/tracefs"
 	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/btf"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sys/unix"
 
@@ -221,16 +221,6 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 	mgrOptions.ConstantEditors = append(mgrOptions.ConstantEditors,
 		manager.ConstantEditor{Name: "ephemeral_range_begin", Value: uint64(begin)},
 		manager.ConstantEditor{Name: "ephemeral_range_end", Value: uint64(end)})
-
-	// Pass tcp_sock field offsets for fields that can't use BPF_CORE_READ_INTO
-	// on older kernels (see comment in handle_congestion_stats()).
-	if spec, err := ddebpf.GetKernelSpec(); err == nil {
-		mgrOptions.ConstantEditors = append(mgrOptions.ConstantEditors,
-			manager.ConstantEditor{Name: "reord_seen_offset", Value: tcpSockFieldOffset(spec, "reord_seen")},
-			manager.ConstantEditor{Name: "rcv_ooopack_offset", Value: tcpSockFieldOffset(spec, "rcv_ooopack")},
-			manager.ConstantEditor{Name: "delivered_ce_offset", Value: tcpSockFieldOffset(spec, "delivered_ce")},
-			manager.ConstantEditor{Name: "ecn_flags_offset", Value: tcpSockFieldOffset(spec, "ecn_flags")})
-	}
 
 	connPool := ddsync.NewDefaultTypedPool[network.ConnectionStats]()
 	var extractor *batchExtractor
@@ -447,49 +437,6 @@ func boolConst(name string, value bool) manager.ConstantEditor {
 	}
 
 	return c
-}
-
-// tcpSockFieldOffset returns the byte offset of a field within the kernel's
-// tcp_sock struct by looking it up in BTF. Returns 0 if BTF is unavailable or
-// the field doesn't exist (e.g. on kernels older than when the field was added).
-// This is used to pass offsets as LOAD_CONSTANT values to CO-RE BPF programs
-// for fields that cannot use BPF_CORE_READ_INTO because poisoned CO-RE
-// relocations are not pruned by the BPF verifier on older kernels (e.g. 4.15).
-func tcpSockFieldOffset(spec *btf.Spec, fieldName string) uint64 {
-	var tcpSock *btf.Struct
-	if err := spec.TypeByName("tcp_sock", &tcpSock); err != nil {
-		return 0
-	}
-	return findFieldOffset(tcpSock, fieldName)
-}
-
-// findFieldOffset searches for a field by name in a BTF struct, recursing into
-// anonymous struct/union members. This handles kernels (6.8+) where tcp_sock
-// fields may be reorganized into __cacheline_group anonymous structs.
-func findFieldOffset(s *btf.Struct, fieldName string) uint64 {
-	return findFieldOffsetInMembers(s.Members, fieldName)
-}
-
-func findFieldOffsetInMembers(members []btf.Member, fieldName string) uint64 {
-	for _, m := range members {
-		if m.Name == fieldName {
-			return uint64(m.Offset.Bytes())
-		}
-		// Recurse into anonymous structs/unions (Name == "")
-		if m.Name == "" {
-			var innerMembers []btf.Member
-			switch inner := m.Type.(type) {
-			case *btf.Struct:
-				innerMembers = inner.Members
-			case *btf.Union:
-				innerMembers = inner.Members
-			}
-			if off := findFieldOffsetInMembers(innerMembers, fieldName); off > 0 {
-				return uint64(m.Offset.Bytes()) + off
-			}
-		}
-	}
-	return 0
 }
 
 func (t *ebpfTracer) closedPerfCallback(c *network.ConnectionStats) {

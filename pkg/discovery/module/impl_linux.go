@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build !dd_discovery_rust || !cgo
+//go:build linux
 
 package module
 
@@ -391,11 +391,10 @@ func (s *discovery) getPorts(context parsingContext, pid int32, sockets []uint64
 	return tcpPorts, udpPorts, nil
 }
 
-// getServices processes categorized PID lists and returns service information for each.
-// This is used by the /services endpoint which accepts explicit PID lists and bypasses
-// the port retry logic used by the /check endpoint. The caller (the Core-Agent
-// process collector) will handle the retry.
-func (s *discovery) getServices(params core.Params) (*model.ServicesResponse, error) {
+// getServicesGo processes categorized PID lists and returns service information for each.
+// This is the pure-Go implementation used directly or as a fallback when the Rust backend
+// is disabled at runtime.
+func (s *discovery) getServicesGo(params core.Params) (*model.ServicesResponse, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 	response := &model.ServicesResponse{

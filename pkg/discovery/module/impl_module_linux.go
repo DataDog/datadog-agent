@@ -88,7 +88,9 @@ func (s *discovery) handleStateEndpoint(w http.ResponseWriter, req *http.Request
 	s.mux.Lock()
 	defer s.mux.Unlock()
 
-	state := make(map[string]any)
+	state := map[string]any{
+		"implementation": "system-probe",
+	}
 
 	utils.WriteAsJSON(req, w, state, utils.CompactOutput)
 }

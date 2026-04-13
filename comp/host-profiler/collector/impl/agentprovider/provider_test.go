@@ -221,9 +221,14 @@ func TestProvider(t *testing.T) {
 			expectedOTel: "provider/debug-disabled/otel.yaml",
 		},
 		{
-			name:         "debug-multi-field",
-			agentConfig:  "provider/debug-multi-field/agent.yaml",
-			expectedOTel: "provider/debug-multi-field/otel.yaml",
+			name:         "additional-http-headers",
+			agentConfig:  "provider/add-headers/agent.yaml",
+			expectedOTel: "provider/add-headers/otel.yaml",
+		},
+		{
+			name:         "additional-http-headers-with-debug",
+			agentConfig:  "provider/add-headers-debug/agent.yaml",
+			expectedOTel: "provider/add-headers-debug/otel.yaml",
 		},
 	}
 
@@ -294,8 +299,8 @@ func TestProviderMultipleEndpoints(t *testing.T) {
 
 	// Validate symbol endpoints
 	receivers := actualMap["receivers"].(map[string]interface{})
-	hostprofiler := receivers["hostprofiler"].(map[string]interface{})
-	symbolUploader := hostprofiler["symbol_uploader"].(map[string]interface{})
+	profiling := receivers["profiling"].(map[string]interface{})
+	symbolUploader := profiling["symbol_uploader"].(map[string]interface{})
 	symbolEndpoints := symbolUploader["symbol_endpoints"].([]interface{})
 	require.Len(t, symbolEndpoints, 4, "should have 4 symbol endpoints (2 EU + 1 US3 + 1 main)")
 }

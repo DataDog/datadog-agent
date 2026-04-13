@@ -10,6 +10,9 @@ default = []
 java-archives = ["dep:zip", "dep:walkdir"]
 spring = ["java-archives", "dep:yaml-rust2"]
 jee = ["java-archives", "dep:quick-xml"]
+# Forces a panic inside dd_discovery_get_services. Only for testing the FFI
+# panic-catch path from C; never enable in production builds.
+force-ffi-panic = []
 
 [lib]
 name = "dd_discovery"
@@ -22,6 +25,9 @@ path = "src/main.rs"
 [[bin]]
 name = "disco"
 path = "src/bin/disco.rs"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+caps = { workspace = true }
 
 [dependencies]
 anyhow.workspace = true
