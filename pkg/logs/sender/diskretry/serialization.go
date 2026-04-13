@@ -25,6 +25,7 @@ import (
 //	[4 bytes] encoded payload length (uint32 LE)
 //	[N bytes] encoded payload (raw bytes)
 //	[4 bytes] message count (uint32 LE)
+//	[1 byte]  isMRF flag (optional; 0=false, 1=true; absent in older files)
 
 const (
 	fileMagic       = uint32(0x44524554) // "DRET" (Disk RETry)
@@ -45,7 +46,8 @@ func SerializePayload(payload *message.Payload) ([]byte, error) {
 		4 + len(encodingBytes) + // encoding string length + encoding
 		4 + // unencoded size
 		4 + len(payload.Encoded) + // encoded payload length + payload
-		4 // message count
+		4 + // message count
+		1 // isMRF flag
 
 	buf := make([]byte, totalSize)
 	offset := 0
@@ -76,6 +78,12 @@ func SerializePayload(payload *message.Payload) ([]byte, error) {
 
 	// Message count
 	binary.LittleEndian.PutUint32(buf[offset:], messageCount)
+	offset += 4
+
+	// isMRF flag
+	if payload.IsMRF() {
+		buf[offset] = 1
+	}
 
 	return buf, nil
 }
@@ -153,6 +161,13 @@ func DeserializePayload(data []byte) (*message.Payload, error) {
 	if messageCount > maxMessageCount {
 		return nil, fmt.Errorf("message count too large: %d (max %d)", messageCount, maxMessageCount)
 	}
+	offset += 4
+
+	// isMRF flag (optional — absent in older files, defaults to false)
+	isMRF := false
+	if offset < len(data) {
+		isMRF = data[offset] != 0
+	}
 
 	// Build minimal MessageMetadata entries so payload.Count() returns the
 	// correct value and the auditor doesn't panic on nil Origin pointers.
@@ -161,6 +176,9 @@ func DeserializePayload(data []byte) (*message.Payload, error) {
 	for i := range metas {
 		metas[i] = &message.MessageMetadata{
 			Origin: message.NewOrigin(diskRetrySource),
+			ParsingExtra: message.ParsingExtra{
+				IsMRFAllow: isMRF,
+			},
 		}
 	}
 

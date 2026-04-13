@@ -120,6 +120,70 @@ func TestDeserializeTruncatedEncodedPayload(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestSerializeDeserializeMRFRoundTrip(t *testing.T) {
+	encoded := []byte("mrf-payload-data")
+	metas := make([]*message.MessageMetadata, 3)
+	for i := range metas {
+		metas[i] = &message.MessageMetadata{
+			ParsingExtra: message.ParsingExtra{IsMRFAllow: true},
+		}
+	}
+	payload := &message.Payload{
+		MessageMetas:  metas,
+		Encoded:       encoded,
+		Encoding:      "gzip",
+		UnencodedSize: 200,
+	}
+
+	data, err := SerializePayload(payload)
+	require.NoError(t, err)
+
+	result, err := DeserializePayload(data)
+	require.NoError(t, err)
+
+	assert.True(t, result.IsMRF(), "MRF flag should survive round-trip")
+	assert.Equal(t, encoded, result.Encoded)
+	assert.Equal(t, int64(3), result.Count())
+}
+
+func TestDeserializeOldFormatWithoutMRFByte(t *testing.T) {
+	// Build a v1 binary blob WITHOUT the trailing isMRF byte (old format).
+	encodingBytes := []byte("gzip")
+	encodedData := []byte("old-payload")
+	messageCount := uint32(2)
+
+	oldSize := headerSize +
+		4 + len(encodingBytes) +
+		4 +
+		4 + len(encodedData) +
+		4 // no isMRF byte
+
+	buf := make([]byte, oldSize)
+	offset := 0
+	binary.LittleEndian.PutUint32(buf[offset:], fileMagic)
+	offset += 4
+	binary.LittleEndian.PutUint32(buf[offset:], formatVersion)
+	offset += 4
+	binary.LittleEndian.PutUint32(buf[offset:], uint32(len(encodingBytes)))
+	offset += 4
+	copy(buf[offset:], encodingBytes)
+	offset += len(encodingBytes)
+	binary.LittleEndian.PutUint32(buf[offset:], 100) // unencodedSize
+	offset += 4
+	binary.LittleEndian.PutUint32(buf[offset:], uint32(len(encodedData)))
+	offset += 4
+	copy(buf[offset:], encodedData)
+	offset += len(encodedData)
+	binary.LittleEndian.PutUint32(buf[offset:], messageCount)
+
+	result, err := DeserializePayload(buf)
+	require.NoError(t, err)
+
+	assert.False(t, result.IsMRF(), "old format without isMRF byte should default to false")
+	assert.Equal(t, encodedData, result.Encoded)
+	assert.Equal(t, int64(2), result.Count())
+}
+
 func TestDeserializedPayloadHasValidOrigin(t *testing.T) {
 	payload := makeTestPayload([]byte("data"), "gzip", 100, 3)
 

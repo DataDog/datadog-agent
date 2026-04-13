@@ -176,12 +176,8 @@ func (s *worker) run() {
 					// loss on intermittent failures.
 					if !destSender.lastSendSucceeded {
 						if !destSender.NonBlockingSend(payload) {
-							// Buffer is full we attempt to save to disk instead of dropping.
-							if err := s.retrier.Store(payload); err != nil {
-								// Disk write failed too; payload is truly lost
-								tlmPayloadsDropped.Inc("true", strconv.Itoa(i))
-								tlmMessagesDropped.Add(float64(payload.Count()), "true", strconv.Itoa(i))
-							}
+							tlmPayloadsDropped.Inc("true", strconv.Itoa(i))
+							tlmMessagesDropped.Add(float64(payload.Count()), "true", strconv.Itoa(i))
 						}
 					}
 				}
