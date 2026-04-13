@@ -55,6 +55,16 @@ value TokenSequence {
 -- Contracts
 ------------------------------------------------------------
 
+contract LogEmission {
+    emit: (message: ByteArray, sampled_count: Integer) -> void
+
+    @invariant TagPresence
+        -- When sampled_count > 0 the emitted message carries an
+        -- adaptive_sampler_sampled_count:<n> metadata tag.
+        -- When sampled_count = 0 no tag is added. The message
+        -- content bytes are never modified.
+}
+
 contract PatternMatching {
     is_match: (a: TokenSequence, b: TokenSequence, threshold: Decimal) -> Boolean
 
@@ -256,9 +266,6 @@ rule EmitMatchingLog {
     ensures: LogEmitted(message, sampled_count: prior_sampled_count)
 
     @guidance
-        -- If prior_sampled_count > 0 the emitted message is tagged
-        -- adaptive_sampler_sampled_count:<n>. If 0 no tag is added.
-        --
         -- After updating, the entry is bubbled toward the front of
         -- the sorted table to maintain descending match_count order.
         -- The implementation achieves this via a swap chain (bubble
@@ -342,7 +349,7 @@ rule EvictAndRegisterPattern {
         match_count: 1,
         sampled_count: 0
     )
-    ensures: LogEmitted(message, sampled_count: 0)
+    ensures: LogEmitted(message)
 
     @guidance
         -- When multiple entries share the minimum match_count, the
@@ -413,8 +420,7 @@ invariant SampledCountNonNegative {
 --   burst_size >= 1 (validated at construction).
 --
 -- MessageContentIntegrity: the sampler never modifies log content
---   bytes. Emitted messages are byte-identical to their input.
---   Only metadata (adaptive_sampler_sampled_count tag) may be added.
+--   bytes. See LogEmission contract for tagging semantics.
 --
 -- SteadyStateRateBound: after burst exhaustion, a pattern emits
 --   at most rate_limit logs per second. Over interval T seconds,
