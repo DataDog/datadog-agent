@@ -26,6 +26,6 @@ powershell_script_signing:
       -e CI_IDENTITIES_GITLAB_ID_TOKEN
       -e CI_JOB_NAME_SLUG
       ${WINBUILDIMAGE}
-      powershell -C "windows-code-signer.exe
+      powershell -C "C:\devtools\windows-code-signer.exe
       sign \mnt\tools\windows\DatadogAgentInstallScript\Install-Datadog.ps1"
     - copy .\tools\windows\DatadogAgentInstallScript\Install-Datadog.ps1 $WINDOWS_POWERSHELL_DIR\Install-Datadog.ps1
