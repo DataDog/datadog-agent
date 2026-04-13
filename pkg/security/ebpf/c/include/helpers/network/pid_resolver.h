@@ -71,7 +71,8 @@ __attribute__((always_inline)) void resolve_pid(struct __sk_buff *skb, struct pa
     }
 
     // check if the pid is a kworker pid, if so let the resolve_pid_from_flow_pid do the job
-    void *ignored = bpf_map_lookup_elem(&pid_ignored, &pid);
+    u32 pid_val = (u32)pkt->pid;
+    void *ignored = bpf_map_lookup_elem(&pid_ignored, &pid_val);
     if (ignored) {
         pkt->pid = 0;
     }
