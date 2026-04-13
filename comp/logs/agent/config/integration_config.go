@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/netip"
 	"strings"
 	"sync"
 
@@ -55,8 +56,10 @@ type LogsConfig struct {
 	IdleTimeout    string `mapstructure:"idle_timeout" json:"idle_timeout" yaml:"idle_timeout"`          // Network (tcp)
 	MaxConnections int    `mapstructure:"max_connections" json:"max_connections" yaml:"max_connections"` // Network (tcp)
 	// TLS is under active security review and is not ready for general use.
-	TLS  *TLSListenerConfig `mapstructure:"tls" json:"tls,omitempty" yaml:"tls,omitempty"`
-	Path string             // File, Journald
+	TLS        *TLSListenerConfig `mapstructure:"tls" json:"tls,omitempty" yaml:"tls,omitempty"`
+	AllowedIPs StringSliceField   `mapstructure:"allowed_ips" json:"allowed_ips,omitempty" yaml:"allowed_ips,omitempty"` // Network (tcp, udp)
+	DeniedIPs  StringSliceField   `mapstructure:"denied_ips" json:"denied_ips,omitempty" yaml:"denied_ips,omitempty"`    // Network (tcp, udp)
+	Path       string             // File, Journald
 
 
 	Encoding     string           `mapstructure:"encoding" json:"encoding" yaml:"encoding"`                   // File
@@ -177,6 +180,8 @@ type AutoMultilineSample struct {
 type TLSListenerConfig struct {
 	CertFile      string `mapstructure:"cert_file" json:"cert_file" yaml:"cert_file"`
 	KeyFile       string `mapstructure:"key_file" json:"key_file" yaml:"key_file"`
+	CAFile        string `mapstructure:"ca_file" json:"ca_file" yaml:"ca_file"`
+	ClientAuth    string `mapstructure:"client_auth" json:"client_auth" yaml:"client_auth"`
 	MinTLSVersion string `mapstructure:"min_tls_version" json:"min_tls_version" yaml:"min_tls_version"`
 }
 
@@ -187,9 +192,15 @@ func (t *TLSListenerConfig) BuildTLSConfig(ctx context.Context) (*tls.Config, er
 	if err != nil {
 		return nil, err
 	}
+	clientAuth, err := parseClientAuth(t.ClientAuth)
+	if err != nil {
+		return nil, err
+	}
 	cfg := &tlsutil.ServerConfig{
 		CertFile:   t.CertFile,
 		KeyFile:    t.KeyFile,
+		CAFile:     t.CAFile,
+		ClientAuth: clientAuth,
 		MinVersion: minVer,
 	}
 	return cfg.BuildTLSConfig(ctx)
@@ -207,6 +218,21 @@ func parseTLSVersion(v string) (uint16, error) {
 		return 0, fmt.Errorf("unrecognized min_tls_version %q; valid values: tlsv1.2, tlsv1.3", v)
 	}
 	return ver, nil
+}
+
+var validClientAuthModes = map[string]tls.ClientAuthType{
+	"":         tls.NoClientCert,
+	"none":     tls.NoClientCert,
+	"optional": tls.VerifyClientCertIfGiven,
+	"required": tls.RequireAndVerifyClientCert,
+}
+
+func parseClientAuth(s string) (tls.ClientAuthType, error) {
+	auth, ok := validClientAuthModes[strings.ToLower(s)]
+	if !ok {
+		return 0, fmt.Errorf("unrecognized client_auth %q; valid values: none, optional, required", s)
+	}
+	return auth, nil
 }
 
 // StringSliceField is a custom type for unmarshalling comma-separated string values or typical yaml fields into a slice of strings.
@@ -257,8 +283,14 @@ func (c *LogsConfig) Dump(multiline bool) string {
 		fmt.Fprintf(&b, ws("Port: %d,"), c.Port)
 		fmt.Fprintf(&b, ws("IdleTimeout: %#v,"), c.IdleTimeout)
 		if c.TLS != nil {
-			fmt.Fprintf(&b, ws("TLS: {CertFile: %#v, KeyFile: %#v, MinTLSVersion: %#v},"),
-				c.TLS.CertFile, c.TLS.KeyFile, c.TLS.MinTLSVersion)
+			fmt.Fprintf(&b, ws("TLS: {CertFile: %#v, KeyFile: %#v, CAFile: %#v, ClientAuth: %#v, MinTLSVersion: %#v},"),
+				c.TLS.CertFile, c.TLS.KeyFile, c.TLS.CAFile, c.TLS.ClientAuth, c.TLS.MinTLSVersion)
+		}
+		if len(c.AllowedIPs) > 0 {
+			fmt.Fprintf(&b, ws("AllowedIPs: %v,"), []string(c.AllowedIPs))
+		}
+		if len(c.DeniedIPs) > 0 {
+			fmt.Fprintf(&b, ws("DeniedIPs: %v,"), []string(c.DeniedIPs))
 		}
 		if c.Format != "" {
 			fmt.Fprintf(&b, ws("Format: %#v,"), c.Format)
@@ -266,6 +298,12 @@ func (c *LogsConfig) Dump(multiline bool) string {
 		}
 	case UDPType:
 		fmt.Fprintf(&b, ws("Port: %d,"), c.Port)
+		if len(c.AllowedIPs) > 0 {
+			fmt.Fprintf(&b, ws("AllowedIPs: %v,"), []string(c.AllowedIPs))
+		}
+		if len(c.DeniedIPs) > 0 {
+			fmt.Fprintf(&b, ws("DeniedIPs: %v,"), []string(c.DeniedIPs))
+		}
 		if c.Format != "" {
 			fmt.Fprintf(&b, ws("Format: %#v,"), c.Format)
 		}
@@ -439,6 +477,9 @@ func (c *LogsConfig) Validate() error {
 		return fmt.Errorf("unsupported format %%q (supported: %%q or empty)", c.Format, SyslogFormat)
 	}
 
+	if err := c.validateIPFilter(); err != nil {
+		return err
+	}
 
 	err := ValidateFingerprintConfig(c.FingerprintConfig)
 	if err != nil {
@@ -480,8 +521,45 @@ func (c *LogsConfig) validateTLS() error {
 	if _, err := parseTLSVersion(c.TLS.MinTLSVersion); err != nil {
 		return err
 	}
+	auth, err := parseClientAuth(c.TLS.ClientAuth)
+	if err != nil {
+		return err
+	}
+	if tlsutil.ClientAuthRequiresVerification(auth) && c.TLS.CAFile == "" {
+		return fmt.Errorf("tls client_auth %q requires ca_file to be set", c.TLS.ClientAuth)
+	}
 	tlsutil.WarnKeyFilePermissions(c.TLS.KeyFile)
 	return nil
+}
+
+func (c *LogsConfig) validateIPFilter() error {
+	if len(c.AllowedIPs) == 0 && len(c.DeniedIPs) == 0 {
+		return nil
+	}
+	if c.Type != TCPType && c.Type != UDPType {
+		return fmt.Errorf("allowed_ips/denied_ips are only supported for %s and %s sources, got %s", TCPType, UDPType, c.Type)
+	}
+	for _, entry := range c.AllowedIPs {
+		if err := validateIPOrCIDR(entry); err != nil {
+			return fmt.Errorf("invalid allowed_ips entry %q: %w", entry, err)
+		}
+	}
+	for _, entry := range c.DeniedIPs {
+		if err := validateIPOrCIDR(entry); err != nil {
+			return fmt.Errorf("invalid denied_ips entry %q: %w", entry, err)
+		}
+	}
+	return nil
+}
+
+func validateIPOrCIDR(s string) error {
+	if _, err := netip.ParsePrefix(s); err == nil {
+		return nil
+	}
+	if _, err := netip.ParseAddr(s); err == nil {
+		return nil
+	}
+	return errors.New("not a valid IP address or CIDR")
 }
 
 // LegacyAutoMultiLineEnabled determines whether the agent has fallen back to legacy auto multi line detection

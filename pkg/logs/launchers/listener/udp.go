@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/utils/ipfilter"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/socket"
@@ -27,17 +28,28 @@ type UDPListener struct {
 	pipelineProvider pipeline.Provider
 	source           *sources.LogSource
 	frameSize        int
+	ipFilter         *ipfilter.Filter
 	tailer           *tailer.DatagramTailer
 	Conn             *net.UDPConn
 }
 
-// NewUDPListener returns an initialized UDPListener
-func NewUDPListener(pipelineProvider pipeline.Provider, source *sources.LogSource, frameSize int) *UDPListener {
+// NewUDPListener returns an initialized UDPListener or an error if critical
+// configuration (IP filter) fails to build.
+func NewUDPListener(pipelineProvider pipeline.Provider, source *sources.LogSource, frameSize int) (*UDPListener, error) {
+	var ipF *ipfilter.Filter
+	if len(source.Config.AllowedIPs) > 0 || len(source.Config.DeniedIPs) > 0 {
+		var err error
+		ipF, err = ipfilter.New(source.Config.AllowedIPs, source.Config.DeniedIPs)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build IP filter for UDP listener on port %d: %w", source.Config.Port, err)
+		}
+	}
 	return &UDPListener{
 		pipelineProvider: pipelineProvider,
 		source:           source,
 		frameSize:        frameSize,
-	}
+		ipFilter:         ipF,
+	}, nil
 }
 
 // Start opens a new UDP connection and starts a tailer.
