@@ -253,9 +253,6 @@ func (k *ContainerConfigProvider) generateConfig(e workloadmeta.Entity) ([]integ
 				}
 			}
 
-			containerIdentifiers[adIdentifier] = struct{}{}
-			containerNames[podContainer.Name] = struct{}{}
-
 			for idx := range c {
 				c[idx].Source = names.Container + ":" + containerEntity
 			}
