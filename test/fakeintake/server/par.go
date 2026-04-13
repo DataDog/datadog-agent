@@ -186,6 +186,7 @@ func (fi *Server) handlePARFlush(w http.ResponseWriter, _ *http.Request) {
 	fi.par.mu.Lock()
 	fi.par.queue = nil
 	fi.par.results = make(map[string]*PARTaskResult)
+	fi.par.dequeueCalls = 0
 	fi.par.mu.Unlock()
 	w.WriteHeader(http.StatusOK)
 }
