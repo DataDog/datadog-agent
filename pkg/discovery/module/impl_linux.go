@@ -321,27 +321,25 @@ func newParsingContext() parsingContext {
 	}
 }
 
-// getAllTracerMetadata reads tracer metadata from all memfd file descriptors.
-// When multiple memfds are present, it sorts them by file modification time
-// (creation order). When there is only one, it skips the stat call.
-func getAllTracerMetadata(pid int32, memfdFds []string) []tracermetadatamodel.TracerMetadata {
-	if len(memfdFds) <= 1 {
-		var result []tracermetadatamodel.TracerMetadata
-		for _, fd := range memfdFds {
-			fdPath := kernel.HostProc(strconv.Itoa(int(pid)), "fd", fd)
-			tm, err := tracermetadata.GetTracerMetadataFromPath(fdPath)
-			if err == nil {
-				result = append(result, tm)
-			}
-		}
-		return result
+// getNewestTracerMetadata reads tracer metadata from memfd file descriptors
+// and returns only the newest one (by file modification time). When there is
+// only one memfd, it skips the stat call.
+func getNewestTracerMetadata(pid int32, memfdFds []string) *tracermetadatamodel.TracerMetadata {
+	if len(memfdFds) == 0 {
+		return nil
 	}
 
-	type metadataWithTime struct {
-		metadata tracermetadatamodel.TracerMetadata
-		modTime  int64
+	if len(memfdFds) == 1 {
+		fdPath := kernel.HostProc(strconv.Itoa(int(pid)), "fd", memfdFds[0])
+		tm, err := tracermetadata.GetTracerMetadataFromPath(fdPath)
+		if err != nil {
+			return nil
+		}
+		return &tm
 	}
-	var items []metadataWithTime
+
+	var newest *tracermetadatamodel.TracerMetadata
+	var newestTime int64
 	for _, fd := range memfdFds {
 		fdPath := kernel.HostProc(strconv.Itoa(int(pid)), "fd", fd)
 		info, err := os.Stat(fdPath)
@@ -349,21 +347,16 @@ func getAllTracerMetadata(pid int32, memfdFds []string) []tracermetadatamodel.Tr
 			continue
 		}
 		tm, err := tracermetadata.GetTracerMetadataFromPath(fdPath)
-		if err == nil {
-			items = append(items, metadataWithTime{
-				metadata: tm,
-				modTime:  info.ModTime().UnixNano(),
-			})
+		if err != nil {
+			continue
+		}
+		modTime := info.ModTime().UnixNano()
+		if newest == nil || modTime > newestTime {
+			newest = &tm
+			newestTime = modTime
 		}
 	}
-	slices.SortFunc(items, func(a, b metadataWithTime) int {
-		return cmp.Compare(a.modTime, b.modTime)
-	})
-	result := make([]tracermetadatamodel.TracerMetadata, len(items))
-	for i, m := range items {
-		result[i] = m.metadata
-	}
-	return result
+	return newest
 }
 
 // getServiceInfo gets the service information for a process using the
@@ -383,14 +376,10 @@ func (s *discovery) getServiceInfo(pid int32, openFiles openFilesInfo) (*model.S
 		return nil, err
 	}
 
-	tracerMetadataArr := getAllTracerMetadata(pid, openFiles.tracerMemfdFds)
-	var firstMetadata *tracermetadatamodel.TracerMetadata
-	if len(tracerMetadataArr) > 0 {
-		firstMetadata = &tracerMetadataArr[0]
-	}
+	tracerMetadata := getNewestTracerMetadata(pid, openFiles.tracerMemfdFds)
 
 	root := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "root")
-	lang := language.Detect(exe, cmdline, proc.Pid, s.privilegedDetector, firstMetadata)
+	lang := language.Detect(exe, cmdline, proc.Pid, s.privilegedDetector, tracerMetadata)
 	env, err := GetTargetEnvs(proc)
 	if err != nil {
 		return nil, err
@@ -405,14 +394,19 @@ func (s *discovery) getServiceInfo(pid int32, openFiles openFilesInfo) (*model.S
 	ctx.ContextMap = contextMap
 
 	nameMeta, _ := usm.ExtractServiceMetadata(lang, ctx)
-	apmInstrumentation := apm.Detect(lang, ctx, firstMetadata)
+	apmInstrumentation := apm.Detect(lang, ctx, tracerMetadata)
+
+	var tracerMetadataSlice []tracermetadatamodel.TracerMetadata
+	if tracerMetadata != nil {
+		tracerMetadataSlice = []tracermetadatamodel.TracerMetadata{*tracerMetadata}
+	}
 
 	return &model.Service{
 		PID:                      int(pid),
 		GeneratedName:            nameMeta.Name,
 		GeneratedNameSource:      string(nameMeta.Source),
 		AdditionalGeneratedNames: nameMeta.AdditionalNames,
-		TracerMetadata:           tracerMetadataArr,
+		TracerMetadata:           tracerMetadataSlice,
 		UST: model.UST{
 			Service: env.GetDefault("DD_SERVICE", ""),
 			Env:     env.GetDefault("DD_ENV", ""),

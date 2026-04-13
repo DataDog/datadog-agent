@@ -15,6 +15,7 @@ use crate::procfs::root_path;
 
 const O_WRONLY: u32 = 0o1;
 const O_APPEND: u32 = 0o2000;
+const MAX_TRACER_MEMFDS: usize = 25;
 
 #[derive(Debug)]
 pub struct OpenFilesInfo {
@@ -69,7 +70,9 @@ pub fn get_open_files_info(pid: i32) -> Result<OpenFilesInfo, std::io::Error> {
                     });
                 }
             } else if is_tracer_memfd(link.as_path()) {
-                result.tracer_memfds.push(entry);
+                if result.tracer_memfds.len() < MAX_TRACER_MEMFDS {
+                    result.tracer_memfds.push(entry);
+                }
             } else if is_language_memfd(link.as_path()) {
                 result.memfd_path = Some(entry);
             }

@@ -462,19 +462,19 @@ func (s *discoveryTestSuite) TestServicesTracerMetadataWithoutPorts() {
 }
 
 // TestServicesMultipleTracerMetadata checks that when a process has multiple
-// tracer metadata memfds, all of them are reported sorted by runtime_id.
+// tracer metadata memfds, only the newest one (by mtime) is reported.
 func (s *discoveryTestSuite) TestServicesMultipleTracerMetadata() {
 	t := s.T()
 	discovery := s.discovery
 
-	// Create first memfd (created earlier, should appear first in results)
+	// Create first memfd (created earlier, should be ignored)
 	metaFirst := tracermetadata.TracerMetadata{
 		SchemaVersion:  1,
 		RuntimeID:      "zzz-runtime-id-2",
 		TracerLanguage: "go",
 		ServiceName:    "service-created-first",
 	}
-	// Create second memfd (created later, should appear second in results)
+	// Create second memfd (created later, should be the one reported)
 	metaSecond := tracermetadata.TracerMetadata{
 		SchemaVersion:  1,
 		RuntimeID:      "aaa-runtime-id-1",
@@ -519,13 +519,10 @@ func (s *discoveryTestSuite) TestServicesMultipleTracerMetadata() {
 		require.NotNilf(collect, svc, "could not find service for pid %v", pid)
 	}, 30*time.Second, 100*time.Millisecond)
 
-	// Both valid tracer metadata should be present (invalid one skipped),
-	// sorted by creation time (mtime).
-	require.Len(t, svc.TracerMetadata, 2)
-	assert.Equal(t, "zzz-runtime-id-2", svc.TracerMetadata[0].RuntimeID)
-	assert.Equal(t, "aaa-runtime-id-1", svc.TracerMetadata[1].RuntimeID)
-	assert.Equal(t, "service-created-first", svc.TracerMetadata[0].ServiceName)
-	assert.Equal(t, "service-created-second", svc.TracerMetadata[1].ServiceName)
+	// Only the newest (by mtime) tracer metadata should be reported.
+	require.Len(t, svc.TracerMetadata, 1)
+	assert.Equal(t, "aaa-runtime-id-1", svc.TracerMetadata[0].RuntimeID)
+	assert.Equal(t, "service-created-second", svc.TracerMetadata[0].ServiceName)
 }
 
 // TestServicesLogsWithoutPorts checks that processes with open log files

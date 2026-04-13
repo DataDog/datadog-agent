@@ -107,27 +107,25 @@ fn is_using_gpu(pid: i32, open_files_info: &OpenFilesInfo) -> bool {
     open_files_info.has_gpu_device || procfs::maps::has_gpu_nvidia_libraries(pid)
 }
 
-/// Reads tracer metadata from all memfd paths. When multiple memfds are present,
-/// sorts them by file modification time (creation order). When there is only one,
-/// skips the stat call.
-fn get_all_tracer_metadata(memfd_paths: &[PathBuf]) -> Vec<TracerMetadata> {
+/// Reads tracer metadata from memfd paths and returns only the newest one
+/// (by file modification time). When there is only one memfd, skips the stat
+/// call.
+fn get_newest_tracer_metadata(memfd_paths: &[PathBuf]) -> Option<TracerMetadata> {
     if memfd_paths.len() <= 1 {
         return memfd_paths
-            .iter()
-            .filter_map(|path| tracer_metadata::get_tracer_metadata_from_path(path).ok())
-            .collect();
+            .first()
+            .and_then(|path| tracer_metadata::get_tracer_metadata_from_path(path).ok());
     }
 
-    let mut with_time: Vec<(TracerMetadata, std::time::SystemTime)> = memfd_paths
+    memfd_paths
         .iter()
         .filter_map(|path| {
             let mtime = std::fs::metadata(path).ok()?.modified().ok()?;
             let tm = tracer_metadata::get_tracer_metadata_from_path(path).ok()?;
             Some((tm, mtime))
         })
-        .collect();
-    with_time.sort_by_key(|(_, t)| *t);
-    with_time.into_iter().map(|(m, _)| m).collect()
+        .max_by_key(|(_, t)| *t)
+        .map(|(m, _)| m)
 }
 
 fn get_service(
@@ -151,9 +149,9 @@ fn get_service(
 
     let cmdline = Cmdline::get(pid).ok()?;
     let exe = Exe::get(pid).ok()?;
-    let tracer_metadata = get_all_tracer_metadata(&open_files_info.tracer_memfds);
-    let first_metadata = tracer_metadata.first();
-    let language = first_metadata
+    let tracer_metadata = get_newest_tracer_metadata(&open_files_info.tracer_memfds);
+    let language = tracer_metadata
+        .as_ref()
         .and_then(|m| Language::from_tracer_str(&m.tracer_language))
         .or_else(|| Language::detect(pid, &exe, &cmdline, open_files_info));
 
@@ -171,7 +169,9 @@ fn get_service(
     // Detect APM instrumentation
     // If tracer metadata exists, the service is definitely instrumented
     let apm_instrumentation =
-        !tracer_metadata.is_empty() || apm::detect(language.as_ref(), pid, &cmdline, &envs);
+        tracer_metadata.is_some() || apm::detect(language.as_ref(), pid, &cmdline, &envs);
+
+    let tracer_metadata_vec = tracer_metadata.into_iter().collect();
 
     Some(Service {
         pid,
@@ -180,7 +180,7 @@ fn get_service(
         additional_generated_names: name_metadata
             .map(|meta| meta.additional_names)
             .unwrap_or_default(),
-        tracer_metadata,
+        tracer_metadata: tracer_metadata_vec,
         ust: UST::from_envs(&envs),
         tcp_ports,
         udp_ports,

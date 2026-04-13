@@ -52,6 +52,8 @@ type fdPath struct {
 	path string
 }
 
+const maxTracerMemfds = 25
+
 type openFilesInfo struct {
 	sockets        []uint64
 	logs           []fdPath
@@ -100,7 +102,9 @@ func getOpenFilesInfo(pid int32, buf []byte) (openFilesInfo, error) {
 		}
 
 		if tracermetadata.IsTracerMemfdPath(path) {
-			openFiles.tracerMemfdFds = append(openFiles.tracerMemfdFds, fd)
+			if len(openFiles.tracerMemfdFds) < maxTracerMemfds {
+				openFiles.tracerMemfdFds = append(openFiles.tracerMemfdFds, fd)
+			}
 			continue
 		}
 	}
