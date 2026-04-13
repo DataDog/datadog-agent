@@ -34,9 +34,10 @@ type BundleInheritedAllowedAction struct {
 	ExpectedPrefix string
 }
 
-// DefaultEnabledActionFQNs is a list of action FQNs that are enabled by default.
+// DefaultClusterAgentActionFQNs is a list of action FQNs that are enabled by default
+// when the agent runs as a Cluster Agent flavor.
 // Users can opt out by setting private_action_runner.default_actions_enabled to false.
-var DefaultEnabledActionFQNs = []string{
+var DefaultClusterAgentActionFQNs = []string{
 	// k8s apps — Deployments
 	"com.datadoghq.kubernetes.apps.listDeployment",
 	"com.datadoghq.kubernetes.apps.getDeployment",
@@ -68,6 +69,11 @@ var DefaultEnabledActionFQNs = []string{
 	"com.datadoghq.kubernetes.batch.getCronJob",
 	"com.datadoghq.kubernetes.batch.listCronJob",
 }
+
+// DefaultActionFQNs is a list of action FQNs that are enabled by default
+// for non-Cluster-Agent flavors.
+// Users can opt out by setting private_action_runner.default_actions_enabled to false.
+var DefaultActionFQNs = []string{}
 
 // BundleInheritedAllowedActions is a list of actions that are automatically allowed
 // if at least one other action matching their expected prefix is allowed

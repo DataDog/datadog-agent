@@ -14,6 +14,7 @@ import (
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 func TestGetBundleInheritedAllowedActions(t *testing.T) {
@@ -231,7 +232,10 @@ func TestFromDDConfig(t *testing.T) {
 }
 
 func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
-	t.Run("default actions are included when default_actions_enabled is true", func(t *testing.T) {
+	t.Run("cluster agent default actions are included when default_actions_enabled is true", func(t *testing.T) {
+		flavor.SetFlavor(flavor.ClusterAgent)
+		defer flavor.SetFlavor(flavor.DefaultAgent)
+
 		mockConfig := configmock.New(t)
 		mockConfig.SetWithoutSource(setup.PARActionsAllowlist, []string{})
 		mockConfig.SetWithoutSource(setup.PARDefaultActionsEnabled, true)
@@ -245,7 +249,22 @@ func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 		assert.True(t, allowlist["com.datadoghq.kubernetes.core"].Has("testConnection"))
 	})
 
+	t.Run("non-cluster-agent flavor returns empty default actions", func(t *testing.T) {
+		flavor.SetFlavor(flavor.DefaultAgent)
+
+		mockConfig := configmock.New(t)
+		mockConfig.SetWithoutSource(setup.PARActionsAllowlist, []string{})
+		mockConfig.SetWithoutSource(setup.PARDefaultActionsEnabled, true)
+
+		allowlist := makeActionsAllowlist(mockConfig)
+
+		assert.Empty(t, allowlist)
+	})
+
 	t.Run("default actions are excluded when default_actions_enabled is false", func(t *testing.T) {
+		flavor.SetFlavor(flavor.ClusterAgent)
+		defer flavor.SetFlavor(flavor.DefaultAgent)
+
 		mockConfig := configmock.New(t)
 		mockConfig.SetWithoutSource(setup.PARActionsAllowlist, []string{})
 		mockConfig.SetWithoutSource(setup.PARDefaultActionsEnabled, false)
@@ -255,7 +274,10 @@ func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 		assert.Empty(t, allowlist)
 	})
 
-	t.Run("default actions merge with explicit allowlist", func(t *testing.T) {
+	t.Run("cluster agent default actions merge with explicit allowlist", func(t *testing.T) {
+		flavor.SetFlavor(flavor.ClusterAgent)
+		defer flavor.SetFlavor(flavor.DefaultAgent)
+
 		mockConfig := configmock.New(t)
 		mockConfig.SetWithoutSource(setup.PARActionsAllowlist, []string{"com.datadoghq.http.sendRequest"})
 		mockConfig.SetWithoutSource(setup.PARDefaultActionsEnabled, true)

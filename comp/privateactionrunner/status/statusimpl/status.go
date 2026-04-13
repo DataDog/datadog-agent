@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	par "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -102,7 +103,11 @@ func (s statusProvider) populateStatus(stats map[string]interface{}) {
 		parStatus["DefaultActionsEnabled"] = defaultActionsEnabled
 		allowlist := s.config.GetStringSlice(par.PARActionsAllowlist)
 		if defaultActionsEnabled {
-			allowlist = append(allowlist, parconfig.DefaultEnabledActionFQNs...)
+			if flavor.GetFlavor() == flavor.ClusterAgent {
+				allowlist = append(allowlist, parconfig.DefaultClusterAgentActionFQNs...)
+			} else {
+				allowlist = append(allowlist, parconfig.DefaultActionFQNs...)
+			}
 		}
 		parStatus["ActionsAllowlist"] = strings.Join(allowlist, ", ")
 	}

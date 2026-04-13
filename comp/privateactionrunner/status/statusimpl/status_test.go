@@ -13,9 +13,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 func TestStatusEnabled(t *testing.T) {
+	flavor.SetFlavor(flavor.ClusterAgent)
+	defer flavor.SetFlavor(flavor.DefaultAgent)
+
 	configComponent := config.NewMock(t)
 	configComponent.SetWithoutSource("private_action_runner.enabled", true)
 	configComponent.SetWithoutSource("private_action_runner.urn", "urn:datadog:action-runner:abcdef123456")
