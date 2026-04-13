@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/config/basic"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/snmp"
@@ -693,15 +694,7 @@ func TestMigrateCache(t *testing.T) {
 					},
 				},
 			}
-			mockListenerConfigs := []interface{}{
-				map[string]interface{}{
-					"network":         mockSnmpConfig.Network,
-					"port":            mockSnmpConfig.Port,
-					"loader":          mockSnmpConfig.Loader,
-					"community":       mockSnmpConfig.Community,
-					"authentications": mockSnmpConfig.Authentications,
-				},
-			}
+			mockListenerConfigs := []interface{}{basic.StructToMap(mockSnmpConfig)}
 			mockConfig.SetInTest("network_devices.autodiscovery.configs", mockListenerConfigs)
 			mockConfig.SetInTest("network_devices.autodiscovery.workers", 1)
 

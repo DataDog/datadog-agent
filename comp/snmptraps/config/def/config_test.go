@@ -10,7 +10,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-viper/mapstructure/v2"
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/basic"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
@@ -100,21 +100,7 @@ func buildDDConfig(t testing.TB, trapConfig *TrapsConfig, globalNamespace string
 		ddcfg.SetInTest("network_devices.namespace", globalNamespace)
 	}
 	if trapConfig != nil {
-		rawTrapConfig := make(map[string]any)
-		err := mapstructure.Decode(trapConfig, &rawTrapConfig)
-		require.NoError(t, err)
-		for k, v := range rawTrapConfig {
-			// convert []UserV3 structs to []map[string]interface{} so only basic types are stored
-			if users, ok := v.([]UserV3); ok {
-				basicUsers := make([]interface{}, len(users))
-				for i, u := range users {
-					var m map[string]interface{}
-					err := mapstructure.Decode(u, &m)
-					require.NoError(t, err)
-					basicUsers[i] = m
-				}
-				v = basicUsers
-			}
+		for k, v := range basic.StructToMap(trapConfig).(map[string]interface{}) {
 			ddcfg.SetInTest("network_devices.snmp_traps."+k, v)
 		}
 	}
