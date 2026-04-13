@@ -99,6 +99,7 @@ func testCollectEvent(t *testing.T, createResource func(*fake.Clientset) error, 
 }
 
 func testCollectMetadataEvent(t *testing.T, createObjects func() []runtime.Object, gvr schema.GroupVersionResource, expected workloadmeta.EventBundle) {
+
 	// Create a resource before starting the reflector store or workloadmeta so that if the reflector calls `List()` then
 	// this resource can't be skipped
 
