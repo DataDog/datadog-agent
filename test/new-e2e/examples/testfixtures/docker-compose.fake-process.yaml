@@ -3,8 +3,14 @@ services:
     container_name: fake-process
     build:
       context: .
+      args:
+        DD_REGISTRY: ${DD_REGISTRY:-docker.io}
+        # we need to double-escape the DD_REGISTRY variable (using $${}), otherwise the variable is
+        # interpolated by docker compose and not used as an ARG by the Dockerfile.
+        # See https://github.com/docker/compose/issues/13269
       dockerfile_inline: |
-        FROM public.ecr.aws/docker/library/alpine:3.20
+        ARG DD_REGISTRY=docker.io
+        FROM $${DD_REGISTRY}/library/alpine:3.20.3
 
         # generates a synthetic process that consumes CPU and memory
         ENTRYPOINT ["dd", "if=/dev/zero", "of=/tmp/test-process.txt"]
