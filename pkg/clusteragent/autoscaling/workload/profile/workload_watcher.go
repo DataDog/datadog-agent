@@ -25,6 +25,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+var namespaceGVR = schema.GroupVersionResource{Version: "v1", Resource: "namespaces"}
+
 const (
 	workloadWatcherStoreID autoscaling.SenderID = "prof-w"
 
@@ -41,22 +43,32 @@ type workloadInformer struct {
 
 // WorkloadWatcher watches Kubernetes workloads for the profile label and
 // updates PodAutoscalerProfileInternal entries in the profile store with the
-// discovered workload references. The ProfileController reacts to those
-// updates and manages the DPA store entries.
+// discovered workload references. It also watches Namespaces with the profile
+// label and uses dynamic LIST calls to discover all workloads in those
+// namespaces. Workload-level labels take precedence over namespace-level
+// labels. The ProfileController reacts to those updates and manages the DPA
+// store entries.
 type WorkloadWatcher struct {
 	profileStore *autoscaling.Store[model.PodAutoscalerProfileInternal]
 	isLeader     func() bool
 
+	dynamicClient     dynamic.Interface
+	workloadResources []GroupVersionKindResource
+
 	informerFactory dynamicinformer.DynamicSharedInformerFactory
 	informers       []workloadInformer
+
+	nsLister cache.GenericLister
+	nsSynced cache.InformerSynced
 
 	refreshPeriod time.Duration
 
 	hasSynced atomic.Bool
 }
 
-// NewWorkloadWatcher creates a new WorkloadWatcher. It creates a label-filtered
-// informer factory that only watches workloads with the profile label.
+// NewWorkloadWatcher creates a new WorkloadWatcher. It creates a single
+// label-filtered informer factory that watches both workloads and namespaces
+// with the profile label.
 func NewWorkloadWatcher(
 	profileStore *autoscaling.Store[model.PodAutoscalerProfileInternal],
 	isLeader func() bool,
@@ -72,11 +84,17 @@ func NewWorkloadWatcher(
 		},
 	)
 
+	nsInformer := filteredFactory.ForResource(namespaceGVR)
+
 	w := &WorkloadWatcher{
-		profileStore:    profileStore,
-		isLeader:        isLeader,
-		informerFactory: filteredFactory,
-		refreshPeriod:   refreshPeriod,
+		profileStore:      profileStore,
+		isLeader:          isLeader,
+		dynamicClient:     dynamicClient,
+		workloadResources: workloadResources,
+		informerFactory:   filteredFactory,
+		nsLister:          nsInformer.Lister(),
+		nsSynced:          nsInformer.Informer().HasSynced,
+		refreshPeriod:     refreshPeriod,
 	}
 
 	for _, resource := range workloadResources {
@@ -100,13 +118,14 @@ func (w *WorkloadWatcher) HasSynced() bool {
 
 // Run starts the WorkloadWatcher. It blocks until ctx is cancelled.
 func (w *WorkloadWatcher) Run(ctx context.Context) {
-	log.Info("Starting workload watcher")
+	log.Info("Starting workload and namespace watcher")
 	w.informerFactory.Start(ctx.Done())
 
-	syncFuncs := make([]cache.InformerSynced, 0, len(w.informers))
+	syncFuncs := make([]cache.InformerSynced, 0, len(w.informers)+1)
 	for _, inf := range w.informers {
 		syncFuncs = append(syncFuncs, inf.synced)
 	}
+	syncFuncs = append(syncFuncs, w.nsSynced)
 	if !cache.WaitForCacheSync(ctx.Done(), syncFuncs...) {
 		log.Error("Failed to sync informer caches")
 		return
@@ -132,13 +151,16 @@ func (w *WorkloadWatcher) Run(ctx context.Context) {
 	}
 }
 
-// reconcile scans all labeled workloads, groups them by profile name, and
-// updates the profile store with the discovered workload references.
+// reconcile scans all labeled workloads and namespace-level workloads, groups
+// them by profile name, and updates the profile store with the discovered
+// workload references. Workload-level labels take precedence over namespace-level.
 func (w *WorkloadWatcher) reconcile() {
 	workloadRefs := make(map[string][]model.NamespacedObjectReference)
 	for _, inf := range w.informers {
 		w.scanWorkloads(inf.gvkr, inf.lister, workloadRefs)
 	}
+
+	w.scanNsWorkloads(workloadRefs)
 
 	w.profileStore.Update(func(pi model.PodAutoscalerProfileInternal) (model.PodAutoscalerProfileInternal, bool) {
 		changed := pi.UpdateWorkloads(workloadRefs[pi.Name()])
@@ -185,6 +207,73 @@ func (w *WorkloadWatcher) scanWorkloads(
 			Version:   gvkr.GroupVersionResource.Version,
 			Namespace: unstructuredObj.GetNamespace(),
 			Name:      unstructuredObj.GetName(),
+		})
+	}
+}
+
+// scanNsWorkloads discovers labeled namespaces and uses dynamic LIST calls to
+// collect all workloads in those namespaces. Workloads that already have the
+// profile label are skipped (workload-level takes precedence).
+func (w *WorkloadWatcher) scanNsWorkloads(
+	workloadRefs map[string][]model.NamespacedObjectReference,
+) {
+	nsList, err := w.nsLister.List(labels.Everything())
+	if err != nil {
+		log.Debugf("Failed to list labeled namespaces: %v", err)
+		return
+	}
+
+	for _, nsObj := range nsList {
+		nsUnstructured, ok := nsObj.(*unstructured.Unstructured)
+		if !ok {
+			continue
+		}
+		profileName, ok := nsUnstructured.GetLabels()[model.ProfileLabelKey]
+		if !ok || profileName == "" {
+			continue
+		}
+		if _, ok := w.profileStore.Get(profileName); !ok {
+			log.Debugf("Profile %s referenced by namespace %s not found, skipping", profileName, nsUnstructured.GetName())
+			continue
+		}
+
+		nsName := nsUnstructured.GetName()
+		for _, gvkr := range w.workloadResources {
+			w.listNsWorkloads(nsName, profileName, gvkr, workloadRefs)
+		}
+	}
+}
+
+func (w *WorkloadWatcher) listNsWorkloads(
+	nsName, profileName string,
+	gvkr GroupVersionKindResource,
+	workloadRefs map[string][]model.NamespacedObjectReference,
+) {
+	result, err := w.dynamicClient.Resource(gvkr.GroupVersionResource).Namespace(nsName).List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		log.Debugf("Failed to list %s in namespace %s: %v", gvkr.GroupVersionResource.Resource, nsName, err)
+		return
+	}
+
+	for i := range result.Items {
+		obj := &result.Items[i]
+
+		objLabels := obj.GetLabels()
+		if _, hasLabel := objLabels[model.ProfileLabelKey]; hasLabel {
+			continue
+		}
+		if objLabels[model.ProfileDisabledLabelKey] == "true" {
+			continue
+		}
+
+		workloadRefs[profileName] = append(workloadRefs[profileName], model.NamespacedObjectReference{
+			GroupKind: schema.GroupKind{
+				Group: gvkr.GroupVersionResource.Group,
+				Kind:  gvkr.Kind,
+			},
+			Version:   gvkr.GroupVersionResource.Version,
+			Namespace: nsName,
+			Name:      obj.GetName(),
 		})
 	}
 }
