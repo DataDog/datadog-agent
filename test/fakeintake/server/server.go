@@ -109,7 +109,7 @@ func NewServer(options ...Option) *Server {
 	}
 
 	fi.store = serverstore.NewStore()
-	fi.par = &parServerState{results: make(map[string]*PARTaskResult)}
+	fi.par = &parServerState{results: make(map[string]*api.PARTaskResult)}
 	registry := prometheus.NewRegistry()
 
 	storeMetrics := fi.store.GetInternalMetrics()
