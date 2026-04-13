@@ -142,6 +142,9 @@ func NewKindClusterWithConfig(env config.Env, vm *remote.Host, name, kubeVersion
 			The internal mirror should be able to pull arbitrary kubernetes images but the sha is required
 			with the tag. We also support the user supplying the url (in case we want to host
 			kubernetes rc candidates in some registry, etc)
+
+			Note: InternalDockerhubMirror() returns the ECR pull-through cache on AWS (CI). Non-AWS
+			environments (GCP, Azure, local) still return registry-1.docker.io, since we don't have pull-through caches for those environments.
 		*/
 		var nodeImage string
 		if env.KubeNodeURL() != "" {
@@ -220,6 +223,7 @@ func NewLocalKindCluster(env config.Env, name string, kubeVersion string, opts .
 			return err
 		}
 
+		// See the note above regarding InternalDockerhubMirror() and non-AWS environments.
 		nodeImage := fmt.Sprintf("%s/%s:%s", env.InternalDockerhubMirror(), kindNodeImageName, kindVersionConfig.NodeImageVersion)
 		createCluster, err := runner.Command(
 			commonEnvironment.CommonNamer().ResourceName("kind-create-cluster"),
