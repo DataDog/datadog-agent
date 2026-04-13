@@ -534,9 +534,7 @@ func (tb *TestBench) loadParquetDir(dir string) error {
 		tb.handleTelemetry([]observerdef.ObserverTelemetry{newTelemetryCounter([]string{}, telemetryTbInputMetricsCardinality, float64(entry.Count), entry.Timestamp)}, "parquet", entry.Timestamp)
 	}
 
-	// Skip trace stats loading — trace stats are deprioritized and the ~21s structural
-	// delay from the trace-agent concentrator is the dominant source of live/testbench
-	// divergence. Excluding them produces parity-accurate replay for non-trace metrics.
+	// Skip trace stats loading — trace stats are deprioritized 
 	// Data is still recorded in parquet for future analysis if needed.
 	traceStats, err := tb.config.Recorder.ReadAllTraceStats(dir)
 	if err != nil {
