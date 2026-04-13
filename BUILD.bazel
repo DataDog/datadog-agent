@@ -15,13 +15,18 @@ exports_files(glob(
     allow_empty = True,
 ))
 
-# The list of go tags to be used by gazelle
+# The list of go tags to be used by gazelle (keep in sync with conditional //go:build tags in migrated trees, e.g. pkg/util/kubernetes).
 ALL_BUILD_TAGS = [
     "clusterchecks",
+    "docker",
+    "kubeapiserver",
+    "kubelet",
+    "local_debug",
+    "orchestrator",
     "otlp",
-    "test",
     "seclmax",
     "serverless",
+    "test",
 ]
 
 # TODO(agent-build): remove below `gazelle:exclude` directives (automatically updates @bazelify_go_work//:go.work)
@@ -186,7 +191,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/aggregator/mocksender
 # gazelle:exclude pkg/aggregator/sender
 # gazelle:exclude pkg/aggregator/internal
-# gazelle:exclude pkg/api
 # gazelle:exclude pkg/cli
 # gazelle:exclude pkg/cloudfoundry
 # gazelle:exclude pkg/clusteragent
@@ -210,7 +214,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/config/fetcher/sysprobe
 # gazelle:exclude pkg/config/fetcher/tracers
 # gazelle:exclude pkg/config/legacy
-# gazelle:exclude pkg/config/remote
 # gazelle:exclude pkg/config/settings
 # gazelle:exclude pkg/config/settings/http
 # gazelle:exclude pkg/containerlifecycle
@@ -313,7 +316,18 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/pidfile
 # gazelle:exclude pkg/privateactionrunner
 # gazelle:exclude pkg/privileged-logs
-# gazelle:exclude pkg/process
+# gazelle:exclude pkg/process/checks
+# gazelle:exclude pkg/process/encoding
+# gazelle:exclude pkg/process/metadata
+# gazelle:exclude pkg/process/monitor
+# gazelle:exclude pkg/process/net
+# gazelle:exclude pkg/process/procutil
+# gazelle:exclude pkg/process/runner
+# gazelle:exclude pkg/process/status
+# gazelle:exclude pkg/process/subscribers
+# gazelle:exclude pkg/process/util/containers
+# gazelle:exclude pkg/process/util/coreagent
+# gazelle:exclude pkg/process/util/status
 # gazelle:exclude pkg/procmgr
 # Proto definitions under pkg/proto/datadog/ use pre-generated Go code checked
 # into pkg/proto/pbgo/. Gazelle's proto mode is disabled because multiple proto
@@ -389,7 +403,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/util/aggregatingqueue
 # gazelle:exclude pkg/util/archive
 # gazelle:exclude pkg/util/atomicstats
-# gazelle:exclude pkg/util/cachedfetch
 # gazelle:exclude pkg/util/cli
 # gazelle:exclude pkg/util/cloudproviders
 # gazelle:exclude pkg/util/clusteragent
@@ -401,25 +414,29 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/util/coredump
 # gazelle:exclude pkg/util/crashreport
 # gazelle:exclude pkg/util/crio
-# gazelle:exclude pkg/util/defaultpaths
 # gazelle:exclude pkg/util/dmi
 # gazelle:exclude pkg/util/docker
 # gazelle:exclude pkg/util/ec2
 # gazelle:exclude pkg/util/ecs
 # gazelle:exclude pkg/util/fargate
-# gazelle:exclude pkg/util/flavor
 # gazelle:exclude pkg/util/funcs
 # gazelle:exclude pkg/util/goroutinesdump
 # gazelle:exclude pkg/util/gpu
-# gazelle:exclude pkg/util/grpc
 # gazelle:exclude pkg/util/input
 # gazelle:exclude pkg/util/installinfo
 # gazelle:exclude pkg/util/intern
 # gazelle:exclude pkg/util/kernel
 # gazelle:exclude pkg/util/ktime
 # gazelle:exclude pkg/util/kubelet
-# gazelle:exclude pkg/util/kubernetes
-# gazelle:exclude pkg/util/kubernetes/apiserver/common/namespace
+# gazelle:exclude pkg/util/kubernetes/autoscalers
+# gazelle:exclude pkg/util/kubernetes/certificate
+# gazelle:exclude pkg/util/kubernetes/cloudprovider
+# gazelle:exclude pkg/util/kubernetes/clusterinfo
+# gazelle:exclude pkg/util/kubernetes/clustername
+# gazelle:exclude pkg/util/kubernetes/hostinfo
+# gazelle:exclude pkg/util/kubernetes/kubelet
+# gazelle:exclude pkg/util/kubernetes/apiserver/controllers
+# gazelle:exclude pkg/util/kubernetes/apiserver/leaderelection
 # gazelle:exclude pkg/util/log/setup
 # gazelle:exclude pkg/util/lsof
 # gazelle:exclude pkg/util/maps

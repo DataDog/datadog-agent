@@ -6,11 +6,12 @@
 package cmd
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"strconv"
+	"text/tabwriter"
 
-	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/client"
@@ -27,12 +28,12 @@ func NewRouteStatsCommand(cl **client.Client) (cmd *cobra.Command) {
 				log.Fatalln(err)
 			}
 
-			table := tablewriter.NewWriter(os.Stdout)
-			table.SetHeader([]string{"Route", "Count"})
+			tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+			fmt.Fprintln(tw, "ROUTE\tCOUNT")
 			for route, count := range stats {
-				table.Append([]string{route, strconv.Itoa(count)})
+				fmt.Fprintf(tw, "%s\t%s\n", route, strconv.Itoa(count))
 			}
-			table.Render()
+			tw.Flush()
 		},
 	}
 
