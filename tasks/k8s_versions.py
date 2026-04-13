@@ -133,7 +133,6 @@ def _get_latest_kind_release() -> str | None:
         return None
 
 
-
 def _get_latest_k8s_versions(use_dockerhub: bool = True, use_github: bool = True) -> dict[str, dict[str, str]]:
     """
     Fetch and parse the latest Kubernetes version from Docker Hub (stable) and/or GitHub (RC).
@@ -562,10 +561,7 @@ def update_kind_versions_file(_, versions_file=VERSIONS_FILE):
         node_image_version = f"{tag}@{digest}"
         existing = kind_versions.get(minor_key, {})
 
-        if (
-            existing.get('kind_version') != kind_version
-            or existing.get('node_image_version') != node_image_version
-        ):
+        if existing.get('kind_version') != kind_version or existing.get('node_image_version') != node_image_version:
             kind_versions[minor_key] = {
                 'kind_version': kind_version,
                 'node_image_version': node_image_version,
