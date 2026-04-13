@@ -77,6 +77,39 @@ func BenchmarkRender(b *testing.B) {
 		origin := message.NewOrigin(source)
 		msg := message.NewStructuredMessage(sc, origin, syslogparser.SeverityToStatus(parsed.Pri), time.Now().UnixNano())
 		b.Run(tc.name, func(b *testing.B) {
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_, err := msg.Render()
+				if err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Render (SyslogStructuredContent via jsoniter.Stream)
+// ---------------------------------------------------------------------------
+
+func BenchmarkRenderNew(b *testing.B) {
+	for _, tc := range []struct {
+		name string
+		msg  []byte
+	}{
+		{"RFC5424_Short", rfc5424Short},
+		{"RFC5424_Typical", rfc5424Typical},
+		{"RFC5424_Long_1KB", rfc5424Long},
+		{"BSD", bsdTypical},
+	} {
+		parsed, _ := syslogparser.Parse(tc.msg)
+		sc := syslogparser.NewSyslogStructuredContent(parsed)
+		source := sources.NewLogSource("bench", &config.LogsConfig{})
+		origin := message.NewOrigin(source)
+		msg := message.NewStructuredMessage(sc, origin, syslogparser.SeverityToStatus(parsed.Pri), time.Now().UnixNano())
+		b.Run(tc.name, func(b *testing.B) {
+			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				_, err := msg.Render()

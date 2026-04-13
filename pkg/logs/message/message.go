@@ -164,6 +164,11 @@ func (m *MessageContent) GetStructuredAttribute(path string) (string, bool) {
 	if m.State != StateStructured {
 		return "", false
 	}
+
+	if ag, ok := m.structuredContent.(AttributeGetter); ok {
+		return ag.GetAttribute(path)
+	}
+
 	bsc, ok := m.structuredContent.(*BasicStructuredContent)
 	if !ok || bsc == nil {
 		return "", false
@@ -370,6 +375,14 @@ type StructuredContent interface {
 	Render() ([]byte, error)
 	GetContent() []byte
 	SetContent([]byte)
+}
+
+// AttributeGetter is an optional interface that StructuredContent
+// implementations can satisfy to support dot-path attribute lookups
+// (e.g. "syslog.hostname") without requiring a BasicStructuredContent
+// type assertion. Used by GetStructuredAttribute for processing rules.
+type AttributeGetter interface {
+	GetAttribute(path string) (string, bool)
 }
 
 // BasicStructuredContent is used by tailers creating structured logs

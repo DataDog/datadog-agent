@@ -12,9 +12,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
+var _ message.StructuredContent = (*SyslogStructuredContent)(nil)
+
 // parser implements parsers.Parser for syslog-formatted input.
 // It converts each newline-framed line into a StateStructured message,
-// preserving all syslog metadata in a BasicStructuredContent.
+// preserving all syslog metadata in a SyslogStructuredContent.
 //
 // PRI detection is automatic: if a line starts with '<', it is parsed as a
 // network-format syslog message (RFC 5424 or BSD with PRI). Otherwise it is
@@ -40,20 +42,7 @@ func (p *parser) Parse(msg *message.Message) (*message.Message, error) {
 		parsed, err = ParseBSDLine(content)
 	}
 
-	sc := &message.BasicStructuredContent{
-		Data: map[string]interface{}{
-			"message": string(parsed.Msg),
-			"syslog":  BuildSyslogFields(parsed),
-		},
-	}
-
-	// Detect and parse CEF/LEEF headers embedded in the syslog message body.
-	// All meaningful data is extracted into the "siem" key; the raw CEF/LEEF
-	// string has no body separate from its structured fields, so clear "message".
-	if header, ext, _, ok := ParseCEFLEEF(parsed.Msg); ok {
-		sc.Data["siem"] = BuildSIEMFields(header, ext)
-		sc.Data["message"] = ""
-	}
+	sc := NewSyslogStructuredContent(parsed)
 
 	structured := message.NewStructuredMessage(
 		sc,
