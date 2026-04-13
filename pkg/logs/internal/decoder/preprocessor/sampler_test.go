@@ -99,6 +99,36 @@ func TestAdaptiveSampler_NewPatternCredits(t *testing.T) {
 	assert.Equal(t, 4.0, s.entries[0].credits) // BurstSize-1 = 5-1 = 4
 }
 
+// --- AdaptiveSampler: LogEmission.TagPresence ---
+
+// When sampled_count > 0 the emitted message carries the tag.
+// When sampled_count = 0 no tag is added.
+func TestAdaptiveSampler_TagPresence(t *testing.T) {
+	s := newSampler(10, 1.0, 1.0)
+	t0 := time.Now()
+	s.now = func() time.Time { return t0 }
+
+	// First emit: new pattern, sampled_count = 0 → no tag.
+	out1 := s.Process(testMsg(), patternA)
+	require.NotNil(t, out1)
+	requireNoSampledCountTag(t, out1)
+
+	// Second message dropped (burst exhausted) → sampled_count increments.
+	assert.Nil(t, s.Process(testMsg(), patternA))
+
+	// Third emit after refill: sampled_count = 1 → tag present.
+	s.now = func() time.Time { return t0.Add(2 * time.Second) }
+	out2 := s.Process(testMsg(), patternA)
+	require.NotNil(t, out2)
+	requireSampledCountTag(t, out2, 1)
+
+	// Fourth emit immediately: sampled_count was reset to 0 → no tag.
+	s.now = func() time.Time { return t0.Add(3 * time.Second) }
+	out3 := s.Process(testMsg(), patternA)
+	require.NotNil(t, out3)
+	requireNoSampledCountTag(t, out3)
+}
+
 // --- AdaptiveSampler: rate limiting ---
 
 // After BurstSize messages the pattern is rate-limited.
