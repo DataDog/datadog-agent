@@ -170,7 +170,7 @@ func TestEffectiveSQLObfuscationMode(t *testing.T) {
 	})
 	t.Run("no_sqllexer_no_explicit_mode", func(t *testing.T) {
 		cfg := New()
-		assert.Equal(t, "", cfg.EffectiveSQLObfuscationMode())
+		assert.Equal(t, obfuscate.ObfuscationMode(""), cfg.EffectiveSQLObfuscationMode())
 	})
 }
 
