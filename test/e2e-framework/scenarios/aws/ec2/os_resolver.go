@@ -226,6 +226,12 @@ func resolveSuseAMI(e aws.Environment, osInfo *os.Descriptor) (string, error) {
 		return "", fmt.Errorf("architecture %s is not supported for SUSE %s", osInfo.Architecture, osInfo.Version)
 	}
 
+	// For custom variants (e.g. docker-baked AMIs) check platforms.json before falling back to SSM,
+	// since SSM has no entry for those non-standard version strings.
+	if amiID, err := aws.GetAMI(osInfo); err == nil {
+		return amiID, nil
+	}
+
 	return ec2.GetAMIFromSSM(e, fmt.Sprintf("/aws/service/suse/sles/%s/%s/latest", osInfo.Version, osInfo.Architecture))
 }
 

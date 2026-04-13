@@ -2,6 +2,7 @@
     "amazon-linux": {
         "arm64": {
             "2": "ami-0a37ff68b81b844bb",
+            "2-docker": "ami-0230ab13ce83b916b",
             "2-4-14": "ami-090230ed0c6b13c74",
             "2-5-10": "ami-09e51988f56677f44",
             "2022-5-15": "ami-0acc51c3357f26240",
@@ -9,6 +10,7 @@
         },
         "x86_64": {
             "2": "ami-09e48b5e3f7502ead",
+            "2-docker": "ami-06eb5295d9aff26cd",
             "2-4-14": "ami-038b3df3312ddf25d",
             "2-5-10": "ami-06a0cd9728546d178",
             "2018": "ami-0882eaa2fa1a8a2b2",
@@ -32,7 +34,8 @@
         },
         "x86_64": {
             "610": "ami-0506f01ccb6dddeda",
-            "79": "ami-036de472bb001ae9c"
+            "79": "ami-036de472bb001ae9c",
+            "79-docker": "ami-0e4e69b01ec9c2840"
         }
     },
     "debian": {
@@ -45,6 +48,7 @@
             "10": "ami-0d95ff0dda748a90f",
             "11": "ami-05a170eabaee7530d",
             "12": "ami-014a91af7c12de024",
+            "12-docker": "ami-0da68125b95dad173",
             "9": "ami-0182559468c1975fe"
         }
     },
@@ -67,12 +71,14 @@
     "redhat": {
         "arm64": {
             "86": "ami-0238411fb452f8275",
-            "9": "ami-06e9fb75e4dff1382"
+            "9": "ami-06e9fb75e4dff1382",
+            "9-docker": "ami-043bb238175e6fd8c"
         },
         "x86_64": {
             "86": "ami-031eff1ae75bb87e4",
             "86-fips": "ami-0d0fb96b595c56e03",
-            "9": "ami-0d424760e95da7d14"
+            "9": "ami-0d424760e95da7d14",
+            "9-docker": "ami-0582b2753bac84c81"
         }
     },
     "rocky-linux": {
@@ -82,11 +88,13 @@
     },
     "suse": {
         "arm64": {
-            "15-4": "ami-0d7334a81571ed818"
+            "15-4": "ami-0d7334a81571ed818",
+            "15-4-docker": "ami-070862e30440ce7a3"
         },
         "x86_64": {
             "12": "ami-073614fc408ea4c0e",
-            "15-4": "ami-0e0dc7f06ad915a7f"
+            "15-4": "ami-0e0dc7f06ad915a7f",
+            "15-4-docker": "ami-00647a481d0085400"
         }
     },
     "ubuntu": {
@@ -98,7 +106,8 @@
             "22-04": "ami-0ecccbb39816a0f31",
             "23-04": "ami-0a20fb27318b71251",
             "23-10": "ami-0dea732dd5f1da0a8",
-            "24-04": "ami-09ffc2931cd758420"
+            "24-04": "ami-09ffc2931cd758420",
+            "24-04-docker": "ami-0d1d143f8ea337baf"
         },
         "x86_64": {
             "14-04": "ami-013d633d3b6cdb22c",
@@ -108,7 +117,8 @@
             "22-04": "ami-0347d82d55205687d",
             "23-04": "ami-07faed25a1239aef5",
             "23-10": "ami-0949b45ef274e55a1",
-            "24-04": "ami-0348254a9473213cf"
+            "24-04": "ami-0348254a9473213cf",
+            "24-04-docker": "ami-04aa23f4121248a1b"
         }
     },
     "windows-server": {
