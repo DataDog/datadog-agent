@@ -268,6 +268,7 @@ github.com/gogo/protobuf: ["Copyright (c) 2013, The GoGo Authors. All rights res
 #  * Year is based on the year of the first commit to the repository
 #  * Author, when known only by GitHub username, is "GitHub Full Name (github-username)"
 github.com/moby/docker-image-spec/specs-go/v1: Copyright 2012-2017 Docker, Inc.
+github.com/moby/moby/*: Copyright 2012-2017 Docker, Inc.
 github.com/moby/sys/mountinfo: Copyright (c) 2014-2018 The Docker & Go Authors. All rights reserved.
 github.com/moby/sys/signal: Copyright (c) 2014-2018 The Docker & Go Authors. All rights reserved.
 github.com/moby/sys/user: Copyright (c) 2014-2018 The Docker & Go Authors. All rights reserved.
@@ -463,3 +464,5 @@ istio.io/*: Copyright Istio Authors
 
 # Copyright information is in the source file headers
 github.com/petermattis/goid: "Copyright 2016 Peter Mattis."
+
+github.com/minio/simdjson-go: "MinIO Cloud Storage, (C) 2020 MinIO, Inc."

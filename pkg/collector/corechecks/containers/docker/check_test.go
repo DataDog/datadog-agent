@@ -10,8 +10,8 @@ package docker
 import (
 	"testing"
 
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/image"
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/image"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -135,7 +135,7 @@ func TestDockerCustomPart(t *testing.T) {
 			Labels: map[string]string{
 				"io.kubernetes.pod.namespace": "kubens",
 			},
-			State:      string(workloadmeta.ContainerStatusRunning),
+			State:      container.ContainerState(workloadmeta.ContainerStatusRunning),
 			SizeRw:     100,
 			SizeRootFs: 200,
 		},
@@ -144,28 +144,28 @@ func TestDockerCustomPart(t *testing.T) {
 			Names:   []string{"agent2"},
 			Image:   "datadog/agent:7.32.0-rc.1",
 			ImageID: "sha256:c7e83cf0566432c24ed909f52ea16c29281f6f30d0a27855e15ff79376efaed0", // Image missing in mapping
-			State:   string(workloadmeta.ContainerStatusRunning),
+			State:   container.ContainerState(workloadmeta.ContainerStatusRunning),
 		},
 		{
 			ID:      "be2584a7d1a2a3ae9f9c688e9ce7a88991c028507fec7c70a660b705bd2a5b90",
 			Names:   []string{"agent3"},
 			Image:   "sha256:e575decbf7f4b920edabf5c86f948da776ffa26b5ceed591668ad6086c08a87f",
 			ImageID: "sha256:e575decbf7f4b920edabf5c86f948da776ffa26b5ceed591668ad6086c08a87f",
-			State:   string(workloadmeta.ContainerStatusRunning),
+			State:   container.ContainerState(workloadmeta.ContainerStatusRunning),
 		},
 		{
 			ID:      "be2584a7d1a2a3ae9f9c688e9ce7a88991c028507fec7c70a660b705bd2a5b91",
 			Names:   []string{"agent-excluded"},
 			Image:   "sha256:e575decbf7f4b920edabf5c86f948da776ffa26b5ceed591668ad6086c08a87f",
 			ImageID: "sha256:e575decbf7f4b920edabf5c86f948da776ffa26b5ceed591668ad6086c08a87f",
-			State:   string(workloadmeta.ContainerStatusRunning),
+			State:   container.ContainerState(workloadmeta.ContainerStatusRunning),
 		},
 		{
 			ID:      "be2584a7d1a2a3ae9f9c688e9ce7a88991c028507fec7c70a660b705bd2a5b92",
 			Names:   []string{"agent-excluded-cel"},
 			Image:   "sha256:e575decbf7f4b920edabf5c86f948da776ffa26b5ceed591668ad6086c08a87f",
 			ImageID: "sha256:e575decbf7f4b920edabf5c86f948da776ffa26b5ceed591668ad6086c08a87f",
-			State:   string(workloadmeta.ContainerStatusRunning),
+			State:   container.ContainerState(workloadmeta.ContainerStatusRunning),
 		},
 		{
 			ID:      "e2d5394a5321d4a59497f53552a0131b2aafe64faba37f4738e78c531289fc45",
@@ -175,7 +175,7 @@ func TestDockerCustomPart(t *testing.T) {
 			Labels: map[string]string{
 				"io.kubernetes.pod.namespace": "kubens",
 			},
-			State:  "dead",
+			State:  container.StateDead,
 			SizeRw: 100,
 		},
 	}
@@ -187,19 +187,16 @@ func TestDockerCustomPart(t *testing.T) {
 	}
 	dockerClient.FakeImages = []image.Summary{
 		{
-			ID:          "sha256:7e813d42985b2e5a0269f868aaf238ffc952a877fba964f55aa1ff35fd0bf5f6",
-			Size:        50,
-			VirtualSize: 100,
+			ID:   "sha256:7e813d42985b2e5a0269f868aaf238ffc952a877fba964f55aa1ff35fd0bf5f6",
+			Size: 50,
 		},
 		{
-			ID:          "sha256:e575decbf7f4b920edabf5c86f948da776ffa26b5ceed591668ad6086c08a87f",
-			Size:        100,
-			VirtualSize: 200,
+			ID:   "sha256:e575decbf7f4b920edabf5c86f948da776ffa26b5ceed591668ad6086c08a87f",
+			Size: 100,
 		},
 		{
-			ID:          "sha256:c7e83cf0566432c24ed909f52ea16c29281f6f30d0a27855e15ff79376efaed0",
-			Size:        200,
-			VirtualSize: 400,
+			ID:   "sha256:c7e83cf0566432c24ed909f52ea16c29281f6f30d0a27855e15ff79376efaed0",
+			Size: 200,
 		},
 	}
 
@@ -251,7 +248,7 @@ container_exclude_logs: name:agent2 image:datadog/agent
 
 	// Tags between `docker.containers.running` and `docker.image.*` may be different because `docker.image.*` never uses the tagger
 	// while `docker.container.*` may use the tagger if the container is running.
-	mockSender.AssertMetric(t, "Gauge", "docker.image.virtual_size", 100, "", []string{"docker_image:datadog/agent:latest", "image_name:datadog/agent", "image_tag:latest", "short_image:agent"})
+	mockSender.AssertMetric(t, "Gauge", "docker.image.virtual_size", 50, "", []string{"docker_image:datadog/agent:latest", "image_name:datadog/agent", "image_tag:latest", "short_image:agent"})
 	mockSender.AssertMetric(t, "Gauge", "docker.image.size", 50, "", []string{"docker_image:datadog/agent:latest", "image_name:datadog/agent", "image_tag:latest", "short_image:agent"})
 	mockSender.AssertMetric(t, "Gauge", "docker.images.available", 3, "", nil)
 	mockSender.AssertMetric(t, "Gauge", "docker.images.intermediate", 0, "", nil)
@@ -285,21 +282,21 @@ func TestContainersRunning(t *testing.T) {
 			Names:   []string{"agent"},
 			Image:   "datadog/agent",
 			ImageID: imageID,
-			State:   string(workloadmeta.ContainerStatusRunning),
+			State:   container.ContainerState(workloadmeta.ContainerStatusRunning),
 		},
 		{
 			ID:      "b781900d227cf8d63a0922705018b66610f789644bf236cb72c8698b31383074",
 			Names:   []string{"agent"},
 			Image:   "datadog/agent",
 			ImageID: imageID,
-			State:   string(workloadmeta.ContainerStatusRunning),
+			State:   container.ContainerState(workloadmeta.ContainerStatusRunning),
 		},
 		{
 			ID:      "be2584a7d1a2a3ae9f9c688e9ce7a88991c028507fec7c70a660b705bd2a5b90",
 			Names:   []string{"agent"},
 			Image:   "datadog/agent",
 			ImageID: imageID,
-			State:   string(workloadmeta.ContainerStatusRunning),
+			State:   container.ContainerState(workloadmeta.ContainerStatusRunning),
 		},
 	}
 

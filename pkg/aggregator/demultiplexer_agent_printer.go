@@ -97,11 +97,19 @@ func (p AgentDemultiplexerPrinter) PrintMetrics(checkFileOutput *bytes.Buffer, f
 }
 
 // writeTable writes a tab-separated table with headers to w using text/tabwriter.
+// Cell values are sanitized to replace all characters that text/tabwriter treats
+// specially (\t, \v, \f, \n, \r) with spaces, preventing corruption of column
+// alignment or unexpected row splitting.
 func writeTable(w *bytes.Buffer, headers []string, data [][]string) {
 	tw := tabwriter.NewWriter(w, 0, 0, 1, ' ', 0)
 	fmt.Fprintln(tw, strings.ToUpper(strings.Join(headers, "\t")))
+	sanitizer := strings.NewReplacer("\t", " ", "\n", " ", "\r", " ", "\v", " ", "\f", " ")
 	for _, row := range data {
-		fmt.Fprintln(tw, strings.Join(row, "\t"))
+		sanitized := make([]string, len(row))
+		for i, cell := range row {
+			sanitized[i] = sanitizer.Replace(cell)
+		}
+		fmt.Fprintln(tw, strings.Join(sanitized, "\t"))
 	}
 	tw.Flush()
 }
