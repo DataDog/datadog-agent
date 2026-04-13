@@ -7,8 +7,11 @@ consumption with Workload Protection enabled under a basic filesystem
 workload. It validates that the agent can handle continuous file tree operations
 while staying within defined memory bounds.
 
-Enabled features:
-- **Threat Detection** (CWS runtime security) with network monitoring
+Enabled features
+([Workload Protection setup docs](https://docs.datadoghq.com/security/workload_protection/setup/agent/linux/)):
+- **Threat Detection** — CWS runtime security monitoring for file, process, and network activity
+- **Misconfigurations** — CIS host benchmarks and compliance checks
+- **Host Vulnerability Management** — SBOM generation for host and container images
 
 ## Owners
 
@@ -17,10 +20,9 @@ Enabled features:
 
 ## Scenario / User Cohort
 
-- **Scenario**: No security triggers & 18 events per second
-  - The lading `file_tree` generator produces 8 file opens/sec (default) and
-    10 file renames/sec (configured), yielding ~18 eBPF-captured filesystem
-    events per second with no CWS rules triggering.
+- **Scenario**: Models the per-host average filesystem event rate as observed
+  in org2 (internal data). The lading `file_tree` generator produces file opens
+  and renames with no CWS rules triggering.
 - **User Cohort**: Unknown % & Business Impact
 
 ## Enforcements
