@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    Enable protocol classification (HTTP, HTTP/2, Kafka, Postgres, Redis, gRPC)
+    on the fentry eBPF tracer. This improves protocol detection reliability on
+    kernels 7.0+ where the default ``PREEMPT_LAZY`` preemption mode can cause
+    missed events with the kprobe tracer. Activate with
+    ``network_config.enable_fentry: true`` in ``system-probe.yaml``.
