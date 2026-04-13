@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -34,8 +35,9 @@ type LogReporter struct {
 	tags             []string
 }
 
-// NewLogReporter instantiates a new log LogReporter
-func NewLogReporter(hostname string, sourceName, sourceType string, endpoints *config.Endpoints, dstcontext *client.DestinationsContext, compression logscompression.Component) *LogReporter {
+// NewLogReporter instantiates a new log LogReporter.
+// secretsComp enables API key refresh on 403 responses; pass a SecretNoop when no secrets backend is available.
+func NewLogReporter(hostname string, sourceName, sourceType string, endpoints *config.Endpoints, dstcontext *client.DestinationsContext, compression logscompression.Component, secretsComp secrets.Component) *LogReporter {
 	// setup the pipeline provider that provides pairs of processor and sender
 	cfg := pkgconfigsetup.Datadog()
 	pipelineProvider := pipeline.NewProvider(
@@ -51,6 +53,7 @@ func NewLogReporter(hostname string, sourceName, sourceType string, endpoints *c
 		compression,
 		cfg.GetBool("logs_config.disable_distributed_senders"),
 		false, // serverless
+		secretsComp,
 	)
 	pipelineProvider.Start()
 
@@ -66,6 +69,7 @@ func NewLogReporter(hostname string, sourceName, sourceType string, endpoints *c
 	tags := []string{
 		common.QueryAccountIDTag(),
 		"host:" + hostname,
+		"origin:agent",
 	}
 
 	// merge tags from config

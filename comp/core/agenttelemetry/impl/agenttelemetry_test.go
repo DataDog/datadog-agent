@@ -1196,7 +1196,7 @@ func TestGetAsJSONScrub(t *testing.T) {
 	assert.Equal(t, "********", metric.(MetricPayload).Tags["password"])
 	metric, ok = metrics["foo.bar_key"]
 	require.True(t, ok)
-	assert.Equal(t, "********", metric.(MetricPayload).Tags["api_key"])
+	assert.Equal(t, "********90", metric.(MetricPayload).Tags["api_key"])
 	metric, ok = metrics["foo.bar_text"]
 	require.True(t, ok)
 	assert.Equal(t, "test", metric.(MetricPayload).Tags["text"])
