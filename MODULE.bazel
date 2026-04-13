@@ -264,19 +264,6 @@ rust.toolchain(
     edition = "2024",
     versions = ["1.92.0"],
 )
-
-# The Windows Bazel CI uses MinGW as its C++ toolchain. The default rules_rust
-# toolchain targets x86_64-pc-windows-msvc, whose MSVC linker flags (/NOLOGO,
-# kernel32.lib, etc.) are incompatible with MinGW's GNU ld. Override the
-# Windows x86_64 repository set to target x86_64-pc-windows-gnu instead, which
-# produces GNU-style link commands that MinGW understands.
-rust.repository_set(
-    name = "rust_windows_x86_64",
-    edition = "2024",
-    exec_triple = "x86_64-pc-windows-msvc",
-    target_triple = "x86_64-pc-windows-gnu",
-    versions = ["1.92.0"],
-)
 use_repo(rust, "rust_toolchains")
 
 register_toolchains("@rust_toolchains//:all")

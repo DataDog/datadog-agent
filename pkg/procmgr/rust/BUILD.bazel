@@ -5,12 +5,15 @@ load("@rules_proto//proto:defs.bzl", "proto_library")
 load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_test")
 load("@rules_rust_prost//:defs.bzl", "rust_prost_library")
 
-# The prost toolchain is not configured for macOS (the prost_toolchain_impl
-# target does not provide ToolchainInfo on darwin). Exclude procmgr targets
-# from macOS — we only need Linux and Windows.
-_NOT_MACOS = select({
-    "@platforms//os:macos": ["@platforms//:incompatible"],
-    "//conditions:default": [],
+# Gate procmgr Rust targets to Linux only for now:
+# - macOS: the prost toolchain does not provide ToolchainInfo on darwin.
+# - Windows: the Bazel CI runner uses MinGW (g++) as its C++ toolchain but
+#   rules_rust targets x86_64-pc-windows-msvc, whose MSVC linker flags
+#   (/NOLOGO, kernel32.lib, etc.) are incompatible with GNU ld. No Rust target
+#   can be built until the CI has MSVC link.exe or rules_rust supports MinGW.
+_LINUX_ONLY = select({
+    "@platforms//os:linux": [],
+    "//conditions:default": ["@platforms//:incompatible"],
 })
 
 # ============================================================================
@@ -25,14 +28,13 @@ proto_library(
 rust_prost_library(
     name = "process_manager_rust_proto",
     proto = ":process_manager_proto",
-    target_compatible_with = _NOT_MACOS,
+    target_compatible_with = _LINUX_ONLY,
     visibility = ["//visibility:public"],
 )
 
 # rust_prost_library propagates CcInfo from proto_library, which transitively
 # includes abseil-cpp (C++). The Rust linker does not add libstdc++ by default,
-# so we provide it explicitly via -lstdc++ (works for both Unix and Windows GNU
-# toolchains).
+# so we provide it explicitly via -lstdc++.
 cc_library(
     name = "cpp_stdlib",
     linkopts = ["-lstdc++"],
@@ -79,7 +81,7 @@ rust_library(
     crate_name = "dd_procmgrd",
     edition = "2024",
     rustc_flags = ["--cfg=bazel"],
-    target_compatible_with = _NOT_MACOS,
+    target_compatible_with = _LINUX_ONLY,
     visibility = ["//visibility:public"],
     deps = _LIB_DEPS,
 )
@@ -92,7 +94,7 @@ rust_library(
     crate_name = "dd_procmgrd",
     edition = "2024",
     rustc_flags = ["--cfg=bazel"],
-    target_compatible_with = _NOT_MACOS,
+    target_compatible_with = _LINUX_ONLY,
     deps = _LIB_DEPS,
 )
 
@@ -105,7 +107,7 @@ rust_binary(
     srcs = ["src/bins/dd-procmgrd.rs"],
     edition = "2024",
     rustc_flags = ["--cfg=bazel"],
-    target_compatible_with = _NOT_MACOS,
+    target_compatible_with = _LINUX_ONLY,
     visibility = ["//visibility:public"],
     deps = [
         ":dd-procmgrd-lib",
@@ -139,7 +141,7 @@ rust_binary(
     srcs = ["src/bins/dd-procmgr.rs"],
     edition = "2024",
     rustc_flags = ["--cfg=bazel"],
-    target_compatible_with = _NOT_MACOS,
+    target_compatible_with = _LINUX_ONLY,
     visibility = ["//visibility:public"],
     deps = [
         ":dd-procmgrd-lib",
@@ -154,22 +156,20 @@ pkg_files(
     name = "all_files",
     srcs = [
         ":dd-procmgr",
-    ] + select({
-        "@platforms//os:windows": [":dd-procmgr-service"],
-        "//conditions:default": [":dd-procmgrd"],
-    }),
+        ":dd-procmgrd",
+    ],
     attributes = pkg_attributes(
         mode = "0755",
     ),
     prefix = "embedded/bin",
-    target_compatible_with = _NOT_MACOS,
+    target_compatible_with = _LINUX_ONLY,
     visibility = ["//packages:__subpackages__"],
 )
 
 pkg_install(
     name = "install",
     srcs = [":all_files"],
-    target_compatible_with = _NOT_MACOS,
+    target_compatible_with = _LINUX_ONLY,
 )
 
 # ============================================================================
@@ -181,7 +181,7 @@ rust_test(
     crate = ":dd-procmgrd-lib",
     edition = "2024",
     rustc_flags = ["--cfg=bazel"],
-    target_compatible_with = _NOT_MACOS,
+    target_compatible_with = _LINUX_ONLY,
     deps = [
         "@crates//:hyper-util",
         "@crates//:tempfile",
