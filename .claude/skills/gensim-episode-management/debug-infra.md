@@ -58,6 +58,44 @@ Wrong scenario name. List available scenarios:
 ls gensim-episodes/*/<episode>/episodes/
 ```
 
+### Submit hangs deleting old episode resources (stale state)
+
+**Symptom**: Submit hangs on lines like:
+```
+command:remote:Command remote-aws-gensim-builder-cmd-move-file-/tmp/gensim-build-<old-episode>/... deleting (Ns) Dial N/100 failed: retrying
+```
+
+**Cause**: Pulumi state contains file-copy/command resources from a previous episode.
+On new submit, Pulumi tries to SSH into the build VM to delete them. If unreachable:
+~60 resources × 100 retries = ~16 min hang.
+
+Only affects stacks last submitted before 2026-04-08. Fixed by
+DataDog/datadog-agent#48969 (`RetainOnDelete` on all build VM resources) — stacks
+submitted after that date are not affected.
+
+**Fix**:
+```bash
+cd test/e2e-framework/run
+
+# 1. Cancel the lock left by the hung process
+pulumi cancel -s <stack-name> --yes
+
+# 2. Strip stale resources — replace <old-episode> with the episode name from
+#    the hang output, e.g. 093_cloudflare_byzantine_failure
+pulumi stack export -s <stack-name> \
+  | python3 -c "
+import json, sys
+state = json.load(sys.stdin)
+r = state['deployment']['resources']
+clean = [x for x in r if '<old-episode>' not in x.get('urn', '')]
+print(f'Removed {len(r)-len(clean)} stale, {len(clean)} remain', file=sys.stderr)
+state['deployment']['resources'] = clean
+print(json.dumps(state))
+" | pulumi stack import -s <stack-name> --file /dev/stdin
+```
+
+Then resubmit. This is a one-time cleanup per stack.
+
 ### Build VM SSH timeout during refresh
 
 Pulumi refresh hangs trying to SSH into remote command resources on the build VM.
