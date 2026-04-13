@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.stringSliceArg",
+      "method": "main.(*methodValueReceiver).inlinedMethod",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -16,14 +16,19 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.stringSliceArg",
+            "function": "main.(*methodValueReceiver).inlinedMethod",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 197
+            "lineNumber": 539
+          },
+          {
+            "function": "main.methodValueSink",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 544
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 23
+            "lineNumber": 171
           },
           {
             "function": "runtime.main",
@@ -37,40 +42,37 @@
           }
         ],
         "probe": {
-          "id": "stringSliceArg",
+          "id": "inlinedMethod",
           "location": {
-            "method": "main.stringSliceArg"
+            "method": "main.(*methodValueReceiver).inlinedMethod"
           }
         },
         "captures": {
           "entry": {
             "arguments": {
-              "s": {
-                "type": "[]string",
-                "size": "3",
-                "elements": [
-                  {
-                    "type": "string",
-                    "value": "a"
-                  },
-                  {
-                    "type": "string",
-                    "value": "b"
-                  },
-                  {
-                    "type": "string",
-                    "value": "c"
+              "m": {
+                "type": "*main.methodValueReceiver",
+                "address": "[addr]",
+                "fields": {
+                  "val": {
+                    "type": "int",
+                    "value": "42"
                   }
-                ]
+                }
               }
             }
           }
         }
       },
-      "type": "snapshot"
+      "type": "snapshot",
+      "evaluationErrors": [
+        {
+          "expr": "@duration",
+          "message": "not available: function was inlined"
+        }
+      ]
     },
     "timestamp": "[ts]",
-    "duration": "[duration]",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]
