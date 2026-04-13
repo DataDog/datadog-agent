@@ -81,6 +81,8 @@ type Server struct {
 
 	responseOverridesMutex    sync.RWMutex
 	responseOverridesByMethod map[string]map[string]httpResponse
+
+	par *parServerState
 }
 
 // NewServer creates a new fakeintake server and starts it on localhost:port
@@ -107,6 +109,7 @@ func NewServer(options ...Option) *Server {
 	}
 
 	fi.store = serverstore.NewStore()
+	fi.par = &parServerState{results: make(map[string]*PARTaskResult)}
 	registry := prometheus.NewRegistry()
 
 	storeMetrics := fi.store.GetInternalMetrics()
@@ -129,6 +132,17 @@ func NewServer(options ...Option) *Server {
 	mux.HandleFunc("/fakeintake/flushPayloads", fi.handleFlushPayloads)
 
 	mux.HandleFunc("/fakeintake/configure/override", fi.handleConfigureOverride)
+
+	// PAR (Private Action Runner) OPMS simulation — polled by the agent's PAR sidecar.
+	mux.HandleFunc("/api/v2/on-prem-management-service/workflow-tasks/dequeue", fi.handlePARDequeue)
+	mux.HandleFunc("/api/v2/on-prem-management-service/workflow-tasks/publish-task-update", fi.handlePARPublish)
+	mux.HandleFunc("/api/v2/on-prem-management-service/runner/health-check", fi.handlePARHealthCheck)
+	mux.HandleFunc("/api/v2/on-prem-management-service/workflow-tasks/heartbeat", fi.handlePARHeartbeat)
+	// PAR test control endpoints — used by the test process to drive tasks and read results.
+	mux.HandleFunc("/fakeintake/par/enqueue", fi.handlePAREnqueue)
+	mux.HandleFunc("/fakeintake/par/result", fi.handlePARResult)
+	mux.HandleFunc("/fakeintake/par/flush", fi.handlePARFlush)
+	mux.HandleFunc("/fakeintake/par/stats", fi.handlePARStats)
 
 	mux.HandleFunc("/debug/lastAPIKey/", fi.handleGetLastAPIKey)
 	mux.HandleFunc("/debug/pprof/", pprof.Index)
