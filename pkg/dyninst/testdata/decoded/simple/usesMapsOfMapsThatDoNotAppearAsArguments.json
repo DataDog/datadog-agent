@@ -18,7 +18,7 @@
           {
             "function": "main.usesMapsOfMapsThatDoNotAppearAsArguments",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 497
+            "lineNumber": 505
           },
           {
             "function": "main.main",
@@ -85,6 +85,7 @@
       "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

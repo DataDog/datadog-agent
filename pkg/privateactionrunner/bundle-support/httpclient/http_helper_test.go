@@ -43,10 +43,10 @@ func TestURLAllowlistClient(t *testing.T) {
 			expectAllowed: true,
 		},
 		{
-			name:          "allows all when allowlist is empty",
+			name:          "blocks all when allowlist is empty",
 			allowlist:     []string{},
 			requestURL:    "http://any-url.example.com/test",
-			expectAllowed: true,
+			expectAllowed: false,
 		},
 		{
 			name:          "allows URL matching one of multiple allowlist entries",

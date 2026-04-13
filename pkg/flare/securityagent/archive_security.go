@@ -7,6 +7,7 @@
 package securityagent
 
 import (
+	"context"
 	"os"
 
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
@@ -30,6 +31,7 @@ func CreateSecurityAgentArchive(local bool, logFilePath string, statusComponent 
 
 // createSecurityAgentArchive packages up the files
 func createSecurityAgentArchive(fb flaretypes.FlareBuilder, logFilePath string, statusComponent status.Component) {
+	ctx := context.Background()
 	// If the request against the API does not go through we don't collect the status log.
 	if fb.IsLocal() {
 		fb.AddFile("local", []byte("")) //nolint:errcheck
@@ -47,15 +49,15 @@ func createSecurityAgentArchive(fb flaretypes.FlareBuilder, logFilePath string, 
 
 	common.GetLogFiles(fb, logFilePath)
 	common.GetConfigFiles(fb, map[string]string{})
-	getComplianceFiles(fb)                               //nolint:errcheck
-	getRuntimeFiles(fb)                                  //nolint:errcheck
-	common.GetExpVar(fb)                                 //nolint:errcheck
+	getComplianceFiles(ctx, fb)                          //nolint:errcheck
+	getRuntimeFiles(ctx, fb)                             //nolint:errcheck
+	common.GetExpVar(ctx, fb)                            //nolint:errcheck
 	fb.AddFileFromFunc("envvars.log", common.GetEnvVars) //nolint:errcheck
 
-	addSecurityAgentPlatformSpecificEntries(fb)
+	addSecurityAgentPlatformSpecificEntries(ctx, fb)
 }
 
-func getComplianceFiles(fb flaretypes.FlareBuilder) error {
+func getComplianceFiles(_ context.Context, fb flaretypes.FlareBuilder) error {
 	compDir := pkgconfigsetup.Datadog().GetString("compliance_config.dir")
 
 	return fb.CopyDirTo(compDir, "compliance.d", func(path string) bool {
@@ -67,7 +69,7 @@ func getComplianceFiles(fb flaretypes.FlareBuilder) error {
 	})
 }
 
-func getRuntimeFiles(fb flaretypes.FlareBuilder) error {
+func getRuntimeFiles(_ context.Context, fb flaretypes.FlareBuilder) error {
 	runtimeDir := pkgconfigsetup.SystemProbe().GetString("runtime_security_config.policies.dir")
 
 	return fb.CopyDirTo(runtimeDir, "runtime-security.d", func(path string) bool {

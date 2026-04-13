@@ -9,7 +9,6 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"hash/fnv"
 	"strconv"
@@ -36,7 +35,7 @@ const (
 // requires the dbClusterIdentifier for the cluster
 func (c *Client) GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentifiers []string, config Config) (map[string]*AuroraCluster, error) {
 	if len(dbClusterIdentifiers) == 0 {
-		return nil, errors.New("at least one database cluster identifier is required")
+		return nil, nil
 	}
 	clusters := make(map[string]*AuroraCluster, 0)
 	for _, clusterID := range dbClusterIdentifiers {

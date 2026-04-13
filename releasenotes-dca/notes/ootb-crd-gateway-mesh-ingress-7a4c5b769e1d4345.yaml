@@ -1,0 +1,18 @@
+# Each section from every release note are combined when the
+# CHANGELOG-DCA.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Add OOTB CRD collection for Gateway API, service mesh (Istio, Envoy Gateway,
+    Traefik, Linkerd, Consul, Kuma), and ingress controller (NGINX, Traefik, Kong,
+    HAProxy) custom resources. Three new per-family config flags allow operators to
+    enable collection independently:
+    ``orchestrator_explorer.custom_resources.ootb.gateway_api``,
+    ``orchestrator_explorer.custom_resources.ootb.service_mesh``, and
+    ``orchestrator_explorer.custom_resources.ootb.ingress_controllers``
+    (all default to false).

@@ -28,7 +28,7 @@
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 36
+            "lineNumber": 37
           },
           {
             "function": "runtime.main",
@@ -90,6 +90,7 @@
       ]
     },
     "timestamp": "[ts]",
-    "message": "{a: {a: {a: {interface: unknown type *main.deepPtr1}}}}"
+    "message": "{a: {a: {a: {interface: unknown type *main.deepPtr1}}}}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]
