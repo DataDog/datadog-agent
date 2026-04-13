@@ -74,6 +74,7 @@ go_test(
     name = "user_test",
     srcs = ["user_test.go"],
     embed = [":user"],
+    gotags = ["test"],
     deps = select({
         "@rules_go//go/platform:aix": [
             "@com_github_stretchr_testify//assert",
