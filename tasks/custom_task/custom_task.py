@@ -15,6 +15,7 @@ from time import perf_counter
 
 from invoke import Context
 
+from tasks.libs.common.ci_visibility import CIVisibilitySection
 from tasks.libs.common.color import color_message
 from tasks.libs.common.utils import running_in_ci, running_in_pre_commit, running_in_pyapp
 
@@ -145,8 +146,15 @@ def custom__call__(self, *args, **kwargs):
         raise TypeError(err.format(type(args[0])))
 
     ## DATADOG INVOKE LOGGER CODE ##
-    with InvokeLogger(self):
-        result = self.body(*args, **kwargs)
+    try:
+        with InvokeLogger(self):
+            result = self.body(*args, **kwargs)
+    finally:
+        ## DATADOG CI VISIBILITY CODE ##
+        try:
+            CIVisibilitySection.send_all()
+        except Exception:
+            pass
 
     ## LEGACY INVOKE LIB CODE ##
     self.times_called += 1  # noqa

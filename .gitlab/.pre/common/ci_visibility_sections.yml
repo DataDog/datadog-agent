@@ -1,0 +1,33 @@
+---
+# Shared bash helper functions for CI Visibility custom spans.
+# These allow wrapping any shell block with datadog-ci trace span calls
+# to create custom spans visible in CI Visibility flamegraphs.
+#
+# Usage in before_script:
+#   - !reference [.setup_datadog_ci_sections]
+#   - datadog-ci-start-section
+#   - <your commands>
+#   - datadog-ci-end-section --category e2e-setup "Span Name"
+
+.setup_datadog_ci_sections:
+  - DATADOG_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DATADOG_API_KEY
+  # Emit a retroactive span covering runner-managed phases (pod scheduling, git clone, artifact downloads)
+  # that happen before any user script runs. CI_JOB_STARTED_AT is set by GitLab Runner.
+  - |
+    _job_start_ms="$(date -d "$CI_JOB_STARTED_AT" '+%s%N' | cut -b1-13)"
+    _now_ms="$(date '+%s%N' | cut -b1-13)"
+    datadog-ci trace span --name "Runner setup (pod + git + artifacts)" \
+      --start-time "$_job_start_ms" --end-time "$_now_ms" \
+      --tags agent-custom-span:true --tags agent-category:e2e-setup || true
+  - |
+    datadog-ci-start-section() {
+      export _ci_section_start="$(date '+%s%N' | cut -b1-13)"
+    }
+    datadog-ci-end-section() {
+      _end="$(date '+%s%N' | cut -b1-13)"
+      _category=""
+      if [ "$1" = "--category" ]; then shift; _category="--tags agent-category:$1"; shift; fi
+      _name="$1"
+      datadog-ci trace span --name "$_name" --start-time "$_ci_section_start" --end-time "$_end" \
+        --tags agent-custom-span:true $_category || true
+    }
