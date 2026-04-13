@@ -430,10 +430,11 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// GCE
 	config.BindEnvAndSetDefault("collect_gce_tags", true)
 	config.BindEnvAndSetDefault("exclude_gce_tags", []string{
-		"kube-env", "kubelet-config", "containerd-configure-sh", "startup-script", "shutdown-script",
-		"configure-sh", "sshKeys", "ssh-keys", "user-data", "cli-cert", "ipsec-cert", "ssl-cert", "google-container-manifest",
-		"bosh_settings", "windows-startup-script-ps1", "common-psm1", "k8s-node-setup-psm1", "serial-port-logging-enable",
-		"enable-oslogin", "disable-address-manager", "disable-legacy-endpoints", "windows-keys", "kubeconfig", "gce-container-declaration",
+		"bosh_settings", "cli-cert", "common-psm1", "configure-sh", "containerd-configure-sh",
+		"disable-address-manager", "disable-legacy-endpoints", "enable-oslogin", "gce-container-declaration",
+		"google-container-manifest", "ipsec-cert", "k8s-node-setup-psm1", "kube-env", "kubeconfig",
+		"kubelet-config", "serial-port-logging-enable", "shutdown-script", "ssh-keys", "sshKeys", "ssl-cert",
+		"startup-script", "user-data", "windows-keys", "windows-startup-script-ps1",
 	})
 	config.BindEnvAndSetDefault("gce_send_project_id_tag", false)
 	config.BindEnvAndSetDefault("gce_metadata_timeout", 1000) // value in milliseconds
@@ -658,6 +659,12 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 		"gcr.io/datadoghq",
 		"docker.io/datadog",
 		"public.ecr.aws/datadog",
+		"datadoghq.azurecr.io",
+		"us-docker.pkg.dev/datadoghq/gcr.io",
+		"europe-docker.pkg.dev/datadoghq/eu.gcr.io",
+		"asia-docker.pkg.dev/datadoghq/asia.gcr.io",
+		"registry.datad0g.com",
+		"registry.datadoghq.com",
 	})
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.gradual_rollout.enabled", true)
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.gradual_rollout.cache_ttl", "1h")
@@ -1325,11 +1332,6 @@ func autoconfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("include_ephemeral_containers", false)
 	config.BindEnvAndSetDefault("ac_include", []string{})
 	config.BindEnvAndSetDefault("ac_exclude", []string{})
-	// ac_load_timeout is used to delay the introduction of sources other than
-	// the ones automatically loaded by the AC, into the logs agent.
-	// It is mainly here to delay the introduction of the container_collect_all
-	// in the logs agent, to avoid it to tail all the available containers.
-	config.BindEnvAndSetDefault("ac_load_timeout", 30000) // in milliseconds
 	config.BindEnvAndSetDefault("container_include", []string{})
 	config.BindEnvAndSetDefault("container_exclude", []string{})
 	config.BindEnvAndSetDefault("container_include_metrics", []string{})
@@ -1350,12 +1352,9 @@ func autoconfig(config pkgconfigmodel.Setup) {
 }
 
 func containerSyspath(config pkgconfigmodel.Setup) {
-	// Bind env vars with empty defaults; conditional SetDefault calls below
-	// set the real values based on the runtime environment.
-	config.BindEnvAndSetDefault("procfs_path", "")
-	config.BindEnvAndSetDefault("container_proc_root", "")
-	config.BindEnvAndSetDefault("container_cgroup_root", "")
-	config.BindEnvAndSetDefault("container_pid_mapper", "")
+	procfsPathDefault := ""
+	containerProcRootDefault := ""
+	containerCgroupRootDefault := ""
 
 	if pkgconfigenv.IsContainerized() {
 		// In serverless-containerized environments (e.g Fargate)
@@ -1363,32 +1362,37 @@ func containerSyspath(config pkgconfigmodel.Setup) {
 		// Make sure the host paths exist before setting-up the default values.
 		// Fallback to the container paths if host paths aren't mounted.
 		if pathExists("/host/proc") {
-			config.SetDefault("procfs_path", "/host/proc")
-			config.SetDefault("container_proc_root", "/host/proc")
+			procfsPathDefault = "/host/proc"
+			containerProcRootDefault = "/host/proc"
 
 			// Used by some librairies (like gopsutil)
 			if v := os.Getenv("HOST_PROC"); v == "" {
 				os.Setenv("HOST_PROC", "/host/proc")
 			}
 		} else {
-			config.SetDefault("procfs_path", "/proc")
-			config.SetDefault("container_proc_root", "/proc")
+			procfsPathDefault = "/proc"
+			containerProcRootDefault = "/proc"
 		}
 		if pathExists("/host/sys/fs/cgroup/") {
-			config.SetDefault("container_cgroup_root", "/host/sys/fs/cgroup/")
+			containerCgroupRootDefault = "/host/sys/fs/cgroup/"
 		} else {
-			config.SetDefault("container_cgroup_root", "/sys/fs/cgroup/")
+			containerCgroupRootDefault = "/sys/fs/cgroup/"
 		}
 	} else {
-		config.SetDefault("container_proc_root", "/proc")
+		containerProcRootDefault = "/proc"
 		// for amazon linux the cgroup directory on host is /cgroup/
 		// we pick memory.stat to make sure it exists and not empty
 		if _, err := os.Stat("/cgroup/memory/memory.stat"); !os.IsNotExist(err) {
-			config.SetDefault("container_cgroup_root", "/cgroup/")
+			containerCgroupRootDefault = "/cgroup/"
 		} else {
-			config.SetDefault("container_cgroup_root", "/sys/fs/cgroup/")
+			containerCgroupRootDefault = "/sys/fs/cgroup/"
 		}
 	}
+
+	config.BindEnvAndSetDefault("procfs_path", procfsPathDefault)
+	config.BindEnvAndSetDefault("container_proc_root", containerProcRootDefault)
+	config.BindEnvAndSetDefault("container_cgroup_root", containerCgroupRootDefault)
+	config.BindEnvAndSetDefault("container_pid_mapper", "")
 
 	config.BindEnvAndSetDefault("ignore_host_etc", false)
 	config.BindEnvAndSetDefault("use_improved_cgroup_parser", false)
