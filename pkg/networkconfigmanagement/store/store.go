@@ -31,10 +31,8 @@ import (
 
 const (
 	// Bucket names for bbolt
-	rawConfigBucket    = "raw_config" // TODO: temporary bucket, a hybrid approach until the blocks logic is ironed out
-	configBlocksBucket = "config_blocks"
-	metadataBucket     = "metadata"
-	secretsBucket      = "secrets"
+	rawConfigBucket = "raw_config" // TODO: temporary bucket, a hybrid approach until the blocks logic is ironed out
+	metadataBucket  = "metadata"
 
 	// DB configurations
 	ownerRWFileMode     = 0600 // only the owner can read/write
@@ -65,7 +63,7 @@ func Open(path string) (ConfigStore, error) {
 
 	// Create the buckets when we first open
 	err = cs.update(func(tx *bbolt.Tx) error {
-		for _, name := range []string{rawConfigBucket, configBlocksBucket, metadataBucket, secretsBucket} {
+		for _, name := range []string{rawConfigBucket, metadataBucket} {
 			if _, err := tx.CreateBucketIfNotExists([]byte(name)); err != nil {
 				return fmt.Errorf("error creating bucket %s: %w", name, err)
 			}
@@ -117,7 +115,7 @@ func (cs *configStore) update(fn func(tx *bbolt.Tx) error) error {
 
 // StoreConfig is responsible for checking if the config for the device is new,
 // if so, it will create a new entry in each bucket (for the config, metadata, and secrets)
-func (cs *configStore) StoreConfig(deviceID string, configType ncmreport.ConfigType, rawConfig string, blocks []ConfigBlock, secrets map[string]string) (string, error) {
+func (cs *configStore) StoreConfig(deviceID string, configType ncmreport.ConfigType, rawConfig string) (string, error) {
 	// Setup + marshal everything first (does not require DB lock)
 	configUUID := uuid.New().String()
 	now := time.Now().Unix()
@@ -132,17 +130,6 @@ func (cs *configStore) StoreConfig(deviceID string, configType ncmreport.ConfigT
 	if err != nil {
 		return "", fmt.Errorf("compress raw config error: %w", err)
 	}
-
-	// Blocks / raw text
-	blocksJSON, err := json.Marshal(blocks)
-	if err != nil {
-		return "", fmt.Errorf("marshal config blocks error: %w", err)
-	}
-	compressedBlocksJSON, err := cs.compressor.Compress(blocksJSON)
-	if err != nil {
-		return "", fmt.Errorf("compress config blocks error: %w", err)
-	}
-
 	// Metadata
 	metadata := ConfigMetadata{
 		ConfigUUID:     configUUID,
@@ -156,12 +143,6 @@ func (cs *configStore) StoreConfig(deviceID string, configType ncmreport.ConfigT
 	metadataJSON, err := json.Marshal(metadata)
 	if err != nil {
 		return "", fmt.Errorf("marshal config metadata error: %w", err)
-	}
-
-	// Secrets
-	secretsJSON, err := json.Marshal(secrets)
-	if err != nil {
-		return "", fmt.Errorf("marshal secrets error: %w", err)
 	}
 
 	var existingConfigID string
@@ -183,13 +164,7 @@ func (cs *configStore) StoreConfig(deviceID string, configType ncmreport.ConfigT
 		if err := tx.Bucket([]byte(rawConfigBucket)).Put(key, compressedRawConfigJSON); err != nil {
 			return err
 		}
-		if err := tx.Bucket([]byte(configBlocksBucket)).Put(key, compressedBlocksJSON); err != nil {
-			return err
-		}
 		if err := tx.Bucket([]byte(metadataBucket)).Put(key, metadataJSON); err != nil {
-			return err
-		}
-		if err := tx.Bucket([]byte(secretsBucket)).Put(key, secretsJSON); err != nil {
 			return err
 		}
 		return nil
@@ -243,11 +218,9 @@ func (cs *configStore) CheckDuplicate(deviceID string, configType ncmreport.Conf
 }
 
 // GetConfig retrieves all the data associated with a config given its UUID
-func (cs *configStore) GetConfig(configUUID string) (string, []ConfigBlock, *ConfigMetadata, map[string]string, error) {
+func (cs *configStore) GetConfig(configUUID string) (string, *ConfigMetadata, error) {
 	var rawConfig string
-	var blocks []ConfigBlock
 	var metadata ConfigMetadata
-	var secrets map[string]string
 
 	err := cs.view(func(tx *bbolt.Tx) error {
 		key := []byte(configUUID) // TODO: keep UUID as key vs. composite key / index?
@@ -265,19 +238,6 @@ func (cs *configStore) GetConfig(configUUID string) (string, []ConfigBlock, *Con
 			return fmt.Errorf("unmarshal raw config error: %w", err)
 		}
 
-		// Unmarshal blocks
-		blocksBytes := tx.Bucket([]byte(configBlocksBucket)).Get(key)
-		if blocksBytes == nil {
-			return fmt.Errorf("blocks not found for UUID: %s", configUUID)
-		}
-		decompressedBlocks, err := cs.compressor.Decompress(blocksBytes)
-		if err != nil {
-			return fmt.Errorf("decompress config blocks error: %w", err)
-		}
-		if err := json.Unmarshal(decompressedBlocks, &blocks); err != nil {
-			return fmt.Errorf("unmarshal blocks error: %w", err)
-		}
-
 		// Unmarshal metadata
 		metadataBytes := tx.Bucket([]byte(metadataBucket)).Get(key)
 		if metadataBytes == nil {
@@ -287,22 +247,13 @@ func (cs *configStore) GetConfig(configUUID string) (string, []ConfigBlock, *Con
 			return fmt.Errorf("unmarshal metadata error: %w", err)
 		}
 
-		// Unmarshal secrets
-		secretBytes := tx.Bucket([]byte(secretsBucket)).Get(key)
-		if secretBytes == nil {
-			return fmt.Errorf("secrets not found for UUID: %s", configUUID)
-		}
-		if err := json.Unmarshal(secretBytes, &secrets); err != nil {
-			return fmt.Errorf("unmarshal secrets error: %w", err)
-		}
-
 		return nil
 	})
 	if err != nil {
-		return "", nil, nil, nil, err
+		return "", nil, err
 	}
 
-	return rawConfig, blocks, &metadata, secrets, nil
+	return rawConfig, &metadata, nil
 }
 
 // DeleteConfig deletes all data associated with the given key (config UUID) from each bucket
@@ -315,7 +266,7 @@ func (cs *configStore) DeleteConfig(key string) error {
 			return fmt.Errorf("config not found for key: %s", key)
 		}
 
-		for _, bucketName := range []string{rawConfigBucket, configBlocksBucket, metadataBucket, secretsBucket} {
+		for _, bucketName := range []string{rawConfigBucket, metadataBucket} {
 			if err := tx.Bucket([]byte(bucketName)).Delete(bKey); err != nil {
 				return fmt.Errorf("error deleting config from bbolt bucket %s: %w", bucketName, err)
 			}
