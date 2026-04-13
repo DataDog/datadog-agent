@@ -9,5 +9,5 @@
 enhancements:
   - |
     When using RDS Aurora Autodiscovery, tags present on the cluster are now inherited by the instances.
-    For example, if a cluster has the tag `datadoghq.com/dbm: true`, all instances in that cluster will have the tag `datadoghq.com/dbm: true`.
+    For example, if a cluster has the tag ``datadoghq.com/dbm: true```, all instances in that cluster will have ``extra_dbm_enabled: true``.
     Tags on the instances will override tags on the cluster.
