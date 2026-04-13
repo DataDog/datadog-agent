@@ -97,7 +97,7 @@ func (c *fieldsCollector) removeUnsupportedMetrics() {
 				fieldMetric.scopeID,
 			)
 
-			c.fieldMetrics = slices.Delete(c.fieldMetrics, fieldValueIdx, 1)
+			c.fieldMetrics = slices.Delete(c.fieldMetrics, fieldValueIdx, fieldValueIdx+1)
 		}
 	}
 }
