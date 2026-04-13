@@ -297,6 +297,141 @@ func TestAdaptiveSampler_BubblingAliasesSampledCount(t *testing.T) {
 	requireSampledCountTag(t, out, 1)
 }
 
+// --- AdaptiveSampler: tie-breaking determinism ---
+//
+// When multiple entries match an incoming log and share the highest
+// matchCount, the entry nearest the front of the table is selected.
+// The bubble step uses strict less-than, so equal-count entries never
+// swap and their relative order is stable.
+//
+// Tie-breaking is a structural property of scan order, determined by
+// table state (entry positions and matchCounts), not token content.
+// Fuzzing token inputs would exercise the tokenizer and IsMatch, not
+// the ordering logic, so these are table-driven tests over table states.
+//
+// The single-position-mutation trick for creating patterns that both
+// match an incoming log but don't cross-match only works for sequences
+// of length 10-15 at threshold 0.9. At length n: required = round(0.9*n),
+// 1-diff gives n-1 matches (pass), 2-diff gives n-2 matches (must fail).
+// At n >= 16, n-2 >= required and the patterns cross-match.
+//
+// These tests use a 10-token base with single-position mutations:
+// required = 9, pattern-vs-base = 9/10 (match), pattern-vs-pattern =
+// 8/10 (no match). Each pattern matches base independently, so we can
+// bump each entry's matchCount in isolation.
+func TestAdaptiveSampler_TieBreakingDeterminism(t *testing.T) {
+	base := []Token{D4, Dash, D2, Dash, D2, Space, D2, Colon, D2, Colon}
+	mutate := func(pos int) []Token {
+		out := make([]Token, len(base))
+		copy(out, base)
+		out[pos] = (base[pos] + 1) % End
+		return out
+	}
+	patX := mutate(3) // differs from base at position 3
+	patY := mutate(7) // differs from base at position 7
+	patZ := mutate(1) // differs from base at position 1
+
+	// Verify geometry: each pattern matches base, no pair cross-matches.
+	require.True(t, IsMatch(patX, base, 0.9))
+	require.True(t, IsMatch(patY, base, 0.9))
+	require.True(t, IsMatch(patZ, base, 0.9))
+	require.False(t, IsMatch(patX, patY, 0.9))
+	require.False(t, IsMatch(patX, patZ, 0.9))
+	require.False(t, IsMatch(patY, patZ, 0.9))
+
+	// Sending patX/patY/patZ to the sampler matches only the corresponding
+	// entry (no cross-match), so we can bump each entry's matchCount
+	// independently. Sending base matches all entries that are present.
+
+	t.Run("fresh tie at matchCount=1", func(t *testing.T) {
+		// Both entries start at matchCount=1 from insertion.
+		// X is at index 0, Y at index 1.
+		s := newSampler(10, 100.0, 0)
+		s.Process(testMsg(), patX)
+		s.Process(testMsg(), patY)
+
+		s.Process(testMsg(), base)
+		assert.Equal(t, int64(2), s.entries[0].matchCount,
+			"X (first in table order) should be selected")
+		assert.Equal(t, int64(1), s.entries[1].matchCount,
+			"Y should not be selected")
+	})
+
+	t.Run("evolved tie: both climb to matchCount=4 independently", func(t *testing.T) {
+		// X and Y are bumped to the same matchCount via independent hits.
+		// Because Y's matchCount never exceeds X's during the climb (we
+		// bump X first), Y never bubbles past X. Table order is preserved.
+		s := newSampler(10, 100.0, 0)
+		s.Process(testMsg(), patX) // X: mc=1
+		s.Process(testMsg(), patY) // Y: mc=1
+
+		for range 3 {
+			s.Process(testMsg(), patX) // X only
+		}
+		// Table: [X(4), Y(1)]
+		for range 3 {
+			s.Process(testMsg(), patY) // Y only; never exceeds X, no bubble
+		}
+		// Table: [X(4), Y(4)]
+		require.Equal(t, int64(4), s.entries[0].matchCount)
+		require.Equal(t, int64(4), s.entries[1].matchCount)
+
+		s.Process(testMsg(), base)
+		assert.Equal(t, int64(5), s.entries[0].matchCount,
+			"X (preserved at front through independent evolution) should be selected")
+		assert.Equal(t, int64(4), s.entries[1].matchCount,
+			"Y should not be selected")
+	})
+
+	t.Run("reversed order: Y overtakes X via bubbling, then X catches up", func(t *testing.T) {
+		// Y accumulates a higher matchCount than X, bubbles to the front.
+		// X later catches up to the same count but does NOT bubble past Y
+		// (strict-less-than comparison). Now Y is at front despite X being
+		// inserted first.
+		s := newSampler(10, 100.0, 0)
+		s.Process(testMsg(), patX) // X: mc=1
+		s.Process(testMsg(), patY) // Y: mc=1
+		// Table: [X(1), Y(1)]
+
+		// Bump Y to mc=3. First hit: Y(2) > X(1) → Y bubbles to front.
+		for range 2 {
+			s.Process(testMsg(), patY)
+		}
+		// Table: [Y(3), X(1)]
+
+		// Bump X to mc=3. X never exceeds Y's count, no bubble.
+		for range 2 {
+			s.Process(testMsg(), patX)
+		}
+		// Table: [Y(3), X(3)]
+		require.Equal(t, int64(3), s.entries[0].matchCount)
+		require.Equal(t, int64(3), s.entries[1].matchCount)
+
+		s.Process(testMsg(), base)
+		assert.Equal(t, int64(4), s.entries[0].matchCount,
+			"Y (bubbled to front when it overtook X) should be selected")
+		assert.Equal(t, int64(3), s.entries[1].matchCount,
+			"X (now behind Y) should not be selected")
+	})
+
+	t.Run("three-way tie", func(t *testing.T) {
+		// Three entries all at matchCount=1. First in table order wins.
+		s := newSampler(10, 100.0, 0)
+		s.Process(testMsg(), patX)
+		s.Process(testMsg(), patY)
+		s.Process(testMsg(), patZ)
+		require.Len(t, s.entries, 3)
+
+		s.Process(testMsg(), base)
+		assert.Equal(t, int64(2), s.entries[0].matchCount,
+			"X (first of three tied entries) should be selected")
+		assert.Equal(t, int64(1), s.entries[1].matchCount,
+			"Y should not be selected")
+		assert.Equal(t, int64(1), s.entries[2].matchCount,
+			"Z should not be selected")
+	})
+}
+
 // --- AdaptiveSampler: misc ---
 
 func TestAdaptiveSampler_FlushReturnsNil(t *testing.T) {
