@@ -132,6 +132,7 @@ func isImportant(tokens []Token) bool {
 // Returns the message if allowed, nil if dropped.
 func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message.Message {
 	if s.config.ProtectImportantLogs && isImportant(tokens) {
+		tlmAdaptiveSamplerKept.Inc(s.source)
 		tlmAdaptiveSamplerProtected.Inc(s.source)
 		return msg
 	}
