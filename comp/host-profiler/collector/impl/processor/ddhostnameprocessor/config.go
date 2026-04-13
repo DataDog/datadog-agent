@@ -5,6 +5,8 @@
 
 //go:build linux
 
+// Package ddhostnameprocessor implements an OTel processor that injects
+// datadog.host.name into resource attributes for standalone mode.
 package ddhostnameprocessor
 
 import "go.opentelemetry.io/collector/component"
