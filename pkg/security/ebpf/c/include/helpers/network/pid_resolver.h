@@ -50,6 +50,9 @@ __attribute__((always_inline)) void resolve_pid_from_flow_pid(struct packet_t *p
 }
 
 __attribute__((always_inline)) void resolve_pid(struct __sk_buff *skb, struct packet_t *pkt) {
+    pkt->pid = 0;
+    pkt->cgroup_id = 0;
+
     // pid from socket cookie
     u64 cookie = bpf_get_socket_cookie(skb);
     u32 *pid = bpf_map_lookup_elem(&sock_cookie_pid, &cookie);
@@ -65,6 +68,12 @@ __attribute__((always_inline)) void resolve_pid(struct __sk_buff *skb, struct pa
             u64 pid_tgid = bpf_get_current_pid_tgid();
             pkt->pid = pid_tgid >> 32;
         }
+    }
+
+    // check if the pid is a kworker pid, if so let the resolve_pid_from_flow_pid do the job
+    void *ignored = bpf_map_lookup_elem(&pid_ignored, &pid);
+    if (ignored) {
+        pkt->pid = 0;
     }
 
     // pid from flow pid
