@@ -317,7 +317,8 @@ func (c *safeConfig) HasSection(key string) bool {
 				return true
 			}
 		} else if c.configSources[src].HasSection(key) {
-			return true
+			v := c.configSources[model.SourceDefault].Get(key)
+			return v == nil || reflect.ValueOf(v).Kind() == reflect.Map
 		}
 	}
 	return false
