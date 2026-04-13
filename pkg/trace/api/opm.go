@@ -70,23 +70,23 @@ func fetchOPM(ctx context.Context, client *config.ResetClient, cfg *config.Agent
 	return computeOPM(vr.Data.ID), nil
 }
 
-// setOrgPropMarker stores opm atomically and updates the agentState hash.
-// The orgPropMarker write is outside the mutex (it is an atomic.String so
-// always safe), but the agentState write is held under computeStateHashMu so
-// that it cannot interleave with makeInfoHandler's own agentState initialisation.
-// If computeStateHash has not yet been set by makeInfoHandler, the agentState
-// update is skipped — makeInfoHandler reads orgPropMarker under the same mutex,
-// so it will pick up the already-stored value and initialise agentState correctly.
+// setOrgPropMarker stores opm atomically and updates the agentState hash and
+// cached response body. The orgPropMarker write is outside the mutex (it is an
+// atomic.String so always safe), but the body/hash writes are held under
+// computeInfoAndHashMu so they cannot interleave with makeInfoHandler's own
+// initialisation. If computeInfoAndHash has not yet been set by makeInfoHandler,
+// the update is skipped — makeInfoHandler reads orgPropMarker under the same
+// mutex, so it will pick up the already-stored value and initialise both fields
+// correctly.
 func (r *HTTPReceiver) setOrgPropMarker(opm string) {
 	r.orgPropMarker.Store(opm)
-	r.computeStateHashMu.Lock()
-	if fn := r.computeStateHash; fn != nil {
-		r.agentState.Store(fn(opm))
+	r.computeInfoAndHashMu.Lock()
+	if fn := r.computeInfoAndHash; fn != nil {
+		body, hash := fn(opm)
+		r.cachedInfoResponse.Store(body)
+		r.agentState.Store(hash)
 	}
-	if fn := r.computeInfoResponse; fn != nil {
-		r.cachedInfoResponse.Store(fn(opm))
-	}
-	r.computeStateHashMu.Unlock()
+	r.computeInfoAndHashMu.Unlock()
 }
 
 // OrgPropMarker returns the current Org Propagation Marker, or the empty string

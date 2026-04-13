@@ -427,12 +427,13 @@ func TestInfoHandler_AgentStateHashChanges(t *testing.T) {
 	assert.NotEmpty(t, hashAfter)
 	assert.NotEqual(t, hashBefore, hashAfter, "Datadog-Agent-State hash must change when OPM is set")
 
-	// Verify the post-OPM hash matches what computeStateHash produces
-	rcv.computeStateHashMu.Lock()
-	fn := rcv.computeStateHash
-	rcv.computeStateHashMu.Unlock()
+	// Verify the post-OPM hash is consistent with the combined compute function.
+	rcv.computeInfoAndHashMu.Lock()
+	fn := rcv.computeInfoAndHash
+	rcv.computeInfoAndHashMu.Unlock()
 	require.NotNil(t, fn)
-	assert.Equal(t, fn("newOPMValue"), hashAfter)
+	_, expectedHash := fn("newOPMValue")
+	assert.Equal(t, expectedHash, hashAfter)
 }
 
 func TestInfoHandler_OPMConcurrent(t *testing.T) {
@@ -560,6 +561,11 @@ func TestInfoHandler_CachedResponseBytes(t *testing.T) {
 	_, hasOPM := initialPayload["org_prop_marker"]
 	assert.False(t, hasOPM, "org_prop_marker should be absent from cached bytes before OPM is set")
 
+	// Datadog-Agent-State must equal SHA-256 of the response body.
+	initialHash := rcv.agentState.Load()
+	assert.Equal(t, fmt.Sprintf("%x", sha256.Sum256(initialBytes)), initialHash,
+		"agentState must be SHA-256 of the cached response body")
+
 	// After setOrgPropMarker, the cache should be refreshed with the OPM included.
 	rcv.setOrgPropMarker("cached-opm-value")
 
@@ -573,6 +579,11 @@ func TestInfoHandler_CachedResponseBytes(t *testing.T) {
 	opm, hasOPM := updatedPayload["org_prop_marker"]
 	assert.True(t, hasOPM, "org_prop_marker should be present in cached bytes after OPM is set")
 	assert.Equal(t, "cached-opm-value", opm)
+
+	// After OPM update, agentState must still equal SHA-256 of the (now-updated) body.
+	updatedHash := rcv.agentState.Load()
+	assert.Equal(t, fmt.Sprintf("%x", sha256.Sum256(updatedBytes)), updatedHash,
+		"agentState must be SHA-256 of the updated response body after OPM is set")
 
 	// The handler should serve the same bytes as what is in the cache.
 	rec := httptest.NewRecorder()

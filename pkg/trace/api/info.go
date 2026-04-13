@@ -93,7 +93,7 @@ type filterTags struct {
 }
 
 // makeInfoHandler returns a new handler for handling the discovery endpoint.
-// As a side effect it initialises r.computeStateHash and r.agentState so that
+// As a side effect it initialises r.computeInfoAndHash and r.agentState so that
 // the Datadog-Agent-State header reflects the current /info payload (including
 // any already-fetched Org Propagation Marker).
 func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc) {
@@ -208,39 +208,28 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		PeerTags: r.conf.ConfiguredPeerTags(),
 	}
 
-	// computeStateHashFn produces the Datadog-Agent-State hash for a given OPM.
-	// Stored on the receiver so setOrgPropMarker can reuse it without re-parsing
-	// the configuration.
-	computeStateHashFn := func(opm string) string {
+	// computeInfoAndHashFn serialises the payload for a given OPM and returns
+	// both the response body and its SHA-256 hash (the Datadog-Agent-State
+	// header value), so the two are always derived from identical bytes.
+	computeInfoAndHashFn := func(opm string) ([]byte, string) {
 		p := staticPayload
 		p.OrgPropMarker = opm
-		b, _ := json.Marshal(p)
-		h := sha256.Sum256(b)
-		return hex.EncodeToString(h[:])
-	}
-
-	// computeInfoResponseFn produces the full pre-serialised JSON body for a
-	// given OPM. Stored on the receiver so setOrgPropMarker can refresh the
-	// cache without re-parsing the configuration.
-	computeInfoResponseFn := func(opm string) []byte {
-		p := staticPayload
-		p.OrgPropMarker = opm
-		b, _ := json.MarshalIndent(p, "", "\t")
-		return b
+		body, _ := json.MarshalIndent(p, "", "\t")
+		h := sha256.Sum256(body)
+		return body, hex.EncodeToString(h[:])
 	}
 
 	// Hold the mutex across the entire assignment + read + store so that
 	// setOrgPropMarker cannot interleave. Without this, setOrgPropMarker could
 	// write the correct OPM-based agentState between our unlock and our Store,
 	// and our Store would then revert it to the stale pre-OPM hash.
-	r.computeStateHashMu.Lock()
-	r.computeStateHash = computeStateHashFn
-	r.computeInfoResponse = computeInfoResponseFn
+	r.computeInfoAndHashMu.Lock()
+	r.computeInfoAndHash = computeInfoAndHashFn
 	opm := r.orgPropMarker.Load()
-	initialHash := computeStateHashFn(opm)
+	initialBody, initialHash := computeInfoAndHashFn(opm)
+	r.cachedInfoResponse.Store(initialBody)
 	r.agentState.Store(initialHash)
-	r.cachedInfoResponse.Store(computeInfoResponseFn(opm))
-	r.computeStateHashMu.Unlock()
+	r.computeInfoAndHashMu.Unlock()
 
 	return initialHash, func(w http.ResponseWriter, req *http.Request) {
 		containerID := r.containerIDProvider.GetContainerID(req.Context(), req.Header)

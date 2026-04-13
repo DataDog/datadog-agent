@@ -136,16 +136,13 @@ type HTTPReceiver struct {
 	// payload in makeInfoHandler and updated when orgPropMarker is set.
 	agentState atomic.String
 
-	// computeStateHashMu protects computeStateHash and computeInfoResponse.
-	computeStateHashMu sync.Mutex
+	// computeInfoAndHashMu protects computeInfoAndHash.
+	computeInfoAndHashMu sync.Mutex
 
-	// computeStateHash is set by makeInfoHandler. Given an OPM value (may be
-	// empty), it returns the SHA-256 hex hash of the full /info payload.
-	computeStateHash func(opm string) string
-
-	// computeInfoResponse is set by makeInfoHandler. Given an OPM value (may be
-	// empty), it returns the pre-serialised JSON body for GET /info.
-	computeInfoResponse func(opm string) []byte
+	// computeInfoAndHash is set by makeInfoHandler. Given an OPM value (may be
+	// empty), it returns the pre-serialised JSON body for GET /info and its
+	// SHA-256 hex hash (the Datadog-Agent-State header value).
+	computeInfoAndHash func(opm string) (body []byte, hash string)
 
 	// cachedInfoResponse holds the pre-serialised JSON body for GET /info.
 	// Value type: []byte. Initialised by makeInfoHandler and updated by

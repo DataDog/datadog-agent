@@ -231,8 +231,7 @@ func TestSetOrgPropMarker_UpdatesAgentState(t *testing.T) {
 }
 
 func TestSetOrgPropMarker_BeforeMakeInfoHandler(t *testing.T) {
-	// Simulate OPM arriving before makeInfoHandler initialises computeStateHash
-	// and computeInfoResponse.
+	// Simulate OPM arriving before makeInfoHandler initialises computeInfoAndHash.
 	rcv := newTestReceiverFromConfig(newTestReceiverConfig())
 
 	// setOrgPropMarker should not panic even when the compute functions are nil.
