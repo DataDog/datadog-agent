@@ -107,6 +107,7 @@
   - test/new-e2e/tests/installer/windows/**/*
   - test/new-e2e/tests/windows/**/*
   - test/new-e2e/tests/sysprobe-functional/**/*
+  - test/new-e2e/tests/process/**/*
 
 include:
   - local: .adms/**/*.yaml
@@ -261,25 +262,25 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v104474088-0c9dfdf4
+  CI_IMAGE_BTF_GEN: v106628973-e0620387
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v104474088-0c9dfdf4
+  CI_IMAGE_DOCKER_X64: v106628973-e0620387
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v104474088-0c9dfdf4
+  CI_IMAGE_DOCKER_ARM64: v106628973-e0620387
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v104474088-0c9dfdf4
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v106628973-e0620387
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v104474088-0c9dfdf4
+  CI_IMAGE_LINUX: v106628973-e0620387
   CI_IMAGE_LINUX_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v104474088-0c9dfdf4
+  CI_IMAGE_RPM_X64: v106628973-e0620387
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v104474088-0c9dfdf4
+  CI_IMAGE_RPM_ARM64: v106628973-e0620387
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v104474088-0c9dfdf4
+  CI_IMAGE_RPM_ARMHF: v106628973-e0620387
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v102144341-64dad9f8
+  CI_IMAGE_WIN_LTSC2022_X64: v106628973-e0620387
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2025_X64: v102144341-64dad9f8
+  CI_IMAGE_WIN_LTSC2025_X64: v106628973-e0620387
   CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -487,7 +488,6 @@ variables:
     paths:
       - omnibus/**/*
       - pkg/config/config_template.yaml
-      - pkg/config/security-agent_template.yaml
       - pkg/config/system-probe_template.yaml
     compare_to: $COMPARE_TO_BRANCH
 

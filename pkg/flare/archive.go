@@ -14,9 +14,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"go.yaml.in/yaml/v2"
@@ -84,13 +87,14 @@ func ExtraFlareProviders(workloadmeta option.Option[workloadmeta.Component], ipc
 	telemetryURL := fmt.Sprintf("http://127.0.0.1:%s/telemetry", pkgconfigsetup.Datadog().GetString("expvar_port"))
 
 	for filename, fromFunc := range map[string]func() ([]byte, error){
-		"envvars.log":         common.GetEnvVars,
-		"health.yaml":         getHealth,
-		"go-routine-dump.log": func() ([]byte, error) { return remote.GetGoRoutineDump() },
-		"telemetry.log":       func() ([]byte, error) { return remote.getHTTPCallContent(telemetryURL) },
+		"envvars.log":                         common.GetEnvVars,
+		"health.yaml":                         getHealth,
+		"go-routine-dump.log":                 func() ([]byte, error) { return remote.GetGoRoutineDump() },
+		"telemetry.log":                       func() ([]byte, error) { return remote.getHTTPCallContent(telemetryURL) },
+		"connectivity/resolved_endpoints.txt": getEndpointDNS,
 	} {
 		providers = append(providers, flaretypes.NewFiller(
-			func(fb flaretypes.FlareBuilder) error {
+			func(_ context.Context, fb flaretypes.FlareBuilder) error {
 				fb.AddFileFromFunc(filename, fromFunc) //nolint:errcheck
 				return nil
 			},
@@ -100,8 +104,72 @@ func ExtraFlareProviders(workloadmeta option.Option[workloadmeta.Component], ipc
 	return providers
 }
 
-func provideContainers(workloadmeta option.Option[workloadmeta.Component]) func(fb flaretypes.FlareBuilder) error {
-	return func(fb flaretypes.FlareBuilder) error {
+// getEndpointDNS resolves the hostnames of all configured agent endpoints.
+// The results can be used to determine whether the agent is using PrivateLink
+// (private IPs) vs. the public Datadog intake.
+func getEndpointDNS() ([]byte, error) {
+	cfg := pkgconfigsetup.Datadog()
+	endpointDescriptors, err := configUtils.GetMultipleEndpoints(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("could not get endpoints: %w", err)
+	}
+
+	var buf bytes.Buffer
+
+	// Collect unique hostnames from all configured endpoint URLs.
+	seen := make(map[string]bool)
+	var hostnames []string
+	for domain := range endpointDescriptors {
+		u, parseErr := url.Parse(domain)
+		if parseErr != nil {
+			fmt.Fprintf(&buf, "%s: error parsing URL: %s\n", domain, parseErr)
+			continue
+		}
+		if u.Hostname() == "" {
+			continue
+		}
+		h := u.Hostname()
+		if !seen[h] {
+			seen[h] = true
+			hostnames = append(hostnames, h)
+		}
+	}
+	sort.Strings(hostnames)
+
+	// Use a single context with a fixed budget shared across all lookups so the
+	// aggregate runtime is bounded regardless of how many endpoints are configured.
+	// TODO: expose as a configurable timeout if needed in the future.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	resolver := &net.Resolver{}
+	for _, h := range hostnames {
+		// LookupIPAddr returns both IPv4 and IPv6 addresses; separate them for clarity.
+		addrs, lookupErr := resolver.LookupIPAddr(ctx, h)
+		if lookupErr != nil {
+			fmt.Fprintf(&buf, "%s: error: %s\n", h, lookupErr)
+			continue
+		}
+		var ipv4s, ipv6s []string
+		for _, addr := range addrs {
+			if addr.IP.To4() != nil {
+				ipv4s = append(ipv4s, addr.IP.String())
+			} else {
+				ipv6s = append(ipv6s, addr.IP.String())
+			}
+		}
+		if len(ipv4s) > 0 {
+			fmt.Fprintf(&buf, "%s IPv4: %s\n", h, strings.Join(ipv4s, ", "))
+		}
+		if len(ipv6s) > 0 {
+			fmt.Fprintf(&buf, "%s IPv6: %s\n", h, strings.Join(ipv6s, ", "))
+		}
+	}
+	return buf.Bytes(), nil
+}
+
+func provideContainers(workloadmeta option.Option[workloadmeta.Component]) func(context.Context, flaretypes.FlareBuilder) error {
+	return func(_ context.Context, fb flaretypes.FlareBuilder) error {
 		fb.AddFileFromFunc("docker_ps.log", getDockerPs)                                                               //nolint:errcheck
 		fb.AddFileFromFunc("k8s/kubelet_config.yaml", getKubeletConfig)                                                //nolint:errcheck
 		fb.AddFileFromFunc("k8s/kubelet_pods.yaml", getKubeletPods)                                                    //nolint:errcheck
@@ -112,28 +180,28 @@ func provideContainers(workloadmeta option.Option[workloadmeta.Component]) func(
 	}
 }
 
-func provideAuthTokenPerm(fb flaretypes.FlareBuilder) error {
+func provideAuthTokenPerm(_ context.Context, fb flaretypes.FlareBuilder) error {
 	fb.RegisterFilePerm(security.GetAuthTokenFilepath(pkgconfigsetup.Datadog()))
 	return nil
 }
 
-func provideInstallInfo(fb flaretypes.FlareBuilder) error {
+func provideInstallInfo(_ context.Context, fb flaretypes.FlareBuilder) error {
 	fb.CopyFileTo(installinfo.GetFilePath(pkgconfigsetup.Datadog()), "install_info.log") //nolint:errcheck
 	return nil
 }
 
-func (r *RemoteFlareProvider) provideRemoteConfig(fb flaretypes.FlareBuilder) error {
+func (r *RemoteFlareProvider) provideRemoteConfig(ctx context.Context, fb flaretypes.FlareBuilder) error {
 	if configUtils.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
-		if err := r.exportRemoteConfig(fb); err != nil {
+		if err := r.exportRemoteConfig(ctx, fb); err != nil {
 			log.Errorf("Could not export remote-config state: %s", err)
 		}
 	}
 	return nil
 }
 
-func (r *RemoteFlareProvider) provideConfigDump(fb flaretypes.FlareBuilder) error {
-	fb.AddFileFromFunc("process_agent_runtime_config_dump.yaml", r.getProcessAgentFullConfig)                                              //nolint:errcheck
-	fb.AddFileFromFunc("runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(pkgconfigsetup.Datadog().AllSettings()) }) //nolint:errcheck
+func (r *RemoteFlareProvider) provideConfigDump(_ context.Context, fb flaretypes.FlareBuilder) error {
+	fb.AddFileFromFunc("process_agent_runtime_config_dump.yaml", r.getProcessAgentFullConfig)                                      //nolint:errcheck
+	fb.AddFileFromFunc("runtime_config_dump.yaml", func() ([]byte, error) { return common.MarshalDatadogRuntimeConfigDumpYAML() }) //nolint:errcheck
 	return nil
 }
 
@@ -153,7 +221,7 @@ func getVPCSubnetsForHost() ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
-func provideSystemProbe(fb flaretypes.FlareBuilder) error {
+func provideSystemProbe(_ context.Context, fb flaretypes.FlareBuilder) error {
 	addSystemProbePlatformSpecificEntries(fb)
 
 	if pkgconfigsetup.SystemProbe().GetBool("system_probe_config.enabled") {
@@ -169,12 +237,12 @@ func provideSystemProbe(fb flaretypes.FlareBuilder) error {
 		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "dyninst_symdb.json"), getSystemProbeDyninstSymDB)
 	} else {
 		// If system probe is disabled, we still want to include the system probe config file
-		_ = fb.AddFileFromFunc("system_probe_runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(pkgconfigsetup.SystemProbe().AllSettings()) })
+		_ = fb.AddFileFromFunc("system_probe_runtime_config_dump.yaml", func() ([]byte, error) { return common.MarshalSystemProbeRuntimeConfigDumpYAML() })
 	}
 	return nil
 }
 
-func (r *RemoteFlareProvider) provideExtraFiles(fb flaretypes.FlareBuilder) error {
+func (r *RemoteFlareProvider) provideExtraFiles(_ context.Context, fb flaretypes.FlareBuilder) error {
 	if fb.IsLocal() {
 		// Can't reach the agent, mention it in those two files
 		fb.AddFile("status.log", []byte("unable to get the status of the agent, is it running?"))           //nolint:errcheck
@@ -190,12 +258,12 @@ func (r *RemoteFlareProvider) provideExtraFiles(fb flaretypes.FlareBuilder) erro
 	return nil
 }
 
-func getVersionHistory(fb flaretypes.FlareBuilder) error {
+func getVersionHistory(_ context.Context, fb flaretypes.FlareBuilder) error {
 	fb.CopyFile(filepath.Join(pkgconfigsetup.Datadog().GetString("run_path"), "version-history.json")) //nolint:errcheck
 	return nil
 }
 
-func getRegistryJSON(fb flaretypes.FlareBuilder) error {
+func getRegistryJSON(_ context.Context, fb flaretypes.FlareBuilder) error {
 	fb.CopyFile(filepath.Join(pkgconfigsetup.Datadog().GetString("logs_config.run_path"), "registry.json")) //nolint:errcheck
 	return nil
 }

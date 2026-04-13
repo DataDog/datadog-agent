@@ -7,6 +7,9 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
+	"io"
+	"os"
 	"testing"
 
 	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
@@ -16,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 
+	"github.com/go-viper/mapstructure/v2"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -623,4 +627,67 @@ func TestLexerObfuscation(t *testing.T) {
 	})
 	agnt.obfuscateSpanInternal(span)
 	assert.Equal(t, "SELECT * FROM [u].[users]", span.Resource())
+}
+
+func TestObfuscateSpanParameterized(t *testing.T) {
+	type RawTestCase struct {
+		Name     string                 `json:"name"`
+		Input    pb.Span                `json:"input"`
+		Expected pb.Span                `json:"expected"`
+		Config   map[string]interface{} `json:"config"`
+	}
+	f, err := os.Open("./testdata/obfuscation_test_spans.jsonl")
+	assert.NoError(t, err)
+	d := json.NewDecoder(f)
+	for {
+		var raw RawTestCase
+		if err := d.Decode(&raw); err == io.EOF {
+			break
+		} else if err != nil {
+			t.Fatalf("failed to decode test case: %v", err)
+		}
+		t.Run("TestObfuscateSpanParameterized name="+raw.Name, func(t *testing.T) {
+			assert.NotEmpty(t, raw.Name)
+
+			var ocfg config.ObfuscationConfig
+			decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
+				Result:  &ocfg,
+				TagName: "mapstructure",
+			})
+			assert.NoError(t, err)
+			assert.NoError(t, decoder.Decode(raw.Config))
+
+			ctx, cancelFunc := context.WithCancel(context.Background())
+			defer cancelFunc()
+			cfg := config.New()
+			cfg.Endpoints[0].APIKey = "test"
+			cfg.Features["sqllexer"] = struct{}{}
+			cfg.Obfuscation = &ocfg
+			agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
+
+			// Convert pb.Span input to idx.InternalSpan for V1 obfuscation
+			st := idx.NewStringTable()
+			attrs := make(map[uint32]*idx.AnyValue)
+			for k, v := range raw.Input.Meta {
+				attrs[st.Add(k)] = &idx.AnyValue{
+					Value: &idx.AnyValue_StringValueRef{
+						StringValueRef: st.Add(v),
+					},
+				}
+			}
+			span := idx.NewInternalSpan(st, &idx.Span{
+				TypeRef:     st.Add(raw.Input.Type),
+				ResourceRef: st.Add(raw.Input.Resource),
+				Attributes:  attrs,
+			})
+			agnt.obfuscateSpanInternal(span)
+
+			assert.Equal(t, raw.Expected.Resource, span.Resource())
+			for k, v := range raw.Expected.Meta {
+				got, ok := span.GetAttributeAsString(k)
+				assert.True(t, ok, "expected attribute %q to be present", k)
+				assert.Equal(t, v, got)
+			}
+		})
+	}
 }

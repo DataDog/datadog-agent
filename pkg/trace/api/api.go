@@ -154,7 +154,7 @@ func NewHTTPReceiver(
 		}
 	}
 	log.Infof("Receiver configured with %d decoders and a timeout of %dms", semcount, conf.DecoderTimeout)
-	containerIDProvider := NewIDProvider(conf.ContainerProcRoot, conf.ContainerIDFromOriginInfo)
+	containerIDProvider := NewContainerIDProviderFromConfig(conf)
 	telemetryForwarder := NewTelemetryForwarder(conf, containerIDProvider, statsd)
 	return &HTTPReceiver{
 		Stats: info.NewReceiverStats(conf.SendAllInternalStats),
@@ -1031,7 +1031,7 @@ func getContainerTagsList(fn func(string) ([]string, error), containerID string)
 	return list
 }
 
-// getContainerTag returns container and orchestrator tags belonging to containerID. If containerID
+// getContainerTags returns container and orchestrator tags belonging to containerID. If containerID
 // is empty or no tags are found, an empty string is returned.
 func getContainerTags(fn func(string) ([]string, error), containerID string) string {
 	ctags := getContainerTagsList(fn, containerID)

@@ -8,12 +8,17 @@ package listeners
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
+	"sort"
 	"strconv"
 	"testing"
+	"time"
 
+	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
@@ -21,6 +26,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/snmp/devicededuper"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 )
+
+// ===========================================================================
+// Unit tests: config parsing, job dispatch, cache, and service extra config
+// ===========================================================================
 
 func TestSNMPListener(t *testing.T) {
 	newSvc := make(chan Service, 10)
@@ -101,9 +110,10 @@ func TestSNMPListenerSubnets(t *testing.T) {
 
 	services := map[string]*SNMPService{}
 	l := &SNMPListener{
-		services: services,
-		stop:     make(chan bool),
-		config:   snmpListenerConfig,
+		services:       services,
+		stop:           make(chan struct{}),
+		config:         snmpListenerConfig,
+		sessionFactory: newGosnmpSession,
 	}
 
 	l.Listen(newSvc, delSvc)
@@ -732,4 +742,443 @@ func TestMigrateCache(t *testing.T) {
 			}
 		})
 	}
+}
+
+// ===========================================================================
+// Integration tests: device discovery flow with fake SNMP sessions
+// ===========================================================================
+
+var defaultWorkerFunc = worker
+
+func setupTestListener(t *testing.T, configs []interface{}, extraOpts map[string]interface{}) (*SNMPListener, *testSessionFactory) {
+	t.Helper()
+
+	// Restore worker to the default in case a previous test overrode it
+	worker = defaultWorkerFunc
+
+	testDir := t.TempDir()
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("run_path", testDir)
+	mockConfig.SetWithoutSource("network_devices.autodiscovery.configs", configs)
+	mockConfig.SetWithoutSource("network_devices.autodiscovery.workers", 1)
+	for k, v := range extraOpts {
+		mockConfig.SetWithoutSource(k, v)
+	}
+
+	factory := newTestSessionFactory()
+
+	listenerConfig, err := snmp.NewListenerConfig()
+	require.NoError(t, err)
+
+	l := &SNMPListener{
+		services:       map[string]*SNMPService{},
+		stop:           make(chan struct{}),
+		config:         listenerConfig,
+		deviceDeduper:  devicededuper.NewDeviceDeduper(listenerConfig),
+		sessionFactory: factory.build,
+	}
+	return l, factory
+}
+
+func collectServices(t *testing.T, ch <-chan Service, expected int, timeout time.Duration) []*SNMPService {
+	t.Helper()
+	var services []*SNMPService
+	for i := 0; i < expected; i++ {
+		select {
+		case svc := <-ch:
+			services = append(services, svc.(*SNMPService))
+		case <-time.After(timeout):
+			t.Fatalf("timed out waiting for service %d/%d", i+1, expected)
+		}
+	}
+	return services
+}
+
+func noMoreServices(t *testing.T, ch <-chan Service, wait time.Duration) {
+	t.Helper()
+	select {
+	case svc := <-ch:
+		t.Fatalf("unexpected service: %v", svc.(*SNMPService).deviceIP)
+	case <-time.After(wait):
+		// OK
+	}
+}
+
+func TestCheckDeviceReachableSuccess(t *testing.T) {
+	l, factory := setupTestListener(t, []interface{}{
+		map[string]interface{}{"network": "192.168.0.0/30", "community": "public"},
+	}, nil)
+
+	factory.sessions["192.168.0.1"] = makeReachableSession()
+
+	auth := snmp.Authentication{Community: "public"}
+	assert.True(t, l.checkDeviceReachable(auth, 161, "192.168.0.1"))
+}
+
+func TestCheckDeviceReachableConnectError(t *testing.T) {
+	l, factory := setupTestListener(t, []interface{}{
+		map[string]interface{}{"network": "192.168.0.0/30", "community": "public"},
+	}, nil)
+
+	factory.sessions["192.168.0.1"] = &errorSession{connectErr: errors.New("timeout")}
+
+	auth := snmp.Authentication{Community: "public"}
+	assert.False(t, l.checkDeviceReachable(auth, 161, "192.168.0.1"))
+}
+
+func TestCheckDeviceReachableGetNextError(t *testing.T) {
+	l, factory := setupTestListener(t, []interface{}{
+		map[string]interface{}{"network": "192.168.0.0/30", "community": "public"},
+	}, nil)
+
+	factory.sessions["192.168.0.1"] = &errorSession{getNextErr: errors.New("request timeout")}
+
+	auth := snmp.Authentication{Community: "public"}
+	assert.False(t, l.checkDeviceReachable(auth, 161, "192.168.0.1"))
+}
+
+func TestCheckDeviceReachableEmptyVars(t *testing.T) {
+	l, factory := setupTestListener(t, []interface{}{
+		map[string]interface{}{"network": "192.168.0.0/30", "community": "public"},
+	}, nil)
+
+	factory.sessions["192.168.0.1"] = &errorSession{
+		getNextPkt: &gosnmp.SnmpPacket{Variables: []gosnmp.SnmpPDU{}},
+	}
+
+	auth := snmp.Authentication{Community: "public"}
+	assert.False(t, l.checkDeviceReachable(auth, 161, "192.168.0.1"))
+}
+
+func TestCheckDeviceReachableNilValue(t *testing.T) {
+	l, factory := setupTestListener(t, []interface{}{
+		map[string]interface{}{"network": "192.168.0.0/30", "community": "public"},
+	}, nil)
+
+	factory.sessions["192.168.0.1"] = &errorSession{
+		getNextPkt: &gosnmp.SnmpPacket{Variables: []gosnmp.SnmpPDU{
+			{Name: "1.0.0.1", Type: gosnmp.NoSuchObject, Value: nil},
+		}},
+	}
+
+	auth := snmp.Authentication{Community: "public"}
+	assert.False(t, l.checkDeviceReachable(auth, 161, "192.168.0.1"))
+}
+
+func TestCheckDeviceInfoParsing(t *testing.T) {
+	l, _ := setupTestListener(t, []interface{}{
+		map[string]interface{}{"network": "192.168.0.0/30", "community": "public"},
+	}, map[string]interface{}{
+		"network_devices.autodiscovery.use_deduplication": true,
+	})
+
+	sess := makeReachableSessionWithDeviceInfo("router-1", "Cisco IOS", "1.3.6.1.4.1.9.1.1", 100000)
+	l.sessionFactory = func(_ snmp.Authentication, _ string, _ uint16) (snmpSession, error) {
+		return sess, nil
+	}
+
+	auth := snmp.Authentication{Community: "public"}
+	info := l.checkDeviceInfo(auth, 161, "192.168.0.1")
+
+	assert.Equal(t, "router-1", info.Name)
+	assert.Equal(t, "Cisco IOS", info.Description)
+	assert.Equal(t, "1.3.6.1.4.1.9.1.1", info.SysObjectID)
+	// sysUptime = 100000 hundredths of a second = 1000 seconds
+	// BootTimeMs should be approximately now - 1000s
+	assert.InDelta(t, time.Now().Add(-1000*time.Second).UnixMilli(), info.BootTimeMs, 5000)
+}
+
+func TestCheckDeviceInfoNoDedup(t *testing.T) {
+	l, factory := setupTestListener(t, []interface{}{
+		map[string]interface{}{"network": "192.168.0.0/30", "community": "public"},
+	}, nil)
+	// Deduplicate defaults to false
+
+	// Should not make any SNMP calls
+	auth := snmp.Authentication{Community: "public"}
+	info := l.checkDeviceInfo(auth, 161, "192.168.0.1")
+
+	assert.Equal(t, devicededuper.DeviceInfo{}, info)
+	assert.Empty(t, factory.calls, "no SNMP calls should be made when dedup is disabled")
+}
+
+func TestListenCreatesService(t *testing.T) {
+	l, factory := setupTestListener(t, []interface{}{
+		map[string]interface{}{"network": "192.168.0.0/30", "community": "public"},
+	}, nil)
+	t.Cleanup(func() { l.Stop() })
+
+	factory.sessions["192.168.0.1"] = makeReachableSession()
+
+	newSvc := make(chan Service, 10)
+	delSvc := make(chan Service, 10)
+	l.Listen(newSvc, delSvc)
+
+	services := collectServices(t, newSvc, 1, 5*time.Second)
+	svc := services[0]
+
+	assert.Equal(t, "192.168.0.1", svc.deviceIP)
+	assert.Equal(t, "snmp", svc.adIdentifier)
+
+	// Verify Service interface methods
+	hosts, err := svc.GetHosts()
+	require.NoError(t, err)
+	assert.Equal(t, "192.168.0.1", hosts[""])
+
+	ports, err := svc.GetPorts()
+	require.NoError(t, err)
+	assert.Equal(t, 161, ports[0].Port)
+
+	adIDs := svc.GetADIdentifiers()
+	assert.Equal(t, []string{"snmp"}, adIDs)
+
+	community, err := svc.GetExtraConfig("community")
+	require.NoError(t, err)
+	assert.Equal(t, "public", community)
+}
+
+func TestListenMultipleSubnets(t *testing.T) {
+	l, factory := setupTestListener(t, []interface{}{
+		map[string]interface{}{"network": "192.168.0.0/30", "community": "public"},
+		map[string]interface{}{"network": "10.0.0.0/30", "community": "private"},
+	}, nil)
+	t.Cleanup(func() { l.Stop() })
+
+	factory.sessions["192.168.0.1"] = makeReachableSession()
+	factory.sessions["10.0.0.1"] = makeReachableSession()
+
+	newSvc := make(chan Service, 10)
+	delSvc := make(chan Service, 10)
+	l.Listen(newSvc, delSvc)
+
+	services := collectServices(t, newSvc, 2, 5*time.Second)
+
+	ips := map[string]string{}
+	for _, svc := range services {
+		community, _ := svc.GetExtraConfig("community")
+		ips[svc.deviceIP] = community
+	}
+
+	assert.Equal(t, "public", ips["192.168.0.1"])
+	assert.Equal(t, "private", ips["10.0.0.1"])
+}
+
+func TestListenMultipleAuthFirstMatch(t *testing.T) {
+	l, factory := setupTestListener(t, []interface{}{
+		map[string]interface{}{
+			"network": "192.168.0.0/30",
+			"authentications": []interface{}{
+				map[string]interface{}{"community_string": "first"},
+				map[string]interface{}{"community_string": "second"},
+			},
+		},
+	}, nil)
+	t.Cleanup(func() { l.Stop() })
+
+	// Device responds to first auth
+	factory.sessions["192.168.0.1:first"] = makeReachableSession()
+
+	newSvc := make(chan Service, 10)
+	delSvc := make(chan Service, 10)
+	l.Listen(newSvc, delSvc)
+
+	services := collectServices(t, newSvc, 1, 5*time.Second)
+	community, _ := services[0].GetExtraConfig("community")
+	assert.Equal(t, "first", community)
+}
+
+func TestListenMultipleAuthFirstMatchWithDeduplication(t *testing.T) {
+	l, factory := setupTestListener(t, []interface{}{
+		map[string]interface{}{
+			"network": "192.168.0.0/30",
+			"authentications": []interface{}{
+				map[string]interface{}{"community_string": "first"},
+				map[string]interface{}{"community_string": "second"},
+			},
+		},
+	}, map[string]interface{}{
+		"network_devices.autodiscovery.use_deduplication": true,
+	})
+	t.Cleanup(func() { l.Stop() })
+
+	// Device responds to first auth with full device info so dedup path is exercised
+	factory.sessions["192.168.0.1:first"] = makeReachableSessionWithDeviceInfo(
+		"router-1", "Cisco IOS", "1.3.6.1.4.1.9.1.1", 100000,
+	)
+
+	newSvc := make(chan Service, 10)
+	delSvc := make(chan Service, 10)
+	l.Listen(newSvc, delSvc)
+
+	services := collectServices(t, newSvc, 1, 5*time.Second)
+	community, _ := services[0].GetExtraConfig("community")
+	assert.Equal(t, "first", community)
+}
+
+func TestListenMultipleAuthSecondMatch(t *testing.T) {
+	l, factory := setupTestListener(t, []interface{}{
+		map[string]interface{}{
+			"network": "192.168.0.0/30",
+			"authentications": []interface{}{
+				map[string]interface{}{"community_string": "wrong"},
+				map[string]interface{}{"community_string": "correct"},
+			},
+		},
+	}, nil)
+	t.Cleanup(func() { l.Stop() })
+
+	// Device responds only to second auth
+	factory.sessions["192.168.0.1:correct"] = makeReachableSession()
+
+	newSvc := make(chan Service, 10)
+	delSvc := make(chan Service, 10)
+	l.Listen(newSvc, delSvc)
+
+	services := collectServices(t, newSvc, 1, 5*time.Second)
+	community, _ := services[0].GetExtraConfig("community")
+	assert.Equal(t, "correct", community)
+}
+
+func TestListenUnreachable(t *testing.T) {
+	l, _ := setupTestListener(t, []interface{}{
+		map[string]interface{}{"network": "192.168.0.0/30", "community": "public"},
+	}, nil)
+	t.Cleanup(func() { l.Stop() })
+
+	// No sessions configured — all devices unreachable
+
+	newSvc := make(chan Service, 10)
+	delSvc := make(chan Service, 10)
+	l.Listen(newSvc, delSvc)
+
+	// /30 has 4 IPs; with 1 worker processing sequentially, allow time for all
+	noMoreServices(t, newSvc, 3*time.Second)
+}
+
+func TestListenDeduplication(t *testing.T) {
+	l, factory := setupTestListener(t, []interface{}{
+		map[string]interface{}{"network": "192.168.0.0/30", "community": "public"},
+	}, map[string]interface{}{
+		"network_devices.autodiscovery.use_deduplication": true,
+	})
+	t.Cleanup(func() { l.Stop() })
+
+	// Both IPs respond with identical device info → only lowest IP should be registered
+	factory.sessions["192.168.0.0"] = makeReachableSessionWithDeviceInfo("router-1", "Cisco IOS", "1.3.6.1.4.1.9.1.1", 100000)
+	factory.sessions["192.168.0.1"] = makeReachableSessionWithDeviceInfo("router-1", "Cisco IOS", "1.3.6.1.4.1.9.1.1", 100000)
+	factory.sessions["192.168.0.2"] = makeReachableSessionWithDeviceInfo("router-1", "Cisco IOS", "1.3.6.1.4.1.9.1.1", 100000)
+	factory.sessions["192.168.0.3"] = makeReachableSessionWithDeviceInfo("router-1", "Cisco IOS", "1.3.6.1.4.1.9.1.1", 100000)
+
+	newSvc := make(chan Service, 10)
+	delSvc := make(chan Service, 10)
+	l.Listen(newSvc, delSvc)
+
+	services := collectServices(t, newSvc, 1, 5*time.Second)
+	assert.Equal(t, "192.168.0.0", services[0].deviceIP)
+
+	noMoreServices(t, newSvc, 2*time.Second)
+}
+
+func TestListenDeduplicationDifferentDevices(t *testing.T) {
+	l, factory := setupTestListener(t, []interface{}{
+		map[string]interface{}{"network": "192.168.0.0/30", "community": "public"},
+	}, map[string]interface{}{
+		"network_devices.autodiscovery.use_deduplication": true,
+	})
+	t.Cleanup(func() { l.Stop() })
+
+	// Two IPs respond with different sysName → both should be registered
+	factory.sessions["192.168.0.0"] = makeReachableSessionWithDeviceInfo("router-1", "Cisco IOS", "1.3.6.1.4.1.9.1.1", 100000)
+	factory.sessions["192.168.0.1"] = makeReachableSessionWithDeviceInfo("switch-1", "Cisco NX-OS", "1.3.6.1.4.1.9.1.2", 200000)
+
+	newSvc := make(chan Service, 10)
+	delSvc := make(chan Service, 10)
+	l.Listen(newSvc, delSvc)
+
+	services := collectServices(t, newSvc, 2, 5*time.Second)
+	ips := []string{services[0].deviceIP, services[1].deviceIP}
+	sort.Strings(ips)
+	assert.Equal(t, []string{"192.168.0.0", "192.168.0.1"}, ips)
+}
+
+func TestCheckDeviceDeleteAfterAllowedFailures(t *testing.T) {
+	l, factory := setupTestListener(t, []interface{}{
+		map[string]interface{}{"network": "192.168.0.0/30", "community": "public"},
+	}, nil)
+
+	newSvc := make(chan Service, 10)
+	delSvc := make(chan Service, 10)
+	l.newService = newSvc
+	l.delService = delSvc
+	l.config.AllowedFailures = 3
+
+	subnets := l.initializeSubnets()
+	subnet := &subnets[0]
+
+	// First scan: device is reachable
+	factory.sessions["192.168.0.1"] = makeReachableSession()
+	job := snmpJob{subnet: subnet, currentIP: net.ParseIP("192.168.0.1")}
+	l.checkDevice(job)
+
+	services := collectServices(t, newSvc, 1, 2*time.Second)
+	assert.Equal(t, "192.168.0.1", services[0].deviceIP)
+
+	// Remove the reachable session so device becomes unreachable
+	factory.mu.Lock()
+	delete(factory.sessions, "192.168.0.1")
+	factory.mu.Unlock()
+
+	// Scan 3 more times (failures 1, 2, 3)
+	for i := 0; i < 3; i++ {
+		l.checkDevice(job)
+	}
+
+	// After 3 failures, device should be deleted
+	deleted := collectServices(t, delSvc, 1, 2*time.Second)
+	assert.Equal(t, "192.168.0.1", deleted[0].deviceIP)
+}
+
+func TestCheckDeviceFailureResetOnSuccess(t *testing.T) {
+	l, factory := setupTestListener(t, []interface{}{
+		map[string]interface{}{"network": "192.168.0.0/30", "community": "public"},
+	}, nil)
+
+	newSvc := make(chan Service, 10)
+	delSvc := make(chan Service, 10)
+	l.newService = newSvc
+	l.delService = delSvc
+	l.config.AllowedFailures = 3
+
+	subnets := l.initializeSubnets()
+	subnet := &subnets[0]
+
+	// First scan: device is reachable
+	factory.sessions["192.168.0.1"] = makeReachableSession()
+	job := snmpJob{subnet: subnet, currentIP: net.ParseIP("192.168.0.1")}
+	l.checkDevice(job)
+	collectServices(t, newSvc, 1, 2*time.Second)
+
+	// Make device unreachable for 2 scans (below threshold of 3)
+	factory.mu.Lock()
+	delete(factory.sessions, "192.168.0.1")
+	factory.mu.Unlock()
+
+	l.checkDevice(job)
+	l.checkDevice(job)
+
+	// Make device reachable again
+	factory.mu.Lock()
+	factory.sessions["192.168.0.1"] = makeReachableSession()
+	factory.mu.Unlock()
+
+	l.checkDevice(job)
+
+	// Should not have been deleted
+	noMoreServices(t, delSvc, 500*time.Millisecond)
+
+	// Verify failures were reset
+	entityID := subnet.config.Digest("192.168.0.1")
+	device, exists := subnet.devices[entityID]
+	assert.True(t, exists)
+	assert.Equal(t, 0, device.Failures)
 }

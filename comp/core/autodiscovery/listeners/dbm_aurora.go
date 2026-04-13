@@ -116,7 +116,6 @@ func (l *DBMAuroraListener) discoverAuroraClusters() {
 	}
 	if len(ids) == 0 {
 		log.Debugf("no aurora clusters found with provided tags %v", l.config.Tags)
-		return
 	}
 	auroraCluster, err := l.awsRdsClient.GetAuroraClusterEndpoints(ctx, ids, l.config)
 	if err != nil {
@@ -140,9 +139,6 @@ func (l *DBMAuroraListener) discoverAuroraClusters() {
 }
 
 func (l *DBMAuroraListener) createService(entityID, clusterID string, instance *aws.Instance) {
-	if _, present := l.services[entityID]; present {
-		return
-	}
 	svc := &DBMAuroraService{
 		adIdentifier: engineToAuroraADIdentifier[instance.Engine],
 		entityID:     entityID,
@@ -150,6 +146,15 @@ func (l *DBMAuroraListener) createService(entityID, clusterID string, instance *
 		instance:     instance,
 		region:       l.config.Region,
 		clusterID:    clusterID,
+	}
+	if existing, present := l.services[entityID]; present {
+		if existingSvc, ok := existing.(*DBMAuroraService); ok && existingSvc.Equal(svc) {
+			return
+		}
+		// If the cached service is not equal to the new service then metadata has changed
+		// Delete the cached service first and then send the updated one to the newSvc channel.
+		l.delService <- existing
+		delete(l.services, entityID)
 	}
 	l.services[entityID] = svc
 	l.newService <- svc
