@@ -10,7 +10,7 @@ use std::path::Path;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct TracerMetadata {
     pub schema_version: u8,
     pub runtime_id: Option<String>,
