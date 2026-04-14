@@ -101,7 +101,7 @@ class GPUConfigValidationResult:
 
     @property
     def present_metrics(self) -> int:
-        return len(self.detailed_result.metrics) - self.missing_metrics
+        return len(self.detailed_result.metrics) - self.missing_metrics - self.unknown_metrics
 
     @property
     def tag_failures(self) -> int:
