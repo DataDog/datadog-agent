@@ -3691,10 +3691,11 @@ func runNetemCongestionTest(
 	}, 30*time.Second, 200*time.Millisecond)
 }
 
-// TestTCPRecoveryCount validates the recovery_count signal. Uses escalating
-// netem configs to handle test variability — delay keeps enough segments
-// in-flight for SACK to detect gaps, while moderate loss triggers fast
-// recovery rather than full RTO timeout.
+// TestTCPRecoveryCount validates the recovery_count signal. Each attempt
+// uses a fresh namespace so the congestion window starts clean. If an RTO
+// fires (collapsing cwnd, making SACK-based recovery unlikely), the
+// attempt is abandoned early and retried with reduced loss. Attempts
+// continue with adaptive backoff until a total time budget is exhausted.
 func (s *TracerSuite) TestTCPRecoveryCount() {
 	t := s.T()
 	cfg := testConfig()
@@ -3707,36 +3708,66 @@ func (s *TracerSuite) TestTCPRecoveryCount() {
 
 	tr := setupTracer(t, cfg)
 
-	netemConfigs := [][]string{
-		{"delay", "50ms", "loss", "15%", "50%"},
-		{"delay", "50ms", "loss", "20%", "50%"},
-		{"delay", "50ms", "loss", "25%", "75%"},
-	}
-	for _, netemArgs := range netemConfigs {
-		c := setupNetemCongestionTest(t, netemArgs, nil)
-		triggered := false
-		deadline := time.Now().Add(20 * time.Second)
-		for time.Now().Before(deadline) {
+	// Start with moderate loss/delay and back off on RTO. Lower loss
+	// means fewer RTOs but recovery is still possible given enough time.
+	delayMs := 50
+	lossPct := 20
+	testStart := time.Now()
+	testDeadline := testStart.Add(120 * time.Second)
+
+	for attempt := 1; time.Now().Before(testDeadline); attempt++ {
+		doneCh := make(chan struct{})
+		env := setupNetemTestEnv(t, func(c net.Conn) {
+			io.Copy(io.Discard, c) //nolint:errcheck
+			<-doneCh
+		})
+		t.Cleanup(func() { close(doneCh) })
+
+		c := env.dialInNs(t)
+		netemArgs := []string{"delay", fmt.Sprintf("%dms", delayMs), "loss", fmt.Sprintf("%d%%", lossPct), "50%"}
+		env.addNetem(t, netemArgs...)
+
+		hitRTO := false
+		attemptDeadline := time.Now().Add(60 * time.Second)
+		if attemptDeadline.After(testDeadline) {
+			attemptDeadline = testDeadline
+		}
+		for time.Now().Before(attemptDeadline) {
 			c.SetWriteDeadline(time.Now().Add(2 * time.Second))
 			c.Write(make([]byte, 64*1024)) //nolint:errcheck
-			time.Sleep(200 * time.Millisecond)
+			time.Sleep(100 * time.Millisecond)
 
 			conns, cleanup := getConnections(t, tr)
 			conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
 			if ok && conn.Last.TCPRecoveryCount > 0 {
-				triggered = true
 				cleanup()
+				return
+			}
+			if ok && conn.Monotonic.TCPRTOCount > 0 {
+				cleanup()
+				hitRTO = true
 				break
 			}
 			cleanup()
 		}
 		c.Close()
-		if triggered {
-			return
+		// Flush the closed connection from the tracer.
+		_, cleanup := getConnections(t, tr)
+		cleanup()
+
+		if hitRTO {
+			t.Logf("attempt %d: delay %dms loss %d%% triggered RTO after %s, backing off", attempt, delayMs, lossPct, time.Since(testStart).Round(time.Millisecond))
+			if lossPct > 8 {
+				lossPct -= 3
+			}
+			if delayMs > 20 {
+				delayMs -= 10
+			}
+		} else {
+			t.Logf("attempt %d: delay %dms loss %d%% did not trigger recovery after timeout", attempt, delayMs, lossPct)
 		}
-		t.Logf("netem config %v did not trigger recovery, trying next", netemArgs)
 	}
-	require.Fail(t, "no netem configuration triggered recovery_count > 0")
+	t.Fatal("no configuration triggered recovery_count > 0 within 120s")
 }
 
 // TestTCPReordSeen validates the reord_seen signal by introducing packet
