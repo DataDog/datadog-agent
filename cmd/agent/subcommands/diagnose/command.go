@@ -15,7 +15,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"go.uber.org/fx"
 
 	"github.com/fatih/color"
@@ -32,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/diagnose/format"
 	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
 	diagnoseLocal "github.com/DataDog/datadog-agent/comp/core/diagnose/local"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"

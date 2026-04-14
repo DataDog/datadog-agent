@@ -122,7 +122,7 @@ func setupAutoDiscovery(confSearchPaths []string, wmeta workloadmeta.Component, 
 		if found {
 			hp := ac.GetHealthPlatform()
 			if hp == nil {
-				log.Warnf("Health platform component not available for provider %v. Issue reporting disabled.", cp.Name)
+				log.Infof("Health platform component not available for provider %v. Issue reporting disabled.", cp.Name)
 			}
 
 			configProvider, err := factory(&cp, wmeta, taggerComp, filterStore, hp, acTelemetryStore)

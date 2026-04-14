@@ -14,7 +14,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"go.uber.org/fx"
 
 	"github.com/spf13/cobra"
@@ -46,6 +45,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const defaultCoreConfigPath = "bin/agent/dist/datadog.yaml"
