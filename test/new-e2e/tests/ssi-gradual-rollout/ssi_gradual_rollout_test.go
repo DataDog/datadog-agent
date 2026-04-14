@@ -28,7 +28,7 @@ import (
 	ssi "github.com/DataDog/datadog-agent/test/new-e2e/tests/ssi"
 )
 
-//go:embed testdata/base.yaml
+//go:embed testdata/default_opt_in.yaml
 var baseHelmValues string
 
 //go:embed testdata/default_opt_in.yaml
