@@ -14,7 +14,9 @@ go_library(
         "setupapi.go",
         "shutil.go",
         "time.go",
+        "users.c",
         "users.go",
+        "users.h",
         "wincrypt.go",
         "winctrlhandler.go",
         "winsec.go",
@@ -22,6 +24,7 @@ go_library(
         "winver.go",
         "wnet.go",
     ],
+    cgo = True,
     importpath = "github.com/DataDog/datadog-agent/pkg/util/winutil",
     target_compatible_with = ["@platforms//os:windows"],  # keep
     visibility = ["//visibility:public"],
