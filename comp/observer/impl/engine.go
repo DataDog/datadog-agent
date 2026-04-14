@@ -103,10 +103,10 @@ type engine struct {
 	onAdvance      func(advanceEntry) // scheduler trace
 
 	// Counters for data ingestion anomalies, reset after each advance.
-	latePoints         atomic.Int64      // points ingested after their timestamp was already analyzed
-	latePointsBySource map[string]int64  // per-source breakdown (single-goroutine access from run loop)
-	handles            []*handle         // registered handles for per-source drop collection
-	handlesMu          sync.Mutex        // protects handles slice
+	latePoints         atomic.Int64     // points ingested after their timestamp was already analyzed
+	latePointsBySource map[string]int64 // per-source breakdown (single-goroutine access from run loop)
+	handles            []*handle        // registered handles for per-source drop collection
+	handlesMu          sync.Mutex       // protects handles slice
 }
 
 // engineConfig holds the parameters for constructing an engine.

@@ -122,7 +122,6 @@ type logObs struct {
 	timestampMs int64
 }
 
-
 // profileObs contains copied profile data.
 type profileObs struct {
 	profileID    string
@@ -733,10 +732,10 @@ func (f *hfFilteredHandle) ObserveMetric(sample observerdef.MetricView) {
 	f.inner.ObserveMetric(sample)
 }
 
-func (f *hfFilteredHandle) ObserveLog(msg observerdef.LogView)       { f.inner.ObserveLog(msg) }
-func (f *hfFilteredHandle) ObserveTrace(_ observerdef.TraceView) {}
+func (f *hfFilteredHandle) ObserveLog(msg observerdef.LogView)             { f.inner.ObserveLog(msg) }
+func (f *hfFilteredHandle) ObserveTrace(_ observerdef.TraceView)           {}
 func (f *hfFilteredHandle) ObserveTraceStats(_ observerdef.TraceStatsView) {}
-func (f *hfFilteredHandle) ObserveProfile(p observerdef.ProfileView) { f.inner.ObserveProfile(p) }
+func (f *hfFilteredHandle) ObserveProfile(p observerdef.ProfileView)       { f.inner.ObserveProfile(p) }
 
 // noopHandle returns a handle that discards all observations.
 // Used when analysis is disabled so the analysis pipeline is not started.
@@ -846,12 +845,9 @@ func (h *handle) ObserveLog(msg observerdef.LogView) {
 }
 
 // ObserveTrace is a no-op. Trace processing is not used.
-// Note: this also means the recorder's ObserveTrace (which wraps this handle)
-// is never called for live data, so trace parquet files are no longer populated.
-// This is intentional — traces are abandoned for the observer.
 func (h *handle) ObserveTrace(_ observerdef.TraceView) {}
 
-// ObserveTraceStats is a no-op. Trace stats processing is not used.
+// ObserveTraceStats is a no-op. Trace stats processing is deprioritized.
 func (h *handle) ObserveTraceStats(_ observerdef.TraceStatsView) {}
 
 // ObserveProfile observes a profiling sample.
@@ -934,4 +930,3 @@ func copyStringMap(m map[string]string) map[string]string {
 	}
 	return result
 }
-
