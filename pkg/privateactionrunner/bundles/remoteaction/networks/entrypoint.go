@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-package com_datadoghq_ddagent_networkpath
+package com_datadoghq_remoteaction_networks
 
 import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
@@ -11,18 +11,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type NetworkPathBundle struct {
+type NetworksBundle struct {
 	actions map[string]types.Action
 }
 
-func NewNetworkPath(traceroute traceroute.Component, eventPlatform eventplatform.Component) types.Bundle {
-	return &NetworkPathBundle{
+func NewNetworks(traceroute traceroute.Component, eventPlatform eventplatform.Component) types.Bundle {
+	return &NetworksBundle{
 		actions: map[string]types.Action{
 			"runNetworkPath": NewRunNetworkPathHandler(traceroute, eventPlatform),
 		},
 	}
 }
 
-func (h *NetworkPathBundle) GetAction(actionName string) types.Action {
+func (h *NetworksBundle) GetAction(actionName string) types.Action {
 	return h.actions[actionName]
 }
