@@ -9,10 +9,11 @@ package model
 
 const (
 	// BurstableAnnotation is the annotation key used to opt a workload into burstable mode.
-	// When set to "true" on a DatadogPodAutoscaler, the controller will apply CPU request
-	// recommendations but will remove CPU limits from containers, allowing them to burst
-	// beyond their requested CPU when idle capacity is available on the node.
-	BurstableAnnotation = "beta.autoscaling.datadoghq.com/burstable"
+	// When set to "true" on a DatadogPodAutoscalerClusterProfile or DatadogPodAutoscaler,
+	// the controller will apply CPU request recommendations but will remove CPU limits from
+	// containers, allowing them to burst beyond their requested CPU when idle capacity is
+	// available on the node.
+	BurstableAnnotation = "alpha.autoscaling.datadoghq.com/burstable"
 
 	// RecommendationIDAnnotation is the annotation key used to store the recommendation ID
 	RecommendationIDAnnotation = "autoscaling.datadoghq.com/rec-id"
