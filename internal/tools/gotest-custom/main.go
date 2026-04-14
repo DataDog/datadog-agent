@@ -208,7 +208,7 @@ func getBinariesFromPackages(packages []string) ([]string, []string, error) {
 	}
 
 	if allPresent {
-		fmt.Println("All pre-built binaries already present, skipping tarball extraction")
+		fmt.Fprintln(os.Stderr, "All pre-built binaries already present, skipping tarball extraction")
 		return binaries, matchedPackages, nil
 	}
 
