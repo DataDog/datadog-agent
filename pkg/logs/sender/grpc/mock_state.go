@@ -140,7 +140,9 @@ func (mt *MessageTranslator) processMessage(msg *message.Message, outputChan cha
 	tagMemoryBytes := mt.tagManager.EstimatedMemoryBytes()
 	tagCountOverLimit, tagBytesOverLimit := mt.tagEvictionManager.ShouldEvict(tagCount, tagMemoryBytes)
 	if tagCountOverLimit || tagBytesOverLimit {
-		mt.tagEvictionManager.Evict(mt.tagManager, tagCount, tagMemoryBytes, tagCountOverLimit, tagBytesOverLimit)
+		for _, evictedID := range mt.tagEvictionManager.Evict(mt.tagManager, tagCount, tagMemoryBytes, tagCountOverLimit, tagBytesOverLimit) {
+			mt.sendDictEntryDelete(outputChan, msg, evictedID)
+		}
 	}
 
 	// Periodic TTL sweep: remove entries not accessed in the last 5 minutes.
