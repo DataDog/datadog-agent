@@ -38,6 +38,7 @@ require (
 	google.golang.org/grpc v1.79.3 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	k8s.io/client-go v0.35.1 // indirect
+	k8s.io/klog/v2 v2.140.0 // indirect
 	k8s.io/utils v0.0.0-20251222233032-718f0e51e6d2 // indirect
 )
 
