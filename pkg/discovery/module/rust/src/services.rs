@@ -125,7 +125,7 @@ fn get_newest_tracer_metadata(memfd_paths: &[PathBuf]) -> Option<TracerMetadata>
             let tm = tracer_metadata::get_tracer_metadata_from_path(path).ok()?;
             Some((tm, mtime))
         })
-        .max_by_key(|(_, t)| *t)
+        .max_by_key(|(tm, t)| (*t, tm.runtime_id.clone()))
         .map(|(m, _)| m)
 }
 
