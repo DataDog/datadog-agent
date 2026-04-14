@@ -3,15 +3,18 @@
 # - metric_prefix: string prepended to all emitted metric names
 # - tagsets.<tagset_name>: represents a set of tags that are common to a group of metrics.
 #   - tags: list of tag keys attached to that tagset
+#   - workload_only (optional): true when the tagset is only guaranteed while a workload is active
 # - metrics.<metric_name>:
 #   - tagsets: list of tagset names declared under root tagsets
 #   - custom_tags (optional): additional dynamic tag keys (e.g., memory_location for errors.ecc.corrected.total)
+#   - workload_only (optional): true when the metric is only guaranteed while a workload is active
 #   - support:
 #       - unsupported_architectures: [<architecture_name>, ...] (the list of architectures that do not support the metric)
 #       - device_modes: {mig: bool, physical: bool, vgpu: bool} (a map describing whether each device mode supports the metric)
 metric_prefix: gpu
 tagsets:
   container:
+    workload_only: true
     tags:
       - kube_container_name
   device:
@@ -26,6 +29,7 @@ tagsets:
       - gpu_parent_uuid
       - gpu_type
   process:
+    workload_only: true
     tags:
       - pid
       - nspid
@@ -1023,6 +1027,7 @@ metrics:
         physical: true
         vgpu: false
   process.core.usage:
+    workload_only: true
     tagsets:
       - device
       - process
@@ -1034,6 +1039,7 @@ metrics:
         physical: true
         vgpu: true
   process.decoder_active:
+    workload_only: true
     tagsets:
       - device
       - process
@@ -1046,6 +1052,7 @@ metrics:
         physical: true
         vgpu: true
   process.dram_active:
+    workload_only: true
     tagsets:
       - device
       - process
@@ -1058,6 +1065,7 @@ metrics:
         physical: true
         vgpu: true
   process.encoder_active:
+    workload_only: true
     tagsets:
       - device
       - process
@@ -1070,6 +1078,7 @@ metrics:
         physical: true
         vgpu: true
   process.memory.usage:
+    workload_only: true
     tagsets:
       - device
       - process
@@ -1081,6 +1090,7 @@ metrics:
         physical: true
         vgpu: true
   process.sm_active:
+    workload_only: true
     tagsets:
       - device
       - process

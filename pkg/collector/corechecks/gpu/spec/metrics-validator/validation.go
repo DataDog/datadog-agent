@@ -61,7 +61,9 @@ func validateGPUConfig(client *metricsClient, metricsSpec *gpuspec.MetricsSpec, 
 		Config: config,
 	}
 
-	expectedMetricsMap := gpuspec.ExpectedMetricsForConfig(metricsSpec, config)
+	expectedMetricsMap := gpuspec.ExpectedMetricsForConfig(metricsSpec, config, gpuspec.ValidationOptions{
+		WorkloadActive: true,
+	})
 
 	var err error
 	result.DeviceCount, err = client.queryDeviceCount(config, fromTS, toTS)
@@ -74,7 +76,9 @@ func validateGPUConfig(client *metricsClient, metricsSpec *gpuspec.MetricsSpec, 
 		return result, nil
 	}
 
-	expectedTagsByMetric, err := gpuspec.RequiredTagsByMetric(metricsSpec, expectedMetricsMap)
+	expectedTagsByMetric, err := gpuspec.RequiredTagsByMetric(metricsSpec, expectedMetricsMap, gpuspec.ValidationOptions{
+		WorkloadActive: true,
+	})
 	if err != nil {
 		return result, fmt.Errorf("derive required tags for %+v: %w", config, err)
 	}
@@ -123,7 +127,9 @@ func validateGPUConfig(client *metricsClient, metricsSpec *gpuspec.MetricsSpec, 
 		}
 	}
 
-	result.DetailedResult, err = gpuspec.ValidateEmittedMetricsAgainstSpec(metricsSpec, config, observations, nil)
+	result.DetailedResult, err = gpuspec.ValidateEmittedMetricsAgainstSpec(metricsSpec, config, observations, nil, gpuspec.ValidationOptions{
+		WorkloadActive: true,
+	})
 	if err != nil {
 		return result, fmt.Errorf("validate observations for %+v: %w", config, err)
 	}

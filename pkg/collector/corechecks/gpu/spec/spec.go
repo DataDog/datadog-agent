@@ -46,14 +46,16 @@ type MetricsSpec struct {
 
 // TagsetSpec defines a reusable tagset.
 type TagsetSpec struct {
-	Tags []string `yaml:"tags"`
+	Tags         []string `yaml:"tags"`
+	WorkloadOnly bool     `yaml:"workload_only,omitempty"`
 }
 
 // MetricSpec is a metric definition without the name (name is the map key).
 type MetricSpec struct {
-	Tagsets    []string          `yaml:"tagsets"`
-	CustomTags []string          `yaml:"custom_tags,omitempty"`
-	Support    MetricSupportSpec `yaml:"support"`
+	Tagsets      []string          `yaml:"tagsets"`
+	CustomTags   []string          `yaml:"custom_tags,omitempty"`
+	WorkloadOnly bool              `yaml:"workload_only,omitempty"`
+	Support      MetricSupportSpec `yaml:"support"`
 }
 
 // MetricSupportSpec defines where a metric is supported.
