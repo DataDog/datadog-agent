@@ -319,8 +319,11 @@ func (d *decoderImpl) Stop() {
 
 func (d *decoderImpl) run() {
 	defer func() {
-		// flush any remaining output in component order, and then close the
-		// output channel
+		// Flush any remaining output in component order, and then close the
+		// output channel. The framer flush gives the FrameMatcher a chance to
+		// emit buffered data that was waiting for a delimiter that never
+		// arrived (e.g. non-transparent syslog without a trailing LF).
+		d.framer.Flush()
 		d.lineParser.flush()
 		d.lineHandler.flush()
 		close(d.outputChan)
