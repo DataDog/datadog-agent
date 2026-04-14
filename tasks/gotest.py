@@ -360,13 +360,13 @@ def expand_packages_excluding(
         if not module.should_test():
             continue
         for target in module.test_targets:
-            target_path = os.path.join(module.path, target)
-            if not target_path.startswith('./'):
-                target_path = f'./{target_path}'
-            if recursive and not target_path.endswith('/...'):
-                pattern = f'{target_path}/...'
+            # Build the pattern relative to module.path — ctx.cd() below makes
+            # that the working directory, so do NOT prepend module.path again.
+            t = target if target.startswith('./') else f'./{target}'
+            if recursive and not t.endswith('/...'):
+                pattern = f'{t}/...'
             else:
-                pattern = target_path
+                pattern = t
             with ctx.cd(module.path):
                 res = ctx.run(
                     f'go list -buildvcs=false -tags "{tag_str}" {pattern}',
