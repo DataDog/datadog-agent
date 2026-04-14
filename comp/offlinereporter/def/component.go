@@ -8,7 +8,7 @@
 // last-written timestamp so callers can measure how long the agent was offline.
 package offlinereporter
 
-// team: agent-runtimes
+// team: agent-metric-pipelines
 
 // Component is the component type.
 type Component interface {

@@ -822,7 +822,7 @@ Package notableevents provides a component that monitors notable system events a
 
 ### [comp/offlinereporter](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/offlinereporter)
 
-*Datadog Team*: agent-runtimes
+*Datadog Team*: agent-metric-pipelines
 
 Package offlinereporter tracks the time gap between agent runs by maintaining a
 heartbeat file updated every 5 seconds. On startup it captures the
