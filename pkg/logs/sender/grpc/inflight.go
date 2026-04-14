@@ -8,8 +8,8 @@ package grpc
 import (
 	"google.golang.org/protobuf/proto"
 
+	"github.com/DataDog/agent-payload/v5/statefulpb"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
 )
 
 // inflightTracker is a bounded FIFO queue that tracks payloads in two regions:

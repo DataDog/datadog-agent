@@ -12,13 +12,13 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
+	"github.com/DataDog/agent-payload/v5/statefulpb"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/clustering"
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/tags"
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/token"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -32,6 +32,13 @@ type batchEntry struct {
 	msg         *message.Message
 	content     string // preprocessed content (JSON extracted message, or raw string)
 	jsonContext []byte // from PreprocessJSON; nil if not JSON
+}
+
+func getTranslatorContent(msg *message.Message) []byte {
+	if len(msg.PreEncodedContent) > 0 {
+		return msg.PreEncodedContent
+	}
+	return msg.GetContent()
 }
 
 const (
@@ -121,7 +128,7 @@ func (mt *MessageTranslator) Start(inputChan chan *message.Message, bufferSize i
 		batch := make([]batchEntry, 0, defaultTokenizeBatchSize)
 
 		addEntry := func(msg *message.Message) {
-			content := msg.GetContent()
+			content := getTranslatorContent(msg)
 			if len(content) == 0 {
 				return // skip empty messages — no sidecar entry, no alignment break
 			}
@@ -206,7 +213,7 @@ func (mt *MessageTranslator) processBatch(batch []batchEntry, outputChan chan *m
 // processMessage is retained for testing and direct single-message use.
 // The Start loop now uses the batch pipeline (processBatch → processPreTokenized).
 func (mt *MessageTranslator) processMessage(msg *message.Message, outputChan chan *message.StatefulMessage) {
-	content := msg.GetContent()
+	content := getTranslatorContent(msg)
 	if len(content) == 0 {
 		return
 	}
@@ -379,13 +386,16 @@ func (mt *MessageTranslator) buildTagSet(msg *message.Message) (*statefulpb.TagS
 	return tagSet, allTagsString, dictID, isNew
 }
 
-// getMessageTimestamp returns the timestamp for the message, preferring ServerlessExtra.Timestamp
+// getMessageTimestamp returns the timestamp for the message, preferring the HTTP
+// encoder timestamp when available so the dual-send paths stay aligned.
 func getMessageTimestamp(msg *message.Message) time.Time {
-	ts := time.Now().UTC()
-	if !msg.ServerlessExtra.Timestamp.IsZero() {
-		ts = msg.ServerlessExtra.Timestamp
+	if msg.MessageMetadata.EncodedTimestampMs != 0 {
+		return time.UnixMilli(msg.MessageMetadata.EncodedTimestampMs).UTC()
 	}
-	return ts
+	if !msg.ServerlessExtra.Timestamp.IsZero() {
+		return msg.ServerlessExtra.Timestamp
+	}
+	return time.Now().UTC()
 }
 
 // sendPatternDefine creates and sends a PatternDefine datum
@@ -438,7 +448,7 @@ func (mt *MessageTranslator) sendDictEntryDefine(outputChan chan *message.Statef
 
 // sendRawLog creates and sends a raw log datum (currently unused)
 func (mt *MessageTranslator) sendRawLog(outputChan chan *message.StatefulMessage, msg *message.Message, contentStr string, ts time.Time, tagSet *statefulpb.TagSet) {
-	logDatum := buildRawLog(contentStr, ts, tagSet)
+	logDatum := buildRawLog(contentStr, ts, tagSet, msg.MessageMetadata.DualSendUUID)
 
 	tlmPipelineRawLogsProcessed.Inc(mt.pipelineName)
 	tlmPipelineRawLogsProcessedBytes.Add(float64(proto.Size(logDatum)), mt.pipelineName)
@@ -451,7 +461,7 @@ func (mt *MessageTranslator) sendRawLog(outputChan chan *message.StatefulMessage
 
 // sendStructuredLog creates and sends a StructuredLog datum
 func (mt *MessageTranslator) sendStructuredLog(outputChan chan *message.StatefulMessage, msg *message.Message, timestamp int64, patternID uint64, dynamicValues []*statefulpb.DynamicValue, tagSet *statefulpb.TagSet, jsonContext []byte) {
-	logDatum := buildStructuredLog(timestamp, patternID, dynamicValues, tagSet, jsonContext)
+	logDatum := buildStructuredLog(timestamp, patternID, dynamicValues, tagSet, msg.MessageMetadata.DualSendUUID, jsonContext)
 
 	tlmPipelinePatternLogsProcessed.Inc(mt.pipelineName)
 	tlmPipelinePatternLogsProcessedBytes.Add(float64(proto.Size(logDatum)), mt.pipelineName)
@@ -559,35 +569,43 @@ func (mt *MessageTranslator) fillDynamicValue(
 }
 
 // buildStructuredLog creates a Datum containing a StructuredLog
-func buildStructuredLog(timestamp int64, patternID uint64, dynamicValues []*statefulpb.DynamicValue, tagSet *statefulpb.TagSet, jsonContext []byte) *statefulpb.Datum {
+func buildStructuredLog(timestamp int64, patternID uint64, dynamicValues []*statefulpb.DynamicValue, tagSet *statefulpb.TagSet, uuid string, jsonContext []byte) *statefulpb.Datum {
+	log := &statefulpb.Log{
+		Timestamp: timestamp,
+		Content: &statefulpb.Log_Structured{
+			Structured: &statefulpb.StructuredLog{
+				PatternId:     patternID,
+				DynamicValues: dynamicValues,
+				JsonContext:   jsonContext,
+			},
+		},
+		Tags: tagSet,
+	}
+	if uuid != "" {
+		log.Uuid = &uuid
+	}
 	return &statefulpb.Datum{
 		Data: &statefulpb.Datum_Logs{
-			Logs: &statefulpb.Log{
-				Timestamp: timestamp,
-				Content: &statefulpb.Log_Structured{
-					Structured: &statefulpb.StructuredLog{
-						PatternId:     patternID,
-						DynamicValues: dynamicValues,
-						JsonContext:   jsonContext,
-					},
-				},
-				Tags: tagSet,
-			},
+			Logs: log,
 		},
 	}
 }
 
 // buildRawLog creates a Datum containing a raw log (no pattern)
-func buildRawLog(content string, ts time.Time, tagSet *statefulpb.TagSet) *statefulpb.Datum {
+func buildRawLog(content string, ts time.Time, tagSet *statefulpb.TagSet, uuid string) *statefulpb.Datum {
+	log := &statefulpb.Log{
+		Timestamp: ts.UnixNano() / nanoToMillis,
+		Content: &statefulpb.Log_Raw{
+			Raw: content,
+		},
+		Tags: tagSet,
+	}
+	if uuid != "" {
+		log.Uuid = &uuid
+	}
 	return &statefulpb.Datum{
 		Data: &statefulpb.Datum_Logs{
-			Logs: &statefulpb.Log{
-				Timestamp: ts.UnixNano() / nanoToMillis,
-				Content: &statefulpb.Log_Raw{
-					Raw: content,
-				},
-				Tags: tagSet,
-			},
+			Logs: log,
 		},
 	}
 }

@@ -23,6 +23,7 @@ import (
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -84,6 +85,7 @@ type dependencies struct {
 	WMeta              option.Option[workloadmeta.Component]
 	SchedulerProviders []schedulers.Scheduler `group:"log-agent-scheduler"`
 	Tagger             tagger.Component
+	Secrets            secrets.Component
 	Compression        logscompression.Component
 }
 
@@ -106,6 +108,7 @@ type logAgent struct {
 	inventoryAgent inventoryagent.Component
 	hostname       hostname.Component
 	tagger         tagger.Component
+	secrets        secrets.Component
 
 	sources                   *sources.LogSources
 	services                  *service.Services
@@ -161,6 +164,7 @@ func newLogsAgent(deps dependencies) provides {
 			schedulerProviders: deps.SchedulerProviders,
 			integrationsLogs:   integrationsLogs,
 			tagger:             deps.Tagger,
+			secrets:            deps.Secrets,
 			compression:        deps.Compression,
 		}
 		deps.Lc.Append(fx.Hook{

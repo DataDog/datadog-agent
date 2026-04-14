@@ -13,7 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
+	"github.com/DataDog/agent-payload/v5/statefulpb"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -21,11 +21,11 @@ import (
 // It provides thread-safe operations for retrieving/creating IDs and building Tag proto messages
 // that reference those IDs.
 type TagManager struct {
-	stringToEntry    map[string]*tagEntry
-	idToEntry        map[uint64]*tagEntry
-	nextID           atomic.Uint64
+	stringToEntry     map[string]*tagEntry
+	idToEntry         map[uint64]*tagEntry
+	nextID            atomic.Uint64
 	cachedMemoryBytes atomic.Int64
-	mu               sync.RWMutex
+	mu                sync.RWMutex
 }
 
 // NewTagManager creates a new TagManager instance

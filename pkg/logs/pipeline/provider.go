@@ -102,6 +102,16 @@ func NewProvider(
 	if endpoints.UseGRPC {
 		senderImpl = grpcsender.NewSender(numberOfPipelines, cfg, sink, endpoints, destinationsContext, compression)
 	} else if endpoints.UseHTTP {
+		if _, ok := firstGRPCAdditionalEndpoint(endpoints); ok {
+			if endpoints.Main.ExtraHTTPHeaders == nil {
+				endpoints.Main.ExtraHTTPHeaders = map[string]string{}
+			}
+			endpoints.Main.ExtraHTTPHeaders["dd-shadow-ingest"] = "true"
+			if endpoints.Endpoints[0].ExtraHTTPHeaders == nil {
+				endpoints.Endpoints[0].ExtraHTTPHeaders = map[string]string{}
+			}
+			endpoints.Endpoints[0].ExtraHTTPHeaders["dd-shadow-ingest"] = "true"
+		}
 		senderImpl = httpSender(numberOfPipelines, cfg, sink, endpoints, destinationsContext, serverlessMeta, legacyMode, secretsComp)
 	} else {
 		senderImpl = tcpSender(numberOfPipelines, cfg, sink, endpoints, destinationsContext, status, serverlessMeta, legacyMode)
@@ -212,7 +222,6 @@ func httpSender(
 		workersPerQueue,
 		minSenderConcurrency,
 		maxSenderConcurrency,
-		secretsComp,
 	)
 }
 
