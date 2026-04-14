@@ -68,7 +68,9 @@ func testServer(t *testing.T, allowlist map[string]sets.Set[string]) (socketPath
 
 	ctx := context.Background()
 	var lastActivity atomic.Int64
-	handler := makeExecuteHandler(ctx, cfg, verifier, resolver, bundles, &lastActivity, 0)
+	var activeRequests atomic.Int32
+	sem := make(chan struct{}, 5)
+	handler := makeExecuteHandler(ctx, cfg, verifier, resolver, bundles, &lastActivity, &activeRequests, sem, 0)
 
 	// Use /tmp with a short name — t.TempDir() produces paths that exceed
 	// macOS's 104-character Unix socket path limit.

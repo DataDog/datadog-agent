@@ -111,9 +111,14 @@ type ExecutorComponent struct {
 	startChan   chan struct{}
 	cancelStart context.CancelFunc
 	ln          net.Listener
+	srv         *http.Server // kept so Stop() can drain in-flight requests
 
-	// lastActivity is updated on each /execute request for idle detection.
+	// lastActivity is updated at the END of each /execute handler so the idle
+	// timer does not fire while actions are in progress.
 	lastActivity atomic.Int64
+	// activeRequests counts goroutines currently inside the /execute handler.
+	// The idle timer only fires when this reaches zero.
+	activeRequests atomic.Int32
 }
 
 // NewComponent is the fxutil.ProvideComponentConstructor-compatible constructor.
@@ -191,6 +196,16 @@ func (ec *ExecutorComponent) start(ctx context.Context) error {
 		return fmt.Errorf("par-executor: socket setup failed: %w", err)
 	}
 
+	// Concurrency semaphore — mirrors the original PAR RunnerPoolSize semaphore
+	// in pkg/privateactionrunner/runners/workflow_executor.go.
+	// Default 5, configurable via private_action_runner.task_concurrency in datadog.yaml.
+	poolSize := cfg.RunnerPoolSize
+	if poolSize <= 0 {
+		poolSize = 5
+	}
+	sem := make(chan struct{}, poolSize)
+	ec.logger.Infof("par-executor: action pool size = %d", poolSize)
+
 	if ec.params.IdleTimeoutSeconds > 0 {
 		ec.lastActivity.Store(time.Now().Unix())
 		go ec.idleWatcher()
@@ -203,15 +218,17 @@ func (ec *ExecutorComponent) start(ctx context.Context) error {
 	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/execute", makeExecuteHandler(ctx, cfg, verifier, resolver, bundles, &ec.lastActivity, ec.params.IdleTimeoutSeconds))
+	mux.HandleFunc("/execute", makeExecuteHandler(ctx, cfg, verifier, resolver, bundles,
+		&ec.lastActivity, &ec.activeRequests, sem, ec.params.IdleTimeoutSeconds))
 	mux.HandleFunc("/debug/ready", handleReady)
 	mux.HandleFunc("/debug/health", handleHealth)
 	mux.HandleFunc("/debug/stats", handleStats)
 
-	ec.logger.Infof("par-executor: listening on %s (idle-timeout=%ds)", ec.params.SocketPath, ec.params.IdleTimeoutSeconds)
+	ec.srv = &http.Server{Handler: mux}
+	ec.logger.Infof("par-executor: listening on %s (pool=%d, idle-timeout=%ds)",
+		ec.params.SocketPath, poolSize, ec.params.IdleTimeoutSeconds)
 	go func() {
-		srv := &http.Server{Handler: mux}
-		if serveErr := srv.Serve(ec.ln); serveErr != nil && !errors.Is(serveErr, net.ErrClosed) {
+		if serveErr := ec.srv.Serve(ec.ln); serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
 			ec.logger.Errorf("par-executor: server error: %v", serveErr)
 		}
 	}()
@@ -220,6 +237,8 @@ func (ec *ExecutorComponent) start(ctx context.Context) error {
 }
 
 // Stop implements privateactionrunner.Component.
+// It stops accepting new requests and waits for in-flight actions to complete
+// (or for ctx to be cancelled), then removes the socket file.
 func (ec *ExecutorComponent) Stop(ctx context.Context) error {
 	if !ec.started {
 		return nil
@@ -234,10 +253,15 @@ func (ec *ExecutorComponent) Stop(ctx context.Context) error {
 		ec.logger.Warn("par-executor: startup did not complete before stop timeout")
 	}
 
-	if ec.ln != nil {
+	// Graceful shutdown: stop accepting new connections, drain in-flight ones.
+	if ec.srv != nil {
+		if err := ec.srv.Shutdown(ctx); err != nil {
+			ec.logger.Warnf("par-executor: server shutdown error: %v", err)
+		}
+	} else if ec.ln != nil {
 		ec.ln.Close()
-		os.Remove(ec.params.SocketPath)
 	}
+	os.Remove(ec.params.SocketPath)
 	return nil
 }
 
@@ -272,6 +296,14 @@ func (ec *ExecutorComponent) getRunnerConfig(ctx context.Context) (*parconfig.Co
 // makeExecuteHandler returns the POST /execute handler.
 // This implements the same logic as Loop.handleTask in workflow_executor.go,
 // but receives the raw task from par-control over UDS instead of from OPMS.
+//
+// Concurrency model mirrors the original PAR WorkflowRunner:
+//   - sem (buffered channel) limits the number of concurrently running actions,
+//     matching private_action_runner.task_concurrency (default 5).
+//   - activeRequests is incremented on entry and decremented on return so the
+//     idle timer never fires while work is in progress.
+//   - lastActivity is updated at handler EXIT (not entry) so the idle clock
+//     starts only after all in-flight work has completed.
 func makeExecuteHandler(
 	baseCtx context.Context,
 	cfg *parconfig.Config,
@@ -279,6 +311,8 @@ func makeExecuteHandler(
 	resolver credresolver.PrivateCredentialResolver,
 	bundles map[string]types.Bundle,
 	lastActivity *atomic.Int64,
+	activeRequests *atomic.Int32,
+	sem chan struct{},
 	idleTimeoutSeconds int,
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -286,9 +320,26 @@ func makeExecuteHandler(
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		if idleTimeoutSeconds > 0 {
-			lastActivity.Store(time.Now().Unix())
+
+		// Acquire semaphore slot — blocks until a slot is free, matching the
+		// original PAR behaviour where excess tasks wait rather than being dropped.
+		// Use request context so we respect client disconnects.
+		select {
+		case sem <- struct{}{}:
+		case <-r.Context().Done():
+			writeExecuteError(w, http.StatusServiceUnavailable, 0, "request cancelled while waiting for pool slot")
+			return
 		}
+		defer func() { <-sem }()
+
+		activeRequests.Add(1)
+		defer func() {
+			activeRequests.Add(-1)
+			// Reset idle clock after work completes, not before it starts.
+			if idleTimeoutSeconds > 0 {
+				lastActivity.Store(time.Now().Unix())
+			}
+		}()
 
 		ctx := r.Context()
 		logger := log.FromContext(baseCtx)
@@ -435,13 +486,20 @@ func unwrapNoVerification(rawTask *types.Task) (*types.Task, error) {
 }
 
 // idleWatcher calls os.Exit(0) after IdleTimeoutSeconds of inactivity.
+// The timer is suppressed while actions are in progress (activeRequests > 0)
+// so a long-running action never triggers premature self-termination.
+// lastActivity is reset at handler EXIT so the idle clock starts only after
+// all in-flight work completes.
 func (ec *ExecutorComponent) idleWatcher() {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 	timeout := time.Duration(ec.params.IdleTimeoutSeconds) * time.Second
 	for range ticker.C {
+		if ec.activeRequests.Load() > 0 {
+			continue // actions in flight — don't start the idle clock
+		}
 		if idle := time.Since(time.Unix(ec.lastActivity.Load(), 0)); idle >= timeout {
-			ec.logger.Infof("par-executor: idle for %v, self-terminating", idle.Round(time.Second))
+			ec.logger.Infof("par-executor: idle for %v (no active requests), self-terminating", idle.Round(time.Second))
 			os.Exit(0)
 		}
 	}
