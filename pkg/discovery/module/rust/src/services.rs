@@ -128,7 +128,11 @@ fn get_newest_tracer_metadata(memfd_paths: &[PathBuf]) -> Option<TracerMetadata>
             Some((tm, mtime))
         })
         .max_by(|(tm_a, t_a), (tm_b, t_b)| {
-            (t_a, tm_a.runtime_id.as_deref()).cmp(&(t_b, tm_b.runtime_id.as_deref()))
+            // Normalize None to "" to match Go, where a missing runtime_id
+            // unmarshals as "" (the zero value for string).
+            let rid_a = tm_a.runtime_id.as_deref().unwrap_or("");
+            let rid_b = tm_b.runtime_id.as_deref().unwrap_or("");
+            (t_a, rid_a).cmp(&(t_b, rid_b))
         })
         .map(|(m, _)| m)
 }
