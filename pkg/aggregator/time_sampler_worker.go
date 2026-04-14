@@ -115,9 +115,7 @@ func (w *timeSamplerWorker) run() {
 		case matcher := <-w.metricFilterListChan:
 			w.flushFilterList = matcher
 		case matcher := <-w.tagFilterListChan:
-			// Clear the context resolver strip cache when setting a new filter list
-			w.sampler.contextResolver.resolver.clearStripCache()
-			w.tagFilterList = matcher
+			w.setFilterList(matcher)
 		case trigger := <-w.flushChan:
 			w.triggerFlush(trigger)
 			w.tagsStore.Shrink()
@@ -125,6 +123,12 @@ func (w *timeSamplerWorker) run() {
 			trigger.done <- w.sampler.dumpContexts(trigger.dest)
 		}
 	}
+}
+
+// Set a new filterlist, ensuring we also clear the context resolver strip cache
+func (w *timeSamplerWorker) setFilterList(matcher filterlist.TagMatcher) {
+	w.sampler.contextResolver.resolver.clearTagFilterCache()
+	w.tagFilterList = matcher
 }
 
 func (w *timeSamplerWorker) stop() {

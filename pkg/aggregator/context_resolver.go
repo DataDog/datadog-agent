@@ -64,14 +64,6 @@ func (c *Context) DataSizeInBytes() int {
 // Make sure we implement the interface
 var _ size.HasSizeInBytes = &Context{}
 
-// stripCacheEntry holds the post-strip context and tag keys for a given pre-strip context key.
-type stripCacheEntry struct {
-	contextKey  ckey.ContextKey
-	taggerKey   ckey.TagsKey
-	metricKey   ckey.TagsKey
-	removedTags int // total number of tags removed by RetainFunc (tagger + metric)
-}
-
 // contextResolver allows tracking and expiring contexts
 type contextResolver struct {
 	id               string
@@ -85,12 +77,9 @@ type contextResolver struct {
 	keyGenerator     *ckey.KeyGenerator
 	taggerBuffer     *tagset.HashingTagsAccumulator
 	metricBuffer     *tagset.HashingTagsAccumulator
-	// stripCache maps a pre-strip contextKey to the post-strip (contextKey, taggerKey, metricKey).
+	// tagFilterCache maps a pre-filter contextKey to the post-filter (contextKey, taggerKey, metricKey).
 	// This avoids repeated RetainFunc calls for metrics we have already processed.
-	stripCache map[ckey.ContextKey]stripCacheEntry
-	// stripCacheReverse maps a post-strip contextKey back to the pre-strip contextKeys that produced it.
-	// This allows O(1) cleanup of stripCache entries when a context is removed from contextsByKey.
-	stripCacheReverse map[ckey.ContextKey]*reverseCacheRing
+	tagFilterCache *tagFilterCache
 }
 
 // generateContextKey generates the contextKey associated with the context of the metricSample
@@ -100,19 +89,18 @@ func (cr *contextResolver) generateContextKey(metricSampleContext metrics.Metric
 
 func newContextResolver(tagger tagger.Component, cache *tags.Store, id string) *contextResolver {
 	return &contextResolver{
-		id:                id,
-		contextsByKey:     make(map[ckey.ContextKey]resolverEntry),
-		seendByMtype:      make([]bool, metrics.NumMetricTypes),
-		countsByMtype:     make([]uint64, metrics.NumMetricTypes),
-		bytesByMtype:      make([]uint64, metrics.NumMetricTypes),
-		dataBytesByMtype:  make([]uint64, metrics.NumMetricTypes),
-		tagsCache:         cache,
-		tagger:            tagger,
-		keyGenerator:      ckey.NewKeyGenerator(),
-		taggerBuffer:      tagset.NewHashingTagsAccumulator(),
-		metricBuffer:      tagset.NewHashingTagsAccumulator(),
-		stripCache:        make(map[ckey.ContextKey]stripCacheEntry),
-		stripCacheReverse: make(map[ckey.ContextKey]*reverseCacheRing),
+		id:               id,
+		contextsByKey:    make(map[ckey.ContextKey]resolverEntry),
+		seendByMtype:     make([]bool, metrics.NumMetricTypes),
+		countsByMtype:    make([]uint64, metrics.NumMetricTypes),
+		bytesByMtype:     make([]uint64, metrics.NumMetricTypes),
+		dataBytesByMtype: make([]uint64, metrics.NumMetricTypes),
+		tagsCache:        cache,
+		tagger:           tagger,
+		keyGenerator:     ckey.NewKeyGenerator(),
+		taggerBuffer:     tagset.NewHashingTagsAccumulator(),
+		metricBuffer:     tagset.NewHashingTagsAccumulator(),
+		tagFilterCache:   newTagFilterCache(),
 	}
 }
 
@@ -123,57 +111,11 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 	defer cr.taggerBuffer.Reset()
 	defer cr.metricBuffer.Reset()
 
-	var (
-		contextKey ckey.ContextKey
-		taggerKey  ckey.TagsKey
-		metricKey  ckey.TagsKey
-		keysSet    bool
-	)
-
+	contextKey, taggerKey, metricKey := cr.generateContextKey(metricSampleContext) // the generator will remove duplicates (and doesn't mind the order)
 	if filterList != nil && metricSampleContext.GetMetricType() == metrics.DistributionType {
-		if tagMatcher, strip := filterList.ShouldStripTags(metricSampleContext.GetName()); strip {
-			// Generate a pre-strip context key to use as the cache lookup key.
-			// generateContextKey sorts and deduplicates the buffers in place.
-			preCacheKey, _, _ := cr.generateContextKey(metricSampleContext)
-
-			if cached, ok := cr.stripCache[preCacheKey]; ok {
-				// Cache hit: reuse previously computed post-strip keys, skip RetainFunc.
-				contextKey = cached.contextKey
-				taggerKey = cached.taggerKey
-				metricKey = cached.metricKey
-				tlmFilteredTags.Add(float64(cached.removedTags))
-				tlmFilteredTagsCacheHit.Inc()
-			} else {
-				// Cache miss: strip tags and compute post-strip keys.
-				// Currently only distributions are supported, strip out tags if it is configured to remove tags for this given
-				// metric.
-				removedTagger := cr.taggerBuffer.RetainFunc(tagMatcher)
-				removedMetric := cr.metricBuffer.RetainFunc(tagMatcher)
-				removed := removedTagger + removedMetric
-				tlmFilteredTags.Add(float64(removed))
-				contextKey, taggerKey, metricKey = cr.generateContextKey(metricSampleContext) // the generator will remove duplicates (and doesn't mind the order)
-				cr.stripCache[preCacheKey] = stripCacheEntry{
-					contextKey:  contextKey,
-					taggerKey:   taggerKey,
-					metricKey:   metricKey,
-					removedTags: removed,
-				}
-				ring := cr.stripCacheReverse[contextKey]
-				if ring == nil {
-					ring = &reverseCacheRing{}
-					cr.stripCacheReverse[contextKey] = ring
-				}
-				if evicted, ok := ring.add(preCacheKey); ok {
-					delete(cr.stripCache, evicted)
-				}
-				tlmFilteredTagsCacheMiss.Inc()
-			}
-			keysSet = true
+		if tagMatcher, filter := filterList.ShouldStripTags(metricSampleContext.GetName()); filter {
+			contextKey, taggerKey, metricKey = cr.filterTags(metricSampleContext, tagMatcher, contextKey)
 		}
-	}
-
-	if !keysSet {
-		contextKey, taggerKey, metricKey = cr.generateContextKey(metricSampleContext) // the generator will remove duplicates (and doesn't mind the order)
 	}
 
 	if entry, ok := cr.contextsByKey[contextKey]; !ok {
@@ -207,6 +149,52 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 	return contextKey
 }
 
+// filterTags filters tags from the context that match the given tagMatcher.
+// Results are cached in tagFilterCache so repeated calls for the same pre-filter
+// context key skip the RetainFunc work.
+func (cr *contextResolver) filterTags(
+	metricSampleContext metrics.MetricSampleContext,
+	tagMatcher func(tag string) bool,
+	contextKey ckey.ContextKey,
+) (ckey.ContextKey, ckey.TagsKey, ckey.TagsKey) {
+
+	var (
+		taggerKey ckey.TagsKey
+		metricKey ckey.TagsKey
+	)
+
+	if cached, ok := cr.tagFilterCache.get(contextKey); ok {
+		// Cache hit: reuse previously computed post-filter keys, skip RetainFunc.
+		contextKey = cached.contextKey
+		taggerKey = cached.taggerKey
+		metricKey = cached.metricKey
+		tlmFilteredTags.Add(float64(cached.removedTags))
+		tlmFilteredTagsCacheHit.Inc()
+	} else {
+		// Cache miss: filter tags and compute post-filter keys.
+		// Currently only distributions are supported, filter out tags if it is configured to remove tags for this given
+		// metric.
+		removedTagger := cr.taggerBuffer.RetainFunc(tagMatcher)
+		removedMetric := cr.metricBuffer.RetainFunc(tagMatcher)
+		removed := removedTagger + removedMetric
+		tlmFilteredTags.Add(float64(removed))
+		filteredContextKey, filteredTaggerKey, filteredMetricKey := cr.generateContextKey(metricSampleContext) // the generator will remove duplicates (and doesn't mind the order)
+		cr.tagFilterCache.add(contextKey, tagFilterCacheEntry{
+			contextKey:  filteredContextKey,
+			taggerKey:   filteredTaggerKey,
+			metricKey:   filteredMetricKey,
+			removedTags: removed,
+		})
+		tlmFilteredTagsCacheMiss.Inc()
+
+		contextKey = filteredContextKey
+		taggerKey = filteredTaggerKey
+		metricKey = filteredMetricKey
+	}
+
+	return contextKey, taggerKey, metricKey
+}
+
 func (cr *contextResolver) get(key ckey.ContextKey) (*Context, bool) {
 	ctx, found := cr.contextsByKey[key]
 	return ctx.context, found
@@ -220,12 +208,7 @@ func (cr *contextResolver) remove(expiredContextKey ckey.ContextKey) {
 	context := cr.contextsByKey[expiredContextKey].context
 	delete(cr.contextsByKey, expiredContextKey)
 
-	if ring := cr.stripCacheReverse[expiredContextKey]; ring != nil {
-		ring.forEach(func(k ckey.ContextKey) {
-			delete(cr.stripCache, k)
-		})
-	}
-	delete(cr.stripCacheReverse, expiredContextKey)
+	cr.tagFilterCache.delete(expiredContextKey)
 
 	if context != nil {
 		cr.countsByMtype[context.mtype]--
@@ -256,12 +239,11 @@ func (cr *contextResolver) release() {
 	for _, c := range cr.contextsByKey {
 		c.context.release()
 	}
-	cr.clearStripCache()
+	cr.clearTagFilterCache()
 }
 
-func (cr *contextResolver) clearStripCache() {
-	clear(cr.stripCache)
-	clear(cr.stripCacheReverse)
+func (cr *contextResolver) clearTagFilterCache() {
+	cr.tagFilterCache.clear()
 }
 
 //nolint:revive // TODO(AML) Fix revive linter

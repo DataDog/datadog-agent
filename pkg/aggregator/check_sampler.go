@@ -256,7 +256,7 @@ func (cs *CheckSampler) flush() (metrics.Series, metrics.SketchSeriesList) {
 }
 
 func (cs *CheckSampler) clearStripCache() {
-	cs.contextResolver.resolver.clearStripCache()
+	cs.contextResolver.resolver.clearTagFilterCache()
 }
 
 func (cs *CheckSampler) release() {

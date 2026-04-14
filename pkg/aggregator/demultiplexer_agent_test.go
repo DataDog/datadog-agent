@@ -37,8 +37,8 @@ import (
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )

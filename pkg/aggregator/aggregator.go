@@ -801,10 +801,7 @@ func (agg *BufferedAggregator) run() {
 		case matcher := <-agg.filterListChan:
 			agg.flushFilterList = matcher
 		case matcher := <-agg.tagFilterListChan:
-			for _, cs := range agg.checkSamplers {
-				cs.clearStripCache()
-			}
-			agg.tagFilterList = matcher
+			agg.setFilterList(matcher)
 		case <-agg.health.C:
 		case checkItem := <-agg.checkItems:
 			checkItem.handle(agg)
@@ -865,6 +862,15 @@ func (agg *BufferedAggregator) run() {
 			tlmFlush.Add(1, event.eventType, state)
 		}
 	}
+}
+
+// Set a new filterlist, ensuring we also clear the context resolver strip cache
+// for each check sampler.
+func (agg *BufferedAggregator) setFilterList(matcher filterlist.TagMatcher) {
+	for _, cs := range agg.checkSamplers {
+		cs.clearStripCache()
+	}
+	agg.tagFilterList = matcher
 }
 
 // tags returns the list of tags that should be added to the agent telemetry metrics
