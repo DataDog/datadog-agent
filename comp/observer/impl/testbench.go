@@ -680,7 +680,7 @@ func (tb *TestBench) rerunDetectorsLocked() {
 	// cadence so detectors see the same data windows. Without it, replay
 	// advances at every stored data timestamp (much more frequently than live).
 	var result advanceResult
-	if tb.liveAdvanceTimes != nil {
+	if len(tb.liveAdvanceTimes) > 0 {
 		fmt.Printf("  Using live-scheduled replay (%d advance times)\n", len(tb.liveAdvanceTimes))
 		result = tb.engine.ReplayWithLiveSchedule(tb.liveAdvanceTimes)
 	} else {

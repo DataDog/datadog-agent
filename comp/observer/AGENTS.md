@@ -158,9 +158,9 @@ whether this is intentional).
 4. **Extractor names must be unique.** The name is used as the storage
    namespace for derived metrics. Duplicates cause silent data collision.
 
-5. **Trace stats are not processed.** `ObserveTraceStats` is a no-op.
-   Trace stats data is still recorded to parquet by the recorder but
-   the observer does not derive metrics from it.
+5. **Traces are not processed.** `ObserveTrace` and `ObserveTraceStats`
+   are no-ops. The fetcher does not fetch traces or trace stats.
+   Profile fetching is the only active fetch path.
 
 ## Testing
 

@@ -442,17 +442,17 @@ func NewComponent(deps Requires) Provides {
 		})
 	}
 
-	// Start the trace/profile fetcher only when recording is enabled.
-	// Trace and trace stats are not analyzed by the observer; fetching them is
+	// Start the profile fetcher only when recording is enabled.
+	// Profiles are not analyzed by the observer; fetching them is
 	// only useful for the recorder-backed parquet path.
 	if recordingEnabled && recorderAvailable {
-		fetchHandle := obs.GetHandle("trace-agent")
+		fetchHandle := obs.GetHandle("profile-agent")
 		obs.fetcher = newObserverFetcher(
 			deps.RemoteAgentRegistry,
 			fetchHandle,
 		)
 		obs.fetcher.Start()
-		pkglog.Info("[observer] trace/profile fetcher started")
+		pkglog.Info("[observer] profile fetcher started")
 	}
 
 	return Provides{Comp: obs}

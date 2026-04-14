@@ -34,19 +34,19 @@ Data enters through lightweight **Handles** that copy and send observations over
 
 ### 1. Observe (Handles)
 
-**Component** is the entry point. Call `GetHandle(name)` to get a handle scoped to a named source (e.g. "dogstatsd", "otlp", "trace-agent").
+**Component** is the entry point. Call `GetHandle(name)` to get a handle scoped to a named source (e.g. "dogstatsd", "otlp").
 
 **Handle** is the lightweight interface passed to data pipelines. It accepts five signal types:
 
 - `ObserveMetric(MetricView)` — a DogStatsD metric sample
 - `ObserveLog(LogView)` — a log message
-- `ObserveTrace(TraceView)` — a trace (collection of spans)
+- `ObserveTrace(TraceView)` — no-op (trace processing is disabled)
 - `ObserveTraceStats(TraceStatsView)` — no-op (trace stats processing is disabled)
 - `ObserveProfile(ProfileView)` — a profiling sample
 
 Each method copies the data synchronously, then does a **non-blocking send** to a buffered channel (capacity 1000). If the channel is full, the observation is silently dropped. This ensures the observer never blocks data ingestion, even if analysis is slow.
 
-> **Note:** Trace and profile observation are wired up but analysis is not yet implemented — they are recorded but not yet used for detection. A fetcher periodically pulls traces and profiles from remote trace-agents via gRPC.
+> **Note:** Profile observation is wired up but analysis is not yet implemented — profiles are recorded but not used for detection. A fetcher periodically pulls profiles from remote trace-agents via gRPC. Trace and trace stats processing is entirely disabled.
 
 **View interfaces** (`MetricView`, `LogView`, `TraceView`, etc.) provide read-only access to prevent data races. The underlying data may be reused after the call returns, so handles copy everything before sending.
 
