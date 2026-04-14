@@ -13,6 +13,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -414,6 +415,14 @@ func setMemfdMtime(t *testing.T, fd int, mtime time.Time) {
 	ts := unix.NsecToTimespec(mtime.UnixNano())
 	err := unix.UtimesNanoAt(fd, "", []unix.Timespec{ts, ts}, unix.AT_EMPTY_PATH)
 	require.NoError(t, err)
+
+	// Read back and verify the timestamp was applied.
+	var stat unix.Stat_t
+	path := fmt.Sprintf("/proc/self/fd/%d", fd)
+	err = unix.Stat(path, &stat)
+	require.NoError(t, err)
+	got := time.Unix(stat.Mtim.Sec, stat.Mtim.Nsec)
+	require.Equalf(t, mtime.UnixNano(), got.UnixNano(), "memfd mtime was not set correctly: want %v (%d), got %v (%d)", mtime, mtime.UnixNano(), got, got.UnixNano())
 }
 
 func createTracerMemfd(t *testing.T, data []byte) int {
