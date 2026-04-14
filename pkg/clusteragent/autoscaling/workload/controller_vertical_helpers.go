@@ -14,6 +14,7 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
@@ -40,6 +41,13 @@ const (
 )
 
 const inPlaceResizeSupportedCacheTTL = 15 * time.Minute
+
+// removeLimitSentinel is placed in ContainerResources.Limits by applyVerticalConstraints
+// to signal that an existing limit must be actively deleted from the live pod, rather
+// than set to a new value. Negative quantities are never valid Kubernetes resource values,
+// making this unambiguous. The sentinel must be inserted AFTER the limits >= requests
+// invariant check to prevent it from being overwritten.
+var removeLimitSentinel = resource.MustParse("-1")
 
 // isInPlaceResizeSupported checks whether the API server exposes the pods/resize
 // subresource, which requires InPlacePodVerticalScaling to be enabled. The result
@@ -400,10 +408,12 @@ func applyVerticalConstraints(verticalRecs *model.VerticalScalingValues, constra
 			}
 		}
 
-		// ControlledValues=CPURequestsRemoveLimitsMemoryRequestsAndLimits: strip only the CPU limit
-		// from the recommendation. Memory limits remain controlled (RequestsAndLimits semantics).
-		// The pod patcher will additionally remove any pre-existing CPU limit from live pods.
-		if constraint.ControlledValues != nil && *constraint.ControlledValues == datadoghqcommon.DatadogPodAutoscalerContainerControlledValuesCPURequestsRemoveLimitsMemoryRequestsAndLimits {
+		// ControlledValues=CPURequestsRemoveLimitsMemoryRequestsAndLimits (phase 1 of 2):
+		// Remove CPU from limits before clamping and the invariant check so neither
+		// touches the CPU limit. The sentinel is inserted in phase 2, after the invariant.
+		isCPURemoveLimits := constraint.ControlledValues != nil &&
+			*constraint.ControlledValues == datadoghqcommon.DatadogPodAutoscalerContainerControlledValuesCPURequestsRemoveLimitsMemoryRequestsAndLimits
+		if isCPURemoveLimits {
 			if _, hasCPULimit := cr.Limits[corev1.ResourceCPU]; hasCPULimit {
 				delete(cr.Limits, corev1.ResourceCPU)
 				modified = true
@@ -430,6 +440,18 @@ func applyVerticalConstraints(verticalRecs *model.VerticalScalingValues, constra
 				cr.Limits[resourceName] = reqQty.DeepCopy()
 				modified = true
 			}
+		}
+
+		// ControlledValues=CPURequestsRemoveLimitsMemoryRequestsAndLimits (phase 2 of 2):
+		// Insert sentinel AFTER the invariant check to prevent it from being overwritten.
+		// The sentinel signals to the pod patcher that any pre-existing CPU limit must be
+		// actively deleted from the live pod, even if the backend never included a CPU limit.
+		if isCPURemoveLimits {
+			if cr.Limits == nil {
+				cr.Limits = corev1.ResourceList{}
+			}
+			cr.Limits[corev1.ResourceCPU] = removeLimitSentinel
+			modified = true
 		}
 
 		kept = append(kept, cr)

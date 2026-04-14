@@ -887,7 +887,6 @@ func TestPatchContainerResources(t *testing.T) {
 		name             string
 		recommendation   datadoghqcommon.DatadogPodAutoscalerContainerResources
 		container        *corev1.Container
-		controlledValues *datadoghqcommon.DatadogPodAutoscalerContainerControlledValues
 		expectedPatched  bool
 		expectedLimits   corev1.ResourceList
 		expectedRequests corev1.ResourceList
@@ -948,7 +947,7 @@ func TestPatchContainerResources(t *testing.T) {
 			recommendation: datadoghqcommon.DatadogPodAutoscalerContainerResources{
 				Name:     "test-container",
 				Requests: corev1.ResourceList{"cpu": resource.MustParse("250m"), "memory": resource.MustParse("256Mi")},
-				Limits:   corev1.ResourceList{"memory": resource.MustParse("512Mi")},
+				Limits:   corev1.ResourceList{"cpu": removeLimitSentinel, "memory": resource.MustParse("512Mi")},
 			},
 			container: &corev1.Container{
 				Name: "test-container",
@@ -957,7 +956,6 @@ func TestPatchContainerResources(t *testing.T) {
 					Requests: corev1.ResourceList{"cpu": resource.MustParse("100m"), "memory": resource.MustParse("128Mi")},
 				},
 			},
-			controlledValues: pointer.Ptr(datadoghqcommon.DatadogPodAutoscalerContainerControlledValuesCPURequestsRemoveLimitsMemoryRequestsAndLimits),
 			expectedPatched:  true,
 			expectedLimits:   corev1.ResourceList{"memory": resource.MustParse("512Mi")},
 			expectedRequests: corev1.ResourceList{"cpu": resource.MustParse("250m"), "memory": resource.MustParse("256Mi")},
@@ -967,7 +965,7 @@ func TestPatchContainerResources(t *testing.T) {
 			recommendation: datadoghqcommon.DatadogPodAutoscalerContainerResources{
 				Name:     "test-container",
 				Requests: corev1.ResourceList{"cpu": resource.MustParse("250m"), "memory": resource.MustParse("256Mi")},
-				Limits:   corev1.ResourceList{"memory": resource.MustParse("512Mi")},
+				Limits:   corev1.ResourceList{"cpu": removeLimitSentinel, "memory": resource.MustParse("512Mi")},
 			},
 			container: &corev1.Container{
 				Name: "test-container",
@@ -976,7 +974,6 @@ func TestPatchContainerResources(t *testing.T) {
 					Requests: corev1.ResourceList{"cpu": resource.MustParse("250m"), "memory": resource.MustParse("256Mi")},
 				},
 			},
-			controlledValues: pointer.Ptr(datadoghqcommon.DatadogPodAutoscalerContainerControlledValuesCPURequestsRemoveLimitsMemoryRequestsAndLimits),
 			expectedPatched:  false,
 			expectedLimits:   corev1.ResourceList{"memory": resource.MustParse("512Mi")},
 			expectedRequests: corev1.ResourceList{"cpu": resource.MustParse("250m"), "memory": resource.MustParse("256Mi")},
@@ -987,7 +984,7 @@ func TestPatchContainerResources(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			containerCopy := tt.container.DeepCopy()
 
-			patched := patchContainerResources(tt.recommendation, containerCopy, tt.controlledValues)
+			patched := patchContainerResources(tt.recommendation, containerCopy)
 
 			assert.Equal(t, tt.expectedPatched, patched, "patchContainerResources should return expected patch status")
 			assert.Equal(t, tt.expectedLimits, containerCopy.Resources.Limits, "Container limits should match expected values")
@@ -1001,7 +998,6 @@ func TestPatchPod(t *testing.T) {
 		name             string
 		recommendation   datadoghqcommon.DatadogPodAutoscalerContainerResources
 		pod              *corev1.Pod
-		controlledValues *datadoghqcommon.DatadogPodAutoscalerContainerControlledValues
 		expectedPatched  bool
 		expectedLimits   corev1.ResourceList
 		expectedRequests corev1.ResourceList
@@ -1129,7 +1125,7 @@ func TestPatchPod(t *testing.T) {
 			recommendation: datadoghqcommon.DatadogPodAutoscalerContainerResources{
 				Name:     "app-container",
 				Requests: corev1.ResourceList{"cpu": resource.MustParse("300m"), "memory": resource.MustParse("256Mi")},
-				Limits:   corev1.ResourceList{"memory": resource.MustParse("512Mi")},
+				Limits:   corev1.ResourceList{"cpu": removeLimitSentinel, "memory": resource.MustParse("512Mi")},
 			},
 			pod: &corev1.Pod{
 				Spec: corev1.PodSpec{
@@ -1144,7 +1140,6 @@ func TestPatchPod(t *testing.T) {
 					},
 				},
 			},
-			controlledValues: pointer.Ptr(datadoghqcommon.DatadogPodAutoscalerContainerControlledValuesCPURequestsRemoveLimitsMemoryRequestsAndLimits),
 			expectedPatched:  true,
 			expectedLimits:   corev1.ResourceList{"memory": resource.MustParse("512Mi")},
 			expectedRequests: corev1.ResourceList{"cpu": resource.MustParse("300m"), "memory": resource.MustParse("256Mi")},
@@ -1155,7 +1150,7 @@ func TestPatchPod(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			podCopy := tt.pod.DeepCopy()
 
-			patched := patchPod(tt.recommendation, podCopy, tt.controlledValues)
+			patched := patchPod(tt.recommendation, podCopy)
 
 			assert.Equal(t, tt.expectedPatched, patched, "patchPod should return expected patch status")
 

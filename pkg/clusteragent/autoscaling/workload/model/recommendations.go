@@ -94,6 +94,36 @@ func (v *VerticalScalingValues) DeepCopy() *VerticalScalingValues {
 	return out
 }
 
+// ContainerResourcesForStatus returns a copy of ContainerResources safe to write to the DPA status.
+// Any limit entry carrying a negative quantity is removed: negative quantities are never valid
+// Kubernetes resource values and are used internally as sentinels (e.g. to signal that a limit
+// must be actively deleted from a live pod). Exposing them in the status would be confusing.
+func (v *VerticalScalingValues) ContainerResourcesForStatus() []datadoghqcommon.DatadogPodAutoscalerContainerResources {
+	if v.ContainerResources == nil {
+		return nil
+	}
+	result := make([]datadoghqcommon.DatadogPodAutoscalerContainerResources, len(v.ContainerResources))
+	for i, cr := range v.ContainerResources {
+		cp := datadoghqcommon.DatadogPodAutoscalerContainerResources{Name: cr.Name}
+		if cr.Requests != nil {
+			cp.Requests = make(corev1.ResourceList, len(cr.Requests))
+			for k, q := range cr.Requests {
+				cp.Requests[k] = q.DeepCopy()
+			}
+		}
+		for res, qty := range cr.Limits {
+			if qty.Sign() >= 0 {
+				if cp.Limits == nil {
+					cp.Limits = make(corev1.ResourceList)
+				}
+				cp.Limits[res] = qty.DeepCopy()
+			}
+		}
+		result[i] = cp
+	}
+	return result
+}
+
 // SumCPUMemoryRequests sums the CPU and memory requests of all containers
 func (v *VerticalScalingValues) SumCPUMemoryRequests() (cpu, memory resource.Quantity) {
 	for _, container := range v.ContainerResources {

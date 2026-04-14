@@ -614,8 +614,10 @@ func TestApplyVerticalConstraints_CPURequestsRemoveLimits(t *testing.T) {
 	require.Len(t, vertical.ContainerResources, 1)
 	app := vertical.ContainerResources[0]
 
-	// CPU limit must be stripped from the recommendation
-	assert.NotContains(t, app.Limits, corev1.ResourceCPU, "CPU limit must be removed from recommendation")
+	// CPU limit must carry the sentinel value so patchContainerResources removes it from the pod
+	cpuLimit, exists := app.Limits[corev1.ResourceCPU]
+	require.True(t, exists, "CPU key must be present in limits (sentinel)")
+	assert.Equal(t, 0, cpuLimit.Cmp(removeLimitSentinel), "CPU limit must be the remove-limit sentinel value")
 	// Memory limit must be preserved
 	assert.Equal(t, resource.MustParse("512Mi"), app.Limits[corev1.ResourceMemory], "memory limit must be preserved")
 	// CPU and memory requests must be preserved

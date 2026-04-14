@@ -910,7 +910,7 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 				Source:           p.scalingValues.Vertical.Source,
 				GeneratedAt:      metav1.NewTime(p.scalingValues.Vertical.Timestamp),
 				Version:          p.scalingValues.Vertical.ResourcesHash,
-				DesiredResources: p.scalingValues.Vertical.ContainerResources,
+				DesiredResources: p.scalingValues.Vertical.ContainerResourcesForStatus(),
 				Scaled:           p.scaledReplicas,
 				Evicted:          p.evictedReplicas,
 				PodCPURequest:    cpuReqSum,
