@@ -36,10 +36,29 @@ def _foreign_cc_shared_wrapper_impl(ctx):
         if lib.dynamic_library != None
     ])
 
+    compilation_context = cc_info.compilation_context
+    if ctx.attr.strip_include_suffix:
+        suffix = "/" + ctx.attr.strip_include_suffix
+
+        def _strip(path):
+            if path.endswith(suffix):
+                return path[:-len(suffix)]
+            return path
+
+        compilation_context = cc_common.create_compilation_context(
+            headers = cc_info.compilation_context.headers,
+            includes = depset([_strip(i) for i in cc_info.compilation_context.includes.to_list()]),
+            system_includes = depset([_strip(i) for i in cc_info.compilation_context.system_includes.to_list()]),
+            quote_includes = cc_info.compilation_context.quote_includes,
+            framework_includes = cc_info.compilation_context.framework_includes,
+            defines = cc_info.compilation_context.defines,
+            local_defines = cc_info.compilation_context.local_defines,
+        )
+
     return [
         DefaultInfo(files = shared_libs),
         CcInfo(
-            compilation_context = cc_info.compilation_context,
+            compilation_context = compilation_context,
             linking_context = cc_common.create_linking_context(
                 linker_inputs = depset([selected_input]),
             ),
@@ -63,6 +82,13 @@ foreign_cc_shared_wrapper = rule(
         "lib_filter": attr.string(
             default = "",
             doc = "If set, expose only the dynamic library whose basename starts with this prefix followed by '.'.",
+        ),
+        "strip_include_suffix": attr.string(
+            default = "",
+            doc = """If set, strip this path component from the end of every include path in the
+compilation_context before returning it. Useful when configure_make's out_include_dir is
+set to a subdirectory (e.g. \"include/openssl\") for packaging reasons but consumers expect
+the parent directory (e.g. \"include\") as the -I path.""",
         ),
     },
     doc = """Wraps a rules_foreign_cc shared-library target into native Bazel CC providers.

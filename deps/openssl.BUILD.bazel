@@ -156,7 +156,7 @@ configure_make(
     }),
     lib_source = ":all_srcs",
     resource_size = "enormous",
-    out_include_dir = "include",
+    out_include_dir = "include/openssl",
     out_interface_libs = select({
         "@platforms//os:windows": [
             "libssl.lib",
@@ -228,18 +228,21 @@ configure_make(
 foreign_cc_shared_wrapper(
     name = "openssl_shared",
     input = ":openssl",
+    strip_include_suffix = "openssl",
 )
 
 foreign_cc_shared_wrapper(
     name = "libssl_shared",
     input = ":openssl",
     lib_filter = "libssl",
+    strip_include_suffix = "openssl",
 )
 
 foreign_cc_shared_wrapper(
     name = "libcrypto_shared",
     input = ":openssl",
     lib_filter = "libcrypto",
+    strip_include_suffix = "openssl",
 )
 
 dd_cc_packaged(
