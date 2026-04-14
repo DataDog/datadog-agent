@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "compression",
+    srcs = ["compression.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/compression",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "compression_test",
+    srcs = ["compression_test.go"],
+    deps = [
+        "//pkg/util/compression/impl-zstd",
+        "//pkg/util/compression/impl-zstd-nocgo",
+    ],
+)

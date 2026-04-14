@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "tls",
+    srcs = ["server_config.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/logs-library/utils/tls",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/util/log"],
+)
+
+go_test(
+    name = "tls_test",
+    srcs = ["server_config_test.go"],
+    embed = [":tls"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

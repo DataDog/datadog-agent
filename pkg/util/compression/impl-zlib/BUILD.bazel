@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl-zlib",
+    srcs = ["zlib_strategy.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/compression/impl-zlib",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/util/compression"],
+)
+
+go_test(
+    name = "impl-zlib_test",
+    srcs = ["zlib_strategy_test.go"],
+    embed = [":impl-zlib"],
+)

@@ -1,0 +1,35 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "metricsclient",
+    srcs = [
+        "doc.go",
+        "metrics_client.go",
+        "metrics_client_wrapper.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@io_opentelemetry_go_otel//attribute",
+        "@io_opentelemetry_go_otel_metric//:metric",
+    ],
+)
+
+go_test(
+    name = "metricsclient_test",
+    srcs = ["metrics_client_test.go"],
+    embed = [":metricsclient"],
+    deps = [
+        "//pkg/trace/timing",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_opentelemetry_go_otel//attribute",
+        "@io_opentelemetry_go_otel_metric//:metric",
+        "@io_opentelemetry_go_otel_metric//embedded",
+        "@io_opentelemetry_go_otel_sdk_metric//:metric",
+        "@io_opentelemetry_go_otel_sdk_metric//metricdata",
+        "@io_opentelemetry_go_otel_sdk_metric//metricdata/metricdatatest",
+    ],
+)

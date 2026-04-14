@@ -31,6 +31,8 @@ ALL_BUILD_TAGS = [
     "trivy",
 ]
 
+# gazelle:proto disable
+
 # TODO(agent-build): remove below `gazelle:exclude` directives (automatically updates @bazelify_go_work//:go.work)
 # gazelle:exclude cmd
 # gazelle:exclude comp/agent
@@ -58,32 +60,25 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/core/healthprobe
 # gazelle:exclude comp/core/hostname/hostnameimpl
 # gazelle:exclude comp/core/hostname/remotehostnameimpl
-# gazelle:exclude comp/core/ipc
 # gazelle:exclude comp/core/ipc/fx
 # gazelle:exclude comp/core/ipc/fx-none
-# gazelle:exclude comp/core/ipc/httphelpers
 # gazelle:exclude comp/core/ipc/impl
 # gazelle:exclude comp/core/ipc/impl-none
 # gazelle:exclude comp/core/ipc/mock
 # gazelle:exclude comp/core/log/fx
 # gazelle:exclude comp/core/log/fx-systemprobe
 # gazelle:exclude comp/core/log/fx-trace
-# gazelle:exclude comp/core/log/impl
 # gazelle:exclude comp/core/log/impl-systemprobe
-# gazelle:exclude comp/core/log/impl-trace
 # gazelle:exclude comp/core/log/rust
 # gazelle:exclude comp/core/profiler
 # gazelle:exclude comp/core/remoteagent
 # gazelle:exclude comp/core/remoteagentregistry
-# gazelle:exclude comp/core/secrets/fx
 # gazelle:exclude comp/core/secrets/fx-noop
 # gazelle:exclude comp/core/settings
-# gazelle:exclude comp/core/status/statusimpl
 # gazelle:exclude comp/core/sysprobeconfig
 # gazelle:exclude comp/core/tagger/api
 # gazelle:exclude comp/core/tagger/collectors
 # gazelle:exclude comp/core/tagger/common
-# gazelle:exclude comp/core/tagger/def
 # gazelle:exclude comp/core/tagger/fx
 # gazelle:exclude comp/core/tagger/fx-dual
 # gazelle:exclude comp/core/tagger/fx-mock
@@ -110,7 +105,10 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/etw
 # gazelle:exclude comp/filterlist
 # gazelle:exclude comp/fleetstatus
-# gazelle:exclude comp/forwarder
+# gazelle:exclude comp/forwarder/connectionsforwarder
+# gazelle:exclude comp/forwarder/eventplatform
+# gazelle:exclude comp/forwarder/eventplatformreceiver
+# gazelle:exclude comp/forwarder/orchestrator
 # gazelle:exclude comp/haagent
 # gazelle:exclude comp/healthplatform
 # gazelle:exclude comp/host-profiler/collector
@@ -124,8 +122,12 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/host-profiler/version
 # gazelle:exclude comp/languagedetection
 # gazelle:exclude comp/logonduration
-# gazelle:exclude comp/logs
-# gazelle:exclude comp/logs-library
+# gazelle:exclude comp/logs/adscheduler
+# gazelle:exclude comp/logs/agent/agentimpl
+# gazelle:exclude comp/logs/agent/flare
+# gazelle:exclude comp/logs/auditor
+# gazelle:exclude comp/logs/integrations
+# gazelle:exclude comp/logs/streamlogs
 # gazelle:exclude comp/metadata
 # gazelle:exclude comp/ndmtmp
 # gazelle:exclude comp/netflow/common
@@ -145,7 +147,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/otelcol/collector-contrib/impl
 # gazelle:exclude comp/otelcol/converter/examples
 # gazelle:exclude comp/otelcol/converter/fx
-# gazelle:exclude comp/otelcol/converter/impl
 # gazelle:exclude comp/otelcol/ddflareextension/fx
 # gazelle:exclude comp/otelcol/ddflareextension/image
 # gazelle:exclude comp/otelcol/ddflareextension/impl
@@ -154,7 +155,14 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/otelcol/dogtelextension/fx
 # gazelle:exclude comp/otelcol/dogtelextension/impl
 # gazelle:exclude comp/otelcol/logsagentpipeline
-# gazelle:exclude comp/otelcol/otlp
+# gazelle:exclude comp/otelcol/otlp/components/exporter
+# gazelle:exclude comp/otelcol/otlp/components/processor
+# gazelle:exclude comp/otelcol/otlp/configcheck
+# gazelle:exclude comp/otelcol/otlp/datatype
+# gazelle:exclude comp/otelcol/otlp/integrationtest
+# gazelle:exclude comp/otelcol/otlp/internal
+# gazelle:exclude comp/otelcol/otlp/testdata
+# gazelle:exclude comp/otelcol/otlp/testutil
 # gazelle:exclude comp/otelcol/status/fx
 # gazelle:exclude comp/otelcol/status/impl
 # gazelle:exclude comp/privateactionrunner
@@ -393,14 +401,11 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/trace/pb
 # gazelle:exclude pkg/trace/remoteconfighandler
 # gazelle:exclude pkg/trace/telemetry
-# gazelle:exclude pkg/trace/teststatsd
 # gazelle:exclude pkg/trace/testutil
-# gazelle:exclude pkg/trace/timing
 # gazelle:exclude pkg/trace/transform
 # gazelle:exclude pkg/trace/writer
 # gazelle:exclude pkg/util/cloudproviders
 # gazelle:exclude pkg/util/clusteragent
-# gazelle:exclude pkg/util/compression
 # gazelle:exclude pkg/util/containerd
 # gazelle:exclude pkg/util/containers/cri
 # gazelle:exclude pkg/util/containers/metadata
@@ -422,7 +427,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/util/kubernetes/kubelet
 # gazelle:exclude pkg/util/kubernetes/apiserver/controllers
 # gazelle:exclude pkg/util/kubernetes/apiserver/leaderelection
-# gazelle:exclude pkg/util/log/setup
 # gazelle:exclude pkg/util/os
 # gazelle:exclude pkg/util/port
 # gazelle:exclude pkg/util/profiling
