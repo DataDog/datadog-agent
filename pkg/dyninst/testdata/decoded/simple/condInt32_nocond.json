@@ -18,7 +18,7 @@
           {
             "function": "main.condInt32",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 287
+            "lineNumber": 294
           },
           {
             "function": "main.main",
@@ -82,7 +82,7 @@
           {
             "function": "main.condInt32",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 287
+            "lineNumber": 294
           },
           {
             "function": "main.main",
