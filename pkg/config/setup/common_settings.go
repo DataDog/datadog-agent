@@ -659,6 +659,12 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 		"gcr.io/datadoghq",
 		"docker.io/datadog",
 		"public.ecr.aws/datadog",
+		"datadoghq.azurecr.io",
+		"us-docker.pkg.dev/datadoghq/gcr.io",
+		"europe-docker.pkg.dev/datadoghq/eu.gcr.io",
+		"asia-docker.pkg.dev/datadoghq/asia.gcr.io",
+		"registry.datad0g.com",
+		"registry.datadoghq.com",
 	})
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.gradual_rollout.enabled", true)
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.gradual_rollout.cache_ttl", "1h")
@@ -1061,6 +1067,8 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("hostprofiler.additional_http_headers", map[string]string{})
 	config.BindEnvAndSetDefault("hostprofiler.ddprofiling.enabled", false)
 	config.BindEnvAndSetDefault("hostprofiler.ddprofiling.period", 0)
+	config.BindEnvAndSetDefault("hostprofiler.health_metrics.enabled", true)
+	config.BindEnvAndSetDefault("hostprofiler.health_metrics.target", "127.0.0.1:8889")
 }
 
 func agent(config pkgconfigmodel.Setup) {

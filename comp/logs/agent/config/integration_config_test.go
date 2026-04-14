@@ -8,6 +8,7 @@
 package config
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"testing"
 
@@ -42,6 +43,7 @@ func TestValidateShouldFailWithInvalidConfigs(t *testing.T) {
 		{Type: UDPType},
 		{Type: TCPType, Port: 6514, TLS: &TLSListenerConfig{CertFile: "/cert"}},
 		{Type: UDPType, Port: 514, TLS: &TLSListenerConfig{CertFile: "/cert", KeyFile: "/key"}},
+		{Type: TCPType, Port: 6514, TLS: &TLSListenerConfig{CertFile: "/cert", KeyFile: "/key", ClientAuth: "bogus"}},
 		{Type: TCPType, Port: 6514, TLS: &TLSListenerConfig{CertFile: "/cert", KeyFile: "/key", MinTLSVersion: "tls1.2"}},
 		{Type: DockerType, ProcessingRules: []*ProcessingRule{{Name: "foo"}}},
 		{Type: DockerType, ProcessingRules: []*ProcessingRule{{Name: "foo", Type: "bar"}}},
@@ -265,6 +267,16 @@ func TestValidateTLSConfig(t *testing.T) {
 		assert.Nil(t, err)
 	})
 
+	t.Run("valid TLS with mutual auth", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type: TCPType,
+			Port: 6514,
+			TLS:  &TLSListenerConfig{CertFile: "/cert", KeyFile: "/key", CAFile: "/ca", ClientAuth: "required"},
+		}
+		err := cfg.validateTLS()
+		assert.Nil(t, err)
+	})
+
 	t.Run("nil TLS is valid", func(t *testing.T) {
 		cfg := &LogsConfig{Type: TCPType, Port: 1234}
 		err := cfg.validateTLS()
@@ -304,6 +316,49 @@ func TestValidateTLSConfig(t *testing.T) {
 		assert.Contains(t, err.Error(), "cert_file and key_file")
 	})
 
+	t.Run("optional client_auth without ca_file fails", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type: TCPType,
+			Port: 6514,
+			TLS:  &TLSListenerConfig{CertFile: "/cert", KeyFile: "/key", ClientAuth: "optional"},
+		}
+		err := cfg.validateTLS()
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "ca_file")
+	})
+
+	t.Run("required client_auth without ca_file fails", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type: TCPType,
+			Port: 6514,
+			TLS:  &TLSListenerConfig{CertFile: "/cert", KeyFile: "/key", ClientAuth: "required"},
+		}
+		err := cfg.validateTLS()
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "ca_file")
+	})
+
+	t.Run("optional client_auth with ca_file is OK", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type: TCPType,
+			Port: 6514,
+			TLS:  &TLSListenerConfig{CertFile: "/cert", KeyFile: "/key", CAFile: "/ca", ClientAuth: "optional"},
+		}
+		err := cfg.validateTLS()
+		assert.Nil(t, err)
+	})
+
+	t.Run("unrecognized client_auth fails", func(t *testing.T) {
+		cfg := &LogsConfig{
+			Type: TCPType,
+			Port: 6514,
+			TLS:  &TLSListenerConfig{CertFile: "/cert", KeyFile: "/key", ClientAuth: "verify_client"},
+		}
+		err := cfg.validateTLS()
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "unrecognized client_auth")
+	})
+
 	t.Run("unrecognized min_tls_version fails", func(t *testing.T) {
 		cfg := &LogsConfig{
 			Type: TCPType,
@@ -313,6 +368,31 @@ func TestValidateTLSConfig(t *testing.T) {
 		err := cfg.validateTLS()
 		assert.NotNil(t, err)
 		assert.Contains(t, err.Error(), "unrecognized min_tls_version")
+	})
+
+	t.Run("all valid client_auth values pass", func(t *testing.T) {
+		for _, auth := range []string{"", "none", "optional", "required"} {
+			cfg := &LogsConfig{
+				Type: TCPType,
+				Port: 6514,
+				TLS:  &TLSListenerConfig{CertFile: "/cert", KeyFile: "/key", CAFile: "/ca", ClientAuth: auth},
+			}
+			err := cfg.validateTLS()
+			assert.Nil(t, err, "client_auth %q should be valid", auth)
+		}
+	})
+
+	t.Run("old client_auth values are rejected", func(t *testing.T) {
+		for _, auth := range []string{"request", "require", "verify", "require_and_verify"} {
+			cfg := &LogsConfig{
+				Type: TCPType,
+				Port: 6514,
+				TLS:  &TLSListenerConfig{CertFile: "/cert", KeyFile: "/key", ClientAuth: auth},
+			}
+			err := cfg.validateTLS()
+			assert.NotNil(t, err, "client_auth %q should be rejected", auth)
+			assert.Contains(t, err.Error(), "unrecognized client_auth")
+		}
 	})
 
 	t.Run("all valid min_tls_version values pass", func(t *testing.T) {
@@ -366,6 +446,27 @@ func TestParseTLSVersion(t *testing.T) {
 
 	_, err = parseTLSVersion("tlsv1.1")
 	assert.Error(t, err, "TLS 1.1 should no longer be accepted")
+}
+
+func TestParseClientAuth(t *testing.T) {
+	v, err := parseClientAuth("")
+	require.NoError(t, err)
+	assert.Equal(t, tls.NoClientCert, v)
+
+	v, err = parseClientAuth("none")
+	require.NoError(t, err)
+	assert.Equal(t, tls.NoClientCert, v)
+
+	v, err = parseClientAuth("optional")
+	require.NoError(t, err)
+	assert.Equal(t, tls.VerifyClientCertIfGiven, v)
+
+	v, err = parseClientAuth("required")
+	require.NoError(t, err)
+	assert.Equal(t, tls.RequireAndVerifyClientCert, v)
+
+	_, err = parseClientAuth("bogus")
+	assert.Error(t, err)
 }
 
 func TestValidateWildcardWithBeginningMode(t *testing.T) {
