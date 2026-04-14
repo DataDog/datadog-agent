@@ -1,8 +1,8 @@
 ---
 enhancements:
   - |
-    Upgrade OpenTelemetry Collector dependencies from v0.149.0 to v0.150.0
-    (core v1.55.0 to v1.56.0).
+    Upgrade OpenTelemetry Collector dependencies from v0.147.0 to v0.150.0
+    (core v1.53.0 to v1.56.0).
 
     Notable upstream changes:
 
