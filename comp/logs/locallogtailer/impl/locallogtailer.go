@@ -24,6 +24,7 @@ import (
 	filelauncher "github.com/DataDog/datadog-agent/pkg/logs/launchers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
+	"github.com/DataDog/datadog-agent/pkg/logs/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	logsadscheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -99,7 +100,9 @@ func (lr *localLogTailer) start(_ context.Context) error {
 	}
 
 	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(nil, nil)
-	lr.pipelineProvider = pipeline.NewProcessorOnlyProvider(diagnosticMessageReceiver, processingRules, nil, lr.config)
+	// PassthroughEncoder preserves the rendered log line in GetContent() so
+	// the observer reads the actual log text rather than a JSON transport envelope.
+	lr.pipelineProvider = pipeline.NewProcessorOnlyProviderWithEncoder(diagnosticMessageReceiver, processingRules, nil, lr.config, processor.PassthroughEncoder)
 	lr.pipelineProvider.Start()
 
 	lr.logSources = sources.NewLogSources()

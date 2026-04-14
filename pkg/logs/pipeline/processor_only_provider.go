@@ -25,19 +25,26 @@ type processorOnlyProvider struct {
 	pipelineMonitor metrics.PipelineMonitor
 }
 
-// NewProcessorOnlyProvider is used by the logs check subcommand as the feature does not require the functionalities of the log pipeline other then the processor.
+// NewProcessorOnlyProvider creates a provider with the JSON encoder, suitable
+// for the analyze-logs subcommand which reads JSON from GetOutputChan().
 func NewProcessorOnlyProvider(diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, hostname hostnameinterface.Component, cfg pkgconfigmodel.Reader) Provider {
+	return NewProcessorOnlyProviderWithEncoder(diagnosticMessageReceiver, processingRules, hostname, cfg, processor.JSONEncoder)
+}
+
+// NewProcessorOnlyProviderWithEncoder creates a provider that uses the supplied
+// encoder. Use processor.PassthroughEncoder when the consumer reads
+// GetContent() directly (e.g. the observer) to avoid JSON-wrapping the content.
+func NewProcessorOnlyProviderWithEncoder(diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, hostname hostnameinterface.Component, cfg pkgconfigmodel.Reader, enc processor.Encoder) Provider {
 	chanSize := cfg.GetInt("logs_config.message_channel_size")
 	outputChan := make(chan *message.Message, chanSize)
-	encoder := processor.JSONEncoder
 	inputChan := make(chan *message.Message, chanSize)
 	pipelineID := "0"
 	pipelineMonitor := metrics.NewNoopPipelineMonitor(pipelineID)
-	processor := processor.New(nil, inputChan, outputChan, processingRules,
-		encoder, diagnosticMessageReceiver, hostname, pipelineMonitor, pipelineID)
+	proc := processor.New(nil, inputChan, outputChan, processingRules,
+		enc, diagnosticMessageReceiver, hostname, pipelineMonitor, pipelineID)
 
 	p := &processorOnlyProvider{
-		processor:       processor,
+		processor:       proc,
 		inputChan:       inputChan,
 		outputChan:      outputChan,
 		pipelineMonitor: pipelineMonitor,
