@@ -140,8 +140,7 @@ def _target_to_bazel_pattern(target: str) -> str:
     if target in ('.', './'):
         return '//...'
     # Strip leading './' then any trailing '/' to avoid double-slash before '/...'
-    rel = target[2:] if target.startswith('./') else target
-    rel = rel.rstrip('/')
+    rel = target.removeprefix('./').rstrip('/')
     if rel.endswith('/...'):
         return f'//{rel}'
     return f'//{rel}/...'
