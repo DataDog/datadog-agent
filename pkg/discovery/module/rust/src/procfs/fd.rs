@@ -18,7 +18,7 @@ const O_APPEND: u32 = 0o2000;
 
 // Arbitrary limit for maximum number of candidates.  Some applications can initialize multiple
 // tracers.
-const MAX_TRACER_MEMFDS: usize = 10;
+const MAX_TRACER_MEMFDS: usize = 25;
 
 #[derive(Debug)]
 pub struct OpenFilesInfo {

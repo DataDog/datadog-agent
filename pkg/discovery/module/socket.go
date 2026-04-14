@@ -54,7 +54,7 @@ type fdPath struct {
 
 // Arbitrary limit for maximum number of candidates.  Some applications can
 // initialize multiple tracers.
-const maxTracerMemfds = 10
+const maxTracerMemfds = 25
 
 type openFilesInfo struct {
 	sockets        []uint64
