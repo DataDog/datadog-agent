@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -169,4 +170,37 @@ func assertEqualLibInjection(actualLibs []libInfo, expectedLibs []libInfo) bool 
 	}
 
 	return reflect.DeepEqual(actualLibsAsSet, expectedLibsAsSet)
+}
+
+func TestBuildLibraryInjectionConfigRejectsImplicitLibraryRegistryWhenAllowListIsSet(t *testing.T) {
+	mutator := &mutatorCore{
+		config: &Config{
+			staticConfig: staticConfig{
+				Instrumentation:   &InstrumentationConfig{},
+				containerRegistry: "docker.io/datadog",
+				registryAllowList: []string{"docker.io"},
+			},
+		},
+	}
+
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-pod",
+			Namespace: "default",
+		},
+	}
+
+	config := extractedPodLibInfo{
+		libs: []libInfo{
+			{
+				lang:  python,
+				image: "dd-lib-python-init:v3",
+			},
+		},
+		source: libInfoSourceLibInjection,
+	}
+
+	_, err := mutator.buildLibraryInjectionConfig(pod, config, false, localLibraryInstrumentationInstallType)
+	require.Error(t, err)
+	require.EqualError(t, err, "image registry is not in the allow list")
 }

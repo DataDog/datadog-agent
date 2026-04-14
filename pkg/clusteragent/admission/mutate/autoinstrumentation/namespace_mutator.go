@@ -53,29 +53,6 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 		return nil
 	}
 
-	// Check the registry allow list before any mutation. kpiEnvVarsMutator runs first and
-	// sets DD_INSTRUMENTATION_INSTALL_TYPE; if we only check inside InjectAPMLibraries (which
-	// runs later), that env var would already be set on blocked pods, causing RequireNoInjection
-	// to fail. Checking here lets us abort cleanly before any env vars are written.
-	if len(m.config.registryAllowList) > 0 {
-		injectorImage := m.resolveInjectorImage(pod)
-		if !slices.Contains(m.config.registryAllowList, injectorImage.Registry) {
-			msg := fmt.Sprintf("registry %q is not in the allow list", injectorImage.Registry)
-			log.Warnf("Skipping APM library injection for pod %s: %s", mutatecommon.PodString(pod), msg)
-			annotation.Set(pod, annotation.InjectionError, msg)
-			return nil
-		}
-		for _, lib := range config.libs {
-			libImage := m.resolveLibraryImage(lib)
-			if libImage.Registry != "" && !slices.Contains(m.config.registryAllowList, libImage.Registry) {
-				msg := fmt.Sprintf("registry %q is not in the allow list", libImage.Registry)
-				log.Warnf("Skipping APM library injection for pod %s: %s", mutatecommon.PodString(pod), msg)
-				annotation.Set(pod, annotation.InjectionError, msg)
-				return nil
-			}
-		}
-	}
-
 	autoDetected := config.source.isFromLanguageDetection()
 	injectionType := config.source.injectionType()
 
@@ -114,34 +91,67 @@ func (m *mutatorCore) kpiEnvVarsMutator(config extractedPodLibInfo) podMutator {
 // apmInjectionMutator returns a mutator that injects the APM injector and language-specific libraries.
 func (m *mutatorCore) apmInjectionMutator(config extractedPodLibInfo, autoDetected bool, injectionType string) podMutator {
 	return podMutatorFunc(func(pod *corev1.Pod) error {
-		// Convert libInfo to LibraryConfig here because library_injection cannot
-		// import autoinstrumentation (circular dependency).
-		libs := make([]libraryinjection.LibraryConfig, len(config.libs))
-		for i, lib := range config.libs {
-			libs[i] = libraryinjection.LibraryConfig{
-				Language:      string(lib.lang),
-				Package:       m.resolveLibraryImage(lib),
-				ContainerName: lib.ctrName,
-			}
+		injectionCfg, err := m.buildLibraryInjectionConfig(pod, config, autoDetected, injectionType)
+		if err != nil {
+			log.Warnf("Skipping APM library injection for pod %s: %s", mutatecommon.PodString(pod), err)
+			annotation.Set(pod, annotation.InjectionError, err.Error())
+			return nil
 		}
 
-		return libraryinjection.InjectAPMLibraries(pod, libraryinjection.LibraryInjectionConfig{
-			InjectionMode:               m.config.Instrumentation.InjectionMode,
-			DefaultResourceRequirements: m.config.defaultResourceRequirements,
-			InitSecurityContext:         m.config.initSecurityContext,
-			ContainerFilter:             m.config.containerFilter,
-			Wmeta:                       m.wmeta,
-			KubeServerVersion:           m.config.kubeServerVersion,
-			Debug:                       m.isDebugEnabled(pod),
-			AutoDetected:                autoDetected,
-			InjectionType:               injectionType,
-			RegistryAllowList:           m.config.registryAllowList,
-			Injector: libraryinjection.InjectorConfig{
-				Package: m.resolveInjectorImage(pod),
-			},
-			Libraries: libs,
-		})
+		return libraryinjection.InjectAPMLibraries(pod, injectionCfg)
 	})
+}
+
+func (m *mutatorCore) buildLibraryInjectionConfig(pod *corev1.Pod, config extractedPodLibInfo, autoDetected bool, injectionType string) (libraryinjection.LibraryInjectionConfig, error) {
+	injectorImage := m.resolveInjectorImage(pod)
+	if err := validateRegistryAllowList(m.config.staticConfig.registryAllowList, injectorImage.Registry); err != nil {
+		return libraryinjection.LibraryInjectionConfig{}, err
+	}
+
+	// Convert libInfo to LibraryConfig here because library_injection cannot
+	// import autoinstrumentation (circular dependency).
+	libs := make([]libraryinjection.LibraryConfig, len(config.libs))
+	for i, lib := range config.libs {
+		libImage := m.resolveLibraryImage(lib)
+		if err := validateRegistryAllowList(m.config.staticConfig.registryAllowList, libImage.Registry); err != nil {
+			return libraryinjection.LibraryInjectionConfig{}, err
+		}
+
+		libs[i] = libraryinjection.LibraryConfig{
+			Language:      string(lib.lang),
+			Package:       libImage,
+			ContainerName: lib.ctrName,
+		}
+	}
+
+	return libraryinjection.LibraryInjectionConfig{
+		InjectionMode:               m.config.Instrumentation.InjectionMode,
+		DefaultResourceRequirements: m.config.defaultResourceRequirements,
+		InitSecurityContext:         m.config.initSecurityContext,
+		ContainerFilter:             m.config.containerFilter,
+		Wmeta:                       m.wmeta,
+		KubeServerVersion:           m.config.kubeServerVersion,
+		Debug:                       m.isDebugEnabled(pod),
+		AutoDetected:                autoDetected,
+		InjectionType:               injectionType,
+		Injector: libraryinjection.InjectorConfig{
+			Package: injectorImage,
+		},
+		Libraries: libs,
+	}, nil
+}
+
+func validateRegistryAllowList(allowList []string, registry string) error {
+	if len(allowList) == 0 {
+		return nil
+	}
+	if registry == "" {
+		return fmt.Errorf("image registry is not in the allow list")
+	}
+	if !slices.Contains(allowList, registry) {
+		return fmt.Errorf("registry %q is not in the allow list", registry)
+	}
+	return nil
 }
 
 // isDebugEnabled checks if debug mode is enabled via pod annotation.
