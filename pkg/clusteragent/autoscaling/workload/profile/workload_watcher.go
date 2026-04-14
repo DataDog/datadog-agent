@@ -33,11 +33,10 @@ const (
 	noResync      = 0
 )
 
-// NamespaceLister abstracts the retrieval of namespace metadata so that
+// namespaceLister abstracts the retrieval of namespace metadata so that
 // the WorkloadWatcher can consume either a real WorkloadMetaStore or a
 // fake implementation in tests.
-type NamespaceLister interface {
-	// ListNamespaces returns namespace -> [label -> value]
+type namespaceLister interface {
 	ListNamespaces() map[string]map[string]string
 }
 
@@ -45,7 +44,7 @@ type wmsNamespaceLister struct {
 	wlm wmdef.Component
 }
 
-var _ NamespaceLister = (*wmsNamespaceLister)(nil)
+var _ namespaceLister = (*wmsNamespaceLister)(nil)
 
 func (l *wmsNamespaceLister) ListNamespaces() map[string]map[string]string {
 	nsList := l.wlm.ListKubernetesMetadata(func(m *wmdef.KubernetesMetadata) bool {
@@ -100,7 +99,7 @@ type WorkloadWatcher struct {
 	informerFactory dynamicinformer.DynamicSharedInformerFactory
 	informers       []workloadInformer
 
-	nsLister   NamespaceLister
+	nsLister   namespaceLister
 	nsWatchers map[string]*nsWorkloadWatcher
 
 	refreshPeriod time.Duration
@@ -112,11 +111,11 @@ type WorkloadWatcher struct {
 // label-filtered informer factory that watches workloads with the profile
 // label, and uses the WorkloadMetaStore to discover labeled namespaces.
 func NewWorkloadWatcher(
+	wlm wmdef.Component,
 	profileStore *autoscaling.Store[model.PodAutoscalerProfileInternal],
 	isLeader func() bool,
 	dynamicClient dynamic.Interface,
 	workloadResources []GroupVersionKindResource,
-	wlm wmdef.Component,
 ) *WorkloadWatcher {
 	filteredFactory := dynamicinformer.NewFilteredDynamicSharedInformerFactory(
 		dynamicClient,

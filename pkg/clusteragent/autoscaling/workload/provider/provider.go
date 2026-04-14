@@ -106,6 +106,7 @@ func StartWorkloadAutoscaling(
 	}
 
 	workloadWatcher := profile.NewWorkloadWatcher(
+		wlm,
 		profileStore,
 		isLeaderFunc,
 		apiCl.DynamicInformerCl,
@@ -113,7 +114,6 @@ func StartWorkloadAutoscaling(
 			{GroupVersionResource: schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}, Kind: "Deployment"},
 			{GroupVersionResource: schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "statefulsets"}, Kind: "StatefulSet"},
 		},
-		wlm,
 	)
 
 	autoscalerSyncer := profile.NewAutoscalerSyncer(profileStore, store, isLeaderFunc, profileController.InitialSyncDone, workloadWatcher.HasSynced)
