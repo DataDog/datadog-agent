@@ -379,7 +379,7 @@ func TestOnRCUpdate_EmptyQueriesDisables(t *testing.T) {
 
 	assert.Equal(t, state.ApplyStateAcknowledged, statuses["path/config"].State)
 	assert.Empty(t, c.activeConfigs)
-	assert.Empty(t, changes.Unschedule, "should not unschedule postgres check")
+	require.Len(t, changes.Unschedule, 1, "should unschedule previous enabled config")
 	require.Len(t, changes.Schedule, 1, "should schedule disable config")
 	assert.Equal(t, "postgres", changes.Schedule[0].Name)
 
@@ -409,7 +409,7 @@ func TestOnRCUpdate_ReconcileDisablesStaleConfigs(t *testing.T) {
 	_, changes := collectStatuses(c, updates)
 
 	assert.Empty(t, c.activeConfigs)
-	assert.Empty(t, changes.Unschedule, "should not unschedule postgres check")
+	require.Len(t, changes.Unschedule, 1, "should unschedule previous enabled config")
 	require.Len(t, changes.Schedule, 1, "should schedule disable config")
 }
 
@@ -438,7 +438,8 @@ func TestCollectDisable_Found(t *testing.T) {
 	c.collectDisable("my-config", &changes)
 
 	assert.Empty(t, c.activeConfigs)
-	assert.Empty(t, changes.Unschedule, "should not unschedule postgres check")
+	require.Len(t, changes.Unschedule, 1, "should unschedule previous enabled config")
+	assert.Equal(t, "postgres", changes.Unschedule[0].Name)
 	require.Len(t, changes.Schedule, 1, "should schedule disable config")
 	assert.Equal(t, "postgres", changes.Schedule[0].Name)
 
@@ -539,13 +540,13 @@ func TestOnRCUpdate_UpdateReplacesExistingCheck(t *testing.T) {
 	require.Len(t, changes1.Schedule, 1, "first update should schedule the check")
 	require.Contains(t, c.activeConfigs, "cfg-update")
 
-	// Second update: same config_id, different query. Should disable the old and schedule the new.
+	// Second update: same config_id, different query. Should unschedule old, disable, and schedule new.
 	_, changes2 := collectStatuses(c, map[string]state.RawConfig{
 		"path/cfg": {Config: mkPayload("SELECT 2")},
 	})
+	require.Len(t, changes2.Unschedule, 1, "should unschedule the previous enabled config")
 	// Expect 2 Schedule entries: disable old + schedule new
 	require.Len(t, changes2.Schedule, 2, "second update should disable old + schedule new")
-	assert.Empty(t, changes2.Unschedule, "should not unschedule postgres check")
 
 	// The last scheduled config should have the updated query.
 	var instance map[string]any

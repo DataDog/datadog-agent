@@ -127,16 +127,14 @@ func (c *component) onRCUpdate(updates map[string]state.RawConfig, applyStatus f
 	return changes
 }
 
-// collectDisable removes a config from activeConfigs and schedules an update that
-// disables data_observability on the postgres instance. Unlike unscheduling, this
-// does not remove the postgres check — it only turns off the DO query execution.
+// collectDisable removes a config from activeConfigs and replaces it with a disable
+// config that turns off data_observability on the postgres instance. The previous
+// enabled config is unscheduled so autodiscovery removes the old YAML variant, and
+// a new config with data_observability.enabled: false is scheduled in its place.
 // It is a no-op if configID is not currently active.
 func (c *component) collectDisable(configID string, changes *integration.ConfigChanges) {
 	c.activeConfigsMu.Lock()
 	prev, existed := c.activeConfigs[configID]
-	if existed {
-		delete(c.activeConfigs, configID)
-	}
 	c.activeConfigsMu.Unlock()
 
 	if !existed {
@@ -145,9 +143,20 @@ func (c *component) collectDisable(configID string, changes *integration.ConfigC
 
 	disableCfg, err := c.buildDisableConfig(prev.baseCfg, prev.instance)
 	if err != nil {
+		// Don't delete from activeConfigs — the old config stays tracked so a
+		// future reconciliation can retry the disable.
 		c.log.Errorf("Failed to build disable config for %s: %v", configID, err)
 		return
 	}
+
+	// Only delete after successfully building the disable config.
+	c.activeConfigsMu.Lock()
+	delete(c.activeConfigs, configID)
+	c.activeConfigsMu.Unlock()
+
+	// Unschedule the previous enabled config so autodiscovery removes the old
+	// YAML variant (different FastDigest), then schedule the disable config.
+	changes.Unschedule = append(changes.Unschedule, prev.checkConfig)
 	changes.Schedule = append(changes.Schedule, disableCfg)
 	c.log.Infof("Disabled Data Observability query actions for config: %s", configID)
 }

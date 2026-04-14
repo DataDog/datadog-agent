@@ -219,11 +219,12 @@ func TestStream_ChannelReplace_PreservesUnschedule(t *testing.T) {
 	payload3 := buildPayloadJSON(t, "cfg-B", "localhost", "db-b", singleQuery)
 	triggerRC(map[string]state.RawConfig{"path/cfg-B": {Config: payload3}}, noStatus)
 
-	// The merged result must contain cfg-B's Schedule AND cfg-A's disable Schedule.
+	// The merged result must contain cfg-B's Schedule + cfg-A's disable Schedule,
+	// and cfg-A's Unschedule (the old enabled config).
 	select {
 	case changes := <-outCh:
 		require.Len(t, changes.Schedule, 2, "should contain cfg-A disable + cfg-B schedule")
-		assert.Empty(t, changes.Unschedule, "no Unschedule entries expected with disable semantics")
+		require.Len(t, changes.Unschedule, 1, "cfg-A Unschedule must not be lost in the channel replace")
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for merged ConfigChanges")
 	}
