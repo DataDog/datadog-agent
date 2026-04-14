@@ -151,6 +151,7 @@ func (l *DBMAuroraListener) createService(entityID, clusterID string, instance a
 		l.delService <- existing
 		delete(l.services, entityID)
 	}
+	log.Debugf("creating aurora service %v", svc)
 	l.services[entityID] = svc
 	l.newService <- svc
 }

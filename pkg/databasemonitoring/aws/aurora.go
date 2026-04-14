@@ -53,9 +53,11 @@ func (c *Client) GetAuroraClusterEndpoints(ctx context.Context, clusters []types
 		for _, db := range clusterInstances.DBInstances {
 			if db.Endpoint != nil && db.DBClusterIdentifier != nil {
 				if db.Endpoint.Address == nil || db.DBInstanceStatus == nil || strings.ToLower(*db.DBInstanceStatus) != "available" {
+					log.Debugf("aurora: skipping instance %s in cluster %s", *db.DBInstanceIdentifier, *cluster.DBClusterIdentifier)
 					continue
 				}
 				instance, err := makeInstance(db, &cluster, config)
+				log.Debugf("aurora: created instance %v", instance)
 				if err != nil || instance == nil {
 					log.Errorf("error creating instance from DBInstance: %v", err)
 					continue
