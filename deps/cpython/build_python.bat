@@ -97,6 +97,7 @@ rmdir /q /s %sourcedir%\PCbuild\obj
 rmdir /q /s %sourcedir%\PCbuild\win32
 del /q %response_file%
 del /q %sourcedir%\python.bat
+for /d /r %destdir%\Lib %%d in (__pycache__) do rmdir /q /s "%%d"
 
 if %script_errorlevel% neq 0 (
    exit /b %script_errorlevel%
