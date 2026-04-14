@@ -315,7 +315,8 @@ func TestAdaptiveSampler_CreditRecovery(t *testing.T) {
 				MatchThreshold: 0.9,
 			}
 
-			exhaust := func(s *AdaptiveSampler, t0 time.Time) {
+			exhaust := func(t *testing.T, s *AdaptiveSampler, t0 time.Time) {
+				t.Helper()
 				s.now = func() time.Time { return t0 }
 				for range burstInt + 5 {
 					s.Process(testMsg(), patternA)
@@ -328,7 +329,7 @@ func TestAdaptiveSampler_CreditRecovery(t *testing.T) {
 			t.Run("sufficient quiet recovers full burst", func(t *testing.T) {
 				s := NewAdaptiveSampler(cfg, "test")
 				t0 := time.Now()
-				exhaust(s, t0)
+				exhaust(t, s, t0)
 
 				s.now = func() time.Time { return t0.Add(time.Duration(recoverySec) * time.Second) }
 
@@ -342,7 +343,7 @@ func TestAdaptiveSampler_CreditRecovery(t *testing.T) {
 			t.Run("insufficient quiet does not recover full burst", func(t *testing.T) {
 				s := NewAdaptiveSampler(cfg, "test")
 				t0 := time.Now()
-				exhaust(s, t0)
+				exhaust(t, s, t0)
 
 				// One second less than recovery. (recoverySec-1) * rate < burst
 				// because all cases have burst > rate, so recoverySec >= 2 and
