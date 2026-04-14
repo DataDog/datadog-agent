@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    APM: Fetch Org Propagation Marker on startup to Org Propagation Guard. The
+    trace-agent now fetches ``/api/v2/validate`` at startup to derive an Org
+    Propagation Marker (OPM) and exposes it in the ``/info`` endpoint.

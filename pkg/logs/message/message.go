@@ -9,6 +9,8 @@ package message
 import (
 	"encoding/json"
 	"errors"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -142,6 +144,58 @@ const (
 	StateEncoded
 )
 
+// HasContent reports whether the message carries meaningful data.
+// For structured messages, content lives in metadata fields (e.g. "siem",
+// "journald"), so the message has content even when the "message" key is empty.
+// For unstructured messages, content is present only when the raw bytes are
+// non-empty.
+func (m *MessageContent) HasContent() bool {
+	if m.State == StateStructured {
+		return m.structuredContent != nil
+	}
+	return len(m.content) > 0
+}
+
+// GetStructuredAttribute retrieves a dot-delimited attribute from structured
+// content. For example, "siem.device_vendor" walks Data["siem"] ->
+// map["device_vendor"]. Returns the string value and true if found.
+// Non-string leaf types (int, float64, bool) are converted via strconv.
+func (m *MessageContent) GetStructuredAttribute(path string) (string, bool) {
+	if m.State != StateStructured {
+		return "", false
+	}
+	bsc, ok := m.structuredContent.(*BasicStructuredContent)
+	if !ok || bsc == nil {
+		return "", false
+	}
+
+	parts := strings.Split(path, ".")
+	var current interface{} = bsc.Data
+	for _, key := range parts {
+		obj, ok := current.(map[string]interface{})
+		if !ok {
+			return "", false
+		}
+		current, ok = obj[key]
+		if !ok {
+			return "", false
+		}
+	}
+
+	switch v := current.(type) {
+	case string:
+		return v, true
+	case int:
+		return strconv.Itoa(v), true
+	case float64:
+		return strconv.FormatFloat(v, 'g', -1, 64), true
+	case bool:
+		return strconv.FormatBool(v), true
+	default:
+		return "", false
+	}
+}
+
 // GetContent returns the bytes array containing only the message content
 // E.g. from a structured log:
 //
@@ -207,6 +261,14 @@ type ParsingExtra struct {
 	IsMultiLine bool
 	IsMRFAllow  bool
 	Tags        []string
+	// SourceOverride, if non-empty, is applied to the message origin's source
+	// by the tailer after origin creation. Used by parsers (e.g. syslog) that
+	// run before the origin exists.
+	SourceOverride string
+	// ServiceOverride, if non-empty, is applied to the message origin's service
+	// by the tailer after origin creation. Used by parsers (e.g. syslog) that
+	// run before the origin exists.
+	ServiceOverride string
 }
 
 // ServerlessExtra ships extra information from logs processing in serverless envs.
