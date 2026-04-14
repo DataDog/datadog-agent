@@ -215,7 +215,11 @@ def gen_config_from_ci_pipeline(
     kmt_pipeline.retrieve_jobs()
 
     for job in kmt_pipeline.setup_jobs:
-        if (vcpu is None or memory is None) and job.status == GitlabJobStatus.SUCCESS and job.component == vmconfig_template:
+        if (
+            (vcpu is None or memory is None)
+            and job.status == GitlabJobStatus.SUCCESS
+            and job.component == vmconfig_template
+        ):
             info(f"[+] retrieving vmconfig from job {job.name}")
             for vmset in job.vmconfig["vmsets"]:
                 memory_list = vmset.get("memory", [])
