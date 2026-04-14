@@ -29,6 +29,7 @@ const (
 // GetAuroraClusterEndpoints queries an AWS account for the endpoints of an Aurora cluster
 // requires the dbClusterIdentifier for the cluster
 func (c *Client) GetAuroraClusterEndpoints(ctx context.Context, clusters []types.DBCluster, config Config) ([]Instance, error) {
+	log.Debugf("aurora: getting endpoints for %d clusters", len(clusters))
 	if len(clusters) == 0 {
 		return nil, nil
 	}
@@ -48,6 +49,7 @@ func (c *Client) GetAuroraClusterEndpoints(ctx context.Context, clusters []types
 		if err != nil {
 			return nil, fmt.Errorf("error running GetAuroraClusterEndpoints %v", err)
 		}
+		log.Debugf("aurora: found %d instances in cluster %s", len(clusterInstances.DBInstances), *cluster.DBClusterIdentifier)
 		for _, db := range clusterInstances.DBInstances {
 			if db.Endpoint != nil && db.DBClusterIdentifier != nil {
 				if db.Endpoint.Address == nil || db.DBInstanceStatus == nil || strings.ToLower(*db.DBInstanceStatus) != "available" {
@@ -87,11 +89,15 @@ func (c *Client) GetAuroraClustersFromTags(ctx context.Context, tags []string) (
 			},
 		})
 		if err != nil {
-			return nil, fmt.Errorf("error running GetAuroraClustersFromTags: %v", err)
+			return nil, fmt.Errorf("aurora: error running GetAuroraClustersFromTags: %v", err)
 		}
+		log.Debugf("aurora: found %d clusters", len(clusterDescriptions.DBClusters))
 		for _, cluster := range clusterDescriptions.DBClusters {
 			if cluster.DBClusterIdentifier != nil && containsTags(cluster.TagList, tags) {
+				log.Debugf("aurora: found cluster %s", *cluster.DBClusterIdentifier)
 				clusters = append(clusters, cluster)
+			} else {
+				log.Debugf("aurora: skipping cluster %s", *cluster.DBClusterIdentifier)
 			}
 		}
 		marker = clusterDescriptions.Marker
