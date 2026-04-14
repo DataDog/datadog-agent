@@ -134,4 +134,3 @@ func TestAgentExtension(t *testing.T) {
 	err = ext.Shutdown(ctx)
 	assert.NoError(t, err)
 }
-

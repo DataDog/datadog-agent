@@ -21,9 +21,9 @@ import (
 )
 
 var (
-	_ extension.Extension = (*ddExtension)(nil)
-	_ component.Config    = (*Config)(nil)
-	defaultEndpoint       = "7501"
+	_               extension.Extension = (*ddExtension)(nil)
+	_               component.Config    = (*Config)(nil)
+	defaultEndpoint                     = "7501"
 )
 
 // ddExtension is a basic OpenTelemetry Collector extension.
