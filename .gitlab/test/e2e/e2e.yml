@@ -380,6 +380,17 @@ new-e2e-remote-config:
     TEAM: remote-config
     # TODO: Re-enable on fips pipeline when fips is available with remote config using: ON_NIGHTLY_FIPS: "true"
 
+new-e2e-health-cascade:
+  extends:
+    - .new_e2e_template_needs_container_deploy_linux
+  rules:
+    - !reference [.on_rc_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/health-cascade
+    TEAM: remote-config
+    EXTRA_PARAMS: --run TestRCBackendUnavailableCausesAgentFailure
+
 new-e2e-agent-configuration:
   extends: .new_e2e_template_needs_deb_x64
   rules:
