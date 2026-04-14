@@ -10,6 +10,8 @@ load("@bazel_lib//lib:run_binary.bzl", "run_binary")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_file")
 
 def _runtime_compilation_bundle_impl(name, visibility, src_c, out_name, include_dirs, header_deps, out_go_file):
+    _LINUX_ONLY = ["@platforms//os:linux"]
+
     flat_name = "{}_flat".format(name)
     run_binary(
         name = flat_name,
@@ -21,6 +23,7 @@ def _runtime_compilation_bundle_impl(name, visibility, src_c, out_name, include_
             "$(location {})".format(src_c),
             "$@",
         ] + include_dirs,
+        target_compatible_with = _LINUX_ONLY,
     )
 
     raw_name = "{}_raw".format(name)
@@ -34,6 +37,7 @@ def _runtime_compilation_bundle_impl(name, visibility, src_c, out_name, include_
             "$@",
             "runtime",
         ],
+        target_compatible_with = _LINUX_ONLY,
     )
 
     # The integrity tool uses runtime.Caller(0) to detect whether its output
@@ -48,6 +52,7 @@ def _runtime_compilation_bundle_impl(name, visibility, src_c, out_name, include_
         outs = ["{}/{}.go".format(name, out_name)],
         cmd = "sed -e '/^import \"github.com\\/DataDog\\/datadog-agent\\/pkg\\/ebpf\\/bytecode\\/runtime\"/d' -e 's/runtime\\.newAsset/newAsset/g' $< > $@",
         visibility = visibility,
+        target_compatible_with = _LINUX_ONLY,
     )
 
     if out_go_file:
