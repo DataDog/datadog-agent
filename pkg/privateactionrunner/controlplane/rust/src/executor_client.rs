@@ -142,12 +142,26 @@ impl ExecutorClient {
             .await
             .context("POST request failed")?;
 
+        let status = resp.status();
         let bytes = resp
             .into_body()
             .collect()
             .await
             .context("failed to read response body")?
             .to_bytes();
+
+        // The executor always returns an ExecuteResponse JSON body, even for
+        // protocol errors (4xx). Return the body for the caller to parse so
+        // error_code / error_details are propagated correctly.
+        // A 5xx (executor crash) is the only case where the body might not
+        // be valid JSON — surface that as an error.
+        if status.is_server_error() {
+            anyhow::bail!(
+                "executor returned server error {}: {}",
+                status,
+                String::from_utf8_lossy(&bytes)
+            );
+        }
 
         Ok(bytes.to_vec())
     }

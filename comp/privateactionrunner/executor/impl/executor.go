@@ -347,12 +347,17 @@ func makeExecuteHandler(
 			defer cancel()
 		}
 
-		credential, err := resolver.ResolveConnectionInfoToCredential(ctx, task.Data.Attributes.ConnectionInfo, nil)
-		if err != nil {
-			logger.Errorf("par-executor: credential resolution failed: %v", err)
-			parErr := util.DefaultPARError(err)
-			writeExecuteError(w, http.StatusUnprocessableEntity, int32(parErr.ErrorCode), parErr.Message)
-			return
+		// Resolve credentials. ConnectionInfo is absent for actions like
+		// testConnection that do not require a connection (e.g. no credentials).
+		var credential *privateconnection.PrivateCredentials
+		if task.Data.Attributes.ConnectionInfo != nil {
+			credential, err = resolver.ResolveConnectionInfoToCredential(ctx, task.Data.Attributes.ConnectionInfo, nil)
+			if err != nil {
+				logger.Errorf("par-executor: credential resolution failed: %v", err)
+				parErr := util.DefaultPARError(err)
+				writeExecuteError(w, http.StatusUnprocessableEntity, int32(parErr.ErrorCode), parErr.Message)
+				return
+			}
 		}
 
 		// --- Run task (mirrors WorkflowRunner.RunTask minus heartbeat goroutine) ---
