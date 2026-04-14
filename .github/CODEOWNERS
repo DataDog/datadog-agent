@@ -335,6 +335,7 @@
 /comp/host-profiler @DataDog/opentelemetry-agent @DataDog/profiling-full-host
 /comp/logs @DataDog/agent-log-pipelines
 /comp/logs-library @DataDog/agent-log-pipelines
+/comp/logs/locallogtailer @DataDog/agent-metric-pipelines
 /comp/metadata @DataDog/agent-configuration
 /comp/ndmtmp @DataDog/network-device-monitoring-core
 /comp/netflow @DataDog/ndm-integrations
