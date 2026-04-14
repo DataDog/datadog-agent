@@ -199,7 +199,7 @@ func (suite *AgentTestSuite) testAgent(endpoints *config.Endpoints) {
 
 func (suite *AgentTestSuite) TestTruncateLogOriginAndService() {
 	// Set a very small max message size to force truncation
-	suite.configOverrides["logs_config.max_message_size_bytes"] = 10 // Only 1 byte
+	suite.configOverrides["logs_config.max_message_size_bytes"] = 10 // Small size to force truncation
 
 	// Create a test file with content that will definitely trigger log-line truncation
 	truncationLogFile := suite.testDir + "/truncation.log"
@@ -281,7 +281,7 @@ func (suite *AgentTestSuite) TestAgentStopsWithWrongBackendTcp() {
 
 	agent.startPipeline()
 	sources.AddSource(suite.source)
-	// Give the agent at most one second to process the logs.
+	// Give the agent at most 2 seconds to process the logs.
 	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 2*time.Second, func() bool {
 		return suite.fakeLogs == metrics.LogsProcessed.Value()
 	})
@@ -382,6 +382,7 @@ func (suite *AgentTestSuite) TestStatusOut() {
 		Errors:       []string{},
 		Warnings:     []string{},
 		UseHTTP:      true,
+		Transport:    "HTTP",
 	}
 
 	logsProvider = func(_ bool) logsStatus.Status {
