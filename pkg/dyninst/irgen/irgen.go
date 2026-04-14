@@ -567,32 +567,10 @@ func cleanReturnNames(vars []*ir.Variable) map[*ir.Variable]string {
 	return result
 }
 
-// resolveReturnSegment resolves a template segment referencing @return to the
-// corresponding return variable for multi-return functions. It extracts the
-// member name from a getmember(@return, "field") expression and finds the
-// matching return variable by its cleaned display name.
-func resolveReturnSegment(
-	seg *ir.JSONSegment,
-	returnVars []*ir.Variable,
-	displayNames map[*ir.Variable]string,
-) *ir.Variable {
-	gme, ok := seg.JSON.(*exprlang.GetMemberExpr)
-	if !ok {
-		return nil
-	}
-	for _, v := range returnVars {
-		if displayNames[v] == gme.Member {
-			return v
-		}
-	}
-	return nil
-}
-
 // rewriteReturnRef rewrites all RefExpr("@return") nodes in an expression
 // tree to RefExpr(varName), preserving wrapping operators (len, isEmpty, eq,
-// getmember). For multi-return, it also strips the outermost getmember that
-// selected the return field, since the root variable is already resolved to
-// that field's variable.
+// getmember). Used for single-return resolution where ref("@return") maps
+// directly to the return variable.
 func rewriteReturnRef(expr exprlang.Expr, varName string) exprlang.Expr {
 	switch e := expr.(type) {
 	case *exprlang.RefExpr:
@@ -616,31 +594,75 @@ func rewriteReturnRef(expr exprlang.Expr, varName string) exprlang.Expr {
 	}
 }
 
+// findReturnMember traverses an expression tree looking for
+// getmember(ref("@return"), member) and returns the member name.
+// Returns "" if no such pattern is found.
+func findReturnMember(expr exprlang.Expr) string {
+	switch e := expr.(type) {
+	case *exprlang.GetMemberExpr:
+		if ref, ok := e.Base.(*exprlang.RefExpr); ok && ref.Ref == "@return" {
+			return e.Member
+		}
+		return findReturnMember(e.Base)
+	case *exprlang.LenExpr:
+		return findReturnMember(e.Operand)
+	case *exprlang.IsEmptyExpr:
+		return findReturnMember(e.Operand)
+	case *exprlang.EqExpr:
+		return findReturnMember(e.Left)
+	default:
+		return ""
+	}
+}
+
+// rewriteReturnMember rewrites getmember(ref("@return"), member) -> ref(varName)
+// anywhere in an expression tree, preserving all wrapping operators.
+// Used for multi-return resolution where @return.field maps to a specific variable.
+func rewriteReturnMember(expr exprlang.Expr, varName string) exprlang.Expr {
+	switch e := expr.(type) {
+	case *exprlang.GetMemberExpr:
+		if ref, ok := e.Base.(*exprlang.RefExpr); ok && ref.Ref == "@return" {
+			return &exprlang.RefExpr{Ref: varName}
+		}
+		return &exprlang.GetMemberExpr{
+			Base:   rewriteReturnMember(e.Base, varName),
+			Member: e.Member,
+		}
+	case *exprlang.LenExpr:
+		return &exprlang.LenExpr{Operand: rewriteReturnMember(e.Operand, varName)}
+	case *exprlang.IsEmptyExpr:
+		return &exprlang.IsEmptyExpr{Operand: rewriteReturnMember(e.Operand, varName)}
+	case *exprlang.EqExpr:
+		return &exprlang.EqExpr{
+			Left:  rewriteReturnMember(e.Left, varName),
+			Right: e.Right,
+		}
+	default:
+		return expr
+	}
+}
+
 // resolveReturnCaptureExpr resolves a capture expression referencing @return
 // to return variable(s). For single returns, maps @return to the variable.
-// For multiple returns with getmember, extracts the field name and finds the
-// matching variable. Returns the root variable and the rewritten expression.
+// For multiple returns, finds getmember(@return, "field") anywhere in the
+// expression tree and resolves the field to the matching variable.
+// Returns the root variable and the rewritten expression.
 func resolveReturnCaptureExpr(
 	parsedExpr exprlang.Expr,
 	returnVars []*ir.Variable,
 	displayNames map[*ir.Variable]string,
 ) (*ir.Variable, exprlang.Expr) {
 	if len(returnVars) == 1 {
-		// Single return: rewrite ref(@return) -> ref(varName), preserving
-		// any wrapping operators (len, isEmpty, etc.).
 		v := returnVars[0]
 		return v, rewriteReturnRef(parsedExpr, v.Name)
 	}
-	// Multiple returns: the outermost expression must be
-	// getmember(ref(@return), "field"). Strip the getmember (since we resolve
-	// directly to the field's variable) and rewrite the base ref.
-	gme, ok := parsedExpr.(*exprlang.GetMemberExpr)
-	if !ok {
+	member := findReturnMember(parsedExpr)
+	if member == "" {
 		return nil, nil
 	}
 	for _, v := range returnVars {
-		if displayNames[v] == gme.Member {
-			return v, rewriteReturnRef(gme.Base, v.Name)
+		if displayNames[v] == member {
+			return v, rewriteReturnMember(parsedExpr, v.Name)
 		}
 	}
 	return nil, nil
@@ -920,13 +942,27 @@ func analyzeAllProbes(
 						})
 						addRoot(v.Type.GetID(), budget)
 					} else {
-						// Multiple returns: @return.field → resolve the field
+						// Multiple returns: @return.field -> resolve the field
 						// to the matching return variable, rewriting the
 						// expression to target the variable directly.
-						rv := resolveReturnSegment(seg.segment, returnVars, returnDisplayNames)
+						member := findReturnMember(seg.segment.JSON)
+						if member == "" {
+							ap.template.Segments[seg.index] = ir.InvalidSegment{
+								Error: "@return requires a field selector for multi-return functions (e.g., @return.r0)",
+								DSL:   seg.segment.DSL,
+							}
+							continue
+						}
+						var rv *ir.Variable
+						for _, v := range returnVars {
+							if returnDisplayNames[v] == member {
+								rv = v
+								break
+							}
+						}
 						if rv != nil {
 							ap.expressions = append(ap.expressions, analyzedExpression{
-								expr:         &exprlang.RefExpr{Ref: rv.Name},
+								expr:         rewriteReturnMember(seg.segment.JSON, rv.Name),
 								dsl:          seg.segment.DSL,
 								rootVariable: rv,
 								eventKind:    ir.EventKindReturn,
