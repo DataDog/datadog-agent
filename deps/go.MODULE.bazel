@@ -92,6 +92,7 @@ use_repo(
     "com_github_datadog_datadog_agent_comp_core_log_mock",
     "com_github_datadog_datadog_agent_comp_core_secrets_def",
     "com_github_datadog_datadog_agent_comp_core_secrets_fx",
+    "com_github_datadog_datadog_agent_comp_core_secrets_impl",
     "com_github_datadog_datadog_agent_comp_core_secrets_mock",
     "com_github_datadog_datadog_agent_comp_core_secrets_noop_impl",
     "com_github_datadog_datadog_agent_comp_core_secrets_utils",

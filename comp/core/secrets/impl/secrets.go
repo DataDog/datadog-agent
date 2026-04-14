@@ -153,6 +153,14 @@ func newEnabledSecretResolver(telemetry telemetry.Component) *secretResolver {
 	}
 }
 
+// NewEnabledResolver creates a new secrets resolver that uses the real secrets
+// backend without the FX dependency graph. The telemetry component is used only
+// for internal metrics; pass noopsimpl.GetCompatComponent() when Prometheus
+// metrics are not needed (e.g. for one-shot config resolution before FX starts).
+func NewEnabledResolver(t telemetry.Component) secrets.Component {
+	return newEnabledSecretResolver(t)
+}
+
 // NewComponent returns the implementation for the secrets component
 func NewComponent(deps Requires) Provides {
 	resolver := newEnabledSecretResolver(deps.Telemetry)

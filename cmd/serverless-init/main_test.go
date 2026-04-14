@@ -82,20 +82,18 @@ func (tfa *TestFlushableAgent) Flush() {
 
 func TestFlushSuccess(t *testing.T) {
 	metricAgent := &TestFlushableAgent{}
-	traceAgent := &TestFlushableAgent{}
 	mockLogsAgent := agentimpl.NewMockServerlessLogsAgent()
-	lastFlush(100*time.Millisecond, metricAgent, traceAgent, mockLogsAgent)
+	lastFlush(100*time.Millisecond, metricAgent, mockLogsAgent)
 	assert.Equal(t, true, metricAgent.hasBeenCalled)
 	assert.Equal(t, true, mockLogsAgent.DidFlush())
 }
 
 func TestFlushTimeout(t *testing.T) {
 	metricAgent := &TestTimeoutFlushableAgent{}
-	traceAgent := &TestTimeoutFlushableAgent{}
 	mockLogsAgent := agentimpl.NewMockServerlessLogsAgent()
 	mockLogsAgent.SetFlushDelay(time.Hour)
 
-	lastFlush(100*time.Millisecond, metricAgent, traceAgent, mockLogsAgent)
+	lastFlush(100*time.Millisecond, metricAgent, mockLogsAgent)
 	assert.Equal(t, false, metricAgent.hasBeenCalled)
 	assert.Equal(t, false, mockLogsAgent.DidFlush())
 }
