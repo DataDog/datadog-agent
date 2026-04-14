@@ -357,15 +357,21 @@ func (mr *Resolver) Delete(mountID uint32, mountIDUnique uint64) error {
 
 // ResolveFilesystem returns the name of the filesystem
 func (mr *Resolver) ResolveFilesystem(mountID uint32, pid uint32) (string, error) {
-	mr.lock.Lock()
-	defer mr.lock.Unlock()
-
-	mount, _, _, err := mr.resolveMount(mountID)
-	if err != nil {
+	if _, err := mr.IsMountIDValid(mountID); err != nil {
 		return model.UnknownFS, err
 	}
 
-	return mount.GetFSType(), nil
+	mr.lock.RLock()
+	mount := mr.peekByMountID(mountID)
+	mr.lock.RUnlock()
+
+	if mount != nil {
+		mr.cacheHitsStats.Inc()
+		return mount.GetFSType(), nil
+	}
+	mr.cacheMissStats.Inc()
+
+	return model.UnknownFS, &ErrMountNotFound{MountID: mountID}
 }
 
 // Insert a new mount point in the cache
@@ -463,8 +469,30 @@ func (mr *Resolver) lookupByMountID(mountID uint32) *model.Mount {
 	return nil
 }
 
+// peekByMountID looks up a mount without promoting it in the LRU.
+// Safe to call under RLock since Peek is read-only.
+func (mr *Resolver) peekByMountID(mountID uint32) *model.Mount {
+	if mount, ok := mr.mounts.Peek(mountID); mount != nil && ok {
+		return mount
+	}
+
+	return nil
+}
+
 func (mr *Resolver) lookupMount(mountID uint32) (*model.Mount, model.MountSource, model.MountOrigin) {
 	mount := mr.lookupByMountID(mountID)
+
+	if mount == nil {
+		return nil, model.MountSourceUnknown, model.MountOriginUnknown
+	}
+
+	return mount, model.MountSourceMountID, mount.Origin
+}
+
+// peekMount looks up a mount without promoting it in the LRU.
+// Safe to call under RLock since Peek is read-only.
+func (mr *Resolver) peekMount(mountID uint32) (*model.Mount, model.MountSource, model.MountOrigin) {
+	mount := mr.peekByMountID(mountID)
 
 	if mount == nil {
 		return nil, model.MountSourceUnknown, model.MountOriginUnknown
@@ -534,14 +562,21 @@ func (mr *Resolver) getMountPath(mountID uint32, pid uint32) (string, model.Moun
 
 // ResolveMountRoot returns the root of a mount identified by its mount ID.
 func (mr *Resolver) ResolveMountRoot(mountID uint32, pid uint32) (string, model.MountSource, model.MountOrigin, error) {
-	mr.lock.Lock()
-
-	root, source, origin, err := mr.resolveMountRoot(mountID)
-	if err == nil {
-		mr.lock.Unlock()
-		return root, source, origin, nil
+	if _, err := mr.IsMountIDValid(mountID); err != nil {
+		return "", model.MountSourceUnknown, model.MountOriginUnknown, err
 	}
-	mr.lock.Unlock()
+
+	mr.lock.RLock()
+	mount, source, origin := mr.peekMount(mountID)
+	mr.lock.RUnlock()
+
+	if mount != nil {
+		mr.cacheHitsStats.Inc()
+		return mount.RootStr, source, origin, nil
+	}
+	mr.cacheMissStats.Inc()
+
+	var err error = &ErrMountNotFound{MountID: mountID}
 
 	if !mr.opts.UseProcFS {
 		return "", model.MountSourceUnknown, model.MountOriginUnknown, err
@@ -559,6 +594,7 @@ func (mr *Resolver) ResolveMountRoot(mountID uint32, pid uint32) (string, model.
 			mr.mounts.Remove(m.MountID)
 			mr.insert(m)
 		}
+		var root string
 		root, source, origin, err = mr.resolveMountRoot(mountID)
 		mr.lock.Unlock()
 		if err == nil {
@@ -581,8 +617,22 @@ func (mr *Resolver) resolveMountRoot(mountID uint32) (string, model.MountSource,
 
 // ResolveMountPath returns the path of a mount identified by its mount ID.
 func (mr *Resolver) ResolveMountPath(mountID uint32, pid uint32) (string, model.MountSource, model.MountOrigin, error) {
-	mr.lock.Lock()
+	if _, err := mr.IsMountIDValid(mountID); err != nil {
+		return "", model.MountSourceUnknown, model.MountOriginUnknown, err
+	}
 
+	// Fast path: if the mount exists in cache and its Path has already been
+	// resolved, return it under a read lock to avoid contention.
+	mr.lock.RLock()
+	if mount, ok := mr.mounts.Peek(mountID); mount != nil && ok && len(mount.Path) > 0 {
+		mr.lock.RUnlock()
+		mr.cacheHitsStats.Inc()
+		return mount.Path, model.MountSourceMountID, mount.Origin, nil
+	}
+	mr.lock.RUnlock()
+
+	// Slow path: full resolution under write lock (computes and caches the path).
+	mr.lock.Lock()
 	p, source, origin, err := mr.resolveMountPath(mountID, pid)
 	if err == nil {
 		mr.lock.Unlock()
@@ -639,24 +689,29 @@ func (mr *Resolver) resolveMountPath(mountID uint32, pid uint32) (string, model.
 
 // ResolveMount returns the mount
 func (mr *Resolver) ResolveMount(mountID uint32, pid uint32) (*model.Mount, model.MountSource, model.MountOrigin, error) {
-	mr.lock.Lock()
+	if _, err := mr.IsMountIDValid(mountID); err != nil {
+		return nil, model.MountSourceUnknown, model.MountOriginUnknown, err
+	}
 
-	mount, source, origin, err := mr.resolveMount(mountID)
-	if err == nil {
-		mr.lock.Unlock()
+	mr.lock.RLock()
+	mount, source, origin := mr.peekMount(mountID)
+	mr.lock.RUnlock()
+
+	if mount != nil {
+		mr.cacheHitsStats.Inc()
 		return mount, source, origin, nil
 	}
-	mr.lock.Unlock()
+	mr.cacheMissStats.Inc()
 
 	if !mr.opts.UseProcFS {
-		return nil, model.MountSourceUnknown, model.MountOriginUnknown, err
+		return nil, model.MountSourceUnknown, model.MountOriginUnknown, &ErrMountNotFound{MountID: mountID}
 	}
 
 	// Try the primary PID synchronously outside the lock (single /proc read).
 	mounts, procErr := mr.collectPidMounts(pid)
 	if procErr != nil {
 		mr.requestProcfsSync(pid)
-		return nil, model.MountSourceUnknown, model.MountOriginUnknown, err
+		return nil, model.MountSourceUnknown, model.MountOriginUnknown, &ErrMountNotFound{MountID: mountID}
 	}
 
 	if len(mounts) > 0 {
@@ -665,7 +720,7 @@ func (mr *Resolver) ResolveMount(mountID uint32, pid uint32) (*model.Mount, mode
 			mr.mounts.Remove(m.MountID)
 			mr.insert(m)
 		}
-		mount, source, origin, err = mr.resolveMount(mountID)
+		mount, source, origin, err := mr.resolveMount(mountID)
 		mr.lock.Unlock()
 		if err == nil {
 			mr.procHitsStats.Inc()
