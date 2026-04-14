@@ -31,9 +31,8 @@ struct Engine {
 /// Missing `appBase` defaults to `""`, matching Go's `encoding/xml`
 /// (the reference implementation).  The old quick-xml/serde parser
 /// rejected the document if `@appBase` was absent.  An empty `appBase`
-/// resolves to `domain_home` via [`abs`], which may cause
-/// `scan_dir_for_deployments` to enumerate the Tomcat root — this
-/// matches Go's behavior for the same malformed input.
+/// resolves to `domain_home` via [`abs`], causing
+/// `scan_dir_for_deployments` to enumerate the Tomcat root.
 #[derive(Debug)]
 struct Host {
     app_base: String,
