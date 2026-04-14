@@ -93,7 +93,12 @@ impl XmlHandler for ConfigXmlHandler {
                 Action::Descend(ConfigXmlState::InAppDeployment)
             }
             (ConfigXmlState::InAppDeployment, "target") => {
-                // Clear in case the element appears more than once (last-wins).
+                // Clear in case the element appears more than once.  Real
+                // WebLogic configs never repeat these, but if they did the
+                // old quick-xml/serde parser would reject the document
+                // ("duplicate field") whereas Go's encoding/xml takes the
+                // last value.  We follow Go (last-wins) since it is the
+                // reference implementation.
                 self.current.target.clear();
                 Action::Descend(ConfigXmlState::ReadingTarget)
             }
