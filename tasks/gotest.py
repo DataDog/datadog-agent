@@ -187,7 +187,7 @@ def get_bazel_test_targets(ctx, modules: list[GoModule]) -> dict[str, str]:
         prefix = '' if module.path == '.' else module.path + '/'
         for target in module.test_targets:
             # Prepend module path for non-root modules
-            full_target = f'./{prefix}{target.lstrip("./")}' if module.path != '.' else target
+            full_target = f'./{prefix}{target.removeprefix("./")}' if module.path != '.' else target
             bazel_patterns.append(_target_to_bazel_pattern(full_target))
 
     if not bazel_patterns:
