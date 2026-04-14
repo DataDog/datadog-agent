@@ -21,9 +21,10 @@ var ErrNotEnabled = errors.New("private action runner is not enabled")
 // Duplicated from pkg/config/setup/privateactionrunner.go because comp/
 // packages cannot import pkg/config/setup (depguard rule).
 const (
-	PAREnabled          = "private_action_runner.enabled"
-	PARSelfEnroll       = "private_action_runner.self_enroll"
-	PARPrivateKey       = "private_action_runner.private_key"
-	PARUrn              = "private_action_runner.urn"
-	PARActionsAllowlist = "private_action_runner.actions_allowlist"
+	PAREnabled               = "private_action_runner.enabled"
+	PARSelfEnroll            = "private_action_runner.self_enroll"
+	PARPrivateKey            = "private_action_runner.private_key"
+	PARUrn                   = "private_action_runner.urn"
+	PARActionsAllowlist      = "private_action_runner.actions_allowlist"
+	PARDefaultActionsEnabled = "private_action_runner.default_actions_enabled"
 )

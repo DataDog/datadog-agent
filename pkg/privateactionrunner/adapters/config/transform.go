@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -99,6 +100,15 @@ func FromDDConfig(config config.Component) (*Config, error) {
 func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 	allowlist := make(map[string]sets.Set[string])
 	actionFqns := config.GetStringSlice(setup.PARActionsAllowlist)
+
+	if config.GetBool(setup.PARDefaultActionsEnabled) {
+		if flavor.GetFlavor() == flavor.ClusterAgent {
+			actionFqns = append(actionFqns, DefaultClusterAgentActionFQNs...)
+		} else {
+			actionFqns = append(actionFqns, DefaultActionFQNs...)
+		}
+	}
+
 	for _, fqn := range actionFqns {
 		bundleName, actionName := actions.SplitFQN(fqn)
 		previous, ok := allowlist[bundleName]

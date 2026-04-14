@@ -129,10 +129,11 @@ func (p *containerTagsBuffer) resolvePendingContainers(now time.Time) {
 		if now.Before(buffer.expireTs) {
 			continue
 		}
-		// force flush + deny
+		// deny before flush so any goroutine receiving the callback result
+		// is guaranteed to observe the container as denied
+		p.deniedContainers.deny(now, cid)
 		buffer.flush(tagResult{tags: ctags, err: nil})
 		delete(p.containersBuffer, cid)
-		p.deniedContainers.deny(now, cid)
 	}
 }
 

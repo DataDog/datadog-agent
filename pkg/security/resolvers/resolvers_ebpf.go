@@ -315,17 +315,6 @@ func (r *EBPFResolvers) snapshot() error {
 	r.NamespaceResolver.SyncCache()
 
 	for _, proc := range processes {
-		ppid, err := proc.Ppid()
-		if err != nil {
-			continue
-		}
-
-		pid := uint32(proc.Pid)
-
-		if process.IsKThread(uint32(ppid), pid) {
-			continue
-		}
-
 		// Sync the process cache
 		r.ProcessResolver.SyncCache(proc)
 	}

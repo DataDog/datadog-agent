@@ -1214,8 +1214,9 @@ func TestTryReparentFromKernelPPid(t *testing.T) {
 		resolver.AddForkEntry(parent, model.CGroupContext{}, nil)
 		resolver.AddForkEntry(child, model.CGroupContext{}, nil)
 
-		// Kernel reports ppid=99997 which is not in cache and unresolvable
-		resolver.TryReparentFromKernelPPid(child.ProcessCacheEntry, 99997, nil)
+		// Kernel reports a ppid above pid_max (4194304) so it can never exist in
+		// procfs and is guaranteed to be unresolvable regardless of host state.
+		resolver.TryReparentFromKernelPPid(child.ProcessCacheEntry, 5_000_099, nil)
 
 		assert.Equal(t, uint32(5000020), child.ProcessCacheEntry.PPid)
 		assert.Equal(t, parent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)

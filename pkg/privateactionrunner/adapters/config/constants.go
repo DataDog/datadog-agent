@@ -34,6 +34,47 @@ type BundleInheritedAllowedAction struct {
 	ExpectedPrefix string
 }
 
+// DefaultClusterAgentActionFQNs is a list of action FQNs that are enabled by default
+// when the agent runs as a Cluster Agent flavor.
+// Users can opt out by setting private_action_runner.default_actions_enabled to false.
+var DefaultClusterAgentActionFQNs = []string{
+	// k8s apps — Deployments
+	"com.datadoghq.kubernetes.apps.listDeployment",
+	"com.datadoghq.kubernetes.apps.getDeployment",
+	// k8s apps — DaemonSets
+	"com.datadoghq.kubernetes.apps.getDaemonSet",
+	"com.datadoghq.kubernetes.apps.listDaemonSet",
+	// k8s apps — StatefulSets
+	"com.datadoghq.kubernetes.apps.getStatefulSet",
+	"com.datadoghq.kubernetes.apps.listStatefulSet",
+	// k8s core — Pods
+	"com.datadoghq.kubernetes.core.getPod",
+	"com.datadoghq.kubernetes.core.listPod",
+	// k8s core — ConfigMaps
+	"com.datadoghq.kubernetes.core.getConfigMap",
+	"com.datadoghq.kubernetes.core.listConfigMap",
+	// k8s core — Services
+	"com.datadoghq.kubernetes.core.getService",
+	"com.datadoghq.kubernetes.core.listService",
+	// k8s core — Nodes
+	"com.datadoghq.kubernetes.core.getNode",
+	"com.datadoghq.kubernetes.core.listNode",
+	// k8s core — Events (diagnostic context)
+	"com.datadoghq.kubernetes.core.listEvent",
+	// k8s core — Namespaces
+	"com.datadoghq.kubernetes.core.listNamespace",
+	// k8s batch — Jobs
+	"com.datadoghq.kubernetes.batch.getJob",
+	"com.datadoghq.kubernetes.batch.listJob",
+	"com.datadoghq.kubernetes.batch.getCronJob",
+	"com.datadoghq.kubernetes.batch.listCronJob",
+}
+
+// DefaultActionFQNs is a list of action FQNs that are enabled by default
+// for non-Cluster-Agent flavors.
+// Users can opt out by setting private_action_runner.default_actions_enabled to false.
+var DefaultActionFQNs = []string{}
+
 // BundleInheritedAllowedActions is a list of actions that are automatically allowed
 // if at least one other action matching their expected prefix is allowed
 var BundleInheritedAllowedActions = []BundleInheritedAllowedAction{

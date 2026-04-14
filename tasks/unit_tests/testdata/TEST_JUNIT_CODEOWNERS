@@ -288,10 +288,10 @@
 /omnibus/package-scripts/installer-deb/ @DataDog/agent-build @DataDog/fleet
 /omnibus/package-scripts/installer-rpm/ @DataDog/agent-build @DataDog/fleet
 /omnibus/python-scripts/                @DataDog/agent-integrations @DataDog/windows-products
-/omnibus/config/patches/openscap/                         @DataDog/agent-cspm
+/omnibus/config/patches/openscap/                         @DataDog/agent-cspm @Datadog/agent-security
 /omnibus/config/software/datadog-agent-integrations-*.rb  @DataDog/agent-integrations
 /omnibus/config/software/datadog-security-agent*.rb       @Datadog/agent-security @DataDog/agent-build
-/omnibus/config/software/openscap.rb                      @DataDog/agent-cspm
+/omnibus/config/software/openscap.rb                      @DataDog/agent-cspm @Datadog/agent-security
 /omnibus/config/software/snmp-traps.rb                    @DataDog/network-device-monitoring-core
 /omnibus/config/templates/init-scripts-agent/             @DataDog/agent-build @DataDog/fleet
 /omnibus/resources/*/msi/                                 @DataDog/windows-products
@@ -596,7 +596,7 @@
 /pkg/network/usm/tests/*_windows*.go    @DataDog/windows-products
 /pkg/ebpf/                              @DataDog/ebpf-platform
 /pkg/ebpf/map_cleaner*.go               @DataDog/universal-service-monitoring
-/pkg/compliance/                        @DataDog/agent-cspm
+/pkg/compliance/                        @DataDog/agent-cspm @Datadog/agent-security
 /pkg/databasemonitoring                 @DataDog/database-monitoring
 /pkg/kubestatemetrics                   @DataDog/container-integrations
 /pkg/security/                          @DataDog/agent-security
