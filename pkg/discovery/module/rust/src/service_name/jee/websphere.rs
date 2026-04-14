@@ -111,8 +111,7 @@ fn is_application_deployed(
         .map(|t| &t.id)
         .ok_or_else(|| {
             Error::MissingConfig(format!(
-                "No deployment target found for \
-                 node '{}' and server '{}'",
+                "No deployment target found for node '{}' and server '{}'",
                 node_name, server_name
             ))
         })?;
