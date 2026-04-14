@@ -264,10 +264,9 @@ func (m *Check) Run() error {
 
 	// Always update the health platform issue regardless of flare state,
 	// so it resolves automatically when usage drops back below thresholds.
-	m.updateHealthPlatform(processMemoryMB, currentCPU)
-
-	// Exit early if usage is below thresholds
-	if processMemoryMB < float64(m.memoryThreshold)/MB && currentCPU < float64(m.instance.CPUThreshold) {
+	// updateHealthPlatform returns true when at least one threshold is exceeded,
+	// which also drives the early-exit below — avoiding a second comparison.
+	if !m.updateHealthPlatform(processMemoryMB, currentCPU) {
 		log.Debugf("Memory and CPU usage are below thresholds (Memory: %.2f MB < %.2f MB, CPU: %.2f%% < %d%%), skipping Agent profiling check.", processMemoryMB, float64(m.memoryThreshold)/MB, currentCPU, m.instance.CPUThreshold)
 		return nil
 	}
@@ -324,31 +323,39 @@ func (m *Check) Run() error {
 
 // updateHealthPlatform reports or clears a health platform issue based on current resource usage.
 // It is always called regardless of flare state so the issue resolves when usage drops.
-func (m *Check) updateHealthPlatform(processMemoryMB, currentCPU float64) {
-	if m.healthPlatform == nil {
-		return
-	}
+// Returns true when the check should proceed to flare generation (same semantics as the original
+// threshold condition), centralising the comparison in one place.
+func (m *Check) updateHealthPlatform(processMemoryMB, currentCPU float64) bool {
+	// exceeded mirrors the original threshold condition: the check proceeds when the
+	// AND-below-thresholds guard is false, i.e. at least one value is >= its threshold.
+	exceeded := !(processMemoryMB < float64(m.memoryThreshold)/MB && currentCPU < float64(m.instance.CPUThreshold))
 
-	memExceeded := m.memoryThreshold > 0 && processMemoryMB >= float64(m.memoryThreshold)/MB
-	cpuExceeded := m.instance.CPUThreshold > 0 && currentCPU >= float64(m.instance.CPUThreshold)
+	if m.healthPlatform != nil {
+		// For the health platform we only report when a threshold that is actually
+		// configured is breached, avoiding spurious issues when one threshold is unset.
+		memExceeded := m.memoryThreshold > 0 && processMemoryMB >= float64(m.memoryThreshold)/MB
+		cpuExceeded := m.instance.CPUThreshold > 0 && currentCPU >= float64(m.instance.CPUThreshold)
 
-	if memExceeded || cpuExceeded {
-		_ = m.healthPlatform.ReportIssue(
-			healthCheckID,
-			CheckName,
-			&healthplatformpayload.IssueReport{
-				IssueId: agentresource.IssueID,
-				Context: map[string]string{
-					"cpu_percent":         fmt.Sprintf("%.1f", currentCPU),
-					"cpu_threshold":       fmt.Sprintf("%d", m.instance.CPUThreshold),
-					"memory_mb":           fmt.Sprintf("%.1f", processMemoryMB),
-					"memory_threshold_mb": fmt.Sprintf("%.1f", float64(m.memoryThreshold)/MB),
+		if memExceeded || cpuExceeded {
+			_ = m.healthPlatform.ReportIssue(
+				healthCheckID,
+				CheckName,
+				&healthplatformpayload.IssueReport{
+					IssueId: agentresource.IssueID,
+					Context: map[string]string{
+						"cpu_percent":         fmt.Sprintf("%.1f", currentCPU),
+						"cpu_threshold":       fmt.Sprintf("%d", m.instance.CPUThreshold),
+						"memory_mb":           fmt.Sprintf("%.1f", processMemoryMB),
+						"memory_threshold_mb": fmt.Sprintf("%.1f", float64(m.memoryThreshold)/MB),
+					},
 				},
-			},
-		)
-	} else {
-		m.healthPlatform.ClearIssuesForCheck(healthCheckID)
+			)
+		} else {
+			m.healthPlatform.ClearIssuesForCheck(healthCheckID)
+		}
 	}
+
+	return exceeded
 }
 
 // terminateAgent requests graceful shutdown of the agent process after flare generation completes.

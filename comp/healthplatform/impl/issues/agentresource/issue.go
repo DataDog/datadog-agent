@@ -34,7 +34,7 @@ func (t *AgentResourceIssue) BuildIssue(context map[string]string) (*healthplatf
 		Description: buildDescription(cpuPercent, cpuThreshold, memoryMB, memoryThresholdMB),
 		Category:    "resource",
 		Location:    "core-agent",
-		Severity:    "medium",
+		Severity:    "high",
 		Source:      "agent",
 		Remediation: buildRemediation(),
 		Tags:        []string{"cpu", "memory", "resource", "performance"},
