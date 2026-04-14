@@ -5,8 +5,6 @@
 
 //go:build ncm
 
-// Package store is provides persistent local storage for network device configurations (for NCM)
-// utilizing bbolt - enabling rollback of configs w/o sending data to the Datadog backend
 package store
 
 import (
