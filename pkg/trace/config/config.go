@@ -285,6 +285,8 @@ type EVPProxy struct {
 	MaxPayloadSize int64
 	// ReceiverTimeout indicates the maximum time an EVPProxy request can take. Value in seconds.
 	ReceiverTimeout int
+	// ReceiverTimeoutDuration overrides ReceiverTimeout when non-zero; allows sub-second values in tests.
+	ReceiverTimeoutDuration time.Duration
 }
 
 // OpenLineageProxy contains the settings for the OpenLineageProxy proxy.
@@ -392,8 +394,9 @@ type AgentConfig struct {
 	ReceiverPort        int
 	ReceiverSocket      string // if not empty, UDS will be enabled on unix://<receiver_socket>
 	ConnectionLimit     int    // for rate-limiting, how many unique connections to allow in a lease period (30s)
-	ReceiverTimeout     int
-	ReceiverIdleTimeout time.Duration // idle timeout for keepalive connections.
+	ReceiverTimeout         int
+	ReceiverTimeoutDuration time.Duration // overrides ReceiverTimeout when non-zero; allows sub-second values in tests
+	ReceiverIdleTimeout     time.Duration // idle timeout for keepalive connections.
 	MaxRequestBytes     int64         // specifies the maximum allowed request size for incoming trace payloads
 	TraceBuffer         int           // specifies the number of traces to buffer before blocking.
 	Decoders            int           // specifies the number of traces that can be concurrently decoded.
