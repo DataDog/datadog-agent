@@ -20,6 +20,7 @@ import (
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/tools/cache"
 
+	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -32,7 +33,30 @@ const (
 	noResync      = 0
 )
 
-var namespaceGVR = schema.GroupVersionResource{Version: "v1", Resource: "namespaces"}
+// NamespaceLister abstracts the retrieval of namespace metadata so that
+// the WorkloadWatcher can consume either a real WorkloadMetaStore or a
+// fake implementation in tests.
+type NamespaceLister interface {
+	// ListNamespaces returns namespace -> [label -> value]
+	ListNamespaces() map[string]map[string]string
+}
+
+type wmsNamespaceLister struct {
+	wlm wmdef.Component
+}
+
+var _ NamespaceLister = (*wmsNamespaceLister)(nil)
+
+func (l *wmsNamespaceLister) ListNamespaces() map[string]map[string]string {
+	nsList := l.wlm.ListKubernetesMetadata(func(m *wmdef.KubernetesMetadata) bool {
+		return wmdef.IsNamespaceMetadata(m)
+	})
+	result := make(map[string]map[string]string, len(nsList))
+	for _, ns := range nsList {
+		result[ns.Name] = ns.Labels
+	}
+	return result
+}
 
 // workloadInformer holds the informer state for a single workload resource.
 type workloadInformer struct {
@@ -76,8 +100,7 @@ type WorkloadWatcher struct {
 	informerFactory dynamicinformer.DynamicSharedInformerFactory
 	informers       []workloadInformer
 
-	nsLister   cache.GenericLister
-	nsSynced   cache.InformerSynced
+	nsLister   NamespaceLister
 	nsWatchers map[string]*nsWorkloadWatcher
 
 	refreshPeriod time.Duration
@@ -85,14 +108,15 @@ type WorkloadWatcher struct {
 	hasSynced atomic.Bool
 }
 
-// NewWorkloadWatcher creates a new WorkloadWatcher. It creates a single
-// label-filtered informer factory that watches both workloads and namespaces
-// with the profile label.
+// NewWorkloadWatcher creates a new WorkloadWatcher. It creates a
+// label-filtered informer factory that watches workloads with the profile
+// label, and uses the WorkloadMetaStore to discover labeled namespaces.
 func NewWorkloadWatcher(
 	profileStore *autoscaling.Store[model.PodAutoscalerProfileInternal],
 	isLeader func() bool,
 	dynamicClient dynamic.Interface,
 	workloadResources []GroupVersionKindResource,
+	wlm wmdef.Component,
 ) *WorkloadWatcher {
 	filteredFactory := dynamicinformer.NewFilteredDynamicSharedInformerFactory(
 		dynamicClient,
@@ -103,16 +127,13 @@ func NewWorkloadWatcher(
 		},
 	)
 
-	nsInformer := filteredFactory.ForResource(namespaceGVR)
-
 	w := &WorkloadWatcher{
 		profileStore:      profileStore,
 		isLeader:          isLeader,
 		dynamicClient:     dynamicClient,
 		workloadResources: workloadResources,
 		informerFactory:   filteredFactory,
-		nsLister:          nsInformer.Lister(),
-		nsSynced:          nsInformer.Informer().HasSynced,
+		nsLister:          &wmsNamespaceLister{wlm: wlm},
 		nsWatchers:        make(map[string]*nsWorkloadWatcher),
 		refreshPeriod:     refreshPeriod,
 	}
@@ -138,14 +159,13 @@ func (w *WorkloadWatcher) HasSynced() bool {
 
 // Run starts the WorkloadWatcher. It blocks until ctx is cancelled.
 func (w *WorkloadWatcher) Run(ctx context.Context) {
-	log.Info("Starting workload and namespace watcher")
+	log.Info("Starting workload watcher")
 	w.informerFactory.Start(ctx.Done())
 
-	syncFuncs := make([]cache.InformerSynced, 0, len(w.informers)+1)
+	syncFuncs := make([]cache.InformerSynced, 0, len(w.informers))
 	for _, inf := range w.informers {
 		syncFuncs = append(syncFuncs, inf.synced)
 	}
-	syncFuncs = append(syncFuncs, w.nsSynced)
 	if !cache.WaitForCacheSync(ctx.Done(), syncFuncs...) {
 		log.Error("Failed to sync informer caches")
 		return
@@ -239,25 +259,16 @@ func (w *WorkloadWatcher) syncNsWatchers() {
 	// namespace.name -> profile.name
 	desired := make(map[string]string)
 
-	nsList, err := w.nsLister.List(labels.Everything())
-	if err != nil {
-		log.Debugf("Failed to list labeled namespaces: %v", err)
-		return
-	}
-	for _, nsObj := range nsList {
-		nsUnstructured, ok := nsObj.(*unstructured.Unstructured)
-		if !ok {
-			continue
-		}
-		profileName, ok := nsUnstructured.GetLabels()[model.ProfileLabelKey]
-		if !ok || profileName == "" {
+	for nsName, nsLabels := range w.nsLister.ListNamespaces() {
+		profileName := nsLabels[model.ProfileLabelKey]
+		if profileName == "" {
 			continue
 		}
 		if _, ok := w.profileStore.Get(profileName); !ok {
-			log.Debugf("Profile %s referenced by namespace %s not found, skipping", profileName, nsUnstructured.GetName())
+			log.Debugf("Profile %s referenced by namespace %s not found, skipping", profileName, nsName)
 			continue
 		}
-		desired[nsUnstructured.GetName()] = profileName
+		desired[nsName] = profileName
 	}
 
 	// remove informers for namespaces that are no longer labeled and update existing informers profiles

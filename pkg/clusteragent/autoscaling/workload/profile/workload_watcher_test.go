@@ -27,6 +27,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 )
 
+type fakeNamespaceLister struct {
+	namespaces map[string]map[string]string
+}
+
+func (f *fakeNamespaceLister) ListNamespaces() map[string]map[string]string {
+	return f.namespaces
+}
+
 func newTestWorkloadWatcher(
 	profileStore *autoscaling.Store[model.PodAutoscalerProfileInternal],
 ) *WorkloadWatcher {
@@ -35,7 +43,7 @@ func newTestWorkloadWatcher(
 		isLeader:          func() bool { return true },
 		dynamicClient:     newFakeWorkloadDynamicClient(),
 		workloadResources: []GroupVersionKindResource{deploymentGVKR()},
-		nsLister:          newTestLister(schema.GroupResource{Resource: "namespaces"}),
+		nsLister:          &fakeNamespaceLister{namespaces: map[string]map[string]string{}},
 		nsWatchers:        make(map[string]*nsWorkloadWatcher),
 	}
 }
@@ -60,26 +68,6 @@ func newTestNsWatcher(profileName string, gvkr GroupVersionKindResource, objs ..
 		cancel:      cancel,
 		informers: []workloadInformer{
 			{gvkr: gvkr, lister: lister, synced: func() bool { return true }},
-		},
-	}
-}
-
-func newUnstructuredNamespace(name string, lbls map[string]string) *unstructured.Unstructured {
-	metadata := map[string]any{
-		"name": name,
-	}
-	if len(lbls) > 0 {
-		labelsMap := make(map[string]any, len(lbls))
-		for k, v := range lbls {
-			labelsMap[k] = v
-		}
-		metadata["labels"] = labelsMap
-	}
-	return &unstructured.Unstructured{
-		Object: map[string]any{
-			"apiVersion": "v1",
-			"kind":       "Namespace",
-			"metadata":   metadata,
 		},
 	}
 }
@@ -342,16 +330,15 @@ func TestScanNsWorkloads(t *testing.T) {
 
 func TestSyncNsWatchers(t *testing.T) {
 	gvkr := deploymentGVKR()
-	nsGR := schema.GroupResource{Resource: "namespaces"}
 
 	t.Run("Creates watcher for new labeled namespace", func(t *testing.T) {
 		profileStore := autoscaling.NewStore[model.PodAutoscalerProfileInternal]()
 		profileStore.Set("high-cpu", validTestProfile("high-cpu"), "test")
 
 		w := newTestWorkloadWatcher(profileStore)
-
-		ns := newUnstructuredNamespace("prod", map[string]string{model.ProfileLabelKey: "high-cpu"})
-		w.nsLister = newTestLister(nsGR, ns)
+		w.nsLister = &fakeNamespaceLister{namespaces: map[string]map[string]string{
+			"prod": {model.ProfileLabelKey: "high-cpu"},
+		}}
 
 		w.syncNsWatchers()
 
@@ -380,9 +367,9 @@ func TestSyncNsWatchers(t *testing.T) {
 
 		w := newTestWorkloadWatcher(profileStore)
 		w.nsWatchers["prod"] = newTestNsWatcher("old-profile", gvkr)
-
-		ns := newUnstructuredNamespace("prod", map[string]string{model.ProfileLabelKey: "new-profile"})
-		w.nsLister = newTestLister(nsGR, ns)
+		w.nsLister = &fakeNamespaceLister{namespaces: map[string]map[string]string{
+			"prod": {model.ProfileLabelKey: "new-profile"},
+		}}
 
 		w.syncNsWatchers()
 
@@ -393,9 +380,9 @@ func TestSyncNsWatchers(t *testing.T) {
 	t.Run("Namespace with unknown profile does not create watcher", func(t *testing.T) {
 		profileStore := autoscaling.NewStore[model.PodAutoscalerProfileInternal]()
 		w := newTestWorkloadWatcher(profileStore)
-
-		ns := newUnstructuredNamespace("prod", map[string]string{model.ProfileLabelKey: "nonexistent"})
-		w.nsLister = newTestLister(nsGR, ns)
+		w.nsLister = &fakeNamespaceLister{namespaces: map[string]map[string]string{
+			"prod": {model.ProfileLabelKey: "nonexistent"},
+		}}
 
 		w.syncNsWatchers()
 
@@ -405,7 +392,6 @@ func TestSyncNsWatchers(t *testing.T) {
 
 func TestWorkloadWatcherNamespaceLevelReconcile(t *testing.T) {
 	gvkr := deploymentGVKR()
-	nsGR := schema.GroupResource{Resource: "namespaces"}
 
 	t.Run("Namespace label discovers all workloads in namespace", func(t *testing.T) {
 		profileStore := autoscaling.NewStore[model.PodAutoscalerProfileInternal]()
@@ -415,9 +401,9 @@ func TestWorkloadWatcherNamespaceLevelReconcile(t *testing.T) {
 		w.informers = []workloadInformer{
 			{gvkr: gvkr, lister: newTestLister(deploymentGR)},
 		}
-
-		ns := newUnstructuredNamespace("prod", map[string]string{model.ProfileLabelKey: "high-cpu"})
-		w.nsLister = newTestLister(nsGR, ns)
+		w.nsLister = &fakeNamespaceLister{namespaces: map[string]map[string]string{
+			"prod": {model.ProfileLabelKey: "high-cpu"},
+		}}
 
 		dep1 := newUnstructuredWorkload("Deployment", "apps/v1", "prod", "web-1", nil)
 		dep2 := newUnstructuredWorkload("Deployment", "apps/v1", "prod", "web-2", nil)
@@ -450,9 +436,9 @@ func TestWorkloadWatcherNamespaceLevelReconcile(t *testing.T) {
 		w.informers = []workloadInformer{
 			{gvkr: gvkr, lister: newTestLister(deploymentGR, labeledDep)},
 		}
-
-		ns := newUnstructuredNamespace("prod", map[string]string{model.ProfileLabelKey: "ns-profile"})
-		w.nsLister = newTestLister(nsGR, ns)
+		w.nsLister = &fakeNamespaceLister{namespaces: map[string]map[string]string{
+			"prod": {model.ProfileLabelKey: "ns-profile"},
+		}}
 		w.nsWatchers["prod"] = newTestNsWatcher("ns-profile", gvkr, labeledDep, unlabeledDep)
 
 		w.reconcile()
@@ -484,10 +470,10 @@ func TestWorkloadWatcherNamespaceLevelReconcile(t *testing.T) {
 		w.informers = []workloadInformer{
 			{gvkr: gvkr, lister: newTestLister(deploymentGR)},
 		}
-
-		nsA := newUnstructuredNamespace("ns-a", map[string]string{model.ProfileLabelKey: "prof-a"})
-		nsB := newUnstructuredNamespace("ns-b", map[string]string{model.ProfileLabelKey: "prof-b"})
-		w.nsLister = newTestLister(nsGR, nsA, nsB)
+		w.nsLister = &fakeNamespaceLister{namespaces: map[string]map[string]string{
+			"ns-a": {model.ProfileLabelKey: "prof-a"},
+			"ns-b": {model.ProfileLabelKey: "prof-b"},
+		}}
 		w.nsWatchers["ns-a"] = newTestNsWatcher("prof-a", gvkr, depA)
 		w.nsWatchers["ns-b"] = newTestNsWatcher("prof-b", gvkr, depB)
 
