@@ -16,7 +16,14 @@ const SERVER_CONFIG_FILE: &str = "config.xml";
 const SERVER_CONFIG_DIR: &str = "config";
 const XML_FILE: &str = "META-INF/weblogic.xml";
 
-/// Weblogic app deployment entry from config.xml
+/// Weblogic app deployment entry from config.xml.
+///
+/// Missing child elements default to `""`, matching Go's `encoding/xml`
+/// (the reference implementation).  The old quick-xml/serde parser was
+/// stricter and rejected the document on any missing field.  Empty
+/// defaults are safe here because the downstream filter requires exact
+/// matches on `staging_mode` and `target`, so entries with missing
+/// fields are silently skipped rather than producing false positives.
 #[derive(Debug, Default)]
 struct AppDeployment {
     target: String,
