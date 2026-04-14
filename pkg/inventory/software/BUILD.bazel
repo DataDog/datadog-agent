@@ -52,6 +52,7 @@ go_test(
         "wire_test.go",
     ],
     embed = [":software"],
+    gotags = ["test"],  # keep (needed for nodetreemodel's //go:build test assert guard)
     deps = [
         "@com_github_stretchr_testify//assert",
     ] + select({
