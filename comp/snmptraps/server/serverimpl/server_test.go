@@ -8,10 +8,8 @@
 package serverimpl
 
 import (
-	"hash/fnv"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -21,17 +19,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/senderhelper"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/server"
+	ndmtestutils "github.com/DataDog/datadog-agent/pkg/networkdevice/testutils"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
-
-// uniqueTestPort returns a deterministic high-range UDP port derived from inputs,
-// reducing the chance of collisions across concurrent tests without TOCTOU races.
-func uniqueTestPort(keys ...string) uint16 {
-	h := fnv.New32a()
-	h.Write([]byte(strings.Join(keys, "|")))
-	// Choose from 62000-63999 (typically outside Linux default ephemeral range)
-	return uint16(62000 + (h.Sum32() % 2000))
-}
 
 func TestServer(t *testing.T) {
 	confdPath, err := os.MkdirTemp("", "trapsdb")
@@ -43,7 +33,7 @@ func TestServer(t *testing.T) {
 	require.NoError(t, os.Mkdir(tdb, 0777))
 	require.NoError(t, os.WriteFile(filepath.Join(tdb, "foo.json"), []byte{}, 0666))
 	// Pick a deterministic port specific to this test run to avoid collisions
-	port := uniqueTestPort(t.Name(), confdPath)
+	port := ndmtestutils.UniqueTestPort(t.Name(), confdPath)
 	server := fxutil.Test[server.Component](t,
 		senderhelper.Opts,
 		fx.Provide(func(t testing.TB) config.Component {
@@ -66,7 +56,7 @@ func TestNonBlockingFailure(t *testing.T) {
 	confdPath, err := os.MkdirTemp("", "trapsdb")
 	require.NoError(t, err)
 	defer os.RemoveAll(confdPath)
-	port := uniqueTestPort(t.Name(), confdPath)
+	port := ndmtestutils.UniqueTestPort(t.Name(), confdPath)
 	server := fxutil.Test[server.Component](t,
 		senderhelper.Opts,
 		fx.Provide(func(t testing.TB) config.Component {

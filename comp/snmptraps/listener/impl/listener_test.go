@@ -54,9 +54,8 @@ func listenerTestSetup(t *testing.T, conf *config.TrapsConfig) *services {
 }
 
 func TestListenV1GenericTrap(t *testing.T) {
-	serverPort, err := ndmtestutils.GetFreePort()
-	require.NoError(t, err)
-	config := &config.TrapsConfig{Port: serverPort, CommunityStrings: []string{"public"}, Namespace: "totoro"}
+	port := ndmtestutils.UniqueTestPort(t.Name())
+	config := &config.TrapsConfig{Port: port, BindHost: "127.0.0.1", CommunityStrings: []string{"public"}, Namespace: "totoro"}
 	s := listenerTestSetup(t, config)
 
 	sendTestV1GenericTrap(t, s.Config.Get(), "public")
@@ -67,9 +66,8 @@ func TestListenV1GenericTrap(t *testing.T) {
 }
 
 func TestServerV1SpecificTrap(t *testing.T) {
-	serverPort, err := ndmtestutils.GetFreePort()
-	require.NoError(t, err)
-	config := &config.TrapsConfig{Port: serverPort, CommunityStrings: []string{"public"}}
+	port := ndmtestutils.UniqueTestPort(t.Name())
+	config := &config.TrapsConfig{Port: port, BindHost: "127.0.0.1", CommunityStrings: []string{"public"}}
 	s := listenerTestSetup(t, config)
 
 	sendTestV1SpecificTrap(t, config, "public")
@@ -80,9 +78,8 @@ func TestServerV1SpecificTrap(t *testing.T) {
 }
 
 func TestServerV2(t *testing.T) {
-	serverPort, err := ndmtestutils.GetFreePort()
-	require.NoError(t, err)
-	config := &config.TrapsConfig{Port: serverPort, CommunityStrings: []string{"public"}}
+	port := ndmtestutils.UniqueTestPort(t.Name())
+	config := &config.TrapsConfig{Port: port, BindHost: "127.0.0.1", CommunityStrings: []string{"public"}}
 	s := listenerTestSetup(t, config)
 
 	sendTestV2Trap(t, config, "public")
@@ -93,9 +90,8 @@ func TestServerV2(t *testing.T) {
 }
 
 func TestServerV2BadCredentials(t *testing.T) {
-	serverPort, err := ndmtestutils.GetFreePort()
-	require.NoError(t, err)
-	config := &config.TrapsConfig{Port: serverPort, CommunityStrings: []string{"public"}, Namespace: "totoro"}
+	port := ndmtestutils.UniqueTestPort(t.Name())
+	config := &config.TrapsConfig{Port: port, BindHost: "127.0.0.1", CommunityStrings: []string{"public"}, Namespace: "totoro"}
 	s := listenerTestSetup(t, config)
 
 	sendTestV2Trap(t, config, "wrong-community")
@@ -107,10 +103,9 @@ func TestServerV2BadCredentials(t *testing.T) {
 }
 
 func TestServerV3(t *testing.T) {
-	serverPort, err := ndmtestutils.GetFreePort()
-	require.NoError(t, err)
+	port := ndmtestutils.UniqueTestPort(t.Name())
 	userV3 := config.UserV3{Username: "user", AuthKey: "password", AuthProtocol: "sha", PrivKey: "password", PrivProtocol: "aes"}
-	config := &config.TrapsConfig{Port: serverPort, Users: []config.UserV3{userV3}}
+	config := &config.TrapsConfig{Port: port, BindHost: "127.0.0.1", Users: []config.UserV3{userV3}}
 	s := listenerTestSetup(t, config)
 
 	sendTestV3Trap(t, config, gosnmp.AuthPriv, &gosnmp.UsmSecurityParameters{
@@ -184,10 +179,9 @@ func TestServerV3MultipleCredentials(t *testing.T) {
 			},
 		},
 	}
-	serverPort, err := ndmtestutils.GetFreePort()
-	require.NoError(t, err)
+	port := ndmtestutils.UniqueTestPort(t.Name())
 
-	config := &config.TrapsConfig{Port: serverPort, Users: users}
+	config := &config.TrapsConfig{Port: port, BindHost: "127.0.0.1", Users: users}
 	s := listenerTestSetup(t, config)
 
 	for _, test := range tests {
@@ -199,9 +193,8 @@ func TestServerV3MultipleCredentials(t *testing.T) {
 }
 
 func TestServerV3BadCredentialsWithMultipleUsers(t *testing.T) {
-	serverPort, err := ndmtestutils.GetFreePort()
-	require.NoError(t, err)
-	config := &config.TrapsConfig{Port: serverPort, Users: users}
+	port := ndmtestutils.UniqueTestPort(t.Name())
+	config := &config.TrapsConfig{Port: port, BindHost: "127.0.0.1", Users: users}
 	s := listenerTestSetup(t, config)
 
 	sendTestV3Trap(t, config, gosnmp.AuthPriv, &gosnmp.UsmSecurityParameters{
@@ -216,10 +209,9 @@ func TestServerV3BadCredentialsWithMultipleUsers(t *testing.T) {
 }
 
 func TestServerV3BadCredentials(t *testing.T) {
-	serverPort, err := ndmtestutils.GetFreePort()
-	require.NoError(t, err)
+	port := ndmtestutils.UniqueTestPort(t.Name())
 	userV3 := config.UserV3{Username: "user", AuthKey: "password", AuthProtocol: "sha", PrivKey: "password", PrivProtocol: "aes"}
-	config := &config.TrapsConfig{Port: serverPort, Users: []config.UserV3{userV3}}
+	config := &config.TrapsConfig{Port: port, BindHost: "127.0.0.1", Users: []config.UserV3{userV3}}
 	s := listenerTestSetup(t, config)
 
 	sendTestV3Trap(t, config, gosnmp.AuthPriv, &gosnmp.UsmSecurityParameters{
@@ -234,9 +226,8 @@ func TestServerV3BadCredentials(t *testing.T) {
 }
 
 func TestListenerTrapsReceivedTelemetry(t *testing.T) {
-	serverPort, err := ndmtestutils.GetFreePort()
-	require.NoError(t, err)
-	config := &config.TrapsConfig{Port: serverPort, CommunityStrings: []string{"public"}, Namespace: "totoro"}
+	port := ndmtestutils.UniqueTestPort(t.Name())
+	config := &config.TrapsConfig{Port: port, BindHost: "127.0.0.1", CommunityStrings: []string{"public"}, Namespace: "totoro"}
 	s := listenerTestSetup(t, config)
 
 	sendTestV1GenericTrap(t, config, "public")
