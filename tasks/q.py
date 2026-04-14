@@ -1594,6 +1594,7 @@ def launch_testbench(
     enable: str = "",
     disable: str = "",
     timeout: int = 0,
+    logs_only: bool = False,
 ):
     """
     Will launch both the observer-testbench backend and UI.
@@ -1607,6 +1608,7 @@ def launch_testbench(
         disable: Comma-separated components to disable (passed to testbench ``--disable``).
         timeout: Seconds before the headless testbench process is killed (0 = no limit;
             ignored in interactive mode).
+        logs_only: If true, pass ``--logs-only`` (load log rows only; skip parquet metrics and trace stats).
     """
     if build:
         print("Building observer-testbench...")
@@ -1615,6 +1617,8 @@ def launch_testbench(
     flags = ""
     if verbose:
         flags += " --verbose"
+    if logs_only:
+        flags += " --logs-only"
     if config:
         flags += f" --config {shlex.quote(config)}"
     else:
