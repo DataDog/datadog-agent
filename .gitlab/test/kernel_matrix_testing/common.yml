@@ -22,7 +22,19 @@
   # Touch .instance_not_found to mark the failure reason to the tag-ci-job task later
   - |
     COUNTER=0
-    while [[ $(aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_STATE $FILTER_PIPELINE $FILTER_TEST_COMPONENT $FILTER_INSTANCE_TYPE --output text --query $QUERY_INSTANCE_IDS  | wc -l ) != "1" && $COUNTER -le 80 ]]; do COUNTER=$[$COUNTER +1]; echo "[${COUNTER}] Waiting for instance"; sleep 30; done
+    WAIT_INTERVAL_SECONDS=${KMT_SETUP_WAIT_INTERVAL_SECONDS:-30}
+    WAIT_TIMEOUT_MINUTES=${KMT_SETUP_WAIT_TIMEOUT_MINUTES:-90}
+    WAIT_TIMEOUT_SECONDS=$((WAIT_TIMEOUT_MINUTES * 60))
+    START_TIME_SECONDS=$(date +%s)
+    while [[ $(aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_STATE $FILTER_PIPELINE $FILTER_TEST_COMPONENT $FILTER_INSTANCE_TYPE --output text --query $QUERY_INSTANCE_IDS | wc -l ) != "1" ]]; do
+        ELAPSED_SECONDS=$(( $(date +%s) - START_TIME_SECONDS ))
+        if [[ $ELAPSED_SECONDS -ge $WAIT_TIMEOUT_SECONDS ]]; then
+            break
+        fi
+        COUNTER=$((COUNTER + 1))
+        echo "[${COUNTER}] Waiting for instance (${ELAPSED_SECONDS}s/${WAIT_TIMEOUT_SECONDS}s)"
+        sleep $WAIT_INTERVAL_SECONDS
+    done
     # check that instance is ready, or fail
     if [ $(aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_STATE $FILTER_PIPELINE $FILTER_TEST_COMPONENT $FILTER_INSTANCE_TYPE --output text --query $QUERY_INSTANCE_IDS | wc -l) -ne "1" ]; then
         echo "Instance NOT found"
@@ -311,7 +323,9 @@
     fi
 
 .notify_ebpf_complexity_changes:
-  extends: .notify-job
+  extends:
+    - .notify-job
+    - .dd_octo_sts
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
   timeout: 15m
@@ -345,7 +359,7 @@
     - job: compute_gitlab_ci_config
   before_script:
     - python3 -m dda self dep sync -f legacy-tasks
-    - !reference [.setup_agent_github_app]
+    - !reference [.setup_github_token_comment_pr]
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
   script:
     - dda inv -- -e ebpf.generate-complexity-summary-for-pr --gitlab-config-file artifacts/after.gitlab-ci.yml $EXTRA_ARGS

@@ -9,6 +9,7 @@ env_vars(
     name = "agent_volatile",
     # Each variable needs a justification. Every time you use one, the
     # target using it is potentially uncachable.
+    # ⚠️ Keep in sync with the `--repo_env=` entries in .bazelrc
     variables = [
         # This gets set by omnibus builds in many cases. It's used in the script
         # to set things like compression, so we'll mimic that for now.
@@ -50,7 +51,7 @@ archive_override(
 bazel_dep(name = "bazel_lib", version = "3.2.2")
 bazel_dep(name = "bazel_skylib", version = "1.9.0")
 bazel_dep(name = "gawk", version = "5.3.2.bcr.3")
-bazel_dep(name = "gazelle", version = "0.48.0")
+bazel_dep(name = "gazelle", version = "0.50.0")
 bazel_dep(name = "gcc_toolchain", version = "0.9.2")
 bazel_dep(name = "libarchive", version = "3.8.1.bcr.2")
 bazel_dep(name = "platforms", version = "1.0.0")
@@ -71,19 +72,6 @@ bazel_dep(name = "rules_shell", version = "0.7.1")
 bazel_dep(name = "supply_chain_tools", version = "0.0.1")
 
 bazel_dep(name = "rules_testing", version = "0.9.0", dev_dependency = True)
-
-single_version_override(
-    module_name = "protobuf",
-    patch_strip = 1,
-    patches = ["//bazel/patches:protobuf/0001-add-libstdcpp-to-link-opts.patch"],
-)
-
-# Temporary until gazelle > 0.48.0 with ignore_local_replaced_modules is in BCR
-git_override(
-    module_name = "gazelle",
-    commit = "7c548446d7044d3d5c57a74096851ae6b0a9192f",  # main as of Mar 29, 2026
-    remote = "https://github.com/bazel-contrib/bazel-gazelle.git",
-)
 
 # Temporary until rules_go > 0.60.0 with go.work support is in BCR
 git_override(
@@ -176,8 +164,10 @@ use_repo(llvm_bpf_ext, "llvm_bpf")
 register_toolchains("@llvm_bpf//:llvm_bpf_toolchain")
 
 ## Linux kernel headers for eBPF prebuilt compilation
+## Registers three repos: host auto-detect + explicit x86_64 + explicit aarch64
+## for cross-compilation via --//bazel/rules/ebpf:target_arch=<arch>.
 linux_headers_ext = use_extension("//bazel/toolchains/linux_headers:linux_headers.bzl", "linux_headers_extension")
-use_repo(linux_headers_ext, "linux_headers")
+use_repo(linux_headers_ext, "linux_headers", "linux_headers_aarch64", "linux_headers_x86_64")
 
 ######################################
 ## Compilers and toolchains        ##
@@ -320,10 +310,10 @@ include("//deps/openscap:openscap.MODULE.bazel")
 include("//deps/libpcap:libpcap.MODULE.bazel")
 
 # buildifier: leave-alone
-include("//deps/secret_connector:secret_connector.MODULE.bazel")
+include("//deps/security_agent_policies:security_agent_policies.MODULE.bazel")
 
 # buildifier: leave-alone
-include("//deps/security_agent_policies:security_agent_policies.MODULE.bazel")
+include("//deps/setuptools:setuptools.MODULE.bazel")
 
 # buildifier: leave-alone
 include("//deps/snmp_traps:snmp_traps.MODULE.bazel")
@@ -343,3 +333,16 @@ include("//deps:go.MODULE.bazel")
 bazel_dep(name = "apple_support", version = "2.3.0")
 
 use_extension("//bazel/tools:bazelisk_check.bzl", "bazelisk_check")
+
+###########################################################################
+## Hybrid build. Capture binaries built with dda (or whatever) as if they
+## were built as bazel targets.
+###########################################################################
+
+prebuilt_file = use_repo_rule("//bazel/repo:prebuilt_file.bzl", "prebuilt_file")
+
+prebuilt_file(
+    name = "agent_binary",
+    target_label = "@@//:bin/agent/agent",
+    target_name = "agent",
+)

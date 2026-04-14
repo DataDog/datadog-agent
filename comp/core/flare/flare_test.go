@@ -6,8 +6,12 @@
 package flare
 
 import (
+	"context"
+	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -122,7 +126,7 @@ func setupMockBuilder(t *testing.T) func() {
 	}
 }
 func TestFlareCreation(t *testing.T) {
-	realProvider := types.NewFiller(func(_ types.FlareBuilder) error { return nil })
+	realProvider := types.NewFiller(func(_ context.Context, _ types.FlareBuilder) error { return nil })
 
 	flare := getFlare(
 		t,
@@ -148,15 +152,16 @@ func TestRunProviders(t *testing.T) {
 	var secondDone atomic.Bool
 
 	flare := getFlare(t, nil)
-	// We overrides the providers list as the default implemementation add ExtraFlareProviders and more. Those
-	// providers continue to run after the timeout and will access the config after the current test cleanup. This
-	// will cause those providers to use the non-mocked config.
+	// We override the providers list as the default implementation adds ExtraFlareProviders and more. Those
+	// extra providers would continue after the timeout and could access config after test cleanup.
+	// Note: the callback goroutine may still run past the timeout (e.g. time.Sleep); subprocesses
+	// started with exec.CommandContext(providerCtx, ...) are cancelled when the provider context times out.
 	flare.providers = []*types.FlareFiller{
-		types.NewFiller(func(_ types.FlareBuilder) error {
+		types.NewFiller(func(_ context.Context, _ types.FlareBuilder) error {
 			firstStarted <- struct{}{}
 			return nil
 		}),
-		types.NewFiller(func(_ types.FlareBuilder) error {
+		types.NewFiller(func(_ context.Context, _ types.FlareBuilder) error {
 			time.Sleep(10 * time.Second)
 			secondDone.Store(true)
 			return nil
@@ -177,6 +182,43 @@ func TestRunProviders(t *testing.T) {
 	// ensure that we're not blocking for the slow provider
 	assert.Less(t, elapsed, 5*time.Second)
 	assert.False(t, secondDone.Load())
+}
+
+func TestRunProviders_CancelsSubprocessOnTimeout(t *testing.T) {
+	errCh := make(chan error, 1)
+	flare := getFlare(t, nil)
+	flare.providers = []*types.FlareFiller{
+		types.NewFiller(func(ctx context.Context, _ types.FlareBuilder) error {
+			var cmd *exec.Cmd
+			if runtime.GOOS == "windows" {
+				cmd = exec.CommandContext(ctx, "powershell", "-NoProfile", "-NonInteractive", "-Command", "Start-Sleep -Seconds 120")
+			} else {
+				cmd = exec.CommandContext(ctx, "sleep", "120")
+			}
+			errCh <- cmd.Run()
+			return nil
+		}),
+	}
+
+	fb, err := helpers.NewFlareBuilder(false, flarebuilder.FlareArgs{})
+	require.NoError(t, err)
+
+	flare.runProviders(fb, time.Nanosecond)
+
+	select {
+	case err := <-errCh:
+		require.Error(t, err)
+		ok := errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
+		if !ok {
+			var exit *exec.ExitError
+			if errors.As(err, &exit) && exit.ExitCode() != 0 {
+				ok = true
+			}
+		}
+		assert.True(t, ok, "subprocess should stop when provider ctx is canceled, got: %v", err)
+	case <-time.After(15 * time.Second):
+		t.Fatal("timed out waiting for subprocess to exit after provider context canceled")
+	}
 }
 
 func TestAgentTaskFlareProfilingArgs(t *testing.T) {
@@ -328,7 +370,7 @@ func runFlareTestScenarios(t *testing.T, testCfg map[string]interface{}, scenari
 			flare := getFlare(t, testCfg)
 
 			flare.providers = []*types.FlareFiller{
-				types.NewFiller(func(fb types.FlareBuilder) error {
+				types.NewFiller(func(_ context.Context, fb types.FlareBuilder) error {
 					assertFunc(fb, s.expSettings)
 					return nil
 				}),
@@ -339,4 +381,23 @@ func runFlareTestScenarios(t *testing.T, testCfg map[string]interface{}, scenari
 			flare.onAgentTaskEvent(rcclienttypes.TaskFlare, atc)
 		})
 	}
+}
+
+func TestLocalFlareFileContent(t *testing.T) {
+	var mockBuilder *helpers.FlareBuilderMock
+	fbFactory = func(localFlare bool, flareArgs types.FlareArgs) (types.FlareBuilder, error) {
+		mockBuilder = helpers.NewFlareBuilderMockWithArgs(t, localFlare, flareArgs)
+		return mockBuilder, nil
+	}
+	defer func() { fbFactory = helpers.NewFlareBuilder }()
+
+	errIpc := errors.New("connection refused")
+	flareComp := getFlareWithParams(t, NewLocalParams("", "", "", "", "", ""), nil)
+	// Save() is a no-op in the mock and returns an error; the local file is still written.
+	_, _ = flareComp.Create(types.ProfileData{}, 0, errIpc, []byte{})
+
+	require.NotNil(t, mockBuilder)
+	mockBuilder.AssertFileContentMatch(`unable to contact the agent to retrieve flare: connection refused`, "local")
+	mockBuilder.AssertFileContentMatch(`Flare creation time: \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}`, "local")
+	mockBuilder.AssertFileContentMatch(`Go version: go\d+\.\d+`, "local")
 }

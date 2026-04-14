@@ -9,6 +9,7 @@ package spec
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -82,15 +83,14 @@ func BuildMockOptionsForArchAndMode(t *testing.T, archName string, mode DeviceMo
 		testutil.WithArchitecture(archName),
 		testutil.WithCapabilities(caps),
 		testutil.WithMockAllFunctions(),
+		testutil.WithDeviceCount(1),
+		testutil.WithDeviceFeatureMode(testMode),
 	}
 
-	switch mode {
-	case DeviceModePhysical:
-		opts = append([]testutil.NvmlMockOption{testutil.WithDeviceCount(1), testutil.WithMIGDisabled()}, opts...)
-	case DeviceModeMIG:
-		opts = append([]testutil.NvmlMockOption{testutil.WithDeviceFeatureMode(testMode)}, opts...)
-	case DeviceModeVGPU:
-		opts = append([]testutil.NvmlMockOption{testutil.WithDeviceCount(1), testutil.WithDeviceFeatureMode(testMode)}, opts...)
+	if mode == DeviceModeMIG {
+		opts = append(opts, testutil.WithMIGChildCount(1))
+	} else {
+		opts = append(opts, testutil.WithMIGDisabled())
 	}
 
 	return opts
@@ -109,4 +109,68 @@ func AllConfiguredNVMLFieldValues() []nvml.FieldValue {
 		values[i] = nvml.FieldValue{FieldId: id}
 	}
 	return values
+}
+
+// EmittedMetric is a normalized emitted GPU metric sample used by spec-aware tests.
+type EmittedMetric struct {
+	Name string
+	Tags []string
+}
+
+// TagsToKeyValues converts Datadog-style tags to a key -> values map.
+func TagsToKeyValues(tags []string) map[string][]string {
+	result := make(map[string][]string, len(tags))
+	for _, tag := range tags {
+		key, value, ok := strings.Cut(tag, ":")
+		if !ok || key == "" || value == "" {
+			continue
+		}
+		result[key] = append(result[key], value)
+	}
+	return result
+}
+
+// ValidateMetricTagsAgainstSpec validates emitted tags against the spec for a metric.
+// If knownTagValues is provided, matching keys are additionally checked for exact values.
+func ValidateMetricTagsAgainstSpec(t *testing.T, spec *MetricsSpec, metricName string, metricSpec MetricSpec, emittedMetrics []EmittedMetric, knownTagValues map[string]string) {
+	t.Helper()
+	require.NotEmpty(t, emittedMetrics, "metric %s has no emitted samples to validate tags", metricName)
+
+	requiredTags := metricRequiredTags(t, spec, metricSpec)
+
+	for _, emittedMetric := range emittedMetrics {
+		tagsByKey := TagsToKeyValues(emittedMetric.Tags)
+
+		for tag := range requiredTags {
+			require.Contains(t, tagsByKey, tag, "metric %s missing required tag key %s", metricName, tag)
+		}
+
+		for key, values := range tagsByKey {
+			_, allowed := requiredTags[key]
+			require.True(t, allowed, "metric %s has unknown tag key %s", metricName, key)
+
+			for _, value := range values {
+				require.NotEmpty(t, value, "metric %s has empty value for tag %s", metricName, key)
+				if expectedValue, ok := knownTagValues[key]; ok {
+					require.Equal(t, expectedValue, value, "metric %s has unexpected value for tag %s", metricName, key)
+				}
+			}
+		}
+	}
+}
+
+func metricRequiredTags(t *testing.T, spec *MetricsSpec, metricSpec MetricSpec) map[string]struct{} {
+	requiredTags := make(map[string]struct{})
+	for _, tagsetName := range metricSpec.Tagsets {
+		tagsetSpec, ok := spec.Tagsets[tagsetName]
+		require.True(t, ok, "unknown tagset %s", tagsetName)
+
+		for _, tag := range tagsetSpec.Tags {
+			requiredTags[tag] = struct{}{}
+		}
+	}
+	for _, tag := range metricSpec.CustomTags {
+		requiredTags[tag] = struct{}{}
+	}
+	return requiredTags
 }
