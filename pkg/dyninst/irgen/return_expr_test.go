@@ -52,11 +52,11 @@ func findReturnEvent(t *testing.T, probe *ir.Probe) *ir.Event {
 	return nil
 }
 
-// returnExprNames returns the names of all Local expressions in a return event.
+// returnExprNames returns the names of all Return expressions in a return event.
 func returnExprNames(ev *ir.Event) []string {
 	var names []string
 	for _, expr := range ev.Type.Expressions {
-		if expr.Kind == ir.RootExpressionKindLocal {
+		if expr.Kind == ir.RootExpressionKindReturn {
 			names = append(names, expr.Name)
 		}
 	}

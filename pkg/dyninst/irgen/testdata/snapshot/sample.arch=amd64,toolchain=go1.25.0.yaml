@@ -13889,7 +13889,7 @@ Types:
       Expressions:
         - Name: '@return'
           Offset: 9
-          Kind: local
+          Kind: return
           Expression:
             Type: 350 GoSliceHeaderType []go.shape.float64
             Operations:
@@ -13953,7 +13953,7 @@ Types:
       Expressions:
         - Name: '@return'
           Offset: 9
-          Kind: local
+          Kind: return
           Expression:
             Type: 326 GoSliceHeaderType []go.shape.int
             Operations:
@@ -14020,7 +14020,7 @@ Types:
       Expressions:
         - Name: '@return'
           Offset: 9
-          Kind: local
+          Kind: return
           Expression:
             Type: 325 StructureType github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Box[go.shape.string]
             Operations:
@@ -14180,7 +14180,7 @@ Types:
       Expressions:
         - Name: '@return'
           Offset: 1
-          Kind: local
+          Kind: return
           Expression:
             Type: 9 GoStringHeaderType string
             Operations:
@@ -14289,7 +14289,7 @@ Types:
       Expressions:
         - Name: '@return'
           Offset: 1
-          Kind: local
+          Kind: return
           Expression:
             Type: 4 BaseType bool
             Operations:
@@ -14381,7 +14381,7 @@ Types:
       Expressions:
         - Name: '@return'
           Offset: 1
-          Kind: local
+          Kind: return
           Expression:
             Type: 4 BaseType bool
             Operations:
@@ -14428,7 +14428,7 @@ Types:
       Expressions:
         - Name: '@return'
           Offset: 9
-          Kind: local
+          Kind: return
           Expression:
             Type: 324 GoStringHeaderType go.shape.string
             Operations:
@@ -14475,7 +14475,7 @@ Types:
       Expressions:
         - Name: '@return'
           Offset: 9
-          Kind: local
+          Kind: return
           Expression:
             Type: 346 StructureType go.shape.struct { main.x []*string; main.z int; main.writer io.Writer }
             Operations:
@@ -14521,7 +14521,7 @@ Types:
       Expressions:
         - Name: '@return'
           Offset: 1
-          Kind: local
+          Kind: return
           Expression:
             Type: 9 GoStringHeaderType string
             Operations:
@@ -14567,7 +14567,7 @@ Types:
       Expressions:
         - Name: '@return'
           Offset: 1
-          Kind: local
+          Kind: return
           Expression:
             Type: 9 GoStringHeaderType string
             Operations:
@@ -14614,7 +14614,7 @@ Types:
       Expressions:
         - Name: '@return'
           Offset: 9
-          Kind: local
+          Kind: return
           Expression:
             Type: 327 PointerType *go.shape.int
             Operations:
@@ -14661,7 +14661,7 @@ Types:
       Expressions:
         - Name: '@return'
           Offset: 9
-          Kind: local
+          Kind: return
           Expression:
             Type: 330 PointerType *go.shape.struct { Name string }
             Operations:
@@ -14708,7 +14708,7 @@ Types:
       Expressions:
         - Name: '@return'
           Offset: 9
-          Kind: local
+          Kind: return
           Expression:
             Type: 332 PointerType *go.shape.struct { X int; Y int }
             Operations:
@@ -14778,7 +14778,7 @@ Types:
       Expressions:
         - Name: r0
           Offset: 17
-          Kind: local
+          Kind: return
           Expression:
             Type: 324 GoStringHeaderType go.shape.string
             Operations:
@@ -14789,7 +14789,7 @@ Types:
           DictIndex: 1
         - Name: r1
           Offset: 33
-          Kind: local
+          Kind: return
           Expression:
             Type: 322 BaseType go.shape.int
             Operations:
@@ -14859,7 +14859,7 @@ Types:
       Expressions:
         - Name: r0
           Offset: 17
-          Kind: local
+          Kind: return
           Expression:
             Type: 339 BaseType go.shape.bool
             Operations:
@@ -14870,7 +14870,7 @@ Types:
           DictIndex: 1
         - Name: r1
           Offset: 18
-          Kind: local
+          Kind: return
           Expression:
             Type: 324 GoStringHeaderType go.shape.string
             Operations:
@@ -14917,7 +14917,7 @@ Types:
       Expressions:
         - Name: '@return'
           Offset: 9
-          Kind: local
+          Kind: return
           Expression:
             Type: 322 BaseType go.shape.int
             Operations:
@@ -14964,7 +14964,7 @@ Types:
       Expressions:
         - Name: '@return'
           Offset: 9
-          Kind: local
+          Kind: return
           Expression:
             Type: 324 GoStringHeaderType go.shape.string
             Operations:
@@ -15011,7 +15011,7 @@ Types:
       Expressions:
         - Name: '@return'
           Offset: 9
-          Kind: local
+          Kind: return
           Expression:
             Type: 322 BaseType go.shape.int
             Operations:
@@ -15058,7 +15058,7 @@ Types:
       Expressions:
         - Name: '@return'
           Offset: 9
-          Kind: local
+          Kind: return
           Expression:
             Type: 324 GoStringHeaderType go.shape.string
             Operations:
@@ -15078,7 +15078,7 @@ Types:
       Expressions:
         - Name: '@return'
           Offset: 1
-          Kind: local
+          Kind: return
           Expression:
             Type: 9 GoStringHeaderType string
             Operations:
@@ -15123,7 +15123,7 @@ Types:
       Expressions:
         - Name: '@return'
           Offset: 1
-          Kind: local
+          Kind: return
           Expression:
             Type: 9 GoStringHeaderType string
             Operations:
@@ -15168,7 +15168,7 @@ Types:
       Expressions:
         - Name: '@return'
           Offset: 1
-          Kind: local
+          Kind: return
           Expression:
             Type: 9 GoStringHeaderType string
             Operations:
@@ -15213,7 +15213,7 @@ Types:
       Expressions:
         - Name: '@return'
           Offset: 1
-          Kind: local
+          Kind: return
           Expression:
             Type: 251 ArrayType [3]int
             Operations:
@@ -15426,7 +15426,7 @@ Types:
       Expressions:
         - Name: '@return'
           Offset: 1
-          Kind: local
+          Kind: return
           Expression:
             Type: 8 BaseType uint64
             Operations:
@@ -16251,7 +16251,7 @@ Types:
       Expressions:
         - Name: '@return'
           Offset: 1
-          Kind: local
+          Kind: return
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -16296,7 +16296,7 @@ Types:
       Expressions:
         - Name: '@return'
           Offset: 1
-          Kind: local
+          Kind: return
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -16850,7 +16850,7 @@ Types:
       Expressions:
         - Name: '@return'
           Offset: 1
-          Kind: local
+          Kind: return
           Expression:
             Type: 250 StructureType main.largeStruct
             Operations:
@@ -17158,7 +17158,7 @@ Types:
       Expressions:
         - Name: '@return'
           Offset: 1
-          Kind: local
+          Kind: return
           Expression:
             Type: 113 ArrayType [2]int
             Operations:
@@ -17995,7 +17995,7 @@ Types:
       Expressions:
         - Name: '@return'
           Offset: 1
-          Kind: local
+          Kind: return
           Expression:
             Type: 250 StructureType main.largeStruct
             Operations:
@@ -18062,7 +18062,7 @@ Types:
       Expressions:
         - Name: r0
           Offset: 1
-          Kind: local
+          Kind: return
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -18073,7 +18073,7 @@ Types:
           DictIndex: -1
         - Name: r1
           Offset: 9
-          Kind: local
+          Kind: return
           Expression:
             Type: 113 ArrayType [2]int
             Operations:
@@ -18140,7 +18140,7 @@ Types:
       Expressions:
         - Name: '@return'
           Offset: 1
-          Kind: local
+          Kind: return
           Expression:
             Type: 250 StructureType main.largeStruct
             Operations:
@@ -18286,7 +18286,7 @@ Types:
       Expressions:
         - Name: result
           Offset: 1
-          Kind: local
+          Kind: return
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -18297,7 +18297,7 @@ Types:
           DictIndex: -1
         - Name: result2
           Offset: 9
-          Kind: local
+          Kind: return
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -18358,7 +18358,7 @@ Types:
           DictIndex: -1
         - Name: result
           Offset: 34
-          Kind: local
+          Kind: return
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -18369,7 +18369,7 @@ Types:
           DictIndex: -1
         - Name: result2
           Offset: 42
-          Kind: local
+          Kind: return
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -18386,7 +18386,7 @@ Types:
       Expressions:
         - Name: result
           Offset: 1
-          Kind: local
+          Kind: return
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -18397,7 +18397,7 @@ Types:
           DictIndex: -1
         - Name: result2
           Offset: 9
-          Kind: local
+          Kind: return
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -18414,7 +18414,7 @@ Types:
       Expressions:
         - Name: result
           Offset: 1
-          Kind: local
+          Kind: return
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -18425,7 +18425,7 @@ Types:
           DictIndex: -1
         - Name: result2
           Offset: 9
-          Kind: local
+          Kind: return
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -18442,7 +18442,7 @@ Types:
       Expressions:
         - Name: result
           Offset: 1
-          Kind: local
+          Kind: return
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -18453,7 +18453,7 @@ Types:
           DictIndex: -1
         - Name: result2
           Offset: 9
-          Kind: local
+          Kind: return
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -18642,7 +18642,7 @@ Types:
       Expressions:
         - Name: '@return'
           Offset: 1
-          Kind: local
+          Kind: return
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -18670,7 +18670,7 @@ Types:
           DictIndex: -1
         - Name: '@return'
           Offset: 9
-          Kind: local
+          Kind: return
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -19126,7 +19126,7 @@ Types:
       Expressions:
         - Name: r0
           Offset: 1
-          Kind: local
+          Kind: return
           Expression:
             Type: 157 GoEmptyInterfaceType interface {}
             Operations:
@@ -19137,7 +19137,7 @@ Types:
           DictIndex: -1
         - Name: r1
           Offset: 17
-          Kind: local
+          Kind: return
           Expression:
             Type: 13 GoInterfaceType error
             Operations:
@@ -19182,7 +19182,7 @@ Types:
       Expressions:
         - Name: '@return'
           Offset: 1
-          Kind: local
+          Kind: return
           Expression:
             Type: 157 GoEmptyInterfaceType interface {}
             Operations:
@@ -19202,7 +19202,7 @@ Types:
       Expressions:
         - Name: '@return'
           Offset: 1
-          Kind: local
+          Kind: return
           Expression:
             Type: 252 ArrayType [1]int
             Operations:
@@ -19222,7 +19222,7 @@ Types:
       Expressions:
         - Name: '@return'
           Offset: 1
-          Kind: local
+          Kind: return
           Expression:
             Type: 253 ArrayType [0]int
             Operations:
@@ -19242,7 +19242,7 @@ Types:
       Expressions:
         - Name: '@return'
           Offset: 1
-          Kind: local
+          Kind: return
           Expression:
             Type: 251 ArrayType [3]int
             Operations:
@@ -19262,7 +19262,7 @@ Types:
       Expressions:
         - Name: r0
           Offset: 3
-          Kind: local
+          Kind: return
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -19273,7 +19273,7 @@ Types:
           DictIndex: -1
         - Name: r1
           Offset: 11
-          Kind: local
+          Kind: return
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -19284,7 +19284,7 @@ Types:
           DictIndex: -1
         - Name: r2
           Offset: 19
-          Kind: local
+          Kind: return
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -19295,7 +19295,7 @@ Types:
           DictIndex: -1
         - Name: r3
           Offset: 27
-          Kind: local
+          Kind: return
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -19306,7 +19306,7 @@ Types:
           DictIndex: -1
         - Name: r4
           Offset: 35
-          Kind: local
+          Kind: return
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -19317,7 +19317,7 @@ Types:
           DictIndex: -1
         - Name: r5
           Offset: 43
-          Kind: local
+          Kind: return
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -19328,7 +19328,7 @@ Types:
           DictIndex: -1
         - Name: r6
           Offset: 51
-          Kind: local
+          Kind: return
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -19339,7 +19339,7 @@ Types:
           DictIndex: -1
         - Name: r7
           Offset: 59
-          Kind: local
+          Kind: return
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -19350,7 +19350,7 @@ Types:
           DictIndex: -1
         - Name: r8
           Offset: 67
-          Kind: local
+          Kind: return
           Expression:
             Type: 9 GoStringHeaderType string
             Operations:
@@ -19370,7 +19370,7 @@ Types:
       Expressions:
         - Name: r0
           Offset: 1
-          Kind: local
+          Kind: return
           Expression:
             Type: 4 BaseType bool
             Operations:
@@ -19381,7 +19381,7 @@ Types:
           DictIndex: -1
         - Name: r1
           Offset: 2
-          Kind: local
+          Kind: return
           Expression:
             Type: 1 BaseType uintptr
             Operations:
@@ -19401,7 +19401,7 @@ Types:
       Expressions:
         - Name: r0
           Offset: 1
-          Kind: local
+          Kind: return
           Expression:
             Type: 96 BaseType complex64
             Operations:
@@ -19412,7 +19412,7 @@ Types:
           DictIndex: -1
         - Name: r1
           Offset: 9
-          Kind: local
+          Kind: return
           Expression:
             Type: 97 BaseType complex128
             Operations:
@@ -19457,7 +19457,7 @@ Types:
       Expressions:
         - Name: '@return'
           Offset: 1
-          Kind: local
+          Kind: return
           Expression:
             Type: 13 GoInterfaceType error
             Operations:
@@ -19502,7 +19502,7 @@ Types:
       Expressions:
         - Name: r0
           Offset: 1
-          Kind: local
+          Kind: return
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -19513,7 +19513,7 @@ Types:
           DictIndex: -1
         - Name: r1
           Offset: 9
-          Kind: local
+          Kind: return
           Expression:
             Type: 15 BaseType float64
             Operations:
@@ -19558,7 +19558,7 @@ Types:
       Expressions:
         - Name: '@return'
           Offset: 1
-          Kind: local
+          Kind: return
           Expression:
             Type: 99 PointerType *int
             Operations:
@@ -19603,7 +19603,7 @@ Types:
       Expressions:
         - Name: '@return'
           Offset: 1
-          Kind: local
+          Kind: return
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -19648,7 +19648,7 @@ Types:
       Expressions:
         - Name: '@return'
           Offset: 1
-          Kind: local
+          Kind: return
           Expression:
             Type: 162 GoInterfaceType main.behavior
             Operations:
@@ -19668,7 +19668,7 @@ Types:
       Expressions:
         - Name: '@return'
           Offset: 1
-          Kind: local
+          Kind: return
           Expression:
             Type: 250 StructureType main.largeStruct
             Operations:
@@ -19688,7 +19688,7 @@ Types:
       Expressions:
         - Name: r0
           Offset: 5
-          Kind: local
+          Kind: return
           Expression:
             Type: 15 BaseType float64
             Operations:
@@ -19699,7 +19699,7 @@ Types:
           DictIndex: -1
         - Name: r1
           Offset: 13
-          Kind: local
+          Kind: return
           Expression:
             Type: 15 BaseType float64
             Operations:
@@ -19710,7 +19710,7 @@ Types:
           DictIndex: -1
         - Name: r2
           Offset: 21
-          Kind: local
+          Kind: return
           Expression:
             Type: 15 BaseType float64
             Operations:
@@ -19721,7 +19721,7 @@ Types:
           DictIndex: -1
         - Name: r3
           Offset: 29
-          Kind: local
+          Kind: return
           Expression:
             Type: 15 BaseType float64
             Operations:
@@ -19732,7 +19732,7 @@ Types:
           DictIndex: -1
         - Name: r4
           Offset: 37
-          Kind: local
+          Kind: return
           Expression:
             Type: 15 BaseType float64
             Operations:
@@ -19743,7 +19743,7 @@ Types:
           DictIndex: -1
         - Name: r5
           Offset: 45
-          Kind: local
+          Kind: return
           Expression:
             Type: 15 BaseType float64
             Operations:
@@ -19754,7 +19754,7 @@ Types:
           DictIndex: -1
         - Name: r6
           Offset: 53
-          Kind: local
+          Kind: return
           Expression:
             Type: 15 BaseType float64
             Operations:
@@ -19765,7 +19765,7 @@ Types:
           DictIndex: -1
         - Name: r7
           Offset: 61
-          Kind: local
+          Kind: return
           Expression:
             Type: 15 BaseType float64
             Operations:
@@ -19776,7 +19776,7 @@ Types:
           DictIndex: -1
         - Name: r8
           Offset: 69
-          Kind: local
+          Kind: return
           Expression:
             Type: 15 BaseType float64
             Operations:
@@ -19787,7 +19787,7 @@ Types:
           DictIndex: -1
         - Name: r9
           Offset: 77
-          Kind: local
+          Kind: return
           Expression:
             Type: 15 BaseType float64
             Operations:
@@ -19798,7 +19798,7 @@ Types:
           DictIndex: -1
         - Name: r10
           Offset: 85
-          Kind: local
+          Kind: return
           Expression:
             Type: 15 BaseType float64
             Operations:
@@ -19809,7 +19809,7 @@ Types:
           DictIndex: -1
         - Name: r11
           Offset: 93
-          Kind: local
+          Kind: return
           Expression:
             Type: 15 BaseType float64
             Operations:
@@ -19820,7 +19820,7 @@ Types:
           DictIndex: -1
         - Name: r12
           Offset: 101
-          Kind: local
+          Kind: return
           Expression:
             Type: 15 BaseType float64
             Operations:
@@ -19831,7 +19831,7 @@ Types:
           DictIndex: -1
         - Name: r13
           Offset: 109
-          Kind: local
+          Kind: return
           Expression:
             Type: 15 BaseType float64
             Operations:
@@ -19842,7 +19842,7 @@ Types:
           DictIndex: -1
         - Name: r14
           Offset: 117
-          Kind: local
+          Kind: return
           Expression:
             Type: 15 BaseType float64
             Operations:
@@ -19853,7 +19853,7 @@ Types:
           DictIndex: -1
         - Name: onlyOnAmd64_16
           Offset: 125
-          Kind: local
+          Kind: return
           Expression:
             Type: 15 BaseType float64
             Operations:
@@ -19864,7 +19864,7 @@ Types:
           DictIndex: -1
         - Name: bothArmAndAmd64
           Offset: 133
-          Kind: local
+          Kind: return
           Expression:
             Type: 15 BaseType float64
             Operations:
@@ -19884,7 +19884,7 @@ Types:
       Expressions:
         - Name: '@return'
           Offset: 1
-          Kind: local
+          Kind: return
           Expression:
             Type: 254 StructureType main.mixedStruct
             Operations:
@@ -19904,7 +19904,7 @@ Types:
       Expressions:
         - Name: r0
           Offset: 2
-          Kind: local
+          Kind: return
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -19915,7 +19915,7 @@ Types:
           DictIndex: -1
         - Name: r1
           Offset: 10
-          Kind: local
+          Kind: return
           Expression:
             Type: 15 BaseType float64
             Operations:
@@ -19926,7 +19926,7 @@ Types:
           DictIndex: -1
         - Name: r2
           Offset: 18
-          Kind: local
+          Kind: return
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -19937,7 +19937,7 @@ Types:
           DictIndex: -1
         - Name: r3
           Offset: 26
-          Kind: local
+          Kind: return
           Expression:
             Type: 15 BaseType float64
             Operations:
@@ -19948,7 +19948,7 @@ Types:
           DictIndex: -1
         - Name: r4
           Offset: 34
-          Kind: local
+          Kind: return
           Expression:
             Type: 9 GoStringHeaderType string
             Operations:
@@ -19968,7 +19968,7 @@ Types:
       Expressions:
         - Name: r0
           Offset: 1
-          Kind: local
+          Kind: return
           Expression:
             Type: 18 BaseType float32
             Operations:
@@ -19979,7 +19979,7 @@ Types:
           DictIndex: -1
         - Name: r1
           Offset: 5
-          Kind: local
+          Kind: return
           Expression:
             Type: 15 BaseType float64
             Operations:
@@ -19999,7 +19999,7 @@ Types:
       Expressions:
         - Name: '@return'
           Offset: 1
-          Kind: local
+          Kind: return
           Expression:
             Type: 15 BaseType float64
             Operations:
@@ -20019,7 +20019,7 @@ Types:
       Expressions:
         - Name: r0
           Offset: 2
-          Kind: local
+          Kind: return
           Expression:
             Type: 16 BaseType int8
             Operations:
@@ -20030,7 +20030,7 @@ Types:
           DictIndex: -1
         - Name: r1
           Offset: 3
-          Kind: local
+          Kind: return
           Expression:
             Type: 104 BaseType int16
             Operations:
@@ -20041,7 +20041,7 @@ Types:
           DictIndex: -1
         - Name: r2
           Offset: 5
-          Kind: local
+          Kind: return
           Expression:
             Type: 10 BaseType int32
             Operations:
@@ -20052,7 +20052,7 @@ Types:
           DictIndex: -1
         - Name: r3
           Offset: 9
-          Kind: local
+          Kind: return
           Expression:
             Type: 12 BaseType int64
             Operations:
@@ -20063,7 +20063,7 @@ Types:
           DictIndex: -1
         - Name: r4
           Offset: 17
-          Kind: local
+          Kind: return
           Expression:
             Type: 3 BaseType uint8
             Operations:
@@ -20074,7 +20074,7 @@ Types:
           DictIndex: -1
         - Name: r5
           Offset: 18
-          Kind: local
+          Kind: return
           Expression:
             Type: 6 BaseType uint16
             Operations:
@@ -20085,7 +20085,7 @@ Types:
           DictIndex: -1
         - Name: r6
           Offset: 20
-          Kind: local
+          Kind: return
           Expression:
             Type: 2 BaseType uint32
             Operations:
@@ -20096,7 +20096,7 @@ Types:
           DictIndex: -1
         - Name: r7
           Offset: 24
-          Kind: local
+          Kind: return
           Expression:
             Type: 8 BaseType uint64
             Operations:
@@ -20116,7 +20116,7 @@ Types:
       Expressions:
         - Name: '@return'
           Offset: 1
-          Kind: local
+          Kind: return
           Expression:
             Type: 256 StructureType main.structWithArray
             Operations:
@@ -20136,7 +20136,7 @@ Types:
       Expressions:
         - Name: '@return'
           Offset: 1
-          Kind: local
+          Kind: return
           Expression:
             Type: 255 StructureType main.wideStruct
             Operations:
@@ -20713,7 +20713,7 @@ Types:
       Expressions:
         - Name: r0
           Offset: 1
-          Kind: local
+          Kind: return
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -20724,7 +20724,7 @@ Types:
           DictIndex: -1
         - Name: result2
           Offset: 9
-          Kind: local
+          Kind: return
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -20735,7 +20735,7 @@ Types:
           DictIndex: -1
         - Name: r2
           Offset: 17
-          Kind: local
+          Kind: return
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -20780,7 +20780,7 @@ Types:
       Expressions:
         - Name: r0
           Offset: 1
-          Kind: local
+          Kind: return
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -20791,7 +20791,7 @@ Types:
           DictIndex: -1
         - Name: r1
           Offset: 9
-          Kind: local
+          Kind: return
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -20802,7 +20802,7 @@ Types:
           DictIndex: -1
         - Name: r2
           Offset: 17
-          Kind: local
+          Kind: return
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -21065,7 +21065,7 @@ Types:
       Expressions:
         - Name: r0
           Offset: 1
-          Kind: local
+          Kind: return
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -21076,7 +21076,7 @@ Types:
           DictIndex: -1
         - Name: r1
           Offset: 9
-          Kind: local
+          Kind: return
           Expression:
             Type: 256 StructureType main.structWithArray
             Operations:
@@ -22027,7 +22027,7 @@ Types:
       Expressions:
         - Name: r0
           Offset: 1
-          Kind: local
+          Kind: return
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -22038,7 +22038,7 @@ Types:
           DictIndex: -1
         - Name: r1
           Offset: 9
-          Kind: local
+          Kind: return
           Expression:
             Type: 253 ArrayType [0]int
             Operations:
@@ -22101,7 +22101,7 @@ Types:
       Expressions:
         - Name: '@return'
           Offset: 1
-          Kind: local
+          Kind: return
           Expression:
             Type: 4 BaseType bool
             Operations:
@@ -22164,7 +22164,7 @@ Types:
       Expressions:
         - Name: '@return'
           Offset: 1
-          Kind: local
+          Kind: return
           Expression:
             Type: 4 BaseType bool
             Operations:
@@ -22211,7 +22211,7 @@ Types:
       Expressions:
         - Name: '@return'
           Offset: 9
-          Kind: local
+          Kind: return
           Expression:
             Type: 323 StructureType github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Box[go.shape.int]
             Operations:
@@ -22258,7 +22258,7 @@ Types:
       Expressions:
         - Name: '@return'
           Offset: 9
-          Kind: local
+          Kind: return
           Expression:
             Type: 325 StructureType github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Box[go.shape.string]
             Operations:

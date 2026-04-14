@@ -22,11 +22,12 @@ import (
 
 // makeCaptureEvent builds a minimal captureEvent for return value tests.
 // Each expression is a simple int with the given name and value.
+// kind specifies the RootExpressionKind for all expressions.
 func makeCaptureEvent(
 	t *testing.T,
 	names []string,
 	values []int64,
-	isReturn bool,
+	kind ir.RootExpressionKind,
 ) *captureEvent {
 	t.Helper()
 	require.Equal(t, len(names), len(values))
@@ -46,7 +47,7 @@ func makeCaptureEvent(
 		expressions[i] = &ir.RootExpression{
 			Name:   name,
 			Offset: offset,
-			Kind:   ir.RootExpressionKindLocal,
+			Kind:   kind,
 			Expression: ir.Expression{
 				Type: intType,
 			},
@@ -82,7 +83,6 @@ func makeCaptureEvent(
 	ce := &captureEvent{
 		rootData: rootData,
 		rootType: rootType,
-		isReturn: isReturn,
 	}
 	ce.encodingContext = encodingContext{
 		typesByID:            map[ir.TypeID]decoderType{1: (*baseType)(intType)},
@@ -116,7 +116,7 @@ func TestReturnMarshalSingleReturn(t *testing.T) {
 	ce := makeCaptureEvent(t,
 		[]string{"@return"},
 		[]int64{142},
-		true, // isReturn
+		ir.RootExpressionKindReturn,
 	)
 	raw := marshalCaptureEvent(t, ce)
 
@@ -139,7 +139,7 @@ func TestReturnMarshalSingleNamedReturn(t *testing.T) {
 	ce := makeCaptureEvent(t,
 		[]string{"@return"},
 		[]int64{80},
-		true,
+		ir.RootExpressionKindReturn,
 	)
 	raw := marshalCaptureEvent(t, ce)
 
@@ -157,7 +157,7 @@ func TestReturnMarshalMultipleReturns(t *testing.T) {
 	ce := makeCaptureEvent(t,
 		[]string{"r0", "r1", "r2"},
 		[]int64{1, 2, 3},
-		true,
+		ir.RootExpressionKindReturn,
 	)
 	raw := marshalCaptureEvent(t, ce)
 
@@ -198,7 +198,7 @@ func TestReturnMarshalMultipleNamedReturns(t *testing.T) {
 	ce := makeCaptureEvent(t,
 		[]string{"result", "result2"},
 		[]int64{82, 123},
-		true,
+		ir.RootExpressionKindReturn,
 	)
 	raw := marshalCaptureEvent(t, ce)
 
@@ -214,11 +214,11 @@ func TestReturnMarshalMultipleNamedReturns(t *testing.T) {
 }
 
 func TestReturnMarshalEntryEventUnchanged(t *testing.T) {
-	// Entry events (isReturn=false) should NOT get the @return wrapping.
+	// Local variables (KindLocal) should NOT get @return wrapping.
 	ce := makeCaptureEvent(t,
 		[]string{"x"},
 		[]int64{42},
-		false, // NOT a return event
+		ir.RootExpressionKindLocal,
 	)
 	raw := marshalCaptureEvent(t, ce)
 

@@ -6717,7 +6717,7 @@ Types:
       Expressions:
         - Name: '@return'
           Offset: 1
-          Kind: local
+          Kind: return
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -7260,7 +7260,7 @@ Types:
       Expressions:
         - Name: '@return'
           Offset: 9
-          Kind: local
+          Kind: return
           Expression:
             Type: 143 BaseType go.shape.int
             Operations:
@@ -7296,7 +7296,7 @@ Types:
       Expressions:
         - Name: '@return'
           Offset: 9
-          Kind: local
+          Kind: return
           Expression:
             Type: 142 GoStringHeaderType go.shape.string
             Operations:
@@ -9147,7 +9147,7 @@ Types:
       Expressions:
         - Name: '@return'
           Offset: 1
-          Kind: local
+          Kind: return
           Expression:
             Type: 125 GoMapType map[uint8]map[int]main.aStructNotUsedAsAnArgument
             Operations:

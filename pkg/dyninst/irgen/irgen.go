@@ -823,7 +823,7 @@ func analyzeAllProbes(
 					// which would just require extending the next case to also be
 					// triggered for return variables.
 					evKind = ir.EventKindReturn
-					exprKind = ir.RootExpressionKindLocal
+					exprKind = ir.RootExpressionKindReturn
 
 				case len(inst.Events) == 1 &&
 					inst.Events[0].Kind == ir.EventKindLine:

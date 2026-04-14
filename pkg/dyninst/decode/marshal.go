@@ -272,7 +272,6 @@ type captureEvent struct {
 	rootType         *ir.EventRootType
 	evaluationErrors *[]evaluationError
 	skippedIndices   bitset
-	isReturn         bool
 }
 
 // resolveDictType checks if a variable's type can be resolved via the runtime
@@ -317,7 +316,6 @@ func (ce *captureEvent) clear() {
 	ce.rootData = nil
 	ce.rootType = nil
 	ce.evaluationErrors = nil
-	ce.isReturn = false
 
 	clear(ce.dataItems)
 	clear(ce.currentlyEncoding)
@@ -496,11 +494,14 @@ func (ce *captureEvent) MarshalJSONTo(enc *jsontext.Encoder) error {
 	}{
 		{kind: ir.RootExpressionKindArgument, token: jsontext.String("arguments")},
 		{kind: ir.RootExpressionKindLocal, token: jsontext.String("locals")},
+		{kind: ir.RootExpressionKindReturn, token: jsontext.String("locals")},
 		{kind: ir.RootExpressionKindCaptureExpression, token: jsontext.String("captureExpressions")},
 	} {
-		// Count expressions of this kind (needed for multi-return wrapping).
+		// For return expressions, count how many there are: >1 means we wrap
+		// with @return > fields; =1 means the single expression is already
+		// named @return and emits directly.
 		multiReturn := false
-		if ce.isReturn && kind.kind == ir.RootExpressionKindLocal {
+		if kind.kind == ir.RootExpressionKindReturn {
 			n := 0
 			for _, expr := range ce.rootType.Expressions {
 				if expr.Kind == kind.kind {
