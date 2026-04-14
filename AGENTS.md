@@ -39,6 +39,26 @@ The Datadog Agent is a comprehensive monitoring and observability agent written 
 
 ## Development Workflow
 
+### Critical: Always use `dda inv`, never raw `go` commands
+
+This project uses extensive custom Go build tags. Most source files are ignored
+by the standard Go toolchain unless the correct tags are passed. The `dda inv`
+wrapper tasks (defined in `tasks/`) compute the right build tags automatically.
+
+**Never run these commands directly:**
+
+| Instead of | Use |
+|---|---|
+| `go build …` | `dda inv agent.build`, `dda inv cluster-agent.build`, etc. |
+| `go test …` | `dda inv test --targets=./pkg/…` |
+| `go mod tidy` | `dda inv tidy` |
+| `go vet …` | `dda inv linter.go` |
+| `golangci-lint run …` | `dda inv linter.go` |
+
+This also applies to indirect usage — do not shell out to `go build` or
+`go test` for compilation checks. If you need to verify that code compiles,
+build the relevant component with `dda inv *.build`.
+
 ### Common Commands
 
 #### Building
@@ -144,7 +164,7 @@ Key Bazel macros:
 ## Testing Strategy
 
 ### Unit Tests
-- Go tests using standard `go test`
+- Go tests run via `dda inv test` (not raw `go test`)
 - Python tests using pytest
 - Run with `dda inv test --targets=<package>`
 
@@ -315,6 +335,7 @@ mistakes across sessions.
 
 ```
 AGENTS.md                          ← repo-wide: architecture, workflow, review guidelines
+├── bazel/AGENTS.md                ← Bazel build system: conventions, pitfalls, rule writing
 ├── test/e2e-framework/AGENTS.md   ← E2E framework: environments, provisioners, agentparams
 ├── test/fakeintake/AGENTS.md      ← fakeintake: endpoints, client API, extension guide
 ├── pkg/.../AGENTS.md              ← package-level: structure, patterns, pitfalls

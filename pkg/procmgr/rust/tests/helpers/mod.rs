@@ -3,7 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+#[cfg(unix)]
 use nix::sys::signal::{self, Signal};
+#[cfg(unix)]
 use nix::unistd::Pid;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
@@ -30,51 +32,30 @@ impl DaemonHandle {
     /// Sets `DD_PM_CONFIG_DIR` and `DD_PM_SOCKET_PATH` environment variables.
     pub fn start(config_dir: &Path, socket_path: &Path) -> Self {
         let bin = env!("CARGO_BIN_EXE_dd-procmgrd");
-        let mut child = Command::new(bin)
-            .env("DD_PM_CONFIG_DIR", config_dir)
+        let mut cmd = Command::new(bin);
+        cmd.env("DD_PM_CONFIG_DIR", config_dir)
             .env("DD_PM_SOCKET_PATH", socket_path)
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .expect("failed to start dd-procmgrd");
+            .stderr(Stdio::piped());
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt as _;
+            use windows_sys::Win32::System::Threading::CREATE_NEW_PROCESS_GROUP;
+            cmd.creation_flags(CREATE_NEW_PROCESS_GROUP);
+        }
+        let mut child = cmd.spawn().expect("failed to start dd-procmgrd");
 
         let stdout = child.stdout.take().expect("failed to capture stdout");
         let stderr = child.stderr.take().expect("failed to capture stderr");
         let log_lines = Arc::new(Mutex::new(Vec::<String>::new()));
-        let lines_clone = Arc::clone(&log_lines);
-        let lines_clone2 = Arc::clone(&log_lines);
 
-        // simple_logger writes INFO to stdout, WARN/ERROR to stderr.
-        let reader_thread = std::thread::spawn(move || {
-            let reader = BufReader::new(stdout);
-            for line in reader.lines() {
-                match line {
-                    Ok(l) => {
-                        eprintln!("[daemon] {l}");
-                        lines_clone.lock().unwrap().push(l);
-                    }
-                    Err(_) => break,
-                }
-            }
-        });
-
-        let _stderr_thread = std::thread::spawn(move || {
-            let reader = BufReader::new(stderr);
-            for line in reader.lines() {
-                match line {
-                    Ok(l) => {
-                        eprintln!("[daemon:err] {l}");
-                        lines_clone2.lock().unwrap().push(l);
-                    }
-                    Err(_) => break,
-                }
-            }
-        });
+        let _reader_thread = spawn_log_reader(stdout, "daemon", Arc::clone(&log_lines));
+        let _stderr_thread = spawn_log_reader(stderr, "daemon:err", Arc::clone(&log_lines));
 
         Self {
             child,
             log_lines,
-            _reader_thread: reader_thread,
+            _reader_thread,
             _stderr_thread,
         }
     }
@@ -125,15 +106,30 @@ impl DaemonHandle {
         }
     }
 
-    /// Send a signal to the daemon process.
+    /// Send a Unix signal to the daemon process.
+    #[cfg(unix)]
     pub fn send_signal(&self, sig: Signal) {
         let pid = self.child.id() as i32;
         signal::kill(Pid::from_raw(pid), sig).expect("failed to send signal to daemon");
     }
 
-    /// Send SIGTERM and wait for the daemon to exit. Returns the exit status.
+    /// Gracefully stop the daemon and wait for exit.
     pub fn stop(&mut self) -> ExitStatus {
+        #[cfg(unix)]
         self.send_signal(Signal::SIGTERM);
+        #[cfg(windows)]
+        {
+            use windows_sys::Win32::System::Console::{CTRL_BREAK_EVENT, GenerateConsoleCtrlEvent};
+            let pid = self.child.id();
+            let ok = unsafe { GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, pid) };
+            if ok == 0 {
+                eprintln!(
+                    "GenerateConsoleCtrlEvent(CTRL_BREAK, {pid}) failed: {}, falling back to kill",
+                    std::io::Error::last_os_error()
+                );
+                let _ = self.child.kill();
+            }
+        }
         self.wait_with_timeout(DEFAULT_TIMEOUT)
     }
 
@@ -210,24 +206,7 @@ impl CliOutput {
 
     /// Parse "Label:  value" lines and assert the field matches.
     pub fn assert_field(&self, label: &str, expected: &str) -> &Self {
-        let needle = format!("{label}:");
-        let value = self
-            .stdout
-            .lines()
-            .find_map(|line| {
-                let trimmed = line.trim();
-                if trimmed.starts_with(&needle) {
-                    Some(trimmed[needle.len()..].trim().to_string())
-                } else {
-                    None
-                }
-            })
-            .unwrap_or_else(|| {
-                panic!(
-                    "field '{label}' not found in output\nstdout: {}",
-                    self.stdout
-                )
-            });
+        let value = self.field_value(label);
         assert_eq!(
             value, expected,
             "field '{label}': expected '{expected}', got '{value}'",
@@ -297,15 +276,7 @@ impl CliOutput {
     /// header positions (supports multi-word headers like "LAST EXIT").
     pub fn assert_table_row(&self, row_name: &str, expected: &[(&str, &str)]) -> &Self {
         let (columns, rows) = self.parse_table();
-        let row = rows
-            .iter()
-            .find(|r| extract_column(r, 0, &columns).as_str() == row_name)
-            .unwrap_or_else(|| {
-                panic!(
-                    "row '{row_name}' not found in table\nstdout: {}",
-                    self.stdout
-                )
-            });
+        let row = self.find_table_row(row_name, &columns, &rows);
         for &(col_name, expected_val) in expected {
             let col_idx = columns
                 .iter()
@@ -334,15 +305,7 @@ impl CliOutput {
 
     pub fn pid_from_table_row(&self, row_name: &str) -> u32 {
         let (columns, rows) = self.parse_table();
-        let row = rows
-            .iter()
-            .find(|r| extract_column(r, 0, &columns).as_str() == row_name)
-            .unwrap_or_else(|| {
-                panic!(
-                    "row '{row_name}' not found in table\nstdout: {}",
-                    self.stdout
-                )
-            });
+        let row = self.find_table_row(row_name, &columns, &rows);
         let pid_idx = columns
             .iter()
             .position(|&(name, _)| name == "PID")
@@ -350,6 +313,22 @@ impl CliOutput {
         let val = extract_column(row, pid_idx, &columns);
         val.parse::<u32>()
             .unwrap_or_else(|_| panic!("PID '{val}' is not a u32 for row '{row_name}'"))
+    }
+
+    fn find_table_row<'a>(
+        &self,
+        row_name: &str,
+        columns: &[(&str, usize)],
+        rows: &[&'a str],
+    ) -> &'a str {
+        rows.iter()
+            .find(|r| extract_column(r, 0, columns).as_str() == row_name)
+            .unwrap_or_else(|| {
+                panic!(
+                    "row '{row_name}' not found in table\nstdout: {}",
+                    self.stdout
+                )
+            })
     }
 
     fn parse_table(&self) -> (Vec<(&str, usize)>, Vec<&str>) {
@@ -491,6 +470,26 @@ impl TestEnv {
         self
     }
 
+    /// Create a sleep process via CLI with optional extra args
+    /// (e.g. `["--no-auto-start"]`, `["--env", "K=V"]`).
+    pub fn create_sleep(&self, name: &str, extra_args: &[&str]) -> CliOutput {
+        let (cmd, args) = test_helpers::sleep_cmd(300);
+        let mut cli_args: Vec<String> = vec![
+            "create".into(),
+            "--name".into(),
+            name.into(),
+            "--command".into(),
+            cmd.into(),
+        ];
+        if !args.is_empty() {
+            cli_args.push("--args".into());
+            cli_args.extend(args);
+        }
+        cli_args.extend(extra_args.iter().map(|s| s.to_string()));
+        let refs: Vec<&str> = cli_args.iter().map(String::as_str).collect();
+        self.cli(&refs)
+    }
+
     /// Run a CLI command against this environment's daemon.
     pub fn cli(&self, args: &[&str]) -> CliOutput {
         let runner = CliRunner::new(&self.socket_path);
@@ -520,6 +519,28 @@ impl Drop for TestEnv {
 // Free functions
 // ---------------------------------------------------------------------------
 
+fn spawn_log_reader<R: std::io::Read + Send + 'static>(
+    stream: R,
+    tag: &str,
+    lines: Arc<Mutex<Vec<String>>>,
+) -> std::thread::JoinHandle<()> {
+    let tag = tag.to_string();
+    std::thread::spawn(move || {
+        let reader = BufReader::new(stream);
+        for line in reader.lines() {
+            match line {
+                Ok(l) => {
+                    eprintln!("[{tag}] {l}");
+                    lines.lock().unwrap().push(l);
+                }
+                Err(_) => break,
+            }
+        }
+    })
+}
+
+use dd_procmgrd::test_helpers;
+
 /// Write a YAML config file into `dir` with the given process `name`.
 pub fn write_config(dir: &Path, name: &str, yaml: &str) {
     let path = dir.join(format!("{name}.yaml"));
@@ -528,8 +549,28 @@ pub fn write_config(dir: &Path, name: &str, yaml: &str) {
 }
 
 /// Check if a PID is still alive.
+#[cfg(unix)]
 pub fn pid_is_alive(pid: u32) -> bool {
     signal::kill(Pid::from_raw(pid as i32), None).is_ok()
+}
+
+#[cfg(windows)]
+pub fn pid_is_alive(pid: u32) -> bool {
+    use windows_sys::Win32::Foundation::CloseHandle;
+    use windows_sys::Win32::System::Threading::{
+        GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
+    };
+    const STILL_ACTIVE: u32 = 259;
+    unsafe {
+        let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+        if handle.is_null() {
+            return false;
+        }
+        let mut exit_code: u32 = 0;
+        let ok = GetExitCodeProcess(handle, &mut exit_code);
+        CloseHandle(handle);
+        ok != 0 && exit_code == STILL_ACTIVE
+    }
 }
 
 /// Wait until a PID is no longer alive, or timeout.

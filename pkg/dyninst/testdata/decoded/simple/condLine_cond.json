@@ -18,7 +18,7 @@
           {
             "function": "main.condLine",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 381
+            "lineNumber": 396
           },
           {
             "function": "main.main",
@@ -41,12 +41,12 @@
           "location": {
             "method": "main.condLine",
             "file": "main.go",
-            "line": 381
+            "line": 396
           }
         },
         "captures": {
           "lines": {
-            "381": {
+            "396": {
               "captureExpressions": {
                 "tag_val": {
                   "type": "string",
