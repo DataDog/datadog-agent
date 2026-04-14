@@ -1,296 +1,381 @@
 ---
+apiVersion: v1
+kind: ServiceAccount
+automountServiceAccountToken: true
+metadata:
+  labels:
+    app: "datadog"
+    chart: "datadog-3.195.1"
+    heritage: "Helm"
+    release: "datadog"
+  name: datadog-cluster-agent
+  namespace: default
+---
 apiVersion: "rbac.authorization.k8s.io/v1"
 kind: ClusterRole
 metadata:
+  labels: {}
   name: datadog-cluster-agent
 rules:
-- apiGroups:
-  - ""
-  resources:
-  - services
-  - endpoints
-  - pods
-  - nodes
-  - namespaces
-  - componentstatuses
-  - limitranges
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - events
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-- apiGroups:
-  - "discovery.k8s.io"
-  resources:
-  - endpointslices
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups: ["quota.openshift.io"]
-  resources:
-  - clusterresourcequotas
-  verbs:
-  - get
-  - list
-- apiGroups:
-  - "autoscaling"
-  resources:
-  - horizontalpodautoscalers
-  verbs:
-  - list
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - configmaps
-  resourceNames:
-  - datadogtoken  # Kubernetes event collection state
-  - datadogtoken  # Kept for backward compatibility with agent <7.37.0
-  verbs:
-  - get
-  - update
-- apiGroups:
-  - ""
-  resources:
-  - configmaps
-  resourceNames:
-  - datadog-leader-election  # Leader election token
-  - datadog-leader-election  # Kept for backward compatibility with agent <7.37.0
-  verbs:
-  - get
-  - update
-- apiGroups:
-  - "coordination.k8s.io"
-  resources:
-  - leases
-  resourceNames:
-  - datadog-leader-election  # Leader election token
-  verbs:
-  - get
-  - update
-- apiGroups:
-  - "coordination.k8s.io"
-  resources:
-  - leases
-  verbs:
-  - create
-- apiGroups:  # To create the leader election token and hpa events
-  - ""
-  resources:
-  - configmaps
-  - events
-  verbs:
-  - create
-- nonResourceURLs:
-  - "/version"
-  - "/healthz"
-  verbs:
-  - get
-- apiGroups:  # to get the kube-system namespace UID and generate a cluster ID
-  - ""
-  resources:
-  - namespaces
-  resourceNames:
-  - "kube-system"
-  verbs:
-  - get
-- apiGroups:  # To create the cluster-id configmap
-  - ""
-  resources:
-  - configmaps
-  resourceNames:
-  - "datadog-cluster-id"
-  verbs:
-  - create
-  - get
-  - update
-- apiGroups:
-  - ""
-  resources:
-  - persistentvolumes
-  - persistentvolumeclaims
-  - serviceaccounts
-  verbs:
-  - list
-  - get
-  - watch
-- apiGroups:
-  - "apps"
-  resources:
-  - deployments
-  - replicasets
-  - daemonsets
-  - statefulsets
-  verbs:
-  - list
-  - get
-  - watch
-- apiGroups:
-  - "batch"
-  resources:
-  - cronjobs
-  - jobs
-  verbs:
-  - list
-  - get
-  - watch
-- apiGroups:
-  - networking.k8s.io
-  resources:
-  - ingresses
-  - networkpolicies
-  verbs:
-  - list
-  - get
-  - watch
-- apiGroups:
-  - "rbac.authorization.k8s.io"
-  resources:
-  - roles
-  - rolebindings
-  - clusterroles
-  - clusterrolebindings
-  verbs:
-  - list
-  - get
-  - watch
-- apiGroups:
-  - "storage.k8s.io"
-  resources:
-  - storageclasses
-  verbs:
-  - list
-  - get
-  - watch
-- apiGroups:
-  - autoscaling.k8s.io
-  resources:
-  - verticalpodautoscalers
-  verbs:
-  - list
-  - get
-  - watch
-- apiGroups:
-    - apiextensions.k8s.io
-  resources:
-    - customresourcedefinitions
-  verbs:
-    - list
-    - get
-    - watch
-- apiGroups:
-  - admissionregistration.k8s.io
-  resources:
-  - validatingwebhookconfigurations
-  - mutatingwebhookconfigurations
-  resourceNames:
-    - "datadog-webhook"
-  verbs: ["get", "list", "watch", "update", "delete"]
-- apiGroups:
-  - admissionregistration.k8s.io
-  resources:
-  - validatingwebhookconfigurations
-  - mutatingwebhookconfigurations
-  verbs: ["create"]
-- apiGroups: ["batch"]
-  resources: ["jobs", "cronjobs"]
-  verbs: ["get"]
-- apiGroups: ["apps"]
-  resources: ["statefulsets", "replicasets", "deployments", "daemonsets"]
-  verbs: ["get"]
-- apiGroups: [""]
-  resources: ["replicationcontrollers"]
-  verbs: ["get"]
-- apiGroups:
-  - "security.openshift.io"
-  resources:
-  - securitycontextconstraints
-  verbs:
-  - use
-  resourceNames:
-  - datadog-cluster-agent
-  - hostnetwork
-- apiGroups:
-  - "policy"
-  resources:
-  - poddisruptionbudgets
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - "datadoghq.com"
-  - karpenter.azure.com
-  - karpenter.k8s.aws
-  - karpenter.sh
-  resources:
-  - "*"
-  verbs:
-  - list
-  - watch
-- apiGroups:
-  - argoproj.io
-  resources:
-  - rollouts
-  verbs:
-  - list
-  - watch
-- apiGroups:
-  - "gateway.networking.k8s.io"
-  resources:
-  - gateways
-  - gatewayclasses
-  verbs:
-  - get
-  - list
-  - watch
-  - patch
-- apiGroups:
-  - "gateway.networking.k8s.io"
-  resources:
-  - referencegrants
-  verbs:
-  - get
-  - delete
-  - create
-  - patch
-- apiGroups:
-  - "gateway.envoyproxy.io"
-  resources:
-  - envoyextensionpolicies
-  verbs:
-  - get
-  - delete
-  - create
-- apiGroups:
-  - "networking.istio.io"
-  resources:
-  - envoyfilters
-  verbs:
-  - get
-  - create
-  - delete
-- apiGroups:
-  - "networking.istio.io"
-  resources:
-  - gateways
-  verbs:
-  - get
-  - list
-  - watch
+  - apiGroups:
+      - ""
+    resources:
+      - services
+      - endpoints
+      - pods
+      - nodes
+      - namespaces
+      - componentstatuses
+      - limitranges
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - events
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+  - apiGroups:
+      - "discovery.k8s.io"
+    resources:
+      - endpointslices
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups: ["quota.openshift.io"]
+    resources:
+      - clusterresourcequotas
+    verbs:
+      - get
+      - list
+  - apiGroups:
+      - "autoscaling"
+    resources:
+      - horizontalpodautoscalers
+    verbs:
+      - list
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+    resourceNames:
+      - datadogtoken # Kubernetes event collection state
+      - datadogtoken # Kept for backward compatibility with agent <7.37.0
+    verbs:
+      - get
+      - update
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+    resourceNames:
+      - datadog-leader-election # Leader election token
+      - datadog-leader-election # Kept for backward compatibility with agent <7.37.0
+      - datadog-custom-metrics
+    verbs:
+      - get
+      - update
+  - apiGroups:
+      - "coordination.k8s.io"
+    resources:
+      - leases
+    resourceNames:
+      - datadog-leader-election # Leader election token
+    verbs:
+      - get
+      - update
+  - apiGroups:
+      - "coordination.k8s.io"
+    resources:
+      - leases
+    verbs:
+      - create
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+    resourceNames:
+      - extension-apiserver-authentication
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups: # To create the leader election token and hpa events
+      - ""
+    resources:
+      - configmaps
+      - events
+    verbs:
+      - create
+  - nonResourceURLs:
+      - "/version"
+      - "/healthz"
+      - "/metrics"
+    verbs:
+      - get
+  - apiGroups: # to get the kube-system namespace UID and generate a cluster ID
+      - ""
+    resources:
+      - namespaces
+    resourceNames:
+      - "kube-system"
+    verbs:
+      - get
+  - apiGroups: # To create the cluster-id configmap
+      - ""
+    resources:
+      - configmaps
+    resourceNames:
+      - "datadog-cluster-id"
+    verbs:
+      - create
+      - get
+      - update
+  - apiGroups:
+      - ""
+    resources:
+      - persistentvolumes
+      - persistentvolumeclaims
+      - serviceaccounts
+    verbs:
+      - list
+      - get
+      - watch
+  - apiGroups:
+      - "apps"
+    resources:
+      - deployments
+      - replicasets
+      - daemonsets
+      - statefulsets
+    verbs:
+      - list
+      - get
+      - watch
+  - apiGroups:
+      - "batch"
+    resources:
+      - cronjobs
+      - jobs
+    verbs:
+      - list
+      - get
+      - watch
+  - apiGroups:
+      - networking.k8s.io
+    resources:
+      - ingresses
+      - networkpolicies
+    verbs:
+      - list
+      - get
+      - watch
+  - apiGroups:
+      - "rbac.authorization.k8s.io"
+    resources:
+      - roles
+      - rolebindings
+      - clusterroles
+      - clusterrolebindings
+    verbs:
+      - list
+      - get
+      - watch
+  - apiGroups:
+      - "storage.k8s.io"
+    resources:
+      - storageclasses
+    verbs:
+      - list
+      - get
+      - watch
+  - apiGroups:
+      - autoscaling.k8s.io
+    resources:
+      - verticalpodautoscalers
+    verbs:
+      - list
+      - get
+      - watch
+  - apiGroups:
+      - apiextensions.k8s.io
+    resources:
+      - customresourcedefinitions
+    verbs:
+      - list
+      - get
+      - watch
+  - apiGroups:
+      - admissionregistration.k8s.io
+    resources:
+      - validatingwebhookconfigurations
+      - mutatingwebhookconfigurations
+    resourceNames:
+      - "datadog-webhook"
+    verbs: ["get", "list", "watch", "update", "delete"]
+  - apiGroups:
+      - admissionregistration.k8s.io
+    resources:
+      - validatingwebhookconfigurations
+      - mutatingwebhookconfigurations
+    verbs: ["create"]
+  - apiGroups: ["batch"]
+    resources: ["jobs", "cronjobs"]
+    verbs: ["get"]
+  - apiGroups: ["apps"]
+    resources: ["statefulsets", "replicasets", "deployments", "daemonsets"]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["replicationcontrollers"]
+    verbs: ["get"]
+  - apiGroups:
+      - "security.openshift.io"
+    resources:
+      - securitycontextconstraints
+    verbs:
+      - use
+    resourceNames:
+      - datadog-cluster-agent
+      - hostnetwork
+  - apiGroups:
+      - "policy"
+    resources:
+      - poddisruptionbudgets
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - "datadoghq.com"
+      - eks.amazonaws.com
+      - karpenter.azure.com
+      - karpenter.k8s.aws
+      - karpenter.sh
+    resources:
+      - "*"
+    verbs:
+      - list
+      - watch
+  - apiGroups:
+      - argoproj.io
+    resources:
+      - rollouts
+      - applications
+      - applicationsets
+    verbs:
+      - list
+      - watch
+      - get
+  - apiGroups:
+      - source.toolkit.fluxcd.io
+    resources:
+      - buckets
+      - helmcharts
+      - externalartifacts
+      - gitrepositories
+      - helmrepositories
+      - ocirepositories
+    verbs:
+      - list
+      - watch
+      - get
+  - apiGroups:
+      - kustomize.toolkit.fluxcd.io
+    resources:
+      - kustomizations
+    verbs:
+      - list
+      - watch
+      - get
+  # AppSec proxy injection - Gateway API resources
+  - apiGroups:
+      - "gateway.networking.k8s.io"
+    resources:
+      - gateways
+      - gatewayclasses
+    verbs:
+      - get
+      - list
+      - watch
+      - patch
+  - apiGroups:
+      - "gateway.networking.k8s.io"
+    resources:
+      - referencegrants
+    verbs:
+      - get
+      - delete
+      - create
+      - patch
+  # AppSec proxy injection - Envoy Gateway
+  - apiGroups:
+      - "gateway.envoyproxy.io"
+    resources:
+      - envoyextensionpolicies
+    verbs:
+      - get
+      - delete
+      - create
+  # AppSec proxy injection - Istio
+  - apiGroups:
+      - "networking.istio.io"
+    resources:
+      - envoyfilters
+    verbs:
+      - get
+      - create
+      - delete
+  - apiGroups:
+      - "networking.istio.io"
+    resources:
+      - gateways
+    verbs:
+      - get
+      - list
+      - watch
+  # AppSec proxy injection - ingress-nginx
+  - apiGroups:
+      - "networking.k8s.io"
+    resources:
+      - ingressclasses
+    verbs:
+      - get
+      - list
+      - watch
+  # AppSec proxy injection - ingress-nginx ConfigMap management
+  # Read access and create are unscoped: we need to get the original ConfigMap (unknown name),
+  # list by label selector for cleanup on IngressClass deletion,
+  # and create cannot be scoped with resourceNames (resource doesn't exist yet).
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+    verbs:
+      - get
+      - list
+      - create
+  # Write access is scoped to DD-owned ConfigMaps only.
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+    resourceNames:
+      - datadog-appsec-ingress-nginx-controller
+    verbs:
+      - update
+      - delete
 ---
-apiVersion: rbac.authorization.k8s.io/v1
+apiVersion: "rbac.authorization.k8s.io/v1"
 kind: ClusterRoleBinding
 metadata:
+  labels: {}
   name: datadog-cluster-agent
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -299,15 +384,66 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: datadog-cluster-agent
-    namespace: datadog
+    namespace: default
 ---
-apiVersion: v1
-automountServiceAccountToken: true
-kind: ServiceAccount
+apiVersion: "rbac.authorization.k8s.io/v1"
+kind: ClusterRoleBinding
 metadata:
   labels:
-    app: datadog
-  name: datadog-cluster-agent
-  namespace: datadog
-
-
+    app: "datadog"
+    chart: "datadog-3.195.1"
+    release: "datadog"
+    heritage: "Helm"
+  name: datadog-cluster-agent-system-auth-delegator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:auth-delegator
+subjects:
+  - kind: ServiceAccount
+    name: datadog-cluster-agent
+    namespace: default
+---
+apiVersion: "rbac.authorization.k8s.io/v1"
+kind: Role
+metadata:
+  labels: {}
+  name: datadog-cluster-agent-main
+  namespace: default
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch", "update", "create"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "update", "create"]
+---
+apiVersion: "rbac.authorization.k8s.io/v1"
+kind: RoleBinding
+metadata:
+  labels: {}
+  name: "datadog-cluster-agent-main"
+  namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: datadog-cluster-agent-main
+subjects:
+  - kind: ServiceAccount
+    name: datadog-cluster-agent
+    namespace: default
+---
+apiVersion: "rbac.authorization.k8s.io/v1"
+kind: RoleBinding
+metadata:
+  labels: {}
+  name: "datadog-cluster-agent-apiserver"
+  namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: extension-apiserver-authentication-reader
+subjects:
+  - kind: ServiceAccount
+    name: datadog-cluster-agent
+    namespace: default

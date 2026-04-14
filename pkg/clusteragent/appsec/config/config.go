@@ -45,6 +45,9 @@ const (
 
 	// ProxyTypeIstioGateway represents the Istio native Gateway (networking.istio.io/v1) proxy type for appsec injection mode
 	ProxyTypeIstioGateway ProxyType = "istio-gateway"
+
+	// ProxyTypeIngressNginx represents the ingress-nginx proxy type for appsec injection mode
+	ProxyTypeIngressNginx ProxyType = "ingress-nginx"
 )
 
 // AllProxyTypes is the list of all supported proxy types for appsec injection mode
@@ -52,6 +55,7 @@ var AllProxyTypes = []ProxyType{
 	ProxyTypeEnvoyGateway,
 	ProxyTypeIstio,
 	ProxyTypeIstioGateway,
+	ProxyTypeIngressNginx,
 }
 
 // Processor represents the configuration of the AppSec processor service that was deployed in the cluster
@@ -94,6 +98,16 @@ type Sidecar struct {
 	BodyParsingSizeLimit string // Default: "10000000" (10MB)
 }
 
+// Nginx contains configuration specific to ingress-nginx injection
+type Nginx struct {
+	// InitImage is the container image for the init container that copies the nginx-datadog module
+	// e.g., "datadog/ingress-nginx-injection"
+	InitImage string
+	// ModuleMountPath is where the .so module is mounted in the controller container
+	// Default: "/modules_mount"
+	ModuleMountPath string
+}
+
 func (p Processor) String() string {
 	address := p.Address
 	if address == "" {
@@ -119,6 +133,9 @@ type Product struct {
 
 	// Sidecar contains configuration for SIDECAR mode
 	Sidecar Sidecar
+
+	// Nginx contains configuration for ingress-nginx injection
+	Nginx Nginx
 
 	// Processor contains configuration for the EXTERNAL mode
 	Processor Processor
@@ -210,6 +227,11 @@ func FromComponent(cfg config.Component, logger log.Component) Config {
 		BodyParsingSizeLimit: cfg.GetString("admission_controller.appsec.sidecar.body_parsing_size_limit"),
 	}
 
+	nginxConfig := Nginx{
+		InitImage:       cfg.GetString("admission_controller.appsec.nginx.init_image"),
+		ModuleMountPath: cfg.GetString("admission_controller.appsec.nginx.module_mount_path"),
+	}
+
 	staticLabels := map[string]string{
 		kubernetes.KubeAppComponentLabelKey: "datadog-appsec-injector",
 		kubernetes.KubeAppPartOfLabelKey:    "datadog",
@@ -250,6 +272,7 @@ func FromComponent(cfg config.Component, logger log.Component) Config {
 			Processor:  processor,
 			Mode:       mode,
 			Sidecar:    sidecarConfig,
+			Nginx:      nginxConfig,
 		},
 		Injection: Injection{
 			Enabled:           cfg.GetBool("cluster_agent.appsec.injector.enabled"),
