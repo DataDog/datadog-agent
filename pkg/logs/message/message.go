@@ -385,6 +385,27 @@ type AttributeGetter interface {
 	GetAttribute(path string) (string, bool)
 }
 
+// FullEncoder is an optional interface that StructuredContent implementations
+// can satisfy to produce the complete transport-envelope JSON in a single
+// serialization pass. The rendered parameter is the already-rendered inner JSON
+// from Render(), passed by the encoder to avoid a redundant second Render() call.
+type FullEncoder interface {
+	EncodeFull(rendered []byte, status string, timestamp int64,
+		hostname, service, source, tags string) ([]byte, error)
+}
+
+// GetFullEncoder returns the FullEncoder implementation if the underlying
+// structured content supports single-pass encoding. Works on both
+// StateStructured and StateRendered messages since structuredContent is
+// preserved across rendering.
+func (m *MessageContent) GetFullEncoder() (FullEncoder, bool) {
+	if m.structuredContent == nil {
+		return nil, false
+	}
+	fe, ok := m.structuredContent.(FullEncoder)
+	return fe, ok
+}
+
 // BasicStructuredContent is used by tailers creating structured logs
 // but with basic needs for transport.
 // The message from the log is stored in the "message" key.

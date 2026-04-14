@@ -38,19 +38,33 @@ type jsonPayload struct {
 
 // Encode encodes a message into a JSON byte array.
 func (j *jsonEncoder) Encode(msg *message.Message, hostname string) error {
+	ts := time.Now().UTC()
+	if !msg.ServerlessExtra.Timestamp.IsZero() {
+		ts = msg.ServerlessExtra.Timestamp
+	}
+	tsMillis := ts.UnixNano() / nanoToMillis
+
 	if msg.State != message.StateRendered {
 		return errors.New("message passed to encoder isn't rendered")
 	}
 
-	ts := time.Now().UTC()
-	if !msg.ServerlessExtra.Timestamp.IsZero() {
-		ts = msg.ServerlessExtra.Timestamp
+	if fe, ok := msg.GetFullEncoder(); ok {
+		encoded, err := fe.EncodeFull(
+			msg.GetContent(),
+			msg.GetStatus(), tsMillis,
+			hostname, msg.Origin.Service(), msg.Origin.Source(),
+			msg.TagsToString())
+		if err != nil {
+			return fmt.Errorf("can't encode the message: %v", err)
+		}
+		msg.SetEncoded(encoded)
+		return nil
 	}
 
 	encoded, err := json.Marshal(jsonPayload{
 		Message:   ValidUtf8Bytes(msg.GetContent()),
 		Status:    msg.GetStatus(),
-		Timestamp: ts.UnixNano() / nanoToMillis,
+		Timestamp: tsMillis,
 		Hostname:  hostname,
 		Service:   msg.Origin.Service(),
 		Source:    msg.Origin.Source(),

@@ -396,15 +396,238 @@ func TestGetAttribute_NoSIEM(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// EncodeFull: wire-format-preserving fast encoder
+// ---------------------------------------------------------------------------
+
+// renderThenEncodeFull is a test helper that mirrors the real processor flow:
+// Render() first, then EncodeFull() with the pre-rendered bytes.
+func renderThenEncodeFull(t *testing.T, sc *SyslogStructuredContent,
+	status string, timestamp int64, hostname, service, source, tags string,
+) []byte {
+	t.Helper()
+	rendered, err := sc.Render()
+	require.NoError(t, err)
+	got, err := sc.EncodeFull(rendered, status, timestamp, hostname, service, source, tags)
+	require.NoError(t, err)
+	return got
+}
+
+// decodeEnvelope unmarshals the outer transport envelope and additionally
+// parses the "message" string as inner JSON to return the structured content.
+func decodeEnvelope(t *testing.T, envelope []byte) (outer map[string]interface{}, inner map[string]interface{}) {
+	t.Helper()
+	require.NoError(t, json.Unmarshal(envelope, &outer))
+	msgStr, ok := outer["message"].(string)
+	require.True(t, ok, "message field should be a string")
+	if msgStr != "" {
+		require.NoError(t, json.Unmarshal([]byte(msgStr), &inner))
+	}
+	return outer, inner
+}
+
+func TestEncodeFull_RFC5424(t *testing.T) {
+	parsed := SyslogMessage{
+		Pri:       165,
+		Version:   "1",
+		Timestamp: "2003-10-11T22:14:15.003Z",
+		Hostname:  "mymachine.example.com",
+		AppName:   "evntslog",
+		ProcID:    "-",
+		MsgID:     "ID47",
+		StructuredData: map[string]map[string]string{
+			"exampleSDID@32473": {"iut": "3", "eventSource": "Application", "eventID": "1011"},
+		},
+		Msg: []byte("An application event log entry"),
+	}
+
+	sc := NewSyslogStructuredContent(parsed)
+	got := renderThenEncodeFull(t, sc, "notice", 1699000000000, "myhost", "myservice", "mysource", "env:prod,team:logs")
+
+	outer, inner := decodeEnvelope(t, got)
+
+	// Transport fields
+	assert.Equal(t, "notice", outer["status"])
+	assert.Equal(t, float64(1699000000000), outer["timestamp"])
+	assert.Equal(t, "myhost", outer["hostname"])
+	assert.Equal(t, "myservice", outer["service"])
+	assert.Equal(t, "mysource", outer["ddsource"])
+	assert.Equal(t, "env:prod,team:logs", outer["ddtags"])
+
+	// Inner structured content
+	assert.Equal(t, "An application event log entry", inner["message"])
+
+	syslogMap, ok := inner["syslog"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, "evntslog", syslogMap["appname"])
+	assert.Equal(t, float64(5), syslogMap["severity"])
+	assert.Equal(t, float64(20), syslogMap["facility"])
+	assert.Equal(t, "1", syslogMap["version"])
+	assert.NotNil(t, syslogMap["structured_data"])
+
+	_, hasSIEM := inner["siem"]
+	assert.False(t, hasSIEM, "siem should be absent for plain syslog")
+}
+
+func TestEncodeFull_CEF(t *testing.T) {
+	parsed := SyslogMessage{
+		Pri:       14,
+		Version:   "1",
+		Timestamp: "2003-10-11T22:14:15.003Z",
+		Hostname:  "host",
+		AppName:   "app",
+		ProcID:    "-",
+		MsgID:     "-",
+		Msg:       []byte(`CEF:0|Security|Firewall|1.0|100|Attack|10|src=1.2.3.4 dst=5.6.7.8`),
+	}
+
+	sc := NewSyslogStructuredContent(parsed)
+	got := renderThenEncodeFull(t, sc, "info", 1699000000000, "h", "s", "src", "")
+
+	outer, inner := decodeEnvelope(t, got)
+
+	assert.Equal(t, "info", outer["status"])
+	assert.Equal(t, "", inner["message"], "message should be empty for CEF")
+
+	siemMap, ok := inner["siem"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, "CEF", siemMap["format"])
+	assert.Equal(t, "Security", siemMap["device_vendor"])
+
+	ext, ok := siemMap["extension"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, "1.2.3.4", ext["src"])
+	assert.Equal(t, "5.6.7.8", ext["dst"])
+}
+
+func TestEncodeFull_BSD_NoPri(t *testing.T) {
+	parsed := SyslogMessage{
+		Pri:       -1,
+		Timestamp: "Oct 11 22:14:15",
+		Hostname:  "mymachine",
+		AppName:   "syslogd",
+		ProcID:    "-",
+		MsgID:     "-",
+		Msg:       []byte("restart"),
+	}
+
+	sc := NewSyslogStructuredContent(parsed)
+	got := renderThenEncodeFull(t, sc, "info", 1699000000000, "h", "s", "src", "")
+
+	_, inner := decodeEnvelope(t, got)
+
+	syslogMap := inner["syslog"].(map[string]interface{})
+	_, hasSev := syslogMap["severity"]
+	assert.False(t, hasSev, "severity should be omitted when Pri < 0")
+	_, hasFac := syslogMap["facility"]
+	assert.False(t, hasFac, "facility should be omitted when Pri < 0")
+	_, hasVer := syslogMap["version"]
+	assert.False(t, hasVer, "version should be omitted for BSD")
+}
+
+func TestEncodeFull_Parity_WithOldPath(t *testing.T) {
+	parsed := SyslogMessage{
+		Pri: 165, Version: "1", Timestamp: "2003-10-11T22:14:15.003Z",
+		Hostname: "host", AppName: "app", ProcID: "1234", MsgID: "REQ1",
+		Msg: []byte("hello world"),
+	}
+
+	sc := NewSyslogStructuredContent(parsed)
+
+	rendered, err := sc.Render()
+	require.NoError(t, err)
+
+	newJSON, err := sc.EncodeFull(rendered, "info", 1699000000000, "myhost", "myservice", "mysource", "env:prod")
+	require.NoError(t, err)
+
+	type oldPayload struct {
+		Message   string `json:"message"`
+		Status    string `json:"status"`
+		Timestamp int64  `json:"timestamp"`
+		Hostname  string `json:"hostname"`
+		Service   string `json:"service"`
+		Source    string `json:"ddsource"`
+		Tags      string `json:"ddtags"`
+	}
+	oldJSON, err := json.Marshal(oldPayload{
+		Message:   string(rendered),
+		Status:    "info",
+		Timestamp: 1699000000000,
+		Hostname:  "myhost",
+		Service:   "myservice",
+		Source:    "mysource",
+		Tags:      "env:prod",
+	})
+	require.NoError(t, err)
+
+	// Both should decode to structurally identical payloads.
+	var newData, oldData map[string]interface{}
+	require.NoError(t, json.Unmarshal(newJSON, &newData))
+	require.NoError(t, json.Unmarshal(oldJSON, &oldData))
+
+	var newInner, oldInner map[string]interface{}
+	require.NoError(t, json.Unmarshal([]byte(newData["message"].(string)), &newInner))
+	require.NoError(t, json.Unmarshal([]byte(oldData["message"].(string)), &oldInner))
+	assert.Equal(t, oldInner, newInner)
+
+	assert.Equal(t, oldData["status"], newData["status"])
+	assert.Equal(t, oldData["timestamp"], newData["timestamp"])
+	assert.Equal(t, oldData["hostname"], newData["hostname"])
+	assert.Equal(t, oldData["service"], newData["service"])
+	assert.Equal(t, oldData["ddsource"], newData["ddsource"])
+	assert.Equal(t, oldData["ddtags"], newData["ddtags"])
+}
+
+func TestEncodeFull_InvalidUTF8(t *testing.T) {
+	parsed := SyslogMessage{
+		Pri:       14,
+		Version:   "1",
+		Timestamp: "-",
+		Hostname:  "-",
+		AppName:   "-",
+		ProcID:    "-",
+		MsgID:     "-",
+		Msg:       []byte("hello\xfe\xffworld"),
+	}
+
+	sc := NewSyslogStructuredContent(parsed)
+	got := renderThenEncodeFull(t, sc, "info", 0, "", "", "", "")
+
+	// The outer envelope should be valid JSON
+	var outer map[string]interface{}
+	require.NoError(t, json.Unmarshal(got, &outer))
+
+	// The inner JSON string should contain the replaced characters
+	innerStr := outer["message"].(string)
+	assert.Contains(t, innerStr, "hello")
+	assert.Contains(t, innerStr, "world")
+}
+
+func TestEncodeFull_EmptyMessage(t *testing.T) {
+	parsed := SyslogMessage{
+		Pri: 14, Version: "1", Timestamp: "-", Hostname: "-",
+		AppName: "-", ProcID: "-", MsgID: "-", Msg: []byte(""),
+	}
+	sc := NewSyslogStructuredContent(parsed)
+	got := renderThenEncodeFull(t, sc, "info", 0, "", "", "", "")
+
+	_, inner := decodeEnvelope(t, got)
+	assert.Equal(t, "", inner["message"])
+}
+
+// ---------------------------------------------------------------------------
 // Interface compliance
 // ---------------------------------------------------------------------------
 
-func TestSyslogStructuredContent_ImplementsStructuredContent(t *testing.T) {
+func TestSyslogStructuredContent_ImplementsStructuredContent(_ *testing.T) {
 	var _ message.StructuredContent = (*SyslogStructuredContent)(nil)
 }
 
-func TestSyslogStructuredContent_ImplementsAttributeGetter(t *testing.T) {
+func TestSyslogStructuredContent_ImplementsAttributeGetter(_ *testing.T) {
 	var _ message.AttributeGetter = (*SyslogStructuredContent)(nil)
+}
+
+func TestSyslogStructuredContent_ImplementsFullEncoder(_ *testing.T) {
+	var _ message.FullEncoder = (*SyslogStructuredContent)(nil)
 }
 
 // ---------------------------------------------------------------------------

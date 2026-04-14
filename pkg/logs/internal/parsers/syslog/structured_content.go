@@ -8,14 +8,36 @@ package syslog
 import (
 	"strconv"
 	"strings"
+	"sync"
+	"unicode/utf8"
 
 	jsoniter "github.com/json-iterator/go"
 )
+
+const hexDigits = "0123456789abcdef"
+
+// needsEscape marks bytes that require escaping when embedded in a JSON string.
+// true for: control chars (0x00-0x1F), '"' (0x22), '\\' (0x5C).
+var needsEscape [256]bool
+
+func init() {
+	for i := 0; i < 0x20; i++ {
+		needsEscape[i] = true
+	}
+	needsEscape['"'] = true
+	needsEscape['\\'] = true
+}
 
 var syslogJSONConfig = jsoniter.Config{
 	EscapeHTML:                    false,
 	ObjectFieldMustBeSimpleString: true,
 }.Froze()
+
+var renderStreamPool = sync.Pool{
+	New: func() interface{} {
+		return jsoniter.NewStream(syslogJSONConfig, nil, 512)
+	},
+}
 
 // SyslogStructuredContent is a high-performance replacement for
 // BasicStructuredContent that stores syslog fields in typed Go structs
@@ -99,9 +121,11 @@ func NewSyslogStructuredContent(parsed SyslogMessage) *SyslogStructuredContent {
 //
 //	{"message":"...","syslog":{...},"siem":{...}}
 //
-// Uses jsoniter.Stream for zero-reflection serialization.
+// Uses a pooled jsoniter.Stream for zero-reflection serialization.
+// The returned slice is an independent copy safe for concurrent use.
 func (s *SyslogStructuredContent) Render() ([]byte, error) {
-	stream := jsoniter.NewStream(syslogJSONConfig, nil, 256)
+	stream := renderStreamPool.Get().(*jsoniter.Stream)
+	stream.Reset(nil)
 
 	stream.WriteObjectStart()
 
@@ -121,9 +145,102 @@ func (s *SyslogStructuredContent) Render() ([]byte, error) {
 	stream.WriteObjectEnd()
 
 	if stream.Error != nil {
-		return nil, stream.Error
+		err := stream.Error
+		renderStreamPool.Put(stream)
+		return nil, err
 	}
-	return stream.Buffer(), nil
+
+	buf := stream.Buffer()
+	result := make([]byte, len(buf))
+	copy(result, buf)
+	renderStreamPool.Put(stream)
+	return result, nil
+}
+
+// EncodeFull wraps pre-rendered inner JSON in the transport envelope using
+// direct []byte append with a tight escape loop. The rendered parameter is
+// the output of Render(), passed by the encoder to avoid a redundant call.
+func (s *SyslogStructuredContent) EncodeFull(
+	rendered []byte,
+	status string, timestamp int64,
+	hostname, service, source, tags string,
+) ([]byte, error) {
+	buf := make([]byte, 0, len(rendered)+len(rendered)/8+256)
+
+	buf = append(buf, `{"message":"`...)
+	buf = appendEscapedBytes(buf, rendered)
+	buf = append(buf, `","status":"`...)
+	buf = appendEscapedString(buf, status)
+	buf = append(buf, `","timestamp":`...)
+	buf = strconv.AppendInt(buf, timestamp, 10)
+	buf = append(buf, `,"hostname":"`...)
+	buf = appendEscapedString(buf, hostname)
+	buf = append(buf, `","service":"`...)
+	buf = appendEscapedString(buf, service)
+	buf = append(buf, `","ddsource":"`...)
+	buf = appendEscapedString(buf, source)
+	buf = append(buf, `","ddtags":"`...)
+	buf = appendEscapedString(buf, tags)
+	buf = append(buf, `"}`...)
+
+	return buf, nil
+}
+
+// appendEscapedBytes appends b to buf as the contents of a JSON string
+// (without surrounding quotes), escaping characters per RFC 8259 and
+// replacing invalid UTF-8 with U+FFFD to match ValidUtf8Bytes semantics.
+func appendEscapedBytes(buf, b []byte) []byte {
+	start := 0
+	for i := 0; i < len(b); {
+		c := b[i]
+		if !needsEscape[c] && c < utf8.RuneSelf {
+			i++
+			continue
+		}
+		if c < utf8.RuneSelf {
+			buf = append(buf, b[start:i]...)
+			switch c {
+			case '"':
+				buf = append(buf, '\\', '"')
+			case '\\':
+				buf = append(buf, '\\', '\\')
+			case '\n':
+				buf = append(buf, '\\', 'n')
+			case '\r':
+				buf = append(buf, '\\', 'r')
+			case '\t':
+				buf = append(buf, '\\', 't')
+			default:
+				buf = append(buf, '\\', 'u', '0', '0', hexDigits[c>>4], hexDigits[c&0xf])
+			}
+			i++
+			start = i
+			continue
+		}
+		r, size := utf8.DecodeRune(b[i:])
+		if r == utf8.RuneError && size == 1 {
+			buf = append(buf, b[start:i]...)
+			buf = append(buf, "\ufffd"...)
+			i++
+			start = i
+			continue
+		}
+		i += size
+	}
+	return append(buf, b[start:]...)
+}
+
+// appendEscapedString is the string variant for the envelope's simple
+// fields (status, hostname, etc.). These are almost always pure ASCII
+// with no characters that need escaping, so the fast path is just append.
+func appendEscapedString(buf []byte, s string) []byte {
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if needsEscape[c] || c >= utf8.RuneSelf {
+			return appendEscapedBytes(buf, []byte(s))
+		}
+	}
+	return append(buf, s...)
 }
 
 // GetContent returns the message body for processing rules (scrubbing).
