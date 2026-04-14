@@ -317,7 +317,10 @@ func (c *safeConfig) HasSection(key string) bool {
 				return true
 			}
 		} else if c.configSources[src].HasSection(key) {
-			return true
+			// If a given layer has found a node at the given key...
+			v := c.configSources[model.SourceDefault].Get(key)
+			// it is only a section if the default layer does not have a scalar leaf there
+			return v == nil || reflect.ValueOf(v).Kind() == reflect.Map
 		}
 	}
 	return false

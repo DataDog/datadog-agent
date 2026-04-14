@@ -76,6 +76,16 @@ var (
 							},
 						},
 					},
+					// Currently this is defaulted in CRD Def, we need to keep it here to not break hash-based reconciliation
+					Fallback: &datadoghq.DatadogFallbackPolicy{
+						Horizontal: datadoghq.DatadogPodAutoscalerHorizontalFallbackPolicy{
+							Enabled:   true,
+							Direction: datadoghq.DatadogPodAutoscalerFallbackDirectionScaleUp,
+							Triggers: datadoghq.HorizontalFallbackTriggers{
+								StaleRecommendationThresholdSeconds: 600,
+							},
+						},
+					},
 				},
 			},
 		},
@@ -119,6 +129,16 @@ var (
 							},
 						},
 					},
+					// Currently this is defaulted in CRD Def, we need to keep it here to not break hash-based reconciliation
+					Fallback: &datadoghq.DatadogFallbackPolicy{
+						Horizontal: datadoghq.DatadogPodAutoscalerHorizontalFallbackPolicy{
+							Enabled:   true,
+							Direction: datadoghq.DatadogPodAutoscalerFallbackDirectionScaleUp,
+							Triggers: datadoghq.HorizontalFallbackTriggers{
+								StaleRecommendationThresholdSeconds: 600,
+							},
+						},
+					},
 				},
 			},
 		},
@@ -159,6 +179,16 @@ var (
 									Type:        datadoghqcommon.DatadogPodAutoscalerUtilizationObjectiveValueType,
 									Utilization: pointer.Ptr[int32](60),
 								},
+							},
+						},
+					},
+					// Currently this is defaulted in CRD Def, we need to keep it here to not break hash-based reconciliation
+					Fallback: &datadoghq.DatadogFallbackPolicy{
+						Horizontal: datadoghq.DatadogPodAutoscalerHorizontalFallbackPolicy{
+							Enabled:   true,
+							Direction: datadoghq.DatadogPodAutoscalerFallbackDirectionScaleUp,
+							Triggers: datadoghq.HorizontalFallbackTriggers{
+								StaleRecommendationThresholdSeconds: 600,
 							},
 						},
 					},

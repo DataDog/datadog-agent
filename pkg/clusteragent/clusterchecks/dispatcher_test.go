@@ -763,3 +763,105 @@ func TestUpdateRunnersStats(t *testing.T) {
 
 	requireNotLocked(t, dispatcher.store)
 }
+
+func TestGetStateIncludesStats(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	dispatcher := newDispatcher(fakeTagger)
+	dispatcher.store.active = true
+	// Nil out the client so updateRunnersStats() is a no-op;
+	// we set stats manually below.
+	dispatcher.clcRunnersClient = nil
+
+	config := integration.Config{
+		Name:         "my_check",
+		ClusterCheck: true,
+		Instances:    []integration.Data{integration.Data("{}")},
+		InitConfig:   integration.Data("{}"),
+	}
+	dispatcher.addConfig(config, "node1")
+
+	status := types.NodeStatus{LastChange: 10}
+	_ = dispatcher.processNodeStatus("node1", "10.0.0.1", status)
+
+	// Manually set runner stats on the node (simulating updateRunnersStats)
+	node1, found := dispatcher.store.getNodeStore("node1")
+	require.True(t, found)
+	node1.Lock()
+	node1.clcRunnerStats = types.CLCRunnersStats{
+		"my_check:abc123": {
+			AverageExecutionTime: 500,
+			MetricSamples:        42,
+			Events:               3,
+			ServiceChecks:        1,
+			LastExecFailed:       false,
+			TotalRuns:            100,
+			TotalErrors:          2,
+			TotalMetricSamples:   4200,
+			TotalEvents:          300,
+			TotalServiceChecks:   100,
+			LastSuccessDate:      1775563775,
+			LastExecutionDate:    1775563775974,
+		},
+	}
+	node1.Unlock()
+
+	state, err := dispatcher.getState(false)
+	assert.NoError(t, err)
+	assert.False(t, state.Warmup)
+	require.Len(t, state.Nodes, 1)
+
+	nodeResp := state.Nodes[0]
+	assert.Equal(t, "node1", nodeResp.Name)
+	require.Len(t, nodeResp.Configs, 1)
+
+	// Verify instance IDs are precomputed
+	configResp := nodeResp.Configs[0]
+	assert.Equal(t, "my_check", configResp.Config.Name)
+	require.Len(t, configResp.InstanceIDs, 1)
+
+	// Verify stats are included in the response
+	require.NotNil(t, nodeResp.Stats)
+	require.Len(t, nodeResp.Stats, 1)
+
+	s, found := nodeResp.Stats["my_check:abc123"]
+	require.True(t, found)
+	assert.Equal(t, 500, s.AverageExecutionTime)
+	assert.Equal(t, 42, s.MetricSamples)
+	assert.Equal(t, 3, s.Events)
+	assert.Equal(t, 1, s.ServiceChecks)
+	assert.False(t, s.LastExecFailed)
+	assert.Equal(t, uint64(100), s.TotalRuns)
+	assert.Equal(t, uint64(2), s.TotalErrors)
+	assert.Equal(t, uint64(4200), s.TotalMetricSamples)
+	assert.Equal(t, uint64(300), s.TotalEvents)
+	assert.Equal(t, uint64(100), s.TotalServiceChecks)
+	assert.Equal(t, int64(1775563775), s.LastSuccessDate)
+	assert.Equal(t, int64(1775563775974), s.LastExecutionDate)
+
+	requireNotLocked(t, dispatcher.store)
+}
+
+func TestGetStateNoStats(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	dispatcher := newDispatcher(fakeTagger)
+	dispatcher.store.active = true
+	dispatcher.clcRunnersClient = nil
+
+	config := generateIntegration("my_check")
+	dispatcher.addConfig(config, "node1")
+
+	status := types.NodeStatus{LastChange: 10}
+	_ = dispatcher.processNodeStatus("node1", "10.0.0.1", status)
+
+	// Don't set any runner stats — simulates stats not yet collected
+	state, err := dispatcher.getState(false)
+	assert.NoError(t, err)
+	require.Len(t, state.Nodes, 1)
+	assert.Nil(t, state.Nodes[0].Stats)
+
+	// Verify config is included (no instances in this test config, so no instance IDs)
+	require.Len(t, state.Nodes[0].Configs, 1)
+	assert.Equal(t, "my_check", state.Nodes[0].Configs[0].Config.Name)
+
+	requireNotLocked(t, dispatcher.store)
+}

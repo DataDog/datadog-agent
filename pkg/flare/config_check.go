@@ -115,7 +115,7 @@ func PrintConfigWithInstanceIDs(w io.Writer, c integration.Config, instanceIDs [
 }
 
 // PrintClusterCheckConfig prints a human-readable representation of a configuration with any secrets scrubbed.
-func PrintClusterCheckConfig(w io.Writer, c integration.Config, checkName string) {
+func PrintClusterCheckConfig(w io.Writer, c integration.Config, checkName string, instanceIDs []string) {
 	if checkName != "" && c.Name != checkName {
 		return
 	}
@@ -136,8 +136,14 @@ func PrintClusterCheckConfig(w io.Writer, c integration.Config, checkName string
 	} else {
 		fmt.Fprintf(w, "%s: %s\n", color.BlueString("Configuration source"), color.RedString("Unknown configuration source"))
 	}
-	for _, inst := range c.Instances {
-		ID := string(checkid.BuildID(c.Name, configDigest, inst, c.InitConfig))
+	usePrecomputedIDs := len(instanceIDs) == len(c.Instances)
+	for i, inst := range c.Instances {
+		var ID string
+		if usePrecomputedIDs {
+			ID = instanceIDs[i]
+		} else {
+			ID = string(checkid.BuildID(c.Name, configDigest, inst, c.InitConfig))
+		}
 		fmt.Fprintf(w, "%s: %s\n", color.BlueString("Config for instance ID"), color.CyanString(ID))
 		fmt.Fprintln(w, string(inst))
 		fmt.Fprintln(w, "~")
