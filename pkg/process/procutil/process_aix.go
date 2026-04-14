@@ -129,7 +129,7 @@ func listPIDs() ([]int32, error) {
 	return pids, nil
 }
 
-func psinfoToProcess(psi *psinfo, pid int32, pageSize int) *Process {
+func psinfoToProcess(psi *psinfo, pid int32) *Process {
 	name := nullTermBytes(psi.Fname[:])
 	args := nullTermBytes(psi.Psargs[:])
 
@@ -157,8 +157,9 @@ func psinfoToProcess(psi *psinfo, pid int32, pageSize int) *Process {
 				User: cpuSecs,
 			},
 			MemInfo: &MemoryInfoStat{
-				RSS: uint64(psi.Rssize) * uint64(pageSize),
-				VMS: uint64(psi.Size) * uint64(pageSize),
+				// pr_size and pr_rssize are in kilobytes on AIX.
+				RSS: psi.Rssize * 1024,
+				VMS: psi.Size * 1024,
 			},
 			// IOStat, MemInfoEx, CtxSwitches are not available without root on AIX.
 		},
@@ -184,7 +185,6 @@ func (p *probe) ProcessesByPID(_ time.Time, _ bool) (map[int32]*Process, error) 
 		return nil, fmt.Errorf("aix ProcessesByPID: could not list pids: %w", err)
 	}
 
-	pageSize := os.Getpagesize()
 	result := make(map[int32]*Process, len(pids))
 	for _, pid := range pids {
 		psi, err := readPsinfo(pid)
@@ -192,7 +192,7 @@ func (p *probe) ProcessesByPID(_ time.Time, _ bool) (map[int32]*Process, error) 
 			// Process may have exited between listPIDs and now; skip it.
 			continue
 		}
-		result[pid] = psinfoToProcess(psi, pid, pageSize)
+		result[pid] = psinfoToProcess(psi, pid)
 	}
 	return result, nil
 }
