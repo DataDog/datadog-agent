@@ -6,6 +6,7 @@ for %%F in (%MSBUILD%) do set MSBUILD=%%~fF
 for %%F in (%PYTHON_FOR_BUILD%) do set PYTHON_FOR_BUILD=%%~fF
 
 set build_outdir=%sourcedir%\PCbuild\amd64
+set response_file=%sourcedir%\PCbuild\msbuild.rsp
 
 set script_errorlevel=0
 
@@ -34,7 +35,6 @@ set TCLTK_DIR=%cd%\%TCLTK_DIR%\\
 :: Note that the build.bat script only accepts 9 extra arguments that can be passed through to MSBuild,
 :: so we write the arguments to a .rsp file that will be added to msbuild calls instead to not have to worry
 :: about that
-set response_file=%sourcedir%\PCbuild\msbuild.rsp
 echo "" > %response_file%
 echo "/p:bz2Dir=%BZ2_DIR%" >> %response_file%
 echo "/p:mpdecimalDir=%MPDECIMAL_DIR%" >> %response_file%
