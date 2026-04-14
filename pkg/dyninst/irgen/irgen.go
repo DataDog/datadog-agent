@@ -2102,13 +2102,17 @@ func (v *unitChildVisitor) push(
 				outOfLine: true,
 			}, nil
 		}
-		// Skip compiler-generated trampolines. These are wrapper functions
-		// for concrete generic instantiations used by indirect calls (e.g.,
-		// function pointers, interface dispatch). They have the concrete
-		// type parameters in their name but are not the actual implementation.
-		// Probing them would be incorrect — they may not even be called.
+		// Skip compiler-generated trampolines as probe targets. These are
+		// wrapper functions for concrete generic instantiations used by
+		// indirect calls (e.g., function pointers, interface dispatch).
+		// However, we must still visit their children because trampolines
+		// can contain inlined subroutines that are the only concrete
+		// instances of an abstract (inlined) function.
 		if entry.AttrField(dwarf.AttrTrampoline) != nil {
-			return nil, nil
+			return &inlinedSubroutineChildVisitor{
+				root:      v.root,
+				outOfLine: true,
+			}, nil
 		}
 
 		probesCfgs := v.root.interests.subprograms[name]
