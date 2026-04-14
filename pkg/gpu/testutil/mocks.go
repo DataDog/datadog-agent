@@ -622,7 +622,7 @@ var archNameToNVML = map[string]struct {
 	"hopper":  {nvml.DEVICE_ARCH_HOPPER, 9, 0},
 	"ada":     {nvml.DEVICE_ARCH_ADA, 8, 9},
 	"blackwell": {
-		nvml.DeviceArchitecture(10), // nvml.DEVICE_ARCH_BLACKWELL in newer go-nvml
+		nvml.DEVICE_ARCH_BLACKWELL,
 		10,
 		0,
 	},

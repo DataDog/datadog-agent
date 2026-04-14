@@ -29,8 +29,7 @@ func ArchToString(arch nvml.DeviceArchitecture) string {
 		return "ada"
 	case nvml.DEVICE_ARCH_HOPPER:
 		return "hopper"
-	case 10: // nvml.DEVICE_ARCH_BLACKWELL in newer versions of go-nvml
-		// note: we hardcode the enum to avoid updating to an untested newer go-nvml version
+	case nvml.DEVICE_ARCH_BLACKWELL:
 		return "blackwell"
 	case nvml.DEVICE_ARCH_UNKNOWN:
 		return "unknown"

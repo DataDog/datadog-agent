@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -207,6 +208,7 @@ func (c *CloudRunJobs) initJobSpan() {
 		c.startTime.UnixNano(),
 		tags,
 	)
+	traceutil.SetMeasured(c.jobSpan, true)
 }
 
 // setSpanModifier sets up the span modifier to reparent user spans under the job span

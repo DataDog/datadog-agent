@@ -162,6 +162,10 @@ type Agent struct {
 	// Used to synchronize on a clean exit
 	ctx context.Context
 
+	// stopped is closed when Run() returns, allowing callers to wait for
+	// the agent's full shutdown sequence to complete.
+	stopped chan struct{}
+
 	firstSpanMap sync.Map
 
 	processWg *sync.WaitGroup
@@ -211,6 +215,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 		InV1:                  inV1,
 		conf:                  conf,
 		ctx:                   ctx,
+		stopped:               make(chan struct{}),
 		DebugServer:           api.NewDebugServer(conf),
 		Statsd:                statsd,
 		Timing:                timing,
@@ -227,6 +232,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 
 // Run starts routers routines and individual pieces then stop them when the exit order is received.
 func (a *Agent) Run() {
+	defer close(a.stopped)
 	a.Timing.Start()
 	defer a.Timing.Stop()
 	for _, starter := range []interface{ Start() }{
@@ -287,6 +293,18 @@ func (a *Agent) FlushSync() {
 	}
 }
 
+// WaitForStopped blocks until the agent's Run() method has fully returned,
+// meaning all components have been stopped and the shutdown sequence is complete.
+// It returns nil on clean shutdown, or the context's error if ctx is done first.
+func (a *Agent) WaitForStopped(ctx context.Context) error {
+	select {
+	case <-a.stopped:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
 // UpdateAPIKey receives the API Key update signal and propagates it across all internal
 // components that rely on API Key configuration:
 // - HTTP Receiver (used in reverse proxies)
@@ -341,9 +359,28 @@ func (a *Agent) loop() {
 	//Wait to process any leftover payloads in flight before closing components that might be needed
 	a.processWg.Wait()
 
+	// Phase 1: Stop stats producers. Their Stop() methods flush remaining stats
+	// into the StatsWriter's buffer (via Write calls).
 	for _, stopper := range []interface{ Stop() }{
 		a.Concentrator,
 		a.ClientStatsAggregator,
+	} {
+		if stopper != nil && !reflect.ValueOf(stopper).IsNil() {
+			stopper.Stop()
+		}
+	}
+
+	// Phase 2: In sync mode, flush all buffered data to the network.
+	// Stats buffered by Concentrator.Stop() and ClientStatsAggregator.Stop()
+	// above are sent here, along with any buffered traces.
+	if a.conf.SynchronousFlushing {
+		a.FlushSync()
+	}
+
+	// Phase 3: Stop remaining components. Writers have nothing left to send
+	// since FlushSync already drained their buffers (sync mode) or they flush
+	// on their own during Stop (async mode).
+	for _, stopper := range []interface{ Stop() }{
 		a.TraceWriter,
 		a.TraceWriterV1,
 		a.StatsWriter,
