@@ -168,10 +168,11 @@ func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regex
 	var sampler preprocessor.Sampler
 	if pkgconfigsetup.Datadog().GetBool("logs_config.experimental_adaptive_sampling.enabled") {
 		sampler = preprocessor.NewAdaptiveSampler(validateAdaptiveSamplerConfig(preprocessor.AdaptiveSamplerConfig{
-			MaxPatterns:    pkgconfigsetup.Datadog().GetInt("logs_config.experimental_adaptive_sampling.max_patterns"),
-			RateLimit:      pkgconfigsetup.Datadog().GetFloat64("logs_config.experimental_adaptive_sampling.rate_limit"),
-			BurstSize:      pkgconfigsetup.Datadog().GetFloat64("logs_config.experimental_adaptive_sampling.burst_size"),
-			MatchThreshold: pkgconfigsetup.Datadog().GetFloat64("logs_config.experimental_adaptive_sampling.match_threshold"),
+			MaxPatterns:          pkgconfigsetup.Datadog().GetInt("logs_config.experimental_adaptive_sampling.max_patterns"),
+			RateLimit:            pkgconfigsetup.Datadog().GetFloat64("logs_config.experimental_adaptive_sampling.rate_limit"),
+			BurstSize:            pkgconfigsetup.Datadog().GetFloat64("logs_config.experimental_adaptive_sampling.burst_size"),
+			MatchThreshold:       pkgconfigsetup.Datadog().GetFloat64("logs_config.experimental_adaptive_sampling.match_threshold"),
+			ProtectImportantLogs: pkgconfigsetup.Datadog().GetBool("logs_config.experimental_adaptive_sampling.protect_important_logs"),
 		}), source.UnderlyingSource().Name)
 	} else {
 		sampler = preprocessor.NewNoopSampler()
