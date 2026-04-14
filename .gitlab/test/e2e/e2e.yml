@@ -389,7 +389,14 @@ new-e2e-health-cascade:
   variables:
     TARGETS: ./tests/health-cascade
     TEAM: remote-config
-    EXTRA_PARAMS: --run TestRCBackendUnavailableCausesAgentFailure
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run TestRCBackendHanging
+      - EXTRA_PARAMS: --run TestClusterAgentDown
+      - EXTRA_PARAMS: --run TestKitchenSinkRCHanging
+      - EXTRA_PARAMS: --run TestSlowChecksSchedulerBlocking
+      - EXTRA_PARAMS: --run TestRCHangingPlusSlowChecks
+      - EXTRA_PARAMS: --run TestCombinedRCAndClusterAgentDown
 
 new-e2e-agent-configuration:
   extends: .new_e2e_template_needs_deb_x64
