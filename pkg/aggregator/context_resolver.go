@@ -90,7 +90,7 @@ type contextResolver struct {
 	stripCache map[ckey.ContextKey]stripCacheEntry
 	// stripCacheReverse maps a post-strip contextKey back to the pre-strip contextKeys that produced it.
 	// This allows O(1) cleanup of stripCache entries when a context is removed from contextsByKey.
-	stripCacheReverse map[ckey.ContextKey][]ckey.ContextKey
+	stripCacheReverse map[ckey.ContextKey]*reverseCacheRing
 }
 
 // generateContextKey generates the contextKey associated with the context of the metricSample
@@ -112,7 +112,7 @@ func newContextResolver(tagger tagger.Component, cache *tags.Store, id string) *
 		taggerBuffer:      tagset.NewHashingTagsAccumulator(),
 		metricBuffer:      tagset.NewHashingTagsAccumulator(),
 		stripCache:        make(map[ckey.ContextKey]stripCacheEntry),
-		stripCacheReverse: make(map[ckey.ContextKey][]ckey.ContextKey),
+		stripCacheReverse: make(map[ckey.ContextKey]*reverseCacheRing),
 	}
 }
 
@@ -158,7 +158,14 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 					metricKey:   metricKey,
 					removedTags: removed,
 				}
-				cr.stripCacheReverse[contextKey] = append(cr.stripCacheReverse[contextKey], preCacheKey)
+				ring := cr.stripCacheReverse[contextKey]
+				if ring == nil {
+					ring = &reverseCacheRing{}
+					cr.stripCacheReverse[contextKey] = ring
+				}
+				if evicted, ok := ring.add(preCacheKey); ok {
+					delete(cr.stripCache, evicted)
+				}
 				tlmFilteredTagsCacheMiss.Inc()
 			}
 			keysSet = true
@@ -213,8 +220,10 @@ func (cr *contextResolver) remove(expiredContextKey ckey.ContextKey) {
 	context := cr.contextsByKey[expiredContextKey].context
 	delete(cr.contextsByKey, expiredContextKey)
 
-	for _, preCacheKey := range cr.stripCacheReverse[expiredContextKey] {
-		delete(cr.stripCache, preCacheKey)
+	if ring := cr.stripCacheReverse[expiredContextKey]; ring != nil {
+		ring.forEach(func(k ckey.ContextKey) {
+			delete(cr.stripCache, k)
+		})
 	}
 	delete(cr.stripCacheReverse, expiredContextKey)
 
