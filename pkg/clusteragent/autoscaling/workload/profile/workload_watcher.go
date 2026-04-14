@@ -152,7 +152,7 @@ func (w *WorkloadWatcher) Run(ctx context.Context) {
 	}
 
 	log.Info("Initial reconciliation starting")
-	w.reconcile()
+	w.reconcile(ctx)
 	w.hasSynced.Store(true)
 	log.Info("Initial reconciliation done")
 
@@ -162,7 +162,7 @@ func (w *WorkloadWatcher) Run(ctx context.Context) {
 		select {
 		case <-ticker.C:
 			if w.isLeader() {
-				w.reconcile()
+				w.reconcile(ctx)
 			}
 		case <-ctx.Done():
 			log.Info("Stopping workload watcher")
@@ -174,13 +174,13 @@ func (w *WorkloadWatcher) Run(ctx context.Context) {
 // reconcile scans all labeled workloads and namespace-level workloads, groups
 // them by profile name, and updates the profile store with the discovered
 // workload references. Workload-level labels take precedence over namespace-level.
-func (w *WorkloadWatcher) reconcile() {
+func (w *WorkloadWatcher) reconcile(ctx context.Context) {
 	workloadRefs := make(map[string][]model.NamespacedObjectReference)
 	for _, inf := range w.informers {
 		w.scanWorkloads(inf.gvkr, inf.lister, workloadRefs)
 	}
 
-	w.scanNsWorkloads(workloadRefs)
+	w.scanNsWorkloads(ctx, workloadRefs)
 
 	w.profileStore.Update(func(pi model.PodAutoscalerProfileInternal) (model.PodAutoscalerProfileInternal, bool) {
 		changed := pi.UpdateWorkloads(workloadRefs[pi.Name()])
@@ -235,6 +235,7 @@ func (w *WorkloadWatcher) scanWorkloads(
 // collect all workloads in those namespaces. Workloads that already have the
 // profile label are skipped (workload-level takes precedence).
 func (w *WorkloadWatcher) scanNsWorkloads(
+	ctx context.Context,
 	workloadRefs map[string][]model.NamespacedObjectReference,
 ) {
 	for nsName, nsLabels := range w.nsLister.ListNamespaces() {
@@ -242,25 +243,41 @@ func (w *WorkloadWatcher) scanNsWorkloads(
 		if profileName == "" {
 			continue
 		}
-		if _, ok := w.profileStore.Get(profileName); !ok {
+		pi, ok := w.profileStore.Get(profileName)
+		if !ok {
 			log.Debugf("Profile %s referenced by namespace %s not found, skipping", profileName, nsName)
 			continue
 		}
 
 		for _, gvkr := range w.workloadResources {
-			w.listNsWorkloads(nsName, profileName, gvkr, workloadRefs)
+			w.listNsWorkloads(ctx, pi, nsName, profileName, gvkr, workloadRefs)
 		}
 	}
 }
 
 func (w *WorkloadWatcher) listNsWorkloads(
+	ctx context.Context,
+	pi model.PodAutoscalerProfileInternal,
 	nsName, profileName string,
 	gvkr GroupVersionKindResource,
 	workloadRefs map[string][]model.NamespacedObjectReference,
 ) {
-	result, err := w.dynamicClient.Resource(gvkr.GroupVersionResource).Namespace(nsName).List(context.TODO(), metav1.ListOptions{})
+	result, err := w.dynamicClient.Resource(gvkr.GroupVersionResource).Namespace(nsName).List(ctx, metav1.ListOptions{})
 	if err != nil {
-		log.Debugf("Failed to list %s in namespace %s: %v", gvkr.GroupVersionResource.Resource, nsName, err)
+		// On a transient API failure (timeout, 429, network stall) we must not
+		// treat previously discovered workloads as removed. Each reconcile
+		// rebuilds workloadRefs from scratch, so if we simply skip this
+		// namespace/resource the profile will end up with an empty ref list,
+		// causing the syncer to delete the generated DPAs even though the
+		// workloads still exist. To avoid this destructive action we populate
+		// the refs with that the profile already holds for this
+		// namespace/resource kind.
+		log.Warnf("Failed to list %s in namespace %s: %v; preserving previous refs", gvkr.GroupVersionResource.Resource, nsName, err)
+		for _, ref := range pi.Workloads() {
+			if ref.Namespace == nsName && ref.Group == gvkr.GroupVersionResource.Group && ref.Kind == gvkr.Kind {
+				workloadRefs[profileName] = append(workloadRefs[profileName], ref)
+			}
+		}
 		return
 	}
 

@@ -8,6 +8,7 @@
 package profile
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -181,7 +182,7 @@ func TestWorkloadWatcherReconcile(t *testing.T) {
 			{gvkr: gvkr, lister: newTestLister(deploymentGR, deployment)},
 		}
 
-		w.reconcile()
+		w.reconcile(context.Background())
 
 		pi, ok := profileStore.Get("high-cpu")
 		require.True(t, ok)
@@ -204,7 +205,7 @@ func TestWorkloadWatcherReconcile(t *testing.T) {
 			{gvkr: gvkr, lister: newTestLister(deploymentGR)},
 		}
 
-		w.reconcile()
+		w.reconcile(context.Background())
 
 		pi, ok := profileStore.Get("high-cpu")
 		require.True(t, ok)
@@ -233,7 +234,7 @@ func TestWorkloadWatcherReconcile(t *testing.T) {
 			{gvkr: gvkr, lister: newTestLister(deploymentGR, deployment)},
 		}
 
-		w.reconcile()
+		w.reconcile(context.Background())
 
 		assert.False(t, updated, "Should not trigger store update when refs unchanged")
 	})
@@ -264,7 +265,7 @@ func TestScanNsWorkloads(t *testing.T) {
 		}}
 
 		refs := make(map[string][]model.NamespacedObjectReference)
-		w.scanNsWorkloads(refs)
+		w.scanNsWorkloads(context.Background(), refs)
 
 		require.Len(t, refs["high-cpu"], 2)
 		var names []string
@@ -291,7 +292,7 @@ func TestScanNsWorkloads(t *testing.T) {
 		}}
 
 		refs := make(map[string][]model.NamespacedObjectReference)
-		w.scanNsWorkloads(refs)
+		w.scanNsWorkloads(context.Background(), refs)
 
 		require.Len(t, refs["ns-profile"], 1)
 		assert.Equal(t, "web-unlabeled", refs["ns-profile"][0].Name)
@@ -312,7 +313,7 @@ func TestScanNsWorkloads(t *testing.T) {
 		}}
 
 		refs := make(map[string][]model.NamespacedObjectReference)
-		w.scanNsWorkloads(refs)
+		w.scanNsWorkloads(context.Background(), refs)
 
 		require.Len(t, refs["ns-profile"], 1)
 		assert.Equal(t, "web-included", refs["ns-profile"][0].Name)
@@ -326,7 +327,7 @@ func TestScanNsWorkloads(t *testing.T) {
 		}}
 
 		refs := make(map[string][]model.NamespacedObjectReference)
-		w.scanNsWorkloads(refs)
+		w.scanNsWorkloads(context.Background(), refs)
 
 		assert.Empty(t, refs)
 	})
@@ -350,7 +351,7 @@ func TestWorkloadWatcherNamespaceLevelReconcile(t *testing.T) {
 			"prod": {model.ProfileLabelKey: "high-cpu"},
 		}}
 
-		w.reconcile()
+		w.reconcile(context.Background())
 
 		pi, ok := profileStore.Get("high-cpu")
 		require.True(t, ok)
@@ -381,7 +382,7 @@ func TestWorkloadWatcherNamespaceLevelReconcile(t *testing.T) {
 			"prod": {model.ProfileLabelKey: "ns-profile"},
 		}}
 
-		w.reconcile()
+		w.reconcile(context.Background())
 
 		wlPI, ok := profileStore.Get("wl-profile")
 		require.True(t, ok)
@@ -415,7 +416,7 @@ func TestWorkloadWatcherNamespaceLevelReconcile(t *testing.T) {
 			"ns-b": {model.ProfileLabelKey: "prof-b"},
 		}}
 
-		w.reconcile()
+		w.reconcile(context.Background())
 
 		piA, ok := profileStore.Get("prof-a")
 		require.True(t, ok)
@@ -445,7 +446,7 @@ func TestWorkloadWatcherNamespaceLevelReconcile(t *testing.T) {
 			{gvkr: gvkr, lister: newTestLister(deploymentGR)},
 		}
 
-		w.reconcile()
+		w.reconcile(context.Background())
 
 		pi, ok := profileStore.Get("high-cpu")
 		require.True(t, ok)
