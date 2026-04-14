@@ -1,0 +1,12 @@
+---
+issuer: https://token.actions.githubusercontent.com
+
+subject: repo:DataDog/datadog-agent:pull_request
+
+claim_pattern:
+  event_name: pull_request
+  ref: refs/heads/(main|[0-9]+\.[0-9]+\.x)
+  job_workflow_ref: DataDog/datadog-agent/\.github/workflows/cargo-bazel-tidy\.yml@refs/heads/(main|[0-9]+\.[0-9]+\.x)
+
+permissions:
+  contents: write
