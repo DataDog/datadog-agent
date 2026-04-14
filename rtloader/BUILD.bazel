@@ -304,10 +304,10 @@ pkg_filegroup(
 pkg_filegroup(
     name = "python_env_files",
     srcs = [
+        ":_python_runtime_deps_embedded",
         ":all_files",
         ":openssl_libs_embedded",
         "@cpython//:all_files",
-        ":_python_runtime_deps_embedded",
     ],
 )
 

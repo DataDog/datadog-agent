@@ -48,4 +48,3 @@ dd_cc_packaged(
     version = VERSION,
     visibility = ["//visibility:public"],
 )
-
