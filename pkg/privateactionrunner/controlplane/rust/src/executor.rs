@@ -45,6 +45,10 @@ pub struct ExecutorManager {
     idle_timeout: u32,
     start_timeout: Duration,
     client: Arc<ExecutorClient>,
+    /// Forwarded to par-executor as --cfgpath (datadog.yaml path).
+    cfgpath: Option<std::path::PathBuf>,
+    /// Forwarded to par-executor as --extracfgpath (-E) for each entry.
+    extracfg: Vec<std::path::PathBuf>,
 }
 
 impl ExecutorManager {
@@ -53,6 +57,8 @@ impl ExecutorManager {
         socket_path: String,
         idle_timeout: u32,
         start_timeout: Duration,
+        cfgpath: Option<std::path::PathBuf>,
+        extracfg: Vec<std::path::PathBuf>,
     ) -> Self {
         let client = Arc::new(ExecutorClient::new(socket_path.clone()));
         ExecutorManager {
@@ -62,6 +68,8 @@ impl ExecutorManager {
             idle_timeout,
             start_timeout,
             client,
+            cfgpath,
+            extracfg,
         }
     }
 
@@ -101,12 +109,22 @@ impl ExecutorManager {
             self.socket_path
         );
 
-        let child = Command::new(&self.binary)
-            .arg("run")
-            .arg("--socket")
-            .arg(&self.socket_path)
-            .arg("--idle-timeout-seconds")
-            .arg(self.idle_timeout.to_string())
+        let mut cmd = Command::new(&self.binary);
+        cmd.arg("run")
+            .arg("--socket").arg(&self.socket_path)
+            .arg("--idle-timeout-seconds").arg(self.idle_timeout.to_string());
+
+        // Forward config paths so par-executor can load the allowlist,
+        // rshell paths, and other PAR settings from datadog.yaml and
+        // the operator-mounted privateactionrunner.yaml.
+        if let Some(ref cfgpath) = self.cfgpath {
+            cmd.arg("--cfgpath").arg(cfgpath);
+        }
+        for extra in &self.extracfg {
+            cmd.arg("--extracfgpath").arg(extra);
+        }
+
+        let child = cmd
             .spawn()
             .with_context(|| {
                 format!("failed to spawn par-executor: {}", self.binary.display())

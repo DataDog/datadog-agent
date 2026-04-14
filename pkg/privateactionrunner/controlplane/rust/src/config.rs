@@ -14,6 +14,12 @@ pub struct Config {
     // Executor management (CLI)
     pub executor_binary: PathBuf,
     pub executor_socket: String,
+    /// Forwarded to par-executor as --cfgpath.  Defaults to the same
+    /// datadog.yaml par-control reads.
+    pub executor_cfgpath: Option<PathBuf>,
+    /// Forwarded to par-executor as --extracfgpath (-E) for each entry.
+    /// In K8s this carries /etc/datadog-agent/privateactionrunner.yaml.
+    pub executor_extracfg: Vec<PathBuf>,
 
     // Identity / OPMS (from datadog.yaml)
     pub dd_api_host: String,
@@ -30,10 +36,18 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn new(executor_binary: PathBuf, executor_socket: String, par: ParConfig) -> Self {
+    pub fn new(
+        executor_binary: PathBuf,
+        executor_socket: String,
+        executor_cfgpath: Option<PathBuf>,
+        executor_extracfg: Vec<PathBuf>,
+        par: ParConfig,
+    ) -> Self {
         Config {
             executor_binary,
             executor_socket,
+            executor_cfgpath,
+            executor_extracfg,
             dd_api_host: par.dd_api_host,
             org_id: par.org_id,
             runner_id: par.runner_id,

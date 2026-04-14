@@ -43,6 +43,15 @@ pub struct Args {
     /// PID file path (--pid, optional)
     pub pid_path: Option<PathBuf>,
 
+    /// Path to datadog.yaml forwarded to par-executor via --cfgpath.
+    /// Defaults to the same path as --config (same file, both processes read it).
+    pub executor_cfgpath: Option<PathBuf>,
+
+    /// Extra config files forwarded to par-executor via --extracfgpath (-E).
+    /// In K8s this is /etc/datadog-agent/privateactionrunner.yaml — the ConfigMap
+    /// the operator mounts with the PAR-specific allowlist and settings.
+    pub executor_extracfg: Vec<PathBuf>,
+
     /// Unknown arguments collected for forward-compatibility.
     pub unknown_args: Vec<String>,
 }
@@ -61,6 +70,8 @@ impl Args {
         let mut config_path = None;
         let mut executor_binary = None;
         let mut executor_socket = None;
+        let mut executor_cfgpath = None;
+        let mut executor_extracfg: Vec<PathBuf> = Vec::new();
         let mut log_level = None;
         let mut log_file = None;
         let mut pid_path = None;
@@ -81,6 +92,16 @@ impl Args {
                 "--executor-socket" => {
                     if let Some(v) = iter.next() {
                         executor_socket = Some(v);
+                    }
+                }
+                "--executor-cfgpath" => {
+                    if let Some(v) = iter.next() {
+                        executor_cfgpath = Some(PathBuf::from(v));
+                    }
+                }
+                "--executor-extracfg" => {
+                    if let Some(v) = iter.next() {
+                        executor_extracfg.push(PathBuf::from(v));
                     }
                 }
                 "--log-level" => {
@@ -108,8 +129,12 @@ impl Args {
         Ok(Args {
             config_path,
             executor_binary,
+            // Default to /tmp — always a writable emptyDir in K8s and writable on bare metal.
+            // /var/run/datadog/ is not guaranteed writable with ReadOnlyRootFilesystem=true.
             executor_socket: executor_socket
-                .unwrap_or_else(|| "/var/run/datadog/par-executor.sock".to_string()),
+                .unwrap_or_else(|| "/tmp/par-executor.sock".to_string()),
+            executor_cfgpath,
+            executor_extracfg,
             log_level: parse_log_level(log_level.as_deref().unwrap_or("info")),
             log_file,
             pid_path,
@@ -131,7 +156,7 @@ mod tests {
         let a = Args::parse(args(&["par-control", "run", "--config", "/etc/datadog/datadog.yaml"]))
             .unwrap_or_else(|e| panic!("{e}"));
         assert_eq!(a.config_path, PathBuf::from("/etc/datadog/datadog.yaml"));
-        assert_eq!(a.executor_socket, "/var/run/datadog/par-executor.sock");
+        assert_eq!(a.executor_socket, "/tmp/par-executor.sock");
         assert_eq!(a.log_level, log::Level::Info);
         assert!(a.executor_binary.is_none());
         assert!(a.log_file.is_none());

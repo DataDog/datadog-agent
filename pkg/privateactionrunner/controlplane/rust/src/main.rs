@@ -111,6 +111,8 @@ async fn run(cfg: Config) -> Result<()> {
         cfg.executor_socket.clone(),
         cfg.executor_idle_timeout,
         cfg.executor_start_timeout,
+        cfg.executor_cfgpath.clone(),
+        cfg.executor_extracfg.clone(),
     );
 
     info!(
@@ -267,7 +269,13 @@ async fn main() -> Result<()> {
     info!("par-control: executor binary = {}", executor_binary.display());
     info!("par-control: executor socket = {}", args.executor_socket);
 
-    let cfg = Config::new(executor_binary, args.executor_socket, par_cfg);
+    let cfg = Config::new(
+        executor_binary,
+        args.executor_socket,
+        args.executor_cfgpath,
+        args.executor_extracfg,
+        par_cfg,
+    );
 
     drop_capabilities();
 
