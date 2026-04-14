@@ -101,9 +101,11 @@ cleanup_per_user_installations() {
 
     for user_home in /Users/*; do
         [ -d "$user_home/Library/LaunchAgents" ] || continue
-        local username=$(basename "$user_home")
+        local username
+        username=$(basename "$user_home")
         [ "$username" = "Shared" ] && continue
-        local uid=$(id -u "$username" 2>/dev/null) || continue
+        local uid
+        uid=$(id -u "$username" 2>/dev/null) || continue
         [ "$uid" -ge 500 ] || continue
 
         local agent_plist="$user_home/Library/LaunchAgents/com.datadoghq.agent.plist"
