@@ -9,6 +9,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"maps"
 	"sync"
 	"time"
 
@@ -75,14 +76,6 @@ func validateGPUConfig(client *metricsClient, metricsSpec *gpuspec.MetricsSpec, 
 		result.State = validationStateMissing
 		return result, nil
 	}
-
-	expectedTagsByMetric, err := gpuspec.RequiredTagsByMetric(metricsSpec, expectedMetricsMap, gpuspec.ValidationOptions{
-		WorkloadActive: true,
-	})
-	if err != nil {
-		return result, fmt.Errorf("derive required tags for %+v: %w", config, err)
-	}
-
 	observations := make(map[string][]gpuspec.MetricObservation, len(expectedMetricsMap))
 	expectedMetricNames := make([]string, 0, len(expectedMetricsMap))
 	for metricName := range expectedMetricsMap {
@@ -97,7 +90,13 @@ func validateGPUConfig(client *metricsClient, metricsSpec *gpuspec.MetricsSpec, 
 		metricName := metricName
 		group.Go(func() error {
 			prefixedMetricName := gpuspec.PrefixedMetricName(metricsSpec, metricName)
-			metricObservations, err := client.queryExpectedMetricPresenceForGPUConfig(prefixedMetricName, expectedTagsByMetric[metricName], config.TagFilter(), fromTS, toTS)
+			requiredTags, workloadOnlyTags, err := gpuspec.RequiredTagsForMetric(metricsSpec, expectedMetricsMap[metricName])
+			if err != nil {
+				return result, fmt.Errorf("derive required tags for %+v: %w", config, err)
+			}
+
+			maps.Copy(requiredTags, workloadOnlyTags) // include workload tags as required for the tag validation
+			metricObservations, err := client.queryExpectedMetricPresenceForGPUConfig(prefixedMetricName, requiredTags, config.TagFilter(), fromTS, toTS)
 			if err != nil {
 				return fmt.Errorf("query expected metric presence for %s: %w", metricName, err)
 			}

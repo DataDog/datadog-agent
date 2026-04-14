@@ -27,6 +27,7 @@ class GPUConfig:
 
 @dataclass(slots=True)
 class TagSummary:
+    workload_only: bool = False
     found: int = 0
     missing: int = 0
     unknown: int = 0
@@ -34,7 +35,10 @@ class TagSummary:
 
     @property
     def has_failures(self) -> bool:
-        return self.missing > 0 or self.unknown > 0 or self.invalid_value > 0
+        effective_missing = self.missing
+        if self.workload_only and self.found > 0:
+            effective_missing = 0
+        return effective_missing > 0 or self.unknown > 0 or self.invalid_value > 0
 
 
 @dataclass(slots=True)
@@ -52,6 +56,7 @@ class MetricStatus:
             if tag_name not in self.tag_results:
                 self.tag_results[tag_name] = TagSummary()
             current = self.tag_results[tag_name]
+            current.workload_only = current.workload_only or other_tag_result.workload_only
             current.found += other_tag_result.found
             current.missing += other_tag_result.missing
             current.unknown += other_tag_result.unknown
@@ -153,6 +158,7 @@ def validation_results_from_dict(payload: dict, *, site: str) -> ValidationResul
                         errors=list(metric_status.get("errors", [])),
                         tag_results={
                             tag: TagSummary(
+                                workload_only=bool(tag_result.get("workload_only", False)),
                                 found=int(tag_result.get("found", 0)),
                                 missing=int(tag_result.get("missing", 0)),
                                 unknown=int(tag_result.get("unknown", 0)),

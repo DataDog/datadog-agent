@@ -8,6 +8,7 @@ package spec
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"strings"
 )
 
@@ -72,10 +73,11 @@ type MetricStatus struct {
 }
 
 type TagSummary struct {
-	Found        int `json:"found"`
-	Missing      int `json:"missing"`
-	Unknown      int `json:"unknown"`
-	InvalidValue int `json:"invalid_value"`
+	WorkloadOnly bool `json:"workload_only,omitempty"`
+	Found        int  `json:"found"`
+	Missing      int  `json:"missing"`
+	Unknown      int  `json:"unknown"`
+	InvalidValue int  `json:"invalid_value"`
 }
 
 // ValidationResult holds validation failures derived from spec expectations.
@@ -175,25 +177,26 @@ func TagsToKeyValues(tags []string) map[string][]string {
 	return result
 }
 
-// RequiredTagsForMetric expands the required tags for a metric from tagsets and custom tags,
-// optionally skipping workload-only tagsets when workload validation is disabled.
-func RequiredTagsForMetric(metricsSpec *MetricsSpec, metricSpec MetricSpec, options ValidationOptions) (map[string]struct{}, error) {
+// RequiredTagsForMetric expands the required tags for a metric from tagsets and custom tags.
+// It returns both the full required tag set and the subset coming from workload-only tagsets.
+func RequiredTagsForMetric(metricsSpec *MetricsSpec, metricSpec MetricSpec) (map[string]struct{}, map[string]struct{}, error) {
 	if metricsSpec == nil {
-		return nil, errors.New("metrics spec is nil")
+		return nil, nil, errors.New("metrics spec is nil")
 	}
 
 	requiredTags := make(map[string]struct{})
+	workloadOnlyTags := make(map[string]struct{})
 	for _, tagsetName := range metricSpec.Tagsets {
 		tagsetSpec, ok := metricsSpec.Tagsets[tagsetName]
 		if !ok {
-			return nil, fmt.Errorf("unknown tagset %q", tagsetName)
+			return nil, nil, fmt.Errorf("unknown tagset %q", tagsetName)
 		}
-		if tagsetSpec.WorkloadOnly && !options.WorkloadActive {
-			continue
+		targetMap := requiredTags
+		if tagsetSpec.WorkloadOnly {
+			targetMap = workloadOnlyTags
 		}
-
 		for _, tag := range tagsetSpec.Tags {
-			requiredTags[tag] = struct{}{}
+			targetMap[tag] = struct{}{}
 		}
 	}
 
@@ -201,20 +204,7 @@ func RequiredTagsForMetric(metricsSpec *MetricsSpec, metricSpec MetricSpec, opti
 		requiredTags[tag] = struct{}{}
 	}
 
-	return requiredTags, nil
-}
-
-// RequiredTagsByMetric returns required tags for each metric after applying validation options.
-func RequiredTagsByMetric(metricsSpec *MetricsSpec, metrics map[string]MetricSpec, options ValidationOptions) (map[string]map[string]struct{}, error) {
-	result := make(map[string]map[string]struct{}, len(metrics))
-	for metricName, metricSpec := range metrics {
-		requiredTags, err := RequiredTagsForMetric(metricsSpec, metricSpec, options)
-		if err != nil {
-			return nil, fmt.Errorf("required tags for %s: %w", metricName, err)
-		}
-		result[metricName] = requiredTags
-	}
-	return result, nil
+	return requiredTags, workloadOnlyTags, nil
 }
 
 // ValidateMetricTagsAgainstSpec validates emitted tags against the spec for a metric.
@@ -222,14 +212,19 @@ func RequiredTagsByMetric(metricsSpec *MetricsSpec, metrics map[string]MetricSpe
 func ValidateMetricTagsAgainstSpec(spec *MetricsSpec, metricSpec MetricSpec, metricSamples []MetricObservation, knownTagValues map[string]string, options ValidationOptions) (map[string]*TagSummary, error) {
 	tagResults := make(map[string]*TagSummary)
 
-	requiredTags, err := RequiredTagsForMetric(spec, metricSpec, options)
+	requiredTags, workloadOnlyTags, err := RequiredTagsForMetric(spec, metricSpec)
 	if err != nil {
 		return nil, fmt.Errorf("required tags failed: %w", err)
 	}
 
+	if options.WorkloadActive {
+		maps.Copy(requiredTags, workloadOnlyTags) // include workload tags as required for the tag validation
+	}
+
 	getTagSummary := func(tag string) *TagSummary {
 		if _, found := tagResults[tag]; !found {
-			tagResults[tag] = &TagSummary{}
+			_, workloadOnly := workloadOnlyTags[tag]
+			tagResults[tag] = &TagSummary{WorkloadOnly: workloadOnly}
 		}
 		return tagResults[tag]
 	}
