@@ -307,6 +307,59 @@ func Test_fetchColumnOidsBatch_usingGetNext(t *testing.T) {
 	assert.Equal(t, expectedColumnValues, columnValues)
 }
 
+func Test_fetchColumnOidsBatch_truncatedResponse_reducesBatchSize(t *testing.T) {
+	sess := session.CreateMockSession()
+
+	// First call with both OIDs in one batch — device truncates, returning
+	// only 1 varbind for 2 requested OIDs.
+	truncatedPacket := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{
+				Name:  "1.1.1.1",
+				Type:  gosnmp.TimeTicks,
+				Value: 11,
+			},
+		},
+	}
+	sess.On("GetBulk", []string{"1.1.1", "1.1.2"}, checkconfig.DefaultBulkMaxRepetitions).Return(&truncatedPacket, nil)
+
+	// After batch size is halved to 1, each OID is fetched individually.
+	// OID 1.1.1: one row, then walk past the column prefix to end.
+	singlePacket1 := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{Name: "1.1.1.1", Type: gosnmp.TimeTicks, Value: 11},
+			{Name: "1.1.2.1", Type: gosnmp.TimeTicks, Value: 999}, // outside prefix → walk ends
+		},
+	}
+	sess.On("GetBulk", []string{"1.1.1"}, checkconfig.DefaultBulkMaxRepetitions).Return(&singlePacket1, nil)
+
+	// OID 1.1.2: one row, then walk past the column prefix to end.
+	singlePacket2 := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{Name: "1.1.2.1", Type: gosnmp.TimeTicks, Value: 21},
+			{Name: "1.1.3.1", Type: gosnmp.TimeTicks, Value: 999}, // outside prefix → walk ends
+		},
+	}
+	sess.On("GetBulk", []string{"1.1.2"}, checkconfig.DefaultBulkMaxRepetitions).Return(&singlePacket2, nil)
+
+	oids := []string{"1.1.1", "1.1.2"}
+	batchSizeOptimizer := newOidBatchSizeOptimizer(snmpGetBulk, 2)
+
+	columnValues, err := fetchColumnOidsWithBatching(sess, oids, batchSizeOptimizer, checkconfig.DefaultBulkMaxRepetitions, useGetBulk)
+	require.NoError(t, err)
+
+	expectedColumnValues := valuestore.ColumnResultValuesType{
+		"1.1.1": {
+			"1": valuestore.ResultValue{Value: float64(11)},
+		},
+		"1.1.2": {
+			"1": valuestore.ResultValue{Value: float64(21)},
+		},
+	}
+	assert.Equal(t, expectedColumnValues, columnValues)
+	assert.Equal(t, 1, batchSizeOptimizer.lastSuccessfulBatchSize)
+}
+
 func Test_fetchColumnOidsBatch_usingGetBulkAndGetNextFallback(t *testing.T) {
 	sess := session.CreateMockSession()
 	// When using snmp v2+, we will try GetBulk first and fallback using GetNext
