@@ -267,6 +267,37 @@ func (r *RequestStats) AddRequest(statusCode uint16, latency float64, staticTags
 	}
 }
 
+// AddDiscoveryRequest records a transaction in discovery mode.
+// Status codes are collapsed to two buckets (200 = success, 500 = error)
+// and no DDSketch is created — only counters are tracked.
+func (r *RequestStats) AddDiscoveryRequest(statusCode uint16, staticTags uint64, dynamicTags common.StringSet) {
+	// Collapse all status codes into two buckets
+	bucket := uint16(200)
+	if statusCode >= 400 {
+		bucket = 500
+	}
+
+	stats, exists := r.Data[bucket]
+	if !exists {
+		stats = requestStatPool.Get()
+		r.Data[bucket] = stats
+	}
+
+	stats.StaticTags |= staticTags
+	if len(dynamicTags) != 0 {
+		if stats.DynamicTags == nil {
+			stats.DynamicTags = common.NewStringSet()
+		}
+		for tag := range dynamicTags {
+			stats.DynamicTags.Add(tag)
+		}
+	}
+
+	stats.Count++
+	// No DDSketch, no latency tracking — discovery mode only needs
+	// topology (P0) and hit/error counts for visual indicators (P1).
+}
+
 // HalfAllCounts sets the count of all stats for each status class to half their current value.
 // This is used to remove duplicates from the count in the context of Windows localhost traffic.
 func (r *RequestStats) HalfAllCounts() {

@@ -46,6 +46,7 @@ func Adjust(cfg model.Config) {
 	deprecateBool(cfg, spNS("allow_precompiled_fallback"), spNS("allow_prebuilt_fallback"))
 	allowPrebuiltEbpfFallback(cfg)
 
+	adjustDiscovery(cfg)
 	adjustNetwork(cfg)
 	adjustUSM(cfg)
 	adjustSecurity(cfg)
