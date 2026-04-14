@@ -16,8 +16,11 @@ import (
 	"github.com/apache/arrow-go/v18/arrow"
 	"github.com/apache/arrow-go/v18/arrow/array"
 	"github.com/apache/arrow-go/v18/arrow/memory"
+	"github.com/apache/arrow-go/v18/parquet"
 	"github.com/apache/arrow-go/v18/parquet/file"
 	"github.com/apache/arrow-go/v18/parquet/pqarrow"
+
+	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 )
 
 // FGMMetric represents a single metric from the FGM parquet file.
@@ -36,9 +39,25 @@ type parquetMetricReader struct {
 	index   int
 }
 
-// newParquetReader creates a new parquet reader from a directory containing FGM parquet files.
+// newParquetReader creates a new parquet reader from a directory containing parquet files.
+// It supports two layouts:
+//   - New layout (contexts.parquet present): metrics-*.parquet files reference a
+//     shared contexts.parquet for deduplication of metric name + tags.
+//   - Legacy FGM layout: all context is inline in each parquet file.
 func newParquetReader(dirPath string) (*parquetMetricReader, error) {
-	// Find all parquet files in the directory
+	// Detect new layout by the presence of contexts.parquet.
+	if _, err := os.Stat(filepath.Join(dirPath, "contexts.parquet")); err == nil {
+		allMetrics, err := readNewFormatMetricsDir(dirPath)
+		if err != nil {
+			return nil, fmt.Errorf("reading new-format metrics: %w", err)
+		}
+		sort.Slice(allMetrics, func(i, j int) bool {
+			return allMetrics[i].Time < allMetrics[j].Time
+		})
+		return &parquetMetricReader{metrics: allMetrics, index: 0}, nil
+	}
+
+	// Legacy FGM layout: find all parquet files in the directory.
 	parquetFiles, err := findParquetFiles(dirPath)
 	if err != nil {
 		return nil, fmt.Errorf("finding parquet files: %w", err)
@@ -68,6 +87,378 @@ func newParquetReader(dirPath string) (*parquetMetricReader, error) {
 		metrics: allMetrics,
 		index:   0,
 	}, nil
+}
+
+// contextEntry holds the metric context read from contexts.parquet.
+type contextEntry struct {
+	Name string
+	Tags []string // pre-built "key:value" tag strings
+}
+
+// readContextsFile reads contexts.parquet and returns a map from context_key to contextEntry.
+func readContextsFile(filePath string) (map[uint64]contextEntry, error) {
+	f, err := os.Open(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("opening contexts file: %w", err)
+	}
+	defer f.Close()
+
+	pf, err := file.NewParquetReader(f)
+	if err != nil {
+		return nil, fmt.Errorf("creating parquet reader: %w", err)
+	}
+	defer pf.Close()
+
+	arrowReader, err := pqarrow.NewFileReader(pf, pqarrow.ArrowReadProperties{BatchSize: 8192}, memory.DefaultAllocator)
+	if err != nil {
+		return nil, fmt.Errorf("creating arrow reader: %w", err)
+	}
+
+	ctx := context.Background()
+	recordReader, err := arrowReader.GetRecordReader(ctx, nil, nil)
+	if err != nil {
+		return nil, fmt.Errorf("getting record reader: %w", err)
+	}
+	defer recordReader.Release()
+
+	contexts := make(map[uint64]contextEntry)
+
+	for recordReader.Next() {
+		record := recordReader.Record()
+		schema := record.Schema()
+
+		ctxKeyIdx := findColumnIndexInSchema(schema, "context_key")
+		nameIdx := findColumnIndexInSchema(schema, "name")
+		tagHostIdx := findColumnIndexInSchema(schema, "tag_host")
+		tagDeviceIdx := findColumnIndexInSchema(schema, "tag_device")
+		tagSourceIdx := findColumnIndexInSchema(schema, "tag_source")
+		tagServiceIdx := findColumnIndexInSchema(schema, "tag_service")
+		tagEnvIdx := findColumnIndexInSchema(schema, "tag_env")
+		tagVersionIdx := findColumnIndexInSchema(schema, "tag_version")
+		tagTeamIdx := findColumnIndexInSchema(schema, "tag_team")
+		tagsIdx := findColumnIndexInSchema(schema, "tags")
+
+		if ctxKeyIdx < 0 || nameIdx < 0 {
+			return nil, fmt.Errorf("contexts.parquet missing required columns (context_key, name)")
+		}
+
+		ctxKeyCol, _ := record.Column(ctxKeyIdx).(*array.Uint64)
+		nameCol, _ := record.Column(nameIdx).(*array.String)
+
+		getStrCol := func(idx int) *array.String {
+			if idx < 0 {
+				return nil
+			}
+			col, _ := record.Column(idx).(*array.String)
+			return col
+		}
+		tagHostCol := getStrCol(tagHostIdx)
+		tagDeviceCol := getStrCol(tagDeviceIdx)
+		tagSourceCol := getStrCol(tagSourceIdx)
+		tagServiceCol := getStrCol(tagServiceIdx)
+		tagEnvCol := getStrCol(tagEnvIdx)
+		tagVersionCol := getStrCol(tagVersionIdx)
+		tagTeamCol := getStrCol(tagTeamIdx)
+
+		var tagsMapCol *array.Map
+		if tagsIdx >= 0 {
+			tagsMapCol, _ = record.Column(tagsIdx).(*array.Map)
+		}
+
+		numRows := int(record.NumRows())
+		for i := 0; i < numRows; i++ {
+			if ctxKeyCol == nil || ctxKeyCol.IsNull(i) {
+				continue
+			}
+			key := ctxKeyCol.Value(i)
+
+			var name string
+			if nameCol != nil && !nameCol.IsNull(i) {
+				name = nameCol.Value(i)
+			}
+
+			tags := make([]string, 0, 8)
+			addFixedTag := func(col *array.String, tagKey string) {
+				if col == nil || col.IsNull(i) {
+					return
+				}
+				if v := col.Value(i); v != "" {
+					tags = append(tags, tagKey+":"+v)
+				}
+			}
+			addFixedTag(tagHostCol, "host")
+			addFixedTag(tagDeviceCol, "device")
+			addFixedTag(tagSourceCol, "source")
+			addFixedTag(tagServiceCol, "service")
+			addFixedTag(tagEnvCol, "env")
+			addFixedTag(tagVersionCol, "version")
+			addFixedTag(tagTeamCol, "team")
+
+			// Extract tags from the map<string,string> column.
+			if tagsMapCol != nil && !tagsMapCol.IsNull(i) {
+				start, end := tagsMapCol.ValueOffsets(i)
+				mapKeys, _ := tagsMapCol.Keys().(*array.String)
+				mapItems, _ := tagsMapCol.Items().(*array.String)
+				for j := int(start); j < int(end); j++ {
+					if mapKeys == nil || mapKeys.IsNull(j) {
+						continue
+					}
+					k := mapKeys.Value(j)
+					if k == "" {
+						continue
+					}
+					if mapItems != nil && !mapItems.IsNull(j) {
+						if v := mapItems.Value(j); v != "" {
+							tags = append(tags, k+":"+v)
+							continue
+						}
+					}
+					tags = append(tags, k)
+				}
+			}
+
+			contexts[key] = contextEntry{Name: name, Tags: tags}
+		}
+	}
+
+	if err := recordReader.Err(); err != nil && err.Error() != "EOF" {
+		return nil, fmt.Errorf("reading contexts records: %w", err)
+	}
+
+	return contexts, nil
+}
+
+// readNewFormatMetricsDir reads the new context-deduped layout from dir:
+// it loads contexts.parquet once, then joins each metrics-*.parquet against it.
+func readNewFormatMetricsDir(dir string) ([]FGMMetric, error) {
+	contexts, err := readContextsFile(filepath.Join(dir, "contexts.parquet"))
+	if err != nil {
+		return nil, fmt.Errorf("loading contexts: %w", err)
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, fmt.Errorf("reading directory: %w", err)
+	}
+
+	var allMetrics []FGMMetric
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if !strings.HasPrefix(name, "metrics-") || !strings.HasSuffix(name, ".parquet") {
+			continue
+		}
+		filePath := filepath.Join(dir, name)
+		metrics, err := readNewFormatMetricsFile(filePath, contexts)
+		if err != nil {
+			fmt.Printf("[parquet-reader] Skipping %s: %v\n", filePath, err)
+			continue
+		}
+		allMetrics = append(allMetrics, metrics...)
+	}
+
+	return allMetrics, nil
+}
+
+// readNewFormatMetricsFile reads a single metrics-*.parquet file and joins rows with contexts.
+// Schema: context_key uint64, value double, timestamp_ns int64, sample_rate double, source dict<string>.
+//
+// Uses file.ColumnChunkReader.ReadBatch directly (bypassing pqarrow) to avoid the
+// arrow-go v18 bug where pqarrow calls GetDictionaryPage() out-of-band without advancing
+// the main stream, causing a second configureDict() call when Next() also encounters the
+// dictionary page — resulting in "column chunk cannot have more than one dictionary".
+// The file package handles dictionary decoding transparently without this issue.
+func readNewFormatMetricsFile(filePath string, contexts map[uint64]contextEntry) ([]FGMMetric, error) {
+	info, err := os.Stat(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("statting file: %w", err)
+	}
+	if info.Size() < minParquetFileSize {
+		return nil, nil
+	}
+
+	f, err := os.Open(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("opening file: %w", err)
+	}
+	defer f.Close()
+
+	pf, err := file.NewParquetReader(f)
+	if err != nil {
+		return nil, fmt.Errorf("creating parquet reader: %w", err)
+	}
+	defer pf.Close()
+
+	s := pf.MetaData().Schema
+	ctxKeyIdx := findParquetColIdx(pf, "context_key")
+	valueIdx := findParquetColIdx(pf, "value")
+	tsIdx := findParquetColIdx(pf, "timestamp_ns")
+	sourceIdx := findParquetColIdx(pf, "source")
+
+	if ctxKeyIdx < 0 || valueIdx < 0 || tsIdx < 0 {
+		return nil, fmt.Errorf("metrics file missing required columns (context_key, value, timestamp_ns)")
+	}
+
+	// MaxDefinitionLevel is 0 for required (non-nullable) columns and 1 for optional ones.
+	// A row is null when defLevel < maxDefLevel; required columns are never null.
+	ctxKeyMaxDef := s.Column(ctxKeyIdx).MaxDefinitionLevel()
+	valueMaxDef := s.Column(valueIdx).MaxDefinitionLevel()
+	tsMaxDef := s.Column(tsIdx).MaxDefinitionLevel()
+	var srcMaxDef int16
+	if sourceIdx >= 0 {
+		srcMaxDef = s.Column(sourceIdx).MaxDefinitionLevel()
+	}
+
+	var metrics []FGMMetric
+
+	for rg := 0; rg < pf.NumRowGroups(); rg++ {
+		rgReader := pf.RowGroup(rg)
+		numRows := int(rgReader.NumRows())
+		if numRows == 0 {
+			continue
+		}
+
+		// Read context_key (stored as int64 representing uint64).
+		ctxKeyBuf := make([]int64, numRows)
+		ctxKeyDef := make([]int16, numRows)
+		{
+			col, colErr := rgReader.Column(ctxKeyIdx)
+			if colErr != nil {
+				return nil, fmt.Errorf("rg %d: opening context_key: %w", rg, colErr)
+			}
+			r, ok := col.(*file.Int64ColumnChunkReader)
+			if !ok {
+				return nil, fmt.Errorf("rg %d: context_key is not int64", rg)
+			}
+			if _, _, colErr = r.ReadBatch(int64(numRows), ctxKeyBuf, ctxKeyDef, nil); colErr != nil {
+				return nil, fmt.Errorf("rg %d: reading context_key: %w", rg, colErr)
+			}
+		}
+
+		// Read value (float64).
+		valueBuf := make([]float64, numRows)
+		valueDef := make([]int16, numRows)
+		{
+			col, colErr := rgReader.Column(valueIdx)
+			if colErr != nil {
+				return nil, fmt.Errorf("rg %d: opening value: %w", rg, colErr)
+			}
+			r, ok := col.(*file.Float64ColumnChunkReader)
+			if !ok {
+				return nil, fmt.Errorf("rg %d: value is not float64", rg)
+			}
+			if _, _, colErr = r.ReadBatch(int64(numRows), valueBuf, valueDef, nil); colErr != nil {
+				return nil, fmt.Errorf("rg %d: reading value: %w", rg, colErr)
+			}
+		}
+
+		// Read timestamp_ns (int64).
+		tsBuf := make([]int64, numRows)
+		tsDef := make([]int16, numRows)
+		{
+			col, colErr := rgReader.Column(tsIdx)
+			if colErr != nil {
+				return nil, fmt.Errorf("rg %d: opening timestamp_ns: %w", rg, colErr)
+			}
+			r, ok := col.(*file.Int64ColumnChunkReader)
+			if !ok {
+				return nil, fmt.Errorf("rg %d: timestamp_ns is not int64", rg)
+			}
+			if _, _, colErr = r.ReadBatch(int64(numRows), tsBuf, tsDef, nil); colErr != nil {
+				return nil, fmt.Errorf("rg %d: reading timestamp_ns: %w", rg, colErr)
+			}
+		}
+
+		// Read source (optional, dict-encoded string — dictionary decoding is transparent).
+		var srcBuf []parquet.ByteArray
+		var srcDef []int16
+		if sourceIdx >= 0 {
+			srcBuf = make([]parquet.ByteArray, numRows)
+			srcDef = make([]int16, numRows)
+			col, colErr := rgReader.Column(sourceIdx)
+			if colErr == nil {
+				if r, ok := col.(*file.ByteArrayColumnChunkReader); ok {
+					if _, _, colErr = r.ReadBatch(int64(numRows), srcBuf, srcDef, nil); colErr != nil {
+						srcBuf, srcDef = nil, nil
+					}
+				} else {
+					srcBuf, srcDef = nil, nil
+				}
+			} else {
+				srcBuf, srcDef = nil, nil
+			}
+		}
+
+		// Build metrics. ReadBatch compacts non-null values into the front of each buffer;
+		// defLevels indicate which rows are non-null. We maintain per-column value indices
+		// (vi) to iterate the compacted values in sync with the row index.
+		ctxVI, valVI, tsVI, srcVI := 0, 0, 0, 0
+		for i := 0; i < numRows; i++ {
+			ctxNull := ctxKeyDef[i] < ctxKeyMaxDef
+			var ctxKey uint64
+			if !ctxNull {
+				ctxKey = uint64(ctxKeyBuf[ctxVI])
+				ctxVI++
+			}
+
+			var val float64
+			if valueDef[i] >= valueMaxDef {
+				val = valueBuf[valVI]
+				valVI++
+			}
+
+			var ts int64
+			if tsDef[i] >= tsMaxDef {
+				ts = tsBuf[tsVI]
+				tsVI++
+			}
+
+			var source string
+			if srcBuf != nil && srcDef[i] >= srcMaxDef {
+				source = string(srcBuf[srcVI])
+				srcVI++
+			}
+
+			if ctxNull {
+				continue
+			}
+			entry, ok := contexts[ctxKey]
+			if !ok {
+				continue
+			}
+
+			v := val
+			metrics = append(metrics, FGMMetric{
+				RunID:      source,
+				Time:       ts / 1_000_000,
+				MetricName: entry.Name,
+				ValueFloat: &v,
+				Tags:       tagsMapFromSlice(entry.Tags),
+			})
+		}
+	}
+
+	return metrics, nil
+}
+
+// tagsMapFromSlice converts a slice of "key:value" tag strings to the map[string]string
+// format expected by FGMMetric.Tags.
+func tagsMapFromSlice(tags []string) map[string]string {
+	if len(tags) == 0 {
+		return nil
+	}
+	m := make(map[string]string, len(tags))
+	for _, t := range tags {
+		parts := strings.SplitN(t, ":", 2)
+		if len(parts) == 2 {
+			m[parts[0]] = parts[1]
+		} else {
+			m[parts[0]] = ""
+		}
+	}
+	return m
 }
 
 // Next returns the next metric, or nil if no more metrics.
@@ -349,4 +740,220 @@ func findColumnIndexInSchema(schema *arrow.Schema, name string) int {
 		}
 	}
 	return -1
+}
+
+// findParquetColIdx finds the index of a column in the parquet file schema by name.
+// Uses the same normalization as findColumnIndexInSchema (case-insensitive, underscore-ignored).
+func findParquetColIdx(pf *file.Reader, name string) int {
+	s := pf.MetaData().Schema
+	normalized := normalizeColumnName(name)
+	for i := 0; i < s.NumColumns(); i++ {
+		if normalizeColumnName(s.Column(i).Name()) == normalized {
+			return i
+		}
+	}
+	return -1
+}
+
+// ForEachNewFormatMetric streams metrics from a new-format parquet directory (one with
+// contexts.parquet), calling fn for each metric. Only one row group worth of column
+// buffers is live at a time, so peak memory is O(row_group_size) rather than O(total_metrics).
+// Tags are passed as the pre-built []string slice from the context map — callers must not mutate them.
+func ForEachNewFormatMetric(dir string, fn func(recorderdef.MetricData) error) error {
+	contexts, err := readContextsFile(filepath.Join(dir, "contexts.parquet"))
+	if err != nil {
+		return fmt.Errorf("reading contexts: %w", err)
+	}
+
+	files, err := filepath.Glob(filepath.Join(dir, "metrics-*.parquet"))
+	if err != nil {
+		return fmt.Errorf("listing metrics files: %w", err)
+	}
+	sort.Strings(files)
+
+	for _, f := range files {
+		if err := forEachNewFormatMetricFile(f, contexts, fn); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// forEachNewFormatMetricFile streams metrics from a single metrics-*.parquet file.
+// Reads one row group at a time; buffers are released before the next row group starts.
+func forEachNewFormatMetricFile(filePath string, contexts map[uint64]contextEntry, fn func(recorderdef.MetricData) error) error {
+	info, err := os.Stat(filePath)
+	if err != nil {
+		return nil
+	}
+	if info.Size() < minParquetFileSize {
+		return nil
+	}
+
+	f, err := os.Open(filePath)
+	if err != nil {
+		return fmt.Errorf("opening %s: %w", filePath, err)
+	}
+	defer f.Close()
+
+	pf, err := file.NewParquetReader(f)
+	if err != nil {
+		return fmt.Errorf("creating parquet reader for %s: %w", filePath, err)
+	}
+	defer pf.Close()
+
+	s := pf.MetaData().Schema
+	ctxKeyIdx := findParquetColIdx(pf, "context_key")
+	valueIdx := findParquetColIdx(pf, "value")
+	tsIdx := findParquetColIdx(pf, "timestamp_ns")
+	sourceIdx := findParquetColIdx(pf, "source")
+
+	if ctxKeyIdx < 0 || valueIdx < 0 || tsIdx < 0 {
+		return nil // not a metrics file we understand
+	}
+
+	ctxKeyMaxDef := s.Column(ctxKeyIdx).MaxDefinitionLevel()
+	valueMaxDef := s.Column(valueIdx).MaxDefinitionLevel()
+	tsMaxDef := s.Column(tsIdx).MaxDefinitionLevel()
+	var srcMaxDef int16
+	if sourceIdx >= 0 {
+		srcMaxDef = s.Column(sourceIdx).MaxDefinitionLevel()
+	}
+
+	for rg := 0; rg < pf.NumRowGroups(); rg++ {
+		if err := streamRowGroup(pf.RowGroup(rg), ctxKeyIdx, valueIdx, tsIdx, sourceIdx,
+			ctxKeyMaxDef, valueMaxDef, tsMaxDef, srcMaxDef, contexts, fn); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// streamRowGroup reads one row group's columns and calls fn for each matched metric.
+// All column buffers are stack-scoped to this call and released when it returns.
+func streamRowGroup(
+	rgReader *file.RowGroupReader,
+	ctxKeyIdx, valueIdx, tsIdx, sourceIdx int,
+	ctxKeyMaxDef, valueMaxDef, tsMaxDef, srcMaxDef int16,
+	contexts map[uint64]contextEntry,
+	fn func(recorderdef.MetricData) error,
+) error {
+	numRows := int(rgReader.NumRows())
+	if numRows == 0 {
+		return nil
+	}
+
+	ctxKeyBuf := make([]int64, numRows)
+	ctxKeyDef := make([]int16, numRows)
+	{
+		col, err := rgReader.Column(ctxKeyIdx)
+		if err != nil {
+			return fmt.Errorf("opening context_key: %w", err)
+		}
+		r, ok := col.(*file.Int64ColumnChunkReader)
+		if !ok {
+			return fmt.Errorf("context_key is not int64")
+		}
+		if _, _, err = r.ReadBatch(int64(numRows), ctxKeyBuf, ctxKeyDef, nil); err != nil {
+			return fmt.Errorf("reading context_key: %w", err)
+		}
+	}
+
+	valueBuf := make([]float64, numRows)
+	valueDef := make([]int16, numRows)
+	{
+		col, err := rgReader.Column(valueIdx)
+		if err != nil {
+			return fmt.Errorf("opening value: %w", err)
+		}
+		r, ok := col.(*file.Float64ColumnChunkReader)
+		if !ok {
+			return fmt.Errorf("value is not float64")
+		}
+		if _, _, err = r.ReadBatch(int64(numRows), valueBuf, valueDef, nil); err != nil {
+			return fmt.Errorf("reading value: %w", err)
+		}
+	}
+
+	tsBuf := make([]int64, numRows)
+	tsDef := make([]int16, numRows)
+	{
+		col, err := rgReader.Column(tsIdx)
+		if err != nil {
+			return fmt.Errorf("opening timestamp_ns: %w", err)
+		}
+		r, ok := col.(*file.Int64ColumnChunkReader)
+		if !ok {
+			return fmt.Errorf("timestamp_ns is not int64")
+		}
+		if _, _, err = r.ReadBatch(int64(numRows), tsBuf, tsDef, nil); err != nil {
+			return fmt.Errorf("reading timestamp_ns: %w", err)
+		}
+	}
+
+	var srcBuf []parquet.ByteArray
+	var srcDef []int16
+	if sourceIdx >= 0 {
+		srcBuf = make([]parquet.ByteArray, numRows)
+		srcDef = make([]int16, numRows)
+		col, colErr := rgReader.Column(sourceIdx)
+		if colErr == nil {
+			if r, ok := col.(*file.ByteArrayColumnChunkReader); ok {
+				if _, _, colErr = r.ReadBatch(int64(numRows), srcBuf, srcDef, nil); colErr != nil {
+					srcBuf, srcDef = nil, nil
+				}
+			} else {
+				srcBuf, srcDef = nil, nil
+			}
+		} else {
+			srcBuf, srcDef = nil, nil
+		}
+	}
+
+	ctxVI, valVI, tsVI, srcVI := 0, 0, 0, 0
+	for i := 0; i < numRows; i++ {
+		ctxNull := ctxKeyDef[i] < ctxKeyMaxDef
+		var ctxKey uint64
+		if !ctxNull {
+			ctxKey = uint64(ctxKeyBuf[ctxVI])
+			ctxVI++
+		}
+
+		var val float64
+		if valueDef[i] >= valueMaxDef {
+			val = valueBuf[valVI]
+			valVI++
+		}
+
+		var tsNs int64
+		if tsDef[i] >= tsMaxDef {
+			tsNs = tsBuf[tsVI]
+			tsVI++
+		}
+
+		var source string
+		if srcBuf != nil && srcDef[i] >= srcMaxDef {
+			source = string(srcBuf[srcVI])
+			srcVI++
+		}
+
+		if ctxNull {
+			continue
+		}
+		entry, ok := contexts[ctxKey]
+		if !ok {
+			continue
+		}
+
+		if err := fn(recorderdef.MetricData{
+			Source:    source,
+			Name:      entry.Name,
+			Value:     val,
+			Timestamp: tsNs / 1_000_000_000,
+			Tags:      entry.Tags,
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
 }

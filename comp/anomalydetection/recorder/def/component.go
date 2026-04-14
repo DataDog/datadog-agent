@@ -27,9 +27,14 @@ type Component interface {
 	GetHandle(handleFunc observer.HandleFunc) observer.HandleFunc
 
 	// ReadAllMetrics reads all metrics from parquet files and returns them as a slice.
-	// This is for batch loading scenarios (like testbench) where streaming via handles
-	// is not needed and direct access to all metrics at once is more efficient.
+	// For large datasets, prefer ForEachMetric to avoid loading everything into memory.
 	ReadAllMetrics(inputDir string) ([]MetricData, error)
+
+	// ForEachMetric streams metrics from parquet files one row-group at a time,
+	// calling fn for each metric. Peak memory is O(row_group_size) rather than
+	// O(total_metrics). Tags slices are shared from the context map and must not
+	// be mutated by fn.
+	ForEachMetric(inputDir string, fn func(MetricData) error) error
 
 	// ReadAllTraces reads all traces from parquet files and returns them as a slice.
 	// Traces are stored as denormalized spans (one row per span) for efficient querying.
@@ -40,7 +45,13 @@ type Component interface {
 	ReadAllProfiles(inputDir string) ([]ProfileData, error)
 
 	// ReadAllLogs reads all logs from parquet files and returns them as a slice.
+	// For large datasets, prefer ForEachLog to avoid loading everything into memory.
 	ReadAllLogs(inputDir string) ([]LogData, error)
+
+	// ForEachLog streams log entries from parquet files without loading them all into memory,
+	// calling fn for each entry. Peak memory is O(row_group_size) rather than O(total_logs).
+	// Entries are yielded in file order (files sorted chronologically); no cross-file sort.
+	ForEachLog(inputDir string, fn func(LogData) error) error
 
 	// ReadAllTraceStats reads all APM trace stats from parquet files and returns them as a slice.
 	// Each element corresponds to one aggregated stat group (ClientGroupedStats).
