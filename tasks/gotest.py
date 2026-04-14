@@ -131,17 +131,42 @@ def _target_to_bazel_pattern(target: str) -> str:
     """Convert a Go test target path to a Bazel target pattern.
 
     Examples:
-        '.'          -> '//...'
-        './pkg/util' -> '//pkg/util/...'
-        './pkg/...'  -> '//pkg/...'
+        '.'           -> '//...'
+        './'          -> '//...'
+        './pkg/util'  -> '//pkg/util/...'
+        './pkg/util/' -> '//pkg/util/...'
+        './pkg/...'   -> '//pkg/...'
     """
-    if target == '.' or target == './':
+    if target in ('.', './'):
         return '//...'
-    # Strip leading './'
+    # Strip leading './' then any trailing '/' to avoid double-slash before '/...'
     rel = target[2:] if target.startswith('./') else target
+    rel = rel.rstrip('/')
     if rel.endswith('/...'):
         return f'//{rel}'
     return f'//{rel}/...'
+
+
+def _minimize_bazel_patterns(patterns: list[str]) -> list[str]:
+    """Remove patterns that are already covered by a broader pattern in the list.
+
+    Patterns are of the form '//some/path/...' .  Pattern B is subsumed by
+    pattern A when B's directory starts with A's directory, e.g.:
+        //comp/core/... is subsumed by //comp/...
+        //pkg/util/log/... is subsumed by //pkg/...
+        //...  subsumes everything.
+
+    The input list may contain duplicates; the output will not.
+    """
+    # Sort lexicographically so shorter (broader) patterns come before the
+    # longer (narrower) ones they subsume.
+    sorted_patterns = sorted(set(patterns))
+    result: list[str] = []
+    for pattern in sorted_patterns:
+        covered = any(kept == '//...' or pattern.startswith(kept[: -len('...')]) for kept in result)
+        if not covered:
+            result.append(pattern)
+    return result
 
 
 def get_bazel_test_targets(ctx, modules: list[GoModule]) -> dict[str, str]:
@@ -166,6 +191,15 @@ def get_bazel_test_targets(ctx, modules: list[GoModule]) -> dict[str, str]:
             full_target = f'./{prefix}{target.lstrip("./")}' if module.path != '.' else target
             bazel_patterns.append(_target_to_bazel_pattern(full_target))
 
+    if not bazel_patterns:
+        return {}
+
+    bazel_patterns = _minimize_bazel_patterns(bazel_patterns)
+
+    # Temporary: restrict queries to the top-level trees that have been migrated
+    # to Bazel.  Remove this filter when other trees (e.g. test/, tasks/) follow.
+    _BAZEL_QUERYABLE_ROOTS = ('//cmd/', '//comp/', '//pkg/')
+    bazel_patterns = [p for p in bazel_patterns if any(p.startswith(r) for r in _BAZEL_QUERYABLE_ROOTS)]
     if not bazel_patterns:
         return {}
 
