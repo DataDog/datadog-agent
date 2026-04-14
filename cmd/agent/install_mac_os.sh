@@ -645,22 +645,15 @@ if grep -E 'api_key:( APIKEY)?$' "$etc_dir/datadog.yaml" > /dev/null 2>&1; then
     printf "\n${BLUE}* Restarting the Agent...\n${NC}\n"
     # systemwide installation is stopped at this point and will be started later on
     if [ "$systemdaemon_install" != true ]; then
-      $cmd_launchctl stop $service_name
+      # Ensure the LaunchAgent is loaded, then use launchd-native restart.
+      # This avoids stop/start races in per-user mode.
+      $cmd_launchctl load -w "$user_plist_file" 2>/dev/null || true
 
-      # Wait for the agent to fully stop
-      retry=0
-      until [ "$retry" -ge 5 ]; do
-          curl -m 5 -o /dev/null -s -I http://127.0.0.1:5002 || break
-          retry=$[$retry+1]
-          sleep 5
-      done
-      if [ "$retry" -ge 5 ]; then
+      if ! $cmd_launchctl kickstart -k "gui/$user_uid/$service_name"; then
           printf "\n${YELLOW}Could not restart the agent.
-You may have to restart it manually using the systray app or the
-\"launchctl start $service_name\" command.\n${NC}\n"
+You may have to restart it manually using:
+\"launchctl kickstart -k gui/$user_uid/$service_name\" command.\n${NC}\n"
       fi
-
-      $cmd_launchctl start $service_name
     fi
 else
     printf "${BLUE}\n* A datadog.yaml configuration file already exists. It will not be overwritten.\n${NC}\n"
