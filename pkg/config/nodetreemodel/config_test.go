@@ -354,16 +354,17 @@ func TestAllSettingsBySource(t *testing.T) {
 		model.SourceFile: map[string]interface{}{
 			"a": 987,
 		},
-		model.SourceEnvVar:        map[string]interface{}{},
-		model.SourceFleetPolicies: map[string]interface{}{},
+		model.SourceEnvVar:             map[string]interface{}{},
+		model.SourceFleetPolicies:      map[string]interface{}{},
+		model.SourceConfigPostInit:     map[string]interface{}{},
+		model.SourceLocalConfigProcess: map[string]interface{}{},
 		model.SourceAgentRuntime: map[string]interface{}{
 			"b": map[string]interface{}{
 				"c": 123,
 			},
 		},
-		model.SourceLocalConfigProcess: map[string]interface{}{},
-		model.SourceRC:                 map[string]interface{}{},
-		model.SourceCLI:                map[string]interface{}{},
+		model.SourceRC:  map[string]interface{}{},
+		model.SourceCLI: map[string]interface{}{},
 		model.SourceProvided: map[string]interface{}{
 			"a": 987,
 			"b": map[string]interface{}{
@@ -381,7 +382,7 @@ func TestAllSettingsWithoutSecrets(t *testing.T) {
 	cfg.BuildSchema()
 
 	cfg.Set("a", "file_value", model.SourceFile)
-	cfg.Set("a", "secret_value", model.SourceSecretBackend)
+	cfg.Set("a", "secret_value", model.SourceSecret)
 	cfg.Set("b", 42, model.SourceAgentRuntime)
 
 	// includes secrets
@@ -403,7 +404,7 @@ func TestAllSettingsWithoutDefaultOrSecrets(t *testing.T) {
 	cfg.BuildSchema()
 
 	cfg.Set("a", "file_value", model.SourceFile)
-	cfg.Set("a", "secret_value", model.SourceSecretBackend)
+	cfg.Set("a", "secret_value", model.SourceSecret)
 	cfg.Set("b", 42, model.SourceAgentRuntime)
 
 	result := cfg.AllSettingsWithoutDefaultOrSecrets()
