@@ -15,7 +15,6 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
-	tracermetadatamodel "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"golang.org/x/sys/unix"
 )
@@ -53,42 +52,14 @@ type fdPath struct {
 	path string
 }
 
+// Arbitrary limit for maximum number of candidates.  Some applications can
+// initialize multiple tracers.
+const maxTracerMemfds = 25
+
 type openFilesInfo struct {
 	sockets        []uint64
 	logs           []fdPath
-	tracerMetadata *tracermetadatamodel.TracerMetadata
-}
-
-// readTracerMemfd reads tracer metadata and modification time from a memfd
-// path. Returns nil metadata if the path cannot be stat'd or the content cannot
-// be parsed.
-func readTracerMemfd(fdPath string) (*tracermetadatamodel.TracerMetadata, int64) {
-	info, err := os.Stat(fdPath)
-	if err != nil {
-		return nil, 0
-	}
-	tm, err := tracermetadata.GetTracerMetadataFromPath(fdPath)
-	if err != nil {
-		return nil, 0
-	}
-	return &tm, info.ModTime().UnixNano()
-}
-
-// newestTracerMetadata returns the newest metadata from two candidates,
-// comparing by mtime first and using runtime_id as a tie-breaker so that both
-// Go and Rust implementations select the same metadata regardless of
-// /proc/pid/fd iteration order.
-func newestTracerMetadata(a *tracermetadatamodel.TracerMetadata, aTime int64, b *tracermetadatamodel.TracerMetadata, bTime int64) (*tracermetadatamodel.TracerMetadata, int64) {
-	if a == nil {
-		return b, bTime
-	}
-	if b == nil {
-		return a, aTime
-	}
-	if bTime > aTime || (bTime == aTime && b.RuntimeID >= a.RuntimeID) {
-		return b, bTime
-	}
-	return a, aTime
+	tracerMemfdFds []string // fd numbers of tracer memfd files if found (e.g., ["5", "7"])
 }
 
 // getOpenFilesInfo gets a list of socket inode numbers opened by a process
@@ -110,8 +81,6 @@ func getOpenFilesInfo(pid int32, buf []byte) (openFilesInfo, error) {
 	}
 
 	dirFd := int(d.Fd())
-	pidStr := strconv.Itoa(int(pid))
-	var newestTime int64
 
 	for _, fd := range fnames {
 		n, err := readlinkat(dirFd, fd, buf)
@@ -134,10 +103,8 @@ func getOpenFilesInfo(pid int32, buf []byte) (openFilesInfo, error) {
 			continue
 		}
 
-		if tracermetadata.IsTracerMemfdPath(path) {
-			memfdPath := kernel.HostProc(pidStr, "fd", fd)
-			meta, mtime := readTracerMemfd(memfdPath)
-			openFiles.tracerMetadata, newestTime = newestTracerMetadata(openFiles.tracerMetadata, newestTime, meta, mtime)
+		if len(openFiles.tracerMemfdFds) < maxTracerMemfds && tracermetadata.IsTracerMemfdPath(path) {
+			openFiles.tracerMemfdFds = append(openFiles.tracerMemfdFds, fd)
 			continue
 		}
 	}

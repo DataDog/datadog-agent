@@ -8,21 +8,23 @@
 
 use std::fs::{read_dir, read_link};
 use std::path::{Path, PathBuf};
-use std::time::SystemTime;
 
 use log::trace;
 
 use crate::procfs::root_path;
-use crate::tracer_metadata::{self, TracerMetadata};
 
 const O_WRONLY: u32 = 0o1;
 const O_APPEND: u32 = 0o2000;
+
+// Arbitrary limit for maximum number of candidates.  Some applications can initialize multiple
+// tracers.
+const MAX_TRACER_MEMFDS: usize = 25;
 
 #[derive(Debug)]
 pub struct OpenFilesInfo {
     pub sockets: Vec<u64>,
     pub logs: Vec<FdPath>,
-    pub tracer_metadata: Option<TracerMetadata>,
+    pub tracer_memfds: Vec<PathBuf>,
     pub memfd_path: Option<PathBuf>,
     pub has_gpu_device: bool,
 }
@@ -38,45 +40,15 @@ struct FdInfo {
     flags: u32,
 }
 
-/// Reads tracer metadata and modification time from a memfd path.
-fn read_tracer_memfd(path: &Path) -> Option<(TracerMetadata, SystemTime)> {
-    let mtime = std::fs::metadata(path).ok()?.modified().ok()?;
-    let tm = tracer_metadata::get_tracer_metadata_from_path(path).ok()?;
-    Some((tm, mtime))
-}
-
-/// Returns the newest of two tracer metadata candidates, comparing by mtime
-/// first and using runtime_id as a tie-breaker so that both Go and Rust
-/// implementations select the same metadata regardless of /proc/pid/fd
-/// iteration order.
-fn newest_tracer_metadata(
-    a: Option<(TracerMetadata, SystemTime)>,
-    b: Option<(TracerMetadata, SystemTime)>,
-) -> Option<(TracerMetadata, SystemTime)> {
-    match (a, b) {
-        (None, b) => b,
-        (a, None) => a,
-        (Some((tm_a, t_a)), Some((tm_b, t_b))) => {
-            if (t_b, tm_b.runtime_id.as_deref()) >= (t_a, tm_a.runtime_id.as_deref()) {
-                Some((tm_b, t_b))
-            } else {
-                Some((tm_a, t_a))
-            }
-        }
-    }
-}
-
 pub fn get_open_files_info(pid: i32) -> Result<OpenFilesInfo, std::io::Error> {
     let fd_path = root_path().join(pid.to_string()).join("fd");
     let mut result = OpenFilesInfo {
         sockets: Vec::new(),
         logs: Vec::new(),
-        tracer_metadata: None,
+        tracer_memfds: Vec::new(),
         memfd_path: None,
         has_gpu_device: false,
     };
-
-    let mut newest: Option<(TracerMetadata, SystemTime)> = None;
 
     read_dir(fd_path)?
         .map_while(|entry_result| entry_result.ok())
@@ -100,14 +72,14 @@ pub fn get_open_files_info(pid: i32) -> Result<OpenFilesInfo, std::io::Error> {
                         path: link,
                     });
                 }
-            } else if is_tracer_memfd(link.as_path()) {
-                newest = newest_tracer_metadata(newest.take(), read_tracer_memfd(&entry));
+            } else if result.tracer_memfds.len() < MAX_TRACER_MEMFDS
+                && is_tracer_memfd(link.as_path())
+            {
+                result.tracer_memfds.push(entry);
             } else if is_language_memfd(link.as_path()) {
                 result.memfd_path = Some(entry);
             }
         });
-
-    result.tracer_metadata = newest.map(|(tm, _)| tm);
 
     Ok(result)
 }

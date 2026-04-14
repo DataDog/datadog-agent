@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+use std::path::PathBuf;
+
 use serde::Serialize;
 
 use crate::apm;
@@ -14,10 +16,10 @@ use crate::params::Params;
 use crate::ports::{self, ParsingContext};
 use crate::procfs::maps::MapsInfo;
 use crate::procfs::{self, Cmdline, Exe, fd::OpenFilesInfo};
-use crate::service_name;
 use crate::service_name::ServiceNameSource;
 use crate::tracer_metadata::TracerMetadata;
 use crate::ust::UST;
+use crate::{service_name, tracer_metadata};
 
 #[derive(Debug, Serialize)]
 pub struct ServicesResponse {
@@ -106,6 +108,31 @@ pub fn get_services(params: Params) -> ServicesResponse {
     resp
 }
 
+/// Reads tracer metadata from memfd paths and returns only the newest one
+/// (by file modification time). When there is only one memfd, skips the stat
+/// call. When mtimes are equal, runtime_id is used as a tie-breaker so that
+/// both Go and Rust implementations select the same metadata regardless of
+/// /proc/pid/fd iteration order.
+fn get_newest_tracer_metadata(memfd_paths: &[PathBuf]) -> Option<TracerMetadata> {
+    if memfd_paths.len() <= 1 {
+        return memfd_paths
+            .first()
+            .and_then(|path| tracer_metadata::get_tracer_metadata_from_path(path).ok());
+    }
+
+    memfd_paths
+        .iter()
+        .filter_map(|path| {
+            let mtime = std::fs::metadata(path).ok()?.modified().ok()?;
+            let tm = tracer_metadata::get_tracer_metadata_from_path(path).ok()?;
+            Some((tm, mtime))
+        })
+        .max_by(|(tm_a, t_a), (tm_b, t_b)| {
+            (t_a, tm_a.runtime_id.as_deref()).cmp(&(t_b, tm_b.runtime_id.as_deref()))
+        })
+        .map(|(m, _)| m)
+}
+
 fn get_service(
     pid: i32,
     context: &mut ParsingContext,
@@ -120,7 +147,7 @@ fn get_service(
 
     if tcp_ports.is_none()
         && udp_ports.is_none()
-        && open_files_info.tracer_metadata.is_none()
+        && open_files_info.tracer_memfds.is_empty()
         && !has_log_candidates
     {
         return None;
@@ -128,8 +155,8 @@ fn get_service(
 
     let cmdline = Cmdline::get(pid).ok()?;
     let exe = Exe::get(pid).ok()?;
-    let language = open_files_info
-        .tracer_metadata
+    let tracer_metadata = get_newest_tracer_metadata(&open_files_info.tracer_memfds);
+    let language = tracer_metadata
         .as_ref()
         .and_then(|m| Language::from_tracer_str(&m.tracer_language))
         .or_else(|| Language::detect(pid, &exe, &cmdline, open_files_info, maps_info));
@@ -147,8 +174,8 @@ fn get_service(
 
     // Detect APM instrumentation
     // If tracer metadata exists, the service is definitely instrumented
-    let apm_instrumentation = open_files_info.tracer_metadata.is_some()
-        || apm::detect(language.as_ref(), &cmdline, &envs, maps_info);
+    let apm_instrumentation =
+        tracer_metadata.is_some() || apm::detect(language.as_ref(), &cmdline, &envs, maps_info);
 
     Some(Service {
         pid,
@@ -157,7 +184,7 @@ fn get_service(
         additional_generated_names: name_metadata
             .map(|meta| meta.additional_names)
             .unwrap_or_default(),
-        tracer_metadata: open_files_info.tracer_metadata.iter().cloned().collect(),
+        tracer_metadata: tracer_metadata.into_iter().collect(),
         ust: UST::from_envs(&envs),
         tcp_ports,
         udp_ports,
@@ -177,7 +204,7 @@ fn get_heartbeat_service(pid: i32, context: &mut ParsingContext) -> Option<Servi
 
     if tcp_ports.is_none()
         && udp_ports.is_none()
-        && open_files_info.tracer_metadata.is_none()
+        && open_files_info.tracer_memfds.is_empty()
         && open_files_info.logs.is_empty()
     {
         return None;
