@@ -110,7 +110,9 @@ pub fn get_services(params: Params) -> ServicesResponse {
 
 /// Reads tracer metadata from memfd paths and returns only the newest one
 /// (by file modification time). When there is only one memfd, skips the stat
-/// call.
+/// call. When mtimes are equal, runtime_id is used as a tie-breaker so that
+/// both Go and Rust implementations select the same metadata regardless of
+/// /proc/pid/fd iteration order.
 fn get_newest_tracer_metadata(memfd_paths: &[PathBuf]) -> Option<TracerMetadata> {
     if memfd_paths.len() <= 1 {
         return memfd_paths

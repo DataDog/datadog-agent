@@ -525,6 +525,70 @@ func (s *discoveryTestSuite) TestServicesMultipleTracerMetadata() {
 	assert.Equal(t, "service-created-second", svc.TracerMetadata[0].ServiceName)
 }
 
+// TestServicesTracerMetadataMtimeTieBreaker checks that when multiple tracer
+// memfds have equal mtimes, the one with the lexicographically largest
+// runtime_id is reported, giving a deterministic result regardless of
+// /proc/pid/fd iteration order.
+func (s *discoveryTestSuite) TestServicesTracerMetadataMtimeTieBreaker() {
+	t := s.T()
+	discovery := s.discovery
+
+	metaA := tracermetadata.TracerMetadata{
+		SchemaVersion:  1,
+		RuntimeID:      "aaa-runtime-id",
+		TracerLanguage: "go",
+		ServiceName:    "service-a",
+	}
+	metaZ := tracermetadata.TracerMetadata{
+		SchemaVersion:  1,
+		RuntimeID:      "zzz-runtime-id",
+		TracerLanguage: "java",
+		ServiceName:    "service-z",
+	}
+
+	dataA, err := metaA.MarshalMsg(nil)
+	require.NoError(t, err)
+	dataZ, err := metaZ.MarshalMsg(nil)
+	require.NoError(t, err)
+
+	// Create two memfds and force them to have the exact same mtime.
+	fdA := createTracerMemfd(t, dataA)
+	fdZ := createTracerMemfd(t, dataZ)
+	fixedTime := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	setMemfdMtime(t, fdA, fixedTime)
+	setMemfdMtime(t, fdZ, fixedTime)
+
+	listener, err := net.Listen("tcp", "")
+	require.NoError(t, err)
+	f, err := listener.(*net.TCPListener).File()
+	listener.Close()
+	require.NoError(t, err)
+	t.Cleanup(func() { f.Close() })
+	disableCloseOnExec(t, f)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
+
+	cmd := exec.CommandContext(ctx, "sleep", "1000")
+	cmd.Dir = "/tmp/"
+	err = cmd.Start()
+	require.NoError(t, err)
+	f.Close()
+
+	pid := cmd.Process.Pid
+	var svc *model.Service
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		resp := getServices(collect, discovery)
+		svc = findService(pid, resp.Services)
+		require.NotNilf(collect, svc, "could not find service for pid %v", pid)
+	}, 30*time.Second, 100*time.Millisecond)
+
+	// With equal mtimes, the largest runtime_id wins as tie-breaker.
+	require.Len(t, svc.TracerMetadata, 1)
+	assert.Equal(t, "zzz-runtime-id", svc.TracerMetadata[0].RuntimeID)
+	assert.Equal(t, "service-z", svc.TracerMetadata[0].ServiceName)
+}
+
 // TestServicesLogsWithoutPorts checks that processes with open log files
 // are discovered even when they have no listening ports or tracer metadata.
 func (s *discoveryTestSuite) TestServicesLogsWithoutPorts() {

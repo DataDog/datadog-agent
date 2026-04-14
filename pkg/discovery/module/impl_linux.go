@@ -323,7 +323,9 @@ func newParsingContext() parsingContext {
 
 // getNewestTracerMetadata reads tracer metadata from memfd file descriptors
 // and returns only the newest one (by file modification time). When there is
-// only one memfd, it skips the stat call.
+// only one memfd, it skips the stat call. When mtimes are equal, runtime_id
+// is used as a tie-breaker so that both Go and Rust implementations select
+// the same metadata regardless of /proc/pid/fd iteration order.
 func getNewestTracerMetadata(pid int32, memfdFds []string) *tracermetadatamodel.TracerMetadata {
 	if len(memfdFds) == 0 {
 		return nil

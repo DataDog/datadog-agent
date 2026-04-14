@@ -409,6 +409,13 @@ func BenchmarkGetNSInfoOld(b *testing.B) {
 	}
 }
 
+func setMemfdMtime(t *testing.T, fd int, mtime time.Time) {
+	t.Helper()
+	ts := unix.NsecToTimespec(mtime.UnixNano())
+	err := unix.UtimesNanoAt(fd, "", []unix.Timespec{ts, ts}, unix.AT_EMPTY_PATH)
+	require.NoError(t, err)
+}
+
 func createTracerMemfd(t *testing.T, data []byte) int {
 	t.Helper()
 	fd, err := unix.MemfdCreate("datadog-tracer-info-xxx", 0)
