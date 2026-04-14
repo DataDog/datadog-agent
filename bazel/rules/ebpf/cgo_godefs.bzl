@@ -30,7 +30,12 @@ def _cgo_godefs_impl(ctx):
 
     platform = go.sdk.goos
     base = src.basename.removesuffix(".go")
-    out_name = base + "_" + platform + ".go"
+
+    # Prefix with _ to avoid runfiles path collision with the committed source
+    # file of the same name. Without this, write_source_file's diff_test
+    # resolves both the generated and committed files to the same runfiles path,
+    # causing the test to compare a file against itself (always passes).
+    out_name = "_" + base + "_" + platform + ".go"
     out = ctx.actions.declare_file(out_name)
     outputs = [out]
 
@@ -61,7 +66,7 @@ def _cgo_godefs_impl(ctx):
     genpost_args = ""
     test_out = None
     if platform == "linux":
-        test_name = base + "_" + platform + "_test.go"
+        test_name = "_" + base + "_" + platform + "_test.go"
         test_out = ctx.actions.declare_file(test_name)
         outputs.append(test_out)
         test_path_no_ext = test_out.path.removesuffix(".go")
@@ -74,7 +79,7 @@ def _cgo_godefs_impl(ctx):
     cc_prefix = "CC=clang " if platform == "linux" else ""
 
     cmd = (
-        "ROOT=$PWD && cd {src_dir} && " +
+        "set -euo pipefail && ROOT=$PWD && cd {src_dir} && " +
         "GOROOT=$ROOT/{goroot} {cc_prefix}$ROOT/{go} tool cgo -godefs -- {includes} -fsigned-char {src_file} | " +
         "$ROOT/{genpost} {genpost_args} > $ROOT/{out}"
     ).format(
@@ -149,7 +154,7 @@ _STD_LINUX_DEPS = [
 ]
 
 def _cgo_godefs_macro_impl(name, visibility, src, deps, hdrs, platform):
-    all_deps = (_STD_LINUX_DEPS if platform == "linux" else []) + deps
+    all_deps = deps + (_STD_LINUX_DEPS if platform == "linux" else [])
 
     gen = name + "_gen"
     _cgo_godefs(
@@ -188,6 +193,7 @@ def _cgo_godefs_macro_impl(name, visibility, src, deps, hdrs, platform):
         )
         write_source_file(
             name = name + "_test_file",
+            visibility = visibility,
             in_file = ":" + name + "_test_out",
             out_file = test_file,
             check_that_out_file_exists = False,

@@ -1,5 +1,6 @@
 exporters:
     otlphttp/datadoghq.eu_0:
+        compression: zstd
         headers:
             dd-api-key: test_api_key_456
             dd-evp-origin: host-profiler
@@ -7,7 +8,6 @@ exporters:
         metrics_endpoint: https://otlp.datadoghq.eu/v1/metrics
         profiles_endpoint: https://intake.profile.datadoghq.eu/v1development/profiles
 extensions:
-    ddprofiling/default: {}
     hpflare/default: {}
 processors:
     cumulativetodelta: {}
@@ -51,6 +51,8 @@ receivers:
                     - targets:
                         - 127.0.0.1:8888
 service:
+    extensions:
+        - hpflare/default
     pipelines:
         metrics:
             exporters:
