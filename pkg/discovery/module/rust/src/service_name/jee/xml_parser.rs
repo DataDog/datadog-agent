@@ -207,7 +207,16 @@ impl<R: Read> Iterator for XmlParser<R> {
                     }
                 }
                 Ok(XmlEvent::Characters(s)) | Ok(XmlEvent::CData(s)) => {
-                    return Some(Ok(XmlItem::Text(s)));
+                    // Only emit text when inside an element the caller
+                    // descended into.  After descending into an element at
+                    // depth D, required_depth becomes D+1 and text directly
+                    // inside that element is at depth D (== required - 1).
+                    // Text inside deeper children that were *not* descended
+                    // into lives at depth >= required and must be filtered,
+                    // otherwise it leaks into accumulating handlers.
+                    if self.depth + 1 == self.required_depth {
+                        return Some(Ok(XmlItem::Text(s)));
+                    }
                 }
                 Ok(XmlEvent::EndDocument) => {
                     self.done = true;
@@ -695,6 +704,99 @@ mod tests {
             end_a_count, 1,
             "should see exactly one </a> (the outer), got end_a_count: {}",
             end_a_count
+        );
+    }
+
+    /// Text inside elements the caller did NOT descend into should be
+    /// filtered.  This prevents subtree text from leaking into handlers
+    /// that accumulate text in the parent element's context.
+    #[test]
+    fn test_text_filtered_in_skipped_subtree() {
+        // <root><a><nested>poison</nested>direct</a></root>
+        // After descending into root and <a>, <nested> is emitted as a
+        // StartElement but we do NOT descend into it.  "poison" must be
+        // filtered; "direct" (sibling text inside <a>) must be emitted.
+        let xml = b"<root><a><nested>poison</nested>direct</a></root>";
+        let mut parser = XmlParser::new(xml.as_slice());
+
+        // Consume <root>, descend
+        let event = parser.next().unwrap().unwrap();
+        assert!(matches!(&event, XmlItem::StartElement { name, .. } if name == "root"));
+        parser.descend();
+
+        // Consume <a>, descend
+        let event = parser.next().unwrap().unwrap();
+        assert!(matches!(&event, XmlItem::StartElement { name, .. } if name == "a"));
+        parser.descend();
+
+        // Consume <nested>, do NOT descend — skip this subtree
+        let event = parser.next().unwrap().unwrap();
+        assert!(matches!(&event, XmlItem::StartElement { name, .. } if name == "nested"));
+
+        // Collect remaining text events
+        let mut texts = Vec::new();
+        for event in &mut parser {
+            if let XmlItem::Text(s) = event.unwrap() {
+                texts.push(s);
+            }
+        }
+
+        assert_eq!(
+            texts,
+            vec!["direct"],
+            "text from skipped subtree should be filtered"
+        );
+    }
+
+    /// Verify text depth filtering through the run() + XmlHandler API:
+    /// text inside elements the handler skips (Same) must not reach
+    /// the handler's text() method.
+    #[test]
+    fn test_run_text_filtered_in_skipped_subtree() {
+        struct TextCollector {
+            texts: Vec<String>,
+        }
+
+        impl XmlHandler for TextCollector {
+            type State = bool; // true = inside target element
+
+            fn start_element(
+                &mut self,
+                state: bool,
+                name: &str,
+                _attributes: &[OwnedAttribute],
+            ) -> Action<bool> {
+                match name {
+                    "target" => Action::Descend(true),
+                    "root" | "wrapper" => Action::Descend(false),
+                    _ => Action::Same(state), // skip unknown children
+                }
+            }
+
+            fn end_element(&mut self, _state: bool, _name: &str) -> Action<bool> {
+                Action::Ascend(false)
+            }
+
+            fn text(&mut self, state: bool, text: String) -> Action<bool> {
+                if state {
+                    self.texts.push(text);
+                }
+                Action::Same(state)
+            }
+        }
+
+        let xml = b"\
+            <root><wrapper>\
+                <target><nested>poison</nested>good</target>\
+            </wrapper></root>";
+        let mut parser = XmlParser::new(xml.as_slice());
+        let mut handler = TextCollector { texts: Vec::new() };
+        parser.run(&mut handler, false).unwrap();
+
+        assert_eq!(
+            handler.texts,
+            vec!["good"],
+            "poison text from <nested> should be filtered"
         );
     }
 
