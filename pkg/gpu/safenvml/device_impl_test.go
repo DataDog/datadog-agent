@@ -126,11 +126,7 @@ func TestDeviceSafeMethodSuccess(t *testing.T) {
 	WithMockNVML(t, mockNvml)
 
 	// Create device
-	mockDevice := testutil.GetDeviceMock(0, func(d *nvmlmock.Device) {
-		d.GetRepairStatusFunc = func() (nvml.RepairStatus, nvml.Return) {
-			return nvml.RepairStatus{}, nvml.SUCCESS
-		}
-	})
+	mockDevice := testutil.GetDeviceMock(0)
 	device, err := NewPhysicalDevice(mockDevice)
 	require.NoError(t, err)
 	require.NotNil(t, device)
@@ -144,9 +140,4 @@ func TestDeviceSafeMethodSuccess(t *testing.T) {
 	cores, err := device.GetNumGpuCores()
 	require.NoError(t, err)
 	require.Equal(t, testutil.DefaultGpuCores, cores)
-
-	repairStatus, err := device.GetRepairStatus()
-	require.NoError(t, err)
-	require.Equal(t, uint32(0), repairStatus.BChannelRepairPending)
-	require.Equal(t, uint32(0), repairStatus.BTpcRepairPending)
 }

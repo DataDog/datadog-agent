@@ -259,7 +259,10 @@ metrics:
     tagsets:
       - device
     support:
-      unsupported_architectures: []
+      unsupported_architectures:
+        - pascal
+        - volta
+        - turing
       device_modes:
         mig: false
         physical: true
@@ -268,7 +271,10 @@ metrics:
     tagsets:
       - device
     support:
-      unsupported_architectures: []
+      unsupported_architectures:
+        - pascal
+        - volta
+        - turing
       device_modes:
         mig: false
         physical: true
