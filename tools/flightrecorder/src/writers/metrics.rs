@@ -9,7 +9,7 @@ use arrow::record_batch::RecordBatch;
 
 use std::sync::LazyLock;
 
-use super::context_store::ContextStore;
+use super::context_writer::{ContextProducer, ContextRecord};
 use super::intern::StringInterner;
 use super::parquet_helpers::{dict_utf8_type, interner_to_dict_array, BaseWriter, DiskTracker};
 use super::thread::{SignalWriter, WriterStats};
@@ -28,9 +28,9 @@ static CONTEXTKEY_SCHEMA: LazyLock<Arc<Schema>> = LazyLock::new(|| {
 
 /// Columnar accumulator for metric samples.
 ///
-/// Handles both ContextEntry (written to contexts.bin) and PointEntry
-/// (written to Parquet). A single MetricBatch frame may contain either
-/// or both vectors.
+/// Handles both ContextEntry (forwarded to context writer thread) and
+/// PointEntry (written to Parquet). A single MetricBatch frame may contain
+/// either or both vectors.
 pub struct MetricsWriter {
     pub base: BaseWriter,
 
@@ -41,8 +41,8 @@ pub struct MetricsWriter {
     sample_rates: Vec<f64>,
     context_keys: Vec<u64>,
 
-    // Context deduplication (owned — single-threaded on writer thread).
-    context_store: ContextStore,
+    // Context records are forwarded to the shared context writer thread.
+    ctx_producer: ContextProducer,
 }
 
 impl MetricsWriter {
@@ -50,7 +50,7 @@ impl MetricsWriter {
         output_dir: impl AsRef<Path>,
         flush_rows: usize,
         flush_interval: Duration,
-        context_store: ContextStore,
+        ctx_producer: ContextProducer,
         disk_tracker: Arc<DiskTracker>,
     ) -> Self {
         Self {
@@ -62,7 +62,7 @@ impl MetricsWriter {
             sample_rates: Vec::with_capacity(flush_rows),
             context_keys: Vec::with_capacity(flush_rows),
 
-            context_store,
+            ctx_producer,
         }
     }
 
@@ -74,7 +74,7 @@ impl MetricsWriter {
 
     /// Process a MetricBatch: handle context definitions and data points.
     pub fn push(&mut self, batch: &signals::MetricBatch<'_>) -> Result<Option<PathBuf>> {
-        // Process context definitions → write to contexts.bin.
+        // Forward context definitions to the shared context writer thread.
         if let Some(contexts) = batch.contexts() {
             for i in 0..contexts.len() {
                 let ctx = contexts.get(i);
@@ -90,10 +90,13 @@ impl MetricsWriter {
                                 .join("|")
                         })
                         .unwrap_or_default();
-                    let _ = self.context_store.try_record(ckey, name, &tags_joined);
+                    self.ctx_producer.try_send(ContextRecord {
+                        key: ckey,
+                        name: name.to_string(),
+                        tags_joined,
+                    });
                 }
             }
-            let _ = self.context_store.flush();
         }
 
         // Process data points → accumulate for Parquet.
@@ -187,16 +190,25 @@ impl SignalWriter for MetricsWriter {
 
 #[cfg(test)]
 mod tests {
-    use super::super::context_store::read_contexts_bin;
+    use super::super::context_store::{read_contexts_bin, ContextStore};
+    use super::super::context_writer::ContextWriterHandle;
     use super::*;
-    use arrow::array::{Float64Array, Int64Array, UInt64Array};
     use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
     use std::fs::File;
     use tempfile::tempdir;
 
-    fn make_writer(dir: &Path) -> MetricsWriter {
+    /// Spawn a context writer thread for testing. Returns the producer and
+    /// the output dir (kept alive by the returned TempDir).
+    fn make_ctx_producer(dir: &Path) -> ContextProducer {
         let store = ContextStore::new(dir).unwrap();
-        MetricsWriter::new(dir, 1000, Duration::from_secs(60), store, Arc::new(DiskTracker::noop()))
+        let (_handle, prod_m, _prod_l) = ContextWriterHandle::spawn(store, 64);
+        std::mem::forget(_handle);
+        prod_m
+    }
+
+    fn make_writer(dir: &Path) -> MetricsWriter {
+        let prod = make_ctx_producer(dir);
+        MetricsWriter::new(dir, 1000, Duration::from_secs(60), prod, Arc::new(DiskTracker::noop()))
     }
 
     fn read_parquet(path: &Path) -> RecordBatch {
@@ -217,14 +229,6 @@ mod tests {
     fn test_contextkey_flush_schema() {
         let dir = tempdir().unwrap();
         let mut w = make_writer(dir.path());
-
-        w.context_store
-            .try_record(100, "cpu.user", "host:a|env:prod")
-            .unwrap();
-        w.context_store
-            .try_record(200, "mem.usage", "host:b")
-            .unwrap();
-        w.context_store.flush().unwrap();
 
         w.context_keys.extend_from_slice(&[100, 200, 100]);
         w.sources.intern("");
@@ -263,15 +267,17 @@ mod tests {
     #[test]
     fn test_contextkey_roundtrip_with_contexts_bin() {
         let dir = tempdir().unwrap();
-        let mut w = make_writer(dir.path());
 
-        w.context_store
-            .try_record(100, "cpu.user", "host:a|env:prod")
-            .unwrap();
-        w.context_store
-            .try_record(200, "mem.usage", "host:b")
-            .unwrap();
-        w.context_store.flush().unwrap();
+        // Write contexts through the context writer thread.
+        let store = ContextStore::new(dir.path()).unwrap();
+        let (mut ctx_handle, mut prod_m, _prod_l) = ContextWriterHandle::spawn(store, 64);
+        prod_m.try_send(ContextRecord { key: 100, name: "cpu.user".into(), tags_joined: "host:a|env:prod".into() });
+        prod_m.try_send(ContextRecord { key: 200, name: "mem.usage".into(), tags_joined: "host:b".into() });
+        // Give the context writer thread time to process.
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        ctx_handle.shutdown();
+
+        let mut w = MetricsWriter::new(dir.path(), 1000, Duration::from_secs(60), make_ctx_producer(dir.path()), Arc::new(DiskTracker::noop()));
 
         w.context_keys.extend_from_slice(&[100, 200]);
         w.sources.intern("");
@@ -299,10 +305,6 @@ mod tests {
         let dir = tempdir().unwrap();
         let mut w = make_writer(dir.path());
 
-        w.context_store
-            .try_record(1, "cpu.user", "host:a")
-            .unwrap();
-        w.context_store.flush().unwrap();
         for i in 0..10 {
             w.context_keys.push(1);
             w.sources.intern("");

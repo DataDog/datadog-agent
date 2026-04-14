@@ -233,7 +233,22 @@ func (s *flightrecorderImpl) activate(ctx context.Context) <-chan struct{} {
 			continue
 		}
 		unsub := lh.Subscribe("flightrecorder-logs", func(batch []hook.LogSampleSnapshot) {
-			bat.AddLogBatch(batch)
+			for i := range batch {
+				lg := &batch[i]
+				allTags := buildLogContextTags(lg.Hostname, lg.Status, lg.Tags)
+				ckey := computeContextKey("", allTags)
+				if !bat.IsContextKnown(ckey) {
+					bat.AddLogContextDef(contextDef{
+						ContextKey: ckey,
+						Tags:       allTags,
+					})
+				}
+				bat.AddLogEntry(logEntry{
+					ContextKey:  ckey,
+					Content:     lg.Content,
+					TimestampNs: lg.TimestampNs,
+				})
+			}
 		}, hook.WithBufferSize[[]hook.LogSampleSnapshot](s.hookBufSize))
 		unsubs = append(unsubs, unsub)
 	}
@@ -297,4 +312,18 @@ func computeContextKey(name string, tags []string) uint64 {
 		h.Write([]byte{0})
 	}
 	return h.Sum64()
+}
+
+// buildLogContextTags folds hostname and status into the tag list so that
+// log contexts use the same ContextEntry format as metrics.
+func buildLogContextTags(hostname, status string, tags []string) []string {
+	allTags := make([]string, 0, len(tags)+2)
+	if hostname != "" {
+		allTags = append(allTags, "hostname:"+hostname)
+	}
+	if status != "" {
+		allTags = append(allTags, "status:"+status)
+	}
+	allTags = append(allTags, tags...)
+	return allTags
 }

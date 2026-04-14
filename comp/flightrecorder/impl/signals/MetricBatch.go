@@ -17,6 +17,21 @@ func GetRootAsMetricBatch(buf []byte, offset flatbuffers.UOffsetT) *MetricBatch 
 	return x
 }
 
+func FinishMetricBatchBuffer(builder *flatbuffers.Builder, offset flatbuffers.UOffsetT) {
+	builder.Finish(offset)
+}
+
+func GetSizePrefixedRootAsMetricBatch(buf []byte, offset flatbuffers.UOffsetT) *MetricBatch {
+	n := flatbuffers.GetUOffsetT(buf[offset+flatbuffers.SizeUint32:])
+	x := &MetricBatch{}
+	x.Init(buf, n+offset+flatbuffers.SizeUint32)
+	return x
+}
+
+func FinishSizePrefixedMetricBatchBuffer(builder *flatbuffers.Builder, offset flatbuffers.UOffsetT) {
+	builder.FinishSizePrefixed(offset)
+}
+
 func (rcv *MetricBatch) Init(buf []byte, i flatbuffers.UOffsetT) {
 	rcv._tab.Bytes = buf
 	rcv._tab.Pos = i

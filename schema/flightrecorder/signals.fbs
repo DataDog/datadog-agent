@@ -28,15 +28,17 @@ table MetricBatch {
   points:[PointEntry];
 }
 
+// A compact log entry referencing a previously-sent context.
+// Metadata (hostname, status, tags) is stored once in contexts.bin
+// via the shared ContextEntry table.
 table LogEntry {
+  context_key:ulong;
   content:[ubyte];
-  status:string;
-  tags:[string];
-  hostname:string;
   timestamp_ns:long;
 }
 
 table LogBatch {
+  contexts:[ContextEntry];
   entries:[LogEntry];
 }
 

@@ -12,8 +12,18 @@ use tempfile::TempDir;
 use flightrecorder::disk_tracker::DiskTracker;
 use flightrecorder::generated::signals_generated::signals;
 use flightrecorder::writers::context_store::ContextStore;
+use flightrecorder::writers::context_writer::{ContextProducer, ContextWriterHandle};
 use flightrecorder::writers::logs::LogsWriter;
 use flightrecorder::writers::metrics::MetricsWriter;
+
+fn make_ctx_producer() -> (ContextProducer, ContextProducer) {
+    let dir = TempDir::new().unwrap();
+    let store = ContextStore::new(dir.path()).unwrap();
+    let (_handle, prod_m, prod_l) = ContextWriterHandle::spawn(store, 64);
+    std::mem::forget(_handle);
+    std::mem::forget(dir);
+    (prod_m, prod_l)
+}
 
 // ---------------------------------------------------------------------------
 // Frame builders
@@ -87,18 +97,11 @@ fn build_log_frame(n: usize) -> Vec<u8> {
     let mut offsets = Vec::with_capacity(n);
     for i in (0..n).rev() {
         let content = fbb.create_vector(format!("Log line {} with some realistic content for benchmarking the writer pipeline", i).as_bytes());
-        let status = fbb.create_string("info");
-        let hostname = fbb.create_string(&format!("web-{}", i % 50));
-        let t1 = fbb.create_string("service:api");
-        let t2 = fbb.create_string("env:staging");
-        let tags = fbb.create_vector(&[t1, t2]);
         let entry = signals::LogEntry::create(
             &mut fbb,
             &signals::LogEntryArgs {
+                context_key: (i as u64) % 100 + 1,
                 content: Some(content),
-                status: Some(status),
-                tags: Some(tags),
-                hostname: Some(hostname),
                 timestamp_ns: 1_700_000_000_000_000_000 + i as i64 * 1_000_000,
             },
         );
@@ -109,6 +112,7 @@ fn build_log_frame(n: usize) -> Vec<u8> {
     let batch = signals::LogBatch::create(
         &mut fbb,
         &signals::LogBatchArgs {
+            contexts: None,
             entries: Some(vec),
         },
     );
@@ -138,12 +142,12 @@ fn bench_metrics_push(c: &mut Criterion) {
         group.bench_with_input(BenchmarkId::from_parameter(n), &frame, |b, frame| {
             b.iter_custom(|iters| {
                 let dir = TempDir::new().unwrap();
-                let store = ContextStore::new(dir.path()).unwrap();
+                let (prod_m, _prod_l) = make_ctx_producer();
                 let mut writer = MetricsWriter::new(
                     dir.path(),
                     100_000, // high threshold to avoid flushing during push
                     Duration::from_secs(3600),
-                    store,
+                    prod_m,
                     Arc::new(DiskTracker::noop()),
                 );
 
@@ -172,10 +176,12 @@ fn bench_logs_push(c: &mut Criterion) {
         group.bench_with_input(BenchmarkId::from_parameter(n), &frame, |b, frame| {
             b.iter_custom(|iters| {
                 let dir = TempDir::new().unwrap();
+                let (_prod_m, prod_l) = make_ctx_producer();
                 let mut writer = LogsWriter::new(
                     dir.path(),
                     100_000,
                     Duration::from_secs(3600),
+                    prod_l,
                     Arc::new(DiskTracker::noop()),
                 );
 
@@ -208,13 +214,13 @@ fn bench_metrics_push_flush(c: &mut Criterion) {
         group.bench_with_input(BenchmarkId::from_parameter(n), &frame, |b, frame| {
             b.iter_custom(|iters| {
                 let dir = TempDir::new().unwrap();
-                let store = ContextStore::new(dir.path()).unwrap();
+                let (prod_m, _prod_l) = make_ctx_producer();
                 // flush_rows = n so every push triggers a flush.
                 let mut writer = MetricsWriter::new(
                     dir.path(),
                     n,
                     Duration::from_secs(3600),
-                    store,
+                    prod_m,
                     Arc::new(DiskTracker::noop()),
                 );
 
@@ -243,10 +249,12 @@ fn bench_logs_push_flush(c: &mut Criterion) {
         group.bench_with_input(BenchmarkId::from_parameter(n), &frame, |b, frame| {
             b.iter_custom(|iters| {
                 let dir = TempDir::new().unwrap();
+                let (_prod_m, prod_l) = make_ctx_producer();
                 let mut writer = LogsWriter::new(
                     dir.path(),
                     n,
                     Duration::from_secs(3600),
+                    prod_l,
                     Arc::new(DiskTracker::noop()),
                 );
 
@@ -286,12 +294,12 @@ fn bench_rtrb_e2e(c: &mut Criterion) {
             let mut total = Duration::ZERO;
             for _ in 0..iters {
                 let dir = TempDir::new().unwrap();
-                let store = ContextStore::new(dir.path()).unwrap();
+                let (prod_m, _prod_l) = make_ctx_producer();
                 let writer = MetricsWriter::new(
                     dir.path(),
                     5000,
                     Duration::from_secs(15),
-                    store,
+                    prod_m,
                     Arc::new(DiskTracker::noop()),
                 );
                 let mut handle = WriterHandle::spawn(writer, 512, "bench");

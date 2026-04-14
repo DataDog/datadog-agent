@@ -17,6 +17,21 @@ func GetRootAsTraceStatsBatch(buf []byte, offset flatbuffers.UOffsetT) *TraceSta
 	return x
 }
 
+func FinishTraceStatsBatchBuffer(builder *flatbuffers.Builder, offset flatbuffers.UOffsetT) {
+	builder.Finish(offset)
+}
+
+func GetSizePrefixedRootAsTraceStatsBatch(buf []byte, offset flatbuffers.UOffsetT) *TraceStatsBatch {
+	n := flatbuffers.GetUOffsetT(buf[offset+flatbuffers.SizeUint32:])
+	x := &TraceStatsBatch{}
+	x.Init(buf, n+offset+flatbuffers.SizeUint32)
+	return x
+}
+
+func FinishSizePrefixedTraceStatsBatchBuffer(builder *flatbuffers.Builder, offset flatbuffers.UOffsetT) {
+	builder.FinishSizePrefixed(offset)
+}
+
 func (rcv *TraceStatsBatch) Init(buf []byte, i flatbuffers.UOffsetT) {
 	rcv._tab.Bytes = buf
 	rcv._tab.Pos = i

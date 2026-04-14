@@ -444,11 +444,9 @@ impl<'a> flatbuffers::Follow<'a> for LogEntry<'a> {
 }
 
 impl<'a> LogEntry<'a> {
-  pub const VT_CONTENT: flatbuffers::VOffsetT = 4;
-  pub const VT_STATUS: flatbuffers::VOffsetT = 6;
-  pub const VT_TAGS: flatbuffers::VOffsetT = 8;
-  pub const VT_HOSTNAME: flatbuffers::VOffsetT = 10;
-  pub const VT_TIMESTAMP_NS: flatbuffers::VOffsetT = 12;
+  pub const VT_CONTEXT_KEY: flatbuffers::VOffsetT = 4;
+  pub const VT_CONTENT: flatbuffers::VOffsetT = 6;
+  pub const VT_TIMESTAMP_NS: flatbuffers::VOffsetT = 8;
 
   #[inline]
   pub unsafe fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
@@ -461,41 +459,25 @@ impl<'a> LogEntry<'a> {
   ) -> flatbuffers::WIPOffset<LogEntry<'bldr>> {
     let mut builder = LogEntryBuilder::new(_fbb);
     builder.add_timestamp_ns(args.timestamp_ns);
-    if let Some(x) = args.hostname { builder.add_hostname(x); }
-    if let Some(x) = args.tags { builder.add_tags(x); }
-    if let Some(x) = args.status { builder.add_status(x); }
+    builder.add_context_key(args.context_key);
     if let Some(x) = args.content { builder.add_content(x); }
     builder.finish()
   }
 
 
   #[inline]
+  pub fn context_key(&self) -> u64 {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<u64>(LogEntry::VT_CONTEXT_KEY, Some(0)).unwrap()}
+  }
+  #[inline]
   pub fn content(&self) -> Option<flatbuffers::Vector<'a, u8>> {
     // Safety:
     // Created from valid Table for this object
     // which contains a valid value in this slot
     unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u8>>>(LogEntry::VT_CONTENT, None)}
-  }
-  #[inline]
-  pub fn status(&self) -> Option<&'a str> {
-    // Safety:
-    // Created from valid Table for this object
-    // which contains a valid value in this slot
-    unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(LogEntry::VT_STATUS, None)}
-  }
-  #[inline]
-  pub fn tags(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<&'a str>>> {
-    // Safety:
-    // Created from valid Table for this object
-    // which contains a valid value in this slot
-    unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<&'a str>>>>(LogEntry::VT_TAGS, None)}
-  }
-  #[inline]
-  pub fn hostname(&self) -> Option<&'a str> {
-    // Safety:
-    // Created from valid Table for this object
-    // which contains a valid value in this slot
-    unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(LogEntry::VT_HOSTNAME, None)}
   }
   #[inline]
   pub fn timestamp_ns(&self) -> i64 {
@@ -513,30 +495,24 @@ impl flatbuffers::Verifiable for LogEntry<'_> {
   ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
     use self::flatbuffers::Verifiable;
     v.visit_table(pos)?
+     .visit_field::<u64>("context_key", Self::VT_CONTEXT_KEY, false)?
      .visit_field::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'_, u8>>>("content", Self::VT_CONTENT, false)?
-     .visit_field::<flatbuffers::ForwardsUOffset<&str>>("status", Self::VT_STATUS, false)?
-     .visit_field::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'_, flatbuffers::ForwardsUOffset<&'_ str>>>>("tags", Self::VT_TAGS, false)?
-     .visit_field::<flatbuffers::ForwardsUOffset<&str>>("hostname", Self::VT_HOSTNAME, false)?
      .visit_field::<i64>("timestamp_ns", Self::VT_TIMESTAMP_NS, false)?
      .finish();
     Ok(())
   }
 }
 pub struct LogEntryArgs<'a> {
+    pub context_key: u64,
     pub content: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a, u8>>>,
-    pub status: Option<flatbuffers::WIPOffset<&'a str>>,
-    pub tags: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<&'a str>>>>,
-    pub hostname: Option<flatbuffers::WIPOffset<&'a str>>,
     pub timestamp_ns: i64,
 }
 impl<'a> Default for LogEntryArgs<'a> {
   #[inline]
   fn default() -> Self {
     LogEntryArgs {
+      context_key: 0,
       content: None,
-      status: None,
-      tags: None,
-      hostname: None,
       timestamp_ns: 0,
     }
   }
@@ -548,20 +524,12 @@ pub struct LogEntryBuilder<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> {
 }
 impl<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> LogEntryBuilder<'a, 'b, A> {
   #[inline]
+  pub fn add_context_key(&mut self, context_key: u64) {
+    self.fbb_.push_slot::<u64>(LogEntry::VT_CONTEXT_KEY, context_key, 0);
+  }
+  #[inline]
   pub fn add_content(&mut self, content: flatbuffers::WIPOffset<flatbuffers::Vector<'b , u8>>) {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(LogEntry::VT_CONTENT, content);
-  }
-  #[inline]
-  pub fn add_status(&mut self, status: flatbuffers::WIPOffset<&'b  str>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(LogEntry::VT_STATUS, status);
-  }
-  #[inline]
-  pub fn add_tags(&mut self, tags: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<&'b  str>>>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(LogEntry::VT_TAGS, tags);
-  }
-  #[inline]
-  pub fn add_hostname(&mut self, hostname: flatbuffers::WIPOffset<&'b  str>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(LogEntry::VT_HOSTNAME, hostname);
   }
   #[inline]
   pub fn add_timestamp_ns(&mut self, timestamp_ns: i64) {
@@ -585,10 +553,8 @@ impl<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> LogEntryBuilder<'a, 'b, A> {
 impl core::fmt::Debug for LogEntry<'_> {
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     let mut ds = f.debug_struct("LogEntry");
+      ds.field("context_key", &self.context_key());
       ds.field("content", &self.content());
-      ds.field("status", &self.status());
-      ds.field("tags", &self.tags());
-      ds.field("hostname", &self.hostname());
       ds.field("timestamp_ns", &self.timestamp_ns());
       ds.finish()
   }
@@ -609,7 +575,8 @@ impl<'a> flatbuffers::Follow<'a> for LogBatch<'a> {
 }
 
 impl<'a> LogBatch<'a> {
-  pub const VT_ENTRIES: flatbuffers::VOffsetT = 4;
+  pub const VT_CONTEXTS: flatbuffers::VOffsetT = 4;
+  pub const VT_ENTRIES: flatbuffers::VOffsetT = 6;
 
   #[inline]
   pub unsafe fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
@@ -622,10 +589,18 @@ impl<'a> LogBatch<'a> {
   ) -> flatbuffers::WIPOffset<LogBatch<'bldr>> {
     let mut builder = LogBatchBuilder::new(_fbb);
     if let Some(x) = args.entries { builder.add_entries(x); }
+    if let Some(x) = args.contexts { builder.add_contexts(x); }
     builder.finish()
   }
 
 
+  #[inline]
+  pub fn contexts(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<ContextEntry<'a>>>> {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<ContextEntry>>>>(LogBatch::VT_CONTEXTS, None)}
+  }
   #[inline]
   pub fn entries(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<LogEntry<'a>>>> {
     // Safety:
@@ -642,18 +617,21 @@ impl flatbuffers::Verifiable for LogBatch<'_> {
   ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
     use self::flatbuffers::Verifiable;
     v.visit_table(pos)?
+     .visit_field::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'_, flatbuffers::ForwardsUOffset<ContextEntry>>>>("contexts", Self::VT_CONTEXTS, false)?
      .visit_field::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'_, flatbuffers::ForwardsUOffset<LogEntry>>>>("entries", Self::VT_ENTRIES, false)?
      .finish();
     Ok(())
   }
 }
 pub struct LogBatchArgs<'a> {
+    pub contexts: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<ContextEntry<'a>>>>>,
     pub entries: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<LogEntry<'a>>>>>,
 }
 impl<'a> Default for LogBatchArgs<'a> {
   #[inline]
   fn default() -> Self {
     LogBatchArgs {
+      contexts: None,
       entries: None,
     }
   }
@@ -664,6 +642,10 @@ pub struct LogBatchBuilder<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> {
   start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
 }
 impl<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> LogBatchBuilder<'a, 'b, A> {
+  #[inline]
+  pub fn add_contexts(&mut self, contexts: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<ContextEntry<'b >>>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(LogBatch::VT_CONTEXTS, contexts);
+  }
   #[inline]
   pub fn add_entries(&mut self, entries: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<LogEntry<'b >>>>) {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(LogBatch::VT_ENTRIES, entries);
@@ -686,6 +668,7 @@ impl<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> LogBatchBuilder<'a, 'b, A> {
 impl core::fmt::Debug for LogBatch<'_> {
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     let mut ds = f.debug_struct("LogBatch");
+      ds.field("contexts", &self.contexts());
       ds.field("entries", &self.entries());
       ds.finish()
   }

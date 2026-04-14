@@ -133,17 +133,26 @@ async fn main() -> Result<()> {
 pub async fn run(cfg: config::Config, tracker: Arc<disk_tracker::DiskTracker>) -> Result<()> {
     let flush_interval = Duration::from_secs(cfg.flush_interval_secs);
 
-    // Create writers and spawn dedicated threads.
+    // Create shared context writer thread (serves both metrics and logs).
     let context_store = writers::context_store::ContextStore::new(&cfg.output_dir)?;
+    let (mut ctx_handle, ctx_prod_metrics, ctx_prod_logs) =
+        writers::context_writer::ContextWriterHandle::spawn(context_store, 1024);
+
+    // Create signal writers and spawn dedicated threads.
     let metrics_writer = writers::metrics::MetricsWriter::new(
         &cfg.output_dir,
         cfg.flush_rows,
         flush_interval,
-        context_store,
+        ctx_prod_metrics,
         tracker.clone(),
     );
-    let logs_writer =
-        writers::logs::LogsWriter::new(&cfg.output_dir, cfg.flush_rows, flush_interval, tracker.clone());
+    let logs_writer = writers::logs::LogsWriter::new(
+        &cfg.output_dir,
+        cfg.flush_rows,
+        flush_interval,
+        ctx_prod_logs,
+        tracker.clone(),
+    );
     let trace_stats_writer =
         writers::trace_stats::TraceStatsWriter::new(&cfg.output_dir, cfg.flush_rows, flush_interval, tracker.clone());
 
@@ -240,10 +249,12 @@ pub async fn run(cfg: config::Config, tracker: Arc<disk_tracker::DiskTracker>) -
         let _ = h.await;
     }
 
-    // Shut down writer threads (drain rings, flush, close files).
+    // Shut down signal writer threads first (drain rings, flush, close files).
     metrics_handle.lock().unwrap().shutdown();
     logs_handle.lock().unwrap().shutdown();
     traces_handle.lock().unwrap().shutdown();
+    // Context writer last — signal writers may have sent final context records.
+    ctx_handle.shutdown();
 
     info!("flightrecorder stopped");
     Ok(())

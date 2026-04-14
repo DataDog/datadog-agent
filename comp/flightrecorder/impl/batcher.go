@@ -10,15 +10,14 @@ import (
 	"time"
 
 	flatbuffers "github.com/google/flatbuffers/go"
-
-	"github.com/DataDog/datadog-agent/pkg/hook"
 )
 
 // batcher accumulates metrics, logs, and trace stats in per-type ring buffers
 // and flushes them via dedicated goroutines through the shared Transport.
 //
-// All four signal types (contexts, points, logs, trace stats) use the generic
-// flushChunked() function and get their own independent flush goroutine.
+// All five signal types (metric contexts, metric points, log contexts,
+// log entries, trace stats) use the generic flushChunked() function and get
+// their own independent flush goroutine.
 type batcher struct {
 	transport     Transport
 	flushInterval time.Duration
@@ -28,8 +27,10 @@ type batcher struct {
 	defs ringBuf[contextDef]
 	// Metric data points (compact, context_key reference only).
 	pts ringBuf[metricPoint]
-	// Log entries.
-	logs ringBuf[hook.LogSampleSnapshot]
+	// Log context definitions (first-occurrence only).
+	logDefs ringBuf[contextDef]
+	// Log entries (compact, context_key reference only).
+	logs ringBuf[logEntry]
 	// Trace stats entries.
 	tss ringBuf[capturedTraceStat]
 
@@ -37,15 +38,17 @@ type batcher struct {
 	builderPool *builderPool
 
 	// seenContexts tracks context keys already sent with full name+tags.
+	// Shared across metrics and logs — a context key is signal-agnostic.
 	seenContexts *contextSet
 
 	// Per-signal flush channels.
-	defsFlushCh chan struct{}
-	ptsFlushCh  chan struct{}
-	logsFlushCh chan struct{}
-	tssFlushCh  chan struct{}
-	stopCh      chan struct{}
-	wg          sync.WaitGroup
+	defsFlushCh    chan struct{}
+	ptsFlushCh     chan struct{}
+	logDefsFlushCh chan struct{}
+	logsFlushCh    chan struct{}
+	tssFlushCh     chan struct{}
+	stopCh         chan struct{}
+	wg             sync.WaitGroup
 }
 
 // initialCap returns a small starting capacity (1/8th of max, min 1000).
@@ -63,22 +66,25 @@ func newBatcher(transport Transport, flushInterval time.Duration, ptCapacity, de
 		flushInterval: flushInterval,
 		counters:      c,
 
-		defs: newRingBuf[contextDef](initialCap(defCapacity), defCapacity),
-		pts:  newRingBuf[metricPoint](initialCap(ptCapacity), ptCapacity),
-		logs: newRingBuf[hook.LogSampleSnapshot](initialCap(logCapacity), logCapacity),
-		tss:  newRingBuf[capturedTraceStat](initialCap(traceStatsCapacity), traceStatsCapacity),
+		defs:    newRingBuf[contextDef](initialCap(defCapacity), defCapacity),
+		pts:     newRingBuf[metricPoint](initialCap(ptCapacity), ptCapacity),
+		logDefs: newRingBuf[contextDef](initialCap(defCapacity), defCapacity),
+		logs:    newRingBuf[logEntry](initialCap(logCapacity), logCapacity),
+		tss:     newRingBuf[capturedTraceStat](initialCap(traceStatsCapacity), traceStatsCapacity),
 
-		builderPool:  newBuilderPool(),
-		seenContexts: seenContexts,
-		defsFlushCh:  make(chan struct{}, 1),
-		ptsFlushCh:   make(chan struct{}, 1),
-		logsFlushCh:  make(chan struct{}, 1),
-		tssFlushCh:   make(chan struct{}, 1),
-		stopCh:       make(chan struct{}),
+		builderPool:    newBuilderPool(),
+		seenContexts:   seenContexts,
+		defsFlushCh:    make(chan struct{}, 1),
+		ptsFlushCh:     make(chan struct{}, 1),
+		logDefsFlushCh: make(chan struct{}, 1),
+		logsFlushCh:    make(chan struct{}, 1),
+		tssFlushCh:     make(chan struct{}, 1),
+		stopCh:         make(chan struct{}),
 	}
-	b.wg.Add(4)
+	b.wg.Add(5)
 	go b.flushLoopFn(b.defsFlushCh, b.flushContexts)
 	go b.flushLoopFn(b.ptsFlushCh, b.flushPoints)
+	go b.flushLoopFn(b.logDefsFlushCh, b.flushLogContexts)
 	go b.flushLoopFn(b.logsFlushCh, b.flushLogs)
 	go b.flushLoopFn(b.tssFlushCh, b.flushTraceStats)
 	return b
@@ -98,10 +104,17 @@ func (b *batcher) AddContextDef(d contextDef) {
 	}
 }
 
-// AddLogBatch enqueues a batch of log snapshots with a single lock acquisition.
-func (b *batcher) AddLogBatch(batch []hook.LogSampleSnapshot) {
-	if b.logs.addBatch(batch, func() { b.counters.incLogsDroppedOverflow(1) }) {
+// AddLogEntry enqueues a compact log entry (context key already computed).
+func (b *batcher) AddLogEntry(e logEntry) {
+	if b.logs.add(e, func() { b.counters.incLogsDroppedOverflow(1) }) {
 		signalCh(b.logsFlushCh)
+	}
+}
+
+// AddLogContextDef enqueues a log context definition (first occurrence only).
+func (b *batcher) AddLogContextDef(d contextDef) {
+	if b.logDefs.add(d, func() { b.counters.incLogsDroppedOverflow(1) }) {
+		signalCh(b.logDefsFlushCh)
 	}
 }
 
@@ -171,11 +184,26 @@ func (b *batcher) flushPoints() {
 	)
 }
 
+func (b *batcher) flushLogContexts() {
+	flushChunked(
+		&b.logDefs,
+		func(pool *builderPool, buf []contextDef, tail, count, cap int) (*flatbuffers.Builder, error) {
+			return EncodeLogContextBatch(pool, buf, tail, count, cap)
+		},
+		b.builderPool,
+		b.transport,
+		b.counters,
+		"log_contexts",
+		b.counters.incLogsSent,
+		b.counters.incLogsDroppedTransport,
+	)
+}
+
 func (b *batcher) flushLogs() {
 	flushChunked(
 		&b.logs,
-		func(pool *builderPool, buf []hook.LogSampleSnapshot, tail, count, cap int) (*flatbuffers.Builder, error) {
-			return EncodeLogBatchRing(pool, buf, tail, count, cap)
+		func(pool *builderPool, buf []logEntry, tail, count, cap int) (*flatbuffers.Builder, error) {
+			return EncodeLogEntryBatch(pool, buf, tail, count, cap)
 		},
 		b.builderPool,
 		b.transport,

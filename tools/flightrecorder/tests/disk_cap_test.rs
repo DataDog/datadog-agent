@@ -5,6 +5,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use flightrecorder::disk_tracker::DiskTracker;
+use flightrecorder::writers::context_store::ContextStore;
+use flightrecorder::writers::context_writer::ContextWriterHandle;
 use flightrecorder::writers::logs::LogsWriter;
 use flightrecorder::writers::thread::SignalWriter;
 
@@ -20,19 +22,11 @@ fn build_log_frame(n: usize) -> Vec<u8> {
             format!("Log line {i} with enough content to make the parquet file non-trivial for disk cap testing")
                 .as_bytes(),
         );
-        let status = fbb.create_string("info");
-        let hostname = fbb.create_string("test-host");
-        let t1 = fbb.create_string("service:test-svc");
-        let t2 = fbb.create_string("env:test");
-        let t3 = fbb.create_string("custom_tag:custom_value");
-        let tags = fbb.create_vector(&[t1, t2, t3]);
         let entry = flightrecorder::generated::signals_generated::signals::LogEntry::create(
             &mut fbb,
             &flightrecorder::generated::signals_generated::signals::LogEntryArgs {
+                context_key: (i as u64) % 100 + 1,
                 content: Some(content),
-                status: Some(status),
-                tags: Some(tags),
-                hostname: Some(hostname),
                 timestamp_ns: 1_700_000_000_000_000_000 + i as i64 * 1_000_000,
             },
         );
@@ -43,6 +37,7 @@ fn build_log_frame(n: usize) -> Vec<u8> {
     let batch = flightrecorder::generated::signals_generated::signals::LogBatch::create(
         &mut fbb,
         &flightrecorder::generated::signals_generated::signals::LogBatchArgs {
+            contexts: None,
             entries: Some(vec),
         },
     );
@@ -55,6 +50,15 @@ fn build_log_frame(n: usize) -> Vec<u8> {
     );
     fbb.finish(env, None);
     fbb.finished_data().to_vec()
+}
+
+fn make_ctx_producer() -> flightrecorder::writers::context_writer::ContextProducer {
+    let dir = tempdir().unwrap();
+    let store = ContextStore::new(dir.path()).unwrap();
+    let (_handle, _prod_m, prod_l) = ContextWriterHandle::spawn(store, 64);
+    std::mem::forget(_handle);
+    std::mem::forget(dir);
+    prod_l
 }
 
 #[test]
@@ -70,7 +74,7 @@ fn test_disk_cap_enforcement() {
     // Rotation happens every 60s by default, so we simulate multiple files
     // by creating separate writers (each opens a new file).
     for _batch in 0..10 {
-        let mut writer = LogsWriter::new(output_dir, 500, Duration::from_secs(3600), tracker.clone());
+        let mut writer = LogsWriter::new(output_dir, 500, Duration::from_secs(3600), make_ctx_producer(), tracker.clone());
 
         let frame = build_log_frame(500);
         writer.process_frame(&frame).unwrap();
@@ -133,7 +137,7 @@ fn test_disk_cap_zero_means_unlimited() {
     // So we use a very large cap to simulate "unlimited".
     let tracker = Arc::new(DiskTracker::new(output_dir, u64::MAX).unwrap());
 
-    let mut writer = LogsWriter::new(output_dir, 50, Duration::from_secs(3600), tracker.clone());
+    let mut writer = LogsWriter::new(output_dir, 50, Duration::from_secs(3600), make_ctx_producer(), tracker.clone());
 
     let frame = build_log_frame(50);
     for _ in 0..10 {

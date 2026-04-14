@@ -11,8 +11,14 @@ import (
 	flatbuffers "github.com/google/flatbuffers/go"
 
 	signals "github.com/DataDog/datadog-agent/comp/flightrecorder/impl/signals"
-	"github.com/DataDog/datadog-agent/pkg/hook"
 )
+
+// logEntry is a compact log entry for known contexts (fast path).
+type logEntry struct {
+	ContextKey  uint64
+	Content     []byte
+	TimestampNs int64
+}
 
 // metricPoint is a compact data point for known contexts (fast path).
 type metricPoint struct {
@@ -53,8 +59,6 @@ type capturedTraceStat struct {
 	TimestampNs      int64
 }
 
-// capturedLog is a type alias for hook.LogSampleSnapshot.
-type capturedLog = hook.LogSampleSnapshot
 
 // ---------------------------------------------------------------------------
 // Builder pool
@@ -218,40 +222,86 @@ func EncodePointBatch(
 // Log batch encoding
 // ---------------------------------------------------------------------------
 
-// EncodeLogBatchRing encodes logs from a ring buffer segment into a
-// SignalEnvelope with a LogBatch.
-func EncodeLogBatchRing(pool *builderPool, buf []capturedLog, tail, count, capacity int) (*flatbuffers.Builder, error) {
+// EncodeLogContextBatch encodes log context definitions from a ring buffer
+// segment into a SignalEnvelope with a LogBatch containing only the contexts
+// vector. Mirrors EncodeContextBatch but wraps in LogBatch instead of
+// MetricBatch so the sidecar routes it to the logs writer thread.
+func EncodeLogContextBatch(
+	pool *builderPool,
+	defs []contextDef, tail, count, capacity int,
+) (*flatbuffers.Builder, error) {
 	b := pool.get()
 
 	var tagBuf []flatbuffers.UOffsetT
+	offSp, ctxOffsets := pool.getOffsets(count)
+
+	for ri := count - 1; ri >= 0; ri-- {
+		idx := (tail + ri) % capacity
+		d := &defs[idx]
+
+		nameOff := b.CreateString(d.Name)
+		var sourceOff flatbuffers.UOffsetT
+		if d.Source != "" {
+			sourceOff = b.CreateSharedString(d.Source)
+		}
+		if cap(tagBuf) < len(d.Tags) {
+			tagBuf = make([]flatbuffers.UOffsetT, len(d.Tags))
+		} else {
+			tagBuf = tagBuf[:len(d.Tags)]
+		}
+		for j := len(d.Tags) - 1; j >= 0; j-- {
+			tagBuf[j] = b.CreateString(d.Tags[j])
+		}
+		signals.ContextEntryStartTagsVector(b, len(d.Tags))
+		for j := len(tagBuf) - 1; j >= 0; j-- {
+			b.PrependUOffsetT(tagBuf[j])
+		}
+		tagsVec := b.EndVector(len(d.Tags))
+
+		signals.ContextEntryStart(b)
+		signals.ContextEntryAddContextKey(b, d.ContextKey)
+		signals.ContextEntryAddName(b, nameOff)
+		signals.ContextEntryAddTags(b, tagsVec)
+		if sourceOff != 0 {
+			signals.ContextEntryAddSource(b, sourceOff)
+		}
+		ctxOffsets[ri] = signals.ContextEntryEnd(b)
+	}
+
+	signals.LogBatchStartContextsVector(b, count)
+	for i := len(ctxOffsets) - 1; i >= 0; i-- {
+		b.PrependUOffsetT(ctxOffsets[i])
+	}
+	contextsVec := b.EndVector(count)
+	pool.putOffsets(offSp, ctxOffsets)
+
+	signals.LogBatchStart(b)
+	signals.LogBatchAddContexts(b, contextsVec)
+	batchOff := signals.LogBatchEnd(b)
+
+	signals.SignalEnvelopeStart(b)
+	signals.SignalEnvelopeAddLogBatch(b, batchOff)
+	envOff := signals.SignalEnvelopeEnd(b)
+
+	b.Finish(envOff)
+	return b, nil
+}
+
+// EncodeLogEntryBatch encodes compact log entries from a ring buffer segment
+// into a SignalEnvelope with a LogBatch containing only the entries vector.
+func EncodeLogEntryBatch(pool *builderPool, buf []logEntry, tail, count, capacity int) (*flatbuffers.Builder, error) {
+	b := pool.get()
+
 	offSp, entryOffsets := pool.getOffsets(count)
 	for ri := count - 1; ri >= 0; ri-- {
 		idx := (tail + ri) % capacity
 		e := &buf[idx]
 
 		contentOff := b.CreateByteVector(e.Content)
-		statusOff := b.CreateSharedString(e.Status)
-		hostnameOff := b.CreateSharedString(e.Hostname)
-
-		if cap(tagBuf) < len(e.Tags) {
-			tagBuf = make([]flatbuffers.UOffsetT, len(e.Tags))
-		} else {
-			tagBuf = tagBuf[:len(e.Tags)]
-		}
-		for j := len(e.Tags) - 1; j >= 0; j-- {
-			tagBuf[j] = b.CreateString(e.Tags[j])
-		}
-		signals.LogEntryStartTagsVector(b, len(e.Tags))
-		for j := len(tagBuf) - 1; j >= 0; j-- {
-			b.PrependUOffsetT(tagBuf[j])
-		}
-		tagsVec := b.EndVector(len(e.Tags))
 
 		signals.LogEntryStart(b)
+		signals.LogEntryAddContextKey(b, e.ContextKey)
 		signals.LogEntryAddContent(b, contentOff)
-		signals.LogEntryAddStatus(b, statusOff)
-		signals.LogEntryAddTags(b, tagsVec)
-		signals.LogEntryAddHostname(b, hostnameOff)
 		signals.LogEntryAddTimestampNs(b, e.TimestampNs)
 		entryOffsets[ri] = signals.LogEntryEnd(b)
 	}

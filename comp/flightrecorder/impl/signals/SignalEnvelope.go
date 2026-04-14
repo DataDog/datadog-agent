@@ -17,6 +17,21 @@ func GetRootAsSignalEnvelope(buf []byte, offset flatbuffers.UOffsetT) *SignalEnv
 	return x
 }
 
+func FinishSignalEnvelopeBuffer(builder *flatbuffers.Builder, offset flatbuffers.UOffsetT) {
+	builder.Finish(offset)
+}
+
+func GetSizePrefixedRootAsSignalEnvelope(buf []byte, offset flatbuffers.UOffsetT) *SignalEnvelope {
+	n := flatbuffers.GetUOffsetT(buf[offset+flatbuffers.SizeUint32:])
+	x := &SignalEnvelope{}
+	x.Init(buf, n+offset+flatbuffers.SizeUint32)
+	return x
+}
+
+func FinishSizePrefixedSignalEnvelopeBuffer(builder *flatbuffers.Builder, offset flatbuffers.UOffsetT) {
+	builder.FinishSizePrefixed(offset)
+}
+
 func (rcv *SignalEnvelope) Init(buf []byte, i flatbuffers.UOffsetT) {
 	rcv._tab.Bytes = buf
 	rcv._tab.Pos = i

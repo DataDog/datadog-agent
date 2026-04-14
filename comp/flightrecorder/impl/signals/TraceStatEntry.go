@@ -17,6 +17,21 @@ func GetRootAsTraceStatEntry(buf []byte, offset flatbuffers.UOffsetT) *TraceStat
 	return x
 }
 
+func FinishTraceStatEntryBuffer(builder *flatbuffers.Builder, offset flatbuffers.UOffsetT) {
+	builder.Finish(offset)
+}
+
+func GetSizePrefixedRootAsTraceStatEntry(buf []byte, offset flatbuffers.UOffsetT) *TraceStatEntry {
+	n := flatbuffers.GetUOffsetT(buf[offset+flatbuffers.SizeUint32:])
+	x := &TraceStatEntry{}
+	x.Init(buf, n+offset+flatbuffers.SizeUint32)
+	return x
+}
+
+func FinishSizePrefixedTraceStatEntryBuffer(builder *flatbuffers.Builder, offset flatbuffers.UOffsetT) {
+	builder.FinishSizePrefixed(offset)
+}
+
 func (rcv *TraceStatEntry) Init(buf []byte, i flatbuffers.UOffsetT) {
 	rcv._tab.Bytes = buf
 	rcv._tab.Pos = i

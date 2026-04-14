@@ -8,8 +8,6 @@ package flightrecorderimpl
 import (
 	"testing"
 	"time"
-
-	"github.com/DataDog/datadog-agent/pkg/hook"
 )
 
 // noopTransport implements Transport and discards all data.
@@ -120,23 +118,21 @@ func BenchmarkSubscriberCallback(b *testing.B) {
 	}
 }
 
-// BenchmarkBatcher_AddLogBatch_Hot measures raw AddLogBatch latency on the drop path.
-func BenchmarkBatcher_AddLogBatch_Hot(b *testing.B) {
+// BenchmarkBatcher_AddLogEntry_Hot measures raw AddLogEntry latency on the drop path.
+func BenchmarkBatcher_AddLogEntry_Hot(b *testing.B) {
 	c := &counters{}
 	bat := newBatcher(noopTransport{}, time.Hour, 1000, 100, 1000, 0, newContextSet(50000), c)
 	defer bat.Stop()
 
-	batch := []hook.LogSampleSnapshot{{
+	entry := logEntry{
+		ContextKey:  42,
 		Content:     []byte("benchmark log entry with realistic content length for a typical log line"),
-		Status:      "info",
-		Tags:        []string{"env:bench", "host:benchhost"},
-		Hostname:    "benchhost",
 		TimestampNs: time.Now().UnixNano(),
-	}}
+	}
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		bat.AddLogBatch(batch)
+		bat.AddLogEntry(entry)
 	}
 }

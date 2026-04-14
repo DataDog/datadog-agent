@@ -1,4 +1,5 @@
 pub mod context_store;
+pub mod context_writer;
 pub mod intern;
 pub mod logs;
 pub mod metrics;

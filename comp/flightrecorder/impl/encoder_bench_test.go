@@ -51,9 +51,9 @@ func BenchmarkEncodePointBatch(b *testing.B) {
 	}
 }
 
-// BenchmarkEncodeLogBatchRing benchmarks log encoding through the production
-// code path (EncodeLogBatchRing + builder pool).
-func BenchmarkEncodeLogBatchRing(b *testing.B) {
+// BenchmarkEncodeLogEntryBatch benchmarks compact log entry encoding through
+// the production code path (EncodeLogEntryBatch + builder pool).
+func BenchmarkEncodeLogEntryBatch(b *testing.B) {
 	pool := newBuilderPool()
 	for _, tc := range []struct {
 		name       string
@@ -69,7 +69,7 @@ func BenchmarkEncodeLogBatchRing(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				builder, err := EncodeLogBatchRing(pool, entries, 0, len(entries), len(entries))
+				builder, err := EncodeLogEntryBatch(pool, entries, 0, len(entries), len(entries))
 				if err != nil {
 					b.Fatal(err)
 				}
@@ -109,15 +109,13 @@ func makeMetricPoints(n int) []metricPoint {
 	return pts
 }
 
-func makeLogEntries(n int, contentLen int) []capturedLog {
+func makeLogEntries(n int, contentLen int) []logEntry {
 	content := []byte(strings.Repeat("a", contentLen))
-	entries := make([]capturedLog, n)
+	entries := make([]logEntry, n)
 	for i := range entries {
-		entries[i] = capturedLog{
+		entries[i] = logEntry{
+			ContextKey:  uint64(i%100 + 1),
 			Content:     content,
-			Status:      "info",
-			Tags:        []string{"host:benchhost", "env:bench"},
-			Hostname:    "benchhost",
 			TimestampNs: time.Now().UnixNano(),
 		}
 	}

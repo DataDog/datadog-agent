@@ -10,8 +10,6 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"github.com/DataDog/datadog-agent/pkg/hook"
 )
 
 // recordingTransport records the number of Send() calls, total bytes,
@@ -83,19 +81,16 @@ func TestBatcher_ConcurrentAddAndFlush(t *testing.T) {
 		}
 	}()
 
-	// Goroutine 4: AddLogBatch
+	// Goroutine 4: AddLogEntry
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		for i := 0; i < itemsPerGoroutine/10; i++ {
-			batch := make([]hook.LogSampleSnapshot, 10)
-			for j := range batch {
-				batch[j] = hook.LogSampleSnapshot{
-					Content:     []byte("log line"),
-					TimestampNs: int64(i*10 + j),
-				}
-			}
-			bat.AddLogBatch(batch)
+		for i := 0; i < itemsPerGoroutine; i++ {
+			bat.AddLogEntry(logEntry{
+				ContextKey:  uint64(i % 100),
+				Content:     []byte("log line"),
+				TimestampNs: int64(i),
+			})
 		}
 	}()
 
@@ -228,11 +223,9 @@ func TestBatcher_LargeLogBatchIsChunked(t *testing.T) {
 		content[i] = byte('A' + (i % 26))
 	}
 	for i := 0; i < 25000; i++ {
-		bat.logs.add(hook.LogSampleSnapshot{
+		bat.logs.add(logEntry{
+			ContextKey:  uint64(i % 100),
 			Content:     content,
-			Status:      "info",
-			Tags:        []string{"env:test", "service:bench"},
-			Hostname:    "testhost",
 			TimestampNs: int64(i * 1000),
 		}, nil)
 	}
