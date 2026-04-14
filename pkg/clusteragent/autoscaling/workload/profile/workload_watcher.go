@@ -353,7 +353,7 @@ func (w *WorkloadWatcher) scanNsInformerWorkloads(
 		if _, hasLabel := labels[model.ProfileLabelKey]; hasLabel {
 			continue
 		}
-		if labels[model.ProfileDisabledLabelKey] == "true" {
+		if labels[model.ProfileEnabledLabelKey] == "false" {
 			continue
 		}
 

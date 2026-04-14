@@ -308,12 +308,12 @@ func TestScanNsWorkloads(t *testing.T) {
 		assert.Equal(t, "web-unlabeled", refs["ns-profile"][0].Name)
 	})
 
-	t.Run("Skips workloads with profile-disabled label", func(t *testing.T) {
+	t.Run("Skips workloads with profile-enabled=false label", func(t *testing.T) {
 		profileStore := autoscaling.NewStore[model.PodAutoscalerProfileInternal]()
 		w := newTestWorkloadWatcher(profileStore)
 
 		optedOut := newUnstructuredWorkload("Deployment", "apps/v1", "prod", "web-opted-out",
-			map[string]string{model.ProfileDisabledLabelKey: "true"})
+			map[string]string{model.ProfileEnabledLabelKey: "false"})
 		included := newUnstructuredWorkload("Deployment", "apps/v1", "prod", "web-included", nil)
 		w.nsWatchers["prod"] = newTestNsWatcher("ns-profile", gvkr, optedOut, included)
 
