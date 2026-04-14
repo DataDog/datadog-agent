@@ -253,7 +253,10 @@ func NewComponent(deps Requires) Provides {
 		obs.handleFunc = obs.innerHandle
 	}
 
+	recordingEnabled := cfg.GetBool("observer.recording.enabled")
+	recorderAvailable := false
 	if recorder, ok := deps.Recorder.Get(); ok {
+		recorderAvailable = true
 		obs.handleFunc = recorder.GetHandle(obs.handleFunc)
 
 		// Record detect digests and advance log alongside parquet for parity debugging.
@@ -439,15 +442,18 @@ func NewComponent(deps Requires) Provides {
 		})
 	}
 
-	// Start trace/profile fetcher if traces or profiles collection is enabled
-
-	fetchHandle := obs.GetHandle("trace-agent")
-	obs.fetcher = newObserverFetcher(
-		deps.RemoteAgentRegistry,
-		fetchHandle,
-	)
-	obs.fetcher.Start()
-	pkglog.Info("[observer] trace/profile fetcher started")
+	// Start the trace/profile fetcher only when recording is enabled.
+	// Trace and trace stats are not analyzed by the observer; fetching them is
+	// only useful for the recorder-backed parquet path.
+	if recordingEnabled && recorderAvailable {
+		fetchHandle := obs.GetHandle("trace-agent")
+		obs.fetcher = newObserverFetcher(
+			deps.RemoteAgentRegistry,
+			fetchHandle,
+		)
+		obs.fetcher.Start()
+		pkglog.Info("[observer] trace/profile fetcher started")
+	}
 
 	return Provides{Comp: obs}
 }
@@ -724,12 +730,22 @@ type hfFilteredHandle struct {
 }
 
 func (f *hfFilteredHandle) ObserveMetric(sample observerdef.MetricView) {
+	_ = f.ObserveMetricAndReportDrop(sample)
+}
+
+func (f *hfFilteredHandle) ObserveMetricAndReportDrop(sample observerdef.MetricView) bool {
 	if sp, ok := sample.(sourceProvider); ok {
 		if _, suppressed := f.sources[sp.GetSource()]; suppressed {
-			return
+			return false
 		}
 	}
+	if dr, ok := f.inner.(interface {
+		ObserveMetricAndReportDrop(observerdef.MetricView) bool
+	}); ok {
+		return dr.ObserveMetricAndReportDrop(sample)
+	}
 	f.inner.ObserveMetric(sample)
+	return false
 }
 
 func (f *hfFilteredHandle) ObserveLog(msg observerdef.LogView)             { f.inner.ObserveLog(msg) }
@@ -746,7 +762,10 @@ func (o *observerImpl) noopHandle(_ string) observerdef.Handle {
 // noopObserveHandle discards all observations.
 type noopObserveHandle struct{}
 
-func (h *noopObserveHandle) ObserveMetric(_ observerdef.MetricView)         {}
+func (h *noopObserveHandle) ObserveMetric(_ observerdef.MetricView) {}
+func (h *noopObserveHandle) ObserveMetricAndReportDrop(_ observerdef.MetricView) bool {
+	return false
+}
 func (h *noopObserveHandle) ObserveLog(_ observerdef.LogView)               {}
 func (h *noopObserveHandle) ObserveTrace(_ observerdef.TraceView)           {}
 func (h *noopObserveHandle) ObserveTraceStats(_ observerdef.TraceStatsView) {}
@@ -766,22 +785,16 @@ type handle struct {
 	source      string
 	dropCount   atomic.Int64      // per-handle drop counter, collected by engine at advance time
 	dropCounter telemetry.Counter // tagged by source for Prometheus visibility; may be nil
-	lastDropped atomic.Bool       // set after each ObserveMetric: true if dropped, false if accepted
-}
-
-// LastDropped returns whether the last ObserveMetric call was dropped by the channel.
-// Used by the recording handle to mark dropped observations in parquet.
-//
-// Note: this is best-effort. If multiple goroutines call ObserveMetric on the same
-// handle concurrently, the flag may not correspond to the caller's observation.
-// In practice each data source has its own handle, so concurrent calls on the
-// same handle are not expected.
-func (h *handle) LastDropped() bool {
-	return h.lastDropped.Load()
 }
 
 // ObserveMetric observes a DogStatsD metric sample.
 func (h *handle) ObserveMetric(sample observerdef.MetricView) {
+	_ = h.ObserveMetricAndReportDrop(sample)
+}
+
+// ObserveMetricAndReportDrop observes a metric and reports whether this
+// specific call was dropped by the observer channel.
+func (h *handle) ObserveMetricAndReportDrop(sample observerdef.MetricView) bool {
 	timestamp := sample.GetTimestampUnix()
 	if timestamp == 0 {
 		timestamp = time.Now().Unix()
@@ -791,7 +804,7 @@ func (h *handle) ObserveMetric(sample observerdef.MetricView) {
 
 	// filter internal Datadog Agent telemetry
 	if strings.HasPrefix(name, "datadog.") {
-		return
+		return false
 	}
 
 	obs := observation{
@@ -807,13 +820,13 @@ func (h *handle) ObserveMetric(sample observerdef.MetricView) {
 	// Non-blocking send - drop if channel is full.
 	select {
 	case h.ch <- obs:
-		h.lastDropped.Store(false)
+		return false
 	default:
-		h.lastDropped.Store(true)
 		h.dropCount.Add(1)
 		if h.dropCounter != nil {
 			h.dropCounter.Add(1, h.source)
 		}
+		return true
 	}
 }
 
