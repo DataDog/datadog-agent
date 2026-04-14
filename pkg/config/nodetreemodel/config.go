@@ -34,9 +34,10 @@ var sources = []model.Source{
 	model.SourceFile,
 	model.SourceEnvVar,
 	model.SourceFleetPolicies,
-	model.SourceAgentRuntime,
+	model.SourceConfigPostInit,
+	model.SourceSecret,
 	model.SourceLocalConfigProcess,
-	model.SourceSecretBackend,
+	model.SourceAgentRuntime,
 	model.SourceRC,
 	model.SourceCLI,
 }
@@ -78,13 +79,15 @@ type ntmConfig struct {
 	file *nodeImpl
 	// envs contains config settings created by environment variables
 	envs *nodeImpl
-	// runtime contains the settings set from the agent code itself at runtime (self configured values).
-	runtime *nodeImpl
+	// configPostInit contains values computed during initial config setup.
+	configPostInit *nodeImpl
+	// secrets contains values resolved from secrets (ENC[...] placeholders).
+	secrets *nodeImpl
 	// localConfigProcess contains the settings pulled from the config process (process owning the source of truth
 	// for the coniguration and mirrored by other processes).
 	localConfigProcess *nodeImpl
-	// secrets contains values resolved from a secrets backend (ENC[...] placeholders).
-	secrets *nodeImpl
+	// runtime contains the settings set from the agent code itself at runtime (self configured values).
+	runtime *nodeImpl
 	// remoteConfig contains the settings pulled from Remote Config.
 	remoteConfig *nodeImpl
 	// fleetPolicies contains the settings pulled from fleetPolicies.
@@ -161,12 +164,14 @@ func (c *ntmConfig) getTreeBySource(source model.Source) (*nodeImpl, error) {
 		return c.file, nil
 	case model.SourceEnvVar:
 		return c.envs, nil
-	case model.SourceAgentRuntime:
-		return c.runtime, nil
+	case model.SourceConfigPostInit:
+		return c.configPostInit, nil
+	case model.SourceSecret:
+		return c.secrets, nil
 	case model.SourceLocalConfigProcess:
 		return c.localConfigProcess, nil
-	case model.SourceSecretBackend:
-		return c.secrets, nil
+	case model.SourceAgentRuntime:
+		return c.runtime, nil
 	case model.SourceRC:
 		return c.remoteConfig, nil
 	case model.SourceFleetPolicies:
@@ -498,9 +503,10 @@ func (c *ntmConfig) layerList() []*nodeImpl {
 		c.file,
 		c.envs,
 		c.fleetPolicies,
-		c.runtime,
-		c.localConfigProcess,
+		c.configPostInit,
 		c.secrets,
+		c.localConfigProcess,
+		c.runtime,
 		c.remoteConfig,
 		c.cli,
 	}
@@ -1003,8 +1009,9 @@ func (c *ntmConfig) AllSettingsBySource() map[model.Source]interface{} {
 		model.SourceFile:               c.file.dumpSettings(true),
 		model.SourceEnvVar:             c.envs.dumpSettings(true),
 		model.SourceFleetPolicies:      c.fleetPolicies.dumpSettings(true),
-		model.SourceAgentRuntime:       c.runtime.dumpSettings(true),
+		model.SourceConfigPostInit:     c.configPostInit.dumpSettings(true),
 		model.SourceLocalConfigProcess: c.localConfigProcess.dumpSettings(true),
+		model.SourceAgentRuntime:       c.runtime.dumpSettings(true),
 		model.SourceRC:                 c.remoteConfig.dumpSettings(true),
 		model.SourceCLI:                c.cli.dumpSettings(true),
 		model.SourceProvided:           providedWithoutSecrets.dumpSettings(false),
@@ -1159,9 +1166,10 @@ func NewNodeTreeConfig(name string, envPrefix string, envKeyReplacer *strings.Re
 		unknown:            newInnerNode(nil),
 		infraMode:          newInnerNode(nil),
 		envs:               newInnerNode(nil),
-		runtime:            newInnerNode(nil),
-		localConfigProcess: newInnerNode(nil),
+		configPostInit:     newInnerNode(nil),
 		secrets:            newInnerNode(nil),
+		localConfigProcess: newInnerNode(nil),
+		runtime:            newInnerNode(nil),
 		remoteConfig:       newInnerNode(nil),
 		fleetPolicies:      newInnerNode(nil),
 		cli:                newInnerNode(nil),

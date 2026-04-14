@@ -40,15 +40,17 @@ const (
 	SourceFile Source = "file"
 	// SourceEnvVar are the values loaded from the environment variables.
 	SourceEnvVar Source = "environment-variable"
-	// SourceAgentRuntime are the values configured by the agent itself. The agent can dynamically compute the best
-	// value for some settings when not set by the user.
-	SourceAgentRuntime Source = "agent-runtime"
+	// SourceConfigPostInit are values computed by the agent during initial config setup.
+	SourceConfigPostInit Source = "config-post-init"
+	// SourceSecret are values resolved from secrets (ENC[...] placeholders).
+	SourceSecret Source = "secret"
 	// SourceLocalConfigProcess are the values mirrored from the config process. The config process is the
 	// core-agent. This is used when side process like security-agent or trace-agent pull their configuration from
 	// the core-agent.
 	SourceLocalConfigProcess Source = "local-config-process"
-	// SourceSecretBackend are values resolved from a secrets backend (ENC[...] placeholders).
-	SourceSecretBackend Source = "secret_backend"
+	// SourceAgentRuntime are the values configured by the agent itself. The agent can dynamically compute the best
+	// value for some settings when not set by the user.
+	SourceAgentRuntime Source = "agent-runtime"
 	// SourceRC are the values loaded from remote-config (aka Datadog backend)
 	SourceRC Source = "remote-config"
 	// SourceFleetPolicies are the values loaded from remote-config file
@@ -67,9 +69,10 @@ var Sources = []Source{
 	SourceFile,
 	SourceEnvVar,
 	SourceFleetPolicies,
-	SourceAgentRuntime,
+	SourceConfigPostInit,
+	SourceSecret,
 	SourceLocalConfigProcess,
-	SourceSecretBackend,
+	SourceAgentRuntime,
 	SourceRC,
 	SourceCLI,
 }
@@ -84,11 +87,12 @@ var sourcesPriority = map[Source]int{
 	SourceFile:               3,
 	SourceEnvVar:             4,
 	SourceFleetPolicies:      5,
-	SourceAgentRuntime:       6,
-	SourceLocalConfigProcess: 7,
-	SourceSecretBackend:      8,
-	SourceRC:                 9,
-	SourceCLI:                10,
+	SourceConfigPostInit:     6,
+	SourceSecret:             7,
+	SourceLocalConfigProcess: 8,
+	SourceAgentRuntime:       9,
+	SourceRC:                 10,
+	SourceCLI:                11,
 }
 
 // ValueWithSource is a tuple for a source and a value, not necessarily the applied value in the main config
