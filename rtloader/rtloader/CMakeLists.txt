@@ -53,6 +53,12 @@ if(ARCH_I386)
     set_target_properties(datadog-agent-rtloader PROPERTIES COMPILE_FLAGS "-m32" LINK_FLAGS "-m32")
 endif()
 
+# Sub-interpreter support: add RTLOADER_HAS_SUBINTERPRETERS to this target
+# so that api.cpp's has_subinterpreter_support() returns the correct value.
+if(ENABLE_SUBINTERPRETERS)
+  target_compile_definitions(datadog-agent-rtloader PRIVATE RTLOADER_HAS_SUBINTERPRETERS)
+endif()
+
 configure_file(datadog-agent-rtloader.pc.in datadog-agent-rtloader.pc @ONLY)
 target_include_directories(datadog-agent-rtloader PRIVATE ./include)
 target_include_directories(datadog-agent-rtloader PUBLIC

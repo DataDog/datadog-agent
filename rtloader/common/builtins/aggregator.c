@@ -49,7 +49,7 @@ static void add_constants(PyObject *m)
 }
 
 /*
- * Sub-interpreter support (Python 3.13+): Multi-phase module initialization
+ * Sub-interpreter support (Python 3.14+): Multi-phase module initialization
  * =========================================================================
  *
  * Background:
@@ -98,10 +98,10 @@ static void add_constants(PyObject *m)
  *   Our set-once-read-many callback pattern satisfies this requirement because
  *   concurrent reads of immutable-after-init data need no synchronization.
  *
- * For Python < 3.13, we preserve the original single-phase init unchanged
+ * For Python < 3.14, we preserve the original single-phase init unchanged
  * to maintain backward compatibility.
  */
-#if PY_VERSION_HEX >= 0x030D0000
+#if PY_VERSION_HEX >= 0x030E0000
 
 /*
  * aggregator_exec: Multi-phase init "exec" slot callback.
@@ -173,7 +173,7 @@ PyMODINIT_FUNC PyInit_aggregator(void)
     return PyModuleDef_Init(&module_def);
 }
 
-#else /* Python < 3.13: original single-phase initialization */
+#else /* Python < 3.14: original single-phase initialization */
 
 static struct PyModuleDef module_def = { PyModuleDef_HEAD_INIT, AGGREGATOR_MODULE_NAME, NULL, -1, methods };
 
@@ -184,7 +184,7 @@ PyMODINIT_FUNC PyInit_aggregator(void)
     return m;
 }
 
-#endif /* PY_VERSION_HEX >= 0x030D0000 */
+#endif /* PY_VERSION_HEX >= 0x030E0000 */
 
 void _set_submit_metric_cb(cb_submit_metric_t cb)
 {

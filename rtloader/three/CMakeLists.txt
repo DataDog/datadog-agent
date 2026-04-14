@@ -10,20 +10,10 @@ endif()
 
 project(datadog-agent-three VERSION 0.1.0 DESCRIPTION "CPython backend for the Datadog Agent")
 
-# Python 3.13+ sub-interpreter support.
-# Pass -DENABLE_SUBINTERPRETERS=ON to cmake to enable. Requires Python 3.13+.
-# Define RTLOADER_HAS_SUBINTERPRETERS preprocessor macro
-# Builds without this flag are completely unaffected.
-option(ENABLE_SUBINTERPRETERS "Enable experimental Python sub-interpreter support (requires Python 3.13+)" OFF)
-
-if(ENABLE_SUBINTERPRETERS)
-  if(Python3_VERSION VERSION_LESS "3.13")
-    message(FATAL_ERROR
-      "ENABLE_SUBINTERPRETERS=ON requires Python 3.13+, but found Python ${Python3_VERSION}")
-  endif()
-  add_compile_definitions(RTLOADER_HAS_SUBINTERPRETERS)
-  message(STATUS "Sub-interpreter support enabled (Python ${Python3_VERSION}, RTLOADER_HAS_SUBINTERPRETERS)")
-endif()
+# Sub-interpreter support: ENABLE_SUBINTERPRETERS option is set in the root
+# CMakeLists.txt (cache variable, visible here). We add the compile definition
+# to this target specifically because directory-level add_compile_definitions
+# in the root doesn't propagate across project() boundaries.
 
 if(WIN32)
   if(MSVC)
@@ -64,8 +54,10 @@ add_library(datadog-agent-three SHARED
     ../common/builtins/containers.c
 )
 
-# Compile three_subinterp.cpp only when ENABLE_SUBINTERPRETERS is ON
+# Compile three_subinterp.cpp and define RTLOADER_HAS_SUBINTERPRETERS
+# only when ENABLE_SUBINTERPRETERS is ON (set in root CMakeLists.txt).
 if(ENABLE_SUBINTERPRETERS)
+  target_compile_definitions(datadog-agent-three PRIVATE RTLOADER_HAS_SUBINTERPRETERS)
   target_sources(datadog-agent-three PRIVATE three_subinterp.cpp)
 endif()
 
