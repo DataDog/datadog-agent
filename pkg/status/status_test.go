@@ -19,7 +19,7 @@ func Test_convertExpvarRunnerStats(t *testing.T) {
 	}{
 		{
 			name:      "no error present",
-			inputJSON: []byte(`{"Checks": {"foo": {"id1": {"AverageExecutionTime": 42, "MetricSamples": 100, "HistogramBuckets": 50, "Events": 200, "LastError": ""}}}}`),
+			inputJSON: []byte(`{"Checks": {"foo": {"id1": {"AverageExecutionTime": 42, "MetricSamples": 100, "HistogramBuckets": 50, "Events": 200, "LastError": "", "UpdateTimestamp": "2026-04-07T12:00:00Z"}}}}`),
 			want: CLCChecks{
 				Checks: map[string]map[string]CLCStats{
 					"foo": {
@@ -29,6 +29,7 @@ func Test_convertExpvarRunnerStats(t *testing.T) {
 							HistogramBuckets:     50,
 							Events:               200,
 							LastExecFailed:       false,
+							LastExecutionDate:    1775563200000,
 						},
 					},
 				},
@@ -37,7 +38,7 @@ func Test_convertExpvarRunnerStats(t *testing.T) {
 		},
 		{
 			name:      "error present",
-			inputJSON: []byte(`{"Checks": {"foo": {"id1": {"AverageExecutionTime": 42, "MetricSamples": 100, "HistogramBuckets": 50, "Events": 200, "LastError": "this is an error"}}}}`),
+			inputJSON: []byte(`{"Checks": {"foo": {"id1": {"AverageExecutionTime": 42, "MetricSamples": 100, "HistogramBuckets": 50, "Events": 200, "LastError": "this is an error", "UpdateTimestamp": "2026-04-07T12:00:00Z"}}}}`),
 			want: CLCChecks{
 				Checks: map[string]map[string]CLCStats{
 					"foo": {
@@ -47,6 +48,8 @@ func Test_convertExpvarRunnerStats(t *testing.T) {
 							HistogramBuckets:     50,
 							Events:               200,
 							LastExecFailed:       true,
+							LastError:            "this is an error",
+							LastExecutionDate:    1775563200000,
 						},
 					},
 				},
@@ -58,6 +61,32 @@ func Test_convertExpvarRunnerStats(t *testing.T) {
 			inputJSON: []byte(`{"Checks": bad-json{}}`),
 			want:      CLCChecks{},
 			wantErr:   true,
+		},
+		{
+			name:      "all execution status fields",
+			inputJSON: []byte(`{"Checks": {"bar": {"id2": {"AverageExecutionTime": 500, "MetricSamples": 10, "HistogramBuckets": 5, "Events": 3, "ServiceChecks": 7, "TotalRuns": 100, "TotalErrors": 2, "TotalMetricSamples": 1000, "TotalEvents": 300, "TotalServiceChecks": 700, "LastSuccessDate": 1775563775, "UpdateTimestamp": "2026-04-07T12:09:35.974Z", "LastError": ""}}}}`),
+			want: CLCChecks{
+				Checks: map[string]map[string]CLCStats{
+					"bar": {
+						"id2": {
+							AverageExecutionTime: 500,
+							MetricSamples:        10,
+							HistogramBuckets:     5,
+							Events:               3,
+							ServiceChecks:        7,
+							LastExecFailed:       false,
+							TotalRuns:            100,
+							TotalErrors:          2,
+							TotalMetricSamples:   1000,
+							TotalEvents:          300,
+							TotalServiceChecks:   700,
+							LastSuccessDate:      1775563775,
+							LastExecutionDate:    1775563775974,
+						},
+					},
+				},
+			},
+			wantErr: false,
 		},
 	}
 	for _, tt := range tests {
