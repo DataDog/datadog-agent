@@ -8,11 +8,13 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"testing"
+	"time"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
@@ -99,6 +101,12 @@ func fuzzTracesAPI(f *testing.F, v Version, contentType string, encode encoder, 
 		f.Add(traces)
 	}
 	f.Fuzz(func(t *testing.T, traces []byte) {
+		start := time.Now()
+		fmt.Printf("[fuzz] version=%s contentType=%s payloadLen=%d payload=%q\n", v, contentType, len(traces), traces)
+		defer func() {
+			fmt.Printf("[fuzz] version=%s contentType=%s elapsed=%s\n", v, contentType, time.Since(start))
+		}()
+
 		req, err := http.NewRequest("POST", server.URL, bytes.NewReader(traces))
 		if err != nil {
 			t.Fatalf("Couldn't create http request: %v", err)
@@ -177,6 +185,12 @@ func FuzzHandleStats(f *testing.F) {
 	}
 	f.Add(stats)
 	f.Fuzz(func(t *testing.T, stats []byte) {
+		start := time.Now()
+		fmt.Printf("[fuzz] FuzzHandleStats payloadLen=%d payload=%q\n", len(stats), stats)
+		defer func() {
+			fmt.Printf("[fuzz] FuzzHandleStats elapsed=%s\n", time.Since(start))
+		}()
+
 		req, err := http.NewRequest("POST", server.URL, bytes.NewReader(stats))
 		if err != nil {
 			t.Fatalf("Couldn't create http request: %v", err)
