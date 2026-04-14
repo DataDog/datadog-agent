@@ -43,6 +43,7 @@ type TCPListener struct {
 	stopped          bool
 	connSem          chan struct{}
 	stop             chan struct{}
+	ctx              context.Context
 	cancel           context.CancelFunc
 }
 
@@ -88,6 +89,7 @@ func NewTCPListener(pipelineProvider pipeline.Provider, source *sources.LogSourc
 		tailers:          []*tailer.Tailer{},
 		connSem:          make(chan struct{}, maxConns),
 		stop:             make(chan struct{}, 1),
+		ctx:              ctx,
 		cancel:           cancel,
 	}, nil
 }
@@ -201,7 +203,7 @@ func (l *TCPListener) read(tailer *tailer.Tailer) ([]byte, string, error) {
 // from blocking the accept loop.
 func (l *TCPListener) handleConnection(conn net.Conn) {
 	if tlsConn, ok := conn.(*tls.Conn); ok {
-		ctx, cancel := context.WithTimeout(context.Background(), tlsHandshakeTimeout)
+		ctx, cancel := context.WithTimeout(l.ctx, tlsHandshakeTimeout)
 		defer cancel()
 		if err := tlsConn.HandshakeContext(ctx); err != nil {
 			log.Warnf("TLS handshake failed on port %d from %s: %v", l.source.Config.Port, conn.RemoteAddr(), err)
