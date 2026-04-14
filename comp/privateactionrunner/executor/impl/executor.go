@@ -44,8 +44,7 @@ import (
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/parversion"
 	pkgrcclient "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient"
-	com_datadoghq_remoteaction "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction"
-	com_datadoghq_remoteaction_rshell "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/rshell"
+	privatebundles "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles"
 	credresolver "github.com/DataDog/datadog-agent/pkg/privateactionrunner/credentials/resolver"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
@@ -212,10 +211,17 @@ func (ec *ExecutorComponent) start(ctx context.Context) error {
 	}
 
 	resolver := credresolver.NewPrivateCredentialResolver()
-	bundles := map[string]types.Bundle{
-		"com.datadoghq.remoteaction":        com_datadoghq_remoteaction.NewRemoteAction(),
-		"com.datadoghq.remoteaction.rshell": com_datadoghq_remoteaction_rshell.NewRshellBundle(cfg.RShellAllowedPaths),
-	}
+
+	// Register the full bundle set — same as the existing PAR binary.
+	// This ensures the executor binary links in all bundle code so that
+	// RSS comparisons between the executor and the old monolith are
+	// apples-to-apples.
+	//
+	// ddagent.networkpath requires live traceroute/eventplatform components;
+	// passing nil is safe as long as that bundle is never executed (it is
+	// excluded from the default allowlist).
+	registry := privatebundles.NewRegistry(cfg, nil, nil)
+	bundles := registry.Bundles
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/execute", makeExecuteHandler(ctx, cfg, verifier, resolver, bundles,
