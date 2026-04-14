@@ -743,7 +743,7 @@ probes:
     methodName: main.condLine
     sourceFile: main.go
     lines:
-      - "381"
+      - "396"
   when:
     dsl: "n == 7"
     json: {eq: [{ref: "n"}, 7]}
@@ -768,7 +768,7 @@ probes:
     methodName: main.condLine
     sourceFile: main.go
     lines:
-      - "381"
+      - "396"
   sampling:
     snapshotsPerSecond: 10
 
@@ -1628,3 +1628,31 @@ probes:
         json: {eq: [{ref: "x"}, "hello"]}
   sampling:
     snapshotsPerSecond: 10
+
+# --- Generic function probe ---
+# Exercises two things:
+# 1. Runtime dictionary ops: genericIdentity is called with int and string,
+#    which have different GC shapes. The probe matches both shape functions
+#    via the [...] wildcard, and the eBPF must read the dictionary pointer
+#    to resolve each shape's concrete type at probe time.
+# 2. Shared throttling: both shape instantiations are grouped under a single
+#    Probe with one throttler. With default sampling (snapshotsPerSecond: 1),
+#    only one of the two calls should fire, confirming that the throttle
+#    budget is shared across instances.
+- id: genericIdentity
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: "main.genericIdentity[...]"
+
+# --- Inlined method inside trampoline ---
+# Exercises probing an inlined function whose only concrete instance lives
+# inside a compiler-generated trampoline (-fm wrapper). When a method value
+# is taken (e.g. obj.Method), Go emits a trampoline with DW_AT_trampoline.
+# If the method is small enough to be inlined, the trampoline is the sole
+# container of the inlined subroutine. We must still discover and probe it.
+- id: inlinedMethod
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: "main.(*methodValueReceiver).inlinedMethod"
