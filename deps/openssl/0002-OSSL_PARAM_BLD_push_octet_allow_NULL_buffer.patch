@@ -1,0 +1,109 @@
+From 03ce2eed20ebb9d4c17190e7219d4b87a7d8246d Mon Sep 17 00:00:00 2001
+From: Tomas Mraz <tomas@openssl.foundation>
+Date: Wed, 8 Apr 2026 17:38:51 +0200
+Subject: [PATCH 1/2] OSSL_PARAM_BLD_push_octet_*(): Allow NULL buffer with 0
+ bsize
+
+Fixes #30728
+---
+ crypto/param_build.c    |  6 +++---
+ test/param_build_test.c | 10 ++++++++++
+ 2 files changed, 13 insertions(+), 3 deletions(-)
+
+diff --git a/crypto/param_build.c b/crypto/param_build.c
+index d4ada8f767ebe..c268730db271c 100644
+--- a/crypto/param_build.c
++++ b/crypto/param_build.c
+@@ -345,7 +345,7 @@ int OSSL_PARAM_BLD_push_utf8_ptr(OSSL_PARAM_BLD *bld, const char *key,
+ {
+     OSSL_PARAM_BLD_DEF *pd;
+ 
+-    if (bld == NULL || key == NULL) {
++    if (bld == NULL || key == NULL || buf == NULL) {
+         ERR_raise(ERR_LIB_CRYPTO, ERR_R_PASSED_NULL_PARAMETER);
+         return 0;
+     }
+@@ -365,7 +365,7 @@ int OSSL_PARAM_BLD_push_octet_string(OSSL_PARAM_BLD *bld, const char *key,
+     OSSL_PARAM_BLD_DEF *pd;
+     int secure;
+ 
+-    if (bld == NULL || key == NULL || buf == NULL) {
++    if (bld == NULL || key == NULL || (buf == NULL && bsize != 0)) {
+         ERR_raise(ERR_LIB_CRYPTO, ERR_R_PASSED_NULL_PARAMETER);
+         return 0;
+     }
+@@ -383,7 +383,7 @@ int OSSL_PARAM_BLD_push_octet_ptr(OSSL_PARAM_BLD *bld, const char *key,
+ {
+     OSSL_PARAM_BLD_DEF *pd;
+ 
+-    if (bld == NULL || key == NULL) {
++    if (bld == NULL || key == NULL || (buf == NULL && bsize != 0)) {
+         ERR_raise(ERR_LIB_CRYPTO, ERR_R_PASSED_NULL_PARAMETER);
+         return 0;
+     }
+diff --git a/test/param_build_test.c b/test/param_build_test.c
+index 3b90a5e829ccc..afd1563aa74e3 100644
+--- a/test/param_build_test.c
++++ b/test/param_build_test.c
+@@ -117,8 +117,12 @@ static int template_public_test(int tstid)
+         || !TEST_true(OSSL_PARAM_BLD_push_BN(bld, "negativebignumber", nbn))
+         || !TEST_true(OSSL_PARAM_BLD_push_utf8_string(bld, "utf8_s", "foo",
+             sizeof("foo")))
++        || !TEST_true(OSSL_PARAM_BLD_push_octet_string(bld, "octet_s", NULL,
++            0))
+         || !TEST_true(OSSL_PARAM_BLD_push_utf8_ptr(bld, "utf8_p", "bar-boom",
+             0))
++        || !TEST_true(OSSL_PARAM_BLD_push_octet_ptr(bld, "octet_p", NULL,
++            0))
+         || !TEST_true(OSSL_PARAM_BLD_push_int(bld, "i", -6))
+         || !TEST_ptr(params_blt = OSSL_PARAM_BLD_to_param(bld)))
+         goto err;
+@@ -189,10 +193,16 @@ static int template_public_test(int tstid)
+         || !TEST_str_eq(p->data, "foo")
+         || !TEST_true(OSSL_PARAM_get_utf8_string(p, &utf, 0))
+         || !TEST_str_eq(utf, "foo")
++        /* Check NULL octet string */
++        || !TEST_ptr(p = OSSL_PARAM_locate(params, "octet_s"))
++        || !TEST_ptr_null(p->data)
+         /* Check UTF8 pointer */
+         || !TEST_ptr(p = OSSL_PARAM_locate(params, "utf8_p"))
+         || !TEST_true(OSSL_PARAM_get_utf8_ptr(p, &cutf))
+         || !TEST_str_eq(cutf, "bar-boom")
++        /* Check NULL octet ptr */
++        || !TEST_ptr(p = OSSL_PARAM_locate(params, "octet_p"))
++        || !TEST_ptr_null(p->data)
+         /* Check BN (zero BN becomes unsigned integer) */
+         || !TEST_ptr(p = OSSL_PARAM_locate(params, "zeronumber"))
+         || !TEST_str_eq(p->key, "zeronumber")
+
+From 26776ce371bb338b98a52cf80c145aee4fb97ff3 Mon Sep 17 00:00:00 2001
+From: Tomas Mraz <tomas@openssl.foundation>
+Date: Thu, 9 Apr 2026 11:02:30 +0200
+Subject: [PATCH 2/2] fixup! OSSL_PARAM_BLD_push_octet_*(): Allow NULL buffer
+ with 0 bsize
+
+---
+ test/param_build_test.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/test/param_build_test.c b/test/param_build_test.c
+index afd1563aa74e3..bac0afcb34410 100644
+--- a/test/param_build_test.c
++++ b/test/param_build_test.c
+@@ -195,14 +195,14 @@ static int template_public_test(int tstid)
+         || !TEST_str_eq(utf, "foo")
+         /* Check NULL octet string */
+         || !TEST_ptr(p = OSSL_PARAM_locate(params, "octet_s"))
+-        || !TEST_ptr_null(p->data)
++        || !TEST_size_t_eq(p->data_size, 0)
+         /* Check UTF8 pointer */
+         || !TEST_ptr(p = OSSL_PARAM_locate(params, "utf8_p"))
+         || !TEST_true(OSSL_PARAM_get_utf8_ptr(p, &cutf))
+         || !TEST_str_eq(cutf, "bar-boom")
+         /* Check NULL octet ptr */
+         || !TEST_ptr(p = OSSL_PARAM_locate(params, "octet_p"))
+-        || !TEST_ptr_null(p->data)
++        || !TEST_size_t_eq(p->data_size, 0)
+         /* Check BN (zero BN becomes unsigned integer) */
+         || !TEST_ptr(p = OSSL_PARAM_locate(params, "zeronumber"))
+         || !TEST_str_eq(p->key, "zeronumber")
