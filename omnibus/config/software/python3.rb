@@ -34,8 +34,9 @@ build do
     sh_ext = if linux_target? then "so" else "dylib" end
     command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
       " #{install_dir}/embedded/lib/libpython3.*#{sh_ext}" \
-      " #{install_dir}/embedded/lib/python3.13/lib-dynload/*.so" \
-      " #{install_dir}/embedded/bin/python3*"
+      " #{install_dir}/embedded/lib/python3.*/lib-dynload/*.so" \
+      " #{install_dir}/embedded/bin/python3*" \
+      " #{install_dir}/embedded/lib/python3.*/_sysconfigdata__*.py"
     python = "#{install_dir}/embedded/bin/python3"
   else
     command_on_repo_root "bazelisk run #{flavor_flag} --//:install_dir=#{install_dir} -- @cpython//:install --destdir=#{install_dir}"
