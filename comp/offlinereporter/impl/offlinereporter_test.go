@@ -51,7 +51,7 @@ func newTestOptions(t *testing.T, enabled bool) (afero.Fs, fx.Option) {
 			return config.NewMockWithOverrides(t, map[string]interface{}{
 				"telemetry.offlinereporter.enabled":            enabled,
 				"telemetry.offlinereporter.heartbeat_interval": "5s",
-				"run_path":                                     testRunPath,
+				"run_path": testRunPath,
 			})
 		}),
 		fx.Supply(Params{Fs: fs}),
