@@ -152,7 +152,7 @@ func (p *ActionProcessor) processAction(action *kubeactions.KubeAction, index in
 		// Validate the timestamp
 		log.Infof("[KubeActions] Validating timestamp...")
 		if err := ValidateTimestamp(action.Timestamp.AsTime()); err != nil {
-			log.Errorf("[KubeActions] Timestamp validation failed: %v", err)
+			log.Errorf("[KubeActions] Timestamp validation failed for %s: received timestamp %s: %v", actionKey.String(), action.Timestamp.AsTime().String(), err)
 			result := ExecutionResult{Status: StatusExpired, Message: fmt.Sprintf("timestamp validation failed: %v", err)}
 			p.store.MarkExecuted(actionKey, result.Status, result.Message, time.Now().Unix(), receivedAt, actionCreatedAt)
 			p.reporter.ReportResult(actionKey, action, result, orgID, time.Now())
@@ -211,7 +211,7 @@ func (p *ActionProcessor) GetStore() ActionStoreInterface {
 // Config keys have the format: datadog/<org_id>/<product>/<config_id>/<file>
 func parseOrgIDFromConfigKey(configKey string) int64 {
 	parts := strings.SplitN(configKey, "/", 4)
-	if len(parts) < 2 {
+	if len(parts) < 2 || parts[1] == "" {
 		return 0
 	}
 	orgID, err := strconv.ParseInt(parts[1], 10, 64)
