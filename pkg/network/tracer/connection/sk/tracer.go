@@ -25,6 +25,7 @@ import (
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 const probeUID = "net"
@@ -69,8 +70,23 @@ var KernelSupported = funcs.MemoizeNoError(func() bool {
 	if ddfeatures.HaveIteratorType("task_file") != nil {
 		return false
 	}
-	if !ddfeatures.SupportsFentry("tcp_connect") {
+	for _, sym := range fentrySymbols {
+		if ddfeatures.SupportsFentry(sym) != nil {
+			return false
+		}
+	}
+
+	kv, err := kernel.HostVersion()
+	if err != nil {
 		return false
+	}
+	if util.HasTCPSendPage(kv) {
+		fexitSymbols = append(fexitSymbols, "udp_sendpage")
+	}
+	for _, sym := range fexitSymbols {
+		if ddfeatures.SupportsFexit(sym) != nil {
+			return false
+		}
 	}
 	if features.HaveMapType(ebpf.SkStorage) != nil {
 		return false
