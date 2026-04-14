@@ -56,6 +56,9 @@ var tlmAdaptiveSamplerNewPatterns = telemetry.NewCounter("logs_adaptive_sampler"
 var tlmAdaptiveSamplerEvictions = telemetry.NewCounter("logs_adaptive_sampler", "evictions",
 	[]string{"source"}, "Number of pattern table evictions performed by the adaptive sampler")
 
+var tlmAdaptiveSamplerProtected = telemetry.NewCounter("logs_adaptive_sampler", "protected",
+	[]string{"source"}, "Number of important log messages that bypassed adaptive sampling")
+
 func adaptiveSamplerSampledCountTag(count int64) string {
 	return "adaptive_sampler_sampled_count:" + strconv.FormatInt(count, 10)
 }
@@ -73,6 +76,9 @@ type AdaptiveSamplerConfig struct {
 	// MatchThreshold is the fraction of tokens that must match for two logs to be
 	// considered the same pattern. Range [0, 1].
 	MatchThreshold float64
+	// ProtectImportantLogs bypasses rate limiting for logs containing critical severity
+	// keywords (FATAL, ERROR, PANIC, etc.). Protected logs are never dropped.
+	ProtectImportantLogs bool
 }
 
 // samplerEntry tracks the credit-based rate limiting state for a single log pattern.
@@ -109,9 +115,27 @@ func NewAdaptiveSampler(config AdaptiveSamplerConfig, source string) *AdaptiveSa
 	}
 }
 
+// isImportant reports whether the token sequence contains a critical severity keyword.
+// Logs matching this check are exempt from adaptive sampling and always passed through.
+func isImportant(tokens []Token) bool {
+	for _, t := range tokens {
+		switch t {
+		case Fatal, Error, Panic, Alert, Severe, Critical, Emergency, Warn,
+			Exception, Crash, Failure, Deadlock, Timeout:
+			return true
+		}
+	}
+	return false
+}
+
 // Process applies credit-based rate limiting to the message.
 // Returns the message if allowed, nil if dropped.
 func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message.Message {
+	if s.config.ProtectImportantLogs && isImportant(tokens) {
+		tlmAdaptiveSamplerKept.Inc(s.source)
+		tlmAdaptiveSamplerProtected.Inc(s.source)
+		return msg
+	}
 	now := s.now()
 
 	for i := range s.entries {
