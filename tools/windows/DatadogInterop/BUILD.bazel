@@ -1,0 +1,23 @@
+genrule(
+    name = "libdatadog_interop",
+    srcs = [
+        "DatadogInterop/msstoreapps.cpp",
+        "DatadogInterop/msstoreapps.h",
+        "DatadogInterop/DatadogInterop.vcxproj",
+    ],
+    tools = ["@visual_studio//:msbuild"],
+    outs = ["libdatadog-interop.dll"],
+    cmd_bat = """
+        set MSBUILD=$(location @visual_studio//:msbuild)
+        set VCXPROJ=$(location DatadogInterop/DatadogInterop.vcxproj)
+        for %%F in (%MSBUILD%) do set MSBUILD=%%~fF
+        for %%F in (%VCXPROJ%) do set VCXPROJ=%%~fF
+        for %%F in (%VCXPROJ%) do set PROJDIR=%%~dpF
+        set OUTDIR=%PROJDIR%..\\x64\\Release\\
+        "%MSBUILD%" "%VCXPROJ%" /p:Configuration=Release /p:Platform="x64" /p:OutDir="%OUTDIR%" /verbosity:minimal
+        if %errorlevel% neq 0 exit /b %errorlevel%
+        copy "%OUTDIR%libdatadog-interop.dll" "$@"
+    """,
+    target_compatible_with = ["@platforms//os:windows"],
+    visibility = ["//visibility:public"],
+)

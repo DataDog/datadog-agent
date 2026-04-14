@@ -51,6 +51,12 @@ go_test(
         "integration_windows_test.go",
         "wire_test.go",
     ],
+    data = select({
+        "@rules_go//go/platform:windows": [
+            "//tools/windows/DatadogInterop:libdatadog_interop",
+        ],
+        "//conditions:default": [],
+    }),
     embed = [":software"],
     gotags = ["test"],  # keep (needed for nodetreemodel's //go:build test assert guard)
     deps = [
