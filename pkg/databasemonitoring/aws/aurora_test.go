@@ -50,7 +50,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 			},
 			clusters:                       []types.DBCluster{{DBClusterIdentifier: aws.String("test-cluster")}},
 			expectedAuroraClusterEndpoints: nil,
-			expectedErr:                    errors.New("error running GetAuroraClusterEndpoints big time error"),
+			expectedErr:                    errors.New("aurora: error running GetAuroraClusterEndpoints big time error"),
 		},
 		{
 			name: "single cluster id returns single endpoint from API",
@@ -702,7 +702,7 @@ func TestGetAuroraClustersFromTags(t *testing.T) {
 				}).Return(nil, errors.New("big time error")).Times(1)
 			},
 			tags:        []string{"test:tag"},
-			expectedErr: errors.New("error running GetAuroraClustersFromTags: big time error"),
+			expectedErr: errors.New("aurora: error running GetAuroraClustersFromTags: big time error"),
 		},
 		{
 			name: "single tag filter returns no results from API",
