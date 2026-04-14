@@ -295,8 +295,13 @@ func inferMetricsEndpoint(profilesEndpoint string) (string, error) {
 }
 
 // PrometheusReceiverConfig returns the default configuration for the internal prometheus receiver
-// that scrapes OTel collector's internal telemetry metrics.
+// that scrapes OTel collector's internal telemetry metrics from 127.0.0.1:8889.
 func PrometheusReceiverConfig() map[string]any {
+	return PrometheusReceiverConfigWithTarget("127.0.0.1:8889")
+}
+
+// PrometheusReceiverConfigWithTarget returns a prometheus receiver config that scrapes the given target.
+func PrometheusReceiverConfigWithTarget(target string) map[string]any {
 	return confMap{
 		"config": confMap{
 			"scrape_configs": []any{
@@ -309,7 +314,7 @@ func PrometheusReceiverConfig() map[string]any {
 					"fallback_scrape_protocol":      "PrometheusText0.0.4",
 					"static_configs": []any{
 						confMap{
-							"targets": []any{"127.0.0.1:8888"},
+							"targets": []any{target},
 						},
 					},
 				},

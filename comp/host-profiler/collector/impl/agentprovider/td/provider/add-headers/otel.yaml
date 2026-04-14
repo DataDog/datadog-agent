@@ -51,7 +51,7 @@ receivers:
                     - PrometheusText0.0.4
                   static_configs:
                     - targets:
-                        - 127.0.0.1:8888
+                        - 127.0.0.1:8889
 service:
     extensions:
         - hpflare/default
@@ -74,3 +74,11 @@ service:
                 - resource/dd-profiler-internal-metadata
             receivers:
                 - profiling
+    telemetry:
+        metrics:
+            readers:
+                - pull:
+                    exporter:
+                        prometheus:
+                            host: 127.0.0.1
+                            port: 8889

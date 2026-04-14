@@ -187,3 +187,23 @@ func BenchmarkSampler_Adaptive_NewPattern_P1000_EvictFreq(b *testing.B) {
 		s.Process(msg, benchTokensINFO)
 	}
 }
+
+// BenchmarkSampler_Adaptive_ImportantBypass measures the cost of the importance
+// check short-circuiting before the pattern table scan.
+func BenchmarkSampler_Adaptive_ImportantBypass(b *testing.B) {
+	tok := NewTokenizer(0)
+	importantTokens, _ := tok.Tokenize([]byte("2024-01-15 10:30:45 ERROR [service-a] request failed id=123"))
+	s := NewAdaptiveSampler(AdaptiveSamplerConfig{
+		MaxPatterns:          1000,
+		RateLimit:            1e9,
+		BurstSize:            math.MaxFloat64 / 2,
+		MatchThreshold:       0.75,
+		ProtectImportantLogs: true,
+	}, "bench")
+	prefillSampler(s, benchFillPatterns, 100)
+	msg := benchMsg()
+	b.ResetTimer()
+	for range b.N {
+		s.Process(msg, importantTokens)
+	}
+}

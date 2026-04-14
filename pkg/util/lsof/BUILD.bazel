@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "errors.go",
         "lsof.go",
+        "lsof_aix.go",
         "lsof_darwin.go",
         "lsof_linux.go",
         "lsof_windows.go",
