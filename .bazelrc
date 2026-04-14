@@ -17,9 +17,16 @@ common --@rules_python//python/config_settings:bootstrap_impl=script # https://g
 common --check_direct_dependencies=error # Escalate any bypassed `bazel_dep` to a resolution failure
 common --enable_platform_specific_config # Supported OS identifiers are linux, macos, windows, freebsd, and openbsd
 common --experimental_disk_cache_gc_max_size=5G # Cap applied whenever --disk_cache is also set, no-op otherwise
+common --experimental_strict_repo_env # Do not leak uncontrolled environment variables into repository rules
 common --experimental_ui_max_stdouterr_bytes=1073741819 # why?
 common --http_timeout_scaling=3.0 # At least one attempt reaches 30s (3,6,12,24,30,30,30,30) instead of only 10s (1,2,4,8,10,10,10,10)
-common --incompatible_strict_action_env # Do not leak local environment variables into the build context
+common --repo_env=DEPLOY_AGENT # Keep in sync with env_vars in MODULE.bazel
+common --repo_env=FORCED_PACKAGE_COMPRESSION_LEVEL # Keep in sync with env_vars in MODULE.bazel
+common --repo_env=GOCACHE # https://pkg.go.dev/cmd/go#hdr-Build_and_test_caching
+common --repo_env=GOMODCACHE # https://wiki.archlinux.org/title/XDG_Base_Directory#Partial
+common --repo_env=PACKAGE_VERSION # Keep in sync with env_vars in MODULE.bazel
+common --repo_env=SIGN_MAC # Keep in sync with env_vars in MODULE.bazel
+common --repo_env=XDG_CACHE_HOME # https://wiki.archlinux.org/title/XDG_Base_Directory
 common --skip_incompatible_explicit_targets # Let target_compatible_with skip rather than fail
 common --test_output=errors # Print test errors to console output instead of only capturing them in buried test.log
 common --verbose_failures
@@ -36,7 +43,7 @@ common:linux --strategy=sandboxed
 
 # macOS config ---------------------------------------------------------------------------------------------------------
 common:macos --features=-macos_default_link_flags # https://github.com/bazelbuild/bazel/issues/23312
-common:macos --macos_minimum_os=11.0 # Keep in sync with https://docs.datadoghq.com/agent/supported_platforms/?tab=macos
+common:macos --macos_minimum_os=12.0 # Keep in sync with https://docs.datadoghq.com/agent/supported_platforms/?tab=macos
 common:macos --strategy=sandboxed
 
 # Windows config -------------------------------------------------------------------------------------------------------
@@ -44,10 +51,12 @@ common:windows --strategy=standalone # Valid values are: [dynamic_worker, standa
 # rules_python 1.9.0 transitions enable_runfiles to `true` for every py_ target on Windows. Pre-setting it here makes
 # that transition a no-op, so Bazel deduplicates python_win and avoids 2 concurrent MSBuild racing on shared resources.
 common:windows --enable_runfiles
-# Neither repo_env nor shell_executable affect action keys. It can be both an advantage and a disadvantage.
-# For instance, if we need to have some special behavior in bash we can add it, however, in some cases
-# it may lead to cache poisoning.
 common:windows --repo_env=BAZEL_SH=C:/tools/msys64/usr/bin/bash.exe # for https://github.com/bazelbuild/bazel/pull/26927
+common:windows --repo_env=PIP_CACHE_DIR # https://pip.pypa.io/en/stable/topics/caching/#default-paths
+common:windows --repo_env=SYSTEMDRIVE # needed by vswhere to locate the VS installer instance database
+common:windows --repo_env=SYSTEMROOT # used by COM to load system DLLs, needed by vswhere
+common:windows --repo_env=USERPROFILE # used by MSYS2 bash to emulate HOME, needed by git to fetch repositories
+common:windows --repo_env=VSTUDIO_ROOT # visual_studio(path_variable) in MODULE.bazel
 common:windows --shell_executable=C:/tools/msys64/usr/bin/bash.exe
 
 # Remote cache config --------------------------------------------------------------------------------------------------
