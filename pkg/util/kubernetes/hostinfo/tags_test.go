@@ -157,3 +157,59 @@ func TestExtractTags(t *testing.T) {
 		})
 	}
 }
+
+func TestAppendManagedNodeTags(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		tags         []string
+		nodeLabels   map[string]string
+		expectedTags []string
+	}{
+		{
+			name:         "no managed labels",
+			tags:         []string{"kube_node:node-a"},
+			nodeLabels:   map[string]string{"kubernetes.io/hostname": "node-a"},
+			expectedTags: []string{"kube_node:node-a"},
+		},
+		{
+			name: "autoscaling managed label",
+			tags: []string{"kube_node:node-a"},
+			nodeLabels: map[string]string{
+				kubernetes.AutoscalingLabelKey: "true",
+			},
+			expectedTags: []string{
+				"kube_node:node-a",
+				kubernetes.ClusterAutoscalerTagName + ":true",
+			},
+		},
+		{
+			name: "karpenter nodepool label",
+			tags: []string{"kube_node:node-a"},
+			nodeLabels: map[string]string{
+				kubernetes.KarpenterNodePoolLabelKey: "pool-a",
+			},
+			expectedTags: []string{
+				"kube_node:node-a",
+				kubernetes.KarpenterNodePoolTagName + ":pool-a",
+			},
+		},
+		{
+			name: "both managed labels",
+			tags: []string{"kube_node:node-a"},
+			nodeLabels: map[string]string{
+				kubernetes.AutoscalingLabelKey:       "true",
+				kubernetes.KarpenterNodePoolLabelKey: "pool-a",
+			},
+			expectedTags: []string{
+				"kube_node:node-a",
+				kubernetes.ClusterAutoscalerTagName + ":true",
+				kubernetes.KarpenterNodePoolTagName + ":pool-a",
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			tags := appendManagedNodeTags(tc.tags, tc.nodeLabels)
+			assert.Equal(t, tc.expectedTags, tags)
+		})
+	}
+}

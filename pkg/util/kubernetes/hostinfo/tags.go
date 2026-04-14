@@ -86,15 +86,7 @@ func (k KubeNodeTagsProvider) getNodeInfoTags(ctx context.Context) ([]string, er
 		tags = append(tags, extractTags(nodeLabels, k.getNodeLabelsAsTags())...)
 	}
 
-	if nodeLabels[kubernetes.AutoscalingLabelKey] != "" {
-		tags = append(tags, kubernetes.ClusterAutoscalerTagName+":"+nodeLabels[kubernetes.AutoscalingLabelKey])
-	}
-
-	if nodeLabels[kubernetes.KarpenterNodePoolLabelKey] != "" {
-		tags = append(tags, kubernetes.KarpenterNodePoolTagName+":"+nodeLabels[kubernetes.KarpenterNodePoolLabelKey])
-	}
-
-	return tags, nil
+	return appendManagedNodeTags(tags, nodeLabels), nil
 }
 
 func (k KubeNodeTagsProvider) getNodeLabelsAsTags() map[string]string {
@@ -107,6 +99,18 @@ func getDefaultLabelsToTags() map[string]string {
 	return map[string]string{
 		NormalizedRoleLabel: kubernetes.KubeNodeRoleTagName,
 	}
+}
+
+func appendManagedNodeTags(tags []string, nodeLabels map[string]string) []string {
+	if nodeLabels[kubernetes.AutoscalingLabelKey] != "" {
+		tags = append(tags, kubernetes.ClusterAutoscalerTagName+":"+nodeLabels[kubernetes.AutoscalingLabelKey])
+	}
+
+	if nodeLabels[kubernetes.KarpenterNodePoolLabelKey] != "" {
+		tags = append(tags, kubernetes.KarpenterNodePoolTagName+":"+nodeLabels[kubernetes.KarpenterNodePoolLabelKey])
+	}
+
+	return tags
 }
 
 func extractTags(nodeLabels, labelsToTags map[string]string) []string {
