@@ -5,6 +5,7 @@ go_library(
     name = "grpc",
     srcs = [
         "batch_strategy.go",
+        "dual_strategy.go",
         "inflight.go",
         "mock_encoder.go",
         "mock_state.go",
