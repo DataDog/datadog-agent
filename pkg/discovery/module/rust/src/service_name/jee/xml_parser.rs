@@ -707,16 +707,20 @@ mod tests {
         );
     }
 
-    /// Text inside elements the caller did NOT descend into should be
-    /// filtered.  This prevents subtree text from leaking into handlers
-    /// that accumulate text in the parent element's context.
+    /// Text (Characters and CData) inside elements the caller did NOT
+    /// descend into should be filtered.  This prevents subtree text from
+    /// leaking into handlers that accumulate text in the parent element's
+    /// context.  Both plain text and CData are exercised because they
+    /// follow separate xml-rs event variants.
     #[test]
     fn test_text_filtered_in_skipped_subtree() {
-        // <root><a><nested>poison</nested>direct</a></root>
-        // After descending into root and <a>, <nested> is emitted as a
-        // StartElement but we do NOT descend into it.  "poison" must be
-        // filtered; "direct" (sibling text inside <a>) must be emitted.
-        let xml = b"<root><a><nested>poison</nested>direct</a></root>";
+        // <nested> contains both Characters ("poison") and CData
+        // ("cdata-poison").  Neither should be visible because we skip
+        // <nested>.  "direct" after </nested> is a sibling text node
+        // inside <a> and must be emitted.
+        let xml = b"<root><a>\
+            <nested>poison<![CDATA[cdata-poison]]></nested>\
+            direct</a></root>";
         let mut parser = XmlParser::new(xml.as_slice());
 
         // Consume <root>, descend
@@ -744,13 +748,13 @@ mod tests {
         assert_eq!(
             texts,
             vec!["direct"],
-            "text from skipped subtree should be filtered"
+            "text and CData from skipped subtree should be filtered"
         );
     }
 
     /// Verify text depth filtering through the run() + XmlHandler API:
-    /// text inside elements the handler skips (Same) must not reach
-    /// the handler's text() method.
+    /// both Characters and CData inside elements the handler skips
+    /// (Same) must not reach the handler's text() method.
     #[test]
     fn test_run_text_filtered_in_skipped_subtree() {
         struct TextCollector {
@@ -785,10 +789,13 @@ mod tests {
             }
         }
 
+        // <nested> holds both Characters and CData that must be filtered;
+        // "good" after </nested> is direct content of <target>.
         let xml = b"\
-            <root><wrapper>\
-                <target><nested>poison</nested>good</target>\
-            </wrapper></root>";
+            <root><wrapper><target>\
+                <nested>poison<![CDATA[cdata-poison]]></nested>\
+                good\
+            </target></wrapper></root>";
         let mut parser = XmlParser::new(xml.as_slice());
         let mut handler = TextCollector { texts: Vec::new() };
         parser.run(&mut handler, false).unwrap();
@@ -796,7 +803,7 @@ mod tests {
         assert_eq!(
             handler.texts,
             vec!["good"],
-            "poison text from <nested> should be filtered"
+            "text and CData from <nested> should be filtered"
         );
     }
 
