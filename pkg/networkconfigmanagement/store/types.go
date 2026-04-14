@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+// Package store is provides persistent local storage for network device configurations (for NCM)
+// utilizing bbolt - enabling rollback of configs w/o sending data to the Datadog backend
 package store
 
 import (
