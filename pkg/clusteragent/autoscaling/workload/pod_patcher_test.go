@@ -942,6 +942,42 @@ func TestPatchContainerResources(t *testing.T) {
 			expectedLimits:   corev1.ResourceList{"cpu": resource.MustParse("500m")},
 			expectedRequests: corev1.ResourceList{"memory": resource.MustParse("256Mi")},
 		},
+		{
+			name: "CPURequestsRemoveLimitsMemoryRequestsAndLimits removes existing CPU limit",
+			recommendation: datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				Name:     "test-container",
+				Requests: corev1.ResourceList{"cpu": resource.MustParse("250m"), "memory": resource.MustParse("256Mi")},
+				Limits:   corev1.ResourceList{"cpu": removeLimitSentinel, "memory": resource.MustParse("512Mi")},
+			},
+			container: &corev1.Container{
+				Name: "test-container",
+				Resources: corev1.ResourceRequirements{
+					Limits:   corev1.ResourceList{"cpu": resource.MustParse("500m"), "memory": resource.MustParse("256Mi")},
+					Requests: corev1.ResourceList{"cpu": resource.MustParse("100m"), "memory": resource.MustParse("128Mi")},
+				},
+			},
+			expectedPatched:  true,
+			expectedLimits:   corev1.ResourceList{"memory": resource.MustParse("512Mi")},
+			expectedRequests: corev1.ResourceList{"cpu": resource.MustParse("250m"), "memory": resource.MustParse("256Mi")},
+		},
+		{
+			name: "CPURequestsRemoveLimitsMemoryRequestsAndLimits is idempotent when CPU limit already absent",
+			recommendation: datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				Name:     "test-container",
+				Requests: corev1.ResourceList{"cpu": resource.MustParse("250m"), "memory": resource.MustParse("256Mi")},
+				Limits:   corev1.ResourceList{"cpu": removeLimitSentinel, "memory": resource.MustParse("512Mi")},
+			},
+			container: &corev1.Container{
+				Name: "test-container",
+				Resources: corev1.ResourceRequirements{
+					Limits:   corev1.ResourceList{"memory": resource.MustParse("512Mi")},
+					Requests: corev1.ResourceList{"cpu": resource.MustParse("250m"), "memory": resource.MustParse("256Mi")},
+				},
+			},
+			expectedPatched:  false,
+			expectedLimits:   corev1.ResourceList{"memory": resource.MustParse("512Mi")},
+			expectedRequests: corev1.ResourceList{"cpu": resource.MustParse("250m"), "memory": resource.MustParse("256Mi")},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1083,6 +1119,30 @@ func TestPatchPod(t *testing.T) {
 				},
 			},
 			expectedPatched: false,
+		},
+		{
+			name: "CPURequestsRemoveLimitsMemoryRequestsAndLimits removes CPU limit from pod container",
+			recommendation: datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				Name:     "app-container",
+				Requests: corev1.ResourceList{"cpu": resource.MustParse("300m"), "memory": resource.MustParse("256Mi")},
+				Limits:   corev1.ResourceList{"cpu": removeLimitSentinel, "memory": resource.MustParse("512Mi")},
+			},
+			pod: &corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name: "app-container",
+							Resources: corev1.ResourceRequirements{
+								Limits:   corev1.ResourceList{"cpu": resource.MustParse("500m"), "memory": resource.MustParse("256Mi")},
+								Requests: corev1.ResourceList{"cpu": resource.MustParse("100m"), "memory": resource.MustParse("128Mi")},
+							},
+						},
+					},
+				},
+			},
+			expectedPatched:  true,
+			expectedLimits:   corev1.ResourceList{"memory": resource.MustParse("512Mi")},
+			expectedRequests: corev1.ResourceList{"cpu": resource.MustParse("300m"), "memory": resource.MustParse("256Mi")},
 		},
 	}
 

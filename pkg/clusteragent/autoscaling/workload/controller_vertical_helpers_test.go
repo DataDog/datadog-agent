@@ -587,6 +587,50 @@ func TestApplyVerticalConstraints_AllFeatures(t *testing.T) {
 	assert.Equal(t, expectedHash, vertical.ResourcesHash)
 }
 
+func TestApplyVerticalConstraints_CPURequestsRemoveLimits(t *testing.T) {
+	vertical := &model.VerticalScalingValues{
+		ResourcesHash: "original-hash",
+		ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+			{
+				Name:     "app",
+				Requests: corev1.ResourceList{"cpu": resource.MustParse("300m"), "memory": resource.MustParse("256Mi")},
+				Limits:   corev1.ResourceList{"cpu": resource.MustParse("600m"), "memory": resource.MustParse("512Mi")},
+			},
+		},
+	}
+	constraints := &datadoghqcommon.DatadogPodAutoscalerConstraints{
+		Containers: []datadoghqcommon.DatadogPodAutoscalerContainerConstraints{
+			{
+				Name:             "app",
+				ControlledValues: pointer.Ptr(datadoghqcommon.DatadogPodAutoscalerContainerControlledValuesCPURequestsRemoveLimitsMemoryRequestsAndLimits),
+			},
+		},
+	}
+
+	limitErr, err := applyVerticalConstraints(vertical, constraints)
+	require.NoError(t, err)
+	assert.Nil(t, limitErr)
+
+	require.Len(t, vertical.ContainerResources, 1)
+	app := vertical.ContainerResources[0]
+
+	// CPU limit must carry the sentinel value so patchContainerResources removes it from the pod
+	cpuLimit, exists := app.Limits[corev1.ResourceCPU]
+	require.True(t, exists, "CPU key must be present in limits (sentinel)")
+	assert.Equal(t, 0, cpuLimit.Cmp(removeLimitSentinel), "CPU limit must be the remove-limit sentinel value")
+	// Memory limit must be preserved
+	assert.Equal(t, resource.MustParse("512Mi"), app.Limits[corev1.ResourceMemory], "memory limit must be preserved")
+	// CPU and memory requests must be preserved
+	assert.Equal(t, resource.MustParse("300m"), app.Requests[corev1.ResourceCPU])
+	assert.Equal(t, resource.MustParse("256Mi"), app.Requests[corev1.ResourceMemory])
+
+	// Hash must be recomputed
+	assert.NotEqual(t, "original-hash", vertical.ResourcesHash)
+	expectedHash, err := autoscaling.ObjectHash(vertical.ContainerResources)
+	require.NoError(t, err)
+	assert.Equal(t, expectedHash, vertical.ResourcesHash)
+}
+
 func TestApplyVerticalConstraints_ValidationErrors(t *testing.T) {
 	vertical := &model.VerticalScalingValues{
 		ResourcesHash: "original-hash",
