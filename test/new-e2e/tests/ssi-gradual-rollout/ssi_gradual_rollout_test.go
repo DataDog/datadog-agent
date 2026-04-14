@@ -34,15 +34,6 @@ var baseHelmValues string
 //go:embed testdata/default_opt_in.yaml
 var defaultOptInHelmValues string
 
-//go:embed testdata/explicit_opt_out.yaml
-var explicitOptOutHelmValues string
-
-//go:embed testdata/canonical_tag_opt_out.yaml
-var canonicalTagOptOutHelmValues string
-
-//go:embed testdata/custom_registry_opt_out.yaml
-var customRegistryOptOutHelmValues string
-
 // ssiGradualRolloutSuite runs all gradual rollout test scenarios on a single cluster,
 // calling UpdateEnv at the start of each test to switch Helm values and workloads.
 type ssiGradualRolloutSuite struct {
