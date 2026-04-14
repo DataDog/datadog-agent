@@ -11,7 +11,7 @@ end
 # Linux-specific dependencies
 if linux_target?
   build do
-    command_on_repo_root "bazelisk run #{flavor_flag} -- @curl//:install --destdir='#{install_dir}'"
+    command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} #{flavor_flag} -- @curl//:install --destdir='#{install_dir}'"
   end
 end
 
