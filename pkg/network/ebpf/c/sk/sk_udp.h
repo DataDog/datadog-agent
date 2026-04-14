@@ -384,7 +384,7 @@ static __always_inline int handle_skb_consume_udp(struct sock *sk, struct sk_buf
 }
 
 SEC("fentry/skb_consume_udp")
-int BPF_PROG(skb_consume_udp, struct sock *sk, struct sk_buff *skb, int len) {
+int BPF_PROG(skb_consume_udp_entry, struct sock *sk, struct sk_buff *skb, int len) {
     return handle_skb_consume_udp(sk, skb, len);
 }
 
