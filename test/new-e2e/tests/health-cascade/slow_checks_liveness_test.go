@@ -37,20 +37,26 @@ import (
 // helmValues configures the agent to use a non-routable RC backend.
 // 192.0.2.1 is RFC 5737 TEST-NET-1 — TCP SYN packets are never ACK'd,
 // so the agent's RC HTTP client hangs indefinitely on connect.
+// helmValues points the CLUSTER AGENT's RC at a non-routable IP so its
+// RC Fetch call hangs indefinitely. The node agent's RC is left at default.
+//
+// The hypothesis: cluster agent RC hang → cluster agent degrades →
+// node agent endpoint checks timeout waiting for cluster agent →
+// workers saturate → scheduler blocks → liveness fails → pod killed.
 var helmValues = `
 datadog:
+  clusterChecks:
+    enabled: true
   remoteConfiguration:
     enabled: true
-agents:
-  containers:
-    agent:
-      env:
-        - name: DD_REMOTE_CONFIGURATION_RC_DD_URL
-          value: "http://192.0.2.1:8080"
-        - name: DD_REMOTE_CONFIGURATION_NO_TLS
-          value: "true"
-        - name: DD_REMOTE_CONFIGURATION_REFRESH_INTERVAL
-          value: "5s"
+clusterAgent:
+  env:
+    - name: DD_REMOTE_CONFIGURATION_RC_DD_URL
+      value: "http://192.0.2.1:8080"
+    - name: DD_REMOTE_CONFIGURATION_NO_TLS
+      value: "true"
+    - name: DD_REMOTE_CONFIGURATION_REFRESH_INTERVAL
+      value: "5s"
 `
 
 type rcUnavailableSuite struct {

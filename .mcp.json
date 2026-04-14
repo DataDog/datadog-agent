@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "atlassian": {
+      "type": "http",
+      "url": "https://mcp.atlassian.com/v1/mcp"
+    },
+    "datadog": {
+      "type": "http",
+      "url": "https://mcp.datadoghq.com/api/unstable/mcp-server/mcp?toolsets=core,software-delivery,error-tracking,profiling,widgets,data-observability,workflows,observability-graph,security"
+    },
+    "lambo": {
+      "type": "http",
+      "url": "https://lambo-mcp-server.mcp.us1.prod.dog/internal/mcp"
+    }
+  }
+}
