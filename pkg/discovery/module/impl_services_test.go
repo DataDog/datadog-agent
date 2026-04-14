@@ -490,9 +490,9 @@ func (s *discoveryTestSuite) TestServicesMultipleTracerMetadata() {
 	// Create memfds with sleeps between them so mtimes are distinct.
 	createTracerMemfd(t, dataFirst)
 	time.Sleep(50 * time.Millisecond)
-	createTracerMemfd(t, []byte("invalid msgpack data"))
-	time.Sleep(50 * time.Millisecond)
 	createTracerMemfd(t, dataSecond)
+	time.Sleep(50 * time.Millisecond)
+	createTracerMemfd(t, []byte("invalid msgpack data"))
 
 	listener, err := net.Listen("tcp", "")
 	require.NoError(t, err)
