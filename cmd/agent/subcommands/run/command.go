@@ -134,7 +134,6 @@ import (
 	adschedulerfx "github.com/DataDog/datadog-agent/comp/logs/adscheduler/fx"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
-	"github.com/DataDog/datadog-agent/comp/logs/locallogtailer"
 	"github.com/DataDog/datadog-agent/comp/metadata"
 	haagentmetadata "github.com/DataDog/datadog-agent/comp/metadata/haagent/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
@@ -507,7 +506,6 @@ func getSharedFxOption() fx.Option {
 		}),
 		logs.Bundle(),
 		observer.Bundle(),
-		locallogtailer.Bundle(),
 		langDetectionClimpl.Module(),
 		metadata.Bundle(),
 		orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDefaultParams()),
