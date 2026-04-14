@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.testNamedReturn",
+      "method": "main.testSomeNamedReturn",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -16,14 +16,14 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.testNamedReturn",
+            "function": "main.testSomeNamedReturn",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 91
+            "lineNumber": 105
           },
           {
             "function": "main.executeReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 399
+            "lineNumber": 401
           },
           {
             "function": "main.main",
@@ -42,35 +42,25 @@
           }
         ],
         "probe": {
-          "id": "testNamedReturnWithTemplate",
+          "id": "testReturnMultiCaptureExpr",
           "location": {
-            "method": "main.testNamedReturn"
+            "method": "main.testSomeNamedReturn"
           }
         },
         "captures": {
-          "entry": {
-            "arguments": {
-              "i": {
-                "type": "int",
-                "value": "40"
-              }
-            }
-          },
           "return": {
-            "locals": {
-              "@return": {
+            "captureExpressions": {
+              "first": {
                 "type": "int",
-                "value": "80"
+                "value": "420"
               }
             }
           }
         }
-      },
-      "type": "snapshot"
+      }
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "Parameter 40 * 2 = result 80",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

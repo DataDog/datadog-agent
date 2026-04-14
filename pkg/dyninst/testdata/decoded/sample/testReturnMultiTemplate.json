@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.testManyArgsArrayReturn",
+      "method": "main.testSomeNamedReturn",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -16,14 +16,14 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.testManyArgsArrayReturn",
+            "function": "main.testSomeNamedReturn",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 319
+            "lineNumber": 105
           },
           {
             "function": "main.executeReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 431
+            "lineNumber": 401
           },
           {
             "function": "main.main",
@@ -42,67 +42,37 @@
           }
         ],
         "probe": {
-          "id": "testManyArgsArrayReturn",
+          "id": "testReturnMultiTemplate",
           "location": {
-            "method": "main.testManyArgsArrayReturn"
+            "method": "main.testSomeNamedReturn"
           }
         },
         "captures": {
           "entry": {
             "arguments": {
-              "a": {
-                "type": "int",
-                "value": "21"
-              },
-              "b": {
-                "type": "int",
-                "value": "22"
-              },
-              "c": {
-                "type": "int",
-                "value": "23"
-              },
-              "d": {
-                "type": "int",
-                "value": "24"
-              },
-              "e": {
-                "type": "int",
-                "value": "25"
-              },
-              "f": {
-                "type": "int",
-                "value": "26"
-              },
-              "g": {
-                "type": "int",
-                "value": "27"
-              },
-              "h": {
-                "type": "int",
-                "value": "28"
-              },
               "i": {
                 "type": "int",
-                "value": "29"
+                "value": "42"
               }
             }
           },
           "return": {
             "locals": {
               "@return": {
-                "type": "[2]int",
-                "size": "2",
-                "elements": [
-                  {
+                "fields": {
+                  "r0": {
                     "type": "int",
-                    "value": "29"
+                    "value": "420"
                   },
-                  {
+                  "result2": {
                     "type": "int",
-                    "value": "210"
+                    "value": "840"
+                  },
+                  "r2": {
+                    "type": "int",
+                    "value": "1260"
                   }
-                ]
+                }
               }
             }
           }
@@ -112,7 +82,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "21, 22, 23, 24, 25, 26, 27, 28, 29",
+    "message": "r0=420",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

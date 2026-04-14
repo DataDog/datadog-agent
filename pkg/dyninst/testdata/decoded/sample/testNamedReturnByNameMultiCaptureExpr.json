@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.testNamedReturn",
+      "method": "main.testMultipleNamedReturn",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -16,14 +16,14 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.testNamedReturn",
+            "function": "main.testMultipleNamedReturn",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 91
+            "lineNumber": 99
           },
           {
             "function": "main.executeReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 399
+            "lineNumber": 400
           },
           {
             "function": "main.main",
@@ -42,35 +42,29 @@
           }
         ],
         "probe": {
-          "id": "testNamedReturnWithTemplate",
+          "id": "testNamedReturnByNameMultiCaptureExpr",
           "location": {
-            "method": "main.testNamedReturn"
+            "method": "main.testMultipleNamedReturn"
           }
         },
         "captures": {
-          "entry": {
-            "arguments": {
-              "i": {
-                "type": "int",
-                "value": "40"
-              }
-            }
-          },
           "return": {
-            "locals": {
-              "@return": {
+            "captureExpressions": {
+              "result": {
                 "type": "int",
-                "value": "80"
+                "value": "82"
+              },
+              "result2": {
+                "type": "int",
+                "value": "123"
               }
             }
           }
         }
-      },
-      "type": "snapshot"
+      }
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "Parameter 40 * 2 = result 80",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

@@ -61,8 +61,8 @@ func makeCaptureEvent(
 			Name:     "TestRoot",
 			ByteSize: offset,
 		},
-		PresenceBitsetSize: presenceBitsetSize,
-		Expressions:        expressions,
+		ExprStatusArraySize: presenceBitsetSize,
+		Expressions:         expressions,
 	}
 
 	// Build root data: presence bitset (all present) + int values.

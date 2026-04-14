@@ -488,53 +488,103 @@ func (ce *captureEvent) MarshalJSONTo(enc *jsontext.Encoder) error {
 	if err := writeTokens(enc, jsontext.BeginObject); err != nil {
 		return err
 	}
-	for _, kind := range []struct {
-		kind  ir.RootExpressionKind
-		token jsontext.Token
-	}{
-		{kind: ir.RootExpressionKindArgument, token: jsontext.String("arguments")},
-		{kind: ir.RootExpressionKindLocal, token: jsontext.String("locals")},
-		{kind: ir.RootExpressionKindReturn, token: jsontext.String("locals")},
-		{kind: ir.RootExpressionKindCaptureExpression, token: jsontext.String("captureExpressions")},
-	} {
-		// For return expressions, count how many there are: >1 means we wrap
-		// with @return > fields; =1 means the single expression is already
-		// named @return and emits directly.
-		multiReturn := false
-		if kind.kind == ir.RootExpressionKindReturn {
-			n := 0
-			for _, expr := range ce.rootType.Expressions {
-				if expr.Kind == kind.kind {
-					n++
-				}
-			}
-			multiReturn = n > 1
-		}
-
-		// We iterate over the 'Expressions' of the EventRoot which contains
-		// metadata and raw bytes of the parameters of this function.
-		var haveKind bool
+	// emitGroup writes all expressions of the given kind under the given
+	// JSON key ("arguments", "captureExpressions"). Returns true if any
+	// expressions were emitted.
+	emitGroup := func(token jsontext.Token, kind ir.RootExpressionKind) (bool, error) {
+		var have bool
 		for i, expr := range ce.rootType.Expressions {
-			if expr.Kind != kind.kind {
+			if expr.Kind != kind {
 				continue
 			}
 			if ce.skippedIndices.get(i) {
 				continue
 			}
-			if !haveKind {
-				haveKind = true
+			if !have {
+				have = true
+				if err := writeTokens(enc, token, jsontext.BeginObject); err != nil {
+					return have, err
+				}
+			}
+			err := ce.processExpression(enc, expr, statusArray, i)
+			if errors.Is(err, errEvaluation) {
+				ce.skippedIndices.set(i)
+			}
+			if err != nil {
+				return have, err
+			}
+		}
+		if have {
+			if err := writeTokens(enc, jsontext.EndObject); err != nil {
+				return have, err
+			}
+		}
+		return have, nil
+	}
+
+	// Arguments.
+	if _, err := emitGroup(jsontext.String("arguments"), ir.RootExpressionKindArgument); err != nil {
+		return err
+	}
+
+	// Locals and return values share a single "locals" JSON key.
+	{
+		var haveLocals bool
+		openLocals := func() error {
+			if !haveLocals {
+				haveLocals = true
+				return writeTokens(enc, jsontext.String("locals"), jsontext.BeginObject)
+			}
+			return nil
+		}
+
+		// Emit regular locals.
+		for i, expr := range ce.rootType.Expressions {
+			if expr.Kind != ir.RootExpressionKindLocal {
+				continue
+			}
+			if ce.skippedIndices.get(i) {
+				continue
+			}
+			if err := openLocals(); err != nil {
+				return err
+			}
+			err := ce.processExpression(enc, expr, statusArray, i)
+			if errors.Is(err, errEvaluation) {
+				ce.skippedIndices.set(i)
+			}
+			if err != nil {
+				return err
+			}
+		}
+
+		// Count return expressions to decide single vs multi wrapping.
+		returnCount := 0
+		for _, expr := range ce.rootType.Expressions {
+			if expr.Kind == ir.RootExpressionKindReturn {
+				returnCount++
+			}
+		}
+		multiReturn := returnCount > 1
+
+		// Emit return values with @return wrapping.
+		var haveReturn bool
+		for i, expr := range ce.rootType.Expressions {
+			if expr.Kind != ir.RootExpressionKindReturn {
+				continue
+			}
+			if ce.skippedIndices.get(i) {
+				continue
+			}
+			if err := openLocals(); err != nil {
+				return err
+			}
+			if !haveReturn {
+				haveReturn = true
 				if multiReturn {
-					// Multiple returns: locals > @return > fields > ...
 					if err := writeTokens(enc,
-						kind.token, jsontext.BeginObject,
 						jsontext.String("@return"), jsontext.BeginObject,
 						jsontext.String("fields"), jsontext.BeginObject,
-					); err != nil {
-						return err
-					}
-				} else {
-					if err := writeTokens(
-						enc, kind.token, jsontext.BeginObject,
 					); err != nil {
 						return err
 					}
@@ -542,28 +592,27 @@ func (ce *captureEvent) MarshalJSONTo(enc *jsontext.Encoder) error {
 			}
 			err := ce.processExpression(enc, expr, statusArray, i)
 			if errors.Is(err, errEvaluation) {
-				// This expression resulted in an evaluation error, we mark it
-				// to be skipped and will try again
 				ce.skippedIndices.set(i)
 			}
 			if err != nil {
 				return err
 			}
 		}
-		if haveKind {
-			if multiReturn {
-				// Close fields, @return, and locals.
-				if err := writeTokens(enc,
-					jsontext.EndObject, jsontext.EndObject, jsontext.EndObject,
-				); err != nil {
-					return err
-				}
-			} else {
-				if err := writeTokens(enc, jsontext.EndObject); err != nil {
-					return err
-				}
+		if haveReturn && multiReturn {
+			if err := writeTokens(enc, jsontext.EndObject, jsontext.EndObject); err != nil {
+				return err
 			}
 		}
+		if haveLocals {
+			if err := writeTokens(enc, jsontext.EndObject); err != nil {
+				return err
+			}
+		}
+	}
+
+	// Capture expressions.
+	if _, err := emitGroup(jsontext.String("captureExpressions"), ir.RootExpressionKindCaptureExpression); err != nil {
+		return err
 	}
 	if err := writeTokens(enc, jsontext.EndObject); err != nil {
 		return err

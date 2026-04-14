@@ -42,35 +42,25 @@
           }
         ],
         "probe": {
-          "id": "testNamedReturnWithTemplate",
+          "id": "testNamedReturnByNameCaptureExpr",
           "location": {
             "method": "main.testNamedReturn"
           }
         },
         "captures": {
-          "entry": {
-            "arguments": {
-              "i": {
-                "type": "int",
-                "value": "40"
-              }
-            }
-          },
           "return": {
-            "locals": {
-              "@return": {
+            "captureExpressions": {
+              "result": {
                 "type": "int",
                 "value": "80"
               }
             }
           }
         }
-      },
-      "type": "snapshot"
+      }
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "Parameter 40 * 2 = result 80",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]
