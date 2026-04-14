@@ -70,6 +70,7 @@ type mockTraceWriter struct {
 	payloads   []*writer.SampledChunks
 	payloadsV1 []*writer.SampledChunksV1
 	apiKey     string
+	flushed    int
 }
 
 func (m *mockTraceWriter) Stop() {}
@@ -87,7 +88,10 @@ func (m *mockTraceWriter) WriteChunksV1(pkg *writer.SampledChunksV1) {
 }
 
 func (m *mockTraceWriter) FlushSync() error {
-	panic("not implemented")
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.flushed++
+	return nil
 }
 
 func (m *mockTraceWriter) UpdateAPIKey(_, newKey string) {
@@ -4524,4 +4528,136 @@ func TestTraceChunkContainsProbabilitySamplingV1(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+func TestWaitForStopped(t *testing.T) {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	cfg.ReceiverPort = 0
+	cfg.ReceiverSocket = filepath.Join(t.TempDir(), "trace.sock")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+
+	go agnt.Run()
+
+	// WaitForStopped should not return until we cancel the context.
+	done := make(chan struct{})
+	go func() {
+		agnt.WaitForStopped(context.Background())
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		t.Fatal("WaitForStopped returned before context was cancelled")
+	case <-time.After(50 * time.Millisecond):
+		// expected: still blocked
+	}
+
+	cancel()
+
+	select {
+	case <-done:
+		// expected: returned after cancel
+	case <-time.After(5 * time.Second):
+		t.Fatal("WaitForStopped did not return after context cancellation")
+	}
+}
+
+func TestShutdownFlushSyncInSyncMode(t *testing.T) {
+	// Verify that in sync mode, stats produced by the concentrator during
+	// shutdown are flushed to the network. This is the bug that was fixed
+	// by adding the FlushSync call in loop() between stopping stats
+	// producers and stopping writers.
+
+	received := make(chan struct{}, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		select {
+		case received <- struct{}{}:
+		default:
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	cfg.Endpoints[0].Host = srv.URL
+	cfg.ReceiverPort = 0
+	cfg.ReceiverSocket = filepath.Join(t.TempDir(), "trace.sock")
+	cfg.SynchronousFlushing = true
+	cfg.StatsWriter = &config.WriterConfig{ConnectionLimit: 20, QueueSize: 20}
+	cfg.BucketInterval = 2 * time.Second
+	cfg.DefaultEnv = "test"
+	cfg.Hostname = "testhost"
+
+	ctx, cancel := context.WithCancel(context.Background())
+	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
+
+	// Use real Concentrator (backed by real StatsWriter) but mock trace writers.
+	agnt.TraceWriter = &mockTraceWriter{apiKey: "test"}
+	agnt.TraceWriterV1 = &mockTraceWriter{apiKey: "test"}
+
+	go agnt.Run()
+
+	// Send a trace payload so the concentrator has stats to flush.
+	now := time.Now()
+	span := &pb.Span{
+		TraceID:  1,
+		SpanID:   1,
+		Service:  "test-service",
+		Name:     "test-op",
+		Resource: "/test",
+		Start:    now.Add(-time.Second).UnixNano(),
+		Duration: (500 * time.Millisecond).Nanoseconds(),
+	}
+	payload := &api.Payload{
+		TracerPayload: testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpan(span)),
+		Source:        info.NewReceiverStats(true).GetTagStats(info.Tags{}),
+	}
+
+	select {
+	case agnt.In <- payload:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout sending payload to agent")
+	}
+
+	// Give the worker time to process the payload and feed the concentrator.
+	time.Sleep(100 * time.Millisecond)
+
+	// Trigger shutdown. The loop() shutdown sequence should:
+	// 1. Drain workers
+	// 2. Stop concentrator (flushes stats to StatsWriter buffer)
+	// 3. FlushSync (sends buffer to our test server)
+	// 4. Stop writers
+	cancel()
+	agnt.WaitForStopped(context.Background())
+
+	select {
+	case <-received:
+		// Stats were flushed to the test server during shutdown.
+	case <-time.After(5 * time.Second):
+		t.Fatal("Stats were not flushed to the server during shutdown")
+	}
+}
+
+func TestWaitForStoppedTimeout(t *testing.T) {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	cfg.ReceiverPort = 0
+	cfg.ReceiverSocket = filepath.Join(t.TempDir(), "trace.sock")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+
+	go agnt.Run()
+
+	// WaitForStopped with a short timeout should return context.DeadlineExceeded
+	// while the agent is still running.
+	waitCtx, waitCancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer waitCancel()
+	err := agnt.WaitForStopped(waitCtx)
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
 }
