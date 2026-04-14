@@ -9,6 +9,7 @@
 package mount
 
 import (
+	"context"
 	"errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -89,3 +90,9 @@ func (mr *NoOpResolver) Iterate(_ func(*model.Mount)) {
 
 // SetPidMntNs sets the pid mount namespace in the cache
 func (mr *NoOpResolver) SetPidMntNs(_ uint32, _ uint32) {}
+
+// Start is a no-op for the no-op resolver
+func (mr *NoOpResolver) Start(_ context.Context) {}
+
+// Stop is a no-op for the no-op resolver
+func (mr *NoOpResolver) Stop() {}

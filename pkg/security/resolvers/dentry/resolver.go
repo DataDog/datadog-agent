@@ -76,6 +76,35 @@ type Resolver struct {
 	erpcResolutionAvgTime   float64
 	erpcResolutionNumValues int64
 	erpcResolutionTimesLock sync.Mutex
+
+	// debug tracing
+	traceLock       sync.RWMutex
+	activeTrace     *[]model.ProcessingCheckpoint
+	activeStartTime time.Time
+}
+
+// traceCheckpoint appends a checkpoint to the active trace if set
+func (dr *Resolver) traceCheckpoint(name string) {
+	dr.traceLock.RLock()
+	trace := dr.activeTrace
+	startTime := dr.activeStartTime
+	dr.traceLock.RUnlock()
+	if trace != nil && !startTime.IsZero() {
+		dr.traceLock.Lock()
+		*dr.activeTrace = append(*dr.activeTrace, model.ProcessingCheckpoint{
+			Name:      name,
+			ElapsedUs: time.Since(startTime).Microseconds(),
+		})
+		dr.traceLock.Unlock()
+	}
+}
+
+// SetActiveTrace sets the trace target for subsequent calls
+func (dr *Resolver) SetActiveTrace(trace *[]model.ProcessingCheckpoint, startTime time.Time) {
+	dr.traceLock.Lock()
+	dr.activeTrace = trace
+	dr.activeStartTime = startTime
+	dr.traceLock.Unlock()
 }
 
 // ErrEntryNotFound is thrown when a path key was not found in the cache
@@ -583,21 +612,18 @@ func (dr *Resolver) Resolve(pathKey model.PathKey, cache bool) (string, error) {
 	var err = ErrEntryNotFound
 
 	if cache {
+		dr.traceCheckpoint("dentry_cache")
 		path, err = dr.ResolveFromCache(pathKey)
 	}
 	if err != nil && dr.config.ERPCDentryResolutionEnabled {
-		t := time.Now()
+		dr.traceCheckpoint("dentry_erpc")
 		path, err = dr.ResolveFromERPC(pathKey, cache)
-		durationMicrosec := time.Since(t).Microseconds()
-
-		// update in-line average
-		dr.erpcResolutionTimesLock.Lock()
-		dr.erpcResolutionNumValues++
-		dr.erpcResolutionAvgTime += (float64(durationMicrosec) - dr.erpcResolutionAvgTime) / float64(dr.erpcResolutionNumValues)
-		dr.erpcResolutionTimesLock.Unlock()
+		dr.traceCheckpoint("dentry_erpc_done")
 	}
 	if err != nil && err != errTruncatedParentsERPC && dr.config.MapDentryResolutionEnabled {
+		dr.traceCheckpoint("dentry_map")
 		path, err = dr.ResolveFromMap(pathKey, cache)
+		dr.traceCheckpoint("dentry_map_done")
 	}
 	return path, err
 }

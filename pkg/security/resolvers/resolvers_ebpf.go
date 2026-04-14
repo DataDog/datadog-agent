@@ -241,6 +241,8 @@ func (r *EBPFResolvers) Start(ctx context.Context) error {
 		return err
 	}
 
+	r.MountResolver.Start(ctx)
+
 	r.CGroupResolver.Start(ctx)
 	if r.SBOMResolver != nil {
 		if err := r.SBOMResolver.Start(ctx); err != nil {
@@ -324,6 +326,8 @@ func (r *EBPFResolvers) snapshot() error {
 
 // Close cleans up any underlying resolver that requires a cleanup
 func (r *EBPFResolvers) Close() error {
+	r.MountResolver.Stop()
+
 	// clean up the handles in netns resolver
 	r.NamespaceResolver.Close()
 

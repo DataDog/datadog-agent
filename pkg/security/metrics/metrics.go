@@ -482,6 +482,10 @@ var (
 	// Tags: consumer_id
 	MetricEventMonitoringEventsDropped = newRuntimeMetric(".event_monitoring.events.dropped")
 
+	// MetricEventsHandled is the name of the metric used to count the number of events handled by the eBPF probe
+	// Tags: -
+	MetricEventsHandled = newRuntimeMetric(".events.handled")
+
 	//BPFFilter metrics
 
 	//MetricBPFFilterTruncated is the name of the metric used to report truncated BPF filter
@@ -573,6 +577,20 @@ var (
 	// MetricEventSampleSampled is the name of the metric used to report events that were sampled in kernel
 	// Tags: event_type
 	MetricEventSampleSampled = newRuntimeMetric(".event_sample.sampled")
+
+	// Event processing time metrics
+
+	// MetricNameEventProcessingTimeMean is the name of the metric used to report the mean time an event took to be processed
+	// Tags: event_type
+	MetricNameEventProcessingTimeMean = newRuntimeMetric(".event_processing_time_microsec.mean")
+
+	// MetricNameEventProcessingTimeStddev is the name of the metric used to report the standard deviation of the time an event took to be processed
+	// Tags: event_type
+	MetricNameEventProcessingTimeStddev = newRuntimeMetric(".event_processing_time_microsec.stddev")
+
+	// MetricNameEventProcessingTimeMaximum is the name of the metric used to report the maximum time an event took to be processed
+	// Tags: event_type
+	MetricNameEventProcessingTimeMaximum = newRuntimeMetric(".event_processing_time_microsec.max")
 )
 
 var (

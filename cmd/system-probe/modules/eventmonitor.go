@@ -41,6 +41,10 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDepen
 	opts.ProbeOpts.Tagger = deps.Tagger
 	opts.ProbeOpts.WorkloadMeta = deps.WMeta
 	opts.ProbeOpts.FilterStore = deps.FilterStore
+
+	if secconfig.Probe != nil {
+		opts.ProbeOpts.GenerateEventProcessingTimeMetrics = secconfig.Probe.GenerateEventProcessingTimeMetrics
+	}
 	secmoduleOpts := secmodule.Opts{}
 
 	// adapt options

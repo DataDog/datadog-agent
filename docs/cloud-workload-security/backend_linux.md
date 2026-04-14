@@ -1791,6 +1791,22 @@ Workload Protection events for Linux systems have the following JSON schema:
             ],
             "description": "ProcessCredentialsSerializer serializes the process credentials to JSON"
         },
+        "ProcessingCheckpoint": {
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "elapsed_us": {
+                    "type": "integer"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "name",
+                "elapsed_us"
+            ]
+        },
         "RawPacket": {
             "properties": {
                 "device": {
@@ -2392,6 +2408,15 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "string",
             "format": "date-time"
         },
+        "processingtime_microsec": {
+            "type": "integer"
+        },
+        "processing_trace": {
+            "items": {
+                "$ref": "#/$defs/ProcessingCheckpoint"
+            },
+            "type": "array"
+        },
         "file": {
             "$ref": "#/$defs/FileEvent"
         },
@@ -2499,7 +2524,8 @@ Workload Protection events for Linux systems have the following JSON schema:
     "type": "object",
     "required": [
         "agent",
-        "title"
+        "title",
+        "processingtime_microsec"
     ]
 }
 
@@ -2511,6 +2537,8 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `title` | string |  |
 | `evt` | $ref | Please see [EventContext](#eventcontext) |
 | `date` | string |  |
+| `processingtime_microsec` | integer |  |
+| `processing_trace` | array |  |
 | `file` | $ref | Please see [FileEvent](#fileevent) |
 | `exit` | $ref | Please see [ExitEvent](#exitevent) |
 | `process` | $ref | Please see [ProcessContext](#processcontext) |
@@ -5143,6 +5171,31 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `cap_effective` | Effective Capability set |
 | `cap_permitted` | Permitted Capability set |
 | `destination` | Credentials after the operation |
+
+
+## `ProcessingCheckpoint`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "name": {
+            "type": "string"
+        },
+        "elapsed_us": {
+            "type": "integer"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+        "name",
+        "elapsed_us"
+    ]
+}
+
+{{< /code-block >}}
+
 
 
 ## `RawPacket`

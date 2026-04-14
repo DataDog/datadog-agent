@@ -154,6 +154,7 @@ func newFuzzEBPFProbe(tb testing.TB) *EBPFProbe {
 		numCPU:              1,
 		BPFFilterTruncated:  atomic.NewUint64(0),
 		MetricNameTruncated: atomic.NewUint64(0),
+		eventsHandled:       atomic.NewUint64(0),
 		onDemandManager:     &OnDemandProbesManager{},
 		onDemandRateLimiter: rate.NewLimiter(rate.Inf, 1),
 	}
