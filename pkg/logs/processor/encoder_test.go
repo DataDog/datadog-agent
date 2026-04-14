@@ -285,6 +285,33 @@ func TestEncoderToValidUTF8(t *testing.T) {
 	assert.Equal(t, "世界����z 世界", toValidUtf8([]byte("世界\xf0\x8f\xbf\xbfz 世界")))
 }
 
+func TestPassthroughEncoder_PreservesRenderedContent(t *testing.T) {
+	source := sources.NewLogSource("", &config.LogsConfig{})
+	content := []byte("raw log line content")
+
+	msg := newMessage(content, source, message.StatusInfo)
+	msg.State = message.StateRendered
+
+	err := PassthroughEncoder.Encode(msg, "hostname")
+	assert.NoError(t, err)
+	assert.Equal(t, content, msg.GetContent(), "PassthroughEncoder must not modify message content")
+	assert.Equal(t, message.StateEncoded, msg.State, "PassthroughEncoder must advance state to StateEncoded")
+}
+
+func TestPassthroughEncoder_PreservesContentAfterMasking(t *testing.T) {
+	source := sources.NewLogSource("", &config.LogsConfig{})
+	// Simulate content that has been redacted by applyRedactingRules.
+	redacted := []byte("log line with REDACTED secret")
+
+	msg := newMessage([]byte("log line with secret"), source, message.StatusInfo)
+	msg.SetContent(redacted)
+	msg.State = message.StateRendered
+
+	err := PassthroughEncoder.Encode(msg, "hostname")
+	assert.NoError(t, err)
+	assert.Equal(t, redacted, msg.GetContent(), "PassthroughEncoder must preserve post-redaction content")
+}
+
 func BenchmarkJSONEncoder_Encode(b *testing.B) {
 	logsConfig := &config.LogsConfig{
 		Service:        "Service",
