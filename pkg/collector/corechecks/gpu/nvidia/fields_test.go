@@ -24,6 +24,7 @@ var mockFieldValues = map[uint32]uint32{
 	nvml.FI_DEV_MEMORY_TEMP:                       42,
 	nvml.FI_DEV_PCIE_REPLAY_COUNTER:               7,
 	nvml.FI_DEV_PERF_POLICY_THERMAL:               85,
+	nvml.FI_DEV_VGPU_LICENSE_STATUS:               1,
 	nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_RX:         1000,
 	nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_TX:         2000,
 	nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_RX:          3000,

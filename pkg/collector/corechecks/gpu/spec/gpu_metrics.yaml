@@ -862,6 +862,15 @@ metrics:
         mig: false
         physical: true
         vgpu: false
+  vgpu.license_status:
+    tagsets:
+      - device
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: false
+        vgpu: true
   tensor_active:
     tagsets:
       - device

@@ -460,7 +460,7 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 			fieldValuesCounter += 1000
 			for i := range values {
 				values[i].Timestamp = int64(time.Now().UnixMilli())
-				if opts.hasUnsupportedField(values[i].FieldId) {
+				if opts.hasUnsupportedField(values[i].FieldId) || (values[i].FieldId == nvml.FI_DEV_VGPU_LICENSE_STATUS && !opts.isVGPU()) {
 					values[i].NvmlReturn = uint32(nvml.ERROR_NOT_SUPPORTED)
 				} else {
 					values[i].NvmlReturn = uint32(nvml.SUCCESS)

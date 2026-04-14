@@ -184,6 +184,7 @@ var allFieldMetrics = []fieldValueMetric{
 	{name: "memory.temperature", fieldValueID: nvml.FI_DEV_MEMORY_TEMP, metricType: metrics.GaugeType},
 	{name: "pci.replay_counter", fieldValueID: nvml.FI_DEV_PCIE_REPLAY_COUNTER, metricType: metrics.GaugeType},
 	{name: "slowdown_temperature", fieldValueID: nvml.FI_DEV_PERF_POLICY_THERMAL, metricType: metrics.GaugeType},
+	{name: "vgpu.license_status", fieldValueID: nvml.FI_DEV_VGPU_LICENSE_STATUS, metricType: metrics.GaugeType},
 
 	// -- NVLink throughput --
 	// Despite NVIDIA calling these "throughput", they report cumulative bytes transferred,
