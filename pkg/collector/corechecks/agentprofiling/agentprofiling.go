@@ -19,6 +19,8 @@ import (
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/process"
 
+	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -26,6 +28,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/def"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues/agentresource"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -39,6 +43,9 @@ const (
 	CheckName               = "agentprofiling"
 	MB                      = 1024 * 1024
 	defaultMaxFlareAttempts = 3 // Default maximum number of flare attempts
+
+	// healthCheckID is the check ID used when reporting issues to the health platform
+	healthCheckID = "agent-resource-usage"
 )
 
 // Config is the configuration for the agentprofiling check
@@ -61,20 +68,21 @@ type Check struct {
 	nextBackoffDuration time.Duration // Cached backoff duration for current retry attempt
 	flareComponent      flare.Component
 	agentConfig         config.Component
+	healthPlatform      healthplatformdef.Component
 	lastCPUTimes        *cpu.TimesStat
 	lastCheckTime       time.Time
 	memoryThreshold     uint // Parsed memory threshold in bytes
 }
 
 // Factory creates a new instance of the agentprofiling check
-func Factory(flareComponent flare.Component, agentConfig config.Component) option.Option[func() check.Check] {
+func Factory(flareComponent flare.Component, agentConfig config.Component, healthPlatform healthplatformdef.Component) option.Option[func() check.Check] {
 	return option.New(func() check.Check {
-		return newCheck(flareComponent, agentConfig)
+		return newCheck(flareComponent, agentConfig, healthPlatform)
 	})
 }
 
 // newCheck creates a new instance of the agentprofiling check
-func newCheck(flareComponent flare.Component, agentConfig config.Component) check.Check {
+func newCheck(flareComponent flare.Component, agentConfig config.Component, healthPlatform healthplatformdef.Component) check.Check {
 	// Configure exponential backoff for flare generation retries.
 	// Flare generation is expensive, so we use a conservative backoff:
 	// - Start at 1 minute for quick retry of transient issues
@@ -96,6 +104,7 @@ func newCheck(flareComponent flare.Component, agentConfig config.Component) chec
 		backoffPolicy:  expBackoff,
 		flareComponent: flareComponent,
 		agentConfig:    agentConfig,
+		healthPlatform: healthPlatform,
 	}
 }
 
@@ -205,13 +214,9 @@ func (m *Check) getBackoffDuration(attemptNumber int) time.Duration {
 	return backoffDuration
 }
 
-// Run executes the agent profiling check, generating a flare with profiles if thresholds are exceeded
+// Run executes the agent profiling check, reporting a health platform issue and generating a flare
+// with profiles if thresholds are exceeded
 func (m *Check) Run() error {
-	// Don't run again if we've exhausted all retry attempts
-	if m.flareAttempted {
-		return nil
-	}
-
 	// Exit early if both thresholds are disabled
 	if m.memoryThreshold == 0 && m.instance.CPUThreshold <= 0 {
 		m.Warn("Memory and CPU profile thresholds are disabled, skipping check.")
@@ -257,9 +262,18 @@ func (m *Check) Run() error {
 		currentCPU = m.calculateCPUPercentage(cpuTimes)
 	}
 
+	// Always update the health platform issue regardless of flare state,
+	// so it resolves automatically when usage drops back below thresholds.
+	m.updateHealthPlatform(processMemoryMB, currentCPU)
+
 	// Exit early if usage is below thresholds
 	if processMemoryMB < float64(m.memoryThreshold)/MB && currentCPU < float64(m.instance.CPUThreshold) {
 		log.Debugf("Memory and CPU usage are below thresholds (Memory: %.2f MB < %.2f MB, CPU: %.2f%% < %d%%), skipping Agent profiling check.", processMemoryMB, float64(m.memoryThreshold)/MB, currentCPU, m.instance.CPUThreshold)
+		return nil
+	}
+
+	// Don't run flare again if we've exhausted all retry attempts
+	if m.flareAttempted {
 		return nil
 	}
 
@@ -306,6 +320,35 @@ func (m *Check) Run() error {
 	m.backoffPolicy.Reset()
 	m.nextBackoffDuration = 0
 	return nil
+}
+
+// updateHealthPlatform reports or clears a health platform issue based on current resource usage.
+// It is always called regardless of flare state so the issue resolves when usage drops.
+func (m *Check) updateHealthPlatform(processMemoryMB, currentCPU float64) {
+	if m.healthPlatform == nil {
+		return
+	}
+
+	memExceeded := m.memoryThreshold > 0 && processMemoryMB >= float64(m.memoryThreshold)/MB
+	cpuExceeded := m.instance.CPUThreshold > 0 && currentCPU >= float64(m.instance.CPUThreshold)
+
+	if memExceeded || cpuExceeded {
+		_ = m.healthPlatform.ReportIssue(
+			healthCheckID,
+			CheckName,
+			&healthplatformpayload.IssueReport{
+				IssueId: agentresource.IssueID,
+				Context: map[string]string{
+					"cpu_percent":         fmt.Sprintf("%.1f", currentCPU),
+					"cpu_threshold":       fmt.Sprintf("%d", m.instance.CPUThreshold),
+					"memory_mb":           fmt.Sprintf("%.1f", processMemoryMB),
+					"memory_threshold_mb": fmt.Sprintf("%.1f", float64(m.memoryThreshold)/MB),
+				},
+			},
+		)
+	} else {
+		m.healthPlatform.ClearIssuesForCheck(healthCheckID)
+	}
 }
 
 // terminateAgent requests graceful shutdown of the agent process after flare generation completes.

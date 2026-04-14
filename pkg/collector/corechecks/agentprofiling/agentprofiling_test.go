@@ -29,7 +29,7 @@ import (
 func createTestCheck(t *testing.T, memoryThreshold string, cpuThreshold int, ticketID, userEmail string, terminateAgent bool) *Check {
 	flareComp := flaremock.NewMock().Comp
 	config := configmock.NewMock(t)
-	check := newCheck(flareComp, config).(*Check)
+	check := newCheck(flareComp, config, nil).(*Check)
 
 	configData := []byte(fmt.Sprintf(`memory_threshold: "%s"
 cpu_threshold: %d
