@@ -659,6 +659,30 @@ func TestDeviceUnhealthyMetricFeatureGate(t *testing.T) {
 	}
 }
 
+func TestRepairStatusMetricCollection(t *testing.T) {
+	mockDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
+		testutil.WithMockAllDeviceFunctions()(device)
+		device.GetRepairStatusFunc = func() (nvml.RepairStatus, nvml.Return) {
+			return nvml.RepairStatus{
+				BChannelRepairPending: 1,
+				BTpcRepairPending:     0,
+			}, nvml.SUCCESS
+		}
+		return device
+	})
+
+	apis := createStatelessAPIs(&CollectorDependencies{})
+	repairStatusAPI := findAPICallByName(t, apis, "repair_status")
+
+	gotMetrics, _, err := repairStatusAPI.Handler(mockDevice, 0)
+	require.NoError(t, err)
+	require.Len(t, gotMetrics, 2)
+	require.Equal(t, "ecc.repair_pending.channel", gotMetrics[0].Name)
+	require.Equal(t, 1.0, gotMetrics[0].Value)
+	require.Equal(t, "ecc.repair_pending.tpc", gotMetrics[1].Name)
+	require.Equal(t, 0.0, gotMetrics[1].Value)
+}
+
 func findAPICallByName(t *testing.T, apis []apiCallInfo, name string) apiCallInfo {
 	t.Helper()
 	for _, api := range apis {

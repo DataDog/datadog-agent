@@ -210,6 +210,26 @@ func processDetailListSample(device ddnvml.Device) ([]Metric, uint64, error) {
 	return processMemoryUsage(device, usage, High), 0, err
 }
 
+func repairStatusSample(device ddnvml.Device) ([]Metric, uint64, error) {
+	repairStatus, err := device.GetRepairStatus()
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return []Metric{
+		{
+			Name:  "ecc.repair_pending.channel",
+			Value: float64(repairStatus.BChannelRepairPending),
+			Type:  metrics.GaugeType,
+		},
+		{
+			Name:  "ecc.repair_pending.tpc",
+			Value: float64(repairStatus.BTpcRepairPending),
+			Type:  metrics.GaugeType,
+		},
+	}, 0, nil
+}
+
 // createStatelessAPIs creates API call definitions for all stateless metrics on demand
 func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 	apis := []apiCallInfo{
@@ -512,6 +532,12 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 					{Name: "remapped_rows.pending", Value: boolToFloat(pending), Type: metrics.GaugeType},
 					{Name: "remapped_rows.failed", Value: boolToFloat(failed), Type: metrics.GaugeType},
 				}, 0, nil
+			},
+		},
+		{
+			Name: "repair_status",
+			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+				return repairStatusSample(device)
 			},
 		},
 		// Process memory APIs (stateless - just current snapshot)
