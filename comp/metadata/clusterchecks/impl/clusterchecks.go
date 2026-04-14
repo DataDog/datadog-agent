@@ -256,7 +256,8 @@ func (cc *clusterChecksImpl) collectClusterCheckMetadata(payload *Payload) {
 
 	// Process configs from all nodes
 	for _, node := range state.Nodes {
-		for _, config := range node.Configs {
+		for _, configResp := range node.Configs {
+			config := configResp.Config
 			checkName := config.Name
 			if checkName == "" {
 				continue
