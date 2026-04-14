@@ -8,6 +8,7 @@
 package rcclientimpl
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -85,7 +86,7 @@ func TestRCClientCreate(t *testing.T) {
 	assert.Error(t, err)
 
 	// Test success case
-	_, deps, err := fxutil.TestApp[testDeps](
+	app, deps, err := fxutil.TestApp[testDeps](
 		fxutil.ProvideComponentConstructor(NewRemoteConfigClient),
 		fxutil.ProvideOptional[rcclient.Component](),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
@@ -101,6 +102,7 @@ func TestRCClientCreate(t *testing.T) {
 		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 	)
 	assert.NoError(t, err)
+	t.Cleanup(func() { app.Stop(context.Background()) }) //nolint:errcheck
 	assert.NotNil(t, deps.Comp)
 	assert.NotNil(t, deps.Comp.(*rcClient).client)
 }
