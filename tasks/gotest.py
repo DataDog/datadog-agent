@@ -328,10 +328,15 @@ def _run_bazel_tests(ctx, bazel_targets: list[str], verbose: bool = False) -> Te
         print(f'{symbol}  {label}{timing_str}{cached_str}')
 
     total = n_passed + n_failed + n_skipped
-    # Treat a non-zero exit without parsed result lines as a build/infra failure.
-    if run_failed and total == 0:
-        n_failed = len(bazel_targets)
-        total = n_failed
+    # Treat a non-zero Bazel exit as a failure even if some result lines were parsed.
+    # This avoids reporting success when a later batch fails due to build/infra issues.
+    if run_failed:
+        if total == 0:
+            n_failed = len(bazel_targets)
+            total = n_failed
+        elif n_failed == 0:
+            n_failed += 1
+            total += 1
 
     return TestStats(total=total, passed=n_passed, failed=n_failed, skipped=n_skipped, duration_s=duration_s)
 
