@@ -55,7 +55,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/core/diagnose
 # gazelle:exclude comp/core/flare/flareimpl
 # gazelle:exclude comp/core/flare/helpers
-# gazelle:exclude comp/core/fxinstrumentation
 # gazelle:exclude comp/core/gui
 # gazelle:exclude comp/core/healthprobe
 # gazelle:exclude comp/core/hostname/hostnameimpl
@@ -67,7 +66,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/core/ipc/impl
 # gazelle:exclude comp/core/ipc/impl-none
 # gazelle:exclude comp/core/ipc/mock
-# gazelle:exclude comp/core/log
 # gazelle:exclude comp/core/log/fx
 # gazelle:exclude comp/core/log/fx-systemprobe
 # gazelle:exclude comp/core/log/fx-trace
@@ -75,8 +73,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/core/log/impl-systemprobe
 # gazelle:exclude comp/core/log/impl-trace
 # gazelle:exclude comp/core/log/rust
-# gazelle:exclude comp/core/lsof
-# gazelle:exclude comp/core/pid
 # gazelle:exclude comp/core/profiler
 # gazelle:exclude comp/core/remoteagent
 # gazelle:exclude comp/core/remoteagentregistry
@@ -185,7 +181,16 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/trace/etwtracer
 # gazelle:exclude comp/trace/payload-modifier
 # gazelle:exclude comp/trace/status
-# gazelle:exclude comp/updater
+# gazelle:exclude comp/updater/daemonchecker/fx
+# gazelle:exclude comp/updater/daemonchecker/mock
+# gazelle:exclude comp/updater/localapi
+# gazelle:exclude comp/updater/localapiclient
+# gazelle:exclude comp/updater/ssistatus/fx
+# gazelle:exclude comp/updater/ssistatus/impl
+# gazelle:exclude comp/updater/telemetry/fx
+# gazelle:exclude comp/updater/telemetry/impl
+# gazelle:exclude comp/updater/telemetry/mock
+# gazelle:exclude comp/updater/updater
 # gazelle:exclude comp/workloadselection
 # gazelle:exclude internal/remote-agent
 # gazelle:exclude internal/third_party
@@ -315,7 +320,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/opentelemetry-mapping-go/inframetadata
 # gazelle:exclude pkg/orchestrator/config
 # gazelle:exclude pkg/persistentcache
-# gazelle:exclude pkg/pidfile
 # gazelle:exclude pkg/privateactionrunner
 # gazelle:exclude pkg/privileged-logs
 # gazelle:exclude pkg/process/checks
