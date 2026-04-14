@@ -1,0 +1,3 @@
+load(":defs.bzl", "protoc")
+
+protoc(name = "protoc")
