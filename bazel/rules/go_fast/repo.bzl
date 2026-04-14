@@ -22,7 +22,7 @@ def _impl(rctx):
     repo_utils.execute_checked(
         rctx,
         arguments = [go, "build", "-overlay", "overlay.json", "-o", out, "cmd/go"],
-        environment = {"GOPATH": None, "GOROOT": str(sdk), "GOWORK": "off"},
+        environment = {"GOROOT": str(sdk), "GOWORK": "off"},
         op = "build {}".format(out),
     )
     rctx.file(

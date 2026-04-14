@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "pidfile",
+    srcs = [
+        "pidfile.go",
+        "pidfile_darwin.go",
+        "pidfile_nix.go",
+        "pidfile_windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/pidfile",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/winutil",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "pidfile_test",
+    srcs = ["pidfile_test.go"],
+    embed = [":pidfile"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

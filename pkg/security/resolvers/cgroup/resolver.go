@@ -126,11 +126,11 @@ func (cr *Resolver) removeCacheEntry(cacheEntry *cgroupModel.CacheEntry) {
 	cr.deletedCgroups.Inc()
 }
 
-// syncOrDeleteCaheEntry uses the cgroupFS to check if the cgroup still contains pids.
+// syncOrDeleteCacheEntry uses the cgroupFS to check if the cgroup still contains pids.
 // If there is no pid left, or the only one being the one we want to delete,
 // remove the cgroup from the caches.
 // Otherwise, sync it with new values.
-func (cr *Resolver) syncOrDeleteCaheEntry(cacheEntry *cgroupModel.CacheEntry, deletedPid uint32) {
+func (cr *Resolver) syncOrDeleteCacheEntry(cacheEntry *cgroupModel.CacheEntry, deletedPid uint32) {
 	// check if the cgroup still contains pids
 	pids, err := cr.cgroupFS.GetCGroupPids(string(cacheEntry.GetCGroupID()))
 	if err != nil {
@@ -173,6 +173,14 @@ func (cr *Resolver) pushNewCacheEntry(pid uint32, containerContext model.Contain
 	cr.cacheEntriesByPathKey.Add(cgroupContext.CGroupPathKey.Inode, cacheEntry)
 
 	cr.addedCgroups.Inc()
+
+	// When the entry is created with a real pid (pid != 0), it means a process already exists
+	// in this cgroup — this covers both snapshot discovery and runtime cases where no prior
+	// Add() call was made. Entries pre-created with pid=0 (via Add()) will fire CGroupCreated
+	// later when AddPID transitions their count from 0 to 1.
+	if pid != 0 {
+		cr.NotifyListeners(CGroupCreated, cacheEntry)
+	}
 
 	return cacheEntry
 }
@@ -313,7 +321,7 @@ func (cr *Resolver) AddPID(pid uint32, cgroupContext model.CGroupContext) *cgrou
 			// it means that the process has been migrated to a different cgroup.
 			if cacheEntry.RemovePID(pid) == 0 {
 				// try to sync the cgroup with the pid in order to detect the migration.
-				cr.syncOrDeleteCaheEntry(cacheEntry, pid)
+				cr.syncOrDeleteCacheEntry(cacheEntry, pid)
 			}
 		}
 
@@ -421,7 +429,7 @@ func (cr *Resolver) deleteCacheEntryPID(pid uint32, cacheEntry *cgroupModel.Cach
 
 	// check if the cacheEntry should be deleted
 	if cacheEntry.RemovePID(pid) == 0 {
-		cr.syncOrDeleteCaheEntry(cacheEntry, pid)
+		cr.syncOrDeleteCacheEntry(cacheEntry, pid)
 	}
 }
 

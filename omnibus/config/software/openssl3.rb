@@ -18,7 +18,7 @@ name "openssl3"
 
 skip_transitive_dependency_licensing true
 
-default_version "3.5.5"
+default_version "3.5.6"
 
 relative_path "openssl-#{version}"
 

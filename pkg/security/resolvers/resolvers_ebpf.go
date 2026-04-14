@@ -123,6 +123,9 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 	}
 
 	if config.RuntimeSecurity.SBOMResolverEnabled {
+		if err := cgroupsResolver.RegisterListener(cgroup.CGroupCreated, sbomResolver.OnCGroupCreatedEvent); err != nil {
+			return nil, err
+		}
 		if err := cgroupsResolver.RegisterListener(cgroup.CGroupDeleted, sbomResolver.OnCGroupDeletedEvent); err != nil {
 			return nil, err
 		}

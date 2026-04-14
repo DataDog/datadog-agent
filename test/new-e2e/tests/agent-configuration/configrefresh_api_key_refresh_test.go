@@ -9,10 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 
 	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
@@ -28,6 +29,7 @@ type linuxAPIKeyRefreshSuite struct {
 }
 
 func TestLinuxAPIKeyFreshSuite(t *testing.T) {
+	t.Parallel()
 	suite := &linuxAPIKeyRefreshSuite{descriptor: os.UbuntuDefault}
 	e2e.Run(t, suite, e2e.WithProvisioner(awshost.Provisioner()))
 }

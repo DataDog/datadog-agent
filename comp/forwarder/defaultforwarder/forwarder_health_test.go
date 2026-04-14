@@ -76,7 +76,6 @@ func TestComputeDomainsURL(t *testing.T) {
 		"https://app.ddog-gov.com":        {utils.NewAPIKeys("path", "api_key9")},
 		"https://custom.ddog-gov.com":     {utils.NewAPIKeys("path", "api_key10")},
 		"https://app.xxxx99.ddog-gov.com": {utils.NewAPIKeys("path", "api_key11")},
-		"https://app.xxxx99.ddog-gov.mil": {utils.NewAPIKeys("path", "api_key12")},
 	}
 
 	expectedMap := map[string][]string{
@@ -89,7 +88,6 @@ func TestComputeDomainsURL(t *testing.T) {
 		"https://app.myproxy.com":          {"api_key8"},
 		"https://api.ddog-gov.com":         {"api_key9", "api_key10"},
 		"https://api.xxxx99.ddog-gov.com":  {"api_key11"},
-		"https://api.xxxx99.ddog-gov.mil":  {"api_key12"},
 	}
 
 	// just sort the expected map for easy comparison

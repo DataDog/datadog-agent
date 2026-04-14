@@ -79,6 +79,26 @@ func copyFileToBuildDir(t *testing.T, inFile, targetDir string) {
 // getBackendCommandBinary compiles a binary from source, then sets the proper
 // permissions on it
 func getBackendCommandBinary(t *testing.T) (string, func()) {
+	// Under Bazel, use the pre-built go_binary from data deps instead of compiling at runtime.
+	// Copy to a temp dir so we can fix permissions (Bazel runfiles are world-readable).
+	if testSrcDir := os.Getenv("TEST_SRCDIR"); testSrcDir != "" {
+		binName := "test_command"
+		if runtime.GOOS == "windows" {
+			binName += ".exe"
+		}
+		srcBin := filepath.Join(testSrcDir, os.Getenv("TEST_WORKSPACE"),
+			"comp/core/secrets/impl/test/src/test_command/test_command_", binName)
+		require.FileExists(t, srcBin, "pre-built test_command binary not found in runfiles")
+
+		tmpDir := t.TempDir()
+		dstBin := filepath.Join(tmpDir, binName)
+		data, err := os.ReadFile(srcBin)
+		require.NoError(t, err)
+		require.NoError(t, os.WriteFile(dstBin, data, 0700))
+		filesystem.SetCorrectRight(dstBin)
+		return dstBin, func() {}
+	}
+
 	platform := fmt.Sprintf("%s_%s", runtime.GOOS, runtime.GOARCH)
 
 	// create a temp directory to build the command in
