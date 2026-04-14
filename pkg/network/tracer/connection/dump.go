@@ -103,15 +103,6 @@ func dumpMapsHandler(w io.Writer, _ *manager.Manager, mapName string, currentMap
 		}
 		io.WriteString(w, "Total entries: "+spew.Sdump(totalSize))
 
-	case probes.ConnCloseBatchMap: // maps/conn_close_batch (BPF_MAP_TYPE_HASH), key C.__u32, value batch
-		io.WriteString(w, "Map: '"+mapName+"', key: 'C.__u32', value: 'batch'\n")
-		iter := currentMap.Iterate()
-		var key uint32
-		var value ddebpf.Batch
-		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
-			spew.Fdump(w, key, value)
-		}
-
 	case "udp_recv_sock": // maps/udp_recv_sock (BPF_MAP_TYPE_HASH), key C.__u64, value C.udp_recv_sock_t
 		io.WriteString(w, "Map: '"+mapName+"', key: 'C.__u64', value: 'C.udp_recv_sock_t'\n")
 		iter := currentMap.Iterate()

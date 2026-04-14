@@ -75,7 +75,6 @@ job-owners:
     - export_testing_public_key
     - generate-flakes-finder-pipeline
     - generate-fips-e2e-pipeline
-    - github_rate_limit_info
     - go_deps
     - go_e2e_deps
     - go_mod_tidy_check

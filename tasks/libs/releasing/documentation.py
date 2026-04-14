@@ -54,7 +54,7 @@ def create_release_page(version, cutoff_date):
     page = confluence.create_page(
         space=SPACE_KEY,
         title=page_title,
-        body=create_release_table(version, cutoff_date, teams),
+        body=create_release_table(version, cutoff_date),
         parent_id=parent_page_id,
         editor="v2",
     )
@@ -68,57 +68,12 @@ def create_release_page(version, cutoff_date):
     return release_page
 
 
-def get_release_page_info(version):
-    username = os.environ['ATLASSIAN_USERNAME']
-    password = os.environ['ATLASSIAN_PASSWORD']
-    from atlassian import Confluence
-
-    c = Confluence(url=CONFLUENCE_DOMAIN, username=username, password=password)
-    page = c.get_page_by_title(SPACE_KEY, f"Agent {version}", expand="body.storage")
-    return f"{CONFLUENCE_DOMAIN}{page['_links']['webui']}", parse_table(page['body']['storage']['value'], missing=True)
-
-
-def parse_table(data, missing=True, teams=None):
-    from bs4 import BeautifulSoup
-
-    soup = BeautifulSoup(data, 'lxml')
-
-    # Find the table containing "Release managers"
-    table = soup.find('table')
-    rows = table.find_all('tr')
-    rm_start_row = next(row for row in rows if row.find_all('td')[0].text == 'Release managers')
-    start = rows.index(rm_start_row)
-    for row in rows[start:]:
-        cells = row.find_all('td')
-        users = cells[-1].find_all('ri:user')
-        if missing and len(cells) > 1 and len(users) == 0:
-            yield cells[-2].text
-        if teams is not None and cells[0].text.casefold() in teams and len(users) > 0:
-            yield users[0]['ri:account-id']
-
-
-def release_manager(version, team):
-    username = os.environ['ATLASSIAN_USERNAME']
-    password = os.environ['ATLASSIAN_PASSWORD']
-
-    from atlassian import Confluence
-
-    # Disable the rc flag if any to get the release base name `x.y.z`
-    version.rc = False
-    c = Confluence(url=CONFLUENCE_DOMAIN, username=username, password=password)
-    page = c.get_page_by_title(SPACE_KEY, f"Agent {version}", expand="body.storage")
-    account_ids = parse_table(page['body']['storage']['value'], missing=False, teams=[team])
-    for id in account_ids:
-        user = c.get_user_details_by_accountid(id)
-        yield user['email']
-
-
 def get_releasing_teams():
     owners = set(list_owners())
     return sorted(owners - NON_RELEASING_TEAMS)
 
 
-def create_release_table(version, cutoff_date, teams):
+def create_release_table(version, cutoff_date):
     from yattag import Doc
 
     doc, tag, text, line = Doc().ttl()
@@ -173,19 +128,6 @@ def create_release_table(version, cutoff_date, teams):
                     with tag('ac:link'):
                         with tag('ri:user', ('ri:account-id', "61142ccffc68c1006952fe23")):
                             pass
-            with tag('tr'):
-                with tag('td', rowspan=str(len(teams))), tag('p'):
-                    text('Release managers')
-                    with tag('td'), tag('p'):
-                        text(teams[0])
-                    with tag('td'), tag('p', style="text-align: center;"):
-                        pass
-            for team in teams[1:]:
-                with tag('tr'):
-                    with tag('td'), tag('p'):
-                        text(team)
-                    with tag('td'), tag('p', style="text-align: center;"):
-                        pass
 
     line('h2', 'Major changes')
     with tag('table', ('data-table-width', "760"), ('data-layout', "default")):
