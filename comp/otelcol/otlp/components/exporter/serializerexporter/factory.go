@@ -177,11 +177,6 @@ func NewFactoryForOSSExporter(typ component.Type, statsIn chan []byte) exp.Facto
 	)
 }
 
-// NewFactory implements the required func to be used in OCB. This interface does not work with APM stats. Do not change the func signature or OCB will fail.
-func NewFactory() exp.Factory {
-	return NewFactoryForOSSExporter(component.MustNewType(TypeStr), nil)
-}
-
 // Reporter builds and returns an *inframetadata.Reporter.
 func (f *factory) Reporter(params exp.Settings, s serializer.MetricSerializer, reporterPeriod time.Duration) (*inframetadata.Reporter, error) {
 	var reporterErr error
