@@ -578,9 +578,7 @@ type AgentConfig struct {
 	EnableOPMFetch bool
 
 	// OPMValidateURL is the full URL of the /api/v2/validate endpoint used by
-	// the OPM background fetch. Set by the binary's prepareConfig using
-	// utils.GetMainEndpoint so that IDNA normalisation, site-FQDN conversion,
-	// and any apm_config.opm_dd_url override are all applied correctly.
+	// the OPM background fetch. Derived from dd_url / site via utils.GetMainEndpoint.
 	// Empty when EnableOPMFetch is false.
 	OPMValidateURL string
 
