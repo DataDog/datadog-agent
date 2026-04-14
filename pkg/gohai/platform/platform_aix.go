@@ -28,7 +28,7 @@ func (info *Info) fillPlatformInfo() {
 	var uname unix.Utsname
 	unameErr := unix.Uname(&uname)
 	info.KernelRelease = utils.NewValueFrom(utils.StringFromBytes(uname.Release[:]), unameErr)
-	info.Machine = utils.NewValueFrom(utils.StringFromBytes(uname.Machine[:]), unameErr)
+	info.Machine = utils.NewValue(runtime.GOARCH)
 
 	// gopsutil provides the full AIX maintenance level as KernelVersion
 	// (e.g. "7300-02-02-2419") and hostname, which are more informative.
