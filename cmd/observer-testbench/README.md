@@ -63,6 +63,7 @@ $ dda inv q.eval-component-workspace-report evals # This will fetch the results 
 | `--disable` | _(empty)_ | Comma-separated components to disable (overrides defaults) |
 | `--only` | _(empty)_ | Enable ONLY these components (plus extractors); disable everything else. Mutually exclusive with `--enable`/`--disable`. |
 | `--config` | _(empty)_ | Path to a JSON params file controlling enabled state and hyperparameters. Takes full precedence over `--enable`/`--disable`/`--only`. See [Params File](#params-file--config). |
+| `--logs-only` | `false` | Load only log rows from parquet scenarios; skip metric samples and trace stats. Speeds up runs focused on log anomaly detection (interactive and headless). |
 
 ### Headless Mode
 
@@ -117,6 +118,9 @@ dda inv -- q.launch-testbench --enable cusum
 
 # Run on a different port
 dda inv -- q.launch-testbench --http :9090
+
+# Log anomaly focus: skip parquet metrics and trace stats (faster)
+dda inv -- q.launch-testbench --logs-only
 ```
 
 ## Headless Mode
@@ -134,6 +138,15 @@ dda inv -- q.launch-testbench --headless-scenario <scenario-name> --profile  # w
   --headless <scenario-name> \
   --output results.json \
   --scenarios-dir ./comp/observer/scenarios
+
+# Same, but only ingest logs from parquet (ignore metrics and trace stats)
+./bin/observer-testbench \
+  --headless <scenario-name> \
+  --logs-only \
+  --output results-logs.json \
+  --scenarios-dir ./comp/observer/scenarios
+
+dda inv -- q.launch-testbench --headless-scenario <scenario-name> --logs-only
 
 # Verbose output (includes anomaly detail, member series, titles)
 ./bin/observer-testbench \

@@ -10,6 +10,17 @@ import type { PhaseMarker } from './components/ChartWithAnomalyDetails';
 
 type TabID = 'timeseries' | 'correlators' | 'logs' | 'reports' | 'benchmark';
 
+function LogsOnlyChip() {
+  return (
+    <span
+      className="inline-flex items-center shrink-0 rounded-full border border-amber-500/45 bg-amber-950/50 px-2.5 py-0.5 text-xs font-medium text-amber-200/95"
+      title="Started with --logs-only: parquet metrics and trace stats are not loaded; only log rows are ingested."
+    >
+      Logs only
+    </span>
+  );
+}
+
 function ConnectionStatus({ state }: { state: string }) {
   const colors: Record<string, string> = {
     disconnected: 'bg-red-500',
@@ -458,7 +469,10 @@ function App() {
       <header className="bg-slate-800 border-b border-slate-700 px-4 py-3">
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-6">
-            <h1 className="text-lg font-semibold text-white">Observer Test Bench</h1>
+            <div className="flex items-center gap-3 min-w-0">
+              <h1 className="text-lg font-semibold text-white shrink-0">Observer Test Bench</h1>
+              {state.status?.serverConfig?.logsOnly ? <LogsOnlyChip /> : null}
+            </div>
             {/* Tab bar */}
             <div className="flex gap-1">
               <button

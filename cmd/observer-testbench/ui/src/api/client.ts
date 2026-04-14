@@ -7,6 +7,8 @@ export type MetricName = string & { readonly __metricNameBrand: unique symbol };
 
 export interface ServerConfig {
   components: Record<string, boolean>;
+  /** When true, scenarios load log rows only (no parquet metrics / trace stats). */
+  logsOnly?: boolean;
 }
 
 export interface EpisodePhase {

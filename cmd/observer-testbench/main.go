@@ -43,6 +43,9 @@ type CLIParams struct {
 	SendAnomalyEvent string // scenario name to run (empty = disabled)
 
 	SkipDroppedMetrics bool // skip metrics marked as dropped during parquet load
+
+	// LogsOnly skips ingesting parquet metrics and trace stats; only log rows are loaded.
+	LogsOnly bool
 }
 
 func main() {
@@ -58,6 +61,7 @@ func main() {
 	memProfile := flag.String("memprofile", "", "Write heap profile to this file after headless run (headless mode only)")
 	sendAnomalyEvent := flag.String("send-anomaly-event", "", "Run scenario and send one Datadog event per correlation, then exit")
 	skipDropped := flag.Bool("skip-dropped", false, "Skip metrics marked as dropped by the live observer's channel during parquet load")
+	logsOnly := flag.Bool("logs-only", false, "Load only log rows from scenarios; skip parquet metrics and trace stats (interactive and headless)")
 	flag.Parse()
 
 	// --config takes full precedence over --enable/--disable/--only.
@@ -111,6 +115,9 @@ func main() {
 		fmt.Printf("Observer Test Bench\n")
 		fmt.Printf("  Scenarios dir: %s\n", *scenariosDir)
 		fmt.Printf("  HTTP address:  %s\n", *httpAddr)
+		if *logsOnly {
+			fmt.Printf("  Logs-only:     true (parquet metrics and trace stats are not loaded)\n")
+		}
 		fmt.Println()
 	}
 
@@ -131,6 +138,7 @@ func main() {
 			MemProfile:         *memProfile,
 			SendAnomalyEvent:   *sendAnomalyEvent,
 			SkipDroppedMetrics: *skipDropped,
+			LogsOnly:           *logsOnly,
 		}),
 	)
 	if err != nil {
@@ -149,6 +157,7 @@ func run(recorder recorderdef.Component, cfg config.Component, logger log.Compon
 		Logger:             logger,
 		ComponentSettings:  params.ComponentSettings,
 		SkipDroppedMetrics: params.SkipDroppedMetrics,
+		LogsOnly:           params.LogsOnly,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create test bench: %v\n", err)

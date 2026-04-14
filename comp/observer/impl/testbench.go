@@ -96,6 +96,11 @@ type TestBenchConfig struct {
 	// SkipDroppedMetrics filters out metrics marked as dropped by the live
 	// observer's channel during parquet load. Off by default.
 	SkipDroppedMetrics bool
+
+	// LogsOnly, when true, loads log rows from parquet but skips metric samples
+	// and trace stats. Use to focus on log anomaly detection without ingesting
+	// scenario metrics (faster; metric detectors see only log-derived series).
+	LogsOnly bool
 }
 
 // TestBench is the main controller for the observer test bench.
@@ -178,6 +183,7 @@ type StatusResponse struct {
 // ServerConfig exposes server-side configuration to the UI.
 type ServerConfig struct {
 	Components map[string]bool `json:"components"`
+	LogsOnly   bool            `json:"logsOnly"`
 }
 
 // NewTestBench creates a new test bench instance.
@@ -476,69 +482,74 @@ func (tb *TestBench) loadParquetDir(dir string) error {
 
 	storage := tb.engine.Storage()
 
-	// Use batch loading - get all metrics at once
-	metrics, err := tb.config.Recorder.ReadAllMetrics(dir)
-	if err != nil {
-		return fmt.Errorf("reading parquet metrics: %w", err)
-	}
-
-	fmt.Printf("  Loading %d samples from parquet files\n", len(metrics))
-
-	byTimestampCounter := make(map[int64]int64)
-	byTimestampCardinality := make(map[int64]int64)
-
-	// Batch add all metrics to storage, skipping dropped observations.
-	var droppedCount int
-	for _, m := range metrics {
-		metricName := m.Name
-
-		// filter internal Datadog Agent telemetry
-		if strings.HasPrefix(metricName, "datadog.") {
-			continue
+	if tb.config.LogsOnly {
+		fmt.Printf("  Logs-only mode: skipping parquet metrics and trace stats\n")
+	} else {
+		// Use batch loading - get all metrics at once
+		metrics, err := tb.config.Recorder.ReadAllMetrics(dir)
+		if err != nil {
+			return fmt.Errorf("reading parquet metrics: %w", err)
 		}
 
-		// Skip observations that were dropped by the live observer's channel.
-		if tb.config.SkipDroppedMetrics && m.Dropped {
-			droppedCount++
-			continue
+		fmt.Printf("  Loading %d samples from parquet files\n", len(metrics))
+
+		byTimestampCounter := make(map[int64]int64)
+		byTimestampCardinality := make(map[int64]int64)
+
+		// Batch add all metrics to storage, skipping dropped observations.
+		var droppedCount int
+		for _, m := range metrics {
+			metricName := m.Name
+
+			// filter internal Datadog Agent telemetry
+			if strings.HasPrefix(metricName, "datadog.") {
+				continue
+			}
+
+			// Skip observations that were dropped by the live observer's channel.
+			if tb.config.SkipDroppedMetrics && m.Dropped {
+				droppedCount++
+				continue
+			}
+
+			byTimestampCounter[m.Timestamp]++
+
+			if storage.Add("parquet", metricName, m.Value, m.Timestamp, m.Tags) {
+				byTimestampCardinality[m.Timestamp]++
+			}
+		}
+		if droppedCount > 0 {
+			fmt.Printf("  Skipped %d dropped observations from parquet\n", droppedCount)
 		}
 
-		byTimestampCounter[m.Timestamp]++
-
-		if storage.Add("parquet", metricName, m.Value, m.Timestamp, m.Tags) {
-			byTimestampCardinality[m.Timestamp]++
+		// Telemetry for the number of metrics by timestamp
+		type byTimestampEntry struct {
+			Timestamp int64
+			Count     int64
 		}
-	}
-	if droppedCount > 0 {
-		fmt.Printf("  Skipped %d dropped observations from parquet\n", droppedCount)
-	}
+		byTimestampOrdered := make([]byTimestampEntry, 0, len(byTimestampCounter))
+		for timestamp, count := range byTimestampCounter {
+			byTimestampOrdered = append(byTimestampOrdered, byTimestampEntry{Timestamp: timestamp, Count: count})
+		}
+		sort.Slice(byTimestampOrdered, func(i, j int) bool {
+			return byTimestampOrdered[i].Timestamp < byTimestampOrdered[j].Timestamp
+		})
+		for _, entry := range byTimestampOrdered {
+			tb.handleTelemetry([]observerdef.ObserverTelemetry{newTelemetryCounter([]string{}, telemetryTbInputMetricsCount, float64(entry.Count), entry.Timestamp)}, "parquet", entry.Timestamp)
+		}
 
-	// Telemetry for the number of metrics by timestamp
-	type byTimestampEntry struct {
-		Timestamp int64
-		Count     int64
-	}
-	byTimestampOrdered := make([]byTimestampEntry, 0, len(byTimestampCounter))
-	for timestamp, count := range byTimestampCounter {
-		byTimestampOrdered = append(byTimestampOrdered, byTimestampEntry{Timestamp: timestamp, Count: count})
-	}
-	sort.Slice(byTimestampOrdered, func(i, j int) bool {
-		return byTimestampOrdered[i].Timestamp < byTimestampOrdered[j].Timestamp
-	})
-	for _, entry := range byTimestampOrdered {
-		tb.handleTelemetry([]observerdef.ObserverTelemetry{newTelemetryCounter([]string{}, telemetryTbInputMetricsCount, float64(entry.Count), entry.Timestamp)}, "parquet", entry.Timestamp)
-	}
+		// Telemetry for cardinality (new unique series) by timestamp
+		byCardOrdered := make([]byTimestampEntry, 0, len(byTimestampCardinality))
+		for timestamp, count := range byTimestampCardinality {
+			byCardOrdered = append(byCardOrdered, byTimestampEntry{Timestamp: timestamp, Count: count})
+		}
+		sort.Slice(byCardOrdered, func(i, j int) bool {
+			return byCardOrdered[i].Timestamp < byCardOrdered[j].Timestamp
+		})
+		for _, entry := range byCardOrdered {
+			tb.handleTelemetry([]observerdef.ObserverTelemetry{newTelemetryCounter([]string{}, telemetryTbInputMetricsCardinality, float64(entry.Count), entry.Timestamp)}, "parquet", entry.Timestamp)
+		}
 
-	// Telemetry for cardinality (new unique series) by timestamp
-	byCardOrdered := make([]byTimestampEntry, 0, len(byTimestampCardinality))
-	for timestamp, count := range byTimestampCardinality {
-		byCardOrdered = append(byCardOrdered, byTimestampEntry{Timestamp: timestamp, Count: count})
-	}
-	sort.Slice(byCardOrdered, func(i, j int) bool {
-		return byCardOrdered[i].Timestamp < byCardOrdered[j].Timestamp
-	})
-	for _, entry := range byCardOrdered {
-		tb.handleTelemetry([]observerdef.ObserverTelemetry{newTelemetryCounter([]string{}, telemetryTbInputMetricsCardinality, float64(entry.Count), entry.Timestamp)}, "parquet", entry.Timestamp)
 	}
 
 	// Load logs from parquet files
@@ -553,6 +564,7 @@ func (tb *TestBench) loadParquetDir(dir string) error {
 
 	return nil
 }
+
 
 // resetAllState resets all registered components that support Reset().
 func (tb *TestBench) resetAllState() {
@@ -615,6 +627,7 @@ func (tb *TestBench) GetStatus() StatusResponse {
 		EpisodeInfo:           tb.episodeInfo,
 		ServerConfig: ServerConfig{
 			Components: compMap,
+			LogsOnly:   tb.config.LogsOnly,
 		},
 	}
 }
@@ -1364,53 +1377,56 @@ func (tb *TestBench) loadDemoScenario() error {
 	baseTimestamp := int64(1000000)
 	const totalSeconds = 70
 
-	for t := 0; t < totalSeconds; t++ {
-		elapsed := float64(t)
-		timestamp := baseTimestamp + int64(t)
+	if !tb.config.LogsOnly {
+		for t := 0; t < totalSeconds; t++ {
+			elapsed := float64(t)
+			timestamp := baseTimestamp + int64(t)
 
-		// Heap usage (host:web-1)
-		heapValue := getDemoHeapValue(elapsed)
-		storage.Add("demo", "runtime.heap.used_mb", heapValue, timestamp, []string{"host:web-1"})
+			// Heap usage (host:web-1)
+			heapValue := getDemoHeapValue(elapsed)
+			storage.Add("demo", "runtime.heap.used_mb", heapValue, timestamp, []string{"host:web-1"})
 
-		// GC pause time (host:web-1)
-		gcValue := getDemoGCPauseValue(elapsed)
-		storage.Add("demo", "runtime.gc.pause_ms", gcValue, timestamp, []string{"host:web-1"})
+			// GC pause time (host:web-1)
+			gcValue := getDemoGCPauseValue(elapsed)
+			storage.Add("demo", "runtime.gc.pause_ms", gcValue, timestamp, []string{"host:web-1"})
 
-		// CPU usage (host:web-1)
-		cpuValue := getDemoCPUValue(elapsed)
-		storage.Add("demo", "system.cpu.user_percent", cpuValue, timestamp, []string{"host:web-1"})
+			// CPU usage (host:web-1)
+			cpuValue := getDemoCPUValue(elapsed)
+			storage.Add("demo", "system.cpu.user_percent", cpuValue, timestamp, []string{"host:web-1"})
 
-		// Request latency — two service variants
-		latencyValue := getDemoLatencyValue(elapsed)
-		storage.Add("demo", "app.request.latency_p99_ms", latencyValue*1.2, timestamp, []string{"service:api"})
-		storage.Add("demo", "app.request.latency_p99_ms", latencyValue*0.8, timestamp, []string{"service:worker"})
+			// Request latency — two service variants
+			latencyValue := getDemoLatencyValue(elapsed)
+			storage.Add("demo", "app.request.latency_p99_ms", latencyValue*1.2, timestamp, []string{"service:api"})
+			storage.Add("demo", "app.request.latency_p99_ms", latencyValue*0.8, timestamp, []string{"service:worker"})
 
-		// Error rate — two service variants
-		errorValue := getDemoErrorRateValue(elapsed)
-		storage.Add("demo", "app.request.error_rate", errorValue*1.5, timestamp, []string{"service:api"})
-		storage.Add("demo", "app.request.error_rate", errorValue*0.7, timestamp, []string{"service:worker"})
+			// Error rate — two service variants
+			errorValue := getDemoErrorRateValue(elapsed)
+			storage.Add("demo", "app.request.error_rate", errorValue*1.5, timestamp, []string{"service:api"})
+			storage.Add("demo", "app.request.error_rate", errorValue*0.7, timestamp, []string{"service:worker"})
 
-		// Throughput — two service variants
-		throughputValue := getDemoThroughputValue(elapsed)
-		storage.Add("demo", "app.request.throughput_rps", throughputValue*1.4, timestamp, []string{"service:api"})
-		storage.Add("demo", "app.request.throughput_rps", throughputValue*0.6, timestamp, []string{"service:worker"})
+			// Throughput — two service variants
+			throughputValue := getDemoThroughputValue(elapsed)
+			storage.Add("demo", "app.request.throughput_rps", throughputValue*1.4, timestamp, []string{"service:api"})
+			storage.Add("demo", "app.request.throughput_rps", throughputValue*0.6, timestamp, []string{"service:worker"})
 
-		// Correlator-targeted metrics (trigger kernel_bottleneck / network_degradation patterns)
-		// network.retransmits → analyzed as "network.retransmits:avg" — host-level
-		retransmits := getDemoNetworkRetransmitsValue(elapsed)
-		storage.Add("demo", "network.retransmits", retransmits, timestamp, []string{"host:web-1"})
+			// Correlator-targeted metrics (trigger kernel_bottleneck / network_degradation patterns)
+			// network.retransmits → analyzed as "network.retransmits:avg" — host-level
+			retransmits := getDemoNetworkRetransmitsValue(elapsed)
+			storage.Add("demo", "network.retransmits", retransmits, timestamp, []string{"host:web-1"})
 
-		// ebpf.lock_contention_ns → analyzed as "ebpf.lock_contention_ns:avg" — host-level
-		lockContention := getDemoLockContentionValue(elapsed)
-		storage.Add("demo", "ebpf.lock_contention_ns", lockContention, timestamp, []string{"host:web-1"})
+			// ebpf.lock_contention_ns → analyzed as "ebpf.lock_contention_ns:avg" — host-level
+			lockContention := getDemoLockContentionValue(elapsed)
+			storage.Add("demo", "ebpf.lock_contention_ns", lockContention, timestamp, []string{"host:web-1"})
 
-		// connection.errors → analyzed as "connection.errors:count" — two service variants
-		connErrors := getDemoConnectionErrorsValue(elapsed)
-		storage.Add("demo", "connection.errors", connErrors, timestamp, []string{"service:api"})
-		storage.Add("demo", "connection.errors", connErrors*0.6, timestamp, []string{"service:worker"})
+			// connection.errors → analyzed as "connection.errors:count" — two service variants
+			connErrors := getDemoConnectionErrorsValue(elapsed)
+			storage.Add("demo", "connection.errors", connErrors, timestamp, []string{"service:api"})
+			storage.Add("demo", "connection.errors", connErrors*0.6, timestamp, []string{"service:worker"})
+		}
+		fmt.Printf("  Generated %d seconds of demo data\n", totalSeconds)
+	} else {
+		fmt.Printf("  Logs-only mode: skipping demo metric samples\n")
 	}
-
-	fmt.Printf("  Generated %d seconds of demo data\n", totalSeconds)
 
 	// Generate demo log entries following phase-based intervals
 	logMsgIdx := 0
