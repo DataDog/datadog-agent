@@ -1,0 +1,29 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "archive",
+    srcs = [
+        "tar_xz.go",
+        "zip.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/archive",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_cyphar_filepath_securejoin//:filepath-securejoin",
+        "@com_github_xi2_xz//:xz",
+    ],
+)
+
+go_test(
+    name = "archive_test",
+    srcs = [
+        "tar_xz_test.go",
+        "zip_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":archive"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

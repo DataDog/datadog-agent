@@ -121,6 +121,7 @@ type deviceOptions struct {
 	processInfoCB      func(uuid string) ([]nvml.ProcessInfo, nvml.Return)
 	gpmSupported       *bool
 	unsupportedFields  map[uint32]struct{}
+	migChildCount      int
 }
 
 func (o deviceOptions) isMIGChild() bool {
@@ -217,7 +218,7 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 		},
 		GetNameFunc: func() (string, nvml.Return) {
 			if opts.isMIGChild() {
-				return "MIG " + DefaultGPUName, nvml.SUCCESS
+				return DefaultGPUName + " MIG 3g.40gb", nvml.SUCCESS
 			}
 			return DefaultGPUName, nvml.SUCCESS
 		},
@@ -254,6 +255,9 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 		GetMaxMigDeviceCountFunc: func() (int, nvml.Return) {
 			if opts.isMIGChild() || opts.migDisabled {
 				return 0, nvml.SUCCESS
+			}
+			if opts.migChildCount > 0 {
+				return opts.migChildCount, nvml.SUCCESS
 			}
 			return MIGChildrenPerDevice[deviceIdx], nvml.SUCCESS
 		},
@@ -492,7 +496,7 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 		},
 		GetVirtualizationModeFunc: func() (nvml.GpuVirtualizationMode, nvml.Return) {
 			if opts.isVGPU() {
-				return nvml.GPU_VIRTUALIZATION_MODE_HOST_VGPU, nvml.SUCCESS
+				return nvml.GPU_VIRTUALIZATION_MODE_VGPU, nvml.SUCCESS
 			}
 			return nvml.GPU_VIRTUALIZATION_MODE_NONE, nvml.SUCCESS
 		},
@@ -571,6 +575,12 @@ func WithDeviceCount(count int) NvmlMockOption {
 	}
 }
 
+func WithMIGChildCount(count int) NvmlMockOption {
+	return func(o *nvmlMockOptions) {
+		o.deviceOptions.migChildCount = count
+	}
+}
+
 // WithEventSetCreate influences the definition of EventSetCreateFunc
 func WithEventSetCreate(eventSetCreate func() (nvml.EventSet, nvml.Return)) NvmlMockOption {
 	return func(o *nvmlMockOptions) {
@@ -612,7 +622,7 @@ var archNameToNVML = map[string]struct {
 	"hopper":  {nvml.DEVICE_ARCH_HOPPER, 9, 0},
 	"ada":     {nvml.DEVICE_ARCH_ADA, 8, 9},
 	"blackwell": {
-		nvml.DeviceArchitecture(10), // nvml.DEVICE_ARCH_BLACKWELL in newer go-nvml
+		nvml.DEVICE_ARCH_BLACKWELL,
 		10,
 		0,
 	},

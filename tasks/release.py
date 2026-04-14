@@ -51,9 +51,7 @@ from tasks.libs.pipeline.notifications import (
 )
 from tasks.libs.releasing.documentation import (
     create_release_page,
-    get_release_page_info,
     list_not_closed_qa_cards,
-    release_manager,
 )
 from tasks.libs.releasing.json import (
     DEFAULT_BRANCHES,
@@ -1173,29 +1171,6 @@ def create_schedule(_, version, cutoff_date):
 
 
 @task
-def chase_release_managers(_, version):
-    url, missing_teams = get_release_page_info(version)
-    github_slack_map = load_and_validate("github_slack_map.yaml", "DEFAULT_SLACK_CHANNEL", DEFAULT_SLACK_CHANNEL)
-    channels = set()
-
-    for team in missing_teams:
-        channel = github_slack_map.get(f"@datadog/{team}")
-        if channel:
-            channels.add(channel)
-        else:
-            print(color_message(f"Missing slack channel for {team}", Color.RED))
-
-    message = f"Hello :wave:\nCould you please update the `datadog-agent` <{url}|release coordination page> with the RM for your team?\nThanks in advance"
-
-    from slack_sdk import WebClient
-
-    client = WebClient(os.environ["SLACK_DATADOG_AGENT_BOT_TOKEN"])
-    for channel in sorted(channels):
-        print(f"Sending message to {channel}")
-        client.chat_postMessage(channel=channel, text=message)
-
-
-@task
 def chase_for_qa_cards(_, version):
     from slack_sdk import WebClient
 
@@ -1247,8 +1222,7 @@ def check_for_changes(ctx, release_branch, warning_mode=False):
                 print(f"{repo_name} has new commits since {last_tag_name}", file=sys.stderr)
                 if warning_mode:
                     team = "agent-integrations"
-                    emails = release_manager(next_version.clone(), team)
-                    warn_new_commits(emails, team, repo['branch'], next_version)
+                    warn_new_commits(team, repo['branch'], next_version)
                 else:
                     if repo_name not in ["datadog-agent", "integrations-core"]:
                         message.append(

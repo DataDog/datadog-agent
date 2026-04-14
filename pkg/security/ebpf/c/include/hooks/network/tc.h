@@ -83,7 +83,7 @@ int classifier_raw_packet_ingress(struct __sk_buff *skb) {
         return TC_ACT_UNSPEC;
     }
 
-    bpf_tail_call_compat(skb, &raw_packet_classifier_router, RAW_PACKET_FILTER);
+    tail_call_raw_packet_router(skb, RAW_PACKET_FILTER);
 
     return TC_ACT_UNSPEC;
 };
@@ -100,13 +100,8 @@ int classifier_raw_packet_egress(struct __sk_buff *skb) {
     }
     resolve_pid(skb, pkt);
 
-    pkt->cgroup_id = get_cgroup_id(pkt->pid);
-    if (!pkt->cgroup_id) {
-        u64 sched_cls_has_current_cgroup_id_helper = 0;
-        LOAD_CONSTANT("sched_cls_has_current_cgroup_id_helper", sched_cls_has_current_cgroup_id_helper);
-        if (sched_cls_has_current_cgroup_id_helper) {
-            pkt->cgroup_id = bpf_get_current_cgroup_id();
-        }
+    if (pkt->pid) {
+        pkt->cgroup_id = get_cgroup_id(pkt->pid);
     }
 
     if (!prepare_raw_packet_event(skb, pkt)) {
@@ -115,7 +110,7 @@ int classifier_raw_packet_egress(struct __sk_buff *skb) {
 
     // call the drop action
     if (pkt->pid > 0 || pkt->cgroup_id > 0) {
-        bpf_tail_call_compat(skb, &raw_packet_classifier_router, RAW_PACKET_DROP_ACTION);
+        tail_call_raw_packet_router(skb, RAW_PACKET_DROP_ACTION);
     }
 
     // mostly a rate limiter
@@ -124,7 +119,7 @@ int classifier_raw_packet_egress(struct __sk_buff *skb) {
     }
 
     // call regular filter
-    bpf_tail_call_compat(skb, &raw_packet_classifier_router, RAW_PACKET_FILTER);
+    tail_call_raw_packet_router(skb, RAW_PACKET_FILTER);
 
     return TC_ACT_UNSPEC;
 };

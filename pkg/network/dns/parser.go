@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build (windows && npm) || linux_bpf
+//go:build (windows && npm) || linux_bpf || darwin
 
 package dns
 
@@ -74,8 +74,14 @@ func newDNSParser(layerType gopacket.LayerType, cfg *config.Config) *dnsParser {
 	dnsPayload := &layers.DNS{}
 	queryTypes := getRecordedQueryTypes(cfg)
 
+	var linkLayer gopacket.DecodingLayer
+	if layerType == layers.LayerTypeLoopback {
+		linkLayer = &layers.Loopback{}
+	} else {
+		linkLayer = &layers.Ethernet{}
+	}
 	stack := []gopacket.DecodingLayer{
-		&layers.Ethernet{},
+		linkLayer,
 		ipv4Payload,
 		ipv6Payload,
 		udpPayload,
@@ -275,8 +281,8 @@ func getDefaultRecordedQueryTypes() map[layers.DNSType]struct{} {
 	defaultRecordedQueryTypes := map[layers.DNSType]struct{}{
 		layers.DNSTypeA: {},
 	}
-	if runtime.GOOS == "linux" {
-		// ipv6 DNS is current not support on Windows
+	if runtime.GOOS == "linux" || runtime.GOOS == "darwin" {
+		// ipv6 DNS is currently not supported on Windows
 		// TODO: Add layers.DNSTypeAAAA for windows once supported
 		defaultRecordedQueryTypes[layers.DNSTypeAAAA] = struct{}{}
 	}
