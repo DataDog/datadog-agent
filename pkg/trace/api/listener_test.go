@@ -25,8 +25,8 @@ func (e mockNetError) Timeout() bool   { return e.timeout }
 func (e mockNetError) Temporary() bool { return !e.timeout }
 
 type mockListener struct {
-	mu    sync.RWMutex // guards below fields
-	err   error        // returned error
+	mu    sync.RWMutex  // guards below fields
+	err   error         // returned error
 	ready chan struct{} // closed after the first Accept call; nil means no notification needed
 	once  sync.Once
 }
