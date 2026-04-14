@@ -178,7 +178,12 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	var ruleSetloadedErr *multierror.Error
 	if !opts.staticOpts.disableRuntimeSecurity {
 		compression := logscompression.NewComponent()
-		cws, err := module.NewCWSConsumer(testMod.eventMonitor, secconfig.RuntimeSecurity, nil, nil, module.Opts{EventSender: testMod}, compression, ipcComp, functionalTestsHostname, secretsnoopimpl.NewComponent().Comp)
+		cmdServer, err := module.NewCommandServer(secconfig.RuntimeSecurity)
+		if err != nil {
+			return nil, err
+		}
+
+		cws, err := module.NewCWSConsumer(cmdServer, testMod.eventMonitor, secconfig.RuntimeSecurity, nil, nil, module.Opts{EventSender: testMod}, compression, ipcComp, functionalTestsHostname, secretsnoopimpl.NewComponent().Comp)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create module: %w", err)
 		}

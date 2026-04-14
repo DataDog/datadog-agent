@@ -515,6 +515,7 @@ use_repo(
     "org_go4_intern",
     "org_go4_mem",
     "org_go4_netipx",
+    "org_golang_google_genproto_googleapis_rpc",
     "org_golang_google_grpc",
     "org_golang_google_grpc_cmd_protoc_gen_go_grpc",
     "org_golang_google_grpc_examples",

@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "version",
+    srcs = ["version.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/trace/version",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/proto/pbgo/trace"],
+)
+
+go_test(
+    name = "version_test",
+    srcs = ["version_test.go"],
+    embed = [":version"],
+    deps = [
+        "//pkg/proto/pbgo/trace",
+        "//pkg/trace/traceutil",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

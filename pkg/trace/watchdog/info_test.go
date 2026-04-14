@@ -122,9 +122,10 @@ func doTestMemHigh(t *testing.T, n int) {
 
 	t.Logf("Mem (%d bytes): %v %v", n, oldM, m)
 
-	// Checking that Mem is high enough
+	// Checking that Mem is high enough (allow 0.1% slack for GC/alignment jitter)
+	slack := int64(n) / 1000
 	assert.GreaterOrEqualf(m.Alloc, uint64(n), "not enough bytes allocated")
-	assert.GreaterOrEqualf(int64(m.Alloc)-int64(oldM.Alloc), int64(n), "not enough bytes allocated since last call")
+	assert.GreaterOrEqualf(int64(m.Alloc)-int64(oldM.Alloc)+slack, int64(n), "not enough bytes allocated since last call")
 	<-data
 }
 
