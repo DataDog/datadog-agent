@@ -463,6 +463,7 @@ func TestTelemetryConfig(t *testing.T) {
 		}}
 		recv := newTestReceiverFromConfig(cfg)
 		recv.telemetryForwarder.start()
+		defer recv.telemetryForwarder.Stop()
 
 		req, rec := newRequestRecorder(t)
 		recv.buildMux().ServeHTTP(rec, req)
@@ -487,6 +488,7 @@ func TestTelemetryConfig(t *testing.T) {
 		}}
 		recv := newTestReceiverFromConfig(cfg)
 		recv.telemetryForwarder.start()
+		defer recv.telemetryForwarder.Stop()
 
 		req, rec := newRequestRecorder(t)
 		recv.buildMux().ServeHTTP(rec, req)
