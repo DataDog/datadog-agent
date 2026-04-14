@@ -185,6 +185,14 @@ build do
       copy 'bin/privateactionrunner/privateactionrunner.exe', "#{install_dir}/bin/agent"
     elsif not heroku_target?
       copy 'bin/privateactionrunner/privateactionrunner', "#{install_dir}/embedded/bin"
+
+      # PAR dual-process: build and install the Rust control plane and Go executor.
+      # par-control is Linux-only; par-executor replaces the execution half of
+      # privateactionrunner in the dual-process model.
+      command_on_repo_root "bazelisk build #{bazel_flags} //pkg/privateactionrunner/controlplane/rust:par-control", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+      command "dda inv -- -e par-executor.build --install-path=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+      copy 'bin/par-executor/par-executor', "#{install_dir}/embedded/bin"
+      command_on_repo_root "bazelisk run #{bazel_flags} //pkg/privateactionrunner/controlplane/rust:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
     end
   end
 

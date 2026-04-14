@@ -1,0 +1,83 @@
+# Local test setup for the PAR dual-process architecture.
+#
+# Services:
+#   fakeintake   — mock Datadog backend (OPMS + intake endpoints)
+#   par-dual     — PAR container: par-control + par-executor
+#
+# Prerequisites:
+#   1. Build the image:
+#        docker build -f Dockerfiles/par-dual/Dockerfile -t par-dual:local .
+#
+#   2. Create a minimal config file (datadog.yaml is still required for
+#      FX bootstrap in par-executor, but identity check is bypassed):
+#        mkdir -p /tmp/par-test-config
+#        cat > /tmp/par-test-config/datadog.yaml <<EOF
+#        private_action_runner:
+#          enabled: true
+#          actions_allowlist:
+#            - com.datadoghq.remoteaction.testConnection
+#            - com.datadoghq.remoteaction.rshell.runCommand
+#        EOF
+#
+#   3. Start:
+#        DD_CONFIG_DIR=/tmp/par-test-config docker compose -f Dockerfiles/par-dual/docker-compose.yml up
+#
+# The fakeintake exposes:
+#   http://localhost:8080  — PAR OPMS endpoints (dequeue, publish, heartbeat)
+#   http://localhost:8083  — intake inspection UI / query endpoints
+#
+# Queue a test task via fakeintake:
+#   (see test/fakeintake/client/client.go for the PAR task API)
+
+services:
+  fakeintake:
+    image: datadog/fakeintake:latest
+    platform: linux/amd64
+    ports:
+      - "8080:8080"   # OPMS / API endpoint
+      - "8083:8083"   # inspection
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/fakeintake/health"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+
+  par-dual:
+    image: par-dual:local
+    platform: linux/amd64
+    depends_on:
+      fakeintake:
+        condition: service_healthy
+    environment:
+      # Bypass task signature verification — allows testing without real
+      # Remote Config keys or a signed task envelope.
+      DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION: "true"
+      # Redirect OPMS calls to local fakeintake instead of api.datadoghq.com.
+      # par-control reads dd_url from datadog.yaml; the env var overrides it.
+      DD_DD_URL: "http://fakeintake:8080"
+      # Allowlist for the executor (env var form, comma-separated).
+      DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST: >-
+        com.datadoghq.remoteaction.testConnection,
+        com.datadoghq.remoteaction.rshell.runCommand
+      DD_PRIVATE_ACTION_RUNNER_ENABLED: "true"
+    volumes:
+      - type: bind
+        source: ${DD_CONFIG_DIR:-/tmp/par-test-config}
+        target: /etc/datadog-agent
+        read_only: true
+    # Expose the executor's UDS socket for direct inspection if needed.
+    # (UDS is internal — only par-control connects to it)
+
+  # Optional: a small task injector that queues a testConnection task.
+  # Uncomment to auto-inject a task after startup.
+  # task-injector:
+  #   image: curlimages/curl:latest
+  #   depends_on:
+  #     - par-dual
+  #   entrypoint: ["/bin/sh", "-c"]
+  #   command:
+  #     - |
+  #       sleep 3
+  #       curl -s -X POST http://fakeintake:8080/fakeintake/par/task \
+  #         -H 'Content-Type: application/json' \
+  #         -d '{"bundle_id":"com.datadoghq.remoteaction","action_name":"testConnection","inputs":{}}'
