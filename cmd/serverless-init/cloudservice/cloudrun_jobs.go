@@ -215,6 +215,7 @@ func (c *CloudRunJobs) initJobSpan() {
 
 	// Store reference to the span for later use
 	c.jobSpan = c.jobChunk.Spans[0]
+	c.jobSpan.SetFloat64Attribute("_dd.measured", 1.0)
 }
 
 // setSpanModifier sets up the span modifier to reparent user spans under the job span

@@ -10,6 +10,7 @@ import (
 	idx "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
+	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -46,6 +47,7 @@ func SubmitSpan(chunk *idx.InternalTraceChunk, origin string, traceAgent Process
 
 	// Set origin on the chunk
 	chunk.SetOrigin(origin)
+	chunk.Priority = int32(sampler.PriorityUserKeep)
 
 	// Create an InternalTracerPayload with the chunk
 	tracerPayload := &idx.InternalTracerPayload{

@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
+	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 )
 
 // mockProcessor is a mock implementation of the Processor interface for testing
@@ -99,7 +100,7 @@ func TestSubmitSpanWithValidProcessor(t *testing.T) {
 
 	resultChunk := mockAgent.lastPayload.TracerPayload.Chunks[0]
 	assert.Equal(t, "test-origin", resultChunk.Origin())
-	assert.Equal(t, int32(1), resultChunk.Priority)
+	assert.Equal(t, int32(sampler.PriorityUserKeep), resultChunk.Priority)
 	assert.Len(t, resultChunk.Spans, 1)
 	assert.Equal(t, chunk.Spans[0], resultChunk.Spans[0])
 }

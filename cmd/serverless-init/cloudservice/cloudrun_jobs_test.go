@@ -233,6 +233,10 @@ func TestCloudRunJobsSpanCreation(t *testing.T) {
 		origin, hasOrigin := jobs.jobSpan.GetAttributeAsString("origin")
 		assert.True(t, hasOrigin)
 		assert.Equal(t, "cloudrunjobs", origin)
+		// Verify _dd.measured=1 is set for stats computation
+		measured, hasMeasured := jobs.jobSpan.GetAttributeAsFloat64("_dd.measured")
+		assert.True(t, hasMeasured)
+		assert.Equal(t, float64(1), measured)
 	}
 }
 
