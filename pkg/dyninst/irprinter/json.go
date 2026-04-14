@@ -175,14 +175,21 @@ func PrintJSON(p *ir.Program) ([]byte, error) {
 			writeValue(readValue())
 		}
 		endT := readToken()
-		writeToken(jsontext.String("subprogram"))
-		encode(v.Subprogram)
-		writeToken(jsontext.String("events"))
-		encode(v.Events)
-		if v.Template != nil && v.Template.TemplateString != "" {
-			writeToken(jsontext.String("probeTemplate"))
-			encode(v.Template)
+		writeToken(jsontext.String("instances"))
+		must(0, enc.WriteToken(jsontext.BeginArray))
+		for _, inst := range v.Instances {
+			must(0, enc.WriteToken(jsontext.BeginObject))
+			writeToken(jsontext.String("subprogram"))
+			encode(inst.Subprogram)
+			writeToken(jsontext.String("events"))
+			encode(inst.Events)
+			if inst.Template != nil && inst.Template.TemplateString != "" {
+				writeToken(jsontext.String("probeTemplate"))
+				encode(inst.Template)
+			}
+			must(0, enc.WriteToken(jsontext.EndObject))
 		}
+		must(0, enc.WriteToken(jsontext.EndArray))
 		writeToken(endT)
 		return nil
 	}

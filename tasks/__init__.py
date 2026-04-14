@@ -14,6 +14,7 @@ from tasks import (
     auth,
     bench,
     buildimages,
+    claude,
     cluster_agent,
     cluster_agent_cloudfoundry,
     collector,
@@ -97,6 +98,7 @@ from tasks.e2e_framework import azure as e2e_azure
 from tasks.e2e_framework import gcp as e2e_gcp
 from tasks.e2e_framework import localpodman as e2e_localpodman
 from tasks.e2e_framework import test as e2e_test
+from tasks.e2e_framework.deploy import check_s3_image_exists
 from tasks.e2e_framework.setup import setup as e2e_setup
 from tasks.fuzz import fuzz
 from tasks.fuzz_infra import build_and_upload_fuzz
@@ -130,7 +132,6 @@ from tasks.gotest import (
 from tasks.install_tasks import (
     download_tools,
     install_devcontainer_cli,
-    install_protoc,
     install_rust_license_tool,
     install_shellcheck,
     install_tools,
@@ -168,7 +169,6 @@ ns.add_task(audit_tag_impact)
 ns.add_task(print_default_build_tags)
 ns.add_task(e2e_tests)
 ns.add_task(install_shellcheck)
-ns.add_task(install_protoc)
 ns.add_task(install_rust_license_tool)
 ns.add_task(install_devcontainer_cli)
 ns.add_task(download_tools)
@@ -199,6 +199,7 @@ ns.add_collection(agent)
 ns.add_collection(ami)
 ns.add_collection(agent_ci_api)
 ns.add_collection(buildimages)
+ns.add_collection(claude)
 ns.add_collection(cluster_agent)
 ns.add_collection(cluster_agent_cloudfoundry)
 ns.add_collection(components)
@@ -283,8 +284,9 @@ ns.add_collection(e2e_localpodman.collection, "localpodman")
 e2e_ns = Collection("e2e")
 e2e_ns.add_collection(e2e_setup)
 e2e_ns.add_collection(e2e_test)
-ns.add_collection(e2e_ns)
+e2e_ns.add_task(check_s3_image_exists)
 
+ns.add_collection(e2e_ns)
 ns.configure(
     {
         "run": {
