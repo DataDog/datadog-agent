@@ -339,7 +339,6 @@
 /comp/ndmtmp @DataDog/network-device-monitoring-core
 /comp/netflow @DataDog/ndm-integrations
 /comp/networkpath @DataDog/network-path
-/comp/offlinereporter @DataDog/agent-metric-pipelines
 /comp/otelcol @DataDog/opentelemetry-agent
 /comp/process @DataDog/container-experiences
 /comp/remote-config @DataDog/remote-config
@@ -393,6 +392,7 @@
 /comp/logonduration @DataDog/windows-products
 /comp/networkdeviceconfig @DataDog/ndm-integrations
 /comp/notableevents @DataDog/windows-products
+/comp/offlinereporter @DataDog/agent-runtimes
 /comp/privateactionrunner @DataDog/action-platform
 /comp/publishermetadatacache @DataDog/windows-products
 /comp/rdnsquerier @DataDog/ndm-integrations
