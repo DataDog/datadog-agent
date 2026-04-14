@@ -1862,6 +1862,106 @@ probes:
           ref: "i"
         dsl: "i"
     captureSnapshot: true
+  - id: testConflictingReturn
+    type: LOG_PROBE
+    where:
+      methodName: main.testConflictingReturn
+    template: "{i}"
+    segments:
+      - json:
+          ref: "i"
+        dsl: "i"
+    captureSnapshot: true
+  - id: testReturnTemplate
+    type: LOG_PROBE
+    where:
+      methodName: main.testReturnsInt
+    template: "result={@return}"
+    segments:
+      - str: "result="
+      - json:
+          ref: "@return"
+        dsl: "@return"
+    captureSnapshot: true
+  - id: testReturnMultiTemplate
+    type: LOG_PROBE
+    where:
+      methodName: main.testSomeNamedReturn
+    template: "r0={@return.r0}"
+    segments:
+      - str: "r0="
+      - json:
+          getmember:
+            - ref: "@return"
+            - "r0"
+        dsl: "@return.r0"
+    captureSnapshot: true
+  - id: testReturnCaptureExpr
+    type: LOG_PROBE
+    where:
+      methodName: main.testReturnsInt
+    captureSnapshot: false
+    captureExpressions:
+      - name: "retval"
+        expr:
+          dsl: "@return"
+          json:
+            ref: "@return"
+  - id: testReturnMultiCaptureExpr
+    type: LOG_PROBE
+    where:
+      methodName: main.testSomeNamedReturn
+    captureSnapshot: false
+    captureExpressions:
+      - name: "first"
+        expr:
+          dsl: "@return.r0"
+          json:
+            getmember:
+              - ref: "@return"
+              - "r0"
+  - id: testNamedReturnByNameTemplate
+    type: LOG_PROBE
+    where:
+      methodName: main.testMultipleNamedReturn
+    template: "r1={result} r2={result2}"
+    segments:
+      - str: "r1="
+      - json:
+          ref: "result"
+        dsl: "result"
+      - str: " r2="
+      - json:
+          ref: "result2"
+        dsl: "result2"
+    captureSnapshot: true
+  - id: testNamedReturnByNameCaptureExpr
+    type: LOG_PROBE
+    where:
+      methodName: main.testNamedReturn
+    captureSnapshot: false
+    captureExpressions:
+      - name: "result"
+        expr:
+          dsl: "result"
+          json:
+            ref: "result"
+  - id: testNamedReturnByNameMultiCaptureExpr
+    type: LOG_PROBE
+    where:
+      methodName: main.testMultipleNamedReturn
+    captureSnapshot: false
+    captureExpressions:
+      - name: "result"
+        expr:
+          dsl: "result"
+          json:
+            ref: "result"
+      - name: "result2"
+        expr:
+          dsl: "result2"
+          json:
+            ref: "result2"
   - id: testInlinedPrintLine
     type: LOG_PROBE
     where:
