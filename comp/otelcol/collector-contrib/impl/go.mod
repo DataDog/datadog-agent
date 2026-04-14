@@ -555,9 +555,6 @@ replace github.com/mattn/go-ieproxy => github.com/mattn/go-ieproxy v0.0.1
 
 replace github.com/openshift/api => github.com/openshift/api v0.0.0-20230726162818-81f778f3b3ec
 
-// TODO: Remove this replace once v0.148.0 is released
-replace github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension v0.147.0 => github.com/DataDog/opentelemetry-collector-contrib/extension/datadogextension v0.147.1-0.20260319095942-6b90e15b61ca
-
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
 replace (
