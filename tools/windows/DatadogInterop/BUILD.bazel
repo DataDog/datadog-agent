@@ -11,11 +11,10 @@ genrule(
         set VCXPROJ=$(location DatadogInterop/DatadogInterop.vcxproj)
         for %%F in (%MSBUILD%) do set MSBUILD=%%~fF
         for %%F in (%VCXPROJ%) do set VCXPROJ=%%~fF
-        for %%F in (%VCXPROJ%) do set PROJDIR=%%~dpF
-        set OUTDIR=%PROJDIR%..\\x64\\Release\\
-        "%MSBUILD%" "%VCXPROJ%" /p:Configuration=Release /p:Platform="x64" /p:OutDir="%OUTDIR%" /verbosity:minimal
+        for %%F in ($@) do set OUTDIR=%%~dpF
+        set INTDIR=%OUTDIR%obj\\
+        "%MSBUILD%" "%VCXPROJ%" /p:Configuration=Release /p:Platform="x64" /p:OutDir="%OUTDIR%" /p:IntDir="%INTDIR%" /verbosity:minimal
         if %errorlevel% neq 0 exit /b %errorlevel%
-        copy "%OUTDIR%libdatadog-interop.dll" "$@"
     """,
     target_compatible_with = ["@platforms//os:windows"],
     tools = ["@visual_studio//:msbuild"],
