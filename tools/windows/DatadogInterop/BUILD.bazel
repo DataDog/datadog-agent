@@ -5,7 +5,6 @@ genrule(
         "DatadogInterop/msstoreapps.h",
         "DatadogInterop/DatadogInterop.vcxproj",
     ],
-    tools = ["@visual_studio//:msbuild"],
     outs = ["libdatadog-interop.dll"],
     cmd_bat = """
         set MSBUILD=$(location @visual_studio//:msbuild)
@@ -19,5 +18,6 @@ genrule(
         copy "%OUTDIR%libdatadog-interop.dll" "$@"
     """,
     target_compatible_with = ["@platforms//os:windows"],
+    tools = ["@visual_studio//:msbuild"],
     visibility = ["//visibility:public"],
 )
