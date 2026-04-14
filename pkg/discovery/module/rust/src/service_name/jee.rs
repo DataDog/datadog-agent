@@ -221,6 +221,7 @@ enum AppXmlState {
 
 struct AppXmlHandler {
     context_roots: Vec<String>,
+    current_text: String,
 }
 
 impl XmlHandler for AppXmlHandler {
@@ -245,7 +246,13 @@ impl XmlHandler for AppXmlHandler {
 
     fn end_element(&mut self, state: Self::State, name: &str) -> Action<Self::State> {
         match (state, name) {
-            (AppXmlState::ReadingContextRoot, _) => Action::Ascend(AppXmlState::InWeb),
+            (AppXmlState::ReadingContextRoot, _) => {
+                if !self.current_text.is_empty() {
+                    self.context_roots
+                        .push(std::mem::take(&mut self.current_text));
+                }
+                Action::Ascend(AppXmlState::InWeb)
+            }
             (AppXmlState::InWeb, "web") => Action::Ascend(AppXmlState::InModule),
             (AppXmlState::InModule, "module") => Action::Ascend(AppXmlState::InApplication),
             (AppXmlState::InApplication, _) => Action::Break,
@@ -254,10 +261,8 @@ impl XmlHandler for AppXmlHandler {
     }
 
     fn text(&mut self, state: Self::State, text: String) -> Action<Self::State> {
-        if let AppXmlState::ReadingContextRoot = &state
-            && !text.is_empty()
-        {
-            self.context_roots.push(text);
+        if let AppXmlState::ReadingContextRoot = &state {
+            self.current_text.push_str(&text);
         }
         Action::Same(state)
     }
@@ -267,6 +272,7 @@ fn parse_application_xml(buf: &[u8]) -> Result<Vec<String>, Error> {
     let mut parser = xml_parser::XmlParser::new(buf);
     let mut handler = AppXmlHandler {
         context_roots: Vec::new(),
+        current_text: String::new(),
     };
     parser.run(&mut handler, AppXmlState::Top)?;
     Ok(handler.context_roots)
@@ -313,8 +319,12 @@ fn parse_context_root(buf: &[u8], container_element: &str) -> Option<String> {
         fn text(&mut self, state: Self::State, text: String) -> Action<Self::State> {
             match state {
                 State::ReadingContextRoot => {
-                    self.result = if text.is_empty() { None } else { Some(text) };
-                    Action::Break
+                    match &mut self.result {
+                        Some(s) => s.push_str(&text),
+                        None if !text.is_empty() => self.result = Some(text),
+                        _ => {}
+                    }
+                    Action::Same(state)
                 }
                 s => Action::Same(s),
             }
@@ -1016,6 +1026,37 @@ http://java.sun.com/j2ee/dtds/application_1_2.dtd">
 </application>"#;
         let result = parse_application_xml(xml).unwrap();
         assert_eq!(result, vec!["/correct"]);
+    }
+
+    /// Unrecognised elements before the module should not cause early Break.
+    /// The end_element handler has `(InApplication, _) => Break`, but
+    /// `</foo>` must never reach the handler because `Same` (not `Descend`)
+    /// was returned for `<foo>`, so the framework's depth filter swallows
+    /// the corresponding EndElement.
+    #[test]
+    fn test_unknown_element_before_module_does_not_break() {
+        let xml =
+            b"<application><foo></foo><module><web><context-root>asdf</context-root></web></module></application>";
+        let result = parse_application_xml(xml).unwrap();
+        assert_eq!(result, vec!["asdf"]);
+    }
+
+    /// xml-rs can split element text across multiple Text/CData events.
+    /// Verify that split text is concatenated, not treated as separate entries.
+    #[test]
+    fn test_parse_application_xml_split_text() {
+        // Mixed text + CDATA produces two text events.
+        let xml = b"<application><module><web><context-root>/api<![CDATA[/v2]]></context-root></web></module></application>";
+        let result = parse_application_xml(xml).unwrap();
+        assert_eq!(result, vec!["/api/v2"]);
+    }
+
+    /// Verify parse_context_root concatenates split text across events.
+    #[test]
+    fn test_parse_context_root_split_text() {
+        let xml = b"<jboss-web><context-root>/app<![CDATA[/main]]></context-root></jboss-web>";
+        let result = parse_context_root(xml, "jboss-web");
+        assert_eq!(result, Some("/app/main".to_string()));
     }
 
     /// Worst-case memory test: many web modules with large context-root text,

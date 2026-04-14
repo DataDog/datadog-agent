@@ -126,13 +126,13 @@ impl XmlHandler for ConfigXmlHandler {
     fn text(&mut self, state: Self::State, text: String) -> Action<Self::State> {
         match &state {
             ConfigXmlState::ReadingTarget => {
-                self.current.target = text;
+                self.current.target.push_str(&text);
             }
             ConfigXmlState::ReadingSourcePath => {
-                self.current.source_path = text;
+                self.current.source_path.push_str(&text);
             }
             ConfigXmlState::ReadingStagingMode => {
-                self.current.staging_mode = text;
+                self.current.staging_mode.push_str(&text);
             }
             _ => {}
         }
@@ -470,5 +470,23 @@ http://xmlns.oracle.com/weblogic/weblogic-web-app/1.4/weblogic-web-app.xsd">inva
 
         let result = parse_config_xml(xml.as_bytes()).unwrap();
         assert_eq!(result.len(), n);
+    }
+
+    /// xml-rs can split element text across multiple Text/CData events.
+    /// Verify that split text is concatenated, not overwritten.
+    #[test]
+    fn test_parse_config_xml_split_text() {
+        let xml = br#"<domain>
+  <app-deployment>
+    <target>Admin<![CDATA[Server]]></target>
+    <source-path>/opt<![CDATA[/apps/test.war]]></source-path>
+    <staging-mode>no<![CDATA[stage]]></staging-mode>
+  </app-deployment>
+</domain>"#;
+        let result = parse_config_xml(xml.as_slice()).unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].target, "AdminServer");
+        assert_eq!(result[0].source_path, "/opt/apps/test.war");
+        assert_eq!(result[0].staging_mode, "nostage");
     }
 }
