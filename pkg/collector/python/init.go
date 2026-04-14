@@ -451,6 +451,13 @@ func Initialize(paths ...string) error {
 		return addExpvarPythonInitErrors(err)
 	}
 
+	// Log whether sub-interpreter support was compiled in.
+	// This is controlled at build time via -DENABLE_SUBINTERPRETERS=ON in CMake.
+	// When enabled, each Python check runs in its own isolated sub-interpreter.
+	if C.has_subinterpreter_support(rtloader) == 1 {
+		log.Warnf("[SUB-INTERPRETERS][EXPERIMENTAL] Python sub-interpreter isolation is enabled (per-check isolation)")
+	}
+
 	// Lock the GIL
 	glock, err := newStickyLock()
 	if err != nil {

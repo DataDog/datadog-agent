@@ -294,6 +294,21 @@ char *get_check_diagnoses(rtloader_t *rtloader, rtloader_pyobject_t *check)
 }
 
 /*
+ * sub-interpreter support API
+ */
+
+int has_subinterpreter_support(const rtloader_t *rtloader)
+{
+    // compile-time check; rtloader unused, kept for API consistency
+    (void)rtloader;
+#ifdef RTLOADER_HAS_SUBINTERPRETERS
+    return 1;
+#else
+    return 0;
+#endif
+}
+
+/*
  * error API
  */
 

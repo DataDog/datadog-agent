@@ -14,6 +14,7 @@
 #include <map>
 #include <mutex>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include <rtloader.h>
@@ -131,6 +132,78 @@ public:
     void setIsExcludedCb(cb_is_excluded_t);
 
 private:
+
+#ifdef RTLOADER_HAS_SUBINTERPRETERS
+    /*
+     * Sub-interpreter support (Python 3.14+)
+     * =======================================
+     *
+     * Each check runs in its own sub-interpreter for isolation. Go acquires
+     * the main GIL via stickyLock as before; the C++ methods (runCheck,
+     * cancelCheck, etc.) swap to the correct sub-interpreter internally.
+     */
+
+    // Maps check -> sub-interpreter.
+    // Populated in getCheck(), consulted in runCheck/cancelCheck/getCheckWarnings/getCheckDiagnoses
+    // via _lookupCheckInterp, check instance removed in decref.
+    std::unordered_map<PyObject *, PyThreadState *> _checkToInterp;
+
+    // Protects _checkToInterp from concurrent access. C++ mutex for C++
+    // structure, not related to Python GIL. Needed because runCheck/decref
+    // can be called from different goroutines in parallel.
+    std::mutex _checkToInterpMutex;
+
+    // Decides which interpreter a check should run in.
+    // Currently creates a new interpreter per check (1:1 policy).
+    // To change the assignment policy later, modify this function only.
+    PyThreadState *_assignInterpreter(const char *module_name);
+
+    // Creates a new sub-interpreter with per-interpreter GIL via
+    // Py_NewInterpreterFromConfig. Populates its sys.path from _pythonPaths
+    // (the agent's search paths: dist/, checks.d/, etc., added via addPythonPath).
+    // Returns the new sub-interpreter's thread state, or NULL on failure.
+    PyThreadState *_createSubInterpreter();
+
+    // Destroys a sub-interpreter and re-attaches the current thread to restore_tstate.
+    void _destroySubInterpreter(PyThreadState *tstate, PyThreadState *restore_tstate);
+
+    // Re-imports the check module and AgentCheck in the current sub-interpreter,
+    // then finds the AgentCheck subclass. Sets sub_klass on success.
+    // Caller must be attached to the sub-interpreter.
+    bool _setupSubInterpClass(const std::string &module_name, PyObject *&sub_klass);
+
+    // Looks up which sub-interpreter a check belongs to (_checkToInterp.find(check)).
+    // Returns the thread state, or NULL if the check runs in main interpreter.
+    PyThreadState *_lookupCheckInterp(PyObject *check);
+
+    // Removes a check from _checkToInterp and returns the corresponding sub-interpreter thread
+    // state. Returns NULL if the check was not in the map, meaning it's running
+    // in the main interpreter (blocklisted or sub-interp creation failed).
+    PyThreadState *_removeCheckInterp(PyObject *check);
+
+    // Switch into the sub-interpreter that owns this check (if any). Returns
+    // the main interpreter's thread state for later restoration, or NULL
+    // if the check runs in main (blocklisted or sub-interp creation failed).
+    PyThreadState *_enterCheckInterp(PyObject *py_check);
+
+    // Restore the main interpreter's thread state. No-op if main_tstate is NULL
+    void _exitCheckInterp(PyThreadState *main_tstate);
+
+    // Entry type stored in _moduleAttrs.
+    struct ModuleAttr {
+        std::string module;
+        std::string attr;
+        std::string value;
+    };
+    // Attributes set by Go (e.g., psutil.PROCFS_PATH), copied into each
+    // sub-interpreter by _copyModuleAttrs. No mutex - accessed under the
+    // main GIL (stickyLock).
+    std::vector<ModuleAttr> _moduleAttrs;
+
+    // Copies all stored module attributes into the current sub-interpreter.
+    // Must be called while attached to the sub-interpreter (holding its GIL).
+    void _copyModuleAttrs();
+#endif
     //! _importFrom member.
     /*!
       \brief This member function imports a Python object by name from the specified
@@ -143,6 +216,20 @@ private:
       NULL is returned with clean interpreter error flag.
     */
     PyObject *_importFrom(const char *module, const char *name);
+
+    //! _setModuleAttrString member.
+    /*!
+      \brief Shared implementation of setModuleAttrString: sets an attribute
+      on a Python module in the current interpreter.
+      \param module Module to import.
+      \param attr Attribute name.
+      \param value String value to set.
+      \return true on success, false on failure (setError is called on failure).
+
+      Used by setModuleAttrString (main interpreter, called from Go) and by
+      _copyModuleAttrs (to replay attributes into new sub-interpreters).
+    */
+    bool _setModuleAttrString(const char *module, const char *attr, const char *value);
 
     //! _findSubclassOf member.
     /*!
