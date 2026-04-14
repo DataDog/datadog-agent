@@ -2,15 +2,15 @@
 set -euo pipefail
 
 # Check `bazelisk` properly bootstraps `bazel` or fail with instructions
-if [ -z "${BAZEL_REAL:-}" ] || [ "${BAZELISK_SKIP_WRAPPER:-}" != true ]; then
+if [ -z "${BAZEL_REAL-}" ] || [ "${BAZELISK_SKIP_WRAPPER-}" != true ]; then
   >&2 cat "$(dirname "$0")/bazelisk.md"
   exit 2
 fi
 
 # Ensure `XDG_CACHE_HOME` denotes a directory
-if [ ! -d "${XDG_CACHE_HOME:-}" ]; then
-  if [ -n "${CI:-}" ]; then
-    >&2 echo "🔴 XDG_CACHE_HOME (${XDG_CACHE_HOME:-}) must denote a directory in CI!"
+if [ ! -d "${XDG_CACHE_HOME-}" ]; then
+  if [ -n "${CI-}" ]; then
+    >&2 echo "🔴 XDG_CACHE_HOME (${XDG_CACHE_HOME-}) must denote a directory in CI!"
     exit 2
   fi
   if [[ -e /.dockerenv || -e /run/.containerenv ]]; then
@@ -22,7 +22,7 @@ fi
 
 # Ensure `bazel` & managed toolchains honor `XDG_CACHE_HOME`
 extra_args=()
-if [ -n "${XDG_CACHE_HOME:-}" ]; then
+if [ -n "${XDG_CACHE_HOME-}" ]; then
   if [[ "$XDG_CACHE_HOME" != /* ]]; then
     >&2 echo "🔴 XDG_CACHE_HOME ($XDG_CACHE_HOME) must denote an absolute path!"
     exit 2
@@ -32,13 +32,15 @@ if [ -n "${XDG_CACHE_HOME:-}" ]; then
   extra_args+=(--disk_cache="$XDG_CACHE_HOME/bazel/disk-cache")
   # https://github.com/bazelbuild/bazel/issues/26384
   [ "$XDG_CACHE_HOME" = "$(dirname "$(dirname "$0")")/.cache" ] && extra_args+=(--repo_contents_cache=)
-  [ -n "${CI:-}" ] && [ -z "${GITHUB_ACTIONS:-}" ] && extra_args+=(--config=ci)
+  [ -n "${CI-}" ] && [ -z "${GITHUB_ACTIONS-}" ] && extra_args+=(--config=ci)
 else
   # Without `XDG_CACHE_HOME`, fall back Go caches to official defaults so Go repo rules work under strict repo_env
-  [ -z "${GOCACHE:-}" ] && export GOCACHE=~/.cache/go-build
-  [ -n "${GOPATH:-}" ] && gp="${GOPATH%%:*}" || gp=~/go
-  export GOMODCACHE="${GOMODCACHE:-$gp/pkg/mod}"
-  unset gp
+  [ -z "${GOCACHE-}" ] && export GOCACHE=~/.cache/go-build
+  if [ -z "${GOMODCACHE:-}" ]; then
+    [ -n "${GOPATH-}" ] && gp="${GOPATH%%:*}" || gp=~/go
+    export GOMODCACHE="$gp/pkg/mod"
+    unset gp
+  fi
 fi
 
 # "--startup cmd ..." -> "--startup cmd --config=ci ..."

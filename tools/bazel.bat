@@ -42,9 +42,11 @@ if defined XDG_CACHE_HOME (
 ) else (
   :: Without XDG_CACHE_HOME, fall back Go caches to official defaults so Go repo rules work under strict repo_env
   if not defined GOCACHE set "GOCACHE=%LOCALAPPDATA%\go-build"
-  if defined GOPATH (for /f "tokens=1 delims=;" %%i in ("%GOPATH%") do set "gp=%%i") else set "gp=%USERPROFILE%\go"
-  if not defined GOMODCACHE set "GOMODCACHE=!gp!\pkg\mod"
-  set "gp="
+  if not defined GOMODCACHE (
+    if defined GOPATH (for /f "tokens=1 delims=;" %%i in ("%GOPATH%") do set "gp=%%i") else set "gp=%USERPROFILE%\go"
+    set "GOMODCACHE=!gp!\pkg\mod"
+    set "gp="
+  )
 )
 
 :: Check legacy max path length of 260 characters got lifted, or fail with instructions
