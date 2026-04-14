@@ -93,12 +93,16 @@ impl XmlHandler for ConfigXmlHandler {
                 Action::Descend(ConfigXmlState::InAppDeployment)
             }
             (ConfigXmlState::InAppDeployment, "target") => {
+                // Clear in case the element appears more than once (last-wins).
+                self.current.target.clear();
                 Action::Descend(ConfigXmlState::ReadingTarget)
             }
             (ConfigXmlState::InAppDeployment, "source-path") => {
+                self.current.source_path.clear();
                 Action::Descend(ConfigXmlState::ReadingSourcePath)
             }
             (ConfigXmlState::InAppDeployment, "staging-mode") => {
+                self.current.staging_mode.clear();
                 Action::Descend(ConfigXmlState::ReadingStagingMode)
             }
             (s, _) => Action::Same(s),
@@ -488,5 +492,26 @@ http://xmlns.oracle.com/weblogic/weblogic-web-app/1.4/weblogic-web-app.xsd">inva
         assert_eq!(result[0].target, "AdminServer");
         assert_eq!(result[0].source_path, "/opt/apps/test.war");
         assert_eq!(result[0].staging_mode, "nostage");
+    }
+
+    /// If the same element appears more than once within one
+    /// `<app-deployment>`, the last value wins (matching the previous
+    /// serde/quick-xml behaviour) rather than concatenating.
+    #[test]
+    fn test_parse_config_xml_repeated_fields() {
+        let xml = b"\
+            <domain><app-deployment>\
+                <target>first</target>\
+                <target>second</target>\
+                <source-path>/first</source-path>\
+                <source-path>/second</source-path>\
+                <staging-mode>nostage</staging-mode>\
+                <staging-mode>stage</staging-mode>\
+            </app-deployment></domain>";
+        let result = parse_config_xml(xml.as_slice()).unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].target, "second");
+        assert_eq!(result[0].source_path, "/second");
+        assert_eq!(result[0].staging_mode, "stage");
     }
 }
