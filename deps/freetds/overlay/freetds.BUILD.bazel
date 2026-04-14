@@ -2,6 +2,7 @@
 
 load("@@//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
 load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
+load("@@//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
 load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@@//compliance/rules:ship_source_offer.bzl", "ship_source_offer")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
@@ -255,9 +256,24 @@ pkg_filegroup(
     visibility = ["//visibility:public"],
 )
 
+dd_collect_dependencies(
+    name = "_installed_libs",
+    srcs = [
+        ":tdsodbc_pkg",
+    ],
+    visibility = ["//visibility:private"],
+)
+
+pkg_filegroup(
+    name = "installed_libs",
+    srcs = [":_installed_libs"],
+    prefix = "embedded",
+)
+
 pkg_install(
     name = "install",
     srcs = [
         ":all_files",
+        ":installed_libs",
     ],
 )
