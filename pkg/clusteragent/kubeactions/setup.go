@@ -25,7 +25,7 @@ func Setup(ctx context.Context, clientset kubernetes.Interface, clusterName, clu
 	registry := NewExecutorRegistry(clientset)
 
 	// Register all action executors
-	registerExecutors(registry, clientset)
+	RegisterExecutors(registry, clientset)
 
 	// Create in-memory action store with TTL-based expiration
 	store := NewActionStore(ctx)
@@ -62,8 +62,8 @@ func (a *executorAdapter) Execute(ctx context.Context, action *kubeactions.KubeA
 	}
 }
 
-// registerExecutors registers all available action executors
-func registerExecutors(registry *ExecutorRegistry, clientset kubernetes.Interface) {
+// RegisterExecutors registers all available action executors
+func RegisterExecutors(registry *ExecutorRegistry, clientset kubernetes.Interface) {
 	// Register delete_pod executor
 	registry.Register("delete_pod", &executorAdapter{exec: executors.NewDeletePodExecutor(clientset)})
 	log.Infof("Registered executor for action type: delete_pod")
