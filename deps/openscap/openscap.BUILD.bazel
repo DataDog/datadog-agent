@@ -2,6 +2,7 @@
 
 load("@@//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
 load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
+load("@@//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
 load("@@//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
 load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@@//compliance/rules:ship_source_offer.bzl", "ship_source_offer")
@@ -652,11 +653,6 @@ dd_cc_packaged(
     name = "openscap_pkg",
     input = ":openscap",
     version = "33.1.2",
-    installed_files = [
-        ":bin_files",
-        ":xccdf-resources",
-        ":cpe_files",
-    ],
     visibility = ["//visibility:public"],
 )
 
@@ -667,12 +663,22 @@ dd_cc_packaged(
     visibility = ["//visibility:public"],
 )
 
+dd_collect_dependencies(
+    name = "_dep_libs",
+    srcs = [
+        ":openscap_pkg",
+        ":openscap_sce_pkg",
+    ],
+    visibility = ["//visibility:private"],
+)
+
 pkg_filegroup(
     name = "all_files",
     srcs = [
         ":bin_files",
         ":xccdf-resources",
         ":cpe_files",
+        ":_dep_libs",
     ],
     prefix = "embedded",
 )
