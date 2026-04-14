@@ -10,6 +10,7 @@
 #include <map>
 #include <mutex>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include <Python.h>
@@ -128,6 +129,69 @@ public:
     void setIsExcludedCb(cb_is_excluded_t);
 
 private:
+
+#ifdef RTLOADER_HAS_SUBINTERPRETERS
+    /*
+     * Sub-interpreter support (Python 3.14+)
+     * =======================================
+     *
+     * Each check instance runs in its own sub-interpreter for isolation.
+     * The mapping from check instance to sub-interpreter is stored in
+     * _checkToInterp. The C++ layer handles GIL swapping transparently:
+     * Go acquires the main GIL via stickyLock as before, and the C++ methods
+     * (runCheck, cancelCheck, etc.) swap to the correct sub-interpreter's
+     * GIL internally.
+     */
+
+    // Maps check instance (PyObject *) → sub-interpreter thread state.
+    // Populated in getCheck(), consulted in runCheck()/cancelCheck()/etc.,
+    // cleaned up in decref() when the check is destroyed.
+    std::unordered_map<PyObject *, PyThreadState *> _checkToInterp;
+
+    // Protects _checkToInterp from concurrent access. This is a C++ mutex
+    // for a C++ data structure — NOT related to the Python GIL. Needed
+    // because multiple goroutines can call runCheck/decref in parallel,
+    // and concurrent reads+writes to an unordered_map is undefined behavior.
+    std::mutex _checkToInterpMutex;
+
+    // Decides which interpreter a check should run in.
+    // Currently creates a new interpreter per check (1:1 policy).
+    // To change the assignment policy later, modify this function only.
+    PyThreadState *_assignInterpreter(const char *module_name);
+
+    // Creates a new sub-interpreter with per-interpreter GIL via
+    // Py_NewInterpreterFromConfig, copies sys.path from main interpreter.
+    // Returns the new sub-interpreter's thread state, or NULL on failure.
+    PyThreadState *_createSubInterpreter();
+
+    // Destroys a sub-interpreter and ends its thread state.
+    void _destroySubInterpreter(PyThreadState *tstate);
+
+    // Looks up which sub-interpreter a check belongs to.
+    // Returns the thread state, or NULL if the check runs in main interpreter.
+    PyThreadState *_lookupCheckInterp(PyObject *check);
+
+    // Removes a check from the map and returns its sub-interpreter thread
+    // state. Returns NULL if the check was not in the map (main interpreter).
+    PyThreadState *_removeCheckInterp(PyObject *check);
+
+    // Stores (module, attr, value) tuples set by Go via setModuleAttrString.
+    // Replayed into each new sub-interpreter at creation time so that
+    // attributes set at startup (hostname, version, etc.) are visible in
+    // every interpreter. No mutex needed — all access happens while
+    // holding the main GIL (setModuleAttrString and _createSubInterpreter
+    // are both called from Go with stickyLock held).
+    struct ModuleAttr {
+        std::string module;
+        std::string attr;
+        std::string value;
+    };
+    std::vector<ModuleAttr> _moduleAttrs;
+
+    // Replays all stored module attributes into the current sub-interpreter.
+    // Must be called while attached to the sub-interpreter (holding its GIL).
+    void _replayModuleAttrs();
+#endif
     //! _importFrom member.
     /*!
       \brief This member function imports a Python object by name from the specified

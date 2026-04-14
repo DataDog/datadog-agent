@@ -307,6 +307,100 @@ bool Three::getCheck(RtLoaderPyObject *py_class, const char *init_config_str, co
     PyObject *name = NULL;
     PyObject *provider = NULL;
 
+#ifdef RTLOADER_HAS_SUBINTERPRETERS
+    /*
+     * Sub-interpreter setup for this check instance.
+     *
+     * Goal: create a sub-interpreter, re-import the check module inside it,
+     * find the AgentCheck subclass, and replace `klass` so that all the
+     * existing getCheck logic below runs in the sub-interpreter's context.
+     *
+     * Why re-import? PyObjects from one interpreter cannot be used in another.
+     * Each sub-interpreter has its own sys.modules, its own object allocator
+     * (use_main_obmalloc = 0), and its own GIL. Using a PyObject from main
+     * inside a sub-interpreter is undefined behavior. So we must import
+     * AgentCheck and the check module fresh in each sub-interpreter.
+     *
+     * If anything fails (sub-interpreter creation, module import, class
+     * lookup), we fall back to running the check in the main interpreter —
+     * the existing code path is used unchanged.
+     */
+    PyThreadState *sub_tstate = NULL;
+    PyThreadState *main_tstate = NULL;
+    PyObject *sub_klass = NULL;
+    bool using_subinterp = false;
+
+    // We need the module name as a C++ string because after we detach from
+    // main, we can't access main's PyObjects. Copy it while still in main.
+    std::string module_name_str;
+    {
+        PyObject *mod_attr = PyObject_GetAttrString(klass, "__module__");
+        if (mod_attr != NULL && PyUnicode_Check(mod_attr)) {
+            const char *mod_name = PyUnicode_AsUTF8(mod_attr);
+            if (mod_name != NULL) {
+                module_name_str = mod_name;
+            }
+        }
+        Py_XDECREF(mod_attr);
+    }
+
+    // Create a sub-interpreter if we got a module name.
+    // _assignInterpreter calls _createSubInterpreter which creates the
+    // sub-interp, copies sys.path, and returns with main GIL re-attached.
+    if (!module_name_str.empty()) {
+        sub_tstate = _assignInterpreter(module_name_str.c_str());
+    }
+
+    if (sub_tstate != NULL) {
+        // Switch to the sub-interpreter: release main GIL, acquire sub-interp GIL.
+        main_tstate = PyEval_SaveThread();
+        PyEval_RestoreThread(sub_tstate);
+
+        // Re-import the check module in the sub-interpreter context.
+        PyObject *sub_module = PyImport_ImportModule(module_name_str.c_str());
+        if (sub_module == NULL) {
+            // Module import failed — likely a C extension that doesn't declare
+            // sub-interpreter support (Py_MOD_PER_INTERPRETER_GIL_SUPPORTED).
+            // Fall back to main interpreter for this check.
+            PyErr_Clear();
+            Py_EndInterpreter(sub_tstate);
+            PyEval_RestoreThread(main_tstate);
+            sub_tstate = NULL;
+        } else {
+            // Re-import the base class (AgentCheck) in the sub-interpreter.
+            // We can't use _baseClass (belongs to main). Each interpreter must
+            // import independently — this is the cost of full isolation.
+            PyObject *sub_base = _importFrom("datadog_checks.checks", "AgentCheck");
+            if (sub_base == NULL) {
+                PyErr_Clear();
+                Py_XDECREF(sub_module);
+                Py_EndInterpreter(sub_tstate);
+                PyEval_RestoreThread(main_tstate);
+                sub_tstate = NULL;
+            } else {
+                // Find the AgentCheck subclass in the re-imported module.
+                sub_klass = _findSubclassOf(sub_base, sub_module);
+                Py_DECREF(sub_base);
+                Py_DECREF(sub_module);
+
+                if (sub_klass == NULL) {
+                    Py_EndInterpreter(sub_tstate);
+                    PyEval_RestoreThread(main_tstate);
+                    sub_tstate = NULL;
+                } else {
+                    // Success! Replace klass with the sub-interpreter's class.
+                    // All code below will use this class, executing in the
+                    // sub-interpreter's context (we're attached to it now).
+                    klass = sub_klass;
+                    using_subinterp = true;
+                }
+            }
+        }
+    }
+    // If using_subinterp == true:  attached to sub-interp, klass = sub_klass
+    // If using_subinterp == false: attached to main, klass = original py_class
+#endif
+
     char load_config[] = "load_config";
     char format[] = "(s)"; // use parentheses to force Tuple creation
 
@@ -457,6 +551,37 @@ done:
     Py_XDECREF(args);
     Py_XDECREF(kwargs);
 
+#ifdef RTLOADER_HAS_SUBINTERPRETERS
+    if (using_subinterp) {
+        // Release our reference to the re-imported class. We got this from
+        // _findSubclassOf which returns a new reference. The class itself
+        // stays alive via sys.modules in the sub-interpreter — we're just
+        // releasing the extra reference we hold.
+        Py_XDECREF(sub_klass);
+
+        if (py_check != NULL) {
+            // Success: store the check → sub-interpreter mapping so that
+            // runCheck/cancelCheck/decref can find the right interpreter.
+            // py_check is the check instance created by PyObject_Call(klass, ...)
+            // above — it's the same variable used by the existing getCheck logic.
+            {
+                std::lock_guard<std::mutex> lock(_checkToInterpMutex);
+                _checkToInterp[py_check] = sub_tstate;
+            }
+            // Switch back to main: release sub-interp GIL, acquire main GIL.
+            PyEval_SaveThread();
+            PyEval_RestoreThread(main_tstate);
+        } else {
+            // Check creation failed in the sub-interpreter. Destroy it.
+            // We're still attached to the sub-interp (Py_EndInterpreter
+            // requires this). After destruction, no GIL is held — just C++.
+            // Then re-attach to main.
+            Py_EndInterpreter(sub_tstate);
+            PyEval_RestoreThread(main_tstate);
+        }
+    }
+#endif
+
     if (py_check == NULL) {
         return false;
     }
@@ -472,6 +597,19 @@ char *Three::runCheck(RtLoaderPyObject *check)
     }
 
     PyObject *py_check = reinterpret_cast<PyObject *>(check);
+
+#ifdef RTLOADER_HAS_SUBINTERPRETERS
+    // Look up which sub-interpreter this check belongs to.
+    // Returns NULL if the check runs in main (fallback or no sub-interp).
+    PyThreadState *sub_tstate = _lookupCheckInterp(py_check);
+    PyThreadState *main_tstate = NULL;
+    if (sub_tstate != NULL) {
+        // Release main GIL (detach), acquire sub-interp GIL (attach).
+        // All Python calls below will execute in the sub-interpreter.
+        main_tstate = PyEval_SaveThread();
+        PyEval_RestoreThread(sub_tstate);
+    }
+#endif
 
     // result will be eventually returned as a copy and the corresponding Python
     // string decref'ed, caller will be responsible for memory deallocation.
@@ -494,6 +632,16 @@ char *Three::runCheck(RtLoaderPyObject *check)
 
 done:
     Py_XDECREF(result);
+
+#ifdef RTLOADER_HAS_SUBINTERPRETERS
+    if (sub_tstate != NULL) {
+        // Release sub-interp GIL (detach), re-acquire main GIL (attach).
+        // Go's stickyLock expects us to return with main GIL held.
+        PyEval_SaveThread();
+        PyEval_RestoreThread(main_tstate);
+    }
+#endif
+
     return ret;
 }
 
@@ -505,6 +653,15 @@ void Three::cancelCheck(RtLoaderPyObject *check)
 
     PyObject *py_check = reinterpret_cast<PyObject *>(check);
 
+#ifdef RTLOADER_HAS_SUBINTERPRETERS
+    PyThreadState *sub_tstate = _lookupCheckInterp(py_check);
+    PyThreadState *main_tstate = NULL;
+    if (sub_tstate != NULL) {
+        main_tstate = PyEval_SaveThread();
+        PyEval_RestoreThread(sub_tstate);
+    }
+#endif
+
     char cancel[] = "cancel";
     PyObject *result = NULL;
 
@@ -514,6 +671,13 @@ void Three::cancelCheck(RtLoaderPyObject *check)
         setError("error invoking 'cancel' method: " + _fetchPythonError());
     }
     Py_XDECREF(result);
+
+#ifdef RTLOADER_HAS_SUBINTERPRETERS
+    if (sub_tstate != NULL) {
+        PyEval_SaveThread();
+        PyEval_RestoreThread(main_tstate);
+    }
+#endif
 }
 
 char **Three::getCheckWarnings(RtLoaderPyObject *check)
@@ -523,6 +687,16 @@ char **Three::getCheckWarnings(RtLoaderPyObject *check)
     }
 
     PyObject *py_check = reinterpret_cast<PyObject *>(check);
+
+#ifdef RTLOADER_HAS_SUBINTERPRETERS
+    PyThreadState *sub_tstate = _lookupCheckInterp(py_check);
+    PyThreadState *main_tstate = NULL;
+    if (sub_tstate != NULL) {
+        main_tstate = PyEval_SaveThread();
+        PyEval_RestoreThread(sub_tstate);
+    }
+#endif
+
     char **warnings = NULL;
 
     char func_name[] = "get_warnings";
@@ -567,6 +741,14 @@ char **Three::getCheckWarnings(RtLoaderPyObject *check)
 
 done:
     Py_XDECREF(warns_list);
+
+#ifdef RTLOADER_HAS_SUBINTERPRETERS
+    if (sub_tstate != NULL) {
+        PyEval_SaveThread();
+        PyEval_RestoreThread(main_tstate);
+    }
+#endif
+
     return warnings;
 }
 
@@ -577,6 +759,15 @@ char *Three::getCheckDiagnoses(RtLoaderPyObject *check)
     }
 
     PyObject *py_check = reinterpret_cast<PyObject *>(check);
+
+#ifdef RTLOADER_HAS_SUBINTERPRETERS
+    PyThreadState *sub_tstate = _lookupCheckInterp(py_check);
+    PyThreadState *main_tstate = NULL;
+    if (sub_tstate != NULL) {
+        main_tstate = PyEval_SaveThread();
+        PyEval_RestoreThread(sub_tstate);
+    }
+#endif
 
     // result will be eventually returned as a copy and the corresponding Python
     // string decref'ed, caller will be responsible for memory deallocation.
@@ -599,6 +790,14 @@ char *Three::getCheckDiagnoses(RtLoaderPyObject *check)
 
 done:
     Py_XDECREF(result);
+
+#ifdef RTLOADER_HAS_SUBINTERPRETERS
+    if (sub_tstate != NULL) {
+        PyEval_SaveThread();
+        PyEval_RestoreThread(main_tstate);
+    }
+#endif
+
     return ret;
 }
 
@@ -901,6 +1100,48 @@ bool Three::getAttrBool(RtLoaderPyObject *obj, const char *attributeName, bool &
 
 void Three::decref(RtLoaderPyObject *obj)
 {
+    // RtLoaderPyObject is an opaque type that hides PyObject from Go and the
+    // public C API — they don't need to include Python.h. The actual object
+    // in memory IS a PyObject; reinterpret_cast just tells C++ to treat the
+    // pointer as PyObject* (no conversion, same address).
+    //
+    // For most objects (modules from getClass, etc.), this function is truly
+    // just a reference count decrement. But for check objects running in a
+    // sub-interpreter, this is the full cleanup entry point: decref the check
+    // AND destroy its sub-interpreter. We reuse `decref` (rather than adding
+    // a separate destroyCheck) because it's the existing API that Go calls
+    // when it's done with any Python object — no Go changes needed for the PoC.
+
+#ifdef RTLOADER_HAS_SUBINTERPRETERS
+    PyObject *pyobj = reinterpret_cast<PyObject *>(obj);
+
+    // Check if this object is a check running in a sub-interpreter.
+    // _removeCheckInterp removes it from the map AND returns the tstate.
+    // Returns NULL if the object isn't a tracked check (e.g., it's a module
+    // from getClass, or a check running in main interpreter due to fallback).
+    PyThreadState *sub_tstate = _removeCheckInterp(pyobj);
+    if (sub_tstate != NULL) {
+        // This check lives in a sub-interpreter. Full cleanup:
+        //   1. Switch to sub-interpreter (release main GIL, acquire sub-interp GIL)
+        //   2. Py_DECREF the check object in its home interpreter.
+        //      Py_EndInterpreter would clean it up anyway, but we DECREF
+        //      explicitly so that a future per-type policy (shared interpreter,
+        //      no destroy on each check removal) doesn't leak.
+        //   3. Destroy the sub-interpreter (1:1 policy — one interp per check)
+        //   4. Switch back to main (re-acquire main GIL)
+        PyThreadState *main_tstate = PyEval_SaveThread();
+        PyEval_RestoreThread(sub_tstate);
+
+        Py_XDECREF(pyobj);
+
+        _destroySubInterpreter(sub_tstate);
+        // Now: sub-interp destroyed, no GIL held, no tstate — just C++.
+        PyEval_RestoreThread(main_tstate);
+        return;
+    }
+#endif
+
+    // Default path: object in main interpreter (or sub-interps not compiled in).
     Py_XDECREF(reinterpret_cast<PyObject *>(obj));
 }
 
@@ -925,6 +1166,18 @@ void Three::setModuleAttrString(char *module, char *attr, char *value)
 
     Py_XDECREF(py_module);
     Py_XDECREF(py_value);
+
+#ifdef RTLOADER_HAS_SUBINTERPRETERS
+    // Store the (module, attr, value) tuple so it can be replayed into each
+    // new sub-interpreter at creation time. Without this, sub-interpreters
+    // would import fresh copies of modules (e.g., datadog_agent) that don't
+    // have the attributes Go set on the main interpreter's copy.
+    //
+    // No mutex needed: setModuleAttrString is always called from Go with
+    // stickyLock held (main GIL), and _createSubInterpreter is also called
+    // under the main GIL, so there's no concurrent access to _moduleAttrs.
+    _moduleAttrs.push_back({std::string(module), std::string(attr), std::string(value)});
+#endif
 }
 
 void Three::setSubmitMetricCb(cb_submit_metric_t cb)

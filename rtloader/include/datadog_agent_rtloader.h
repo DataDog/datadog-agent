@@ -348,6 +348,19 @@ DATADOG_AGENT_RTLOADER_API const char *get_error(const rtloader_t *);
 DATADOG_AGENT_RTLOADER_API int handle_crashes(const int, const int, char **error);
 #endif
 
+// SUB-INTERPRETER SUPPORT
+/*! \fn int has_subinterpreter_support(const rtloader_t *)
+    \brief Checks whether the rtloader was compiled with sub-interpreter support.
+    \param rtloader_t A const rtloader_t * pointer to the RtLoader instance.
+    \return 1 if compiled with -DENABLE_SUBINTERPRETERS=ON (RTLOADER_HAS_SUBINTERPRETERS
+    defined), 0 otherwise.
+    \sa rtloader_t
+
+    This is an informational function for logging at agent startup. The sub-interpreter
+    behavior is controlled entirely at compile time — there is no runtime toggle.
+*/
+DATADOG_AGENT_RTLOADER_API int has_subinterpreter_support(const rtloader_t *);
+
 // PYTHON HELPERS
 /*! \fn char *get_integration_list(rtloader_t *)
     \brief Routine to build a list of every datadog wheel installed.
