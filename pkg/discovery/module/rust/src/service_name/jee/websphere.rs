@@ -11,14 +11,26 @@ use std::io::BufReader;
 use std::path::Path;
 use xml::attribute::OwnedAttribute;
 
-/// Target mapping for deployments
+/// Target mapping for deployments.
+///
+/// Missing `target` attribute defaults to `""`, matching Go's
+/// `encoding/xml`.  The old quick-xml/serde parser rejected the
+/// document if `@target` was absent.  Empty defaults are safe because
+/// `is_application_deployed` compares `server_target` against an `id`
+/// from `DeploymentTarget`: a match only occurs if both are genuinely
+/// equal, and `find_deployed_apps` guarantees `node_name`/`server_name`
+/// are non-empty, so a record with all-empty attributes cannot match.
 #[derive(Debug)]
 struct TargetMapping {
     enable: bool,
     server_target: String,
 }
 
-/// Deployment target information
+/// Deployment target information.
+///
+/// Missing `id`/`name`/`nodeName` attributes default to `""`, matching
+/// Go's `encoding/xml`.  The old quick-xml/serde parser required them.
+/// See [`TargetMapping`] for why empty defaults are safe.
 #[derive(Debug)]
 struct DeploymentTarget {
     id: String,
