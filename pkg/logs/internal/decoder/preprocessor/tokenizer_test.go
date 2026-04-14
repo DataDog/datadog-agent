@@ -7,6 +7,7 @@
 package preprocessor
 
 import (
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -419,6 +420,46 @@ func FuzzIsMatchMonotonicity(f *testing.F) {
 				"match at thresh=%.2f must imply match at thresh=%.2f: a=%q b=%q",
 				hi, lo, inputA, inputB)
 		}
+	})
+}
+
+// PatternMatching.Isolation: two sequences differing at more than
+// tolerance = len - round(threshold * len) positions are guaranteed
+// not to match. Contrapositive of ThresholdComparison.
+func FuzzIsMatchIsolation(f *testing.F) {
+	f.Add([]byte("2024-01-15 10:30:45 INFO request"), uint8(90), uint8(0))
+	f.Add([]byte("error at line 42 in module"), uint8(75), uint8(3))
+	f.Add([]byte("GET /api/v2/users 200 42ms"), uint8(50), uint8(1))
+	f.Fuzz(func(t *testing.T, input []byte, threshPct, startPos uint8) {
+		thresh := float64(threshPct%101) / 100.0
+		tok := NewTokenizer(0)
+		tokens, _ := tok.Tokenize(input)
+		n := len(tokens)
+		if n < 2 {
+			return
+		}
+
+		required := int(math.Round(thresh * float64(n)))
+		tolerance := n - required
+
+		// Construct a mutated sequence differing at tolerance+1 positions.
+		// This should guarantee no match.
+		diffs := tolerance + 1
+		if diffs > n {
+			return // threshold so low that everything matches
+		}
+
+		mutated := make([]Token, n)
+		copy(mutated, tokens)
+		start := int(startPos) % n
+		for i := range diffs {
+			pos := (start + i) % n
+			mutated[pos] = (tokens[pos] + 1) % End
+		}
+
+		assert.False(t, IsMatch(tokens, mutated, thresh),
+			"sequences differing at %d positions (tolerance=%d) must not match: thresh=%.2f len=%d",
+			diffs, tolerance, thresh, n)
 	})
 }
 
