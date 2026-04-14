@@ -5,7 +5,6 @@ load("@bazel_skylib//lib:selects.bzl", "selects")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
-load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 package(
@@ -148,11 +147,4 @@ pkg_filegroup(
     ],
     prefix = "embedded",
     visibility = ["//visibility:public"],
-)
-
-pkg_install(
-    name = "install",
-    srcs = [
-        ":all_files",
-    ],
 )
