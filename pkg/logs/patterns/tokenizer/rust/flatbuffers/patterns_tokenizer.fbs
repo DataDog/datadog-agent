@@ -1,0 +1,55 @@
+// Regenerate (Go): flatc --go -o . patterns_tokenizer.fbs
+// Regenerate (Rust): flatc --rust -o /Users/yoon.nguyen/dd/dd-source/domains/data_science/libs/rust/patterns/src/ffi_fb patterns_tokenizer.fbs
+namespace patterns;
+
+enum TokenKind:byte {
+  Word=0,
+  Whitespace=1,
+  SpecialCharacter=2,
+  NumericValue=3,
+  HttpStatusCode=4,
+  HttpMethod=5,
+  Severity=6,
+  LocalDate=7,
+  LocalDateTime=8,
+  LocalTime=9,
+  OffsetDateTime=10,
+  IPv4Address=11,
+  IPv6Address=12,
+  EmailAddress=13,
+  RegularName=14,
+  AbsolutePath=15,
+  URI=16,
+  Authority=17,
+  PathWithQueryAndFragment=18,
+  TokenList=19,
+  CollapsibleTokenList=20,
+  CollapsedToken=21,
+  KeyValueSequence=22
+}
+
+enum ErrorCode:byte {
+  None=0,
+  NullPointer=1,
+  InvalidUtf8=2,
+  SizeLimit=3
+}
+
+table Token {
+  kind:TokenKind;
+  value:string;
+  start_offset:int;
+  end_offset:int;
+  never_wildcard:bool;
+  has_digits:bool;
+  children:[Token];
+}
+
+table TokenizeResponse {
+  version:ushort;
+  tokens:[Token];
+  error:string;
+  error_code:ErrorCode = None;
+}
+
+root_type TokenizeResponse;
