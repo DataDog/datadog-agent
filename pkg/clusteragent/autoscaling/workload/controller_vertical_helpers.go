@@ -400,6 +400,16 @@ func applyVerticalConstraints(verticalRecs *model.VerticalScalingValues, constra
 			}
 		}
 
+		// ControlledValues=CPURequestsRemoveLimitsMemoryRequestsAndLimits: strip only the CPU limit
+		// from the recommendation. Memory limits remain controlled (RequestsAndLimits semantics).
+		// The pod patcher will additionally remove any pre-existing CPU limit from live pods.
+		if constraint.ControlledValues != nil && *constraint.ControlledValues == datadoghqcommon.DatadogPodAutoscalerContainerControlledValuesCPURequestsRemoveLimitsMemoryRequestsAndLimits {
+			if _, hasCPULimit := cr.Limits[corev1.ResourceCPU]; hasCPULimit {
+				delete(cr.Limits, corev1.ResourceCPU)
+				modified = true
+			}
+		}
+
 		// Resolve min/max bounds for clamping.
 		// New top-level MinAllowed/MaxAllowed apply to both requests and limits.
 		// Deprecated Requests.MinAllowed/MaxAllowed apply to requests only.

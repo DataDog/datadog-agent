@@ -167,7 +167,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.77.0-devel.0.20260213154712-e02b9359151a
 	github.com/DataDog/datadog-agent/pkg/version v0.77.0-devel.0.20260213154712-e02b9359151a
 	github.com/DataDog/datadog-go/v5 v5.8.3
-	github.com/DataDog/datadog-operator/api v0.0.0-20260323152500-0887e50ccf73
+	github.com/DataDog/datadog-operator/api v0.0.0-20260414104914-c59fc90bbc2c
 	github.com/DataDog/datadog-traceroute v1.0.13
 	github.com/DataDog/dd-trace-go/v2 v2.7.0-rc.1
 	github.com/DataDog/ebpf-manager v0.7.16
@@ -408,16 +408,16 @@ require (
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
 	istio.io/api v1.27.3
 	istio.io/client-go v1.27.3
-	k8s.io/api v0.35.1
+	k8s.io/api v0.35.3
 	k8s.io/apiextensions-apiserver v0.35.0
-	k8s.io/apimachinery v0.35.1
+	k8s.io/apimachinery v0.35.3
 	k8s.io/autoscaler/vertical-pod-autoscaler v1.2.2
 	k8s.io/cli-runtime v0.34.1
 	k8s.io/client-go v0.35.1
 	k8s.io/component-base v0.35.0
 	k8s.io/cri-api v0.34.1
 	k8s.io/cri-client v0.34.1
-	k8s.io/klog/v2 v2.130.1
+	k8s.io/klog/v2 v2.140.0
 	k8s.io/kube-aggregator v0.34.1
 	k8s.io/kube-state-metrics/v2 v2.13.1-0.20241025121156-110f03d7331f
 	k8s.io/kubectl v0.34.1
@@ -482,7 +482,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/orchestrator/util v0.0.0-20251120165911-0b75c97e8b50 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/buf v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.64.0-rc.3 // indirect
-	github.com/DataDog/datadog-api-client-go/v2 v2.55.0 // indirect
+	github.com/DataDog/datadog-api-client-go/v2 v2.56.0 // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/gohai v0.0.0-20230524154621-4316413895ee // indirect
 	github.com/DataDog/gostackparse v0.7.0 // indirect

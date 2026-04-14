@@ -97,7 +97,8 @@ func (pa podPatcher) ApplyRecommendations(pod *corev1.Pod) (bool, error) {
 
 	// Even if annotation matches, we still verify the resources are correct, in case the POD was modified.
 	for _, reco := range autoscaler.ScalingValues().Vertical.ContainerResources {
-		patched = patchPod(reco, pod) || patched
+		controlledValues := getContainerControlledValues(autoscaler, reco.Name)
+		patched = patchPod(reco, pod, controlledValues) || patched
 	}
 
 	return patched, nil
@@ -200,13 +201,33 @@ func (pa podPatcher) observedPodCallback(ctx context.Context, pod *workloadmeta.
 	log.Debugf("Event sent and POD %s/%s patched with event annotation", pod.Namespace, pod.Name)
 }
 
+// getContainerControlledValues resolves the ControlledValues for a container from the autoscaler
+// spec constraints, matching by name first, falling back to the wildcard constraint ("*").
+func getContainerControlledValues(autoscaler *model.PodAutoscalerInternal, containerName string) *datadoghqcommon.DatadogPodAutoscalerContainerControlledValues {
+	spec := autoscaler.Spec()
+	if spec == nil || spec.Constraints == nil {
+		return nil
+	}
+	var wildcard *datadoghqcommon.DatadogPodAutoscalerContainerControlledValues
+	for i := range spec.Constraints.Containers {
+		c := &spec.Constraints.Containers[i]
+		if c.Name == containerName {
+			return c.ControlledValues
+		}
+		if c.Name == "*" {
+			wildcard = c.ControlledValues
+		}
+	}
+	return wildcard
+}
+
 // K8s guarantees that the name for an init container or normal container are unique among all containers.
 // It means that dispatching recommendations just by container names is sufficient
-func patchPod(reco datadoghqcommon.DatadogPodAutoscalerContainerResources, pod *corev1.Pod) (patched bool) {
+func patchPod(reco datadoghqcommon.DatadogPodAutoscalerContainerResources, pod *corev1.Pod, controlledValues *datadoghqcommon.DatadogPodAutoscalerContainerControlledValues) (patched bool) {
 	for i := range pod.Spec.Containers {
 		cont := &pod.Spec.Containers[i]
 		if cont.Name == reco.Name {
-			return patchContainerResources(reco, cont)
+			return patchContainerResources(reco, cont, controlledValues)
 		}
 	}
 
@@ -217,14 +238,14 @@ func patchPod(reco datadoghqcommon.DatadogPodAutoscalerContainerResources, pod *
 		// sidecar container by definition is an init container with `restartPolicy: Always`
 		isInitSidecarContainer := cont.RestartPolicy != nil && *cont.RestartPolicy == corev1.ContainerRestartPolicyAlways
 		if cont.Name == reco.Name && isInitSidecarContainer {
-			return patchContainerResources(reco, cont)
+			return patchContainerResources(reco, cont, controlledValues)
 		}
 	}
 
 	return false
 }
 
-func patchContainerResources(reco datadoghqcommon.DatadogPodAutoscalerContainerResources, cont *corev1.Container) (patched bool) {
+func patchContainerResources(reco datadoghqcommon.DatadogPodAutoscalerContainerResources, cont *corev1.Container, controlledValues *datadoghqcommon.DatadogPodAutoscalerContainerControlledValues) (patched bool) {
 	patched = false
 
 	if cont.Resources.Limits == nil {
@@ -242,6 +263,14 @@ func patchContainerResources(reco datadoghqcommon.DatadogPodAutoscalerContainerR
 	for resource, request := range reco.Requests {
 		if request != cont.Resources.Requests[resource] {
 			cont.Resources.Requests[resource] = request
+			patched = true
+		}
+	}
+	// CPURequestsRemoveLimitsMemoryRequestsAndLimits: actively remove any pre-existing CPU limit
+	// from the live pod so that the container can burst freely beyond its CPU request.
+	if controlledValues != nil && *controlledValues == datadoghqcommon.DatadogPodAutoscalerContainerControlledValuesCPURequestsRemoveLimitsMemoryRequestsAndLimits {
+		if _, hasCPULimit := cont.Resources.Limits[corev1.ResourceCPU]; hasCPULimit {
+			delete(cont.Resources.Limits, corev1.ResourceCPU)
 			patched = true
 		}
 	}
