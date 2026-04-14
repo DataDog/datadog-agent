@@ -255,7 +255,7 @@
 /cmd/system-probe/modules/oom_kill_probe*   @DataDog/container-integrations
 /cmd/system-probe/modules/process*      @DataDog/container-experiences
 /cmd/system-probe/modules/eventmonitor* @DataDog/agent-security
-/cmd/system-probe/modules/compliance*   @DataDog/agent-cspm
+/cmd/system-probe/modules/compliance*   @DataDog/agent-cspm @DataDog/agent-security
 /cmd/system-probe/modules/tcp_queue_tracer* @DataDog/container-integrations
 /cmd/system-probe/modules/traceroute*   @DataDog/network-path
 /cmd/system-probe/modules/ping*         @DataDog/network-device-monitoring-core
@@ -269,11 +269,11 @@
 /cmd/system-probe/subcommands/runtime/  @DataDog/agent-security
 /cmd/system-probe/subcommands/usm/      @DataDog/universal-service-monitoring
 /cmd/system-probe/subcommands/ebpf/     @DataDog/ebpf-platform @DataDog/universal-service-monitoring
-/cmd/system-probe/subcommands/compliance/     @DataDog/agent-cspm
+/cmd/system-probe/subcommands/compliance/     @DataDog/agent-cspm @DataDog/agent-security
 /cmd/systray/                           @DataDog/windows-products
 /cmd/secret-generic-connector/          @DataDog/agent-configuration
 /cmd/security-agent/                    @DataDog/agent-security
-/cmd/security-agent/subcommands/compliance/ @DataDog/agent-cspm
+/cmd/security-agent/subcommands/compliance/ @DataDog/agent-cspm @DataDog/agent-security
 /cmd/installer/                         @DataDog/fleet @DataDog/windows-products
 /cmd/host-profiler/                     @DataDog/opentelemetry-agent @DataDog/profiling-full-host
 
@@ -311,9 +311,9 @@
 /omnibus/package-scripts/installer-deb/ @DataDog/agent-build @DataDog/fleet
 /omnibus/package-scripts/installer-rpm/ @DataDog/agent-build @DataDog/fleet
 /omnibus/python-scripts/                @DataDog/agent-integrations @DataDog/windows-products
-/deps/openscap/patches                  @DataDog/agent-cspm
+/deps/openscap/patches                  @DataDog/agent-cspm @DataDog/agent-security
 /omnibus/config/software/datadog-agent-integrations-*.rb  @DataDog/agent-integrations
-/omnibus/config/software/openscap.rb                      @DataDog/agent-build @DataDog/agent-cspm
+/omnibus/config/software/openscap.rb                      @DataDog/agent-build @DataDog/agent-cspm @DataDog/agent-security
 /omnibus/resources/*/msi/                                 @DataDog/windows-products
 
 /packages/                              @DataDog/agent-build
@@ -493,6 +493,7 @@
 /pkg/collector/corechecks/cluster/orchestrator/processors/ecs/    @DataDog/ecs-experiences
 /pkg/collector/corechecks/cluster/orchestrator/transformers/ecs/  @DataDog/ecs-experiences
 /pkg/collector/corechecks/containers/   @DataDog/container-integrations
+/pkg/collector/corechecks/containers/csi_driver/   @DataDog/container-platform
 /pkg/collector/corechecks/containerimage/       @DataDog/container-integrations
 /pkg/collector/corechecks/containerlifecycle/   @DataDog/container-integrations
 /pkg/collector/corechecks/discovery/ @DataDog/agent-discovery
@@ -691,7 +692,7 @@
 /pkg/networkconfigmanagement/           @DataDog/ndm-integrations
 /pkg/ebpf/                              @DataDog/ebpf-platform
 /pkg/ebpf/map_cleaner*.go               @DataDog/universal-service-monitoring
-/pkg/compliance/                        @DataDog/agent-cspm
+/pkg/compliance/                        @DataDog/agent-cspm @DataDog/agent-security
 /pkg/databasemonitoring                 @DataDog/database-monitoring
 /pkg/kubestatemetrics                   @DataDog/container-integrations
 /pkg/security/                          @DataDog/agent-security
