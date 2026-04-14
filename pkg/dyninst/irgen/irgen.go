@@ -1094,7 +1094,30 @@ func analyzeAllProbes(
 						Message: "failed to extract root variable from condition",
 					}
 				}
-				rootVar := varByName[rootVarName]
+				var rootVar *ir.Variable
+				if rootVarName == "@return" && len(returnVars) > 0 {
+					if len(returnVars) == 1 {
+						rootVar = returnVars[0]
+						condExpr = rewriteReturnRef(condExpr, rootVar.Name)
+					} else {
+						member := findReturnMember(condExpr)
+						if member == "" {
+							return nil, ir.Issue{
+								Kind:    ir.IssueKindUnsupportedFeature,
+								Message: "@return in condition requires a field selector for multi-return functions",
+							}
+						}
+						for _, v := range returnVars {
+							if returnDisplayNames[v] == member {
+								rootVar = v
+								condExpr = rewriteReturnMember(condExpr, v.Name)
+								break
+							}
+						}
+					}
+				} else {
+					rootVar = varByName[rootVarName]
+				}
 				if rootVar == nil {
 					return nil, ir.Issue{
 						Kind:    ir.IssueKindConditionVariableUnavailable,
