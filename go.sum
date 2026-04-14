@@ -238,8 +238,8 @@ github.com/DataDog/opentelemetry-collector-contrib/extension/datadogextension v0
 github.com/DataDog/opentelemetry-collector-contrib/extension/datadogextension v0.147.1-0.20260319095942-6b90e15b61ca/go.mod h1:X2RsZAzB4956LB2UFWcz6GG9MF3X/paAZtIEnzmkL4c=
 github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20260317195537-817b91eb7dd4 h1:9+K8vjF7sQSLjVJporNyv6nw46cMg/Q8ogxbBZmrf+A=
 github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20260317195537-817b91eb7dd4/go.mod h1:KEBv+q78RzBcDPNFm1WB0V0za14gY95E/Atp3dJZ/8M=
-github.com/DataDog/rshell v0.0.9 h1:HS38O5aVK43ctHkTFm5RGTZA1JCP5oDxcD5O97NnoSc=
-github.com/DataDog/rshell v0.0.9/go.mod h1:e6IP68xHScumYqM/9dT9y5H41EmStHDVEyCZKv5mEt4=
+github.com/DataDog/rshell v0.0.10 h1:1jFuWzxxBNCv4tec1Rn1yZJrj9p3ZK7sRZEaHdxUk0Q=
+github.com/DataDog/rshell v0.0.10/go.mod h1:e6IP68xHScumYqM/9dT9y5H41EmStHDVEyCZKv5mEt4=
 github.com/DataDog/sketches-go v1.4.8 h1:pFk9BNn+Rzv8IMIoPUttoOpOr3bJOqU3P6EP5wK+Lv8=
 github.com/DataDog/sketches-go v1.4.8/go.mod h1:a/wjRUqzqtGS8qRHRPDCs4EAQfmvPDZGDlMIF5mxXOE=
 github.com/DataDog/trivy v0.0.0-20260407220859-6cf8ddc1826c h1:oiwmRrkRVblZBI3SFVEnrwxkQ28W7nmwwI/VHgex0ZU=
@@ -286,8 +286,8 @@ github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERo
 github.com/Microsoft/go-winio v0.6.2/go.mod h1:yd8OoFMLzJbo9gZq8j5qaps8bJ9aShtEA8Ipt1oGCvU=
 github.com/Microsoft/hcsshim v0.13.0 h1:/BcXOiS6Qi7N9XqUcv27vkIuVOkBEcWstd2pMlWSeaA=
 github.com/Microsoft/hcsshim v0.13.0/go.mod h1:9KWJ/8DgU+QzYGupX4tzMhRQE8h6w90lH6HAaclpEok=
-github.com/NVIDIA/go-nvml v0.12.9-0 h1:e344UK8ZkeMeeLkdQtRhmXRxNf+u532LDZPGMtkdus0=
-github.com/NVIDIA/go-nvml v0.12.9-0/go.mod h1:+KNA7c7gIBH7SKSJ1ntlwkfN80zdx8ovl4hrK3LmPt4=
+github.com/NVIDIA/go-nvml v0.13.0-1.0.20260414000254-c617db04ef8e h1:sjzPY7aEDyVlahN7HBVKBdfNKXypJHND424iuUW0HGs=
+github.com/NVIDIA/go-nvml v0.13.0-1.0.20260414000254-c617db04ef8e/go.mod h1:ahi2psRYoa+wYUBIrZPRO+wJs9lcvMhxSSkjjvsJJNQ=
 github.com/NYTimes/gziphandler v1.1.1 h1:ZUDjpQae29j0ryrS0u/B8HZfJBtBQHjqw2rQ2cqUQ3I=
 github.com/NYTimes/gziphandler v1.1.1/go.mod h1:n/CVRwUEOgIxrgPvAQhUUr9oeUtvrhMomdKFjzJNB0c=
 github.com/Nvveen/Gotty v0.0.0-20120604004816-cd527374f1e5 h1:TngWCqHvy9oXAN6lEVMRuU21PR1EtLVZJmdB18Gu3Rw=

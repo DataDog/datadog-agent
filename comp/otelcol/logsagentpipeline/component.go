@@ -9,7 +9,7 @@ package logsagentpipeline
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
+	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
 )
 
 // team: opentelemetry-agent
