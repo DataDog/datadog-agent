@@ -150,7 +150,7 @@ func TestTagsToKeyValues(tags []string) map[string][]string {
 
 // AssertMetricTagsAgainstSpec validates emitted tags against the metric and tag specs.
 // If knownTagValues is provided, matching keys are additionally checked for exact values.
-func AssertMetricTagsAgainstSpec(t *testing.T, metricSpecFile *MetricsSpec, tagsSpec *TagsSpec, metricName string, metricSpec MetricSpec, emittedMetrics []EmittedMetric, knownTagValues map[string]string) {
+func AssertMetricTagsAgainstSpec(t *testing.T, tagsSpec *TagsSpec, metricName string, metricSpec MetricSpec, emittedMetrics []EmittedMetric, knownTagValues map[string]string) {
 	t.Helper()
 	require.NotEmpty(t, emittedMetrics, "metric %s has no emitted samples to validate tags", metricName)
 
