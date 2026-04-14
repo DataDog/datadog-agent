@@ -12,10 +12,10 @@ import (
 	"github.com/benbjohnson/clock"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/DataDog/agent-payload/v5/statefulpb"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -25,10 +25,15 @@ var (
 	tlmDroppedTooLarge = telemetry.NewCounter("logs_sender_grpc_batch_strategy", "dropped_too_large", []string{"pipeline"}, "Number of payloads dropped due to being too large")
 )
 
+// enableDeltaEncoding controls whether the agent applies delta encoding to Log datums.
+// When false: patternId, tags, and timestamp are sent as absolute values on every Log datum.
+const enableDeltaEncoding = true
+
 // StatefulExtra holds state changes (non-Log datums) from a batch
 // Used by inflight tracker to maintain snapshot state for stream rotation
 type StatefulExtra struct {
-	StateChanges []*statefulpb.Datum
+	StateChanges        []*statefulpb.Datum
+	PreCompressionBytes int
 }
 
 // isStateDatum returns true if the datum represents a state change
@@ -59,6 +64,9 @@ type batchStrategy struct {
 
 	// For gRPC: store Datums separately since MessageBuffer only stores metadata
 	grpcDatums []*statefulpb.Datum
+
+	// marshalBuf is reused across flushes for proto.Marshal output to reduce per-flush allocations.
+	marshalBuf []byte
 
 	// Delta encoding state - tracks previous values within current batch
 	lastTimestamp     int64  // milliseconds since epoch
@@ -159,10 +167,11 @@ func (s *batchStrategy) addMessage(m *message.StatefulMessage) bool {
 		return false
 	}
 
-	// Update delta state when PatternDefine passes through
-	// This ensures the first log after a pattern definition correctly omits pattern_id
-	if patternDefine := m.Datum.GetPatternDefine(); patternDefine != nil {
-		s.lastPatternID = patternDefine.PatternId
+	// Update delta state when PatternDefine passes through (only when delta encoding is active)
+	if enableDeltaEncoding {
+		if patternDefine := m.Datum.GetPatternDefine(); patternDefine != nil {
+			s.lastPatternID = patternDefine.PatternId
+		}
 	}
 
 	// Apply delta encoding to Log datums before adding to batch
@@ -180,9 +189,14 @@ func (s *batchStrategy) addMessage(m *message.StatefulMessage) bool {
 	return false
 }
 
-// applyDeltaEncoding applies delta encoding to a Log datum within the current batch
-// Computes deltas for timestamp, omits unchanged pattern_id and tags
+// applyDeltaEncoding applies delta encoding to a Log datum within the current batch.
+// Currently gated behind enableDeltaEncoding=false: the server does not implement delta
+// reconstruction for any field (patternId, tags, timestamp), so this is a no-op until
+// server-side support is added and protocol-version-negotiated.
 func (s *batchStrategy) applyDeltaEncoding(logDatum *statefulpb.Log) {
+	if !enableDeltaEncoding {
+		return
+	}
 	// Timestamp delta encoding
 	currentTimestamp := logDatum.Timestamp
 
@@ -254,9 +268,9 @@ func (s *batchStrategy) flushBuffer(outputChan chan *message.Payload) {
 	messagesMetadata := s.buffer.GetMessages()
 	s.buffer.Clear()
 
-	// Use the collected Datums and clear them
+	// Use the collected Datums and clear them, reusing the backing array
 	grpcDatums := s.grpcDatums
-	s.grpcDatums = make([]*statefulpb.Datum, 0)
+	s.grpcDatums = s.grpcDatums[:0]
 
 	// Reset delta encoding state for next batch
 	s.lastTimestamp = 0
@@ -282,16 +296,42 @@ func (s *batchStrategy) sendMessagesWithDatums(messagesMetadata []*message.Messa
 		}
 	}
 
+	// Track per-datum-type counts and sizes
+	for _, datum := range grpcDatums {
+		var datumType string
+		switch datum.Data.(type) {
+		case *statefulpb.Datum_PatternDefine:
+			datumType = "pattern_define"
+		case *statefulpb.Datum_PatternDelete:
+			datumType = "pattern_delete"
+		case *statefulpb.Datum_Logs:
+			datumType = "logs"
+		case *statefulpb.Datum_DictEntryDefine:
+			datumType = "dict_entry_define"
+		case *statefulpb.Datum_DictEntryDelete:
+			datumType = "dict_entry_delete"
+		case *statefulpb.Datum_DeltaEncodingSync:
+			datumType = "delta_encoding_sync"
+		default:
+			datumType = "unknown"
+		}
+		metrics.TlmDatumCount.Add(1, datumType)
+		metrics.TlmDatumBytes.Add(float64(proto.Size(datum)), datumType)
+	}
+
 	// Create DatumSequence and marshal to bytes
 	datumSeq := &statefulpb.DatumSequence{
 		Data: grpcDatums,
 	}
 
-	serialized, err := proto.Marshal(datumSeq)
+	var err error
+	s.marshalBuf, err = proto.MarshalOptions{}.MarshalAppend(s.marshalBuf[:0], datumSeq)
 	if err != nil {
 		log.Errorf("Failed to marshal DatumSequence: %v", err)
 		return
 	}
+	serialized := s.marshalBuf
+	preCompressionBytes := len(serialized)
 
 	// Compress the serialized protobuf data
 	compressed, err := s.compression.Compress(serialized)
@@ -306,13 +346,14 @@ func (s *batchStrategy) sendMessagesWithDatums(messagesMetadata []*message.Messa
 		Encoded:       compressed,
 		Encoding:      s.compression.ContentEncoding(),
 		UnencodedSize: unencodedSize,
+		StatefulExtra: &StatefulExtra{
+			PreCompressionBytes: preCompressionBytes,
+		},
 	}
 
 	// Store batch-level state changes in payload
 	if len(stateChanges) > 0 {
-		p.StatefulExtra = &StatefulExtra{
-			StateChanges: stateChanges,
-		}
+		p.StatefulExtra.(*StatefulExtra).StateChanges = stateChanges
 	}
 
 	outputChan <- p

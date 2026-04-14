@@ -17,13 +17,14 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
 
-	"github.com/DataDog/agent-payload/v5/statefulpb"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -127,6 +128,11 @@ func NewSender(
 	// Get stream lifetime from config
 	streamLifetime := config.StreamLifetime(cfg)
 
+	maxInflight := cfg.GetInt("logs_config.grpc.max_inflight_payloads")
+	if maxInflight <= 0 {
+		maxInflight = pkgconfigsetup.DefaultMaxInflightPayloads
+	}
+
 	// Create compressor for snapshot compression based on endpoint config
 	var comp compression.Compressor
 	comp = compressor.NewCompressor(compression.NoneKind, 0)
@@ -172,13 +178,11 @@ func NewSender(
 			endpoint,
 			streamLifetime,
 			comp,
+			maxInflight,
 		)
 
 		sender.workers = append(sender.workers, worker)
 	}
-
-	log.Infof("Created gRPC sender with %d streams for endpoint %s:%d",
-		numberOfWorkers, endpoint.Host, endpoint.Port)
 	return sender
 }
 
@@ -208,7 +212,7 @@ func (s *Sender) createConnection() error {
 	opts = append(opts, grpc.WithKeepaliveParams(keepaliveParams))
 
 	// Add user agent
-	userAgent := "datadog-agent" + version.AgentVersion
+	userAgent := fmt.Sprintf("datadog-agent/%s", version.AgentVersion)
 	opts = append(opts, grpc.WithUserAgent(userAgent))
 
 	// Add headers via per-RPC credentials

@@ -22,10 +22,11 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/DataDog/agent-payload/v5/statefulpb"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
 	noopimpl "github.com/DataDog/datadog-agent/pkg/util/compression/impl-noop"
 )
 
@@ -293,6 +294,7 @@ func (f *testFixture) createWorkerWithInflight(inflight *inflightTracker) *strea
 		noopimpl.New(), // Use noop compressor for tests
 		f.mockClock,
 		inflight,
+		10000, // Test with 10000 inflight payloads
 	)
 	f.worker = worker
 	return worker
@@ -338,7 +340,7 @@ func TestStreamWorkerBasicStartStop(t *testing.T) {
 
 	// Wait for stream to become active (mocked stream creation should be quick)
 	require.Eventually(t, func() bool {
-		return worker.getStreamState() == active
+		return worker.streamState == active
 	}, testTimeout, testTickInterval, "Worker should transition to active state")
 
 	// Verify stream was created
@@ -367,7 +369,7 @@ func TestStreamWorkerSendReceive(t *testing.T) {
 
 	// Wait for active state
 	require.Eventually(t, func() bool {
-		return worker.getStreamState() == active
+		return worker.streamState == active
 	}, testTimeout, testTickInterval)
 
 	stream := fixture.mockClient.getCurrentStream()
@@ -394,6 +396,45 @@ func TestStreamWorkerSendReceive(t *testing.T) {
 	}
 }
 
+func TestStreamWorkerAckUpdatesPreCompressionBytesMetric(t *testing.T) {
+	fixture := newTestFixture(t)
+	defer fixture.cleanup()
+
+	worker := fixture.createWorker()
+	worker.start()
+
+	require.Eventually(t, func() bool {
+		return worker.streamState == active
+	}, testTimeout, testTickInterval)
+
+	stream := fixture.mockClient.getCurrentStream()
+	require.NotNil(t, stream)
+
+	payload := createWorkerTestPayload("compressed bytes")
+	payload.StatefulExtra = &StatefulExtra{
+		PreCompressionBytes: 321,
+	}
+
+	before := metrics.PreCompressionBytesSent.Value()
+
+	fixture.inputChan <- payload
+
+	require.Eventually(t, func() bool {
+		return stream.getSentBatchCount() == 1
+	}, testTimeout, testTickInterval)
+
+	stream.sendAck(1)
+
+	select {
+	case output := <-fixture.outputChan:
+		require.Equal(t, payload, output)
+	case <-time.After(testTimeout):
+		t.Fatal("Message should appear in outputChan after ack")
+	}
+
+	require.Equal(t, before+321, metrics.PreCompressionBytesSent.Value())
+}
+
 // TestStreamWorkerReceiverFailureRotation tests stream rotation on receiver failure
 // with an inflight message that gets re-sent on the new stream
 func TestStreamWorkerReceiverFailureRotation(t *testing.T) {
@@ -405,7 +446,7 @@ func TestStreamWorkerReceiverFailureRotation(t *testing.T) {
 
 	// Wait for active state
 	require.Eventually(t, func() bool {
-		return worker.getStreamState() == active
+		return worker.streamState == active
 	}, testTimeout, testTickInterval)
 
 	stream1 := fixture.mockClient.getCurrentStream()
@@ -433,7 +474,7 @@ func TestStreamWorkerReceiverFailureRotation(t *testing.T) {
 	require.Eventually(t, func() bool {
 		fixture.mockClock.Add(500 * time.Millisecond) // Advance past backoff period
 		stream2 = fixture.mockClient.getCurrentStream()
-		return stream2 != nil && stream2 != stream1 && worker.getStreamState() == active
+		return stream2 != nil && stream2 != stream1 && worker.streamState == active
 	}, testTimeout, testTickInterval, "Should complete stream rotation with new stream")
 
 	// The inflight message should be re-sent on the new stream (after rotation reset, it's batch 1 again)
@@ -463,7 +504,7 @@ func TestStreamWorkerStreamTimeout(t *testing.T) {
 
 	// Wait for active state
 	require.Eventually(t, func() bool {
-		return worker.getStreamState() == active
+		return worker.streamState == active
 	}, testTimeout, testTickInterval)
 
 	stream1 := fixture.mockClient.getCurrentStream()
@@ -476,7 +517,7 @@ func TestStreamWorkerStreamTimeout(t *testing.T) {
 	var stream2 *mockLogsStream
 	require.Eventually(t, func() bool {
 		stream2 = fixture.mockClient.getCurrentStream()
-		return stream2 != nil && stream2 != stream1 && worker.getStreamState() == active
+		return stream2 != nil && stream2 != stream1 && worker.streamState == active
 	}, testTimeout, testTickInterval, "Should rotate to new stream after timer expires")
 
 	// Send a message on the new stream
@@ -510,7 +551,7 @@ func TestStreamWorkerStreamTimeoutWithDrain(t *testing.T) {
 
 	// Wait for active state
 	require.Eventually(t, func() bool {
-		return worker.getStreamState() == active
+		return worker.streamState == active
 	}, testTimeout, testTickInterval)
 
 	stream1 := fixture.mockClient.getCurrentStream()
@@ -530,7 +571,7 @@ func TestStreamWorkerStreamTimeoutWithDrain(t *testing.T) {
 
 	// Should transition to draining (not connecting) because there's an unacked message
 	require.Eventually(t, func() bool {
-		return worker.getStreamState() == draining
+		return worker.streamState == draining
 	}, testTimeout, testTickInterval, "Should transition to draining state with unacked messages")
 
 	// Step 4: Send another message, verify it's buffered (NOT sent on stream1)
@@ -557,7 +598,7 @@ func TestStreamWorkerStreamTimeoutWithDrain(t *testing.T) {
 	var stream2 *mockLogsStream
 	require.Eventually(t, func() bool {
 		stream2 = fixture.mockClient.getCurrentStream()
-		return stream2 != nil && stream2 != stream1 && worker.getStreamState() == active
+		return stream2 != nil && stream2 != stream1 && worker.streamState == active
 	}, testTimeout, testTickInterval, "Should complete rotation to new stream after ack received")
 
 	// Step 9: Verify message 2 is sent on stream2 (batch ID resets to 1 after rotation)
@@ -586,7 +627,7 @@ func TestStreamWorkerDrainTimeout(t *testing.T) {
 
 	// Wait for active state
 	require.Eventually(t, func() bool {
-		return worker.getStreamState() == active
+		return worker.streamState == active
 	}, testTimeout, testTickInterval)
 
 	stream1 := fixture.mockClient.getCurrentStream()
@@ -605,7 +646,7 @@ func TestStreamWorkerDrainTimeout(t *testing.T) {
 	fixture.mockClock.Add(fixture.streamLifetime + time.Second)
 
 	require.Eventually(t, func() bool {
-		return worker.getStreamState() == draining
+		return worker.streamState == draining
 	}, testTimeout, testTickInterval, "Should transition to draining state")
 
 	// Step 3: Advance clock to trigger drain timeout (without sending ack) → force rotation
@@ -615,7 +656,7 @@ func TestStreamWorkerDrainTimeout(t *testing.T) {
 	var stream2 *mockLogsStream
 	require.Eventually(t, func() bool {
 		stream2 = fixture.mockClient.getCurrentStream()
-		return stream2 != nil && stream2 != stream1 && worker.getStreamState() == active
+		return stream2 != nil && stream2 != stream1 && worker.streamState == active
 	}, testTimeout, testTickInterval, "Should complete rotation to new stream after drain timeout")
 
 	// Step 5: Verify batch 1 is re-sent on stream2 (inflight message replayed)
@@ -651,7 +692,7 @@ func TestStreamWorkerBackoff(t *testing.T) {
 
 	// Should fail to create stream and enter disconnected state
 	require.Eventually(t, func() bool {
-		return worker.getStreamState() == disconnected
+		return worker.streamState == disconnected
 	}, testTimeout, testTickInterval, "Should transition to disconnected state after stream creation failure")
 
 	// Verify no stream was created
@@ -663,7 +704,7 @@ func TestStreamWorkerBackoff(t *testing.T) {
 	require.Eventually(t, func() bool {
 		fixture.mockClock.Add(500 * time.Millisecond)
 		stream = fixture.mockClient.getCurrentStream()
-		return stream != nil && worker.getStreamState() == active
+		return stream != nil && worker.streamState == active
 	}, testTimeout, testTickInterval, "Should transition to active state after backoff expires")
 
 	// Verify we can send a message on the new stream
@@ -696,7 +737,7 @@ func TestStreamWorkerBackpressure(t *testing.T) {
 
 	// Wait for active state
 	require.Eventually(t, func() bool {
-		return worker.getStreamState() == active
+		return worker.streamState == active
 	}, testTimeout, testTickInterval)
 
 	stream := fixture.mockClient.getCurrentStream()
@@ -709,7 +750,7 @@ func TestStreamWorkerBackpressure(t *testing.T) {
 
 	// Wait for inflight to be full
 	require.Eventually(t, func() bool {
-		return stream.getSentBatchCount() == 5
+		return !worker.inflight.hasSpace()
 	}, testTimeout, testTickInterval, "Inflight should be full")
 
 	// Verify backpressure: send one more message, it should NOT be consumed
@@ -738,7 +779,7 @@ func TestStreamWorkerErrorRecovery(t *testing.T) {
 	var stream1 *mockLogsStream
 	require.Eventually(t, func() bool {
 		stream1 = fixture.mockClient.getCurrentStream()
-		return stream1 != nil && worker.getStreamState() == active
+		return stream1 != nil && worker.streamState == active
 	}, testTimeout, testTickInterval, "Worker should reach active state")
 
 	// Inject send error BEFORE sending message
@@ -754,7 +795,7 @@ func TestStreamWorkerErrorRecovery(t *testing.T) {
 	require.Eventually(t, func() bool {
 		fixture.mockClock.Add(500 * time.Millisecond) // Advance past backoff period
 		stream2 = fixture.mockClient.getCurrentStream()
-		return stream2 != nil && stream2 != stream1 && worker.getStreamState() == active
+		return stream2 != nil && stream2 != stream1 && worker.streamState == active
 	}, testTimeout, testTickInterval, "Worker should rotate to new stream after send error")
 
 	// New stream should have retried the message (batch 1)
@@ -787,7 +828,7 @@ func TestStreamWorkerErrorRecovery(t *testing.T) {
 	require.Eventually(t, func() bool {
 		fixture.mockClock.Add(500 * time.Millisecond) // Advance past backoff period
 		stream3 = fixture.mockClient.getCurrentStream()
-		return stream3 != nil && stream3 != stream2 && worker.getStreamState() == active
+		return stream3 != nil && stream3 != stream2 && worker.streamState == active
 	}, testTimeout, testTickInterval, "Worker should rotate to new stream after recv error")
 
 	// New stream should have retried the message (batch 1 - reset after rotation)
@@ -904,7 +945,7 @@ func TestStreamWorkerSnapshot(t *testing.T) {
 	var stream1 *mockLogsStream
 	require.Eventually(t, func() bool {
 		stream1 = fixture.mockClient.getCurrentStream()
-		return stream1 != nil && worker.getStreamState() == active
+		return stream1 != nil && worker.streamState == active
 	}, testTimeout, testTickInterval, "Initial stream should be established")
 
 	// === Step 1: Send Batch 1 (5 entries) ===
@@ -957,7 +998,7 @@ func TestStreamWorkerSnapshot(t *testing.T) {
 	require.Eventually(t, func() bool {
 		fixture.mockClock.Add(500 * time.Millisecond) // Advance past backoff period
 		stream2 = fixture.mockClient.getCurrentStream()
-		return stream2 != nil && stream2 != stream1 && worker.getStreamState() == active
+		return stream2 != nil && stream2 != stream1 && worker.streamState == active
 	}, testTimeout, testTickInterval, "Stream should rotate after recv failure")
 
 	// === Step 5: Verify snapshot on new stream ===
@@ -1017,7 +1058,7 @@ func TestStreamWorkerSnapshot(t *testing.T) {
 
 	// Worker should enter draining state (batch 3 is still inflight)
 	require.Eventually(t, func() bool {
-		return worker.getStreamState() == draining
+		return worker.streamState == draining
 	}, testTimeout, testTickInterval, "Worker should enter draining state")
 
 	// === Step 11: Drain timer expires (force rotation) ===
@@ -1027,7 +1068,7 @@ func TestStreamWorkerSnapshot(t *testing.T) {
 	var stream3 *mockLogsStream
 	require.Eventually(t, func() bool {
 		stream3 = fixture.mockClient.getCurrentStream()
-		return stream3 != nil && stream3 != stream2 && worker.getStreamState() == active
+		return stream3 != nil && stream3 != stream2 && worker.streamState == active
 	}, testTimeout, testTickInterval, "Stream should rotate after drain timeout")
 
 	// === Step 12: Verify snapshot on new stream ===
@@ -1072,7 +1113,7 @@ func TestStreamWorkerSupervisorResponsiveWhileSenderBlocked(t *testing.T) {
 
 	// Wait for active state
 	require.Eventually(t, func() bool {
-		return worker.getStreamState() == active
+		return worker.streamState == active
 	}, testTimeout, testTickInterval)
 
 	stream := fixture.mockClient.getCurrentStream()

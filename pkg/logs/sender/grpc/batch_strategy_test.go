@@ -16,10 +16,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/DataDog/agent-payload/v5/statefulpb"
 	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 )
 
@@ -459,6 +459,88 @@ func TestBatchStrategyCompression(t *testing.T) {
 	for _, datum := range datumSeq.Data {
 		assert.Equal(t, "test message", datum.GetLogs().GetRaw())
 	}
+
+	strategy.Stop()
+}
+
+func TestBatchStrategyRecordsPreCompressionBytesInStatefulExtra(t *testing.T) {
+	input := make(chan *message.StatefulMessage)
+	output := make(chan *message.Payload, 10) // Buffered to prevent deadlock
+	flushChan := make(chan struct{})
+
+	compressor := compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1)
+
+	strategy := NewBatchStrategy(
+		input,
+		output,
+		flushChan,
+		time.Hour,
+		100,
+		10000,
+		"test",
+		compressor,
+		metrics.NewNoopPipelineMonitor(""),
+		"test")
+	strategy.Start()
+
+	input <- createTestStatefulMessage("test message")
+	flushChan <- struct{}{}
+
+	payload := <-output
+	require.NotNil(t, payload.StatefulExtra, "gRPC payloads should carry pre-compression size metadata")
+	extra, ok := payload.StatefulExtra.(*StatefulExtra)
+	require.True(t, ok, "StatefulExtra should be of type *StatefulExtra")
+	assert.Equal(t, len(payload.Encoded), extra.PreCompressionBytes, "identity compression should preserve the pre-compression byte length exactly")
+
+	strategy.Stop()
+}
+
+func TestBatchStrategyIdentityFlushDoesNotMutatePreviousPayload(t *testing.T) {
+	input := make(chan *message.StatefulMessage)
+	output := make(chan *message.Payload, 10) // Buffered to prevent deadlock
+	flushChan := make(chan struct{})
+
+	// Use identity compression to exercise the no-copy compressor path.
+	compressor := compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1)
+
+	strategy := NewBatchStrategy(
+		input,
+		output,
+		flushChan,
+		time.Hour,
+		100,
+		10000,
+		"test",
+		compressor,
+		metrics.NewNoopPipelineMonitor(""),
+		"test")
+	strategy.Start()
+
+	firstRaw := "payload-one-000"
+	secondRaw := "payload-two-111"
+
+	input <- createTestStatefulMessage(firstRaw)
+	flushChan <- struct{}{}
+	firstPayload := <-output
+
+	input <- createTestStatefulMessage(secondRaw)
+	flushChan <- struct{}{}
+	secondPayload := <-output
+
+	require.Equal(t, "identity", firstPayload.Encoding)
+	require.Equal(t, "identity", secondPayload.Encoding)
+
+	var firstDatumSeq statefulpb.DatumSequence
+	err := proto.Unmarshal(firstPayload.Encoded, &firstDatumSeq)
+	require.NoError(t, err)
+	require.Len(t, firstDatumSeq.Data, 1)
+	assert.Equal(t, firstRaw, firstDatumSeq.Data[0].GetLogs().GetRaw())
+
+	var secondDatumSeq statefulpb.DatumSequence
+	err = proto.Unmarshal(secondPayload.Encoded, &secondDatumSeq)
+	require.NoError(t, err)
+	require.Len(t, secondDatumSeq.Data, 1)
+	assert.Equal(t, secondRaw, secondDatumSeq.Data[0].GetLogs().GetRaw())
 
 	strategy.Stop()
 }
