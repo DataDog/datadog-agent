@@ -243,10 +243,10 @@ Bug Fixes
   restoring parity with the previous Python-based network check.
 
 - Fixes a bug in the Network Configuration Management (NCM) module where the SSH Timeout settings were parsed as
-  nanoseconds instead of seconds. This issue caused SSH sessions to time out prematurely, leading to errors like:
-    ```
+  nanoseconds instead of seconds. This issue caused SSH sessions to time out prematurely, leading to errors like::
+
     Error running check: failed to connect to 192.168.0.1:22: dial tcp 192.168.0.1:22: i/o timeout
-    ```
+
 
 - Fixed the Datadog Agent installer on Windows: when ``DD_PRIVATE_ACTION_RUNNER_ENABLED=true``
   is set without an explicit ``DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST``, the
