@@ -266,7 +266,7 @@ metrics:
       device_modes:
         mig: false
         physical: true
-        vgpu: true
+        vgpu: false
   ecc.repair_pending.tpc:
     tagsets:
       - device
@@ -278,7 +278,7 @@ metrics:
       device_modes:
         mig: false
         physical: true
-        vgpu: true
+        vgpu: false
   errors.xid.total:
     tagsets:
       - device
