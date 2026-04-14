@@ -79,7 +79,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		heartbeatInterval: reqs.Config.GetDuration("telemetry.offlinereporter.heartbeat_interval"),
 		demux:             reqs.Demultiplexer,
 		hostname:          reqs.Hostname.GetSafe(context.Background()),
-		stopChan:          make(chan struct{}),
+		stopChan:          make(chan struct{}, 1),
 		writeErrLimit:     logutil.NewLogLimit(10, time.Minute),
 	}
 	if reqs.Config.GetBool("telemetry.offlinereporter.enabled") {
