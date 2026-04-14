@@ -23,6 +23,7 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	offlinereporter "github.com/DataDog/datadog-agent/comp/offlinereporter/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	logutil "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Params allows overriding the filesystem implementation (e.g. in tests).
@@ -66,6 +67,7 @@ type offlinereporterImpl struct {
 	lastHeartbeat     time.Time
 	hasLastBeat       bool
 	stopChan          chan struct{}
+	writeErrLimit     *logutil.Limit
 }
 
 // NewComponent creates a new offlinereporter component.
@@ -78,6 +80,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		demux:             reqs.Demultiplexer,
 		hostname:          reqs.Hostname.GetSafe(context.Background()),
 		stopChan:          make(chan struct{}),
+		writeErrLimit:     logutil.NewLogLimit(10, time.Minute),
 	}
 	if reqs.Config.GetBool("telemetry.offlinereporter.enabled") {
 		reqs.Lifecycle.Append(compdef.Hook{
@@ -128,7 +131,11 @@ func (h *offlinereporterImpl) loop() {
 		case <-h.stopChan:
 			return
 		case <-ticker.C:
-			_ = h.writeNow()
+			if err := h.writeNow(); err != nil {
+				if h.writeErrLimit.ShouldLog() {
+					h.log.Errorf("offlinereporter: failed to write heartbeat file %q: %v", h.filePath, err)
+				}
+			}
 		}
 	}
 }
