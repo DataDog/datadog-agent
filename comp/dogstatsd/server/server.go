@@ -77,15 +77,15 @@ type dependencies struct {
 
 	Demultiplexer aggregator.Demultiplexer
 
-	Log        log.Component
-	Config     configComponent.Component
-	Debug      serverdebug.Component
-	Replay     replay.Component
-	PidMap     pidmap.Component
-	Params     Params
-	WMeta      option.Option[workloadmeta.Component]
-	Telemetry  telemetry.Component
-	Hostname   hostnameinterface.Component
+	Log             log.Component
+	Config          configComponent.Component
+	Debug           serverdebug.Component
+	Replay          replay.Component
+	PidMap          pidmap.Component
+	Params          Params
+	WMeta           option.Option[workloadmeta.Component]
+	Telemetry       telemetry.Component
+	Hostname        hostnameinterface.Component
 	FilterList      filterlist.Component
 	OfflineReporter offlinereporter.Component
 }
