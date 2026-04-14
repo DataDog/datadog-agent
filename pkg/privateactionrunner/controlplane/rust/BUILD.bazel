@@ -1,0 +1,57 @@
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
+load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_test")
+
+# ============================================================================
+# PAR control-plane binary
+# ============================================================================
+
+rust_binary(
+    name = "par-control",
+    srcs = glob(["src/**/*.rs"]),
+    edition = "2024",
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/log/rust:dd-agent-log",
+        "@crates//:anyhow",
+        "@crates//:base64",
+        "@crates//:caps",
+        "@crates//:http-body-util",
+        "@crates//:hyper",
+        "@crates//:hyper-util",
+        "@crates//:log",
+        "@crates//:p256",
+        "@crates//:reqwest",
+        "@crates//:serde",
+        "@crates//:serde_json",
+        "@crates//:serde_yaml",
+        "@crates//:tokio",
+    ],
+)
+
+pkg_files(
+    name = "all_files",
+    srcs = [":par-control"],
+    attributes = pkg_attributes(
+        mode = "0755",
+    ),
+    prefix = "embedded/bin",
+    visibility = ["//packages:__subpackages__"],
+)
+
+pkg_install(
+    name = "install",
+    srcs = [":all_files"],
+)
+
+# ============================================================================
+# Unit tests (cli, par_config)
+# ============================================================================
+
+rust_test(
+    name = "par_control_test",
+    crate = ":par-control",
+    edition = "2024",
+    target_compatible_with = ["@platforms//os:linux"],
+)

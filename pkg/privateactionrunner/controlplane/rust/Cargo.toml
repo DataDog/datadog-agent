@@ -1,0 +1,28 @@
+[package]
+name = "par-control"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "par-control"
+path = "src/main.rs"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+caps = { workspace = true }
+
+[dependencies]
+anyhow.workspace = true
+base64.workspace = true
+dd-agent-log.workspace = true
+http-body-util.workspace = true
+hyper.workspace = true
+hyper-util.workspace = true
+log.workspace = true
+p256.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml.workspace = true
+tokio = { workspace = true, features = ["macros", "net", "process", "rt-multi-thread", "signal", "time"] }
