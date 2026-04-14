@@ -1,11 +1,12 @@
 #!/bin/bash
 # test_subinterpreters.sh — Build and test RTLoader with sub-interpreter support
 #
+# For standard (non-sub-interpreter) tests, use: dda inv rtloader.test
+#
 # Usage:
-#   ./test_subinterpreters.sh          # build + run all tests
+#   ./test_subinterpreters.sh          # clean + build + test
 #   ./test_subinterpreters.sh build    # build only
 #   ./test_subinterpreters.sh test     # test only (assumes already built)
-#   ./test_subinterpreters.sh subinterp # sub-interpreter tests only (assumes already built)
 #   ./test_subinterpreters.sh clean    # remove build dir and Go test cache
 
 set -euo pipefail
@@ -16,11 +17,9 @@ BUILD_DIR="$SCRIPT_DIR/build"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
-YELLOW='\033[0;33m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
 info()  { echo -e "${GREEN}[INFO]${NC} $*"; }
-warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
 error() { echo -e "${RED}[FAIL]${NC} $*"; }
 
 do_build() {
@@ -38,21 +37,7 @@ do_build() {
     info "Build complete."
 }
 
-do_standard_tests() {
-    info "Running standard rtloader tests (no sub-interpreter flag)..."
-    cd "$REPO_ROOT"
-    # dda inv rtloader.test doesn't pass ENABLE_SUBINTERPRETERS,
-    # so this tests the normal code path.
-    if dda inv rtloader.test 2>&1; then
-        info "Standard tests: PASS"
-    else
-        warn "Standard tests: some failures (check output above)"
-        warn "TestGetIntegrationsList and TestCancelCheck are known to fail"
-        warn "locally if datadog_checks is pip-installed."
-    fi
-}
-
-do_subinterp_tests() {
+do_test() {
     if [ ! -f "$BUILD_DIR/rtloader/libdatadog-agent-rtloader.dylib" ] && \
        [ ! -f "$BUILD_DIR/rtloader/libdatadog-agent-rtloader.so" ]; then
         error "Build not found. Run '$0 build' first."
@@ -67,7 +52,7 @@ do_subinterp_tests() {
     DYLD_LIBRARY_PATH="${BUILD_DIR}/rtloader:${BUILD_DIR}/three" \
     LD_LIBRARY_PATH="${BUILD_DIR}/rtloader:${BUILD_DIR}/three" \
     go test -v -tags "three,python" ./rtloader/test/rtloader/ \
-        -run "Subinterpreter|SubInterpreter" -count=1 2>&1
+        -run "Subinterpreter" -count=1 2>&1
 
     info "Sub-interpreter tests: PASS"
 }
@@ -79,7 +64,6 @@ do_clean() {
     info "Clearing Go test cache..."
     go clean -testcache 2>/dev/null || true
 
-    # Also clean any cached .o / .a files from dda inv rtloader builds
     info "Removing dev/lib artifacts..."
     rm -f "$REPO_ROOT/dev/lib/libdatadog-agent-rtloader"* \
           "$REPO_ROOT/dev/lib/libdatadog-agent-three"* 2>/dev/null || true
@@ -92,22 +76,18 @@ case "${1:-all}" in
         do_build
         ;;
     test)
-        do_standard_tests
-        do_subinterp_tests
-        ;;
-    subinterp)
-        do_subinterp_tests
+        do_test
         ;;
     clean)
         do_clean
         ;;
     all)
+        do_clean
         do_build
-        do_standard_tests
-        do_subinterp_tests
+        do_test
         ;;
     *)
-        echo "Usage: $0 [build|test|subinterp|clean|all]"
+        echo "Usage: $0 [build|test|clean|all]"
         exit 1
         ;;
 esac
