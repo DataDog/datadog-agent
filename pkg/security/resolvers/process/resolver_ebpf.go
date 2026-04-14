@@ -1625,20 +1625,53 @@ func (p *EBPFResolver) cacheFlush(ctx context.Context) {
 
 // SyncCache snapshots /proc for the provided pid.
 func (p *EBPFResolver) SyncCache(proc *process.Process) {
-	// Only a R lock is necessary to check if the entry exists, but if it exists, we'll update it, so a RW lock is
-	// required.
-	p.Lock()
-	defer p.Unlock()
-
+	// Phase 1: I/O-heavy work (procfs reads, eBPF map lookups, etc.)
+	// performed without holding the process cache lock to avoid blocking
+	// event processing during the initial snapshot.
 	filledProc, err := utils.GetFilledProcess(proc)
 	if err != nil {
 		seclog.Tracef("unable to get a filled process for %d: %v", proc.Pid, err)
 		return
 	}
 
-	if entry := p.newEntryFromProcfs(proc, filledProc, 0, model.ProcessCacheEntryFromSnapshot, nil); entry != nil {
-		p.syncKernelMaps(entry)
+	pid := uint32(proc.Pid)
+	entry := p.NewProcessCacheEntry(model.PIDContext{Pid: pid, Tid: pid})
+
+	if err := p.enrichEventFromProcfs(entry, proc, filledProc); err != nil {
+		seclog.Trace(err)
+		return
 	}
+
+	entry.IsKworker = filledProc.Ppid == 0 && filledProc.Pid != 1
+
+	// Phase 2: cache mutation under the lock.
+	p.Lock()
+	defer p.Unlock()
+
+	parent := p.entryCache[entry.PPid]
+	if parent != nil {
+		if parent.Equals(entry) {
+			entry.SetForkParent(parent)
+		} else if prev := p.entryCache[pid]; prev != nil {
+			entry.SetExecParent(prev)
+		} else {
+			entry.SetExecParent(parent)
+		}
+	} else if pid == 1 {
+		entry.SetAsExec()
+	} else {
+		seclog.Debugf("unable to set the type of process, not pid 1, no parent in cache: %+v", entry)
+	}
+
+	if p.userSessionResolver != nil {
+		p.userSessionResolver.HandleSSHUserSessionFromPCE(entry)
+	}
+
+	p.insertEntry(entry, model.CGroupContext{}, model.ProcessCacheEntryFromSnapshot)
+
+	seclog.Tracef("New process cache entry added: %s %s %d/%d", entry.Comm, entry.FileEvent.PathnameStr, pid, entry.FileEvent.Inode)
+
+	p.syncKernelMaps(entry)
 }
 
 func (p *EBPFResolver) syncKernelMaps(entry *model.ProcessCacheEntry) {
