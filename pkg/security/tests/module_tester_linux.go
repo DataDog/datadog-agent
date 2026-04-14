@@ -802,8 +802,13 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	if !opts.staticOpts.disableRuntimeSecurity {
 		msgSender := newFakeMsgSender(testMod)
 
+		cmdServer, err := module.NewCommandServer(secconfig.RuntimeSecurity)
+		if err != nil {
+			return nil, err
+		}
+
 		compression := logscompression.NewComponent()
-		cws, err := module.NewCWSConsumer(testMod.eventMonitor, secconfig.RuntimeSecurity, nil, nil, module.Opts{EventSender: testMod, MsgSender: msgSender}, compression, ipcComp, functionalTestsHostname, secretsnoopimpl.NewComponent().Comp)
+		cws, err := module.NewCWSConsumer(cmdServer, testMod.eventMonitor, secconfig.RuntimeSecurity, nil, nil, module.Opts{EventSender: testMod, MsgSender: msgSender}, compression, ipcComp, functionalTestsHostname, secretsnoopimpl.NewComponent().Comp)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create module: %w", err)
 		}

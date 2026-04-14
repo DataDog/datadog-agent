@@ -1,0 +1,3 @@
+# gazelle:ignore
+# bundle.go is part of an unmigrated module; ignore this directory to prevent
+# Gazelle from generating targets that pull unmigrated external-repo deps.

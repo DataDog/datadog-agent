@@ -1,0 +1,36 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "semantics",
+    srcs = [
+        "lookup.go",
+        "lookup_dd.go",
+        "lookup_pdata.go",
+        "registry.go",
+        "semantics.go",
+    ],
+    embedsrcs = ["mappings.json"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/trace/semantics",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/proto/pbgo/trace/idx",
+        "@io_opentelemetry_go_collector_pdata//pcommon",
+    ],
+)
+
+go_test(
+    name = "semantics_test",
+    srcs = [
+        "lookup_dd_test.go",
+        "lookup_pdata_test.go",
+        "lookup_test.go",
+        "semantics_test.go",
+    ],
+    embed = [":semantics"],
+    deps = [
+        "//pkg/proto/pbgo/trace/idx",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_opentelemetry_go_collector_pdata//pcommon",
+    ],
+)

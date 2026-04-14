@@ -1,0 +1,66 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "daemon_checker_unix.go",
+        "daemon_checker_windows.go",
+        "daemonchecker.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/updater/daemonchecker/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/updater/daemonchecker/def",
+    ] + select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/fleet/installer/paths",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/fleet/installer/paths",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/fleet/installer/paths",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/fleet/installer/paths",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/fleet/installer/paths",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/fleet/installer/paths",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/fleet/installer/paths",
+        ],
+        "@rules_go//go/platform:js": [
+            "//pkg/fleet/installer/paths",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/fleet/installer/paths",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/fleet/installer/paths",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/fleet/installer/paths",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/fleet/installer/paths",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//pkg/fleet/installer/paths",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//pkg/fleet/installer/paths",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/fleet/installer/paths",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/winutil",
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)

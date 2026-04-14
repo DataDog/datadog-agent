@@ -16,7 +16,8 @@ import (
 )
 
 /*
-#cgo !windows LDFLAGS: -ldatadog-agent-rtloader -ldl
+#cgo !aix,!windows LDFLAGS: -ldatadog-agent-rtloader -ldl
+#cgo aix LDFLAGS: -ldl
 
 #include <datadog_agent_rtloader.h>
 #include <rtloader_mem.h>
