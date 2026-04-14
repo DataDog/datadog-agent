@@ -37,6 +37,7 @@ type Profile struct {
 	// parsed
 	Name     string             `yaml:"name"`
 	Metric   *AgentMetricConfig `yaml:"metric,omitempty"`
+	Logs     *AgentLogConfig    `yaml:"logs,omitempty"`
 	Schedule *Schedule          `yaml:"schedule,omitempty"`
 	Events   []*Event           `yaml:"events"`
 
@@ -44,6 +45,12 @@ type Profile struct {
 	metricsMap        map[string]*MetricConfig
 	excludeZeroMetric bool
 	excludeTagsMap    map[string]any
+}
+
+// AgentLogConfig specifies whether agent error/critical logs should be collected
+// and exported to COAT as part of this profile's schedule.
+type AgentLogConfig struct {
+	Enabled bool `yaml:"enabled"`
 }
 
 // AgentMetricConfig specifies agent telemetry metrics payloads to be generated and emitted
@@ -264,6 +271,8 @@ var defaultProfiles = `
           aggregate_tags:
             - code
             - endpoint
+    logs:
+      enabled: true
     schedule:
       start_after: 30
       iterations: 0

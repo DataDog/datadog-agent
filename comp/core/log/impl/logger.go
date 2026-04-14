@@ -17,6 +17,31 @@ import (
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
 
+// logComponent wraps *pkglog.Wrapper and adds DrainErrorLogs, which requires
+// converting between handlers.CapturedLog and logdef.CapturedLog. This conversion
+// lives here because comp/core/log/impl already imports both packages; putting it
+// in pkg/util/log would invert the dependency direction.
+type logComponent struct {
+	*pkglog.Wrapper
+}
+
+func (l *logComponent) DrainErrorLogs() []logdef.CapturedLog {
+	raw := pkglog.DrainCapturedLogs()
+	if len(raw) == 0 {
+		return nil
+	}
+	out := make([]logdef.CapturedLog, len(raw))
+	for i, cl := range raw {
+		out[i] = logdef.CapturedLog{
+			Level:     cl.Level,
+			Message:   cl.Message,
+			Timestamp: cl.Timestamp,
+			Attrs:     cl.Attrs,
+		}
+	}
+	return out
+}
+
 // NewTemporaryLoggerWithoutInit returns a logger component instance. It assumes the logger has already been
 // initialized beforehand.
 //
@@ -30,7 +55,7 @@ import (
 // - When the instance of logger.Component is reachable in less than 5 stack frames.
 // - It doesn't make the migration to log.Component easier.
 func NewTemporaryLoggerWithoutInit() logdef.Component {
-	return pkglog.NewWrapper(2)
+	return &logComponent{pkglog.NewWrapper(2)}
 }
 
 // Requires declares the input types to the logger component constructor
@@ -64,7 +89,7 @@ func NewComponent(deps Requires) (Provides, error) {
 		return Provides{}, err
 	}
 
-	l := pkglog.NewWrapper(2)
+	l := &logComponent{pkglog.NewWrapper(2)}
 	deps.Lc.Append(compdef.Hook{OnStop: func(context.Context) error {
 		l.Flush()
 		return nil

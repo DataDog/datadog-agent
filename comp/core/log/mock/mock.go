@@ -15,6 +15,28 @@ import (
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// mockComponent wraps *pkglog.Wrapper and satisfies log.Component including DrainErrorLogs.
+type mockComponent struct {
+	*pkglog.Wrapper
+}
+
+func (m *mockComponent) DrainErrorLogs() []log.CapturedLog {
+	raw := pkglog.DrainCapturedLogs()
+	if len(raw) == 0 {
+		return nil
+	}
+	out := make([]log.CapturedLog, len(raw))
+	for i, cl := range raw {
+		out[i] = log.CapturedLog{
+			Level:     cl.Level,
+			Message:   cl.Message,
+			Timestamp: cl.Timestamp,
+			Attrs:     cl.Attrs,
+		}
+	}
+	return out
+}
+
 // tbWriter is an implementation of io.Writer that sends lines to
 // testing.TB#Log.
 type tbWriter struct {
@@ -46,5 +68,5 @@ func New(t testing.TB) log.Component {
 	// install the logger into pkg/util/log
 	pkglog.SetupLogger(iface, pkglog.DebugStr)
 
-	return pkglog.NewWrapper(2)
+	return &mockComponent{pkglog.NewWrapper(2)}
 }

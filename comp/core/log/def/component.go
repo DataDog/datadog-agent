@@ -14,7 +14,18 @@
 // logging output to `t.Log(..)`, for ease of investigation when a test fails.
 package log
 
+import "time"
+
 // team: agent-runtimes
+
+// CapturedLog holds a single Error or Critical log entry buffered for export to COAT.
+type CapturedLog struct {
+	Level     string
+	Message   string
+	Timestamp time.Time
+	// Attrs contains attributes attached by the emitting code via slog structured logging.
+	Attrs map[string]string
+}
 
 // Component is the component type.
 type Component interface {
@@ -56,4 +67,13 @@ type Component interface {
 
 	// Flush will flush the contents of the logs to the sinks
 	Flush()
+}
+
+// LogDrainer is an optional extension of Component implemented by log components
+// that support buffering Error/Critical entries for export (e.g. to COAT).
+// Callers should type-assert Component to LogDrainer before calling DrainErrorLogs.
+type LogDrainer interface {
+	// DrainErrorLogs returns and clears all Error/Critical log entries buffered
+	// since the last call. Returns nil if no entries were captured.
+	DrainErrorLogs() []CapturedLog
 }

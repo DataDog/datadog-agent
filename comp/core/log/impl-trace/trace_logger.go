@@ -19,6 +19,27 @@ import (
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
 
+type logComponent struct {
+	*pkglog.Wrapper
+}
+
+func (l *logComponent) DrainErrorLogs() []logdef.CapturedLog {
+	raw := pkglog.DrainCapturedLogs()
+	if len(raw) == 0 {
+		return nil
+	}
+	out := make([]logdef.CapturedLog, len(raw))
+	for i, cl := range raw {
+		out[i] = logdef.CapturedLog{
+			Level:     cl.Level,
+			Message:   cl.Message,
+			Timestamp: cl.Timestamp,
+			Attrs:     cl.Attrs,
+		}
+	}
+	return out
+}
+
 // Requires declares the input types to the logger component constructor
 type Requires struct {
 	Lc     compdef.Lifecycle
@@ -50,8 +71,9 @@ func NewComponent(deps Requires) (Provides, error) {
 		return Provides{}, fmt.Errorf("Cannot create logger: %v", err)
 	}
 
-	l := pkglog.NewWrapper(3)
-	tracelog.SetLogger(l)
+	w := pkglog.NewWrapper(3)
+	tracelog.SetLogger(w)
+	l := &logComponent{w}
 	deps.Lc.Append(compdef.Hook{OnStop: func(context.Context) error {
 		l.Flush()
 		return nil

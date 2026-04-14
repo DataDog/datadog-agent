@@ -64,6 +64,8 @@ func (s *senderMock) flushSession(_ *senderSession) error {
 func (s *senderMock) sendAgentMetricPayloads(_ *senderSession, metrics []*agentmetric) {
 	s.sentMetrics = append(s.sentMetrics, metrics...)
 }
+func (s *senderMock) sendAgentLogPayloads(_ *senderSession, _ []LogPayload) {
+}
 func (s *senderMock) sendEventPayload(_ *senderSession, _ *Event, _ map[string]interface{}) {
 }
 

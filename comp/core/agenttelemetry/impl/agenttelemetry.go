@@ -477,6 +477,68 @@ func (a *atel) reportAgentMetrics(session *senderSession, pms []*telemetry.Metri
 	a.sender.sendAgentMetricPayloads(session, metrics)
 }
 
+// reportAgentLogs drains the error/critical log buffer, deduplicates entries by
+// (level + message), enriches with global metadata, and queues them for sending.
+// Enrichment with hostname/OS/version is handled by the sender (via AgentLogsPayload.Metadata).
+func (a *atel) reportAgentLogs(session *senderSession, p *Profile) {
+	if p.Logs == nil || !p.Logs.Enabled {
+		return
+	}
+
+	drainer, ok := a.logComp.(log.LogDrainer)
+	if !ok {
+		return
+	}
+	captured := drainer.DrainErrorLogs()
+	if len(captured) == 0 {
+		return
+	}
+
+	a.logComp.Debugf("Collect Agent Log telemetry for profile %s (%d entries)", p.Name, len(captured))
+
+	// Deduplicate by (level + message); preserve first-seen order.
+	type dedupKey struct{ level, message string }
+	type dedupEntry struct {
+		payload LogPayload
+		count   int
+	}
+	seen := make(map[dedupKey]*dedupEntry, len(captured))
+	order := make([]dedupKey, 0, len(captured))
+
+	for _, cl := range captured {
+		k := dedupKey{cl.Level, cl.Message}
+		if e, ok := seen[k]; ok {
+			e.count++
+		} else {
+			attrs := make(map[string]string, len(cl.Attrs))
+			for ak, av := range cl.Attrs {
+				attrs[ak] = av
+			}
+			seen[k] = &dedupEntry{
+				payload: LogPayload{
+					Level:       cl.Level,
+					Message:     cl.Message,
+					TimestampMs: cl.Timestamp.UnixMilli(),
+					Attrs:       attrs,
+				},
+				count: 1,
+			}
+			order = append(order, k)
+		}
+	}
+
+	logs := make([]LogPayload, 0, len(order))
+	for _, k := range order {
+		e := seen[k]
+		if e.count > 1 {
+			e.payload.Attrs["count"] = strconv.Itoa(e.count)
+		}
+		logs = append(logs, e.payload)
+	}
+
+	a.sender.sendAgentLogPayloads(session, logs)
+}
+
 func (a *atel) loadPayloads(profiles []*Profile) (*senderSession, error) {
 	// Gather all prom metrics. Currently Gather() does not allow filtering by
 	// metric name, so we need to gather all metrics and filter them on our own.
@@ -504,6 +566,7 @@ func (a *atel) loadPayloads(profiles []*Profile) (*senderSession, error) {
 	session := a.sender.startSession(a.cancelCtx)
 	for _, p := range profiles {
 		a.reportAgentMetrics(session, pms, p)
+		a.reportAgentLogs(session, p)
 	}
 	return session, nil
 }
