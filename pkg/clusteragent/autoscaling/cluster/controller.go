@@ -207,7 +207,7 @@ func (c *Controller) syncNodePool(ctx context.Context, name string, datadogNp *k
 func (c *Controller) createNodePool(ctx context.Context, targetNp *karpenterv1.NodePool, npi model.NodePoolInternal) error {
 	log.Infof("Creating NodePool: %s", npi.Name())
 
-	// New path: use manifest-provided NodePool when available
+	// Use manifest-provided NodePool when available
 	if knp := npi.KarpenterNodePool(); knp != nil {
 		knp = knp.DeepCopy()
 		// If the manifest omits NodeClassRef and a target NodePool exists, prefer its NodeClassRef
@@ -215,7 +215,7 @@ func (c *Controller) createNodePool(ctx context.Context, targetNp *karpenterv1.N
 			knp.Spec.Template.Spec.NodeClassRef = targetNp.Spec.Template.Spec.NodeClassRef.DeepCopy()
 		}
 		var err error
-		knp, err = c.updateNodePoolWithNodeClass(ctx, knp)
+		knp, err = c.checkValidNodeClass(ctx, knp)
 		if err != nil {
 			return fmt.Errorf("unable to update NodePool with node class: %s, err: %v", npi.Name(), err)
 		}
@@ -236,7 +236,10 @@ func (c *Controller) createNodePool(ctx context.Context, targetNp *karpenterv1.N
 		if knp.Annotations == nil {
 			knp.Annotations = make(map[string]string)
 		}
-		knp.Annotations[model.DatadogReplicaAnnotationKey] = npi.TargetName()
+		if npi.TargetName() != "" {
+			knp.Annotations[model.DatadogReplicaAnnotationKey] = npi.TargetName()
+		}
+
 		npUnstr, err := convertNodePoolToUnstructured(knp)
 		if err != nil {
 			return fmt.Errorf("unable to convert NodePool to unstructured: %s, err: %v", npi.Name(), err)
@@ -295,7 +298,7 @@ func (c *Controller) updateNodePool(ctx context.Context, targetNp, datadogNp *ka
 			desired.Spec.Template.Spec.NodeClassRef = datadogNp.Spec.Template.Spec.NodeClassRef.DeepCopy()
 		}
 		var err error
-		desired, err = c.updateNodePoolWithNodeClass(ctx, desired)
+		desired, err = c.checkValidNodeClass(ctx, desired)
 		if err != nil {
 			return fmt.Errorf("unable to update NodePool with node class: %s, err: %v", npi.Name(), err)
 		}
@@ -318,6 +321,14 @@ func (c *Controller) updateNodePool(ctx context.Context, targetNp, datadogNp *ka
 		mergedSpecJSON, err := jsonpatch.MergePatch(liveSpecJSON, desiredSpecJSON)
 		if err != nil {
 			return fmt.Errorf("unable to compute spec merge patch for NodePool: %s, err: %v", npi.Name(), err)
+		}
+
+		// Ensure DatadogReplicaAnnotationKey is always present when a target exists
+		if desired.Annotations == nil {
+			desired.Annotations = make(map[string]string)
+		}
+		if npi.TargetName() != "" {
+			desired.Annotations[model.DatadogReplicaAnnotationKey] = npi.TargetName()
 		}
 
 		// Ignore any annotations managed by Karpenter
@@ -393,7 +404,7 @@ func (c *Controller) deleteNodePool(ctx context.Context, name string, knp *karpe
 	return nil
 }
 
-func (c *Controller) updateNodePoolWithNodeClass(ctx context.Context, knp *karpenterv1.NodePool) (*karpenterv1.NodePool, error) {
+func (c *Controller) checkValidNodeClass(ctx context.Context, knp *karpenterv1.NodePool) (*karpenterv1.NodePool, error) {
 	nc := knp.Spec.Template.Spec.NodeClassRef
 	if nc != nil {
 		gvr, ok := nodeClassGVRByGroup[nc.Group]
