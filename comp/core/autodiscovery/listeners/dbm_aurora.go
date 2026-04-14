@@ -142,16 +142,19 @@ func (l *DBMAuroraListener) createService(entityID, clusterID string, instance a
 		region:       l.config.Region,
 		clusterID:    clusterID,
 	}
+	log.Debugf("creating aurora service %v", svc)
 	if existing, present := l.services[entityID]; present {
 		if existingSvc, ok := existing.(*DBMAuroraService); ok && existingSvc.Equal(svc) {
+			log.Debugf("aurora service %v already exists", svc)
 			return
 		}
+		log.Debugf("aurora service %v already exists but is not equal to the new service", svc)
 		// If the cached service is not equal to the new service then metadata has changed
 		// Delete the cached service first and then send the updated one to the newSvc channel.
 		l.delService <- existing
 		delete(l.services, entityID)
 	}
-	log.Debugf("creating aurora service %v", svc)
+	log.Debugf("adding aurora service %v", svc)
 	l.services[entityID] = svc
 	l.newService <- svc
 }
