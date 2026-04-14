@@ -9,6 +9,7 @@ env_vars(
     name = "agent_volatile",
     # Each variable needs a justification. Every time you use one, the
     # target using it is potentially uncachable.
+    # ⚠️ Keep in sync with the `--repo_env=` entries in .bazelrc
     variables = [
         # This gets set by omnibus builds in many cases. It's used in the script
         # to set things like compression, so we'll mimic that for now.
