@@ -353,7 +353,7 @@ func getNewestTracerMetadata(pid int32, memfdFds []string) *tracermetadatamodel.
 			continue
 		}
 		modTime := info.ModTime().UnixNano()
-		if newest == nil || modTime > newestTime || (modTime == newestTime && tm.RuntimeID > newest.RuntimeID) {
+		if newest == nil || modTime > newestTime || (modTime == newestTime && tm.RuntimeID >= newest.RuntimeID) {
 			newest = &tm
 			newestTime = modTime
 		}
