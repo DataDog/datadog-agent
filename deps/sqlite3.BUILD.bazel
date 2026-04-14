@@ -46,20 +46,6 @@ dd_cc_packaged(
     name = "sqlite3_pkg",
     input = ":sqlite3",
     version = VERSION,
-)
-
-pkg_filegroup(
-    name = "all_files",
-    srcs = [
-        ":lib_files",
-    ],
-    prefix = "embedded",
     visibility = ["//visibility:public"],
 )
 
-pkg_install(
-    name = "install",
-    srcs = [
-        ":all_files",
-    ],
-)

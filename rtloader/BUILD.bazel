@@ -4,6 +4,7 @@ load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 load("//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
 load("//bazel/rules:so_symlink.bzl", "so_symlink")
+load("//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
 
 VERSION = "0.1.0"
 
@@ -289,16 +290,24 @@ pkg_filegroup(
     prefix = "embedded",
 )
 
+dd_collect_dependencies(
+    name = "_python_runtime_deps",
+    srcs = ["@cpython//:python_unix_shared"],
+)
+
+pkg_filegroup(
+    name = "_python_runtime_deps_embedded",
+    srcs = [":_python_runtime_deps"],
+    prefix = "embedded",
+)
+
 pkg_filegroup(
     name = "python_env_files",
     srcs = [
         ":all_files",
         ":openssl_libs_embedded",
-        "@bzip2//:all_files",
         "@cpython//:all_files",
-        "@sqlite3//:all_files",
-        "@xz//:all_files",
-        "@zlib//:all_files",
+        ":_python_runtime_deps_embedded",
     ],
 )
 
