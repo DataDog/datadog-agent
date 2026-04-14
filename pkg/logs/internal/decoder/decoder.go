@@ -168,10 +168,11 @@ func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regex
 	var sampler preprocessor.Sampler
 	if pkgconfigsetup.Datadog().GetBool("logs_config.experimental_adaptive_sampling.enabled") {
 		sampler = preprocessor.NewAdaptiveSampler(validateAdaptiveSamplerConfig(preprocessor.AdaptiveSamplerConfig{
-			MaxPatterns:    pkgconfigsetup.Datadog().GetInt("logs_config.experimental_adaptive_sampling.max_patterns"),
-			RateLimit:      pkgconfigsetup.Datadog().GetFloat64("logs_config.experimental_adaptive_sampling.rate_limit"),
-			BurstSize:      pkgconfigsetup.Datadog().GetFloat64("logs_config.experimental_adaptive_sampling.burst_size"),
-			MatchThreshold: pkgconfigsetup.Datadog().GetFloat64("logs_config.experimental_adaptive_sampling.match_threshold"),
+			MaxPatterns:          pkgconfigsetup.Datadog().GetInt("logs_config.experimental_adaptive_sampling.max_patterns"),
+			RateLimit:            pkgconfigsetup.Datadog().GetFloat64("logs_config.experimental_adaptive_sampling.rate_limit"),
+			BurstSize:            pkgconfigsetup.Datadog().GetFloat64("logs_config.experimental_adaptive_sampling.burst_size"),
+			MatchThreshold:       pkgconfigsetup.Datadog().GetFloat64("logs_config.experimental_adaptive_sampling.match_threshold"),
+			ProtectImportantLogs: pkgconfigsetup.Datadog().GetBool("logs_config.experimental_adaptive_sampling.protect_important_logs"),
 		}), source.UnderlyingSource().Name)
 	} else {
 		sampler = preprocessor.NewNoopSampler()
@@ -318,8 +319,11 @@ func (d *decoderImpl) Stop() {
 
 func (d *decoderImpl) run() {
 	defer func() {
-		// flush any remaining output in component order, and then close the
-		// output channel
+		// Flush any remaining output in component order, and then close the
+		// output channel. The framer flush gives the FrameMatcher a chance to
+		// emit buffered data that was waiting for a delimiter that never
+		// arrived (e.g. non-transparent syslog without a trailing LF).
+		d.framer.Flush()
 		d.lineParser.flush()
 		d.lineHandler.flush()
 		close(d.outputChan)

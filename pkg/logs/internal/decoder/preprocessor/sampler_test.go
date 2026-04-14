@@ -26,6 +26,16 @@ func newSampler(maxPatterns int, burstSize, rateLimit float64) *AdaptiveSampler 
 	}, "test")
 }
 
+func newSamplerWithProtect(maxPatterns int, burstSize, rateLimit float64, protect bool) *AdaptiveSampler {
+	return NewAdaptiveSampler(AdaptiveSamplerConfig{
+		MaxPatterns:          maxPatterns,
+		RateLimit:            rateLimit,
+		BurstSize:            burstSize,
+		MatchThreshold:       0.9,
+		ProtectImportantLogs: protect,
+	}, "test")
+}
+
 func testMsg() *message.Message {
 	return message.NewMessage([]byte("test"), nil, message.StatusInfo, 0)
 }
@@ -262,4 +272,83 @@ func TestAdaptiveSampler_EmptyTokensNewPattern(t *testing.T) {
 	out := s.Process(msg, nil)
 	assert.NotNil(t, out, "empty-token message should be allowed as new pattern")
 	require.Len(t, s.entries, 1)
+}
+
+// --- AdaptiveSampler: important log protection ---
+
+// An important log is always returned even when credits are exhausted.
+func TestAdaptiveSampler_ImportantLogBypassesRateLimit(t *testing.T) {
+	s := newSamplerWithProtect(10, 1.0, 0, true)
+	t0 := time.Now()
+	s.now = func() time.Time { return t0 }
+
+	importantTokens := tokenize("ERROR something went wrong")
+
+	// First message creates a pattern and consumes the burst.
+	out1 := s.Process(testMsg(), importantTokens)
+	require.NotNil(t, out1, "important log should always pass through")
+
+	// Second message would normally be dropped (burst=1, no refill).
+	out2 := s.Process(testMsg(), importantTokens)
+	require.NotNil(t, out2, "important log should bypass rate limiting")
+
+	// Third, fourth... all pass through.
+	for range 10 {
+		assert.NotNil(t, s.Process(testMsg(), importantTokens), "important log should never be dropped")
+	}
+}
+
+// Important logs bypass the pattern table entirely — no entry created.
+func TestAdaptiveSampler_ImportantLogDoesNotCreateEntry(t *testing.T) {
+	s := newSamplerWithProtect(10, 1.0, 0, true)
+	importantTokens := tokenize("FATAL: disk full")
+
+	s.Process(testMsg(), importantTokens)
+	assert.Empty(t, s.entries, "important logs should not create pattern table entries")
+}
+
+// Non-important logs are still rate-limited normally when protection is on.
+func TestAdaptiveSampler_NonImportantLogStillDropped(t *testing.T) {
+	s := newSamplerWithProtect(10, 1.0, 0, true)
+	t0 := time.Now()
+	s.now = func() time.Time { return t0 }
+
+	normalTokens := tokenize("info: request processed")
+
+	out1 := s.Process(testMsg(), normalTokens)
+	require.NotNil(t, out1, "first message should be allowed (new pattern)")
+	assert.Nil(t, s.Process(testMsg(), normalTokens), "second message should be dropped — burst exhausted")
+}
+
+// When ProtectImportantLogs is false, important logs are rate-limited like any other.
+func TestAdaptiveSampler_ProtectDisabled(t *testing.T) {
+	s := newSamplerWithProtect(10, 1.0, 0, false)
+	t0 := time.Now()
+	s.now = func() time.Time { return t0 }
+
+	importantTokens := tokenize("ERROR something went wrong")
+
+	out1 := s.Process(testMsg(), importantTokens)
+	require.NotNil(t, out1, "first message allowed (new pattern)")
+	assert.Nil(t, s.Process(testMsg(), importantTokens), "second message should be dropped — protection disabled")
+}
+
+// isImportant returns false for tokens that contain no critical keywords.
+func TestIsImportant(t *testing.T) {
+	assert.True(t, isImportant(tokenize("FATAL: disk full")))
+	assert.True(t, isImportant(tokenize("[ERROR] request failed")))
+	assert.True(t, isImportant(tokenize("WARNING: low memory")))
+	assert.True(t, isImportant(tokenize("PANIC in goroutine")))
+	assert.True(t, isImportant(tokenize("CRITICAL: service down")))
+	assert.True(t, isImportant(tokenize("EXCEPTION in handler")))
+	assert.True(t, isImportant(tokenize("DEADLOCK detected")))
+	assert.True(t, isImportant(tokenize("TIMEOUT connecting")))
+	assert.True(t, isImportant(tokenize("CRASH dump generated")))
+	assert.True(t, isImportant(tokenize("request FAILED")))
+
+	assert.False(t, isImportant(tokenize("info: all good")))
+	assert.False(t, isImportant(tokenize("debug: cache hit")))
+	assert.False(t, isImportant(tokenize("request processed successfully")))
+	assert.False(t, isImportant(nil))
+	assert.False(t, isImportant([]Token{}))
 }
