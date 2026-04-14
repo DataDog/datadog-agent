@@ -237,6 +237,10 @@ receivers:
         - targets:
           - 0.0.0.0:8888
         track_timestamps_staleness: false
+      storage:
+        tsdb:
+          outofordertimewindow: 0
+          retention: {}
     target_allocator: null
     trim_metric_suffixes: false
 service:
