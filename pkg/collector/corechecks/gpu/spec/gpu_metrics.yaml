@@ -478,6 +478,10 @@ metrics:
       unsupported_architectures:
         - fermi
         - kepler
+        - pascal
+        - volta
+        - turing
+        - ampere
         - hopper
         - maxwell
         - ada
@@ -492,6 +496,10 @@ metrics:
       unsupported_architectures:
         - fermi
         - kepler
+        - pascal
+        - volta
+        - turing
+        - ampere
         - hopper
         - maxwell
         - ada
@@ -532,6 +540,10 @@ metrics:
       unsupported_architectures:
         - fermi
         - kepler
+        - pascal
+        - volta
+        - turing
+        - ampere
         - hopper
         - maxwell
         - ada
@@ -559,6 +571,10 @@ metrics:
       unsupported_architectures:
         - fermi
         - kepler
+        - pascal
+        - volta
+        - turing
+        - ampere
         - hopper
         - maxwell
         - ada
@@ -573,6 +589,10 @@ metrics:
       unsupported_architectures:
         - fermi
         - kepler
+        - pascal
+        - volta
+        - turing
+        - ampere
         - hopper
         - maxwell
         - ada
@@ -587,6 +607,10 @@ metrics:
       unsupported_architectures:
         - fermi
         - kepler
+        - pascal
+        - volta
+        - turing
+        - ampere
         - hopper
         - maxwell
         - ada
@@ -627,6 +651,10 @@ metrics:
       unsupported_architectures:
         - fermi
         - kepler
+        - pascal
+        - volta
+        - turing
+        - ampere
         - hopper
         - maxwell
         - ada
@@ -641,6 +669,10 @@ metrics:
       unsupported_architectures:
         - fermi
         - kepler
+        - pascal
+        - volta
+        - turing
+        - ampere
         - hopper
         - maxwell
         - ada
@@ -655,6 +687,10 @@ metrics:
       unsupported_architectures:
         - fermi
         - kepler
+        - pascal
+        - volta
+        - turing
+        - ampere
         - hopper
         - maxwell
         - ada
@@ -669,6 +705,10 @@ metrics:
       unsupported_architectures:
         - fermi
         - kepler
+        - pascal
+        - volta
+        - turing
+        - ampere
         - hopper
         - maxwell
         - ada
@@ -709,6 +749,10 @@ metrics:
       unsupported_architectures:
         - fermi
         - kepler
+        - pascal
+        - volta
+        - turing
+        - ampere
         - hopper
         - maxwell
         - ada
@@ -723,6 +767,10 @@ metrics:
       unsupported_architectures:
         - fermi
         - kepler
+        - pascal
+        - volta
+        - turing
+        - ampere
         - hopper
         - maxwell
         - ada
@@ -737,6 +785,10 @@ metrics:
       unsupported_architectures:
         - fermi
         - kepler
+        - pascal
+        - volta
+        - turing
+        - ampere
         - hopper
         - maxwell
         - ada
@@ -803,6 +855,10 @@ metrics:
       unsupported_architectures:
         - fermi
         - kepler
+        - pascal
+        - volta
+        - turing
+        - ampere
         - hopper
         - maxwell
         - ada
@@ -817,6 +873,10 @@ metrics:
       unsupported_architectures:
         - fermi
         - kepler
+        - pascal
+        - volta
+        - turing
+        - ampere
         - hopper
         - maxwell
         - ada
