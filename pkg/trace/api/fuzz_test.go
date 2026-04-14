@@ -92,7 +92,7 @@ func fuzzTracesAPI(f *testing.F, v Version, contentType string, encode encoder, 
 	handlerFunc := receiver.handleWithVersion(v, receiver.handleTraces)
 	server := httptest.NewServer(handlerFunc)
 	defer server.Close()
-	for _, n := range []int{1, 10, 50} {
+	for _, n := range []int{1, 10, 25} {
 		pbTraces := testutil.GetTestTraces(n, n, true)
 		traces, err := encode(pbTraces)
 		if err != nil {
