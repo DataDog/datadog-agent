@@ -8,6 +8,7 @@ package secretsimpl
 
 import (
 	"bytes"
+	"context"
 	"embed"
 	"encoding/json"
 	"fmt"
@@ -193,7 +194,7 @@ func (r *secretResolver) HTML(_ bool, buffer io.Writer) error {
 }
 
 // fillFlare add secrets information to flares
-func (r *secretResolver) fillFlare(fb flaretypes.FlareBuilder) error {
+func (r *secretResolver) fillFlare(_ context.Context, fb flaretypes.FlareBuilder) error {
 	var buffer bytes.Buffer
 	stats := make(map[string]interface{})
 	err := status.RenderText(templatesFS, "info.tmpl", &buffer, r.getDebugInfo(stats, true))
@@ -820,7 +821,7 @@ func (r *secretResolver) addToAuditFile(secretResponse map[string]string) error 
 		secretValue := secretResponse[handle]
 		scrubbedValue := ""
 		if isLikelyAPIOrAppKey(handle, secretValue, r.origin) {
-			scrubbedValue = scrubber.HideKeyExceptLastFourChars(secretValue)
+			scrubbedValue = scrubber.HideKeyExceptLastChars(secretValue)
 		}
 		newRows = append(newRows, auditRecord{Handle: handle, Value: scrubbedValue})
 	}
