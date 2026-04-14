@@ -85,7 +85,7 @@ pub fn get_services(params: Params) -> ServicesResponse {
                 resp.gpu_pids.push(*pid);
             }
 
-            if let Some(service) = get_service(*pid, &mut context, open_files_info, &maps_info) {
+            if let Some(service) = get_service(*pid, &mut context, &open_files_info, &maps_info) {
                 resp.services.push(service);
             }
         }
@@ -109,7 +109,7 @@ pub fn get_services(params: Params) -> ServicesResponse {
 fn get_service(
     pid: i32,
     context: &mut ParsingContext,
-    open_files_info: OpenFilesInfo,
+    open_files_info: &OpenFilesInfo,
     maps_info: &MapsInfo,
 ) -> Option<Service> {
     let log_files = procfs::fd::get_log_files(pid, &open_files_info.logs);
@@ -132,7 +132,7 @@ fn get_service(
         .tracer_metadata
         .as_ref()
         .and_then(|m| Language::from_tracer_str(&m.tracer_language))
-        .or_else(|| Language::detect(pid, &exe, &cmdline, &open_files_info, maps_info));
+        .or_else(|| Language::detect(pid, &exe, &cmdline, open_files_info, maps_info));
 
     // Collect environment variables
     let envs = envs::get_target_envs(pid).ok()?;
@@ -157,7 +157,7 @@ fn get_service(
         additional_generated_names: name_metadata
             .map(|meta| meta.additional_names)
             .unwrap_or_default(),
-        tracer_metadata: open_files_info.tracer_metadata.into_iter().collect(),
+        tracer_metadata: open_files_info.tracer_metadata.iter().cloned().collect(),
         ust: UST::from_envs(&envs),
         tcp_ports,
         udp_ports,
