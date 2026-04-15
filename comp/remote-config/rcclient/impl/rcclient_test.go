@@ -3,9 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
+//go:build test
+
 package rcclientimpl
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -17,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
@@ -63,39 +66,45 @@ func (m *mockLogLevelRuntimeSettings) Hidden() bool {
 
 func applyEmpty(_ string, _ state.ApplyStatus) {}
 
+type testDeps struct {
+	fx.In
+	Comp rcclient.Component
+}
+
 func TestRCClientCreate(t *testing.T) {
-	_, err := newRemoteConfigClient(
-		fxutil.Test[dependencies](
-			t,
-			fx.Provide(func() log.Component { return logmock.New(t) }),
-			fx.Provide(func() config.Component { return configmock.New(t) }),
-			settingsimpl.MockModule(),
-			sysprobeconfig.NoneModule(),
-			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
-		),
+	// Test missing params — expect the fx app to fail to build
+	_, _, err := fxutil.TestApp[testDeps](
+		fxutil.ProvideComponentConstructor(NewRemoteConfigClient),
+		fxutil.ProvideOptional[rcclient.Component](),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return configmock.New(t) }),
+		settingsimpl.MockModule(),
+		sysprobeconfig.NoneModule(),
+		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 	)
 	// Missing params
 	assert.Error(t, err)
 
-	client, err := newRemoteConfigClient(
-		fxutil.Test[dependencies](
-			t,
-			fx.Provide(func() log.Component { return logmock.New(t) }),
-			fx.Provide(func() config.Component { return configmock.New(t) }),
-			sysprobeconfig.NoneModule(),
-			fx.Supply(
-				rcclient.Params{
-					AgentName:    "test-agent",
-					AgentVersion: "7.0.0",
-				},
-			),
-			settingsimpl.MockModule(),
-			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
+	// Test success case
+	app, deps, err := fxutil.TestApp[testDeps](
+		fxutil.ProvideComponentConstructor(NewRemoteConfigClient),
+		fxutil.ProvideOptional[rcclient.Component](),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return configmock.New(t) }),
+		sysprobeconfig.NoneModule(),
+		fx.Supply(
+			rcclient.Params{
+				AgentName:    "test-agent",
+				AgentVersion: "7.0.0",
+			},
 		),
+		settingsimpl.MockModule(),
+		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 	)
 	assert.NoError(t, err)
-	assert.NotNil(t, client)
-	assert.NotNil(t, client.(*rcClient).client)
+	t.Cleanup(func() { app.Stop(context.Background()) }) //nolint:errcheck
+	assert.NotNil(t, deps.Comp)
+	assert.NotNil(t, deps.Comp.(*rcClient).client)
 }
 
 func TestAgentConfigCallback(t *testing.T) {
@@ -106,7 +115,10 @@ func TestAgentConfigCallback(t *testing.T) {
 
 	rcComponent := fxutil.Test[rcclient.Component](t,
 		fx.Options(
-			Module(),
+			fxutil.Component(
+				fxutil.ProvideComponentConstructor(NewRemoteConfigClient),
+				fxutil.ProvideOptional[rcclient.Component](),
+			),
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return cfg }),
 			sysprobeconfig.NoneModule(),
@@ -210,7 +222,10 @@ func TestAgentMRFConfigCallback(t *testing.T) {
 
 	rcComponent := fxutil.Test[rcclient.Component](t,
 		fx.Options(
-			Module(),
+			fxutil.Component(
+				fxutil.ProvideComponentConstructor(NewRemoteConfigClient),
+				fxutil.ProvideOptional[rcclient.Component](),
+			),
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return cfg }),
 			sysprobeconfig.NoneModule(),
