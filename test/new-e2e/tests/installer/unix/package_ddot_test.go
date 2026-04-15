@@ -194,6 +194,35 @@ func (s *packageDDOTSuite) TestInstallDDOTWithoutDatadogYAML() {
 	s.assertDDOTUnits(state, true)
 }
 
+func (s *packageDDOTSuite) TestInstallDDOTExtensionSubcommand() {
+	// Install the base agent without DDOT.
+	s.RunInstallScript("DD_REMOTE_UPDATES=true", envForceInstall("datadog-agent"))
+	defer s.Purge()
+	s.host.AssertPackageInstalledByInstaller("datadog-agent")
+	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit)
+
+	// Install the ddot extension via the new datadog-agent extension subcommand.
+	// --url points at the standard agent-package in the test registry; the ddot
+	// extension layer is already embedded in it so no BYOC image is required.
+	agentPackageURL := fmt.Sprintf(
+		"oci://installtesting.datad0g.com.internal.dda-testing.com/agent-package:pipeline-%s",
+		os.Getenv("E2E_PIPELINE_ID"),
+	)
+	s.host.Run(fmt.Sprintf(
+		"sudo datadog-agent extension install --url %s ddot",
+		agentPackageURL,
+	))
+
+	s.host.WaitForUnitActive(s.T(), ddotUnit)
+
+	state := s.host.State()
+	s.assertCoreUnits(state, true)
+	s.assertDDOTUnits(state, false)
+	state.AssertFileExists("/etc/datadog-agent/datadog.yaml", 0640, "dd-agent", "dd-agent")
+	state.AssertFileExists("/etc/datadog-agent/otel-config.yaml", 0640, "dd-agent", "dd-agent")
+	s.host.Run("sudo grep -q 'otelcollector:' /etc/datadog-agent/datadog.yaml")
+}
+
 func (s *packageDDOTSuite) assertCoreUnits(state host.State, oldUnits bool) {
 	state.AssertUnitsLoaded(agentUnit, traceUnit, processUnit, probeUnit, securityUnit)
 	state.AssertUnitsEnabled(agentUnit)
