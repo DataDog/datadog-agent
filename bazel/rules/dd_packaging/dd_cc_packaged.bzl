@@ -79,6 +79,7 @@ def _dd_cc_packaged_impl(name, input, version = "", installed_files = [], visibi
         input = input,
         installed_files = rule_installed_files,
         visibility = visibility,
+        package_metadata = [],
         **kwargs
     )
 

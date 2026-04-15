@@ -15,6 +15,7 @@ go_test(
     name = "generic_store_test",
     srcs = ["store_test.go"],
     embed = [":generic_store"],
+    gotags = ["test"],
     deps = [
         "//comp/core/tagger/types",
         "@com_github_stretchr_testify//assert",

@@ -25,10 +25,6 @@ func (ctx *requestCtx) debugf(format string, args ...any) {
 	ctx.log.Debugf(ctx.prefix+format, args...)
 }
 
-func (ctx *requestCtx) errorf(format string, args ...any) {
-	ctx.log.Errorf(ctx.prefix+format, args...)
-}
-
 func (ctx *requestCtx) respond(status int, format string, args ...any) {
 	msg := fmt.Sprintf(format, args...)
 	ctx.debugf("complete with status %d: %q", status, msg)
@@ -46,11 +42,10 @@ type handlerBase struct {
 	out      serializer
 }
 
-type seriesHandler struct {
-	handlerBase
-}
-
-func (h *seriesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *handlerBase) handle(
+	w http.ResponseWriter, r *http.Request,
+	processPayload func(orig origin, payload *pb.Payload) error,
+) {
 	ctx := requestCtx{
 		prefix: fmt.Sprintf("dogstatsdhttp %q: ", r.RemoteAddr),
 		log:    h.log,
@@ -71,31 +66,52 @@ func (h *seriesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var payload pb.Payload
-	err = payload.UnmarshalVT(body)
-	if err != nil {
+	if err = payload.UnmarshalVT(body); err != nil {
 		ctx.respond(http.StatusBadRequest, "error parsing payload: %v", err)
 		return
 	}
 
-	it, err := newSeriesIterator(&payload, origin, h.hostname)
+	err = processPayload(origin, &payload)
 	if err != nil {
-		ctx.respond(http.StatusBadRequest, "error decoding payload dictionaries: %v", err)
-		return
-	}
-
-	err = h.out.SendIterableSeries(it)
-	if err != nil {
-		// this error indicates a failure in the agent itself, so we don't
-		// propagate it to the client
-		ctx.errorf("failed to serialize payload: %v", err)
-		ctx.respond(http.StatusInternalServerError, "internal error")
-		return
-	}
-
-	if it.err != nil {
-		ctx.respond(http.StatusBadRequest, "error decoding payload: %v", it.err)
+		ctx.respond(http.StatusBadRequest, "error processing payload: %v", err)
 		return
 	}
 
 	ctx.respond(http.StatusOK, "OK")
+}
+
+type seriesHandler struct {
+	handlerBase
+}
+
+func (h *seriesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	h.handle(w, r, func(origin origin, payload *pb.Payload) error {
+		it, err := newSeriesIterator(payload, origin, h.hostname)
+		if err != nil {
+			return err
+		}
+		err = h.out.SendIterableSeries(it)
+		if err != nil {
+			return err
+		}
+		return it.err
+	})
+}
+
+type sketchesHandler struct {
+	handlerBase
+}
+
+func (h *sketchesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	h.handle(w, r, func(origin origin, payload *pb.Payload) error {
+		it, err := newSketchIterator(payload, origin, h.hostname)
+		if err != nil {
+			return err
+		}
+		err = h.out.SendSketch(it)
+		if err != nil {
+			return err
+		}
+		return it.err
+	})
 }

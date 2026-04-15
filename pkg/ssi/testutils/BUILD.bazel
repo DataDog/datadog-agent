@@ -26,6 +26,7 @@ go_test(
         "image_test.go",
         "pod_test.go",
     ],
+    gotags = ["test"],
     deps = [
         ":testutils",
         "@io_k8s_api//core/v1:core",

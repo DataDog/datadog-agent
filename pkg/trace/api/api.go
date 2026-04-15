@@ -262,6 +262,9 @@ func replyWithVersion(stateGetter func() string, version string, h http.Handler)
 }
 
 func getConfiguredRequestTimeoutDuration(conf *config.AgentConfig) time.Duration {
+	if conf.ReceiverTimeoutDuration > 0 {
+		return conf.ReceiverTimeoutDuration
+	}
 	timeout := 5 * time.Second
 	if conf.ReceiverTimeout > 0 {
 		timeout = time.Duration(conf.ReceiverTimeout) * time.Second
@@ -270,6 +273,9 @@ func getConfiguredRequestTimeoutDuration(conf *config.AgentConfig) time.Duration
 }
 
 func getConfiguredEVPRequestTimeoutDuration(conf *config.AgentConfig) time.Duration {
+	if conf.EVPProxy.ReceiverTimeoutDuration > 0 {
+		return conf.EVPProxy.ReceiverTimeoutDuration
+	}
 	timeout := 30 * time.Second
 	if conf.EVPProxy.ReceiverTimeout > 0 {
 		timeout = time.Duration(conf.EVPProxy.ReceiverTimeout) * time.Second

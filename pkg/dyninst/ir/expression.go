@@ -7,6 +7,22 @@
 
 package ir
 
+// ExprStatus is the per-expression evaluation status stored in the
+// ExprStatusArray at the start of event root data. Each expression gets
+// ExprStatusBits bits.
+type ExprStatus uint8
+
+const (
+	ExprStatusAbsent   ExprStatus = 0 // evaluation failed (unknown reason)
+	ExprStatusPresent  ExprStatus = 1 // evaluation succeeded
+	ExprStatusNilDeref ExprStatus = 2 // nil pointer dereference
+	ExprStatusOOB      ExprStatus = 3 // index out of bounds
+)
+
+// ExprStatusBits is the number of bits per entry in the ExprStatusArray.
+// Currently 2; can be expanded to 4 for alignment if more statuses are needed.
+const ExprStatusBits = 2
+
 // Expression is a typed and validated set of operations for compilation
 // and evaluation.
 type Expression struct {
@@ -92,6 +108,17 @@ func (*ExprCmpEqBaseOp) irOp() {}
 type ExprCmpEqStringOp struct{}
 
 func (*ExprCmpEqStringOp) irOp() {}
+
+// SliceBoundsCheckOp checks that a compile-time index is within the runtime
+// length of a Go slice. It expects the scratch buffer at the current offset
+// to contain the first 16 bytes of the slice header: [data_ptr (8), len (8)].
+// The len field is at a fixed offset of 8 bytes (we only support 64-bit
+// targets). If index >= len, it writes ExprStatusOOB and aborts the expression.
+type SliceBoundsCheckOp struct {
+	Index uint32 // compile-time index to validate against runtime len
+}
+
+func (*SliceBoundsCheckOp) irOp() {}
 
 // ConditionCheckOp reads a uint8 bool result at the current offset. If false
 // (0), it sets the condition_failed flag and aborts the stack machine.

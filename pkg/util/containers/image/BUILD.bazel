@@ -11,5 +11,6 @@ go_test(
     name = "image_test",
     srcs = ["image_test.go"],
     embed = [":image"],
+    gotags = ["test"],
     deps = ["@com_github_stretchr_testify//assert"],
 )

@@ -14,14 +14,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	awsrds "github.com/aws/aws-sdk-go-v2/service/rds"
+	"github.com/aws/aws-sdk-go-v2/service/rds/types"
 )
 
 //go:generate mockgen -source=$GOFILE -package=$GOPACKAGE -destination=rdsclient_mockgen.go
 
 // RdsClient is the interface for describing cluster and instance endpoints
 type RdsClient interface {
-	GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentifiers []string, config Config) (map[string]*AuroraCluster, error)
-	GetAuroraClustersFromTags(ctx context.Context, tags []string) ([]string, error)
+	GetAuroraClusterEndpoints(ctx context.Context, clusters []types.DBCluster, config Config) ([]Instance, error)
+	GetAuroraClustersFromTags(ctx context.Context, tags []string) ([]types.DBCluster, error)
 	GetRdsInstancesFromTags(ctx context.Context, config Config) ([]Instance, error)
 }
 

@@ -41,6 +41,7 @@ go_test(
         "environment_detection_test.go",
     ],
     embed = [":env"],
+    gotags = ["test"],
     deps = [
         "@com_github_stretchr_testify//assert",
     ] + select({
