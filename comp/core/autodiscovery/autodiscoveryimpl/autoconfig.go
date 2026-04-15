@@ -43,6 +43,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -60,14 +61,15 @@ var listenerCandidateIntl = 30 * time.Second
 // dependencies is the set of dependencies for the AutoConfig component.
 type dependencies struct {
 	fx.In
-	Lc          fx.Lifecycle
-	Config      configComponent.Component
-	Log         logComp.Component
-	TaggerComp  tagger.Component
-	Secrets     secrets.Component
-	WMeta       option.Option[workloadmeta.Component]
-	FilterStore workloadfilter.Component
-	Telemetry   telemetry.Component
+	Lc             fx.Lifecycle
+	Config         configComponent.Component
+	Log            logComp.Component
+	TaggerComp     tagger.Component
+	Secrets        secrets.Component
+	WMeta          option.Option[workloadmeta.Component]
+	FilterStore    workloadfilter.Component
+	Telemetry      telemetry.Component
+	HealthPlatform healthplatformdef.Component `optional:"true"`
 }
 
 // AutoConfig implements the agent's autodiscovery mechanism.  It is
@@ -178,7 +180,7 @@ func newAutoConfig(deps dependencies) autodiscovery.Component {
 		}
 	}()
 
-	ac := createNewAutoConfig(schController, deps.Secrets, deps.WMeta, deps.TaggerComp, deps.Log, deps.Telemetry, deps.FilterStore)
+	ac := createNewAutoConfig(schController, deps.Secrets, deps.WMeta, deps.TaggerComp, deps.Log, deps.Telemetry, deps.FilterStore, deps.HealthPlatform)
 	deps.Lc.Append(fx.Hook{
 		OnStart: func(_ context.Context) error {
 			ac.start()
@@ -193,8 +195,8 @@ func newAutoConfig(deps dependencies) autodiscovery.Component {
 }
 
 // createNewAutoConfig creates an AutoConfig instance (without starting).
-func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logs logComp.Component, telemetryComp telemetry.Component, filterStore workloadfilter.Component) *AutoConfig {
-	cfgMgr := newReconcilingConfigManager(secretResolver)
+func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logs logComp.Component, telemetryComp telemetry.Component, filterStore workloadfilter.Component, healthPlatform healthplatformdef.Component) *AutoConfig {
+	cfgMgr := newReconcilingConfigManager(secretResolver, healthPlatform)
 	ac := &AutoConfig{
 		configPollers:            make([]*configPoller, 0, 9),
 		listenerCandidates:       make(map[string]*listenerCandidate),

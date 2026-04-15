@@ -16,9 +16,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
+	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
@@ -542,7 +545,88 @@ func TestReconcilingConfigManagement(t *testing.T) {
 	mockResolver := MockSecretResolver{}
 	suite.Run(t, &ReconcilingConfigManagerSuite{
 		ConfigManagerSuite{factory: func() configManager {
-			return newReconcilingConfigManager(&mockResolver)
+			return newReconcilingConfigManager(&mockResolver, nil)
 		}},
 	})
+}
+
+// dummyServiceWithExtraConfigError is a dummyService that returns an error for GetExtraConfig
+type dummyServiceWithExtraConfigError struct {
+	dummyService
+}
+
+func (s *dummyServiceWithExtraConfigError) GetExtraConfig(key string) (string, error) {
+	return "", fmt.Errorf("extra config %q is not supported", key)
+}
+
+func TestResolveTemplateForService_ReportsToHealthPlatform(t *testing.T) {
+	mockResolver := MockSecretResolver{}
+	hp := healthplatformmock.Mock(t)
+
+	cm := newReconcilingConfigManager(&mockResolver, hp).(*reconcilingConfigManager)
+
+	// Template that uses %%extra_dbinstanceidentifier%% variable
+	tpl := integration.Config{
+		Name:          "postgres",
+		ADIdentifiers: []string{"postgres"},
+		Instances:     []integration.Data{integration.Data("host: %%host%%\ntags:\n  - dbid:%%extra_dbinstanceidentifier%%")},
+		Provider:      "file",
+		Source:        "file:/etc/datadog-agent/conf.d/postgres.d/conf.yaml",
+	}
+
+	// Service that doesn't support extra config (like a docker listener)
+	svc := &dummyServiceWithExtraConfigError{
+		dummyService: dummyService{
+			ID:            "docker://abc123",
+			ADIdentifiers: []string{"postgres"},
+			Hosts:         map[string]string{"main": "myhost"},
+		},
+	}
+
+	// Attempt to resolve — should fail because %%extra_dbinstanceidentifier%% is not supported
+	_, ok := cm.resolveTemplateForService(tpl, svc)
+	assert.False(t, ok, "resolveTemplateForService should return false on resolution failure")
+
+	// Verify health platform received the issue
+	count, issues := hp.GetAllIssues()
+	assert.Equal(t, 1, count, "expected 1 health issue to be reported")
+	assert.Contains(t, issues, "autodiscovery:postgres:docker://abc123")
+	issue := issues["autodiscovery:postgres:docker://abc123"]
+	require.NotNil(t, issue)
+	assert.Equal(t, "autodiscovery-template-resolution-failure", issue.Id)
+}
+
+func TestResolveTemplateForService_ClearsHealthPlatformOnSuccess(t *testing.T) {
+	mockResolver := MockSecretResolver{}
+	hp := healthplatformmock.Mock(t)
+
+	cm := newReconcilingConfigManager(&mockResolver, hp).(*reconcilingConfigManager)
+
+	// Template that uses only %%host%% — will succeed
+	tpl := integration.Config{
+		Name:          "redis",
+		ADIdentifiers: []string{"redis"},
+		LogsConfig:    []byte("source: %%host%%"),
+	}
+
+	svc := &dummyService{
+		ID:            "docker://def456",
+		ADIdentifiers: []string{"redis"},
+		Hosts:         map[string]string{"main": "myhost"},
+	}
+
+	// Pre-populate a health issue for this template+service pair
+	hp.ReportIssue("autodiscovery:redis:docker://def456", "redis", &healthplatformpayload.IssueReport{
+		IssueId: "autodiscovery-template-resolution-failure",
+		Context: map[string]string{"templateName": "redis"},
+	})
+	count, _ := hp.GetAllIssues()
+	require.Equal(t, 1, count, "pre-condition: 1 issue should exist")
+
+	// Resolve successfully — should clear the health issue
+	_, ok := cm.resolveTemplateForService(tpl, svc)
+	assert.True(t, ok, "resolveTemplateForService should succeed")
+
+	count, _ = hp.GetAllIssues()
+	assert.Equal(t, 0, count, "health issue should be cleared after successful resolution")
 }

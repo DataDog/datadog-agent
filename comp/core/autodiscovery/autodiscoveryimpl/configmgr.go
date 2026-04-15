@@ -8,13 +8,18 @@ package autodiscoveryimpl
 import (
 	"fmt"
 	"maps"
+	"strings"
 	"sync"
+
+	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/configresolver"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/def"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues/templateresolution"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -105,12 +110,13 @@ type reconcilingConfigManager struct {
 	scheduledConfigs map[string]integration.Config
 
 	secretResolver secrets.Component
+	healthPlatform healthplatformdef.Component
 }
 
 var _ configManager = &reconcilingConfigManager{}
 
 // newReconcilingConfigManager creates a new, empty reconcilingConfigManager.
-func newReconcilingConfigManager(secretResolver secrets.Component) configManager {
+func newReconcilingConfigManager(secretResolver secrets.Component, healthPlatform healthplatformdef.Component) configManager {
 	return &reconcilingConfigManager{
 		activeConfigs:      map[string]integration.Config{},
 		activeServices:     map[string]serviceAndADIDs{},
@@ -119,6 +125,7 @@ func newReconcilingConfigManager(secretResolver secrets.Component) configManager
 		serviceResolutions: map[string]map[string]string{},
 		scheduledConfigs:   map[string]integration.Config{},
 		secretResolver:     secretResolver,
+		healthPlatform:     healthPlatform,
 	}
 }
 
@@ -401,8 +408,9 @@ func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Co
 	config, err := configresolver.Resolve(tpl, svc)
 	if err != nil {
 		msg := fmt.Sprintf("error resolving template %s for service %s: %v", tpl.Name, svc.GetServiceID(), err)
-		log.Debug(msg)
+		log.Errorf("autodiscovery: skipping config - %s", msg)
 		errorStats.setResolveWarning(tpl.Name, msg)
+		cm.reportTemplateResolutionFailure(tpl, svc, err)
 		return tpl, false
 	}
 	resolvedConfig, err := decryptConfig(config, cm.secretResolver, digest)
@@ -412,7 +420,38 @@ func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Co
 		return config, false
 	}
 	errorStats.removeResolveWarnings(tpl.Name)
+	cm.clearTemplateResolutionFailure(tpl, svc)
 	return resolvedConfig, true
+}
+
+// reportTemplateResolutionFailure reports a template resolution failure to the health platform
+func (cm *reconcilingConfigManager) reportTemplateResolutionFailure(tpl integration.Config, svc listeners.Service, err error) {
+	if cm.healthPlatform == nil {
+		return
+	}
+	cm.healthPlatform.ReportIssue( //nolint:errcheck
+		"autodiscovery:"+tpl.Name+":"+svc.GetServiceID(),
+		tpl.Name,
+		&healthplatformpayload.IssueReport{
+			IssueId: templateresolution.IssueID,
+			Context: map[string]string{
+				"templateName":  tpl.Name,
+				"serviceID":     svc.GetServiceID(),
+				"errorMessage":  err.Error(),
+				"adIdentifiers": strings.Join(tpl.ADIdentifiers, ", "),
+				"source":        tpl.Source,
+				"provider":      tpl.Provider,
+			},
+		},
+	)
+}
+
+// clearTemplateResolutionFailure clears a previously reported template resolution failure
+func (cm *reconcilingConfigManager) clearTemplateResolutionFailure(tpl integration.Config, svc listeners.Service) {
+	if cm.healthPlatform == nil {
+		return
+	}
+	cm.healthPlatform.ClearIssuesForCheck("autodiscovery:" + tpl.Name + ":" + svc.GetServiceID())
 }
 
 // applyChanges applies the given changes to cm.scheduledConfigs

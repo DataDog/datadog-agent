@@ -1,0 +1,10 @@
+---
+enhancements:
+  - |
+    Autodiscovery template resolution failures are now logged at ERROR level
+    instead of DEBUG, making them visible without enabling debug logging.
+    Additionally, when the health platform is enabled, these failures are
+    reported as Agent Health events with severity ``high``, providing
+    actionable remediation steps and proactive visibility when an
+    autodiscovered check config is silently skipped due to unsupported
+    template variables.
