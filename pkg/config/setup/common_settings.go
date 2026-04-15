@@ -1286,6 +1286,8 @@ func autoscaling(config pkgconfigmodel.Setup) {
 
 	// Kubernetes actions
 	config.BindEnvAndSetDefault("kubeactions.enabled", false)
+	// TODO(kubeactions): Update hostnameEndpointPrefix to "kubeops-intake." once provisioned
+	bindEnvAndSetLogsConfigKeys(config, "kubeactions.forwarder.")
 }
 
 func fips(config pkgconfigmodel.Setup) {
@@ -1802,6 +1804,9 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.match_threshold", 0.9)
 	// The sampler needs a larger tokenizer window than the auto-multiline labeler.
 	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.tokenizer_max_input_bytes", 2048)
+	// When true, logs containing critical severity keywords (FATAL, ERROR, PANIC, etc.)
+	// bypass the adaptive sampler and are never dropped.
+	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.protect_important_logs", true)
 
 	// Enable the legacy auto multiline detection (v1)
 	config.BindEnvAndSetDefault("logs_config.force_auto_multi_line_detection_v1", false)
