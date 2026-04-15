@@ -1,16 +1,16 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
-    name = "processor",
+    name = "preprocessor",
     srcs = ["json.go"],
-    importpath = "github.com/DataDog/datadog-agent/pkg/logs/patterns/processor",
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/patterns/preprocessor",
     visibility = ["//visibility:public"],
 )
 
 go_test(
-    name = "processor_test",
+    name = "preprocessor_test",
     srcs = ["json_test.go"],
-    embed = [":processor"],
+    embed = [":preprocessor"],
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

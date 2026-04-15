@@ -114,7 +114,7 @@ use (
 	pkg/logs/patterns/clustering
 	pkg/logs/patterns/clustering/merging
 	pkg/logs/patterns/eviction
-	pkg/logs/patterns/processor
+	pkg/logs/patterns/preprocessor
 	pkg/logs/patterns/tags
 	pkg/logs/patterns/token
 	pkg/logs/patterns/tokenizer/rust

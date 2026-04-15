@@ -3,15 +3,20 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package processor provides JSON-aware preprocessing for stateful log encoding.
+// Package preprocessor provides JSON-aware preprocessing for stateful log encoding.
 // It extracts message fields from JSON logs and serializes remaining fields into ordered json_context.
-package processor
+package preprocessor
 
 import (
 	"bytes"
-	"encoding/json"
 	"strings"
+
+	jsoniter "github.com/json-iterator/go"
 )
+
+// json is a drop-in replacement for encoding/json using jsoniter for ~3-5x faster
+// Unmarshal/Marshal. ConfigCompatibleWithStandardLibrary preserves sorted map key output.
+var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 // ExtractionResult contains the result of JSON preprocessing
 type ExtractionResult struct {
@@ -45,7 +50,7 @@ func PreprocessJSON(content []byte) ExtractionResult {
 	fail := ExtractionResult{IsJSON: false}
 
 	// Check if it's a JSON object (handles leading whitespace)
-	if !isJSONObject(content) {
+	if !IsJSONObject(content) {
 		return fail
 	}
 
@@ -169,8 +174,9 @@ func removeFieldByPath(data map[string]interface{}, path string) {
 	delete(current, parts[len(parts)-1])
 }
 
-// isJSONObject checks if content is a JSON object, handling leading whitespace
-func isJSONObject(content []byte) bool {
+// IsJSONObject checks if content is a JSON object, handling leading whitespace.
+// Exported for use by callers that need a cheap JSON detection without a full parse.
+func IsJSONObject(content []byte) bool {
 	trimmed := bytes.TrimLeft(content, " \t\n\r")
 	return len(trimmed) > 0 && trimmed[0] == '{'
 }

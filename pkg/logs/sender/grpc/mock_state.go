@@ -15,7 +15,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/clustering"
-	"github.com/DataDog/datadog-agent/pkg/logs/patterns/processor"
+	"github.com/DataDog/datadog-agent/pkg/logs/patterns/preprocessor"
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/tags"
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/token"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
@@ -31,7 +31,8 @@ const nanoToMillis = 1000000
 type batchEntry struct {
 	msg         *message.Message
 	content     string // preprocessed content (JSON extracted message, or raw string)
-	jsonContext []byte // from PreprocessJSON; nil if not JSON
+	jsonContext []byte // from PreprocessJSON; nil if not JSON or json_as_raw=true
+	isRawJSON   bool   // true when patterns.json_as_raw=true and content is raw JSON — skip tokenization
 }
 
 const (
@@ -60,6 +61,7 @@ type MessageTranslator struct {
 	tagManager             *tags.TagManager
 	tagEvictionManager     *tags.TagEvictionManager
 	tokenizer              token.Tokenizer
+	jsonLogsAsRaw          bool // when true, JSON logs bypass stateful encoding and are sent as RawLog
 
 	pipelineName string
 
@@ -92,6 +94,7 @@ func NewMessageTranslator(pipelineName string, tokenizer token.Tokenizer) *Messa
 		tagManager:             tags.NewTagManager(),
 		tagEvictionManager:     tags.NewTagEvictionManager(),
 		tokenizer:              tokenizer,
+		jsonLogsAsRaw:          pkgconfigsetup.Datadog().GetBool("logs_config.patterns.json_as_raw"),
 		pipelineName:           pipelineName,
 	}
 	tlmPipelineStateSize.Set(0, pipelineName)
@@ -126,7 +129,10 @@ func (mt *MessageTranslator) Start(inputChan chan *message.Message, bufferSize i
 				return // skip empty messages — no sidecar entry, no alignment break
 			}
 			entry := batchEntry{msg: msg}
-			if results := processor.PreprocessJSON(content); results.Message != "" {
+			if mt.jsonLogsAsRaw && preprocessor.IsJSONObject(content) {
+				entry.content = string(content)
+				entry.isRawJSON = true
+			} else if results := preprocessor.PreprocessJSON(content); results.Message != "" {
 				entry.content = results.Message
 				entry.jsonContext = results.JSONContext
 			} else {
@@ -173,14 +179,31 @@ func (mt *MessageTranslator) Start(inputChan chan *message.Message, bufferSize i
 // processBatch tokenizes a batch of pre-screened entries in one TokenizeBatch call,
 // then processes each sequentially through clustering and datum building.
 // All entries in the batch have non-empty content (empty messages are skipped before enqueueing).
+// Entries with isRawJSON=true bypass tokenization and are sent as RawLog datums directly.
 func (mt *MessageTranslator) processBatch(batch []batchEntry, outputChan chan *message.StatefulMessage) {
 	if len(batch) == 0 {
 		return
 	}
 
-	// Extract content strings for batch tokenization (aligned 1:1 with batch entries).
-	contents := make([]string, len(batch))
-	for i, e := range batch {
+	// Partition: send raw JSON entries immediately, collect the rest for batch tokenization.
+	tokenBatch := batch[:0:0]
+	for _, entry := range batch {
+		if entry.isRawJSON {
+			ts := getMessageTimestamp(entry.msg)
+			tagSet, _, _, _ := mt.buildTagSet(entry.msg)
+			mt.sendRawLog(outputChan, entry.msg, entry.content, ts, tagSet)
+		} else {
+			tokenBatch = append(tokenBatch, entry)
+		}
+	}
+
+	if len(tokenBatch) == 0 {
+		return
+	}
+
+	// Extract content strings for batch tokenization (aligned 1:1 with tokenBatch entries).
+	contents := make([]string, len(tokenBatch))
+	for i, e := range tokenBatch {
 		contents[i] = e.content
 	}
 
@@ -190,8 +213,8 @@ func (mt *MessageTranslator) processBatch(batch []batchEntry, outputChan chan *m
 	tokenResults, _ := mt.tokenizer.TokenizeBatch(contents)
 
 	// Process each entry sequentially — clustering is stateful and must be sequential.
-	// Alignment is guaranteed: tokenResults[i] corresponds to batch[i].
-	for i, entry := range batch {
+	// Alignment is guaranteed: tokenResults[i] corresponds to tokenBatch[i].
+	for i, entry := range tokenBatch {
 		if i >= len(tokenResults) {
 			break
 		}
@@ -210,9 +233,15 @@ func (mt *MessageTranslator) processMessage(msg *message.Message, outputChan cha
 	if len(content) == 0 {
 		return
 	}
+	if mt.jsonLogsAsRaw && preprocessor.IsJSONObject(content) {
+		ts := getMessageTimestamp(msg)
+		tagSet, _, _, _ := mt.buildTagSet(msg)
+		mt.sendRawLog(outputChan, msg, string(content), ts, tagSet)
+		return
+	}
 	var jsonContext []byte
 	contentStr := string(content)
-	if results := processor.PreprocessJSON(content); results.Message != "" {
+	if results := preprocessor.PreprocessJSON(content); results.Message != "" {
 		contentStr = results.Message
 		jsonContext = results.JSONContext
 	}

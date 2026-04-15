@@ -230,11 +230,13 @@ modules:
     used_by_otel: true
   pkg/logs/patterns/eviction:
     used_by_otel: true
-  pkg/logs/patterns/processor:
+  pkg/logs/patterns/preprocessor:
     used_by_otel: true
   pkg/logs/patterns/tags:
     used_by_otel: true
   pkg/logs/patterns/token:
+    used_by_otel: true
+  pkg/logs/patterns/tokenizer/go:
     used_by_otel: true
   pkg/logs/patterns/tokenizer/rust:
     used_by_otel: true
