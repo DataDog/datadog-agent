@@ -37,11 +37,8 @@ func mainSnippetDirectives(moduleMountPath string) string {
 	return fmt.Sprintf("load_module %s/ngx_http_datadog_module.so;\nthread_pool waf_thread_pool threads=2 max_queue=16;\nenv DD_AGENT_HOST;", moduleMountPath)
 }
 
-// httpSnippetDirectives returns the nginx http-context directives for enabling AppSec.
-// agentURL is the address of the DD agent (e.g., "http://datadog.datadog.svc.cluster.local:8126").
-func httpSnippetDirectives(agentURL string) string {
-	return fmt.Sprintf("datadog_agent_url %s;\ndatadog_appsec_enabled on;\ndatadog_waf_thread_pool_name waf_thread_pool;", agentURL)
-}
+// httpSnippetDirectives are injected into the nginx http context to enable AppSec
+const httpSnippetDirectivesContent = "datadog_appsec_enabled on;\ndatadog_waf_thread_pool_name waf_thread_pool;"
 
 // ddConfigMapName returns the name for the DD-owned ConfigMap based on the original ConfigMap name
 func ddConfigMapName(originalName string) string {
@@ -80,7 +77,7 @@ func stripDDSnippet(snippet string) string {
 
 // createOrUpdateDDConfigMap creates or updates the DD-owned ConfigMap by mirroring the original
 // and prepending Datadog AppSec directives to main-snippet and http-snippet.
-func createOrUpdateDDConfigMap(ctx context.Context, client dynamic.Interface, namespace, originalCMName, moduleMountPath, agentURL string, labels, annotations map[string]string) error {
+func createOrUpdateDDConfigMap(ctx context.Context, client dynamic.Interface, namespace, originalCMName, moduleMountPath string, labels, annotations map[string]string) error {
 	ddName := ddConfigMapName(originalCMName)
 
 	// Fetch original ConfigMap (may not exist if user hasn't customized anything)
@@ -101,7 +98,7 @@ func createOrUpdateDDConfigMap(ctx context.Context, client dynamic.Interface, na
 		mergedData[k] = v
 	}
 	mergedData[mainSnippetKey] = buildSnippet(mergedData[mainSnippetKey], mainSnippetDirectives(moduleMountPath))
-	mergedData[httpSnippetKey] = buildSnippet(mergedData[httpSnippetKey], httpSnippetDirectives(agentURL))
+	mergedData[httpSnippetKey] = buildSnippet(mergedData[httpSnippetKey], httpSnippetDirectivesContent)
 
 	ddCM := &corev1.ConfigMap{
 		TypeMeta: metav1.TypeMeta{

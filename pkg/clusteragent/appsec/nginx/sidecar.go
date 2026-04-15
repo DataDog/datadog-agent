@@ -9,7 +9,6 @@ package nginx
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -97,15 +96,8 @@ func (n *nginxSidecarPattern) MutatePod(pod *corev1.Pod, ns string, dc dynamic.I
 		"app.kubernetes.io/managed-by":                  "datadog-cluster-agent",
 		appsecconfig.AppsecProcessorProxyTypeAnnotation: string(appsecconfig.ProxyTypeIngressNginx),
 	}
-	// Resolve agent URL from pod's DD_AGENT_HOST env var
-	agentHost := getEnvFromPod(container, "DD_AGENT_HOST")
-	if agentHost == "" {
-		return false, errors.New("DD_AGENT_HOST env var not found on controller container; cannot configure nginx-datadog module agent URL")
-	}
-	agentURL := "http://" + agentHost + ":8126"
-
 	ddCMName := ddConfigMapName(cmName)
-	if err := createOrUpdateDDConfigMap(context.TODO(), dc, cmNamespace, cmName, moduleMountPath, agentURL, ddLabels, n.config.CommonAnnotations); err != nil {
+	if err := createOrUpdateDDConfigMap(context.TODO(), dc, cmNamespace, cmName, moduleMountPath, ddLabels, n.config.CommonAnnotations); err != nil {
 		n.eventRecorder.recordConfigMapCreateFailed("", err)
 		return false, fmt.Errorf("failed to create/update DD ConfigMap: %w", err)
 	}
@@ -218,17 +210,6 @@ func hasInitContainer(pod *corev1.Pod) bool {
 	return slices.ContainsFunc(pod.Spec.InitContainers, func(c corev1.Container) bool {
 		return c.Name == initContainerName
 	})
-}
-
-// getEnvFromPod returns the value of an env var from a container spec, or "" if not found.
-// Only handles literal values, not valueFrom references.
-func getEnvFromPod(container *corev1.Container, name string) string {
-	for _, env := range container.Env {
-		if env.Name == name {
-			return env.Value
-		}
-	}
-	return ""
 }
 
 // buildInitContainer creates the init container spec that copies the nginx-datadog module
