@@ -16,5 +16,6 @@ rtloader_go_test(
     name = "aggregator_test",
     srcs = ["aggregator_test.go"],
     embed = [":aggregator"],
+    gotags = ["test"],
     deps = ["//rtloader/test/helpers"],
 )

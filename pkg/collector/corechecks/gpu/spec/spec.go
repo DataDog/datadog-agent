@@ -30,6 +30,13 @@ const (
 	DeviceModeVGPU     DeviceMode = "vgpu"
 )
 
+// AllDeviceModes lists every device mode modeled by the GPU spec.
+var AllDeviceModes = []DeviceMode{
+	DeviceModePhysical,
+	DeviceModeMIG,
+	DeviceModeVGPU,
+}
+
 // MetricsSpec is the YAML metric specification.
 type MetricsSpec struct {
 	MetricPrefix string                `yaml:"metric_prefix"`
@@ -98,13 +105,9 @@ func (m MetricSpec) SupportsDeviceMode(mode DeviceMode) bool {
 	return ok && v
 }
 
-// IsDeviceModeExplicitlyUnsupported returns true if device_modes explicitly disables this mode.
-func (m MetricSpec) IsDeviceModeExplicitlyUnsupported(mode DeviceMode) bool {
-	if m.Support.DeviceModes == nil {
-		return false
-	}
-	v, ok := m.Support.DeviceModes[mode]
-	return ok && !v
+// SupportsConfig returns true if the metric is supported for the given GPU config.
+func (m MetricSpec) SupportsConfig(config GPUConfig) bool {
+	return m.SupportsArchitecture(config.Architecture) && m.SupportsDeviceMode(config.DeviceMode)
 }
 
 // IsModeSupportedByArchitecture returns true when the architecture supports the device mode.

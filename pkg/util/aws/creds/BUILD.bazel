@@ -1,11 +1,29 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "creds",
     srcs = [
+        "credentials.go",
         "credentials_noec2.go",
+        "detection.go",
         "detection_noec2.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/aws/creds",
     visibility = ["//visibility:public"],
+    deps = ["//pkg/util/aws/creds/internal"],
+)
+
+go_test(
+    name = "creds_test",
+    srcs = [
+        "credentials_test.go",
+        "detection_test.go",
+    ],
+    embed = [":creds"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/util/aws/creds/internal",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
 )

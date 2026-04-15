@@ -17,5 +17,6 @@ go_test(
     name = "cgo_test",
     srcs = ["genpost_test.go"],
     embed = [":cgo_lib"],
+    gotags = ["test"],
     deps = ["@com_github_stretchr_testify//assert"],
 )

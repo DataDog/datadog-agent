@@ -24,6 +24,7 @@ go_test(
     ],
     data = [":testcases"],
     embed = [":schema"],
+    gotags = ["test"],
     deps = [
         "@com_github_santhosh_tekuri_jsonschema_v5//:jsonschema",
         "@com_github_stretchr_testify//assert",

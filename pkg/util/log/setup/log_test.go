@@ -15,17 +15,12 @@ import (
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	seelogCfg "github.com/DataDog/datadog-agent/pkg/util/log/setup/internal/seelog"
 )
 
 func BenchmarkSlogParallel(b *testing.B) {
 	b.StopTimer()
 
-	cfg := initConfig(b)
-	logger, levelVar, err := cfg.SlogLogger()
-	require.NoError(b, err)
-	require.NotNil(b, logger)
-
+	logger, levelVar := initLogger(b)
 	levelVar.Set(slog.LevelDebug)
 	log.SetupLoggerWithLevelVar(logger, levelVar)
 
@@ -51,26 +46,27 @@ func runLogParallel(b *testing.B) {
 func BenchmarkSlogLogger(b *testing.B) {
 	b.StopTimer()
 
-	cfg := initConfig(b)
-	logger, levelVar, err := cfg.SlogLogger()
-	require.NoError(b, err)
-	require.NotNil(b, logger)
-
+	logger, levelVar := initLogger(b)
 	levelVar.Set(slog.LevelDebug)
 	log.SetupLoggerWithLevelVar(logger, levelVar)
 
 	runLog(b)
 }
 
-func initConfig(b *testing.B) *seelogCfg.Config {
+func initLogger(b *testing.B) (log.LoggerInterface, *slog.LevelVar) {
+	b.Helper()
 	dir := b.TempDir()
 
 	ddCfg := pkgconfigsetup.Datadog()
-	cfg := seelogCfg.NewSeelogConfig("TEST", "debug", "common", false, nil, commonFormatter("TEST", ddCfg))
-	cfg.EnableConsoleLog(false)
-	cfg.EnableFileLogging(filepath.Join(dir, "test.log"), 1000, 2)
-
-	return cfg
+	logger, levelVar, err := buildSlogLogger(
+		log.DebugLvl,
+		false,
+		filepath.Join(dir, "test.log"), 1000, 2,
+		"",
+		commonFormatter("TEST", ddCfg), nil,
+	)
+	require.NoError(b, err)
+	return logger, levelVar
 }
 
 func runLog(b *testing.B) {

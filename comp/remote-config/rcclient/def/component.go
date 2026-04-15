@@ -3,15 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
+// Package rcclient is a remote config client that can run within the agent to receive
+// configurations.
 package rcclient //nolint:revive // TODO(RC) Fix revive linter
 
 import (
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // team: remote-config
@@ -30,14 +28,4 @@ type Params struct {
 	AgentName     string
 	AgentVersion  string
 	IsSystemProbe bool
-}
-
-// NoneModule return a None optional type for rcclient.Component.
-//
-// This helper allows code that needs a disabled Optional type for rcclient to get it. The helper is split from
-// the implementation to avoid linking with the dependencies from rcclient.
-func NoneModule() fxutil.Module {
-	return fxutil.Component(fx.Provide(func() option.Option[Component] {
-		return option.None[Component]()
-	}))
 }
