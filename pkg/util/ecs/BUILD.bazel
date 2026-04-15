@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "ecs",
+    srcs = [
+        "detection.go",
+        "diagnosis.go",
+        "doc.go",
+        "ecs.go",
+        "no_ecs.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/ecs",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/env",
+        "//pkg/config/setup",
+        "//pkg/config/setup/constants",
+        "//pkg/config/utils",
+        "//pkg/util/cache",
+        "//pkg/util/ecs/common",
+        "//pkg/util/ecs/metadata",
+        "//pkg/util/log",
+        "@//comp/core/diagnose/def",
+        "@com_github_google_uuid//:uuid",
+    ],
+)
+
+go_test(
+    name = "ecs_test",
+    srcs = ["ecs_test.go"],
+    embed = [":ecs"],
+    deps = ["@com_github_stretchr_testify//require"],
+)

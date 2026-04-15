@@ -1,1 +1,44 @@
-# gazelle:ignore
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "metadata",
+    srcs = [
+        "clients.go",
+        "clients_nodocker.go",
+        "detection.go",
+        "doc.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/env",
+        "//pkg/config/setup",
+        "//pkg/config/utils",
+        "//pkg/util/docker",
+        "//pkg/util/ecs/common",
+        "//pkg/util/ecs/metadata/v1:metadata",
+        "//pkg/util/ecs/metadata/v2:metadata",
+        "//pkg/util/ecs/metadata/v3or4",
+        "//pkg/util/log",
+        "//pkg/util/retry",
+        "//pkg/util/system",
+        "@com_github_hashicorp_go_version//:go-version",
+    ],
+)
+
+go_test(
+    name = "metadata_test",
+    srcs = ["detection_test.go"],
+    embed = [":metadata"],
+    deps = [
+        "//pkg/config/env",
+        "//pkg/config/mock",
+        "//pkg/util/cache",
+        "//pkg/util/docker",
+        "//pkg/util/ecs/metadata/testutil",
+        "@com_github_moby_moby_api//types/container",
+        "@com_github_moby_moby_api//types/network",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
