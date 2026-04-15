@@ -8,6 +8,7 @@
 package tracer
 
 import (
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -22,18 +23,45 @@ import (
 // IANA ifType constants
 // https://www.iana.org/assignments/ianaiftype-mib/ianaiftype-mib
 const (
+	ifTypeOther          = 1   // IF_TYPE_OTHER
 	ifTypeEthernetCSMACD = 6   // IF_TYPE_ETHERNET_CSMACD
+	ifTypeSoftwareLoop   = 24  // IF_TYPE_SOFTWARE_LOOPBACK
 	ifTypePPP            = 23  // IF_TYPE_PPP
 	ifTypePropVirtual    = 53  // IF_TYPE_PROP_VIRTUAL
+	ifTypeWifi           = 71  // IF_TYPE_IEEE80211
 	ifTypeTunnel         = 131 // IF_TYPE_TUNNEL
 )
 
-// VPNClassification holds the result of classifying a network interface
-type VPNClassification struct {
-	IsVPN     bool
-	VPNName   string // e.g., "GlobalProtect", "Cisco AnyConnect"
-	VPNType   string // e.g., "prop_virtual", "ppp"
-	Interface string // interface friendly name
+// ifTypeToString maps IANA ifType values to human-readable names
+var ifTypeToString = map[uint32]string{
+	ifTypeOther:          "other",
+	ifTypeEthernetCSMACD: "ethernet",
+	ifTypePPP:            "ppp",
+	ifTypeSoftwareLoop:   "loopback",
+	ifTypePropVirtual:    "prop_virtual",
+	ifTypeWifi:           "wifi",
+	ifTypeTunnel:         "tunnel",
+}
+
+// ifTypeName returns a human-readable string for an IANA ifType value
+func ifTypeName(ifType uint32) string {
+	if name, ok := ifTypeToString[ifType]; ok {
+		return name
+	}
+	return fmt.Sprintf("other_%d", ifType)
+}
+
+// InterfaceClassification holds interface metadata and optional VPN classification
+type InterfaceClassification struct {
+	// Interface metadata (always populated when interface is found)
+	InterfaceName string // friendly name, e.g. "Intel Wi-Fi 6 AX201", "WireGuard Tunnel"
+	InterfaceType string // human-readable ifType, e.g. "ethernet", "wifi", "prop_virtual"
+	IsPhysical    bool   // true if adapter has a MAC address (PhysAddrLen > 0)
+
+	// VPN classification (only populated if interface is identified as VPN)
+	IsVPN   bool
+	VPNName string // e.g., "GlobalProtect", "Cisco AnyConnect"
+	VPNType string // e.g., "prop_virtual", "ppp"
 }
 
 // vpnPattern maps a substring to a known VPN product name
@@ -71,9 +99,19 @@ var vpnPatterns = []vpnPattern{
 
 // cachedInterface stores minimal info about a network interface
 type cachedInterface struct {
-	ifType uint32
-	name   string // from MibIfRow.Name (UTF-16 friendly name)
-	descr  string // from MibIfRow.Descr
+	ifType      uint32
+	name        string // from MibIfRow.Name (UTF-16 friendly name)
+	descr       string // from MibIfRow.Descr
+	physAddrLen uint32 // MAC address length; 0 means virtual/no physical address
+}
+
+// friendlyName returns a human-readable interface name, preferring the
+// description (e.g. "WireGuard Tunnel") over the raw device path.
+func (ci cachedInterface) friendlyName() string {
+	if ci.descr != "" {
+		return ci.descr
+	}
+	return ci.name
 }
 
 // VPNClassifier classifies network interfaces as VPN or non-VPN
@@ -120,12 +158,13 @@ func (c *VPNClassifier) refreshCache() {
 	newCache := make(map[uint32]cachedInterface, len(table))
 	for idx, row := range table {
 		ci := cachedInterface{
-			ifType: row.Type,
-			name:   mibIfRowName(row),
-			descr:  mibIfRowDescr(row),
+			ifType:      row.Type,
+			name:        mibIfRowName(row),
+			descr:       mibIfRowDescr(row),
+			physAddrLen: row.PhysAddrLen,
 		}
 		newCache[idx] = ci
-		log.Debugf("vpnclassifier: interface idx=%d ifType=%d name=%q descr=%q", idx, ci.ifType, ci.name, ci.descr)
+		log.Debugf("vpnclassifier: interface idx=%d ifType=%d name=%q descr=%q physAddrLen=%d", idx, ci.ifType, ci.name, ci.descr, ci.physAddrLen)
 	}
 
 	log.Infof("vpnclassifier: cached %d interfaces", len(newCache))
@@ -135,16 +174,24 @@ func (c *VPNClassifier) refreshCache() {
 	c.mu.Unlock()
 }
 
-// Classify determines whether the interface at the given index is a VPN
-func (c *VPNClassifier) Classify(interfaceIndex uint32) VPNClassification {
+// Classify returns interface metadata and optional VPN classification for the given interface index
+func (c *VPNClassifier) Classify(interfaceIndex uint32) InterfaceClassification {
 	c.mu.RLock()
 	iface, ok := c.ifCache[interfaceIndex]
 	c.mu.RUnlock()
 
 	if !ok {
-		return VPNClassification{}
+		return InterfaceClassification{}
 	}
 
+	// Base interface metadata — always populated
+	result := InterfaceClassification{
+		InterfaceName: iface.friendlyName(),
+		InterfaceType: ifTypeName(iface.ifType),
+		IsPhysical:    iface.physAddrLen > 0,
+	}
+
+	// VPN classification — only populated when interface is identified as VPN
 	combined := strings.ToLower(iface.name + " " + iface.descr)
 
 	switch iface.ifType {
@@ -154,63 +201,40 @@ func (c *VPNClassifier) Classify(interfaceIndex uint32) VPNClassification {
 		if vpnName == "" {
 			vpnName = "Windows VPN"
 		}
-		return VPNClassification{
-			IsVPN:     true,
-			VPNName:   vpnName,
-			VPNType:   "ppp",
-			Interface: iface.name,
-		}
+		result.IsVPN = true
+		result.VPNName = vpnName
+		result.VPNType = "ppp"
 
 	case ifTypePropVirtual:
 		// Proprietary virtual adapters: VPN only if name matches a known pattern
-		vpnName := matchVPNPattern(combined)
-		if vpnName == "" {
-			return VPNClassification{}
-		}
-		return VPNClassification{
-			IsVPN:     true,
-			VPNName:   vpnName,
-			VPNType:   "prop_virtual",
-			Interface: iface.name,
+		if vpnName := matchVPNPattern(combined); vpnName != "" {
+			result.IsVPN = true
+			result.VPNName = vpnName
+			result.VPNType = "prop_virtual"
 		}
 
 	case ifTypeTunnel:
 		// Tunnel adapters: VPN candidate, verify by name
-		vpnName := matchVPNPattern(combined)
-		if vpnName == "" {
-			return VPNClassification{}
-		}
-		return VPNClassification{
-			IsVPN:     true,
-			VPNName:   vpnName,
-			VPNType:   "tunnel",
-			Interface: iface.name,
+		if vpnName := matchVPNPattern(combined); vpnName != "" {
+			result.IsVPN = true
+			result.VPNName = vpnName
+			result.VPNType = "tunnel"
 		}
 
 	case ifTypeEthernetCSMACD:
-		// Ethernet adapters: VPN only if name contains tap/tun/vpn
-		vpnName := matchVPNPattern(combined)
-		if vpnName == "" {
-			// Also check for generic tap/tun indicators
-			if strings.Contains(combined, "tap") || strings.Contains(combined, "tun") || strings.Contains(combined, "vpn") {
-				return VPNClassification{
-					IsVPN:     true,
-					VPNName:   "Unknown VPN",
-					VPNType:   "ethernet_tap",
-					Interface: iface.name,
-				}
-			}
-			return VPNClassification{}
-		}
-		return VPNClassification{
-			IsVPN:     true,
-			VPNName:   vpnName,
-			VPNType:   "ethernet_tap",
-			Interface: iface.name,
+		// Ethernet adapters: VPN only if name matches or contains tap/tun/vpn
+		if vpnName := matchVPNPattern(combined); vpnName != "" {
+			result.IsVPN = true
+			result.VPNName = vpnName
+			result.VPNType = "ethernet_tap"
+		} else if strings.Contains(combined, "tap") || strings.Contains(combined, "tun") || strings.Contains(combined, "vpn") {
+			result.IsVPN = true
+			result.VPNName = "Unknown VPN"
+			result.VPNType = "ethernet_tap"
 		}
 	}
 
-	return VPNClassification{}
+	return result
 }
 
 // Close stops the background refresh goroutine

@@ -3,8 +3,7 @@
 
 package driver
 
-// TODO(POC): Revert to 0xddfd00000018 once driver is rebuilt with interfaceIndex field
-const Signature = 0xddfd00000017
+const Signature = 0xddfd00000018
 
 const (
 	GetStatsIOCTL             = 0x122004
@@ -138,8 +137,8 @@ type PerFlowData struct {
 	Tls_alpn_chosen          uint64
 	Protocol_u               [36]byte
 	Tls_cipher_suite         uint16
-	_PadIface                uint16
 	InterfaceIndex           uint32
+	Pad_interfaceIndex       uint16
 }
 type TCPFlowData struct {
 	IRTT             uint64
