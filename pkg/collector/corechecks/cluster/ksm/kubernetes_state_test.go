@@ -1707,7 +1707,7 @@ func TestResourceNameFromMetric(t *testing.T) {
 }
 
 func TestAllowDeny(t *testing.T) {
-	deniedMetrics := buildDeniedMetricsSet(options.DefaultResources.AsSlice())
+	deniedMetrics := buildDeniedMetricsSet(defaultCollectors())
 	allowDenyList, err := allowdenylist.New(options.MetricSet{}, deniedMetrics)
 	assert.NoError(t, err)
 
@@ -1757,7 +1757,7 @@ func TestAllowDeny(t *testing.T) {
 }
 
 func TestCreationMetricsFiltering(t *testing.T) {
-	allowDenyList, err := allowdenylist.New(options.MetricSet{}, buildDeniedMetricsSet(options.DefaultResources.AsSlice()))
+	allowDenyList, err := allowdenylist.New(options.MetricSet{}, buildDeniedMetricsSet(defaultCollectors()))
 	assert.NoError(t, err)
 
 	err = allowDenyList.Parse()
@@ -1777,6 +1777,7 @@ func TestCreationMetricsFiltering(t *testing.T) {
 		"kube_cronjob_created",
 		"kube_daemonset_created",
 		"kube_deployment_created",
+		"kube_endpoint_created",
 		"kube_endpointslice_created",
 		"kube_job_created",
 		"kube_namespace_created",

@@ -1,7 +1,8 @@
 ---
 features:
   - |
-    The ``kubernetes_state`` core check now emits
+    The ``kubernetes_state`` core check now collects both ``endpoints`` and
+    ``endpointslices`` resources by default, and emits new
     ``kubernetes_state.endpointslice.address_available`` and
     ``kubernetes_state.endpointslice.address_not_ready`` metrics for
     Kubernetes EndpointSlice objects, mirroring the existing
@@ -10,15 +11,6 @@ features:
 upgrade:
   - |
     Updated the bundled kube-state-metrics library from v2.13 to v2.18.
-    This changes the default set of collected Kubernetes resources:
-    ``endpointslices`` replaces ``endpoints`` in the default collector list.
-    Users who rely on ``kubernetes_state.endpoint.*`` metrics without an
-    explicit ``collectors`` configuration should add ``endpoints`` to their
-    ``kubernetes_state_core`` check configuration to continue collecting
-    Endpoint metrics. The ``kubernetes_state.endpoint.address_available``
-    and ``kubernetes_state.endpoint.address_not_ready`` metrics are still
-    emitted when the ``endpoints`` collector is enabled.
-  - |
     The kube-state-metrics metric allow/deny list now uses ECMAScript
     regular expression syntax instead of Go ``regexp`` syntax. Most
     patterns are compatible, but users relying on Go-specific regex

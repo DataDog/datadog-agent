@@ -52,6 +52,17 @@ func (m *ksmShardingManager) isKSMCheck(config integration.Config) bool {
 
 // analyzeKSMConfig analyzes a KSM configuration and returns collectors grouped by resource type
 // Simple strategy: {pods}, {nodes}, {everything else}
+// defaultKSMCollectors returns the KSM default resource collectors with
+// "endpoints" added back for backward compatibility (upstream KSM v2.18
+// replaced "endpoints" with "endpointslices" in its defaults).
+func defaultKSMCollectors() []string {
+	collectors := options.DefaultResources.AsSlice()
+	if _, found := options.DefaultResources["endpoints"]; !found {
+		collectors = append(collectors, "endpoints")
+	}
+	return collectors
+}
+
 func (m *ksmShardingManager) analyzeKSMConfig(config integration.Config) ([]resourceGroup, error) {
 	// Parse the KSM configuration
 	type ksmInstance struct {
@@ -83,7 +94,7 @@ func (m *ksmShardingManager) analyzeKSMConfig(config integration.Config) ([]reso
 	// We use the same defaults for sharding to provide a seamless experience
 	var collectorsToShard []string
 	if len(instance.Collectors) == 0 {
-		defaultCollectors := options.DefaultResources.AsSlice()
+		defaultCollectors := defaultKSMCollectors()
 		log.Infof("KSM config has no collectors specified. Using default collectors for sharding: %v", defaultCollectors)
 		collectorsToShard = defaultCollectors
 	} else {
