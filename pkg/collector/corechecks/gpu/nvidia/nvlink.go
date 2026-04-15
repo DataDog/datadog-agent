@@ -148,15 +148,10 @@ func (c *nvlinkCollector) Collect() ([]Metric, error) {
 func (c *nvlinkCollector) removeUnsupportedPorts() {
 	ports := c.ports[:0]
 	for _, port := range c.ports {
-		_, err := c.readPortCounters(port)
-		if err == nil {
+		counters, err := c.readPortCounters(port)
+		if err == nil && len(counters) > 0 {
 			ports = append(ports, port)
-			continue
 		}
-		if ddnvml.IsAPIUnsupportedOnDevice(err, c.device) {
-			continue
-		}
-		ports = append(ports, port)
 	}
 
 	c.ports = ports
