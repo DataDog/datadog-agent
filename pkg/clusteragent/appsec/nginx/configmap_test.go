@@ -130,7 +130,7 @@ func TestCreateOrUpdateDDConfigMap(t *testing.T) {
 		labels := map[string]string{"app": "datadog"}
 		annotations := map[string]string{}
 
-		err := createOrUpdateDDConfigMap(context.Background(), client, "ingress-nginx", "ingress-nginx-controller", "/modules_mount", labels, annotations)
+		err := createOrUpdateDDConfigMap(context.Background(), client, "ingress-nginx", "ingress-nginx-controller", "/modules_mount", "http://datadog.datadog.svc:8126", labels, annotations)
 		require.NoError(t, err)
 
 		// Verify DD ConfigMap was created
@@ -140,8 +140,12 @@ func TestCreateOrUpdateDDConfigMap(t *testing.T) {
 		data, _, _ := unstructured.NestedStringMap(ddCM.UnstructuredContent(), "data")
 		assert.Contains(t, data[mainSnippetKey], "load_module /modules_mount/ngx_http_datadog_module.so;")
 		assert.Contains(t, data[mainSnippetKey], "thread_pool waf_thread_pool")
+		assert.Contains(t, data[mainSnippetKey], "env DD_AGENT_HOST;",
+			"main-snippet must preserve DD_AGENT_HOST env var for nginx worker processes")
 		assert.Contains(t, data[httpSnippetKey], "datadog_appsec_enabled on;")
 		assert.Contains(t, data[httpSnippetKey], "datadog_waf_thread_pool_name waf_thread_pool;")
+		assert.Contains(t, data[httpSnippetKey], "datadog_agent_url",
+			"http-snippet must set datadog_agent_url so the module connects to the DD agent, not localhost")
 	})
 
 	t.Run("creates DD ConfigMap with original data preserved", func(t *testing.T) {
@@ -168,7 +172,7 @@ func TestCreateOrUpdateDDConfigMap(t *testing.T) {
 			originalCM,
 		)
 
-		err := createOrUpdateDDConfigMap(context.Background(), client, "ingress-nginx", "ingress-nginx-controller", "/modules_mount", map[string]string{}, map[string]string{})
+		err := createOrUpdateDDConfigMap(context.Background(), client, "ingress-nginx", "ingress-nginx-controller", "/modules_mount", "http://datadog.datadog.svc:8126", map[string]string{}, map[string]string{})
 		require.NoError(t, err)
 
 		ddCM, err := client.Resource(configMapGVR).Namespace("ingress-nginx").Get(context.Background(), "datadog-appsec-ingress-nginx-controller", getOpts())
@@ -190,7 +194,7 @@ func TestCreateOrUpdateDDConfigMap(t *testing.T) {
 			},
 		)
 
-		err := createOrUpdateDDConfigMap(context.Background(), client, "ingress-nginx", "ingress-nginx-controller", "/modules_mount", map[string]string{}, map[string]string{})
+		err := createOrUpdateDDConfigMap(context.Background(), client, "ingress-nginx", "ingress-nginx-controller", "/modules_mount", "http://datadog.datadog.svc:8126", map[string]string{}, map[string]string{})
 		require.NoError(t, err)
 
 		ddCM, err := client.Resource(configMapGVR).Namespace("ingress-nginx").Get(context.Background(), "datadog-appsec-ingress-nginx-controller", getOpts())

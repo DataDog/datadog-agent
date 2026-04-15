@@ -81,6 +81,9 @@ func newControllerPod(name, namespace, image string) *corev1.Pod {
 						"--configmap=$(POD_NAMESPACE)/ingress-nginx-controller",
 						"--election-id=ingress-nginx-leader",
 					},
+					Env: []corev1.EnvVar{
+						{Name: "DD_AGENT_HOST", Value: "datadog.datadog.svc.cluster.local"},
+					},
 				},
 			},
 		},
