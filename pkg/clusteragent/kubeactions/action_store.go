@@ -102,13 +102,23 @@ func ValidateTimestamp(actionCreatedAt time.Time) error {
 	return nil
 }
 
-// WasExecuted checks if an action was already executed
-func (s *ActionStore) WasExecuted(key ActionKey) bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+// Claim tries to claim an action by key for execution, and returns true if successful
+// Returns false if the action was already claimed.
+func (s *ActionStore) Claim(key ActionKey) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	_, exists := s.executed[key.String()]
-	return exists
+	if exists {
+		return false
+	}
+
+	// If it doesn't exist, we can claim it by adding it to the map
+	s.executed[key.String()] = ActionRecord{
+		Key: key,
+	}
+
+	return true
 }
 
 // MarkExecuted marks an action as executed with the given status and message

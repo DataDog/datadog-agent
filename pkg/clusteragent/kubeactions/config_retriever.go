@@ -64,11 +64,13 @@ func (cr *ConfigRetriever) actionsCallback(update map[string]state.RawConfig, ap
 			State: state.ApplyStateAcknowledged,
 		})
 
-		err := cr.processor.Process(configKey, rawConfig)
-		if err != nil {
-			log.Errorf("[KubeActions] Error processing actions for %s: %v", configKey, err)
-		} else {
-			log.Infof("[KubeActions] Successfully processed actions for config %s", configKey)
-		}
+		go func() {
+			err := cr.processor.Process(configKey, rawConfig)
+			if err != nil {
+				log.Errorf("[KubeActions] Error processing actions for %s: %v", configKey, err)
+			} else {
+				log.Infof("[KubeActions] Successfully processed actions for config %s", configKey)
+			}
+		}()
 	}
 }
