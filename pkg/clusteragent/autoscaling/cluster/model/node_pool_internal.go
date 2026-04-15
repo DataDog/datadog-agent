@@ -27,9 +27,6 @@ const (
 )
 
 type NodePoolInternal struct {
-	// name matches name of NodePool
-	name string
-
 	// targetName is the user-created NodePool the Datadog-managed NodePool is derived from
 	targetName string
 
@@ -46,11 +43,7 @@ func NewNodePoolInternal(v ClusterAutoscalingValues) NodePoolInternal {
 		targetHash: v.TargetHash,
 	}
 	if v.Type == TypeKarpenterV1 && v.Manifest.KarpenterV1 != nil {
-		knp := buildKarpenterNodePoolFromManifest(v.Manifest.KarpenterV1)
-		npi.karpenterNodePool = knp
-		if knp != nil {
-			npi.name = knp.Name
-		}
+		npi.karpenterNodePool = buildKarpenterNodePoolFromManifest(v.Manifest.KarpenterV1)
 	}
 	return npi
 }
@@ -104,7 +97,10 @@ func buildKarpenterNodePoolFromManifest(kv1 *KarpenterV1NodePool) *karpenterv1.N
 
 // Name returns the name of the NodePoolInternal
 func (n *NodePoolInternal) Name() string {
-	return n.name
+	if n.karpenterNodePool == nil {
+		return ""
+	}
+	return n.karpenterNodePool.Name
 }
 
 // TargetName returns the targetName of the NodePoolInternal
