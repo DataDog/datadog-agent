@@ -118,7 +118,7 @@ func (t *teeConfig) IsKnown(key string) bool {
 
 func (t *teeConfig) IsLeafSetting(key string) bool {
 	// viper and nodetreemodel don't agree on this functionality, no point in logging differences
-	return t.baseline.IsKnown(key)
+	return t.baseline.IsLeafSetting(key)
 }
 
 // GetKnownKeysLowercased returns all the keys that meet at least one of these criteria:
