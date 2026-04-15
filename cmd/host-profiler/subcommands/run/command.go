@@ -112,9 +112,7 @@ func runHostProfilerCommand(ctx context.Context, cliParams *cliParams) error {
 	} else {
 		opts = append(opts,
 			fx.Invoke(func() {
-				cfg := setup.Datadog()
-				// Initialize feature detection so pkg/util/hostname providers don't panic
-				pkgconfigenv.DetectFeatures(cfg)
+				pkgconfigenv.DetectFeatures(setup.Datadog())
 			}),
 			fx.Provide(collectorimpl.NewExtraFactoriesWithoutAgentCore),
 		)

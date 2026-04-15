@@ -9,6 +9,7 @@ package ddhostnameprocessor
 
 import (
 	"context"
+	"expvar"
 	"sync"
 
 	pkghostname "github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -49,13 +50,13 @@ type factory struct {
 func (f *factory) resolveHost(ctx context.Context, set processor.Settings) string {
 	f.once.Do(func() {
 		source, err := pkghostname.Get(ctx)
-		if err == nil {
-			f.host = source
-		}
-
-		if f.host == "" {
+		if err != nil {
+			if hostnameMap := expvar.Get("hostname"); hostnameMap != nil {
+				set.Logger.Warn("hostname expvar dump", zap.String("details", hostnameMap.String()))
+			}
 			set.Logger.Warn("Could not resolve host for standalone mode")
 		} else {
+			f.host = source
 			set.Logger.Info("Resolved host for standalone mode", zap.String("hostname", f.host))
 		}
 	})
