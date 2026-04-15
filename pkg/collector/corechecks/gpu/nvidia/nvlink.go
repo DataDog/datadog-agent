@@ -36,15 +36,15 @@ const (
 )
 
 var plrCounterFields = []string{
-	"nvlink.plr_rcv_codes",
-	"nvlink.plr_rcv_code_err",
-	"nvlink.plr_rcv_uncorrectable_code",
-	"nvlink.plr_xmit_codes",
-	"nvlink.plr_xmit_retry_codes",
-	"nvlink.plr_xmit_retry_events",
-	"nvlink.plr_sync_events",
-	"nvlink.plr_codes_loss",
-	"nvlink.plr_xmit_retry_events_within_t_sec_max",
+	"nvlink.plr.rx.codes",
+	"nvlink.plr.rx.code_err",
+	"nvlink.plr.rx.uncorrectable_code",
+	"nvlink.plr.tx.codes",
+	"nvlink.plr.tx.retry_codes",
+	"nvlink.plr.tx.retry_events",
+	"nvlink.plr.tx.sync_events",
+	"nvlink.plr.codes_loss",
+	"nvlink.plr.tx.retry_events_within_t_sec_max",
 }
 
 type nvlinkCollector struct {
