@@ -238,6 +238,7 @@ dd_cc_packaged(
     installed_files = [
         ":unixodbc_hdr_files",
         ":libltdl_hdr_files",
+        ":odbccr_pkg_packaged",
     ],
     visibility = ["//visibility:public"],
 )
