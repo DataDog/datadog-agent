@@ -52,7 +52,7 @@ def validate_metrics(ctx, lookback_seconds=3600, org: str | None = None):
         try:
             print(" - fetching API/App keys...")
             with dd_auth_api_app_keys(ctx, dd_auth_domain):
-                with tempfile.NamedTemporaryFile(prefix="gpu-metrics-validator-", suffix=".json", delete=False) as tmp:
+                with tempfile.NamedTemporaryFile(prefix="gpu-metrics-validator-", suffix=".json") as tmp:
                     command = (
                         f"{shlex.quote(binary_path)} "
                         f"--site {shlex.quote(VALIDATOR_SITE)} "
