@@ -30,7 +30,7 @@ import (
 
 const probeUID = "net"
 
-// ErrorDisabled is the error that occurs when enable_fentry is false
+// ErrorDisabled is the error that occurs when enable_sk_tracer is false
 var ErrorDisabled = errors.New("SK tracer is disabled")
 
 // LoadTracer loads a new tracer
