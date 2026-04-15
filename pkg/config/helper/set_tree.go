@@ -16,8 +16,8 @@ func SetTree(cfg model.ReaderWriter, key string, value interface{}, source model
 		cfg.Set(key, value, source)
 		return
 	}
-	if cfg.IsLeafSetting(key) {
-		// the value is a map, but the config says the setting is a leaf
+	if cfg.IsSetting(key) {
+		// the value is a map, but the config says this key is a setting
 		cfg.Set(key, value, source)
 		return
 	}

@@ -207,8 +207,8 @@ func (c *safeConfig) IsKnown(key string) bool {
 	return c.Viper.IsKnown(key)
 }
 
-// IsLeafSetting always returns true for Viper, because it doesn't know the difference
-func (c *safeConfig) IsLeafSetting(_ string) bool {
+// IsSetting always returns true for Viper, because it doesn't have a way to tell
+func (c *safeConfig) IsSetting(_ string) bool {
 	return true
 }
 

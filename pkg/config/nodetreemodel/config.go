@@ -435,8 +435,8 @@ func (c *ntmConfig) IsKnown(key string) bool {
 	return c.isKnownKey(key)
 }
 
-// IsLeafSetting returns true for leaf nodes
-func (c *ntmConfig) IsLeafSetting(key string) bool {
+// IsSetting returns true for leaf nodes
+func (c *ntmConfig) IsSetting(key string) bool {
 	n, err := c.GetNode(key)
 	if err != nil {
 		return false

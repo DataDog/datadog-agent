@@ -257,7 +257,7 @@ func (b *builder) IsKnown(_ string) bool {
 	return false
 }
 
-func (b *builder) IsLeafSetting(_ string) bool {
+func (b *builder) IsSetting(_ string) bool {
 	b.notImplemented()
 	return false
 }
