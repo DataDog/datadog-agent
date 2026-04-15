@@ -48,6 +48,7 @@ go_test(
         "filesystem_test.go",
     ],
     embed = [":filesystem"],
+    gotags = ["test"],
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

@@ -28,7 +28,7 @@ import (
 	statsdimpl "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/impl"
 	"github.com/DataDog/datadog-agent/comp/process/agent"
 	hostinfomock "github.com/DataDog/datadog-agent/comp/process/hostinfo/mock"
-	"github.com/DataDog/datadog-agent/comp/process/processcheck/processcheckimpl"
+	processcheckimpl "github.com/DataDog/datadog-agent/comp/process/processcheck/impl"
 	"github.com/DataDog/datadog-agent/comp/process/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/comp/process/submitter/submitterimpl"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
@@ -113,7 +113,7 @@ func TestProcessAgentComponentOnLinux(t *testing.T) {
 			}
 
 			if tc.checksEnabled {
-				opts = append(opts, processcheckimpl.MockModule())
+				opts = append(opts, fx.Provide(processcheckimpl.NewMock))
 				opts = append(opts, fx.Provide(func() func(c *checkMocks.Check) {
 					return func(c *checkMocks.Check) {
 						c.On("Init", mock.Anything, mock.Anything, mock.AnythingOfType("bool")).Return(nil).Maybe()
@@ -168,7 +168,7 @@ func TestStatusProvider(t *testing.T) {
 				submitterimpl.MockModule(),
 				statsdimpl.MockModule(),
 				Module(),
-				processcheckimpl.MockModule(),
+				fx.Provide(processcheckimpl.NewMock),
 				fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 				fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 				fx.Provide(func() configComp.Component {
@@ -215,7 +215,7 @@ func TestTelemetryCoreAgent(t *testing.T) {
 		submitterimpl.MockModule(),
 		statsdimpl.MockModule(),
 		Module(),
-		processcheckimpl.MockModule(),
+		fx.Provide(processcheckimpl.NewMock),
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 		fx.Provide(func() configComp.Component {

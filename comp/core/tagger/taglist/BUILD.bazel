@@ -12,5 +12,6 @@ go_test(
     name = "taglist_test",
     srcs = ["taglist_test.go"],
     embed = [":taglist"],
+    gotags = ["test"],
     deps = ["@com_github_stretchr_testify//require"],
 )

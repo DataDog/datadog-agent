@@ -13781,7 +13781,7 @@ Types:
       ID: 1589
       Name: Probe[github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Filter[go.shape.float64]]
       ByteSize: 73
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       DictEntries:
         - DictIndex: 0
           DictRegister: 0
@@ -13827,7 +13827,7 @@ Types:
       ID: 1590
       Name: Probe[github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Filter[go.shape.float64]]Return
       ByteSize: 33
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       DictEntries: [{DictIndex: 2, DictRegister: 0, Offset: 1}]
       Expressions:
         - Name: ~r0
@@ -13845,7 +13845,7 @@ Types:
       ID: 1587
       Name: Probe[github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Filter[go.shape.int]]
       ByteSize: 73
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       DictEntries:
         - DictIndex: 0
           DictRegister: 0
@@ -13891,7 +13891,7 @@ Types:
       ID: 1588
       Name: Probe[github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Filter[go.shape.int]]Return
       ByteSize: 33
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       DictEntries: [{DictIndex: 2, DictRegister: 0, Offset: 1}]
       Expressions:
         - Name: ~r0
@@ -13912,7 +13912,7 @@ Types:
       ID: 1591
       Name: Probe[github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Map[go.shape.int,go.shape.string]]
       ByteSize: 41
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       DictEntries:
         - DictIndex: 0
           DictRegister: 0
@@ -13958,7 +13958,7 @@ Types:
       ID: 1592
       Name: Probe[github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Map[go.shape.int,go.shape.string]]Return
       ByteSize: 25
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       DictEntries: [{DictIndex: 2, DictRegister: 0, Offset: 1}]
       Expressions:
         - Name: ~r0
@@ -13976,7 +13976,7 @@ Types:
       ID: 1603
       Name: Probe[main.(*Pair[go.shape.int,go.shape.bool]).SetValue]
       ByteSize: 50
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       DictEntries:
         - DictIndex: 1
           DictRegister: 3
@@ -14039,7 +14039,7 @@ Types:
       ID: 1605
       Name: Probe[main.(*Pair[go.shape.string,go.shape.int]).SetValue]
       ByteSize: 73
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       DictEntries:
         - DictIndex: 1
           DictRegister: 3
@@ -14102,7 +14102,7 @@ Types:
       ID: 1643
       Name: Probe[main.firstBehavior.DoSomething]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: b
           Offset: 1
@@ -14119,7 +14119,7 @@ Types:
       ID: 1644
       Name: Probe[main.firstBehavior.DoSomething]Return
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
@@ -14136,7 +14136,7 @@ Types:
       ID: 1619
       Name: Probe[main.genericContains[go.shape.int]]
       ByteSize: 57
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       DictEntries:
         - DictIndex: 1
           DictRegister: 0
@@ -14182,7 +14182,7 @@ Types:
       ID: 1623
       Name: Probe[main.genericContains[go.shape.int]]Line
       ByteSize: 50
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       DictEntries:
         - DictIndex: 0
           DictRegister: 0
@@ -14228,7 +14228,7 @@ Types:
       ID: 1620
       Name: Probe[main.genericContains[go.shape.int]]Return
       ByteSize: 2
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
@@ -14245,7 +14245,7 @@ Types:
       ID: 1621
       Name: Probe[main.genericContains[go.shape.string]]
       ByteSize: 73
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       DictEntries:
         - DictIndex: 1
           DictRegister: 0
@@ -14291,7 +14291,7 @@ Types:
       ID: 1624
       Name: Probe[main.genericContains[go.shape.string]]Line
       ByteSize: 26
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       DictEntries: [{DictIndex: 1, DictRegister: 0, Offset: 1}]
       Expressions:
         - Name: needle
@@ -14320,7 +14320,7 @@ Types:
       ID: 1622
       Name: Probe[main.genericContains[go.shape.string]]Return
       ByteSize: 2
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
@@ -14337,7 +14337,7 @@ Types:
       ID: 1615
       Name: Probe[main.genericDeref[go.shape.string]]
       ByteSize: 25
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       DictEntries: [{DictIndex: 0, DictRegister: 0, Offset: 1}]
       Expressions:
         - Name: p
@@ -14366,7 +14366,7 @@ Types:
       ID: 1616
       Name: Probe[main.genericDeref[go.shape.string]]Return
       ByteSize: 25
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       DictEntries: [{DictIndex: 1, DictRegister: 0, Offset: 1}]
       Expressions:
         - Name: ~r0
@@ -14384,7 +14384,7 @@ Types:
       ID: 1617
       Name: Probe[main.genericDeref[go.shape.struct { main.x []*string; main.z int; main.writer io.Writer }]]
       ByteSize: 25
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       DictEntries: [{DictIndex: 0, DictRegister: 0, Offset: 1}]
       Expressions:
         - Name: p
@@ -14413,7 +14413,7 @@ Types:
       ID: 1618
       Name: Probe[main.genericDeref[go.shape.struct { main.x []*string; main.z int; main.writer io.Writer }]]Return
       ByteSize: 57
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       DictEntries: [{DictIndex: 1, DictRegister: 0, Offset: 1}]
       Expressions:
         - Name: ~r0
@@ -14431,7 +14431,7 @@ Types:
       ID: 1611
       Name: Probe[main.genericDo[go.shape.struct { main.i int }]]
       ByteSize: 25
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       DictEntries: [{DictIndex: 1, DictRegister: 0, Offset: 1}]
       Expressions:
         - Name: val
@@ -14460,7 +14460,7 @@ Types:
       ID: 1612
       Name: Probe[main.genericDo[go.shape.struct { main.i int }]]Return
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
@@ -14477,7 +14477,7 @@ Types:
       ID: 1613
       Name: Probe[main.genericDo[go.shape.struct { main.s string }]]
       ByteSize: 41
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       DictEntries: [{DictIndex: 1, DictRegister: 0, Offset: 1}]
       Expressions:
         - Name: val
@@ -14506,7 +14506,7 @@ Types:
       ID: 1614
       Name: Probe[main.genericDo[go.shape.struct { main.s string }]]Return
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
@@ -14523,7 +14523,7 @@ Types:
       ID: 1593
       Name: Probe[main.genericPtrIdentity[go.shape.int]]
       ByteSize: 25
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       DictEntries: [{DictIndex: 0, DictRegister: 0, Offset: 1}]
       Expressions:
         - Name: p
@@ -14552,7 +14552,7 @@ Types:
       ID: 1594
       Name: Probe[main.genericPtrIdentity[go.shape.int]]Return
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       DictEntries: [{DictIndex: 1, DictRegister: 0, Offset: 1}]
       Expressions:
         - Name: ~r0
@@ -14570,7 +14570,7 @@ Types:
       ID: 1595
       Name: Probe[main.genericPtrIdentity[go.shape.struct { Name string }]]
       ByteSize: 25
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       DictEntries: [{DictIndex: 0, DictRegister: 0, Offset: 1}]
       Expressions:
         - Name: p
@@ -14599,7 +14599,7 @@ Types:
       ID: 1596
       Name: Probe[main.genericPtrIdentity[go.shape.struct { Name string }]]Return
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       DictEntries: [{DictIndex: 1, DictRegister: 0, Offset: 1}]
       Expressions:
         - Name: ~r0
@@ -14617,7 +14617,7 @@ Types:
       ID: 1597
       Name: Probe[main.genericPtrIdentity[go.shape.struct { X int; Y int }]]
       ByteSize: 25
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       DictEntries: [{DictIndex: 0, DictRegister: 0, Offset: 1}]
       Expressions:
         - Name: p
@@ -14646,7 +14646,7 @@ Types:
       ID: 1598
       Name: Probe[main.genericPtrIdentity[go.shape.struct { X int; Y int }]]Return
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       DictEntries: [{DictIndex: 1, DictRegister: 0, Offset: 1}]
       Expressions:
         - Name: ~r0
@@ -14664,7 +14664,7 @@ Types:
       ID: 1609
       Name: Probe[main.genericSwap[go.shape.int,go.shape.string]]
       ByteSize: 49
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       DictEntries:
         - DictIndex: 0
           DictRegister: 0
@@ -14710,7 +14710,7 @@ Types:
       ID: 1610
       Name: Probe[main.genericSwap[go.shape.int,go.shape.string]]Return
       ByteSize: 41
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       DictEntries:
         - DictIndex: 1
           DictRegister: 0
@@ -14745,7 +14745,7 @@ Types:
       ID: 1607
       Name: Probe[main.genericSwap[go.shape.string,go.shape.bool]]
       ByteSize: 50
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       DictEntries:
         - DictIndex: 0
           DictRegister: 0
@@ -14791,7 +14791,7 @@ Types:
       ID: 1608
       Name: Probe[main.genericSwap[go.shape.string,go.shape.bool]]Return
       ByteSize: 34
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       DictEntries:
         - DictIndex: 1
           DictRegister: 0
@@ -14826,7 +14826,7 @@ Types:
       ID: 1601
       Name: Probe[main.largeGenericType[go.shape.int].LargeGet]
       ByteSize: 281
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       DictEntries: [{DictIndex: 0, DictRegister: 0, Offset: 1}]
       Expressions:
         - Name: x
@@ -14855,7 +14855,7 @@ Types:
       ID: 1602
       Name: Probe[main.largeGenericType[go.shape.int].LargeGet]Return
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       DictEntries: [{DictIndex: 1, DictRegister: 0, Offset: 1}]
       Expressions:
         - Name: ~r0
@@ -14873,7 +14873,7 @@ Types:
       ID: 1599
       Name: Probe[main.largeGenericType[go.shape.string].LargeGet]
       ByteSize: 297
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       DictEntries: [{DictIndex: 0, DictRegister: 0, Offset: 1}]
       Expressions:
         - Name: x
@@ -14902,7 +14902,7 @@ Types:
       ID: 1600
       Name: Probe[main.largeGenericType[go.shape.string].LargeGet]Return
       ByteSize: 25
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       DictEntries: [{DictIndex: 1, DictRegister: 0, Offset: 1}]
       Expressions:
         - Name: ~r0
@@ -14920,7 +14920,7 @@ Types:
       ID: 1583
       Name: Probe[main.nestedGeneric[go.shape.int]]
       ByteSize: 25
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       DictEntries: [{DictIndex: 0, DictRegister: 0, Offset: 1}]
       Expressions:
         - Name: box
@@ -14949,7 +14949,7 @@ Types:
       ID: 1584
       Name: Probe[main.nestedGeneric[go.shape.int]]Return
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       DictEntries: [{DictIndex: 1, DictRegister: 0, Offset: 1}]
       Expressions:
         - Name: ~r0
@@ -14967,7 +14967,7 @@ Types:
       ID: 1585
       Name: Probe[main.nestedGeneric[go.shape.string]]
       ByteSize: 41
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       DictEntries: [{DictIndex: 0, DictRegister: 0, Offset: 1}]
       Expressions:
         - Name: box
@@ -14996,7 +14996,7 @@ Types:
       ID: 1586
       Name: Probe[main.nestedGeneric[go.shape.string]]Return
       ByteSize: 25
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       DictEntries: [{DictIndex: 1, DictRegister: 0, Offset: 1}]
       Expressions:
         - Name: ~r0
@@ -15017,7 +15017,7 @@ Types:
       ID: 1550
       Name: Probe[main.stackC]Return
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
@@ -15034,7 +15034,7 @@ Types:
       ID: 1416
       Name: Probe[main.testAnyPtr]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: a
           Offset: 1
@@ -15062,7 +15062,7 @@ Types:
       ID: 1417
       Name: Probe[main.testAnyPtr]Return
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
@@ -15079,7 +15079,7 @@ Types:
       ID: 1413
       Name: Probe[main.testAny]
       ByteSize: 33
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: a
           Offset: 1
@@ -15107,7 +15107,7 @@ Types:
       ID: 1414
       Name: Probe[main.testAny]Return
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
@@ -15124,7 +15124,7 @@ Types:
       ID: 1520
       Name: Probe[main.testArrayArgAndReturn]
       ByteSize: 49
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: arg
           Offset: 1
@@ -15152,7 +15152,7 @@ Types:
       ID: 1521
       Name: Probe[main.testArrayArgAndReturn]Return
       ByteSize: 25
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
@@ -15169,7 +15169,7 @@ Types:
       ID: 1363
       Name: Probe[main.testArrayEmptyStructs]
       ByteSize: 1
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: a
           Offset: 1
@@ -15197,7 +15197,7 @@ Types:
       ID: 1361
       Name: Probe[main.testArrayOfArraysOfArrays]
       ByteSize: 129
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: b
           Offset: 1
@@ -15225,7 +15225,7 @@ Types:
       ID: 1359
       Name: Probe[main.testArrayOfArrays]
       ByteSize: 65
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: a
           Offset: 1
@@ -15253,7 +15253,7 @@ Types:
       ID: 1425
       Name: Probe[main.testArrayOfMaps]
       ByteSize: 33
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: m
           Offset: 1
@@ -15281,7 +15281,7 @@ Types:
       ID: 1360
       Name: Probe[main.testArrayOfStrings]
       ByteSize: 65
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: a
           Offset: 1
@@ -15309,7 +15309,7 @@ Types:
       ID: 1362
       Name: Probe[main.testArrayOfStructs]
       ByteSize: 97
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: a
           Offset: 1
@@ -15337,7 +15337,7 @@ Types:
       ID: 1447
       Name: Probe[main.testAtomicAdd]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -15365,7 +15365,7 @@ Types:
       ID: 1448
       Name: Probe[main.testAtomicAdd]Return
       ByteSize: 9
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
@@ -15382,7 +15382,7 @@ Types:
       ID: 1381
       Name: Probe[main.testBigStruct]
       ByteSize: 97
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: b
           Offset: 1
@@ -15413,7 +15413,7 @@ Types:
       ID: 1348
       Name: Probe[main.testBoolArray]
       ByteSize: 5
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -15441,7 +15441,7 @@ Types:
       ID: 1345
       Name: Probe[main.testByteArray]
       ByteSize: 5
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -15469,7 +15469,7 @@ Types:
       ID: 1449
       Name: Probe[main.testChannel]
       ByteSize: 1
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: c
           Offset: 1
@@ -15497,7 +15497,7 @@ Types:
       ID: 1443
       Name: Probe[main.testCombinedByte]
       ByteSize: 5
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: w
           Offset: 1
@@ -15547,7 +15547,7 @@ Types:
       ID: 1444
       Name: Probe[main.testCombinedString]
       ByteSize: 18
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x_val
           Offset: 1
@@ -15575,7 +15575,7 @@ Types:
       ID: 1445
       Name: Probe[main.testCombinedString]
       ByteSize: 34
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -15614,7 +15614,7 @@ Types:
       ID: 1457
       Name: Probe[main.testCycle]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: t
           Offset: 1
@@ -15642,7 +15642,7 @@ Types:
       ID: 1388
       Name: Probe[main.testDeepMap1]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: a
           Offset: 1
@@ -15670,7 +15670,7 @@ Types:
       ID: 1389
       Name: Probe[main.testDeepMap7]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: a
           Offset: 1
@@ -15698,7 +15698,7 @@ Types:
       ID: 1384
       Name: Probe[main.testDeepPtr1]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: a
           Offset: 1
@@ -15726,7 +15726,7 @@ Types:
       ID: 1385
       Name: Probe[main.testDeepPtr7]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: a
           Offset: 1
@@ -15754,7 +15754,7 @@ Types:
       ID: 1386
       Name: Probe[main.testDeepSlice1]
       ByteSize: 49
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: a
           Offset: 1
@@ -15782,7 +15782,7 @@ Types:
       ID: 1387
       Name: Probe[main.testDeepSlice7]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: a
           Offset: 1
@@ -15810,7 +15810,7 @@ Types:
       ID: 1540
       Name: Probe[main.testEmptySliceOfStructs]
       ByteSize: 65
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: xs
           Offset: 1
@@ -15860,7 +15860,7 @@ Types:
       ID: 1537
       Name: Probe[main.testEmptySlice]
       ByteSize: 49
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: u
           Offset: 1
@@ -15888,7 +15888,7 @@ Types:
       ID: 1563
       Name: Probe[main.testEmptyString]
       ByteSize: 33
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -15916,7 +15916,7 @@ Types:
       ID: 1578
       Name: Probe[main.testEmptyStructPointer]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: e
           Offset: 1
@@ -15944,7 +15944,7 @@ Types:
       ID: 1577
       Name: Probe[main.testEmptyStruct]
       ByteSize: 1
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: e
           Offset: 1
@@ -15972,7 +15972,7 @@ Types:
       ID: 1383
       Name: Probe[main.testErrorAtLine]Line
       ByteSize: 58
-      PresenceBitsetSize: 2
+      ExprStatusArraySize: 2
       Expressions:
         - Name: x
           Offset: 2
@@ -16033,7 +16033,7 @@ Types:
       ID: 1415
       Name: Probe[main.testError]
       ByteSize: 33
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: e
           Offset: 1
@@ -16061,7 +16061,7 @@ Types:
       ID: 1397
       Name: Probe[main.testEsotericHeap]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: e
           Offset: 1
@@ -16092,7 +16092,7 @@ Types:
       ID: 1395
       Name: Probe[main.testEsotericStack]
       ByteSize: 129
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: e
           Offset: 1
@@ -16123,7 +16123,7 @@ Types:
       ID: 1409
       Name: Probe[main.testFramelessArray]
       ByteSize: 81
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: a
           Offset: 1
@@ -16151,7 +16151,7 @@ Types:
       ID: 1411
       Name: Probe[main.testFramelessArray]Line
       ByteSize: 89
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: a
           Offset: 1
@@ -16190,7 +16190,7 @@ Types:
       ID: 1410
       Name: Probe[main.testFramelessArray]Return
       ByteSize: 9
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
@@ -16207,7 +16207,7 @@ Types:
       ID: 1407
       Name: Probe[main.testFrameless]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -16235,7 +16235,7 @@ Types:
       ID: 1408
       Name: Probe[main.testFrameless]Return
       ByteSize: 9
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
@@ -16252,7 +16252,7 @@ Types:
       ID: 1399
       Name: Probe[main.testInlinedBA]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -16283,7 +16283,7 @@ Types:
       ID: 1403
       Name: Probe[main.testInlinedBBA]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -16317,7 +16317,7 @@ Types:
       ID: 1401
       Name: Probe[main.testInlinedBB]
       ByteSize: 33
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -16388,7 +16388,7 @@ Types:
       ID: 1632
       Name: Probe[main.testInlinedPrint]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -16416,7 +16416,7 @@ Types:
       ID: 1629
       Name: Probe[main.testInlinedPrint]Line
       ByteSize: 9
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x_val
           Offset: 1
@@ -16433,7 +16433,7 @@ Types:
       ID: 1630
       Name: Probe[main.testInlinedPrint]Line
       ByteSize: 9
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x_val
           Offset: 1
@@ -16450,7 +16450,7 @@ Types:
       ID: 1631
       Name: Probe[main.testInlinedPrint]Line
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -16478,7 +16478,7 @@ Types:
       ID: 1634
       Name: Probe[main.testInlinedPrint]Line
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -16509,7 +16509,7 @@ Types:
       ID: 1640
       Name: Probe[main.testInlinedSq]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -16537,7 +16537,7 @@ Types:
       ID: 1641
       Name: Probe[main.testInlinedSq]Line
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -16565,7 +16565,7 @@ Types:
       ID: 1642
       Name: Probe[main.testInlinedSumArray]
       ByteSize: 81
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: a
           Offset: 1
@@ -16593,7 +16593,7 @@ Types:
       ID: 1351
       Name: Probe[main.testInt16Array]
       ByteSize: 9
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -16621,7 +16621,7 @@ Types:
       ID: 1352
       Name: Probe[main.testInt32Array]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -16649,7 +16649,7 @@ Types:
       ID: 1353
       Name: Probe[main.testInt64Array]
       ByteSize: 33
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -16677,7 +16677,7 @@ Types:
       ID: 1350
       Name: Probe[main.testInt8Array]
       ByteSize: 5
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -16705,7 +16705,7 @@ Types:
       ID: 1349
       Name: Probe[main.testIntArray]
       ByteSize: 33
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -16733,7 +16733,7 @@ Types:
       ID: 1412
       Name: Probe[main.testInterface]
       ByteSize: 33
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: b
           Offset: 1
@@ -16761,7 +16761,7 @@ Types:
       ID: 1518
       Name: Probe[main.testLargeArgAndReturn]
       ByteSize: 161
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: arg
           Offset: 1
@@ -16789,7 +16789,7 @@ Types:
       ID: 1519
       Name: Probe[main.testLargeArgAndReturn]Return
       ByteSize: 81
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
@@ -16806,7 +16806,7 @@ Types:
       ID: 1451
       Name: Probe[main.testLinkedList]
       ByteSize: 33
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: a
           Offset: 1
@@ -16837,7 +16837,7 @@ Types:
       ID: 1393
       Name: Probe[main.testLongFunctionWithChangingState]Line
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: aPerArch
           Offset: 1
@@ -16865,7 +16865,7 @@ Types:
       ID: 1394
       Name: Probe[main.testLongFunctionWithChangingState]Line
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: aPerArch
           Offset: 1
@@ -16893,7 +16893,7 @@ Types:
       ID: 1524
       Name: Probe[main.testManyArgsArrayReturn]
       ByteSize: 149
-      PresenceBitsetSize: 5
+      ExprStatusArraySize: 5
       Expressions:
         - Name: a
           Offset: 5
@@ -17097,7 +17097,7 @@ Types:
       ID: 1525
       Name: Probe[main.testManyArgsArrayReturn]Return
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
@@ -17114,7 +17114,7 @@ Types:
       ID: 1423
       Name: Probe[main.testMapArrayToArray]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: m
           Offset: 1
@@ -17142,7 +17142,7 @@ Types:
       ID: 1430
       Name: Probe[main.testMapEmbeddedMaps]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: m
           Offset: 1
@@ -17170,7 +17170,7 @@ Types:
       ID: 1442
       Name: Probe[main.testMapEmptyKeyAndValue]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: m
           Offset: 1
@@ -17198,7 +17198,7 @@ Types:
       ID: 1440
       Name: Probe[main.testMapEmptyKey]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: m
           Offset: 1
@@ -17226,7 +17226,7 @@ Types:
       ID: 1441
       Name: Probe[main.testMapEmptyValue]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: m
           Offset: 1
@@ -17254,7 +17254,7 @@ Types:
       ID: 1427
       Name: Probe[main.testMapIntToInt]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: m
           Offset: 1
@@ -17282,7 +17282,7 @@ Types:
       ID: 1439
       Name: Probe[main.testMapLargeKeyLargeValue]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: m
           Offset: 1
@@ -17310,7 +17310,7 @@ Types:
       ID: 1438
       Name: Probe[main.testMapLargeKeySmallValue]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: m
           Offset: 1
@@ -17338,7 +17338,7 @@ Types:
       ID: 1428
       Name: Probe[main.testMapMassive]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: redactMyEntries
           Offset: 1
@@ -17366,7 +17366,7 @@ Types:
       ID: 1429
       Name: Probe[main.testMapMassive]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: redactMyEntries
           Offset: 1
@@ -17394,7 +17394,7 @@ Types:
       ID: 1437
       Name: Probe[main.testMapSmallKeyLargeValue]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: m
           Offset: 1
@@ -17422,7 +17422,7 @@ Types:
       ID: 1436
       Name: Probe[main.testMapSmallKeySmallValue]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: m
           Offset: 1
@@ -17450,7 +17450,7 @@ Types:
       ID: 1421
       Name: Probe[main.testMapStringToInt]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: m
           Offset: 1
@@ -17478,7 +17478,7 @@ Types:
       ID: 1422
       Name: Probe[main.testMapStringToSlice]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: m
           Offset: 1
@@ -17506,7 +17506,7 @@ Types:
       ID: 1420
       Name: Probe[main.testMapStringToStruct]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: m
           Offset: 1
@@ -17534,7 +17534,7 @@ Types:
       ID: 1431
       Name: Probe[main.testMapWithLinkedList]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: m
           Offset: 1
@@ -17562,7 +17562,7 @@ Types:
       ID: 1435
       Name: Probe[main.testMapWithSmallKeyAndValueMassive]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: m
           Offset: 1
@@ -17590,7 +17590,7 @@ Types:
       ID: 1434
       Name: Probe[main.testMapWithSmallKeyAndValue]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: m
           Offset: 1
@@ -17618,7 +17618,7 @@ Types:
       ID: 1433
       Name: Probe[main.testMapWithSmallValueMassive]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: redactMyEntries
           Offset: 1
@@ -17646,7 +17646,7 @@ Types:
       ID: 1432
       Name: Probe[main.testMapWithSmallValue]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: m
           Offset: 1
@@ -17674,7 +17674,7 @@ Types:
       ID: 1560
       Name: Probe[main.testMassiveString]
       ByteSize: 33
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -17702,7 +17702,7 @@ Types:
       ID: 1561
       Name: Probe[main.testMassiveString]
       ByteSize: 33
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -17730,7 +17730,7 @@ Types:
       ID: 1526
       Name: Probe[main.testMixedArgsStackReturn]
       ByteSize: 165
-      PresenceBitsetSize: 5
+      ExprStatusArraySize: 5
       Expressions:
         - Name: a
           Offset: 5
@@ -17934,7 +17934,7 @@ Types:
       ID: 1527
       Name: Probe[main.testMixedArgsStackReturn]Return
       ByteSize: 81
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
@@ -17951,7 +17951,7 @@ Types:
       ID: 1530
       Name: Probe[main.testMultipleArrayArgs]
       ByteSize: 81
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: a
           Offset: 1
@@ -18001,7 +18001,7 @@ Types:
       ID: 1531
       Name: Probe[main.testMultipleArrayArgs]Return
       ByteSize: 25
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
@@ -18029,7 +18029,7 @@ Types:
       ID: 1522
       Name: Probe[main.testMultipleLargeArgs]
       ByteSize: 321
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: s1
           Offset: 1
@@ -18079,7 +18079,7 @@ Types:
       ID: 1523
       Name: Probe[main.testMultipleLargeArgs]Return
       ByteSize: 81
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
@@ -18096,7 +18096,7 @@ Types:
       ID: 1476
       Name: Probe[main.testMultipleNamedReturn]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: i
           Offset: 1
@@ -18124,7 +18124,7 @@ Types:
       ID: 1478
       Name: Probe[main.testMultipleNamedReturn]
       ByteSize: 33
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: i
           Offset: 1
@@ -18174,7 +18174,7 @@ Types:
       ID: 1480
       Name: Probe[main.testMultipleNamedReturn]
       ByteSize: 9
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: i
           Offset: 1
@@ -18191,7 +18191,7 @@ Types:
       ID: 1482
       Name: Probe[main.testMultipleNamedReturn]
       ByteSize: 9
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: i
           Offset: 1
@@ -18208,7 +18208,7 @@ Types:
       ID: 1484
       Name: Probe[main.testMultipleNamedReturn]
       ByteSize: 9
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: i
           Offset: 1
@@ -18225,7 +18225,7 @@ Types:
       ID: 1477
       Name: Probe[main.testMultipleNamedReturn]Return
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: result
           Offset: 1
@@ -18253,7 +18253,7 @@ Types:
       ID: 1479
       Name: Probe[main.testMultipleNamedReturn]Return
       ByteSize: 50
-      PresenceBitsetSize: 2
+      ExprStatusArraySize: 2
       Expressions:
         - Name: result
           Offset: 2
@@ -18325,7 +18325,7 @@ Types:
       ID: 1481
       Name: Probe[main.testMultipleNamedReturn]Return
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: result
           Offset: 1
@@ -18353,7 +18353,7 @@ Types:
       ID: 1483
       Name: Probe[main.testMultipleNamedReturn]Return
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: result
           Offset: 1
@@ -18381,7 +18381,7 @@ Types:
       ID: 1485
       Name: Probe[main.testMultipleNamedReturn]Return
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: result
           Offset: 1
@@ -18409,7 +18409,7 @@ Types:
       ID: 1446
       Name: Probe[main.testMultipleSimpleParams]
       ByteSize: 63
-      PresenceBitsetSize: 3
+      ExprStatusArraySize: 3
       Expressions:
         - Name: a
           Offset: 3
@@ -18525,7 +18525,7 @@ Types:
       ID: 1472
       Name: Probe[main.testNamedReturn]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: i
           Offset: 1
@@ -18553,7 +18553,7 @@ Types:
       ID: 1474
       Name: Probe[main.testNamedReturn]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: i
           Offset: 1
@@ -18581,7 +18581,7 @@ Types:
       ID: 1473
       Name: Probe[main.testNamedReturn]Return
       ByteSize: 9
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: result
           Offset: 1
@@ -18598,7 +18598,7 @@ Types:
       ID: 1475
       Name: Probe[main.testNamedReturn]Return
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: result
           Offset: 1
@@ -18626,7 +18626,7 @@ Types:
       ID: 1572
       Name: Probe[main.testNestedPointer]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -18654,7 +18654,7 @@ Types:
       ID: 1573
       Name: Probe[main.testNestedPointer]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x.nested.anotherString
           Offset: 1
@@ -18680,7 +18680,7 @@ Types:
       ID: 1575
       Name: Probe[main.testNestedPointer]
       ByteSize: 25
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x.nested
           Offset: 1
@@ -18703,7 +18703,7 @@ Types:
       ID: 1456
       Name: Probe[main.testNilPointer]
       ByteSize: 33
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: z
           Offset: 1
@@ -18753,7 +18753,7 @@ Types:
       ID: 1541
       Name: Probe[main.testNilSliceOfStructs]
       ByteSize: 65
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: xs
           Offset: 1
@@ -18803,7 +18803,7 @@ Types:
       ID: 1543
       Name: Probe[main.testNilSliceWithOtherParams]
       ByteSize: 68
-      PresenceBitsetSize: 2
+      ExprStatusArraySize: 2
       Expressions:
         - Name: a
           Offset: 2
@@ -18875,7 +18875,7 @@ Types:
       ID: 1544
       Name: Probe[main.testNilSlice]
       ByteSize: 49
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: xs
           Offset: 1
@@ -18903,7 +18903,7 @@ Types:
       ID: 1559
       Name: Probe[main.testOneStringInStructPointer]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: a
           Offset: 1
@@ -18931,7 +18931,7 @@ Types:
       ID: 1452
       Name: Probe[main.testPointerLoop]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: a
           Offset: 1
@@ -18959,7 +18959,7 @@ Types:
       ID: 1426
       Name: Probe[main.testPointerToMap]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: m
           Offset: 1
@@ -18987,7 +18987,7 @@ Types:
       ID: 1450
       Name: Probe[main.testPointerToSimpleStruct]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: a
           Offset: 1
@@ -19015,7 +19015,7 @@ Types:
       ID: 1466
       Name: Probe[main.testReturnsAnyAndError]
       ByteSize: 35
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: v
           Offset: 1
@@ -19065,7 +19065,7 @@ Types:
       ID: 1467
       Name: Probe[main.testReturnsAnyAndError]Return
       ByteSize: 33
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
@@ -19093,7 +19093,7 @@ Types:
       ID: 1468
       Name: Probe[main.testReturnsAny]
       ByteSize: 33
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: v
           Offset: 1
@@ -19121,7 +19121,7 @@ Types:
       ID: 1469
       Name: Probe[main.testReturnsAny]Return
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
@@ -19141,7 +19141,7 @@ Types:
       ID: 1499
       Name: Probe[main.testReturnsArrayOne]Return
       ByteSize: 9
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
@@ -19161,7 +19161,7 @@ Types:
       ID: 1501
       Name: Probe[main.testReturnsArrayZero]Return
       ByteSize: 1
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
@@ -19181,7 +19181,7 @@ Types:
       ID: 1497
       Name: Probe[main.testReturnsArray]Return
       ByteSize: 25
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
@@ -19201,7 +19201,7 @@ Types:
       ID: 1505
       Name: Probe[main.testReturnsBacktrackInt]Return
       ByteSize: 83
-      PresenceBitsetSize: 3
+      ExprStatusArraySize: 3
       Expressions:
         - Name: ~r0
           Offset: 3
@@ -19309,7 +19309,7 @@ Types:
       ID: 1517
       Name: Probe[main.testReturnsBoolAndUintptr]Return
       ByteSize: 10
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
@@ -19340,7 +19340,7 @@ Types:
       ID: 1493
       Name: Probe[main.testReturnsComplex]Return
       ByteSize: 25
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
@@ -19368,7 +19368,7 @@ Types:
       ID: 1464
       Name: Probe[main.testReturnsError]
       ByteSize: 3
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: failed
           Offset: 1
@@ -19396,7 +19396,7 @@ Types:
       ID: 1465
       Name: Probe[main.testReturnsError]Return
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
@@ -19413,7 +19413,7 @@ Types:
       ID: 1462
       Name: Probe[main.testReturnsIntAndFloat]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: i
           Offset: 1
@@ -19441,7 +19441,7 @@ Types:
       ID: 1463
       Name: Probe[main.testReturnsIntAndFloat]Return
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
@@ -19469,7 +19469,7 @@ Types:
       ID: 1460
       Name: Probe[main.testReturnsIntPointer]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: i
           Offset: 1
@@ -19497,7 +19497,7 @@ Types:
       ID: 1461
       Name: Probe[main.testReturnsIntPointer]Return
       ByteSize: 9
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
@@ -19514,7 +19514,7 @@ Types:
       ID: 1458
       Name: Probe[main.testReturnsInt]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: i
           Offset: 1
@@ -19542,7 +19542,7 @@ Types:
       ID: 1459
       Name: Probe[main.testReturnsInt]Return
       ByteSize: 9
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
@@ -19559,7 +19559,7 @@ Types:
       ID: 1470
       Name: Probe[main.testReturnsInterface]
       ByteSize: 33
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: v
           Offset: 1
@@ -19587,7 +19587,7 @@ Types:
       ID: 1471
       Name: Probe[main.testReturnsInterface]Return
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
@@ -19607,7 +19607,7 @@ Types:
       ID: 1495
       Name: Probe[main.testReturnsLargeStruct]Return
       ByteSize: 81
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
@@ -19627,7 +19627,7 @@ Types:
       ID: 1491
       Name: Probe[main.testReturnsManyFloats]Return
       ByteSize: 141
-      PresenceBitsetSize: 5
+      ExprStatusArraySize: 5
       Expressions:
         - Name: ~r0
           Offset: 5
@@ -19823,7 +19823,7 @@ Types:
       ID: 1503
       Name: Probe[main.testReturnsMixedStruct]Return
       ByteSize: 25
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
@@ -19843,7 +19843,7 @@ Types:
       ID: 1509
       Name: Probe[main.testReturnsMixed]Return
       ByteSize: 50
-      PresenceBitsetSize: 2
+      ExprStatusArraySize: 2
       Expressions:
         - Name: ~r0
           Offset: 2
@@ -19907,7 +19907,7 @@ Types:
       ID: 1515
       Name: Probe[main.testReturnsMultipleFloats]Return
       ByteSize: 13
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
@@ -19938,7 +19938,7 @@ Types:
       ID: 1513
       Name: Probe[main.testReturnsOnlyFloat]Return
       ByteSize: 9
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
@@ -19958,7 +19958,7 @@ Types:
       ID: 1489
       Name: Probe[main.testReturnsPrimitives]Return
       ByteSize: 32
-      PresenceBitsetSize: 2
+      ExprStatusArraySize: 2
       Expressions:
         - Name: ~r0
           Offset: 2
@@ -20055,7 +20055,7 @@ Types:
       ID: 1511
       Name: Probe[main.testReturnsStructWithArray]Return
       ByteSize: 25
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
@@ -20075,7 +20075,7 @@ Types:
       ID: 1507
       Name: Probe[main.testReturnsWideStruct]Return
       ByteSize: 89
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
@@ -20092,7 +20092,7 @@ Types:
       ID: 1346
       Name: Probe[main.testRuneArray]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -20120,7 +20120,7 @@ Types:
       ID: 1367
       Name: Probe[main.testSingleBool]
       ByteSize: 3
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -20148,7 +20148,7 @@ Types:
       ID: 1365
       Name: Probe[main.testSingleByte]
       ByteSize: 3
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -20182,7 +20182,7 @@ Types:
       ID: 1370
       Name: Probe[main.testSingleInt16]
       ByteSize: 5
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -20210,7 +20210,7 @@ Types:
       ID: 1371
       Name: Probe[main.testSingleInt32]
       ByteSize: 9
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -20238,7 +20238,7 @@ Types:
       ID: 1372
       Name: Probe[main.testSingleInt64]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -20266,7 +20266,7 @@ Types:
       ID: 1369
       Name: Probe[main.testSingleInt8]
       ByteSize: 5
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -20316,7 +20316,7 @@ Types:
       ID: 1368
       Name: Probe[main.testSingleInt]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -20344,7 +20344,7 @@ Types:
       ID: 1366
       Name: Probe[main.testSingleRune]
       ByteSize: 9
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -20372,7 +20372,7 @@ Types:
       ID: 1551
       Name: Probe[main.testSingleString]
       ByteSize: 33
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -20400,7 +20400,7 @@ Types:
       ID: 1375
       Name: Probe[main.testSingleUint16]
       ByteSize: 5
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -20428,7 +20428,7 @@ Types:
       ID: 1376
       Name: Probe[main.testSingleUint32]
       ByteSize: 9
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -20456,7 +20456,7 @@ Types:
       ID: 1377
       Name: Probe[main.testSingleUint64]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -20484,7 +20484,7 @@ Types:
       ID: 1374
       Name: Probe[main.testSingleUint8]
       ByteSize: 3
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -20512,7 +20512,7 @@ Types:
       ID: 1373
       Name: Probe[main.testSingleUint]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -20540,7 +20540,7 @@ Types:
       ID: 1547
       Name: Probe[main.testSliceEmptyStructs]
       ByteSize: 49
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: xs
           Offset: 1
@@ -20568,7 +20568,7 @@ Types:
       ID: 1538
       Name: Probe[main.testSliceOfSlices]
       ByteSize: 49
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: u
           Offset: 1
@@ -20596,7 +20596,7 @@ Types:
       ID: 1424
       Name: Probe[main.testSmallMap]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: m
           Offset: 1
@@ -20624,7 +20624,7 @@ Types:
       ID: 1486
       Name: Probe[main.testSomeNamedReturn]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: i
           Offset: 1
@@ -20652,7 +20652,7 @@ Types:
       ID: 1487
       Name: Probe[main.testSomeNamedReturn]Return
       ByteSize: 25
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
@@ -20691,7 +20691,7 @@ Types:
       ID: 1528
       Name: Probe[main.testStackArgRegReturns]
       ByteSize: 81
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: arg
           Offset: 1
@@ -20719,7 +20719,7 @@ Types:
       ID: 1529
       Name: Probe[main.testStackArgRegReturns]Return
       ByteSize: 25
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
@@ -20758,7 +20758,7 @@ Types:
       ID: 1347
       Name: Probe[main.testStringArray]
       ByteSize: 65
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -20786,7 +20786,7 @@ Types:
       ID: 1455
       Name: Probe[main.testStringPointer]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: z
           Offset: 1
@@ -20814,7 +20814,7 @@ Types:
       ID: 1542
       Name: Probe[main.testStringSlice]
       ByteSize: 49
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: s
           Offset: 1
@@ -20842,7 +20842,7 @@ Types:
       ID: 1390
       Name: Probe[main.testStringType1]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: a
           Offset: 1
@@ -20870,7 +20870,7 @@ Types:
       ID: 1391
       Name: Probe[main.testStringType2]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: a
           Offset: 1
@@ -20898,7 +20898,7 @@ Types:
       ID: 1539
       Name: Probe[main.testStructSlice]
       ByteSize: 65
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: xs
           Offset: 1
@@ -20948,7 +20948,7 @@ Types:
       ID: 1418
       Name: Probe[main.testStructWithAny]
       ByteSize: 33
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: s
           Offset: 1
@@ -20976,7 +20976,7 @@ Types:
       ID: 1532
       Name: Probe[main.testStructWithArrayArg]
       ByteSize: 49
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: arg
           Offset: 1
@@ -21004,7 +21004,7 @@ Types:
       ID: 1533
       Name: Probe[main.testStructWithArrayArg]Return
       ByteSize: 33
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
@@ -21032,7 +21032,7 @@ Types:
       ID: 1566
       Name: Probe[main.testStructWithCyclicMaps]
       ByteSize: 97
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: a
           Offset: 1
@@ -21063,7 +21063,7 @@ Types:
       ID: 1565
       Name: Probe[main.testStructWithCyclicSlices]
       ByteSize: 289
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: a
           Offset: 1
@@ -21091,7 +21091,7 @@ Types:
       ID: 1419
       Name: Probe[main.testStructWithMap]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: s
           Offset: 1
@@ -21119,7 +21119,7 @@ Types:
       ID: 1568
       Name: Probe[main.testStruct]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x.aString
           Offset: 1
@@ -21136,7 +21136,7 @@ Types:
       ID: 1570
       Name: Probe[main.testStruct]
       ByteSize: 113
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -21170,7 +21170,7 @@ Types:
       ID: 1548
       Name: Probe[main.testSubslices]
       ByteSize: 146
-      PresenceBitsetSize: 2
+      ExprStatusArraySize: 2
       Expressions:
         - Name: as
           Offset: 2
@@ -21242,7 +21242,7 @@ Types:
       ID: 1564
       Name: Probe[main.testSubstrings]
       ByteSize: 98
-      PresenceBitsetSize: 2
+      ExprStatusArraySize: 2
       Expressions:
         - Name: a
           Offset: 2
@@ -21314,7 +21314,7 @@ Types:
       ID: 1576
       Name: Probe[main.testTenStrings]
       ByteSize: 161
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -21331,7 +21331,7 @@ Types:
       ID: 1557
       Name: Probe[main.testThreeStringsInStructPointer]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: a
           Offset: 1
@@ -21359,7 +21359,7 @@ Types:
       ID: 1558
       Name: Probe[main.testThreeStringsInStructPointer]
       ByteSize: 49
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: a.a
           Offset: 1
@@ -21407,7 +21407,7 @@ Types:
       ID: 1553
       Name: Probe[main.testThreeStringsInStruct]
       ByteSize: 97
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: a
           Offset: 1
@@ -21435,7 +21435,7 @@ Types:
       ID: 1555
       Name: Probe[main.testThreeStringsInStruct]
       ByteSize: 49
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: a.a
           Offset: 1
@@ -21480,7 +21480,7 @@ Types:
       ID: 1552
       Name: Probe[main.testThreeStrings]
       ByteSize: 98
-      PresenceBitsetSize: 2
+      ExprStatusArraySize: 2
       Expressions:
         - Name: x
           Offset: 2
@@ -21552,7 +21552,7 @@ Types:
       ID: 1380
       Name: Probe[main.testTypeAlias]
       ByteSize: 5
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -21580,7 +21580,7 @@ Types:
       ID: 1356
       Name: Probe[main.testUint16Array]
       ByteSize: 9
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -21608,7 +21608,7 @@ Types:
       ID: 1357
       Name: Probe[main.testUint32Array]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -21636,7 +21636,7 @@ Types:
       ID: 1358
       Name: Probe[main.testUint64Array]
       ByteSize: 33
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -21664,7 +21664,7 @@ Types:
       ID: 1355
       Name: Probe[main.testUint8Array]
       ByteSize: 5
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -21692,7 +21692,7 @@ Types:
       ID: 1354
       Name: Probe[main.testUintArray]
       ByteSize: 33
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -21720,7 +21720,7 @@ Types:
       ID: 1454
       Name: Probe[main.testUintPointer]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -21748,7 +21748,7 @@ Types:
       ID: 1536
       Name: Probe[main.testUintSlice]
       ByteSize: 49
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: u
           Offset: 1
@@ -21776,7 +21776,7 @@ Types:
       ID: 1562
       Name: Probe[main.testUnitializedString]
       ByteSize: 33
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -21804,7 +21804,7 @@ Types:
       ID: 1453
       Name: Probe[main.testUnsafePointer]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -21832,7 +21832,7 @@ Types:
       ID: 1364
       Name: Probe[main.testVeryLargeArray]
       ByteSize: 1601
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: a
           Offset: 1
@@ -21860,7 +21860,7 @@ Types:
       ID: 1545
       Name: Probe[main.testVeryLargeSlice]
       ByteSize: 49
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: xs
           Offset: 1
@@ -21888,7 +21888,7 @@ Types:
       ID: 1546
       Name: Probe[main.testVeryLargeSlice]
       ByteSize: 49
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: xs
           Offset: 1
@@ -21916,7 +21916,7 @@ Types:
       ID: 1534
       Name: Probe[main.testZeroSizeArgAndReturn]
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: a
           Offset: 1
@@ -21966,7 +21966,7 @@ Types:
       ID: 1535
       Name: Probe[main.testZeroSizeArgAndReturn]Return
       ByteSize: 9
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
@@ -21994,7 +21994,7 @@ Types:
       ID: 1625
       Name: Probe[main.typeWithGenerics[go.shape.int].Guess]
       ByteSize: 41
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       DictEntries:
         - DictIndex: 1
           DictRegister: 3
@@ -22040,7 +22040,7 @@ Types:
       ID: 1626
       Name: Probe[main.typeWithGenerics[go.shape.int].Guess]Return
       ByteSize: 2
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
@@ -22057,7 +22057,7 @@ Types:
       ID: 1627
       Name: Probe[main.typeWithGenerics[go.shape.string].Guess]
       ByteSize: 65
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       DictEntries:
         - DictIndex: 1
           DictRegister: 2
@@ -22103,7 +22103,7 @@ Types:
       ID: 1628
       Name: Probe[main.typeWithGenerics[go.shape.string].Guess]Return
       ByteSize: 2
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: ~r0
           Offset: 1
@@ -22120,7 +22120,7 @@ Types:
       ID: 1579
       Name: Probe[main.wrapBox[go.shape.int]]
       ByteSize: 25
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       DictEntries: [{DictIndex: 0, DictRegister: 0, Offset: 1}]
       Expressions:
         - Name: val
@@ -22149,7 +22149,7 @@ Types:
       ID: 1580
       Name: Probe[main.wrapBox[go.shape.int]]Return
       ByteSize: 17
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       DictEntries: [{DictIndex: 1, DictRegister: 0, Offset: 1}]
       Expressions:
         - Name: ~r0
@@ -22167,7 +22167,7 @@ Types:
       ID: 1581
       Name: Probe[main.wrapBox[go.shape.string]]
       ByteSize: 41
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       DictEntries: [{DictIndex: 0, DictRegister: 0, Offset: 1}]
       Expressions:
         - Name: val
@@ -22196,7 +22196,7 @@ Types:
       ID: 1582
       Name: Probe[main.wrapBox[go.shape.string]]Return
       ByteSize: 25
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       DictEntries: [{DictIndex: 1, DictRegister: 0, Offset: 1}]
       Expressions:
         - Name: ~r0
