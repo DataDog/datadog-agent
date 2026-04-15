@@ -1074,7 +1074,7 @@ new-e2e-ssi-openshift:
     EXTRA_PARAMS: "-c ddinfra:gcp/openshift/pullSecretPath=/tmp/crc-pull-secret.json"
 
 new-e2e-ssi-aks:
-  extends: .new-e2e_ssi
+  extends: .new-e2e_ssi_extra_distribution
   variables:
     E2E_PROVISIONER: aks
     E2E_STACK_NAME_SUFFIX: aks
