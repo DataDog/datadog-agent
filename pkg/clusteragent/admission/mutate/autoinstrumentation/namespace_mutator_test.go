@@ -178,7 +178,7 @@ func TestBuildLibraryInjectionConfigRejectsImplicitLibraryRegistryWhenAllowListI
 			staticConfig: staticConfig{
 				Instrumentation:   &InstrumentationConfig{},
 				containerRegistry: "docker.io/datadog",
-				registryAllowList: []string{"docker.io"},
+				registryAllowList: []string{"docker.io/datadog"},
 			},
 		},
 	}
