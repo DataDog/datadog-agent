@@ -7,7 +7,7 @@ use cap_std::fs::Dir;
 #[cfg(feature = "java-archives")]
 use flate2::read::DeflateDecoder;
 #[cfg(feature = "java-archives")]
-use rawzip::{CompressionMethod, FileReader, ZipArchive, ZipArchiveEntryWayfinder};
+use rawzip::{CompressionMethod, FileReader, ZipArchive};
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 #[cfg(feature = "java-archives")]
@@ -90,14 +90,14 @@ impl UnverifiedZipArchive {
         std::str::from_utf8(raw_name).ok().map(ToString::to_string)
     }
 
-    fn unverified_file(
-        &self,
-        wayfinder: ZipArchiveEntryWayfinder,
-        size_hint: u64,
-        compression_method: CompressionMethod,
-    ) -> io::Result<UnverifiedZipFile<'_>> {
-        let entry = self
-            .archive
+    fn open_unverified_zip_entry<'a>(
+        archive: &'a ZipArchive<FileReader>,
+        header: rawzip::ZipFileHeaderRecord<'_>,
+    ) -> io::Result<UnverifiedZipFile<'a>> {
+        let wayfinder = header.wayfinder();
+        let size_hint = header.uncompressed_size_hint();
+        let compression_method = header.compression_method();
+        let entry = archive
             .get_entry(wayfinder)
             .map_err(rawzip_error_to_io_error)?;
         Ok(UnverifiedZipFile {
@@ -127,24 +127,17 @@ impl UnverifiedZipArchive {
 
     /// Reads the contents of the first exact-name entry found in archive order.
     pub fn read_file_to_vec(&mut self, name: &str, max_size: Option<u64>) -> io::Result<Vec<u8>> {
-        let mut entries = self.archive.entries(&mut self.buffer);
+        let UnverifiedZipArchive { archive, buffer } = self;
+        let mut entries = archive.entries(&mut *buffer);
         while let Some(entry) = entries.next_entry().map_err(rawzip_error_to_io_error)? {
-            let Some((wayfinder, size_hint, compression_method)) = (|| {
-                let entry_name = Self::archive_entry_name(&entry)?;
-                if entry_name != name {
-                    return None;
-                }
-
-                Some((
-                    entry.wayfinder(),
-                    entry.uncompressed_size_hint(),
-                    entry.compression_method(),
-                ))
-            })() else {
+            let Some(entry_name) = Self::archive_entry_name(&entry) else {
                 continue;
             };
+            if entry_name != name {
+                continue;
+            }
 
-            let file = self.unverified_file(wayfinder, size_hint, compression_method)?;
+            let file = Self::open_unverified_zip_entry(archive, entry)?;
             let mut reader = file.verify(max_size)?;
             let mut contents = Vec::new();
             reader.read_to_end(&mut contents)?;
@@ -159,6 +152,12 @@ impl UnverifiedZipArchive {
 
     /// Scans entries in archive order and returns the first mapped value
     /// produced by a readable matching entry.
+    ///
+    /// Reuses the same central-directory scratch buffer as [`Self::read_file_to_vec`].
+    ///
+    /// [`Self::open_unverified_zip_entry`] takes `&ZipArchive` so it can run in the same
+    /// loop as `archive.entries(&mut buffer)` after splitting `&mut self` into the two
+    /// fields (idiomatic disjoint borrows; see `read_file_to_vec`).
     pub fn find_map_file_contents<F, G, T>(
         &mut self,
         mut predicate: F,
@@ -169,8 +168,8 @@ impl UnverifiedZipArchive {
         F: FnMut(&str) -> bool,
         G: FnMut(&str, Vec<u8>) -> Option<T>,
     {
-        let mut cd_buffer = vec![0; rawzip::RECOMMENDED_BUFFER_SIZE];
-        let mut entries = self.archive.entries(&mut cd_buffer);
+        let UnverifiedZipArchive { archive, buffer } = self;
+        let mut entries = archive.entries(&mut *buffer);
         while let Some(entry) = entries.next_entry().map_err(rawzip_error_to_io_error)? {
             let Some(name) = Self::archive_entry_name(&entry) else {
                 continue;
@@ -179,10 +178,7 @@ impl UnverifiedZipArchive {
                 continue;
             }
 
-            let wayfinder = entry.wayfinder();
-            let size_hint = entry.uncompressed_size_hint();
-            let compression_method = entry.compression_method();
-            let file = match self.unverified_file(wayfinder, size_hint, compression_method) {
+            let file = match Self::open_unverified_zip_entry(archive, entry) {
                 Ok(file) => file,
                 Err(_) => continue,
             };
