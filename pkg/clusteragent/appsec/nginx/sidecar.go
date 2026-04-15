@@ -9,6 +9,7 @@ package nginx
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -99,7 +100,7 @@ func (n *nginxSidecarPattern) MutatePod(pod *corev1.Pod, ns string, dc dynamic.I
 	// Resolve agent URL from pod's DD_AGENT_HOST env var
 	agentHost := getEnvFromPod(container, "DD_AGENT_HOST")
 	if agentHost == "" {
-		return false, fmt.Errorf("DD_AGENT_HOST env var not found on controller container; cannot configure nginx-datadog module agent URL")
+		return false, errors.New("DD_AGENT_HOST env var not found on controller container; cannot configure nginx-datadog module agent URL")
 	}
 	agentURL := "http://" + agentHost + ":8126"
 
