@@ -52,6 +52,8 @@ func setupGoDiscoveryModule(t *testing.T) *testDiscoveryModule {
 	mod, err := NewDiscoveryModule(nil, module.FactoryDependencies{})
 	require.NoError(t, err)
 	discovery := mod.(*discovery)
+	// Pin to the Go backend regardless of any DD_DISCOVERY_USE_RUST_LIBRARY env override.
+	discovery.config.UseRustLibrary = false
 
 	err = discovery.Register(module.NewRouter(string(config.DiscoveryModule), mux))
 	require.NoError(t, err)

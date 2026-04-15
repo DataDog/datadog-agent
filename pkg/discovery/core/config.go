@@ -8,6 +8,10 @@
 // Package core provides the core functionality for service discovery.
 package core
 
+import (
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+)
+
 const (
 	// MaxCommLen is maximum command name length to process when checking for non-reportable commands,
 	// is one byte less (excludes end of line) than the maximum of /proc/<pid>/comm
@@ -17,9 +21,15 @@ const (
 
 // DiscoveryConfig holds the configuration for service discovery.
 type DiscoveryConfig struct {
+	// UseRustLibrary controls whether to use the Rust-backed libdd_discovery library
+	// (when compiled with dd_discovery_rust && cgo) instead of the pure-Go implementation.
+	// Defaults to false (Go implementation).
+	UseRustLibrary bool
 }
 
-// NewConfig creates a new DiscoveryConfig with default values.
+// NewConfig creates a new DiscoveryConfig populated from the system-probe configuration.
 func NewConfig() *DiscoveryConfig {
-	return &DiscoveryConfig{}
+	return &DiscoveryConfig{
+		UseRustLibrary: pkgconfigsetup.SystemProbe().GetBool("discovery.use_rust_library"),
+	}
 }

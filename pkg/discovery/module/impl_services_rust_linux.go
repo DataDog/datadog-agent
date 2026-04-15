@@ -17,16 +17,16 @@ package module
 import "C"
 
 import (
+	"math"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/discovery/core"
 	"github.com/DataDog/datadog-agent/pkg/discovery/model"
 )
 
-func (s *discovery) getServices(params core.Params) (*model.ServicesResponse, error) {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-
+// getServicesRust invokes the Rust library to process categorized PID lists and returns
+// service information. The caller must hold s.mux before calling this function.
+func (s *discovery) getServicesRust(params core.Params) (*model.ServicesResponse, error) {
 	return rustGetServices(params.NewPids, params.HeartbeatPids), nil
 }
 
@@ -95,6 +95,9 @@ func sliceFromC[T any](data *T, length C.size_t) []T {
 // fromDDStr converts a length-delimited C dd_str to a Go string.
 func fromDDStr(s C.struct_dd_str) string {
 	if s.data == nil || s.len == 0 {
+		return ""
+	}
+	if s.len > math.MaxInt32 {
 		return ""
 	}
 	return C.GoStringN(s.data, C.int(s.len))

@@ -350,6 +350,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// Discovery config
 	cfg.BindEnv("discovery.enabled") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	cfg.BindEnvAndSetDefault("discovery.use_system_probe_lite", false)
+	cfg.BindEnvAndSetDefault("discovery.use_rust_library", false)
 	cfg.BindEnvAndSetDefault("discovery.cpu_usage_update_delay", "60s")
 	cfg.BindEnvAndSetDefault("discovery.service_collection_interval", "60s")
 
