@@ -192,10 +192,6 @@ func configName(config integration.Config) string {
 // CreateSources creates new sources from an integration config,
 // returns an error if the parsing failed.
 func CreateSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
-	if config.Name == "container_collect_all" && config.ServiceID == "" {
-		log.Debugf("Skipping logs config %q until ServiceID is set (entity not ready yet)", config.Name)
-		return nil, nil
-	}
 
 	var configs []*logsConfig.LogsConfig
 	var err error

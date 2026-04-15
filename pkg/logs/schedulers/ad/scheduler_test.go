@@ -206,24 +206,6 @@ func TestUnscheduleConfigRemovesSource(t *testing.T) {
 	assert.Equal(t, config.DockerType, logSource.Config.Type)
 	assert.Equal(t, "a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b", logSource.Config.Identifier)
 }
-
-func TestScheduleDoesNotAddSourceForContainerCollectAllWithoutServiceID(t *testing.T) {
-	scheduler, spy := setup()
-
-	adConfig := integration.Config{
-		Name:         "container_collect_all",
-		LogsConfig:   []byte(`[{}]`),
-		Provider:     names.Container,
-		ServiceID:    "",
-		ClusterCheck: false,
-	}
-
-	scheduler.Schedule([]integration.Config{adConfig})
-	require.Empty(t, spy.Events,
-		"container_collect_all with empty ServiceID must not create sources; "+
-			"CreateSources skips until entity is resolved to avoid 'a config must have a type' errors")
-}
-
 func TestIgnoreConfigIfLogsExcluded(t *testing.T) {
 	scheduler, spy := setup()
 	configService := integration.Config{
