@@ -141,6 +141,8 @@ func newFactoryForAgentWithType(
 }
 
 // NewFactoryForOSSExporter creates a new serializer exporter factory for the OSS Datadog exporter.
+// This function is part of the public API consumed by opentelemetry-collector-contrib's datadogexporter.
+// Do not remove or change its signature without coordinating with the upstream repository.
 func NewFactoryForOSSExporter(typ component.Type, statsIn chan []byte) exp.Factory {
 	var options []otlpmetrics.TranslatorOption
 	switch {
