@@ -95,6 +95,8 @@ func opcodeByte(opcode compiler.Opcode) uint8 {
 		return C.SM_OP_CONDITION_BEGIN
 	case compiler.OpcodeCallDictResolved:
 		return C.SM_OP_CALL_DICT_RESOLVED
+	case compiler.OpcodeExprSliceBoundsCheck:
+		return C.SM_OP_EXPR_SLICE_BOUNDS_CHECK
 	default:
 		panic(fmt.Sprintf("unknown opcode: %s", opcode))
 	}

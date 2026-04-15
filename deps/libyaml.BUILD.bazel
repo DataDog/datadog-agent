@@ -1,6 +1,6 @@
 """BUILD file for libyaml."""
 
-load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
@@ -50,24 +50,24 @@ cc_shared_library(
     visibility = ["//visibility:public"],
 )
 
-so_symlink(
-    name = "lib_files",
-    src = ":yaml",
-    libname = "libyaml",
-    version = VERSION,
-)
-
 pkg_files(
     name = "headers",
     srcs = ["include/yaml.h"],
     prefix = "include",
 )
 
+dd_cc_packaged(
+    name = "yaml_pkg",
+    input = ":yaml",
+    version = VERSION,
+    installed_files = [":headers"],
+    visibility = ["//visibility:public"],
+)
+
 pkg_filegroup(
     name = "all_files",
     srcs = [
         ":headers",
-        ":lib_files",
     ],
     prefix = "embedded",
     visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
