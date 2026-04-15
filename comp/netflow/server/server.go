@@ -24,6 +24,7 @@ import (
 	nfconfig "github.com/DataDog/datadog-agent/comp/netflow/config"
 	"github.com/DataDog/datadog-agent/comp/netflow/flowaggregator"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	rdnsquerierimplnone "github.com/DataDog/datadog-agent/comp/rdnsquerier/impl-none"
 )
 
@@ -68,6 +69,9 @@ func newServer(lc fx.Lifecycle, deps dependencies) (provides, error) {
 	}
 
 	sysprobeSocketPath := deps.AgentConfig.GetString("system_probe_config.sysprobe_socket")
+	if sysprobeSocketPath == "" {
+		sysprobeSocketPath = pkgconfigsetup.DefaultSystemProbeAddress
+	}
 	flowAgg := flowaggregator.NewFlowAggregator(sender, deps.Forwarder, conf, deps.Hostname.GetSafe(context.Background()), deps.Logger, rdnsQuerier, deps.Tagger, sysprobeSocketPath)
 
 	server := &Server{
