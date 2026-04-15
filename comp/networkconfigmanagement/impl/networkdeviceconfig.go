@@ -63,7 +63,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	provides := Provides{
 		Comp:     impl,
-		Endpoint: api.NewAgentEndpointProvider(newConfigEndpointHandler(store), "/agent/ncm/config", "GET").Provider,
+		Endpoint: api.NewAgentEndpointProvider(newConfigEndpointHandler(store), "/ncm/config", "GET").Provider,
 	}
 	return provides, nil
 }
