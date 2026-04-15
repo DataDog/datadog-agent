@@ -332,6 +332,9 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 
 	cfg.BindEnvAndSetDefault("compliance_config.database_benchmarks.enabled", false)
 
+	// CSPM - former security-agent config
+	bindEnvAndSetLogsConfigKeys(cfg, "compliance_config.endpoints.")
+
 	// enable/disable use of root net namespace
 	cfg.BindEnvAndSetDefault("network_config.enable_root_netns", true)
 

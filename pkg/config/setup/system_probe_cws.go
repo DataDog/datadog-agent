@@ -56,6 +56,10 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.exclude_pause_container", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.cmd_socket", "")
 
+	// CWS - former security-agent config
+	bindEnvAndSetLogsConfigKeys(cfg, "runtime_security_config.endpoints.")
+	bindEnvAndSetLogsConfigKeys(cfg, "runtime_security_config.activity_dump.remote_storage.endpoints.")
+
 	cfg.SetDefault("runtime_security_config.windows_filename_cache_max", 16384)
 	cfg.SetDefault("runtime_security_config.windows_registry_cache_max", 4096)
 	// windows specific channel size for etw events
