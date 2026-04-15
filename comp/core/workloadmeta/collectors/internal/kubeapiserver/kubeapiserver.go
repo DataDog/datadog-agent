@@ -122,22 +122,7 @@ func resourcesWithRequiredMetadataCollection(cfg config.Reader) []string {
 		}
 	}
 
-	for _, groupResource := range resourcesForAutoscalingConfig(cfg) {
-		requestedResource := groupResourceToGVRString(groupResource)
-		if requestedResource != "" {
-			res = append(res, requestedResource)
-		}
-	}
-
 	return res
-}
-
-func resourcesForAutoscalingConfig(cfg config.Reader) []string {
-	if !cfg.GetBool("autoscaling.workload.enabled") {
-		return nil
-	}
-
-	return []string{"namespaces"}
 }
 
 // resourcesWithExplicitMetadataCollectionEnabled returns the list of resources

@@ -496,7 +496,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 				"cluster_agent.kube_metadata_collection.enabled":   true,
 				"cluster_agent.kube_metadata_collection.resources": "apps/daemonsets pods",
 			},
-			expectedResources: []string{"apps//daemonsets", "//nodes", "//namespaces"},
+			expectedResources: []string{"apps//daemonsets", "//nodes"},
 		},
 		{
 			name: "resources explicitly requested",
