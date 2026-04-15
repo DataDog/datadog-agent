@@ -233,6 +233,8 @@ rule EmitMatchingLog {
     let matches = filter(PatternEntries, e => is_match(e.signature, incoming, config.match_threshold))
     requires: matches.count > 0
 
+    -- Among entries with equal match_count, max_by selects the
+    -- entry nearest the front of the table. See TableOrdered.
     let entry = max_by(matches, e => e.match_count)
 
     let elapsed_seconds = seconds_elapsed(entry.last_seen, now)
@@ -273,6 +275,8 @@ rule DropMatchingLog {
     let matches = filter(PatternEntries, e => is_match(e.signature, incoming, config.match_threshold))
     requires: matches.count > 0
 
+    -- Among entries with equal match_count, max_by selects the
+    -- entry nearest the front of the table. See TableOrdered.
     let entry = max_by(matches, e => e.match_count)
 
     let elapsed_seconds = seconds_elapsed(entry.last_seen, now)
@@ -391,6 +395,17 @@ invariant SampledCountNonNegative {
 
 -- Behavioural properties not expressible as state predicates
 -- but guaranteed by the rules above:
+--
+-- TableOrdered: PatternEntries is maintained in descending
+--   match_count order. Entries with equal match_count preserve
+--   their relative order (stable). Guaranteed by: new entries
+--   append at the tail with match_count = 1 (the minimum);
+--   after each match, the entry bubbles forward only when its
+--   match_count strictly exceeds its predecessor's. Because the
+--   bubble comparison is strict-less-than, equal-count entries
+--   never swap, making the ordering deterministic.
+--   This ordering is load-bearing: max_by tie-breaking in
+--   EmitMatchingLog / DropMatchingLog depends on it.
 --
 -- NewPatternsAlwaysEmitted: the first log of a never-before-seen
 --   pattern is always emitted. Guaranteed by RegisterNewPattern and
