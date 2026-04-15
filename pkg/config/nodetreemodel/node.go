@@ -19,7 +19,7 @@ import (
 var ErrNotFound = errors.New("not found")
 
 // missingLeafImpl is a none-object representing when a child node is missing
-var missingLeaf = &nodeImpl{source: model.SourceUnknown}
+var missingLeaf = &nodeImpl{source: sourceIDUnknown}
 
 // Node is a inner or leaf node in the config tree
 type Node interface {
@@ -32,7 +32,7 @@ type Node interface {
 type nodeImpl struct {
 	children map[string]*nodeImpl
 	val      interface{}
-	source   model.Source
+	source   sourceID
 }
 
 var _ Node = (*nodeImpl)(nil)
@@ -44,7 +44,7 @@ func newInnerNode(children map[string]*nodeImpl) *nodeImpl {
 	return &nodeImpl{children: children}
 }
 
-func newLeafNode(v interface{}, source model.Source) *nodeImpl {
+func newLeafNode(v interface{}, source sourceID) *nodeImpl {
 	return &nodeImpl{val: v, source: source}
 }
 
@@ -106,7 +106,7 @@ func (n *nodeImpl) Merge(that *nodeImpl) (*nodeImpl, error) {
 
 		if ourIsLeaf && theirIsLeaf {
 			// both are leafs, check the priority by source
-			if ourChild.Source() == theirChild.Source() || theirChild.SourceGreaterThan(ourChild.Source()) {
+			if ourChild.source == theirChild.source || theirChild.source.IsGreaterThan(ourChild.source) {
 				newChildren[name] = theirChild
 			} else {
 				newChildren[name] = ourChild
@@ -147,7 +147,7 @@ func (n *nodeImpl) ChildrenKeys() []string {
 // The key parts should already be lowercased.
 //
 // This method should only be called on the root of a tree, not on an inner node with parents.
-func (n *nodeImpl) setAt(key []string, value interface{}, source model.Source) error {
+func (n *nodeImpl) setAt(key []string, value interface{}, source sourceID) error {
 	if len(key) == 0 {
 		return errors.New("empty key given to Set")
 	}
@@ -161,7 +161,7 @@ func (n *nodeImpl) setAt(key []string, value interface{}, source model.Source) e
 // setNodeAtPath allocates a new branch, ending in a leaf at the given path of fields, with the
 // given value, and returns the root of that branch. If a leaf already exists at that path,
 // instead it is modified and no branch is allocated and this returns nil
-func setNodeAtPath(n *nodeImpl, fields []string, value interface{}, source model.Source) (*nodeImpl, error) {
+func setNodeAtPath(n *nodeImpl, fields []string, value interface{}, source sourceID) (*nodeImpl, error) {
 	if len(fields) == 0 {
 		return newLeafNode(value, source), nil
 	}
@@ -225,7 +225,7 @@ func (n *nodeImpl) dumpSettings(includeDefaults bool) map[string]interface{} {
 	for _, k := range n.ChildrenKeys() {
 		child, _ := n.GetChild(k)
 		if child.IsLeafNode() {
-			if child.Source() == model.SourceDefault && !includeDefaults {
+			if child.source == sourceIDDefault && !includeDefaults {
 				continue
 			}
 			res[k] = child.Get()
@@ -243,7 +243,7 @@ func (n *nodeImpl) dumpSettings(includeDefaults bool) map[string]interface{} {
 
 // SourceGreaterThan returns true if the source of the current node is greater than the one given as a
 // parameter
-func (n *nodeImpl) SourceGreaterThan(source model.Source) bool {
+func (n *nodeImpl) SourceGreaterThan(source sourceID) bool {
 	return n.source.IsGreaterThan(source)
 }
 
@@ -273,5 +273,5 @@ func (n *nodeImpl) ReplaceValue(v interface{}) error {
 
 // Source returns the source for this leaf
 func (n *nodeImpl) Source() model.Source {
-	return n.source
+	return n.source.toSource()
 }

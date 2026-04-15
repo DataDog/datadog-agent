@@ -176,10 +176,10 @@ c:
 
 	expected := &nodeImpl{
 		children: map[string]*nodeImpl{
-			"a": {val: "orange", source: model.SourceFile},
+			"a": {val: "orange", source: sourceIDFile},
 			"c": {
 				children: map[string]*nodeImpl{
-					"d": {val: 1234, source: model.SourceFile},
+					"d": {val: 1234, source: sourceIDFile},
 				},
 			},
 		},
@@ -211,11 +211,11 @@ c:
 
 	expected := &nodeImpl{
 		children: map[string]*nodeImpl{
-			"a": {val: "orange", source: model.SourceFile},
+			"a": {val: "orange", source: sourceIDFile},
 			"c": {
 				children: map[string]*nodeImpl{
-					"d":       {val: 1234, source: model.SourceFile},
-					"unknown": {val: "key", source: model.SourceFile},
+					"d":       {val: 1234, source: sourceIDFile},
+					"unknown": {val: "key", source: sourceIDFile},
 				},
 			},
 		},

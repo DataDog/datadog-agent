@@ -13,7 +13,6 @@ import (
 	"unicode"
 
 	"github.com/DataDog/datadog-agent/pkg/config/helper"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/mohae/deepcopy"
 	"github.com/spf13/cast"
 )
@@ -122,7 +121,7 @@ func mapToMapString(m reflect.Value) map[string]interface{} {
 }
 
 // newNodeTree will recursively create nodes from the input value to construct a tree
-func newNodeTree(v interface{}, source model.Source) (*nodeImpl, error) {
+func newNodeTree(v interface{}, source sourceID) (*nodeImpl, error) {
 	if helper.IsNilValue(v) {
 		// nil as a value acts as the zero value, and the cast library will correctly
 		// convert it to zero values for the types we handle
@@ -154,7 +153,7 @@ func newNodeTree(v interface{}, source model.Source) (*nodeImpl, error) {
 	return node, err
 }
 
-func makeChildNodeTrees(input map[string]interface{}, source model.Source) (map[string]*nodeImpl, error) {
+func makeChildNodeTrees(input map[string]interface{}, source sourceID) (map[string]*nodeImpl, error) {
 	children := make(map[string]*nodeImpl)
 	for k, v := range input {
 		node, err := newNodeTree(v, source)

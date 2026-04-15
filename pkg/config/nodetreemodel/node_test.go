@@ -8,7 +8,6 @@ package nodetreemodel
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -22,7 +21,7 @@ func TestNewNodeAndNodeMethods(t *testing.T) {
 		},
 	}
 
-	nodeTree, err := newNodeTree(obj, model.SourceDefault)
+	nodeTree, err := newNodeTree(obj, sourceIDDefault)
 	assert.NoError(t, err)
 
 	assert.True(t, nodeTree.IsInnerNode())

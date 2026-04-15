@@ -260,7 +260,7 @@ func (c *ntmConfig) insertValueIntoTree(key string, value interface{}, source mo
 	}
 
 	parts := splitKey(key)
-	err = tree.setAt(parts, value, source)
+	err = tree.setAt(parts, value, sourceIDFromSource(source))
 	return tree, err
 }
 
@@ -294,7 +294,7 @@ func (c *ntmConfig) SetDefault(key string, value interface{}) {
 
 func (c *ntmConfig) setDefault(key string, value interface{}) {
 	parts := splitKey(key)
-	_ = c.defaults.setAt(parts, value, model.SourceDefault)
+	_ = c.defaults.setAt(parts, value, sourceIDDefault)
 }
 
 func (c *ntmConfig) findPreviousSourceNode(key string, source model.Source) (*nodeImpl, error) {
@@ -574,7 +574,7 @@ func (c *ntmConfig) insertNodeFromString(curr *nodeImpl, key string, envval stri
 		}
 	}
 	parts := splitKeyFunc(key)
-	return curr.setAt(parts, actualValue, model.SourceEnvVar)
+	return curr.setAt(parts, actualValue, sourceIDEnvVar)
 }
 
 // ParseEnvAsStringSlice registers a transform function to parse an environment variable as a []string.
@@ -857,7 +857,7 @@ func (c *ntmConfig) MergeConfig(in io.Reader) error {
 	}
 
 	other := newInnerNode(nil)
-	if err = c.readConfigurationContent(other, model.SourceFile, content); err != nil {
+	if err = c.readConfigurationContent(other, sourceIDFile, content); err != nil {
 		return err
 	}
 
@@ -897,7 +897,7 @@ func (c *ntmConfig) MergeFleetPolicy(configPath string) error {
 	}
 
 	other := newInnerNode(nil)
-	if err = c.readConfigurationContent(other, model.SourceFleetPolicies, content); err != nil {
+	if err = c.readConfigurationContent(other, sourceIDFleetPolicies, content); err != nil {
 		return err
 	}
 
