@@ -5,31 +5,26 @@
 
 package queryactionsimpl
 
-// DOQueryPayload represents the RC config payload for a single DB instance.
-// Each config contains the full set of active monitor queries for that instance.
+// DOQueryPayload represents the RC config payload for a database cluster.
+// Each config groups all active monitor queries for a single host, with per-query dbname routing.
 type DOQueryPayload struct {
 	ConfigID     string       `json:"config_id"`
 	DBIdentifier DBIdentifier `json:"db_identifier"`
 	Queries      []QuerySpec  `json:"queries"`
 }
 
-// DBIdentifier identifies a database instance to target.
-// Type describes the hosting kind (e.g. "self-hosted", "rds"). It is stored
-// for informational purposes; instance matching is by host and dbname only.
+// DBIdentifier identifies a database cluster to target.
+// Type describes the hosting kind (e.g. "self-hosted", "rds"). Instance matching
+// is by host only; per-query dbname fields handle database routing.
 type DBIdentifier struct {
-	Type   string `json:"type"`
-	Host   string `json:"host"`
-	DBName string `json:"dbname"`
-	// AgentHostname is deserialized from RC but is not currently used for filtering.
-	// The RC backend is expected to route each config only to the agent whose hostname matches.
-	// TODO: If RC delivery becomes broadcast (all agents receive all configs), filter here by
-	// comparing AgentHostname against the current agent's hostname to prevent duplicate checks
-	// in multi-agent deployments where multiple agents monitor the same postgres host.
+	Type string `json:"type"`
+	Host string `json:"host"`
 	AgentHostname string `json:"agent_hostname"`
 }
 
 // QuerySpec defines a single monitor query to schedule.
 type QuerySpec struct {
+	DBName                string                 `json:"dbname,omitempty"`
 	MonitorID             int64                  `json:"monitor_id,omitempty"`
 	Type                  string                 `json:"type"`
 	Query                 string                 `json:"query"`

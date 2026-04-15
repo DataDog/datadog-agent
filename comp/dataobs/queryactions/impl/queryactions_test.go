@@ -64,11 +64,11 @@ func newStreamComponent(t *testing.T, postgresConfigs []integration.Config) (*co
 }
 
 // buildPayloadJSON marshals a DOQueryPayload with the given parameters.
-func buildPayloadJSON(t *testing.T, configID, host, dbname string, queries []QuerySpec) []byte {
+func buildPayloadJSON(t *testing.T, configID, host string, queries []QuerySpec) []byte {
 	t.Helper()
 	b, err := json.Marshal(DOQueryPayload{
 		ConfigID:     configID,
-		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: host, DBName: dbname},
+		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: host},
 		Queries:      queries,
 	})
 	require.NoError(t, err)
@@ -161,7 +161,7 @@ func TestStream_RCCallback_DeliverChangesToChannel(t *testing.T) {
 
 	triggerRC := waitSubscribe(t, rc)
 
-	payload := buildPayloadJSON(t, "cfg-1", "localhost", "mydb", singleQuery)
+	payload := buildPayloadJSON(t, "cfg-1", "localhost", singleQuery)
 	triggerRC(
 		map[string]state.RawConfig{"path/cfg-1": {Config: payload, Metadata: state.Metadata{ID: "rc-id-1"}}},
 		func(string, state.ApplyStatus) {},
@@ -203,7 +203,7 @@ func TestStream_ChannelReplace_PreservesUnschedule(t *testing.T) {
 
 	// Update 1: schedule cfg-A. Drain it to simulate autodiscovery processing it —
 	// cfg-A is now "in autodiscovery".
-	payload1 := buildPayloadJSON(t, "cfg-A", "localhost", "db-a", singleQuery)
+	payload1 := buildPayloadJSON(t, "cfg-A", "localhost", singleQuery)
 	triggerRC(map[string]state.RawConfig{"path/cfg-A": {Config: payload1}}, noStatus)
 	update1 := <-outCh
 	require.Len(t, update1.Schedule, 1, "update 1 should schedule cfg-A")
@@ -216,7 +216,7 @@ func TestStream_ChannelReplace_PreservesUnschedule(t *testing.T) {
 
 	// Update 3: schedule cfg-B. Channel is FULL with update 2.
 	// sendChanges must drain the full channel and merge update 2's Unschedule into update 3.
-	payload3 := buildPayloadJSON(t, "cfg-B", "localhost", "db-b", singleQuery)
+	payload3 := buildPayloadJSON(t, "cfg-B", "localhost", singleQuery)
 	triggerRC(map[string]state.RawConfig{"path/cfg-B": {Config: payload3}}, noStatus)
 
 	// The merged result must contain cfg-B's Schedule + cfg-A's disable Schedule,
@@ -253,7 +253,7 @@ func TestStream_NoPanicAfterContextCancel(t *testing.T) {
 
 	// Trigger RC callback after shutdown — must not panic (write to closed channel).
 	assert.NotPanics(t, func() {
-		payload := buildPayloadJSON(t, "cfg-post-cancel", "localhost", "mydb", singleQuery)
+		payload := buildPayloadJSON(t, "cfg-post-cancel", "localhost", singleQuery)
 		triggerRC(
 			map[string]state.RawConfig{"path/cfg-post-cancel": {Config: payload}},
 			func(string, state.ApplyStatus) {},

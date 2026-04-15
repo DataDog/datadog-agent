@@ -211,25 +211,18 @@ func (c *component) findPostgresConfig(dbID *DBIdentifier) (*integration.Config,
 
 	if lastParseErr != nil {
 		// Surface the parse error so operators debug the postgres config YAML, not the RC identifier.
-		return nil, nil, fmt.Errorf("no postgres config found for identifier: type=%s, host=%s, dbname=%s; at least one postgres instance had a YAML parse error: %w",
-			dbID.Type, dbID.Host, dbID.DBName, lastParseErr)
+		return nil, nil, fmt.Errorf("no postgres config found for identifier: type=%s, host=%s; at least one postgres instance had a YAML parse error: %w",
+			dbID.Type, dbID.Host, lastParseErr)
 	}
-	return nil, nil, fmt.Errorf("no postgres config found for identifier: type=%s, host=%s, dbname=%s",
-		dbID.Type, dbID.Host, dbID.DBName)
-}
-
-// matchesDBName checks if an instance's dbname matches the RC identifier's dbname exactly.
-// Both must be equal; an empty RC dbname only matches instances that also have no dbname configured.
-func matchesDBName(instance map[string]any, dbID *DBIdentifier) bool {
-	instanceDBName, _ := instance["dbname"].(string)
-	return instanceDBName == dbID.DBName
+	return nil, nil, fmt.Errorf("no postgres config found for identifier: type=%s, host=%s",
+		dbID.Type, dbID.Host)
 }
 
 // matchesIdentifier checks if an instance matches the given DB identifier.
-// Matching is by host and dbname, regardless of hosting type.
+// Matching is by host only — per-query dbname fields handle database routing.
 func matchesIdentifier(instance map[string]any, dbID *DBIdentifier) bool {
 	host, _ := instance["host"].(string)
-	return host == dbID.Host && matchesDBName(instance, dbID)
+	return host == dbID.Host
 }
 
 // buildCheckConfig creates a postgres check config with data_observability queries injected.
@@ -239,6 +232,7 @@ func (c *component) buildCheckConfig(payload *DOQueryPayload, baseCfg *integrati
 	queries := make([]map[string]any, 0, len(payload.Queries))
 	for _, q := range payload.Queries {
 		qm := map[string]any{
+			"dbname":           q.DBName,
 			"monitor_id":       q.MonitorID,
 			"type":             q.Type,
 			"query":            q.Query,

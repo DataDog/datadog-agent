@@ -63,65 +63,16 @@ func TestInstanceHasDOEnabled(t *testing.T) {
 	assert.True(t, instanceHasDOEnabled(map[string]any{"data_observability": map[string]any{"enabled": true}}))
 }
 
-func TestMatchesDBName(t *testing.T) {
-	t.Run("empty RC dbname matches empty instance dbname", func(t *testing.T) {
-		instance := map[string]any{}
-		dbID := &DBIdentifier{DBName: ""}
-		assert.True(t, matchesDBName(instance, dbID))
-	})
+func TestMatchesIdentifier_HostOnly(t *testing.T) {
+	instance := map[string]any{"host": "localhost", "dbname": "production"}
 
-	t.Run("empty RC dbname does not match instance with dbname", func(t *testing.T) {
-		instance := map[string]any{"dbname": "mydb"}
-		dbID := &DBIdentifier{DBName: ""}
-		assert.False(t, matchesDBName(instance, dbID))
-	})
-
-	t.Run("empty instance dbname does not match specific RC dbname", func(t *testing.T) {
-		instance := map[string]any{}
-		dbID := &DBIdentifier{DBName: "mydb"}
-		assert.False(t, matchesDBName(instance, dbID))
-	})
-
-	t.Run("matching dbnames", func(t *testing.T) {
-		instance := map[string]any{"dbname": "mydb"}
-		dbID := &DBIdentifier{DBName: "mydb"}
-		assert.True(t, matchesDBName(instance, dbID))
-	})
-
-	t.Run("mismatching dbnames", func(t *testing.T) {
-		instance := map[string]any{"dbname": "otherdb"}
-		dbID := &DBIdentifier{DBName: "mydb"}
-		assert.False(t, matchesDBName(instance, dbID))
-	})
-}
-
-func TestMatchesIdentifier_SelfHosted(t *testing.T) {
-	instance := map[string]any{"host": "localhost"}
-	dbID := &DBIdentifier{Type: "self-hosted", Host: "localhost"}
-	assert.True(t, matchesIdentifier(instance, dbID))
-
-	dbID = &DBIdentifier{Type: "self-hosted", Host: "otherhost"}
-	assert.False(t, matchesIdentifier(instance, dbID))
-}
-
-func TestMatchesIdentifier_SelfHosted_WithDBName(t *testing.T) {
-	instance := map[string]any{
-		"host":   "localhost",
-		"dbname": "production",
-	}
-
-	t.Run("matching dbname", func(t *testing.T) {
-		dbID := &DBIdentifier{Type: "self-hosted", Host: "localhost", DBName: "production"}
+	t.Run("matching host", func(t *testing.T) {
+		dbID := &DBIdentifier{Type: "self-hosted", Host: "localhost"}
 		assert.True(t, matchesIdentifier(instance, dbID))
 	})
 
-	t.Run("mismatching dbname", func(t *testing.T) {
-		dbID := &DBIdentifier{Type: "self-hosted", Host: "localhost", DBName: "staging"}
-		assert.False(t, matchesIdentifier(instance, dbID))
-	})
-
-	t.Run("empty RC dbname does not match instance with dbname", func(t *testing.T) {
-		dbID := &DBIdentifier{Type: "self-hosted", Host: "localhost"}
+	t.Run("mismatching host", func(t *testing.T) {
+		dbID := &DBIdentifier{Type: "self-hosted", Host: "otherhost"}
 		assert.False(t, matchesIdentifier(instance, dbID))
 	})
 }
@@ -142,7 +93,7 @@ func TestBuildCheckConfig_MultipleQueries(t *testing.T) {
 
 	payload := &DOQueryPayload{
 		ConfigID:     "test-config-1",
-		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "localhost", DBName: "testdb"},
+		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "localhost"},
 		Queries: []QuerySpec{
 			{
 				MonitorID:       100,
@@ -467,7 +418,7 @@ func TestOnRCUpdate_ValidConfig_SchedulesCheck(t *testing.T) {
 
 	payload := DOQueryPayload{
 		ConfigID:     "cfg-happy",
-		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "localhost", DBName: "mydb"},
+		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "localhost"},
 		Queries: []QuerySpec{
 			{
 				MonitorID:       42,
@@ -526,7 +477,7 @@ func TestOnRCUpdate_UpdateReplacesExistingCheck(t *testing.T) {
 	mkPayload := func(query string) []byte {
 		b, err := json.Marshal(DOQueryPayload{
 			ConfigID:     "cfg-update",
-			DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "localhost", DBName: "mydb"},
+			DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "localhost"},
 			Queries:      []QuerySpec{{Type: "run_query", Query: query, IntervalSeconds: 60, TimeoutSeconds: 10}},
 		})
 		require.NoError(t, err)
@@ -566,7 +517,7 @@ func TestOnRCUpdate_NoMatchingPostgres_ReportsError(t *testing.T) {
 
 	payload := DOQueryPayload{
 		ConfigID:     "cfg-nomatch",
-		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "notfound.example.com", DBName: "mydb"},
+		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "notfound.example.com"},
 		Queries:      []QuerySpec{{Type: "run_query", Query: "SELECT 1", IntervalSeconds: 60, TimeoutSeconds: 10}},
 	}
 	payloadJSON, err := json.Marshal(payload)
@@ -582,6 +533,94 @@ func TestOnRCUpdate_NoMatchingPostgres_ReportsError(t *testing.T) {
 	assert.Empty(t, c.activeConfigs)
 }
 
+// TestOnRCUpdate_HostOnlyMatching verifies that a config matches a postgres instance
+// by host only, with per-query dbname routing to different databases.
+func TestOnRCUpdate_HostOnlyMatching(t *testing.T) {
+	postgresCfg := integration.Config{
+		Name:      "postgres",
+		Provider:  "file",
+		Instances: []integration.Data{integration.Data("host: localhost\ndbname: testdb\ndata_observability:\n  enabled: true\n")},
+	}
+	c := newTestComponentWithAC(t, []integration.Config{postgresCfg})
+
+	payload := DOQueryPayload{
+		ConfigID:     "cfg-hostonly",
+		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "localhost"},
+		Queries: []QuerySpec{
+			{
+				DBName:          "analyticsdb",
+				Type:            "run_query",
+				Query:           "SELECT count(*) AS dd_value FROM events.page_views",
+				IntervalSeconds: 60,
+				TimeoutSeconds:  10,
+			},
+		},
+	}
+	payloadJSON, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	statuses, changes := collectStatuses(c, map[string]state.RawConfig{
+		"path/cfg-hostonly": {Config: payloadJSON},
+	})
+
+	assert.Equal(t, state.ApplyStateAcknowledged, statuses["path/cfg-hostonly"].State)
+	require.Len(t, changes.Schedule, 1)
+	require.Contains(t, c.activeConfigs, "cfg-hostonly")
+}
+
+// TestBuildCheckConfig_PerQueryDBName verifies that the dbname field from each QuerySpec
+// appears in the YAML output for each query entry.
+func TestBuildCheckConfig_PerQueryDBName(t *testing.T) {
+	c := &component{log: logmock.New(t)}
+
+	payload := &DOQueryPayload{
+		ConfigID: "cfg-multidb",
+		Queries: []QuerySpec{
+			{
+				DBName:          "testdb",
+				MonitorID:       100,
+				Type:            "run_query",
+				Query:           "SELECT count(*) AS dd_value FROM shop.orders",
+				IntervalSeconds: 60,
+				TimeoutSeconds:  10,
+				Entity:          EntityMetadata{Platform: "postgres", Database: "testdb", Schema: "shop", Table: "orders"},
+			},
+			{
+				DBName:          "analyticsdb",
+				MonitorID:       200,
+				Type:            "run_query",
+				Query:           "SELECT count(*) AS dd_value FROM events.clicks",
+				IntervalSeconds: 60,
+				TimeoutSeconds:  10,
+				Entity:          EntityMetadata{Platform: "postgres", Database: "analyticsdb", Schema: "events", Table: "clicks"},
+			},
+		},
+	}
+
+	baseCfg := &integration.Config{Name: "postgres"}
+	pgInstance := map[string]any{"host": "localhost", "dbname": "testdb", "data_observability": map[string]any{"enabled": true}}
+
+	checkCfg, err := c.buildCheckConfig(payload, baseCfg, pgInstance, "rc-multidb")
+	require.NoError(t, err)
+
+	var instance map[string]any
+	require.NoError(t, yaml.Unmarshal(checkCfg.Instances[0], &instance))
+
+	doConfig, ok := instance["data_observability"].(map[string]any)
+	require.True(t, ok)
+	queries, ok := doConfig["queries"].([]any)
+	require.True(t, ok)
+	require.Len(t, queries, 2)
+
+	q1 := queries[0].(map[string]any)
+	assert.Equal(t, "testdb", q1["dbname"])
+	assert.Equal(t, 100, q1["monitor_id"])
+
+	q2 := queries[1].(map[string]any)
+	assert.Equal(t, "analyticsdb", q2["dbname"])
+	assert.Equal(t, 200, q2["monitor_id"])
+}
+
 // TestOnRCUpdate_MalformedPostgresYAML_SurfacesParseError verifies that when a postgres
 // instance's YAML is malformed, the error message from findPostgresConfig mentions the
 // parse failure, not just "identifier not found".
@@ -594,7 +633,7 @@ func TestOnRCUpdate_MalformedPostgresYAML_SurfacesParseError(t *testing.T) {
 
 	payload := DOQueryPayload{
 		ConfigID:     "cfg-badyaml",
-		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "localhost", DBName: "mydb"},
+		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "localhost"},
 		Queries:      []QuerySpec{{Type: "run_query", Query: "SELECT 1", IntervalSeconds: 60, TimeoutSeconds: 10}},
 	}
 	payloadJSON, err := json.Marshal(payload)
