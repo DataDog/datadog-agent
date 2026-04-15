@@ -158,8 +158,8 @@ func TestNVLinkCollectorKeepsPortOnTransientError(t *testing.T) {
 
 func TestNVLinkCollectorUnsupportedDevice(t *testing.T) {
 	tests := []struct {
-		name       string
-		customize  func(*mock.Device) *mock.Device
+		name      string
+		customize func(*mock.Device) *mock.Device
 	}{
 		{
 			name: "field API unsupported",

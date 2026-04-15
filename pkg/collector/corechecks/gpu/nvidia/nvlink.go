@@ -23,16 +23,16 @@ const (
 	tlvTypeOp  = 0x1
 	tlvTypeReg = 0x3
 
-	opTLVLenDwords         = 4
-	opTLVClassReg          = 1
-	opTLVMethodQuery       = 1
-	regTLVHeaderLenDwords  = 1
-	endTLVLenDwords        = 1
-	dwordSizeBytes         = 4
-	ppcntRegID             = 0x5008
-	ppcntGroupPLR          = 0x22
-	ppcntSizeBytes         = 256
-	opTLVRequestBit uint32 = 0
+	opTLVLenDwords               = 4
+	opTLVClassReg                = 1
+	opTLVMethodQuery             = 1
+	regTLVHeaderLenDwords        = 1
+	endTLVLenDwords              = 1
+	dwordSizeBytes               = 4
+	ppcntRegID                   = 0x5008
+	ppcntGroupPLR                = 0x22
+	ppcntSizeBytes               = 256
+	opTLVRequestBit       uint32 = 0
 )
 
 var plrCounterFields = []string{
