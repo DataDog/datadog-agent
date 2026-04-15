@@ -23,6 +23,7 @@ from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
+    debug_go_proxy_env,
     get_build_flags,
     get_go_version,
     get_version,
@@ -521,6 +522,7 @@ def generate_cws_documentation(ctx):
 
 @task
 def cws_go_generate(ctx, verbose=False):
+    debug_go_proxy_env(ctx, "security-agent.cws-go-generate")
     # run different `go generate` for pkg/security/secl and pkg/security
     ctx.run("go install golang.org/x/tools/cmd/stringer")
     ctx.run("go install github.com/mailru/easyjson/easyjson")

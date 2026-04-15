@@ -696,3 +696,13 @@ def is_installed(binary) -> bool:
 def is_conductor_scheduled_pipeline() -> bool:
     pipeline_start = datetime.fromisoformat(os.environ['CI_PIPELINE_CREATED_AT'])
     return pipeline_start.hour in [5, 6] and pipeline_start.minute < 30
+
+
+def debug_go_proxy_env(ctx: Context, label: str):
+    """Temporary ADMS debug: print Go proxy env vars as seen by Python and by `go env`."""
+    keys = ("GOPROXY", "GONOSUMDB", "GONOSUMCHECK", "GOPRIVATE", "GOSUMDB", "GOFLAGS")
+    print(f"[ADMS DEBUG — {label}] Python os.environ:")
+    for k in keys:
+        print(f"  {k}={os.environ.get(k, '<not set>')}")
+    print(f"[ADMS DEBUG — {label}] go env:")
+    ctx.run(f"go env {' '.join(keys)}", echo=True)

@@ -32,6 +32,7 @@ from tasks.libs.common.gomodules import get_default_modules
 from tasks.libs.common.junit_upload_core import enrich_junitxml, produce_junit_tar
 from tasks.libs.common.utils import (
     clean_nested_paths,
+    debug_go_proxy_env,
     get_build_flags,
     gitlab_section,
     running_in_ci,
@@ -146,6 +147,7 @@ def test_flavor(
     packages = compute_gotestsum_cli_args(list(modules), recursive)
 
     with CodecovWorkaround(ctx, result.path, coverage, packages, args) as cov_test_path:
+        debug_go_proxy_env(ctx, "gotest.test_flavor")
         res = ctx.run(
             command=cmd.format(
                 packages=packages,

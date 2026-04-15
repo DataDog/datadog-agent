@@ -26,7 +26,7 @@ from tasks.libs.common.git import check_uncommitted_changes
 from tasks.libs.common.go import download_go_dependencies
 from tasks.libs.common.gomodules import Configuration, GoModule, get_default_modules
 from tasks.libs.common.user_interactions import yes_no_question
-from tasks.libs.common.utils import TimedOperationResult, get_build_flags, timed
+from tasks.libs.common.utils import TimedOperationResult, debug_go_proxy_env, get_build_flags, timed
 from tasks.libs.types.arch import Arch
 from tasks.licenses import get_licenses_list
 from tasks.modules import generate_dummy_package
@@ -149,6 +149,7 @@ def deps(ctx, verbose=False):
     """
     Setup Go dependencies
     """
+    debug_go_proxy_env(ctx, "go.deps")
     paths = [mod.full_path() for mod in get_default_modules().values()]
     download_go_dependencies(ctx, paths, verbose=verbose)
 
@@ -186,6 +187,7 @@ def lint_licenses(ctx):
     """
     Checks that the LICENSE-3rdparty.csv file is up-to-date with contents of go.sum
     """
+    debug_go_proxy_env(ctx, "go.lint-licenses")
     print("Verify licenses")
 
     licenses = []
@@ -300,6 +302,7 @@ def check_valid_mods(ctx):
 
 @task
 def check_mod_tidy(ctx, test_folder="testmodule"):
+    debug_go_proxy_env(ctx, "go.check-mod-tidy")
     check_valid_mods(ctx)
     with generate_dummy_package(ctx, test_folder) as dummy_folder:
         errors_found = []

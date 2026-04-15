@@ -9,7 +9,7 @@ from tasks.build_tags import (
 from tasks.flavor import AgentFlavor
 from tasks.gointegrationtest import TRACE_AGENT_IT_CONF, containerized_integration_tests
 from tasks.libs.common.go import go_build
-from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
+from tasks.libs.common.utils import REPO_PATH, bin_name, debug_go_proxy_env, get_build_flags
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 BIN_PATH = os.path.join(".", "bin", "trace-agent")
@@ -95,5 +95,6 @@ def benchmarks(ctx, bench, output="./trace-agent.benchmarks.out"):
     if not bench:
         print("Argument --bench=<bench_regex> is required.")
         return
+    debug_go_proxy_env(ctx, "trace-agent.benchmarks")
     with ctx.cd("./pkg/trace"):
         ctx.run(f"go test -tags=test -run=XXX -bench \"{bench}\" -benchmem -count 1 -benchtime 2s ./... | tee {output}")

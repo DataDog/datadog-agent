@@ -62,7 +62,7 @@ from tasks.libs.ciproviders.gitlab_api import (
 )
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import get_current_branch
-from tasks.libs.common.utils import get_build_flags
+from tasks.libs.common.utils import debug_go_proxy_env, get_build_flags
 from tasks.libs.pipeline.tools import GitlabJobStatus, loop_status
 from tasks.libs.releasing.json import load_release_json
 from tasks.libs.releasing.version import VERSION_RE, check_version
@@ -432,6 +432,8 @@ def init(
     exclude_requirements: list[str] | None = None,
     only_requirements: list[str] | None = None,
 ):
+    debug_go_proxy_env(ctx, "kmt.init")
+
     if not remote_setup_only and not all_images and images is None:
         if (
             ask(

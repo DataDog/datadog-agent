@@ -31,6 +31,7 @@ from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
+    debug_go_proxy_env,
     get_build_flags,
     get_common_test_args,
     get_embedded_path,
@@ -196,6 +197,7 @@ def build(
     """
     Build the system-probe
     """
+    debug_go_proxy_env(ctx, "system-probe.build")
     if not is_macos:
         build_object_files(ctx)
 

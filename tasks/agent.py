@@ -30,6 +30,7 @@ from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
+    debug_go_proxy_env,
     get_build_flags,
     get_embedded_path,
     get_goenv,
@@ -96,6 +97,7 @@ def build(
         dda inv agent.build --build-exclude=systemd
     """
     flavor = AgentFlavor[flavor]
+    debug_go_proxy_env(ctx, "agent.build")
 
     if not exclude_rtloader and not flavor.is_iot():
         with gitlab_section("Install embedded rtloader", collapsed=True):
