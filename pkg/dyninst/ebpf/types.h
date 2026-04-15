@@ -108,6 +108,7 @@ typedef enum sm_opcode {
   SM_OP_CONDITION_CHECK = 29,
   SM_OP_CONDITION_BEGIN = 30,
   SM_OP_CALL_DICT_RESOLVED = 31,
+  SM_OP_EXPR_SLICE_BOUNDS_CHECK = 32,
 } sm_opcode_t;
 
 #ifdef DYNINST_DEBUG
@@ -177,6 +178,8 @@ static const char* op_code_name(sm_opcode_t op_code) {
     return "CONDITION_BEGIN";
   case SM_OP_CALL_DICT_RESOLVED:
     return "CALL_DICT_RESOLVED";
+  case SM_OP_EXPR_SLICE_BOUNDS_CHECK:
+    return "EXPR_SLICE_BOUNDS_CHECK";
   default:
     break;
   }

@@ -3,30 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package logsagentpipeline contains logs agent pipeline component
 package logsagentpipeline
 
 import (
-	"context"
-
-	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
+	def "github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/def"
 )
 
-// team: opentelemetry-agent
-
 // Component is the component type.
-type Component interface {
-	// GetPipelineProvider gets the pipeline provider
-	GetPipelineProvider() pipeline.Provider
-}
+// Deprecated: use github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/def.Component instead.
+type Component = def.Component
 
-// LogsAgent is a compat version of component for non fx usage
-type LogsAgent interface {
-	Component
-
-	// Start sets up the logs agent and starts its pipelines
-	Start(context.Context) error
-
-	// Stop stops the logs agent and all elements of the data pipeline
-	Stop(context.Context) error
-}
+// LogsAgent is a compat version of component for non fx usage.
+// Deprecated: use github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/def.LogsAgent instead.
+type LogsAgent = def.LogsAgent

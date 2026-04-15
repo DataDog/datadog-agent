@@ -67,7 +67,7 @@ import (
 	converter "github.com/DataDog/datadog-agent/comp/otelcol/converter/def"
 	converterfx "github.com/DataDog/datadog-agent/comp/otelcol/converter/fx"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
-	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl"
+	logsagentpipelinefx "github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/fx"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
@@ -134,7 +134,7 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams, pid
 		fx.Provide(func() logconfig.IntakeOrigin {
 			return logconfig.DDOTIntakeOrigin
 		}),
-		logsagentpipelineimpl.Module(),
+		logsagentpipelinefx.Module(),
 		logscompressionfx.Module(),
 		metricscompressionfx.Module(),
 		// For FX to provide the compression.Compressor interface (used by serializer.NewSerializer)

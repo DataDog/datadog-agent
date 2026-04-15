@@ -45,6 +45,7 @@ const (
 	OpcodeConditionCheck
 	OpcodeConditionBegin
 	OpcodeCallDictResolved
+	OpcodeExprSliceBoundsCheck
 )
 
 //revive:enable:exported
