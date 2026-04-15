@@ -8,6 +8,6 @@
 ---
 enhancements:
   - |
-    To handle expired API keys, when secrets are referenced in the configuration
-    transactions failing with API key errors (HTTP 403 response) are retried
-    instead of dropped.
+    Retry transactions on API key errors (HTTP 403 responses) when
+    `API key refresh <https://docs.datadoghq.com/agent/configuration/secrets-management/?tab=agentyamlfile#apiapp-key-refresh>`_
+    is enabled via secrets management in the Agent configuration.
