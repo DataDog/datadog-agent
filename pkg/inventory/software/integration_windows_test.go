@@ -12,13 +12,27 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
+
+func init() {
+	// Under Bazel, the DLL is in runfiles but Bazel creates junctions (not file
+	// symlinks) which break LoadLibrary. Resolve to the real output directory.
+	if testSrcDir := os.Getenv("TEST_SRCDIR"); testSrcDir != "" {
+		dllJunction := filepath.Join(testSrcDir, os.Getenv("TEST_WORKSPACE"),
+			"tools", "windows", "DatadogInterop", "libdatadog-interop.dll")
+		if target, err := os.Readlink(dllJunction); err == nil {
+			os.Setenv("PATH", filepath.Dir(target)+";"+os.Getenv("PATH"))
+		}
+	}
+}
 
 func TestIntegrationCompareWithPowerShell(t *testing.T) {
 	if testing.Short() {
