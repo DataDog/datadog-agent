@@ -79,6 +79,10 @@ bazel_dep(name = "rules_testing", version = "0.9.0", dev_dependency = True)
 git_override(
     module_name = "rules_go",
     commit = "4cb2eab3d1aec456573f0cefd8e8800e9c68ae7d",
+    patch_strip = 1,
+    patches = [
+        "//bazel/patches:rules_go-windows-symlink-workaround.patch",  # bazel-contrib/rules_go#3977
+    ],
     remote = "https://github.com/chouquette/rules_go.git",
 )
 
@@ -347,4 +351,28 @@ prebuilt_file(
     name = "agent_binary",
     target_label = "@@//:bin/agent/agent",
     target_name = "agent",
+)
+
+prebuilt_file(
+    name = "privateactionrunner_binary",
+    target_label = "@@//:bin/privateactionrunner/privateactionrunner",
+    target_name = "privateactionrunner",
+)
+
+prebuilt_file(
+    name = "process_agent_binary",
+    target_label = "@@//:bin/process-agent/process-agent",
+    target_name = "process_agent",
+)
+
+prebuilt_file(
+    name = "trace_agent_binary",
+    target_label = "@@//:bin/trace-agent/trace-agent",
+    target_name = "trace_agent",
+)
+
+prebuilt_file(
+    name = "trace_loader_binary",
+    target_label = "@@//:bin/trace-loader/trace-loader",
+    target_name = "trace_loader",
 )
