@@ -103,8 +103,8 @@ func ValidateTimestamp(actionCreatedAt time.Time) error {
 	return nil
 }
 
-// Claim tries to claim an action by key for execution, and returns true if successful
-// Returns false if the action was already claimed.
+// Claim tries to claim an action by key for execution. A successful claim populates the ActionRecord in the store with the claimed status and message,
+// and returns true. If the action was already claimed, it returns false.
 func (s *ActionStore) Claim(key ActionKey) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
