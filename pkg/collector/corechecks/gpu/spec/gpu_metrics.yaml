@@ -255,6 +255,30 @@ metrics:
         mig: false
         physical: true
         vgpu: true
+  ecc.repair_pending.channel:
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - pascal
+        - volta
+        - turing
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  ecc.repair_pending.tpc:
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - pascal
+        - volta
+        - turing
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
   errors.xid.total:
     tagsets:
       - device
