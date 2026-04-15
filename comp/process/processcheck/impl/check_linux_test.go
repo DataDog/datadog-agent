@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test && linux
+
 package processcheckimpl
 
 import (
@@ -22,74 +24,52 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	gpusubscriberfxmock "github.com/DataDog/datadog-agent/comp/process/gpusubscriber/fx-mock"
-	"github.com/DataDog/datadog-agent/comp/process/processcheck"
+	processcheck "github.com/DataDog/datadog-agent/comp/process/processcheck/def"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func TestProcessChecksIsEnabled(t *testing.T) {
+// TestProcessCheckEnablementOnCoreAgent Tests the process checks run on the core agent only
+func TestProcessCheckEnablementOnCoreAgent(t *testing.T) {
+	originalFlavor := flavor.GetFlavor()
+	defer flavor.SetFlavor(originalFlavor)
+
 	tests := []struct {
-		name            string
-		configs         map[string]interface{}
-		sysProbeConfigs map[string]interface{}
-		enabled         bool
+		name    string
+		flavor  string
+		enabled bool
 	}{
 		{
-			name: "check enabled: collection enabled, discovery enabled",
-			configs: map[string]interface{}{
-				"process_config.process_collection.enabled": true,
-			},
-			sysProbeConfigs: map[string]interface{}{
-				"discovery.enabled": true,
-			},
-			enabled: true,
-		},
-		{
-			name: "check enabled: collection enabled, discovery disabled",
-			configs: map[string]interface{}{
-				"process_config.process_collection.enabled": true,
-			},
-			sysProbeConfigs: map[string]interface{}{
-				"discovery.enabled": false,
-			},
-			enabled: true,
-		},
-		{
-			name: "check enabled: collection disabled, discovery enabled",
-			configs: map[string]interface{}{
-				"process_config.process_collection.enabled": false,
-			},
-			sysProbeConfigs: map[string]interface{}{
-				"discovery.enabled": true,
-			},
-			enabled: true,
-		},
-		{
-			name: "check disabled: collection disabled, discovery disabled",
-			configs: map[string]interface{}{
-				"process_config.process_collection.enabled": false,
-			},
-			sysProbeConfigs: map[string]interface{}{
-				"discovery.enabled": false,
-			},
+			name:    "Process check should not run in the process agent",
+			flavor:  flavor.ProcessAgent,
 			enabled: false,
+		},
+		{
+			name:    "Process check runs in the core agent",
+			flavor:  flavor.DefaultAgent,
+			enabled: true,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			configs := map[string]interface{}{
+				"process_config.process_collection.enabled": true,
+			}
+
+			flavor.SetFlavor(tc.flavor)
 			c := fxutil.Test[processcheck.Component](t, fx.Options(
 				fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
-				fx.Provide(func(t testing.TB) config.Component { return config.NewMockWithOverrides(t, tc.configs) }),
+				fx.Provide(func(t testing.TB) config.Component { return config.NewMockWithOverrides(t, configs) }),
 				sysprobeconfigimpl.MockModule(),
-				fx.Replace(sysprobeconfigimpl.MockParams{Overrides: tc.sysProbeConfigs}),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 				gpusubscriberfxmock.MockModule(),
 				taggerfxnoop.Module(),
 				fx.Provide(func() statsd.ClientInterface {
 					return &statsd.NoOpClient{}
 				}),
+				fxutil.ProvideComponentConstructor(NewCheck),
 				fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
-				Module(),
 			))
 			assert.Equal(t, tc.enabled, c.Object().IsEnabled())
 		})
