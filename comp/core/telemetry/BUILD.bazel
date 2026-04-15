@@ -30,5 +30,6 @@ go_test(
     name = "telemetry_test",
     srcs = ["gather_filters_test.go"],
     embed = [":telemetry"],
+    gotags = ["test"],
     deps = ["@com_github_stretchr_testify//assert"],
 )

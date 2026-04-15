@@ -25,6 +25,7 @@ go_test(
         "utilization_monitor_test.go",
     ],
     embed = [":metrics"],
+    gotags = ["test"],
     deps = [
         "@com_github_benbjohnson_clock//:clock",
         "@com_github_stretchr_testify//assert",

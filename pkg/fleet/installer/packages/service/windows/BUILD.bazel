@@ -30,6 +30,7 @@ go_test(
         "system_api_test.go",
     ],
     embed = [":windows"],
+    gotags = ["test"],
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:windows": [

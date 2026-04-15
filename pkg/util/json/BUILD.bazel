@@ -20,6 +20,7 @@ go_test(
         "raw_object_writer_test.go",
     ],
     embed = [":json"],
+    gotags = ["test"],
     deps = [
         "@com_github_json_iterator_go//:go",
         "@com_github_stretchr_testify//assert",
