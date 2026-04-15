@@ -23,13 +23,37 @@ import (
 )
 
 func init() {
-	// Under Bazel, the DLL is in runfiles but Bazel creates junctions (not file
-	// symlinks) which break LoadLibrary. Resolve to the real output directory.
-	if testSrcDir := os.Getenv("TEST_SRCDIR"); testSrcDir != "" {
-		dllJunction := filepath.Join(testSrcDir, os.Getenv("TEST_WORKSPACE"),
-			"tools", "windows", "DatadogInterop", "libdatadog-interop.dll")
-		if target, err := os.Readlink(dllJunction); err == nil {
-			os.Setenv("PATH", filepath.Dir(target)+";"+os.Getenv("PATH"))
+	testSrcDir := os.Getenv("TEST_SRCDIR")
+	if testSrcDir == "" {
+		return
+	}
+	ws := os.Getenv("TEST_WORKSPACE")
+	dllPath := filepath.Join(testSrcDir, ws,
+		"tools", "windows", "DatadogInterop", "libdatadog-interop.dll")
+	fmt.Fprintf(os.Stderr, "dll_init: TEST_SRCDIR=%q TEST_WORKSPACE=%q path=%q\n", testSrcDir, ws, dllPath)
+
+	if resolved, err := filepath.EvalSymlinks(dllPath); err == nil {
+		dir := filepath.Dir(resolved)
+		fmt.Fprintf(os.Stderr, "dll_init: resolved=%q dir=%q\n", resolved, dir)
+		os.Setenv("PATH", dir+";"+os.Getenv("PATH"))
+		return
+	} else {
+		fmt.Fprintf(os.Stderr, "dll_init: EvalSymlinks err=%v\n", err)
+	}
+
+	if info, err := os.Lstat(dllPath); err == nil {
+		fmt.Fprintf(os.Stderr, "dll_init: Lstat mode=%v\n", info.Mode())
+		os.Setenv("PATH", filepath.Dir(dllPath)+";"+os.Getenv("PATH"))
+	} else {
+		fmt.Fprintf(os.Stderr, "dll_init: Lstat err=%v\n", err)
+		// List parent directory to see what's actually there
+		parent := filepath.Dir(dllPath)
+		if entries, derr := os.ReadDir(parent); derr == nil {
+			for _, e := range entries {
+				fmt.Fprintf(os.Stderr, "dll_init:   %s (dir=%v)\n", e.Name(), e.IsDir())
+			}
+		} else {
+			fmt.Fprintf(os.Stderr, "dll_init: ReadDir(%q) err=%v\n", parent, derr)
 		}
 	}
 }
