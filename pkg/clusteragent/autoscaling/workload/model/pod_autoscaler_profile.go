@@ -23,12 +23,13 @@ import (
 
 const (
 	// ProfileLabelKey is the label key used to associate a workload with a profile
-	// and to mark generated DPAs as profile-managed.
+	// and to mark generated DPAs as profile-managed. Setting this label to
+	// ProfileExcludedValue opts the workload out of namespace-level profile discovery.
 	ProfileLabelKey = "autoscaling.datadoghq.com/profile"
 
-	// ProfileEnabledLabelKey is the label key used to exclude a workload from
-	// namespace-level autoscaling profile discovery when set to "false".
-	ProfileEnabledLabelKey = "autoscaling.datadoghq.com/profile-enabled"
+	// ProfileExcludedValue is the sentinel value for ProfileLabelKey that excludes
+	// a workload from namespace-level autoscaling profile discovery.
+	ProfileExcludedValue = "excluded"
 
 	// ProfileTemplateHashAnnotation stores the applied profile template hash on
 	// profile-managed DPA objects so it survives controller restarts.
