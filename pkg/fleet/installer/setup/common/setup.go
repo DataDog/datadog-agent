@@ -132,6 +132,9 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 		}
 		s.Config.DatadogYAML.PrivateActionRunner.Enabled = config.BoolToPtr(true)
 		s.Config.DatadogYAML.PrivateActionRunner.SelfEnroll = config.BoolToPtr(true)
+		if apiKeyOnlyEnrollment := os.Getenv("DD_PRIVATE_ACTION_RUNNER_API_KEY_ONLY_ENROLLMENT"); strings.EqualFold(apiKeyOnlyEnrollment, "true") {
+			s.Config.DatadogYAML.PrivateActionRunner.ApiKeyOnlyEnrollment = config.BoolToPtr(true)
+		}
 		_, statErr := os.Stat(filepath.Join(paths.DatadogDataDir, "datadog.yaml"))
 		freshInstall := os.IsNotExist(statErr)
 		s.Config.DatadogYAML.PrivateActionRunner.ActionsAllowlist = parActionsAllowlist(
