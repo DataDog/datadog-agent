@@ -155,6 +155,51 @@ func main() {
 	lenErrInt(42, "err")
 	lenErrStruct(condFields{I32: 1}, "err")
 
+	// Big array tests: verify index expressions only read the single element,
+	// not the entire array. These arrays are ~1MiB so copying them into the
+	// scratch buffer would fail.
+	var bigArr [131072]int64
+	bigArr[0] = 0xdeadbeef
+	bigArr[131071] = 0xcafebabe
+	bigArrayArg(bigArr)
+	bigArrayStructArg(&bigArrayStruct{tag: 42, data: bigArr})
+
+	// Nil pointer + index: called twice — once with a valid pointer, once nil.
+	// The non-nil call should produce a normal value; the nil call should
+	// trigger a nil-deref evaluation error but still emit an event.
+	indexNilPtrSlice(&lenFields{Items: []int{10, 20, 30}}, "match")
+	indexNilPtrSlice(nil, "nilptr")
+
+	// Index-then-getmember: index into array/slice of structs, then access field.
+	structSliceArg([]indexMemberStruct{
+		{Val: 100, Txt: "first"},
+		{Val: 200, Txt: "second"},
+	}, "idx-member")
+	structArrayArg([2]indexMemberStruct{
+		{Val: 300, Txt: "third"},
+		{Val: 400, Txt: "fourth"},
+	}, "idx-member")
+
+	// Index-then-deref-then-getmember: index into array/slice of pointers to
+	// structs, dereference the pointer, then access field.
+	ptrStructSliceArg([]*indexMemberStruct{
+		{Val: 500, Txt: "fifth"},
+		{Val: 600, Txt: "sixth"},
+	}, "idx-ptr-member")
+	ptrStructArrayArg([2]*indexMemberStruct{
+		{Val: 700, Txt: "seventh"},
+		{Val: 800, Txt: "eighth"},
+	}, "idx-ptr-member")
+
+	// Deep dereference chains: struct field is pointer-to-array-of-structs or
+	// pointer-to-array-of-pointers-to-structs.
+	elem1 := indexMemberStruct{Val: 900, Txt: "ninth"}
+	elem2 := indexMemberStruct{Val: 1000, Txt: "tenth"}
+	indexMemberWrapperArg(&indexMemberWrapper{
+		Arr:    &[2]indexMemberStruct{elem1, elem2},
+		PtrArr: &[2]*indexMemberStruct{&elem1, &elem2},
+	}, "wrapper")
+
 	// Generic function called with two different shape instantiations.
 	// int and string have different GC shapes, so the compiler emits two
 	// distinct shape functions (go.shape.int, go.shape.string). A single
@@ -162,6 +207,13 @@ func main() {
 	// shared throttling across shapes and runtime dictionary resolution.
 	genericIdentity(42)
 	genericIdentity("hello")
+
+	// Method value: taking a method value of an inlined method creates a
+	// trampoline (-fm) function. The inlined method only exists as an
+	// inlined subroutine inside the trampoline. We must still be able to
+	// probe it.
+	mv := (&methodValueReceiver{val: 42}).inlinedMethod
+	methodValueSink(mv)
 }
 
 //go:noinline
@@ -484,6 +536,16 @@ func lenErrStruct(x condFields, tag string) {
 	fmt.Println(x, tag)
 }
 
+// indexNilPtrSlice is a target for testing index expressions when the
+// pointer-to-struct is nil. When x is nil, x.Items[0] causes a nil-pointer
+// dereference in the eBPF expression evaluation chain. The expression should
+// fail gracefully with an evaluation error.
+//
+//go:noinline
+func indexNilPtrSlice(x *lenFields, tag string) {
+	fmt.Println("indexNilPtrSlice", x, tag)
+}
+
 type aStructNotUsedAsAnArgument struct {
 	a int
 }
@@ -507,6 +569,82 @@ func usesMapsOfMapsThatDoNotAppearAsArguments() map[byte]map[int]aStructNotUsedA
 	}
 }
 
+// bigArrayStruct wraps a large array behind a pointer for testing index
+// expressions that traverse pointer->struct->array.
+type bigArrayStruct struct {
+	tag  int
+	data [131072]int64
+}
+
+// bigArrayArg takes a large array by value. Index expressions must only
+// read the single element, not the entire ~1MiB array.
+//
+//go:noinline
+func bigArrayArg(s [131072]int64) {
+	fmt.Println(s[0], s[131071])
+}
+
+// bigArrayStructArg takes a pointer to a struct containing a large array.
+//
+//go:noinline
+func bigArrayStructArg(s *bigArrayStruct) {
+	fmt.Println(s.data[0], s.tag)
+}
+
+// indexMemberStruct is a small struct for testing index-then-getmember
+// expressions (e.g., slice[0].Val). The pad field prevents register splitting.
+type indexMemberStruct struct {
+	Val int32
+	Txt string
+	pad [3]int16
+}
+
+// indexMemberWrapper holds pointer-to-array fields for testing deep
+// dereference chains: ptr → array → struct and ptr → array → ptr → struct.
+type indexMemberWrapper struct {
+	Arr    *[2]indexMemberStruct
+	PtrArr *[2]*indexMemberStruct
+	pad    [3]int16
+}
+
+// structSliceArg takes a slice of structs for testing index-then-getmember.
+//
+//go:noinline
+func structSliceArg(s []indexMemberStruct, tag string) {
+	fmt.Println(s[0].Val, tag)
+}
+
+// structArrayArg takes an array of structs for testing index-then-getmember.
+//
+//go:noinline
+func structArrayArg(s [2]indexMemberStruct, tag string) {
+	fmt.Println(s[0].Val, tag)
+}
+
+// ptrStructSliceArg takes a slice of pointers to structs for testing
+// index-then-deref-then-getmember.
+//
+//go:noinline
+func ptrStructSliceArg(s []*indexMemberStruct, tag string) {
+	fmt.Println(s[0].Val, tag)
+}
+
+// ptrStructArrayArg takes an array of pointers to structs for testing
+// index-then-deref-then-getmember.
+//
+//go:noinline
+func ptrStructArrayArg(s [2]*indexMemberStruct, tag string) {
+	fmt.Println(s[0].Val, tag)
+}
+
+// indexMemberWrapperArg takes a pointer to a wrapper struct with
+// pointer-to-array fields for testing deep dereference + index + getmember.
+//
+//go:noinline
+func indexMemberWrapperArg(s *indexMemberWrapper, tag string) {
+	fmt.Println(s.Arr[0].Val, s.PtrArr[0].Val, tag)
+}
+
 // genericIdentity is a generic function called with different shape types
 // (int vs string) to exercise dictionary-based type resolution and shared
 // throttling across shape instantiations.
@@ -515,4 +653,24 @@ func usesMapsOfMapsThatDoNotAppearAsArguments() map[byte]map[int]aStructNotUsedA
 func genericIdentity[T any](x T) T {
 	fmt.Println(x)
 	return x
+}
+
+// methodValueReceiver is used to test probing inlined methods that are only
+// reachable through a method value trampoline (-fm wrapper). When Go creates
+// a method value (e.g. obj.Method), the compiler generates a trampoline
+// function. If the method is small enough to be inlined, the only concrete
+// instance lives inside the trampoline.
+type methodValueReceiver struct {
+	val int
+}
+
+// inlinedMethod is intentionally NOT marked //go:noinline so it will be
+// inlined into the trampoline wrapper.
+func (m *methodValueReceiver) inlinedMethod() int {
+	return m.val
+}
+
+//go:noinline
+func methodValueSink(f func() int) {
+	fmt.Println(f())
 }
