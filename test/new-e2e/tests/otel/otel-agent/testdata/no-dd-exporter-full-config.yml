@@ -75,6 +75,8 @@ extensions:
       site: datadoghq.com
     deployment_type: daemonset
     force_attempt_http2: true
+    gateway_destination: ""
+    gateway_service: ""
     hostname: ""
     installation_method: "" # TODO: change to "helm" after helm chart version bump
     http:
