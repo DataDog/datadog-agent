@@ -34,14 +34,14 @@ const (
 )
 
 // parHelmValuesTemplate configures the agent with PAR enabled.
-// The fakeintake URL is set via datadog.ddUrl (which maps to DD_DD_URL on all agent containers).
-// %s parameters: clusterName, fakeintakeURL, runnerURN, privateKeyB64, fakeintakeURL (repeated for PAR envDict)
+// Fakeintake URL wiring (DD_DD_URL, DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION) is handled
+// automatically by the e2e framework's configureFakeintake when fakeintake is present.
+// %s parameters: clusterName, runnerURN, privateKeyB64
 const parHelmValuesTemplate = `
 datadog:
   kubelet:
     tlsVerify: false
   clusterName: "%s"
-  ddUrl: "%s"
   privateActionRunner:
     enabled: true
     selfEnroll: false
@@ -52,8 +52,6 @@ agents:
   containers:
     privateActionRunner:
       envDict:
-        DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION: "true"
-        DD_DD_URL: "%s"
         DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST: "com.datadoghq.remoteaction.rshell.runCommand"
 `
 
@@ -133,18 +131,10 @@ func parK8sProvisioner(runnerURN, privateKeyB64 string) provisioners.Provisioner
 			}
 
 			// 5. Deploy Datadog agent via Helm with PAR enabled.
-			// DD_DD_URL in the PAR container is set dynamically to fakeintake's URL so that
-			// PAR's OPMS polling reaches fakeintake (not the real Datadog backend).
-			withParHelmValues := func(p *kubernetesagentparams.Params) error {
-				asset := pulumi.Sprintf(parHelmValuesTemplate, ctx.Stack(), fi.URL, runnerURN, privateKeyB64, fi.URL).
-					ApplyT(func(v string) (pulumi.Asset, error) {
-						return pulumi.NewStringAsset(v), nil
-					}).(pulumi.AssetOutput)
-				p.HelmValues = append(p.HelmValues, asset)
-				return nil
-			}
+			// DD_DD_URL and DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION for the PAR container are
+			// injected automatically by the e2e framework's configureFakeintake.
 			agent, err := helm.NewKubernetesAgent(&awsEnv, name, kubeProvider,
-				withParHelmValues,
+				kubernetesagentparams.WithHelmValues(fmt.Sprintf(parHelmValuesTemplate, ctx.Stack(), runnerURN, privateKeyB64)),
 				kubernetesagentparams.WithClusterName(kindCluster.ClusterName),
 				kubernetesagentparams.WithTags([]string{"stackid:" + ctx.Stack()}),
 				kubernetesagentparams.WithHelmChartVersion(minHelmChartVersion),
