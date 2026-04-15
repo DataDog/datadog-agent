@@ -20,6 +20,8 @@ powershell_script_signing:
     # documentation: https://github.com/DataDog/windows-code-signer
     - docker run --rm
       -v "$(Get-Location):c:\mnt"
+      -v "${CI_PROJECT_DIR}\.aws\credentials-by-job-id\${CI_JOB_ID}:C:\aws\credentials"
+      -e "AWS_SHARED_CREDENTIALS_FILE=C:\aws\credentials"
       -e AWS_NETWORKING=true
       -e CI
       -e IS_AWS_CONTAINER=true
