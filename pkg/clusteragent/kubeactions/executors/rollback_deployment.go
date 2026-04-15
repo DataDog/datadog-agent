@@ -216,15 +216,9 @@ func (r *RollbackDeploymentExecutor) Execute(ctx context.Context, action *kubeac
 	delete(currentDeployment.Spec.Template.Labels, appsv1.DefaultDeploymentUniqueLabelKey)
 	delete(replicaSetForRevision.Spec.Template.Labels, appsv1.DefaultDeploymentUniqueLabelKey)
 	if apiequality.Semantic.DeepEqual(&replicaSetForRevision.Spec.Template, &currentDeployment.Spec.Template) {
-		// User supplied a specific revision
-		msg := fmt.Sprintf("current template already matches revision %d", targetRevision)
-		if targetRevision == 0 {
-			// User fell back on default behavior
-			msg = fmt.Sprintf("current template already matches the previous revision %d", foundRevision)
-		}
 		return ExecutionResult{
 			Status:  StatusSuccess,
-			Message: msg,
+			Message: fmt.Sprintf("current template already matches the previous revision %d", foundRevision),
 		}
 	}
 
