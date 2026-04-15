@@ -142,7 +142,7 @@ func (h *RunCommandHandler) Run(
 		interp.StdIO(nil, stdoutWriter, &stderr),
 		interp.AllowedPaths(h.allowedPaths),
 		interp.ProcPath(resolveProcPath()),
-		interp.AllowedCommands(append(inputs.AllowedCommands, "sleep")),
+		interp.AllowedCommands(append(inputs.AllowedCommands, "rshell:sleep", "rshell:ls")),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create runner: %w", err)
