@@ -123,6 +123,27 @@ type PodAutoscalerInternal struct {
 	// verticalActionSuccessCount is the number of successful vertical actions
 	verticalActionSuccessCount uint
 
+	// inPlacePatchSuccessCount is the number of pods successfully patched in-place
+	inPlacePatchSuccessCount uint
+
+	// inPlacePatchErrorCount is the number of pods that failed in-place patching
+	inPlacePatchErrorCount uint
+
+	// inPlaceEvictionSuccessCount is the number of pods successfully evicted during in-place resize
+	inPlaceEvictionSuccessCount uint
+
+	// inPlaceEvictionErrorCount is the number of pods that failed eviction during in-place resize
+	inPlaceEvictionErrorCount uint
+
+	// inPlaceRolloutFallbackCount is the number of times in-place resize fell back to a rollout
+	inPlaceRolloutFallbackCount uint
+
+	// inPlacePDBBlockedCount is the number of times eviction was blocked by a PodDisruptionBudget
+	inPlacePDBBlockedCount uint
+
+	// inPlaceResizeCompletedCount is the number of times all pods in a resize cycle completed successfully
+	inPlaceResizeCompletedCount uint
+
 	// verticalLastLimitReason is the reason vertical scaling was limited by min/max constraints.
 	// When non-nil, it carries a ConditionError so that both Reason and Message are preserved.
 	verticalLastLimitReason error
@@ -694,6 +715,76 @@ func (p *PodAutoscalerInternal) VerticalActionSuccessCount() uint {
 // VerticalActionSuccessInc increment the number of vertical actions that triggered as success
 func (p *PodAutoscalerInternal) VerticalActionSuccessInc() {
 	p.verticalActionSuccessCount++
+}
+
+// InPlacePatchSuccessCount returns the number of pods successfully patched in-place
+func (p *PodAutoscalerInternal) InPlacePatchSuccessCount() uint {
+	return p.inPlacePatchSuccessCount
+}
+
+// InPlacePatchSuccessInc increments the in-place patch success counter
+func (p *PodAutoscalerInternal) InPlacePatchSuccessInc() {
+	p.inPlacePatchSuccessCount++
+}
+
+// InPlacePatchErrorCount returns the number of pods that failed in-place patching
+func (p *PodAutoscalerInternal) InPlacePatchErrorCount() uint {
+	return p.inPlacePatchErrorCount
+}
+
+// InPlacePatchErrorInc increments the in-place patch error counter
+func (p *PodAutoscalerInternal) InPlacePatchErrorInc() {
+	p.inPlacePatchErrorCount++
+}
+
+// InPlaceEvictionSuccessCount returns the number of pods successfully evicted during in-place resize
+func (p *PodAutoscalerInternal) InPlaceEvictionSuccessCount() uint {
+	return p.inPlaceEvictionSuccessCount
+}
+
+// InPlaceEvictionSuccessInc increments the in-place eviction success counter
+func (p *PodAutoscalerInternal) InPlaceEvictionSuccessInc() {
+	p.inPlaceEvictionSuccessCount++
+}
+
+// InPlaceEvictionErrorCount returns the number of pods that failed eviction during in-place resize
+func (p *PodAutoscalerInternal) InPlaceEvictionErrorCount() uint {
+	return p.inPlaceEvictionErrorCount
+}
+
+// InPlaceEvictionErrorInc increments the in-place eviction error counter
+func (p *PodAutoscalerInternal) InPlaceEvictionErrorInc() {
+	p.inPlaceEvictionErrorCount++
+}
+
+// InPlaceRolloutFallbackCount returns the number of times in-place resize fell back to a rollout
+func (p *PodAutoscalerInternal) InPlaceRolloutFallbackCount() uint {
+	return p.inPlaceRolloutFallbackCount
+}
+
+// InPlaceRolloutFallbackInc increments the rollout fallback counter
+func (p *PodAutoscalerInternal) InPlaceRolloutFallbackInc() {
+	p.inPlaceRolloutFallbackCount++
+}
+
+// InPlacePDBBlockedCount returns the number of times eviction was blocked by a PodDisruptionBudget
+func (p *PodAutoscalerInternal) InPlacePDBBlockedCount() uint {
+	return p.inPlacePDBBlockedCount
+}
+
+// InPlacePDBBlockedInc increments the PDB blocked counter
+func (p *PodAutoscalerInternal) InPlacePDBBlockedInc() {
+	p.inPlacePDBBlockedCount++
+}
+
+// InPlaceResizeCompletedCount returns the number of times all pods completed an in-place resize cycle
+func (p *PodAutoscalerInternal) InPlaceResizeCompletedCount() uint {
+	return p.inPlaceResizeCompletedCount
+}
+
+// InPlaceResizeCompletedInc increments the resize completed counter
+func (p *PodAutoscalerInternal) InPlaceResizeCompletedInc() {
+	p.inPlaceResizeCompletedCount++
 }
 
 // CurrentReplicas returns the current number of PODs for the targetRef

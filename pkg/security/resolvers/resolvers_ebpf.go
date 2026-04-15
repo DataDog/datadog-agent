@@ -123,6 +123,9 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 	}
 
 	if config.RuntimeSecurity.SBOMResolverEnabled {
+		if err := cgroupsResolver.RegisterListener(cgroup.CGroupCreated, sbomResolver.OnCGroupCreatedEvent); err != nil {
+			return nil, err
+		}
 		if err := cgroupsResolver.RegisterListener(cgroup.CGroupDeleted, sbomResolver.OnCGroupDeletedEvent); err != nil {
 			return nil, err
 		}
@@ -315,17 +318,6 @@ func (r *EBPFResolvers) snapshot() error {
 	r.NamespaceResolver.SyncCache()
 
 	for _, proc := range processes {
-		ppid, err := proc.Ppid()
-		if err != nil {
-			continue
-		}
-
-		pid := uint32(proc.Pid)
-
-		if process.IsKThread(uint32(ppid), pid) {
-			continue
-		}
-
 		// Sync the process cache
 		r.ProcessResolver.SyncCache(proc)
 	}
