@@ -709,7 +709,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 
 // IsRuntimeEnabled returns true if any feature is enabled. Has to be applied in config package too
 func (c *RuntimeSecurityConfig) IsRuntimeEnabled() bool {
-	return c.RuntimeEnabled || c.FIMEnabled
+	return c.RuntimeEnabled || c.FIMEnabled || c.SBOMResolverEnabled
 }
 
 // IsSysctlEventEnabled returns whether the sysctl event is enabled
