@@ -28,47 +28,51 @@ func TestGetCloudServiceType(t *testing.T) {
 }
 
 func TestDetectCloudProvider(t *testing.T) {
-	provider, services := detectCloudProvider()
-	assert.Equal(t, "", provider)
-	assert.Nil(t, services)
+	assert.Equal(t, "", detectCloudProvider())
 
 	t.Run("GCP via GOOGLE_CLOUD_PROJECT", func(t *testing.T) {
 		t.Setenv("GOOGLE_CLOUD_PROJECT", "my-project")
-		provider, services := detectCloudProvider()
-		assert.Equal(t, "GCP", provider)
-		assert.Equal(t, []string{"Cloud Run", "Cloud Run Jobs"}, services)
+		assert.Equal(t, "GCP", detectCloudProvider())
 	})
 
 	t.Run("GCP via GCLOUD_PROJECT", func(t *testing.T) {
 		t.Setenv("GCLOUD_PROJECT", "my-project")
-		provider, _ := detectCloudProvider()
-		assert.Equal(t, "GCP", provider)
+		assert.Equal(t, "GCP", detectCloudProvider())
 	})
 
 	t.Run("GCP via GCE_METADATA_HOST", func(t *testing.T) {
 		t.Setenv("GCE_METADATA_HOST", "169.254.169.254")
-		provider, _ := detectCloudProvider()
-		assert.Equal(t, "GCP", provider)
+		assert.Equal(t, "GCP", detectCloudProvider())
 	})
 
 	t.Run("Azure via IDENTITY_ENDPOINT", func(t *testing.T) {
 		t.Setenv("IDENTITY_ENDPOINT", "http://localhost")
-		provider, services := detectCloudProvider()
-		assert.Equal(t, "Azure", provider)
-		assert.Equal(t, []string{"Container Apps", "App Service"}, services)
+		assert.Equal(t, "Azure", detectCloudProvider())
 	})
 
 	t.Run("Azure via MSI_ENDPOINT", func(t *testing.T) {
 		t.Setenv("MSI_ENDPOINT", "http://localhost")
-		provider, _ := detectCloudProvider()
-		assert.Equal(t, "Azure", provider)
+		assert.Equal(t, "Azure", detectCloudProvider())
 	})
 
 	t.Run("Azure via AZURE_CLIENT_ID", func(t *testing.T) {
 		t.Setenv("AZURE_CLIENT_ID", "some-id")
-		provider, _ := detectCloudProvider()
-		assert.Equal(t, "Azure", provider)
+		assert.Equal(t, "Azure", detectCloudProvider())
 	})
+}
+
+func TestServiceChecksProviderCoverage(t *testing.T) {
+	// Every provider in providerEnvVars must have at least one serviceCheck entry
+	for provider := range providerEnvVars {
+		found := false
+		for _, sc := range serviceChecks {
+			if sc.provider == provider {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "provider %q has env var detection but no service checks", provider)
+	}
 }
 
 func TestGetCloudServiceTypeForCloudRunJob(t *testing.T) {
