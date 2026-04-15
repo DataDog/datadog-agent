@@ -79,6 +79,10 @@ bazel_dep(name = "rules_testing", version = "0.9.0", dev_dependency = True)
 git_override(
     module_name = "rules_go",
     commit = "4cb2eab3d1aec456573f0cefd8e8800e9c68ae7d",
+    patch_strip = 1,
+    patches = [
+        "//bazel/patches:rules_go-windows-symlink-workaround.patch",  # bazel-contrib/rules_go#3977
+    ],
     remote = "https://github.com/chouquette/rules_go.git",
 )
 
