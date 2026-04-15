@@ -25,14 +25,16 @@ import (
 const nanoToMillis = 1000000
 
 // batchEntry is a per-message sidecar used during batch tokenization.
-// It keeps msg, preprocessed content, and jsonContext aligned so that
+// It keeps msg, preprocessed content, and JSON context fields aligned so that
 // tokenization results can be correctly associated with each message
 // even when some messages are skipped (empty content).
 type batchEntry struct {
-	msg         *message.Message
-	content     string // preprocessed content (JSON extracted message, or raw string)
-	jsonContext []byte // from PreprocessJSON; nil if not JSON or json_as_raw=true
-	isRawJSON   bool   // true when patterns.json_as_raw=true and content is raw JSON — skip tokenization
+	msg               *message.Message
+	content           string
+	messageKey        string
+	jsonContextSchema string
+	jsonContextValues []string
+	isRawJSON         bool
 }
 
 func getTranslatorContent(msg *message.Message) []byte {
@@ -141,7 +143,9 @@ func (mt *MessageTranslator) Start(inputChan chan *message.Message, bufferSize i
 				entry.isRawJSON = true
 			} else if results := preprocessor.PreprocessJSON(content); results.Message != "" {
 				entry.content = results.Message
-				entry.jsonContext = results.JSONContext
+				entry.messageKey = results.MessageKey
+				entry.jsonContextSchema = results.JSONContextSchema
+				entry.jsonContextValues = results.JSONContextValues
 			} else {
 				entry.content = string(content)
 			}
@@ -229,7 +233,7 @@ func (mt *MessageTranslator) processBatch(batch []batchEntry, outputChan chan *m
 			log.Warnf("Failed to tokenize log message: %v", tokenResults[i].Err)
 			continue
 		}
-		mt.processPreTokenized(entry.msg, tokenResults[i].TokenList, entry.jsonContext, outputChan)
+		mt.processPreTokenized(entry.msg, tokenResults[i].TokenList, entry.messageKey, entry.jsonContextSchema, entry.jsonContextValues, outputChan)
 	}
 }
 
@@ -246,23 +250,26 @@ func (mt *MessageTranslator) processMessage(msg *message.Message, outputChan cha
 		mt.sendRawLog(outputChan, msg, string(content), ts, tagSet)
 		return
 	}
-	var jsonContext []byte
 	contentStr := string(content)
+	var messageKey, jsonContextSchema string
+	var jsonContextValues []string
 	if results := preprocessor.PreprocessJSON(content); results.Message != "" {
 		contentStr = results.Message
-		jsonContext = results.JSONContext
+		messageKey = results.MessageKey
+		jsonContextSchema = results.JSONContextSchema
+		jsonContextValues = results.JSONContextValues
 	}
 	tokenList, err := mt.tokenizer.Tokenize(contentStr)
 	if err != nil {
 		log.Warnf("Failed to tokenize log message: %v", err)
 		return
 	}
-	mt.processPreTokenized(msg, tokenList, jsonContext, outputChan)
+	mt.processPreTokenized(msg, tokenList, messageKey, jsonContextSchema, jsonContextValues, outputChan)
 }
 
 // processPreTokenized handles post-tokenization: clustering, eviction, datum construction, and sending.
 // Called by both processBatch (batch pipeline) and processMessage (single-message path).
-func (mt *MessageTranslator) processPreTokenized(msg *message.Message, tokenList *token.TokenList, jsonContext []byte, outputChan chan *message.StatefulMessage) {
+func (mt *MessageTranslator) processPreTokenized(msg *message.Message, tokenList *token.TokenList, messageKey string, jsonContextSchema string, jsonContextValues []string, outputChan chan *message.StatefulMessage) {
 	var patternDefineSent bool
 	var patternDefineParamCount uint32
 
@@ -322,6 +329,34 @@ func (mt *MessageTranslator) processPreTokenized(msg *message.Message, tokenList
 		mt.fillDynamicValue(&dvBacking[i], &typeBacking[i].intOneof, &typeBacking[i].dictOneof, &typeBacking[i].stringOneof, val)
 	}
 
+	var messageKeyDV *statefulpb.DynamicValue
+	if messageKey != "" {
+		encoded, mkDictID, mkIsNew := mt.encodeDynamicValue(messageKey)
+		messageKeyDV = encoded
+		if mkIsNew {
+			mt.sendDictEntryDefine(outputChan, msg, mkDictID, messageKey)
+		}
+	}
+
+	var jsonContextSchemaID uint64
+	var jsonContextValuesDV []*statefulpb.DynamicValue
+	if jsonContextSchema != "" {
+		var schemaIsNew bool
+		jsonContextSchemaID, schemaIsNew = mt.tagManager.AddString(jsonContextSchema)
+		if schemaIsNew {
+			mt.sendDictEntryDefine(outputChan, msg, jsonContextSchemaID, jsonContextSchema)
+		}
+
+		jsonContextValuesDV = make([]*statefulpb.DynamicValue, len(jsonContextValues))
+		for i, val := range jsonContextValues {
+			encoded, valDictID, valIsNew := mt.encodeDynamicValue(val)
+			jsonContextValuesDV[i] = encoded
+			if valIsNew {
+				mt.sendDictEntryDefine(outputChan, msg, valDictID, val)
+			}
+		}
+	}
+
 	// Build complete tag list and encode as TagSet
 	tagSet, allTagsString, dictID, isNew := mt.buildTagSet(msg)
 	if isNew {
@@ -330,7 +365,7 @@ func (mt *MessageTranslator) processPreTokenized(msg *message.Message, tokenList
 
 	// Send StructuredLog with all fields
 	tsMillis := ts.UnixNano() / nanoToMillis
-	mt.sendStructuredLog(outputChan, msg, tsMillis, patternID, dynamicValues, tagSet, jsonContext)
+	mt.sendStructuredLog(outputChan, msg, tsMillis, patternID, dynamicValues, tagSet, messageKeyDV, jsonContextSchemaID, jsonContextValuesDV)
 }
 
 // buildTagSet constructs the complete tag list for a message and encodes it as a TagSet.
@@ -489,8 +524,8 @@ func (mt *MessageTranslator) sendRawLog(outputChan chan *message.StatefulMessage
 }
 
 // sendStructuredLog creates and sends a StructuredLog datum
-func (mt *MessageTranslator) sendStructuredLog(outputChan chan *message.StatefulMessage, msg *message.Message, timestamp int64, patternID uint64, dynamicValues []*statefulpb.DynamicValue, tagSet *statefulpb.TagSet, jsonContext []byte) {
-	logDatum := buildStructuredLog(timestamp, patternID, dynamicValues, tagSet, msg.MessageMetadata.DualSendUUID, jsonContext)
+func (mt *MessageTranslator) sendStructuredLog(outputChan chan *message.StatefulMessage, msg *message.Message, timestamp int64, patternID uint64, dynamicValues []*statefulpb.DynamicValue, tagSet *statefulpb.TagSet, messageKey *statefulpb.DynamicValue, jsonContextSchemaID uint64, jsonContextValues []*statefulpb.DynamicValue) {
+	logDatum := buildStructuredLog(timestamp, patternID, dynamicValues, tagSet, msg.MessageMetadata.DualSendUUID, messageKey, jsonContextSchemaID, jsonContextValues)
 
 	tlmPipelinePatternLogsProcessed.Inc(mt.pipelineName)
 	tlmPipelinePatternLogsProcessedBytes.Add(float64(proto.Size(logDatum)), mt.pipelineName)
@@ -598,14 +633,16 @@ func (mt *MessageTranslator) fillDynamicValue(
 }
 
 // buildStructuredLog creates a Datum containing a StructuredLog
-func buildStructuredLog(timestamp int64, patternID uint64, dynamicValues []*statefulpb.DynamicValue, tagSet *statefulpb.TagSet, uuid string, jsonContext []byte) *statefulpb.Datum {
+func buildStructuredLog(timestamp int64, patternID uint64, dynamicValues []*statefulpb.DynamicValue, tagSet *statefulpb.TagSet, uuid string, messageKey *statefulpb.DynamicValue, jsonContextSchemaID uint64, jsonContextValues []*statefulpb.DynamicValue) *statefulpb.Datum {
 	log := &statefulpb.Log{
 		Timestamp: timestamp,
 		Content: &statefulpb.Log_Structured{
 			Structured: &statefulpb.StructuredLog{
-				PatternId:     patternID,
-				DynamicValues: dynamicValues,
-				JsonContext:   jsonContext,
+				PatternId:           patternID,
+				DynamicValues:       dynamicValues,
+				JsonMessageKey:      messageKey,
+				JsonContextSchemaId: jsonContextSchemaID,
+				JsonContextValues:   jsonContextValues,
 			},
 		},
 		Tags: tagSet,

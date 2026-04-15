@@ -40,41 +40,52 @@ func TestPreprocessJSON_NotJSON(t *testing.T) {
 			result := PreprocessJSON(tt.content)
 			assert.False(t, result.IsJSON)
 			assert.Empty(t, result.Message)
-			assert.Nil(t, result.JSONContext)
+			assert.Empty(t, result.JSONContextSchema)
+			assert.Nil(t, result.JSONContextValues)
 		})
 	}
 }
 
 func TestPreprocessJSON_TopLevelMessage(t *testing.T) {
 	tests := []struct {
-		name        string
-		input       string
-		expectedMsg string
-		expectedCtx map[string]interface{}
+		name           string
+		input          string
+		expectedMsg    string
+		expectedKey    string
+		expectedSchema string
+		expectedValues []string
 	}{
 		{
-			name:        "message field",
-			input:       `{"message":"Processing order","level":"info","service":"api"}`,
-			expectedMsg: "Processing order",
-			expectedCtx: map[string]interface{}{"level": "info", "service": "api"},
+			name:           "message field",
+			input:          `{"message":"Processing order","level":"info","service":"api"}`,
+			expectedMsg:    "Processing order",
+			expectedKey:    "message",
+			expectedSchema: "level,service",
+			expectedValues: []string{"info", "api"},
 		},
 		{
-			name:        "msg field",
-			input:       `{"msg":"User login","timestamp":1234567890}`,
-			expectedMsg: "User login",
-			expectedCtx: map[string]interface{}{"timestamp": float64(1234567890)},
+			name:           "msg field",
+			input:          `{"msg":"User login","timestamp":1234567890}`,
+			expectedMsg:    "User login",
+			expectedKey:    "msg",
+			expectedSchema: "timestamp",
+			expectedValues: []string{"1.23456789e+09"},
 		},
 		{
-			name:        "log field",
-			input:       `{"log":"Container started","container_id":"abc123"}`,
-			expectedMsg: "Container started",
-			expectedCtx: map[string]interface{}{"container_id": "abc123"},
+			name:           "log field",
+			input:          `{"log":"Container started","container_id":"abc123"}`,
+			expectedMsg:    "Container started",
+			expectedKey:    "log",
+			expectedSchema: "container_id",
+			expectedValues: []string{"abc123"},
 		},
 		{
-			name:        "text field",
-			input:       `{"text":"System event","severity":"warning"}`,
-			expectedMsg: "System event",
-			expectedCtx: map[string]interface{}{"severity": "warning"},
+			name:           "text field",
+			input:          `{"text":"System event","severity":"warning"}`,
+			expectedMsg:    "System event",
+			expectedKey:    "text",
+			expectedSchema: "severity",
+			expectedValues: []string{"warning"},
 		},
 	}
 
@@ -83,37 +94,37 @@ func TestPreprocessJSON_TopLevelMessage(t *testing.T) {
 			result := PreprocessJSON([]byte(tt.input))
 			assert.True(t, result.IsJSON)
 			assert.Equal(t, tt.expectedMsg, result.Message)
-			assert.NotNil(t, result.JSONContext)
-
-			// Verify json_context contains expected fields
-			var ctx map[string]interface{}
-			err := json.Unmarshal(result.JSONContext, &ctx)
-			require.NoError(t, err)
-			assert.Equal(t, tt.expectedCtx, ctx)
+			assert.Equal(t, tt.expectedKey, result.MessageKey)
+			assert.Equal(t, tt.expectedSchema, result.JSONContextSchema)
+			assert.Equal(t, tt.expectedValues, result.JSONContextValues)
 		})
 	}
 }
 
 func TestPreprocessJSON_TopLevelKeys(t *testing.T) {
 	tests := []struct {
-		name        string
-		input       string
-		expectedMsg string
+		name           string
+		input          string
+		expectedMsg    string
+		expectedSchema string
 	}{
 		{
-			name:        "Kubernetes/Docker log field",
-			input:       `{"log":"Pod started\n","stream":"stdout","time":"2024-01-01"}`,
-			expectedMsg: "Pod started\n",
+			name:           "Kubernetes/Docker log field",
+			input:          `{"log":"Pod started\n","stream":"stdout","time":"2024-01-01"}`,
+			expectedMsg:    "Pod started\n",
+			expectedSchema: "stream,time",
 		},
 		{
-			name:        "Standard message field",
-			input:       `{"message":"Container log","level":"info"}`,
-			expectedMsg: "Container log",
+			name:           "Standard message field",
+			input:          `{"message":"Container log","level":"info"}`,
+			expectedMsg:    "Container log",
+			expectedSchema: "level",
 		},
 		{
-			name:        "msg field (common in Go logs)",
-			input:       `{"msg":"Service started","service":"api"}`,
-			expectedMsg: "Service started",
+			name:           "msg field (common in Go logs)",
+			input:          `{"msg":"Service started","service":"api"}`,
+			expectedMsg:    "Service started",
+			expectedSchema: "service",
 		},
 	}
 
@@ -122,31 +133,36 @@ func TestPreprocessJSON_TopLevelKeys(t *testing.T) {
 			result := PreprocessJSON([]byte(tt.input))
 			assert.True(t, result.IsJSON)
 			assert.Equal(t, tt.expectedMsg, result.Message)
-			assert.NotNil(t, result.JSONContext)
+			assert.Equal(t, tt.expectedSchema, result.JSONContextSchema)
+			assert.NotEmpty(t, result.JSONContextValues)
 		})
 	}
 }
 
 func TestPreprocessJSON_GenericNestedPaths(t *testing.T) {
 	tests := []struct {
-		name        string
-		input       string
-		expectedMsg string
+		name           string
+		input          string
+		expectedMsg    string
+		expectedSchema string
 	}{
 		{
-			name:        "data.message",
-			input:       `{"data":{"message":"Nested message","id":123}}`,
-			expectedMsg: "Nested message",
+			name:           "data.message",
+			input:          `{"data":{"message":"Nested message","id":123}}`,
+			expectedMsg:    "Nested message",
+			expectedSchema: "data",
 		},
 		{
-			name:        "event.message",
-			input:       `{"event":{"message":"Event occurred","type":"alert"}}`,
-			expectedMsg: "Event occurred",
+			name:           "event.message",
+			input:          `{"event":{"message":"Event occurred","type":"alert"}}`,
+			expectedMsg:    "Event occurred",
+			expectedSchema: "event",
 		},
 		{
-			name:        "payload.message",
-			input:       `{"payload":{"message":"Payload data","size":1024}}`,
-			expectedMsg: "Payload data",
+			name:           "payload.message",
+			input:          `{"payload":{"message":"Payload data","size":1024}}`,
+			expectedMsg:    "Payload data",
+			expectedSchema: "payload",
 		},
 	}
 
@@ -155,7 +171,8 @@ func TestPreprocessJSON_GenericNestedPaths(t *testing.T) {
 			result := PreprocessJSON([]byte(tt.input))
 			assert.True(t, result.IsJSON)
 			assert.Equal(t, tt.expectedMsg, result.Message)
-			assert.NotNil(t, result.JSONContext)
+			assert.Equal(t, tt.expectedSchema, result.JSONContextSchema)
+			assert.NotEmpty(t, result.JSONContextValues)
 		})
 	}
 }
@@ -182,10 +199,10 @@ func TestPreprocessJSON_NoMessageFound(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := PreprocessJSON([]byte(tt.input))
-			// Fail-fast: if no message found, treat as plain text
 			assert.False(t, result.IsJSON)
 			assert.Empty(t, result.Message)
-			assert.Nil(t, result.JSONContext)
+			assert.Empty(t, result.JSONContextSchema)
+			assert.Nil(t, result.JSONContextValues)
 		})
 	}
 }
@@ -196,19 +213,11 @@ func TestPreprocessJSON_OrderedJSONContext(t *testing.T) {
 
 	result := PreprocessJSON([]byte(input))
 	require.True(t, result.IsJSON)
-	require.NotNil(t, result.JSONContext)
-
-	// Parse and verify keys are in sorted order
-	var ctx map[string]interface{}
-	err := json.Unmarshal(result.JSONContext, &ctx)
-	require.NoError(t, err)
-
-	// Re-marshal to check ordering
-	expected := `{"apple":"a","banana":"b","zebra":"z"}`
-	assert.JSONEq(t, expected, string(result.JSONContext))
+	assert.Equal(t, "apple,banana,zebra", result.JSONContextSchema)
+	assert.Equal(t, []string{"a", "b", "z"}, result.JSONContextValues)
 }
 
-func TestPreprocessJSON_NestedObjectsOrdered(t *testing.T) {
+func TestPreprocessJSON_NestedObjectsAsValues(t *testing.T) {
 	input := `{
 		"message":"test",
 		"nested": {
@@ -220,30 +229,24 @@ func TestPreprocessJSON_NestedObjectsOrdered(t *testing.T) {
 
 	result := PreprocessJSON([]byte(input))
 	require.True(t, result.IsJSON)
-	require.NotNil(t, result.JSONContext)
-
-	var ctx map[string]interface{}
-	err := json.Unmarshal(result.JSONContext, &ctx)
-	require.NoError(t, err)
-
-	// Verify nested map is also ordered
-	nested := ctx["nested"].(map[string]interface{})
-	assert.Equal(t, "a", nested["apple"])
-	assert.Equal(t, "z", nested["zebra"])
+	assert.Equal(t, "array,nested", result.JSONContextSchema)
+	require.Len(t, result.JSONContextValues, 2)
+	assert.Equal(t, "[1,2,3]", result.JSONContextValues[0])
+	assert.Equal(t, `{"apple":"a","zebra":"z"}`, result.JSONContextValues[1])
 }
 
 func TestPreprocessJSON_EmptyContextAfterExtraction(t *testing.T) {
-	// If only message field exists, json_context should be nil
 	input := `{"message":"only message here"}`
 
 	result := PreprocessJSON([]byte(input))
 	assert.True(t, result.IsJSON)
 	assert.Equal(t, "only message here", result.Message)
-	assert.Nil(t, result.JSONContext) // No remaining fields
+	assert.Equal(t, "message", result.MessageKey)
+	assert.Empty(t, result.JSONContextSchema)
+	assert.Nil(t, result.JSONContextValues)
 }
 
 func TestPreprocessJSON_ComplexRealWorld(t *testing.T) {
-	// Real-world example from the CSV analysis
 	input := `{
 		"level":"info",
 		"msg":"Processing payment",
@@ -257,18 +260,15 @@ func TestPreprocessJSON_ComplexRealWorld(t *testing.T) {
 	result := PreprocessJSON([]byte(input))
 	require.True(t, result.IsJSON)
 	assert.Equal(t, "Processing payment", result.Message)
-	require.NotNil(t, result.JSONContext)
-
-	var ctx map[string]interface{}
-	err := json.Unmarshal(result.JSONContext, &ctx)
-	require.NoError(t, err)
-
-	// Verify all non-message fields are preserved
-	assert.Equal(t, "info", ctx["level"])
-	assert.Equal(t, "payment-api", ctx["service"])
-	assert.Equal(t, float64(99.99), ctx["amount"])
-	assert.Equal(t, "USD", ctx["currency"])
-	assert.NotContains(t, ctx, "msg") // Message field removed
+	assert.Equal(t, "msg", result.MessageKey)
+	assert.Equal(t, "amount,currency,level,service,timestamp,user_id", result.JSONContextSchema)
+	require.Len(t, result.JSONContextValues, 6)
+	assert.Equal(t, "99.99", result.JSONContextValues[0])
+	assert.Equal(t, "USD", result.JSONContextValues[1])
+	assert.Equal(t, "info", result.JSONContextValues[2])
+	assert.Equal(t, "payment-api", result.JSONContextValues[3])
+	assert.Equal(t, "2024-01-01T12:00:00Z", result.JSONContextValues[4])
+	assert.Equal(t, "user123", result.JSONContextValues[5])
 }
 
 func TestGetValueByPath(t *testing.T) {
@@ -344,29 +344,28 @@ func TestRemoveFieldByPath(t *testing.T) {
 	}
 }
 
-func TestMarshalJSONDeterministicOrdering(t *testing.T) {
+func TestExtractSchemaAndValues(t *testing.T) {
 	data := map[string]interface{}{
 		"z": "last",
 		"a": "first",
 		"m": "middle",
 	}
 
-	result, err := json.Marshal(data)
-	require.NoError(t, err)
-
-	// Keys should be in sorted order
-	expected := `{"a":"first","m":"middle","z":"last"}`
-	assert.JSONEq(t, expected, string(result))
+	schema, values := extractSchemaAndValues(data)
+	assert.Equal(t, "a,m,z", schema)
+	assert.Equal(t, []string{"first", "middle", "last"}, values)
 }
 
-func TestMarshalJSON_EmptyContextIsNil(t *testing.T) {
-	data := map[string]interface{}{}
-	// We intentionally avoid marshalling empty maps for json_context to save bytes.
-	if len(data) == 0 {
-		var result []byte
-		assert.Nil(t, result)
-		return
+func TestExtractSchemaAndValues_MixedTypes(t *testing.T) {
+	data := map[string]interface{}{
+		"count":  float64(42),
+		"flag":   true,
+		"name":   "test",
+		"nested": map[string]interface{}{"key": "val"},
+		"empty":  nil,
 	}
 
-	t.Fatal("unexpected non-empty map")
+	schema, values := extractSchemaAndValues(data)
+	assert.Equal(t, "count,empty,flag,name,nested", schema)
+	assert.Equal(t, []string{"42", "", "true", "test", `{"key":"val"}`}, values)
 }
