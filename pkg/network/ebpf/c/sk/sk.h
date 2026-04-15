@@ -125,31 +125,35 @@ static __always_inline int read_conn_tuple_sk(conn_tuple_t* t, struct sock* sk, 
     return err ? 0 : 1;
 }
 
+static __always_inline bool is_tcp_family_enabled(const struct sock *sk) {
+    switch (sk->sk_family) {
+    case AF_INET6:
+         return is_tcpv6_enabled();
+    case AF_INET:
+         return is_tcpv4_enabled();
+    default:
+         return false;
+    }
+}
+
+static __always_inline bool is_udp_family_enabled(const struct sock *sk) {
+    switch (sk->sk_family) {
+    case AF_INET6:
+         return is_udpv6_enabled();
+    case AF_INET:
+         return is_udpv4_enabled();
+    default:
+         return false;
+    }
+}
+
 static __always_inline bool is_protocol_family_enabled(const struct sock *sk) {
     if (sk->sk_protocol == IPPROTO_TCP || sk->sk_protocol == IPPROTO_MPTCP) {
-        switch (sk->sk_family) {
-        case AF_INET6:
-            if (is_tcpv6_enabled()) return true;
-            break;
-        case AF_INET:
-            if (is_tcpv4_enabled()) return true;
-            break;
-        default:
-            return false;
-        }
+        return is_tcp_family_enabled(sk);
     } else if (sk->sk_protocol == IPPROTO_UDP) {
-         switch (sk->sk_family) {
-         case AF_INET6:
-             if (is_udpv6_enabled()) return true;
-             break;
-         case AF_INET:
-             if (is_udpv4_enabled()) return true;
-             break;
-         default:
-             return false;
-         }
-     }
-     return false;
+        return is_udp_family_enabled(sk);
+    }
+    return false;
 }
 
 __maybe_unused static __always_inline __u64 get_ringbuf_flags(size_t data_size) {
