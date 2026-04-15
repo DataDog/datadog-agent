@@ -124,21 +124,22 @@ cleanup_per_user_installations() {
 
             # Verify: plists must be gone AND services must no longer be registered.
             # launchctl bootout is asynchronous — poll until the services are
-            # fully unregistered (0.5s intervals, 10s max) before declaring failure.
+            # fully unregistered (1s intervals, 10s max) before declaring failure.
             if [ -f "$agent_plist" ] || [ -f "$gui_plist" ]; then
                 echo "ERROR: Failed to remove per-user plists for user '$username'"
                 failed=true
             else
                 local attempts=0
-                while [ $attempts -lt 20 ]; do  # 20 * 0.5s = 10 seconds
+                while [ $attempts -lt 10 ]; do  # 10 * 1s = 10 seconds
                     if ! launchctl print "gui/$uid/com.datadoghq.agent" >/dev/null 2>&1 &&
                        ! launchctl print "gui/$uid/com.datadoghq.gui" >/dev/null 2>&1; then
                         break
                     fi
-                    sleep 0.5
+                    sleep 1
                     attempts=$((attempts + 1))
                 done
-                if [ $attempts -lt 20 ]; then
+                if ! launchctl print "gui/$uid/com.datadoghq.agent" >/dev/null 2>&1 &&
+                   ! launchctl print "gui/$uid/com.datadoghq.gui" >/dev/null 2>&1; then
                     echo "Cleaned up per-user installation for user '$username'"
                 else
                     launchctl print "gui/$uid/com.datadoghq.agent" >/dev/null 2>&1 &&
