@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2026-present Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package extension
 
@@ -18,47 +18,41 @@ import (
 	pkgversion "github.com/DataDog/datadog-agent/pkg/version"
 )
 
-// TestResolveInstallerBinPath verifies that resolveInstallerBinPath finds the
-// installer binary relative to the agent executable, and returns a clear error
-// when the installer binary does not exist.
-func TestResolveInstallerBinPath(t *testing.T) {
+// TestInstallerBinFromAgentExe verifies that installerBinFromAgentExe resolves
+// the correct platform-specific installer path and returns a clear error when
+// the binary does not exist.
+func TestInstallerBinFromAgentExe(t *testing.T) {
 	// Build a temporary directory tree that mirrors the real on-disk layout:
-	//   <root>/bin/agent/agent   (fake agent exe)
-	//   <root>/embedded/bin/installer[.exe]
+	//   Linux/macOS: <root>/bin/agent/agent + <root>/embedded/bin/installer
+	//   Windows:     <root>/bin/agent/agent.exe + <root>/datadog-installer.exe
 	root := t.TempDir()
 
 	agentDir := filepath.Join(root, "bin", "agent")
 	require.NoError(t, os.MkdirAll(agentDir, 0755))
 
-	embeddedBinDir := filepath.Join(root, "embedded", "bin")
-	require.NoError(t, os.MkdirAll(embeddedBinDir, 0755))
-
-	installerName := "installer"
+	var installerPath string
 	if runtime.GOOS == "windows" {
-		installerName = "installer.exe"
+		installerPath = filepath.Join(root, "datadog-installer.exe")
+	} else {
+		embeddedBinDir := filepath.Join(root, "embedded", "bin")
+		require.NoError(t, os.MkdirAll(embeddedBinDir, 0755))
+		installerPath = filepath.Join(embeddedBinDir, "installer")
 	}
-	installerPath := filepath.Join(embeddedBinDir, installerName)
 	require.NoError(t, os.WriteFile(installerPath, []byte("fake"), 0755))
 
+	agentExe := filepath.Join(agentDir, "agent")
+
 	t.Run("found", func(t *testing.T) {
-		agentExe := filepath.Join(agentDir, "agent")
-		got := filepath.Clean(filepath.Join(
-			filepath.Dir(agentExe), "..", "..", "embedded", "bin", installerName,
-		))
+		got, err := installerBinFromAgentExe(agentExe)
+		require.NoError(t, err)
 		assert.Equal(t, installerPath, got)
-		_, err := os.Stat(got)
-		assert.NoError(t, err)
 	})
 
 	t.Run("not found", func(t *testing.T) {
 		require.NoError(t, os.Remove(installerPath))
-
-		agentExe := filepath.Join(agentDir, "agent")
-		candidate := filepath.Clean(filepath.Join(
-			filepath.Dir(agentExe), "..", "..", "embedded", "bin", installerName,
-		))
-		_, err := os.Stat(candidate)
-		assert.True(t, os.IsNotExist(err), "expected not-found error, got: %v", err)
+		_, err := installerBinFromAgentExe(agentExe)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "installer binary not found")
 	})
 }
 

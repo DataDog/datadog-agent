@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2026-present Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // Package extension implements 'agent extension'.
 package extension
@@ -137,13 +137,6 @@ func newInstallerExec() (*exec.InstallerExec, error) {
 }
 
 // resolveInstallerBinPath finds the installer binary co-located with the agent.
-// The agent binary sits at <root>/bin/agent/agent; the installer lives at
-// <root>/embedded/bin/installer (Linux/macOS) or <root>/embedded/bin/installer.exe
-// (Windows), where <root> is two directories up from the agent binary.
-//
-// This layout holds for both OCI packages
-// (/opt/datadog-packages/datadog-agent/<version>/) and deb/rpm installs
-// (/opt/datadog-agent/).
 func resolveInstallerBinPath() (string, error) {
 	agentExe, err := exec.GetExecutable()
 	if err != nil {
@@ -153,16 +146,29 @@ func resolveInstallerBinPath() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("could not resolve agent executable path: %w", err)
 	}
+	return installerBinFromAgentExe(agentExe)
+}
 
-	// agentExe is e.g. /opt/datadog-packages/datadog-agent/stable/bin/agent/agent
-	// installerBin is  /opt/datadog-packages/datadog-agent/stable/embedded/bin/installer
-	installerName := "installer"
+// installerBinFromAgentExe computes and verifies the installer binary path from
+// the resolved agent executable path.
+//
+// The agent binary sits at <root>/bin/agent/agent[.exe], where <root> is two
+// directories up. Installer locations differ by OS:
+//
+//   - Linux/macOS: <root>/embedded/bin/installer
+//   - Windows:     <root>/datadog-installer.exe
+//
+// This layout holds for both OCI packages (/opt/datadog-packages/datadog-agent/<version>/)
+// and deb/rpm installs (/opt/datadog-agent/).
+func installerBinFromAgentExe(agentExe string) (string, error) {
+	root := filepath.Clean(filepath.Join(filepath.Dir(agentExe), "..", ".."))
+
+	var installerBin string
 	if runtime.GOOS == "windows" {
-		installerName = "installer.exe"
+		installerBin = filepath.Join(root, "datadog-installer.exe")
+	} else {
+		installerBin = filepath.Join(root, "embedded", "bin", "installer")
 	}
-	installerBin := filepath.Clean(filepath.Join(
-		filepath.Dir(agentExe), "..", "..", "embedded", "bin", installerName,
-	))
 
 	if _, err := os.Stat(installerBin); err != nil {
 		return "", fmt.Errorf(
