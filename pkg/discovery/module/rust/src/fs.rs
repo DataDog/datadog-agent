@@ -28,8 +28,6 @@ pub struct SubDirFs {
 }
 
 const MAX_PARSE_FILE_SIZE: u64 = 1024 * 1024; // 1 MiB
-#[cfg(feature = "java-archives")]
-const MAX_ZIP_CENTRAL_DIRECTORY_ENTRIES: u64 = 50_000;
 
 /// fixPath ensures that the specified path is stripped of the leading slash
 /// (if any) so that it can be passed to cap_std functions. The cap_std
@@ -109,140 +107,60 @@ impl UnverifiedZipArchive {
         })
     }
 
-    fn validate_entries_count(expected: u64, actual: u64) -> io::Result<()> {
-        if expected == actual {
-            return Ok(());
-        }
-
-        // rawzip leaves this validation to the caller. We fail closed if the
-        // central directory iteration stops before the archive's declared count.
-        Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            format!(
-                "ZIP central directory entry count mismatch: expected {expected}, iterated {actual}"
-            ),
-        ))
-    }
-
-    fn validate_entries_hint(expected: u64) -> io::Result<()> {
-        if expected <= MAX_ZIP_CENTRAL_DIRECTORY_ENTRIES {
-            return Ok(());
-        }
-
-        Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            format!(
-                "ZIP central directory has too many entries: {expected} (max {MAX_ZIP_CENTRAL_DIRECTORY_ENTRIES})"
-            ),
-        ))
-    }
-
-    fn count_entry(actual: &mut u64) -> io::Result<()> {
-        *actual += 1;
-        if *actual <= MAX_ZIP_CENTRAL_DIRECTORY_ENTRIES {
-            return Ok(());
-        }
-
-        Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            format!(
-                "ZIP central directory has too many entries: {} (max {MAX_ZIP_CENTRAL_DIRECTORY_ENTRIES})",
-                *actual
-            ),
-        ))
-    }
-
-    /// Scans the full central directory under the archive-wide policy:
-    /// validate the declared entry count, cap the amount of work we are
-    /// willing to do, and only then let callers layer their own matching
-    /// behavior on top of each entry.
-    fn scan_entries<F>(&mut self, mut visit: F) -> io::Result<()>
-    where
-        F: FnMut(rawzip::ZipFileHeaderRecord<'_>) -> io::Result<()>,
-    {
-        let expected_entries = self.archive.entries_hint();
-        Self::validate_entries_hint(expected_entries)?;
-
-        let mut actual_entries = 0;
-        let mut entries = self.archive.entries(&mut self.buffer);
-        while let Some(entry) = entries.next_entry().map_err(rawzip_error_to_io_error)? {
-            Self::count_entry(&mut actual_entries)?;
-            visit(entry)?;
-        }
-
-        Self::validate_entries_count(expected_entries, actual_entries)
-    }
-
-    /// Returns whether any entry name matches the predicate after validating
-    /// that the central directory iterated the declared number of entries.
+    /// Returns whether any entry name matches the predicate, stopping at the
+    /// first match.
     pub fn any_entry_name<F>(&mut self, mut predicate: F) -> io::Result<bool>
     where
         F: FnMut(&str) -> bool,
     {
-        let mut found = false;
-        self.scan_entries(|entry| {
+        let mut entries = self.archive.entries(&mut self.buffer);
+        while let Some(entry) = entries.next_entry().map_err(rawzip_error_to_io_error)? {
             if let Some(name) = Self::archive_entry_name(&entry)
                 && predicate(&name)
             {
-                // Keep scanning even after the first match so we can still
-                // validate the declared entry count afterward.
-                found = true;
+                return Ok(true);
             }
-            Ok(())
-        })?;
-        Ok(found)
+        }
+
+        Ok(false)
     }
 
-    /// Reads the contents of a single exact-name entry after rejecting
-    /// duplicate path matches and validating the central directory entry count.
+    /// Reads the contents of the first exact-name entry found in archive order.
     pub fn read_file_to_vec(&mut self, name: &str, max_size: Option<u64>) -> io::Result<Vec<u8>> {
-        let mut matching = None;
+        let mut entries = self.archive.entries(&mut self.buffer);
+        while let Some(entry) = entries.next_entry().map_err(rawzip_error_to_io_error)? {
+            let Some((wayfinder, size_hint, compression_method)) =
+                (|| {
+                    let entry_name = Self::archive_entry_name(&entry)?;
+                    if entry_name != name {
+                        return None;
+                    }
 
-        self.scan_entries(|entry| {
-            let Some(entry_name) = Self::archive_entry_name(&entry) else {
-                return Ok(());
+                    Some((
+                        entry.wayfinder(),
+                        entry.uncompressed_size_hint(),
+                        entry.compression_method(),
+                    ))
+                })()
+            else {
+                continue;
             };
 
-            if entry_name != name {
-                return Ok(());
-            }
+            let file = self.unverified_file(wayfinder, size_hint, compression_method)?;
+            let mut reader = file.verify(max_size)?;
+            let mut contents = Vec::new();
+            reader.read_to_end(&mut contents)?;
+            return Ok(contents);
+        }
 
-            // Exact-name lookups scan the full central directory so we can
-            // reject duplicate entries with the same path.
-            if matching.is_some() {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    format!("duplicate ZIP entry: {name}"),
-                ));
-            }
-
-            matching = Some((
-                entry.wayfinder(),
-                entry_name,
-                entry.uncompressed_size_hint(),
-                entry.compression_method(),
-            ));
-
-            Ok(())
-        })?;
-
-        let Some((wayfinder, _entry_name, size_hint, compression_method)) = matching else {
-            return Err(io::Error::new(
-                io::ErrorKind::NotFound,
-                format!("missing ZIP entry: {name}"),
-            ));
-        };
-
-        let file = self.unverified_file(wayfinder, size_hint, compression_method)?;
-        let mut reader = file.verify(max_size)?;
-        let mut contents = Vec::new();
-        reader.read_to_end(&mut contents)?;
-        Ok(contents)
+        Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            format!("missing ZIP entry: {name}"),
+        ))
     }
 
-    /// Scans entries whose names match the predicate and returns the first
-    /// mapped value produced by a readable entry. Unreadable matching entries
-    /// are skipped so later candidates can still be considered.
+    /// Scans entries in archive order and returns the first mapped value
+    /// produced by a readable matching entry.
     pub fn find_map_file_contents<F, G, T>(
         &mut self,
         mut predicate: F,
@@ -253,28 +171,31 @@ impl UnverifiedZipArchive {
         F: FnMut(&str) -> bool,
         G: FnMut(&str, Vec<u8>) -> Option<T>,
     {
+        let mut entries = self.archive.entries(&mut self.buffer);
         let mut matching = Vec::new();
+        while let Some(entry) = entries.next_entry().map_err(rawzip_error_to_io_error)? {
+            let Some((wayfinder, name, size_hint, compression_method)) =
+                (|| {
+                    let name = Self::archive_entry_name(&entry)?;
+                    if !predicate(&name) {
+                        return None;
+                    }
 
-        self.scan_entries(|entry| {
-            let Some(name) = Self::archive_entry_name(&entry) else {
-                return Ok(());
+                    Some((
+                        entry.wayfinder(),
+                        name,
+                        entry.uncompressed_size_hint(),
+                        entry.compression_method(),
+                    ))
+                })()
+            else {
+                continue;
             };
 
-            if predicate(&name) {
-                matching.push((
-                    entry.wayfinder(),
-                    name,
-                    entry.uncompressed_size_hint(),
-                    entry.compression_method(),
-                ));
-            }
-            Ok(())
-        })?;
+            matching.push((wayfinder, name, size_hint, compression_method));
+        }
 
         for (wayfinder, name, size_hint, compression_method) in matching {
-            // Spring-style scans want the first matching file that yields a
-            // usable value, not the first matching file name. If one matching
-            // entry is unreadable, keep going and let later candidates win.
             let file = match self.unverified_file(wayfinder, size_hint, compression_method) {
                 Ok(file) => file,
                 Err(_) => continue,
@@ -812,68 +733,70 @@ mod tests {
 
     #[test]
     #[cfg(feature = "java-archives")]
-    fn test_unverified_zip_archive_rejects_duplicate_entries() {
-        let mut buf = Vec::new();
-        {
-            let mut writer = zip::ZipWriter::new(std::io::Cursor::new(&mut buf));
-            let options: zip::write::FileOptions<()> = zip::write::FileOptions::default()
-                .compression_method(zip::CompressionMethod::Stored);
+    fn test_unverified_zip_archive_any_entry_name_stops_on_first_match() {
+        let mut archive = create_test_archive(create_zip_with_files(vec![
+            ("match.txt", "matched"),
+            ("later.txt", "later"),
+        ]));
 
-            writer.start_file("first.txt", options).unwrap();
-            writer.write_all(b"first").unwrap();
-            writer.start_file("other.txt", options).unwrap();
-            writer.write_all(b"second").unwrap();
-            writer.finish().unwrap();
-        }
-
-        let mut replacements = 0;
-        for idx in 0..=buf.len() - "other.txt".len() {
-            if &buf[idx..idx + "other.txt".len()] == b"other.txt" {
-                buf[idx..idx + "first.txt".len()].copy_from_slice(b"first.txt");
-                replacements += 1;
-            }
-        }
-        assert!(replacements >= 2);
-
-        let mut archive = create_test_archive(buf);
-        let duplicate = archive.read_file_to_vec("first.txt", Some(100));
-        assert!(duplicate.is_err());
-        if let Err(err) = duplicate {
-            assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
-            assert!(err.to_string().contains("duplicate ZIP entry"));
-        }
+        assert!(archive.any_entry_name(|name| name == "match.txt").unwrap());
     }
 
     #[test]
     #[cfg(feature = "java-archives")]
-    fn test_unverified_zip_archive_rejects_entry_count_mismatch() {
-        let mut archive = create_test_archive(patch_eocd_entries_count(
-            create_test_zip_data(zip::CompressionMethod::Stored),
-            7,
-        ));
+    fn test_unverified_zip_archive_read_file_to_vec_returns_first_match() {
+        let mut archive = create_test_archive(create_zip_with_files(vec![
+            ("target.txt", "first"),
+            ("other.txt", "other"),
+        ]));
 
-        let result = archive.any_entry_name(|name| name == "small.txt");
-        assert!(result.is_err());
-        if let Err(err) = result {
-            assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
-            assert!(err.to_string().contains("entry count mismatch"));
-        }
+        let contents = archive.read_file_to_vec("target.txt", Some(100)).unwrap();
+        assert_eq!(contents, b"first");
     }
 
     #[test]
     #[cfg(feature = "java-archives")]
-    fn test_unverified_zip_archive_rejects_entry_count_over_limit() {
-        let mut archive = create_test_archive(patch_eocd_entries_count(
-            create_test_zip_data(zip::CompressionMethod::Stored),
-            (MAX_ZIP_CENTRAL_DIRECTORY_ENTRIES + 1) as u16,
-        ));
+    fn test_unverified_zip_archive_find_map_file_contents_returns_first_mapped_value() {
+        let mut archive = create_test_archive(create_zip_with_files(vec![
+            ("ignore.txt", "ignore"),
+            ("config-1.txt", "first"),
+            ("config-2.txt", "second"),
+        ]));
 
-        let result = archive.any_entry_name(|name| name == "small.txt");
-        assert!(result.is_err());
-        if let Err(err) = result {
-            assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
-            assert!(err.to_string().contains("too many entries"));
-        }
+        let value = archive
+            .find_map_file_contents(
+                |name| name.starts_with("config-"),
+                Some(100),
+                |name, contents| {
+                    if name == "config-1.txt" {
+                        return None;
+                    }
+
+                    Some(String::from_utf8(contents).unwrap())
+                },
+            )
+            .unwrap();
+
+        assert_eq!(value, Some("second".to_string()));
+    }
+
+    #[test]
+    #[cfg(feature = "java-archives")]
+    fn test_unverified_zip_archive_find_map_file_contents_skips_unreadable_match() {
+        let mut archive = create_test_archive(create_zip_with_files(vec![
+            ("config-too-large.txt", &"X".repeat(2000)),
+            ("config-ok.txt", "usable"),
+        ]));
+
+        let value = archive
+            .find_map_file_contents(
+                |name| name.starts_with("config-"),
+                Some(100),
+                |_, contents| Some(String::from_utf8(contents).unwrap()),
+            )
+            .unwrap();
+
+        assert_eq!(value, Some("usable".to_string()));
     }
 
     #[cfg(feature = "java-archives")]
@@ -906,16 +829,20 @@ mod tests {
     }
 
     #[cfg(feature = "java-archives")]
-    fn patch_eocd_entries_count(mut data: Vec<u8>, claimed_entries: u16) -> Vec<u8> {
-        const EOCD_SIGNATURE: [u8; 4] = 0x0605_4b50u32.to_le_bytes();
-        let signature_pos = data
-            .windows(EOCD_SIGNATURE.len())
-            .rposition(|window| window == EOCD_SIGNATURE)
-            .unwrap();
+    fn create_zip_with_files(files: Vec<(&str, &str)>) -> Vec<u8> {
+        let mut buf = Vec::new();
+        {
+            let mut writer = zip::ZipWriter::new(std::io::Cursor::new(&mut buf));
+            let options: zip::write::FileOptions<()> = zip::write::FileOptions::default()
+                .compression_method(zip::CompressionMethod::Stored);
 
-        let claimed_entries = claimed_entries.to_le_bytes();
-        data[signature_pos + 8..signature_pos + 10].copy_from_slice(&claimed_entries);
-        data[signature_pos + 10..signature_pos + 12].copy_from_slice(&claimed_entries);
-        data
+            for (name, content) in files {
+                writer.start_file(name, options).unwrap();
+                writer.write_all(content.as_bytes()).unwrap();
+            }
+
+            writer.finish().unwrap();
+        }
+        buf
     }
 }
