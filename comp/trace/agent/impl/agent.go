@@ -28,6 +28,7 @@ import (
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	statsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
 	traceconfigdef "github.com/DataDog/datadog-agent/comp/trace/config/def"
@@ -70,6 +71,7 @@ type dependencies struct {
 	Compressor            compression.Component
 	IPC                   ipc.Component
 	TracerPayloadModifier pkgagent.TracerPayloadModifier
+	HealthPlatform        healthplatformdef.Component `optional:"true"`
 }
 
 var _ traceagent.Component = (*component)(nil)
@@ -146,6 +148,8 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 		}
 		return deps.Secrets.RefreshNow()
 	}
+
+	checkCgroupV2Health(tracecfg, deps.HealthPlatform)
 
 	c.Agent = pkgagent.NewAgent(
 		ctx,
