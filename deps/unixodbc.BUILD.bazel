@@ -257,4 +257,3 @@ pkg_filegroup(
     ],
     prefix = "embedded",
 )
-

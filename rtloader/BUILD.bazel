@@ -78,8 +78,8 @@ cc_shared_library(
 dd_cc_packaged(
     name = "rtloader_pkg",
     input = ":datadog-agent-rtloader",
-    version = VERSION,
     installed_files = [":rtloader_header_pkg_files"],
+    version = VERSION,
     visibility = ["//visibility:public"],
 )
 
@@ -312,8 +312,8 @@ pkg_filegroup(
 pkg_filegroup(
     name = "python_env_files",
     srcs = [
-        ":python_env_transitive",
         ":openssl_libs_embedded",
+        ":python_env_transitive",
         "@cpython//:all_files",
     ],
 )
