@@ -1859,3 +1859,41 @@ func TestEnvVarLayerConvertsToDefaultType(t *testing.T) {
     leaf(#ptr<000002>), val:789, source:environment-variable`
 	assert.Equal(t, expect, txt)
 }
+
+// TestCheckKnownKeyConcurrentAccess verifies that concurrent getter calls with
+// unknown config keys do not crash the agent with "fatal error: concurrent map writes".
+// This reproduces the race condition where multiple goroutines call GetBool (or other
+// getters) simultaneously, each writing to the unknownKeys map under only an RLock.
+func TestCheckKnownKeyConcurrentAccess(t *testing.T) {
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg.SetDefault("known_key", true)
+	cfg.BuildSchema()
+
+	const numGoroutines = 200
+
+	// Use a barrier so all goroutines start at the same instant,
+	// maximizing the chance of concurrent map writes.
+	var ready sync.WaitGroup
+	ready.Add(1)
+
+	var done sync.WaitGroup
+	done.Add(numGoroutines)
+
+	for i := 0; i < numGoroutines; i++ {
+		go func(id int) {
+			defer done.Done()
+			ready.Wait() // all goroutines wait here until released
+
+			// Use a mix of getters with unknown keys to trigger checkKnownKey writes
+			key := fmt.Sprintf("unknown_key_%d", id)
+			cfg.GetBool(key)
+			cfg.GetString(key)
+			cfg.GetInt(key)
+		}(i)
+	}
+
+	// Release all goroutines simultaneously
+	ready.Done()
+	// Wait for all goroutines to finish (if there's a concurrent map write, the process crashes before this)
+	done.Wait()
+}
