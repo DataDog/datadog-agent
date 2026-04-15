@@ -55,9 +55,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.72.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/fips v0.64.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/logs/auditor v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/processor v0.64.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/logs/sds v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/types v0.71.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/status/health v0.77.0-devel.0.20260211235139-a5361978c2b6 // indirect
