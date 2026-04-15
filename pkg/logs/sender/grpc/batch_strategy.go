@@ -12,10 +12,10 @@ import (
 	"github.com/benbjohnson/clock"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/DataDog/agent-payload/v5/statefulpb"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/log"

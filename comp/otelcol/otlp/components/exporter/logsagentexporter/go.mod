@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/lo
 go 1.25.0
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.189
+	github.com/DataDog/agent-payload/v5 v5.0.191
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.73.0-devel.0.20251030121902-cd89eab046d6
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.77.0-devel.0.20260213154712-e02b9359151a
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.77.0-devel.0.20260213154712-e02b9359151a
@@ -179,8 +179,8 @@ require (
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.65.0 // indirect
 	go.opentelemetry.io/otel v1.42.0 // indirect
 	go.opentelemetry.io/otel/metric v1.42.0 // indirect
-	go.opentelemetry.io/otel/sdk v1.40.0 // indirect
-	go.opentelemetry.io/otel/sdk/metric v1.40.0 // indirect
+	go.opentelemetry.io/otel/sdk v1.41.0 // indirect
+	go.opentelemetry.io/otel/sdk/metric v1.41.0 // indirect
 	go.opentelemetry.io/otel/trace v1.42.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/dig v1.19.0 // indirect
@@ -195,7 +195,7 @@ require (
 	golang.org/x/sys v0.42.0 // indirect
 	golang.org/x/text v0.35.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260209200024-4cfbd4190f57 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260226221140-a57be14db171 // indirect
 	google.golang.org/grpc v1.79.3 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )

@@ -33,7 +33,7 @@ require (
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/CycloneDX/cyclonedx-go v0.9.3
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/DataDog/agent-payload/v5 v5.0.189
+	github.com/DataDog/agent-payload/v5 v5.0.191
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def v0.0.0
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx v0.0.0-20251027120702-0e91eee9852f
@@ -376,7 +376,7 @@ require (
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.40.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.40.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.40.0
-	go.opentelemetry.io/otel/sdk v1.40.0
+	go.opentelemetry.io/otel/sdk v1.41.0
 	go.opentelemetry.io/otel/trace v1.42.0
 	go.uber.org/atomic v1.11.0
 	go.uber.org/automaxprocs v1.6.0
@@ -912,7 +912,7 @@ require (
 	go.opentelemetry.io/otel/log v0.16.0 // indirect
 	go.opentelemetry.io/otel/metric v1.42.0 // indirect
 	go.opentelemetry.io/otel/sdk/log v0.16.0 // indirect
-	go.opentelemetry.io/otel/sdk/metric v1.40.0
+	go.opentelemetry.io/otel/sdk/metric v1.41.0
 	go.opentelemetry.io/proto/otlp v1.10.0 // indirect
 	go.uber.org/goleak v1.3.0
 	go.uber.org/zap/exp v0.3.0
@@ -928,7 +928,7 @@ require (
 	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/genproto v0.0.0-20251022142026-3a174f9686a8 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260209200024-4cfbd4190f57 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260209200024-4cfbd4190f57 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260226221140-a57be14db171 // indirect
 	gopkg.in/Knetic/govaluate.v3 v3.0.0 // indirect
 	gopkg.in/cheggaaa/pb.v1 v1.0.28 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
@@ -976,6 +976,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/trace/stats v0.77.0-devel.0.20260213154712-e02b9359151a
 	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.77.0-devel.0.20260213154712-e02b9359151a
 	github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace v0.77.0-devel.0.20260211235139-a5361978c2b6
+	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.61.0
 	github.com/DataDog/ddtrivy v0.0.0-20260115083325-07614fb0b8d5
 	github.com/DataDog/rshell v0.0.9
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.41.0
@@ -1041,6 +1042,14 @@ require (
 	github.com/Azure/go-autorest/autorest/validation v0.3.1 // indirect
 	github.com/DataDog/appsec-internal-go v1.14.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/aws v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/clustering v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/clustering/merging v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/eviction v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/preprocessor v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/tags v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/token v0.0.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/tokenizer/rust v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/sender/grpc v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/logs v0.74.0-devel.0.20251125141836-2ae7a968751c // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/otel v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
@@ -1086,6 +1095,7 @@ require (
 	github.com/go-ozzo/ozzo-validation v3.6.0+incompatible // indirect
 	github.com/godbus/dbus v4.1.0+incompatible // indirect
 	github.com/google/certificate-transparency-go v1.3.2 // indirect
+	github.com/google/flatbuffers v25.2.10+incompatible // indirect
 	github.com/google/go-metrics-stackdriver v0.2.0 // indirect
 	github.com/google/licensecheck v0.3.1 // indirect
 	github.com/gophercloud/gophercloud v0.1.0 // indirect

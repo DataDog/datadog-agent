@@ -89,6 +89,9 @@ func httpDestinationFactory(
 		reliable := []client.Destination{}
 		additionals := []client.Destination{}
 		for i, endpoint := range endpoints.GetReliableEndpoints() {
+			if endpoint.UseGRPC {
+				continue
+			}
 			destMeta := client.NewDestinationMetadata(componentName, instanceID, "reliable", strconv.Itoa(i), evpCategory)
 			if serverlessMeta.IsEnabled() {
 				reliable = append(reliable, http.NewSyncDestination(endpoint, contentyType, destinationsContext, serverlessMeta.SenderDoneChan(), destMeta, cfg))
@@ -97,6 +100,9 @@ func httpDestinationFactory(
 			}
 		}
 		for i, endpoint := range endpoints.GetUnReliableEndpoints() {
+			if endpoint.UseGRPC {
+				continue
+			}
 			destMeta := client.NewDestinationMetadata(componentName, instanceID, "unreliable", strconv.Itoa(i), evpCategory)
 			if serverlessMeta.IsEnabled() {
 				additionals = append(additionals, http.NewSyncDestination(endpoint, contentyType, destinationsContext, serverlessMeta.SenderDoneChan(), destMeta, cfg))

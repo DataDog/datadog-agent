@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/google/uuid"
 )
 
 const nanoToMillis = 1000000
@@ -27,13 +28,14 @@ type jsonEncoder struct{}
 
 // JSON representation of a message.
 type jsonPayload struct {
-	Message   ValidUtf8Bytes `json:"message"`
-	Status    string         `json:"status"`
-	Timestamp int64          `json:"timestamp"`
-	Hostname  string         `json:"hostname"`
-	Service   string         `json:"service"`
-	Source    string         `json:"ddsource"`
-	Tags      string         `json:"ddtags"`
+	Message      ValidUtf8Bytes `json:"message"`
+	Status       string         `json:"status"`
+	Timestamp    int64          `json:"timestamp"`
+	Hostname     string         `json:"hostname"`
+	Service      string         `json:"service"`
+	Source       string         `json:"ddsource"`
+	Tags         string         `json:"ddtags"`
+	DualSendUUID string         `json:"dual-send-uuid"`
 }
 
 // Encode encodes a message into a JSON byte array.
@@ -42,19 +44,25 @@ func (j *jsonEncoder) Encode(msg *message.Message, hostname string) error {
 		return errors.New("message passed to encoder isn't rendered")
 	}
 
+	msg.PreEncodedContent = msg.GetContent()
+	msg.MessageMetadata.Hostname = hostname
+	msg.MessageMetadata.DualSendUUID = uuid.NewString()
+
 	ts := time.Now().UTC()
 	if !msg.ServerlessExtra.Timestamp.IsZero() {
 		ts = msg.ServerlessExtra.Timestamp
 	}
+	msg.MessageMetadata.EncodedTimestampMs = ts.UnixNano() / nanoToMillis
 
 	encoded, err := json.Marshal(jsonPayload{
-		Message:   ValidUtf8Bytes(msg.GetContent()),
-		Status:    msg.GetStatus(),
-		Timestamp: ts.UnixNano() / nanoToMillis,
-		Hostname:  hostname,
-		Service:   msg.Origin.Service(),
-		Source:    msg.Origin.Source(),
-		Tags:      msg.TagsToString(),
+		Message:      ValidUtf8Bytes(msg.GetContent()),
+		Status:       msg.GetStatus(),
+		Timestamp:    msg.MessageMetadata.EncodedTimestampMs,
+		Hostname:     hostname,
+		Service:      msg.Origin.Service(),
+		Source:       msg.Origin.Source(),
+		Tags:         msg.TagsToString(),
+		DualSendUUID: msg.MessageMetadata.DualSendUUID,
 	})
 
 	if err != nil {

@@ -12,8 +12,8 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/logs/patterns/eviction",
-        "//pkg/proto/pbgo/statefulpb",
         "//pkg/util/log",
+        "@com_github_datadog_agent_payload_v5//statefulpb",
         "@com_github_datadog_datadog_agent_pkg_config_setup//:setup",
     ],
 )

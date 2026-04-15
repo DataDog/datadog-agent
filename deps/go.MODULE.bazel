@@ -228,6 +228,7 @@ use_repo(
     "com_github_datadog_datadog_agent_pkg_util_sort",
     "com_github_datadog_datadog_agent_pkg_util_startstop",
     "com_github_datadog_datadog_agent_pkg_util_system",
+    "com_github_datadog_datadog_agent_pkg_util_system_socket",
     "com_github_datadog_datadog_agent_pkg_util_testutil",
     "com_github_datadog_datadog_agent_pkg_util_utilizationtracker",
     "com_github_datadog_datadog_agent_pkg_util_uuid",

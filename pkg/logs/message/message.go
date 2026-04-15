@@ -11,8 +11,8 @@ import (
 	"errors"
 	"time"
 
+	"github.com/DataDog/agent-payload/v5/statefulpb"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -95,6 +95,12 @@ type MessageMetadata struct {
 	RawDataLen int
 	// Tags added on processing
 	ProcessingTags []string
+	// DualSendUUID is a correlation identifier shared by the HTTP and gRPC copies
+	// of the same log when dual-send is enabled.
+	DualSendUUID string
+	// EncodedTimestampMs stores the timestamp used by the HTTP JSON encoder so the
+	// gRPC path can emit the same timestamp for the same log.
+	EncodedTimestampMs int64
 	// Extra information from the parsers
 	ParsingExtra
 	// Extra information for Serverless Logs messages
@@ -136,6 +142,9 @@ type MessageContent struct { //nolint:revive
 	// structured content
 	structuredContent StructuredContent
 	State             MessageContentState
+	// PreEncodedContent preserves the rendered log body before the encoder replaces
+	// m.content with the HTTP-encoded payload.
+	PreEncodedContent []byte
 }
 
 // MessageContentState is used to represent the MessageContent state.

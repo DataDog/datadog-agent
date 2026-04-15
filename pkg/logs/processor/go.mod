@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/logs/processor
 go 1.25.0
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.189
+	github.com/DataDog/agent-payload/v5 v5.0.191
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.61.0
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.61.0
 	github.com/DataDog/datadog-agent/pkg/config/model v0.77.2
@@ -12,6 +12,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/metrics v0.61.0
 	github.com/DataDog/datadog-agent/pkg/logs/sources v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/log v0.73.0-rc.5
+	github.com/google/uuid v1.6.0
 	github.com/stretchr/testify v1.11.1
 )
 
@@ -37,7 +38,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/fips v0.0.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/types v0.71.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/proto v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/template v0.65.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.61.0 // indirect
@@ -87,7 +87,7 @@ require (
 	github.com/tklauser/numcpus v0.11.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.opentelemetry.io/otel/metric v1.42.0 // indirect
-	go.opentelemetry.io/otel/sdk v1.40.0 // indirect
+	go.opentelemetry.io/otel/sdk v1.41.0 // indirect
 	go.opentelemetry.io/otel/trace v1.42.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/dig v1.19.0 // indirect
@@ -101,7 +101,7 @@ require (
 	golang.org/x/sys v0.42.0 // indirect
 	golang.org/x/text v0.35.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260209200024-4cfbd4190f57 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260226221140-a57be14db171 // indirect
 	google.golang.org/grpc v1.79.3 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )

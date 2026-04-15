@@ -71,6 +71,14 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/basic v0.0.0-20260213154712-e02b9359151a // indirect
 	github.com/DataDog/datadog-agent/pkg/config/buildschema v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/clustering v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/clustering/merging v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/eviction v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/preprocessor v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/tags v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/token v0.0.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/tokenizer/rust v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/sender/grpc v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/orchestrator/util v0.0.0-20251120165911-0b75c97e8b50 // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/log v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/otel v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
@@ -85,6 +93,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/lightsail v1.50.10 // indirect
 	github.com/aws/aws-sdk-go-v2/service/signin v1.0.8 // indirect
 	github.com/containerd/platforms v1.0.0-rc.1 // indirect
+	github.com/google/flatbuffers v25.2.10+incompatible // indirect
 	github.com/hashicorp/consul/sdk v0.16.2 // indirect
 	github.com/hashicorp/go-msgpack v1.1.5 // indirect
 	github.com/hashicorp/go-msgpack/v2 v2.1.2 // indirect
@@ -115,7 +124,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v4 v4.3.0 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.6.0 // indirect
 	github.com/Code-Hex/go-generics-cache v1.5.1 // indirect
-	github.com/DataDog/agent-payload/v5 v5.0.189 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.191 // indirect
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.76.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/comp/core/config v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
@@ -488,9 +497,9 @@ require (
 	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.40.0 // indirect
 	go.opentelemetry.io/otel/log v0.16.0 // indirect
 	go.opentelemetry.io/otel/metric v1.42.0 // indirect
-	go.opentelemetry.io/otel/sdk v1.40.0 // indirect
+	go.opentelemetry.io/otel/sdk v1.41.0 // indirect
 	go.opentelemetry.io/otel/sdk/log v0.16.0 // indirect
-	go.opentelemetry.io/otel/sdk/metric v1.40.0 // indirect
+	go.opentelemetry.io/otel/sdk/metric v1.41.0 // indirect
 	go.opentelemetry.io/otel/trace v1.42.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.10.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
@@ -515,7 +524,7 @@ require (
 	google.golang.org/api v0.258.0 // indirect
 	google.golang.org/genproto v0.0.0-20251022142026-3a174f9686a8 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260209200024-4cfbd4190f57 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260209200024-4cfbd4190f57 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260226221140-a57be14db171 // indirect
 	google.golang.org/grpc v1.79.3 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect

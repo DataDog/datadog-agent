@@ -5,6 +5,7 @@ go_library(
     srcs = ["json.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/patterns/preprocessor",
     visibility = ["//visibility:public"],
+    deps = ["@com_github_json_iterator_go//:go"],
 )
 
 go_test(

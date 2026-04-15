@@ -3,6 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/logs/sender/grpc
 go 1.25.0
 
 require (
+	github.com/DataDog/agent-payload/v5 v5.0.191
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.61.0
 	github.com/DataDog/datadog-agent/comp/serializer/logscompression v0.64.0-devel
 	github.com/DataDog/datadog-agent/pkg/config/model v0.77.2
@@ -18,7 +19,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/processor v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/logs/sender v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/logs/sources v0.61.0
-	github.com/DataDog/datadog-agent/pkg/proto v0.74.1
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.64.1
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/compression v0.56.0-rc.3
@@ -32,7 +32,6 @@ require (
 )
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.189 // indirect
 	github.com/DataDog/datadog-agent/comp/core/config v0.64.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.61.0 // indirect
@@ -87,6 +86,7 @@ require (
 	github.com/gofrs/flock v0.13.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/google/flatbuffers v25.2.10+incompatible // indirect
+	github.com/google/uuid v1.6.0 // indirect
 	github.com/hectane/go-acl v0.0.0-20230225031251-cdfc9e3acf94 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
@@ -124,7 +124,7 @@ require (
 	golang.org/x/sys v0.42.0 // indirect
 	golang.org/x/text v0.35.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260209200024-4cfbd4190f57 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260226221140-a57be14db171 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
