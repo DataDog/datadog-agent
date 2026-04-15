@@ -50,8 +50,6 @@ func (m *ksmShardingManager) isKSMCheck(config integration.Config) bool {
 	return config.Name == "kubernetes_state_core"
 }
 
-// analyzeKSMConfig analyzes a KSM configuration and returns collectors grouped by resource type
-// Simple strategy: {pods}, {nodes}, {everything else}
 // defaultKSMCollectors returns the KSM default resource collectors with
 // "endpoints" added back for backward compatibility (upstream KSM v2.18
 // replaced "endpoints" with "endpointslices" in its defaults).
@@ -63,6 +61,8 @@ func defaultKSMCollectors() []string {
 	return collectors
 }
 
+// analyzeKSMConfig analyzes a KSM configuration and returns collectors grouped by resource type
+// Simple strategy: {pods}, {nodes}, {everything else}
 func (m *ksmShardingManager) analyzeKSMConfig(config integration.Config) ([]resourceGroup, error) {
 	// Parse the KSM configuration
 	type ksmInstance struct {
