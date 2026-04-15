@@ -567,105 +567,81 @@ func cleanReturnNames(vars []*ir.Variable) map[*ir.Variable]string {
 	return result
 }
 
-// rewriteReturnRef rewrites all RefExpr("@return") nodes in an expression
-// tree to RefExpr(varName), preserving wrapping operators (len, isEmpty, eq,
-// getmember). Used for single-return resolution where ref("@return") maps
-// directly to the return variable.
-func rewriteReturnRef(expr exprlang.Expr, varName string) exprlang.Expr {
-	switch e := expr.(type) {
-	case *exprlang.RefExpr:
-		return &exprlang.RefExpr{Ref: varName}
-	case *exprlang.GetMemberExpr:
-		return &exprlang.GetMemberExpr{
-			Base:   rewriteReturnRef(e.Base, varName),
-			Member: e.Member,
-		}
-	case *exprlang.LenExpr:
-		return &exprlang.LenExpr{Operand: rewriteReturnRef(e.Operand, varName)}
-	case *exprlang.IsEmptyExpr:
-		return &exprlang.IsEmptyExpr{Operand: rewriteReturnRef(e.Operand, varName)}
-	case *exprlang.EqExpr:
-		return &exprlang.EqExpr{
-			Left:  rewriteReturnRef(e.Left, varName),
-			Right: e.Right,
-		}
-	default:
-		return expr
-	}
-}
-
-// findReturnMember traverses an expression tree looking for
-// getmember(ref("@return"), member) and returns the member name.
-// Returns "" if no such pattern is found.
-func findReturnMember(expr exprlang.Expr) string {
-	switch e := expr.(type) {
-	case *exprlang.GetMemberExpr:
-		if ref, ok := e.Base.(*exprlang.RefExpr); ok && ref.Ref == "@return" {
-			return e.Member
-		}
-		return findReturnMember(e.Base)
-	case *exprlang.LenExpr:
-		return findReturnMember(e.Operand)
-	case *exprlang.IsEmptyExpr:
-		return findReturnMember(e.Operand)
-	case *exprlang.EqExpr:
-		return findReturnMember(e.Left)
-	default:
-		return ""
-	}
-}
-
-// rewriteReturnMember rewrites getmember(ref("@return"), member) -> ref(varName)
-// anywhere in an expression tree, preserving all wrapping operators.
-// Used for multi-return resolution where @return.field maps to a specific variable.
-func rewriteReturnMember(expr exprlang.Expr, varName string) exprlang.Expr {
-	switch e := expr.(type) {
-	case *exprlang.GetMemberExpr:
-		if ref, ok := e.Base.(*exprlang.RefExpr); ok && ref.Ref == "@return" {
-			return &exprlang.RefExpr{Ref: varName}
-		}
-		return &exprlang.GetMemberExpr{
-			Base:   rewriteReturnMember(e.Base, varName),
-			Member: e.Member,
-		}
-	case *exprlang.LenExpr:
-		return &exprlang.LenExpr{Operand: rewriteReturnMember(e.Operand, varName)}
-	case *exprlang.IsEmptyExpr:
-		return &exprlang.IsEmptyExpr{Operand: rewriteReturnMember(e.Operand, varName)}
-	case *exprlang.EqExpr:
-		return &exprlang.EqExpr{
-			Left:  rewriteReturnMember(e.Left, varName),
-			Right: e.Right,
-		}
-	default:
-		return expr
-	}
-}
-
-// resolveReturnCaptureExpr resolves a capture expression referencing @return
-// to return variable(s). For single returns, maps @return to the variable.
-// For multiple returns, finds getmember(@return, "field") anywhere in the
-// expression tree and resolves the field to the matching variable.
-// Returns the root variable and the rewritten expression.
-func resolveReturnCaptureExpr(
-	parsedExpr exprlang.Expr,
+// resolveReturnExpr resolves an expression referencing @return to the
+// corresponding return variable and rewrites the expression to target that
+// variable directly.
+//
+// For single returns, ref("@return") is rewritten to ref(varName).
+// For multiple returns, getmember(ref("@return"), "field") is matched against
+// displayNames and rewritten to ref(varName). A bare @return is rejected
+// since multi-value returns require a field selector, and referencing more
+// than one distinct field in the same expression is rejected since the
+// result must resolve to a single root variable.
+//
+// Returns the resolved variable, the rewritten expression, and an error
+// message if resolution fails.
+func resolveReturnExpr(
+	expr exprlang.Expr,
 	returnVars []*ir.Variable,
 	displayNames map[*ir.Variable]string,
-) (*ir.Variable, exprlang.Expr) {
+) (rootVar *ir.Variable, rewritten exprlang.Expr, errMsg string) {
 	if len(returnVars) == 1 {
 		v := returnVars[0]
-		return v, rewriteReturnRef(parsedExpr, v.Name)
+		rewritten = exprlang.Rewrite(expr, func(e exprlang.Expr) exprlang.Expr {
+			if ref, ok := e.(*exprlang.RefExpr); ok && ref.Ref == "@return" {
+				return &exprlang.RefExpr{Ref: v.Name}
+			}
+			return nil
+		})
+		return v, rewritten, ""
 	}
-	member := findReturnMember(parsedExpr)
-	if member == "" {
-		return nil, nil
-	}
-	for _, v := range returnVars {
-		if displayNames[v] == member {
-			return v, rewriteReturnMember(parsedExpr, v.Name)
+
+	var matched *ir.Variable
+	for node := range exprlang.Children(expr) {
+		gme, ok := node.(*exprlang.GetMemberExpr)
+		if !ok {
+			continue
 		}
+		ref, ok := gme.Base.(*exprlang.RefExpr)
+		if !ok || ref.Ref != "@return" {
+			continue
+		}
+		var v *ir.Variable
+		for _, rv := range returnVars {
+			if displayNames[rv] == gme.Member {
+				v = rv
+				break
+			}
+		}
+		if v == nil {
+			errMsg = fmt.Sprintf(
+				"@return field %q does not match any return variable", gme.Member)
+			break
+		}
+		if matched != nil && matched != v {
+			errMsg = "expression references multiple @return fields"
+			break
+		}
+		matched = v
 	}
-	return nil, nil
+	switch {
+	case errMsg != "":
+		return nil, nil, errMsg
+	case matched == nil:
+		return nil, nil, "return value selector (e.g., @return.r0) must be used for multi-value returns"
+	}
+	rewritten = exprlang.Rewrite(expr, func(e exprlang.Expr) exprlang.Expr {
+		gme, ok := e.(*exprlang.GetMemberExpr)
+		if !ok {
+			return nil
+		}
+		ref, ok := gme.Base.(*exprlang.RefExpr)
+		if !ok || ref.Ref != "@return" {
+			return nil
+		}
+		return &exprlang.RefExpr{Ref: matched.Name}
+	})
+	return matched, rewritten, ""
 }
 
 // extractRootVariableName extracts the root variable name from an expression.
@@ -927,50 +903,24 @@ func analyzeAllProbes(
 			// Handle @return references in template segments.
 			if segs, ok := segmentRefs["@return"]; ok && len(returnVars) > 0 {
 				for _, seg := range segs {
-					if len(returnVars) == 1 {
-						// Single return: rewrite ref(@return) to target the
-						// actual variable, preserving any wrapping operators.
-						v := returnVars[0]
+					rv, rewritten, errMsg := resolveReturnExpr(
+						seg.segment.JSON, returnVars, returnDisplayNames,
+					)
+					if rv != nil {
 						ap.expressions = append(ap.expressions, analyzedExpression{
-							expr:         rewriteReturnRef(seg.segment.JSON, v.Name),
+							expr:         rewritten,
 							dsl:          seg.segment.DSL,
-							rootVariable: v,
+							rootVariable: rv,
 							eventKind:    ir.EventKindReturn,
 							exprKind:     ir.RootExpressionKindTemplateSegment,
 							segment:      seg.segment,
 							segmentIdx:   seg.index,
 						})
-						addRoot(v.Type.GetID(), budget)
+						addRoot(rv.Type.GetID(), budget)
 					} else {
-						// Multiple returns: @return.field -> resolve the field
-						// to the matching return variable, rewriting the
-						// expression to target the variable directly.
-						member := findReturnMember(seg.segment.JSON)
-						if member == "" {
-							ap.template.Segments[seg.index] = ir.InvalidSegment{
-								Error: "@return requires a field selector for multi-return functions (e.g., @return.r0)",
-								DSL:   seg.segment.DSL,
-							}
-							continue
-						}
-						var rv *ir.Variable
-						for _, v := range returnVars {
-							if returnDisplayNames[v] == member {
-								rv = v
-								break
-							}
-						}
-						if rv != nil {
-							ap.expressions = append(ap.expressions, analyzedExpression{
-								expr:         rewriteReturnMember(seg.segment.JSON, rv.Name),
-								dsl:          seg.segment.DSL,
-								rootVariable: rv,
-								eventKind:    ir.EventKindReturn,
-								exprKind:     ir.RootExpressionKindTemplateSegment,
-								segment:      seg.segment,
-								segmentIdx:   seg.index,
-							})
-							addRoot(rv.Type.GetID(), budget)
+						ap.template.Segments[seg.index] = ir.InvalidSegment{
+							Error: errMsg,
+							DSL:   seg.segment.DSL,
 						}
 					}
 				}
@@ -990,7 +940,7 @@ func analyzeAllProbes(
 				// Handle @return references in capture expressions.
 				var rootVar *ir.Variable
 				if rootVarName == "@return" && len(returnVars) > 0 {
-					rootVar, parsedExpr = resolveReturnCaptureExpr(
+					rootVar, parsedExpr, _ = resolveReturnExpr(
 						parsedExpr, returnVars, returnDisplayNames,
 					)
 				} else {
@@ -1096,23 +1046,14 @@ func analyzeAllProbes(
 				}
 				var rootVar *ir.Variable
 				if rootVarName == "@return" && len(returnVars) > 0 {
-					if len(returnVars) == 1 {
-						rootVar = returnVars[0]
-						condExpr = rewriteReturnRef(condExpr, rootVar.Name)
-					} else {
-						member := findReturnMember(condExpr)
-						if member == "" {
-							return nil, ir.Issue{
-								Kind:    ir.IssueKindUnsupportedFeature,
-								Message: "@return in condition requires a field selector for multi-return functions",
-							}
-						}
-						for _, v := range returnVars {
-							if returnDisplayNames[v] == member {
-								rootVar = v
-								condExpr = rewriteReturnMember(condExpr, v.Name)
-								break
-							}
+					var errMsg string
+					rootVar, condExpr, errMsg = resolveReturnExpr(
+						condExpr, returnVars, returnDisplayNames,
+					)
+					if rootVar == nil {
+						return nil, ir.Issue{
+							Kind:    ir.IssueKindConditionVariableUnavailable,
+							Message: errMsg,
 						}
 					}
 				} else {
