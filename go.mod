@@ -203,7 +203,7 @@ require (
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/cilium/ebpf v0.21.0
 	github.com/clbanning/mxj v1.8.4
-	github.com/cloudflare/cbpfc v0.0.0-20240920015331-ff978e94500b
+	github.com/cloudflare/cbpfc v0.0.0-20260219140841-0661ad29132c
 	github.com/cloudfoundry-community/go-cfclient/v2 v2.0.1-0.20230503155151-3d15366c5820
 	github.com/containerd/cgroups/v3 v3.1.2
 	github.com/containerd/containerd v1.7.30
