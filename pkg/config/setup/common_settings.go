@@ -246,6 +246,8 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_devices.netflow.enabled", false)
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.netflow.forwarder.")
 	config.BindEnvAndSetDefault("network_devices.netflow.reverse_dns_enrichment_enabled", false)
+	config.BindEnvAndSetDefault("network_devices.netflow.connection_enrichment_enabled", false)
+	config.SetKnown("network_devices.netflow.connection_enrichment_poll_interval") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
 	// Network Path
 	config.BindEnvAndSetDefault("network_path.connections_monitoring.enabled", false)
