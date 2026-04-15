@@ -128,6 +128,7 @@ func defaultMetricTransformers(k *KSMCheck) map[string]metricTransformerFunc {
 		"kube_service_spec_type":                          serviceTypeTransformer,
 		"kube_ingress_tls":                                removeSecretTransformer,
 		"kube_endpoint_address":                           endpointAddressTransformer,
+		"kube_endpointslice_endpoints":                    endpointSliceEndpointsTransformer,
 	}
 
 	// Only add rollout transformers if k is not nil (skip in tests)
@@ -634,6 +635,24 @@ func endpointAddressTransformer(s sender.Sender, _ string, metric ksmstore.DDMet
 		s.Gauge(ksmMetricPrefix+"endpoint.address_available", metric.Val, hostname, tags)
 	case "false":
 		s.Gauge(ksmMetricPrefix+"endpoint.address_not_ready", metric.Val, hostname, tags)
+	}
+}
+
+// endpointSliceEndpointsTransformer splits the kube_endpointslice_endpoints
+// metric into endpointslice.address_available and
+// endpointslice.address_not_ready based on the "ready" label, mirroring
+// the legacy endpoint.address_available / endpoint.address_not_ready split.
+func endpointSliceEndpointsTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
+	ready, found := metric.Labels["ready"]
+	if !found {
+		return
+	}
+	tags = lo.Filter(tags, func(x string, _ int) bool { return !strings.HasPrefix(x, "ready:") })
+	switch ready {
+	case "true":
+		s.Gauge(ksmMetricPrefix+"endpointslice.address_available", metric.Val, hostname, tags)
+	case "false":
+		s.Gauge(ksmMetricPrefix+"endpointslice.address_not_ready", metric.Val, hostname, tags)
 	}
 }
 

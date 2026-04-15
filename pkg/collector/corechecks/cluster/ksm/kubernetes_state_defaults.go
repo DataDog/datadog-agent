@@ -110,6 +110,7 @@ func defaultLabelsMapper() map[string]string {
 		"container_id":                        tags.ContainerID,
 		"image":                               tags.ImageName,
 		"endpoint":                            "kube_endpoint",
+		"endpointslice":                       "kube_endpointslice",
 		"label_topology_kubernetes_io_region": "kube_region",
 		"label_topology_kubernetes_io_zone":   "kube_zone",
 		"label_failure_domain_beta_kubernetes_io_region": "kube_region",
