@@ -11,12 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/tracegen"
-	ecsComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/ecs"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
-	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 
 	scenecs "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ecs"
@@ -40,9 +36,6 @@ func TestECSManagedSuite(t *testing.T) {
 				scenfi.WithRetentionPeriod("31m"),
 			),
 			scenecs.WithTestingWorkload(),
-			scenecs.WithWorkloadApp(func(e aws.Environment, clusterArn pulumi.StringInput) (*ecsComp.Workload, error) {
-				return tracegen.EcsAppDefinition(e, clusterArn)
-			}),
 		),
 	)))
 }
