@@ -39,21 +39,39 @@ type namespaceLister interface {
 	ListNamespaces() map[string]map[string]string
 }
 
+// wmsNamespaceLister is a namespaceLister backed by WorkloadMetaStore that
+// returns only namespaces carrying the specified label key.
 type wmsNamespaceLister struct {
-	wlm wmdef.Component
+	wlm              wmdef.Component
+	requiredLabelKey string
+}
+
+func newWMSNamespaceLister(wlm wmdef.Component, requiredLabelKey string) *wmsNamespaceLister {
+	return &wmsNamespaceLister{wlm: wlm, requiredLabelKey: requiredLabelKey}
 }
 
 var _ namespaceLister = (*wmsNamespaceLister)(nil)
 
 func (l *wmsNamespaceLister) ListNamespaces() map[string]map[string]string {
 	nsList := l.wlm.ListKubernetesMetadata(func(m *wmdef.KubernetesMetadata) bool {
-		return wmdef.IsNamespaceMetadata(m)
+		return wmdef.IsNamespaceMetadata(m) && m.Labels[l.requiredLabelKey] != ""
 	})
 	result := make(map[string]map[string]string, len(nsList))
 	for _, ns := range nsList {
 		result[ns.Name] = ns.Labels
 	}
 	return result
+}
+
+// workloadRefsByProfile maps profile name to the list of workload references
+// assigned to it. It is the return type of scanWorkloads.
+type workloadRefsByProfile map[string][]model.NamespacedObjectReference
+
+// Add merges all entries from other into w.
+func (w workloadRefsByProfile) Add(other workloadRefsByProfile) {
+	for profile, refs := range other {
+		w[profile] = append(w[profile], refs...)
+	}
 }
 
 // workloadInformer holds the informer state for a single workload resource.
@@ -102,7 +120,7 @@ func NewWorkloadWatcher(
 		isLeader:          isLeader,
 		workloadResources: workloadResources,
 		informerFactory:   factory,
-		nsLister:          &wmsNamespaceLister{wlm: wlm},
+		nsLister:          newWMSNamespaceLister(wlm, model.ProfileLabelKey),
 		refreshPeriod:     refreshPeriod,
 	}
 
@@ -165,9 +183,9 @@ func (w *WorkloadWatcher) Run(ctx context.Context) {
 func (w *WorkloadWatcher) reconcile() {
 	labeledNamespaces := w.buildLabeledNamespaces()
 
-	workloadRefs := make(map[string][]model.NamespacedObjectReference)
+	workloadRefs := make(workloadRefsByProfile)
 	for _, inf := range w.informers {
-		w.scanWorkloads(inf.gvkr, inf.lister, labeledNamespaces, workloadRefs)
+		workloadRefs.Add(w.scanWorkloads(inf.gvkr, inf.lister, labeledNamespaces))
 	}
 
 	w.profileStore.Update(func(pi model.PodAutoscalerProfileInternal) (model.PodAutoscalerProfileInternal, bool) {
@@ -195,21 +213,23 @@ func (w *WorkloadWatcher) buildLabeledNamespaces() map[string]string {
 	return labeledNamespaces
 }
 
-// scanWorkloads iterates over all workloads of a given kind and resolves the
-// profile for each one. A workload with the profile label is assigned directly
-// (workload-level). Otherwise, if the workload's namespace carries the profile
-// label, it is assigned via namespace-level (unless opted out with
-// profile-enabled=false). Workload-level labels take precedence.
+// scanWorkloads iterates over all workloads of a given kind, resolves the
+// profile for each one, and returns the resulting workloadRefsByProfile.
+// A workload with the profile label is assigned directly (workload-level).
+// Otherwise, if the workload's namespace carries the profile label, it is
+// assigned via namespace-level (unless opted out with profile-enabled=false).
+// Workload-level labels take precedence.
 func (w *WorkloadWatcher) scanWorkloads(
 	gvkr GroupVersionKindResource,
 	lister cache.GenericLister,
 	labeledNamespaces map[string]string,
-	workloadRefs map[string][]model.NamespacedObjectReference,
-) {
+) workloadRefsByProfile {
+	result := make(workloadRefsByProfile)
+
 	objects, err := lister.List(labels.Everything())
 	if err != nil {
 		log.Debugf("Failed to list objects %s, err: %v", gvkr.GroupVersionResource.String(), err)
-		return
+		return result
 	}
 
 	for _, obj := range objects {
@@ -223,7 +243,7 @@ func (w *WorkloadWatcher) scanWorkloads(
 			continue
 		}
 
-		workloadRefs[profileName] = append(workloadRefs[profileName], model.NamespacedObjectReference{
+		result[profileName] = append(result[profileName], model.NamespacedObjectReference{
 			GroupKind: schema.GroupKind{
 				Group: gvkr.GroupVersionResource.Group,
 				Kind:  gvkr.Kind,
@@ -233,6 +253,8 @@ func (w *WorkloadWatcher) scanWorkloads(
 			Name:      objMeta.Name,
 		})
 	}
+
+	return result
 }
 
 // resolveProfile returns the profile name for a workload and whether the

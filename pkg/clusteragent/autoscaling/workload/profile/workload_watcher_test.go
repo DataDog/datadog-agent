@@ -81,8 +81,7 @@ func TestWorkloadWatcherScanWorkloads(t *testing.T) {
 
 		deployment := newPartialWorkload("Deployment", "apps/v1", "prod", "web-app",
 			map[string]string{model.ProfileLabelKey: "high-cpu"})
-		refs := make(map[string][]model.NamespacedObjectReference)
-		w.scanWorkloads(gvkr, newTestLister(deploymentGR, deployment), noLabeledNs, refs)
+		refs := w.scanWorkloads(gvkr, newTestLister(deploymentGR, deployment), noLabeledNs)
 
 		require.Len(t, refs["high-cpu"], 1)
 		ref := refs["high-cpu"][0]
@@ -99,8 +98,7 @@ func TestWorkloadWatcherScanWorkloads(t *testing.T) {
 
 		deployment := newPartialWorkload("Deployment", "apps/v1", "prod", "web-app",
 			map[string]string{model.ProfileLabelKey: "nonexistent"})
-		refs := make(map[string][]model.NamespacedObjectReference)
-		w.scanWorkloads(gvkr, newTestLister(deploymentGR, deployment), noLabeledNs, refs)
+		refs := w.scanWorkloads(gvkr, newTestLister(deploymentGR, deployment), noLabeledNs)
 
 		assert.Empty(t, refs)
 	})
@@ -110,8 +108,7 @@ func TestWorkloadWatcherScanWorkloads(t *testing.T) {
 		w := newTestWorkloadWatcher(profileStore)
 
 		deployment := newPartialWorkload("Deployment", "apps/v1", "prod", "web-app", nil)
-		refs := make(map[string][]model.NamespacedObjectReference)
-		w.scanWorkloads(gvkr, newTestLister(deploymentGR, deployment), noLabeledNs, refs)
+		refs := w.scanWorkloads(gvkr, newTestLister(deploymentGR, deployment), noLabeledNs)
 
 		assert.Empty(t, refs)
 	})
@@ -126,8 +123,7 @@ func TestWorkloadWatcherScanWorkloads(t *testing.T) {
 		dep2 := newPartialWorkload("Deployment", "apps/v1", "prod", "web-2",
 			map[string]string{model.ProfileLabelKey: "high-cpu"})
 
-		refs := make(map[string][]model.NamespacedObjectReference)
-		w.scanWorkloads(gvkr, newTestLister(deploymentGR, dep1, dep2), noLabeledNs, refs)
+		refs := w.scanWorkloads(gvkr, newTestLister(deploymentGR, dep1, dep2), noLabeledNs)
 
 		require.Len(t, refs["high-cpu"], 2)
 	})
@@ -143,8 +139,7 @@ func TestWorkloadWatcherScanWorkloads(t *testing.T) {
 		dep2 := newPartialWorkload("Deployment", "apps/v1", "prod", "web-2",
 			map[string]string{model.ProfileLabelKey: "bar"})
 
-		refs := make(map[string][]model.NamespacedObjectReference)
-		w.scanWorkloads(gvkr, newTestLister(deploymentGR, dep1, dep2), noLabeledNs, refs)
+		refs := w.scanWorkloads(gvkr, newTestLister(deploymentGR, dep1, dep2), noLabeledNs)
 
 		require.Len(t, refs["foo"], 1)
 		require.Len(t, refs["bar"], 1)
@@ -159,8 +154,7 @@ func TestWorkloadWatcherScanWorkloads(t *testing.T) {
 		dep2 := newPartialWorkload("Deployment", "apps/v1", "prod", "web-2", nil)
 
 		labeledNs := map[string]string{"prod": "high-cpu"}
-		refs := make(map[string][]model.NamespacedObjectReference)
-		w.scanWorkloads(gvkr, newTestLister(deploymentGR, dep1, dep2), labeledNs, refs)
+		refs := w.scanWorkloads(gvkr, newTestLister(deploymentGR, dep1, dep2), labeledNs)
 
 		require.Len(t, refs["high-cpu"], 2)
 	})
@@ -176,8 +170,7 @@ func TestWorkloadWatcherScanWorkloads(t *testing.T) {
 		unlabeled := newPartialWorkload("Deployment", "apps/v1", "prod", "web-unlabeled", nil)
 
 		labeledNs := map[string]string{"prod": "ns-profile"}
-		refs := make(map[string][]model.NamespacedObjectReference)
-		w.scanWorkloads(gvkr, newTestLister(deploymentGR, labeled, unlabeled), labeledNs, refs)
+		refs := w.scanWorkloads(gvkr, newTestLister(deploymentGR, labeled, unlabeled), labeledNs)
 
 		require.Len(t, refs["wl-profile"], 1)
 		assert.Equal(t, "web-labeled", refs["wl-profile"][0].Name)
@@ -195,8 +188,7 @@ func TestWorkloadWatcherScanWorkloads(t *testing.T) {
 		included := newPartialWorkload("Deployment", "apps/v1", "prod", "web-included", nil)
 
 		labeledNs := map[string]string{"prod": "ns-profile"}
-		refs := make(map[string][]model.NamespacedObjectReference)
-		w.scanWorkloads(gvkr, newTestLister(deploymentGR, optedOut, included), labeledNs, refs)
+		refs := w.scanWorkloads(gvkr, newTestLister(deploymentGR, optedOut, included), labeledNs)
 
 		require.Len(t, refs["ns-profile"], 1)
 		assert.Equal(t, "web-included", refs["ns-profile"][0].Name)
