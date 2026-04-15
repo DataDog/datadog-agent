@@ -8,6 +8,7 @@ package baseimpl
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -244,7 +245,7 @@ func (f *BaseFilterStore) GetProcessFilters(processFilters [][]workloadfilter.Pr
 	return getFilterBundle(f, workloadfilter.ProcessType, processFilters)
 }
 
-func (f *BaseFilterStore) FlareCallback(fb flaretypes.FlareBuilder) error {
+func (f *BaseFilterStore) FlareCallback(_ context.Context, fb flaretypes.FlareBuilder) error {
 	fb.AddFile("workload-filter.log", []byte(f.String(false)))
 	return nil
 }

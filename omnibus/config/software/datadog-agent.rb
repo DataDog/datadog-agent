@@ -95,19 +95,31 @@ build do
   end
 
   command_on_repo_root "bazelisk run #{bazel_flags} -- //packages/agent/product:post_build_install --destdir=#{install_dir} --verbose", :live_stream => Omnibus.logger.live_stream(:info)
-  # TODO: dda agent.build also builds datadog.yaml. We need to work with the
+
+  # TODO: dda inv agent.build also builds datadog.yaml. We need to work with the
   # config team to find out if removing that will break their workflow.  If not,
   # then we drop it. If so, then we can switch the build from go run building the
   # target with bazel.
   delete 'bin/agent/dist/datadog.yaml'
 
-  # TODO(https://datadoghq.atlassian.net/browse/ABLD-402): Put the config files in the right places
   if osx_target?
     conf_dir = "#{install_dir}/etc"
   else
     conf_dir = "#{install_dir}/etc/datadog-agent"
   end
-  copy 'bin/agent/dist/conf.d/.', "#{conf_dir}"
+  # TODO(agent-build): sort out the use of bin/agen/dist/conf.d
+  # dda inv agent.build  leaves many files in bin/agen/dist/conf.d
+  # Now we place them into the pacakge via the //packages/agent/product:post_build_install
+  # line above, or directly into the package from the packages/... targets.  That makes
+  # the intermediate use of bin/agent/dist redundant. It is not clear that any users or
+  # build processes rely on the copy bin in bin/agent/dist. It is also not clear if
+  # the developer invocation of agent.build should always copy the config files out, or if
+  # that can be a distinct option.
+  # Possible good end states are:
+  # 1) In developement mode, agent.build calls bazel to push the conf.d files
+  # 2) --development mode goes away. If you want the config files, you have a new command to install them
+  #    somewhere
+  # 3) something else?
   # We must do this to prevent a copy command below from picking it up again.
   delete 'bin/agent/dist/conf.d'
 
@@ -271,7 +283,7 @@ build do
     mkdir "#{app_temp_dir}/MacOS"
     systray_build_dir = "#{project_dir}/comp/core/gui/guiimpl/systray"
     # Add @executable_path/../Frameworks to rpath to find the swift libs in the Frameworks folder.
-    target = "#{arm_target? ? 'arm64' : 'x86_64'}-apple-macos11.0" # https://docs.datadoghq.com/agent/supported_platforms/?tab=macos
+    target = "#{arm_target? ? 'arm64' : 'x86_64'}-apple-macos12.0" # https://docs.datadoghq.com/agent/supported_platforms/?tab=macos
     command "swiftc -O -swift-version \"5\" -target \"#{target}\" -Xlinker '-rpath' -Xlinker '@executable_path/../Frameworks' Sources/*.swift -o gui", cwd: systray_build_dir
     copy "#{systray_build_dir}/gui", "#{app_temp_dir}/MacOS/"
     copy "#{systray_build_dir}/agent.png", "#{app_temp_dir}/MacOS/"

@@ -144,7 +144,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
 )
 
 // Commands returns a slice of subcommands for the 'cluster-agent' command.
@@ -443,7 +443,9 @@ func start(log log.Component,
 		if clusterID != "" {
 			opts = append(opts, tracer.WithGlobalTag("cluster_id", clusterID))
 		}
-		tracer.Start(opts...)
+		if err := tracer.Start(opts...); err != nil {
+			return fmt.Errorf("failed to start APM tracing: %w", err)
+		}
 		pkglog.Infof("APM tracing enabled for Cluster Agent (sample_rate=%.2f)", sampleRate)
 		defer tracer.Stop()
 	}
@@ -567,6 +569,7 @@ func start(log log.Component,
 		if rcClient == nil {
 			return errors.New("remote config is disabled or failed to initialize, remote config is a required dependency for kubeactions")
 		}
+		log.Infof("[KubeActions] Starting with cluster_id=%s, cluster_name=%s", clusterID, clusterName)
 
 		if _, err := kubeactions.Setup(mainCtx, apiCl.Cl, clusterName, clusterID, le.IsLeader, rcClient, epForwarder); err != nil {
 			return fmt.Errorf("Error while starting kubernetes actions: %v", err)

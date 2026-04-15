@@ -5,7 +5,7 @@ go 1.25.0
 require (
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.68.3
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.68.3
-	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.71.0-rc.1
+	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.72.0-rc.1
 	github.com/DataDog/datadog-agent/comp/core/secrets/utils v0.70.0
 	github.com/DataDog/datadog-agent/comp/core/status v0.73.0-rc.5
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.68.3
@@ -20,9 +20,9 @@ require (
 	github.com/benbjohnson/clock v1.3.5
 	github.com/json-iterator/go v1.1.12
 	github.com/stretchr/testify v1.11.1
-	go.yaml.in/yaml/v2 v2.4.3
+	go.yaml.in/yaml/v2 v2.4.4
 	golang.org/x/exp v0.0.0-20260312153236-7ab1446f8b90
-	golang.org/x/sys v0.42.0
+	golang.org/x/sys v0.43.0
 )
 
 require gopkg.in/yaml.v3 v3.0.1 // indirect
@@ -95,10 +95,10 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.1 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
-	golang.org/x/net v0.52.0 // indirect
+	golang.org/x/net v0.53.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
-	golang.org/x/text v0.35.0 // indirect
-	golang.org/x/time v0.14.0 // indirect
+	golang.org/x/text v0.36.0 // indirect
+	golang.org/x/time v0.15.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )
 
@@ -201,7 +201,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic => ../../../../pkg/logs/diagnostic
 	github.com/DataDog/datadog-agent/pkg/logs/message => ../../../../pkg/logs/message
 	github.com/DataDog/datadog-agent/pkg/logs/metrics => ../../../../pkg/logs/metrics
-	github.com/DataDog/datadog-agent/pkg/logs/pipeline => ../../../../pkg/logs/pipeline
 	github.com/DataDog/datadog-agent/pkg/logs/processor => ../../../../pkg/logs/processor
 	github.com/DataDog/datadog-agent/pkg/logs/sender => ../../../../pkg/logs/sender
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../../../pkg/logs/sources

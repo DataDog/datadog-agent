@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build (windows && npm) || linux_bpf
+//go:build (windows && npm) || linux_bpf || darwin
 
 package dns
 
@@ -154,6 +154,8 @@ func (c *reverseDNSCache) Get(ips map[util.Address]struct{}) map[util.Address][]
 }
 
 func (c *reverseDNSCache) Len() int {
+	c.mux.Lock()
+	defer c.mux.Unlock()
 	return len(c.data)
 }
 

@@ -13,7 +13,7 @@ import (
 	"time"
 
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
-	"github.com/docker/docker/api/types/events"
+	"github.com/moby/moby/api/types/events"
 )
 
 // ActionDied is a custom action for container events
