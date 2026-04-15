@@ -1257,9 +1257,12 @@ def create_github_release(ctx, release_branch, draft=True):
     )
 
     notes = []
-    version = deduce_version(ctx, release_branch, next_version=False)
+
+    # Fetch tags before entering the worktree so deduce_version can find them
+    ctx.run("git fetch origin --tags", hide=True)
 
     with agent_context(ctx, release_branch):
+        version = deduce_version(ctx, release_branch, next_version=False)
         for section, filename in sections:
             text = pandoc.write(pandoc.read(file=filename), format="markdown_strict", options=["--wrap=none"])
 
