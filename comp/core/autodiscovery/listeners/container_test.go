@@ -250,6 +250,19 @@ container_exclude: image:gcr.io/excluded:.*
 			expectedServices: map[string]wlmListenerSvc{},
 		},
 		{
+			name: "non-running container with empty runtime is skipped",
+			container: &workloadmeta.Container{
+				EntityID:   containerEntityID,
+				EntityMeta: containerEntityMeta,
+				Image:      basicImage,
+				State: workloadmeta.ContainerState{
+					Running: false,
+				},
+				Runtime: "",
+			},
+			expectedServices: map[string]wlmListenerSvc{},
+		},
+		{
 			// In docker, running containers can have a "finishedAt" time when
 			// they have been stopped and then restarted. When that's the case,
 			// we want to collect their info.

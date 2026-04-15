@@ -99,7 +99,7 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 		}
 	}
 
-	if !container.State.Running && container.Runtime == workloadmeta.ContainerRuntimeECSFargate {
+	if !container.State.Running && ( container.Runtime == workloadmeta.ContainerRuntimeECSFargate || container.Runtime == "" )  {
 		return
 	}
 
