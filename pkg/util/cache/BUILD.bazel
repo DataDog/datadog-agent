@@ -15,5 +15,6 @@ go_test(
     name = "cache_test",
     srcs = ["basic_cache_test.go"],
     embed = [":cache"],
+    gotags = ["test"],
     deps = ["@com_github_stretchr_testify//assert"],
 )
