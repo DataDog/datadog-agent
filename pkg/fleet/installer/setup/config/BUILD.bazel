@@ -21,6 +21,7 @@ go_test(
         "write_test.go",
     ],
     embed = [":config"],
+    gotags = ["test"],
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

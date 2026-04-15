@@ -13,7 +13,7 @@ load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_fil
 python_externals = {
     "bzip2": "1.0.8",
     "mpdecimal": "4.0.0",
-    "sqlite": "3.50.4.0",
+    "sqlite": "3.53.0.0",
     "xz": "5.2.5",
     "zlib": "1.3.1",
     "libffi": "3.4.4",
@@ -271,8 +271,14 @@ configure_make(
     # However, in our case, that means using tools that are stored in the build sandbox, so they aren't
     # usable when building an extension, causing all builds to fail.
     # fix_sysconfigdata.py strips sandbox-absolute paths from known tool entries (leaving just the
-    # basename so they can be found on PATH) and clears build flags that are Bazel-specific.
-    postfix_script = "$(execpath @python_3_12//:python3) $(execpath @@//deps/cpython:fix_sysconfigdata.py) $$INSTALLDIR/lib/python{version}/_sysconfigdata__*.py".format(
+    # basename so they can be found on PATH), clears build flags that are Bazel-specific, and replaces
+    # sandbox paths with their install-prefix-relative equivalents.
+    postfix_script = """
+    $(execpath @python_3_12//:python3) $(execpath @@//deps/cpython:fix_sysconfigdata.py) \
+      --install-prefix "##PREFIX##" \
+      --sandbox-prefix "$$BUILD_TMPDIR/$$INSTALL_PREFIX" \
+      $$INSTALLDIR/lib/python{version}/_sysconfigdata__*.py
+    """.format(
         version = VERSION_STR,
     ),
 )

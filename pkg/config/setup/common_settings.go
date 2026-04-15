@@ -659,6 +659,12 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 		"gcr.io/datadoghq",
 		"docker.io/datadog",
 		"public.ecr.aws/datadog",
+		"datadoghq.azurecr.io",
+		"us-docker.pkg.dev/datadoghq/gcr.io",
+		"europe-docker.pkg.dev/datadoghq/eu.gcr.io",
+		"asia-docker.pkg.dev/datadoghq/asia.gcr.io",
+		"registry.datad0g.com",
+		"registry.datadoghq.com",
 	})
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.gradual_rollout.enabled", true)
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.gradual_rollout.cache_ttl", "1h")
@@ -1061,6 +1067,8 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("hostprofiler.additional_http_headers", map[string]string{})
 	config.BindEnvAndSetDefault("hostprofiler.ddprofiling.enabled", false)
 	config.BindEnvAndSetDefault("hostprofiler.ddprofiling.period", 0)
+	config.BindEnvAndSetDefault("hostprofiler.health_metrics.enabled", true)
+	config.BindEnvAndSetDefault("hostprofiler.health_metrics.target", "127.0.0.1:8889")
 }
 
 func agent(config pkgconfigmodel.Setup) {
@@ -1278,6 +1286,8 @@ func autoscaling(config pkgconfigmodel.Setup) {
 
 	// Kubernetes actions
 	config.BindEnvAndSetDefault("kubeactions.enabled", false)
+	// TODO(kubeactions): Update hostnameEndpointPrefix to "kubeops-intake." once provisioned
+	bindEnvAndSetLogsConfigKeys(config, "kubeactions.forwarder.")
 }
 
 func fips(config pkgconfigmodel.Setup) {
@@ -1794,6 +1804,9 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.match_threshold", 0.9)
 	// The sampler needs a larger tokenizer window than the auto-multiline labeler.
 	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.tokenizer_max_input_bytes", 2048)
+	// When true, logs containing critical severity keywords (FATAL, ERROR, PANIC, etc.)
+	// bypass the adaptive sampler and are never dropped.
+	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.protect_important_logs", true)
 
 	// Enable the legacy auto multiline detection (v1)
 	config.BindEnvAndSetDefault("logs_config.force_auto_multi_line_detection_v1", false)
