@@ -105,7 +105,7 @@ func (p *ActionProcessor) Process(configKey string, rawConfig state.RawConfig) e
 		if record.Status == StatusFailed || record.Status == StatusExpired {
 			return fmt.Errorf("action previously %s: %s", record.Status, record.Message)
 		}
-		return fmt.Errorf("action previously claimed: %s", record.Status)
+		return fmt.Errorf("action previously %s: %s", record.Status, record.Message)
 	}
 
 	log.Infof("[KubeActions] Action %s claimed successfully, proceeding with processing", actionKey.String())

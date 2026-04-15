@@ -65,17 +65,9 @@ func (cr *ConfigRetriever) actionsCallback(update map[string]state.RawConfig, ap
 		})
 
 		go func(ck string, rc state.RawConfig) {
-			select {
-			case <-cr.processor.ctx.Done():
-				// Context cancelled, stop processing
-				log.Infof("[KubeActions] Context cancelled, stopping processing for config %s", ck)
-				return
-			default:
-				// Context not cancelled, continue processing
-				err := cr.processor.Process(ck, rc)
-				if err != nil {
-					log.Errorf("[KubeActions] Error processing actions for %s: %v", ck, err)
-				}
+			err := cr.processor.Process(ck, rc)
+			if err != nil {
+				log.Errorf("[KubeActions] Error processing actions for %s: %v", ck, err)
 			}
 		}(configKey, rawConfig)
 	}

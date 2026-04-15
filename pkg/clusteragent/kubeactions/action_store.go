@@ -48,6 +48,7 @@ type ActionRecord struct {
 	ExecutedAt      int64 // Unix timestamp when action was executed
 	ReceivedAt      int64 // Unix timestamp when action was received by agent
 	ActionCreatedAt int64 // Unix timestamp from action.timestamp field
+	ClaimedAt       int64 // Unix timestamp when action was claimed by agent
 }
 
 // ActionStore tracks processed actions in-memory to prevent duplicate execution
@@ -115,7 +116,10 @@ func (s *ActionStore) Claim(key ActionKey) bool {
 
 	// If it doesn't exist, we can claim it by adding it to the map
 	s.executed[key.String()] = ActionRecord{
-		Key: key,
+		Key:       key,
+		Status:    StatusClaimed,
+		Message:   "action claimed",
+		ClaimedAt: time.Now().Unix(),
 	}
 
 	return true
@@ -194,7 +198,8 @@ func (s *ActionStore) cleanup() {
 		if ts == 0 {
 			ts = record.ExecutedAt
 		}
-		if ts > 0 && ts < cutoff {
+		// If the action was created before the cutoff, or the action was claimed before the cutoff, delete it
+		if (ts > 0 && ts < cutoff) || record.ClaimedAt < cutoff {
 			delete(s.executed, key)
 			removed++
 		}
