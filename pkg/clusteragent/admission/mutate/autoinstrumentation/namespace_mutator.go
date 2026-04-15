@@ -8,6 +8,7 @@
 package autoinstrumentation
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"slices"
@@ -146,7 +147,7 @@ func validateRegistryAllowList(allowList []string, registry string) error {
 		return nil
 	}
 	if registry == "" {
-		return fmt.Errorf("image registry is not in the allow list")
+		return errors.New("image registry is not in the allow list")
 	}
 	if !slices.Contains(allowList, registry) {
 		return fmt.Errorf("registry %q is not in the allow list", registry)
