@@ -8,5 +8,6 @@
 ---
 enhancements:
   - |
-    Retry transactions on HTTP 403 responses (API key errors) when secrets are
-    enabled, instead of dropping them, to handle expired API keys.
+    To handle expired API keys, when secrets are referenced in the configuration
+    transactions failing with API key errors (HTTP 403 response) are retried
+    instead of dropped.

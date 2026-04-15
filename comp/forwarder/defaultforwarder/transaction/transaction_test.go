@@ -198,7 +198,9 @@ func Test_truncateBodyForLog(t *testing.T) {
 
 type mockAuthorizer struct{}
 
-func (mockAuthorizer) Authorize(_ int, h http.Header, _ log.Component) { h.Set("DD-Api-Key", "secret") }
+func (mockAuthorizer) Authorize(_ uint, h http.Header, _ log.Component) {
+	h.Set("DD-Api-Key", "secret")
+}
 
 // TestProcessDoesNotMutateHeaders verifies that internalProcess does not add the
 // API key (or any other header) to the transaction's own Headers field.

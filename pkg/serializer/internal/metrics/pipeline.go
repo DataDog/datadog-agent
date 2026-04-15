@@ -99,7 +99,7 @@ func (dest *PipelineDestination) send(payloads transaction.BytesPayloads, forwar
 				txn.Headers.Set("X-Metrics-Request-Len", strconv.Itoa(len(payloads)))
 			}
 
-			txn.APIKeyIndex = idx
+			txn.APIKeyIndex = uint(idx)
 			txn.Resolver = dest.Resolver
 
 			err := forwarder.SubmitTransaction(txn)

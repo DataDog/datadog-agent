@@ -304,7 +304,7 @@ func TestDeserializedTransactionAPIKeyIndexPreserved(t *testing.T) {
 
 	for wantIdx := 0; wantIdx < 3; wantIdx++ {
 		tr := createHTTPTransactionTests(domain)
-		tr.APIKeyIndex = wantIdx
+		tr.APIKeyIndex = uint(wantIdx)
 
 		require.NoError(t, serializer.Add(tr))
 		data, err := serializer.GetBytesAndReset()
@@ -316,7 +316,7 @@ func TestDeserializedTransactionAPIKeyIndexPreserved(t *testing.T) {
 		require.Len(t, txns, 1)
 
 		deserialized := txns[0].(*transaction.HTTPTransaction)
-		assert.Equal(t, wantIdx, deserialized.APIKeyIndex,
+		assert.Equal(t, uint(wantIdx), deserialized.APIKeyIndex,
 			"APIKeyIndex %d should survive serialization round-trip", wantIdx)
 	}
 }
@@ -331,7 +331,7 @@ func TestDeserializedTransactionAuthorize(t *testing.T) {
 
 	for wantIdx, expectedKey := range []string{apiKey1, apiKey2} {
 		tr := createHTTPTransactionTests(domain)
-		tr.APIKeyIndex = wantIdx
+		tr.APIKeyIndex = uint(wantIdx)
 
 		require.NoError(t, serializer.Add(tr))
 		data, err := serializer.GetBytesAndReset()
@@ -360,7 +360,7 @@ func TestDeserializedTransactionAuthorizeMultipleKeys(t *testing.T) {
 	expectedKeys := []string{apiKey1, apiKey2, apiKey3}
 	for idx := range expectedKeys {
 		tr := createHTTPTransactionTests(domain)
-		tr.APIKeyIndex = idx
+		tr.APIKeyIndex = uint(idx)
 		require.NoError(t, serializer.Add(tr))
 	}
 
@@ -377,7 +377,7 @@ func TestDeserializedTransactionAuthorizeMultipleKeys(t *testing.T) {
 	for _, txn := range txns {
 		d := txn.(*transaction.HTTPTransaction)
 		assert.Empty(t, d.Headers.Get("DD-Api-Key"), "t.Headers must never hold the API key")
-		gotKeys[d.APIKeyIndex] = resolveKey(d, log)
+		gotKeys[int(d.APIKeyIndex)] = resolveKey(d, log)
 	}
 
 	for idx, expectedKey := range expectedKeys {
@@ -500,7 +500,7 @@ func TestV2IndexExtraction(t *testing.T) {
 
 	for wantIdx := 0; wantIdx < 3; wantIdx++ {
 		tr := createHTTPTransactionTests(domain)
-		tr.APIKeyIndex = wantIdx
+		tr.APIKeyIndex = uint(wantIdx)
 		require.NoError(t, serializer.Add(tr))
 		data, err := serializer.GetBytesAndReset()
 		require.NoError(t, err)
@@ -511,7 +511,7 @@ func TestV2IndexExtraction(t *testing.T) {
 		require.Len(t, txns, 1)
 
 		deserialized := txns[0].(*transaction.HTTPTransaction)
-		assert.Equal(t, wantIdx, deserialized.APIKeyIndex,
+		assert.Equal(t, uint(wantIdx), deserialized.APIKeyIndex,
 			"V3 round-trip: APIKeyIndex %d must survive serialization", wantIdx)
 		assert.NotNil(t, deserialized.Resolver)
 	}

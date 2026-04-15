@@ -228,7 +228,7 @@ type HttpTransactionProto struct {
 	Priority      TransactionPriorityProto      `protobuf:"varint,8,opt,name=priority,proto3,enum=retry.TransactionPriorityProto" json:"priority,omitempty"`
 	PointCount    int32                         `protobuf:"varint,9,opt,name=PointCount,proto3" json:"PointCount,omitempty"`
 	Destination   TransactionDestinationProto   `protobuf:"varint,10,opt,name=Destination,proto3,enum=retry.TransactionDestinationProto" json:"Destination,omitempty"`
-	APIKeyIndex   int32                         `protobuf:"varint,11,opt,name=APIKeyIndex,proto3" json:"APIKeyIndex,omitempty"`
+	APIKeyIndex   uint32                        `protobuf:"varint,11,opt,name=APIKeyIndex,proto3" json:"APIKeyIndex,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -333,7 +333,7 @@ func (x *HttpTransactionProto) GetDestination() TransactionDestinationProto {
 	return TransactionDestinationProto_ALL_REGIONS
 }
 
-func (x *HttpTransactionProto) GetAPIKeyIndex() int32 {
+func (x *HttpTransactionProto) GetAPIKeyIndex() uint32 {
 	if x != nil {
 		return x.APIKeyIndex
 	}
@@ -418,7 +418,7 @@ const file_HttpTransactionProto_proto_rawDesc = "" +
 	"PointCount\x12D\n" +
 	"\vDestination\x18\n" +
 	" \x01(\x0e2\".retry.TransactionDestinationProtoR\vDestination\x12 \n" +
-	"\vAPIKeyIndex\x18\v \x01(\x05R\vAPIKeyIndex\x1aT\n" +
+	"\vAPIKeyIndex\x18\v \x01(\rR\vAPIKeyIndex\x1aT\n" +
 	"\fHeadersEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12.\n" +
 	"\x05value\x18\x02 \x01(\v2\x18.retry.HeaderValuesProtoR\x05value:\x028\x01\"o\n" +

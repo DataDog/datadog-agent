@@ -549,7 +549,7 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.E
 				t.Kind = kind
 				t.StorableOnDisk = storableOnDisk
 				t.Destination = payload.Destination
-				t.APIKeyIndex = idx
+				t.APIKeyIndex = uint(idx)
 				t.Resolver = dr
 				t.Headers.Set(versionHTTPHeaderKey, version.AgentVersion)
 				t.Headers.Set(useragentHTTPHeaderKey, "datadog-agent/"+version.AgentVersion)

@@ -225,7 +225,7 @@ func (d Destination) String() string {
 }
 
 type Authorizer interface {
-	Authorize(apiKeyIdx int, headers http.Header, log log.Component)
+	Authorize(apiKeyIdx uint, headers http.Header, log log.Component)
 }
 
 // HTTPTransaction represents one Payload for one Endpoint on one Domain.
@@ -263,7 +263,7 @@ type HTTPTransaction struct {
 
 	// We don't store the API key directly in the transaction, as it may change.
 	// Instead store the index so it can be resolved prior to sending.
-	APIKeyIndex int
+	APIKeyIndex uint
 	Resolver    Authorizer
 }
 
