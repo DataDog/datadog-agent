@@ -6,34 +6,27 @@ genrule(
         "DatadogInterop/DatadogInterop.vcxproj",
     ],
     outs = ["libdatadog-interop.dll"],
-    cmd_bat = """
-        set MSBUILD=$(location @visual_studio//:msbuild)
-        set VCXPROJ=$(location DatadogInterop/DatadogInterop.vcxproj)
-        for %%F in (%MSBUILD%) do set MSBUILD=%%~fF
-        for %%F in (%VCXPROJ%) do set VCXPROJ=%%~fF
-        for %%F in ($@) do set OUTDIR=%%~dpF
-        set INTDIR=%OUTDIR%obj\\
-
-        echo === DEBUG: MSBUILD=%MSBUILD%
-        echo === DEBUG: VCXPROJ=%VCXPROJ%
-        echo === DEBUG: OUTDIR=%OUTDIR%
-        echo === DEBUG: INTDIR=%INTDIR%
-        echo === DEBUG: expected output=$@
-        echo === DEBUG: CWD=%CD%
-
-        "%MSBUILD%" "%VCXPROJ%" /p:Configuration=Release /p:Platform="x64" /p:OutDir="%OUTDIR%" /p:IntDir="%INTDIR%" /verbosity:detailed
-        set MSBUILD_EXIT=%errorlevel%
-        echo === DEBUG: MSBuild exit code=%MSBUILD_EXIT%
-
-        echo === DEBUG: looking for dll...
-        dir /s /b "%OUTDIR%*.dll" 2>nul
-        if not exist "$@" (
-            echo === DEBUG: expected output NOT found at $@
-            dir /s /b "%CD%\\*.dll" 2>nul
-        )
-
-        if %MSBUILD_EXIT% neq 0 exit /b %MSBUILD_EXIT%
-    """,
+    cmd_bat = """@echo on
+echo STARTED > C:\\Users\\jgett\\genrule_debug.log
+set MSBUILD=$(location @visual_studio//:msbuild)
+set VCXPROJ=$(location DatadogInterop/DatadogInterop.vcxproj)
+echo MSBUILD=%MSBUILD% >> C:\\Users\\jgett\\genrule_debug.log
+echo VCXPROJ=%VCXPROJ% >> C:\\Users\\jgett\\genrule_debug.log
+for %%F in (%MSBUILD%) do set MSBUILD=%%~fF
+for %%F in (%VCXPROJ%) do set VCXPROJ=%%~fF
+for %%F in ($@) do set OUTDIR=%%~dpF
+set INTDIR=%OUTDIR%obj\\
+echo MSBUILD_FULL=%MSBUILD% >> C:\\Users\\jgett\\genrule_debug.log
+echo VCXPROJ_FULL=%VCXPROJ% >> C:\\Users\\jgett\\genrule_debug.log
+echo OUTDIR=%OUTDIR% >> C:\\Users\\jgett\\genrule_debug.log
+echo INTDIR=%INTDIR% >> C:\\Users\\jgett\\genrule_debug.log
+echo OUTPUT=$@ >> C:\\Users\\jgett\\genrule_debug.log
+echo CWD=%CD% >> C:\\Users\\jgett\\genrule_debug.log
+"%MSBUILD%" "%VCXPROJ%" /p:Configuration=Release /p:Platform="x64" /p:OutDir="%OUTDIR%" /p:IntDir="%INTDIR%" /verbosity:detailed >> C:\\Users\\jgett\\genrule_debug.log 2>&1
+echo MSBUILD_EXIT=%errorlevel% >> C:\\Users\\jgett\\genrule_debug.log
+dir /s /b "%OUTDIR%" >> C:\\Users\\jgett\\genrule_debug.log 2>&1
+if %errorlevel% neq 0 exit /b %errorlevel%
+""",
     target_compatible_with = ["@platforms//os:windows"],
     tools = ["@visual_studio//:msbuild"],
     visibility = ["//visibility:public"],
