@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	github.com/prometheus/common v0.67.5
-	github.com/prometheus/prometheus v0.311.2-0.20260409145810-72293ff1d2e0
+	github.com/prometheus/prometheus v0.311.2-0.20260410083055-07c6232d159b
 	github.com/stretchr/testify v1.11.1
 )
 
