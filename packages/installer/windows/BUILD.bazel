@@ -44,6 +44,7 @@ pkg_tar(
     ],
     compression_level = get_compression_level(),
     extension = "tar.xz",
+    owner = "0.0",
 )
 
 # TODO: MSI target when a Bazel MSI rule is available.
