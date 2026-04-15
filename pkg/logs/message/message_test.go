@@ -249,3 +249,64 @@ func TestPayloadAllowsMessageContentGC(t *testing.T) {
 	assert.Equal(t, 1, len(payload.MessageMetas))
 	assert.Equal(t, int64(2), payload.MessageMetas[0].IngestionTimestamp)
 }
+
+// ---------------------------------------------------------------------------
+// EnsureRendered
+// ---------------------------------------------------------------------------
+
+// fullEncoderSC implements both StructuredContent and FullEncoder for testing.
+type fullEncoderSC struct {
+	BasicStructuredContent
+}
+
+func (f *fullEncoderSC) EncodeFull(_ string, _ int64, _, _, _, _ string) ([]byte, error) {
+	return []byte(`{"message":"mock"}`), nil
+}
+
+func TestEnsureRendered(t *testing.T) {
+	t.Run("unstructured promotes state", func(t *testing.T) {
+		msg := NewMessage([]byte("raw"), nil, "", 0)
+		assert.Equal(t, StateUnstructured, msg.State)
+
+		require.NoError(t, msg.EnsureRendered())
+		assert.Equal(t, StateRendered, msg.State)
+		assert.Equal(t, "raw", string(msg.GetContent()))
+	})
+
+	t.Run("already rendered is no-op", func(t *testing.T) {
+		msg := NewMessage([]byte("data"), nil, "", 0)
+		msg.SetRendered([]byte("rendered"))
+
+		require.NoError(t, msg.EnsureRendered())
+		assert.Equal(t, StateRendered, msg.State)
+		assert.Equal(t, "rendered", string(msg.GetContent()))
+	})
+
+	t.Run("already encoded is no-op", func(t *testing.T) {
+		msg := NewMessage([]byte("data"), nil, "", 0)
+		msg.SetEncoded([]byte("encoded"))
+
+		require.NoError(t, msg.EnsureRendered())
+		assert.Equal(t, StateEncoded, msg.State)
+		assert.Equal(t, "encoded", string(msg.GetContent()))
+	})
+
+	t.Run("structured without FullEncoder renders", func(t *testing.T) {
+		sc := &BasicStructuredContent{Data: map[string]interface{}{"message": "hello"}}
+		msg := NewStructuredMessage(sc, nil, "", 0)
+		assert.Equal(t, StateStructured, msg.State)
+
+		require.NoError(t, msg.EnsureRendered())
+		assert.Equal(t, StateRendered, msg.State)
+		assert.Contains(t, string(msg.GetContent()), `"message":"hello"`)
+	})
+
+	t.Run("structured with FullEncoder skips render", func(t *testing.T) {
+		sc := &fullEncoderSC{BasicStructuredContent{Data: map[string]interface{}{"message": "hello"}}}
+		msg := NewStructuredMessage(sc, nil, "", 0)
+		assert.Equal(t, StateStructured, msg.State)
+
+		require.NoError(t, msg.EnsureRendered())
+		assert.Equal(t, StateStructured, msg.State, "state should stay StateStructured for FullEncoder")
+	})
+}

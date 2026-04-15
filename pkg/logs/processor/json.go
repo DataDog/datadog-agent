@@ -44,13 +44,8 @@ func (j *jsonEncoder) Encode(msg *message.Message, hostname string) error {
 	}
 	tsMillis := ts.UnixNano() / nanoToMillis
 
-	if msg.State != message.StateRendered {
-		return errors.New("message passed to encoder isn't rendered")
-	}
-
 	if fe, ok := msg.GetFullEncoder(); ok {
 		encoded, err := fe.EncodeFull(
-			msg.GetContent(),
 			msg.GetStatus(), tsMillis,
 			hostname, msg.Origin.Service(), msg.Origin.Source(),
 			msg.TagsToString())
@@ -59,6 +54,10 @@ func (j *jsonEncoder) Encode(msg *message.Message, hostname string) error {
 		}
 		msg.SetEncoded(encoded)
 		return nil
+	}
+
+	if msg.State != message.StateRendered {
+		return errors.New("message passed to encoder isn't rendered")
 	}
 
 	encoded, err := json.Marshal(jsonPayload{

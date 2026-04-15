@@ -124,10 +124,10 @@ func BenchmarkRenderNew(b *testing.B) {
 }
 
 // ---------------------------------------------------------------------------
-// Render + EncodeFull: the real new path (render once, wrap once)
+// EncodeFull: self-contained render + envelope in a single call
 // ---------------------------------------------------------------------------
 
-func BenchmarkRenderAndEncodeFull(b *testing.B) {
+func BenchmarkEncodeFull(b *testing.B) {
 	for _, tc := range []struct {
 		name string
 		msg  []byte
@@ -143,11 +143,7 @@ func BenchmarkRenderAndEncodeFull(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				rendered, err := sc.Render()
-				if err != nil {
-					b.Fatal(err)
-				}
-				_, err = sc.EncodeFull(rendered, "info", 1699000000000,
+				_, err := sc.EncodeFull("info", 1699000000000,
 					"myhost", "myservice", "mysource", "env:prod,team:logs")
 				if err != nil {
 					b.Fatal(err)
@@ -231,13 +227,10 @@ func BenchmarkEncodeViaProcessor(b *testing.B) {
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				msg := message.NewStructuredMessage(sc, origin, syslogparser.SeverityToStatus(parsed.Pri), time.Now().UnixNano())
-				rendered, err := msg.Render()
-				if err != nil {
+				if err := msg.EnsureRendered(); err != nil {
 					b.Fatal(err)
 				}
-				msg.SetRendered(rendered)
-				err = processor.JSONEncoder.Encode(msg, "myhost")
-				if err != nil {
+				if err := processor.JSONEncoder.Encode(msg, "myhost"); err != nil {
 					b.Fatal(err)
 				}
 			}

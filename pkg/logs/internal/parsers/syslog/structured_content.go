@@ -157,14 +157,17 @@ func (s *SyslogStructuredContent) Render() ([]byte, error) {
 	return result, nil
 }
 
-// EncodeFull wraps pre-rendered inner JSON in the transport envelope using
-// direct []byte append with a tight escape loop. The rendered parameter is
-// the output of Render(), passed by the encoder to avoid a redundant call.
+// EncodeFull produces the complete transport-envelope JSON in a single pass.
+// It calls Render() internally to obtain the inner JSON, then wraps it using
+// direct []byte append with a tight escape loop.
 func (s *SyslogStructuredContent) EncodeFull(
-	rendered []byte,
 	status string, timestamp int64,
 	hostname, service, source, tags string,
 ) ([]byte, error) {
+	rendered, err := s.Render()
+	if err != nil {
+		return nil, err
+	}
 	buf := make([]byte, 0, len(rendered)+len(rendered)/8+256)
 
 	buf = append(buf, `{"message":"`...)

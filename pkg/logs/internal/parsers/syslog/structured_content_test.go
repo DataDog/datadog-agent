@@ -399,15 +399,12 @@ func TestGetAttribute_NoSIEM(t *testing.T) {
 // EncodeFull: wire-format-preserving fast encoder
 // ---------------------------------------------------------------------------
 
-// renderThenEncodeFull is a test helper that mirrors the real processor flow:
-// Render() first, then EncodeFull() with the pre-rendered bytes.
-func renderThenEncodeFull(t *testing.T, sc *SyslogStructuredContent,
+// encodeFull is a test helper that calls the self-contained EncodeFull.
+func encodeFull(t *testing.T, sc *SyslogStructuredContent,
 	status string, timestamp int64, hostname, service, source, tags string,
 ) []byte {
 	t.Helper()
-	rendered, err := sc.Render()
-	require.NoError(t, err)
-	got, err := sc.EncodeFull(rendered, status, timestamp, hostname, service, source, tags)
+	got, err := sc.EncodeFull(status, timestamp, hostname, service, source, tags)
 	require.NoError(t, err)
 	return got
 }
@@ -441,7 +438,7 @@ func TestEncodeFull_RFC5424(t *testing.T) {
 	}
 
 	sc := NewSyslogStructuredContent(parsed)
-	got := renderThenEncodeFull(t, sc, "notice", 1699000000000, "myhost", "myservice", "mysource", "env:prod,team:logs")
+	got := encodeFull(t, sc, "notice", 1699000000000, "myhost", "myservice", "mysource", "env:prod,team:logs")
 
 	outer, inner := decodeEnvelope(t, got)
 
@@ -481,7 +478,7 @@ func TestEncodeFull_CEF(t *testing.T) {
 	}
 
 	sc := NewSyslogStructuredContent(parsed)
-	got := renderThenEncodeFull(t, sc, "info", 1699000000000, "h", "s", "src", "")
+	got := encodeFull(t, sc, "info", 1699000000000, "h", "s", "src", "")
 
 	outer, inner := decodeEnvelope(t, got)
 
@@ -511,7 +508,7 @@ func TestEncodeFull_BSD_NoPri(t *testing.T) {
 	}
 
 	sc := NewSyslogStructuredContent(parsed)
-	got := renderThenEncodeFull(t, sc, "info", 1699000000000, "h", "s", "src", "")
+	got := encodeFull(t, sc, "info", 1699000000000, "h", "s", "src", "")
 
 	_, inner := decodeEnvelope(t, got)
 
@@ -533,10 +530,10 @@ func TestEncodeFull_Parity_WithOldPath(t *testing.T) {
 
 	sc := NewSyslogStructuredContent(parsed)
 
-	rendered, err := sc.Render()
+	newJSON, err := sc.EncodeFull("info", 1699000000000, "myhost", "myservice", "mysource", "env:prod")
 	require.NoError(t, err)
 
-	newJSON, err := sc.EncodeFull(rendered, "info", 1699000000000, "myhost", "myservice", "mysource", "env:prod")
+	rendered, err := sc.Render()
 	require.NoError(t, err)
 
 	type oldPayload struct {
@@ -590,7 +587,7 @@ func TestEncodeFull_InvalidUTF8(t *testing.T) {
 	}
 
 	sc := NewSyslogStructuredContent(parsed)
-	got := renderThenEncodeFull(t, sc, "info", 0, "", "", "", "")
+	got := encodeFull(t, sc, "info", 0, "", "", "", "")
 
 	// The outer envelope should be valid JSON
 	var outer map[string]interface{}
@@ -608,7 +605,7 @@ func TestEncodeFull_EmptyMessage(t *testing.T) {
 		AppName: "-", ProcID: "-", MsgID: "-", Msg: []byte(""),
 	}
 	sc := NewSyslogStructuredContent(parsed)
-	got := renderThenEncodeFull(t, sc, "info", 0, "", "", "", "")
+	got := encodeFull(t, sc, "info", 0, "", "", "", "")
 
 	_, inner := decodeEnvelope(t, got)
 	assert.Equal(t, "", inner["message"])

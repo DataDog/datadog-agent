@@ -13,3 +13,8 @@ type NoopMessageReceiver struct{}
 // HandleMessage does nothing with the message
 func (n *NoopMessageReceiver) HandleMessage(_ *message.Message, _ []byte, _ string) {
 }
+
+// IsEnabled always returns false for the noop receiver
+func (n *NoopMessageReceiver) IsEnabled() bool {
+	return false
+}

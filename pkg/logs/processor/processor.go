@@ -193,19 +193,24 @@ func (p *Processor) processMessage(msg *message.Message) {
 		metrics.LogsProcessed.Add(1)
 		metrics.TlmLogsProcessed.Inc()
 
-		// render the message
-		rendered, err := msg.Render()
-		if err != nil {
-			log.Error("can't render the msg", err)
-			return
+		// report to diagnostic receivers (e.g. `stream-logs`) only when active
+		if p.diagnosticMessageReceiver.IsEnabled() {
+			rendered, err := msg.Render()
+			if err != nil {
+				log.Error("can't render the msg", err)
+				return
+			}
+			p.diagnosticMessageReceiver.HandleMessage(msg, rendered, "")
 		}
-		msg.SetRendered(rendered)
-
-		// report this message to diagnostic receivers (e.g. `stream-logs` command)
-		p.diagnosticMessageReceiver.HandleMessage(msg, rendered, "")
 
 		if p.failoverConfig.isFailoverActive {
 			p.filterMRFMessages(msg)
+		}
+
+		// prepare the message for encoding (no-op for FullEncoder messages)
+		if err := msg.EnsureRendered(); err != nil {
+			log.Error("can't render the msg", err)
+			return
 		}
 
 		// encode the message to its final format, it is done in-place

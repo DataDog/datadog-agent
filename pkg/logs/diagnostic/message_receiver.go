@@ -16,6 +16,7 @@ import (
 // MessageReceiver interface to handle messages for diagnostics
 type MessageReceiver interface {
 	HandleMessage(*message.Message, []byte, string)
+	IsEnabled() bool
 }
 
 type messagePair struct {
