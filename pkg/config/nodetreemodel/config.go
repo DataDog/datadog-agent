@@ -479,12 +479,9 @@ func (c *ntmConfig) checkKnownKey(key string) {
 	}
 
 	key = strings.ToLower(key)
-	if _, ok := c.unknownKeys.Load(key); ok {
-		return
+	if _, loaded := c.unknownKeys.LoadOrStore(key, struct{}{}); !loaded {
+		log.Warnf("config key %v is unknown", key)
 	}
-
-	c.unknownKeys.Store(key, struct{}{})
-	log.Warnf("config key %v is unknown", key)
 }
 
 func (c *ntmConfig) mergeAllLayers() error {
