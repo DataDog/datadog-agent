@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.structArrayArg",
+      "method": "main.mapIndexPtrStructVal",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -16,14 +16,14 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.structArrayArg",
+            "function": "main.mapIndexPtrStructVal",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 654
+            "lineNumber": 778
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 179
+            "lineNumber": 229
           },
           {
             "function": "runtime.main",
@@ -37,17 +37,17 @@
           }
         ],
         "probe": {
-          "id": "indexMember_arrayStruct_capture_string",
+          "id": "mapIndex_ptrStructVal_capture_string",
           "location": {
-            "method": "main.structArrayArg"
+            "method": "main.mapIndexPtrStructVal"
           }
         },
         "captures": {
           "entry": {
             "captureExpressions": {
-              "s1_Txt": {
+              "y_Txt": {
                 "type": "string",
-                "value": "fourth"
+                "value": "yyy"
               }
             }
           }

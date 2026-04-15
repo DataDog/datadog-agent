@@ -1,22 +1,22 @@
-- offset: "0x000119a0"
+- offset: "0x00011e40"
   size: 8
   kind: struct
   nameEntry: main.aStructNotUsedAsAnArgument
   name: main.aStructNotUsedAsAnArgument
   pkg: main
-  ptrToThis: "0x00006c20"
+  ptrToThis: "0x00006d80"
   struct:
     fields:
         - name: a
           type: int
           offset: 0
-- offset: "0x000151e0"
+- offset: "0x00015880"
   size: 1048584
   kind: struct
   nameEntry: main.bigArrayStruct
   name: main.bigArrayStruct
   pkg: main
-  ptrToThis: "0x00006ca0"
+  ptrToThis: "0x00006e40"
   struct:
     fields:
         - name: tag
@@ -25,13 +25,13 @@
         - name: data
           type: '[131072]int64'
           offset: 8
-- offset: "0x0001e5e0"
+- offset: "0x0001ed40"
   size: 184
   kind: struct
   nameEntry: main.bigStruct
   name: main.bigStruct
   pkg: main
-  ptrToThis: "0x00006c60"
+  ptrToThis: "0x00006e00"
   struct:
     fields:
         - name: Field1 (exported)
@@ -58,13 +58,13 @@
         - name: data
           type: '[128]uint8'
           offset: 56
-- offset: "0x00020180"
+- offset: "0x000208e0"
   size: 80
   kind: struct
   nameEntry: main.condFields
   name: main.condFields
   pkg: main
-  ptrToThis: "0x00006ba0"
+  ptrToThis: "0x00006d00"
   struct:
     fields:
         - name: I8 (exported)
@@ -106,13 +106,31 @@
         - name: arr
           type: '[3]int16'
           offset: 72
-- offset: "0x0001cfe0"
+- offset: "0x00018300"
+  size: 32
+  kind: struct
+  nameEntry: main.indexMemberStruct
+  name: main.indexMemberStruct
+  pkg: main
+  ptrToThis: "0x00006dc0"
+  struct:
+    fields:
+        - name: Val (exported)
+          type: int32
+          offset: 0
+        - name: Txt (exported)
+          type: string
+          offset: 8
+        - name: pad
+          type: '[3]int16'
+          offset: 24
+- offset: "0x0001d740"
   size: 72
   kind: struct
   nameEntry: main.lenFields
   name: main.lenFields
   pkg: main
-  ptrToThis: "0x00006be0"
+  ptrToThis: "0x00006d40"
   struct:
     fields:
         - name: S (exported)

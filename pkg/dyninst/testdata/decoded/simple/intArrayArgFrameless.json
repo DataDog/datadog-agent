@@ -18,7 +18,7 @@
           {
             "function": "main.stringArrayArgFrameless",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 272
+            "lineNumber": 283
           },
           {
             "function": "main.main",

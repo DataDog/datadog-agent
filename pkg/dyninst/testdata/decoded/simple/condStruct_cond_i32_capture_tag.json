@@ -18,7 +18,7 @@
           {
             "function": "main.condStructArg",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 413
+            "lineNumber": 424
           },
           {
             "function": "main.main",

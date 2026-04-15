@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.structArrayArg",
+      "method": "main.mapIndexEmptyKey",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -16,14 +16,14 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.structArrayArg",
+            "function": "main.mapIndexEmptyKey",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 654
+            "lineNumber": 785
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 179
+            "lineNumber": 233
           },
           {
             "function": "runtime.main",
@@ -37,17 +37,17 @@
           }
         ],
         "probe": {
-          "id": "indexMember_arrayStruct_capture_string",
+          "id": "mapIndex_emptyKey_capture",
           "location": {
-            "method": "main.structArrayArg"
+            "method": "main.mapIndexEmptyKey"
           }
         },
         "captures": {
           "entry": {
             "captureExpressions": {
-              "s1_Txt": {
-                "type": "string",
-                "value": "fourth"
+              "empty_val": {
+                "type": "int",
+                "value": "999"
               }
             }
           }

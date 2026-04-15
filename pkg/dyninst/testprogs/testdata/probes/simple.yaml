@@ -743,7 +743,7 @@ probes:
     methodName: main.condLine
     sourceFile: main.go
     lines:
-      - "462"
+      - "473"
   when:
     dsl: "n == 7"
     json: {eq: [{ref: "n"}, 7]}
@@ -768,7 +768,7 @@ probes:
     methodName: main.condLine
     sourceFile: main.go
     lines:
-      - "462"
+      - "473"
   sampling:
     snapshotsPerSecond: 10
 
@@ -2386,5 +2386,98 @@ probes:
       expr:
         dsl: "s.PtrArr[1].Txt"
         json: {getmember: [{index: [{getmember: [{ref: "s"}, "PtrArr"]}, 1]}, "Txt"]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- Map index then getmember: struct values ---
+# Map value is indexMemberStruct; access field after lookup.
+
+# m["a"].Val == 111
+- id: mapIndex_structVal_capture_int
+  tags:
+    - "skip_integration:arch=amd64,toolchain=go1.23.11"
+    - "skip_integration:arch=arm64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.mapIndexStructVal
+  captureExpressions:
+    - name: "a_Val"
+      expr:
+        dsl: "m[\"a\"].Val"
+        json: {getmember: [{index: [{ref: "m"}, "a"]}, "Val"]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# m["b"].Txt == "bbb"
+- id: mapIndex_structVal_capture_string
+  tags:
+    - "skip_integration:arch=amd64,toolchain=go1.23.11"
+    - "skip_integration:arch=arm64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.mapIndexStructVal
+  captureExpressions:
+    - name: "b_Txt"
+      expr:
+        dsl: "m[\"b\"].Txt"
+        json: {getmember: [{index: [{ref: "m"}, "b"]}, "Txt"]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- Map index then getmember: pointer-to-struct values ---
+# Map value is *indexMemberStruct; lookup yields pointer, deref, then field.
+
+# m["x"].Val == 333
+- id: mapIndex_ptrStructVal_capture_int
+  tags:
+    - "skip_integration:arch=amd64,toolchain=go1.23.11"
+    - "skip_integration:arch=arm64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.mapIndexPtrStructVal
+  captureExpressions:
+    - name: "x_Val"
+      expr:
+        dsl: "m[\"x\"].Val"
+        json: {getmember: [{index: [{ref: "m"}, "x"]}, "Val"]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# m["y"].Txt == "yyy"
+- id: mapIndex_ptrStructVal_capture_string
+  tags:
+    - "skip_integration:arch=amd64,toolchain=go1.23.11"
+    - "skip_integration:arch=arm64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.mapIndexPtrStructVal
+  captureExpressions:
+    - name: "y_Txt"
+      expr:
+        dsl: "m[\"y\"].Txt"
+        json: {getmember: [{index: [{ref: "m"}, "y"]}, "Txt"]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- Map index with empty string key ---
+
+# m[""] == 999
+- id: mapIndex_emptyKey_capture
+  tags:
+    - "skip_integration:arch=amd64,toolchain=go1.23.11"
+    - "skip_integration:arch=arm64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.mapIndexEmptyKey
+  captureExpressions:
+    - name: "empty_val"
+      expr:
+        dsl: "m[\"\"]"
+        json: {index: [{ref: "m"}, ""]}
   sampling:
     snapshotsPerSecond: 10

@@ -18,7 +18,7 @@
           {
             "function": "main.lenSlice",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 506
+            "lineNumber": 517
           },
           {
             "function": "main.main",
@@ -77,7 +77,7 @@
           {
             "function": "main.lenSlice",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 506
+            "lineNumber": 517
           },
           {
             "function": "main.main",

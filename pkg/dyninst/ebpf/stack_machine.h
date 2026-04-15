@@ -847,18 +847,21 @@ swiss_map_check_slot(scratch_buf_t* buf, swiss_map_slot_params_t* p) {
     // Quick length check.
     uint32_t lit_len = *(uint32_t*)lit_key;
     if (str_len != lit_len) return 0;
-    if (lit_len == 0) return 1;
 
     // Read and compare string bytes (up to 512 bytes).
-    uint32_t cmp_len = lit_len;
-    if (cmp_len > SWISS_MAP_MAX_STR_KEY_LEN) cmp_len = SWISS_MAP_MAX_STR_KEY_LEN;
-    buf_offset_t tmp_off = kd_off + p->key_data_len;
-    if (!scratch_buf_dereference(buf, tmp_off, cmp_len, str_ptr)) return 0;
-    const uint8_t* lit_bytes = lit_key + 4;
-    for (uint32_t i = 0; i < cmp_len && i < SWISS_MAP_MAX_STR_KEY_LEN; i++) {
-      buf_offset_t off = tmp_off + i;
-      if (!scratch_buf_bounds_check(&off, 1)) return 0;
-      if ((*buf)[off] != lit_bytes[i]) return 0;
+    // When lit_len == 0 (empty string key), both lengths match and there
+    // are no bytes to compare — skip straight to the value read below.
+    if (lit_len > 0) {
+      uint32_t cmp_len = lit_len;
+      if (cmp_len > SWISS_MAP_MAX_STR_KEY_LEN) cmp_len = SWISS_MAP_MAX_STR_KEY_LEN;
+      buf_offset_t tmp_off = kd_off + p->key_data_len;
+      if (!scratch_buf_dereference(buf, tmp_off, cmp_len, str_ptr)) return 0;
+      const uint8_t* lit_bytes = lit_key + 4;
+      for (uint32_t i = 0; i < cmp_len && i < SWISS_MAP_MAX_STR_KEY_LEN; i++) {
+        buf_offset_t off = tmp_off + i;
+        if (!scratch_buf_bounds_check(&off, 1)) return 0;
+        if ((*buf)[off] != lit_bytes[i]) return 0;
+      }
     }
   } else {
     uint8_t slot_key[8] = {};

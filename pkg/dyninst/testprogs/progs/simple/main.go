@@ -221,6 +221,17 @@ func main() {
 	mapIndexKeyLen96(makeLargeMapWithKeyLen(96, 1000))   // 65-128 byte tier
 	mapIndexKeyLen200(makeLargeMapWithKeyLen(200, 1000)) // 129+ byte tier
 
+	// Map index with struct/pointer values and field access.
+	mapIndexStructVal(map[string]indexMemberStruct{
+		"a": {Val: 111, Txt: "aaa"},
+		"b": {Val: 222, Txt: "bbb"},
+	})
+	mapIndexPtrStructVal(map[string]*indexMemberStruct{
+		"x": {Val: 333, Txt: "xxx"},
+		"y": {Val: 444, Txt: "yyy"},
+	})
+	mapIndexEmptyKey(map[string]int{"": 999, "notempty": 0})
+
 	// Generic function called with two different shape instantiations.
 	// int and string have different GC shapes, so the compiler emits two
 	// distinct shape functions (go.shape.int, go.shape.string). A single
@@ -749,6 +760,30 @@ func mapIndexKeyLen96(m map[string]int) {
 func mapIndexKeyLen200(m map[string]int) {
 	fmt.Println(len(m))
 }
+
+// mapIndexStructVal takes a map with struct values for testing
+// map-index-then-getmember (e.g., m["key"].Val).
+//
+//go:noinline
+func mapIndexStructVal(m map[string]indexMemberStruct) {
+	fmt.Println(m["a"].Val)
+}
+
+// mapIndexPtrStructVal takes a map with pointer-to-struct values for testing
+// map-index-then-deref-then-getmember (e.g., m["key"].Val).
+//
+//go:noinline
+func mapIndexPtrStructVal(m map[string]*indexMemberStruct) {
+	fmt.Println(m["x"].Val)
+}
+
+// mapIndexEmptyKey takes a map where the empty string is a valid key.
+//
+//go:noinline
+func mapIndexEmptyKey(m map[string]int) {
+	fmt.Println(m[""])
+}
+
 // genericIdentity is a generic function called with different shape types
 // (int vs string) to exercise dictionary-based type resolution and shared
 // throttling across shape instantiations.

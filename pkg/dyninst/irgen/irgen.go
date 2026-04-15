@@ -4129,10 +4129,12 @@ func resolveExpression(
 		lastDerefOpIdx := -1
 
 		// Detect if the base expression already ends with a DereferenceOp
-		// (e.g., from slice index resolution). If so, initialize state so
-		// the member loop updates the correct op.
+		// or SwissMapLookupOp (e.g., from slice index or map index
+		// resolution). If so, initialize state so the member loop updates
+		// the correct op.
 		if len(operations) > 0 {
-			if _, ok := operations[len(operations)-1].(*ir.DereferenceOp); ok {
+			switch operations[len(operations)-1].(type) {
+			case *ir.DereferenceOp, *ir.SwissMapLookupOp:
 				hasDereferenced = true
 				lastDerefOpIdx = len(operations) - 1
 			}
@@ -4208,15 +4210,17 @@ func resolveExpression(
 					}
 				}
 			} else {
-				// After dereference: update the DereferenceOp that corresponds to
-				// the current pointer being dereferenced (tracked by lastDerefOpIdx).
+				// After dereference or map lookup: update the operation that
+				// corresponds to the current data read (tracked by lastDerefOpIdx).
 				if lastDerefOpIdx >= 0 && lastDerefOpIdx < len(operations) {
-					if derefOp, ok := operations[lastDerefOpIdx].(*ir.DereferenceOp); ok {
-						// Update the DereferenceOp's bias to include this field offset.
-						derefOp.Bias += field.Offset
-						// Update the byte size to match the field size.
-						derefOp.ByteSize = field.Type.GetByteSize()
-					} else {
+					switch op := operations[lastDerefOpIdx].(type) {
+					case *ir.DereferenceOp:
+						op.Bias += field.Offset
+						op.ByteSize = field.Type.GetByteSize()
+					case *ir.SwissMapLookupOp:
+						op.ValInSlotOffset += uint8(field.Offset)
+						op.ValByteSize = field.Type.GetByteSize()
+					default:
 						// Should not happen, but accumulate bias for safety.
 						bias += field.Offset
 					}
