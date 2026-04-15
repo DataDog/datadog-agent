@@ -271,19 +271,6 @@ static __always_inline int handle_skb_consume_udp(struct sock *sk, struct sk_buf
         return 0;
     }
 
-    sk_udp_stats_t *sk_stats = bpf_sk_storage_get(&sk_udp_stats, sk, 0, BPF_SK_STORAGE_GET_F_CREATE);
-    if (!sk_stats) {
-        return 0;
-    }
-    if (!sk_stats->tup.pid) {
-        sk_stats->tup.pid = GET_USER_MODE_PID(bpf_get_current_pid_tgid());
-    }
-    if (!sk_stats->tup.netns) {
-        sk_stats->tup.netns = get_netns_from_sock(sk);
-    }
-    sk_stats->tup.metadata |= CONN_TYPE_UDP;
-
-    // TODO do we need to differentiate UDP connections by tuple instead of socket?
     unsigned char *head = skb->head;
     if (!head) {
         log_debug("ERR reading head");
@@ -301,10 +288,31 @@ static __always_inline int handle_skb_consume_udp(struct sock *sk, struct sk_buf
         log_debug("ERR reading iphdr");
         return 0;
     }
+    switch (iph.version) {
+    case 4:
+        if (!is_udpv4_enabled()) return 0;
+        break;
+    case 6:
+        if (!is_udpv6_enabled()) return 0;
+        break;
+    default:
+        return 0;
+    }
+
+    sk_udp_stats_t *sk_stats = bpf_sk_storage_get(&sk_udp_stats, sk, 0, BPF_SK_STORAGE_GET_F_CREATE);
+    if (!sk_stats) {
+        return 0;
+    }
+    if (!sk_stats->tup.pid) {
+        sk_stats->tup.pid = GET_USER_MODE_PID(bpf_get_current_pid_tgid());
+    }
+    if (!sk_stats->tup.netns) {
+        sk_stats->tup.netns = get_netns_from_sock(sk);
+    }
+    sk_stats->tup.metadata |= CONN_TYPE_UDP;
+
+    // TODO do we need to differentiate UDP connections by tuple instead of socket?
     if (iph.version == 4) {
-        if (!is_udpv4_enabled()) {
-            return 0;
-        }
         sk_stats->tup.metadata |= CONN_V4;
         bpf_probe_read_kernel(&sk_stats->tup.saddr_l, sizeof(__be32), &iph.saddr);
         bpf_probe_read_kernel(&sk_stats->tup.daddr_l, sizeof(__be32), &iph.daddr);
@@ -312,9 +320,6 @@ static __always_inline int handle_skb_consume_udp(struct sock *sk, struct sk_buf
             log_debug("ERR(skb_consume_udp.v4): src or dst addr not set src=%llu, dst=%llu", sk_stats->tup.saddr_l, sk_stats->tup.daddr_l);
         }
     } else if (iph.version == 6) {
-        if (!is_udpv6_enabled()) {
-            return 0;
-        }
         sk_stats->tup.metadata |= CONN_V6;
         struct ipv6hdr ip6h;
         bpf_memset(&ip6h, 0, sizeof(struct ipv6hdr));
@@ -390,6 +395,9 @@ int BPF_PROG(skb_consume_udp_entry, struct sock *sk, struct sk_buff *skb, int le
 
 SEC("fexit/udp_destroy_sock")
 int BPF_PROG(udp_destroy_sock_exit, struct sock *sk) {
+    if (!is_udp_family_enabled(sk)) {
+        return 0;
+    }
     log_debug("udp_destroy_sock: sk=%p", sk);
     sk_udp_stats_t *sk_stats = bpf_sk_storage_get(&sk_udp_stats, sk, 0, 0);
     conn_t conn = {};
@@ -402,6 +410,9 @@ int BPF_PROG(udp_destroy_sock_exit, struct sock *sk) {
 
 SEC("fexit/udpv6_destroy_sock")
 int BPF_PROG(udpv6_destroy_sock_exit, struct sock *sk) {
+    if (!is_udp_family_enabled(sk)) {
+        return 0;
+    }
     log_debug("udpv6_destroy_sock: sk=%p", sk);
     sk_udp_stats_t *sk_stats = bpf_sk_storage_get(&sk_udp_stats, sk, 0, 0);
     conn_t conn = {};

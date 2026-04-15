@@ -73,6 +73,17 @@ int tcp_sockops(struct bpf_sock_ops *ctx) {
     if (!ctx->is_fullsock) {
         return 1;
     }
+    switch (ctx->family) {
+    case AF_INET:
+        if (!is_tcpv4_enabled()) return 1;
+        break;
+    case AF_INET6:
+        if (!is_tcpv6_enabled()) return 1;
+        break;
+    default:
+        return 1;
+    }
+
     struct bpf_sock *bpf_sk = ctx->sk;
     if (!bpf_sk) {
         return 1;
@@ -158,6 +169,9 @@ int tcp_sockops(struct bpf_sock_ops *ctx) {
 
 SEC("fentry/tcp_connect")
 int BPF_PROG(tcp_connect_entry, struct sock *sk) {
+    if (!is_tcp_family_enabled(sk)) {
+        return 0;
+    }
     sk_tcp_stats_t *sk_stats = bpf_sk_storage_get(&sk_tcp_stats, sk, 0, BPF_SK_STORAGE_GET_F_CREATE);
     if (!sk_stats) {
         return 0;
@@ -171,6 +185,9 @@ int BPF_PROG(tcp_connect_entry, struct sock *sk) {
 
 SEC("fexit/inet_csk_accept")
 int BPF_PROG(inet_csk_accept_exit, struct sock *orig_sk, int flags, int *err, bool kern, struct sock *sk) {
+    if (!is_tcp_family_enabled(sk)) {
+        return 0;
+    }
     sk_tcp_stats_t *sk_stats = bpf_sk_storage_get(&sk_tcp_stats, sk, 0, BPF_SK_STORAGE_GET_F_CREATE);
     if (!sk_stats) {
         return 0;
@@ -185,6 +202,9 @@ int BPF_PROG(inet_csk_accept_exit, struct sock *orig_sk, int flags, int *err, bo
 
 SEC("fexit/inet_csk_accept")
 int BPF_PROG(inet_csk_accept_exit_610, struct sock *orig_sk, struct proto_accept_arg *arg, struct sock *sk) {
+    if (!is_tcp_family_enabled(sk)) {
+        return 0;
+    }
     sk_tcp_stats_t *sk_stats = bpf_sk_storage_get(&sk_tcp_stats, sk, 0, BPF_SK_STORAGE_GET_F_CREATE);
     if (!sk_stats) {
         return 0;
@@ -199,6 +219,9 @@ int BPF_PROG(inet_csk_accept_exit_610, struct sock *orig_sk, struct proto_accept
 
 SEC("fentry/tcp_finish_connect")
 int BPF_PROG(tcp_finish_connect_entry, struct sock *sk) {
+    if (!is_tcp_family_enabled(sk)) {
+        return 0;
+    }
     sk_tcp_stats_t *sk_stats = bpf_sk_storage_get(&sk_tcp_stats, sk, 0, BPF_SK_STORAGE_GET_F_CREATE);
     if (!sk_stats) {
         return 0;
@@ -210,6 +233,9 @@ int BPF_PROG(tcp_finish_connect_entry, struct sock *sk) {
 
 SEC("fentry/tcp_done")
 int BPF_PROG(tcp_done_entry, struct sock *sk) {
+    if (!is_tcp_family_enabled(sk)) {
+        return 0;
+    }
     sk_tcp_stats_t *sk_stats = bpf_sk_storage_get(&sk_tcp_stats, sk, 0, BPF_SK_STORAGE_GET_F_CREATE);
     if (!sk_stats) {
         return 0;
@@ -229,6 +255,9 @@ int BPF_PROG(tcp_done_entry, struct sock *sk) {
 
 SEC("fentry/tcp_close")
 int BPF_PROG(tcp_close_entry, struct sock *sk) {
+    if (!is_tcp_family_enabled(sk)) {
+        return 0;
+    }
     sk_tcp_stats_t *sk_stats = bpf_sk_storage_get(&sk_tcp_stats, sk, 0, BPF_SK_STORAGE_GET_F_CREATE);
     if (!sk_stats) {
         return 0;
@@ -248,6 +277,9 @@ int BPF_PROG(tcp_close_entry, struct sock *sk) {
 
 SEC("fentry/tcp_enter_loss")
 int BPF_PROG(tcp_enter_loss_entry, struct sock *sk) {
+    if (!is_tcp_family_enabled(sk)) {
+        return 0;
+    }
     sk_tcp_stats_t *sk_stats = bpf_sk_storage_get(&sk_tcp_stats, sk, 0, BPF_SK_STORAGE_GET_F_CREATE);
     if (!sk_stats) {
         return 0;
@@ -259,6 +291,9 @@ int BPF_PROG(tcp_enter_loss_entry, struct sock *sk) {
 
 SEC("fentry/tcp_enter_recovery")
 int BPF_PROG(tcp_enter_recovery_entry, struct sock *sk) {
+    if (!is_tcp_family_enabled(sk)) {
+        return 0;
+    }
     sk_tcp_stats_t *sk_stats = bpf_sk_storage_get(&sk_tcp_stats, sk, 0, BPF_SK_STORAGE_GET_F_CREATE);
     if (!sk_stats) {
         return 0;
@@ -270,6 +305,9 @@ int BPF_PROG(tcp_enter_recovery_entry, struct sock *sk) {
 
 SEC("fentry/tcp_send_probe0")
 int BPF_PROG(tcp_send_probe0_entry, struct sock *sk) {
+    if (!is_tcp_family_enabled(sk)) {
+        return 0;
+    }
     sk_tcp_stats_t *sk_stats = bpf_sk_storage_get(&sk_tcp_stats, sk, 0, BPF_SK_STORAGE_GET_F_CREATE);
     if (!sk_stats) {
         return 0;
