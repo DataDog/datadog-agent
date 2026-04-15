@@ -82,6 +82,16 @@ contract PatternMatching {
         -- compared for equality. The sequences match iff
         -- positional_matches >= required_matches.
 
+    @invariant Isolation
+        -- Contrapositive of ThresholdComparison. Two sequences are
+        -- guaranteed not to match when the number of differing
+        -- positions exceeds the tolerance:
+        --   comparison_length = min(a.length, b.length)
+        --   tolerance = comparison_length - round(threshold * comparison_length)
+        --   differing_positions > tolerance implies is_match = false
+        -- This bounds the minimum edit distance required to ensure
+        -- two patterns never interfere under a given threshold.
+
     @invariant MonotonicThreshold
         -- For fixed a and b, if is_match(a, b, t1) and t2 <= t1,
         -- then is_match(a, b, t2). Lowering the threshold cannot
