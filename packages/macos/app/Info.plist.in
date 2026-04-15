@@ -25,7 +25,7 @@
     <key>LSHasLocalizedDisplayName</key>
     <false/>
     <key>LSUIElement</key>
-    <false/>
+    <true/>
     <key>NSAppleScriptEnabled</key>
     <false/>
     <key>NSHumanReadableCopyright</key>
