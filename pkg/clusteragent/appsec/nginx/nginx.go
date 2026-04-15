@@ -78,6 +78,17 @@ func (n *nginxInjectionPattern) Deleted(ctx context.Context, obj *unstructured.U
 	name := obj.GetName()
 	n.logger.Debugf("Processing deleted IngressClass for ingress-nginx: %s", name)
 
+	// Check if other ingress-nginx IngressClasses still exist before cleaning up.
+	// This prevents deleting ConfigMaps still needed by other controllers.
+	otherExists, err := anyOtherIngressNginxClassExists(ctx, n.client, name)
+	if err != nil {
+		return fmt.Errorf("could not check for remaining ingress-nginx IngressClasses: %w", err)
+	}
+	if otherExists {
+		n.logger.Debug("Skipping ConfigMap cleanup: other ingress-nginx IngressClasses still exist")
+		return nil
+	}
+
 	// Find namespaces with DD ConfigMaps by listing all ConfigMaps with our labels
 	cmList, err := n.client.Resource(configMapGVR).Namespace(corev1.NamespaceAll).List(ctx, metav1.ListOptions{
 		LabelSelector: "app.kubernetes.io/part-of=datadog,app.kubernetes.io/component=datadog-appsec-injector",
@@ -101,6 +112,25 @@ func (n *nginxInjectionPattern) Deleted(ctx context.Context, obj *unstructured.U
 	}
 
 	return nil
+}
+
+// anyOtherIngressNginxClassExists checks if any IngressClass with the ingress-nginx
+// controller exists, excluding the one being deleted (by name).
+func anyOtherIngressNginxClassExists(ctx context.Context, client dynamic.Interface, excludeName string) (bool, error) {
+	list, err := client.Resource(ingressClassGVR).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return false, err
+	}
+	for _, item := range list.Items {
+		if item.GetName() == excludeName {
+			continue
+		}
+		controllerName, found, _ := unstructured.NestedString(item.UnstructuredContent(), "spec", "controller")
+		if found && controllerName == ingressNginxControllerName {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // New creates a new InjectionPattern for ingress-nginx.

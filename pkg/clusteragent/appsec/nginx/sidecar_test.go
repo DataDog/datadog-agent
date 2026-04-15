@@ -377,6 +377,46 @@ func TestDeletedCleansUpDDConfigMaps(t *testing.T) {
 	assert.True(t, k8serrors.IsNotFound(err), "DD ConfigMap should be deleted after IngressClass deletion")
 }
 
+func TestDeletedSkipsWhenOtherIngressClassesExist(t *testing.T) {
+	pattern, client := newTestNginxSidecarPattern(t)
+
+	// Pre-create a DD ConfigMap
+	ddCM := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "v1",
+			"kind":       "ConfigMap",
+			"metadata": map[string]interface{}{
+				"name":      "datadog-appsec-ingress-nginx-controller",
+				"namespace": "ingress-nginx",
+				"labels": map[string]interface{}{
+					"app.kubernetes.io/component":                   "datadog-appsec-injector",
+					"app.kubernetes.io/part-of":                     "datadog",
+					"app.kubernetes.io/managed-by":                  "datadog-cluster-agent",
+					appsecconfig.AppsecProcessorProxyTypeAnnotation: string(appsecconfig.ProxyTypeIngressNginx),
+				},
+			},
+		},
+	}
+	_, err := client.Resource(configMapGVR).Namespace("ingress-nginx").Create(context.Background(), ddCM, metav1.CreateOptions{})
+	require.NoError(t, err)
+
+	// Create two ingress-nginx IngressClasses
+	ic1 := newIngressClass("nginx", "k8s.io/ingress-nginx")
+	ic2 := newIngressClass("nginx-internal", "k8s.io/ingress-nginx")
+	_, err = client.Resource(ingressClassGVR).Create(context.Background(), ic1, metav1.CreateOptions{})
+	require.NoError(t, err)
+	_, err = client.Resource(ingressClassGVR).Create(context.Background(), ic2, metav1.CreateOptions{})
+	require.NoError(t, err)
+
+	// Delete one IngressClass — but the other still exists
+	err = pattern.Deleted(context.Background(), ic1)
+	require.NoError(t, err)
+
+	// DD ConfigMap should NOT be deleted because another ingress-nginx IngressClass still exists
+	_, err = client.Resource(configMapGVR).Namespace("ingress-nginx").Get(context.Background(), "datadog-appsec-ingress-nginx-controller", getOpts())
+	assert.NoError(t, err, "DD ConfigMap should NOT be deleted when other ingress-nginx IngressClasses still exist")
+}
+
 func TestMutatePodVersionParseFailed(t *testing.T) {
 	pattern, _ := newTestNginxSidecarPattern(t)
 	pod := newControllerPod("test", "ingress-nginx", "registry.k8s.io/ingress-nginx/controller:latest")
