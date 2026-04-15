@@ -102,10 +102,7 @@ func (p *ActionProcessor) Process(configKey string, rawConfig state.RawConfig) e
 	// Check if we can claim the action
 	if !p.store.Claim(actionKey) {
 		record, _ := p.store.GetRecord(actionKey)
-		if record.Status == StatusFailed || record.Status == StatusExpired {
-			return fmt.Errorf("action previously %s: %s", record.Status, record.Message)
-		}
-		return fmt.Errorf("action previously %s: %s", record.Status, record.Message)
+		return fmt.Errorf("could not claim action, previously %s: %s", record.Status, record.Message)
 	}
 
 	log.Infof("[KubeActions] Action %s claimed successfully, proceeding with processing", actionKey.String())
