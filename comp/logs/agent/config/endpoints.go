@@ -75,6 +75,7 @@ type Endpoint struct {
 	CompressionLevel        int    `mapstructure:"compression_level" json:"compression_level"`
 	ProxyAddress            string
 	IsMRF                   bool `mapstructure:"-" json:"-"`
+	UseGRPC                 bool `mapstructure:"use_grpc" json:"use_grpc"`
 	ConnectionResetInterval time.Duration
 
 	BackoffFactor    float64
@@ -198,6 +199,7 @@ func loadTCPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, registerCallba
 		newE.TrackType = e.TrackType
 		newE.Protocol = e.Protocol
 		newE.Origin = e.Origin
+		newE.UseGRPC = e.UseGRPC
 
 		if e.UseSSL != nil {
 			newE.useSSL = *e.UseSSL
@@ -224,6 +226,7 @@ func loadHTTPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, intakeTrackTy
 
 		newE.isAdditionalEndpoint = true
 		newE.additionalEndpointsIdx = idx
+		newE.UseGRPC = e.UseGRPC
 		newE.UseCompression = main.UseCompression
 		newE.CompressionKind = main.CompressionKind
 		newE.CompressionLevel = main.CompressionLevel

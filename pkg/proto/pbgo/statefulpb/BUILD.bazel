@@ -2,7 +2,10 @@ load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "statefulpb",
-    srcs = ["stateful_encoding.pb.go"],
+    srcs = [
+        "stateful_encoding.pb.go",
+        "stateful_encoding_grpc.pb.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb",
     visibility = ["//visibility:public"],
     deps = [

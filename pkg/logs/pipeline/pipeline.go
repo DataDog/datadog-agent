@@ -122,6 +122,10 @@ func getStrategy(
 
 			return grpcsender.NewBatchStrategy(statefulInputChan, outputChan, flushChan, endpoints.BatchWait, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", encoder, pipelineMonitor, instanceID)
 		}
+		if grpcEndpoint, ok := firstGRPCAdditionalEndpoint(endpoints); ok && !serverlessMeta.IsEnabled() {
+			grpcComp := buildEndpointCompressor(compressor, grpcEndpoint)
+			return grpcsender.NewDualStrategy(inputChan, outputChan, flushChan, grpcEndpoint, grpcComp, cfg, endpoints, serverlessMeta, encoder, pipelineMonitor, instanceID)
+		}
 		return sender.NewBatchStrategy(
 			inputChan,
 			outputChan,
@@ -138,4 +142,20 @@ func getStrategy(
 
 	log.Infof("Pipeline: Using StreamStrategy (default)")
 	return sender.NewStreamStrategy(inputChan, outputChan, compressor.NewCompressor(compressioncommon.NoneKind, 0))
+}
+
+func firstGRPCAdditionalEndpoint(endpoints *config.Endpoints) (config.Endpoint, bool) {
+	for _, ep := range endpoints.Endpoints[1:] {
+		if ep.UseGRPC {
+			return ep, true
+		}
+	}
+	return config.Endpoint{}, false
+}
+
+func buildEndpointCompressor(comp logscompression.Component, endpoint config.Endpoint) compressioncommon.Compressor {
+	if endpoint.UseCompression {
+		return comp.NewCompressor(endpoint.CompressionKind, endpoint.CompressionLevel)
+	}
+	return comp.NewCompressor(compressioncommon.NoneKind, 0)
 }
