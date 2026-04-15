@@ -46,6 +46,14 @@ const (
 	fieldTPAppVersionRef      = 9  // uint32
 	fieldTPAttributes         = 10 // map<uint32, AnyValue>
 	fieldTPChunks             = 11 // repeated TraceChunk
+	fieldTPContainerDebug     = 12 // ContainerDebug
+
+	// ContainerDebug message fields
+	fieldCDError                = 1 // string
+	fieldCDLatencyMs            = 2 // int64
+	fieldCDWasBuffered          = 3 // bool
+	fieldCDBufferMs             = 4 // int64
+	fieldCDBufferEvictionReason = 5 // string
 )
 
 // Field numbers for idx.TraceChunk (from idx/tracer_payload.proto)
@@ -723,6 +731,14 @@ func sizeTracerPayloadCompacting(tp *idx.TracerPayload, c *stringCompactor) int 
 		size += chunkSize
 	}
 
+	// Field 12: containerDebug
+	if tp.ContainerDebug != nil {
+		cdSize := sizeContainerDebug(tp.ContainerDebug)
+		size += sizeTag(fieldTPContainerDebug, wireLengthDelim)
+		size += sizeVarint(uint64(cdSize))
+		size += cdSize
+	}
+
 	return size
 }
 
@@ -1032,6 +1048,14 @@ func appendTracerPayloadCompacting(buf []byte, tp *idx.TracerPayload, c *stringC
 	// Field 11: chunks (repeated TraceChunk)
 	for _, chunk := range tp.Chunks {
 		buf = appendTraceChunkCompacting(buf, chunk, c)
+	}
+
+	// Field 12: containerDebug
+	if tp.ContainerDebug != nil {
+		cdSize := sizeContainerDebug(tp.ContainerDebug)
+		buf = appendTag(buf, fieldTPContainerDebug, wireLengthDelim)
+		buf = appendVarint(buf, uint64(cdSize))
+		buf = appendContainerDebug(buf, tp.ContainerDebug)
 	}
 
 	// Field 1: strings (compacted) - serialized last
@@ -1425,5 +1449,60 @@ func appendMapEntry(buf []byte, key, value string) []byte {
 	buf = appendTag(buf, 2, wireLengthDelim)
 	buf = appendVarint(buf, uint64(len(value)))
 	buf = append(buf, value...)
+	return buf
+}
+
+// sizeContainerDebug calculates the serialized size of a ContainerDebug message.
+func sizeContainerDebug(cd *idx.ContainerDebug) int {
+	size := 0
+	if len(cd.Error) > 0 {
+		size += sizeTag(fieldCDError, wireLengthDelim)
+		size += sizeVarint(uint64(len(cd.Error)))
+		size += len(cd.Error)
+	}
+	if cd.LatencyMs != 0 {
+		size += sizeTag(fieldCDLatencyMs, wireVarint)
+		size += sizeVarint(uint64(cd.LatencyMs))
+	}
+	if cd.WasBuffered {
+		size += sizeTag(fieldCDWasBuffered, wireVarint)
+		size += 1 // bool is 1 byte
+	}
+	if cd.BufferMs != 0 {
+		size += sizeTag(fieldCDBufferMs, wireVarint)
+		size += sizeVarint(uint64(cd.BufferMs))
+	}
+	if len(cd.BufferEvictionReason) > 0 {
+		size += sizeTag(fieldCDBufferEvictionReason, wireLengthDelim)
+		size += sizeVarint(uint64(len(cd.BufferEvictionReason)))
+		size += len(cd.BufferEvictionReason)
+	}
+	return size
+}
+
+// appendContainerDebug serializes a ContainerDebug message to the buffer.
+func appendContainerDebug(buf []byte, cd *idx.ContainerDebug) []byte {
+	if len(cd.Error) > 0 {
+		buf = appendTag(buf, fieldCDError, wireLengthDelim)
+		buf = appendVarint(buf, uint64(len(cd.Error)))
+		buf = append(buf, cd.Error...)
+	}
+	if cd.LatencyMs != 0 {
+		buf = appendTag(buf, fieldCDLatencyMs, wireVarint)
+		buf = appendVarint(buf, uint64(cd.LatencyMs))
+	}
+	if cd.WasBuffered {
+		buf = appendTag(buf, fieldCDWasBuffered, wireVarint)
+		buf = appendVarint(buf, 1)
+	}
+	if cd.BufferMs != 0 {
+		buf = appendTag(buf, fieldCDBufferMs, wireVarint)
+		buf = appendVarint(buf, uint64(cd.BufferMs))
+	}
+	if len(cd.BufferEvictionReason) > 0 {
+		buf = appendTag(buf, fieldCDBufferEvictionReason, wireLengthDelim)
+		buf = appendVarint(buf, uint64(len(cd.BufferEvictionReason)))
+		buf = append(buf, cd.BufferEvictionReason...)
+	}
 	return buf
 }
