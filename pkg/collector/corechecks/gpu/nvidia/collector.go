@@ -51,6 +51,7 @@ var factory = map[CollectorName]subsystemBuilder{
 
 	// Specialized collectors that remain unchanged (complex or unique logic)
 	field:        newFieldsCollector,
+	"nvlink":     newNVLinkCollector,
 	gpm:          newGPMCollector,
 	deviceEvents: newDeviceEventsCollector,
 }

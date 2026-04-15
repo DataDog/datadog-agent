@@ -549,6 +549,177 @@ metrics:
         mig: false
         physical: true
         vgpu: false
+  nvlink.plr_codes_loss:
+    tagsets:
+      - device
+    custom_tags:
+      - nvlink_port
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+        - ampere
+        - ada
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  nvlink.plr_rcv_code_err:
+    tagsets:
+      - device
+    custom_tags:
+      - nvlink_port
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+        - ampere
+        - ada
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  nvlink.plr_rcv_codes:
+    tagsets:
+      - device
+    custom_tags:
+      - nvlink_port
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+        - ampere
+        - ada
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  nvlink.plr_rcv_uncorrectable_code:
+    tagsets:
+      - device
+    custom_tags:
+      - nvlink_port
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+        - ampere
+        - ada
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  nvlink.plr_sync_events:
+    tagsets:
+      - device
+    custom_tags:
+      - nvlink_port
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+        - ampere
+        - ada
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  nvlink.plr_xmit_codes:
+    tagsets:
+      - device
+    custom_tags:
+      - nvlink_port
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+        - ampere
+        - ada
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  nvlink.plr_xmit_retry_codes:
+    tagsets:
+      - device
+    custom_tags:
+      - nvlink_port
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+        - ampere
+        - ada
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  nvlink.plr_xmit_retry_events:
+    tagsets:
+      - device
+    custom_tags:
+      - nvlink_port
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+        - ampere
+        - ada
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  nvlink.plr_xmit_retry_events_within_t_sec_max:
+    tagsets:
+      - device
+    custom_tags:
+      - nvlink_port
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+        - ampere
+        - ada
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
   nvlink.speed:
     tagsets:
       - device

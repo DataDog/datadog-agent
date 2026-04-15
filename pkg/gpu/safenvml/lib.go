@@ -70,6 +70,7 @@ func getNonCriticalAPIs() []string {
 		toNativeName("GetFanSpeed"),
 		toNativeName("GetFanSpeed_v2"),
 		toNativeName("GetFieldValues"),
+		"nvmlDeviceReadWritePRM_v1",
 		toNativeName("GetGpuInstanceId"),
 		toNativeName("GetGpuInstanceProfileInfo"),
 		toNativeName("GetMaxClockInfo"),
