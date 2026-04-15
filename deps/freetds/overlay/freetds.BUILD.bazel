@@ -273,7 +273,6 @@ pkg_filegroup(
 pkg_install(
     name = "install",
     srcs = [
-        ":all_files",
         ":installed_libs",
     ],
 )
