@@ -59,7 +59,10 @@ pub struct WriterStats {
 pub trait SignalWriter: Send + 'static {
     /// Decode a raw FlatBuffers frame and accumulate rows. May trigger a
     /// Parquet flush if thresholds are reached.
-    fn process_frame(&mut self, buf: &[u8]) -> Result<()>;
+    ///
+    /// Takes ownership of the frame buffer so implementations can retain it
+    /// (e.g. arena-based zero-copy accumulation in the logs writer).
+    fn process_frame(&mut self, buf: Vec<u8>) -> Result<()>;
 
     /// Flush any buffered rows and close the active Parquet file.
     fn flush_and_close(&mut self) -> Result<()>;
@@ -166,7 +169,7 @@ fn writer_thread_loop<W: SignalWriter>(
         // Drain all available frames without blocking.
         let mut processed = false;
         while let Ok(buf) = consumer.pop() {
-            if let Err(e) = writer.process_frame(&buf) {
+            if let Err(e) = writer.process_frame(buf) {
                 warn!("writer error: {e}");
             }
             processed = true;
@@ -205,7 +208,7 @@ mod tests {
     }
 
     impl SignalWriter for MockWriter {
-        fn process_frame(&mut self, _buf: &[u8]) -> Result<()> {
+        fn process_frame(&mut self, _buf: Vec<u8>) -> Result<()> {
             self.frames_processed.fetch_add(1, Ordering::Relaxed);
             self.buffered += 1;
             Ok(())

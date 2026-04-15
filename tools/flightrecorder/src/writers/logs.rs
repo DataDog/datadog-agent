@@ -7,7 +7,6 @@ use arrow::array::{ArrayRef, BinaryArray, Int64Array, UInt64Array};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::record_batch::RecordBatch;
 
-use super::apply_permutation;
 use super::context_writer::{ContextProducer, ContextRecord};
 use super::parquet_helpers::{BaseWriter, DiskTracker};
 use super::thread::{SignalWriter, WriterStats};
@@ -26,16 +25,31 @@ static LOGS_SCHEMA: LazyLock<Arc<Schema>> = LazyLock::new(|| {
     ]))
 });
 
+/// Byte offset into an arena frame buffer.
+struct ContentRef {
+    frame_idx: u32,
+    offset: u32,
+    len: u32,
+}
+
 /// Columnar accumulator for log entries.
+///
+/// Uses an arena-based zero-copy design: incoming FlatBuffers frame buffers are
+/// retained in `arena` and log content is referenced by offset, avoiding
+/// per-entry heap allocations. At flush time, content slices are read directly
+/// from the arena buffers to build the Arrow BinaryArray.
 pub struct LogsWriter {
     pub base: BaseWriter,
 
     // Context records are forwarded to the shared context writer thread.
     ctx_producer: ContextProducer,
 
-    // Plain columnar buffers (3 columns).
+    // Arena: retained frame buffers. Cleared on flush.
+    arena: Vec<Vec<u8>>,
+
+    // Per-entry columnar data.
     context_keys: Vec<u64>,
-    contents: Vec<Vec<u8>>,
+    content_refs: Vec<ContentRef>,
     timestamps: Vec<i64>,
 }
 
@@ -50,8 +64,9 @@ impl LogsWriter {
         Self {
             base: BaseWriter::new(output_dir.as_ref(), flush_rows, flush_interval, disk_tracker),
             ctx_producer,
+            arena: Vec::new(),
             context_keys: Vec::with_capacity(flush_rows),
-            contents: Vec::with_capacity(flush_rows),
+            content_refs: Vec::with_capacity(flush_rows),
             timestamps: Vec::with_capacity(flush_rows),
         }
     }
@@ -62,8 +77,20 @@ impl LogsWriter {
         self.timestamps.len()
     }
 
-    /// Ingest a LogBatch from FlatBuffers. Flushes automatically when thresholds are reached.
-    pub fn push(&mut self, batch: &signals::LogBatch<'_>) -> Result<Option<PathBuf>> {
+    /// Ingest a LogBatch from an owned FlatBuffers frame buffer.
+    ///
+    /// The frame buffer is retained in the arena so that log content bytes
+    /// can be referenced without copying. Flushes automatically when
+    /// thresholds are reached.
+    pub fn push_owned(&mut self, buf: Vec<u8>) -> Result<Option<PathBuf>> {
+        let env = flatbuffers::root::<signals::SignalEnvelope>(&buf)
+            .map_err(|e| anyhow::anyhow!("decode error: {e}"))?;
+
+        let batch = match env.log_batch() {
+            Some(b) => b,
+            None => return Ok(None),
+        };
+
         // Forward context definitions to the shared context writer thread.
         if let Some(contexts) = batch.contexts() {
             for i in 0..contexts.len() {
@@ -88,15 +115,39 @@ impl LogsWriter {
             }
         }
 
-        // Process log entries → accumulate for Parquet.
+        // Process log entries — record offsets into the frame buffer.
         if let Some(entries) = batch.entries() {
-            for i in 0..entries.len() {
-                let e = entries.get(i);
-                self.context_keys.push(e.context_key());
-                self.contents.push(
-                    e.content().map(|c| c.bytes().to_vec()).unwrap_or_default(),
-                );
-                self.timestamps.push(e.timestamp_ns());
+            if entries.len() > 0 {
+                let frame_idx = self.arena.len() as u32;
+
+                for i in 0..entries.len() {
+                    let e = entries.get(i);
+                    self.context_keys.push(e.context_key());
+                    // Record the content byte range within the frame buffer.
+                    // FlatBuffers content() returns a slice into buf.
+                    match e.content() {
+                        Some(c) => {
+                            let bytes = c.bytes();
+                            let offset = bytes.as_ptr() as usize - buf.as_ptr() as usize;
+                            self.content_refs.push(ContentRef {
+                                frame_idx,
+                                offset: offset as u32,
+                                len: bytes.len() as u32,
+                            });
+                        }
+                        None => {
+                            self.content_refs.push(ContentRef {
+                                frame_idx,
+                                offset: 0,
+                                len: 0,
+                            });
+                        }
+                    }
+                    self.timestamps.push(e.timestamp_ns());
+                }
+
+                // Retain the frame buffer in the arena.
+                self.arena.push(buf);
             }
         }
 
@@ -114,16 +165,25 @@ impl LogsWriter {
         }
 
         let keys = std::mem::take(&mut self.context_keys);
-        let contents = std::mem::take(&mut self.contents);
+        let content_refs = std::mem::take(&mut self.content_refs);
+        let arena = std::mem::take(&mut self.arena);
         let timestamps = std::mem::take(&mut self.timestamps);
 
         // Sort index by timestamp for better compression.
         let mut order: Vec<usize> = (0..row_count).collect();
         order.sort_unstable_by_key(|&i| timestamps[i]);
 
-        let sorted_contents = apply_permutation(contents, &order);
+        // Build the BinaryArray by slicing into arena buffers — zero copy.
         let content_array: ArrayRef = Arc::new(BinaryArray::from_iter_values(
-            sorted_contents.iter().map(|v| v.as_slice()),
+            order.iter().map(|&i| {
+                let r = &content_refs[i];
+                if r.len == 0 {
+                    &[] as &[u8]
+                } else {
+                    let frame = &arena[r.frame_idx as usize];
+                    &frame[r.offset as usize..r.offset as usize + r.len as usize]
+                }
+            }),
         ));
 
         let columns: Vec<ArrayRef> = vec![
@@ -145,12 +205,8 @@ impl LogsWriter {
 }
 
 impl SignalWriter for LogsWriter {
-    fn process_frame(&mut self, buf: &[u8]) -> Result<()> {
-        let env = flatbuffers::root::<signals::SignalEnvelope>(buf)
-            .map_err(|e| anyhow::anyhow!("decode error: {e}"))?;
-        if let Some(batch) = env.log_batch() {
-            self.push(&batch)?;
-        }
+    fn process_frame(&mut self, buf: Vec<u8>) -> Result<()> {
+        self.push_owned(buf)?;
         Ok(())
     }
 
@@ -182,11 +238,9 @@ mod tests {
     fn make_ctx_producer() -> ContextProducer {
         use super::super::context_store::ContextStore;
         use super::super::context_writer::ContextWriterHandle;
-        // Spawn a real context writer with a noop store for tests.
         let dir = tempdir().unwrap();
         let store = ContextStore::new(dir.path()).unwrap();
         let (_handle, _prod_m, prod_l) = ContextWriterHandle::spawn(store, 64);
-        // Leak the handle — test cleanup is handled by tempdir drop.
         std::mem::forget(_handle);
         std::mem::forget(dir);
         prod_l
@@ -216,19 +270,53 @@ mod tests {
         arrow::compute::concat_batches(&batches[0].schema(), &batches).unwrap()
     }
 
-    fn add_rows(w: &mut LogsWriter, n: usize) {
-        for i in 0..n {
-            w.context_keys.push(i as u64 % 100 + 1);
-            w.contents.push(format!("log line {i}").into_bytes());
-            w.timestamps.push(i as i64 * 1000);
+    /// Build a FlatBuffers LogBatch frame with `n` entries for testing.
+    fn build_log_frame(entries: &[(u64, &[u8], i64)]) -> Vec<u8> {
+        use crate::generated::signals_generated::signals as sig;
+        let mut fbb = flatbuffers::FlatBufferBuilder::with_capacity(4096);
+        let mut offsets = Vec::with_capacity(entries.len());
+        for &(ckey, content, ts) in entries.iter().rev() {
+            let content_off = fbb.create_vector(content);
+            let entry = sig::LogEntry::create(
+                &mut fbb,
+                &sig::LogEntryArgs {
+                    context_key: ckey,
+                    content: Some(content_off),
+                    timestamp_ns: ts,
+                },
+            );
+            offsets.push(entry);
         }
+        offsets.reverse();
+        let vec = fbb.create_vector(&offsets);
+        let batch = sig::LogBatch::create(
+            &mut fbb,
+            &sig::LogBatchArgs {
+                contexts: None,
+                entries: Some(vec),
+            },
+        );
+        let env = sig::SignalEnvelope::create(
+            &mut fbb,
+            &sig::SignalEnvelopeArgs {
+                log_batch: Some(batch),
+                ..Default::default()
+            },
+        );
+        fbb.finish(env, None);
+        fbb.finished_data().to_vec()
     }
 
     #[test]
     fn test_push_and_flush() {
         let dir = tempdir().unwrap();
         let mut w = make_writer(dir.path());
-        add_rows(&mut w, 50);
+
+        let entries: Vec<(u64, &[u8], i64)> = (0..50)
+            .map(|i| (i as u64 % 10 + 1, format!("log line {i}").leak().as_bytes(), i as i64 * 1000))
+            .collect();
+        let frame = build_log_frame(&entries);
+        w.process_frame(frame).unwrap();
 
         let path = w.flush().unwrap();
         assert!(path.exists());
@@ -242,7 +330,9 @@ mod tests {
     fn test_column_names() {
         let dir = tempdir().unwrap();
         let mut w = make_writer(dir.path());
-        add_rows(&mut w, 1);
+
+        let frame = build_log_frame(&[(1, b"hello", 1000)]);
+        w.process_frame(frame).unwrap();
 
         let path = w.flush().unwrap();
         w.base.close().unwrap();
@@ -261,10 +351,10 @@ mod tests {
     fn test_binary_content_roundtrip() {
         let dir = tempdir().unwrap();
         let mut w = make_writer(dir.path());
-        let binary_data = vec![0u8, 1, 2, 3, 255, 0];
-        w.context_keys.push(42);
-        w.contents.push(binary_data.clone());
-        w.timestamps.push(42);
+        let binary_data: &[u8] = &[0u8, 1, 2, 3, 255, 0];
+
+        let frame = build_log_frame(&[(42, binary_data, 42)]);
+        w.process_frame(frame).unwrap();
 
         let path = w.flush().unwrap();
         w.base.close().unwrap();
@@ -277,7 +367,7 @@ mod tests {
             .as_any()
             .downcast_ref::<arrow::array::BinaryArray>()
             .unwrap();
-        assert_eq!(content_col.value(0), binary_data.as_slice());
+        assert_eq!(content_col.value(0), binary_data);
     }
 
     #[test]
@@ -288,10 +378,41 @@ mod tests {
     }
 
     #[test]
+    fn test_multiple_frames_arena() {
+        let dir = tempdir().unwrap();
+        let mut w = make_writer(dir.path());
+
+        // Push multiple frames — each retained in the arena.
+        for i in 0..5 {
+            let frame = build_log_frame(&[
+                (i as u64, format!("frame {i} line 0").leak().as_bytes(), i as i64 * 1000),
+                (i as u64, format!("frame {i} line 1").leak().as_bytes(), i as i64 * 1000 + 1),
+            ]);
+            w.process_frame(frame).unwrap();
+        }
+
+        assert_eq!(w.len(), 10);
+        assert_eq!(w.arena.len(), 5); // 5 frames retained
+
+        let path = w.flush().unwrap();
+        w.base.close().unwrap();
+        let batch = read_parquet(&path);
+        assert_eq!(batch.num_rows(), 10);
+
+        // Arena should be cleared after flush.
+        assert_eq!(w.arena.len(), 0);
+    }
+
+    #[test]
     fn test_telemetry_counters() {
         let dir = tempdir().unwrap();
         let mut w = make_writer(dir.path());
-        add_rows(&mut w, 10);
+
+        let entries: Vec<(u64, &[u8], i64)> = (0..10)
+            .map(|i| (1u64, b"test".as_slice(), i as i64 * 1000))
+            .collect();
+        let frame = build_log_frame(&entries);
+        w.process_frame(frame).unwrap();
 
         assert_eq!(w.base.flush_count, 0);
         let path = w.flush().unwrap();

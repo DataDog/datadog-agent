@@ -15,6 +15,7 @@ use flightrecorder::writers::context_store::ContextStore;
 use flightrecorder::writers::context_writer::{ContextProducer, ContextWriterHandle};
 use flightrecorder::writers::logs::LogsWriter;
 use flightrecorder::writers::metrics::MetricsWriter;
+use flightrecorder::writers::thread::SignalWriter;
 
 fn make_ctx_producer() -> (ContextProducer, ContextProducer) {
     let dir = TempDir::new().unwrap();
@@ -185,12 +186,9 @@ fn bench_logs_push(c: &mut Criterion) {
                     Arc::new(DiskTracker::noop()),
                 );
 
-                let env = flatbuffers::root::<signals::SignalEnvelope>(frame).unwrap();
-                let batch = env.log_batch().unwrap();
-
                 let start = Instant::now();
                 for _ in 0..iters {
-                    writer.push(&batch).unwrap();
+                    writer.process_frame(frame.clone()).unwrap();
                 }
                 start.elapsed()
             });
@@ -258,12 +256,9 @@ fn bench_logs_push_flush(c: &mut Criterion) {
                     Arc::new(DiskTracker::noop()),
                 );
 
-                let env = flatbuffers::root::<signals::SignalEnvelope>(frame).unwrap();
-                let batch = env.log_batch().unwrap();
-
                 let start = Instant::now();
                 for _ in 0..iters {
-                    writer.push(&batch).unwrap();
+                    writer.process_frame(frame.clone()).unwrap();
                 }
                 start.elapsed()
             });

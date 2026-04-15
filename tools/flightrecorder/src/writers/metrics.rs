@@ -161,8 +161,8 @@ impl MetricsWriter {
 }
 
 impl SignalWriter for MetricsWriter {
-    fn process_frame(&mut self, buf: &[u8]) -> Result<()> {
-        let env = flatbuffers::root::<signals::SignalEnvelope>(buf)
+    fn process_frame(&mut self, buf: Vec<u8>) -> Result<()> {
+        let env = flatbuffers::root::<signals::SignalEnvelope>(&buf)
             .map_err(|e| anyhow::anyhow!("decode error: {e}"))?;
         if let Some(batch) = env.metric_batch() {
             self.push(&batch)?;

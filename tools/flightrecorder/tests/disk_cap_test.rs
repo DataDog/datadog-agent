@@ -77,7 +77,7 @@ fn test_disk_cap_enforcement() {
         let mut writer = LogsWriter::new(output_dir, 500, Duration::from_secs(3600), make_ctx_producer(), tracker.clone());
 
         let frame = build_log_frame(500);
-        writer.process_frame(&frame).unwrap();
+        writer.process_frame(frame.clone()).unwrap();
         writer.flush_and_close().unwrap();
 
         // Small sleep to ensure unique timestamp in filename.
@@ -141,7 +141,7 @@ fn test_disk_cap_zero_means_unlimited() {
 
     let frame = build_log_frame(50);
     for _ in 0..10 {
-        writer.process_frame(&frame).unwrap();
+        writer.process_frame(frame.clone()).unwrap();
     }
     writer.flush_and_close().unwrap();
 
