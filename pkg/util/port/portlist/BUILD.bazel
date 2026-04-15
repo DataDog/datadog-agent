@@ -55,6 +55,7 @@ go_test(
     ],
     embed = [":portlist"],
     # Does not run on macos yet. It breaks the sandbox.
+    # TODO(ABLD-449): Make /usr/sbin/netstat available to this test.
     tags = ["manual"],
     deps = select({
         "@rules_go//go/platform:android": [
