@@ -171,7 +171,6 @@ require (
 	github.com/DataDog/dd-trace-go/v2 v2.7.0-rc.1
 	github.com/DataDog/ebpf-manager v0.7.16
 	github.com/DataDog/go-sqllexer v0.2.1
-	github.com/DataDog/nikos v1.12.12
 	github.com/DataDog/sketches-go v1.4.8
 	github.com/DataDog/viper v1.15.1
 	// TODO: pin to a WPA released version once there is a release that includes the apis module
@@ -467,7 +466,7 @@ require (
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.6.0 // indirect
 	github.com/BurntSushi/toml v1.6.0 // indirect
 	github.com/Code-Hex/go-generics-cache v1.5.1 // indirect
-	github.com/DataDog/aptly v1.5.3 // indirect
+	github.com/DataDog/aptly v1.5.3
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/impl v0.0.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/impl v0.70.0
 	github.com/DataDog/datadog-agent/comp/core/secrets/utils v0.72.0-devel
@@ -493,7 +492,6 @@ require (
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/NYTimes/gziphandler v1.1.1 // indirect
 	github.com/Showmax/go-fqdn v1.0.0 // indirect
-	github.com/StackExchange/wmi v1.2.1 // indirect
 	github.com/alecthomas/participle v0.7.1 // indirect
 	github.com/alecthomas/participle/v2 v2.1.4 // indirect
 	github.com/antchfx/xmlquery v1.5.1 // indirect
@@ -778,7 +776,7 @@ require (
 	github.com/rs/zerolog v1.34.0 // indirect
 	github.com/rust-secure-code/go-rustaudit v0.0.0-20250226111315-e20ec32e963c // indirect
 	github.com/samber/oops v1.18.1 // indirect
-	github.com/sassoftware/go-rpmutils v0.4.0 // indirect
+	github.com/sassoftware/go-rpmutils v0.4.0
 	github.com/scaleway/scaleway-sdk-go v1.0.0-beta.36 // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.9.0 // indirect
 	github.com/shirou/gopsutil/v3 v3.24.5 // indirect
@@ -817,7 +815,7 @@ require (
 	github.com/xdg-go/stringprep v1.0.4 // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
 	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
-	github.com/xor-gate/ar v0.0.0-20170530204233-5c72ae81e2b7 // indirect
+	github.com/xor-gate/ar v0.0.0-20170530204233-5c72ae81e2b7
 	github.com/yashtewari/glob-intersection v0.2.0 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78 // indirect
 	github.com/zeebo/xxh3 v1.1.0 // indirect
@@ -923,7 +921,7 @@ require (
 	gopkg.in/cheggaaa/pb.v1 v1.0.28 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
-	gopkg.in/ini.v1 v1.67.1 // indirect
+	gopkg.in/ini.v1 v1.67.1
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	honnef.co/go/tools v0.6.1 // indirect
 	k8s.io/apiserver v0.35.3 // indirect
@@ -1039,7 +1037,6 @@ require (
 	github.com/DataDog/datadog-go v3.2.0+incompatible // indirect
 	github.com/DataDog/go-libddwaf/v4 v4.8.0 // indirect
 	github.com/DataDog/go-runtime-metrics-internal v0.0.4-0.20260217080614-b0f4edc38a6d // indirect
-	github.com/DataDog/gopsutil v1.2.3 // indirect
 	github.com/Jeffail/gabs/v2 v2.1.0 // indirect
 	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/ProtonMail/gopenpgp/v3 v3.2.1 // indirect
@@ -1056,6 +1053,7 @@ require (
 	github.com/boombuler/barcode v1.0.1 // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
+	github.com/cheggaaa/pb v1.0.29 // indirect
 	github.com/circonus-labs/circonus-gometrics v2.3.1+incompatible // indirect
 	github.com/circonus-labs/circonusllhist v0.1.3 // indirect
 	github.com/coreos/etcd v3.3.27+incompatible // indirect

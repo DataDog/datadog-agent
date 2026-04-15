@@ -14,12 +14,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/nikos/apt"
-	"github.com/DataDog/nikos/cos"
-	"github.com/DataDog/nikos/rpm"
-	"github.com/DataDog/nikos/types"
-	"github.com/DataDog/nikos/wsl"
 	"github.com/avast/retry-go/v4"
+
+	"github.com/DataDog/datadog-agent/pkg/util/kernel/headers/download/apt"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel/headers/download/cos"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel/headers/download/rpm"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel/headers/download/types"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel/headers/download/wsl"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
