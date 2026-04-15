@@ -468,67 +468,12 @@ fn size_verified_zip_reader(
         }
     };
 
-    Ok(Box::new(SizeLimitedReader::new(verified_reader, max_size)))
+    Ok(Box::new(verified_reader.take(size_hint.min(max_size))))
 }
 
 #[cfg(feature = "java-archives")]
 fn rawzip_error_to_io_error(err: rawzip::Error) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, err)
-}
-
-#[cfg(feature = "java-archives")]
-/// SizeLimitedReader turns "more than max_size bytes are available" into an
-/// explicit error instead of a clean EOF.
-///
-/// That matters for ZIP entries because we do not want callers to successfully
-/// parse a truncated prefix of an oversized manifest or config file. `take()`
-/// would stop at the limit and look like EOF; this wrapper probes one byte past
-/// the limit so oversized entries fail closed.
-struct SizeLimitedReader<R> {
-    reader: R,
-    max_size: u64,
-    total_read: u64,
-}
-
-#[cfg(feature = "java-archives")]
-impl<R> SizeLimitedReader<R> {
-    fn new(reader: R, max_size: u64) -> Self {
-        Self {
-            reader,
-            max_size,
-            total_read: 0,
-        }
-    }
-}
-
-#[cfg(feature = "java-archives")]
-impl<R: Read> Read for SizeLimitedReader<R> {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        let remaining = self.max_size.saturating_sub(self.total_read);
-        if remaining == 0 {
-            let mut extra = [0u8; 1];
-            let read = self.reader.read(&mut extra)?;
-            if read == 0 {
-                return Ok(0);
-            }
-            self.total_read += read as u64;
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                format!(
-                    "ZIP file entry too large ({} bytes, max {} bytes)",
-                    self.total_read, self.max_size
-                ),
-            ));
-        }
-
-        let allowed = remaining.min(buf.len() as u64) as usize;
-        let Some(buf) = buf.get_mut(..allowed) else {
-            return Err(io::Error::other("failed to create bounded ZIP read buffer"));
-        };
-        let read = self.reader.read(buf)?;
-        self.total_read += read as u64;
-        Ok(read)
-    }
 }
 
 /// Returns a reader for the file after ensuring that the file is a regular file
