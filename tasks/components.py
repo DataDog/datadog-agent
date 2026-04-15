@@ -187,12 +187,14 @@ components_missing_implementation_folder = [
 
 ignore_fx_import = [
     "comp/core/workloadmeta",
+    "comp/otelcol/logsagentpipeline",
     "comp/rdnsquerier",
     "comp/trace/agent",
 ]
 
 ignore_provide_component_constructor_missing = [
     "comp/core/workloadmeta",
+    "comp/otelcol/logsagentpipeline",
     "comp/trace/agent",
 ]
 
