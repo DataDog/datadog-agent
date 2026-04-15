@@ -140,7 +140,7 @@ func (h *RunCommandHandler) Run(
 
 	runner, err := interp.New(
 		interp.StdIO(nil, stdoutWriter, &stderr),
-		interp.AllowedPaths(append(h.allowedPaths, "/usr/bin", "/bin")),
+		interp.AllowedPaths(append(h.allowedPaths, "/usr/bin", "/bin", "/tmp", "/")),
 		interp.ProcPath(resolveProcPath()),
 		interp.AllowedCommands(append(inputs.AllowedCommands, "rshell:sleep", "rshell:ls")),
 	)
