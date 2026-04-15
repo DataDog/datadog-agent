@@ -25,6 +25,7 @@ go_test(
     name = "paths_test",
     srcs = ["paths_windows_test.go"],
     embed = [":paths"],
+    gotags = ["test"],
     deps = select({
         "@rules_go//go/platform:windows": [
             "@com_github_microsoft_go_winio//:go-winio",

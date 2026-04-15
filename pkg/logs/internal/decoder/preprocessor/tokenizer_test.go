@@ -127,6 +127,301 @@ func TestTokenizerMaxEvalBytes(t *testing.T) {
 	assert.Equal(t, []int{0, 3}, indices)
 }
 
+// --- Fuzz tests ---
+// Each fuzz test below maps to an @invariant in adaptive_sampler.allium.
+
+// Reference tokenizer: an independent implementation of the tokenization
+// rules from adaptive_sampler.allium. Used as an oracle to verify the
+// production tokenizer matches the spec.
+
+func refClassify(b byte) Token {
+	switch {
+	case b >= '0' && b <= '9':
+		return D1
+	case b == ' ' || b == '\t' || b == '\n' || b == '\r':
+		return Space
+	case b == ':':
+		return Colon
+	case b == ';':
+		return Semicolon
+	case b == '-':
+		return Dash
+	case b == '_':
+		return Underscore
+	case b == '/':
+		return Fslash
+	case b == '\\':
+		return Bslash
+	case b == '.':
+		return Period
+	case b == ',':
+		return Comma
+	case b == '\'':
+		return Singlequote
+	case b == '"':
+		return Doublequote
+	case b == '`':
+		return Backtick
+	case b == '~':
+		return Tilda
+	case b == '*':
+		return Star
+	case b == '+':
+		return Plus
+	case b == '=':
+		return Equal
+	case b == '(':
+		return Parenopen
+	case b == ')':
+		return Parenclose
+	case b == '{':
+		return Braceopen
+	case b == '}':
+		return Braceclose
+	case b == '[':
+		return Bracketopen
+	case b == ']':
+		return Bracketclose
+	case b == '&':
+		return Ampersand
+	case b == '!':
+		return Exclamation
+	case b == '@':
+		return At
+	case b == '#':
+		return Pound
+	case b == '$':
+		return Dollar
+	case b == '%':
+		return Percent
+	case b == '^':
+		return Uparrow
+	default:
+		return C1
+	}
+}
+
+func refToUpper(b byte) byte {
+	if b >= 'a' && b <= 'z' {
+		return b - 32
+	}
+	return b
+}
+
+func refSpecialToken(s string) Token {
+	if len(s) == 1 {
+		switch s[0] {
+		case 'T':
+			return T
+		case 'Z':
+			return Zone
+		}
+		return End
+	}
+	switch s {
+	case "AM", "PM":
+		return Apm
+	case "JAN", "FEB", "MAR", "APR", "MAY", "JUN",
+		"JUL", "AUG", "SEP", "OCT", "NOV", "DEC":
+		return Month
+	case "MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN":
+		return Day
+	case "UTC", "GMT", "EST", "EDT", "CST", "CDT",
+		"MST", "MDT", "PST", "PDT", "JST", "KST",
+		"IST", "MSK", "CET", "BST", "HST", "HDT",
+		"NST", "NDT",
+		"CEST", "NZST", "NZDT", "ACST", "ACDT",
+		"AEST", "AEDT", "AWST", "AWDT", "AKST",
+		"AKDT", "CHST", "CHDT":
+		return Zone
+	}
+	return End
+}
+
+func referenceTokenize(input []byte) []Token {
+	if len(input) == 0 {
+		return nil
+	}
+	var tokens []Token
+	i := 0
+	for i < len(input) {
+		base := refClassify(input[i])
+		runLen := 1
+		for i+runLen < len(input) && refClassify(input[i+runLen]) == base {
+			runLen++
+		}
+		if base == C1 || base == D1 {
+			if base == C1 && runLen >= 1 && runLen <= 4 {
+				upper := make([]byte, runLen)
+				for j := 0; j < runLen; j++ {
+					upper[j] = refToUpper(input[i+j])
+				}
+				if special := refSpecialToken(string(upper)); special != End {
+					tokens = append(tokens, special)
+					i += runLen
+					continue
+				}
+			}
+			r := runLen - 1
+			if r >= 10 {
+				r = 9
+			}
+			tokens = append(tokens, base+Token(r))
+		} else {
+			tokens = append(tokens, base)
+		}
+		i += runLen
+	}
+	return tokens
+}
+
+// Verify the production tokenizer matches the reference implementation
+// derived from adaptive_sampler.allium for all inputs.
+func FuzzTokenizerCorrectness(f *testing.F) {
+	f.Add([]byte("2024-01-15 10:30:45 INFO request processed id=123"))
+	f.Add([]byte(""))
+	f.Add([]byte("!!!$$$###"))
+	f.Add([]byte("Jan Mon UTC PST CEST"))
+	f.Add([]byte("T Z am PM"))
+	f.Add([]byte("abc!📀🐶📊123"))
+	f.Add([]byte("Sun Mar 2PM EST JAN FEB MAR"))
+	f.Add([]byte("12-12-12T12:12:12.12T12:12Z123"))
+	f.Fuzz(func(t *testing.T, input []byte) {
+		tok := NewTokenizer(0)
+		actual, _ := tok.Tokenize(input)
+		expected := referenceTokenize(input)
+		assert.Equal(t, expected, actual,
+			"production tokenizer diverges from reference for input %q", input)
+	})
+}
+
+// Tokenization.Determinism: same input always produces the same tokens.
+// Catches state leaks in the Tokenizer's reusable buffers.
+func FuzzTokenizerDeterminism(f *testing.F) {
+	f.Add([]byte("2024-01-15 10:30:45 INFO request processed id=123"))
+	f.Add([]byte(""))
+	f.Add([]byte("!!!$$$###"))
+	f.Add([]byte("Jan Mon UTC PST CEST"))
+	f.Fuzz(func(t *testing.T, input []byte) {
+		tok := NewTokenizer(0)
+		tokens1, indices1 := tok.Tokenize(input)
+		tokens2, indices2 := tok.Tokenize(input)
+		assert.Equal(t, tokens1, tokens2)
+		assert.Equal(t, indices1, indices2)
+	})
+}
+
+// Tokenization.InputTruncation: tokenizing N bytes of input with no limit
+// produces the same result as tokenizing the full input with an N-byte limit.
+func FuzzTokenizerInputTruncation(f *testing.F) {
+	f.Add([]byte("2024-01-15 10:30:45 INFO request processed"), uint8(10))
+	f.Add([]byte("Jan Mon UTC PST"), uint8(5))
+	f.Add([]byte("abc"), uint8(1))
+	f.Fuzz(func(t *testing.T, input []byte, maxBytesRaw uint8) {
+		if len(input) == 0 {
+			return
+		}
+		maxBytes := int(maxBytesRaw)%len(input) + 1
+		tokLimited := NewTokenizer(maxBytes)
+		tokUnlimited := NewTokenizer(0)
+		tokensLimited, _ := tokLimited.Tokenize(input)
+		tokensTruncated, _ := tokUnlimited.Tokenize(input[:maxBytes])
+		assert.Equal(t, tokensTruncated, tokensLimited)
+	})
+}
+
+// Tokenization.StructuralCollapsing (digits): substituting any digit with
+// a different digit does not change the token sequence.
+func FuzzTokenizerDigitCollapsing(f *testing.F) {
+	f.Add([]byte("2024-01-15 10:30:45 INFO request"))
+	f.Add([]byte("error code 404 at 192.168.1.1"))
+	f.Add([]byte("0"))
+	f.Fuzz(func(t *testing.T, input []byte) {
+		twin := make([]byte, len(input))
+		copy(twin, input)
+		for i, b := range twin {
+			if b >= '0' && b <= '9' {
+				twin[i] = '0' + (b-'0'+1)%10
+			}
+		}
+		tok := NewTokenizer(0)
+		tokensOrig, _ := tok.Tokenize(input)
+		tokensTwin, _ := tok.Tokenize(twin)
+		assert.Equal(t, tokensOrig, tokensTwin,
+			"digit substitution should not change tokens: %q → %q", input, twin)
+	})
+}
+
+// Tokenization.StructuralCollapsing + ByteClassification: flipping the case
+// of every ASCII letter does not change the token sequence. Lowercase and
+// uppercase letters are the same base category (character), and special
+// token promotion is case-insensitive.
+func FuzzTokenizerCaseInsensitive(f *testing.F) {
+	f.Add([]byte("Jan Mon UTC INFO request"))
+	f.Add([]byte("jan mon utc info REQUEST"))
+	f.Add([]byte("T Z am PM"))
+	f.Fuzz(func(t *testing.T, input []byte) {
+		twin := make([]byte, len(input))
+		for i, b := range input {
+			if b >= 'A' && b <= 'Z' {
+				twin[i] = b + 32
+			} else if b >= 'a' && b <= 'z' {
+				twin[i] = b - 32
+			} else {
+				twin[i] = b
+			}
+		}
+		tok := NewTokenizer(0)
+		tokensOrig, _ := tok.Tokenize(input)
+		tokensTwin, _ := tok.Tokenize(twin)
+		assert.Equal(t, tokensOrig, tokensTwin,
+			"case flip should not change tokens: %q → %q", input, twin)
+	})
+}
+
+// PatternMatching.Symmetry: is_match(a, b, t) = is_match(b, a, t).
+func FuzzIsMatchSymmetry(f *testing.F) {
+	f.Add([]byte("INFO request ok"), []byte("WARN startup ok"), uint8(90))
+	f.Add([]byte(""), []byte("hello"), uint8(50))
+	f.Add([]byte("!"), []byte("!"), uint8(100))
+	f.Fuzz(func(t *testing.T, inputA, inputB []byte, threshPct uint8) {
+		// threshPct is uint8 (0-255) but IsMatch thresholds above 1.0 are
+		// degenerate. %101 folds the range to 0-100 so dividing by 100
+		// covers [0.0, 1.0] uniformly instead of wasting inputs on clamped values.
+		thresh := float64(threshPct%101) / 100.0
+		tok := NewTokenizer(0)
+		tokensA, _ := tok.Tokenize(inputA)
+		tokensB, _ := tok.Tokenize(inputB)
+		ab := IsMatch(tokensA, tokensB, thresh)
+		ba := IsMatch(tokensB, tokensA, thresh)
+		assert.Equal(t, ab, ba,
+			"IsMatch must be symmetric: a=%q b=%q thresh=%.2f", inputA, inputB, thresh)
+	})
+}
+
+// PatternMatching.MonotonicThreshold: if two sequences match at threshold t1,
+// they must also match at any t2 <= t1.
+func FuzzIsMatchMonotonicity(f *testing.F) {
+	f.Add([]byte("INFO request ok"), []byte("WARN startup ok"), uint8(90), uint8(50))
+	f.Add([]byte("abc"), []byte("abd"), uint8(70), uint8(60))
+	f.Fuzz(func(t *testing.T, inputA, inputB []byte, hiPct, loPct uint8) {
+		// See FuzzIsMatchSymmetry for why %101.
+		hi := float64(hiPct%101) / 100.0
+		lo := float64(loPct%101) / 100.0
+		if lo > hi {
+			lo, hi = hi, lo
+		}
+		tok := NewTokenizer(0)
+		tokensA, _ := tok.Tokenize(inputA)
+		tokensB, _ := tok.Tokenize(inputB)
+		if IsMatch(tokensA, tokensB, hi) {
+			assert.True(t, IsMatch(tokensA, tokensB, lo),
+				"match at thresh=%.2f must imply match at thresh=%.2f: a=%q b=%q",
+				hi, lo, inputA, inputB)
+		}
+	})
+}
+
 func TestIsMatch(t *testing.T) {
 	tokenizer := NewTokenizer(0)
 	// A string of 10 tokens to make math easier.

@@ -30,6 +30,7 @@ go_test(
     name = "processes_test",
     srcs = ["processes_test.go"],
     embed = [":processes"],
+    gotags = ["test"],
     deps = select({
         "@rules_go//go/platform:android": [
             "@com_github_stretchr_testify//assert",

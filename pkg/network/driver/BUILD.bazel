@@ -1,5 +1,5 @@
 load("@rules_cc//cc:defs.bzl", "cc_library")
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
 
 exports_files([
@@ -43,6 +43,20 @@ go_library(
             "//pkg/util/winutil",
             "@org_golang_x_sys//windows",
             "@org_uber_go_atomic//:atomic",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "driver_test",
+    srcs = ["driver_test.go"],
+    embed = [":driver"],
+    gotags = ["test"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "@com_github_stretchr_testify//assert",
+            "@org_golang_x_sys//windows",
         ],
         "//conditions:default": [],
     }),

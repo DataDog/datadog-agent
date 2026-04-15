@@ -24,6 +24,7 @@ go_test(
     name = "status_test",
     srcs = ["render_helpers_test.go"],
     embed = [":status"],
+    gotags = ["test"],
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

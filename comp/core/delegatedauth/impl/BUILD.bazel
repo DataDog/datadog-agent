@@ -28,6 +28,7 @@ go_test(
     name = "impl_test",
     srcs = ["delegatedauth_test.go"],
     embed = [":impl"],
+    gotags = ["test"],
     deps = [
         "//comp/core/delegatedauth/api/cloudauth/config",
         "//comp/core/delegatedauth/def",

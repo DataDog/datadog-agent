@@ -39,5 +39,6 @@ go_test(
     name = "core_test",
     srcs = ["remoteconfig_gen_test.go"],
     embed = [":core"],
+    gotags = ["test"],
     deps = ["@com_github_tinylib_msgp//msgp"],
 )

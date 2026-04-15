@@ -29,6 +29,7 @@ go_test(
         "tracer_payload_test.go",
     ],
     embed = [":idx"],
+    gotags = ["test"],
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

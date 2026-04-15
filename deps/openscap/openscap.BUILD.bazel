@@ -1,7 +1,9 @@
 """BUILD for openscap."""
 
 load("@@//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
-load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
+load("@@//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
+load("@@//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
 load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@@//compliance/rules:ship_source_offer.bzl", "ship_source_offer")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
@@ -51,15 +53,15 @@ filegroup(
         "@lua//:liblua",
         "@acl",
         "@attr",
-        "@bzip2//:bz2",
+        "@bzip2//:bz2_pkg",
         "@gcrypt",
         "@gpg-error",
         "@libpcap//:pcap",
-        "@libsepol//:sepol",
+        "@libsepol//:sepol_pkg",
         "@libxml2",
         "@libxslt",
-        "@nghttp2",
-        "@pcre2//:pcre2-8",
+        "@nghttp2//:libnghttp2",
+        "@pcre2//:pcre2-8_pkg",
         "@popt",
         "@zstd",
     ],
@@ -491,25 +493,27 @@ cc_shared_library(
         ":libopenscap",
     ],
     dynamic_deps = [
-        "@attr//:attr",
-        "@bzip2//:bz2",
-        "@curl//:curl",
+        "@attr//:attr_pkg",
+        "@bzip2//:bz2_pkg",
+        "@curl//:curl_pkg",
         # dbus is only needed by openscap and is linked statically
-        "@gcrypt//:gcrypt",
-        "@gpg-error//:gpg-error",
-        "@libselinux//:selinux",
-        "@libsepol//:sepol",
-        "@libxslt//:exslt",
-        "@libyaml//:yaml",
-        "@pcre2//:pcre2-8",
-        "@popt//:popt",
-        "@rpm//:rpm",
-        "@rpm//:rpmio",
-        "@util-linux//:blkid",
-        "@libxml2//:xml2",
-        "@xmlsec//:xmlsec1",
-        "@xmlsec//:xmlsec1-openssl",
-        "@acl//:acl",
+        "@gcrypt//:gcrypt_pkg",
+        "@gpg-error//:gpg-error_pkg",
+        "@libselinux//:selinux_pkg",
+        "@libsepol//:sepol_pkg",
+        "@libxslt//:exslt_pkg",
+        "@libxslt//:xslt_pkg",
+        "@libyaml//:yaml_pkg",
+        "@pcre2//:pcre2-8_pkg",
+        "@pcre2//:pcre2-posix_pkg",
+        "@popt//:popt_pkg",
+        "@rpm//:rpm_pkg",
+        "@rpm//:rpmio_pkg",
+        "@util-linux//:blkid_pkg",
+        "@libxml2//:xml2_pkg",
+        "@xmlsec//:xmlsec1_pkg",
+        "@xmlsec//:xmlsec1-openssl_pkg",
+        "@acl//:acl_pkg",
     ],
 )
 
@@ -536,32 +540,35 @@ cc_binary(
         "-O2",
     ],
     dynamic_deps = [
+        # Use :openscap directly, not :openscap_pkg: these binaries are
+        # installed_files of openscap_pkg, so using it here would create a cycle.
         ":openscap",
-        "@attr//:attr",
-        "@bzip2//:bz2",
-        "@curl//:curl",
+        "@attr//:attr_pkg",
+        "@bzip2//:bz2_pkg",
+        "@curl//:curl_pkg",
         # dbus is only needed by openscap and is linked statically
-        "@gcrypt//:gcrypt",
-        "@gpg-error//:gpg-error",
-        "@libselinux//:selinux",
-        "@libsepol//:sepol",
-        "@libxslt//:xslt",
-        "@libxslt//:exslt",
-        "@libyaml//:yaml",
-        "@pcre2//:pcre2-8",
-        "@popt//:popt",
-        "@rpm//:rpm",
-        "@rpm//:rpmio",
-        "@util-linux//:blkid",
-        "@libxml2//:xml2",
-        "@xmlsec//:xmlsec1",
-        "@xmlsec//:xmlsec1-openssl",
-        "@acl//:acl",
-        "@sqlite3//:sqlite3",
+        "@gcrypt//:gcrypt_pkg",
+        "@gpg-error//:gpg-error_pkg",
+        "@libselinux//:selinux_pkg",
+        "@libsepol//:sepol_pkg",
+        "@libxslt//:xslt_pkg",
+        "@libxslt//:exslt_pkg",
+        "@libyaml//:yaml_pkg",
+        "@pcre2//:pcre2-8_pkg",
+        "@pcre2//:pcre2-posix_pkg",
+        "@popt//:popt_pkg",
+        "@rpm//:rpm_pkg",
+        "@rpm//:rpmio_pkg",
+        "@util-linux//:blkid_pkg",
+        "@libxml2//:xml2_pkg",
+        "@xmlsec//:xmlsec1_pkg",
+        "@xmlsec//:xmlsec1-openssl_pkg",
+        "@acl//:acl_pkg",
+        "@sqlite3//:sqlite3_pkg",
         "@openssl//:openssl_shared",
-        "@xz//:lzma",
-        "@zlib//:z",
-        "@nghttp2//:nghttp2_shared",
+        "@xz//:lzma_pkg",
+        "@zlib//:z_pkg",
+        "@nghttp2//:nghttp2_pkg",
     ],
     includes = COMMON_INCLUDE_DIRS + PUBLIC_HEADERS_DIRS,
     local_defines = COMMON_DEFINES,
@@ -582,64 +589,48 @@ cc_binary(
         "-O2",
     ],
     dynamic_deps = [
+        # Use :openscap directly, not :openscap_pkg: these binaries are
+        # installed_files of openscap_pkg, so using it here would create a cycle.
         ":openscap",
-        "@attr//:attr",
-        "@bzip2//:bz2",
-        "@curl//:curl",
-        "@gcrypt//:gcrypt",
-        "@gpg-error//:gpg-error",
-        "@libselinux//:selinux",
-        "@libsepol//:sepol",
-        "@libxslt//:xslt",
-        "@libxslt//:exslt",
-        "@libyaml//:yaml",
-        "@pcre2//:pcre2-8",
-        "@popt//:popt",
-        "@rpm//:rpm",
-        "@rpm//:rpmio",
-        "@util-linux//:blkid",
-        "@libxml2//:xml2",
-        "@xmlsec//:xmlsec1",
-        "@xmlsec//:xmlsec1-openssl",
-        "@acl//:acl",
-        "@sqlite3//:sqlite3",
+        "@attr//:attr_pkg",
+        "@bzip2//:bz2_pkg",
+        "@curl//:curl_pkg",
+        "@gcrypt//:gcrypt_pkg",
+        "@gpg-error//:gpg-error_pkg",
+        "@libselinux//:selinux_pkg",
+        "@libsepol//:sepol_pkg",
+        "@libxslt//:xslt_pkg",
+        "@libxslt//:exslt_pkg",
+        "@libyaml//:yaml_pkg",
+        "@pcre2//:pcre2-8_pkg",
+        "@pcre2//:pcre2-posix_pkg",
+        "@popt//:popt_pkg",
+        "@rpm//:rpm_pkg",
+        "@rpm//:rpmio_pkg",
+        "@util-linux//:blkid_pkg",
+        "@libxml2//:xml2_pkg",
+        "@xmlsec//:xmlsec1_pkg",
+        "@xmlsec//:xmlsec1-openssl_pkg",
+        "@acl//:acl_pkg",
+        "@sqlite3//:sqlite3_pkg",
         "@openssl//:openssl_shared",
-        "@xz//:lzma",
-        "@zlib//:z",
-        "@nghttp2//:nghttp2_shared",
+        "@xz//:lzma_pkg",
+        "@zlib//:z_pkg",
+        "@nghttp2//:nghttp2_pkg",
     ],
     includes = COMMON_INCLUDE_DIRS + PUBLIC_HEADERS_DIRS,
     local_defines = COMMON_DEFINES,
 )
 
-so_symlink(
-    name = "libopenscap_symlink",
-    src = ":openscap",
-    libname = "libopenscap",
-    version = "33.1.2",
-)
-
-so_symlink(
-    name = "libopenscap_sce_symlink",
-    src = ":openscap_sce",
-    libname = "libopenscap_sce",
-    version = "33.1.2",
-)
-
-pkg_filegroup(
-    name = "lib_files",
-    srcs = [
-        ":libopenscap_symlink",
-        ":libopenscap_sce_symlink",
-    ],
+rewrite_rpath(
+    name = "bin_files_patched",
+    inputs = [":oscap", ":oscap-io"],
+    package_metadata = [],
 )
 
 pkg_files(
     name = "bin_files",
-    srcs = [
-        ":oscap",
-        ":oscap-io",
-    ],
+    srcs = [":bin_files_patched"],
     prefix = "bin/",
     attributes = pkg_attributes("0755"),
 )
@@ -658,13 +649,36 @@ pkg_files(
     attributes = pkg_attributes("0644"),
 )
 
+dd_cc_packaged(
+    name = "openscap_pkg",
+    input = ":openscap",
+    version = "33.1.2",
+    visibility = ["//visibility:public"],
+)
+
+dd_cc_packaged(
+    name = "openscap_sce_pkg",
+    input = ":openscap_sce",
+    version = "33.1.2",
+    visibility = ["//visibility:public"],
+)
+
+dd_collect_dependencies(
+    name = "_dep_libs",
+    srcs = [
+        ":openscap_pkg",
+        ":openscap_sce_pkg",
+    ],
+    visibility = ["//visibility:private"],
+)
+
 pkg_filegroup(
     name = "all_files",
     srcs = [
         ":bin_files",
-        ":lib_files",
         ":xccdf-resources",
         ":cpe_files",
+        ":_dep_libs",
     ],
     prefix = "embedded",
 )

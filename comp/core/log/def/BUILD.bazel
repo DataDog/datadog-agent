@@ -14,5 +14,6 @@ go_test(
     name = "def_test",
     srcs = ["params_test.go"],
     embed = [":def"],
+    gotags = ["test"],
     deps = ["@com_github_stretchr_testify//require"],
 )

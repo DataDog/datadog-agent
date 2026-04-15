@@ -1,4 +1,4 @@
-load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
@@ -151,16 +151,9 @@ cc_shared_library(
     deps = [":libxml2"],
     visibility = ["//visibility:public"],
     dynamic_deps = [
-        "@zlib//:z",
-        "@xz//:lzma",
+        "@zlib//:z_pkg",
+        "@xz//:lzma_pkg",
     ],
-)
-
-so_symlink(
-    name = "lib_files",
-    src = ":xml2",
-    libname = "libxml2",
-    version = "16.0.5",
 )
 
 pkg_files(
@@ -169,11 +162,18 @@ pkg_files(
     prefix = "include/libxml2/libxml",
 )
 
+dd_cc_packaged(
+    name = "xml2_pkg",
+    input = ":xml2",
+    version = "16.0.5",
+    installed_files = [":headers"],
+    visibility = ["//visibility:public"],
+)
+
 pkg_filegroup(
     name = "all_files",
     srcs = [
         ":headers",
-        ":lib_files",
     ],
     prefix = "embedded",
 )

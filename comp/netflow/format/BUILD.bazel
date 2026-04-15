@@ -30,5 +30,6 @@ go_test(
         "tcp_flags_test.go",
     ],
     embed = [":format"],
+    gotags = ["test"],
     deps = ["@com_github_stretchr_testify//assert"],
 )

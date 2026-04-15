@@ -297,19 +297,27 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 			defaultInputChanSize:          500,
 		},
-		// TODO: Add kubeactions EVP pipeline once the intake endpoint is provisioned
-		// {
-		// 	eventType:                     eventplatform.EventTypeKubeActions,
-		// 	category:                      "Kubernetes",
-		// 	contentType:                   logshttp.JSONContentType,
-		// 	endpointsConfigPrefix:         "kubeactions.forwarder.",
-		// 	hostnameEndpointPrefix:        "kubeactions-intake.",
-		// 	intakeTrackType:               "kubeactions",
-		// 	defaultBatchMaxConcurrentSend: 10,
-		// 	defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-		// 	defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-		// 	defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
-		// },
+	}
+
+	if pkgconfigsetup.Datadog().GetBool("kubeactions.enabled") {
+		kubeactionsPipeline := passthroughPipelineDesc{
+			eventType:                     eventplatform.EventTypeKubeActions,
+			category:                      "Kubernetes Actions",
+			contentType:                   logshttp.JSONContentType,
+			endpointsConfigPrefix:         "kubeactions.forwarder.",
+			hostnameEndpointPrefix:        "kubeops-intake.",
+			intakeTrackType:               "kubeactions",
+			defaultBatchMaxConcurrentSend: 10,
+			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
+			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
+			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+		}
+		passthroughPipelineDescs = append(passthroughPipelineDescs, kubeactionsPipeline)
+		// TODO(kubeactions): Remove this log once EVP intake is stable
+		log.Infof("[KubeActions] EVP pipeline registered: host_prefix=%s, track_type=%s, v2_api=%v",
+			kubeactionsPipeline.hostnameEndpointPrefix,
+			kubeactionsPipeline.intakeTrackType,
+			pkgconfigsetup.Datadog().GetBool("kubeactions.forwarder.use_v2_api"))
 	}
 
 	if pkgconfigsetup.Datadog().GetBool("software_inventory.enabled") {
@@ -370,6 +378,10 @@ func Diagnose() []diagnose.Diagnosis {
 		}
 		if desc.eventType == eventTypeDoQueryResults {
 			log.Debugf("Skipping diagnosis for data-obs-intake query-actions because it does not support the empty payload")
+			continue
+		}
+		if desc.eventType == eventplatform.EventTypeKubeActions {
+			log.Debugf("Skipping diagnosis for kubeactions-intake because it does not support the empty payload")
 			continue
 		}
 		configKeys := config.NewLogsConfigKeys(desc.endpointsConfigPrefix, cfg)

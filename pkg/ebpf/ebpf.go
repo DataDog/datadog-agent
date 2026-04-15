@@ -14,7 +14,7 @@ import (
 
 	"github.com/cilium/ebpf/rlimit"
 
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 

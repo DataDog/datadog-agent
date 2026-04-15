@@ -18,6 +18,7 @@ go_test(
     name = "instrumentationlibrary_test",
     srcs = ["metadata_test.go"],
     embed = [":instrumentationlibrary"],
+    gotags = ["test"],
     # keep
     target_compatible_with = ["@platforms//os:linux"],
     deps = [

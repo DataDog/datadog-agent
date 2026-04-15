@@ -19,6 +19,7 @@ go_test(
     name = "publishermetadatacache_test",
     srcs = ["publishermetadatacache_test.go"],
     embed = [":publishermetadatacache"],
+    gotags = ["test"],
     target_compatible_with = ["@platforms//os:windows"],  # keep
     deps = select({
         "@rules_go//go/platform:windows": [

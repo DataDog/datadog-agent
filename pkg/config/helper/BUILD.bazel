@@ -12,6 +12,7 @@ go_test(
     name = "helper_test",
     srcs = ["get_combine_test.go"],
     embed = [":helper"],
+    gotags = ["test"],
     deps = [
         "//pkg/config/viperconfig",
         "@com_github_stretchr_testify//assert",

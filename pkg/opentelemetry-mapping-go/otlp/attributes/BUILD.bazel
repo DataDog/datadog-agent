@@ -43,6 +43,7 @@ go_test(
         "translator_test.go",
     ],
     embed = [":attributes"],
+    gotags = ["test"],
     deps = [
         "//pkg/opentelemetry-mapping-go/otlp/attributes/azure",
         "//pkg/opentelemetry-mapping-go/otlp/attributes/internal/testutils",

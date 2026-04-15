@@ -27,6 +27,7 @@ go_test(
     name = "windows_test",
     srcs = ["user_test.go"],
     embed = [":windows"],
+    gotags = ["test"],
     target_compatible_with = ["@platforms//os:windows"],
     deps = select({
         "@rules_go//go/platform:windows": [

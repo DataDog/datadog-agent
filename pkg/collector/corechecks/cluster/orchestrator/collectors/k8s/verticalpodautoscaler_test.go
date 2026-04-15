@@ -121,7 +121,7 @@ func TestVerticalPodAutoscalerCollector(t *testing.T) {
 		},
 	}
 
-	client := vpafake.NewSimpleClientset(verticalPodAutoscaler)
+	client := vpafake.NewSimpleClientset(verticalPodAutoscaler) //nolint:staticcheck // SA1019 NewClientset not yet available in VPA
 
 	// Create fake VPA informer factory
 	vpaInformerFactory := vpai.NewSharedInformerFactory(client, 300*time.Second)

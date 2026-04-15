@@ -17,5 +17,6 @@ go_test(
         "truncate_test.go",
     ],
     embed = [":strings"],
+    gotags = ["test"],
     deps = ["@com_github_stretchr_testify//assert"],
 )

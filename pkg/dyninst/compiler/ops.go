@@ -48,7 +48,7 @@ type IncrementOutputOffsetOp struct {
 // Expression evaluation operations.
 // These operations are executed in a chain, starting from prepare op, and ending
 // with a save op. Each intermediate op is allowed to return early to the caller,
-// resulting in unset presence bit, interpretted as evaluation failure.
+// leaving the expression status as absent (0).
 
 type ExprPrepareOp struct {
 	baseOp
@@ -77,9 +77,9 @@ type ExprReadRegisterOp struct {
 
 type ExprDereferencePtrOp struct {
 	baseOp
-	Bias      uint32
-	Len       uint32
-	NilBitIdx uint32
+	Bias          uint32
+	Len           uint32
+	ExprStatusIdx uint32 // expression index for writing nil-deref status; ^0 = none
 }
 
 // Special type processing ops, that evaluate data of a specific type (already
@@ -219,6 +219,12 @@ type ExprCmpEqBaseOp struct {
 
 type ExprCmpEqStringOp struct {
 	baseOp
+}
+
+type ExprSliceBoundsCheckOp struct {
+	baseOp
+	Index         uint32
+	ExprStatusIdx uint32 // expression index for writing OOB status; ^0 = none
 }
 
 type ConditionBeginOp struct {

@@ -47,8 +47,8 @@ func makeInstruction(op Op) codeFragment {
 		e := op.EventRootType.Expressions[op.ExprIdx]
 		bytes = binary.LittleEndian.AppendUint32(bytes, e.Offset)
 		bytes = binary.LittleEndian.AppendUint32(bytes, e.Expression.Type.GetByteSize())
-		// Presence bit index (2 bits per expression).
-		bytes = binary.LittleEndian.AppendUint32(bytes, 2*op.ExprIdx)
+		// Expression index into the ExprStatusArray.
+		bytes = binary.LittleEndian.AppendUint32(bytes, op.ExprIdx)
 		return staticInstruction{
 			opcode: OpcodeExprSave,
 			bytes:  bytes,
@@ -77,7 +77,7 @@ func makeInstruction(op Op) codeFragment {
 		bytes := make([]byte, 0, 12)
 		bytes = binary.LittleEndian.AppendUint32(bytes, op.Bias)
 		bytes = binary.LittleEndian.AppendUint32(bytes, op.Len)
-		bytes = binary.LittleEndian.AppendUint32(bytes, op.NilBitIdx)
+		bytes = binary.LittleEndian.AppendUint32(bytes, op.ExprStatusIdx)
 		return staticInstruction{
 			opcode: OpcodeExprDereferencePtr,
 			bytes:  bytes,
@@ -231,6 +231,15 @@ func makeInstruction(op Op) codeFragment {
 		return staticInstruction{
 			opcode: OpcodeExprCmpEqString,
 			bytes:  []byte{},
+		}
+
+	case ExprSliceBoundsCheckOp:
+		bytes := make([]byte, 0, 8)
+		bytes = binary.LittleEndian.AppendUint32(bytes, op.Index)
+		bytes = binary.LittleEndian.AppendUint32(bytes, op.ExprStatusIdx)
+		return staticInstruction{
+			opcode: OpcodeExprSliceBoundsCheck,
+			bytes:  bytes,
 		}
 
 	case ConditionBeginOp:

@@ -32,6 +32,7 @@ go_test(
         "testdata/emrExtraInstanceData.json",
         "testdata/emrInstance.json",
     ],
+    gotags = ["test"],
     deps = [
         "//pkg/fleet/installer/setup/common",
         "//pkg/fleet/installer/setup/config",

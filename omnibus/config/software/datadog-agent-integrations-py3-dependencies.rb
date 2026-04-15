@@ -8,14 +8,7 @@ if linux_target?
 
   build do
     command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- @unixodbc//:install --destdir='#{install_dir}'"
-    command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
-    " #{install_dir}/embedded/lib/libodbc.so" \
-    " #{install_dir}/embedded/lib/libodbccr.so" \
-    " #{install_dir}/embedded/lib/libodbcinst.so"
-
     command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- @freetds//:install --destdir='#{install_dir}'"
-    command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
-    " #{install_dir}/embedded/lib/libtdsodbc.so"
 
     unless heroku_target?
       lib_files = [

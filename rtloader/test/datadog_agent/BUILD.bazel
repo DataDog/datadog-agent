@@ -21,5 +21,6 @@ rtloader_go_test(
         "datadog_agent_test.go",
     ],
     embed = [":datadog_agent"],
+    gotags = ["test"],
     deps = ["//rtloader/test/helpers"],
 )

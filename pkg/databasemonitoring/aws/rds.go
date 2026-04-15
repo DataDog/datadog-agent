@@ -46,7 +46,7 @@ func (c *Client) GetRdsInstancesFromTags(ctx context.Context, config Config) ([]
 		}
 		for _, db := range dbInstances.DBInstances {
 			if containsTags(db.TagList, config.Tags) {
-				instance, err := makeInstance(db, config)
+				instance, err := makeInstance(db, nil, config)
 				if err != nil {
 					log.Errorf("error creating instance from DBInstance: %v", err)
 					continue

@@ -19,6 +19,7 @@ go_test(
     srcs = ["walker_test.go"],
     data = glob(["testdata/**"]),
     embed = [":walker"],
+    gotags = ["test"],
     deps = [
         "@com_github_aquasecurity_trivy//pkg/fanal/analyzer",
         "@com_github_aquasecurity_trivy//pkg/fanal/walker",

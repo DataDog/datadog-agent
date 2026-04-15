@@ -211,7 +211,7 @@ func TestIsNonTransientK8sError(t *testing.T) {
 		{"Unauthorized", k8serrors.NewUnauthorized("bad token")},
 		{"BadRequest", k8serrors.NewBadRequest("malformed")},
 		{"MethodNotSupported", k8serrors.NewMethodNotSupported(gr, "PATCH")},
-		{"Gone", k8serrors.NewGone("expired")},
+		{"Gone", k8serrors.NewGone("expired")}, //nolint:staticcheck // SA1019 test needs StatusReasonGone, not StatusReasonExpired
 	}
 	for _, tc := range nonTransient {
 		t.Run(tc.name, func(t *testing.T) {

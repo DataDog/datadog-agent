@@ -15,4 +15,5 @@ go_test(
     name = "fips_test",
     srcs = ["fips_test.go"],
     embed = [":fips"],
+    gotags = ["test"],
 )

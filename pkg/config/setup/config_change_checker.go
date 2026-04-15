@@ -9,14 +9,16 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-// ChangeChecker checks the state of `config.Datadog` did not change
-// between `NewChangeChecker()“ and `HasChanged()`. It is
+// ChangeChecker checks the state of a config did not change
+// between `NewChangeChecker()` and `HasChanged()`. It is
 // designed to be used in `TestMain` function as follow:
 //
 //	func TestMain(m *testing.M) {
-//		checker := testutil.NewConfigChangeChecker()
+//		checker := setup.NewChangeChecker(setup.Datadog())
 //		exit := m.Run()
 //		if checker.HasChanged() {
 //			os.Exit(1)
@@ -24,21 +26,22 @@ import (
 //		os.Exit(exit)
 //	}
 type ChangeChecker struct {
+	config         pkgconfigmodel.Config
 	configSettings map[string]interface{}
 }
 
-// NewChangeChecker creates a new instance of ConfigChangeChecker
-func NewChangeChecker() *ChangeChecker {
+// NewChangeChecker creates a new instance of ChangeChecker that watches the provided config.
+func NewChangeChecker(cfg pkgconfigmodel.Config) *ChangeChecker {
 	return &ChangeChecker{
-		configSettings: Datadog().AllSettings(),
+		config:         cfg,
+		configSettings: cfg.AllSettings(),
 	}
 }
 
-// HasChanged returns whether `config.Datadog` changed since
-// `NewConfigChangeChecker`. If some changes are detected
-// this function displays on the standard error what keys changed.
+// HasChanged returns whether the config changed since NewChangeChecker was called.
+// If changes are detected this function displays on the standard error what keys changed.
 func (c *ChangeChecker) HasChanged() bool {
-	allSettingsAfter := Datadog().AllSettings()
+	allSettingsAfter := c.config.AllSettings()
 	stateHasChanged := false
 	for k, before := range c.configSettings {
 		after := allSettingsAfter[k]

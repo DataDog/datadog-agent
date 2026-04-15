@@ -1,4 +1,4 @@
-load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
@@ -103,8 +103,8 @@ cc_shared_library(
         ":libxmlsec1",
     ],
     dynamic_deps = [
-        "@libxslt//:xslt",
-        "@libxml2//:xml2",
+        "@libxslt//:xslt_pkg",
+        "@libxml2//:xml2_pkg",
     ],
     visibility = ["//visibility:public"],
 )
@@ -169,10 +169,10 @@ cc_shared_library(
         ":libxmlsec1-openssl",
     ],
     dynamic_deps = [
-        "@libxslt//:xslt",
-        "@libxml2//:xml2",
+        "@libxslt//:xslt_pkg",
+        "@libxml2//:xml2_pkg",
         "@openssl//:openssl_shared",
-        ":xmlsec1",
+        ":xmlsec1_pkg",
     ],
     user_link_flags = select({
         "@platforms//os:linux": [
@@ -181,20 +181,6 @@ cc_shared_library(
         "//conditions:default": [],
     }),
     visibility = ["//visibility:public"],
-)
-
-so_symlink(
-    name = "libxmlsec_files",
-    src = ":xmlsec1",
-    libname = "libxmlsec1",
-    version = VERSION,
-)
-
-so_symlink(
-    name = "libxmlsec_openssl_files",
-    src = ":xmlsec1-openssl",
-    libname = "libxmlsec1-openssl",
-    version = VERSION,
 )
 
 pkg_files(
@@ -209,13 +195,27 @@ pkg_files(
     prefix = "include/xmlsec1/xmlsec/openssl",
 )
 
+dd_cc_packaged(
+    name = "xmlsec1_pkg",
+    input = ":xmlsec1",
+    version = VERSION,
+    installed_files = [":headers_files"],
+    visibility = ["//visibility:public"],
+)
+
+dd_cc_packaged(
+    name = "xmlsec1-openssl_pkg",
+    input = ":xmlsec1-openssl",
+    version = VERSION,
+    installed_files = [":openssl_headers_files"],
+    visibility = ["//visibility:public"],
+)
+
 pkg_filegroup(
     name = "all_files",
     srcs = [
         ":headers_files",
         ":openssl_headers_files",
-        ":libxmlsec_files",
-        ":libxmlsec_openssl_files",
     ],
     prefix = "embedded",
     visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],

@@ -18,5 +18,6 @@ go_test(
         "validate_test.go",
     ],
     embed = [":validate"],
+    gotags = ["test"],
     deps = ["@com_github_stretchr_testify//assert"],
 )

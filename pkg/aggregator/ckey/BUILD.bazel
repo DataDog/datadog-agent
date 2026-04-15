@@ -18,6 +18,7 @@ go_test(
         "sort_test.go",
     ],
     embed = [":ckey"],
+    gotags = ["test"],
     deps = [
         "//pkg/tagset",
         "//pkg/util/sort",

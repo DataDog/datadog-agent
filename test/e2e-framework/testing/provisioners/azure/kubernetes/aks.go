@@ -7,6 +7,7 @@
 package azurekubernetes
 
 import (
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent/helm"
@@ -97,8 +98,23 @@ providers:
 		if err != nil {
 			return err
 		}
+
+		dependsOnDDAgent := utils.PulumiDependsOn(agent)
+		for _, appFunc := range params.agentDependentWorkloadAppFuncs {
+			_, err := appFunc(&azureEnv, aksCluster.KubeProvider, dependsOnDDAgent)
+			if err != nil {
+				return err
+			}
+		}
 	} else {
 		env.Agent = nil
+	}
+
+	for _, appFunc := range params.workloadAppFuncs {
+		_, err := appFunc(&azureEnv, aksCluster.KubeProvider)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }

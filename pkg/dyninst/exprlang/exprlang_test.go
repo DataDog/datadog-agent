@@ -175,6 +175,10 @@ func exprToResult(expr Expr, err error) exprResult {
 		left := exprToResult(e.Left, nil)
 		right := exprToResult(e.Right, nil)
 		return exprResult{Type: "eq", Left: &left, Right: &right}
+	case *IndexExpr:
+		base := exprToResult(e.Base, nil)
+		index := exprToResult(e.Index, nil)
+		return exprResult{Type: "index", Left: &base, Right: &index}
 	case *LiteralExpr:
 		return exprResult{Type: "literal", Value: e.Value}
 	case *UnsupportedExpr:
@@ -284,6 +288,10 @@ func TestParse(t *testing.T) {
 				actualJSON, _ := json.Marshal(actualResult)
 				expectedJSON, _ := json.Marshal(expectedResult)
 				require.JSONEq(t, string(expectedJSON), string(actualJSON), "len/isEmpty expression mismatch")
+			case *IndexExpr:
+				actualJSON, _ := json.Marshal(actualResult)
+				expectedJSON, _ := json.Marshal(expectedResult)
+				require.JSONEq(t, string(expectedJSON), string(actualJSON), "index expression mismatch")
 			case *EqExpr:
 				actualJSON, _ := json.Marshal(actualResult)
 				expectedJSON, _ := json.Marshal(expectedResult)

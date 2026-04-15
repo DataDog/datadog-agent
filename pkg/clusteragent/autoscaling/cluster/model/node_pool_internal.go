@@ -156,19 +156,15 @@ func buildNodePoolSpec(n NodePoolInternal, nodeClassRef *karpenterv1.NodeClassRe
 		// If it is a well-known label, use Operator In
 		if wellKnownLabels.Has(k) {
 			reqs = append(reqs, karpenterv1.NodeSelectorRequirementWithMinValues{
-				NodeSelectorRequirement: corev1.NodeSelectorRequirement{
-					Key:      k,
-					Operator: corev1.NodeSelectorOpIn,
-					Values:   []string{v},
-				},
+				Key:      k,
+				Operator: corev1.NodeSelectorOpIn,
+				Values:   []string{v},
 			})
 			// If it is not a well-known label, use Operator Exists and include the label in the metadata
 		} else {
 			reqs = append(reqs, karpenterv1.NodeSelectorRequirementWithMinValues{
-				NodeSelectorRequirement: corev1.NodeSelectorRequirement{
-					Key:      k,
-					Operator: corev1.NodeSelectorOpExists,
-				},
+				Key:      k,
+				Operator: corev1.NodeSelectorOpExists,
 			})
 			metadataLabels[k] = v
 		}
@@ -179,11 +175,9 @@ func buildNodePoolSpec(n NodePoolInternal, nodeClassRef *karpenterv1.NodeClassRe
 	instanceTypes := n.RecommendedInstanceTypes()
 	slices.Sort(instanceTypes)
 	reqs = append(reqs, karpenterv1.NodeSelectorRequirementWithMinValues{
-		NodeSelectorRequirement: corev1.NodeSelectorRequirement{
-			Key:      corev1.LabelInstanceTypeStable,
-			Operator: corev1.NodeSelectorOpIn,
-			Values:   instanceTypes,
-		},
+		Key:      corev1.LabelInstanceTypeStable,
+		Operator: corev1.NodeSelectorOpIn,
+		Values:   instanceTypes,
 	})
 
 	// Add autoscaling label
@@ -264,11 +258,9 @@ func modifyNodePoolSpec(np *karpenterv1.NodePool, npi NodePoolInternal) {
 	if !instanceTypeLabelFound {
 		np.Spec.Template.Spec.Requirements = append(np.Spec.Template.Spec.Requirements,
 			karpenterv1.NodeSelectorRequirementWithMinValues{
-				NodeSelectorRequirement: corev1.NodeSelectorRequirement{
-					Key:      corev1.LabelInstanceTypeStable,
-					Operator: corev1.NodeSelectorOpIn,
-					Values:   instanceTypes,
-				},
+				Key:      corev1.LabelInstanceTypeStable,
+				Operator: corev1.NodeSelectorOpIn,
+				Values:   instanceTypes,
 			},
 		)
 	}

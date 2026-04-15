@@ -21,21 +21,39 @@ import (
 
 // mockFieldValues maps each field ID to its expected metric value.
 var mockFieldValues = map[uint32]uint32{
-	nvml.FI_DEV_MEMORY_TEMP:                       42,
-	nvml.FI_DEV_PCIE_REPLAY_COUNTER:               7,
-	nvml.FI_DEV_PERF_POLICY_THERMAL:               85,
-	nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_RX:         1000,
-	nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_TX:         2000,
-	nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_RX:          3000,
-	nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_TX:          4000,
-	nvml.FI_DEV_NVLINK_GET_SPEED:                  25000,
-	nvml.FI_DEV_NVLINK_SPEED_MBPS_COMMON:          24000,
-	nvml.FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT:     16,
-	nvml.FI_DEV_NVLINK_CRC_DATA_ERROR_COUNT_TOTAL: 1,
-	nvml.FI_DEV_NVLINK_CRC_FLIT_ERROR_COUNT_TOTAL: 2,
-	nvml.FI_DEV_NVLINK_ECC_DATA_ERROR_COUNT_TOTAL: 3,
-	nvml.FI_DEV_NVLINK_RECOVERY_ERROR_COUNT_TOTAL: 4,
-	nvml.FI_DEV_NVLINK_REPLAY_ERROR_COUNT_TOTAL:   5,
+	nvml.FI_DEV_MEMORY_TEMP:                                  42,
+	nvml.FI_DEV_PCIE_REPLAY_COUNTER:                          7,
+	nvml.FI_DEV_PERF_POLICY_THERMAL:                          85,
+	nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_RX:                    1000,
+	nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_TX:                    2000,
+	nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_RX:                     3000,
+	nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_TX:                     4000,
+	nvml.FI_DEV_NVLINK_GET_SPEED:                             25000,
+	nvml.FI_DEV_NVLINK_SPEED_MBPS_COMMON:                     24000,
+	nvml.FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT:                16,
+	nvml.FI_DEV_NVLINK_CRC_DATA_ERROR_COUNT_TOTAL:            1,
+	nvml.FI_DEV_NVLINK_CRC_FLIT_ERROR_COUNT_TOTAL:            2,
+	nvml.FI_DEV_NVLINK_ECC_DATA_ERROR_COUNT_TOTAL:            3,
+	nvml.FI_DEV_NVLINK_RECOVERY_ERROR_COUNT_TOTAL:            4,
+	nvml.FI_DEV_NVLINK_REPLAY_ERROR_COUNT_TOTAL:              5,
+	nvml.FI_DEV_NVLINK_COUNT_XMIT_PACKETS:                    6,
+	nvml.FI_DEV_NVLINK_COUNT_RCV_PACKETS:                     7,
+	nvml.FI_DEV_NVLINK_COUNT_XMIT_DISCARDS:                   8,
+	nvml.FI_DEV_NVLINK_COUNT_MALFORMED_PACKET_ERRORS:         9,
+	nvml.FI_DEV_NVLINK_COUNT_BUFFER_OVERRUN_ERRORS:           10,
+	nvml.FI_DEV_NVLINK_COUNT_RCV_ERRORS:                      11,
+	nvml.FI_DEV_NVLINK_COUNT_RCV_REMOTE_ERRORS:               12,
+	nvml.FI_DEV_NVLINK_COUNT_RCV_GENERAL_ERRORS:              13,
+	nvml.FI_DEV_NVLINK_COUNT_LOCAL_LINK_INTEGRITY_ERRORS:     14,
+	nvml.FI_DEV_NVLINK_COUNT_LINK_RECOVERY_SUCCESSFUL_EVENTS: 15,
+	nvml.FI_DEV_NVLINK_COUNT_LINK_RECOVERY_FAILED_EVENTS:     16,
+	nvml.FI_DEV_NVLINK_COUNT_EFFECTIVE_ERRORS:                17,
+	nvml.FI_DEV_NVLINK_COUNT_EFFECTIVE_BER:                   18,
+	nvml.FI_DEV_NVLINK_COUNT_SYMBOL_ERRORS:                   19,
+	nvml.FI_DEV_NVLINK_COUNT_SYMBOL_BER:                      20,
+	nvml.FI_DEV_C2C_LINK_ERROR_INTR:                          37,
+	nvml.FI_DEV_C2C_LINK_ERROR_REPLAY:                        38,
+	nvml.FI_DEV_C2C_LINK_ERROR_REPLAY_B2B:                    39,
 }
 
 // fieldValuesMockFunc returns a GetFieldValuesFunc that reads values from the
@@ -270,4 +288,64 @@ func TestFieldsCollectorNegativeDelta(t *testing.T) {
 	require.True(t, foundPositive, "deltaPositive metric should be present")
 	require.True(t, foundNegative, "deltaNegative metric should be present")
 	require.True(t, foundZero, "deltaZero metric should be present")
+}
+
+func TestFieldsCollectorRemovesUnsupportedField(t *testing.T) {
+	returnValues := copyMockFieldValues()
+	device := setupMockDevice(t, func(d *mock.Device) *mock.Device {
+		d.GetFieldValuesFunc = fieldValuesMockFunc(returnValues, nvml.FI_DEV_NVLINK_COUNT_EFFECTIVE_ERRORS)
+		return d
+	})
+
+	collector, err := newFieldsCollector(device, nil)
+	require.NoError(t, err)
+
+	fc, ok := collector.(*fieldsCollector)
+	require.True(t, ok, "expected *fieldsCollector")
+
+	for _, metric := range fc.fieldMetrics {
+		require.NotEqual(t, "nvlink.errors.effective", metric.name)
+	}
+}
+
+func TestFieldsCollectorTreatsInvalidArgumentAsUnsupportedOnlyWhenConfigured(t *testing.T) {
+	returnValues := copyMockFieldValues()
+	device := setupMockDevice(t, func(d *mock.Device) *mock.Device {
+		d.GetFieldValuesFunc = func(fv []nvml.FieldValue) nvml.Return {
+			for i := range fv {
+				switch fv[i].FieldId {
+				case nvml.FI_DEV_C2C_LINK_ERROR_INTR:
+					fv[i].NvmlReturn = uint32(nvml.ERROR_INVALID_ARGUMENT)
+				case nvml.FI_DEV_NVLINK_COUNT_EFFECTIVE_ERRORS:
+					fv[i].NvmlReturn = uint32(nvml.ERROR_INVALID_ARGUMENT)
+				default:
+					fv[i].NvmlReturn = uint32(nvml.SUCCESS)
+					fv[i].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_INT)
+					binary.LittleEndian.PutUint32(fv[i].Value[:], returnValues[fv[i].FieldId])
+				}
+			}
+			return nvml.SUCCESS
+		}
+		return d
+	})
+
+	collector, err := newFieldsCollector(device, nil)
+	require.NoError(t, err)
+
+	fc, ok := collector.(*fieldsCollector)
+	require.True(t, ok, "expected *fieldsCollector")
+
+	foundC2CInterrupt := false
+	foundNvlinkEffective := false
+	for _, metric := range fc.fieldMetrics {
+		switch metric.name {
+		case "c2c.errors.interrupt":
+			foundC2CInterrupt = true
+		case "nvlink.errors.effective":
+			foundNvlinkEffective = true
+		}
+	}
+
+	require.False(t, foundC2CInterrupt, "c2c.errors.interrupt should be removed when INVALID_ARGUMENT is explicitly mapped to unsupported")
+	require.True(t, foundNvlinkEffective, "nvlink.errors.effective should remain when INVALID_ARGUMENT is not explicitly mapped to unsupported")
 }

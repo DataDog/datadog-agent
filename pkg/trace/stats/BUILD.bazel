@@ -42,6 +42,7 @@ go_test(
         "weight_test.go",
     ],
     embed = [":stats"],
+    gotags = ["test"],
     deps = [
         "//pkg/proto/pbgo/trace",
         "//pkg/proto/pbgo/trace/idx",

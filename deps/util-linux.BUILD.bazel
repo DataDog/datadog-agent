@@ -1,4 +1,4 @@
-load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
@@ -101,24 +101,24 @@ cc_shared_library(
     visibility = ["//visibility:public"],
 )
 
-so_symlink(
-    name = "libblkid_libfiles",
-    src = ":blkid",
-    libname = "libblkid",
-    version = "1.1.0",
-)
-
 pkg_files(
     name = "blkid_hdr_files",
     srcs = [":blkid_h"],
     prefix = "include/blkid",
 )
 
+dd_cc_packaged(
+    name = "blkid_pkg",
+    input = ":blkid",
+    version = "1.1.0",
+    installed_files = [":blkid_hdr_files"],
+    visibility = ["//visibility:public"],
+)
+
 pkg_filegroup(
     name = "all_files",
     srcs = [
         ":blkid_hdr_files",
-        ":libblkid_libfiles",
     ],
     prefix = "embedded",
     visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],

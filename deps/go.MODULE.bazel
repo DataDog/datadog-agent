@@ -125,7 +125,6 @@ use_repo(
     "com_github_datadog_datadog_agent_comp_otelcol_ddprofilingextension_def",
     "com_github_datadog_datadog_agent_comp_otelcol_ddprofilingextension_impl",
     "com_github_datadog_datadog_agent_comp_otelcol_logsagentpipeline",
-    "com_github_datadog_datadog_agent_comp_otelcol_logsagentpipeline_logsagentpipelineimpl",
     "com_github_datadog_datadog_agent_comp_otelcol_otlp_components_exporter_datadogexporter",
     "com_github_datadog_datadog_agent_comp_otelcol_otlp_components_exporter_logsagentexporter",
     "com_github_datadog_datadog_agent_comp_otelcol_otlp_components_exporter_serializerexporter",

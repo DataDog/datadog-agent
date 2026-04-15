@@ -12,6 +12,7 @@ go_test(
     name = "version_test",
     srcs = ["version_test.go"],
     embed = [":version"],
+    gotags = ["test"],
     deps = [
         "//pkg/proto/pbgo/trace",
         "//pkg/trace/traceutil",

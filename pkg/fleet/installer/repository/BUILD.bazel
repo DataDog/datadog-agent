@@ -23,6 +23,7 @@ go_test(
         "repository_test.go",
     ],
     embed = [":repository"],
+    gotags = ["test"],
     deps = [
         "//pkg/fleet/installer/symlink",
         "@com_github_stretchr_testify//assert",

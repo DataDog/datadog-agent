@@ -59,18 +59,16 @@ func (cr *ConfigRetriever) actionsCallback(update map[string]state.RawConfig, ap
 			continue
 		}
 
+		// ACK immediately on receipt — execution results are reported via EVP
+		applyStateCallback(configKey, state.ApplyStatus{
+			State: state.ApplyStateAcknowledged,
+		})
+
 		err := cr.processor.Process(configKey, rawConfig)
 		if err != nil {
 			log.Errorf("[KubeActions] Error processing actions for %s: %v", configKey, err)
-			applyStateCallback(configKey, state.ApplyStatus{
-				State: state.ApplyStateError,
-				Error: err.Error(),
-			})
 		} else {
 			log.Infof("[KubeActions] Successfully processed actions for config %s", configKey)
-			applyStateCallback(configKey, state.ApplyStatus{
-				State: state.ApplyStateAcknowledged,
-			})
 		}
 	}
 }

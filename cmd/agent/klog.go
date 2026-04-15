@@ -27,6 +27,12 @@ func init() {
 
 	var err error
 
+	// Opt into fixed stderrthreshold behavior (kubernetes/klog#212).
+	err = flagset.Set("legacy_stderr_threshold_behavior", "false")
+	if err != nil {
+		panic(fmt.Sprintf("unable to set flag: %s", err))
+	}
+
 	// logtostderr is true by default, and when enabled promotes all logs
 	// to ERROR when collected by the agent, so we disable it
 	err = flagset.Set("logtostderr", strconv.FormatBool(false))
