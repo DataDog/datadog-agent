@@ -1,0 +1,23 @@
+---
+enhancements:
+  - |
+    Upgrade OpenTelemetry Collector dependencies from v0.147.0 to v0.150.0
+    (core v1.53.0 to v1.56.0).
+
+    Notable upstream changes:
+
+    - The ``exporter.datadogexporter.DisableAllMetricRemapping`` feature gate
+      has been promoted to beta (enabled by default). Metric remappings are now
+      handled by the Datadog backend. If you experience issues, disable the gate
+      with ``--feature-gates=-exporter.datadogexporter.DisableAllMetricRemapping``
+      and contact Datadog support.
+    - Semantic conventions updated from v1.38.0 to v1.40.0.
+    - The ``datadogextension`` now supports ``gateway_service`` and
+      ``gateway_destination`` config fields for Fleet Automation gateway
+      topology view.
+    - Fix for use-after-free bug in quantile sketches when exporting
+      ExponentialHistogram metrics with multiple attribute sets.
+
+    See the full upstream changelogs:
+    `collector-contrib v0.150.0 <https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/tag/v0.150.0>`_,
+    `collector core v0.150.0 <https://github.com/open-telemetry/opentelemetry-collector/releases/tag/v0.150.0>`_.
