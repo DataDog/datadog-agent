@@ -11,7 +11,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/hostmetadata"
+	pkghostname "github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/consumer/xconsumer"
@@ -48,12 +48,9 @@ type factory struct {
 
 func (f *factory) resolveHost(ctx context.Context, set processor.Settings) string {
 	f.once.Do(func() {
-		sourceProvider, err := hostmetadata.GetSourceProvider(set.TelemetrySettings, "", 0)
+		source, err := pkghostname.Get(ctx)
 		if err == nil {
-			source, err := sourceProvider.Source(ctx)
-			if err == nil && source.Kind == "host" {
-				f.host = source.Identifier
-			}
+			f.host = source
 		}
 
 		if f.host == "" {
