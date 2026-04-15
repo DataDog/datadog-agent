@@ -130,6 +130,8 @@ func (s *ActionStore) MarkExecuted(key ActionKey, status, message string, execut
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	claimedAt := s.executed[key.String()].ClaimedAt
+
 	s.executed[key.String()] = ActionRecord{
 		Key:             key,
 		Status:          status,
@@ -137,6 +139,7 @@ func (s *ActionStore) MarkExecuted(key ActionKey, status, message string, execut
 		ExecutedAt:      executedAt,
 		ReceivedAt:      receivedAt,
 		ActionCreatedAt: actionCreatedAt,
+		ClaimedAt:       claimedAt,
 	}
 }
 
