@@ -1,4 +1,4 @@
-load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@bazel_skylib//rules:native_binary.bzl", "native_test")
@@ -185,7 +185,7 @@ cc_binary(
     }),
     visibility = ["//visibility:public"],
     deps = [":pcre2test_dotc_headers", ":libpcre2", ":libpcre2-posix"],
-    dynamic_deps = [":pcre2-8", ":pcre2-posix"],
+    dynamic_deps = [":pcre2-8_pkg", ":pcre2-posix_pkg"],
 )
 
 filegroup(
@@ -216,22 +216,8 @@ cc_shared_library(
 cc_shared_library(
     name = "pcre2-posix",
     deps = [":libpcre2-posix"],
-    dynamic_deps = [":pcre2-8"],
+    dynamic_deps = [":pcre2-8_pkg"],
     visibility = ["//visibility:public"],
-)
-
-so_symlink(
-    name = "pcre2_libfiles",
-    src = ":pcre2-8",
-    libname = "libpcre2-8",
-    version = "0.11.2",
-)
-
-so_symlink(
-    name = "pcre2posix_libfiles",
-    src = ":pcre2-posix",
-    libname = "libpcre2-posix",
-    version = "3.0.4",
 )
 
 pkg_files(
@@ -243,12 +229,25 @@ pkg_files(
     prefix = "include",
 )
 
+dd_cc_packaged(
+    name = "pcre2-8_pkg",
+    input = ":pcre2-8",
+    version = "0.11.2",
+    installed_files = [":headers"],
+    visibility = ["//visibility:public"],
+)
+
+dd_cc_packaged(
+    name = "pcre2-posix_pkg",
+    input = ":pcre2-posix",
+    version = "3.0.4",
+    visibility = ["//visibility:public"],
+)
+
 pkg_filegroup(
     name = "all_files",
     srcs = [
         ":headers",
-        ":pcre2_libfiles",
-        ":pcre2posix_libfiles",
     ],
     prefix = "embedded",
     visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],

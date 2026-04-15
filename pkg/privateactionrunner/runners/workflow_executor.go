@@ -85,7 +85,7 @@ func (l *Loop) Run(parentCtx context.Context) {
 			l.publishFailure(ctx, task, err)
 			continue
 		}
-		unwrappedTask, err := l.runner.taskVerifier.UnwrapTaskFromSignedEnvelope(task.Data.Attributes.SignedEnvelope)
+		unwrappedTask, err := l.runner.taskVerifier.UnwrapTask(task)
 		if err != nil {
 			logger.Error("could not verify workflow task", log.ErrorField(err))
 			l.publishFailure(ctx, task, err)
@@ -163,7 +163,7 @@ func (l *Loop) Close(ctx context.Context) {
 
 func (l *Loop) publishFailure(ctx context.Context, task *types.Task, e error) {
 	logger := log.FromContext(ctx)
-	if task.Data.Attributes.JobId == "" {
+	if task == nil || task.Data.Attributes == nil || task.Data.Attributes.JobId == "" {
 		logger.Error("publish failure error: no job id was provided")
 		return
 	}
