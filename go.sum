@@ -4217,8 +4217,6 @@ github.com/kylelemons/godebug v1.1.0 h1:RPNrshWIDI6G2gRW9EHilWtl7Z6Sb1BR0xunSBf0
 github.com/kylelemons/godebug v1.1.0/go.mod h1:9/0rRGxNHcop5bhtWyNeEfOS8JIWk580+fNqagV/RAw=
 github.com/lebauce/iouring-go v0.0.0-20230403020409-002cfd2e2a90 h1:p1zpPRh7oXJwTnj7k9JYGK1QyN6NyC9VmwhD3qrVLbI=
 github.com/lebauce/iouring-go v0.0.0-20230403020409-002cfd2e2a90/go.mod h1:LEzdaZarZ5aqROlLIwJ4P7h3+4o71008fSy6wpaEB+s=
-github.com/lebauce/iouring-go v0.0.0-20250513121434-2d4fb49003b5 h1:R2pTb2TyShDB6l6vn1KJPF4VYfjY8yNPHF2kcS+aXKg=
-github.com/lebauce/iouring-go v0.0.0-20250513121434-2d4fb49003b5/go.mod h1:LEzdaZarZ5aqROlLIwJ4P7h3+4o71008fSy6wpaEB+s=
 github.com/ledongthuc/pdf v0.0.0-20220302134840-0c2507a12d80/go.mod h1:imJHygn/1yfhB7XSJJKlFZKl/J+dCPAknuiaGOshXAs=
 github.com/leodido/go-syslog/v4 v4.3.0 h1:bbSpI/41bYK9iSdlYzcwvlxuLOE8yi4VTFmedtnghdA=
 github.com/leodido/go-syslog/v4 v4.3.0/go.mod h1:eJ8rUfDN5OS6dOkCOBYlg2a+hbAg6pJa99QXXgMrd98=
