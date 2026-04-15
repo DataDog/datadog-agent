@@ -29,6 +29,7 @@ go_test(
         "rum_traces_test.go",
     ],
     embed = [":rum"],
+    gotags = ["test"],
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

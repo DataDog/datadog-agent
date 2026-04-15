@@ -28,6 +28,7 @@ go_test(
         "peer_tags_test.go",
     ],
     embed = [":config"],
+    gotags = ["test"],
     deps = [
         "//pkg/obfuscate",
         "//pkg/trace/semantics",

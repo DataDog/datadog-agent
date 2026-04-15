@@ -17,6 +17,7 @@ go_test(
     name = "api_test",
     srcs = ["delegated_auth_test.go"],
     embed = [":api"],
+    gotags = ["test"],
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

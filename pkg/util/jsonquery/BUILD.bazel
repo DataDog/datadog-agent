@@ -23,6 +23,7 @@ go_test(
         "yaml_test.go",
     ],
     embed = [":jsonquery"],
+    gotags = ["test"],
     deps = [
         "//pkg/util/cache",
         "@com_github_itchyny_gojq//:gojq",

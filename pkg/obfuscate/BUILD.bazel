@@ -45,6 +45,7 @@ go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":obfuscate"],
+    gotags = ["test"],
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

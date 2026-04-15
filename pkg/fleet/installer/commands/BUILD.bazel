@@ -46,6 +46,7 @@ go_test(
         "command_test.go",
     ],
     embed = [":commands"],
+    gotags = ["test"],
     deps = [
         "//pkg/fleet/installer/env",
         "//pkg/fleet/installer/exec",

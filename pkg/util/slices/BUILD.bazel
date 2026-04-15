@@ -11,5 +11,6 @@ go_test(
     name = "slices_test",
     srcs = ["map_test.go"],
     embed = [":slices"],
+    gotags = ["test"],
     deps = ["@com_github_stretchr_testify//assert"],
 )

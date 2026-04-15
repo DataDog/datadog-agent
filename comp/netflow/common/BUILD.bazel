@@ -22,5 +22,6 @@ go_test(
         "utils_test.go",
     ],
     embed = [":common"],
+    gotags = ["test"],
     deps = ["@com_github_stretchr_testify//assert"],
 )

@@ -23,5 +23,6 @@ go_test(
     name = "meta_test",
     srcs = ["meta_test.go"],
     embed = [":meta"],
+    gotags = ["test"],
     deps = ["@com_github_stretchr_testify//require"],
 )
