@@ -1,0 +1,78 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "software",
+    srcs = [
+        "collector.go",
+        "collector_darwin.go",
+        "collector_darwin_apps.go",
+        "collector_darwin_homebrew.go",
+        "collector_darwin_kext.go",
+        "collector_darwin_macports.go",
+        "collector_darwin_pkg.go",
+        "collector_darwin_sysext.go",
+        "collector_nix.go",
+        "collector_windows.go",
+        "msi_collector.go",
+        "msstoreapps_collector.go",
+        "registry_collector.go",
+        "types.go",
+        "win32.go",
+        "wire.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/inventory/software",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:darwin": [
+            "@com_github_mattn_go_sqlite3//:go-sqlite3",
+            "@org_golang_x_sync//singleflight",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@com_github_mattn_go_sqlite3//:go-sqlite3",
+            "@org_golang_x_sync//singleflight",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/winutil",
+            "//pkg/util/winutil/datadoginterop",
+            "@org_golang_x_sys//windows",
+            "@org_golang_x_sys//windows/registry",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "software_test",
+    srcs = [
+        "collector_darwin_test.go",
+        "collector_test.go",
+        "collector_windows_test.go",
+        "config_test.go",
+        "integration_windows_test.go",
+        "wire_test.go",
+    ],
+    data = select({
+        "@rules_go//go/platform:windows": [
+            "//tools/windows/DatadogInterop:libdatadog_interop",
+        ],
+        "//conditions:default": [],
+    }),
+    embed = [":software"],
+    gotags = ["test"],  # keep (needed for nodetreemodel's //go:build test assert guard)
+    deps = [
+        "@com_github_stretchr_testify//assert",
+    ] + select({
+        "@rules_go//go/platform:darwin": [
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/config/mock",
+            "@com_github_stretchr_testify//require",
+            "@org_golang_x_sys//windows/registry",
+        ],
+        "//conditions:default": [],
+    }),
+)
