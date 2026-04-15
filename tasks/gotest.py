@@ -184,10 +184,15 @@ def get_bazel_test_targets(ctx, modules: list[GoModule]) -> dict[str, str]:
     for module in modules:
         if not module.should_test():
             continue
-        prefix = '' if module.path == '.' else module.path + '/'
         for target in module.test_targets:
-            # Prepend module path for non-root modules
-            full_target = f'./{prefix}{target.removeprefix("./")}' if module.path != '.' else target
+            if module.path == '.':
+                full_target = target
+            else:
+                # Join module path with target, normalizing out any trailing '.' to
+                # avoid producing paths like './comp/core/.' which Bazel rejects.
+                rel = target.removeprefix('./')
+                joined = f'{module.path}/{rel}' if rel and rel != '.' else module.path
+                full_target = f'./{joined}'
             bazel_patterns.append(_target_to_bazel_pattern(full_target))
 
     if not bazel_patterns:
