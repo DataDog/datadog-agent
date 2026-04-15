@@ -21,6 +21,7 @@ go_test(
     name = "aws_test",
     srcs = ["aws_test.go"],
     embed = [":aws"],
+    gotags = ["test"],
     deps = [
         "//pkg/util/aws/creds",
         "@com_github_stretchr_testify//assert",

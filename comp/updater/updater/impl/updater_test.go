@@ -8,35 +8,21 @@ package updaterimpl
 import (
 	"testing"
 
-	"go.uber.org/fx"
-
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
-type testDependencies struct {
-	fx.In
-
-	Dependencies dependencies
-}
-
 type mockLifecycle struct{}
 
-func (m *mockLifecycle) Append(_ fx.Hook) {}
+func (m *mockLifecycle) Append(_ compdef.Hook) {}
 
 func TestUpdaterWithoutRemoteConfig(t *testing.T) {
-	deps := fxutil.Test[testDependencies](t, fx.Options(
-		core.MockBundle(),
-		hostnameimpl.MockModule(),
-		fx.Supply(core.BundleParams{}),
-		fx.Supply(option.None[rcservice.Component]()),
-		Module(),
-	))
-	_, err := newUpdaterComponent(&mockLifecycle{}, deps.Dependencies)
+	_, err := NewComponent(Requires{
+		Lifecycle:    &mockLifecycle{},
+		RemoteConfig: option.None[rcservice.Component](),
+	})
 	assert.ErrorIs(t, err, errRemoteConfigRequired)
 }
