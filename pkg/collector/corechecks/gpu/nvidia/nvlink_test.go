@@ -82,9 +82,9 @@ func TestNVLinkCollector(t *testing.T) {
 	port2Count := 0
 	for _, metric := range metrics {
 		switch {
-		case containsTag(metric.Tags, "nvlink_port:1"):
+		case hasTag(metric.Tags, "nvlink_port:1"):
 			port1Count++
-		case containsTag(metric.Tags, "nvlink_port:2"):
+		case hasTag(metric.Tags, "nvlink_port:2"):
 			port2Count++
 		default:
 			t.Fatalf("missing nvlink_port tag on metric %+v", metric)
@@ -210,11 +210,11 @@ func makePLRResponseBytes(seed uint64) []byte {
 }
 
 func TestPLRMetricSpecEntries(t *testing.T) {
+	spec, err := gpuspec.LoadMetricsSpec()
+	require.NoError(t, err)
+
 	for _, metricName := range plrCounterFields {
 		t.Run(metricName, func(t *testing.T) {
-			spec, err := gpuspec.LoadMetricsSpec()
-			require.NoError(t, err)
-
 			metricSpec, ok := spec.Metrics[metricName]
 			require.True(t, ok, "metric %s missing from spec", metricName)
 			require.Contains(t, metricSpec.CustomTags, "nvlink_port")
@@ -225,7 +225,7 @@ func TestPLRMetricSpecEntries(t *testing.T) {
 	}
 }
 
-func containsTag(tags []string, expected string) bool {
+func hasTag(tags []string, expected string) bool {
 	for _, tag := range tags {
 		if tag == expected {
 			return true

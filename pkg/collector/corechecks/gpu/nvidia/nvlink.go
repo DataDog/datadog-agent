@@ -52,22 +52,30 @@ type nvlinkCollector struct {
 	ports  []int
 }
 
-func newNVLinkCollector(device ddnvml.Device, _ *CollectorDependencies) (Collector, error) {
+func getNVLinkCount(device ddnvml.Device) (int, error) {
 	fields := []nvml.FieldValue{{
 		FieldId: nvml.FI_DEV_NVLINK_LINK_COUNT,
 		ScopeId: 0,
 	}}
 
 	if err := device.GetFieldValues(fields); err != nil {
-		if ddnvml.IsAPIUnsupportedOnDevice(err, device) {
-			return nil, errUnsupportedDevice
-		}
-		return nil, fmt.Errorf("get NVLink link count: %w", err)
+		return 0, fmt.Errorf("get NVLink link count: %w", err)
 	}
 
 	totalPorts, err := fieldValueToNumber[int](nvml.ValueType(fields[0].ValueType), fields[0].Value)
 	if err != nil {
-		return nil, fmt.Errorf("convert NVLink link count: %w", err)
+		return 0, fmt.Errorf("convert NVLink link count: %w", err)
+	}
+	return totalPorts, nil
+}
+
+func newNVLinkCollector(device ddnvml.Device, _ *CollectorDependencies) (Collector, error) {
+	totalPorts, err := getNVLinkCount(device)
+	if err != nil {
+		if ddnvml.IsAPIUnsupportedOnDevice(err, device) {
+			return nil, errUnsupportedDevice
+		}
+		return nil, err
 	}
 	if totalPorts <= 0 {
 		return nil, errUnsupportedDevice
@@ -185,27 +193,23 @@ func createPPCNTByteArray(group, port uint32) []byte {
 func packTLV(regID uint32, regSize int, regPayload []byte) []byte {
 	ret := make([]byte, 0, (opTLVLenDwords+regTLVHeaderLenDwords+endTLVLenDwords)*dwordSizeBytes+regSize)
 	ret = append(ret, packOpTLV(regID)...)
-	ret = append(ret, packTLVBase(makeTLVHeader(tlvTypeReg, uint32(regSize/dwordSizeBytes+regTLVHeaderLenDwords)))...)
+	ret = append(ret, packDWord(makeTLVHeader(tlvTypeReg, uint32(regSize/dwordSizeBytes+regTLVHeaderLenDwords)))...)
 	if regPayload != nil {
 		ret = append(ret, regPayload...)
 	} else {
 		ret = append(ret, make([]byte, regSize)...)
 	}
-	ret = append(ret, packTLVBase(makeTLVHeader(tlvTypeEnd, endTLVLenDwords))...)
+	ret = append(ret, packDWord(makeTLVHeader(tlvTypeEnd, endTLVLenDwords))...)
 	return ret
 }
 
 func packOpTLV(regID uint32) []byte {
 	ret := make([]byte, 0, opTLVLenDwords*dwordSizeBytes)
-	ret = append(ret, packTLVBase(makeTLVHeader(tlvTypeOp, opTLVLenDwords))...)
+	ret = append(ret, packDWord(makeTLVHeader(tlvTypeOp, opTLVLenDwords))...)
 	ret = append(ret, packDWord(makeOpMethodAndReg(regID))...)
 	ret = append(ret, packDWord(0)...)
 	ret = append(ret, packDWord(0)...)
 	return ret
-}
-
-func packTLVBase(header uint32) []byte {
-	return packDWord(header)
 }
 
 func packDWord(value uint32) []byte {
