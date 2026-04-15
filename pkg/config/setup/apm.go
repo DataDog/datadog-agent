@@ -166,6 +166,8 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("apm_config.telemetry.enabled", true, "DD_APM_TELEMETRY_ENABLED")
 	config.BindEnv("apm_config.telemetry.dd_url", "DD_APM_TELEMETRY_DD_URL")                             //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.BindEnv("apm_config.telemetry.additional_endpoints", "DD_APM_TELEMETRY_ADDITIONAL_ENDPOINTS") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("apm_config.telemetry.batch_size_threshold_bytes", 4_000_000, "DD_APM_TELEMETRY_BATCH_SIZE_THRESHOLD_BYTES")
+	config.BindEnvAndSetDefault("apm_config.telemetry.max_inflight_memory", 20_000_000, "DD_APM_TELEMETRY_MAX_INFLIGHT_MEMORY")
 	config.BindEnv("apm_config.install_id", "DD_INSTRUMENTATION_INSTALL_ID")                             //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.BindEnv("apm_config.install_type", "DD_INSTRUMENTATION_INSTALL_TYPE")                         //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.BindEnv("apm_config.install_time", "DD_INSTRUMENTATION_INSTALL_TIME")                         //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'

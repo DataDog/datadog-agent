@@ -46,25 +46,12 @@ const (
 )
 
 const (
-	// This number was chosen because requests on the EVP are accepted with sizes up to 5Mb, so we
-	// want to be able to buffer at least a few max size requests before exerting backpressure.
-	//
-	// And using 20Mb at most per host seems not too unreasonnable.
-	//
-	// Looking at payload size distribution, the max requests we get is about than 1Mb anyway,
-	// the biggest p99 per language is around 350Kb for nodejs and p95 is around 13Kb.
-	// So it should provide enough in normal cases before we start dropping requests.
-	maxInflightBytes = 20_000_000
-
 	// Maximum number of concurrent requests to the intake
 	//
 	// Since we have at most 20MB of data in flight, and payloads are 4MB
 	// at most, this allows for 4 * 4MB = 16MB of data being sent and 4 more MB in the
 	// batch buffer
 	maxConcurrentRequests = 4
-
-	// defaultBatchSizeThreshold is the cumulative body byte size that triggers an immediate flush.
-	defaultBatchSizeThreshold = 4_000_000
 
 	// batchMaxAge is the maximum time the oldest event can sit in the buffer before triggering a flush.
 	batchMaxAge = 30 * time.Second
@@ -182,6 +169,8 @@ type TelemetryForwarder struct {
 func NewTelemetryForwarder(conf *config.AgentConfig, containerIDProvider IDProvider, statsd statsd.ClientInterface) *TelemetryForwarder {
 	// extract and validate Hostnames from configured endpoints
 	var endpoints []*config.Endpoint
+	batchSizeThreshold := config.TelemetryDefaultBatchSizeThreshold
+	maxInflight := config.TelemetryDefaultMaxInflightBytes
 	if conf.TelemetryConfig != nil {
 		for _, endpoint := range conf.TelemetryConfig.Endpoints {
 			u, err := url.Parse(endpoint.Host)
@@ -195,6 +184,8 @@ func NewTelemetryForwarder(conf *config.AgentConfig, containerIDProvider IDProvi
 
 			endpoints = append(endpoints, endpoint)
 		}
+		batchSizeThreshold = conf.TelemetryConfig.BatchSizeThresholdBytes
+		maxInflight = conf.TelemetryConfig.MaxInflightMemoryBytes
 	}
 
 	cancelCtx, cancelFn := context.WithCancel(context.Background())
@@ -204,14 +195,14 @@ func NewTelemetryForwarder(conf *config.AgentConfig, containerIDProvider IDProvi
 		conf:      conf,
 		batch: currentBatch{
 			bufferedEvents:     make([]rawTelemetryEvent, 0, 64),
-			batchSizeThreshold: defaultBatchSizeThreshold,
+			batchSizeThreshold: batchSizeThreshold,
 			nowFn:              time.Now,
 		},
 		flushChan:        make(chan []rawTelemetryEvent, 1),
 		forwardChan:      make(chan forwardedBatch),
 		inflightWaiter:   sync.WaitGroup{},
 		inflightCount:    atomic.Int64{},
-		maxInflightBytes: maxInflightBytes,
+		maxInflightBytes: int64(maxInflight),
 
 		cancelCtx: cancelCtx,
 		cancelFn:  cancelFn,

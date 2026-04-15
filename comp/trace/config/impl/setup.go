@@ -458,6 +458,8 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		}}
 		c.TelemetryConfig.Endpoints = appendEndpoints(c.TelemetryConfig.Endpoints, "apm_config.telemetry.additional_endpoints")
 	}
+	c.TelemetryConfig.BatchSizeThresholdBytes = core.GetInt("apm_config.telemetry.batch_size_threshold_bytes")
+	c.TelemetryConfig.MaxInflightMemoryBytes = core.GetInt("apm_config.telemetry.max_inflight_memory")
 	c.Obfuscation = new(config.ObfuscationConfig)
 	c.Obfuscation.ES.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.elasticsearch.enabled")
 	c.Obfuscation.ES.KeepValues = pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.elasticsearch.keep_values")
