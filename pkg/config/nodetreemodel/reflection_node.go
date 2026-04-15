@@ -9,8 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 var (
@@ -37,7 +35,7 @@ func asReflectionNode(v interface{}) (*nodeImpl, error) {
 			item := rv.Index(i).Interface()
 			elems = append(elems, item)
 		}
-		return newLeafNode(elems, model.SourceUnknown), nil
+		return newLeafNode(elems, sourceIDUnknown), nil
 	} else if rv.Kind() == reflect.Map {
 		res := make(map[string]interface{}, rv.Len())
 		mapkeys := rv.MapKeys()
@@ -50,7 +48,7 @@ func asReflectionNode(v interface{}) (*nodeImpl, error) {
 			}
 			res[kstr] = rv.MapIndex(mk).Interface()
 		}
-		return newLeafNode(res, model.SourceUnknown), nil
+		return newLeafNode(res, sourceIDUnknown), nil
 	}
 	return nil, errUnknownConversion
 }

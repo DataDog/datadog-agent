@@ -86,7 +86,7 @@ func (c *ntmConfig) ReadConfig(in io.Reader) error {
 	if err != nil {
 		return err
 	}
-	if err := c.readConfigurationContent(c.file, model.SourceFile, content); err != nil {
+	if err := c.readConfigurationContent(c.file, sourceIDFile, content); err != nil {
 		return err
 	}
 	return c.mergeAllLayers()
@@ -97,10 +97,10 @@ func (c *ntmConfig) readInConfig(filePath string) error {
 	if err != nil {
 		return model.NewConfigFileNotFoundError(err) // nolint: forbidigo // constructing proper error
 	}
-	return c.readConfigurationContent(c.file, model.SourceFile, content)
+	return c.readConfigurationContent(c.file, sourceIDFile, content)
 }
 
-func (c *ntmConfig) readConfigurationContent(target *nodeImpl, source model.Source, content []byte) error {
+func (c *ntmConfig) readConfigurationContent(target *nodeImpl, source sourceID, content []byte) error {
 	var inData map[string]interface{}
 
 	if strictErr := yaml.UnmarshalStrict(content, &inData); strictErr != nil {
@@ -132,7 +132,7 @@ var valuelessLeaf = &nodeImpl{}
 
 // loadYamlInto traverses input data parsed from YAML, checking if each node is defined by the schema.
 // If found, the value from the YAML blob is imported into the 'dest' tree. Otherwise, a warning will be created.
-func loadYamlInto(dest *nodeImpl, source model.Source, inData map[string]interface{}, atPath string, schema *nodeImpl, knownKeys map[string]bool, unknownKeys map[string]struct{}) []error {
+func loadYamlInto(dest *nodeImpl, source sourceID, inData map[string]interface{}, atPath string, schema *nodeImpl, knownKeys map[string]bool, unknownKeys map[string]struct{}) []error {
 	warnings := []error{}
 	for key, value := range inData {
 		key = strings.ToLower(key)

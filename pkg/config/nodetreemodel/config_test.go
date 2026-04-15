@@ -522,7 +522,7 @@ logs_config:
 
 func TestMapGetChildNotFound(t *testing.T) {
 	m := map[string]interface{}{"a": "apple", "b": "banana"}
-	n, err := newNodeTree(m, model.SourceDefault)
+	n, err := newNodeTree(m, sourceIDDefault)
 	assert.NoError(t, err)
 
 	val, err := n.GetChild("a")
