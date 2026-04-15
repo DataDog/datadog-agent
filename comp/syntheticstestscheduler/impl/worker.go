@@ -17,6 +17,8 @@ import (
 	"sync"
 	"time"
 
+	traceroutelib "github.com/DataDog/datadog-traceroute/traceroute"
+
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/common"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -433,16 +435,23 @@ func (s *syntheticsTestScheduler) setResultStatus(w *workerResult, result *commo
 		if !hasAssertionOn100PacketLoss(w.assertionResult) {
 			result.Status = "failed"
 			result.Failure = common.APIError{
-				Code:    "NETUNREACH",
-				Message: "The remote server network is unreachable.",
+				Code:    common.APIErrorCode(traceroutelib.ErrCodeNetUnreach),
+				Message: "The remote network is unreachable.",
 			}
 		}
 	}
 	if w.tracerouteError != nil {
 		result.Status = "failed"
+		code := common.APIErrorCode(traceroutelib.ErrCodeUnknown)
+		message := w.tracerouteError.Error()
+		var trErr *traceroutelib.TracerouteError
+		if errors.As(w.tracerouteError, &trErr) {
+			code = common.APIErrorCode(trErr.Code)
+			message = trErr.Message
+		}
 		result.Failure = common.APIError{
-			Code:    "UNKNOWN",
-			Message: w.tracerouteError.Error(),
+			Code:    code,
+			Message: message,
 		}
 	}
 	if result.Status != "failed" {

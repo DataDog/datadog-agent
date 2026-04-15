@@ -149,11 +149,11 @@ func TestHandleTracerouteStructuredError(t *testing.T) {
 		expectedCode    traceroutelib.ErrorCode
 		expectedMessage string
 	}{
-		{"DNS", traceroutelib.ErrCodeDNS, "lookup example.com: no such host", traceroutelib.ErrCodeDNS, "Failed to resolve the host name."},
+		{"DNS", traceroutelib.ErrCodeDNS, "lookup example.com: no such host", traceroutelib.ErrCodeDNS, "Failed to resolve the host name example.com."},
 		{"timeout", traceroutelib.ErrCodeTimeout, "context deadline exceeded", traceroutelib.ErrCodeTimeout, "The request timed out."},
-		{"connection refused", traceroutelib.ErrCodeConnRefused, "connect: connection refused", traceroutelib.ErrCodeConnRefused, "The connection was refused by the remote host."},
-		{"host unreachable", traceroutelib.ErrCodeHostUnreach, "connect: host is unreachable", traceroutelib.ErrCodeHostUnreach, "The remote host is unreachable."},
-		{"network unreachable", traceroutelib.ErrCodeNetUnreach, "connect: network is unreachable", traceroutelib.ErrCodeNetUnreach, "The remote server network is unreachable."},
+		{"connection refused", traceroutelib.ErrCodeConnRefused, "connect: connection refused", traceroutelib.ErrCodeConnRefused, "The connection to example.com was refused by the remote host."},
+		{"host unreachable", traceroutelib.ErrCodeHostUnreach, "connect: host is unreachable", traceroutelib.ErrCodeHostUnreach, "The remote host example.com is unreachable."},
+		{"network unreachable", traceroutelib.ErrCodeNetUnreach, "connect: network is unreachable", traceroutelib.ErrCodeNetUnreach, "The remote network for example.com is unreachable."},
 		{"denied", traceroutelib.ErrCodeDenied, "operation not permitted", traceroutelib.ErrCodeDenied, "Permission denied."},
 		{"invalid request", traceroutelib.ErrCodeInvalidRequest, "invalid target: bad port", traceroutelib.ErrCodeInvalidRequest, "Invalid request parameters."},
 		{"failed encoding", traceroutelib.ErrCodeFailedEncoding, "json marshal error", traceroutelib.ErrCodeFailedEncoding, "Failed to encode the response."},
