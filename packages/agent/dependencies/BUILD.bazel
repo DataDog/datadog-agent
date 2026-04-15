@@ -4,6 +4,7 @@ Gathering spot for all the various dependencies which are shipped as part of the
 This replaces datadog-agent-dependencies.rb.
 """
 
+load("//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup")
 
@@ -22,6 +23,7 @@ pkg_filegroup(
         "@platforms//os:linux": [
             # dependency curl
             "@systemd//:all_files",
+            ":collected_libs",
         ],
         "//conditions:default": [],
     }) + select({
@@ -48,6 +50,25 @@ pkg_filegroup(
         ],
         "//conditions:default": [],
     }),
+)
+
+# _collected_libs serves as the main entry point for automatic collection of dependencies
+# When a leaf depencency needs to be added to the agent package, adding it here
+# will cause dd_collect_dependencies to also package all of its dependencies, and the
+# files that were provided as to be packaged alongside.
+# If the dependency is transitive, it does *not* need to be added here
+dd_collect_dependencies(
+    name = "_collected_libs",
+    srcs = select({
+        "@platforms//os:linux": ["@freetds//:tdsodbc_pkg"],
+        "//conditions:default": [],
+    }),
+)
+
+pkg_filegroup(
+    name = "collected_libs",
+    srcs = [":_collected_libs"],
+    prefix = "embedded",
 )
 
 # Temporary during migration, to call from omnibus build.
