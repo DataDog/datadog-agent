@@ -313,6 +313,121 @@ fn bench_rtrb_e2e(c: &mut Criterion) {
     group.finish();
 }
 
+// ---------------------------------------------------------------------------
+// Log throughput saturation benchmark
+//
+// Measures the maximum sustained frame rate the logs writer can handle.
+// Simulates the production hot path: rtrb push → writer thread decode →
+// arena accumulate → Parquet flush. Reports frames/sec and MB/sec.
+// ---------------------------------------------------------------------------
+
+fn build_log_frame_with_content(n_entries: usize, content_len: usize) -> Vec<u8> {
+    let mut fbb = flatbuffers::FlatBufferBuilder::with_capacity(n_entries * (content_len + 64));
+    let content_bytes = vec![b'A'; content_len];
+    let mut offsets = Vec::with_capacity(n_entries);
+    for i in (0..n_entries).rev() {
+        let content = fbb.create_vector(&content_bytes);
+        let entry = signals::LogEntry::create(
+            &mut fbb,
+            &signals::LogEntryArgs {
+                context_key: (i as u64) % 1000 + 1,
+                content: Some(content),
+                timestamp_ns: 1_700_000_000_000_000_000 + i as i64 * 1_000_000,
+            },
+        );
+        offsets.push(entry);
+    }
+    offsets.reverse();
+    let vec = fbb.create_vector(&offsets);
+    let batch = signals::LogBatch::create(
+        &mut fbb,
+        &signals::LogBatchArgs {
+            contexts: None,
+            entries: Some(vec),
+        },
+    );
+    let env = signals::SignalEnvelope::create(
+        &mut fbb,
+        &signals::SignalEnvelopeArgs {
+            log_batch: Some(batch),
+            ..Default::default()
+        },
+    );
+    fbb.finish(env, None);
+    fbb.finished_data().to_vec()
+}
+
+/// End-to-end log throughput: push N frames through rtrb → writer thread →
+/// Parquet flush. Measures the ceiling of what the sidecar can sustain.
+fn bench_logs_throughput_saturation(c: &mut Criterion) {
+    use flightrecorder::writers::thread::WriterHandle;
+
+    let mut group = c.benchmark_group("logs_throughput_saturation");
+    group.sample_size(10);
+
+    // Simulate production scenarios:
+    // - p50 pod: ~100 logs/sec, ~200 bytes each
+    // - p99 pod: ~7000 logs/sec, ~250 bytes each
+    // - extreme pod: ~10000 logs/sec, ~500 bytes each
+    let cases: &[(&str, usize, usize, usize)] = &[
+        // (name, entries_per_frame, content_bytes, n_frames)
+        ("p50_100entries_200B_x100frames", 100, 200, 100),
+        ("p99_2000entries_250B_x100frames", 2000, 250, 100),
+        ("extreme_2000entries_500B_x100frames", 2000, 500, 100),
+        ("extreme_2000entries_1KB_x100frames", 2000, 1024, 100),
+    ];
+
+    for &(name, n_entries, content_len, n_frames) in cases {
+        let frame = build_log_frame_with_content(n_entries, content_len);
+        let frame_bytes = frame.len();
+        let total_entries = n_entries * n_frames;
+        let total_bytes = frame_bytes * n_frames;
+
+        group.throughput(Throughput::Bytes(total_bytes as u64));
+
+        group.bench_function(name, |b| {
+            b.iter_custom(|iters| {
+                let frame = frame.clone();
+                let mut total = Duration::ZERO;
+                for _ in 0..iters {
+                    let dir = TempDir::new().unwrap();
+                    let (_prod_m, prod_l) = make_ctx_producer();
+                    let writer = LogsWriter::new(
+                        dir.path(),
+                        5000,
+                        Duration::from_secs(15),
+                        prod_l,
+                        Arc::new(DiskTracker::noop()),
+                    );
+                    let mut handle = WriterHandle::spawn(writer, 512, "bench-logs");
+
+                    let start = Instant::now();
+                    for _ in 0..n_frames {
+                        handle.send_frame(frame.clone());
+                    }
+                    handle.shutdown();
+                    total += start.elapsed();
+                }
+
+                // Print throughput info on first iteration for visibility.
+                if iters == 1 {
+                    let secs = total.as_secs_f64();
+                    eprintln!(
+                        "  [{name}] {total_entries} entries in {n_frames} frames ({frame_bytes} bytes/frame), \
+                         {:.0} frames/sec, {:.1} MB/sec, {:.0} entries/sec",
+                        n_frames as f64 / secs,
+                        total_bytes as f64 / secs / 1e6,
+                        total_entries as f64 / secs,
+                    );
+                }
+                total
+            });
+        });
+    }
+
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_metrics_push,
@@ -320,5 +435,6 @@ criterion_group!(
     bench_metrics_push_flush,
     bench_logs_push_flush,
     bench_rtrb_e2e,
+    bench_logs_throughput_saturation,
 );
 criterion_main!(benches);
