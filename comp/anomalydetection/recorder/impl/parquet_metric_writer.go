@@ -44,6 +44,7 @@ func newMetricParquetWriter(outputDir string, flushInterval, retentionDuration t
 			{Name: "MetricName", Type: arrow.BinaryTypes.String},         // metric name
 			{Name: "ValueFloat", Type: arrow.PrimitiveTypes.Float64},     // metric value
 			{Name: "Tags", Type: arrow.ListOf(arrow.BinaryTypes.String)}, // tags as list of strings
+			{Name: "Dropped", Type: arrow.FixedWidthTypes.Boolean},       // true if live channel dropped this observation
 		},
 		nil,
 	)
@@ -82,11 +83,11 @@ func newMetricParquetWriter(outputDir string, flushInterval, retentionDuration t
 }
 
 // WriteMetric adds a metric to the batch (will be flushed on interval).
-func (pw *metricParquetWriter) WriteMetric(source, name string, value float64, tags []string, timestamp int64) {
+func (pw *metricParquetWriter) WriteMetric(source, name string, value float64, tags []string, timestamp int64, dropped bool) {
 	pw.mu.Lock()
 	defer pw.mu.Unlock()
 
-	pw.typedBuilder.add(source, name, value, tags, timestamp)
+	pw.typedBuilder.add(source, name, value, tags, timestamp, dropped)
 }
 
 // metricBatchBuilder accumulates metrics into Arrow record batches using RecordBuilder
@@ -98,17 +99,19 @@ type metricBatchBuilder struct {
 	metricNames []string
 	valueFloats []float64
 	tags        [][]string
+	dropped     []bool
 }
 
 func newMetricBatchBuilder(schema *arrow.Schema) *metricBatchBuilder {
 	return &metricBatchBuilder{schema: schema}
 }
 
-func (b *metricBatchBuilder) add(source, name string, value float64, tags []string, timestamp int64) {
+func (b *metricBatchBuilder) add(source, name string, value float64, tags []string, timestamp int64, dropped bool) {
 	b.runIDs = append(b.runIDs, source)
 	b.times = append(b.times, timestamp*1000) // Convert to milliseconds
 	b.metricNames = append(b.metricNames, name)
 	b.valueFloats = append(b.valueFloats, value)
+	b.dropped = append(b.dropped, dropped)
 
 	// Copy tags to avoid mutation
 	tagsCopy := make([]string, len(tags))
@@ -130,6 +133,7 @@ func (b *metricBatchBuilder) build() arrow.Record {
 	valueBuilder := recordBuilder.Field(3).(*array.Float64Builder)
 	tagsBuilder := recordBuilder.Field(4).(*array.ListBuilder)
 	tagsValueBuilder := tagsBuilder.ValueBuilder().(*array.StringBuilder)
+	droppedBuilder := recordBuilder.Field(5).(*array.BooleanBuilder)
 
 	for _, id := range b.runIDs {
 		runIDBuilder.Append(id)
@@ -139,6 +143,7 @@ func (b *metricBatchBuilder) build() arrow.Record {
 		nameBuilder.Append(name)
 	}
 	valueBuilder.AppendValues(b.valueFloats, nil)
+	droppedBuilder.AppendValues(b.dropped, nil)
 
 	for _, tagList := range b.tags {
 		tagsBuilder.Append(true)
@@ -156,6 +161,7 @@ func (b *metricBatchBuilder) build() arrow.Record {
 	b.metricNames = nil
 	b.valueFloats = nil
 	b.tags = nil
+	b.dropped = nil
 
 	return record
 }

@@ -39,7 +39,6 @@ observer and the testbench (`impl/testbench.go`) use the same engine.
 | `impl/component_catalog.go` | Registry of all detectors, correlators, extractors |
 | `impl/observer.go` | Fx component: lifecycle, channel loop, handle creation |
 | `impl/testbench.go` | Offline replay and evaluation harness |
-| `impl/stats_metrics.go` | Trace stats → metric decomposition (Handle layer) |
 
 ### Detectors (in `impl/`)
 
@@ -159,10 +158,9 @@ whether this is intentional).
 4. **Extractor names must be unique.** The name is used as the storage
    namespace for derived metrics. Duplicates cause silent data collision.
 
-5. **Trace stats decomposition happens at the Handle layer**, not in the
-   engine. `processStatsView` in `stats_metrics.go` converts APM stats
-   into `trace.{op}.hits/errors/duration/p50-p99` metrics before they
-   reach the engine.
+5. **Traces are not processed.** `ObserveTrace` and `ObserveTraceStats`
+   are no-ops. The fetcher does not fetch traces or trace stats.
+   Profile fetching is the only active fetch path.
 
 ## Testing
 

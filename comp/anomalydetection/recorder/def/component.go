@@ -55,6 +55,7 @@ type MetricData struct {
 	Value     float64  // Metric value
 	Timestamp int64    // Unix timestamp in seconds
 	Tags      []string // Tags in "key:value" format
+	Dropped   bool     // True if the live observer's channel dropped this observation
 }
 
 // TraceData represents a trace read from parquet files.

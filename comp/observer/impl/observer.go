@@ -80,7 +80,6 @@ type observation struct {
 	source  string
 	metric  *metricObs
 	log     *logObs
-	trace   *traceObs
 	profile *profileObs
 }
 
@@ -121,38 +120,6 @@ type logObs struct {
 	tags        []string
 	hostname    string
 	timestampMs int64
-}
-
-// traceObs contains copied trace data.
-type traceObs struct {
-	traceIDHigh  uint64
-	traceIDLow   uint64
-	spans        []spanObs
-	env          string
-	service      string
-	hostname     string
-	containerID  string
-	timestamp    int64
-	duration     int64
-	priority     int32
-	isError      bool
-	tags         map[string]string
-	receivedAtNs int64
-}
-
-// spanObs contains copied span data.
-type spanObs struct {
-	spanID   uint64
-	parentID uint64
-	service  string
-	name     string
-	resource string
-	spanType string
-	start    int64
-	duration int64
-	error    int32
-	meta     map[string]string
-	metrics  map[string]float64
 }
 
 // profileObs contains copied profile data.
@@ -286,7 +253,10 @@ func NewComponent(deps Requires) Provides {
 		obs.handleFunc = obs.innerHandle
 	}
 
+	recordingEnabled := cfg.GetBool("observer.recording.enabled")
+	recorderAvailable := false
 	if recorder, ok := deps.Recorder.Get(); ok {
+		recorderAvailable = true
 		obs.handleFunc = recorder.GetHandle(obs.handleFunc)
 
 		// Record detect digests and advance log alongside parquet for parity debugging.
@@ -472,15 +442,18 @@ func NewComponent(deps Requires) Provides {
 		})
 	}
 
-	// Start trace/profile fetcher if traces or profiles collection is enabled
-
-	fetchHandle := obs.GetHandle("trace-agent")
-	obs.fetcher = newObserverFetcher(
-		deps.RemoteAgentRegistry,
-		fetchHandle,
-	)
-	obs.fetcher.Start()
-	pkglog.Info("[observer] trace/profile fetcher started")
+	// Start the profile fetcher only when recording is enabled.
+	// Profiles are not analyzed by the observer; fetching them is
+	// only useful for the recorder-backed parquet path.
+	if recordingEnabled && recorderAvailable {
+		fetchHandle := obs.GetHandle("profile-agent")
+		obs.fetcher = newObserverFetcher(
+			deps.RemoteAgentRegistry,
+			fetchHandle,
+		)
+		obs.fetcher.Start()
+		pkglog.Info("[observer] profile fetcher started")
+	}
 
 	return Provides{Comp: obs}
 }
@@ -552,9 +525,6 @@ func (o *observerImpl) run() {
 			if len(logTelemetry) > 0 {
 				o.telemetryHandler.handleTelemetry(logTelemetry)
 			}
-		}
-		if obs.trace != nil {
-			o.processTrace(obs.source, obs.trace)
 		}
 		if obs.profile != nil {
 			o.processProfile(obs.source, obs.profile)
@@ -686,16 +656,6 @@ func (o *observerImpl) UniqueAnomalySourceCount() int {
 	return o.engine.UniqueAnomalySourceCount()
 }
 
-// processTrace handles a trace observation.
-// Currently this is a placeholder that logs the trace; full implementation
-// will include parquet storage and trace-specific analysis.
-func (o *observerImpl) processTrace(source string, t *traceObs) {
-	// TODO: Implement trace storage to parquet
-	// TODO: Implement trace-specific analysis (latency anomalies, error patterns)
-	pkglog.Debugf("[observer] trace observed from %s: traceID=%x%x spans=%d service=%s",
-		source, t.traceIDHigh, t.traceIDLow, len(t.spans), t.service)
-}
-
 // processProfile handles a profile observation.
 // Currently this is a placeholder that logs the profile; full implementation
 // will include parquet metadata storage and binary file storage for large profiles.
@@ -770,20 +730,28 @@ type hfFilteredHandle struct {
 }
 
 func (f *hfFilteredHandle) ObserveMetric(sample observerdef.MetricView) {
-	if sp, ok := sample.(sourceProvider); ok {
-		if _, suppressed := f.sources[sp.GetSource()]; suppressed {
-			return
-		}
-	}
-	f.inner.ObserveMetric(sample)
+	_ = f.ObserveMetricAndReportDrop(sample)
 }
 
-func (f *hfFilteredHandle) ObserveLog(msg observerdef.LogView)       { f.inner.ObserveLog(msg) }
-func (f *hfFilteredHandle) ObserveTrace(trace observerdef.TraceView) { f.inner.ObserveTrace(trace) }
-func (f *hfFilteredHandle) ObserveTraceStats(s observerdef.TraceStatsView) {
-	f.inner.ObserveTraceStats(s)
+func (f *hfFilteredHandle) ObserveMetricAndReportDrop(sample observerdef.MetricView) bool {
+	if sp, ok := sample.(sourceProvider); ok {
+		if _, suppressed := f.sources[sp.GetSource()]; suppressed {
+			return false
+		}
+	}
+	if dr, ok := f.inner.(interface {
+		ObserveMetricAndReportDrop(observerdef.MetricView) bool
+	}); ok {
+		return dr.ObserveMetricAndReportDrop(sample)
+	}
+	f.inner.ObserveMetric(sample)
+	return false
 }
-func (f *hfFilteredHandle) ObserveProfile(p observerdef.ProfileView) { f.inner.ObserveProfile(p) }
+
+func (f *hfFilteredHandle) ObserveLog(msg observerdef.LogView)             { f.inner.ObserveLog(msg) }
+func (f *hfFilteredHandle) ObserveTrace(_ observerdef.TraceView)           {}
+func (f *hfFilteredHandle) ObserveTraceStats(_ observerdef.TraceStatsView) {}
+func (f *hfFilteredHandle) ObserveProfile(p observerdef.ProfileView)       { f.inner.ObserveProfile(p) }
 
 // noopHandle returns a handle that discards all observations.
 // Used when analysis is disabled so the analysis pipeline is not started.
@@ -794,7 +762,10 @@ func (o *observerImpl) noopHandle(_ string) observerdef.Handle {
 // noopObserveHandle discards all observations.
 type noopObserveHandle struct{}
 
-func (h *noopObserveHandle) ObserveMetric(_ observerdef.MetricView)         {}
+func (h *noopObserveHandle) ObserveMetric(_ observerdef.MetricView) {}
+func (h *noopObserveHandle) ObserveMetricAndReportDrop(_ observerdef.MetricView) bool {
+	return false
+}
 func (h *noopObserveHandle) ObserveLog(_ observerdef.LogView)               {}
 func (h *noopObserveHandle) ObserveTrace(_ observerdef.TraceView)           {}
 func (h *noopObserveHandle) ObserveTraceStats(_ observerdef.TraceStatsView) {}
@@ -818,6 +789,12 @@ type handle struct {
 
 // ObserveMetric observes a DogStatsD metric sample.
 func (h *handle) ObserveMetric(sample observerdef.MetricView) {
+	_ = h.ObserveMetricAndReportDrop(sample)
+}
+
+// ObserveMetricAndReportDrop observes a metric and reports whether this
+// specific call was dropped by the observer channel.
+func (h *handle) ObserveMetricAndReportDrop(sample observerdef.MetricView) bool {
 	timestamp := sample.GetTimestampUnix()
 	if timestamp == 0 {
 		timestamp = time.Now().Unix()
@@ -827,7 +804,7 @@ func (h *handle) ObserveMetric(sample observerdef.MetricView) {
 
 	// filter internal Datadog Agent telemetry
 	if strings.HasPrefix(name, "datadog.") {
-		return
+		return false
 	}
 
 	obs := observation{
@@ -843,11 +820,13 @@ func (h *handle) ObserveMetric(sample observerdef.MetricView) {
 	// Non-blocking send - drop if channel is full.
 	select {
 	case h.ch <- obs:
+		return false
 	default:
 		h.dropCount.Add(1)
 		if h.dropCounter != nil {
 			h.dropCounter.Add(1, h.source)
 		}
+		return true
 	}
 }
 
@@ -878,67 +857,11 @@ func (h *handle) ObserveLog(msg observerdef.LogView) {
 	}
 }
 
-// ObserveTrace observes a trace (collection of spans with the same trace ID).
-func (h *handle) ObserveTrace(trace observerdef.TraceView) {
-	high, low := trace.GetTraceID()
+// ObserveTrace is a no-op. Trace processing is not used.
+func (h *handle) ObserveTrace(_ observerdef.TraceView) {}
 
-	// Copy all spans from the iterator
-	var spans []spanObs
-	iter := trace.GetSpans()
-	for iter.Next() {
-		sv := iter.Span()
-		spans = append(spans, spanObs{
-			spanID:   sv.GetSpanID(),
-			parentID: sv.GetParentID(),
-			service:  sv.GetService(),
-			name:     sv.GetName(),
-			resource: sv.GetResource(),
-			spanType: sv.GetType(),
-			start:    sv.GetStartUnixNano(),
-			duration: sv.GetDurationNano(),
-			error:    sv.GetError(),
-			meta:     copyStringMap(sv.GetMeta()),
-			metrics:  copyFloat64Map(sv.GetMetrics()),
-		})
-	}
-
-	obs := observation{
-		source: h.source,
-		trace: &traceObs{
-			traceIDHigh:  high,
-			traceIDLow:   low,
-			spans:        spans,
-			env:          trace.GetEnv(),
-			service:      trace.GetService(),
-			hostname:     trace.GetHostname(),
-			containerID:  trace.GetContainerID(),
-			timestamp:    trace.GetTimestampUnixNano(),
-			duration:     trace.GetDurationNano(),
-			priority:     trace.GetPriority(),
-			isError:      trace.IsError(),
-			tags:         copyStringMap(trace.GetTags()),
-			receivedAtNs: time.Now().UnixNano(),
-		},
-	}
-
-	// Non-blocking send - drop if channel is full.
-	select {
-	case h.ch <- obs:
-	default:
-		h.dropCount.Add(1)
-		if h.dropCounter != nil {
-			h.dropCounter.Add(1, h.source)
-		}
-	}
-}
-
-// ObserveTraceStats processes APM stats by deriving in-memory metrics.
-// Note: metrics are emitted directly on h (the inner observer handle), not on any
-// outer recording handle, so derived metrics live in memory only and are never
-// written to the metrics parquet file.
-func (h *handle) ObserveTraceStats(stats observerdef.TraceStatsView) {
-	processStatsView(h, stats)
-}
+// ObserveTraceStats is a no-op. Trace stats processing is deprioritized.
+func (h *handle) ObserveTraceStats(_ observerdef.TraceStatsView) {}
 
 // ObserveProfile observes a profiling sample.
 func (h *handle) ObserveProfile(profile observerdef.ProfileView) {
@@ -1015,18 +938,6 @@ func copyStringMap(m map[string]string) map[string]string {
 		return nil
 	}
 	result := make(map[string]string, len(m))
-	for k, v := range m {
-		result[k] = v
-	}
-	return result
-}
-
-// copyFloat64Map creates a copy of a float64 map.
-func copyFloat64Map(m map[string]float64) map[string]float64 {
-	if m == nil {
-		return nil
-	}
-	result := make(map[string]float64, len(m))
 	for k, v := range m {
 		result[k] = v
 	}

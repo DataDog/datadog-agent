@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sort"
 	"sync"
 )
 
@@ -117,6 +118,16 @@ func newAdvanceLogComparator(path string) (*advanceLogComparator, error) {
 		totalLateBySource:    lateBySource,
 		totalDroppedBySource: droppedBySource,
 	}, nil
+}
+
+// liveAdvanceTimes returns the sorted list of data_time values from the live advance log.
+func (c *advanceLogComparator) liveAdvanceTimes() []int64 {
+	times := make([]int64, 0, len(c.liveAdvances))
+	for t := range c.liveAdvances {
+		times = append(times, t)
+	}
+	sort.Slice(times, func(i, j int) bool { return times[i] < times[j] })
+	return times
 }
 
 // compare is called for each replay advance.

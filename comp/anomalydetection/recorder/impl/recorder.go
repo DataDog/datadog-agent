@@ -171,6 +171,7 @@ func (r *recorderImpl) ReadAllMetrics(inputDir string) ([]recorderdef.MetricData
 			Value:     value,
 			Timestamp: timestamp,
 			Tags:      tags,
+			Dropped:   metric.Dropped,
 		})
 	}
 
@@ -239,6 +240,12 @@ func (r *recorderImpl) ReadAllLogs(inputDir string) ([]recorderdef.LogData, erro
 	return logs, nil
 }
 
+// metricDropObserver is an optional interface that handles can implement to
+// return whether a specific ObserveMetric call was dropped by the live channel.
+type metricDropObserver interface {
+	ObserveMetricAndReportDrop(sample observer.MetricView) bool
+}
+
 // recordingHandle wraps an observer handle to record observations.
 type recordingHandle struct {
 	inner    observer.Handle
@@ -247,9 +254,15 @@ type recordingHandle struct {
 }
 
 // ObserveMetric forwards the metric to the inner handle and records it.
+// The dropped flag is returned directly by the inner handle when supported so
+// concurrent callers on shared handles do not race on global per-handle state.
 func (h *recordingHandle) ObserveMetric(sample observer.MetricView) {
-	// Forward to inner handle first
-	h.inner.ObserveMetric(sample)
+	dropped := false
+	if dr, ok := h.inner.(metricDropObserver); ok {
+		dropped = dr.ObserveMetricAndReportDrop(sample)
+	} else {
+		h.inner.ObserveMetric(sample)
+	}
 
 	// Record to parquet if writer is available
 	timestamp := sample.GetTimestampUnix()
@@ -262,6 +275,7 @@ func (h *recordingHandle) ObserveMetric(sample observer.MetricView) {
 		sample.GetValue(),
 		sample.GetRawTags(),
 		timestamp,
+		dropped,
 	)
 }
 

@@ -103,10 +103,10 @@ type engine struct {
 	onAdvance      func(advanceEntry) // scheduler trace
 
 	// Counters for data ingestion anomalies, reset after each advance.
-	latePoints         atomic.Int64      // points ingested after their timestamp was already analyzed
-	latePointsBySource map[string]int64  // per-source breakdown (single-goroutine access from run loop)
-	handles            []*handle         // registered handles for per-source drop collection
-	handlesMu          sync.Mutex        // protects handles slice
+	latePoints         atomic.Int64     // points ingested after their timestamp was already analyzed
+	latePointsBySource map[string]int64 // per-source breakdown (single-goroutine access from run loop)
+	handles            []*handle        // registered handles for per-source drop collection
+	handlesMu          sync.Mutex       // protects handles slice
 }
 
 // engineConfig holds the parameters for constructing an engine.
@@ -834,6 +834,63 @@ func (e *engine) ReplayStoredData() advanceResult {
 			allTelemetry = append(allTelemetry, result.telemetry...)
 			advances++
 		}
+		e.replayTimestampsDone.Store(int64(i + 1))
+		e.replayAdvances.Store(int64(advances))
+		e.replayAnomalies.Store(int64(len(allAnomalies)))
+	}
+
+	// Final flush for any remaining data not yet analyzed.
+	endRequests := e.scheduler.onReplayEnd(e.schedulerState())
+	for _, req := range endRequests {
+		result := e.advanceWithReason(req.upToSec, req.reason)
+		allAnomalies = append(allAnomalies, result.anomalies...)
+		allTelemetry = append(allTelemetry, result.telemetry...)
+		advances++
+	}
+
+	e.replayAdvances.Store(int64(advances))
+	e.replayAnomalies.Store(int64(len(allAnomalies)))
+	e.replayPhase.Store("done")
+
+	return advanceResult{
+		anomalies: allAnomalies,
+		telemetry: allTelemetry,
+	}
+}
+
+// ReplayWithLiveSchedule replays stored data but only advances at the timestamps
+// recorded in the live advance log. The live advance log records upToSec values
+// (typically dataTimeSec-1 from the scheduler), which may not match data timestamps
+// exactly. We advance at each live time once the data stream has reached or passed it.
+func (e *engine) ReplayWithLiveSchedule(liveAdvanceTimes []int64) advanceResult {
+	var allAnomalies []observerdef.Anomaly
+	var allTelemetry []observerdef.ObserverTelemetry
+
+	timestamps := e.storage.DataTimestamps()
+
+	e.replayPhase.Store("detecting")
+	e.replayTimestampsTotal.Store(int64(len(timestamps)))
+	e.replayTimestampsDone.Store(0)
+	e.replayAdvances.Store(0)
+	e.replayAnomalies.Store(0)
+
+	// liveAdvanceTimes must be sorted (guaranteed by liveAdvanceTimes()).
+	liveIdx := 0
+	advances := 0
+	for i, ts := range timestamps {
+		e.trackLatestDataTime(ts)
+
+		// Advance at all live advance times that the data stream has reached.
+		// Live advance times are upToSec values (often dataTimeSec-1), so they
+		// may not appear in DataTimestamps(). We trigger when ts >= advanceTime.
+		for liveIdx < len(liveAdvanceTimes) && liveAdvanceTimes[liveIdx] <= ts {
+			result := e.advanceWithReason(liveAdvanceTimes[liveIdx], advanceReasonInputDriven)
+			allAnomalies = append(allAnomalies, result.anomalies...)
+			allTelemetry = append(allTelemetry, result.telemetry...)
+			advances++
+			liveIdx++
+		}
+
 		e.replayTimestampsDone.Store(int64(i + 1))
 		e.replayAdvances.Store(int64(advances))
 		e.replayAnomalies.Store(int64(len(allAnomalies)))
