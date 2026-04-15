@@ -4,7 +4,6 @@ Gathering spot for all the various dependencies which are shipped as part of the
 This replaces datadog-agent-dependencies.rb.
 """
 
-load("//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup")
 load("//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
