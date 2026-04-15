@@ -105,10 +105,16 @@ func StartWorkloadAutoscaling(
 		return nil, fmt.Errorf("Unable to start profile controller: %w", err)
 	}
 
+	metadataClient, err := apiCl.MetadataClient()
+	if err != nil {
+		return nil, fmt.Errorf("Unable to create kubernetes metadata client: %w", err)
+	}
+
 	workloadWatcher := profile.NewWorkloadWatcher(
+		wlm,
 		profileStore,
 		isLeaderFunc,
-		apiCl.DynamicInformerCl,
+		metadataClient,
 		[]profile.GroupVersionKindResource{
 			{GroupVersionResource: schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}, Kind: "Deployment"},
 			{GroupVersionResource: schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "statefulsets"}, Kind: "StatefulSet"},
