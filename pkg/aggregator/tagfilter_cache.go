@@ -61,6 +61,7 @@ func (sc *tagFilterCache) add(key ckey.ContextKey, entry tagFilterCacheEntry) {
 	}
 	if evicted, ok := ring.add(key); ok {
 		delete(sc.cache, evicted)
+		tlmFilteredTagsCacheEvict.Inc()
 	}
 }
 

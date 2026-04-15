@@ -285,6 +285,25 @@ func TestTagFilterCacheDeleteAfterEviction(t *testing.T) {
 	assert.Nil(t, sc.reverseCache[postKey], "reverse entry should be removed")
 }
 
+func TestTagFilterCacheEvictionTelemetry(t *testing.T) {
+	sc := newTagFilterCache()
+	postKey := ckey.ContextKey(500)
+
+	before := tlmFilteredTagsCacheEvict.Get()
+
+	// Fill ring to capacity — no evictions yet
+	for i := 0; i < reverseCacheCapacity; i++ {
+		sc.add(ckey.ContextKey(i), tagFilterCacheEntry{contextKey: postKey})
+	}
+	assert.Equal(t, before, tlmFilteredTagsCacheEvict.Get(), "no evictions before capacity reached")
+
+	// Add 10 more — each should evict one entry
+	for i := 0; i < 10; i++ {
+		sc.add(ckey.ContextKey(reverseCacheCapacity+i), tagFilterCacheEntry{contextKey: postKey})
+	}
+	assert.Equal(t, before+10, tlmFilteredTagsCacheEvict.Get(), "should count 10 evictions")
+}
+
 // assertTagFilterCacheConsistent checks the invariant: every key in the reverse cache
 // must have a corresponding entry in the forward cache that points back to the
 // same post-filter context key.
