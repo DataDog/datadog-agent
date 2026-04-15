@@ -17,6 +17,13 @@ enhancements:
       topology view.
     - Fix for use-after-free bug in quantile sketches when exporting
       ExponentialHistogram metrics with multiple attribute sets.
+    - OTTL context setters (used by ``transform``, ``filter``, and ``tailsampling``
+      processors) now validate value types and return errors on type mismatches
+      instead of silently ignoring them.
+      Users with ``error_mode: propagate`` (the default for the transform
+      processor) may see new errors if their OTTL statements had pre-existing
+      type mismatches. Switch to ``error_mode: ignore`` to preserve the previous
+      behavior while fixing the statements.
 
     See the full upstream changelogs:
     `collector-contrib v0.150.0 <https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/tag/v0.150.0>`_,
