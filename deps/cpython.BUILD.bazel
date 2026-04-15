@@ -22,6 +22,7 @@ python_externals = {
 }
 
 VERSION_STR = "3.13"
+
 VERSION_STR_FLAT = VERSION_STR.replace(".", "")
 
 # These rules will make it easier to get a reference to their folder via $(location)
@@ -56,7 +57,10 @@ run_binary(
     srcs = (
         glob(
             ["**"],
-            exclude = ["**/*.pyc", "BUILD.bazel"],
+            exclude = [
+                "**/*.pyc",
+                "BUILD.bazel",
+            ],
         ) + [
             "bzip2_win_dir",
             "mpdecimal_win_dir",
@@ -70,6 +74,18 @@ run_binary(
             "@visual_studio//:msbuild",
         ]
     ),
+    outs = [
+        "build/{}".format(file)
+        for file in [
+            "python.exe",
+            "python3.dll",
+            "python{}.dll".format(VERSION_STR_FLAT),
+            "pythonw.exe",
+            "vcruntime140.dll",
+            "vcruntime140_1.dll",
+            "LICENSE.txt",
+        ]
+    ],
     env = {
         "PROCESSOR_ARCHITECTURE": "AMD64",
         # Input and output paths
@@ -88,18 +104,6 @@ run_binary(
         "MSBUILD": "$(location @visual_studio//:msbuild)",
         "PYTHON_FOR_BUILD": "$(location @python_3_12//:python3)",
     },
-    outs = [
-        "build/{}".format(file)
-        for file in [
-            "python.exe",
-            "python3.dll",
-            "python{}.dll".format(VERSION_STR_FLAT),
-            "pythonw.exe",
-            "vcruntime140.dll",
-            "vcruntime140_1.dll",
-            "LICENSE.txt",
-        ]
-    ],
     out_dirs = [
         "build/{}".format(dir)
         for dir in [
@@ -139,13 +143,16 @@ cc_library(
     name = "lib_win",
     hdrs = [":headers_win"],
     includes = ["build/include"],
-    deps = [":_python313_dll"],
     visibility = ["//visibility:public"],
+    deps = [":_python313_dll"],
 )
 
 filegroup(
     name = "all_srcs",
-    srcs = glob(["**"], exclude = ["BUILD.bazel"]),
+    srcs = glob(
+        ["**"],
+        exclude = ["BUILD.bazel"],
+    ),
 )
 
 UNIX_BINS = [
@@ -154,6 +161,7 @@ UNIX_BINS = [
 ]
 
 LINUX_SO = "libpython{}.so.1.0".format(VERSION_STR)
+
 MACOS_DYLIB = "libpython{}.dylib".format(VERSION_STR)
 
 python_deps = {
@@ -166,6 +174,11 @@ python_deps = {
 
 configure_make(
     name = "python_unix",
+    build_data = [
+        ":redacted_compat.h",
+        "@@//deps/cpython:fix_sysconfigdata.py",
+        "@python_3_12//:python3",
+    ],
     configure_options = [
         "--enable-ipv6",
         "--with-ensurepip=yes",
@@ -180,7 +193,13 @@ configure_make(
         "//conditions:default": [],
     }),
     copts = [
-        "-O2",
+        "-O3",
+    ],
+    dynamic_deps = [
+        "@bzip2//:bz2_pkg",
+        "@sqlite3//:sqlite3_pkg",
+        "@xz//:lzma_pkg",
+        "@zlib//:z_pkg",
     ],
     env = {
         "OPT": "-DNDEBUG -fwrapv",
@@ -209,11 +228,7 @@ configure_make(
         },
         "//conditions:default": {},
     }),
-    build_data = [
-        ":redacted_compat.h",
-        "@@//deps/cpython:fix_sysconfigdata.py",
-        "@python_3_12//:python3",
-    ],
+    includes = ["python{}".format(VERSION_STR)],
     lib_source = ":all_srcs",
     out_binaries = UNIX_BINS,
     out_data_dirs = [
@@ -231,6 +246,7 @@ configure_make(
         ],
         "@platforms//os:macos": [],
     }),
+    out_include_dir = "include",
     out_shared_libs = select({
         "@platforms//os:linux": [
             LINUX_SO,
@@ -238,34 +254,6 @@ configure_make(
         "@platforms//os:macos": [
             MACOS_DYLIB,
         ],
-    }),
-    out_include_dir = "include",
-    visibility = ["//visibility:public"],
-    deps = [
-        "@bzip2//:libbz2",
-        "@libffi//:ffi",
-        "@openssl//:openssl",
-        "@sqlite3//:libsqlite3",
-        "@xz//:liblzma",
-        "@zlib//:zlib",
-    ],
-    dynamic_deps = [
-        "@bzip2//:bz2_pkg",
-        "@sqlite3//:sqlite3_pkg",
-        "@xz//:lzma_pkg",
-        "@zlib//:z_pkg",
-    ],
-    includes = ["python{}".format(VERSION_STR)],
-    targets = [
-        # Build in parallel but install without parallel execution
-        # (see https://github.com/python/cpython/issues/109796)
-        "-j 16",
-        "install",
-    ],
-    target_compatible_with = select({
-        "@platforms//os:macos": [],
-        "@platforms//os:linux": [],
-        "//conditions:default": ["@platforms//:incompatible"],
     }),
     # python's build system will output the entire build config to _sysconfigdata_xxx.py
     # This is later used to build extensions with the same tools/compiler/flags/config as the interpreter
@@ -282,6 +270,26 @@ configure_make(
     """.format(
         version = VERSION_STR,
     ),
+    target_compatible_with = select({
+        "@platforms//os:macos": [],
+        "@platforms//os:linux": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    targets = [
+        # Build in parallel but install without parallel execution
+        # (see https://github.com/python/cpython/issues/109796)
+        "-j 16",
+        "install",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@bzip2//:libbz2",
+        "@libffi//:ffi",
+        "@openssl",
+        "@sqlite3//:libsqlite3",
+        "@xz//:liblzma",
+        "@zlib",
+    ],
 )
 
 foreign_cc_shared_wrapper(
@@ -334,13 +342,13 @@ select_file(
 copy_to_directory(
     name = "python_lib_dir_unix",
     srcs = [":python_lib_dir_group_unix"],
+    out = "python{}".format(VERSION_STR),
     exclude_srcs_patterns = [
         "test/**/*",
         "**/*.exe",
         "**/Makefile",
     ],
     root_paths = ["python_unix/lib/python{}".format(VERSION_STR)],
-    out = "python{}".format(VERSION_STR),
 )
 
 filegroup(
@@ -358,16 +366,16 @@ genrule(
 
 dd_agent_expand_template(
     name = "patch_pip_interpreter",
-    template = ":patch_pip_shebang",
     out = "pip{}".format(VERSION_STR),
+    template = ":patch_pip_shebang",
 )
 
 # Create symlinks for libpython (rules_pkg 1.2+ supports symlinks in pkg_install)
 pkg_mklink(
     name = "libpython_symlink",
+    attributes = pkg_attributes("0644"),
     link_name = "lib/libpython{}.so".format(VERSION_STR),
     target = LINUX_SO,
-    attributes = pkg_attributes("0644"),
 )
 
 BIN_SYMLINKS = {
@@ -380,9 +388,9 @@ BIN_SYMLINKS = {
 [
     pkg_mklink(
         name = "python_bin_symlink_" + target,
+        attributes = pkg_attributes("0755"),
         link_name = link,
         target = target,
-        attributes = pkg_attributes("0755"),
     )
     for link, target in BIN_SYMLINKS.items()
 ]
@@ -435,11 +443,11 @@ pkg_files(
 pkg_files(
     name = "install_bins_unix",
     srcs = [
-        ":python3_bin",
         ":patch_pip_interpreter",
+        ":python3_bin",
     ],
-    prefix = "bin",
     attributes = pkg_attributes("0755"),
+    prefix = "bin",
 )
 
 pkg_filegroup(
@@ -449,9 +457,9 @@ pkg_filegroup(
             ":install_files_win",
         ],
         "//conditions:default": [
-            ":install_libs_unix",
-            ":install_headers_unix",
             ":install_bins_unix",
+            ":install_headers_unix",
+            ":install_libs_unix",
         ] + [":python_bin_symlink_" + name for name in BIN_SYMLINKS.values()],
     }) + select({
         "@platforms//os:linux": [":libpython_symlink"],
