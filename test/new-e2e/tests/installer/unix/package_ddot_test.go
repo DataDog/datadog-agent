@@ -202,8 +202,6 @@ func (s *packageDDOTSuite) TestInstallDDOTExtensionSubcommand() {
 	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit)
 
 	// Install the ddot extension via the new datadog-agent extension subcommand.
-	// --url points at the standard agent-package in the test registry; the ddot
-	// extension layer is already embedded in it so no BYOC image is required.
 	agentPackageURL := fmt.Sprintf(
 		"oci://installtesting.datad0g.com.internal.dda-testing.com/agent-package:pipeline-%s",
 		os.Getenv("E2E_PIPELINE_ID"),
