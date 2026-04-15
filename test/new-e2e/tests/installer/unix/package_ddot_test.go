@@ -202,14 +202,8 @@ func (s *packageDDOTSuite) TestInstallDDOTExtensionSubcommand() {
 	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit)
 
 	// Install the ddot extension via the new datadog-agent extension subcommand.
-	agentPackageURL := fmt.Sprintf(
-		"oci://installtesting.datad0g.com.internal.dda-testing.com/agent-package:pipeline-%s",
-		os.Getenv("E2E_PIPELINE_ID"),
-	)
-	s.host.Run(fmt.Sprintf(
-		"sudo datadog-agent extension install --url %s ddot",
-		agentPackageURL,
-	))
+	agentPackageURL := "oci://installtesting.datad0g.com.internal.dda-testing.com/agent-package:pipeline-" + os.Getenv("E2E_PIPELINE_ID")
+	s.host.Run("sudo datadog-agent extension install --url " + agentPackageURL + " ddot")
 
 	s.host.WaitForUnitActive(s.T(), ddotUnit)
 
