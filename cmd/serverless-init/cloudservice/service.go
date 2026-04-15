@@ -8,6 +8,7 @@ package cloudservice
 import (
 	"maps"
 	"os"
+	"runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
@@ -195,6 +196,10 @@ func GetCloudServiceType() CloudService {
 
 	if isAppService() {
 		return &AppService{}
+	}
+
+	if runtime.GOARCH != "amd64" {
+		log.Warnf("serverless-init is running on an unsupported architecture (%s). Only amd64 is supported.", runtime.GOARCH)
 	}
 
 	if provider := detectCloudProvider(); provider != "" {
