@@ -31,11 +31,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	appsv1 "k8s.io/api/apps/v1"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	kubeClient "k8s.io/client-go/kubernetes"
 
 	e2eclient "github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
@@ -347,31 +345,55 @@ func (s *kitchenSinkSuite) TestAgentSurvivesRCHangingWithWorkloads() {
 // Test 4: Many slow checks (scheduler blocking mechanism)
 //
 // This tests the specific scheduler blocking bug independently of RC.
-// Deploys pods with HTTP checks that take 20 seconds each, with only
-// 4 workers. This SHOULD trigger liveness failure via the unbuffered
-// pendingChecksChan blocking mechanism.
+// Configures 15 HTTP check instances pointing at non-routable IPs
+// (192.0.2.0/24, RFC 5737 TEST-NET-1). Each check hangs for its
+// timeout (25s), saturating the 4 workers. This avoids deploying extra
+// pods (which fail to pull images in Kind CI).
 //
 // This test PASSES if the agent stays healthy (meaning the slow checks
 // don't actually trigger the bug in practice). It FAILS if the agent
 // dies (confirming the bug is reachable with enough slow checks).
 // ---------------------------------------------------------------------------
 
+// slowCheckInstances returns the YAML for 15 HTTP check instances pointing
+// at non-routable IPs (192.0.2.0/24). Each check hangs for 25s, saturating
+// the runner's 4 workers.
+func slowCheckInstances() string {
+	var instances strings.Builder
+	for i := 1; i <= 15; i++ {
+		if i > 1 {
+			instances.WriteString("\n")
+		}
+		fmt.Fprintf(&instances,
+			`        - name: "slow_check_%d"
+          url: "http://192.0.2.%d:8080/"
+          timeout: 25
+          min_collection_interval: 15`, i, i)
+	}
+	return instances.String()
+}
+
 type slowChecksSuite struct {
 	e2e.BaseSuite[environments.Kubernetes]
 }
 
 func TestSlowChecksSchedulerBlocking(t *testing.T) {
-	e2e.Run(t, &slowChecksSuite{}, kindProvisioner(`
+	e2e.Run(t, &slowChecksSuite{}, kindProvisioner(fmt.Sprintf(`
 datadog:
   clusterChecks:
     enabled: true
+  confd:
+    http_check.yaml: |-
+      init_config:
+      instances:
+%s
 agents:
   containers:
     agent:
       env:
         - name: DD_CHECK_RUNNERS
           value: "4"
-`))
+`, slowCheckInstances())))
 }
 
 func (s *slowChecksSuite) TestAgentWithManySlowChecks() {
@@ -382,33 +404,10 @@ func (s *slowChecksSuite) TestAgentWithManySlowChecks() {
 	pod := getNodeAgentPod(ctx, s.T(), k8s)
 	s.T().Logf("Node agent pod: %s", pod)
 
-	s.EventuallyWithTf(func(c *assert.CollectT) {
-		stdout, _, err := kc.PodExec("datadog", pod, "agent", []string{"agent", "health"})
-		assert.NoError(c, err)
-		assert.Contains(c, stdout, "Agent health: PASS")
-	}, 3*time.Minute, 10*time.Second, "agent should be healthy before deploying slow checks")
-
-	s.T().Log("Deploying 15 slow HTTP server pods (20s delay, 4 workers)")
-	s.deploySlowServer(ctx, k8s)
-	defer s.cleanupSlowServer(ctx, k8s)
-
-	s.EventuallyWithTf(func(c *assert.CollectT) {
-		pods, err := k8s.CoreV1().Pods("default").List(ctx, metav1.ListOptions{
-			LabelSelector: "app=slow-http-server",
-		})
-		assert.NoError(c, err)
-		ready := 0
-		for _, p := range pods.Items {
-			for _, cond := range p.Status.Conditions {
-				if cond.Type == corev1.PodReady && cond.Status == corev1.ConditionTrue {
-					ready++
-				}
-			}
-		}
-		assert.GreaterOrEqual(c, ready, 15)
-	}, 3*time.Minute, 10*time.Second, "slow server pods should be running")
-
-	s.T().Log("Monitoring agent for 10 minutes with slow checks active")
+	// Slow checks are configured via Helm (confd http_check.yaml) pointing at
+	// non-routable IPs in 192.0.2.0/24. Each check hangs for its 25s timeout,
+	// saturating the 4 workers. No extra pods needed.
+	s.T().Log("Monitoring agent for 10 minutes with 15 slow HTTP checks (via non-routable IPs, 4 workers)")
 	result := monitorAgent(ctx, s.T(), kc, k8s, pod, 10*time.Minute, 15*time.Second)
 	reportResults(s.T(), result)
 
@@ -417,73 +416,6 @@ func (s *slowChecksSuite) TestAgentWithManySlowChecks() {
 	assert.False(s.T(), result.AgentDied,
 		"Agent should stay healthy even with many slow checks. "+
 			"If this fails, slow checks triggered the scheduler blocking bug.")
-}
-
-func (s *slowChecksSuite) deploySlowServer(ctx context.Context, k8s kubeClient.Interface) {
-	s.T().Helper()
-	replicas := int32(15)
-
-	pythonServer := fmt.Sprintf(`
-from http.server import HTTPServer, BaseHTTPRequestHandler
-import time
-class H(BaseHTTPRequestHandler):
-    def do_GET(self):
-        time.sleep(%d)
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(b'ok')
-    def log_message(self, *a): pass
-HTTPServer(('', %d), H).serve_forever()
-`, 20, 8080)
-
-	deploy := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{Name: "slow-http-server", Namespace: "default"},
-		Spec: appsv1.DeploymentSpec{
-			Replicas: &replicas,
-			Selector: &metav1.LabelSelector{
-				MatchLabels: map[string]string{"app": "slow-http-server"},
-			},
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{"app": "slow-http-server"},
-					Annotations: map[string]string{
-						"ad.datadoghq.com/slow-server.check_names":  `["http_check"]`,
-						"ad.datadoghq.com/slow-server.init_configs": `[{}]`,
-						"ad.datadoghq.com/slow-server.instances":    `[{"name":"slow_endpoint","url":"http://%%host%%:8080/","timeout":25,"min_collection_interval":15}]`,
-					},
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{{
-						Name:    "slow-server",
-						Image:   "669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/python:3-slim",
-						Command: []string{"python3", "-c", pythonServer},
-						Ports:   []corev1.ContainerPort{{ContainerPort: 8080}},
-						ReadinessProbe: &corev1.Probe{
-							ProbeHandler: corev1.ProbeHandler{
-								TCPSocket: &corev1.TCPSocketAction{Port: intstr.FromInt(8080)},
-							},
-							InitialDelaySeconds: 5,
-							PeriodSeconds:       5,
-						},
-					}},
-				},
-			},
-		},
-	}
-
-	_, err := k8s.AppsV1().Deployments("default").Create(ctx, deploy, metav1.CreateOptions{})
-	require.NoError(s.T(), err)
-}
-
-func (s *slowChecksSuite) cleanupSlowServer(ctx context.Context, k8s kubeClient.Interface) {
-	s.T().Helper()
-	_ = k8s.AppsV1().Deployments("default").Delete(ctx, "slow-http-server", metav1.DeleteOptions{})
-	_ = assert.Eventually(s.T(), func() bool {
-		pods, err := k8s.CoreV1().Pods("default").List(ctx, metav1.ListOptions{
-			LabelSelector: "app=slow-http-server",
-		})
-		return err == nil && len(pods.Items) == 0
-	}, 2*time.Minute, 5*time.Second)
 }
 
 // ---------------------------------------------------------------------------
@@ -504,12 +436,17 @@ type rcPlusSlowChecksSuite struct {
 }
 
 func TestRCHangingPlusSlowChecks(t *testing.T) {
-	e2e.Run(t, &rcPlusSlowChecksSuite{}, kindProvisioner(`
+	e2e.Run(t, &rcPlusSlowChecksSuite{}, kindProvisioner(fmt.Sprintf(`
 datadog:
   clusterChecks:
     enabled: true
   remoteConfiguration:
     enabled: true
+  confd:
+    http_check.yaml: |-
+      init_config:
+      instances:
+%s
 clusterAgent:
   env:
     - name: DD_REMOTE_CONFIGURATION_RC_DD_URL
@@ -522,15 +459,15 @@ agents:
   containers:
     agent:
       env:
+        - name: DD_CHECK_RUNNERS
+          value: "4"
         - name: DD_REMOTE_CONFIGURATION_RC_DD_URL
           value: "http://192.0.2.1:8080"
         - name: DD_REMOTE_CONFIGURATION_NO_TLS
           value: "true"
         - name: DD_REMOTE_CONFIGURATION_REFRESH_INTERVAL
           value: "5s"
-        - name: DD_CHECK_RUNNERS
-          value: "4"
-`))
+`, slowCheckInstances())))
 }
 
 func (s *rcPlusSlowChecksSuite) TestRCHangingWithSlowChecks() {
@@ -541,107 +478,15 @@ func (s *rcPlusSlowChecksSuite) TestRCHangingWithSlowChecks() {
 	pod := getNodeAgentPod(ctx, s.T(), k8s)
 	s.T().Logf("Node agent pod: %s", pod)
 
-	s.EventuallyWithTf(func(c *assert.CollectT) {
-		stdout, _, err := kc.PodExec("datadog", pod, "agent", []string{"agent", "health"})
-		assert.NoError(c, err)
-		assert.Contains(c, stdout, "Agent health: PASS")
-	}, 3*time.Minute, 10*time.Second, "agent should be healthy before deploying slow checks")
-
-	// Deploy slow checks while RC is already hanging.
-	s.T().Log("Deploying 15 slow HTTP server pods (RC already hanging for both agents)")
-	s.deploySlowServer(ctx, k8s)
-	defer s.cleanupSlowServer(ctx, k8s)
-
-	s.EventuallyWithTf(func(c *assert.CollectT) {
-		pods, err := k8s.CoreV1().Pods("default").List(ctx, metav1.ListOptions{
-			LabelSelector: "app=slow-http-server",
-		})
-		assert.NoError(c, err)
-		ready := 0
-		for _, p := range pods.Items {
-			for _, cond := range p.Status.Conditions {
-				if cond.Type == corev1.PodReady && cond.Status == corev1.ConditionTrue {
-					ready++
-				}
-			}
-		}
-		assert.GreaterOrEqual(c, ready, 15)
-	}, 3*time.Minute, 10*time.Second, "slow server pods should be running")
-
-	s.T().Log("Monitoring for 10 min: RC hanging + slow checks active")
+	// Both RC hanging and slow checks are configured at deploy time via Helm.
+	// RC points at 192.0.2.1 (hangs), slow checks point at 192.0.2.2-16 (hang for 25s timeout).
+	s.T().Log("Monitoring for 10 min: RC hanging for both agents + 15 slow HTTP checks (4 workers)")
 	result := monitorAgent(ctx, s.T(), kc, k8s, pod, 10*time.Minute, 15*time.Second)
 	reportResults(s.T(), result)
 
 	assert.False(s.T(), result.AgentDied,
 		"Agent should stay healthy with RC hanging + slow checks. "+
 			"If this fails, the combination of RC unavailability and slow checks is the trigger.")
-}
-
-func (s *rcPlusSlowChecksSuite) deploySlowServer(ctx context.Context, k8s kubeClient.Interface) {
-	s.T().Helper()
-	replicas := int32(15)
-
-	pythonServer := fmt.Sprintf(`
-from http.server import HTTPServer, BaseHTTPRequestHandler
-import time
-class H(BaseHTTPRequestHandler):
-    def do_GET(self):
-        time.sleep(%d)
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(b'ok')
-    def log_message(self, *a): pass
-HTTPServer(('', %d), H).serve_forever()
-`, 20, 8080)
-
-	deploy := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{Name: "slow-http-server", Namespace: "default"},
-		Spec: appsv1.DeploymentSpec{
-			Replicas: &replicas,
-			Selector: &metav1.LabelSelector{
-				MatchLabels: map[string]string{"app": "slow-http-server"},
-			},
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{"app": "slow-http-server"},
-					Annotations: map[string]string{
-						"ad.datadoghq.com/slow-server.check_names":  `["http_check"]`,
-						"ad.datadoghq.com/slow-server.init_configs": `[{}]`,
-						"ad.datadoghq.com/slow-server.instances":    `[{"name":"slow_endpoint","url":"http://%%host%%:8080/","timeout":25,"min_collection_interval":15}]`,
-					},
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{{
-						Name:    "slow-server",
-						Image:   "669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/python:3-slim",
-						Command: []string{"python3", "-c", pythonServer},
-						Ports:   []corev1.ContainerPort{{ContainerPort: 8080}},
-						ReadinessProbe: &corev1.Probe{
-							ProbeHandler: corev1.ProbeHandler{
-								TCPSocket: &corev1.TCPSocketAction{Port: intstr.FromInt(8080)},
-							},
-							InitialDelaySeconds: 5,
-							PeriodSeconds:       5,
-						},
-					}},
-				},
-			},
-		},
-	}
-
-	_, err := k8s.AppsV1().Deployments("default").Create(ctx, deploy, metav1.CreateOptions{})
-	require.NoError(s.T(), err)
-}
-
-func (s *rcPlusSlowChecksSuite) cleanupSlowServer(ctx context.Context, k8s kubeClient.Interface) {
-	s.T().Helper()
-	_ = k8s.AppsV1().Deployments("default").Delete(ctx, "slow-http-server", metav1.DeleteOptions{})
-	_ = assert.Eventually(s.T(), func() bool {
-		pods, err := k8s.CoreV1().Pods("default").List(ctx, metav1.ListOptions{
-			LabelSelector: "app=slow-http-server",
-		})
-		return err == nil && len(pods.Items) == 0
-	}, 2*time.Minute, 5*time.Second)
 }
 
 // ---------------------------------------------------------------------------
