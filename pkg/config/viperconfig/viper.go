@@ -207,6 +207,11 @@ func (c *safeConfig) IsKnown(key string) bool {
 	return c.Viper.IsKnown(key)
 }
 
+// IsLeafSetting always returns true for Viper, because it doesn't know the difference
+func (c *safeConfig) IsLeafSetting(key string) bool {
+	return true
+}
+
 // checkKnownKey checks if a key is known, and if not logs a warning
 // Only a single warning will be logged per unknown key.
 //

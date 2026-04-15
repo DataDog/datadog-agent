@@ -2,7 +2,10 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "helper",
-    srcs = ["get_combine.go"],
+    srcs = [
+        "get_combine.go",
+        "set_tree.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/config/helper",
     visibility = ["//visibility:public"],
     deps = ["//pkg/config/model"],

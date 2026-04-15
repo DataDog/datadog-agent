@@ -189,6 +189,8 @@ type Reader interface {
 
 	// IsKnown returns whether this key is known
 	IsKnown(key string) bool
+	// IsLeafSetting returns whether the setting is a leaf in the tree
+	IsLeafSetting(key string) bool
 
 	// GetKnownKeysLowercased returns all the keys that meet at least one of these criteria:
 	// 1) have a default, 2) have an environment variable binded, 3) are an alias or 4) have been SetKnown()
