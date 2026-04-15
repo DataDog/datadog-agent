@@ -131,7 +131,7 @@ func NewFramer(
 	case DockerStream:
 		matcher = &dockerStreamMatcher{contentLenLimit}
 	case SyslogFraming:
-		matcher = &syslogFrameMatcher{contentLenLimit}
+		matcher = &syslogFrameMatcher{contentLenLimit: contentLenLimit}
 	case NoFraming:
 		matcher = &noFramingMatcher{}
 	case UTF8NewlineDatagram:

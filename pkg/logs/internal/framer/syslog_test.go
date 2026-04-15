@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
 
 // processSyslog feeds chunks through a SyslogFraming framer and collects non-empty output.
@@ -208,12 +209,104 @@ func TestSyslogFramingIntegrationWithFramer(t *testing.T) {
 }
 
 func TestSyslogFrameMatcherUnexpectedByte(t *testing.T) {
-	// An unexpected leading byte (not '<' or digit) should be consumed.
+	// Unexpected leading bytes before a valid frame are emitted as a single
+	// malformed frame, then the real syslog message is parsed normally.
 	input := []byte("X<34>1 host app - - - msg\n")
 
 	got, _ := processSyslog(t, 4096, [][]byte{input})
-	// The 'X' is consumed as a zero-length frame, then the real message is parsed.
-	require.Equal(t, []string{"<34>1 host app - - - msg"}, got)
+	require.Equal(t, []string{"X", "<34>1 host app - - - msg"}, got)
+}
+
+func TestSyslogMalformedFrameEmission(t *testing.T) {
+	t.Run("pure junk emitted as single malformed frame", func(t *testing.T) {
+		tailerInfo := status.NewInfoRegistry()
+		var contents []string
+		outputFn := func(msg *message.Message, _ int) {
+			if len(msg.GetContent()) > 0 {
+				contents = append(contents, string(msg.GetContent()))
+			}
+		}
+		fr := NewSyslogFramer(outputFn, 4096, tailerInfo)
+
+		// "hello world" has no valid frame start and no delimiter, so the
+		// matcher waits for more data. Flush emits nothing (no '<' prefix).
+		// Adding a trailing newline lets the matcher emit it as one frame.
+		fr.Process(message.NewMessage([]byte("hello world\n"), nil, "", 0))
+
+		require.Equal(t, []string{"hello world"}, contents)
+
+		rendered := tailerInfo.Rendered()
+		discarded := rendered["Syslog Discarded Bytes"]
+		require.NotEmpty(t, discarded)
+		assert.Equal(t, "11", discarded[0])
+	})
+
+	t.Run("junk followed by valid frame resyncs at PRI", func(t *testing.T) {
+		tailerInfo := status.NewInfoRegistry()
+		var contents []string
+		outputFn := func(msg *message.Message, _ int) {
+			if len(msg.GetContent()) > 0 {
+				contents = append(contents, string(msg.GetContent()))
+			}
+		}
+		fr := NewSyslogFramer(outputFn, 4096, tailerInfo)
+
+		validMsg := "<34>1 host app - - - real message"
+		input := []byte("JUNK" + validMsg + "\n")
+		fr.Process(message.NewMessage(input, nil, "", 0))
+
+		require.Equal(t, []string{"JUNK", validMsg}, contents)
+
+		rendered := tailerInfo.Rendered()
+		discarded := rendered["Syslog Discarded Bytes"]
+		require.NotEmpty(t, discarded)
+		assert.Equal(t, "4", discarded[0])
+	})
+
+	t.Run("stray delimiters are not counted as malformed", func(t *testing.T) {
+		tailerInfo := status.NewInfoRegistry()
+		var contents []string
+		outputFn := func(msg *message.Message, _ int) {
+			if len(msg.GetContent()) > 0 {
+				contents = append(contents, string(msg.GetContent()))
+			}
+		}
+		fr := NewSyslogFramer(outputFn, 4096, tailerInfo)
+
+		msg := "<34>1 host app - - - msg"
+		input := []byte("\n\r\x00" + msg + "\n")
+		fr.Process(message.NewMessage(input, nil, "", 0))
+
+		require.Equal(t, []string{msg}, contents)
+
+		rendered := tailerInfo.Rendered()
+		discarded := rendered["Syslog Discarded Bytes"]
+		require.NotEmpty(t, discarded)
+		assert.Equal(t, "0", discarded[0])
+	})
+
+	t.Run("junk before octet-counted frame resyncs at digit", func(t *testing.T) {
+		tailerInfo := status.NewInfoRegistry()
+		var contents []string
+		outputFn := func(msg *message.Message, _ int) {
+			if len(msg.GetContent()) > 0 {
+				contents = append(contents, string(msg.GetContent()))
+			}
+		}
+		fr := NewSyslogFramer(outputFn, 4096, tailerInfo)
+
+		syslogMsg := "<34>1 host app - - - octet msg"
+		octetFrame := fmt.Sprintf("%d %s", len(syslogMsg), syslogMsg)
+		input := []byte("XX" + octetFrame)
+		fr.Process(message.NewMessage(input, nil, "", 0))
+
+		require.Equal(t, []string{"XX", syslogMsg}, contents)
+
+		rendered := tailerInfo.Rendered()
+		discarded := rendered["Syslog Discarded Bytes"]
+		require.NotEmpty(t, discarded)
+		assert.Equal(t, "2", discarded[0])
+	})
 }
 
 func TestSyslogTrimTrailer(t *testing.T) {
