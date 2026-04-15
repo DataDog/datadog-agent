@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 )
 
-var config = map[string]string{
+var testConfig = map[string]string{
 	"key1": "value1",
 	"key2": "value2",
 	"key3": "value3",
@@ -33,7 +33,7 @@ func TestOTelExtFlareBuilder(t *testing.T) {
 	require.NoError(t, err)
 	b := &bytes.Buffer{}
 	err = tmpl.Execute(b, map[string]string{
-		"config": strconv.Quote(toJSON(config)),
+		"config": strconv.Quote(toJSON(testConfig)),
 	})
 	require.NoError(t, err)
 
@@ -44,5 +44,5 @@ func TestOTelExtFlareBuilder(t *testing.T) {
 	flareImpl := &flareImpl{port: 7778}
 	flareImpl.fillFlare(context.Background(), f)
 
-	f.AssertFileContent(strconv.Quote(toJSON(config)), "host-profiler/runtime.cfg")
+	f.AssertFileContent(strconv.Quote(toJSON(testConfig)), "host-profiler/runtime.cfg")
 }
