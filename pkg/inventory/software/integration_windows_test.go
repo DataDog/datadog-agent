@@ -19,43 +19,26 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/bazelbuild/rules_go/go/runfiles"
 	"github.com/stretchr/testify/require"
 )
 
 func init() {
-	testSrcDir := os.Getenv("TEST_SRCDIR")
-	if testSrcDir == "" {
+	dllRlocation := os.Getenv("INTEROP_DLL_PATH")
+	if dllRlocation == "" {
 		return
 	}
-	ws := os.Getenv("TEST_WORKSPACE")
-	dllPath := filepath.Join(testSrcDir, ws,
-		"tools", "windows", "DatadogInterop", "libdatadog-interop.dll")
-	fmt.Fprintf(os.Stderr, "dll_init: TEST_SRCDIR=%q TEST_WORKSPACE=%q path=%q\n", testSrcDir, ws, dllPath)
-
-	if resolved, err := filepath.EvalSymlinks(dllPath); err == nil {
-		dir := filepath.Dir(resolved)
-		fmt.Fprintf(os.Stderr, "dll_init: resolved=%q dir=%q\n", resolved, dir)
-		os.Setenv("PATH", dir+";"+os.Getenv("PATH"))
-		return
-	} else {
-		fmt.Fprintf(os.Stderr, "dll_init: EvalSymlinks err=%v\n", err)
+	resolved, err := runfiles.Rlocation(dllRlocation)
+	if err != nil {
+		panic(fmt.Sprintf("failed to resolve interop DLL runfile location: %s", err))
 	}
-
-	if info, err := os.Lstat(dllPath); err == nil {
-		fmt.Fprintf(os.Stderr, "dll_init: Lstat mode=%v\n", info.Mode())
-		os.Setenv("PATH", filepath.Dir(dllPath)+";"+os.Getenv("PATH"))
-	} else {
-		fmt.Fprintf(os.Stderr, "dll_init: Lstat err=%v\n", err)
-		// List parent directory to see what's actually there
-		parent := filepath.Dir(dllPath)
-		if entries, derr := os.ReadDir(parent); derr == nil {
-			for _, e := range entries {
-				fmt.Fprintf(os.Stderr, "dll_init:   %s (dir=%v)\n", e.Name(), e.IsDir())
-			}
-		} else {
-			fmt.Fprintf(os.Stderr, "dll_init: ReadDir(%q) err=%v\n", parent, derr)
-		}
+	// Runfiles on Windows are junctions; resolve to the real bazel-out path
+	// so the directory stays under MAX_PATH for LoadLibrary.
+	if target, linkErr := os.Readlink(resolved); linkErr == nil {
+		resolved = target
 	}
+	fmt.Fprintf(os.Stderr, "dll_init: resolved=%q len=%d\n", resolved, len(resolved))
+	os.Setenv("PATH", filepath.Dir(resolved)+";"+os.Getenv("PATH"))
 }
 
 func TestIntegrationCompareWithPowerShell(t *testing.T) {

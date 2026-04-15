@@ -58,6 +58,12 @@ go_test(
         "//conditions:default": [],
     }),
     embed = [":software"],
+    env = select({
+        "@rules_go//go/platform:windows": {
+            "INTEROP_DLL_PATH": "$(rlocationpath //tools/windows/DatadogInterop:libdatadog_interop)",
+        },
+        "//conditions:default": {},
+    }),
     gotags = ["test"],  # keep (needed for nodetreemodel's //go:build test assert guard)
     deps = [
         "@com_github_stretchr_testify//assert",
@@ -72,6 +78,7 @@ go_test(
             "//pkg/config/mock",
             "@com_github_stretchr_testify//require",
             "@org_golang_x_sys//windows/registry",
+            "@rules_go//go/runfiles",
         ],
         "//conditions:default": [],
     }),
