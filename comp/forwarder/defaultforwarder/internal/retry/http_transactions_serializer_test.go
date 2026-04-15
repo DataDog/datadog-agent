@@ -121,7 +121,7 @@ func TestHTTPTransactionSerializerMissingAPIKey(t *testing.T) {
 	txns, errorCount, err := serializer.Deserialize(bytes)
 	r.NoError(err)
 	r.Equal(0, errorCount)
-	r.Equal(1, txns[0].(*transaction.HTTPTransaction).APIKeyIndex)
+	r.Equal(uint(1), txns[0].(*transaction.HTTPTransaction).APIKeyIndex)
 
 	// Deserializing with a resolver that only has apiKey1: the transaction is dropped
 	// because APIKeyIndex 1 is out of range for a single-key resolver.
@@ -164,7 +164,7 @@ func TestHTTPTransactionSerializerUpdateAPIKey(t *testing.T) {
 
 	transactions, _, err := serializer.Deserialize(bytes)
 	r.NoError(err)
-	r.Equal(2, transactions[0].(*transaction.HTTPTransaction).APIKeyIndex)
+	r.Equal(uint(2), transactions[0].(*transaction.HTTPTransaction).APIKeyIndex)
 }
 
 // TestHTTPTransactionSerializerUpdateDedupedAPIKey verifies that the stored APIKeyIndex
@@ -196,7 +196,7 @@ func TestHTTPTransactionSerializerUpdateDedupedAPIKey(t *testing.T) {
 	// The stored index (0) is preserved; the actual key resolved at send time may differ.
 	transactions, _, err := serializer.Deserialize(bytes)
 	r.NoError(err)
-	r.Equal(0, transactions[0].(*transaction.HTTPTransaction).APIKeyIndex)
+	r.Equal(uint(0), transactions[0].(*transaction.HTTPTransaction).APIKeyIndex)
 }
 
 // TestHTTPTransactionSerializerUpdateAPIKeyBeforeSerializing verifies that when API keys are
@@ -223,7 +223,7 @@ func TestHTTPTransactionSerializerUpdateAPIKeyBeforeSerializing(t *testing.T) {
 
 	transactions, _, err := serializer.Deserialize(bytes)
 	r.NoError(err)
-	r.Equal(0, transactions[0].(*transaction.HTTPTransaction).APIKeyIndex)
+	r.Equal(uint(0), transactions[0].(*transaction.HTTPTransaction).APIKeyIndex)
 }
 
 func TestHTTPTransactionFieldsCount(t *testing.T) {
@@ -416,7 +416,7 @@ func TestDeserializeV2BackwardCompat(t *testing.T) {
 	// The placeholder index 0 is extracted and written to APIKeyIndex; Resolver is set so
 	// Authorize() can apply the key at send time.
 	r.NotNil(deserialized.Resolver, "V2 transactions should have Resolver set so Authorize() works")
-	r.Equal(0, deserialized.APIKeyIndex, "placeholder index 0 maps to APIKeyIndex 0 for V2")
+	r.Equal(uint(0), deserialized.APIKeyIndex, "placeholder index 0 maps to APIKeyIndex 0 for V2")
 
 	// The placeholder has been stripped from the headers; the raw key is not present.
 	r.Empty(deserialized.Headers.Get("Key"), "Headers must not contain the API key value")
@@ -555,7 +555,7 @@ func TestV1IndexExtraction(t *testing.T) {
 	// sorted index 0 = apiKey1; apiKey1 is at position 1 in the config list.
 	// sorted index 1 = apiKey2; apiKey2 is at position 2 in the config list.
 	// sorted index 2 = apiKey3; apiKey3 is at position 0 in the config list.
-	wantCurrentIdx := []int{1, 2, 0}
+	wantCurrentIdx := []uint{1, 2, 0}
 
 	for sortedIdx, wantIdx := range wantCurrentIdx {
 		data := buildV1Blob(sortedIdx)
@@ -610,7 +610,7 @@ func TestV2IndexFromHeaderPlaceholder(t *testing.T) {
 	require.Len(t, txns, 1)
 
 	deserialized := txns[0].(*transaction.HTTPTransaction)
-	assert.Equal(t, 1, deserialized.APIKeyIndex)
+	assert.Equal(t, uint(1), deserialized.APIKeyIndex)
 	assert.NotNil(t, deserialized.Resolver)
 	assert.Empty(t, deserialized.Headers.Get("X-Custom"), "placeholder must be stripped from header")
 }
@@ -642,7 +642,7 @@ func TestDeserializeV2(t *testing.T) {
 	r.Equal(0, errorCount)
 	r.Len(txns, 2)
 
-	expectedIndices := []int{0, 1}
+	expectedIndices := []uint{0, 1}
 	expectedKeys := []string{apiKey1, apiKey2}
 
 	for i, txn := range txns {
