@@ -77,6 +77,7 @@ from tasks.system_probe import (
     TEST_PACKAGES_LIST,
     bazel_build_ebpf,
     build_rust_binaries,
+    build_rust_libs,
     check_for_ninja,
     compute_go_parallelism,
     ebpf_bazel_flags,
@@ -1123,6 +1124,9 @@ def kmt_sysprobe_prepare(
     build_tags = get_sysprobe_test_buildtags(False, False)
     target_packages = build_target_packages(filter_pkgs, build_tags)
     pkg_deps = compute_package_dependencies(ctx, target_packages, build_tags)
+
+    info("[+] Building Rust libraries...")
+    build_rust_libs(ctx, arch=arch)
 
     info("[+] Building Rust binaries...")
     build_rust_binaries(

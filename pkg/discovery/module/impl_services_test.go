@@ -11,7 +11,9 @@ package module
 
 import (
 	"context"
+	"encoding/json"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -27,7 +29,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/vishvananda/netns"
 
-	"github.com/DataDog/datadog-agent/pkg/discovery/core"
 	"github.com/DataDog/datadog-agent/pkg/discovery/language"
 	"github.com/DataDog/datadog-agent/pkg/discovery/model"
 	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
@@ -41,15 +42,22 @@ import (
 	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
 )
 
-// getServices call the /discovery/services endpoint. It will perform a /proc scan
-// to get the list of running pids and use them as the pids query param.
-func getServices(t require.TestingT, discovery *testDiscoveryModule) *model.ServicesResponse {
-	location := discovery.url + "/" + string(config.DiscoveryModule) + pathServices
-	params := &core.Params{
-		NewPids: getRunningPids(t),
-	}
+// TestState checks that the /state endpoint reports the correct implementation name.
+func (s *discoveryTestSuite) TestState() {
+	t := s.T()
 
-	return makeRequest[model.ServicesResponse](t, discovery.client, location, params)
+	url := s.discovery.url + "/" + string(config.DiscoveryModule) + "/state"
+	resp, err := s.discovery.client.Get(url)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var state map[string]interface{}
+	err = json.NewDecoder(resp.Body).Decode(&state)
+	require.NoError(t, err)
+
+	require.Equal(t, s.expectedImplementation, state["implementation"])
 }
 
 // Check that we get (only) listening processes for all expected protocols using the services endpoint.
