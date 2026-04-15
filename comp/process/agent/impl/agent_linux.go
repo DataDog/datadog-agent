@@ -5,7 +5,7 @@
 
 //go:build linux
 
-package agent
+package agentimpl
 
 import (
 	"sync"

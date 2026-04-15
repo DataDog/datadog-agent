@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package agent contains a process-agent component
-package agent
+// Package agentimpl implements a component for the process agent.
+package agentimpl
 
 import (
 	"embed"

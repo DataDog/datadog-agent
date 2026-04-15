@@ -5,7 +5,7 @@
 
 //go:build test
 
-package submitterimpl
+package submitterimpl_test
 
 import (
 	"testing"
