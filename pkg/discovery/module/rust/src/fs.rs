@@ -129,20 +129,18 @@ impl UnverifiedZipArchive {
     pub fn read_file_to_vec(&mut self, name: &str, max_size: Option<u64>) -> io::Result<Vec<u8>> {
         let mut entries = self.archive.entries(&mut self.buffer);
         while let Some(entry) = entries.next_entry().map_err(rawzip_error_to_io_error)? {
-            let Some((wayfinder, size_hint, compression_method)) =
-                (|| {
-                    let entry_name = Self::archive_entry_name(&entry)?;
-                    if entry_name != name {
-                        return None;
-                    }
+            let Some((wayfinder, size_hint, compression_method)) = (|| {
+                let entry_name = Self::archive_entry_name(&entry)?;
+                if entry_name != name {
+                    return None;
+                }
 
-                    Some((
-                        entry.wayfinder(),
-                        entry.uncompressed_size_hint(),
-                        entry.compression_method(),
-                    ))
-                })()
-            else {
+                Some((
+                    entry.wayfinder(),
+                    entry.uncompressed_size_hint(),
+                    entry.compression_method(),
+                ))
+            })() else {
                 continue;
             };
 
@@ -174,21 +172,19 @@ impl UnverifiedZipArchive {
         let mut entries = self.archive.entries(&mut self.buffer);
         let mut matching = Vec::new();
         while let Some(entry) = entries.next_entry().map_err(rawzip_error_to_io_error)? {
-            let Some((wayfinder, name, size_hint, compression_method)) =
-                (|| {
-                    let name = Self::archive_entry_name(&entry)?;
-                    if !predicate(&name) {
-                        return None;
-                    }
+            let Some((wayfinder, name, size_hint, compression_method)) = (|| {
+                let name = Self::archive_entry_name(&entry)?;
+                if !predicate(&name) {
+                    return None;
+                }
 
-                    Some((
-                        entry.wayfinder(),
-                        name,
-                        entry.uncompressed_size_hint(),
-                        entry.compression_method(),
-                    ))
-                })()
-            else {
+                Some((
+                    entry.wayfinder(),
+                    name,
+                    entry.uncompressed_size_hint(),
+                    entry.compression_method(),
+                ))
+            })() else {
                 continue;
             };
 
