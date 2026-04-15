@@ -42,6 +42,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.61.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.72.2 // indirect
 	github.com/DataDog/viper v1.15.1 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
@@ -183,10 +184,9 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/patterns/clustering => ../../../pkg/logs/patterns/clustering
 	github.com/DataDog/datadog-agent/pkg/logs/patterns/clustering/merging => ../../../pkg/logs/patterns/clustering/merging
 	github.com/DataDog/datadog-agent/pkg/logs/patterns/eviction => ../../../pkg/logs/patterns/eviction
-	github.com/DataDog/datadog-agent/pkg/logs/patterns/processor => ../../../pkg/logs/patterns/processor
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/preprocessor => ../../../pkg/logs/patterns/preprocessor
 	github.com/DataDog/datadog-agent/pkg/logs/patterns/tags => ../../../pkg/logs/patterns/tags
 	github.com/DataDog/datadog-agent/pkg/logs/patterns/token => ../../../pkg/logs/patterns/token
-	github.com/DataDog/datadog-agent/pkg/logs/patterns/tokenizer/go => ../../../pkg/logs/patterns/tokenizer/go
 	github.com/DataDog/datadog-agent/pkg/logs/patterns/tokenizer/rust => ../../../pkg/logs/patterns/tokenizer/rust
 	github.com/DataDog/datadog-agent/pkg/logs/pipeline => ../../../pkg/logs/pipeline
 	github.com/DataDog/datadog-agent/pkg/logs/processor => ../../../pkg/logs/processor
