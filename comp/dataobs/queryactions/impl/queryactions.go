@@ -111,16 +111,16 @@ func (c *component) Stream(ctx context.Context) <-chan integration.ConfigChanges
 		select {
 		case outCh <- changes:
 		default:
-			// Channel full: drain old entry, preserving its Unschedule events so that
-			// checks already in autodiscovery are not orphaned.
-			// The drain is non-blocking because config_poller may have already read the
-			// buffer between the default branch firing and this point.
+			// Channel full: drain old entry. Only preserve Unschedule events from the
+			// dropped update so checks already in autodiscovery are not orphaned.
+			// dropped.Schedule is NOT preserved: the latest RC snapshot is authoritative,
+			// and re-adding stale Schedule entries would resurrect configs that the new
+			// snapshot intentionally removed.
 			var dropped integration.ConfigChanges
 			select {
 			case dropped = <-outCh:
 			default:
 			}
-			changes.Schedule = append(dropped.Schedule, changes.Schedule...)
 			changes.Unschedule = append(dropped.Unschedule, changes.Unschedule...)
 			outCh <- changes // safe: mu held, closed=false, channel was just drained
 		}

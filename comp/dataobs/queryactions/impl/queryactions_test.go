@@ -180,8 +180,9 @@ func TestStream_RCCallback_DeliverChangesToChannel(t *testing.T) {
 // arrives while the previous update is still buffered in outCh (unread by autodiscovery),
 // the dropped update's Unschedule entries are merged into the new update.
 //
-// Without the merge, the Unschedule is silently dropped, leaving the check permanently
-// scheduled in autodiscovery (a check leak).
+// Only Unschedule entries are preserved from the dropped update — dropped Schedule entries
+// are discarded because the latest RC snapshot is authoritative. This prevents stale
+// Schedule entries from resurrecting configs that the new snapshot intentionally removed.
 func TestStream_ChannelReplace_PreservesUnschedule(t *testing.T) {
 	// Two separate postgres instances so each RC config can match a distinct one.
 	postgresCfg := integration.Config{
@@ -209,22 +210,22 @@ func TestStream_ChannelReplace_PreservesUnschedule(t *testing.T) {
 	require.Len(t, update1.Schedule, 1, "update 1 should schedule cfg-A")
 
 	// Update 2: remove cfg-A (empty queries = disable). Channel is now empty — writes directly.
-	// With the new semantics, disabling schedules a config with data_observability.enabled: false.
+	// Disabling produces: Unschedule=[cfg-A DO config], Schedule=[base config restoration].
 	removeA, _ := json.Marshal(DOQueryPayload{ConfigID: "cfg-A"})
 	triggerRC(map[string]state.RawConfig{"path/cfg-A": {Config: removeA}}, noStatus)
-	// DON'T read outCh — leave update 2 ({Schedule: [cfg-A-disable]}) buffered.
+	// DON'T read outCh — leave update 2 buffered.
 
 	// Update 3: schedule cfg-B. Channel is FULL with update 2.
 	// sendChanges must drain the full channel and merge update 2's Unschedule into update 3.
+	// Only Unschedule from the dropped update is preserved; dropped Schedule (base config
+	// restoration) is discarded since the new snapshot is authoritative.
 	payload3 := buildPayloadJSON(t, "cfg-B", "localhost", singleQuery)
 	triggerRC(map[string]state.RawConfig{"path/cfg-B": {Config: payload3}}, noStatus)
 
-	// The merged result must contain cfg-B's Schedule + cfg-A's disable Schedule,
-	// and cfg-A's Unschedule (the old enabled config).
 	select {
 	case changes := <-outCh:
-		require.Len(t, changes.Schedule, 2, "should contain cfg-A disable + cfg-B schedule")
-		require.Len(t, changes.Unschedule, 1, "cfg-A Unschedule must not be lost in the channel replace")
+		require.Len(t, changes.Schedule, 1, "should contain only cfg-B schedule (dropped base restoration is discarded)")
+		require.Len(t, changes.Unschedule, 2, "should contain cfg-A Unschedule from dropped + cfg-B's base config Unschedule")
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for merged ConfigChanges")
 	}

@@ -17,8 +17,8 @@ type DOQueryPayload struct {
 // Type describes the hosting kind (e.g. "self-hosted", "rds"). Instance matching
 // is by host only; per-query dbname fields handle database routing.
 type DBIdentifier struct {
-	Type string `json:"type"`
-	Host string `json:"host"`
+	Type          string `json:"type"`
+	Host          string `json:"host"`
 	AgentHostname string `json:"agent_hostname"`
 }
 

@@ -16,10 +16,10 @@ import (
 )
 
 // activeConfigEntry stores the scheduled check config alongside the base postgres config
-// metadata and parsed instance, so that collectDisable can rebuild a "disable" config.
+// metadata and parsed instance, so that disabling can restore the original config.
 type activeConfigEntry struct {
 	checkConfig integration.Config
-	baseCfg     *integration.Config // Provider, NodeName from the matched postgres config
+	baseCfg     *integration.Config // the original matched postgres config for restoration
 	instance    map[string]any      // full parsed postgres instance for rebuilding
 }
 
@@ -94,8 +94,11 @@ func (c *component) onRCUpdate(updates map[string]state.RawConfig, applyStatus f
 			continue
 		}
 
-		// Disable previous version before scheduling updated config
-		c.collectDisable(configID, &changes)
+		// Remove previous DO config version if this config_id was already active.
+		c.removeActiveConfig(configID, &changes)
+		// Unschedule the base file-provider config to prevent duplicate check execution.
+		// No-op in autodiscovery if the base config was already unscheduled by a prior update.
+		changes.Unschedule = append(changes.Unschedule, *baseCfg)
 
 		c.activeConfigsMu.Lock()
 		c.activeConfigs[configID] = activeConfigEntry{
@@ -127,59 +130,42 @@ func (c *component) onRCUpdate(updates map[string]state.RawConfig, applyStatus f
 	return changes
 }
 
-// collectDisable removes a config from activeConfigs and replaces it with a disable
-// config that turns off data_observability on the postgres instance. The previous
-// enabled config is unscheduled so autodiscovery removes the old YAML variant, and
-// a new config with data_observability.enabled: false is scheduled in its place.
-// It is a no-op if configID is not currently active.
-func (c *component) collectDisable(configID string, changes *integration.ConfigChanges) {
+// removeActiveConfig removes a config from activeConfigs and adds the previous DO check
+// config to changes.Unschedule. Used before scheduling an updated DO config (where the
+// base config should NOT be restored). It is a no-op if configID is not currently active.
+func (c *component) removeActiveConfig(configID string, changes *integration.ConfigChanges) {
 	c.activeConfigsMu.Lock()
 	prev, existed := c.activeConfigs[configID]
+	if existed {
+		delete(c.activeConfigs, configID)
+	}
 	c.activeConfigsMu.Unlock()
 
 	if !existed {
 		return
 	}
 
-	disableCfg, err := c.buildDisableConfig(prev.baseCfg, prev.instance)
-	if err != nil {
-		// Don't delete from activeConfigs — the old config stays tracked so a
-		// future reconciliation can retry the disable.
-		c.log.Errorf("Failed to build disable config for %s: %v", configID, err)
+	changes.Unschedule = append(changes.Unschedule, prev.checkConfig)
+}
+
+// collectDisable removes a config from activeConfigs, unschedules the DO check config,
+// and re-schedules the original base postgres config to restore normal check behavior.
+// It is a no-op if configID is not currently active.
+func (c *component) collectDisable(configID string, changes *integration.ConfigChanges) {
+	c.activeConfigsMu.Lock()
+	prev, existed := c.activeConfigs[configID]
+	if existed {
+		delete(c.activeConfigs, configID)
+	}
+	c.activeConfigsMu.Unlock()
+
+	if !existed {
 		return
 	}
 
-	// Only delete after successfully building the disable config.
-	c.activeConfigsMu.Lock()
-	delete(c.activeConfigs, configID)
-	c.activeConfigsMu.Unlock()
-
-	// Unschedule the previous enabled config so autodiscovery removes the old
-	// YAML variant (different FastDigest), then schedule the disable config.
 	changes.Unschedule = append(changes.Unschedule, prev.checkConfig)
-	changes.Schedule = append(changes.Schedule, disableCfg)
+	changes.Schedule = append(changes.Schedule, *prev.baseCfg)
 	c.log.Infof("Disabled Data Observability query actions for config: %s", configID)
-}
-
-// buildDisableConfig creates a postgres config with data_observability.enabled: false.
-func (c *component) buildDisableConfig(baseCfg *integration.Config, instance map[string]any) (integration.Config, error) {
-	instanceFields := maps.Clone(instance)
-	instanceFields["data_observability"] = map[string]any{
-		"enabled": false,
-	}
-
-	instanceYAML, err := yaml.Marshal(instanceFields)
-	if err != nil {
-		return integration.Config{}, fmt.Errorf("failed to marshal disable instance: %w", err)
-	}
-
-	return integration.Config{
-		Name:      "postgres",
-		Source:    c.String(),
-		Provider:  baseCfg.Provider,
-		NodeName:  baseCfg.NodeName,
-		Instances: []integration.Data{instanceYAML},
-	}, nil
 }
 
 // findPostgresConfig finds a postgres config that matches the given identifier and has

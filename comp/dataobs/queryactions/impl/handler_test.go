@@ -330,16 +330,9 @@ func TestOnRCUpdate_EmptyQueriesDisables(t *testing.T) {
 
 	assert.Equal(t, state.ApplyStateAcknowledged, statuses["path/config"].State)
 	assert.Empty(t, c.activeConfigs)
-	require.Len(t, changes.Unschedule, 1, "should unschedule previous enabled config")
-	require.Len(t, changes.Schedule, 1, "should schedule disable config")
-	assert.Equal(t, "postgres", changes.Schedule[0].Name)
-
-	// Verify the disable config has data_observability.enabled: false
-	var instance map[string]any
-	require.NoError(t, yaml.Unmarshal(changes.Schedule[0].Instances[0], &instance))
-	doConfig, ok := instance["data_observability"].(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, false, doConfig["enabled"])
+	require.Len(t, changes.Unschedule, 1, "should unschedule previous DO config")
+	require.Len(t, changes.Schedule, 1, "should re-schedule original base config")
+	assert.Equal(t, *baseCfg, changes.Schedule[0], "scheduled config should be the original base config")
 }
 
 func TestOnRCUpdate_ReconcileDisablesStaleConfigs(t *testing.T) {
@@ -360,8 +353,9 @@ func TestOnRCUpdate_ReconcileDisablesStaleConfigs(t *testing.T) {
 	_, changes := collectStatuses(c, updates)
 
 	assert.Empty(t, c.activeConfigs)
-	require.Len(t, changes.Unschedule, 1, "should unschedule previous enabled config")
-	require.Len(t, changes.Schedule, 1, "should schedule disable config")
+	require.Len(t, changes.Unschedule, 1, "should unschedule previous DO config")
+	require.Len(t, changes.Schedule, 1, "should re-schedule original base config")
+	assert.Equal(t, *baseCfg, changes.Schedule[0])
 }
 
 // --- collectDisable tests ---
@@ -378,9 +372,10 @@ func TestCollectDisable_NotFound(t *testing.T) {
 func TestCollectDisable_Found(t *testing.T) {
 	baseCfg := &integration.Config{Name: "postgres", Provider: "file"}
 	pgInstance := map[string]any{"host": "localhost", "dbname": "mydb", "data_observability": map[string]any{"enabled": true}}
+	doCheckConfig := integration.Config{Name: "postgres", Provider: "do_query_actions"}
 	c := newTestComponent(t)
 	c.activeConfigs["my-config"] = activeConfigEntry{
-		checkConfig: integration.Config{Name: "postgres"},
+		checkConfig: doCheckConfig,
 		baseCfg:     baseCfg,
 		instance:    pgInstance,
 	}
@@ -389,16 +384,39 @@ func TestCollectDisable_Found(t *testing.T) {
 	c.collectDisable("my-config", &changes)
 
 	assert.Empty(t, c.activeConfigs)
-	require.Len(t, changes.Unschedule, 1, "should unschedule previous enabled config")
-	assert.Equal(t, "postgres", changes.Unschedule[0].Name)
-	require.Len(t, changes.Schedule, 1, "should schedule disable config")
-	assert.Equal(t, "postgres", changes.Schedule[0].Name)
+	require.Len(t, changes.Unschedule, 1, "should unschedule previous DO config")
+	assert.Equal(t, doCheckConfig, changes.Unschedule[0])
+	require.Len(t, changes.Schedule, 1, "should re-schedule original base config")
+	assert.Equal(t, *baseCfg, changes.Schedule[0])
+}
 
-	var instance map[string]any
-	require.NoError(t, yaml.Unmarshal(changes.Schedule[0].Instances[0], &instance))
-	doConfig, ok := instance["data_observability"].(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, false, doConfig["enabled"])
+// --- removeActiveConfig tests ---
+
+func TestRemoveActiveConfig_NotFound(t *testing.T) {
+	c := newTestComponent(t)
+	changes := integration.ConfigChanges{}
+	c.removeActiveConfig("nonexistent", &changes)
+	assert.Empty(t, changes.Schedule)
+	assert.Empty(t, changes.Unschedule)
+}
+
+func TestRemoveActiveConfig_Found(t *testing.T) {
+	baseCfg := &integration.Config{Name: "postgres", Provider: "file"}
+	doCheckConfig := integration.Config{Name: "postgres", Provider: "do_query_actions"}
+	c := newTestComponent(t)
+	c.activeConfigs["my-config"] = activeConfigEntry{
+		checkConfig: doCheckConfig,
+		baseCfg:     baseCfg,
+		instance:    map[string]any{"host": "localhost"},
+	}
+	changes := integration.ConfigChanges{}
+
+	c.removeActiveConfig("my-config", &changes)
+
+	assert.Empty(t, c.activeConfigs, "config should be removed from activeConfigs")
+	require.Len(t, changes.Unschedule, 1, "should unschedule previous DO config")
+	assert.Equal(t, doCheckConfig, changes.Unschedule[0])
+	assert.Empty(t, changes.Schedule, "removeActiveConfig should NOT re-schedule base config")
 }
 
 // --- Happy-path integration tests (require mocked autodiscovery) ---
@@ -439,8 +457,8 @@ func TestOnRCUpdate_ValidConfig_SchedulesCheck(t *testing.T) {
 	statuses, changes := collectStatuses(c, updates)
 
 	require.Equal(t, state.ApplyStateAcknowledged, statuses["path/cfg-happy"].State)
-	require.Len(t, changes.Schedule, 1, "expected one scheduled check")
-	assert.Empty(t, changes.Unschedule)
+	require.Len(t, changes.Schedule, 1, "expected one scheduled DO check")
+	require.Len(t, changes.Unschedule, 1, "should unschedule base file-provider config to prevent duplicate")
 	assert.Equal(t, "postgres", changes.Schedule[0].Name)
 	assert.Equal(t, "file", changes.Schedule[0].Provider)
 	assert.Equal(t, "node1", changes.Schedule[0].NodeName)
@@ -484,24 +502,24 @@ func TestOnRCUpdate_UpdateReplacesExistingCheck(t *testing.T) {
 		return b
 	}
 
-	// First update: schedule initial version.
+	// First update: schedule initial version. Unschedules the base file-provider config.
 	_, changes1 := collectStatuses(c, map[string]state.RawConfig{
 		"path/cfg": {Config: mkPayload("SELECT 1")},
 	})
-	require.Len(t, changes1.Schedule, 1, "first update should schedule the check")
+	require.Len(t, changes1.Schedule, 1, "first update should schedule the DO check")
+	require.Len(t, changes1.Unschedule, 1, "first update should unschedule base config")
 	require.Contains(t, c.activeConfigs, "cfg-update")
 
-	// Second update: same config_id, different query. Should unschedule old, disable, and schedule new.
+	// Second update: same config_id, different query. Unschedules previous DO config + base config,
+	// schedules only the new DO config.
 	_, changes2 := collectStatuses(c, map[string]state.RawConfig{
 		"path/cfg": {Config: mkPayload("SELECT 2")},
 	})
-	require.Len(t, changes2.Unschedule, 1, "should unschedule the previous enabled config")
-	// Expect 2 Schedule entries: disable old + schedule new
-	require.Len(t, changes2.Schedule, 2, "second update should disable old + schedule new")
+	require.Len(t, changes2.Unschedule, 2, "should unschedule previous DO config + base config")
+	require.Len(t, changes2.Schedule, 1, "should schedule only the new DO check")
 
-	// The last scheduled config should have the updated query.
 	var instance map[string]any
-	require.NoError(t, yaml.Unmarshal(changes2.Schedule[1].Instances[0], &instance))
+	require.NoError(t, yaml.Unmarshal(changes2.Schedule[0].Instances[0], &instance))
 	doConfig, ok := instance["data_observability"].(map[string]any)
 	require.True(t, ok)
 	queries, ok := doConfig["queries"].([]any)
@@ -564,7 +582,8 @@ func TestOnRCUpdate_HostOnlyMatching(t *testing.T) {
 	})
 
 	assert.Equal(t, state.ApplyStateAcknowledged, statuses["path/cfg-hostonly"].State)
-	require.Len(t, changes.Schedule, 1)
+	require.Len(t, changes.Schedule, 1, "should schedule the DO check")
+	require.Len(t, changes.Unschedule, 1, "should unschedule base file-provider config")
 	require.Contains(t, c.activeConfigs, "cfg-hostonly")
 }
 
