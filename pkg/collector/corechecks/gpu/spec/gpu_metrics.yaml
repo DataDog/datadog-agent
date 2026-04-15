@@ -549,7 +549,7 @@ metrics:
         mig: false
         physical: true
         vgpu: false
-  nvlink.plr_codes_loss:
+  nvlink.plr.codes_loss:
     tagsets:
       - device
     custom_tags:
@@ -568,7 +568,7 @@ metrics:
         mig: false
         physical: true
         vgpu: false
-  nvlink.plr_rcv_code_err:
+  nvlink.plr.rx.code_err:
     tagsets:
       - device
     custom_tags:
@@ -587,7 +587,7 @@ metrics:
         mig: false
         physical: true
         vgpu: false
-  nvlink.plr_rcv_codes:
+  nvlink.plr.rx.codes:
     tagsets:
       - device
     custom_tags:
@@ -606,7 +606,7 @@ metrics:
         mig: false
         physical: true
         vgpu: false
-  nvlink.plr_rcv_uncorrectable_code:
+  nvlink.plr.rx.uncorrectable_code:
     tagsets:
       - device
     custom_tags:
@@ -625,7 +625,7 @@ metrics:
         mig: false
         physical: true
         vgpu: false
-  nvlink.plr_sync_events:
+  nvlink.plr.tx.sync_events:
     tagsets:
       - device
     custom_tags:
@@ -644,7 +644,7 @@ metrics:
         mig: false
         physical: true
         vgpu: false
-  nvlink.plr_xmit_codes:
+  nvlink.plr.tx.codes:
     tagsets:
       - device
     custom_tags:
@@ -663,7 +663,7 @@ metrics:
         mig: false
         physical: true
         vgpu: false
-  nvlink.plr_xmit_retry_codes:
+  nvlink.plr.tx.retry_codes:
     tagsets:
       - device
     custom_tags:
@@ -682,7 +682,7 @@ metrics:
         mig: false
         physical: true
         vgpu: false
-  nvlink.plr_xmit_retry_events:
+  nvlink.plr.tx.retry_events:
     tagsets:
       - device
     custom_tags:
@@ -701,7 +701,7 @@ metrics:
         mig: false
         physical: true
         vgpu: false
-  nvlink.plr_xmit_retry_events_within_t_sec_max:
+  nvlink.plr.tx.retry_events_within_t_sec_max:
     tagsets:
       - device
     custom_tags:
