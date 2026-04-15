@@ -39,6 +39,10 @@ func adjustSecurity(cfg model.Config) {
 		cfg.Set(secNS("security_profile.enabled"), false, model.SourceAgentRuntime)
 	}
 
+	if cfg.GetBool(secNS("sbom.enabled")) {
+		cfg.Set(secNS("event_sampling.open.enabled"), true, model.SourceAgentRuntime)
+	}
+
 	// further adjustments done in RuntimeSecurityConfig.sanitize
 	// because it requires access to security packages
 }
