@@ -165,6 +165,7 @@ var (
 	tlmDogstatsdFilteredMetrics = telemetry.NewSimpleCounter("aggregator", "dogstatsd_filtered_metrics", "How many metrics were filtered in the time samplers")
 	tlmChecksFilteredMetrics    = telemetry.NewSimpleCounter("aggregator", "checks_filtered_metrics", "How many metrics were filtered in the check samplers")
 	tlmFilteredTags             = telemetry.NewSimpleCounter("aggregator", "filtered_tags", "How many tags were filtered from a metric sample")
+	tlmTaggerTags               = telemetry.NewSimpleGauge("aggregator", "tagger_tags", "How many tags are collected by the tagger for distributions with tag aggr rules")
 	tlmChecksContexts           = telemetry.NewGauge("aggregator", "checks_contexts",
 		[]string{"shard"}, "Count the number of checks contexts in the check aggregator")
 	tlmChecksContextsByMtype = telemetry.NewGauge("aggregator", "checks_contexts_by_mtype",

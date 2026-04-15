@@ -109,6 +109,7 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 
 	if filterList != nil && metricSampleContext.GetMetricType() == metrics.DistributionType {
 		if tagMatcher, strip := filterList.ShouldStripTags(metricSampleContext.GetName()); strip {
+			tlmTaggerTags.Set(float64(cr.taggerBuffer.Len()))
 			// Currently only distributions are supported, strip out tags if it is configured to remove tags for this given
 			// metric.
 			removedTagger := cr.taggerBuffer.RetainFunc(tagMatcher)
