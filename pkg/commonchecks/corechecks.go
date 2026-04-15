@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	snmpscanmanager "github.com/DataDog/datadog-agent/comp/snmpscanmanager/def"
@@ -74,7 +75,7 @@ import (
 // RegisterChecks registers all core checks
 func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Component, tagger tagger.Component, cfg config.Component,
 	telemetry telemetry.Component, rcClient rcclient.Component, flare flare.Component, snmpScanManager snmpscanmanager.Component,
-	traceroute traceroute.Component,
+	traceroute traceroute.Component, healthPlatform healthplatformdef.Component,
 ) {
 	// Required checks
 	corecheckLoader.RegisterCheck(cpu.CheckName, cpu.Factory())
@@ -91,7 +92,7 @@ func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Com
 	corecheckLoader.RegisterCheck(containerimage.CheckName, containerimage.Factory(store, tagger))
 	corecheckLoader.RegisterCheck(containerlifecycle.CheckName, containerlifecycle.Factory(store))
 	corecheckLoader.RegisterCheck(generic.CheckName, generic.Factory(store, filterStore, tagger))
-	corecheckLoader.RegisterCheck(agentprofiling.CheckName, agentprofiling.Factory(flare, cfg))
+	corecheckLoader.RegisterCheck(agentprofiling.CheckName, agentprofiling.Factory(flare, cfg, healthPlatform))
 
 	// Flavor specific checks
 	corecheckLoader.RegisterCheck(load.CheckName, load.Factory())
