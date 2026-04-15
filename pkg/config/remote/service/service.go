@@ -57,6 +57,7 @@ const (
 	maxFetchConfigsUntilLogLevelErrors = 5
 	// Number of /status calls where we get 503 or 504 errors until the log level is increased to ERROR
 	maxFetchOrgStatusUntilLogLevelErrors = 5
+	defaultFetchTimeout                  = 10 * time.Second
 )
 
 // Constraints on the maximum backoff time when errors occur
@@ -134,6 +135,9 @@ type CoreAgentService struct {
 	startupTime           time.Time
 	disableConfigPollLoop bool
 
+	// Maximum duration for a single HTTP fetch to the RC backend.
+	// Prevents indefinite hangs when the backend is degraded.
+	fetchTimeout time.Duration
 	// The backoff policy used for retries when errors are encountered
 	backoffPolicy backoff.Policy
 	// Used to report metrics on cache bypass requests
@@ -245,6 +249,7 @@ type RcTelemetryReporter interface {
 // orgStatusPoller handles periodic polling of the organization status from the remote config backend
 type orgStatusPoller struct {
 	refreshInterval time.Duration
+	fetchTimeout    time.Duration
 	stopChan        chan struct{}
 
 	mu struct {
@@ -256,9 +261,10 @@ type orgStatusPoller struct {
 	}
 }
 
-func newOrgStatusPoller(refreshInterval time.Duration) *orgStatusPoller {
+func newOrgStatusPoller(refreshInterval time.Duration, fetchTimeout time.Duration) *orgStatusPoller {
 	p := &orgStatusPoller{
 		refreshInterval: refreshInterval,
+		fetchTimeout:    fetchTimeout,
 		stopChan:        make(chan struct{}),
 	}
 	return p
@@ -296,7 +302,9 @@ func (p *orgStatusPoller) getPreviousStatus() *pbgo.OrgStatusResponse {
 
 // poll fetches and processes the current organization status
 func (p *orgStatusPoller) poll(apiClient api.API, rcType string) {
-	response, err := apiClient.FetchOrgStatus(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), p.fetchTimeout)
+	defer cancel()
+	response, err := apiClient.FetchOrgStatus(ctx)
 
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -372,6 +380,7 @@ type options struct {
 	clientTTL                      time.Duration
 	disableConfigPollLoop          bool
 	orgStatusRefreshInterval       time.Duration
+	fetchTimeout                   time.Duration
 	// for mocking creating db instance in test
 	uptaneFactory func(md *uptane.Metadata) (coreAgentUptaneClient, error)
 	// The allowed products for each subscription products value. Overridable
@@ -408,6 +417,7 @@ var defaultOptions = options{
 	clientTTL:                           defaultClientsTTL,
 	disableConfigPollLoop:               false,
 	orgStatusRefreshInterval:            defaultRefreshInterval,
+	fetchTimeout:                        defaultFetchTimeout,
 	subscriptionProductMappings:         defaultSubscriptionProductMappings,
 	maxConcurrentSubscriptions:          defaultMaxConcurrentSubscriptions,
 	maxTrackedRuntimeIDsPerSubscription: defaultMaxTrackedRuntimeIDsPerSubscription,
@@ -495,6 +505,13 @@ func WithMaxBackoffInterval(interval time.Duration, cfgPath string) func(s *opti
 	return func(s *options) {
 		s.maxBackoff = interval
 	}
+}
+
+// WithFetchTimeout sets the maximum duration for a single HTTP fetch to the RC backend.
+// This prevents indefinite hangs when the backend is degraded (e.g. returning 503/504),
+// which can stall the agent during startup and prevent it from passing liveness probes.
+func WithFetchTimeout(timeout time.Duration) func(s *options) {
+	return func(s *options) { s.fetchTimeout = timeout }
 }
 
 // WithRcKey sets the service remote configuration key
@@ -670,7 +687,8 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 		subscriptionProductMappings:         options.subscriptionProductMappings,
 		maxConcurrentSubscriptions:          options.maxConcurrentSubscriptions,
 		maxTrackedRuntimeIDsPerSubscription: options.maxTrackedRuntimeIDsPerSubscription,
-		orgStatusPoller:                     newOrgStatusPoller(options.orgStatusRefreshInterval),
+		fetchTimeout:                        options.fetchTimeout,
+		orgStatusPoller:                     newOrgStatusPoller(options.orgStatusRefreshInterval, options.fetchTimeout),
 	}
 	cas.mu.subscriptions = newSubscriptions(
 		options.subscriptionProductMappings,
@@ -862,7 +880,8 @@ func (s *CoreAgentService) refresh() error {
 	func() {
 		s.mu.Unlock()
 		defer s.mu.Lock()
-		ctx := context.Background()
+		ctx, cancel := context.WithTimeout(context.Background(), s.fetchTimeout)
+		defer cancel()
 		response, err = s.api.Fetch(ctx, request)
 	}()
 	s.mu.lastUpdateErr = nil

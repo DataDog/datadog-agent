@@ -41,6 +41,7 @@ go_test(
     srcs = [
         "clients_test.go",
         "service_test.go",
+        "service_timeout_test.go",
         "subscriptions_test.go",
         "tracer_predicates_test.go",
         "util_test.go",
