@@ -159,41 +159,31 @@ func (cr *contextResolver) filterTags(
 	contextKey ckey.ContextKey,
 ) (ckey.ContextKey, ckey.TagsKey, ckey.TagsKey) {
 
-	var (
-		taggerKey ckey.TagsKey
-		metricKey ckey.TagsKey
-	)
-
 	if cached, ok := cr.tagFilterCache.get(contextKey); ok {
 		// Cache hit: reuse previously computed post-filter keys, skip RetainFunc.
-		contextKey = cached.contextKey
-		taggerKey = cached.taggerKey
-		metricKey = cached.metricKey
 		tlmFilteredTags.Add(float64(cached.removedTags))
 		tlmFilteredTagsCacheHit.Inc()
-	} else {
-		// Cache miss: filter tags and compute post-filter keys.
-		// Currently only distributions are supported, filter out tags if it is configured to remove tags for this given
-		// metric.
-		removedTagger := cr.taggerBuffer.RetainFunc(tagMatcher)
-		removedMetric := cr.metricBuffer.RetainFunc(tagMatcher)
-		removed := removedTagger + removedMetric
-		tlmFilteredTags.Add(float64(removed))
-		filteredContextKey, filteredTaggerKey, filteredMetricKey := cr.generateContextKey(metricSampleContext) // the generator will remove duplicates (and doesn't mind the order)
-		cr.tagFilterCache.add(contextKey, tagFilterCacheEntry{
-			contextKey:  filteredContextKey,
-			taggerKey:   filteredTaggerKey,
-			metricKey:   filteredMetricKey,
-			removedTags: removed,
-		})
-		tlmFilteredTagsCacheMiss.Inc()
 
-		contextKey = filteredContextKey
-		taggerKey = filteredTaggerKey
-		metricKey = filteredMetricKey
+		return cached.contextKey, cached.taggerKey, cached.metricKey
 	}
 
-	return contextKey, taggerKey, metricKey
+	// Cache miss: filter tags and compute post-filter keys.
+	// Currently only distributions are supported, filter out tags if it is configured to remove tags for this given
+	// metric.
+	removedTagger := cr.taggerBuffer.RetainFunc(tagMatcher)
+	removedMetric := cr.metricBuffer.RetainFunc(tagMatcher)
+	removed := removedTagger + removedMetric
+	tlmFilteredTags.Add(float64(removed))
+	filteredContextKey, filteredTaggerKey, filteredMetricKey := cr.generateContextKey(metricSampleContext) // the generator will remove duplicates (and doesn't mind the order)
+	cr.tagFilterCache.add(contextKey, tagFilterCacheEntry{
+		contextKey:  filteredContextKey,
+		taggerKey:   filteredTaggerKey,
+		metricKey:   filteredMetricKey,
+		removedTags: removed,
+	})
+	tlmFilteredTagsCacheMiss.Inc()
+
+	return filteredContextKey, filteredTaggerKey, filteredMetricKey
 }
 
 func (cr *contextResolver) get(key ckey.ContextKey) (*Context, bool) {

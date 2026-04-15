@@ -206,7 +206,7 @@ func TestTagFilterCacheEvictionContinuity(t *testing.T) {
 	postKey := ckey.ContextKey(500)
 
 	total := defaultReverseCacheCapacity + defaultReverseCacheCapacity/2 // 1.5x capacity
-	evicted := total - defaultReverseCacheCapacity                // first half-capacity should be evicted
+	evicted := total - defaultReverseCacheCapacity                       // first half-capacity should be evicted
 
 	for i := 0; i < total; i++ {
 		sc.add(ckey.ContextKey(i), tagFilterCacheEntry{contextKey: postKey})
