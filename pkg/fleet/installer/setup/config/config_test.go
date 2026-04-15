@@ -662,7 +662,7 @@ func TestPrivateActionRunnerApiKeyOnlyEnrollment(t *testing.T) {
 	cfg.DatadogYAML.APIKey = "test_key"
 	cfg.DatadogYAML.PrivateActionRunner.Enabled = BoolToPtr(true)
 	cfg.DatadogYAML.PrivateActionRunner.SelfEnroll = BoolToPtr(true)
-	cfg.DatadogYAML.PrivateActionRunner.ApiKeyOnlyEnrollment = BoolToPtr(true)
+	cfg.DatadogYAML.PrivateActionRunner.APIKeyOnlyEnrollment = BoolToPtr(true)
 	cfg.DatadogYAML.PrivateActionRunner.ActionsAllowlist = []string{
 		"com.datadoghq.script.runPredefinedScript",
 	}

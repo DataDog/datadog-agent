@@ -98,7 +98,7 @@ type DatadogConfig struct {
 type PrivateActionRunnerConfig struct {
 	Enabled              *bool    `yaml:"enabled,omitempty"`
 	SelfEnroll           *bool    `yaml:"self_enroll,omitempty"`
-	ApiKeyOnlyEnrollment *bool    `yaml:"api_key_only_enrollment,omitempty"`
+	APIKeyOnlyEnrollment *bool    `yaml:"api_key_only_enrollment,omitempty"`
 	ActionsAllowlist     []string `yaml:"actions_allowlist,omitempty"`
 }
 
