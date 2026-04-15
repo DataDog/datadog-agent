@@ -55,8 +55,20 @@ async fn handle_connection(
             }
         }
 
-        let env = match flatbuffers::root::<signals::SignalEnvelope>(&buf) {
-            Ok(e) => e,
+        // Peek at the envelope to determine the signal type, then drop
+        // the borrow so we can move the buffer into the writer thread.
+        let signal = match flatbuffers::root::<signals::SignalEnvelope>(&buf) {
+            Ok(env) => {
+                if env.metric_batch().is_some() {
+                    1u8
+                } else if env.log_batch().is_some() {
+                    2
+                } else if env.trace_stats_batch().is_some() {
+                    3
+                } else {
+                    0
+                }
+            }
             Err(e) => {
                 warn!("failed to decode SignalEnvelope: {}", e);
                 continue;
@@ -65,17 +77,14 @@ async fn handle_connection(
 
         cs.frames_received.fetch_add(1, Ordering::Relaxed);
 
-        // Route to the appropriate writer thread based on which field
-        // is present (flat table, no union discriminant). The buf is
-        // cloned into the ring — the writer thread decodes it.
-        if env.metric_batch().is_some() {
-            mh.lock().unwrap().send_frame(buf.clone());
-        } else if env.log_batch().is_some() {
-            lh.lock().unwrap().send_frame(buf.clone());
-        } else if env.trace_stats_batch().is_some() {
-            th.lock().unwrap().send_frame(buf.clone());
-        } else {
-            warn!("empty SignalEnvelope (no batch field set)");
+        // Move the buffer into the ring — read_frame will allocate a
+        // fresh one next iteration. No clone needed.
+        let frame = std::mem::take(&mut buf);
+        match signal {
+            1 => mh.lock().unwrap().send_frame(frame),
+            2 => lh.lock().unwrap().send_frame(frame),
+            3 => th.lock().unwrap().send_frame(frame),
+            _ => warn!("empty SignalEnvelope (no batch field set)"),
         }
     }
     cs.active_connections.fetch_sub(1, Ordering::Relaxed);
