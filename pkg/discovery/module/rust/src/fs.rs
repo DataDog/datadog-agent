@@ -169,29 +169,19 @@ impl UnverifiedZipArchive {
         F: FnMut(&str) -> bool,
         G: FnMut(&str, Vec<u8>) -> Option<T>,
     {
-        let mut entries = self.archive.entries(&mut self.buffer);
-        let mut matching = Vec::new();
+        let mut cd_buffer = vec![0; rawzip::RECOMMENDED_BUFFER_SIZE];
+        let mut entries = self.archive.entries(&mut cd_buffer);
         while let Some(entry) = entries.next_entry().map_err(rawzip_error_to_io_error)? {
-            let Some((wayfinder, name, size_hint, compression_method)) = (|| {
-                let name = Self::archive_entry_name(&entry)?;
-                if !predicate(&name) {
-                    return None;
-                }
-
-                Some((
-                    entry.wayfinder(),
-                    name,
-                    entry.uncompressed_size_hint(),
-                    entry.compression_method(),
-                ))
-            })() else {
+            let Some(name) = Self::archive_entry_name(&entry) else {
                 continue;
             };
+            if !predicate(&name) {
+                continue;
+            }
 
-            matching.push((wayfinder, name, size_hint, compression_method));
-        }
-
-        for (wayfinder, name, size_hint, compression_method) in matching {
+            let wayfinder = entry.wayfinder();
+            let size_hint = entry.uncompressed_size_hint();
+            let compression_method = entry.compression_method();
             let file = match self.unverified_file(wayfinder, size_hint, compression_method) {
                 Ok(file) => file,
                 Err(_) => continue,
