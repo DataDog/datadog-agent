@@ -168,7 +168,7 @@ func (s *flightrecorderImpl) activate(ctx context.Context) <-chan struct{} {
 	done := make(chan struct{})
 
 	c := s.counters
-	transport := newUnixTransport(ctx, s.socketPath)
+	transport := newPooledTransport(s.socketPath)
 	bat := newBatcher(transport, s.flushInterval,
 		s.ptCapacity, s.defCapacity, s.logCapacity, s.traceStatsCapacity, s.seenContexts, c)
 

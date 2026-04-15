@@ -7,7 +7,6 @@
 package flightrecorderimpl
 
 import (
-	"context"
 	"encoding/binary"
 	"net"
 	"sync"
@@ -24,156 +23,130 @@ type Transport interface {
 	Close() error
 }
 
-// unixTransport manages a Unix domain socket connection to the sidecar.
+// pooledTransport manages a pool of Unix domain socket connections to the
+// sidecar. Each flush goroutine acquires a connection from the pool for the
+// duration of a Send(), so concurrent flushes never block each other.
 //
-// On write errors, the transport silently reconnects to the same socket
-// path without tearing down the batcher or hook subscriptions. Only if
-// reconnection fails is the full disconnect signaled.
-//
-// No write deadline is set — WriteTo blocks until all bytes are written
-// or the connection breaks. This is safe because the sidecar's async
-// handler drains the socket into an rtrb ring in microseconds (dedicated
-// writer threads handle the slow Parquet I/O separately). A deadline
-// would risk interrupting WriteTo mid-frame, corrupting the length-
-// prefixed framing and requiring connection replacement.
-type unixTransport struct {
+// Connections are created lazily on first Acquire and returned to the pool
+// after use. On write error, the bad connection is discarded and a new one
+// is dialed. If dialing fails, the sidecar is considered gone and a fatal
+// disconnect is signaled.
+type pooledTransport struct {
 	socketPath string
 
-	mu           sync.Mutex
-	conn         net.Conn
-	disconnected chan struct{} // closed when reconnect fails (fatal)
+	mu    sync.Mutex
+	conns []net.Conn // idle connections
 
-	cancel context.CancelFunc
-	wg     sync.WaitGroup
+	closed bool
 
-	// onDisconnect is called when reconnection fails (sidecar is gone).
-	// Triggers full teardown (hooks, batcher). Set by the caller after
-	// creation. Must be safe to call from any goroutine.
+	// onDisconnect is called exactly once when the sidecar is unreachable
+	// (dial fails). Triggers full teardown (hooks, batcher).
 	onDisconnect func()
+	disconnected bool
 }
 
-// newUnixTransport creates a unixTransport and starts the background serve loop.
-// The transport connects to the socket immediately (the discovery loop already
-// verified the socket is reachable).
-func newUnixTransport(parentCtx context.Context, socketPath string) *unixTransport {
-	ctx, cancel := context.WithCancel(parentCtx)
-	t := &unixTransport{
-		socketPath:   socketPath,
-		disconnected: make(chan struct{}),
-		cancel:       cancel,
+func newPooledTransport(socketPath string) *pooledTransport {
+	return &pooledTransport{
+		socketPath: socketPath,
 	}
-	t.wg.Add(1)
-	go t.serveLoop(ctx)
-	return t
 }
 
-// serveLoop connects to the socket and blocks until a fatal disconnect
-// or the context is cancelled.
-func (t *unixTransport) serveLoop(ctx context.Context) {
-	defer t.wg.Done()
-	defer t.cancel()
-
-	conn, err := net.DialTimeout("unix", t.socketPath, 5*time.Second)
-	if err != nil {
-		if t.onDisconnect != nil {
-			t.onDisconnect()
-		}
-		return
-	}
-
+// acquire returns an idle connection from the pool, or dials a new one.
+func (t *pooledTransport) acquire() (net.Conn, error) {
 	t.mu.Lock()
-	t.conn = conn
+	if t.closed {
+		t.mu.Unlock()
+		return nil, errNotConnected
+	}
+	if len(t.conns) > 0 {
+		conn := t.conns[len(t.conns)-1]
+		t.conns = t.conns[:len(t.conns)-1]
+		t.mu.Unlock()
+		return conn, nil
+	}
 	t.mu.Unlock()
 
-	select {
-	case <-ctx.Done():
+	// Dial outside the lock — this may block for up to 2s.
+	conn, err := net.DialTimeout("unix", t.socketPath, 2*time.Second)
+	if err != nil {
+		t.fatalDisconnect()
+		return nil, errNotConnected
+	}
+	return conn, nil
+}
+
+// release returns a healthy connection to the pool.
+func (t *pooledTransport) release(conn net.Conn) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.closed {
 		conn.Close() //nolint:errcheck
-		t.mu.Lock()
-		t.conn = nil
+		return
+	}
+	t.conns = append(t.conns, conn)
+}
+
+// discard closes a bad connection without returning it to the pool.
+func (t *pooledTransport) discard(conn net.Conn) {
+	conn.Close() //nolint:errcheck
+}
+
+// fatalDisconnect signals that the sidecar is unreachable. Called at most once.
+func (t *pooledTransport) fatalDisconnect() {
+	t.mu.Lock()
+	if t.disconnected {
 		t.mu.Unlock()
-	case <-t.disconnected:
-		// reconnect() failed — sidecar is gone. Full teardown.
-		if t.onDisconnect != nil {
-			t.onDisconnect()
-		}
+		return
+	}
+	t.disconnected = true
+	fn := t.onDisconnect
+	t.mu.Unlock()
+
+	if fn != nil {
+		fn()
 	}
 }
 
 // Send writes b to the Unix socket as a length-prefixed frame.
 //
-// No write deadline — WriteTo blocks until all bytes are written or the
-// connection breaks. The sidecar's async handler drains the socket fast
-// enough that blocking is transient (microseconds). See CONNECTION_DESIGN.md.
-//
-// On any write error (broken pipe, connection reset), the transport
-// silently reconnects. The current frame is lost but the batcher and
-// hook subscriptions stay alive.
-func (t *unixTransport) Send(b []byte) error {
-	t.mu.Lock()
-	conn := t.conn
-	t.mu.Unlock()
-
-	if conn == nil {
-		return errNotConnected
+// Acquires a connection from the pool, writes, and returns it. If the write
+// fails, the connection is discarded and a new one will be dialed on the
+// next Send. Concurrent goroutines each get their own connection — no
+// goroutine blocks another.
+func (t *pooledTransport) Send(b []byte) error {
+	conn, err := t.acquire()
+	if err != nil {
+		return err
 	}
 
-	// Write a length-prefixed frame using writev (net.Buffers) to avoid
-	// copying the payload just to prepend 4 bytes.
-	// WriteTo loops internally until all bytes are written or error.
 	var prefix [4]byte
 	binary.LittleEndian.PutUint32(prefix[:], uint32(len(b)))
 	bufs := net.Buffers{prefix[:], b}
-	_, err := bufs.WriteTo(conn)
+	_, err = bufs.WriteTo(conn)
 	if err != nil {
-		// Connection is dead (broken pipe, reset, etc.).
-		// WriteTo only returns after attempting all bytes, so the
-		// stream may be corrupt. Replace the connection silently.
-		t.reconnect(conn)
-	}
-	return err
-}
-
-// reconnect closes the old connection and opens a new one to the same
-// socket path. The batcher and hook subscriptions are NOT affected.
-//
-// If reconnection fails, signals the serve loop for full teardown.
-func (t *unixTransport) reconnect(oldConn net.Conn) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-
-	if t.conn != oldConn {
-		return // another goroutine already reconnected
-	}
-
-	t.conn = nil
-	oldConn.Close() //nolint:errcheck
-
-	newConn, err := net.DialTimeout("unix", t.socketPath, 2*time.Second)
-	if err != nil {
-		// Sidecar is gone — signal fatal disconnect.
-		select {
-		case <-t.disconnected:
-		default:
-			close(t.disconnected)
-		}
-		return
-	}
-
-	t.conn = newConn
-}
-
-// Close cancels the serve loop and closes any open connection.
-func (t *unixTransport) Close() error {
-	t.cancel()
-	t.wg.Wait()
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	if t.conn != nil {
-		err := t.conn.Close()
-		t.conn = nil
+		t.discard(conn)
 		return err
 	}
+
+	t.release(conn)
 	return nil
+}
+
+// Close drains the pool and closes all idle connections.
+func (t *pooledTransport) Close() error {
+	t.mu.Lock()
+	t.closed = true
+	conns := t.conns
+	t.conns = nil
+	t.mu.Unlock()
+
+	var firstErr error
+	for _, c := range conns {
+		if err := c.Close(); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
 }
 
 // errNotConnected is returned by Send when there is no live connection.
