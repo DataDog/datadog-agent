@@ -186,21 +186,21 @@ func TestDisabledCollectors(t *testing.T) {
 		{
 			name:                   "no collectors disabled",
 			disabledCollectors:     []string{},
-			expectedCollectorCount: 5, // stateless, sampling, fields, gpm, device_events
-			expectedCollectorNames: []CollectorName{stateless, sampling, field, gpm, deviceEvents},
+			expectedCollectorCount: 6, // stateless, sampling, fields, gpm, device_events
+			expectedCollectorNames: []CollectorName{stateless, sampling, field, gpm, deviceEvents, nvlink},
 		},
 		{
 			name:                   "disable gpm collector",
 			disabledCollectors:     []string{"gpm"},
-			expectedCollectorCount: 4,
-			expectedCollectorNames: []CollectorName{stateless, sampling, field, deviceEvents},
+			expectedCollectorCount: 5,
+			expectedCollectorNames: []CollectorName{stateless, sampling, field, deviceEvents, nvlink},
 			unexpectedNames:        []CollectorName{gpm},
 		},
 		{
 			name:                   "disable multiple collectors",
 			disabledCollectors:     []string{"gpm", "fields"},
-			expectedCollectorCount: 3,
-			expectedCollectorNames: []CollectorName{stateless, sampling, deviceEvents},
+			expectedCollectorCount: 4,
+			expectedCollectorNames: []CollectorName{stateless, sampling, deviceEvents, nvlink},
 			unexpectedNames:        []CollectorName{gpm, field},
 		},
 		{
@@ -212,8 +212,8 @@ func TestDisabledCollectors(t *testing.T) {
 		{
 			name:                   "disable non-existent collector",
 			disabledCollectors:     []string{"non_existent"},
-			expectedCollectorCount: 5,
-			expectedCollectorNames: []CollectorName{stateless, sampling, field, gpm, deviceEvents},
+			expectedCollectorCount: 6,
+			expectedCollectorNames: []CollectorName{stateless, sampling, field, gpm, deviceEvents, nvlink},
 		},
 	}
 
