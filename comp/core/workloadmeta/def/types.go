@@ -1580,9 +1580,8 @@ func (i *ContainerImageMetadata) Merge(e Entity) error {
 	// concatenating the compressed Bom []byte fields across sources. Two
 	// gzip-encoded protobufs appended byte-for-byte form a valid multistream
 	// gzip that decodes to a concatenated protobuf, which duplicates all
-	// repeated Components.  We apply our own "prefer dst if non-nil" rule
-	// instead: the remote SBOM collector (alphabetically first) always
-	// produces an already-enriched SBOM that supersedes the raw Trivy SBOM.
+	// repeated Components.  We apply our own Status-aware selection rule
+	// below instead of a simple "prefer dst if non-nil" rule.
 	dstSBOM := i.SBOM
 	srcSBOM := otherImage.SBOM
 
@@ -1593,8 +1592,18 @@ func (i *ContainerImageMetadata) Merge(e Entity) error {
 
 	err := merge(i, &otherImageCopy)
 
-	// Restore SBOM: keep dst's enriched SBOM when available, else fall back to src.
-	if dstSBOM != nil {
+	// Restore SBOM: prefer the SBOM with a completed scan (Status == Success).
+	// The remote_sbom_collector (alphabetically first, always dst) enriches the
+	// trivy SBOM with CWS runtime properties and copies Status from the existing
+	// trivy entity.  When its Status is Success the enriched SBOM should win;
+	// when it is empty or Pending (CWS arrived before trivy finished), the trivy
+	// SBOM from the runtime source (src) should win instead so that the merged
+	// entity reflects the completed scan result.
+	if dstSBOM != nil && dstSBOM.Status == Success {
+		i.SBOM = dstSBOM
+	} else if srcSBOM != nil && srcSBOM.Status == Success {
+		i.SBOM = srcSBOM
+	} else if dstSBOM != nil {
 		i.SBOM = dstSBOM
 	} else {
 		i.SBOM = srcSBOM

@@ -150,10 +150,24 @@ func workloadmetaEventFromSBOMEventSet(store workloadmeta.Component, event *sbom
 		}
 	}
 
-	// Compress the final merged SBOM for storage
-	finalCompressedSBOM, err = sbomutil.CompressSBOM(&workloadmeta.SBOM{
+	// Compress the final merged SBOM for storage, inheriting scan metadata from
+	// the existing image's SBOM so the remote_sbom_collector entity carries the
+	// correct Status (e.g. Success) from the completed trivy scan.  Default to
+	// Pending so that when the existing image has no completed SBOM yet (trivy
+	// is still scanning), we do not emit a spurious Success entity with an empty
+	// BOM.
+	sbomForCompression := &workloadmeta.SBOM{
 		CycloneDXBOM: finalBom,
-	})
+		Status:       workloadmeta.Pending,
+	}
+	if existingImage != nil && existingImage.SBOM != nil {
+		sbomForCompression.Status = existingImage.SBOM.Status
+		sbomForCompression.GenerationTime = existingImage.SBOM.GenerationTime
+		sbomForCompression.GenerationDuration = existingImage.SBOM.GenerationDuration
+		sbomForCompression.GenerationMethod = existingImage.SBOM.GenerationMethod
+		sbomForCompression.Error = existingImage.SBOM.Error
+	}
+	finalCompressedSBOM, err = sbomutil.CompressSBOM(sbomForCompression)
 	if err != nil {
 		return workloadmeta.Event{}, fmt.Errorf("failed to compress SBOM for image %s: %w", imageID, err)
 	}

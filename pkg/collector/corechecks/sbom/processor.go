@@ -483,13 +483,18 @@ func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata) {
 			sbom.Sbom = &model.SBOMEntity_Error{
 				Error: cyclosbom.Error,
 			}
-		default:
+		case workloadmeta.Success:
 			sbom.Status = model.SBOMStatus_SUCCESS
 			sbom.GeneratedAt = timestamppb.New(cyclosbom.GenerationTime)
 			sbom.GenerationDuration = bomconvert.ConvertDuration(cyclosbom.GenerationDuration)
 			sbom.Sbom = &model.SBOMEntity_Cyclonedx{
 				Cyclonedx: cyclosbom.CycloneDXBOM,
 			}
+		default:
+			// Unknown or zero-value status (e.g. SBOMStatus ""): treat as
+			// Pending to avoid forwarding a spurious SUCCESS payload with
+			// empty components before the image scan has completed.
+			sbom.Status = model.SBOMStatus_PENDING
 		}
 		p.queue <- sbom
 	}
