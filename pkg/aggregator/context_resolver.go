@@ -13,6 +13,7 @@ import (
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -100,7 +101,7 @@ func newContextResolver(tagger tagger.Component, cache *tags.Store, id string) *
 		keyGenerator:     ckey.NewKeyGenerator(),
 		taggerBuffer:     tagset.NewHashingTagsAccumulator(),
 		metricBuffer:     tagset.NewHashingTagsAccumulator(),
-		tagFilterCache:   newTagFilterCache(),
+		tagFilterCache:   newTagFilterCache(pkgconfigsetup.Datadog().GetInt("aggregator_tag_filter_cache_capacity")),
 	}
 }
 

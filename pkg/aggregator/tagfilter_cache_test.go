@@ -17,19 +17,19 @@ import (
 )
 
 func TestReverseCacheRingAddBelowCapacity(t *testing.T) {
-	var r reverseCacheRing
-	for i := 0; i < reverseCacheCapacity; i++ {
+	r := reverseCacheRing{capacity: defaultReverseCacheCapacity}
+	for i := 0; i < defaultReverseCacheCapacity; i++ {
 		evicted, didEvict := r.add(ckey.ContextKey(i))
 		assert.False(t, didEvict, "should not evict before full")
 		assert.Equal(t, ckey.ContextKey(0), evicted)
 	}
-	assert.Equal(t, reverseCacheCapacity, r.count)
+	assert.Equal(t, uint(defaultReverseCacheCapacity), r.count)
 }
 
 func TestReverseCacheRingEvictsOldest(t *testing.T) {
-	var r reverseCacheRing
+	r := reverseCacheRing{capacity: defaultReverseCacheCapacity}
 	// Fill the ring
-	for i := 0; i < reverseCacheCapacity; i++ {
+	for i := 0; i < defaultReverseCacheCapacity; i++ {
 		r.add(ckey.ContextKey(i))
 	}
 
@@ -45,13 +45,13 @@ func TestReverseCacheRingEvictsOldest(t *testing.T) {
 }
 
 func TestReverseCacheRingEvictsInOrder(t *testing.T) {
-	var r reverseCacheRing
-	for i := 0; i < reverseCacheCapacity; i++ {
+	r := reverseCacheRing{capacity: defaultReverseCacheCapacity}
+	for i := 0; i < defaultReverseCacheCapacity; i++ {
 		r.add(ckey.ContextKey(i))
 	}
 
 	// Wrap around fully and verify FIFO eviction order
-	for i := 0; i < reverseCacheCapacity; i++ {
+	for i := 0; i < defaultReverseCacheCapacity; i++ {
 		evicted, didEvict := r.add(ckey.ContextKey(1000 + i))
 		require.True(t, didEvict)
 		assert.Equal(t, ckey.ContextKey(i), evicted, "eviction %d should evict key %d", i, i)
@@ -59,7 +59,7 @@ func TestReverseCacheRingEvictsInOrder(t *testing.T) {
 }
 
 func TestReverseCacheRingForEach(t *testing.T) {
-	var r reverseCacheRing
+	r := reverseCacheRing{capacity: defaultReverseCacheCapacity}
 	r.add(ckey.ContextKey(10))
 	r.add(ckey.ContextKey(20))
 	r.add(ckey.ContextKey(30))
@@ -72,8 +72,8 @@ func TestReverseCacheRingForEach(t *testing.T) {
 }
 
 func TestReverseCacheRingForEachAfterWrap(t *testing.T) {
-	var r reverseCacheRing
-	for i := 0; i < reverseCacheCapacity+5; i++ {
+	r := reverseCacheRing{capacity: defaultReverseCacheCapacity}
+	for i := 0; i < defaultReverseCacheCapacity+5; i++ {
 		r.add(ckey.ContextKey(i))
 	}
 
@@ -81,16 +81,16 @@ func TestReverseCacheRingForEachAfterWrap(t *testing.T) {
 	r.forEach(func(k ckey.ContextKey) {
 		collected = append(collected, k)
 	})
-	assert.Equal(t, reverseCacheCapacity, len(collected))
-	// After wrapping, the ring contains keys 5..reverseCacheCapacity+4
+	assert.Equal(t, defaultReverseCacheCapacity, len(collected))
+	// After wrapping, the ring contains keys 5..defaultReverseCacheCapacity+4
 	for _, k := range collected {
-		assert.True(t, k >= 5 && k <= ckey.ContextKey(reverseCacheCapacity+4), "key %d should be in range [5,%d]", k, reverseCacheCapacity+4)
+		assert.True(t, k >= 5 && k <= ckey.ContextKey(defaultReverseCacheCapacity+4), "key %d should be in range [5,%d]", k, defaultReverseCacheCapacity+4)
 	}
-	assert.Equal(t, reverseCacheCapacity, len(collected))
+	assert.Equal(t, defaultReverseCacheCapacity, len(collected))
 }
 
 func TestReverseCacheRingForEachEmpty(t *testing.T) {
-	var r reverseCacheRing
+	r := reverseCacheRing{capacity: defaultReverseCacheCapacity}
 	called := false
 	r.forEach(func(_ ckey.ContextKey) {
 		called = true
@@ -99,15 +99,15 @@ func TestReverseCacheRingForEachEmpty(t *testing.T) {
 }
 
 func TestReverseCacheRingCountNeverExceedsCapacity(t *testing.T) {
-	var r reverseCacheRing
-	for i := 0; i < reverseCacheCapacity*3; i++ {
+	r := reverseCacheRing{capacity: defaultReverseCacheCapacity}
+	for i := 0; i < defaultReverseCacheCapacity*3; i++ {
 		r.add(ckey.ContextKey(i))
-		assert.LessOrEqual(t, r.count, reverseCacheCapacity)
+		assert.LessOrEqual(t, r.count, uint(defaultReverseCacheCapacity))
 	}
 }
 
 func TestTagFilterCacheAddAndGet(t *testing.T) {
-	sc := newTagFilterCache()
+	sc := newTagFilterCache(defaultReverseCacheCapacity)
 
 	entry := tagFilterCacheEntry{
 		contextKey:  ckey.ContextKey(100),
@@ -123,13 +123,13 @@ func TestTagFilterCacheAddAndGet(t *testing.T) {
 }
 
 func TestTagFilterCacheGetMiss(t *testing.T) {
-	sc := newTagFilterCache()
+	sc := newTagFilterCache(defaultReverseCacheCapacity)
 	_, ok := sc.get(ckey.ContextKey(999))
 	assert.False(t, ok)
 }
 
 func TestTagFilterCacheMultiplePreFilterSamePostFilter(t *testing.T) {
-	sc := newTagFilterCache()
+	sc := newTagFilterCache(defaultReverseCacheCapacity)
 
 	postKey := ckey.ContextKey(100)
 	for i := 0; i < 5; i++ {
@@ -145,7 +145,7 @@ func TestTagFilterCacheMultiplePreFilterSamePostFilter(t *testing.T) {
 }
 
 func TestTagFilterCacheDeleteRemovesForwardEntries(t *testing.T) {
-	sc := newTagFilterCache()
+	sc := newTagFilterCache(defaultReverseCacheCapacity)
 
 	postKey := ckey.ContextKey(100)
 	for i := 0; i < 5; i++ {
@@ -165,22 +165,22 @@ func TestTagFilterCacheDeleteRemovesForwardEntries(t *testing.T) {
 }
 
 func TestTagFilterCacheDeleteNonExistent(_ *testing.T) {
-	sc := newTagFilterCache()
+	sc := newTagFilterCache(defaultReverseCacheCapacity)
 	// Should not panic
 	sc.delete(ckey.ContextKey(999))
 }
 
 func TestTagFilterCacheEvictsOldestPreFilterAtCapacity(t *testing.T) {
-	sc := newTagFilterCache()
+	sc := newTagFilterCache(defaultReverseCacheCapacity)
 
 	postKey := ckey.ContextKey(500)
 	// Fill ring to capacity
-	for i := 0; i < reverseCacheCapacity; i++ {
+	for i := 0; i < defaultReverseCacheCapacity; i++ {
 		sc.add(ckey.ContextKey(i), tagFilterCacheEntry{contextKey: postKey})
 	}
 
 	// All should be present
-	for i := 0; i < reverseCacheCapacity; i++ {
+	for i := 0; i < defaultReverseCacheCapacity; i++ {
 		_, ok := sc.get(ckey.ContextKey(i))
 		assert.True(t, ok, "key %d should exist before eviction", i)
 	}
@@ -195,18 +195,18 @@ func TestTagFilterCacheEvictsOldestPreFilterAtCapacity(t *testing.T) {
 	assert.True(t, ok, "newly added key should exist")
 
 	// Keys 1..99 should still be present
-	for i := 1; i < reverseCacheCapacity; i++ {
+	for i := 1; i < defaultReverseCacheCapacity; i++ {
 		_, ok := sc.get(ckey.ContextKey(i))
 		assert.True(t, ok, "key %d should still exist", i)
 	}
 }
 
 func TestTagFilterCacheEvictionContinuity(t *testing.T) {
-	sc := newTagFilterCache()
+	sc := newTagFilterCache(defaultReverseCacheCapacity)
 	postKey := ckey.ContextKey(500)
 
-	total := reverseCacheCapacity + reverseCacheCapacity/2 // 1.5x capacity
-	evicted := total - reverseCacheCapacity                // first half-capacity should be evicted
+	total := defaultReverseCacheCapacity + defaultReverseCacheCapacity/2 // 1.5x capacity
+	evicted := total - defaultReverseCacheCapacity                // first half-capacity should be evicted
 
 	for i := 0; i < total; i++ {
 		sc.add(ckey.ContextKey(i), tagFilterCacheEntry{contextKey: postKey})
@@ -223,7 +223,7 @@ func TestTagFilterCacheEvictionContinuity(t *testing.T) {
 }
 
 func TestTagFilterCacheClear(t *testing.T) {
-	sc := newTagFilterCache()
+	sc := newTagFilterCache(defaultReverseCacheCapacity)
 	postKey := ckey.ContextKey(100)
 	for i := 0; i < 10; i++ {
 		sc.add(ckey.ContextKey(i), tagFilterCacheEntry{contextKey: postKey})
@@ -240,7 +240,7 @@ func TestTagFilterCacheClear(t *testing.T) {
 }
 
 func TestTagFilterCacheIndependentPostFilterKeys(t *testing.T) {
-	sc := newTagFilterCache()
+	sc := newTagFilterCache(defaultReverseCacheCapacity)
 
 	// Two different post-filter keys with separate pre-filter keys
 	sc.add(ckey.ContextKey(1), tagFilterCacheEntry{contextKey: ckey.ContextKey(100)})
@@ -258,7 +258,7 @@ func TestTagFilterCacheIndependentPostFilterKeys(t *testing.T) {
 }
 
 func TestTagFilterCacheOverwriteSamePreFilterKey(t *testing.T) {
-	sc := newTagFilterCache()
+	sc := newTagFilterCache(defaultReverseCacheCapacity)
 
 	sc.add(ckey.ContextKey(1), tagFilterCacheEntry{contextKey: ckey.ContextKey(100), removedTags: 2})
 	sc.add(ckey.ContextKey(1), tagFilterCacheEntry{contextKey: ckey.ContextKey(300), removedTags: 5})
@@ -270,11 +270,11 @@ func TestTagFilterCacheOverwriteSamePreFilterKey(t *testing.T) {
 }
 
 func TestTagFilterCacheDeleteAfterEviction(t *testing.T) {
-	sc := newTagFilterCache()
+	sc := newTagFilterCache(defaultReverseCacheCapacity)
 	postKey := ckey.ContextKey(500)
 
 	// Fill past capacity so some entries are evicted
-	for i := 0; i < reverseCacheCapacity+10; i++ {
+	for i := 0; i < defaultReverseCacheCapacity+10; i++ {
 		sc.add(ckey.ContextKey(i), tagFilterCacheEntry{contextKey: postKey})
 	}
 
@@ -286,20 +286,20 @@ func TestTagFilterCacheDeleteAfterEviction(t *testing.T) {
 }
 
 func TestTagFilterCacheEvictionTelemetry(t *testing.T) {
-	sc := newTagFilterCache()
+	sc := newTagFilterCache(defaultReverseCacheCapacity)
 	postKey := ckey.ContextKey(500)
 
 	before := tlmFilteredTagsCacheEvict.Get()
 
 	// Fill ring to capacity — no evictions yet
-	for i := 0; i < reverseCacheCapacity; i++ {
+	for i := 0; i < defaultReverseCacheCapacity; i++ {
 		sc.add(ckey.ContextKey(i), tagFilterCacheEntry{contextKey: postKey})
 	}
 	assert.Equal(t, before, tlmFilteredTagsCacheEvict.Get(), "no evictions before capacity reached")
 
 	// Add 10 more — each should evict one entry
 	for i := 0; i < 10; i++ {
-		sc.add(ckey.ContextKey(reverseCacheCapacity+i), tagFilterCacheEntry{contextKey: postKey})
+		sc.add(ckey.ContextKey(defaultReverseCacheCapacity+i), tagFilterCacheEntry{contextKey: postKey})
 	}
 	assert.Equal(t, before+10, tlmFilteredTagsCacheEvict.Get(), "should count 10 evictions")
 }
@@ -330,14 +330,14 @@ func FuzzTagFilterCacheConsistency(f *testing.F) {
 	f.Add([]byte{0, 1, 2, 3, 4, 5})
 	f.Add([]byte{})
 	// Seed with a sequence that fills past capacity
-	seed := make([]byte, reverseCacheCapacity*3+20)
+	seed := make([]byte, defaultReverseCacheCapacity*3+20)
 	for i := range seed {
 		seed[i] = byte(i % 256)
 	}
 	f.Add(seed)
 
 	f.Fuzz(func(t *testing.T, data []byte) {
-		sc := newTagFilterCache()
+		sc := newTagFilterCache(defaultReverseCacheCapacity)
 
 		for _, b := range data {
 			op := b % 4
@@ -377,7 +377,7 @@ func FuzzTagFilterCacheHighChurn(f *testing.F) {
 	f.Add(uint16(50), uint16(500))
 
 	f.Fuzz(func(t *testing.T, start, count uint16) {
-		sc := newTagFilterCache()
+		sc := newTagFilterCache(defaultReverseCacheCapacity)
 		postKey := ckey.ContextKey(999)
 
 		for i := start; i < start+count; i++ {
@@ -387,7 +387,7 @@ func FuzzTagFilterCacheHighChurn(f *testing.F) {
 
 		// After all adds, verify ring didn't exceed capacity
 		if ring := sc.reverseCache[postKey]; ring != nil {
-			assert.LessOrEqual(t, ring.count, reverseCacheCapacity)
+			assert.LessOrEqual(t, ring.count, uint(defaultReverseCacheCapacity))
 		}
 
 		// Delete should leave everything clean
@@ -403,7 +403,7 @@ func FuzzTagFilterCacheInterleavedDeletes(f *testing.F) {
 	f.Add([]byte{10, 20, 30, 40, 50})
 
 	f.Fuzz(func(t *testing.T, data []byte) {
-		sc := newTagFilterCache()
+		sc := newTagFilterCache(defaultReverseCacheCapacity)
 
 		for i, b := range data {
 			preKey := ckey.ContextKey(i)

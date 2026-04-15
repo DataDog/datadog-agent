@@ -5,9 +5,12 @@
 
 package aggregator
 
-import "github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+import (
+	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
 
-const reverseCacheCapacity = 1000
+const defaultReverseCacheCapacity = 1000
 
 // tagFilterCacheEntry holds the post-strip context and tag keys for a given pre-strip context key.
 type tagFilterCacheEntry struct {
@@ -28,13 +31,24 @@ type tagFilterCache struct {
 	// reverseCache maps a post-tagFilter contextKey back to the pre-filter contextKeys that produced it.
 	// This allows O(1) cleanup of tagFilterCache entries when a context is removed from contextsByKey.
 	reverseCache map[ckey.ContextKey]*reverseCacheRing
+	// capacity is the max number of pre-filter keys per post-filter key in each reverse ring buffer.
+	capacity uint
 }
 
-// newTagFilterCache returns an initialized empty filterCache.
-func newTagFilterCache() *tagFilterCache {
+// newTagFilterCache returns an initialized empty filterCache with the given ring buffer capacity.
+// If capacity is <= 0, it defaults to defaultReverseCacheCapacity.
+func newTagFilterCache(capacity int) *tagFilterCache {
+	var cap uint
+	if capacity > 0 {
+		cap = uint(capacity)
+	} else {
+		log.Warnf("invalid aggregator_tag_filter_cache_capacity %d, using default %d", capacity, defaultReverseCacheCapacity)
+		cap = uint(defaultReverseCacheCapacity)
+	}
 	return &tagFilterCache{
 		cache:        make(map[ckey.ContextKey]tagFilterCacheEntry),
 		reverseCache: make(map[ckey.ContextKey]*reverseCacheRing),
+		capacity:     cap,
 	}
 }
 
@@ -56,7 +70,7 @@ func (sc *tagFilterCache) add(key ckey.ContextKey, entry tagFilterCacheEntry) {
 
 	ring := sc.reverseCache[entry.contextKey]
 	if ring == nil {
-		ring = &reverseCacheRing{}
+		ring = &reverseCacheRing{capacity: sc.capacity}
 		sc.reverseCache[entry.contextKey] = ring
 	}
 	if evicted, ok := ring.add(key); ok {
@@ -88,27 +102,28 @@ func (sc *tagFilterCache) clear() {
 // identifiers) but the post-tagFilter remains continuously active, these pre-filter keys
 // would continue to accumulate.
 type reverseCacheRing struct {
-	keys  []ckey.ContextKey
-	pos   int // next write position (oldest element when full)
-	count int
+	keys     []ckey.ContextKey
+	pos      uint // next write position (oldest element when full)
+	count    uint
+	capacity uint
 }
 
 // add inserts a key into the ring. If full, returns the evicted key.
 func (r *reverseCacheRing) add(key ckey.ContextKey) (ckey.ContextKey, bool) {
-	if r.count < reverseCacheCapacity {
+	if r.count < r.capacity {
 		r.keys = append(r.keys, key)
 		r.count++
 		return 0, false
 	}
 	evicted := r.keys[r.pos]
 	r.keys[r.pos] = key
-	r.pos = (r.pos + 1) % reverseCacheCapacity
+	r.pos = (r.pos + 1) % r.capacity
 	return evicted, true
 }
 
 // forEach calls fn for every key in the ring.
 func (r *reverseCacheRing) forEach(fn func(ckey.ContextKey)) {
-	for i := 0; i < r.count; i++ {
+	for i := uint(0); i < r.count; i++ {
 		fn(r.keys[i])
 	}
 }
