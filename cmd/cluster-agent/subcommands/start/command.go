@@ -67,7 +67,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/def"
+	healthplatformfx "github.com/DataDog/datadog-agent/comp/healthplatform/fx"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	remotetraceroutefx "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/appsec"
@@ -198,9 +199,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					return option.None[integrations.Component]()
 				}),
 				agenttelemetryfx.Module(),
-				fx.Provide(func() option.Option[healthplatform.Component] {
-					return option.None[healthplatform.Component]()
-				}),
+				healthplatformfx.Module(),
 
 				statusimpl.Module(),
 				collectorimpl.Module(),
@@ -288,6 +287,7 @@ func start(log log.Component,
 	_ metadatarunner.Component,
 	tracerouteComp traceroute.Component,
 	eventPlatform eventplatform.Component,
+	healthPlatform option.Option[healthplatformdef.Component],
 ) error {
 	stopCh := make(chan struct{})
 	validatingStopCh := make(chan struct{})
@@ -642,7 +642,7 @@ func start(log log.Component,
 			Demultiplexer:                demultiplexer,
 		}
 
-		webhooks, err := admissionpkg.StartControllers(admissionCtx, wmeta, pa, datadogConfig)
+		webhooks, err := admissionpkg.StartControllers(admissionCtx, wmeta, pa, datadogConfig, healthPlatform)
 		// Ignore the error if it's related to the validatingwebhookconfigurations.
 		var syncInformerError *apiserver.SyncInformersError
 		if err != nil && !(errors.As(err, &syncInformerError) && syncInformerError.Name == apiserver.ValidatingWebhooksInformer) {

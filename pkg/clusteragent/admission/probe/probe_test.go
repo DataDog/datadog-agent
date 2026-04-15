@@ -23,19 +23,34 @@ import (
 	fakeclientset "k8s.io/client-go/kubernetes/fake"
 	k8stesting "k8s.io/client-go/testing"
 
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/def"
+	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/mock"
 	admcommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const testNamespace = "test-probe-ns"
 
 func newTestProbe(client *fakeclientset.Clientset) *Probe {
 	return &Probe{
-		k8sClient:    client,
-		namespace:    testNamespace,
-		isLeaderFunc: func() bool { return true },
-		logLimiter:   log.NewLogLimit(10, time.Minute),
+		k8sClient:      client,
+		namespace:      testNamespace,
+		isLeaderFunc:   func() bool { return true },
+		logLimiter:     log.NewLogLimit(10, time.Minute),
+		healthPlatform: option.None[healthplatformdef.Component](),
 	}
+}
+
+func newTestProbeWithHP(t *testing.T, client *fakeclientset.Clientset) (*Probe, healthplatformdef.Component) {
+	hp := healthplatformmock.Mock(t)
+	return &Probe{
+		k8sClient:      client,
+		namespace:      testNamespace,
+		isLeaderFunc:   func() bool { return true },
+		logLimiter:     log.NewLogLimit(10, time.Minute),
+		healthPlatform: option.New[healthplatformdef.Component](hp),
+	}, hp
 }
 
 func webhookReachableReactor(action k8stesting.Action) (bool, runtime.Object, error) {
@@ -237,4 +252,50 @@ func TestDiagnosticHintForProvider(t *testing.T) {
 			assert.Contains(t, hint, tt.containsStr)
 		})
 	}
+}
+
+func TestRunProbe_ReportsHealthIssueOnConnectivityFailure(t *testing.T) {
+	client := fakeclientset.NewSimpleClientset()
+	p, hp := newTestProbeWithHP(t, client)
+
+	p.runProbe(context.Background())
+
+	issue := hp.GetIssueForCheck(healthCheckID)
+	require.NotNil(t, issue, "expected a health issue to be reported on connectivity failure")
+}
+
+func TestRunProbe_NoHealthIssueOnForbidden(t *testing.T) {
+	client := fakeclientset.NewSimpleClientset()
+	client.PrependReactor("create", "configmaps", func(_ k8stesting.Action) (bool, runtime.Object, error) {
+		return true, nil, k8serrors.NewForbidden(schema.GroupResource{Resource: "configmaps"}, "", errors.New("forbidden"))
+	})
+
+	p, hp := newTestProbeWithHP(t, client)
+	p.runProbe(context.Background())
+
+	assert.Nil(t, hp.GetIssueForCheck(healthCheckID), "forbidden errors should not report health issues")
+}
+
+func TestRunProbe_ClearsHealthIssueOnSuccess(t *testing.T) {
+	client := fakeclientset.NewSimpleClientset()
+	p, hp := newTestProbeWithHP(t, client)
+
+	p.runProbe(context.Background())
+	require.NotNil(t, hp.GetIssueForCheck(healthCheckID))
+
+	client.ReactionChain = nil
+	client.PrependReactor("create", "configmaps", webhookReachableReactor)
+
+	p.runProbe(context.Background())
+	assert.Nil(t, hp.GetIssueForCheck(healthCheckID), "expected health issue to be cleared after successful probe")
+}
+
+func TestRunProbe_NoHealthReportWithoutPlatform(t *testing.T) {
+	client := fakeclientset.NewSimpleClientset()
+	p := newTestProbe(client)
+
+	p.runProbe(context.Background())
+
+	snap := p.GetStatsSnapshot()
+	assert.Equal(t, int64(1), snap.FailCount)
 }
