@@ -325,7 +325,7 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 		})
 		if !ok {
 			tr.Stop()
-			return nil, errors.New("error retrieving initial socket iter")
+			return nil, errors.New("error retrieving port bindings iter")
 		}
 	} else {
 		tr.conns, err = maps.GetMap[netebpf.ConnTuple, netebpf.ConnStats](m.Manager, probes.ConnMap)
