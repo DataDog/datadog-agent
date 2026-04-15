@@ -245,13 +245,7 @@ dd_cc_packaged(
 
 pkg_filegroup(
     name = "all_files",
-    srcs = [
-        # The claim in freetds.rb is that headers are not needed.
-        # I'll leave this here for in case that turns out to be false.
-        # If datadog-agent-integrations-py3-dependencies works without
-        # the headers, lets' delete them.
-        ":hdr_files",
-    ],
+    srcs = [":_installed_libs"],
     prefix = "embedded",
     visibility = ["//visibility:public"],
 )
