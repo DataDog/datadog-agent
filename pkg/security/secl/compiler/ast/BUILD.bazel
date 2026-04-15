@@ -16,4 +16,5 @@ go_test(
     name = "ast_test",
     srcs = ["secl_test.go"],
     embed = [":ast"],
+    gotags = ["test"],
 )
