@@ -179,6 +179,11 @@ func (l *LocalService) ShouldForceFlushAllOnForceFlushToSerializer() bool {
 //
 //nolint:revive // TODO(SERV) Fix revive lin
 func GetCloudServiceType() CloudService {
+
+	if runtime.GOARCH != "amd64" {
+		log.Warnf("serverless-init is running on an unsupported architecture (%s). Monitoring may behave unexpectedly.", runtime.GOARCH)
+	}
+
 	if isCloudRunService() {
 		if isCloudRunFunction() {
 			return &CloudRun{spanNamespace: cloudRunFunctionTagPrefix}
@@ -198,37 +203,9 @@ func GetCloudServiceType() CloudService {
 		return &AppService{}
 	}
 
-	if provider := detectCloudProvider(); provider != "" {
-		log.Warnf("serverless-init is running on %s infrastructure but could not detect a supported service. Monitoring may be limited.", provider)
-	}
-
-	if runtime.GOARCH != "amd64" {
-		log.Warnf("serverless-init is running on an unsupported architecture (%s). Monitoring may behave unexpectedly.", runtime.GOARCH)
-	}
+	log.Warnf("serverless-init could not detect a supported service. Monitoring may be limited.")
 
 	return &LocalService{}
-}
-
-// getenv is the function used to read environment variables. Tests can
-// replace it to avoid depending on the real environment.
-var getenv = os.Getenv
-
-// detectCloudProvider checks for environment signals that indicate we're
-// running on a cloud provider, even if the specific service wasn't recognized.
-func detectCloudProvider() string {
-	gcpVars := []string{"GCE_METADATA_HOST", "GOOGLE_CLOUD_PROJECT", "GCLOUD_PROJECT"}
-	for _, v := range gcpVars {
-		if getenv(v) != "" {
-			return "GCP"
-		}
-	}
-	azureVars := []string{"AZURE_CLIENT_ID", "MSI_ENDPOINT", "IDENTITY_ENDPOINT"}
-	for _, v := range azureVars {
-		if getenv(v) != "" {
-			return "Azure"
-		}
-	}
-	return ""
 }
 
 func tagValueOrUnknown(val string) string {
