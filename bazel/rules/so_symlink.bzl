@@ -1,4 +1,4 @@
-load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files", "pkg_mklink")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files", "pkg_mklink")
 
 _SPECS = [
     struct(os = "linux", prefix = "lib/", format = "{}.so{}"),
@@ -10,6 +10,7 @@ def _gen_targets(base_name, src, libname, version, prefix, spec, attributes):
     name = "{}_{}".format(base_name, spec.os)
     platform = "@platforms//os:{}".format(spec.os)
     dest_prefix = (prefix + "/" + spec.prefix) if prefix else spec.prefix
+    attributes = attributes or pkg_attributes(mode = "0644")
 
     # Windows: no symlinks, no renaming - just copy the DLL as-is
     if spec.os == "windows":
