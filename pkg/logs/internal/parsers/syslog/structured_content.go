@@ -158,16 +158,36 @@ func (s *SyslogStructuredContent) Render() ([]byte, error) {
 }
 
 // EncodeFull produces the complete transport-envelope JSON in a single pass.
-// It calls Render() internally to obtain the inner JSON, then wraps it using
-// direct []byte append with a tight escape loop.
+// It renders the inner JSON into a pooled jsoniter.Stream and reads directly
+// from the stream's internal buffer (no intermediate copy), then wraps it
+// in the transport envelope using direct []byte append with a tight escape loop.
 func (s *SyslogStructuredContent) EncodeFull(
 	status string, timestamp int64,
 	hostname, service, source, tags string,
 ) ([]byte, error) {
-	rendered, err := s.Render()
-	if err != nil {
+	stream := renderStreamPool.Get().(*jsoniter.Stream)
+	stream.Reset(nil)
+
+	stream.WriteObjectStart()
+	stream.WriteObjectField("message")
+	stream.WriteString(s.msg)
+	stream.WriteMore()
+	stream.WriteObjectField("syslog")
+	s.syslog.writeTo(stream)
+	if s.siem != nil {
+		stream.WriteMore()
+		stream.WriteObjectField("siem")
+		s.siem.writeTo(stream)
+	}
+	stream.WriteObjectEnd()
+
+	if stream.Error != nil {
+		err := stream.Error
+		renderStreamPool.Put(stream)
 		return nil, err
 	}
+
+	rendered := stream.Buffer()
 	buf := make([]byte, 0, len(rendered)+len(rendered)/8+256)
 
 	buf = append(buf, `{"message":"`...)
@@ -186,6 +206,7 @@ func (s *SyslogStructuredContent) EncodeFull(
 	buf = appendEscapedString(buf, tags)
 	buf = append(buf, `"}`...)
 
+	renderStreamPool.Put(stream)
 	return buf, nil
 }
 
