@@ -48,27 +48,6 @@ func TestNewServerDataPlaneEnabled(t *testing.T) {
 	requireStopped(t, deps.Server)
 }
 
-// TestNewServerDataPlaneDogstatsdOnlyEnabled verifies that setting only data_plane.dogstatsd.enabled=true
-// (without data_plane.enabled=true) is sufficient to disable the internal dogstatsd server.
-func TestNewServerDataPlaneDogstatsdOnlyEnabled(t *testing.T) {
-	cfg := make(map[string]interface{})
-	cfg["data_plane.dogstatsd.enabled"] = true
-
-	deps := fulfillDepsWithConfigOverride(t, cfg)
-	requireStopped(t, deps.Server)
-}
-
-// TestNewServerDataPlaneGloballyDisabled verifies that data_plane.enabled=false overrides
-// data_plane.dogstatsd.enabled=true, keeping the internal dogstatsd server running.
-func TestNewServerDataPlaneGloballyDisabled(t *testing.T) {
-	cfg := make(map[string]interface{})
-	cfg["dogstatsd_port"] = listeners.RandomPortName
-	cfg["data_plane.enabled"] = false
-	cfg["data_plane.dogstatsd.enabled"] = true
-
-	deps := fulfillDepsWithConfigOverride(t, cfg)
-	requireStart(t, deps.Server)
-}
 
 // This test is proving that no data race occurred on the `cachedTlmOriginIds` map.
 // It should not fail since `cachedTlmOriginIds` and `cachedOrder` should be

@@ -406,10 +406,9 @@ func CheckADPEnabled(t *testing.T, client *TestClient) {
 	t.Run("DogStatsD port bound ADP enabled", func(tt *testing.T) {
 		configFilePath := client.Helper.GetConfigFolder() + client.Helper.GetConfigFileName()
 
-		// `data_plane.dogstatsd.enabled` controls whether ADP takes over DSD traffic. Setting it alone is sufficient to
-		// enable ADP for dogstatsd — `data_plane.enabled` no longer needs to be set explicitly (it is only consulted
-		// when explicitly configured, and only to disable ADP globally when set to false).
-		// We still set `data_plane.enabled: true` here for clarity and to ensure ADP stays running.
+		// `data_plane.enabled` controls whether or not ADP stays running, but `data_plane.dogstatsd.enabled` controls whether or not
+		// ADP takes over DSD traffic, which we want it to do so that our test case can have a meaningful assertion that ADP is running
+		// and accepting traffic.
 		err := client.SetConfig(configFilePath, "data_plane.enabled", "true")
 		require.NoError(tt, err)
 		err = client.SetConfig(configFilePath, "data_plane.dogstatsd.enabled", "true")
