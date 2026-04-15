@@ -86,11 +86,11 @@ func GetClusterName(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	return ParseClusterNameFromResouceGroup(all)
+	return ParseClusterNameFromResourceGroup(all)
 }
 
 // ParseClusterNameFromResouceGroup expects the rg name to have the format (MC|mc)_resource-group_cluster-name_zone
-func ParseClusterNameFromResouceGroup(rg string) (string, error) {
+func ParseClusterNameFromResourceGroup(rg string) (string, error) {
 	splitAll := strings.Split(rg, "_")
 	if len(splitAll) < 4 || strings.ToLower(splitAll[0]) != "mc" {
 		return "", fmt.Errorf("cannot parse the clustername from resource group name: %s", rg)

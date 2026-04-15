@@ -72,7 +72,7 @@ func (n *NodeInfo) GetNodeClusterNameLabel(ctx context.Context, clusterName stri
 // aksClusterNameLabelParser tries to parse cluster name from resource group.
 // If parsed cluster name is empty label is used unparsed instead.
 func aksClusterNameLabelParser(label string) string {
-	n, _ := azure.ParseClusterNameFromResouceGroup(label)
+	n, _ := azure.ParseClusterNameFromResourceGroup(label)
 	if n != "" {
 		return n
 	}
