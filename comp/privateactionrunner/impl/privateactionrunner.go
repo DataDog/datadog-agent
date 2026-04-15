@@ -269,11 +269,9 @@ func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *pa
 		p.logger.Warnf("api_key does not match the expected format; enrollment may fail")
 	}
 
-	// Resolve the app key based on enrollment mode.
-	// When api_key_only_enrollment is true, the app key is ignored entirely.
 	var appKey string
 	if apiKeyOnlyEnrollment {
-		p.logger.Info("API-key-only enrollment enabled; app_key will not be used")
+		p.logger.Info("API-key-only enrollment enabled")
 	} else {
 		appKey = p.coreConfig.GetString("app_key")
 		if appKey == "" {
