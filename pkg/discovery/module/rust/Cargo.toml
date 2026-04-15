@@ -8,8 +8,11 @@ rust-version.workspace = true
 [features]
 default = []
 java-archives = ["dep:zip", "dep:walkdir"]
-spring = ["java-archives", "dep:yaml-rust2"]
-jee = ["java-archives", "dep:quick-xml"]
+spring = ["java-archives", "dep:saphyr-parser"]
+jee = ["java-archives", "dep:xml-rs"]
+# Forces a panic inside dd_discovery_get_services. Only for testing the FFI
+# panic-catch path from C; never enable in production builds.
+force-ffi-panic = []
 
 [lib]
 name = "dd_discovery"
@@ -22,6 +25,9 @@ path = "src/main.rs"
 [[bin]]
 name = "disco"
 path = "src/bin/disco.rs"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+caps = { workspace = true }
 
 [dependencies]
 anyhow.workspace = true
@@ -38,7 +44,7 @@ memchr.workspace = true
 nom.workspace = true
 normalize-path.workspace = true
 phf.workspace = true
-quick-xml = { workspace = true, optional = true }
+xml-rs = { workspace = true, optional = true }
 rmp-serde.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -46,8 +52,8 @@ dd-agent-log.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread", "signal"] }
 uzers.workspace = true
+saphyr-parser = { workspace = true, optional = true }
 walkdir = { workspace = true, optional = true }
-yaml-rust2 = { workspace = true, optional = true }
 zip = { workspace = true, optional = true }
 
 [dev-dependencies]

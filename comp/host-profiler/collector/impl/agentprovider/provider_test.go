@@ -221,11 +221,6 @@ func TestProvider(t *testing.T) {
 			expectedOTel: "provider/debug-disabled/otel.yaml",
 		},
 		{
-			name:         "debug-multi-field",
-			agentConfig:  "provider/debug-multi-field/agent.yaml",
-			expectedOTel: "provider/debug-multi-field/otel.yaml",
-		},
-		{
 			name:         "additional-http-headers",
 			agentConfig:  "provider/add-headers/agent.yaml",
 			expectedOTel: "provider/add-headers/otel.yaml",
@@ -234,6 +229,26 @@ func TestProvider(t *testing.T) {
 			name:         "additional-http-headers-with-debug",
 			agentConfig:  "provider/add-headers-debug/agent.yaml",
 			expectedOTel: "provider/add-headers-debug/otel.yaml",
+		},
+		{
+			name:         "ddprofiling-enabled",
+			agentConfig:  "provider/ddprofiling-enabled/agent.yaml",
+			expectedOTel: "provider/ddprofiling-enabled/otel.yaml",
+		},
+		{
+			name:         "ddprofiling-period",
+			agentConfig:  "provider/ddprofiling-period/agent.yaml",
+			expectedOTel: "provider/ddprofiling-period/otel.yaml",
+		},
+		{
+			name:         "health-metrics-disabled",
+			agentConfig:  "provider/health-metrics-disabled/agent.yaml",
+			expectedOTel: "provider/health-metrics-disabled/otel.yaml",
+		},
+		{
+			name:         "health-metrics-custom",
+			agentConfig:  "provider/health-metrics-custom/agent.yaml",
+			expectedOTel: "provider/health-metrics-custom/otel.yaml",
 		},
 	}
 

@@ -19,6 +19,7 @@ ebpf_program_suite(
     name = "usm",
     src = "usm.c",
     core = True,
+    visibility = ["//visibility:public"],
     deps = [
         ":runtime_headers",
         "//pkg/ebpf/c:ebpf_c_headers",
@@ -30,6 +31,7 @@ ebpf_program_suite(
     name = "shared-libraries",
     src = "shared-libraries.c",
     core = True,
+    visibility = ["//visibility:public"],
     deps = [
         ":runtime_headers",
         "//pkg/ebpf/c:ebpf_c_headers",
@@ -41,6 +43,7 @@ ebpf_program_suite(
     name = "conntrack",
     src = "conntrack.c",
     core = True,
+    visibility = ["//visibility:public"],
     deps = [
         ":runtime_headers",
         "//pkg/ebpf/c:ebpf_c_headers",

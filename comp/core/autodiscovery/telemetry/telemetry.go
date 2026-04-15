@@ -35,6 +35,11 @@ type Store struct {
 	Errors telemetry.Gauge
 	// PollDuration tracks the configs poll duration by AD providers.
 	PollDuration telemetry.Histogram
+	// TagCompletenessDelay tracks how long (seconds) a discovered entity
+	// waited for tag completeness before being processed. A nonzero delay
+	// does not imply a check scheduling delay, as not all entities match
+	// a check configuration.
+	TagCompletenessDelay telemetry.Histogram
 }
 
 // NewStore returns a new Store.
@@ -69,6 +74,14 @@ func NewStore(telemetryComp telemetry.Component) *Store {
 			// The default prometheus buckets are adapted to measure response time of network services
 			prometheus.DefBuckets,
 			telemetry.Options{NoDoubleUnderscoreSep: true},
+		),
+		TagCompletenessDelay: telemetryComp.NewHistogramWithOpts(
+			subsystem,
+			"tag_completeness_delay",
+			[]string{"listener"},
+			"Delay in processing discovered services due to waiting for tag completeness (in seconds).",
+			[]float64{0, 1, 2, 3, 5, 7, 10},
+			commonOpts,
 		),
 	}
 }

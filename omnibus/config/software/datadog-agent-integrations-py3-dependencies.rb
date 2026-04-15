@@ -7,15 +7,8 @@ dependency 'openssl3'
 if linux_target?
 
   build do
-    command_on_repo_root "bazelisk run -- @unixodbc//:install --destdir='#{install_dir}'"
-    command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
-    " #{install_dir}/embedded/lib/libodbc.so" \
-    " #{install_dir}/embedded/lib/libodbccr.so" \
-    " #{install_dir}/embedded/lib/libodbcinst.so"
-
-    command_on_repo_root "bazelisk run -- @freetds//:install --destdir='#{install_dir}'"
-    command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
-    " #{install_dir}/embedded/lib/libtdsodbc.so"
+    command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- @unixodbc//:install --destdir='#{install_dir}'"
+    command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- @freetds//:install --destdir='#{install_dir}'"
 
     unless heroku_target?
       lib_files = [
@@ -43,9 +36,9 @@ if linux_target?
           'kinit',
         ]
 
-      command_on_repo_root "bazelisk run -- //deps/msodbcsql18:install --destdir='#{install_dir}'"
+      command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- //deps/msodbcsql18:install --destdir='#{install_dir}'"
       # (TODO(agent-build): Check if we still need pc files)
-      command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded' " \
+      command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded' " \
         + lib_files.map{ |l| "#{install_dir}/embedded/lib/#{l}" }.join(' ') \
         + " " \
         + bin_files.map{ |bin| "#{install_dir}/embedded/bin/#{bin}" }.join(' ') \
@@ -53,7 +46,7 @@ if linux_target?
     end
 
     # gstatus binary used by the glusterfs integration
-    command_on_repo_root "bazelisk run -- //deps/gstatus:install --destdir='#{install_dir}'"
-    command_on_repo_root "bazelisk run -- //deps/nfsiostat:install --destdir='#{install_dir}'"
+    command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- //deps/gstatus:install --destdir='#{install_dir}'"
+    command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- //deps/nfsiostat:install --destdir='#{install_dir}'"
   end
 end

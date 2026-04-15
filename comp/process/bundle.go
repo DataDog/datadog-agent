@@ -17,11 +17,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/apiserver"
 	"github.com/DataDog/datadog-agent/comp/process/connectionscheck/connectionscheckimpl"
 	"github.com/DataDog/datadog-agent/comp/process/containercheck/containercheckimpl"
-	"github.com/DataDog/datadog-agent/comp/process/expvars/expvarsimpl"
-	"github.com/DataDog/datadog-agent/comp/process/forwarders/forwardersimpl"
+	expvarsfx "github.com/DataDog/datadog-agent/comp/process/expvars/fx"
+	forwardersfx "github.com/DataDog/datadog-agent/comp/process/forwarders/fx"
 	gpusubscriber "github.com/DataDog/datadog-agent/comp/process/gpusubscriber/fx"
-	"github.com/DataDog/datadog-agent/comp/process/hostinfo/hostinfoimpl"
-	"github.com/DataDog/datadog-agent/comp/process/processcheck/processcheckimpl"
+	hostinfofx "github.com/DataDog/datadog-agent/comp/process/hostinfo/fx"
+	processcheckfx "github.com/DataDog/datadog-agent/comp/process/processcheck/fx"
 	"github.com/DataDog/datadog-agent/comp/process/processdiscoverycheck/processdiscoverycheckimpl"
 	profilerimpl "github.com/DataDog/datadog-agent/comp/process/profiler/fx"
 	"github.com/DataDog/datadog-agent/comp/process/rtcontainercheck/rtcontainercheckimpl"
@@ -45,18 +45,18 @@ func Bundle() fxutil.BundleOptions {
 		// Checks
 		connectionscheckimpl.Module(),
 		containercheckimpl.Module(),
-		processcheckimpl.Module(),
+		processcheckfx.Module(),
 		rtcontainercheckimpl.Module(),
 		processdiscoverycheckimpl.Module(),
 
 		agentimpl.Module(),
 
-		hostinfoimpl.Module(),
-		expvarsimpl.Module(),
+		hostinfofx.Module(),
+		expvarsfx.Module(),
 
 		apiserver.Module(),
 		connectionsforwarderfx.Module(),
-		forwardersimpl.Module(),
+		forwardersfx.Module(),
 		logscompression.Module(),
 
 		gpusubscriber.Module(),

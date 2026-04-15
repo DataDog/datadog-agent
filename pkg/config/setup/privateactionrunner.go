@@ -7,7 +7,6 @@ package setup
 
 import (
 	"path"
-	"runtime"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -27,9 +26,10 @@ const (
 	PARUrn                  = "private_action_runner.urn"
 
 	// General config
-	PARTaskConcurrency    = "private_action_runner.task_concurrency"
-	PARTaskTimeoutSeconds = "private_action_runner.task_timeout_seconds"
-	PARActionsAllowlist   = "private_action_runner.actions_allowlist"
+	PARTaskConcurrency       = "private_action_runner.task_concurrency"
+	PARTaskTimeoutSeconds    = "private_action_runner.task_timeout_seconds"
+	PARActionsAllowlist      = "private_action_runner.actions_allowlist"
+	PARDefaultActionsEnabled = "private_action_runner.default_actions_enabled"
 
 	// HTTP Action related
 	PARHttpTimeoutSeconds    = "private_action_runner.http_timeout_seconds"
@@ -70,11 +70,8 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	// General config
 	config.BindEnvAndSetDefault(PARTaskConcurrency, 5)
 	config.BindEnvAndSetDefault(PARTaskTimeoutSeconds, 60)
-	if runtime.GOOS == "windows" {
-		config.BindEnvAndSetDefault(PARActionsAllowlist, []string{"com.datadoghq.script.runPredefinedPowershellScript"})
-	} else {
-		config.BindEnvAndSetDefault(PARActionsAllowlist, []string{"com.datadoghq.script.runPredefinedScript"})
-	}
+	config.BindEnvAndSetDefault(PARActionsAllowlist, []string{})
+	config.BindEnvAndSetDefault(PARDefaultActionsEnabled, true)
 	config.ParseEnvAsStringSlice(PARActionsAllowlist, func(s string) []string {
 		return strings.Split(s, ",")
 	})

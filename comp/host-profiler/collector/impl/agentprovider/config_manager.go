@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux
-
 package agentprovider
 
 import (
@@ -13,10 +11,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// healthMetricsConfig holds configuration for the internal health metrics pipeline.
+type healthMetricsConfig struct {
+	Enabled bool
+	Target  string
+}
+
 // hostProfilerConfig holds host-profiler settings extracted from the Agent config.
 type hostProfilerConfig struct {
-	Debug                 confMap
+	DebugVerbosity        string
 	AdditionalHTTPHeaders map[string]string
+	DDProfilingEnabled    bool
+	DDProfilingPeriod     int
+	HealthMetrics         healthMetricsConfig
 }
 
 type endpoint struct {
@@ -88,8 +95,14 @@ func newConfigManager(config config.Component) configManager {
 	// key ("hostprofiler") returns defaults instead of env var overrides, so
 	// mapstructure.Decode on the parent map silently drops env-var-set values.
 	hostProfilerConfig := hostProfilerConfig{
-		Debug:                 config.GetStringMap("hostprofiler.debug"),
+		DebugVerbosity:        config.GetString("hostprofiler.debug.verbosity"),
 		AdditionalHTTPHeaders: config.GetStringMapString("hostprofiler.additional_http_headers"),
+		DDProfilingEnabled:    config.GetBool("hostprofiler.ddprofiling.enabled"),
+		DDProfilingPeriod:     config.GetInt("hostprofiler.ddprofiling.period"),
+		HealthMetrics: healthMetricsConfig{
+			Enabled: config.GetBool("hostprofiler.health_metrics.enabled"),
+			Target:  config.GetString("hostprofiler.health_metrics.target"),
+		},
 	}
 
 	return configManager{

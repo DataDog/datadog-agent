@@ -126,6 +126,7 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component, ipc ipc.Com
 	cfg.ContainerTags = func(cid string) ([]string, error) {
 		return tagger.Tag(types.NewEntityID(types.ContainerID, cid), types.HighCardinality)
 	}
+	cfg.HasContainerFeatures = env.IsAnyContainerFeaturePresent()
 	cfg.ContainerTagsWithCompleteness = func(cid string) ([]string, bool, error) {
 		return tagger.TagWithCompleteness(types.NewEntityID(types.ContainerID, cid), types.HighCardinality)
 	}
@@ -139,6 +140,12 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component, ipc ipc.Com
 	cfg.HTTPTransportFunc = func() *http.Transport {
 		return httputils.CreateHTTPTransport(coreConfigObject)
 	}
+	cfg.EnableOPMFetch = true
+	cfg.OPMValidateURL = utils.GetMainEndpoint(
+		pkgconfigsetup.Datadog(),
+		"https://api.",
+		"dd_url",
+	) + "/api/v2/validate"
 
 	return cfg, nil
 }

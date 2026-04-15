@@ -107,6 +107,7 @@
   - test/new-e2e/tests/installer/windows/**/*
   - test/new-e2e/tests/windows/**/*
   - test/new-e2e/tests/sysprobe-functional/**/*
+  - test/new-e2e/tests/process/**/*
 
 include:
   - local: .adms/**/*.yaml
@@ -261,25 +262,25 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v104474088-0c9dfdf4
+  CI_IMAGE_BTF_GEN: v107034079-0ba6ff53
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v104474088-0c9dfdf4
+  CI_IMAGE_DOCKER_X64: v107034079-0ba6ff53
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v104474088-0c9dfdf4
+  CI_IMAGE_DOCKER_ARM64: v107034079-0ba6ff53
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v104474088-0c9dfdf4
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v107034079-0ba6ff53
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v104474088-0c9dfdf4
+  CI_IMAGE_LINUX: v107034079-0ba6ff53
   CI_IMAGE_LINUX_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v104474088-0c9dfdf4
+  CI_IMAGE_RPM_X64: v107034079-0ba6ff53
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v104474088-0c9dfdf4
+  CI_IMAGE_RPM_ARM64: v107034079-0ba6ff53
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v104474088-0c9dfdf4
+  CI_IMAGE_RPM_ARMHF: v107034079-0ba6ff53
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v102144341-64dad9f8
+  CI_IMAGE_WIN_LTSC2022_X64: v107034079-0ba6ff53
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2025_X64: v102144341-64dad9f8
+  CI_IMAGE_WIN_LTSC2025_X64: v107034079-0ba6ff53
   CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -319,7 +320,6 @@ variables:
   # Start vault variables
   AGENT_API_KEY_ORG2: agent-api-key-org-2 # agent-devx
   AGENT_APP_KEY_ORG2: agent-app-key-org-2 # agent-devx
-  AGENT_GITHUB_APP: agent-github-app # agent-devx
   AGENT_QA_E2E: agent-qa-e2e # agent-devx
   ATLASSIAN_WRITE: atlassian-write # agent-devx
   CODECOV: codecov # agent-devx
@@ -328,8 +328,6 @@ variables:
   E2E_AZURE: e2e-azure # agent-devx
   E2E_GCP: e2e-gcp # agent-devx
   INSTALL_SCRIPT_API_KEY_ORG2: install-script-api-key-org-2 # agent-devx
-  MACOS_GITHUB_APP_1: macos-github-app-one # agent-devx
-  MACOS_GITHUB_APP_2: macos-github-app-two # agent-devx
   MACOS_APPLE_APPLICATION_SIGNING: apple-application-signing # agent-delivery
   MACOS_APPLE_DEVELOPER_ACCOUNT: apple-developer-account # agent-delivery
   MACOS_APPLE_INSTALLER_SIGNING: apple-installer-signing # agent-delivery
@@ -487,7 +485,6 @@ variables:
     paths:
       - omnibus/**/*
       - pkg/config/config_template.yaml
-      - pkg/config/security-agent_template.yaml
       - pkg/config/system-probe_template.yaml
     compare_to: $COMPARE_TO_BRANCH
 
