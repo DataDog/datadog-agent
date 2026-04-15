@@ -68,7 +68,6 @@ func TestPeerTagsAggregation(t *testing.T) {
 	})
 }
 
-
 func TestMRFFailoverAPM(t *testing.T) {
 	t.Run("undefined", func(t *testing.T) {
 		cfg := New()

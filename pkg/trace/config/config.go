@@ -788,7 +788,6 @@ func (c *AgentConfig) ConfiguredPeerTags() []string {
 	return preparePeerTags(append(basePeerTags, c.PeerTags...))
 }
 
-
 func inAzureAppServices() bool {
 	_, existsLinux := os.LookupEnv("WEBSITE_STACK")
 	_, existsWin := os.LookupEnv("WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED")
