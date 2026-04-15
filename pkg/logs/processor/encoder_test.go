@@ -269,6 +269,70 @@ func TestJsonEncoder(t *testing.T) {
 	})
 }
 
+func TestJsonEncoderHostnameOmitted(t *testing.T) {
+	logsConfig := &config.LogsConfig{Source: "Source"}
+	source := sources.NewLogSource("", logsConfig)
+
+	t.Run("empty hostname is omitted from JSON", func(t *testing.T) {
+		msg := newMessage([]byte("log message"), source, message.StatusInfo)
+		msg.State = message.StateRendered
+
+		err := JSONEncoder.Encode(msg, "")
+		assert.Nil(t, err)
+
+		var parsed map[string]any
+		assert.Nil(t, json.Unmarshal(msg.GetContent(), &parsed))
+		_, hasHostname := parsed["hostname"]
+		assert.False(t, hasHostname, "hostname key should be absent when hostname is empty")
+	})
+
+	t.Run("non-empty hostname is present in JSON", func(t *testing.T) {
+		msg := newMessage([]byte("log message"), source, message.StatusInfo)
+		msg.State = message.StateRendered
+
+		err := JSONEncoder.Encode(msg, "my-host")
+		assert.Nil(t, err)
+
+		var parsed map[string]any
+		assert.Nil(t, json.Unmarshal(msg.GetContent(), &parsed))
+		hostname, hasHostname := parsed["hostname"]
+		assert.True(t, hasHostname, "hostname key should be present when hostname is non-empty")
+		assert.Equal(t, "my-host", hostname)
+	})
+}
+
+func TestJsonServerlessInitEncoderHostnameOmitted(t *testing.T) {
+	logsConfig := &config.LogsConfig{Source: "Source"}
+	source := sources.NewLogSource("", logsConfig)
+
+	t.Run("empty hostname is omitted from JSON", func(t *testing.T) {
+		msg := newMessage([]byte("log message"), source, message.StatusInfo)
+		msg.State = message.StateRendered
+
+		err := JSONServerlessInitEncoder.Encode(msg, "")
+		assert.Nil(t, err)
+
+		var parsed map[string]any
+		assert.Nil(t, json.Unmarshal(msg.GetContent(), &parsed))
+		_, hasHostname := parsed["hostname"]
+		assert.False(t, hasHostname, "hostname key should be absent when hostname is empty")
+	})
+
+	t.Run("non-empty hostname is present in JSON", func(t *testing.T) {
+		msg := newMessage([]byte("log message"), source, message.StatusInfo)
+		msg.State = message.StateRendered
+
+		err := JSONServerlessInitEncoder.Encode(msg, "my-host")
+		assert.Nil(t, err)
+
+		var parsed map[string]any
+		assert.Nil(t, json.Unmarshal(msg.GetContent(), &parsed))
+		hostname, hasHostname := parsed["hostname"]
+		assert.True(t, hasHostname, "hostname key should be present when hostname is non-empty")
+		assert.Equal(t, "my-host", hostname)
+	})
+}
+
 func TestEncoderToValidUTF8(t *testing.T) {
 	// valid utf-8
 	assert.Equal(t, "", toValidUtf8(nil))
