@@ -144,6 +144,13 @@ func TestCreateOrUpdateDDConfigMap(t *testing.T) {
 			"main-snippet must preserve DD_AGENT_HOST env var for nginx worker processes")
 		assert.Contains(t, data[httpSnippetKey], "datadog_appsec_enabled on;")
 		assert.Contains(t, data[httpSnippetKey], "datadog_waf_thread_pool_name waf_thread_pool;")
+
+		// Verify owner reference points to the original ConfigMap
+		ownerRefs := ddCM.GetOwnerReferences()
+		require.Len(t, ownerRefs, 1, "DD ConfigMap must have an owner reference to the original ConfigMap")
+		assert.Equal(t, "ingress-nginx-controller", ownerRefs[0].Name)
+		assert.Equal(t, "ConfigMap", ownerRefs[0].Kind)
+		assert.Equal(t, "v1", ownerRefs[0].APIVersion)
 	})
 
 	t.Run("creates DD ConfigMap with original data preserved", func(t *testing.T) {

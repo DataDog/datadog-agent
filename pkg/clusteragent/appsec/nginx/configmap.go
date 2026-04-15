@@ -100,16 +100,31 @@ func createOrUpdateDDConfigMap(ctx context.Context, client dynamic.Interface, na
 	mergedData[mainSnippetKey] = buildSnippet(mergedData[mainSnippetKey], mainSnippetDirectives(moduleMountPath))
 	mergedData[httpSnippetKey] = buildSnippet(mergedData[httpSnippetKey], httpSnippetDirectivesContent)
 
+	// Build owner reference to the original ConfigMap so Kubernetes garbage-collects
+	// the DD ConfigMap if the original is deleted.
+	var ownerRefs []metav1.OwnerReference
+	if originalCM != nil {
+		ownerRefs = []metav1.OwnerReference{
+			{
+				APIVersion: "v1",
+				Kind:       "ConfigMap",
+				Name:       originalCMName,
+				UID:        originalCM.GetUID(),
+			},
+		}
+	}
+
 	ddCM := &corev1.ConfigMap{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "v1",
 			Kind:       "ConfigMap",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        ddName,
-			Namespace:   namespace,
-			Labels:      labels,
-			Annotations: annotations,
+			Name:            ddName,
+			Namespace:       namespace,
+			Labels:          labels,
+			Annotations:     annotations,
+			OwnerReferences: ownerRefs,
 		},
 		Data: mergedData,
 	}
