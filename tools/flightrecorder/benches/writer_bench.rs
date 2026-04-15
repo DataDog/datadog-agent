@@ -428,6 +428,122 @@ fn bench_logs_throughput_saturation(c: &mut Criterion) {
     group.finish();
 }
 
+// ---------------------------------------------------------------------------
+// End-to-end UDS benchmark
+//
+// Full pipeline: UDS socket write → async read_frame → envelope peek →
+// rtrb push → writer thread → Parquet flush. Simulates the real production
+// path including kernel socket buffers and async I/O.
+// ---------------------------------------------------------------------------
+
+fn bench_logs_uds_e2e(c: &mut Criterion) {
+    use flightrecorder::writers::thread::WriterHandle;
+    use std::io::Write;
+    use std::os::unix::net::UnixStream as StdUnixStream;
+    use tokio::net::UnixStream as TokioUnixStream;
+    use tokio::io::BufReader;
+
+    let mut group = c.benchmark_group("logs_uds_e2e");
+    group.sample_size(10);
+
+    let cases: &[(&str, usize, usize, usize)] = &[
+        // (name, entries_per_frame, content_bytes, n_frames)
+        ("p99_2000x250B_x100", 2000, 250, 100),
+        ("extreme_2000x500B_x100", 2000, 500, 100),
+    ];
+
+    for &(name, n_entries, content_len, n_frames) in cases {
+        let frame = build_log_frame_with_content(n_entries, content_len);
+        let frame_len = frame.len();
+        let total_entries = n_entries * n_frames;
+        let total_bytes = frame_len * n_frames;
+
+        // Pre-build the wire-format payload: [4-byte LE len][frame] repeated.
+        let mut wire_payload = Vec::with_capacity((4 + frame_len) * n_frames);
+        for _ in 0..n_frames {
+            wire_payload.extend_from_slice(&(frame_len as u32).to_le_bytes());
+            wire_payload.extend_from_slice(&frame);
+        }
+
+        group.throughput(Throughput::Bytes(total_bytes as u64));
+
+        group.bench_function(name, |b| {
+            b.iter_custom(|iters| {
+                let wire_payload = wire_payload.clone();
+                let mut total = Duration::ZERO;
+
+                for _ in 0..iters {
+                    let dir = TempDir::new().unwrap();
+                    let (_prod_m, prod_l) = make_ctx_producer();
+                    let writer = LogsWriter::new(
+                        dir.path(),
+                        5000,
+                        Duration::from_secs(60),
+                        prod_l,
+                        Arc::new(DiskTracker::noop()),
+                    );
+                    let mut handle = WriterHandle::spawn(writer, 512, "bench-uds");
+
+                    // Create a UDS socket pair.
+                    let (sender_std, receiver_std) = StdUnixStream::pair().unwrap();
+                    sender_std.set_nonblocking(false).unwrap();
+                    receiver_std.set_nonblocking(true).unwrap();
+
+                    let rt = tokio::runtime::Builder::new_current_thread()
+                        .enable_io()
+                        .build()
+                        .unwrap();
+
+                    let start = Instant::now();
+
+                    // Sender thread: write all frames to the UDS socket, then close.
+                    let wire = wire_payload.clone();
+                    let sender_thread = std::thread::spawn(move || {
+                        let mut s = sender_std;
+                        s.write_all(&wire).unwrap();
+                        drop(s); // Close → reader sees EOF.
+                    });
+
+                    // Reader: async loop reading frames and routing to writer.
+                    rt.block_on(async {
+                        let stream = TokioUnixStream::from_std(receiver_std).unwrap();
+                        let mut reader = BufReader::new(stream);
+                        let mut buf = Vec::new();
+                        loop {
+                            match flightrecorder::framing::read_frame(&mut reader, &mut buf).await {
+                                Ok(Some(_)) => {
+                                    let frame = std::mem::take(&mut buf);
+                                    handle.send_frame(frame);
+                                }
+                                Ok(None) => break, // EOF
+                                Err(e) => panic!("read error: {e}"),
+                            }
+                        }
+                    });
+
+                    sender_thread.join().unwrap();
+                    handle.shutdown();
+                    total += start.elapsed();
+
+                    if iters == 1 {
+                        let secs = total.as_secs_f64();
+                        eprintln!(
+                            "  [{name}] {total_entries} entries in {n_frames} frames via UDS, \
+                             {:.0} frames/sec, {:.1} MB/sec, {:.0} entries/sec",
+                            n_frames as f64 / secs,
+                            total_bytes as f64 / secs / 1e6,
+                            total_entries as f64 / secs,
+                        );
+                    }
+                }
+                total
+            });
+        });
+    }
+
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_metrics_push,
@@ -436,5 +552,6 @@ criterion_group!(
     bench_logs_push_flush,
     bench_rtrb_e2e,
     bench_logs_throughput_saturation,
+    bench_logs_uds_e2e,
 );
 criterion_main!(benches);
