@@ -397,6 +397,7 @@ new-e2e-health-cascade:
       - EXTRA_PARAMS: --run TestSlowChecksSchedulerBlocking
       - EXTRA_PARAMS: --run TestRCHangingPlusSlowChecks
       - EXTRA_PARAMS: --run TestCombinedRCAndClusterAgentDown
+      - EXTRA_PARAMS: --run TestStagingSimRCHanging
 
 new-e2e-agent-configuration:
   extends: .new_e2e_template_needs_deb_x64

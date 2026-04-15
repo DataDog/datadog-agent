@@ -556,3 +556,109 @@ func (s *combinedFailureSuite) TestAgentSurvivesCombinedFailure() {
 	assert.False(s.T(), result.AgentDied,
 		"Agent should stay healthy even with RC hanging, cluster agent down, and workloads running")
 }
+
+// ---------------------------------------------------------------------------
+// Test 7: Full staging simulation — RC hanging with all agent features enabled
+//
+// Previous tests used a minimal agent (no fakeintake, no logs, no APM, no
+// process agent). Staging runs ALL of these, each registering health checks:
+//   - forwarder (needs fakeintake/intake to send to)
+//   - logs-agent (log collection from all containers)
+//   - dogstatsd (metrics receiver)
+//   - process-agent (live containers)
+//   - APM/trace-agent
+//   - tagger, workloadmeta, autodiscovery
+//   - slow checks (non-routable IPs)
+//
+// If the mechanism requires the full agent component set to be running,
+// this test should expose it.
+// ---------------------------------------------------------------------------
+
+// stagingProvisioner creates a Kind environment with fakeintake enabled
+// and all major agent features turned on, matching staging as closely
+// as possible.
+func stagingProvisioner(helmValues string) e2e.SuiteOption {
+	return e2e.WithProvisioner(
+		provkindvm.Provisioner(
+			provkindvm.WithRunOptions(
+				// Fakeintake enabled (default) — forwarder will be active
+				scenariokindvm.WithVMOptions(scenec2.WithInstanceType("t3.xlarge")),
+				scenariokindvm.WithDeployTestWorkload(),
+				scenariokindvm.WithDeployDogstatsd(),
+				scenariokindvm.WithAgentOptions(
+					kubernetesagentparams.WithHelmValues(helmValues),
+				),
+			),
+		),
+	)
+}
+
+type stagingSimSuite struct {
+	e2e.BaseSuite[environments.Kubernetes]
+}
+
+func TestStagingSimRCHanging(t *testing.T) {
+	e2e.Run(t, &stagingSimSuite{}, stagingProvisioner(fmt.Sprintf(`
+datadog:
+  clusterChecks:
+    enabled: true
+  remoteConfiguration:
+    enabled: true
+  logs:
+    enabled: true
+    containerCollectAll: true
+  apm:
+    portEnabled: true
+  processAgent:
+    enabled: true
+    processCollection:
+      enabled: true
+  dogstatsd:
+    useHostPort: true
+    nonLocalTraffic: true
+  networkMonitoring:
+    enabled: true
+  confd:
+    http_check.yaml: |-
+      init_config:
+      instances:
+%s
+clusterAgent:
+  env:
+    - name: DD_REMOTE_CONFIGURATION_RC_DD_URL
+      value: "http://192.0.2.1:8080"
+    - name: DD_REMOTE_CONFIGURATION_NO_TLS
+      value: "true"
+    - name: DD_REMOTE_CONFIGURATION_REFRESH_INTERVAL
+      value: "5s"
+agents:
+  containers:
+    agent:
+      env:
+        - name: DD_REMOTE_CONFIGURATION_RC_DD_URL
+          value: "http://192.0.2.1:8080"
+        - name: DD_REMOTE_CONFIGURATION_NO_TLS
+          value: "true"
+        - name: DD_REMOTE_CONFIGURATION_REFRESH_INTERVAL
+          value: "5s"
+        - name: DD_CHECK_RUNNERS
+          value: "4"
+`, slowCheckInstances())))
+}
+
+func (s *stagingSimSuite) TestAgentSurvivesStagingConditions() {
+	ctx := context.Background()
+	k8s := s.Env().KubernetesCluster.Client()
+	kc := s.Env().KubernetesCluster.KubernetesClient
+
+	pod := getNodeAgentPod(ctx, s.T(), k8s)
+	s.T().Logf("Node agent pod: %s", pod)
+
+	s.T().Log("Monitoring for 15 min: RC hanging + all features + slow checks + workloads + fakeintake")
+	result := monitorAgent(ctx, s.T(), kc, k8s, pod, 15*time.Minute, 15*time.Second)
+	reportResults(s.T(), result)
+
+	assert.False(s.T(), result.AgentDied,
+		"Agent should stay healthy under staging-like conditions with RC hanging. "+
+			"If this fails, the full component set + RC unavailability is the trigger.")
+}
