@@ -80,31 +80,29 @@ func (sc *tagFilterCache) clear() {
 	clear(sc.reverseCache)
 }
 
-// reverseCacheRing is a fixed-capacity ring buffer of pre-tagFilter context keys.
-// Once full, the oldest entry is overwritten on each add. Zero allocations in steady state.
+// reverseCacheRing is a ring buffer of pre-tagFilter context keys that grows on demand
+// up to reverseCacheCapacity. Once full, the oldest entry is overwritten on each add.
 // Use a ring buffer rather than a continuously growing array since otherwise we only evict
 // when the post-tagFilter key expires, if a high churn tag is filterped (eg. rotating pod
 // identifiers) but the post-tagFilter remains continuously active, these pre-filter keys
 // would continue to accumulate.
 type reverseCacheRing struct {
-	keys  [reverseCacheCapacity]ckey.ContextKey
+	keys  []ckey.ContextKey
 	pos   int // next write position (oldest element when full)
 	count int
 }
 
 // add inserts a key into the ring. If full, returns the evicted key.
 func (r *reverseCacheRing) add(key ckey.ContextKey) (ckey.ContextKey, bool) {
-	var evicted ckey.ContextKey
-	didEvict := r.count == reverseCacheCapacity
-	if didEvict {
-		evicted = r.keys[r.pos]
+	if r.count < reverseCacheCapacity {
+		r.keys = append(r.keys, key)
+		r.count++
+		return 0, false
 	}
+	evicted := r.keys[r.pos]
 	r.keys[r.pos] = key
 	r.pos = (r.pos + 1) % reverseCacheCapacity
-	if !didEvict {
-		r.count++
-	}
-	return evicted, didEvict
+	return evicted, true
 }
 
 // forEach calls fn for every key in the ring.
