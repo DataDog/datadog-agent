@@ -192,7 +192,6 @@ func configName(config integration.Config) string {
 // CreateSources creates new sources from an integration config,
 // returns an error if the parsing failed.
 func CreateSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
-
 	var configs []*logsConfig.LogsConfig
 	var err error
 

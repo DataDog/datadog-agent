@@ -206,6 +206,7 @@ func TestUnscheduleConfigRemovesSource(t *testing.T) {
 	assert.Equal(t, config.DockerType, logSource.Config.Type)
 	assert.Equal(t, "a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b", logSource.Config.Identifier)
 }
+
 func TestIgnoreConfigIfLogsExcluded(t *testing.T) {
 	scheduler, spy := setup()
 	configService := integration.Config{
