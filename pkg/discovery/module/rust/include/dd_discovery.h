@@ -90,6 +90,30 @@ struct dd_discovery_result {
 };
 
 /**
+ * Function pointer type for the Go log callback passed to `dd_discovery_init_logger`.
+ *
+ * Parameters:
+ * - `level`: log level (1=Error, 2=Warn, 3=Info, 4=Debug, 5=Trace)
+ * - `msg`: pointer to UTF-8 message bytes (NOT NUL-terminated)
+ * - `msg_len`: length of the message in bytes
+ */
+typedef void (*dd_log_fn)(uint32_t level, const char *msg, size_t msg_len);
+
+/**
+ * Register a Go function as the log backend for the Rust library.
+ *
+ * Must be called before the first `dd_discovery_get_services` invocation.
+ * Subsequent calls are no-ops (the logger can only be set once per process).
+ *
+ * `max_level` controls which records reach the callback:
+ * 1=Error, 2=Warn, 3=Info, 4=Debug, 5=Trace.
+ *
+ * # Safety
+ * `callback` must remain valid for the lifetime of the process.
+ */
+void dd_discovery_init_logger(dd_log_fn callback, uint32_t max_level);
+
+/**
  * Run service discovery and return a heap-allocated result.
  *
  * # Parameters

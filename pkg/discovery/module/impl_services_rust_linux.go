@@ -18,15 +18,23 @@ import "C"
 
 import (
 	"math"
+	"sync"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/discovery/core"
 	"github.com/DataDog/datadog-agent/pkg/discovery/model"
 )
 
+// rustLoggerOnce ensures the Rust log backend is initialised at most once per
+// process, even if multiple discovery module instances are created (e.g. tests).
+var rustLoggerOnce sync.Once
+
 // getServicesRust invokes the Rust library to process categorized PID lists and returns
 // service information. The caller must hold s.mux before calling this function.
 func (s *discovery) getServicesRust(params core.Params) (*model.ServicesResponse, error) {
+	// Initialise the Rust log backend on the first call, after the Go logger is
+	// configured. Subsequent calls are no-ops via rustLoggerOnce.
+	rustLoggerOnce.Do(initRustLogger)
 	return rustGetServices(params.NewPids, params.HeartbeatPids), nil
 }
 

@@ -5,7 +5,8 @@
 
 //! C ABI interface for `get_services`.
 //!
-//! Exports two symbols:
+//! Exports three symbols:
+//! - `dd_discovery_init_logger` — registers a Go callback as the Rust log backend.
 //! - `dd_discovery_get_services` — runs discovery and returns a heap-allocated result.
 //! - `dd_discovery_free` — deallocates the result.
 //!
@@ -16,6 +17,7 @@
 
 use std::ffi::c_char;
 use std::ptr;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::language::Language;
 use crate::params::Params;
@@ -285,6 +287,85 @@ fn services_response_to_result(resp: ServicesResponse) -> dd_discovery_result {
         gpu_pids,
         gpu_pids_len,
     }
+}
+
+// ---------------------------------------------------------------------------
+// Logger FFI
+// ---------------------------------------------------------------------------
+
+/// Function pointer type for the Go log callback.
+///
+/// Parameters:
+/// - `level`: log level (1=Error, 2=Warn, 3=Info, 4=Debug, 5=Trace)
+/// - `msg`: pointer to the UTF-8 message bytes (NOT NUL-terminated)
+/// - `msg_len`: length of the message in bytes
+pub type dd_log_fn = Option<unsafe extern "C" fn(level: u32, msg: *const c_char, msg_len: usize)>;
+
+static LOGGER_SET: AtomicBool = AtomicBool::new(false);
+
+struct GoLogger {
+    callback: unsafe extern "C" fn(level: u32, msg: *const c_char, msg_len: usize),
+}
+
+// SAFETY: GoLogger only holds a C function pointer, which is Send + Sync.
+unsafe impl Send for GoLogger {}
+// SAFETY: Same reasoning.
+unsafe impl Sync for GoLogger {}
+
+impl log::Log for GoLogger {
+    fn enabled(&self, _metadata: &log::Metadata) -> bool {
+        true
+    }
+
+    fn log(&self, record: &log::Record) {
+        // Include the Rust module path as context (e.g. "system_probe_lite::service_name::java").
+        let msg = format!("{}: {}", record.target(), record.args());
+        // SAFETY: `msg` is alive for the duration of the callback; the callback
+        // copies the bytes before returning (Go's C.GoStringN semantics).
+        unsafe {
+            (self.callback)(record.level() as u32, msg.as_ptr().cast::<c_char>(), msg.len());
+        }
+    }
+
+    fn flush(&self) {}
+}
+
+/// Register a Go function as the log backend for the Rust library.
+///
+/// Must be called before the first `dd_discovery_get_services` call.
+/// Subsequent calls are no-ops (the logger can only be set once per process).
+///
+/// `max_level` controls which records reach the callback:
+/// 1=Error, 2=Warn, 3=Info, 4=Debug, 5=Trace.
+///
+/// # Safety
+/// `callback` must be a valid function pointer that remains valid for the
+/// lifetime of the process (i.e. a statically-compiled Go `//export` function).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn dd_discovery_init_logger(callback: dd_log_fn, max_level: u32) {
+    // Guard against double-init (e.g. multiple discovery module instances in tests).
+    if LOGGER_SET.swap(true, Ordering::SeqCst) {
+        return;
+    }
+
+    let Some(cb) = callback else {
+        return;
+    };
+
+    let level = match max_level {
+        1 => log::LevelFilter::Error,
+        2 => log::LevelFilter::Warn,
+        3 => log::LevelFilter::Info,
+        4 => log::LevelFilter::Debug,
+        _ => log::LevelFilter::Trace,
+    };
+
+    // Box::leak gives a 'static reference required by log::set_logger.
+    let logger: &'static GoLogger = Box::leak(Box::new(GoLogger { callback: cb }));
+
+    // log::set_logger only fails if a logger is already set, which LOGGER_SET prevents.
+    let _ = log::set_logger(logger);
+    log::set_max_level(level);
 }
 
 // ---------------------------------------------------------------------------
