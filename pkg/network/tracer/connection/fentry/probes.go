@@ -132,7 +132,6 @@ var programs = map[string]struct{}{
 	probes.ProtocolClassifierQueuesSocketFilter:      {},
 	probes.ProtocolClassifierDBsSocketFilter:         {},
 	probes.ProtocolClassifierGRPCSocketFilter:        {},
-	netDevQueueRawTracepoint:                         {},
 }
 
 func enableProgram(enabled map[string]struct{}, name string) {
@@ -173,7 +172,9 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 			enableProgram(enabled, probes.ProtocolClassifierQueuesSocketFilter)
 			enableProgram(enabled, probes.ProtocolClassifierDBsSocketFilter)
 			enableProgram(enabled, probes.ProtocolClassifierGRPCSocketFilter)
-			enableProgram(enabled, netDevQueueRawTracepoint)
+			// Raw tracepoint is registered separately in initManager with
+			// tracepoint metadata, so enable it directly (not via programs map).
+			enabled[netDevQueueRawTracepoint] = struct{}{}
 		}
 
 		if hasSendPage {
