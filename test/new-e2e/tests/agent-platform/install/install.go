@@ -98,8 +98,6 @@ func MacOS(t *testing.T, client ExecutorWithRetry, options ...installparams.Opti
 	} else {
 		apikey = params.APIKey
 	}
-	exports = append(exports, fmt.Sprintf("DD_SYSTEMDAEMON_USER_GROUP=%s:staff", params.Username))
-	exports = append(exports, "DD_SYSTEMDAEMON_INSTALL=true")
 	env := strings.Join(exports, " ")
 	// Retry curl few times
 	cmd := fmt.Sprintf(`for i in {1..5}; do curl -fsSL https://install.datadoghq.com/scripts/install_mac_os.sh -o install-script.sh && break || sleep $((2**$i)); done && for i in {1..3}; do DD_API_KEY=%s %s DD_INSTALL_ONLY=true bash install-script.sh && exit 0 || sleep $((2**$i)); done; exit 1`, apikey, env)
