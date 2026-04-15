@@ -422,6 +422,15 @@ invariant SampledCountNonNegative {
 -- MessageContentIntegrity: the sampler never modifies log content
 --   bytes. See LogEmission contract for tagging semantics.
 --
+-- CreditRecovery: a pattern with no arrivals for duration
+--   D >= burst_size / rate_limit recovers full burst allowance.
+--   Its next arrival is guaranteed to be emitted. Follows from
+--   EmitMatchingLog's refill: capped_credits = min(credits +
+--   D * rate_limit, burst_size). With D >= burst_size / rate_limit,
+--   capped_credits = burst_size >= 1.0 regardless of prior credits.
+--   Rate limiting is not permanent; quiet patterns return to
+--   pass-through.
+--
 -- SteadyStateRateBound: after burst exhaustion, a pattern emits
 --   at most rate_limit logs per second. Over interval T seconds,
 --   at most burst_size + rate_limit * T logs of one pattern are

@@ -6,6 +6,7 @@
 package preprocessor
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -206,6 +207,219 @@ func TestAdaptiveSampler_CreditsCappedAtBurstSize(t *testing.T) {
 	s.now = func() time.Time { return t0.Add(time.Hour) }
 	s.Process(testMsg(), patternA)                 // refill triggers cap
 	assert.Equal(t, burst-1, s.entries[0].credits) // credits capped, then decremented
+}
+
+// --- AdaptiveSampler: credit edge cases ---
+
+// Dropping a message does not consume a credit. After a drop, the credit
+// balance reflects only the refill, not a decrement.
+func TestAdaptiveSampler_DropDoesNotConsumeCredit(t *testing.T) {
+	s := newSampler(10, 2.0, 1.0) // burst=2, rate=1/sec
+	t0 := time.Now()
+	s.now = func() time.Time { return t0 }
+
+	s.Process(testMsg(), patternA) // new pattern; credits = 1
+	s.Process(testMsg(), patternA) // credits = 0
+
+	// Drop at the same timestamp: no refill, credits stay at 0.
+	assert.Nil(t, s.Process(testMsg(), patternA), "should be dropped")
+	assert.Equal(t, 0.0, s.entries[0].credits,
+		"drop should not decrement credits below 0")
+
+	// Drop again: still 0, not -1.
+	assert.Nil(t, s.Process(testMsg(), patternA))
+	assert.Equal(t, 0.0, s.entries[0].credits,
+		"repeated drops should leave credits at 0")
+}
+
+// Credits refill even on dropped messages. A drop after a quiet period
+// accumulates credits from the elapsed time, enabling the next message.
+func TestAdaptiveSampler_RefillHappensOnDrop(t *testing.T) {
+	s := newSampler(10, 1.0, 2.0) // burst=1, rate=2/sec
+	t0 := time.Now()
+	s.now = func() time.Time { return t0 }
+
+	s.Process(testMsg(), patternA) // new pattern; credits = 0 (burst=1, first msg costs 1)
+
+	// 0.25s later: refill = 0.25 * 2 = 0.5 credits. Not enough to emit (< 1.0).
+	s.now = func() time.Time { return t0.Add(250 * time.Millisecond) }
+	assert.Nil(t, s.Process(testMsg(), patternA), "0.5 credits should not be enough")
+	// Credits after this drop: 0.5 (refill applied, no decrement).
+	assert.Equal(t, 0.5, s.entries[0].credits,
+		"drop should preserve refilled credits")
+
+	// 0.25s later again: refill = 0.25 * 2 = 0.5 more → 0.5 + 0.5 = 1.0.
+	s.now = func() time.Time { return t0.Add(500 * time.Millisecond) }
+	out := s.Process(testMsg(), patternA)
+	require.NotNil(t, out, "1.0 credits should allow emit")
+}
+
+// Credits of exactly 1.0 after refill are sufficient to emit, leaving 0.0.
+func TestAdaptiveSampler_ExactlyOneCredit(t *testing.T) {
+	s := newSampler(10, 5.0, 2.0) // burst=5, rate=2/sec
+	t0 := time.Now()
+	s.now = func() time.Time { return t0 }
+
+	s.Process(testMsg(), patternA) // new pattern; credits = 4
+	s.Process(testMsg(), patternA) // credits = 3
+	s.Process(testMsg(), patternA) // credits = 2
+	s.Process(testMsg(), patternA) // credits = 1
+	s.Process(testMsg(), patternA) // credits = 0
+	assert.Nil(t, s.Process(testMsg(), patternA), "should be exhausted")
+
+	// 0.5s * 2/sec = exactly 1.0 credit refill.
+	s.now = func() time.Time { return t0.Add(500 * time.Millisecond) }
+	out := s.Process(testMsg(), patternA)
+	require.NotNil(t, out, "exactly 1.0 credits should allow emit")
+	assert.Equal(t, 0.0, s.entries[0].credits,
+		"emit at exactly 1.0 should leave 0.0 credits")
+
+	// Immediately after: 0.0 credits, should drop.
+	assert.Nil(t, s.Process(testMsg(), patternA), "0.0 credits should drop")
+}
+
+// --- AdaptiveSampler: CreditRecovery ---
+//
+// A fully exhausted pattern recovers full burst allowance after a quiet
+// period D >= burst_size / rate_limit, and does NOT recover full burst
+// when D < burst_size / rate_limit. All cases use burst > rate so that
+// recovery takes > 1 second, making the insufficient sub-test non-trivial
+// (ceil(burst/rate) >= 2, so ceil-1 >= 1 second of partial recovery).
+//
+// Integer seconds avoid time.Duration nanosecond truncation. ceil(burst/rate)
+// is the smallest whole-second duration guaranteeing full recovery:
+// ceil(burst/rate) * rate >= burst by definition, and integer seconds
+// survive the time.Duration round-trip exactly.
+
+func TestAdaptiveSampler_CreditRecovery(t *testing.T) {
+	cases := []struct {
+		name  string
+		burst float64
+		rate  float64
+	}{
+		{"burst=3 rate=1", 3, 1},
+		{"burst=10 rate=3", 10, 3},
+		{"burst=100 rate=7", 100, 7},
+		{"burst=50 rate=49", 50, 49},
+		{"burst=7 rate=2", 7, 2},
+		{"burst=2 rate=1", 2, 1},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			burstInt := int(tc.burst)
+			cfg := AdaptiveSamplerConfig{
+				MaxPatterns:    10,
+				RateLimit:      tc.rate,
+				BurstSize:      tc.burst,
+				MatchThreshold: 0.9,
+			}
+
+			exhaust := func(t *testing.T, s *AdaptiveSampler, t0 time.Time) {
+				t.Helper()
+				s.now = func() time.Time { return t0 }
+				for range burstInt + 5 {
+					s.Process(testMsg(), patternA)
+				}
+				require.Nil(t, s.Process(testMsg(), patternA), "should be rate-limited after exhaustion")
+			}
+
+			recoverySec := int64(math.Ceil(tc.burst / tc.rate))
+
+			t.Run("sufficient quiet recovers full burst", func(t *testing.T) {
+				s := NewAdaptiveSampler(cfg, "test")
+				t0 := time.Now()
+				exhaust(t, s, t0)
+
+				s.now = func() time.Time { return t0.Add(time.Duration(recoverySec) * time.Second) }
+
+				for i := range burstInt {
+					require.NotNilf(t, s.Process(testMsg(), patternA),
+						"message %d of %d should be emitted after recovery", i+1, burstInt)
+				}
+				require.Nil(t, s.Process(testMsg(), patternA), "burst should be re-exhausted")
+			})
+
+			t.Run("insufficient quiet does not recover full burst", func(t *testing.T) {
+				s := NewAdaptiveSampler(cfg, "test")
+				t0 := time.Now()
+				exhaust(t, s, t0)
+
+				// One second less than recovery. (recoverySec-1) * rate < burst
+				// because all cases have burst > rate, so recoverySec >= 2 and
+				// recoverySec-1 >= 1 — always a non-trivial partial recovery.
+				s.now = func() time.Time { return t0.Add(time.Duration(recoverySec-1) * time.Second) }
+
+				emitted := 0
+				for range burstInt {
+					if s.Process(testMsg(), patternA) != nil {
+						emitted++
+					}
+				}
+				require.Less(t, emitted, burstInt,
+					"insufficient quiet should not restore full burst (got %d/%d)", emitted, burstInt)
+				require.Greater(t, emitted, 0,
+					"partial recovery should restore some credits")
+			})
+		})
+	}
+}
+
+// --- AdaptiveSampler: SteadyStateRateBound ---
+//
+// Under sustained load at a rate >> rate_limit, the total emitted count
+// over T seconds is bounded by burst_size + rate_limit * T. This is the
+// core token bucket guarantee.
+
+func TestAdaptiveSampler_SteadyStateRateBound(t *testing.T) {
+	cases := []struct {
+		name  string
+		burst float64
+		rate  float64
+	}{
+		{"burst=5 rate=2", 5, 2},
+		{"burst=10 rate=1", 10, 1},
+		{"burst=3 rate=3", 3, 3},
+		{"burst=20 rate=5", 20, 5},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			s := NewAdaptiveSampler(AdaptiveSamplerConfig{
+				MaxPatterns:    10,
+				RateLimit:      tc.rate,
+				BurstSize:      tc.burst,
+				MatchThreshold: 0.9,
+			}, "test")
+			t0 := time.Now()
+
+			// Send messages at 1 per millisecond for 10 seconds.
+			// That's 10,000 messages — well above any rate_limit in the cases.
+			const totalDuration = 10 * time.Second
+			const step = time.Millisecond
+			emitted := 0
+			for elapsed := time.Duration(0); elapsed <= totalDuration; elapsed += step {
+				s.now = func() time.Time { return t0.Add(elapsed) }
+				if s.Process(testMsg(), patternA) != nil {
+					emitted++
+				}
+			}
+
+			// Upper bound: burst_size + rate_limit * T.
+			T := totalDuration.Seconds()
+			upperBound := int(tc.burst + tc.rate*T)
+			require.LessOrEqual(t, emitted, upperBound,
+				"emitted %d should be <= burst(%v) + rate(%v) * %vs = %d",
+				emitted, tc.burst, tc.rate, T, upperBound)
+
+			// Sanity: should have emitted at least rate_limit * T messages
+			// (the burst is consumed early, then steady-state takes over).
+			lowerBound := int(tc.rate * T)
+			require.GreaterOrEqual(t, emitted, lowerBound,
+				"emitted %d should be >= rate(%v) * %vs = %d",
+				emitted, tc.rate, T, lowerBound)
+		})
+	}
 }
 
 // --- AdaptiveSampler: pattern isolation ---
