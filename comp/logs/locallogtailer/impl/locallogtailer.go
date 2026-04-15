@@ -135,7 +135,7 @@ func (lr *localLogTailer) start(_ context.Context) error {
 
 	// Wire AutoDiscovery to log sources via a dedicated scheduler (not the
 	// shared log-agent-scheduler Fx group used by the shipping logs agent).
-	adScheduler := logsadscheduler.New(lr.ad)
+	adScheduler := logsadscheduler.NewWithName("locallogtailer AD scheduler", lr.ad)
 	lr.schedulersMgr = schedulers.NewSchedulers(lr.logSources, nil)
 	lr.schedulersMgr.AddScheduler(adScheduler)
 	lr.schedulersMgr.Start()
