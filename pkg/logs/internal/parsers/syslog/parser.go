@@ -43,10 +43,11 @@ func (p *parser) Parse(msg *message.Message) (*message.Message, error) {
 		parsed, err = ParseBSDLine(content)
 	}
 
-	// On error, guarantee the original content is preserved even if parsed.Msg
-	// is nil (e.g. empty input). On success, use the parsed Msg body.
+	// On error, always preserve the full original content so malformed lines
+	// are reconstructable from output. parsed.Msg may be a truncated fragment
+	// (e.g. line[pos:] after a PRI header) which would silently drop the prefix.
 	msgBody := string(parsed.Msg)
-	if err != nil && len(parsed.Msg) == 0 && len(content) > 0 {
+	if err != nil {
 		msgBody = string(content)
 	}
 
