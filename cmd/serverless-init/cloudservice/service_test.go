@@ -27,6 +27,50 @@ func TestGetCloudServiceType(t *testing.T) {
 	assert.Equal(t, "appservice", GetCloudServiceType().GetOrigin())
 }
 
+func TestDetectCloudProvider(t *testing.T) {
+	provider, services := detectCloudProvider()
+	assert.Equal(t, "", provider)
+	assert.Nil(t, services)
+
+	t.Run("GCP via GOOGLE_CLOUD_PROJECT", func(t *testing.T) {
+		t.Setenv("GOOGLE_CLOUD_PROJECT", "my-project")
+		provider, services := detectCloudProvider()
+		assert.Equal(t, "GCP", provider)
+		assert.Equal(t, []string{"Cloud Run", "Cloud Run Jobs"}, services)
+	})
+
+	t.Run("GCP via GCLOUD_PROJECT", func(t *testing.T) {
+		t.Setenv("GCLOUD_PROJECT", "my-project")
+		provider, _ := detectCloudProvider()
+		assert.Equal(t, "GCP", provider)
+	})
+
+	t.Run("GCP via GCE_METADATA_HOST", func(t *testing.T) {
+		t.Setenv("GCE_METADATA_HOST", "169.254.169.254")
+		provider, _ := detectCloudProvider()
+		assert.Equal(t, "GCP", provider)
+	})
+
+	t.Run("Azure via IDENTITY_ENDPOINT", func(t *testing.T) {
+		t.Setenv("IDENTITY_ENDPOINT", "http://localhost")
+		provider, services := detectCloudProvider()
+		assert.Equal(t, "Azure", provider)
+		assert.Equal(t, []string{"Container Apps", "App Service"}, services)
+	})
+
+	t.Run("Azure via MSI_ENDPOINT", func(t *testing.T) {
+		t.Setenv("MSI_ENDPOINT", "http://localhost")
+		provider, _ := detectCloudProvider()
+		assert.Equal(t, "Azure", provider)
+	})
+
+	t.Run("Azure via AZURE_CLIENT_ID", func(t *testing.T) {
+		t.Setenv("AZURE_CLIENT_ID", "some-id")
+		provider, _ := detectCloudProvider()
+		assert.Equal(t, "Azure", provider)
+	})
+}
+
 func TestGetCloudServiceTypeForCloudRunJob(t *testing.T) {
 	t.Setenv("CLOUD_RUN_JOB", "test-job")
 	cloudService := GetCloudServiceType()

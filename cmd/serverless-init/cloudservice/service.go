@@ -8,6 +8,7 @@ package cloudservice
 import (
 	"maps"
 	"os"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
@@ -198,7 +199,43 @@ func GetCloudServiceType() CloudService {
 		return &AppService{}
 	}
 
+	if provider, services := detectCloudProvider(); provider != "" {
+		log.Warnf("serverless-init is running on %s infrastructure but could not detect a supported service (%s). Monitoring may be limited.", provider, strings.Join(services, ", "))
+	}
+
 	return &LocalService{}
+}
+
+type cloudProvider struct {
+	name     string
+	envVars  []string
+	services []string
+}
+
+var cloudProviders = []cloudProvider{
+	{
+		name:     "GCP",
+		envVars:  []string{"GCE_METADATA_HOST", "GOOGLE_CLOUD_PROJECT", "GCLOUD_PROJECT"},
+		services: []string{"Cloud Run", "Cloud Run Jobs"},
+	},
+	{
+		name:     "Azure",
+		envVars:  []string{"AZURE_CLIENT_ID", "MSI_ENDPOINT", "IDENTITY_ENDPOINT"},
+		services: []string{"Container Apps", "App Service"},
+	},
+}
+
+// detectCloudProvider checks for environment signals that indicate we're
+// running on a cloud provider, even if the specific service wasn't recognized.
+func detectCloudProvider() (string, []string) {
+	for _, p := range cloudProviders {
+		for _, v := range p.envVars {
+			if os.Getenv(v) != "" {
+				return p.name, p.services
+			}
+		}
+	}
+	return "", nil
 }
 
 func tagValueOrUnknown(val string) string {
