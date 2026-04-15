@@ -8,7 +8,6 @@ package cloudservice
 import (
 	"maps"
 	"os"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
@@ -178,51 +177,28 @@ func (l *LocalService) ShouldForceFlushAllOnForceFlushToSerializer() bool {
 // GetCloudServiceType TODO: Refactor to avoid leaking individual service implementation details into the interface layer
 //
 //nolint:revive // TODO(SERV) Fix revive lin
-// serviceCheck pairs a detection function with the service it creates.
-// Adding a new cloud service here automatically includes it in the
-// unsupported-environment warning for its provider.
-type serviceCheck struct {
-	provider string
-	name     string
-	detect   func() bool
-	create   func() CloudService
-}
-
-var serviceChecks = []serviceCheck{
-	{"GCP", "Cloud Run", isCloudRunService, func() CloudService {
+func GetCloudServiceType() CloudService {
+	if isCloudRunService() {
 		if isCloudRunFunction() {
 			return &CloudRun{spanNamespace: cloudRunFunctionTagPrefix}
 		}
 		return &CloudRun{spanNamespace: cloudRunServiceTagPrefix}
-	}},
-	{"GCP", "Cloud Run Jobs", isCloudRunJob, func() CloudService { return &CloudRunJobs{} }},
-	{"Azure", "Container Apps", isContainerAppService, func() CloudService { return NewContainerApp() }},
-	{"Azure", "App Service", isAppService, func() CloudService { return &AppService{} }},
-}
+	}
 
-// providerEnvVars maps cloud providers to environment variables that indicate
-// we're running on their infrastructure, even outside a supported service.
-var providerEnvVars = map[string][]string{
-	"GCP":   {"GCE_METADATA_HOST", "GOOGLE_CLOUD_PROJECT", "GCLOUD_PROJECT"},
-	"Azure": {"AZURE_CLIENT_ID", "MSI_ENDPOINT", "IDENTITY_ENDPOINT"},
-}
+	if isCloudRunJob() {
+		return &CloudRunJobs{}
+	}
 
-//nolint:revive // TODO(SERV) Fix revive linter
-func GetCloudServiceType() CloudService {
-	for _, sc := range serviceChecks {
-		if sc.detect() {
-			return sc.create()
-		}
+	if isContainerAppService() {
+		return NewContainerApp()
+	}
+
+	if isAppService() {
+		return &AppService{}
 	}
 
 	if provider := detectCloudProvider(); provider != "" {
-		var services []string
-		for _, sc := range serviceChecks {
-			if sc.provider == provider {
-				services = append(services, sc.name)
-			}
-		}
-		log.Warnf("serverless-init is running on %s infrastructure but could not detect a supported service (%s). Monitoring may be limited.", provider, strings.Join(services, ", "))
+		log.Warnf("serverless-init is running on %s infrastructure but could not detect a supported service. Monitoring may be limited.", provider)
 	}
 
 	return &LocalService{}
@@ -231,11 +207,16 @@ func GetCloudServiceType() CloudService {
 // detectCloudProvider checks for environment signals that indicate we're
 // running on a cloud provider, even if the specific service wasn't recognized.
 func detectCloudProvider() string {
-	for provider, envVars := range providerEnvVars {
-		for _, v := range envVars {
-			if os.Getenv(v) != "" {
-				return provider
-			}
+	gcpVars := []string{"GCE_METADATA_HOST", "GOOGLE_CLOUD_PROJECT", "GCLOUD_PROJECT"}
+	for _, v := range gcpVars {
+		if os.Getenv(v) != "" {
+			return "GCP"
+		}
+	}
+	azureVars := []string{"AZURE_CLIENT_ID", "MSI_ENDPOINT", "IDENTITY_ENDPOINT"}
+	for _, v := range azureVars {
+		if os.Getenv(v) != "" {
+			return "Azure"
 		}
 	}
 	return ""

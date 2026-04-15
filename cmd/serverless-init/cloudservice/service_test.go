@@ -61,20 +61,6 @@ func TestDetectCloudProvider(t *testing.T) {
 	})
 }
 
-func TestServiceChecksProviderCoverage(t *testing.T) {
-	// Every provider in providerEnvVars must have at least one serviceCheck entry
-	for provider := range providerEnvVars {
-		found := false
-		for _, sc := range serviceChecks {
-			if sc.provider == provider {
-				found = true
-				break
-			}
-		}
-		assert.True(t, found, "provider %q has env var detection but no service checks", provider)
-	}
-}
-
 func TestGetCloudServiceTypeForCloudRunJob(t *testing.T) {
 	t.Setenv("CLOUD_RUN_JOB", "test-job")
 	cloudService := GetCloudServiceType()
