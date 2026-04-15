@@ -1896,4 +1896,7 @@ func TestCheckKnownKeyConcurrentAccess(t *testing.T) {
 	ready.Done()
 	// Wait for all goroutines to finish (if there's a concurrent map write, the process crashes before this)
 	done.Wait()
+
+	// If we reach here without a fatal "concurrent map writes" crash, the test passed
+	assert.True(t, cfg.GetBool("known_key"))
 }
