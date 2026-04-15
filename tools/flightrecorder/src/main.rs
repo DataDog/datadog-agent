@@ -26,6 +26,14 @@ use tracing::{error, info, warn};
 use generated::signals_generated::signals;
 use writers::thread::WriterHandle;
 
+/// Signal type determined by peeking at the FlatBuffers envelope.
+enum Signal {
+    Metrics,
+    Logs,
+    TraceStats,
+    Empty,
+}
+
 /// Handle a single client connection: read frames and route to writer threads.
 async fn handle_connection(
     stream: UnixStream,
@@ -60,13 +68,13 @@ async fn handle_connection(
         let signal = match flatbuffers::root::<signals::SignalEnvelope>(&buf) {
             Ok(env) => {
                 if env.metric_batch().is_some() {
-                    1u8
+                    Signal::Metrics
                 } else if env.log_batch().is_some() {
-                    2
+                    Signal::Logs
                 } else if env.trace_stats_batch().is_some() {
-                    3
+                    Signal::TraceStats
                 } else {
-                    0
+                    Signal::Empty
                 }
             }
             Err(e) => {
@@ -81,10 +89,10 @@ async fn handle_connection(
         // fresh one next iteration. No clone needed.
         let frame = std::mem::take(&mut buf);
         match signal {
-            1 => mh.lock().unwrap().send_frame(frame),
-            2 => lh.lock().unwrap().send_frame(frame),
-            3 => th.lock().unwrap().send_frame(frame),
-            _ => warn!("empty SignalEnvelope (no batch field set)"),
+            Signal::Metrics => mh.lock().unwrap().send_frame(frame),
+            Signal::Logs => lh.lock().unwrap().send_frame(frame),
+            Signal::TraceStats => th.lock().unwrap().send_frame(frame),
+            Signal::Empty => warn!("empty SignalEnvelope (no batch field set)"),
         }
     }
     cs.active_connections.fetch_sub(1, Ordering::Relaxed);
