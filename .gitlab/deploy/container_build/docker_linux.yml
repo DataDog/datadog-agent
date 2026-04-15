@@ -516,6 +516,33 @@ docker_build_cws_instrumentation_arm64:
   variables:
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_cws_instrumentation_arm64"
 
+# build the secret-generic-connector image
+.docker_build_secret_generic_connector:
+  extends: .docker_build_job_definition
+  rules:
+    - when: on_success
+  variables:
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/secret-generic-connector
+    BUILD_CONTEXT: Dockerfiles/secret-generic-connector
+  before_script:
+    - cp $SECRET_GENERIC_CONNECTOR_BINARIES_DIR/secret-generic-connector.${ARCH} $BUILD_CONTEXT/
+
+docker_build_secret_generic_connector_amd64:
+  extends: [.docker_build_secret_generic_connector, .docker_build_amd64]
+  needs:
+    - job: secret_generic_connector-build_amd64
+      artifacts: true
+  variables:
+    STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_secret_generic_connector_amd64"
+
+docker_build_secret_generic_connector_arm64:
+  extends: [.docker_build_secret_generic_connector, .docker_build_arm64]
+  needs:
+    - job: secret_generic_connector-build_arm64
+      artifacts: true
+  variables:
+    STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_secret_generic_connector_arm64"
+
 # build the dogstatsd image
 .docker_build_dogstatsd:
   extends: [.docker_build_job_definition, .docker_build_s3]
