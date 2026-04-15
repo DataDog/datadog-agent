@@ -9,7 +9,7 @@ package nginx
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -100,8 +100,8 @@ func TestDetect_APIError(t *testing.T) {
 			ingressClassGVR: "IngressClassList",
 		},
 	)
-	client.PrependReactor("list", "ingressclasses", func(action k8stesting.Action) (bool, runtime.Object, error) {
-		return true, nil, fmt.Errorf("api error")
+	client.PrependReactor("list", "ingressclasses", func(_ k8stesting.Action) (bool, runtime.Object, error) {
+		return true, nil, errors.New("api error")
 	})
 
 	found, err := Detect(context.Background(), client)
