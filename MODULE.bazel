@@ -9,6 +9,7 @@ env_vars(
     name = "agent_volatile",
     # Each variable needs a justification. Every time you use one, the
     # target using it is potentially uncachable.
+    # ⚠️ Keep in sync with the `--repo_env=` entries in .bazelrc
     variables = [
         # This gets set by omnibus builds in many cases. It's used in the script
         # to set things like compression, so we'll mimic that for now.
@@ -72,17 +73,17 @@ bazel_dep(name = "supply_chain_tools", version = "0.0.1")
 
 bazel_dep(name = "rules_testing", version = "0.9.0", dev_dependency = True)
 
-single_version_override(
-    module_name = "protobuf",
-    patch_strip = 1,
-    patches = ["//bazel/patches:protobuf/0001-add-libstdcpp-to-link-opts.patch"],
-)
-
 # Temporary until rules_go > 0.60.0 with go.work support is in BCR
+# To be reverted to the upstream repo when
+# https://github.com/bazel-contrib/rules_go/pull/4586 gets merged
 git_override(
     module_name = "rules_go",
-    commit = "2ce3598fc987420d180649847f3bf1cc044494e6",  # main as of Feb 11, 2026
-    remote = "https://github.com/bazel-contrib/rules_go.git",
+    commit = "4cb2eab3d1aec456573f0cefd8e8800e9c68ae7d",
+    patch_strip = 1,
+    patches = [
+        "//bazel/patches:rules_go-windows-symlink-workaround.patch",  # bazel-contrib/rules_go#3977
+    ],
+    remote = "https://github.com/chouquette/rules_go.git",
 )
 
 # Temporary until rules_pkg > 1.2.0 is in BCR
@@ -315,9 +316,6 @@ include("//deps/openscap:openscap.MODULE.bazel")
 include("//deps/libpcap:libpcap.MODULE.bazel")
 
 # buildifier: leave-alone
-include("//deps/secret_connector:secret_connector.MODULE.bazel")
-
-# buildifier: leave-alone
 include("//deps/security_agent_policies:security_agent_policies.MODULE.bazel")
 
 # buildifier: leave-alone
@@ -341,3 +339,16 @@ include("//deps:go.MODULE.bazel")
 bazel_dep(name = "apple_support", version = "2.3.0")
 
 use_extension("//bazel/tools:bazelisk_check.bzl", "bazelisk_check")
+
+###########################################################################
+## Hybrid build. Capture binaries built with dda (or whatever) as if they
+## were built as bazel targets.
+###########################################################################
+
+prebuilt_file = use_repo_rule("//bazel/repo:prebuilt_file.bzl", "prebuilt_file")
+
+prebuilt_file(
+    name = "agent_binary",
+    target_label = "@@//:bin/agent/agent",
+    target_name = "agent",
+)

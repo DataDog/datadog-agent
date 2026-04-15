@@ -154,6 +154,21 @@ func main() {
 	// len/isEmpty error cases: unsupported types
 	lenErrInt(42, "err")
 	lenErrStruct(condFields{I32: 1}, "err")
+
+	// Generic function called with two different shape instantiations.
+	// int and string have different GC shapes, so the compiler emits two
+	// distinct shape functions (go.shape.int, go.shape.string). A single
+	// probe targeting genericIdentity[...] will match both, exercising
+	// shared throttling across shapes and runtime dictionary resolution.
+	genericIdentity(42)
+	genericIdentity("hello")
+
+	// Method value: taking a method value of an inlined method creates a
+	// trampoline (-fm) function. The inlined method only exists as an
+	// inlined subroutine inside the trampoline. We must still be able to
+	// probe it.
+	mv := (&methodValueReceiver{val: 42}).inlinedMethod
+	methodValueSink(mv)
 }
 
 //go:noinline
@@ -497,4 +512,34 @@ func usesMapsOfMapsThatDoNotAppearAsArguments() map[byte]map[int]aStructNotUsedA
 	return map[byte]map[int]aStructNotUsedAsAnArgument{
 		'a': m["a"],
 	}
+}
+
+// genericIdentity is a generic function called with different shape types
+// (int vs string) to exercise dictionary-based type resolution and shared
+// throttling across shape instantiations.
+//
+//go:noinline
+func genericIdentity[T any](x T) T {
+	fmt.Println(x)
+	return x
+}
+
+// methodValueReceiver is used to test probing inlined methods that are only
+// reachable through a method value trampoline (-fm wrapper). When Go creates
+// a method value (e.g. obj.Method), the compiler generates a trampoline
+// function. If the method is small enough to be inlined, the only concrete
+// instance lives inside the trampoline.
+type methodValueReceiver struct {
+	val int
+}
+
+// inlinedMethod is intentionally NOT marked //go:noinline so it will be
+// inlined into the trampoline wrapper.
+func (m *methodValueReceiver) inlinedMethod() int {
+	return m.val
+}
+
+//go:noinline
+func methodValueSink(f func() int) {
+	fmt.Println(f())
 }

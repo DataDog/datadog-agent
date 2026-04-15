@@ -16,6 +16,7 @@ import (
 	"math/rand/v2"
 	"net"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -28,12 +29,15 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
+
+const logDir = "var/log"
 
 // UserSessionKey describes the key to a user session
 type UserSessionKey struct {
@@ -441,6 +445,28 @@ func (ifr *incrementalFileReader) reloadIfRotated() error {
 	return nil
 }
 
+func sshAuthLogPathCandidates() []string {
+	names := []string{
+		"auth.log", // Debian/Ubuntu
+		"secure",   // RHEL/CentOS/Fedora
+		"messages", // openSUSE/others
+	}
+	var hostRoots []string
+	if hr := os.Getenv("HOST_ROOT"); hr != "" && env.IsContainerized() {
+		hostRoots = append(hostRoots, hr)
+	}
+	out := make([]string, 0, len(names)*(1+len(hostRoots)))
+	for _, root := range hostRoots {
+		for _, name := range names {
+			out = append(out, filepath.Join(root, logDir, name))
+		}
+	}
+	for _, name := range names {
+		out = append(out, filepath.Join("/", logDir, name))
+	}
+	return out
+}
+
 // StartSSHUserSessionResolver initializes the ssh log reader by looking for the available file, opening it and setting up the initial offset
 // Lock must be held
 func (r *Resolver) StartSSHUserSessionResolver() error {
@@ -453,14 +479,10 @@ func (r *Resolver) StartSSHUserSessionResolver() error {
 		return err
 	}
 
-	// Try to find the ssh log file
-	possibleLogPaths := []string{
-		"/var/log/auth.log", // Debian/Ubuntu
-		"/var/log/secure",   // RHEL/CentOS/Fedora
-		"/var/log/messages", // openSUSE/autres
-	}
+	// Try to find the ssh log file (container: also under HOST_ROOT or /host/var/log)
+	// We stop on the first file found
 	path := ""
-	for _, possiblePath := range possibleLogPaths {
+	for _, possiblePath := range sshAuthLogPathCandidates() {
 		_, err = os.Stat(possiblePath)
 		if err == nil {
 			path = possiblePath
