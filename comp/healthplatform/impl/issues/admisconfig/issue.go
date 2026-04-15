@@ -21,7 +21,7 @@ const (
 	source     = "autodiscovery"
 	unknownVal = "unknown"
 	failedMsg  = "Autodiscovery misconfiguration error detected"
-	impactMsg  = "Metrics, logs, or traces may not be collected due to misconfigured autodiscovery settings"
+	impactMsg  = "Metrics, and logs may not be collected due to misconfigured autodiscovery settings"
 )
 
 // containerLabelSource matches the string value of types.ContainerLabelSource
