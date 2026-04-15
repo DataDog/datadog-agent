@@ -170,6 +170,36 @@ func main() {
 	indexNilPtrSlice(&lenFields{Items: []int{10, 20, 30}}, "match")
 	indexNilPtrSlice(nil, "nilptr")
 
+	// Index-then-getmember: index into array/slice of structs, then access field.
+	structSliceArg([]indexMemberStruct{
+		{Val: 100, Txt: "first"},
+		{Val: 200, Txt: "second"},
+	}, "idx-member")
+	structArrayArg([2]indexMemberStruct{
+		{Val: 300, Txt: "third"},
+		{Val: 400, Txt: "fourth"},
+	}, "idx-member")
+
+	// Index-then-deref-then-getmember: index into array/slice of pointers to
+	// structs, dereference the pointer, then access field.
+	ptrStructSliceArg([]*indexMemberStruct{
+		{Val: 500, Txt: "fifth"},
+		{Val: 600, Txt: "sixth"},
+	}, "idx-ptr-member")
+	ptrStructArrayArg([2]*indexMemberStruct{
+		{Val: 700, Txt: "seventh"},
+		{Val: 800, Txt: "eighth"},
+	}, "idx-ptr-member")
+
+	// Deep dereference chains: struct field is pointer-to-array-of-structs or
+	// pointer-to-array-of-pointers-to-structs.
+	elem1 := indexMemberStruct{Val: 900, Txt: "ninth"}
+	elem2 := indexMemberStruct{Val: 1000, Txt: "tenth"}
+	indexMemberWrapperArg(&indexMemberWrapper{
+		Arr:    &[2]indexMemberStruct{elem1, elem2},
+		PtrArr: &[2]*indexMemberStruct{&elem1, &elem2},
+	}, "wrapper")
+
 	// Generic function called with two different shape instantiations.
 	// int and string have different GC shapes, so the compiler emits two
 	// distinct shape functions (go.shape.int, go.shape.string). A single
@@ -559,6 +589,60 @@ func bigArrayArg(s [131072]int64) {
 //go:noinline
 func bigArrayStructArg(s *bigArrayStruct) {
 	fmt.Println(s.data[0], s.tag)
+}
+
+// indexMemberStruct is a small struct for testing index-then-getmember
+// expressions (e.g., slice[0].Val). The pad field prevents register splitting.
+type indexMemberStruct struct {
+	Val int32
+	Txt string
+	pad [3]int16
+}
+
+// indexMemberWrapper holds pointer-to-array fields for testing deep
+// dereference chains: ptr → array → struct and ptr → array → ptr → struct.
+type indexMemberWrapper struct {
+	Arr    *[2]indexMemberStruct
+	PtrArr *[2]*indexMemberStruct
+	pad    [3]int16
+}
+
+// structSliceArg takes a slice of structs for testing index-then-getmember.
+//
+//go:noinline
+func structSliceArg(s []indexMemberStruct, tag string) {
+	fmt.Println(s[0].Val, tag)
+}
+
+// structArrayArg takes an array of structs for testing index-then-getmember.
+//
+//go:noinline
+func structArrayArg(s [2]indexMemberStruct, tag string) {
+	fmt.Println(s[0].Val, tag)
+}
+
+// ptrStructSliceArg takes a slice of pointers to structs for testing
+// index-then-deref-then-getmember.
+//
+//go:noinline
+func ptrStructSliceArg(s []*indexMemberStruct, tag string) {
+	fmt.Println(s[0].Val, tag)
+}
+
+// ptrStructArrayArg takes an array of pointers to structs for testing
+// index-then-deref-then-getmember.
+//
+//go:noinline
+func ptrStructArrayArg(s [2]*indexMemberStruct, tag string) {
+	fmt.Println(s[0].Val, tag)
+}
+
+// indexMemberWrapperArg takes a pointer to a wrapper struct with
+// pointer-to-array fields for testing deep dereference + index + getmember.
+//
+//go:noinline
+func indexMemberWrapperArg(s *indexMemberWrapper, tag string) {
+	fmt.Println(s.Arr[0].Val, s.PtrArr[0].Val, tag)
 }
 
 // genericIdentity is a generic function called with different shape types

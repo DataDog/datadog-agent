@@ -3763,6 +3763,16 @@ func resolveExpression(
 		// the correct one when we encounter field accesses after dereferences.
 		lastDerefOpIdx := -1
 
+		// Detect if the base expression already ends with a DereferenceOp
+		// (e.g., from slice index resolution). If so, initialize state so
+		// the member loop updates the correct op.
+		if len(operations) > 0 {
+			if _, ok := operations[len(operations)-1].(*ir.DereferenceOp); ok {
+				hasDereferenced = true
+				lastDerefOpIdx = len(operations) - 1
+			}
+		}
+
 		// Process each member in the chain.
 		for _, memberName := range members {
 			// Handle pointer dereference if needed.
@@ -3928,6 +3938,10 @@ func resolveExpression(
 // (array or slice).
 func indexElementType(tc *typeCatalog, baseType ir.Type) (ir.Type, error) {
 	canonical := tc.typesByID[baseType.GetID()]
+	// Dereference pointer if needed (e.g., *[N]T or *[]T).
+	if ptrType, ok := canonical.(*ir.PointerType); ok {
+		canonical = tc.typesByID[ptrType.Pointee.GetID()]
+	}
 	switch t := canonical.(type) {
 	case *ir.ArrayType:
 		return t.Element, nil

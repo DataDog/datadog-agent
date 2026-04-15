@@ -743,7 +743,7 @@ probes:
     methodName: main.condLine
     sourceFile: main.go
     lines:
-      - "411"
+      - "441"
   when:
     dsl: "n == 7"
     json: {eq: [{ref: "n"}, 7]}
@@ -768,7 +768,7 @@ probes:
     methodName: main.condLine
     sourceFile: main.go
     lines:
-      - "411"
+      - "441"
   sampling:
     snapshotsPerSecond: 10
 
@@ -1979,3 +1979,214 @@ probes:
   captureSnapshot: true
   where:
     methodName: "main.(*methodValueReceiver).inlinedMethod"
+
+# --- Index-then-getmember: value-element collections ---
+
+# Slice of structs, capture int32 field: s[0].Val == 100
+- id: indexMember_sliceStruct_capture_int
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.structSliceArg
+  captureExpressions:
+    - name: "s0_Val"
+      expr:
+        dsl: "s[0].Val"
+        json: {getmember: [{index: [{ref: "s"}, 0]}, "Val"]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# Slice of structs, capture string field: s[1].Txt == "second"
+- id: indexMember_sliceStruct_capture_string
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.structSliceArg
+  captureExpressions:
+    - name: "s1_Txt"
+      expr:
+        dsl: "s[1].Txt"
+        json: {getmember: [{index: [{ref: "s"}, 1]}, "Txt"]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# Array of structs, capture int32 field: s[0].Val == 300
+- id: indexMember_arrayStruct_capture_int
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.structArrayArg
+  captureExpressions:
+    - name: "s0_Val"
+      expr:
+        dsl: "s[0].Val"
+        json: {getmember: [{index: [{ref: "s"}, 0]}, "Val"]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# Array of structs, capture string field: s[1].Txt == "fourth"
+- id: indexMember_arrayStruct_capture_string
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.structArrayArg
+  captureExpressions:
+    - name: "s1_Txt"
+      expr:
+        dsl: "s[1].Txt"
+        json: {getmember: [{index: [{ref: "s"}, 1]}, "Txt"]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# Slice of structs, template: s[0].Val in log message
+- id: indexMember_sliceStruct_template
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.structSliceArg
+  template: "s[0].Val={s[0].Val}"
+  segments:
+    - str: "s[0].Val="
+    - json: {getmember: [{index: [{ref: "s"}, 0]}, "Val"]}
+      dsl: "s[0].Val"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Slice of structs, condition: s[0].Val == 100
+- id: indexMember_sliceStruct_cond
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.structSliceArg
+  when:
+    dsl: "s[0].Val == 100"
+    json: {eq: [{getmember: [{index: [{ref: "s"}, 0]}, "Val"]}, 100]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- Index-then-getmember: pointer-element collections ---
+
+# Slice of pointers to structs, capture int32 field: s[0].Val == 500
+- id: indexMember_ptrSliceStruct_capture_int
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.ptrStructSliceArg
+  captureExpressions:
+    - name: "s0_Val"
+      expr:
+        dsl: "s[0].Val"
+        json: {getmember: [{index: [{ref: "s"}, 0]}, "Val"]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# Slice of pointers to structs, capture string field: s[1].Txt == "sixth"
+- id: indexMember_ptrSliceStruct_capture_string
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.ptrStructSliceArg
+  captureExpressions:
+    - name: "s1_Txt"
+      expr:
+        dsl: "s[1].Txt"
+        json: {getmember: [{index: [{ref: "s"}, 1]}, "Txt"]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# Array of pointers to structs, capture int32 field: s[0].Val == 700
+- id: indexMember_ptrArrayStruct_capture_int
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.ptrStructArrayArg
+  captureExpressions:
+    - name: "s0_Val"
+      expr:
+        dsl: "s[0].Val"
+        json: {getmember: [{index: [{ref: "s"}, 0]}, "Val"]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# Array of pointers to structs, capture string field: s[1].Txt == "eighth"
+- id: indexMember_ptrArrayStruct_capture_string
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.ptrStructArrayArg
+  captureExpressions:
+    - name: "s1_Txt"
+      expr:
+        dsl: "s[1].Txt"
+        json: {getmember: [{index: [{ref: "s"}, 1]}, "Txt"]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- Index-then-getmember: pointer-to-array-of-structs ---
+# Struct field is *[2]indexMemberStruct — requires ptr deref, then array index,
+# then field access.
+
+# s.Arr[0].Val == 900
+- id: indexMember_wrapper_arr_capture
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.indexMemberWrapperArg
+  captureExpressions:
+    - name: "arr0_Val"
+      expr:
+        dsl: "s.Arr[0].Val"
+        json: {getmember: [{index: [{getmember: [{ref: "s"}, "Arr"]}, 0]}, "Val"]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# s.Arr[1].Txt == "tenth"
+- id: indexMember_wrapper_arr_capture_1
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.indexMemberWrapperArg
+  captureExpressions:
+    - name: "arr1_Txt"
+      expr:
+        dsl: "s.Arr[1].Txt"
+        json: {getmember: [{index: [{getmember: [{ref: "s"}, "Arr"]}, 1]}, "Txt"]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- Index-then-getmember: pointer-to-array-of-pointers-to-structs ---
+# Struct field is *[2]*indexMemberStruct — requires ptr deref, then array index,
+# then another ptr deref, then field access.
+
+# s.PtrArr[0].Val == 900
+- id: indexMember_wrapper_ptrArr_capture
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.indexMemberWrapperArg
+  captureExpressions:
+    - name: "ptrArr0_Val"
+      expr:
+        dsl: "s.PtrArr[0].Val"
+        json: {getmember: [{index: [{getmember: [{ref: "s"}, "PtrArr"]}, 0]}, "Val"]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# s.PtrArr[1].Txt == "tenth"
+- id: indexMember_wrapper_ptrArr_capture_1
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.indexMemberWrapperArg
+  captureExpressions:
+    - name: "ptrArr1_Txt"
+      expr:
+        dsl: "s.PtrArr[1].Txt"
+        json: {getmember: [{index: [{getmember: [{ref: "s"}, "PtrArr"]}, 1]}, "Txt"]}
+  sampling:
+    snapshotsPerSecond: 10
