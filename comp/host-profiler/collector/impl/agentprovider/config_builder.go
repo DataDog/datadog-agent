@@ -12,6 +12,7 @@ import (
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/converters"
+	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/extensions/hpflareextension"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/params"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -185,11 +186,7 @@ func buildConfig(agent configManager, p params.CollectorParams) confMap {
 	buildMetricsTelemetry(config, agent.hostProfilerConfig.HealthMetrics)
 	buildMetricsPipeline(config, p.GetGoRuntimeMetrics(), agent.hostProfilerConfig.HealthMetrics, profilesProcessors, profilesExporters)
 
-	hpflarePort := agent.hostProfilerConfig.HPFlare.Port
-	if hpflarePort <= 0 {
-		hpflarePort = 7778
-	}
-	hpflareConf := confMap{"endpoint": fmt.Sprintf("localhost:%d", hpflarePort)}
+	hpflareConf := confMap{"endpoint": fmt.Sprintf("localhost:%d", hpflareextension.EffectivePort(agent.hostProfilerConfig.HPFlare.Port))}
 	_ = converters.Set(config, "extensions::hpflare/default", hpflareConf)
 	serviceExtensions := []any{"hpflare/default"}
 	if agent.hostProfilerConfig.DDProfiling.Enabled {

@@ -41,7 +41,7 @@ type flareImpl struct {
 func NewComponent(reqs Requires) (Provides, error) {
 	flare := flareImpl{
 		client: reqs.Client,
-		port:   reqs.Config.GetInt("hostprofiler.hpflare.port"),
+		port:   hpflareextension.EffectivePort(reqs.Config.GetInt("hostprofiler.hpflare.port")),
 	}
 	return Provides{
 		FlareProvider: flaretypes.NewProvider(flare.fillFlare),
