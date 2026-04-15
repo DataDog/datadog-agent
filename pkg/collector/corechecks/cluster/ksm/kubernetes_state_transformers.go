@@ -642,14 +642,13 @@ func endpointAddressTransformer(s sender.Sender, _ string, metric ksmstore.DDMet
 // metric into endpointslice.address_available and
 // endpointslice.address_not_ready based on the "ready" label, mirroring
 // the legacy endpoint.address_available / endpoint.address_not_ready split.
+// Per the Kubernetes API, a nil Ready condition means the endpoint is ready,
+// and KSM surfaces nil as an empty string — treat it as "true".
 func endpointSliceEndpointsTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
-	ready, found := metric.Labels["ready"]
-	if !found {
-		return
-	}
+	ready := metric.Labels["ready"]
 	tags = lo.Filter(tags, func(x string, _ int) bool { return !strings.HasPrefix(x, "ready:") })
 	switch ready {
-	case "true":
+	case "true", "":
 		s.Gauge(ksmMetricPrefix+"endpointslice.address_available", metric.Val, hostname, tags)
 	case "false":
 		s.Gauge(ksmMetricPrefix+"endpointslice.address_not_ready", metric.Val, hostname, tags)

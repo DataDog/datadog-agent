@@ -1254,7 +1254,7 @@ exclude github.com/tencentcloud/tencentcloud-sdk-go v1.0.162
 
 replace github.com/google/gopacket v1.1.19 => github.com/DataDog/gopacket v0.0.0-20251104174046-ae42df68210e
 
-// Remove once the discovery package is made public upstream (see L3n41c/kube-state-metrics branch lenaic/public-discovery)
+// Remove once https://github.com/kubernetes/kube-state-metrics/pull/2928 is merged
 replace k8s.io/kube-state-metrics/v2 v2.18.0 => github.com/L3n41c/kube-state-metrics/v2 v2.18.1-0.20260415185427-29e500020566
 
 // Remove once https://github.com/Iceber/iouring-go/pull/31 or equivalent is merged,
