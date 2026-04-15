@@ -151,6 +151,12 @@ func (t *Tailer) forwardMessages() {
 	}()
 
 	for decodedMessage := range t.decoder.OutputChan() {
+		// This tailer produces StateStructured messages where "message" is
+		// populated from the rendered Windows Event text. Currently, events
+		// with empty rendered text are silently dropped here -- the structured
+		// metadata (Event XML attributes, channel, provider, etc.) is discarded
+		// along with it. If that becomes a real concern, replace this check
+		// with decodedMessage.HasContent() (see stream_tailer.go).
 		if len(decodedMessage.GetContent()) > 0 {
 			// Leverage the existing message instead of creating a new one
 			// This preserves all bookmark information and is more efficient

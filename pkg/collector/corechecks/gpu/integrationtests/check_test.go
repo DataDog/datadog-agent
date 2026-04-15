@@ -54,16 +54,6 @@ func TestNVMLDeviceEnumeration(t *testing.T) {
 	}
 }
 
-// extractDeviceUUID extracts the GPU UUID from metric tags
-func extractDeviceUUID(tags []string) string {
-	for _, tag := range tags {
-		if len(tag) > 9 && tag[:9] == "gpu_uuid:" {
-			return tag[9:]
-		}
-	}
-	return ""
-}
-
 func TestCheckRunMatchesSpecForPhysicalDevices(t *testing.T) {
 	testutil.RequireGPU(t)
 	env.SetFeatures(t, env.NVML)
@@ -105,18 +95,25 @@ func TestCheckRunMatchesSpecForPhysicalDevices(t *testing.T) {
 	err = checkInstance.Run()
 	require.NoError(t, err, "Check.Run() should not return an error")
 
+	// Run the check a second time so rate-derived field metrics such as NVLink
+	// throughput have a previous sample to compare against and can be emitted.
+	mockSender.ResetCalls()
+	err = checkInstance.Run()
+	require.NoError(t, err, "Second Check.Run() should not return an error")
+
 	metricsByName := gpu.GetEmittedGPUMetrics(mockSender)
 	require.NotEmpty(t, metricsByName)
 
-	metricsByUUID := make(map[string]map[string][]gpuspec.EmittedMetric, len(devices))
+	metricsByUUID := make(map[string]map[string][]gpuspec.MetricObservation, len(devices))
 	for metricName, emittedSamples := range metricsByName {
 		for _, sample := range emittedSamples {
-			deviceUUID := strings.ToLower(extractDeviceUUID(sample.Tags))
-			if deviceUUID == "" {
+			uuids := gpuspec.TagsToKeyValues(sample.Tags)["gpu_uuid"]
+			if len(uuids) == 0 {
 				continue
 			}
+			deviceUUID := strings.ToLower(uuids[0])
 			if metricsByUUID[deviceUUID] == nil {
-				metricsByUUID[deviceUUID] = make(map[string][]gpuspec.EmittedMetric)
+				metricsByUUID[deviceUUID] = make(map[string][]gpuspec.MetricObservation)
 			}
 
 			metricsByUUID[deviceUUID][metricName] = append(metricsByUUID[deviceUUID][metricName], sample)
@@ -139,8 +136,9 @@ func TestCheckRunMatchesSpecForPhysicalDevices(t *testing.T) {
 		deviceMetrics := metricsByUUID[deviceUUID]
 		require.NotEmpty(t, deviceMetrics, "expected emitted metrics for GPU %s", deviceUUID)
 
+		gpuConfig := gpuspec.GPUConfig{Architecture: archName, DeviceMode: gpuspec.DeviceModePhysical}
 		t.Run("gpu="+deviceUUID, func(t *testing.T) {
-			gpu.ValidateEmittedMetricsAgainstSpec(t, metricsSpec, archName, gpuspec.DeviceModePhysical, deviceMetrics, nil)
+			gpu.ValidateEmittedMetricsAgainstSpec(t, metricsSpec, gpuConfig, deviceMetrics, nil)
 		})
 	}
 }

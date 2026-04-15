@@ -4,7 +4,7 @@
     "minimumReleaseAge": "7 days",
     "labels": ["dependencies", "changelog/no-changelog", "qa/no-code-change"],
     "stopUpdatingLabel": "stop-updating",
-    "gitIgnoredAuthors": ["41898282+github-actions[bot]@users.noreply.github.com"],
+    "gitIgnoredAuthors": ["41898282+github-actions[bot]@users.noreply.github.com", "200755185+dd-octo-sts[bot]@users.noreply.github.com"],
     "platformCommit": "enabled",
     "packageRules": [
       {
