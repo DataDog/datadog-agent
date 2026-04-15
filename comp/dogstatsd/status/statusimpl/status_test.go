@@ -30,6 +30,20 @@ func TestStatusDisabledWhenADPEnabled(t *testing.T) {
 	assert.Nil(t, provides.Status.Provider)
 }
 
+// TestStatusDisabledWhenADPDogstatsdOnlyEnabled verifies that setting only data_plane.dogstatsd.enabled=true
+// (without data_plane.enabled=true) is sufficient to disable the dogstatsd status provider.
+func TestStatusDisabledWhenADPDogstatsdOnlyEnabled(t *testing.T) {
+	config := configmock.New(t)
+	config.Set("data_plane.dogstatsd.enabled", true, configmodel.SourceAgentRuntime)
+
+	deps := dependencies{
+		Config: config,
+	}
+	provides := newStatusProvider(deps)
+
+	assert.Nil(t, provides.Status.Provider)
+}
+
 func TestStatusOutputPresent(t *testing.T) {
 	deps := dependencies{
 		Config: configmock.New(t),

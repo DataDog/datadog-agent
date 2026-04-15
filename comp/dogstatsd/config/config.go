@@ -54,9 +54,12 @@ func (c *Config) enabledDataPlane() bool {
 	// indicate whether ADP is enabled at all and whether it's handling DogStatsD traffic, respectively.
 	dsdEnabledDataPlaneOldStyle := os.Getenv("DD_ADP_ENABLED") == "true"
 
-	// ADP has a global enable flag that controls whether or not it runs, and then a per-feature enable flag, which we
-	// check to see if enabled for DogStatsD.
-	dsdEnabledDataPlane := c.config.GetBool("data_plane.enabled") && c.config.GetBool("data_plane.dogstatsd.enabled")
+	// ADP is enabled for DogStatsD when `data_plane.dogstatsd.enabled` is true. The global `data_plane.enabled` flag
+	// is only consulted if it was explicitly configured (i.e., not just its default value): if it is explicitly set to
+	// false, ADP is disabled regardless of the per-feature flag. This allows `data_plane.dogstatsd.enabled: true`
+	// alone to enable ADP for DogStatsD without requiring `data_plane.enabled: true` to also be set.
+	dsdEnabledDataPlane := c.config.GetBool("data_plane.dogstatsd.enabled") &&
+		(!c.config.IsConfigured("data_plane.enabled") || c.config.GetBool("data_plane.enabled"))
 
 	return c.Enabled() && (dsdEnabledDataPlaneOldStyle || dsdEnabledDataPlane)
 }
