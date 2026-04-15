@@ -8,6 +8,8 @@ package ssi
 import (
 	"strings"
 
+	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	kubeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
@@ -17,12 +19,12 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	proveks "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/eks"
 	provkindvm "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
+	provaks "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/azure/kubernetes"
 	provgke "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/gcp/kubernetes"
 	provopenshift "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/gcp/kubernetes/openshiftvm"
 	provlocal "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/local/kubernetes"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
-	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 )
 
 // ProvisionerType represents the type of Kubernetes provisioner to use.
@@ -38,6 +40,8 @@ const (
 	ProvisionerKindLocal ProvisionerType = "kind-local"
 	// ProvisionerEKS uses Amazon EKS.
 	ProvisionerEKS ProvisionerType = "eks"
+	// ProvisionerAKS uses Azure Kubernetes Service.
+	ProvisionerAKS ProvisionerType = "aks"
 	// ProvisionerGKE uses Google Kubernetes Engine.
 	ProvisionerGKE ProvisionerType = "gke"
 	// ProvisionerOpenShift uses OpenShift VM on GCP.
@@ -55,7 +59,7 @@ type ProvisionerOptions struct {
 }
 
 // Provisioner returns a Kubernetes provisioner based on E2E_PROVISIONER and E2E_DEV_LOCAL parameters.
-// Supported provisioners: "kind" (default), "kind-local", "eks", "gke", "openshift", "openshift-local".
+// Supported provisioners: "kind" (default), "kind-local", "eks", "gke", "openshift", "openshift-local", "aks".
 // E2E_DEV_LOCAL=true is a shortcut for E2E_PROVISIONER=kind-local.
 func Provisioner(opts ProvisionerOptions) provisioners.TypedProvisioner[environments.Kubernetes] {
 	provisionerType := getProvisionerType()
@@ -64,6 +68,8 @@ func Provisioner(opts ProvisionerOptions) provisioners.TypedProvisioner[environm
 		return kindLocalProvisioner(opts)
 	case ProvisionerEKS:
 		return eksProvisioner(opts)
+	case ProvisionerAKS:
+		return aksProvisioner(opts)
 	case ProvisionerGKE:
 		return gkeProvisioner(opts)
 	case ProvisionerOpenShift:
@@ -170,6 +176,22 @@ func gkeProvisioner(opts ProvisionerOptions) provisioners.TypedProvisioner[envir
 		gkeOpts = append(gkeOpts, provgke.WithAgentDependentWorkloadApp(opts.AgentDependentWorkloadAppFunc))
 	}
 	return provgke.GKEProvisioner(gkeOpts...)
+}
+
+// aksProvisioner returns an Azure Kubernetes Service provisioner.
+func aksProvisioner(opts ProvisionerOptions) provisioners.TypedProvisioner[environments.Kubernetes] {
+	var aksOpts []provaks.ProvisionerOption
+
+	if len(opts.AgentOptions) > 0 {
+		aksOpts = append(aksOpts, provaks.WithAgentOptions(opts.AgentOptions...))
+	}
+	if opts.WorkloadAppFunc != nil {
+		aksOpts = append(aksOpts, provaks.WithWorkloadApp(provaks.WorkloadAppFunc(opts.WorkloadAppFunc)))
+	}
+	if opts.AgentDependentWorkloadAppFunc != nil {
+		aksOpts = append(aksOpts, provaks.WithAgentDependentWorkloadApp(opts.AgentDependentWorkloadAppFunc))
+	}
+	return provaks.AKSProvisioner(aksOpts...)
 }
 
 // openShiftProvisioner returns an OpenShift VM provisioner on GCP.
