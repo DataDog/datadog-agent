@@ -38,16 +38,31 @@ func TestMatchVPNPattern(t *testing.T) {
 	}
 }
 
+func TestIfTypeName(t *testing.T) {
+	assert.Equal(t, "ethernet", ifTypeName(6))
+	assert.Equal(t, "ppp", ifTypeName(23))
+	assert.Equal(t, "loopback", ifTypeName(24))
+	assert.Equal(t, "prop_virtual", ifTypeName(53))
+	assert.Equal(t, "wifi", ifTypeName(71))
+	assert.Equal(t, "tunnel", ifTypeName(131))
+	assert.Equal(t, "other_99", ifTypeName(99))
+}
+
 func TestClassify_PPP(t *testing.T) {
 	c := &VPNClassifier{
 		ifCache: map[uint32]cachedInterface{
-			10: {ifType: ifTypePPP, name: "WAN Miniport (L2TP)", descr: "WAN Miniport (L2TP)"},
+			10: {ifType: ifTypePPP, name: "WAN Miniport (L2TP)", descr: "WAN Miniport (L2TP)", physAddrLen: 0},
 		},
 		done: make(chan struct{}),
 	}
 	defer c.Close()
 
 	result := c.Classify(10)
+	// Interface tags
+	assert.Equal(t, "WAN Miniport (L2TP)", result.InterfaceName)
+	assert.Equal(t, "ppp", result.InterfaceType)
+	assert.False(t, result.IsPhysical)
+	// VPN tags
 	assert.True(t, result.IsVPN)
 	assert.Equal(t, "Windows VPN", result.VPNName)
 	assert.Equal(t, "ppp", result.VPNType)
@@ -56,13 +71,16 @@ func TestClassify_PPP(t *testing.T) {
 func TestClassify_PropVirtual_VPN(t *testing.T) {
 	c := &VPNClassifier{
 		ifCache: map[uint32]cachedInterface{
-			20: {ifType: ifTypePropVirtual, name: "PANGP Virtual Ethernet Adapter", descr: "Palo Alto Networks GlobalProtect"},
+			20: {ifType: ifTypePropVirtual, name: "PANGP Virtual Ethernet Adapter", descr: "Palo Alto Networks GlobalProtect", physAddrLen: 0},
 		},
 		done: make(chan struct{}),
 	}
 	defer c.Close()
 
 	result := c.Classify(20)
+	assert.Equal(t, "Palo Alto Networks GlobalProtect", result.InterfaceName)
+	assert.Equal(t, "prop_virtual", result.InterfaceType)
+	assert.False(t, result.IsPhysical)
 	assert.True(t, result.IsVPN)
 	assert.Equal(t, "GlobalProtect", result.VPNName)
 	assert.Equal(t, "prop_virtual", result.VPNType)
@@ -71,39 +89,66 @@ func TestClassify_PropVirtual_VPN(t *testing.T) {
 func TestClassify_PropVirtual_NotVPN(t *testing.T) {
 	c := &VPNClassifier{
 		ifCache: map[uint32]cachedInterface{
-			30: {ifType: ifTypePropVirtual, name: "Hyper-V Virtual Ethernet Adapter", descr: "Hyper-V Virtual Ethernet Adapter"},
+			30: {ifType: ifTypePropVirtual, name: "Hyper-V Virtual Ethernet Adapter", descr: "Hyper-V Virtual Ethernet Adapter", physAddrLen: 6},
 		},
 		done: make(chan struct{}),
 	}
 	defer c.Close()
 
 	result := c.Classify(30)
+	// Interface tags should still be populated
+	assert.Equal(t, "Hyper-V Virtual Ethernet Adapter", result.InterfaceName)
+	assert.Equal(t, "prop_virtual", result.InterfaceType)
+	assert.True(t, result.IsPhysical) // Hyper-V adapters have MAC addresses
+	// VPN should not be set
 	assert.False(t, result.IsVPN)
 }
 
-func TestClassify_Ethernet_NotVPN(t *testing.T) {
+func TestClassify_Ethernet_Physical(t *testing.T) {
 	c := &VPNClassifier{
 		ifCache: map[uint32]cachedInterface{
-			40: {ifType: ifTypeEthernetCSMACD, name: "Intel(R) Wi-Fi 6 AX201", descr: "Intel Wireless"},
+			40: {ifType: ifTypeEthernetCSMACD, name: "Intel(R) Ethernet Connection", descr: "Intel Ethernet", physAddrLen: 6},
 		},
 		done: make(chan struct{}),
 	}
 	defer c.Close()
 
 	result := c.Classify(40)
+	assert.Equal(t, "Intel Ethernet", result.InterfaceName)
+	assert.Equal(t, "ethernet", result.InterfaceType)
+	assert.True(t, result.IsPhysical)
+	assert.False(t, result.IsVPN)
+}
+
+func TestClassify_Wifi(t *testing.T) {
+	c := &VPNClassifier{
+		ifCache: map[uint32]cachedInterface{
+			45: {ifType: ifTypeWifi, name: "Intel(R) Wi-Fi 6 AX201", descr: "Intel Wi-Fi 6 AX201", physAddrLen: 6},
+		},
+		done: make(chan struct{}),
+	}
+	defer c.Close()
+
+	result := c.Classify(45)
+	assert.Equal(t, "Intel Wi-Fi 6 AX201", result.InterfaceName)
+	assert.Equal(t, "wifi", result.InterfaceType)
+	assert.True(t, result.IsPhysical)
 	assert.False(t, result.IsVPN)
 }
 
 func TestClassify_Ethernet_TapVPN(t *testing.T) {
 	c := &VPNClassifier{
 		ifCache: map[uint32]cachedInterface{
-			50: {ifType: ifTypeEthernetCSMACD, name: "TAP-Windows Adapter V9", descr: "TAP-Windows Adapter V9"},
+			50: {ifType: ifTypeEthernetCSMACD, name: "TAP-Windows Adapter V9", descr: "TAP-Windows Adapter V9", physAddrLen: 6},
 		},
 		done: make(chan struct{}),
 	}
 	defer c.Close()
 
 	result := c.Classify(50)
+	assert.Equal(t, "TAP-Windows Adapter V9", result.InterfaceName)
+	assert.Equal(t, "ethernet", result.InterfaceType)
+	assert.True(t, result.IsPhysical) // TAP adapters have MAC addresses
 	assert.True(t, result.IsVPN)
 	assert.Equal(t, "OpenVPN", result.VPNName)
 	assert.Equal(t, "ethernet_tap", result.VPNType)
@@ -117,20 +162,21 @@ func TestClassify_UnknownIndex(t *testing.T) {
 	defer c.Close()
 
 	result := c.Classify(999)
+	assert.Equal(t, "", result.InterfaceName)
 	assert.False(t, result.IsVPN)
 }
 
 func TestClassify_ZeroIndex(t *testing.T) {
 	c := &VPNClassifier{
 		ifCache: map[uint32]cachedInterface{
-			0: {ifType: ifTypePPP, name: "WAN Miniport", descr: ""},
+			0: {ifType: ifTypePPP, name: "WAN Miniport", descr: "", physAddrLen: 0},
 		},
 		done: make(chan struct{}),
 	}
 	defer c.Close()
 
 	// Zero index should still classify if present in cache
-	// (the caller in addVPNInfo guards against zero)
+	// (the caller in addInterfaceInfo guards against zero)
 	result := c.Classify(0)
 	assert.True(t, result.IsVPN)
 }
@@ -138,13 +184,16 @@ func TestClassify_ZeroIndex(t *testing.T) {
 func TestClassify_Wintun(t *testing.T) {
 	c := &VPNClassifier{
 		ifCache: map[uint32]cachedInterface{
-			60: {ifType: ifTypePropVirtual, name: "Wintun Userspace Tunnel", descr: "Wintun"},
+			60: {ifType: ifTypePropVirtual, name: "Wintun Userspace Tunnel", descr: "Wintun", physAddrLen: 0},
 		},
 		done: make(chan struct{}),
 	}
 	defer c.Close()
 
 	result := c.Classify(60)
+	assert.Equal(t, "Wintun", result.InterfaceName)
+	assert.Equal(t, "prop_virtual", result.InterfaceType)
+	assert.False(t, result.IsPhysical)
 	assert.True(t, result.IsVPN)
 	assert.Equal(t, "WireGuard", result.VPNName)
 	assert.Equal(t, "prop_virtual", result.VPNType)
@@ -153,7 +202,7 @@ func TestClassify_Wintun(t *testing.T) {
 func TestClassify_CiscoAnyConnect(t *testing.T) {
 	c := &VPNClassifier{
 		ifCache: map[uint32]cachedInterface{
-			70: {ifType: ifTypePropVirtual, name: "Cisco AnyConnect Virtual Miniport Adapter", descr: "Cisco AnyConnect"},
+			70: {ifType: ifTypePropVirtual, name: "Cisco AnyConnect Virtual Miniport Adapter", descr: "Cisco AnyConnect", physAddrLen: 0},
 		},
 		done: make(chan struct{}),
 	}
@@ -169,7 +218,7 @@ func TestClassify_AppgateSDP(t *testing.T) {
 	// Real-world adapter: Appgate SDP uses Wintun driver under the hood
 	c := &VPNClassifier{
 		ifCache: map[uint32]cachedInterface{
-			17: {ifType: ifTypePropVirtual, name: "Appgate Tunnel", descr: "Wintun Userspace Tunnel"},
+			17: {ifType: ifTypePropVirtual, name: "Appgate Tunnel", descr: "Wintun Userspace Tunnel", physAddrLen: 0},
 		},
 		done: make(chan struct{}),
 	}
@@ -179,14 +228,14 @@ func TestClassify_AppgateSDP(t *testing.T) {
 	assert.True(t, result.IsVPN)
 	assert.Equal(t, "Appgate SDP", result.VPNName, "should match 'appgate' before falling through to 'wintun'")
 	assert.Equal(t, "prop_virtual", result.VPNType)
-	assert.Equal(t, "Appgate Tunnel", result.Interface)
+	assert.Equal(t, "Appgate Tunnel", result.InterfaceName)
 }
 
 func TestClassify_GenericTunIndicator(t *testing.T) {
 	// Ethernet adapter with "tun" in name but no known VPN pattern
 	c := &VPNClassifier{
 		ifCache: map[uint32]cachedInterface{
-			80: {ifType: ifTypeEthernetCSMACD, name: "Some tun adapter", descr: "Generic tun"},
+			80: {ifType: ifTypeEthernetCSMACD, name: "Some tun adapter", descr: "Generic tun", physAddrLen: 0},
 		},
 		done: make(chan struct{}),
 	}

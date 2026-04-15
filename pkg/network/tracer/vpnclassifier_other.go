@@ -7,10 +7,15 @@
 
 package tracer
 
-// VPNClassification holds the result of classifying a network interface.
+// InterfaceClassification holds interface metadata and optional VPN classification.
 // On non-Windows platforms, this is a stub.
-type VPNClassification struct {
-	IsVPN bool
+type InterfaceClassification struct {
+	InterfaceName string
+	InterfaceType string
+	IsPhysical    bool
+	IsVPN         bool
+	VPNName       string
+	VPNType       string
 }
 
 // VPNClassifier classifies network interfaces as VPN or non-VPN.
@@ -20,8 +25,10 @@ type VPNClassifier struct{}
 // NewVPNClassifier returns nil on non-Windows platforms
 func NewVPNClassifier() *VPNClassifier { return nil }
 
-// Classify always returns a non-VPN result on non-Windows platforms
-func (c *VPNClassifier) Classify(_ uint32) VPNClassification { return VPNClassification{} }
+// Classify always returns an empty result on non-Windows platforms
+func (c *VPNClassifier) Classify(_ uint32) InterfaceClassification {
+	return InterfaceClassification{}
+}
 
 // Close is a no-op on non-Windows platforms
 func (c *VPNClassifier) Close() {}
