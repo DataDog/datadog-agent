@@ -80,6 +80,8 @@ generate_config_schema-windows:
       -e CI_PROJECT_NAME
       -e AWS_NETWORKING=true
       -e GOMODCACHE="c:\modcache"
+      -e GOPROXY
+      -e GONOSUMDB
       -e PIP_INDEX_URL
       -e DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS
       -e CI_IDENTITIES_GITLAB_ID_TOKEN

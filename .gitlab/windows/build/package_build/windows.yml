@@ -29,6 +29,8 @@
       -e WINDOWS_DDPROCMON_VERSION
       -e WINDOWS_DDPROCMON_SHASUM
       -e GOMODCACHE="c:\modcache"
+      -e GOPROXY
+      -e GONOSUMDB
       -e AWS_NETWORKING=true
       -e SIGN_WINDOWS_DD_WCS=true
       -e TARGET_ARCH="$ARCH"
@@ -114,6 +116,8 @@ windows_msi_and_bosh_zip_x64-a7-fips:
       -e WINDOWS_DDPROCMON_VERSION
       -e WINDOWS_DDPROCMON_SHASUM
       -e GOMODCACHE="c:\modcache"
+      -e GOPROXY
+      -e GONOSUMDB
       -e AWS_NETWORKING=true
       -e SIGN_WINDOWS_DD_WCS=true
       -e BUCKET_BRANCH
