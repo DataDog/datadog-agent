@@ -2,8 +2,6 @@ module github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline
 
 go 1.25.0
 
-require github.com/DataDog/datadog-agent/pkg/logs/pipeline v0.64.0-rc.3
-
 require gopkg.in/yaml.v3 v3.0.1 // indirect
 
 require (
@@ -18,7 +16,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/status v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.73.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/comp/logs-library v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/serializer/logscompression v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.64.0-rc.3 // indirect
@@ -122,6 +119,10 @@ require (
 	golang.org/x/time v0.15.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )
+
+require github.com/DataDog/datadog-agent/comp/logs-library v0.0.0-00010101000000-000000000000
+
+require github.com/DataDog/datadog-agent/comp/core/config v0.64.0-rc.3 // indirect
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
