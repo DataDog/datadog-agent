@@ -181,7 +181,7 @@ func (l *LocalService) ShouldForceFlushAllOnForceFlushToSerializer() bool {
 func GetCloudServiceType() CloudService {
 
 	if runtime.GOARCH != "amd64" {
-		log.Warnf("serverless-init is running on an unsupported architecture (%s). Monitoring may behave unexpectedly.", runtime.GOARCH)
+		log.Errorf("serverless-init is running on an unsupported architecture (%s). Monitoring may behave unexpectedly.", runtime.GOARCH)
 	}
 
 	if isCloudRunService() {
