@@ -439,7 +439,7 @@ func TestPrometheusMetrics(s OTelTestSuite) {
 			assert.Equal(c, originServicePrometheusReceiver, int(origin.OriginService))
 		}
 
-		traceAgentMetrics, err = s.Env().FakeIntake.Client().FilterMetrics("otelcol_datadog_trace_agent_trace_writer_spans")
+		traceAgentMetrics, err = s.Env().FakeIntake.Client().FilterMetrics("datadog_trace_agent_trace_writer_spans")
 		assert.NoError(c, err)
 		assert.NotEmpty(c, traceAgentMetrics)
 		for _, m := range otelcolMetrics {
@@ -449,7 +449,7 @@ func TestPrometheusMetrics(s OTelTestSuite) {
 		}
 	}, 2*time.Minute, 10*time.Second)
 	s.T().Log("Got otelcol_process_uptime", otelcolMetrics)
-	s.T().Log("Got otelcol_datadog_trace_agent_trace_writer_spans", traceAgentMetrics)
+	s.T().Log("Got datadog_trace_agent_trace_writer_spans", traceAgentMetrics)
 }
 
 // TestHostMetrics tests that expected host metrics are scraped
