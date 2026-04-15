@@ -112,6 +112,13 @@ func (n *WorkflowRunner) RunTask(
 	defer heartbeatCancel()
 	go n.startHeartbeat(heartbeatCtx, task, logger)
 
+	publisher := &opmsIntermediatePublisher{
+		client: n.opmsClient,
+		taskID: task.Data.ID,
+		jobID:  task.Data.Attributes.JobId,
+	}
+	ctx = types.ContextWithPublisher(ctx, publisher)
+
 	startTime := observability.ReportExecutionStart(n.config.MetricsClient, task.Data.Attributes.Client, fqn, task.Data.ID, logger)
 	output, err := action.Run(ctx, task, credential)
 	observability.ReportExecutionCompleted(n.config.MetricsClient, task.Data.Attributes.Client, fqn, task.Data.ID, startTime, err, logger)
@@ -121,6 +128,16 @@ func (n *WorkflowRunner) RunTask(
 	}
 
 	return output, nil
+}
+
+type opmsIntermediatePublisher struct {
+	client opms.Client
+	taskID string
+	jobID  string
+}
+
+func (p *opmsIntermediatePublisher) Publish(ctx context.Context, result string, sequenceNumber int64) error {
+	return p.client.PublishIntermediateResult(ctx, p.taskID, p.jobID, result, sequenceNumber)
 }
 
 func (n *WorkflowRunner) startHeartbeat(ctx context.Context, task *types.Task, logger log.Logger) {

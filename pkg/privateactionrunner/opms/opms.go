@@ -33,10 +33,11 @@ import (
 )
 
 const (
-	dequeuePath     = "/api/v2/on-prem-management-service/workflow-tasks/dequeue"
-	taskUpdatePath  = "/api/v2/on-prem-management-service/workflow-tasks/publish-task-update"
-	heartbeat       = "/api/v2/on-prem-management-service/workflow-tasks/heartbeat"
-	healthCheckPath = "/api/v2/on-prem-management-service/runner/health-check"
+	dequeuePath            = "/api/v2/on-prem-management-service/workflow-tasks/dequeue"
+	taskUpdatePath         = "/api/v2/on-prem-management-service/workflow-tasks/publish-task-update"
+	heartbeat              = "/api/v2/on-prem-management-service/workflow-tasks/heartbeat"
+	healthCheckPath        = "/api/v2/on-prem-management-service/runner/health-check"
+	intermediateResultPath = "/api/v2/on-prem-management-service/workflow-tasks/publish-intermediate-result"
 
 	serverTimeHeader = "X-Server-Time"
 )
@@ -84,6 +85,22 @@ type HeartbeatJSONRequest struct {
 	Data *HeartbeatJSONData `json:"data,omitempty"`
 }
 
+type IntermediateResultJSONRequestAttributes struct {
+	JobID          string `json:"job_id,omitempty"`
+	Result         string `json:"result,omitempty"`
+	SequenceNumber int64  `json:"sequence_number"`
+}
+
+type IntermediateResultJSONData struct {
+	Type       string                                   `json:"type,omitempty"`
+	ID         string                                   `json:"id,omitempty"`
+	Attributes *IntermediateResultJSONRequestAttributes `json:"attributes,omitempty"`
+}
+
+type IntermediateResultJSONRequest struct {
+	Data *IntermediateResultJSONData `json:"data,omitempty"`
+}
+
 type HealthCheckData struct {
 	ServerTime *time.Time `json:"server_time,omitempty"`
 }
@@ -114,6 +131,7 @@ type Client interface {
 	) error
 	HealthCheck(ctx context.Context) (*HealthCheckData, error)
 	Heartbeat(ctx context.Context, client actionsclientpb.Client, taskID, actionFQN, jobID string) error
+	PublishIntermediateResult(ctx context.Context, taskID, jobID, result string, sequenceNumber int64) error
 }
 
 type client struct {
@@ -355,6 +373,61 @@ func (c *client) makeHeartbeatRequest(
 		ctx,
 		method,
 		url,
+		bytes.NewReader(body),
+		nil,
+		http.StatusOK,
+	)
+	return resBody, err
+}
+
+func (c *client) PublishIntermediateResult(ctx context.Context, taskID, jobID, result string, sequenceNumber int64) error {
+	log.FromContext(ctx).Info("PAR publishing intermediate result to OPMS",
+		log.String("task_id", taskID),
+		log.Int64("sequence_number", sequenceNumber),
+	)
+
+	u := &url.URL{
+		Scheme: "https",
+		Host:   c.config.DDApiHost,
+		Path:   intermediateResultPath,
+	}
+
+	request := &IntermediateResultJSONData{
+		Type: "intermediateResult",
+		ID:   taskID,
+		Attributes: &IntermediateResultJSONRequestAttributes{
+			JobID:          jobID,
+			Result:         result,
+			SequenceNumber: sequenceNumber,
+		},
+	}
+
+	if _, err := c.makeIntermediateResultRequest(ctx, http.MethodPost, u.String(), request); err != nil {
+		return fmt.Errorf("error publishing intermediate result: %w", err)
+	}
+
+	return nil
+}
+
+func (c *client) makeIntermediateResultRequest(
+	ctx context.Context,
+	method string,
+	requestURL string,
+	data *IntermediateResultJSONData,
+) ([]byte, error) {
+	request := &IntermediateResultJSONRequest{
+		Data: data,
+	}
+
+	body, err := json.Marshal(request)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling body for intermediate result request: %w", err)
+	}
+
+	resBody, _, err := c.makeRequest(
+		ctx,
+		method,
+		requestURL,
 		bytes.NewReader(body),
 		nil,
 		http.StatusOK,

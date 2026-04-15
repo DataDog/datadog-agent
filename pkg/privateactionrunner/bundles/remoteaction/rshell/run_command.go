@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2026-present Datadog, Inc.
+// Copyright 2025-present Datadog, Inc.
 
 package com_datadoghq_remoteaction_rshell
 
@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path"
 	"strings"
@@ -58,6 +59,46 @@ type RunCommandOutputs struct {
 	Stderr   string `json:"stderr"`
 }
 
+// streamingWriter is an io.Writer that publishes each complete line as an intermediate result
+// while also writing everything to an underlying buffer for the final output.
+type streamingWriter struct {
+	buffer    *bytes.Buffer
+	publisher types.IntermediateResultPublisher
+	ctx       context.Context
+	seqNum    int64
+	pending   []byte
+}
+
+func (w *streamingWriter) Write(p []byte) (int, error) {
+	n, err := w.buffer.Write(p)
+	w.pending = append(w.pending, p...)
+	for {
+		idx := bytes.IndexByte(w.pending, '\n')
+		if idx < 0 {
+			break
+		}
+		line := string(w.pending[:idx])
+		w.pending = w.pending[idx+1:]
+		if pubErr := w.publisher.Publish(w.ctx, line, w.seqNum); pubErr != nil {
+			log.Warnf("failed to publish intermediate result: %v", pubErr)
+		}
+		w.seqNum++
+	}
+	return n, err
+}
+
+// flush publishes any remaining partial line that didn't end with \n.
+func (w *streamingWriter) flush() {
+	if len(w.pending) > 0 {
+		line := string(w.pending)
+		w.pending = nil
+		if pubErr := w.publisher.Publish(w.ctx, line, w.seqNum); pubErr != nil {
+			log.Warnf("failed to publish final intermediate result: %v", pubErr)
+		}
+		w.seqNum++
+	}
+}
+
 // Run executes the command through the rshell restricted interpreter.
 // The environment is intentionally empty; no host environment variables are forwarded.
 func (h *RunCommandHandler) Run(
@@ -86,9 +127,19 @@ func (h *RunCommandHandler) Run(
 			log.Warnf("path %q not found, rshell may fail to execute commands", p)
 		}
 	}
+
 	var stdout, stderr bytes.Buffer
+	var stdoutWriter io.Writer = &stdout
+
+	publisher, hasPublisher := types.PublisherFromContext(ctx)
+	var sw *streamingWriter
+	if hasPublisher {
+		sw = &streamingWriter{buffer: &stdout, publisher: publisher, ctx: ctx}
+		stdoutWriter = sw
+	}
+
 	runner, err := interp.New(
-		interp.StdIO(nil, &stdout, &stderr),
+		interp.StdIO(nil, stdoutWriter, &stderr),
 		interp.AllowedPaths(h.allowedPaths),
 		interp.ProcPath(resolveProcPath()),
 		interp.AllowedCommands(inputs.AllowedCommands),
@@ -99,6 +150,11 @@ func (h *RunCommandHandler) Run(
 	defer runner.Close()
 
 	runErr := runner.Run(ctx, prog)
+
+	if sw != nil {
+		sw.flush()
+	}
+
 	exitCode := 0
 	if runErr != nil {
 		var es interp.ExitStatus
