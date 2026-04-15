@@ -21,6 +21,7 @@ import (
 	cmddogstatsdreplay "github.com/DataDog/datadog-agent/cmd/agent/subcommands/dogstatsdreplay"
 	cmddogstatsdstats "github.com/DataDog/datadog-agent/cmd/agent/subcommands/dogstatsdstats"
 	cmdexperimental "github.com/DataDog/datadog-agent/cmd/agent/subcommands/experimental"
+	cmdextension "github.com/DataDog/datadog-agent/cmd/agent/subcommands/extension"
 	cmdflare "github.com/DataDog/datadog-agent/cmd/agent/subcommands/flare"
 	cmdhealth "github.com/DataDog/datadog-agent/cmd/agent/subcommands/health"
 	cmdhostname "github.com/DataDog/datadog-agent/cmd/agent/subcommands/hostname"
@@ -53,6 +54,7 @@ func AgentSubcommands() []command.SubcommandFactory {
 		cmdconfigcheck.Commands,
 		cmdconfig.Commands,
 		cmdexperimental.Commands,
+		cmdextension.Commands,
 		cmdcreateschema.Commands,
 		cmddiagnose.Commands,
 		cmddogstatsd.Commands,
