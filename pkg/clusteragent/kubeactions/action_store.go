@@ -203,7 +203,11 @@ func (s *ActionStore) cleanup() {
 		}
 		// If the action was created before the cutoff, or the action was claimed before the cutoff, delete it
 		ct := record.ClaimedAt
-		if (ts > 0 && ts < cutoff) || (ct > 0 && ct < cutoff) {
+		if ts > 0 && ts < cutoff {
+			delete(s.executed, key)
+			removed++
+		} else if ct > 0 && ct < cutoff {
+			log.Debugf("Cleaning up claimed but not executed action %s (claimed %d seconds ago)", key, time.Now().Unix()-ct)
 			delete(s.executed, key)
 			removed++
 		}
