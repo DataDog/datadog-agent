@@ -270,7 +270,7 @@ def _run_bazel_tests(ctx, bazel_targets: list[str], verbose: bool = False) -> Te
     # TODO: on Linux runners, the limit is much higher; consider platform-specific batching.
     MAX_CMD_LENGTH = 32000
     FIXED_ARGS = ["test", "--keep_going"]
-    fixed_len = sum(len(a)) + len(a) + 1  # args + spaces
+    fixed_len = sum([len(a) for a in FIXED_ARGS]) + len(FIXED_ARGS) + 1  # args + spaces
 
     # Batch targets so no single invocation exceeds the limit.
     batches: list[list[str]] = []
@@ -345,45 +345,6 @@ def _run_bazel_tests(ctx, bazel_targets: list[str], verbose: bool = False) -> Te
     return TestStats(total=total, passed=n_passed, failed=n_failed, skipped=n_skipped, duration_s=duration_s)
 
 
-def expand_packages_excluding(
-    ctx,
-    modules: list[GoModule],
-    build_tags: list[str],
-    exclude_packages: set[str],
-    recursive: bool = True,
-) -> str:
-    """
-    Enumerate Go packages via `go list`, filter out exclude_packages, and return
-    the explicit space-separated list for gotestsum --packages.
-
-    This is needed because go test / gotestsum have no native exclusion syntax.
-    """
-    result = []
-    tag_str = ' '.join(build_tags)
-    for module in modules:
-        if not module.should_test():
-            continue
-        for target in module.test_targets:
-            # Build the pattern relative to module.path — ctx.cd() below makes
-            # that the working directory, so do NOT prepend module.path again.
-            t = target if target.startswith('./') else f'./{target}'
-            if recursive and not t.endswith('/...'):
-                pattern = f'{t}/...'
-            else:
-                pattern = t
-            with ctx.cd(module.path):
-                res = ctx.run(
-                    f'go list -buildvcs=false -tags "{tag_str}" {pattern}',
-                    hide=True,
-                    warn=True,
-                )
-            if res and res.stdout:
-                for pkg in res.stdout.splitlines():
-                    if pkg not in exclude_packages:
-                        result.append(pkg)
-    return ' '.join(result)
-
-
 def test_flavor(
     ctx,
     flavor: AgentFlavor,
@@ -427,10 +388,9 @@ def test_flavor(
 
     # Compute full list of targets to run tests against
     module_list = list(modules)
-    if exclude_packages:
-        packages = expand_packages_excluding(ctx, module_list, build_tags, exclude_packages, recursive)
-    else:
-        packages = compute_gotestsum_cli_args(module_list, recursive)
+    packages = compute_gotestsum_cli_args(
+        module_list, recursive, ctx=ctx, build_tags=build_tags, exclude_packages=exclude_packages or None
+    )
 
     with CodecovWorkaround(ctx, result.path, coverage, packages, args) as cov_test_path:
         res = ctx.run(
@@ -1306,21 +1266,51 @@ def get_go_modified_files(ctx):
     ]
 
 
-def compute_gotestsum_cli_args(modules: list[GoModule], recursive: bool = True):
-    targets = []
+def compute_gotestsum_cli_args(
+    modules: list[GoModule],
+    recursive: bool = True,
+    ctx=None,
+    build_tags: list[str] | None = None,
+    exclude_packages: set[str] | None = None,
+) -> str:
+    """Compute the packages argument for gotestsum --packages.
+
+    When exclude_packages is provided, runs `go list` to enumerate packages by
+    name and filters out the excluded ones. ctx and build_tags are required in
+    that case (this is needed because go test / gotestsum have no native
+    exclusion syntax).
+    Otherwise, builds path glob patterns directly without running any subprocess.
+    """
+    tag_str = ' '.join(build_tags or [])
+    result = []
     for module in modules:
         if not module.should_test():
             continue
         for target in module.test_targets:
-            target_path = os.path.join(module.path, target)
-            if not target_path.startswith('./'):
-                target_path = f"./{target_path}"
-            targets.append(target_path)
-    if recursive:
-        packages = ' '.join(f"{t}/..." if not t.endswith("/...") else t for t in targets)
-    else:
-        packages = ' '.join(targets)
-    return packages
+            if exclude_packages is not None:
+                # Build the pattern relative to module.path — ctx.cd() below
+                # makes that the working directory, so do NOT prepend module.path.
+                t = target if target.startswith('./') else f'./{target}'
+                if recursive and not t.endswith('/...'):
+                    t = f'{t}/...'
+                with ctx.cd(module.path):
+                    res = ctx.run(
+                        f'go list -buildvcs=false -tags "{tag_str}" {t}',
+                        hide=True,
+                        warn=True,
+                    )
+                if res and res.stdout:
+                    for pkg in res.stdout.splitlines():
+                        if pkg not in exclude_packages:
+                            result.append(pkg)
+            else:
+                target_path = os.path.join(module.path, target)
+                if not target_path.startswith('./'):
+                    target_path = f"./{target_path}"
+                if recursive and not target_path.endswith('/...'):
+                    target_path = f"{target_path}/..."
+                result.append(target_path)
+    return ' '.join(result)
 
 
 @task
