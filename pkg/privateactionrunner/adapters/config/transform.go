@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	statsdcomp "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
@@ -23,7 +24,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 )
 
-func FromDDConfig(config config.Component) (*Config, error) {
+func FromDDConfig(config config.Component, statsdComp statsdcomp.Component) (*Config, error) {
 	mainEndpoint := configutils.GetMainEndpoint(config, "https://api.", "dd_url")
 	ddHost := getDatadogHost(mainEndpoint)
 	ddSite := configutils.ExtractSiteFromURL(mainEndpoint)
@@ -81,7 +82,7 @@ func FromDDConfig(config config.Component) (*Config, error) {
 		HealthCheckEndpoint:       defaultHealthCheckEndpoint,
 		HeartbeatInterval:         heartbeatInterval,
 		Version:                   version.AgentVersion,
-		MetricsClient:             &statsd.NoOpClient{},
+		MetricsClient:             newMetricsClient(statsdComp),
 		ActionsAllowlist:          makeActionsAllowlist(config),
 		Allowlist:                 config.GetStringSlice(setup.PARHttpAllowlist),
 		AllowIMDSEndpoint:         config.GetBool(setup.PARHttpAllowImdsEndpoint),
@@ -182,4 +183,12 @@ func GetBundleInheritedAllowedActions(actionsAllowlist map[string]sets.Set[strin
 	}
 
 	return result
+}
+
+func newMetricsClient(statsdComp statsdcomp.Component) statsd.ClientInterface {
+	client, err := statsdComp.Get()
+	if err != nil {
+		return &statsd.NoOpClient{}
+	}
+	return client
 }
