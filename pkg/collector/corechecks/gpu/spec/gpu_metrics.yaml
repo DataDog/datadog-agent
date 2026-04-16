@@ -450,7 +450,7 @@ metrics:
     validator:
       range:
         min: 0
-        max: 1000000000000000
+        max: 1000000000000 # 1 TB (bytes)
     support:
       unsupported_architectures: []
       device_modes:
@@ -802,6 +802,10 @@ metrics:
   nvlink.speed:
     tagsets:
       - device
+    validator:
+      range:
+        min: 0
+        max: 5000000000000 # 5 TB/s (bytes/second)
     support:
       unsupported_architectures:
         - fermi
@@ -869,6 +873,10 @@ metrics:
   nvlink.throughput.data.rx:
     tagsets:
       - device
+    validator:
+      range:
+        min: 0
+        max: 3000000000000 # 3 TB/s (bytes/second)
     support:
       unsupported_architectures:
         - fermi
@@ -882,6 +890,10 @@ metrics:
   nvlink.throughput.data.tx:
     tagsets:
       - device
+    validator:
+      range:
+        min: 0
+        max: 3000000000000 # 3 TB/s (bytes/second)
     support:
       unsupported_architectures:
         - fermi
@@ -895,6 +907,10 @@ metrics:
   nvlink.throughput.raw.rx:
     tagsets:
       - device
+    validator:
+      range:
+        min: 0
+        max: 3000000000000 # 3 TB/s (bytes/second)
     support:
       unsupported_architectures:
         - fermi
@@ -908,6 +924,10 @@ metrics:
   nvlink.throughput.raw.tx:
     tagsets:
       - device
+    validator:
+      range:
+        min: 0
+        max: 3000000000000 # 3 TB/s (bytes/second)
     support:
       unsupported_architectures:
         - fermi
@@ -1028,6 +1048,10 @@ metrics:
   pci.throughput.rx:
     tagsets:
       - device
+    validator:
+      range:
+        min: 0
+        max: 300000000000 # 300 GB/s (bytes/second)
     support:
       unsupported_architectures:
         - fermi
@@ -1038,6 +1062,10 @@ metrics:
   pci.throughput.tx:
     tagsets:
       - device
+    validator:
+      range:
+        min: 0
+        max: 300000000000 # 300 GB/s (bytes/second)
     support:
       unsupported_architectures:
         - fermi
@@ -1131,7 +1159,7 @@ metrics:
     validator:
       range:
         min: 0
-        max: 1000000000000000
+        max: 1000000000000 # 1 TB (bytes)
     support:
       unsupported_architectures: []
       device_modes:
