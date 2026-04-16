@@ -9,6 +9,7 @@ package noisyneighbor
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"time"
@@ -143,6 +144,12 @@ func (n *NoisyNeighborCheck) Configure(senderManager sender.SenderManager, _ uin
 		return fmt.Errorf("noisy_neighbor: all cgroup reader init failed: %s", err)
 	}
 	n.allCgroupReader = allReader
+
+	// Warn if PSI is not available (kernel booted with psi=0).
+	// Without PSI, Layer 1 will never detect CPU pressure and Layer 2 will never activate.
+	if _, err := os.Stat("/proc/pressure/cpu"); err != nil {
+		log.Warnf("noisy_neighbor: PSI is not available (%v). Layer 1 will not detect CPU pressure and Layer 2 will never activate. The kernel may have been booted with psi=0.", err)
+	}
 
 	return nil
 }
