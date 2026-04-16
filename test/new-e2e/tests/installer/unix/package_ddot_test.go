@@ -196,7 +196,7 @@ func (s *packageDDOTSuite) TestInstallDDOTWithoutDatadogYAML() {
 
 func (s *packageDDOTSuite) TestInstallDDOTExtensionSubcommand() {
 	// Install the base agent without DDOT.
-	s.RunInstallScript("DD_REMOTE_UPDATES=true", envForceInstall("datadog-agent"))
+	s.RunInstallScript()
 	defer s.Purge()
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
 	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit)
@@ -209,7 +209,7 @@ func (s *packageDDOTSuite) TestInstallDDOTExtensionSubcommand() {
 
 	state := s.host.State()
 	s.assertCoreUnits(state, true)
-	s.assertDDOTUnits(state, false)
+	s.assertDDOTUnits(state, true)
 	state.AssertFileExists("/etc/datadog-agent/datadog.yaml", 0640, "dd-agent", "dd-agent")
 	state.AssertFileExists("/etc/datadog-agent/otel-config.yaml", 0640, "dd-agent", "dd-agent")
 	s.host.Run("sudo grep -q 'otelcollector:' /etc/datadog-agent/datadog.yaml")
