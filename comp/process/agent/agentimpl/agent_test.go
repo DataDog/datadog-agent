@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build test && !linux
+//go:build !linux && test
 
 package agentimpl
 
@@ -23,9 +23,11 @@ import (
 	statsdimpl "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/impl"
 	"github.com/DataDog/datadog-agent/comp/process/agent"
 	hostinfomock "github.com/DataDog/datadog-agent/comp/process/hostinfo/mock"
-	"github.com/DataDog/datadog-agent/comp/process/processcheck/processcheckimpl"
+	processcheckimpl "github.com/DataDog/datadog-agent/comp/process/processcheck/impl"
 	"github.com/DataDog/datadog-agent/comp/process/runner/runnerimpl"
-	"github.com/DataDog/datadog-agent/comp/process/submitter/submitterimpl"
+	submittermock "github.com/DataDog/datadog-agent/comp/process/submitter/mock"
+	"github.com/DataDog/datadog-agent/comp/process/types"
+	processchecks "github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -68,7 +70,7 @@ func TestProcessAgentComponent(t *testing.T) {
 			opts := []fx.Option{
 				runnerimpl.Module(),
 				hostinfomock.MockModule(),
-				submitterimpl.MockModule(),
+				submittermock.MockModule(),
 				taggerfxmock.MockModule(),
 				statsdimpl.MockModule(),
 				Module(),
@@ -80,7 +82,9 @@ func TestProcessAgentComponent(t *testing.T) {
 			}
 
 			if tc.checksEnabled {
-				opts = append(opts, processcheckimpl.MockModule())
+				opts = append(opts, fx.Provide(func(t testing.TB) types.ProvidesCheck {
+					return processcheckimpl.NewMock(t, types.MockCheckParams[*processchecks.ProcessCheck]{})
+				}))
 			}
 
 			agentComponent := fxutil.Test[agent.Component](t, fx.Options(opts...))
