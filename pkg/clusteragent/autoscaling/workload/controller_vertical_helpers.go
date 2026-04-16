@@ -192,6 +192,7 @@ func shouldTriggerRollout(
 	lastAction *datadoghqcommon.DatadogPodAutoscalerVerticalAction,
 	rolloutInProgress bool,
 	recommendation *model.VerticalScalingValues,
+	opts recommendationOptions,
 	currentTime time.Time,
 	minDelayBetweenRollouts time.Duration,
 	autoscalerID string,
@@ -213,7 +214,7 @@ func shouldTriggerRollout(
 	if rolloutInProgress {
 		// Check if the new recommendation increases limits - if so, we may bypass the rollout check
 		// to help recover from stuck rollouts caused by insufficient resources.
-		if hasLimitIncrease(recommendation, pods, recommendationID) {
+		if hasLimitIncrease(recommendation, pods, recommendationID, opts) {
 			// Apply rate limiting to prevent rollout thrashing from rapid new recommendations
 			if lastAction != nil && lastAction.Time.Add(minDelayBetweenRollouts).After(currentTime) {
 				log.Debugf("Rollout in progress for autoscaler: %s with new recommendation increasing limits, "+
@@ -234,6 +235,18 @@ func shouldTriggerRollout(
 	return rolloutDecisionTrigger
 }
 
+// recommendationOptions controls how hasLimitIncrease interprets the effective recommendation
+// when comparing against currently running pods. Fields correspond to autoscaler modes that
+// alter the recommendation at apply time (i.e. before the patch reaches the API server).
+type recommendationOptions struct {
+	// burstable indicates that the recommendation will have its CPU limit removed at apply time.
+	// When true, the CPU limit is treated as absent even if the raw recommendation contains one,
+	// so that a non-burstable → burstable transition is correctly identified as a limit increase
+	// (removing a CPU limit is equivalent to setting it to unlimited).
+	// See fromAutoscalerToContainerResourcePatches for where the removal happens.
+	burstable bool
+}
+
 // hasLimitIncrease checks if the new recommendation increases any limit compared to existing patched pods.
 // It only compares against pods that have an OLD RecommendationIDAnnotation set (i.e., pods that were
 // previously patched but don't have the current recommendation). This is used to bypass the
@@ -244,12 +257,16 @@ func shouldTriggerRollout(
 // - The new limit is higher than the current limit
 // - The pod has a limit but the recommendation removes it (no limit = unlimited)
 //
+// opts must reflect the current autoscaler state so that apply-time transformations (e.g. burstable
+// CPU limit removal) are accounted for before comparing against pod limits.
+//
 // Performance: Uses early exit - returns as soon as any pod with lower limits is found.
 // Only processes pods with old recommendations (not already on current recommendation).
 func hasLimitIncrease(
 	recommendation *model.VerticalScalingValues,
 	pods []*workloadmeta.KubernetesPod,
 	currentRecommendationID string,
+	opts recommendationOptions,
 ) bool {
 	if recommendation == nil || len(recommendation.ContainerResources) == 0 {
 		return false
@@ -269,9 +286,14 @@ func hasLimitIncrease(
 	recoLimits := make(map[string]recommendationLimits, len(recommendation.ContainerResources))
 	for _, recoContainer := range recommendation.ContainerResources {
 		limits := recommendationLimits{}
-		if cpuLimit := recoContainer.Limits.Cpu(); cpuLimit != nil && !cpuLimit.IsZero() {
-			limits.cpuLimit = cpuLimit.AsApproximateFloat64() * 100 // Convert to percentage
-			limits.hasCPU = true
+		// In burstable mode the CPU limit is removed at apply time, so treat hasCPU as false
+		// regardless of what the raw recommendation contains. This correctly identifies a
+		// non-burstable → burstable transition as a limit increase (unlimited > any finite limit).
+		if !opts.burstable {
+			if cpuLimit := recoContainer.Limits.Cpu(); cpuLimit != nil && !cpuLimit.IsZero() {
+				limits.cpuLimit = cpuLimit.AsApproximateFloat64() * 100 // Convert to percentage
+				limits.hasCPU = true
+			}
 		}
 		if memLimit := recoContainer.Limits.Memory(); memLimit != nil && !memLimit.IsZero() {
 			limits.memoryLimit = uint64(memLimit.Value())
