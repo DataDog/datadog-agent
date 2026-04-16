@@ -67,6 +67,7 @@
     GIT_STRATEGY: "clone" # Needed because we use git merge-base
     GIT_CLONE_FLAGS: "--filter=blob:none"
     GIT_SPARSE_CHECKOUT_DIRS: "comp pkg test tasks tools internal .dda"
+    DISABLE_GIT_CACHE: "true" # S3 reference cache provides all objects locally, defeating --filter=blob:none
     DYNAMIC_TESTS_FLAG: "--impacted"
     SHOULD_RUN_IN_FLAKES_FINDER: "true"
     KUBERNETES_MEMORY_REQUEST: 12Gi
