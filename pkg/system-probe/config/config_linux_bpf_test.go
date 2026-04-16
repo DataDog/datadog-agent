@@ -129,6 +129,37 @@ func TestNPMEnabled(t *testing.T) {
 	}
 }
 
+func TestTracerouteModuleEnabledForEUDM(t *testing.T) {
+	mock.New(t)
+	mock.NewSystemProbe(t)
+
+	tests := []struct {
+		name             string
+		eudm             bool
+		tracerouteConfig bool
+		expected         bool
+	}{
+		{"neither enabled", false, false, false},
+		{"traceroute config only", false, true, true},
+		{"eudm only", true, false, true},
+		{"both enabled", true, true, true},
+	}
+
+	for _, te := range tests {
+		t.Run(te.name, func(t *testing.T) {
+			if te.eudm {
+				t.Setenv("DD_INFRASTRUCTURE_MODE", "end_user_device")
+			} else {
+				t.Setenv("DD_INFRASTRUCTURE_MODE", "full")
+			}
+			t.Setenv("DD_TRACEROUTE_ENABLED", strconv.FormatBool(te.tracerouteConfig))
+			cfg, err := New("", "")
+			require.NoError(t, err)
+			assert.Equal(t, te.expected, cfg.ModuleIsEnabled(TracerouteModule), "unexpected traceroute module enablement: eudm: %v, traceroute config: %v", te.eudm, te.tracerouteConfig)
+		})
+	}
+}
+
 func TestRedisMonitoringEnabledForSupportedKernelsLinux(t *testing.T) {
 	t.Setenv("DD_SERVICE_MONITORING_CONFIG_REDIS_ENABLED", strconv.FormatBool(true))
 	cfg := mock.NewSystemProbe(t)

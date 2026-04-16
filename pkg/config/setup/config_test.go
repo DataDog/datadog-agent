@@ -726,6 +726,8 @@ infrastructure_mode: end_user_device
 	assert.True(t, foundSlack, "*.slack.com should be in the default filters")
 	assert.True(t, foundGitHub, "*.github.com should be in the default filters")
 
+	// Check that connections monitoring is enabled
+	assert.True(t, config.GetBool("network_path.connections_monitoring.enabled"), "connections monitoring should be enabled in end_user_device mode")
 }
 
 func TestUsePodmanLogsAndDockerPathOverride(t *testing.T) {

@@ -1445,6 +1445,7 @@ func applyInfrastructureModeOverrides(config pkgconfigmodel.Config) {
 		config.Set("network_path.collector.filters", defaultNetworkPathCollectorFilters, pkgconfigmodel.SourceAgentRuntime) // Agent runtime source is required to override customer defined filters with default configuration
 
 		// Enable features for end_user_device mode
+		config.Set("network_path.connections_monitoring.enabled", true, pkgconfigmodel.SourceInfraMode)
 		config.Set("process_config.process_collection.enabled", true, pkgconfigmodel.SourceInfraMode)
 		config.Set("software_inventory.enabled", true, pkgconfigmodel.SourceInfraMode)
 		config.Set("notable_events.enabled", true, pkgconfigmodel.SourceInfraMode)

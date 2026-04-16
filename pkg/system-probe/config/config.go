@@ -176,7 +176,7 @@ func load() (*types.Config, error) {
 	if cfg.GetBool(pngNS("enabled")) {
 		c.EnabledModules[PingModule] = struct{}{}
 	}
-	if cfg.GetBool(tracerouteNS("enabled")) {
+	if cfg.GetBool(tracerouteNS("enabled")) || eudmEnabled {
 		c.EnabledModules[TracerouteModule] = struct{}{}
 	}
 	if cfg.GetBool(discoveryNS("enabled")) {
