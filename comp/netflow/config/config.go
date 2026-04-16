@@ -37,6 +37,9 @@ type NetflowConfig struct {
 	PrometheusListenerEnabled bool   `mapstructure:"prometheus_listener_enabled"`
 
 	ReverseDNSEnrichmentEnabled bool `mapstructure:"reverse_dns_enrichment_enabled"`
+
+	ConnectionEnrichmentEnabled      bool `mapstructure:"connection_enrichment_enabled"`
+	ConnectionEnrichmentPollInterval int  `mapstructure:"connection_enrichment_poll_interval"`
 }
 
 // ListenerConfig contains configuration for a single flow listener
@@ -137,6 +140,10 @@ func (mainConfig *NetflowConfig) SetDefaults(namespace string, logger log.Compon
 
 	if mainConfig.PrometheusListenerAddress == "" {
 		mainConfig.PrometheusListenerAddress = common.DefaultPrometheusListenerAddress
+	}
+
+	if mainConfig.ConnectionEnrichmentPollInterval == 0 {
+		mainConfig.ConnectionEnrichmentPollInterval = 30
 	}
 
 	return nil

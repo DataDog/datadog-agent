@@ -42,8 +42,9 @@ type flowAccumulator struct {
 
 	hashCollisionFlowCount *atomic.Uint64
 
-	logger      log.Component
-	rdnsQuerier rdnsquerier.Component
+	logger       log.Component
+	rdnsQuerier  rdnsquerier.Component
+	connEnricher *ConnEnricher
 }
 
 func newFlowAccumulator(flushConfig common.FlushConfig, flowScheduler FlowScheduler, aggregatorFlowContextTTL time.Duration, portRollupThreshold int, portRollupDisabled bool, logger log.Component, rdnsQuerier rdnsquerier.Component) *flowAccumulator {
@@ -147,12 +148,14 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 			nextFlush: nextFlush,
 		}
 		f.addRDNSEnrichment(aggHash, flowToAdd.SrcAddr, flowToAdd.DstAddr)
+		addConnEnrichment(flowToAdd, f.connEnricher)
 		return
 	}
 	if aggFlow.flow == nil {
 		// flowToAdd is for the same hash as an aggregated flow that has been flushed
 		aggFlow.flow = flowToAdd
 		f.addRDNSEnrichment(aggHash, flowToAdd.SrcAddr, flowToAdd.DstAddr)
+		addConnEnrichment(flowToAdd, f.connEnricher)
 	} else {
 		// use go routine for hash collision detection to avoid blocking critical path
 		go f.detectHashCollision(aggHash, *aggFlow.flow, *flowToAdd)

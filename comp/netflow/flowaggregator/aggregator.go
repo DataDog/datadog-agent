@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/netflow/format"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
@@ -58,8 +59,9 @@ type FlowAggregator struct {
 	lastSequencePerExporter   map[sequenceDeltaKey]uint32
 	lastSequencePerExporterMu sync.Mutex
 
-	flowFilter FlowFlushFilter
-	logger     log.Component
+	flowFilter   FlowFlushFilter
+	connEnricher *ConnEnricher
+	logger       log.Component
 }
 
 type sequenceDeltaKey struct {
@@ -88,7 +90,7 @@ var maxNegativeSequenceDiffToReset = map[common.FlowType]int{
 }
 
 // NewFlowAggregator returns a new FlowAggregator
-func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder, config *config.NetflowConfig, hostname string, logger log.Component, rdnsQuerier rdnsquerier.Component) *FlowAggregator {
+func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder, config *config.NetflowConfig, hostname string, logger log.Component, rdnsQuerier rdnsquerier.Component, taggerComp tagger.Component, sysprobeSocketPath string) *FlowAggregator {
 	flushConfig := common.FlushConfig{
 		FlowCollectionDuration: time.Duration(config.AggregatorFlushInterval) * time.Second,
 		FlushTickFrequency:     flushFlowsToSendInterval,
@@ -105,9 +107,20 @@ func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder
 
 	flowContextTTL := time.Duration(config.AggregatorFlowContextTTL) * time.Second
 	rollupTrackerRefreshInterval := time.Duration(config.AggregatorRollupTrackerRefreshInterval) * time.Second
+
+	var enricher *ConnEnricher
+	if config.ConnectionEnrichmentEnabled && taggerComp != nil && sysprobeSocketPath != "" {
+		pollInterval := time.Duration(config.ConnectionEnrichmentPollInterval) * time.Second
+		enricher = NewConnEnricher(sysprobeSocketPath, pollInterval, logger, taggerComp)
+		logger.Infof("Connection enrichment enabled (poll_interval=%s)", pollInterval)
+	}
+
+	flowAcc := newFlowAccumulator(flushConfig, flowScheduler, flowContextTTL, config.AggregatorPortRollupThreshold, config.AggregatorPortRollupDisabled, logger, rdnsQuerier)
+	flowAcc.connEnricher = enricher
+
 	return &FlowAggregator{
 		flowIn:                       make(chan *common.Flow, config.AggregatorBufferSize),
-		flowAcc:                      newFlowAccumulator(flushConfig, flowScheduler, flowContextTTL, config.AggregatorPortRollupThreshold, config.AggregatorPortRollupDisabled, logger, rdnsQuerier),
+		flowAcc:                      flowAcc,
 		FlushConfig:                  flushConfig,
 		rollupTrackerRefreshInterval: rollupTrackerRefreshInterval,
 		sender:                       sender,
@@ -124,12 +137,16 @@ func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder
 		lastSequencePerExporter:      make(map[sequenceDeltaKey]uint32),
 		logger:                       logger,
 		flowFilter:                   topNFilter,
+		connEnricher:                 enricher,
 	}
 }
 
 // Start will start the FlowAggregator worker
 func (agg *FlowAggregator) Start() {
 	agg.logger.Info("Flow Aggregator started")
+	if agg.connEnricher != nil {
+		agg.connEnricher.Start()
+	}
 	go agg.run()
 	agg.flushLoop() // blocking call
 }
@@ -139,6 +156,9 @@ func (agg *FlowAggregator) Stop() {
 	close(agg.stopChan)
 	<-agg.flushLoopDone
 	<-agg.runDone
+	if agg.connEnricher != nil {
+		agg.connEnricher.Stop()
+	}
 }
 
 // GetFlowInChan returns flow input chan
