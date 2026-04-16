@@ -25,8 +25,6 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/kr/pretty v0.3.1
 	github.com/pkg/sftp v1.13.9 // indirect
-	github.com/pulumi/pulumi-aws/sdk/v7 v7.23.0
-	github.com/pulumi/pulumi-awsx/sdk/v3 v3.3.1
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.23.0
 	github.com/pulumi/pulumi/sdk/v3 v3.225.0
 	github.com/samber/lo v1.52.0
@@ -222,6 +220,8 @@ require (
 	github.com/go-viper/mapstructure/v2 v2.5.0
 	github.com/google/go-containerregistry v0.20.7
 	github.com/hairyhenderson/go-codeowners v0.7.0
+	github.com/pulumi/pulumi-aws/sdk/v7 v7.23.0
+	github.com/pulumi/pulumi-awsx/sdk/v3 v3.3.1
 	gopkg.in/yaml.v3 v3.0.1
 )
 

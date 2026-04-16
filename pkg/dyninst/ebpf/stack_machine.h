@@ -12,9 +12,33 @@
 #include "queue.h"
 #include "chased_pointers_trie.h"
 
-// Sentinel value for nil_bit_idx indicating no nil bit should be set
-// (used by condition expressions which report nil via condition_eval_error).
-#define NIL_BIT_IDX_NONE 0xFFFFFFFF
+// Expression status values. Each expression gets EXPR_STATUS_BITS bits in the
+// expression status array at the start of event root data.
+#define EXPR_STATUS_BITS      2
+#define EXPR_STATUS_ABSENT    0  // evaluation failed (unknown reason)
+#define EXPR_STATUS_PRESENT   1  // evaluation succeeded
+#define EXPR_STATUS_NIL_DEREF 2  // nil pointer dereference
+#define EXPR_STATUS_OOB       3  // index out of bounds
+
+// Sentinel value for expr_status_idx indicating no status should be written
+// (used by condition expressions which report errors via condition_eval_error).
+#define EXPR_STATUS_IDX_NONE 0xFFFFFFFF
+
+// expr_status_write writes a status value into the packed expression status
+// array for the given expression index.
+static __always_inline void expr_status_write(
+    scratch_buf_t* buf,
+    buf_offset_t base_offset,
+    uint32_t expr_idx,
+    uint8_t status
+) {
+    uint32_t bit_offset = expr_idx * EXPR_STATUS_BITS;
+    buf_offset_t byte_offset = base_offset + bit_offset / 8;
+    uint32_t shift = bit_offset % 8;
+    if (!scratch_buf_bounds_check(&byte_offset, 1)) return;
+    uint8_t mask = ((1 << EXPR_STATUS_BITS) - 1) << shift;
+    (*buf)[byte_offset] = ((*buf)[byte_offset] & ~mask) | ((status & ((1 << EXPR_STATUS_BITS) - 1)) << shift);
+}
 
 const int32_t defaultCollectionSizeBytesLimit = 512;
 
@@ -799,7 +823,7 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
   case SM_OP_EXPR_SAVE: {
     uint32_t result_offset = sm_read_program_uint32(sm);
     uint32_t byte_len = sm_read_program_uint32(sm);
-    uint32_t bit_offset = sm_read_program_uint32(sm);
+    uint32_t expr_idx = sm_read_program_uint32(sm);
 
     // Save the result.
     copy_data(buf, sm->offset, sm->expr_results_offset + result_offset,
@@ -807,13 +831,8 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
 
     LOG(4, "copy data 0x%llx->0x%llx !%u", sm->offset, sm->expr_results_offset + result_offset, byte_len);
 
-    // Set the presence bit.
-    sm->buf_offset_0 = sm->expr_results_offset + bit_offset / 8;
-    bit_offset %= 8;
-    if (!scratch_buf_bounds_check(&sm->buf_offset_0, 1)) {
-      return 1;
-    }
-    (*buf)[sm->buf_offset_0] |= (1 << bit_offset);
+    // Write expression status = present.
+    expr_status_write(buf, sm->expr_results_offset, expr_idx, EXPR_STATUS_PRESENT);
 
     // Set the offset at the result data, for potential following process type functions.
     sm->offset = sm->expr_results_offset + result_offset;
@@ -939,20 +958,16 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     LOG(4, "EXPR_DEREFERENCE_PTR: starting");
     uint32_t bias = sm_read_program_uint32(sm);
     uint32_t byte_len = sm_read_program_uint32(sm);
-    uint32_t nil_bit_idx = sm_read_program_uint32(sm);
+    uint32_t expr_status_idx = sm_read_program_uint32(sm);
     buf_offset_t value_offset = sm->offset;
     if (!scratch_buf_bounds_check(&value_offset, sizeof(target_ptr_t))) {
       return 1;
     }
     target_ptr_t addr = *(target_ptr_t*)&((*buf)[value_offset]);
     if (addr == 0) {
-      // NULL pointer: set nil bit in presence bitset if applicable.
-      if (nil_bit_idx != NIL_BIT_IDX_NONE) {
-        buf_offset_t nil_byte_offset = sm->expr_results_offset + nil_bit_idx / 8;
-        uint32_t nil_bit = nil_bit_idx % 8;
-        if (scratch_buf_bounds_check(&nil_byte_offset, 1)) {
-          (*buf)[nil_byte_offset] |= (1 << nil_bit);
-        }
+      // NULL pointer: write nil-deref status.
+      if (expr_status_idx != EXPR_STATUS_IDX_NONE) {
+        expr_status_write(buf, sm->expr_results_offset, expr_status_idx, EXPR_STATUS_NIL_DEREF);
       }
       sm->condition_nil_deref = true;
       // Abort expression evaluation.
@@ -971,6 +986,33 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
       }
       return 0;
     }
+  } break;
+
+  case SM_OP_EXPR_SLICE_BOUNDS_CHECK: {
+    LOG(4, "EXPR_SLICE_BOUNDS_CHECK: starting");
+    uint32_t index = sm_read_program_uint32(sm);
+    uint32_t expr_status_idx = sm_read_program_uint32(sm);
+
+    // The slice header is [data_ptr (8 bytes), len (8 bytes)] at sm->offset.
+    // The len field is at a fixed offset of 8 (we only support 64-bit targets).
+    buf_offset_t len_off = sm->offset + 8;
+    if (!scratch_buf_bounds_check(&len_off, 8)) {
+      return 1;
+    }
+    int64_t slice_len = *(int64_t*)&((*buf)[len_off]);
+
+    if ((int64_t)index >= slice_len || slice_len < 0) {
+      LOG(3, "EXPR_SLICE_BOUNDS_CHECK: index %u >= len %lld, aborting", index, slice_len);
+      if (expr_status_idx != EXPR_STATUS_IDX_NONE) {
+        expr_status_write(buf, sm->expr_results_offset, expr_status_idx, EXPR_STATUS_OOB);
+      }
+      scratch_buf_set_len(buf, sm->expr_results_end_offset);
+      if (!sm_return(sm)) {
+        return 1;
+      }
+      return 0;
+    }
+    // Bounds check passed — data pointer is at sm->offset.
   } break;
 
   case SM_OP_PROCESS_POINTER: {
@@ -1245,7 +1287,7 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
 
     // Read the resolved runtime type from the event root data.
     // Use expr_results_offset as the base, not buf_offset_0, because
-    // ExprSave clobbers buf_offset_0 for presence bitset tracking.
+    // ExprSave formerly clobbered buf_offset_0 for status tracking.
     // expr_results_offset is set by PrepareEventRoot and not modified.
     buf_offset_t read_pos = sm->expr_results_offset;
     barrier_var(read_pos);
