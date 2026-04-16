@@ -97,6 +97,17 @@ func (c *ConnectionStats) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// convertMsToNs converts a 48-bit millisecond timestamp into a 64-bit nanosecond timestamp
+func convertMsToNs(t netebpf.NetTimeMs) uint64 {
+	var ms uint64
+	for i := range 3 {
+		ms <<= 16
+		ms += uint64(t.Timestamp[i])
+	}
+
+	return ms * 1000
+}
+
 // FromConn populates relevant fields on ConnectionStats from the connection data
 func (c *ConnectionStats) FromConn(ct *netebpf.Conn) {
 	c.FromTupleAndStats(&ct.Tup, &ct.Conn_stats)
@@ -106,6 +117,9 @@ func (c *ConnectionStats) FromConn(ct *netebpf.Conn) {
 
 // FromTupleAndStats populates relevant fields on ConnectionStats from the arguments
 func (c *ConnectionStats) FromTupleAndStats(t *netebpf.ConnTuple, s *netebpf.ConnStats) {
+	timestampNs := convertMsToNs(s.Timestamp_ms)
+	durationNs := convertMsToNs(s.Duration_ms)
+
 	*c = ConnectionStats{ConnectionTuple: ConnectionTuple{
 		Pid:    t.Pid,
 		NetNS:  t.Netns,
@@ -120,13 +134,13 @@ func (c *ConnectionStats) FromTupleAndStats(t *netebpf.ConnTuple, s *netebpf.Con
 			SentPackets: uint64(s.Sent_packets),
 			RecvPackets: uint64(s.Recv_packets),
 		},
-		LastUpdateEpoch: s.Timestamp,
+		LastUpdateEpoch: timestampNs,
 		IsAssured:       s.IsAssured(),
 		Cookie:          StatCookie(s.Cookie),
 	}
 
-	if s.Duration <= uint64(math.MaxInt64) {
-		c.Duration = time.Duration(s.Duration) * time.Nanosecond
+	if durationNs <= uint64(math.MaxInt64) {
+		c.Duration = time.Duration(durationNs) * time.Nanosecond
 	}
 
 	c.ProtocolStack = protocols.Stack{
