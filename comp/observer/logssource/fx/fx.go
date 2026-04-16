@@ -7,6 +7,9 @@
 package fx
 
 import (
+	"go.uber.org/fx"
+
+	logssource "github.com/DataDog/datadog-agent/comp/observer/logssource/def"
 	logssourceimpl "github.com/DataDog/datadog-agent/comp/observer/logssource/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -17,5 +20,6 @@ func Module() fxutil.Module {
 		fxutil.ProvideComponentConstructor(
 			logssourceimpl.NewComponent,
 		),
+		fx.Invoke(func(_ logssource.Component) {}),
 	)
 }
