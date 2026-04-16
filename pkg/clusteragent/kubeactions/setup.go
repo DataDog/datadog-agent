@@ -9,7 +9,6 @@ package kubeactions
 
 import (
 	"context"
-	"sync"
 
 	kubeactions "github.com/DataDog/agent-payload/v5/kubeactions"
 	"k8s.io/client-go/kubernetes"
@@ -20,7 +19,7 @@ import (
 )
 
 // Setup initializes the kubeactions subsystem with all executors registered
-func Setup(ctx context.Context, clientset kubernetes.Interface, clusterName, clusterID string, isLeader func() bool, rcClient RcClient, epForwarderComp eventplatform.Component, wg *sync.WaitGroup) (*ConfigRetriever, error) {
+func Setup(ctx context.Context, clientset kubernetes.Interface, clusterName, clusterID string, isLeader func() bool, rcClient RcClient, epForwarderComp eventplatform.Component) (*ConfigRetriever, error) {
 	log.Infof("Setting up Kubernetes actions subsystem")
 
 	// Create the executor registry
@@ -48,7 +47,7 @@ func Setup(ctx context.Context, clientset kubernetes.Interface, clusterName, clu
 	log.Infof("[KubeActions] ActionProcessor created successfully")
 
 	// Create and return the config retriever
-	return NewConfigRetriever(processor, isLeader, rcClient, wg), nil
+	return NewConfigRetriever(processor, isLeader, rcClient), nil
 }
 
 // executorAdapter adapts an executors.Executor to an ActionExecutor
