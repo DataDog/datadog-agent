@@ -209,9 +209,23 @@ namespace Datadog.CustomActions
                 {
                     if (Directory.Exists(logonDurationDir))
                     {
+                        var logonDurationDirAttributes = File.GetAttributes(logonDurationDir);
+                        if ((logonDurationDirAttributes & FileAttributes.ReparsePoint) != 0)
+                        {
+                            session.Log($"Warning: skipping cleanup of reparse point directory: {logonDurationDir}");
+                            return ActionResult.Success;
+                        }
+
                         session.Log($"Cleaning logon duration directory: {logonDurationDir}");
                         foreach (var file in Directory.GetFiles(logonDurationDir))
                         {
+                            var fileAttributes = File.GetAttributes(file);
+                            if ((fileAttributes & FileAttributes.ReparsePoint) != 0)
+                            {
+                                session.Log($"Warning: skipping deletion of reparse point file: {file}");
+                                continue;
+                            }
+
                             File.Delete(file);
                         }
                         session.Log("Logon duration directory cleaned");
