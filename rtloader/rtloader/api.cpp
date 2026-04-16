@@ -222,6 +222,11 @@ int add_python_path(rtloader_t *rtloader, const char *path)
     return AS_TYPE(RtLoader, rtloader)->addPythonPath(path) ? 1 : 0;
 }
 
+int add_subinterp_blocklist_entry(rtloader_t *rtloader, const char *module_name)
+{
+    return AS_TYPE(RtLoader, rtloader)->addSubinterpBlocklistEntry(module_name) ? 1 : 0;
+}
+
 rtloader_gilstate_t ensure_gil(rtloader_t *rtloader)
 {
     return AS_TYPE(RtLoader, rtloader)->GILEnsure();

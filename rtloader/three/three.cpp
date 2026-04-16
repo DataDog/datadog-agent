@@ -244,6 +244,19 @@ bool Three::addPythonPath(const char *path)
     return false;
 }
 
+bool Three::addSubinterpBlocklistEntry(const char *module_name)
+{
+#ifdef RTLOADER_HAS_SUBINTERPRETERS
+    if (module_name != NULL) {
+        _subinterpBlocklist.insert(std::string(module_name));
+        return true;
+    }
+#else
+    (void)module_name;
+#endif
+    return false;
+}
+
 rtloader_gilstate_t Three::GILEnsure()
 {
     PyGILState_STATE state = PyGILState_Ensure();

@@ -63,6 +63,11 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// Otherwise, Python is loaded when the collector is initialized.
 	config.BindEnvAndSetDefault("python_lazy_loading", true)
 
+	// List of Python check module names that should NOT run in sub-interpreters.
+	// These checks will run in the main interpreter instead. Needed for checks
+	// that depend on C extensions without sub-interpreter support.
+	config.BindEnvAndSetDefault("subinterpreter_blocklist", []string{})
+
 	// If true, then the go loader will be prioritized over the python loader.
 	config.BindEnvAndSetDefault("prioritize_go_check_loader", true)
 
