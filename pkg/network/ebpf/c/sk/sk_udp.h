@@ -10,7 +10,7 @@
 #include "sk.h"
 
 static __always_inline void update_stats_tuple4(struct bpf_sock *ctx) {
-    sk_udp_stats_t *sk_stats = bpf_sk_storage_get(&sk_udp_stats, ctx, 0, BPF_SK_STORAGE_GET_F_CREATE);
+    sk_udp_stats_t *sk_stats = bpf_sk_storage_get_or_create(sk_udp_stats, ctx, 0);
     if (!sk_stats) {
         return;
     }
@@ -30,7 +30,7 @@ static __always_inline void update_stats_tuple4(struct bpf_sock *ctx) {
 }
 
 static __always_inline void update_stats_tuple6(struct bpf_sock *ctx) {
-    sk_udp_stats_t *sk_stats = bpf_sk_storage_get(&sk_udp_stats, ctx, 0, BPF_SK_STORAGE_GET_F_CREATE);
+    sk_udp_stats_t *sk_stats = bpf_sk_storage_get_or_create(sk_udp_stats, ctx, 0);
     if (!sk_stats) {
         return;
     }
@@ -84,10 +84,7 @@ int BPF_PROG(udp_sendpage_exit, struct sock *sk, struct page *page, int offset, 
     }
     log_debug("udp_sendpage: sk=%p sent=%d", sk, sent);
 
-//    u64 pid_tgid = bpf_get_current_pid_tgid();
-//    log_debug("fexit/udp_sendpage: pid_tgid: %llu, sent: %d, sock: %p", pid_tgid, sent, sk);
-
-    sk_udp_stats_t *sk_stats = bpf_sk_storage_get(&sk_udp_stats, sk, 0, BPF_SK_STORAGE_GET_F_CREATE);
+    sk_udp_stats_t *sk_stats = bpf_sk_storage_get_or_create(sk_udp_stats, sk, 0);
     if (!sk_stats) {
         return 0;
     }
@@ -118,7 +115,7 @@ int BPF_PROG(udpv6_sendmsg_exit, struct sock *sk, struct msghdr *msg, size_t len
         return 0;
     }
 
-    sk_udp_stats_t *sk_stats = bpf_sk_storage_get(&sk_udp_stats, sk, 0, BPF_SK_STORAGE_GET_F_CREATE);
+    sk_udp_stats_t *sk_stats = bpf_sk_storage_get_or_create(sk_udp_stats, sk, 0);
     if (!sk_stats) {
         return 0;
     }
@@ -165,7 +162,7 @@ int BPF_PROG(udpv6_sendmsg_exit, struct sock *sk, struct msghdr *msg, size_t len
 SEC("fentry/udp_send_skb")
 int BPF_PROG(udp_send_skb_entry, struct sk_buff *skb, struct flowi4 *fl4) {
     struct sock *sk = skb->sk;
-    sk_udp_stats_t *sk_stats = bpf_sk_storage_get(&sk_udp_stats, sk, 0, BPF_SK_STORAGE_GET_F_CREATE);
+    sk_udp_stats_t *sk_stats = bpf_sk_storage_get_or_create(sk_udp_stats, sk, 0);;
     if (!sk_stats) {
         return 0;
     }
@@ -187,7 +184,7 @@ int BPF_PROG(udp_send_skb_entry, struct sk_buff *skb, struct flowi4 *fl4) {
 SEC("fentry/udp_v6_send_skb")
 int BPF_PROG(udp_v6_send_skb_entry, struct sk_buff *skb, struct flowi6 *fl6) {
     struct sock *sk = skb->sk;
-    sk_udp_stats_t *sk_stats = bpf_sk_storage_get(&sk_udp_stats, sk, 0, BPF_SK_STORAGE_GET_F_CREATE);
+    sk_udp_stats_t *sk_stats = bpf_sk_storage_get_or_create(sk_udp_stats, sk, 0);;
     if (!sk_stats) {
         return 0;
     }
@@ -213,7 +210,7 @@ int BPF_PROG(udp_sendmsg_exit, struct sock *sk, struct msghdr *msg, size_t len, 
         return 0;
     }
 
-    sk_udp_stats_t *sk_stats = bpf_sk_storage_get(&sk_udp_stats, sk, 0, BPF_SK_STORAGE_GET_F_CREATE);
+    sk_udp_stats_t *sk_stats = bpf_sk_storage_get_or_create(sk_udp_stats, sk, 0);;
     if (!sk_stats) {
         return 0;
     }
@@ -299,7 +296,7 @@ static __always_inline int handle_skb_consume_udp(struct sock *sk, struct sk_buf
         return 0;
     }
 
-    sk_udp_stats_t *sk_stats = bpf_sk_storage_get(&sk_udp_stats, sk, 0, BPF_SK_STORAGE_GET_F_CREATE);
+    sk_udp_stats_t *sk_stats = bpf_sk_storage_get_or_create(sk_udp_stats, sk, 0);;
     if (!sk_stats) {
         return 0;
     }
@@ -404,7 +401,7 @@ int BPF_PROG(udp_destroy_sock_exit, struct sock *sk) {
     if (!create_udp_conn(&conn, sk, sk_stats, NULL)) {
         return 0;
     }
-    bpf_ringbuf_output(&conn_close_event, &conn, sizeof(conn_t), get_ringbuf_flags(sizeof(conn_t)));
+    bpf_ringbuf_output_with_telemetry(&conn_close_event, &conn, sizeof(conn_t), get_ringbuf_flags(sizeof(conn_t)));
     return 0;
 }
 
@@ -419,7 +416,7 @@ int BPF_PROG(udpv6_destroy_sock_exit, struct sock *sk) {
     if (!create_udp_conn(&conn, sk, sk_stats, NULL)) {
         return 0;
     }
-    bpf_ringbuf_output(&conn_close_event, &conn, sizeof(conn_t), get_ringbuf_flags(sizeof(conn_t)));
+    bpf_ringbuf_output_with_telemetry(&conn_close_event, &conn, sizeof(conn_t), get_ringbuf_flags(sizeof(conn_t)));
     return 0;
 }
 

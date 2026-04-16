@@ -35,7 +35,7 @@ static __always_inline u64 read_inode_ctime(struct inode *inode) {
 }
 
 static __always_inline void initialize_tcp_socket(struct sock *sk, struct task_struct *task, struct file *file) {
-    sk_tcp_stats_t *sk_stats = bpf_sk_storage_get(&sk_tcp_stats, sk, 0, BPF_SK_STORAGE_GET_F_CREATE);
+    sk_tcp_stats_t *sk_stats = bpf_sk_storage_get_or_create(sk_tcp_stats, sk, 0);
     if (!sk_stats) {
         return;
     }
@@ -65,7 +65,7 @@ static __always_inline void initialize_tcp_socket(struct sock *sk, struct task_s
 }
 
 static __always_inline void initialize_udp_socket(struct sock *sk, struct task_struct *task, struct file *file) {
-    sk_udp_stats_t *sk_stats = bpf_sk_storage_get(&sk_udp_stats, sk, 0, BPF_SK_STORAGE_GET_F_CREATE);
+    sk_udp_stats_t *sk_stats = bpf_sk_storage_get_or_create(sk_udp_stats, sk, 0);
     if (!sk_stats) {
         return;
     }
