@@ -458,9 +458,9 @@ func TestHostMetrics(s OTelTestSuite) {
 	require.NoError(s.T(), err)
 	s.T().Log("Waiting for metrics")
 	expectedMetrics := []string{
-		"otel.system.cpu.load_average.15m",
-		"otel.system.cpu.load_average.5m",
-		"otel.system.memory.usage",
+		"system.cpu.load_average.15m",
+		"system.cpu.load_average.5m",
+		"system.memory.usage",
 	}
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		for _, m := range expectedMetrics {
