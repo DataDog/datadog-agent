@@ -92,7 +92,7 @@ fi
 # Version guard: this script is for Agent 7.79.0+
 if [ -n "$DD_AGENT_MINOR_VERSION" ] && [ "$agent_minor_version_without_patch" -lt 79 ]; then
     printf "${RED}This install script is for Agent 7.79.0 and later.
-For older versions, use install_mac_os_old.sh instead.
+For older versions, use install_mac_os_v1.sh instead.
 If you are downgrading from Agent >= 7.79.0, you must fully uninstall the Agent first:
     https://docs.datadoghq.com/agent/supported_platforms/osx/#uninstall-the-agent${NC}\n"
     exit 1
