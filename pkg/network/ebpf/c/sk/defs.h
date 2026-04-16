@@ -47,8 +47,6 @@ typedef struct {
     __u64 recv_bytes;
     __u32 sent_packets;
     __u32 recv_packets;
-    __u64 start_ns;
-    __u64 timestamp_ns;
     __u8 flags;
     __u8 direction;
 } sk_udp_stats_t;
