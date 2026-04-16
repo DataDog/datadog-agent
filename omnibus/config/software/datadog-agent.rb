@@ -91,7 +91,26 @@ build do
       " --prefix '#{install_dir}/embedded'" \
       " #{install_dir}/embedded/lib/libdatadog-agent-rtloader.#{sh_ext}" \
       " #{install_dir}/embedded/lib/libdatadog-agent-three.#{sh_ext}"
+
+    # Copy libpatterns.so into embedded/lib before agent.build so the Go linker
+    # finds it there (via CGO_LDFLAGS -L#{install_dir}/embedded/lib) in addition
+    # to the vendor directory. The patchelf step below then strips the vendor
+    # rpath from the binary so the omnibus health check only sees the safe path.
+    if linux_target?
+      arch = arm_target? ? "arm64" : "amd64"
+      copy "pkg/logs/patterns/tokenizer/rust/vendor/linux_#{arch}/libpatterns.so",
+           "#{install_dir}/embedded/lib/libpatterns.so"
+    end
+
     command "dda inv -- -e agent.build --exclude-rtloader --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+
+    # Remove the source-tree vendor path from the agent binary's rpath so the
+    # omnibus health check resolves libpatterns.so from embedded/lib only.
+    # Uses plain `command` (runs from project_dir, same as agent.build) since the
+    # binary is at bin/agent/agent relative to project_dir at this point.
+    if linux_target?
+      command "patchelf --set-rpath #{install_dir}/embedded/lib bin/agent/agent"
+    end
   end
 
   command_on_repo_root "bazelisk run #{bazel_flags} -- //packages/agent/product:post_build_install --destdir=#{install_dir} --verbose", :live_stream => Omnibus.logger.live_stream(:info)
