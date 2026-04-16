@@ -29,6 +29,7 @@ use tokio::signal::unix::{SignalKind, signal};
 
 mod cli;
 mod config;
+mod enrollment;
 mod executor;
 mod executor_client;
 mod jwt;
@@ -95,18 +96,74 @@ fn resolve_executor_binary(cli_path: Option<PathBuf>) -> Result<PathBuf> {
 }
 
 async fn run(cfg: Config) -> Result<()> {
-    let signing_key =
-        load_signing_key(&cfg.private_key_b64).context("failed to load signing key")?;
+    // Resolve identity: use pre-configured key or perform self-enrollment.
+    // API key may come from datadog.yaml or from DD_API_KEY env var (injected by operator).
+    let effective_api_key = if cfg.api_key.is_empty() {
+        std::env::var("DD_API_KEY").unwrap_or_default()
+    } else {
+        cfg.api_key.clone()
+    };
+    let effective_app_key = if cfg.app_key.is_empty() {
+        std::env::var("DD_APP_KEY").unwrap_or_default()
+    } else {
+        cfg.app_key.clone()
+    };
+    let effective_site = if cfg.site == "datadoghq.com" || cfg.site.is_empty() {
+        std::env::var("DD_SITE").unwrap_or_else(|_| cfg.site.clone())
+    } else {
+        cfg.site.clone()
+    };
 
+    let (private_key_b64, runner_id, org_id, signing_key) =
+        if cfg.private_key_b64.is_empty() || cfg.runner_id.is_empty() {
+            if effective_api_key.is_empty() {
+                warn!("par-control: no identity and no api_key — cannot enroll; idling");
+                tokio::time::sleep(std::time::Duration::from_secs(u64::MAX / 2)).await;
+                return Ok(());
+            }
+            info!("par-control: no pre-configured identity, starting self-enrollment");
+            let hostname = std::env::var("HOSTNAME").unwrap_or_else(|_| "par-runner".to_string());
+            let http = reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(30))
+                .build()
+                .context("failed to build HTTP client for enrollment")?;
+            // Recompute dd_api_host from effective_site in case DD_SITE overrides
+            let effective_api_host = format!("api.{}", effective_site);
+            let result = enrollment::enroll(
+                &http,
+                &effective_api_key,
+                &effective_app_key,
+                &effective_api_host,
+                &effective_site,
+                &hostname,
+            )
+            .await
+            .context("self-enrollment failed")?;
+            // Parse URN to extract org_id and runner_id
+            let parts: Vec<&str> = result.urn.split(':').collect();
+            let enroll_org_id = if parts.len() == 7 { parts[5].parse::<i64>().unwrap_or(0) } else { 0 };
+            let enroll_runner_id = if parts.len() == 7 { parts[6].to_string() } else { String::new() };
+            (result.private_key_b64, enroll_runner_id, enroll_org_id, result.signing_key)
+        } else {
+            let sk = load_signing_key(&cfg.private_key_b64).context("failed to load signing key")?;
+            (cfg.private_key_b64.clone(), cfg.runner_id.clone(), cfg.org_id, sk)
+        };
+
+    // Use effective_api_host so OPMS calls go to the right site (e.g. datad0g.com
+    // for staging) — cfg.dd_api_host may default to datadoghq.com before DD_SITE
+    // overrides it at runtime.
+    let opms_host = format!("api.{}", effective_site);
     let opms = OPMSClient::new(
-        &cfg.dd_api_host,
-        cfg.org_id,
-        cfg.runner_id.clone(),
+        &opms_host,
+        org_id,
+        runner_id.clone(),
         signing_key,
     )
     .context("failed to create OPMS client")?;
 
-    let executor = ExecutorManager::new(
+    let urn_for_executor = format!("urn:dd:apps:on-prem-runner:{}:{}:{}",
+        enrollment::region_from_site(&effective_site), org_id, runner_id);
+    let mut executor = ExecutorManager::new(
         cfg.executor_binary.clone(),
         cfg.executor_socket.clone(),
         cfg.executor_idle_timeout,
@@ -114,10 +171,12 @@ async fn run(cfg: Config) -> Result<()> {
         cfg.executor_cfgpath.clone(),
         cfg.executor_extracfg.clone(),
     );
+    executor.urn = urn_for_executor;
+    executor.private_key_b64 = private_key_b64;
 
     info!(
         "par-control: starting OPMS polling (host={}, runner={})",
-        cfg.dd_api_host, cfg.runner_id,
+        opms_host, runner_id,
     );
 
     // Spawn watchdog: periodically health-pings the executor while it's running.

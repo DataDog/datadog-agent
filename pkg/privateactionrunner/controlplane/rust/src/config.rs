@@ -23,9 +23,12 @@ pub struct Config {
 
     // Identity / OPMS (from datadog.yaml)
     pub dd_api_host: String,
+    pub site: String,
     pub org_id: i64,
     pub runner_id: String,
     pub private_key_b64: String,
+    pub api_key: String,
+    pub app_key: String,
 
     // Timing (from datadog.yaml with defaults)
     pub loop_interval: Duration,
@@ -49,9 +52,12 @@ impl Config {
             executor_cfgpath,
             executor_extracfg,
             dd_api_host: par.dd_api_host,
+            site: par.site,
             org_id: par.org_id,
             runner_id: par.runner_id,
             private_key_b64: par.private_key_b64,
+            api_key: par.api_key,
+            app_key: par.app_key,
             loop_interval: par.loop_interval,
             heartbeat_interval: par.heartbeat_interval,
             task_timeout: par.task_timeout,

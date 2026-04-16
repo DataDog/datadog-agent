@@ -18,6 +18,7 @@ base64.workspace = true
 dd-agent-log.workspace = true
 log.workspace = true
 p256.workspace = true
+rand_core.workspace = true
 reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true

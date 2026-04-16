@@ -27,6 +27,14 @@ struct DdYaml {
     #[serde(default)]
     dd_url: String,
 
+    /// Datadog API key — used for self-enrollment when no identity is present.
+    #[serde(default)]
+    api_key: String,
+
+    /// Datadog App key — used for self-enrollment (optional but recommended).
+    #[serde(default)]
+    app_key: String,
+
     #[serde(default)]
     private_action_runner: PARSection,
 }
@@ -111,6 +119,12 @@ pub struct ParConfig {
     pub runner_id: String,
     /// e.g. "api.datadoghq.com"
     pub dd_api_host: String,
+    /// Datadog API key for self-enrollment.
+    pub api_key: String,
+    /// Datadog App key for self-enrollment (optional).
+    pub app_key: String,
+    /// Datadog site, e.g. "datadoghq.com"
+    pub site: String,
     pub loop_interval: Duration,
     pub heartbeat_interval: Duration,
     pub task_timeout: Duration,
@@ -129,21 +143,29 @@ impl ParConfig {
 
         let par = &dd.private_action_runner;
 
-        if par.private_key.is_empty() {
-            bail!("private_action_runner.private_key is missing or empty in {}", path.display());
-        }
-        if par.urn.is_empty() {
-            bail!("private_action_runner.urn is missing or empty in {}", path.display());
-        }
-
-        let urn = parse_urn(&par.urn)?;
+        // Identity may be absent on first start before self-enrollment completes.
+        // par-control will start successfully and fail gracefully on OPMS polling
+        // attempts until enrollment provides the identity.
+        // TODO: implement self-enrollment in par-control (currently handled by the
+        // Go privateactionrunner binary on first startup).
+        let urn = if par.urn.is_empty() {
+            log::warn!("private_action_runner.urn is not set — OPMS polling will fail until enrollment completes");
+            crate::par_config::Urn { org_id: 0, runner_id: String::new() }
+        } else {
+            parse_urn(&par.urn)?
+        };
         let dd_api_host = compute_api_host(&dd.site, &dd.dd_url);
+
+        let site = if dd.site.is_empty() { "datadoghq.com".to_string() } else { dd.site.clone() };
 
         Ok(ParConfig {
             private_key_b64: par.private_key.clone(),
             org_id: urn.org_id,
             runner_id: urn.runner_id,
             dd_api_host,
+            api_key: dd.api_key.clone(),
+            app_key: dd.app_key.clone(),
+            site,
             loop_interval: Duration::from_secs(par.loop_interval_seconds.unwrap_or(1)),
             heartbeat_interval: Duration::from_secs(par.heartbeat_interval_seconds.unwrap_or(20)),
             task_timeout: Duration::from_secs(u64::from(par.task_timeout_seconds.unwrap_or(60))),

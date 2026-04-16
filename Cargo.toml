@@ -56,8 +56,9 @@ zip = { version = "8.0", default-features = false, features = ["deflate"] }
 
 # par-control dependencies
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
-p256 = { version = "0.13", features = ["ecdsa"] }
+p256 = { version = "0.13", features = ["ecdsa", "pkcs8"] }
 base64 = "0.22"
+rand_core = { version = "0.6", features = ["getrandom"] }
 
 tower = { version = "0.5", features = ["util"] }
 uuid = { version = "1", features = ["v4"] }

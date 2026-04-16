@@ -49,6 +49,10 @@ pub struct ExecutorManager {
     cfgpath: Option<std::path::PathBuf>,
     /// Forwarded to par-executor as --extracfgpath (-E) for each entry.
     extracfg: Vec<std::path::PathBuf>,
+    /// Enrolled identity injected as env vars so par-executor can load the
+    /// identity without it being pre-written to datadog.yaml.
+    pub urn: String,
+    pub private_key_b64: String,
 }
 
 impl ExecutorManager {
@@ -70,6 +74,8 @@ impl ExecutorManager {
             client,
             cfgpath,
             extracfg,
+            urn: String::new(),
+            private_key_b64: String::new(),
         }
     }
 
@@ -113,6 +119,20 @@ impl ExecutorManager {
         cmd.arg("run")
             .arg("--socket").arg(&self.socket_path)
             .arg("--idle-timeout-seconds").arg(self.idle_timeout.to_string());
+
+        // Inject enrolled identity as env vars so par-executor can load
+        // the URN and private key even when they're not in datadog.yaml
+        // (e.g. after in-memory self-enrollment by par-control).
+        if !self.urn.is_empty() {
+            cmd.env("DD_PRIVATE_ACTION_RUNNER_URN", &self.urn);
+        }
+        if !self.private_key_b64.is_empty() {
+            cmd.env("DD_PRIVATE_ACTION_RUNNER_PRIVATE_KEY", &self.private_key_b64);
+        }
+        // Also skip verification so par-executor doesn't wait for RC keys
+        // when the identity was just enrolled (the executor will get fresh
+        // keys on next reconciliation).
+        cmd.env("DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION", "true");
 
         // Forward config paths so par-executor can load the allowlist,
         // rshell paths, and other PAR settings from datadog.yaml and

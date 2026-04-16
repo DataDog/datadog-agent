@@ -186,13 +186,26 @@ build do
     elsif not heroku_target?
       copy 'bin/privateactionrunner/privateactionrunner', "#{install_dir}/embedded/bin"
 
-      # PAR dual-process: build and install the Rust control plane and Go executor.
-      # par-control is Linux-only; par-executor replaces the execution half of
-      # privateactionrunner in the dual-process model.
-      command_on_repo_root "bazelisk build #{bazel_flags} //pkg/privateactionrunner/controlplane/rust:par-control", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+      # PAR dual-process: build par-control (Rust) and par-executor (Go).
+      # par-control uses cargo directly (not Bazel) because ring (a reqwest→rustls
+      # dependency) requires real C system headers that are missing from the Bazel
+      # hermetic aarch64 toolchain. The omnibus cross-compiler is used instead.
+      # NOTE: local POC build only — not intended for CI.
+      rust_target = 'aarch64-unknown-linux-gnu'
+      cargo_target_dir = '/tmp/par-control-cargo-target'
+      cargo_env = env.merge({
+        # Redirect cargo output outside the omnibus source tree so omnibus's
+        # file_syncer does not try to hard-link temporary cargo build objects.
+        'CARGO_TARGET_DIR'                              => cargo_target_dir,
+        'CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER' => "#{env['DD_CC'] || 'aarch64-unknown-linux-gnu-gcc'}",
+        'CC_aarch64_unknown_linux_gnu'                  => "#{env['DD_CC'] || 'aarch64-unknown-linux-gnu-gcc'}",
+      })
+      command "which cargo || (curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path && source #{ENV['HOME']}/.cargo/env)", :env => env
+      command "cargo rustup target add #{rust_target} || #{ENV['HOME']}/.cargo/bin/rustup target add #{rust_target}", :env => env
+      command_on_repo_root "cargo build --release --target #{rust_target} -p par-control && cp #{cargo_target_dir}/#{rust_target}/release/par-control #{install_dir}/embedded/bin/par-control", :env => cargo_env, :live_stream => Omnibus.logger.live_stream(:info)
+
       command "dda inv -- -e par-executor.build --install-path=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
       copy 'bin/par-executor/par-executor', "#{install_dir}/embedded/bin"
-      command_on_repo_root "bazelisk run #{bazel_flags} //pkg/privateactionrunner/controlplane/rust:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
     end
   end
 

@@ -1,0 +1,52 @@
+apiVersion: datadoghq.com/v2alpha1
+kind: DatadogAgent
+metadata:
+  name: datadog
+  annotations:
+    agent.datadoghq.com/private-action-runner-enabled: "true"
+    agent.datadoghq.com/private-action-runner-configdata: |
+      private_action_runner:
+        enabled: true
+        self_enroll: true
+        actions_allowlist:
+          - com.datadoghq.remoteaction.testConnection
+spec:
+  global:
+    clusterName: gadget-dev
+    site: datad0g.com
+    tags:
+      - "poc:par-dual-process"
+    kubelet:
+      tlsVerify: false
+    credentials:
+      apiKey: 46e2f1b589004b6b49fd36c7e2ef49fc
+      appKey: ddapp_0j6bo17MdoABb44WeuLdpSXUS52O3YydAP
+  override:
+    nodeAgent:
+      image:
+        name: localhost/datadog-agent:local
+        pullPolicy: Never
+      containers:
+        # Override the PAR container command to use par-control (dual-process)
+        # instead of the hardcoded privateactionrunner entry point from the operator.
+        private-action-runner:
+          securityContext:
+            capabilities:
+              add:
+                - SYS_PTRACE
+          command:
+            - /opt/datadog-agent/embedded/bin/par-control
+            - run
+            - --config
+            - /etc/datadog-agent/datadog.yaml
+            - --executor-cfgpath
+            - /etc/datadog-agent/datadog.yaml
+            - --executor-extracfg
+            - /etc/datadog-agent/privateactionrunner.yaml
+  features:
+    liveProcessCollection:
+      enabled: true   # shows PAR process RSS in Live Processes in Datadog
+    liveContainerCollection:
+      enabled: true
+    logCollection:
+      enabled: true
