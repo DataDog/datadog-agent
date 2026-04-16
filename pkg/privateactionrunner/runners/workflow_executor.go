@@ -7,8 +7,11 @@ package runners
 
 import (
 	"context"
+	"strconv"
 	"sync"
 	"time"
+
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
 
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
@@ -95,6 +98,9 @@ func (l *Loop) Run(parentCtx context.Context) {
 
 		// JobId is generated on dequeue so its not part of the signature, it will be checked by the backend when publishing the result
 		unwrappedTask.Data.Attributes.JobId = task.Data.Attributes.JobId
+		// TraceId/SpanId are dequeue-time observability metadata, not part of the signed task
+		unwrappedTask.Data.Attributes.TraceId = task.Data.Attributes.TraceId
+		unwrappedTask.Data.Attributes.SpanId = task.Data.Attributes.SpanId
 		task = unwrappedTask
 
 		credential, err := l.runner.resolver.ResolveConnectionInfoToCredential(ctx, task.Data.Attributes.ConnectionInfo, nil)
@@ -123,6 +129,10 @@ func (l *Loop) handleTask(
 	taskCtx, taskCtxCancel := context.WithCancel(ctx)
 	defer taskCtxCancel()
 
+	span, taskCtx := l.startTaskSpan(taskCtx, task)
+	var taskErr error
+	defer func() { span.Finish(tracer.WithError(taskErr)) }()
+
 	timeoutSeconds := task.TimeoutSeconds()
 	if timeoutSeconds == nil {
 		timeoutSeconds = l.runner.config.TaskTimeoutSeconds
@@ -133,6 +143,7 @@ func (l *Loop) handleTask(
 	output, err := l.runner.RunTask(timeoutCtx, task, credential)
 
 	if isTimeout, timeoutErr := util.HandleTimeoutError(timeoutCtx, err, timeoutSeconds, logger); isTimeout {
+		taskErr = timeoutErr
 		l.publishFailure(ctx, task, timeoutErr)
 		return
 	}
@@ -140,9 +151,34 @@ func (l *Loop) handleTask(
 	if err == nil {
 		l.publishSuccess(ctx, task, output)
 	} else {
+		taskErr = err
 		logger.Warn("task execution failed", log.ErrorField(err))
 		l.publishFailure(ctx, task, err)
 	}
+}
+
+// startTaskSpan creates a span for the task execution, continuing the backend trace when trace
+// propagation info is present in the task. The caller is responsible for finishing the span.
+func (l *Loop) startTaskSpan(ctx context.Context, task *types.Task) (*tracer.Span, context.Context) {
+	opts := []tracer.StartSpanOption{
+		tracer.ResourceName(task.GetFQN()),
+		tracer.Tag(observability.TaskIDTagName, task.Data.ID),
+		tracer.Tag(observability.ActionFqnTagName, task.GetFQN()),
+	}
+
+	traceID := task.Data.Attributes.TraceId
+	spanID := task.Data.Attributes.SpanId
+	if traceID != 0 && spanID != 0 {
+		carrier := tracer.TextMapCarrier{
+			tracer.DefaultTraceIDHeader:  strconv.FormatUint(traceID, 10),
+			tracer.DefaultParentIDHeader: strconv.FormatUint(spanID, 10),
+		}
+		if spanCtx, err := tracer.Extract(carrier); err == nil {
+			opts = append(opts, tracer.ChildOf(spanCtx))
+		}
+	}
+
+	return tracer.StartSpanFromContext(ctx, "par.execute_action", opts...)
 }
 
 func (l *Loop) Close(ctx context.Context) {
