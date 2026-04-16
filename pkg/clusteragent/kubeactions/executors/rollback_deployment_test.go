@@ -10,7 +10,7 @@ package executors
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/DataDog/agent-payload/v5/kubeactions"
@@ -545,12 +545,12 @@ func findRSTemplate(t *testing.T, replicaSets []appsv1.ReplicaSet, revision stri
 
 func findPatchAction(clientset *fake.Clientset, deployment *appsv1.Deployment) (k8stesting.PatchAction, error) {
 	if deployment == nil {
-		return nil, fmt.Errorf("deployment is nil")
+		return nil, errors.New("deployment is nil")
 	}
 	for _, action := range clientset.Actions() {
 		if pa, ok := action.(k8stesting.PatchAction); ok && pa.GetResource().Resource == "deployments" && pa.GetName() == deployment.Name && pa.GetNamespace() == deployment.Namespace {
 			return pa, nil
 		}
 	}
-	return nil, fmt.Errorf("no patch was found")
+	return nil, errors.New("no patch was found")
 }
