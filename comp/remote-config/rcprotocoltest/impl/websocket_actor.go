@@ -3,20 +3,18 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package service
+package rcprotocoltestimpl
 
 import (
 	"context"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/api"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/rcwebsocket"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// WebSocketTestActor periodically calls rcwebsocket.RunWebSocketTest() in a
-// background task.
-type WebSocketTestActor struct {
+// webSocketTestActor periodically calls RunEchoTest() in a background task.
+type webSocketTestActor struct {
 	client *api.HTTPClient
 	// Callback to run the test.
 	fn func(context.Context, *api.HTTPClient)
@@ -24,12 +22,12 @@ type WebSocketTestActor struct {
 	stopCh chan struct{} // nil until Start() called
 }
 
-// NewWebSocketTestActor constructs a NewWebSocketTestActor that uses client to
+// newWebSocketTestActor constructs a webSocketTestActor that uses client to
 // obtain a WebSocket connection to the RC backend.
-func NewWebSocketTestActor(client *api.HTTPClient) *WebSocketTestActor {
-	return &WebSocketTestActor{
+func newWebSocketTestActor(client *api.HTTPClient) *webSocketTestActor {
+	return &webSocketTestActor{
 		client: client,
-		fn:     rcwebsocket.RunEchoTest,
+		fn:     RunEchoTest,
 	}
 }
 
@@ -38,9 +36,9 @@ func NewWebSocketTestActor(client *api.HTTPClient) *WebSocketTestActor {
 //
 // This method is not concurrency safe, and panics if Start() has previously
 // been called.
-func (s *WebSocketTestActor) Start() {
+func (s *webSocketTestActor) Start() {
 	if s.stopCh != nil {
-		panic("attempt to start WebSocketTestActor more than once")
+		panic("attempt to start webSocketTestActor more than once")
 	}
 
 	s.stopCh = make(chan struct{})
@@ -54,13 +52,13 @@ func (s *WebSocketTestActor) Start() {
 //
 // This method is not concurrency safe, and panics if Start() has not previously
 // been called. It is safe to call Stop() repeatedly.
-func (s *WebSocketTestActor) Stop() {
-	if s.stopCh != nil { // CoreAgentService.Stop() calls more than once
+func (s *webSocketTestActor) Stop() {
+	if s.stopCh != nil {
 		close(s.stopCh)
 	}
 }
 
-func (s *WebSocketTestActor) run() {
+func (s *webSocketTestActor) run() {
 	// This test loop is best effort - it SHOULD never kill the Agent process,
 	// even if it encounters a bug or protocol error.
 	//
