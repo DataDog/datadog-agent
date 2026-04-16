@@ -72,6 +72,9 @@ func NewConcentrator(conf *config.AgentConfig, writer Writer, now time.Time, sta
 		statsd:                  statsd,
 		bsize:                   bsize,
 		peerTagKeys:             conf.ConfiguredPeerTags(),
+		// additionalMetricTagKeys is intentionally nil on the agent side. This feature is only
+		// configurable through the Go tracer (dd-trace-go), which imports the SpanConcentrator
+		// directly and passes its own tag keys via NewStatSpanWithConfig's StatSpanConfig.AdditionalMetricTagKeys.
 		additionalMetricTagKeys: nil,
 	}
 	return &c

@@ -105,8 +105,7 @@ message ClientGroupedStats {
 	string HTTP_endpoint = 20; // Http route or quantized/simplified URL path
 	string service_source = 21; // @inject_tag: msg:"srv_src"
 	// used to identify service override origin
-	// span_derived_primary_tags are user-configured tags that are extracted from spans and used for stats aggregation
-	// E.g., `aws.s3.bucket`, `http.url`, or any custom tag
+	// Deprecated: use additional_metric_tags (field 23) instead.
 	repeated string span_derived_primary_tags = 22;
 	// additional_metric_tags are tags sent by tracers to be used as additional dimensions for stats aggregation
 	repeated string additional_metric_tags = 23;
