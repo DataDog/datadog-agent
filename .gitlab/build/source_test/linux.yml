@@ -27,6 +27,7 @@
     TEST_OUTPUT_FILE: test_output
     EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
   before_script:
+    - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
   script:
     - dda inv -- -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
@@ -119,6 +120,7 @@ tests_linux-arm64-py3:
     - .linux_tests
   needs: ["go_deps", "go_tools_deps_arm64"]
   before_script:
+    - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps_arm64]
   after_script:
     - !reference [.upload_junit_source]
@@ -210,6 +212,7 @@ tests_gpu:
   allow_failure: true
   before_script:
     - !reference [.retrieve_linux_go_deps]
+    - !reference [.retrieve_linux_go_tools_deps]
   after_script:
     - !reference [.upload_junit_source]
     - !reference [.upload_coverage]
