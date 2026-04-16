@@ -20,6 +20,14 @@ func TestClientAuthRequiresVerification(t *testing.T) {
 	assert.True(t, ClientAuthRequiresVerification(tls.RequireAndVerifyClientCert))
 }
 
+func TestClientAuthNoVerify(t *testing.T) {
+	assert.Equal(t, tls.RequestClientCert, clientAuthNoVerify(tls.VerifyClientCertIfGiven))
+	assert.Equal(t, tls.RequireAnyClientCert, clientAuthNoVerify(tls.RequireAndVerifyClientCert))
+	assert.Equal(t, tls.NoClientCert, clientAuthNoVerify(tls.NoClientCert))
+	assert.Equal(t, tls.RequestClientCert, clientAuthNoVerify(tls.RequestClientCert))
+	assert.Equal(t, tls.RequireAnyClientCert, clientAuthNoVerify(tls.RequireAnyClientCert))
+}
+
 func TestValidate(t *testing.T) {
 	t.Run("valid with cert and key", func(t *testing.T) {
 		c := &ServerConfig{CertFile: "/cert", KeyFile: "/key"}

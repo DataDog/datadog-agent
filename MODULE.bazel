@@ -197,6 +197,7 @@ gcc_toolchains.toolchain(
     name = "gcc_toolchain_x86_64",
     binary_prefix = "x86_64-unknown-linux-gnu-",
     enable_fortran = False,
+    extra_ldflags = ["-Wl,--build-id=sha1"],
     gcc_version = "11.4.0",
     target_arch = "x86_64",
 )
@@ -204,6 +205,7 @@ gcc_toolchains.toolchain(
     name = "gcc_toolchain_aarch64",
     binary_prefix = "aarch64-unknown-linux-gnu-",
     enable_fortran = False,
+    extra_ldflags = ["-Wl,--build-id=sha1"],
     gcc_version = "12.3.0",
     target_arch = "aarch64",
 )
@@ -351,4 +353,28 @@ prebuilt_file(
     name = "agent_binary",
     target_label = "@@//:bin/agent/agent",
     target_name = "agent",
+)
+
+prebuilt_file(
+    name = "privateactionrunner_binary",
+    target_label = "@@//:bin/privateactionrunner/privateactionrunner",
+    target_name = "privateactionrunner",
+)
+
+prebuilt_file(
+    name = "process_agent_binary",
+    target_label = "@@//:bin/process-agent/process-agent",
+    target_name = "process_agent",
+)
+
+prebuilt_file(
+    name = "trace_agent_binary",
+    target_label = "@@//:bin/trace-agent/trace-agent",
+    target_name = "trace_agent",
+)
+
+prebuilt_file(
+    name = "trace_loader_binary",
+    target_label = "@@//:bin/trace-loader/trace-loader",
+    target_name = "trace_loader",
 )
