@@ -376,6 +376,15 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 			}
 			return 0, 0, false, false, nvml.SUCCESS
 		},
+		GetRepairStatusFunc: func() (nvml.RepairStatus, nvml.Return) {
+			if isMIGOrVGPUUnsupported {
+				return nvml.RepairStatus{}, nvml.ERROR_NOT_SUPPORTED
+			}
+			if arch < nvml.DEVICE_ARCH_AMPERE {
+				return nvml.RepairStatus{}, nvml.ERROR_NOT_SUPPORTED
+			}
+			return nvml.RepairStatus{}, nvml.SUCCESS
+		},
 		GetNvLinkStateFunc: func(_ int) (nvml.EnableState, nvml.Return) {
 			if isMIGUnsupported {
 				return 0, nvml.ERROR_NOT_SUPPORTED
@@ -622,7 +631,7 @@ var archNameToNVML = map[string]struct {
 	"hopper":  {nvml.DEVICE_ARCH_HOPPER, 9, 0},
 	"ada":     {nvml.DEVICE_ARCH_ADA, 8, 9},
 	"blackwell": {
-		nvml.DeviceArchitecture(10), // nvml.DEVICE_ARCH_BLACKWELL in newer go-nvml
+		nvml.DEVICE_ARCH_BLACKWELL,
 		10,
 		0,
 	},

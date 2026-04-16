@@ -9,6 +9,7 @@ package decode
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"time"
@@ -18,6 +19,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/time/rate"
 
+	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symbol"
@@ -150,20 +152,20 @@ func (m *messageData) processJSONSegment(
 	}
 	expr := ev.rootType.Expressions[exprIdx]
 
-	// Check presence bit using same logic as processExpression.
-	presenceBitsetSize := ev.rootType.PresenceBitsetSize
-	if int(presenceBitsetSize) > len(ev.rootData) {
-		return errors.New("presence bitset is out of bounds")
+	// Check expression status.
+	statusArraySize := ev.rootType.ExprStatusArraySize
+	if int(statusArraySize) > len(ev.rootData) {
+		return errors.New("expression status array out of bounds")
 	}
-	presenceBitSet := bitset(ev.rootData[:presenceBitsetSize])
-	if 2*exprIdx >= int(presenceBitsetSize)*8 {
-		return errors.New("expression index out of bounds")
-	}
-	if !presenceBitSet.get(2 * exprIdx) {
-		// Expression evaluation failed. Check if it was due to nil pointer.
-		if presenceBitSet.get(2*exprIdx + 1) {
-			return errNilPointerEvaluating
-		}
+	statusArray := bitset(ev.rootData[:statusArraySize])
+	switch statusArray.getExprStatus(exprIdx) {
+	case ir.ExprStatusPresent:
+		// Success — fall through to format the value.
+	case ir.ExprStatusNilDeref:
+		return errNilPointerEvaluating
+	case ir.ExprStatusOOB:
+		return errIndexOutOfBounds
+	default: // ExprStatusAbsent
 		if !limits.canWrite(len(formatUnavailable)) {
 			return nil
 		}
@@ -172,9 +174,16 @@ func (m *messageData) processJSONSegment(
 		return nil
 	}
 
+	// Resolve the type for formatting — use concrete type if dict resolution
+	// succeeded, otherwise fall back to the shape type.
+	exprType := expr.Expression.Type
+	if resolvedType, _, ok := ev.resolveDictType(expr.DictIndex); ok && resolvedType != nil {
+		exprType = resolvedType
+	}
+
 	// Get expression data.
 	exprDataStart := expr.Offset
-	exprDataEnd := exprDataStart + expr.Expression.Type.GetByteSize()
+	exprDataEnd := exprDataStart + exprType.GetByteSize()
 	if exprDataEnd > uint32(len(ev.rootData)) {
 		return errors.New("expression data out of bounds")
 	}
@@ -184,7 +193,7 @@ func (m *messageData) processJSONSegment(
 	// formatType already consumes bytes internally, so we don't need to
 	// track here.
 	if err := formatType(
-		&ev.encodingContext, result, expr.Expression.Type, exprData, limits,
+		&ev.encodingContext, result, exprType, exprData, limits,
 	); err != nil {
 		return fmt.Errorf("error formatting expression: %w", err)
 	}
@@ -265,6 +274,44 @@ type captureEvent struct {
 	skippedIndices   bitset
 }
 
+// resolveDictType checks if a variable's type can be resolved via the runtime
+// dictionary. Returns (concreteType, name, true) on success. If concreteType
+// is non-nil, it's an IR type from the catalog that should be used for
+// decoding (matching what the eBPF used). If concreteType is nil but name is
+// non-empty, only the display name was resolved (via gotype fallback) and the
+// shape type should still be used for decoding.
+func (ce *captureEvent) resolveDictType(dictIndex int) (ir.Type, string, bool) {
+	if ce.rootType == nil || len(ce.rootType.DictEntries) == 0 || dictIndex < 0 {
+		return nil, "", false
+	}
+	for _, de := range ce.rootType.DictEntries {
+		if de.DictIndex != dictIndex {
+			continue
+		}
+		off := de.Offset
+		if int(off)+8 > len(ce.rootData) {
+			return nil, "", false
+		}
+		runtimeType := binary.NativeEndian.Uint64(ce.rootData[off : off+8])
+		if runtimeType == 0 || runtimeType == ^uint64(0) {
+			return nil, "", false
+		}
+		// Try to resolve to a full IR type in the catalog.
+		if typeID, ok := ce.getTypeIDByGoRuntimeType(uint32(runtimeType)); ok {
+			if t, ok := ce.getType(typeID); ok {
+				irType := t.irType()
+				return irType, irType.GetName(), true
+			}
+		}
+		// Fallback: resolve name only from gotype.
+		if name, err := ce.ResolveTypeName(gotype.TypeID(runtimeType)); err == nil {
+			return nil, name, true
+		}
+		return nil, "", false
+	}
+	return nil, "", false
+}
+
 func (ce *captureEvent) clear() {
 	ce.rootData = nil
 	ce.rootType = nil
@@ -328,20 +375,24 @@ func (ce *captureEvent) init(
 	ce.skippedIndices.reset(len(rootType.Expressions))
 	ce.evaluationErrors = evalErrors
 
-	// Pre-scan presence bits for nil pointer dereferences. Mark those
+	// Pre-scan expression statuses for error conditions. Mark those
 	// expressions as skipped and record evaluation errors up front so the
 	// serialization loop never needs to restart for them.
-	if rootType.PresenceBitsetSize > 0 && int(rootType.PresenceBitsetSize) <= len(rootData) {
-		presenceBits := bitset(rootData[:rootType.PresenceBitsetSize])
+	if rootType.ExprStatusArraySize > 0 && int(rootType.ExprStatusArraySize) <= len(rootData) {
+		statusArray := bitset(rootData[:rootType.ExprStatusArraySize])
 		for i, expr := range rootType.Expressions {
-			if 2*i+1 >= int(rootType.PresenceBitsetSize)*8 {
-				break
-			}
-			if !presenceBits.get(2*i) && presenceBits.get(2*i+1) {
+			switch statusArray.getExprStatus(i) {
+			case ir.ExprStatusNilDeref:
 				ce.skippedIndices.set(i)
 				*ce.evaluationErrors = append(*ce.evaluationErrors, evaluationError{
 					Expression: expr.Name,
 					Message:    errNilPointerEvaluating.Error(),
+				})
+			case ir.ExprStatusOOB:
+				ce.skippedIndices.set(i)
+				*ce.evaluationErrors = append(*ce.evaluationErrors, evaluationError{
+					Expression: expr.Name,
+					Message:    errIndexOutOfBounds.Error(),
 				})
 			}
 		}
@@ -360,16 +411,31 @@ func (ddDebuggerSource) MarshalJSONTo(enc *jsontext.Encoder) error {
 
 var errEvaluation = errors.New("evaluation error")
 var errNilPointerEvaluating = errors.New("nil pointer dereference")
+var errIndexOutOfBounds = errors.New("index out of bounds")
 
 // processExpression processes a single expression from the root type expressions
 func (ce *captureEvent) processExpression(
 	enc *jsontext.Encoder,
 	expr *ir.RootExpression,
-	presenceBitSet bitset,
+	statusArray bitset,
 	expressionIndex int,
 ) error {
 	parameterType := expr.Expression.Type
 	parameterSize := parameterType.GetByteSize()
+	// For generic shape types, try to resolve the concrete type from the
+	// runtime dictionary. If the concrete type is in our catalog, use it
+	// for both the type name AND the type ID (so that data items enqueued
+	// by the concrete ProcessType in eBPF match what the decoder expects).
+	// If the concrete type is not in the catalog, fall back to the shape
+	// type for decoding but still use the resolved name for display.
+	typeName := parameterType.GetName()
+	if resolvedType, resolvedName, ok := ce.resolveDictType(expr.DictIndex); ok {
+		typeName = resolvedName
+		if resolvedType != nil {
+			// Concrete type is in the catalog — use it for decoding too.
+			parameterType = resolvedType
+		}
+	}
 	ub := expr.Offset + parameterSize
 	if int(ub) > len(ce.rootData) {
 		*ce.evaluationErrors = append(
@@ -385,13 +451,13 @@ func (ce *captureEvent) processExpression(
 	if err := writeTokens(enc, jsontext.String(expr.Name)); err != nil {
 		return err
 	}
-	if !presenceBitSet.get(2*expressionIndex) && parameterSize != 0 {
-		// Nil-deref expressions are already handled in init() and marked
-		// as skipped, so we only reach here for genuinely unavailable data.
+	if statusArray.getExprStatus(expressionIndex) != ir.ExprStatusPresent && parameterSize != 0 {
+		// Nil-deref and OOB expressions are already handled in init() and
+		// marked as skipped, so we only reach here for genuinely unavailable data.
 		if err := writeTokens(enc,
 			jsontext.BeginObject,
 			jsontext.String("type"),
-			jsontext.String(parameterType.GetName()),
+			jsontext.String(typeName),
 			tokenNotCapturedReason,
 			tokenNotCapturedReasonUnavailable,
 			jsontext.EndObject,
@@ -401,7 +467,7 @@ func (ce *captureEvent) processExpression(
 		return nil
 	}
 	err := encodeValue(
-		&ce.encodingContext, enc, parameterType.GetID(), data, parameterType.GetName(),
+		&ce.encodingContext, enc, parameterType.GetID(), data, typeName,
 	)
 	if err != nil {
 		*ce.evaluationErrors = append(*ce.evaluationErrors, evaluationError{
@@ -414,10 +480,10 @@ func (ce *captureEvent) processExpression(
 }
 
 func (ce *captureEvent) MarshalJSONTo(enc *jsontext.Encoder) error {
-	if ce.rootType.PresenceBitsetSize > uint32(len(ce.rootData)) {
-		return errors.New("presence bitset is out of bounds")
+	if ce.rootType.ExprStatusArraySize > uint32(len(ce.rootData)) {
+		return errors.New("expression status array out of bounds")
 	}
-	presenceBitSet := ce.rootData[:ce.rootType.PresenceBitsetSize]
+	statusArray := bitset(ce.rootData[:ce.rootType.ExprStatusArraySize])
 
 	if err := writeTokens(enc, jsontext.BeginObject); err != nil {
 		return err
@@ -448,7 +514,7 @@ func (ce *captureEvent) MarshalJSONTo(enc *jsontext.Encoder) error {
 					return err
 				}
 			}
-			err := ce.processExpression(enc, expr, presenceBitSet, i)
+			err := ce.processExpression(enc, expr, statusArray, i)
 			if errors.Is(err, errEvaluation) {
 				// This expression resulted in an evaluation error, we mark it
 				// to be skipped and will try again

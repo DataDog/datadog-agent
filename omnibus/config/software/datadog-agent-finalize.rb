@@ -146,13 +146,14 @@ build do
             # Deepest paths first so nested tests/ trees are removed safely.
             command "find #{install_dir}/embedded/lib -path '*/site-packages/*' -depth -type d -name tests -exec rm -rf {} +"
 
-            # remove some debug ebpf object files to reduce the size of the package
-            delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/oom-kill-debug.o"
-            delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/tcp-queue-length-debug.o"
+            # Remove debug eBPF object files — they enable bpf_trace_printk logging
+            # and are only useful for local development, not deployed environments.
+            command "rm -f #{install_dir}/embedded/share/system-probe/ebpf/*-debug.o"
+            command "rm -f #{install_dir}/embedded/share/system-probe/ebpf/co-re/*-debug.o"
+
+            # Remove test-only eBPF object files
             delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/error_telemetry.o"
             delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/logdebug-test.o"
-            delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/shared-libraries-debug.o"
-            delete "#{install_dir}/embedded/share/system-probe/ebpf/shared-libraries-debug.o"
             delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/sleepable.o"
 
             # linux build will be stripped - but psycopg2 affected by bug in the way binutils

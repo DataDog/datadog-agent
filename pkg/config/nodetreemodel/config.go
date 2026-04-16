@@ -118,8 +118,10 @@ type ntmConfig struct {
 	knownKeys map[string]bool
 
 	// keys that are unknown, but are used by either the file or SetWithoutSource
-	// used to warn (a single time) on use
-	unknownKeys map[string]struct{}
+	// used to warn (a single time) on use.
+	// sync.Map is used because checkKnownKey writes to this map while callers
+	// only hold an RLock, so a plain map would cause concurrent map writes.
+	unknownKeys sync.Map
 
 	// extraConfigFilePaths represents additional configuration file paths that will be merged into the main configuration when ReadInConfig() is called.
 	extraConfigFilePaths []string
@@ -274,7 +276,7 @@ func (c *ntmConfig) SetWithoutSource(key string, value interface{}) {
 	c.Lock()
 	defer c.Unlock()
 	if !c.isKnownKey(key) {
-		c.unknownKeys[key] = struct{}{}
+		c.unknownKeys.Store(key, struct{}{})
 	}
 }
 
@@ -435,6 +437,15 @@ func (c *ntmConfig) IsKnown(key string) bool {
 	return c.isKnownKey(key)
 }
 
+// IsSetting returns true for leaf nodes
+func (c *ntmConfig) IsSetting(key string) bool {
+	n, err := c.GetNode(key)
+	if err != nil {
+		return false
+	}
+	return n.IsLeafNode()
+}
+
 // isKnownKey returns whether the key is known.
 // Must be called with the lock read-locked.
 func (c *ntmConfig) isKnownKey(key string) bool {
@@ -477,12 +488,9 @@ func (c *ntmConfig) checkKnownKey(key string) {
 	}
 
 	key = strings.ToLower(key)
-	if _, ok := c.unknownKeys[key]; ok {
-		return
+	if _, loaded := c.unknownKeys.LoadOrStore(key, struct{}{}); !loaded {
+		log.Warnf("config key %v is unknown", key)
 	}
-
-	c.unknownKeys[key] = struct{}{}
-	log.Warnf("config key %v is unknown", key)
 }
 
 func (c *ntmConfig) mergeAllLayers() error {
@@ -733,9 +741,10 @@ func (c *ntmConfig) collectFlattenedKeys() []string {
 		}
 	}
 	// collect keys from unknown set
-	for k := range c.unknownKeys {
-		allKeys[k] = struct{}{}
-	}
+	c.unknownKeys.Range(func(k, _ any) bool {
+		allKeys[k.(string)] = struct{}{}
+		return true
+	})
 
 	return slices.Collect(maps.Keys(allKeys))
 }
@@ -1095,7 +1104,6 @@ func NewNodeTreeConfig(name string, envPrefix string, envKeyReplacer *strings.Re
 		sequenceID:         0,
 		configEnvVars:      map[string][]string{},
 		knownKeys:          map[string]bool{},
-		unknownKeys:        map[string]struct{}{},
 		defaults:           newInnerNode(nil),
 		file:               newInnerNode(nil),
 		unknown:            newInnerNode(nil),
