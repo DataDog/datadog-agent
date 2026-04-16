@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	pkgversion "github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -24,7 +25,7 @@ import (
 func TestInstallerBinFromAgentExe(t *testing.T) {
 	// Build a temporary directory tree that mirrors the real on-disk layout:
 	//   Linux/macOS: <root>/bin/agent/agent + <root>/embedded/bin/installer
-	//   Windows:     <root>/bin/agent/agent.exe + <root>/datadog-installer.exe
+	//   Windows:     <root>/bin/agent/agent.exe + <root>/bin/datadog-installer.exe
 	root := t.TempDir()
 
 	agentDir := filepath.Join(root, "bin", "agent")
@@ -32,7 +33,10 @@ func TestInstallerBinFromAgentExe(t *testing.T) {
 
 	var installerPath string
 	if runtime.GOOS == "windows" {
-		installerPath = filepath.Join(root, "datadog-installer.exe")
+		winRoot := defaultpaths.GetInstallPath()
+		binDir := filepath.Join(winRoot, "bin")
+		require.NoError(t, os.MkdirAll(binDir, 0755))
+		installerPath = filepath.Join(binDir, "datadog-installer.exe")
 	} else {
 		embeddedBinDir := filepath.Join(root, "embedded", "bin")
 		require.NoError(t, os.MkdirAll(embeddedBinDir, 0755))

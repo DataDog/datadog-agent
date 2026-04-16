@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	pkgversion "github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -114,6 +115,8 @@ func resolvePackageURL(explicitURL, registry string) (string, error) {
 
 // currentAgentVersion returns the agent version in the format expected by OCI
 // package URLs (URL-safe, with a -1 release suffix).
+// NOTE: duplicated from pkg/fleet/installer/packages/datadog_agent_extensions.go
+// (getCurrentAgentVersion). Keep both in sync until a shared helper is extracted.
 func currentAgentVersion() string {
 	v := pkgversion.AgentVersionURLSafe
 	if strings.HasSuffix(v, "-1") {
@@ -151,17 +154,16 @@ func resolveInstallerBinPath() (string, error) {
 // directories up. Installer locations differ by OS:
 //
 //   - Linux/macOS: <root>/embedded/bin/installer
-//   - Windows:     <root>/datadog-installer.exe
+//   - Windows:     <InstallPath>/bin/datadog-installer.exe
 //
 // This layout holds for both OCI packages (/opt/datadog-packages/datadog-agent/<version>/)
 // and deb/rpm installs (/opt/datadog-agent/).
 func installerBinFromAgentExe(agentExe string) (string, error) {
-	root := filepath.Clean(filepath.Join(filepath.Dir(agentExe), "..", ".."))
-
 	var installerBin string
 	if runtime.GOOS == "windows" {
-		installerBin = filepath.Join(root, "datadog-installer.exe")
+		installerBin = filepath.Join(defaultpaths.GetInstallPath(), "bin", "datadog-installer.exe")
 	} else {
+		root := filepath.Clean(filepath.Join(filepath.Dir(agentExe), "..", ".."))
 		installerBin = filepath.Join(root, "embedded", "bin", "installer")
 	}
 

@@ -194,7 +194,7 @@ func (s *packageDDOTSuite) TestInstallDDOTWithoutDatadogYAML() {
 	s.assertDDOTUnits(state, true)
 }
 
-func (s *packageDDOTSuite) TestInstallDDOTExtensionSubcommand() {
+func (s *packageDDOTSuite) TestInstallDDOTSubcommand() {
 	// Install the base agent without DDOT.
 	s.RunInstallScript()
 	defer s.Purge()
