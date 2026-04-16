@@ -29,8 +29,9 @@ func TestUSMLookup(t *testing.T) {
 	data := make(map[types.ConnectionKey]*USMConnectionData[struct{}, any])
 	data[key] = val
 
-	// In windows the USMLookup operation is done only once and using the
-	// original tuple order, so in the case below only c1 should match the data
+	// USMLookup checks both (src->dst) and (dst->src), so both directions should match.
+	// This is required for server-side ETW stats (keyed as dst->src) to be found when
+	// the connection table reports the connection as src->dst.
 	c1 := network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{
 		Source: util.AddressFromString("1.1.1.1"),
 		Dest:   util.AddressFromString("2.2.2.2"),
@@ -46,5 +47,5 @@ func TestUSMLookup(t *testing.T) {
 	}}
 
 	assert.Equal(t, val, USMLookup(c1, data))
-	assert.Equal(t, (*USMConnectionData[struct{}, any])(nil), USMLookup(c2, data))
+	assert.Equal(t, val, USMLookup(c2, data))
 }

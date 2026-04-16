@@ -19,6 +19,7 @@ func ConnectionKeysFromConnectionStats(connectionStats ConnectionStats) []types.
 	// connection keys and check for both of them in the aggregations map.
 	connectionKeys := []types.ConnectionKey{
 		types.NewConnectionKey(connectionStats.Source, connectionStats.Dest, connectionStats.SPort, connectionStats.DPort),
+		types.NewConnectionKey(connectionStats.Dest, connectionStats.Source, connectionStats.DPort, connectionStats.SPort),
 	}
 
 	return connectionKeys
