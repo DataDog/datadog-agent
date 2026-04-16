@@ -8,8 +8,9 @@
 
 /* redefinition of some error values */
 #ifdef COMPILE_CORE
+#define ENOMEM 12
+#define EBUSY  16
 #define EEXIST 17
-#define EBUSY 16
 #endif
 
 #define STR(x) #x
@@ -127,6 +128,15 @@ static void *(*bpf_telemetry_update_patch)(unsigned long, ...) = (void *)PATCH_T
             __record_map_telemetry(map, errno_ret);                                              \
         }                                                                                       \
         errno_ret;                                                                             \
+    })
+
+#define bpf_sk_storage_get_or_create(map, sk, val)                                  \
+    ({                                                                              \
+        void *ret = bpf_sk_storage_get(&map, sk, val, BPF_SK_STORAGE_GET_F_CREATE); \
+        if (ret == NULL) {                                                          \
+            __record_map_telemetry(map, ENOMEM);                                    \
+        }                                                                           \
+        ret;                                                                        \
     })
 
 #define bpf_probe_read_with_telemetry(...) \

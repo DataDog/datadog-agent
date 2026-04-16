@@ -109,7 +109,7 @@ int tcp_sockops(struct bpf_sock_ops *ctx) {
     }
 
     log_debug("sockops: sk=%p lport=%u rport=%u", sk, ctx->local_port, bpf_ntohl(ctx->remote_port));
-    sk_tcp_stats_t *sk_stats = bpf_sk_storage_get(&sk_tcp_stats, sk, 0, BPF_SK_STORAGE_GET_F_CREATE);
+    sk_tcp_stats_t *sk_stats = bpf_sk_storage_get_or_create(sk_tcp_stats, sk, 0);
     if (!sk_stats) {
         return 1;
     }
@@ -172,7 +172,7 @@ int BPF_PROG(tcp_connect_entry, struct sock *sk) {
     if (!is_tcp_family_enabled(sk)) {
         return 0;
     }
-    sk_tcp_stats_t *sk_stats = bpf_sk_storage_get(&sk_tcp_stats, sk, 0, BPF_SK_STORAGE_GET_F_CREATE);
+    sk_tcp_stats_t *sk_stats = bpf_sk_storage_get_or_create(sk_tcp_stats, sk, 0);
     if (!sk_stats) {
         return 0;
     }
@@ -188,7 +188,7 @@ int BPF_PROG(inet_csk_accept_exit, struct sock *orig_sk, int flags, int *err, bo
     if (!is_tcp_family_enabled(sk)) {
         return 0;
     }
-    sk_tcp_stats_t *sk_stats = bpf_sk_storage_get(&sk_tcp_stats, sk, 0, BPF_SK_STORAGE_GET_F_CREATE);
+    sk_tcp_stats_t *sk_stats = bpf_sk_storage_get_or_create(sk_tcp_stats, sk, 0);
     if (!sk_stats) {
         return 0;
     }
@@ -205,7 +205,7 @@ int BPF_PROG(inet_csk_accept_exit_610, struct sock *orig_sk, struct proto_accept
     if (!is_tcp_family_enabled(sk)) {
         return 0;
     }
-    sk_tcp_stats_t *sk_stats = bpf_sk_storage_get(&sk_tcp_stats, sk, 0, BPF_SK_STORAGE_GET_F_CREATE);
+    sk_tcp_stats_t *sk_stats = bpf_sk_storage_get_or_create(sk_tcp_stats, sk, 0);
     if (!sk_stats) {
         return 0;
     }
@@ -222,7 +222,7 @@ int BPF_PROG(tcp_finish_connect_entry, struct sock *sk) {
     if (!is_tcp_family_enabled(sk)) {
         return 0;
     }
-    sk_tcp_stats_t *sk_stats = bpf_sk_storage_get(&sk_tcp_stats, sk, 0, BPF_SK_STORAGE_GET_F_CREATE);
+    sk_tcp_stats_t *sk_stats = bpf_sk_storage_get_or_create(sk_tcp_stats, sk, 0);
     if (!sk_stats) {
         return 0;
     }
@@ -236,7 +236,7 @@ int BPF_PROG(tcp_done_entry, struct sock *sk) {
     if (!is_tcp_family_enabled(sk)) {
         return 0;
     }
-    sk_tcp_stats_t *sk_stats = bpf_sk_storage_get(&sk_tcp_stats, sk, 0, BPF_SK_STORAGE_GET_F_CREATE);
+    sk_tcp_stats_t *sk_stats = bpf_sk_storage_get_or_create(sk_tcp_stats, sk, 0);
     if (!sk_stats) {
         return 0;
     }
@@ -258,7 +258,7 @@ int BPF_PROG(tcp_close_entry, struct sock *sk) {
     if (!is_tcp_family_enabled(sk)) {
         return 0;
     }
-    sk_tcp_stats_t *sk_stats = bpf_sk_storage_get(&sk_tcp_stats, sk, 0, BPF_SK_STORAGE_GET_F_CREATE);
+    sk_tcp_stats_t *sk_stats = bpf_sk_storage_get_or_create(sk_tcp_stats, sk, 0);
     if (!sk_stats) {
         return 0;
     }
@@ -280,7 +280,7 @@ int BPF_PROG(tcp_enter_loss_entry, struct sock *sk) {
     if (!is_tcp_family_enabled(sk)) {
         return 0;
     }
-    sk_tcp_stats_t *sk_stats = bpf_sk_storage_get(&sk_tcp_stats, sk, 0, BPF_SK_STORAGE_GET_F_CREATE);
+    sk_tcp_stats_t *sk_stats = bpf_sk_storage_get_or_create(sk_tcp_stats, sk, 0);
     if (!sk_stats) {
         return 0;
     }
@@ -294,7 +294,7 @@ int BPF_PROG(tcp_enter_recovery_entry, struct sock *sk) {
     if (!is_tcp_family_enabled(sk)) {
         return 0;
     }
-    sk_tcp_stats_t *sk_stats = bpf_sk_storage_get(&sk_tcp_stats, sk, 0, BPF_SK_STORAGE_GET_F_CREATE);
+    sk_tcp_stats_t *sk_stats = bpf_sk_storage_get_or_create(sk_tcp_stats, sk, 0);
     if (!sk_stats) {
         return 0;
     }
@@ -308,7 +308,7 @@ int BPF_PROG(tcp_send_probe0_entry, struct sock *sk) {
     if (!is_tcp_family_enabled(sk)) {
         return 0;
     }
-    sk_tcp_stats_t *sk_stats = bpf_sk_storage_get(&sk_tcp_stats, sk, 0, BPF_SK_STORAGE_GET_F_CREATE);
+    sk_tcp_stats_t *sk_stats = bpf_sk_storage_get_or_create(sk_tcp_stats, sk, 0);
     if (!sk_stats) {
         return 0;
     }
