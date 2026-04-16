@@ -164,7 +164,7 @@ def validation_results_from_dict(payload: dict, *, site: str) -> ValidationResul
                                 missing=int(tag_result.get("missing", 0)),
                                 unknown=int(tag_result.get("unknown", 0)),
                                 invalid_value=int(tag_result.get("invalid_value", 0)),
-                                invalid_value_samples=list(tag_result.get("invalid_value_samples", [])),
+                                invalid_value_samples=(tag_result.get("invalid_value_samples") or []),
                             )
                             for tag, tag_result in (metric_status.get("tag_results") or {}).items()
                         },

@@ -9,6 +9,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -37,6 +38,7 @@ func computeValidation(apiKey, appKey, site string, lookbackSeconds int64) (orgV
 
 	var allErrors error
 	for _, config := range configs {
+		log.Printf("validating gpu config %s/%s", config.Architecture, config.DeviceMode)
 		result, err := validateGPUConfig(client, specs, config, fromTS, now)
 		if err != nil {
 			allErrors = errors.Join(allErrors, fmt.Errorf("validate gpu config %+v: %w", config, err))
@@ -48,7 +50,7 @@ func computeValidation(apiKey, appKey, site string, lookbackSeconds int64) (orgV
 		Results:            results,
 		MetricsCount:       len(specs.Metrics.Metrics),
 		ArchitecturesCount: len(specs.Architectures.Architectures),
-	}, nil
+	}, allErrors
 }
 
 func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpuspec.GPUConfig, fromTS, toTS int64) (gpuConfigValidationResult, error) {
@@ -120,7 +122,7 @@ func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpusp
 				"gpu_": {},
 			}
 
-			allGpuTags, err := client.fetchMetricAllTags(metricName, wantedTags, tagLookbackSeconds, config.TagFilter())
+			allGpuTags, err := client.fetchMetricAllTags(prefixedMetricName, wantedTags, tagLookbackSeconds, config.TagFilter())
 			if err != nil {
 				return fmt.Errorf("fetch metric tags for %s: %w", metricName, err)
 			}
@@ -138,7 +140,7 @@ func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpusp
 	// Do not return early on errors, just try doing everything we can
 	var allErrors error
 	if err := group.Wait(); err != nil {
-		allErrors = errors.Join(allErrors, fmt.Errorf("error retrieving observations: %w", config, err))
+		allErrors = errors.Join(allErrors, fmt.Errorf("error retrieving observations: %w", err))
 	}
 
 	// Get any other metrics that were emitted with the GPU prefix but aren't in the expected metrics

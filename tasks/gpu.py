@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import shlex
 import tempfile
+import traceback
 
 from invoke.exceptions import Exit
 from invoke.tasks import task
@@ -51,25 +52,27 @@ def validate_metrics(ctx, lookback_seconds=3600, org: str | None = None):
         print(f"\n== Running GPU validation for {org_name} ({dd_auth_domain}) ==")
         try:
             print(" - fetching API/App keys...")
-            with dd_auth_api_app_keys(ctx, dd_auth_domain):
-                with tempfile.NamedTemporaryFile(prefix="gpu-metrics-validator-", suffix=".json") as tmp:
-                    command = (
-                        f"{shlex.quote(binary_path)} "
-                        f"--site {shlex.quote(VALIDATOR_SITE)} "
-                        f"--lookback-seconds {int(lookback_seconds)} "
-                        f"--output-file {shlex.quote(tmp.name)}"
-                    )
-                    print(" - running validator...")
-                    ctx.run(command)
-                    result = validation_results_from_dict(json.load(tmp), site=VALIDATOR_SITE)
+            with dd_auth_api_app_keys(ctx, dd_auth_domain) as _, tempfile.NamedTemporaryFile(prefix="gpu-metrics-validator-", suffix=".json") as tmp:
+                command = (
+                    f"{shlex.quote(binary_path)} "
+                    f"--site {shlex.quote(VALIDATOR_SITE)} "
+                    f"--lookback-seconds {int(lookback_seconds)} "
+                    f"--output-file {shlex.quote(tmp.name)}"
+                )
+                print(" - running validator...")
+                res = ctx.run(command, warn=True)
+                print("no")
+                result = validation_results_from_dict(json.load(tmp), site=VALIDATOR_SITE)
 
                 if results is None:
                     results = result
                 else:
                     results.update(result)
+
+                if not res.ok:
+                    raise RuntimeError(f"validator failed: {res.stderr}")
         except Exception as e:
-            org_errors.append(f"{org_name}: {e}")
-            print(f"[ERROR] {org_name} failed: {e}")
+            org_errors.append(f"{org_name}: {e}\nStack trace:\n{traceback.format_exc()}")
 
     if results:
         render_results(results)

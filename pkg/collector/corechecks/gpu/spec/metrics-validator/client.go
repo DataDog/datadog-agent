@@ -218,12 +218,12 @@ func (c *metricsClient) listObservedGPUMetricsForGPUConfig(config gpuspec.GPUCon
 	return metrics, nil
 }
 
-func (c *metricsClient) fetchMetricAllTags(metricName string, wantedTags map[string]gpuspec.TagSpec, windowSeconds int64, metricScopeFilter string) ([]string, error) {
+func (c *metricsClient) fetchMetricAllTags(metricName string, wantedTagPrefixes map[string]gpuspec.TagSpec, windowSeconds int64, metricScopeFilter string) ([]string, error) {
 	var allTags []string
 
-	for tagName := range wantedTags {
+	for tagPrefix := range wantedTagPrefixes {
 		options := datadogV2.NewListTagsByMetricNameOptionalParameters().
-			WithFilterMatch(tagName).
+			WithFilterMatch(tagPrefix).
 			WithFilterIncludeTagValues(true).
 			WithPageLimit(1000).
 			WithWindowSeconds(windowSeconds).
@@ -237,13 +237,20 @@ func (c *metricsClient) fetchMetricAllTags(metricName string, wantedTags map[str
 			_ = httpResp.Body.Close()
 		}
 		if err != nil {
-			return nil, fmt.Errorf("fetch tag %s for %s: %w", tagName, metricName, err)
+			return nil, fmt.Errorf("fetch tag %s for %s: %w", tagPrefix, metricName, err)
 		}
 		if response.Data == nil || response.Data.Attributes == nil {
 			continue
 		}
 
-		allTags = append(allTags, response.Data.Attributes.GetTags()...)
+		for _, tag := range response.Data.Attributes.GetTags() {
+			// The tag endpoint returns all tags that contain the FilterMatch
+			// value, but we're only interested in tags that start with the
+			// prefix.
+			if strings.HasPrefix(tag, tagPrefix) {
+				allTags = append(allTags, tag)
+			}
+		}
 	}
 
 	return allTags, nil
