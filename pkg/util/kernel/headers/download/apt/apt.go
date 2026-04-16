@@ -315,8 +315,8 @@ func isSignedByUnreachableKey(repo *repository) bool {
 		}
 
 		if strings.ToLower(optName) == "signed-by" {
-			// if the key is not in `/etc/*` then we cannot reach it
-			if !strings.HasPrefix(optValue, "/etc") {
+			// if the key is not in `/etc/*` or `/usr/share/keyrings/*` then we cannot reach it
+			if !strings.HasPrefix(optValue, "/etc") && !strings.HasPrefix(optValue, "/usr/share/keyrings") {
 				return true
 			}
 		}
