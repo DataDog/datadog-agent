@@ -19,8 +19,12 @@ go_test(
         "credentials_test.go",
         "detection_test.go",
     ],
+    data = glob(["tags/**"]),
     embed = [":creds"],
-    gotags = ["test"],
+    gotags = [
+        "test",
+        "ec2",
+    ],
     deps = [
         "//pkg/util/aws/creds/internal",
         "@com_github_stretchr_testify//assert",

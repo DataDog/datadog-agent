@@ -33,11 +33,7 @@ go_test(
         "telemetry_test.go",
     ],
     embed = [":telemetryimpl"],
-    gotags = [
-        "test",
-        "functionaltests",
-        "stresstests",
-    ],
+    gotags = ["test"],
     deps = [
         "//comp/core/telemetry",
         "//pkg/util/fxutil",

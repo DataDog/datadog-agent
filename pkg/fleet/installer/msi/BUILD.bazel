@@ -44,10 +44,7 @@ go_test(
         ],
         "//conditions:default": [],
     }),
-    gotags = [
-        "test",
-        "windows",
-    ],
+    gotags = ["test"],
     target_compatible_with = ["@platforms//os:windows"],
     deps = select({
         "@rules_go//go/platform:windows": [

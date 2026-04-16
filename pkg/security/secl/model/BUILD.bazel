@@ -187,7 +187,10 @@ go_test(
         "utils_test.go",
     ],
     embed = [":model"],
-    gotags = ["test"],
+    gotags = [
+        "test",
+        "unix",
+    ],
     deps = [
         "@com_github_stretchr_testify//assert",
     ] + select({

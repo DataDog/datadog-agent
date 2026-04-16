@@ -27,7 +27,10 @@ go_test(
         "nvml_test.go",
     ],
     embed = [":gpu"],
-    gotags = ["test"],
+    gotags = [
+        "test",
+        "nvml",
+    ],
     deps = [
         "@com_github_stretchr_testify//assert",
     ] + select({

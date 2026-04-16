@@ -59,7 +59,10 @@ go_test(
         "ruleset_test.go",
     ],
     embed = [":rules"],
-    gotags = ["test"],
+    gotags = [
+        "test",
+        "unix",
+    ],
     deps = [
         "//pkg/security/secl/compiler/eval",
         "//pkg/security/secl/model",
