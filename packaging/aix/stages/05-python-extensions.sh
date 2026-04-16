@@ -33,6 +33,32 @@ fi
 PIP=$EMBEDDED_DESTDIR/bin/pip${PYTHON_MAJ_MIN}
 PYTHON_BIN=$EMBEDDED_DESTDIR/bin/python${PYTHON_MAJ_MIN}
 
+# ── Derive C-extension versions from the pinned integrations-core checkout ────
+#
+# These packages are C extensions that must be compiled from source on AIX.
+# Their versions are read from integrations-core rather than hardcoded here so
+# that updating integrations-core (via INTEGRATIONS_CORE_VERSION in release.json)
+# automatically picks up the correct version without a separate edit to this file.
+#
+# Sources:
+#   pymqi, pyodbc  — integrations-core/agent_requirements.in (format: "pkg==x.y.z")
+#   ibm_db         — integrations-core/ibm_db2/hatch.toml (Python 3 line)
+
+AGENT_REQ="$INTEGRATIONS_CORE/agent_requirements.in"
+PYMQI_VERSION=$(grep '^pymqi==' "$AGENT_REQ" | cut -d= -f3)
+PYODBC_VERSION=$(grep '^pyodbc==' "$AGENT_REQ" | cut -d= -f3)
+IBM_DB_VERSION=$(grep "ibm_db==[0-9]" "$INTEGRATIONS_CORE/ibm_db2/hatch.toml" \
+    | grep "python_version > '3" | sed "s/.*ibm_db==\([0-9][^;'\"]*\).*/\1/")
+
+if [ -z "$PYMQI_VERSION" ] || [ -z "$PYODBC_VERSION" ] || [ -z "$IBM_DB_VERSION" ]; then
+    log "ERROR: could not read one or more C-extension versions from integrations-core"
+    log "  PYMQI_VERSION='$PYMQI_VERSION'  (source: $AGENT_REQ)"
+    log "  PYODBC_VERSION='$PYODBC_VERSION'  (source: $AGENT_REQ)"
+    log "  IBM_DB_VERSION='$IBM_DB_VERSION'  (source: $INTEGRATIONS_CORE/ibm_db2/hatch.toml)"
+    exit 1
+fi
+log "C-extension versions from integrations-core: pymqi=$PYMQI_VERSION pyodbc=$PYODBC_VERSION ibm_db=$IBM_DB_VERSION"
+
 # --- Pre-flight: confirm pip${PYTHON_MAJ_MIN} exists ---
 if [ ! -x "$PIP" ]; then
     log "ERROR: $PIP not found — did Stage 02 (02-python) complete successfully?"
@@ -257,7 +283,7 @@ if [ -d /opt/mqm/inc ]; then
     MQ_HOME=/opt/mqm
     CFLAGS="$CFLAGS -I${MQ_HOME}/inc" \
     LDFLAGS="$LDFLAGS -L${MQ_HOME}/lib64 -L${MQ_HOME}/lib -Wl,-brtl -lmqm" \
-        $PIP install --no-binary pymqi "pymqi==1.12.13"
+        $PIP install --no-binary pymqi "pymqi==$PYMQI_VERSION"
     log "pymqi installed successfully"
 else
     log "WARNING: IBM MQ Client not found at /opt/mqm — skipping pymqi (ibm_mq/ibm_ace checks will not work)"
@@ -274,7 +300,7 @@ if [ -f /opt/freeware/include/sql.h ] || [ -f /usr/include/sql.h ]; then
     log "unixODBC headers found — building pyodbc"
     CFLAGS="$CFLAGS -I/opt/freeware/include" \
     LDFLAGS="$LDFLAGS -L/opt/freeware/lib -lodbc" \
-        $PIP install --no-binary pyodbc "pyodbc==5.3.0"
+        $PIP install --no-binary pyodbc "pyodbc==$PYODBC_VERSION"
     log "pyodbc installed successfully"
 else
     log "WARNING: unixODBC headers not found — skipping pyodbc (ibm_i check will not work)"
@@ -293,7 +319,7 @@ if [ -n "${IBM_DB_HOME:-}" ] || [ -d /opt/ibm/db2/clidriver ]; then
     IBM_DB_HOME=$DB2_HOME \
     CFLAGS="$CFLAGS -I${DB2_HOME}/include" \
     LDFLAGS="$LDFLAGS -L${DB2_HOME}/lib -Wl,-brtl -ldb2" \
-        $PIP install --no-binary ibm_db "ibm_db==3.2.6"
+        $PIP install --no-binary ibm_db "ibm_db==$IBM_DB_VERSION"
     log "ibm_db installed successfully"
 else
     log "WARNING: IBM DB2 CLI driver not found — skipping ibm_db (ibm_db2 check will not work)"

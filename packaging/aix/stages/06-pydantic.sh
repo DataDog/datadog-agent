@@ -31,6 +31,21 @@ fi
 
 PIP=$EMBEDDED_DESTDIR/bin/pip${PYTHON_MAJ_MIN}
 
+# ── Derive typing_extensions version from the integrations-core resolved lockfile ─
+#
+# typing_extensions is a transitive dependency not listed in agent_requirements.in.
+# Read the pinned version from the resolved lockfile for the current Python version
+# (all platforms resolve typing_extensions to the same version, so the linux-x86_64
+# file is authoritative).
+TYPING_EXTENSIONS_VERSION=$(grep '^typing.extensions ' \
+    "$INTEGRATIONS_CORE/.deps/resolved/linux-x86_64_${PYTHON_MAJ_MIN}.txt" \
+    | sed 's/.*typing_extensions-\([0-9][^-]*\)-.*/\1/')
+if [ -z "$TYPING_EXTENSIONS_VERSION" ]; then
+    log "ERROR: could not read typing_extensions version from integrations-core resolved lockfile"
+    exit 1
+fi
+log "typing_extensions version from integrations-core: $TYPING_EXTENSIONS_VERSION"
+
 # --- Pre-flight: confirm pip${PYTHON_MAJ_MIN} exists ---
 if [ ! -x "$PIP" ]; then
     log "ERROR: $PIP not found — did Stage 02 (02-python) complete successfully?"
@@ -167,12 +182,11 @@ fi
 
 # ─── Step 4: Install typing_extensions ────────────────────────────────────────
 #
-# pydantic-core >= 2.41 requires typing_extensions >= 4.14.1. Install it
-# explicitly after pydantic-core so the constraint is satisfied even if pydantic
-# itself did not pull in a new enough version.
+# pydantic-core requires typing_extensions. Pin to the same version used by all
+# other agent platforms (from integrations-core/.deps/resolved/linux-*_3.13.txt).
 
-log "Installing typing_extensions (required by pydantic-core >= 2.41)"
-$PIP install "typing_extensions>=4.14.1"
+log "Installing typing_extensions==$TYPING_EXTENSIONS_VERSION (from integrations-core resolved lockfile)"
+$PIP install "typing_extensions==$TYPING_EXTENSIONS_VERSION"
 log "typing_extensions installed successfully"
 
 # --- Mark complete ---
