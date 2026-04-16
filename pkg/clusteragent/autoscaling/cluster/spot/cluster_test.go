@@ -23,6 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/klog/v2"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -444,7 +445,7 @@ func podToleratesNode(pod *corev1.Pod, node *corev1.Node) bool {
 	for _, taint := range node.Spec.Taints {
 		tolerated := false
 		for _, toleration := range pod.Spec.Tolerations {
-			if toleration.ToleratesTaint(&taint) {
+			if toleration.ToleratesTaint(klog.Background(), &taint, false) {
 				tolerated = true
 				break
 			}
