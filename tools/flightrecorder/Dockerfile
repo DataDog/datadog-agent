@@ -47,6 +47,6 @@ COPY --from=builder /build/target/release/validate /usr/local/bin/validate
 COPY --from=builder /build/target/release/hydrate /usr/local/bin/hydrate
 
 HEALTHCHECK --interval=5s --timeout=3s --start-period=5s --retries=3 \
-    CMD test -S "${RECORDER_SOCKET_PATH:-/var/run/flightrecorder/pipeline.sock}" || exit 1
+    CMD test -S "${DD_FLIGHTRECORDER_SOCKET_PATH:-/var/run/flightrecorder/pipeline.sock}" || exit 1
 
 ENTRYPOINT ["/usr/local/bin/flightrecorder"]
