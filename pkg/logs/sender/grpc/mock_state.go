@@ -273,7 +273,9 @@ func (mt *MessageTranslator) processPreTokenized(msg *message.Message, tokenList
 	tagMemoryBytes := mt.tagManager.EstimatedMemoryBytes()
 	tagCountOverLimit, tagBytesOverLimit := mt.tagEvictionManager.ShouldEvict(tagCount, tagMemoryBytes)
 	if tagCountOverLimit || tagBytesOverLimit {
-		mt.tagEvictionManager.Evict(mt.tagManager, tagCount, tagMemoryBytes, tagCountOverLimit, tagBytesOverLimit)
+		for _, evictedID := range mt.tagEvictionManager.Evict(mt.tagManager, tagCount, tagMemoryBytes, tagCountOverLimit, tagBytesOverLimit) {
+			mt.sendDictEntryDelete(outputChan, msg, evictedID)
+		}
 	}
 
 	// Send PatternDefine for new or updated patterns
@@ -486,6 +488,25 @@ func (mt *MessageTranslator) sendDictEntryDefine(outputChan chan *message.Statef
 
 	outputChan <- &message.StatefulMessage{
 		Datum:    dictDatum,
+		Metadata: &msg.MessageMetadata,
+	}
+}
+
+// sendDictEntryDelete creates and sends a DictEntryDelete datum
+func (mt *MessageTranslator) sendDictEntryDelete(outputChan chan *message.StatefulMessage, msg *message.Message, id uint64) {
+	deleteDatum := &statefulpb.Datum{
+		Data: &statefulpb.Datum_DictEntryDelete{
+			DictEntryDelete: &statefulpb.DictEntryDelete{
+				Id: id,
+			},
+		},
+	}
+
+	bytesRemoved := float64(proto.Size(deleteDatum))
+	tlmPipelineStateSize.Sub(bytesRemoved, mt.pipelineName)
+
+	outputChan <- &message.StatefulMessage{
+		Datum:    deleteDatum,
 		Metadata: &msg.MessageMetadata,
 	}
 }

@@ -34,8 +34,9 @@ func NewTagEvictionManager() *TagEvictionManager {
 	}
 }
 
-// Evict performs eviction on the tag manager based on which threshold was exceeded
-func (em *TagEvictionManager) Evict(tm *TagManager, tagCount int, estimatedBytes int64, countOverLimit, bytesOverLimit bool) {
+// Evict performs eviction on the tag manager based on which threshold was exceeded.
+// Returns the IDs of evicted entries so callers can send DictEntryDelete messages.
+func (em *TagEvictionManager) Evict(tm *TagManager, tagCount int, estimatedBytes int64, countOverLimit, bytesOverLimit bool) []uint64 {
 	var evictedIDs []uint64
 
 	numToEvict, bytesToFree, strategy := em.EvictionTargets(tagCount, estimatedBytes, countOverLimit, bytesOverLimit)
@@ -64,4 +65,5 @@ func (em *TagEvictionManager) Evict(tm *TagManager, tagCount int, estimatedBytes
 			em.EvictionHighWatermark*100, em.MaxItemCount,
 			targetCount, em.EvictionLowWatermark*100)
 	}
+	return evictedIDs
 }
