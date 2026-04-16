@@ -23,6 +23,8 @@ import (
 )
 
 const nanoToMillis = 1000000
+const staleTTL = 14 * time.Minute
+const staleSweepInterval = 30 * time.Second
 
 // batchEntry is a per-message sidecar used during batch tokenization.
 // It keeps msg, preprocessed content, and JSON context fields aligned so that
@@ -72,7 +74,8 @@ type MessageTranslator struct {
 	tokenizer     token.Tokenizer
 	jsonLogsAsRaw bool // when true, JSON logs bypass stateful encoding and are sent as RawLog
 
-	pipelineName string
+	pipelineName   string
+	lastStaleSweep time.Time
 
 	// tagCache caches the last computed tag set to avoid recomputation across messages
 	// with identical metadata (common in single-source pipelines).
@@ -106,6 +109,7 @@ func NewMessageTranslator(pipelineName string, tokenizer token.Tokenizer) *Messa
 		tokenizer:              tokenizer,
 		jsonLogsAsRaw:          pkgconfigsetup.Datadog().GetBool("logs_config.patterns.json_as_raw"),
 		pipelineName:           pipelineName,
+		lastStaleSweep:         time.Now(),
 	}
 	tlmPipelineStateSize.Set(0, pipelineName)
 	return mt
@@ -322,6 +326,19 @@ func (mt *MessageTranslator) processPreTokenized(msg *message.Message, tokenList
 	tagCountOverLimit, tagBytesOverLimit := mt.tagEvictionManager.ShouldEvict(tagCount, tagMemoryBytes)
 	if tagCountOverLimit || tagBytesOverLimit {
 		for _, evictedID := range mt.tagEvictionManager.Evict(mt.tagManager, tagCount, tagMemoryBytes, tagCountOverLimit, tagBytesOverLimit) {
+			mt.sendDictEntryDelete(outputChan, msg, evictedID)
+		}
+	}
+
+	// Periodic TTL sweep: remove entries not accessed in the last 5 minutes.
+	// This prevents stale entries from accumulating in state and inflating snapshot replays.
+	if time.Since(mt.lastStaleSweep) >= staleSweepInterval {
+		mt.lastStaleSweep = time.Now()
+
+		for _, evictedPattern := range mt.clusterManager.EvictStalePatterns(staleTTL) {
+			mt.sendPatternDelete(evictedPattern.PatternID, msg, outputChan)
+		}
+		for _, evictedID := range mt.tagManager.EvictStaleEntries(staleTTL) {
 			mt.sendDictEntryDelete(outputChan, msg, evictedID)
 		}
 	}
