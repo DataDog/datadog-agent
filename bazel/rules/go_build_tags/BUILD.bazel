@@ -1,11 +1,19 @@
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 # strip the leading _ solely meant to prevent `go mod tidy` from adding @gazelle deps to the root go.mod
 copy_file(
     name = "gazelle_extension_src",
     src = "_gazelle_extension.go",
     out = "gazelle_extension.go",
+)
+
+# same trick: the test file imports testify but not gazelle, however keeping
+# the _ prefix is consistent and avoids any future tidy surprises
+copy_file(
+    name = "gazelle_extension_test_src",
+    src = "_gazelle_extension_test.go",
+    out = "gazelle_extension_test.go",
 )
 
 # prevent `bazel run //:gazelle` from removing @gazelle deps (reentrancy guard)
@@ -18,5 +26,15 @@ go_library(
     deps = [
         "@gazelle//language",
         "@gazelle//rule",
+    ],
+)
+
+go_test(
+    name = "gazelle_extension_test",
+    srcs = [":gazelle_extension_test_src"],
+    embed = [":gazelle_extension"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )
