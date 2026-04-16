@@ -31,42 +31,42 @@ func minimalProfile(name string) *datadoghq.DatadogPodAutoscalerClusterProfile {
 	}
 }
 
-func TestPodAutoscalerProfileInternal_Burstable(t *testing.T) {
-	t.Run("false by default (no annotation)", func(t *testing.T) {
+func TestPodAutoscalerProfileInternal_PreviewAnnotation(t *testing.T) {
+	t.Run("empty by default (no annotation)", func(t *testing.T) {
 		profile := minimalProfile("p1")
 		pi, err := NewPodAutoscalerProfileInternal(profile)
 		require.NoError(t, err)
-		assert.False(t, pi.Burstable())
+		assert.Empty(t, pi.PreviewAnnotation())
 	})
 
-	t.Run("true when preview annotation contains burstable:true", func(t *testing.T) {
+	t.Run("forwards preview annotation when burstable:true", func(t *testing.T) {
 		profile := minimalProfile("p1")
-		profile.Annotations = map[string]string{PreviewAnnotation: `{"burstable":true}`}
+		profile.Annotations = map[string]string{PreviewAnnotationKey: `{"burstable":true}`}
 		pi, err := NewPodAutoscalerProfileInternal(profile)
 		require.NoError(t, err)
-		assert.True(t, pi.Burstable())
+		assert.Equal(t, `{"burstable":true}`, pi.PreviewAnnotation())
 	})
 
-	t.Run("false when preview annotation does not contain burstable", func(t *testing.T) {
+	t.Run("forwards preview annotation when burstable:false", func(t *testing.T) {
 		profile := minimalProfile("p1")
-		profile.Annotations = map[string]string{PreviewAnnotation: `{"burstable":false}`}
+		profile.Annotations = map[string]string{PreviewAnnotationKey: `{"burstable":false}`}
 		pi, err := NewPodAutoscalerProfileInternal(profile)
 		require.NoError(t, err)
-		assert.False(t, pi.Burstable())
+		assert.Equal(t, `{"burstable":false}`, pi.PreviewAnnotation())
 	})
 
-	t.Run("UpdateFromProfile removes burstable when annotation dropped", func(t *testing.T) {
+	t.Run("UpdateFromProfile removes preview annotation when dropped", func(t *testing.T) {
 		profile := minimalProfile("p1")
-		profile.Annotations = map[string]string{PreviewAnnotation: `{"burstable":true}`}
+		profile.Annotations = map[string]string{PreviewAnnotationKey: `{"burstable":true}`}
 		pi, err := NewPodAutoscalerProfileInternal(profile)
 		require.NoError(t, err)
-		assert.True(t, pi.Burstable())
+		assert.Equal(t, `{"burstable":true}`, pi.PreviewAnnotation())
 
 		// Simulate annotation removal
 		profile.Annotations = nil
 		err = pi.UpdateFromProfile(profile)
 		require.NoError(t, err)
-		assert.False(t, pi.Burstable())
+		assert.Empty(t, pi.PreviewAnnotation())
 	})
 }
 

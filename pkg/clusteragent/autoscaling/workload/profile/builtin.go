@@ -294,15 +294,6 @@ func (m *BuiltinProfileManager) ensureProfile(ctx context.Context, resource dyna
 		return
 	}
 	obj.SetResourceVersion(existing.GetResourceVersion())
-	// Preserve user-added annotations (e.g. the burstable annotation) that are
-	// not part of the hardcoded builtin definition.
-	if existingAnnotations := existing.GetAnnotations(); len(existingAnnotations) > 0 {
-		merged := make(map[string]string, len(existingAnnotations))
-		for k, v := range existingAnnotations {
-			merged[k] = v
-		}
-		obj.SetAnnotations(merged)
-	}
 	if _, err := resource.Update(ctx, obj, metav1.UpdateOptions{}); err != nil {
 		log.Errorf("Failed to update built-in profile %s: %v", desired.Name, err)
 	} else {

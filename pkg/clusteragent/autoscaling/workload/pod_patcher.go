@@ -90,21 +90,18 @@ func (pa podPatcher) ApplyRecommendations(pod *corev1.Pod) (bool, error) {
 	}
 
 	// Patching the pod with the recommendations.
-	// The effective ID incorporates the burstable mode so that toggling the annotation
-	// forces a re-patch even when the backend recommendation hash is unchanged.
+	// In burstable mode, applyVerticalConstraints has already stamped the CPU-limit remove
+	// sentinel (-1) on each container recommendation, so ResourcesHash naturally encodes the
+	// burstable state — no extra suffix is needed here.
 	effectiveRecommendationID := autoscaler.ScalingValues().Vertical.ResourcesHash
-	if autoscaler.IsBurstable() {
-		effectiveRecommendationID += "-burstable"
-	}
 	if pod.Annotations[model.RecommendationIDAnnotation] != effectiveRecommendationID {
 		pod.Annotations[model.RecommendationIDAnnotation] = effectiveRecommendationID
 		patched = true
 	}
 
 	// Even if annotation matches, we still verify the resources are correct, in case the POD was modified.
-	burstable := autoscaler.IsBurstable()
 	for _, reco := range autoscaler.ScalingValues().Vertical.ContainerResources {
-		patched = patchPod(reco, pod, burstable) || patched
+		patched = patchPod(reco, pod) || patched
 	}
 
 	return patched, nil
@@ -209,11 +206,11 @@ func (pa podPatcher) observedPodCallback(ctx context.Context, pod *workloadmeta.
 
 // K8s guarantees that the name for an init container or normal container are unique among all containers.
 // It means that dispatching recommendations just by container names is sufficient
-func patchPod(reco datadoghqcommon.DatadogPodAutoscalerContainerResources, pod *corev1.Pod, burstable bool) (patched bool) {
+func patchPod(reco datadoghqcommon.DatadogPodAutoscalerContainerResources, pod *corev1.Pod) (patched bool) {
 	for i := range pod.Spec.Containers {
 		cont := &pod.Spec.Containers[i]
 		if cont.Name == reco.Name {
-			return patchContainerResources(reco, cont, burstable)
+			return patchContainerResources(reco, cont)
 		}
 	}
 
@@ -224,14 +221,14 @@ func patchPod(reco datadoghqcommon.DatadogPodAutoscalerContainerResources, pod *
 		// sidecar container by definition is an init container with `restartPolicy: Always`
 		isInitSidecarContainer := cont.RestartPolicy != nil && *cont.RestartPolicy == corev1.ContainerRestartPolicyAlways
 		if cont.Name == reco.Name && isInitSidecarContainer {
-			return patchContainerResources(reco, cont, burstable)
+			return patchContainerResources(reco, cont)
 		}
 	}
 
 	return false
 }
 
-func patchContainerResources(reco datadoghqcommon.DatadogPodAutoscalerContainerResources, cont *corev1.Container, burstable bool) (patched bool) {
+func patchContainerResources(reco datadoghqcommon.DatadogPodAutoscalerContainerResources, cont *corev1.Container) (patched bool) {
 	patched = false
 
 	if cont.Resources.Limits == nil {
@@ -240,21 +237,22 @@ func patchContainerResources(reco datadoghqcommon.DatadogPodAutoscalerContainerR
 	if cont.Resources.Requests == nil {
 		cont.Resources.Requests = corev1.ResourceList{}
 	}
-	for resource, limit := range reco.Limits {
-		if limit != cont.Resources.Limits[resource] {
-			cont.Resources.Limits[resource] = limit
+	for resourceName, limit := range reco.Limits {
+		if limit.Sign() < 0 {
+			// Negative value (removeLimitSentinel) is set by applyVerticalConstraints in burstable
+			// mode, meaning "remove this limit from the container".
+			if _, hasCurrent := cont.Resources.Limits[resourceName]; hasCurrent {
+				delete(cont.Resources.Limits, resourceName)
+				patched = true
+			}
+		} else if cont.Resources.Limits[resourceName] != limit {
+			cont.Resources.Limits[resourceName] = limit
 			patched = true
 		}
 	}
-	for resource, request := range reco.Requests {
-		if request != cont.Resources.Requests[resource] {
-			cont.Resources.Requests[resource] = request
-			patched = true
-		}
-	}
-	if burstable {
-		if _, hasCPULimit := cont.Resources.Limits[corev1.ResourceCPU]; hasCPULimit {
-			delete(cont.Resources.Limits, corev1.ResourceCPU)
+	for resourceName, request := range reco.Requests {
+		if cont.Resources.Requests[resourceName] != request {
+			cont.Resources.Requests[resourceName] = request
 			patched = true
 		}
 	}

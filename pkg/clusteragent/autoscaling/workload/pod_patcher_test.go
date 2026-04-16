@@ -171,7 +171,9 @@ func patcherTestStoreWithData() *store {
 		},
 	}.Build(), "")
 
-	// ns1/autoscaler-burstable targets "burstable-deployment" with the burstable annotation set
+	// ns1/autoscaler-burstable targets "burstable-deployment" in burstable mode.
+	// applyVerticalConstraints has already stamped removeLimitSentinel (-1) on CPU limit in the
+	// stored ScalingValues (so patchContainerResources will remove the CPU limit).
 	store.Set("ns1/autoscaler-burstable", model.FakePodAutoscalerInternal{
 		Namespace: "ns1",
 		Name:      "autoscaler-burstable",
@@ -179,7 +181,7 @@ func patcherTestStoreWithData() *store {
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace:   "ns1",
 				Name:        "autoscaler-burstable",
-				Annotations: map[string]string{model.PreviewAnnotation: `{"burstable":true}`},
+				Annotations: map[string]string{model.PreviewAnnotationKey: `{"burstable":true}`},
 			},
 			Spec: datadoghq.DatadogPodAutoscalerSpec{
 				TargetRef: autoscalingv2.CrossVersionObjectReference{
@@ -192,9 +194,10 @@ func patcherTestStoreWithData() *store {
 		ScalingValues: model.ScalingValues{
 			Vertical: &model.VerticalScalingValues{
 				Source:        datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
-				ResourcesHash: "version1",
+				ResourcesHash: "version1-burstable-sentinel",
 				ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
-					{Name: "app", Limits: corev1.ResourceList{"cpu": resource.MustParse("500m"), "memory": resource.MustParse("512Mi")}, Requests: corev1.ResourceList{"cpu": resource.MustParse("250m")}},
+					// cpu limit is removeLimitSentinel (-1) set by applyVerticalConstraints in burstable mode
+					{Name: "app", Limits: corev1.ResourceList{"cpu": resource.MustParse("-1"), "memory": resource.MustParse("512Mi")}, Requests: corev1.ResourceList{"cpu": resource.MustParse("250m")}},
 				},
 			},
 		},
@@ -737,9 +740,9 @@ func TestPatcherApplyRecommendations(t *testing.T) {
 				},
 			},
 		},
-		// burstable annotation: rec-id and CPU limit behaviour
+		// burstable mode: CPU limit removed via removeLimitSentinel (-1), rec-id has no special suffix
 		{
-			name: "burstable: rec-id stamped with -burstable suffix, CPU limit removed",
+			name: "burstable: CPU limit removed via removeLimitSentinel (-1), rec-id is plain hash",
 			pod: corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "ns1",
@@ -771,7 +774,8 @@ func TestPatcherApplyRecommendations(t *testing.T) {
 						APIVersion: "apps/v1",
 					}},
 					Annotations: map[string]string{
-						model.RecommendationIDAnnotation: "version1-burstable",
+						// rec-id is just the ResourcesHash (no -burstable suffix)
+						model.RecommendationIDAnnotation: "version1-burstable-sentinel",
 						model.AutoscalerIDAnnotation:     "ns1/autoscaler-burstable",
 					},
 				},
@@ -779,7 +783,7 @@ func TestPatcherApplyRecommendations(t *testing.T) {
 					Containers: []corev1.Container{{
 						Name: "app",
 						Resources: corev1.ResourceRequirements{
-							// cpu limit must be absent; memory limit and cpu request applied
+							// cpu limit removed (removeLimitSentinel -1); memory limit and cpu request applied
 							Limits:   corev1.ResourceList{"memory": resource.MustParse("512Mi")},
 							Requests: corev1.ResourceList{"cpu": resource.MustParse("250m")},
 						},
@@ -788,10 +792,9 @@ func TestPatcherApplyRecommendations(t *testing.T) {
 			},
 		},
 		{
-			// When the burstable annotation is removed the effective rec-id reverts to the
-			// plain hash. A pod whose rec-id still carries the "-burstable" suffix is
-			// therefore considered stale → re-patched and the CPU limit is restored.
-			name: "burstable annotation removed: rec-id reverts to plain hash, CPU limit restored",
+			// When burstable mode is removed the recommendation hash changes (sentinel gone).
+			// A pod on the old sentinel hash is stale → re-patched with the new hash and CPU limit restored.
+			name: "burstable removed: stale pod gets new hash, CPU limit restored",
 			pod: corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "ns1",
@@ -801,9 +804,9 @@ func TestPatcherApplyRecommendations(t *testing.T) {
 						Name:       "test-deployment-968f49d86",
 						APIVersion: "apps/v1",
 					}},
-					// pod still carries the old "-burstable" rec-id from before the annotation was removed
+					// pod still carries the old sentinel-based rec-id from when burstable was active
 					Annotations: map[string]string{
-						model.RecommendationIDAnnotation: "version1-burstable",
+						model.RecommendationIDAnnotation: "old-sentinel-hash",
 						model.AutoscalerIDAnnotation:     "ns1/autoscaler1",
 					},
 				},
@@ -827,7 +830,7 @@ func TestPatcherApplyRecommendations(t *testing.T) {
 						Name:       "test-deployment-968f49d86",
 						APIVersion: "apps/v1",
 					}},
-					// rec-id reverts to plain hash (no -burstable suffix)
+					// rec-id updated to the current autoscaler1 recommendation hash
 					Annotations: map[string]string{
 						model.RecommendationIDAnnotation: "version1",
 						model.AutoscalerIDAnnotation:     "ns1/autoscaler1",
@@ -1024,7 +1027,6 @@ func TestPatchContainerResources(t *testing.T) {
 		name             string
 		recommendation   datadoghqcommon.DatadogPodAutoscalerContainerResources
 		container        *corev1.Container
-		burstable        bool
 		expectedPatched  bool
 		expectedLimits   corev1.ResourceList
 		expectedRequests corev1.ResourceList
@@ -1080,12 +1082,13 @@ func TestPatchContainerResources(t *testing.T) {
 			expectedLimits:   corev1.ResourceList{"cpu": resource.MustParse("500m")},
 			expectedRequests: corev1.ResourceList{"memory": resource.MustParse("256Mi")},
 		},
-		// burstable mode tests
+		// burstable mode: applyVerticalConstraints stamps removeLimitSentinel (-1) on CPU limit
 		{
-			name: "burstable: existing cpu limit is removed, memory limit kept",
+			name: "burstable sentinel: existing cpu limit is removed, memory limit kept",
 			recommendation: datadoghqcommon.DatadogPodAutoscalerContainerResources{
-				Name:     "test-container",
-				Limits:   corev1.ResourceList{"cpu": resource.MustParse("500m"), "memory": resource.MustParse("512Mi")},
+				Name: "test-container",
+				// removeLimitSentinel (-1) for cpu (from applyVerticalConstraints in burstable mode)
+				Limits:   corev1.ResourceList{"cpu": resource.MustParse("-1"), "memory": resource.MustParse("512Mi")},
 				Requests: corev1.ResourceList{"cpu": resource.MustParse("250m")},
 			},
 			container: &corev1.Container{
@@ -1094,13 +1097,12 @@ func TestPatchContainerResources(t *testing.T) {
 					Limits: corev1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")},
 				},
 			},
-			burstable:        true,
 			expectedPatched:  true,
 			expectedLimits:   corev1.ResourceList{"memory": resource.MustParse("512Mi")},
 			expectedRequests: corev1.ResourceList{"cpu": resource.MustParse("250m")},
 		},
 		{
-			name: "burstable: container with no cpu limit is unchanged for limits, requests still applied",
+			name: "burstable sentinel: container with no cpu limit is unchanged for limits, requests still applied",
 			recommendation: datadoghqcommon.DatadogPodAutoscalerContainerResources{
 				Name:     "test-container",
 				Limits:   corev1.ResourceList{"memory": resource.MustParse("512Mi")},
@@ -1112,7 +1114,6 @@ func TestPatchContainerResources(t *testing.T) {
 					Limits: corev1.ResourceList{"memory": resource.MustParse("1Gi")},
 				},
 			},
-			burstable:        true,
 			expectedPatched:  true,
 			expectedLimits:   corev1.ResourceList{"memory": resource.MustParse("512Mi")},
 			expectedRequests: corev1.ResourceList{"cpu": resource.MustParse("250m")},
@@ -1128,7 +1129,6 @@ func TestPatchContainerResources(t *testing.T) {
 				Name:      "test-container",
 				Resources: corev1.ResourceRequirements{},
 			},
-			burstable:        false,
 			expectedPatched:  true,
 			expectedLimits:   corev1.ResourceList{"cpu": resource.MustParse("500m"), "memory": resource.MustParse("512Mi")},
 			expectedRequests: corev1.ResourceList{"cpu": resource.MustParse("250m")},
@@ -1139,7 +1139,7 @@ func TestPatchContainerResources(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			containerCopy := tt.container.DeepCopy()
 
-			patched := patchContainerResources(tt.recommendation, containerCopy, tt.burstable)
+			patched := patchContainerResources(tt.recommendation, containerCopy)
 
 			assert.Equal(t, tt.expectedPatched, patched, "patchContainerResources should return expected patch status")
 			assert.Equal(t, tt.expectedLimits, containerCopy.Resources.Limits, "Container limits should match expected values")
@@ -1153,7 +1153,6 @@ func TestPatchPod(t *testing.T) {
 		name             string
 		recommendation   datadoghqcommon.DatadogPodAutoscalerContainerResources
 		pod              *corev1.Pod
-		burstable        bool
 		expectedPatched  bool
 		expectedLimits   corev1.ResourceList
 		expectedRequests corev1.ResourceList
@@ -1282,7 +1281,7 @@ func TestPatchPod(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			podCopy := tt.pod.DeepCopy()
 
-			patched := patchPod(tt.recommendation, podCopy, tt.burstable)
+			patched := patchPod(tt.recommendation, podCopy)
 
 			assert.Equal(t, tt.expectedPatched, patched, "patchPod should return expected patch status")
 

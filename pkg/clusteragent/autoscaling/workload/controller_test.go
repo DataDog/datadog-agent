@@ -1486,11 +1486,11 @@ func TestProfileManagedDPA(t *testing.T) {
 			Name:                       "web-app-a1b2c3d4",
 			ProfileName:                "high-cpu",
 			DesiredProfileTemplateHash: "hash1-burstable",
+			PreviewAnnotationKey:       `{"burstable":true}`,
 			UpstreamCR: &datadoghq.DatadogPodAutoscaler{
 				ObjectMeta: metav1.ObjectMeta{
-					Namespace:   "prod",
-					Name:        "web-app-a1b2c3d4",
-					Annotations: map[string]string{model.PreviewAnnotation: `{"burstable":true}`},
+					Namespace: "prod",
+					Name:      "web-app-a1b2c3d4",
 				},
 				Spec: dpaSpec,
 			},
@@ -1505,7 +1505,7 @@ func TestProfileManagedDPA(t *testing.T) {
 				Labels:    map[string]string{model.ProfileLabelKey: "high-cpu"},
 				Annotations: map[string]string{
 					model.ProfileTemplateHashAnnotation: "hash1-burstable",
-					model.PreviewAnnotation:             `{"burstable":true}`,
+					model.PreviewAnnotationKey:          `{"burstable":true}`,
 				},
 			},
 			Spec: dpaSpec,
@@ -1554,11 +1554,11 @@ func TestProfileManagedDPA(t *testing.T) {
 			ProfileName:                "high-cpu",
 			DesiredProfileTemplateHash: "hash1-burstable",
 			AppliedProfileHash:         "hash1",
+			PreviewAnnotationKey:       `{"burstable":true}`,
 			UpstreamCR: &datadoghq.DatadogPodAutoscaler{
 				ObjectMeta: metav1.ObjectMeta{
-					Namespace:   "prod",
-					Name:        "web-app-a1b2c3d4",
-					Annotations: map[string]string{model.PreviewAnnotation: `{"burstable":true}`},
+					Namespace: "prod",
+					Name:      "web-app-a1b2c3d4",
 				},
 				Spec: dpaSpec,
 			},
@@ -1576,7 +1576,7 @@ func TestProfileManagedDPA(t *testing.T) {
 				Labels:            map[string]string{model.ProfileLabelKey: "high-cpu"},
 				Annotations: map[string]string{
 					model.ProfileTemplateHashAnnotation: "hash1-burstable",
-					model.PreviewAnnotation:             `{"burstable":true}`,
+					model.PreviewAnnotationKey:          `{"burstable":true}`,
 				},
 			},
 			Spec: dpaSpec,
@@ -1601,7 +1601,7 @@ func TestProfileManagedDPA(t *testing.T) {
 		dpaTyped.Labels = map[string]string{model.ProfileLabelKey: "high-cpu"}
 		dpaTyped.Annotations = map[string]string{
 			model.ProfileTemplateHashAnnotation: "hash1-burstable",
-			model.PreviewAnnotation:             `{"burstable":true}`,
+			model.PreviewAnnotationKey:          `{"burstable":true}`,
 		}
 		dpa.SetLabels(dpaTyped.Labels)
 		dpa.SetAnnotations(dpaTyped.Annotations)

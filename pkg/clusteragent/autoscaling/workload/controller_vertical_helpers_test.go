@@ -23,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
-	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 )
 
 func TestHasLimitIncrease_Detected(t *testing.T) {
@@ -65,7 +64,7 @@ func TestHasLimitIncrease_Detected(t *testing.T) {
 		},
 	}
 
-	assert.True(t, hasLimitIncrease(recommendation, pods, "new-rec", recommendationOptions{}))
+	assert.True(t, hasLimitIncrease(recommendation, pods, "new-rec"))
 }
 
 func TestHasLimitIncrease_NotDetected(t *testing.T) {
@@ -118,7 +117,7 @@ func TestHasLimitIncrease_NotDetected(t *testing.T) {
 		},
 	}
 
-	assert.False(t, hasLimitIncrease(recommendation, pods, "current-rec", recommendationOptions{}))
+	assert.False(t, hasLimitIncrease(recommendation, pods, "current-rec"))
 }
 
 // Tests for shouldTriggerRollout
@@ -139,10 +138,9 @@ func TestShouldTriggerRollout_Complete(t *testing.T) {
 		recommendationID,
 		pods,
 		podsPerRecommendationID,
-		nil,                     // no last action
-		false,                   // no rollout in progress
-		nil,                     // no recommendation needed for complete check
-		recommendationOptions{}, // default: not burstable
+		nil,   // no last action
+		false, // no rollout in progress
+		nil,   // no recommendation needed for complete check
 		time.Now(),
 		5*time.Minute,
 		"test-autoscaler",
@@ -177,7 +175,6 @@ func TestShouldTriggerRollout_AlreadyTriggered(t *testing.T) {
 		lastAction,
 		false, // no rollout in progress
 		nil,
-		recommendationOptions{}, // default: not burstable
 		time.Now(),
 		5*time.Minute,
 		"test-autoscaler",
@@ -211,7 +208,6 @@ func TestShouldTriggerRollout_NewRecommendationNoRollout(t *testing.T) {
 		lastAction,
 		false, // no rollout in progress
 		nil,
-		recommendationOptions{}, // default: not burstable
 		time.Now(),
 		5*time.Minute,
 		"test-autoscaler",
@@ -242,7 +238,6 @@ func TestShouldTriggerRollout_OngoingRolloutNoBypass(t *testing.T) {
 		nil,
 		true, // rollout in progress
 		recommendation,
-		recommendationOptions{}, // default: not burstable
 		time.Now(),
 		5*time.Minute,
 		"test-autoscaler",
@@ -293,7 +288,6 @@ func TestShouldTriggerRollout_BypassAllowed(t *testing.T) {
 		lastAction,
 		true, // rollout in progress
 		recommendation,
-		recommendationOptions{}, // default: not burstable
 		time.Now(),
 		5*time.Minute,
 		"test-autoscaler",
@@ -345,7 +339,6 @@ func TestShouldTriggerRollout_BypassRateLimited(t *testing.T) {
 		lastAction,
 		true, // rollout in progress
 		recommendation,
-		recommendationOptions{}, // default: not burstable
 		currentTime,
 		5*time.Minute,
 		"test-autoscaler",
@@ -373,7 +366,6 @@ func TestShouldTriggerRollout_FirstTriggerNoLastAction(t *testing.T) {
 		nil,   // no last action (first time)
 		false, // no rollout in progress
 		nil,
-		recommendationOptions{}, // default: not burstable
 		time.Now(),
 		5*time.Minute,
 		"test-autoscaler",
@@ -384,14 +376,17 @@ func TestShouldTriggerRollout_FirstTriggerNoLastAction(t *testing.T) {
 
 // TestShouldTriggerRollout_BurstableTransitionBypassesOngoingRollout verifies that
 // switching from non-burstable to burstable mode triggers a new rollout even when
-// one is already in progress. The burstable flag causes CPU limits to be removed
-// (unlimited), which is a limit increase, so the bypass path must fire.
+// one is already in progress. applyVerticalConstraints stamps removeLimitSentinel (-1) on
+// the CPU limit when burstable=true, so hasLimitIncrease sees Sign() <= 0 ("no CPU limit")
+// in the recommendation while the pod still has one → limit increase → bypass fires.
 func TestShouldTriggerRollout_BurstableTransitionBypassesOngoingRollout(t *testing.T) {
 	baseHash := "abc123"
-	burstableRecommendationID := baseHash + "-burstable"
+	// After applyVerticalConstraints with burstable=true the hash changes; simulate
+	// a new recommendation ID distinct from the old one.
+	newRecommendationID := baseHash + "-new"
 	cpuLimit := float64(50) // 500m
 
-	// Pod is still on the non-burstable recommendation (same base hash, no suffix)
+	// Pod is still on the non-burstable recommendation
 	pods := []*workloadmeta.KubernetesPod{
 		{
 			EntityMeta: workloadmeta.EntityMeta{
@@ -406,18 +401,16 @@ func TestShouldTriggerRollout_BurstableTransitionBypassesOngoingRollout(t *testi
 			},
 		},
 	}
-	podsPerRecommendationID := map[string]int32{baseHash: 1, burstableRecommendationID: 0}
+	podsPerRecommendationID := map[string]int32{baseHash: 1, newRecommendationID: 0}
 
-	// The raw recommendation still has CPU limits (same values as before) — burstable
-	// mode will remove the CPU limit at apply time, but hasLimitIncrease receives
-	// the unmodified recommendation. Without the burstable flag fix, hasLimitIncrease
-	// would incorrectly return false (no increase) and the controller would wait.
+	// applyVerticalConstraints has already stamped removeLimitSentinel (-1) on the CPU limit,
+	// signalling "remove this limit from the pod" (burstable mode).
 	recommendation := &model.VerticalScalingValues{
 		ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
 			{
 				Name:     "app",
 				Requests: corev1.ResourceList{"cpu": resource.MustParse("250m")},
-				Limits:   corev1.ResourceList{"cpu": resource.MustParse("500m")},
+				Limits:   corev1.ResourceList{"cpu": resource.MustParse("-1")}, // removeLimitSentinel
 			},
 		},
 	}
@@ -429,25 +422,24 @@ func TestShouldTriggerRollout_BurstableTransitionBypassesOngoingRollout(t *testi
 	}
 
 	decision := shouldTriggerRollout(
-		burstableRecommendationID,
+		newRecommendationID,
 		pods,
 		podsPerRecommendationID,
 		lastAction,
 		true, // rollout in progress
 		recommendation,
-		recommendationOptions{burstable: true}, // CPU limit will be removed at apply time
 		time.Now(),
 		5*time.Minute,
 		"test-autoscaler",
 	)
 
-	// Must trigger: burstable removes the CPU limit (= unlimited > 500m), so this IS a limit increase
+	// Must trigger: removeLimitSentinel (-1) means CPU limit is removed (unlimited > 500m = limit increase)
 	assert.Equal(t, rolloutDecisionTrigger, decision)
 }
 
-// TestHasLimitIncrease_BurstableRemovesCPULimit verifies that burstable=true causes
-// the CPU limit to be treated as absent even when the raw recommendation has one.
-// A pod with a CPU limit + burstable recommendation = limit increase (unlimited > finite).
+// TestHasLimitIncrease_BurstableRemovesCPULimit verifies that when applyVerticalConstraints
+// stamps removeLimitSentinel (-1) on the CPU limit (burstable mode), hasLimitIncrease correctly
+// detects a limit increase: the pod has a CPU limit but the recommendation removes it.
 func TestHasLimitIncrease_BurstableRemovesCPULimit(t *testing.T) {
 	cpuLimit := float64(50) // 500m
 	pods := []*workloadmeta.KubernetesPod{
@@ -462,8 +454,8 @@ func TestHasLimitIncrease_BurstableRemovesCPULimit(t *testing.T) {
 		},
 	}
 
-	// Raw recommendation has the same CPU limit — no increase without burstable flag
-	recommendation := &model.VerticalScalingValues{
+	// Without sentinel: same CPU limit as pod → no increase
+	notBurstable := &model.VerticalScalingValues{
 		ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
 			{
 				Name:   "app",
@@ -471,12 +463,19 @@ func TestHasLimitIncrease_BurstableRemovesCPULimit(t *testing.T) {
 			},
 		},
 	}
+	assert.False(t, hasLimitIncrease(notBurstable, pods, "hash-v2"))
 
-	// Without burstable: same limits → no increase
-	assert.False(t, hasLimitIncrease(recommendation, pods, "hash-burstable", recommendationOptions{}))
-
-	// With burstable: CPU limit is treated as absent (will be removed) → pod has CPU limit → increase
-	assert.True(t, hasLimitIncrease(recommendation, pods, "hash-burstable", recommendationOptions{burstable: true}))
+	// With removeLimitSentinel (-1) (set by applyVerticalConstraints in burstable mode):
+	// CPU limit Sign() < 0 → treated as absent → pod has CPU limit → limit increase
+	burstable := &model.VerticalScalingValues{
+		ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+			{
+				Name:   "app",
+				Limits: corev1.ResourceList{"cpu": resource.MustParse("-1")}, // removeLimitSentinel
+			},
+		},
+	}
+	assert.True(t, hasLimitIncrease(burstable, pods, "hash-v3"))
 }
 
 // Tests for applyVerticalConstraints
@@ -494,12 +493,12 @@ func TestApplyVerticalConstraints_NoModification(t *testing.T) {
 	}
 
 	// Nil constraints
-	limitErr, err := applyVerticalConstraints(vertical, nil)
+	limitErr, err := applyVerticalConstraints(vertical, nil, false)
 	assert.NoError(t, err)
 	assert.NoError(t, limitErr)
 
 	// Empty container list
-	limitErr, err = applyVerticalConstraints(vertical, &datadoghqcommon.DatadogPodAutoscalerConstraints{})
+	limitErr, err = applyVerticalConstraints(vertical, &datadoghqcommon.DatadogPodAutoscalerConstraints{}, false)
 	assert.NoError(t, err)
 	assert.NoError(t, limitErr)
 
@@ -508,7 +507,7 @@ func TestApplyVerticalConstraints_NoModification(t *testing.T) {
 		Containers: []datadoghqcommon.DatadogPodAutoscalerContainerConstraints{
 			{Name: "other-container", MinAllowed: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("2")}},
 		},
-	})
+	}, false)
 	assert.NoError(t, err)
 	assert.NoError(t, limitErr)
 
@@ -521,7 +520,7 @@ func TestApplyVerticalConstraints_NoModification(t *testing.T) {
 				MaxAllowed: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("2"), corev1.ResourceMemory: resource.MustParse("1Gi")},
 			},
 		},
-	})
+	}, false)
 	assert.NoError(t, err)
 	assert.NoError(t, limitErr)
 
@@ -635,7 +634,7 @@ func TestApplyVerticalConstraints_AllFeatures(t *testing.T) {
 		},
 	}
 
-	limitErr, err := applyVerticalConstraints(vertical, constraints)
+	limitErr, err := applyVerticalConstraints(vertical, constraints, false)
 	require.NoError(t, err)
 
 	// "disabled" and "empty-controlled" should be removed -> 4 containers left
@@ -706,7 +705,7 @@ func TestApplyVerticalConstraints_ValidationErrors(t *testing.T) {
 			{Name: "app", MinAllowed: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("100m")}},
 			{Name: "app", MaxAllowed: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("2")}},
 		},
-	})
+	}, false)
 	require.Error(t, err)
 	var condErr autoscaling.ConditionReason
 	require.ErrorAs(t, err, &condErr)
@@ -719,7 +718,7 @@ func TestApplyVerticalConstraints_ValidationErrors(t *testing.T) {
 			{Name: "*", MinAllowed: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("50m")}},
 			{Name: "*", MaxAllowed: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("4")}},
 		},
-	})
+	}, false)
 	require.Error(t, err)
 	require.ErrorAs(t, err, &condErr)
 	assert.Equal(t, autoscaling.ConditionReasonInvalidSpec, condErr.Reason())
@@ -781,16 +780,10 @@ func TestFromAutoscalerToContainerResourcePatches_Burstable(t *testing.T) {
 
 	t.Run("burstable: cpu removed from limits, LimitsToDelete set", func(t *testing.T) {
 		ai := (&model.FakePodAutoscalerInternal{
-			Namespace:     "default",
-			Name:          "ai",
-			ScalingValues: model.ScalingValues{Vertical: sv},
-			UpstreamCR: &datadoghq.DatadogPodAutoscaler{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace:   "default",
-					Name:        "ai",
-					Annotations: map[string]string{model.PreviewAnnotation: `{"burstable":true}`},
-				},
-			},
+			Namespace:            "default",
+			Name:                 "ai",
+			ScalingValues:        model.ScalingValues{Vertical: sv},
+			PreviewAnnotationKey: `{"burstable":true}`,
 		}).Build()
 
 		patches := fromAutoscalerToContainerResourcePatches(&ai, pod)

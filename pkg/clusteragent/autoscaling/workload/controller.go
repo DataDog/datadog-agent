@@ -495,7 +495,14 @@ func (c *Controller) createPodAutoscaler(ctx context.Context, podAutoscalerInter
 		if autoscalerObj.Annotations == nil {
 			autoscalerObj.Annotations = make(map[string]string)
 		}
-		model.SetPreviewBurstable(autoscalerObj.Annotations, podAutoscalerInternal.IsBurstable())
+		// Forward preview annotation from the profile transparently.
+		// The profile owns this annotation for profile-managed DPAs; it entirely
+		// overrides whatever was previously set (profiles are injective: no merging).
+		if raw := podAutoscalerInternal.PreviewAnnotation(); raw != "" {
+			autoscalerObj.Annotations[model.PreviewAnnotationKey] = raw
+		} else {
+			delete(autoscalerObj.Annotations, model.PreviewAnnotationKey)
+		}
 	}
 
 	obj, err := autoscaling.ToUnstructured(autoscalerObj)
@@ -534,7 +541,12 @@ func (c *Controller) updatePodAutoscalerSpec(ctx context.Context, podAutoscalerI
 		if autoscalerObj.Annotations == nil {
 			autoscalerObj.Annotations = make(map[string]string)
 		}
-		model.SetPreviewBurstable(autoscalerObj.Annotations, podAutoscalerInternal.IsBurstable())
+		// Forward preview annotation from the profile transparently.
+		if raw := podAutoscalerInternal.PreviewAnnotation(); raw != "" {
+			autoscalerObj.Annotations[model.PreviewAnnotationKey] = raw
+		} else {
+			delete(autoscalerObj.Annotations, model.PreviewAnnotationKey)
+		}
 	}
 
 	obj, err := autoscaling.ToUnstructured(autoscalerObj)

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
@@ -40,6 +41,12 @@ const (
 )
 
 const inPlaceResizeSupportedCacheTTL = 15 * time.Minute
+
+// removeLimitSentinel is stored in a container Limits map by applyVerticalConstraints (burstable
+// mode) to signal "delete this limit from the pod instead of setting it to this value".
+// Negative quantities are never valid as real Kubernetes resource values, making the intent
+// unambiguous and easy to identify with quantity.Sign() < 0.
+var removeLimitSentinel = resource.MustParse("-1")
 
 // isInPlaceResizeSupported checks whether the API server exposes the pods/resize
 // subresource, which requires InPlacePodVerticalScaling to be enabled. The result
@@ -192,7 +199,6 @@ func shouldTriggerRollout(
 	lastAction *datadoghqcommon.DatadogPodAutoscalerVerticalAction,
 	rolloutInProgress bool,
 	recommendation *model.VerticalScalingValues,
-	opts recommendationOptions,
 	currentTime time.Time,
 	minDelayBetweenRollouts time.Duration,
 	autoscalerID string,
@@ -214,7 +220,7 @@ func shouldTriggerRollout(
 	if rolloutInProgress {
 		// Check if the new recommendation increases limits - if so, we may bypass the rollout check
 		// to help recover from stuck rollouts caused by insufficient resources.
-		if hasLimitIncrease(recommendation, pods, recommendationID, opts) {
+		if hasLimitIncrease(recommendation, pods, recommendationID) {
 			// Apply rate limiting to prevent rollout thrashing from rapid new recommendations
 			if lastAction != nil && lastAction.Time.Add(minDelayBetweenRollouts).After(currentTime) {
 				log.Debugf("Rollout in progress for autoscaler: %s with new recommendation increasing limits, "+
@@ -233,18 +239,6 @@ func shouldTriggerRollout(
 
 	// Step 4: No ongoing rollout (or bypassing due to limit increase) - trigger rollout
 	return rolloutDecisionTrigger
-}
-
-// recommendationOptions controls how hasLimitIncrease interprets the effective recommendation
-// when comparing against currently running pods. Fields correspond to autoscaler modes that
-// alter the recommendation at apply time (i.e. before the patch reaches the API server).
-type recommendationOptions struct {
-	// burstable indicates that the recommendation will have its CPU limit removed at apply time.
-	// When true, the CPU limit is treated as absent even if the raw recommendation contains one,
-	// so that a non-burstable → burstable transition is correctly identified as a limit increase
-	// (removing a CPU limit is equivalent to setting it to unlimited).
-	// See fromAutoscalerToContainerResourcePatches for where the removal happens.
-	burstable bool
 }
 
 // hasLimitIncrease checks if the new recommendation increases any limit compared to existing patched pods.
@@ -266,7 +260,6 @@ func hasLimitIncrease(
 	recommendation *model.VerticalScalingValues,
 	pods []*workloadmeta.KubernetesPod,
 	currentRecommendationID string,
-	opts recommendationOptions,
 ) bool {
 	if recommendation == nil || len(recommendation.ContainerResources) == 0 {
 		return false
@@ -276,24 +269,20 @@ func hasLimitIncrease(
 	type recommendationLimits struct {
 		cpuLimit    float64 // Percentage (100 = 1 core), 0 if not set
 		memoryLimit uint64  // Bytes, 0 if not set
-		hasCPU      bool    // true if recommendation specifies a CPU limit
+		hasCPU      bool    // true if recommendation specifies a non-zero CPU limit
 		hasMemory   bool    // true if recommendation specifies a memory limit
 	}
 
-	// Pre-compute recommendation limits once
-	// We store ALL containers from the recommendation, even those without limits,
-	// so we can detect when a limit is being removed (pod has limit, reco doesn't)
+	// Pre-compute recommendation limits once.
+	// In burstable mode applyVerticalConstraints sets the CPU limit to removeLimitSentinel (-1),
+	// so cpuLimit.Sign() < 0 and hasCPU stays false.
+	// Case 2 below then detects the transition (pod has CPU limit, reco removes it).
 	recoLimits := make(map[string]recommendationLimits, len(recommendation.ContainerResources))
 	for _, recoContainer := range recommendation.ContainerResources {
 		limits := recommendationLimits{}
-		// In burstable mode the CPU limit is removed at apply time, so treat hasCPU as false
-		// regardless of what the raw recommendation contains. This correctly identifies a
-		// non-burstable → burstable transition as a limit increase (unlimited > any finite limit).
-		if !opts.burstable {
-			if cpuLimit := recoContainer.Limits.Cpu(); cpuLimit != nil && !cpuLimit.IsZero() {
-				limits.cpuLimit = cpuLimit.AsApproximateFloat64() * 100 // Convert to percentage
-				limits.hasCPU = true
-			}
+		if cpuLimit := recoContainer.Limits.Cpu(); cpuLimit != nil && cpuLimit.Sign() > 0 {
+			limits.cpuLimit = cpuLimit.AsApproximateFloat64() * 100 // Convert to percentage
+			limits.hasCPU = true
 		}
 		if memLimit := recoContainer.Limits.Memory(); memLimit != nil && !memLimit.IsZero() {
 			limits.memoryLimit = uint64(memLimit.Value())
@@ -344,27 +333,38 @@ func hasLimitIncrease(
 	return false
 }
 
-// applyVerticalConstraints applies the container constraints from the PodAutoscaler spec to the recommendations
-func applyVerticalConstraints(verticalRecs *model.VerticalScalingValues, constraints *datadoghqcommon.DatadogPodAutoscalerConstraints) (limitErr, err error) {
-	if constraints == nil || len(constraints.Containers) == 0 || verticalRecs == nil {
+// applyVerticalConstraints applies the container constraints from the PodAutoscaler spec to the
+// recommendations, and in burstable mode stores removeLimitSentinel (-1) on the CPU limit of every
+// container so that:
+//   - the ResourcesHash changes when burstable mode is toggled (triggering pod re-patches)
+//   - hasLimitIncrease sees cpuLimit.Sign() <= 0 and correctly identifies the transition as a limit increase
+//   - patchContainerResources removes the CPU limit from the pod when it encounters the sentinel
+func applyVerticalConstraints(verticalRecs *model.VerticalScalingValues, constraints *datadoghqcommon.DatadogPodAutoscalerConstraints, burstable bool) (limitErr, err error) {
+	if verticalRecs == nil {
+		return nil, nil
+	}
+	hasConstraints := constraints != nil && len(constraints.Containers) > 0
+	if !hasConstraints && !burstable {
 		return nil, nil
 	}
 
-	// Build constraint lookup and validate uniqueness
-	constraintsByName := make(map[string]*datadoghqcommon.DatadogPodAutoscalerContainerConstraints, len(constraints.Containers))
+	// Build constraint lookup and validate uniqueness (may be empty when constraints == nil).
+	constraintsByName := make(map[string]*datadoghqcommon.DatadogPodAutoscalerContainerConstraints)
 	var wildcardConstraint *datadoghqcommon.DatadogPodAutoscalerContainerConstraints
-	for i := range constraints.Containers {
-		c := &constraints.Containers[i]
-		if c.Name == "*" {
-			if wildcardConstraint != nil {
-				return nil, autoscaling.NewConditionErrorf(autoscaling.ConditionReasonInvalidSpec, "duplicate wildcard (*) constraint in containers list")
+	if constraints != nil {
+		for i := range constraints.Containers {
+			c := &constraints.Containers[i]
+			if c.Name == "*" {
+				if wildcardConstraint != nil {
+					return nil, autoscaling.NewConditionErrorf(autoscaling.ConditionReasonInvalidSpec, "duplicate wildcard (*) constraint in containers list")
+				}
+				wildcardConstraint = c
+			} else {
+				if _, exists := constraintsByName[c.Name]; exists {
+					return nil, autoscaling.NewConditionErrorf(autoscaling.ConditionReasonInvalidSpec, "duplicate constraint for container %q", c.Name)
+				}
+				constraintsByName[c.Name] = c
 			}
-			wildcardConstraint = c
-		} else {
-			if _, exists := constraintsByName[c.Name]; exists {
-				return nil, autoscaling.NewConditionErrorf(autoscaling.ConditionReasonInvalidSpec, "duplicate constraint for container %q", c.Name)
-			}
-			constraintsByName[c.Name] = c
 		}
 	}
 
@@ -445,6 +445,23 @@ func applyVerticalConstraints(verticalRecs *model.VerticalScalingValues, constra
 		}
 
 		kept = append(kept, cr)
+	}
+
+	// In burstable mode, stamp the CPU limit to removeLimitSentinel (-1) on every container.
+	// This has three effects:
+	//   1. The ResourcesHash changes when burstable is toggled (pods get re-patched).
+	//   2. hasLimitIncrease sees cpuLimit.Sign() <= 0, correctly identifying non-burstable →
+	//      burstable as a limit increase (unlimited > any finite limit).
+	//   3. patchContainerResources sees Sign() < 0 and removes the CPU limit from the running
+	//      pod instead of setting it.
+	if burstable {
+		for i := range kept {
+			if kept[i].Limits == nil {
+				kept[i].Limits = corev1.ResourceList{}
+			}
+			kept[i].Limits[corev1.ResourceCPU] = removeLimitSentinel.DeepCopy()
+			modified = true
+		}
 	}
 
 	verticalRecs.ContainerResources = kept

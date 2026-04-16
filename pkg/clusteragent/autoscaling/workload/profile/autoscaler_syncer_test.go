@@ -461,7 +461,7 @@ func TestAutoscalerSyncerRebuildOwnershipCleansOrphans(t *testing.T) {
 	targetRef := autoscalingv2.CrossVersionObjectReference{
 		Kind: "Deployment", Name: "web-app", APIVersion: "apps/v1",
 	}
-	orphanDPA := model.NewPodAutoscalerFromProfile("prod", "web-app-9526aeb3", "high-cpu", prof.Template(), targetRef, prof.TemplateHash(), false)
+	orphanDPA := model.NewPodAutoscalerFromProfile("prod", "web-app-9526aeb3", "high-cpu", prof.Template(), targetRef, prof.TemplateHash(), "")
 	dpaStore.Set("prod/web-app-9526aeb3", orphanDPA, "dpa-c")
 
 	s := &AutoscalerSyncer{
@@ -503,7 +503,7 @@ func TestAutoscalerSyncerRebuildOwnershipKeepsActiveDPAs(t *testing.T) {
 		Kind: "Deployment", Name: "web-app", APIVersion: "apps/v1",
 	}
 	_, dpaName, _ := cache.SplitMetaNamespaceKey(dpaKey)
-	existingDPA := model.NewPodAutoscalerFromProfile("prod", dpaName, "high-cpu", prof.Template(), targetRef, prof.TemplateHash(), false)
+	existingDPA := model.NewPodAutoscalerFromProfile("prod", dpaName, "high-cpu", prof.Template(), targetRef, prof.TemplateHash(), "")
 	dpaStore.Set(dpaKey, existingDPA, "dpa-c")
 
 	s := &AutoscalerSyncer{
@@ -549,7 +549,7 @@ func TestAutoscalerSyncerBurstableAnnotationPropagatedToDPA(t *testing.T) {
 
 	ref := testRef("prod", "web-app")
 	prof := testProfileWithWorkloadsAndAnnotations("high-cpu", []model.NamespacedObjectReference{ref},
-		map[string]string{model.PreviewAnnotation: `{"burstable":true}`})
+		map[string]string{model.PreviewAnnotationKey: `{"burstable":true}`})
 	profileStore.Set("high-cpu", prof, "test")
 
 	s.reconcile()
@@ -558,8 +558,12 @@ func TestAutoscalerSyncerBurstableAnnotationPropagatedToDPA(t *testing.T) {
 		pai, found := dpaStore.Get(dpaKey)
 		require.True(t, found)
 		assert.True(t, pai.IsBurstable(), "generated DPA should be burstable when profile carries the annotation")
-		assert.Contains(t, pai.DesiredProfileTemplateHash(), "-burstable",
-			"template hash should include -burstable suffix")
+		assert.Equal(t, `{"burstable":true}`, pai.PreviewAnnotation(),
+			"preview annotation should be forwarded from profile to generated DPA")
+		// Hash must differ from a non-burstable profile (annotation value is included in hash input)
+		nonBurstableProf := testProfileWithWorkloads("high-cpu", []model.NamespacedObjectReference{testRef("prod", "web-app")})
+		assert.NotEqual(t, nonBurstableProf.TemplateHash(), pai.DesiredProfileTemplateHash(),
+			"burstable profile hash must differ from non-burstable profile hash")
 	}
 }
 
@@ -583,7 +587,7 @@ func TestAutoscalerSyncerBurstableHashChangeTriggersUpdate(t *testing.T) {
 
 	// Second reconcile: burstable=true — hash changes, update must be triggered
 	burstableProf := testProfileWithWorkloadsAndAnnotations("high-cpu", []model.NamespacedObjectReference{ref},
-		map[string]string{model.PreviewAnnotation: `{"burstable":true}`})
+		map[string]string{model.PreviewAnnotationKey: `{"burstable":true}`})
 	profileStore.Set("high-cpu", burstableProf, "test")
 	s.reconcile()
 

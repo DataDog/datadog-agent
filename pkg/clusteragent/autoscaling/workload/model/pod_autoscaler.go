@@ -80,6 +80,9 @@ type PodAutoscalerInternal struct {
 	// appliedProfileHash is the profile template hash last applied to the Kubernetes object
 	appliedProfileHash string
 
+	// previewOptions holds the parsed preview feature flags from the DPA annotations
+	previewOptions previewOptions
+
 	// scalingValues represents the active scaling values that should be used
 	scalingValues ScalingValues
 
@@ -212,7 +215,7 @@ func NewPodAutoscalerFromProfile(
 	template *datadoghq.DatadogPodAutoscalerTemplate,
 	targetRef autoscalingv2.CrossVersionObjectReference,
 	templateHash string,
-	burstable bool,
+	previewAnnotation string,
 ) PodAutoscalerInternal {
 	pai := PodAutoscalerInternal{
 		namespace: ns,
@@ -224,7 +227,7 @@ func NewPodAutoscalerFromProfile(
 			},
 		},
 	}
-	pai.UpdateFromProfile(profileName, template, targetRef, templateHash, burstable)
+	pai.UpdateFromProfile(profileName, template, targetRef, templateHash, previewAnnotation)
 
 	return pai
 }
@@ -234,17 +237,14 @@ func NewPodAutoscalerFromProfile(
 //
 
 // previewOptions holds the parsed feature flags from PreviewAnnotation.
-// Unknown keys in the JSON value are ignored when reading but preserved when writing
-// via SetPreviewBurstable (which operates on the raw annotation map).
 type previewOptions struct {
 	Burstable bool `json:"burstable,omitempty"`
 }
 
-// parsePreviewAnnotation parses the PreviewAnnotation JSON value from an annotations map.
-// Returns a zero-value previewOptions if the annotation is absent or unparseable.
-func parsePreviewAnnotation(annotations map[string]string) previewOptions {
-	raw, ok := annotations[PreviewAnnotation]
-	if !ok || raw == "" {
+// parsePreviewAnnotationString parses a raw PreviewAnnotation JSON string.
+// Returns a zero-value previewOptions if the string is empty or unparseable.
+func parsePreviewAnnotationString(raw string) previewOptions {
+	if raw == "" {
 		return previewOptions{}
 	}
 	var opts previewOptions
@@ -254,67 +254,43 @@ func parsePreviewAnnotation(annotations map[string]string) previewOptions {
 	return opts
 }
 
-// SetPreviewOption sets or removes a single key in the PreviewAnnotation JSON while
-// preserving all other keys already present (e.g. keys managed by other features).
-// Pass a non-nil value to set the key; pass nil to remove it.
-// If removing a key leaves the JSON object empty, the annotation is deleted entirely.
-// json.Marshal sorts map keys alphabetically, so the output is stable across calls.
-func SetPreviewOption(annotations map[string]string, key string, value any) {
-	// Parse the existing annotation as a raw map so unknown keys are not lost on re-marshal.
-	rawMap := make(map[string]any)
-	if raw, ok := annotations[PreviewAnnotation]; ok && raw != "" {
-		_ = json.Unmarshal([]byte(raw), &rawMap)
-	}
-	if value == nil {
-		delete(rawMap, key)
+// setPreviewAnnotation updates both the parsed previewOptions field and the upstreamCR annotation
+// to keep them in sync. Passing an empty string removes the annotation.
+func (p *PodAutoscalerInternal) setPreviewAnnotation(previewAnnotation string) {
+	if previewAnnotation == "" {
+		delete(p.upstreamCR.Annotations, PreviewAnnotationKey)
 	} else {
-		rawMap[key] = value
+		if p.upstreamCR.Annotations == nil {
+			p.upstreamCR.Annotations = make(map[string]string)
+		}
+		p.upstreamCR.Annotations[PreviewAnnotationKey] = previewAnnotation
 	}
-	if len(rawMap) == 0 {
-		delete(annotations, PreviewAnnotation)
-	} else {
-		b, _ := json.Marshal(rawMap)
-		annotations[PreviewAnnotation] = string(b)
-	}
-}
-
-// SetPreviewBurstable sets or clears the "burstable" key in the PreviewAnnotation JSON.
-// It is a convenience wrapper around SetPreviewOption.
-func SetPreviewBurstable(annotations map[string]string, burstable bool) {
-	var val any
-	if burstable {
-		val = true
-	}
-	SetPreviewOption(annotations, "burstable", val)
+	p.previewOptions = parsePreviewAnnotationString(previewAnnotation)
 }
 
 // UpdateFromProfile updates the spec from a profile template while preserving scaling state.
-// The templateHash must be the hash of the profile template that produced this spec.
-// burstable mirrors the burstable preview option on the source DPAC: when true the
-// "burstable" key is set in the PreviewAnnotation JSON on upstreamCR so that IsBurstable()
-// returns true for this DPA; when false it is removed (other preview keys are preserved).
+// previewAnnotation is the raw value of the profile's preview annotation (e.g.
+// `{"burstable":true}`), stored in a dedicated field rather than written to upstreamCR,
+// which mirrors the Kubernetes API object and should remain read-only.
 func (p *PodAutoscalerInternal) UpdateFromProfile(
 	profileName string,
 	template *datadoghq.DatadogPodAutoscalerTemplate,
 	targetRef autoscalingv2.CrossVersionObjectReference,
 	templateHash string,
-	burstable bool,
+	previewAnnotation string,
 ) {
 	dpaSpec := BuildDPASpecFromProfile(template, targetRef)
 
 	p.profileName = profileName
 	p.desiredProfileTemplateHash = templateHash
 	p.upstreamCR.Spec = dpaSpec
+	p.setPreviewAnnotation(previewAnnotation)
+
 	// Reset the target GVK as it might have changed
 	// Resolving the target GVK is done in the controller sync to ensure proper sync and error handling
 	p.targetGVK = schema.GroupVersionKind{}
 	// Compute the horizontal events retention again in case .Spec.ApplyPolicy has changed
 	p.horizontalEventsRetention, p.horizontalRecommendationsRetention = getHorizontalRetentionValues(dpaSpec.ApplyPolicy)
-
-	if p.upstreamCR.Annotations == nil {
-		p.upstreamCR.Annotations = make(map[string]string)
-	}
-	SetPreviewBurstable(p.upstreamCR.Annotations, burstable)
 }
 
 // UpdateFromPodAutoscaler updates the PodAutoscalerInternal from a PodAutoscaler object inside K8S
@@ -335,6 +311,10 @@ func (p *PodAutoscalerInternal) UpdateFromPodAutoscaler(podAutoscaler *datadoghq
 	p.horizontalEventsRetention, p.horizontalRecommendationsRetention = getHorizontalRetentionValues(podAutoscaler.Spec.ApplyPolicy)
 	// Compute recommender configuration again in case .Annotations has changed
 	p.updateCustomRecommenderConfiguration(podAutoscaler.Annotations)
+	// Parse preview options from the K8s annotation so IsBurstable() works for standalone DPAs
+	// without branching on profile-managed vs standalone.
+	// For profile-managed DPAs, UpdateFromProfile() will overwrite this with the profile value.
+	p.previewOptions = parsePreviewAnnotationString(podAutoscaler.Annotations[PreviewAnnotationKey])
 }
 
 // UpdateFromSettings updates the PodAutoscalerInternal from a new settings
@@ -674,14 +654,22 @@ func (p *PodAutoscalerInternal) IsHorizontalScalingEnabled() bool {
 	return !(scaleUpDisabled && scaleDownDisabled)
 }
 
-// IsBurstable returns true if the DPA's PreviewAnnotation JSON contains "burstable": true.
-// In burstable mode the controller removes the CPU limit from containers while still
-// applying CPU request recommendations.
+// IsBurstable returns true if the burstable preview option is enabled for this autoscaler.
+// The value is read directly from the cached previewOptions struct — no JSON decode per call.
+// For profile-managed DPAs previewOptions is populated by UpdateFromProfile; for standalone
+// DPAs it is populated by UpdateFromPodAutoscaler.
 func (p *PodAutoscalerInternal) IsBurstable() bool {
-	if p.upstreamCR == nil || p.upstreamCR.Annotations == nil {
-		return false
+	return p.previewOptions.Burstable
+}
+
+// PreviewAnnotation returns the JSON-encoded preview annotation forwarded from the cluster
+// profile (e.g. `{"burstable":true}`).  Returns empty string when no preview features are
+// active.  For standalone (non-profile-managed) autoscalers this always returns empty string.
+func (p *PodAutoscalerInternal) PreviewAnnotation() string {
+	if p.upstreamCR == nil {
+		return ""
 	}
-	return parsePreviewAnnotation(p.upstreamCR.Annotations).Burstable
+	return p.upstreamCR.Annotations[PreviewAnnotationKey]
 }
 
 func (p *PodAutoscalerInternal) IsVerticalScalingEnabled() bool {
@@ -985,7 +973,7 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 				Source:           p.scalingValues.Vertical.Source,
 				GeneratedAt:      metav1.NewTime(p.scalingValues.Vertical.Timestamp),
 				Version:          p.scalingValues.Vertical.ResourcesHash,
-				DesiredResources: p.scalingValues.Vertical.ContainerResources,
+				DesiredResources: containerResourcesForStatus(p.scalingValues.Vertical.ContainerResources),
 				Scaled:           p.scaledReplicas,
 				Evicted:          p.evictedReplicas,
 				PodCPURequest:    cpuReqSum,
@@ -1083,6 +1071,43 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 	status.Conditions = append(status.Conditions, newCondition(rolloutStatus, verticalReason, verticalMessage, currentTime, datadoghqcommon.DatadogPodAutoscalerVerticalAbleToApply, existingConditions))
 
 	return status
+}
+
+// containerResourcesForStatus returns a copy of the container resources with internal sentinel
+// values removed from Limits and Requests so they are not surfaced in the DPA status.
+//
+// For Limits: applyVerticalConstraints (burstable mode) stores removeLimitSentinel (-1) in
+// Limits[cpu] to signal "delete this CPU limit from the pod". A negative quantity is never a
+// valid Kubernetes resource value, so only strictly positive quantities are kept in Limits.
+func containerResourcesForStatus(in []datadoghqcommon.DatadogPodAutoscalerContainerResources) []datadoghqcommon.DatadogPodAutoscalerContainerResources {
+	if len(in) == 0 {
+		return in
+	}
+	out := make([]datadoghqcommon.DatadogPodAutoscalerContainerResources, len(in))
+	for i, cr := range in {
+		out[i].Name = cr.Name
+		if len(cr.Limits) > 0 {
+			for k, v := range cr.Limits {
+				if v.Sign() > 0 {
+					if out[i].Limits == nil {
+						out[i].Limits = make(corev1.ResourceList, len(cr.Limits))
+					}
+					out[i].Limits[k] = v
+				}
+			}
+		}
+		if len(cr.Requests) > 0 {
+			for k, v := range cr.Requests {
+				if v.Sign() >= 0 {
+					if out[i].Requests == nil {
+						out[i].Requests = make(corev1.ResourceList, len(cr.Requests))
+					}
+					out[i].Requests[k] = v
+				}
+			}
+		}
+	}
+	return out
 }
 
 // Private helpers

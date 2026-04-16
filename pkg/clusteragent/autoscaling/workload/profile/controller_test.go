@@ -177,34 +177,34 @@ func TestSyncProfileBurstableAnnotation(t *testing.T) {
 	c, profileStore := newTestProfileController()
 	ctx := context.Background()
 
-	t.Run("burstable=true when annotation present", func(t *testing.T) {
+	t.Run("preview annotation forwarded when burstable=true", func(t *testing.T) {
 		profile := newTestProfile("p1", 1, validTemplate())
-		profile.Annotations = map[string]string{model.PreviewAnnotation: `{"burstable":true}`}
+		profile.Annotations = map[string]string{model.PreviewAnnotationKey: `{"burstable":true}`}
 		_, err := c.syncProfile(ctx, "p1", profile)
 		require.NoError(t, err)
 
 		pi, ok := profileStore.Get("p1")
 		require.True(t, ok)
-		assert.True(t, pi.Burstable())
+		assert.Equal(t, `{"burstable":true}`, pi.PreviewAnnotation())
 	})
 
-	t.Run("burstable=false when annotation absent", func(t *testing.T) {
+	t.Run("preview annotation absent when not set", func(t *testing.T) {
 		profile := newTestProfile("p2", 1, validTemplate())
 		_, err := c.syncProfile(ctx, "p2", profile)
 		require.NoError(t, err)
 
 		pi, ok := profileStore.Get("p2")
 		require.True(t, ok)
-		assert.False(t, pi.Burstable())
+		assert.Empty(t, pi.PreviewAnnotation())
 	})
 
-	t.Run("burstable removed on annotation drop", func(t *testing.T) {
+	t.Run("preview annotation removed on annotation drop", func(t *testing.T) {
 		profile := newTestProfile("p3", 1, validTemplate())
-		profile.Annotations = map[string]string{model.PreviewAnnotation: `{"burstable":true}`}
+		profile.Annotations = map[string]string{model.PreviewAnnotationKey: `{"burstable":true}`}
 		_, _ = c.syncProfile(ctx, "p3", profile)
 
 		pi, _ := profileStore.Get("p3")
-		assert.True(t, pi.Burstable())
+		assert.NotEmpty(t, pi.PreviewAnnotation())
 
 		// Remove annotation and re-sync.
 		// The fake K8s client doesn't have the CRD registered so the status update
@@ -215,6 +215,6 @@ func TestSyncProfileBurstableAnnotation(t *testing.T) {
 
 		pi, ok := profileStore.Get("p3")
 		require.True(t, ok)
-		assert.False(t, pi.Burstable(), "burstable should be false after annotation is removed")
+		assert.Empty(t, pi.PreviewAnnotation(), "preview annotation should be empty after annotation is removed")
 	})
 }
