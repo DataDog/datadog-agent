@@ -67,6 +67,14 @@ type IsEmptyExpr struct {
 
 func (ie *IsEmptyExpr) expr() {}
 
+// IndexExpr represents an index access expression (e.g., arr[0]).
+type IndexExpr struct {
+	Base  Expr
+	Index Expr
+}
+
+func (ie *IndexExpr) expr() {}
+
 // UnsupportedExpr represents an expression type that is not yet supported.
 type UnsupportedExpr struct {
 	Operation string
@@ -289,6 +297,51 @@ func Parse(dslJSON []byte) (Expr, error) {
 		}
 
 		return &GetMemberExpr{Base: baseExpr, Member: memberName}, nil
+	case "index":
+		// Index access: {"index": [<base_expr>, <index_expr>]}
+		arrStart, err := dec.ReadToken()
+		if err != nil {
+			return nil, fmt.Errorf("parse error: failed to read index array start: %w", err)
+		}
+		if kind := arrStart.Kind(); kind != '[' {
+			return nil, fmt.Errorf("parse error: malformed index: got token %v (%v), expected [", arrStart, kind)
+		}
+
+		// Read base expression.
+		baseJSON, err := dec.ReadValue()
+		if err != nil {
+			return nil, fmt.Errorf("parse error: failed to read index base expression: %w", err)
+		}
+		base, err := Parse(baseJSON)
+		if err != nil {
+			return nil, fmt.Errorf("parse error: failed to parse index base expression: %w", err)
+		}
+
+		// Read index expression.
+		indexJSON, err := dec.ReadValue()
+		if err != nil {
+			return nil, fmt.Errorf("parse error: failed to read index expression: %w", err)
+		}
+		idx, err := Parse(indexJSON)
+		if err != nil {
+			return nil, fmt.Errorf("parse error: failed to parse index expression: %w", err)
+		}
+
+		// Read array closing bracket.
+		arrEnd, err := dec.ReadToken()
+		if err != nil {
+			return nil, fmt.Errorf("parse error: failed to read index array end: %w", err)
+		}
+		if kind := arrEnd.Kind(); kind != ']' {
+			return nil, fmt.Errorf("parse error: malformed index: got token %v (%v), expected ]", arrEnd, kind)
+		}
+
+		if err := readClosingBrace(); err != nil {
+			return nil, err
+		}
+
+		return &IndexExpr{Base: base, Index: idx}, nil
+
 	case "len", "isEmpty":
 		// Read the argument value and parse it recursively.
 		argJSON, err := dec.ReadValue()

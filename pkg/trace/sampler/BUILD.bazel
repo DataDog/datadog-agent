@@ -46,6 +46,7 @@ go_test(
         "spansampler_test.go",
     ],
     embed = [":sampler"],
+    gotags = ["test"],
     deps = [
         "//pkg/proto/pbgo/trace",
         "//pkg/proto/pbgo/trace/idx",

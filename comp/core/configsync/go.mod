@@ -11,6 +11,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/log/mock v0.70.0
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/config/create v0.76.0-devel
+	github.com/DataDog/datadog-agent/pkg/config/helper v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/config/model v0.77.2
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.76.0-devel
@@ -34,7 +35,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/basic v0.0.0-20260211235139-a5361978c2b6 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/buildschema v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.76.0-devel // indirect
-	github.com/DataDog/datadog-agent/pkg/config/helper v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.77.0-devel.0.20260211235139-a5361978c2b6 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.77.0-devel.0.20260211235139-a5361978c2b6 // indirect
@@ -91,7 +91,7 @@ require (
 	go.uber.org/dig v1.19.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.1 // indirect
-	go.yaml.in/yaml/v2 v2.4.3 // indirect
+	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/net v0.53.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect

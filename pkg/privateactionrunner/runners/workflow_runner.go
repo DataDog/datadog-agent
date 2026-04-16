@@ -32,14 +32,14 @@ type WorkflowRunner struct {
 	resolver     resolver.PrivateCredentialResolver
 	config       *config.Config
 	keysManager  taskverifier.KeysManager
-	taskVerifier *taskverifier.TaskVerifier
+	taskVerifier taskverifier.TaskVerifier
 	taskLoop     *Loop
 }
 
 func NewWorkflowRunner(
 	configuration *config.Config,
 	keysManager taskverifier.KeysManager,
-	verifier *taskverifier.TaskVerifier,
+	verifier taskverifier.TaskVerifier,
 	opmsClient opms.Client,
 	traceroute traceroute.Component,
 	eventPlatform eventplatform.Component,
