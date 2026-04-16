@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    APM: Add a context-aware shutdown API to the trace agent, allowing callers
+    to specify a timeout when waiting for the agent to stop gracefully.
+fixes:
+  - |
+    Fix span stats and priority sampling for Cloud Run job tasks by properly
+    waiting for the trace agent shutdown sequence to complete, ensuring
+    in-flight traces are flushed before the serverless function exits.

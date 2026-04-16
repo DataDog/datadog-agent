@@ -34,8 +34,10 @@ var sources = []model.Source{
 	model.SourceFile,
 	model.SourceEnvVar,
 	model.SourceFleetPolicies,
-	model.SourceAgentRuntime,
+	model.SourceConfigPostInit,
+	model.SourceSecret,
 	model.SourceLocalConfigProcess,
+	model.SourceAgentRuntime,
 	model.SourceRC,
 	model.SourceCLI,
 }
@@ -77,11 +79,15 @@ type ntmConfig struct {
 	file *nodeImpl
 	// envs contains config settings created by environment variables
 	envs *nodeImpl
-	// runtime contains the settings set from the agent code itself at runtime (self configured values).
-	runtime *nodeImpl
+	// configPostInit contains values computed during initial config setup.
+	configPostInit *nodeImpl
+	// secrets contains values resolved from secrets (ENC[...] placeholders).
+	secrets *nodeImpl
 	// localConfigProcess contains the settings pulled from the config process (process owning the source of truth
 	// for the coniguration and mirrored by other processes).
 	localConfigProcess *nodeImpl
+	// runtime contains the settings set from the agent code itself at runtime (self configured values).
+	runtime *nodeImpl
 	// remoteConfig contains the settings pulled from Remote Config.
 	remoteConfig *nodeImpl
 	// fleetPolicies contains the settings pulled from fleetPolicies.
@@ -118,8 +124,10 @@ type ntmConfig struct {
 	knownKeys map[string]bool
 
 	// keys that are unknown, but are used by either the file or SetWithoutSource
-	// used to warn (a single time) on use
-	unknownKeys map[string]struct{}
+	// used to warn (a single time) on use.
+	// sync.Map is used because checkKnownKey writes to this map while callers
+	// only hold an RLock, so a plain map would cause concurrent map writes.
+	unknownKeys sync.Map
 
 	// extraConfigFilePaths represents additional configuration file paths that will be merged into the main configuration when ReadInConfig() is called.
 	extraConfigFilePaths []string
@@ -158,10 +166,14 @@ func (c *ntmConfig) getTreeBySource(source model.Source) (*nodeImpl, error) {
 		return c.file, nil
 	case model.SourceEnvVar:
 		return c.envs, nil
-	case model.SourceAgentRuntime:
-		return c.runtime, nil
+	case model.SourceConfigPostInit:
+		return c.configPostInit, nil
+	case model.SourceSecret:
+		return c.secrets, nil
 	case model.SourceLocalConfigProcess:
 		return c.localConfigProcess, nil
+	case model.SourceAgentRuntime:
+		return c.runtime, nil
 	case model.SourceRC:
 		return c.remoteConfig, nil
 	case model.SourceFleetPolicies:
@@ -274,7 +286,7 @@ func (c *ntmConfig) SetWithoutSource(key string, value interface{}) {
 	c.Lock()
 	defer c.Unlock()
 	if !c.isKnownKey(key) {
-		c.unknownKeys[key] = struct{}{}
+		c.unknownKeys.Store(key, struct{}{})
 	}
 }
 
@@ -435,6 +447,15 @@ func (c *ntmConfig) IsKnown(key string) bool {
 	return c.isKnownKey(key)
 }
 
+// IsSetting returns true for leaf nodes
+func (c *ntmConfig) IsSetting(key string) bool {
+	n, err := c.GetNode(key)
+	if err != nil {
+		return false
+	}
+	return n.IsLeafNode()
+}
+
 // isKnownKey returns whether the key is known.
 // Must be called with the lock read-locked.
 func (c *ntmConfig) isKnownKey(key string) bool {
@@ -477,36 +498,53 @@ func (c *ntmConfig) checkKnownKey(key string) {
 	}
 
 	key = strings.ToLower(key)
-	if _, ok := c.unknownKeys[key]; ok {
-		return
+	if _, loaded := c.unknownKeys.LoadOrStore(key, struct{}{}); !loaded {
+		log.Warnf("config key %v is unknown", key)
 	}
-
-	c.unknownKeys[key] = struct{}{}
-	log.Warnf("config key %v is unknown", key)
 }
 
-func (c *ntmConfig) mergeAllLayers() error {
-	treeList := []*nodeImpl{
+// layerList returns all config layers in ascending priority order.
+func (c *ntmConfig) layerList() []*nodeImpl {
+	return []*nodeImpl{
 		c.defaults,
 		c.unknown,
 		c.file,
 		c.envs,
 		c.fleetPolicies,
-		c.runtime,
+		c.configPostInit,
+		c.secrets,
 		c.localConfigProcess,
+		c.runtime,
 		c.remoteConfig,
 		c.cli,
 	}
+}
 
+// mergeLayers merges all layers except those in exclude.
+func (c *ntmConfig) mergeLayers(exclude ...*nodeImpl) (*nodeImpl, error) {
+	excludeSet := make(map[*nodeImpl]struct{}, len(exclude))
+	for _, e := range exclude {
+		excludeSet[e] = struct{}{}
+	}
 	merged := newInnerNode(nil)
-	for _, tree := range treeList {
+	for _, tree := range c.layerList() {
+		if _, skip := excludeSet[tree]; skip {
+			continue
+		}
 		next, err := merged.Merge(tree)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		merged = next
 	}
+	return merged, nil
+}
 
+func (c *ntmConfig) mergeAllLayers() error {
+	merged, err := c.mergeLayers()
+	if err != nil {
+		return err
+	}
 	c.root = merged
 	return nil
 }
@@ -733,9 +771,10 @@ func (c *ntmConfig) collectFlattenedKeys() []string {
 		}
 	}
 	// collect keys from unknown set
-	for k := range c.unknownKeys {
-		allKeys[k] = struct{}{}
-	}
+	c.unknownKeys.Range(func(k, _ any) bool {
+		allKeys[k.(string)] = struct{}{}
+		return true
+	})
 
 	return slices.Collect(maps.Keys(allKeys))
 }
@@ -930,6 +969,34 @@ func (c *ntmConfig) AllSettingsWithoutDefault() map[string]interface{} {
 	return c.root.dumpSettings(false)
 }
 
+// AllSettingsWithoutSecrets returns all settings excluding the secrets layer
+func (c *ntmConfig) AllSettingsWithoutSecrets() map[string]interface{} {
+	c.maybeRebuild()
+	c.RLock()
+	defer c.RUnlock()
+
+	merged, err := c.mergeLayers(c.secrets)
+	if err != nil {
+		log.Errorf("error merging config layers without secrets: %v", err)
+		return map[string]interface{}{}
+	}
+	return merged.dumpSettings(true)
+}
+
+// AllSettingsWithoutDefaultOrSecrets returns settings excluding both defaults and secrets
+func (c *ntmConfig) AllSettingsWithoutDefaultOrSecrets() map[string]interface{} {
+	c.maybeRebuild()
+	c.RLock()
+	defer c.RUnlock()
+
+	merged, err := c.mergeLayers(c.defaults, c.secrets)
+	if err != nil {
+		log.Errorf("error merging config layers without defaults or secrets: %v", err)
+		return map[string]interface{}{}
+	}
+	return merged.dumpSettings(false)
+}
+
 // AllSettingsBySource returns the settings from each source (file, env vars, ...)
 func (c *ntmConfig) AllSettingsBySource() map[model.Source]interface{} {
 	c.maybeRebuild()
@@ -937,7 +1004,13 @@ func (c *ntmConfig) AllSettingsBySource() map[model.Source]interface{} {
 	c.RLock()
 	defer c.RUnlock()
 
-	// We don't return include unknown settings
+	// SourceProvided excludes secrets so resolved values don't leak in metadata payloads.
+	providedWithoutSecrets, err := c.mergeLayers(c.defaults, c.secrets)
+	if err != nil {
+		log.Errorf("error building provided configuration without secrets: %v", err)
+		providedWithoutSecrets = newInnerNode(nil)
+	}
+
 	return map[model.Source]interface{}{
 		model.SourceDefault:            c.defaults.dumpSettings(true),
 		model.SourceUnknown:            c.unknown.dumpSettings(true),
@@ -945,11 +1018,12 @@ func (c *ntmConfig) AllSettingsBySource() map[model.Source]interface{} {
 		model.SourceFile:               c.file.dumpSettings(true),
 		model.SourceEnvVar:             c.envs.dumpSettings(true),
 		model.SourceFleetPolicies:      c.fleetPolicies.dumpSettings(true),
-		model.SourceAgentRuntime:       c.runtime.dumpSettings(true),
+		model.SourceConfigPostInit:     c.configPostInit.dumpSettings(true),
 		model.SourceLocalConfigProcess: c.localConfigProcess.dumpSettings(true),
+		model.SourceAgentRuntime:       c.runtime.dumpSettings(true),
 		model.SourceRC:                 c.remoteConfig.dumpSettings(true),
 		model.SourceCLI:                c.cli.dumpSettings(true),
-		model.SourceProvided:           c.root.dumpSettings(false),
+		model.SourceProvided:           providedWithoutSecrets.dumpSettings(false),
 	}
 }
 
@@ -1095,14 +1169,15 @@ func NewNodeTreeConfig(name string, envPrefix string, envKeyReplacer *strings.Re
 		sequenceID:         0,
 		configEnvVars:      map[string][]string{},
 		knownKeys:          map[string]bool{},
-		unknownKeys:        map[string]struct{}{},
 		defaults:           newInnerNode(nil),
 		file:               newInnerNode(nil),
 		unknown:            newInnerNode(nil),
 		infraMode:          newInnerNode(nil),
 		envs:               newInnerNode(nil),
-		runtime:            newInnerNode(nil),
+		configPostInit:     newInnerNode(nil),
+		secrets:            newInnerNode(nil),
 		localConfigProcess: newInnerNode(nil),
+		runtime:            newInnerNode(nil),
 		remoteConfig:       newInnerNode(nil),
 		fleetPolicies:      newInnerNode(nil),
 		cli:                newInnerNode(nil),

@@ -519,6 +519,131 @@ type analyzedProbe struct {
 	isSnapshot bool
 }
 
+// cleanReturnNames computes display names for return variables used as field
+// names under @return in multi-return snapshots. For single returns, it returns
+// nil (the caller should use "@return" directly). For multiple returns, it
+// strips the leading ~ from compiler-generated names and resolves conflicts
+// with underscore prefixing.
+func cleanReturnNames(vars []*ir.Variable) map[*ir.Variable]string {
+	if len(vars) <= 1 {
+		return nil
+	}
+	// First pass: strip ~ prefix from each name, track which are compiler-generated.
+	type entry struct {
+		cleaned   string
+		generated bool // true if original name had ~ prefix
+	}
+	entries := make([]entry, len(vars))
+	for i, v := range vars {
+		if strings.HasPrefix(v.Name, "~") {
+			entries[i] = entry{cleaned: v.Name[1:], generated: true}
+		} else {
+			entries[i] = entry{cleaned: v.Name, generated: false}
+		}
+	}
+	// Collect all names that are taken (user-chosen names always win).
+	taken := make(map[string]bool, len(vars))
+	for _, e := range entries {
+		if !e.generated {
+			taken[e.cleaned] = true
+		}
+	}
+	// Second pass: resolve conflicts for generated names.
+	result := make(map[*ir.Variable]string, len(vars))
+	for i, v := range vars {
+		e := entries[i]
+		if e.generated {
+			name := e.cleaned
+			for taken[name] {
+				name = "_" + name
+			}
+			taken[name] = true
+			result[v] = name
+		} else {
+			taken[e.cleaned] = true
+			result[v] = e.cleaned
+		}
+	}
+	return result
+}
+
+// resolveReturnExpr resolves an expression referencing @return to the
+// corresponding return variable and rewrites the expression to target that
+// variable directly.
+//
+// For single returns, ref("@return") is rewritten to ref(varName).
+// For multiple returns, getmember(ref("@return"), "field") is matched against
+// displayNames and rewritten to ref(varName). A bare @return is rejected
+// since multi-value returns require a field selector, and referencing more
+// than one distinct field in the same expression is rejected since the
+// result must resolve to a single root variable.
+//
+// Returns the resolved variable, the rewritten expression, and an error
+// message if resolution fails.
+func resolveReturnExpr(
+	expr exprlang.Expr,
+	returnVars []*ir.Variable,
+	displayNames map[*ir.Variable]string,
+) (rootVar *ir.Variable, rewritten exprlang.Expr, errMsg string) {
+	if len(returnVars) == 1 {
+		v := returnVars[0]
+		rewritten = exprlang.Rewrite(expr, func(e exprlang.Expr) exprlang.Expr {
+			if ref, ok := e.(*exprlang.RefExpr); ok && ref.Ref == "@return" {
+				return &exprlang.RefExpr{Ref: v.Name}
+			}
+			return nil
+		})
+		return v, rewritten, ""
+	}
+
+	var matched *ir.Variable
+	for node := range exprlang.Children(expr) {
+		gme, ok := node.(*exprlang.GetMemberExpr)
+		if !ok {
+			continue
+		}
+		ref, ok := gme.Base.(*exprlang.RefExpr)
+		if !ok || ref.Ref != "@return" {
+			continue
+		}
+		var v *ir.Variable
+		for _, rv := range returnVars {
+			if displayNames[rv] == gme.Member {
+				v = rv
+				break
+			}
+		}
+		if v == nil {
+			errMsg = fmt.Sprintf(
+				"@return field %q does not match any return variable", gme.Member)
+			break
+		}
+		if matched != nil && matched != v {
+			errMsg = "expression references multiple @return fields"
+			break
+		}
+		matched = v
+	}
+	switch {
+	case errMsg != "":
+		return nil, nil, errMsg
+	case matched == nil:
+		return nil, nil, "return value selector (e.g., @return.r0) must be used for multi-value returns"
+	}
+	rewritten = exprlang.Rewrite(expr, func(e exprlang.Expr) exprlang.Expr {
+		gme, ok := e.(*exprlang.GetMemberExpr)
+		if !ok {
+			return nil
+		}
+		ref, ok := gme.Base.(*exprlang.RefExpr)
+		if !ok || ref.Ref != "@return" {
+			return nil
+		}
+		return &exprlang.RefExpr{Ref: matched.Name}
+	})
+	return matched, rewritten, ""
+}
+
 // extractRootVariableName extracts the root variable name from an expression.
 func extractRootVariableName(expr exprlang.Expr) (string, bool) {
 	const maxDepth = 30
@@ -532,6 +657,8 @@ func extractRootVariableName(expr exprlang.Expr) (string, bool) {
 			expr = e.Operand
 		case *exprlang.IsEmptyExpr:
 			expr = e.Operand
+		case *exprlang.IndexExpr:
+			expr = e.Base
 		case *exprlang.EqExpr:
 			expr = e.Left
 		default:
@@ -662,6 +789,17 @@ func analyzeAllProbes(
 				}
 			}
 
+			// Pre-scan: collect return variables and compute display names.
+			var returnVars []*ir.Variable
+			if haveReturn {
+				for _, v := range inst.Subprogram.Variables {
+					if v.Role == ir.VariableRoleReturn {
+						returnVars = append(returnVars, v)
+					}
+				}
+			}
+			returnDisplayNames := cleanReturnNames(returnVars) // nil for 0 or 1 returns
+
 			// Process each variable.
 			for _, v := range inst.Subprogram.Variables {
 				var evKind ir.EventKind
@@ -683,7 +821,7 @@ func analyzeAllProbes(
 					// which would just require extending the next case to also be
 					// triggered for return variables.
 					evKind = ir.EventKindReturn
-					exprKind = ir.RootExpressionKindLocal
+					exprKind = ir.RootExpressionKindReturn
 
 				case len(inst.Events) == 1 &&
 					inst.Events[0].Kind == ir.EventKindLine:
@@ -707,9 +845,18 @@ func analyzeAllProbes(
 				// Capture expression probes only capture explicitly listed
 				// expressions (handled below), not all variables.
 				if isSnapshot && !isCaptureExpression {
+					// Compute the display name for this expression.
+					name := v.Name
+					if v.Role == ir.VariableRoleReturn {
+						if returnDisplayNames == nil {
+							name = "@return"
+						} else {
+							name = returnDisplayNames[v]
+						}
+					}
 					ap.expressions = append(ap.expressions, analyzedExpression{
 						expr:         &exprlang.RefExpr{Ref: v.Name},
-						dsl:          v.Name,
+						dsl:          name,
 						rootVariable: v,
 						eventKind:    evKind,
 						exprKind:     exprKind,
@@ -719,7 +866,8 @@ func analyzeAllProbes(
 					addRoot(v.Type.GetID(), budget)
 				}
 
-				// Match template segments to this variable.
+				// Match template segments to this variable by its original name.
+				// Named returns (e.g., "result") remain accessible by name.
 				//
 				// Note: there's no risk of picking the wrong variable due to
 				// shadowing, but there should be! In materializePending we ensure
@@ -752,6 +900,33 @@ func analyzeAllProbes(
 				delete(segmentRefs, v.Name)
 			}
 
+			// Handle @return references in template segments.
+			if segs, ok := segmentRefs["@return"]; ok && len(returnVars) > 0 {
+				for _, seg := range segs {
+					rv, rewritten, errMsg := resolveReturnExpr(
+						seg.segment.JSON, returnVars, returnDisplayNames,
+					)
+					if rv != nil {
+						ap.expressions = append(ap.expressions, analyzedExpression{
+							expr:         rewritten,
+							dsl:          seg.segment.DSL,
+							rootVariable: rv,
+							eventKind:    ir.EventKindReturn,
+							exprKind:     ir.RootExpressionKindTemplateSegment,
+							segment:      seg.segment,
+							segmentIdx:   seg.index,
+						})
+						addRoot(rv.Type.GetID(), budget)
+					} else {
+						ap.template.Segments[seg.index] = ir.InvalidSegment{
+							Error: errMsg,
+							DSL:   seg.segment.DSL,
+						}
+					}
+				}
+				delete(segmentRefs, "@return")
+			}
+
 			// Process capture expressions.
 			for _, ce := range probe.ProbeDefinition.GetCaptureExpressions() {
 				parsedExpr, err := exprlang.Parse(ce.GetJSON())
@@ -762,7 +937,15 @@ func analyzeAllProbes(
 				if !ok {
 					continue
 				}
-				rootVar := varByName[rootVarName]
+				// Handle @return references in capture expressions.
+				var rootVar *ir.Variable
+				if rootVarName == "@return" && len(returnVars) > 0 {
+					rootVar, parsedExpr, _ = resolveReturnExpr(
+						parsedExpr, returnVars, returnDisplayNames,
+					)
+				} else {
+					rootVar = varByName[rootVarName]
+				}
 				if rootVar == nil {
 					continue
 				}
@@ -861,7 +1044,21 @@ func analyzeAllProbes(
 						Message: "failed to extract root variable from condition",
 					}
 				}
-				rootVar := varByName[rootVarName]
+				var rootVar *ir.Variable
+				if rootVarName == "@return" && len(returnVars) > 0 {
+					var errMsg string
+					rootVar, condExpr, errMsg = resolveReturnExpr(
+						condExpr, returnVars, returnDisplayNames,
+					)
+					if rootVar == nil {
+						return nil, ir.Issue{
+							Kind:    ir.IssueKindConditionVariableUnavailable,
+							Message: errMsg,
+						}
+					}
+				} else {
+					rootVar = varByName[rootVarName]
+				}
 				if rootVar == nil {
 					return nil, ir.Issue{
 						Kind:    ir.IssueKindConditionVariableUnavailable,
@@ -948,6 +1145,7 @@ func newTemplate(td ir.TemplateDefinition) *ir.Template {
 						continue
 					}
 				case *exprlang.GetMemberExpr:
+				case *exprlang.IndexExpr:
 				case *exprlang.LenExpr:
 				case *exprlang.IsEmptyExpr:
 				case *exprlang.EqExpr:
@@ -1457,6 +1655,26 @@ func walkExpressionPathTypes(
 		// Walk to the member and get the field type.
 		return walkMemberPathTypes(tc, baseType, e.Member)
 
+	case *exprlang.IndexExpr:
+		// Walk the base expression first.
+		if _, err := walkExpressionPathTypes(tc, e.Base, varByName); err != nil {
+			return nil, err
+		}
+
+		// Get the base type and resolve to element type.
+		baseType, err := getExprType(tc, e.Base, varByName)
+		if err != nil {
+			return nil, err
+		}
+		elemType, err := indexElementType(tc, baseType)
+		if err != nil {
+			return nil, err
+		}
+		if err := ensureTypeExplored(tc, elemType); err != nil {
+			return nil, err
+		}
+		return elemType, nil
+
 	default:
 		return nil, nil
 	}
@@ -1500,6 +1718,13 @@ func getExprType(
 			return nil, err
 		}
 		return f.Type, nil
+
+	case *exprlang.IndexExpr:
+		baseType, err := getExprType(tc, e.Base, varByName)
+		if err != nil {
+			return nil, err
+		}
+		return indexElementType(tc, baseType)
 
 	default:
 		return nil, fmt.Errorf("unsupported expression type %T", expr)
@@ -3527,9 +3752,62 @@ func exploreExpressionTypes(
 		}
 		return tc.typesByID[tc.boolType], nil
 
+	case *exprlang.IndexExpr:
+		return exploreIndexExprTypes(e, currentType, tc, exprPath)
+
 	default:
 		// Unknown expression type - nothing to explore.
 		return currentType, nil
+	}
+}
+
+// exploreIndexExprTypes explores types for an index expression, resolving
+// the base expression and validating the element type.
+func exploreIndexExprTypes(
+	e *exprlang.IndexExpr,
+	currentType ir.Type,
+	tc *typeCatalog,
+	exprPath string,
+) (ir.Type, error) {
+	// Explore the base expression to resolve its type.
+	resolvedType, err := exploreExpressionTypes(e.Base, currentType, tc, exprPath)
+	if err != nil {
+		return nil, err
+	}
+
+	// Validate the index is a literal integer >= 0.
+	litExpr, ok := e.Index.(*exprlang.LiteralExpr)
+	if !ok {
+		return nil, fmt.Errorf("index must be a literal, got %T", e.Index)
+	}
+	idx, ok := litExpr.Value.(int64)
+	if !ok {
+		return nil, fmt.Errorf("index must be an integer literal, got %T", litExpr.Value)
+	}
+	if idx < 0 {
+		return nil, fmt.Errorf("index must be non-negative, got %d", idx)
+	}
+
+	// Resolve the collection type to get the element type.
+	canonical := tc.typesByID[resolvedType.GetID()]
+	switch t := canonical.(type) {
+	case *ir.ArrayType:
+		if uint32(idx) >= t.Count {
+			return nil, fmt.Errorf("index %d out of bounds for array of length %d", idx, t.Count)
+		}
+		elemType := t.Element
+		if err := ensureTypeExplored(tc, elemType); err != nil {
+			return nil, err
+		}
+		return elemType, nil
+	case *ir.GoSliceHeaderType:
+		elemType := t.Data.Element
+		if err := ensureTypeExplored(tc, elemType); err != nil {
+			return nil, err
+		}
+		return elemType, nil
+	default:
+		return nil, fmt.Errorf("index not supported on type %T (%q)", canonical, canonical.GetName())
 	}
 }
 
@@ -3680,6 +3958,16 @@ func resolveExpression(
 		// the correct one when we encounter field accesses after dereferences.
 		lastDerefOpIdx := -1
 
+		// Detect if the base expression already ends with a DereferenceOp
+		// (e.g., from slice index resolution). If so, initialize state so
+		// the member loop updates the correct op.
+		if len(operations) > 0 {
+			if _, ok := operations[len(operations)-1].(*ir.DereferenceOp); ok {
+				hasDereferenced = true
+				lastDerefOpIdx = len(operations) - 1
+			}
+		}
+
 		// Process each member in the chain.
 		for _, memberName := range members {
 			// Handle pointer dereference if needed.
@@ -3811,6 +4099,9 @@ func resolveExpression(
 			Operations: operations,
 		}, nil
 
+	case *exprlang.IndexExpr:
+		return resolveIndexExpression(e, rootVar, tc)
+
 	case *exprlang.LenExpr:
 		return resolveLenExpression(e.Operand, rootVar, tc)
 
@@ -3836,6 +4127,166 @@ func resolveExpression(
 			"unsupported expression type: %T", expr,
 		)
 	}
+}
+
+// indexElementType returns the element type for an indexable collection type
+// (array or slice).
+func indexElementType(tc *typeCatalog, baseType ir.Type) (ir.Type, error) {
+	canonical := tc.typesByID[baseType.GetID()]
+	// Dereference pointer if needed (e.g., *[N]T or *[]T).
+	if ptrType, ok := canonical.(*ir.PointerType); ok {
+		canonical = tc.typesByID[ptrType.Pointee.GetID()]
+	}
+	switch t := canonical.(type) {
+	case *ir.ArrayType:
+		return t.Element, nil
+	case *ir.GoSliceHeaderType:
+		return t.Data.Element, nil
+	default:
+		return nil, fmt.Errorf("index not supported on type %T (%q)", canonical, canonical.GetName())
+	}
+}
+
+// resolveIndexExpression resolves an index expression to IR operations that
+// read only the single element at the given index. For arrays, this adjusts
+// the offset on the existing LocationOp/DereferenceOp. For slices, this
+// narrows to the data pointer and adds a DereferenceOp with element offset.
+func resolveIndexExpression(
+	e *exprlang.IndexExpr,
+	rootVar *ir.Variable,
+	tc *typeCatalog,
+) (ir.Expression, error) {
+	// Validate the index is a non-negative integer literal.
+	litExpr, ok := e.Index.(*exprlang.LiteralExpr)
+	if !ok {
+		return ir.Expression{}, fmt.Errorf("index must be a literal, got %T", e.Index)
+	}
+	idx, ok := litExpr.Value.(int64)
+	if !ok {
+		return ir.Expression{}, fmt.Errorf("index must be an integer literal, got %T", litExpr.Value)
+	}
+	if idx < 0 {
+		return ir.Expression{}, fmt.Errorf("index must be non-negative, got %d", idx)
+	}
+	if idx > math.MaxUint32 {
+		return ir.Expression{}, fmt.Errorf("index %d exceeds maximum (%d)", idx, math.MaxUint32)
+	}
+
+	// Resolve the base expression.
+	baseExpr, err := resolveExpression(e.Base, rootVar, tc)
+	if err != nil {
+		return ir.Expression{}, fmt.Errorf("failed to resolve index base: %w", err)
+	}
+
+	// Determine the collection type and element type.
+	canonical := tc.typesByID[baseExpr.Type.GetID()]
+	switch t := canonical.(type) {
+	case *ir.ArrayType:
+		return resolveArrayIndex(baseExpr, t, idx)
+	case *ir.GoSliceHeaderType:
+		return resolveSliceIndex(baseExpr, t, idx, tc)
+	default:
+		return ir.Expression{}, fmt.Errorf(
+			"index not supported on type %T (%q)", canonical, canonical.GetName(),
+		)
+	}
+}
+
+// resolveArrayIndex resolves indexing into an array. Since arrays are stored
+// inline (on the stack or within a struct), we adjust the last operation's
+// offset to point directly at the element, reading only elemSize bytes.
+func resolveArrayIndex(
+	baseExpr ir.Expression,
+	arrType *ir.ArrayType,
+	idx int64,
+) (ir.Expression, error) {
+	if uint32(idx) >= arrType.Count {
+		return ir.Expression{}, fmt.Errorf(
+			"index %d out of bounds for array of length %d", idx, arrType.Count,
+		)
+	}
+
+	elemType := arrType.Element
+	elemSize := elemType.GetByteSize()
+	elementOffset := uint32(idx) * elemSize
+
+	operations := baseExpr.Operations
+	if len(operations) == 0 {
+		return ir.Expression{}, errors.New("no operations to adjust for array index")
+	}
+
+	// Adjust the last operation to read only the element.
+	lastOp := operations[len(operations)-1]
+	switch op := lastOp.(type) {
+	case *ir.LocationOp:
+		op.Offset += elementOffset
+		op.ByteSize = elemSize
+	case *ir.DereferenceOp:
+		op.Bias += elementOffset
+		op.ByteSize = elemSize
+	default:
+		return ir.Expression{}, fmt.Errorf(
+			"unexpected last operation type %T for array index", lastOp,
+		)
+	}
+
+	return ir.Expression{
+		Type:       elemType,
+		Operations: operations,
+	}, nil
+}
+
+// resolveSliceIndex resolves indexing into a slice. The slice header has a data
+// pointer at offset 0. We narrow the base operations to read only the pointer,
+// then append a DereferenceOp to read the element at the computed offset.
+func resolveSliceIndex(
+	baseExpr ir.Expression,
+	sliceType *ir.GoSliceHeaderType,
+	idx int64,
+	tc *typeCatalog,
+) (ir.Expression, error) {
+	elemType := sliceType.Data.Element
+	elemSize := elemType.GetByteSize()
+	elementOffset := uint32(idx) * elemSize
+	ptrSize := uint32(tc.ptrSize)
+
+	operations := baseExpr.Operations
+	if len(operations) == 0 {
+		return ir.Expression{}, errors.New("no operations to adjust for slice index")
+	}
+
+	// Read the data pointer and length from the slice header. We need both
+	// fields (2 * ptrSize bytes) so the bounds check can validate the index
+	// against the runtime length.
+	lastOp := operations[len(operations)-1]
+	switch op := lastOp.(type) {
+	case *ir.LocationOp:
+		op.ByteSize = 2 * ptrSize
+	case *ir.DereferenceOp:
+		op.ByteSize = 2 * ptrSize
+	default:
+		return ir.Expression{}, fmt.Errorf(
+			"unexpected last operation type %T for slice index", lastOp,
+		)
+	}
+
+	// Validate index < len at runtime. On success this is a no-op; the data
+	// pointer remains at byte 0 of the scratch region for the following
+	// dereference. On failure it writes ExprStatusOOB and aborts.
+	operations = append(operations, &ir.SliceBoundsCheckOp{
+		Index: uint32(idx),
+	})
+
+	// Dereference the data pointer and read the element.
+	operations = append(operations, &ir.DereferenceOp{
+		Bias:     elementOffset,
+		ByteSize: elemSize,
+	})
+
+	return ir.Expression{
+		Type:       elemType,
+		Operations: operations,
+	}, nil
 }
 
 // resolveLenExpression resolves a len/isEmpty operand to an IR expression
@@ -4376,12 +4827,12 @@ func populateEventExpressions(
 			DictIndex:  v.DictIndex,
 		})
 	}
-	presenceBitsetSize := uint32((2*len(expressions) + 7) / 8)
-	byteSize := uint64(presenceBitsetSize)
+	exprStatusArraySize := uint32((ir.ExprStatusBits*len(expressions) + 7) / 8)
+	byteSize := uint64(exprStatusArraySize)
 
 	// Build dict entries for generic shape functions. Each dict entry
-	// occupies 8 bytes in the event output (after presence bitset, before
-	// expressions). The eBPF resolves the runtime type at probe time.
+	// occupies 8 bytes in the event output (after expression status array,
+	// before expressions). The eBPF resolves the runtime type at probe time.
 	// Only emit entries for dict indices actually referenced by expressions
 	// in this event.
 	var dictEntries []ir.DictEntry
@@ -4421,9 +4872,9 @@ func populateEventExpressions(
 			Name:     fmt.Sprintf("Probe[%s]%s", inst.Subprogram.Name, eventKind),
 			ByteSize: uint32(byteSize),
 		},
-		PresenceBitsetSize: presenceBitsetSize,
-		DictEntries:        dictEntries,
-		Expressions:        expressions,
+		ExprStatusArraySize: exprStatusArraySize,
+		DictEntries:         dictEntries,
+		Expressions:         expressions,
 	}
 	typeCatalog.typesByID[event.Type.ID] = event.Type
 	return ir.Issue{}

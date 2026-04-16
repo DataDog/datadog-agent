@@ -3,7 +3,8 @@ load("@rules_cc//cc:defs.bzl", "cc_import", "cc_library", "cc_shared_library")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 load("//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
-load("//bazel/rules:so_symlink.bzl", "so_symlink")
+load("//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
+load("//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
 
 VERSION = "0.1.0"
 
@@ -72,6 +73,14 @@ cc_shared_library(
     name = "datadog-agent-rtloader",
     visibility = [":__subpackages__"],
     deps = [":rtloader"],
+)
+
+dd_cc_packaged(
+    name = "rtloader_pkg",
+    input = ":datadog-agent-rtloader",
+    installed_files = [":rtloader_header_pkg_files"],
+    version = VERSION,
+    visibility = ["//visibility:public"],
 )
 
 cc_static_library(
@@ -188,11 +197,11 @@ cc_shared_library(
         # visible to this rule in its dependency chain.
         "@platforms//os:windows": [],
         "@platforms//os:linux": [
-            ":datadog-agent-rtloader",
+            ":rtloader_pkg",
             "@cpython//:python_unix_shared",
         ],
         "@platforms//os:macos": [
-            ":datadog-agent-rtloader",
+            ":rtloader_pkg",
             "@cpython//:python_unix_shared",
         ],
     }),
@@ -218,6 +227,12 @@ cc_shared_library(
     ],
 )
 
+dd_cc_packaged(
+    name = "three_pkg",
+    input = ":datadog-agent-three",
+    visibility = ["//visibility:public"],
+)
+
 pkg_files(
     name = "rtloader_header_pkg_files",
     srcs = [":rtloader_header_files"],
@@ -233,21 +248,14 @@ pkg_files(
     }),
 )
 
-so_symlink(
-    name = "rtloader_with_symlinks",
-    src = ":datadog-agent-rtloader",
-    libname = "libdatadog-agent-rtloader",
-    version = VERSION,
-)
-
 pkg_filegroup(
     name = "all_files",
     srcs = select({
         "@platforms//os:windows": [":rtloader_three_pkg_files"],
         "//conditions:default": [
             ":rtloader_header_pkg_files",
-            ":rtloader_three_pkg_files",
-            ":rtloader_with_symlinks",
+            ":rtloader_pkg_packaged",
+            ":three_pkg_packaged",
         ],
     }),
     prefix = select({
@@ -289,16 +297,24 @@ pkg_filegroup(
     prefix = "embedded",
 )
 
+dd_collect_dependencies(
+    name = "_python_env_transitive",
+    srcs = [":three_pkg"],
+    visibility = ["//visibility:private"],
+)
+
+pkg_filegroup(
+    name = "python_env_transitive",
+    srcs = [":_python_env_transitive"],
+    prefix = "embedded",
+)
+
 pkg_filegroup(
     name = "python_env_files",
     srcs = [
-        ":all_files",
         ":openssl_libs_embedded",
-        "@bzip2//:all_files",
+        ":python_env_transitive",
         "@cpython//:all_files",
-        "@sqlite3//:all_files",
-        "@xz//:all_files",
-        "@zlib//:all_files",
     ],
 )
 

@@ -18,12 +18,12 @@
           {
             "function": "main.genericIdentity[go.shape.int]",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 524
+            "lineNumber": 655
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 163
+            "lineNumber": 208
           },
           {
             "function": "runtime.main",
@@ -53,7 +53,7 @@
           },
           "return": {
             "locals": {
-              "~r0": {
+              "@return": {
                 "type": "int",
                 "value": "42"
               }

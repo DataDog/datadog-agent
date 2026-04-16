@@ -600,7 +600,12 @@ Package remoteconfig defines the fx options for the Bundle
 
 ### [comp/remote-config/rcclient](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/remote-config/rcclient)
 
+Package rcclient is a remote config client that can run within the agent to receive
+configurations.
 
+### [comp/remote-config/rcprotocoltest](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/remote-config/rcprotocoltest)
+
+Package rcprotocoltest manages RC protocol connectivity duration tests.
 
 ### [comp/remote-config/rcservice](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/remote-config/rcservice)
 

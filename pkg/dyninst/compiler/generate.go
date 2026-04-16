@@ -312,9 +312,9 @@ func (g *generator) addConditionHandler(
 			ops = opsAfter
 		case *ir.DereferenceOp:
 			ops = append(ops, ExprDereferencePtrOp{
-				Bias:      op.Bias,
-				Len:       op.ByteSize,
-				NilBitIdx: ^uint32(0),
+				Bias:          op.Bias,
+				Len:           op.ByteSize,
+				ExprStatusIdx: ^uint32(0),
 			})
 		case *ir.ExprPushOffsetOp:
 			ops = append(ops, ExprPushOffsetOp{ByteSize: op.ByteSize})
@@ -326,6 +326,11 @@ func (g *generator) addConditionHandler(
 			ops = append(ops, ExprCmpEqBaseOp{ByteSize: op.ByteSize})
 		case *ir.ExprCmpEqStringOp:
 			ops = append(ops, ExprCmpEqStringOp{})
+		case *ir.SliceBoundsCheckOp:
+			ops = append(ops, ExprSliceBoundsCheckOp{
+				Index:         op.Index,
+				ExprStatusIdx: ^uint32(0), // conditions don't have per-expression status
+			})
 		case *ir.ConditionCheckOp:
 			ops = append(ops, ConditionCheckOp{})
 		default:
@@ -401,9 +406,9 @@ func (g *generator) addExpressionHandler(injectionPC uint64, rootType *ir.EventR
 			}
 			lastOpSize = op.ByteSize
 			ops = append(ops, ExprDereferencePtrOp{
-				Bias:      op.Bias,
-				Len:       op.ByteSize,
-				NilBitIdx: 2*exprIdx + 1,
+				Bias:          op.Bias,
+				Len:           op.ByteSize,
+				ExprStatusIdx: exprIdx,
 			})
 		case *ir.ExprPushOffsetOp:
 			ops = append(ops, ExprPushOffsetOp{ByteSize: op.ByteSize})
@@ -415,6 +420,15 @@ func (g *generator) addExpressionHandler(injectionPC uint64, rootType *ir.EventR
 			ops = append(ops, ExprCmpEqBaseOp{ByteSize: op.ByteSize})
 		case *ir.ExprCmpEqStringOp:
 			ops = append(ops, ExprCmpEqStringOp{})
+		case *ir.SliceBoundsCheckOp:
+			// After the bounds check, the scratch still starts with the
+			// data pointer (8 bytes). Update lastOpSize so the following
+			// DereferenceOp sees a pointer-sized value.
+			lastOpSize = 8
+			ops = append(ops, ExprSliceBoundsCheckOp{
+				Index:         op.Index,
+				ExprStatusIdx: exprIdx,
+			})
 		default:
 			panic(fmt.Sprintf("unexpected ir.Operation: %#v", op))
 		}

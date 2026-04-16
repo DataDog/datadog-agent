@@ -140,6 +140,7 @@ func load() (*types.Config, error) {
 	}
 	if csmEnabled ||
 		cfg.GetBool(secNS("fim_enabled")) ||
+		coreCfg.GetBool("sbom.enrichment.usage.enabled") ||
 		(usmEnabled && cfg.GetBool(smNS("enable_event_stream"))) ||
 		(c.ModuleIsEnabled(NetworkTracerModule) && cfg.GetBool(evNS("network_process.enabled"))) ||
 		gpuEnabled ||

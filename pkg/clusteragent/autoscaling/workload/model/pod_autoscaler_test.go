@@ -515,7 +515,7 @@ func TestProfileManagedPodAutoscaler(t *testing.T) {
 	}
 
 	t.Run("NewPodAutoscalerFromProfile", func(t *testing.T) {
-		pai := NewPodAutoscalerFromProfile("prod", "web-app-a1b2c3d4", "high-cpu", template, targetRef, "hash1")
+		pai := NewPodAutoscalerFromProfile("prod", "web-app-a1b2c3d4", "high-cpu", template, targetRef, "hash1", "")
 
 		assert.Equal(t, "prod", pai.Namespace())
 		assert.Equal(t, "web-app-a1b2c3d4", pai.Name())
@@ -531,7 +531,7 @@ func TestProfileManagedPodAutoscaler(t *testing.T) {
 	})
 
 	t.Run("UpdateFromProfile same profile", func(t *testing.T) {
-		pai := NewPodAutoscalerFromProfile("prod", "web-app-a1b2c3d4", "high-cpu", template, targetRef, "hash1")
+		pai := NewPodAutoscalerFromProfile("prod", "web-app-a1b2c3d4", "high-cpu", template, targetRef, "hash1", "")
 
 		// Simulate some scaling state
 		pai.SetCurrentReplicas(5)
@@ -545,7 +545,7 @@ func TestProfileManagedPodAutoscaler(t *testing.T) {
 				MaxReplicas: &newMaxReplicas,
 			},
 		}
-		pai.UpdateFromProfile("high-cpu", newTemplate, targetRef, "hash2")
+		pai.UpdateFromProfile("high-cpu", newTemplate, targetRef, "hash2", "")
 
 		assert.Equal(t, "high-cpu", pai.ProfileName())
 		assert.True(t, pai.IsProfileManaged())
@@ -556,14 +556,14 @@ func TestProfileManagedPodAutoscaler(t *testing.T) {
 	})
 
 	t.Run("UpdateFromProfile different profile", func(t *testing.T) {
-		pai := NewPodAutoscalerFromProfile("prod", "web-app-a1b2c3d4", "low-cpu", template, targetRef, "hash1")
+		pai := NewPodAutoscalerFromProfile("prod", "web-app-a1b2c3d4", "low-cpu", template, targetRef, "hash1", "")
 
 		newTemplate := &datadoghq.DatadogPodAutoscalerTemplate{
 			Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{
 				{Type: datadoghqcommon.DatadogPodAutoscalerCustomQueryObjectiveType},
 			},
 		}
-		pai.UpdateFromProfile("high-mem", newTemplate, targetRef, "hash3")
+		pai.UpdateFromProfile("high-mem", newTemplate, targetRef, "hash3", "")
 
 		assert.Equal(t, "high-mem", pai.ProfileName())
 		assert.True(t, pai.IsProfileManaged())
@@ -572,7 +572,7 @@ func TestProfileManagedPodAutoscaler(t *testing.T) {
 
 	t.Run("IsProfileManaged true/false", func(t *testing.T) {
 		// Profile-managed
-		pai := NewPodAutoscalerFromProfile("ns", "name", "prof", template, targetRef, "")
+		pai := NewPodAutoscalerFromProfile("ns", "name", "prof", template, targetRef, "", "")
 		assert.True(t, pai.IsProfileManaged())
 		assert.Equal(t, "prof", pai.ProfileName())
 
@@ -619,4 +619,231 @@ func TestProfileManagedPodAutoscaler(t *testing.T) {
 		assert.Equal(t, "my-profile", pai.ProfileName())
 		assert.True(t, pai.IsProfileManaged())
 	})
+
+	t.Run("NewPodAutoscalerFromProfile with burstable annotation sets IsBurstable", func(t *testing.T) {
+		pai := NewPodAutoscalerFromProfile("prod", "web-app-a1b2c3d4", "high-cpu", template, targetRef, "hash1", `{"burstable":true}`)
+		assert.True(t, pai.IsBurstable())
+	})
+
+	t.Run("NewPodAutoscalerFromProfile without burstable annotation does not set IsBurstable", func(t *testing.T) {
+		pai := NewPodAutoscalerFromProfile("prod", "web-app-a1b2c3d4", "high-cpu", template, targetRef, "hash1", "")
+		assert.False(t, pai.IsBurstable())
+	})
+
+	t.Run("UpdateFromProfile burstable annotation toggling", func(t *testing.T) {
+		pai := NewPodAutoscalerFromProfile("prod", "web-app-a1b2c3d4", "high-cpu", template, targetRef, "hash1", "")
+		assert.False(t, pai.IsBurstable())
+
+		// Enable burstable via annotation
+		pai.UpdateFromProfile("high-cpu", template, targetRef, "hash1-v2", `{"burstable":true}`)
+		assert.True(t, pai.IsBurstable())
+
+		// Disable burstable by removing annotation
+		pai.UpdateFromProfile("high-cpu", template, targetRef, "hash1-v3", "")
+		assert.False(t, pai.IsBurstable())
+	})
+}
+
+func TestContainerResourcesForStatus(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []datadoghqcommon.DatadogPodAutoscalerContainerResources
+		expected []datadoghqcommon.DatadogPodAutoscalerContainerResources
+	}{
+		{
+			name:     "nil input returns nil",
+			input:    nil,
+			expected: nil,
+		},
+		{
+			name:     "empty input returns empty",
+			input:    []datadoghqcommon.DatadogPodAutoscalerContainerResources{},
+			expected: []datadoghqcommon.DatadogPodAutoscalerContainerResources{},
+		},
+		{
+			name: "positive limits and requests pass through unchanged",
+			input: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				{
+					Name: "app",
+					Limits: corev1.ResourceList{
+						corev1.ResourceCPU:    resource.MustParse("500m"),
+						corev1.ResourceMemory: resource.MustParse("256Mi"),
+					},
+					Requests: corev1.ResourceList{
+						corev1.ResourceCPU:    resource.MustParse("100m"),
+						corev1.ResourceMemory: resource.MustParse("128Mi"),
+					},
+				},
+			},
+			expected: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				{
+					Name: "app",
+					Limits: corev1.ResourceList{
+						corev1.ResourceCPU:    resource.MustParse("500m"),
+						corev1.ResourceMemory: resource.MustParse("256Mi"),
+					},
+					Requests: corev1.ResourceList{
+						corev1.ResourceCPU:    resource.MustParse("100m"),
+						corev1.ResourceMemory: resource.MustParse("128Mi"),
+					},
+				},
+			},
+		},
+		{
+			// removeLimitSentinel (-1) is stored in Limits[cpu] in burstable mode to signal
+			// "delete this CPU limit from the pod". It must never appear in the DPA status.
+			name: "burstable mode: removeLimitSentinel (-1) on CPU limit is filtered from status",
+			input: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				{
+					Name: "app",
+					Limits: corev1.ResourceList{
+						corev1.ResourceCPU:    resource.MustParse("-1"),
+						corev1.ResourceMemory: resource.MustParse("256Mi"),
+					},
+					Requests: corev1.ResourceList{
+						corev1.ResourceMemory: resource.MustParse("128Mi"),
+					},
+				},
+			},
+			expected: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				{
+					Name: "app",
+					Limits: corev1.ResourceList{
+						corev1.ResourceMemory: resource.MustParse("256Mi"),
+					},
+					Requests: corev1.ResourceList{
+						corev1.ResourceMemory: resource.MustParse("128Mi"),
+					},
+				},
+			},
+		},
+		{
+			name: "CPU request passes through in status",
+			input: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				{
+					Name: "app",
+					Limits: corev1.ResourceList{
+						corev1.ResourceMemory: resource.MustParse("256Mi"),
+					},
+					Requests: corev1.ResourceList{
+						corev1.ResourceCPU:    resource.MustParse("20m"),
+						corev1.ResourceMemory: resource.MustParse("128Mi"),
+					},
+				},
+			},
+			expected: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				{
+					Name: "app",
+					Limits: corev1.ResourceList{
+						corev1.ResourceMemory: resource.MustParse("256Mi"),
+					},
+					Requests: corev1.ResourceList{
+						corev1.ResourceCPU:    resource.MustParse("20m"),
+						corev1.ResourceMemory: resource.MustParse("128Mi"),
+					},
+				},
+			},
+		},
+		{
+			// Full burstable scenario: CPU limit sentinel removed, memory limits and requests
+			// with a CPU request all surface correctly in the status.
+			name: "full burstable scenario: CPU limit sentinel filtered, CPU request preserved",
+			input: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				{
+					Name: "app",
+					Limits: corev1.ResourceList{
+						corev1.ResourceCPU:    resource.MustParse("-1"),
+						corev1.ResourceMemory: resource.MustParse("512Mi"),
+					},
+					Requests: corev1.ResourceList{
+						corev1.ResourceCPU:    resource.MustParse("20m"),
+						corev1.ResourceMemory: resource.MustParse("256Mi"),
+					},
+				},
+			},
+			expected: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				{
+					Name: "app",
+					Limits: corev1.ResourceList{
+						corev1.ResourceMemory: resource.MustParse("512Mi"),
+					},
+					Requests: corev1.ResourceList{
+						corev1.ResourceCPU:    resource.MustParse("20m"),
+						corev1.ResourceMemory: resource.MustParse("256Mi"),
+					},
+				},
+			},
+		},
+		{
+			// Absent requests/limits fields produce nil maps in the output (not empty maps).
+			name: "absent limits and requests produce nil maps",
+			input: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				{
+					Name: "app",
+				},
+			},
+			expected: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				{
+					Name: "app",
+				},
+			},
+		},
+		{
+			name: "multiple containers handled independently",
+			input: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				{
+					Name: "app",
+					Limits: corev1.ResourceList{
+						corev1.ResourceCPU:    resource.MustParse("-1"),
+						corev1.ResourceMemory: resource.MustParse("256Mi"),
+					},
+					Requests: corev1.ResourceList{
+						corev1.ResourceCPU:    resource.MustParse("20m"),
+						corev1.ResourceMemory: resource.MustParse("128Mi"),
+					},
+				},
+				{
+					Name: "sidecar",
+					Limits: corev1.ResourceList{
+						corev1.ResourceCPU:    resource.MustParse("200m"),
+						corev1.ResourceMemory: resource.MustParse("64Mi"),
+					},
+					Requests: corev1.ResourceList{
+						corev1.ResourceCPU:    resource.MustParse("50m"),
+						corev1.ResourceMemory: resource.MustParse("32Mi"),
+					},
+				},
+			},
+			expected: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				{
+					Name: "app",
+					Limits: corev1.ResourceList{
+						corev1.ResourceMemory: resource.MustParse("256Mi"),
+					},
+					Requests: corev1.ResourceList{
+						corev1.ResourceCPU:    resource.MustParse("20m"),
+						corev1.ResourceMemory: resource.MustParse("128Mi"),
+					},
+				},
+				{
+					Name: "sidecar",
+					Limits: corev1.ResourceList{
+						corev1.ResourceCPU:    resource.MustParse("200m"),
+						corev1.ResourceMemory: resource.MustParse("64Mi"),
+					},
+					Requests: corev1.ResourceList{
+						corev1.ResourceCPU:    resource.MustParse("50m"),
+						corev1.ResourceMemory: resource.MustParse("32Mi"),
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := containerResourcesForStatus(tt.input)
+			assert.Equal(t, tt.expected, got)
+		})
+	}
 }

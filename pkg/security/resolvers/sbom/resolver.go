@@ -685,12 +685,21 @@ func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEven
 	}
 
 	sbom.Lock()
+
+	// If the SBOM scan hasn't completed yet, queue this access so it is replayed once
+	// the scan finishes (processPendingFileEvents is called at the end of analyzeWorkload).
+	if !sbom.IsComputed() {
+		sbom.Unlock()
+		r.queuePendingFileEvent(pc.ContainerContext.ContainerID, file.PathnameStr, file.Mode, pc.UID)
+		return nil
+	}
+
 	defer sbom.Unlock()
 
 	// replay any file accesses that arrived before the SBOM was ready
 	r.processPendingFileEvents(sbom)
 
-	seclog.Debugf("file '%s' accessed by '%s' in container '%s'", file.PathnameStr, pc.Process.Comm, sbom.ContainerID)
+	seclog.Tracef("file '%s' accessed by '%s' in container '%s'", file.PathnameStr, pc.Process.Comm, sbom.ContainerID)
 
 	pkg := sbom.data.files.queryFile(file.PathnameStr)
 	if pkg != nil {
@@ -856,6 +865,25 @@ func (r *Resolver) GetWorkload(id containerutils.ContainerID) *SBOM {
 
 	sbom, _ := r.sboms.Peek(id)
 	return sbom
+}
+
+// OnCGroupCreatedEvent is used to handle a CGroupCreated event. It queues an SBOM scan for
+// the container as soon as the cgroup is known, without waiting for tag resolution.
+func (r *Resolver) OnCGroupCreatedEvent(cgroup *cgroupModel.CacheEntry) {
+	id := cgroup.GetContainerID()
+	if len(id) == 0 {
+		return
+	}
+
+	r.sbomsLock.Lock()
+	defer r.sbomsLock.Unlock()
+
+	if _, ok := r.sboms.Get(id); ok {
+		return
+	}
+
+	sbom := r.newSBOM(id, cgroup, workloadKey(id))
+	r.triggerScan(sbom)
 }
 
 // OnCGroupDeletedEvent is used to handle a CGroupDeleted event
