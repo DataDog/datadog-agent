@@ -171,6 +171,8 @@ func (c *nvlinkCollector) readPortCounters(port int) (map[string]uint64, error) 
 		return nil, fmt.Errorf("issue raw PRM query: %w", err)
 	}
 
+	// InData and outData are a C union in nvmlPRMTLV_v1_t; the NVML API
+	// writes the response back into the same buffer that held the request.
 	return unpackTLV(prm.InData[:])
 }
 
