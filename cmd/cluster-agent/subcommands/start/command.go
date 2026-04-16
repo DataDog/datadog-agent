@@ -571,7 +571,7 @@ func start(log log.Component,
 		}
 		log.Infof("[KubeActions] Starting with cluster_id=%s, cluster_name=%s", clusterID, clusterName)
 
-		if _, err := kubeactions.Setup(mainCtx, apiCl.Cl, clusterName, clusterID, le.IsLeader, rcClient, epForwarder); err != nil {
+		if _, err := kubeactions.Setup(mainCtx, apiCl.Cl, clusterName, clusterID, le.IsLeader, rcClient, epForwarder, &wg); err != nil {
 			return fmt.Errorf("Error while starting kubernetes actions: %v", err)
 		}
 		log.Info("Kubernetes actions subsystem started successfully")

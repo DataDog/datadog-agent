@@ -8,6 +8,8 @@
 package kubeactions
 
 import (
+	"sync"
+
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -21,13 +23,15 @@ type RcClient interface {
 type ConfigRetriever struct {
 	processor *ActionProcessor
 	isLeader  func() bool
+	wg        *sync.WaitGroup
 }
 
 // NewConfigRetriever creates a new ConfigRetriever and subscribes to K8S_ACTIONS
-func NewConfigRetriever(processor *ActionProcessor, isLeader func() bool, rcClient RcClient) *ConfigRetriever {
+func NewConfigRetriever(processor *ActionProcessor, isLeader func() bool, rcClient RcClient, wg *sync.WaitGroup) *ConfigRetriever {
 	cr := &ConfigRetriever{
 		processor: processor,
 		isLeader:  isLeader,
+		wg:        wg,
 	}
 
 	rcClient.SubscribeIgnoreExpiration(state.ProductK8SActions, cr.actionsCallback)
@@ -64,7 +68,9 @@ func (cr *ConfigRetriever) actionsCallback(update map[string]state.RawConfig, ap
 			State: state.ApplyStateAcknowledged,
 		})
 
+		cr.wg.Add(1)
 		go func(ck string, rc state.RawConfig) {
+			defer cr.wg.Done()
 			err := cr.processor.Process(ck, rc)
 			if err != nil {
 				log.Errorf("[KubeActions] Error processing actions for %s: %v", ck, err)
