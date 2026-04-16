@@ -262,12 +262,14 @@ def _prepare_bazel_update(version: str, sha256: str) -> tuple[Path, str]:
     if count != 1:
         raise Exit(f"Expected 1 PYTHON_VERSION match in {file_path}, found {count}")
 
-    # Update sha256
+    # Update sha256 for the cpython http_archive (the first sha256 in the file,
+    # immediately after PYTHON_VERSION). Other http_archive entries (sqlite, etc.)
+    # have their own sha256 fields that must not be touched.
     sha_pattern = r'(sha256\s+=\s+")([0-9a-fA-F]{64})(")'
-    new_content, count = re.subn(sha_pattern, rf'\g<1>{sha256}\g<3>', new_content)
+    new_content, count = re.subn(sha_pattern, rf'\g<1>{sha256}\g<3>', new_content, count=1)
 
     if count != 1:
-        raise Exit(f"Expected 1 sha256 match in {file_path}, found {count}")
+        raise Exit(f"Expected at least 1 sha256 match in {file_path}, found {count}")
 
     return (file_path, new_content)
 
