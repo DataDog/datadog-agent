@@ -38,7 +38,7 @@ The spot node label is currently Karpenter-specific [[2]](#karpenter-nodepool):
 - label: `karpenter.sh/capacity-type=spot`
 
 The spot node taint uses the Datadog namespace and must be configured separately on spot nodes:
-- taint: `autoscaling.datadoghq.com/interruptible=true:NoSchedule`
+- taint: `autoscaling.datadoghq.com/capacity-type=interruptible:NoSchedule`
 
 When a pod is assigned to a spot instance at admission time, Cluster Agent begins tracking it.
 Cluster Agent periodically checks all tracked pods and if spot-assigned pods for a given workload are pending longer
@@ -66,8 +66,8 @@ spec:
           operator: In
           values: ["spot"]
       taints:
-        - key: autoscaling.datadoghq.com/interruptible
-          value: "true"
+        - key: autoscaling.datadoghq.com/capacity-type
+          value: interruptible
           effect: NoSchedule
 ...
 ```

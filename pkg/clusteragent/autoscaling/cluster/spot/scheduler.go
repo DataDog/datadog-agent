@@ -226,8 +226,8 @@ func (s *scheduler) spotEligibleFilter(entity workloadmeta.Entity) bool {
 const (
 	spotNodeLabelKey   = "karpenter.sh/capacity-type"
 	spotNodeLabelValue = "spot"
-	spotNodeTaintKey   = "autoscaling.datadoghq.com/interruptible"
-	spotNodeTaintValue = "true"
+	spotNodeTaintKey   = "autoscaling.datadoghq.com/capacity-type"
+	spotNodeTaintValue = "interruptible"
 )
 
 func assignToSpot(pod *corev1.Pod) {
