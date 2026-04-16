@@ -66,7 +66,7 @@ func runPrivateActionRunner(ctx context.Context, confPath string, extraConfFiles
 			}
 		}),
 		settingsimpl.Module(),
-		remotehostnameimpl.Module(remotehostnameimpl.NewParams()),
+		remotehostnameimpl.Module(),
 		ipcfx.ModuleReadWrite(),
 		rcservicefx.Module(),
 		rcclientfx.Module(),

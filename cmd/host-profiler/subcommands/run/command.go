@@ -93,7 +93,7 @@ func runHostProfilerCommand(ctx context.Context, cliParams *cliParams) error {
 		warnBothConfigs := cliParams.GlobalParams.ConfFilePath != ""
 		opts = append(opts,
 			core.Bundle(),
-			remotehostnameimpl.Module(remotehostnameimpl.NewParams()),
+			remotehostnameimpl.Module(),
 			fx.Supply(core.BundleParams{
 				ConfigParams: config.NewAgentParams(cliParams.GlobalParams.CoreConfPath),
 				LogParams:    log.ForDaemon(command.LoggerName, "log_file", setup.DefaultHostProfilerLogFile),

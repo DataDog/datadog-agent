@@ -44,50 +44,55 @@ const (
 	defaultMaxAttempts = 6
 )
 
-// Params configures the remote hostname component retry behavior.
-type Params struct {
-	// MaxAttempts is the maximum number of times we try to get the hostname
-	// from the core-agent before bailing out. Defaults to 6.
-	MaxAttempts uint
-	// MaxRetryDelay caps the exponential backoff between retry attempts.
-	// Zero means no cap (default).
-	MaxRetryDelay time.Duration
+// Option configures the remote hostname component retry behavior.
+type Option func(*remotehostimpl)
+
+// WithMaxAttempts sets the maximum number of retry attempts to reach
+// the core-agent for hostname resolution.
+func WithMaxAttempts(maxAttempts uint) Option {
+	return func(r *remotehostimpl) { r.maxAttempts = maxAttempts }
 }
 
-// NewParams returns Params with default values.
-func NewParams() Params {
-	return Params{
-		MaxAttempts: defaultMaxAttempts,
-	}
+// WithMaxRetryDelay caps the exponential backoff between retry attempts.
+func WithMaxRetryDelay(maxRetryDelay time.Duration) Option {
+	return func(r *remotehostimpl) { r.maxRetryDelay = maxRetryDelay }
 }
+
+// options wraps []Option for fx injection.
+type options []Option
 
 // Module defines the fx options for this component.
-func Module(params Params) fxutil.Module {
+func Module(opts ...Option) fxutil.Module {
 	return fxutil.Component(
-		fx.Supply(params),
+		fx.Supply(options(opts)),
 		fx.Provide(newRemoteHostImpl))
 }
 
 var cachKey = "hostname"
 
 type remotehostimpl struct {
-	cache  *cache.Cache
-	ipc    ipc.Component
-	params Params
+	cache         *cache.Cache
+	ipc           ipc.Component
+	maxAttempts   uint
+	maxRetryDelay time.Duration
 }
 
 type dependencies struct {
 	fx.In
-	IPC    ipc.Component
-	Params Params
+	IPC  ipc.Component
+	Opts options
 }
 
 func newRemoteHostImpl(deps dependencies) hostnameinterface.Component {
-	return &remotehostimpl{
-		cache:  cache.New(defaultExpire, defaultPurge),
-		ipc:    deps.IPC,
-		params: deps.Params,
+	r := &remotehostimpl{
+		cache:       cache.New(defaultExpire, defaultPurge),
+		ipc:         deps.IPC,
+		maxAttempts: defaultMaxAttempts,
 	}
+	for _, o := range deps.Opts {
+		o(r)
+	}
+	return r
 }
 
 func (r *remotehostimpl) Get(ctx context.Context) (string, error) {
@@ -133,11 +138,11 @@ func (r *remotehostimpl) getHostnameWithContext(ctx context.Context) (string, er
 
 	retryOpts := []retry.Option{
 		retry.LastErrorOnly(true),
-		retry.Attempts(r.params.MaxAttempts),
+		retry.Attempts(r.maxAttempts),
 		retry.Context(ctx),
 	}
-	if r.params.MaxRetryDelay > 0 {
-		retryOpts = append(retryOpts, retry.MaxDelay(r.params.MaxRetryDelay))
+	if r.maxRetryDelay > 0 {
+		retryOpts = append(retryOpts, retry.MaxDelay(r.maxRetryDelay))
 	}
 
 	err = retry.Do(func() error {
