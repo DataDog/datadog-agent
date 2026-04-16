@@ -94,6 +94,10 @@ var DefaultMaxClockRates = map[nvml.ClockType]uint32{
 	nvml.CLOCK_VIDEO:    4000,
 }
 
+var DefaultFieldValues = map[uint32]uint64{
+	nvml.FI_DEV_NVLINK_LINK_COUNT: 2,
+}
+
 // DevicesWithMIGChildren is a list of device indexes that have MIG children.
 var DevicesWithMIGChildren = []int{5, 6}
 
@@ -467,8 +471,13 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 				}
 				values[i].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_LONG_LONG)
 
+				value := fieldValuesCounter + uint64(i)
+				if defaultValue, ok := DefaultFieldValues[values[i].FieldId]; ok {
+					value = defaultValue
+				}
+
 				var encoded [8]byte
-				binary.LittleEndian.PutUint64(encoded[:], fieldValuesCounter+uint64(i))
+				binary.LittleEndian.PutUint64(encoded[:], value)
 				values[i].Value = encoded
 			}
 			return nvml.SUCCESS

@@ -300,7 +300,7 @@ func TestCollectorsOnDeviceChanges(t *testing.T) {
 
 func TestCollectorsOnMIGDeviceChanges(t *testing.T) {
 	// note: bump this when we'll add new collectors in nvidia.BuildCollectors
-	const numSupportedCollectorTypes = 6
+	const numSupportedCollectorTypes = 5
 
 	// Use device index 5 which has MIG support in testutil
 	deviceIdx := 5
