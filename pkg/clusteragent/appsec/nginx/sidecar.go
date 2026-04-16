@@ -20,7 +20,9 @@ import (
 
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/client-go/dynamic"
+	"k8s.io/utils/ptr"
 )
 
 const (
@@ -119,11 +121,12 @@ func (n *nginxSidecarPattern) MutatePod(pod *corev1.Pod, ns string, client dynam
 	n.eventRecorder.recordConfigMapCreated("", ddCMName)
 	n.logger.Infof("Created/updated DD ConfigMap %s/%s", cmNamespace, ddCMName)
 
-	// Add emptyDir volume for module sharing
 	pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{
 		Name: moduleVolumeName,
 		VolumeSource: corev1.VolumeSource{
-			EmptyDir: &corev1.EmptyDirVolumeSource{},
+			EmptyDir: &corev1.EmptyDirVolumeSource{
+				SizeLimit: resource.NewScaledQuantity(50, resource.Mega),
+			},
 		},
 	})
 
@@ -249,6 +252,14 @@ func buildInitContainer(initImage, version, moduleMountPath string) corev1.Conta
 			{
 				Name:      moduleVolumeName,
 				MountPath: moduleMountPath,
+			},
+		},
+		SecurityContext: &corev1.SecurityContext{
+			RunAsNonRoot:             ptr.To(true),
+			AllowPrivilegeEscalation: ptr.To(false),
+			ReadOnlyRootFilesystem:   ptr.To(true),
+			Capabilities: &corev1.Capabilities{
+				Drop: []corev1.Capability{"ALL"},
 			},
 		},
 	}

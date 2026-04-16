@@ -9,6 +9,7 @@ package nginx
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -100,15 +101,16 @@ func (n *nginxInjectionPattern) Deleted(ctx context.Context, obj *unstructured.U
 		return fmt.Errorf("failed to list DD ConfigMaps for cleanup: %w", err)
 	}
 
+	var deleteErrors []error
 	for _, cm := range cmList.Items {
 		err := n.client.Resource(configMapGVR).Namespace(cm.GetNamespace()).Delete(ctx, cm.GetName(), metav1.DeleteOptions{})
 		if err != nil {
 			n.logger.Warnf("Failed to delete DD ConfigMap %s/%s: %v", cm.GetNamespace(), cm.GetName(), err)
+			deleteErrors = append(deleteErrors, fmt.Errorf("%s/%s: %w", cm.GetNamespace(), cm.GetName(), err))
 			continue
 		}
 		n.logger.Infof("Deleted DD ConfigMap %s/%s", cm.GetNamespace(), cm.GetName())
 
-		// Remove the watched label+annotation from the original ConfigMap
 		originalName := strings.TrimPrefix(cm.GetName(), ddConfigMapPrefix)
 		if err := unlabelOriginalConfigMap(ctx, n.client, cm.GetNamespace(), originalName); err != nil {
 			n.logger.Warnf("Failed to unlabel original ConfigMap %s/%s: %v", cm.GetNamespace(), originalName, err)
@@ -117,6 +119,10 @@ func (n *nginxInjectionPattern) Deleted(ctx context.Context, obj *unstructured.U
 
 	if len(cmList.Items) > 0 {
 		n.eventRecorder.recordConfigMapDeleted(name)
+	}
+
+	if len(deleteErrors) > 0 {
+		return fmt.Errorf("failed to delete %d DD ConfigMap(s): %w", len(deleteErrors), errors.Join(deleteErrors...))
 	}
 
 	return nil
@@ -151,6 +157,9 @@ func (n *nginxInjectionPattern) Start(ctx context.Context) error {
 // It always returns a nginxSidecarPattern (pod mutation mode) regardless of the global
 // injection mode setting, because nginx has no external processing mode.
 func New(client dynamic.Interface, logger log.Component, config appsecconfig.Config, recorder record.EventRecorder) appsecconfig.InjectionPattern {
+	if client == nil || logger == nil || recorder == nil {
+		panic("nginx.New: client, logger, and recorder must not be nil")
+	}
 	base := &nginxInjectionPattern{
 		client: client,
 		logger: logger,
@@ -159,9 +168,10 @@ func New(client dynamic.Interface, logger log.Component, config appsecconfig.Con
 			recorder: recorder,
 		},
 		reconciler: &configMapReconciler{
-			client: client,
-			logger: logger,
-			config: config,
+			client:        client,
+			logger:        logger,
+			config:        config,
+			eventRecorder: eventRecorder{recorder: recorder},
 		},
 	}
 	return &nginxSidecarPattern{nginxInjectionPattern: base}

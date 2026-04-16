@@ -264,7 +264,8 @@ func (si *securityInjector) runLeader(ctx context.Context, proxyType appsecconfi
 
 	if s, ok := pattern.(appsecconfig.Starter); ok {
 		if err := s.Start(ctx); err != nil {
-			si.logger.Warnf("error starting reconciler for %s: %v", proxyType, err)
+			si.logger.Errorf("failed to start reconciler for %s: %v", proxyType, err)
+			return fmt.Errorf("failed to start reconciler for %s: %w", proxyType, err)
 		}
 	}
 

@@ -28,6 +28,7 @@ The appsec injector follows a controller pattern with these key components:
   - InjectionPattern: An interface for proxy-specific injection implementations
   - ProxyDetector: Auto-detection of supported proxies in the cluster
   - Configuration: Unified configuration for processor deployment and injection
+  - ConfigMapReconciler: Watches original ConfigMaps for changes and re-syncs DD-owned copies (nginx only)
 
 The controller watches proxy resources using Kubernetes informers and maintains a work queue for
 processing add/modify/delete events with exponential backoff retry logic.
@@ -45,7 +46,7 @@ Currently supported proxy types:
   - SIDECAR mode: Currently unsupported due to Kubernetes validation constraints on localhost references
 
 - ingress-nginx (ProxyTypeIngressNginx): Injects the nginx-datadog WAF module (.so) into controller pods
-  - SIDECAR mode only: Adds init container + emptyDir volume, redirects --configmap to DD-owned ConfigMap
+  - Pod mutation mode only (uses init container, not a running sidecar): Adds init container + emptyDir volume, redirects --configmap to DD-owned ConfigMap
   - Auto-detects via IngressClass with spec.controller == "k8s.io/ingress-nginx"
   - Version detection from controller image tag for matching init container image
 
@@ -371,9 +372,9 @@ spec.controller == "k8s.io/ingress-nginx".
 
 The DD-owned ConfigMap:
   - Copies all keys from the original ConfigMap verbatim
-  - Prepends load_module + thread_pool + env DD_AGENT_HOST to main-snippet
-  - Prepends datadog_appsec_enabled + datadog_waf_thread_pool_name to http-snippet
-  - Uses comment markers for idempotent injection
+  - Injects load_module + thread_pool + env DD_AGENT_HOST into main-snippet using idempotent comment markers
+  - Injects datadog_appsec_enabled + datadog_waf_thread_pool_name into http-snippet using idempotent comment markers
+  - Comment markers (# datadog-appsec-begin / # datadog-appsec-end) enable safe re-application and clean removal
   - Has an ownerReference to the original ConfigMap for garbage collection
   - Is labeled with appsec.datadoghq.com/proxy-type=ingress-nginx for cleanup
 

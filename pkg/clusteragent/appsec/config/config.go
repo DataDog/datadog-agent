@@ -160,6 +160,31 @@ type Config struct {
 	Product
 }
 
+// validateNginxConfig validates that required nginx configuration fields are set
+// and that paths do not contain characters that could lead to nginx directive injection.
+func validateNginxConfig(config Nginx) error {
+	var errs []error
+
+	if config.InitImage == "" {
+		errs = append(errs, errors.New("nginx.init_image is required"))
+	} else if strings.ContainsAny(config.InitImage, ";\n\r\t{}") {
+		errs = append(errs, fmt.Errorf("nginx.init_image contains invalid characters: %q", config.InitImage))
+	}
+
+	if config.ModuleMountPath == "" {
+		errs = append(errs, errors.New("nginx.module_mount_path is required"))
+	} else {
+		if !strings.HasPrefix(config.ModuleMountPath, "/") {
+			errs = append(errs, fmt.Errorf("nginx.module_mount_path must be an absolute path, got: %q", config.ModuleMountPath))
+		}
+		if strings.ContainsAny(config.ModuleMountPath, ";\n\r \t{}") {
+			errs = append(errs, fmt.Errorf("nginx.module_mount_path contains invalid characters: %q", config.ModuleMountPath))
+		}
+	}
+
+	return errors.Join(errs...)
+}
+
 // validateSidecarConfig validates that required sidecar configuration fields are set
 func validateSidecarConfig(config Sidecar) error {
 	var errs []error
@@ -245,9 +270,11 @@ func FromComponent(cfg config.Component, logger log.Component) Config {
 		fallthrough
 	case InjectionModeSidecar:
 		staticAnnotations[AppsecProcessorResourceAnnotation] = "localhost"
-		// Validate required sidecar configuration
 		if err := validateSidecarConfig(sidecarConfig); err != nil {
 			logger.Errorf("Invalid sidecar configuration: %v", err)
+		}
+		if err := validateNginxConfig(nginxConfig); err != nil {
+			logger.Errorf("Invalid nginx configuration: %v", err)
 		}
 	case InjectionModeExternal:
 		staticAnnotations[AppsecProcessorResourceAnnotation] = processor.String()

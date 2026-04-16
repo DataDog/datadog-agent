@@ -8,15 +8,18 @@
 package nginx
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
+	k8stesting "k8s.io/client-go/testing"
 )
 
 func TestDDConfigMapName(t *testing.T) {
@@ -216,4 +219,144 @@ func TestCreateOrUpdateDDConfigMap(t *testing.T) {
 		require.True(t, found, "DD ConfigMap should have data field")
 		assert.Contains(t, data[mainSnippetKey], "load_module")
 	})
+}
+
+func TestCreateOrUpdateDDConfigMap_UpdateExistingConfigMap(t *testing.T) {
+	ctx := t.Context()
+	scheme := runtime.NewScheme()
+	originalName := "ingress-nginx-controller"
+	ddName := ddConfigMapName(originalName)
+	originalCM := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "v1",
+			"kind":       "ConfigMap",
+			"metadata": map[string]interface{}{
+				"name":      originalName,
+				"namespace": "ingress-nginx",
+				"uid":       "original-uid",
+			},
+			"data": map[string]interface{}{
+				mainSnippetKey: "worker_connections 4096;",
+				httpSnippetKey: "keepalive_timeout 75;",
+			},
+		},
+	}
+	existingDDCM := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "v1",
+			"kind":       "ConfigMap",
+			"metadata": map[string]interface{}{
+				"name":            ddName,
+				"namespace":       "ingress-nginx",
+				"resourceVersion": "1",
+				"labels": map[string]interface{}{
+					"stale": "label",
+				},
+			},
+			"data": map[string]interface{}{
+				mainSnippetKey: "stale-main-snippet",
+			},
+		},
+	}
+
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(scheme,
+		map[schema.GroupVersionResource]string{
+			configMapGVR: "ConfigMapList",
+		},
+		originalCM,
+		existingDDCM,
+	)
+
+	labels := map[string]string{"app": "datadog"}
+	annotations := map[string]string{"annotation": "value"}
+
+	err := createOrUpdateDDConfigMap(ctx, client, "ingress-nginx", originalName, "/modules_mount", labels, annotations)
+	require.NoError(t, err)
+
+	ddCM, err := client.Resource(configMapGVR).Namespace("ingress-nginx").Get(ctx, ddName, metav1.GetOptions{})
+	require.NoError(t, err)
+	assert.Equal(t, labels, ddCM.GetLabels())
+	assert.Equal(t, annotations, ddCM.GetAnnotations())
+	require.Len(t, ddCM.GetOwnerReferences(), 1)
+	assert.Equal(t, originalName, ddCM.GetOwnerReferences()[0].Name)
+	assert.Equal(t, "original-uid", string(ddCM.GetOwnerReferences()[0].UID))
+
+	data, found, err := unstructured.NestedStringMap(ddCM.UnstructuredContent(), "data")
+	require.NoError(t, err)
+	require.True(t, found)
+	assert.Contains(t, data[mainSnippetKey], "load_module /modules_mount/ngx_http_datadog_module.so;")
+	assert.Contains(t, data[mainSnippetKey], "worker_connections 4096;")
+	assert.Contains(t, data[httpSnippetKey], "datadog_appsec_enabled on;")
+	assert.Contains(t, data[httpSnippetKey], "keepalive_timeout 75;")
+
+	originalAfter, err := client.Resource(configMapGVR).Namespace("ingress-nginx").Get(ctx, originalName, metav1.GetOptions{})
+	require.NoError(t, err)
+	assert.Equal(t, "true", originalAfter.GetLabels()[watchedConfigMapLabel])
+	assert.Equal(t, ddName, originalAfter.GetAnnotations()[ddConfigMapAnnotation])
+}
+
+func TestCreateOrUpdateDDConfigMap_ConflictRetry(t *testing.T) {
+	ctx := t.Context()
+	scheme := runtime.NewScheme()
+	originalName := "ingress-nginx-controller"
+	ddName := ddConfigMapName(originalName)
+	originalCM := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "v1",
+			"kind":       "ConfigMap",
+			"metadata": map[string]interface{}{
+				"name":      originalName,
+				"namespace": "ingress-nginx",
+				"uid":       "original-uid",
+			},
+			"data": map[string]interface{}{
+				mainSnippetKey: "worker_connections 4096;",
+			},
+		},
+	}
+	existingDDCM := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "v1",
+			"kind":       "ConfigMap",
+			"metadata": map[string]interface{}{
+				"name":            ddName,
+				"namespace":       "ingress-nginx",
+				"resourceVersion": "1",
+			},
+		},
+	}
+
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(scheme,
+		map[schema.GroupVersionResource]string{
+			configMapGVR: "ConfigMapList",
+		},
+		originalCM,
+		existingDDCM,
+	)
+
+	updateCalls := 0
+	client.PrependReactor("update", "configmaps", func(action k8stesting.Action) (bool, runtime.Object, error) {
+		updateAction, ok := action.(k8stesting.UpdateAction)
+		if !ok || action.GetNamespace() != "ingress-nginx" || updateAction.GetObject().(*unstructured.Unstructured).GetName() != ddName {
+			return false, nil, nil
+		}
+
+		updateCalls++
+		if updateCalls == 1 {
+			return true, nil, k8serrors.NewConflict(schema.GroupResource{Resource: "configmaps"}, ddName, errors.New("conflict"))
+		}
+		return false, nil, nil
+	})
+
+	err := createOrUpdateDDConfigMap(ctx, client, "ingress-nginx", originalName, "/modules_mount", map[string]string{}, map[string]string{})
+	require.NoError(t, err)
+	assert.Equal(t, 2, updateCalls)
+
+	ddCM, err := client.Resource(configMapGVR).Namespace("ingress-nginx").Get(ctx, ddName, metav1.GetOptions{})
+	require.NoError(t, err)
+	data, found, err := unstructured.NestedStringMap(ddCM.UnstructuredContent(), "data")
+	require.NoError(t, err)
+	require.True(t, found)
+	assert.Contains(t, data[mainSnippetKey], "load_module /modules_mount/ngx_http_datadog_module.so;")
+	assert.Contains(t, data[mainSnippetKey], "worker_connections 4096;")
 }

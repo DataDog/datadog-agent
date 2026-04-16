@@ -350,10 +350,14 @@ rules:
       - list
       - watch
   # AppSec proxy injection - ingress-nginx ConfigMap management
-  # All verbs are unscoped: ConfigMap names are derived dynamically from the
-  # controller's --configmap arg (e.g. datadog-appsec-<original-name>) and cannot
-  # be predicted at RBAC definition time. The watch verb is needed for the
-  # ConfigMap reconciler that keeps DD copies in sync with originals.
+  # SECURITY CONSIDERATION: These permissions are cluster-wide and unscoped.
+  # ConfigMap names are derived dynamically from the controller's --configmap arg
+  # (e.g. datadog-appsec-<original-name>) and cannot be predicted at RBAC definition
+  # time. The watch verb is needed for the ConfigMap reconciler that keeps DD copies
+  # in sync with originals. In practice, the code only operates on ConfigMaps with
+  # the label appsec.datadoghq.com/watched-configmap=true (reconciler) and the
+  # label app.kubernetes.io/component=datadog-appsec-injector (cleanup).
+  # Consider namespace-scoped Roles if the blast radius needs to be reduced.
   - apiGroups:
       - ""
     resources:

@@ -16,6 +16,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/dynamic"
@@ -30,9 +31,10 @@ import (
 // It keeps no in-memory state; all context is derived from ConfigMap
 // labels and annotations at reconcile time.
 type configMapReconciler struct {
-	client dynamic.Interface
-	logger log.Component
-	config appsecconfig.Config
+	client        dynamic.Interface
+	logger        log.Component
+	config        appsecconfig.Config
+	eventRecorder eventRecorder
 }
 
 type reconcileItem struct {
@@ -59,17 +61,20 @@ func (r *configMapReconciler) Start(ctx context.Context) error {
 
 	informer := informerFactory.ForResource(configMapGVR).Informer()
 
+	enqueue := func(obj any) {
+		u, ok := obj.(*unstructured.Unstructured)
+		if !ok {
+			return
+		}
+		queue.Add(reconcileItem{
+			namespace:    u.GetNamespace(),
+			originalName: u.GetName(),
+		})
+	}
+
 	if _, err := informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		UpdateFunc: func(_, newObj any) {
-			u, ok := newObj.(*unstructured.Unstructured)
-			if !ok {
-				return
-			}
-			queue.Add(reconcileItem{
-				namespace:    u.GetNamespace(),
-				originalName: u.GetName(),
-			})
-		},
+		AddFunc:    enqueue,
+		UpdateFunc: func(_, newObj any) { enqueue(newObj) },
 	}); err != nil {
 		queue.ShutDown()
 		return fmt.Errorf("failed to add ConfigMap reconciler event handler: %w", err)
@@ -140,7 +145,19 @@ func (r *configMapReconciler) reconcile(ctx context.Context, queue workqueue.Typ
 		if queue.NumRequeues(item) < 5 {
 			queue.AddRateLimited(item)
 		} else {
-			r.logger.Errorf("ConfigMap reconciler: giving up on %s/%s after retries", item.namespace, item.originalName)
+			r.logger.Errorf("ConfigMap reconciler: giving up on %s/%s after retries: %v", item.namespace, item.originalName, err)
+			r.eventRecorder.recorder.Eventf(
+				&corev1.ObjectReference{
+					Kind:       "ConfigMap",
+					Name:       item.originalName,
+					Namespace:  item.namespace,
+					APIVersion: "v1",
+				},
+				corev1.EventTypeWarning,
+				"ReconciliationFailed",
+				"Failed to reconcile DD ConfigMap after retries: %v",
+				err,
+			)
 			queue.Forget(item)
 		}
 		return
