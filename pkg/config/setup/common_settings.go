@@ -1809,6 +1809,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.pattern_table_match_threshold", 0.75)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.enable_json_aggregation", true)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.tag_aggregated_json", false)
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line.stack_trace_parsers", []string{"go"})
 
 	// Adaptive sampler (experimental) rate-limits repetitive log patterns per source.
 	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.enabled", false)
