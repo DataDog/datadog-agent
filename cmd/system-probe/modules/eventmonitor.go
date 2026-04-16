@@ -96,6 +96,8 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDepen
 			evm.RegisterEventConsumer(usage)
 			log.Info("event monitoring usage consumer initialized")
 		}
+
+		opts.ProbeOpts.PathResolutionEnabled = true
 	}
 
 	netconfig := netconfig.New()
