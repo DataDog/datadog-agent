@@ -72,6 +72,13 @@ var (
 
 const nilvalue = "-"
 
+// RFC 5424 §6.3: PRINTUSASCII range and max name length for SD-ID / PARAM-NAME.
+const (
+	printUSASCIIMin = 33 // '!' — lower bound of PRINTUSASCII (%d33-126)
+	printUSASCIIMax = 126 // '~' — upper bound of PRINTUSASCII
+	maxSDNameLen    = 32 // max length for SD-ID and PARAM-NAME
+)
+
 // SyslogMessage is a parsed syslog message (RFC 5424 or RFC 3164/BSD).
 //
 // String fields are independent copies of the input. The Msg field aliases
@@ -595,11 +602,11 @@ func parseSDElement(b []byte, pos int) (string, map[string]string, int, error) {
 		if c == ' ' || c == ']' {
 			break
 		}
-		if c == '=' || c == '"' || c < 33 || c > 126 {
+		if c == '=' || c == '"' || c < printUSASCIIMin || c > printUSASCIIMax {
 			return "", nil, 0, errSDIDInvalid
 		}
 		i++
-		if i-idStart > 32 {
+		if i-idStart > maxSDNameLen {
 			return "", nil, 0, errSDIDTooLong
 		}
 	}
@@ -640,11 +647,11 @@ func parseSDParam(b []byte, pos int) (string, string, int, error) {
 	// PARAM-NAME: 1*32 PRINTUSASCII except '=', SP, ']', '"'
 	for i < len(b) && b[i] != '=' {
 		c := b[i]
-		if c == ' ' || c == ']' || c == '"' || c < 33 || c > 126 {
+		if c == ' ' || c == ']' || c == '"' || c < printUSASCIIMin || c > printUSASCIIMax {
 			return "", "", 0, errSDParamNameBad
 		}
 		i++
-		if i-pos > 32 {
+		if i-pos > maxSDNameLen {
 			return "", "", 0, errSDParamNameLong
 		}
 	}
