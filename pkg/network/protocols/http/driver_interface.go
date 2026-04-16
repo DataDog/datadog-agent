@@ -69,10 +69,18 @@ type HttpDriverInterface struct {
 
 //nolint:revive // TODO(WKIT) Fix revive linter
 func NewDriverInterface(c *config.Config, dh driver.Handle) (*HttpDriverInterface, error) {
+	maxRequestFragment := uint64(c.HTTPMaxRequestFragment)
+	if c.DiscoveryServiceMapEnabled {
+		// Discovery mode drops path from the aggregation key, so we only
+		// need enough bytes for the driver to identify the request as HTTP.
+		// 16 bytes covers the method + minimal path (e.g., "GET / HTTP/1.1").
+		maxRequestFragment = 16
+	}
+
 	d := &HttpDriverInterface{
 		maxTransactions:       uint64(c.MaxTrackedHTTPConnections),
 		notificationThreshold: uint64(c.HTTPNotificationThreshold),
-		maxRequestFragment:    uint64(c.HTTPMaxRequestFragment),
+		maxRequestFragment:    maxRequestFragment,
 	}
 	err := d.setupHTTPHandle(dh)
 	if err != nil {

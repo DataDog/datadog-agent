@@ -49,7 +49,11 @@ func NewWindowsMonitor(c *config.Config, dh driver.Handle) (Monitor, error) {
 	}
 
 	hei.SetMaxFlows(uint64(c.MaxTrackedConnections))
-	hei.SetMaxRequestBytes(uint64(c.HTTPMaxRequestFragment))
+	maxRequestBytes := uint64(c.HTTPMaxRequestFragment)
+	if c.DiscoveryServiceMapEnabled {
+		maxRequestBytes = 16
+	}
+	hei.SetMaxRequestBytes(maxRequestBytes)
 	hei.SetCapturedProtocols(c.EnableHTTPMonitoring, c.EnableNativeTLSMonitoring)
 
 	telemetry := http.NewTelemetry("http")
