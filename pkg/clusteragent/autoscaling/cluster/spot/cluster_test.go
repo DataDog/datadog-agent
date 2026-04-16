@@ -44,6 +44,8 @@ import (
 
 var deploymentsGVR = schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}
 
+// TODO: Evaluate using kwok (https://kwok.sigs.k8s.io) instead of this fake cluster.
+
 // fakeCluster simulates a Kubernetes cluster for testing.
 // It maintains a set of nodes and a workloadmeta store,
 // runs a fake pod scheduler and supports admission hooks.
@@ -478,7 +480,7 @@ func newPod(namespace, ownerKind, ownerName string, labels map[string]string) *c
 			GenerateName: ownerName + "-",
 			Labels:       maps.Clone(labels),
 			OwnerReferences: []metav1.OwnerReference{
-				{Kind: ownerKind, Name: ownerName},
+				{APIVersion: "apps/v1", Kind: ownerKind, Name: ownerName},
 			},
 		},
 	}
@@ -488,7 +490,8 @@ func newPod(namespace, ownerKind, ownerName string, labels map[string]string) *c
 func wlmPodToCorePod(pod *workloadmeta.KubernetesPod) *corev1.Pod {
 	owners := make([]metav1.OwnerReference, 0, len(pod.Owners))
 	for _, owner := range pod.Owners {
-		owners = append(owners, metav1.OwnerReference{Kind: owner.Kind, Name: owner.Name})
+		apiVersion := schema.GroupVersion{Group: owner.Group, Version: "v1"}.String()
+		owners = append(owners, metav1.OwnerReference{APIVersion: apiVersion, Kind: owner.Kind, Name: owner.Name})
 	}
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{

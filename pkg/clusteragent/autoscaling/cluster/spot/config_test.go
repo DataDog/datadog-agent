@@ -20,11 +20,11 @@ import (
 func TestReadConfig(t *testing.T) {
 	t.Run("valid values returned as-is", func(t *testing.T) {
 		cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
-			"autoscaling.cluster.spot.percentage":                     60,
-			"autoscaling.cluster.spot.min_on_demand_replicas":         3,
-			"autoscaling.cluster.spot.schedule_timeout":               "30s",
-			"autoscaling.cluster.spot.fallback_duration":              "5m",
-			"autoscaling.cluster.spot.rebalance_stabilization_period": "2m",
+			"autoscaling.cluster.spot.defaults.percentage":             60,
+			"autoscaling.cluster.spot.defaults.min_on_demand_replicas": 3,
+			"autoscaling.cluster.spot.schedule_timeout":                "30s",
+			"autoscaling.cluster.spot.fallback_duration":               "5m",
+			"autoscaling.cluster.spot.rebalance_stabilization_period":  "2m",
 		})
 		c := spot.ReadConfig(cfg)
 		assert.Equal(t, 60, c.Percentage)
@@ -36,10 +36,10 @@ func TestReadConfig(t *testing.T) {
 
 	t.Run("percentage out of range falls back to default", func(t *testing.T) {
 		cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
-			"autoscaling.cluster.spot.percentage":             101,
-			"autoscaling.cluster.spot.min_on_demand_replicas": 1,
-			"autoscaling.cluster.spot.schedule_timeout":       "30s",
-			"autoscaling.cluster.spot.fallback_duration":      "5m",
+			"autoscaling.cluster.spot.defaults.percentage":             101,
+			"autoscaling.cluster.spot.defaults.min_on_demand_replicas": 1,
+			"autoscaling.cluster.spot.schedule_timeout":                "30s",
+			"autoscaling.cluster.spot.fallback_duration":               "5m",
 		})
 		c := spot.ReadConfig(cfg)
 		assert.Equal(t, 100, c.Percentage)
@@ -47,22 +47,22 @@ func TestReadConfig(t *testing.T) {
 
 	t.Run("negative min_on_demand_replicas falls back to default", func(t *testing.T) {
 		cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
-			"autoscaling.cluster.spot.percentage":             50,
-			"autoscaling.cluster.spot.min_on_demand_replicas": -1,
-			"autoscaling.cluster.spot.schedule_timeout":       "30s",
-			"autoscaling.cluster.spot.fallback_duration":      "5m",
+			"autoscaling.cluster.spot.defaults.percentage":             50,
+			"autoscaling.cluster.spot.defaults.min_on_demand_replicas": -1,
+			"autoscaling.cluster.spot.schedule_timeout":                "30s",
+			"autoscaling.cluster.spot.fallback_duration":               "5m",
 		})
 		c := spot.ReadConfig(cfg)
-		assert.Equal(t, 3, c.MinOnDemandReplicas)
+		assert.Equal(t, 0, c.MinOnDemandReplicas) // default is now 0
 	})
 
 	t.Run("zero durations fall back to defaults", func(t *testing.T) {
 		cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
-			"autoscaling.cluster.spot.percentage":                     50,
-			"autoscaling.cluster.spot.min_on_demand_replicas":         1,
-			"autoscaling.cluster.spot.schedule_timeout":               "0s",
-			"autoscaling.cluster.spot.fallback_duration":              "0s",
-			"autoscaling.cluster.spot.rebalance_stabilization_period": "0s",
+			"autoscaling.cluster.spot.defaults.percentage":             50,
+			"autoscaling.cluster.spot.defaults.min_on_demand_replicas": 1,
+			"autoscaling.cluster.spot.schedule_timeout":                "0s",
+			"autoscaling.cluster.spot.fallback_duration":               "0s",
+			"autoscaling.cluster.spot.rebalance_stabilization_period":  "0s",
 		})
 		c := spot.ReadConfig(cfg)
 		assert.Equal(t, 1*time.Minute, c.ScheduleTimeout)

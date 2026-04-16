@@ -12,8 +12,8 @@ import (
 	"maps"
 
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	k8sclient "k8s.io/client-go/kubernetes"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
@@ -23,33 +23,36 @@ type podLister interface {
 	listPods(ctx context.Context, namespace string, selector string) ([]*workloadmeta.KubernetesPod, error)
 }
 
-// kubePodLister implements podLister using the Kubernetes API.
-// The k8s API server filters by label selector at the etcd level, avoiding O(all_pods) in-process scans.
-type kubePodLister struct {
-	client k8sclient.Interface
+// wlmPodLister implements podLister using the in-process workloadmeta store.
+// This avoids API server calls since we already watch all pods via workloadmeta.
+type wlmPodLister struct {
+	wlm workloadmeta.Component
 }
 
-func newKubePodLister(client k8sclient.Interface) podLister {
-	return &kubePodLister{client: client}
+func newWLMPodLister(wlm workloadmeta.Component) podLister {
+	return &wlmPodLister{wlm: wlm}
 }
 
-func (l *kubePodLister) listPods(ctx context.Context, namespace string, selector string) ([]*workloadmeta.KubernetesPod, error) {
-	list, err := l.client.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{LabelSelector: selector})
+func (l *wlmPodLister) listPods(_ context.Context, namespace string, selector string) ([]*workloadmeta.KubernetesPod, error) {
+	sel, err := labels.Parse(selector)
 	if err != nil {
 		return nil, err
 	}
-
-	result := make([]*workloadmeta.KubernetesPod, 0, len(list.Items))
-	for i := range list.Items {
-		result = append(result, coreV1PodToWLM(&list.Items[i]))
+	var result []*workloadmeta.KubernetesPod
+	for _, pod := range l.wlm.ListKubernetesPods() {
+		if pod.Namespace == namespace && sel.Matches(labels.Set(pod.Labels)) {
+			result = append(result, pod)
+		}
 	}
 	return result, nil
 }
 
+// coreV1PodToWLM converts a corev1.Pod to a workloadmeta.KubernetesPod.
 func coreV1PodToWLM(pod *corev1.Pod) *workloadmeta.KubernetesPod {
 	owners := make([]workloadmeta.KubernetesPodOwner, 0, len(pod.OwnerReferences))
 	for _, ref := range pod.OwnerReferences {
-		owners = append(owners, workloadmeta.KubernetesPodOwner{Kind: ref.Kind, Name: ref.Name})
+		gv, _ := schema.ParseGroupVersion(ref.APIVersion)
+		owners = append(owners, workloadmeta.KubernetesPodOwner{Kind: ref.Kind, Name: ref.Name, Group: gv.Group})
 	}
 	return &workloadmeta.KubernetesPod{
 		EntityID: workloadmeta.EntityID{
@@ -62,7 +65,9 @@ func coreV1PodToWLM(pod *corev1.Pod) *workloadmeta.KubernetesPod {
 			Labels:      maps.Clone(pod.Labels),
 			Annotations: maps.Clone(pod.Annotations),
 		},
-		Owners: owners,
-		Phase:  string(pod.Status.Phase),
+		Owners:            owners,
+		Phase:             string(pod.Status.Phase),
+		CreationTimestamp: pod.CreationTimestamp.Time,
+		NodeName:          pod.Spec.NodeName,
 	}
 }

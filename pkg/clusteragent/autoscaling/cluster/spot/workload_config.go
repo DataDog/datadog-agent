@@ -15,49 +15,49 @@ import (
 // workloadConfigStore provides spot configuration for workloads.
 type workloadConfigStore interface {
 	// getConfig returns the workloadSpotConfig for the workload if present.
-	getConfig(key workload) (workloadSpotConfig, bool)
+	getConfig(key objectRef) (workloadSpotConfig, bool)
 	// setConfig stores the workloadSpotConfig for key.
-	setConfig(key workload, cfg workloadSpotConfig)
+	setConfig(key objectRef, cfg workloadSpotConfig)
 	// deleteConfig removes the workloadSpotConfig for key.
-	deleteConfig(key workload)
+	deleteConfig(key objectRef)
 	// disable disables spot scheduling for workload.
 	// If already disabled returns existing timestamp and false,
 	// otherwise sets disabledUntil and returns the new timestamp and true.
-	disable(key workload, now time.Time, until time.Time) (time.Time, bool)
+	disable(key objectRef, now time.Time, until time.Time) (time.Time, bool)
 }
 
 // spotConfigStore is a thread-safe key-value store of workload spot configs.
 type spotConfigStore struct {
 	mu      sync.RWMutex
-	configs map[workload]workloadSpotConfig
+	configs map[objectRef]workloadSpotConfig
 }
 
 func newSpotConfigStore() *spotConfigStore {
 	return &spotConfigStore{
-		configs: make(map[workload]workloadSpotConfig),
+		configs: make(map[objectRef]workloadSpotConfig),
 	}
 }
 
-func (s *spotConfigStore) getConfig(key workload) (workloadSpotConfig, bool) {
+func (s *spotConfigStore) getConfig(key objectRef) (workloadSpotConfig, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	cfg, ok := s.configs[key]
 	return cfg, ok
 }
 
-func (s *spotConfigStore) setConfig(key workload, cfg workloadSpotConfig) {
+func (s *spotConfigStore) setConfig(key objectRef, cfg workloadSpotConfig) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.configs[key] = cfg
 }
 
-func (s *spotConfigStore) deleteConfig(key workload) {
+func (s *spotConfigStore) deleteConfig(key objectRef) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.configs, key)
 }
 
-func (s *spotConfigStore) disable(key workload, now time.Time, until time.Time) (time.Time, bool) {
+func (s *spotConfigStore) disable(key objectRef, now time.Time, until time.Time) (time.Time, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	cfg, ok := s.configs[key]

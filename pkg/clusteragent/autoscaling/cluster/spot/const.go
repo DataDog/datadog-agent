@@ -13,15 +13,17 @@ const (
 	SpotEnabledLabelKey = "autoscaling.datadoghq.com/spot-enabled"
 	// SpotEnabledLabelValue is the label value used to opt-in workload into spot scheduling.
 	SpotEnabledLabelValue = "true"
-	// SpotPercentageAnnotation is the annotation key for the desired percentage of replicas on spot (0-100)
-	SpotPercentageAnnotation = "autoscaling.datadoghq.com/spot-percentage"
-	// SpotMinOnDemandReplicasAnnotation is the annotation key for the minimum number of on-demand replicas
-	SpotMinOnDemandReplicasAnnotation = "autoscaling.datadoghq.com/spot-min-on-demand-replicas"
+
+	// SpotConfigAnnotation is the annotation key for per-workload spot configuration
+	// encoded as a JSON object with optional fields: percentage (int 0-100) and minOnDemandReplicas (int >= 0).
+	// Example: {"percentage": 50, "minOnDemandReplicas": 1}
+	SpotConfigAnnotation = "autoscaling.datadoghq.com/spot-config"
+
 	// SpotDisabledUntilAnnotation is the annotation key for the timestamp until spot scheduling is disabled (RFC3339).
 	SpotDisabledUntilAnnotation = "autoscaling.datadoghq.com/spot-disabled-until"
 
 	// SpotAssignedLabel is the label key set by the admission webhook on pods assigned to spot instances.
 	SpotAssignedLabel = "autoscaling.datadoghq.com/spot-assigned"
-	// SpotAssignedSpot is the SpotAssignedLabel value for pods assigned to spot instances.
-	SpotAssignedSpot = "true"
+	// SpotAssignedLabelValue is the SpotAssignedLabel value for pods assigned to spot instances.
+	SpotAssignedLabelValue = "true"
 )

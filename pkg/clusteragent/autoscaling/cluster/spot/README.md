@@ -34,9 +34,11 @@ Important:
   so Cluster Agent cannot directly fix spot-assigned pods that fail to schedule — it must evict them and let the workload to recreate them.
 - spot nodes carry a `NoSchedule` taint to repel unrelated workloads.
 
-The spot node label and taint are currently Karpenter-specific [[2]](#karpenter-nodepool):
+The spot node label is currently Karpenter-specific [[2]](#karpenter-nodepool):
 - label: `karpenter.sh/capacity-type=spot`
-- taint: `karpenter.sh/capacity-type=spot:NoSchedule`
+
+The spot node taint uses the Datadog namespace and must be configured separately on spot nodes:
+- taint: `autoscaling.datadoghq.com/interruptible=true:NoSchedule`
 
 When a pod is assigned to a spot instance at admission time, Cluster Agent begins tracking it.
 Cluster Agent periodically checks all tracked pods and if spot-assigned pods for a given workload are pending longer
@@ -64,8 +66,8 @@ spec:
           operator: In
           values: ["spot"]
       taints:
-        - key: karpenter.sh/capacity-type
-          value: spot
+        - key: autoscaling.datadoghq.com/interruptible
+          value: "true"
           effect: NoSchedule
 ...
 ```
@@ -120,10 +122,10 @@ spec:
         # Spot scheduling config. Use environment variables until config added to CRD.
         - name: DD_AUTOSCALING_CLUSTER_SPOT_ENABLED
           value: "true" # enable spot scheduling feature
-        - name: DD_AUTOSCALING_CLUSTER_SPOT_PERCENTAGE
-          value: "70" # split pods 70/30% between spot and on-demand nodes
-        - name: DD_AUTOSCALING_CLUSTER_SPOT_MIN_ON_DEMAND_REPLICAS
-          value: "2" # schedule at least two pods onto on-demand node
+        - name: DD_AUTOSCALING_CLUSTER_SPOT_DEFAULTS_PERCENTAGE
+          value: "100" # default split for workloads that don't override via annotation
+        - name: DD_AUTOSCALING_CLUSTER_SPOT_DEFAULTS_MIN_ON_DEMAND_REPLICAS
+          value: "0" # no default minimum; override per workload via annotation
         - name: DD_AUTOSCALING_CLUSTER_SPOT_SCHEDULE_TIMEOUT
           value: "1m" # disable spot scheduling after assigned pods are pending for longer than timeout
         - name: DD_AUTOSCALING_CLUSTER_SPOT_FALLBACK_DURATION
@@ -136,7 +138,7 @@ spec:
 ### Workload configuration
 
 To enable spot scheduling for a workload add `autoscaling.datadoghq.com/spot-enabled: "true"` label.
-Default configuration can be overridden via annotations:
+Default configuration can be overridden via the `autoscaling.datadoghq.com/spot-config` annotation:
 
 ```yaml
 apiVersion: apps/v1
@@ -147,8 +149,7 @@ metadata:
     app: nginx
     autoscaling.datadoghq.com/spot-enabled: "true" # Enable spot scheduling
   annotations:
-    autoscaling.datadoghq.com/spot-percentage: "50" # Split pods 50/50% between spot and on-demand nodes
-    autoscaling.datadoghq.com/spot-min-on-demand-replicas: "1" # schedule at least one pod onto on-demand node
+    autoscaling.datadoghq.com/spot-config: '{"percentage": 50, "minOnDemandReplicas": 1}'
 spec:
   replicas: 1
   selector:
@@ -193,7 +194,7 @@ nginx-6f8f465d8c-sn6dw   1/1     Running   0          5m29s
 - `workloadController` — watches workloads, syncs config and pods
 - `podTracker` — counts spot / on-demand pods per workload
 - `spotConfigStore` — per-workload spot config key-value store
-- `podLister` — lists pods from Kubernetes API
+- `podLister` — lists pods from workloadmeta store
 - `podEvictor` — evicts pods via Kubernetes API
 - `workloadPatcher` — persists disabled-until annotation
 
@@ -229,7 +230,7 @@ graph TD
     WC -->|"addedOrUpdated, untrack"| PT
     WC -->|"listPods"| PL
 
-    PL -->|"LIST Pods"| K8sAPI
+    PL -->|"ListKubernetesPods"| WLM
     PE -->|"Evict Pod"| K8sAPI
     WP -->|"PATCH workload"| K8sAPI
 ```

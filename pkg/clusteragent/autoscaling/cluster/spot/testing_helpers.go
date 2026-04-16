@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//go:build kubeapiserver
+//go:build kubeapiserver && test
 
 package spot
 
@@ -12,7 +12,6 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/utils/clock"
 
@@ -30,24 +29,24 @@ func NewTestScheduler(config Config, clk clock.WithTicker, wlm workloadmeta.Comp
 	evictorFunc := podEvictorFunc(func(_ context.Context, namespace, name string) error {
 		return evictPod(namespace, name)
 	})
-	patcherFunc := workloadPatcherFunc(func(context.Context, workload, time.Time) error {
+	patcherFunc := workloadPatcherFunc(func(context.Context, objectRef, time.Time) error {
 		return nil
 	})
-	return newScheduler(config, clk, wlm, evictorFunc, patcherFunc, dynamicClient, &wlmPodLister{wlm: wlm}, isLeader)
+	return newScheduler(config, clk, wlm, evictorFunc, patcherFunc, dynamicClient, newWLMPodLister(wlm), isLeader)
 }
 
 // TrackedCounts returns the total and spot tracked pod counts (including in-flight admissions) for the given workload.
-func (s *TestScheduler) TrackedCounts(kind, namespace, name string) (total, spot int) {
+func (s *TestScheduler) TrackedCounts(group, kind, namespace, name string) (total, spot int) {
 	s.tracker.mu.RLock()
 	defer s.tracker.mu.RUnlock()
-	w := workload{Kind: kind, Namespace: namespace, Name: name}
-	owners, ok := s.tracker.podGroups[w]
+	w := objectRef{Group: group, Kind: kind, Namespace: namespace, Name: name}
+	owners, ok := s.tracker.podSets[w]
 	if !ok {
 		return 0, 0
 	}
-	for _, pods := range owners {
-		total += pods.totalCount()
-		spot += pods.spotCount()
+	for _, ps := range owners {
+		total += ps.totalCount()
+		spot += ps.spotCount()
 	}
 	return total, spot
 }
@@ -63,8 +62,8 @@ func (s *TestScheduler) Config() Config {
 }
 
 // IsSpotSchedulingDisabled returns whether spot scheduling is currently disabled for the given workload.
-func (s *TestScheduler) IsSpotSchedulingDisabled(kind, namespace, name string) bool {
-	w := workload{Kind: kind, Namespace: namespace, Name: name}
+func (s *TestScheduler) IsSpotSchedulingDisabled(group, kind, namespace, name string) bool {
+	w := objectRef{Group: group, Kind: kind, Namespace: namespace, Name: name}
 	cfg, ok := s.getSpotConfig(w)
 	if !ok {
 		return false
@@ -73,16 +72,16 @@ func (s *TestScheduler) IsSpotSchedulingDisabled(kind, namespace, name string) b
 }
 
 // HasConfig reports whether the workload has an entry in the config store.
-func (s *TestScheduler) HasConfig(kind, namespace, name string) bool {
-	_, ok := s.getSpotConfig(workload{Kind: kind, Namespace: namespace, Name: name})
+func (s *TestScheduler) HasConfig(group, kind, namespace, name string) bool {
+	_, ok := s.getSpotConfig(objectRef{Group: group, Kind: kind, Namespace: namespace, Name: name})
 	return ok
 }
 
 // HasTrackedPods reports whether the workload has any pods tracked in the pod tracker.
-func (s *TestScheduler) HasTrackedPods(kind, namespace, name string) bool {
+func (s *TestScheduler) HasTrackedPods(group, kind, namespace, name string) bool {
 	s.tracker.mu.RLock()
 	defer s.tracker.mu.RUnlock()
-	_, ok := s.tracker.podGroups[workload{Kind: kind, Namespace: namespace, Name: name}]
+	_, ok := s.tracker.podSets[objectRef{Group: group, Kind: kind, Namespace: namespace, Name: name}]
 	return ok
 }
 
@@ -107,31 +106,11 @@ func (f podEvictorFunc) evictPod(ctx context.Context, namespace, name string, _ 
 }
 
 // workloadPatcherFunc is a function type implementing workloadPatcher for testing.
-type workloadPatcherFunc func(ctx context.Context, owner workload, until time.Time) error
+type workloadPatcherFunc func(ctx context.Context, owner objectRef, until time.Time) error
 
-func (f workloadPatcherFunc) setDisabledUntil(ctx context.Context, owner workload, until time.Time) error {
+func (f workloadPatcherFunc) setDisabledUntil(ctx context.Context, owner objectRef, until time.Time) error {
 	return f(ctx, owner, until)
 }
 
 // CoreV1PodToWLM is an alias for coreV1PodToWLM, exposed for testing.
 var CoreV1PodToWLM = coreV1PodToWLM
-
-// wlmPodLister implements podLister using the in-process workloadmeta store.
-// Suitable for tests where pods live in WLM rather than a real k8s API server.
-type wlmPodLister struct {
-	wlm workloadmeta.Component
-}
-
-func (l *wlmPodLister) listPods(_ context.Context, namespace string, selector string) ([]*workloadmeta.KubernetesPod, error) {
-	sel, err := labels.Parse(selector)
-	if err != nil {
-		return nil, err
-	}
-	var result []*workloadmeta.KubernetesPod
-	for _, pod := range l.wlm.ListKubernetesPods() {
-		if pod.Namespace == namespace && sel.Matches(labels.Set(pod.Labels)) {
-			result = append(result, pod)
-		}
-	}
-	return result, nil
-}

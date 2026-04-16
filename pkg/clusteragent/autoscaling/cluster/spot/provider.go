@@ -29,7 +29,7 @@ func StartSpotScheduling(ctx context.Context, wlm workloadmeta.Component, apiCl 
 		newKubePodEvictor(apiCl.Cl),
 		newKubeWorkloadPatcher(apiCl.DynamicInformerCl),
 		apiCl.DynamicInformerCl,
-		newKubePodLister(apiCl.Cl),
+		newWLMPodLister(wlm),
 		isLeaderFunc)
 	s.Start(ctx)
 

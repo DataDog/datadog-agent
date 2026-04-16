@@ -8,8 +8,8 @@
 package spot
 
 import (
+	"encoding/json"
 	"fmt"
-	"strconv"
 	"time"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -18,7 +18,7 @@ import (
 
 const (
 	defaultSpotPercentage               = 100 // schedule all pods on spot by default to maximize cost savings.
-	defaultMinOnDemandReplicas          = 3   // aim for at least one on-demand pod per availability zone (assuming a 3-AZ region).
+	defaultMinOnDemandReplicas          = 0   // no minimum by default; override per workload via annotation.
 	defaultScheduleTimeout              = 1 * time.Minute
 	defaultFallbackDuration             = 2 * time.Minute
 	defaultRebalanceStabilizationPeriod = 1 * time.Minute
@@ -26,9 +26,9 @@ const (
 
 // Config holds the spot scheduler configuration defaults.
 type Config struct {
-	// Percentage is the target percentage of spot replicas out of total replicas [0, 100].
+	// Percentage is the default target percentage of spot replicas out of total replicas [0, 100].
 	Percentage int
-	// MinOnDemandReplicas is the minimum number of on-demand replicas to keep running
+	// MinOnDemandReplicas is the default minimum number of on-demand replicas to keep running
 	// regardless of the spot percentage. Must be non-negative.
 	MinOnDemandReplicas int
 	// ScheduleTimeout is the maximum time to wait for a spot pods to be scheduled
@@ -51,19 +51,19 @@ func (c Config) String() string {
 // ReadConfig reads spot scheduler configuration from cfg, falling back to defaults for out-of-range values.
 func ReadConfig(cfg pkgconfigmodel.Reader) Config {
 	c := Config{
-		Percentage:                   cfg.GetInt("autoscaling.cluster.spot.percentage"),
-		MinOnDemandReplicas:          cfg.GetInt("autoscaling.cluster.spot.min_on_demand_replicas"),
+		Percentage:                   cfg.GetInt("autoscaling.cluster.spot.defaults.percentage"),
+		MinOnDemandReplicas:          cfg.GetInt("autoscaling.cluster.spot.defaults.min_on_demand_replicas"),
 		ScheduleTimeout:              cfg.GetDuration("autoscaling.cluster.spot.schedule_timeout"),
 		FallbackDuration:             cfg.GetDuration("autoscaling.cluster.spot.fallback_duration"),
 		RebalanceStabilizationPeriod: cfg.GetDuration("autoscaling.cluster.spot.rebalance_stabilization_period"),
 	}
 
 	if c.Percentage < 0 || c.Percentage > 100 {
-		log.Warnf("autoscaling.cluster.spot.percentage=%d is out of range [0, 100], using default %d", c.Percentage, defaultSpotPercentage)
+		log.Warnf("autoscaling.cluster.spot.defaults.percentage=%d is out of range [0, 100], using default %d", c.Percentage, defaultSpotPercentage)
 		c.Percentage = defaultSpotPercentage
 	}
 	if c.MinOnDemandReplicas < 0 {
-		log.Warnf("autoscaling.cluster.spot.min_on_demand_replicas=%d is negative, using default %d", c.MinOnDemandReplicas, defaultMinOnDemandReplicas)
+		log.Warnf("autoscaling.cluster.spot.defaults.min_on_demand_replicas=%d is negative, using default %d", c.MinOnDemandReplicas, defaultMinOnDemandReplicas)
 		c.MinOnDemandReplicas = defaultMinOnDemandReplicas
 	}
 	if c.ScheduleTimeout <= 0 {
@@ -93,16 +93,25 @@ func (c workloadSpotConfig) isDisabled(now time.Time) bool {
 	return now.Before(c.disabledUntil)
 }
 
+// spotConfigAnnotation represents the JSON structure for per-workload spot configuration.
+type spotConfigAnnotation struct {
+	Percentage          *int `json:"percentage,omitempty"`
+	MinOnDemandReplicas *int `json:"minOnDemandReplicas,omitempty"`
+}
+
 // overrideFromAnnotations overrides cfg fields from spot annotations, leaving unset fields unchanged.
 func overrideFromAnnotations(cfg *workloadSpotConfig, annotations map[string]string) {
-	if v := annotations[SpotPercentageAnnotation]; v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n >= 0 && n <= 100 {
-			cfg.percentage = n
-		}
-	}
-	if v := annotations[SpotMinOnDemandReplicasAnnotation]; v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
-			cfg.minOnDemand = n
+	if v := annotations[SpotConfigAnnotation]; v != "" {
+		var ac spotConfigAnnotation
+		if err := json.Unmarshal([]byte(v), &ac); err != nil {
+			log.Warnf("Failed to parse %s annotation: %v", SpotConfigAnnotation, err)
+		} else {
+			if ac.Percentage != nil && *ac.Percentage >= 0 && *ac.Percentage <= 100 {
+				cfg.percentage = *ac.Percentage
+			}
+			if ac.MinOnDemandReplicas != nil && *ac.MinOnDemandReplicas >= 0 {
+				cfg.minOnDemand = *ac.MinOnDemandReplicas
+			}
 		}
 	}
 	if v := annotations[SpotDisabledUntilAnnotation]; v != "" {

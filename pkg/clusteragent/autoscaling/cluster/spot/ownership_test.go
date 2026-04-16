@@ -81,29 +81,30 @@ func TestResolveWLMPodOwner(t *testing.T) {
 	})
 }
 
-func TestResolveOwnerWorkload(t *testing.T) {
+func TestResolveTopLevelOwner(t *testing.T) {
 	t.Run("replicaset resolves to parent deployment", func(t *testing.T) {
-		owner := podOwner{Kind: kubernetes.ReplicaSetKind, Namespace: "default", Name: "nginx-bcdfg"}
-		wl, ok := resolveOwnerWorkload(owner)
+		owner := objectRef{Kind: kubernetes.ReplicaSetKind, Namespace: "default", Name: "nginx-bcdfg"}
+		wl, ok := resolveTopLevelOwner(owner)
 		assert.True(t, ok)
-		assert.Equal(t, workload{Kind: kubernetes.DeploymentKind, Namespace: "default", Name: "nginx"}, wl)
+		assert.Equal(t, objectRef{Kind: kubernetes.DeploymentKind, Namespace: "default", Name: "nginx"}, wl)
 	})
 
 	t.Run("replicaset without deployment name returns false", func(t *testing.T) {
-		owner := podOwner{Kind: kubernetes.ReplicaSetKind, Namespace: "default", Name: "standalone"}
-		_, ok := resolveOwnerWorkload(owner)
+		owner := objectRef{Kind: kubernetes.ReplicaSetKind, Namespace: "default", Name: "standalone"}
+		_, ok := resolveTopLevelOwner(owner)
 		assert.False(t, ok)
 	})
 
 	t.Run("statefulset maps to itself", func(t *testing.T) {
-		owner := podOwner{Kind: kubernetes.StatefulSetKind, Namespace: "default", Name: "redis"}
-		wl, ok := resolveOwnerWorkload(owner)
+		owner := objectRef{Kind: kubernetes.StatefulSetKind, Namespace: "default", Name: "redis"}
+		wl, ok := resolveTopLevelOwner(owner)
 		assert.True(t, ok)
-		assert.Equal(t, workload{Kind: kubernetes.StatefulSetKind, Namespace: "default", Name: "redis"}, wl)
+		assert.Equal(t, objectRef{Kind: kubernetes.StatefulSetKind, Namespace: "default", Name: "redis"}, wl)
 	})
 }
 
 func TestString(t *testing.T) {
-	assert.Equal(t, "ReplicaSet default/nginx-bcdfg", podOwner{Kind: kubernetes.ReplicaSetKind, Namespace: "default", Name: "nginx-bcdfg"}.String())
-	assert.Equal(t, "Deployment default/nginx", workload{Kind: kubernetes.DeploymentKind, Namespace: "default", Name: "nginx"}.String())
+	assert.Equal(t, "ReplicaSet default/nginx-bcdfg", objectRef{Kind: kubernetes.ReplicaSetKind, Namespace: "default", Name: "nginx-bcdfg"}.String())
+	assert.Equal(t, "Deployment default/nginx", objectRef{Kind: kubernetes.DeploymentKind, Namespace: "default", Name: "nginx"}.String())
+	assert.Equal(t, "apps/Deployment default/nginx", objectRef{Group: "apps", Kind: kubernetes.DeploymentKind, Namespace: "default", Name: "nginx"}.String())
 }

@@ -48,7 +48,7 @@ type workloadController struct {
 	hasSynced       []cache.InformerSynced
 	synced          chan struct{}
 
-	queue workqueue.TypedRateLimitingInterface[workload]
+	queue workqueue.TypedRateLimitingInterface[objectRef]
 }
 
 func newWorkloadController(dynamicClient dynamic.Interface, defaultConfig workloadSpotConfig, store workloadConfigStore, lister podLister, tracker *podTracker) *workloadController {
@@ -60,8 +60,8 @@ func newWorkloadController(dynamicClient dynamic.Interface, defaultConfig worklo
 		synced:        make(chan struct{}),
 		listers:       make(map[string]cache.GenericLister),
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
-			workqueue.DefaultTypedItemBasedRateLimiter[workload](),
-			workqueue.TypedRateLimitingQueueConfig[workload]{Name: "spot-workload-controller"},
+			workqueue.DefaultTypedItemBasedRateLimiter[objectRef](),
+			workqueue.TypedRateLimitingQueueConfig[objectRef]{Name: "spot-workload-controller"},
 		),
 	}
 
@@ -75,17 +75,18 @@ func newWorkloadController(dynamicClient dynamic.Interface, defaultConfig worklo
 	)
 
 	for _, r := range spotWorkloadResources {
+		group := r.gvr.Group
 		kind := r.kind
 		inf := c.informerFactory.ForResource(r.gvr)
 		if reg, err := inf.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj any) {
-				c.onUpdated(kind, obj)
+				c.enqueue(group, kind, obj)
 			},
 			UpdateFunc: func(_, obj any) {
-				c.onUpdated(kind, obj)
+				c.enqueue(group, kind, obj)
 			},
 			DeleteFunc: func(obj any) {
-				c.onDeleted(kind, obj)
+				c.enqueue(group, kind, obj)
 			},
 		}); err != nil {
 			log.Errorf("Failed to add event handler for %s: %v", r.gvr.Resource, err)
@@ -98,33 +99,9 @@ func newWorkloadController(dynamicClient dynamic.Interface, defaultConfig worklo
 	return c
 }
 
-// onUpdated handles workload add/update events: updates the config store and enqueues for tracker reconciliation.
-func (c *workloadController) onUpdated(kind string, obj any) {
-	u, ok := obj.(*unstructured.Unstructured)
-	if !ok {
-		return
-	}
-
-	key := workload{Kind: kind, Namespace: u.GetNamespace(), Name: u.GetName()}
-
-	if isSpotEnabled(u) {
-		cfg := c.defaultConfig
-		overrideFromAnnotations(&cfg, u.GetAnnotations())
-
-		c.store.setConfig(key, cfg)
-
-		log.Debugf("Spot workload config updated %s: %#v", key, cfg)
-	} else {
-		c.store.deleteConfig(key)
-
-		log.Debugf("Spot workload config deleted %s", key)
-	}
-
-	c.queue.Add(key)
-}
-
-// onDeleted handles workload delete events: removes the config store entry and enqueues for tracker reconciliation.
-func (c *workloadController) onDeleted(kind string, obj any) {
+// enqueue extracts the object key and adds it to the work queue.
+// It handles DeletedFinalStateUnknown tombstones from missed delete events.
+func (c *workloadController) enqueue(group, kind string, obj any) {
 	if d, ok := obj.(cache.DeletedFinalStateUnknown); ok {
 		obj = d.Obj
 	}
@@ -132,13 +109,7 @@ func (c *workloadController) onDeleted(kind string, obj any) {
 	if !ok {
 		return
 	}
-
-	key := workload{Kind: kind, Namespace: u.GetNamespace(), Name: u.GetName()}
-	c.store.deleteConfig(key)
-
-	log.Debugf("Spot workload deleted %s", key)
-
-	c.queue.Add(key)
+	c.queue.Add(objectRef{Group: group, Kind: kind, Namespace: u.GetNamespace(), Name: u.GetName()})
 }
 
 // start starts the informers, waits for cache sync, then processes the work queue until ctx is cancelled.
@@ -180,10 +151,10 @@ func (c *workloadController) processNext(ctx context.Context) bool {
 	return true
 }
 
-// processItem reconciles the tracker state for a single workload.
-// If the workload opts in to spot scheduling it lists its pods and feeds them into the tracker.
-// If the workload is opted out or no longer exists it calls tracker.untrack.
-func (c *workloadController) processItem(ctx context.Context, key workload) error {
+// processItem reconciles the tracker and config store state for a single workload.
+// If the workload opts in to spot scheduling it updates the config store, lists its pods
+// and feeds them into the tracker. If opted out or deleted it removes config and tracker state.
+func (c *workloadController) processItem(ctx context.Context, key objectRef) error {
 	lister, ok := c.listers[key.Kind]
 	if !ok {
 		return fmt.Errorf("no lister for kind %s", key.Kind)
@@ -191,6 +162,7 @@ func (c *workloadController) processItem(ctx context.Context, key workload) erro
 
 	obj, err := lister.ByNamespace(key.Namespace).Get(key.Name)
 	if k8serrors.IsNotFound(err) {
+		c.store.deleteConfig(key)
 		c.tracker.untrack(key)
 		return nil
 	}
@@ -204,10 +176,19 @@ func (c *workloadController) processItem(ctx context.Context, key workload) erro
 	}
 
 	if !isSpotEnabled(u) {
+		c.store.deleteConfig(key)
 		c.tracker.untrack(key)
+		log.Debugf("Spot workload config deleted %s", key)
 		return nil
 	}
 
+	// Update config store
+	cfg := c.defaultConfig
+	overrideFromAnnotations(&cfg, u.GetAnnotations())
+	c.store.setConfig(key, cfg)
+	log.Debugf("Spot workload config updated %s: %#v", key, cfg)
+
+	// List and track pods
 	selector, ok := getPodSelector(key.Kind, u.Object)
 	if !ok {
 		return nil

@@ -1005,6 +1005,7 @@ type KubernetesPodOwner struct {
 	Kind       string
 	Name       string
 	ID         string
+	Group      string
 	Controller *bool
 }
 

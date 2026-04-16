@@ -21,7 +21,7 @@ import (
 // workloadPatcher patches Kubernetes workload annotations.
 type workloadPatcher interface {
 	// setDisabledUntil patches the SpotDisabledUntilAnnotation on the workload.
-	setDisabledUntil(ctx context.Context, owner workload, until time.Time) error
+	setDisabledUntil(ctx context.Context, owner objectRef, until time.Time) error
 }
 
 type kubeWorkloadPatcher struct {
@@ -32,7 +32,7 @@ func newKubeWorkloadPatcher(dynamicClient dynamic.Interface) *kubeWorkloadPatche
 	return &kubeWorkloadPatcher{dynamicClient: dynamicClient}
 }
 
-func (p *kubeWorkloadPatcher) setDisabledUntil(ctx context.Context, owner workload, until time.Time) error {
+func (p *kubeWorkloadPatcher) setDisabledUntil(ctx context.Context, owner objectRef, until time.Time) error {
 	var gvrVal *workloadResource
 	for i := range spotWorkloadResources {
 		if spotWorkloadResources[i].kind == owner.Kind {
