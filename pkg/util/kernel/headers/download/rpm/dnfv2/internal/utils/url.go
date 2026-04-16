@@ -23,10 +23,10 @@ func URLJoinPath(base string, elems ...string) (string, error) {
 }
 
 // URLHasSuffix returns whether the path of rawUrl has the provided suffix.
-func URLHasSuffix(rawUrl string, suffix string) bool {
-	parsed, err := url.Parse(rawUrl)
+func URLHasSuffix(rawURL string, suffix string) bool {
+	parsed, err := url.Parse(rawURL)
 	if err != nil {
-		return strings.HasSuffix(rawUrl, suffix)
+		return strings.HasSuffix(rawURL, suffix)
 	}
 
 	return strings.HasSuffix(parsed.Path, suffix)

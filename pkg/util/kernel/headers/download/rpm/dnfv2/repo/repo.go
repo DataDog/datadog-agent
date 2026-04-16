@@ -178,12 +178,12 @@ func (r *Repo) FetchPackage(ctx context.Context, pkgMatcher PkgMatchFunc) (*PkgI
 		return nil, nil, fmt.Errorf("find valid package from repo %s: %w", r.Name, err)
 	}
 
-	pkgUrl, err := utils.URLJoinPath(fetchURL, pkgInfo.Location)
+	pkgURL, err := utils.URLJoinPath(fetchURL, pkgInfo.Location)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	pkgRpmData, err := httpClient.GetWithChecksum(ctx, pkgUrl, pkgInfo.Checksum)
+	pkgRpmData, err := httpClient.GetWithChecksum(ctx, pkgURL, pkgInfo.Checksum)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -222,20 +222,20 @@ func readGPGKeys(ctx context.Context, httpClient *utils.HTTPClient, gpgKeys []st
 }
 
 func readGPGKey(ctx context.Context, httpClient *utils.HTTPClient, gpgKey string) (openpgp.EntityList, error) {
-	gpgKeyUrl, err := url.Parse(gpgKey)
+	gpgKeyURL, err := url.Parse(gpgKey)
 	if err != nil {
 		return nil, err
 	}
 
 	var publicKeyReader io.Reader
-	if gpgKeyUrl.Scheme == "file" {
-		publicKeyFile, err := os.Open(utils.HostEtcJoin(gpgKeyUrl.Path))
+	if gpgKeyURL.Scheme == "file" {
+		publicKeyFile, err := os.Open(utils.HostEtcJoin(gpgKeyURL.Path))
 		if err != nil {
 			return nil, err
 		}
 		defer publicKeyFile.Close()
 		publicKeyReader = publicKeyFile
-	} else if gpgKeyUrl.Scheme == "http" || gpgKeyUrl.Scheme == "https" {
+	} else if gpgKeyURL.Scheme == "http" || gpgKeyURL.Scheme == "https" {
 		content, err := httpClient.Get(ctx, gpgKey)
 		if err != nil {
 			return nil, err
@@ -341,9 +341,9 @@ func fetchURLFromMetaLink(ctx context.Context, httpClient *utils.HTTPClient, met
 	for _, file := range metalink.Files.Files {
 		if file.Name == "repomd.xml" {
 			urls := make([]types.MetaLinkFileResourceURL, 0, len(file.Resources.Urls))
-			for _, resUrl := range file.Resources.Urls {
-				if resUrl.Protocol == "http" || resUrl.Protocol == "https" {
-					urls = append(urls, resUrl)
+			for _, resURL := range file.Resources.Urls {
+				if resURL.Protocol == "http" || resURL.Protocol == "https" {
+					urls = append(urls, resURL)
 				}
 			}
 
@@ -355,8 +355,8 @@ func fetchURLFromMetaLink(ctx context.Context, httpClient *utils.HTTPClient, met
 				return urls[j].Preference < urls[i].Preference
 			})
 
-			repomdUrl := strings.TrimSuffix(urls[0].URL, repomdSubpath)
-			return repomdUrl, nil
+			repomdURL := strings.TrimSuffix(urls[0].URL, repomdSubpath)
+			return repomdURL, nil
 		}
 	}
 
