@@ -178,6 +178,8 @@ modules:
     used_by_otel: true
   pkg/config/basic:
     used_by_otel: true
+  pkg/config/buildschema:
+    used_by_otel: true
   pkg/config/create:
     used_by_otel: true
   pkg/config/env:
@@ -221,8 +223,6 @@ modules:
   pkg/logs/message:
     used_by_otel: true
   pkg/logs/metrics:
-    used_by_otel: true
-  pkg/logs/pipeline:
     used_by_otel: true
   pkg/logs/processor:
     used_by_otel: true

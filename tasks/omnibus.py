@@ -32,11 +32,15 @@ from tasks.libs.dependencies import get_effective_dependencies_env
 from tasks.libs.releasing.version import get_version
 
 
-def omnibus_run_task(ctx, task, target_project, base_dir, env, log_level="info", host_distribution=None):
+def omnibus_run_task(
+    ctx, task, target_project, base_dir, env, log_level="info", host_distribution=None, cache_dir=None
+):
     with ctx.cd("omnibus"):
         overrides = []
         if base_dir:
             overrides.append(f"--override=base_dir:{base_dir}")
+        if cache_dir:
+            overrides.append(f"--override=cache_dir:{cache_dir}")
         if host_distribution:
             overrides.append(f"--override=host_distribution:{host_distribution}")
 
@@ -78,6 +82,16 @@ def bundle_install_omnibus(ctx, gem_path=None, env=None, max_try=2):
                         raise
                     print(f"Retrying bundle install, attempt {trial + 1}/{max_try}")
         raise Exit('Too many failures while installing omnibus, giving up')
+
+
+def _resolve_omnibus_path_override(path, env_var):
+    path = path or os.environ.get(env_var)
+
+    if path is not None and sys.platform == 'win32':
+        # Omnibus expects forward slashes in Windows path overrides.
+        path = path.replace(os.path.sep, '/')
+
+    return path
 
 
 def get_omnibus_env(
@@ -189,6 +203,7 @@ def _passthrough_env_for_os(starting_env: dict[str, str], platform: str) -> dict
 # hardened-runtime needs to be set to False to build on MacOS < 10.13.6, as the -o runtime option is not supported.
 @task(
     help={
+        'cache-dir': "Omnibus cache directory (can also be set with OMNIBUS_CACHE_DIR).",
         'skip-sign': "On macOS, use this option to build an unsigned package if you don't have Datadog's developer keys.",
         'hardened-runtime': "On macOS, use this option to enforce the hardened runtime setting, adding '-o runtime' to all codesign commands",
     }
@@ -198,6 +213,7 @@ def build(
     flavor=AgentFlavor.base.name,
     log_level="info",
     base_dir=None,
+    cache_dir=None,
     gem_path=None,
     skip_deps=False,
     skip_sign=False,
@@ -224,13 +240,9 @@ def build(
         with timed(quiet=True) as durations['Deps']:
             deps(ctx)
 
-    # base dir (can be overridden through env vars, command line takes precedence)
-    base_dir = base_dir or os.environ.get("OMNIBUS_BASE_DIR")
-
-    if base_dir is not None and sys.platform == 'win32':
-        # On Windows, prevent backslashes in the base_dir path otherwise omnibus will fail with
-        # error 'no matched files for glob copy' at the end of the build.
-        base_dir = base_dir.replace(os.path.sep, '/')
+    # Omnibus path overrides can be configured by env vars, but explicit task args take precedence.
+    base_dir = _resolve_omnibus_path_override(base_dir, "OMNIBUS_BASE_DIR")
+    cache_dir = _resolve_omnibus_path_override(cache_dir, "OMNIBUS_CACHE_DIR")
 
     env = get_omnibus_env(
         ctx,
@@ -329,6 +341,7 @@ def build(
             env=env,
             log_level=log_level,
             host_distribution=host_distribution,
+            cache_dir=cache_dir,
         )
 
     # Delete the temporary pip.conf file once the build is done
@@ -378,6 +391,7 @@ def manifest(
     agent_binaries=False,
     log_level="info",
     base_dir=None,
+    cache_dir=None,
     gem_path=None,
     skip_sign=False,
     hardened_runtime=False,
@@ -387,8 +401,9 @@ def manifest(
     go_mod_cache=None,
 ):
     flavor = AgentFlavor[flavor]
-    # base dir (can be overridden through env vars, command line takes precedence)
-    base_dir = base_dir or os.environ.get("OMNIBUS_BASE_DIR")
+    # Omnibus path overrides can be configured by env vars, but explicit task args take precedence.
+    base_dir = _resolve_omnibus_path_override(base_dir, "OMNIBUS_BASE_DIR")
+    cache_dir = _resolve_omnibus_path_override(cache_dir, "OMNIBUS_CACHE_DIR")
 
     env = get_omnibus_env(
         ctx,
@@ -422,6 +437,7 @@ def manifest(
         base_dir=base_dir,
         env=env,
         log_level=log_level,
+        cache_dir=cache_dir,
     )
 
 
@@ -485,7 +501,15 @@ def build_repackaged_agent(ctx, log_level="info"):
 
     bundle_install_omnibus(ctx, None, env)
 
-    omnibus_run_task(ctx, "build", "agent", base_dir=None, env=env, log_level=log_level)
+    omnibus_run_task(
+        ctx,
+        "build",
+        "agent",
+        base_dir=None,
+        env=env,
+        log_level=log_level,
+        cache_dir=_resolve_omnibus_path_override(None, "OMNIBUS_CACHE_DIR"),
+    )
 
 
 class DebPackageInfo(NamedTuple):
@@ -860,8 +884,8 @@ def rpath_edit(ctx, install_path, target_rpath_dd_folder, platform="linux"):
 
 @task
 def deduplicate_files(ctx, directory):
-    # Matches: .so, .so.X, .so.X.Y, .so.X.Y.Z, .bundle, .dll, .dylib, .pyd
-    LIB_PATTERN = re.compile(r"\.(bundle|dll|dylib|pyd|so(?:\.\d+)*)$")
+    # Matches: .a, .so, .so.X, .so.X.Y, .so.X.Y.Z, .bundle, .dll, .dylib, .pyd
+    LIB_PATTERN = re.compile(r"\.(a|bundle|dll|dylib|pyd|so(?:\.\d+)*)$")
 
     def hash_file(filepath):
         """Returns the SHA-256 hash of the file's contents."""

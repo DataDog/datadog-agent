@@ -19,6 +19,8 @@ import (
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsnoopimpl "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
@@ -297,6 +299,27 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 		},
 	}
 
+	if pkgconfigsetup.Datadog().GetBool("kubeactions.enabled") {
+		kubeactionsPipeline := passthroughPipelineDesc{
+			eventType:                     eventplatform.EventTypeKubeActions,
+			category:                      "Kubernetes Actions",
+			contentType:                   logshttp.JSONContentType,
+			endpointsConfigPrefix:         "kubeactions.forwarder.",
+			hostnameEndpointPrefix:        "kubeops-intake.",
+			intakeTrackType:               "kubeactions",
+			defaultBatchMaxConcurrentSend: 10,
+			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
+			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
+			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+		}
+		passthroughPipelineDescs = append(passthroughPipelineDescs, kubeactionsPipeline)
+		// TODO(kubeactions): Remove this log once EVP intake is stable
+		log.Infof("[KubeActions] EVP pipeline registered: host_prefix=%s, track_type=%s, v2_api=%v",
+			kubeactionsPipeline.hostnameEndpointPrefix,
+			kubeactionsPipeline.intakeTrackType,
+			pkgconfigsetup.Datadog().GetBool("kubeactions.forwarder.use_v2_api"))
+	}
+
 	if pkgconfigsetup.Datadog().GetBool("software_inventory.enabled") {
 		softinvPipeline := passthroughPipelineDesc{
 			eventType:                     eventplatform.EventTypeSoftwareInventory,
@@ -355,6 +378,10 @@ func Diagnose() []diagnose.Diagnosis {
 		}
 		if desc.eventType == eventTypeDoQueryResults {
 			log.Debugf("Skipping diagnosis for data-obs-intake query-actions because it does not support the empty payload")
+			continue
+		}
+		if desc.eventType == eventplatform.EventTypeKubeActions {
+			log.Debugf("Skipping diagnosis for kubeactions-intake because it does not support the empty payload")
 			continue
 		}
 		configKeys := config.NewLogsConfigKeys(desc.endpointsConfigPrefix, cfg)
@@ -515,6 +542,7 @@ func newHTTPPassthroughPipeline(
 	destinationsContext *client.DestinationsContext,
 	pipelineID int,
 	hostname string,
+	secretsComp secrets.Component,
 ) (p *passthroughPipeline, err error) {
 	configKeys := config.NewLogsConfigKeys(desc.endpointsConfigPrefix, coreConfig)
 	compressionOptions := config.EndpointCompressionOptions{
@@ -583,6 +611,7 @@ func newHTTPPassthroughPipeline(
 		sender.DefaultWorkersPerQueue,
 		endpoints.BatchMaxConcurrentSend,
 		endpoints.BatchMaxConcurrentSend,
+		secretsComp,
 	)
 
 	var encoder compressioncommon.Compressor
@@ -669,12 +698,12 @@ func joinHosts(endpoints []config.Endpoint) string {
 	return strings.Join(additionalHosts, ",")
 }
 
-func newDefaultEventPlatformForwarder(config model.Reader, eventPlatformReceiver eventplatformreceiver.Component, compression logscompression.Component, hostname string) *defaultEventPlatformForwarder {
+func newDefaultEventPlatformForwarder(config model.Reader, eventPlatformReceiver eventplatformreceiver.Component, compression logscompression.Component, hostname string, secretsComp secrets.Component) *defaultEventPlatformForwarder {
 	destinationsCtx := client.NewDestinationsContext()
 	destinationsCtx.Start()
 	pipelines := make(map[string]*passthroughPipeline)
 	for i, desc := range getPassthroughPipelines() {
-		p, err := newHTTPPassthroughPipeline(config, eventPlatformReceiver, compression, desc, destinationsCtx, i, hostname)
+		p, err := newHTTPPassthroughPipeline(config, eventPlatformReceiver, compression, desc, destinationsCtx, i, hostname, secretsComp)
 		if err != nil {
 			log.Errorf("Failed to initialize event platform forwarder pipeline. eventType=%s, error=%s", desc.eventType, err.Error())
 			continue
@@ -695,6 +724,7 @@ type dependencies struct {
 	EventPlatformReceiver eventplatformreceiver.Component
 	Hostname              hostnameinterface.Component
 	Compression           logscompression.Component
+	Secrets               secrets.Component
 }
 
 // newEventPlatformForwarder creates a new EventPlatformForwarder
@@ -705,7 +735,7 @@ func newEventPlatformForwarder(deps dependencies) eventplatform.Component {
 		forwarder = newNoopEventPlatformForwarder(deps.Hostname, deps.Compression)
 	} else if deps.Params.UseEventPlatformForwarder {
 		hostnameStr := deps.Hostname.GetSafe(context.Background())
-		forwarder = newDefaultEventPlatformForwarder(deps.Config, deps.EventPlatformReceiver, deps.Compression, hostnameStr)
+		forwarder = newDefaultEventPlatformForwarder(deps.Config, deps.EventPlatformReceiver, deps.Compression, hostnameStr, deps.Secrets)
 	}
 	if forwarder == nil {
 		return option.NonePtr[eventplatform.Forwarder]()
@@ -731,7 +761,7 @@ func NewNoopEventPlatformForwarder(hostname hostnameinterface.Component, compres
 
 func newNoopEventPlatformForwarder(hostname hostnameinterface.Component, compression logscompression.Component) *defaultEventPlatformForwarder {
 	hostnameStr := hostname.GetSafe(context.Background())
-	f := newDefaultEventPlatformForwarder(pkgconfigsetup.Datadog(), eventplatformreceiverimpl.NewReceiver(hostname).Comp, compression, hostnameStr)
+	f := newDefaultEventPlatformForwarder(pkgconfigsetup.Datadog(), eventplatformreceiverimpl.NewReceiver(hostname).Comp, compression, hostnameStr, secretsnoopimpl.NewComponent().Comp)
 	// remove the senders
 	for _, p := range f.pipelines {
 		p.strategy = nil

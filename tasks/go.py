@@ -35,10 +35,12 @@ GOOS_MAPPING = {
     "win32": "windows",
     "linux": "linux",
     "darwin": "darwin",
+    "aix": "aix",
 }
 GOARCH_MAPPING = {
     "x64": "amd64",
     "arm64": "arm64",
+    "ppc64": "ppc64",
 }
 
 
@@ -398,7 +400,7 @@ def version(_):
 @task
 def check_go_version(ctx):
     go_version_output = ctx.run('go version')
-    # result is like "go version go1.25.8 linux/amd64"
+    # result is like "go version go1.25.9 linux/amd64"
     running_go_version = go_version_output.stdout.split(' ')[2]
 
     with open(".go-version") as f:

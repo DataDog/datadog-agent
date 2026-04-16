@@ -18,11 +18,11 @@ import (
 	"sync"
 	"time"
 
-	dimage "github.com/docker/docker/api/types/image"
-	"github.com/docker/docker/client"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/tarball"
 	dockerspec "github.com/moby/docker-image-spec/specs-go/v1"
+	dimage "github.com/moby/moby/api/types/image"
+	"github.com/moby/moby/client"
 	"github.com/samber/lo"
 
 	"github.com/DataDog/datadog-agent/pkg/sbom/telemetry"
@@ -32,7 +32,7 @@ var mu sync.Mutex
 
 type opener func() (v1.Image, error)
 
-type imageSave func(context.Context, []string, ...client.ImageSaveOption) (io.ReadCloser, error)
+type imageSave func(context.Context, []string, ...client.ImageSaveOption) (client.ImageSaveResult, error)
 
 func imageOpener(ctx context.Context, collector, ref string, f *os.File, imageSave imageSave) opener {
 	return func() (v1.Image, error) {
@@ -117,17 +117,20 @@ func (img *image) ConfigFile() (*v1.ConfigFile, error) {
 		return nil, fmt.Errorf("unable to get diff IDs: %w", err)
 	}
 
-	created, err := time.Parse(time.RFC3339Nano, img.inspect.Created)
-	if err != nil {
-		return nil, fmt.Errorf("failed parsing created %s: %w", img.inspect.Created, err)
+	var created time.Time
+	if img.inspect.Created != "" {
+		var err error
+		created, err = time.Parse(time.RFC3339Nano, img.inspect.Created)
+		if err != nil {
+			return nil, fmt.Errorf("failed parsing created %s: %w", img.inspect.Created, err)
+		}
 	}
 
 	return &v1.ConfigFile{
-		Architecture: img.inspect.Architecture,
-		Author:       img.inspect.Author,
-		Created:      v1.Time{Time: created},
-		//nolint:staticcheck // SA1019 keep for backwards compatibility, to be removed in the next Docker release
-		DockerVersion: img.inspect.DockerVersion,
+		Architecture:  img.inspect.Architecture,
+		Author:        img.inspect.Author,
+		Created:       v1.Time{Time: created},
+		DockerVersion: "", // DockerVersion was removed from image.InspectResponse in Docker SDK v29
 		Config:        img.imageConfig(img.inspect.Config),
 		History:       img.history,
 		OS:            img.inspect.Os,

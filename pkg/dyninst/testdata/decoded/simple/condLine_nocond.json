@@ -18,7 +18,7 @@
           {
             "function": "main.condLine",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 381
+            "lineNumber": 441
           },
           {
             "function": "main.main",
@@ -41,12 +41,12 @@
           "location": {
             "method": "main.condLine",
             "file": "main.go",
-            "line": 381
+            "line": 441
           }
         },
         "captures": {
           "lines": {
-            "381": {
+            "441": {
               "locals": {
                 "n": {
                   "type": "int",
@@ -85,7 +85,7 @@
           {
             "function": "main.condLine",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 381
+            "lineNumber": 441
           },
           {
             "function": "main.main",
@@ -108,12 +108,12 @@
           "location": {
             "method": "main.condLine",
             "file": "main.go",
-            "line": 381
+            "line": 441
           }
         },
         "captures": {
           "lines": {
-            "381": {
+            "441": {
               "locals": {
                 "n": {
                   "type": "int",

@@ -17,11 +17,11 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
-	sbomapi "github.com/DataDog/datadog-agent/pkg/proto/pbgo/sbom"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
@@ -31,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	rulesmodule "github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/telemetry"
@@ -48,9 +47,50 @@ const (
 	selftestPassedDelay = 60 * time.Minute
 )
 
+// CommandServer is the gRPC server for the module command API
+type CommandServer struct {
+	started       bool
+	grpcCmdServer *grpcutils.Server
+}
+
+// Start starts the command server
+func (c *CommandServer) Start() error {
+	if c.started {
+		return nil
+	}
+
+	if err := c.grpcCmdServer.Start(); err != nil {
+		return err
+	}
+
+	c.started = true
+	return nil
+}
+
+// Stop stops the command server
+func (c *CommandServer) Stop() {
+	c.grpcCmdServer.Stop()
+	c.started = false
+}
+
+// NewCommandServer initializes the gRPC server for the module command API
+func NewCommandServer(cfg *config.RuntimeSecurityConfig) (*CommandServer, error) {
+	cmdSocketPath, err := common.GetCmdSocketPath(cfg.SocketPath, cfg.CmdSocketPath)
+	if err != nil {
+		return nil, err
+	}
+
+	family, socketPath := socket.GetSocketAddress(cmdSocketPath)
+
+	return &CommandServer{
+		grpcCmdServer: grpcutils.NewServer(family, socketPath),
+	}, nil
+}
+
 // CWSConsumer represents the system-probe module for the runtime security agent
 type CWSConsumer struct {
 	sync.RWMutex
+
 	config       *config.RuntimeSecurityConfig
 	probe        *probe.Probe
 	statsdClient statsd.ClientInterface
@@ -60,11 +100,11 @@ type CWSConsumer struct {
 	ctx             context.Context
 	cancelFnc       context.CancelFunc
 	apiServer       *APIServer
+	cmdServer       *CommandServer
+	grpcEventServer *grpcutils.Server
 	rateLimiter     *events.RateLimiter
 	sendStatsChan   chan chan bool
 	eventSender     events.EventSender
-	grpcCmdServer   *grpcutils.Server
-	grpcEventServer *grpcutils.Server
 	ruleEngine      *rulesmodule.RuleEngine
 	selfTester      *selftests.SelfTester
 	selfTestCount   int
@@ -74,7 +114,7 @@ type CWSConsumer struct {
 }
 
 // NewCWSConsumer initializes the module with options
-func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityConfig, wmeta workloadmeta.Component, filterStore workloadfilter.Component, opts Opts, compression compression.Component, ipc ipc.Component, hostname string) (*CWSConsumer, error) {
+func NewCWSConsumer(cmdServer *CommandServer, evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityConfig, wmeta workloadmeta.Component, filterStore workloadfilter.Component, opts Opts, compression compression.Component, ipc ipc.Component, hostname string, secretsComp secrets.Component) (*CWSConsumer, error) {
 	crtelemcfg := telemetry.ContainersRunningTelemetryConfig{
 		RuntimeEnabled: cfg.RuntimeEnabled,
 		FIMEnabled:     cfg.FIMEnabled,
@@ -101,13 +141,8 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 		}
 	}
 
-	cmdSocketPath, err := common.GetCmdSocketPath(cfg.SocketPath, cfg.CmdSocketPath)
-	if err != nil {
-		return nil, err
-	}
-
-	family, socketPath := socket.GetSocketAddress(cmdSocketPath)
-	apiServer, err := NewAPIServer(cfg, evm.Probe, opts.MsgSender, evm.StatsdClient, selfTester, compression, hostname)
+	stopChan := make(chan struct{})
+	apiServer, err := NewAPIServer(cfg, evm.Probe, opts.MsgSender, evm.StatsdClient, selfTester, compression, hostname, stopChan, secretsComp, filterStore)
 	if err != nil {
 		return nil, err
 	}
@@ -122,9 +157,9 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 		ctx:           ctx,
 		cancelFnc:     cancelFnc,
 		apiServer:     apiServer,
+		cmdServer:     cmdServer,
 		rateLimiter:   events.NewRateLimiter(cfg, evm.StatsdClient),
 		sendStatsChan: make(chan chan bool, 1),
-		grpcCmdServer: grpcutils.NewServer(family, socketPath),
 		selfTester:    selfTester,
 		reloader:      NewReloader(),
 		crtelemetry:   crtelemetry,
@@ -155,7 +190,7 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 		c.ruleEngine.AddPolicyProvider(c.selfTester)
 	}
 
-	if err := evm.Probe.AddCustomEventHandler(model.UnknownEventType, c); err != nil {
+	if err := evm.Probe.AddCustomEventHandler(c); err != nil {
 		return nil, err
 	}
 
@@ -164,7 +199,8 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 
 	// setup gRPC servers
 	seclog.Debugf("Registering API server")
-	api.RegisterSecurityModuleCmdServer(c.grpcCmdServer.ServiceRegistrar(), c.apiServer)
+	api.RegisterSecurityModuleCmdServer(c.cmdServer.grpcCmdServer.ServiceRegistrar(), c.apiServer)
+
 	if cfg.EventGRPCServer != "security-agent" {
 		seclog.Infof("start security module event grpc server with %s", cfg.SocketPath)
 
@@ -173,9 +209,6 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 
 		api.RegisterSecurityModuleEventServer(c.grpcEventServer.ServiceRegistrar(), c.apiServer)
 	}
-
-	seclog.Debugf("Registering SBOM collector server")
-	sbomapi.RegisterSBOMCollectorServer(c.grpcCmdServer.ServiceRegistrar(), c.apiServer)
 
 	// platform specific initialization
 	if err := c.init(evm, cfg, opts); err != nil {
@@ -206,7 +239,7 @@ func (c *CWSConsumer) ID() string {
 
 // Start the module
 func (c *CWSConsumer) Start() error {
-	if err := c.grpcCmdServer.Start(); err != nil {
+	if err := c.cmdServer.Start(); err != nil {
 		return err
 	}
 
@@ -346,7 +379,7 @@ func (c *CWSConsumer) Stop() {
 		c.apiServer.Stop()
 	}
 
-	c.grpcCmdServer.Stop()
+	c.cmdServer.Stop()
 	if c.grpcEventServer != nil {
 		c.grpcEventServer.Stop()
 	}

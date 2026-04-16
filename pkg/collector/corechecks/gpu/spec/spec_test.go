@@ -8,6 +8,7 @@
 package spec
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -55,71 +56,130 @@ func TestMockCapabilitiesMatchArchitectureSpec(t *testing.T) {
 	archSpecFile, err := LoadArchitecturesSpec()
 	require.NoError(t, err)
 
-	deviceModes := []DeviceMode{
-		DeviceModePhysical,
-		DeviceModeMIG,
-		DeviceModeVGPU,
-	}
+	configs := KnownGPUConfigs(archSpecFile)
+	for _, config := range configs {
+		subtestName := fmt.Sprintf("arch=%s/mode=%s", config.Architecture, config.DeviceMode)
+		t.Run(subtestName, func(t *testing.T) {
+			archSpec := archSpecFile.Architectures[config.Architecture]
+			opts := BuildMockOptionsForConfig(t, config, archSpec)
 
-	for archName, archSpec := range archSpecFile.Architectures {
-		for _, mode := range deviceModes {
-			if !IsModeSupportedByArchitecture(archSpec, mode) {
-				continue
+			ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(opts...))
+
+			lib, err := ddnvml.GetSafeNvmlLib()
+			require.NoError(t, err, "should be able to get NVML lib")
+			dev, err := lib.DeviceGetHandleByIndex(0)
+			require.NoError(t, err, "should be able to get device 0")
+
+			// gpm -> GpmQueryDeviceSupport(): IsSupportedDevice 1 when enabled, 0 when disabled
+			support, err := dev.GpmQueryDeviceSupport()
+			require.NoError(t, err, "GpmQueryDeviceSupport should not report an error")
+			expected := uint32(0)
+			if archSpec.Capabilities.GPM {
+				expected = 1
+			}
+			if config.DeviceMode == DeviceModeVGPU {
+				// Mocks model vGPU as not supporting GPM collection even on architectures
+				// where physical devices support GPM.
+				expected = 0
+			}
+			assert.Equal(t, expected, support.IsSupportedDevice, "GpmQueryDeviceSupport.IsSupportedDevice should be %d when gpm=%v", expected, archSpec.Capabilities.GPM)
+
+			// Check also that GpmSampleGet returns NOT_SUPPORTED when GPM is not supported
+			var sample testutil.MockGpmSample
+			err = dev.GpmSampleGet(sample)
+			if archSpec.Capabilities.GPM && config.DeviceMode != DeviceModeVGPU {
+				require.NoError(t, err, "GpmSampleGet should not return an error")
+			} else {
+				require.Error(t, err, "GpmSampleGet should return an error")
+				require.True(t, ddnvml.IsUnsupported(err), "GpmSampleGet should return an API_UNSUPPORTED_ON_DEVICE error")
 			}
 
-			subtestName := "arch=" + archName + "/mode=" + string(mode)
-			t.Run(subtestName, func(t *testing.T) {
-				opts := BuildMockOptionsForArchAndMode(t, archName, mode, archSpec)
+			unsupportedIDs := UnsupportedFieldIDsForMode(t, archSpec, config.DeviceMode)
+			unsupportedSet := make(map[uint32]struct{}, len(unsupportedIDs))
+			for _, id := range unsupportedIDs {
+				unsupportedSet[id] = struct{}{}
+			}
 
-				ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(opts...))
-
-				lib, err := ddnvml.GetSafeNvmlLib()
-				require.NoError(t, err, "should be able to get NVML lib", archName, mode)
-				dev, err := lib.DeviceGetHandleByIndex(0)
-				require.NoError(t, err, "should be able to get device 0", archName, mode)
-
-				// gpm -> GpmQueryDeviceSupport(): IsSupportedDevice 1 when enabled, 0 when disabled
-				support, err := dev.GpmQueryDeviceSupport()
-				require.NoError(t, err, "GpmQueryDeviceSupport should not report an error")
-				expected := uint32(0)
-				if archSpec.Capabilities.GPM {
-					expected = 1
-				}
-				if mode == DeviceModeVGPU {
-					// Mocks model vGPU as not supporting GPM collection even on architectures
-					// where physical devices support GPM.
-					expected = 0
-				}
-				assert.Equal(t, expected, support.IsSupportedDevice, "GpmQueryDeviceSupport.IsSupportedDevice should be %d when gpm=%v", expected, archSpec.Capabilities.GPM)
-
-				// Check also that GpmSampleGet returns NOT_SUPPORTED when GPM is not supported
-				var sample testutil.MockGpmSample
-				err = dev.GpmSampleGet(sample)
-				if archSpec.Capabilities.GPM && mode != DeviceModeVGPU {
-					require.NoError(t, err, "GpmSampleGet should not return an error")
+			fieldValues := AllConfiguredNVMLFieldValues()
+			err = dev.GetFieldValues(fieldValues)
+			require.NoError(t, err, "GetFieldValues should not return an error")
+			for _, fv := range fieldValues {
+				_, isUnsupported := unsupportedSet[fv.FieldId]
+				if isUnsupported {
+					require.Equal(t, uint32(nvml.ERROR_NOT_SUPPORTED), fv.NvmlReturn, "field id %d should be unsupported", fv.FieldId)
 				} else {
-					require.Error(t, err, "GpmSampleGet should return an error")
-					require.True(t, ddnvml.IsUnsupported(err), "GpmSampleGet should return an API_UNSUPPORTED_ON_DEVICE error")
+					require.Equal(t, uint32(nvml.SUCCESS), fv.NvmlReturn, "field id %d should be supported", fv.FieldId)
 				}
+			}
+		})
+	}
+}
 
-				unsupportedIDs := UnsupportedFieldIDsForMode(t, archSpec, mode)
-				unsupportedSet := make(map[uint32]struct{}, len(unsupportedIDs))
-				for _, id := range unsupportedIDs {
-					unsupportedSet[id] = struct{}{}
-				}
+func TestBuildMockOptionsCreatesCorrectDevices(t *testing.T) {
+	modes := []DeviceMode{DeviceModePhysical, DeviceModeMIG, DeviceModeVGPU}
+	archSpec, err := LoadArchitecturesSpec()
+	require.NoError(t, err)
+	archName := "blackwell"
+	require.Contains(t, archSpec.Architectures, archName)
+	arch := archSpec.Architectures[archName]
 
-				fieldValues := AllConfiguredNVMLFieldValues()
-				err = dev.GetFieldValues(fieldValues)
-				require.NoError(t, err, "GetFieldValues should not return an error")
-				for _, fv := range fieldValues {
-					_, isUnsupported := unsupportedSet[fv.FieldId]
-					if isUnsupported {
-						require.Equal(t, uint32(nvml.ERROR_NOT_SUPPORTED), fv.NvmlReturn, "field id %d should be unsupported", fv.FieldId)
+	for _, mode := range modes {
+		require.True(t, IsModeSupportedByArchitecture(arch, mode))
+
+		t.Run(string(mode), func(t *testing.T) {
+			config := GPUConfig{Architecture: archName, DeviceMode: mode}
+			opts := BuildMockOptionsForConfig(t, config, arch)
+			ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(opts...))
+
+			lib, err := ddnvml.GetSafeNvmlLib()
+			require.NoError(t, err, "should be able to get NVML lib")
+
+			count, err := lib.DeviceGetCount()
+			require.NoError(t, err, "should be able to get device count")
+			assert.Equal(t, 1, count, "should be 1 device for physical and vgpu modes")
+
+			for i := 0; i < count; i++ {
+				dev, err := lib.DeviceGetHandleByIndex(i)
+				require.NoError(t, err, "should be able to get device %d", i)
+
+				isMig, err := dev.IsMigDeviceHandle()
+				require.NoError(t, err, "should be able to check if device is a MIG device")
+				assert.False(t, isMig, "top-level devices should not be MIG devices")
+
+				virtMode, err := dev.GetVirtualizationMode()
+				require.NoError(t, err, "should be able to get virtualization mode")
+
+				migEnabled, _, err := dev.GetMigMode()
+				require.NoError(t, err, "should be able to get MIG mode")
+
+				if mode != DeviceModeMIG {
+					assert.False(t, isMig, "device %d should not be a MIG device", i)
+					if mode == DeviceModeVGPU {
+						assert.Equal(t, nvml.GPU_VIRTUALIZATION_MODE_VGPU, virtMode, "virtualization mode should be vGPU for vgpu mode")
 					} else {
-						require.Equal(t, uint32(nvml.SUCCESS), fv.NvmlReturn, "field id %d should be supported", fv.FieldId)
+						assert.Equal(t, nvml.GPU_VIRTUALIZATION_MODE_NONE, virtMode, "virtualization mode should be none for physical device")
+					}
+				} else {
+					assert.Equal(t, nvml.DEVICE_MIG_ENABLE, migEnabled, "MIG mode should be enabled on the parent GPU")
+					migChildrenCount, err := dev.GetMaxMigDeviceCount()
+					require.NoError(t, err, "should be able to get MIG children count")
+					assert.Equal(t, 1, migChildrenCount, "should have 1 MIG child for mig mode")
+
+					for j := 0; j < migChildrenCount; j++ {
+						migChild, err := dev.GetMigDeviceHandleByIndex(j)
+						require.NoError(t, err, "should be able to get MIG child %d", j)
+
+						migChildIsMig, err := migChild.IsMigDeviceHandle()
+						require.NoError(t, err, "should be able to check if MIG child is a MIG device")
+						assert.True(t, migChildIsMig, "MIG child %d should be a MIG device", j)
+
+						migChildVirtMode, err := migChild.GetVirtualizationMode()
+						require.NoError(t, err, "should be able to get virtualization mode for MIG child")
+						assert.Equal(t, nvml.GPU_VIRTUALIZATION_MODE_NONE, migChildVirtMode, "virtualization mode should be none for MIG child")
 					}
 				}
-			})
-		}
+
+			}
+		})
 	}
 }

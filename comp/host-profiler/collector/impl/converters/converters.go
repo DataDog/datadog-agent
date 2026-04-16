@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux
-
 // Package converters implements OTEL collector configuration converters for the host profiler.
 //
 // Converters normalize user-provided OTEL collector configs by adding required Datadog-specific
@@ -34,7 +32,7 @@ type confMap = map[string]any
 const (
 	componentTypeInfraAttributes   = "infraattributes"
 	componentTypeResourceDetection = "resourcedetection"
-	componentTypeHostProfiler      = "hostprofiler"
+	componentTypeProfiling         = "profiling"
 	componentTypeOtlpHTTP          = "otlphttp"
 	componentTypeDDProfiling       = "ddprofiling"
 	componentTypeHPFlare           = "hpflare"
@@ -44,7 +42,7 @@ const (
 const (
 	defaultInfraAttributesName   = "infraattributes/default"
 	defaultResourceDetectionName = "resourcedetection/default"
-	defaultHostProfilerName      = "hostprofiler"
+	defaultProfilingName         = "profiling"
 )
 
 // Reserved component names for internal metrics pipeline
@@ -63,12 +61,11 @@ const (
 
 // Configuration field names used multiple times
 const (
-	fieldAllowHostnameOverride = "allow_hostname_override"
-	fieldDDAPIKey              = "dd-api-key"
-	fieldDDEVPOrigin           = "dd-evp-origin"
-	fieldDDEVPOriginVersion    = "dd-evp-origin-version"
-	fieldAPIKey                = "api_key"
-	fieldAppKey                = "app_key"
+	fieldDDAPIKey           = "dd-api-key"
+	fieldDDEVPOrigin        = "dd-evp-origin"
+	fieldDDEVPOriginVersion = "dd-evp-origin-version"
+	fieldAPIKey             = "api_key"
+	fieldAppKey             = "app_key"
 )
 
 // OTEL config path prefixes
@@ -80,7 +77,7 @@ const (
 
 // isComponentType checks if a component name matches a specific type.
 // OTEL components follow the naming convention: "type" or "type/id"
-// Examples: "otlphttp", "otlphttp/prod", "hostprofiler/custom"
+// Examples: "otlphttp", "otlphttp/prod", "profiling/custom"
 func isComponentType(name, componentType string) bool {
 	return name == componentType || strings.HasPrefix(name, componentType+"/")
 }
@@ -298,8 +295,13 @@ func inferMetricsEndpoint(profilesEndpoint string) (string, error) {
 }
 
 // PrometheusReceiverConfig returns the default configuration for the internal prometheus receiver
-// that scrapes OTel collector's internal telemetry metrics.
+// that scrapes OTel collector's internal telemetry metrics from 127.0.0.1:8889.
 func PrometheusReceiverConfig() map[string]any {
+	return PrometheusReceiverConfigWithTarget("127.0.0.1:8889")
+}
+
+// PrometheusReceiverConfigWithTarget returns a prometheus receiver config that scrapes the given target.
+func PrometheusReceiverConfigWithTarget(target string) map[string]any {
 	return confMap{
 		"config": confMap{
 			"scrape_configs": []any{
@@ -312,7 +314,7 @@ func PrometheusReceiverConfig() map[string]any {
 					"fallback_scrape_protocol":      "PrometheusText0.0.4",
 					"static_configs": []any{
 						confMap{
-							"targets": []any{"127.0.0.1:8888"},
+							"targets": []any{target},
 						},
 					},
 				},

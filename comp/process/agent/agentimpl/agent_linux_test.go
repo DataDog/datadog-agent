@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux
+//go:build linux && test
 
 package agentimpl
 
@@ -27,10 +27,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	statsdimpl "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/impl"
 	"github.com/DataDog/datadog-agent/comp/process/agent"
-	"github.com/DataDog/datadog-agent/comp/process/hostinfo/hostinfoimpl"
-	"github.com/DataDog/datadog-agent/comp/process/processcheck/processcheckimpl"
+	hostinfomock "github.com/DataDog/datadog-agent/comp/process/hostinfo/mock"
+	processcheckimpl "github.com/DataDog/datadog-agent/comp/process/processcheck/impl"
 	"github.com/DataDog/datadog-agent/comp/process/runner/runnerimpl"
-	"github.com/DataDog/datadog-agent/comp/process/submitter/submitterimpl"
+	submittermock "github.com/DataDog/datadog-agent/comp/process/submitter/mock"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	checkMocks "github.com/DataDog/datadog-agent/pkg/process/checks/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -99,8 +99,8 @@ func TestProcessAgentComponentOnLinux(t *testing.T) {
 
 			opts := []fx.Option{
 				runnerimpl.Module(),
-				hostinfoimpl.MockModule(),
-				submitterimpl.MockModule(),
+				hostinfomock.MockModule(),
+				submittermock.MockModule(),
 				statsdimpl.MockModule(),
 				fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 				fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
@@ -113,7 +113,7 @@ func TestProcessAgentComponentOnLinux(t *testing.T) {
 			}
 
 			if tc.checksEnabled {
-				opts = append(opts, processcheckimpl.MockModule())
+				opts = append(opts, fx.Provide(processcheckimpl.NewMock))
 				opts = append(opts, fx.Provide(func() func(c *checkMocks.Check) {
 					return func(c *checkMocks.Check) {
 						c.On("Init", mock.Anything, mock.Anything, mock.AnythingOfType("bool")).Return(nil).Maybe()
@@ -164,11 +164,11 @@ func TestStatusProvider(t *testing.T) {
 
 			deps := fxutil.Test[dependencies](t, fx.Options(
 				runnerimpl.Module(),
-				hostinfoimpl.MockModule(),
-				submitterimpl.MockModule(),
+				hostinfomock.MockModule(),
+				submittermock.MockModule(),
 				statsdimpl.MockModule(),
 				Module(),
-				processcheckimpl.MockModule(),
+				fx.Provide(processcheckimpl.NewMock),
 				fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 				fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 				fx.Provide(func() configComp.Component {
@@ -211,11 +211,11 @@ func TestTelemetryCoreAgent(t *testing.T) {
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		runnerimpl.Module(),
-		hostinfoimpl.MockModule(),
-		submitterimpl.MockModule(),
+		hostinfomock.MockModule(),
+		submittermock.MockModule(),
 		statsdimpl.MockModule(),
 		Module(),
-		processcheckimpl.MockModule(),
+		fx.Provide(processcheckimpl.NewMock),
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 		fx.Provide(func() configComp.Component {
