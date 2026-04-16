@@ -9,11 +9,85 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import NamedTuple
 
 from invoke import Exit
 from invoke.context import Context
 
 from tasks.libs.common.color import color_message
+
+
+class LabelParts(NamedTuple):
+    """Component parts of a Bazel label."""
+
+    repo: str | None
+    package: str
+    name: str | None
+
+
+def split_label(label: str) -> LabelParts:
+    """Split a Bazel label into its component parts.
+
+    The canonical format is ``@@repo//package/path:name``, where the repo
+    prefix is optional and may carry one or two leading ``@`` characters.
+
+    Returns a :class:`LabelParts` namedtuple with:
+    - ``repo``: the repository name, or ``None`` when absent (main workspace).
+    - ``package``: the package path (empty string ``""`` for root labels such
+      as ``//:foo``).
+    - ``name``: the target name after ``:``, or ``None`` when omitted.
+    """
+    repo = None
+
+    if label.startswith('@'):
+        # Strip one or two leading '@' characters to reach "repo//…"
+        rest = label.lstrip('@')
+        slash_idx = rest.find('//')
+        if slash_idx >= 0:
+            repo_part = rest[:slash_idx]
+            # Empty repo part (e.g. "@//" or "@@//") means the main workspace
+            repo = repo_part if repo_part else None
+            label = rest[slash_idx:]
+
+    # label is now "//package:name" or "//package"
+    if label.startswith('//'):
+        label = label[2:]
+
+    colon_idx = label.find(':')
+    if colon_idx >= 0:
+        package = label[:colon_idx]
+        name = label[colon_idx + 1:]
+    else:
+        package = label
+        name = None
+
+    return LabelParts(repo=repo, package=package, name=name)
+
+
+def package_from_path(path: str) -> str:
+    """Return the Bazel package string corresponding to a filesystem path.
+
+    - Relative paths are normalised: backslashes become forward slashes and
+      any leading ``./`` is removed.
+    - Absolute paths are made relative to the workspace root.
+
+    Forward slashes are always used in the result, regardless of OS.
+    """
+    from tasks.libs.common.utils import get_repo_root  # avoid top-level circular import risk
+
+    # Normalise backslashes to forward slashes before constructing Path so
+    # that Windows-style separators are treated as directory separators on all
+    # platforms (on POSIX, Path does not interpret '\' as a separator).
+    normalised = path.replace('\\', '/')
+    p = Path(normalised)
+    if p.is_absolute():
+        p = p.relative_to(get_repo_root())
+
+    result = p.as_posix()
+    # Path('.') represents "current directory" (i.e. the root package)
+    if result == '.':
+        return ''
+    return result
 
 
 def bazel_not_found_message(color: str) -> str:
