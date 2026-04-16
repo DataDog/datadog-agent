@@ -10,6 +10,7 @@ package nginx
 
 import (
 	"context"
+	"fmt"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -30,7 +31,7 @@ var ingressClassGVR = schema.GroupVersionResource{
 func Detect(ctx context.Context, client dynamic.Interface) (bool, error) {
 	list, err := client.Resource(ingressClassGVR).List(ctx, metav1.ListOptions{})
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("failed to list IngressClasses for ingress-nginx detection: %w", err)
 	}
 
 	for _, item := range list.Items {

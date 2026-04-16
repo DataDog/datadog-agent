@@ -10,6 +10,7 @@ package nginx
 import (
 	"context"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
@@ -23,10 +24,9 @@ import (
 )
 
 const (
-	initContainerName      = "datadog-appsec-nginx-init"
-	moduleVolumeName       = "datadog-appsec-nginx-modules"
-	defaultModuleMountPath = "/modules_mount"
-	configmapArgPrefix     = "--configmap="
+	initContainerName  = "datadog-appsec-nginx-init"
+	moduleVolumeName   = "datadog-appsec-nginx-modules"
+	configmapArgPrefix = "--configmap="
 
 	labelNameKey        = "app.kubernetes.io/name"
 	labelNameValue      = "ingress-nginx"
@@ -69,11 +69,12 @@ func (n *nginxSidecarPattern) IsNamespaceEligible(string) bool {
 // 1. Adding an init container that copies the .so module
 // 2. Adding an emptyDir volume for module sharing
 // 3. Redirecting the --configmap arg to a DD-owned ConfigMap
-func (n *nginxSidecarPattern) MutatePod(pod *corev1.Pod, ns string, dc dynamic.Interface) (bool, error) {
-	// Find the controller container with --configmap arg
-	containerIdx, argIdx, cmNamespace, cmName, err := findControllerConfigMapArg(pod, ns)
-	if err != nil {
-		return false, fmt.Errorf("failed to find controller configmap arg: %w", err)
+func (n *nginxSidecarPattern) MutatePod(pod *corev1.Pod, ns string, client dynamic.Interface) (bool, error) {
+	// Find the controller container with --configmap arg (or note it's absent)
+	containerIdx, argIdx, cmNamespace, cmName, found := findControllerConfigMapArg(pod, ns)
+	if !found {
+		cmName = "ingress-nginx-controller"
+		cmNamespace = ns
 	}
 
 	// Parse version from controller image
@@ -85,22 +86,22 @@ func (n *nginxSidecarPattern) MutatePod(pod *corev1.Pod, ns string, dc dynamic.I
 	}
 
 	moduleMountPath := n.config.Nginx.ModuleMountPath
-	if moduleMountPath == "" {
-		moduleMountPath = defaultModuleMountPath
-	}
 
-	// Create or update DD-owned ConfigMap with proxy-type label for label-based cleanup
-	ddLabels := map[string]string{
-		"app.kubernetes.io/component":                   "datadog-appsec-injector",
-		"app.kubernetes.io/part-of":                     "datadog",
-		"app.kubernetes.io/managed-by":                  "datadog-cluster-agent",
-		appsecconfig.AppsecProcessorProxyTypeAnnotation: string(appsecconfig.ProxyTypeIngressNginx),
-	}
+	// Use common labels and add proxy-type for label-based cleanup filtering
+	ddLabels := make(map[string]string, len(n.config.CommonLabels)+1)
+	maps.Copy(ddLabels, n.config.CommonLabels)
+	ddLabels[appsecconfig.AppsecProcessorProxyTypeAnnotation] = string(appsecconfig.ProxyTypeIngressNginx)
 	ddCMName := ddConfigMapName(cmName)
-	if err := createOrUpdateDDConfigMap(context.TODO(), dc, cmNamespace, cmName, moduleMountPath, ddLabels, n.config.CommonAnnotations); err != nil {
+	// context.Background: MutatePod interface does not provide a context.
+	// The admission webhook timeout still bounds the overall request.
+	if err := createOrUpdateDDConfigMap(context.Background(), client, cmNamespace, cmName, moduleMountPath, ddLabels, n.config.CommonAnnotations); err != nil {
+		// IngressClass name is not available during pod mutation; empty name is
+		// acceptable because the event message contains the ConfigMap name.
 		n.eventRecorder.recordConfigMapCreateFailed("", err)
 		return false, fmt.Errorf("failed to create/update DD ConfigMap: %w", err)
 	}
+	// IngressClass name is not available during pod mutation; empty name is
+	// acceptable because the event message contains the ConfigMap name.
 	n.eventRecorder.recordConfigMapCreated("", ddCMName)
 	n.logger.Infof("Created/updated DD ConfigMap %s/%s", cmNamespace, ddCMName)
 
@@ -113,11 +114,7 @@ func (n *nginxSidecarPattern) MutatePod(pod *corev1.Pod, ns string, dc dynamic.I
 	})
 
 	// Add init container that copies the .so module
-	initImage := n.config.Nginx.InitImage
-	if initImage == "" {
-		initImage = "datadog/ingress-nginx-injection"
-	}
-	pod.Spec.InitContainers = append(pod.Spec.InitContainers, buildInitContainer(initImage, version, moduleMountPath))
+	pod.Spec.InitContainers = append(pod.Spec.InitContainers, buildInitContainer(n.config.Nginx.InitImage, version, moduleMountPath))
 
 	// Add volume mount to controller container
 	container.VolumeMounts = append(container.VolumeMounts, corev1.VolumeMount{
@@ -125,8 +122,12 @@ func (n *nginxSidecarPattern) MutatePod(pod *corev1.Pod, ns string, dc dynamic.I
 		MountPath: moduleMountPath,
 	})
 
-	// Redirect --configmap arg to DD-owned ConfigMap
-	container.Args[argIdx] = configmapArgPrefix + cmNamespace + "/" + ddCMName
+	// Redirect --configmap arg to DD-owned ConfigMap (or add it if absent)
+	if found {
+		container.Args[argIdx] = fmt.Sprintf("%s%s/%s", configmapArgPrefix, cmNamespace, ddCMName)
+	} else {
+		container.Args = append(container.Args, fmt.Sprintf("%s%s/%s", configmapArgPrefix, cmNamespace, ddCMName))
+	}
 
 	n.logger.Infof("Injected nginx-datadog module into pod %s (version %s)", mutatecommon.PodString(pod), version)
 
@@ -156,25 +157,27 @@ func (n *nginxSidecarPattern) Added(ctx context.Context, obj *unstructured.Unstr
 
 // findControllerConfigMapArg finds the controller container and its --configmap arg,
 // resolving $(POD_NAMESPACE) to the actual pod namespace.
-func findControllerConfigMapArg(pod *corev1.Pod, podNamespace string) (containerIdx, argIdx int, cmNamespace, cmName string, err error) {
+// If the arg is not found, found is false and containerIdx 0 / argIdx -1 are returned
+// so the caller can append the arg to the first container instead.
+func findControllerConfigMapArg(pod *corev1.Pod, podNamespace string) (containerIdx, argIdx int, cmNamespace, cmName string, found bool) {
 	for ci, c := range pod.Spec.Containers {
 		for ai, arg := range c.Args {
-			if strings.HasPrefix(arg, configmapArgPrefix) {
-				value := strings.TrimPrefix(arg, configmapArgPrefix)
-				parts := strings.SplitN(value, "/", 2)
-				if len(parts) != 2 {
-					continue
-				}
-				ns := parts[0]
-				// Resolve $(POD_NAMESPACE) to the actual namespace
-				if ns == "$(POD_NAMESPACE)" {
-					ns = podNamespace
-				}
-				return ci, ai, ns, parts[1], nil
+			value, ok := strings.CutPrefix(arg, configmapArgPrefix)
+			if !ok {
+				continue
 			}
+			ns, name, ok := strings.Cut(value, "/")
+			if !ok {
+				continue
+			}
+			// Resolve $(POD_NAMESPACE) to the actual namespace
+			if ns == "$(POD_NAMESPACE)" {
+				ns = podNamespace
+			}
+			return ci, ai, ns, name, true
 		}
 	}
-	return 0, 0, "", "", fmt.Errorf("no container with %s arg found in pod %s", configmapArgPrefix, mutatecommon.PodString(pod))
+	return 0, -1, podNamespace, "", false
 }
 
 // parseControllerVersion extracts the version tag from an ingress-nginx controller image reference.
@@ -184,9 +187,7 @@ func findControllerConfigMapArg(pod *corev1.Pod, podNamespace string) (container
 //	"registry.k8s.io/ingress-nginx/controller:v1.10.0" -> "v1.10.0"
 func parseControllerVersion(image string) (string, error) {
 	// Strip digest if present
-	if idx := strings.Index(image, "@"); idx != -1 {
-		image = image[:idx]
-	}
+	image, _, _ = strings.Cut(image, "@")
 
 	// Find tag after last colon
 	idx := strings.LastIndex(image, ":")

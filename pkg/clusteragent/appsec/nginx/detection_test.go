@@ -8,7 +8,6 @@
 package nginx
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -82,7 +81,7 @@ func TestDetect(t *testing.T) {
 				objs...,
 			)
 
-			found, err := Detect(context.Background(), client)
+			found, err := Detect(t.Context(), client)
 			if tt.wantErr {
 				require.Error(t, err)
 			} else {
@@ -104,7 +103,7 @@ func TestDetect_APIError(t *testing.T) {
 		return true, nil, errors.New("api error")
 	})
 
-	found, err := Detect(context.Background(), client)
+	found, err := Detect(t.Context(), client)
 	assert.Error(t, err)
 	assert.False(t, found)
 }

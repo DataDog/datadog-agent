@@ -10,6 +10,7 @@ package nginx
 import (
 	"context"
 	"fmt"
+	"maps"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -38,7 +39,7 @@ func mainSnippetDirectives(moduleMountPath string) string {
 }
 
 // httpSnippetDirectives are injected into the nginx http context to enable AppSec
-const httpSnippetDirectivesContent = "datadog_appsec_enabled on;\ndatadog_waf_thread_pool_name waf_thread_pool;"
+const httpSnippetDirectives = "datadog_appsec_enabled on;\ndatadog_waf_thread_pool_name waf_thread_pool;"
 
 // ddConfigMapName returns the name for the DD-owned ConfigMap based on the original ConfigMap name
 func ddConfigMapName(originalName string) string {
@@ -83,22 +84,24 @@ func createOrUpdateDDConfigMap(ctx context.Context, client dynamic.Interface, na
 	// Fetch original ConfigMap (may not exist if user hasn't customized anything)
 	originalData := map[string]string{}
 	originalCM, err := client.Resource(configMapGVR).Namespace(namespace).Get(ctx, originalCMName, metav1.GetOptions{})
+	if err != nil && !k8serrors.IsNotFound(err) {
+		return fmt.Errorf("failed to get original ConfigMap %s/%s: %w", namespace, originalCMName, err)
+	}
 	if err == nil {
-		data, _, _ := unstructured.NestedStringMap(originalCM.UnstructuredContent(), "data")
-		if data != nil {
+		data, found, err := unstructured.NestedStringMap(originalCM.UnstructuredContent(), "data")
+		if err != nil {
+			return fmt.Errorf("original ConfigMap %s/%s has non-string data values: %w", namespace, originalCMName, err)
+		}
+		if found {
 			originalData = data
 		}
-	} else if !k8serrors.IsNotFound(err) {
-		return fmt.Errorf("failed to get original ConfigMap %s/%s: %w", namespace, originalCMName, err)
 	}
 
 	// Build merged data
 	mergedData := make(map[string]string, len(originalData)+2)
-	for k, v := range originalData {
-		mergedData[k] = v
-	}
+	maps.Copy(mergedData, originalData)
 	mergedData[mainSnippetKey] = buildSnippet(mergedData[mainSnippetKey], mainSnippetDirectives(moduleMountPath))
-	mergedData[httpSnippetKey] = buildSnippet(mergedData[httpSnippetKey], httpSnippetDirectivesContent)
+	mergedData[httpSnippetKey] = buildSnippet(mergedData[httpSnippetKey], httpSnippetDirectives)
 
 	// Build owner reference to the original ConfigMap so Kubernetes garbage-collects
 	// the DD ConfigMap if the original is deleted.
@@ -134,24 +137,30 @@ func createOrUpdateDDConfigMap(ctx context.Context, client dynamic.Interface, na
 		return fmt.Errorf("failed to convert ConfigMap to unstructured: %w", err)
 	}
 
-	_, err = client.Resource(configMapGVR).Namespace(namespace).Create(ctx, &unstructured.Unstructured{Object: unstructuredCM}, metav1.CreateOptions{})
-	if k8serrors.IsAlreadyExists(err) {
-		// Update existing DD ConfigMap
+	target := &unstructured.Unstructured{Object: unstructuredCM}
+	_, err = client.Resource(configMapGVR).Namespace(namespace).Create(ctx, target, metav1.CreateOptions{})
+	if err == nil {
+		return nil
+	}
+	if !k8serrors.IsAlreadyExists(err) {
+		return fmt.Errorf("failed to create DD ConfigMap %s/%s: %w", namespace, ddName, err)
+	}
+
+	// Update existing DD ConfigMap. Retry on conflict since concurrent MutatePod
+	// calls (e.g. during rollouts) may race on the same ConfigMap's resourceVersion.
+	for retries := 0; retries < 3; retries++ {
 		existing, getErr := client.Resource(configMapGVR).Namespace(namespace).Get(ctx, ddName, metav1.GetOptions{})
 		if getErr != nil {
 			return fmt.Errorf("failed to get existing DD ConfigMap for update: %w", getErr)
 		}
-		// Preserve resourceVersion for update
-		unstructuredCM["metadata"].(map[string]interface{})["resourceVersion"] = existing.GetResourceVersion()
-		_, err = client.Resource(configMapGVR).Namespace(namespace).Update(ctx, &unstructured.Unstructured{Object: unstructuredCM}, metav1.UpdateOptions{})
-		if err != nil {
-			return fmt.Errorf("failed to update DD ConfigMap %s/%s: %w", namespace, ddName, err)
+		target.SetResourceVersion(existing.GetResourceVersion())
+		_, err = client.Resource(configMapGVR).Namespace(namespace).Update(ctx, target, metav1.UpdateOptions{})
+		if err == nil || !k8serrors.IsConflict(err) {
+			break
 		}
-		return nil
 	}
 	if err != nil {
-		return fmt.Errorf("failed to create DD ConfigMap %s/%s: %w", namespace, ddName, err)
+		return fmt.Errorf("failed to update DD ConfigMap %s/%s: %w", namespace, ddName, err)
 	}
-
 	return nil
 }

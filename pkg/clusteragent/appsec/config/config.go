@@ -141,8 +141,8 @@ type Product struct {
 	Processor Processor
 }
 
-// Injection represent kubernetes specific configuration available for users to customize
-// the resources created for the AppSec Injection Proxy feature
+// Injection represents Kubernetes-specific configuration available for users to customize
+// the resources created for the AppSec Injection Proxy feature.
 type Injection struct {
 	Enabled           bool
 	CommonLabels      map[string]string
@@ -180,11 +180,7 @@ func validateSidecarConfig(config Sidecar) error {
 		errs = append(errs, fmt.Errorf("sidecar.port and sidecar.health_port cannot be the same: %d", config.Port))
 	}
 
-	if len(errs) > 0 {
-		return errors.Join(errs...)
-	}
-
-	return nil
+	return errors.Join(errs...)
 }
 
 // FromComponent uses the datadog config.Component and returns a Config using default values when not set

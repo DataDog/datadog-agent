@@ -8,7 +8,6 @@
 package nginx
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -28,6 +27,7 @@ import (
 )
 
 func newTestNginxSidecarPattern(t *testing.T) (*nginxSidecarPattern, *dynamicfake.FakeDynamicClient) {
+	t.Helper()
 	logger := logmock.New(t)
 	scheme := runtime.NewScheme()
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(scheme,
@@ -157,6 +157,7 @@ func TestShouldMutatePod(t *testing.T) {
 }
 
 func TestMutatePod(t *testing.T) {
+	ctx := t.Context()
 	pattern, client := newTestNginxSidecarPattern(t)
 
 	// Create original ConfigMap in the fake client
@@ -170,7 +171,7 @@ func TestMutatePod(t *testing.T) {
 			},
 		},
 	}
-	_, err := client.Resource(configMapGVR).Namespace("ingress-nginx").Create(context.Background(), originalCM, metav1.CreateOptions{})
+	_, err := client.Resource(configMapGVR).Namespace("ingress-nginx").Create(ctx, originalCM, metav1.CreateOptions{})
 	require.NoError(t, err)
 
 	pod := newControllerPod("test-pod", "ingress-nginx", "registry.k8s.io/ingress-nginx/controller:v1.15.1@sha256:abc123")
@@ -201,9 +202,11 @@ func TestMutatePod(t *testing.T) {
 	assert.Equal(t, "--configmap=ingress-nginx/datadog-appsec-ingress-nginx-controller", controller.Args[1])
 
 	// Verify DD ConfigMap was created
-	ddCM, err := client.Resource(configMapGVR).Namespace("ingress-nginx").Get(context.Background(), "datadog-appsec-ingress-nginx-controller", getOpts())
+	ddCM, err := client.Resource(configMapGVR).Namespace("ingress-nginx").Get(ctx, "datadog-appsec-ingress-nginx-controller", metav1.GetOptions{})
 	require.NoError(t, err)
-	data, _, _ := unstructured.NestedStringMap(ddCM.UnstructuredContent(), "data")
+	data, found, err := unstructured.NestedStringMap(ddCM.UnstructuredContent(), "data")
+	require.NoError(t, err)
+	require.True(t, found, "DD ConfigMap should have data field")
 	assert.Contains(t, data[mainSnippetKey], "load_module /modules_mount/ngx_http_datadog_module.so;")
 
 	// Verify DD ConfigMap has proxy-type label for label-based cleanup
@@ -219,7 +222,7 @@ func TestFindControllerConfigMapArg(t *testing.T) {
 		podNamespace string
 		wantNS       string
 		wantName     string
-		wantErr      bool
+		wantFound    bool
 	}{
 		{
 			name:         "standard $(POD_NAMESPACE) form",
@@ -227,6 +230,7 @@ func TestFindControllerConfigMapArg(t *testing.T) {
 			podNamespace: "ingress-nginx",
 			wantNS:       "ingress-nginx",
 			wantName:     "ingress-nginx-controller",
+			wantFound:    true,
 		},
 		{
 			name: "hardcoded namespace form",
@@ -240,6 +244,7 @@ func TestFindControllerConfigMapArg(t *testing.T) {
 			podNamespace: "ingress-nginx",
 			wantNS:       "custom-ns",
 			wantName:     "my-config",
+			wantFound:    true,
 		},
 		{
 			name: "no configmap arg",
@@ -251,17 +256,15 @@ func TestFindControllerConfigMapArg(t *testing.T) {
 				},
 			},
 			podNamespace: "ingress-nginx",
-			wantErr:      true,
+			wantFound:    false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, _, ns, name, err := findControllerConfigMapArg(tt.pod, tt.podNamespace)
-			if tt.wantErr {
-				assert.Error(t, err)
-			} else {
-				require.NoError(t, err)
+			_, _, ns, name, found := findControllerConfigMapArg(tt.pod, tt.podNamespace)
+			assert.Equal(t, tt.wantFound, found)
+			if tt.wantFound {
 				assert.Equal(t, tt.wantNS, ns)
 				assert.Equal(t, tt.wantName, name)
 			}
@@ -342,6 +345,7 @@ func TestMode(t *testing.T) {
 }
 
 func TestDeletedCleansUpDDConfigMaps(t *testing.T) {
+	ctx := t.Context()
 	pattern, client := newTestNginxSidecarPattern(t)
 
 	// Pre-create a DD ConfigMap with our proxy-type label (simulating what MutatePod creates)
@@ -364,20 +368,21 @@ func TestDeletedCleansUpDDConfigMaps(t *testing.T) {
 			},
 		},
 	}
-	_, err := client.Resource(configMapGVR).Namespace("ingress-nginx").Create(context.Background(), ddCM, metav1.CreateOptions{})
+	_, err := client.Resource(configMapGVR).Namespace("ingress-nginx").Create(ctx, ddCM, metav1.CreateOptions{})
 	require.NoError(t, err)
 
 	// Simulate IngressClass deletion
 	ingressClass := newIngressClass("nginx", "k8s.io/ingress-nginx")
-	err = pattern.Deleted(context.Background(), ingressClass)
+	err = pattern.Deleted(ctx, ingressClass)
 	require.NoError(t, err)
 
 	// Verify DD ConfigMap was deleted
-	_, err = client.Resource(configMapGVR).Namespace("ingress-nginx").Get(context.Background(), "datadog-appsec-ingress-nginx-controller", getOpts())
+	_, err = client.Resource(configMapGVR).Namespace("ingress-nginx").Get(ctx, "datadog-appsec-ingress-nginx-controller", metav1.GetOptions{})
 	assert.True(t, k8serrors.IsNotFound(err), "DD ConfigMap should be deleted after IngressClass deletion")
 }
 
 func TestDeletedSkipsWhenOtherIngressClassesExist(t *testing.T) {
+	ctx := t.Context()
 	pattern, client := newTestNginxSidecarPattern(t)
 
 	// Pre-create a DD ConfigMap
@@ -397,23 +402,23 @@ func TestDeletedSkipsWhenOtherIngressClassesExist(t *testing.T) {
 			},
 		},
 	}
-	_, err := client.Resource(configMapGVR).Namespace("ingress-nginx").Create(context.Background(), ddCM, metav1.CreateOptions{})
+	_, err := client.Resource(configMapGVR).Namespace("ingress-nginx").Create(ctx, ddCM, metav1.CreateOptions{})
 	require.NoError(t, err)
 
 	// Create two ingress-nginx IngressClasses
 	ic1 := newIngressClass("nginx", "k8s.io/ingress-nginx")
 	ic2 := newIngressClass("nginx-internal", "k8s.io/ingress-nginx")
-	_, err = client.Resource(ingressClassGVR).Create(context.Background(), ic1, metav1.CreateOptions{})
+	_, err = client.Resource(ingressClassGVR).Create(ctx, ic1, metav1.CreateOptions{})
 	require.NoError(t, err)
-	_, err = client.Resource(ingressClassGVR).Create(context.Background(), ic2, metav1.CreateOptions{})
+	_, err = client.Resource(ingressClassGVR).Create(ctx, ic2, metav1.CreateOptions{})
 	require.NoError(t, err)
 
 	// Delete one IngressClass — but the other still exists
-	err = pattern.Deleted(context.Background(), ic1)
+	err = pattern.Deleted(ctx, ic1)
 	require.NoError(t, err)
 
 	// DD ConfigMap should NOT be deleted because another ingress-nginx IngressClass still exists
-	_, err = client.Resource(configMapGVR).Namespace("ingress-nginx").Get(context.Background(), "datadog-appsec-ingress-nginx-controller", getOpts())
+	_, err = client.Resource(configMapGVR).Namespace("ingress-nginx").Get(ctx, "datadog-appsec-ingress-nginx-controller", metav1.GetOptions{})
 	assert.NoError(t, err, "DD ConfigMap should NOT be deleted when other ingress-nginx IngressClasses still exist")
 }
 
@@ -424,5 +429,5 @@ func TestMutatePodVersionParseFailed(t *testing.T) {
 	mutated, err := pattern.MutatePod(pod, "ingress-nginx", pattern.client)
 	assert.Error(t, err)
 	assert.False(t, mutated)
-	assert.Contains(t, err.Error(), "manual extraModules")
+	assert.ErrorContains(t, err, "manual extraModules")
 }

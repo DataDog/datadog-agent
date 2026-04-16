@@ -91,7 +91,7 @@ func (n *nginxInjectionPattern) Deleted(ctx context.Context, obj *unstructured.U
 
 	// Find namespaces with DD ConfigMaps by listing all ConfigMaps with our labels
 	cmList, err := n.client.Resource(configMapGVR).Namespace(corev1.NamespaceAll).List(ctx, metav1.ListOptions{
-		LabelSelector: "app.kubernetes.io/part-of=datadog,app.kubernetes.io/component=datadog-appsec-injector",
+		LabelSelector: "app.kubernetes.io/part-of=datadog,app.kubernetes.io/component=datadog-appsec-injector,appsec.datadoghq.com/proxy-type=ingress-nginx",
 	})
 	if err != nil {
 		n.eventRecorder.recordConfigMapDeleteFailed(name, err)
@@ -119,7 +119,7 @@ func (n *nginxInjectionPattern) Deleted(ctx context.Context, obj *unstructured.U
 func anyOtherIngressNginxClassExists(ctx context.Context, client dynamic.Interface, excludeName string) (bool, error) {
 	list, err := client.Resource(ingressClassGVR).List(ctx, metav1.ListOptions{})
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("failed to list IngressClasses: %w", err)
 	}
 	for _, item := range list.Items {
 		if item.GetName() == excludeName {
@@ -136,13 +136,13 @@ func anyOtherIngressNginxClassExists(ctx context.Context, client dynamic.Interfa
 // New creates a new InjectionPattern for ingress-nginx.
 // It always returns a nginxSidecarPattern (pod mutation mode) regardless of the global
 // injection mode setting, because nginx has no external processing mode.
-func New(client dynamic.Interface, logger log.Component, config appsecconfig.Config, eventRecorderInstance record.EventRecorder) appsecconfig.InjectionPattern {
+func New(client dynamic.Interface, logger log.Component, config appsecconfig.Config, recorder record.EventRecorder) appsecconfig.InjectionPattern {
 	base := &nginxInjectionPattern{
 		client: client,
 		logger: logger,
 		config: config,
 		eventRecorder: eventRecorder{
-			recorder: eventRecorderInstance,
+			recorder: recorder,
 		},
 	}
 	return &nginxSidecarPattern{nginxInjectionPattern: base}

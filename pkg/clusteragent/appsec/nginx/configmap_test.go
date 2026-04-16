@@ -8,7 +8,6 @@
 package nginx
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -108,6 +107,7 @@ func TestCreateOrUpdateDDConfigMap(t *testing.T) {
 	scheme := runtime.NewScheme()
 
 	t.Run("creates DD ConfigMap from empty original", func(t *testing.T) {
+		ctx := t.Context()
 		// Original ConfigMap exists but is empty (default for ingress-nginx)
 		originalCM := &unstructured.Unstructured{
 			Object: map[string]interface{}{
@@ -130,14 +130,16 @@ func TestCreateOrUpdateDDConfigMap(t *testing.T) {
 		labels := map[string]string{"app": "datadog"}
 		annotations := map[string]string{}
 
-		err := createOrUpdateDDConfigMap(context.Background(), client, "ingress-nginx", "ingress-nginx-controller", "/modules_mount", labels, annotations)
+		err := createOrUpdateDDConfigMap(ctx, client, "ingress-nginx", "ingress-nginx-controller", "/modules_mount", labels, annotations)
 		require.NoError(t, err)
 
 		// Verify DD ConfigMap was created
-		ddCM, err := client.Resource(configMapGVR).Namespace("ingress-nginx").Get(context.Background(), "datadog-appsec-ingress-nginx-controller", getOpts())
+		ddCM, err := client.Resource(configMapGVR).Namespace("ingress-nginx").Get(ctx, "datadog-appsec-ingress-nginx-controller", metav1.GetOptions{})
 		require.NoError(t, err)
 
-		data, _, _ := unstructured.NestedStringMap(ddCM.UnstructuredContent(), "data")
+		data, found, err := unstructured.NestedStringMap(ddCM.UnstructuredContent(), "data")
+		require.NoError(t, err)
+		require.True(t, found, "DD ConfigMap should have data field")
 		assert.Contains(t, data[mainSnippetKey], "load_module /modules_mount/ngx_http_datadog_module.so;")
 		assert.Contains(t, data[mainSnippetKey], "thread_pool waf_thread_pool")
 		assert.Contains(t, data[mainSnippetKey], "env DD_AGENT_HOST;",
@@ -154,6 +156,7 @@ func TestCreateOrUpdateDDConfigMap(t *testing.T) {
 	})
 
 	t.Run("creates DD ConfigMap with original data preserved", func(t *testing.T) {
+		ctx := t.Context()
 		originalCM := &unstructured.Unstructured{
 			Object: map[string]interface{}{
 				"apiVersion": "v1",
@@ -177,13 +180,15 @@ func TestCreateOrUpdateDDConfigMap(t *testing.T) {
 			originalCM,
 		)
 
-		err := createOrUpdateDDConfigMap(context.Background(), client, "ingress-nginx", "ingress-nginx-controller", "/modules_mount", map[string]string{}, map[string]string{})
+		err := createOrUpdateDDConfigMap(ctx, client, "ingress-nginx", "ingress-nginx-controller", "/modules_mount", map[string]string{}, map[string]string{})
 		require.NoError(t, err)
 
-		ddCM, err := client.Resource(configMapGVR).Namespace("ingress-nginx").Get(context.Background(), "datadog-appsec-ingress-nginx-controller", getOpts())
+		ddCM, err := client.Resource(configMapGVR).Namespace("ingress-nginx").Get(ctx, "datadog-appsec-ingress-nginx-controller", metav1.GetOptions{})
 		require.NoError(t, err)
 
-		data, _, _ := unstructured.NestedStringMap(ddCM.UnstructuredContent(), "data")
+		data, found, err := unstructured.NestedStringMap(ddCM.UnstructuredContent(), "data")
+		require.NoError(t, err)
+		require.True(t, found, "DD ConfigMap should have data field")
 		// Original keys preserved
 		assert.Equal(t, "10m", data["proxy-body-size"])
 		assert.Equal(t, "404,503", data["custom-http-errors"])
@@ -193,23 +198,22 @@ func TestCreateOrUpdateDDConfigMap(t *testing.T) {
 	})
 
 	t.Run("handles missing original ConfigMap", func(t *testing.T) {
+		ctx := t.Context()
 		client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(scheme,
 			map[schema.GroupVersionResource]string{
 				configMapGVR: "ConfigMapList",
 			},
 		)
 
-		err := createOrUpdateDDConfigMap(context.Background(), client, "ingress-nginx", "ingress-nginx-controller", "/modules_mount", map[string]string{}, map[string]string{})
+		err := createOrUpdateDDConfigMap(ctx, client, "ingress-nginx", "ingress-nginx-controller", "/modules_mount", map[string]string{}, map[string]string{})
 		require.NoError(t, err)
 
-		ddCM, err := client.Resource(configMapGVR).Namespace("ingress-nginx").Get(context.Background(), "datadog-appsec-ingress-nginx-controller", getOpts())
+		ddCM, err := client.Resource(configMapGVR).Namespace("ingress-nginx").Get(ctx, "datadog-appsec-ingress-nginx-controller", metav1.GetOptions{})
 		require.NoError(t, err)
 
-		data, _, _ := unstructured.NestedStringMap(ddCM.UnstructuredContent(), "data")
+		data, found, err := unstructured.NestedStringMap(ddCM.UnstructuredContent(), "data")
+		require.NoError(t, err)
+		require.True(t, found, "DD ConfigMap should have data field")
 		assert.Contains(t, data[mainSnippetKey], "load_module")
 	})
-}
-
-func getOpts() metav1.GetOptions {
-	return metav1.GetOptions{}
 }

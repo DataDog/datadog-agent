@@ -44,6 +44,11 @@ Currently supported proxy types:
   - EXTERNAL mode: Routes to external processor service
   - SIDECAR mode: Currently unsupported due to Kubernetes validation constraints on localhost references
 
+- ingress-nginx (ProxyTypeIngressNginx): Injects the nginx-datadog WAF module (.so) into controller pods
+  - SIDECAR mode only: Adds init container + emptyDir volume, redirects --configmap to DD-owned ConfigMap
+  - Auto-detects via IngressClass with spec.controller == "k8s.io/ingress-nginx"
+  - Version detection from controller image tag for matching init container image
+
 Each proxy type implements the InjectionPattern interface, providing:
   - Resource detection (IsInjectionPossible)
   - Resource watching (Resource, Namespace)
@@ -342,6 +347,49 @@ SIDECAR mode for Envoy Gateway is currently blocked due to Kubernetes validation
 localhost references in ExtProc BackendRef configuration. See pkg/clusteragent/appsec/envoygateway/envoy_sidecar.go
 for details.
 
+## ingress-nginx Implementation (SIDECAR Mode Only)
+
+ingress-nginx uses a native nginx module (.so) rather than Envoy's ext_proc protocol. The
+implementation uses a ConfigMap redirect approach since load_module must be in the nginx main
+context and can only be injected via ConfigMap snippets.
+
+### Detection
+
+Detects ingress-nginx by listing IngressClass resources and checking for
+spec.controller == "k8s.io/ingress-nginx".
+
+### Pod Mutation (nginxSidecarPattern)
+
+ 1. Parses the controller image tag to determine the nginx version (e.g., v1.15.1)
+ 2. Resolves the original ConfigMap name from the --configmap controller arg
+ 3. Creates a DD-owned ConfigMap mirroring the original with AppSec directives prepended
+ 4. Adds an init container (datadog/ingress-nginx-injection:<version>) that copies the .so module
+ 5. Adds an emptyDir volume shared between init and controller containers
+ 6. Redirects the --configmap arg to the DD-owned ConfigMap
+
+### ConfigMap Management
+
+The DD-owned ConfigMap:
+  - Copies all keys from the original ConfigMap verbatim
+  - Prepends load_module + thread_pool + env DD_AGENT_HOST to main-snippet
+  - Prepends datadog_appsec_enabled + datadog_waf_thread_pool_name to http-snippet
+  - Uses comment markers for idempotent injection
+  - Has an ownerReference to the original ConfigMap for garbage collection
+  - Is labeled with appsec.datadoghq.com/proxy-type=ingress-nginx for cleanup
+
+### Cleanup
+
+On IngressClass deletion, checks if other ingress-nginx IngressClasses still exist before
+deleting DD ConfigMaps (cross-controller coordination, same pattern as Istio).
+
+### Key Differences from Istio/Envoy Gateway
+
+  - No ext_proc: Uses native nginx module loaded via load_module directive
+  - ConfigMap management: Creates/syncs a separate ConfigMap instead of CRD resources
+  - Init container: Copies .so module, not a running sidecar process
+  - Version coupling: Init container image must match nginx version
+  - Mode() always returns SIDECAR regardless of global config (no external mode)
+
 # Event Recording
 
 The package records Kubernetes events for important operations:
@@ -397,6 +445,32 @@ Required fields:
 Invalid configurations are logged with ERROR level but do not prevent startup, allowing
 administrators to fix configuration while the cluster-agent runs.
 
+## ingress-nginx Configuration
+
+	appsec:
+	  proxy:
+	    enabled: true                           # Enable AppSec proxy integration
+	    auto_detect: true                       # Auto-detect proxies in cluster (detects IngressClass)
+	    proxies: ["ingress-nginx"]              # Explicitly enabled proxies
+	admission_controller:
+	  appsec:
+	    nginx:
+	      init_image: "datadog/ingress-nginx-injection"  # Init container image (required)
+	      module_mount_path: "/modules_mount"            # Module mount path (optional, default: /modules_mount)
+
+ingress-nginx injection is fundamentally different from Istio/Envoy Gateway. Instead of
+configuring an external processing (ext_proc) gRPC service, it loads a native nginx module
+(ngx_http_datadog_module.so) via a ConfigMap redirect approach:
+
+ 1. Creates a DD-owned ConfigMap that mirrors the original ingress-nginx ConfigMap
+ 2. Prepends load_module and AppSec directives to main-snippet and http-snippet
+ 3. Mutates controller pods to add an init container that copies the .so module
+ 4. Redirects the controller's --configmap arg to the DD-owned ConfigMap
+ 5. Sets an ownerReference on the DD ConfigMap pointing to the original for garbage collection
+
+The DD ConfigMap uses comment markers (# datadog-appsec-begin / # datadog-appsec-end) to
+delimit injected directives, enabling idempotent updates and clean removal.
+
 # Error Handling
 
 The package implements robust error handling with:
@@ -431,7 +505,8 @@ New proxy implementations should:
   - pkg/clusteragent/appsec/config: Configuration types, parsing, and validation
   - pkg/clusteragent/appsec/istio: Istio implementation (EXTERNAL and SIDECAR modes)
   - pkg/clusteragent/appsec/envoygateway: Envoy Gateway implementation (EXTERNAL mode only)
-  - pkg/clusteragent/appsec/sidecar: Sidecar container generation logic
+  - pkg/clusteragent/appsec/nginx: ingress-nginx implementation (SIDECAR mode only, native module injection)
+  - pkg/clusteragent/appsec/sidecar: Sidecar container generation logic (ext_proc only, not used by nginx)
   - pkg/clusteragent/admission/mutate/appsec: SIDECAR mode admission webhook
   - pkg/clusteragent/admission: Base admission controller functionality
 

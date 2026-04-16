@@ -26,7 +26,7 @@ type eventRecorder struct {
 	recorder record.EventRecorder
 }
 
-func (e *eventRecorder) getIngressClassReference(name string) *corev1.ObjectReference {
+func (e *eventRecorder) ingressClassRef(name string) *corev1.ObjectReference {
 	return &corev1.ObjectReference{
 		Kind:       "IngressClass",
 		Name:       name,
@@ -36,7 +36,7 @@ func (e *eventRecorder) getIngressClassReference(name string) *corev1.ObjectRefe
 
 func (e *eventRecorder) recordConfigMapCreated(ingressClassName, ddConfigMapName string) {
 	e.recorder.Eventf(
-		e.getIngressClassReference(ingressClassName),
+		e.ingressClassRef(ingressClassName),
 		corev1.EventTypeNormal,
 		EventReasonConfigMapCreated,
 		"Created Datadog AppSec ConfigMap %q for ingress-nginx",
@@ -46,7 +46,7 @@ func (e *eventRecorder) recordConfigMapCreated(ingressClassName, ddConfigMapName
 
 func (e *eventRecorder) recordConfigMapCreateFailed(ingressClassName string, err error) {
 	e.recorder.Eventf(
-		e.getIngressClassReference(ingressClassName),
+		e.ingressClassRef(ingressClassName),
 		corev1.EventTypeWarning,
 		EventReasonConfigMapCreateFailed,
 		"Failed to create Datadog AppSec ConfigMap: %v",
@@ -56,7 +56,7 @@ func (e *eventRecorder) recordConfigMapCreateFailed(ingressClassName string, err
 
 func (e *eventRecorder) recordConfigMapDeleted(ingressClassName string) {
 	e.recorder.Eventf(
-		e.getIngressClassReference(ingressClassName),
+		e.ingressClassRef(ingressClassName),
 		corev1.EventTypeNormal,
 		EventReasonConfigMapDeleted,
 		"Deleted Datadog AppSec ConfigMap for ingress-nginx",
@@ -65,7 +65,7 @@ func (e *eventRecorder) recordConfigMapDeleted(ingressClassName string) {
 
 func (e *eventRecorder) recordConfigMapDeleteFailed(ingressClassName string, err error) {
 	e.recorder.Eventf(
-		e.getIngressClassReference(ingressClassName),
+		e.ingressClassRef(ingressClassName),
 		corev1.EventTypeWarning,
 		EventReasonConfigMapDeleteFailed,
 		"Failed to delete Datadog AppSec ConfigMap: %v",
