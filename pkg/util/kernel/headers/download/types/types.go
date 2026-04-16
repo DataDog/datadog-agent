@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package types is the exported types for interfacing with kernel header downloading.
 package types
 
 import (
