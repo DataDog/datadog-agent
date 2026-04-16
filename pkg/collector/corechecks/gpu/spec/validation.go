@@ -158,15 +158,9 @@ func ExpectedMetricsForConfig(specs *Specs, config GPUConfig) map[string]MetricS
 
 // PrefixedMetricName adds the spec metric prefix to a metric name if needed.
 func PrefixedMetricName(specs *Specs, metricName string) string {
-	var metricsSpec *MetricsSpec
-	if specs != nil {
-		metricsSpec = specs.Metrics
-	}
-
-	if metricsSpec == nil || metricsSpec.MetricPrefix == "" {
+	if specs.Metrics.MetricPrefix == "" {
 		return metricName
 	}
-
 	if strings.HasPrefix(metricName, metricsSpec.MetricPrefix+".") {
 		return metricName
 	}
@@ -233,9 +227,9 @@ func RequiredTagsByMetric(tagsSpec *TagsSpec, metrics map[string]MetricSpec) (ma
 	return result, nil
 }
 
-// ValidateMetricTagsAgainstSpec validates emitted tags against the spec for a metric.
+// validateMetricTagsAgainstSpec validates emitted tags against the spec for a metric.
 // If knownTagValues is provided, matching keys are additionally checked for exact values.
-func ValidateMetricTagsAgainstSpec(tagsSpec *TagsSpec, metricSpec MetricSpec, metricSamples []MetricObservation, knownTagValues map[string]string) (map[string]*TagSummary, error) {
+func validateMetricTagsAgainstSpec(tagsSpec *TagsSpec, metricSpec MetricSpec, metricSamples []MetricObservation, knownTagValues map[string]string) (map[string]*TagSummary, error) {
 	tagResults := make(map[string]*TagSummary)
 
 	requiredTags, err := RequiredTagsForMetric(tagsSpec, metricSpec)
@@ -289,14 +283,8 @@ func ValidateEmittedMetricsAgainstSpec(specs *Specs, config GPUConfig, emittedMe
 	results := ValidationResult{
 		Metrics: make(map[string]*MetricStatus),
 	}
-	if specs == nil || specs.Metrics == nil || specs.Tags == nil {
-		return results, errors.New("specs, metrics spec, and tags spec are required")
-	}
-
-	metricsSpec := specs.Metrics
-	tagsSpec := specs.Tags
 	for metricName := range emittedMetrics {
-		metricSpec, found := metricsSpec.Metrics[metricName]
+		metricSpec, found := specs.Metrics.Metrics[metricName]
 		if !found {
 			results.addError(metricName, ErrorUnknown)
 			continue
@@ -314,7 +302,7 @@ func ValidateEmittedMetricsAgainstSpec(specs *Specs, config GPUConfig, emittedMe
 			continue
 		}
 
-		tagResults, err := ValidateMetricTagsAgainstSpec(tagsSpec, metricSpec, emittedMetrics[metricName], knownTagValues)
+		tagResults, err := validateMetricTagsAgainstSpec(tagsSpec, metricSpec, emittedMetrics[metricName], knownTagValues)
 		if err != nil {
 			return results, fmt.Errorf("validate metric tags for %s: %w", metricName, err)
 		}
