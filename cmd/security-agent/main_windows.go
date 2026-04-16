@@ -116,8 +116,9 @@ func (s *service) Run(svcctx context.Context) error {
 			LogParams:            log.ForDaemon(command.LoggerName, "security_agent.log_file", setup.DefaultSecurityAgentLogFile),
 		}),
 		core.Bundle(core.WithSecrets()),
-		remotehostnameimpl.Module(remotehostnameimpl.NewParams()),
+		remotehostnameimpl.Module(),
 		statsdFx.Module(),
+
 		// workloadmeta setup
 		wmcatalog.GetCatalog(),
 		workloadmetafx.Module(workloadmeta.Params{
