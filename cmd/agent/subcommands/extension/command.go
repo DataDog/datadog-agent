@@ -43,11 +43,9 @@ func installCommand() *cobra.Command {
 		Long: `Install one or more extensions from an OCI package.
 
 The package URL is determined as follows (in order of precedence):
-  1. --url flag: use the provided full OCI URL
-  2. --registry flag: construct oci://<registry>/agent-package:<current-version>
-  3. No flags: use the default Datadog registry with the current agent version
+  1. --registry flag: construct oci://<registry>/agent-package:<current-version>
+  2. No flags: use the default Datadog registry with the current agent version
 
-The agent must have been installed via the Datadog installer (OCI or deb/rpm).
 Registry authentication is controlled via the DD_INSTALLER_REGISTRY_AUTH
 environment variable (docker, gcr, or password).
 
@@ -56,10 +54,7 @@ Examples:
   datadog-agent extension install ddot
 
   # Custom BYOC registry, version inferred from installed agent
-  DD_INSTALLER_REGISTRY_AUTH=gcr datadog-agent extension install --registry registry.example.com ddot
-
-  # Explicit full URL
-  datadog-agent extension install --url oci://registry.example.com/agent-package:7.78.0-1 ddot`,
+  DD_INSTALLER_REGISTRY_AUTH=gcr datadog-agent extension install --registry registry.example.com ddot`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
 			url, err := resolvePackageURL(explicitURL, registry)
