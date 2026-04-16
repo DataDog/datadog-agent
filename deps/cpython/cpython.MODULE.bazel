@@ -13,6 +13,7 @@ http_archive(
     patches = [
         "//deps/cpython:0001-customize-windows-build-script.patch",
         "//deps/cpython:0002-Set-the-install-name-to-use-rpath-instead-of-absolut.patch",
+        "//deps/cpython:0003-propagate-pgo-test-exit-code.patch",
     ],
     sha256 = "12e7cb170ad2d1a69aee96a1cc7fc8de5b1e97a2bdac51683a3db016ec9a2996",
     strip_prefix = "Python-{}".format(PYTHON_VERSION),
