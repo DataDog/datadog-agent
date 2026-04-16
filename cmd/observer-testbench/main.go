@@ -60,7 +60,7 @@ func main() {
 	verbose := flag.Bool("verbose", false, "Include full detail in JSON output (headless mode only)")
 	memProfile := flag.String("memprofile", "", "Write heap profile to this file after headless run (headless mode only)")
 	sendAnomalyEvent := flag.String("send-anomaly-event", "", "Run scenario and send one Datadog event per correlation, then exit")
-	skipDropped := flag.Bool("skip-dropped", false, "Skip metrics marked as dropped by the live observer's channel during parquet load")
+	skipDropped := flag.Bool("skip-dropped", true, "Skip metrics marked as dropped by the live observer's channel during parquet load")
 	logsOnly := flag.Bool("logs-only", false, "Load only log rows from scenarios; skip parquet metrics and trace stats (interactive and headless)")
 	flag.Parse()
 
