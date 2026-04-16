@@ -79,7 +79,8 @@ func (b *Backend) downloadPackage(downloader aptly.Downloader, verifier pgp.Veri
 		stanza.Clear()
 		if err := repo.FetchBuffered(stanza, downloader, verifier); err != nil {
 			b.logger.Debugf("Error fetching repo: %s", err)
-			return nil, err
+			// not every repo has to be successful
+			continue
 		}
 
 		b.logger.Debug("Downloading package indexes")
@@ -87,13 +88,15 @@ func (b *Backend) downloadPackage(downloader aptly.Downloader, verifier pgp.Veri
 		var factory *deb.CollectionFactory
 		if err := repo.DownloadPackageIndexes(nil, downloader, nil, factory, false); err != nil {
 			b.logger.Debugf("Failed to download package indexes: %s", err)
-			return nil, err
+			// not every repo has to be successful
+			continue
 		}
 
 		_, _, err = repo.ApplyFilter(-1, query, nil)
 		if err != nil {
 			b.logger.Debugf("Failed to apply filter: %s", err)
-			return nil, err
+			// not every repo has to be successful
+			continue
 		}
 
 		/*
