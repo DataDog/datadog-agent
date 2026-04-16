@@ -30,7 +30,6 @@ type Backend struct {
 	target         *types.Target
 	logger         types.Logger
 	repoCollection []remoteRepo
-	debArch        string
 }
 
 // Close releases resources.
@@ -68,7 +67,7 @@ func (b *Backend) downloadPackage(downloader aptly.Downloader, verifier pgp.Veri
 	stanza := make(deb.Stanza, 32)
 
 	for _, repoInfo := range b.repoCollection {
-		repo, err := deb.NewRemoteRepo(repoInfo.repoID, repoInfo.uri, repoInfo.distribution, repoInfo.components, []string{b.debArch}, false, false, false)
+		repo, err := deb.NewRemoteRepo(repoInfo.repoID, repoInfo.uri, repoInfo.distribution, repoInfo.components, []string{repoInfo.arch}, false, false, false)
 		if err != nil {
 			b.logger.Errorf("Failed to create remote repo: %s", err)
 			continue
@@ -221,6 +220,7 @@ type remoteRepo struct {
 	uri          string
 	distribution string
 	components   []string
+	arch         string
 }
 
 // NewBackend creates a backend for APT
@@ -246,9 +246,8 @@ func NewBackend(target *types.Target, aptConfigDir string, logger types.Logger) 
 	}
 
 	backend := &Backend{
-		target:  target,
-		logger:  logger,
-		debArch: debArch,
+		target: target,
+		logger: logger,
 	}
 
 	repoList, err := parseAPTConfigFolder(aptConfigDir)
@@ -278,11 +277,23 @@ func NewBackend(target *types.Target, aptConfigDir string, logger types.Logger) 
 			uri:          repo.URI,
 			distribution: repo.Distribution,
 			components:   components,
+			arch:         debArch,
+		}
+
+		options := strings.Split(repo.Options, " ")
+		for _, opt := range options {
+			optName, optValue, found := strings.Cut(opt, "=")
+			if !found {
+				continue
+			}
+			if strings.ToLower(optName) == "arch" {
+				rr.arch = optValue
+				break
+			}
 		}
 
 		backend.repoCollection = append(backend.repoCollection, rr)
-
-		backend.logger.Debugf("Added repository '%s' %s %s %v %v", repoID, repo.URI, repo.Distribution, components, debArch)
+		backend.logger.Debugf("Added repository '%s' %s %s %v %v", rr.repoID, rr.uri, rr.distribution, rr.components, rr.arch)
 	}
 
 	return backend, nil
