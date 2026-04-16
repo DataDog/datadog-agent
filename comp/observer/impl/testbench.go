@@ -129,7 +129,7 @@ type TestBench struct {
 	compCorrCache      []CompressedGroup
 	compCorrThreshold  float64
 	compCorrGeneration uint64
-	corrGeneration     uint64 // bumped after each rerunDetectorsLocked
+	corrGeneration     uint64  // bumped after each rerunDetectorsLocked
 	liveAdvanceTimes   []int64 // when set, replay uses live advance schedule
 
 	// SSE broadcast hub for pushing events to connected browsers.
@@ -564,7 +564,6 @@ func (tb *TestBench) loadParquetDir(dir string) error {
 
 	return nil
 }
-
 
 // resetAllState resets all registered components that support Reset().
 func (tb *TestBench) resetAllState() {
