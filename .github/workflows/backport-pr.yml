@@ -15,19 +15,24 @@ jobs:
     steps:
       - name: Get backport targets
         id: get-targets
+        env:
+          EVENT_ACTION: ${{ github.event.action }}
+          EVENT_LABEL_NAME: ${{ github.event.label.name }}
+          PR_LABEL_NAMES_JSON: ${{ toJson(github.event.pull_request.labels.*.name) }}
         run: |
           # For 'labeled' event, use just the added label
           # For 'closed' event, use all backport labels
-          if [[ "${{ github.event.action }}" == "labeled" ]]; then
-            if [[ "${{ github.event.label.name }}" == backport/* ]]; then
-              echo "targets=[\"${{ github.event.label.name }}\"]" >> $GITHUB_OUTPUT
+          if [[ "$EVENT_ACTION" == "labeled" ]]; then
+            if [[ "$EVENT_LABEL_NAME" == backport/* ]]; then
+              targets=$(jq -cn --arg label "$EVENT_LABEL_NAME" '[$label]')
+              echo "targets=$targets" >> "$GITHUB_OUTPUT"
             else
-              echo "targets=[]" >> $GITHUB_OUTPUT
+              echo "targets=[]" >> "$GITHUB_OUTPUT"
             fi
           else
             # Extract all backport/* labels as JSON array
-            targets=$(echo '${{ toJson(github.event.pull_request.labels.*.name) }}' | jq -c '[.[] | select(startswith("backport/"))]')
-            echo "targets=$targets" >> $GITHUB_OUTPUT
+            targets=$(jq -c '[.[] | select(startswith("backport/"))]' <<< "$PR_LABEL_NAMES_JSON")
+            echo "targets=$targets" >> "$GITHUB_OUTPUT"
           fi
 
   backport:
@@ -46,10 +51,12 @@ jobs:
     steps:
       - name: Compute target branch
         id: target
+        env:
+          MATRIX_TARGET: ${{ matrix.target }}
         run: |
-          target="${{ matrix.target }}"
+          target="$MATRIX_TARGET"
           target_branch="${target/backport\//}"
-          echo "target_branch=$target_branch" >> $GITHUB_OUTPUT
+          echo "target_branch=$target_branch" >> "$GITHUB_OUTPUT"
 
       - uses: DataDog/dd-octo-sts-action@96a25462dbcb10ebf0bfd6e2ccc917d2ab235b9a # v1.0.4
         id: octo-sts
