@@ -146,7 +146,7 @@ func (b *Backend) downloadPackage(downloader aptly.Downloader, verifier pgp.Veri
 	if err := downloader.Download(context.Background(), purl, outputFile); err != nil {
 		return nil, fmt.Errorf("download %s to %s: %w", purl, directory, err)
 	}
-	// defer os.Remove(outputFile)
+	defer os.Remove(outputFile)
 
 	return packageDeps, b.extractPackage(outputFile, directory)
 }
