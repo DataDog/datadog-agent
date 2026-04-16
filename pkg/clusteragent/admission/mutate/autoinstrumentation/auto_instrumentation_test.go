@@ -2779,7 +2779,6 @@ func TestAutoinstrumentation_LocalLibInjectionPerContainerOnlyMountsLibraryOnTar
 	require.True(t, mutated)
 
 	validator := testutils.NewPodValidator(pod, testutils.InjectionModeAuto)
-	validator.RequireInjection(t, []string{"app"})
 	validator.RequireInjectorVersion(t, defaultInjectorVersion)
 	validator.RequireLibraryVersions(t, map[string]string{"java": "v1"})
 
@@ -2795,6 +2794,18 @@ func TestAutoinstrumentation_LocalLibInjectionPerContainerOnlyMountsLibraryOnTar
 
 	require.NotNil(t, appCtr)
 	require.NotNil(t, app2Ctr)
+
+	appValidator := testutils.NewContainerValidator(appCtr, nil)
+	appValidator.RequireEnvs(t, map[string]string{
+		"LD_PRELOAD":            "/opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so",
+		"DD_INJECT_SENDER_TYPE": "k8s",
+	})
+
+	app2Validator := testutils.NewContainerValidator(app2Ctr, nil)
+	app2Validator.RequireEnvs(t, map[string]string{
+		"LD_PRELOAD":            "/opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so",
+		"DD_INJECT_SENDER_TYPE": "k8s",
+	})
 
 	hasLibraryMount := func(ctr *corev1.Container) bool {
 		for _, mount := range ctr.VolumeMounts {
