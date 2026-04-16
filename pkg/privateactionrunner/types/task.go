@@ -34,6 +34,11 @@ type Attributes struct {
 	JobId                 string                                          `json:"job_id"`
 	SignedEnvelope        *privateactionspb.RemoteConfigSignatureEnvelope `json:"signed_envelope"`
 	ConnectionInfo        *privateactionspb.ConnectionInfo                `json:"connection_info"`
+	// TraceContext carries the dd-trace-go TextMapCarrier propagated from
+	// wf-actions-server through OPMS, used to link PAR execution spans to
+	// the backend-created rshell.script_execution trace. Empty when the
+	// backend tracing propagation experiment is disabled.
+	TraceContext map[string]string `json:"trace_context,omitempty"`
 }
 
 // TimeoutSeconds returns the timeout from the task inputs if present, positive, and within int32
