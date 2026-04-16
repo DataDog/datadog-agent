@@ -40,7 +40,7 @@ trap cleanup EXIT
 #
 # /opt/freeware/bin/strip supports -X64 (required for XCOFF64 binaries on AIX).
 # The system /usr/bin/strip is 32-bit only and will refuse or silently corrupt
-# 64-bit XCOFF objects.  Use while-read rather than for-f-in-$(find) to avoid
+# 64-bit XCOFF objects. Use while-read rather than for-f-in-$(find) to avoid
 # command substitution size limits and to handle filenames with spaces safely.
 
 log "Stripping debug info from .so files under $EMBEDDED_DESTDIR/lib"
@@ -69,8 +69,8 @@ log "Build artefacts removed"
 # ─── Step 3: Compile .py to .pyc for faster agent startup ─────────────────────
 #
 # -x 'test/' skips test directories which contain code that may not compile
-# cleanly or that imports Linux-only modules.  -q suppresses per-file output;
-# errors (if any) are still printed.  || true: a few files may legitimately
+# cleanly or that imports Linux-only modules. -q suppresses per-file output;
+# errors (if any) are still printed. || true: a few files may legitimately
 # fail to compile (e.g. Python 2-only syntax in vendored code); do not abort
 # the stage for these.
 
@@ -83,7 +83,7 @@ log "Bytecode compilation complete"
 # ─── Step 4: Record compiled bytecode files ───────────────────────────────────
 #
 # The preinst and prerm package scripts read this manifest to delete .pyc files
-# before file replacement (upgrade) or removal (uninstall).  mkinstallp does not
+# before file replacement (upgrade) or removal (uninstall). mkinstallp does not
 # track .pyc files created post-install (they are generated at package-build time
 # and again at postinst time), so the manifest is the only reliable way to clean
 # them up without leaving orphaned bytecode behind.

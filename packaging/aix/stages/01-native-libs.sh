@@ -57,7 +57,7 @@ mkdir -p "$EMBEDDED_DESTDIR/share"
 # ─── Version pins ──────────────────────────────────────────────────────────────
 #
 # Versions of built-from-source libraries are kept in sync with the Linux
-# omnibus pipeline.  Source of truth: deps/repos.MODULE.bazel.
+# omnibus pipeline. Source of truth: deps/repos.MODULE.bazel.
 #
 # Libraries taken from AIX Toolbox (yum install <pkg>-devel) use whatever
 # version is provided by the toolbox.
@@ -102,7 +102,7 @@ lib_mark() {
 # ─── Per-library artifact cache ────────────────────────────────────────────────
 #
 # Built-from-source libraries (zlib, bzip2, OpenSSL, xz, libxml2) are archived
-# after their first successful build.  On subsequent clean builds, if the pinned
+# after their first successful build. On subsequent clean builds, if the pinned
 # version matches, the archive is restored directly into $STAGING — no recompile.
 #
 # Cache key: $LIB_CACHE/<name>-<version>.tar.gz
@@ -115,7 +115,7 @@ mkdir -p "$LIB_CACHE"
 
 # lib_cache_restore NAME VERSION
 #   If a cache archive exists for NAME-VERSION, extract it into $STAGING,
-#   mark the library done, and return 0.  Returns 1 on cache miss.
+#   mark the library done, and return 0. Returns 1 on cache miss.
 lib_cache_restore() {
     _lcr_name=$1; _lcr_ver=$2
     _lcr_file="$LIB_CACHE/${_lcr_name}-${_lcr_ver}.tar.gz"
@@ -131,7 +131,7 @@ lib_cache_restore() {
 
 # lib_cache_save NAME VERSION PRE_TIMESTAMP_FILE
 #   Pack all files added to $STAGING since PRE_TIMESTAMP_FILE into a cache
-#   archive.  Call immediately after make install, before lib_mark.
+#   archive. Call immediately after make install, before lib_mark.
 lib_cache_save() {
     _lcs_name=$1; _lcs_ver=$2; _lcs_pre=$3
     _lcs_file="$LIB_CACHE/${_lcs_name}-${_lcs_ver}.tar.gz"
@@ -312,8 +312,8 @@ fi
 # ── libffi (AIX Toolbox: yum install libffi-devel) ────────────────────────────
 #
 # libffi source build fails on AIX: configure explicitly rejects powerpc64-ibm-aix
-# and the autoconf bootstrap also fails.  The AIX Toolbox provides a working
-# 64-bit libffi.  We stage it into the embedded tree so it ships with the package.
+# and the autoconf bootstrap also fails. The AIX Toolbox provides a working
+# 64-bit libffi. We stage it into the embedded tree so it ships with the package.
 #
 stage_toolbox_lib libffi "$LIBFFI_VERSION" \
     /opt/freeware/lib64/libffi.a \

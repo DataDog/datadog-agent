@@ -61,7 +61,7 @@ trap cleanup EXIT
 # ─── Step 1: Copy built-in Go check example configs ───────────────────────────
 #
 # Built-in Go checks (cpu, memory, disk, load, network) are implemented in the
-# agent binary itself and do not require pip install.  We bundle their example
+# agent binary itself and do not require pip install. We bundle their example
 # configuration files so the operator can see the available options.
 
 log "Copying built-in Go check default configs"
@@ -87,7 +87,7 @@ log "Built-in check configs copied"
 #
 # IBM checks (ibm_mq, ibm_ace, ibm_db2, ibm_i) are installed regardless of
 # whether the corresponding C extension (pymqi, ibm_db, pyodbc) was built in
-# Stage 05.  The check code installs successfully; it will surface a clear
+# Stage 05. The check code installs successfully; it will surface a clear
 # ImportError at runtime if the missing native extension is not present on the
 # target system.
 

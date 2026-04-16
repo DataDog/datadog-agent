@@ -64,7 +64,7 @@ trap cleanup EXIT
 #
 # datadog_checks_base/pyproject.toml pins an exact pydantic version, e.g.:
 #   "pydantic==2.11.7",
-# pydantic itself pins exactly one pydantic-core version.  By installing the
+# pydantic itself pins exactly one pydantic-core version. By installing the
 # exact pydantic version required by the checks, we guarantee the right
 # pydantic-core version is pulled in.
 #
@@ -113,7 +113,7 @@ log "  Rust toolchain: $(cargo --version 2>/dev/null || echo 'cargo not found �
 # pydantic-core), the old cached wheel is not used — a new subdirectory is
 # created and a fresh Rust build is triggered automatically.
 #
-# pydantic-core takes ~52 minutes to build from source on POWER8.  If a
+# pydantic-core takes ~52 minutes to build from source on POWER8. If a
 # pre-built wheel is present in the versioned cache directory, install from
 # it and skip the Rust build entirely.
 
@@ -148,7 +148,7 @@ else
 
     log "pydantic-core build complete"
 
-    # Cache the built wheel for next time.  maturin produces a system-specific
+    # Cache the built wheel for next time. maturin produces a system-specific
     # platform tag (aix_3_XXXXXXXX_XXXXXXXX); rename it to the portable aix_ppc64
     # tag so the same wheel can be used on any AIX 7.x POWER system.
     BUILT_WHEEL=$(find "${HOME}/.cache/pip" -name "pydantic_core-*.whl" 2>/dev/null | head -1)
@@ -167,7 +167,7 @@ fi
 
 # ─── Step 4: Install typing_extensions ────────────────────────────────────────
 #
-# pydantic-core >= 2.41 requires typing_extensions >= 4.14.1.  Install it
+# pydantic-core >= 2.41 requires typing_extensions >= 4.14.1. Install it
 # explicitly after pydantic-core so the constraint is satisfied even if pydantic
 # itself did not pull in a new enough version.
 

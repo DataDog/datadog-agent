@@ -5,7 +5,7 @@ lsgroup dd-agent > /dev/null 2>&1 || mkgroup dd-agent
 # Create dd-agent user (no interactive login).
 # Use login=false rlogin=false instead of shell=/usr/bin/false: the shell= attribute
 # requires the shell to be listed in the usw.shells list in /etc/security/login.cfg,
-# which /usr/bin/false is not on a standard AIX system.  login=false/rlogin=false
+# which /usr/bin/false is not on a standard AIX system. login=false/rlogin=false
 # achieves the same "no login" result without that constraint.
 if ! id dd-agent > /dev/null 2>&1; then
     mkuser pgrp=dd-agent login=false rlogin=false home=/opt/datadog-agent dd-agent
@@ -28,7 +28,7 @@ chmod 750 /etc/datadog-agent               2>/dev/null || true
 
 # Write SRC wrapper script.
 # AIX's mkssys does not support setting environment variables (-e is stderr
-# redirect, not env-var injection).  This wrapper sets LIBPATH so all shared
+# redirect, not env-var injection). This wrapper sets LIBPATH so all shared
 # libraries and Python C extensions are found, then exec's the agent binary.
 WRAPPER=/opt/datadog-agent/bin/agent-svc
 LIBPATH_VAL=/opt/datadog-agent/rtloader

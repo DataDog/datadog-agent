@@ -43,7 +43,7 @@ trap cleanup EXIT
 
 # ─── Step 1: Pre-flight — verify agent binary exists ──────────────────────────
 #
-# The agent binary is the primary deliverable.  If it is absent the staging
+# The agent binary is the primary deliverable. If it is absent the staging
 # tree is incomplete and packaging will produce a broken BFF.
 
 AGENT_BIN="$STAGING/opt/datadog-agent/bin/agent"
@@ -57,7 +57,7 @@ log "Pre-flight: agent binary found at $AGENT_BIN"
 # ─── Step 2: Copy main config example ─────────────────────────────────────────
 #
 # Install the upstream datadog.yaml as a .example file so the operator can copy
-# and edit it.  The agent will not start without a real datadog.yaml; the .example
+# and edit it. The agent will not start without a real datadog.yaml; the .example
 # suffix makes it clear that manual configuration is required.
 
 log "Copying main config example"
@@ -118,7 +118,7 @@ if [ ! -d "$PYTHON_LIB_DIR" ]; then
 fi
 cp "$SITECUSTOMIZE_SRC" "$PYTHON_LIB_DIR/sitecustomize.py"
 # Remove any stale .pyc that may have been compiled against an older version of
-# this file in a previous build.  The .pyc is not needed in the BFF — Python
+# this file in a previous build. The .pyc is not needed in the BFF — Python
 # regenerates it on first import on the target host.
 rm -f "$PYTHON_LIB_DIR/__pycache__/sitecustomize.cpython-313.pyc"
 log "sitecustomize.py installed to $PYTHON_LIB_DIR/sitecustomize.py"
@@ -126,7 +126,7 @@ log "sitecustomize.py installed to $PYTHON_LIB_DIR/sitecustomize.py"
 # ─── Step 3: Create required empty directories ────────────────────────────────
 #
 # mkinstallp will include these directories in the package so that installp
-# creates them on the target system.  The agent and its postinst script expect
+# creates them on the target system. The agent and its postinst script expect
 # them to exist at runtime.
 
 log "Creating required runtime directories"
@@ -140,8 +140,8 @@ log "Runtime directories created"
 # ─── Step 4: Copy package lifecycle scripts into the staging tree ──────────────
 #
 # mkinstallp requires lifecycle scripts to be present at their final installed
-# path inside the staging tree.  The gen.template.in references them at
-# /opt/datadog-agent/embedded/share/installp/<name>.  They must be executable.
+# path inside the staging tree. The gen.template.in references them at
+# /opt/datadog-agent/embedded/share/installp/<name>. They must be executable.
 #
 # Fail clearly if any script is missing rather than producing a BFF that silently
 # has no pre/post install hooks.
@@ -150,7 +150,7 @@ log "Copying package lifecycle scripts"
 SCRIPTS_DIR="$EMBEDDED_DESTDIR/share/installp"
 mkdir -p "$SCRIPTS_DIR"
 # mkinstallp checks lifecycle scripts at their absolute installed path, not
-# relative to the staging tree.  Copy them to BOTH the staging tree (so they
+# relative to the staging tree. Copy them to BOTH the staging tree (so they
 # are included in the BFF) AND the installed path (so mkinstallp can find
 # them when building the BFF on the same host that will run the agent).
 SCRIPTS_INSTALLED="$EMBEDDED/share/installp"
@@ -177,9 +177,9 @@ log "All package lifecycle scripts installed"
 # ─── Step 5: Set correct ownership ────────────────────────────────────────────
 #
 # mkinstallp records the owning uid:gid of every file and directory in the
-# generated BFF.  If files are owned by a build user rather than root, installp
+# generated BFF. If files are owned by a build user rather than root, installp
 # will install them with that non-root ownership on the target system, which
-# causes permission errors at runtime.  chown -h (portable spelling: -Rh) also
+# causes permission errors at runtime. chown -h (portable spelling: -Rh) also
 # fixes symbolic link ownership without following the link target.
 
 log "Setting root ownership on staging tree"

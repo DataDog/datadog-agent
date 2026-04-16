@@ -58,25 +58,25 @@ mkdir -p "$STAGING/opt/datadog-agent/bin"
 # ─── Step 2: Set rtloader CGO flags ───────────────────────────────────────────
 #
 # The global CGO_CFLAGS/CGO_LDFLAGS from env.sh point to /opt/freeware headers
-# and libs.  We extend them here with rtloader-specific paths so that the Go
+# and libs. We extend them here with rtloader-specific paths so that the Go
 # packages that import rtloader (pkg/collector/python/) can find its C headers
 # and link against the .so files we built in Stage 03.
 #
 # Note: we point -L at the BUILD paths (rtloader/build/rtloader and
-# rtloader/build/three), not the staging paths.  The .so files are in the build
+# rtloader/build/three), not the staging paths. The .so files are in the build
 # tree; the staging copies are for the final package only.
 
 log "Setting rtloader CGO flags"
 export CGO_CFLAGS="$CGO_CFLAGS -I/opt/datadog-agent/rtloader/include"
 #
 # -lpython3 (via libpython3.a symlink) causes libpython3.a(shr_64.o) to appear in the agent binary's
-# XCOFF startup-load chain.  This is necessary but not sufficient: the binary
+# XCOFF startup-load chain. This is necessary but not sufficient: the binary
 # must also EXPORT Python API symbols so that extension modules with IMPid="."
 # (which means "look in the main program's export table") can find them.
 #
 # -Wl,-bE:python.exp adds ~2762 Python API symbols to the agent binary's own
-# EXP (export) table.  Go's CGO security filter rejects -bE in #cgo LDFLAGS,
-# so it must be passed here via CGO_LDFLAGS instead.  The python_aix.go file
+# EXP (export) table. Go's CGO security filter rejects -bE in #cgo LDFLAGS,
+# so it must be passed here via CGO_LDFLAGS instead. The python_aix.go file
 # handles the Py_IsInitialized() call that creates the live Go→CGO reference
 # needed to trigger the //go:cgo_import_dynamic for the Python shared library.
 #
@@ -98,7 +98,7 @@ export CGO_LDFLAGS="$CGO_LDFLAGS \
 # ─── Step 3: Get commit hash ──────────────────────────────────────────────────
 #
 # AGENT_COMMIT may be pre-set by the caller (e.g. when the source was transferred
-# without the .git directory).  If unset, resolve it from the local git repo.
+# without the .git directory). If unset, resolve it from the local git repo.
 
 if [ -n "${AGENT_COMMIT:-}" ]; then
     COMMIT=$AGENT_COMMIT
@@ -157,7 +157,7 @@ log "trace-agent binary build complete: $STAGING/opt/datadog-agent/bin/trace-age
 
 # ─── Step 6: Verify XCOFF64 magic bytes ───────────────────────────────────────
 #
-# Both binaries must be XCOFF64 (magic bytes 01 f7).  A non-XCOFF64 result
+# Both binaries must be XCOFF64 (magic bytes 01 f7). A non-XCOFF64 result
 # would indicate a cross-compile or wrong-format build.
 
 log "Verifying agent binary is XCOFF64"

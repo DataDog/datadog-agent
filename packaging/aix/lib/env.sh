@@ -4,7 +4,7 @@
 # Usage: . "$SCRIPT_DIR/../lib/env.sh"   (from a stages/NN-name.sh script)
 #        . "$SCRIPT_DIR/lib/env.sh"      (from build.sh)
 #
-# This file is sourced, never executed directly.  Callers control set -e/set -u.
+# This file is sourced, never executed directly. Callers control set -e/set -u.
 # No validation of required variables is done here; each script validates its
 # own inputs after sourcing this file.
 
@@ -45,7 +45,7 @@ export BUILD_DIR STAGING EMBEDDED EMBEDDED_DESTDIR INTEGRATIONS_CORE WHEEL_CACHE
 # AGENT_VRMF is derived here; it is the four-component installp version string.
 
 # Use ${VAR:-} (no-fail) so env.sh can be sourced under set -u before the caller
-# validates AGENT_VERSION/AGENT_BUILD.  The individual stage scripts call
+# validates AGENT_VERSION/AGENT_BUILD. The individual stage scripts call
 #   : "${AGENT_VERSION:?AGENT_VERSION must be set}"
 # after sourcing this file; that is where the empty-variable error is reported.
 AGENT_VRMF=$(printf '%s' "${AGENT_VERSION:-}" | sed 's/\([0-9]*\.[0-9]*\.[0-9]*\).*/\1/').${AGENT_BUILD:-}

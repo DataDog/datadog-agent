@@ -10,7 +10,7 @@
 #   AGENT_COMMIT   — short git SHA of the source tree (embedded in binary version string)
 #
 # The agent source must already be present at /opt/datadog-agent before running
-# this script.  Transfer it from the build machine with:
+# this script. Transfer it from the build machine with:
 #   tar czf /tmp/dd-agent-src.tar.gz --exclude='.git' --exclude='bin' .
 #   scp /tmp/dd-agent-src.tar.gz aix-host:/tmp/
 #   ssh aix-host 'mkdir -p /opt/datadog-agent && gunzip -c /tmp/dd-agent-src.tar.gz | tar xf - -C /opt/datadog-agent'

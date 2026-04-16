@@ -1,6 +1,6 @@
 #!/bin/sh
 # Pre_rm Script — runs ONLY during deinstallation (installp -u), before files
-# are removed.  This is the right place for user/directory cleanup because:
+# are removed. This is the right place for user/directory cleanup because:
 #   1. The script file is still present (not yet removed by installp).
 #   2. The agent has already been stopped by the Unconfiguration Script.
 #   3. Pre_rm does NOT run during upgrades (only -u deinstall).

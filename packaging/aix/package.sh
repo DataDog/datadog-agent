@@ -44,7 +44,7 @@ trap cleanup EXIT
 # ─── Step 1: Pre-flight — verify staging tree is assembled ────────────────────
 #
 # The agent binary and the postinst lifecycle script are the two most critical
-# components.  If either is absent the staging tree is incomplete and mkinstallp
+# components. If either is absent the staging tree is incomplete and mkinstallp
 # will produce a broken or empty BFF.
 
 AGENT_BIN="$STAGING/opt/datadog-agent/bin/agent"
@@ -112,7 +112,7 @@ log "Template written to $STAGING/gen.template ($FILE_COUNT file entries)"
 #
 # mkinstallp writes its output to $STAGING/tmp/datadog-agent.<VRMF>.bff.
 # The -d flag specifies the staging root (all paths in USRFiles are relative to
-# this directory).  The -T flag specifies the template file.
+# this directory). The -T flag specifies the template file.
 #
 # mkinstallp requires the tmp/ subdirectory to exist; create it explicitly so
 # the error message is clear if it fails rather than getting a cryptic mkdir

@@ -93,7 +93,7 @@ log "  cryptography==$CRYPTOGRAPHY_VERSION"
 
 # ─── Step 1: cffi (C extension, bundled libffi) ────────────────────────────────
 #
-# cffi is required by cryptography (and many other packages).  It builds against
+# cffi is required by cryptography (and many other packages). It builds against
 # the libffi we bundled in Stage 1 via the standard CFLAGS/CPPFLAGS/LDFLAGS that
 # point to $EMBEDDED_DESTDIR.
 #
@@ -102,14 +102,14 @@ log "  cryptography==$CRYPTOGRAPHY_VERSION"
 #   on AIX/GCC (the syntax is valid) and then adds -DUSE__THREAD to the build.
 #   -DUSE__THREAD makes _cffi_backend.c use __thread for TLS variables, which
 #   AIX's dynamic linker rejects in shared libraries (error 0509-187: local-exec
-#   model).  -ftls-model=global-dynamic is not a fix because GCC on AIX generates
+#   model). -ftls-model=global-dynamic is not a fix because GCC on AIX generates
 #   calls to __tls_get_addr (ELF TLS) which does not exist on XCOFF/AIX.
 #
 #   Fix: patch cffi's setup.py before install to skip USE__THREAD on AIX.
 #   Without USE__THREAD, cffi uses pthread_key_t for TLS which works correctly.
 #
 # AIX/GCC __lwsync note: cffi's call_python.c uses __lwsync() which is an IBM
-#   XLC intrinsic not available in GCC.  We redefine it to GCC's
+#   XLC intrinsic not available in GCC. We redefine it to GCC's
 #   __sync_synchronize() which provides an equivalent full memory barrier.
 
 log "Installing cffi==$CFFI_VERSION (C extension, bundled libffi)"
@@ -146,7 +146,7 @@ log "cffi==$CFFI_VERSION installed successfully"
 
 # ─── Step 2: psutil (C extension) ─────────────────────────────────────────────
 #
-# psutil provides process and system information.  --no-binary forces a source
+# psutil provides process and system information. --no-binary forces a source
 # build so it is compiled against our bundled headers.
 
 log "Installing psutil==$PSUTIL_VERSION (C extension)"
@@ -155,7 +155,7 @@ log "psutil==$PSUTIL_VERSION installed successfully"
 
 # ─── Step 3: lxml (C extension, bundled libxml2/libxslt) ──────────────────────
 #
-# lxml is required by the ibm_was check.  We pass explicit CFLAGS/LDFLAGS to
+# lxml is required by the ibm_was check. We pass explicit CFLAGS/LDFLAGS to
 # ensure it links against our bundled libxml2 and libxslt from Stage 1.
 # The libxml2 headers are under include/libxml2/ so we add that path explicitly.
 
@@ -167,7 +167,7 @@ log "lxml==$LXML_VERSION installed successfully"
 
 # ─── Step 4: cryptography (Rust/PyO3 extension) ───────────────────────────────
 #
-# cryptography requires a Rust build.  The wheel cache (keyed by version) avoids
+# cryptography requires a Rust build. The wheel cache (keyed by version) avoids
 # the ~15-minute Rust compilation on subsequent builds.
 #
 # AIX-specific Rust flags:
@@ -247,10 +247,10 @@ log "cryptography==$CRYPTOGRAPHY_VERSION installed successfully"
 
 # ─── Step 5: pymqi (conditional — IBM MQ Client required) ─────────────────────
 #
-# pymqi is a C extension wrapping the IBM MQ C Client API.  It is required by
-# the ibm_mq and ibm_ace checks.  The MQ Client shared libraries (libmqm.so,
+# pymqi is a C extension wrapping the IBM MQ C Client API. It is required by
+# the ibm_mq and ibm_ace checks. The MQ Client shared libraries (libmqm.so,
 # libmqmcs.so) are NOT bundled — they are a user-installed prerequisite on the
-# target system.  We skip gracefully if the build host does not have MQ headers.
+# target system. We skip gracefully if the build host does not have MQ headers.
 
 if [ -d /opt/mqm/inc ]; then
     log "IBM MQ Client found at /opt/mqm — building pymqi"
@@ -266,9 +266,9 @@ fi
 
 # ─── Step 6: pyodbc (conditional — unixODBC headers required) ─────────────────
 #
-# pyodbc is a C++ extension wrapping unixODBC.  It is required by the ibm_i
-# check.  The IBM i Access ODBC driver is a separate user-installed prerequisite
-# on the target system.  We skip gracefully if the build host lacks sql.h.
+# pyodbc is a C++ extension wrapping unixODBC. It is required by the ibm_i
+# check. The IBM i Access ODBC driver is a separate user-installed prerequisite
+# on the target system. We skip gracefully if the build host lacks sql.h.
 
 if [ -f /opt/freeware/include/sql.h ] || [ -f /usr/include/sql.h ]; then
     log "unixODBC headers found — building pyodbc"
@@ -283,9 +283,9 @@ fi
 
 # ─── Step 7: ibm_db (conditional — IBM DB2 CLI driver required) ───────────────
 #
-# ibm_db is a C++ extension for IBM DB2.  It is required by the ibm_db2 check.
+# ibm_db is a C++ extension for IBM DB2. It is required by the ibm_db2 check.
 # The CLI driver shared libraries are NOT bundled — user-installed prerequisite
-# on the target system.  We skip gracefully if no driver is found.
+# on the target system. We skip gracefully if no driver is found.
 
 if [ -n "${IBM_DB_HOME:-}" ] || [ -d /opt/ibm/db2/clidriver ]; then
     DB2_HOME=${IBM_DB_HOME:-/opt/ibm/db2/clidriver}

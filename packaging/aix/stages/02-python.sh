@@ -93,14 +93,14 @@ log "Extraction complete."
 # ─── Step 3: Apply AIX patches ───────────────────────────────────────────────
 #
 # NOTE: These patches were identified from datadog-unix-agent's AIX patches for
-# Python 3.8 (omnibus/config/patches/python3/).  For Python 3.13, patch offsets
+# Python 3.8 (omnibus/config/patches/python3/). For Python 3.13, patch offsets
 # will have shifted and some may no longer apply or may not be needed at all.
 # We use sed-based substitutions rather than patch(1) files to avoid offset
-# sensitivity.  If a patch no longer applies (pattern not found), we log a
+# sensitivity. If a patch no longer applies (pattern not found), we log a
 # warning rather than failing — it may mean the upstream fixed the issue.
 #
 # IMPORTANT: Validate all patches by doing a trial build of Python 3.13.12 on
-# AIX before finalising this script.  Add or remove sed substitutions based on
+# AIX before finalising this script. Add or remove sed substitutions based on
 # actual configure/compile errors encountered.
 
 log "Applying AIX-specific patches to Python ${PYTHON_VERSION} source"
@@ -134,8 +134,8 @@ fi
 # Patch: Disable __thread TLS in libpython${PYTHON_MAJ_MIN}.so on AIX
 #
 # On AIX, GCC's __thread (and C11's _Thread_local) storage class uses the
-# XCOFF "local-exec" TLS model.  This model is ONLY valid for the main
-# executable.  When Python uses __thread in libpython${PYTHON_MAJ_MIN}.so (a startup-linked
+# XCOFF "local-exec" TLS model. This model is ONLY valid for the main
+# executable. When Python uses __thread in libpython${PYTHON_MAJ_MIN}.so (a startup-linked
 # shared library), AIX's loader rejects the program with:
 #   0509-187 The local-exec model was used for thread-local storage,
 #            but the module is not the main program.
@@ -157,7 +157,7 @@ import sys
 # On AIX, both _Thread_local (C11) and __thread (GCC extension) use the
 # XCOFF "local-exec" TLS model, which AIX's loader rejects in shared libs.
 # Insert an _AIX guard BEFORE all TLS model checks so HAVE_THREAD_LOCAL
-# is undefined on AIX.  Python then falls back to PyThread_tss_*().
+# is undefined on AIX. Python then falls back to PyThread_tss_*().
 #
 # Original block:                       Patched block:
 #   #define HAVE_THREAD_LOCAL 1           #define HAVE_THREAD_LOCAL 1
@@ -183,7 +183,7 @@ NEW = (
     '#    define HAVE_THREAD_LOCAL 1\n'
     '#    if defined(_AIX)\n'
     '       /* AIX: _Thread_local and __thread use local-exec TLS model which\n'
-    '          is incompatible with shared library loading.  Fall back to the\n'
+    '          is incompatible with shared library loading. Fall back to the\n'
     '          PyThread_tss_*() API by undefining HAVE_THREAD_LOCAL. */\n'
     '#      undef HAVE_THREAD_LOCAL\n'
     '#    elif defined(thread_local)\n'
@@ -429,7 +429,7 @@ log "Created symlink: libpython3.a -> libpython${PYTHON_MAJ_MIN}.a"
 #
 # Python's sys.prefix is baked-in as $EMBEDDED (/opt/datadog-agent/embedded).
 # When building C extensions (cffi, psutil, etc.) in later stages, Python looks
-# for ld_so_aix and config files at that prefix.  We create a symlink from the
+# for ld_so_aix and config files at that prefix. We create a symlink from the
 # runtime path to the staging path so Python can find these files during the build.
 # The 10-assemble stage will remove this symlink and replace it with the real files.
 

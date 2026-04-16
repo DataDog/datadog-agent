@@ -97,7 +97,7 @@ if [ -d "$INTEGRATIONS_CORE/.git" ]; then
 else
     log "Cloning https://github.com/DataDog/integrations-core.git (shallow --depth=1)"
     PARTIAL_INTEGRATIONS_CORE="$INTEGRATIONS_CORE"
-    # --depth=1 cuts clone time from ~3 min to ~30 sec.  If the pinned SHA is not
+    # --depth=1 cuts clone time from ~3 min to ~30 sec. If the pinned SHA is not
     # the current HEAD of the default branch, fetch it specifically afterwards.
     # GitHub supports fetching public commits by SHA (git protocol v2).
     git clone --depth=1 --quiet https://github.com/DataDog/integrations-core.git "$INTEGRATIONS_CORE"

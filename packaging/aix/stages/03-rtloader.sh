@@ -60,7 +60,7 @@ mkdir -p /opt/datadog-agent/rtloader/build
 # ─── Step 2: CMake configure ──────────────────────────────────────────────────
 #
 # OBJECT_MODE=64 is required on AIX so that the IBM linker produces 64-bit
-# XCOFF objects.  cmake is invoked from within the build directory.
+# XCOFF objects. cmake is invoked from within the build directory.
 #
 # -DBUILD_DEMO=OFF      : skip the demo binary (not needed in the package)
 # -DDISABLE_PYTHON2=ON  : only build the Python 3 binding (libdatadog-agent-three.so)
@@ -69,12 +69,12 @@ mkdir -p /opt/datadog-agent/rtloader/build
 #
 # Embedded path trick:
 #   On AIX, the linker bakes the Python library path into the XCOFF loader
-#   section of libdatadog-agent-three.so.  If we pass the staging path
+#   section of libdatadog-agent-three.so. If we pass the staging path
 #   ($EMBEDDED_DESTDIR), the installed .so will look for Python at the build
 #   host's staging tree — which does not exist on a fresh target system.
 #   Instead, we pass the EMBEDDED (installed) path ($EMBEDDED/lib) and create
 #   a symlink there pointing to the staging copy so cmake can find the file
-#   during the build.  After installp installs the real libpython${PYTHON_MAJ_MIN}.so to
+#   during the build. After installp installs the real libpython${PYTHON_MAJ_MIN}.so to
 #   $EMBEDDED/lib, the baked-in path resolves correctly.
 
 log "Creating embedded-path symlink so rtloader embeds the installed Python path"
@@ -114,7 +114,7 @@ log "rtloader build complete."
 #
 # The agent binary startup-loads libpython${PYTHON_MAJ_MIN}.a(shr_64.o) via python_aix.go.
 # If three.so depends on libpython${PYTHON_MAJ_MIN}.so, the loader treats it as a SECOND Python
-# instance.  With two Python instances, Python C extensions fail with:
+# instance. With two Python instances, Python C extensions fail with:
 #   SystemError: initialization of _datetime did not return an extension module
 # because PyModule_Type lives at different addresses in the two copies.
 #
@@ -166,7 +166,7 @@ log "Copy complete."
 
 log "Creating .a archive wrappers for rtloader .so files (AIX CGO requirement)"
 # On AIX, Go's compiler (lex.go) requires the archive member name to either end in
-# ".o" or contain ".so." (a version number).  The conventional AIX name for the
+# ".o" or contain ".so." (a version number). The conventional AIX name for the
 # 64-bit shared module inside an archive is "shr_64.o".
 cd /opt/datadog-agent/rtloader/build/rtloader
 cp libdatadog-agent-rtloader.so shr_64.o
@@ -181,7 +181,7 @@ log "Archive wrappers created (member: shr_64.o in each .a)."
 # ─── Step 4c: Copy .a archive wrappers to staging ─────────────────────────────
 #
 # The AIX dynamic linker resolves shared library dependencies by looking for
-# lib<name>.a(shr_64.o) archives in LIBPATH.  If only the .so file is present
+# lib<name>.a(shr_64.o) archives in LIBPATH. If only the .so file is present
 # the loader raises "Dependent module lib<name>.a(shr_64.o) could not be loaded."
 # Both the .so and the .a must exist in the same directory in the package.
 
@@ -195,7 +195,7 @@ log "Archive wrappers copied to staging."
 #
 # XCOFF64 files begin with magic bytes 01 f7 (big-endian 0x01F7 = XCOFF64_MAGIC).
 # We read the first line of od output (8 bytes) and check that the first two bytes
-# match.  If they do not, the build produced a wrong-format binary.
+# match. If they do not, the build produced a wrong-format binary.
 
 log "Verifying libdatadog-agent-three.so is XCOFF64"
 MAGIC=$(od -A x -t x1 "$STAGING/opt/datadog-agent/rtloader/libdatadog-agent-three.so" | head -1 | awk '{print $2 $3}')

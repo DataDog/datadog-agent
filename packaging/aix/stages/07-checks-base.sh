@@ -61,8 +61,8 @@ trap cleanup EXIT
 # ─── Step 1: Install datadog-checks-base ──────────────────────────────────────
 #
 # Install datadog-checks-base from the pinned integrations-core checkout with
-# full dependency resolution.  pip resolves all transitive pure-Python deps
-# (pyyaml, requests, prometheus_client, etc.) from PyPI.  Native deps
+# full dependency resolution. pip resolves all transitive pure-Python deps
+# (pyyaml, requests, prometheus_client, etc.) from PyPI. Native deps
 # (pydantic-core, cryptography) were already installed from Stages 05-06 at
 # satisfying versions; pip detects they satisfy the requirements and does not
 # attempt to download or rebuild them.
@@ -74,7 +74,7 @@ log "datadog-checks-base installed successfully"
 # ─── Step 1b: Install datadog-checks-base [deps] extra packages ───────────────
 #
 # The [deps] extra lists all runtime-required packages, but pip will NOT install
-# them unless you request [deps] explicitly.  We cannot use
+# them unless you request [deps] explicitly. We cannot use
 #   pip install datadog-checks-base[deps]
 # because two packages in the [deps] extra require a Rust toolchain to build
 # from source and are not available as pre-built wheels for AIX/ppc64:
@@ -102,7 +102,7 @@ log "datadog-checks-base deps installed successfully"
 
 # ─── Step 2: Freeze installed state to constraints file ───────────────────────
 #
-# Freeze the complete installed state into a constraints file.  Stage 08 passes
+# Freeze the complete installed state into a constraints file. Stage 08 passes
 # this to every check install so pip pins all transitive deps to the exact same
 # versions rather than resolving to whatever is latest on PyPI at build time.
 # Any missing dep that has no AIX-compatible wheel will fail loudly here rather
