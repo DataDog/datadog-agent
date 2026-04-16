@@ -253,10 +253,6 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 	}
 }
 
-func envForceInstall(pkg string) string {
-	return "DD_INSTALLER_DEFAULT_PKG_INSTALL_" + strings.ToUpper(strings.ReplaceAll(pkg, "-", "_")) + "=true"
-}
-
 func envForceVersion(pkg, version string) string {
 	return "DD_INSTALLER_DEFAULT_PKG_VERSION_" + strings.ToUpper(strings.ReplaceAll(pkg, "-", "_")) + "=" + version
 }
