@@ -586,8 +586,9 @@ func TestResolveTemplateForService_ReportsToHealthPlatform(t *testing.T) {
 
 	count, issues := hp.GetAllIssues()
 	assert.Equal(t, 1, count, "expected 1 health issue to be reported")
-	issue := issues["ad-template:postgres:docker://abc123"]
-	require.NotNil(t, issue)
+	expectedCheckID := "ad-template:postgres:docker://abc123:" + tpl.Digest()
+	issue := issues[expectedCheckID]
+	require.NotNil(t, issue, "expected health issue at checkID %s", expectedCheckID)
 	assert.Equal(t, "ad-misconfiguration", issue.Id)
 }
 
@@ -609,8 +610,8 @@ func TestResolveTemplateForService_ClearsHealthPlatformOnSuccess(t *testing.T) {
 		Hosts:         map[string]string{"main": "myhost"},
 	}
 
-	// Pre-populate a health issue
-	hp.ReportIssue("ad-template:redis:docker://def456", "redis", &healthplatformpayload.IssueReport{
+	// Pre-populate a health issue using the same checkID format the code uses
+	hp.ReportIssue("ad-template:redis:docker://def456:"+tpl.Digest(), "redis", &healthplatformpayload.IssueReport{
 		IssueId: "ad-misconfiguration",
 		Context: map[string]string{"entityName": "redis"},
 	})

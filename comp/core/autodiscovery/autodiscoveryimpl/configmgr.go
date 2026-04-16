@@ -374,6 +374,10 @@ func (cm *reconcilingConfigManager) reconcileService(svcID string) integration.C
 		if _, found = expectedResolutions[templateDigest]; !found {
 			changes.UnscheduleConfig(cm.scheduledConfigs[resolvedDigest])
 			delete(existingResolutions, templateDigest)
+			// Clear any health issue for this template+service pair
+			if tpl, ok := cm.activeConfigs[templateDigest]; ok {
+				cm.clearTemplateResolutionFailureByID(tpl.Name, tpl.Digest(), svcID)
+			}
 		}
 	}
 
@@ -428,7 +432,7 @@ func (cm *reconcilingConfigManager) reportTemplateResolutionFailure(tpl integrat
 	if cm.healthPlatform == nil {
 		return
 	}
-	checkID := "ad-template:" + tpl.Name + ":" + svc.GetServiceID()
+	checkID := "ad-template:" + tpl.Name + ":" + svc.GetServiceID() + ":" + tpl.Digest()
 	report := &healthplatformpayload.IssueReport{
 		IssueId: healthplatformdef.ADMisconfigurationIssueID,
 		Context: map[string]string{
@@ -447,7 +451,19 @@ func (cm *reconcilingConfigManager) clearTemplateResolutionFailure(tpl integrati
 	if cm.healthPlatform == nil {
 		return
 	}
-	checkID := "ad-template:" + tpl.Name + ":" + svc.GetServiceID()
+	checkID := "ad-template:" + tpl.Name + ":" + svc.GetServiceID() + ":" + tpl.Digest()
+	if err := cm.healthPlatform.ReportIssue(checkID, healthplatformdef.ADMisconfigurationCheckName, nil); err != nil {
+		log.Debugf("Failed to clear template resolution issue %s: %v", checkID, err)
+	}
+}
+
+// clearTemplateResolutionFailureByID clears a health issue using string identifiers.
+// Used in deletion paths where the service object may no longer be available.
+func (cm *reconcilingConfigManager) clearTemplateResolutionFailureByID(tplName, tplDigest, svcID string) {
+	if cm.healthPlatform == nil {
+		return
+	}
+	checkID := "ad-template:" + tplName + ":" + svcID + ":" + tplDigest
 	if err := cm.healthPlatform.ReportIssue(checkID, healthplatformdef.ADMisconfigurationCheckName, nil); err != nil {
 		log.Debugf("Failed to clear template resolution issue %s: %v", checkID, err)
 	}
