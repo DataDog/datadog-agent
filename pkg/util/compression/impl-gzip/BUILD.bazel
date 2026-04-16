@@ -15,4 +15,5 @@ go_test(
     name = "impl-gzip_test",
     srcs = ["gzip_strategy_test.go"],
     embed = [":impl-gzip"],
+    gotags = ["test"],
 )

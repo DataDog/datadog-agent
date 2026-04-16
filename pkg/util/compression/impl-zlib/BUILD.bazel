@@ -12,4 +12,5 @@ go_test(
     name = "impl-zlib_test",
     srcs = ["zlib_strategy_test.go"],
     embed = [":impl-zlib"],
+    gotags = ["test"],
 )

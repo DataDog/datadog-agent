@@ -20,6 +20,7 @@ go_test(
     name = "metricsclient_test",
     srcs = ["metrics_client_test.go"],
     embed = [":metricsclient"],
+    gotags = ["test"],
     deps = [
         "//pkg/trace/timing",
         "@com_github_datadog_datadog_go_v5//statsd",

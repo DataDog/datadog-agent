@@ -18,6 +18,7 @@ go_test(
         "timing_test.go",
     ],
     embed = [":timing"],
+    gotags = ["test"],
     deps = [
         "//pkg/trace/teststatsd",
         "@com_github_datadog_datadog_go_v5//statsd",

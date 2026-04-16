@@ -15,5 +15,6 @@ go_test(
     name = "impl-zstd_test",
     srcs = ["zstd_strategy_test.go"],
     embed = [":impl-zstd"],
+    gotags = ["test"],
     deps = ["//pkg/util/compression"],
 )

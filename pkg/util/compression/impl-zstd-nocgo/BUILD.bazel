@@ -16,5 +16,6 @@ go_test(
     name = "impl-zstd-nocgo_test",
     srcs = ["zstd_nocgo_strategy_test.go"],
     embed = [":impl-zstd-nocgo"],
+    gotags = ["test"],
     deps = ["//pkg/util/compression"],
 )

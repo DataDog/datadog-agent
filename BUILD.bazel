@@ -114,7 +114,7 @@ exports_files(glob(
 # gazelle:exclude comp/logonduration/fx
 # gazelle:exclude comp/logonduration/impl
 # gazelle:exclude comp/logs
-# gazelle:exclude comp/logs-library
+# gazelle:exclude comp/logs-library/pipeline
 # gazelle:exclude comp/metadata
 # gazelle:exclude comp/ndmtmp
 # gazelle:exclude comp/netflow/config

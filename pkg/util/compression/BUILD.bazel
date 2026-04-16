@@ -10,6 +10,7 @@ go_library(
 go_test(
     name = "compression_test",
     srcs = ["compression_test.go"],
+    gotags = ["test"],
     deps = [
         "//pkg/util/compression/impl-zstd",
         "//pkg/util/compression/impl-zstd-nocgo",
