@@ -1,0 +1,15 @@
+---
+# Policy used by the `bump_datadog_agent` job in the DataDog/rshell GitLab CI.
+# Fires automatically on new rshell semver tags and can also be run manually
+# from main (e.g. to retry or bump to a specific version).
+issuer: https://gitlab.ddbuild.io
+
+subject_pattern: 'project_path:DataDog/rshell:(ref_type:tag:ref:v[0-9]+\.[0-9]+\.[0-9]+|ref_type:branch:ref:main)'
+
+claim_pattern:
+  project_path: DataDog/rshell
+  ref_protected: "true"
+
+permissions:
+  contents: write
+  pull_requests: write
