@@ -836,21 +836,17 @@ func TestMetricsFollowSpec(t *testing.T) {
 	// - NVML required to ensure the NVML workloadmeta collector starts up
 	env.SetFeatures(t, env.KubernetesDevicePlugins, env.NVML)
 
-	metricsSpec, err := gpuspec.LoadMetricsSpec()
-	require.NoError(t, err)
-	tagsSpec, err := gpuspec.LoadTagsSpec()
-	require.NoError(t, err)
-	archFile, err := gpuspec.LoadArchitecturesSpec()
+	specs, err := gpuspec.LoadSpecs()
 	require.NoError(t, err)
 
-	configs := gpuspec.KnownGPUConfigs(archFile)
+	configs := gpuspec.KnownGPUConfigs(specs)
 
 	for _, config := range configs {
 		testName := fmt.Sprintf("arch=%s/mode=%s", config.Architecture, config.DeviceMode)
 		t.Run(testName, func(t *testing.T) {
-			archSpec := archFile.Architectures[config.Architecture]
+			archSpec := specs.Architectures.Architectures[config.Architecture]
 			emittedMetrics, knownTagValues := collectMetricSamples(t, config, archSpec)
-			ValidateEmittedMetricsAgainstSpec(t, metricsSpec, tagsSpec, config, emittedMetrics, knownTagValues)
+			ValidateEmittedMetricsAgainstSpec(t, specs, config, emittedMetrics, knownTagValues)
 		})
 	}
 }

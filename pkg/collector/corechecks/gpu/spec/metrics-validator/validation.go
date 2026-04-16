@@ -22,17 +22,9 @@ import (
 const metricQueryConcurrency = 4
 
 func computeValidation(apiKey, appKey, site string, lookbackSeconds int64) (orgValidationResults, error) {
-	metricsSpec, err := gpuspec.LoadMetricsSpec()
+	specs, err := gpuspec.LoadSpecs()
 	if err != nil {
-		return orgValidationResults{}, fmt.Errorf("load metrics spec: %w", err)
-	}
-	tagsSpec, err := gpuspec.LoadTagsSpec()
-	if err != nil {
-		return orgValidationResults{}, fmt.Errorf("load tags spec: %w", err)
-	}
-	architecturesSpec, err := gpuspec.LoadArchitecturesSpec()
-	if err != nil {
-		return orgValidationResults{}, fmt.Errorf("load architectures spec: %w", err)
+		return orgValidationResults{}, fmt.Errorf("load specs: %w", err)
 	}
 	client, err := newMetricsClient(apiKey, appKey, site)
 	if err != nil {
@@ -42,11 +34,11 @@ func computeValidation(apiKey, appKey, site string, lookbackSeconds int64) (orgV
 	now := time.Now().Unix()
 	fromTS := now - lookbackSeconds
 
-	configs := gpuspec.KnownGPUConfigs(architecturesSpec)
+	configs := gpuspec.KnownGPUConfigs(specs)
 	results := make([]gpuConfigValidationResult, 0, len(configs))
 
 	for _, config := range configs {
-		result, err := validateGPUConfig(client, metricsSpec, tagsSpec, config, fromTS, now)
+		result, err := validateGPUConfig(client, specs, config, fromTS, now)
 		if err != nil {
 			return orgValidationResults{}, fmt.Errorf("validate gpu config %s/%s: %w", config.Architecture, config.DeviceMode, err)
 		}
@@ -55,17 +47,17 @@ func computeValidation(apiKey, appKey, site string, lookbackSeconds int64) (orgV
 
 	return orgValidationResults{
 		Results:            results,
-		MetricsCount:       len(metricsSpec.Metrics),
-		ArchitecturesCount: len(architecturesSpec.Architectures),
+		MetricsCount:       len(specs.Metrics.Metrics),
+		ArchitecturesCount: len(specs.Architectures.Architectures),
 	}, nil
 }
 
-func validateGPUConfig(client *metricsClient, metricsSpec *gpuspec.MetricsSpec, tagsSpec *gpuspec.TagsSpec, config gpuspec.GPUConfig, fromTS, toTS int64) (gpuConfigValidationResult, error) {
+func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpuspec.GPUConfig, fromTS, toTS int64) (gpuConfigValidationResult, error) {
 	result := gpuConfigValidationResult{
 		Config: config,
 	}
 
-	expectedMetricsMap := gpuspec.ExpectedMetricsForConfig(metricsSpec, config)
+	expectedMetricsMap := gpuspec.ExpectedMetricsForConfig(specs, config)
 
 	deviceCount, err := client.queryDeviceCount(config, fromTS, toTS)
 	if err != nil {
@@ -78,7 +70,7 @@ func validateGPUConfig(client *metricsClient, metricsSpec *gpuspec.MetricsSpec, 
 		return result, nil
 	}
 
-	expectedTagsByMetric, err := gpuspec.RequiredTagsByMetric(tagsSpec, expectedMetricsMap)
+	expectedTagsByMetric, err := gpuspec.RequiredTagsByMetric(specs.Tags, expectedMetricsMap)
 	if err != nil {
 		return result, fmt.Errorf("derive required tags for %s/%s: %w", config.Architecture, config.DeviceMode, err)
 	}
@@ -91,7 +83,7 @@ func validateGPUConfig(client *metricsClient, metricsSpec *gpuspec.MetricsSpec, 
 
 	for metricName := range expectedMetricsMap {
 		group.Go(func() error {
-			prefixedMetricName := gpuspec.PrefixedMetricName(metricsSpec, metricName)
+			prefixedMetricName := gpuspec.PrefixedMetricName(specs, metricName)
 			metricObservations, err := client.queryExpectedMetricPresenceForGPUConfig(prefixedMetricName, expectedTagsByMetric[metricName], config.TagFilter(), fromTS, toTS)
 			if err != nil {
 				return fmt.Errorf("query expected metric presence for %s: %w", metricName, err)
@@ -110,7 +102,7 @@ func validateGPUConfig(client *metricsClient, metricsSpec *gpuspec.MetricsSpec, 
 		return result, fmt.Errorf("validate expected metrics for %+v: %w", config, err)
 	}
 
-	liveMetrics, err := client.listObservedGPUMetricsForGPUConfig(config, max(toTS-fromTS, int64(0)), metricsSpec.MetricPrefix)
+	liveMetrics, err := client.listObservedGPUMetricsForGPUConfig(config, max(toTS-fromTS, int64(0)), specs.Metrics.MetricPrefix)
 	if err != nil {
 		return result, fmt.Errorf("list observed metrics for %s/%s: %w", config.Architecture, config.DeviceMode, err)
 	}
@@ -120,7 +112,7 @@ func validateGPUConfig(client *metricsClient, metricsSpec *gpuspec.MetricsSpec, 
 		}
 	}
 
-	result.DetailedResult, err = gpuspec.ValidateEmittedMetricsAgainstSpec(metricsSpec, tagsSpec, config, observations, nil)
+	result.DetailedResult, err = gpuspec.ValidateEmittedMetricsAgainstSpec(specs, config, observations, nil)
 	if err != nil {
 		return result, fmt.Errorf("validate observations for %s/%s: %w", config.Architecture, config.DeviceMode, err)
 	}
@@ -144,13 +136,9 @@ func collectRegexValidatedTags(expectedTags map[string]gpuspec.TagSpec, tagNameF
 }
 
 func computeTagValidation(apiKey, appKey, site, metricNameFilter, tagNameFilter string, windowSeconds int64, metricScopeFilter string) (tagValidationResults, error) {
-	metricsSpec, err := gpuspec.LoadMetricsSpec()
+	specs, err := gpuspec.LoadSpecs()
 	if err != nil {
-		return tagValidationResults{}, fmt.Errorf("load metrics spec: %w", err)
-	}
-	tagsSpec, err := gpuspec.LoadTagsSpec()
-	if err != nil {
-		return tagValidationResults{}, fmt.Errorf("load tags spec: %w", err)
+		return tagValidationResults{}, fmt.Errorf("load specs: %w", err)
 	}
 	client, err := newMetricsClient(apiKey, appKey, site)
 	if err != nil {
@@ -160,13 +148,13 @@ func computeTagValidation(apiKey, appKey, site, metricNameFilter, tagNameFilter 
 	failures := map[string]map[string][]string{}
 	errors := []string{}
 
-	for relativeMetricName, metricSpec := range metricsSpec.Metrics {
-		metricName := metricsSpec.MetricPrefix + "." + relativeMetricName
+	for relativeMetricName, metricSpec := range specs.Metrics.Metrics {
+		metricName := specs.Metrics.MetricPrefix + "." + relativeMetricName
 		if metricNameFilter != "" && !strings.Contains(metricName, metricNameFilter) {
 			continue
 		}
 
-		expectedTags, err := gpuspec.RequiredTagsForMetric(tagsSpec, metricSpec)
+		expectedTags, err := gpuspec.RequiredTagsForMetric(specs.Tags, metricSpec)
 		if err != nil {
 			errors = append(errors, fmt.Sprintf("derive required tags for %s: %v", metricName, err))
 			continue

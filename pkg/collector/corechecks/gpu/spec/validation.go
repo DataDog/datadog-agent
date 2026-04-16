@@ -121,11 +121,12 @@ func (r *ValidationResult) addError(metricName string, err string) {
 }
 
 // KnownGPUConfigs returns all supported architecture + mode combinations.
-func KnownGPUConfigs(architectures *ArchitecturesSpec) []GPUConfig {
-	if architectures == nil {
+func KnownGPUConfigs(specs *Specs) []GPUConfig {
+	if specs == nil || specs.Architectures == nil {
 		return nil
 	}
 
+	architectures := specs.Architectures
 	configs := make([]GPUConfig, 0, len(architectures.Architectures)*3)
 	for archName, archSpec := range architectures.Architectures {
 		for _, mode := range AllDeviceModes {
@@ -143,9 +144,9 @@ func KnownGPUConfigs(architectures *ArchitecturesSpec) []GPUConfig {
 }
 
 // ExpectedMetricsForConfig returns the spec metric names expected for a GPU config.
-func ExpectedMetricsForConfig(metricsSpec *MetricsSpec, config GPUConfig) map[string]MetricSpec {
+func ExpectedMetricsForConfig(specs *Specs, config GPUConfig) map[string]MetricSpec {
 	expected := make(map[string]MetricSpec)
-	for metricName, metricSpec := range metricsSpec.Metrics {
+	for metricName, metricSpec := range specs.Metrics.Metrics {
 		if !metricSpec.SupportsConfig(config) {
 			continue
 		}
@@ -156,7 +157,12 @@ func ExpectedMetricsForConfig(metricsSpec *MetricsSpec, config GPUConfig) map[st
 }
 
 // PrefixedMetricName adds the spec metric prefix to a metric name if needed.
-func PrefixedMetricName(metricsSpec *MetricsSpec, metricName string) string {
+func PrefixedMetricName(specs *Specs, metricName string) string {
+	var metricsSpec *MetricsSpec
+	if specs != nil {
+		metricsSpec = specs.Metrics
+	}
+
 	if metricsSpec == nil || metricsSpec.MetricPrefix == "" {
 		return metricName
 	}
@@ -279,11 +285,16 @@ func ValidateMetricTagsAgainstSpec(tagsSpec *TagsSpec, metricSpec MetricSpec, me
 }
 
 // ValidateEmittedMetricsAgainstSpec validates emitted metrics against the spec for a given GPU config.
-func ValidateEmittedMetricsAgainstSpec(metricsSpec *MetricsSpec, tagsSpec *TagsSpec, config GPUConfig, emittedMetrics map[string][]MetricObservation, knownTagValues map[string]string) (ValidationResult, error) {
+func ValidateEmittedMetricsAgainstSpec(specs *Specs, config GPUConfig, emittedMetrics map[string][]MetricObservation, knownTagValues map[string]string) (ValidationResult, error) {
 	results := ValidationResult{
 		Metrics: make(map[string]*MetricStatus),
 	}
+	if specs == nil || specs.Metrics == nil || specs.Tags == nil {
+		return results, errors.New("specs, metrics spec, and tags spec are required")
+	}
 
+	metricsSpec := specs.Metrics
+	tagsSpec := specs.Tags
 	for metricName := range emittedMetrics {
 		metricSpec, found := metricsSpec.Metrics[metricName]
 		if !found {
@@ -296,7 +307,7 @@ func ValidateEmittedMetricsAgainstSpec(metricsSpec *MetricsSpec, tagsSpec *TagsS
 		}
 	}
 
-	expectedMetrics := ExpectedMetricsForConfig(metricsSpec, config)
+	expectedMetrics := ExpectedMetricsForConfig(specs, config)
 	for metricName, metricSpec := range expectedMetrics {
 		if _, found := emittedMetrics[metricName]; !found {
 			results.addError(metricName, ErrorMissing)

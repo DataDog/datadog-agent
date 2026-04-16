@@ -21,16 +21,14 @@ import (
 )
 
 func TestLoadSpecNotEmpty(t *testing.T) {
-	metricsSpec, err := LoadMetricsSpec()
+	specs, err := LoadSpecs()
 	require.NoError(t, err)
-	tagsSpec, err := LoadTagsSpec()
-	require.NoError(t, err)
-
-	require.NotEmpty(t, metricsSpec.MetricPrefix, "metric_prefix should not be empty")
-	require.NotEmpty(t, metricsSpec.Metrics, "metrics should not be empty")
-	require.NotEmpty(t, tagsSpec.Tags, "tags should not be empty")
-	require.NotEmpty(t, tagsSpec.Tagsets, "tagsets should not be empty")
-	for name := range metricsSpec.Metrics {
+	
+	require.NotEmpty(t, specs.Metrics.MetricPrefix, "metric_prefix should not be empty")
+	require.NotEmpty(t, specs.Metrics.Metrics, "metrics should not be empty")
+	require.NotEmpty(t, specs.Tags.Tags, "tags should not be empty")
+	require.NotEmpty(t, specs.Tags.Tagsets, "tagsets should not be empty")
+	for name := range specs.Metrics.Metrics {
 		require.NotEmpty(t, name, "metric name should not be empty")
 	}
 	for tagsetName, tagsetSpec := range tagsSpec.Tagsets {
@@ -99,14 +97,14 @@ func TestTagSpecUnmarshalYAML(t *testing.T) {
 // the NVML mock configured from architectures.yaml returns API behavior that matches the capability flags
 // (gpm, unsupported_fields_by_device_mode). This validates that the mock actually applies the spec.
 func TestMockCapabilitiesMatchArchitectureSpec(t *testing.T) {
-	archSpecFile, err := LoadArchitecturesSpec()
+	specs, err := LoadSpecs()
 	require.NoError(t, err)
 
-	configs := KnownGPUConfigs(archSpecFile)
+	configs := KnownGPUConfigs(specs)
 	for _, config := range configs {
 		subtestName := fmt.Sprintf("arch=%s/mode=%s", config.Architecture, config.DeviceMode)
 		t.Run(subtestName, func(t *testing.T) {
-			archSpec := archSpecFile.Architectures[config.Architecture]
+			archSpec := specs.Architectures.Architectures[config.Architecture]
 			opts := BuildMockOptionsForConfig(t, config, archSpec)
 
 			ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(opts...))

@@ -102,6 +102,13 @@ type ArchitecturesSpec struct {
 	Architectures map[string]ArchitectureSpec `yaml:"architectures"`
 }
 
+// Specs bundles all GPU spec files used by validation and tests.
+type Specs struct {
+	Metrics       *MetricsSpec
+	Tags          *TagsSpec
+	Architectures *ArchitecturesSpec
+}
+
 // ArchitectureCapabilities defines capabilities and unsupported fields.
 type ArchitectureCapabilities struct {
 	GPM                           bool                                `yaml:"gpm"`
@@ -198,4 +205,28 @@ func LoadArchitecturesSpec() (*ArchitecturesSpec, error) {
 	}
 
 	return &parsed, nil
+}
+
+// LoadSpecs loads all canonical GPU specification files.
+func LoadSpecs() (*Specs, error) {
+	metrics, err := LoadMetricsSpec()
+	if err != nil {
+		return nil, fmt.Errorf("load metrics spec: %w", err)
+	}
+
+	tags, err := LoadTagsSpec()
+	if err != nil {
+		return nil, fmt.Errorf("load tags spec: %w", err)
+	}
+
+	architectures, err := LoadArchitecturesSpec()
+	if err != nil {
+		return nil, fmt.Errorf("load architectures spec: %w", err)
+	}
+
+	return &Specs{
+		Metrics:       metrics,
+		Tags:          tags,
+		Architectures: architectures,
+	}, nil
 }
