@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build test && !linux
+//go:build !linux && test
 
 package agentimpl
 
@@ -25,7 +25,7 @@ import (
 	hostinfomock "github.com/DataDog/datadog-agent/comp/process/hostinfo/mock"
 	processcheckimpl "github.com/DataDog/datadog-agent/comp/process/processcheck/impl"
 	"github.com/DataDog/datadog-agent/comp/process/runner/runnerimpl"
-	"github.com/DataDog/datadog-agent/comp/process/submitter/submitterimpl"
+	submittermock "github.com/DataDog/datadog-agent/comp/process/submitter/mock"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	processchecks "github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -70,7 +70,7 @@ func TestProcessAgentComponent(t *testing.T) {
 			opts := []fx.Option{
 				runnerimpl.Module(),
 				hostinfomock.MockModule(),
-				submitterimpl.MockModule(),
+				submittermock.MockModule(),
 				taggerfxmock.MockModule(),
 				statsdimpl.MockModule(),
 				Module(),

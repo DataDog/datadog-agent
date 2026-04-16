@@ -26,7 +26,7 @@ import (
 	profilerimpl "github.com/DataDog/datadog-agent/comp/process/profiler/fx"
 	"github.com/DataDog/datadog-agent/comp/process/rtcontainercheck/rtcontainercheckimpl"
 	"github.com/DataDog/datadog-agent/comp/process/runner/runnerimpl"
-	"github.com/DataDog/datadog-agent/comp/process/submitter/submitterimpl"
+	submitterfx "github.com/DataDog/datadog-agent/comp/process/submitter/fx"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -39,7 +39,7 @@ import (
 func Bundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
 		runnerimpl.Module(),
-		submitterimpl.Module(),
+		submitterfx.Module(),
 		profilerimpl.Module(),
 
 		// Checks

@@ -61,6 +61,10 @@ type Store struct {
 	// to generate a container ID from Origin Info.
 	OriginInfoRequests telemetry.Counter
 
+	// TagCompletenessDelay tracks the delay (seconds) from when an entity's
+	// tags first appear until the tag set is considered complete.
+	TagCompletenessDelay telemetry.Histogram
+
 	LowCardinalityQueries          CardinalityTelemetry
 	OrchestratorCardinalityQueries CardinalityTelemetry
 	HighCardinalityQueries         CardinalityTelemetry
@@ -127,6 +131,15 @@ func NewStore(telemetryComp telemetry.Component) *Store {
 		OriginInfoRequests: telemetryComp.NewCounterWithOpts(subsystem, "origin_info_requests",
 			[]string{"status"}, "Number of requests to the tagger to generate a container ID from origin info.",
 			commonOpts),
+
+		TagCompletenessDelay: telemetryComp.NewHistogramWithOpts(
+			subsystem,
+			"tag_completeness_delay",
+			[]string{"prefix"},
+			"Delay before all expected collectors reported for an entity (in seconds).",
+			[]float64{0, 1, 2.5, 5, 10, 30, 60, 120}, // 0 is here because we want to know when there's no delay
+			commonOpts,
+		),
 
 		LowCardinalityQueries:          newCardinalityTelemetry(queries, types.LowCardinalityString),
 		OrchestratorCardinalityQueries: newCardinalityTelemetry(queries, types.OrchestratorCardinalityString),
