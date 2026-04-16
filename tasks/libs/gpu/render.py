@@ -102,10 +102,7 @@ def print_result_details(results: list[GPUConfigValidationResult]) -> None:
                     print(f"{SPACER * 2}- {metric_name}")
 
                 if metric_status.invalid_value_samples:
-                    print(
-                        f"{SPACER * 3}- invalid value samples: "
-                        + "; ".join(metric_status.invalid_value_samples)
-                    )
+                    print(f"{SPACER * 3}- invalid value samples: " + "; ".join(metric_status.invalid_value_samples))
 
                 for tag_name, tag_result in sorted(metric_status.tag_results.items()):
                     if not tag_result.has_failures:

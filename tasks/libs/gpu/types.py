@@ -18,6 +18,7 @@ STATE_BY_NAME = {
     "missing": GPUConfigValidationState.MISSING,
 }
 
+
 @dataclass(slots=True)
 class GPUConfig:
     architecture: str
@@ -128,7 +129,9 @@ class GPUConfigValidationResult:
 
     @property
     def invalid_values(self) -> int:
-        metric_invalid_values = sum(metric_status.invalid_value for metric_status in self.detailed_result.metrics.values())
+        metric_invalid_values = sum(
+            metric_status.invalid_value for metric_status in self.detailed_result.metrics.values()
+        )
         tag_invalid_values = sum(
             tag_result.invalid_value
             for metric_status in self.detailed_result.metrics.values()
