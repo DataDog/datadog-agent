@@ -23,51 +23,32 @@ import (
 func TestLoadSpecNotEmpty(t *testing.T) {
 	specs, err := LoadSpecs()
 	require.NoError(t, err)
-	
+
 	require.NotEmpty(t, specs.Metrics.MetricPrefix, "metric_prefix should not be empty")
 	require.NotEmpty(t, specs.Metrics.Metrics, "metrics should not be empty")
-	require.NotEmpty(t, specs.Tags.Tags, "tags should not be empty")
-	require.NotEmpty(t, specs.Tags.Tagsets, "tagsets should not be empty")
 	for name := range specs.Metrics.Metrics {
 		require.NotEmpty(t, name, "metric name should not be empty")
 	}
-	for tagsetName, tagsetSpec := range tagsSpec.Tagsets {
-		for _, tagName := range tagsetSpec.Tags {
-			_, ok := tagsSpec.Tags[tagName]
-			require.Truef(t, ok, "tagset %s references unknown tag %s", tagsetName, tagName)
-		}
-	}
-
-	for metricName, metricSpec := range metricsSpec.Metrics {
+	for metricName, metricSpec := range specs.Metrics.Metrics {
 		for deviceMode := range metricSpec.Support.DeviceModes {
 			require.Containsf(t, []string{"physical", "mig", "vgpu"}, string(deviceMode), "metric %s has invalid device mode key %q", metricName, deviceMode)
 		}
 	}
-}
 
-func TestLoadArchitecturesNotEmpty(t *testing.T) {
-	archSpecFile, err := LoadArchitecturesSpec()
-	require.NoError(t, err)
+	require.NotEmpty(t, specs.Tags.Tags, "tags should not be empty")
+	require.NotEmpty(t, specs.Tags.Tagsets, "tagsets should not be empty")
+	for tagsetName, tagsetSpec := range specs.Tags.Tagsets {
+		for _, tagName := range tagsetSpec.Tags {
+			_, ok := specs.Tags.Tags[tagName]
+			require.Truef(t, ok, "tagset %s references unknown tag %s", tagsetName, tagName)
+		}
+	}
 
-	require.NotEmpty(t, archSpecFile.Architectures, "architectures should not be empty")
-	for name, archSpec := range archSpecFile.Architectures {
+	require.NotEmpty(t, specs.Architectures.Architectures, "architectures should not be empty")
+	for name, archSpec := range specs.Architectures.Architectures {
 		t.Run(name, func(t *testing.T) {
 			require.NotNil(t, archSpec.UnsupportedDeviceModes, "unsupported_device_modes should be present")
 		})
-	}
-}
-
-func TestLoadTagsSpecNotEmpty(t *testing.T) {
-	tagsSpec, err := LoadTagsSpec()
-	require.NoError(t, err)
-
-	require.NotEmpty(t, tagsSpec.Tags, "tags should not be empty")
-	require.NotEmpty(t, tagsSpec.Tagsets, "tagsets should not be empty")
-	for tagsetName, tagsetSpec := range tagsSpec.Tagsets {
-		for _, tagName := range tagsetSpec.Tags {
-			_, ok := tagsSpec.Tags[tagName]
-			require.Truef(t, ok, "tagset %s references unknown tag %s", tagsetName, tagName)
-		}
 	}
 }
 

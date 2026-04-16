@@ -9,7 +9,6 @@ package spec
 
 import (
 	"slices"
-	"strings"
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -127,76 +126,4 @@ func AllConfiguredNVMLFieldValues() []nvml.FieldValue {
 		values[i] = nvml.FieldValue{FieldId: id}
 	}
 	return values
-}
-
-// EmittedMetric is a normalized emitted GPU metric sample used by spec-aware tests.
-type EmittedMetric struct {
-	Name string
-	Tags []string
-}
-
-// TestTagsToKeyValues converts Datadog-style tags to a key -> values map for test assertions.
-func TestTagsToKeyValues(tags []string) map[string][]string {
-	result := make(map[string][]string, len(tags))
-	for _, tag := range tags {
-		key, value, ok := strings.Cut(tag, ":")
-		if !ok || key == "" || value == "" {
-			continue
-		}
-		result[key] = append(result[key], value)
-	}
-	return result
-}
-
-// AssertMetricTagsAgainstSpec validates emitted tags against the metric and tag specs.
-// If knownTagValues is provided, matching keys are additionally checked for exact values.
-func AssertMetricTagsAgainstSpec(t *testing.T, tagsSpec *TagsSpec, metricName string, metricSpec MetricSpec, emittedMetrics []EmittedMetric, knownTagValues map[string]string) {
-	t.Helper()
-	require.NotEmpty(t, emittedMetrics, "metric %s has no emitted samples to validate tags", metricName)
-
-	requiredTags := metricRequiredTags(t, tagsSpec, metricName, metricSpec)
-
-	for _, emittedMetric := range emittedMetrics {
-		tagsByKey := TestTagsToKeyValues(emittedMetric.Tags)
-
-		for tag := range requiredTags {
-			require.Contains(t, tagsByKey, tag, "metric %s missing required tag key %s", metricName, tag)
-		}
-
-		for key, values := range tagsByKey {
-			tagSpec, allowed := requiredTags[key]
-			require.True(t, allowed, "metric %s has unknown tag key %s", metricName, key)
-
-			for _, value := range values {
-				require.NotEmpty(t, value, "metric %s has empty value for tag %s", metricName, key)
-				if expectedValue, ok := knownTagValues[key]; ok {
-					require.Equal(t, expectedValue, value, "metric %s has unexpected value for tag %s", metricName, key)
-				}
-				if tagSpec.Regex != nil {
-					require.Regexp(t, tagSpec.Regex, value, "metric %s has unexpected value for tag %s", metricName, key)
-				}
-			}
-		}
-	}
-}
-
-func metricRequiredTags(t *testing.T, tagsSpec *TagsSpec, metricName string, metricSpec MetricSpec) map[string]TagSpec {
-	t.Helper()
-
-	requiredTags := make(map[string]TagSpec)
-	for _, tagsetName := range metricSpec.Tagsets {
-		tagsetSpec, ok := tagsSpec.Tagsets[tagsetName]
-		require.True(t, ok, "metric %s references unknown tagset %s", metricName, tagsetName)
-		for _, tag := range tagsetSpec.Tags {
-			tagSpec, found := tagsSpec.Tags[tag]
-			require.True(t, found, "tagset %s references unknown tag %s", tagsetName, tag)
-			requiredTags[tag] = tagSpec
-		}
-	}
-	for _, tag := range metricSpec.CustomTags {
-		tagSpec, found := tagsSpec.Tags[tag]
-		require.True(t, found, "metric %s references unknown custom tag %s", metricName, tag)
-		requiredTags[tag] = tagSpec
-	}
-	return requiredTags
 }

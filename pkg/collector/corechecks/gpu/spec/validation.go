@@ -161,11 +161,11 @@ func PrefixedMetricName(specs *Specs, metricName string) string {
 	if specs.Metrics.MetricPrefix == "" {
 		return metricName
 	}
-	if strings.HasPrefix(metricName, metricsSpec.MetricPrefix+".") {
+	if strings.HasPrefix(metricName, specs.Metrics.MetricPrefix+".") {
 		return metricName
 	}
 
-	return metricsSpec.MetricPrefix + "." + metricName
+	return specs.Metrics.MetricPrefix + "." + metricName
 }
 
 // TagsToKeyValues converts Datadog-style tags to a key -> values map.
@@ -305,7 +305,7 @@ func ValidateEmittedMetricsAgainstSpec(specs *Specs, config GPUConfig, emittedMe
 			continue
 		}
 
-		tagResults, err := validateMetricTagsAgainstSpec(tagsSpec, metricSpec, emittedMetrics[metricName], knownTagValues)
+		tagResults, err := validateMetricTagsAgainstSpec(specs.Tags, metricSpec, emittedMetrics[metricName], knownTagValues)
 		if err != nil {
 			return results, fmt.Errorf("validate metric tags for %s: %w", metricName, err)
 		}

@@ -10,7 +10,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"regexp"
 	"strings"
 
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadog"
@@ -219,8 +218,8 @@ func (c *metricsClient) listObservedGPUMetricsForGPUConfig(config gpuspec.GPUCon
 	return metrics, nil
 }
 
-func (c *metricsClient) fetchMetricAllTags(metricName string, wantedTags map[string]*regexp.Regexp, windowSeconds int64, metricScopeFilter string) (map[string][]string, error) {
-	allTags := make(map[string][]string, len(wantedTags))
+func (c *metricsClient) fetchMetricAllTags(metricName string, wantedTags map[string]gpuspec.TagSpec, windowSeconds int64, metricScopeFilter string) ([]string, error) {
+	var allTags []string
 
 	for tagName := range wantedTags {
 		options := datadogV2.NewListTagsByMetricNameOptionalParameters().
@@ -244,13 +243,7 @@ func (c *metricsClient) fetchMetricAllTags(metricName string, wantedTags map[str
 			continue
 		}
 
-		for _, rawTag := range response.Data.Attributes.GetTags() {
-			key, value, ok := strings.Cut(rawTag, ":")
-			if !ok || key == "" || value == "" || key != tagName {
-				continue
-			}
-			allTags[key] = append(allTags[key], value)
-		}
+		allTags = append(allTags, response.Data.Attributes.GetTags()...)
 	}
 
 	return allTags, nil

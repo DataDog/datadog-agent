@@ -35,12 +35,6 @@ type orgValidationResults struct {
 	ArchitecturesCount int                         `json:"architectures_count"`
 }
 
-type tagValidationResults struct {
-	Site     string                         `json:"site"`
-	Failures map[string]map[string][]string `json:"failures"`
-	Errors   []string                       `json:"errors"`
-}
-
 func determineResultState(result gpuConfigValidationResult) validationState {
 	if result.hasFailures() {
 		return validationStateFail

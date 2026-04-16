@@ -9,7 +9,6 @@ package main
 import (
 	"fmt"
 	"regexp"
-	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -82,6 +81,7 @@ func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpusp
 	group.SetLimit(metricQueryConcurrency)
 
 	for metricName := range expectedMetricsMap {
+		// Get the metric values
 		group.Go(func() error {
 			prefixedMetricName := gpuspec.PrefixedMetricName(specs, metricName)
 			metricObservations, err := client.queryExpectedMetricPresenceForGPUConfig(prefixedMetricName, expectedTagsByMetric[metricName], config.TagFilter(), fromTS, toTS)
@@ -94,6 +94,44 @@ func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpusp
 				observations[metricName] = append(observations[metricName], observation)
 				mu.Unlock()
 			}
+			return nil
+		})
+
+		tagLookbackSeconds := max(14400, toTS-fromTS) // 4 hours is the minimum lookback for the API
+
+		// Also get tag values for the metric
+		group.Go(func() error {
+			metricTags, err := client.fetchMetricAllTags(metricName, expectedTagsByMetric[metricName], tagLookbackSeconds, config.TagFilter())
+			if err != nil {
+				return fmt.Errorf("fetch metric tags for %s: %w", metricName, err)
+			}
+			mu.Lock()
+			observations[metricName] = append(observations[metricName], gpuspec.MetricObservation{
+				Name: metricName,
+				Tags: metricTags,
+			})
+			mu.Unlock()
+			return nil
+		})
+
+		// Finally, get all possible tag values that start with the gpu_ prefix, so that we can check that we aren't missing
+		// any tags. This might be redundant with the previous call, but it's better to be redundant than to miss a tag.
+		group.Go(func() error {
+			wantedTags := map[string]gpuspec.TagSpec{
+				"gpu_": gpuspec.TagSpec{},
+			}
+
+			allGpuTags, err := client.fetchMetricAllTags(metricName, wantedTags, tagLookbackSeconds, config.TagFilter())
+			if err != nil {
+				return fmt.Errorf("fetch metric tags for %s: %w", metricName, err)
+			}
+
+			mu.Lock()
+			observations[metricName] = append(observations[metricName], gpuspec.MetricObservation{
+				Name: metricName,
+				Tags: allGpuTags,
+			})
+			mu.Unlock()
 			return nil
 		})
 	}
@@ -133,67 +171,4 @@ func collectRegexValidatedTags(expectedTags map[string]gpuspec.TagSpec, tagNameF
 		result[tagName] = tagSpec.Regex
 	}
 	return result
-}
-
-func computeTagValidation(apiKey, appKey, site, metricNameFilter, tagNameFilter string, windowSeconds int64, metricScopeFilter string) (tagValidationResults, error) {
-	specs, err := gpuspec.LoadSpecs()
-	if err != nil {
-		return tagValidationResults{}, fmt.Errorf("load specs: %w", err)
-	}
-	client, err := newMetricsClient(apiKey, appKey, site)
-	if err != nil {
-		return tagValidationResults{}, fmt.Errorf("create metrics client: %w", err)
-	}
-
-	failures := map[string]map[string][]string{}
-	errors := []string{}
-
-	for relativeMetricName, metricSpec := range specs.Metrics.Metrics {
-		metricName := specs.Metrics.MetricPrefix + "." + relativeMetricName
-		if metricNameFilter != "" && !strings.Contains(metricName, metricNameFilter) {
-			continue
-		}
-
-		expectedTags, err := gpuspec.RequiredTagsForMetric(specs.Tags, metricSpec)
-		if err != nil {
-			errors = append(errors, fmt.Sprintf("derive required tags for %s: %v", metricName, err))
-			continue
-		}
-		regexTags := collectRegexValidatedTags(expectedTags, tagNameFilter)
-		if len(regexTags) == 0 {
-			continue
-		}
-
-		allTags, err := client.fetchMetricAllTags(metricName, regexTags, windowSeconds, metricScopeFilter)
-		if err != nil {
-			errors = append(errors, fmt.Sprintf("validate tags for %s: %v", metricName, err))
-			continue
-		}
-
-		invalidValues := map[string][]string{}
-		for tagName, compiledRegex := range regexTags {
-			values := allTags[tagName]
-			mismatches := make([]string, 0, len(values))
-			for _, value := range values {
-				if !compiledRegex.MatchString(value) {
-					mismatches = append(mismatches, value)
-				}
-			}
-			if len(mismatches) == 0 {
-				continue
-			}
-			slices.Sort(mismatches)
-			mismatches = slices.Compact(mismatches)
-			invalidValues[tagName] = mismatches
-		}
-		if len(invalidValues) > 0 {
-			failures[metricName] = invalidValues
-		}
-	}
-
-	return tagValidationResults{
-		Site:     site,
-		Failures: failures,
-		Errors:   errors,
-	}, nil
 }
