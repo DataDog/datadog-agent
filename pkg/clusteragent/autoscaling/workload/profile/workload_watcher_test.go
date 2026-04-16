@@ -40,9 +40,10 @@ func newTestWorkloadWatcher(
 	profileStore *autoscaling.Store[model.PodAutoscalerProfileInternal],
 ) *WorkloadWatcher {
 	return &WorkloadWatcher{
-		profileStore: profileStore,
-		isLeader:     func() bool { return true },
-		nsLister:     newTestNSLister(nil),
+		profileStore:            profileStore,
+		isLeader:                func() bool { return true },
+		nsLister:                newTestNSLister(nil),
+		profileControllerSynced: func() bool { return true },
 	}
 }
 

@@ -68,6 +68,10 @@ type WorkloadWatcher struct {
 	nsLister cache.GenericLister
 	nsSynced cache.InformerSynced
 
+	// profileControllerSynced must return true before the first reconcile, ensuring
+	// the profile store is populated before workload references are computed.
+	profileControllerSynced cache.InformerSynced
+
 	refreshPeriod time.Duration
 
 	hasSynced atomic.Bool
@@ -75,25 +79,28 @@ type WorkloadWatcher struct {
 
 // NewWorkloadWatcher creates a new WorkloadWatcher. It creates an unfiltered
 // metadata-only informer factory that watches all workload resources and
-// namespaces in the cluster.
+// namespaces in the cluster. profileControllerSynced is waited on before the
+// first reconcile to ensure the profile store is populated.
 func NewWorkloadWatcher(
 	profileStore *autoscaling.Store[model.PodAutoscalerProfileInternal],
 	isLeader func() bool,
 	metadataClient metadata.Interface,
 	workloadResources []GroupVersionKindResource,
+	profileControllerSynced cache.InformerSynced,
 ) *WorkloadWatcher {
 	factory := metadatainformer.NewSharedInformerFactory(metadataClient, noResync)
 
 	nsInformer := factory.ForResource(namespaceGVR)
 
 	w := &WorkloadWatcher{
-		profileStore:      profileStore,
-		isLeader:          isLeader,
-		workloadResources: workloadResources,
-		informerFactory:   factory,
-		nsLister:          nsInformer.Lister(),
-		nsSynced:          nsInformer.Informer().HasSynced,
-		refreshPeriod:     refreshPeriod,
+		profileStore:            profileStore,
+		isLeader:                isLeader,
+		workloadResources:       workloadResources,
+		informerFactory:         factory,
+		nsLister:                nsInformer.Lister(),
+		nsSynced:                nsInformer.Informer().HasSynced,
+		profileControllerSynced: profileControllerSynced,
+		refreshPeriod:           refreshPeriod,
 	}
 
 	for _, resource := range workloadResources {
@@ -120,13 +127,14 @@ func (w *WorkloadWatcher) Run(ctx context.Context) {
 	log.Info("Starting workload watcher")
 	w.informerFactory.Start(ctx.Done())
 
-	syncFuncs := make([]cache.InformerSynced, 0, len(w.informers)+1)
+	syncFuncs := make([]cache.InformerSynced, 0, len(w.informers)+2)
 	for _, inf := range w.informers {
 		syncFuncs = append(syncFuncs, inf.synced)
 	}
 	syncFuncs = append(syncFuncs, w.nsSynced)
+	syncFuncs = append(syncFuncs, w.profileControllerSynced)
 	if !cache.WaitForCacheSync(ctx.Done(), syncFuncs...) {
-		log.Error("Failed to sync informer caches")
+		log.Error("Failed to sync workload watcher caches")
 		return
 	}
 
