@@ -427,9 +427,10 @@ func (v *ssiSuite) TestRegistryAllowList() {
 		pod := FindPodInNamespace(v.T(), k8s, "registry-allow-list", "registry-allow-list-injector-blocked")
 
 		// The injector image is overridden to fake.registry.invalid via pod annotation,
-		// which is not in the allow list. Injection should be skipped entirely.
+		// which is not in the allow list. No SSI artifacts should be injected, even if KPI
+		// env vars such as DD_INSTRUMENTATION_INSTALL_TYPE are still present.
 		podValidator := testutils.NewPodValidator(pod, testutils.InjectionModeAuto)
-		podValidator.RequireNoInjection(v.T())
+		podValidator.RequireNoInjectionArtifacts(v.T())
 
 		errAnnotation := pod.Annotations["internal.apm.datadoghq.com/injection-error"]
 		require.NotEmpty(v.T(), errAnnotation, "expected injection-error annotation to be set")
@@ -441,9 +442,10 @@ func (v *ssiSuite) TestRegistryAllowList() {
 		pod := FindPodInNamespace(v.T(), k8s, "registry-allow-list", "registry-allow-list-library-blocked")
 
 		// The injector is from the allowed registry, but the python library is overridden
-		// to fake.registry.invalid via annotation. Injection should be skipped entirely.
+		// to fake.registry.invalid via annotation. No SSI artifacts should be injected, even
+		// if KPI env vars such as DD_INSTRUMENTATION_INSTALL_TYPE are still present.
 		podValidator := testutils.NewPodValidator(pod, testutils.InjectionModeAuto)
-		podValidator.RequireNoInjection(v.T())
+		podValidator.RequireNoInjectionArtifacts(v.T())
 
 		errAnnotation := pod.Annotations["internal.apm.datadoghq.com/injection-error"]
 		require.NotEmpty(v.T(), errAnnotation, "expected injection-error annotation to be set")
