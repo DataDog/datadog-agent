@@ -195,9 +195,13 @@ type Command struct {
 	LongDescription string                 `protobuf:"bytes,4,opt,name=long_description,json=longDescription,proto3" json:"long_description,omitempty"`
 	Parameters      []*CommandParameter    `protobuf:"bytes,5,rep,name=parameters,proto3" json:"parameters,omitempty"`
 	Children        []*Command             `protobuf:"bytes,6,rep,name=children,proto3" json:"children,omitempty"`
-	RunE            bool                   `protobuf:"varint,7,opt,name=run_e,json=runE,proto3" json:"run_e,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// Alias allows this command to override an existing Core Agent subcommand.
+	// When set, invoking `agent <alias>` routes to this remote command instead
+	// of the local subcommand. When the remote agent disconnects, the local
+	// subcommand takes over again.
+	Alias         string `protobuf:"bytes,7,opt,name=alias,proto3" json:"alias,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Command) Reset() {
@@ -272,11 +276,11 @@ func (x *Command) GetChildren() []*Command {
 	return nil
 }
 
-func (x *Command) GetRunE() bool {
+func (x *Command) GetAlias() string {
 	if x != nil {
-		return x.RunE
+		return x.Alias
 	}
-	return false
+	return ""
 }
 
 // ExecuteCommandRequest is sent to execute a specific command on a remote agent.
@@ -499,6 +503,113 @@ func (x *ListRemoteCommandsResponse) GetCommands() []*Command {
 	return nil
 }
 
+// RemoteAgentCommandGroup groups commands by the remote agent that provides them.
+type RemoteAgentCommandGroup struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AgentName     string                 `protobuf:"bytes,1,opt,name=agent_name,json=agentName,proto3" json:"agent_name,omitempty"`
+	AgentFlavor   string                 `protobuf:"bytes,2,opt,name=agent_flavor,json=agentFlavor,proto3" json:"agent_flavor,omitempty"`
+	Commands      []*Command             `protobuf:"bytes,3,rep,name=commands,proto3" json:"commands,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RemoteAgentCommandGroup) Reset() {
+	*x = RemoteAgentCommandGroup{}
+	mi := &file_datadog_remoteagent_command_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RemoteAgentCommandGroup) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RemoteAgentCommandGroup) ProtoMessage() {}
+
+func (x *RemoteAgentCommandGroup) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_remoteagent_command_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RemoteAgentCommandGroup.ProtoReflect.Descriptor instead.
+func (*RemoteAgentCommandGroup) Descriptor() ([]byte, []int) {
+	return file_datadog_remoteagent_command_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *RemoteAgentCommandGroup) GetAgentName() string {
+	if x != nil {
+		return x.AgentName
+	}
+	return ""
+}
+
+func (x *RemoteAgentCommandGroup) GetAgentFlavor() string {
+	if x != nil {
+		return x.AgentFlavor
+	}
+	return ""
+}
+
+func (x *RemoteAgentCommandGroup) GetCommands() []*Command {
+	if x != nil {
+		return x.Commands
+	}
+	return nil
+}
+
+// ListAllRemoteCommandsResponse contains commands grouped by remote agent.
+// Used by the Core Agent proxy to provide agent attribution.
+type ListAllRemoteCommandsResponse struct {
+	state         protoimpl.MessageState     `protogen:"open.v1"`
+	AgentCommands []*RemoteAgentCommandGroup `protobuf:"bytes,1,rep,name=agent_commands,json=agentCommands,proto3" json:"agent_commands,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListAllRemoteCommandsResponse) Reset() {
+	*x = ListAllRemoteCommandsResponse{}
+	mi := &file_datadog_remoteagent_command_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAllRemoteCommandsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAllRemoteCommandsResponse) ProtoMessage() {}
+
+func (x *ListAllRemoteCommandsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_remoteagent_command_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAllRemoteCommandsResponse.ProtoReflect.Descriptor instead.
+func (*ListAllRemoteCommandsResponse) Descriptor() ([]byte, []int) {
+	return file_datadog_remoteagent_command_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *ListAllRemoteCommandsResponse) GetAgentCommands() []*RemoteAgentCommandGroup {
+	if x != nil {
+		return x.AgentCommands
+	}
+	return nil
+}
+
 var File_datadog_remoteagent_command_proto protoreflect.FileDescriptor
 
 const file_datadog_remoteagent_command_proto_rawDesc = "" +
@@ -512,7 +623,7 @@ const file_datadog_remoteagent_command_proto_rawDesc = "" +
 	"\x04type\x18\x04 \x01(\x0e2-.datadog.remoteagent.command.v1.ParameterTypeR\x04type\x12\x1a\n" +
 	"\brequired\x18\x05 \x01(\bR\brequired\x12\x17\n" +
 	"\ais_flag\x18\x06 \x01(\bR\x06isFlag\x12#\n" +
-	"\ris_persistent\x18\a \x01(\bR\fisPersistent\"\xab\x02\n" +
+	"\ris_persistent\x18\a \x01(\bR\fisPersistent\"\xac\x02\n" +
 	"\aCommand\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1d\n" +
 	"\n" +
@@ -522,8 +633,8 @@ const file_datadog_remoteagent_command_proto_rawDesc = "" +
 	"\n" +
 	"parameters\x18\x05 \x03(\v20.datadog.remoteagent.command.v1.CommandParameterR\n" +
 	"parameters\x12C\n" +
-	"\bchildren\x18\x06 \x03(\v2'.datadog.remoteagent.command.v1.CommandR\bchildren\x12\x13\n" +
-	"\x05run_e\x18\a \x01(\bR\x04runE\"\xac\x01\n" +
+	"\bchildren\x18\x06 \x03(\v2'.datadog.remoteagent.command.v1.CommandR\bchildren\x12\x14\n" +
+	"\x05alias\x18\a \x01(\tR\x05alias\"\xac\x01\n" +
 	"\x15ExecuteCommandRequest\x12!\n" +
 	"\fcommand_path\x18\x01 \x01(\tR\vcommandPath\x125\n" +
 	"\targuments\x18\x02 \x01(\v2\x17.google.protobuf.StructR\targuments\x12\x1f\n" +
@@ -537,7 +648,14 @@ const file_datadog_remoteagent_command_proto_rawDesc = "" +
 	"\rbinary_output\x18\x04 \x01(\fR\fbinaryOutput\"\x1b\n" +
 	"\x19ListRemoteCommandsRequest\"a\n" +
 	"\x1aListRemoteCommandsResponse\x12C\n" +
-	"\bcommands\x18\x01 \x03(\v2'.datadog.remoteagent.command.v1.CommandR\bcommands*\xac\x02\n" +
+	"\bcommands\x18\x01 \x03(\v2'.datadog.remoteagent.command.v1.CommandR\bcommands\"\xa0\x01\n" +
+	"\x17RemoteAgentCommandGroup\x12\x1d\n" +
+	"\n" +
+	"agent_name\x18\x01 \x01(\tR\tagentName\x12!\n" +
+	"\fagent_flavor\x18\x02 \x01(\tR\vagentFlavor\x12C\n" +
+	"\bcommands\x18\x03 \x03(\v2'.datadog.remoteagent.command.v1.CommandR\bcommands\"\x7f\n" +
+	"\x1dListAllRemoteCommandsResponse\x12^\n" +
+	"\x0eagent_commands\x18\x01 \x03(\v27.datadog.remoteagent.command.v1.RemoteAgentCommandGroupR\ragentCommands*\xac\x02\n" +
 	"\rParameterType\x12\x1e\n" +
 	"\x1aPARAMETER_TYPE_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x15PARAMETER_TYPE_STRING\x10\x01\x12\x16\n" +
@@ -567,32 +685,36 @@ func file_datadog_remoteagent_command_proto_rawDescGZIP() []byte {
 }
 
 var file_datadog_remoteagent_command_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_datadog_remoteagent_command_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_datadog_remoteagent_command_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_datadog_remoteagent_command_proto_goTypes = []any{
-	(ParameterType)(0),                 // 0: datadog.remoteagent.command.v1.ParameterType
-	(*CommandParameter)(nil),           // 1: datadog.remoteagent.command.v1.CommandParameter
-	(*Command)(nil),                    // 2: datadog.remoteagent.command.v1.Command
-	(*ExecuteCommandRequest)(nil),      // 3: datadog.remoteagent.command.v1.ExecuteCommandRequest
-	(*ExecuteCommandResponse)(nil),     // 4: datadog.remoteagent.command.v1.ExecuteCommandResponse
-	(*ListRemoteCommandsRequest)(nil),  // 5: datadog.remoteagent.command.v1.ListRemoteCommandsRequest
-	(*ListRemoteCommandsResponse)(nil), // 6: datadog.remoteagent.command.v1.ListRemoteCommandsResponse
-	(*structpb.Struct)(nil),            // 7: google.protobuf.Struct
+	(ParameterType)(0),                    // 0: datadog.remoteagent.command.v1.ParameterType
+	(*CommandParameter)(nil),              // 1: datadog.remoteagent.command.v1.CommandParameter
+	(*Command)(nil),                       // 2: datadog.remoteagent.command.v1.Command
+	(*ExecuteCommandRequest)(nil),         // 3: datadog.remoteagent.command.v1.ExecuteCommandRequest
+	(*ExecuteCommandResponse)(nil),        // 4: datadog.remoteagent.command.v1.ExecuteCommandResponse
+	(*ListRemoteCommandsRequest)(nil),     // 5: datadog.remoteagent.command.v1.ListRemoteCommandsRequest
+	(*ListRemoteCommandsResponse)(nil),    // 6: datadog.remoteagent.command.v1.ListRemoteCommandsResponse
+	(*RemoteAgentCommandGroup)(nil),       // 7: datadog.remoteagent.command.v1.RemoteAgentCommandGroup
+	(*ListAllRemoteCommandsResponse)(nil), // 8: datadog.remoteagent.command.v1.ListAllRemoteCommandsResponse
+	(*structpb.Struct)(nil),               // 9: google.protobuf.Struct
 }
 var file_datadog_remoteagent_command_proto_depIdxs = []int32{
 	0, // 0: datadog.remoteagent.command.v1.CommandParameter.type:type_name -> datadog.remoteagent.command.v1.ParameterType
 	1, // 1: datadog.remoteagent.command.v1.Command.parameters:type_name -> datadog.remoteagent.command.v1.CommandParameter
 	2, // 2: datadog.remoteagent.command.v1.Command.children:type_name -> datadog.remoteagent.command.v1.Command
-	7, // 3: datadog.remoteagent.command.v1.ExecuteCommandRequest.arguments:type_name -> google.protobuf.Struct
+	9, // 3: datadog.remoteagent.command.v1.ExecuteCommandRequest.arguments:type_name -> google.protobuf.Struct
 	2, // 4: datadog.remoteagent.command.v1.ListRemoteCommandsResponse.commands:type_name -> datadog.remoteagent.command.v1.Command
-	5, // 5: datadog.remoteagent.command.v1.RemoteCommandProvider.ListCommands:input_type -> datadog.remoteagent.command.v1.ListRemoteCommandsRequest
-	3, // 6: datadog.remoteagent.command.v1.RemoteCommandProvider.ExecuteCommand:input_type -> datadog.remoteagent.command.v1.ExecuteCommandRequest
-	6, // 7: datadog.remoteagent.command.v1.RemoteCommandProvider.ListCommands:output_type -> datadog.remoteagent.command.v1.ListRemoteCommandsResponse
-	4, // 8: datadog.remoteagent.command.v1.RemoteCommandProvider.ExecuteCommand:output_type -> datadog.remoteagent.command.v1.ExecuteCommandResponse
-	7, // [7:9] is the sub-list for method output_type
-	5, // [5:7] is the sub-list for method input_type
-	5, // [5:5] is the sub-list for extension type_name
-	5, // [5:5] is the sub-list for extension extendee
-	0, // [0:5] is the sub-list for field type_name
+	2, // 5: datadog.remoteagent.command.v1.RemoteAgentCommandGroup.commands:type_name -> datadog.remoteagent.command.v1.Command
+	7, // 6: datadog.remoteagent.command.v1.ListAllRemoteCommandsResponse.agent_commands:type_name -> datadog.remoteagent.command.v1.RemoteAgentCommandGroup
+	5, // 7: datadog.remoteagent.command.v1.RemoteCommandProvider.ListCommands:input_type -> datadog.remoteagent.command.v1.ListRemoteCommandsRequest
+	3, // 8: datadog.remoteagent.command.v1.RemoteCommandProvider.ExecuteCommand:input_type -> datadog.remoteagent.command.v1.ExecuteCommandRequest
+	6, // 9: datadog.remoteagent.command.v1.RemoteCommandProvider.ListCommands:output_type -> datadog.remoteagent.command.v1.ListRemoteCommandsResponse
+	4, // 10: datadog.remoteagent.command.v1.RemoteCommandProvider.ExecuteCommand:output_type -> datadog.remoteagent.command.v1.ExecuteCommandResponse
+	9, // [9:11] is the sub-list for method output_type
+	7, // [7:9] is the sub-list for method input_type
+	7, // [7:7] is the sub-list for extension type_name
+	7, // [7:7] is the sub-list for extension extendee
+	0, // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_datadog_remoteagent_command_proto_init() }
@@ -606,7 +728,7 @@ func file_datadog_remoteagent_command_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_datadog_remoteagent_command_proto_rawDesc), len(file_datadog_remoteagent_command_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   6,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -124,17 +124,19 @@ func (s *remoteAgentServer) ListCommands(_ context.Context, _ *pbcore.ListRemote
 			{
 				Name:   "hello",
 				Helper: "Says hello from the remote agent",
-				RunE:   true,
+			},
+			{
+				Name:   "dsd-stats",
+				Helper: "Captures dogstatsd statistics",
+				Alias:  "dogstatsd-stats",
 			},
 			{
 				Name:   "info",
 				Helper: "Shows remote agent info",
-				RunE:   true,
 				Children: []*pbcore.Command{
 					{
 						Name:   "info detail",
 						Helper: "Shows detailed remote agent info",
-						RunE:   true,
 					},
 				},
 			},
@@ -159,6 +161,11 @@ func (s *remoteAgentServer) ExecuteCommand(_ context.Context, req *pbcore.Execut
 		return &pbcore.ExecuteCommandResponse{
 			ExitCode: 0,
 			Stdout:   fmt.Sprintf("Remote Agent v1.0.0\nStarted: %s\nUptime: %s\nJSON: %v\nVerbose: %v\n", s.started.Format(time.RFC3339), time.Since(s.started), req.JsonOutput, req.Verbose),
+		}, nil
+	case "dsd-stats":
+		return &pbcore.ExecuteCommandResponse{
+			ExitCode: 0,
+			Stdout:   fmt.Sprintf("stats! from %d\n", time.Since(s.started)),
 		}, nil
 	default:
 		return &pbcore.ExecuteCommandResponse{

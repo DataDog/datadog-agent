@@ -366,14 +366,14 @@ func (mr *MockAgentSecureClientMockRecorder) GetHostTags(ctx, in interface{}, op
 }
 
 // ListRemoteCommands mocks base method.
-func (m *MockAgentSecureClient) ListRemoteCommands(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*core.ListRemoteCommandsResponse, error) {
+func (m *MockAgentSecureClient) ListRemoteCommands(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*core.ListAllRemoteCommandsResponse, error) {
 	m.ctrl.T.Helper()
 	varargs := []interface{}{ctx, in}
 	for _, a := range opts {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "ListRemoteCommands", varargs...)
-	ret0, _ := ret[0].(*core.ListRemoteCommandsResponse)
+	ret0, _ := ret[0].(*core.ListAllRemoteCommandsResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -757,10 +757,10 @@ func (mr *MockAgentSecureServerMockRecorder) GetHostTags(arg0, arg1 interface{})
 }
 
 // ListRemoteCommands mocks base method.
-func (m *MockAgentSecureServer) ListRemoteCommands(arg0 context.Context, arg1 *emptypb.Empty) (*core.ListRemoteCommandsResponse, error) {
+func (m *MockAgentSecureServer) ListRemoteCommands(arg0 context.Context, arg1 *emptypb.Empty) (*core.ListAllRemoteCommandsResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListRemoteCommands", arg0, arg1)
-	ret0, _ := ret[0].(*core.ListRemoteCommandsResponse)
+	ret0, _ := ret[0].(*core.ListAllRemoteCommandsResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

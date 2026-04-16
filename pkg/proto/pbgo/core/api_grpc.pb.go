@@ -189,8 +189,8 @@ type AgentSecureClient interface {
 	WorkloadFilterEvaluate(ctx context.Context, in *WorkloadFilterEvaluateRequest, opts ...grpc.CallOption) (*WorkloadFilterEvaluateResponse, error)
 	// Streams pod-to-service metadata for a specific node.
 	StreamKubeMetadata(ctx context.Context, in *KubeMetadataStreamRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[KubeMetadataStreamResponse], error)
-	// Lists all remote commands from all registered remote agents.
-	ListRemoteCommands(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ListRemoteCommandsResponse, error)
+	// Lists all remote commands from all registered remote agents, grouped by agent.
+	ListRemoteCommands(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ListAllRemoteCommandsResponse, error)
 	// Executes a remote command on the appropriate registered remote agent.
 	ExecuteRemoteCommand(ctx context.Context, in *ExecuteCommandRequest, opts ...grpc.CallOption) (*ExecuteCommandResponse, error)
 }
@@ -441,9 +441,9 @@ func (c *agentSecureClient) StreamKubeMetadata(ctx context.Context, in *KubeMeta
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type AgentSecure_StreamKubeMetadataClient = grpc.ServerStreamingClient[KubeMetadataStreamResponse]
 
-func (c *agentSecureClient) ListRemoteCommands(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ListRemoteCommandsResponse, error) {
+func (c *agentSecureClient) ListRemoteCommands(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ListAllRemoteCommandsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ListRemoteCommandsResponse)
+	out := new(ListAllRemoteCommandsResponse)
 	err := c.cc.Invoke(ctx, AgentSecure_ListRemoteCommands_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -499,8 +499,8 @@ type AgentSecureServer interface {
 	WorkloadFilterEvaluate(context.Context, *WorkloadFilterEvaluateRequest) (*WorkloadFilterEvaluateResponse, error)
 	// Streams pod-to-service metadata for a specific node.
 	StreamKubeMetadata(*KubeMetadataStreamRequest, grpc.ServerStreamingServer[KubeMetadataStreamResponse]) error
-	// Lists all remote commands from all registered remote agents.
-	ListRemoteCommands(context.Context, *emptypb.Empty) (*ListRemoteCommandsResponse, error)
+	// Lists all remote commands from all registered remote agents, grouped by agent.
+	ListRemoteCommands(context.Context, *emptypb.Empty) (*ListAllRemoteCommandsResponse, error)
 	// Executes a remote command on the appropriate registered remote agent.
 	ExecuteRemoteCommand(context.Context, *ExecuteCommandRequest) (*ExecuteCommandResponse, error)
 	mustEmbedUnimplementedAgentSecureServer()
@@ -570,7 +570,7 @@ func (UnimplementedAgentSecureServer) WorkloadFilterEvaluate(context.Context, *W
 func (UnimplementedAgentSecureServer) StreamKubeMetadata(*KubeMetadataStreamRequest, grpc.ServerStreamingServer[KubeMetadataStreamResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method StreamKubeMetadata not implemented")
 }
-func (UnimplementedAgentSecureServer) ListRemoteCommands(context.Context, *emptypb.Empty) (*ListRemoteCommandsResponse, error) {
+func (UnimplementedAgentSecureServer) ListRemoteCommands(context.Context, *emptypb.Empty) (*ListAllRemoteCommandsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListRemoteCommands not implemented")
 }
 func (UnimplementedAgentSecureServer) ExecuteRemoteCommand(context.Context, *ExecuteCommandRequest) (*ExecuteCommandResponse, error) {

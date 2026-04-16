@@ -275,18 +275,22 @@ func (s *serverSecure) WorkloadFilterEvaluate(ctx context.Context, req *pb.Workl
 	return s.workloadfilterServer.WorkloadFilterEvaluate(ctx, req)
 }
 
-func (s *serverSecure) ListRemoteCommands(_ context.Context, _ *emptypb.Empty) (*pb.ListRemoteCommandsResponse, error) {
+func (s *serverSecure) ListRemoteCommands(_ context.Context, _ *emptypb.Empty) (*pb.ListAllRemoteCommandsResponse, error) {
 	if s.remoteAgentRegistry == nil {
 		return nil, status.Error(codes.Unimplemented, "remote agent registry not enabled")
 	}
 
 	commandData := s.remoteAgentRegistry.GetAllRemoteCommands()
-	var allCommands []*pb.Command
+	groups := make([]*pb.RemoteAgentCommandGroup, 0, len(commandData))
 	for _, cd := range commandData {
-		allCommands = append(allCommands, cd.Commands...)
+		groups = append(groups, &pb.RemoteAgentCommandGroup{
+			AgentName:   cd.DisplayName,
+			AgentFlavor: cd.Flavor,
+			Commands:    cd.Commands,
+		})
 	}
 
-	return &pb.ListRemoteCommandsResponse{Commands: allCommands}, nil
+	return &pb.ListAllRemoteCommandsResponse{AgentCommands: groups}, nil
 }
 
 func (s *serverSecure) ExecuteRemoteCommand(_ context.Context, in *pb.ExecuteCommandRequest) (*pb.ExecuteCommandResponse, error) {

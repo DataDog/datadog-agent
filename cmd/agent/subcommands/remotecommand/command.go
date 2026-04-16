@@ -34,6 +34,10 @@ func init() {
 	// Wire up the remote command handler so the root cobra command can
 	// delegate unknown subcommands to remote agents.
 	command.RemoteCommandHandler = TryRemoteCommand
+
+	// Wire up the alias handler so PersistentPreRunE can check if a
+	// known subcommand is overridden by a remote command alias.
+	command.RemoteAliasHandler = tryRemoteAlias
 }
 
 // cliParams are the command-line arguments for this subcommand
@@ -48,8 +52,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	}
 
 	remoteCommandsCmd := &cobra.Command{
-		Use:   "remote-commands",
-		Short: "Manage remote agent commands",
+		Use:   "remote",
+		Short: "Manage commands exposed by remote agents",
 		Long:  `Interact with commands exposed by remote agents registered with the Core Agent.`,
 	}
 
@@ -90,14 +94,23 @@ func listRemoteCommands(_ log.Component, _ config.Component, ipcComp ipc.Compone
 		return err
 	}
 
-	if len(resp.Commands) == 0 {
+	if len(resp.AgentCommands) == 0 {
 		fmt.Println("No remote commands available.")
 		return nil
 	}
 
 	fmt.Println("Available remote commands:")
 	fmt.Println()
-	printCommands(resp.Commands, "")
+
+	for i, group := range resp.AgentCommands {
+		if i > 0 {
+			fmt.Println()
+		}
+		fmt.Println(group.AgentName)
+		fmt.Println(strings.Repeat("-", len(group.AgentName)))
+		fmt.Println()
+		printCommands(group.Commands, "  ")
+	}
 
 	return nil
 }
@@ -105,11 +118,7 @@ func listRemoteCommands(_ log.Component, _ config.Component, ipcComp ipc.Compone
 // printCommands prints a tree of commands with indentation.
 func printCommands(commands []*pb.Command, indent string) {
 	for _, cmd := range commands {
-		runnable := ""
-		if cmd.RunE {
-			runnable = " (runnable)"
-		}
-		fmt.Printf("%s%-20s %s%s\n", indent, cmd.Name, cmd.Helper, runnable)
+		fmt.Printf("%s%s (%s)\n", indent, cmd.Name, cmd.Helper)
 		if len(cmd.Children) > 0 {
 			printCommands(cmd.Children, indent+"  ")
 		}
@@ -129,6 +138,75 @@ func TryRemoteCommand(globalParams *command.GlobalParams, args []string) error {
 		core.Bundle(),
 		ipcfx.ModuleReadOnly(),
 	)
+}
+
+// tryRemoteAlias checks if a resolved subcommand name matches a remote command alias.
+// If a match is found, it executes the remote command and calls os.Exit().
+// If no match is found or the agent isn't running, it returns silently so the
+// local subcommand can proceed.
+func tryRemoteAlias(globalParams *command.GlobalParams, cmdName string, args []string) {
+	// Use fxutil.OneShot to bootstrap config + IPC. If the agent isn't running,
+	// ModuleReadOnly will fail (no auth token) and OneShot returns an error.
+	// We intentionally ignore that error -- it means "proceed with local subcommand".
+	_ = fxutil.OneShot(func(_ log.Component, _ config.Component, ipcComp ipc.Component) error {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		client, err := newAgentSecureClient(ctx, ipcComp)
+		if err != nil {
+			return nil // Can't connect, proceed with local
+		}
+
+		resp, err := client.ListRemoteCommands(ctx, &emptypb.Empty{})
+		if err != nil {
+			return nil // Can't list commands, proceed with local
+		}
+
+		// Search for a command whose alias matches the subcommand name
+		for _, group := range resp.AgentCommands {
+			for _, cmd := range group.Commands {
+				if matchAlias(cmd, cmdName) {
+					// Found a match -- execute the remote command using its real name
+					execReq := &pb.ExecuteCommandRequest{
+						CommandPath: cmd.Name,
+					}
+					execResp, err := client.ExecuteRemoteCommand(ctx, execReq)
+					if err != nil {
+						return nil // Execution failed, fall back to local
+					}
+					if execResp.Stdout != "" {
+						fmt.Print(execResp.Stdout)
+					}
+					if execResp.Stderr != "" {
+						fmt.Fprint(os.Stderr, execResp.Stderr)
+					}
+					os.Exit(int(execResp.ExitCode))
+				}
+			}
+		}
+
+		return nil // No alias matched, proceed with local
+	},
+		fx.Supply(core.BundleParams{
+			ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
+			LogParams:    log.ForOneShot(command.LoggerName, "off", true),
+		}),
+		core.Bundle(),
+		ipcfx.ModuleReadOnly(),
+	)
+}
+
+// matchAlias checks if a command or any of its children has the given alias.
+func matchAlias(cmd *pb.Command, alias string) bool {
+	if cmd.Alias == alias {
+		return true
+	}
+	for _, child := range cmd.Children {
+		if matchAlias(child, alias) {
+			return true
+		}
+	}
+	return false
 }
 
 func executeRemoteCommand(ipcComp ipc.Component, args []string) error {

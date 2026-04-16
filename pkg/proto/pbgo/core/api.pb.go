@@ -27,7 +27,7 @@ const file_datadog_api_v1_api_proto_rawDesc = "" +
 	"\n" +
 	"\x18datadog/api/v1/api.proto\x12\x0edatadog.api.v1\x1a\x1cdatadog/model/v1/model.proto\x1a%datadog/remoteagent/remoteagent.proto\x1a!datadog/remoteagent/command.proto\x1a'datadog/remoteconfig/remoteconfig.proto\x1a'datadog/workloadmeta/workloadmeta.proto\x1a+datadog/workloadfilter/workloadfilter.proto\x1a)datadog/autodiscovery/autodiscovery.proto\x1a'datadog/kubemetadata/kubemetadata.proto\x1a\x1bgoogle/protobuf/empty.proto2Z\n" +
 	"\x05Agent\x12Q\n" +
-	"\vGetHostname\x12!.datadog.model.v1.HostnameRequest\x1a\x1f.datadog.model.v1.HostnameReply2\x9d\x12\n" +
+	"\vGetHostname\x12!.datadog.model.v1.HostnameRequest\x1a\x1f.datadog.model.v1.HostnameReply2\xa0\x12\n" +
 	"\vAgentSecure\x12c\n" +
 	"\x14TaggerStreamEntities\x12#.datadog.model.v1.StreamTagsRequest\x1a$.datadog.model.v1.StreamTagsResponse0\x01\x12\xa2\x01\n" +
 	"'TaggerGenerateContainerIDFromOriginInfo\x12:.datadog.model.v1.GenerateContainerIDFromOriginInfoRequest\x1a;.datadog.model.v1.GenerateContainerIDFromOriginInfoResponse\x12`\n" +
@@ -47,8 +47,8 @@ const file_datadog_api_v1_api_proto_rawDesc = "" +
 	"\vGetHostTags\x12 .datadog.model.v1.HostTagRequest\x1a\x1e.datadog.model.v1.HostTagReply\x12\\\n" +
 	"\x12StreamConfigEvents\x12%.datadog.model.v1.ConfigStreamRequest\x1a\x1d.datadog.model.v1.ConfigEvent0\x01\x12\x87\x01\n" +
 	"\x16WorkloadFilterEvaluate\x125.datadog.workloadfilter.WorkloadFilterEvaluateRequest\x1a6.datadog.workloadfilter.WorkloadFilterEvaluateResponse\x12y\n" +
-	"\x12StreamKubeMetadata\x12/.datadog.kubemetadata.KubeMetadataStreamRequest\x1a0.datadog.kubemetadata.KubeMetadataStreamResponse0\x01\x12h\n" +
-	"\x12ListRemoteCommands\x12\x16.google.protobuf.Empty\x1a:.datadog.remoteagent.command.v1.ListRemoteCommandsResponse\x12\x85\x01\n" +
+	"\x12StreamKubeMetadata\x12/.datadog.kubemetadata.KubeMetadataStreamRequest\x1a0.datadog.kubemetadata.KubeMetadataStreamResponse0\x01\x12k\n" +
+	"\x12ListRemoteCommands\x12\x16.google.protobuf.Empty\x1a=.datadog.remoteagent.command.v1.ListAllRemoteCommandsResponse\x12\x85\x01\n" +
 	"\x14ExecuteRemoteCommand\x125.datadog.remoteagent.command.v1.ExecuteCommandRequest\x1a6.datadog.remoteagent.command.v1.ExecuteCommandResponseB\x15Z\x13pkg/proto/pbgo/coreb\x06proto3"
 
 var file_datadog_api_v1_api_proto_goTypes = []any{
@@ -87,7 +87,7 @@ var file_datadog_api_v1_api_proto_goTypes = []any{
 	(*ConfigEvent)(nil),                               // 32: datadog.model.v1.ConfigEvent
 	(*WorkloadFilterEvaluateResponse)(nil),            // 33: datadog.workloadfilter.WorkloadFilterEvaluateResponse
 	(*KubeMetadataStreamResponse)(nil),                // 34: datadog.kubemetadata.KubeMetadataStreamResponse
-	(*ListRemoteCommandsResponse)(nil),                // 35: datadog.remoteagent.command.v1.ListRemoteCommandsResponse
+	(*ListAllRemoteCommandsResponse)(nil),             // 35: datadog.remoteagent.command.v1.ListAllRemoteCommandsResponse
 	(*ExecuteCommandResponse)(nil),                    // 36: datadog.remoteagent.command.v1.ExecuteCommandResponse
 }
 var file_datadog_api_v1_api_proto_depIdxs = []int32{
@@ -133,7 +133,7 @@ var file_datadog_api_v1_api_proto_depIdxs = []int32{
 	32, // 39: datadog.api.v1.AgentSecure.StreamConfigEvents:output_type -> datadog.model.v1.ConfigEvent
 	33, // 40: datadog.api.v1.AgentSecure.WorkloadFilterEvaluate:output_type -> datadog.workloadfilter.WorkloadFilterEvaluateResponse
 	34, // 41: datadog.api.v1.AgentSecure.StreamKubeMetadata:output_type -> datadog.kubemetadata.KubeMetadataStreamResponse
-	35, // 42: datadog.api.v1.AgentSecure.ListRemoteCommands:output_type -> datadog.remoteagent.command.v1.ListRemoteCommandsResponse
+	35, // 42: datadog.api.v1.AgentSecure.ListRemoteCommands:output_type -> datadog.remoteagent.command.v1.ListAllRemoteCommandsResponse
 	36, // 43: datadog.api.v1.AgentSecure.ExecuteRemoteCommand:output_type -> datadog.remoteagent.command.v1.ExecuteCommandResponse
 	22, // [22:44] is the sub-list for method output_type
 	0,  // [0:22] is the sub-list for method input_type

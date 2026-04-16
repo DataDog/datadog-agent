@@ -23,6 +23,11 @@ import (
 // It is set externally to avoid circular imports.
 var RemoteCommandHandler func(globalParams *GlobalParams, args []string) error
 
+// RemoteAliasHandler checks if a subcommand name matches a remote command alias.
+// If a match is found, it executes the remote command and calls os.Exit().
+// If no match is found (or the agent isn't running), it returns silently.
+var RemoteAliasHandler func(globalParams *GlobalParams, cmdName string, args []string)
+
 const (
 	// ConfigName is the name of the config
 	ConfigName = "datadog"
@@ -125,10 +130,27 @@ monitoring and performance data.`,
 	// whether the process is running in a tty.  So, we only want to override that when
 	// the value is true.
 	agentCmd.PersistentFlags().BoolVarP(&globalParams.NoColor, "no-color", "n", false, "disable color output")
-	agentCmd.PersistentPreRun = func(*cobra.Command, []string) {
+	agentCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
 		if globalParams.NoColor {
 			color.NoColor = true
 		}
+
+		// Don't check aliases on the root command itself -- the RunE
+		// fallback already handles unknown subcommands as remote commands.
+		if cmd == agentCmd {
+			return nil
+		}
+
+		// Check if this subcommand name matches a remote command alias.
+		// If it does, the handler executes the remote command and calls
+		// os.Exit() so the local subcommand's RunE never fires.
+		// If no alias matches (or the agent isn't running), the handler
+		// returns silently and the local subcommand proceeds.
+		if RemoteAliasHandler != nil {
+			RemoteAliasHandler(&globalParams, cmd.Name(), args)
+		}
+
+		return nil
 	}
 
 	for _, sf := range subcommandFactories {

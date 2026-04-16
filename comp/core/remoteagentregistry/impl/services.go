@@ -174,10 +174,10 @@ func (ra *remoteAgentRegistry) ExecuteRemoteCommand(commandPath string, request 
 }
 
 // findCommand searches through a list of commands and their children for a command matching the given path.
-// The path is a dot-delimited string (e.g., "status.process") matching Command.name fields.
+// Matches on both the command name and its alias.
 func findCommand(commands []*pb.Command, path string) *pb.Command {
 	for _, cmd := range commands {
-		if cmd.Name == path {
+		if cmd.Name == path || (cmd.Alias != "" && cmd.Alias == path) {
 			return cmd
 		}
 		// Search children recursively

@@ -39,7 +39,11 @@ message Command {
   string long_description = 4;
   repeated CommandParameter parameters = 5;
   repeated Command children = 6;
-  bool run_e = 7;
+  // Alias allows this command to override an existing Core Agent subcommand.
+  // When set, invoking `agent <alias>` routes to this remote command instead
+  // of the local subcommand. When the remote agent disconnects, the local
+  // subcommand takes over again.
+  string alias = 7;
 }
 
 // ExecuteCommandRequest is sent to execute a specific command on a remote agent.
@@ -64,6 +68,19 @@ message ListRemoteCommandsRequest {}
 // ListRemoteCommandsResponse contains the list of commands available on a remote agent.
 message ListRemoteCommandsResponse {
   repeated Command commands = 1;
+}
+
+// RemoteAgentCommandGroup groups commands by the remote agent that provides them.
+message RemoteAgentCommandGroup {
+  string agent_name = 1;
+  string agent_flavor = 2;
+  repeated Command commands = 3;
+}
+
+// ListAllRemoteCommandsResponse contains commands grouped by remote agent.
+// Used by the Core Agent proxy to provide agent attribution.
+message ListAllRemoteCommandsResponse {
+  repeated RemoteAgentCommandGroup agent_commands = 1;
 }
 
 // RemoteCommandProvider is implemented by remote agents to expose CLI commands.
