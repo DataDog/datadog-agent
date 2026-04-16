@@ -52,6 +52,13 @@ public:
     */
     virtual bool addPythonPath(const char *path) = 0;
 
+    //! Pure virtual addSubinterpBlocklistEntry member.
+    /*!
+      This method adds a module name to the sub-interpreter blocklist.
+      Blocklisted modules run in the main interpreter instead of a sub-interpreter.
+    */
+    virtual bool addSubinterpBlocklistEntry(const char *module_name) = 0;
+
     //! Pure virtual GILEnsure member.
     /*!
       \return A rtloader_gilstate_t GIL state lock reference

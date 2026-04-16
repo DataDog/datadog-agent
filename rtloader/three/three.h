@@ -15,6 +15,7 @@
 #include <mutex>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include <rtloader.h>
@@ -55,6 +56,7 @@ public:
 
     bool init();
     bool addPythonPath(const char *path);
+    bool addSubinterpBlocklistEntry(const char *module_name);
     rtloader_gilstate_t GILEnsure();
     void GILRelease(rtloader_gilstate_t);
 
@@ -203,6 +205,14 @@ private:
     // Copies all stored module attributes into the current sub-interpreter.
     // Must be called while attached to the sub-interpreter (holding its GIL).
     void _copyModuleAttrs();
+
+    // Module names that should NOT run in sub-interpreters (checks with
+    // transitive C extension dependencies that don't support sub-interpreters,
+    // e.g., go_expvar -> pydantic -> _pydantic_core).
+    // Populated at startup from "subinterpreter_blocklist" in datadog.yaml
+    // via addSubinterpBlocklistEntry(). Checked in _assignInterpreter() —
+    // blocklisted modules fall back to the main interpreter.
+    std::unordered_set<std::string> _subinterpBlocklist;
 #endif
     //! _importFrom member.
     /*!

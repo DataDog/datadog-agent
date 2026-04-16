@@ -76,6 +76,17 @@ DATADOG_AGENT_RTLOADER_API int init(rtloader_t *);
 */
 DATADOG_AGENT_RTLOADER_API int add_python_path(rtloader_t *, const char *path);
 
+/*! \fn int add_subinterp_blocklist_entry(rtloader_t *, const char *module_name)
+    \brief Adds a module name to the sub-interpreter blocklist.
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param module_name A C-string containing the module name to blocklist from
+    sub-interpreters. Blocklisted modules run in the main interpreter.
+    \return An integer with the success of the operation. Zero for failure,
+    non-zero for success.
+    \sa rtloader_t
+*/
+DATADOG_AGENT_RTLOADER_API int add_subinterp_blocklist_entry(rtloader_t *, const char *module_name);
+
 /*! \fn void clear_error(rtloader_t *)
     \brief Clears any error set in the RtLoader instance.
     \param rtloader_t A rtloader_t * pointer to the RtLoader instance.

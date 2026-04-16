@@ -250,9 +250,22 @@ bool Three::_setupSubInterpClass(const std::string &module_name, PyObject *&sub_
  */
 PyThreadState *Three::_assignInterpreter(const char *module_name)
 {
-    // Suppress unused parameter warning. In a per-type or pool policy,
-    // module_name would be used to look up or select an interpreter.
-    (void)module_name;
+    // Blocklisted modules fall back to the main interpreter. Needed for checks
+    // with transitive C extension deps that don't support sub-interpreters
+    // (e.g., go_expvar → pydantic → _pydantic_core).
+    // Populated from "subinterpreter_blocklist" in datadog.yaml.
+    // Substring matching: "go_expvar" matches "datadog_checks.go_expvar.go_expvar" (the full __module__ path).
+    if (module_name != NULL) {
+        std::string mod(module_name);
+        for (const auto &blocked : _subinterpBlocklist) {
+            if (mod.find(blocked) != std::string::npos) {
+                std::string msg = "[SUB-INTERPRETERS][EXPERIMENTAL][_assignInterpreter] check '" + mod
+                                + "' is blocklisted - running in main interpreter";
+                agent_log(DATADOG_AGENT_INFO, const_cast<char *>(msg.c_str()));
+                return NULL;  // NULL signals getCheck to use the main interpreter.
+            }
+        }
+    }
 
     return _createSubInterpreter();
 }
