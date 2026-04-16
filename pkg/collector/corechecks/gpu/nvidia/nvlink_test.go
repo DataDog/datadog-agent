@@ -13,6 +13,7 @@ import (
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	gpuspec "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/spec"
@@ -130,6 +131,7 @@ func TestNVLinkCollectorKeepsPortOnTransientError(t *testing.T) {
 	mockDevice := setupMockDeviceWithLibOpts(t, func(device *mock.Device) *mock.Device {
 		testutil.WithMockAllDeviceFunctions()(device)
 		device.GetFieldValuesFunc = func(values []nvml.FieldValue) nvml.Return {
+			// Return two ports
 			require.Len(t, values, 1)
 			values[0].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_INT)
 			values[0].Value = [8]byte{2, 0, 0, 0, 0, 0, 0, 0}
@@ -138,7 +140,7 @@ func TestNVLinkCollectorKeepsPortOnTransientError(t *testing.T) {
 		device.ReadWritePRM_v1Func = func(buffer *nvml.PRMTLV_v1) nvml.Return {
 			port := int(binary.BigEndian.Uint32(buffer.InData[20:24]) >> 16)
 			callCountByPort[port]++
-			if port == 2 && callCountByPort[port] == 1 {
+			if port == 2 && callCountByPort[port] == 2 { // first call is to check support, second call fails, third one works
 				return nvml.ERROR_UNKNOWN
 			}
 			response := makePLRResponseBytes(uint64(port * 100))
@@ -150,10 +152,38 @@ func TestNVLinkCollectorKeepsPortOnTransientError(t *testing.T) {
 
 	collector, err := newNVLinkCollector(mockDevice, nil)
 	require.NoError(t, err)
+	nvlinkCollector, ok := collector.(*nvlinkCollector)
+	require.True(t, ok)
+	assert.Len(t, nvlinkCollector.ports, 2)
+	assert.Equal(t, 1, callCountByPort[1], "port 1 should be called exactly once")
+	assert.Equal(t, 1, callCountByPort[2], "port 2 should be called exactly once")
 
+	// First call will fail on the second port, it will emit only port 1 metrics
 	metrics, err := collector.Collect()
+	require.Error(t, err) // Erro gets propagated from readPortCounters
+	require.Len(t, metrics, len(plrCounterFields))
+	foundTags := map[string]bool{}
+	for _, metric := range metrics {
+		for _, tag := range metric.Tags {
+			foundTags[tag] = true
+		}
+	}
+	require.Len(t, foundTags, 1)
+	require.Contains(t, foundTags, "nvlink_port:1")
+
+	// Second call will succeed on all ports, it will emit port 1 and port 2 metrics
+	metrics, err = collector.Collect()
 	require.NoError(t, err)
 	require.Len(t, metrics, len(plrCounterFields)*2)
+	foundTags = map[string]bool{}
+	for _, metric := range metrics {
+		for _, tag := range metric.Tags {
+			foundTags[tag] = true
+		}
+	}
+	require.Len(t, foundTags, 2)
+	require.Contains(t, foundTags, "nvlink_port:1")
+	require.Contains(t, foundTags, "nvlink_port:2")
 }
 
 func TestNVLinkCollectorUnsupportedDevice(t *testing.T) {

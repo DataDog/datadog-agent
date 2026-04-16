@@ -509,6 +509,12 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 			}
 			return getGpuInstanceProfileInfo(deviceIdx), nvml.SUCCESS
 		},
+		ReadWritePRM_v1Func: func(buffer *nvml.PRMTLV_v1) nvml.Return {
+			if opts.isVGPU() || opts.isMIGMode() || opts.architecture < nvml.DEVICE_ARCH_BLACKWELL {
+				return nvml.ERROR_NOT_SUPPORTED
+			}
+			return nvml.SUCCESS
+		},
 	}
 
 	for _, opt := range opts.compatibilityHooks {

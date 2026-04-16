@@ -564,6 +564,7 @@ metrics:
         - turing
         - ampere
         - ada
+        - hopper
       device_modes:
         mig: false
         physical: true
@@ -583,6 +584,7 @@ metrics:
         - turing
         - ampere
         - ada
+        - hopper
       device_modes:
         mig: false
         physical: true
@@ -602,6 +604,7 @@ metrics:
         - turing
         - ampere
         - ada
+        - hopper
       device_modes:
         mig: false
         physical: true
@@ -621,6 +624,7 @@ metrics:
         - turing
         - ampere
         - ada
+        - hopper
       device_modes:
         mig: false
         physical: true
@@ -640,6 +644,7 @@ metrics:
         - turing
         - ampere
         - ada
+        - hopper
       device_modes:
         mig: false
         physical: true
@@ -659,6 +664,7 @@ metrics:
         - turing
         - ampere
         - ada
+        - hopper
       device_modes:
         mig: false
         physical: true
@@ -678,6 +684,7 @@ metrics:
         - turing
         - ampere
         - ada
+        - hopper
       device_modes:
         mig: false
         physical: true
@@ -697,6 +704,7 @@ metrics:
         - turing
         - ampere
         - ada
+        - hopper
       device_modes:
         mig: false
         physical: true
@@ -716,6 +724,7 @@ metrics:
         - turing
         - ampere
         - ada
+        - hopper
       device_modes:
         mig: false
         physical: true

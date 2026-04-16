@@ -146,15 +146,16 @@ func (c *nvlinkCollector) Collect() ([]Metric, error) {
 }
 
 func (c *nvlinkCollector) removeUnsupportedPorts() {
-	ports := c.ports[:0]
+	var supportedPorts []int
 	for _, port := range c.ports {
 		counters, err := c.readPortCounters(port)
+		fmt.Printf("reading counters for port %d, counters: %+v, err=%v\n", port, counters, err)
 		if err == nil && len(counters) > 0 {
-			ports = append(ports, port)
+			supportedPorts = append(supportedPorts, port)
 		}
 	}
 
-	c.ports = ports
+	c.ports = supportedPorts
 }
 
 func (c *nvlinkCollector) readPortCounters(port int) (map[string]uint64, error) {

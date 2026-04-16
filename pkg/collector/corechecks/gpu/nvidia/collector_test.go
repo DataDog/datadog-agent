@@ -140,7 +140,12 @@ func TestAllCollectorsWork(t *testing.T) {
 	// This test doesn't validate the results of the collectors, it only checks that they work with
 	// the basic mock, and we don't have any panics or anything.
 
-	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled(), testutil.WithCapabilities(testutil.Capabilities{GPM: true}), testutil.WithMockAllFunctions())
+	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
+		testutil.WithMIGDisabled(),
+		testutil.WithCapabilities(testutil.Capabilities{GPM: true}),
+		testutil.WithMockAllFunctions(),
+		testutil.WithArchitecture("blackwell")) // Ensure all functions are marked as supported
+
 	ddnvml.WithMockNVML(t, nvmlMock)
 	deviceCache := ddnvml.NewDeviceCache()
 	eventsGatherer := NewDeviceEventsGatherer()
@@ -186,7 +191,7 @@ func TestDisabledCollectors(t *testing.T) {
 		{
 			name:                   "no collectors disabled",
 			disabledCollectors:     []string{},
-			expectedCollectorCount: 6, // stateless, sampling, fields, gpm, device_events
+			expectedCollectorCount: 6, // stateless, sampling, fields, gpm, device_events, nvlink
 			expectedCollectorNames: []CollectorName{stateless, sampling, field, gpm, deviceEvents, nvlink},
 		},
 		{
@@ -205,7 +210,7 @@ func TestDisabledCollectors(t *testing.T) {
 		},
 		{
 			name:                   "disable all collectors",
-			disabledCollectors:     []string{"stateless", "sampling", "fields", "gpm", "device_events"},
+			disabledCollectors:     []string{"stateless", "sampling", "fields", "gpm", "device_events", "nvlink"},
 			expectedCollectorCount: 0,
 			expectedCollectorNames: []CollectorName{},
 		},
@@ -220,7 +225,13 @@ func TestDisabledCollectors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup NVML mock
-			nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithDeviceCount(1), testutil.WithMIGDisabled(), testutil.WithCapabilities(testutil.Capabilities{GPM: true}), testutil.WithMockAllFunctions())
+			nvmlMock := testutil.GetBasicNvmlMockWithOptions(
+				testutil.WithDeviceCount(1),
+				testutil.WithMIGDisabled(),
+				testutil.WithCapabilities(testutil.Capabilities{GPM: true}),
+				testutil.WithMockAllFunctions(),
+				testutil.WithArchitecture("blackwell"),
+			)
 			ddnvml.WithMockNVML(t, nvmlMock)
 			deviceCache := ddnvml.NewDeviceCache()
 			devices, err := deviceCache.AllPhysicalDevices()
