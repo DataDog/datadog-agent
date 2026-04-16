@@ -16,7 +16,10 @@ go_library(
 
 go_test(
     name = "walker_test",
-    srcs = ["walker_test.go"],
+    srcs = [
+        "testmain_test.go",
+        "walker_test.go",
+    ],
     data = glob(["testdata/**"]),
     embed = [":walker"],
     gotags = ["test"],
