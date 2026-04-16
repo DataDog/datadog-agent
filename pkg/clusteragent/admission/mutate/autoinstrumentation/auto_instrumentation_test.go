@@ -2742,6 +2742,73 @@ func TestAutoinstrumentation(t *testing.T) {
 	}
 }
 
+func TestAutoinstrumentation_LocalLibInjectionPerContainerOnlyMountsLibraryOnTargetContainer(t *testing.T) {
+	mockConfig := common.FakeConfigWithValues(t, map[string]any{
+		"apm_config.instrumentation.enabled":     false,
+		"admission_controller.mutate_unlabelled": false,
+	})
+	mockMeta := common.FakeStoreWithDeployment(t, defaultDeployments)
+	mockDynamic := fake.NewSimpleDynamicClient(runtime.NewScheme())
+	mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.gradual_rollout.enabled", false)
+
+	for _, ns := range defaultNamespaces {
+		mockMeta.(workloadmetamock.Mock).Set(&ns)
+	}
+
+	webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil)
+	require.NoError(t, err)
+
+	pod := common.FakePodSpec{
+		Name:       "app",
+		NS:         "application",
+		ParentKind: "replicaset",
+		ParentName: "deployment-123",
+		Annotations: map[string]string{
+			"admission.datadoghq.com/app.java-lib.version": "v1",
+		},
+		Labels: map[string]string{
+			admissioncommon.EnabledLabelKey: "true",
+		},
+		Containers: []corev1.Container{
+			{Name: "app2"},
+		},
+	}.Create()
+
+	mutated, err := webhook.MutatePod(pod, pod.Namespace, mockDynamic)
+	require.NoError(t, err)
+	require.True(t, mutated)
+
+	validator := testutils.NewPodValidator(pod, testutils.InjectionModeAuto)
+	validator.RequireInjection(t, []string{"app"})
+	validator.RequireInjectorVersion(t, defaultInjectorVersion)
+	validator.RequireLibraryVersions(t, map[string]string{"java": "v1"})
+
+	var appCtr, app2Ctr *corev1.Container
+	for i := range pod.Spec.Containers {
+		switch pod.Spec.Containers[i].Name {
+		case "app":
+			appCtr = &pod.Spec.Containers[i]
+		case "app2":
+			app2Ctr = &pod.Spec.Containers[i]
+		}
+	}
+
+	require.NotNil(t, appCtr)
+	require.NotNil(t, app2Ctr)
+
+	hasLibraryMount := func(ctr *corev1.Container) bool {
+		for _, mount := range ctr.VolumeMounts {
+			if mount.MountPath == "/opt/datadog/apm/library" {
+				return true
+			}
+		}
+		return false
+	}
+
+	require.True(t, hasLibraryMount(appCtr), "target container should have the library mount")
+	require.False(t, hasLibraryMount(app2Ctr), "non-target container should not have the library mount")
+}
+
 func TestEnvVarsAlreadySet(t *testing.T) {
 	tests := map[string]struct {
 		config             map[string]any
