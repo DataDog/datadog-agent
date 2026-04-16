@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
+	windowsagent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 )
 
 type testDDOTExtensionSubcommand struct {
@@ -49,7 +50,10 @@ func (s *testDDOTExtensionSubcommand) TestInstallDDOTExtensionSubcommand() {
 		HasARunningDatadogAgentService()
 
 	// Install the ddot extension via the new 'datadog-agent extension install' subcommand.
-	agentExe := consts.GetStableDirFor(consts.AgentPackage) + `\bin\agent.exe`
+	// Use the registry install path (same as the MSI install path) to locate agent.exe reliably.
+	installPath, err := windowsagent.GetInstallPathFromRegistry(s.Env().RemoteHost)
+	s.Require().NoError(err)
+	agentExe := installPath + `\bin\agent.exe`
 	agentPackageURL := "oci://" + consts.PipelineOCIRegistry + "/agent-package:pipeline-" + s.Env().Environment.PipelineID()
 	cmd := fmt.Sprintf(`& "%s" extension install --url %s ddot`, agentExe, agentPackageURL)
 	output, err = s.Env().RemoteHost.Execute(cmd)
