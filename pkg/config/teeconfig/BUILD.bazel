@@ -15,5 +15,6 @@ go_test(
     name = "teeconfig_test",
     srcs = ["teeconfig_test.go"],
     embed = [":teeconfig"],
+    gotags = ["test"],
     deps = ["@com_github_stretchr_testify//assert"],
 )

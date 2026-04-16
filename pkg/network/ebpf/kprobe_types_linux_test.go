@@ -72,10 +72,6 @@ func TestCgoAlignment_TLSTagsWrapper(t *testing.T) {
 	ebpftest.TestCgoAlignment[TLSTagsWrapper](t)
 }
 
-func TestCgoAlignment_NetTimeMs(t *testing.T) {
-	ebpftest.TestCgoAlignment[NetTimeMs](t)
-}
-
 func TestCgoAlignment_CertItem(t *testing.T) {
 	ebpftest.TestCgoAlignment[CertItem](t)
 }
