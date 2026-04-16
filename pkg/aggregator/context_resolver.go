@@ -13,6 +13,7 @@ import (
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -77,6 +78,9 @@ type contextResolver struct {
 	keyGenerator     *ckey.KeyGenerator
 	taggerBuffer     *tagset.HashingTagsAccumulator
 	metricBuffer     *tagset.HashingTagsAccumulator
+	// tagFilterCache maps a pre-filter contextKey to the post-filter (contextKey, taggerKey, metricKey).
+	// This avoids repeated RetainFunc calls for metrics we have already processed.
+	tagFilterCache *tagFilterCache
 }
 
 // generateContextKey generates the contextKey associated with the context of the metricSample
@@ -97,6 +101,7 @@ func newContextResolver(tagger tagger.Component, cache *tags.Store, id string) *
 		keyGenerator:     ckey.NewKeyGenerator(),
 		taggerBuffer:     tagset.NewHashingTagsAccumulator(),
 		metricBuffer:     tagset.NewHashingTagsAccumulator(),
+		tagFilterCache:   newTagFilterCache(pkgconfigsetup.Datadog().GetInt("aggregator_tag_filter_cache_capacity")),
 	}
 }
 
@@ -107,17 +112,12 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 	defer cr.taggerBuffer.Reset()
 	defer cr.metricBuffer.Reset()
 
+	contextKey, taggerKey, metricKey := cr.generateContextKey(metricSampleContext) // the generator will remove duplicates (and doesn't mind the order)
 	if filterList != nil && metricSampleContext.GetMetricType() == metrics.DistributionType {
-		if tagMatcher, strip := filterList.ShouldStripTags(metricSampleContext.GetName()); strip {
-			// Currently only distributions are supported, strip out tags if it is configured to remove tags for this given
-			// metric.
-			removedTagger := cr.taggerBuffer.RetainFunc(tagMatcher)
-			removedMetric := cr.metricBuffer.RetainFunc(tagMatcher)
-			tlmFilteredTags.Add(float64(removedTagger + removedMetric))
+		if tagMatcher, filter := filterList.ShouldStripTags(metricSampleContext.GetName()); filter {
+			contextKey, taggerKey, metricKey = cr.filterTags(metricSampleContext, tagMatcher, contextKey)
 		}
 	}
-
-	contextKey, taggerKey, metricKey := cr.generateContextKey(metricSampleContext) // the generator will remove duplicates (and doesn't mind the order)
 
 	if entry, ok := cr.contextsByKey[contextKey]; !ok {
 		mtype := metricSampleContext.GetMetricType()
@@ -150,6 +150,42 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 	return contextKey
 }
 
+// filterTags filters tags from the context that match the given tagMatcher.
+// Results are cached in tagFilterCache so repeated calls for the same pre-filter
+// context key skip the RetainFunc work.
+func (cr *contextResolver) filterTags(
+	metricSampleContext metrics.MetricSampleContext,
+	tagMatcher func(tag string) bool,
+	contextKey ckey.ContextKey,
+) (ckey.ContextKey, ckey.TagsKey, ckey.TagsKey) {
+
+	if cached, ok := cr.tagFilterCache.get(contextKey); ok {
+		// Cache hit: reuse previously computed post-filter keys, skip RetainFunc.
+		tlmFilteredTags.Add(float64(cached.removedTags))
+		tlmFilteredTagsCacheHit.Inc()
+
+		return cached.contextKey, cached.taggerKey, cached.metricKey
+	}
+
+	// Cache miss: filter tags and compute post-filter keys.
+	// Currently only distributions are supported, filter out tags if it is configured to remove tags for this given
+	// metric.
+	removedTagger := cr.taggerBuffer.RetainFunc(tagMatcher)
+	removedMetric := cr.metricBuffer.RetainFunc(tagMatcher)
+	removed := removedTagger + removedMetric
+	tlmFilteredTags.Add(float64(removed))
+	filteredContextKey, filteredTaggerKey, filteredMetricKey := cr.generateContextKey(metricSampleContext) // the generator will remove duplicates (and doesn't mind the order)
+	cr.tagFilterCache.add(contextKey, tagFilterCacheEntry{
+		contextKey:  filteredContextKey,
+		taggerKey:   filteredTaggerKey,
+		metricKey:   filteredMetricKey,
+		removedTags: removed,
+	})
+	tlmFilteredTagsCacheMiss.Inc()
+
+	return filteredContextKey, filteredTaggerKey, filteredMetricKey
+}
+
 func (cr *contextResolver) get(key ckey.ContextKey) (*Context, bool) {
 	ctx, found := cr.contextsByKey[key]
 	return ctx.context, found
@@ -162,6 +198,8 @@ func (cr *contextResolver) length() int {
 func (cr *contextResolver) remove(expiredContextKey ckey.ContextKey) {
 	context := cr.contextsByKey[expiredContextKey].context
 	delete(cr.contextsByKey, expiredContextKey)
+
+	cr.tagFilterCache.delete(expiredContextKey)
 
 	if context != nil {
 		cr.countsByMtype[context.mtype]--
@@ -192,6 +230,11 @@ func (cr *contextResolver) release() {
 	for _, c := range cr.contextsByKey {
 		c.context.release()
 	}
+	cr.clearTagFilterCache()
+}
+
+func (cr *contextResolver) clearTagFilterCache() {
+	cr.tagFilterCache.clear()
 }
 
 //nolint:revive // TODO(AML) Fix revive linter

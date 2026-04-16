@@ -224,6 +224,10 @@ func (d Destination) String() string {
 	}
 }
 
+type Authorizer interface {
+	Authorize(apiKeyIdx uint, headers http.Header, log log.Component)
+}
+
 // HTTPTransaction represents one Payload for one Endpoint on one Domain.
 type HTTPTransaction struct {
 	// Domain represents the domain target by the HTTPTransaction.
@@ -256,6 +260,11 @@ type HTTPTransaction struct {
 	Kind Kind
 
 	Destination Destination
+
+	// We don't store the API key directly in the transaction, as it may change.
+	// Instead store the index so it can be resolved prior to sending.
+	APIKeyIndex uint
+	Resolver    Authorizer
 }
 
 // TransactionsSerializer serializes Transaction instances.
@@ -385,7 +394,12 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 		transactionsSentRequestErrors.Add(1)
 		return 0, nil, nil
 	}
-	req.Header = t.Headers
+	for k, v := range t.Headers {
+		req.Header[k] = v
+	}
+	if t.Resolver != nil {
+		t.Resolver.Authorize(t.APIKeyIndex, req.Header, log)
+	}
 	log.Tracef("Sending %s request to %s with body size %d and headers %v", req.Method, logURL, len(payload), req.Header)
 	resp, err := client.Do(req)
 
@@ -434,11 +448,15 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 		TlmTxDropped.Inc(t.Domain, transactionEndpointName)
 		return resp.StatusCode, body, nil
 	} else if resp.StatusCode == 403 {
-		log.Errorf("API Key invalid (403 response), dropping transaction for %s", logURL)
-
 		// Trigger throttled secret refresh based on secret_refresh_on_api_key_failure_interval on API key error
-		secrets.Refresh()
+		if secrets != nil && secrets.Refresh() {
+			t.ErrorCount++
+			transactionsErrors.Add(1)
+			tlmTxErrors.Inc(t.Domain, transactionEndpointName, "403")
+			return resp.StatusCode, body, fmt.Errorf("API Key invalid (%q response) while sending transaction to %q, rescheduling it", resp.Status, logURL)
+		}
 
+		log.Errorf("API Key invalid (403 response), dropping transaction for %s", logURL)
 		TransactionsDroppedByEndpoint.Add(transactionEndpointName, 1)
 		TransactionsDropped.Add(1)
 		TlmTxDropped.Inc(t.Domain, transactionEndpointName)
