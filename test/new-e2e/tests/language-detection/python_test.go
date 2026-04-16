@@ -20,7 +20,7 @@ func (s *languageDetectionSuite) installPython() {
 }
 
 func (s *languageDetectionSuite) TestPythonDetectionCoreAgent() {
-	e2e.SetAgentConfig(s.T(), s.Env().RemoteHost, s.Env().Agent.Client,
+	e2e.SetAgentConfig(s.T(), s.Env(),
 		agentparams.WithAgentConfig(coreConfigStr),
 	)
 	pid := s.startPython()
@@ -28,7 +28,7 @@ func (s *languageDetectionSuite) TestPythonDetectionCoreAgent() {
 }
 
 func (s *languageDetectionSuite) TestPythonDetectionCoreAgentNoCheck() {
-	e2e.SetAgentConfig(s.T(), s.Env().RemoteHost, s.Env().Agent.Client,
+	e2e.SetAgentConfig(s.T(), s.Env(),
 		agentparams.WithAgentConfig(coreConfigNoCheckStr),
 	)
 	pid := s.startPython()
@@ -36,7 +36,7 @@ func (s *languageDetectionSuite) TestPythonDetectionCoreAgentNoCheck() {
 }
 
 func (s *languageDetectionSuite) TestPythonDetectionProcessAgent() {
-	e2e.SetAgentConfig(s.T(), s.Env().RemoteHost, s.Env().Agent.Client,
+	e2e.SetAgentConfig(s.T(), s.Env(),
 		agentparams.WithAgentConfig(processConfigStr),
 	)
 	pid := s.startPython()
@@ -44,7 +44,7 @@ func (s *languageDetectionSuite) TestPythonDetectionProcessAgent() {
 }
 
 func (s *languageDetectionSuite) TestPythonDetectionProcessAgentNoCheck() {
-	e2e.SetAgentConfig(s.T(), s.Env().RemoteHost, s.Env().Agent.Client,
+	e2e.SetAgentConfig(s.T(), s.Env(),
 		agentparams.WithAgentConfig(processConfigNoCheckStr),
 	)
 	pid := s.startPython()

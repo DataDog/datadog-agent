@@ -192,7 +192,7 @@ func (s *linuxTestSuite) testProcessCheckWithServiceDiscovery(agentConfigStr str
 	t := s.T()
 	s.startServices()
 	defer s.stopServices()
-	e2e.SetAgentConfig(s.T(), s.Env().RemoteHost, s.Env().Agent.Client,
+	e2e.SetAgentConfig(s.T(), s.Env(),
 		agentparams.WithAgentConfig(agentConfigStr),
 		agentparams.WithSystemProbeConfig(systemProbeConfigStr),
 	)
@@ -339,7 +339,7 @@ func (s *linuxTestSuite) testProcessCheckWithServiceDiscoveryPrivilegedLogs(agen
 	t := s.T()
 	s.startServicesFromList(servicesToStart)
 	defer s.stopServicesFromList(servicesToStart)
-	e2e.SetAgentConfig(s.T(), s.Env().RemoteHost, s.Env().Agent.Client,
+	e2e.SetAgentConfig(s.T(), s.Env(),
 		agentparams.WithAgentConfig(agentConfigStr),
 		agentparams.WithSystemProbeConfig(systemProbeConfigStr),
 	)

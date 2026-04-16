@@ -7,30 +7,34 @@ package e2e
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	oscomp "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 )
 
 // SetAgentConfig reconfigures the agent on a provisioned host without
 // re-running Pulumi. It writes config files via SSH and restarts the agent.
 //
-// This accepts the same agentparams options used with provisioners:
+// The function builds the full datadog.yaml by merging the caller's options
+// with framework defaults (API key, fakeintake intake URLs). This ensures
+// the agent keeps working with fakeintake after a config change.
 //
-//	SetAgentConfig(s.T(), s.Env().RemoteHost, s.Env().Agent.Client,
+// Usage:
+//
+//	e2e.SetAgentConfig(s.T(), s.Env(),
 //	    agentparams.WithAgentConfig("log_level: info"),
 //	)
-//
-// The function writes the relevant config files (datadog.yaml,
-// system-probe.yaml, security-agent.yaml), integration configs, and arbitrary
-// files to the host, then restarts the agent and waits for it to be ready.
-func SetAgentConfig(t *testing.T, host *components.RemoteHost, agent agentclient.Agent, opts ...agentparams.Option) {
+func SetAgentConfig(t *testing.T, env *environments.Host, opts ...agentparams.Option) {
 	t.Helper()
 
 	p := &agentparams.Params{
@@ -41,13 +45,13 @@ func SetAgentConfig(t *testing.T, host *components.RemoteHost, agent agentclient
 		require.NoError(t, opt(p))
 	}
 
+	host := env.RemoteHost
 	configFolder, err := host.GetAgentConfigFolder()
 	require.NoError(t, err, "failed to get agent config folder")
 
-	// Write datadog.yaml
-	if p.AgentConfig != "" {
-		writeConfigFile(t, host, host.JoinPath(configFolder, "datadog.yaml"), p.AgentConfig)
-	}
+	// Build the full datadog.yaml with framework defaults merged in
+	fullConfig := buildCoreAgentConfig(t, env, p)
+	writeConfigFile(t, host, host.JoinPath(configFolder, "datadog.yaml"), fullConfig)
 
 	// Write system-probe.yaml
 	if p.SystemProbeConfig != "" {
@@ -78,17 +82,113 @@ func SetAgentConfig(t *testing.T, host *components.RemoteHost, agent agentclient
 	}
 
 	// Restart the agent and wait for ready.
-	//
-	// On Linux with systemd, sub-agent services (system-probe, security-agent)
-	// use BindsTo=datadog-agent.service, so restarting the main agent
-	// automatically restarts them. The ConditionPathExists directive ensures
-	// they only start when their config file exists.
-	//
-	// For non-systemd Linux or if BindsTo is not configured, we explicitly
-	// restart sub-agents after the main agent.
-	require.NoError(t, agent.Restart(), "failed to restart agent")
+	require.NoError(t, env.Agent.Client.Restart(), "failed to restart agent")
 	restartSubAgentServices(t, host, p)
-	require.Eventually(t, agent.IsReady, 2*time.Minute, 5*time.Second, "agent not ready after config change")
+	require.Eventually(t, env.Agent.Client.IsReady, 2*time.Minute, 5*time.Second, "agent not ready after config change")
+}
+
+// buildCoreAgentConfig assembles the full datadog.yaml content by merging the
+// user-provided AgentConfig with framework defaults:
+//   - Fakeintake intake URLs (if a fakeintake is present in the environment)
+//   - API key (from the runner's secret store)
+//   - Any extra config from WithLogs, WithTags, WithHostname options
+//
+// This mirrors the merge logic in the Pulumi agent component
+// (host.go:updateCoreAgentConfig) but uses resolved values instead of
+// Pulumi outputs.
+func buildCoreAgentConfig(t *testing.T, env *environments.Host, p *agentparams.Params) string {
+	t.Helper()
+
+	config := p.AgentConfig
+
+	// Merge fakeintake intake URLs if a fakeintake is present
+	if env.FakeIntake != nil && env.FakeIntake.URL != "" {
+		intakeConfig := fakeintakeConfigYAML(env.FakeIntake.Scheme, env.FakeIntake.Host, env.FakeIntake.Port)
+		config = mergeYAML(t, config, intakeConfig)
+	}
+
+	// Merge extra agent config (WithLogs, WithTags, WithHostname, etc.)
+	// These are pulumi.StringInput but for the options that produce plain
+	// strings (WithLogs, WithTags, WithHostname), the underlying value is
+	// a pulumi.String which implements fmt.Stringer.
+	for _, extra := range p.ExtraAgentConfig {
+		config = mergeYAML(t, config, fmt.Sprintf("%s", extra))
+	}
+
+	// Merge API key
+	if !p.SkipAPIKeyInConfig {
+		apiKey := getAPIKey(t)
+		config = mergeYAML(t, config, fmt.Sprintf("api_key: %s", apiKey))
+	}
+
+	return config
+}
+
+// fakeintakeConfigYAML generates the YAML config that points all agent
+// forwarders to a fakeintake instance. This is the non-Pulumi equivalent
+// of agentparams.withIntakeHostname.
+func fakeintakeConfigYAML(scheme, host string, port uint32) string {
+	return fmt.Sprintf(`dd_url: %[3]s://%[1]s:%[2]d
+logs_config.logs_dd_url: %[1]s:%[2]d
+logs_config.logs_no_ssl: true
+logs_config.force_use_http: true
+process_config.process_dd_url: %[3]s://%[1]s:%[2]d
+apm_config.apm_dd_url: %[3]s://%[1]s:%[2]d
+database_monitoring.metrics.logs_dd_url: %[1]s:%[2]d
+database_monitoring.metrics.logs_no_ssl: true
+database_monitoring.activity.logs_dd_url: %[1]s:%[2]d
+database_monitoring.activity.logs_no_ssl: true
+database_monitoring.samples.logs_dd_url: %[1]s:%[2]d
+database_monitoring.samples.logs_no_ssl: true
+network_devices.metadata.logs_dd_url: %[1]s:%[2]d
+network_devices.metadata.logs_no_ssl: true
+network_devices.snmp_traps.forwarder.logs_dd_url: %[1]s:%[2]d
+network_devices.snmp_traps.forwarder.logs_no_ssl: true
+network_devices.netflow.forwarder.logs_dd_url: %[1]s:%[2]d
+network_devices.netflow.forwarder.logs_no_ssl: true
+network_path.forwarder.logs_dd_url: %[1]s:%[2]d
+network_path.forwarder.logs_no_ssl: true
+network_config_management.forwarder.logs_dd_url: %[1]s:%[2]d
+network_config_management.forwarder.logs_no_ssl: true
+synthetics.forwarder.logs_dd_url: %[1]s:%[2]d
+synthetics.forwarder.logs_no_ssl: true
+container_lifecycle.logs_dd_url: %[1]s:%[2]d
+container_lifecycle.logs_no_ssl: true
+container_image.logs_dd_url: %[1]s:%[2]d
+container_image.logs_no_ssl: true
+sbom.logs_dd_url: %[1]s:%[2]d
+sbom.logs_no_ssl: true
+service_discovery.forwarder.logs_dd_url: %[1]s:%[2]d
+service_discovery.forwarder.logs_no_ssl: true
+software_inventory.forwarder.logs_dd_url: %[1]s:%[2]d
+software_inventory.forwarder.logs_no_ssl: true
+data_streams.forwarder.logs_dd_url: %[1]s:%[2]d
+data_streams.forwarder.logs_no_ssl: true
+event_management.forwarder.logs_dd_url: %[1]s:%[2]d
+event_management.forwarder.logs_no_ssl: true
+`, host, port, scheme)
+}
+
+// getAPIKey retrieves the Datadog API key from the runner's secret store.
+func getAPIKey(t *testing.T) string {
+	t.Helper()
+	apiKey, err := runner.GetProfile().SecretStore().Get(parameters.APIKey)
+	require.NoError(t, err, "failed to get API key from secret store")
+	return strings.TrimSpace(apiKey)
+}
+
+// mergeYAML merges two YAML strings, with the new values taking precedence.
+func mergeYAML(t *testing.T, base, overlay string) string {
+	t.Helper()
+	if base == "" {
+		return overlay
+	}
+	if overlay == "" {
+		return base
+	}
+	merged, err := utils.MergeYAMLWithSlices(base, overlay)
+	require.NoError(t, err, "failed to merge agent config YAML")
+	return merged
 }
 
 // restartSubAgentServices restarts sub-agent services whose configs changed.
@@ -140,15 +240,12 @@ func restartLinuxService(host *components.RemoteHost, service string) {
 }
 
 // writeConfigFile writes a config file to the host using elevated privileges.
-// Mirrors the approach used by the Pulumi agent component's CopyInlineFile.
 func writeConfigFile(t *testing.T, host *components.RemoteHost, fullPath string, content string) {
 	t.Helper()
 	switch host.OSFamily {
 	case oscomp.WindowsFamily:
-		// On Windows, write via PowerShell here-string + Set-Content.
 		host.MustExecute(fmt.Sprintf("Set-Content -Path '%s' -Value @\"\n%s\n\"@", fullPath, content))
 	default:
-		// On Linux/macOS, use sudo tee (agent config files are owned by dd-agent).
 		host.MustExecute(fmt.Sprintf("sudo tee %s > /dev/null << 'AGENTCONFIGEOF'\n%s\nAGENTCONFIGEOF", fullPath, content))
 	}
 }
@@ -164,7 +261,6 @@ func writeFileDefinition(t *testing.T, host *components.RemoteHost, fullPath str
 		require.NoError(t, err, "failed to write file %s", fullPath)
 	}
 
-	// Apply permissions if specified (permissions commands are already OS-aware)
 	if perms, ok := fileDef.Permissions.Get(); ok {
 		cmd := perms.SetupPermissionsCommand(fullPath)
 		if cmd != "" {

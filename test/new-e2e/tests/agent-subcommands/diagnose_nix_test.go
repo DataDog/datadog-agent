@@ -28,7 +28,7 @@ func TestLinuxDiagnoseSuite(t *testing.T) {
 }
 
 func (v *linuxDiagnoseSuite) TestDiagnoseOtherCmdPort() {
-	e2e.SetAgentConfig(v.T(), v.Env().RemoteHost, v.Env().Agent.Client,
+	e2e.SetAgentConfig(v.T(), v.Env(),
 		agentparams.WithAgentConfig("cmd_port: 4567"),
 	)
 

@@ -20,7 +20,7 @@ func (s *languageDetectionSuite) installPHP() {
 }
 
 func (s *languageDetectionSuite) TestPHPDetectionCoreAgent() {
-	e2e.SetAgentConfig(s.T(), s.Env().RemoteHost, s.Env().Agent.Client,
+	e2e.SetAgentConfig(s.T(), s.Env(),
 		agentparams.WithAgentConfig(coreConfigStr),
 	)
 	pid := s.startPHP()

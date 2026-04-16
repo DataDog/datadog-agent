@@ -33,7 +33,7 @@ func (v *agentSuiteEx4) TestLogDebug() {
 }
 
 func (v *agentSuiteEx4) TestLogInfo() {
-	e2e.SetAgentConfig(v.T(), v.Env().RemoteHost, v.Env().Agent.Client,
+	e2e.SetAgentConfig(v.T(), v.Env(),
 		agentparams.WithAgentConfig("log_level: info"),
 	)
 	assert.Contains(v.T(), v.Env().Agent.Client.Config(), "log_level: info")
