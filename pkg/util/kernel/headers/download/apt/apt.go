@@ -262,17 +262,16 @@ func NewBackend(target *types.Target, aptConfigDir string, logger types.Logger) 
 		if !repo.Enabled || repo.SourceRepo {
 			continue
 		}
-
-		if isSignedByUnreachableKey(repo) {
-			continue
-		}
-
 		prefix := target.Distro.Display
 		repoID := fmt.Sprintf("%s-%d", prefix, i)
-
 		var components []string
 		if repo.Components != "" {
 			components = strings.Split(repo.Components, " ")
+		}
+
+		if isSignedByUnreachableKey(repo) {
+			backend.logger.Debugf("Skipping repo '%s' %s %s %v: unreachable key", repoID, repo.URI, repo.Distribution, components)
+			continue
 		}
 
 		rr := remoteRepo{
