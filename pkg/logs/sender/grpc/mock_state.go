@@ -23,6 +23,8 @@ import (
 )
 
 const nanoToMillis = 1000000
+const staleTTL = 14 * time.Minute
+const staleSweepInterval = 30 * time.Second
 
 // batchEntry is a per-message sidecar used during batch tokenization.
 // It keeps msg, preprocessed content, and JSON context fields aligned so that
@@ -62,6 +64,18 @@ type dvTypeBackings struct {
 	stringOneof statefulpb.DynamicValue_StringValue
 }
 
+type tagCacheEntry struct {
+	origin         *message.Origin
+	hostname       string
+	service        string
+	source         string
+	status         string
+	processingTags string // joined ProcessingTags; part of cache key
+	tagSet         *statefulpb.TagSet
+	dictID         uint64
+	tagStr         string
+}
+
 // MessageTranslator handles translation of message.Message to message.StatefulMessage
 // It manages pattern extraction, clustering, and stateful message creation
 type MessageTranslator struct {
@@ -69,24 +83,15 @@ type MessageTranslator struct {
 	patternEvictionManager *clustering.EvictionManager
 	tagManager             *tags.TagManager
 	tagEvictionManager     *tags.TagEvictionManager
-	tokenizer     token.Tokenizer
-	jsonLogsAsRaw bool // when true, JSON logs bypass stateful encoding and are sent as RawLog
+	tokenizer              token.Tokenizer
+	jsonLogsAsRaw          bool // when true, JSON logs bypass stateful encoding and are sent as RawLog
 
-	pipelineName string
+	pipelineName   string
+	lastStaleSweep time.Time
 
 	// tagCache caches the last computed tag set to avoid recomputation across messages
 	// with identical metadata (common in single-source pipelines).
-	tagCache struct {
-		origin         *message.Origin
-		hostname       string
-		service        string
-		source         string
-		status         string
-		processingTags string // joined ProcessingTags; part of cache key
-		tagSet         *statefulpb.TagSet
-		dictID         uint64
-		tagStr         string
-	}
+	tagCache tagCacheEntry
 }
 
 // NewMessageTranslator creates a new MessageTranslator instance with the specified tokenizer.
@@ -106,6 +111,7 @@ func NewMessageTranslator(pipelineName string, tokenizer token.Tokenizer) *Messa
 		tokenizer:              tokenizer,
 		jsonLogsAsRaw:          pkgconfigsetup.Datadog().GetBool("logs_config.patterns.json_as_raw"),
 		pipelineName:           pipelineName,
+		lastStaleSweep:         time.Now(),
 	}
 	tlmPipelineStateSize.Set(0, pipelineName)
 	return mt
@@ -322,6 +328,21 @@ func (mt *MessageTranslator) processPreTokenized(msg *message.Message, tokenList
 	tagCountOverLimit, tagBytesOverLimit := mt.tagEvictionManager.ShouldEvict(tagCount, tagMemoryBytes)
 	if tagCountOverLimit || tagBytesOverLimit {
 		for _, evictedID := range mt.tagEvictionManager.Evict(mt.tagManager, tagCount, tagMemoryBytes, tagCountOverLimit, tagBytesOverLimit) {
+			mt.invalidateTagCache(evictedID)
+			mt.sendDictEntryDelete(outputChan, msg, evictedID)
+		}
+	}
+
+	// Periodic TTL sweep: remove entries not accessed in the last 5 minutes.
+	// This prevents stale entries from accumulating in state and inflating snapshot replays.
+	if time.Since(mt.lastStaleSweep) >= staleSweepInterval {
+		mt.lastStaleSweep = time.Now()
+
+		for _, evictedPattern := range mt.clusterManager.EvictStalePatterns(staleTTL) {
+			mt.sendPatternDelete(evictedPattern.PatternID, msg, outputChan)
+		}
+		for _, evictedID := range mt.tagManager.EvictStaleEntries(staleTTL) {
+			mt.invalidateTagCache(evictedID)
 			mt.sendDictEntryDelete(outputChan, msg, evictedID)
 		}
 	}
@@ -404,6 +425,16 @@ func (mt *MessageTranslator) processPreTokenized(msg *message.Message, tokenList
 // All tags are joined as a single string, encoded as a single dictionary entry in the TagSet.
 // A single-entry cache keyed on (origin ptr, hostname, service, source, status) avoids all
 // allocations in the common case where these inputs are constant across messages (single-source pipeline).
+func (mt *MessageTranslator) clearTagCache() {
+	mt.tagCache = tagCacheEntry{}
+}
+
+func (mt *MessageTranslator) invalidateTagCache(evictedID uint64) {
+	if mt.tagCache.dictID == evictedID {
+		mt.clearTagCache()
+	}
+}
+
 func (mt *MessageTranslator) buildTagSet(msg *message.Message) (*statefulpb.TagSet, string, uint64, bool) {
 	// Read current inputs
 	currentOrigin := msg.Origin
@@ -421,7 +452,10 @@ func (mt *MessageTranslator) buildTagSet(msg *message.Message) (*statefulpb.TagS
 		mt.tagCache.source == currentSource &&
 		mt.tagCache.status == currentStatus &&
 		mt.tagCache.processingTags == currentProcessingTags {
-		return mt.tagCache.tagSet, mt.tagCache.tagStr, mt.tagCache.dictID, false
+		if dictID, ok := mt.tagManager.GetStringID(mt.tagCache.tagStr); ok && dictID == mt.tagCache.dictID {
+			return mt.tagCache.tagSet, mt.tagCache.tagStr, mt.tagCache.dictID, false
+		}
+		mt.clearTagCache()
 	}
 
 	// Cache miss: build tag string normally.

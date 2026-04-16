@@ -145,3 +145,52 @@ func TestBuildTagSet_ProcessingTagsInvalidateCache(t *testing.T) {
 	assert.NotContains(t, tagStr2, "team:red")
 	assert.NotEqual(t, tagStr1, tagStr2, "different processing tags should change the final joined tag string")
 }
+
+func TestBuildTagSet_RebuildsAfterCachedDictEntryEviction(t *testing.T) {
+	tok := rtokenizer.NewRustTokenizer()
+	mt := NewMessageTranslator("test-pipeline", tok)
+
+	origin := makeTestOrigin("svc-a", "src-a", []string{"env:test"})
+	msg1 := makeMsg("log line 1", "host-1", "info", origin)
+
+	tagSet1, tagStr1, dictID1, isNew1 := mt.buildTagSet(msg1)
+
+	require.NotNil(t, tagSet1)
+	require.True(t, isNew1)
+
+	mt.invalidateTagCache(dictID1)
+	mt.tagManager.EvictStaleEntries(0)
+
+	msg2 := makeMsg("log line 2", "host-1", "info", origin)
+	tagSet2, tagStr2, dictID2, isNew2 := mt.buildTagSet(msg2)
+
+	require.NotNil(t, tagSet2)
+	assert.True(t, isNew2, "evicted cached tagset must be redefined")
+	assert.Equal(t, tagStr1, tagStr2)
+	assert.NotEqual(t, dictID1, dictID2, "recreated tagset must use a fresh dict id")
+	assert.NotEqual(t, tagSet1, tagSet2, "recreated tagset must not reuse stale cached pointer")
+}
+
+func TestBuildTagSet_CacheHitSelfHealsAfterSilentDictEviction(t *testing.T) {
+	tok := rtokenizer.NewRustTokenizer()
+	mt := NewMessageTranslator("test-pipeline", tok)
+
+	origin := makeTestOrigin("svc-a", "src-a", []string{"env:test"})
+	msg1 := makeMsg("log line 1", "host-1", "info", origin)
+
+	tagSet1, tagStr1, dictID1, isNew1 := mt.buildTagSet(msg1)
+
+	require.NotNil(t, tagSet1)
+	require.True(t, isNew1)
+
+	mt.tagManager.EvictStaleEntries(0)
+
+	msg2 := makeMsg("log line 2", "host-1", "info", origin)
+	tagSet2, tagStr2, dictID2, isNew2 := mt.buildTagSet(msg2)
+
+	require.NotNil(t, tagSet2)
+	assert.True(t, isNew2, "cache hit path must revalidate dict liveness and rebuild")
+	assert.Equal(t, tagStr1, tagStr2)
+	assert.NotEqual(t, dictID1, dictID2, "rebuilt tagset must get a new dict id after eviction")
+	assert.NotEqual(t, tagSet1, tagSet2, "rebuilt tagset must not reuse stale cached pointer")
+}
