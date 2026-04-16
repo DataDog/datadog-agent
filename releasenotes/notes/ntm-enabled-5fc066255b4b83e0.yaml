@@ -8,5 +8,7 @@
 ---
 enhancements:
   - |
-    Switch config implementation from viper to nodetreemodel by default. Can
-    be disabled with the env var DD_CONF_NODETREEMODEL=viper.
+    Switch config implementation to an improved version by default. Can
+    be disabled with the env var DD_CONF_NODETREEMODEL=viper, or the config
+    setting ``conf_nodetreemodel: viper`` in ``datadog.yaml``.
+
