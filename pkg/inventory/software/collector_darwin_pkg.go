@@ -513,9 +513,10 @@ func buildEntryFromReceipt(receipt pkgReceiptInfo, summary pkgSummary, is64Bit b
 // package identifier that installed them, derived from BOM data. This replaces the
 // expensive per-app `pkgutil --file-info` subprocess calls in applicationsCollector.
 type appToPkgIndex struct {
-	mu    sync.Mutex
-	index map[string]string // appPath → pkgID
-	built bool
+	mu      sync.Mutex
+	index   map[string]string // appPath → pkgID
+	built   bool
+	builtAt time.Time
 }
 
 var (
@@ -536,9 +537,10 @@ func (idx *appToPkgIndex) lookupPkgForApp(appPath string) string {
 	idx.mu.Lock()
 	defer idx.mu.Unlock()
 
-	if !idx.built {
+	if !idx.built || time.Since(idx.builtAt) >= defaultBomCacheTTL {
 		idx.index = buildAppToPkgMap()
 		idx.built = true
+		idx.builtAt = time.Now()
 	}
 	return idx.index[appPath]
 }
