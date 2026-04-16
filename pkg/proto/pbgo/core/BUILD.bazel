@@ -6,6 +6,8 @@ go_library(
         "api.pb.go",
         "api_grpc.pb.go",
         "autodiscovery.pb.go",
+        "command.pb.go",
+        "command_grpc.pb.go",
         "flare.pb.go",
         "flare_grpc.pb.go",
         "kubemetadata.pb.go",

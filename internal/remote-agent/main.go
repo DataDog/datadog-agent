@@ -35,11 +35,15 @@ const FlareServiceName = "datadog.remoteagent.flare.v1.FlareProvider"
 // TelemetryServiceName is the service name for remote agent telemetry provider
 const TelemetryServiceName = "datadog.remoteagent.telemetry.v1.TelemetryProvider"
 
+// RemoteCommandServiceName is the service name for the remote agent remote command provider
+const RemoteCommandServiceName = "datadog.remoteagent.command.v1.RemoteCommandProvider"
+
 type remoteAgentServer struct {
 	started time.Time
 	pbcore.UnimplementedStatusProviderServer
 	pbcore.UnimplementedFlareProviderServer
 	pbcore.UnimplementedTelemetryProviderServer
+	pbcore.UnimplementedRemoteCommandProviderServer
 }
 
 func (s *remoteAgentServer) GetStatusDetails(_ context.Context, req *pbcore.GetStatusDetailsRequest) (*pbcore.GetStatusDetailsResponse, error) {
@@ -113,6 +117,57 @@ remote_agent_registry_action_duration_seconds_with_labels_count{name="test-agent
 	}, nil
 }
 
+func (s *remoteAgentServer) ListCommands(_ context.Context, _ *pbcore.ListRemoteCommandsRequest) (*pbcore.ListRemoteCommandsResponse, error) {
+	log.Println("Got request for command list")
+	return &pbcore.ListRemoteCommandsResponse{
+		Commands: []*pbcore.Command{
+			{
+				Name:   "hello",
+				Helper: "Says hello from the remote agent",
+				RunE:   true,
+			},
+			{
+				Name:   "info",
+				Helper: "Shows remote agent info",
+				RunE:   true,
+				Children: []*pbcore.Command{
+					{
+						Name:   "info detail",
+						Helper: "Shows detailed remote agent info",
+						RunE:   true,
+					},
+				},
+			},
+		},
+	}, nil
+}
+
+func (s *remoteAgentServer) ExecuteCommand(_ context.Context, req *pbcore.ExecuteCommandRequest) (*pbcore.ExecuteCommandResponse, error) {
+	log.Printf("Got request to execute command: %s", req.CommandPath)
+	switch req.CommandPath {
+	case "hello":
+		return &pbcore.ExecuteCommandResponse{
+			ExitCode: 0,
+			Stdout:   fmt.Sprintf("Hello from remote agent! (uptime: %s)\n", time.Since(s.started)),
+		}, nil
+	case "info":
+		return &pbcore.ExecuteCommandResponse{
+			ExitCode: 0,
+			Stdout:   fmt.Sprintf("Remote Agent v1.0.0\nStarted: %s\n", s.started.Format(time.RFC3339)),
+		}, nil
+	case "info detail":
+		return &pbcore.ExecuteCommandResponse{
+			ExitCode: 0,
+			Stdout:   fmt.Sprintf("Remote Agent v1.0.0\nStarted: %s\nUptime: %s\nJSON: %v\nVerbose: %v\n", s.started.Format(time.RFC3339), time.Since(s.started), req.JsonOutput, req.Verbose),
+		}, nil
+	default:
+		return &pbcore.ExecuteCommandResponse{
+			ExitCode: 1,
+			Stderr:   fmt.Sprintf("unknown command: %s\n", req.CommandPath),
+		}, nil
+	}
+}
+
 func newRemoteAgentServer() *remoteAgentServer {
 	return &remoteAgentServer{
 		started: time.Now(),
@@ -133,7 +188,7 @@ func registerWithAgent(agentIpcAddress, agentAuthToken, agentFlavor, displayName
 		Flavor:         agentFlavor,
 		DisplayName:    displayName,
 		ApiEndpointUri: listenAddr,
-		Services:       []string{StatusServiceName, FlareServiceName, TelemetryServiceName},
+		Services:       []string{StatusServiceName, FlareServiceName, TelemetryServiceName, RemoteCommandServiceName},
 	}
 
 	log.Printf("Registering with Core Agent at %s...", agentIpcAddress)
@@ -289,6 +344,7 @@ func buildAndSpawnGrpcServer(listenAddr string, server *remoteAgentServer, authT
 	pbcore.RegisterStatusProviderServer(grpcServer, server)
 	pbcore.RegisterFlareProviderServer(grpcServer, server)
 	pbcore.RegisterTelemetryProviderServer(grpcServer, server)
+	pbcore.RegisterRemoteCommandProviderServer(grpcServer, server)
 
 	go func() {
 		if err := grpcServer.Serve(listener); err != nil {

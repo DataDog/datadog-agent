@@ -274,3 +274,35 @@ func (s *serverSecure) CreateConfigSubscription(stream pb.AgentSecure_CreateConf
 func (s *serverSecure) WorkloadFilterEvaluate(ctx context.Context, req *pb.WorkloadFilterEvaluateRequest) (*pb.WorkloadFilterEvaluateResponse, error) {
 	return s.workloadfilterServer.WorkloadFilterEvaluate(ctx, req)
 }
+
+func (s *serverSecure) ListRemoteCommands(_ context.Context, _ *emptypb.Empty) (*pb.ListRemoteCommandsResponse, error) {
+	if s.remoteAgentRegistry == nil {
+		return nil, status.Error(codes.Unimplemented, "remote agent registry not enabled")
+	}
+
+	commandData := s.remoteAgentRegistry.GetAllRemoteCommands()
+	var allCommands []*pb.Command
+	for _, cd := range commandData {
+		allCommands = append(allCommands, cd.Commands...)
+	}
+
+	return &pb.ListRemoteCommandsResponse{Commands: allCommands}, nil
+}
+
+func (s *serverSecure) ExecuteRemoteCommand(_ context.Context, in *pb.ExecuteCommandRequest) (*pb.ExecuteCommandResponse, error) {
+	if s.remoteAgentRegistry == nil {
+		return nil, status.Error(codes.Unimplemented, "remote agent registry not enabled")
+	}
+
+	result, err := s.remoteAgentRegistry.ExecuteRemoteCommand(in.CommandPath, in)
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	return &pb.ExecuteCommandResponse{
+		ExitCode:     result.ExitCode,
+		Stdout:       result.Stdout,
+		Stderr:       result.Stderr,
+		BinaryOutput: result.BinaryOutput,
+	}, nil
+}

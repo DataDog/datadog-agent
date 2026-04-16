@@ -147,6 +147,8 @@ const (
 	AgentSecure_StreamConfigEvents_FullMethodName                      = "/datadog.api.v1.AgentSecure/StreamConfigEvents"
 	AgentSecure_WorkloadFilterEvaluate_FullMethodName                  = "/datadog.api.v1.AgentSecure/WorkloadFilterEvaluate"
 	AgentSecure_StreamKubeMetadata_FullMethodName                      = "/datadog.api.v1.AgentSecure/StreamKubeMetadata"
+	AgentSecure_ListRemoteCommands_FullMethodName                      = "/datadog.api.v1.AgentSecure/ListRemoteCommands"
+	AgentSecure_ExecuteRemoteCommand_FullMethodName                    = "/datadog.api.v1.AgentSecure/ExecuteRemoteCommand"
 )
 
 // AgentSecureClient is the client API for AgentSecure service.
@@ -187,6 +189,10 @@ type AgentSecureClient interface {
 	WorkloadFilterEvaluate(ctx context.Context, in *WorkloadFilterEvaluateRequest, opts ...grpc.CallOption) (*WorkloadFilterEvaluateResponse, error)
 	// Streams pod-to-service metadata for a specific node.
 	StreamKubeMetadata(ctx context.Context, in *KubeMetadataStreamRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[KubeMetadataStreamResponse], error)
+	// Lists all remote commands from all registered remote agents.
+	ListRemoteCommands(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ListRemoteCommandsResponse, error)
+	// Executes a remote command on the appropriate registered remote agent.
+	ExecuteRemoteCommand(ctx context.Context, in *ExecuteCommandRequest, opts ...grpc.CallOption) (*ExecuteCommandResponse, error)
 }
 
 type agentSecureClient struct {
@@ -435,6 +441,26 @@ func (c *agentSecureClient) StreamKubeMetadata(ctx context.Context, in *KubeMeta
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type AgentSecure_StreamKubeMetadataClient = grpc.ServerStreamingClient[KubeMetadataStreamResponse]
 
+func (c *agentSecureClient) ListRemoteCommands(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ListRemoteCommandsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListRemoteCommandsResponse)
+	err := c.cc.Invoke(ctx, AgentSecure_ListRemoteCommands_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentSecureClient) ExecuteRemoteCommand(ctx context.Context, in *ExecuteCommandRequest, opts ...grpc.CallOption) (*ExecuteCommandResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ExecuteCommandResponse)
+	err := c.cc.Invoke(ctx, AgentSecure_ExecuteRemoteCommand_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AgentSecureServer is the server API for AgentSecure service.
 // All implementations must embed UnimplementedAgentSecureServer
 // for forward compatibility.
@@ -473,6 +499,10 @@ type AgentSecureServer interface {
 	WorkloadFilterEvaluate(context.Context, *WorkloadFilterEvaluateRequest) (*WorkloadFilterEvaluateResponse, error)
 	// Streams pod-to-service metadata for a specific node.
 	StreamKubeMetadata(*KubeMetadataStreamRequest, grpc.ServerStreamingServer[KubeMetadataStreamResponse]) error
+	// Lists all remote commands from all registered remote agents.
+	ListRemoteCommands(context.Context, *emptypb.Empty) (*ListRemoteCommandsResponse, error)
+	// Executes a remote command on the appropriate registered remote agent.
+	ExecuteRemoteCommand(context.Context, *ExecuteCommandRequest) (*ExecuteCommandResponse, error)
 	mustEmbedUnimplementedAgentSecureServer()
 }
 
@@ -539,6 +569,12 @@ func (UnimplementedAgentSecureServer) WorkloadFilterEvaluate(context.Context, *W
 }
 func (UnimplementedAgentSecureServer) StreamKubeMetadata(*KubeMetadataStreamRequest, grpc.ServerStreamingServer[KubeMetadataStreamResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method StreamKubeMetadata not implemented")
+}
+func (UnimplementedAgentSecureServer) ListRemoteCommands(context.Context, *emptypb.Empty) (*ListRemoteCommandsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListRemoteCommands not implemented")
+}
+func (UnimplementedAgentSecureServer) ExecuteRemoteCommand(context.Context, *ExecuteCommandRequest) (*ExecuteCommandResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ExecuteRemoteCommand not implemented")
 }
 func (UnimplementedAgentSecureServer) mustEmbedUnimplementedAgentSecureServer() {}
 func (UnimplementedAgentSecureServer) testEmbeddedByValue()                     {}
@@ -857,6 +893,42 @@ func _AgentSecure_StreamKubeMetadata_Handler(srv interface{}, stream grpc.Server
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type AgentSecure_StreamKubeMetadataServer = grpc.ServerStreamingServer[KubeMetadataStreamResponse]
 
+func _AgentSecure_ListRemoteCommands_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentSecureServer).ListRemoteCommands(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentSecure_ListRemoteCommands_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentSecureServer).ListRemoteCommands(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentSecure_ExecuteRemoteCommand_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ExecuteCommandRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentSecureServer).ExecuteRemoteCommand(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentSecure_ExecuteRemoteCommand_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentSecureServer).ExecuteRemoteCommand(ctx, req.(*ExecuteCommandRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AgentSecure_ServiceDesc is the grpc.ServiceDesc for AgentSecure service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -915,6 +987,14 @@ var AgentSecure_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "WorkloadFilterEvaluate",
 			Handler:    _AgentSecure_WorkloadFilterEvaluate_Handler,
+		},
+		{
+			MethodName: "ListRemoteCommands",
+			Handler:    _AgentSecure_ListRemoteCommands_Handler,
+		},
+		{
+			MethodName: "ExecuteRemoteCommand",
+			Handler:    _AgentSecure_ExecuteRemoteCommand_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

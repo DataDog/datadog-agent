@@ -5,7 +5,11 @@
 
 package remoteagentregistry
 
-import "time"
+import (
+	"time"
+
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+)
 
 // RegisteredAgent contains the information about a registered remote agent
 type RegisteredAgent struct {
@@ -45,4 +49,18 @@ type RegistrationData struct {
 	AgentPID         string
 	APIEndpointURI   string
 	Services         []string
+}
+
+// CommandData contains a remote command definition and which agent provides it
+type CommandData struct {
+	RegisteredAgent
+	Commands []*pb.Command
+}
+
+// CommandResult contains the result of executing a remote command
+type CommandResult struct {
+	ExitCode     int32
+	Stdout       string
+	Stderr       string
+	BinaryOutput []byte
 }

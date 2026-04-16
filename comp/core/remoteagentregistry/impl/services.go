@@ -11,12 +11,14 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 	"github.com/prometheus/common/model"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 
 	flarebuilder "github.com/DataDog/datadog-agent/comp/core/flare/builder"
 	registryutil "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/util"
@@ -93,6 +95,96 @@ func (ra *remoteAgentRegistry) fillFlare(_ context.Context, builder flarebuilder
 		}
 	}
 
+	return nil
+}
+
+func (ra *remoteAgentRegistry) GetAllRemoteCommands() []remoteagentregistry.CommandData {
+	ra.agentMapMu.Lock()
+	defer ra.agentMapMu.Unlock()
+
+	var commands []remoteagentregistry.CommandData
+	for _, client := range ra.agentMap {
+		if !slices.Contains(client.services, CommandServiceName) {
+			continue
+		}
+		if len(client.cachedCommands) == 0 {
+			continue
+		}
+		commands = append(commands, remoteagentregistry.CommandData{
+			RegisteredAgent: client.RegisteredAgent,
+			Commands:        client.cachedCommands,
+		})
+	}
+	return commands
+}
+
+func (ra *remoteAgentRegistry) ExecuteRemoteCommand(commandPath string, request *pb.ExecuteCommandRequest) (*remoteagentregistry.CommandResult, error) {
+	ra.agentMapMu.Lock()
+
+	var targetClient *remoteAgentClient
+	for _, client := range ra.agentMap {
+		if !slices.Contains(client.services, CommandServiceName) {
+			continue
+		}
+		if findCommand(client.cachedCommands, commandPath) != nil {
+			targetClient = client
+			break
+		}
+	}
+
+	ra.agentMapMu.Unlock()
+
+	if targetClient == nil {
+		return nil, fmt.Errorf("no remote agent provides command %q", commandPath)
+	}
+
+	queryTimeout := ra.conf.GetDuration("remote_agent.registry.query_timeout")
+	ctx, cancel := context.WithTimeout(context.Background(), queryTimeout)
+	defer cancel()
+
+	start := time.Now()
+	var responseHeader metadata.MD
+	resp, err := targetClient.ExecuteCommand(ctx, request, grpc.WaitForReady(true), grpc.Header(&responseHeader))
+
+	ra.telemetryStore.remoteAgentActionDuration.Observe(
+		time.Since(start).Seconds(),
+		targetClient.RegisteredAgent.SanitizedDisplayName,
+		CommandServiceName,
+	)
+
+	if err != nil {
+		ra.telemetryStore.remoteAgentActionError.Inc(targetClient.RegisteredAgent.SanitizedDisplayName, CommandServiceName, grpcErrorMessage(err))
+		return nil, fmt.Errorf("failed to execute command %q on remote agent '%s': %w", commandPath, targetClient.RegisteredAgent.DisplayName, err)
+	}
+
+	// Validate session ID
+	if validationErr := targetClient.validateSessionID(responseHeader); validationErr != nil {
+		ra.telemetryStore.remoteAgentActionError.Inc(targetClient.RegisteredAgent.SanitizedDisplayName, CommandServiceName, sessionIDMismatch)
+		targetClient.unhealthy = true
+		targetClient.unhealthyReason = validationErr
+		return nil, validationErr
+	}
+
+	return &remoteagentregistry.CommandResult{
+		ExitCode:     resp.ExitCode,
+		Stdout:       resp.Stdout,
+		Stderr:       resp.Stderr,
+		BinaryOutput: resp.BinaryOutput,
+	}, nil
+}
+
+// findCommand searches through a list of commands and their children for a command matching the given path.
+// The path is a dot-delimited string (e.g., "status.process") matching Command.name fields.
+func findCommand(commands []*pb.Command, path string) *pb.Command {
+	for _, cmd := range commands {
+		if cmd.Name == path {
+			return cmd
+		}
+		// Search children recursively
+		if found := findCommand(cmd.Children, path); found != nil {
+			return found
+		}
+	}
 	return nil
 }
 

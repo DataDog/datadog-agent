@@ -7,6 +7,8 @@
 // status and emit flare data
 package remoteagentregistry
 
+import pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+
 // team: agent-runtimes
 
 // Component is the component type.
@@ -15,4 +17,6 @@ type Component interface {
 	RefreshRemoteAgent(sessionID string) bool
 	GetRegisteredAgents() []RegisteredAgent
 	GetRegisteredAgentStatuses() []StatusData
+	GetAllRemoteCommands() []CommandData
+	ExecuteRemoteCommand(commandPath string, request *pb.ExecuteCommandRequest) (*CommandResult, error)
 }

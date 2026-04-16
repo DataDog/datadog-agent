@@ -1,0 +1,73 @@
+syntax = "proto3";
+
+package datadog.remoteagent.command.v1;
+
+option go_package = "pkg/proto/pbgo/core"; // golang
+
+import "google/protobuf/struct.proto";
+
+// ParameterType defines the supported parameter types for command parameters.
+enum ParameterType {
+  PARAMETER_TYPE_UNSPECIFIED = 0;
+  PARAMETER_TYPE_STRING = 1;
+  PARAMETER_TYPE_INT = 2;
+  PARAMETER_TYPE_UINT = 3;
+  PARAMETER_TYPE_FLOAT = 4;
+  PARAMETER_TYPE_BOOL = 5;
+  PARAMETER_TYPE_STRING_SLICE = 8;
+  PARAMETER_TYPE_INT_SLICE = 9;
+  PARAMETER_TYPE_UINT_SLICE = 10;
+  PARAMETER_TYPE_FLOAT_SLICE = 11;
+}
+
+// CommandParameter describes a single parameter (flag or positional argument) for a command.
+message CommandParameter {
+  string name = 1;
+  string short_name = 2;
+  string helper = 3;
+  ParameterType type = 4;
+  bool required = 5;
+  bool is_flag = 6;
+  bool is_persistent = 7;
+}
+
+// Command describes a CLI command that a remote agent exposes.
+message Command {
+  string name = 1;
+  string short_name = 2;
+  string helper = 3;
+  string long_description = 4;
+  repeated CommandParameter parameters = 5;
+  repeated Command children = 6;
+  bool run_e = 7;
+}
+
+// ExecuteCommandRequest is sent to execute a specific command on a remote agent.
+message ExecuteCommandRequest {
+  string command_path = 1;
+  google.protobuf.Struct arguments = 2;
+  bool json_output = 3;
+  bool verbose = 5;
+}
+
+// ExecuteCommandResponse contains the result of executing a command.
+message ExecuteCommandResponse {
+  int32 exit_code = 1;
+  string stdout = 2;
+  string stderr = 3;
+  bytes binary_output = 4;
+}
+
+// ListRemoteCommandsRequest is sent to list all commands available on a remote agent.
+message ListRemoteCommandsRequest {}
+
+// ListRemoteCommandsResponse contains the list of commands available on a remote agent.
+message ListRemoteCommandsResponse {
+  repeated Command commands = 1;
+}
+
+// RemoteCommandProvider is implemented by remote agents to expose CLI commands.
+service RemoteCommandProvider {
+  rpc ListCommands(ListRemoteCommandsRequest) returns (ListRemoteCommandsResponse);
+  rpc ExecuteCommand(ExecuteCommandRequest) returns (ExecuteCommandResponse);
+}

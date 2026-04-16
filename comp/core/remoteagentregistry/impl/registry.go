@@ -8,10 +8,12 @@ package remoteagentregistryimpl
 
 import (
 	"context"
+	"slices"
 	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	grpcStatus "google.golang.org/grpc/status"
 
@@ -23,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -71,6 +74,7 @@ func newRegistry(reqs Requires) *remoteAgentRegistry {
 			StatusServiceName:    {},
 			FlareServiceName:     {},
 			TelemetryServiceName: {},
+			CommandServiceName:   {},
 		},
 	}
 
@@ -190,11 +194,16 @@ func (ra *remoteAgentRegistry) RegisterRemoteAgent(registration *remoteagentregi
 	ra.agentMapMu.Lock()
 	defer ra.agentMapMu.Unlock()
 
-	// create the new remote Agent instance abnd fetch availale services
+	// create the new remote Agent instance and fetch available services
 	remoteAgentClient, err := ra.newRemoteAgentClient(registration)
 	if err != nil {
 		ra.telemetryStore.remoteAgentRegisteredError.Inc(sanitizeString(registration.AgentDisplayName))
 		return "", 0, err
+	}
+
+	// Eagerly cache commands from the remote agent if it supports the command service
+	if slices.Contains(remoteAgentClient.services, CommandServiceName) {
+		ra.cacheRemoteCommands(remoteAgentClient, registration.AgentDisplayName)
 	}
 
 	log.Infof("Remote agent '%s' (flavor: %s, session_id: %s) registered. (exposed services: %v)", remoteAgentClient.RegisteredAgent.DisplayName, remoteAgentClient.RegisteredAgent.Flavor, remoteAgentClient.RegisteredAgent.SessionID, remoteAgentClient.services)
@@ -277,6 +286,23 @@ func (ra *remoteAgentRegistry) GetRegisteredAgents() []remoteagentregistry.Regis
 	}
 
 	return agents
+}
+
+// cacheRemoteCommands queries the remote agent for its available commands and caches them.
+// This is called during registration while holding agentMapMu, so we use a short timeout.
+func (ra *remoteAgentRegistry) cacheRemoteCommands(client *remoteAgentClient, displayName string) {
+	queryTimeout := ra.conf.GetDuration("remote_agent.registry.query_timeout")
+	ctx, cancel := context.WithTimeout(context.Background(), queryTimeout)
+	defer cancel()
+
+	resp, err := client.ListCommands(ctx, &pb.ListRemoteCommandsRequest{}, grpc.WaitForReady(true))
+	if err != nil {
+		log.Warnf("Failed to cache commands from remote agent '%s': %v", displayName, err)
+		return
+	}
+
+	client.cachedCommands = resp.Commands
+	log.Infof("Cached %d command(s) from remote agent '%s'", len(resp.Commands), displayName)
 }
 
 func grpcErrorMessage(err error) string {

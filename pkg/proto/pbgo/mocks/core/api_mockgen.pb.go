@@ -285,6 +285,26 @@ func (mr *MockAgentSecureClientMockRecorder) DogstatsdSetTaggerState(ctx, in int
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DogstatsdSetTaggerState", reflect.TypeOf((*MockAgentSecureClient)(nil).DogstatsdSetTaggerState), varargs...)
 }
 
+// ExecuteRemoteCommand mocks base method.
+func (m *MockAgentSecureClient) ExecuteRemoteCommand(ctx context.Context, in *core.ExecuteCommandRequest, opts ...grpc.CallOption) (*core.ExecuteCommandResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "ExecuteRemoteCommand", varargs...)
+	ret0, _ := ret[0].(*core.ExecuteCommandResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ExecuteRemoteCommand indicates an expected call of ExecuteRemoteCommand.
+func (mr *MockAgentSecureClientMockRecorder) ExecuteRemoteCommand(ctx, in interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExecuteRemoteCommand", reflect.TypeOf((*MockAgentSecureClient)(nil).ExecuteRemoteCommand), varargs...)
+}
+
 // GetConfigState mocks base method.
 func (m *MockAgentSecureClient) GetConfigState(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*core.GetStateConfigResponse, error) {
 	m.ctrl.T.Helper()
@@ -343,6 +363,26 @@ func (mr *MockAgentSecureClientMockRecorder) GetHostTags(ctx, in interface{}, op
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]interface{}{ctx, in}, opts...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHostTags", reflect.TypeOf((*MockAgentSecureClient)(nil).GetHostTags), varargs...)
+}
+
+// ListRemoteCommands mocks base method.
+func (m *MockAgentSecureClient) ListRemoteCommands(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*core.ListRemoteCommandsResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "ListRemoteCommands", varargs...)
+	ret0, _ := ret[0].(*core.ListRemoteCommandsResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListRemoteCommands indicates an expected call of ListRemoteCommands.
+func (mr *MockAgentSecureClientMockRecorder) ListRemoteCommands(ctx, in interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListRemoteCommands", reflect.TypeOf((*MockAgentSecureClient)(nil).ListRemoteCommands), varargs...)
 }
 
 // RefreshRemoteAgent mocks base method.
@@ -656,6 +696,21 @@ func (mr *MockAgentSecureServerMockRecorder) DogstatsdSetTaggerState(arg0, arg1 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DogstatsdSetTaggerState", reflect.TypeOf((*MockAgentSecureServer)(nil).DogstatsdSetTaggerState), arg0, arg1)
 }
 
+// ExecuteRemoteCommand mocks base method.
+func (m *MockAgentSecureServer) ExecuteRemoteCommand(arg0 context.Context, arg1 *core.ExecuteCommandRequest) (*core.ExecuteCommandResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ExecuteRemoteCommand", arg0, arg1)
+	ret0, _ := ret[0].(*core.ExecuteCommandResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ExecuteRemoteCommand indicates an expected call of ExecuteRemoteCommand.
+func (mr *MockAgentSecureServerMockRecorder) ExecuteRemoteCommand(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExecuteRemoteCommand", reflect.TypeOf((*MockAgentSecureServer)(nil).ExecuteRemoteCommand), arg0, arg1)
+}
+
 // GetConfigState mocks base method.
 func (m *MockAgentSecureServer) GetConfigState(arg0 context.Context, arg1 *emptypb.Empty) (*core.GetStateConfigResponse, error) {
 	m.ctrl.T.Helper()
@@ -699,6 +754,21 @@ func (m *MockAgentSecureServer) GetHostTags(arg0 context.Context, arg1 *core.Hos
 func (mr *MockAgentSecureServerMockRecorder) GetHostTags(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHostTags", reflect.TypeOf((*MockAgentSecureServer)(nil).GetHostTags), arg0, arg1)
+}
+
+// ListRemoteCommands mocks base method.
+func (m *MockAgentSecureServer) ListRemoteCommands(arg0 context.Context, arg1 *emptypb.Empty) (*core.ListRemoteCommandsResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListRemoteCommands", arg0, arg1)
+	ret0, _ := ret[0].(*core.ListRemoteCommandsResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListRemoteCommands indicates an expected call of ListRemoteCommands.
+func (mr *MockAgentSecureServerMockRecorder) ListRemoteCommands(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListRemoteCommands", reflect.TypeOf((*MockAgentSecureServer)(nil).ListRemoteCommands), arg0, arg1)
 }
 
 // RefreshRemoteAgent mocks base method.
