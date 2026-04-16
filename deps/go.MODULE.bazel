@@ -498,6 +498,7 @@ use_repo(
     "io_opentelemetry_go_collector_receiver_otlpreceiver",
     "io_opentelemetry_go_collector_receiver_xreceiver",
     "io_opentelemetry_go_collector_service",
+    "io_opentelemetry_go_collector_service_hostcapabilities",
     "io_opentelemetry_go_contrib_instrumentation_runtime",
     "io_opentelemetry_go_ebpf_profiler",
     "io_opentelemetry_go_otel",
