@@ -253,7 +253,7 @@ func (c *Controller) createNodePool(ctx context.Context, targetNp *karpenterv1.N
 	return nil
 }
 
-func (c *Controller) updateNodePool(ctx context.Context, _ *karpenterv1.NodePool, datadogNp *karpenterv1.NodePool, npi model.NodePoolInternal) error {
+func (c *Controller) updateNodePool(ctx context.Context, targetNp *karpenterv1.NodePool, datadogNp *karpenterv1.NodePool, npi model.NodePoolInternal) error {
 	desired := npi.KarpenterNodePool()
 	if desired == nil {
 		return fmt.Errorf("NodePool %s has no manifest, cannot update", npi.Name())
@@ -262,11 +262,7 @@ func (c *Controller) updateNodePool(ctx context.Context, _ *karpenterv1.NodePool
 	if desired.Labels == nil {
 		desired.Labels = make(map[string]string)
 	}
-	// Preserve DatadogCreatedLabelKey from the live object so the controller
-	// continues to treat this NodePool as fully managed after updates.
-	if _, ok := datadogNp.Labels[model.DatadogCreatedLabelKey]; ok {
-		desired.Labels[model.DatadogCreatedLabelKey] = "true"
-	}
+	desired.Labels[model.DatadogCreatedLabelKey] = "true"
 
 	// Use the NodeClass in the live NodePool if the manifest omits it
 	if desired.Spec.Template.Spec.NodeClassRef == nil && datadogNp.Spec.Template.Spec.NodeClassRef != nil {
@@ -276,6 +272,11 @@ func (c *Controller) updateNodePool(ctx context.Context, _ *karpenterv1.NodePool
 	desired, err = c.checkValidNodeClass(ctx, desired)
 	if err != nil {
 		return fmt.Errorf("unable to update NodePool with node class: %s, err: %v", npi.Name(), err)
+	}
+
+	// Update the weight if replica NodePool
+	if desired.Spec.Weight == nil && targetNp != nil {
+		desired.Spec.Weight = model.GetNodePoolWeight(targetNp)
 	}
 
 	// Ensure Datadog autoscaling node label is always present
