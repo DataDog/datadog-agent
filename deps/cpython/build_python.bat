@@ -77,7 +77,7 @@ xcopy /f %OPENSSL_DIR%*.dll %build_outdir%\
 :: --include-dev - include include/ and libs/ directories
 :: --include-venv - necessary for ensurepip to work
 :: --include-stable - adds python3.dll
-%build_outdir%\python.exe %sourcedir%PC\layout\main.py --build %build_outdir% --precompile --copy %destdir% --include-dev --include-venv --include-stable -vv
+%build_outdir%\python.exe %sourcedir%PC\layout\main.py --build %build_outdir% --copy %destdir% --include-dev --include-venv --include-stable -vv
 
 if %errorlevel% neq 0 (
    set script_errorlevel=%errorlevel%
@@ -92,6 +92,15 @@ if %errorlevel% neq 0 (
    goto :cleanup
 )
 
+:: Assert no pre-compiled bytecode ended up in the output
+set pyc_found=0
+for /r %destdir% %%f in (*.pyc) do (echo ERROR: unexpected .pyc file: %%f & set pyc_found=1)
+for /d /r %destdir% %%d in (__pycache__) do (echo ERROR: unexpected __pycache__ dir: %%d & set pyc_found=1)
+if %pyc_found% NEQ 0 (
+   set script_errorlevel=1
+   goto :cleanup
+)
+
 :cleanup
 :: Clean so that no artifacts produced by the build remain
 %MSBUILD% "%sourcedir%\PCbuild\pcbuild.proj" /t:CleanAll
@@ -100,7 +109,6 @@ rmdir /q /s %sourcedir%\PCbuild\obj
 rmdir /q /s %sourcedir%\PCbuild\win32
 del /q %response_file%
 del /q %sourcedir%\python.bat
-for /d /r %destdir%\Lib %%d in (__pycache__) do rmdir /q /s "%%d"
 
 if %script_errorlevel% neq 0 (
    exit /b %script_errorlevel%
