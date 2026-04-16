@@ -12,25 +12,18 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
-	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/process/agent"
 	forwarders "github.com/DataDog/datadog-agent/comp/process/forwarders/def"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo/def"
-	submitterComp "github.com/DataDog/datadog-agent/comp/process/submitter"
+	submitterComp "github.com/DataDog/datadog-agent/comp/process/submitter/def"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	processRunner "github.com/DataDog/datadog-agent/pkg/process/runner"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
-
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newSubmitter))
-}
 
 // submitter implements the Component.
 type submitterImpl struct {
@@ -38,8 +31,8 @@ type submitterImpl struct {
 }
 
 type dependencies struct {
-	fx.In
-	Lc  fx.Lifecycle
+	compdef.In
+	Lc  compdef.Lifecycle
 	Log log.Component
 
 	Config         config.Component
@@ -50,21 +43,22 @@ type dependencies struct {
 	Statsd         statsd.ClientInterface
 }
 
-type result struct {
-	fx.Out
+type Provides struct {
+	compdef.Out
 
 	RTResponseNotifier <-chan types.RTResponse
 	Submitter          submitterComp.Component
 }
 
-func newSubmitter(deps dependencies) (result, error) {
+// NewComponent creates a new submitter component.
+func NewComponent(deps dependencies) (Provides, error) {
 	s, err := processRunner.NewSubmitter(deps.Config, deps.Log, deps.Forwarders, deps.Statsd, deps.HostInfo.Object().HostName, deps.SysProbeConfig)
 	if err != nil {
-		return result{}, err
+		return Provides{}, err
 	}
 
 	if agent.Enabled(deps.Config, deps.Checks, deps.Log) {
-		deps.Lc.Append(fx.Hook{
+		deps.Lc.Append(compdef.Hook{
 			OnStart: func(context.Context) error {
 				return s.Start()
 			},
@@ -75,7 +69,7 @@ func newSubmitter(deps dependencies) (result, error) {
 		})
 	}
 
-	return result{
+	return Provides{
 		Submitter: &submitterImpl{
 			s: s,
 		},

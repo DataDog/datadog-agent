@@ -6,7 +6,6 @@ go_library(
         "common.go",
         "context.go",
         "math.go",
-        "slice.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/common",
     visibility = ["//visibility:public"],

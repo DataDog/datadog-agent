@@ -152,11 +152,18 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message
 		e.lastSeen = now
 		e.matchCount++
 
-		// Determine outcome before bubbling: bubbling swaps entries by value, so
-		// e (= &s.entries[i]) would alias a different entry after the first swap.
+		// All mutations to e must complete before bubbling: bubbling swaps
+		// entries by value, so e (= &s.entries[i]) aliases a different
+		// entry after the first swap.
 		allow := e.credits >= 1.0
 		if allow {
 			e.credits--
+			if e.sampled > 0 {
+				msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, adaptiveSamplerSampledCountTag(e.sampled))
+			}
+			e.sampled = 0
+		} else {
+			e.sampled++
 		}
 
 		// Bubble the matched entry toward the front to maintain descending order.
@@ -166,15 +173,10 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message
 		}
 
 		if allow {
-			if e.sampled > 0 {
-				msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, adaptiveSamplerSampledCountTag(e.sampled))
-			}
-			e.sampled = 0
 			tlmAdaptiveSamplerKept.Inc(s.source)
 			return msg
 		}
 		tlmAdaptiveSamplerDropped.Inc(s.source)
-		e.sampled++
 		return nil
 	}
 
