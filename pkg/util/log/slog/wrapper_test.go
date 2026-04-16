@@ -229,47 +229,51 @@ func TestWrapperErrorLogLevels(t *testing.T) {
 	}
 }
 
-func TestWrapperSetAdditionalStackDepth(t *testing.T) {
+// TestWrapperDirectCallerCapture verifies that per-level methods (Trace, Info, …)
+// capture the immediate caller as the call site.
+func TestWrapperDirectCallerCapture(t *testing.T) {
 	handler := newMockHandler()
 	wrapper := NewWrapper(handler)
 
-	// Helper function that logs a message
+	// The helper is an anonymous closure; its name contains "func1".
 	logHelper := func() {
 		wrapper.Info("test message")
 	}
 
-	// Log without extra stack depth - should capture the anonymous function (func1) as the caller
 	logHelper()
 	require.Equal(t, 1, len(handler.records), handler.records)
-	record1 := handler.lastRecord()
-	frame1, _ := runtime.CallersFrames([]uintptr{record1.PC}).Next()
-	assert.Contains(t, frame1.Function, "TestWrapperSetAdditionalStackDepth.func1")
-
-	// Reset records
-	handler.reset()
-
-	// Set additional stack depth to skip one more frame (the helper function)
-	err := wrapper.SetAdditionalStackDepth(1)
-	require.NoError(t, err)
-
-	// Log again with extra stack depth - should now capture TestWrapperSetAdditionalStackDepth as the caller
-	logHelper()
-	require.Equal(t, 1, len(handler.records), handler.records)
-	record2 := handler.lastRecord()
-	frame2, _ := runtime.CallersFrames([]uintptr{record2.PC}).Next()
-	assert.True(t, strings.HasSuffix(frame2.Function, "TestWrapperSetAdditionalStackDepth"), frame2.Function)
+	record := handler.lastRecord()
+	frame, _ := runtime.CallersFrames([]uintptr{record.PC}).Next()
+	assert.Contains(t, frame.Function, "TestWrapperDirectCallerCapture.func1")
 }
 
-func TestWrapperSetContext(t *testing.T) {
+// TestWrapperLogUsesProvidedPC verifies that Log stores exactly the PC it receives,
+// regardless of the actual call stack depth.
+func TestWrapperLogUsesProvidedPC(t *testing.T) {
 	handler := newMockHandler()
 	wrapper := NewWrapper(handler)
 
-	// Test setting context
-	context := []interface{}{"key1", "value1", "key2", 42}
-	wrapper.SetContext(context)
+	// Capture the PC of this test function itself.
+	var pcs [1]uintptr
+	runtime.Callers(1, pcs[:])
+	testPC := pcs[0]
 
-	// Test that context is added to log record
-	wrapper.Info("test")
+	wrapper.Log(types.InfoLvl, testPC, "test message", nil)
+
+	require.Equal(t, 1, len(handler.records))
+	record := handler.lastRecord()
+	// The record must carry exactly the PC we passed in.
+	assert.Equal(t, testPC, record.PC)
+}
+
+// TestWrapperLogWithContext verifies that Log attaches key-value pairs as attributes.
+func TestWrapperLogWithContext(t *testing.T) {
+	handler := newMockHandler()
+	wrapper := NewWrapper(handler)
+
+	ctx := []interface{}{"key1", "value1", "key2", 42}
+	wrapper.Log(types.InfoLvl, 0, "test", ctx)
+
 	record := handler.lastRecord()
 	attrs := getAttrs(record)
 	require.Equal(t, 2, len(attrs))
@@ -277,7 +281,6 @@ func TestWrapperSetContext(t *testing.T) {
 	assert.Equal(t, "value1", attrs[0].Value.String())
 	assert.Equal(t, "key2", attrs[1].Key)
 	assert.Equal(t, int64(42), attrs[1].Value.Int64())
-
 }
 
 func getAttrs(record slog.Record) []slog.Attr {
@@ -289,41 +292,27 @@ func getAttrs(record slog.Record) []slog.Attr {
 	return attrs
 }
 
-func TestWrapperSetContextNil(t *testing.T) {
+// TestWrapperLogNilContext verifies that Log with a nil context produces no attributes.
+func TestWrapperLogNilContext(t *testing.T) {
 	handler := newMockHandler()
 	wrapper := NewWrapper(handler)
 
-	// Set context first
-	context := []interface{}{"key", "value"}
-	wrapper.SetContext(context)
+	wrapper.Log(types.InfoLvl, 0, "test without context", nil)
 
-	// Log and verify context is present
-	wrapper.Info("test with context")
-	attrs1 := getAttrs(handler.lastRecord())
-	require.Equal(t, 1, len(attrs1))
-	assert.Equal(t, "key", attrs1[0].Key)
-	assert.Equal(t, "value", attrs1[0].Value.String())
-
-	// Clear context
-	handler.reset()
-	wrapper.SetContext(nil)
-
-	// Log and verify no context attributes are present
-	wrapper.Info("test without context")
-	record2 := handler.lastRecord()
-	attrs2 := getAttrs(record2)
-	assert.Empty(t, attrs2)
+	record := handler.lastRecord()
+	attrs := getAttrs(record)
+	assert.Empty(t, attrs)
 }
 
-func TestWrapperSetContextSkipsNonStringKeys(t *testing.T) {
+// TestWrapperLogSkipsNonStringKeys verifies that context entries whose key is not a
+// string are silently dropped.
+func TestWrapperLogSkipsNonStringKeys(t *testing.T) {
 	handler := newMockHandler()
 	wrapper := NewWrapper(handler)
 
-	// Context with non-string keys should be skipped
-	context := []interface{}{123, "value1", "key2", "value2"}
-	wrapper.SetContext(context)
+	ctx := []interface{}{123, "value1", "key2", "value2"}
+	wrapper.Log(types.InfoLvl, 0, "test with context", ctx)
 
-	wrapper.Info("test with context")
 	record := handler.lastRecord()
 	attrs := getAttrs(record)
 	require.Equal(t, 1, len(attrs))
@@ -443,11 +432,13 @@ func (t *trackedStringer) String() string {
 	return t.StringFunc()
 }
 
+// TestContextValuesNotRendered verifies that passing a fmt.Stringer as a context
+// value to Log does not trigger its String() method — the value is stored lazily
+// and only rendered when the handler formats the record.
 func TestContextValuesNotRendered(t *testing.T) {
 	handler := newMockHandler()
 	wrapper := NewWrapper(handler)
 
-	// Create a context value with a tracked stringer to detect if it's evaluated
 	stringerCalled := false
 	expensiveValue := &trackedStringer{
 		StringFunc: func() string {
@@ -456,11 +447,8 @@ func TestContextValuesNotRendered(t *testing.T) {
 		},
 	}
 
-	// Set context with the expensive stringer value
-	wrapper.SetContext([]interface{}{"expensive_key", expensiveValue})
-	assert.False(t, stringerCalled, "String() should not be called during SetContext")
-
-	wrapper.Trace("test message")
+	// Log with the expensive value as a context attribute.
+	wrapper.Log(types.TraceLvl, 0, "test message", []interface{}{"expensive_key", expensiveValue})
 	assert.False(t, stringerCalled, "String() should not be called by the wrapper itself")
 }
 

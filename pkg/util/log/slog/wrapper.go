@@ -22,7 +22,15 @@ import (
 
 var _ types.LoggerInterface = (*Wrapper)(nil)
 
-const baseStackDepth = 4
+// baseStackDepth is the number of frames to skip when computing the caller PC
+// for the per-level convenience methods (Trace, Debug, …) called directly on
+// the Wrapper.  The chain is:
+//
+//	runtime.Callers          (0)
+//	handle{Args,Format,Error}  (1)
+//	Wrapper.{Trace,Debug,…}    (2)
+//	caller                     (3)  ← captured
+const baseStackDepth = 3
 
 // Wrapper is a wrapper around the slog.Handler interface.
 // It implements the LoggerInterface interface.
@@ -31,9 +39,6 @@ type Wrapper struct {
 	closed  atomic.Bool
 	flush   func()
 	close   func()
-
-	attrs           atomic.Pointer[[]slog.Attr]
-	extraStackDepth atomic.Int32
 }
 
 // NewWrapper returns a new Wrapper implementing the LoggerInterface interface.
@@ -55,48 +60,63 @@ func (w *Wrapper) Handler() slog.Handler {
 	return w.handler
 }
 
+// handle creates and dispatches a slog.Record.  pc must already be the correct
+// program counter of the original call site; no additional frame skipping is
+// performed here.
+func (w *Wrapper) handle(level types.LogLevel, pc uintptr, message string, attrs []slog.Attr) {
+	r := slog.NewRecord(
+		time.Now(),
+		types.ToSlogLevel(level),
+		message,
+		pc,
+	)
+	if len(attrs) > 0 {
+		r.AddAttrs(attrs...)
+	}
+	if err := w.handler.Handle(context.Background(), r); err != nil {
+		fmt.Fprintf(os.Stderr, "log: wrapper internal error: %v\n", err)
+	}
+}
+
 func (w *Wrapper) handleArgs(level types.LogLevel, v ...interface{}) {
 	if !w.closed.Load() && w.handler.Enabled(context.Background(), types.ToSlogLevel(level)) {
-		// rendering is only done if the level is enabled
-		w.handle(level, renderArgs(v...))
+		var pc [1]uintptr
+		runtime.Callers(baseStackDepth, pc[:])
+		w.handle(level, pc[0], renderArgs(v...), nil)
 	}
 }
 
 func (w *Wrapper) handleFormat(level types.LogLevel, format string, params ...interface{}) {
 	if !w.closed.Load() && w.handler.Enabled(context.Background(), types.ToSlogLevel(level)) {
-		// rendering is only done if the level is enabled
-		w.handle(level, renderFormat(format, params...))
+		var pc [1]uintptr
+		runtime.Callers(baseStackDepth, pc[:])
+		w.handle(level, pc[0], renderFormat(format, params...), nil)
 	}
 }
 
 func (w *Wrapper) handleError(level types.LogLevel, message string) error {
 	if !w.closed.Load() && w.handler.Enabled(context.Background(), types.ToSlogLevel(level)) {
-		w.handle(level, message)
+		var pc [1]uintptr
+		runtime.Callers(baseStackDepth, pc[:])
+		w.handle(level, pc[0], message, nil)
 	}
 	return errors.New(message)
 }
 
-func (w *Wrapper) handle(level types.LogLevel, message string) {
-	var pc [1]uintptr
-	runtime.Callers(baseStackDepth+int(w.extraStackDepth.Load()), pc[:])
-	r := slog.NewRecord(
-		time.Now(),
-		types.ToSlogLevel(level),
-		message,
-		pc[0],
-	)
-
-	// we only set a context to perform a single log, so adding them directly on the record is fine
-	// this can be optimized once we stop using seelog and can change the API
-	attrs := w.attrs.Load()
-	if attrs != nil && len(*attrs) > 0 {
-		r.AddAttrs(*attrs...)
+// Log writes a pre-formatted, already-scrubbed message at the given level.
+// pc is the program counter of the original call site, computed by the caller
+// via runtime.Callers.  context is an optional flat slice of key-value pairs
+// added as log attributes.
+// Returns a non-nil error for Warn, Error, and Critical levels; nil otherwise.
+func (w *Wrapper) Log(level types.LogLevel, pc uintptr, message string, ctx []interface{}) error {
+	if !w.closed.Load() && w.handler.Enabled(context.Background(), types.ToSlogLevel(level)) {
+		attrs := formatters.ToSlogAttrs(ctx)
+		w.handle(level, pc, message, attrs)
 	}
-
-	err := w.handler.Handle(context.Background(), r)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "log: wrapper internal error: %v\n", err)
+	if level >= types.WarnLvl {
+		return errors.New(message)
 	}
+	return nil
 }
 
 func renderArgs(v ...interface{}) string {
@@ -199,24 +219,4 @@ func (w *Wrapper) Flush() {
 	if w.flush != nil {
 		w.flush()
 	}
-}
-
-// SetAdditionalStackDepth sets the additional number of frames to skip by runtime.Caller
-func (w *Wrapper) SetAdditionalStackDepth(depth int) error {
-	if w.closed.Load() {
-		return nil
-	}
-
-	w.extraStackDepth.Store(int32(depth))
-	return nil
-}
-
-// SetContext sets context which will be added to every log records
-func (w *Wrapper) SetContext(context interface{}) {
-	if w.closed.Load() {
-		return
-	}
-
-	attrs := formatters.ToSlogAttrs(context)
-	w.attrs.Store(&attrs)
 }
