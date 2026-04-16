@@ -12,92 +12,75 @@ CONF_DIR=$INSTALL_DIR/etc
 RUN_DIR=$INSTALL_DIR/run
 
 # On Mac, the real log folder is located under /opt/datadog-agent/logs, because MacOS upgrades delete /var/log
-# /var/log log folder now becomes a symbolic link to the new folder.
 LOG_DIR=/opt/datadog-agent/logs
+
+# Root-only staging directory shared with the install script.
+# Contains env (install-time vars) and saved-conf/ (backup from preinst).
+INSTALL_STAGING_DIR="/private/var/root/datadog-install"
+INSTALL_ENV_FILE="$INSTALL_STAGING_DIR/env"
+SAVED_CONF_DIR="$INSTALL_STAGING_DIR/saved-conf"
 
 # Let's log the standard outputs of this script
 LOG_FILE="$LOG_DIR/postinstall.log"
 mkdir -vp $LOG_DIR
-chmod 750 $LOG_DIR # AGENTRUN-609: Set stricter permissions to the log directory
+chmod 750 $LOG_DIR
 exec > $LOG_FILE 2>&1
 
-# Let's talk to our user installing the Agent a bit
 echo "# State at the beginning"
 echo "## Agent version"
-datadog-agent version || echo "No datadog-agent binary version (agent 6)"
+$INSTALL_DIR/bin/agent/agent version || true
 echo "## $INSTALL_DIR"
-ls -al $INSTALL_DIR || "No agent installed"
+ls -al $INSTALL_DIR || true
 echo "## $APP_DIR/Contents/Resources"
-ls -al "$APP_DIR/Contents/Resources" || echo "No app installed"
-
-# Determine current user if he is using the Graphical installer
-# shellcheck disable=SC2009
-INSTALL_USER=$(ps aux | grep "CoreServices/Installer" | grep -v grep | awk '{print $1;}')
-
-# Otherwise, we hope he is using the install script and try to use this user
-# If it fails, no choice but to use root :'(
-if [ -z "$INSTALL_USER" ] || [ "$INSTALL_USER" = "root" ]; then
-    INSTALL_USER=$(cat /tmp/datadog-install-user || echo 'root')
-    rm -v /tmp/datadog-install-user || true
-fi
-echo "INSTALL_USER: $INSTALL_USER"
+ls -al "$APP_DIR/Contents/Resources" || true
 
 # Stop any running GUI instances before installation/upgrade
 # This prevents "Load failed" errors when KeepAlive=true
 echo "# Stopping GUI app if running"
-INSTALL_USER_UID=$(id -u "$INSTALL_USER" 2>/dev/null)
+for logged_user in $(who | awk '{print $1}' | sort -u); do
+    logged_uid=$(id -u "$logged_user" 2>/dev/null) || continue
+    launchctl bootout "gui/$logged_uid/com.datadoghq.gui" 2>/dev/null || true
+done
 
-if [ -n "$INSTALL_USER_UID" ]; then
-    # Stop GUI for current user
-    launchctl bootout "gui/$INSTALL_USER_UID/com.datadoghq.gui" 2>/dev/null || true
-
-    # Stop GUI for all other logged-in users (system-wide installations)
-    for logged_user in $(who | awk '{print $1}' | sort -u); do
-        logged_uid=$(id -u "$logged_user" 2>/dev/null)
-        if [ -n "$logged_uid" ] && [ "$logged_uid" != "$INSTALL_USER_UID" ]; then
-            launchctl bootout "gui/$logged_uid/com.datadoghq.gui" 2>/dev/null || true
-        fi
-    done
-
-    # Wait for GUI processes to actually terminate (with 10 second timeout to match ExitTimeOut)
-    max_wait=100  # 100 * 0.1s = 10 seconds
-    count=0
-    while [ $count -lt $max_wait ]; do
-        if ! pgrep -f "Datadog Agent.app/Contents/MacOS/gui" > /dev/null 2>&1; then
-            echo "GUI app processes terminated"
-            break
-        fi
-        sleep 0.1
-        count=$((count + 1))
-    done
-
-    if [ $count -ge $max_wait ]; then
-        echo "Warning: GUI processes still running after 10s, proceeding anyway"
+# Wait for GUI processes to actually terminate (with 10 second timeout to match ExitTimeOut)
+max_wait=100  # 100 * 0.1s = 10 seconds
+count=0
+while [ $count -lt $max_wait ]; do
+    if ! pgrep -f "Datadog Agent.app/Contents/MacOS/gui" > /dev/null 2>&1; then
+        echo "GUI app processes terminated"
+        break
     fi
-else
-    echo "Could not determine user UID, skipping GUI stop"
+    sleep 0.1
+    count=$((count + 1))
+done
+if [ $count -ge $max_wait ]; then
+    echo "Warning: GUI processes still running after 10s, proceeding anyway"
 fi
 
 echo "# Preparing log dir"
-chown -vR "${INSTALL_USER}:admin" "$LOG_DIR"
+DDAGENT_USER="_dd-agent"
+
+chown -vR "$DDAGENT_USER:admin" "$LOG_DIR"
+chmod -v 770 "$LOG_DIR"  # admin group can read and write logs
 
 echo "# Installing the app"
 mv -v "$OPT_APP_DIR" /Applications || echo "App already installed"
 
 # Set the run directory for the agent
-# This directory is used for agent runtime files including databases and registries
 mkdir -vp "$RUN_DIR"
-chown -vR "${INSTALL_USER}:admin" "$RUN_DIR"
-chmod -v 755 "$RUN_DIR"  # Secure: protects databases and registries
+chown -vR "$DDAGENT_USER:admin" "$RUN_DIR"
+chmod -v 775 "$RUN_DIR"  # admin group can read and write runtime files
 
 # Create separate world-writable directory ONLY for multi-user GUI sockets
 mkdir -vp "$RUN_DIR/ipc"
-# Remove stale GUI socket files before chown to prevent "Address already in use" on DMG reinstall
-# or installation over a partial installation or partial cleanup of a previous installation.
-# Use find instead of shell glob so removal works when Installer runs postinst (glob may not expand).
+# Remove stale GUI socket files before chown to prevent "Address already in use" on reinstall
 find "$RUN_DIR/ipc" -maxdepth 1 -name 'gui-*.sock' -exec rm -fv {} \;
 chown -vR root:wheel "$RUN_DIR/ipc"
 chmod -v 1777 "$RUN_DIR/ipc"  # Sticky bit: users can create GUI sockets but not delete others' files
+# GUI sockets are created by per-user LaunchAgents (owned by the logged-in user).
+# The agent runs as _dd-agent and needs to connect to them. Inheritable ACL
+# ensures sockets created by bind() in this directory grant _dd-agent access.
+chmod +a "user:_dd-agent allow read,write,readattr,readextattr,readsecurity,list,search,file_inherit,directory_inherit" "$RUN_DIR/ipc"
 
 # Reset location permission prompt attempt count for all users so each user gets a fresh 2 prompt
 # attempts after each installation (per-installation behavior). UserDefaults key is in
@@ -110,30 +93,70 @@ for user_home in /Users/*; do
     sudo -u "$user" defaults delete com.datadoghq.agent locationPermissionPromptAttemptCount 2>/dev/null || true
 done
 
-echo "# Copying conf"
+# Restore config from pre-install (upgrade) or create default (fresh install)
+echo "# Setting up configuration"
 mkdir -vp $CONF_DIR/checks.d
 
-if [ -e "/tmp/datadog.conf" ] || [ -e "/tmp/datadog.yaml" ]; then
-    mv -vf /tmp/datadog.conf /tmp/datadog.yaml $CONF_DIR
-    cp -vfR /tmp/conf.d/* $CONF_DIR/conf.d
-    cp -vn /tmp/checks.d/* $CONF_DIR/checks.d
-    rm -vrf /tmp/datadog.conf /tmp/conf.d /tmp/checks.d
+if [ -d "$SAVED_CONF_DIR" ]; then
+    cp -vf "$SAVED_CONF_DIR/datadog.yaml" $CONF_DIR/ 2>/dev/null || true
+    cp -vfR "$SAVED_CONF_DIR/conf.d/"* $CONF_DIR/conf.d 2>/dev/null || true
+    cp -vn "$SAVED_CONF_DIR/checks.d/"* $CONF_DIR/checks.d 2>/dev/null || true
 fi
-# Or copying default
+
 if [ ! -e "$CONF_DIR/datadog.yaml" ]; then
     sed -E 's/^api_key:$/api_key: APIKEY/' $CONF_DIR/datadog.yaml.example > $CONF_DIR/datadog.yaml
 fi
 
+# Read configuration written by the install script (if present).
+# When the pkg is installed via GUI Installer or MDM (no install script),
+# this file won't exist and the config is left as-is for the admin to configure.
+install_method="macos_dmg"
+install_method_version="macos_dmg"
+if [ -f "$INSTALL_ENV_FILE" ]; then
+    dd_api_key=$(grep '^DD_API_KEY=' "$INSTALL_ENV_FILE" | cut -d= -f2-)
+    dd_site=$(grep '^DD_SITE=' "$INSTALL_ENV_FILE" | cut -d= -f2-)
+    dd_gui_menu=$(grep '^DD_GUI_APP_MENU_ENABLED=' "$INSTALL_ENV_FILE" | cut -d= -f2-)
+    dd_install_method=$(grep '^DD_INSTALL_METHOD=' "$INSTALL_ENV_FILE" | cut -d= -f2-)
+    dd_install_version=$(grep '^DD_INSTALL_SCRIPT_VERSION=' "$INSTALL_ENV_FILE" | cut -d= -f2-)
+
+    if [ -n "$dd_api_key" ]; then
+        sed -i '' "s/^api_key:.*/api_key: $dd_api_key/" "$CONF_DIR/datadog.yaml"
+    fi
+    if [ -n "$dd_site" ]; then
+        sed -i '' "s/^#* *site:.*/site: $dd_site/" "$CONF_DIR/datadog.yaml"
+    fi
+    if [ -n "$dd_install_method" ]; then
+        install_method="$dd_install_method"
+        install_method_version="${dd_install_method}-${dd_install_version}"
+    fi
+fi
+
 install_info_content="---
 install_method:
-  tool: macos_dmg
-  tool_version: macos_dmg
-  installer_version: macos_dmg
+  tool: $install_method
+  tool_version: $install_method
+  installer_version: $install_method_version
 "
 echo "$install_info_content" > $CONF_DIR/install_info
 
 echo "# Setting correct rights on conf"
-chown -vR "${INSTALL_USER}:admin" $CONF_DIR
+chown -vR "$DDAGENT_USER:admin" $CONF_DIR
+chmod -v 770 $CONF_DIR
+find $CONF_DIR -type f -exec chmod 660 {} \;
+
+# Ensure _dd-agent can read/write config even after a user edits a file with
+# an editor that replaces the file (TextEdit, VS Code, vim, etc.), changing
+# Unix ownership.  macOS editors use atomic save (write temp + rename), which
+# replaces the inode and changes the owner to the editing user.
+#
+# Two layers of protection:
+#   1. Inheritable ACLs on directories — covers files created directly in the
+#      directory (open(O_CREAT)), e.g. new check configs, agent-generated files.
+#   2. Explicit ACLs on existing files — macOS NSDocument (used by TextEdit,
+#      VS Code, etc.) preserves ACLs from the original file during atomic save,
+#      so the replacement file retains _dd-agent access.
+find "$CONF_DIR" -type d -exec chmod +a "user:_dd-agent allow read,write,readattr,writeattr,readextattr,writeextattr,readsecurity,list,search,add_file,add_subdirectory,file_inherit,directory_inherit" {} \;
+find "$CONF_DIR" -type f -exec chmod +a "user:_dd-agent allow read,write,readattr,writeattr,readextattr,writeextattr,readsecurity" {} \;
 
 # `datadog-agent` command line
 mkdir -vp /usr/local/bin
@@ -143,96 +166,76 @@ if [ ! -e "$CONF_DIR/datadog.yaml" ]; then
     exit 1
 fi
 
-# Get the user home directory (needed for both installation modes)
-USER_HOME=$(sudo -Hu "$INSTALL_USER" sh -c 'echo $HOME')
-
-# Create agent plist (both modes need it)
-# For system-wide: install_mac_os.sh will move it to /Library/LaunchDaemons/
-# For per-user: it stays in ~/Library/LaunchAgents/
-echo "# Configuring the agent as a launchd service"
-sudo -Hu "$INSTALL_USER" mkdir -vp "$USER_HOME/Library/LaunchAgents"
-sudo -Hu "$INSTALL_USER" cp -vf "$CONF_DIR/com.datadoghq.agent.plist.example" "$USER_HOME/Library/LaunchAgents/com.datadoghq.agent.plist"
-
-# Install GUI LaunchAgent based on installation mode
-if [ -f "/tmp/install-ddagent/system-wide" ]; then
-  # System-wide installation: Install GUI app for all users (headless mode)
-  echo "# Configuring GUI app for system-wide installation"
-
-  # Install GUI app for ALL users (headless mode by default from plist template)
-  cp -vf "$CONF_DIR/com.datadoghq.gui.plist.example" /Library/LaunchAgents/com.datadoghq.gui.plist
-
-  # Set proper ownership and permissions for system-wide LaunchAgent
-  chown root:wheel /Library/LaunchAgents/com.datadoghq.gui.plist
-  chmod 644 /Library/LaunchAgents/com.datadoghq.gui.plist
-
-  # Clean up marker file (no longer needed after configuration)
-  rm -rf /tmp/install-ddagent
-
-  # Inform about GUI and location permission
-  echo ""
-  echo "=========================================="
-  echo "Datadog Agent GUI (System-Wide)"
-  echo "=========================================="
-  echo "The GUI app will launch automatically for each user when they log in."
-  echo ""
-  echo "For WiFi data collection (SSID/BSSID), users must grant Location permission:"
-  echo "  System Settings -> Privacy & Security -> Location Services -> Enable 'Datadog Agent'"
-  echo ""
-  echo "Note: The GUI will prompt for this permission when needed."
-  echo "=========================================="
-  echo ""
-else
-  # Per-user installation: Install GUI for current user
-  echo "# Configuring GUI for per-user installation"
-
-  # Clean up stale system-wide marker if present (prevents headless mode in per-user install)
-  rm -rf /tmp/install-ddagent
-
-  # Error if app not properly installed or root
-  if [ "$INSTALL_USER" = "root" ]; then
-      echo 'INSTALL_USER is set to root, Datadog Agent app has been installed'
-      echo 'but is not configured. Running Datadog Agent as root is not advised!'
-      exit 1
-  fi
-
-  # Link for conf files (let's ease the user's life)
-  sudo -Hu "$INSTALL_USER" mkdir -vp "$USER_HOME/.datadog-agent"
-  rm -vf "$USER_HOME/.datadog-agent/conf.d" "$USER_HOME/.datadog-agent/datadog.yaml" "$USER_HOME/.datadog-agent/checks.d"
-  sudo -Hu "$INSTALL_USER" ln -vs $CONF_DIR/conf.d "$USER_HOME/.datadog-agent/conf.d"
-  sudo -Hu "$INSTALL_USER" ln -vs $CONF_DIR/datadog.yaml "$USER_HOME/.datadog-agent/datadog.yaml"
-  sudo -Hu "$INSTALL_USER" ln -vs $CONF_DIR/checks.d "$USER_HOME/.datadog-agent/checks.d"
-
-  # Tray app: headless by default from plist template. install_mac_os.sh may remove --headless
-  # if DD_GUI_APP_MENU_ENABLED=true (postinst does not see that env var from the installer).
-  sudo -Hu "$INSTALL_USER" cp -vf "$CONF_DIR/com.datadoghq.gui.plist.example" "$USER_HOME/Library/LaunchAgents/com.datadoghq.gui.plist"
-
-  sudo -Hu "$INSTALL_USER" launchctl load -w "$USER_HOME/Library/LaunchAgents/com.datadoghq.agent.plist"
-
-  # Load the GUI LaunchAgent
-  sudo -Hu "$INSTALL_USER" launchctl load -w "$USER_HOME/Library/LaunchAgents/com.datadoghq.gui.plist"
-
-  # Inform user about location permission requirement
-  echo ""
-  echo "=========================================="
-  echo "Datadog Agent GUI"
-  echo "=========================================="
-  echo ""
-  echo "To enable WiFi data collection (SSID/BSSID), grant Location permission:"
-  echo "  System Settings -> Privacy & Security -> Location Services -> Enable 'Datadog Agent'"
-  echo ""
-  echo "Note: The Datadog Agent GUI will prompt for this permission when it starts."
-  echo "=========================================="
-  echo ""
+# Install agent as system-wide LaunchDaemon
+echo "# Installing agent as system-wide LaunchDaemon"
+cp -vf "$CONF_DIR/com.datadoghq.agent.plist.example" /Library/LaunchDaemons/com.datadoghq.agent.plist
+chown root:wheel /Library/LaunchDaemons/com.datadoghq.agent.plist
+chmod 644 /Library/LaunchDaemons/com.datadoghq.agent.plist
+launchctl enable system/com.datadoghq.agent 2>/dev/null || true
+if ! launchctl bootstrap system /Library/LaunchDaemons/com.datadoghq.agent.plist 2>&1; then
+    echo "WARNING: Failed to bootstrap agent service."
 fi
+
+# Install system-probe as system-wide LaunchDaemon
+echo "# Installing system-probe as system-wide LaunchDaemon"
+cp -vf "$CONF_DIR/com.datadoghq.sysprobe.plist.example" /Library/LaunchDaemons/com.datadoghq.sysprobe.plist
+chown root:wheel /Library/LaunchDaemons/com.datadoghq.sysprobe.plist
+chmod 644 /Library/LaunchDaemons/com.datadoghq.sysprobe.plist
+launchctl enable system/com.datadoghq.sysprobe 2>/dev/null || true
+if ! launchctl bootstrap system /Library/LaunchDaemons/com.datadoghq.sysprobe.plist 2>&1; then
+    echo "WARNING: Failed to bootstrap system-probe service."
+fi
+
+# Install GUI LaunchAgent for all users (system-wide)
+echo "# Configuring GUI app for system-wide installation"
+cp -vf "$CONF_DIR/com.datadoghq.gui.plist.example" /Library/LaunchAgents/com.datadoghq.gui.plist
+
+# The GUI plist template includes --headless by default (no menu bar icon).
+# DD_GUI_APP_MENU_ENABLED=true removes it to show the menu bar icon.
+if [ "$dd_gui_menu" = "true" ]; then
+    echo "# Enabling GUI menu bar icon (removing --headless)"
+    sed -i '' '/<string>--headless<\/string>/d' /Library/LaunchAgents/com.datadoghq.gui.plist
+fi
+
+chown root:wheel /Library/LaunchAgents/com.datadoghq.gui.plist
+chmod 644 /Library/LaunchAgents/com.datadoghq.gui.plist
+
+# Load GUI immediately for the console user if they have an active GUI session
+CONSOLE_USER=$(stat -f '%Su' /dev/console 2>/dev/null || echo 'root')
+CONSOLE_USER_UID=$(id -u "$CONSOLE_USER" 2>/dev/null)
+if [ -n "$CONSOLE_USER_UID" ] && sudo -u "$CONSOLE_USER" launchctl managername 2>/dev/null | grep -q "Aqua"; then
+    echo "# Loading GUI app for $CONSOLE_USER"
+    launchctl enable "gui/$CONSOLE_USER_UID/com.datadoghq.gui" 2>/dev/null || true
+    if ! launchctl bootstrap "gui/$CONSOLE_USER_UID" /Library/LaunchAgents/com.datadoghq.gui.plist 2>&1; then
+        echo "WARNING: Failed to bootstrap GUI app."
+    fi
+else
+    echo "# No GUI session detected; GUI app will launch at next user login"
+fi
+
+echo ""
+echo "=========================================="
+echo "Datadog Agent GUI (System-Wide)"
+echo "=========================================="
+echo "The GUI app will launch automatically for each user when they log in."
+echo ""
+echo "For WiFi data collection (SSID/BSSID), users must grant Location permission:"
+echo "  System Settings -> Privacy & Security -> Location Services -> Enable 'Datadog Agent'"
+echo ""
+echo "Note: The GUI will prompt for this permission when needed."
+echo "=========================================="
+echo ""
+
+# Clean up the install staging directory (env file with API key, saved config)
+rm -rf "$INSTALL_STAGING_DIR"
 
 # A little debriefing won't hurt
 echo "# State at the end"
 echo "## Agent version"
-grep AGENT_VERSION $INSTALL_DIR/agent/config.py || echo "No config.py file (agent 5)"
-datadog-agent version || echo "No datadog-agent binary version (agent 6)"
+$INSTALL_DIR/bin/agent/agent version || true
 echo "## $INSTALL_DIR"
-ls -al $INSTALL_DIR || echo "No agent installed :("
+ls -al $INSTALL_DIR || true
 echo "## $APP_DIR/Contents/Resources"
-ls -al "$APP_DIR/Contents/Resources" || echo "No app installed ;-("
+ls -al "$APP_DIR/Contents/Resources" || true
 
 exit 0

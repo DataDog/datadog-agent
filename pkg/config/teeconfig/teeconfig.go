@@ -116,6 +116,11 @@ func (t *teeConfig) IsKnown(key string) bool {
 	return base
 }
 
+func (t *teeConfig) IsSetting(key string) bool {
+	// viper and nodetreemodel don't agree on this functionality, no point in logging differences
+	return t.baseline.IsSetting(key)
+}
+
 // GetKnownKeysLowercased returns all the keys that meet at least one of these criteria:
 // 1) have a default, 2) have an environment variable binded or 3) have been SetKnown()
 // Note that it returns the keys lowercased.
@@ -500,6 +505,22 @@ func (t *teeConfig) AllSettingsWithoutDefault() map[string]interface{} {
 	t.compareResult("", "AllSettingsWithoutDefault", base, compare)
 	return base
 
+}
+
+// AllSettingsWithoutSecrets returns all settings excluding the secrets layer.
+func (t *teeConfig) AllSettingsWithoutSecrets() map[string]interface{} {
+	base := t.baseline.AllSettingsWithoutSecrets()
+	compare := t.compare.AllSettingsWithoutSecrets()
+	t.compareResult("", "AllSettingsWithoutSecrets", base, compare)
+	return base
+}
+
+// AllSettingsWithoutDefaultOrSecrets returns settings excluding both defaults and the secrets layer.
+func (t *teeConfig) AllSettingsWithoutDefaultOrSecrets() map[string]interface{} {
+	base := t.baseline.AllSettingsWithoutDefaultOrSecrets()
+	compare := t.compare.AllSettingsWithoutDefaultOrSecrets()
+	t.compareResult("", "AllSettingsWithoutDefaultOrSecrets", base, compare)
+	return base
 }
 
 // AllSettingsBySource returns the settings from each source (file, env vars, ...)
