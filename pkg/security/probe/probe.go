@@ -10,7 +10,6 @@ package probe
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -122,9 +121,9 @@ type Probe struct {
 
 	// Events section
 	consumers           []*EventConsumer
-	eventHandlers       [model.MaxAllEventType + 1][]EventHandler
-	eventConsumers      [model.MaxAllEventType + 1][]*EventConsumer
-	customEventHandlers [model.MaxAllEventType + 1][]CustomEventHandler
+	eventHandlers       []EventHandler                              // listen all the regular events
+	customEventHandlers []CustomEventHandler                        // listen all the custom events
+	eventConsumers      [model.MaxAllEventType + 1][]*EventConsumer // listen specific regular event
 
 	// stats
 	ruleActionStatsLock sync.RWMutex
@@ -306,24 +305,20 @@ func (p *Probe) AddEventConsumer(consumer EventConsumerHandler) error {
 
 // AddEventHandler sets a probe event handler for the UnknownEventType which requires access to all the struct fields
 func (p *Probe) AddEventHandler(handler EventHandler) error {
-	p.eventHandlers[model.UnknownEventType] = append(p.eventHandlers[model.UnknownEventType], handler)
+	p.eventHandlers = append(p.eventHandlers, handler)
 
 	return nil
 }
 
 // AddCustomEventHandler set the probe event handler
-func (p *Probe) AddCustomEventHandler(eventType model.EventType, handler CustomEventHandler) error {
-	if eventType >= model.MaxAllEventType {
-		return errors.New("unsupported event type")
-	}
-
-	p.customEventHandlers[eventType] = append(p.customEventHandlers[eventType], handler)
+func (p *Probe) AddCustomEventHandler(handler CustomEventHandler) error {
+	p.customEventHandlers = append(p.customEventHandlers, handler)
 
 	return nil
 }
 
 func (p *Probe) sendEventToHandlers(event *model.Event) {
-	for _, handler := range p.eventHandlers[model.UnknownEventType] {
+	for _, handler := range p.eventHandlers {
 		handler.HandleEvent(event)
 	}
 }
@@ -372,20 +367,8 @@ func (p *Probe) SendCustomEventKillAction(report model.ActionReport, tags []stri
 func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *events.CustomEvent) {
 	p.logTraceEvent(event.GetEventType(), event)
 
-	// send wildcard first
-	for _, handler := range p.customEventHandlers[model.UnknownEventType] {
+	for _, handler := range p.customEventHandlers {
 		handler.HandleCustomEvent(rule, event)
-	}
-
-	// send specific event
-	if event.GetEventType() != model.UnknownEventType {
-		if t := event.GetEventType(); int(t) >= len(p.customEventHandlers) {
-			seclog.Errorf("event type (%d) not allowed", t)
-		} else {
-			for _, handler := range p.customEventHandlers[event.GetEventType()] {
-				handler.HandleCustomEvent(rule, event)
-			}
-		}
 	}
 }
 
