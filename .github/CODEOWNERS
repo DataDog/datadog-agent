@@ -800,6 +800,7 @@
 /test/e2e-framework/components/datadog/agent/ecs.go     @DataDog/ecs-experiences
 /test/e2e-framework/components/datadog/agent/ecsFargate.go @DataDog/ecs-experiences
 /test/e2e-framework/components/datadog/ecsagentparams/  @DataDog/ecs-experiences
+/test/e2e-framework/components/datadog/otel-standalone/ @DataDog/opentelemetry-agent
 /test/e2e-framework/components/windows/                @DataDog/windows-products
 /test/fakeintake/                              @DataDog/agent-devx
 /test/fakeintake/aggregator/ndmAggregator.go @DataDog/network-device-monitoring-core
