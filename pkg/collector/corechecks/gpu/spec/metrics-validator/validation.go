@@ -93,32 +93,16 @@ func validateGPUConfig(client *metricsClient, metricsSpec *gpuspec.MetricsSpec, 
 		metricName := metricName
 		group.Go(func() error {
 			prefixedMetricName := gpuspec.PrefixedMetricName(metricsSpec, metricName)
-			metricObservations, err := client.queryExpectedMetricPresenceForGPUConfig(prefixedMetricName, expectedTagsByMetric[metricName], config.TagFilter(), fromTS, toTS)
+			validatesValues := expectedMetricsMap[metricName].Validator != nil
+			metricObservations, err := client.queryExpectedMetricPresenceForGPUConfig(prefixedMetricName, expectedTagsByMetric[metricName], config.TagFilter(), fromTS, toTS, validatesValues)
 			if err != nil {
 				return fmt.Errorf("query expected metric presence for %s: %w", metricName, err)
 			}
 
-			metricSpec := expectedMetricsMap[metricName]
-			if metricSpec.Validator != nil {
-				metricValues, err := client.queryMetricValuesForGPUConfig(prefixedMetricName, config.TagFilter(), fromTS, toTS)
-				if err != nil {
-					return fmt.Errorf("query metric values for %s: %w", metricName, err)
-				}
-				for _, value := range metricValues {
-					valueCopy := value
-					metricObservations = append(metricObservations, gpuspec.MetricObservation{
-						Name:  metricName,
-						Value: &valueCopy,
-					})
-				}
-			}
+			mu.Lock()
+			observations[metricName] = append(observations[metricName], metricObservations...)
+			mu.Unlock()
 
-			for _, observation := range metricObservations {
-				observation.Name = metricName
-				mu.Lock()
-				observations[metricName] = append(observations[metricName], observation)
-				mu.Unlock()
-			}
 			return nil
 		})
 	}
