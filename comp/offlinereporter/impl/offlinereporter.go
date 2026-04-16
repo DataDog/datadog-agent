@@ -80,7 +80,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		demux:             reqs.Demultiplexer,
 		hostname:          reqs.Hostname.GetSafe(context.Background()),
 		stopChan:          make(chan struct{}, 1),
-		writeErrLimit:     logutil.NewLogLimit(10, time.Minute),
+		writeErrLimit:     logutil.NewLogLimit(1, time.Minute),
 	}
 	if reqs.Config.GetBool("telemetry.offlinereporter.enabled") {
 		if h.heartbeatInterval <= 0 {
