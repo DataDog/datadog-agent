@@ -13,6 +13,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"runtime"
 	"slices"
 	"strconv"
@@ -130,14 +131,22 @@ func NewClient(cfg *config.Config) Client {
 	}
 }
 
-func (c *client) DequeueTask(ctx context.Context) (*types.Task, error) {
-	u := &url.URL{
-		Scheme: "https",
-		Host:   c.config.DDApiHost,
-		Path:   dequeuePath,
+// endpointURL constructs a full URL for the given path.
+// Production always uses https://api.<site>. When DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION=true
+// (e2e tests only) and DD_DD_URL points at an http:// server, use that host directly so PAR
+// can reach an in-cluster or ECS-hosted fake OPMS over plain HTTP.
+func (c *client) endpointURL(path string) string {
+	scheme := "https"
+	host := c.config.DDApiHost
+	if os.Getenv(app.InternalSkipTaskVerificationEnvVar) == "true" && strings.HasPrefix(c.config.DDHost, "http://") {
+		scheme = "http"
+		host = strings.TrimPrefix(c.config.DDHost, "http://")
 	}
+	return (&url.URL{Scheme: scheme, Host: host, Path: path}).String()
+}
 
-	body, _, err := c.makeRequest(ctx, http.MethodPost, u.String(), nil, nil, http.StatusOK)
+func (c *client) DequeueTask(ctx context.Context) (*types.Task, error) {
+	body, _, err := c.makeRequest(ctx, http.MethodPost, c.endpointURL(dequeuePath), nil, nil, http.StatusOK)
 	if err != nil {
 		return nil, fmt.Errorf("error making request to dequeue task: %w", err)
 	}
@@ -175,12 +184,6 @@ func (c *client) PublishSuccess(
 		return fmt.Errorf("error converting output to map: %w", err)
 	}
 
-	u := &url.URL{
-		Scheme: "https",
-		Host:   c.config.DDApiHost,
-		Path:   taskUpdatePath,
-	}
-
 	if branch == "" {
 		branch = "main"
 	}
@@ -200,7 +203,7 @@ func (c *client) PublishSuccess(
 		},
 	}
 
-	if _, err = c.makeTaskUpdateRequest(ctx, http.MethodPost, u.String(), request); err != nil {
+	if _, err = c.makeTaskUpdateRequest(ctx, http.MethodPost, c.endpointURL(taskUpdatePath), request); err != nil {
 		return fmt.Errorf("error updating success task status: %w", err)
 	}
 
@@ -217,12 +220,6 @@ func (c *client) PublishFailure(
 	errorDetails string,
 	apiError string,
 ) error {
-	u := &url.URL{
-		Scheme: "https",
-		Host:   c.config.DDApiHost,
-		Path:   taskUpdatePath,
-	}
-
 	request := &PublishTaskUpdateJSONData{
 		Type: "taskUpdate",
 		ID:   "fail_task",
@@ -238,7 +235,7 @@ func (c *client) PublishFailure(
 		},
 	}
 
-	if _, err := c.makeTaskUpdateRequest(ctx, http.MethodPost, u.String(), request); err != nil {
+	if _, err := c.makeTaskUpdateRequest(ctx, http.MethodPost, c.endpointURL(taskUpdatePath), request); err != nil {
 		return fmt.Errorf("error updating success task status: %w", err)
 	}
 
@@ -285,12 +282,7 @@ func createHealthCheckData(headers http.Header) *HealthCheckData {
 }
 
 func (c *client) HealthCheck(ctx context.Context) (*HealthCheckData, error) {
-	u := &url.URL{
-		Scheme: "https",
-		Host:   c.config.DDApiHost,
-		Path:   healthCheckPath,
-	}
-
+	u, _ := url.Parse(c.endpointURL(healthCheckPath))
 	query := u.Query()
 	query.Add(app.RunnerVersionQueryParam, c.config.Version)
 	modesStr := modes.ToStrings(c.config.Modes)
@@ -312,12 +304,6 @@ func (c *client) HealthCheck(ctx context.Context) (*HealthCheckData, error) {
 }
 
 func (c *client) Heartbeat(ctx context.Context, client actionsclientpb.Client, taskID, actionFQN, jobID string) error {
-	u := &url.URL{
-		Scheme: "https",
-		Host:   c.config.DDApiHost,
-		Path:   heartbeat,
-	}
-
 	request := &HeartbeatJSONData{
 		Type: "heartbeat",
 		ID:   taskID,
@@ -329,7 +315,7 @@ func (c *client) Heartbeat(ctx context.Context, client actionsclientpb.Client, t
 		},
 	}
 
-	if _, err := c.makeHeartbeatRequest(ctx, http.MethodPost, u.String(), request); err != nil {
+	if _, err := c.makeHeartbeatRequest(ctx, http.MethodPost, c.endpointURL(heartbeat), request); err != nil {
 		return fmt.Errorf("error sending heartbeat: %w", err)
 	}
 
