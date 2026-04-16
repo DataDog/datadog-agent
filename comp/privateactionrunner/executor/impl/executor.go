@@ -15,32 +15,31 @@
 // subscription, task signature verification, credential resolution, action
 // allowlist enforcement, metrics, and action execution.
 //
-// The only new piece is the UDS HTTP server (same pattern as system-probe)
-// which replaces the WorkflowRunner polling loop as the task intake point.
+// IPC with par-control uses a binary length-framing protocol over UDS (see
+// protocol.go).  This replaces the previous HTTP/1.1+JSON+base64 transport and
+// eliminates the redundant encoding overhead for large task payloads.
 package impl
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
-	"net/http"
 	"os"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"google.golang.org/protobuf/proto"
-
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	complog "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	parconstants "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/parversion"
 	pkgrcclient "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient"
@@ -49,7 +48,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
-	privateactionspb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
 	taskverifier "github.com/DataDog/datadog-agent/pkg/privateactionrunner/task-verifier"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
@@ -58,8 +56,7 @@ import (
 
 const (
 	maxStartupWaitTimeout = 15 * time.Second
-	// skipVerificationEnvVar bypasses task signature verification in e2e tests.
-	skipVerificationEnvVar = "DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION"
+	gracefulDrainTimeout  = 30 * time.Second
 )
 
 // Params holds executor configuration that comes from CLI args, not datadog.yaml.
@@ -68,32 +65,22 @@ type Params struct {
 	IdleTimeoutSeconds int
 }
 
-// ExecuteRequest is the JSON body for POST /execute.
-type ExecuteRequest struct {
-	RawTask        string `json:"raw_task"`          // base64-encoded OPMS dequeue response
-	TimeoutSeconds *int32 `json:"timeout_seconds,omitempty"`
+// errorResponse is the JSON payload for binary error frames.
+type errorResponse struct {
+	ErrorCode    int32  `json:"error_code"`
+	ErrorDetails string `json:"error_details"`
 }
 
-// ExecuteResponse is the JSON body returned by POST /execute.
-type ExecuteResponse struct {
-	Output       interface{} `json:"output,omitempty"`
-	ErrorCode    int32       `json:"error_code"`
-	ErrorDetails string      `json:"error_details,omitempty"`
-}
-
-// Requires defines the FX dependencies — same as PrivateActionRunner.Requires
-// minus Traceroute, EventPlatform, and Hostname (not needed for remote-actions
-// and not needed since we don't do self-enrollment).
+// Requires defines the FX dependencies for the executor component.
 type Requires struct {
 	Config    coreconfig.Component
 	Log       complog.Component
 	Lifecycle compdef.Lifecycle
 	RcClient  rcclient.Component
-
-	Params Params
+	Params    Params
 }
 
-// Provides mirrors comp/privateactionrunner/impl — needed for fxutil.ProvideComponentConstructor.
+// Provides mirrors comp/privateactionrunner/impl.
 type Provides struct {
 	Comp privateactionrunner.Component
 }
@@ -110,12 +97,13 @@ type ExecutorComponent struct {
 	startChan   chan struct{}
 	cancelStart context.CancelFunc
 	ln          net.Listener
-	srv         *http.Server // kept so Stop() can drain in-flight requests
 
-	// lastActivity is updated at the END of each /execute handler so the idle
+	// connGroup tracks active connections for graceful drain on shutdown.
+	connGroup sync.WaitGroup
+	// lastActivity is updated at the END of each execute handler so the idle
 	// timer does not fire while actions are in progress.
 	lastActivity atomic.Int64
-	// activeRequests counts goroutines currently inside the /execute handler.
+	// activeRequests counts goroutines currently executing an action.
 	// The idle timer only fires when this reaches zero.
 	activeRequests atomic.Int32
 }
@@ -148,7 +136,7 @@ func (ec *ExecutorComponent) Start(ctx context.Context) error {
 }
 
 // start is the real startup — mirrors PrivateActionRunner.start() exactly,
-// replacing the WorkflowRunner+CommonRunner pair with a UDS HTTP server.
+// replacing the WorkflowRunner+CommonRunner pair with a binary UDS server.
 func (ec *ExecutorComponent) start(ctx context.Context) error {
 	ctx, ec.cancelStart = context.WithCancel(ctx)
 	defer ec.logger.Flush()
@@ -178,10 +166,7 @@ func (ec *ExecutorComponent) start(ctx context.Context) error {
 	keysManager.Start(ctx)
 	// === End identical section ===
 
-	// Removed: opmsClient, workflowRunner.Start, commonRunner.Start
-
-	// Wait for signing keys unless verification is being skipped for testing.
-	if os.Getenv(skipVerificationEnvVar) == "true" {
+	if os.Getenv(parconstants.InternalSkipTaskVerificationEnvVar) == "true" {
 		ec.logger.Info("par-executor: task verification skipped (DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION=true)")
 	} else {
 		ec.logger.Info("par-executor: waiting for Remote Config signing keys")
@@ -189,62 +174,36 @@ func (ec *ExecutorComponent) start(ctx context.Context) error {
 		observability.ReportKeysManagerReady(cfg.MetricsClient, log.FromContext(ctx), startTime)
 	}
 
-	// Open UDS server — same pattern as pkg/system-probe/api/server/listener_unix.go.
 	ec.ln, err = setupSocket(ec.params.SocketPath)
 	if err != nil {
 		return fmt.Errorf("par-executor: socket setup failed: %w", err)
 	}
 
-	// Concurrency semaphore — mirrors the original PAR RunnerPoolSize semaphore
-	// in pkg/privateactionrunner/runners/workflow_executor.go.
-	// Default 5, configurable via private_action_runner.task_concurrency in datadog.yaml.
+	// Concurrency semaphore — mirrors the original PAR RunnerPoolSize.
 	poolSize := cfg.RunnerPoolSize
 	if poolSize <= 0 {
 		poolSize = 5
 	}
 	sem := make(chan struct{}, poolSize)
-	ec.logger.Infof("par-executor: action pool size = %d", poolSize)
+	ec.logger.Infof("par-executor: listening on %s (pool=%d, idle-timeout=%ds)",
+		ec.params.SocketPath, poolSize, ec.params.IdleTimeoutSeconds)
 
 	if ec.params.IdleTimeoutSeconds > 0 {
 		ec.lastActivity.Store(time.Now().Unix())
 		go ec.idleWatcher()
 	}
 
-	resolver := credresolver.NewPrivateCredentialResolver()
-
-	// Register the full bundle set — same as the existing PAR binary.
-	// This ensures the executor binary links in all bundle code so that
-	// RSS comparisons between the executor and the old monolith are
-	// apples-to-apples.
-	//
-	// ddagent.networkpath requires live traceroute/eventplatform components;
-	// passing nil is safe as long as that bundle is never executed (it is
-	// excluded from the default allowlist).
 	registry := privatebundles.NewRegistry(cfg, nil, nil)
 	bundles := registry.Bundles
+	resolver := credresolver.NewPrivateCredentialResolver()
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("/execute", makeExecuteHandler(ctx, cfg, verifier, resolver, bundles,
-		&ec.lastActivity, &ec.activeRequests, sem, ec.params.IdleTimeoutSeconds))
-	mux.HandleFunc("/debug/ready", handleReady)
-	mux.HandleFunc("/debug/health", handleHealth)
-	mux.HandleFunc("/debug/stats", handleStats)
-
-	ec.srv = &http.Server{Handler: mux}
-	ec.logger.Infof("par-executor: listening on %s (pool=%d, idle-timeout=%ds)",
-		ec.params.SocketPath, poolSize, ec.params.IdleTimeoutSeconds)
-	go func() {
-		if serveErr := ec.srv.Serve(ec.ln); serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
-			ec.logger.Errorf("par-executor: server error: %v", serveErr)
-		}
-	}()
-
+	go ec.serveConnections(ctx, cfg, verifier, resolver, bundles, sem)
 	return nil
 }
 
 // Stop implements privateactionrunner.Component.
-// It stops accepting new requests and waits for in-flight actions to complete
-// (or for ctx to be cancelled), then removes the socket file.
+// Closes the listener (no new connections) then waits for in-flight actions
+// to complete before returning.
 func (ec *ExecutorComponent) Stop(ctx context.Context) error {
 	if !ec.started {
 		return nil
@@ -259,16 +218,218 @@ func (ec *ExecutorComponent) Stop(ctx context.Context) error {
 		ec.logger.Warn("par-executor: startup did not complete before stop timeout")
 	}
 
-	// Graceful shutdown: stop accepting new connections, drain in-flight ones.
-	if ec.srv != nil {
-		if err := ec.srv.Shutdown(ctx); err != nil {
-			ec.logger.Warnf("par-executor: server shutdown error: %v", err)
-		}
-	} else if ec.ln != nil {
+	if ec.ln != nil {
 		ec.ln.Close()
 	}
+
+	// Drain in-flight connections with a hard deadline.
+	done := make(chan struct{})
+	go func() {
+		ec.connGroup.Wait()
+		close(done)
+	}()
+	drainCtx, drainCancel := context.WithTimeout(ctx, gracefulDrainTimeout)
+	defer drainCancel()
+	select {
+	case <-done:
+		ec.logger.Info("par-executor: all connections drained")
+	case <-drainCtx.Done():
+		ec.logger.Warn("par-executor: drain timeout reached, forcing shutdown")
+	}
+
 	os.Remove(ec.params.SocketPath)
 	return nil
+}
+
+// serveConnections is the main accept loop.  Each connection is handled in its
+// own goroutine.
+func (ec *ExecutorComponent) serveConnections(
+	ctx context.Context,
+	cfg *parconfig.Config,
+	verifier taskverifier.TaskVerifier,
+	resolver credresolver.PrivateCredentialResolver,
+	bundles map[string]types.Bundle,
+	sem chan struct{},
+) {
+	for {
+		conn, err := ec.ln.Accept()
+		if err != nil {
+			if isClosedNetErr(err) {
+				return
+			}
+			ec.logger.Errorf("par-executor: accept error: %v", err)
+			continue
+		}
+		ec.connGroup.Add(1)
+		go func() {
+			defer ec.connGroup.Done()
+			ec.handleConn(ctx, conn, cfg, verifier, resolver, bundles, sem)
+		}()
+	}
+}
+
+// handleConn dispatches a single UDS connection.
+// It enforces the SO_PEERCRED check, then routes by frame type.
+func (ec *ExecutorComponent) handleConn(
+	ctx context.Context,
+	conn net.Conn,
+	cfg *parconfig.Config,
+	verifier taskverifier.TaskVerifier,
+	resolver credresolver.PrivateCredentialResolver,
+	bundles map[string]types.Bundle,
+	sem chan struct{},
+) {
+	defer conn.Close()
+
+	// Security: reject connections from processes running as a different UID.
+	// This prevents an unprivileged process from injecting tasks into the
+	// (potentially more-privileged) executor.
+	logger := log.FromContext(ctx)
+
+	if err := verifyCaller(conn); err != nil {
+		logger.Errorf("par-executor: peer credential check failed: %v", err)
+		return
+	}
+
+	var frameType [1]byte
+	if _, err := io.ReadFull(conn, frameType[:]); err != nil {
+		return
+	}
+
+	switch frameType[0] {
+	case framePing:
+		conn.Write([]byte{0x01}) //nolint:errcheck
+	case frameExecute:
+		ec.handleExecuteConn(ctx, conn, cfg, verifier, resolver, bundles, sem)
+	default:
+		logger.Errorf("par-executor: unknown frame type 0x%02x", frameType[0])
+	}
+}
+
+// handleExecuteConn processes one execute frame.
+// This implements the same logic as Loop.handleTask in workflow_executor.go,
+// receiving the raw task bytes from par-control via the binary protocol instead
+// of decoding a JSON+base64 HTTP request.
+//
+// Concurrency model mirrors the original PAR WorkflowRunner:
+//   - sem limits concurrently running actions to RunnerPoolSize.
+//   - activeRequests prevents the idle timer from firing during active work.
+//   - lastActivity is updated at EXIT (not entry) so the idle clock starts only
+//     after all in-flight work has completed.
+func (ec *ExecutorComponent) handleExecuteConn(
+	ctx context.Context,
+	conn net.Conn,
+	cfg *parconfig.Config,
+	verifier taskverifier.TaskVerifier,
+	resolver credresolver.PrivateCredentialResolver,
+	bundles map[string]types.Bundle,
+	sem chan struct{},
+) {
+	// Read frame: [4-byte task_len][task bytes][4-byte timeout_secs]
+	rawBytes, timeoutSecs, err := readExecuteRequest(conn)
+	if err != nil {
+		log.FromContext(ctx).Errorf("par-executor: reading execute frame: %v", err)
+		ec.sendError(conn, 0, fmt.Sprintf("malformed request: %v", err))
+		return
+	}
+
+	// Acquire semaphore — blocks until a pool slot is free or ctx is cancelled.
+	select {
+	case sem <- struct{}{}:
+	case <-ctx.Done():
+		ec.sendError(conn, 0, "executor shutting down")
+		return
+	}
+	defer func() { <-sem }()
+
+	ec.activeRequests.Add(1)
+	defer func() {
+		ec.activeRequests.Add(-1)
+		if ec.params.IdleTimeoutSeconds > 0 {
+			ec.lastActivity.Store(time.Now().Unix())
+		}
+	}()
+
+	logger := log.FromContext(ctx)
+
+	// Parse the raw OPMS task bytes — exactly one json.Unmarshal, same as the
+	// original single-process PAR (no extra encoding overhead).
+	var rawTask types.Task
+	if err := json.Unmarshal(rawBytes, &rawTask); err != nil {
+		ec.sendError(conn, 0, "invalid task JSON")
+		return
+	}
+	rawTask.Raw = rawBytes
+
+	// --- Identical to workflow_executor.go Loop.Run() from here ---
+
+	if err := rawTask.Validate(); err != nil {
+		logger.Errorf("par-executor: task validation failed: %v", err)
+		parErr := util.DefaultPARError(err)
+		ec.sendError(conn, int32(parErr.ErrorCode), parErr.Message)
+		return
+	}
+
+	// NewTaskVerifier already returns a no-op verifier when
+	// DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION=true, so no conditional here.
+	task, err := verifier.UnwrapTask(&rawTask)
+	if err != nil {
+		logger.Errorf("par-executor: task verification failed: %v", err)
+		parErr := util.DefaultPARError(err)
+		ec.sendError(conn, int32(parErr.ErrorCode), parErr.Message)
+		return
+	}
+	task.Data.Attributes.JobId = rawTask.Data.Attributes.JobId
+
+	// Apply timeout.
+	taskCtx := ctx
+	if timeoutSecs > 0 {
+		var cancel context.CancelFunc
+		taskCtx, cancel = context.WithTimeout(ctx, time.Duration(timeoutSecs)*time.Second)
+		defer cancel()
+	} else if cfg.TaskTimeoutSeconds != nil {
+		var cancel context.CancelFunc
+		taskCtx, cancel = context.WithTimeout(ctx, time.Duration(*cfg.TaskTimeoutSeconds)*time.Second)
+		defer cancel()
+	}
+
+	var credential *privateconnection.PrivateCredentials
+	if task.Data.Attributes.ConnectionInfo != nil {
+		credential, err = resolver.ResolveConnectionInfoToCredential(taskCtx, task.Data.Attributes.ConnectionInfo, nil)
+		if err != nil {
+			logger.Errorf("par-executor: credential resolution failed: %v", err)
+			parErr := util.DefaultPARError(err)
+			ec.sendError(conn, int32(parErr.ErrorCode), parErr.Message)
+			return
+		}
+	}
+
+	// Heartbeats are sent by par-control while waiting for this response.
+	output, err := runTask(taskCtx, cfg, bundles, task, credential)
+	if err != nil {
+		parErr := util.DefaultPARError(err)
+		ec.sendError(conn, int32(parErr.ErrorCode), parErr.Message)
+		return
+	}
+
+	// Send success response: raw JSON output bytes — no extra wrapping.
+	outputJSON, err := json.Marshal(output)
+	if err != nil {
+		ec.sendError(conn, 0, fmt.Sprintf("failed to marshal output: %v", err))
+		return
+	}
+	if err := writeOKResponse(conn, outputJSON); err != nil {
+		logger.Warnf("par-executor: writing success response: %v", err)
+	}
+}
+
+// sendError writes a binary error response to the connection.
+func (ec *ExecutorComponent) sendError(conn net.Conn, code int32, details string) {
+	payload, err := json.Marshal(errorResponse{ErrorCode: code, ErrorDetails: details})
+	if err != nil {
+		return
+	}
+	_ = writeErrorResponse(conn, payload) // best-effort; ignore write errors
 }
 
 // getRunnerConfig is identical to PrivateActionRunner.getRunnerConfig except
@@ -289,9 +450,7 @@ func (ec *ExecutorComponent) getRunnerConfig(ctx context.Context) (*parconfig.Co
 	}
 
 	if cfg.IdentityIsIncomplete() {
-		if os.Getenv(skipVerificationEnvVar) == "true" {
-			// Allow missing identity in e2e/POC testing — executor won't call OPMS
-			// and won't verify signatures so URN/private-key are not needed.
+		if os.Getenv(parconstants.InternalSkipTaskVerificationEnvVar) == "true" {
 			return cfg, nil
 		}
 		return nil, errors.New("identity not found; provide a valid URN and private key in datadog.yaml")
@@ -299,139 +458,7 @@ func (ec *ExecutorComponent) getRunnerConfig(ctx context.Context) (*parconfig.Co
 	return cfg, nil
 }
 
-// makeExecuteHandler returns the POST /execute handler.
-// This implements the same logic as Loop.handleTask in workflow_executor.go,
-// but receives the raw task from par-control over UDS instead of from OPMS.
-//
-// Concurrency model mirrors the original PAR WorkflowRunner:
-//   - sem (buffered channel) limits the number of concurrently running actions,
-//     matching private_action_runner.task_concurrency (default 5).
-//   - activeRequests is incremented on entry and decremented on return so the
-//     idle timer never fires while work is in progress.
-//   - lastActivity is updated at handler EXIT (not entry) so the idle clock
-//     starts only after all in-flight work has completed.
-func makeExecuteHandler(
-	baseCtx context.Context,
-	cfg *parconfig.Config,
-	verifier *taskverifier.TaskVerifier,
-	resolver credresolver.PrivateCredentialResolver,
-	bundles map[string]types.Bundle,
-	lastActivity *atomic.Int64,
-	activeRequests *atomic.Int32,
-	sem chan struct{},
-	idleTimeoutSeconds int,
-) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
-		// Acquire semaphore slot — blocks until a slot is free, matching the
-		// original PAR behaviour where excess tasks wait rather than being dropped.
-		// Use request context so we respect client disconnects.
-		select {
-		case sem <- struct{}{}:
-		case <-r.Context().Done():
-			writeExecuteError(w, http.StatusServiceUnavailable, 0, "request cancelled while waiting for pool slot")
-			return
-		}
-		defer func() { <-sem }()
-
-		activeRequests.Add(1)
-		defer func() {
-			activeRequests.Add(-1)
-			// Reset idle clock after work completes, not before it starts.
-			if idleTimeoutSeconds > 0 {
-				lastActivity.Store(time.Now().Unix())
-			}
-		}()
-
-		ctx := r.Context()
-		logger := log.FromContext(baseCtx)
-
-		var req ExecuteRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			writeExecuteError(w, http.StatusBadRequest, 0, "invalid request body")
-			return
-		}
-
-		rawBytes, err := base64.StdEncoding.DecodeString(req.RawTask)
-		if err != nil {
-			writeExecuteError(w, http.StatusBadRequest, 0, "invalid base64 in raw_task")
-			return
-		}
-
-		var rawTask types.Task
-		if err := json.Unmarshal(rawBytes, &rawTask); err != nil {
-			writeExecuteError(w, http.StatusBadRequest, 0, "invalid task JSON")
-			return
-		}
-		rawTask.Raw = rawBytes
-
-		// --- Identical to workflow_executor.go Loop.Run() task handling ---
-
-		if err := rawTask.Validate(); err != nil {
-			logger.Errorf("par-executor: task validation failed: %v", err)
-			parErr := util.DefaultPARError(err)
-			writeExecuteError(w, http.StatusUnprocessableEntity, int32(parErr.ErrorCode), parErr.Message)
-			return
-		}
-
-		var task *types.Task
-		if os.Getenv(skipVerificationEnvVar) == "true" {
-			task, err = unwrapNoVerification(&rawTask)
-		} else {
-			task, err = verifier.UnwrapTaskFromSignedEnvelope(rawTask.Data.Attributes.SignedEnvelope)
-		}
-		if err != nil {
-			logger.Errorf("par-executor: task verification failed: %v", err)
-			parErr := util.DefaultPARError(err)
-			writeExecuteError(w, http.StatusUnprocessableEntity, int32(parErr.ErrorCode), parErr.Message)
-			return
-		}
-		// JobId is set by OPMS after signing; restore from the raw task.
-		task.Data.Attributes.JobId = rawTask.Data.Attributes.JobId
-
-		// Apply timeout (from request or config default).
-		if req.TimeoutSeconds != nil && *req.TimeoutSeconds > 0 {
-			var cancel context.CancelFunc
-			ctx, cancel = context.WithTimeout(ctx, time.Duration(*req.TimeoutSeconds)*time.Second)
-			defer cancel()
-		} else if cfg.TaskTimeoutSeconds != nil {
-			var cancel context.CancelFunc
-			ctx, cancel = context.WithTimeout(ctx, time.Duration(*cfg.TaskTimeoutSeconds)*time.Second)
-			defer cancel()
-		}
-
-		// Resolve credentials. ConnectionInfo is absent for actions like
-		// testConnection that do not require a connection (e.g. no credentials).
-		var credential *privateconnection.PrivateCredentials
-		if task.Data.Attributes.ConnectionInfo != nil {
-			credential, err = resolver.ResolveConnectionInfoToCredential(ctx, task.Data.Attributes.ConnectionInfo, nil)
-			if err != nil {
-				logger.Errorf("par-executor: credential resolution failed: %v", err)
-				parErr := util.DefaultPARError(err)
-				writeExecuteError(w, http.StatusUnprocessableEntity, int32(parErr.ErrorCode), parErr.Message)
-				return
-			}
-		}
-
-		// --- Run task (mirrors WorkflowRunner.RunTask minus heartbeat goroutine) ---
-		// Heartbeats are sent by par-control while waiting for this response.
-		output, err := runTask(ctx, cfg, bundles, task, credential)
-		if err != nil {
-			parErr := util.DefaultPARError(err)
-			writeExecuteError(w, http.StatusOK, int32(parErr.ErrorCode), parErr.Message)
-			return
-		}
-
-		writeJSON(w, http.StatusOK, ExecuteResponse{Output: output})
-	}
-}
-
 // runTask mirrors WorkflowRunner.RunTask without the heartbeat goroutine.
-// Heartbeats are sent by the Rust control plane while waiting for the /execute response.
 func runTask(ctx context.Context, cfg *parconfig.Config, bundles map[string]types.Bundle, task *types.Task, credential *privateconnection.PrivateCredentials) (interface{}, error) {
 	fqn := task.GetFQN()
 	bundleName, actionName := actions.SplitFQN(fqn)
@@ -459,50 +486,15 @@ func runTask(ctx context.Context, cfg *parconfig.Config, bundles map[string]type
 	return output, nil
 }
 
-// unwrapNoVerification extracts task fields from the signed envelope without
-// verifying the signature. Used only when DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION=true.
-func unwrapNoVerification(rawTask *types.Task) (*types.Task, error) {
-	if rawTask.Data.Attributes == nil || rawTask.Data.Attributes.SignedEnvelope == nil {
-		return nil, errors.New("task is missing signed_envelope")
-	}
-	env := rawTask.Data.Attributes.SignedEnvelope
-	if len(env.Data) == 0 {
-		return nil, errors.New("signed_envelope.data is empty")
-	}
-	var pb privateactionspb.PrivateActionTask
-	if err := proto.Unmarshal(env.Data, &pb); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal PrivateActionTask: %w", err)
-	}
-	var inputs map[string]interface{}
-	if pb.Inputs != nil {
-		inputs = pb.Inputs.AsMap()
-	}
-	var t types.Task
-	t.Data.ID = rawTask.Data.ID
-	t.Data.Type = rawTask.Data.Type
-	t.Data.Attributes = &types.Attributes{
-		Name:           pb.ActionName,
-		BundleID:       pb.BundleId,
-		Client:         pb.Client,
-		Inputs:         inputs,
-		OrgId:          pb.OrgId,
-		ConnectionInfo: pb.ConnectionInfo,
-	}
-	return &t, nil
-}
-
 // idleWatcher calls os.Exit(0) after IdleTimeoutSeconds of inactivity.
-// The timer is suppressed while actions are in progress (activeRequests > 0)
-// so a long-running action never triggers premature self-termination.
-// lastActivity is reset at handler EXIT so the idle clock starts only after
-// all in-flight work completes.
+// Only fires when activeRequests == 0 to avoid killing the executor mid-action.
 func (ec *ExecutorComponent) idleWatcher() {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 	timeout := time.Duration(ec.params.IdleTimeoutSeconds) * time.Second
 	for range ticker.C {
 		if ec.activeRequests.Load() > 0 {
-			continue // actions in flight — don't start the idle clock
+			continue
 		}
 		if idle := time.Since(time.Unix(ec.lastActivity.Load(), 0)); idle >= timeout {
 			ec.logger.Infof("par-executor: idle for %v (no active requests), self-terminating", idle.Round(time.Second))
@@ -511,7 +503,7 @@ func (ec *ExecutorComponent) idleWatcher() {
 	}
 }
 
-// setupSocket mirrors pkg/system-probe/api/server/listener_unix.go.
+// setupSocket creates a Unix Domain Socket listener.
 func setupSocket(socketPath string) (net.Listener, error) {
 	if fi, err := os.Stat(socketPath); err == nil {
 		if fi.Mode()&os.ModeSocket != 0 {
@@ -524,36 +516,14 @@ func setupSocket(socketPath string) (net.Listener, error) {
 	if err != nil {
 		return nil, fmt.Errorf("net.Listen unix %s: %w", socketPath, err)
 	}
-	os.Chmod(socketPath, 0720)
+	os.Chmod(socketPath, 0720) //nolint:errcheck
 	return ln, nil
 }
 
-func handleReady(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
+// isClosedNetErr returns true when the error is from a closed listener.
+func isClosedNetErr(err error) bool {
+	if err == nil {
+		return false
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ready"})
-}
-
-func handleHealth(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
-}
-
-func handleStats(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]interface{}{})
-}
-
-func writeJSON(w http.ResponseWriter, status int, v interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(v)
-}
-
-func writeExecuteError(w http.ResponseWriter, httpStatus int, errorCode int32, msg string) {
-	writeJSON(w, httpStatus, ExecuteResponse{ErrorCode: errorCode, ErrorDetails: msg})
+	return errors.Is(err, net.ErrClosed)
 }

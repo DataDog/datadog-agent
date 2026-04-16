@@ -16,13 +16,11 @@ caps = { workspace = true }
 anyhow.workspace = true
 base64.workspace = true
 dd-agent-log.workspace = true
-http-body-util.workspace = true
-hyper.workspace = true
-hyper-util.workspace = true
 log.workspace = true
 p256.workspace = true
 reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_yaml.workspace = true
-tokio = { workspace = true, features = ["macros", "net", "process", "rt-multi-thread", "signal", "time"] }
+# tokio "net" feature provides UnixStream for the binary UDS protocol
+tokio = { workspace = true, features = ["macros", "net", "process", "rt-multi-thread", "signal", "time", "io-util"] }

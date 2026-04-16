@@ -9,24 +9,18 @@
 //
 // These tests exercise the complete dual-process flow as it would run in
 // production: par-executor is started as a real OS subprocess, tasks are
-// dispatched to it via HTTP/1.1 over UDS (the same channel par-control uses),
-// and results are checked.  They validate the full lifecycle:
-//
-//   par-control equivalent (test) → fork+exec par-executor → /debug/ready
-//   → POST /execute (testConnection, rshell.runCommand) → verify output
-//   → idle timeout → process exits
+// dispatched to it via the binary UDS protocol (the same channel par-control
+// uses), and results are checked.
 //
 // Build the binary once with TestMain and share it across subtests.
 package impl
 
 import (
-	"bytes"
-	"context"
-	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -49,14 +43,9 @@ var e2eBin string
 
 // TestMain builds par-executor once and shares it across all e2e tests.
 func TestMain(m *testing.M) {
-	// Only build if running on Linux — the executor's UDS server and rshell
-	// are Linux-specific.  On macOS the IPC tests (executor_ipc_test.go) are
-	// sufficient; the subprocess tests require a Linux environment.
 	if runtime.GOOS != "linux" {
-		// Still run non-subprocess tests (IPC tests live in the same package).
 		os.Exit(m.Run())
 	}
-
 	bin, err := buildParExecutor()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "e2e: failed to build par-executor: %v\n", err)
@@ -66,10 +55,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-// ── Subprocess helpers ────────────────────────────────────────────────────
-
 func buildParExecutor() (string, error) {
-	// Locate the repo root by walking up from this file's directory.
 	_, thisFile, _, _ := runtime.Caller(0)
 	dir := thisFile
 	for {
@@ -82,7 +68,6 @@ func buildParExecutor() (string, error) {
 			break
 		}
 	}
-
 	bin := filepath.Join(os.TempDir(), "par-executor-e2e")
 	cmd := exec.Command("go", "build", "-o", bin, "./cmd/par-executor/")
 	cmd.Dir = dir
@@ -92,19 +77,13 @@ func buildParExecutor() (string, error) {
 	return bin, nil
 }
 
-// startExecutor launches par-executor as a subprocess and waits for it to
-// signal readiness via GET /debug/ready.  Returns the socket path and a
-// cleanup function that kills the process.
-//
-// allowedFQNs is set via the DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST env
-// var, which the DD config system picks up automatically.
+// startExecutor launches par-executor as a subprocess, waits for ping readiness.
 func startExecutor(t *testing.T, allowedFQNs []string, idleTimeoutSec int) (socketPath string, cleanup func()) {
 	t.Helper()
 	if e2eBin == "" {
 		t.Skip("par-executor binary not built (non-Linux host)")
 	}
 
-	// Short socket path to stay within the 104-char macOS/Linux UDS limit.
 	f, err := os.CreateTemp("/tmp", "pexe2e*.sock")
 	require.NoError(t, err)
 	socketPath = f.Name()
@@ -134,8 +113,7 @@ func startExecutor(t *testing.T, allowedFQNs []string, idleTimeoutSec int) (sock
 	cmd.Stderr = os.Stderr
 	require.NoError(t, cmd.Start())
 
-	// Poll GET /debug/ready — same as par-control STARTING state.
-	require.NoError(t, waitReady(socketPath, 10*time.Second),
+	require.NoError(t, waitPing(socketPath, 10*time.Second),
 		"par-executor did not become ready within 10s")
 
 	return socketPath, func() {
@@ -145,193 +123,166 @@ func startExecutor(t *testing.T, allowedFQNs []string, idleTimeoutSec int) (sock
 	}
 }
 
-// waitReady polls GET /debug/ready until 200 OK or deadline.
-func waitReady(socketPath string, timeout time.Duration) error {
+// waitPing polls the ping frame until pong is received or deadline.
+func waitPing(socketPath string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
-	client := udsHTTPClient(socketPath)
 	for time.Now().Before(deadline) {
-		resp, err := client.Get("http://par-executor/debug/ready")
-		if err == nil && resp.StatusCode == 200 {
-			resp.Body.Close()
-			return nil
+		conn, err := net.DialTimeout("unix", socketPath, time.Second)
+		if err != nil {
+			time.Sleep(100 * time.Millisecond)
+			continue
 		}
-		if resp != nil {
-			resp.Body.Close()
+		conn.Write([]byte{framePing}) //nolint:errcheck
+		var pong [1]byte
+		conn.SetReadDeadline(time.Now().Add(time.Second))
+		_, readErr := io.ReadFull(conn, pong[:])
+		conn.Close()
+		if readErr == nil && pong[0] == 0x01 {
+			return nil
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	return fmt.Errorf("timeout waiting for /debug/ready on %s", socketPath)
+	return fmt.Errorf("timeout waiting for ping pong on %s", socketPath)
 }
 
-// udsHTTPClient mirrors pkg/system-probe/api/client/client_unix.go.
-func udsHTTPClient(socketPath string) *http.Client {
-	return &http.Client{
-		Timeout: 10 * time.Second,
-		Transport: &http.Transport{
-			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
-				return (&net.Dialer{}).DialContext(ctx, "unix", socketPath)
-			},
-		},
-	}
-}
-
-// callExecute builds and fires POST /execute.  Returns (httpStatus, response).
-func callExecute(t *testing.T, socketPath, rawTaskB64 string, timeoutSec int32) (int, ExecuteResponse) {
+// callExecuteE2E dispatches a task to the subprocess executor via binary protocol.
+// Returns (status byte, decoded output or nil, error details).
+func callExecuteE2E(t *testing.T, socketPath string, rawTask []byte, timeoutSecs uint32) (byte, map[string]interface{}, string) {
 	t.Helper()
-	req := ExecuteRequest{RawTask: rawTaskB64, TimeoutSeconds: &timeoutSec}
-	body, err := json.Marshal(req)
-	require.NoError(t, err)
 
-	resp, err := udsHTTPClient(socketPath).Post(
-		"http://par-executor/execute",
-		"application/json",
-		bytes.NewReader(body),
-	)
+	conn, err := net.DialTimeout("unix", socketPath, 2*time.Second)
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer conn.Close()
 
-	var result ExecuteResponse
-	require.NoError(t, json.NewDecoder(resp.Body).Decode(&result))
-	return resp.StatusCode, result
+	conn.Write([]byte{frameExecute})                                     //nolint:errcheck
+	binary.Write(conn, binary.LittleEndian, uint32(len(rawTask)))        //nolint:errcheck
+	conn.Write(rawTask)                                                   //nolint:errcheck
+	binary.Write(conn, binary.LittleEndian, timeoutSecs)                 //nolint:errcheck
+
+	status, payload, readErr := readResponse(conn)
+	require.NoError(t, readErr)
+
+	var output map[string]interface{}
+	var errDetails string
+	if status == statusOK {
+		json.Unmarshal(payload, &output) //nolint:errcheck
+	} else {
+		var errResp errorResponse
+		json.Unmarshal(payload, &errResp) //nolint:errcheck
+		errDetails = errResp.ErrorDetails
+	}
+	return status, output, errDetails
 }
 
-// makeTask builds the base64-encoded raw task bytes that par-control would
-// forward to /execute — mirrors the OPMS dequeue response format.
-func makeTask(t *testing.T, bundleID, actionName string, inputs map[string]interface{}) string {
+// makeE2ETask builds raw OPMS-format task JSON for the given bundle/action.
+func makeE2ETask(t *testing.T, bundleID, actionName string, inputs map[string]interface{}) []byte {
 	t.Helper()
 	inputStruct, err := structpb.NewStruct(inputs)
 	require.NoError(t, err)
 
 	pbTask := &privateactionspb.PrivateActionTask{
-		TaskId:     "e2e-task-001",
-		BundleId:   bundleID,
-		ActionName: actionName,
-		OrgId:      12345,
-		Inputs:     inputStruct,
+		TaskId: "e2e-001", BundleId: bundleID, ActionName: actionName,
+		OrgId: 12345, Inputs: inputStruct,
 	}
 	pbBytes, err := proto.Marshal(pbTask)
 	require.NoError(t, err)
 
 	var task types.Task
-	task.Data.ID = "e2e-task-001"
+	task.Data.ID = "e2e-001"
 	task.Data.Type = "workflowTask"
 	task.Data.Attributes = &types.Attributes{
-		Name:    actionName,
-		BundleID: bundleID,
-		JobId:   "e2e-job-001",
-		OrgId:   12345,
+		Name: actionName, BundleID: bundleID, JobId: "e2e-job", OrgId: 12345,
 		SignedEnvelope: &privateactionspb.RemoteConfigSignatureEnvelope{
-			Data:     pbBytes,
-			HashType: privateactionspb.HashType_SHA256,
+			Data: pbBytes, HashType: privateactionspb.HashType_SHA256,
 		},
 	}
 	raw, err := json.Marshal(task)
 	require.NoError(t, err)
-	return base64.StdEncoding.EncodeToString(raw)
+	return raw
 }
 
 // ── E2E tests ─────────────────────────────────────────────────────────────
 
-// TestE2E_FullLifecycle_TestConnection validates the core dual-process flow:
-// par-control analogue → executor subprocess → /execute → testConnection output.
 func TestE2E_FullLifecycle_TestConnection(t *testing.T) {
-	socketPath, stop := startExecutor(t, []string{
-		"com.datadoghq.remoteaction.testConnection",
-	}, 120)
+	socketPath, stop := startExecutor(t, []string{"com.datadoghq.remoteaction.testConnection"}, 120)
 	defer stop()
 
-	rawTask := makeTask(t, "com.datadoghq.remoteaction", "testConnection", nil)
-	status, resp := callExecute(t, socketPath, rawTask, 30)
+	raw := makeE2ETask(t, "com.datadoghq.remoteaction", "testConnection", nil)
+	status, output, errDetails := callExecuteE2E(t, socketPath, raw, 30)
 
-	assert.Equal(t, 200, status)
-	require.Equal(t, int32(0), resp.ErrorCode, "testConnection failed: %s", resp.ErrorDetails)
-	require.NotNil(t, resp.Output)
-
-	out, ok := resp.Output.(map[string]interface{})
-	require.True(t, ok)
-	assert.Equal(t, true, out["success"])
-	assert.NotNil(t, out["agentInfo"])
-	t.Logf("testConnection output: %v", out)
+	require.Equal(t, statusOK, status, "testConnection failed: %s", errDetails)
+	require.NotNil(t, output)
+	assert.Equal(t, true, output["success"])
+	t.Logf("testConnection output: %v", output)
 }
 
-// TestE2E_FullLifecycle_RShellRunCommand validates rshell action execution:
-// command="echo hello" should return exitCode=0, stdout="hello\n".
 func TestE2E_FullLifecycle_RShellRunCommand(t *testing.T) {
-	socketPath, stop := startExecutor(t, []string{
-		"com.datadoghq.remoteaction.rshell.runCommand",
-	}, 120)
+	socketPath, stop := startExecutor(t, []string{"com.datadoghq.remoteaction.rshell.runCommand"}, 120)
 	defer stop()
 
-	rawTask := makeTask(t, "com.datadoghq.remoteaction.rshell", "runCommand", map[string]interface{}{
+	raw := makeE2ETask(t, "com.datadoghq.remoteaction.rshell", "runCommand", map[string]interface{}{
 		"command":         "echo hello",
 		"allowedCommands": []interface{}{"echo"},
 	})
-	status, resp := callExecute(t, socketPath, rawTask, 30)
+	status, output, errDetails := callExecuteE2E(t, socketPath, raw, 30)
 
-	assert.Equal(t, 200, status)
-	require.Equal(t, int32(0), resp.ErrorCode, "runCommand failed: %s", resp.ErrorDetails)
-	require.NotNil(t, resp.Output)
-
-	out, ok := resp.Output.(map[string]interface{})
-	require.True(t, ok)
-	assert.Equal(t, float64(0), out["exitCode"])
-	assert.Equal(t, "hello\n", out["stdout"])
-	t.Logf("runCommand output: %v", out)
+	require.Equal(t, statusOK, status, "runCommand failed: %s", errDetails)
+	require.NotNil(t, output)
+	assert.Equal(t, float64(0), output["exitCode"])
+	assert.Equal(t, "hello\n", output["stdout"])
 }
 
-// TestE2E_IdleTimeout verifies that par-executor self-terminates after the
-// configured idle period with no active requests.
 func TestE2E_IdleTimeout(t *testing.T) {
-	const idleTimeoutSec = 3 // short timeout for test speed
+	const idleTimeoutSec = 3
 
-	socketPath, stop := startExecutor(t, []string{
-		"com.datadoghq.remoteaction.testConnection",
-	}, idleTimeoutSec)
-	defer stop() // belt-and-suspenders cleanup
+	socketPath, stop := startExecutor(t, []string{"com.datadoghq.remoteaction.testConnection"}, idleTimeoutSec)
+	defer stop()
 
-	// Run one action to confirm the executor is working.
-	rawTask := makeTask(t, "com.datadoghq.remoteaction", "testConnection", nil)
-	_, resp := callExecute(t, socketPath, rawTask, 10)
-	require.Equal(t, int32(0), resp.ErrorCode)
+	// Confirm executor is working.
+	raw := makeE2ETask(t, "com.datadoghq.remoteaction", "testConnection", nil)
+	status, _, _ := callExecuteE2E(t, socketPath, raw, 10)
+	require.Equal(t, statusOK, status)
 
-	// Wait for the idle timer to fire (idleTimeoutSec + 2s watcher tick + margin).
+	// Wait for idle timer — executor should stop responding to pings.
 	deadline := time.Now().Add(time.Duration(idleTimeoutSec+10) * time.Second)
 	exited := false
 	for time.Now().Before(deadline) {
-		// Health ping: if the executor has exited, the connection will fail.
-		resp, err := udsHTTPClient(socketPath).Get("http://par-executor/debug/health")
+		conn, err := net.DialTimeout("unix", socketPath, 500*time.Millisecond)
 		if err != nil {
 			exited = true
 			break
 		}
-		resp.Body.Close()
+		conn.Write([]byte{framePing}) //nolint:errcheck
+		var pong [1]byte
+		conn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+		if _, err := io.ReadFull(conn, pong[:]); err != nil {
+			conn.Close()
+			exited = true
+			break
+		}
+		conn.Close()
 		time.Sleep(500 * time.Millisecond)
 	}
 	assert.True(t, exited, "par-executor should have self-terminated after %ds idle", idleTimeoutSec)
 }
 
-// TestE2E_ConcurrentActions verifies that multiple actions can run in parallel
-// (up to RunnerPoolSize) — the semaphore allows concurrent dispatch.
 func TestE2E_ConcurrentActions(t *testing.T) {
-	socketPath, stop := startExecutor(t, []string{
-		"com.datadoghq.remoteaction.testConnection",
-	}, 120)
+	socketPath, stop := startExecutor(t, []string{"com.datadoghq.remoteaction.testConnection"}, 120)
 	defer stop()
 
 	const n = 5
-	results := make(chan ExecuteResponse, n)
-	rawTask := makeTask(t, "com.datadoghq.remoteaction", "testConnection", nil)
+	type result struct{ status byte }
+	results := make(chan result, n)
+	raw := makeE2ETask(t, "com.datadoghq.remoteaction", "testConnection", nil)
 
-	// Fire n requests concurrently — they should all complete successfully.
 	for i := 0; i < n; i++ {
 		go func() {
-			_, resp := callExecute(t, socketPath, rawTask, 30)
-			results <- resp
+			s, _, _ := callExecuteE2E(t, socketPath, raw, 30)
+			results <- result{s}
 		}()
 	}
-
 	for i := 0; i < n; i++ {
-		resp := <-results
-		assert.Equal(t, int32(0), resp.ErrorCode, "concurrent action %d failed: %s", i, resp.ErrorDetails)
+		r := <-results
+		assert.Equal(t, statusOK, r.status, "concurrent action %d failed", i)
 	}
 }

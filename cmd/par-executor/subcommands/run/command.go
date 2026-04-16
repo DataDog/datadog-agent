@@ -21,8 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	remotehostnameimpl "github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/rcclientimpl"
+	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
+	rcclientfx "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/fx"
 	rcservicefx "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/fx"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -75,7 +75,7 @@ func runParExecutor(ctx context.Context, cfgPath string, extraConfFiles []string
 		remotehostnameimpl.Module(),
 		ipcfx.ModuleReadWrite(),
 		rcservicefx.Module(),
-		rcclientimpl.Module(),
+		rcclientfx.Module(),
 		fx.Supply(rcclient.Params{AgentName: "par-executor", AgentVersion: version.AgentVersion}),
 		// === End identical section ===
 

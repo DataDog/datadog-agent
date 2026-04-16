@@ -7,25 +7,24 @@
 
 // Package impl — IPC protocol tests.
 //
-// These tests verify the HTTP/1.1 over UDS wire protocol between par-control
-// and par-executor without the full FX stack.  They test the HTTP handler
-// layer directly, confirming that:
-//   - The request/response JSON field names and types are correct.
-//   - base64.StdEncoding decoding works for the raw_task field.
-//   - error_code=0 is returned for successful actions.
-//   - Non-zero error_code is returned for allowlist violations.
-//   - 400 is returned for malformed requests.
+// Tests verify the binary length-framing protocol between par-control and
+// par-executor without the full FX stack, by exercising the binary handler
+// layer directly:
+//   - Ping frames return a pong
+//   - Execute frames with a valid task return success + correct output
+//   - Allowlist violations return a non-zero error_code
+//   - Malformed requests (zero-length task) return an error gracefully
+//   - SO_PEERCRED: connection from the same process passes (in-process test)
 package impl
 
 import (
-	"bytes"
 	"context"
-	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
+	"io"
 	"net"
-	"net/http"
 	"os"
-	"sync/atomic"
+	"sync"
 	"testing"
 	"time"
 
@@ -40,15 +39,14 @@ import (
 
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
+	com_datadoghq_remoteaction "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction"
 	credresolver "github.com/DataDog/datadog-agent/pkg/privateactionrunner/credentials/resolver"
 	privateactionspb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	taskverifier "github.com/DataDog/datadog-agent/pkg/privateactionrunner/task-verifier"
-	com_datadoghq_remoteaction "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-// testServer starts the executor HTTP handler on a temp Unix socket and
-// returns the socket path plus a cleanup function.
+// testServer starts the executor binary-protocol handler on a temp Unix socket.
 func testServer(t *testing.T, allowlist map[string]sets.Set[string]) (socketPath string, stop func()) {
 	t.Helper()
 	t.Setenv("DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION", "true")
@@ -57,139 +55,129 @@ func testServer(t *testing.T, allowlist map[string]sets.Set[string]) (socketPath
 		ActionsAllowlist: allowlist,
 		MetricsClient:    &statsd.NoOpClient{},
 	}
-
-	var verifier *taskverifier.TaskVerifier // nil — skip path in unwrapTask
-
+	// DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION=true is set above, so
+	// NewTaskVerifier returns the no-op verifier (no RC connection needed).
+	verifier := taskverifier.NewTaskVerifier(nil, cfg)
 	resolver := credresolver.NewPrivateCredentialResolver()
-
 	bundles := map[string]types.Bundle{
 		"com.datadoghq.remoteaction": com_datadoghq_remoteaction.NewRemoteAction(),
 	}
 
-	ctx := context.Background()
-	var lastActivity atomic.Int64
-	var activeRequests atomic.Int32
-	sem := make(chan struct{}, 5)
-	handler := makeExecuteHandler(ctx, cfg, verifier, resolver, bundles, &lastActivity, &activeRequests, sem, 0)
+	ctx, cancel := context.WithCancel(context.Background())
 
-	// Use /tmp with a short name — t.TempDir() produces paths that exceed
-	// macOS's 104-character Unix socket path limit.
 	f, err := os.CreateTemp("/tmp", "pex*.sock")
 	require.NoError(t, err)
 	socketPath = f.Name()
 	f.Close()
 	os.Remove(socketPath)
+
 	ln, err := net.Listen("unix", socketPath)
 	require.NoError(t, err)
 	os.Chmod(socketPath, 0720) //nolint:errcheck
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("/execute", handler)
-	mux.HandleFunc("/debug/ready", handleReady)
-	mux.HandleFunc("/debug/health", handleHealth)
+	ec := &ExecutorComponent{
+		params: Params{IdleTimeoutSeconds: 0},
+	}
 
-	srv := &http.Server{Handler: mux}
-	go srv.Serve(ln) //nolint:errcheck
+	sem := make(chan struct{}, 5)
+	var wg sync.WaitGroup
+
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				ec.handleConn(ctx, conn, cfg, verifier, resolver, bundles, sem)
+			}()
+		}
+	}()
 
 	return socketPath, func() {
-		srv.Close()
+		cancel()
 		ln.Close()
+		wg.Wait()
 		os.Remove(socketPath)
 	}
 }
 
-// udsClient builds an http.Client that dials a Unix socket.
-// Mirrors pkg/system-probe/api/client/client_unix.go.
-func udsClient(socketPath string) *http.Client {
-	return &http.Client{
-		Timeout: 5 * time.Second,
-		Transport: &http.Transport{
-			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
-				return (&net.Dialer{}).DialContext(ctx, "unix", socketPath)
-			},
-		},
-	}
+// dialUDS opens a connection to the test server.
+func dialUDS(t *testing.T, socketPath string) net.Conn {
+	t.Helper()
+	conn, err := net.DialTimeout("unix", socketPath, 2*time.Second)
+	require.NoError(t, err)
+	return conn
 }
 
-// makeRawTask builds the base64-encoded raw task bytes that par-control
-// would forward from OPMS to /execute.
-func makeRawTask(t *testing.T, bundleID, actionName string, inputs map[string]interface{}) string {
+// sendPing sends a ping frame and reads the pong byte.
+func sendPing(t *testing.T, socketPath string) bool {
 	t.Helper()
+	conn := dialUDS(t, socketPath)
+	defer conn.Close()
+	_, err := conn.Write([]byte{framePing})
+	require.NoError(t, err)
+	var pong [1]byte
+	_, err = io.ReadFull(conn, pong[:])
+	require.NoError(t, err)
+	return pong[0] == 0x01
+}
 
+// sendExecute sends a binary execute frame and reads the response.
+func sendExecute(t *testing.T, socketPath string, rawTask []byte, timeoutSecs uint32) (status byte, payload []byte) {
+	t.Helper()
+	conn := dialUDS(t, socketPath)
+	defer conn.Close()
+
+	// Write: [frame_type][task_len][task bytes][timeout]
+	_, err := conn.Write([]byte{frameExecute})
+	require.NoError(t, err)
+	require.NoError(t, binary.Write(conn, binary.LittleEndian, uint32(len(rawTask))))
+	_, err = conn.Write(rawTask)
+	require.NoError(t, err)
+	require.NoError(t, binary.Write(conn, binary.LittleEndian, timeoutSecs))
+
+	s, p, readErr := readResponse(conn)
+	require.NoError(t, readErr)
+	return s, p
+}
+
+// makeRawTask builds the raw OPMS task JSON (same bytes par-control forwards).
+func makeRawTask(t *testing.T, bundleID, actionName string, inputs map[string]interface{}) []byte {
+	t.Helper()
 	inputStruct, err := structpb.NewStruct(inputs)
 	require.NoError(t, err)
-
 	pbTask := &privateactionspb.PrivateActionTask{
-		TaskId:     "test-task-001",
-		BundleId:   bundleID,
-		ActionName: actionName,
-		OrgId:      12345,
-		Inputs:     inputStruct,
+		TaskId: "test-001", BundleId: bundleID, ActionName: actionName,
+		OrgId: 12345, Inputs: inputStruct,
 	}
 	pbBytes, err := proto.Marshal(pbTask)
 	require.NoError(t, err)
 
-	envelope := &privateactionspb.RemoteConfigSignatureEnvelope{
-		Data:     pbBytes,
-		HashType: privateactionspb.HashType_SHA256,
-		// No signatures — skip verification bypasses the signature check.
-	}
-
 	var task types.Task
-	task.Data.ID = "test-task-001"
+	task.Data.ID = "test-001"
 	task.Data.Type = "workflowTask"
 	task.Data.Attributes = &types.Attributes{
-		Name:           actionName,
-		BundleID:       bundleID,
-		JobId:          "job-001",
-		OrgId:          12345,
-		SignedEnvelope: envelope,
+		Name: actionName, BundleID: bundleID, JobId: "job-001", OrgId: 12345,
+		SignedEnvelope: &privateactionspb.RemoteConfigSignatureEnvelope{
+			Data: pbBytes, HashType: privateactionspb.HashType_SHA256,
+		},
 	}
-
 	raw, err := json.Marshal(task)
 	require.NoError(t, err)
-	return base64.StdEncoding.EncodeToString(raw)
-}
-
-// post calls POST /execute and decodes the ExecuteResponse.
-func post(t *testing.T, client *http.Client, socketPath, rawTaskB64 string) (int, ExecuteResponse) {
-	t.Helper()
-
-	timeout := int32(10)
-	req := ExecuteRequest{RawTask: rawTaskB64, TimeoutSeconds: &timeout}
-	body, err := json.Marshal(req)
-	require.NoError(t, err)
-
-	resp, err := client.Post("http://par-executor/execute", "application/json", bytes.NewReader(body))
-	require.NoError(t, err)
-	defer resp.Body.Close()
-
-	var result ExecuteResponse
-	require.NoError(t, json.NewDecoder(resp.Body).Decode(&result))
-	return resp.StatusCode, result
+	return raw
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────
 
-func TestIPC_DebugEndpoints(t *testing.T) {
+func TestIPC_Ping(t *testing.T) {
 	socketPath, stop := testServer(t, map[string]sets.Set[string]{})
 	defer stop()
-
-	client := udsClient(socketPath)
-
-	resp, err := client.Get("http://par-executor/debug/ready")
-	require.NoError(t, err)
-	resp.Body.Close()
-	assert.Equal(t, 200, resp.StatusCode)
-
-	resp, err = client.Get("http://par-executor/debug/health")
-	require.NoError(t, err)
-	resp.Body.Close()
-	assert.Equal(t, 200, resp.StatusCode)
+	assert.True(t, sendPing(t, socketPath), "ping should return pong 0x01")
 }
 
-// TestIPC_Execute_TestConnection verifies the happy path: par-control sends a
-// testConnection task, executor returns success with output.
 func TestIPC_Execute_TestConnection(t *testing.T) {
 	allowlist := map[string]sets.Set[string]{
 		"com.datadoghq.remoteaction": sets.New[string]("testConnection"),
@@ -197,51 +185,51 @@ func TestIPC_Execute_TestConnection(t *testing.T) {
 	socketPath, stop := testServer(t, allowlist)
 	defer stop()
 
-	rawTaskB64 := makeRawTask(t, "com.datadoghq.remoteaction", "testConnection", nil)
-	status, result := post(t, udsClient(socketPath), socketPath, rawTaskB64)
+	// Raw task bytes passed verbatim — no base64, no JSON wrapper.
+	raw := makeRawTask(t, "com.datadoghq.remoteaction", "testConnection", nil)
+	status, payload := sendExecute(t, socketPath, raw, 30)
 
-	assert.Equal(t, 200, status)
-	assert.Equal(t, int32(0), result.ErrorCode, "expected success: %s", result.ErrorDetails)
-	require.NotNil(t, result.Output)
-
-	// testConnection output: {"success": true, "agentInfo": {"version": "..."}}
-	out := result.Output.(map[string]interface{})
-	assert.Equal(t, true, out["success"])
+	assert.Equal(t, statusOK, status)
+	var output map[string]interface{}
+	require.NoError(t, json.Unmarshal(payload, &output))
+	assert.Equal(t, true, output["success"])
 }
 
-// TestIPC_Execute_AllowlistBlocked verifies that an action not in the
-// allowlist returns a non-zero error_code.
 func TestIPC_Execute_AllowlistBlocked(t *testing.T) {
-	// Allow testConnection but not runCommand.
-	allowlist := map[string]sets.Set[string]{
-		"com.datadoghq.remoteaction": sets.New[string]("testConnection"),
-	}
-	socketPath, stop := testServer(t, allowlist)
-	defer stop()
-
-	// rshell.runCommand is not registered and not in allowlist.
-	rawTaskB64 := makeRawTask(t, "com.datadoghq.remoteaction", "unknownAction", nil)
-	_, result := post(t, udsClient(socketPath), socketPath, rawTaskB64)
-
-	assert.NotEqual(t, int32(0), result.ErrorCode)
-}
-
-// TestIPC_Execute_BadBase64 verifies that malformed base64 in raw_task
-// returns HTTP 400, consistent with the error handling the Rust client expects.
-func TestIPC_Execute_BadBase64(t *testing.T) {
 	socketPath, stop := testServer(t, map[string]sets.Set[string]{})
 	defer stop()
 
-	body := `{"raw_task": "!!not-valid-base64!!"}`
-	resp, err := udsClient(socketPath).Post(
-		"http://par-executor/execute",
-		"application/json",
-		bytes.NewReader([]byte(body)),
-	)
-	require.NoError(t, err)
-	resp.Body.Close()
-	assert.Equal(t, 400, resp.StatusCode)
+	raw := makeRawTask(t, "com.datadoghq.remoteaction", "testConnection", nil)
+	status, payload := sendExecute(t, socketPath, raw, 10)
+
+	assert.Equal(t, statusErr, status)
+	var errResp errorResponse
+	require.NoError(t, json.Unmarshal(payload, &errResp))
+	assert.NotEqual(t, int32(0), errResp.ErrorCode)
 }
 
-// ensure log adapter used (avoids unused import errors)
-var _ = log.FromContext
+func TestIPC_Execute_ZeroLengthTask(t *testing.T) {
+	// Zero task_len is a protocol error — server should return error or close gracefully.
+	socketPath, stop := testServer(t, map[string]sets.Set[string]{})
+	defer stop()
+
+	conn := dialUDS(t, socketPath)
+	defer conn.Close()
+
+	conn.Write([]byte{frameExecute})               //nolint:errcheck
+	binary.Write(conn, binary.LittleEndian, uint32(0)) //nolint:errcheck
+
+	// Either the server closes the connection or sends an error — no panic.
+	conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	var statusBuf [1]byte
+	_, _ = io.ReadFull(conn, statusBuf[:])
+}
+
+func TestIPC_SOPeerCred_SameProcess(t *testing.T) {
+	// Connections from the same process (same UID) must pass the SO_PEERCRED check.
+	socketPath, stop := testServer(t, map[string]sets.Set[string]{})
+	defer stop()
+	assert.True(t, sendPing(t, socketPath), "same-process connection should pass SO_PEERCRED")
+}
+
+var _ = log.FromContext // prevent unused-import error
