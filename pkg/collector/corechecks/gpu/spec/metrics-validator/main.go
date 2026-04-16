@@ -11,6 +11,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"strings"
 )
@@ -18,45 +19,60 @@ import (
 func main() {
 	var site string
 	var lookbackSeconds int64
+	var outputFile string
 
 	flag.StringVar(&site, "site", "", "Datadog site")
 	flag.Int64Var(&lookbackSeconds, "lookback-seconds", 3600, "Metrics lookback window in seconds")
+	flag.StringVar(&outputFile, "output-file", "", "Write JSON results to the given file instead of stdout")
 	flag.Parse()
 
-	if err := validateFlags(site, lookbackSeconds); err != nil {
-		exitValidationError(err)
+	if err := validateFlags(site, lookbackSeconds, outputFile); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "gpu metrics validation failed: %v\n", err)
+		os.Exit(1)
 	}
 
 	apiKey, appKey, err := authKeysFromEnv()
 	if err != nil {
-		exitValidationError(err)
+		log.Fatalf("gpu metrics validation failed: %v", err)
 	}
 
-	metricsResults, err := computeValidation(apiKey, appKey, site, lookbackSeconds)
+	results, err := computeValidation(apiKey, appKey, site, lookbackSeconds)
 	if err != nil {
-		exitValidationError(err)
+		log.Fatalf("gpu metrics validation failed: %v", err)
 	}
 
-	encoder := json.NewEncoder(os.Stdout)
-	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(metricsResults); err != nil {
-		exitValidationError(err)
+	if err := writeResults(results, outputFile); err != nil {
+		log.Fatalf("gpu metrics validation failed: %v", err)
 	}
 }
 
-func validateFlags(site string, lookbackSeconds int64) error {
+func writeResults(results orgValidationResults, outputFile string) error {
+	outputPath := strings.TrimSpace(outputFile)
+	file, err := os.Create(outputPath)
+	if err != nil {
+		return fmt.Errorf("create output file %q: %w", outputPath, err)
+	}
+	defer file.Close()
+
+	encoder := json.NewEncoder(file)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(results); err != nil {
+		return fmt.Errorf("encode validation results: %w", err)
+	}
+	return nil
+}
+
+func validateFlags(site string, lookbackSeconds int64, outputFile string) error {
 	if strings.TrimSpace(site) == "" {
 		return errors.New("--site is required")
 	}
 	if lookbackSeconds <= 0 {
 		return errors.New("--lookback-seconds must be greater than 0")
 	}
+	if strings.TrimSpace(outputFile) == "" {
+		return errors.New("--output-file is required")
+	}
 	return nil
-}
-
-func exitValidationError(err error) {
-	_, _ = fmt.Fprintf(os.Stderr, "gpu metrics validation failed: %v\n", err)
-	os.Exit(1)
 }
 
 func authKeysFromEnv() (string, string, error) {
