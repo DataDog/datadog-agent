@@ -61,17 +61,17 @@ func NewConcentrator(conf *config.AgentConfig, writer Writer, now time.Time, sta
 	_, disabledCIDStats := conf.Features["disable_cid_stats"]
 	_, disabledProcessStats := conf.Features["disable_process_stats"]
 	c := Concentrator{
-		spanConcentrator:        sc,
-		Writer:                  writer,
-		exit:                    make(chan struct{}),
-		cidStats:                !disabledCIDStats,
-		processStats:            !disabledProcessStats,
-		agentEnv:                conf.DefaultEnv,
-		agentHostname:           conf.Hostname,
-		agentVersion:            conf.AgentVersion,
-		statsd:                  statsd,
-		bsize:                   bsize,
-		peerTagKeys:             conf.ConfiguredPeerTags(),
+		spanConcentrator: sc,
+		Writer:           writer,
+		exit:             make(chan struct{}),
+		cidStats:         !disabledCIDStats,
+		processStats:     !disabledProcessStats,
+		agentEnv:         conf.DefaultEnv,
+		agentHostname:    conf.Hostname,
+		agentVersion:     conf.AgentVersion,
+		statsd:           statsd,
+		bsize:            bsize,
+		peerTagKeys:      conf.ConfiguredPeerTags(),
 		// additionalMetricTagKeys is intentionally nil on the agent side. This feature is only
 		// configurable through the Go tracer (dd-trace-go), which imports the SpanConcentrator
 		// directly and passes its own tag keys via NewStatSpanWithConfig's StatSpanConfig.AdditionalMetricTagKeys.
