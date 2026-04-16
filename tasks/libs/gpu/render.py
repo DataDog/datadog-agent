@@ -87,7 +87,25 @@ def print_result_details(results: list[GPUConfigValidationResult]) -> None:
             print(f"{SPACER}metric failures")
 
             for metric_name, metric_status in failing_metrics:
-                print(f"{SPACER * 2}- {metric_name}: {', '.join(metric_status.errors)}")
+                metric_details: list[str] = []
+                if metric_status.missing > 0:
+                    metric_details.append(f"missing={metric_status.missing}")
+                if metric_status.unknown > 0:
+                    metric_details.append(f"unknown={metric_status.unknown}")
+                if metric_status.unsupported > 0:
+                    metric_details.append(f"unsupported={metric_status.unsupported}")
+                if metric_status.invalid_value > 0:
+                    metric_details.append(f"invalid={metric_status.invalid_value}")
+                if metric_details:
+                    print(f"{SPACER * 2}- {metric_name}: {', '.join(metric_details)}")
+                else:
+                    print(f"{SPACER * 2}- {metric_name}")
+
+                if metric_status.invalid_value_samples:
+                    print(
+                        f"{SPACER * 3}- invalid value samples: "
+                        + "; ".join(metric_status.invalid_value_samples)
+                    )
 
                 for tag_name, tag_result in sorted(metric_status.tag_results.items()):
                     if not tag_result.has_failures:

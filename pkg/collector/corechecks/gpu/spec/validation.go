@@ -55,16 +55,15 @@ type MetricObservation struct {
 	Value *float64
 }
 
-const (
-	ErrorMissing      = "missing"
-	ErrorUnknown      = "unknown"
-	ErrorUnsupported  = "unsupported"
-	ErrorInvalidValue = "invalid value"
-)
+const maxInvalidValueSamplesPerMetric = 5
 
 type MetricStatus struct {
-	Errors     []string               `json:"errors"`
-	TagResults map[string]*TagSummary `json:"tag_results"`
+	Missing             int                    `json:"missing"`
+	Unknown             int                    `json:"unknown"`
+	Unsupported         int                    `json:"unsupported"`
+	InvalidValue        int                    `json:"invalid_value"`
+	InvalidValueSamples []string               `json:"invalid_value_samples,omitempty"`
+	TagResults          map[string]*TagSummary `json:"tag_results"`
 }
 
 type TagSummary struct {
@@ -79,10 +78,10 @@ type ValidationResult struct {
 	Metrics map[string]*MetricStatus `json:"metrics"`
 }
 
-// HasFailures returns true when the result contains any missing, unknown, or tag-level failures.
+// HasFailures returns true when the result contains metric-level or tag-level failures.
 func (r *ValidationResult) HasFailures() bool {
 	for _, status := range r.Metrics {
-		if len(status.Errors) > 0 {
+		if status.Missing > 0 || status.Unknown > 0 || status.Unsupported > 0 || status.InvalidValue > 0 {
 			return true
 		}
 		for _, tagResult := range status.TagResults {
@@ -97,15 +96,18 @@ func (r *ValidationResult) HasFailures() bool {
 func (r *ValidationResult) getMetricStatus(metricName string) *MetricStatus {
 	if _, found := r.Metrics[metricName]; !found {
 		r.Metrics[metricName] = &MetricStatus{
-			Errors:     []string{},
 			TagResults: map[string]*TagSummary{},
 		}
 	}
 	return r.Metrics[metricName]
 }
 
-func (r *ValidationResult) addError(metricName string, err string) {
-	r.getMetricStatus(metricName).Errors = append(r.getMetricStatus(metricName).Errors, err)
+func (r *ValidationResult) addInvalidValue(metricName string, sample string) {
+	metricStatus := r.getMetricStatus(metricName)
+	metricStatus.InvalidValue++
+	if len(metricStatus.InvalidValueSamples) < maxInvalidValueSamplesPerMetric {
+		metricStatus.InvalidValueSamples = append(metricStatus.InvalidValueSamples, sample)
+	}
 }
 
 // KnownGPUConfigs returns all supported architecture + mode combinations.
@@ -267,12 +269,12 @@ func ValidateEmittedMetricsAgainstSpec(metricsSpec *MetricsSpec, config GPUConfi
 	for metricName := range emittedMetrics {
 		metricSpec, found := metricsSpec.Metrics[metricName]
 		if !found {
-			results.addError(metricName, ErrorUnknown)
+			results.getMetricStatus(metricName).Unknown++
 			continue
 		}
 
 		if !metricSpec.SupportsConfig(config) {
-			results.addError(metricName, ErrorUnsupported)
+			results.getMetricStatus(metricName).Unsupported++
 		}
 	}
 
@@ -280,7 +282,7 @@ func ValidateEmittedMetricsAgainstSpec(metricsSpec *MetricsSpec, config GPUConfi
 	for metricName, metricSpec := range expectedMetrics {
 		metricSamples, found := emittedMetrics[metricName]
 		if !found {
-			results.addError(metricName, ErrorMissing)
+			results.getMetricStatus(metricName).Missing++
 			continue
 		}
 
@@ -301,7 +303,7 @@ func ValidateEmittedMetricsAgainstSpec(metricsSpec *MetricsSpec, config GPUConfi
 				continue
 			}
 			if err := metricSpec.Validator.Validate(*sample.Value); err != nil {
-				metricStatus.Errors = append(metricStatus.Errors, fmt.Sprintf("%s: %v", ErrorInvalidValue, err))
+				results.addInvalidValue(metricName, err.Error())
 			}
 		}
 	}

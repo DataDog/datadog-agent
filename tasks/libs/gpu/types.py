@@ -18,9 +18,6 @@ STATE_BY_NAME = {
     "missing": GPUConfigValidationState.MISSING,
 }
 
-INVALID_VALUE_ERROR_PREFIX = "invalid value"
-
-
 @dataclass(slots=True)
 class GPUConfig:
     architecture: str
@@ -41,15 +38,31 @@ class TagSummary:
 
 @dataclass(slots=True)
 class MetricStatus:
-    errors: list[str] = field(default_factory=list)
+    missing: int = 0
+    unknown: int = 0
+    unsupported: int = 0
+    invalid_value: int = 0
+    invalid_value_samples: list[str] = field(default_factory=list)
     tag_results: dict[str, TagSummary] = field(default_factory=dict)
 
     @property
     def has_failures(self) -> bool:
-        return bool(self.errors) or any(tag_result.has_failures for tag_result in self.tag_results.values())
+        return (
+            self.missing > 0
+            or self.unknown > 0
+            or self.unsupported > 0
+            or self.invalid_value > 0
+            or any(tag_result.has_failures for tag_result in self.tag_results.values())
+        )
 
     def update(self, other: MetricStatus) -> None:
-        self.errors.extend(other.errors)
+        self.missing += other.missing
+        self.unknown += other.unknown
+        self.unsupported += other.unsupported
+        self.invalid_value += other.invalid_value
+        remaining_sample_capacity = max(0, 5 - len(self.invalid_value_samples))
+        if remaining_sample_capacity > 0:
+            self.invalid_value_samples.extend(other.invalid_value_samples[:remaining_sample_capacity])
         for tag_name, other_tag_result in other.tag_results.items():
             if tag_name not in self.tag_results:
                 self.tag_results[tag_name] = TagSummary()
@@ -91,14 +104,14 @@ class GPUConfigValidationResult:
 
     @property
     def missing_metrics(self) -> int:
-        return sum(1 for metric_status in self.detailed_result.metrics.values() if "missing" in metric_status.errors)
+        return sum(1 for metric_status in self.detailed_result.metrics.values() if metric_status.missing > 0)
 
     @property
     def unknown_metrics(self) -> int:
         return sum(
             1
             for metric_status in self.detailed_result.metrics.values()
-            if "unknown" in metric_status.errors or "unsupported" in metric_status.errors
+            if metric_status.unknown > 0 or metric_status.unsupported > 0
         )
 
     @property
@@ -115,12 +128,7 @@ class GPUConfigValidationResult:
 
     @property
     def invalid_values(self) -> int:
-        metric_invalid_values = sum(
-            1
-            for metric_status in self.detailed_result.metrics.values()
-            for error in metric_status.errors
-            if error.startswith(INVALID_VALUE_ERROR_PREFIX)
-        )
+        metric_invalid_values = sum(metric_status.invalid_value for metric_status in self.detailed_result.metrics.values())
         tag_invalid_values = sum(
             tag_result.invalid_value
             for metric_status in self.detailed_result.metrics.values()
@@ -167,7 +175,11 @@ def validation_results_from_dict(payload: dict, *, site: str) -> ValidationResul
             detailed_result=DetailedValidationResult(
                 metrics={
                     metric_name: MetricStatus(
-                        errors=list(metric_status.get("errors", [])),
+                        missing=int(metric_status.get("missing", 0)),
+                        unknown=int(metric_status.get("unknown", 0)),
+                        unsupported=int(metric_status.get("unsupported", 0)),
+                        invalid_value=int(metric_status.get("invalid_value", 0)),
+                        invalid_value_samples=list(metric_status.get("invalid_value_samples", []))[:5],
                         tag_results={
                             tag: TagSummary(
                                 found=int(tag_result.get("found", 0)),

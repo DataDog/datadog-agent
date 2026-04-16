@@ -90,11 +90,11 @@ func (v *MetricValidator) Validate(value float64) error {
 		return nil
 	}
 	if math.IsNaN(value) || math.IsInf(value, 0) {
-		return fmt.Errorf("metric value %v is not finite", value)
+		return fmt.Errorf("%v not finite", value)
 	}
 	if v.Range != nil {
 		if value < *v.Range.Min || value > *v.Range.Max {
-			return fmt.Errorf("metric value %v is outside inclusive range [%v, %v]", value, *v.Range.Min, *v.Range.Max)
+			return fmt.Errorf("%v not in range [%v, %v]", value, *v.Range.Min, *v.Range.Max)
 		}
 		return nil
 	}
@@ -104,7 +104,7 @@ func (v *MetricValidator) Validate(value float64) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("metric value %v is not one of the allowed values %v", value, v.Values)
+	return fmt.Errorf("%v not in %v", value, v.Values)
 }
 
 func (v *MetricValidator) validateDefinition() error {
