@@ -10,6 +10,8 @@ package processor
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -19,8 +21,15 @@ type ExtractionResult struct {
 	IsJSON bool
 	// Message is the extracted message field (empty if not found or not JSON)
 	Message string
-	// JSONContext is the ordered, serialized remaining JSON fields (nil if not JSON or extraction failed)
-	JSONContext []byte
+	// MessageKey is the JSON key the message was extracted from (e.g. "msg", "message")
+	MessageKey string
+	// JSONContextSchema is a comma-separated sorted list of top-level keys for the JSON context.
+	// When populated, JSONContextValues contains the corresponding values in the same order.
+	// Example: for {"level":"info","pid":1234,"service":"api"}, schema is "level,pid,service".
+	JSONContextSchema string
+	// JSONContextValues contains the leaf values corresponding to JSONContextSchema keys, in order.
+	// Nested objects/arrays are serialized as JSON strings.
+	JSONContextValues []string
 }
 
 // Common top-level message field names (Layer 0)
@@ -64,26 +73,68 @@ func PreprocessJSON(content []byte) ExtractionResult {
 	// Remove the extracted message field from data for jsoncontext construction
 	removeFieldByPath(data, extractedPath)
 
-	// If no fields remain after removing the message, keep json_context nil (avoid sending "{}").
+	// If no fields remain after removing the message, no context to send.
 	if len(data) == 0 {
 		return ExtractionResult{
-			IsJSON:      true,
-			Message:     message,
-			JSONContext: nil,
+			IsJSON:     true,
+			Message:    message,
+			MessageKey: extractedPath,
 		}
 	}
 
-	// Serialize remaining fields as JSON context.
-	// encoding/json marshals maps with deterministic key ordering for better compression.
-	jsonContext, err := json.Marshal(data)
-	if err != nil {
-		return fail
-	}
+	// Schema-based encoding: extract sorted keys and leaf values.
+	// Nested objects/arrays are serialized as JSON strings in the values list.
+	schema, values := extractSchemaAndValues(data)
 
 	return ExtractionResult{
-		IsJSON:      true,
-		Message:     message,
-		JSONContext: jsonContext,
+		IsJSON:            true,
+		Message:           message,
+		MessageKey:        extractedPath,
+		JSONContextSchema: schema,
+		JSONContextValues: values,
+	}
+}
+
+// extractSchemaAndValues extracts sorted keys and their corresponding values from a JSON map.
+// Primitive values (string, number, bool, null) are converted to strings.
+// Nested objects and arrays are serialized as JSON strings.
+func extractSchemaAndValues(data map[string]interface{}) (string, []string) {
+	keys := make([]string, 0, len(data))
+	for k := range data {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	values := make([]string, len(keys))
+	for i, k := range keys {
+		values[i] = valueToString(data[k])
+	}
+
+	return strings.Join(keys, ","), values
+}
+
+// valueToString converts a JSON value to its string representation.
+// Primitives are converted directly; objects and arrays are serialized as JSON.
+func valueToString(v interface{}) string {
+	switch val := v.(type) {
+	case string:
+		return val
+	case float64:
+		return fmt.Sprintf("%g", val)
+	case bool:
+		if val {
+			return "true"
+		}
+		return "false"
+	case nil:
+		return ""
+	default:
+		// Nested object or array — serialize as JSON
+		b, err := json.Marshal(val)
+		if err != nil {
+			return ""
+		}
+		return string(b)
 	}
 }
 
