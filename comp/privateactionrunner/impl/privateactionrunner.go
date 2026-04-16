@@ -21,6 +21,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	statsdcomp "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
@@ -61,6 +62,7 @@ type Requires struct {
 	Traceroute    traceroute.Component
 	EventPlatform eventplatform.Component
 	IPC           ipc.Component
+	Statsd        statsdcomp.Component
 }
 
 // Provides defines the output of the privateactionrunner component
@@ -77,6 +79,7 @@ type PrivateActionRunner struct {
 	traceroute     traceroute.Component
 	eventPlatform  eventplatform.Component
 	ipc            ipc.Component
+	statsd         statsdcomp.Component
 
 	workflowRunner *runners.WorkflowRunner
 	commonRunner   *runners.CommonRunner
@@ -98,7 +101,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, privateactionrunner.ErrNotEnabled
 	}
 
-	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC)
+	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC, reqs.Statsd)
 	if err != nil {
 		return Provides{}, err
 	}
@@ -118,7 +121,8 @@ func NewPrivateActionRunner(
 	taggerComp tagger.Component,
 	tracerouteComp traceroute.Component,
 	eventPlatform eventplatform.Component,
-	ipcComp ipc.Component,
+	ipcComp    ipc.Component,
+	statsdComp statsdcomp.Component,
 ) (*PrivateActionRunner, error) {
 	return &PrivateActionRunner{
 		coreConfig:     coreConfig,
@@ -128,7 +132,8 @@ func NewPrivateActionRunner(
 		tagger:         taggerComp,
 		traceroute:     tracerouteComp,
 		eventPlatform:  eventPlatform,
-		ipc:            ipcComp,
+		ipc:    ipcComp,
+		statsd: statsdComp,
 		startChan:      make(chan struct{}),
 	}, nil
 }
@@ -151,7 +156,7 @@ func (p *PrivateActionRunner) getRunnerConfig(ctx context.Context) (*parconfig.C
 		p.coreConfig.Set(privateactionrunner.PARUrn, persistedIdentity.URN, model.SourceAgentRuntime)
 	}
 
-	cfg, err := parconfig.FromDDConfig(p.coreConfig)
+	cfg, err := parconfig.FromDDConfig(p.coreConfig, p.statsd)
 	if err != nil {
 		return nil, err
 	}
