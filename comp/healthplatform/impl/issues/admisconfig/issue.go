@@ -24,9 +24,12 @@ const (
 	impactMsg  = "Metrics, and logs may not be collected due to misconfigured autodiscovery settings"
 )
 
-// containerLabelSource matches the string value of types.ContainerLabelSource
-// to avoid a cross-package import. The value is passed as a string in the issue context.
-const containerLabelSource = "container_label"
+// These constants match the string values of types.ErrorSource to avoid a
+// cross-package import. The values are passed as strings in the issue context.
+const (
+	containerLabelSource     = "container_label"
+	templateResolutionSource = "template_resolution"
+)
 
 type issueContent struct {
 	title       string
@@ -93,6 +96,18 @@ func (t *ADMisconfigurationIssue) BuildIssue(context map[string]string) (*health
 func buildSourceSpecificContent(entityName, errorMessage, errorSource string) issueContent {
 	title := fmt.Sprintf("AD Misconfiguration on '%s'", entityName)
 	switch errorSource {
+	case templateResolutionSource:
+		return issueContent{
+			title:       title,
+			description: "Autodiscovery template resolution error: " + errorMessage,
+			summary:     "Verify that all template variables are supported by the autodiscovery listener for this service",
+			steps: []*healthplatform.RemediationStep{
+				{Order: 1, Text: "Check that all template variables (%%var%%) are supported by the listener type for this service"},
+				{Order: 2, Text: "Review the AD identifiers and ensure they match the correct listener (e.g., RDS vs Aurora have different supported variables)"},
+				{Order: 3, Text: "Run 'datadog-agent configcheck' to see all configuration resolution warnings"},
+				{Order: 4, Text: "See docs: https://docs.datadoghq.com/containers/guide/template_variables/"},
+			},
+		}
 	case containerLabelSource:
 		return issueContent{
 			title:       title,

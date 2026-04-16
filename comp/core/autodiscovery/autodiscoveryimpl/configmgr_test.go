@@ -16,9 +16,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
+	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
@@ -542,7 +545,81 @@ func TestReconcilingConfigManagement(t *testing.T) {
 	mockResolver := MockSecretResolver{}
 	suite.Run(t, &ReconcilingConfigManagerSuite{
 		ConfigManagerSuite{factory: func() configManager {
-			return newReconcilingConfigManager(&mockResolver)
+			return newReconcilingConfigManager(&mockResolver, nil)
 		}},
 	})
+}
+
+// dummyServiceWithExtraConfigError is a dummyService that returns an error for GetExtraConfig
+type dummyServiceWithExtraConfigError struct {
+	dummyService
+}
+
+func (s *dummyServiceWithExtraConfigError) GetExtraConfig(key string) (string, error) {
+	return "", fmt.Errorf("extra config %q is not supported", key)
+}
+
+func TestResolveTemplateForService_ReportsToHealthPlatform(t *testing.T) {
+	mockResolver := MockSecretResolver{}
+	hp := healthplatformmock.Mock(t)
+
+	cm := newReconcilingConfigManager(&mockResolver, hp).(*reconcilingConfigManager)
+
+	tpl := integration.Config{
+		Name:          "postgres",
+		ADIdentifiers: []string{"postgres"},
+		Instances:     []integration.Data{integration.Data("host: %%host%%\ntags:\n  - dbid:%%extra_dbinstanceidentifier%%")},
+		Provider:      "file",
+		Source:        "file:/etc/datadog-agent/conf.d/postgres.d/conf.yaml",
+	}
+
+	svc := &dummyServiceWithExtraConfigError{
+		dummyService: dummyService{
+			ID:            "docker://abc123",
+			ADIdentifiers: []string{"postgres"},
+			Hosts:         map[string]string{"main": "myhost"},
+		},
+	}
+
+	_, ok := cm.resolveTemplateForService(tpl, svc)
+	assert.False(t, ok, "resolveTemplateForService should return false on resolution failure")
+
+	count, issues := hp.GetAllIssues()
+	assert.Equal(t, 1, count, "expected 1 health issue to be reported")
+	issue := issues["ad-template:postgres:docker://abc123"]
+	require.NotNil(t, issue)
+	assert.Equal(t, "ad-misconfiguration", issue.Id)
+}
+
+func TestResolveTemplateForService_ClearsHealthPlatformOnSuccess(t *testing.T) {
+	mockResolver := MockSecretResolver{}
+	hp := healthplatformmock.Mock(t)
+
+	cm := newReconcilingConfigManager(&mockResolver, hp).(*reconcilingConfigManager)
+
+	tpl := integration.Config{
+		Name:          "redis",
+		ADIdentifiers: []string{"redis"},
+		LogsConfig:    []byte("source: %%host%%"),
+	}
+
+	svc := &dummyService{
+		ID:            "docker://def456",
+		ADIdentifiers: []string{"redis"},
+		Hosts:         map[string]string{"main": "myhost"},
+	}
+
+	// Pre-populate a health issue
+	hp.ReportIssue("ad-template:redis:docker://def456", "redis", &healthplatformpayload.IssueReport{
+		IssueId: "ad-misconfiguration",
+		Context: map[string]string{"entityName": "redis"},
+	})
+	count, _ := hp.GetAllIssues()
+	require.Equal(t, 1, count)
+
+	_, ok := cm.resolveTemplateForService(tpl, svc)
+	assert.True(t, ok)
+
+	count, _ = hp.GetAllIssues()
+	assert.Equal(t, 0, count, "health issue should be cleared after successful resolution")
 }
