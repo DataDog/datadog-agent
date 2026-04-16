@@ -179,7 +179,7 @@ func TestSyncProfileBurstableAnnotation(t *testing.T) {
 
 	t.Run("burstable=true when annotation present", func(t *testing.T) {
 		profile := newTestProfile("p1", 1, validTemplate())
-		profile.Annotations = map[string]string{model.BurstableAnnotation: "true"}
+		profile.Annotations = map[string]string{model.PreviewAnnotation: `{"burstable":true}`}
 		_, err := c.syncProfile(ctx, "p1", profile)
 		require.NoError(t, err)
 
@@ -200,7 +200,7 @@ func TestSyncProfileBurstableAnnotation(t *testing.T) {
 
 	t.Run("burstable removed on annotation drop", func(t *testing.T) {
 		profile := newTestProfile("p3", 1, validTemplate())
-		profile.Annotations = map[string]string{model.BurstableAnnotation: "true"}
+		profile.Annotations = map[string]string{model.PreviewAnnotation: `{"burstable":true}`}
 		_, _ = c.syncProfile(ctx, "p3", profile)
 
 		pi, _ := profileStore.Get("p3")

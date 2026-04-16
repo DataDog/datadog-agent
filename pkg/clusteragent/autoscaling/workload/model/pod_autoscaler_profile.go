@@ -77,7 +77,7 @@ type PodAutoscalerProfileInternal struct {
 	// validationError holds the validation error if the profile is invalid
 	validationError error
 
-	// burstable reflects the presence of BurstableAnnotation on the DPAC.
+	// burstable reflects the "burstable" key in the PreviewAnnotation JSON on the DPAC.
 	// When true, generated DPAs will remove the CPU limit from containers.
 	burstable bool
 
@@ -109,7 +109,7 @@ func NewPodAutoscalerProfileInternal(profile *datadoghq.DatadogPodAutoscalerClus
 func (p *PodAutoscalerProfileInternal) UpdateFromProfile(profile *datadoghq.DatadogPodAutoscalerClusterProfile) error {
 	p.generation = profile.Generation
 	p.template = &profile.Spec.Template
-	p.burstable = profile.Annotations[BurstableAnnotation] == "true"
+	p.burstable = parsePreviewAnnotation(profile.Annotations).Burstable
 
 	hash, err := autoscaling.ObjectHash(&profile.Spec.Template)
 	if err != nil {

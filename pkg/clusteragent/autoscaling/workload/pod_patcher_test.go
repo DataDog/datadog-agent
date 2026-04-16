@@ -179,7 +179,7 @@ func patcherTestStoreWithData() *store {
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace:   "ns1",
 				Name:        "autoscaler-burstable",
-				Annotations: map[string]string{model.BurstableAnnotation: "true"},
+				Annotations: map[string]string{model.PreviewAnnotation: `{"burstable":true}`},
 			},
 			Spec: datadoghq.DatadogPodAutoscalerSpec{
 				TargetRef: autoscalingv2.CrossVersionObjectReference{

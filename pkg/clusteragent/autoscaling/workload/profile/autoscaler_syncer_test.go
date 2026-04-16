@@ -549,7 +549,7 @@ func TestAutoscalerSyncerBurstableAnnotationPropagatedToDPA(t *testing.T) {
 
 	ref := testRef("prod", "web-app")
 	prof := testProfileWithWorkloadsAndAnnotations("high-cpu", []model.NamespacedObjectReference{ref},
-		map[string]string{model.BurstableAnnotation: "true"})
+		map[string]string{model.PreviewAnnotation: `{"burstable":true}`})
 	profileStore.Set("high-cpu", prof, "test")
 
 	s.reconcile()
@@ -583,7 +583,7 @@ func TestAutoscalerSyncerBurstableHashChangeTriggersUpdate(t *testing.T) {
 
 	// Second reconcile: burstable=true — hash changes, update must be triggered
 	burstableProf := testProfileWithWorkloadsAndAnnotations("high-cpu", []model.NamespacedObjectReference{ref},
-		map[string]string{model.BurstableAnnotation: "true"})
+		map[string]string{model.PreviewAnnotation: `{"burstable":true}`})
 	profileStore.Set("high-cpu", burstableProf, "test")
 	s.reconcile()
 

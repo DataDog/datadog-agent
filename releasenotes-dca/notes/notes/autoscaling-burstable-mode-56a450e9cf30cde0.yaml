@@ -2,11 +2,20 @@
 features:
   - |
     Workload autoscaling now supports **burstable mode** for vertical scaling.
-    When the ``alpha.autoscaling.datadoghq.com/burstable`` annotation is set to ``true``
-    on a ``DatadogPodAutoscaler`` resource (or propagated from a cluster autoscaling
-    profile), the Cluster Agent removes the CPU limit from the recommendation before
-    applying it, giving pods a `Burstable QoS class
+    Workload autoscaling now supports a preview annotation ``autoscaling.datadoghq.com/preview``
+    on ``DatadogPodAutoscaler`` and ``DatadogPodAutoscalerClusterProfile`` resources.
+    Its value is a JSON object where each key enables a specific preview feature.
+    The first supported key is ``burstable``:
+
+    .. code-block:: yaml
+
+        autoscaling.datadoghq.com/preview: '{"burstable":true}'
+
+    When ``burstable`` is ``true``, the Cluster Agent removes the CPU limit from the
+    recommendation before applying it, giving pods a `Burstable QoS class
     <https://kubernetes.io/docs/concepts/workloads/pods/pod-qos/#burstable>`_ instead
     of Guaranteed. This allows containers to burst above their CPU request when spare
     capacity is available on the node, which can reduce throttling for
     latency-sensitive workloads without over-provisioning CPU limits.
+    When set on a ``DatadogPodAutoscalerClusterProfile``, the option is automatically
+    propagated to all generated ``DatadogPodAutoscaler`` resources.

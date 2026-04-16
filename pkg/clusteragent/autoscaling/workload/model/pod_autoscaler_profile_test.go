@@ -39,17 +39,17 @@ func TestPodAutoscalerProfileInternal_Burstable(t *testing.T) {
 		assert.False(t, pi.Burstable())
 	})
 
-	t.Run("true when annotation is set to 'true'", func(t *testing.T) {
+	t.Run("true when preview annotation contains burstable:true", func(t *testing.T) {
 		profile := minimalProfile("p1")
-		profile.Annotations = map[string]string{BurstableAnnotation: "true"}
+		profile.Annotations = map[string]string{PreviewAnnotation: `{"burstable":true}`}
 		pi, err := NewPodAutoscalerProfileInternal(profile)
 		require.NoError(t, err)
 		assert.True(t, pi.Burstable())
 	})
 
-	t.Run("false when annotation value is not 'true'", func(t *testing.T) {
+	t.Run("false when preview annotation does not contain burstable", func(t *testing.T) {
 		profile := minimalProfile("p1")
-		profile.Annotations = map[string]string{BurstableAnnotation: "false"}
+		profile.Annotations = map[string]string{PreviewAnnotation: `{"burstable":false}`}
 		pi, err := NewPodAutoscalerProfileInternal(profile)
 		require.NoError(t, err)
 		assert.False(t, pi.Burstable())
@@ -57,7 +57,7 @@ func TestPodAutoscalerProfileInternal_Burstable(t *testing.T) {
 
 	t.Run("UpdateFromProfile removes burstable when annotation dropped", func(t *testing.T) {
 		profile := minimalProfile("p1")
-		profile.Annotations = map[string]string{BurstableAnnotation: "true"}
+		profile.Annotations = map[string]string{PreviewAnnotation: `{"burstable":true}`}
 		pi, err := NewPodAutoscalerProfileInternal(profile)
 		require.NoError(t, err)
 		assert.True(t, pi.Burstable())

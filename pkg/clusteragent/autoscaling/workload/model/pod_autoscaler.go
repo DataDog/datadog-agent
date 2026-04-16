@@ -233,10 +233,66 @@ func NewPodAutoscalerFromProfile(
 // Modifiers
 //
 
+// previewOptions holds the parsed feature flags from PreviewAnnotation.
+// Unknown keys in the JSON value are ignored when reading but preserved when writing
+// via SetPreviewBurstable (which operates on the raw annotation map).
+type previewOptions struct {
+	Burstable bool `json:"burstable,omitempty"`
+}
+
+// parsePreviewAnnotation parses the PreviewAnnotation JSON value from an annotations map.
+// Returns a zero-value previewOptions if the annotation is absent or unparseable.
+func parsePreviewAnnotation(annotations map[string]string) previewOptions {
+	raw, ok := annotations[PreviewAnnotation]
+	if !ok || raw == "" {
+		return previewOptions{}
+	}
+	var opts previewOptions
+	if err := json.Unmarshal([]byte(raw), &opts); err != nil {
+		return previewOptions{}
+	}
+	return opts
+}
+
+// SetPreviewOption sets or removes a single key in the PreviewAnnotation JSON while
+// preserving all other keys already present (e.g. keys managed by other features).
+// Pass a non-nil value to set the key; pass nil to remove it.
+// If removing a key leaves the JSON object empty, the annotation is deleted entirely.
+// json.Marshal sorts map keys alphabetically, so the output is stable across calls.
+func SetPreviewOption(annotations map[string]string, key string, value any) {
+	// Parse the existing annotation as a raw map so unknown keys are not lost on re-marshal.
+	rawMap := make(map[string]any)
+	if raw, ok := annotations[PreviewAnnotation]; ok && raw != "" {
+		_ = json.Unmarshal([]byte(raw), &rawMap)
+	}
+	if value == nil {
+		delete(rawMap, key)
+	} else {
+		rawMap[key] = value
+	}
+	if len(rawMap) == 0 {
+		delete(annotations, PreviewAnnotation)
+	} else {
+		b, _ := json.Marshal(rawMap)
+		annotations[PreviewAnnotation] = string(b)
+	}
+}
+
+// SetPreviewBurstable sets or clears the "burstable" key in the PreviewAnnotation JSON.
+// It is a convenience wrapper around SetPreviewOption.
+func SetPreviewBurstable(annotations map[string]string, burstable bool) {
+	var val any
+	if burstable {
+		val = true
+	}
+	SetPreviewOption(annotations, "burstable", val)
+}
+
 // UpdateFromProfile updates the spec from a profile template while preserving scaling state.
 // The templateHash must be the hash of the profile template that produced this spec.
-// burstable mirrors the BurstableAnnotation on the source DPAC: when true the annotation is
-// set on upstreamCR so that IsBurstable() returns true for this DPA; when false it is removed.
+// burstable mirrors the burstable preview option on the source DPAC: when true the
+// "burstable" key is set in the PreviewAnnotation JSON on upstreamCR so that IsBurstable()
+// returns true for this DPA; when false it is removed (other preview keys are preserved).
 func (p *PodAutoscalerInternal) UpdateFromProfile(
 	profileName string,
 	template *datadoghq.DatadogPodAutoscalerTemplate,
@@ -255,14 +311,10 @@ func (p *PodAutoscalerInternal) UpdateFromProfile(
 	// Compute the horizontal events retention again in case .Spec.ApplyPolicy has changed
 	p.horizontalEventsRetention, p.horizontalRecommendationsRetention = getHorizontalRetentionValues(dpaSpec.ApplyPolicy)
 
-	if burstable {
-		if p.upstreamCR.Annotations == nil {
-			p.upstreamCR.Annotations = make(map[string]string)
-		}
-		p.upstreamCR.Annotations[BurstableAnnotation] = "true"
-	} else if p.upstreamCR.Annotations != nil {
-		delete(p.upstreamCR.Annotations, BurstableAnnotation)
+	if p.upstreamCR.Annotations == nil {
+		p.upstreamCR.Annotations = make(map[string]string)
 	}
+	SetPreviewBurstable(p.upstreamCR.Annotations, burstable)
 }
 
 // UpdateFromPodAutoscaler updates the PodAutoscalerInternal from a PodAutoscaler object inside K8S
@@ -622,14 +674,14 @@ func (p *PodAutoscalerInternal) IsHorizontalScalingEnabled() bool {
 	return !(scaleUpDisabled && scaleDownDisabled)
 }
 
-// IsBurstable returns true if the DPA has the burstable annotation set to "true".
+// IsBurstable returns true if the DPA's PreviewAnnotation JSON contains "burstable": true.
 // In burstable mode the controller removes the CPU limit from containers while still
 // applying CPU request recommendations.
 func (p *PodAutoscalerInternal) IsBurstable() bool {
 	if p.upstreamCR == nil || p.upstreamCR.Annotations == nil {
 		return false
 	}
-	return p.upstreamCR.Annotations[BurstableAnnotation] == "true"
+	return parsePreviewAnnotation(p.upstreamCR.Annotations).Burstable
 }
 
 func (p *PodAutoscalerInternal) IsVerticalScalingEnabled() bool {

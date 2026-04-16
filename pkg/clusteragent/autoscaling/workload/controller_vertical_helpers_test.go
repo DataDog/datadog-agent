@@ -139,9 +139,9 @@ func TestShouldTriggerRollout_Complete(t *testing.T) {
 		recommendationID,
 		pods,
 		podsPerRecommendationID,
-		nil,                    // no last action
-		false,                  // no rollout in progress
-		nil,                    // no recommendation needed for complete check
+		nil,                     // no last action
+		false,                   // no rollout in progress
+		nil,                     // no recommendation needed for complete check
 		recommendationOptions{}, // default: not burstable
 		time.Now(),
 		5*time.Minute,
@@ -175,7 +175,7 @@ func TestShouldTriggerRollout_AlreadyTriggered(t *testing.T) {
 		pods,
 		podsPerRecommendationID,
 		lastAction,
-		false,                   // no rollout in progress
+		false, // no rollout in progress
 		nil,
 		recommendationOptions{}, // default: not burstable
 		time.Now(),
@@ -209,7 +209,7 @@ func TestShouldTriggerRollout_NewRecommendationNoRollout(t *testing.T) {
 		pods,
 		podsPerRecommendationID,
 		lastAction,
-		false,                   // no rollout in progress
+		false, // no rollout in progress
 		nil,
 		recommendationOptions{}, // default: not burstable
 		time.Now(),
@@ -370,8 +370,8 @@ func TestShouldTriggerRollout_FirstTriggerNoLastAction(t *testing.T) {
 		recommendationID,
 		pods,
 		podsPerRecommendationID,
-		nil,                    // no last action (first time)
-		false,                  // no rollout in progress
+		nil,   // no last action (first time)
+		false, // no rollout in progress
 		nil,
 		recommendationOptions{}, // default: not burstable
 		time.Now(),
@@ -788,7 +788,7 @@ func TestFromAutoscalerToContainerResourcePatches_Burstable(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace:   "default",
 					Name:        "ai",
-					Annotations: map[string]string{model.BurstableAnnotation: "true"},
+					Annotations: map[string]string{model.PreviewAnnotation: `{"burstable":true}`},
 				},
 			},
 		}).Build()
