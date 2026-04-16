@@ -27,4 +27,18 @@ func adjustDiscovery(cfg model.Config) {
 		return
 	}
 
+	// Discovery mode only needs HTTP + TLS probes for service map topology.
+	// Force-disable application-level protocols regardless of explicit config,
+	// to keep the eBPF surface minimal and avoid capturing data we won't use.
+	for _, key := range []string{
+		smNS("http2", "enabled"),
+		smNS("kafka", "enabled"),
+		smNS("postgres", "enabled"),
+		smNS("redis", "enabled"),
+	} {
+		if cfg.GetBool(key) {
+			log.Infof("discovery mode: disabling %s (not needed for service map)", key)
+		}
+		cfg.Set(key, false, model.SourceAgentRuntime)
+	}
 }
