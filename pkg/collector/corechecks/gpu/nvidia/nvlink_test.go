@@ -160,7 +160,7 @@ func TestNVLinkCollectorKeepsPortOnTransientError(t *testing.T) {
 
 	// First call will fail on the second port, it will emit only port 1 metrics
 	metrics, err := collector.Collect()
-	require.Error(t, err) // Erro gets propagated from readPortCounters
+	require.Error(t, err) // Error gets propagated from readPortCounters
 	require.Len(t, metrics, len(plrCounterFields))
 	foundTags := map[string]bool{}
 	for _, metric := range metrics {
