@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+use std::path::PathBuf;
+
 use serde::Serialize;
 
 use crate::apm;
@@ -106,6 +108,35 @@ pub fn get_services(params: Params) -> ServicesResponse {
     resp
 }
 
+/// Reads tracer metadata from memfd paths and returns only the newest one
+/// (by file modification time). When there is only one memfd, skips the stat
+/// call. When mtimes are equal, runtime_id is used as a tie-breaker so that
+/// both Go and Rust implementations select the same metadata regardless of
+/// /proc/pid/fd iteration order.
+fn get_newest_tracer_metadata(memfd_paths: &[PathBuf]) -> Option<TracerMetadata> {
+    if memfd_paths.len() <= 1 {
+        return memfd_paths
+            .first()
+            .and_then(|path| tracer_metadata::get_tracer_metadata_from_path(path).ok());
+    }
+
+    memfd_paths
+        .iter()
+        .filter_map(|path| {
+            let mtime = std::fs::metadata(path).ok()?.modified().ok()?;
+            let tm = tracer_metadata::get_tracer_metadata_from_path(path).ok()?;
+            Some((tm, mtime))
+        })
+        .max_by(|(tm_a, t_a), (tm_b, t_b)| {
+            // Normalize None to "" to match Go, where a missing runtime_id
+            // unmarshals as "" (the zero value for string).
+            let rid_a = tm_a.runtime_id.as_deref().unwrap_or("");
+            let rid_b = tm_b.runtime_id.as_deref().unwrap_or("");
+            (t_a, rid_a).cmp(&(t_b, rid_b))
+        })
+        .map(|(m, _)| m)
+}
+
 fn get_service(
     pid: i32,
     context: &mut ParsingContext,
@@ -120,7 +151,7 @@ fn get_service(
 
     if tcp_ports.is_none()
         && udp_ports.is_none()
-        && open_files_info.tracer_memfd.is_none()
+        && open_files_info.tracer_memfds.is_empty()
         && !has_log_candidates
     {
         return None;
@@ -128,10 +159,7 @@ fn get_service(
 
     let cmdline = Cmdline::get(pid).ok()?;
     let exe = Exe::get(pid).ok()?;
-    let tracer_metadata = match &open_files_info.tracer_memfd {
-        None => None,
-        Some(path) => tracer_metadata::get_tracer_metadata_from_path(path).ok(),
-    };
+    let tracer_metadata = get_newest_tracer_metadata(&open_files_info.tracer_memfds);
     let language = tracer_metadata
         .as_ref()
         .and_then(|m| Language::from_tracer_str(&m.tracer_language))
@@ -180,7 +208,7 @@ fn get_heartbeat_service(pid: i32, context: &mut ParsingContext) -> Option<Servi
 
     if tcp_ports.is_none()
         && udp_ports.is_none()
-        && open_files_info.tracer_memfd.is_none()
+        && open_files_info.tracer_memfds.is_empty()
         && open_files_info.logs.is_empty()
     {
         return None;

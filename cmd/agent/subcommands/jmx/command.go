@@ -44,6 +44,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/cli/standalone"
@@ -51,6 +52,7 @@ import (
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 type cliParams struct {
@@ -125,6 +127,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			workloadfilterfx.Module(),
 			dualTaggerfx.Module(common.DualTaggerParams()),
 			autodiscoveryimpl.Module(),
+			fx.Provide(func() option.Option[healthplatform.Component] {
+				return option.None[healthplatform.Component]()
+			}),
 			agent.Bundle(jmxloggerimpl.NewCliParams(cliParams.logFile)),
 			// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
 			// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
