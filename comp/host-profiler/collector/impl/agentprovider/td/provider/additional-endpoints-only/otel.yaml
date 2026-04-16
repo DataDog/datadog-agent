@@ -1,5 +1,6 @@
 exporters:
     otlphttp/datadoghq.eu_0:
+        compression: zstd
         headers:
             dd-api-key: eu_key_1
             dd-evp-origin: host-profiler
@@ -7,8 +8,8 @@ exporters:
         metrics_endpoint: https://otlp.datadoghq.eu/v1/metrics
         profiles_endpoint: https://intake.profile.datadoghq.eu/v1development/profiles
 extensions:
-    ddprofiling/default: {}
-    hpflare/default: {}
+    hpflare/default:
+        endpoint: localhost:7778
 processors:
     cumulativetodelta: {}
     filter:
@@ -49,8 +50,10 @@ receivers:
                     - PrometheusText0.0.4
                   static_configs:
                     - targets:
-                        - 127.0.0.1:8888
+                        - 127.0.0.1:8889
 service:
+    extensions:
+        - hpflare/default
     pipelines:
         metrics:
             exporters:
@@ -70,3 +73,11 @@ service:
                 - resource/dd-profiler-internal-metadata
             receivers:
                 - profiling
+    telemetry:
+        metrics:
+            readers:
+                - pull:
+                    exporter:
+                        prometheus:
+                            host: 127.0.0.1
+                            port: 8889

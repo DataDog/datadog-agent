@@ -19,8 +19,17 @@ import (
 )
 
 const (
-	defaultHTTPPort = 7778
+	// DefaultHTTPPort is the default port for the hpflare extension HTTP server.
+	DefaultHTTPPort = 7778
 )
+
+// EffectivePort returns port if positive, or DefaultHTTPPort otherwise.
+func EffectivePort(port int) int {
+	if port <= 0 {
+		return DefaultHTTPPort
+	}
+	return port
+}
 
 type ddExtensionFactory struct {
 	extension.Factory
@@ -45,7 +54,7 @@ func (f *ddExtensionFactory) CreateDefaultConfig() component.Config {
 	return &Config{
 		HTTPConfig: &confighttp.ServerConfig{
 			NetAddr: confignet.AddrConfig{
-				Endpoint:  fmt.Sprintf("localhost:%d", defaultHTTPPort),
+				Endpoint:  fmt.Sprintf("localhost:%d", DefaultHTTPPort),
 				Transport: confignet.TransportTypeTCP,
 			},
 		},

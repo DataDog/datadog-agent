@@ -283,7 +283,7 @@ type EntityMeta struct {
 	Namespace   string
 	Annotations map[string]string
 	Labels      map[string]string
-	UID         string
+	UID         string `proto:"ignore"`
 }
 
 // String returns a string representation of EntityMeta.
@@ -311,7 +311,7 @@ type ContainerImage struct {
 	ID         string
 	RawName    string
 	Name       string
-	Registry   string
+	Registry   string `proto:"ignore"`
 	ShortName  string
 	Tag        string
 	RepoDigest string
@@ -367,7 +367,7 @@ type ContainerState struct {
 	StartedAt  time.Time
 	FinishedAt time.Time
 	ExitCode   *int64
-	SBOM       *SBOM
+	SBOM       *SBOM `proto:"ignore"`
 }
 
 // String returns a string representation of ContainerState.
@@ -394,7 +394,7 @@ type ContainerPort struct {
 	Name     string
 	Port     int
 	Protocol string
-	HostPort uint16
+	HostPort uint16 `proto:"ignore"`
 }
 
 // String returns a string representation of ContainerPort.
@@ -472,9 +472,9 @@ const RequestAllGPUs = -1
 
 // ContainerResources is resources requests or limitations for a container
 type ContainerResources struct {
-	GPURequest    *int64   // Number of GPUs requested (-1 for all GPUs, used in Docker runtimes)
-	GPULimit      *int64   // Number of GPUs limit (-1 for no limit, used in Docker runtimes)
-	GPUVendorList []string // The type of GPU requested (eg. nvidia, amd, intel)
+	GPURequest    *int64   `proto:"ignore"` // Number of GPUs requested (-1 for all GPUs, used in Docker runtimes)
+	GPULimit      *int64   `proto:"ignore"` // Number of GPUs limit (-1 for no limit, used in Docker runtimes)
+	GPUVendorList []string `proto:"ignore"` // The type of GPU requested (eg. nvidia, amd, intel)
 	CPURequest    *float64 // Percentage 0-100*numCPU (aligned with CPU Limit from metrics provider)
 	CPULimit      *float64
 	MemoryRequest *uint64 // Bytes
@@ -482,14 +482,14 @@ type ContainerResources struct {
 
 	// The container is requesting to use entire core(s)
 	// e.g. 1000m or 1 -- NOT 1500m or 1.5
-	RequestedWholeCores *bool
+	RequestedWholeCores *bool `proto:"ignore"`
 
 	// Raw resources. This duplicates some of the information in other fields,
 	// but it is needed by kubelet check because it needs to emit metrics for
 	// all resources. This includes the typical ones defined above (cpu, memory,
 	// gpu) but also custom resources.
-	RawRequests map[string]string
-	RawLimits   map[string]string
+	RawRequests map[string]string `proto:"ignore"`
+	RawLimits   map[string]string `proto:"ignore"`
 }
 
 // String returns a string representation of ContainerPort.
@@ -552,7 +552,7 @@ type OrchestratorContainer struct {
 	ID        string
 	Name      string
 	Image     ContainerImage
-	Resources ContainerResources
+	Resources ContainerResources `proto:"ignore"`
 }
 
 // String returns a string representation of OrchestratorContainer.
@@ -627,7 +627,7 @@ type Container struct {
 	EntityID
 	EntityMeta
 	// ECSContainer contains properties specific to container running in ECS
-	*ECSContainer
+	*ECSContainer `proto:"ignore"`
 	// EnvVars are limited to variables included in pkg/util/containers/env_vars_filter.go
 	EnvVars       map[string]string
 	Hostname      string
@@ -636,16 +636,16 @@ type Container struct {
 	PID           int
 	Ports         []ContainerPort
 	Runtime       ContainerRuntime
-	RuntimeFlavor ContainerRuntimeFlavor
+	RuntimeFlavor ContainerRuntimeFlavor `proto:"ignore"`
 	State         ContainerState
 	// CollectorTags represent tags coming from the collector itself
 	// and that it would be impossible to compute later on
 	CollectorTags   []string
 	Owner           *EntityID
-	SecurityContext *ContainerSecurityContext
-	ReadinessProbe  *ContainerProbe
+	SecurityContext *ContainerSecurityContext `proto:"ignore"`
+	ReadinessProbe  *ContainerProbe           `proto:"ignore"`
 	Resources       ContainerResources
-	ResizePolicy    ContainerResizePolicy
+	ResizePolicy    ContainerResizePolicy `proto:"ignore"`
 
 	// ResolvedAllocatedResources is the list of resources allocated to this pod. Requires the
 	// PodResources API to query that data.
@@ -654,17 +654,17 @@ type Container struct {
 	// Format: ["GPU-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"]
 	// Note: Currently only reliably populated in ECS environments, where it is extracted
 	// from the NVIDIA_VISIBLE_DEVICES environment variable set by the ECS agent.
-	GPUDeviceIDs []string
+	GPUDeviceIDs []string `proto:"ignore"`
 	// CgroupPath is a path to the cgroup of the container.
 	// It can be relative to the cgroup parent.
 	// Linux only.
 	CgroupPath string
 	// SandboxID is the identifier of the sandbox this container belongs to.
 	// Populated from containerd's container info SandboxID field.
-	SandboxID    string
-	RestartCount int
+	SandboxID    string `proto:"ignore"`
+	RestartCount int    `proto:"ignore"`
 
-	SBOM *SBOM
+	SBOM *SBOM `proto:"ignore"`
 }
 
 // GetID implements Entity#GetID.
@@ -822,30 +822,30 @@ type KubernetesPod struct {
 	IP                         string
 	PriorityClass              string
 	QOSClass                   string
-	GPUVendorList              []string
+	GPUVendorList              []string `proto:"ignore"`
 	RuntimeClass               string
 	KubeServices               []string
 	NamespaceLabels            map[string]string
-	NamespaceAnnotations       map[string]string
-	FinishedAt                 time.Time
-	SecurityContext            *PodSecurityContext
+	NamespaceAnnotations       map[string]string   `proto:"ignore"`
+	FinishedAt                 time.Time           `proto:"ignore"`
+	SecurityContext            *PodSecurityContext `proto:"ignore"`
 
 	// The following fields are only needed for the kubelet check or KSM check
 	// when configured to emit pod metrics from the node agent. That means only
 	// the node agent needs them, so for now they're not added to the protobufs.
-	CreationTimestamp          time.Time
-	DeletionTimestamp          *time.Time
-	StartTime                  *time.Time
-	NodeName                   string
-	HostIP                     string
-	HostNetwork                bool
-	InitContainerStatuses      []KubernetesContainerStatus
-	ContainerStatuses          []KubernetesContainerStatus
-	EphemeralContainerStatuses []KubernetesContainerStatus
-	Conditions                 []KubernetesPodCondition
-	Volumes                    []KubernetesPodVolume
-	Tolerations                []KubernetesPodToleration
-	Reason                     string
+	CreationTimestamp          time.Time                   `proto:"ignore"`
+	DeletionTimestamp          *time.Time                  `proto:"ignore"`
+	StartTime                  *time.Time                  `proto:"ignore"`
+	NodeName                   string                      `proto:"ignore"`
+	HostIP                     string                      `proto:"ignore"`
+	HostNetwork                bool                        `proto:"ignore"`
+	InitContainerStatuses      []KubernetesContainerStatus `proto:"ignore"`
+	ContainerStatuses          []KubernetesContainerStatus `proto:"ignore"`
+	EphemeralContainerStatuses []KubernetesContainerStatus `proto:"ignore"`
+	Conditions                 []KubernetesPodCondition    `proto:"ignore"`
+	Volumes                    []KubernetesPodVolume       `proto:"ignore"`
+	Tolerations                []KubernetesPodToleration   `proto:"ignore"`
+	Reason                     string                      `proto:"ignore"`
 }
 
 // GetID implements Entity#GetID.
@@ -1006,7 +1006,7 @@ type KubernetesPodOwner struct {
 	Name       string
 	ID         string
 	Group      string
-	Controller *bool
+	Controller *bool `proto:"ignore"`
 }
 
 // String returns a string representation of KubernetesPodOwner.
@@ -1431,24 +1431,24 @@ type ECSTask struct {
 	Tags                    MapTags
 	ContainerInstanceTags   MapTags
 	ClusterName             string
-	ContainerInstanceARN    string
-	ClusterARN              string
-	ServiceARN              string
-	TaskDefinitionARN       string
+	ContainerInstanceARN    string `proto:"ignore"`
+	ClusterARN              string `proto:"ignore"`
+	ServiceARN              string `proto:"ignore"`
+	TaskDefinitionARN       string `proto:"ignore"`
 	AWSAccountID            string
 	Region                  string
 	AvailabilityZone        string
 	Family                  string
 	Version                 string
-	DesiredStatus           string
-	KnownStatus             string
-	PullStartedAt           *time.Time
-	PullStoppedAt           *time.Time
-	ExecutionStoppedAt      *time.Time
-	VPCID                   string
-	ServiceName             string
-	EphemeralStorageMetrics map[string]int64
-	Limits                  map[string]float64
+	DesiredStatus           string             `proto:"ignore"`
+	KnownStatus             string             `proto:"ignore"`
+	PullStartedAt           *time.Time         `proto:"ignore"`
+	PullStoppedAt           *time.Time         `proto:"ignore"`
+	ExecutionStoppedAt      *time.Time         `proto:"ignore"`
+	VPCID                   string             `proto:"ignore"`
+	ServiceName             string             `proto:"ignore"`
+	EphemeralStorageMetrics map[string]int64   `proto:"ignore"`
+	Limits                  map[string]float64 `proto:"ignore"`
 	LaunchType              ECSLaunchType
 	Containers              []OrchestratorContainer
 }
@@ -1542,7 +1542,7 @@ type ContainerImageLayer struct {
 	Digest    string
 	SizeBytes int64
 	URLs      []string
-	History   *v1.History
+	History   *v1.History `proto:"ignore"`
 }
 
 // SBOM represents the Software Bill Of Materials (SBOM) of a container
@@ -1690,7 +1690,7 @@ type Service struct {
 	GeneratedName string
 
 	// LogFiles are the log files associated with this service
-	LogFiles []string
+	LogFiles []string `proto:"ignore"`
 
 	// GeneratedNameSource indicates the source of the generated name
 	GeneratedNameSource string
@@ -1774,13 +1774,13 @@ type Process struct {
 	CreationTime   time.Time // Process Start Time -- /proc/[pid]/stat
 	Language       *languagemodels.Language
 	InjectionState InjectionState // APM auto-injector detection status
-	UsesGPU        bool           // detected via /proc device files or library maps
+	UsesGPU        bool           `proto:"ignore"` // detected via /proc device files or library maps
 
 	// Owner will temporarily duplicate the ContainerID field until the new collector is enabled so we can then remove the ContainerID field
 	Owner *EntityID // Owner is a reference to a container in WLM
 
 	// GPUs is a reference to a list of GPU entities in WLM that this process is using
-	GPUs []EntityID
+	GPUs []EntityID `proto:"ignore"`
 
 	// Service contains service discovery information for this process
 	Service *Service

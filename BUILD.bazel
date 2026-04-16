@@ -7,13 +7,13 @@ load("@gazelle//:def.bzl", "DEFAULT_LANGUAGES", "gazelle", "gazelle_binary")
 
 package(default_visibility = ["//visibility:public"])
 
-# The list of go tags to be used by gazelle
-ALL_BUILD_TAGS = [
-    "otlp",
-    "test",
-    "seclmax",
-    "serverless",
-]
+# Temporary export for hybrid omnibus/bazel build.
+# This glob is empty running bazel alone in a pipeline job.
+# It covers real files in the omnibus build after dda commands have run.
+exports_files(glob(
+    ["bin/**"],
+    allow_empty = True,
+))
 
 # TODO(agent-build): remove below `gazelle:exclude` directives (automatically updates @bazelify_go_work//:go.work)
 # gazelle:exclude cmd
@@ -29,17 +29,17 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/autoscaling
 # gazelle:exclude comp/checks
 # gazelle:exclude comp/collector
-# gazelle:exclude comp/connectivitychecker
-# gazelle:exclude comp/core/agenttelemetry
+# gazelle:exclude comp/connectivitychecker/checker
+# gazelle:exclude comp/connectivitychecker/fx
+# gazelle:exclude comp/connectivitychecker/impl
 # gazelle:exclude comp/core/autodiscovery
-# gazelle:exclude comp/core/config
+# gazelle:exclude comp/core/agenttelemetry/fx
+# gazelle:exclude comp/core/agenttelemetry/impl
 # gazelle:exclude comp/core/configstream
 # gazelle:exclude comp/core/configsync
-# gazelle:exclude comp/core/delegatedauth
 # gazelle:exclude comp/core/diagnose
 # gazelle:exclude comp/core/flare/flareimpl
 # gazelle:exclude comp/core/flare/helpers
-# gazelle:exclude comp/core/fxinstrumentation
 # gazelle:exclude comp/core/gui
 # gazelle:exclude comp/core/healthprobe
 # gazelle:exclude comp/core/hostname/hostnameimpl
@@ -51,7 +51,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/core/ipc/impl
 # gazelle:exclude comp/core/ipc/impl-none
 # gazelle:exclude comp/core/ipc/mock
-# gazelle:exclude comp/core/log
 # gazelle:exclude comp/core/log/fx
 # gazelle:exclude comp/core/log/fx-systemprobe
 # gazelle:exclude comp/core/log/fx-trace
@@ -59,14 +58,11 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/core/log/impl-systemprobe
 # gazelle:exclude comp/core/log/impl-trace
 # gazelle:exclude comp/core/log/rust
-# gazelle:exclude comp/core/lsof
-# gazelle:exclude comp/core/pid
 # gazelle:exclude comp/core/profiler
 # gazelle:exclude comp/core/remoteagent
 # gazelle:exclude comp/core/remoteagentregistry
 # gazelle:exclude comp/core/secrets/fx
 # gazelle:exclude comp/core/secrets/fx-noop
-# gazelle:exclude comp/core/secrets/impl
 # gazelle:exclude comp/core/settings
 # gazelle:exclude comp/core/status/statusimpl
 # gazelle:exclude comp/core/sysprobeconfig
@@ -88,23 +84,26 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/core/tagger/k8s_metadata
 # gazelle:exclude comp/core/tagger/kubetags
 # gazelle:exclude comp/core/tagger/mock
-# gazelle:exclude comp/core/tagger/proto
 # gazelle:exclude comp/core/tagger/server
-# gazelle:exclude comp/core/tagger/subscriber
-# gazelle:exclude comp/core/tagger/taglist
 # gazelle:exclude comp/core/tagger/tagstore
-# gazelle:exclude comp/core/tagger/telemetry
 # gazelle:exclude comp/core/workloadfilter
 # gazelle:exclude comp/core/workloadmeta
 # gazelle:exclude comp/core/workloadmeta
-# gazelle:exclude comp/dataobs
+# gazelle:exclude comp/dataobs/queryactions/fx
+# gazelle:exclude comp/dataobs/queryactions/impl
 # gazelle:exclude comp/dogstatsd
-# gazelle:exclude comp/etw
+# gazelle:exclude comp/etw/impl
 # gazelle:exclude comp/filterlist
-# gazelle:exclude comp/fleetstatus
+# gazelle:exclude comp/fleetstatus/fx
+# gazelle:exclude comp/fleetstatus/impl
 # gazelle:exclude comp/forwarder
-# gazelle:exclude comp/haagent
-# gazelle:exclude comp/healthplatform
+# gazelle:exclude comp/haagent/fx
+# gazelle:exclude comp/haagent/helpers
+# gazelle:exclude comp/haagent/impl
+# gazelle:exclude comp/haagent/mock
+# gazelle:exclude comp/healthplatform/fx
+# gazelle:exclude comp/healthplatform/impl
+# gazelle:exclude comp/healthplatform/mock
 # gazelle:exclude comp/host-profiler/collector
 # gazelle:exclude comp/host-profiler/flare
 # gazelle:exclude comp/host-profiler/oom
@@ -114,24 +113,27 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/host-profiler/symboluploader/symbol
 # gazelle:exclude comp/host-profiler/symboluploader/symbolcopier
 # gazelle:exclude comp/host-profiler/version
-# gazelle:exclude comp/languagedetection
-# gazelle:exclude comp/logonduration
+# gazelle:exclude comp/languagedetection/client/fx
+# gazelle:exclude comp/languagedetection/client/impl
+# gazelle:exclude comp/languagedetection/client/mock
+# gazelle:exclude comp/logonduration/fx
+# gazelle:exclude comp/logonduration/impl
 # gazelle:exclude comp/logs
 # gazelle:exclude comp/logs-library
 # gazelle:exclude comp/metadata
 # gazelle:exclude comp/ndmtmp
-# gazelle:exclude comp/netflow/common
 # gazelle:exclude comp/netflow/config
 # gazelle:exclude comp/netflow/flowaggregator
-# gazelle:exclude comp/netflow/format
 # gazelle:exclude comp/netflow/goflowlib
 # gazelle:exclude comp/netflow/portrollup
 # gazelle:exclude comp/netflow/server
 # gazelle:exclude comp/netflow/testutil
 # gazelle:exclude comp/netflow/topn
-# gazelle:exclude comp/networkdeviceconfig
+# gazelle:exclude comp/networkdeviceconfig/fx
+# gazelle:exclude comp/networkdeviceconfig/impl
 # gazelle:exclude comp/networkpath
-# gazelle:exclude comp/notableevents
+# gazelle:exclude comp/notableevents/fx
+# gazelle:exclude comp/notableevents/impl
 # gazelle:exclude comp/otelcol/collector
 # gazelle:exclude comp/otelcol/collector-contrib/fx
 # gazelle:exclude comp/otelcol/collector-contrib/impl
@@ -149,19 +151,30 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/otelcol/otlp
 # gazelle:exclude comp/otelcol/status/fx
 # gazelle:exclude comp/otelcol/status/impl
-# gazelle:exclude comp/privateactionrunner
+# gazelle:exclude comp/privateactionrunner/fx
+# gazelle:exclude comp/privateactionrunner/impl
+# gazelle:exclude comp/privateactionrunner/status
 # gazelle:exclude comp/process
 # gazelle:exclude comp/publishermetadatacache
-# gazelle:exclude comp/rdnsquerier
+# gazelle:exclude comp/rdnsquerier/fx
+# gazelle:exclude comp/rdnsquerier/fx-mock
+# gazelle:exclude comp/rdnsquerier/fx-none
+# gazelle:exclude comp/rdnsquerier/impl
+# gazelle:exclude comp/rdnsquerier/impl-none
+# gazelle:exclude comp/rdnsquerier/mock
 # gazelle:exclude comp/remote-config
 # gazelle:exclude comp/serializer
 # gazelle:exclude comp/snmpscan
-# gazelle:exclude comp/snmpscanmanager
+# gazelle:exclude comp/snmpscanmanager/fx
+# gazelle:exclude comp/snmpscanmanager/impl
+# gazelle:exclude comp/snmpscanmanager/mock
 # gazelle:exclude comp/snmptraps
-# gazelle:exclude comp/softwareinventory
+# gazelle:exclude comp/softwareinventory/fx
+# gazelle:exclude comp/softwareinventory/impl
 # gazelle:exclude comp/syntheticstestscheduler
 # gazelle:exclude comp/systray
-# gazelle:exclude comp/trace-telemetry
+# gazelle:exclude comp/trace-telemetry/fx
+# gazelle:exclude comp/trace-telemetry/impl
 # gazelle:exclude comp/trace/agent/fx
 # gazelle:exclude comp/trace/agent/fx-mock
 # gazelle:exclude comp/trace/agent/impl
@@ -171,7 +184,18 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/trace/etwtracer
 # gazelle:exclude comp/trace/payload-modifier
 # gazelle:exclude comp/trace/status
-# gazelle:exclude comp/updater
+# gazelle:exclude comp/workloadselection/fx
+# gazelle:exclude comp/workloadselection/impl
+# gazelle:exclude comp/updater/daemonchecker/fx
+# gazelle:exclude comp/updater/daemonchecker/mock
+# gazelle:exclude comp/updater/localapi
+# gazelle:exclude comp/updater/localapiclient
+# gazelle:exclude comp/updater/ssistatus/fx
+# gazelle:exclude comp/updater/ssistatus/impl
+# gazelle:exclude comp/updater/telemetry/fx
+# gazelle:exclude comp/updater/telemetry/impl
+# gazelle:exclude comp/updater/telemetry/mock
+# gazelle:exclude comp/updater/updater
 # gazelle:exclude comp/workloadselection
 # gazelle:exclude internal/remote-agent
 # gazelle:exclude internal/third_party
@@ -179,7 +203,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/aggregator/mocksender
 # gazelle:exclude pkg/aggregator/sender
 # gazelle:exclude pkg/aggregator/internal
-# gazelle:exclude pkg/api
 # gazelle:exclude pkg/cli
 # gazelle:exclude pkg/cloudfoundry
 # gazelle:exclude pkg/clusteragent
@@ -199,21 +222,12 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/commonchecks
 # gazelle:exclude pkg/compliance
 # gazelle:exclude pkg/config/autodiscovery
-# gazelle:exclude pkg/config/create
-# gazelle:exclude pkg/config/env
 # gazelle:exclude pkg/config/fetcher
 # gazelle:exclude pkg/config/fetcher/sysprobe
 # gazelle:exclude pkg/config/fetcher/tracers
-# gazelle:exclude pkg/config/helper
 # gazelle:exclude pkg/config/legacy
-# gazelle:exclude pkg/config/mock
-# gazelle:exclude pkg/config/nodetreemodel
-# gazelle:exclude pkg/config/remote
 # gazelle:exclude pkg/config/settings
 # gazelle:exclude pkg/config/settings/http
-# gazelle:exclude pkg/config/setup
-# gazelle:exclude pkg/config/structure
-# gazelle:exclude pkg/config/utils
 # gazelle:exclude pkg/containerlifecycle
 # gazelle:exclude pkg/databasemonitoring
 # gazelle:exclude pkg/diagnose
@@ -253,8 +267,7 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/dyninst/uprobe
 # gazelle:exclude pkg/eventmonitor
 # gazelle:exclude pkg/flare
-# gazelle:exclude pkg/fleet
-# gazelle:exclude pkg/gohai
+# gazelle:exclude pkg/fleet/daemon
 # gazelle:exclude pkg/gpu
 # gazelle:exclude pkg/hosttags
 # gazelle:exclude pkg/inventory
@@ -267,7 +280,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/logs/internal
 # gazelle:exclude pkg/logs/launchers
 # gazelle:exclude pkg/logs/message
-# gazelle:exclude pkg/logs/metrics
 # gazelle:exclude pkg/logs/pipeline
 # gazelle:exclude pkg/logs/processor
 # gazelle:exclude pkg/logs/schedulers
@@ -284,7 +296,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/network/config
 # gazelle:exclude pkg/network/containers
 # gazelle:exclude pkg/network/dns
-# gazelle:exclude pkg/network/driver
 # gazelle:exclude pkg/network/ebpf
 # gazelle:exclude pkg/network/encoding
 # gazelle:exclude pkg/network/events
@@ -312,14 +323,22 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/networkpath/telemetry
 # gazelle:exclude pkg/networkpath/traceroute
 # gazelle:exclude pkg/opentelemetry-mapping-go/inframetadata
-# gazelle:exclude pkg/opentelemetry-mapping-go/otlp/logs
 # gazelle:exclude pkg/orchestrator/config
-# gazelle:exclude pkg/orchestrator/model
 # gazelle:exclude pkg/persistentcache
-# gazelle:exclude pkg/pidfile
 # gazelle:exclude pkg/privateactionrunner
 # gazelle:exclude pkg/privileged-logs
-# gazelle:exclude pkg/process
+# gazelle:exclude pkg/process/checks
+# gazelle:exclude pkg/process/encoding
+# gazelle:exclude pkg/process/metadata
+# gazelle:exclude pkg/process/monitor
+# gazelle:exclude pkg/process/net
+# gazelle:exclude pkg/process/procutil
+# gazelle:exclude pkg/process/runner
+# gazelle:exclude pkg/process/status
+# gazelle:exclude pkg/process/subscribers
+# gazelle:exclude pkg/process/util/containers
+# gazelle:exclude pkg/process/util/coreagent
+# gazelle:exclude pkg/process/util/status
 # gazelle:exclude pkg/procmgr
 # Proto definitions under pkg/proto/datadog/ use pre-generated Go code checked
 # into pkg/proto/pbgo/. Gazelle's proto mode is disabled because multiple proto
@@ -370,10 +389,8 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/status/systemprobe
 # gazelle:exclude pkg/status/types.go
 # gazelle:exclude pkg/system-probe
-# gazelle:exclude pkg/telemetry
 # gazelle:exclude pkg/trace/agent
 # gazelle:exclude pkg/trace/api
-# gazelle:exclude pkg/trace/config
 # gazelle:exclude pkg/trace/containertags
 # gazelle:exclude pkg/trace/event
 # gazelle:exclude pkg/trace/filters
@@ -382,25 +399,12 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/trace/payload
 # gazelle:exclude pkg/trace/pb
 # gazelle:exclude pkg/trace/remoteconfighandler
-# gazelle:exclude pkg/trace/sampler
-# gazelle:exclude pkg/trace/semantics
-# gazelle:exclude pkg/trace/stats
 # gazelle:exclude pkg/trace/telemetry
 # gazelle:exclude pkg/trace/teststatsd
 # gazelle:exclude pkg/trace/testutil
 # gazelle:exclude pkg/trace/timing
 # gazelle:exclude pkg/trace/transform
-# gazelle:exclude pkg/trace/version
-# gazelle:exclude pkg/trace/watchdog
 # gazelle:exclude pkg/trace/writer
-# gazelle:exclude pkg/util/aggregatingqueue
-# gazelle:exclude pkg/util/archive
-# gazelle:exclude pkg/util/atomicstats
-# gazelle:exclude pkg/util/aws
-# gazelle:exclude pkg/util/aws/creds
-# gazelle:exclude pkg/util/cachedfetch
-# gazelle:exclude pkg/util/cgroups
-# gazelle:exclude pkg/util/cli
 # gazelle:exclude pkg/util/cloudproviders
 # gazelle:exclude pkg/util/clusteragent
 # gazelle:exclude pkg/util/compression
@@ -408,58 +412,30 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/util/containers/cri
 # gazelle:exclude pkg/util/containers/metadata
 # gazelle:exclude pkg/util/containers/metrics
-# gazelle:exclude pkg/util/coredump
 # gazelle:exclude pkg/util/crashreport
 # gazelle:exclude pkg/util/crio
-# gazelle:exclude pkg/util/defaultpaths
-# gazelle:exclude pkg/util/dmi
 # gazelle:exclude pkg/util/docker
 # gazelle:exclude pkg/util/ec2
 # gazelle:exclude pkg/util/ecs
 # gazelle:exclude pkg/util/fargate
-# gazelle:exclude pkg/util/filesystem
-# gazelle:exclude pkg/util/flavor
-# gazelle:exclude pkg/util/funcs
-# gazelle:exclude pkg/util/goroutinesdump
-# gazelle:exclude pkg/util/gpu
-# gazelle:exclude pkg/util/grpc
-# gazelle:exclude pkg/util/hostinfo
-# gazelle:exclude pkg/util/http
-# gazelle:exclude pkg/util/input
-# gazelle:exclude pkg/util/installinfo
-# gazelle:exclude pkg/util/intern
 # gazelle:exclude pkg/util/kernel
-# gazelle:exclude pkg/util/ktime
 # gazelle:exclude pkg/util/kubelet
-# gazelle:exclude pkg/util/kubernetes
-# gazelle:exclude pkg/util/kubernetes/apiserver/common/namespace
+# gazelle:exclude pkg/util/kubernetes/autoscalers
+# gazelle:exclude pkg/util/kubernetes/certificate
+# gazelle:exclude pkg/util/kubernetes/cloudprovider
+# gazelle:exclude pkg/util/kubernetes/clusterinfo
+# gazelle:exclude pkg/util/kubernetes/clustername
+# gazelle:exclude pkg/util/kubernetes/hostinfo
+# gazelle:exclude pkg/util/kubernetes/kubelet
+# gazelle:exclude pkg/util/kubernetes/apiserver/controllers
+# gazelle:exclude pkg/util/kubernetes/apiserver/leaderelection
 # gazelle:exclude pkg/util/log/setup
-# gazelle:exclude pkg/util/lsof
-# gazelle:exclude pkg/util/maps
-# gazelle:exclude pkg/util/net
 # gazelle:exclude pkg/util/os
-# gazelle:exclude pkg/util/otel
-# gazelle:exclude pkg/util/pdhutil
-# gazelle:exclude pkg/util/podman
 # gazelle:exclude pkg/util/port
-# gazelle:exclude pkg/util/procfilestats
 # gazelle:exclude pkg/util/profiling
-# gazelle:exclude pkg/util/retry
-# gazelle:exclude pkg/util/safeelf
-# gazelle:exclude pkg/util/size
-# gazelle:exclude pkg/util/slices
-# gazelle:exclude pkg/util/stat
-# gazelle:exclude pkg/util/strings
-# gazelle:exclude pkg/util/subscriptions
 # gazelle:exclude pkg/util/sync
-# gazelle:exclude pkg/util/system
 # gazelle:exclude pkg/util/tags
 # gazelle:exclude pkg/util/tmplvar
-# gazelle:exclude pkg/util/trie
-# gazelle:exclude pkg/util/trivy
-# gazelle:exclude pkg/util/winutil
-# gazelle:exclude pkg/util/workqueue
-# gazelle:exclude pkg/util/xc
 # gazelle:exclude pkg/windowsdriver
 # gazelle:exclude tasks
 # gazelle:exclude test
@@ -472,9 +448,64 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude tools/host-profiler
 # gazelle:exclude tools/retry_file_dump
 # gazelle:exclude tools/windows
+
+# All custom build tags from tasks/build_tags.py ALL_TAGS, plus "test".
+# "test" is included so Gazelle analyzes test-only sources and generates their
+# deps. The go_build_tags Gazelle extension removes those files from go_library
+# and moves them into go_test targets; their deps remain in go_library (harmless
+# extra) and are accessible to go_test via embedding.
+_GAZELLE_BUILD_TAGS = [
+    "bundle_installer",
+    "cel",
+    "clusterchecks",
+    "consul",
+    "containerd",
+    "cri",
+    "crio",
+    "cws_instrumentation_injector_only",
+    "datadog.no_waf",
+    "docker",
+    "ec2",
+    "etcd",
+    "fargateprocess",
+    "goexperiment.systemcrypto",
+    "grpcnotrace",
+    "jetson",
+    "jmx",
+    "kubeapiserver",
+    "kubelet",
+    "linux_bpf",
+    "ncm",
+    "netcgo",
+    "netgo",
+    "no_dynamic_plugins",
+    "npm",
+    "nvml",
+    "oracle",
+    "orchestrator",
+    "osusergo",
+    "otlp",
+    "podman",
+    "python",
+    "requirefips",
+    "retrynotrace",
+    "seclmax",
+    "serverless",
+    "sharedlibrarycheck",
+    "systemd",
+    "systemprobechecks",
+    "test",
+    "trivy",
+    "trivy_no_javadb",
+    "wmi",
+    "zk",
+    "zlib",
+    "zstd",
+]
+
 gazelle(
     name = "gazelle",
-    build_tags = ALL_BUILD_TAGS,
+    build_tags = _GAZELLE_BUILD_TAGS,
     external = "static",  # don't use the network: https://github.com/bazel-contrib/bazel-gazelle/issues/1385
     extra_args = [
         "-build_file_name=BUILD.bazel",  # avoid BUILD/build mess: https://github.com/docker/desktop-feedback/issues/251
@@ -487,6 +518,7 @@ gazelle(
 gazelle_binary(
     name = "gazelle_binary",
     languages = DEFAULT_LANGUAGES + [
+        "//bazel/rules/go_build_tags:gazelle_extension",
         "//bazel/rules/go_stringer:gazelle_extension",
     ],
 )

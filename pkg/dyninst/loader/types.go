@@ -67,6 +67,8 @@ func opcodeByte(opcode compiler.Opcode) uint8 {
 		return C.SM_OP_PROCESS_GO_EMPTY_INTERFACE
 	case compiler.OpcodeProcessGoInterface:
 		return C.SM_OP_PROCESS_GO_INTERFACE
+	case compiler.OpcodeProcessGoDictType:
+		return C.SM_OP_PROCESS_GO_DICT_TYPE
 	case compiler.OpcodeProcessGoHmap:
 		return C.SM_OP_PROCESS_GO_HMAP
 	case compiler.OpcodeProcessGoSwissMap:
@@ -91,6 +93,10 @@ func opcodeByte(opcode compiler.Opcode) uint8 {
 		return C.SM_OP_CONDITION_CHECK
 	case compiler.OpcodeConditionBegin:
 		return C.SM_OP_CONDITION_BEGIN
+	case compiler.OpcodeCallDictResolved:
+		return C.SM_OP_CALL_DICT_RESOLVED
+	case compiler.OpcodeExprSliceBoundsCheck:
+		return C.SM_OP_EXPR_SLICE_BOUNDS_CHECK
 	default:
 		panic(fmt.Sprintf("unknown opcode: %s", opcode))
 	}

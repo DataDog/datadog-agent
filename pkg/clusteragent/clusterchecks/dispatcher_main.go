@@ -9,13 +9,12 @@ package clusterchecks
 
 import (
 	"context"
-	"errors"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -30,11 +29,6 @@ import (
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-)
-
-var (
-	errScheduleFailed   = errors.New("failed to schedule configs")
-	errUnscheduleFailed = errors.New("failed to unschedule configs")
 )
 
 // dispatcher holds the management logic for cluster-checks
@@ -158,7 +152,7 @@ func (d *dispatcher) Stop() {
 func (d *dispatcher) Schedule(configs []integration.Config) {
 	var failedConfigs, excludedConfigs int
 	span := tracer.StartSpan("cluster_checks.dispatcher.schedule",
-		tracer.ResourceName("schedule_configs"),
+		tracer.ResourceName("scheduleConfigs"),
 		tracer.SpanType("worker"))
 	span.SetTag("config_count", len(configs))
 	checkNames := make([]string, 0, len(configs))
@@ -170,10 +164,9 @@ func (d *dispatcher) Schedule(configs []integration.Config) {
 		span.SetTag("excluded_configs", excludedConfigs)
 		span.SetTag("failed_configs", failedConfigs)
 		if failedConfigs > 0 {
-			span.Finish(tracer.WithError(errScheduleFailed))
-		} else {
-			span.Finish()
+			span.SetTag("error", true)
 		}
+		span.Finish()
 	}()
 
 	for _, c := range configs {
@@ -224,16 +217,15 @@ func (d *dispatcher) Schedule(configs []integration.Config) {
 func (d *dispatcher) Unschedule(configs []integration.Config) {
 	var failedConfigs int
 	span := tracer.StartSpan("cluster_checks.dispatcher.unschedule",
-		tracer.ResourceName("unschedule_configs"),
+		tracer.ResourceName("unscheduleConfigs"),
 		tracer.SpanType("worker"))
 	span.SetTag("config_count", len(configs))
 	defer func() {
 		span.SetTag("failed_configs", failedConfigs)
 		if failedConfigs > 0 {
-			span.Finish(tracer.WithError(errUnscheduleFailed))
-		} else {
-			span.Finish()
+			span.SetTag("error", true)
 		}
+		span.Finish()
 	}()
 
 	for _, c := range configs {

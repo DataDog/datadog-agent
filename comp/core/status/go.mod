@@ -9,7 +9,7 @@ require (
 	github.com/spf13/cast v1.10.0
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/fx v1.24.0
-	golang.org/x/text v0.35.0
+	golang.org/x/text v0.36.0
 )
 
 require gopkg.in/yaml.v3 v3.0.1 // indirect
@@ -24,7 +24,7 @@ require (
 	go.uber.org/dig v1.19.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.1 // indirect
-	golang.org/x/sys v0.42.0 // indirect
+	golang.org/x/sys v0.43.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 )
 
@@ -104,6 +104,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/api => ../../../pkg/api
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../pkg/collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/basic => ../../../pkg/config/basic
+	github.com/DataDog/datadog-agent/pkg/config/buildschema => ../../../pkg/config/buildschema
 	github.com/DataDog/datadog-agent/pkg/config/create => ../../../pkg/config/create
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../../pkg/config/env
 	github.com/DataDog/datadog-agent/pkg/config/helper => ../../../pkg/config/helper
@@ -126,7 +127,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic => ../../../pkg/logs/diagnostic
 	github.com/DataDog/datadog-agent/pkg/logs/message => ../../../pkg/logs/message
 	github.com/DataDog/datadog-agent/pkg/logs/metrics => ../../../pkg/logs/metrics
-	github.com/DataDog/datadog-agent/pkg/logs/pipeline => ../../../pkg/logs/pipeline
 	github.com/DataDog/datadog-agent/pkg/logs/processor => ../../../pkg/logs/processor
 	github.com/DataDog/datadog-agent/pkg/logs/sender => ../../../pkg/logs/sender
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../../pkg/logs/sources
