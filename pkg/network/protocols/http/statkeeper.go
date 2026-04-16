@@ -240,6 +240,11 @@ func (h *StatKeeper) addDiscovery(tx Transaction) {
 		return
 	}
 
+	if tx.Method() == MethodUnknown {
+		h.telemetry.unknownMethod.Add(1)
+		return
+	}
+
 	statusCode := tx.StatusCode()
 	if !isValidStatusCode(statusCode) {
 		h.telemetry.invalidStatusCode.Add(1)
@@ -248,6 +253,9 @@ func (h *StatKeeper) addDiscovery(tx Transaction) {
 
 	key := Key{
 		ConnectionKey: tx.ConnTuple(),
+		Path: Path{
+			Content: Interner.Get([]byte{}),
+		},
 	}
 	if h.connectionAggregator != nil {
 		key.ConnectionKey = h.connectionAggregator.RollupKey(key.ConnectionKey)
