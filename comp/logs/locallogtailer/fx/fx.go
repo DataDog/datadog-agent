@@ -7,8 +7,10 @@
 package fx
 
 import (
+	locallogtailerdef "github.com/DataDog/datadog-agent/comp/logs/locallogtailer/def"
 	locallogtailerimpl "github.com/DataDog/datadog-agent/comp/logs/locallogtailer/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"go.uber.org/fx"
 )
 
 // Module defines the fx options for this component.
@@ -17,5 +19,10 @@ func Module() fxutil.Module {
 		fxutil.ProvideComponentConstructor(
 			locallogtailerimpl.NewComponent,
 		),
+		// Force eager instantiation: locallogtailerdef.Component is never
+		// required by any other component in the graph, so without this
+		// fx.Invoke Fx would never call NewComponent and the tailer would
+		// silently never start.
+		fx.Invoke(func(_ locallogtailerdef.Component) {}),
 	)
 }
