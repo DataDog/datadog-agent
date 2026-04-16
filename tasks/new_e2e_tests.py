@@ -294,8 +294,6 @@ def upload_binaries(
     shutil.rmtree(tarball_dir, ignore_errors=True)
 
 
-
-
 def _download_prebuilt_binaries(ctx, s3_base_uri, targets):
     """Download pre-built binaries from S3 for the specified targets.
 
