@@ -52,10 +52,14 @@ type fdPath struct {
 	path string
 }
 
+// Arbitrary limit for maximum number of candidates.  Some applications can
+// initialize multiple tracers.
+const maxTracerMemfds = 25
+
 type openFilesInfo struct {
-	sockets       []uint64
-	logs          []fdPath
-	tracerMemfdFd string // fd number of tracer memfd file if found (e.g., "5")
+	sockets        []uint64
+	logs           []fdPath
+	tracerMemfdFds []string // fd numbers of tracer memfd files if found (e.g., ["5", "7"])
 }
 
 // getOpenFilesInfo gets a list of socket inode numbers opened by a process
@@ -99,8 +103,8 @@ func getOpenFilesInfo(pid int32, buf []byte) (openFilesInfo, error) {
 			continue
 		}
 
-		if openFiles.tracerMemfdFd == "" && tracermetadata.IsTracerMemfdPath(path) {
-			openFiles.tracerMemfdFd = fd
+		if len(openFiles.tracerMemfdFds) < maxTracerMemfds && tracermetadata.IsTracerMemfdPath(path) {
+			openFiles.tracerMemfdFds = append(openFiles.tracerMemfdFds, fd)
 			continue
 		}
 	}

@@ -1,8 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
-# FIXME(agent-build): remove and rerun gazelle once ABLD-409 is merged
-# gazelle:exclude test_helpers.go
-
 go_library(
     name = "setup",
     srcs = [
@@ -15,7 +12,7 @@ go_library(
         "config_init.go",
         "config_init_serverless.go",
         "config_nix.go",
-        "config_test_accessor.go",  # keep: ABLD-409
+        "config_test_accessor.go",
         "config_windows.go",
         "ipc_address.go",
         "multi_region_failover.go",
@@ -29,7 +26,8 @@ go_library(
         "system_probe_cws_notwin.go",
         "system_probe_cws_windows.go",
         "system_probe_usm.go",
-        "test_config_accessor.go",  # keep: ABLD-409
+        "test_config_accessor.go",
+        "test_helpers.go",
         "unexpectedunicodefinder.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/config/setup",
@@ -93,11 +91,10 @@ go_test(
         "privateactionrunner_test.go",
         "process_test.go",
         "system_probe_test.go",
-        "test_helpers.go",  # keep: ABLD-409
         "unexpectedunicodefinder_test.go",
     ],
     embed = [":setup"],
-    gotags = ["test"],  # keep: ABLD-409
+    gotags = ["test"],
     deps = [
         "//comp/core/delegatedauth/mock",
         "//comp/core/secrets/mock",
