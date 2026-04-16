@@ -586,7 +586,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		},
 
 		// SBOM resolver
-		SBOMResolverEnabled:            pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.enabled"),
+		SBOMResolverEnabled:            pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.enabled") || pkgconfigsetup.Datadog().GetBool("sbom.enrichment.usage.enabled"),
 		SBOMResolverWorkloadsCacheSize: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.sbom.workloads_cache_size"),
 		SBOMResolverEnrichmentTicker:   pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.sbom.enrichment_ticker"),
 		SBOMResolverHostEnabled:        pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.host.enabled"),
@@ -709,7 +709,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 
 // IsRuntimeEnabled returns true if any feature is enabled. Has to be applied in config package too
 func (c *RuntimeSecurityConfig) IsRuntimeEnabled() bool {
-	return c.RuntimeEnabled || c.FIMEnabled || c.SBOMResolverEnabled
+	return c.RuntimeEnabled || c.FIMEnabled
 }
 
 // IsSysctlEventEnabled returns whether the sysctl event is enabled

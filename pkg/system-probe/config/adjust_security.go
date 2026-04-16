@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 func adjustSecurity(cfg model.Config) {
@@ -39,7 +40,7 @@ func adjustSecurity(cfg model.Config) {
 		cfg.Set(secNS("security_profile.enabled"), false, model.SourceAgentRuntime)
 	}
 
-	if cfg.GetBool(secNS("sbom.enabled")) {
+	if pkgconfigsetup.Datadog().GetBool("sbom.enrichment.usage.enabled") {
 		cfg.Set(secNS("event_sampling.open.enabled"), true, model.SourceAgentRuntime)
 	}
 
