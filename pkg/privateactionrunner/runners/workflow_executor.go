@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
+
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
@@ -120,6 +122,28 @@ func (l *Loop) handleTask(
 		log.String(observability.TaskIDTagName, task.Data.ID),
 		log.String(observability.ActionFqnTagName, task.GetFQN()),
 	)
+
+	// Link this task's work to the backend-created trace when the
+	// wf-actions-server propagation experiment is enabled. The carrier is
+	// empty for tasks from runners without backend tracing, in which case
+	// we skip creating a span entirely so the Agent's APM pipeline stays
+	// inert for those tasks.
+	var taskSpan *tracer.Span
+	if carrier := task.Data.Attributes.TraceContext; len(carrier) > 0 {
+		if parentCtx, err := tracer.Extract(tracer.TextMapCarrier(carrier)); err == nil {
+			var span *tracer.Span
+			span, ctx = tracer.StartSpanFromContext(ctx, "par.task.execute",
+				tracer.ChildOf(parentCtx),
+				tracer.ResourceName(task.GetFQN()),
+				tracer.ServiceName("private-action-runner"),
+				tracer.Tag("task.id", task.Data.ID),
+				tracer.Tag("org_id", task.Data.Attributes.OrgId),
+				tracer.Tag("job.id", task.Data.Attributes.JobId),
+			)
+			taskSpan = span
+		}
+	}
+
 	taskCtx, taskCtxCancel := context.WithCancel(ctx)
 	defer taskCtxCancel()
 
@@ -131,6 +155,10 @@ func (l *Loop) handleTask(
 	defer timeoutCancel()
 
 	output, err := l.runner.RunTask(timeoutCtx, task, credential)
+
+	if taskSpan != nil {
+		taskSpan.Finish(tracer.WithError(err))
+	}
 
 	if isTimeout, timeoutErr := util.HandleTimeoutError(timeoutCtx, err, timeoutSeconds, logger); isTimeout {
 		l.publishFailure(ctx, task, timeoutErr)
