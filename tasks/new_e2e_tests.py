@@ -279,16 +279,21 @@ def upload_binaries(
         for future in as_completed(futures):
             future.result()
 
+    if upload_failures > 0:
+        print(f"Error: {upload_failures} uploads failed")
+        raise Exit(code=1)
+
     # Upload manifest
-    ctx.run(f'aws s3 cp {manifest_file_path} {s3_base_uri}/manifest.json')
+    result = ctx.run(f'aws s3 cp {manifest_file_path} {s3_base_uri}/manifest.json', warn=True)
+    if not result.ok:
+        print(f"  ✗ Failed to upload manifest to {s3_base_uri}/manifest.json")
+        raise Exit(code=1)
     print(f"Uploaded manifest to {s3_base_uri}/manifest.json")
 
     # Cleanup temp tarballs
     shutil.rmtree(tarball_dir, ignore_errors=True)
 
-    if upload_failures > 0:
-        print(f"Error: {upload_failures} uploads failed")
-        raise Exit(code=1)
+
 
 
 def _download_prebuilt_binaries(ctx, s3_base_uri, targets):
@@ -345,7 +350,10 @@ def _download_prebuilt_binaries(ctx, s3_base_uri, targets):
             if not result.ok:
                 print(f"  ✗ Failed to download {tarball_name}")
                 return False
-            ctx.run(f'tar xf {tarball_name}')
+            result = ctx.run(f'tar xf {tarball_name}', warn=True)
+            if not result.ok:
+                print(f"  ✗ Failed to extract {tarball_name}")
+                return False
             os.remove(tarball_name)
 
     print(f"Pre-built binaries extracted to {extract_path}")
