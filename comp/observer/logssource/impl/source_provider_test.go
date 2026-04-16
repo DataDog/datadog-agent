@@ -29,6 +29,7 @@ import (
 // --- filter function tests ---
 
 func TestIsPauseContainer(t *testing.T) {
+	sp, _ := newTestSourceProvider() // pauseFilter=nil → falls back to heuristic
 	cases := []struct {
 		image string
 		want  bool
@@ -38,14 +39,14 @@ func TestIsPauseContainer(t *testing.T) {
 		{"registry.k8s.io/pause:3.9", true},
 		{"PAUSE", true},
 		{"nginx", false},
-		{"my-pause-proxy", true}, // contains "pause" — acceptable false positive for P0
+		{"my-pause-proxy", true}, // contains "pause" — acceptable false positive for fallback heuristic
 		{"", false},
 	}
 	for _, tc := range cases {
 		c := &workloadmeta.Container{
 			Image: workloadmeta.ContainerImage{ShortName: tc.image},
 		}
-		assert.Equal(t, tc.want, isPauseContainer(c), "image=%q", tc.image)
+		assert.Equal(t, tc.want, sp.isPauseContainer(c), "image=%q", tc.image)
 	}
 }
 
@@ -73,7 +74,7 @@ func TestIsAgentContainer(t *testing.T) {
 
 func newTestSourceProvider() (*sourceProvider, *sources.LogSources) {
 	ls := sources.NewLogSources()
-	sp := newSourceProvider(nil, ls) // wmeta not needed for direct handle tests
+	sp := newSourceProvider(nil, ls, nil) // wmeta/pauseFilter not needed for direct handle tests
 	return sp, ls
 }
 
@@ -161,7 +162,7 @@ func TestSourceProvider_GoRoutineExitsCleanly(t *testing.T) {
 	// Snapshot after wmeta starts its own goroutines so only ours are checked.
 	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 	ls := sources.NewLogSources()
-	sp := newSourceProvider(wmeta, ls)
+	sp := newSourceProvider(wmeta, ls, nil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	sp.run(ctx)

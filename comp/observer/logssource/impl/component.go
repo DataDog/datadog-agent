@@ -18,6 +18,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
@@ -34,14 +35,15 @@ import (
 type Requires struct {
 	compdef.In
 
-	Lc       fx.Lifecycle
-	Log      log.Component
-	Config   config.Component
-	Hostname hostname.Component
-	WMeta    option.Option[workloadmeta.Component]
-	Tagger   tagger.Component
-	Auditor  auditor.Component
-	Observer option.Option[observer.Component]
+	Lc          fx.Lifecycle
+	Log         log.Component
+	Config      config.Component
+	Hostname    hostname.Component
+	WMeta       option.Option[workloadmeta.Component]
+	Tagger      tagger.Component
+	Auditor     auditor.Component
+	Observer    option.Option[observer.Component]
+	FilterStore option.Option[workloadfilter.Component]
 }
 
 // Provides defines the output of the logssource component.
@@ -74,13 +76,18 @@ func NewComponent(deps Requires) (Provides, error) {
 		processingRules = nil
 	}
 
+	var pauseFilter workloadfilter.FilterBundle
+	if fs, ok := deps.FilterStore.Get(); ok {
+		pauseFilter = fs.GetContainerPausedFilters()
+	}
+
 	pipeline := newObserverPipeline(deps.Config, processingRules, deps.Hostname, observerHandle)
 	logSources := sources.NewLogSources()
 	tracker := tailers.NewTailerTracker()
 	launcher := containerLauncher.NewLauncher(logSources, option.New(wmeta), deps.Tagger)
 	launchersMgr := launchers.NewLaunchers(logSources, pipeline, deps.Auditor, tracker)
 	launchersMgr.AddLauncher(launcher)
-	sp := newSourceProvider(wmeta, logSources)
+	sp := newSourceProvider(wmeta, logSources, pauseFilter)
 
 	ctx, cancel := context.WithCancel(context.Background())
 

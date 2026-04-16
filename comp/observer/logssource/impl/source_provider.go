@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadfilterutil "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -20,8 +22,9 @@ import (
 // sourceProvider translates workloadmeta container events into LogSources,
 // publishing them to the provided LogSources instance.
 type sourceProvider struct {
-	wmeta      workloadmeta.Component
-	logSources *sources.LogSources
+	wmeta       workloadmeta.Component
+	logSources  *sources.LogSources
+	pauseFilter workloadfilter.FilterBundle
 
 	mu            sync.Mutex
 	activeSources map[string]*sources.LogSource // keyed by container ID
@@ -29,10 +32,11 @@ type sourceProvider struct {
 	stopped sync.WaitGroup
 }
 
-func newSourceProvider(wmeta workloadmeta.Component, logSources *sources.LogSources) *sourceProvider {
+func newSourceProvider(wmeta workloadmeta.Component, logSources *sources.LogSources, pauseFilter workloadfilter.FilterBundle) *sourceProvider {
 	return &sourceProvider{
 		wmeta:         wmeta,
 		logSources:    logSources,
+		pauseFilter:   pauseFilter,
 		activeSources: make(map[string]*sources.LogSource),
 	}
 }
@@ -80,7 +84,7 @@ func (sp *sourceProvider) handleSet(c *workloadmeta.Container) {
 	if !c.State.Running {
 		return
 	}
-	if isPauseContainer(c) || isAgentContainer(c) {
+	if sp.isPauseContainer(c) || isAgentContainer(c) {
 		return
 	}
 	sp.mu.Lock()
@@ -112,7 +116,12 @@ func (sp *sourceProvider) wait() {
 	sp.stopped.Wait()
 }
 
-func isPauseContainer(c *workloadmeta.Container) bool {
+// isPauseContainer uses the workloadfilter bundle when available, falling back
+// to an image-name heuristic for builds where the filter store is absent.
+func (sp *sourceProvider) isPauseContainer(c *workloadmeta.Container) bool {
+	if sp.pauseFilter != nil {
+		return sp.pauseFilter.IsExcluded(workloadfilterutil.CreateContainer(c, nil))
+	}
 	return strings.Contains(strings.ToLower(c.Image.ShortName), "pause")
 }
 
