@@ -283,6 +283,8 @@ func ValidateEmittedMetricsAgainstSpec(specs *Specs, config GPUConfig, emittedMe
 	results := ValidationResult{
 		Metrics: make(map[string]*MetricStatus),
 	}
+
+	// First, check that all of the emitted metrics are known to the spec and supported by the given config.
 	for metricName := range emittedMetrics {
 		metricSpec, found := specs.Metrics.Metrics[metricName]
 		if !found {
@@ -295,6 +297,7 @@ func ValidateEmittedMetricsAgainstSpec(specs *Specs, config GPUConfig, emittedMe
 		}
 	}
 
+	// Now, for all metrics that we would expect, validate each of them individually.
 	expectedMetrics := ExpectedMetricsForConfig(specs, config)
 	for metricName, metricSpec := range expectedMetrics {
 		if _, found := emittedMetrics[metricName]; !found {
