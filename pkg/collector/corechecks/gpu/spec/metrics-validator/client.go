@@ -159,6 +159,8 @@ func (c *metricsClient) queryExpectedMetricPresenceForGPUConfig(metricName strin
 
 	queries := []datadogV2.ScalarQuery{buildScalarQuery("avg", "avg:"+baseQuery, datadogV2.METRICSAGGREGATOR_AVG)}
 	if queryMinMax {
+		// Requesting min/max allows us to check for values outside of the expected ranges. It's not helpful to validate metrics
+		// with discrete acceptable values, but we also can't reasonably query all possible values for a metric using the API.
 		queries = []datadogV2.ScalarQuery{
 			buildScalarQuery("min", "min:"+baseQuery, datadogV2.METRICSAGGREGATOR_MIN),
 			buildScalarQuery("max", "max:"+baseQuery, datadogV2.METRICSAGGREGATOR_MAX),

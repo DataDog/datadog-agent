@@ -53,8 +53,12 @@ class MetricStatus:
             or self.unknown > 0
             or self.unsupported > 0
             or self.invalid_value > 0
-            or any(tag_result.has_failures for tag_result in self.tag_results.values())
+            or self.has_tag_failures
         )
+
+    @property
+    def has_tag_failures(self) -> bool:
+        return any(tag_result.has_failures for tag_result in self.tag_results.values())
 
     def update(self, other: MetricStatus) -> None:
         self.missing += other.missing
@@ -121,11 +125,7 @@ class GPUConfigValidationResult:
 
     @property
     def tag_failures(self) -> int:
-        return sum(
-            1
-            for metric_status in self.detailed_result.metrics.values()
-            if metric_status.has_failures and metric_status.tag_results
-        )
+        return sum(1 for metric_status in self.detailed_result.metrics.values() if metric_status.has_tag_failures)
 
     @property
     def invalid_values(self) -> int:
