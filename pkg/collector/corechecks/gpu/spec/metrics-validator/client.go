@@ -10,6 +10,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadog"
@@ -149,20 +151,17 @@ func (c *metricsClient) queryDeviceCount(config gpuspec.GPUConfig, fromTS, toTS 
 }
 
 func (c *metricsClient) queryExpectedMetricPresenceForGPUConfig(metricName string, expectedTags map[string]struct{}, queryFilter string, fromTS, toTS int64, queryMinMax bool) ([]gpuspec.MetricObservation, error) {
-	query := fmt.Sprintf("avg:%s{%s}", metricName, queryFilter)
-	expectedTagNames := make([]string, 0, len(expectedTags))
-	for tag := range expectedTags {
-		expectedTagNames = append(expectedTagNames, tag)
-	}
-	if len(expectedTagNames) > 0 {
-		query = fmt.Sprintf("%s by {%s}", query, strings.Join(expectedTagNames, ","))
+	baseQuery := fmt.Sprintf("%s{%s}", metricName, queryFilter)
+
+	if len(expectedTags) > 0 {
+		baseQuery += fmt.Sprintf(" by {%s}", strings.Join(slices.Collect(maps.Keys(expectedTags)), ","))
 	}
 
-	queries := []datadogV2.ScalarQuery{buildScalarQuery("q0", query, datadogV2.METRICSAGGREGATOR_AVG)}
+	queries := []datadogV2.ScalarQuery{buildScalarQuery("avg", "avg:"+baseQuery, datadogV2.METRICSAGGREGATOR_AVG)}
 	if queryMinMax {
 		queries = []datadogV2.ScalarQuery{
-			buildScalarQuery("min", fmt.Sprintf("min:%s{%s}", metricName, queryFilter), datadogV2.METRICSAGGREGATOR_MIN),
-			buildScalarQuery("max", fmt.Sprintf("max:%s{%s}", metricName, queryFilter), datadogV2.METRICSAGGREGATOR_MAX),
+			buildScalarQuery("min", "min:"+baseQuery, datadogV2.METRICSAGGREGATOR_MIN),
+			buildScalarQuery("max", "max:"+baseQuery, datadogV2.METRICSAGGREGATOR_MAX),
 		}
 	}
 
@@ -183,6 +182,7 @@ func (c *metricsClient) queryExpectedMetricPresenceForGPUConfig(metricName strin
 				Tags:  []string{},
 				Value: value,
 			}
+
 			for tag := range expectedTags {
 				if isNullishGroupValue(result.tags[tag]) {
 					continue

@@ -39,6 +39,7 @@ def print_summary_table(title: str, results: list[GPUConfigValidationResult]) ->
             row.device_count,
             color_metric_counts(row.missing_metrics, row.present_metrics, row.unknown_metrics),
             color_tag_failures(row.tag_failures),
+            color_tag_failures(row.invalid_values),
         ]
         for row in results
     ]
@@ -54,6 +55,7 @@ def print_summary_table(title: str, results: list[GPUConfigValidationResult]) ->
                 "found devices",
                 "missing/known/unknown metrics",
                 "tag failures",
+                "invalid values",
             ],
             tablefmt="github",
         )
@@ -73,6 +75,7 @@ def print_result_details(results: list[GPUConfigValidationResult]) -> None:
         print(f"{SPACER * 2}known={result.present_metrics}")
         print(f"{SPACER * 2}unknown={result.unknown_metrics}")
         print(f"{SPACER * 2}tag failures={result.tag_failures}")
+        print(f"{SPACER * 2}invalid values={result.invalid_values}")
 
         failing_metrics = [
             (metric_name, metric_status)

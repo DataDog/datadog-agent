@@ -18,6 +18,8 @@ STATE_BY_NAME = {
     "missing": GPUConfigValidationState.MISSING,
 }
 
+INVALID_VALUE_ERROR_PREFIX = "invalid value"
+
 
 @dataclass(slots=True)
 class GPUConfig:
@@ -110,6 +112,21 @@ class GPUConfigValidationResult:
             for metric_status in self.detailed_result.metrics.values()
             if metric_status.has_failures and metric_status.tag_results
         )
+
+    @property
+    def invalid_values(self) -> int:
+        metric_invalid_values = sum(
+            1
+            for metric_status in self.detailed_result.metrics.values()
+            for error in metric_status.errors
+            if error.startswith(INVALID_VALUE_ERROR_PREFIX)
+        )
+        tag_invalid_values = sum(
+            tag_result.invalid_value
+            for metric_status in self.detailed_result.metrics.values()
+            for tag_result in metric_status.tag_results.values()
+        )
+        return metric_invalid_values + tag_invalid_values
 
 
 @dataclass
