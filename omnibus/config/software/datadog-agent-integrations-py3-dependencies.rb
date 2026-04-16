@@ -7,9 +7,6 @@ dependency 'openssl3'
 if linux_target?
 
   build do
-    command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- @unixodbc//:install --destdir='#{install_dir}'"
-    command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- @freetds//:install --destdir='#{install_dir}'"
-
     unless heroku_target?
       lib_files = [
           'krb5/plugins/tls/k5tls.so',
