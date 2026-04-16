@@ -189,8 +189,8 @@ log "lxml==$LXML_VERSION installed successfully"
 #                                       -bbigtoc removes this limit for AIX XCOFF.
 
 log "Installing cryptography==$CRYPTOGRAPHY_VERSION (Rust/PyO3 extension)"
-log "  Setting Rust environment: PATH=/opt/freeware/lib/RustSDK/1.92/bin:..."
-export PATH=/opt/freeware/lib/RustSDK/1.92/bin:"$PATH"
+log "  Setting Rust environment: PATH=/opt/freeware/lib/RustSDK/$RUST_VERSION/bin:..."
+export PATH=/opt/freeware/lib/RustSDK/"$RUST_VERSION"/bin:"$PATH"
 export CARGO_HOME=/opt/cargo
 
 # Check wheel cache (keyed by version so a version bump triggers a fresh build)

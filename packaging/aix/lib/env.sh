@@ -13,6 +13,12 @@ PYTHON_VERSION="3.13.12"
 PYTHON_MAJ_MIN="${PYTHON_VERSION%.*}"   # e.g. 3.13
 export PYTHON_VERSION PYTHON_MAJ_MIN
 
+# ── Rust SDK version ──────────────────────────────────────────────────────────
+# IBM Rust SDK for AIX. The SDK is installed at /opt/freeware/lib/RustSDK/<ver>/bin.
+# All stage scripts reference $RUST_VERSION; update only this one line to upgrade.
+RUST_VERSION="1.92"
+export RUST_VERSION
+
 # ── Build tree layout ─────────────────────────────────────────────────────────
 
 BUILD_DIR=/opt/dd-build

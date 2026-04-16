@@ -53,7 +53,7 @@ cleanup() {
         log "       Re-run after fixing the error by deleting the sentinel:"
         log "       rm $SENTINEL"
         log "       Common causes:"
-        log "         - Rust SDK not installed: yum install rust1.92.ppc cargo1.92.ppc rust1.92-std-static.ppc"
+        log "         - Rust SDK not installed: yum install rust${RUST_VERSION}.ppc cargo${RUST_VERSION}.ppc rust${RUST_VERSION}-std-static.ppc"
         log "         - Insufficient disk space (need ~7 GB free in /tmp, ~4 GB in /)"
         log "         - CC not set to GCC (xlc rejects -fPIC, -maix64 flags)"
     fi
@@ -98,13 +98,13 @@ log "Required pydantic version (from datadog_checks_base): $PYDANTIC_VERSION"
 log "Setting Rust environment for pydantic-core build"
 export CC=/opt/freeware/bin/gcc
 export CXX=/opt/freeware/bin/g++
-export PATH=/opt/freeware/lib/RustSDK/1.92/bin:"$PATH"
+export PATH=/opt/freeware/lib/RustSDK/"$RUST_VERSION"/bin:"$PATH"
 export CARGO_HOME=/opt/cargo
 
 log "  CC=$CC"
 log "  CXX=$CXX"
 log "  CARGO_HOME=$CARGO_HOME"
-log "  Rust toolchain: $(cargo --version 2>/dev/null || echo 'cargo not found — install rust1.92.ppc')"
+log "  Rust toolchain: $(cargo --version 2>/dev/null || echo "cargo not found — install rust${RUST_VERSION}.ppc")"
 
 # ─── Step 3: Check wheel cache ────────────────────────────────────────────────
 #
