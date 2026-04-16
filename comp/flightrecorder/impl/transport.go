@@ -23,130 +23,101 @@ type Transport interface {
 	Close() error
 }
 
-// pooledTransport manages a pool of Unix domain socket connections to the
-// sidecar. Each flush goroutine acquires a connection from the pool for the
-// duration of a Send(), so concurrent flushes never block each other.
+// unixConn manages a single Unix domain socket connection. Each pipeline gets
+// its own unixConn, so pipelines never contend on the same socket.
 //
-// Connections are created lazily on first Acquire and returned to the pool
-// after use. On write error, the bad connection is discarded and a new one
-// is dialed. If dialing fails, the sidecar is considered gone and a fatal
-// disconnect is signaled.
-type pooledTransport struct {
+// The mutex is held for the entire Send call. This is acceptable because each
+// pipeline has at most 2 flush goroutines (entries + contexts), and context
+// flushes are rare after warm-up.
+type unixConn struct {
 	socketPath string
 
-	mu    sync.Mutex
-	conns []net.Conn // idle connections
-
-	closed bool
-
-	// onDisconnect is called exactly once when the sidecar is unreachable
-	// (dial fails). Triggers full teardown (hooks, batcher).
-	onDisconnect func()
+	mu           sync.Mutex
+	conn         net.Conn
+	closed       bool
 	disconnected bool
+
+	// onDisconnect is called exactly once when dialing fails (sidecar gone).
+	// Set by activate() before any Send.
+	onDisconnect func()
 }
 
-func newPooledTransport(socketPath string) *pooledTransport {
-	return &pooledTransport{
-		socketPath: socketPath,
-	}
+func newUnixConn(socketPath string) *unixConn {
+	return &unixConn{socketPath: socketPath}
 }
 
-// acquire returns an idle connection from the pool, or dials a new one.
-func (t *pooledTransport) acquire() (net.Conn, error) {
-	t.mu.Lock()
-	if t.closed {
-		t.mu.Unlock()
-		return nil, errNotConnected
-	}
-	if len(t.conns) > 0 {
-		conn := t.conns[len(t.conns)-1]
-		t.conns = t.conns[:len(t.conns)-1]
-		t.mu.Unlock()
-		return conn, nil
-	}
-	t.mu.Unlock()
+// Send writes b as a length-prefixed frame. The connection is lazily dialed
+// on first use. On write error, the connection is replaced immediately with
+// a fresh dial. If dialing fails, the sidecar is considered gone.
+func (c *unixConn) Send(b []byte) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
-	// Dial outside the lock — this may block for up to 2s.
-	conn, err := net.DialTimeout("unix", t.socketPath, 2*time.Second)
-	if err != nil {
-		t.fatalDisconnect()
-		return nil, errNotConnected
-	}
-	return conn, nil
-}
-
-// release returns a healthy connection to the pool.
-func (t *pooledTransport) release(conn net.Conn) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	if t.closed {
-		conn.Close() //nolint:errcheck
-		return
-	}
-	t.conns = append(t.conns, conn)
-}
-
-// discard closes a bad connection without returning it to the pool.
-func (t *pooledTransport) discard(conn net.Conn) {
-	conn.Close() //nolint:errcheck
-}
-
-// fatalDisconnect signals that the sidecar is unreachable. Called at most once.
-func (t *pooledTransport) fatalDisconnect() {
-	t.mu.Lock()
-	if t.disconnected {
-		t.mu.Unlock()
-		return
-	}
-	t.disconnected = true
-	fn := t.onDisconnect
-	t.mu.Unlock()
-
-	if fn != nil {
-		fn()
-	}
-}
-
-// Send writes b to the Unix socket as a length-prefixed frame.
-//
-// Acquires a connection from the pool, writes, and returns it. If the write
-// fails, the connection is discarded and a new one will be dialed on the
-// next Send. Concurrent goroutines each get their own connection — no
-// goroutine blocks another.
-func (t *pooledTransport) Send(b []byte) error {
-	conn, err := t.acquire()
-	if err != nil {
-		return err
+	if c.closed {
+		return errNotConnected
 	}
 
+	// Lazy dial.
+	if c.conn == nil {
+		conn, err := net.DialTimeout("unix", c.socketPath, 2*time.Second)
+		if err != nil {
+			c.triggerDisconnect()
+			return errNotConnected
+		}
+		c.conn = conn
+	}
+
+	// Write length-prefixed frame using writev (net.Buffers).
 	var prefix [4]byte
 	binary.LittleEndian.PutUint32(prefix[:], uint32(len(b)))
 	bufs := net.Buffers{prefix[:], b}
-	_, err = bufs.WriteTo(conn)
+	_, err := bufs.WriteTo(c.conn)
 	if err != nil {
-		t.discard(conn)
-		return err
-	}
+		// Connection dead — close and try one immediate reconnect.
+		c.conn.Close() //nolint:errcheck
+		c.conn = nil
 
-	t.release(conn)
+		conn, dialErr := net.DialTimeout("unix", c.socketPath, 2*time.Second)
+		if dialErr != nil {
+			c.triggerDisconnect()
+			return errNotConnected
+		}
+		c.conn = conn
+		// Retry the write on the fresh connection.
+		bufs = net.Buffers{prefix[:], b}
+		_, err = bufs.WriteTo(c.conn)
+		if err != nil {
+			c.conn.Close() //nolint:errcheck
+			c.conn = nil
+			return err
+		}
+	}
 	return nil
 }
 
-// Close drains the pool and closes all idle connections.
-func (t *pooledTransport) Close() error {
-	t.mu.Lock()
-	t.closed = true
-	conns := t.conns
-	t.conns = nil
-	t.mu.Unlock()
-
-	var firstErr error
-	for _, c := range conns {
-		if err := c.Close(); err != nil && firstErr == nil {
-			firstErr = err
-		}
+// Close shuts down the connection.
+func (c *unixConn) Close() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.closed = true
+	if c.conn != nil {
+		err := c.conn.Close()
+		c.conn = nil
+		return err
 	}
-	return firstErr
+	return nil
+}
+
+// triggerDisconnect fires the onDisconnect callback exactly once.
+// Must be called with mu held.
+func (c *unixConn) triggerDisconnect() {
+	if c.disconnected {
+		return
+	}
+	c.disconnected = true
+	if c.onDisconnect != nil {
+		c.onDisconnect()
+	}
 }
 
 // errNotConnected is returned by Send when there is no live connection.

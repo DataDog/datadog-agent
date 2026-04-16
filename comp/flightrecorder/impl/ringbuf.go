@@ -17,6 +17,23 @@ import (
 // Keeps the flush goroutine responsive and prevents partial writes on the socket.
 const maxChunkSize = 2000
 
+// initialCap returns a small starting capacity (1/8th of max, min 1000).
+func initialCap(maxCap int) int {
+	c := maxCap / 8
+	if c < 1000 {
+		c = 1000
+	}
+	return c
+}
+
+// signalCh non-blocking sends on a buffered channel.
+func signalCh(ch chan struct{}) {
+	select {
+	case ch <- struct{}{}:
+	default:
+	}
+}
+
 // ringBuf is a generic double-buffered ring that handles the swap/drain/chunk
 // pattern uniformly across all signal types (metrics, logs, trace stats).
 //

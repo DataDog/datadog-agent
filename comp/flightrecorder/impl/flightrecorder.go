@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v5"
+	flatbuffers "github.com/google/flatbuffers/go"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -166,15 +167,70 @@ func (s *flightrecorderImpl) discoveryLoop(ctx context.Context) {
 // signaling the discovery loop to restart.
 func (s *flightrecorderImpl) activate(ctx context.Context) <-chan struct{} {
 	done := make(chan struct{})
-
 	c := s.counters
-	transport := newPooledTransport(s.socketPath)
-	bat := newBatcher(transport, s.flushInterval,
-		s.ptCapacity, s.defCapacity, s.logCapacity, s.traceStatsCapacity, s.seenContexts, c)
+	pool := newBuilderPool()
 
-	// Subscribe to all hooks, collect unsubscribe functions.
+	// Create 3 independent pipelines, each with its own UDS connection.
+	metricsTransport := newUnixConn(s.socketPath)
+	logsTransport := newUnixConn(s.socketPath)
+	traceTransport := newUnixConn(s.socketPath)
+
+	metricsPipe := newPipeline[metricPoint](
+		metricsTransport, s.flushInterval, s.ptCapacity, s.defCapacity,
+		func(p *builderPool, buf []metricPoint, tail, count, cap int) (*flatbuffers.Builder, error) {
+			return EncodePointBatch(p, buf, tail, count, cap)
+		},
+		func(p *builderPool, buf []contextDef, tail, count, cap int) (*flatbuffers.Builder, error) {
+			return EncodeContextBatch(p, buf, tail, count, cap)
+		},
+		"metrics", c.incMetricsSent, c.incMetricsDroppedOverflow, c.incMetricsDroppedTransport,
+		pool, c,
+	)
+
+	logsPipe := newPipeline[logEntry](
+		logsTransport, s.flushInterval, s.logCapacity, s.defCapacity,
+		func(p *builderPool, buf []logEntry, tail, count, cap int) (*flatbuffers.Builder, error) {
+			return EncodeLogEntryBatch(p, buf, tail, count, cap)
+		},
+		func(p *builderPool, buf []contextDef, tail, count, cap int) (*flatbuffers.Builder, error) {
+			return EncodeLogContextBatch(p, buf, tail, count, cap)
+		},
+		"logs", c.incLogsSent, c.incLogsDroppedOverflow, c.incLogsDroppedTransport,
+		pool, c,
+	)
+
+	tracePipe := newPipeline[capturedTraceStat](
+		traceTransport, s.flushInterval, s.traceStatsCapacity, 0,
+		func(p *builderPool, buf []capturedTraceStat, tail, count, cap int) (*flatbuffers.Builder, error) {
+			return EncodeTraceStatsBatchRing(p, buf, tail, count, cap)
+		},
+		nil, // no context ring for trace stats
+		"trace_stats", c.incTraceStatsSent, c.incTraceStatsDroppedOverflow, c.incTraceStatsDroppedTransport,
+		pool, c,
+	)
+
+	// Any transport disconnect tears down everything exactly once.
+	var disconnectOnce sync.Once
 	var unsubs []func()
+	teardown := func() {
+		disconnectOnce.Do(func() {
+			for _, unsub := range unsubs {
+				unsub()
+			}
+			metricsPipe.Stop()
+			logsPipe.Stop()
+			tracePipe.Stop()
+			metricsTransport.Close() //nolint:errcheck
+			logsTransport.Close()    //nolint:errcheck
+			traceTransport.Close()   //nolint:errcheck
+			close(done)
+		})
+	}
+	metricsTransport.onDisconnect = teardown
+	logsTransport.onDisconnect = teardown
+	traceTransport.onDisconnect = teardown
 
+	// Subscribe to all hooks.
 	metricBatchPool := sync.Pool{New: func() any {
 		return make([]hook.MetricSampleSnapshot, 0, 64)
 	}}
@@ -189,24 +245,19 @@ func (s *flightrecorderImpl) activate(ctx context.Context) <-chan struct{} {
 				for i := range batch {
 					ms := &batch[i]
 					ckey := ms.ContextKey
-					// Check metrics (from check_sampler) have ContextKey=0
-					// because the check sampler doesn't run a context resolver.
-					// Compute one from name+tags so the sidecar can track contexts.
 					if ckey == 0 && ms.Name != "" {
 						ckey = computeContextKey(ms.Name, ms.RawTags)
 					}
 					ts := int64(ms.Timestamp * float64(time.Second/time.Nanosecond))
 
-					// Always send the data point.
-					bat.AddPoint(metricPoint{
+					metricsPipe.AddEntry(metricPoint{
 						ContextKey:  ckey,
 						Value:       ms.Value,
 						TimestampNs: ts,
 						SampleRate:  ms.SampleRate,
 					})
-					// Send context definition on first occurrence.
-					if !bat.IsContextKnown(ckey) {
-						bat.AddContextDef(contextDef{
+					if !s.seenContexts.IsKnown(ckey) {
+						metricsPipe.AddContextDef(contextDef{
 							ContextKey: ckey,
 							Name:       ms.Name,
 							Tags:       ms.RawTags,
@@ -237,13 +288,13 @@ func (s *flightrecorderImpl) activate(ctx context.Context) <-chan struct{} {
 				lg := &batch[i]
 				allTags := buildLogContextTags(lg.Hostname, lg.Status, lg.Tags)
 				ckey := computeContextKey("", allTags)
-				if !bat.IsContextKnown(ckey) {
-					bat.AddLogContextDef(contextDef{
+				if !s.seenContexts.IsKnown(ckey) {
+					logsPipe.AddContextDef(contextDef{
 						ContextKey: ckey,
 						Tags:       allTags,
 					})
 				}
-				bat.AddLogEntry(logEntry{
+				logsPipe.AddEntry(logEntry{
 					ContextKey:  ckey,
 					Content:     lg.Content,
 					TimestampNs: lg.TimestampNs,
@@ -258,7 +309,7 @@ func (s *flightrecorderImpl) activate(ctx context.Context) <-chan struct{} {
 			continue
 		}
 		unsub := sh.Subscribe("flightrecorder-trace-stats", func(payload hook.TraceStatsView) {
-			bat.AddTraceStat(capturedTraceStat{
+			tracePipe.AddEntry(capturedTraceStat{
 				Service:          payload.GetService(),
 				Name:             payload.GetName(),
 				Resource:         payload.GetResource(),
@@ -282,17 +333,8 @@ func (s *flightrecorderImpl) activate(ctx context.Context) <-chan struct{} {
 		unsubs = append(unsubs, unsub)
 	}
 
-	s.log.Infof("flightrecorder: activated (socket=%s flush=%s pts=%d defs=%d logs=%d tss=%d hook_buf=%d ctx_cap=%d)",
+	s.log.Infof("flightrecorder: activated (socket=%s flush=%s metrics=[pts=%d defs=%d] logs=%d trace_stats=%d hook_buf=%d ctx_cap=%d)",
 		s.socketPath, s.flushInterval, s.ptCapacity, s.defCapacity, s.logCapacity, s.traceStatsCapacity, s.hookBufSize, s.contextCap)
-
-	// Set transport disconnect handler: tear down everything and signal discovery loop.
-	transport.onDisconnect = func() {
-		for _, unsub := range unsubs {
-			unsub()
-		}
-		bat.Stop()
-		close(done)
-	}
 
 	return done
 }
