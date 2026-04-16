@@ -84,6 +84,7 @@ func NewStatkeeper(c *config.Config, telemetry *Telemetry, incompleteBuffer Inco
 	maxEntries := c.MaxHTTPStatsBuffered
 	if c.DiscoveryServiceMapEnabled {
 		maxEntries = discoveryMaxStatsBuffered
+		log.Infof("http statkeeper running in discovery mode: path/method dropped from key, max_stats_buffered=%d", maxEntries)
 	}
 
 	return &StatKeeper{
