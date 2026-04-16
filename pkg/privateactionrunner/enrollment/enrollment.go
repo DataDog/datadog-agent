@@ -16,32 +16,36 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
-	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const defaultIdentityFileName = "privateactionrunner_private_identity.json"
 
 // Result contains the result of a successful enrollment
 type Result struct {
-	PrivateKey *ecdsa.PrivateKey
-	URN        string
-	Hostname   string
-	RunnerName string
+	PrivateKey    *ecdsa.PrivateKey
+	URN           string
+	Hostname      string
+	RunnerName    string
+	OrchClusterID string
 }
 
 type PersistedIdentity struct {
-	PrivateKey string `json:"private_key"`
-	URN        string `json:"urn"`
-	Hostname   string `json:"hostname,omitempty"`
+	PrivateKey    string `json:"private_key"`
+	URN           string `json:"urn"`
+	Hostname      string `json:"hostname,omitempty"`
+	OrchClusterID string `json:"orch_cluster_id,omitempty"`
 }
 
 // SelfEnroll performs self-registration of a private action runner using API credentials
-func SelfEnroll(ctx context.Context, ddSite, runnerNamePrefix, runnerHostname, apiKey, appKey string) (*Result, error) {
-	orchClusterID, err := clustername.GetClusterID()
-	if err != nil {
-		pkglog.Warnf("Failed to get orchestrator cluster ID: %v", err)
-	}
+func SelfEnroll(
+	ctx context.Context,
+	ddSite,
+	runnerNamePrefix,
+	runnerHostname,
+	orchClusterID,
+	apiKey,
+	appKey string,
+) (*Result, error) {
 	agentFlavor := flavor.GetFlavor()
 
 	now := time.Now().UTC()
@@ -77,9 +81,10 @@ func SelfEnroll(ctx context.Context, ddSite, runnerNamePrefix, runnerHostname, a
 	urn := util.MakeRunnerURN(region, createRunnerResponse.OrgID, createRunnerResponse.RunnerID)
 
 	return &Result{
-		PrivateKey: privateJwk.Key.(*ecdsa.PrivateKey),
-		URN:        urn,
-		Hostname:   runnerHostname,
-		RunnerName: runnerName,
+		PrivateKey:    privateJwk.Key.(*ecdsa.PrivateKey),
+		URN:           urn,
+		Hostname:      runnerHostname,
+		RunnerName:    runnerName,
+		OrchClusterID: orchClusterID,
 	}, nil
 }

@@ -130,10 +130,21 @@ func NewPrivateActionRunner(
 	}, nil
 }
 
+
+
 func (p *PrivateActionRunner) getRunnerConfig(ctx context.Context) (*parconfig.Config, error) {
 	persistedIdentity, err := enrollment.GetIdentityFromPreviousEnrollment(ctx, p.coreConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get identity: %w", err)
+	}
+	if persistedIdentity != nil {
+		reenroll, err := p.shouldReenroll(ctx, persistedIdentity)
+		if err != nil {
+			return nil, fmt.Errorf("failed to check enrollment status: %w", err)
+		}
+		if reenroll {
+			persistedIdentity = nil
+		}
 	}
 	if persistedIdentity != nil {
 		p.coreConfig.Set(privateactionrunner.PARPrivateKey, persistedIdentity.PrivateKey, model.SourceAgentRuntime)
@@ -270,11 +281,35 @@ func (p *PrivateActionRunner) waitForStartup(ctx context.Context) error {
 	return nil
 }
 
+func (p *PrivateActionRunner) shouldReenroll(ctx context.Context, identity *enrollment.PersistedIdentity) (bool, error) {
+	if flavor.GetFlavor() == flavor.ClusterAgent {
+		currentClusterID, err := clustername.GetClusterID()
+		if err != nil || currentClusterID == "" {
+			return false, fmt.Errorf("failed to get orchestrator cluster ID for cluster agent: %w", err)
+		}
+		if identity.OrchClusterID != currentClusterID {
+			p.logger.Infof("Saved identity orch_cluster_id does not match current cluster ID, re-enrolling")
+			return true, nil
+		}
+	} else {
+		currentHostname, err := p.hostnameGetter.Get(ctx)
+		if err != nil {
+			return false, fmt.Errorf("failed to get hostname: %w", err)
+		}
+		if identity.Hostname != currentHostname {
+			p.logger.Infof("Saved identity hostname does not match current hostname, re-enrolling")
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // performSelfEnrollment handles the self-registration of a private action runner.
 // The enrollment mode is controlled by the api_key_only_enrollment flag:
 //   - true:  enroll with API key only (app key ignored, no auto-connections)
 //   - false: enroll with API key + app key (app key required, auto-connections created)
 func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *parconfig.Config) (*parconfig.Config, error) {
+	var err error
 	ddSite := cfg.DatadogSite
 	apiKey := p.coreConfig.GetString("api_key")
 	apiKeyOnlyEnrollment := p.coreConfig.GetBool(privateactionrunner.PARApiKeyOnlyEnrollment)
@@ -307,6 +342,7 @@ func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *pa
 
 	runnerNamePrefix := runnerHostname
 	enrollmentHostname := runnerHostname
+	var orchClusterID string
 	// For cluster agent, use cluster name instead of hostname for better identification
 	// and do not send the hostname in the enrollment request or connection tags as the cluster agent is a deployment so not tied to a specific host
 	if flavor.GetFlavor() == flavor.ClusterAgent {
@@ -317,9 +353,18 @@ func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *pa
 			p.logger.Warnf("Cluster name not found, falling back to hostname '%s' for cluster agent enrollment", runnerHostname)
 		}
 		enrollmentHostname = ""
+		orchClusterID, err = clustername.GetClusterID()
+		if err != nil || orchClusterID == "" {
+			return nil, fmt.Errorf("failed to get orchestrator cluster ID for cluster agent enrollment: %w", err)
+		}
+	} else {
+		orchClusterID, err = clustername.GetClusterID()
+		if err != nil {
+			p.logger.Warnf("Failed to get orchestrator cluster ID: %v", err)
+		}
 	}
 
-	enrollmentResult, err := enrollment.SelfEnroll(ctx, ddSite, runnerNamePrefix, enrollmentHostname, apiKey, appKey)
+	enrollmentResult, err := enrollment.SelfEnroll(ctx, ddSite, runnerNamePrefix, enrollmentHostname, orchClusterID, apiKey, appKey)
 	if err != nil {
 		return nil, fmt.Errorf("enrollment API call failed: %w", err)
 	}
