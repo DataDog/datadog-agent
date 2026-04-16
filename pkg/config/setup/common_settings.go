@@ -990,7 +990,6 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("djm_config.enabled", false)
 
 	// Data Observability
-	config.BindEnvAndSetDefault("data_observability.query_actions.enabled", false)
 	bindEnvAndSetLogsConfigKeys(config, "data_observability.forwarder.")
 
 	// Reverse DNS Enrichment
@@ -1069,6 +1068,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("hostprofiler.ddprofiling.period", 0)
 	config.BindEnvAndSetDefault("hostprofiler.health_metrics.enabled", true)
 	config.BindEnvAndSetDefault("hostprofiler.health_metrics.target", "127.0.0.1:8889")
+	config.BindEnvAndSetDefault("hostprofiler.hpflare.port", 7778)
 }
 
 func agent(config pkgconfigmodel.Setup) {
