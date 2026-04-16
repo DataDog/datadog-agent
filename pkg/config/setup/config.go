@@ -436,8 +436,8 @@ func LoadProxyFromEnv(config pkgconfigmodel.ReaderWriter) {
 	// We have to set each value individually so both config.Get("proxy")
 	// and config.Get("proxy.http") work
 	if isSet {
-		config.Set("proxy.http", p.HTTP, pkgconfigmodel.SourceAgentRuntime)
-		config.Set("proxy.https", p.HTTPS, pkgconfigmodel.SourceAgentRuntime)
+		config.Set("proxy.http", p.HTTP, pkgconfigmodel.SourceConfigPostInit)
+		config.Set("proxy.https", p.HTTPS, pkgconfigmodel.SourceConfigPostInit)
 
 		// If this is set to an empty []string, viper will have a type conflict when merging
 		// this config during secrets resolution. It unmarshals empty yaml lists to type
@@ -446,7 +446,7 @@ func LoadProxyFromEnv(config pkgconfigmodel.ReaderWriter) {
 		for idx := range p.NoProxy {
 			noProxy[idx] = p.NoProxy[idx]
 		}
-		config.Set("proxy.no_proxy", noProxy, pkgconfigmodel.SourceAgentRuntime)
+		config.Set("proxy.no_proxy", noProxy, pkgconfigmodel.SourceConfigPostInit)
 	}
 }
 
@@ -1046,7 +1046,7 @@ func resolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 func configAssignAtPath(config pkgconfigmodel.Config, settingPath []string, newValue any) error {
 	settingName := strings.Join(settingPath, ".")
 	if config.IsKnown(settingName) {
-		config.Set(settingName, newValue, pkgconfigmodel.SourceAgentRuntime)
+		config.Set(settingName, newValue, pkgconfigmodel.SourceSecret)
 		return nil
 	}
 
@@ -1160,7 +1160,7 @@ func configAssignAtPath(config pkgconfigmodel.Config, settingPath []string, newV
 		}
 	}
 
-	config.Set(settingName, startingValue, pkgconfigmodel.SourceAgentRuntime)
+	config.Set(settingName, startingValue, pkgconfigmodel.SourceSecret)
 	return nil
 }
 

@@ -31,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	rulesmodule "github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/telemetry"
@@ -191,7 +190,7 @@ func NewCWSConsumer(cmdServer *CommandServer, evm *eventmonitor.EventMonitor, cf
 		c.ruleEngine.AddPolicyProvider(c.selfTester)
 	}
 
-	if err := evm.Probe.AddCustomEventHandler(model.UnknownEventType, c); err != nil {
+	if err := evm.Probe.AddCustomEventHandler(c); err != nil {
 		return nil, err
 	}
 

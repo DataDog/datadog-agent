@@ -825,6 +825,16 @@ func (c *safeConfig) AllSettingsWithoutDefault() map[string]interface{} {
 	return c.Viper.AllSettingsWithoutDefault()
 }
 
+// AllSettingsWithoutSecrets falls back to AllSettings (viper has no secrets layer).
+func (c *safeConfig) AllSettingsWithoutSecrets() map[string]interface{} {
+	return c.AllSettings()
+}
+
+// AllSettingsWithoutDefaultOrSecrets falls back to AllSettingsWithoutDefault (viper has no secrets layer).
+func (c *safeConfig) AllSettingsWithoutDefaultOrSecrets() map[string]interface{} {
+	return c.AllSettingsWithoutDefault()
+}
+
 // AllSettingsBySource returns the settings from each source (file, env vars, ...)
 func (c *safeConfig) AllSettingsBySource() map[model.Source]interface{} {
 	c.Lock()

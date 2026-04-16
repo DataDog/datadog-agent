@@ -9,7 +9,8 @@ exporters:
         profiles_endpoint: https://intake.profile.datadoghq.com/v1development/profiles
 extensions:
     ddprofiling/default: {}
-    hpflare/default: {}
+    hpflare/default:
+        endpoint: localhost:7778
 processors:
     cumulativetodelta: {}
     filter:

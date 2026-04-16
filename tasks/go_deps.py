@@ -23,7 +23,7 @@ METRIC_GO_DEPS_EXTERNAL_NAME = "datadog.agent.go_dependencies.external"
 BINARIES: dict[str, dict] = {
     "agent": {
         "entrypoint": "cmd/agent",
-        "platforms": ["linux/x64", "linux/arm64", "win32/x64", "darwin/x64", "darwin/arm64"],
+        "platforms": ["linux/x64", "linux/arm64", "win32/x64", "darwin/x64", "darwin/arm64", "aix/ppc64"],
     },
     "iot-agent": {
         "build": "agent",
@@ -71,7 +71,7 @@ BINARIES: dict[str, dict] = {
     },
     "trace-agent": {
         "entrypoint": "cmd/trace-agent",
-        "platforms": ["linux/x64", "linux/arm64", "win32/x64", "darwin/x64", "darwin/arm64"],
+        "platforms": ["linux/x64", "linux/arm64", "win32/x64", "darwin/x64", "darwin/arm64", "aix/ppc64"],
     },
     "heroku-trace-agent": {
         "build": "trace-agent",

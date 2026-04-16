@@ -73,7 +73,7 @@ func TestBuildConfigDDProfilingEnabled(t *testing.T) {
 		}},
 		endpointsTotalLength: 1,
 		hostProfilerConfig: hostProfilerConfig{
-			DDProfilingEnabled: true,
+			DDProfiling: ddProfilingConfig{Enabled: true},
 		},
 	}
 	conf := buildConfig(agent, testCollectorParams{})
@@ -100,8 +100,7 @@ func TestBuildConfigDDProfilingEnabledWithPeriod(t *testing.T) {
 		}},
 		endpointsTotalLength: 1,
 		hostProfilerConfig: hostProfilerConfig{
-			DDProfilingEnabled: true,
-			DDProfilingPeriod:  30,
+			DDProfiling: ddProfilingConfig{Enabled: true, Period: 30},
 		},
 	}
 	conf := buildConfig(agent, testCollectorParams{})
@@ -142,6 +141,43 @@ func TestBuildConfigDDProfilingDisabled(t *testing.T) {
 	require.True(t, ok)
 	assert.NotContains(t, svcExtensions, "ddprofiling/default")
 	assert.Contains(t, svcExtensions, "hpflare/default")
+}
+
+func TestBuildConfigHPFlareCustomPort(t *testing.T) {
+	agent := configManager{
+		endpoints: []endpoint{{
+			site:    "datadoghq.com",
+			apiKeys: []string{"test_key"},
+		}},
+		endpointsTotalLength: 1,
+		hostProfilerConfig: hostProfilerConfig{
+			HPFlare: hpFlareConfig{Port: 9999},
+		},
+	}
+	conf := buildConfig(agent, testCollectorParams{})
+
+	extensions, ok := conf["extensions"].(confMap)
+	require.True(t, ok)
+	hpflare, ok := extensions["hpflare/default"].(confMap)
+	require.True(t, ok)
+	assert.Equal(t, "localhost:9999", hpflare["endpoint"])
+}
+
+func TestBuildConfigHPFlareDefaultPort(t *testing.T) {
+	agent := configManager{
+		endpoints: []endpoint{{
+			site:    "datadoghq.com",
+			apiKeys: []string{"test_key"},
+		}},
+		endpointsTotalLength: 1,
+	}
+	conf := buildConfig(agent, testCollectorParams{})
+
+	extensions, ok := conf["extensions"].(confMap)
+	require.True(t, ok)
+	hpflare, ok := extensions["hpflare/default"].(confMap)
+	require.True(t, ok)
+	assert.Equal(t, "localhost:7778", hpflare["endpoint"])
 }
 
 func TestBuildExportersAdditionalHTTPHeadersDoNotOverrideRequired(t *testing.T) {

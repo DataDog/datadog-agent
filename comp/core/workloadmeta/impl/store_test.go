@@ -2352,3 +2352,197 @@ func TestIsComplete_KubernetesContainerRuntimeNotAccessible(t *testing.T) {
 
 	assert.Equal(t, expected, actual)
 }
+
+func TestIsComplete_ECSEC2(t *testing.T) {
+	env.SetFeatures(t, env.ECSEC2, env.Docker)
+
+	s := newWorkloadmetaObject(t)
+
+	container := &wmdef.Container{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindContainer,
+			ID:   "test-container",
+		},
+	}
+
+	ch := s.Subscribe(dummySubscriber, wmdef.NormalPriority, nil)
+	var actual []wmdef.EventBundle
+
+	doneCh := make(chan struct{})
+	go func() {
+		for bundle := range ch {
+			close(bundle.Ch)
+			actual = append(actual, wmdef.EventBundle{Events: bundle.Events})
+		}
+		close(doneCh)
+	}()
+
+	// Container reported by container runtime only (incomplete)
+	s.handleEvents([]wmdef.CollectorEvent{
+		{
+			Type:   wmdef.EventTypeSet,
+			Source: wmdef.SourceRuntime,
+			Entity: container,
+		},
+	})
+
+	// Container also reported by ECS collector (now complete)
+	s.handleEvents([]wmdef.CollectorEvent{
+		{
+			Type:   wmdef.EventTypeSet,
+			Source: wmdef.SourceNodeOrchestrator,
+			Entity: container,
+		},
+	})
+
+	s.Unsubscribe(ch)
+	<-doneCh
+
+	expected := []wmdef.EventBundle{
+		{}, // Initial empty bundle
+		{
+			Events: []wmdef.Event{
+				{
+					Type:       wmdef.EventTypeSet,
+					Entity:     container,
+					IsComplete: false, // Only Docker runtime reported, ECS collector not yet
+				},
+			},
+		},
+		{
+			Events: []wmdef.Event{
+				{
+					Type:       wmdef.EventTypeSet,
+					Entity:     container,
+					IsComplete: true, // Both Docker runtime and ECS collector reported
+				},
+			},
+		},
+	}
+
+	assert.Equal(t, expected, actual)
+}
+
+func TestIsComplete_ECSManagedInstances(t *testing.T) {
+	env.SetFeatures(t, env.ECSManagedInstances, env.Containerd)
+
+	s := newWorkloadmetaObject(t)
+
+	container := &wmdef.Container{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindContainer,
+			ID:   "test-container",
+		},
+	}
+
+	ch := s.Subscribe(dummySubscriber, wmdef.NormalPriority, nil)
+	var actual []wmdef.EventBundle
+
+	doneCh := make(chan struct{})
+	go func() {
+		for bundle := range ch {
+			close(bundle.Ch)
+			actual = append(actual, wmdef.EventBundle{Events: bundle.Events})
+		}
+		close(doneCh)
+	}()
+
+	// Container reported by container runtime only (incomplete)
+	s.handleEvents([]wmdef.CollectorEvent{
+		{
+			Type:   wmdef.EventTypeSet,
+			Source: wmdef.SourceRuntime,
+			Entity: container,
+		},
+	})
+
+	// Container also reported by ECS collector (now complete)
+	s.handleEvents([]wmdef.CollectorEvent{
+		{
+			Type:   wmdef.EventTypeSet,
+			Source: wmdef.SourceNodeOrchestrator,
+			Entity: container,
+		},
+	})
+
+	s.Unsubscribe(ch)
+	<-doneCh
+
+	expected := []wmdef.EventBundle{
+		{}, // Initial empty bundle
+		{
+			Events: []wmdef.Event{
+				{
+					Type:       wmdef.EventTypeSet,
+					Entity:     container,
+					IsComplete: false, // Only containerd runtime reported, ECS collector not yet
+				},
+			},
+		},
+		{
+			Events: []wmdef.Event{
+				{
+					Type:       wmdef.EventTypeSet,
+					Entity:     container,
+					IsComplete: true, // Both containerd runtime and ECS collector reported
+				},
+			},
+		},
+	}
+
+	assert.Equal(t, expected, actual)
+}
+
+func TestIsComplete_ECSFargate(t *testing.T) {
+	// In ECS Fargate, containers are reported by a single collector (ECS with
+	// SourceRuntime), so they're always complete.
+	env.SetFeatures(t, env.ECSFargate)
+
+	s := newWorkloadmetaObject(t)
+
+	container := &wmdef.Container{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindContainer,
+			ID:   "test-container",
+		},
+	}
+
+	ch := s.Subscribe(dummySubscriber, wmdef.NormalPriority, nil)
+	var actual []wmdef.EventBundle
+
+	doneCh := make(chan struct{})
+	go func() {
+		for bundle := range ch {
+			close(bundle.Ch)
+			actual = append(actual, wmdef.EventBundle{Events: bundle.Events})
+		}
+		close(doneCh)
+	}()
+
+	// Container reported by ECS collector
+	s.handleEvents([]wmdef.CollectorEvent{
+		{
+			Type:   wmdef.EventTypeSet,
+			Source: wmdef.SourceRuntime,
+			Entity: container,
+		},
+	})
+
+	s.Unsubscribe(ch)
+	<-doneCh
+
+	expected := []wmdef.EventBundle{
+		{}, // Initial empty bundle
+		{
+			Events: []wmdef.Event{
+				{
+					Type:       wmdef.EventTypeSet,
+					Entity:     container,
+					IsComplete: true, // Single collector, always complete
+				},
+			},
+		},
+	}
+
+	assert.Equal(t, expected, actual)
+}

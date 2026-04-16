@@ -97,7 +97,8 @@ def build(
     """
     flavor = AgentFlavor[flavor]
 
-    if not exclude_rtloader and not flavor.is_iot():
+    if not exclude_rtloader and not flavor.is_iot() and sys.platform != "aix":
+        # On AIX, rtloader is built natively in advance as a prerequisite.
         with gitlab_section("Install embedded rtloader", collapsed=True):
             if enable_bazel:
                 bazel_embedded = rtloader_install_with_bazel(ctx)

@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fix a concurrent map write crash in the config package when multiple
+    goroutines call config getters with unknown keys simultaneously. This
+    could cause the agent to crash with ``fatal error: concurrent map writes``
+    when Docker log collection with ``container_collect_all`` is enabled.

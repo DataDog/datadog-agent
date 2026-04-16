@@ -12,6 +12,7 @@ import (
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/converters"
+	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/extensions/hpflareextension"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/params"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -185,14 +186,15 @@ func buildConfig(agent configManager, p params.CollectorParams) confMap {
 	buildMetricsTelemetry(config, agent.hostProfilerConfig.HealthMetrics)
 	buildMetricsPipeline(config, p.GetGoRuntimeMetrics(), agent.hostProfilerConfig.HealthMetrics, profilesProcessors, profilesExporters)
 
-	_ = converters.Set(config, "extensions::hpflare/default", confMap{})
+	hpflareConf := confMap{"endpoint": fmt.Sprintf("localhost:%d", hpflareextension.EffectivePort(agent.hostProfilerConfig.HPFlare.Port))}
+	_ = converters.Set(config, "extensions::hpflare/default", hpflareConf)
 	serviceExtensions := []any{"hpflare/default"}
-	if agent.hostProfilerConfig.DDProfilingEnabled {
-		ddprofilingConfig := make(confMap)
-		if agent.hostProfilerConfig.DDProfilingPeriod > 0 {
-			_ = converters.Set(ddprofilingConfig, "profiler_options::period", agent.hostProfilerConfig.DDProfilingPeriod)
+	if agent.hostProfilerConfig.DDProfiling.Enabled {
+		ddprofilingConf := make(confMap)
+		if agent.hostProfilerConfig.DDProfiling.Period > 0 {
+			_ = converters.Set(ddprofilingConf, "profiler_options::period", agent.hostProfilerConfig.DDProfiling.Period)
 		}
-		_ = converters.Set(config, "extensions::ddprofiling/default", ddprofilingConfig)
+		_ = converters.Set(config, "extensions::ddprofiling/default", ddprofilingConf)
 		serviceExtensions = append(serviceExtensions, "ddprofiling/default")
 	}
 	_ = converters.Set(config, "service::extensions", serviceExtensions)

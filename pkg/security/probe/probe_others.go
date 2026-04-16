@@ -43,7 +43,7 @@ func (p *Probe) AddEventHandler(_ EventHandler) error {
 }
 
 // AddCustomEventHandler set the probe event handler
-func (p *Probe) AddCustomEventHandler(_ model.EventType, _ CustomEventHandler) error {
+func (p *Probe) AddCustomEventHandler(_ CustomEventHandler) error {
 	return nil
 }
 

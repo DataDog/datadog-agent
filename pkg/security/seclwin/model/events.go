@@ -154,7 +154,7 @@ const (
 	FirstEventType = FileOpenEventType
 
 	// LastEventType is the last valid event type
-	LastEventType = SyscallsEventType
+	LastEventType = PivotRootEventType
 
 	// FirstDiscarderEventType first event that accepts discarders
 	FirstDiscarderEventType = FileOpenEventType

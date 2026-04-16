@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -80,6 +81,7 @@ func TestStart_StandaloneMode_TaggerDisabled(t *testing.T) {
 	err := ext.Start(context.Background(), nil)
 	require.NoError(t, err)
 	assert.Nil(t, ext.taggerServer)
+	t.Cleanup(func() { _ = ext.Shutdown(context.Background()) })
 }
 
 // TestShutdown_NoTaggerServer verifies Shutdown does not panic when no server is running.
@@ -206,5 +208,79 @@ func TestStart_StandaloneMode_NoopSecretsWarning(t *testing.T) {
 
 	// Start should succeed; the warning is logged but not fatal.
 	err := ext.Start(context.Background(), nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = ext.Shutdown(context.Background()) })
+}
+
+// TestLivenessLoop_ExitsOnStop verifies that livenessMetricLoop returns promptly
+// when stopLiveness is closed, without waiting for the 30-second ticker.
+func TestLivenessLoop_ExitsOnStop(t *testing.T) {
+	ext := &dogtelExtension{
+		log:          logmock.New(t),
+		stopLiveness: make(chan struct{}),
+	}
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		ext.livenessMetricLoop()
+	}()
+
+	close(ext.stopLiveness)
+
+	select {
+	case <-done:
+		// goroutine exited promptly — correct
+	case <-time.After(time.Second):
+		t.Fatal("livenessMetricLoop did not exit after stopLiveness was closed")
+	}
+}
+
+// TestShutdown_ClosesLivenessChannel verifies that Shutdown closes the stopLiveness
+// channel, which signals the heartbeat goroutine to stop.
+func TestShutdown_ClosesLivenessChannel(t *testing.T) {
+	ext := newTestExtension(t, nil, nil)
+	ext.stopLiveness = make(chan struct{})
+
+	err := ext.Shutdown(context.Background())
+	require.NoError(t, err)
+
+	// A closed channel always returns immediately with the zero value and ok=false.
+	select {
+	case _, ok := <-ext.stopLiveness:
+		assert.False(t, ok, "stopLiveness should be closed after Shutdown")
+	default:
+		t.Fatal("stopLiveness channel was not closed by Shutdown")
+	}
+}
+
+// TestStart_StandaloneMode_InitializesLivenessChannel verifies that Start in
+// standalone mode sets up the stopLiveness channel used by the heartbeat goroutine.
+func TestStart_StandaloneMode_InitializesLivenessChannel(t *testing.T) {
+	cfg := createDefaultConfig().(*Config)
+	cfg.EnableTaggerServer = false
+
+	hostname, _ := hostnameinterface.NewMock("test-host")
+	sz := serializermock.NewMetricSerializer(t)
+	sz.On("SendIterableSeries", mock.Anything).Return(nil)
+
+	ext := &dogtelExtension{
+		config:     cfg,
+		log:        logmock.New(t),
+		coreConfig: configmock.NewMockWithOverrides(t, map[string]interface{}{"otel_standalone": true}),
+		serializer: sz,
+		hostname:   hostname,
+		telemetry:  noopsimpl.GetCompatComponent(),
+		ipc:        ipcmock.New(t),
+	}
+
+	assert.Nil(t, ext.stopLiveness)
+
+	err := ext.Start(context.Background(), nil)
+	require.NoError(t, err)
+	assert.NotNil(t, ext.stopLiveness, "Start must initialize stopLiveness for the heartbeat goroutine")
+
+	// Shutdown stops the goroutine cleanly.
+	err = ext.Shutdown(context.Background())
 	require.NoError(t, err)
 }

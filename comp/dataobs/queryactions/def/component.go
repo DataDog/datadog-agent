@@ -11,6 +11,6 @@ package queryactions
 // Component is the Data Observability query actions component interface.
 // This component subscribes to RC DO_QUERY_ACTIONS product to receive declarative query configs,
 // each containing the full set of active monitor queries for a DB instance.
-// It schedules long-lived checks that manage query scheduling internally.
-// Gated by the data_observability.query_actions.enabled configuration.
+// It injects data_observability config into matching postgres check instances.
+// Activates when a postgres instance with data_observability.enabled: true is detected.
 type Component interface{}

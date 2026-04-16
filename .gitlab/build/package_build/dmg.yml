@@ -33,7 +33,7 @@
        variables:
          SIGN: true  # for branches with "notarization" in their name - should we need to tune it
      - !reference [.on_macos_files_change]
-     - !reference [.on_packaging_change]
+     - !reference [.on_macos_change]
      - !reference [.on_all_builds]
      - !reference [.manual]
   artifacts:

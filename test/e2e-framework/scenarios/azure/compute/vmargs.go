@@ -26,11 +26,12 @@ import (
 // [Functional options pattern]: https://dave.cheney.net/2014/10/17/functional-options-for-friendly-apis
 
 type vmArgs struct {
-	osInfo                *os.Descriptor
-	imageURN              string
-	userData              string
-	instanceType          string
-	pulumiResourceOptions []pulumi.ResourceOption
+	osInfo                      *os.Descriptor
+	imageURN                    string
+	userData                    string
+	instanceType                string
+	enableAcceleratedNetworking bool
+	pulumiResourceOptions       []pulumi.ResourceOption
 }
 
 type VMOption = func(*vmArgs) error
@@ -76,6 +77,15 @@ func WithInstanceType(instanceType string) VMOption {
 func WithUserData(userData string) VMOption {
 	return func(p *vmArgs) error {
 		p.userData = userData
+		return nil
+	}
+}
+
+// WithAcceleratedNetworking enables Azure Accelerated Networking on the VM's network interface.
+// Requires a VM size with 2+ vCPUs from a supported family (Dv3/Dv4/Dv5, etc.).
+func WithAcceleratedNetworking() VMOption {
+	return func(p *vmArgs) error {
+		p.enableAcceleratedNetworking = true
 		return nil
 	}
 }

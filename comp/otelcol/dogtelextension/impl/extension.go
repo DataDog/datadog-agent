@@ -54,6 +54,9 @@ type dogtelExtension struct {
 	taggerServer     *grpc.Server
 	taggerServerPort int
 	taggerListener   net.Listener
+
+	// Liveness metric heartbeat
+	stopLiveness chan struct{}
 }
 
 // Start implements extension.Extension
@@ -95,12 +98,31 @@ func (e *dogtelExtension) Start(_ context.Context, _ component.Host) error {
 	e.log.Infof("dogtelextension started successfully (tagger_port=%d, metadata_enabled=%t)",
 		e.taggerServerPort, metadataEnabled)
 
-	// Send liveness metric to indicate the extension is running
+	// Send an initial liveness metric immediately, then continue sending
+	// periodically so test aggregators that flush state can still observe it.
+	e.stopLiveness = make(chan struct{})
 	if err := e.sendLivenessMetric(context.Background()); err != nil {
 		e.log.Warnf("Failed to send liveness metric: %v", err)
 	}
+	go e.livenessMetricLoop()
 
 	return nil
+}
+
+// livenessMetricLoop periodically re-emits the liveness metric until Shutdown.
+func (e *dogtelExtension) livenessMetricLoop() {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			if err := e.sendLivenessMetric(context.Background()); err != nil {
+				e.log.Warnf("Failed to send periodic liveness metric: %v", err)
+			}
+		case <-e.stopLiveness:
+			return
+		}
+	}
 }
 
 // sendLivenessMetric sends a gauge metric indicating the extension is running.
@@ -128,6 +150,11 @@ func (e *dogtelExtension) sendLivenessMetric(ctx context.Context) error {
 // Shutdown implements extension.Extension
 func (e *dogtelExtension) Shutdown(_ context.Context) error {
 	e.log.Info("Shutting down dogtelextension")
+
+	// Stop the liveness heartbeat goroutine
+	if e.stopLiveness != nil {
+		close(e.stopLiveness)
+	}
 
 	// Stop tagger server gracefully
 	e.stopTaggerServer()

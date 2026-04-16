@@ -2,6 +2,7 @@ load("@rules_license//rules:license.bzl", "license")
 load("@rules_license//rules:license_kind.bzl", "license_kind")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files", "pkg_mklink")
+load("//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
 
 package(
     default_package_metadata = [":license"],
@@ -96,9 +97,24 @@ pkg_filegroup(
     ],
 )
 
+# libodbcinst.so.2 is a runtime dependency of libmsodbcsql.
+# Collect it (and any of its own deps) via dd_collect_dependencies
+# so that the packaging graph includes it automatically.
+dd_collect_dependencies(
+    name = "_msodbcsql_deps",
+    srcs = ["@unixodbc//:odbcinst_pkg"],
+)
+
+pkg_filegroup(
+    name = "msodbcsql_deps",
+    srcs = [":_msodbcsql_deps"],
+    prefix = "embedded",
+)
+
 pkg_filegroup(
     name = "all_files",
     srcs = [
+        ":msodbcsql_deps",
         ":msodbcsql_files",
         "@krb5//:all_files",
     ],

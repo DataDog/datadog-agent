@@ -106,7 +106,7 @@ func NewWorkloadMeta(deps Dependencies) Provider {
 		eventCh:               make(chan []wmdef.CollectorEvent, eventChBufferSize),
 		pulls:                 make(map[string]*pullInfo),
 		collectorsInitialized: wmdef.CollectorsNotStarted,
-		expectedSources:       initExpectedSources(deps.Params.AgentType),
+		expectedSources:       initExpectedSources(deps.Params.AgentType, deps.Config),
 	}
 
 	deps.Lc.Append(compdef.Hook{OnStart: func(_ context.Context) error {
@@ -161,18 +161,11 @@ func (w *workloadmeta) writeResponse(writer http.ResponseWriter, r *http.Request
 // detected environment features. This determines which collectors are expected
 // to report data for each entity kind.
 //
-// For now, it only supports Kubernetes. Other cases with multiple collectors
-// reporting the same entity kind:
-// - ECS EC2: containers are reported by both the ECS and Docker collectors.
-// TODO: This will be handled later.
-// - Kubernetes Deployments: reported by the kubeapiserver collector and
-// language detection code. Completeness tracking is not needed for deployments.
-func initExpectedSources(agentType wmdef.AgentType) map[wmdef.Kind][]wmdef.Source {
+// Note: Kubernetes Deployments are also reported by multiple collectors
+// (kubeapiserver and language detection), but completeness tracking is not
+// needed for them.
+func initExpectedSources(agentType wmdef.AgentType, cfg config.Component) map[wmdef.Kind][]wmdef.Source {
 	expectedSources := make(map[wmdef.Kind][]wmdef.Source)
-
-	if !env.IsFeaturePresent(env.Kubernetes) {
-		return expectedSources
-	}
 
 	// Only the Node Agent runs multiple collectors that need to report
 	// for an entity to be complete
@@ -180,6 +173,22 @@ func initExpectedSources(agentType wmdef.AgentType) map[wmdef.Kind][]wmdef.Sourc
 		return expectedSources
 	}
 
+	if env.IsFeaturePresent(env.Kubernetes) {
+		initExpectedSourcesKubernetes(expectedSources)
+	}
+
+	// In ECS EC2 and ECS Managed (no sidecar), containers are reported by two
+	// collectors (ECS + container runtime). In sidecar mode (Fargate, or
+	// Managed Instances configured as sidecar), there's a single collector, so
+	// entities are always complete.
+	if env.IsFeaturePresent(env.ECSEC2) || (env.IsFeaturePresent(env.ECSManagedInstances) && !env.IsECSSidecarMode(cfg)) {
+		initExpectedSourcesECS(expectedSources)
+	}
+
+	return expectedSources
+}
+
+func initExpectedSourcesKubernetes(expectedSources map[wmdef.Kind][]wmdef.Source) {
 	// In Kubernetes, pods are reported by:
 	// - kubelet collector (SourceNodeOrchestrator)
 	// - kubemetadata collector (SourceClusterOrchestrator)
@@ -196,8 +205,17 @@ func initExpectedSources(agentType wmdef.AgentType) map[wmdef.Kind][]wmdef.Sourc
 		containerSources = append(containerSources, wmdef.SourceRuntime)
 	}
 	expectedSources[wmdef.KindContainer] = containerSources
+}
 
-	return expectedSources
+func initExpectedSourcesECS(expectedSources map[wmdef.Kind][]wmdef.Source) {
+	// In ECS EC2 and ECS Managed (no sidecar), containers are reported by:
+	// - ECS collector (SourceNodeOrchestrator)
+	// - container runtime collector (SourceRuntime)
+	containerSources := []wmdef.Source{wmdef.SourceNodeOrchestrator}
+	if containerRuntimeIsAccessible() {
+		containerSources = append(containerSources, wmdef.SourceRuntime)
+	}
+	expectedSources[wmdef.KindContainer] = containerSources
 }
 
 func containerRuntimeIsAccessible() bool {

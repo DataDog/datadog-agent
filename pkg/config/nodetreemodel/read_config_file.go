@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"go.yaml.in/yaml/v2"
 
@@ -109,7 +110,7 @@ func (c *ntmConfig) readConfigurationContent(target *nodeImpl, source model.Sour
 			return err
 		}
 	}
-	c.warnings = append(c.warnings, loadYamlInto(target, source, inData, "", c.defaults, c.knownKeys, c.unknownKeys)...)
+	c.warnings = append(c.warnings, loadYamlInto(target, source, inData, "", c.defaults, c.knownKeys, &c.unknownKeys)...)
 	return nil
 }
 
@@ -132,7 +133,7 @@ var valuelessLeaf = &nodeImpl{}
 
 // loadYamlInto traverses input data parsed from YAML, checking if each node is defined by the schema.
 // If found, the value from the YAML blob is imported into the 'dest' tree. Otherwise, a warning will be created.
-func loadYamlInto(dest *nodeImpl, source model.Source, inData map[string]interface{}, atPath string, schema *nodeImpl, knownKeys map[string]bool, unknownKeys map[string]struct{}) []error {
+func loadYamlInto(dest *nodeImpl, source model.Source, inData map[string]interface{}, atPath string, schema *nodeImpl, knownKeys map[string]bool, unknownKeys *sync.Map) []error {
 	warnings := []error{}
 	for key, value := range inData {
 		key = strings.ToLower(key)
@@ -160,7 +161,7 @@ func loadYamlInto(dest *nodeImpl, source model.Source, inData map[string]interfa
 				// if the key is not defined in the schema, we can still add it to the destination
 				if value == nil || isScalar(value) || isSlice(value) {
 					dest.InsertChildNode(key, newLeafNode(value, source))
-					unknownKeys[currPath] = struct{}{}
+					unknownKeys.Store(currPath, struct{}{})
 					continue
 				}
 
