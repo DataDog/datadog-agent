@@ -8,6 +8,7 @@ package cloudservice
 import (
 	"maps"
 	"os"
+	"runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
@@ -177,8 +178,12 @@ func (l *LocalService) ShouldForceFlushAllOnForceFlushToSerializer() bool {
 // GetCloudServiceType TODO: Refactor to avoid leaking individual service implementation details into the interface layer
 //
 //nolint:revive // TODO(SERV) Fix revive lin
-//nolint:revive // TODO(SERV) Fix revive linter
 func GetCloudServiceType() CloudService {
+
+	if runtime.GOARCH != "amd64" {
+		log.Errorf("serverless-init is running on an unsupported architecture (%s). Monitoring may behave unexpectedly.", runtime.GOARCH)
+	}
+
 	if isCloudRunService() {
 		if isCloudRunFunction() {
 			return &CloudRun{spanNamespace: cloudRunFunctionTagPrefix}
@@ -197,6 +202,8 @@ func GetCloudServiceType() CloudService {
 	if isAppService() {
 		return &AppService{}
 	}
+
+	log.Warnf("serverless-init could not detect a supported service. Monitoring may be limited.")
 
 	return &LocalService{}
 }

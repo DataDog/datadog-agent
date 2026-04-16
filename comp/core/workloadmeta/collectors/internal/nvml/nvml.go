@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -75,7 +76,7 @@ func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, e
 		},
 		TotalCores:   devInfo.CoreCount,
 		TotalMemory:  devInfo.Memory,
-		Architecture: gpuArchToString(devInfo.Architecture),
+		Architecture: gpuutil.ArchToString(devInfo.Architecture),
 	}
 
 	switch d := device.(type) {
@@ -367,37 +368,6 @@ func (c *collector) GetID() string {
 
 func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 	return c.catalog
-}
-
-func gpuArchToString(nvmlArch nvml.DeviceArchitecture) string {
-	switch nvmlArch {
-	case nvml.DEVICE_ARCH_KEPLER:
-		return "kepler"
-	case nvml.DEVICE_ARCH_MAXWELL:
-		return "maxwell"
-	case nvml.DEVICE_ARCH_PASCAL:
-		return "pascal"
-	case nvml.DEVICE_ARCH_VOLTA:
-		return "volta"
-	case nvml.DEVICE_ARCH_TURING:
-		return "turing"
-	case nvml.DEVICE_ARCH_AMPERE:
-		return "ampere"
-	case nvml.DEVICE_ARCH_ADA:
-		return "ada"
-	case nvml.DEVICE_ARCH_HOPPER:
-		return "hopper"
-	case 10: // nvml.DEVICE_ARCH_BLACKWELL in newer versions of go-nvml
-		// note: we hardcode the enum to avoid updating to an untested newer go-nvml version
-		return "blackwell"
-	case nvml.DEVICE_ARCH_UNKNOWN:
-		return "unknown"
-	default:
-		// Distinguish invalid and unknown, NVML can return unknown but we should always
-		// be able to process the return value of NVML. If we reach this part, we forgot
-		// to add a new case for a new architecture.
-		return "invalid"
-	}
 }
 
 func extractGPUType(deviceName string) string {

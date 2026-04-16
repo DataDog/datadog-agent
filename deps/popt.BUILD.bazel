@@ -1,4 +1,4 @@
-load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
@@ -75,24 +75,24 @@ cc_shared_library(
     visibility = ["//visibility:public"],
 )
 
-so_symlink(
-    name = "lib_files",
-    src = ":popt",
-    libname = "libpopt",
-    version = "0.0.2",
-)
-
 pkg_files(
     name = "hdr_files",
     srcs = glob(["src/popt.h"]),
     prefix = "include",
 )
 
+dd_cc_packaged(
+    name = "popt_pkg",
+    input = ":popt",
+    version = "0.0.2",
+    installed_files = [":hdr_files"],
+    visibility = ["//visibility:public"],
+)
+
 pkg_filegroup(
     name = "all_files",
     srcs = [
         ":hdr_files",
-        ":lib_files",
     ],
     prefix = "embedded",
     visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],

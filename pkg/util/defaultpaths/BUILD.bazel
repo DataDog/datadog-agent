@@ -12,6 +12,10 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/defaultpaths",
     visibility = ["//visibility:public"],
     deps = select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/util/executable",
+            "//pkg/util/flavor",
+        ],
         "@rules_go//go/platform:android": [
             "//pkg/util/executable",
             "//pkg/util/flavor",

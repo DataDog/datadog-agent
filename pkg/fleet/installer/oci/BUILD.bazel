@@ -34,6 +34,7 @@ go_test(
         "mirror_test.go",
     ],
     embed = [":oci"],
+    gotags = ["test"],
     deps = [
         "//pkg/fleet/installer/fixtures",
         "@com_github_stretchr_testify//require",
