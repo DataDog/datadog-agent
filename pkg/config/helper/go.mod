@@ -4,6 +4,7 @@ go 1.25.0
 
 require (
 	github.com/DataDog/datadog-agent/pkg/config/model v0.72.2
+	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.72.2
 	github.com/stretchr/testify v1.11.1
 )

@@ -435,6 +435,15 @@ func (c *ntmConfig) IsKnown(key string) bool {
 	return c.isKnownKey(key)
 }
 
+// IsSetting returns true for leaf nodes
+func (c *ntmConfig) IsSetting(key string) bool {
+	n, err := c.GetNode(key)
+	if err != nil {
+		return false
+	}
+	return n.IsLeafNode()
+}
+
 // isKnownKey returns whether the key is known.
 // Must be called with the lock read-locked.
 func (c *ntmConfig) isKnownKey(key string) bool {
