@@ -25,17 +25,6 @@ type packageDDOTSuite struct {
 	packageBaseSuite
 }
 
-// Purge removes installed packages and cleans up package manager repo configs.
-// Tests in this suite use different install scripts (install_script_agent7.sh vs
-// the pipeline install.sh) which configure different apt/yum/zypper repos.
-// Without cleanup, leftover repos from a prior test can cause package conflicts.
-func (s *packageDDOTSuite) Purge() {
-	s.packageBaseSuite.Purge()
-	s.Env().RemoteHost.Execute("sudo rm -f /etc/apt/sources.list.d/datadog.list /etc/apt/sources.list.d/datadog-observability-pipelines-worker.list")
-	s.Env().RemoteHost.Execute("sudo rm -f /etc/yum.repos.d/datadog.repo /etc/yum.repos.d/datadog-observability-pipelines-worker.repo")
-	s.Env().RemoteHost.Execute("sudo rm -f /etc/zypp/repos.d/datadog.repo")
-}
-
 func testDDOT(os e2eos.Descriptor, arch e2eos.Architecture, method InstallMethodOption) packageSuite {
 	return &packageDDOTSuite{
 		packageBaseSuite: newPackageSuite("ddot", os, arch, method, awshost.WithRunOptions(scenec2.WithoutFakeIntake())),
@@ -216,7 +205,7 @@ func (s *packageDDOTSuite) TestInstallDDOTSubcommand() {
 	agentPackageURL := "oci://installtesting.datad0g.com.internal.dda-testing.com/agent-package:pipeline-" + os.Getenv("E2E_PIPELINE_ID")
 	s.host.Run("sudo datadog-agent extension install --url " + agentPackageURL + " ddot")
 
-	s.host.WaitForUnitActive(s.T(), ddotUnit)
+	s.host.WaitForUnitActive(s.T(), agentUnit, ddotUnit)
 
 	state := s.host.State()
 	s.assertCoreUnits(state, true)

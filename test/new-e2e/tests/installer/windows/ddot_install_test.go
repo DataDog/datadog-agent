@@ -40,7 +40,7 @@ func (s *testDDOTExtensionSubcommand) AfterTest(_suiteName, _testName string) {
 	s.Installer().Purge()
 }
 
-func (s *testDDOTExtensionSubcommand) TestInstallDDOTExtensionSubcommand() {
+func (s *testDDOTExtensionSubcommand) TestInstallDDOTSubcommand() {
 	// Install the base agent without DDOT via the install script.
 	output, err := s.InstallScript().Run()
 	s.Require().NoErrorf(err, "failed to install the Datadog Agent: %s", output)
