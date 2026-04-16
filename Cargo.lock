@@ -1335,9 +1335,6 @@ dependencies = [
  "base64",
  "caps",
  "dd-agent-log",
- "http-body-util",
- "hyper",
- "hyper-util",
  "log",
  "p256",
  "reqwest",
@@ -1630,16 +1627,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "50793def1b900256624a709439404384204a5dc3a6ec580281bfaac35e882e90"
 dependencies = [
  "pulldown-cmark",
-]
-
-[[package]]
-name = "quick-xml"
-version = "0.39.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "958f21e8e7ceb5a1aa7fa87fab28e7c75976e0bfe7e23ff069e0a260f894067d"
-dependencies = [
- "memchr",
- "serde",
 ]
 
 [[package]]

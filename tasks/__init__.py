@@ -63,6 +63,7 @@ from tasks import (
     pipeline,
     pkg_template,
     pre_commit,
+    par_executor,
     privateactionrunner,
     process_agent,
     protobuf,
@@ -243,6 +244,7 @@ ns.add_collection(release)
 ns.add_collection(rtloader)
 ns.add_collection(system_probe)
 ns.add_collection(process_agent)
+ns.add_collection(par_executor)
 ns.add_collection(privateactionrunner)
 ns.add_collection(testwasher)
 ns.add_collection(secret_generic_connector)

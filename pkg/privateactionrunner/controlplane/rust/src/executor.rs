@@ -143,7 +143,7 @@ impl ExecutorManager {
         let poll_interval = Duration::from_millis(200);
 
         while tokio::time::Instant::now() < deadline {
-            if self.client.is_ready().await {
+            if self.client.ping().await {
                 info!("par-executor is ready");
                 return Ok(());
             }
@@ -162,7 +162,7 @@ impl ExecutorManager {
     /// Health check ping. Called periodically by the watchdog task.
     /// Returns false if the executor is unresponsive; callers should kill it.
     pub async fn is_healthy(&self) -> bool {
-        self.client.is_healthy().await
+        self.client.ping().await
     }
 
     /// Kills the executor process and resets to Idle state.
