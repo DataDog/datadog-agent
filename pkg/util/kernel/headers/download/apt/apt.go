@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package apt is a backend for APT
 package apt
 
 import (
@@ -184,7 +185,7 @@ func (b *Backend) GetKernelHeaders(directory string) error {
 	query := &deb.FieldQuery{
 		Field:    "Name",
 		Relation: deb.VersionPatternMatch,
-		Value:    fmt.Sprintf("linux-headers-%s", kernelRelease),
+		Value:    "linux-headers-" + kernelRelease,
 	}
 	b.logger.Infof("Looking for %s", query.Value)
 

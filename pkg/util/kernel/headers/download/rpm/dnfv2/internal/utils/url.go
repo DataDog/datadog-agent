@@ -11,8 +11,8 @@ import (
 	"strings"
 )
 
-// UrlJoinPath joins a base URL with the `elems`
-func UrlJoinPath(base string, elems ...string) (string, error) {
+// URLJoinPath joins a base URL with the `elems`
+func URLJoinPath(base string, elems ...string) (string, error) {
 	u, err := url.Parse(base)
 	if err != nil {
 		return "", err
@@ -22,8 +22,8 @@ func UrlJoinPath(base string, elems ...string) (string, error) {
 	return u.String(), nil
 }
 
-// UrlHasSuffix returns whether the path of rawUrl has the provided suffix.
-func UrlHasSuffix(rawUrl string, suffix string) bool {
+// URLHasSuffix returns whether the path of rawUrl has the provided suffix.
+func URLHasSuffix(rawUrl string, suffix string) bool {
 	parsed, err := url.Parse(rawUrl)
 	if err != nil {
 		return strings.HasSuffix(rawUrl, suffix)

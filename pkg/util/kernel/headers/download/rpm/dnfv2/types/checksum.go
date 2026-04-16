@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package types is DNFv2 types
 package types
 
 // Checksum is a DNFv2 checksum

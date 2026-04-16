@@ -65,7 +65,7 @@ func NewCentOSBackend(target *types.Target, reposDir string, logger types.Logger
 	}
 
 	version, _ := strconv.Atoi(strings.SplitN(release, ".", 2)[0])
-	versionStr := fmt.Sprintf("%d", version)
+	versionStr := strconv.Itoa(version)
 
 	b, err := dnfv2.NewBackend(versionStr, reposDir)
 	if err != nil {

@@ -10,6 +10,7 @@ import (
 	"context"
 	"crypto/sha1"
 	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"hash"
@@ -19,18 +20,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel/headers/download/rpm/dnfv2/types"
 )
 
-// HttpClient wraps http.Client with utility methods
-type HttpClient struct {
+// HTTPClient wraps http.Client with utility methods
+type HTTPClient struct {
 	inner *http.Client
 }
 
-// NewHttpClientFromInner wraps the provided http.Client to expose utility methods.
-func NewHttpClientFromInner(inner *http.Client) *HttpClient {
-	return &HttpClient{inner: inner}
+// NewHTTPClientFromInner wraps the provided http.Client to expose utility methods.
+func NewHTTPClientFromInner(inner *http.Client) *HTTPClient {
+	return &HTTPClient{inner: inner}
 }
 
 // GetWithChecksum obtains the data at url while also verifying the provided checksum (if not nil).
-func (hc *HttpClient) GetWithChecksum(ctx context.Context, url string, checksum *types.Checksum) ([]byte, error) {
+func (hc *HTTPClient) GetWithChecksum(ctx context.Context, url string, checksum *types.Checksum) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
@@ -46,7 +47,7 @@ func (hc *HttpClient) GetWithChecksum(ctx context.Context, url string, checksum 
 		return nil, fmt.Errorf("bad status for `%s`: %s", url, resp.Status)
 	}
 
-	gzipped := UrlHasSuffix(url, ".gz") || resp.Header.Get("Content-Encoding") == "gzip"
+	gzipped := URLHasSuffix(url, ".gz") || resp.Header.Get("Content-Encoding") == "gzip"
 	var rdr io.Reader = resp.Body
 	if gzipped {
 		gzipReader, err := gzip.NewReader(resp.Body)
@@ -73,7 +74,7 @@ func (hc *HttpClient) GetWithChecksum(ctx context.Context, url string, checksum 
 			return nil, err
 		}
 		contentSum := hasher.Sum(nil)
-		if checksum.Hash != fmt.Sprintf("%x", contentSum) {
+		if checksum.Hash != hex.EncodeToString(contentSum) {
 			return nil, errors.New("failed checksum")
 		}
 		return readContent, nil
@@ -83,6 +84,6 @@ func (hc *HttpClient) GetWithChecksum(ctx context.Context, url string, checksum 
 }
 
 // Get obtains the data at url without a checksum
-func (hc *HttpClient) Get(ctx context.Context, url string) ([]byte, error) {
+func (hc *HTTPClient) Get(ctx context.Context, url string) ([]byte, error) {
 	return hc.GetWithChecksum(ctx, url, nil)
 }

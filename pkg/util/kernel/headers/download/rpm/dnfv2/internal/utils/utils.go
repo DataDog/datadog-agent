@@ -14,7 +14,7 @@ import (
 )
 
 // GetAndUnmarshalXML downloads the data at `url`, verifies a checksum if provided, and unmarshals the XML to the provided type.
-func GetAndUnmarshalXML[T any](ctx context.Context, httpClient *HttpClient, url string, checksum *types.Checksum) (*T, error) {
+func GetAndUnmarshalXML[T any](ctx context.Context, httpClient *HTTPClient, url string, checksum *types.Checksum) (*T, error) {
 	content, err := httpClient.GetWithChecksum(ctx, url, checksum)
 	if err != nil {
 		return nil, err

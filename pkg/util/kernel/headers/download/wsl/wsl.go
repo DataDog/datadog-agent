@@ -3,10 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package wsl is a backend for WSL
 package wsl
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kernel/headers/download/extract"
@@ -22,7 +22,7 @@ type Backend struct {
 // GetKernelHeaders downloads the headers to the provided directory.
 func (b *Backend) GetKernelHeaders(directory string) error {
 	filename := b.target.Uname.Kernel + ".tar.gz"
-	url := fmt.Sprintf("https://codeload.github.com/microsoft/WSL2-Linux-Kernel/tar.gz/%s", b.target.Uname.Kernel)
+	url := "https://codeload.github.com/microsoft/WSL2-Linux-Kernel/tar.gz/" + b.target.Uname.Kernel
 
 	resp, err := http.Get(url)
 	if err != nil {
