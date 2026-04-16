@@ -251,7 +251,7 @@ Types:
       ID: 106
       Name: Probe[main.callMe]
       ByteSize: 41
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: s1
           Offset: 1
