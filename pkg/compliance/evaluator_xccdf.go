@@ -24,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/metrics"
 	"github.com/DataDog/datadog-agent/pkg/compliance/scap"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
-	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -71,16 +70,6 @@ type oscapIO struct {
 	DoneCh   chan bool
 }
 
-// From pkg/collector/corechecks/embed/process_agent.go.
-func getOSCAPIODefaultBinPath() (string, error) {
-	here, _ := executable.Folder()
-	binPath := filepath.Join(here, "..", "..", "embedded", "bin", "oscap-io")
-	if _, err := os.Stat(binPath); err == nil {
-		return binPath, nil
-	}
-	return binPath, fmt.Errorf("Can't access the default oscap-io binary at %s", binPath)
-}
-
 func newOSCAPIO(file string) *oscapIO {
 	return &oscapIO{
 		File:     file,
@@ -111,13 +100,8 @@ func (p *oscapIO) Run(ctx context.Context) error {
 	}
 	args = append(args, p.File)
 
-	binPath, err := getOSCAPIODefaultBinPath()
-	if err != nil {
-		return err
-	}
-
-	// Build command: /proc/self/exe compliance oscap-exec <oscap-io-path> [args...]
-	execArgs := append([]string{"compliance", "oscap-exec", binPath}, args...)
+	// Build command: /proc/self/exe compliance oscap-exec [args...]
+	execArgs := append([]string{"compliance", "oscap-exec"}, args...)
 	cmd := exec.CommandContext(ctx, "/proc/self/exe", execArgs...)
 	cmd.Dir = filepath.Dir(p.File)
 	cmd.Env = os.Environ()
