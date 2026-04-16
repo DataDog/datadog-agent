@@ -62,7 +62,6 @@ const (
 	envInfrastructureMode          = "DD_INFRASTRUCTURE_MODE"
 	envAppKey                      = "DD_APP_KEY"
 	envPAREnabled                  = "DD_PRIVATE_ACTION_RUNNER_ENABLED"
-	envPARApiKeyOnlyEnrollment     = "DD_PRIVATE_ACTION_RUNNER_API_KEY_ONLY_ENROLLMENT"
 	envPARActionsAllowlist         = "DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST"
 	envTracerLogsCollectionEnabled = "DD_APP_LOGS_COLLECTION_ENABLED"
 	envRumEnabled                  = "DD_RUM_ENABLED"
@@ -213,10 +212,9 @@ type Env struct {
 
 	InfrastructureMode string
 
-	AppKey                  string
-	PAREnabled              bool
-	PARApiKeyOnlyEnrollment bool
-	PARActionsAllowlist     string
+	AppKey              string
+	PAREnabled          bool
+	PARActionsAllowlist string
 
 	IsCentos6 bool
 
@@ -333,10 +331,9 @@ func FromEnv() *Env {
 
 		InfrastructureMode: os.Getenv(envInfrastructureMode),
 
-		AppKey:                  os.Getenv(envAppKey),
-		PAREnabled:              strings.ToLower(os.Getenv(envPAREnabled)) == "true",
-		PARApiKeyOnlyEnrollment: strings.ToLower(os.Getenv(envPARApiKeyOnlyEnrollment)) == "true",
-		PARActionsAllowlist:     os.Getenv(envPARActionsAllowlist),
+		AppKey:              os.Getenv(envAppKey),
+		PAREnabled:          strings.ToLower(os.Getenv(envPAREnabled)) == "true",
+		PARActionsAllowlist: os.Getenv(envPARActionsAllowlist),
 
 		IsCentos6:    DetectCentos6(),
 		IsFromDaemon: os.Getenv(envIsFromDaemon) == "true",
@@ -427,9 +424,6 @@ func (e *Env) ToEnv() []string {
 	if e.PAREnabled {
 		env = appendStringEnv(env, envAppKey, e.AppKey, "")
 		env = append(env, envPAREnabled+"=true")
-		if e.PARApiKeyOnlyEnrollment {
-			env = append(env, envPARApiKeyOnlyEnrollment+"=true")
-		}
 		env = appendStringEnv(env, envPARActionsAllowlist, e.PARActionsAllowlist, "")
 	}
 	if e.IsFromDaemon {

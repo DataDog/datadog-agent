@@ -96,10 +96,9 @@ type DatadogConfig struct {
 
 // PrivateActionRunnerConfig represents the configuration for the private action runner
 type PrivateActionRunnerConfig struct {
-	Enabled              *bool    `yaml:"enabled,omitempty"`
-	SelfEnroll           *bool    `yaml:"self_enroll,omitempty"`
-	APIKeyOnlyEnrollment *bool    `yaml:"api_key_only_enrollment,omitempty"`
-	ActionsAllowlist     []string `yaml:"actions_allowlist,omitempty"`
+	Enabled          *bool    `yaml:"enabled,omitempty"`
+	SelfEnroll       *bool    `yaml:"self_enroll,omitempty"`
+	ActionsAllowlist []string `yaml:"actions_allowlist,omitempty"`
 }
 
 // GPUCheckConfig represents the configuration for the GPU check

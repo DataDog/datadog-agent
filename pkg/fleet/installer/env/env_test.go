@@ -317,21 +317,6 @@ func TestToEnv(t *testing.T) {
 			},
 		},
 		{
-			name: "PAR enabled with api_key_only_enrollment",
-			env: &Env{
-				APIKey:                  "123456",
-				PAREnabled:              true,
-				PARApiKeyOnlyEnrollment: true,
-				PARActionsAllowlist:     "action1,action2",
-			},
-			expected: []string{
-				"DD_API_KEY=123456",
-				"DD_PRIVATE_ACTION_RUNNER_ENABLED=true",
-				"DD_PRIVATE_ACTION_RUNNER_API_KEY_ONLY_ENROLLMENT=true",
-				"DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST=action1,action2",
-			},
-		},
-		{
 			name: "PAR disabled does not emit PAR env vars",
 			env: &Env{
 				APIKey:              "123456",

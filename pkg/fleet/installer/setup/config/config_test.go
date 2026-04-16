@@ -655,35 +655,6 @@ app_key: "old_app_key"
 	}, datadog)
 }
 
-func TestPrivateActionRunnerApiKeyOnlyEnrollment(t *testing.T) {
-	tempDir := t.TempDir()
-
-	cfg := Config{}
-	cfg.DatadogYAML.APIKey = "test_key"
-	cfg.DatadogYAML.PrivateActionRunner.Enabled = BoolToPtr(true)
-	cfg.DatadogYAML.PrivateActionRunner.SelfEnroll = BoolToPtr(true)
-	cfg.DatadogYAML.PrivateActionRunner.APIKeyOnlyEnrollment = BoolToPtr(true)
-	cfg.DatadogYAML.PrivateActionRunner.ActionsAllowlist = []string{
-		"com.datadoghq.script.runPredefinedScript",
-	}
-
-	err := WriteConfigs(cfg, tempDir)
-	assert.NoError(t, err)
-
-	datadog := readDatadogYAML(t, tempDir)
-	assert.Equal(t, map[string]interface{}{
-		"api_key": "test_key",
-		"private_action_runner": map[string]interface{}{
-			"enabled":                 true,
-			"self_enroll":             true,
-			"api_key_only_enrollment": true,
-			"actions_allowlist": []interface{}{
-				"com.datadoghq.script.runPredefinedScript",
-			},
-		},
-	}, datadog)
-}
-
 func TestInfrastructureModeMerge(t *testing.T) {
 	tempDir := t.TempDir()
 	existing := `---
