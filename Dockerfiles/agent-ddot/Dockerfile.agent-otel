@@ -26,28 +26,56 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Set the working directory
 WORKDIR /workspace
 
-# Update and install necessary packages
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    curl \
-    ca-certificates \
-    software-properties-common \
-    build-essential \
-    git \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+# Update and install necessary packages.
+# Retries reduce flakiness from transient apt mirror/index issues in CI.
+RUN set -eu; \
+    success=0; \
+    for attempt in 1 2 3 4 5; do \
+      if apt-get -o Acquire::Retries=3 -o Acquire::http::No-Cache=true -o Acquire::https::No-Cache=true update && \
+         apt-get install -y --no-install-recommends \
+           curl \
+           ca-certificates \
+           software-properties-common \
+           build-essential \
+           git; then \
+        success=1; \
+        break; \
+      fi; \
+      echo "apt install failed on attempt ${attempt}/5, retrying"; \
+      rm -rf /var/lib/apt/lists/*; \
+      if [ "$attempt" -lt 5 ]; then sleep 5; fi; \
+    done; \
+    if [ "$success" -ne 1 ]; then \
+      echo "apt install failed after 5 attempts"; \
+      exit 1; \
+    fi; \
+    apt-get clean; \
+    rm -rf /var/lib/apt/lists/*
 
-# Install Windows cross-compilation tools if building for Windows
+# Install Windows cross-compilation tools if building for Windows.
 RUN if [ "$PACKAGE_TYPE" = "windows" ]; then \
-    apt-get update && \
-    apt-get install -y --no-install-recommends \
-        g++-mingw-w64-x86-64-posix \
-        gcc-mingw-w64 \
-        binutils-mingw-w64-x86-64 \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* \
-    && update-alternatives --set x86_64-w64-mingw32-g++ /usr/bin/x86_64-w64-mingw32-g++-posix \
-    && update-alternatives --set x86_64-w64-mingw32-gcc /usr/bin/x86_64-w64-mingw32-gcc-posix; \
+      success=0; \
+      for attempt in 1 2 3 4 5; do \
+        if apt-get -o Acquire::Retries=3 -o Acquire::http::No-Cache=true -o Acquire::https::No-Cache=true update && \
+           apt-get install -y --no-install-recommends \
+             g++-mingw-w64-x86-64-posix \
+             gcc-mingw-w64 \
+             binutils-mingw-w64-x86-64; then \
+          success=1; \
+          break; \
+        fi; \
+        echo "windows apt install failed on attempt ${attempt}/5, retrying"; \
+        rm -rf /var/lib/apt/lists/*; \
+        if [ "$attempt" -lt 5 ]; then sleep 5; fi; \
+      done; \
+      if [ "$success" -ne 1 ]; then \
+        echo "windows apt install failed after 5 attempts"; \
+        exit 1; \
+      fi; \
+      apt-get clean; \
+      rm -rf /var/lib/apt/lists/*; \
+      update-alternatives --set x86_64-w64-mingw32-g++ /usr/bin/x86_64-w64-mingw32-g++-posix; \
+      update-alternatives --set x86_64-w64-mingw32-gcc /usr/bin/x86_64-w64-mingw32-gcc-posix; \
     fi
 
 # We can't get tarballs for dev branches, so we can't just pull the tarball from github.
