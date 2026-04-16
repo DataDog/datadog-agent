@@ -686,6 +686,10 @@ def docker_build(
         "-e GIT_CONFIG_VALUE_0=/go/src/github.com/DataDog/datadog-agent",
         # Skip XZ compression - faster for local dev, use omnibus.build for CI
         "-e SKIP_PKG_COMPRESSION=true",
+        # Pass-through Go proxy env vars
+        "-e GOPROXY",
+        "-e GONOSUMDB",
+        "-e GOPRIVATE",
     ]
 
     # Build volume mounts (note: /opt/datadog-agent is a symlink created in build_cmd)
