@@ -93,7 +93,7 @@ require (
 	github.com/buger/jsonparser v1.1.2 // indirect
 	github.com/containerd/platforms v1.0.0-rc.1 // indirect
 	github.com/felixge/fgprof v0.9.5 // indirect
-	github.com/google/pprof v0.0.0-20260302011040-a15ffb7f9dcc // indirect
+	github.com/google/pprof v0.0.0-20260402051712-545e8a4df936 // indirect
 	github.com/hashicorp/consul/sdk v0.16.2 // indirect
 	github.com/hashicorp/go-msgpack v1.1.5 // indirect
 	github.com/jmespath/go-jmespath v0.4.1-0.20220621161143-b0104c826a24 // indirect
