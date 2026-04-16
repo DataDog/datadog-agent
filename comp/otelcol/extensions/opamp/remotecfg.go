@@ -24,7 +24,7 @@ const RemoteConfigURI = "opampcfg:remote"
 // triggers a collector hot-reload via the WatcherFunc registered during
 // Retrieve().
 //
-// speky:DDOT#OTELCOL031
+// speky:DDOT#OTELCOL030 speky:DDOT#OTELCOL031 speky:DDOT#OTELCOL036
 type RemoteConfigProvider struct {
 	mu      sync.Mutex
 	content []byte

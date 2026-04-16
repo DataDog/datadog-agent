@@ -458,7 +458,7 @@ func (e *ddotOpampExtension) onMessage(ctx context.Context, msg *types.MessageDa
 // resulting status back to the server.  Identical successive pushes (same
 // hash) are acknowledged as APPLIED without restarting the pipeline.
 //
-// speky:DDOT#OTELCOL031
+// speky:DDOT#OTELCOL030 speky:DDOT#OTELCOL031
 func (e *ddotOpampExtension) applyRemoteConfig(ctx context.Context, rc *protobufs.AgentRemoteConfig) {
 	hash := rc.ConfigHash
 
