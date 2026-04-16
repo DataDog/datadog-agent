@@ -161,6 +161,7 @@ new-e2e-windows-ddot-package-a7-x86_64:
       - EXTRA_PARAMS: --run "TestDDOTExtensionViaMSI$/TestUpgradeEnablesDDOTExtension$"
       - EXTRA_PARAMS: --run "TestDDOTExtensionMSIUpgrade$/TestUpgradePreservesDDOTExtension$"
       - EXTRA_PARAMS: --run "TestDDOTExtensionViaInstallScript$/TestInstallAndPurgeDDOTExtension$"
+      - EXTRA_PARAMS: --run "TestDDOTExtensionViaSubcommand$/TestInstallDDOTExtensionSubcommand$"
   rules:
     - !reference [.on_deploy]
     - !reference [.on_e2e_or_windows_installer_changes]
