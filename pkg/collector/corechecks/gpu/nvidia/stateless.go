@@ -502,6 +502,28 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 				}, 0, nil
 			},
 		},
+		{
+			Name: "repair_status",
+			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+				repairStatus, err := device.GetRepairStatus()
+				if err != nil {
+					return nil, 0, err
+				}
+
+				return []Metric{
+					{
+						Name:  "ecc.repair_pending.channel",
+						Value: float64(repairStatus.BChannelRepairPending),
+						Type:  metrics.GaugeType,
+					},
+					{
+						Name:  "ecc.repair_pending.tpc",
+						Value: float64(repairStatus.BTpcRepairPending),
+						Type:  metrics.GaugeType,
+					},
+				}, 0, nil
+			},
+		},
 		// Process memory APIs (stateless - just current snapshot)
 		{
 			Name: "process_memory_usage",

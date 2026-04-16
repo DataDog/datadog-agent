@@ -88,6 +88,8 @@ type SafeDevice interface {
 	GetProcessUtilization(lastSeenTimestamp uint64) ([]nvml.ProcessUtilizationSample, error)
 	// GetRemappedRows returns the remapped rows information
 	GetRemappedRows() (int, int, bool, bool, error)
+	// GetRepairStatus returns the ECC repair status flags for the device.
+	GetRepairStatus() (nvml.RepairStatus, error)
 	// GetSamples returns samples for the specified counter type
 	GetSamples(samplingType nvml.SamplingType, lastSeenTimestamp uint64) (nvml.ValueType, []nvml.Sample, error)
 	// GetTemperature returns the current temperature

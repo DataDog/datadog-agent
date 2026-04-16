@@ -293,6 +293,14 @@ func (d *safeDeviceImpl) GetRemappedRows() (int, int, bool, bool, error) {
 	return corrRows, uncorrRows, isPending, failureOccurred, NewNvmlAPIErrorOrNil("GetRemappedRows", ret)
 }
 
+func (d *safeDeviceImpl) GetRepairStatus() (nvml.RepairStatus, error) {
+	if err := d.lib.lookup(toNativeName("GetRepairStatus")); err != nil {
+		return nvml.RepairStatus{}, err
+	}
+	repairStatus, ret := d.nvmlDevice.GetRepairStatus()
+	return repairStatus, NewNvmlAPIErrorOrNil("GetRepairStatus", ret)
+}
+
 func (d *safeDeviceImpl) GetSamples(samplingType nvml.SamplingType, lastSeenTimestamp uint64) (nvml.ValueType, []nvml.Sample, error) {
 	if err := d.lib.lookup(toNativeName("GetSamples")); err != nil {
 		return 0, nil, err

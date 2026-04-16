@@ -11,4 +11,5 @@ go_test(
     name = "intern_test",
     srcs = ["string_test.go"],
     embed = [":intern"],
+    gotags = ["test"],
 )

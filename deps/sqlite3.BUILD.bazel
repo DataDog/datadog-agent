@@ -1,8 +1,6 @@
-load("@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
-load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup")
 
 package(
     default_package_metadata = [":license"],
@@ -44,25 +42,9 @@ cc_shared_library(
     visibility = ["//visibility:public"],
 )
 
-so_symlink(
-    name = "lib_files",
-    src = ":sqlite3",
-    libname = "libsqlite3",
+dd_cc_packaged(
+    name = "sqlite3_pkg",
+    input = ":sqlite3",
     version = VERSION,
-)
-
-pkg_filegroup(
-    name = "all_files",
-    srcs = [
-        ":lib_files",
-    ],
-    prefix = "embedded",
     visibility = ["//visibility:public"],
-)
-
-pkg_install(
-    name = "install",
-    srcs = [
-        ":all_files",
-    ],
 )
