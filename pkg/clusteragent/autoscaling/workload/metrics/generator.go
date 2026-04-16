@@ -120,7 +120,7 @@ func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metrics
 	}
 
 	metrics = append(metrics, metricsstore.StructuredMetric{
-		Name:  metricPrefix + ".local_fallback_enabled",
+		Name:  metricPrefix + ".local.fallback_enabled",
 		Type:  metricsstore.MetricTypeGauge,
 		Value: localFallbackValue,
 		Tags:  baseTags,
