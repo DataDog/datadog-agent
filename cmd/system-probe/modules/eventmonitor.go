@@ -44,12 +44,7 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDepen
 	opts.ProbeOpts.FilterStore = deps.FilterStore
 	secmoduleOpts := secmodule.Opts{}
 
-	// adapt options
-	if secconfig.RuntimeSecurity.IsRuntimeEnabled() {
-		secmodule.UpdateEventMonitorOpts(&opts, secconfig)
-	} else {
-		secmodule.DisableRuntimeSecurity(secconfig)
-	}
+	secmodule.UpdateEventMonitorOpts(&opts, secconfig)
 
 	hostname, err := deps.Hostname.Get(context.Background())
 	if err != nil {
@@ -96,8 +91,6 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDepen
 			evm.RegisterEventConsumer(usage)
 			log.Info("event monitoring usage consumer initialized")
 		}
-
-		opts.ProbeOpts.PathResolutionEnabled = true
 	}
 
 	netconfig := netconfig.New()
