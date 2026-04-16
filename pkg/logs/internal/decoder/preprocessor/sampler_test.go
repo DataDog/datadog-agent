@@ -256,6 +256,47 @@ func TestAdaptiveSampler_EvictsLeastFrequentWhenFull(t *testing.T) {
 	assert.Contains(t, counts, int64(2), "high-frequency pattern A should be retained")
 }
 
+// --- AdaptiveSampler: bubbling aliasing ---
+
+// When a matched entry's incremented matchCount exceeds its predecessor's, the
+// entry bubbles forward via value swaps. All entry mutations (including
+// sampled_count) must complete before bubbling, otherwise the pointer aliases a
+// different entry after the swap.
+func TestAdaptiveSampler_BubblingAliasesSampledCount(t *testing.T) {
+	s := newSampler(10, 1.0, 1.0) // burst=1, rate=1/sec
+	t0 := time.Now()
+	s.now = func() time.Time { return t0 }
+
+	// Create A and bump its matchCount to 3.
+	s.Process(testMsg(), patternA)
+	s.now = func() time.Time { return t0.Add(1 * time.Second) }
+	s.Process(testMsg(), patternA)
+	s.now = func() time.Time { return t0.Add(2 * time.Second) }
+	s.Process(testMsg(), patternA)
+	// entries: [A(mc=3)]
+
+	// Create B and bump its matchCount to 3 (same as A).
+	s.now = func() time.Time { return t0.Add(3 * time.Second) }
+	s.Process(testMsg(), patternB)
+	s.now = func() time.Time { return t0.Add(4 * time.Second) }
+	s.Process(testMsg(), patternB)
+	s.now = func() time.Time { return t0.Add(5 * time.Second) }
+	s.Process(testMsg(), patternB)
+	// entries: [A(mc=3), B(mc=3)]
+
+	// Drop a B at the same timestamp (no credit refill). B.matchCount
+	// becomes 4, exceeding A's 3, so B bubbles past A. The pointer
+	// aliasing causes the sampled_count increment to land on A.
+	assert.Nil(t, s.Process(testMsg(), patternB), "B should be dropped (no credits)")
+
+	// Refill B's credits and emit. The emitted message should carry a tag
+	// reporting the 1 dropped message above.
+	s.now = func() time.Time { return t0.Add(6 * time.Second) }
+	out := s.Process(testMsg(), patternB)
+	require.NotNil(t, out, "B should be emitted after credit refill")
+	requireSampledCountTag(t, out, 1)
+}
+
 // --- AdaptiveSampler: misc ---
 
 func TestAdaptiveSampler_FlushReturnsNil(t *testing.T) {

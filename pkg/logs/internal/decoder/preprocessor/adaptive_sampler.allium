@@ -256,14 +256,12 @@ rule EmitMatchingLog {
     @guidance
         -- If prior_sampled_count > 0 the emitted message is tagged
         -- adaptive_sampler_sampled_count:<n>. If 0 no tag is added.
-        -- This models the common case where no bubbling occurs. When
-        -- the entry does bubble (see open question on aliasing), the
-        -- sampled_count read and reset target a different entry.
         --
         -- After updating, the entry is bubbled toward the front of
         -- the sorted table to maintain descending match_count order.
         -- The implementation achieves this via a swap chain (bubble
-        -- sort step), not a full sort.
+        -- sort step), not a full sort. All entry mutations complete
+        -- before bubbling to avoid pointer aliasing.
 }
 
 -- A log matches an existing pattern but credits are insufficient.
@@ -292,11 +290,6 @@ rule DropMatchingLog {
     ensures: LogDropped(message)
 
     @guidance
-        -- The sampled_count increment targets the matched entry when
-        -- no bubbling occurs. When the entry bubbles (see open
-        -- question on aliasing), the increment targets a different
-        -- entry.
-        --
         -- After updating, the entry is bubbled toward the front of
         -- the sorted table (same as EmitMatchingLog).
 }
@@ -426,9 +419,3 @@ deferred "ValidateMatchThreshold"
     -- this range (user_samples.go); the same validation needs to be
     -- added when match_threshold is wired up as user-configurable
     -- for the adaptive sampler.
-
-------------------------------------------------------------
--- Open Questions
-------------------------------------------------------------
-
-open question "After a matched entry bubbles forward in the sorted table (its incremented match_count exceeds its predecessor's), the pointer used for sampled_count operations still addresses the original array position — which now holds a different entry. In the emit path, this reads and clears the displaced entry's sampled_count instead of the matched entry's, so the adaptive_sampler_sampled_count tag may carry the wrong value or be absent when it should be present. In the drop path, the displaced entry's sampled_count is incremented instead of the matched entry's. Credit, last_seen and match_count updates are unaffected because they complete before bubbling. The bug manifests only when bubbling occurs — when two or more patterns have similar match_counts and one crosses a sort boundary. Is this intentional, or should the sampled_count operations be captured before the re-sort?"

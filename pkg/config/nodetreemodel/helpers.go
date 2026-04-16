@@ -8,11 +8,11 @@ package nodetreemodel
 import (
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 	"time"
 	"unicode"
 
-	"github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/mohae/deepcopy"
 	"github.com/spf13/cast"
@@ -121,9 +121,27 @@ func mapToMapString(m reflect.Value) map[string]interface{} {
 	return res
 }
 
+// valid kinds to call IsNil on
+// duplicated from pkg/config/helper in order to avoid import cycle
+var nillableKinds = []reflect.Kind{reflect.Map, reflect.Ptr, reflect.Interface, reflect.Slice}
+
+// isNilValue returns true if a is nil, or a is an interface with nil data
+// duplicated from pkg/config/helper in order to avoid import cycle
+func isNilValue(a interface{}) bool {
+	if a == nil {
+		return true
+	}
+	rv := reflect.ValueOf(a)
+	// check if IsNil may be called in order to avoid a panic
+	if slices.Contains(nillableKinds, rv.Kind()) {
+		return reflect.ValueOf(a).IsNil()
+	}
+	return false
+}
+
 // newNodeTree will recursively create nodes from the input value to construct a tree
 func newNodeTree(v interface{}, source model.Source) (*nodeImpl, error) {
-	if helper.IsNilValue(v) {
+	if isNilValue(v) {
 		// nil as a value acts as the zero value, and the cast library will correctly
 		// convert it to zero values for the types we handle
 		return newLeafNode(nil, source), nil
