@@ -129,6 +129,28 @@ func TestStream_SubscribesImmediatelyWhenPostgresAvailable(t *testing.T) {
 	assert.NotNil(t, fn)
 }
 
+func TestStream_SubscribesImmediatelyWhenDatabasesConfigured(t *testing.T) {
+	// When dedicated DO database credentials are configured, Stream() must subscribe
+	// to RC immediately even without a postgres check.
+	rc := newMockRCClient()
+	c := &component{
+		log:      logmock.New(t),
+		ac:       newMockAutodiscovery(t, nil), // no postgres
+		rcclient: rc,
+		databases: []DODatabaseConfig{
+			{Host: "localhost", Port: 5432, DBName: "mydb", Username: "do_reader", Password: "secret"},
+		},
+		activeConfigs: make(map[string]integration.Config),
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	c.Stream(ctx)
+
+	fn := waitSubscribe(t, rc)
+	assert.NotNil(t, fn)
+}
+
 func TestStream_NoPostgresAvailable_DoesNotSubscribeImmediately(t *testing.T) {
 	// Without postgres, Subscribe must not be called before the first ticker tick (10s).
 	c, rc := newStreamComponent(t, nil)

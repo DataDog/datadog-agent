@@ -48,6 +48,16 @@ func newTestComponentWithAC(t *testing.T, configs []integration.Config) *compone
 	}
 }
 
+func newTestComponentWithDatabases(t *testing.T, configs []integration.Config, databases []DODatabaseConfig) *component {
+	t.Helper()
+	return &component{
+		log:           logmock.New(t),
+		ac:            newMockAutodiscovery(t, configs),
+		databases:     databases,
+		activeConfigs: make(map[string]integration.Config),
+	}
+}
+
 func TestIsPostgresIntegration(t *testing.T) {
 	assert.True(t, isPostgresIntegration("postgres"))
 	assert.False(t, isPostgresIntegration("mysql"))
@@ -527,6 +537,57 @@ func TestOnRCUpdate_ValidConfig_SchedulesCheck(t *testing.T) {
 	require.Contains(t, c.activeConfigs, "cfg-happy")
 }
 
+// TestOnRCUpdate_WithDODatabases_SchedulesCheck verifies the full path: a component with
+// dedicated DO database credentials receives an RC update and successfully schedules a check
+// using the DO credentials (not postgres check credentials).
+func TestOnRCUpdate_WithDODatabases_SchedulesCheck(t *testing.T) {
+	doDatabases := []DODatabaseConfig{
+		{Host: "localhost", Port: 5432, DBName: "mydb", Username: "do_reader", Password: "do_secret"},
+	}
+	c := newTestComponentWithDatabases(t, nil, doDatabases) // no postgres configs
+
+	payload := DOQueryPayload{
+		ConfigID:     "cfg-do-creds",
+		DBIdentifier: DBIdentifier{Type: "self-hosted", Host: "localhost", DBName: "mydb"},
+		Queries: []QuerySpec{
+			{
+				MonitorID:       99,
+				Type:            "run_query",
+				Query:           "SELECT count(*) FROM orders",
+				IntervalSeconds: 60,
+				TimeoutSeconds:  10,
+				Entity:          EntityMetadata{Platform: "postgres", Database: "mydb", Table: "orders"},
+			},
+		},
+	}
+	payloadJSON, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	updates := map[string]state.RawConfig{
+		"path/cfg-do": {Config: payloadJSON, Metadata: state.Metadata{ID: "rc-do-id"}},
+	}
+	statuses, changes := collectStatuses(c, updates)
+
+	require.Equal(t, state.ApplyStateAcknowledged, statuses["path/cfg-do"].State)
+	require.Len(t, changes.Schedule, 1)
+	assert.Equal(t, "do_query_actions", changes.Schedule[0].Name)
+	assert.Equal(t, "datadog.yaml", changes.Schedule[0].Provider, "should use synthetic provider from DO config")
+
+	var instance map[string]any
+	require.NoError(t, yaml.Unmarshal(changes.Schedule[0].Instances[0], &instance))
+	assert.Equal(t, "do_reader", instance["username"], "should use DO database credentials")
+	assert.Equal(t, "do_secret", instance["password"])
+	assert.Equal(t, "rc-do-id", instance["remote_config_id"])
+	assert.Equal(t, "localhost", instance["host"])
+
+	queries, ok := instance["queries"].([]interface{})
+	require.True(t, ok)
+	require.Len(t, queries, 1)
+	assert.Equal(t, "SELECT count(*) FROM orders", queries[0].(map[string]interface{})["query"])
+
+	require.Contains(t, c.activeConfigs, "cfg-do-creds")
+}
+
 // TestOnRCUpdate_UpdateReplacesExistingCheck verifies that two sequential onRCUpdate calls
 // with the same config_id correctly unschedule the previous check and schedule the updated one.
 func TestOnRCUpdate_UpdateReplacesExistingCheck(t *testing.T) {
@@ -594,6 +655,87 @@ func TestOnRCUpdate_NoMatchingPostgres_ReportsError(t *testing.T) {
 	assert.Equal(t, state.ApplyStateError, statuses["path/cfg-nomatch"].State)
 	assert.Empty(t, changes.Schedule)
 	assert.Empty(t, c.activeConfigs)
+}
+
+// --- resolveCredentials tests ---
+
+func TestResolveCredentials_DOConfigTakesPriority(t *testing.T) {
+	// Both DO database config and postgres check exist — DO config should win.
+	postgresCfg := integration.Config{
+		Name:      "postgres",
+		Provider:  "file",
+		Instances: []integration.Data{integration.Data("host: localhost\nport: 5432\nusername: pg_user\npassword: pg_pass\ndbname: mydb\n")},
+	}
+	doDatabases := []DODatabaseConfig{
+		{Host: "localhost", Port: 5432, DBName: "mydb", Username: "do_reader", Password: "do_pass"},
+	}
+	c := newTestComponentWithDatabases(t, []integration.Config{postgresCfg}, doDatabases)
+
+	auth, baseCfg, err := c.resolveCredentials(&DBIdentifier{Host: "localhost", DBName: "mydb"})
+	require.NoError(t, err)
+
+	assert.Equal(t, "do_reader", auth["username"], "should use DO config credentials, not postgres check")
+	assert.Equal(t, "do_pass", auth["password"])
+	assert.Equal(t, "datadog.yaml", baseCfg.Provider)
+}
+
+func TestResolveCredentials_FallbackToPostgres(t *testing.T) {
+	// No DO databases configured — should fall back to postgres check.
+	postgresCfg := integration.Config{
+		Name:      "postgres",
+		Provider:  "file",
+		Instances: []integration.Data{integration.Data("host: localhost\nport: 5432\nusername: pg_user\npassword: pg_pass\ndbname: mydb\n")},
+	}
+	c := newTestComponentWithDatabases(t, []integration.Config{postgresCfg}, nil)
+
+	auth, baseCfg, err := c.resolveCredentials(&DBIdentifier{Host: "localhost", DBName: "mydb"})
+	require.NoError(t, err)
+
+	assert.Equal(t, "pg_user", auth["username"], "should fall back to postgres check credentials")
+	assert.Equal(t, "pg_pass", auth["password"])
+	assert.Equal(t, "file", baseCfg.Provider)
+}
+
+func TestResolveCredentials_DOConfigNoMatch_FallsBackToPostgres(t *testing.T) {
+	// DO databases configured but for a different host — should fall back to postgres check.
+	postgresCfg := integration.Config{
+		Name:      "postgres",
+		Provider:  "file",
+		Instances: []integration.Data{integration.Data("host: localhost\nport: 5432\nusername: pg_user\npassword: pg_pass\ndbname: mydb\n")},
+	}
+	doDatabases := []DODatabaseConfig{
+		{Host: "otherhost", Port: 5432, DBName: "otherdb", Username: "do_reader", Password: "do_pass"},
+	}
+	c := newTestComponentWithDatabases(t, []integration.Config{postgresCfg}, doDatabases)
+
+	auth, _, err := c.resolveCredentials(&DBIdentifier{Host: "localhost", DBName: "mydb"})
+	require.NoError(t, err)
+
+	assert.Equal(t, "pg_user", auth["username"], "should fall back to postgres when DO config doesn't match")
+}
+
+func TestResolveCredentials_SkipsNonMatchingEntry_UsesLaterMatch(t *testing.T) {
+	// First entry doesn't match, second does — should use second entry's credentials.
+	doDatabases := []DODatabaseConfig{
+		{Host: "otherhost", Port: 5432, DBName: "otherdb", Username: "wrong_user", Password: "wrong_pass"},
+		{Host: "localhost", Port: 5432, DBName: "mydb", Username: "correct_user", Password: "correct_pass"},
+	}
+	c := newTestComponentWithDatabases(t, nil, doDatabases)
+
+	auth, _, err := c.resolveCredentials(&DBIdentifier{Host: "localhost", DBName: "mydb"})
+	require.NoError(t, err)
+
+	assert.Equal(t, "correct_user", auth["username"], "should use the second matching entry")
+	assert.Equal(t, "correct_pass", auth["password"])
+}
+
+func TestResolveCredentials_NoMatchAnywhere(t *testing.T) {
+	// No DO databases, no postgres configs — should return error.
+	c := newTestComponentWithDatabases(t, []integration.Config{}, nil)
+
+	_, _, err := c.resolveCredentials(&DBIdentifier{Host: "notfound", DBName: "mydb"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no postgres config found")
 }
 
 // TestOnRCUpdate_MalformedPostgresYAML_SurfacesParseError verifies that when a postgres

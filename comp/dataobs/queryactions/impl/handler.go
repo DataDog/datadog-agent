@@ -66,9 +66,9 @@ func (c *component) onRCUpdate(updates map[string]state.RawConfig, applyStatus f
 			continue
 		}
 
-		baseCfg, instance, err := c.findPostgresConfig(&payload.DBIdentifier)
+		auth, baseCfg, err := c.resolveCredentials(&payload.DBIdentifier)
 		if err != nil {
-			c.log.Warnf("No matching postgres config for %s: %v", configID, err)
+			c.log.Warnf("No matching credentials for %s: %v", configID, err)
 			applyStatus(path, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
 			c.collectUnschedule(configID, &changes)
 			continue
@@ -79,7 +79,7 @@ func (c *component) onRCUpdate(updates map[string]state.RawConfig, applyStatus f
 			remoteConfigID = configID
 		}
 
-		checkConfig, err := c.buildCheckConfig(&payload, baseCfg, instance, remoteConfigID)
+		checkConfig, err := c.buildCheckConfig(&payload, baseCfg, auth, remoteConfigID)
 		if err != nil {
 			c.log.Errorf("Failed to build check config for %s: %v", configID, err)
 			applyStatus(path, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
@@ -132,6 +132,38 @@ func (c *component) collectUnschedule(configID string, changes *integration.Conf
 
 	changes.Unschedule = append(changes.Unschedule, prev)
 	c.log.Infof("Unscheduled Data Observability query action check: %s", configID)
+}
+
+// resolveCredentials finds credentials for the given DB identifier.
+// It first checks DO-specific database configs from datadog.yaml, then falls back
+// to borrowing credentials from a matching postgres check config.
+func (c *component) resolveCredentials(dbID *DBIdentifier) (map[string]any, *integration.Config, error) {
+	// First: check dedicated DO database credentials
+	for i := range c.databases {
+		if c.databases[i].matchesIdentifier(dbID) {
+			baseCfg := &integration.Config{
+				Name:     "postgres",
+				Provider: "datadog.yaml",
+			}
+			return c.databases[i].toInstanceMap(), baseCfg, nil
+		}
+	}
+
+	// Fallback: borrow credentials from a matching postgres check instance
+	baseCfg, instance, err := c.findPostgresConfig(dbID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	key := dbID.Host + ":" + dbID.DBName
+	if !c.warnedFallback[key] {
+		c.warnedFallback[key] = true
+		c.log.Warnf("Using credentials from postgres check for DO query actions (host=%s, dbname=%s); "+
+			"none of the %d entries in data_observability.query_actions.databases matched.",
+			dbID.Host, dbID.DBName, len(c.databases))
+	}
+
+	return extractDBAuthFromInstance(instance), baseCfg, nil
 }
 
 // findPostgresConfig finds a postgres config that matches the given identifier.
@@ -196,10 +228,10 @@ func extractDBAuthFromInstance(instance map[string]any) map[string]any {
 }
 
 // buildCheckConfig creates a check config for the do_query_actions check.
-// Returns an error if auth extraction or instance YAML serialization fails;
+// auth contains the database credential fields already resolved by resolveCredentials.
+// Returns an error if instance YAML serialization fails;
 // callers must report ApplyStateError to RC rather than scheduling the broken config.
-func (c *component) buildCheckConfig(payload *DOQueryPayload, baseCfg *integration.Config, instance map[string]any, remoteConfigID string) (integration.Config, error) {
-	auth := extractDBAuthFromInstance(instance)
+func (c *component) buildCheckConfig(payload *DOQueryPayload, baseCfg *integration.Config, auth map[string]any, remoteConfigID string) (integration.Config, error) {
 
 	queries := make([]map[string]any, 0, len(payload.Queries))
 	for _, q := range payload.Queries {

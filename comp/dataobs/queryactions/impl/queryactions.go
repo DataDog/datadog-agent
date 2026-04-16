@@ -8,6 +8,7 @@ package queryactionsimpl
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
+	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
 
@@ -44,6 +46,8 @@ type component struct {
 	ac              autodiscovery.Component
 	rcclient        rcclient.Component
 	enabled         bool
+	databases       []DODatabaseConfig
+	warnedFallback  map[string]bool // dedup fallback warnings by "host:dbname"
 	activeConfigs   map[string]integration.Config
 	activeConfigsMu sync.Mutex
 }
@@ -52,12 +56,21 @@ type component struct {
 func NewComponent(reqs Requires) (Provides, error) {
 	enabled := reqs.Config.GetBool("data_observability.query_actions.enabled")
 
+	var doConfig struct {
+		Databases []DODatabaseConfig `mapstructure:"databases"`
+	}
+	if err := structure.UnmarshalKey(reqs.Config, "data_observability.query_actions", &doConfig); err != nil {
+		return Provides{}, fmt.Errorf("failed to parse data_observability.query_actions config: %w", err)
+	}
+
 	c := &component{
-		log:           reqs.Log,
-		ac:            reqs.Ac,
-		rcclient:      reqs.RcClient,
-		enabled:       enabled,
-		activeConfigs: make(map[string]integration.Config),
+		log:            reqs.Log,
+		ac:             reqs.Ac,
+		rcclient:       reqs.RcClient,
+		enabled:        enabled,
+		databases:      doConfig.Databases,
+		warnedFallback: make(map[string]bool),
+		activeConfigs:  make(map[string]integration.Config),
 	}
 
 	reqs.Lc.Append(compdef.Hook{
@@ -156,9 +169,8 @@ func (c *component) Stream(ctx context.Context) <-chan integration.ConfigChanges
 			close(outCh)
 		}()
 
-		// Check immediately: the file config provider runs before this one in LoadAndRun,
-		// so postgres is typically already available when Stream() is called.
-		if c.hasPostgresIntegration() {
+		// Subscribe immediately if we have dedicated database credentials or a postgres check.
+		if len(c.databases) > 0 || c.hasPostgresIntegration() {
 			subscribeAndWait()
 			return
 		}

@@ -991,6 +991,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 
 	// Data Observability
 	config.BindEnvAndSetDefault("data_observability.query_actions.enabled", false)
+	config.SetKnown("data_observability.query_actions.databases") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	bindEnvAndSetLogsConfigKeys(config, "data_observability.forwarder.")
 
 	// Reverse DNS Enrichment
