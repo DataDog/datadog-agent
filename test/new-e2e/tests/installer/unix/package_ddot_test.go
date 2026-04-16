@@ -213,6 +213,13 @@ func (s *packageDDOTSuite) TestInstallDDOTSubcommand() {
 	state.AssertFileExists("/etc/datadog-agent/datadog.yaml", 0640, "dd-agent", "dd-agent")
 	state.AssertFileExists("/etc/datadog-agent/otel-config.yaml", 0640, "dd-agent", "dd-agent")
 	s.host.Run("sudo grep -q 'otelcollector:' /etc/datadog-agent/datadog.yaml")
+
+	// Remove the ddot extension and verify the service stops.
+	s.host.Run("sudo datadog-agent ddot remove")
+	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit)
+	state = s.host.State()
+	state.AssertUnitsDead(ddotUnit)
+	s.assertCoreUnits(state, true)
 }
 
 func (s *packageDDOTSuite) assertCoreUnits(state host.State, oldUnits bool) {

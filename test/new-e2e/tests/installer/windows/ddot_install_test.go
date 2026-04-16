@@ -67,6 +67,13 @@ func (s *testDDOTExtensionSubcommand) TestInstallDDOTSubcommand() {
 		"otel-agent.exe should be present in the ddot extension",
 	)
 	s.Require().NoError(s.WaitForServicesWithBackoff("Running", []string{"datadog-otel-agent"}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second))))
+
+	// Remove the ddot extension and verify the service stops and files are cleaned up.
+	cmd = fmt.Sprintf(`& "%s" ddot remove`, agentExe)
+	output, err = s.Env().RemoteHost.Execute(cmd)
+	s.Require().NoErrorf(err, "failed to remove ddot extension via subcommand: %s", output)
+	s.Require().Host(s.Env().RemoteHost).NoDirExists(ddotExtDir, "ddot extension should be removed after remove command")
+	s.Require().Host(s.Env().RemoteHost).HasNoService("datadog-otel-agent")
 }
 
 type testDDOTExtensionInstallScript struct {
