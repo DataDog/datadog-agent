@@ -33,7 +33,7 @@ func TestStream(t *testing.T) {
 	testContainerName := "container-name"
 
 	wmeta := newMockWorkloadMeta(t)
-	providerInterface, err := NewPrometheusPodsConfigProvider(nil, wmeta, nil, nil, nil)
+	providerInterface, err := NewPrometheusPodsConfigProvider(nil, wmeta, nil, nil, nil, nil)
 	require.NoError(t, err)
 
 	provider, ok := providerInterface.(*PrometheusPodsConfigProvider)
@@ -139,7 +139,7 @@ func TestStream_NoAnnotations(t *testing.T) {
 	testContainerName := "container-name"
 
 	wmeta := newMockWorkloadMeta(t)
-	providerInterface, err := NewPrometheusPodsConfigProvider(nil, wmeta, nil, nil, nil)
+	providerInterface, err := NewPrometheusPodsConfigProvider(nil, wmeta, nil, nil, nil, nil)
 	require.NoError(t, err)
 
 	provider, ok := providerInterface.(*PrometheusPodsConfigProvider)
@@ -382,7 +382,7 @@ func TestGetConfigErrors(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			wmeta := newMockWorkloadMeta(t)
-			providerInterface, err := NewPrometheusPodsConfigProvider(nil, wmeta, nil, nil, nil)
+			providerInterface, err := NewPrometheusPodsConfigProvider(nil, wmeta, nil, nil, nil, nil)
 			require.NoError(t, err)
 
 			provider, ok := providerInterface.(*PrometheusPodsConfigProvider)

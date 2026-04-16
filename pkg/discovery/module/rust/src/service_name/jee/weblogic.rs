@@ -3,40 +3,29 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+use super::xml_parser::{Action, XmlHandler, XmlParser};
 use super::{Deployment, DeploymentFs, Error, abs, extract_java_property_from_args};
 use crate::procfs::Cmdline;
 use crate::service_name::context::DetectionContext;
-use serde::Deserialize;
 use std::io::BufReader;
 use std::path::Path;
+use xml::attribute::OwnedAttribute;
 
 const SERVER_NAME_SYS_PROP: &str = "-Dweblogic.Name=";
 const SERVER_CONFIG_FILE: &str = "config.xml";
 const SERVER_CONFIG_DIR: &str = "config";
 const XML_FILE: &str = "META-INF/weblogic.xml";
 
-/// Weblogic deployment info from config.xml
-#[derive(Debug, Deserialize)]
-struct DeploymentInfo {
-    #[serde(rename = "app-deployment", default)]
-    app_deployment: Vec<AppDeployment>,
-}
-
-#[derive(Debug, Deserialize)]
+/// Weblogic app deployment entry from config.xml.
+///
+/// Missing child elements default to `""`, matching Go's `encoding/xml`
+/// (the reference implementation).  The old quick-xml/serde parser was
+/// stricter and rejected the document on any missing field.
+#[derive(Debug, Default)]
 struct AppDeployment {
-    #[serde(rename = "target")]
     target: String,
-    #[serde(rename = "source-path")]
     source_path: String,
-    #[serde(rename = "staging-mode")]
     staging_mode: String,
-}
-
-/// Weblogic-specific context root from weblogic.xml
-#[derive(Debug, Deserialize)]
-struct ContextRoot {
-    #[serde(rename = "context-root", default)]
-    context_root: String,
 }
 
 pub fn find_deployed_apps(
@@ -51,11 +40,9 @@ pub fn find_deployed_apps(
 
     let file = ctx.fs.open(&config_path)?;
     let reader = BufReader::new(file.verify(None)?);
-    let deploy_infos: DeploymentInfo = quick_xml::de::from_reader(reader)
-        .map_err(|e| Error::XmlParse(format!("Failed to parse config.xml: {}", e)))?;
+    let deploy_infos = parse_config_xml(reader)?;
 
     let deployments: Vec<_> = deploy_infos
-        .app_deployment
         .into_iter()
         .filter(|di| di.staging_mode == "stage" && di.target == server_name)
         .map(|di| {
@@ -80,15 +67,105 @@ pub fn find_deployed_apps(
     Ok(deployments)
 }
 
+enum ConfigXmlState {
+    Top,
+    InDomain,
+    InAppDeployment,
+    ReadingTarget,
+    ReadingSourcePath,
+    ReadingStagingMode,
+}
+
+struct ConfigXmlHandler {
+    deployments: Vec<AppDeployment>,
+    current: AppDeployment,
+}
+
+impl XmlHandler for ConfigXmlHandler {
+    type State = ConfigXmlState;
+
+    fn start_element(
+        &mut self,
+        state: Self::State,
+        name: &str,
+        _attributes: &[OwnedAttribute],
+    ) -> Action<Self::State> {
+        match (state, name) {
+            (ConfigXmlState::Top, "domain") => Action::Descend(ConfigXmlState::InDomain),
+            (ConfigXmlState::InDomain, "app-deployment") => {
+                self.current = AppDeployment::default();
+                Action::Descend(ConfigXmlState::InAppDeployment)
+            }
+            (ConfigXmlState::InAppDeployment, "target") => {
+                // Clear in case the element appears more than once.  Real
+                // WebLogic configs never repeat these, but if they did the
+                // old quick-xml/serde parser would reject the document
+                // ("duplicate field") whereas Go's encoding/xml takes the
+                // last value.  We follow Go (last-wins) since it is the
+                // reference implementation.
+                self.current.target.clear();
+                Action::Descend(ConfigXmlState::ReadingTarget)
+            }
+            (ConfigXmlState::InAppDeployment, "source-path") => {
+                self.current.source_path.clear();
+                Action::Descend(ConfigXmlState::ReadingSourcePath)
+            }
+            (ConfigXmlState::InAppDeployment, "staging-mode") => {
+                self.current.staging_mode.clear();
+                Action::Descend(ConfigXmlState::ReadingStagingMode)
+            }
+            (s, _) => Action::Same(s),
+        }
+    }
+
+    fn end_element(&mut self, state: Self::State, name: &str) -> Action<Self::State> {
+        match (state, name) {
+            (
+                ConfigXmlState::ReadingTarget
+                | ConfigXmlState::ReadingSourcePath
+                | ConfigXmlState::ReadingStagingMode,
+                _,
+            ) => Action::Ascend(ConfigXmlState::InAppDeployment),
+            (ConfigXmlState::InAppDeployment, "app-deployment") => {
+                let d = std::mem::take(&mut self.current);
+                self.deployments.push(d);
+                Action::Ascend(ConfigXmlState::InDomain)
+            }
+            (ConfigXmlState::InDomain, _) => Action::Break,
+            (s, _) => Action::Same(s),
+        }
+    }
+
+    fn text(&mut self, state: Self::State, text: String) -> Action<Self::State> {
+        match &state {
+            ConfigXmlState::ReadingTarget => {
+                self.current.target.push_str(&text);
+            }
+            ConfigXmlState::ReadingSourcePath => {
+                self.current.source_path.push_str(&text);
+            }
+            ConfigXmlState::ReadingStagingMode => {
+                self.current.staging_mode.push_str(&text);
+            }
+            _ => {}
+        }
+        Action::Same(state)
+    }
+}
+
+fn parse_config_xml<R: std::io::Read>(reader: R) -> Result<Vec<AppDeployment>, Error> {
+    let mut parser = XmlParser::new(reader);
+    let mut handler = ConfigXmlHandler {
+        deployments: Vec::new(),
+        current: AppDeployment::default(),
+    };
+    parser.run(&mut handler, ConfigXmlState::Top)?;
+    Ok(handler.deployments)
+}
+
 pub fn custom_extract_war_context_root(deployment_fs: &mut DeploymentFs) -> Option<String> {
     let buf = deployment_fs.read_file_to_vec(XML_FILE).ok()?;
-    let wls_xml: ContextRoot = quick_xml::de::from_reader(buf.as_slice()).ok()?;
-
-    if wls_xml.context_root.is_empty() {
-        None
-    } else {
-        Some(wls_xml.context_root)
-    }
+    super::parse_context_root(&buf, "weblogic-web-app")
 }
 
 #[cfg(test)]
@@ -381,5 +458,69 @@ http://xmlns.oracle.com/weblogic/weblogic-web-app/1.4/weblogic-web-app.xsd">inva
 
         let result = custom_extract_war_context_root(&mut deployment_fs);
         assert_eq!(result, Some("my_context".to_string()));
+    }
+
+    /// Worst-case memory test: many app-deployments with large text fields,
+    /// sized to fit within the 1 MiB file size cap.
+    /// Measured peak heap with massif: ~2.7 MiB.
+    #[test]
+    fn test_worst_case_memory() {
+        let n = 1_440;
+        let pad: String = "x".repeat(200);
+
+        let mut xml = String::from("<domain>");
+        for i in 0..n {
+            xml.push_str(&format!(
+                "<app-deployment>\
+                 <target>tgt{i}{pad}</target>\
+                 <source-path>/path{i}{pad}</source-path>\
+                 <staging-mode>stage{pad}</staging-mode>\
+                 </app-deployment>"
+            ));
+        }
+        xml.push_str("</domain>");
+        assert!(xml.len() <= 1024 * 1024, "XML exceeds 1 MiB cap");
+
+        let result = parse_config_xml(xml.as_bytes()).unwrap();
+        assert_eq!(result.len(), n);
+    }
+
+    /// xml-rs can split element text across multiple Text/CData events.
+    /// Verify that split text is concatenated, not overwritten.
+    #[test]
+    fn test_parse_config_xml_split_text() {
+        let xml = br#"<domain>
+  <app-deployment>
+    <target>Admin<![CDATA[Server]]></target>
+    <source-path>/opt<![CDATA[/apps/test.war]]></source-path>
+    <staging-mode>no<![CDATA[stage]]></staging-mode>
+  </app-deployment>
+</domain>"#;
+        let result = parse_config_xml(xml.as_slice()).unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].target, "AdminServer");
+        assert_eq!(result[0].source_path, "/opt/apps/test.war");
+        assert_eq!(result[0].staging_mode, "nostage");
+    }
+
+    /// If the same element appears more than once within one
+    /// `<app-deployment>`, the last value wins (matching the previous
+    /// serde/quick-xml behaviour) rather than concatenating.
+    #[test]
+    fn test_parse_config_xml_repeated_fields() {
+        let xml = b"\
+            <domain><app-deployment>\
+                <target>first</target>\
+                <target>second</target>\
+                <source-path>/first</source-path>\
+                <source-path>/second</source-path>\
+                <staging-mode>nostage</staging-mode>\
+                <staging-mode>stage</staging-mode>\
+            </app-deployment></domain>";
+        let result = parse_config_xml(xml.as_slice()).unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].target, "second");
+        assert_eq!(result[0].source_path, "/second");
+        assert_eq!(result[0].staging_mode, "stage");
     }
 }

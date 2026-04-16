@@ -207,6 +207,11 @@ func (c *safeConfig) IsKnown(key string) bool {
 	return c.Viper.IsKnown(key)
 }
 
+// IsSetting always returns true for Viper, because it doesn't have a way to tell
+func (c *safeConfig) IsSetting(_ string) bool {
+	return true
+}
+
 // checkKnownKey checks if a key is known, and if not logs a warning
 // Only a single warning will be logged per unknown key.
 //

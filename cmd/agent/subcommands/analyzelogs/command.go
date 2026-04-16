@@ -35,6 +35,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -44,6 +45,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const defaultCoreConfigPath = "bin/agent/dist/datadog.yaml"
@@ -88,6 +90,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				workloadmetafx.Module(defaults.DefaultParams()),
 				workloadfilterfx.Module(),
 				autodiscoveryimpl.Module(),
+				fx.Provide(func() option.Option[healthplatform.Component] {
+					return option.None[healthplatform.Component]()
+				}),
 				ipcfx.ModuleReadOnly(),
 			)
 		},

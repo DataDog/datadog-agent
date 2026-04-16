@@ -3113,6 +3113,7 @@ func TestNoGlobalTags(t *testing.T) {
 		OrchestratorCardTags: []string{},
 		LowCardTags:          []string{},
 		StandardTags:         []string{},
+		IsComplete:           true,
 	}
 
 	var actualStaticSourceEvent *types.TagInfo
@@ -3128,6 +3129,28 @@ func TestNoGlobalTags(t *testing.T) {
 		"Global Entity should be set with no tags:\nexpected: %v\nfound: %v ",
 		expectedEmptyEvent, actualStaticSourceEvent,
 	)
+}
+
+func TestCollectStaticGlobalTags_SetsIsComplete(t *testing.T) {
+	mockConfig := configmock.New(t)
+	tagInfosCh := make(chan []*types.TagInfo, 10)
+
+	wmetaCollector := NewWorkloadMetaCollector(context.TODO(), mockConfig, nil, &fakeProcessor{tagInfosCh})
+	wmetaCollector.collectStaticGlobalTags(context.TODO(), mockConfig)
+
+	tagInfos := <-tagInfosCh
+
+	var actualStaticSourceEvent *types.TagInfo
+	for _, event := range tagInfos {
+		if event.Source == staticSource {
+			actualStaticSourceEvent = event
+			break
+		}
+	}
+
+	require.NotNil(t, actualStaticSourceEvent)
+	assert.Equal(t, types.GetGlobalEntityID(), actualStaticSourceEvent.EntityID)
+	assert.True(t, actualStaticSourceEvent.IsComplete)
 }
 
 func TestParseJSONValue(t *testing.T) {

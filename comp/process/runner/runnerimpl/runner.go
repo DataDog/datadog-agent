@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/agent"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo/def"
 	"github.com/DataDog/datadog-agent/comp/process/runner"
-	"github.com/DataDog/datadog-agent/comp/process/submitter"
+	submitter "github.com/DataDog/datadog-agent/comp/process/submitter/def"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	processRunner "github.com/DataDog/datadog-agent/pkg/process/runner"

@@ -40,6 +40,10 @@ type TagStore struct {
 	store     *genericstore.ObjectStore[EntityTags]
 	telemetry map[string]map[string]float64
 
+	// incompleteEntities tracks when entities were first seen in an incomplete
+	// state, so we can measure the delay until they become complete.
+	incompleteEntities map[types.EntityID]time.Time
+
 	subscriptionManager subscriber.SubscriptionManager
 
 	clock clock.Clock
@@ -56,6 +60,7 @@ func newTagStoreWithClock(clock clock.Clock, telemetryStore *telemetry.Store) *T
 	return &TagStore{
 		telemetry:           make(map[string]map[string]float64),
 		store:               genericstore.NewObjectStore[EntityTags](),
+		incompleteEntities:  make(map[types.EntityID]time.Time),
 		subscriptionManager: subscriber.NewSubscriptionManager(telemetryStore),
 		clock:               clock,
 		// telemetryStore is optional. If it is nil, we will not collect
@@ -156,6 +161,8 @@ func (s *TagStore) ProcessTagInfo(tagInfos []*types.TagInfo) {
 		}
 		storedTags.setIsComplete(info.IsComplete)
 
+		s.trackCompletenessDelay(info.EntityID, eventType, info.IsComplete)
+
 		events = append(events, types.EntityEvent{
 			EventType: eventType,
 			Entity:    storedTags.toEntity(),
@@ -241,6 +248,7 @@ func (s *TagStore) Prune() {
 			if s.telemetryStore != nil {
 				s.telemetryStore.PrunedEntities.Inc()
 			}
+			delete(s.incompleteEntities, eid)
 			s.store.Unset(eid)
 			events = append(events, types.EntityEvent{
 				EventType: types.EventTypeDeleted,
@@ -324,6 +332,32 @@ func (s *TagStore) GetEntity(entityID types.EntityID) (*types.Entity, error) {
 
 	entity := tags.toEntity()
 	return &entity, nil
+}
+
+func (s *TagStore) trackCompletenessDelay(entityID types.EntityID, eventType types.EventType, isComplete bool) {
+	if s.telemetryStore == nil {
+		return
+	}
+
+	prefix := string(entityID.GetPrefix())
+
+	if eventType == types.EventTypeAdded {
+		if isComplete {
+			s.telemetryStore.TagCompletenessDelay.Observe(0, prefix)
+		} else {
+			s.incompleteEntities[entityID] = s.clock.Now()
+		}
+		return
+	}
+
+	// Existing entity became complete
+	if eventType == types.EventTypeModified && isComplete {
+		if firstSeen, ok := s.incompleteEntities[entityID]; ok {
+			delay := s.clock.Now().Sub(firstSeen).Seconds()
+			s.telemetryStore.TagCompletenessDelay.Observe(delay, prefix)
+			delete(s.incompleteEntities, entityID)
+		}
+	}
 }
 
 func (s *TagStore) getEntityTags(entityID types.EntityID) (EntityTags, error) {

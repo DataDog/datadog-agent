@@ -239,6 +239,10 @@ func TestParseV2TaskContainers(t *testing.T) {
 		require.True(t, ok)
 		assert.Equal(t, workloadmeta.ContainerRuntimeECSFargate, container.Runtime)
 
+		require.NotNil(t, container.Owner)
+		assert.Equal(t, workloadmeta.KindECSTask, container.Owner.Kind)
+		assert.Equal(t, task.TaskARN, container.Owner.ID)
+
 		// Check network IPs
 		if container.ID == "43481a6ce4842eec8fe72fc28500c6b52edcc0917f105b83379f88cac1ff3946" {
 			assert.Equal(t, "10.0.2.106", container.NetworkIPs["awsvpc"])

@@ -5,173 +5,193 @@
 
 INSTALL_DIR=/opt/datadog-agent
 
-# On Mac, the real log folder is located under /opt/datadog-agent/logs, because some MacOS versions deletes
-# /var/log on upgrade. The old log folder now becomes a symbolic link to the new folder.
+# macOS deletes /var/log on OS upgrades, so the real log folder is
+# /opt/datadog-agent/logs with a symlink from /var/log/datadog.
 LOG_DIR=/opt/datadog-agent/logs
 SYSTEM_LOG_DIR=/var/log/datadog
 SYSTEM_LOG_BASE_DIR=/var/log
 
 CONF_DIR="$INSTALL_DIR/etc"
-APP_DIR="/Applications/Datadog Agent.app"
 
-# Create log directory for logging (safe, idempotent operation)
 mkdir -p $LOG_DIR
-chmod 750 $LOG_DIR # AGENTRUN-609: Set stricter permissions to the log directory
+chmod 750 $LOG_DIR
 
 LOG_FILE="$LOG_DIR/preinstall.log"
 exec > $LOG_FILE 2>&1
 
-# Determine current user if he is using the Graphical installer
-# shellcheck disable=SC2009
-INSTALL_USER=$(ps aux | grep "CoreServices/Installer" | grep -v grep | awk '{print $1;}')
+DDAGENT_USER="_dd-agent"
 
-# Otherwise, we hope he is using the install script and try to use this user
-# If it fails, no choice but to use root :'(
-if [ -z "$INSTALL_USER" ] || [ "$INSTALL_USER" = "root" ]; then
-    INSTALL_USER=$(cat /tmp/datadog-install-user || echo 'root')
-fi
-echo "INSTALL_USER: $INSTALL_USER"
+harden_ddagent_user() {
+    # Enforce least-privilege properties regardless of how the account was
+    # originally created (previous install, MDM pre-provisioning, manual
+    # creation). This runs on every install/upgrade — every upgrade is a
+    # hardening pass.
 
-# Function to show error based on installation method
-show_installation_error() {
-    local message="$1"
+    # Core identity: no shell, no home, hidden, daemon group
+    dscl . -create /Users/$DDAGENT_USER UserShell /usr/bin/false
+    dscl . -create /Users/$DDAGENT_USER NFSHomeDirectory /var/empty
+    dscl . -create /Users/$DDAGENT_USER IsHidden 1
+    dscl . -create /Users/$DDAGENT_USER PrimaryGroupID 1
 
-    # Always log to preinstall.log
-    echo "ERROR: $message"
+    # Lock the account password. The '*' marker is the standard Unix convention
+    # for "no valid password" (same as /etc/shadow on Linux). This prevents
+    # authentication via PAM-based services that might not check the login shell
+    # (e.g., screen sharing, VPN agents, custom PAM modules).
+    dscl . -create /Users/$DDAGENT_USER Password '*'
 
-    # Check if this is a GUI installation (CoreServices/Installer running)
-    if pgrep -f "CoreServices/Installer" > /dev/null 2>&1; then
-        # GUI installation - show dialog box
-        # Run as INSTALL_USER to display in their session
-        sudo -u "$INSTALL_USER" osascript -e "display dialog \"$message\" buttons {\"OK\"} default button \"OK\" with title \"Datadog Agent Installation Error\" with icon stop" 2>/dev/null || true
-    else
-        # Command-line installation - print to stderr for console visibility
-        echo "$message" >&2
+    # Remove all authentication mechanisms (password hashes, Kerberos
+    # principals, smart card bindings). This is what Apple does for its own
+    # daemon accounts (_www, _sshd, _spotlight). It means there is no
+    # credential to brute-force or extract from Directory Services.
+    dscl . -delete /Users/$DDAGENT_USER AuthenticationAuthority 2>/dev/null || true
+
+    # Strip privileged supplementary group memberships. PrimaryGroupID=1
+    # (daemon) only sets the primary group — it does not remove supplementary
+    # memberships. If someone pre-created _dd-agent in the admin group (which
+    # grants sudo on macOS), that's a privilege escalation path.
+    for group in admin wheel staff; do
+        if dseditgroup -o checkmember -m "$DDAGENT_USER" "$group" >/dev/null 2>&1; then
+            echo "Removing $DDAGENT_USER from group $group"
+            dseditgroup -o edit -d "$DDAGENT_USER" "$group"
+        fi
+    done
+
+    # UID sanity check: warn if outside the system range but don't change it
+    # (changing UID would orphan all files owned by the old UID).
+    local existing_uid
+    existing_uid=$(id -u "$DDAGENT_USER")
+    if [ "$existing_uid" -ge 500 ]; then
+        echo "WARNING: $DDAGENT_USER has UID $existing_uid (interactive range >=500). UID is preserved to avoid breaking file ownership, but this is non-standard for a daemon account."
+    fi
+
+    # Secure Token check: daemon accounts should never have Secure Token
+    # (affects FileVault recovery and bootstrap token flows). We can't revoke
+    # it programmatically without MDM, but we log a warning so admins can
+    # investigate.
+    if sysadminctl -secureTokenStatus "$DDAGENT_USER" 2>&1 | grep -q "ENABLED"; then
+        echo "WARNING: $DDAGENT_USER has Secure Token enabled. Daemon accounts should not hold Secure Token. This may have been granted by MDM bootstrap token flows. Contact your MDM administrator to revoke it."
     fi
 }
 
-# ============================================================================
-# Check for conflicts FIRST - before ANY file system modifications
-# This prevents partial installations that can't be rolled back
-# ============================================================================
+create_ddagent_user() {
+    if id -u "$DDAGENT_USER" >/dev/null 2>&1; then
+        echo "User $DDAGENT_USER already exists, enforcing security properties"
+        harden_ddagent_user
+        return 0
+    fi
+    echo "Creating $DDAGENT_USER system user..."
+    local uid=450
+    while dscl . -list /Users UniqueID | awk '{print $2}' | grep -qx "$uid"; do
+        uid=$((uid + 1))
+    done
+    if [ "$uid" -ge 500 ]; then
+        echo "No free UID available in range 450-499 for $DDAGENT_USER"
+        exit 1
+    fi
+    dscl . -create /Users/$DDAGENT_USER
+    dscl . -create /Users/$DDAGENT_USER RealName "Datadog Agent"
+    dscl . -create /Users/$DDAGENT_USER UniqueID "$uid"
+    harden_ddagent_user
+    echo "Created $DDAGENT_USER (UID $uid)"
+}
 
-# For per-user installations (no marker file), check if system-wide exists
-if [ ! -f "/tmp/install-ddagent/system-wide" ]; then
-  # This is a per-user installation attempt
-  if [ -f "/Library/LaunchDaemons/com.datadoghq.agent.plist" ]; then
-      show_installation_error "System-wide agent installation detected at:
-    /Library/LaunchDaemons/com.datadoghq.agent.plist
+cleanup_per_user_installations() {
+    echo '# Checking for legacy per-user installations'
+    local failed=false
 
-Cannot proceed with per-user installation.
+    for user_home in /Users/*; do
+        [ -d "$user_home/Library/LaunchAgents" ] || continue
+        local username
+        username=$(basename "$user_home")
+        [ "$username" = "Shared" ] && continue
+        local uid
+        uid=$(id -u "$username" 2>/dev/null) || continue
+        [ "$uid" -ge 500 ] || continue
 
-To proceed, remove the system-wide components:
-    sudo launchctl bootout system/com.datadoghq.agent 2>/dev/null || true
-    sudo rm -f /Library/LaunchDaemons/com.datadoghq.agent.plist
-    sudo rm -f /Library/LaunchAgents/com.datadoghq.gui.plist
+        local agent_plist="$user_home/Library/LaunchAgents/com.datadoghq.agent.plist"
+        local gui_plist="$user_home/Library/LaunchAgents/com.datadoghq.gui.plist"
 
-Then rerun this installation."
-      exit 1
-  fi
+        if [ -f "$agent_plist" ] || [ -f "$gui_plist" ]; then
+            echo "Per-user Datadog Agent installation detected for user '$username' (UID $uid)"
 
-  # Also check for orphaned system-wide GUI plist
-  if [ -f "/Library/LaunchAgents/com.datadoghq.gui.plist" ]; then
-      show_installation_error "System-wide GUI installation detected at:
-    /Library/LaunchAgents/com.datadoghq.gui.plist
+            # Stop services (best-effort — user may not be logged in)
+            launchctl bootout "gui/$uid/com.datadoghq.agent" 2>/dev/null || true
+            launchctl bootout "gui/$uid/com.datadoghq.gui" 2>/dev/null || true
 
-This may be from a partial or incomplete system-wide installation.
-Cannot proceed with per-user installation.
+            # Remove plists
+            rm -f "$agent_plist"
+            rm -f "$gui_plist"
 
-To proceed, remove the system-wide components:
-    sudo launchctl bootout system/com.datadoghq.agent 2>/dev/null || true
-    sudo rm -f /Library/LaunchDaemons/com.datadoghq.agent.plist
-    sudo rm -f /Library/LaunchAgents/com.datadoghq.gui.plist
+            # Verify: plists must be gone AND services must no longer be registered
+            if [ -f "$agent_plist" ] || [ -f "$gui_plist" ]; then
+                echo "ERROR: Failed to remove per-user plists for user '$username'"
+                failed=true
+            elif launchctl print "gui/$uid/com.datadoghq.agent" >/dev/null 2>&1; then
+                echo "ERROR: Per-user agent service still registered with launchctl for user '$username'"
+                failed=true
+            elif launchctl print "gui/$uid/com.datadoghq.gui" >/dev/null 2>&1; then
+                echo "ERROR: Per-user GUI service still registered with launchctl for user '$username'"
+                failed=true
+            else
+                echo "Cleaned up per-user installation for user '$username'"
+            fi
+        fi
+    done
 
-Then rerun this installation."
-      exit 1
-  fi
-fi
+    if [ "$failed" = true ]; then
+        echo "ERROR: Could not fully remove per-user Datadog Agent installation(s)."
+        echo "Please uninstall the Agent manually before installing this version:"
+        echo "    https://docs.datadoghq.com/agent/supported_platforms/osx/#uninstall-the-agent"
+        exit 1
+    fi
+}
 
-# ============================================================================
-# Validation passed - safe to proceed with installation
-# Now we can safely modify file system (log migration, etc.)
-# ============================================================================
+cleanup_per_user_installations
+create_ddagent_user
 
-# Log folder migration (safe to do after conflict check)
+# Log folder migration
 if [ -d $SYSTEM_LOG_DIR ]; then
-    # Old log folder exists
-    echo "Old log folder exists."
-
     if [ -L $SYSTEM_LOG_DIR ]; then
-        # Old log folder is a symblic link already. Nothing to do here.
-        echo "Old log folder is a link, nothing to do here."
-        true
+        echo "Log symlink already in place."
     else
-        # Old log folder is not a link, copy the files to the new folder.
-        echo "Old log folder is not a link, copying everything to the new location."
+        echo "Migrating old log folder to new location."
         cp -Rf $SYSTEM_LOG_DIR/* $LOG_DIR
-
-        # Remove the old one
-        echo "Removing the old log folder."
         rm -rf $SYSTEM_LOG_DIR
-
-        # Create a link
-        echo "Creating a link from old log folder to the new location."
         ln -s $LOG_DIR $SYSTEM_LOG_DIR
     fi
 else
-    # Old log folder does not exist. Try to create its base folder in case it does not exist either.
-    echo "Old log folder does not exist. Creating its base folder."
     mkdir -p $SYSTEM_LOG_BASE_DIR
-
-    # Create a link
-    echo "Creating a link from old log folder to the new location."
     ln -s $LOG_DIR $SYSTEM_LOG_DIR
 fi
-echo "Log folder migration has completed."
 
-USER_HOME=$(sudo -Hu "$INSTALL_USER" sh -c 'echo $HOME')
+# Stop running services and save config if an existing installation is present
+if [ -e "$CONF_DIR/datadog.yaml" ]; then
+    echo "# Existing installation detected"
+    datadog-agent version || true
 
-user_uid=$(id -u)
-if sudo -u "$INSTALL_USER" launchctl print "gui/$user_uid/com.datadoghq.agent" 1>/dev/null 2>/dev/null; then
-  echo "# Disabling the login launch of the app"
-  user_agent_version=$(datadog-agent version | grep -Eo '[6-7]\.[0-9]+\.[0-9]+' | head -1)
-  if ! printf '7.52.0\n%s\n' "$user_agent_version" | sort -V -C; then
-    # version is older than 7.52.0
-    sudo -u "$INSTALL_USER" osascript -e 'tell application "System Events" to delete every login item whose name is "Datadog Agent"'
-  fi
-fi
+    echo '# Stopping running services'
+    launchctl bootout system/com.datadoghq.agent 2>/dev/null || true
+    launchctl bootout system/com.datadoghq.sysprobe 2>/dev/null || true
 
-if [ -e "$CONF_DIR/datadog.conf" ] || [ -e "$CONF_DIR/datadog.yaml" ]; then
-    echo "# State at the beginning"
-    echo "## Agent version"
-    grep AGENT_VERSION $INSTALL_DIR/agent/config.py || echo "No config.py file (agent 5)"
-    datadog-agent version || echo "No datadog-agent binary version (agent 6)"
-    echo "## $INSTALL_DIR"
-    ls -al $INSTALL_DIR || echo "No agent installed"
-    echo "## $APP_DIR/Contents/Resources"
-    ls -al "$APP_DIR/Contents/Resources" || echo "No app installed"
+    # Stop GUI for all logged-in users
+    for logged_user in $(who | awk '{print $1}' | sort -u); do
+        logged_uid=$(id -u "$logged_user" 2>/dev/null) || continue
+        launchctl bootout "gui/$logged_uid/com.datadoghq.gui" 2>/dev/null || true
+    done
+    kill $(pgrep -f 'Datadog Agent.app') 2>/dev/null || true
 
-    echo '# Stop old agent'
-    echo '## Trying to stop agent 5'
-    $INSTALL_DIR/bin/datadog-agent stop || true
-    echo '## Trying to stop agent 6'
-    sudo -Hu "$INSTALL_USER" launchctl stop com.datadoghq.agent || true
-    echo '## Trying to kill agent GUI'
-    kill "$(pgrep -f 'Datadog Agent.app')"
-
-    echo '## Trying to unload agent 6 launchd service'
-    sudo -Hu "$INSTALL_USER" launchctl unload -w "$USER_HOME/Library/LaunchAgents/com.datadoghq.agent.plist" || true
-    sudo -Hu "$INSTALL_USER" launchctl unload -w "$USER_HOME/Library/LaunchAgents/com.datadoghq.gui.plist" || true
-
-    # Save old conf
-    rm -rvf /tmp/checks.d /tmp/conf.d /tmp/datadog.conf /tmp/datadog.yaml
-    mkdir -vp /tmp/checks.d
-    mkdir -vp /tmp/conf.d
-    cp -vf $CONF_DIR/datadog.conf /tmp
-    cp -vf $CONF_DIR/datadog.yaml /tmp
-    cp -vfR $CONF_DIR/conf.d/* /tmp/conf.d
-    find /tmp/conf.d '(' -name '*.yaml.example' -o -name '*.yaml.default' ')' -delete -print # don't save old example and default yamls
-    cp -vfR $CONF_DIR/checks.d/* /tmp/checks.d
+    # Save existing config for restoration in postinst.
+    # All install-time staging data lives under a single root-only directory.
+    INSTALL_STAGING_DIR="/private/var/root/datadog-install"
+    SAVED_CONF_DIR="$INSTALL_STAGING_DIR/saved-conf"
+    rm -rvf "$SAVED_CONF_DIR"
+    mkdir -vp "$SAVED_CONF_DIR/conf.d"
+    mkdir -vp "$SAVED_CONF_DIR/checks.d"
+    chmod 700 "$INSTALL_STAGING_DIR"
+    cp -vf $CONF_DIR/datadog.yaml "$SAVED_CONF_DIR/"
+    cp -vfR $CONF_DIR/conf.d/* "$SAVED_CONF_DIR/conf.d" 2>/dev/null || true
+    find "$SAVED_CONF_DIR/conf.d" '(' -name '*.yaml.example' -o -name '*.yaml.default' ')' -delete
+    cp -vfR $CONF_DIR/checks.d/* "$SAVED_CONF_DIR/checks.d" 2>/dev/null || true
 fi
 
 echo '# Deleting old datadog-agent link'
@@ -180,15 +200,5 @@ rm -vf /usr/local/bin/datadog-agent
 echo '# Deleting old datadog-agent files'
 rm -rf $INSTALL_DIR/agent || true
 rm -rf $INSTALL_DIR/checks.d || true
-
-# Debriefing time
-echo "# State at the end"
-echo "## Agent version"
-grep AGENT_VERSION $INSTALL_DIR/agent/config.py || echo "No config.py file (agent 5)"
-datadog-agent version || echo "No datadog-agent binary version (agent 6)"
-echo "## $INSTALL_DIR"
-ls -al $INSTALL_DIR || echo "No agent installed"
-echo "## $APP_DIR/Contents/Resources"
-ls -al "$APP_DIR/Contents/Resources" || echo "No app installed"
 
 exit 0

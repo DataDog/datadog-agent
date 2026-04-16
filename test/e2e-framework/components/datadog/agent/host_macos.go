@@ -52,8 +52,7 @@ func (am *agentMacOSManager) getInstallCommand(version agentparams.PackageVersio
 	env := strings.Join(exports, " ")
 	// Retry curl few times
 	cmd := fmt.Sprintf(`for i in 1 2 3 4 5; do curl -fsSL https://install.datadoghq.com/scripts/install_mac_os.sh -o install-script.sh && break || sleep $((2**$i)); done && for i in 1 2 3; do DD_API_KEY=%%s %%s %[1]s DD_INSTALL_ONLY=true bash install-script.sh && exit 0 || sleep $((2**$i)); done; exit 1`, env)
-	// Only the systemdaemon install is supported on macOS, because single user requires to interact with the pop-up.
-	pulumiCmdStr := pulumi.Sprintf(cmd, apiKey, pulumi.Sprintf("DD_SYSTEMDAEMON_INSTALL=true DD_SYSTEMDAEMON_USER_GROUP=%s:staff", am.host.Username))
+	pulumiCmdStr := pulumi.Sprintf(cmd, apiKey, pulumi.String(""))
 	return pulumiCmdStr, nil
 }
 

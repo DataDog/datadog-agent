@@ -138,6 +138,7 @@ func (c *WorkloadMetaCollector) collectStaticGlobalTags(ctx context.Context, dat
 			OrchestratorCardTags: orch,
 			LowCardTags:          low,
 			StandardTags:         standard,
+			IsComplete:           true,
 		},
 	})
 }

@@ -13,6 +13,7 @@ import (
 	"io/fs"
 	"os"
 	"os/user"
+	"runtime"
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -26,10 +27,21 @@ func NewPermission() (*Permission, error) {
 	return &Permission{}, nil
 }
 
-// RestrictAccessToUser sets the file user and group to the same as 'dd-agent' user. If the function fails to lookup
-// "dd-agent" user it return nil immediately.
+// agentUsername returns the agent user name for the current platform.
+// macOS uses "_dd-agent" (underscore prefix is the convention for daemon accounts),
+// Linux uses "dd-agent".
+func agentUsername() string {
+	if runtime.GOOS == "darwin" {
+		return "_dd-agent"
+	}
+	return "dd-agent"
+}
+
+// RestrictAccessToUser sets the file user and group to the same as the agent
+// user. On Linux this is "dd-agent"; on macOS it is "_dd-agent". If neither
+// user exists, the function returns nil immediately.
 func (p *Permission) RestrictAccessToUser(path string) error {
-	usr, err := user.Lookup("dd-agent")
+	usr, err := user.Lookup(agentUsername())
 	if err != nil {
 		return nil
 	}

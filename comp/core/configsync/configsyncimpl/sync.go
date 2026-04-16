@@ -13,6 +13,7 @@ import (
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
+	"github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
@@ -59,7 +60,7 @@ func (cs *configSync) updater() error {
 				cs.Config.Set(key, typedValues, pkgconfigmodel.SourceLocalConfigProcess)
 			}
 		} else {
-			cs.Config.Set(key, value, pkgconfigmodel.SourceLocalConfigProcess)
+			helper.SetTree(cs.Config, key, value, pkgconfigmodel.SourceLocalConfigProcess)
 		}
 	}
 	return nil

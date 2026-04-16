@@ -18,7 +18,6 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/config/basic",
-        "//pkg/config/helper",
         "//pkg/config/model",
         "//pkg/util/log",
         "@com_github_mohae_deepcopy//:deepcopy",

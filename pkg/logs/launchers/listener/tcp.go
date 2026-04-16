@@ -105,6 +105,7 @@ func (l *TCPListener) Start() {
 	if err != nil {
 		log.Errorf("Can't start TCP%s forwarder on port %d: %v", tlsLabel, l.source.Config.Port, err)
 		l.source.Status.Error(err)
+		l.cancel()
 		return
 	}
 	l.source.Status.Success()

@@ -1184,16 +1184,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "quick-xml"
-version = "0.39.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "958f21e8e7ceb5a1aa7fa87fab28e7c75976e0bfe7e23ff069e0a260f894067d"
-dependencies = [
- "memchr",
- "serde",
-]
-
-[[package]]
 name = "quote"
 version = "1.0.45"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1497,7 +1487,6 @@ dependencies = [
  "nom",
  "normalize-path",
  "phf",
- "quick-xml",
  "rmp-serde",
  "saphyr-parser",
  "scopeguard",
@@ -1509,6 +1498,7 @@ dependencies = [
  "tokio",
  "uzers",
  "walkdir",
+ "xml-rs",
  "yaml-rust2",
  "zip",
 ]
@@ -2234,6 +2224,12 @@ dependencies = [
  "unicode-xid",
  "wasmparser",
 ]
+
+[[package]]
+name = "xml-rs"
+version = "0.8.28"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3ae8337f8a065cfc972643663ea4279e04e7256de865aa66fe25cec5fb912d3f"
 
 [[package]]
 name = "yaml-rust2"

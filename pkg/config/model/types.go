@@ -189,6 +189,8 @@ type Reader interface {
 
 	// IsKnown returns whether this key is known
 	IsKnown(key string) bool
+	// IsSetting returns whether the key identifies a setting (and not a section)
+	IsSetting(key string) bool
 
 	// GetKnownKeysLowercased returns all the keys that meet at least one of these criteria:
 	// 1) have a default, 2) have an environment variable binded, 3) are an alias or 4) have been SetKnown()

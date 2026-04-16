@@ -16,6 +16,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -26,7 +27,7 @@ func RegisterProvider(name string,
 	providerCatalog map[string]types.ConfigProviderFactory) {
 	RegisterProviderWithComponents(
 		name,
-		func(providerConfig *pkgconfigsetup.ConfigurationProviders, _ workloadmeta.Component, _ tagger.Component, _ workloadfilter.Component, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
+		func(providerConfig *pkgconfigsetup.ConfigurationProviders, _ workloadmeta.Component, _ tagger.Component, _ workloadfilter.Component, _ healthplatform.Component, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
 			return factory(providerConfig, telemetryStore)
 		},
 		providerCatalog,

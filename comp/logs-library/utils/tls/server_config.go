@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/utils/tls/certreloader"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -31,14 +32,22 @@ type ServerConfig struct {
 }
 
 // BuildTLSConfig loads certificates from disk and returns a *tls.Config ready
-// for use with tls.NewListener.
-func (c *ServerConfig) BuildTLSConfig(_ context.Context) (*tls.Config, error) {
+// for use with tls.NewListener. A CertReloader is created to support automatic
+// certificate rotation without process restarts.
+//
+// When a CA file is configured, a CAReloader is used so that CA certificate
+// rotation does not require a restart. Because tls.Config.ClientCAs cannot be
+// safely mutated after use, we set ClientAuth to its non-verifying equivalent
+// and perform CA verification in VerifyConnection against the
+// dynamically-reloaded pool. This follows the pattern recommended by the Go
+// crypto team: https://go.dev/issue/64796
+func (c *ServerConfig) BuildTLSConfig(ctx context.Context) (*tls.Config, error) {
 	if err := c.Validate(); err != nil {
 		return nil, err
 	}
 
-	cert, err := tls.LoadX509KeyPair(c.CertFile, c.KeyFile)
-	if err != nil {
+	reloader := certreloader.New(ctx, c.CertFile, c.KeyFile, certreloader.RealClock())
+	if _, err := reloader.GetCertificate(nil); err != nil {
 		return nil, fmt.Errorf("failed to load TLS cert/key: %w", err)
 	}
 
@@ -48,17 +57,18 @@ func (c *ServerConfig) BuildTLSConfig(_ context.Context) (*tls.Config, error) {
 	}
 
 	tlsCfg := &tls.Config{
-		Certificates: []tls.Certificate{cert},
-		MinVersion:   minVersion,
-		ClientAuth:   c.ClientAuth,
+		GetCertificate: reloader.GetCertificate,
+		MinVersion:     minVersion,
+		ClientAuth:     c.ClientAuth,
 	}
 
 	if c.CAFile != "" {
-		pool, err := loadCACertPool(c.CAFile)
-		if err != nil {
-			return nil, err
+		caReloader := certreloader.NewCAReloader(ctx, c.CAFile, certreloader.RealClock())
+		if _, err := caReloader.GetPool(); err != nil {
+			return nil, fmt.Errorf("failed to load TLS CA: %w", err)
 		}
-		tlsCfg.ClientCAs = pool
+		tlsCfg.ClientAuth = clientAuthNoVerify(c.ClientAuth)
+		tlsCfg.VerifyConnection = buildCAVerifier(caReloader)
 	}
 
 	return tlsCfg, nil
@@ -109,14 +119,42 @@ func WarnKeyFilePermissions(path string) {
 	}
 }
 
-func loadCACertPool(path string) (*x509.CertPool, error) {
-	caPEM, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read CA file: %w", err)
+// clientAuthNoVerify maps a verifying ClientAuthType to its non-verifying
+// equivalent so that CA verification can be performed via VerifyConnection
+// against a dynamically-reloaded pool.
+func clientAuthNoVerify(auth tls.ClientAuthType) tls.ClientAuthType {
+	switch auth {
+	case tls.VerifyClientCertIfGiven:
+		return tls.RequestClientCert
+	case tls.RequireAndVerifyClientCert:
+		return tls.RequireAnyClientCert
+	default:
+		return auth
 	}
-	pool := x509.NewCertPool()
-	if !pool.AppendCertsFromPEM(caPEM) {
-		return nil, fmt.Errorf("CA file %q contains no valid certificates", path)
+}
+
+// buildCAVerifier returns a VerifyConnection callback that verifies client
+// certificates against the CAReloader's current pool.
+func buildCAVerifier(caReloader *certreloader.CAReloader) func(tls.ConnectionState) error {
+	return func(cs tls.ConnectionState) error {
+		if len(cs.PeerCertificates) == 0 {
+			return nil
+		}
+		pool, err := caReloader.GetPool()
+		if err != nil {
+			return fmt.Errorf("CA pool unavailable: %w", err)
+		}
+
+		intermediates := x509.NewCertPool()
+		for _, cert := range cs.PeerCertificates[1:] {
+			intermediates.AddCert(cert)
+		}
+
+		_, err = cs.PeerCertificates[0].Verify(x509.VerifyOptions{
+			Roots:         pool,
+			Intermediates: intermediates,
+			KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+		})
+		return err
 	}
-	return pool, nil
 }

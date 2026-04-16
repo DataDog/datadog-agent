@@ -71,19 +71,20 @@ default but could be change by the users. For example, the default configuration
 Path are all express using `/` and will be translated to the correct OS version.
 
 Existing variagbles:
-- Configuration directory:
+
+- Configuration directory (`${conf_path}`):
   - `windows`: `c:/programdata/datadog`
   - `linux`; `/etc/datadog-agent`
   - `darwin`: `/opt/datadog-agent/etc`
-- Installation directory:
+- Installation directory (`${install_path}`):
   - `windows`: `c:/program files/datadog/datadog agent`
   - `linux`; `/opt/datadog-agent`
   - `darwin`: `/opt/datadog-agent`
-- Log directory:
+- Log directory (`${log_path}`):
   - `windows`: `c:/programdata/datadog/logs`
   - `linux`; `/var/log/datadog`
   - `darwin`: `/opt/datadog-agent/logs`
-- Run directory (where the Agent starts from):
+- Run directory, where the Agent starts from (`${run_path}`):
   - `windows`: `/opt/datadog-agent/run`
   - `linux`; `c:/programdata/datadog/run`
   - `darwin`: `/opt/datadog-agent/run`
