@@ -270,7 +270,7 @@ def _run_bazel_tests(ctx, bazel_targets: list[str], verbose: bool = False) -> Te
     # TODO: on Linux runners, the limit is much higher; consider platform-specific batching.
     MAX_CMD_LENGTH = 32000
     FIXED_ARGS = ["test", "--keep_going"]
-    fixed_len = sum(len(a) + 1 for a in FIXED_ARGS)
+    fixed_len = sum(len(a)) + len(a) + 1  # args + spaces
 
     # Batch targets so no single invocation exceeds the limit.
     batches: list[list[str]] = []
