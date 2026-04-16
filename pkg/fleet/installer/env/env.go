@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"golang.org/x/net/http/httpproxy"
 )
 
@@ -47,6 +48,7 @@ const (
 	envDDNoProxy             = "DD_PROXY_NO_PROXY"
 	envNoProxy               = "NO_PROXY"
 	envIsFromDaemon          = "DD_INSTALLER_FROM_DAEMON"
+	envLogLevel              = "DD_LOG_LEVEL"
 
 	// install script
 	envApmInstrumentationEnabled   = "DD_APM_INSTRUMENTATION_ENABLED"
@@ -83,42 +85,463 @@ const (
 	envApplicationDataDirectory = "DD_APPLICATIONDATADIRECTORY"
 )
 
-var defaultEnv = Env{
-	APIKey:               "",
-	Site:                 "datadoghq.com",
-	RemoteUpdates:        false,
-	OTelCollectorEnabled: false,
-	Mirror:               "",
+func newDefaultEnv() Env {
+	return Env{
+		Site: "datadoghq.com",
 
-	RegistryOverride:            "",
-	RegistryAuthOverride:        "",
-	RegistryUsername:            "",
-	RegistryPassword:            "",
-	RegistryOverrideByImage:     map[string]string{},
-	RegistryAuthOverrideByImage: map[string]string{},
-	RegistryUsernameByImage:     map[string]string{},
-	RegistryPasswordByImage:     map[string]string{},
+		RegistryOverrideByImage:     map[string]string{},
+		RegistryAuthOverrideByImage: map[string]string{},
+		RegistryUsernameByImage:     map[string]string{},
+		RegistryPasswordByImage:     map[string]string{},
 
-	DefaultPackagesInstallOverride: map[string]bool{},
-	DefaultPackagesVersionOverride: map[string]string{},
+		DefaultPackagesInstallOverride: map[string]bool{},
+		DefaultPackagesVersionOverride: map[string]string{},
 
-	InstallScript: InstallScriptEnv{
-		APMInstrumentationEnabled: "",
-		RuntimeMetricsEnabled:     nil,
-		LogsInjection:             nil,
-		APMTracingEnabled:         nil,
-		ProfilingEnabled:          "",
-		DataStreamsEnabled:        nil,
-		AppsecEnabled:             nil,
-		IastEnabled:               nil,
-		DataJobsEnabled:           nil,
-		AppsecScaEnabled:          nil,
-		RumEnabled:                nil,
-		RumApplicationID:          "",
-		RumClientToken:            "",
-		RumRemoteConfigurationID:  "",
-		RumSite:                   "",
+		ApmLibraries: map[ApmLibLanguage]ApmLibVersion{},
+
+		InstallScript: InstallScriptEnv{
+			APMInstrumentationEnabled: APMInstrumentationNotSet,
+		},
+
+		Tags: []string{},
+
+		ExtensionRegistryOverrides: map[string]map[string]ExtensionRegistryOverride{},
+	}
+}
+
+// envBinding maps one environment variable to an Env field.
+//
+//   - fromOs reads an env var value into the Env struct. For prefix bindings,
+//     value is "suffix=value" (one call per matching env var).
+//   - toOs returns the value to emit for this env var. "" means skip. nil means read-only.
+//   - prefixEnvVar: when true, Get() scans os.Environ() for envVar_SUFFIX=VALUE entries
+//     and calls fromOs with "suffix=value" for each. ToEnv() uses toOsPrefix instead of toOs.
+//   - toOsPrefix returns suffix→value for prefix bindings.
+type envBinding struct {
+	envVar       string
+	prefixEnvVar bool
+	fromOs       func(env *Env, value string)
+	toOs         func(env *Env) string
+	toOsPrefix   func(env *Env) map[string]string
+}
+
+var envBindings = []envBinding{
+	// Core
+	{envVar: envAPIKey,
+		fromOs: func(e *Env, v string) {
+			if v != "" {
+				e.APIKey = v
+			}
+		},
+		toOs: func(e *Env) string { return e.APIKey },
 	},
+	{envVar: envSite,
+		fromOs: func(e *Env, v string) { e.Site = v },
+		toOs:   func(e *Env) string { return e.Site },
+	},
+	{envVar: envRemoteUpdates,
+		fromOs: func(e *Env, v string) { e.RemoteUpdates = strings.ToLower(v) == "true" },
+		toOs: func(e *Env) string {
+			if e.RemoteUpdates {
+				return "true"
+			}
+			return ""
+		},
+	},
+	{envVar: envOTelCollectorEnabled,
+		fromOs: func(e *Env, v string) { e.OTelCollectorEnabled = strings.ToLower(v) == "true" },
+		toOs: func(e *Env) string {
+			if e.OTelCollectorEnabled {
+				return "true"
+			}
+			return ""
+		},
+	},
+	{envVar: envMirror,
+		fromOs: func(e *Env, v string) { e.Mirror = v },
+		toOs:   func(e *Env) string { return e.Mirror },
+	},
+
+	// Registry (single-var)
+	{envVar: envRegistryURL,
+		fromOs: func(e *Env, v string) { e.RegistryOverride = v },
+		toOs:   func(e *Env) string { return e.RegistryOverride },
+	},
+	{envVar: envRegistryAuth,
+		fromOs: func(e *Env, v string) { e.RegistryAuthOverride = v },
+		toOs:   func(e *Env) string { return e.RegistryAuthOverride },
+	},
+	{envVar: envRegistryUsername,
+		fromOs: func(e *Env, v string) { e.RegistryUsername = v },
+		toOs:   func(e *Env) string { return e.RegistryUsername },
+	},
+	{envVar: envRegistryPassword,
+		fromOs: func(e *Env, v string) { e.RegistryPassword = v },
+		toOs:   func(e *Env) string { return e.RegistryPassword },
+	},
+
+	// Registry per-image overrides (prefix-scanning: DD_INSTALLER_REGISTRY_URL_<IMAGE>=<value>)
+	{envVar: envRegistryURL, prefixEnvVar: true,
+		fromOs:     func(e *Env, v string) { k, val, _ := strings.Cut(v, "="); e.RegistryOverrideByImage[k] = val },
+		toOsPrefix: func(e *Env) map[string]string { return e.RegistryOverrideByImage },
+	},
+	{envVar: envRegistryAuth, prefixEnvVar: true,
+		fromOs:     func(e *Env, v string) { k, val, _ := strings.Cut(v, "="); e.RegistryAuthOverrideByImage[k] = val },
+		toOsPrefix: func(e *Env) map[string]string { return e.RegistryAuthOverrideByImage },
+	},
+	{envVar: envRegistryUsername, prefixEnvVar: true,
+		fromOs:     func(e *Env, v string) { k, val, _ := strings.Cut(v, "="); e.RegistryUsernameByImage[k] = val },
+		toOsPrefix: func(e *Env) map[string]string { return e.RegistryUsernameByImage },
+	},
+	{envVar: envRegistryPassword, prefixEnvVar: true,
+		fromOs:     func(e *Env, v string) { k, val, _ := strings.Cut(v, "="); e.RegistryPasswordByImage[k] = val },
+		toOsPrefix: func(e *Env) map[string]string { return e.RegistryPasswordByImage },
+	},
+
+	// Default package overrides (prefix-scanning)
+	{envVar: envDefaultPackageInstall, prefixEnvVar: true,
+		fromOs: func(e *Env, v string) {
+			k, val, _ := strings.Cut(v, "=")
+			e.DefaultPackagesInstallOverride[k] = strings.ToLower(val) == "true"
+		},
+		toOsPrefix: func(e *Env) map[string]string {
+			m := make(map[string]string, len(e.DefaultPackagesInstallOverride))
+			for k, v := range e.DefaultPackagesInstallOverride {
+				if v {
+					m[k] = "true"
+				}
+			}
+			return m
+		},
+	},
+	{envVar: envDefaultPackageVersion, prefixEnvVar: true,
+		fromOs:     func(e *Env, v string) { k, val, _ := strings.Cut(v, "="); e.DefaultPackagesVersionOverride[k] = val },
+		toOsPrefix: func(e *Env) map[string]string { return e.DefaultPackagesVersionOverride },
+	},
+
+	// APM libraries (DD_APM_INSTRUMENTATION_LANGUAGES is a lower-priority fallback)
+	{envVar: envApmLanguages,
+		fromOs: func(e *Env, v string) {
+			if v != "" {
+				e.ApmLibraries = parseAPMLanguagesValue(v)
+			}
+		},
+	},
+	{envVar: envApmLibraries,
+		fromOs: func(e *Env, v string) { e.ApmLibraries = parseApmLibrariesValue(v) },
+		toOs: func(e *Env) string {
+			if len(e.ApmLibraries) == 0 {
+				return ""
+			}
+			libraries := make([]string, 0, len(e.ApmLibraries))
+			for l, v := range e.ApmLibraries {
+				s := string(l)
+				if v != "" {
+					s += ":" + string(v)
+				}
+				libraries = append(libraries, s)
+			}
+			slices.Sort(libraries)
+			return strings.Join(libraries, ",")
+		},
+	},
+
+	// Agent version
+	{envVar: envAgentMajorVersion, fromOs: func(e *Env, v string) { e.AgentMajorVersion = v }},
+	{envVar: envAgentMinorVersion, fromOs: func(e *Env, v string) { e.AgentMinorVersion = v }},
+
+	// Install script
+	{envVar: envApmInstrumentationEnabled,
+		fromOs: func(e *Env, v string) { e.InstallScript.APMInstrumentationEnabled = v },
+		toOs:   func(e *Env) string { return e.InstallScript.APMInstrumentationEnabled },
+	},
+	{envVar: envRuntimeMetricsEnabled,
+		fromOs: func(e *Env, v string) {
+			if b := parseBoolPtr(v); b != nil {
+				e.InstallScript.RuntimeMetricsEnabled = b
+			}
+		},
+		toOs: func(e *Env) string { return formatBoolPtr(e.InstallScript.RuntimeMetricsEnabled) },
+	},
+	{envVar: envLogsInjection,
+		fromOs: func(e *Env, v string) {
+			if b := parseBoolPtr(v); b != nil {
+				e.InstallScript.LogsInjection = b
+			}
+		},
+		toOs: func(e *Env) string { return formatBoolPtr(e.InstallScript.LogsInjection) },
+	},
+	{envVar: envAPMTracingEnabled,
+		fromOs: func(e *Env, v string) {
+			if b := parseBoolPtr(v); b != nil {
+				e.InstallScript.APMTracingEnabled = b
+			}
+		},
+		toOs: func(e *Env) string { return formatBoolPtr(e.InstallScript.APMTracingEnabled) },
+	},
+	{envVar: envProfilingEnabled,
+		fromOs: func(e *Env, v string) { e.InstallScript.ProfilingEnabled = v },
+		toOs:   func(e *Env) string { return e.InstallScript.ProfilingEnabled },
+	},
+	{envVar: envDataStreamsEnabled,
+		fromOs: func(e *Env, v string) {
+			if b := parseBoolPtr(v); b != nil {
+				e.InstallScript.DataStreamsEnabled = b
+			}
+		},
+		toOs: func(e *Env) string { return formatBoolPtr(e.InstallScript.DataStreamsEnabled) },
+	},
+	{envVar: envAppsecEnabled,
+		fromOs: func(e *Env, v string) {
+			if b := parseBoolPtr(v); b != nil {
+				e.InstallScript.AppsecEnabled = b
+			}
+		},
+		toOs: func(e *Env) string { return formatBoolPtr(e.InstallScript.AppsecEnabled) },
+	},
+	{envVar: envIastEnabled,
+		fromOs: func(e *Env, v string) {
+			if b := parseBoolPtr(v); b != nil {
+				e.InstallScript.IastEnabled = b
+			}
+		},
+		toOs: func(e *Env) string { return formatBoolPtr(e.InstallScript.IastEnabled) },
+	},
+	{envVar: envDataJobsEnabled,
+		fromOs: func(e *Env, v string) {
+			if b := parseBoolPtr(v); b != nil {
+				e.InstallScript.DataJobsEnabled = b
+			}
+		},
+		toOs: func(e *Env) string { return formatBoolPtr(e.InstallScript.DataJobsEnabled) },
+	},
+	{envVar: envAppsecScaEnabled,
+		fromOs: func(e *Env, v string) {
+			if b := parseBoolPtr(v); b != nil {
+				e.InstallScript.AppsecScaEnabled = b
+			}
+		},
+		toOs: func(e *Env) string { return formatBoolPtr(e.InstallScript.AppsecScaEnabled) },
+	},
+	{envVar: envTracerLogsCollectionEnabled,
+		fromOs: func(e *Env, v string) {
+			if b := parseBoolPtr(v); b != nil {
+				e.InstallScript.TracerLogsCollectionEnabled = b
+			}
+		},
+	},
+	{envVar: envRumEnabled,
+		fromOs: func(e *Env, v string) {
+			if b := parseBoolPtr(v); b != nil {
+				e.InstallScript.RumEnabled = b
+			}
+		},
+		toOs: func(e *Env) string { return formatBoolPtr(e.InstallScript.RumEnabled) },
+	},
+	{envVar: envRumApplicationID,
+		fromOs: func(e *Env, v string) { e.InstallScript.RumApplicationID = v },
+		toOs:   func(e *Env) string { return e.InstallScript.RumApplicationID },
+	},
+	{envVar: envRumClientToken,
+		fromOs: func(e *Env, v string) { e.InstallScript.RumClientToken = v },
+		toOs:   func(e *Env) string { return e.InstallScript.RumClientToken },
+	},
+	{envVar: envRumRemoteConfigurationID,
+		fromOs: func(e *Env, v string) { e.InstallScript.RumRemoteConfigurationID = v },
+		toOs:   func(e *Env) string { return e.InstallScript.RumRemoteConfigurationID },
+	},
+	{envVar: envRumSite,
+		fromOs: func(e *Env, v string) { e.InstallScript.RumSite = v },
+		toOs:   func(e *Env) string { return e.InstallScript.RumSite },
+	},
+
+	// Tags
+	{envVar: envTags,
+		fromOs: func(e *Env, v string) {
+			tags := strings.Split(v, ",")
+			var result []string
+			for _, t := range tags {
+				trimmed := strings.TrimSpace(t)
+				if trimmed != "" {
+					result = append(result, trimmed)
+				}
+			}
+			e.Tags = result
+		},
+		toOs: func(e *Env) string {
+			if len(e.Tags) == 0 {
+				return ""
+			}
+			return strings.Join(e.Tags, ",")
+		},
+	},
+	{envVar: envExtraTags,
+		fromOs: func(e *Env, v string) {
+			tags := strings.Split(v, ",")
+			var result []string
+			for _, t := range tags {
+				trimmed := strings.TrimSpace(t)
+				if trimmed != "" {
+					result = append(result, trimmed)
+				}
+			}
+			e.Tags = append(e.Tags, result...)
+		},
+	},
+
+	// Hostname
+	{envVar: envHostname,
+		fromOs: func(e *Env, v string) { e.Hostname = v },
+		toOs:   func(e *Env) string { return e.Hostname },
+	},
+
+	// Proxy fallback chains (lowest priority first, highest last)
+	{envVar: strings.ToLower(envHTTPProxy), fromOs: func(e *Env, v string) { e.HTTPProxy = v }},
+	{envVar: envHTTPProxy,
+		fromOs: func(e *Env, v string) { e.HTTPProxy = v },
+		toOs:   func(e *Env) string { return e.HTTPProxy },
+	},
+	{envVar: envDDHTTPProxy, fromOs: func(e *Env, v string) { e.HTTPProxy = v }},
+
+	{envVar: strings.ToLower(envHTTPSProxy), fromOs: func(e *Env, v string) { e.HTTPSProxy = v }},
+	{envVar: envHTTPSProxy,
+		fromOs: func(e *Env, v string) { e.HTTPSProxy = v },
+		toOs:   func(e *Env) string { return e.HTTPSProxy },
+	},
+	{envVar: envDDHTTPSProxy, fromOs: func(e *Env, v string) { e.HTTPSProxy = v }},
+
+	{envVar: strings.ToLower(envNoProxy), fromOs: func(e *Env, v string) { e.NoProxy = v }},
+	{envVar: envNoProxy,
+		fromOs: func(e *Env, v string) { e.NoProxy = v },
+		toOs:   func(e *Env) string { return e.NoProxy },
+	},
+	{envVar: envDDNoProxy, fromOs: func(e *Env, v string) { e.NoProxy = v }},
+
+	// Infrastructure
+	{envVar: envInfrastructureMode,
+		fromOs: func(e *Env, v string) { e.InfrastructureMode = v },
+		toOs:   func(e *Env) string { return e.InfrastructureMode },
+	},
+
+	// PAR (AppKey and Allowlist are only emitted when PAREnabled)
+	{envVar: envAppKey,
+		fromOs: func(e *Env, v string) { e.AppKey = v },
+		toOs: func(e *Env) string {
+			if e.PAREnabled {
+				return e.AppKey
+			}
+			return ""
+		},
+	},
+	{envVar: envPAREnabled,
+		fromOs: func(e *Env, v string) { e.PAREnabled = strings.ToLower(v) == "true" },
+		toOs: func(e *Env) string {
+			if e.PAREnabled {
+				return "true"
+			}
+			return ""
+		},
+	},
+	{envVar: envPARActionsAllowlist,
+		fromOs: func(e *Env, v string) { e.PARActionsAllowlist = v },
+		toOs: func(e *Env) string {
+			if e.PAREnabled {
+				return e.PARActionsAllowlist
+			}
+			return ""
+		},
+	},
+
+	// Daemon flag
+	{envVar: envIsFromDaemon,
+		fromOs: func(e *Env, v string) { e.IsFromDaemon = strings.ToLower(v) == "true" },
+		toOs: func(e *Env) string {
+			if e.IsFromDaemon {
+				return "true"
+			}
+			return ""
+		},
+	},
+
+	// Log level (forced to "off" when running from the daemon)
+	{envVar: envLogLevel,
+		fromOs: func(e *Env, v string) { e.LogLevel = v },
+		toOs: func(e *Env) string {
+			if e.IsFromDaemon {
+				return "off"
+			}
+			return ""
+		},
+	},
+
+	// MSI compat vars (compat entries are read-only, primary entries emit)
+	{envVar: envAgentUserNameCompat, fromOs: func(e *Env, v string) { e.MsiParams.AgentUserName = v }},
+	{envVar: envAgentUserName,
+		fromOs: func(e *Env, v string) { e.MsiParams.AgentUserName = v },
+		toOs:   func(e *Env) string { return e.MsiParams.AgentUserName },
+	},
+	{envVar: envAgentUserPasswordCompat, fromOs: func(e *Env, v string) { e.MsiParams.AgentUserPassword = v }},
+	{envVar: envAgentUserPassword,
+		fromOs: func(e *Env, v string) { e.MsiParams.AgentUserPassword = v },
+		toOs:   func(e *Env) string { return e.MsiParams.AgentUserPassword },
+	},
+	{envVar: envProjectLocation,
+		fromOs: func(e *Env, v string) { e.MsiParams.ProjectLocation = v },
+		toOs:   func(e *Env) string { return e.MsiParams.ProjectLocation },
+	},
+	{envVar: envApplicationDataDirectory,
+		fromOs: func(e *Env, v string) { e.MsiParams.ApplicationDataDirectory = v },
+		toOs:   func(e *Env) string { return e.MsiParams.ApplicationDataDirectory },
+	},
+}
+
+// formatBoolPtr returns "true"/"false" for non-nil, "" for nil.
+func formatBoolPtr(b *bool) string {
+	if b == nil {
+		return ""
+	}
+	return strconv.FormatBool(*b)
+}
+
+// parseBoolPtr parses "true"/"false" strings into a *bool.
+// Returns nil for any other value (use for optional *bool fields).
+func parseBoolPtr(value string) *bool {
+	switch value {
+	case "true":
+		b := true
+		return &b
+	case "false":
+		b := false
+		return &b
+	default:
+		return nil
+	}
+}
+
+// parseApmLibrariesValue parses the DD_APM_INSTRUMENTATION_LIBRARIES value.
+func parseApmLibrariesValue(value string) map[ApmLibLanguage]ApmLibVersion {
+	result := map[ApmLibLanguage]ApmLibVersion{}
+	if value == "" {
+		return result
+	}
+	for _, library := range strings.FieldsFunc(value, func(r rune) bool {
+		return r == ',' || r == ' '
+	}) {
+		libraryName, libraryVersion, _ := strings.Cut(library, ":")
+		result[ApmLibLanguage(libraryName)] = ApmLibVersion(libraryVersion)
+	}
+	return result
+}
+
+// parseAPMLanguagesValue parses the DD_APM_INSTRUMENTATION_LANGUAGES value.
+func parseAPMLanguagesValue(value string) map[ApmLibLanguage]ApmLibVersion {
+	res := map[ApmLibLanguage]ApmLibVersion{}
+	for language := range strings.SplitSeq(value, " ") {
+		if len(language) > 0 {
+			res[ApmLibLanguage(language)] = ""
+		}
+	}
+	return res
 }
 
 // ApmLibLanguage is a language defined in DD_APM_INSTRUMENTATION_LIBRARIES env var
@@ -173,6 +596,14 @@ type InstallScriptEnv struct {
 	RumSite                  string
 }
 
+// ExtensionRegistryOverride holds registry settings for a single extension.
+type ExtensionRegistryOverride struct {
+	URL      string
+	Auth     string
+	Username string
+	Password string
+}
+
 // Env contains the configuration for the installer.
 type Env struct {
 	APIKey               string
@@ -219,22 +650,13 @@ type Env struct {
 	IsCentos6 bool
 
 	IsFromDaemon bool
-}
 
-func (e *Env) HasDefaultRegistryOverride() bool {
-	return e.RegistryOverride == defaultEnv.RegistryOverride
-}
+	LogLevel string
 
-func (e *Env) HasDefaultRegistryAuthOverride() bool {
-	return e.RegistryAuthOverride == defaultEnv.RegistryAuthOverride
-}
-
-func (e *Env) HasDefaultRegistryUsername() bool {
-	return e.RegistryUsername == defaultEnv.RegistryUsername
-}
-
-func (e *Env) HasDefaultRegistryPassword() bool {
-	return e.RegistryPassword == defaultEnv.RegistryPassword
+	// ExtensionRegistryOverrides holds per-package, per-extension registry
+	// overrides parsed from installer.registry.extensions in datadog.yaml.
+	// Outer key is package name, inner key is extension name.
+	ExtensionRegistryOverrides map[string]map[string]ExtensionRegistryOverride
 }
 
 // HTTPClient returns an HTTP client with the proxy settings from the environment.
@@ -263,204 +685,84 @@ func (e *Env) HTTPClient() *http.Client {
 	return client
 }
 
-// FromEnv returns an Env struct with values from the environment.
-func FromEnv() *Env {
-	splitFunc := func(c rune) bool {
-		return c == ','
-	}
+type Option func(*options)
+type options struct {
+	configDir string
+}
 
-	return &Env{
-		APIKey:               getEnvOrDefault(envAPIKey, defaultEnv.APIKey),
-		Site:                 getEnvOrDefault(envSite, defaultEnv.Site),
-		RemoteUpdates:        strings.ToLower(os.Getenv(envRemoteUpdates)) == "true",
-		OTelCollectorEnabled: strings.ToLower(os.Getenv(envOTelCollectorEnabled)) == "true",
-
-		Mirror:                      getEnvOrDefault(envMirror, defaultEnv.Mirror),
-		RegistryOverride:            getEnvOrDefault(envRegistryURL, defaultEnv.RegistryOverride),
-		RegistryAuthOverride:        getEnvOrDefault(envRegistryAuth, defaultEnv.RegistryAuthOverride),
-		RegistryUsername:            getEnvOrDefault(envRegistryUsername, defaultEnv.RegistryUsername),
-		RegistryPassword:            getEnvOrDefault(envRegistryPassword, defaultEnv.RegistryPassword),
-		RegistryOverrideByImage:     overridesByNameFromEnv(envRegistryURL, func(s string) string { return s }),
-		RegistryAuthOverrideByImage: overridesByNameFromEnv(envRegistryAuth, func(s string) string { return s }),
-		RegistryUsernameByImage:     overridesByNameFromEnv(envRegistryUsername, func(s string) string { return s }),
-		RegistryPasswordByImage:     overridesByNameFromEnv(envRegistryPassword, func(s string) string { return s }),
-
-		DefaultPackagesInstallOverride: overridesByNameFromEnv(envDefaultPackageInstall, func(s string) bool { return strings.ToLower(s) == "true" }),
-		DefaultPackagesVersionOverride: overridesByNameFromEnv(envDefaultPackageVersion, func(s string) string { return s }),
-
-		ApmLibraries: parseApmLibrariesEnv(),
-
-		AgentMajorVersion: os.Getenv(envAgentMajorVersion),
-		AgentMinorVersion: os.Getenv(envAgentMinorVersion),
-
-		MsiParams: MsiParamsEnv{
-			AgentUserName:            getEnvOrDefault(envAgentUserName, os.Getenv(envAgentUserNameCompat)),
-			AgentUserPassword:        getEnvOrDefault(envAgentUserPassword, os.Getenv(envAgentUserPasswordCompat)),
-			ProjectLocation:          getEnvOrDefault(envProjectLocation, ""),
-			ApplicationDataDirectory: getEnvOrDefault(envApplicationDataDirectory, ""),
-		},
-
-		InstallScript: InstallScriptEnv{
-			APMInstrumentationEnabled:   getEnvOrDefault(envApmInstrumentationEnabled, APMInstrumentationNotSet),
-			RuntimeMetricsEnabled:       getBoolEnv(envRuntimeMetricsEnabled),
-			LogsInjection:               getBoolEnv(envLogsInjection),
-			APMTracingEnabled:           getBoolEnv(envAPMTracingEnabled),
-			ProfilingEnabled:            getEnvOrDefault(envProfilingEnabled, ""),
-			DataStreamsEnabled:          getBoolEnv(envDataStreamsEnabled),
-			AppsecEnabled:               getBoolEnv(envAppsecEnabled),
-			IastEnabled:                 getBoolEnv(envIastEnabled),
-			DataJobsEnabled:             getBoolEnv(envDataJobsEnabled),
-			AppsecScaEnabled:            getBoolEnv(envAppsecScaEnabled),
-			TracerLogsCollectionEnabled: getBoolEnv(envTracerLogsCollectionEnabled),
-			RumEnabled:                  getBoolEnv(envRumEnabled),
-			RumApplicationID:            getEnvOrDefault(envRumApplicationID, ""),
-			RumClientToken:              getEnvOrDefault(envRumClientToken, ""),
-			RumRemoteConfigurationID:    getEnvOrDefault(envRumRemoteConfigurationID, ""),
-			RumSite:                     getEnvOrDefault(envRumSite, ""),
-		},
-
-		Tags: append(
-			strings.FieldsFunc(os.Getenv(envTags), splitFunc),
-			strings.FieldsFunc(os.Getenv(envExtraTags), splitFunc)...,
-		),
-		Hostname: os.Getenv(envHostname),
-
-		HTTPProxy:  getProxySetting(envDDHTTPProxy, envHTTPProxy),
-		HTTPSProxy: getProxySetting(envDDHTTPSProxy, envHTTPSProxy),
-		NoProxy:    getProxySetting(envDDNoProxy, envNoProxy),
-
-		InfrastructureMode: os.Getenv(envInfrastructureMode),
-
-		AppKey:              os.Getenv(envAppKey),
-		PAREnabled:          strings.ToLower(os.Getenv(envPAREnabled)) == "true",
-		PARActionsAllowlist: os.Getenv(envPARActionsAllowlist),
-
-		IsCentos6:    DetectCentos6(),
-		IsFromDaemon: os.Getenv(envIsFromDaemon) == "true",
+// WithConfigDir overrides the directory where datadog.yaml is read from.
+func WithConfigDir(dir string) Option {
+	return func(o *options) {
+		o.configDir = dir
 	}
 }
 
-func appendBoolEnv(env []string, key string, value *bool) []string {
-	if value != nil {
-		env = append(env, key+"="+strconv.FormatBool(*value))
+// Get returns an Env struct with values resolved using the priority chain:
+//
+//	defaults < config (datadog.yaml) < environment variables < option overrides
+//
+// By default, datadog.yaml is read from paths.AgentConfigDir.
+// Use WithConfigDir to override the config directory (e.g. in tests).
+func Get(opts ...Option) *Env {
+	o := &options{configDir: paths.AgentConfigDir}
+	for _, opt := range opts {
+		opt(o)
 	}
-	return env
-}
 
-func appendStringEnv(env []string, key string, value string, skipIfEqual string) []string {
-	if value != skipIfEqual {
-		env = append(env, key+"="+value)
+	// 1. Start from defaults
+	env := newDefaultEnv()
+
+	// 2. Config layer
+	if cfg := readDatadogYAML(o.configDir); cfg != nil {
+		applyConfig(&env, cfg)
 	}
-	return env
-}
 
-// ToEnv returns a slice of environment variables from the InstallScriptEnv struct
-func (e *InstallScriptEnv) ToEnv(env []string) []string {
-	env = appendStringEnv(env, envApmInstrumentationEnabled, e.APMInstrumentationEnabled, "")
-	env = appendBoolEnv(env, envRuntimeMetricsEnabled, e.RuntimeMetricsEnabled)
-	env = appendBoolEnv(env, envLogsInjection, e.LogsInjection)
-	env = appendBoolEnv(env, envAPMTracingEnabled, e.APMTracingEnabled)
-	env = appendStringEnv(env, envProfilingEnabled, e.ProfilingEnabled, "")
-	env = appendBoolEnv(env, envDataStreamsEnabled, e.DataStreamsEnabled)
-	env = appendBoolEnv(env, envAppsecEnabled, e.AppsecEnabled)
-	env = appendBoolEnv(env, envIastEnabled, e.IastEnabled)
-	env = appendBoolEnv(env, envDataJobsEnabled, e.DataJobsEnabled)
-	env = appendBoolEnv(env, envAppsecScaEnabled, e.AppsecScaEnabled)
-	env = appendBoolEnv(env, envRumEnabled, e.RumEnabled)
-	env = appendStringEnv(env, envRumApplicationID, e.RumApplicationID, "")
-	env = appendStringEnv(env, envRumClientToken, e.RumClientToken, "")
-	env = appendStringEnv(env, envRumRemoteConfigurationID, e.RumRemoteConfigurationID, "")
-	env = appendStringEnv(env, envRumSite, e.RumSite, "")
-	return env
-}
+	// 3. Env var table
+	for _, b := range envBindings {
+		if b.prefixEnvVar {
+			prefix := b.envVar + "_"
+			for _, kv := range os.Environ() {
+				key, val, ok := strings.Cut(kv, "=")
+				if !ok {
+					continue
+				}
+				if suffix, found := strings.CutPrefix(key, prefix); found {
+					suffix = strings.ToLower(suffix)
+					suffix = strings.ReplaceAll(suffix, "_", "-")
+					b.fromOs(&env, suffix+"="+val)
+				}
+			}
+		} else if value, ok := os.LookupEnv(b.envVar); ok {
+			b.fromOs(&env, value)
+		}
+	}
 
-// ToEnv returns a slice of environment variables from the MsiParamsEnv struct.
-func (e *MsiParamsEnv) ToEnv(env []string) []string {
-	env = appendStringEnv(env, envAgentUserName, e.AgentUserName, "")
-	env = appendStringEnv(env, envAgentUserPassword, e.AgentUserPassword, "")
-	env = appendStringEnv(env, envProjectLocation, e.ProjectLocation, "")
-	env = appendStringEnv(env, envApplicationDataDirectory, e.ApplicationDataDirectory, "")
-	return env
+	// 4. System detection
+	env.IsCentos6 = DetectCentos6()
+
+	return &env
 }
 
 // ToEnv returns a slice of environment variables from the Env struct.
 func (e *Env) ToEnv() []string {
 	var env []string
-	env = appendStringEnv(env, envAPIKey, e.APIKey, "")
-	env = appendStringEnv(env, envSite, e.Site, "")
-	if e.RemoteUpdates {
-		env = append(env, envRemoteUpdates+"=true")
-	}
-	if e.OTelCollectorEnabled {
-		env = append(env, envOTelCollectorEnabled+"=true")
-	}
-	env = appendStringEnv(env, envMirror, e.Mirror, "")
-	env = appendStringEnv(env, envRegistryURL, e.RegistryOverride, "")
-	env = appendStringEnv(env, envRegistryAuth, e.RegistryAuthOverride, "")
-	env = appendStringEnv(env, envRegistryUsername, e.RegistryUsername, "")
-	env = appendStringEnv(env, envRegistryPassword, e.RegistryPassword, "")
-	env = e.MsiParams.ToEnv(env)
-	env = e.InstallScript.ToEnv(env)
-	if len(e.ApmLibraries) > 0 {
-		libraries := []string{}
-		for l, v := range e.ApmLibraries {
-			l := string(l)
-			if v != "" {
-				l = l + ":" + string(v)
+	for _, b := range envBindings {
+		if b.prefixEnvVar {
+			if b.toOsPrefix == nil {
+				continue
 			}
-			libraries = append(libraries, l)
+			for suffix, val := range b.toOsPrefix(e) {
+				suffix = strings.ReplaceAll(suffix, "-", "_")
+				suffix = strings.ToUpper(suffix)
+				env = append(env, b.envVar+"_"+suffix+"="+val)
+			}
+		} else if b.toOs != nil {
+			if v := b.toOs(e); v != "" {
+				env = append(env, b.envVar+"="+v)
+			}
 		}
-		slices.Sort(libraries)
-		env = append(env, envApmLibraries+"="+strings.Join(libraries, ","))
 	}
-	if len(e.Tags) > 0 {
-		env = append(env, envTags+"="+strings.Join(e.Tags, ","))
-	}
-	env = appendStringEnv(env, envHostname, e.Hostname, "")
-	env = appendStringEnv(env, envHTTPProxy, e.HTTPProxy, "")
-	env = appendStringEnv(env, envHTTPSProxy, e.HTTPSProxy, "")
-	env = appendStringEnv(env, envNoProxy, e.NoProxy, "")
-	env = appendStringEnv(env, envInfrastructureMode, e.InfrastructureMode, "")
-	if e.PAREnabled {
-		env = appendStringEnv(env, envAppKey, e.AppKey, "")
-		env = append(env, envPAREnabled+"=true")
-		env = appendStringEnv(env, envPARActionsAllowlist, e.PARActionsAllowlist, "")
-	}
-	if e.IsFromDaemon {
-		env = append(env, envIsFromDaemon+"=true")
-		// This is a bit of a hack; as we should properly redirect the log level
-		// to a file or a structured output. But today, we just want to avoid
-		// logging to avoid polluting the parsed output.
-		// The easiest way to do this without having to import setup/log & pkg/config
-		// is by env var.
-		env = append(env, "DD_LOG_LEVEL=off")
-	}
-	env = append(env, overridesByNameToEnv(envRegistryURL, e.RegistryOverrideByImage)...)
-	env = append(env, overridesByNameToEnv(envRegistryAuth, e.RegistryAuthOverrideByImage)...)
-	env = append(env, overridesByNameToEnv(envRegistryUsername, e.RegistryUsernameByImage)...)
-	env = append(env, overridesByNameToEnv(envRegistryPassword, e.RegistryPasswordByImage)...)
-	env = append(env, overridesByNameToEnv(envDefaultPackageInstall, e.DefaultPackagesInstallOverride)...)
-	env = append(env, overridesByNameToEnv(envDefaultPackageVersion, e.DefaultPackagesVersionOverride)...)
-
 	return env
-}
-
-func parseApmLibrariesEnv() map[ApmLibLanguage]ApmLibVersion {
-	apmLibraries, ok := os.LookupEnv(envApmLibraries)
-	if !ok {
-		return parseAPMLanguagesEnv()
-	}
-	apmLibrariesVersion := map[ApmLibLanguage]ApmLibVersion{}
-	if apmLibraries == "" {
-		return apmLibrariesVersion
-	}
-	for _, library := range strings.FieldsFunc(apmLibraries, func(r rune) bool {
-		return r == ',' || r == ' '
-	}) {
-		libraryName, libraryVersion, _ := strings.Cut(library, ":")
-		apmLibrariesVersion[ApmLibLanguage(libraryName)] = ApmLibVersion(libraryVersion)
-	}
-	return apmLibrariesVersion
 }
 
 // DetectCentos6 checks if the machine the installer is currently on is running centos 6
@@ -478,77 +780,6 @@ func DetectCentos6() bool {
 		}
 	}
 	return false
-}
-
-func parseAPMLanguagesEnv() map[ApmLibLanguage]ApmLibVersion {
-	apmLanguages := os.Getenv(envApmLanguages)
-	res := map[ApmLibLanguage]ApmLibVersion{}
-	for language := range strings.SplitSeq(apmLanguages, " ") {
-		if len(language) > 0 {
-			res[ApmLibLanguage(language)] = ""
-		}
-	}
-	return res
-}
-
-func overridesByNameFromEnv[T any](envPrefix string, convert func(string) T) map[string]T {
-	env := os.Environ()
-	overridesByPackage := map[string]T{}
-	for _, e := range env {
-		keyVal := strings.SplitN(e, "=", 2)
-		if len(keyVal) != 2 {
-			continue
-		}
-		if after, ok := strings.CutPrefix(keyVal[0], envPrefix+"_"); ok {
-			pkg := after
-			pkg = strings.ToLower(pkg)
-			pkg = strings.ReplaceAll(pkg, "_", "-")
-			overridesByPackage[pkg] = convert(keyVal[1])
-		}
-	}
-	return overridesByPackage
-}
-
-func overridesByNameToEnv[T any](envPrefix string, overridesByPackage map[string]T) []string {
-	env := []string{}
-	for pkg, override := range overridesByPackage {
-		pkg = strings.ReplaceAll(pkg, "-", "_")
-		pkg = strings.ToUpper(pkg)
-		env = append(env, envPrefix+"_"+pkg+"="+fmt.Sprint(override))
-	}
-	return env
-}
-
-func getEnvOrDefault(env string, defaultValue string) string {
-	value, set := os.LookupEnv(env)
-	if !set {
-		return defaultValue
-	}
-	return value
-}
-
-func getBoolEnv(env string) *bool {
-	t := true
-	f := false
-	value := os.Getenv(env)
-	switch value {
-	case "true":
-		return &t
-	case "false":
-		return &f
-	default:
-		return nil
-	}
-}
-
-func getProxySetting(ddEnv string, env string) string {
-	return getEnvOrDefault(
-		ddEnv,
-		getEnvOrDefault(
-			env,
-			os.Getenv(strings.ToLower(env)),
-		),
-	)
 }
 
 // ValidateAPMInstrumentationEnabled validates the value of the DD_APM_INSTRUMENTATION_ENABLED environment variable.

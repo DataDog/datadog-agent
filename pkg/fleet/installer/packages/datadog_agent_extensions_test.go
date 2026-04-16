@@ -7,12 +7,14 @@ package packages
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	extensionsPkg "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/extensions"
 )
 
@@ -34,17 +36,18 @@ installer:
         other-ext:
           url: other.registry.com
 `
-	var config datadogAgentConfig
-	err := yaml.Unmarshal([]byte(configContent), &config)
-	require.NoError(t, err)
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "datadog.yaml"), []byte(configContent), 0644))
 
-	assert.Equal(t, "default.registry.com", config.Installer.Registry.URL)
-	assert.Equal(t, "password", config.Installer.Registry.Auth)
-	assert.Equal(t, "defaultuser", config.Installer.Registry.Username)
-	assert.Equal(t, "defaultpass", config.Installer.Registry.Password)
+	e := env.Get(env.WithConfigDir(dir))
 
-	require.Contains(t, config.Installer.Registry.Extensions, agentPackage)
-	agentExts := config.Installer.Registry.Extensions[agentPackage]
+	assert.Equal(t, "default.registry.com", e.RegistryOverride)
+	assert.Equal(t, "password", e.RegistryAuthOverride)
+	assert.Equal(t, "defaultuser", e.RegistryUsername)
+	assert.Equal(t, "defaultpass", e.RegistryPassword)
+
+	require.Contains(t, e.ExtensionRegistryOverrides, agentPackage)
+	agentExts := e.ExtensionRegistryOverrides[agentPackage]
 	require.Len(t, agentExts, 2)
 
 	ddot := agentExts["ddot"]
@@ -57,16 +60,8 @@ installer:
 	assert.Equal(t, "other.registry.com", other.URL)
 	assert.Empty(t, other.Auth)
 
-	// Verify conversion to ExtensionRegistry overrides map
-	overrides := make(map[string]extensionsPkg.ExtensionRegistry, len(agentExts))
-	for extName, extCfg := range agentExts {
-		overrides[extName] = extensionsPkg.ExtensionRegistry{
-			URL:      extCfg.URL,
-			Auth:     extCfg.Auth,
-			Username: extCfg.Username,
-			Password: extCfg.Password,
-		}
-	}
+	// Verify conversion to ExtensionRegistry overrides map via agentExtensionOverrides
+	overrides := agentExtensionOverrides(e)
 	require.Len(t, overrides, 2)
 	assert.Equal(t, "custom.registry.com", overrides["ddot"].URL)
 	assert.Equal(t, "other.registry.com", overrides["other-ext"].URL)
@@ -78,12 +73,13 @@ installer:
   registry:
     url: default.registry.com
 `
-	var config datadogAgentConfig
-	err := yaml.Unmarshal([]byte(configContent), &config)
-	require.NoError(t, err)
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "datadog.yaml"), []byte(configContent), 0644))
 
-	assert.Equal(t, "default.registry.com", config.Installer.Registry.URL)
-	assert.Nil(t, config.Installer.Registry.Extensions)
+	e := env.Get(env.WithConfigDir(dir))
+
+	assert.Equal(t, "default.registry.com", e.RegistryOverride)
+	assert.Nil(t, e.ExtensionRegistryOverrides)
 }
 
 func TestInstallDDOTExtensionIfEnabled_Disabled(t *testing.T) {

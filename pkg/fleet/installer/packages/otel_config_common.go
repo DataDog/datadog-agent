@@ -101,7 +101,7 @@ func writeOTelConfigCommon(ctx HookContext, datadogYamlPath, templatePath, outPa
 	} else {
 		// datadog.yaml not yet written (fresh install); fall back to environment variables
 		span.SetTag("datadog.yaml_found", false)
-		e := env.FromEnv()
+		e := env.Get()
 		apiKey = e.APIKey
 		site = e.Site
 	}

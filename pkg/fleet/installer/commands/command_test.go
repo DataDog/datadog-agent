@@ -18,7 +18,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 )
 
@@ -145,8 +144,8 @@ type testCmd struct {
 }
 
 // newTestingCmd creates a cmd via newCmd and exposes its env through Test.GetEnv.
-func newTestingCmd() *testCmd {
-	c := newCmd("unit_test", withQuiet())
+func newTestingCmd(configDir string) *testCmd {
+	c := newCmd("unit_test", withQuiet(), withConfigDir(configDir))
 	return &testCmd{cmd: c, Test: testEnvAccessor{e: c.env}}
 }
 
@@ -239,8 +238,6 @@ installer:
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := t.TempDir()
-			agentConfigDir = dir
-			t.Cleanup(func() { agentConfigDir = paths.AgentConfigDir })
 
 			if tc.yaml != "" {
 				err := os.WriteFile(filepath.Join(dir, "datadog.yaml"), []byte(tc.yaml), 0644)
@@ -250,7 +247,7 @@ installer:
 				t.Setenv(k, v)
 			}
 
-			cmd := newTestingCmd()
+			cmd := newTestingCmd(dir)
 			defer cmd.stop(nil)
 
 			for field, want := range tc.checks {

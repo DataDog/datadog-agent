@@ -89,7 +89,7 @@ func init() {
 	// This is important for experiments, as running the MSI may remove the registry keys.
 	// The daemon should expect to only read the paths from the registry, but there's no way to
 	// differentiate the two runtime environments here.
-	env := env.FromEnv()
+	env := env.Get()
 
 	// OS paths
 	DefaultUserConfigsDir, _ = windows.KnownFolderPath(windows.FOLDERID_ProgramData, 0)

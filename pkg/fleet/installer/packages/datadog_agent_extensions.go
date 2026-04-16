@@ -7,18 +7,13 @@ package packages
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
-
-	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	extensionsPkg "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/extensions"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -36,87 +31,26 @@ func getCurrentAgentVersion() string {
 	return v + "-1"
 }
 
-// Config structs for reading installer registry configuration from datadog.yaml
-
-//nolint:unused // Used in platform-specific files
-type datadogAgentConfig struct {
-	Installer installerConfig `yaml:"installer"`
-}
-
-//nolint:unused // Used in platform-specific files
-type installerConfig struct {
-	Registry installerRegistryConfig `yaml:"registry,omitempty"`
-}
-
-//nolint:unused // Used in platform-specific files
-type extensionRegistryConfig struct {
-	URL      string `yaml:"url,omitempty"`
-	Auth     string `yaml:"auth,omitempty"`
-	Username string `yaml:"username,omitempty"`
-	Password string `yaml:"password,omitempty"`
-}
-
-//nolint:unused // Used in platform-specific files
-type installerRegistryConfig struct {
-	URL        string                                        `yaml:"url,omitempty"`
-	Auth       string                                        `yaml:"auth,omitempty"`
-	Username   string                                        `yaml:"username,omitempty"`
-	Password   string                                        `yaml:"password,omitempty"`
-	Extensions map[string]map[string]extensionRegistryConfig `yaml:"extensions,omitempty"`
-}
-
-// setRegistryConfig is a best effort to get the `installer` block from `datadog.yaml` and update the env.
-// It returns per-extension registry overrides parsed from installer.registry.extensions.<pkg>.<ext>.
+// agentExtensionOverrides returns per-extension registry overrides for the
+// agent package from the already-parsed Env, converting to the type expected
+// by the extensions package.
 //
 //nolint:unused // Used in platform-specific files
-func setRegistryConfig(env *env.Env) map[string]extensionsPkg.ExtensionRegistry {
-	configPath := filepath.Join(paths.AgentConfigDir, "datadog.yaml")
-	rawConfig, err := os.ReadFile(configPath)
-	if err != nil {
-		log.Debugf("could not read agent config at %s: %v", configPath, err)
+func agentExtensionOverrides(env *env.Env) map[string]extensionsPkg.ExtensionRegistry {
+	pkgOverrides := env.ExtensionRegistryOverrides[agentPackage]
+	if len(pkgOverrides) == 0 {
 		return nil
 	}
-	var config datadogAgentConfig
-	err = yaml.Unmarshal(rawConfig, &config)
-	if err != nil {
-		log.Warnf("could not parse agent config at %s: %v", configPath, err)
-		return nil
-	}
-
-	// Update env with values from config if not already set.
-	// DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE takes precedence over installer.registry.url.
-	if env.RegistryOverride == "" {
-		if agentPackageURL := os.Getenv("DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE"); agentPackageURL != "" {
-			env.RegistryOverride = agentPackageURL
-		} else if config.Installer.Registry.URL != "" {
-			env.RegistryOverride = config.Installer.Registry.URL
+	result := make(map[string]extensionsPkg.ExtensionRegistry, len(pkgOverrides))
+	for extName, o := range pkgOverrides {
+		result[extName] = extensionsPkg.ExtensionRegistry{
+			URL:      o.URL,
+			Auth:     o.Auth,
+			Username: o.Username,
+			Password: o.Password,
 		}
 	}
-	if config.Installer.Registry.Auth != "" && env.RegistryAuthOverride == "" {
-		env.RegistryAuthOverride = config.Installer.Registry.Auth
-	}
-	if config.Installer.Registry.Username != "" && env.RegistryUsername == "" {
-		env.RegistryUsername = config.Installer.Registry.Username
-	}
-	if config.Installer.Registry.Password != "" && env.RegistryPassword == "" {
-		env.RegistryPassword = config.Installer.Registry.Password
-	}
-
-	// Parse per-extension registry overrides for the agent package.
-	extConfigs := config.Installer.Registry.Extensions[agentPackage]
-	if len(extConfigs) == 0 {
-		return nil
-	}
-	overrides := make(map[string]extensionsPkg.ExtensionRegistry, len(extConfigs))
-	for extName, extCfg := range extConfigs {
-		overrides[extName] = extensionsPkg.ExtensionRegistry{
-			URL:      extCfg.URL,
-			Auth:     extCfg.Auth,
-			Username: extCfg.Username,
-			Password: extCfg.Password,
-		}
-	}
-	return overrides
+	return result
 }
 
 // saveAgentExtensions saves the extensions of the Agent package by writing them to a file on disk.
@@ -132,7 +66,7 @@ func saveAgentExtensions(ctx HookContext, isExperiment bool) error {
 //
 //nolint:unused // Used in platform-specific files
 func removeAgentExtensions(ctx HookContext, experiment bool) error {
-	env := env.FromEnv()
+	env := env.Get()
 	hooks := NewHooks(env, repository.NewRepositories(paths.PackagesPath, AsyncPreRemoveHooks))
 	err := extensionsPkg.RemoveAll(ctx, agentPackage, experiment, hooks)
 	if err != nil {
@@ -146,12 +80,10 @@ func removeAgentExtensions(ctx HookContext, experiment bool) error {
 //
 //nolint:unused // Used in platform-specific files
 func restoreAgentExtensions(ctx HookContext, version string, experiment bool) error {
-	env := env.FromEnv()
+	env := env.Get()
 
 	storagePath := getExtensionStoragePath(ctx.PackagePath)
-
-	// Best effort to get the registry config from datadog.yaml
-	overrides := setRegistryConfig(env)
+	overrides := env.ExtensionRegistryOverrides[agentPackage]
 
 	downloader := oci.NewDownloader(env, env.HTTPClient())
 	url := oci.PackageURL(env, agentPackage, version)
@@ -166,7 +98,7 @@ func restoreAgentExtensions(ctx HookContext, version string, experiment bool) er
 //
 //nolint:unused // Used in platform-specific files
 func installAgentExtensions(ctx HookContext, version string, isExperiment bool) error {
-	env := env.FromEnv()
+	env := env.Get()
 	// populate extensions list based on environment variables
 	var extensions []string
 	if env.OTelCollectorEnabled {
@@ -186,7 +118,7 @@ func installAgentExtensions(ctx HookContext, version string, isExperiment bool) 
 	}
 
 	// install extensions
-	overrides := setRegistryConfig(env)
+	overrides := agentExtensionOverrides(env)
 	downloader := oci.NewDownloader(env, env.HTTPClient())
 	url := oci.PackageURL(env, agentPackage, version)
 	hooks := NewHooks(env, repository.NewRepositories(paths.PackagesPath, AsyncPreRemoveHooks))

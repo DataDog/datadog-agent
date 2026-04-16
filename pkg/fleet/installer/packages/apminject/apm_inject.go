@@ -41,7 +41,7 @@ const (
 func NewInstaller() *InjectorInstaller {
 	a := &InjectorInstaller{
 		installPath: injectorPath,
-		Env:         env.FromEnv(),
+		Env:         env.Get(),
 	}
 	a.ldPreloadFileInstrument = newFileMutator(ldSoPreloadPath, a.setLDPreloadConfigContent, nil, nil)
 	a.ldPreloadFileUninstrument = newFileMutator(ldSoPreloadPath, a.deleteLDPreloadConfigContent, nil, nil)

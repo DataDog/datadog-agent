@@ -84,8 +84,8 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 		return nil, fmt.Errorf("failed to create installer: %w", err)
 	}
 	var proxyNoProxy []string
-	if os.Getenv("DD_PROXY_NO_PROXY") != "" {
-		proxyNoProxy = strings.FieldsFunc(os.Getenv("DD_PROXY_NO_PROXY"), func(r rune) bool {
+	if env.NoProxy != "" {
+		proxyNoProxy = strings.FieldsFunc(env.NoProxy, func(r rune) bool {
 			return r == ',' || r == ' '
 		}) // comma and space-separated list, consistent with viper and documentation
 	}
@@ -101,16 +101,16 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 		Span:      span,
 		Config: config.Config{
 			DatadogYAML: config.DatadogConfig{
-				APIKey:   os.Getenv("DD_API_KEY"),
-				Hostname: os.Getenv("DD_HOSTNAME"),
-				Site:     os.Getenv("DD_SITE"),
+				APIKey:   env.APIKey,
+				Hostname: env.Hostname,
+				Site:     env.Site,
 				Proxy: config.DatadogConfigProxy{
-					HTTP:    os.Getenv("DD_PROXY_HTTP"),
-					HTTPS:   os.Getenv("DD_PROXY_HTTPS"),
+					HTTP:    env.HTTPProxy,
+					HTTPS:   env.HTTPSProxy,
 					NoProxy: proxyNoProxy,
 				},
-				Env:                os.Getenv("DD_ENV"),
-				InfrastructureMode: os.Getenv("DD_INFRASTRUCTURE_MODE"),
+				Env:                os.Getenv("DD_ENV"), // not on Env struct, setup-only concern
+				InfrastructureMode: env.InfrastructureMode,
 			},
 			IntegrationConfigs: make(map[string]config.IntegrationConfig),
 		},
@@ -119,23 +119,23 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 		},
 	}
 
-	// Map DD_LOGS_ENABLED env var into datadog.yaml
+	// Map DD_LOGS_ENABLED env var into datadog.yaml (not on Env struct, setup-only concern)
 	if logsEnabledEnv := os.Getenv("DD_LOGS_ENABLED"); logsEnabledEnv != "" {
 		logsEnabled := strings.EqualFold(logsEnabledEnv, "true") || logsEnabledEnv == "1"
 		s.Config.DatadogYAML.LogsEnabled = config.BoolToPtr(logsEnabled)
 	}
 
-	// Map DD_PRIVATE_ACTION_RUNNER_ENABLED env var into datadog.yaml
-	if parEnabledEnv := os.Getenv("DD_PRIVATE_ACTION_RUNNER_ENABLED"); strings.EqualFold(parEnabledEnv, "true") {
-		if appKey := os.Getenv("DD_APP_KEY"); appKey != "" {
-			s.Config.DatadogYAML.AppKey = appKey
+	// Map PAR configuration into datadog.yaml
+	if env.PAREnabled {
+		if env.AppKey != "" {
+			s.Config.DatadogYAML.AppKey = env.AppKey
 		}
 		s.Config.DatadogYAML.PrivateActionRunner.Enabled = config.BoolToPtr(true)
 		s.Config.DatadogYAML.PrivateActionRunner.SelfEnroll = config.BoolToPtr(true)
 		_, statErr := os.Stat(filepath.Join(paths.DatadogDataDir, "datadog.yaml"))
 		freshInstall := os.IsNotExist(statErr)
 		s.Config.DatadogYAML.PrivateActionRunner.ActionsAllowlist = parActionsAllowlist(
-			os.Getenv("DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST"),
+			env.PARActionsAllowlist,
 			runtime.GOOS,
 			freshInstall,
 		)

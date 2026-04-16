@@ -6,47 +6,37 @@ package env
 
 import (
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestFromEnv(t *testing.T) {
+func writeDatadogYAML(t *testing.T, dir string, content string) {
+	t.Helper()
+	err := os.WriteFile(filepath.Join(dir, "datadog.yaml"), []byte(content), 0644)
+	require.NoError(t, err)
+}
+
+func TestGet(t *testing.T) {
 	tests := []struct {
 		name     string
+		yaml     string
 		envVars  map[string]string
 		expected *Env
 	}{
 		{
-			name:    "Empty environment variables",
+			name:    "empty environment variables and config",
 			envVars: map[string]string{},
-			expected: &Env{
-				APIKey:                         "",
-				Site:                           "datadoghq.com",
-				Mirror:                         "",
-				RegistryOverride:               "",
-				RegistryAuthOverride:           "",
-				RegistryUsername:               "",
-				RegistryPassword:               "",
-				RegistryOverrideByImage:        map[string]string{},
-				RegistryAuthOverrideByImage:    map[string]string{},
-				RegistryUsernameByImage:        map[string]string{},
-				RegistryPasswordByImage:        map[string]string{},
-				DefaultPackagesInstallOverride: map[string]bool{},
-				DefaultPackagesVersionOverride: map[string]string{},
-				ApmLibraries:                   map[ApmLibLanguage]ApmLibVersion{},
-				InstallScript: InstallScriptEnv{
-					APMInstrumentationEnabled: APMInstrumentationNotSet,
-				},
-				Tags:       []string{},
-				Hostname:   "",
-				HTTPProxy:  "",
-				HTTPSProxy: "",
-				NoProxy:    os.Getenv("NO_PROXY"), // Default value from the environment, as some test envs set it
-			},
+			expected: func() *Env {
+				e := newDefaultEnv()
+				return &e
+			}(),
 		},
 		{
-			name: "All environment variables set",
+			name: "environment variables only",
 			envVars: map[string]string{
 				envAPIKey:                                     "123456",
 				envSite:                                       "datadoghq.eu",
@@ -126,15 +116,118 @@ func TestFromEnv(t *testing.T) {
 				InstallScript: InstallScriptEnv{
 					APMInstrumentationEnabled: APMInstrumentationEnabledAll,
 				},
-				Tags:                []string{"k1:v1", "k2:v2", "k3:v3", "k4:v4"},
-				Hostname:            "hostname",
-				HTTPProxy:           "http://proxy.example.com:8080",
-				HTTPSProxy:          "http://proxy.example.com:8080",
-				NoProxy:             "localhost",
-				InfrastructureMode:  "basic",
-				AppKey:              "app_key_123",
-				PAREnabled:          true,
-				PARActionsAllowlist: "com.datadoghq.script.runPredefinedScript,com.datadoghq.script.testConnection",
+				Tags:                       []string{"k1:v1", "k2:v2", "k3:v3", "k4:v4"},
+				Hostname:                   "hostname",
+				HTTPProxy:                  "http://proxy.example.com:8080",
+				HTTPSProxy:                 "http://proxy.example.com:8080",
+				NoProxy:                    "localhost",
+				InfrastructureMode:         "basic",
+				AppKey:                     "app_key_123",
+				PAREnabled:                 true,
+				PARActionsAllowlist:        "com.datadoghq.script.runPredefinedScript,com.datadoghq.script.testConnection",
+				ExtensionRegistryOverrides: map[string]map[string]ExtensionRegistryOverride{},
+			},
+		},
+		{
+			name:    "config only",
+			envVars: map[string]string{},
+			yaml: `
+api_key: yaml-api-key
+site: yaml-site.example.com
+installer:
+  registry:
+    url: yaml-registry.example.com
+    auth: yaml-auth
+    username: yaml-user
+    password: yaml-pass
+    extensions:
+      datadog-agent:
+        ddot:
+          url: yaml-ddot-registry.example.com
+          auth: yaml-ddot-auth
+          username: yaml-ddot-user
+          password: yaml-ddot-pass
+        other-ext:
+          url: yaml-other-ext-registry.example.com
+          auth: yaml-other-ext-auth
+          username: yaml-other-ext-user
+          password: yaml-other-ext-pass
+`,
+			expected: &Env{
+				APIKey:               "yaml-api-key",
+				Site:                 "yaml-site.example.com",
+				RegistryOverride:     "yaml-registry.example.com",
+				RegistryAuthOverride: "yaml-auth",
+				RegistryUsername:     "yaml-user",
+				RegistryPassword:     "yaml-pass",
+
+				RegistryOverrideByImage:        map[string]string{},
+				RegistryAuthOverrideByImage:    map[string]string{},
+				RegistryUsernameByImage:        map[string]string{},
+				RegistryPasswordByImage:        map[string]string{},
+				DefaultPackagesInstallOverride: map[string]bool{},
+				DefaultPackagesVersionOverride: map[string]string{},
+				ApmLibraries:                   map[ApmLibLanguage]ApmLibVersion{},
+				InstallScript: InstallScriptEnv{
+					APMInstrumentationEnabled: APMInstrumentationNotSet,
+				},
+				Tags: []string{},
+
+				ExtensionRegistryOverrides: map[string]map[string]ExtensionRegistryOverride{
+					"datadog-agent": {
+						"ddot": {
+							URL:      "yaml-ddot-registry.example.com",
+							Auth:     "yaml-ddot-auth",
+							Username: "yaml-ddot-user",
+							Password: "yaml-ddot-pass",
+						},
+						"other-ext": {
+							URL:      "yaml-other-ext-registry.example.com",
+							Auth:     "yaml-other-ext-auth",
+							Username: "yaml-other-ext-user",
+							Password: "yaml-other-ext-pass",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "env vars take precedence over config",
+			yaml: `
+api_key: yaml-api-key
+site: yaml-site.example.com
+installer:
+  registry:
+    url: yaml-registry.example.com
+    auth: yaml-auth
+    username: yaml-user
+    password: yaml-pass
+`,
+			envVars: map[string]string{
+				"DD_API_KEY":                 "env-api-key",
+				"DD_SITE":                    "env-site.example.com",
+				"DD_INSTALLER_REGISTRY_URL":  "env-registry.example.com",
+				"DD_INSTALLER_REGISTRY_AUTH": "env-auth",
+			},
+			expected: &Env{
+				APIKey:                         "env-api-key",
+				Site:                           "env-site.example.com",
+				RegistryOverride:               "env-registry.example.com",
+				RegistryAuthOverride:           "env-auth",
+				RegistryUsername:               "yaml-user",
+				RegistryPassword:               "yaml-pass",
+				RegistryOverrideByImage:        map[string]string{},
+				RegistryAuthOverrideByImage:    map[string]string{},
+				RegistryUsernameByImage:        map[string]string{},
+				RegistryPasswordByImage:        map[string]string{},
+				DefaultPackagesInstallOverride: map[string]bool{},
+				DefaultPackagesVersionOverride: map[string]string{},
+				ApmLibraries:                   map[ApmLibLanguage]ApmLibVersion{},
+				InstallScript: InstallScriptEnv{
+					APMInstrumentationEnabled: APMInstrumentationNotSet,
+				},
+				Tags:                       []string{},
+				ExtensionRegistryOverrides: map[string]map[string]ExtensionRegistryOverride{},
 			},
 		},
 		{
@@ -143,10 +236,7 @@ func TestFromEnv(t *testing.T) {
 				envApmLibraries: "java  dotnet:latest, ruby:1.2   ,python:1.2.3",
 			},
 			expected: &Env{
-				APIKey:                         "",
 				Site:                           "datadoghq.com",
-				RegistryOverride:               "",
-				RegistryAuthOverride:           "",
 				RegistryOverrideByImage:        map[string]string{},
 				RegistryAuthOverrideByImage:    map[string]string{},
 				RegistryUsernameByImage:        map[string]string{},
@@ -162,16 +252,16 @@ func TestFromEnv(t *testing.T) {
 				InstallScript: InstallScriptEnv{
 					APMInstrumentationEnabled: APMInstrumentationNotSet,
 				},
-				Tags:    []string{},
-				NoProxy: os.Getenv("NO_PROXY"), // Default value from the environment, as some test envs set it
+				Tags:                       []string{},
+				ExtensionRegistryOverrides: map[string]map[string]ExtensionRegistryOverride{},
 			},
 		},
 		{
 			name: "deprecated apm lang",
 			envVars: map[string]string{
-				envAPIKey:                    "123456",
-				envApmLanguages:              "java dotnet ruby",
-				envApmInstrumentationEnabled: "all",
+				"DD_API_KEY":                       "123456",
+				"DD_APM_INSTRUMENTATION_LANGUAGES": "java dotnet ruby",
+				"DD_APM_INSTRUMENTATION_ENABLED":   "all",
 			},
 			expected: &Env{
 				APIKey: "123456",
@@ -181,30 +271,242 @@ func TestFromEnv(t *testing.T) {
 					"dotnet": "",
 					"ruby":   "",
 				},
-				InstallScript: InstallScriptEnv{
-					APMInstrumentationEnabled: APMInstrumentationEnabledAll,
-				},
 				RegistryOverrideByImage:        map[string]string{},
 				RegistryAuthOverrideByImage:    map[string]string{},
 				RegistryUsernameByImage:        map[string]string{},
 				RegistryPasswordByImage:        map[string]string{},
 				DefaultPackagesInstallOverride: map[string]bool{},
 				DefaultPackagesVersionOverride: map[string]string{},
-				Tags:                           []string{},
-				Hostname:                       "",
-				NoProxy:                        os.Getenv("NO_PROXY"), // Default value from the environment, as some test envs set it
+				InstallScript: InstallScriptEnv{
+					APMInstrumentationEnabled: APMInstrumentationEnabledAll,
+				},
+				Tags:                       []string{},
+				ExtensionRegistryOverrides: map[string]map[string]ExtensionRegistryOverride{},
+			},
+		},
+		{
+			name: "invalid yaml",
+			envVars: map[string]string{
+				"DD_API_KEY": "env-api-key",
+			},
+			yaml: `
+{{invalid yaml
+api_key: yaml-api-key
+`,
+			expected: &Env{
+				APIKey:                         "env-api-key",
+				Site:                           "datadoghq.com",
+				RegistryOverrideByImage:        map[string]string{},
+				RegistryAuthOverrideByImage:    map[string]string{},
+				RegistryUsernameByImage:        map[string]string{},
+				RegistryPasswordByImage:        map[string]string{},
+				DefaultPackagesInstallOverride: map[string]bool{},
+				DefaultPackagesVersionOverride: map[string]string{},
+				ApmLibraries:                   map[ApmLibLanguage]ApmLibVersion{},
+				InstallScript: InstallScriptEnv{
+					APMInstrumentationEnabled: APMInstrumentationNotSet,
+				},
+				Tags:                       []string{},
+				ExtensionRegistryOverrides: map[string]map[string]ExtensionRegistryOverride{},
+			},
+		},
+		{
+			name:    "partial config fills only provided fields",
+			envVars: map[string]string{},
+			yaml: `
+installer:
+  registry:
+    auth: yaml-auth
+`,
+			expected: &Env{
+				Site:                           "datadoghq.com",
+				RegistryAuthOverride:           "yaml-auth",
+				RegistryOverrideByImage:        map[string]string{},
+				RegistryAuthOverrideByImage:    map[string]string{},
+				RegistryUsernameByImage:        map[string]string{},
+				RegistryPasswordByImage:        map[string]string{},
+				DefaultPackagesInstallOverride: map[string]bool{},
+				DefaultPackagesVersionOverride: map[string]string{},
+				ApmLibraries:                   map[ApmLibLanguage]ApmLibVersion{},
+				InstallScript: InstallScriptEnv{
+					APMInstrumentationEnabled: APMInstrumentationNotSet,
+				},
+				Tags:                       []string{},
+				ExtensionRegistryOverrides: map[string]map[string]ExtensionRegistryOverride{},
+			},
+		},
+		{
+			name: "registry URL from YAML applied without auth (bug fix)",
+			yaml: `
+installer:
+  registry:
+    url: yaml-registry.example.com
+`,
+			expected: &Env{
+				RegistryOverride:               "yaml-registry.example.com",
+				RegistryAuthOverride:           "",
+				Site:                           "datadoghq.com",
+				RegistryOverrideByImage:        map[string]string{},
+				RegistryAuthOverrideByImage:    map[string]string{},
+				RegistryUsernameByImage:        map[string]string{},
+				RegistryPasswordByImage:        map[string]string{},
+				DefaultPackagesInstallOverride: map[string]bool{},
+				DefaultPackagesVersionOverride: map[string]string{},
+				ApmLibraries:                   map[ApmLibLanguage]ApmLibVersion{},
+				InstallScript: InstallScriptEnv{
+					APMInstrumentationEnabled: APMInstrumentationNotSet,
+				},
+				Tags:                       []string{},
+				ExtensionRegistryOverrides: map[string]map[string]ExtensionRegistryOverride{},
+			},
+		},
+		{
+			name: "config site overrides default when DD_SITE not set",
+			yaml: `
+site: custom-site.example.com
+`,
+			expected: &Env{
+				Site:                           "custom-site.example.com",
+				RegistryOverrideByImage:        map[string]string{},
+				RegistryAuthOverrideByImage:    map[string]string{},
+				RegistryUsernameByImage:        map[string]string{},
+				RegistryPasswordByImage:        map[string]string{},
+				DefaultPackagesInstallOverride: map[string]bool{},
+				DefaultPackagesVersionOverride: map[string]string{},
+				ApmLibraries:                   map[ApmLibLanguage]ApmLibVersion{},
+				InstallScript: InstallScriptEnv{
+					APMInstrumentationEnabled: APMInstrumentationNotSet,
+				},
+				Tags:                       []string{},
+				ExtensionRegistryOverrides: map[string]map[string]ExtensionRegistryOverride{},
+			},
+		},
+		{
+			name: "DD_SITE explicitly set to default value beats config",
+			yaml: `
+site: custom-site.example.com
+`,
+			envVars: map[string]string{
+				"DD_SITE": "datadoghq.com",
+			},
+			expected: &Env{
+				Site:                           "datadoghq.com",
+				RegistryOverrideByImage:        map[string]string{},
+				RegistryAuthOverrideByImage:    map[string]string{},
+				RegistryUsernameByImage:        map[string]string{},
+				RegistryPasswordByImage:        map[string]string{},
+				DefaultPackagesInstallOverride: map[string]bool{},
+				DefaultPackagesVersionOverride: map[string]string{},
+				ApmLibraries:                   map[ApmLibLanguage]ApmLibVersion{},
+				InstallScript: InstallScriptEnv{
+					APMInstrumentationEnabled: APMInstrumentationNotSet,
+				},
+				Tags:                       []string{},
+				ExtensionRegistryOverrides: map[string]map[string]ExtensionRegistryOverride{},
+			},
+		},
+		{
+			name: "primary set",
+			envVars: map[string]string{
+				"DD_AGENT_USER_NAME": "customuser",
+			},
+			expected: &Env{
+				MsiParams: MsiParamsEnv{
+					AgentUserName: "customuser",
+				},
+				Site:                           "datadoghq.com",
+				RegistryOverrideByImage:        map[string]string{},
+				RegistryAuthOverrideByImage:    map[string]string{},
+				RegistryUsernameByImage:        map[string]string{},
+				RegistryPasswordByImage:        map[string]string{},
+				DefaultPackagesInstallOverride: map[string]bool{},
+				DefaultPackagesVersionOverride: map[string]string{},
+				ApmLibraries:                   map[ApmLibLanguage]ApmLibVersion{},
+				InstallScript: InstallScriptEnv{
+					APMInstrumentationEnabled: APMInstrumentationNotSet,
+				},
+				Tags:                       []string{},
+				ExtensionRegistryOverrides: map[string]map[string]ExtensionRegistryOverride{},
+			},
+		},
+		{
+			name: "compat set",
+			envVars: map[string]string{
+				"DDAGENTUSER_NAME": "customuser",
+			},
+			expected: &Env{
+				MsiParams: MsiParamsEnv{
+					AgentUserName: "customuser",
+				},
+				Site:                           "datadoghq.com",
+				RegistryOverrideByImage:        map[string]string{},
+				RegistryAuthOverrideByImage:    map[string]string{},
+				RegistryUsernameByImage:        map[string]string{},
+				RegistryPasswordByImage:        map[string]string{},
+				DefaultPackagesInstallOverride: map[string]bool{},
+				DefaultPackagesVersionOverride: map[string]string{},
+				ApmLibraries:                   map[ApmLibLanguage]ApmLibVersion{},
+				InstallScript: InstallScriptEnv{
+					APMInstrumentationEnabled: APMInstrumentationNotSet,
+				},
+				Tags:                       []string{},
+				ExtensionRegistryOverrides: map[string]map[string]ExtensionRegistryOverride{},
+			},
+		},
+		{
+			name: "primary precedence",
+			envVars: map[string]string{
+				"DD_AGENT_USER_NAME": "customuser",
+				"DDAGENTUSER_NAME":   "otheruser",
+			},
+			expected: &Env{
+				MsiParams: MsiParamsEnv{
+					AgentUserName: "customuser",
+				},
+				Site:                           "datadoghq.com",
+				RegistryOverrideByImage:        map[string]string{},
+				RegistryAuthOverrideByImage:    map[string]string{},
+				RegistryUsernameByImage:        map[string]string{},
+				RegistryPasswordByImage:        map[string]string{},
+				DefaultPackagesInstallOverride: map[string]bool{},
+				DefaultPackagesVersionOverride: map[string]string{},
+				ApmLibraries:                   map[ApmLibLanguage]ApmLibVersion{},
+				InstallScript: InstallScriptEnv{
+					APMInstrumentationEnabled: APMInstrumentationNotSet,
+				},
+				Tags:                       []string{},
+				ExtensionRegistryOverrides: map[string]map[string]ExtensionRegistryOverride{},
 			},
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			for key, value := range tt.envVars {
-				os.Setenv(key, value)
-				defer os.Unsetenv(key)
+	savedEnv := make(map[string]string)
+	for _, kv := range os.Environ() {
+		key, val, _ := strings.Cut(kv, "=")
+		savedEnv[key] = val
+		os.Unsetenv(key)
+	}
+
+	defer func() {
+		for k, v := range savedEnv {
+			os.Setenv(k, v)
+		}
+	}()
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+
+			if tc.yaml != "" {
+				writeDatadogYAML(t, dir, tc.yaml)
 			}
-			result := FromEnv()
-			assert.Equal(t, tt.expected, result, "failed %v", tt.name)
+			for k, v := range tc.envVars {
+				t.Setenv(k, v)
+			}
+
+			env := Get(WithConfigDir(dir))
+
+			assert.Equal(t, tc.expected, env)
 		})
 	}
 }
@@ -289,7 +591,6 @@ func TestToEnv(t *testing.T) {
 				"DD_INSTALLER_REGISTRY_PASSWORD_IMAGE=another.password",
 				"DD_INSTALLER_REGISTRY_PASSWORD_ANOTHER_IMAGE=yet.another.password",
 				"DD_INSTALLER_DEFAULT_PKG_INSTALL_PACKAGE=true",
-				"DD_INSTALLER_DEFAULT_PKG_INSTALL_ANOTHER_PACKAGE=false",
 				"DD_INSTALLER_DEFAULT_PKG_VERSION_PACKAGE=1.2.3",
 				"DD_INSTALLER_DEFAULT_PKG_VERSION_ANOTHER_PACKAGE=4.5.6",
 				"DD_TAGS=k1:v1,k2:v2",
@@ -334,69 +635,6 @@ func TestToEnv(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := tt.env.ToEnv()
 			assert.ElementsMatch(t, tt.expected, result)
-		})
-	}
-}
-
-func TestAgentUserVars(t *testing.T) {
-	tests := []struct {
-		name     string
-		envVars  map[string]string
-		expected *Env
-	}{
-		{
-			name:    "not set",
-			envVars: map[string]string{},
-			expected: &Env{
-				MsiParams: MsiParamsEnv{
-					AgentUserName: "",
-				},
-			},
-		},
-		{
-			name: "primary set",
-			envVars: map[string]string{
-				envAgentUserName: "customuser",
-			},
-			expected: &Env{
-				MsiParams: MsiParamsEnv{
-					AgentUserName: "customuser",
-				},
-			},
-		},
-		{
-			name: "compat set",
-			envVars: map[string]string{
-				envAgentUserNameCompat: "customuser",
-			},
-			expected: &Env{
-				MsiParams: MsiParamsEnv{
-					AgentUserName: "customuser",
-				},
-			},
-		},
-		{
-			name: "primary precedence",
-			envVars: map[string]string{
-				envAgentUserName:       "customuser",
-				envAgentUserNameCompat: "otheruser",
-			},
-			expected: &Env{
-				MsiParams: MsiParamsEnv{
-					AgentUserName: "customuser",
-				},
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			for key, value := range tt.envVars {
-				os.Setenv(key, value)
-				defer os.Unsetenv(key)
-			}
-			result := FromEnv()
-			assert.Equal(t, tt.expected.MsiParams.AgentUserName, result.MsiParams.AgentUserName)
 		})
 	}
 }
