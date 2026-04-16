@@ -26,6 +26,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	pkgec2 "github.com/DataDog/datadog-agent/pkg/util/ec2"
 	ec2internal "github.com/DataDog/datadog-agent/pkg/util/ec2/internal"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -39,6 +40,7 @@ var (
 
 	// for testing purposes
 	fetchContainerInstanceARN = getContainerInstanceARN
+	isSpotInstance            = pkgec2.IsSpotInstance
 )
 
 func isTagExcluded(tag string) bool {
@@ -99,6 +101,16 @@ func GetInstanceInfo(ctx context.Context) ([]string, error) {
 			} else {
 				tags = append(tags, fmt.Sprintf("%s:%s", ciaTagName, arn))
 			}
+		}
+	}
+
+	// Add capacity-type:spot when running on a Spot instance
+	const capacityTypeTagName = "capacity-type"
+	if !isTagExcluded(capacityTypeTagName) {
+		if isSpot, err := isSpotInstance(ctx); err != nil {
+			log.Debugf("could not determine spot instance status: %v", err)
+		} else if isSpot {
+			tags = append(tags, fmt.Sprintf("%s:spot", capacityTypeTagName))
 		}
 	}
 
