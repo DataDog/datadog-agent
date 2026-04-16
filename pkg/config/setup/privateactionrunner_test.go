@@ -25,6 +25,20 @@ func overrideParPathExists(t *testing.T, fn func(string) bool) {
 	t.Cleanup(func() { parPathExists = original })
 }
 
+func TestPrivateActionRunnerApiKeyOnlyEnrollmentDefaultFalse(t *testing.T) {
+	cfg := newTestConf(t)
+
+	assert.False(t, cfg.GetBool(PARApiKeyOnlyEnrollment))
+}
+
+func TestPrivateActionRunnerApiKeyOnlyEnrollmentFromEnv(t *testing.T) {
+	t.Setenv("DD_PRIVATE_ACTION_RUNNER_API_KEY_ONLY_ENROLLMENT", "true")
+
+	cfg := newTestConf(t)
+
+	assert.True(t, cfg.GetBool(PARApiKeyOnlyEnrollment))
+}
+
 func TestPrivateActionRunnerActionsAllowlistFromEnv(t *testing.T) {
 	t.Setenv("DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST", "com.datadoghq.kubernetes.core.listPod,com.datadoghq.script.runPredefinedScript")
 
