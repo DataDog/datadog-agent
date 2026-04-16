@@ -373,7 +373,7 @@ func (s *streamHandler) IsEnabled() bool {
 	}
 
 	sbomEnrichmentEnabled := s.agentConfig.GetBool("sbom.enrichment.usage.enabled")
-	runtimeSecuritySBOMDisabled := s.systemProbeConfig.IsConfigured("runtime_security_config.sbom.enabled") && s.systemProbeConfig.GetBool("runtime_security_config.sbom.enabled") == false
+	runtimeSecuritySBOMDisabled := s.systemProbeConfig.IsConfigured("runtime_security_config.sbom.enabled") && !s.systemProbeConfig.GetBool("runtime_security_config.sbom.enabled")
 
 	return sbomEnrichmentEnabled && !runtimeSecuritySBOMDisabled
 }
