@@ -7,29 +7,31 @@ package service
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/api"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/rcwebsocket"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/rcecho"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// WebSocketTestActor periodically calls rcwebsocket.RunWebSocketTest() in a
-// background task.
-type WebSocketTestActor struct {
+// EchoTestActor periodically calls rcecho.RunTransportTests() in a background
+// task, exercising WebSocket, gRPC and TCP connectivity to the RC backend.
+type EchoTestActor struct {
 	client *api.HTTPClient
 	// Callback to run the test.
-	fn func(context.Context, *api.HTTPClient)
+	fn func(context.Context, *api.HTTPClient, uint64)
 
-	stopCh chan struct{} // nil until Start() called
+	stopCh   chan struct{} // nil until Start() called
+	stopOnce sync.Once
 }
 
-// NewWebSocketTestActor constructs a NewWebSocketTestActor that uses client to
-// obtain a WebSocket connection to the RC backend.
-func NewWebSocketTestActor(client *api.HTTPClient) *WebSocketTestActor {
-	return &WebSocketTestActor{
+// NewEchoTestActor constructs an EchoTestActor that uses client to run echo
+// tests against the RC backend over all supported transports.
+func NewEchoTestActor(client *api.HTTPClient) *EchoTestActor {
+	return &EchoTestActor{
 		client: client,
-		fn:     rcwebsocket.RunEchoTest,
+		fn:     rcecho.RunTransportTests,
 	}
 }
 
@@ -38,9 +40,9 @@ func NewWebSocketTestActor(client *api.HTTPClient) *WebSocketTestActor {
 //
 // This method is not concurrency safe, and panics if Start() has previously
 // been called.
-func (s *WebSocketTestActor) Start() {
+func (s *EchoTestActor) Start() {
 	if s.stopCh != nil {
-		panic("attempt to start WebSocketTestActor more than once")
+		panic("attempt to start EchoTestActor more than once")
 	}
 
 	s.stopCh = make(chan struct{})
@@ -54,13 +56,15 @@ func (s *WebSocketTestActor) Start() {
 //
 // This method is not concurrency safe, and panics if Start() has not previously
 // been called. It is safe to call Stop() repeatedly.
-func (s *WebSocketTestActor) Stop() {
-	if s.stopCh != nil { // CoreAgentService.Stop() calls more than once
-		close(s.stopCh)
-	}
+func (s *EchoTestActor) Stop() {
+	s.stopOnce.Do(func() {
+		if s.stopCh != nil {
+			close(s.stopCh)
+		}
+	})
 }
 
-func (s *WebSocketTestActor) run() {
+func (s *EchoTestActor) run() {
 	// This test loop is best effort - it SHOULD never kill the Agent process,
 	// even if it encounters a bug or protocol error.
 	//
@@ -69,13 +73,14 @@ func (s *WebSocketTestActor) run() {
 	// after recovery has occurred.
 	defer func() {
 		if err := recover(); err != nil {
-			log.Warnf("unexpected websocket connectivity test failure: %s", err)
+			log.Warnf("unexpected echo connectivity test failure: %s", err)
 		}
 	}()
 
 	ticker := time.NewTicker(24 * time.Hour)
 	defer ticker.Stop()
 
+	runCount := uint64(0)
 	for {
 		func() {
 			ctx, cancel := context.WithCancel(context.Background())
@@ -90,7 +95,7 @@ func (s *WebSocketTestActor) run() {
 				}
 			}()
 
-			s.fn(ctx, s.client)
+			s.fn(ctx, s.client, runCount)
 		}()
 
 		select {
@@ -98,5 +103,7 @@ func (s *WebSocketTestActor) run() {
 			return
 		case <-ticker.C:
 		}
+
+		runCount++
 	}
 }

@@ -140,7 +140,7 @@ type CoreAgentService struct {
 	telemetryReporter RcTelemetryReporter
 	// A background task used to perform connectivity tests using a WebSocket -
 	// data gathering for future development.
-	websocketTest startstop.StartStoppable
+	echoTest startstop.StartStoppable
 
 	// refreshBypassLimiter is used from the polling loop goroutine exclusively,
 	// so it does not need to be synchronized.
@@ -630,12 +630,12 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 
 	clock := clock.New()
 
-	// WebSocket test actor - must call Start() to spawn the background task.
-	var websocketTest startstop.StartStoppable
+	// Echo test actor - must call Start() to spawn the background task.
+	var echoTest startstop.StartStoppable
 	if cfg.GetBool("remote_configuration.no_websocket_echo") {
-		websocketTest = &noOpRunnable{}
+		echoTest = &noOpRunnable{}
 	} else {
-		websocketTest = NewWebSocketTestActor(http)
+		echoTest = NewEchoTestActor(http)
 	}
 
 	now := clock.Now().UTC()
@@ -655,7 +655,7 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 		directorRoot:          directorRoot,
 		backoffPolicy:         backoffPolicy,
 		telemetryReporter:     telemetryReporter,
-		websocketTest:         websocketTest,
+		echoTest:              echoTest,
 		clients:               newClients(clock, options.clientTTL),
 		refreshBypassLimiter: rateLimiter{
 			clock: clock,
@@ -711,7 +711,7 @@ func (s *CoreAgentService) Start() {
 		}
 	}()
 
-	s.websocketTest.Start()
+	s.echoTest.Start()
 }
 
 // UpdatePARJWT updates the stored JWT for Private Action Runners
@@ -794,7 +794,7 @@ func (s *CoreAgentService) logRefreshError(err error) {
 func (s *CoreAgentService) Stop() error {
 	var err error
 	s.stopOnce.Do(func() {
-		s.websocketTest.Stop()
+		s.echoTest.Stop()
 		s.orgStatusPoller.stop()
 		close(s.stopConfigPoller)
 
