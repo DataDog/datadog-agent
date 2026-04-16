@@ -350,9 +350,10 @@ rules:
       - list
       - watch
   # AppSec proxy injection - ingress-nginx ConfigMap management
-  # Read access and create are unscoped: we need to get the original ConfigMap (unknown name),
-  # list by label selector for cleanup on IngressClass deletion,
-  # and create cannot be scoped with resourceNames (resource doesn't exist yet).
+  # All verbs are unscoped: ConfigMap names are derived dynamically from the
+  # controller's --configmap arg (e.g. datadog-appsec-<original-name>) and cannot
+  # be predicted at RBAC definition time. The watch verb is needed for the
+  # ConfigMap reconciler that keeps DD copies in sync with originals.
   - apiGroups:
       - ""
     resources:
@@ -360,15 +361,8 @@ rules:
     verbs:
       - get
       - list
+      - watch
       - create
-  # Write access is scoped to DD-owned ConfigMaps only.
-  - apiGroups:
-      - ""
-    resources:
-      - configmaps
-    resourceNames:
-      - datadog-appsec-ingress-nginx-controller
-    verbs:
       - update
       - delete
 ---

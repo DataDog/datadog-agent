@@ -27,6 +27,13 @@ const (
 	ddSnippetMarkerEnd   = "# datadog-appsec-end"
 	mainSnippetKey       = "main-snippet"
 	httpSnippetKey       = "http-snippet"
+
+	// watchedConfigMapLabel is applied to the original ConfigMap so the reconciler
+	// informer can use server-side LabelSelector filtering to watch only relevant ConfigMaps.
+	watchedConfigMapLabel = "appsec.datadoghq.com/watched-configmap"
+	// ddConfigMapAnnotation stores the name of the DD-owned ConfigMap copy on the original
+	// ConfigMap so the reconciler knows which DD CM to update when the original changes.
+	ddConfigMapAnnotation = "appsec.datadoghq.com/dd-configmap"
 )
 
 var configMapGVR = corev1.SchemeGroupVersion.WithResource("configmaps")
@@ -139,28 +146,116 @@ func createOrUpdateDDConfigMap(ctx context.Context, client dynamic.Interface, na
 
 	target := &unstructured.Unstructured{Object: unstructuredCM}
 	_, err = client.Resource(configMapGVR).Namespace(namespace).Create(ctx, target, metav1.CreateOptions{})
-	if err == nil {
-		return nil
-	}
-	if !k8serrors.IsAlreadyExists(err) {
+	if err != nil && !k8serrors.IsAlreadyExists(err) {
 		return fmt.Errorf("failed to create DD ConfigMap %s/%s: %w", namespace, ddName, err)
 	}
-
-	// Update existing DD ConfigMap. Retry on conflict since concurrent MutatePod
-	// calls (e.g. during rollouts) may race on the same ConfigMap's resourceVersion.
-	for retries := 0; retries < 3; retries++ {
-		existing, getErr := client.Resource(configMapGVR).Namespace(namespace).Get(ctx, ddName, metav1.GetOptions{})
-		if getErr != nil {
-			return fmt.Errorf("failed to get existing DD ConfigMap for update: %w", getErr)
-		}
-		target.SetResourceVersion(existing.GetResourceVersion())
-		_, err = client.Resource(configMapGVR).Namespace(namespace).Update(ctx, target, metav1.UpdateOptions{})
-		if err == nil || !k8serrors.IsConflict(err) {
-			break
-		}
-	}
 	if err != nil {
-		return fmt.Errorf("failed to update DD ConfigMap %s/%s: %w", namespace, ddName, err)
+		// Update existing DD ConfigMap. Retry on conflict since concurrent MutatePod
+		// calls (e.g. during rollouts) may race on the same ConfigMap's resourceVersion.
+		for retries := 0; retries < 3; retries++ {
+			existing, getErr := client.Resource(configMapGVR).Namespace(namespace).Get(ctx, ddName, metav1.GetOptions{})
+			if getErr != nil {
+				return fmt.Errorf("failed to get existing DD ConfigMap for update: %w", getErr)
+			}
+			target.SetResourceVersion(existing.GetResourceVersion())
+			_, err = client.Resource(configMapGVR).Namespace(namespace).Update(ctx, target, metav1.UpdateOptions{})
+			if err == nil || !k8serrors.IsConflict(err) {
+				break
+			}
+		}
+		if err != nil {
+			return fmt.Errorf("failed to update DD ConfigMap %s/%s: %w", namespace, ddName, err)
+		}
 	}
+
+	// Label the original ConfigMap so the reconciler can watch it for changes.
+	// Skip if the original doesn't exist (originalCM is nil when IsNotFound).
+	if originalCM != nil {
+		if err := labelOriginalConfigMap(ctx, client, namespace, originalCMName, ddName); err != nil {
+			return fmt.Errorf("failed to label original ConfigMap %s/%s: %w", namespace, originalCMName, err)
+		}
+	}
+
 	return nil
+}
+
+// labelOriginalConfigMap adds the watched-configmap label and dd-configmap annotation
+// to the original ConfigMap so the reconciler informer can discover and reconcile it.
+// It is idempotent: if the label and annotation are already set correctly, no update is performed.
+func labelOriginalConfigMap(ctx context.Context, client dynamic.Interface, namespace, originalCMName, ddCMName string) error {
+	for retries := 0; retries < 3; retries++ {
+		cm, err := client.Resource(configMapGVR).Namespace(namespace).Get(ctx, originalCMName, metav1.GetOptions{})
+		if err != nil {
+			if k8serrors.IsNotFound(err) {
+				return nil // Original was deleted in the meantime, nothing to label
+			}
+			return fmt.Errorf("failed to get original ConfigMap: %w", err)
+		}
+
+		labels := cm.GetLabels()
+		annotations := cm.GetAnnotations()
+
+		if labels == nil {
+			labels = make(map[string]string, 1)
+		}
+
+		if annotations == nil {
+			annotations = make(map[string]string, 1)
+		}
+
+		// Check if already set correctly (idempotency)
+		if labels[watchedConfigMapLabel] == "true" && annotations[ddConfigMapAnnotation] == ddCMName {
+			return nil
+		}
+
+		labels[watchedConfigMapLabel] = "true"
+		cm.SetLabels(labels)
+
+		annotations[ddConfigMapAnnotation] = ddCMName
+		cm.SetAnnotations(annotations)
+
+		_, err = client.Resource(configMapGVR).Namespace(namespace).Update(ctx, cm, metav1.UpdateOptions{})
+		if err == nil || !k8serrors.IsConflict(err) {
+			return err
+		}
+	}
+	return fmt.Errorf("failed to label original ConfigMap %s/%s after retries", namespace, originalCMName)
+}
+
+// unlabelOriginalConfigMap removes the watched-configmap label and dd-configmap annotation
+// from the original ConfigMap. It is safe to call if the original no longer exists.
+// It retries on conflict, consistent with labelOriginalConfigMap.
+func unlabelOriginalConfigMap(ctx context.Context, client dynamic.Interface, namespace, originalCMName string) error {
+	for retries := 0; retries < 3; retries++ {
+		cm, err := client.Resource(configMapGVR).Namespace(namespace).Get(ctx, originalCMName, metav1.GetOptions{})
+		if err != nil {
+			if k8serrors.IsNotFound(err) {
+				return nil
+			}
+			return fmt.Errorf("failed to get original ConfigMap: %w", err)
+		}
+
+		labels := cm.GetLabels()
+		annotations := cm.GetAnnotations()
+
+		// Nothing to remove
+		if labels[watchedConfigMapLabel] == "" && annotations[ddConfigMapAnnotation] == "" {
+			return nil
+		}
+
+		delete(labels, watchedConfigMapLabel)
+		cm.SetLabels(labels)
+
+		delete(annotations, ddConfigMapAnnotation)
+		cm.SetAnnotations(annotations)
+
+		_, err = client.Resource(configMapGVR).Namespace(namespace).Update(ctx, cm, metav1.UpdateOptions{})
+		if err == nil || k8serrors.IsNotFound(err) {
+			return nil
+		}
+		if !k8serrors.IsConflict(err) {
+			return fmt.Errorf("failed to unlabel original ConfigMap %s/%s: %w", namespace, originalCMName, err)
+		}
+	}
+	return fmt.Errorf("failed to unlabel original ConfigMap %s/%s after retries", namespace, originalCMName)
 }

@@ -10,6 +10,7 @@ package nginx
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
@@ -27,6 +28,7 @@ type nginxInjectionPattern struct {
 	logger        log.Component
 	config        appsecconfig.Config
 	eventRecorder eventRecorder
+	reconciler    *configMapReconciler
 }
 
 // Mode always returns InjectionModeSidecar for nginx.
@@ -105,6 +107,12 @@ func (n *nginxInjectionPattern) Deleted(ctx context.Context, obj *unstructured.U
 			continue
 		}
 		n.logger.Infof("Deleted DD ConfigMap %s/%s", cm.GetNamespace(), cm.GetName())
+
+		// Remove the watched label+annotation from the original ConfigMap
+		originalName := strings.TrimPrefix(cm.GetName(), ddConfigMapPrefix)
+		if err := unlabelOriginalConfigMap(ctx, n.client, cm.GetNamespace(), originalName); err != nil {
+			n.logger.Warnf("Failed to unlabel original ConfigMap %s/%s: %v", cm.GetNamespace(), originalName, err)
+		}
 	}
 
 	if len(cmList.Items) > 0 {
@@ -133,6 +141,12 @@ func anyOtherIngressNginxClassExists(ctx context.Context, client dynamic.Interfa
 	return false, nil
 }
 
+// Start launches the ConfigMap reconciler that watches original ConfigMaps
+// for changes and re-merges DD directives into the DD-owned copies.
+func (n *nginxInjectionPattern) Start(ctx context.Context) error {
+	return n.reconciler.Start(ctx)
+}
+
 // New creates a new InjectionPattern for ingress-nginx.
 // It always returns a nginxSidecarPattern (pod mutation mode) regardless of the global
 // injection mode setting, because nginx has no external processing mode.
@@ -143,6 +157,11 @@ func New(client dynamic.Interface, logger log.Component, config appsecconfig.Con
 		config: config,
 		eventRecorder: eventRecorder{
 			recorder: recorder,
+		},
+		reconciler: &configMapReconciler{
+			client: client,
+			logger: logger,
+			config: config,
 		},
 	}
 	return &nginxSidecarPattern{nginxInjectionPattern: base}

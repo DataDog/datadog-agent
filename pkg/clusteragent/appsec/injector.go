@@ -262,6 +262,12 @@ func (si *securityInjector) runLeader(ctx context.Context, proxyType appsecconfi
 
 	si.logger.Debug("Watching resource as leader:", proxyType)
 
+	if s, ok := pattern.(appsecconfig.Starter); ok {
+		if err := s.Start(ctx); err != nil {
+			si.logger.Warnf("error starting reconciler for %s: %v", proxyType, err)
+		}
+	}
+
 	for quit := false; !quit && isLeader(); {
 		quit = si.processWorkItem(ctx, proxyType, pattern, queue)
 	}

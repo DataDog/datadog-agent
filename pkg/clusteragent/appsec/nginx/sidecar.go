@@ -13,20 +13,26 @@ import (
 	"maps"
 	"slices"
 	"strings"
+	"time"
 
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
 
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/dynamic"
 )
 
 const (
-	initContainerName  = "datadog-appsec-nginx-init"
-	moduleVolumeName   = "datadog-appsec-nginx-modules"
-	configmapArgPrefix = "--configmap="
+	// mutateTimeout bounds ConfigMap operations during pod mutation to prevent
+	// goroutine leaks if the API server is slow. The MutatePod interface does not
+	// provide a context, so we create one with an explicit timeout.
+	mutateTimeout = 10 * time.Second
+
+	initContainerName        = "datadog-appsec-nginx-init"
+	moduleVolumeName         = "datadog-appsec-nginx-modules"
+	configmapArgPrefix       = "--configmap="
+	controllerClassArgPrefix = "--controller-class="
 
 	labelNameKey        = "app.kubernetes.io/name"
 	labelNameValue      = "ingress-nginx"
@@ -46,11 +52,13 @@ type nginxSidecarPattern struct {
 // ShouldMutatePod returns true if the pod is an ingress-nginx controller pod
 // that hasn't already been injected
 func (n *nginxSidecarPattern) ShouldMutatePod(pod *corev1.Pod) bool {
-	if pod.Labels[labelNameKey] != labelNameValue {
-		return false
-	}
-	if pod.Labels[labelComponentKey] != labelComponentValue {
-		return false
+	labelsMatch := pod.Labels[labelNameKey] == labelNameValue && pod.Labels[labelComponentKey] == labelComponentValue
+	if !labelsMatch {
+		if !hasIngressNginxControllerClassArg(pod) {
+			return false
+		}
+		n.logger.Warnf("Pod %s matched by --controller-class arg but missing standard labels; consider adding %s=%s and %s=%s labels",
+			mutatecommon.PodString(pod), labelNameKey, labelNameValue, labelComponentKey, labelComponentValue)
 	}
 	if hasInitContainer(pod) {
 		n.logger.Debugf("Pod %s already has nginx appsec init container", mutatecommon.PodString(pod))
@@ -70,6 +78,10 @@ func (n *nginxSidecarPattern) IsNamespaceEligible(string) bool {
 // 2. Adding an emptyDir volume for module sharing
 // 3. Redirecting the --configmap arg to a DD-owned ConfigMap
 func (n *nginxSidecarPattern) MutatePod(pod *corev1.Pod, ns string, client dynamic.Interface) (bool, error) {
+	if len(pod.Spec.Containers) == 0 {
+		return false, fmt.Errorf("pod %s has no containers", mutatecommon.PodString(pod))
+	}
+
 	// Find the controller container with --configmap arg (or note it's absent)
 	containerIdx, argIdx, cmNamespace, cmName, found := findControllerConfigMapArg(pod, ns)
 	if !found {
@@ -92,9 +104,11 @@ func (n *nginxSidecarPattern) MutatePod(pod *corev1.Pod, ns string, client dynam
 	maps.Copy(ddLabels, n.config.CommonLabels)
 	ddLabels[appsecconfig.AppsecProcessorProxyTypeAnnotation] = string(appsecconfig.ProxyTypeIngressNginx)
 	ddCMName := ddConfigMapName(cmName)
-	// context.Background: MutatePod interface does not provide a context.
-	// The admission webhook timeout still bounds the overall request.
-	if err := createOrUpdateDDConfigMap(context.Background(), client, cmNamespace, cmName, moduleMountPath, ddLabels, n.config.CommonAnnotations); err != nil {
+	// MutatePod interface does not provide a context. Use a bounded timeout
+	// to prevent goroutine leaks if the API server is slow.
+	mutateCtx, cancel := context.WithTimeout(context.Background(), mutateTimeout)
+	defer cancel()
+	if err := createOrUpdateDDConfigMap(mutateCtx, client, cmNamespace, cmName, moduleMountPath, ddLabels, n.config.CommonAnnotations); err != nil {
 		// IngressClass name is not available during pod mutation; empty name is
 		// acceptable because the event message contains the ConfigMap name.
 		n.eventRecorder.recordConfigMapCreateFailed("", err)
@@ -142,17 +156,16 @@ func (n *nginxSidecarPattern) PodDeleted(*corev1.Pod, string, dynamic.Interface)
 // MatchCondition returns a CEL expression for server-side pod filtering.
 // It checks for ingress-nginx controller labels safely (existence before access).
 func (n *nginxSidecarPattern) MatchCondition() admissionregistrationv1.MatchCondition {
+	const labelContainsFmt = "'%s' in object.metadata.labels && object.metadata.labels['%s'] == '%s'"
+	labelCheck := fmt.Sprintf(labelContainsFmt, labelNameKey, labelNameKey, labelNameValue) +
+		" && " + fmt.Sprintf(labelContainsFmt, labelComponentKey, labelComponentKey, labelComponentValue)
+	argsCheck := fmt.Sprintf(
+		"object.spec.containers.exists(c, c.args.exists(a, a.startsWith('%s%s')))",
+		controllerClassArgPrefix, ingressNginxControllerName,
+	)
 	return admissionregistrationv1.MatchCondition{
-		Expression: "'" + labelNameKey + "' in object.metadata.labels && " +
-			"object.metadata.labels['" + labelNameKey + "'] == '" + labelNameValue + "' && " +
-			"'" + labelComponentKey + "' in object.metadata.labels && " +
-			"object.metadata.labels['" + labelComponentKey + "'] == '" + labelComponentValue + "'",
+		Expression: fmt.Sprintf("(%s) || (%s)", labelCheck, argsCheck),
 	}
-}
-
-// Added delegates to the base pattern (no-op for nginx sidecar mode)
-func (n *nginxSidecarPattern) Added(ctx context.Context, obj *unstructured.Unstructured) error {
-	return n.nginxInjectionPattern.Added(ctx, obj)
 }
 
 // findControllerConfigMapArg finds the controller container and its --configmap arg,
@@ -211,6 +224,19 @@ func hasInitContainer(pod *corev1.Pod) bool {
 	return slices.ContainsFunc(pod.Spec.InitContainers, func(c corev1.Container) bool {
 		return c.Name == initContainerName
 	})
+}
+
+// hasIngressNginxControllerClassArg checks if any container has a --controller-class arg
+// matching the ingress-nginx controller name, used as a fallback when standard labels are absent.
+func hasIngressNginxControllerClassArg(pod *corev1.Pod) bool {
+	for _, c := range pod.Spec.Containers {
+		for _, arg := range c.Args {
+			if strings.HasPrefix(arg, controllerClassArgPrefix+ingressNginxControllerName) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // buildInitContainer creates the init container spec that copies the nginx-datadog module
