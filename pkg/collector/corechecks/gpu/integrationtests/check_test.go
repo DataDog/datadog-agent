@@ -137,8 +137,11 @@ func TestCheckRunMatchesSpecForPhysicalDevices(t *testing.T) {
 		require.NotEmpty(t, deviceMetrics, "expected emitted metrics for GPU %s", deviceUUID)
 
 		gpuConfig := gpuspec.GPUConfig{Architecture: archName, DeviceMode: gpuspec.DeviceModePhysical}
+		validationOptions := gpuspec.ValidationOptions{
+			WorkloadActive: true,
+		}
 		t.Run("gpu="+deviceUUID, func(t *testing.T) {
-			gpu.ValidateEmittedMetricsAgainstSpec(t, metricsSpec, gpuConfig, false, deviceMetrics, nil)
+			gpu.ValidateEmittedMetricsAgainstSpec(t, metricsSpec, gpuConfig, deviceMetrics, nil, validationOptions)
 		})
 	}
 }

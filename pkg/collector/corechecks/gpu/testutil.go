@@ -73,10 +73,8 @@ func GetEmittedGPUMetrics(mockSender *mocksender.MockSender) map[string][]gpuspe
 }
 
 // ValidateEmittedMetricsAgainstSpec validates emitted metrics against the spec for a given GPU config.
-func ValidateEmittedMetricsAgainstSpec(t *testing.T, metricsSpec *gpuspec.MetricsSpec, config gpuspec.GPUConfig, workloadActive bool, emittedMetrics map[string][]gpuspec.MetricObservation, knownTagValues map[string]string) {
-	results, err := gpuspec.ValidateEmittedMetricsAgainstSpec(metricsSpec, config, emittedMetrics, knownTagValues, gpuspec.ValidationOptions{
-		WorkloadActive: workloadActive,
-	})
+func ValidateEmittedMetricsAgainstSpec(t *testing.T, metricsSpec *gpuspec.MetricsSpec, config gpuspec.GPUConfig, emittedMetrics map[string][]gpuspec.MetricObservation, knownTagValues map[string]string, options gpuspec.ValidationOptions) {
+	results, err := gpuspec.ValidateEmittedMetricsAgainstSpec(metricsSpec, config, emittedMetrics, knownTagValues, options)
 	require.NoError(t, err, "internal failure validating emitted metrics, likely a bug or inconsistency in the spec")
 
 	for metricName, status := range results.Metrics {

@@ -92,7 +92,7 @@ func validateGPUConfig(client *metricsClient, metricsSpec *gpuspec.MetricsSpec, 
 			prefixedMetricName := gpuspec.PrefixedMetricName(metricsSpec, metricName)
 			requiredTags, workloadOnlyTags, err := gpuspec.RequiredTagsForMetric(metricsSpec, expectedMetricsMap[metricName])
 			if err != nil {
-				return result, fmt.Errorf("derive required tags for %+v: %w", config, err)
+				return fmt.Errorf("derive required tags for %+v: %w", config, err)
 			}
 
 			maps.Copy(requiredTags, workloadOnlyTags) // include workload tags as required for the tag validation
