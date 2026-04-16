@@ -109,6 +109,7 @@ func resolveWLMPodOwnership(pod *workloadmeta.KubernetesPod) (podOwnership, bool
 func resolveTopLevelOwner(owner objectRef) (objectRef, bool) {
 	if owner.Kind == kubernetes.ReplicaSetKind {
 		deploymentName := kubernetes.ParseDeploymentForReplicaSet(owner.Name)
+		// TODO: add support for ArgoRollout
 		if deploymentName == "" {
 			return objectRef{}, false
 		}

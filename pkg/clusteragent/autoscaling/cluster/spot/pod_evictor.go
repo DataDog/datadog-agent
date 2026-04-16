@@ -24,6 +24,7 @@ type podEvictor interface {
 	evictPod(ctx context.Context, namespace, name string, phase corev1.PodPhase) error
 }
 
+// TODO: check if pkg/clusteragent/evictor.Client can be reused here (needs phase-check support)
 type kubePodEvictor struct {
 	client kubernetes.Interface
 }
