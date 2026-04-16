@@ -59,7 +59,16 @@ func NewContainerListener(options ServiceListernerDeps) (ServiceListener, error)
 		return nil, errors.New("workloadmeta store is not initialized")
 	}
 	var err error
-	l.workloadmetaListener, err = newWorkloadmetaListener(name, filter, l.createContainerService, wmetaInstance, options.Telemetry)
+
+	l.workloadmetaListener, err = newWorkloadmetaListenerWithTagWait(
+		name,
+		filter,
+		l.createContainerService,
+		wmetaInstance,
+		options.Telemetry,
+		l.areTagsComplete,
+		time.Duration(pkgconfigsetup.Datadog().GetInt("ad_tag_completeness_max_wait"))*time.Second,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -201,4 +210,29 @@ func computeContainerServiceIDs(entity string, image string, labels map[string]s
 		ids = append(ids, short)
 	}
 	return ids
+}
+
+// areTagsComplete checks if the tags for a container are complete.
+// TODO: Completeness works by checking that all expected collectors have
+// reported tags for the container and its parent entity (Kubernetes pod, ECS
+// task). However, it does not account for collectors themselves reporting
+// partial data. This has been observed as with the ECS collector, where some
+// fields like "ecs_service" can be missing on the first pull. This happens
+// rarely. This is probably something that needs to be fixed in the collector
+// itself.
+func (l *ContainerListener) areTagsComplete(entity workloadmeta.Entity) bool {
+	container, ok := entity.(*workloadmeta.Container)
+	if !ok {
+		log.Errorf("expected Container entity, got %T", entity)
+		return true
+	}
+
+	containerTaggerID := types.NewEntityID(types.ContainerID, container.ID)
+	_, complete, err := l.tagger.TagWithCompleteness(containerTaggerID, types.ChecksConfigCardinality)
+	if err != nil {
+		log.Debugf("error checking tag completeness for container %s: %s", container.ID, err)
+		return false
+	}
+
+	return complete
 }
