@@ -73,7 +73,7 @@ func (s *packageDDOTSuite) RunInstallScript(params ...string) {
 
 func (s *packageDDOTSuite) TestInstallDDOTInstallScript() {
 	// Install agent and DDOT together via environment variable
-	s.RunInstallScript("DD_REMOTE_UPDATES=true", "DD_OTELCOLLECTOR_ENABLED=true", envForceInstall("datadog-agent"))
+	s.RunInstallScript("DD_OTELCOLLECTOR_ENABLED=true")
 	defer s.Purge()
 
 	// Verify agent is installed
@@ -96,7 +96,7 @@ func (s *packageDDOTSuite) TestInstallDDOTInstallScript() {
 
 func (s *packageDDOTSuite) TestInstallDDOTInstaller() {
 	// Install datadog-agent (base infrastructure)
-	s.RunInstallScript("DD_REMOTE_UPDATES=true", envForceInstall("datadog-agent"))
+	s.RunInstallScript()
 	defer s.Purge()
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
 	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit)
