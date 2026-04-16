@@ -14,6 +14,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/sketches-go/ddsketch"
 
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
@@ -23,6 +24,7 @@ type httpEncoder struct {
 	httpAggregationsBuilder *model.HTTPAggregationsBuilder
 	byConnection            *USMConnectionIndex[http.Key, *http.RequestStats]
 	sketchBuilder           *ddsketch.DDSketchCollectionBuilder
+	discoveryMode           bool
 }
 
 func newHTTPEncoder(httpPayloads map[http.Key]*http.RequestStats) *httpEncoder {
@@ -33,6 +35,7 @@ func newHTTPEncoder(httpPayloads map[http.Key]*http.RequestStats) *httpEncoder {
 	return &httpEncoder{
 		httpAggregationsBuilder: model.NewHTTPAggregationsBuilder(nil),
 		sketchBuilder:           ddsketch.NewDDSketchCollectionBuilder(nil),
+		discoveryMode:           pkgconfigsetup.SystemProbe().GetBool("discovery.service_map.enabled"),
 		byConnection: GroupByConnection("http", httpPayloads, func(key http.Key) types.ConnectionKey {
 			return key.ConnectionKey
 		}),
@@ -65,22 +68,30 @@ func (e *httpEncoder) encodeData(c network.ConnectionStats, w io.Writer) (uint64
 			key := kvPair.Key
 			stats := kvPair.Value
 
-			httpStatsBuilder.SetPath(key.Path.Content.Get())
-			httpStatsBuilder.SetFullPath(key.Path.FullPath)
-			httpStatsBuilder.SetMethod(uint64(model.HTTPMethod(key.Method)))
+			// In discovery mode, skip path, fullPath, and method serialization.
+			// These are empty/zero in the key and not needed for service map topology.
+			if !e.discoveryMode {
+				httpStatsBuilder.SetPath(key.Path.Content.Get())
+				httpStatsBuilder.SetFullPath(key.Path.FullPath)
+				httpStatsBuilder.SetMethod(uint64(model.HTTPMethod(key.Method)))
+			}
 
 			for code, stats := range stats.Data {
 				httpStatsBuilder.AddStatsByStatusCode(func(w *model.HTTPStats_StatsByStatusCodeEntryBuilder) {
 					w.SetKey(int32(code))
 					w.SetValue(func(w *model.HTTPStats_DataBuilder) {
 						w.SetCount(uint32(stats.Count))
-						if latencies := stats.Latencies; latencies != nil {
-							w.SetLatencies(func(b *bytes.Buffer) {
-								e.sketchBuilder.Reset(b)
-								e.sketchBuilder.AddSketch(latencies)
-							})
-						} else {
-							w.SetFirstLatencySample(stats.FirstLatencySample)
+						// In discovery mode, skip latency serialization entirely —
+						// no DDSketch, no FirstLatencySample.
+						if !e.discoveryMode {
+							if latencies := stats.Latencies; latencies != nil {
+								w.SetLatencies(func(b *bytes.Buffer) {
+									e.sketchBuilder.Reset(b)
+									e.sketchBuilder.AddSketch(latencies)
+								})
+							} else {
+								w.SetFirstLatencySample(stats.FirstLatencySample)
+							}
 						}
 					})
 				})

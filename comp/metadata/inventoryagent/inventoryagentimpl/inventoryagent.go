@@ -334,6 +334,7 @@ func (ia *inventoryagent) fetchSystemProbeMetadata() {
 	// Discovery module / system-probe
 
 	ia.data["feature_discovery_enabled"] = sysProbeConf.GetBool("discovery.enabled")
+	ia.data["feature_discovery_service_map_enabled"] = sysProbeConf.GetBool("discovery.service_map.enabled")
 
 	// GPU monitoring / system-probe
 
