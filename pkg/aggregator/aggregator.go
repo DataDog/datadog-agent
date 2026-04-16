@@ -165,6 +165,9 @@ var (
 	tlmDogstatsdFilteredMetrics = telemetry.NewSimpleCounter("aggregator", "dogstatsd_filtered_metrics", "How many metrics were filtered in the time samplers")
 	tlmChecksFilteredMetrics    = telemetry.NewSimpleCounter("aggregator", "checks_filtered_metrics", "How many metrics were filtered in the check samplers")
 	tlmFilteredTags             = telemetry.NewSimpleCounter("aggregator", "filtered_tags", "How many tags were filtered from a metric sample")
+	tlmFilteredTagsCacheHit     = telemetry.NewSimpleCounter("aggregator", "filtered_tags_cache_hit", "How many times we hit the cache on filtering tags")
+	tlmFilteredTagsCacheMiss    = telemetry.NewSimpleCounter("aggregator", "filtered_tags_cache_miss", "How many times we missed the cache on filtering tags")
+	tlmFilteredTagsCacheEvict   = telemetry.NewSimpleCounter("aggregator", "filtered_tags_cache_evict", "How many times an entry was evicted from the tag filter cache")
 	tlmChecksContexts           = telemetry.NewGauge("aggregator", "checks_contexts",
 		[]string{"shard"}, "Count the number of checks contexts in the check aggregator")
 	tlmChecksContextsByMtype = telemetry.NewGauge("aggregator", "checks_contexts_by_mtype",
@@ -799,7 +802,7 @@ func (agg *BufferedAggregator) run() {
 		case matcher := <-agg.filterListChan:
 			agg.flushFilterList = matcher
 		case matcher := <-agg.tagFilterListChan:
-			agg.tagFilterList = matcher
+			agg.setFilterList(matcher)
 		case <-agg.health.C:
 		case checkItem := <-agg.checkItems:
 			checkItem.handle(agg)
@@ -860,6 +863,15 @@ func (agg *BufferedAggregator) run() {
 			tlmFlush.Add(1, event.eventType, state)
 		}
 	}
+}
+
+// Set a new filterlist, ensuring we also clear the context resolver strip cache
+// for each check sampler.
+func (agg *BufferedAggregator) setFilterList(matcher filterlist.TagMatcher) {
+	for _, cs := range agg.checkSamplers {
+		cs.clearStripCache()
+	}
+	agg.tagFilterList = matcher
 }
 
 // tags returns the list of tags that should be added to the agent telemetry metrics
