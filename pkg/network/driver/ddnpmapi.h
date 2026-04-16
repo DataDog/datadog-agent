@@ -307,8 +307,8 @@ typedef struct _userFlowData {
     } protocol_u;
 
     uint16_t tls_cipher_suite;
+    uint16_t        pad_tls_cipher_suite;
     uint32_t        interfaceIndex;
-    uint16_t        pad_interfaceIndex;
 } USER_FLOW_DATA;
 
 #define CLASSIFICATION_UNCLASSIFIED                 (0)
