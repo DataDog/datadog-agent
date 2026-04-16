@@ -92,7 +92,6 @@ go_test(
     embed = [":hostinfo"],
     env_inherit = ["PATH"],  # test invokes system utilities (e.g. ioreg on macOS) requiring the host PATH
     gotags = ["test"],
-    tags = ["local"],
     deps = select({
         "@rules_go//go/platform:aix": [
             "//pkg/util/cache",

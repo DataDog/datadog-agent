@@ -1,0 +1,31 @@
+[
+  {
+    "service": "simple",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.intArrayArg",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "probe": {
+          "id": "indexErr_array_oob_template",
+          "location": {
+            "method": "main.intArrayArg"
+          }
+        }
+      },
+      "type": "snapshot"
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "message": "s[3]: {error: index 3 out of bounds for array of length 3}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  }
+]
