@@ -536,6 +536,66 @@ func TestProcessTagInfo_IsComplete(t *testing.T) {
 	}
 }
 
+func TestProcessTagInfo_CompletenessDelay(t *testing.T) {
+	entityID := types.NewEntityID(types.ContainerID, "test")
+	prefix := string(types.ContainerID)
+
+	t.Run("entity arrives already complete emits 0 delay", func(t *testing.T) {
+		telemetryComponent := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+		telemetryStore := taggerTelemetry.NewStore(telemetryComponent)
+		tagStore := NewTagStore(telemetryStore)
+
+		tagStore.ProcessTagInfo([]*types.TagInfo{
+			{
+				Source:      "source",
+				EntityID:    entityID,
+				LowCardTags: []string{"low"},
+				IsComplete:  true,
+			},
+		})
+
+		hist := telemetryStore.TagCompletenessDelay.WithValues(prefix).Get()
+		assert.Equal(t, uint64(1), hist.Count)
+		assert.Equal(t, 0.0, hist.Sum)
+	})
+
+	t.Run("entity arrives incomplete then becomes complete emits delay", func(t *testing.T) {
+		telemetryComponent := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+		telemetryStore := taggerTelemetry.NewStore(telemetryComponent)
+		clk := clock.NewMock()
+		clk.Add(time.Since(time.Unix(0, 0)))
+		tagStore := newTagStoreWithClock(clk, telemetryStore)
+
+		tagStore.ProcessTagInfo([]*types.TagInfo{
+			{
+				Source:      "source",
+				EntityID:    entityID,
+				LowCardTags: []string{"low"},
+				IsComplete:  false,
+			},
+		})
+
+		// No observation yet because entity is incomplete
+		hist := telemetryStore.TagCompletenessDelay.WithValues(prefix).Get()
+		assert.Equal(t, uint64(0), hist.Count)
+
+		clk.Add(3 * time.Second)
+
+		tagStore.ProcessTagInfo([]*types.TagInfo{
+			{
+				Source:      "source",
+				EntityID:    entityID,
+				LowCardTags: []string{"low", "extra"},
+				IsComplete:  true,
+			},
+		})
+
+		hist = telemetryStore.TagCompletenessDelay.WithValues(prefix).Get()
+		assert.Equal(t, uint64(1), hist.Count)
+		assert.Equal(t, 3.0, hist.Sum)
+	})
+}
+
 func TestSubscribe(t *testing.T) {
 	tel := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
 	telemetryStore := taggerTelemetry.NewStore(tel)

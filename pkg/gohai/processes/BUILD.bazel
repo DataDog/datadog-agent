@@ -4,6 +4,7 @@ go_library(
     name = "processes",
     srcs = [
         "processes.go",
+        "processes_aix.go",
         "processes_nix.go",
         "processes_windows.go",
     ],
