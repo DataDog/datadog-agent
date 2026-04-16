@@ -1,14 +1,14 @@
 # Go SwissTable Maps: Layout, Hashing, and Lookup
 
 This document describes the internal representation of Go's swisstable-based
-maps (introduced in Go 1.24, replacing hmaps) and how dynamic instrumentation
-performs O(1) key lookups from eBPF. Understanding this is essential for the
-map index expression feature.
+maps (Go 1.24+) and how dynamic instrumentation performs O(1) key lookups from
+eBPF. Binaries built with Go < 1.24 use the old hmap layout; map index
+expressions are not supported on those and return a compile-time error.
 
 ## Overview
 
-Go maps since 1.24 use a [SwissTable](https://abseil.io/about/design/swisstables)
-design. The key ideas are:
+Go maps use a [SwissTable](https://abseil.io/about/design/swisstables) design.
+The key ideas are:
 
 1. **Control bytes** enable 8-way parallel slot matching within a group using
    only bitwise operations.
@@ -157,18 +157,15 @@ H2 = hash & 0x7F   // lower 7 bits: stored in control byte for fast matching
 
 ### Hash Function Dispatch
 
-The compiler selects a hash function for each map key type at compile time,
-stored as the `Hasher` function pointer in `abi.SwissMapType`. The selection
-is based on `AlgType(keyType)`:
+The runtime selects a hash function based on key size:
 
-| Key type | AlgType | Runtime hasher | Dispatch |
-|----------|---------|----------------|----------|
-| bool (1B) | AMEM8 | `memhash8` | → `memhash(p, seed, 1)` |
-| int8/uint8 (1B) | AMEM8 | `memhash8` | → `memhash(p, seed, 1)` |
-| int16/uint16 (2B) | AMEM16 | `memhash16` | → `memhash(p, seed, 2)` |
-| int32/uint32 (4B) | AMEM32 | `memhash32` | **specialized** (not through memhash) |
-| int64/uint64/uintptr (8B) | AMEM64 | `memhash64` | **specialized** (not through memhash) |
-| string | ASTRING | `strhash` | → `memhash(str.ptr, seed, str.len)` |
+| Key type | Runtime hasher |
+|----------|----------------|
+| bool, int8, uint8 (1B) | `memhash(p, seed, 1)` |
+| int16, uint16 (2B) | `memhash(p, seed, 2)` |
+| int32, uint32 (4B) | `memhash32` (specialized, not through memhash) |
+| int64, uint64, uintptr (8B) | `memhash64` (specialized, not through memhash) |
+| string | `strhash` → `memhash(str.ptr, seed, str.len)` |
 
 This matters because `memhash32` and `memhash64` have their own AES code paths
 that differ from the general `memhash`. The 1-byte and 2-byte types delegate
@@ -176,66 +173,33 @@ to the general `memhash` which has a different AES seed preparation sequence.
 
 ### Algorithm Selection: AES vs Wyhash
 
-At process startup, `runtime.alginit()` checks for hardware AES support:
+At process startup, `runtime.alginit()` checks for hardware AES support. If
+present, it sets `useAeshash = true` and fills `aeskeysched` with random round
+keys. Otherwise the runtime falls back to a wyhash-based algorithm.
 
-```go
-func alginit() {
-    if (GOARCH == "amd64") &&
-        cpu.X86.HasAES &&    // AESENC instruction
-        cpu.X86.HasSSSE3 &&  // PSHUFB instruction
-        cpu.X86.HasSSE41 {   // PINSRD/PINSRQ instructions
-        initAlgAES()         // sets useAeshash = true, fills aeskeysched
-        return
-    }
-    if GOARCH == "arm64" && cpu.ARM64.HasAES {
-        initAlgAES()
-        return
-    }
-    // Fallback: initialize wyhash keys
-    for i := range hashkey {
-        hashkey[i] = uintptr(bootstrapRand())
-    }
-}
-```
+Virtually all amd64 CPUs manufactured since ~2010 have AES-NI, and AES is part
+of the ARMv8 base profile on arm64. The wyhash fallback is effectively limited
+to pre-2010 hardware, VMs that disable AES-NI, and non-amd64/arm64
+architectures.
 
-**When AES is used**: Virtually all amd64 CPUs manufactured since ~2010 have
-AES-NI (Intel Westmere, AMD Bulldozer onwards). The only amd64 systems without
-it are very old hardware or VMs that explicitly disable AES-NI. For arm64, AES
-is part of the ARMv8 base profile and present on all modern ARM64 chips.
+**We only implement the AES hash path.** The wyhash fallback is not implemented
+in BPF because we have no practical way to test it — we cannot find or provision
+hardware that lacks AES support. If a traced process is running on a non-AES
+system (`runtime.useAeshash == false`), map index expressions report
+`ExprStatusOOB` so the user sees a clean "unavailable" rather than a wrong hash.
 
-**When wyhash is used**: Systems where `useAeshash` remains `false`:
-- amd64 without AES-NI, SSSE3, or SSE4.1 (pre-2010 hardware or restricted VMs)
-- arm64 without ARM crypto extensions (very rare)
-- 32-bit architectures (386, arm) — always use wyhash since `hash64.go` is
-  only built for 64-bit targets
-- Other architectures (mips64, ppc64, riscv64, wasm, etc.)
+### Per-Process AES Round Keys
 
-**How we detect which to use**: The `runtime.useAeshash` global variable is a
-bool at a fixed address visible in DWARF. We read it from the traced process
-at BPF program load time. Both hash implementations exist in our BPF code; a
-branch on the `swiss_map_hash_kind` volatile const (set by the loader)
-selects the correct path.
+The AES hash requires per-process random round keys initialized at startup.
+These are the same for all maps in the process — only the per-map `seed`
+(in `Map.seed`) differs between maps.
 
-### Per-Process Hash Secrets
-
-Both algorithms require per-process random secrets initialized at startup.
-These secrets are the same for all maps in the process — only the per-map
-`seed` (in `Map.seed`) differs between maps.
-
-**AES secret** — `runtime.aeskeysched`:
+`runtime.aeskeysched`:
 - Type: `uint8[128]` (128 bytes)
 - Filled from `/dev/urandom` via `bootstrapRand()` at startup
 - Used as round keys in AESENC operations
 - We need bytes 0–47 for memhash32/memhash64, and bytes 0–111 for memhash
   with multi-lane hashing of strings up to 128 bytes
-
-**Wyhash secret** — `runtime.hashkey`:
-- Type: `uintptr[4]` (32 bytes on 64-bit)
-- Each element filled from `bootstrapRand()` at startup
-- Used as XOR/mixing constants:
-  - `hashkey[0]`: initial seed scramble
-  - `hashkey[1]`: mixed with key data in every hash variant
-  - `hashkey[2]`, `hashkey[3]`: used only for long keys (>48 bytes)
 
 ### AES-based Hash (amd64 with AES-NI)
 
@@ -314,98 +278,9 @@ implement all length tiers:
 - `strhash` AES path for strings 65–128B: 8-lane, using `aeskeysched[0:112]`
 - `strhash` AES path for strings 129–512B: 8-lane with block loop
 
-### Wyhash Fallback
-
-When `useAeshash == false`, Go uses a wyhash-inspired algorithm
-(`runtime/hash64.go`). The core primitive is:
-
-```
-const m5 = 0x1d8e4e27c47d124f
-
-func mix(a, b uint64) uint64 {
-    hi, lo = bits.Mul64(a, b)   // full 128-bit multiply
-    return hi ^ lo
-}
-```
-
-The `mix` operation requires 128-bit multiplication. In BPF, this can be done
-with `__uint128_t` (supported by clang for BPF targets) or decomposed into
-four 64-bit multiplies with carry propagation.
-
-**`memhash32Fallback`** (4-byte keys):
-
-```
-a = uint64(readUnaligned32(p))
-return mix(m5 ^ 4, mix(a ^ hashkey[1], a ^ seed ^ hashkey[0]))
-```
-
-Two nested `mix` calls = two 128-bit multiplies.
-
-**`memhash64Fallback`** (8-byte keys):
-
-```
-a = readUnaligned64(p)
-return mix(m5 ^ 8, mix(a ^ hashkey[1], a ^ seed ^ hashkey[0]))
-```
-
-Same structure as memhash32 but with the full 8 bytes of data.
-
-**`memhashFallback`** (general, for 1-byte, 2-byte keys and strings):
-
-```
-seed ^= hashkey[0]
-switch {
-case len == 0:
-    return seed
-case len < 4:
-    a = uint64(data[0]) | uint64(data[len>>1])<<8 | uint64(data[len-1])<<16
-    b = 0  // (falls through to final mix)
-case len == 4:
-    a = uint64(readUnaligned32(data))
-    b = a
-case len < 8:
-    a = uint64(readUnaligned32(data))
-    b = uint64(readUnaligned32(data + len - 4))
-case len == 8:
-    a = readUnaligned64(data)
-    b = a
-case len <= 16:
-    a = readUnaligned64(data)
-    b = readUnaligned64(data + len - 8)
-default:
-    // Process 16-byte chunks (for strings > 16 bytes)
-    for len > 48:
-        seed  = mix(r8(p)    ^ hashkey[1], r8(p+8)  ^ seed)
-        seed1 = mix(r8(p+16) ^ hashkey[2], r8(p+24) ^ seed1)
-        seed2 = mix(r8(p+32) ^ hashkey[3], r8(p+40) ^ seed2)
-        p += 48; len -= 48
-    seed ^= seed1 ^ seed2
-    for len > 16:
-        seed = mix(r8(p) ^ hashkey[1], r8(p+8) ^ seed)
-        p += 16; len -= 16
-    a = r8(p + len - 16)
-    b = r8(p + len - 8)
-}
-return mix(m5 ^ uint64(originalLen), mix(a ^ hashkey[1], b ^ seed))
-```
-
-**`strhashFallback`** (string keys): Extracts `(ptr, len)` from the Go string
-header, then calls `memhashFallback(ptr, seed, len)`.
-
-For our use case:
-- 1-byte keys (bool, int8, uint8): `memhashFallback` with `len < 4` path
-- 2-byte keys (int16, uint16): `memhashFallback` with `len < 4` path
-- 4-byte keys (int32, uint32): `memhash32Fallback` (specialized)
-- 8-byte keys (int64, uint64, uintptr): `memhash64Fallback` (specialized)
-- Strings ≤ 8 bytes: `strhashFallback` → `memhashFallback` with appropriate branch
-- Strings 9–16 bytes: `memhashFallback` `len <= 16` path
-- Strings 17–48 bytes: `memhashFallback` loop with `hashkey[1]` mixing
-- Strings 49–255 bytes: `memhashFallback` triple-mixing loop with
-  `hashkey[1..3]`
-
 ### Memoization of Hash Secrets in BPF
 
-The hash secrets (`aeskeysched`, `hashkey`) and algorithm selector (`useAeshash`)
+The AES round keys (`aeskeysched`) and algorithm selector (`useAeshash`)
 are per-process constants that never change after `runtime.alginit()`. Rather
 than reading them from userspace on every map lookup (which would add 128+ bytes
 of `bpf_probe_read_user` per invocation), we memoize them in BPF global variables
@@ -413,21 +288,20 @@ on first use.
 
 ```c
 static uint64_t g_swiss_hash_flags = 0;  // bit 0 = initialized, bit 1 = use_aes
-static uint64_t g_swiss_hashkey[4] = {};
 static uint8_t g_swiss_aeskeysched[128] = {};
 ```
 
 The first map index lookup calls `swiss_hash_ensure_initialized()` which reads
-from the traced process via `bpf_probe_read_user` and sets the flag. All
-subsequent lookups (in the same BPF program lifetime) use the cached values
-with zero additional userspace reads.
+`useAeshash` and `aeskeysched` from the traced process via `bpf_probe_read_user`
+and sets the initialized flag. All subsequent lookups (in the same BPF program
+lifetime) use the cached values with zero additional userspace reads.
 
 This also avoids the BPF 512-byte stack limit — storing 128 bytes of
 `aeskeysched` on the stack would consume a quarter of the budget.
 
 ### DWARF Visibility of Hash Secrets
 
-The hash secrets are visible as DWARF global variables:
+The hash configuration is visible as DWARF global variables:
 
 ```
 DW_TAG_variable
@@ -439,17 +313,12 @@ DW_TAG_variable
     DW_AT_name      "runtime.aeskeysched"
     DW_AT_location  DW_OP_addr <addr>
     DW_AT_type      "uint8[128]"
-
-DW_TAG_variable
-    DW_AT_name      "runtime.hashkey"
-    DW_AT_location  DW_OP_addr <addr>
-    DW_AT_type      "uintptr[4]"
 ```
 
 These addresses are extracted during DWARF processing (same pass as
 `runtime.firstmoduledata`) and stored in `ir.GoMapHashInfo`. At BPF program
-load time, the loader reads the actual secret bytes from the traced process and
-populates a BPF map for the hash functions to use.
+load time, the loader reads the actual values from the traced process to
+determine whether AES is available and to cache the round keys.
 
 ## Lookup Algorithm
 
@@ -614,7 +483,7 @@ interpreter drives via PC replay. No nested `bpf_loop` is used:
 ```
 [SM_OP_SWISS_MAP_SETUP]       reads bytecode params, copies key data, inits hash secrets
 [SM_OP_SWISS_MAP_AESENC]      one AESENC round on hash_scratch.state; replays via PC
-[SM_OP_SWISS_MAP_HASH_FINISH] AES phase transitions, wyhash, hash finalization
+[SM_OP_SWISS_MAP_HASH_FINISH] AES phase transitions and hash finalization
 [SM_OP_SWISS_MAP_PROBE]       reads ctrl word, computes H2/empty bitsets
 [SM_OP_SWISS_MAP_CHECK_SLOT]  checks one H2-matching slot against the literal key
 ```
@@ -694,8 +563,8 @@ The irgen phase extracts all structural information needed for map lookup:
 4. **Key and value types**: extracted from the group's slot struct. The key
    type determines the hash function variant and comparison method.
 
-5. **Hash secret addresses**: `runtime.useAeshash`, `runtime.aeskeysched`,
-   `runtime.hashkey` — global variable addresses from DWARF, stored in
+5. **Hash configuration addresses**: `runtime.useAeshash` and
+   `runtime.aeskeysched` — global variable addresses from DWARF, stored in
    `ir.GoMapHashInfo`.
 
 ### What the BPF Program Receives
@@ -709,9 +578,8 @@ The compiled stack machine bytecode for a `SwissMapLookupOp` encodes:
 
 At BPF program load time, the loader additionally provides:
 
-- `swiss_map_hash_kind`: 0 = wyhash, 1 = AES (from `runtime.useAeshash`)
-- Hash secret bytes in a BPF array map (from `runtime.aeskeysched` or
-  `runtime.hashkey`)
+- `use_aes` flag (from `runtime.useAeshash`; if false, lookups report OOB)
+- AES round keys in a BPF global (from `runtime.aeskeysched`)
 
 At probe fire time, the BPF code reads the per-map `seed` from the map header
 in the traced process's memory, computes the hash, and performs the lookup.
@@ -734,6 +602,7 @@ make them unsuitable for literal lookup.
 
 - **Nil map**: `dirPtr` is 0 → `ExprStatusOOB` (map is nil/empty).
 - **Key not found**: probe sequence exhausted → `ExprStatusOOB`.
+- **No AES hardware**: `runtime.useAeshash` is false → `ExprStatusOOB`.
 - **Read failure**: `bpf_probe_read_user` fails (process exited, address
   unmapped) → expression evaluation aborts silently.
 - **Old-style hmap**: irgen rejects with a compile-time error ("index not
@@ -744,7 +613,6 @@ make them unsuitable for literal lookup.
 - [SwissTable design (Abseil)](https://abseil.io/about/design/swisstables)
 - Go source: `internal/runtime/maps/map.go`, `table.go`, `group.go`
 - Go source: `runtime/alg.go` (hash function dispatch)
-- Go source: `runtime/hash64.go` (wyhash fallback)
 - Go source: `runtime/asm_amd64.s` lines 1205–1565 (AES hash implementation)
 - [FIPS 197 — AES specification](https://csrc.nist.gov/pubs/fips/197/final)
   (SubBytes, ShiftRows, MixColumns, AddRoundKey definitions)

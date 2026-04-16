@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.indexMemberWrapperArg",
+      "method": "main.mapIndexNilPtrVal",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -16,14 +16,14 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.indexMemberWrapperArg",
+            "function": "main.mapIndexNilPtrVal",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 706
+            "lineNumber": 849
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 199
+            "lineNumber": 246
           },
           {
             "function": "runtime.main",
@@ -37,22 +37,18 @@
           }
         ],
         "probe": {
-          "id": "indexMember_wrapper_arr_capture_1",
+          "id": "mapIndex_nilPtrVal_capture",
           "location": {
-            "method": "main.indexMemberWrapperArg"
-          }
-        },
-        "captures": {
-          "entry": {
-            "captureExpressions": {
-              "arr1_Txt": {
-                "type": "string",
-                "value": "tenth"
-              }
-            }
+            "method": "main.mapIndexNilPtrVal"
           }
         }
-      }
+      },
+      "evaluationErrors": [
+        {
+          "expr": "nil_field",
+          "message": "nil pointer dereference"
+        }
+      ]
     },
     "timestamp": "[ts]",
     "duration": "[duration]",

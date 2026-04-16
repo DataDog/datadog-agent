@@ -18,7 +18,7 @@
           {
             "function": "main.condUint8",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 381
+            "lineNumber": 402
           },
           {
             "function": "main.main",
@@ -82,7 +82,7 @@
           {
             "function": "main.condUint8",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 381
+            "lineNumber": 402
           },
           {
             "function": "main.main",

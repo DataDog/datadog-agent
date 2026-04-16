@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.indexMemberWrapperArg",
+      "method": "main.mapIndexKeyLen16",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -16,14 +16,14 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.indexMemberWrapperArg",
+            "function": "main.mapIndexKeyLen16",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 706
+            "lineNumber": 820
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 199
+            "lineNumber": 236
           },
           {
             "function": "runtime.main",
@@ -37,17 +37,17 @@
           }
         ],
         "probe": {
-          "id": "indexMember_wrapper_arr_capture_1",
+          "id": "mapIndex_keyLen16",
           "location": {
-            "method": "main.indexMemberWrapperArg"
+            "method": "main.mapIndexKeyLen16"
           }
         },
         "captures": {
           "entry": {
             "captureExpressions": {
-              "arr1_Txt": {
-                "type": "string",
-                "value": "tenth"
+              "val": {
+                "type": "int",
+                "value": "294"
               }
             }
           }

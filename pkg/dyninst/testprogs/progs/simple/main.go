@@ -232,6 +232,27 @@ func main() {
 	})
 	mapIndexEmptyKey(map[string]int{"": 999, "notempty": 0})
 
+	// Boundary key-length tests: exercise both sides of the <=16 AES hash tier.
+	mapIndexKeyLen16(makeLargeMapWithKeyLen(16, 1000)) // last key in 1-16 byte tier
+	mapIndexKeyLen17(makeLargeMapWithKeyLen(17, 1000)) // first key in 17-32 byte tier
+
+	// Bool key test.
+	mapIndexBoolKey(map[bool]int{true: 42, false: 99})
+
+	// Zero-value key: key exists but maps to the zero value.
+	mapIndexZeroValue(map[string]int{"zero": 0, "one": 1})
+
+	// Nil pointer value: key exists but value is nil pointer.
+	mapIndexNilPtrVal(map[string]*indexMemberStruct{
+		"nil_key": nil,
+		"ok":      {Val: 1, Txt: "ok"},
+	})
+
+	// Large value struct: field past byte offset 255, exercises uint16 ValInSlotOffset.
+	mapIndexLargeValue(map[string]largeValueStruct{
+		"k": {Val: 12345},
+	})
+
 	// Generic function called with two different shape instantiations.
 	// int and string have different GC shapes, so the compiler emits two
 	// distinct shape functions (go.shape.int, go.shape.string). A single
@@ -631,6 +652,13 @@ type indexMemberStruct struct {
 	pad [3]int16
 }
 
+// largeValueStruct has a field past byte offset 255, exercising uint16
+// ValInSlotOffset when used as a map value type.
+type largeValueStruct struct {
+	Pad [256]byte
+	Val int // offset 256
+}
+
 // indexMemberWrapper holds pointer-to-array fields for testing deep
 // dereference chains: ptr → array → struct and ptr → array → ptr → struct.
 type indexMemberWrapper struct {
@@ -782,6 +810,50 @@ func mapIndexPtrStructVal(m map[string]*indexMemberStruct) {
 //go:noinline
 func mapIndexEmptyKey(m map[string]int) {
 	fmt.Println(m[""])
+}
+
+// mapIndexKeyLen16 tests the boundary of the 1-16 byte AES hash tier.
+//
+//go:noinline
+func mapIndexKeyLen16(m map[string]int) {
+	fmt.Println(len(m))
+}
+
+// mapIndexKeyLen17 tests the first key in the 17-32 byte AES hash tier.
+//
+//go:noinline
+func mapIndexKeyLen17(m map[string]int) {
+	fmt.Println(len(m))
+}
+
+// mapIndexBoolKey tests map index with bool keys.
+//
+//go:noinline
+func mapIndexBoolKey(m map[bool]int) {
+	fmt.Println(m)
+}
+
+// mapIndexZeroValue tests a key that exists but maps to the zero value.
+//
+//go:noinline
+func mapIndexZeroValue(m map[string]int) {
+	fmt.Println(m)
+}
+
+// mapIndexNilPtrVal tests a key that maps to a nil pointer. Accessing a
+// field through the nil pointer should produce ExprStatusNilDeref.
+//
+//go:noinline
+func mapIndexNilPtrVal(m map[string]*indexMemberStruct) {
+	fmt.Println(m)
+}
+
+// mapIndexLargeValue tests a map with a large value struct where the target
+// field sits past byte offset 255, exercising uint16 ValInSlotOffset.
+//
+//go:noinline
+func mapIndexLargeValue(m map[string]largeValueStruct) {
+	fmt.Println(m["k"].Val)
 }
 
 // genericIdentity is a generic function called with different shape types

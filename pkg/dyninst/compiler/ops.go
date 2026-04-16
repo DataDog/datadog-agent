@@ -244,14 +244,15 @@ type SwissMapSetupOp struct {
 	SlotsOffset     uint8
 	SlotSize        uint16
 	KeyInSlotOffset uint8
-	ValInSlotOffset uint8
+	ValInSlotOffset uint16
 
 	TableGroupsFieldOffset   uint8
 	GroupsDataFieldOffset    uint8
 	GroupsLenMaskFieldOffset uint8
 	GroupByteSize            uint16
 
-	ExprStatusIdx uint32
+	HeaderByteSize uint32
+	ExprStatusIdx  uint32
 }
 
 // SwissMapAesencOp performs one AESENC round; replays via PC for remaining rounds.

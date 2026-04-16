@@ -743,7 +743,7 @@ probes:
     methodName: main.condLine
     sourceFile: main.go
     lines:
-      - "473"
+      - "494"
   when:
     dsl: "n == 7"
     json: {eq: [{ref: "n"}, 7]}
@@ -768,7 +768,7 @@ probes:
     methodName: main.condLine
     sourceFile: main.go
     lines:
-      - "473"
+      - "494"
   sampling:
     snapshotsPerSecond: 10
 
@@ -2479,5 +2479,131 @@ probes:
       expr:
         dsl: "m[\"\"]"
         json: {index: [{ref: "m"}, ""]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- Boundary key-length tests ---
+# Key length 16: last key in the 1-16 byte AES hash tier.
+# makeKey(16, 42) = "000000000000002a"
+- id: mapIndex_keyLen16
+  tags:
+    - "skip_integration:arch=amd64,toolchain=go1.23.11"
+    - "skip_integration:arch=arm64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.mapIndexKeyLen16
+  captureExpressions:
+    - name: "val"
+      expr:
+        dsl: "m[\"000000000000002a\"]"
+        json: {index: [{ref: "m"}, "000000000000002a"]}
+  sampling:
+    snapshotsPerSecond: 5000
+
+# Key length 17: first key in the 17-32 byte AES hash tier.
+# makeKey(17, 42) = "0000000000000002a"
+- id: mapIndex_keyLen17
+  tags:
+    - "skip_integration:arch=amd64,toolchain=go1.23.11"
+    - "skip_integration:arch=arm64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.mapIndexKeyLen17
+  captureExpressions:
+    - name: "val"
+      expr:
+        dsl: "m[\"0000000000000002a\"]"
+        json: {index: [{ref: "m"}, "0000000000000002a"]}
+  sampling:
+    snapshotsPerSecond: 5000
+
+# --- Bool key test ---
+- id: mapIndex_boolKey_true
+  tags:
+    - "skip_integration:arch=amd64,toolchain=go1.23.11"
+    - "skip_integration:arch=arm64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.mapIndexBoolKey
+  captureExpressions:
+    - name: "true_val"
+      expr:
+        dsl: "m[true]"
+        json: {index: [{ref: "m"}, true]}
+  sampling:
+    snapshotsPerSecond: 10
+
+- id: mapIndex_boolKey_false
+  tags:
+    - "skip_integration:arch=amd64,toolchain=go1.23.11"
+    - "skip_integration:arch=arm64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.mapIndexBoolKey
+  captureExpressions:
+    - name: "false_val"
+      expr:
+        dsl: "m[false]"
+        json: {index: [{ref: "m"}, false]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- Zero-value key test ---
+# Key "zero" exists and maps to 0; should succeed (not OOB).
+- id: mapIndex_zeroValue_capture
+  tags:
+    - "skip_integration:arch=amd64,toolchain=go1.23.11"
+    - "skip_integration:arch=arm64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.mapIndexZeroValue
+  captureExpressions:
+    - name: "zero_val"
+      expr:
+        dsl: "m[\"zero\"]"
+        json: {index: [{ref: "m"}, "zero"]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- Nil pointer value test ---
+# Key "nil_key" maps to nil *indexMemberStruct. Accessing .Val should
+# produce ExprStatusNilDeref.
+- id: mapIndex_nilPtrVal_capture
+  tags:
+    - "skip_integration:arch=amd64,toolchain=go1.23.11"
+    - "skip_integration:arch=arm64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.mapIndexNilPtrVal
+  captureExpressions:
+    - name: "nil_field"
+      expr:
+        dsl: "m[\"nil_key\"].Val"
+        json: {getmember: [{index: [{ref: "m"}, "nil_key"]}, "Val"]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- Large value struct test ---
+# Value struct has a [256]byte Pad followed by Val int at offset 256.
+# Exercises uint16 ValInSlotOffset (would overflow uint8).
+- id: mapIndex_largeValue_capture
+  tags:
+    - "skip_integration:arch=amd64,toolchain=go1.23.11"
+    - "skip_integration:arch=arm64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.mapIndexLargeValue
+  captureExpressions:
+    - name: "k_Val"
+      expr:
+        dsl: "m[\"k\"].Val"
+        json: {getmember: [{index: [{ref: "m"}, "k"]}, "Val"]}
   sampling:
     snapshotsPerSecond: 10

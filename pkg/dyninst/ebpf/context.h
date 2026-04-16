@@ -146,7 +146,7 @@ typedef struct stack_machine {
     uint8_t ctrl_offset;
     uint8_t slots_offset;
     uint8_t key_in_slot_offset;
-    uint8_t val_in_slot_offset;
+    uint16_t val_in_slot_offset;
     uint8_t key_byte_size;
     uint8_t is_string_key;
 

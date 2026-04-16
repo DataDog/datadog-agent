@@ -18,7 +18,7 @@
           {
             "function": "main.mapIndexKeyLen8",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 734
+            "lineNumber": 762
           },
           {
             "function": "main.main",

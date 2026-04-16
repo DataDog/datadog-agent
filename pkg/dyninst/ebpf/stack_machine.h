@@ -911,11 +911,12 @@ sm_swiss_map_setup(scratch_buf_t* buf, stack_machine_t* sm) {
   ST.slots_offset = sm_read_program_uint8(sm);
   ST.slot_size = sm_read_program_uint16(sm);
   ST.key_in_slot_offset = sm_read_program_uint8(sm);
-  ST.val_in_slot_offset = sm_read_program_uint8(sm);
+  ST.val_in_slot_offset = sm_read_program_uint16(sm);
   uint8_t table_groups_field_offset = sm_read_program_uint8(sm);
   uint8_t groups_data_field_offset = sm_read_program_uint8(sm);
   uint8_t groups_len_mask_field_offset = sm_read_program_uint8(sm);
   ST.group_byte_size = sm_read_program_uint16(sm);
+  uint32_t header_byte_size = sm_read_program_uint32(sm);
   ST.expr_status_idx = sm_read_program_uint32(sm);
   uint16_t key_data_len = sm_read_program_uint16(sm);
 
@@ -925,9 +926,8 @@ sm_swiss_map_setup(scratch_buf_t* buf, stack_machine_t* sm) {
   barrier_var(key_data_len);
 
   // Key data goes after the map header in the scratch buffer. The header
-  // was written at sm->offset by EXPR_DEREFERENCE_PTR, which saved its
-  // byte_len to sm->buf_offset_1.
-  ST.key_data_off = sm->offset + sm->buf_offset_1;
+  // size is encoded in the bytecode (HeaderByteSize).
+  ST.key_data_off = sm->offset + header_byte_size;
   sm->pc += key_data_len;
   ST.key_data_len = key_data_len;
   ST.result_offset = sm->offset;
@@ -1100,8 +1100,6 @@ sm_swiss_map_hash_finish(scratch_buf_t* buf, stack_machine_t* sm) {
         return 2;
       }
     }
-    // For wyhash: state[0:8] has the hash. Fall through to finalize below.
-
   } else if (phase == SWISS_HASH_PHASE_SEED_SCRAMBLE_DONE) {
     // After 1-round seed scramble. Dispatch based on key length tier.
     uint32_t len = (uint32_t)sm->swiss_map_state.hash_key_len_full;

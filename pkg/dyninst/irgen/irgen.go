@@ -3946,15 +3946,16 @@ func validateSwissMapKeyLiteral(
 ) error {
 	switch keyType.(type) {
 	case *ir.BaseType:
-		// Base type keys accept integer literals (validated further during
-		// coerceLiteral in resolveSwissMapIndex).
+		// Base type keys accept integer, float, bool, and string literals
+		// (validated further during coerceLiteral in resolveSwissMapIndex).
 		switch litExpr.Value.(type) {
-		case int64, float64, string:
-			// int64 and float64 from JSON; string for hex/octal notation.
+		case int64, float64, bool, string:
+			// int64 and float64 from JSON; bool for true/false keys;
+			// string for hex/octal notation.
 			// coerceLiteral handles the full validation and range checking.
 		default:
 			return fmt.Errorf(
-				"map index: base type key requires integer literal, got %T",
+				"map index: base type key requires integer or bool literal, got %T",
 				litExpr.Value,
 			)
 		}
@@ -4218,7 +4219,7 @@ func resolveExpression(
 						op.Bias += field.Offset
 						op.ByteSize = field.Type.GetByteSize()
 					case *ir.SwissMapLookupOp:
-						op.ValInSlotOffset += uint8(field.Offset)
+						op.ValInSlotOffset += uint16(field.Offset)
 						op.ValByteSize = field.Type.GetByteSize()
 					default:
 						// Should not happen, but accumulate bias for safety.
@@ -4555,8 +4556,14 @@ func resolveSwissMapIndex(
 	}
 
 	// Navigate to table struct → groupsReference for data/lengthMask offsets.
-	tablePtrType := swissHeader.TablePtrSliceType.Element.(*ir.PointerType)
-	tableType := tc.typesByID[tablePtrType.Pointee.GetID()].(*ir.StructureType)
+	tablePtrType, ok := swissHeader.TablePtrSliceType.Element.(*ir.PointerType)
+	if !ok {
+		return ir.Expression{}, fmt.Errorf("table ptr slice element is not a pointer: %T", swissHeader.TablePtrSliceType.Element)
+	}
+	tableType, ok := tc.typesByID[tablePtrType.Pointee.GetID()].(*ir.StructureType)
+	if !ok {
+		return ir.Expression{}, fmt.Errorf("table pointee is not a struct: %T", tc.typesByID[tablePtrType.Pointee.GetID()])
+	}
 	groupsField, err := field(tc, tableType, "groups")
 	if err != nil {
 		return ir.Expression{}, fmt.Errorf("table type missing groups field: %w", err)
@@ -4616,13 +4623,15 @@ func resolveSwissMapIndex(
 		SlotsOffset:     uint8(slotsField.Offset),
 		SlotSize:        uint16(slotStruct.GetByteSize()),
 		KeyInSlotOffset: uint8(keyField.Offset),
-		ValInSlotOffset: uint8(elemField.Offset),
+		ValInSlotOffset: uint16(elemField.Offset),
 
 		TableGroupsFieldOffset:   uint8(groupsField.Offset),
 		GroupsDataFieldOffset:    uint8(dataField.Offset),
 		GroupsLenMaskFieldOffset: uint8(lengthMaskField.Offset),
 
 		GroupByteSize: uint16(swissHeader.GroupType.GetByteSize()),
+
+		HeaderByteSize: headerSize,
 	})
 
 	return ir.Expression{

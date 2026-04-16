@@ -156,7 +156,7 @@ type SwissMapLookupOp struct {
 	SlotsOffset     uint8
 	SlotSize        uint16 // size of one slot (key + elem with alignment)
 	KeyInSlotOffset uint8  // offset of key within slot
-	ValInSlotOffset uint8  // offset of elem within slot
+	ValInSlotOffset uint16 // offset of elem within slot
 
 	// Table struct → groupsReference field layout.
 	TableGroupsFieldOffset   uint8
@@ -165,6 +165,11 @@ type SwissMapLookupOp struct {
 
 	// GroupByteSize is the total byte size of one group (ctrl word + all slots).
 	GroupByteSize uint16
+
+	// HeaderByteSize is the byte size of the map header struct (written by the
+	// preceding DereferenceOp). Used to compute where key data starts in the
+	// scratch buffer, replacing the implicit buf_offset_1 coupling.
+	HeaderByteSize uint32
 }
 
 func (*SwissMapLookupOp) irOp() {}
