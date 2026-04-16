@@ -336,6 +336,24 @@ func (p *PodAutoscalerInternal) UpdateFromMainValues(mainScalingValues ScalingVa
 	p.mainScalingValuesVersion = version
 }
 
+// PartialUpdateFromMainValues updates the PodAutoscalerInternal from new partial main scaling values
+// This is currently aimed at handling merge between vertical from backend and horizontal from custom recommender.
+func (p *PodAutoscalerInternal) PartialUpdateFromMainValues(partialScalingValues ScalingValues, useHorizontal, useVertical bool, version uint64) {
+	if useHorizontal {
+		p.mainScalingValues.Horizontal = partialScalingValues.Horizontal
+		p.mainScalingValues.HorizontalError = partialScalingValues.HorizontalError
+	}
+
+	if useVertical {
+		p.mainScalingValues.Vertical = partialScalingValues.Vertical
+		p.mainScalingValues.VerticalError = partialScalingValues.VerticalError
+	}
+
+	if version > 0 {
+		p.mainScalingValuesVersion = version
+	}
+}
+
 // UpdateFromLocalValues updates the PodAutoscalerInternal from new local scaling values
 func (p *PodAutoscalerInternal) UpdateFromLocalValues(fallbackScalingValues ScalingValues) {
 	p.fallbackScalingValues = fallbackScalingValues
