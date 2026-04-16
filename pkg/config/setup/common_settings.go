@@ -361,6 +361,10 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.resources.limits.memory", "")
 	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.body_parsing_size_limit", "")
 
+	// ingress-nginx injection configuration
+	config.BindEnvAndSetDefault("admission_controller.appsec.nginx.init_image", "datadog/ingress-nginx-injection")
+	config.BindEnvAndSetDefault("admission_controller.appsec.nginx.module_mount_path", "/modules_mount")
+
 	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.enabled", false)
 	// list of kubernetes resources for which we collect metadata
 	// each resource is specified in the format `{group}/{version}/{resource}` or `{group}/{resource}`
