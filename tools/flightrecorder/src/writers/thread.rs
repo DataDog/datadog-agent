@@ -60,9 +60,10 @@ pub trait SignalWriter: Send + 'static {
     /// Decode a raw FlatBuffers frame and accumulate rows. May trigger a
     /// Parquet flush if thresholds are reached.
     ///
-    /// Takes ownership of the frame buffer so implementations can retain it
-    /// (e.g. arena-based zero-copy accumulation in the logs writer).
-    fn process_frame(&mut self, buf: Vec<u8>) -> Result<()>;
+    /// Takes ownership of the frame buffer. Returns a recycled buffer for
+    /// pool reuse (cleared, capacity preserved). If the writer retained
+    /// the buffer (e.g. arena), returns None.
+    fn process_frame(&mut self, buf: Vec<u8>) -> Result<Option<Vec<u8>>>;
 
     /// Flush any buffered rows and close the active Parquet file.
     fn flush_and_close(&mut self) -> Result<()>;
@@ -86,8 +87,8 @@ pub struct WriterHandle {
 }
 
 impl WriterHandle {
-    /// Spawn a new writer thread with the given ring capacity.
-    pub fn spawn<W: SignalWriter>(writer: W, capacity: usize, name: &str) -> Self {
+    /// Spawn a new writer thread with the given ring capacity and buffer pool.
+    pub fn spawn<W: SignalWriter>(writer: W, capacity: usize, name: &str, pool: crate::BufferPool) -> Self {
         let (producer, consumer) = rtrb::RingBuffer::new(capacity);
         let telemetry = Arc::new(WriterTelemetry::new());
         let shutdown = Arc::new(AtomicBool::new(false));
@@ -96,7 +97,7 @@ impl WriterHandle {
         let s = shutdown.clone();
         let join = std::thread::Builder::new()
             .name(format!("fr-{name}"))
-            .spawn(move || writer_thread_loop(writer, consumer, t, s))
+            .spawn(move || writer_thread_loop(writer, consumer, t, s, pool))
             .expect("failed to spawn writer thread");
         let thread_handle = join.thread().clone();
 
@@ -164,13 +165,16 @@ fn writer_thread_loop<W: SignalWriter>(
     mut consumer: rtrb::Consumer<Vec<u8>>,
     telemetry: Arc<WriterTelemetry>,
     shutdown: Arc<AtomicBool>,
+    pool: crate::BufferPool,
 ) {
     loop {
         // Drain all available frames without blocking.
         let mut processed = false;
         while let Ok(buf) = consumer.pop() {
-            if let Err(e) = writer.process_frame(buf) {
-                warn!("writer error: {e}");
+            match writer.process_frame(buf) {
+                Ok(Some(recycled)) => pool.put(recycled),
+                Ok(None) => {} // writer retained the buffer (arena)
+                Err(e) => warn!("writer error: {e}"),
             }
             processed = true;
         }
@@ -208,10 +212,10 @@ mod tests {
     }
 
     impl SignalWriter for MockWriter {
-        fn process_frame(&mut self, _buf: Vec<u8>) -> Result<()> {
+        fn process_frame(&mut self, _buf: Vec<u8>) -> Result<Option<Vec<u8>>> {
             self.frames_processed.fetch_add(1, Ordering::Relaxed);
             self.buffered += 1;
-            Ok(())
+            Ok(Some(_buf))
         }
 
         fn flush_and_close(&mut self) -> Result<()> {
@@ -237,7 +241,7 @@ mod tests {
             frames_processed: counter.clone(),
             buffered: 0,
         };
-        let mut handle = WriterHandle::spawn(writer, 64, "test");
+        let mut handle = WriterHandle::spawn(writer, 64, "test", crate::BufferPool::new());
 
         for i in 0..100 {
             handle.send_frame(vec![i as u8; 10]);
@@ -254,7 +258,7 @@ mod tests {
             frames_processed: counter.clone(),
             buffered: 0,
         };
-        let mut handle = WriterHandle::spawn(writer, 64, "test-telem");
+        let mut handle = WriterHandle::spawn(writer, 64, "test-telem", crate::BufferPool::new());
 
         for _ in 0..10 {
             handle.send_frame(vec![0; 4]);
@@ -274,7 +278,7 @@ mod tests {
             frames_processed: counter.clone(),
             buffered: 0,
         };
-        let mut handle = WriterHandle::spawn(writer, 64, "test-drop");
+        let mut handle = WriterHandle::spawn(writer, 64, "test-drop", crate::BufferPool::new());
         handle.send_frame(vec![1, 2, 3]);
         drop(handle);
         assert_eq!(counter.load(Ordering::Relaxed), 1);

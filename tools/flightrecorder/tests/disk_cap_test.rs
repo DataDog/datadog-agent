@@ -74,7 +74,7 @@ fn test_disk_cap_enforcement() {
     // Rotation happens every 60s by default, so we simulate multiple files
     // by creating separate writers (each opens a new file).
     for _batch in 0..10 {
-        let mut writer = LogsWriter::new(output_dir, 500, Duration::from_secs(3600), make_ctx_producer(), tracker.clone());
+        let mut writer = LogsWriter::new(output_dir, 500, Duration::from_secs(3600), Duration::from_secs(60), make_ctx_producer(), tracker.clone(), flightrecorder::BufferPool::new());
 
         let frame = build_log_frame(500);
         writer.process_frame(frame.clone()).unwrap();
@@ -137,7 +137,7 @@ fn test_disk_cap_zero_means_unlimited() {
     // So we use a very large cap to simulate "unlimited".
     let tracker = Arc::new(DiskTracker::new(output_dir, u64::MAX).unwrap());
 
-    let mut writer = LogsWriter::new(output_dir, 50, Duration::from_secs(3600), make_ctx_producer(), tracker.clone());
+    let mut writer = LogsWriter::new(output_dir, 50, Duration::from_secs(3600), Duration::from_secs(60), make_ctx_producer(), tracker.clone(), flightrecorder::BufferPool::new());
 
     let frame = build_log_frame(50);
     for _ in 0..10 {

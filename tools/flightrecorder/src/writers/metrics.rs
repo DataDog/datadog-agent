@@ -50,11 +50,12 @@ impl MetricsWriter {
         output_dir: impl AsRef<Path>,
         flush_rows: usize,
         flush_interval: Duration,
+        rotation_interval: Duration,
         ctx_producer: ContextProducer,
         disk_tracker: Arc<DiskTracker>,
     ) -> Self {
         Self {
-            base: BaseWriter::new(output_dir.as_ref(), flush_rows, flush_interval, disk_tracker),
+            base: BaseWriter::new(output_dir.as_ref(), flush_rows, flush_interval, rotation_interval, disk_tracker),
 
             sources: StringInterner::with_capacity(flush_rows),
             values: Vec::with_capacity(flush_rows),
@@ -161,13 +162,15 @@ impl MetricsWriter {
 }
 
 impl SignalWriter for MetricsWriter {
-    fn process_frame(&mut self, buf: Vec<u8>) -> Result<()> {
-        let env = flatbuffers::root::<signals::SignalEnvelope>(&buf)
-            .map_err(|e| anyhow::anyhow!("decode error: {e}"))?;
-        if let Some(batch) = env.metric_batch() {
-            self.push(&batch)?;
+    fn process_frame(&mut self, buf: Vec<u8>) -> Result<Option<Vec<u8>>> {
+        {
+            let env = flatbuffers::root::<signals::SignalEnvelope>(&buf)
+                .map_err(|e| anyhow::anyhow!("decode error: {e}"))?;
+            if let Some(batch) = env.metric_batch() {
+                self.push(&batch)?;
+            }
         }
-        Ok(())
+        Ok(Some(buf))
     }
 
     fn flush_and_close(&mut self) -> Result<()> {
@@ -208,7 +211,7 @@ mod tests {
 
     fn make_writer(dir: &Path) -> MetricsWriter {
         let prod = make_ctx_producer(dir);
-        MetricsWriter::new(dir, 1000, Duration::from_secs(60), prod, Arc::new(DiskTracker::noop()))
+        MetricsWriter::new(dir, 1000, Duration::from_secs(60), Duration::from_secs(60), prod, Arc::new(DiskTracker::noop()))
     }
 
     fn read_parquet(path: &Path) -> RecordBatch {
@@ -277,7 +280,7 @@ mod tests {
         std::thread::sleep(std::time::Duration::from_millis(50));
         ctx_handle.shutdown();
 
-        let mut w = MetricsWriter::new(dir.path(), 1000, Duration::from_secs(60), make_ctx_producer(dir.path()), Arc::new(DiskTracker::noop()));
+        let mut w = MetricsWriter::new(dir.path(), 1000, Duration::from_secs(60), Duration::from_secs(60), make_ctx_producer(dir.path()), Arc::new(DiskTracker::noop()));
 
         w.context_keys.extend_from_slice(&[100, 200]);
         w.sources.intern("");

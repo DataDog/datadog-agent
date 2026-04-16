@@ -148,6 +148,7 @@ fn bench_metrics_push(c: &mut Criterion) {
                     dir.path(),
                     100_000, // high threshold to avoid flushing during push
                     Duration::from_secs(3600),
+                    Duration::from_secs(60),
                     prod_m,
                     Arc::new(DiskTracker::noop()),
                 );
@@ -182,8 +183,10 @@ fn bench_logs_push(c: &mut Criterion) {
                     dir.path(),
                     100_000,
                     Duration::from_secs(3600),
+                    Duration::from_secs(60),
                     prod_l,
                     Arc::new(DiskTracker::noop()),
+                    flightrecorder::BufferPool::new(),
                 );
 
                 let start = Instant::now();
@@ -218,6 +221,7 @@ fn bench_metrics_push_flush(c: &mut Criterion) {
                     dir.path(),
                     n,
                     Duration::from_secs(3600),
+                    Duration::from_secs(60),
                     prod_m,
                     Arc::new(DiskTracker::noop()),
                 );
@@ -252,8 +256,10 @@ fn bench_logs_push_flush(c: &mut Criterion) {
                     dir.path(),
                     n,
                     Duration::from_secs(3600),
+                    Duration::from_secs(60),
                     prod_l,
                     Arc::new(DiskTracker::noop()),
+                    flightrecorder::BufferPool::new(),
                 );
 
                 let start = Instant::now();
@@ -294,10 +300,11 @@ fn bench_rtrb_e2e(c: &mut Criterion) {
                     dir.path(),
                     5000,
                     Duration::from_secs(15),
+                    Duration::from_secs(60),
                     prod_m,
                     Arc::new(DiskTracker::noop()),
                 );
-                let mut handle = WriterHandle::spawn(writer, 512, "bench");
+                let mut handle = WriterHandle::spawn(writer, 512, "bench", flightrecorder::BufferPool::new());
 
                 let start = Instant::now();
                 for _ in 0..n_frames {
@@ -396,10 +403,12 @@ fn bench_logs_throughput_saturation(c: &mut Criterion) {
                         dir.path(),
                         5000,
                         Duration::from_secs(15),
+                        Duration::from_secs(60),
                         prod_l,
                         Arc::new(DiskTracker::noop()),
+                        flightrecorder::BufferPool::new(),
                     );
-                    let mut handle = WriterHandle::spawn(writer, 512, "bench-logs");
+                    let mut handle = WriterHandle::spawn(writer, 512, "bench-logs", flightrecorder::BufferPool::new());
 
                     let start = Instant::now();
                     for _ in 0..n_frames {
@@ -479,10 +488,12 @@ fn bench_logs_uds_e2e(c: &mut Criterion) {
                         dir.path(),
                         5000,
                         Duration::from_secs(60),
+                        Duration::from_secs(60),
                         prod_l,
                         Arc::new(DiskTracker::noop()),
+                        flightrecorder::BufferPool::new(),
                     );
-                    let mut handle = WriterHandle::spawn(writer, 512, "bench-uds");
+                    let mut handle = WriterHandle::spawn(writer, 512, "bench-uds", flightrecorder::BufferPool::new());
 
                     // Create a UDS socket pair.
                     let (sender_std, receiver_std) = StdUnixStream::pair().unwrap();

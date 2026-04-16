@@ -75,11 +75,12 @@ impl TraceStatsWriter {
         output_dir: impl AsRef<Path>,
         flush_rows: usize,
         flush_interval: Duration,
+        rotation_interval: Duration,
         disk_tracker: Arc<DiskTracker>,
     ) -> Self {
         let output_dir = output_dir.as_ref();
         Self {
-            base: BaseWriter::new(output_dir, flush_rows, flush_interval, disk_tracker),
+            base: BaseWriter::new(output_dir, flush_rows, flush_interval, rotation_interval, disk_tracker),
 
             services: StringInterner::with_capacity(flush_rows),
             names: StringInterner::with_capacity(flush_rows),
@@ -249,13 +250,15 @@ impl TraceStatsWriter {
 }
 
 impl SignalWriter for TraceStatsWriter {
-    fn process_frame(&mut self, buf: Vec<u8>) -> Result<()> {
-        let env = flatbuffers::root::<signals::SignalEnvelope>(&buf)
-            .map_err(|e| anyhow::anyhow!("decode error: {e}"))?;
-        if let Some(batch) = env.trace_stats_batch() {
-            self.push(&batch)?;
+    fn process_frame(&mut self, buf: Vec<u8>) -> Result<Option<Vec<u8>>> {
+        {
+            let env = flatbuffers::root::<signals::SignalEnvelope>(&buf)
+                .map_err(|e| anyhow::anyhow!("decode error: {e}"))?;
+            if let Some(batch) = env.trace_stats_batch() {
+                self.push(&batch)?;
+            }
         }
-        Ok(())
+        Ok(Some(buf))
     }
 
     fn flush_and_close(&mut self) -> Result<()> {
@@ -286,7 +289,7 @@ mod tests {
     use tempfile::tempdir;
 
     fn make_writer(dir: &Path) -> TraceStatsWriter {
-        TraceStatsWriter::new(dir, 1000, Duration::from_secs(60), Arc::new(DiskTracker::noop()))
+        TraceStatsWriter::new(dir, 1000, Duration::from_secs(60), Duration::from_secs(60), Arc::new(DiskTracker::noop()))
     }
 
     fn read_parquet(path: &Path) -> RecordBatch {

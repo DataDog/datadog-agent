@@ -44,7 +44,10 @@ pub struct LogsWriter {
     // Context records are forwarded to the shared context writer thread.
     ctx_producer: ContextProducer,
 
-    // Arena: retained frame buffers. Cleared on flush.
+    // Buffer pool for recycling frame buffers after flush.
+    buffer_pool: crate::BufferPool,
+
+    // Arena: retained frame buffers. Returned to pool on flush.
     arena: Vec<Vec<u8>>,
 
     // Per-entry columnar data.
@@ -58,12 +61,15 @@ impl LogsWriter {
         output_dir: impl AsRef<Path>,
         flush_rows: usize,
         flush_interval: Duration,
+        rotation_interval: Duration,
         ctx_producer: ContextProducer,
         disk_tracker: Arc<DiskTracker>,
+        buffer_pool: crate::BufferPool,
     ) -> Self {
         Self {
-            base: BaseWriter::new(output_dir.as_ref(), flush_rows, flush_interval, disk_tracker),
+            base: BaseWriter::new(output_dir.as_ref(), flush_rows, flush_interval, rotation_interval, disk_tracker),
             ctx_producer,
+            buffer_pool,
             arena: Vec::new(),
             context_keys: Vec::with_capacity(flush_rows),
             content_refs: Vec::with_capacity(flush_rows),
@@ -200,14 +206,21 @@ impl LogsWriter {
         let batch = RecordBatch::try_new(schema.clone(), columns)
             .context("building logs RecordBatch")?;
 
-        self.base.write_batch("logs", schema, batch)
+        let result = self.base.write_batch("logs", schema, batch);
+
+        // Return arena frame buffers to the pool for reuse.
+        for buf in arena {
+            self.buffer_pool.put(buf);
+        }
+
+        result
     }
 }
 
 impl SignalWriter for LogsWriter {
-    fn process_frame(&mut self, buf: Vec<u8>) -> Result<()> {
+    fn process_frame(&mut self, buf: Vec<u8>) -> Result<Option<Vec<u8>>> {
         self.push_owned(buf)?;
-        Ok(())
+        Ok(None) // buffer retained in arena
     }
 
     fn flush_and_close(&mut self) -> Result<()> {
@@ -251,8 +264,10 @@ mod tests {
             dir,
             1000,
             Duration::from_secs(60),
+            Duration::from_secs(60),
             make_ctx_producer(),
             Arc::new(DiskTracker::noop()),
+            crate::BufferPool::new(),
         )
     }
 

@@ -78,6 +78,7 @@ impl BaseWriter {
         output_dir: &Path,
         flush_rows: usize,
         flush_interval: Duration,
+        rotation_interval: Duration,
         disk_tracker: Arc<DiskTracker>,
     ) -> Self {
         Self {
@@ -85,7 +86,7 @@ impl BaseWriter {
             flush_rows,
             flush_interval,
             last_flush: Instant::now(),
-            rotation_interval: Duration::from_secs(60),
+            rotation_interval,
             active_writer: None,
             disk_tracker,
             flush_count: 0,

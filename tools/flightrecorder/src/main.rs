@@ -1,6 +1,7 @@
 #[global_allocator]
 static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
+mod archive;
 mod config;
 mod disk_tracker;
 mod framing;
@@ -34,6 +35,8 @@ enum Signal {
     Empty,
 }
 
+use flightrecorder::BufferPool;
+
 /// Handle a single client connection: read frames and route to writer threads.
 async fn handle_connection(
     stream: UnixStream,
@@ -42,9 +45,10 @@ async fn handle_connection(
     th: Arc<Mutex<WriterHandle>>,
     token: tokio_util::sync::CancellationToken,
     cs: Arc<telemetry::ConnectionStats>,
+    pool: BufferPool,
 ) {
     let mut reader = BufReader::new(stream);
-    let mut buf = Vec::new();
+    let mut buf = pool.take();
     loop {
         let frame_result = tokio::select! {
             _ = token.cancelled() => break,
@@ -85,9 +89,8 @@ async fn handle_connection(
 
         cs.frames_received.fetch_add(1, Ordering::Relaxed);
 
-        // Move the buffer into the ring — read_frame will allocate a
-        // fresh one next iteration. No clone needed.
-        let frame = std::mem::take(&mut buf);
+        // Move the buffer into the ring — take a fresh one from the pool.
+        let frame = std::mem::replace(&mut buf, pool.take());
         match signal {
             Signal::Metrics => mh.lock().unwrap().send_frame(frame),
             Signal::Logs => lh.lock().unwrap().send_frame(frame),
@@ -95,6 +98,8 @@ async fn handle_connection(
             Signal::Empty => warn!("empty SignalEnvelope (no batch field set)"),
         }
     }
+    // Return our last buffer to the pool.
+    pool.put(buf);
     cs.active_connections.fetch_sub(1, Ordering::Relaxed);
 }
 
@@ -116,6 +121,15 @@ async fn main() -> Result<()> {
         .init();
 
     let cfg = config::Config::parse();
+
+    if let Some(config::Commands::Archive { input_dir, output }) = &cfg.command {
+        return archive::run(
+            input_dir
+                .as_deref()
+                .unwrap_or_else(|| std::path::Path::new(&cfg.output_dir)),
+            output.as_deref(),
+        );
+    }
 
     heap_prof::init();
 
@@ -139,10 +153,41 @@ async fn main() -> Result<()> {
     let janitor_cancel = cancel.clone();
     let janitor_handle = tokio::spawn(async move { janitor.run(janitor_cancel).await });
 
+    // Periodic heap profiling (every 30s when MALLOC_CONF=prof:true).
+    let prof_cancel = cancel.clone();
+    let prof_output_dir = cfg.output_dir.clone();
+    let prof_handle = tokio::spawn(async move {
+        let mut tick = 0u64;
+        loop {
+            tokio::select! {
+                _ = prof_cancel.cancelled() => break,
+                _ = tokio::time::sleep(std::time::Duration::from_secs(30)) => {
+                    tick += 1;
+                    heap_prof::dump_heap_profile(
+                        std::path::Path::new(&prof_output_dir),
+                        &format!("heap-{tick:04}"),
+                    );
+                    // Log jemalloc memory stats via raw ctl reads.
+                    if let (Ok(allocated), Ok(resident)) = unsafe {(
+                        tikv_jemalloc_ctl::raw::read::<usize>(b"stats.allocated\0"),
+                        tikv_jemalloc_ctl::raw::read::<usize>(b"stats.resident\0"),
+                    )} {
+                        info!(
+                            allocated_mb = allocated / (1024 * 1024),
+                            resident_mb = resident / (1024 * 1024),
+                            "jemalloc stats"
+                        );
+                    }
+                }
+            }
+        }
+    });
+
     let result = run(cfg, tracker).await;
 
     cancel.cancel();
     let _ = janitor_handle.await;
+    let _ = prof_handle.await;
 
     result
 }
@@ -156,31 +201,36 @@ pub async fn run(cfg: config::Config, tracker: Arc<disk_tracker::DiskTracker>) -
         writers::context_writer::ContextWriterHandle::spawn(context_store, 1024);
 
     // Create signal writers and spawn dedicated threads.
+    let rotation_interval = Duration::from_secs(cfg.rotation_secs);
     let metrics_writer = writers::metrics::MetricsWriter::new(
         &cfg.output_dir,
         cfg.flush_rows,
         flush_interval,
+        rotation_interval,
         ctx_prod_metrics,
         tracker.clone(),
     );
+    let buffer_pool = BufferPool::new();
     let logs_writer = writers::logs::LogsWriter::new(
         &cfg.output_dir,
         cfg.flush_rows,
         flush_interval,
+        rotation_interval,
         ctx_prod_logs,
         tracker.clone(),
+        buffer_pool.clone(),
     );
     let trace_stats_writer =
-        writers::trace_stats::TraceStatsWriter::new(&cfg.output_dir, cfg.flush_rows, flush_interval, tracker.clone());
+        writers::trace_stats::TraceStatsWriter::new(&cfg.output_dir, cfg.flush_rows, flush_interval, rotation_interval, tracker.clone());
 
     let metrics_handle = Arc::new(Mutex::new(
-        WriterHandle::spawn(metrics_writer, WRITER_RING_CAPACITY, "metrics"),
+        WriterHandle::spawn(metrics_writer, WRITER_RING_CAPACITY, "metrics", buffer_pool.clone()),
     ));
     let logs_handle = Arc::new(Mutex::new(
-        WriterHandle::spawn(logs_writer, WRITER_RING_CAPACITY, "logs"),
+        WriterHandle::spawn(logs_writer, WRITER_RING_CAPACITY, "logs", buffer_pool.clone()),
     ));
     let traces_handle = Arc::new(Mutex::new(
-        WriterHandle::spawn(trace_stats_writer, WRITER_RING_CAPACITY, "traces"),
+        WriterHandle::spawn(trace_stats_writer, WRITER_RING_CAPACITY, "traces", buffer_pool.clone()),
     ));
 
     let conn_stats = Arc::new(telemetry::ConnectionStats::new());
@@ -249,7 +299,7 @@ pub async fn run(cfg: config::Config, tracker: Arc<disk_tracker::DiskTracker>) -
         cs.active_connections.fetch_add(1, Ordering::Relaxed);
 
         client_tasks.push(tokio::spawn(
-            handle_connection(stream, mh, lh, th, token, cs),
+            handle_connection(stream, mh, lh, th, token, cs, buffer_pool.clone()),
         ));
 
         // Clean up completed client tasks.
