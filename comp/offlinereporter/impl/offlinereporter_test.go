@@ -154,3 +154,35 @@ func TestOnStop_StopsLoop(t *testing.T) {
 	_, opts := newTestOptions(t, true)
 	fxutil.Test[testDeps](t, opts)
 }
+
+// TestNegativeInterval verifies that when heartbeat_interval is negative, the
+// reporter loop does not start even when the component is enabled. NewComponent
+// should emit a warning and skip registering the lifecycle hooks.
+func TestNegativeInterval(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	opts := fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component {
+			return config.NewMockWithOverrides(t, map[string]interface{}{
+				"telemetry.offlinereporter.enabled":            true,
+				"telemetry.offlinereporter.heartbeat_interval": "-1s",
+				"run_path": testRunPath,
+			})
+		}),
+		fx.Supply(Params{Fs: fs}),
+		fxutil.ProvideComponentConstructor(NewComponent),
+		hostnameimpl.MockModule(),
+		demultiplexerimpl.FakeSamplerMockModule(),
+		logscompressionmock.MockModule(),
+		metricscompressionmock.MockModule(),
+		fx.Provide(func(m demultiplexer.FakeSamplerMock) demultiplexer.Component {
+			return m.(demultiplexer.Component)
+		}),
+	)
+	fxutil.Test[testDeps](t, opts)
+
+	// The lifecycle OnStart hook must not have been registered, so the loop
+	// goroutine was never launched and the heartbeat file must not exist.
+	_, err := afero.ReadFile(fs, testFilePath)
+	assert.Error(t, err, "heartbeat file should not be written when interval is negative")
+}

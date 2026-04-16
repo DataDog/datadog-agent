@@ -83,10 +83,14 @@ func NewComponent(reqs Requires) (Provides, error) {
 		writeErrLimit:     logutil.NewLogLimit(10, time.Minute),
 	}
 	if reqs.Config.GetBool("telemetry.offlinereporter.enabled") {
-		reqs.Lifecycle.Append(compdef.Hook{
-			OnStart: func(ctx context.Context) error { return h.onStart(ctx) },
-			OnStop:  func(_ context.Context) error { h.stopChan <- struct{}{}; return nil },
-		})
+		if h.heartbeatInterval <= 0 {
+			reqs.Log.Warnf("offlinereporter: heartbeat_interval must be greater than zero (got %v); offline reporter is disabled", h.heartbeatInterval)
+		} else {
+			reqs.Lifecycle.Append(compdef.Hook{
+				OnStart: func(ctx context.Context) error { return h.onStart(ctx) },
+				OnStop:  func(_ context.Context) error { h.stopChan <- struct{}{}; return nil },
+			})
+		}
 	}
 	return Provides{Comp: h}, nil
 }
