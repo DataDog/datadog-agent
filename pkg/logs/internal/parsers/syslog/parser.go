@@ -51,8 +51,6 @@ func (p *parser) Parse(msg *message.Message) (*message.Message, error) {
 		msgBody = string(content)
 	}
 
-	// TODO: replace BasicStructuredContent with a custom StructuredContent to
-	// avoid per-message map allocations (2 maps + interface{} boxing).
 	sc := &message.BasicStructuredContent{
 		Data: map[string]interface{}{
 			"message": msgBody,
