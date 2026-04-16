@@ -35,7 +35,6 @@ var sources = []model.Source{
 	model.SourceEnvVar,
 	model.SourceFleetPolicies,
 	model.SourceAgentRuntime,
-	model.SourceSecretBackend,
 	model.SourceLocalConfigProcess,
 	model.SourceRC,
 	model.SourceCLI,
@@ -78,8 +77,6 @@ type ntmConfig struct {
 	file *nodeImpl
 	// envs contains config settings created by environment variables
 	envs *nodeImpl
-	// secrets contains the settings resolved from secret backend
-	secrets *nodeImpl
 	// runtime contains the settings set from the agent code itself at runtime (self configured values).
 	runtime *nodeImpl
 	// localConfigProcess contains the settings pulled from the config process (process owning the source of truth
@@ -121,8 +118,10 @@ type ntmConfig struct {
 	knownKeys map[string]bool
 
 	// keys that are unknown, but are used by either the file or SetWithoutSource
-	// used to warn (a single time) on use
-	unknownKeys map[string]struct{}
+	// used to warn (a single time) on use.
+	// sync.Map is used because checkKnownKey writes to this map while callers
+	// only hold an RLock, so a plain map would cause concurrent map writes.
+	unknownKeys sync.Map
 
 	// extraConfigFilePaths represents additional configuration file paths that will be merged into the main configuration when ReadInConfig() is called.
 	extraConfigFilePaths []string
@@ -161,8 +160,6 @@ func (c *ntmConfig) getTreeBySource(source model.Source) (*nodeImpl, error) {
 		return c.file, nil
 	case model.SourceEnvVar:
 		return c.envs, nil
-	case model.SourceSecretBackend:
-		return c.secrets, nil
 	case model.SourceAgentRuntime:
 		return c.runtime, nil
 	case model.SourceLocalConfigProcess:
@@ -279,7 +276,7 @@ func (c *ntmConfig) SetWithoutSource(key string, value interface{}) {
 	c.Lock()
 	defer c.Unlock()
 	if !c.isKnownKey(key) {
-		c.unknownKeys[key] = struct{}{}
+		c.unknownKeys.Store(key, struct{}{})
 	}
 }
 
@@ -320,6 +317,8 @@ func (c *ntmConfig) findPreviousSourceNode(key string, source model.Source) (*no
 
 // UnsetForSource unsets a config entry for a given source
 func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
+	c.maybeRebuild()
+
 	c.Lock()
 	defer c.Unlock()
 
@@ -431,9 +430,20 @@ func (c *ntmConfig) SetKnown(key string) {
 
 // IsKnown returns whether a key is in the set of "known keys", which is a legacy feature from Viper
 func (c *ntmConfig) IsKnown(key string) bool {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
 	return c.isKnownKey(key)
+}
+
+// IsSetting returns true for leaf nodes
+func (c *ntmConfig) IsSetting(key string) bool {
+	n, err := c.GetNode(key)
+	if err != nil {
+		return false
+	}
+	return n.IsLeafNode()
 }
 
 // isKnownKey returns whether the key is known.
@@ -478,16 +488,12 @@ func (c *ntmConfig) checkKnownKey(key string) {
 	}
 
 	key = strings.ToLower(key)
-	if _, ok := c.unknownKeys[key]; ok {
-		return
+	if _, loaded := c.unknownKeys.LoadOrStore(key, struct{}{}); !loaded {
+		log.Warnf("config key %v is unknown", key)
 	}
-
-	c.unknownKeys[key] = struct{}{}
-	log.Warnf("config key %v is unknown", key)
 }
 
-// mergeLayers merges all config layers in priority order. Layers passed as exclude are skipped.
-func (c *ntmConfig) mergeLayers(exclude ...*nodeImpl) (*nodeImpl, error) {
+func (c *ntmConfig) mergeAllLayers() error {
 	treeList := []*nodeImpl{
 		c.defaults,
 		c.unknown,
@@ -495,7 +501,6 @@ func (c *ntmConfig) mergeLayers(exclude ...*nodeImpl) (*nodeImpl, error) {
 		c.envs,
 		c.fleetPolicies,
 		c.runtime,
-		c.secrets,
 		c.localConfigProcess,
 		c.remoteConfig,
 		c.cli,
@@ -503,23 +508,13 @@ func (c *ntmConfig) mergeLayers(exclude ...*nodeImpl) (*nodeImpl, error) {
 
 	merged := newInnerNode(nil)
 	for _, tree := range treeList {
-		if slices.Contains(exclude, tree) {
-			continue
-		}
 		next, err := merged.Merge(tree)
 		if err != nil {
-			return merged, err
+			return err
 		}
 		merged = next
 	}
-	return merged, nil
-}
 
-func (c *ntmConfig) mergeAllLayers() error {
-	merged, err := c.mergeLayers()
-	if err != nil {
-		return err
-	}
 	c.root = merged
 	return nil
 }
@@ -674,6 +669,8 @@ func hasNonDefaultLeaf(node *nodeImpl) bool {
 
 // IsConfigured checks if a key is set in the config but not from the defaults
 func (c *ntmConfig) IsConfigured(key string) bool {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
 
@@ -716,6 +713,8 @@ func isInnerOrLeafWithNilValue(node *nodeImpl) bool {
 // HasSection returns true if the setting is either an inner node,
 // or a leaf node with a nil value
 func (c *ntmConfig) HasSection(key string) bool {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
 
@@ -742,9 +741,10 @@ func (c *ntmConfig) collectFlattenedKeys() []string {
 		}
 	}
 	// collect keys from unknown set
-	for k := range c.unknownKeys {
-		allKeys[k] = struct{}{}
-	}
+	c.unknownKeys.Range(func(k, _ any) bool {
+		allKeys[k.(string)] = struct{}{}
+		return true
+	})
 
 	return slices.Collect(maps.Keys(allKeys))
 }
@@ -752,6 +752,8 @@ func (c *ntmConfig) collectFlattenedKeys() []string {
 // AllKeysLowercased returns all keys, including unknown keys and those without default values
 // Unlike AllSettings, this returns keys defined by SetKnown or BindEnv
 func (c *ntmConfig) AllKeysLowercased() []string {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
 
@@ -937,36 +939,6 @@ func (c *ntmConfig) AllSettingsWithoutDefault() map[string]interface{} {
 	return c.root.dumpSettings(false)
 }
 
-// AllSettingsWithoutSecrets returns all settings from the config, merging all layers except the
-// secret backend layer. This allows dumping the full config without any risk of leaking resolved secrets.
-func (c *ntmConfig) AllSettingsWithoutSecrets() map[string]interface{} {
-	c.maybeRebuild()
-
-	c.RLock()
-	defer c.RUnlock()
-
-	return c.mergeWithoutSecrets().dumpSettings(true)
-}
-
-// AllSettingsWithoutDefaultOrSecrets returns all non-default settings, excluding the secret backend
-func (c *ntmConfig) AllSettingsWithoutDefaultOrSecrets() map[string]interface{} {
-	c.maybeRebuild()
-
-	c.RLock()
-	defer c.RUnlock()
-
-	return c.mergeWithoutSecrets().dumpSettings(false)
-}
-
-// mergeWithoutSecrets returns a merged tree of all layers except the secrets layer.
-func (c *ntmConfig) mergeWithoutSecrets() *nodeImpl {
-	merged, err := c.mergeLayers(c.secrets)
-	if err != nil {
-		log.Errorf("error merging config layers without secrets: %s", err)
-	}
-	return merged
-}
-
 // AllSettingsBySource returns the settings from each source (file, env vars, ...)
 func (c *ntmConfig) AllSettingsBySource() map[model.Source]interface{} {
 	c.maybeRebuild()
@@ -983,7 +955,6 @@ func (c *ntmConfig) AllSettingsBySource() map[model.Source]interface{} {
 		model.SourceEnvVar:             c.envs.dumpSettings(true),
 		model.SourceFleetPolicies:      c.fleetPolicies.dumpSettings(true),
 		model.SourceAgentRuntime:       c.runtime.dumpSettings(true),
-		model.SourceSecretBackend:      c.secrets.dumpSettings(true),
 		model.SourceLocalConfigProcess: c.localConfigProcess.dumpSettings(true),
 		model.SourceRC:                 c.remoteConfig.dumpSettings(true),
 		model.SourceCLI:                c.cli.dumpSettings(true),
@@ -1133,13 +1104,11 @@ func NewNodeTreeConfig(name string, envPrefix string, envKeyReplacer *strings.Re
 		sequenceID:         0,
 		configEnvVars:      map[string][]string{},
 		knownKeys:          map[string]bool{},
-		unknownKeys:        map[string]struct{}{},
 		defaults:           newInnerNode(nil),
 		file:               newInnerNode(nil),
 		unknown:            newInnerNode(nil),
 		infraMode:          newInnerNode(nil),
 		envs:               newInnerNode(nil),
-		secrets:            newInnerNode(nil),
 		runtime:            newInnerNode(nil),
 		localConfigProcess: newInnerNode(nil),
 		remoteConfig:       newInnerNode(nil),

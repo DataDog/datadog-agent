@@ -1,2 +1,4 @@
-# gazelle:ignore
-# Not yet migrated to Bazel. Only selected leaf modules under comp/core/ are migrated.
+# gazelle:exclude bundle.go
+# gazelle:exclude bundle_params.go
+# gazelle:exclude bundle_test.go
+# gazelle:exclude bundle_mock.go

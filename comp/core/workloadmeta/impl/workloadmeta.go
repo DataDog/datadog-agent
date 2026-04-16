@@ -24,6 +24,13 @@ import (
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
+// pullInfo holds per-collector pull state.
+type pullInfo struct {
+	ongoingSince  time.Time // zero if not in progress
+	lastPullStart time.Time
+	interval      time.Duration
+}
+
 // store is a central storage of metadata about workloads. A workload is any
 // unit of work being done by a piece of software, like a process, a container,
 // a kubernetes pod, or a task in any cloud provider.
@@ -49,8 +56,8 @@ type workloadmeta struct {
 
 	eventCh chan []wmdef.CollectorEvent
 
-	ongoingPullsMut sync.Mutex
-	ongoingPulls    map[string]time.Time // collector ID => time when last pull started
+	pullsMut sync.Mutex
+	pulls    map[string]*pullInfo
 
 	// expectedSources maps entity kinds to the sources that are expected to
 	// report data for them. This is used to determine if an entity is
@@ -97,9 +104,9 @@ func NewWorkloadMeta(deps Dependencies) Provider {
 		candidates:            candidates,
 		collectors:            make(map[string]wmdef.Collector),
 		eventCh:               make(chan []wmdef.CollectorEvent, eventChBufferSize),
-		ongoingPulls:          make(map[string]time.Time),
+		pulls:                 make(map[string]*pullInfo),
 		collectorsInitialized: wmdef.CollectorsNotStarted,
-		expectedSources:       initExpectedSources(),
+		expectedSources:       initExpectedSources(deps.Params.AgentType),
 	}
 
 	deps.Lc.Append(compdef.Hook{OnStart: func(_ context.Context) error {
@@ -160,10 +167,16 @@ func (w *workloadmeta) writeResponse(writer http.ResponseWriter, r *http.Request
 // TODO: This will be handled later.
 // - Kubernetes Deployments: reported by the kubeapiserver collector and
 // language detection code. Completeness tracking is not needed for deployments.
-func initExpectedSources() map[wmdef.Kind][]wmdef.Source {
+func initExpectedSources(agentType wmdef.AgentType) map[wmdef.Kind][]wmdef.Source {
 	expectedSources := make(map[wmdef.Kind][]wmdef.Source)
 
 	if !env.IsFeaturePresent(env.Kubernetes) {
+		return expectedSources
+	}
+
+	// Only the Node Agent runs multiple collectors that need to report
+	// for an entity to be complete
+	if agentType != wmdef.NodeAgent {
 		return expectedSources
 	}
 

@@ -1,5 +1,7 @@
 load("//bazel/rules/ebpf:ebpf.bzl", "ebpf_program_suite")
 
+exports_files(["gpu.c"])
+
 ebpf_program_suite(
     name = "gpu",
     src = "gpu.c",
@@ -9,6 +11,7 @@ ebpf_program_suite(
         "-Ipkg/gpu/ebpf/c/runtime",
         "-Ipkg/network/ebpf/c",
     ],
+    visibility = ["//visibility:public"],
     deps = [
         "//pkg/ebpf/c:ebpf_c_headers",
         "//pkg/gpu/ebpf/c:gpu_headers",

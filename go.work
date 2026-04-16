@@ -1,4 +1,4 @@
-go 1.25.8
+go 1.25.9
 
 // Disable new post-quantum key exchange mechanism X25519MLKEM768
 // See https://github.com/DataDog/datadog-agent/issues/34323 for historical context.
@@ -88,6 +88,7 @@ use (
 	pkg/api
 	pkg/collector/check/defaults
 	pkg/config/basic
+	pkg/config/buildschema
 	pkg/config/create
 	pkg/config/env
 	pkg/config/helper
@@ -101,6 +102,7 @@ use (
 	pkg/config/teeconfig
 	pkg/config/utils
 	pkg/config/viperconfig
+	pkg/discovery/tracermetadata/model
 	pkg/errors
 	pkg/fips
 	pkg/fleet/installer
@@ -109,7 +111,6 @@ use (
 	pkg/logs/diagnostic
 	pkg/logs/message
 	pkg/logs/metrics
-	pkg/logs/pipeline
 	pkg/logs/processor
 	pkg/logs/sender
 	pkg/logs/sources

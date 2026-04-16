@@ -9,15 +9,16 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"text/template"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/pulumi/pulumi-aws/sdk/v6/go/aws/ecs"
-	"github.com/pulumi/pulumi-aws/sdk/v6/go/aws/ssm"
-	"github.com/pulumi/pulumi-awsx/sdk/v2/go/awsx/awsx"
-	ecsx "github.com/pulumi/pulumi-awsx/sdk/v2/go/awsx/ecs"
+	"github.com/pulumi/pulumi-aws/sdk/v7/go/aws/ecs"
+	"github.com/pulumi/pulumi-aws/sdk/v7/go/aws/ssm"
+	"github.com/pulumi/pulumi-awsx/sdk/v3/go/awsx/awsx"
+	ecsx "github.com/pulumi/pulumi-awsx/sdk/v3/go/awsx/ecs"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,12 +32,12 @@ import (
 )
 
 const (
-	ecsFgHostnamePrefix = "cws-e2e-ecs-fg-task"
-	selfTestsPolicyName = "selftests.policy"
-	execRuleID          = "selftest_exec"
-	openRuleID          = "selftest_open"
-	execFilePath        = "/usr/bin/date"
-	openFilePath        = "/tmp/open.test"
+	ecsFgInstanceIDPrefix = "cws-e2e-ecs-fg-task"
+	selfTestsPolicyName   = "selftests.policy"
+	execRuleID            = "selftest_exec"
+	openRuleID            = "selftest_open"
+	execFilePath          = "/usr/bin/date"
+	openFilePath          = "/tmp/open.test"
 )
 
 // this env struct is empty for now but will eventually contain a component for an ECS test environment
@@ -44,8 +45,8 @@ type ecsFargateEnv struct{}
 
 type ecsFargateSuite struct {
 	e2e.BaseSuite[ecsFargateEnv]
-	apiClient  *api.Client
-	ddHostname string
+	apiClient    *api.Client
+	ddInstanceID string
 }
 
 func TestECSFargate(t *testing.T) {
@@ -62,9 +63,9 @@ func TestECSFargate(t *testing.T) {
 	policy, err := getPolicyContent(ruleDefs)
 	require.NoErrorf(t, err, "failed generate policy from test rules: %v", err)
 
-	ddHostname := fmt.Sprintf("%s-%s", ecsFgHostnamePrefix, uuid.NewString()[:4])
+	ddInstanceID := fmt.Sprintf("%s-%s", ecsFgInstanceIDPrefix, uuid.NewString()[:4])
 
-	e2e.Run[ecsFargateEnv](t, &ecsFargateSuite{ddHostname: ddHostname},
+	e2e.Run[ecsFargateEnv](t, &ecsFargateSuite{ddInstanceID: ddInstanceID},
 		e2e.WithUntypedPulumiProvisioner(func(ctx *pulumi.Context) error {
 			awsEnv, err := awsResources.NewEnvironment(ctx)
 			if err != nil {
@@ -94,6 +95,11 @@ func TestECSFargate(t *testing.T) {
 			}
 
 			// Create task definition
+			ubuntuImage := "ubuntu:22.04"
+			if awsEnv.CommonEnvironment.ImagePullRegistry() != "" {
+				ubuntuImage = strings.SplitN(awsEnv.CommonEnvironment.ImagePullRegistry(), ",", 2)[0] + "/dockerhub/library/ubuntu:22.04"
+			}
+
 			taskDef, err := ecsx.NewFargateTaskDefinition(ctx, "cws-task", &ecsx.FargateTaskDefinitionArgs{
 				Containers: map[string]ecsx.TaskDefinitionContainerDefinitionArgs{
 					"datadog-agent": {
@@ -108,8 +114,8 @@ func TestECSFargate(t *testing.T) {
 						Essential: pulumi.BoolPtr(true),
 						Environment: ecsx.TaskDefinitionKeyValuePairArray{
 							ecsx.TaskDefinitionKeyValuePairArgs{
-								Name:  pulumi.StringPtr("DD_HOSTNAME"),
-								Value: pulumi.StringPtr(ddHostname),
+								Name:  pulumi.StringPtr("DD_EXTRA_TAGS"),
+								Value: pulumi.StringPtr(fmt.Sprintf(`["instance_id:%s"]`, ddInstanceID)),
 							},
 							ecsx.TaskDefinitionKeyValuePairArgs{
 								Name:  pulumi.StringPtr("ECS_FARGATE"),
@@ -117,10 +123,6 @@ func TestECSFargate(t *testing.T) {
 							},
 							ecsx.TaskDefinitionKeyValuePairArgs{
 								Name:  pulumi.StringPtr("DD_RUNTIME_SECURITY_CONFIG_ENABLED"),
-								Value: pulumi.StringPtr("true"),
-							},
-							ecsx.TaskDefinitionKeyValuePairArgs{
-								Name:  pulumi.StringPtr("DD_RUNTIME_SECURITY_CONFIG_EBPFLESS_ENABLED"),
 								Value: pulumi.StringPtr("true"),
 							},
 							ecsx.TaskDefinitionKeyValuePairArgs{
@@ -141,12 +143,12 @@ func TestECSFargate(t *testing.T) {
 							Interval:    pulumi.IntPtr(30),
 							Timeout:     pulumi.IntPtr(5),
 						},
-						LogConfiguration: ecsResources.GetFirelensLogConfiguration(pulumi.String("datadog-agent"), pulumi.String(ecsFgHostnamePrefix), apiKeyParam.Name),
+						LogConfiguration: ecsResources.GetFirelensLogConfiguration(pulumi.String("datadog-agent"), pulumi.String(ecsFgInstanceIDPrefix), apiKeyParam.Name),
 					},
 					"ubuntu-with-tracer": {
 						Cpu:       pulumi.IntPtr(0),
 						Name:      pulumi.String("ubuntu-with-tracer"),
-						Image:     pulumi.String("public.ecr.aws/lts/ubuntu:22.04"),
+						Image:     pulumi.String(ubuntuImage),
 						Essential: pulumi.BoolPtr(false),
 						EntryPoint: pulumi.ToStringArray([]string{
 							"/cws-instrumentation-volume/cws-instrumentation",
@@ -185,7 +187,7 @@ func TestECSFargate(t *testing.T) {
 								ReadOnly:      pulumi.Bool(true),
 							},
 						},
-						LogConfiguration: ecsResources.GetFirelensLogConfiguration(pulumi.String("ubuntu-with-tracer"), pulumi.String(ecsFgHostnamePrefix), apiKeyParam.Name),
+						LogConfiguration: ecsResources.GetFirelensLogConfiguration(pulumi.String("ubuntu-with-tracer"), pulumi.String(ecsFgInstanceIDPrefix), apiKeyParam.Name),
 					},
 					"cws-instrumentation-init": {
 						Cpu:       pulumi.IntPtr(0),
@@ -205,7 +207,7 @@ func TestECSFargate(t *testing.T) {
 								ReadOnly:      pulumi.Bool(false),
 							},
 						},
-						LogConfiguration: ecsResources.GetFirelensLogConfiguration(pulumi.String("cws-instrumentation-init"), pulumi.String(ecsFgHostnamePrefix), apiKeyParam.Name),
+						LogConfiguration: ecsResources.GetFirelensLogConfiguration(pulumi.String("cws-instrumentation-init"), pulumi.String(ecsFgInstanceIDPrefix), apiKeyParam.Name),
 						User:             pulumi.StringPtr("0"),
 					},
 					"log_router": *ecsResources.FargateFirelensContainerDefinition(),
@@ -236,7 +238,7 @@ func TestECSFargate(t *testing.T) {
 			return nil
 		}, nil),
 	)
-	t.Logf("Running testsuite with DD_HOSTNAME=%s", ddHostname)
+	t.Logf("Running testsuite with instance_id=%s", ddInstanceID)
 }
 
 func (s *ecsFargateSuite) SetupSuite() {
@@ -245,7 +247,11 @@ func (s *ecsFargateSuite) SetupSuite() {
 }
 
 func (s *ecsFargateSuite) Hostname() string {
-	return s.ddHostname
+	return ""
+}
+
+func (s *ecsFargateSuite) InstanceID() string {
+	return s.ddInstanceID
 }
 
 func (s *ecsFargateSuite) Client() *api.Client {

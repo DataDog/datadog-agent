@@ -73,13 +73,14 @@ BPF_LRU_MAP(tgid_fd_map_id, struct bpf_tgid_fd_t, u32, 4096)
 BPF_LRU_MAP(tgid_fd_prog_id, struct bpf_tgid_fd_t, u32, 4096)
 BPF_LRU_MAP(proc_cache, u64, struct proc_cache_t, 1) // max entries will be overridden at runtime
 BPF_LRU_MAP(pid_cache, u32, struct pid_cache_t, 1) // max entries will be overridden at runtime
-BPF_LRU_MAP(pid_ignored, u32, u32, 16738)
+BPF_LRU_MAP(pid_ignored, u32, u8, 16738)
 BPF_LRU_MAP(exec_pid_transfer, u32, u64, 512)
 BPF_LRU_MAP(netns_cache, u32, u32, 40960)
 BPF_LRU_MAP(mntns_cache, u32, u32, 40960)
 BPF_LRU_MAP(span_tls, u32, struct span_tls_t, 1) // max entries will be overridden at runtime
 BPF_LRU_MAP(inode_discarders, struct inode_discarder_t, struct inode_discarder_params_t, 4096)
 BPF_LRU_MAP(prctl_discarders, char[MAX_PRCTL_NAME_LEN], int, 1024)
+BPF_LRU_MAP(auid_discarders, u32, struct auid_discarder_params_t, 1024)
 BPF_LRU_MAP(flow_pid, struct pid_route_t, struct pid_route_entry_t, 10240)
 BPF_LRU_MAP(conntrack, struct namespaced_flow_t, struct namespaced_flow_t, 4096) // TODO: size should be updated dynamically with "nf_conntrack_max"
 BPF_LRU_MAP(io_uring_ctx_pid, void *, u64, 2048)
@@ -145,7 +146,9 @@ BPF_PROG_ARRAY(dentry_resolver_kprobe_or_fentry_progs, 6)
 BPF_PROG_ARRAY(dentry_resolver_tracepoint_progs, 3)
 BPF_PROG_ARRAY(classifier_router, 10)
 BPF_PROG_ARRAY(sys_exit_progs, EVENT_MAX)
-BPF_PROG_ARRAY(raw_packet_classifier_router, 32)
+BPF_ARRAY_MAP(raw_packet_router_sel, u32, 1)
+BPF_PROG_ARRAY(raw_packet_classifier_router_0, 32)
+BPF_PROG_ARRAY(raw_packet_classifier_router_1, 32)
 BPF_PROG_ARRAY(flush_network_stats_progs, 2)
 BPF_PROG_ARRAY(open_ret_progs, 1)
 

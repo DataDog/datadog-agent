@@ -157,25 +157,19 @@ func TestBuildNodePoolSpec(t *testing.T) {
 						},
 						Requirements: []karpenterv1.NodeSelectorRequirementWithMinValues{
 							{
-								NodeSelectorRequirement: corev1.NodeSelectorRequirement{
-									Key:      "kubernetes.io/os",
-									Operator: corev1.NodeSelectorOpIn,
-									Values:   []string{"linux"},
-								},
+								Key:      "kubernetes.io/os",
+								Operator: corev1.NodeSelectorOpIn,
+								Values:   []string{"linux"},
 							},
 							{
-								NodeSelectorRequirement: corev1.NodeSelectorRequirement{
-									Key:      "kubernetes.io/arch",
-									Operator: corev1.NodeSelectorOpIn,
-									Values:   []string{"amd64"},
-								},
+								Key:      "kubernetes.io/arch",
+								Operator: corev1.NodeSelectorOpIn,
+								Values:   []string{"amd64"},
 							},
 							{
-								NodeSelectorRequirement: corev1.NodeSelectorRequirement{
-									Key:      corev1.LabelInstanceTypeStable,
-									Operator: corev1.NodeSelectorOpIn,
-									Values:   []string{"m5.large", "t3.micro"},
-								},
+								Key:      corev1.LabelInstanceTypeStable,
+								Operator: corev1.NodeSelectorOpIn,
+								Values:   []string{"m5.large", "t3.micro"},
 							},
 						},
 						NodeClassRef: &karpenterv1.NodeClassReference{
@@ -218,25 +212,19 @@ func TestBuildNodePoolSpec(t *testing.T) {
 						},
 						Requirements: []karpenterv1.NodeSelectorRequirementWithMinValues{
 							{
-								NodeSelectorRequirement: corev1.NodeSelectorRequirement{
-									Key:      "kubernetes.io/os",
-									Operator: corev1.NodeSelectorOpIn,
-									Values:   []string{"linux"},
-								},
+								Key:      "kubernetes.io/os",
+								Operator: corev1.NodeSelectorOpIn,
+								Values:   []string{"linux"},
 							},
 							{
-								NodeSelectorRequirement: corev1.NodeSelectorRequirement{
-									Key:      "kubernetes.io/arch",
-									Operator: corev1.NodeSelectorOpIn,
-									Values:   []string{"amd64"},
-								},
+								Key:      "kubernetes.io/arch",
+								Operator: corev1.NodeSelectorOpIn,
+								Values:   []string{"amd64"},
 							},
 							{
-								NodeSelectorRequirement: corev1.NodeSelectorRequirement{
-									Key:      corev1.LabelInstanceTypeStable,
-									Operator: corev1.NodeSelectorOpIn,
-									Values:   []string{"m5.large", "t3.micro"},
-								},
+								Key:      corev1.LabelInstanceTypeStable,
+								Operator: corev1.NodeSelectorOpIn,
+								Values:   []string{"m5.large", "t3.micro"},
 							},
 						},
 						NodeClassRef: &karpenterv1.NodeClassReference{
@@ -299,11 +287,9 @@ func TestBuildReplicaNodePool(t *testing.T) {
 						Spec: karpenterv1.NodeClaimTemplateSpec{
 							Requirements: []karpenterv1.NodeSelectorRequirementWithMinValues{
 								{
-									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
-										Key:      corev1.LabelInstanceTypeStable,
-										Operator: corev1.NodeSelectorOpIn,
-										Values:   []string{"t3.micro"},
-									},
+									Key:      corev1.LabelInstanceTypeStable,
+									Operator: corev1.NodeSelectorOpIn,
+									Values:   []string{"t3.micro"},
 								},
 							},
 						},
@@ -327,11 +313,9 @@ func TestBuildReplicaNodePool(t *testing.T) {
 						Spec: karpenterv1.NodeClaimTemplateSpec{
 							Requirements: []karpenterv1.NodeSelectorRequirementWithMinValues{
 								{
-									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
-										Key:      "karpenter.k8s.aws/instance-family",
-										Operator: corev1.NodeSelectorOpIn,
-										Values:   []string{"t3"},
-									},
+									Key:      "karpenter.k8s.aws/instance-family",
+									Operator: corev1.NodeSelectorOpIn,
+									Values:   []string{"t3"},
 								},
 							},
 						},
@@ -400,25 +384,19 @@ func TestUpdateNodePoolObject(t *testing.T) {
 							},
 							Requirements: []karpenterv1.NodeSelectorRequirementWithMinValues{
 								{
-									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
-										Key:      "kubernetes.io/arch",
-										Operator: corev1.NodeSelectorOpIn,
-										Values:   []string{"amd64"},
-									},
+									Key:      "kubernetes.io/arch",
+									Operator: corev1.NodeSelectorOpIn,
+									Values:   []string{"amd64"},
 								},
 								{
-									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
-										Key:      "kubernetes.io/os",
-										Operator: corev1.NodeSelectorOpIn,
-										Values:   []string{"linux"},
-									},
+									Key:      "kubernetes.io/os",
+									Operator: corev1.NodeSelectorOpIn,
+									Values:   []string{"linux"},
 								},
 								{
-									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
-										Key:      corev1.LabelInstanceTypeStable,
-										Operator: corev1.NodeSelectorOpIn,
-										Values:   []string{"m5.large", "t3.micro"},
-									},
+									Key:      corev1.LabelInstanceTypeStable,
+									Operator: corev1.NodeSelectorOpIn,
+									Values:   []string{"m5.large", "t3.micro"},
 								},
 							},
 							NodeClassRef: &karpenterv1.NodeClassReference{
@@ -446,25 +424,19 @@ func TestUpdateNodePoolObject(t *testing.T) {
 							},
 							Requirements: []karpenterv1.NodeSelectorRequirementWithMinValues{
 								{
-									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
-										Key:      "kubernetes.io/arch",
-										Operator: corev1.NodeSelectorOpIn,
-										Values:   []string{"amd64"},
-									},
+									Key:      "kubernetes.io/arch",
+									Operator: corev1.NodeSelectorOpIn,
+									Values:   []string{"amd64"},
 								},
 								{
-									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
-										Key:      "kubernetes.io/os",
-										Operator: corev1.NodeSelectorOpIn,
-										Values:   []string{"linux"},
-									},
+									Key:      "kubernetes.io/os",
+									Operator: corev1.NodeSelectorOpIn,
+									Values:   []string{"linux"},
 								},
 								{
-									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
-										Key:      corev1.LabelInstanceTypeStable,
-										Operator: corev1.NodeSelectorOpIn,
-										Values:   []string{"m5.large", "t3.micro"},
-									},
+									Key:      corev1.LabelInstanceTypeStable,
+									Operator: corev1.NodeSelectorOpIn,
+									Values:   []string{"m5.large", "t3.micro"},
 								},
 							},
 							NodeClassRef: &karpenterv1.NodeClassReference{
@@ -501,25 +473,19 @@ func TestUpdateNodePoolObject(t *testing.T) {
 							},
 							Requirements: []karpenterv1.NodeSelectorRequirementWithMinValues{
 								{
-									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
-										Key:      "kubernetes.io/arch",
-										Operator: corev1.NodeSelectorOpIn,
-										Values:   []string{"amd64"},
-									},
+									Key:      "kubernetes.io/arch",
+									Operator: corev1.NodeSelectorOpIn,
+									Values:   []string{"amd64"},
 								},
 								{
-									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
-										Key:      "kubernetes.io/os",
-										Operator: corev1.NodeSelectorOpIn,
-										Values:   []string{"linux"},
-									},
+									Key:      "kubernetes.io/os",
+									Operator: corev1.NodeSelectorOpIn,
+									Values:   []string{"linux"},
 								},
 								{
-									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
-										Key:      corev1.LabelInstanceTypeStable,
-										Operator: corev1.NodeSelectorOpIn,
-										Values:   []string{"c5.xlarge", "t3.micro"},
-									},
+									Key:      corev1.LabelInstanceTypeStable,
+									Operator: corev1.NodeSelectorOpIn,
+									Values:   []string{"c5.xlarge", "t3.micro"},
 								},
 							},
 							NodeClassRef: &karpenterv1.NodeClassReference{
@@ -562,25 +528,19 @@ func TestUpdateNodePoolObject(t *testing.T) {
 							},
 							Requirements: []karpenterv1.NodeSelectorRequirementWithMinValues{
 								{
-									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
-										Key:      "kubernetes.io/arch",
-										Operator: corev1.NodeSelectorOpIn,
-										Values:   []string{"amd64"},
-									},
+									Key:      "kubernetes.io/arch",
+									Operator: corev1.NodeSelectorOpIn,
+									Values:   []string{"amd64"},
 								},
 								{
-									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
-										Key:      "kubernetes.io/os",
-										Operator: corev1.NodeSelectorOpIn,
-										Values:   []string{"linux"},
-									},
+									Key:      "kubernetes.io/os",
+									Operator: corev1.NodeSelectorOpIn,
+									Values:   []string{"linux"},
 								},
 								{
-									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
-										Key:      corev1.LabelInstanceTypeStable,
-										Operator: corev1.NodeSelectorOpNotIn,
-										Values:   []string{"m5.large", "t3.micro"},
-									},
+									Key:      corev1.LabelInstanceTypeStable,
+									Operator: corev1.NodeSelectorOpNotIn,
+									Values:   []string{"m5.large", "t3.micro"},
 								},
 							},
 							NodeClassRef: &karpenterv1.NodeClassReference{
@@ -608,25 +568,19 @@ func TestUpdateNodePoolObject(t *testing.T) {
 							},
 							Requirements: []karpenterv1.NodeSelectorRequirementWithMinValues{
 								{
-									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
-										Key:      "kubernetes.io/arch",
-										Operator: corev1.NodeSelectorOpIn,
-										Values:   []string{"amd64"},
-									},
+									Key:      "kubernetes.io/arch",
+									Operator: corev1.NodeSelectorOpIn,
+									Values:   []string{"amd64"},
 								},
 								{
-									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
-										Key:      "kubernetes.io/os",
-										Operator: corev1.NodeSelectorOpIn,
-										Values:   []string{"linux"},
-									},
+									Key:      "kubernetes.io/os",
+									Operator: corev1.NodeSelectorOpIn,
+									Values:   []string{"linux"},
 								},
 								{
-									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
-										Key:      corev1.LabelInstanceTypeStable,
-										Operator: corev1.NodeSelectorOpNotIn,
-										Values:   []string{"m5.large", "t3.micro"},
-									},
+									Key:      corev1.LabelInstanceTypeStable,
+									Operator: corev1.NodeSelectorOpNotIn,
+									Values:   []string{"m5.large", "t3.micro"},
 								},
 							},
 							NodeClassRef: &karpenterv1.NodeClassReference{
@@ -663,25 +617,19 @@ func TestUpdateNodePoolObject(t *testing.T) {
 							},
 							Requirements: []karpenterv1.NodeSelectorRequirementWithMinValues{
 								{
-									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
-										Key:      "kubernetes.io/arch",
-										Operator: corev1.NodeSelectorOpIn,
-										Values:   []string{"amd64"},
-									},
+									Key:      "kubernetes.io/arch",
+									Operator: corev1.NodeSelectorOpIn,
+									Values:   []string{"amd64"},
 								},
 								{
-									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
-										Key:      "kubernetes.io/os",
-										Operator: corev1.NodeSelectorOpIn,
-										Values:   []string{"linux"},
-									},
+									Key:      "kubernetes.io/os",
+									Operator: corev1.NodeSelectorOpIn,
+									Values:   []string{"linux"},
 								},
 								{
-									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
-										Key:      corev1.LabelInstanceTypeStable,
-										Operator: corev1.NodeSelectorOpIn,
-										Values:   []string{"m5.large", "t3.micro"},
-									},
+									Key:      corev1.LabelInstanceTypeStable,
+									Operator: corev1.NodeSelectorOpIn,
+									Values:   []string{"m5.large", "t3.micro"},
 								},
 							},
 							NodeClassRef: &karpenterv1.NodeClassReference{
@@ -724,25 +672,19 @@ func TestUpdateNodePoolObject(t *testing.T) {
 							},
 							Requirements: []karpenterv1.NodeSelectorRequirementWithMinValues{
 								{
-									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
-										Key:      "kubernetes.io/arch",
-										Operator: corev1.NodeSelectorOpIn,
-										Values:   []string{"amd64"},
-									},
+									Key:      "kubernetes.io/arch",
+									Operator: corev1.NodeSelectorOpIn,
+									Values:   []string{"amd64"},
 								},
 								{
-									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
-										Key:      "kubernetes.io/os",
-										Operator: corev1.NodeSelectorOpIn,
-										Values:   []string{"linux"},
-									},
+									Key:      "kubernetes.io/os",
+									Operator: corev1.NodeSelectorOpIn,
+									Values:   []string{"linux"},
 								},
 								{
-									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
-										Key:      corev1.LabelInstanceTypeStable,
-										Operator: corev1.NodeSelectorOpIn,
-										Values:   []string{"m5.large", "t3.micro"},
-									},
+									Key:      corev1.LabelInstanceTypeStable,
+									Operator: corev1.NodeSelectorOpIn,
+									Values:   []string{"m5.large", "t3.micro"},
 								},
 							},
 							NodeClassRef: &karpenterv1.NodeClassReference{
@@ -770,25 +712,19 @@ func TestUpdateNodePoolObject(t *testing.T) {
 							},
 							Requirements: []karpenterv1.NodeSelectorRequirementWithMinValues{
 								{
-									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
-										Key:      "kubernetes.io/arch",
-										Operator: corev1.NodeSelectorOpIn,
-										Values:   []string{"amd64"},
-									},
+									Key:      "kubernetes.io/arch",
+									Operator: corev1.NodeSelectorOpIn,
+									Values:   []string{"amd64"},
 								},
 								{
-									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
-										Key:      "kubernetes.io/os",
-										Operator: corev1.NodeSelectorOpIn,
-										Values:   []string{"linux"},
-									},
+									Key:      "kubernetes.io/os",
+									Operator: corev1.NodeSelectorOpIn,
+									Values:   []string{"linux"},
 								},
 								{
-									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
-										Key:      corev1.LabelInstanceTypeStable,
-										Operator: corev1.NodeSelectorOpIn,
-										Values:   []string{"m5.large", "t3.micro"},
-									},
+									Key:      corev1.LabelInstanceTypeStable,
+									Operator: corev1.NodeSelectorOpIn,
+									Values:   []string{"m5.large", "t3.micro"},
 								},
 							},
 							NodeClassRef: &karpenterv1.NodeClassReference{
@@ -825,25 +761,19 @@ func TestUpdateNodePoolObject(t *testing.T) {
 							},
 							Requirements: []karpenterv1.NodeSelectorRequirementWithMinValues{
 								{
-									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
-										Key:      "kubernetes.io/arch",
-										Operator: corev1.NodeSelectorOpIn,
-										Values:   []string{"amd64"},
-									},
+									Key:      "kubernetes.io/arch",
+									Operator: corev1.NodeSelectorOpIn,
+									Values:   []string{"amd64"},
 								},
 								{
-									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
-										Key:      "kubernetes.io/os",
-										Operator: corev1.NodeSelectorOpIn,
-										Values:   []string{"linux"},
-									},
+									Key:      "kubernetes.io/os",
+									Operator: corev1.NodeSelectorOpIn,
+									Values:   []string{"linux"},
 								},
 								{
-									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
-										Key:      corev1.LabelInstanceTypeStable,
-										Operator: corev1.NodeSelectorOpIn,
-										Values:   []string{"m5.large", "t3.micro"},
-									},
+									Key:      corev1.LabelInstanceTypeStable,
+									Operator: corev1.NodeSelectorOpIn,
+									Values:   []string{"m5.large", "t3.micro"},
 								},
 							},
 							NodeClassRef: &karpenterv1.NodeClassReference{

@@ -28,7 +28,7 @@
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 27
+            "lineNumber": 28
           },
           {
             "function": "runtime.main",
@@ -57,6 +57,7 @@
       ]
     },
     "timestamp": "[ts]",
-    "message": "{error: failed to resolve reference \"x\"}"
+    "message": "{error: failed to resolve reference \"x\"}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

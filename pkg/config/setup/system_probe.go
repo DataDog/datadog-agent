@@ -182,7 +182,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 
 	cfg.BindEnvAndSetDefault("system_probe_config.offset_guess_threshold", int64(defaultOffsetThreshold))
 
-	cfg.BindEnvAndSetDefault("system_probe_config.max_tracked_connections", 65536)
+	cfg.BindEnvAndSetDefault("system_probe_config.max_tracked_connections", int64(65536))
 	cfg.BindEnv("system_probe_config.max_closed_connections_buffered")   //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	cfg.BindEnv("network_config.max_failed_connections_buffered")        //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	cfg.BindEnv("system_probe_config.closed_connection_flush_threshold") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
@@ -206,7 +206,6 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("system_probe_config.enable_conntrack_all_namespaces", true, "DD_SYSTEM_PROBE_ENABLE_CONNTRACK_ALL_NAMESPACES")
 	cfg.BindEnvAndSetDefault("network_config.enable_protocol_classification", true, "DD_ENABLE_PROTOCOL_CLASSIFICATION")
 	cfg.BindEnvAndSetDefault("network_config.enable_ringbuffers", true, "DD_SYSTEM_PROBE_NETWORK_ENABLE_RINGBUFFERS")
-	cfg.BindEnvAndSetDefault("network_config.enable_custom_batching", false, "DD_SYSTEM_PROBE_NETWORK_ENABLE_CUSTOM_BATCHING")
 	cfg.BindEnvAndSetDefault("network_config.enable_tcp_failed_connections", true, "DD_SYSTEM_PROBE_NETWORK_ENABLE_FAILED_CONNS")
 	cfg.BindEnvAndSetDefault("network_config.ignore_conntrack_init_failure", false, "DD_SYSTEM_PROBE_NETWORK_IGNORE_CONNTRACK_INIT_FAILURE")
 	cfg.BindEnvAndSetDefault("network_config.conntrack_init_timeout", 10*time.Second)
@@ -244,6 +243,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 
 	cfg.BindEnvAndSetDefault("network_config.enable_ebpfless", false, "DD_ENABLE_EBPFLESS", "DD_NETWORK_CONFIG_ENABLE_EBPFLESS")
 
+	cfg.BindEnvAndSetDefault("network_config.enable_co_re", true)
 	cfg.BindEnvAndSetDefault("network_config.enable_fentry", false)
 
 	// TLS cert collection
@@ -306,7 +306,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.event_stream.use_kprobe_fallback", true)
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.event_stream.buffer_size", 0)
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.event_stream.kretprobe_max_active", 512)
-	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.envs_with_value", []string{"LD_PRELOAD", "LD_LIBRARY_PATH", "PATH", "HISTSIZE", "HISTFILESIZE", "GLIBC_TUNABLES", "SSH_CLIENT", "DD_SERVICE", "OTEL_SERVICE_NAME"})
+	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.envs_with_value", []string{"LD_PRELOAD", "LD_LIBRARY_PATH", "PATH", "HISTSIZE", "HISTFILESIZE", "GLIBC_TUNABLES", "SSH_CLIENT", "DD_SERVICE", "OTEL_SERVICE_NAME", "CLAUDECODE", "RUNNER_TRACKING_ID"})
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.runtime_compilation.enabled", false)
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.network.enabled", true)
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.network.ingress.enabled", true)
@@ -348,8 +348,8 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("ccm_network_config.enabled", false)
 
 	// Discovery config
-	cfg.BindEnv("discovery.enabled") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	cfg.BindEnvAndSetDefault("discovery.use_system_probe_lite", false)
+	cfg.BindEnvAndSetDefault("discovery.enabled", runtime.GOOS == "linux")
+	cfg.BindEnvAndSetDefault("discovery.use_system_probe_lite", runtime.GOOS == "linux")
 	cfg.BindEnvAndSetDefault("discovery.cpu_usage_update_delay", "60s")
 	cfg.BindEnvAndSetDefault("discovery.service_collection_interval", "60s")
 

@@ -22,7 +22,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
+	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -321,7 +321,7 @@ func (c *WorkloadMetaCollector) handleProcess(ev workloadmeta.Event) []*types.Ta
 			continue
 		}
 
-		c.extractGPUTags(gpu, tagList)
+		ExtractGPUTags(gpu, tagList)
 	}
 
 	low, orch, high, standard := tagList.Compute()
@@ -746,7 +746,7 @@ func (c *WorkloadMetaCollector) handleGPU(ev workloadmeta.Event) []*types.TagInf
 	gpu := ev.Entity.(*workloadmeta.GPU)
 
 	tagList := taglist.NewTagList()
-	c.extractGPUTags(gpu, tagList)
+	ExtractGPUTags(gpu, tagList)
 
 	low, orch, high, standard := tagList.Compute()
 
@@ -769,8 +769,8 @@ func (c *WorkloadMetaCollector) handleGPU(ev workloadmeta.Event) []*types.TagInf
 	return tagInfos
 }
 
-// extractGPUTags extracts GPU tags from a GPU entity and adds them to the provided tagList
-func (c *WorkloadMetaCollector) extractGPUTags(gpu *workloadmeta.GPU, tagList *taglist.TagList) {
+// ExtractGPUTags extracts GPU tags from a GPU entity and adds them to the provided tagList
+func ExtractGPUTags(gpu *workloadmeta.GPU, tagList *taglist.TagList) {
 	gpuUUID := strings.ToLower(gpu.ID)
 	tagList.AddLow(tags.KubeGPUVendor, strings.ToLower(gpu.Vendor))
 	tagList.AddLow(tags.KubeGPUDevice, strings.ToLower(strings.ReplaceAll(gpu.Device, " ", "_")))

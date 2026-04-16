@@ -17,20 +17,44 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
-type seriesIterator struct {
+type iteratorCommon struct {
 	reader   *reader.MetricDataReader
 	origin   origin
 	hostname string
+	err      error
+}
 
+func (it *iteratorCommon) processTags() tagset.CompositeTags {
+	clientTags := it.reader.Tags()
+	cardTag := slices.IndexFunc(clientTags, func(s string) bool {
+		return strings.HasPrefix(s, constants.CardinalityTagPrefix)
+	})
+	if cardTag < 0 {
+		return tagset.NewCompositeTags(it.origin.getTags(), clientTags)
+	}
+	card, _ := strings.CutPrefix(clientTags[cardTag], constants.CardinalityTagPrefix)
+	clientTags = remove(slices.Clone(clientTags), cardTag)
+	return tagset.NewCompositeTags(it.origin.getTagsWith(card), clientTags)
+}
+
+func remove(s []string, i int) []string {
+	j := len(s) - 1
+	s[i], s[j] = s[j], ""
+	return s[:j]
+}
+
+type seriesIterator struct {
+	iteratorCommon
 	buffer metrics.Serie
-	err    error
 }
 
 func newSeriesIterator(payload *pb.Payload, origin origin, hostname string) (*seriesIterator, error) {
 	it := &seriesIterator{
-		reader:   reader.NewMetricDataReader(payload.MetricData),
-		origin:   origin,
-		hostname: hostname,
+		iteratorCommon: iteratorCommon{
+			reader:   reader.NewMetricDataReader(payload.MetricData),
+			origin:   origin,
+			hostname: hostname,
+		},
 	}
 
 	return it, it.reader.Initialize()
@@ -118,23 +142,4 @@ func (it *seriesIterator) Current() *metrics.Serie {
 // Count does nothing and returns zero.
 func (it *seriesIterator) Count() uint64 {
 	return 0
-}
-
-func (it *seriesIterator) processTags() tagset.CompositeTags {
-	clientTags := it.reader.Tags()
-	cardTag := slices.IndexFunc(clientTags, func(s string) bool {
-		return strings.HasPrefix(s, constants.CardinalityTagPrefix)
-	})
-	if cardTag < 0 {
-		return tagset.NewCompositeTags(it.origin.getTags(), clientTags)
-	}
-	card, _ := strings.CutPrefix(clientTags[cardTag], constants.CardinalityTagPrefix)
-	clientTags = remove(slices.Clone(clientTags), cardTag)
-	return tagset.NewCompositeTags(it.origin.getTagsWith(card), clientTags)
-}
-
-func remove(s []string, i int) []string {
-	j := len(s) - 1
-	s[i], s[j] = s[j], ""
-	return s[:j]
 }

@@ -2,46 +2,56 @@
 set -euo pipefail
 
 # Check `bazelisk` properly bootstraps `bazel` or fail with instructions
-if [ -z "${BAZEL_REAL:-}" ] || [ "${BAZELISK_SKIP_WRAPPER:-}" != true ]; then
+if [ -z "${BAZEL_REAL-}" ] || [ "${BAZELISK_SKIP_WRAPPER-}" != true ]; then
   >&2 cat "$(dirname "$0")/bazelisk.md"
   exit 2
 fi
 
 # Ensure `XDG_CACHE_HOME` denotes a directory
-if [ ! -d "${XDG_CACHE_HOME:-}" ]; then
-  if [ -n "${CI:-}" ]; then
-    >&2 echo "🔴 XDG_CACHE_HOME (${XDG_CACHE_HOME:-}) must denote a directory in CI!"
+if [ ! -d "${XDG_CACHE_HOME-}" ]; then
+  if [ -n "${CI-}" ]; then
+    >&2 echo "🔴 XDG_CACHE_HOME (${XDG_CACHE_HOME-}) must denote a directory in CI!"
     exit 2
   fi
   if [[ -e /.dockerenv || -e /run/.containerenv ]]; then
     >&2 echo "💡 To persist caches across restarts, please set XDG_CACHE_HOME pointing to a mounted directory, e.g.:"
     # shellcheck disable=SC2016
-    >&2 echo '    docker run --env=XDG_CACHE_HOME=/cache --volume="$HOME/.cache:/cache" ...'
+    >&2 echo '    docker run --env=XDG_CACHE_HOME=/cache --volume=~/.cache:/cache ...'
   fi
 fi
 
-# Ensure `bazel` & managed toolchains honor `XDG_CACHE_HOME` as per https://wiki.archlinux.org/title/XDG_Base_Directory
-if [ -n "${XDG_CACHE_HOME:-}" ]; then
+# Ensure `bazel` & managed toolchains honor `XDG_CACHE_HOME`
+extra_args=()
+if [ -n "${XDG_CACHE_HOME-}" ]; then
   if [[ "$XDG_CACHE_HOME" != /* ]]; then
     >&2 echo "🔴 XDG_CACHE_HOME ($XDG_CACHE_HOME) must denote an absolute path!"
     exit 2
   fi
-  unset GOCACHE                               # https://pkg.go.dev/cmd/go#hdr-Build_and_test_caching
-  export GOMODCACHE="$XDG_CACHE_HOME"/go/mod  # https://wiki.archlinux.org/title/XDG_Base_Directory#Partial
-  unset PIP_CACHE_DIR                         # https://pip.pypa.io/en/stable/topics/caching/#default-paths
+  export GOCACHE="$XDG_CACHE_HOME/go-build"
+  export GOMODCACHE="$XDG_CACHE_HOME/go/mod"
+  extra_args+=(--disk_cache="$XDG_CACHE_HOME/bazel/disk-cache")
+  # https://github.com/bazelbuild/bazel/issues/26384
+  [ "$XDG_CACHE_HOME" = "$(dirname "$(dirname "$0")")/.cache" ] && extra_args+=(--repo_contents_cache=)
+  [ -n "${CI-}" ] && [ -z "${GITHUB_ACTIONS-}" ] && extra_args+=(--config=ci)
+else
+  # Without `XDG_CACHE_HOME`, fall back Go caches to official defaults so Go repo rules work under strict repo_env
+  [ -z "${GOCACHE-}" ] && export GOCACHE=~/.cache/go-build
+  if [ -z "${GOMODCACHE:-}" ]; then
+    [ -n "${GOPATH-}" ] && gp="${GOPATH%%:*}" || gp=~/go
+    export GOMODCACHE="$gp/pkg/mod"
+    unset gp
+  fi
 fi
 
 # "--startup cmd ..." -> "--startup cmd --config=ci ..."
-if [[ $# -gt 0 && -n "${CI:-}" ]]; then
+if [[ $# -gt 0 && ${#extra_args[@]} -gt 0 ]]; then
   args=()
   cmd=
   for arg in "$@"; do
     args+=("$arg")
     if [[ -z "$cmd" && "$arg" != -* ]]; then
       cmd=$arg
-      [ -z "${GITHUB_ACTIONS:-}" ] && args+=(--config=ci)
-      # https://github.com/bazelbuild/bazel/issues/26384
-      [ "${XDG_CACHE_HOME:-}" = "$(dirname "$(dirname "$0")")/.cache" ] && args+=(--repo_contents_cache=)
+      args+=("${extra_args[@]}")
     fi
   done
   set -- "${args[@]}"

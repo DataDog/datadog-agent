@@ -25,6 +25,126 @@ func TestMessage(t *testing.T) {
 	assert.Equal(t, StatusInfo, message.GetStatus())
 }
 
+func TestHasContent(t *testing.T) {
+	t.Run("unstructured with content", func(t *testing.T) {
+		msg := NewMessage([]byte("hello"), nil, "", 0)
+		assert.True(t, msg.HasContent())
+	})
+
+	t.Run("unstructured empty", func(t *testing.T) {
+		msg := NewMessage([]byte{}, nil, "", 0)
+		assert.False(t, msg.HasContent())
+	})
+
+	t.Run("structured with message", func(t *testing.T) {
+		sc := &BasicStructuredContent{Data: map[string]interface{}{"message": "hello"}}
+		msg := NewStructuredMessage(sc, nil, "", 0)
+		assert.True(t, msg.HasContent())
+	})
+
+	t.Run("structured with empty message", func(t *testing.T) {
+		sc := &BasicStructuredContent{Data: map[string]interface{}{"message": "", "siem": map[string]interface{}{"format": "CEF"}}}
+		msg := NewStructuredMessage(sc, nil, "", 0)
+		assert.True(t, msg.HasContent())
+	})
+
+	t.Run("structured nil content", func(t *testing.T) {
+		msg := &Message{MessageContent: MessageContent{State: StateStructured, structuredContent: nil}}
+		assert.False(t, msg.HasContent())
+	})
+
+	t.Run("rendered with content", func(t *testing.T) {
+		msg := NewMessage([]byte("hello"), nil, "", 0)
+		msg.SetRendered([]byte(`{"message":"hello"}`))
+		assert.True(t, msg.HasContent())
+	})
+
+	t.Run("rendered empty", func(t *testing.T) {
+		msg := NewMessage(nil, nil, "", 0)
+		msg.SetRendered([]byte{})
+		assert.False(t, msg.HasContent())
+	})
+}
+
+func TestGetStructuredAttribute(t *testing.T) {
+	t.Run("top-level string", func(t *testing.T) {
+		sc := &BasicStructuredContent{Data: map[string]interface{}{"message": "hello"}}
+		msg := NewStructuredMessage(sc, nil, "", 0)
+		val, ok := msg.GetStructuredAttribute("message")
+		assert.True(t, ok)
+		assert.Equal(t, "hello", val)
+	})
+
+	t.Run("nested dot path", func(t *testing.T) {
+		sc := &BasicStructuredContent{Data: map[string]interface{}{
+			"siem": map[string]interface{}{
+				"device_vendor": "Security",
+			},
+		}}
+		msg := NewStructuredMessage(sc, nil, "", 0)
+		val, ok := msg.GetStructuredAttribute("siem.device_vendor")
+		assert.True(t, ok)
+		assert.Equal(t, "Security", val)
+	})
+
+	t.Run("deeply nested", func(t *testing.T) {
+		sc := &BasicStructuredContent{Data: map[string]interface{}{
+			"a": map[string]interface{}{
+				"b": map[string]interface{}{
+					"c": "deep",
+				},
+			},
+		}}
+		msg := NewStructuredMessage(sc, nil, "", 0)
+		val, ok := msg.GetStructuredAttribute("a.b.c")
+		assert.True(t, ok)
+		assert.Equal(t, "deep", val)
+	})
+
+	t.Run("numeric leaf", func(t *testing.T) {
+		sc := &BasicStructuredContent{Data: map[string]interface{}{
+			"count": float64(42),
+		}}
+		msg := NewStructuredMessage(sc, nil, "", 0)
+		val, ok := msg.GetStructuredAttribute("count")
+		assert.True(t, ok)
+		assert.Equal(t, "42", val)
+	})
+
+	t.Run("missing key returns false", func(t *testing.T) {
+		sc := &BasicStructuredContent{Data: map[string]interface{}{"message": "hello"}}
+		msg := NewStructuredMessage(sc, nil, "", 0)
+		_, ok := msg.GetStructuredAttribute("nonexistent")
+		assert.False(t, ok)
+	})
+
+	t.Run("missing nested key returns false", func(t *testing.T) {
+		sc := &BasicStructuredContent{Data: map[string]interface{}{
+			"siem": map[string]interface{}{},
+		}}
+		msg := NewStructuredMessage(sc, nil, "", 0)
+		_, ok := msg.GetStructuredAttribute("siem.device_vendor")
+		assert.False(t, ok)
+	})
+
+	t.Run("unstructured message returns false", func(t *testing.T) {
+		msg := NewMessage([]byte("hello"), nil, "", 0)
+		_, ok := msg.GetStructuredAttribute("message")
+		assert.False(t, ok)
+	})
+
+	t.Run("map leaf returns false", func(t *testing.T) {
+		sc := &BasicStructuredContent{Data: map[string]interface{}{
+			"siem": map[string]interface{}{
+				"nested": map[string]interface{}{"a": "b"},
+			},
+		}}
+		msg := NewStructuredMessage(sc, nil, "", 0)
+		_, ok := msg.GetStructuredAttribute("siem.nested")
+		assert.False(t, ok)
+	})
+}
+
 func TestNewPayload(t *testing.T) {
 	messages := []*Message{
 		NewMessage([]byte("hello"), nil, "", 0),

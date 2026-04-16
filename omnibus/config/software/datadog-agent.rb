@@ -75,18 +75,17 @@ build do
 
   # we assume the go deps are already installed before running omnibus
   if windows_target?
-    platform = windows_arch_i386? ? "x86" : "x64"
     do_windows_sysprobe = ""
-    if not windows_arch_i386? and ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
+    if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
       do_windows_sysprobe = "--windows-sysprobe"
     end
-    command_on_repo_root "bazelisk run #{bazel_flags} -- //rtloader:install --destdir=\"#{install_dir}/bin/agent\""
+    command_on_repo_root "bazelisk run #{bazel_flags} -- //rtloader:install --destdir=\"#{install_dir}"
     # Put the static rtloader library where it gets picked up by the go build linking to it
     command_on_repo_root "bazelisk run #{bazel_flags} -- //rtloader:install_static --destdir=\"#{project_dir}/rtloader/build/rtloader\""
     command "dda inv -- -e agent.build --exclude-rtloader --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded #{do_windows_sysprobe} --flavor #{flavor_arg}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     command "dda inv -- -e systray.build", env: env, :live_stream => Omnibus.logger.live_stream(:info)
   else
-    command_on_repo_root "bazelisk run #{bazel_flags} -- //rtloader:install --destdir='#{install_dir}/embedded'"
+    command_on_repo_root "bazelisk run #{bazel_flags} -- //rtloader:install --destdir='#{install_dir}'"
     sh_ext = if linux_target? then "so" else "dylib" end
     command_on_repo_root "bazelisk run #{bazel_flags} -- //bazel/rules:replace_prefix" \
       " --prefix '#{install_dir}/embedded'" \
@@ -96,19 +95,31 @@ build do
   end
 
   command_on_repo_root "bazelisk run #{bazel_flags} -- //packages/agent/product:post_build_install --destdir=#{install_dir} --verbose", :live_stream => Omnibus.logger.live_stream(:info)
-  # TODO: dda agent.build also builds datadog.yaml. We need to work with the
+
+  # TODO: dda inv agent.build also builds datadog.yaml. We need to work with the
   # config team to find out if removing that will break their workflow.  If not,
   # then we drop it. If so, then we can switch the build from go run building the
   # target with bazel.
   delete 'bin/agent/dist/datadog.yaml'
 
-  # TODO(https://datadoghq.atlassian.net/browse/ABLD-402): Put the config files in the right places
   if osx_target?
     conf_dir = "#{install_dir}/etc"
   else
     conf_dir = "#{install_dir}/etc/datadog-agent"
   end
-  copy 'bin/agent/dist/conf.d/.', "#{conf_dir}"
+  # TODO(agent-build): sort out the use of bin/agen/dist/conf.d
+  # dda inv agent.build  leaves many files in bin/agen/dist/conf.d
+  # Now we place them into the pacakge via the //packages/agent/product:post_build_install
+  # line above, or directly into the package from the packages/... targets.  That makes
+  # the intermediate use of bin/agent/dist redundant. It is not clear that any users or
+  # build processes rely on the copy bin in bin/agent/dist. It is also not clear if
+  # the developer invocation of agent.build should always copy the config files out, or if
+  # that can be a distinct option.
+  # Possible good end states are:
+  # 1) In developement mode, agent.build calls bazel to push the conf.d files
+  # 2) --development mode goes away. If you want the config files, you have a new command to install them
+  #    somewhere
+  # 3) something else?
   # We must do this to prevent a copy command below from picking it up again.
   delete 'bin/agent/dist/conf.d'
 
@@ -125,7 +136,6 @@ build do
     mkdir Omnibus::Config.package_dir() unless Dir.exists?(Omnibus::Config.package_dir())
   end
 
-  platform = windows_arch_i386? ? "x86" : "x64"
   command "dda inv -- -e trace-agent.build --install-path=#{install_dir} --flavor #{flavor_arg}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
 
   # Build the installer
@@ -243,7 +253,7 @@ build do
     else
       copy 'bin/security-agent/security-agent', "#{install_dir}/embedded/bin"
     end
-    move 'bin/agent/dist/security-agent.yaml', "#{conf_dir}/security-agent.yaml.example"
+    move 'pkg/config/example/security-agent.yaml.example', "#{conf_dir}/security-agent.yaml.example"
   end
 
   # CWS Instrumentation
@@ -273,7 +283,7 @@ build do
     mkdir "#{app_temp_dir}/MacOS"
     systray_build_dir = "#{project_dir}/comp/core/gui/guiimpl/systray"
     # Add @executable_path/../Frameworks to rpath to find the swift libs in the Frameworks folder.
-    target = "#{arm_target? ? 'arm64' : 'x86_64'}-apple-macos11.0" # https://docs.datadoghq.com/agent/supported_platforms/?tab=macos
+    target = "#{arm_target? ? 'arm64' : 'x86_64'}-apple-macos12.0" # https://docs.datadoghq.com/agent/supported_platforms/?tab=macos
     command "swiftc -O -swift-version \"5\" -target \"#{target}\" -Xlinker '-rpath' -Xlinker '@executable_path/../Frameworks' Sources/*.swift -o gui", cwd: systray_build_dir
     copy "#{systray_build_dir}/gui", "#{app_temp_dir}/MacOS/"
     copy "#{systray_build_dir}/agent.png", "#{app_temp_dir}/MacOS/"

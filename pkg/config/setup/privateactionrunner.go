@@ -6,8 +6,10 @@
 package setup
 
 import (
+	"path"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
@@ -24,9 +26,10 @@ const (
 	PARUrn                  = "private_action_runner.urn"
 
 	// General config
-	PARTaskConcurrency    = "private_action_runner.task_concurrency"
-	PARTaskTimeoutSeconds = "private_action_runner.task_timeout_seconds"
-	PARActionsAllowlist   = "private_action_runner.actions_allowlist"
+	PARTaskConcurrency       = "private_action_runner.task_concurrency"
+	PARTaskTimeoutSeconds    = "private_action_runner.task_timeout_seconds"
+	PARActionsAllowlist      = "private_action_runner.actions_allowlist"
+	PARDefaultActionsEnabled = "private_action_runner.default_actions_enabled"
 
 	// HTTP Action related
 	PARHttpTimeoutSeconds    = "private_action_runner.http_timeout_seconds"
@@ -36,6 +39,17 @@ const (
 	// Restricted Shell
 	PARRestrictedShellAllowedPaths = "private_action_runner.restricted_shell_allowed_paths"
 )
+
+const (
+	// Default allowed paths for restricted shell
+	defaultLogPath = "/var/log"
+
+	containerizedPathPrefix = "/host"
+)
+
+// parPathExists is the function used to check path existence. It defaults to
+// pathExists and can be overridden in tests.
+var parPathExists = pathExists
 
 // setupPrivateActionRunner registers all configuration keys for the private action runner
 func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
@@ -57,6 +71,7 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault(PARTaskConcurrency, 5)
 	config.BindEnvAndSetDefault(PARTaskTimeoutSeconds, 60)
 	config.BindEnvAndSetDefault(PARActionsAllowlist, []string{})
+	config.BindEnvAndSetDefault(PARDefaultActionsEnabled, true)
 	config.ParseEnvAsStringSlice(PARActionsAllowlist, func(s string) []string {
 		return strings.Split(s, ",")
 	})
@@ -69,12 +84,18 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	})
 	config.BindEnvAndSetDefault(PARHttpAllowImdsEndpoint, false)
 
-	config.BindEnvAndSetDefault(PARRestrictedShellAllowedPaths, []string{"/var/log"})
+	defaultPaths := []string{defaultLogPath}
+	if env.IsContainerized() {
+		for i, v := range defaultPaths {
+			hostPath := path.Join(containerizedPathPrefix, v)
+			defaultPaths[i] = hostPath
+		}
+	}
+	config.BindEnvAndSetDefault(PARRestrictedShellAllowedPaths, defaultPaths)
 	config.ParseEnvAsStringSlice(PARRestrictedShellAllowedPaths, func(s string) []string {
 		if s == "" {
 			return nil
 		}
 		return strings.Split(s, ",")
 	})
-
 }

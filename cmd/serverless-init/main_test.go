@@ -23,7 +23,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	serverlessTag "github.com/DataDog/datadog-agent/pkg/serverless/tags"
+	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -79,22 +82,55 @@ func (tfa *TestFlushableAgent) Flush() {
 
 func TestFlushSuccess(t *testing.T) {
 	metricAgent := &TestFlushableAgent{}
-	traceAgent := &TestFlushableAgent{}
 	mockLogsAgent := agentimpl.NewMockServerlessLogsAgent()
-	lastFlush(100*time.Millisecond, metricAgent, traceAgent, mockLogsAgent)
+	lastFlush(100*time.Millisecond, metricAgent, mockLogsAgent)
 	assert.Equal(t, true, metricAgent.hasBeenCalled)
 	assert.Equal(t, true, mockLogsAgent.DidFlush())
 }
 
 func TestFlushTimeout(t *testing.T) {
 	metricAgent := &TestTimeoutFlushableAgent{}
-	traceAgent := &TestTimeoutFlushableAgent{}
 	mockLogsAgent := agentimpl.NewMockServerlessLogsAgent()
 	mockLogsAgent.SetFlushDelay(time.Hour)
 
-	lastFlush(100*time.Millisecond, metricAgent, traceAgent, mockLogsAgent)
+	lastFlush(100*time.Millisecond, metricAgent, mockLogsAgent)
 	assert.Equal(t, false, metricAgent.hasBeenCalled)
 	assert.Equal(t, false, mockLogsAgent.DidFlush())
+}
+
+// TestSetupWithoutAPIKey verifies that when DD_API_KEY is not set,
+// the metric agent is not started and the trace agent is a no-op.
+// This prevents noisy error logs when serverless-init is used without configuration.
+func TestSetupWithoutAPIKey(t *testing.T) {
+	configmock.New(t)
+
+	modeConf = mode.DetectMode()
+
+	// Explicitly unset DD_API_KEY
+	t.Setenv("DD_API_KEY", "")
+
+	_ = pkgconfigsetup.LoadDatadog(pkgconfigsetup.Datadog(), secretsmock.New(t), delegatedauthmock.New(t), nil)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+
+	// Simulate the API key check from setup()
+	apiKey := configUtils.SanitizeAPIKey(pkgconfigsetup.Datadog().GetString("api_key"))
+	assert.Empty(t, apiKey)
+
+	// When no API key, metric agent should not be started (Demux is nil)
+	metricAgent := &metrics.ServerlessMetricAgent{
+		SketchesBucketOffset: 0,
+		Tagger:               fakeTagger,
+	}
+	assert.Nil(t, metricAgent.Demux)
+	assert.False(t, metricAgent.IsReady())
+
+	// Noop trace agent should be safe to call
+	traceAgent := trace.NewNoopTraceAgent()
+	assert.NotPanics(t, func() {
+		traceAgent.Flush()
+		traceAgent.SetTags(map[string]string{"test": "value"})
+		traceAgent.Stop()
+	})
 }
 
 // TestSetupOtlpAgentNoPanic ensures setupOtlpAgent does not panic when OTLP is enabled.

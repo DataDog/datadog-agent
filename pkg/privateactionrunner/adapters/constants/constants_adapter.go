@@ -6,6 +6,11 @@
 package constants
 
 const (
+	// InternalSkipTaskVerificationEnvVar is an internal-only env var for e2e tests.
+	// When set to "true", PAR skips signed-envelope validation and allows HTTP connections.
+	// NOT intended for customer use.
+	InternalSkipTaskVerificationEnvVar = "DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION"
+
 	JwtHeaderName           = "X-Datadog-OnPrem-JWT"
 	ModeHeaderName          = "X-Datadog-OnPrem-Modes"
 	VersionHeaderName       = "X-Datadog-OnPrem-Version"
@@ -30,4 +35,7 @@ var (
 	BodyContentTypeTokenName = "content_type"
 	UrlParametersGroupName   = "url_parameters"
 	HeadersGroupName         = "headers"
+	TestingName              = "testing"
+	TestingPathName          = "path"
+	TestingVerbName          = "verb"
 )

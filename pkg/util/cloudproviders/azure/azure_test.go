@@ -89,6 +89,41 @@ func TestGetClusterName(t *testing.T) {
 	}
 }
 
+func TestParseClusterNameFromResourceGroup(t *testing.T) {
+	tests := []struct {
+		name    string
+		rgName  string
+		want    string
+		wantErr bool
+	}{
+		{
+			name:    "uppercase prefix",
+			rgName:  "MC_aks-kenafeh_aks-kenafeh-eu_westeurope",
+			want:    "aks-kenafeh-eu",
+			wantErr: false,
+		},
+		{
+			name:    "lowercase prefix",
+			rgName:  "mc_foo-bar-aks-k8s-rg_foo-bar-aks-k8s_westeurope",
+			want:    "foo-bar-aks-k8s",
+			wantErr: false,
+		},
+		{
+			name:    "invalid",
+			rgName:  "unexpected-resource-group-name-format",
+			want:    "",
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParseClusterNameFromResourceGroup(tt.rgName)
+			assert.Equal(t, tt.wantErr, (err != nil))
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
 func TestGetNTPHosts(t *testing.T) {
 	ctx := context.Background()
 	expectedHosts := []string{"time.windows.com"}

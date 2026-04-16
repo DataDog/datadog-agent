@@ -9,7 +9,11 @@ env_vars(
     name = "agent_volatile",
     # Each variable needs a justification. Every time you use one, the
     # target using it is potentially uncachable.
+    # ⚠️ Keep in sync with the `--repo_env=` entries in .bazelrc
     variables = [
+        # This gets set by omnibus builds in many cases. It's used in the script
+        # to set things like compression, so we'll mimic that for now.
+        "DEPLOY_AGENT",
         # For some tests we want to run with higher compression, but
         # not break caching and rebuild the binaries.
         "FORCED_PACKAGE_COMPRESSION_LEVEL",
@@ -46,18 +50,18 @@ archive_override(
 
 bazel_dep(name = "bazel_lib", version = "3.2.2")
 bazel_dep(name = "bazel_skylib", version = "1.9.0")
-bazel_dep(name = "gazelle", version = "0.48.0")
+bazel_dep(name = "gawk", version = "5.3.2.bcr.3")
+bazel_dep(name = "gazelle", version = "0.50.0")
+bazel_dep(name = "gcc_toolchain", version = "0.9.2")
 bazel_dep(name = "libarchive", version = "3.8.1.bcr.2")
 bazel_dep(name = "platforms", version = "1.0.0")
 bazel_dep(name = "protobuf", version = "34.1")
-single_version_override(
-    module_name = "protobuf",
-    patch_strip = 1,
-    patches = ["//bazel/patches:protobuf/0001-add-libstdcpp-to-link-opts.patch"],
-)
-
 bazel_dep(name = "re.bzl", version = "0.2.0")
+bazel_dep(name = "rules_cc", version = "0.2.17")
+bazel_dep(name = "rules_flex", version = "0.4")
 bazel_dep(name = "rules_go", version = "0.60.0")
+bazel_dep(name = "rules_m4", version = "0.3.bcr.1")
+bazel_dep(name = "rules_multitool", version = "1.11.1")
 bazel_dep(name = "rules_pkg", version = "1.2.0")
 bazel_dep(name = "rules_proto", version = "7.1.0")
 bazel_dep(name = "rules_python", version = "1.9.0")
@@ -70,10 +74,16 @@ bazel_dep(name = "supply_chain_tools", version = "0.0.1")
 bazel_dep(name = "rules_testing", version = "0.9.0", dev_dependency = True)
 
 # Temporary until rules_go > 0.60.0 with go.work support is in BCR
+# To be reverted to the upstream repo when
+# https://github.com/bazel-contrib/rules_go/pull/4586 gets merged
 git_override(
     module_name = "rules_go",
-    commit = "e7fb6ab0b4380ba16607152b0bef3e09ff66d8ab",  # main as of Feb 11, 2026
-    remote = "https://github.com/bazel-contrib/rules_go.git",
+    commit = "4cb2eab3d1aec456573f0cefd8e8800e9c68ae7d",
+    patch_strip = 1,
+    patches = [
+        "//bazel/patches:rules_go-windows-symlink-workaround.patch",  # bazel-contrib/rules_go#3977
+    ],
+    remote = "https://github.com/chouquette/rules_go.git",
 )
 
 # Temporary until rules_pkg > 1.2.0 is in BCR
@@ -104,8 +114,6 @@ http_archive(
         "https://github.com/bazelbuild/buildtools/archive/refs/tags/v8.5.1.tar.gz",
     ],
 )
-
-bazel_dep(name = "rules_multitool", version = "1.11.1")
 
 multitool = use_extension("@rules_multitool//multitool:extension.bzl", "multitool")
 multitool.hub(lockfile = "//bazel:prebuilt_buildtools.json")
@@ -162,27 +170,23 @@ use_repo(llvm_bpf_ext, "llvm_bpf")
 register_toolchains("@llvm_bpf//:llvm_bpf_toolchain")
 
 ## Linux kernel headers for eBPF prebuilt compilation
+## Registers three repos: host auto-detect + explicit x86_64 + explicit aarch64
+## for cross-compilation via --//bazel/rules/ebpf:target_arch=<arch>.
 linux_headers_ext = use_extension("//bazel/toolchains/linux_headers:linux_headers.bzl", "linux_headers_extension")
-use_repo(linux_headers_ext, "linux_headers")
+use_repo(linux_headers_ext, "linux_headers", "linux_headers_aarch64", "linux_headers_x86_64")
 
 ######################################
 ## Compilers and toolchains        ##
 ####################################
 
-bazel_dep(name = "rules_cc", version = "0.2.17")
-bazel_dep(name = "rules_flex", version = "0.4")
-bazel_dep(name = "rules_m4", version = "0.3.bcr.1")
-bazel_dep(name = "gawk", version = "5.3.2.bcr.3")
-bazel_dep(name = "gcc_toolchain", version = "0.9.0")
 git_override(
     module_name = "gcc_toolchain",
-    commit = "93d5d8532523027d54e60d6e9d9a9d13b55ee5b7",
+    commit = "cd3e7ee1027a3ecc8b89dc61eb485299ed833399",
     patch_args = ["-p1"],
     patches = [
-        "//bazel/patches:gcc-toolchain/0001-Remove-fortran-related-actions-adapt-to-our-ctng-too.patch",
+        "//bazel/patches:gcc-toolchain/0001-adapt-to-our-ctng-toolchain.patch",
         "//bazel/patches:gcc-toolchain/0002-fix-c-x86_64-header-locations-with-our-ctng-toolchai.patch",
         "//bazel/patches:gcc-toolchain/0003-add-nostdinc-to-asmflags.patch",
-        "//bazel/patches:gcc-toolchain/0004-fix-re-fetching.patch",  # https://github.com/f0rmiga/gcc-toolchain/pull/207
         "//bazel/patches:gcc-toolchain/0005-fix-bazel-9-compat.patch",
     ],
     remote = "https://github.com/f0rmiga/gcc-toolchain.git",
@@ -192,12 +196,16 @@ gcc_toolchains = use_extension("@gcc_toolchain//toolchain:module_extensions.bzl"
 gcc_toolchains.toolchain(
     name = "gcc_toolchain_x86_64",
     binary_prefix = "x86_64-unknown-linux-gnu-",
+    enable_fortran = False,
+    extra_ldflags = ["-Wl,--build-id=sha1"],
     gcc_version = "11.4.0",
     target_arch = "x86_64",
 )
 gcc_toolchains.toolchain(
     name = "gcc_toolchain_aarch64",
     binary_prefix = "aarch64-unknown-linux-gnu-",
+    enable_fortran = False,
+    extra_ldflags = ["-Wl,--build-id=sha1"],
     gcc_version = "12.3.0",
     target_arch = "aarch64",
 )
@@ -310,10 +318,10 @@ include("//deps/openscap:openscap.MODULE.bazel")
 include("//deps/libpcap:libpcap.MODULE.bazel")
 
 # buildifier: leave-alone
-include("//deps/secret_connector:secret_connector.MODULE.bazel")
+include("//deps/security_agent_policies:security_agent_policies.MODULE.bazel")
 
 # buildifier: leave-alone
-include("//deps/security_agent_policies:security_agent_policies.MODULE.bazel")
+include("//deps/setuptools:setuptools.MODULE.bazel")
 
 # buildifier: leave-alone
 include("//deps/snmp_traps:snmp_traps.MODULE.bazel")
@@ -332,4 +340,41 @@ include("//deps:go.MODULE.bazel")
 # to the build command to enable it.
 bazel_dep(name = "apple_support", version = "2.3.0")
 
-use_repo_rule("//bazel/tools:bazelisk_check.bzl", "bazelisk_check")(name = "bazelisk_check")
+use_extension("//bazel/tools:bazelisk_check.bzl", "bazelisk_check")
+
+###########################################################################
+## Hybrid build. Capture binaries built with dda (or whatever) as if they
+## were built as bazel targets.
+###########################################################################
+
+prebuilt_file = use_repo_rule("//bazel/repo:prebuilt_file.bzl", "prebuilt_file")
+
+prebuilt_file(
+    name = "agent_binary",
+    target_label = "@@//:bin/agent/agent",
+    target_name = "agent",
+)
+
+prebuilt_file(
+    name = "privateactionrunner_binary",
+    target_label = "@@//:bin/privateactionrunner/privateactionrunner",
+    target_name = "privateactionrunner",
+)
+
+prebuilt_file(
+    name = "process_agent_binary",
+    target_label = "@@//:bin/process-agent/process-agent",
+    target_name = "process_agent",
+)
+
+prebuilt_file(
+    name = "trace_agent_binary",
+    target_label = "@@//:bin/trace-agent/trace-agent",
+    target_name = "trace_agent",
+)
+
+prebuilt_file(
+    name = "trace_loader_binary",
+    target_label = "@@//:bin/trace-loader/trace-loader",
+    target_name = "trace_loader",
+)

@@ -50,7 +50,7 @@ type ContainerTagsBuffer interface {
 
 type containerTagsBuffer struct {
 	conf        *config.AgentConfig
-	resolveFunc func(string) ([]string, error)
+	resolveFunc func(string) ([]string, bool, error)
 	statsd      statsd.ClientInterface
 
 	in        chan bufferInput
@@ -105,7 +105,7 @@ func newContainerTagsBuffer(conf *config.AgentConfig, statsd statsd.ClientInterf
 	if ctb.maxSize == 0 {
 		ctb.maxSize = maxSizeForNoLimit
 	}
-	ctb.resolveFunc = conf.ContainerTags
+	ctb.resolveFunc = conf.ContainerTagsWithCompleteness
 	return ctb
 }
 
@@ -129,10 +129,11 @@ func (p *containerTagsBuffer) resolvePendingContainers(now time.Time) {
 		if now.Before(buffer.expireTs) {
 			continue
 		}
-		// force flush + deny
+		// deny before flush so any goroutine receiving the callback result
+		// is guaranteed to observe the container as denied
+		p.deniedContainers.deny(now, cid)
 		buffer.flush(tagResult{tags: ctags, err: nil})
 		delete(p.containersBuffer, cid)
-		p.deniedContainers.deny(now, cid)
 	}
 }
 
@@ -209,7 +210,7 @@ func (p *containerTagsBuffer) IsEnabled() bool {
 }
 
 func (p *containerTagsBuffer) resolveContainerTagsWithSource(containerID string) ([]string, bool, error) {
-	ctags, err := p.resolveFunc(containerID)
+	ctags, _, err := p.resolveFunc(containerID)
 	// cheat - testing kube tag presence, waiting for tagger to expose source
 	var okSource bool
 	for _, tag := range ctags {

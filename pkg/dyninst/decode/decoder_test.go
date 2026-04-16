@@ -80,8 +80,9 @@ type (
 		} `json:"evaluationErrors,omitempty"`
 	}
 	eventCaptures struct {
-		Debugger debugger
-		Message  string `json:"message,omitempty"`
+		Debugger    debugger
+		Message     string `json:"message,omitempty"`
+		ProcessTags string `json:"process_tags,omitempty"`
 	}
 )
 
@@ -116,6 +117,37 @@ func TestDecoderManually(t *testing.T) {
 			require.Zero(t, decoder.message)
 		})
 	}
+}
+
+func TestDecoderProcessTags(t *testing.T) {
+	c := cases[0]
+	irProg := generateIrForProbes(t, "simple", c.goVersion, c.probeName)
+	item := c.eventConstructor(t, irProg)
+
+	t.Run("present", func(t *testing.T) {
+		decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
+		require.NoError(t, err)
+		buf, _, err := decoder.Decode(Event{
+			EntryOrLine: output.Event(item),
+			ServiceName: "foo",
+			ProcessTags: "entrypoint.name:myapp,svc.user:my-service",
+		}, &noopSymbolicator{}, nil, []byte{})
+		require.NoError(t, err)
+		var e eventCaptures
+		require.NoError(t, json.Unmarshal(buf, &e))
+		require.Equal(t, "entrypoint.name:myapp,svc.user:my-service", e.ProcessTags)
+	})
+
+	t.Run("empty_omitted", func(t *testing.T) {
+		decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
+		require.NoError(t, err)
+		buf, _, err := decoder.Decode(Event{
+			EntryOrLine: output.Event(item),
+			ServiceName: "foo",
+		}, &noopSymbolicator{}, nil, []byte{})
+		require.NoError(t, err)
+		require.NotContains(t, string(buf), "process_tags")
+	})
 }
 
 func BenchmarkDecoder(b *testing.B) {
@@ -226,7 +258,7 @@ func simpleStringArgEvent(t testing.TB, irProg *ir.Program) []byte {
 		return p.GetID() == "stringArg"
 	})
 	require.NotEqual(t, -1, probe)
-	events := irProg.Probes[probe].Events
+	events := irProg.Probes[probe].Instances[0].Events
 	require.GreaterOrEqual(t, len(events), 1)
 	eventType := events[0].Type
 	var stringType *ir.GoStringHeaderType
@@ -302,7 +334,7 @@ func simpleMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
 		return p.GetID() == "mapArg"
 	})
 	require.NotEqual(t, -1, probe)
-	events := irProg.Probes[probe].Events
+	events := irProg.Probes[probe].Instances[0].Events
 	require.GreaterOrEqual(t, len(events), 1)
 	eventType := events[0].Type
 
@@ -359,11 +391,11 @@ func simpleMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
 		strAddr     = uint64(0x300000003)
 	)
 
-	// Build root data item (presence bitset + pointers to header)
+	// Build root data item (expression status array + pointers to header)
 	rootData := make([]byte, rootLen)
-	// Set presence bits for both expressions (bit 0 for template_segment, bit 1 for argument)
-	if eventType.PresenceBitsetSize > 0 {
-		rootData[0] = 5 // presence bits: bit 0 (expr 0) and bit 2 (expr 1)
+	// Set expression status to present for both expressions.
+	if eventType.ExprStatusArraySize > 0 {
+		rootData[0] = 5 // expr status: present (1) for expr 0 at bits [0:1], present (1) for expr 1 at bits [2:3]
 	}
 	// First expression (template_segment) at offset 1
 	ptrOff := int(eventType.Expressions[0].Offset)
@@ -483,7 +515,7 @@ func simpleSwissMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
 		return p.GetID() == "mapArg"
 	})
 	require.NotEqual(t, -1, probe)
-	events := irProg.Probes[probe].Events
+	events := irProg.Probes[probe].Instances[0].Events
 	require.GreaterOrEqual(t, len(events), 1)
 	eventType := events[0].Type
 
@@ -555,8 +587,8 @@ func simpleSwissMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
 
 	// Build root data item
 	rootData := make([]byte, rootLen)
-	if eventType.PresenceBitsetSize > 0 {
-		rootData[0] = 5 // presence bits: bit 0 (expr 0) and bit 2 (expr 1)
+	if eventType.ExprStatusArraySize > 0 {
+		rootData[0] = 5 // expr status: present (1) for expr 0 at bits [0:1], present (1) for expr 1 at bits [2:3]
 	}
 	ptrOff := int(eventType.Expressions[0].Offset)
 	binary.NativeEndian.PutUint64(rootData[ptrOff:ptrOff+8], headerAddr)
@@ -668,7 +700,7 @@ func simpleSwissMapTablesArgEvent(t testing.TB, irProg *ir.Program) []byte {
 		return p.GetID() == "mapArg"
 	})
 	require.NotEqual(t, -1, probe)
-	events := irProg.Probes[probe].Events
+	events := irProg.Probes[probe].Instances[0].Events
 	require.GreaterOrEqual(t, len(events), 1)
 	eventType := events[0].Type
 
@@ -774,8 +806,8 @@ func simpleSwissMapTablesArgEvent(t testing.TB, irProg *ir.Program) []byte {
 
 	// Build root data item
 	rootData := make([]byte, rootLen)
-	if eventType.PresenceBitsetSize > 0 {
-		rootData[0] = 5 // presence bits: bit 0 (expr 0) and bit 2 (expr 1)
+	if eventType.ExprStatusArraySize > 0 {
+		rootData[0] = 5 // expr status: present (1) for expr 0 at bits [0:1], present (1) for expr 1 at bits [2:3]
 	}
 	ptrOff := int(eventType.Expressions[0].Offset)
 	binary.NativeEndian.PutUint64(rootData[ptrOff:ptrOff+8], headerAddr)
@@ -955,7 +987,7 @@ func simpleBigMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
 		return p.GetID() == "bigMapArg"
 	})
 	require.NotEqual(t, -1, probe)
-	events := irProg.Probes[probe].Events
+	events := irProg.Probes[probe].Instances[0].Events
 	require.GreaterOrEqual(t, len(events), 1)
 	eventType := events[0].Type
 
@@ -1007,9 +1039,9 @@ func simpleBigMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
 	)
 
 	rootData := make([]byte, rootLen)
-	// Set presence bits for both expressions (bit 0 for template_segment, bit 1 for argument)
-	if eventType.PresenceBitsetSize > 0 {
-		rootData[0] = 5 // presence bits: bit 0 (expr 0) and bit 2 (expr 1)
+	// Set expression status to present for both expressions.
+	if eventType.ExprStatusArraySize > 0 {
+		rootData[0] = 5 // expr status: present (1) for expr 0 at bits [0:1], present (1) for expr 1 at bits [2:3]
 	}
 	// First expression (template_segment) at offset 1
 	ptrOff := int(eventType.Expressions[0].Offset)
@@ -1124,14 +1156,14 @@ func simplePointerChainArgEvent(t testing.TB, irProg *ir.Program) []byte {
 		return p.GetID() == "PointerChainArg"
 	})
 	require.NotEqual(t, -1, probe)
-	events := irProg.Probes[probe].Events
+	events := irProg.Probes[probe].Instances[0].Events
 	require.Len(t, events, 1)
 	eventType := events[0].Type
 	rootLen := int(eventType.GetByteSize())
 	rootData := make([]byte, rootLen)
-	// Set presence bits for both expressions (bit 0 for template_segment, bit 1 for argument)
-	if eventType.PresenceBitsetSize > 0 {
-		rootData[0] = 5 // presence bits: bit 0 (expr 0) and bit 2 (expr 1)
+	// Set expression status to present for both expressions.
+	if eventType.ExprStatusArraySize > 0 {
+		rootData[0] = 5 // expr status: present (1) for expr 0 at bits [0:1], present (1) for expr 1 at bits [2:3]
 	}
 	// Build a fully captured pointer chain *****int → int(17)
 	argType := eventType.Expressions[0].Expression.Type

@@ -974,6 +974,19 @@ func setupFipsLogsConfig(config pkgconfigmodel.Config, configPrefix string, url 
 	config.Set(configPrefix+"logs_dd_url", url, pkgconfigmodel.SourceAgentRuntime)
 }
 
+// ResolveSecrets merges all the secret values from origin into config. Secret values
+// are identified by a value of the form "ENC[key]" where key is the secret key.
+// See: https://github.com/DataDog/datadog-agent/blob/main/docs/agent/secrets.md
+//
+// It is the exported counterpart of resolveSecrets and may be called by agent
+// binaries that build the config before starting the FX graph (e.g. the otel-agent
+// in standalone mode, where secrets must be resolved so that ENC[] handles in env
+// vars such as DD_HOSTNAME are processed before components like hostnameimpl read
+// the config).
+func ResolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Component, origin string) error {
+	return resolveSecrets(config, secretResolver, origin)
+}
+
 // resolveSecrets merges all the secret values from origin into config. Secret values
 // are identified by a value of the form "ENC[key]" where key is the secret key.
 // See: https://github.com/DataDog/datadog-agent/blob/main/docs/agent/secrets.md
@@ -1033,7 +1046,7 @@ func resolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 func configAssignAtPath(config pkgconfigmodel.Config, settingPath []string, newValue any) error {
 	settingName := strings.Join(settingPath, ".")
 	if config.IsKnown(settingName) {
-		config.Set(settingName, newValue, pkgconfigmodel.SourceSecretBackend)
+		config.Set(settingName, newValue, pkgconfigmodel.SourceAgentRuntime)
 		return nil
 	}
 
@@ -1147,7 +1160,7 @@ func configAssignAtPath(config pkgconfigmodel.Config, settingPath []string, newV
 		}
 	}
 
-	config.Set(settingName, startingValue, pkgconfigmodel.SourceSecretBackend)
+	config.Set(settingName, startingValue, pkgconfigmodel.SourceAgentRuntime)
 	return nil
 }
 

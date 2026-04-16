@@ -40,9 +40,6 @@ const (
 	SourceFile Source = "file"
 	// SourceEnvVar are the values loaded from the environment variables.
 	SourceEnvVar Source = "environment-variable"
-	// SourceSecretBackend are the values resolved from a secret backend (replacing ENC[] placeholders).
-	// Stored as a separate layer so that config can be dumped without secrets to prevent leaks.
-	SourceSecretBackend Source = "secret-backend"
 	// SourceAgentRuntime are the values configured by the agent itself. The agent can dynamically compute the best
 	// value for some settings when not set by the user.
 	SourceAgentRuntime Source = "agent-runtime"
@@ -69,7 +66,6 @@ var Sources = []Source{
 	SourceEnvVar,
 	SourceFleetPolicies,
 	SourceAgentRuntime,
-	SourceSecretBackend,
 	SourceLocalConfigProcess,
 	SourceRC,
 	SourceCLI,
@@ -86,10 +82,9 @@ var sourcesPriority = map[Source]int{
 	SourceEnvVar:             4,
 	SourceFleetPolicies:      5,
 	SourceAgentRuntime:       6,
-	SourceSecretBackend:      7,
-	SourceLocalConfigProcess: 8,
-	SourceRC:                 9,
-	SourceCLI:                10,
+	SourceLocalConfigProcess: 7,
+	SourceRC:                 8,
+	SourceCLI:                9,
 }
 
 // ValueWithSource is a tuple for a source and a value, not necessarily the applied value in the main config
@@ -165,12 +160,6 @@ type Reader interface {
 	AllSettings() map[string]interface{}
 	AllSettingsWithoutDefault() map[string]interface{}
 	AllSettingsBySource() map[Source]interface{}
-	// AllSettingsWithoutSecrets returns all settings from the config, merging every layer except the
-	// secret backend layer. This provides a safe way to dump config without risking resolved secret leaks.
-	AllSettingsWithoutSecrets() map[string]interface{}
-	// AllSettingsWithoutDefaultOrSecrets returns all non-default settings, excluding the secret backend
-	// layer as well.
-	AllSettingsWithoutDefaultOrSecrets() map[string]interface{}
 	// AllKeysLowercased returns all config keys in the config, no matter how they are set.
 	// Note that it returns the keys lowercased.
 	AllKeysLowercased() []string
@@ -200,6 +189,8 @@ type Reader interface {
 
 	// IsKnown returns whether this key is known
 	IsKnown(key string) bool
+	// IsSetting returns whether the key identifies a setting (and not a section)
+	IsSetting(key string) bool
 
 	// GetKnownKeysLowercased returns all the keys that meet at least one of these criteria:
 	// 1) have a default, 2) have an environment variable binded, 3) are an alias or 4) have been SetKnown()

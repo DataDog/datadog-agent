@@ -207,6 +207,11 @@ func (c *safeConfig) IsKnown(key string) bool {
 	return c.Viper.IsKnown(key)
 }
 
+// IsSetting always returns true for Viper, because it doesn't have a way to tell
+func (c *safeConfig) IsSetting(_ string) bool {
+	return true
+}
+
 // checkKnownKey checks if a key is known, and if not logs a warning
 // Only a single warning will be logged per unknown key.
 //
@@ -317,7 +322,10 @@ func (c *safeConfig) HasSection(key string) bool {
 				return true
 			}
 		} else if c.configSources[src].HasSection(key) {
-			return true
+			// If a given layer has found a node at the given key...
+			v := c.configSources[model.SourceDefault].Get(key)
+			// it is only a section if the default layer does not have a scalar leaf there
+			return v == nil || reflect.ValueOf(v).Kind() == reflect.Map
 		}
 	}
 	return false
@@ -828,18 +836,6 @@ func (c *safeConfig) AllSettingsBySource() map[model.Source]interface{} {
 	}
 	res[model.SourceProvided] = c.Viper.AllSettingsWithoutDefault()
 	return res
-}
-
-// AllSettingsWithoutSecrets returns all settings from the config without the secret backend layer.
-// In the viper implementation, secrets are not stored as a separate layer, so this falls back
-// to AllSettings which should still run the scrubber
-func (c *safeConfig) AllSettingsWithoutSecrets() map[string]interface{} {
-	return c.AllSettings()
-}
-
-// In the viper implementation, fall back to AllSettingsWithoutDefault
-func (c *safeConfig) AllSettingsWithoutDefaultOrSecrets() map[string]interface{} {
-	return c.AllSettingsWithoutDefault()
 }
 
 // AllFlattenedSettingsWithSequenceID returns all settings as a flattened map of schema leaf keys

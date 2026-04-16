@@ -250,7 +250,7 @@ TRACE_AGENT_HEROKU_TAGS = TRACE_AGENT_TAGS.difference(
 
 CWS_INSTRUMENTATION_TAGS = {"netgo", "osusergo"}
 
-OTEL_AGENT_TAGS = {"otlp", "zlib", "zstd"}
+OTEL_AGENT_TAGS = {"otlp", "zlib", "zstd", "kubelet"}
 
 LOADER_TAGS = set()
 
@@ -267,18 +267,40 @@ AGENT_TEST_TAGS = AGENT_TAGS.union({"clusterchecks"})
 ### Tag exclusion lists
 
 # List of tags to always remove when not building on Linux
-LINUX_ONLY_TAGS = {"netcgo", "systemd", "jetson", "linux_bpf", "nvml", "pcap", "podman", "trivy"}
+LINUX_ONLY_TAGS = {"netcgo", "systemd", "jetson", "linux_bpf", "nvml", "pcap", "podman", "trivy", "crio"}
+
+# List of tags to always remove when building on AIX
+AIX_EXCLUDE_TAGS = {
+    "cel",
+    "clusterchecks",
+    "containerd",
+    "cri",
+    "crio",
+    "docker",
+    "fargateprocess",
+    "jetson",
+    "jmx",
+    "kubeapiserver",
+    "kubelet",
+    "linux_bpf",
+    "netcgo",
+    "npm",
+    "nvml",
+    "orchestrator",
+    "pcap",
+    "podman",
+    "systemd",
+    "systemprobechecks",
+    "trivy",
+}
 
 # List of tags to always remove when building on Windows
 WINDOWS_EXCLUDE_TAGS = {
-    "linux_bpf",
-    "nvml",
     "requirefips",
-    "crio",
 }
 
 # List of tags to always remove when building on Darwin/macOS
-DARWIN_EXCLUDED_TAGS = {"docker", "containerd", "nvml", "cri", "crio"}
+DARWIN_EXCLUDED_TAGS = {"docker", "containerd", "cri"}
 
 # Unit test build tags
 UNIT_TEST_TAGS = {"test"}
@@ -368,6 +390,18 @@ _GOOS_TO_SYS_PLATFORM = {
 }
 
 
+def _resolve_platform(platform=None):
+    """Return the effective target platform as a sys.platform-style string.
+
+    If platform is explicitly provided, normalize it from GOOS format to
+    sys.platform format (e.g. "windows" -> "win32"). Otherwise fall back to
+    the GOOS env var, then sys.platform.
+    """
+    if platform is None:
+        platform = os.getenv("GOOS") or sys.platform
+    return _GOOS_TO_SYS_PLATFORM.get(platform, platform)
+
+
 def compute_build_tags_for_flavor(
     build: str,
     build_include: str | None,
@@ -384,10 +418,7 @@ def compute_build_tags_for_flavor(
 
     Then, remove from these the provided list of tags to exclude.
     """
-    # Normalize GOOS values (e.g. "windows") to sys.platform values (e.g. "win32")
-    # so that downstream functions like filter_incompatible_tags work correctly.
-    if platform is not None:
-        platform = _GOOS_TO_SYS_PLATFORM.get(platform, platform)
+    platform = _resolve_platform(platform)
 
     build_include = (
         get_default_build_tags(build=build, flavor=flavor, platform=platform)
@@ -429,7 +460,7 @@ def get_default_build_tags(build="agent", flavor=AgentFlavor.base, platform: str
     The container integrations are currently only supported on Linux, disabling on
     the Windows and Darwin builds.
     """
-    platform = platform or sys.platform
+    platform = _resolve_platform(platform)
     include = build_tags[flavor].get(build)
     if include is None:
         print("Warning: unrecognized build type, no build tags included.", file=sys.stderr)
@@ -439,21 +470,25 @@ def get_default_build_tags(build="agent", flavor=AgentFlavor.base, platform: str
     return sorted(filter_incompatible_tags(include, platform=platform))
 
 
-def filter_incompatible_tags(include, platform=sys.platform):
+def filter_incompatible_tags(include, platform=None):
     """
     Filter out tags incompatible with the platform.
     include can be a list or a set.
     """
+    platform = _resolve_platform(platform)
     exclude = set()
     if not platform.startswith("linux"):
         exclude = exclude.union(LINUX_ONLY_TAGS)
 
-    if platform == "win32" or os.getenv("GOOS") == "windows":
+    if platform == "win32":
         include = include.union(["wmi"])
         exclude = exclude.union(WINDOWS_EXCLUDE_TAGS)
 
     if platform == "darwin":
         exclude = exclude.union(DARWIN_EXCLUDED_TAGS)
+
+    if platform == "aix":
+        exclude = exclude.union(AIX_EXCLUDE_TAGS)
 
     return get_build_tags(include, exclude)
 

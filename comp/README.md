@@ -511,6 +511,10 @@ Package ddflareextension defines the OpenTelemetry Extension component.
 
 Package ddprofilingextension defines the otel agent ddprofilingextension component.
 
+### [comp/otelcol/dogtelextension](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/dogtelextension)
+
+Package dogtelextension provides Datadog agent functionalities for OTel collector
+
 ### [comp/otelcol/logsagentpipeline](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline)
 
 Package logsagentpipeline contains logs agent pipeline component
@@ -596,7 +600,8 @@ Package remoteconfig defines the fx options for the Bundle
 
 ### [comp/remote-config/rcclient](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/remote-config/rcclient)
 
-
+Package rcclient is a remote config client that can run within the agent to receive
+configurations.
 
 ### [comp/remote-config/rcservice](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/remote-config/rcservice)
 

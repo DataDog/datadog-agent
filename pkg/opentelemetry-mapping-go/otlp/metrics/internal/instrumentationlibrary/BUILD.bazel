@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "instrumentationlibrary",
+    srcs = ["metadata.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics/internal/instrumentationlibrary",
+    visibility = [
+        "//pkg/opentelemetry-mapping-go/otlp/metrics:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_opentelemetry_mapping_go_otlp_metrics//:__subpackages__",
+    ],
+    deps = [
+        "//pkg/opentelemetry-mapping-go/otlp/metrics/internal/utils",
+        "@io_opentelemetry_go_collector_pdata//pcommon",
+    ],
+)
+
+go_test(
+    name = "instrumentationlibrary_test",
+    srcs = ["metadata_test.go"],
+    embed = [":instrumentationlibrary"],
+    gotags = ["test"],
+    # keep
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@io_opentelemetry_go_collector_pdata//pcommon",
+    ],
+)
