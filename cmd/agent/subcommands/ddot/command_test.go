@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package extension
+package ddot
 
 import (
 	"os"
@@ -113,19 +113,14 @@ func TestResolvePackageURL(t *testing.T) {
 func TestInstallCommandArgs(t *testing.T) {
 	cmd := installCommand()
 
-	t.Run("no args fails", func(t *testing.T) {
+	t.Run("no args passes (install takes no positional args)", func(t *testing.T) {
 		err := cmd.ValidateArgs([]string{})
+		assert.NoError(t, err)
+	})
+
+	t.Run("extra args fail", func(t *testing.T) {
+		err := cmd.ValidateArgs([]string{"unexpected"})
 		assert.Error(t, err)
-	})
-
-	t.Run("one extension passes", func(t *testing.T) {
-		err := cmd.ValidateArgs([]string{"ddot"})
-		assert.NoError(t, err)
-	})
-
-	t.Run("multiple extensions pass", func(t *testing.T) {
-		err := cmd.ValidateArgs([]string{"ddot", "other"})
-		assert.NoError(t, err)
 	})
 }
 
@@ -133,18 +128,13 @@ func TestInstallCommandArgs(t *testing.T) {
 func TestRemoveCommandArgs(t *testing.T) {
 	cmd := removeCommand()
 
-	t.Run("no args fails", func(t *testing.T) {
+	t.Run("no args passes (remove takes no positional args)", func(t *testing.T) {
 		err := cmd.ValidateArgs([]string{})
+		assert.NoError(t, err)
+	})
+
+	t.Run("extra args fail", func(t *testing.T) {
+		err := cmd.ValidateArgs([]string{"unexpected"})
 		assert.Error(t, err)
-	})
-
-	t.Run("one extension passes", func(t *testing.T) {
-		err := cmd.ValidateArgs([]string{"ddot"})
-		assert.NoError(t, err)
-	})
-
-	t.Run("multiple extensions pass", func(t *testing.T) {
-		err := cmd.ValidateArgs([]string{"ddot", "other"})
-		assert.NoError(t, err)
 	})
 }

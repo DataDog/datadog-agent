@@ -15,13 +15,13 @@ import (
 	cmdcontrolsvc "github.com/DataDog/datadog-agent/cmd/agent/subcommands/controlsvc"
 	cmdcoverage "github.com/DataDog/datadog-agent/cmd/agent/subcommands/coverage"
 	cmdcreateschema "github.com/DataDog/datadog-agent/cmd/agent/subcommands/createschema"
+	cmdddot "github.com/DataDog/datadog-agent/cmd/agent/subcommands/ddot"
 	cmddiagnose "github.com/DataDog/datadog-agent/cmd/agent/subcommands/diagnose"
 	cmddogstatsd "github.com/DataDog/datadog-agent/cmd/agent/subcommands/dogstatsd"
 	cmddogstatsdcapture "github.com/DataDog/datadog-agent/cmd/agent/subcommands/dogstatsdcapture"
 	cmddogstatsdreplay "github.com/DataDog/datadog-agent/cmd/agent/subcommands/dogstatsdreplay"
 	cmddogstatsdstats "github.com/DataDog/datadog-agent/cmd/agent/subcommands/dogstatsdstats"
 	cmdexperimental "github.com/DataDog/datadog-agent/cmd/agent/subcommands/experimental"
-	cmdextension "github.com/DataDog/datadog-agent/cmd/agent/subcommands/extension"
 	cmdflare "github.com/DataDog/datadog-agent/cmd/agent/subcommands/flare"
 	cmdhealth "github.com/DataDog/datadog-agent/cmd/agent/subcommands/health"
 	cmdhostname "github.com/DataDog/datadog-agent/cmd/agent/subcommands/hostname"
@@ -54,8 +54,8 @@ func AgentSubcommands() []command.SubcommandFactory {
 		cmdconfigcheck.Commands,
 		cmdconfig.Commands,
 		cmdexperimental.Commands,
-		cmdextension.Commands,
 		cmdcreateschema.Commands,
+		cmdddot.Commands,
 		cmddiagnose.Commands,
 		cmddogstatsd.Commands,
 		cmddogstatsdcapture.Commands,

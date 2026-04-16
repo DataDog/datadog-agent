@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package extension implements 'agent extension'.
-package extension
+// Package ddot implements 'agent ddot'.
+package ddot
 
 import (
 	"context"
@@ -24,14 +24,16 @@ import (
 	pkgversion "github.com/DataDog/datadog-agent/pkg/version"
 )
 
+const extensionName = "ddot"
+
 // Commands returns a slice of subcommands for the 'agent' command.
 func Commands(_ *command.GlobalParams) []*cobra.Command {
-	extensionCmd := &cobra.Command{
-		Use:   "extension [command]",
-		Short: "Manage agent package extensions",
+	ddotCmd := &cobra.Command{
+		Use:   "ddot [command]",
+		Short: "Manage the DDOT installation",
 	}
-	extensionCmd.AddCommand(installCommand(), removeCommand())
-	return []*cobra.Command{extensionCmd}
+	ddotCmd.AddCommand(installCommand(), removeCommand())
+	return []*cobra.Command{ddotCmd}
 }
 
 func installCommand() *cobra.Command {
@@ -39,9 +41,9 @@ func installCommand() *cobra.Command {
 	var registry string
 
 	cmd := &cobra.Command{
-		Use:   "install <extension> [extensions...]",
-		Short: "Install one or more extensions from an OCI package",
-		Long: `Install one or more extensions from an OCI package.
+		Use:   "install",
+		Short: "Install DDOT from an OCI package",
+		Long: `Install DDOT from an OCI package.
 
 The package URL is determined as follows (in order of precedence):
   1. --registry flag: construct oci://<registry>/agent-package:<current-version>
@@ -52,12 +54,12 @@ environment variable (docker, gcr, or password).
 
 Examples:
   # Standard Datadog registry, version inferred from installed agent
-  datadog-agent extension install ddot
+  datadog-agent ddot install
 
   # Custom BYOC registry, version inferred from installed agent
-  DD_INSTALLER_REGISTRY_AUTH=gcr datadog-agent extension install --registry registry.example.com ddot`,
-		Args: cobra.MinimumNArgs(1),
-		RunE: func(_ *cobra.Command, args []string) error {
+  DD_INSTALLER_REGISTRY_AUTH=gcr datadog-agent ddot install --registry registry.example.com`,
+		Args: cobra.NoArgs,
+		RunE: func(_ *cobra.Command, _ []string) error {
 			url, err := resolvePackageURL(explicitURL, registry)
 			if err != nil {
 				return err
@@ -66,7 +68,7 @@ Examples:
 			if err != nil {
 				return err
 			}
-			return i.InstallExtensions(context.Background(), url, args)
+			return i.InstallExtensions(context.Background(), url, []string{extensionName})
 		},
 	}
 	cmd.Flags().StringVar(&explicitURL, "url", "", "full OCI package URL (e.g. oci://registry.example.com/agent-package:7.78.0-1)")
@@ -77,19 +79,19 @@ Examples:
 
 func removeCommand() *cobra.Command {
 	return &cobra.Command{
-		Use:   "remove <extension> [extensions...]",
-		Short: "Remove one or more installed extensions",
-		Long: `Remove one or more installed extensions from the agent package.
+		Use:   "remove",
+		Short: "Remove the DDOT installation",
+		Long: `Remove the DDOT installation.
 
 Example:
-  datadog-agent extension remove ddot`,
-		Args: cobra.MinimumNArgs(1),
-		RunE: func(_ *cobra.Command, args []string) error {
+  datadog-agent ddot remove`,
+		Args: cobra.NoArgs,
+		RunE: func(_ *cobra.Command, _ []string) error {
 			i, err := newInstallerExec()
 			if err != nil {
 				return err
 			}
-			return i.RemoveExtensions(context.Background(), "datadog-agent", args)
+			return i.RemoveExtensions(context.Background(), "datadog-agent", []string{extensionName})
 		},
 	}
 }

@@ -55,7 +55,7 @@ func (s *testDDOTExtensionSubcommand) TestInstallDDOTSubcommand() {
 	s.Require().NoError(err)
 	agentExe := installPath + `\bin\agent.exe`
 	agentPackageURL := "oci://" + consts.PipelineOCIRegistry + "/agent-package:pipeline-" + s.Env().Environment.PipelineID()
-	cmd := fmt.Sprintf(`& "%s" extension install --url %s ddot`, agentExe, agentPackageURL)
+	cmd := fmt.Sprintf(`& "%s" ddot install --url %s`, agentExe, agentPackageURL)
 	output, err = s.Env().RemoteHost.Execute(cmd)
 	s.Require().NoErrorf(err, "failed to install ddot extension via subcommand: %s", output)
 
