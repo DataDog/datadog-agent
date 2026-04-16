@@ -35,10 +35,12 @@ GOOS_MAPPING = {
     "win32": "windows",
     "linux": "linux",
     "darwin": "darwin",
+    "aix": "aix",
 }
 GOARCH_MAPPING = {
     "x64": "amd64",
     "arm64": "arm64",
+    "ppc64": "ppc64",
 }
 
 
