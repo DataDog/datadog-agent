@@ -801,6 +801,9 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("sbom.host.analyzers", []string{"os"})
 	config.BindEnvAndSetDefault("sbom.host.additional_directories", []string{})
 
+	// SBOM enrichment configuration
+	config.BindEnvAndSetDefault("sbom.enrichment.usage.enabled", false)
+
 	// Service discovery configuration
 	bindEnvAndSetLogsConfigKeys(config, "service_discovery.forwarder.")
 
