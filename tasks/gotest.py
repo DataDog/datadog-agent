@@ -215,14 +215,13 @@ def get_bazel_test_targets(ctx, modules: list[GoModule]) -> dict[str, str]:
     result = {}
     for line in output.splitlines():
         line = line.strip()
-        if not line:
+        if not line or not line.startswith('//'):
             continue
         # Strip config hash: //pkg/util/log:log_test (abc1234) -> //pkg/util/log:log_test
         label = line.split(' ')[0]
-        if not label.startswith('//'):
-            continue
         # Get directory from label: //pkg/util/log:log_test -> pkg/util/log
-        dir_path = label.split(':')[0][2:]  # strip //
+        package = label.split(':')[0]
+        dir_path = package[2:]  # strip //
         result[label] = f'{MODULE_PREFIX}/{dir_path}'
     return result
 
