@@ -45,7 +45,6 @@ rust_library(
         "@crates//:nom",
         "@crates//:normalize-path",
         "@crates//:phf",
-        "@crates//:quick-xml",
         "@crates//:rawzip",
         "@crates//:rmp-serde",
         "@crates//:saphyr-parser",
@@ -55,6 +54,7 @@ rust_library(
         "@crates//:tokio",
         "@crates//:uzers",
         "@crates//:walkdir",
+        "@crates//:xml-rs",
     ],
 )
 
@@ -96,7 +96,6 @@ rust_static_library(
         "@crates//:nom",
         "@crates//:normalize-path",
         "@crates//:phf",
-        "@crates//:quick-xml",
         "@crates//:rawzip",
         "@crates//:rmp-serde",
         "@crates//:saphyr-parser",
@@ -106,6 +105,7 @@ rust_static_library(
         "@crates//:tokio",
         "@crates//:uzers",
         "@crates//:walkdir",
+        "@crates//:xml-rs",
     ],
 )
 
@@ -207,8 +207,8 @@ rust_test(
         "@crates//:temp-env",
         # Optional deps needed when spring/jee features are enabled
         "@crates//:flate2",
-        "@crates//:quick-xml",
         "@crates//:rawzip",
+        "@crates//:xml-rs",
         "@crates//:walkdir",
         "@crates//:saphyr-parser",
         "@crates//:zip",

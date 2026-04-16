@@ -7,15 +7,17 @@ mod jboss;
 mod tomcat;
 mod weblogic;
 mod websphere;
+mod xml_parser;
 
 use crate::fs::{SubDirFs, UnverifiedZipArchive};
 use crate::procfs::Cmdline;
 use crate::service_name::{DetectionContext, ServiceNameSource};
 use normalize_path::NormalizePath;
-use serde::Deserialize;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
+use xml::attribute::OwnedAttribute;
+use xml_parser::{Action, XmlHandler};
 
 /// Error type for JEE service name extraction
 #[derive(Debug, Error)]
@@ -195,43 +197,143 @@ fn fs_from_deployment_path(fs: &SubDirFs, deployment_path: &Path) -> io::Result<
     }
 }
 
-/// Application.xml descriptor for EAR files
-/// Example: https://docs.oracle.com/cd/E13222_01/wls/docs61/programming/app_xml.html
-#[derive(Debug, Deserialize)]
-struct ApplicationXml {
-    #[serde(rename = "module", default)]
-    modules: Vec<ApplicationModule>,
-}
-
-#[derive(Debug, Deserialize)]
-struct ApplicationModule {
-    #[serde(rename = "web", default)]
-    web: Option<ApplicationWebModule>,
-}
-
-#[derive(Debug, Deserialize)]
-struct ApplicationWebModule {
-    #[serde(rename = "context-root")]
-    context_root: String,
-}
-
 /// Extracts context roots from a standard EAR's application.xml
+/// Example: https://docs.oracle.com/cd/E13222_01/wls/docs61/programming/app_xml.html
 fn extract_context_root_from_application_xml(
     deployment_fs: &mut DeploymentFs,
 ) -> Result<Vec<String>, Error> {
     let xml_path = Path::new(APPLICATION_XML_PATH);
     let buf = deployment_fs.read_file_to_vec(xml_path)?;
+    parse_application_xml(&buf)
+}
 
-    let app_xml: ApplicationXml = quick_xml::de::from_reader(buf.as_slice())
-        .map_err(|e| Error::XmlParse(format!("Failed to parse application.xml: {}", e)))?;
+enum AppXmlState {
+    Top,
+    InApplication,
+    InModule,
+    InWeb,
+    ReadingContextRoot,
+}
 
-    let context_roots: Vec<String> = app_xml
-        .modules
-        .into_iter()
-        .filter_map(|m| m.web.map(|w| w.context_root))
-        .collect();
+struct AppXmlHandler {
+    context_roots: Vec<String>,
+    current_text: String,
+}
 
-    Ok(context_roots)
+impl XmlHandler for AppXmlHandler {
+    type State = AppXmlState;
+
+    fn start_element(
+        &mut self,
+        state: Self::State,
+        name: &str,
+        _attributes: &[OwnedAttribute],
+    ) -> Action<Self::State> {
+        match (state, name) {
+            (AppXmlState::Top, "application") => Action::Descend(AppXmlState::InApplication),
+            (AppXmlState::InApplication, "module") => Action::Descend(AppXmlState::InModule),
+            (AppXmlState::InModule, "web") => Action::Descend(AppXmlState::InWeb),
+            (AppXmlState::InWeb, "context-root") => {
+                Action::Descend(AppXmlState::ReadingContextRoot)
+            }
+            (s, _) => Action::Same(s),
+        }
+    }
+
+    fn end_element(&mut self, state: Self::State, name: &str) -> Action<Self::State> {
+        match (state, name) {
+            (AppXmlState::ReadingContextRoot, _) => {
+                if !self.current_text.is_empty() {
+                    self.context_roots
+                        .push(std::mem::take(&mut self.current_text));
+                }
+                Action::Ascend(AppXmlState::InWeb)
+            }
+            (AppXmlState::InWeb, "web") => Action::Ascend(AppXmlState::InModule),
+            (AppXmlState::InModule, "module") => Action::Ascend(AppXmlState::InApplication),
+            (AppXmlState::InApplication, _) => Action::Break,
+            (s, _) => Action::Same(s),
+        }
+    }
+
+    fn text(&mut self, state: Self::State, text: String) -> Action<Self::State> {
+        if let AppXmlState::ReadingContextRoot = &state {
+            self.current_text.push_str(&text);
+        }
+        Action::Same(state)
+    }
+}
+
+fn parse_application_xml(buf: &[u8]) -> Result<Vec<String>, Error> {
+    let mut parser = xml_parser::XmlParser::new(buf);
+    let mut handler = AppXmlHandler {
+        context_roots: Vec::new(),
+        current_text: String::new(),
+    };
+    parser.run(&mut handler, AppXmlState::Top)?;
+    Ok(handler.context_roots)
+}
+
+/// Parses a context root from a vendor-specific XML document.
+/// Looks for `<container_element><context-root>value</context-root></container_element>`.
+/// Used by both WebLogic (weblogic-web-app) and JBoss (jboss-web) parsers.
+fn parse_context_root(buf: &[u8], container_element: &str) -> Option<String> {
+    enum State {
+        Top,
+        InContainer,
+        ReadingContextRoot,
+    }
+
+    struct Handler<'a> {
+        container: &'a str,
+        result: Option<String>,
+    }
+
+    impl XmlHandler for Handler<'_> {
+        type State = State;
+
+        fn start_element(
+            &mut self,
+            state: Self::State,
+            name: &str,
+            _attributes: &[OwnedAttribute],
+        ) -> Action<Self::State> {
+            match (state, name) {
+                (State::Top, n) if n == self.container => Action::Descend(State::InContainer),
+                (State::InContainer, "context-root") => Action::Descend(State::ReadingContextRoot),
+                (s, _) => Action::Same(s),
+            }
+        }
+
+        fn end_element(&mut self, state: Self::State, _name: &str) -> Action<Self::State> {
+            match state {
+                State::ReadingContextRoot => Action::Break,
+                s => Action::Same(s),
+            }
+        }
+
+        fn text(&mut self, state: Self::State, text: String) -> Action<Self::State> {
+            match state {
+                State::ReadingContextRoot => {
+                    match &mut self.result {
+                        Some(s) => s.push_str(&text),
+                        None if !text.is_empty() => self.result = Some(text),
+                        _ => {}
+                    }
+                    Action::Same(state)
+                }
+                s => Action::Same(s),
+            }
+        }
+    }
+
+    let mut parser = xml_parser::XmlParser::new(buf);
+    let mut handler = Handler {
+        container: container_element,
+        result: None,
+    };
+    parser.run(&mut handler, State::Top).ok()?;
+    handler.result
 }
 
 /// Standard algorithm to extract context root from WAR filename
@@ -904,5 +1006,108 @@ http://java.sun.com/j2ee/dtds/application_1_2.dtd">
                 "app3".to_string()
             ]
         );
+    }
+
+    /// Verify that parse_application_xml only matches the correct
+    /// hierarchy: application > module > web > context-root.
+    #[test]
+    fn test_parse_application_xml_hierarchy() {
+        // <web> without <module> wrapper should be ignored.
+        let xml = br#"<application>
+  <web>
+    <context-root>/no-module</context-root>
+  </web>
+  <module>
+    <web>
+      <context-root>/correct</context-root>
+    </web>
+  </module>
+</application>"#;
+        let result = parse_application_xml(xml).unwrap();
+        assert_eq!(result, vec!["/correct"]);
+
+        // <context-root> directly under <module> (no <web>) is ignored.
+        let xml = br#"<application>
+  <module>
+    <context-root>/no-web</context-root>
+  </module>
+</application>"#;
+        let result = parse_application_xml(xml).unwrap();
+        assert!(result.is_empty());
+
+        // <context-root> directly under <application> is ignored.
+        let xml = br#"<application>
+  <context-root>/root-level</context-root>
+</application>"#;
+        let result = parse_application_xml(xml).unwrap();
+        assert!(result.is_empty());
+
+        // Deeply nested — all wrong depths are ignored.
+        let xml = br#"<application>
+  <module>
+    <wrapper>
+      <web>
+        <context-root>/deep-nested</context-root>
+      </web>
+    </wrapper>
+    <web>
+      <context-root>/correct</context-root>
+    </web>
+  </module>
+</application>"#;
+        let result = parse_application_xml(xml).unwrap();
+        assert_eq!(result, vec!["/correct"]);
+    }
+
+    /// Unrecognised elements before the module should not cause early Break.
+    /// The end_element handler has `(InApplication, _) => Break`, but
+    /// `</foo>` must never reach the handler because `Same` (not `Descend`)
+    /// was returned for `<foo>`, so the framework's depth filter swallows
+    /// the corresponding EndElement.
+    #[test]
+    fn test_unknown_element_before_module_does_not_break() {
+        let xml =
+            b"<application><foo></foo><module><web><context-root>asdf</context-root></web></module></application>";
+        let result = parse_application_xml(xml).unwrap();
+        assert_eq!(result, vec!["asdf"]);
+    }
+
+    /// xml-rs can split element text across multiple Text/CData events.
+    /// Verify that split text is concatenated, not treated as separate entries.
+    #[test]
+    fn test_parse_application_xml_split_text() {
+        // Mixed text + CDATA produces two text events.
+        let xml = b"<application><module><web><context-root>/api<![CDATA[/v2]]></context-root></web></module></application>";
+        let result = parse_application_xml(xml).unwrap();
+        assert_eq!(result, vec!["/api/v2"]);
+    }
+
+    /// Verify parse_context_root concatenates split text across events.
+    #[test]
+    fn test_parse_context_root_split_text() {
+        let xml = b"<jboss-web><context-root>/app<![CDATA[/main]]></context-root></jboss-web>";
+        let result = parse_context_root(xml, "jboss-web");
+        assert_eq!(result, Some("/app/main".to_string()));
+    }
+
+    /// Worst-case memory test: many web modules with large context-root text,
+    /// sized to fit within the 1 MiB file size cap.
+    /// Measured peak heap with massif: ~2.3 MiB.
+    #[test]
+    fn test_worst_case_memory_application_xml() {
+        let n = 3_970;
+        let pad: String = "x".repeat(200);
+
+        let mut xml = String::from("<application>");
+        for i in 0..n {
+            xml.push_str(&format!(
+                "<module><web><context-root>ctx{i}{pad}</context-root></web></module>"
+            ));
+        }
+        xml.push_str("</application>");
+        assert!(xml.len() <= 1024 * 1024, "XML exceeds 1 MiB cap");
+
+        let result = parse_application_xml(xml.as_bytes()).unwrap();
+        assert_eq!(result.len(), n);
     }
 }

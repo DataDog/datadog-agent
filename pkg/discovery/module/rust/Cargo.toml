@@ -9,7 +9,7 @@ rust-version.workspace = true
 default = []
 java-archives = ["dep:flate2", "dep:rawzip", "dep:walkdir"]
 spring = ["java-archives", "dep:saphyr-parser"]
-jee = ["java-archives", "dep:quick-xml"]
+jee = ["java-archives", "dep:xml-rs"]
 # Forces a panic inside dd_discovery_get_services. Only for testing the FFI
 # panic-catch path from C; never enable in production builds.
 force-ffi-panic = []
@@ -45,8 +45,8 @@ memchr.workspace = true
 nom.workspace = true
 normalize-path.workspace = true
 phf.workspace = true
-quick-xml = { workspace = true, optional = true }
 rawzip = { workspace = true, optional = true }
+xml-rs = { workspace = true, optional = true }
 rmp-serde.workspace = true
 serde.workspace = true
 serde_json.workspace = true
