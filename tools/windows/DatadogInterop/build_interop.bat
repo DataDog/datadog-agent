@@ -20,7 +20,7 @@ echo === VCXPROJ=%VCXPROJ% 1>&2
 echo === OUTDIR=%OUTDIR% 1>&2
 echo === OUTPUT=%OUTPUT% 1>&2
 
-"%MSBUILD%" "%VCXPROJ%" /p:Configuration=Release /p:Platform="x64" /p:OutDir="%OUTDIR%\\" /p:IntDir="%INTDIR%\\" /verbosity:detailed 1>&2
+"%MSBUILD%" "%VCXPROJ%" /p:Configuration=Release /p:Platform="x64" /p:OutDir="%OUTDIR%\\" /p:IntDir="%INTDIR%\\" 1>&2
 set BUILD_EXIT=%errorlevel%
 
 echo === BUILD_EXIT=%BUILD_EXIT% 1>&2
