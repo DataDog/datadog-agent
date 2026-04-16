@@ -6,7 +6,6 @@
 package spec
 
 import (
-	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -122,13 +121,8 @@ func (r *ValidationResult) addError(metricName string, err string) {
 
 // KnownGPUConfigs returns all supported architecture + mode combinations.
 func KnownGPUConfigs(specs *Specs) []GPUConfig {
-	if specs == nil || specs.Architectures == nil {
-		return nil
-	}
-
-	architectures := specs.Architectures
-	configs := make([]GPUConfig, 0, len(architectures.Architectures)*3)
-	for archName, archSpec := range architectures.Architectures {
+	configs := make([]GPUConfig, 0, len(specs.Architectures.Architectures)*3)
+	for archName, archSpec := range specs.Architectures.Architectures {
 		for _, mode := range AllDeviceModes {
 			if !IsModeSupportedByArchitecture(archSpec, mode) {
 				continue
@@ -183,10 +177,6 @@ func TagsToKeyValues(tags []string) map[string][]string {
 
 // RequiredTagsForMetric expands the required tags for a metric from tagsets and custom tags.
 func RequiredTagsForMetric(tagsSpec *TagsSpec, metricSpec MetricSpec) (map[string]TagSpec, error) {
-	if tagsSpec == nil {
-		return nil, errors.New("tags spec is nil")
-	}
-
 	requiredTags := make(map[string]TagSpec)
 	for _, tagsetName := range metricSpec.Tagsets {
 		tagsetSpec, ok := tagsSpec.Tagsets[tagsetName]
@@ -212,19 +202,6 @@ func RequiredTagsForMetric(tagsSpec *TagsSpec, metricSpec MetricSpec) (map[strin
 	}
 
 	return requiredTags, nil
-}
-
-// RequiredTagsByMetric returns the required tags for each metric in the provided set.
-func RequiredTagsByMetric(tagsSpec *TagsSpec, metrics map[string]MetricSpec) (map[string]map[string]TagSpec, error) {
-	result := make(map[string]map[string]TagSpec, len(metrics))
-	for metricName, metricSpec := range metrics {
-		requiredTags, err := RequiredTagsForMetric(tagsSpec, metricSpec)
-		if err != nil {
-			return nil, fmt.Errorf("required tags for %s: %w", metricName, err)
-		}
-		result[metricName] = requiredTags
-	}
-	return result, nil
 }
 
 // validateMetricTagsAgainstSpec validates emitted tags against the spec for a metric.

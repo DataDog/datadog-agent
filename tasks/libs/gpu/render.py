@@ -113,21 +113,3 @@ def render_results(result: ValidationResults) -> None:
     print_summary_table("Summary", result.results)
     print_result_details(result.results)
     print(f"\nTotal combinations with metric/tag failures (and devices present): {result.failing_count}")
-
-
-def render_tag_validation_results(site: str, failures: dict[str, dict[str, list[str]]], errors: list[str]) -> None:
-    print(f"Target site: {site}")
-    print(f"Metrics with invalid tag values: {len(failures)}")
-    if failures:
-        print("\nTag validation failures:")
-        for metric_name, tags in failures.items():
-            print(f"  {metric_name}:")
-            for tag_name, values in tags.items():
-                if len(values) == 0:
-                    print(f"    - {tag_name} is missing")
-                else:
-                    print(f"    - {tag_name}: [{', '.join(values)}]")
-    if errors:
-        print("\nTag validation errors:")
-        for err in errors:
-            print(f"  - {err}")
