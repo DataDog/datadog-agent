@@ -607,6 +607,9 @@ func buildAppToPkgMap() map[string]string {
 			dir := filepath.Dir(absPath)
 			if dir == "/Applications" || strings.HasPrefix(dir, "/Applications/") ||
 				strings.HasPrefix(dir, "/Users/") {
+				if existingPkgID, exists := result[absPath]; exists && existingPkgID != item.pkgID {
+					log.Debugf("app path %s claimed by multiple pkg receipts: existing=%s new=%s", absPath, existingPkgID, item.pkgID)
+				}
 				result[absPath] = item.pkgID
 			}
 		}
