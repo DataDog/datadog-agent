@@ -559,7 +559,9 @@ def _compute_build_size(ctx, build_exclude=None, flavor=AgentFlavor.base):
     return statinfo.st_size
 
 
-def compute_config_build_tags(targets="all", build_include=None, build_exclude=None, flavor=AgentFlavor.base.name, platform=None):
+def compute_config_build_tags(
+    targets="all", build_include=None, build_exclude=None, flavor=AgentFlavor.base.name, platform=None
+):
     flavor = AgentFlavor[flavor]
 
     if targets == "all":
