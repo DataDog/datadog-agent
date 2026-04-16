@@ -157,11 +157,16 @@ SCRIPTS_INSTALLED="$EMBEDDED/share/installp"
 mkdir -p "$SCRIPTS_INSTALLED"
 PKGSCRIPTS_SRC="$(dirname "$0")/../package-scripts"
 
-for script in preinst postinst config unconfig prerm postrm; do
+# Note: postrm is intentionally excluded. On AIX, installp removes tracked files
+# *before* running post-remove scripts, so a postrm stored at
+# /opt/datadog-agent/embedded/share/installp/postrm would be deleted before it
+# could be called. All deinstallation cleanup is handled by unconfig, which is
+# stored in liblpp.a and runs reliably before file removal.
+for script in preinst postinst config unconfig prerm; do
     SRC="$PKGSCRIPTS_SRC/$script"
     if [ ! -f "$SRC" ]; then
         log "ERROR: package script not found: $SRC"
-        log "       All six lifecycle scripts (preinst postinst config unconfig prerm postrm)"
+        log "       All five lifecycle scripts (preinst postinst config unconfig prerm)"
         log "       must exist under packaging/aix/package-scripts/ before running this stage."
         exit 1
     fi
