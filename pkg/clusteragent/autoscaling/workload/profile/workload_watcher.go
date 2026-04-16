@@ -62,8 +62,9 @@ type WorkloadWatcher struct {
 	isLeader          func() bool
 	workloadResources []GroupVersionKindResource
 
-	informerFactory metadatainformer.SharedInformerFactory
-	informers       []workloadInformer
+	informerFactory   metadatainformer.SharedInformerFactory
+	nsInformerFactory metadatainformer.SharedInformerFactory
+	informers         []workloadInformer
 
 	nsLister cache.GenericLister
 	nsSynced cache.InformerSynced
@@ -90,13 +91,17 @@ func NewWorkloadWatcher(
 ) *WorkloadWatcher {
 	factory := metadatainformer.NewSharedInformerFactory(metadataClient, noResync)
 
-	nsInformer := factory.ForResource(namespaceGVR)
+	nsFactory := metadatainformer.NewFilteredSharedInformerFactory(metadataClient, noResync, metav1.NamespaceAll, func(opts *metav1.ListOptions) {
+		opts.LabelSelector = model.ProfileLabelKey
+	})
+	nsInformer := nsFactory.ForResource(namespaceGVR)
 
 	w := &WorkloadWatcher{
 		profileStore:            profileStore,
 		isLeader:                isLeader,
 		workloadResources:       workloadResources,
 		informerFactory:         factory,
+		nsInformerFactory:       nsFactory,
 		nsLister:                nsInformer.Lister(),
 		nsSynced:                nsInformer.Informer().HasSynced,
 		profileControllerSynced: profileControllerSynced,
@@ -126,6 +131,7 @@ func (w *WorkloadWatcher) HasSynced() bool {
 func (w *WorkloadWatcher) Run(ctx context.Context) {
 	log.Info("Starting workload watcher")
 	w.informerFactory.Start(ctx.Done())
+	w.nsInformerFactory.Start(ctx.Done())
 
 	syncFuncs := make([]cache.InformerSynced, 0, len(w.informers)+2)
 	for _, inf := range w.informers {
