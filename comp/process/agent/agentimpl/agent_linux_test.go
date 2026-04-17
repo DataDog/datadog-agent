@@ -3,11 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-<<<<<<< HEAD
 //go:build linux && test
-=======
-//go:build test && linux
->>>>>>> 3367dbd7deb (fix: add go:build test tags to pre-existing process test files)
 
 package agentimpl
 
