@@ -373,15 +373,24 @@ func anomalyDisplayKey(a observerdef.Anomaly) string {
 // log pattern extraction. These should be presented as log anomalies with
 // pattern/example/rate context rather than raw metric descriptions.
 func isLogDerivedAnomaly(a observerdef.Anomaly) bool {
-	return a.Type != observerdef.AnomalyTypeLog &&
-		a.Source.Namespace == LogPatternExtractorName &&
-		a.Context != nil &&
-		strings.TrimSpace(a.Context.Pattern) != ""
+	if a.Type == observerdef.AnomalyTypeLog || a.Context == nil {
+		return false
+	}
+	switch a.Source.Namespace {
+	case LogPatternExtractorName:
+		return strings.TrimSpace(a.Context.Pattern) != ""
+	case LogMetricsExtractorName:
+		return strings.TrimSpace(a.Context.Pattern) != "" || strings.TrimSpace(a.Context.Example) != ""
+	}
+	return false
 }
 
 // logDerivedDescription builds a human-readable description for a log-derived
 // metric anomaly, including pattern, example, and windowed average rate.
 func logDerivedDescription(a observerdef.Anomaly, storage observerdef.StorageReader) string {
+	if a.Source.Namespace == LogMetricsExtractorName {
+		return logFrequencyDerivedDescription(a, storage)
+	}
 	pattern := strings.TrimSpace(a.Context.Pattern)
 	var example string
 	// Don't display example if it's the same as the pattern
@@ -405,6 +414,22 @@ func logDerivedDescription(a observerdef.Anomaly, storage observerdef.StorageRea
 		}
 	}
 	return fmt.Sprintf("Log pattern change rate detected:\n\tpattern: %s%s%s%s", pattern, example, ratePart, tagsPart)
+}
+
+// logFrequencyDerivedDescription builds a human-readable description for
+// log.pattern.* anomalies from LogMetricsExtractor. The stored pattern is an
+// internal tokenized structural signature (not human-readable), so the example
+// log line is used as the primary identifier instead.
+func logFrequencyDerivedDescription(a observerdef.Anomaly, storage observerdef.StorageReader) string {
+	example := strings.TrimSpace(a.Context.Example)
+	if example == "" {
+		example = strings.TrimSpace(a.Context.Pattern)
+	}
+	var ratePart string
+	if rate, ok := logPatternRate(a, storage); ok {
+		ratePart = fmt.Sprintf("\n\trate: %.1flog/s", rate)
+	}
+	return fmt.Sprintf("Log frequency change detected:\n\texample: %s%s", example, ratePart)
 }
 
 // sendCorrelationEvents sends one event per correlation.

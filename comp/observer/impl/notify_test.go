@@ -14,6 +14,98 @@ import (
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
+func TestIsLogDerivedAnomaly_LogMetricsExtractorWithPattern(t *testing.T) {
+	a := observerdef.Anomaly{
+		Type:   observerdef.AnomalyTypeMetric,
+		Source: observerdef.SeriesDescriptor{Namespace: LogMetricsExtractorName},
+		Context: &observerdef.MetricContext{
+			Pattern: "C3:C8_C1",
+			Example: "ERROR: connection refused to db.prod:5432",
+		},
+	}
+	assert.True(t, isLogDerivedAnomaly(a))
+}
+
+func TestIsLogDerivedAnomaly_LogMetricsExtractorExampleOnlyNoPattern(t *testing.T) {
+	// Even with an empty pattern, a non-empty example qualifies.
+	a := observerdef.Anomaly{
+		Type:   observerdef.AnomalyTypeMetric,
+		Source: observerdef.SeriesDescriptor{Namespace: LogMetricsExtractorName},
+		Context: &observerdef.MetricContext{
+			Pattern: "",
+			Example: "some log line",
+		},
+	}
+	assert.True(t, isLogDerivedAnomaly(a))
+}
+
+func TestIsLogDerivedAnomaly_LogMetricsExtractorNoContext(t *testing.T) {
+	a := observerdef.Anomaly{
+		Type:    observerdef.AnomalyTypeMetric,
+		Source:  observerdef.SeriesDescriptor{Namespace: LogMetricsExtractorName},
+		Context: nil,
+	}
+	assert.False(t, isLogDerivedAnomaly(a))
+}
+
+func TestBuildChangeMessage_LogMetricsExtractorUsesExample(t *testing.T) {
+	c := observerdef.ActiveCorrelation{
+		Pattern: "p",
+		Anomalies: []observerdef.Anomaly{
+			{
+				Type:   observerdef.AnomalyTypeMetric,
+				Source: observerdef.SeriesDescriptor{Namespace: LogMetricsExtractorName},
+				Context: &observerdef.MetricContext{
+					Pattern: "C3:C8_C1",
+					Example: "ERROR: connection refused to db.prod:5432",
+				},
+			},
+		},
+	}
+	msg := buildChangeMessage(c, nil)
+	assert.Contains(t, msg, "Log frequency change detected")
+	assert.Contains(t, msg, "ERROR: connection refused to db.prod:5432")
+	assert.NotContains(t, msg, "C3:C8_C1") // tokenized signature should not appear
+}
+
+func TestBuildChangeMessage_LogMetricsExtractorFallsBackToPatternWhenNoExample(t *testing.T) {
+	c := observerdef.ActiveCorrelation{
+		Pattern: "p",
+		Anomalies: []observerdef.Anomaly{
+			{
+				Type:   observerdef.AnomalyTypeMetric,
+				Source: observerdef.SeriesDescriptor{Namespace: LogMetricsExtractorName},
+				Context: &observerdef.MetricContext{
+					Pattern: "C3:C8_C1",
+					Example: "",
+				},
+			},
+		},
+	}
+	msg := buildChangeMessage(c, nil)
+	assert.Contains(t, msg, "Log frequency change detected")
+	assert.Contains(t, msg, "C3:C8_C1")
+}
+
+func TestBuildEventTags_LogMetricsExtractorTreatedAsLog(t *testing.T) {
+	c := observerdef.ActiveCorrelation{
+		Pattern: "p",
+		Anomalies: []observerdef.Anomaly{
+			{
+				Type:   observerdef.AnomalyTypeMetric,
+				Source: observerdef.SeriesDescriptor{Namespace: LogMetricsExtractorName},
+				Context: &observerdef.MetricContext{
+					Pattern: "C3:C8_C1",
+					Example: "some log line",
+				},
+			},
+		},
+	}
+	tags := buildEventTags(c)
+	assert.Contains(t, tags, "anomaly_type:log")
+	assert.NotContains(t, tags, "anomaly_type:metric")
+}
+
 func TestBuildEventTags_BaseTagsAlwaysPresent(t *testing.T) {
 	c := observerdef.ActiveCorrelation{Pattern: "kernel_bottleneck"}
 	tags := buildEventTags(c)
