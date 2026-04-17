@@ -81,6 +81,7 @@ func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpusp
 	var mu sync.Mutex
 	var group errgroup.Group
 	observations := make(map[string][]gpuspec.MetricObservation, len(expectedMetricsMap))
+	tagObservations := make(map[string][]gpuspec.MetricObservation, len(expectedMetricsMap))
 	group.SetLimit(metricQueryConcurrency)
 
 	for metricName, metricSpec := range expectedMetricsMap {
@@ -100,6 +101,10 @@ func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpusp
 				return fmt.Errorf("query expected metric presence for %s: %w", metricName, err)
 			}
 
+			if len(metricObservations) == 0 {
+				return nil
+			}
+
 			mu.Lock()
 			observations[metricName] = append(observations[metricName], metricObservations...)
 			mu.Unlock()
@@ -115,8 +120,9 @@ func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpusp
 			if err != nil {
 				return fmt.Errorf("fetch metric tags for %s: %w", metricName, err)
 			}
+
 			mu.Lock()
-			observations[metricName] = append(observations[metricName], gpuspec.MetricObservation{
+			tagObservations[metricName] = append(tagObservations[metricName], gpuspec.MetricObservation{
 				Name: metricName,
 				Tags: metricTags,
 			})
@@ -137,7 +143,7 @@ func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpusp
 			}
 
 			mu.Lock()
-			observations[metricName] = append(observations[metricName], gpuspec.MetricObservation{
+			tagObservations[metricName] = append(tagObservations[metricName], gpuspec.MetricObservation{
 				Name: metricName,
 				Tags: allGpuTags,
 			})
@@ -150,6 +156,16 @@ func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpusp
 	var allErrors error
 	if err := group.Wait(); err != nil {
 		allErrors = errors.Join(allErrors, fmt.Errorf("error retrieving observations: %w", err))
+	}
+
+	for metricName, obs := range observations {
+		// Only add tag observations if  the metric was found for this specific config.
+		// the metric APIs will return empty tag lists for metrics that are emitted in the org but not with the given GPU config.
+		// If we added those observations, we would have false negatives for missing tags.
+		if len(obs) == 0 {
+			continue
+		}
+		observations[metricName] = append(observations[metricName], tagObservations[metricName]...)
 	}
 
 	// Get any other metrics that were emitted with the GPU prefix but aren't in the expected metrics
