@@ -140,7 +140,7 @@ system_probe_config:
 	overrides := fx.Options(
 		fx.Decorate(func() ipc.Component { return ipcComp }),
 		fx.Decorate(func(p configstreamconsumerimpl.Params) configstreamconsumerimpl.Params {
-			p.ReadyTimeout = 2 * time.Second
+			p.ReadyTimeout = 10 * time.Second
 			p.SessionIDProvider = &mockRAR{}
 			return p
 		}),
@@ -173,11 +173,12 @@ system_probe_config:
 			},
 		}
 
-		// run() should complete (startSystemProbe returns ErrNotEnabled then 5s sleep).
+		// run() should complete (startSystemProbe returns ErrNotEnabled then 5s sleep + stopApp).
+		// Use a generous timeout: CI is slower and stopApp() with heavyweight components adds ~25s.
 		select {
 		case err := <-done:
 			require.NoError(t, err)
-		case <-time.After(30 * time.Second):
+		case <-time.After(120 * time.Second):
 			t.Fatal("run did not complete after sending snapshot")
 		}
 	})
