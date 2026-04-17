@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -178,6 +179,33 @@ func TestGetHostname(t *testing.T) {
 		assert.Equal(t, tt.value, hostname)
 		assert.Equal(t, tt.err, (err != nil))
 	}
+}
+
+func TestGetHostnameSkipsRetryWhenProviderDisabled(t *testing.T) {
+	ctx := context.Background()
+
+	var calls int32
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		atomic.AddInt32(&calls, 1)
+		http.Error(w, "should not be called", http.StatusInternalServerError)
+	}))
+	defer ts.Close()
+
+	metadataURL = ts.URL
+	instanceMetaFetcher.Reset()
+	t.Cleanup(func() { instanceMetaFetcher.Reset() })
+
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("cloud_provider_metadata", []string{"aws"})
+	mockConfig.SetWithoutSource(hostnameStyleSetting, "name_and_resource_group")
+
+	start := time.Now()
+	_, err := getHostnameWithConfig(ctx, mockConfig)
+	elapsed := time.Since(start)
+
+	require.Error(t, err)
+	require.Zero(t, atomic.LoadInt32(&calls), "IMDS should not be hit when Azure provider is disabled")
+	require.Less(t, elapsed, hostnameFetchMaxElapsedTime, "must short-circuit instead of burning the full retry window")
 }
 
 func TestGetHostnameRetriesTransientIMDSFailure(t *testing.T) {

@@ -169,6 +169,10 @@ var instanceMetaFetcher = cachedfetch.Fetcher{
 }
 
 func fetchInstanceMetadataWithRetry(ctx context.Context) (string, error) {
+	if !configutils.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
+		return instanceMetaFetcher.FetchString(ctx)
+	}
+
 	expBackoff := backoff.NewExponentialBackOff()
 	expBackoff.InitialInterval = hostnameFetchInitialInterval
 
