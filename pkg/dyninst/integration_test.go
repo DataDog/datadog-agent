@@ -127,6 +127,7 @@ func testDyninst(
 		loader.WithAdditionalSerializer(&compiler.DebugSerializer{
 			Out: codeDump,
 		}),
+		loader.WithRingBufSize(8 << 20), // 8 MiB
 	}
 	if debug {
 		loaderOpts = append(loaderOpts, loader.WithDebugLevel(100))
@@ -169,8 +170,9 @@ func testDyninst(
 	}()
 
 	// On failure in debug mode, output trace_pipe logs for this process.
+	forceTracePipePrint, _ := strconv.ParseBool(os.Getenv("FORCE_TRACE_PIPE_PRINT"))
 	t.Cleanup(func() {
-		if collector == nil || !t.Failed() || !debug {
+		if collector == nil || !debug || (!t.Failed() && !forceTracePipePrint) {
 			return
 		}
 		if err := collector.Flush(); err != nil {
@@ -339,8 +341,10 @@ func runIntegrationTestSuite(
 	const runAllDebugTestsEnv = "RUN_ALL_DEBUG_TESTS"
 	runAllDebugTests, _ := strconv.ParseBool(os.Getenv(runAllDebugTestsEnv))
 	for _, cfg := range cfgs {
-		probes := testprogs.MustGetProbeDefinitions(t, service)
-		probes = slices.DeleteFunc(probes, testprogs.HasIssueTag)
+		allProbes := testprogs.MustGetProbeDefinitions(t, service)
+		probes := slices.DeleteFunc(slices.Clone(allProbes), func(p ir.ProbeDefinition) bool {
+			return testprogs.HasIssueTag(p, cfg)
+		})
 
 		// For each probe, resolve which output file name applies to the
 		// current config (stored in resultNames) and which names belong
@@ -356,6 +360,16 @@ func runIntegrationTestSuite(
 		//     with result name "foo_geq_1.23" still has "foo" on disk
 		//     for older toolchains; that name goes here.
 		otherVariantNames := make(map[string]struct{})
+		// Probes removed by config-scoped issue tags (e.g. hmap on go1.23)
+		// may still have output files from other configs where the probe
+		// works. Add their names to otherVariantNames so the "unexpected
+		// probes" check doesn't flag them. Probes with unconditional issue
+		// tags never produce output for any config and are excluded.
+		for _, p := range allProbes {
+			if _, ok, conditional := testprogs.GetIssueTag(p, cfg); ok && conditional {
+				otherVariantNames[p.GetID()] = struct{}{}
+			}
+		}
 		resultNames := make(map[string]string)
 		var keptProbes []ir.ProbeDefinition
 		for _, p := range probes {
@@ -795,7 +809,7 @@ func (f *fakeProcessSubscriber) Start() {}
 func makeRedactorForManyFloats(arch string) jsonRedactor {
 	return redactor(
 		exactMatcher(
-			"/debugger/snapshot/captures/return/locals/onlyOnAmd64_16",
+			"/debugger/snapshot/captures/return/locals/@return/fields/onlyOnAmd64_16",
 		),
 		replacerFunc(func(v jsontext.Value) jsontext.Value {
 			// If we've already redacted this, don't do it again.

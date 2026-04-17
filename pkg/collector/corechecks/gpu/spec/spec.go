@@ -8,7 +8,9 @@ package spec
 
 import (
 	"embed"
+	"errors"
 	"fmt"
+	"math"
 
 	"go.yaml.in/yaml/v2"
 )
@@ -30,6 +32,13 @@ const (
 	DeviceModeVGPU     DeviceMode = "vgpu"
 )
 
+// AllDeviceModes lists every device mode modeled by the GPU spec.
+var AllDeviceModes = []DeviceMode{
+	DeviceModePhysical,
+	DeviceModeMIG,
+	DeviceModeVGPU,
+}
+
 // MetricsSpec is the YAML metric specification.
 type MetricsSpec struct {
 	MetricPrefix string                `yaml:"metric_prefix"`
@@ -39,14 +48,105 @@ type MetricsSpec struct {
 
 // TagsetSpec defines a reusable tagset.
 type TagsetSpec struct {
-	Tags []string `yaml:"tags"`
+	Tags         []string `yaml:"tags"`
+	WorkloadOnly bool     `yaml:"workload_only,omitempty"`
 }
 
 // MetricSpec is a metric definition without the name (name is the map key).
 type MetricSpec struct {
-	Tagsets    []string          `yaml:"tagsets"`
-	CustomTags []string          `yaml:"custom_tags,omitempty"`
-	Support    MetricSupportSpec `yaml:"support"`
+	Tagsets      []string          `yaml:"tagsets"`
+	CustomTags   []string          `yaml:"custom_tags,omitempty"`
+	WorkloadOnly bool              `yaml:"workload_only,omitempty"`
+	Support      MetricSupportSpec `yaml:"support"`
+	Validator    *MetricValidator  `yaml:"validator,omitempty"`
+}
+
+// MetricValidatorRange defines an inclusive numeric range validator.
+type MetricValidatorRange struct {
+	Min *float64 `yaml:"min"`
+	Max *float64 `yaml:"max"`
+}
+
+// MetricValidator validates emitted metric values against the spec.
+type MetricValidator struct {
+	Range  *MetricValidatorRange `yaml:"range,omitempty"`
+	Values []float64             `yaml:"values,omitempty"`
+}
+
+// UnmarshalYAML parses the supported validator shapes while keeping the internal fields private.
+func (v *MetricValidator) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain MetricValidator
+
+	var decoded plain
+	if err := unmarshal(&decoded); err != nil {
+		return fmt.Errorf("unmarshal metric validator: %w", err)
+	}
+
+	*v = MetricValidator(decoded)
+	return v.validateDefinition()
+}
+
+// Validate checks whether the metric value matches the validator.
+func (v *MetricValidator) Validate(value float64) error {
+	if v == nil {
+		return nil
+	}
+	if math.IsNaN(value) || math.IsInf(value, 0) {
+		return fmt.Errorf("%v not finite", value)
+	}
+	if v.Range != nil {
+		if value < *v.Range.Min || value > *v.Range.Max {
+			return fmt.Errorf("%v not in range [%v, %v]", value, *v.Range.Min, *v.Range.Max)
+		}
+		return nil
+	}
+
+	for _, allowedValue := range v.Values {
+		if value == allowedValue {
+			return nil
+		}
+	}
+	return fmt.Errorf("%v not in %v", value, v.Values)
+}
+
+func (v *MetricValidator) validateDefinition() error {
+	if v == nil {
+		return nil
+	}
+
+	hasRange := v.Range != nil
+	hasValues := len(v.Values) > 0
+
+	switch {
+	case hasRange && hasValues:
+		return errors.New("metric validator must define exactly one of range or values")
+	case !hasRange && !hasValues:
+		return errors.New("metric validator must define exactly one of range or values")
+	}
+
+	if hasRange {
+		if v.Range.Min == nil || v.Range.Max == nil {
+			return errors.New("metric validator range must define both min and max")
+		}
+		if math.IsNaN(*v.Range.Min) || math.IsInf(*v.Range.Min, 0) {
+			return fmt.Errorf("metric validator range min must be finite, got %v", *v.Range.Min)
+		}
+		if math.IsNaN(*v.Range.Max) || math.IsInf(*v.Range.Max, 0) {
+			return fmt.Errorf("metric validator range max must be finite, got %v", *v.Range.Max)
+		}
+		if *v.Range.Min > *v.Range.Max {
+			return fmt.Errorf("metric validator range min %v must be less than or equal to max %v", *v.Range.Min, *v.Range.Max)
+		}
+		return nil
+	}
+
+	for _, allowedValue := range v.Values {
+		if math.IsNaN(allowedValue) || math.IsInf(allowedValue, 0) {
+			return fmt.Errorf("metric validator values must be finite, got %v", allowedValue)
+		}
+	}
+
+	return nil
 }
 
 // MetricSupportSpec defines where a metric is supported.
@@ -98,13 +198,9 @@ func (m MetricSpec) SupportsDeviceMode(mode DeviceMode) bool {
 	return ok && v
 }
 
-// IsDeviceModeExplicitlyUnsupported returns true if device_modes explicitly disables this mode.
-func (m MetricSpec) IsDeviceModeExplicitlyUnsupported(mode DeviceMode) bool {
-	if m.Support.DeviceModes == nil {
-		return false
-	}
-	v, ok := m.Support.DeviceModes[mode]
-	return ok && !v
+// SupportsConfig returns true if the metric is supported for the given GPU config.
+func (m MetricSpec) SupportsConfig(config GPUConfig) bool {
+	return m.SupportsArchitecture(config.Architecture) && m.SupportsDeviceMode(config.DeviceMode)
 }
 
 // IsModeSupportedByArchitecture returns true when the architecture supports the device mode.

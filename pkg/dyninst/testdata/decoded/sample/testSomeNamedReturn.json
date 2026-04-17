@@ -23,12 +23,12 @@
           {
             "function": "main.executeReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 395
+            "lineNumber": 401
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 50
+            "lineNumber": 52
           },
           {
             "function": "runtime.main",
@@ -58,17 +58,21 @@
           },
           "return": {
             "locals": {
-              "~r0": {
-                "type": "int",
-                "value": "420"
-              },
-              "result2": {
-                "type": "int",
-                "value": "840"
-              },
-              "~r2": {
-                "type": "int",
-                "value": "1260"
+              "@return": {
+                "fields": {
+                  "r0": {
+                    "type": "int",
+                    "value": "420"
+                  },
+                  "result2": {
+                    "type": "int",
+                    "value": "840"
+                  },
+                  "r2": {
+                    "type": "int",
+                    "value": "1260"
+                  }
+                }
               }
             }
           }

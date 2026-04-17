@@ -215,7 +215,11 @@ def gen_config_from_ci_pipeline(
     kmt_pipeline.retrieve_jobs()
 
     for job in kmt_pipeline.setup_jobs:
-        if (vcpu is None or memory is None) and job.status == GitlabJobStatus.SUCCESS:
+        if (
+            (vcpu is None or memory is None)
+            and job.status == GitlabJobStatus.SUCCESS
+            and job.component == vmconfig_template
+        ):
             info(f"[+] retrieving vmconfig from job {job.name}")
             for vmset in job.vmconfig["vmsets"]:
                 memory_list = vmset.get("memory", [])
@@ -232,7 +236,7 @@ def gen_config_from_ci_pipeline(
     failed_tests: set[str] = set()
     successful_tests: set[str] = set()
     for test_job in kmt_pipeline.test_jobs:
-        if test_job.status == GitlabJobStatus.FAILED and job.component == vmconfig_template:
+        if test_job.status == GitlabJobStatus.FAILED and test_job.component == vmconfig_template:
             vm_arch = test_job.arch
             if use_local_if_possible and vm_arch == local_arch:
                 vm_arch = "local"
@@ -1623,7 +1627,7 @@ def ssh_config(
                 print(f"    HostName {domain.ip}")
                 if instance.arch != "local":
                     print(f"    ProxyJump kmt-{stack_name}-{instance.arch}")
-                print(f"    IdentityFile {ddvm_rsa}")
+                print(f"    IdentityFile {os.path.abspath(ddvm_rsa)}")
                 print("    IdentitiesOnly yes")
                 print("    User root")
 

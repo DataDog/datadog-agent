@@ -1,0 +1,10 @@
+---
+enhancements:
+  - |
+    The OTel Agent now logs a warning and displays it in ``agent status``
+    when the ``hostmetrics`` receiver is configured while running in connected
+    mode (``DD_OTEL_STANDALONE=false``). In connected mode the core Datadog
+    Agent already collects host metrics, so enabling the ``hostmetrics``
+    receiver can lead to duplicate or conflicting metric names. To suppress
+    the warning, either remove the ``hostmetrics`` receiver or switch to
+    standalone mode (``DD_OTEL_STANDALONE=true``).

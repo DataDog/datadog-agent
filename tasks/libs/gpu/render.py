@@ -3,6 +3,8 @@ from __future__ import annotations
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.gpu.types import GPUConfigValidationResult, GPUConfigValidationState, ValidationResults
 
+SPACER = "  "
+
 
 def color_status(status: GPUConfigValidationState) -> str:
     colors = {
@@ -35,8 +37,9 @@ def print_summary_table(title: str, results: list[GPUConfigValidationResult]) ->
             row.config.device_mode,
             color_status(row.state),
             row.device_count,
-            color_metric_counts(len(row.missing_metrics), len(row.present_metrics), len(row.unknown_metrics)),
-            color_tag_failures(len(row.tag_failures)),
+            color_metric_counts(row.missing_metrics, row.present_metrics, row.unknown_metrics),
+            color_tag_failures(row.tag_failures),
+            color_tag_failures(row.invalid_values),
         ]
         for row in results
     ]
@@ -52,6 +55,7 @@ def print_summary_table(title: str, results: list[GPUConfigValidationResult]) ->
                 "found devices",
                 "missing/known/unknown metrics",
                 "tag failures",
+                "invalid values",
             ],
             tablefmt="github",
         )
@@ -61,22 +65,64 @@ def print_summary_table(title: str, results: list[GPUConfigValidationResult]) ->
 def print_result_details(results: list[GPUConfigValidationResult]) -> None:
     print("\nValidation details (showing only failures on configs with devices present):")
     for result in results:
-        if not result.has_failures or result.device_count == 0:
+        if result.state is not GPUConfigValidationState.FAIL or result.device_count == 0:
             continue
+
         print(f"\n-- {result.config.architecture} {result.config.device_mode} --")
-        print(f"  found devices: {result.device_count}")
-        if result.missing_metrics:
-            print("  missing metric names:")
-            for name in result.missing_metrics:
-                print(f"    - MISSING {name}")
-        if result.unknown_metrics:
-            print("  unknown metric names:")
-            for name in result.unknown_metrics:
-                print(f"    - UNKNOWN {name}")
-        if result.tag_failures:
-            print("  tag failure details:")
-            for metric_name, tags in result.tag_failures.items():
-                print(f"    - TAG FAIL {metric_name}: missing/non-null [{', '.join(tags)}]")
+        print(f"{SPACER}found devices: {result.device_count}")
+        print(f"{SPACER}summary")
+        print(f"{SPACER * 2}missing={result.missing_metrics}")
+        print(f"{SPACER * 2}known={result.present_metrics}")
+        print(f"{SPACER * 2}unknown={result.unknown_metrics}")
+        print(f"{SPACER * 2}tag failures={result.tag_failures}")
+        print(f"{SPACER * 2}invalid values={result.invalid_values}")
+
+        failing_metrics = [
+            (metric_name, metric_status)
+            for metric_name, metric_status in sorted(result.detailed_result.metrics.items())
+            if metric_status.has_failures
+        ]
+
+        if failing_metrics:
+            print(f"{SPACER}metric failures")
+
+            for metric_name, metric_status in failing_metrics:
+                metric_details: list[str] = []
+                if metric_status.missing > 0:
+                    metric_details.append(f"missing={metric_status.missing}")
+                if metric_status.unknown > 0:
+                    metric_details.append(f"unknown={metric_status.unknown}")
+                if metric_status.unsupported > 0:
+                    metric_details.append(f"unsupported={metric_status.unsupported}")
+                if metric_status.invalid_value > 0:
+                    metric_details.append(f"invalid={metric_status.invalid_value}")
+                if metric_details:
+                    print(f"{SPACER * 2}- {metric_name}: {', '.join(metric_details)}")
+                else:
+                    print(f"{SPACER * 2}- {metric_name}")
+
+                if metric_status.invalid_value_samples:
+                    print(f"{SPACER * 3}- invalid value samples: " + "; ".join(metric_status.invalid_value_samples))
+
+                for tag_name, tag_result in sorted(metric_status.tag_results.items()):
+                    if not tag_result.has_failures:
+                        continue
+                    details: list[str] = []
+                    if tag_result.missing > 0:
+                        if tag_result.workload_only and tag_result.found > 0:
+                            # Partial match for workload-only tags is not considered a failure, some hosts will not have a workload and therefore will not have tags
+                            pass
+                        else:
+                            total = tag_result.found + tag_result.missing
+                            missing_rate = 0.0 if total == 0 else (tag_result.missing / total) * 100
+                            details.append(f"missing {tag_result.missing}/{total} ({missing_rate:.1f}%)")
+                    if tag_result.unknown > 0:
+                        details.append(f"unknown={tag_result.unknown}")
+                    if tag_result.invalid_value > 0:
+                        details.append(f"invalid={tag_result.invalid_value}")
+                    if not details:
+                        continue
+                    print(f"{SPACER * 3}- tag {tag_name}: {', '.join(details)}")
 
 
 def render_results(result: ValidationResults) -> None:

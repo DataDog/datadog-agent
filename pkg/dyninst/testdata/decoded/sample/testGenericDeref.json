@@ -1,0 +1,178 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.genericDeref[...]",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.genericDeref[go.shape.struct { main.x []*string; main.z int; main.writer io.Writer }]",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go",
+            "lineNumber": 95
+          },
+          {
+            "function": "main.executeGenericFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go",
+            "lineNumber": 228
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 49
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testGenericDeref",
+          "location": {
+            "method": "main.genericDeref[...]"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "p": {
+                "type": "*main.bigStruct",
+                "address": "[addr]",
+                "fields": {
+                  "x": {
+                    "type": "[]*string",
+                    "isNull": true
+                  },
+                  "z": {
+                    "type": "int",
+                    "value": "1"
+                  },
+                  "writer": {
+                    "type": "io.Writer",
+                    "isNull": true
+                  }
+                }
+              }
+            }
+          },
+          "return": {
+            "locals": {
+              "@return": {
+                "type": "main.bigStruct",
+                "fields": {
+                  "x": {
+                    "type": "[]*string",
+                    "isNull": true
+                  },
+                  "z": {
+                    "type": "int",
+                    "value": "1"
+                  },
+                  "writer": {
+                    "type": "io.Writer",
+                    "isNull": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "type": "snapshot"
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "message": "p={x: [], z: 1, writer: nil}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  },
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.genericDeref[...]",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.genericDeref[go.shape.string]",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go",
+            "lineNumber": 95
+          },
+          {
+            "function": "main.executeGenericFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go",
+            "lineNumber": 230
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 49
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testGenericDeref",
+          "location": {
+            "method": "main.genericDeref[...]"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "p": {
+                "type": "*string",
+                "address": "[addr]",
+                "value": "hello"
+              }
+            }
+          },
+          "return": {
+            "locals": {
+              "@return": {
+                "type": "string",
+                "value": "hello"
+              }
+            }
+          }
+        }
+      },
+      "type": "snapshot"
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "message": "p=hello",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  }
+]

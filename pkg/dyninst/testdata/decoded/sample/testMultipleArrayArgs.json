@@ -18,17 +18,17 @@
           {
             "function": "main.testMultipleArrayArgs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 349
+            "lineNumber": 355
           },
           {
             "function": "main.executeReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 427
+            "lineNumber": 434
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 50
+            "lineNumber": 52
           },
           {
             "function": "runtime.main",
@@ -86,23 +86,27 @@
           },
           "return": {
             "locals": {
-              "~r0": {
-                "type": "int",
-                "value": "114"
-              },
-              "~r1": {
-                "type": "[2]int",
-                "size": "2",
-                "elements": [
-                  {
+              "@return": {
+                "fields": {
+                  "r0": {
                     "type": "int",
-                    "value": "510"
+                    "value": "114"
                   },
-                  {
-                    "type": "int",
-                    "value": "520"
+                  "r1": {
+                    "type": "[2]int",
+                    "size": "2",
+                    "elements": [
+                      {
+                        "type": "int",
+                        "value": "510"
+                      },
+                      {
+                        "type": "int",
+                        "value": "520"
+                      }
+                    ]
                   }
-                ]
+                }
               }
             }
           }
