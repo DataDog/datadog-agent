@@ -7,6 +7,133 @@ import (
 )
 
 // MarshalMsg implements msgp.Marshaler
+func (z *ContainerDebug) MarshalMsg(b []byte) (o []byte, err error) {
+	o = msgp.Require(b, z.Msgsize())
+	// check for omitted fields
+	zb0001Len := uint32(5)
+	var zb0001Mask uint8 /* 5 bits */
+	_ = zb0001Mask
+	if z.Error == "" {
+		zb0001Len--
+		zb0001Mask |= 0x1
+	}
+	if z.LatencyMs == 0 {
+		zb0001Len--
+		zb0001Mask |= 0x2
+	}
+	if z.WasBuffered == false {
+		zb0001Len--
+		zb0001Mask |= 0x4
+	}
+	if z.BufferMs == 0 {
+		zb0001Len--
+		zb0001Mask |= 0x8
+	}
+	if z.BufferEvictionReason == "" {
+		zb0001Len--
+		zb0001Mask |= 0x10
+	}
+	// variable map header, size zb0001Len
+	o = append(o, 0x80|uint8(zb0001Len))
+
+	// skip if no fields are to be emitted
+	if zb0001Len != 0 {
+		if (zb0001Mask & 0x1) == 0 { // if not omitted
+			// string "error"
+			o = append(o, 0xa5, 0x65, 0x72, 0x72, 0x6f, 0x72)
+			o = msgp.AppendString(o, z.Error)
+		}
+		if (zb0001Mask & 0x2) == 0 { // if not omitted
+			// string "latency_ms"
+			o = append(o, 0xaa, 0x6c, 0x61, 0x74, 0x65, 0x6e, 0x63, 0x79, 0x5f, 0x6d, 0x73)
+			o = msgp.AppendInt64(o, z.LatencyMs)
+		}
+		if (zb0001Mask & 0x4) == 0 { // if not omitted
+			// string "was_buffered"
+			o = append(o, 0xac, 0x77, 0x61, 0x73, 0x5f, 0x62, 0x75, 0x66, 0x66, 0x65, 0x72, 0x65, 0x64)
+			o = msgp.AppendBool(o, z.WasBuffered)
+		}
+		if (zb0001Mask & 0x8) == 0 { // if not omitted
+			// string "buffer_ms"
+			o = append(o, 0xa9, 0x62, 0x75, 0x66, 0x66, 0x65, 0x72, 0x5f, 0x6d, 0x73)
+			o = msgp.AppendInt64(o, z.BufferMs)
+		}
+		if (zb0001Mask & 0x10) == 0 { // if not omitted
+			// string "buffer_eviction_reason"
+			o = append(o, 0xb6, 0x62, 0x75, 0x66, 0x66, 0x65, 0x72, 0x5f, 0x65, 0x76, 0x69, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x5f, 0x72, 0x65, 0x61, 0x73, 0x6f, 0x6e)
+			o = msgp.AppendString(o, z.BufferEvictionReason)
+		}
+	}
+	return
+}
+
+// UnmarshalMsg implements msgp.Unmarshaler
+func (z *ContainerDebug) UnmarshalMsg(bts []byte) (o []byte, err error) {
+	var field []byte
+	_ = field
+	var zb0001 uint32
+	zb0001, bts, err = msgp.ReadMapHeaderBytes(bts)
+	if err != nil {
+		err = msgp.WrapError(err)
+		return
+	}
+	for zb0001 > 0 {
+		zb0001--
+		field, bts, err = msgp.ReadMapKeyZC(bts)
+		if err != nil {
+			err = msgp.WrapError(err)
+			return
+		}
+		switch msgp.UnsafeString(field) {
+		case "error":
+			z.Error, bts, err = msgp.ReadStringBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "Error")
+				return
+			}
+		case "latency_ms":
+			z.LatencyMs, bts, err = msgp.ReadInt64Bytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "LatencyMs")
+				return
+			}
+		case "was_buffered":
+			z.WasBuffered, bts, err = msgp.ReadBoolBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "WasBuffered")
+				return
+			}
+		case "buffer_ms":
+			z.BufferMs, bts, err = msgp.ReadInt64Bytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "BufferMs")
+				return
+			}
+		case "buffer_eviction_reason":
+			z.BufferEvictionReason, bts, err = msgp.ReadStringBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "BufferEvictionReason")
+				return
+			}
+		default:
+			bts, err = msgp.Skip(bts)
+			if err != nil {
+				err = msgp.WrapError(err)
+				return
+			}
+		}
+	}
+	o = bts
+	return
+}
+
+// Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
+func (z *ContainerDebug) Msgsize() (s int) {
+	s = 1 + 6 + msgp.StringPrefixSize + len(z.Error) + 11 + msgp.Int64Size + 13 + msgp.BoolSize + 10 + msgp.Int64Size + 23 + msgp.StringPrefixSize + len(z.BufferEvictionReason)
+	return
+}
+
+// MarshalMsg implements msgp.Marshaler
 func (z *TraceChunk) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 	// map header, size 5
@@ -173,52 +300,78 @@ func (z *TraceChunk) Msgsize() (s int) {
 // MarshalMsg implements msgp.Marshaler
 func (z *TracerPayload) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 10
-	// string "container_id"
-	o = append(o, 0x8a, 0xac, 0x63, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x5f, 0x69, 0x64)
-	o = msgp.AppendString(o, z.ContainerID)
-	// string "language_name"
-	o = append(o, 0xad, 0x6c, 0x61, 0x6e, 0x67, 0x75, 0x61, 0x67, 0x65, 0x5f, 0x6e, 0x61, 0x6d, 0x65)
-	o = msgp.AppendString(o, z.LanguageName)
-	// string "language_version"
-	o = append(o, 0xb0, 0x6c, 0x61, 0x6e, 0x67, 0x75, 0x61, 0x67, 0x65, 0x5f, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
-	o = msgp.AppendString(o, z.LanguageVersion)
-	// string "tracer_version"
-	o = append(o, 0xae, 0x74, 0x72, 0x61, 0x63, 0x65, 0x72, 0x5f, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
-	o = msgp.AppendString(o, z.TracerVersion)
-	// string "runtime_id"
-	o = append(o, 0xaa, 0x72, 0x75, 0x6e, 0x74, 0x69, 0x6d, 0x65, 0x5f, 0x69, 0x64)
-	o = msgp.AppendString(o, z.RuntimeID)
-	// string "chunks"
-	o = append(o, 0xa6, 0x63, 0x68, 0x75, 0x6e, 0x6b, 0x73)
-	o = msgp.AppendArrayHeader(o, uint32(len(z.Chunks)))
-	for za0001 := range z.Chunks {
-		if z.Chunks[za0001] == nil {
-			o = msgp.AppendNil(o)
-		} else {
-			o, err = z.Chunks[za0001].MarshalMsg(o)
-			if err != nil {
-				err = msgp.WrapError(err, "Chunks", za0001)
-				return
+	// check for omitted fields
+	zb0001Len := uint32(11)
+	var zb0001Mask uint16 /* 11 bits */
+	_ = zb0001Mask
+	if z.ContainerDebug == nil {
+		zb0001Len--
+		zb0001Mask |= 0x400
+	}
+	// variable map header, size zb0001Len
+	o = append(o, 0x80|uint8(zb0001Len))
+
+	// skip if no fields are to be emitted
+	if zb0001Len != 0 {
+		// string "container_id"
+		o = append(o, 0xac, 0x63, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x5f, 0x69, 0x64)
+		o = msgp.AppendString(o, z.ContainerID)
+		// string "language_name"
+		o = append(o, 0xad, 0x6c, 0x61, 0x6e, 0x67, 0x75, 0x61, 0x67, 0x65, 0x5f, 0x6e, 0x61, 0x6d, 0x65)
+		o = msgp.AppendString(o, z.LanguageName)
+		// string "language_version"
+		o = append(o, 0xb0, 0x6c, 0x61, 0x6e, 0x67, 0x75, 0x61, 0x67, 0x65, 0x5f, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
+		o = msgp.AppendString(o, z.LanguageVersion)
+		// string "tracer_version"
+		o = append(o, 0xae, 0x74, 0x72, 0x61, 0x63, 0x65, 0x72, 0x5f, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
+		o = msgp.AppendString(o, z.TracerVersion)
+		// string "runtime_id"
+		o = append(o, 0xaa, 0x72, 0x75, 0x6e, 0x74, 0x69, 0x6d, 0x65, 0x5f, 0x69, 0x64)
+		o = msgp.AppendString(o, z.RuntimeID)
+		// string "chunks"
+		o = append(o, 0xa6, 0x63, 0x68, 0x75, 0x6e, 0x6b, 0x73)
+		o = msgp.AppendArrayHeader(o, uint32(len(z.Chunks)))
+		for za0001 := range z.Chunks {
+			if z.Chunks[za0001] == nil {
+				o = msgp.AppendNil(o)
+			} else {
+				o, err = z.Chunks[za0001].MarshalMsg(o)
+				if err != nil {
+					err = msgp.WrapError(err, "Chunks", za0001)
+					return
+				}
+			}
+		}
+		// string "tags"
+		o = append(o, 0xa4, 0x74, 0x61, 0x67, 0x73)
+		o = msgp.AppendMapHeader(o, uint32(len(z.Tags)))
+		for za0002, za0003 := range z.Tags {
+			o = msgp.AppendString(o, za0002)
+			o = msgp.AppendString(o, za0003)
+		}
+		// string "env"
+		o = append(o, 0xa3, 0x65, 0x6e, 0x76)
+		o = msgp.AppendString(o, z.Env)
+		// string "hostname"
+		o = append(o, 0xa8, 0x68, 0x6f, 0x73, 0x74, 0x6e, 0x61, 0x6d, 0x65)
+		o = msgp.AppendString(o, z.Hostname)
+		// string "app_version"
+		o = append(o, 0xab, 0x61, 0x70, 0x70, 0x5f, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
+		o = msgp.AppendString(o, z.AppVersion)
+		if (zb0001Mask & 0x400) == 0 { // if not omitted
+			// string "container_debug"
+			o = append(o, 0xaf, 0x63, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x5f, 0x64, 0x65, 0x62, 0x75, 0x67)
+			if z.ContainerDebug == nil {
+				o = msgp.AppendNil(o)
+			} else {
+				o, err = z.ContainerDebug.MarshalMsg(o)
+				if err != nil {
+					err = msgp.WrapError(err, "ContainerDebug")
+					return
+				}
 			}
 		}
 	}
-	// string "tags"
-	o = append(o, 0xa4, 0x74, 0x61, 0x67, 0x73)
-	o = msgp.AppendMapHeader(o, uint32(len(z.Tags)))
-	for za0002, za0003 := range z.Tags {
-		o = msgp.AppendString(o, za0002)
-		o = msgp.AppendString(o, za0003)
-	}
-	// string "env"
-	o = append(o, 0xa3, 0x65, 0x6e, 0x76)
-	o = msgp.AppendString(o, z.Env)
-	// string "hostname"
-	o = append(o, 0xa8, 0x68, 0x6f, 0x73, 0x74, 0x6e, 0x61, 0x6d, 0x65)
-	o = msgp.AppendString(o, z.Hostname)
-	// string "app_version"
-	o = append(o, 0xab, 0x61, 0x70, 0x70, 0x5f, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
-	o = msgp.AppendString(o, z.AppVersion)
 	return
 }
 
@@ -346,6 +499,23 @@ func (z *TracerPayload) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "AppVersion")
 				return
 			}
+		case "container_debug":
+			if msgp.IsNil(bts) {
+				bts, err = msgp.ReadNilBytes(bts)
+				if err != nil {
+					return
+				}
+				z.ContainerDebug = nil
+			} else {
+				if z.ContainerDebug == nil {
+					z.ContainerDebug = new(ContainerDebug)
+				}
+				bts, err = z.ContainerDebug.UnmarshalMsg(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "ContainerDebug")
+					return
+				}
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -375,6 +545,11 @@ func (z *TracerPayload) Msgsize() (s int) {
 			s += msgp.StringPrefixSize + len(za0002) + msgp.StringPrefixSize + len(za0003)
 		}
 	}
-	s += 4 + msgp.StringPrefixSize + len(z.Env) + 9 + msgp.StringPrefixSize + len(z.Hostname) + 12 + msgp.StringPrefixSize + len(z.AppVersion)
+	s += 4 + msgp.StringPrefixSize + len(z.Env) + 9 + msgp.StringPrefixSize + len(z.Hostname) + 12 + msgp.StringPrefixSize + len(z.AppVersion) + 16
+	if z.ContainerDebug == nil {
+		s += msgp.NilSize
+	} else {
+		s += z.ContainerDebug.Msgsize()
+	}
 	return
 }
