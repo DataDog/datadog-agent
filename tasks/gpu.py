@@ -64,7 +64,6 @@ def validate_metrics(ctx, lookback_seconds=3600, org: str | None = None):
                 )
                 print(" - running validator...")
                 res = ctx.run(command, warn=True)
-                print("no")
                 result = validation_results_from_dict(json.load(tmp), site=VALIDATOR_SITE)
 
                 if results is None:
