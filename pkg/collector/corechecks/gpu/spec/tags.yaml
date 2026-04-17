@@ -23,8 +23,6 @@ tags:
     regex: "^[a-z0-9_-]+$"
   gpu_parent_uuid:
     regex: "^(gpu|mig)-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-  gpu_host:
-    regex: "^true$"
   pid:
     regex: '^\d+(,\d+)*$' # multiple PIDs are supported and should be split by commas
   nspid:
