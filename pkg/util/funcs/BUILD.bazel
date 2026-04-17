@@ -18,5 +18,6 @@ go_test(
     name = "funcs_test",
     srcs = ["memoize_test.go"],
     embed = [":funcs"],
+    gotags = ["test"],
     deps = ["@com_github_stretchr_testify//assert"],
 )

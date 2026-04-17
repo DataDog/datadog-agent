@@ -81,7 +81,7 @@ func TestOrchestratorCheckSafeReSchedule(t *testing.T) {
 	var scheme = kscheme.Scheme
 
 	client := fake.NewSimpleClientset()
-	vpaClient := vpa.NewSimpleClientset()
+	vpaClient := vpa.NewSimpleClientset() //nolint:staticcheck // SA1019 NewClientset not yet available in VPA
 	crdClient := crd.NewSimpleClientset()
 	crClient := cr.NewSimpleDynamicClient(scheme)
 	cl := &apiserver.APIClient{InformerCl: client, VPAInformerClient: vpaClient, CRDInformerClient: crdClient, DynamicInformerCl: crClient}
@@ -208,7 +208,7 @@ func TestOrchestratorCheckConfigure(t *testing.T) {
 
 	setupMockAPIClient := func(orchCheck *OrchestratorCheck) {
 		client := fake.NewSimpleClientset()
-		vpaClient := vpa.NewSimpleClientset()
+		vpaClient := vpa.NewSimpleClientset() //nolint:staticcheck // SA1019 NewClientset not yet available in VPA
 		crdClient := crd.NewSimpleClientset()
 		orchCheck.apiClient = &apiserver.APIClient{
 			InformerCl:        client,

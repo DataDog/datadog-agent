@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "proto",
+    srcs = ["proto.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/tagger/proto",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/tagger/types",
+        "//pkg/proto/pbgo/core",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//status",
+    ],
+)

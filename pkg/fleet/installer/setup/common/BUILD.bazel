@@ -124,5 +124,6 @@ go_test(
     name = "common_test",
     srcs = ["setup_test.go"],
     embed = [":common"],
+    gotags = ["test"],
     deps = ["@com_github_stretchr_testify//assert"],
 )
