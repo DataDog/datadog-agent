@@ -19,6 +19,7 @@ import (
 	"unsafe"
 
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/btf"
 	"github.com/cilium/ebpf/perf"
 	"github.com/cilium/ebpf/rlimit"
 	"github.com/stretchr/testify/assert"
@@ -606,13 +607,21 @@ func TestLocalStorageMemoryUsage(t *testing.T) {
 		require.NoError(t, err)
 		t.Cleanup(probe.Close)
 
+		kspec, err := btf.LoadKernelSpec()
+		require.NoError(t, err)
+
+		u32Type, err := kspec.TypeByID(1)
+		require.NoError(t, err)
+
 		testMap, err := ebpf.NewMap(&ebpf.MapSpec{
 			Name:       "test_task_storage",
 			Type:       ebpf.TaskStorage,
 			KeySize:    4,
-			ValueSize:  8,
+			ValueSize:  4,
 			MaxEntries: 0,
 			Flags:      unix.BPF_F_NO_PREALLOC,
+			Key:        u32Type,
+			Value:      u32Type,
 		})
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = testMap.Close() })
@@ -625,7 +634,7 @@ func TestLocalStorageMemoryUsage(t *testing.T) {
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = unix.Close(fd) })
 
-		var val uint64 = 1
+		var val uint32 = 1
 		err = testMap.Update(&fd, &val, ebpf.UpdateAny)
 		require.NoError(t, err)
 
