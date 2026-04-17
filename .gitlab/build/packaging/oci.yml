@@ -75,6 +75,25 @@
             echo "DDOT artifact not found: ${DDOT_INPUT_FILE}, skipping DDOT extension"
             EXTRA_FLAGS="--configs ${INPUT_DIR}/etc/datadog-agent --installer ${INSTALLER_INPUT_DIR}/opt/datadog-packages/datadog-installer/${PACKAGE_VERSION}/bin/installer/installer"
           fi
+
+          # Extract DDOT FIPS
+          DDOT_FIPS_INPUT_FILE="${OMNIBUS_PACKAGE_DIR}datadog-fips-agent-ddot-*${ARCH}.tar.xz"
+          if ls ${DDOT_FIPS_INPUT_FILE} 1> /dev/null 2>&1; then
+            DDOT_FIPS_INPUT_DIR="/tmp/input_ddot_fips_${ARCH}"
+            DDOT_FIPS_EXTENSION_DIR="/tmp/ddot_fips_extension_${ARCH}"
+            mkdir -p ${DDOT_FIPS_INPUT_DIR}
+            mkdir -p ${DDOT_FIPS_EXTENSION_DIR}
+            echo "Extracting DDOT FIPS to temporary input dir $DDOT_FIPS_INPUT_FILE -> $DDOT_FIPS_INPUT_DIR"
+            tar xJf ${DDOT_FIPS_INPUT_FILE} -C ${DDOT_FIPS_INPUT_DIR}
+            cp -r ${DDOT_FIPS_INPUT_DIR}/opt/datadog-agent/* ${DDOT_FIPS_EXTENSION_DIR}/
+            mkdir -p ${DDOT_FIPS_EXTENSION_DIR}/etc
+            if [ -d ${DDOT_FIPS_INPUT_DIR}/etc/datadog-agent ]; then
+              cp -r ${DDOT_FIPS_INPUT_DIR}/etc/datadog-agent ${DDOT_FIPS_EXTENSION_DIR}/etc/
+            fi
+            EXTRA_FLAGS="${EXTRA_FLAGS} --extension ddot-fips=${DDOT_FIPS_EXTENSION_DIR}"
+          else
+            echo "DDOT FIPS artifact not found: ${DDOT_FIPS_INPUT_FILE}, skipping DDOT FIPS extension"
+          fi
         fi
         if [ "${OCI_PRODUCT}" = "datadog-installer" ]; then
           EXTRA_FLAGS="--installer ${INPUT_DIR}/${INSTALL_DIR}/bin/installer/installer"
@@ -114,6 +133,8 @@ agent_oci:
     - "installer-amd64-oci"
     - "datadog-otel-agent-x64"
     - "datadog-otel-agent-arm64"
+    - "datadog-otel-agent-x64-fips"
+    - "datadog-otel-agent-arm64-fips"
     - job: "agent_win_oci"
       optional: true
   variables:
