@@ -106,7 +106,7 @@ func BenchmarkStreamTailerSyslogEndToEnd(b *testing.B) {
 			source := sources.NewLogSource("bench-syslog", &config.LogsConfig{Format: config.SyslogFormat})
 			outputChan := make(chan *message.Message, 256)
 
-			tailer := NewStreamTailer(source, serverConn, outputChan, config.SyslogFormat, 4096, 0, "")
+			tailer := NewStreamTailer(source, serverConn, outputChan, config.SyslogFormat, 4096, 0, "", nil)
 			tailer.Start()
 
 			line := append(tc.msg, '\n')

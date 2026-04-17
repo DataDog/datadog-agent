@@ -15,6 +15,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -28,17 +29,18 @@ import (
 //   - "syslog": RFC 6587 syslog framing (octet counting / non-transparent)
 //     with a syslog parser producing StateStructured messages
 type StreamTailer struct {
-	source         *sources.LogSource
-	Conn           net.Conn
-	outputChan     chan *message.Message
-	format         string
-	frameSize      int
-	idleTimeout    time.Duration
-	sourceHostAddr string
-	decoder        decoder.Decoder
-	stop           chan struct{}
-	done           chan struct{}
-	onDone         func() // called when readLoop exits (connection closed/error); used by listeners to prune dead tailers
+	source          *sources.LogSource
+	Conn            net.Conn
+	outputChan      chan *message.Message
+	format          string
+	frameSize       int
+	idleTimeout     time.Duration
+	sourceHostAddr  string
+	decoder         decoder.Decoder
+	capacityMonitor *metrics.CapacityMonitor
+	stop            chan struct{}
+	done            chan struct{}
+	onDone          func() // called when readLoop exits (connection closed/error); used by listeners to prune dead tailers
 }
 
 // NewStreamTailer returns a new StreamTailer.
@@ -51,23 +53,24 @@ type StreamTailer struct {
 //   - frameSize: buffer size for conn.Read()
 //   - idleTimeout: idle read timeout (0 means no timeout)
 //   - sourceHostAddr: pre-extracted remote IP for source_host tagging ("" to skip)
-func NewStreamTailer(source *sources.LogSource, conn net.Conn, outputChan chan *message.Message, format string, frameSize int, idleTimeout time.Duration, sourceHostAddr string) *StreamTailer {
+func NewStreamTailer(source *sources.LogSource, conn net.Conn, outputChan chan *message.Message, format string, frameSize int, idleTimeout time.Duration, sourceHostAddr string, capacityMonitor *metrics.CapacityMonitor) *StreamTailer {
 	replSource := sources.NewReplaceableSource(source)
 	tailerInfo := status.NewInfoRegistry()
 
 	dec := decoder.NewStreamDecoder(replSource, tailerInfo)
 
 	return &StreamTailer{
-		source:         source,
-		Conn:           conn,
-		outputChan:     outputChan,
-		format:         format,
-		frameSize:      frameSize,
-		idleTimeout:    idleTimeout,
-		sourceHostAddr: sourceHostAddr,
-		decoder:        dec,
-		stop:           make(chan struct{}, 1),
-		done:           make(chan struct{}, 1),
+		source:          source,
+		Conn:            conn,
+		outputChan:      outputChan,
+		format:          format,
+		frameSize:       frameSize,
+		idleTimeout:     idleTimeout,
+		sourceHostAddr:  sourceHostAddr,
+		decoder:         dec,
+		capacityMonitor: capacityMonitor,
+		stop:            make(chan struct{}, 1),
+		done:            make(chan struct{}, 1),
 	}
 }
 
@@ -124,6 +127,7 @@ func (t *StreamTailer) forwardMessages() {
 
 			output.Origin = origin
 			t.outputChan <- output
+			t.capacityMonitor.AddIngress(output)
 		}
 	}
 }
