@@ -11,11 +11,14 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/regions"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 )
 
 const defaultIdentityFileName = "privateactionrunner_private_identity.json"
@@ -29,6 +32,11 @@ type Result struct {
 	OrchClusterID string
 }
 
+type AgentIdentifier struct {
+	Hostname      string
+	OrchClusterID string
+}
+
 type PersistedIdentity struct {
 	PrivateKey    string `json:"private_key"`
 	URN           string `json:"urn"`
@@ -36,15 +44,45 @@ type PersistedIdentity struct {
 	OrchClusterID string `json:"orch_cluster_id,omitempty"`
 }
 
+// GetAgentIdentifier returns the identifier for the current agent.
+// Hostname is always populated. For the cluster agent, OrchClusterID is also populated (required).
+func GetAgentIdentifier(ctx context.Context, hostnameGetter hostnameinterface.Component) (*AgentIdentifier, error) {
+	hostname, err := hostnameGetter.Get(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get hostname: %w", err)
+	}
+	agentIdentifier := &AgentIdentifier{Hostname: hostname}
+	if flavor.GetFlavor() == flavor.ClusterAgent {
+		orchClusterID, err := clustername.GetClusterID()
+		if err != nil || orchClusterID == "" {
+			return nil, fmt.Errorf("failed to get orchestrator cluster ID for cluster agent: %w", err)
+		}
+		agentIdentifier.OrchClusterID = orchClusterID
+	}
+	return agentIdentifier, nil
+}
+
+func ShouldReenroll(agentIdentifier *AgentIdentifier, identity *PersistedIdentity) bool {
+	if flavor.GetFlavor() == flavor.ClusterAgent {
+		if identity.OrchClusterID != agentIdentifier.OrchClusterID {
+			log.Infof("Saved identity orch_cluster_id does not match current cluster ID, re-enrolling")
+			return true
+		}
+	} else if identity.Hostname != agentIdentifier.Hostname {
+		log.Infof("Saved identity hostname does not match current hostname, re-enrolling")
+		return true
+	}
+	return false
+}
+
 // SelfEnroll performs self-registration of a private action runner using API credentials
 func SelfEnroll(
 	ctx context.Context,
 	ddSite,
 	runnerNamePrefix,
-	runnerHostname,
-	orchClusterID,
 	apiKey,
 	appKey string,
+	agentIdentifier *AgentIdentifier,
 ) (*Result, error) {
 	agentFlavor := flavor.GetFlavor()
 
@@ -62,6 +100,12 @@ func SelfEnroll(
 
 	runnerModes := []modes.Mode{modes.ModePull}
 
+	// The cluster agent is a deployment not tied to a specific host, so hostname is not sent.
+	enrollmentHostname := agentIdentifier.Hostname
+	if agentFlavor == flavor.ClusterAgent {
+		enrollmentHostname = ""
+	}
+
 	createRunnerResponse, err := publicClient.EnrollWithApiKey(
 		ctx,
 		apiKey,
@@ -69,8 +113,8 @@ func SelfEnroll(
 		runnerName,
 		runnerModes,
 		publicJwk,
-		runnerHostname,
-		orchClusterID,
+		enrollmentHostname,
+		agentIdentifier.OrchClusterID,
 		agentFlavor,
 	)
 	if err != nil {
@@ -83,8 +127,8 @@ func SelfEnroll(
 	return &Result{
 		PrivateKey:    privateJwk.Key.(*ecdsa.PrivateKey),
 		URN:           urn,
-		Hostname:      runnerHostname,
+		Hostname:      enrollmentHostname,
 		RunnerName:    runnerName,
-		OrchClusterID: orchClusterID,
+		OrchClusterID: agentIdentifier.OrchClusterID,
 	}, nil
 }
