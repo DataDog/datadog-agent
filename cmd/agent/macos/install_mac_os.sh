@@ -69,6 +69,14 @@ if [ -n "$DD_AGENT_DIST_CHANNEL" ]; then
     agent_dist_channel="$DD_AGENT_DIST_CHANNEL"
 fi
 
+# When fetching a beta (RC) build, default to the macOS testing bucket unless
+# DD_REPO_URL is explicitly set. Latest RC versions are tracked on the
+# Confluence "Build links" page in the Datadog Agent space.
+# Example: DD_AGENT_DIST_CHANNEL=beta DD_AGENT_MINOR_VERSION=79.0~rc.1
+if [ "$agent_dist_channel" = "beta" ] && [ -z "$DD_REPO_URL" ]; then
+    dmg_base_url="https://dd-agent-macostesting.s3.amazonaws.com"
+fi
+
 gui_app_menu_enabled=false
 if [ "$DD_GUI_APP_MENU_ENABLED" = "true" ]; then
     gui_app_menu_enabled=true
@@ -76,12 +84,13 @@ fi
 
 if [ -n "$DD_AGENT_MINOR_VERSION" ]; then
   # Examples:
-  #  - 20   = defaults to highest patch version x.20.2
-  #  - 20.0 = sets explicit patch version x.20.0
+  #  - 20        = defaults to highest patch version x.20.2
+  #  - 20.0      = sets explicit patch version x.20.0
+  #  - 79.0~rc.1 = sets explicit RC build 7.79.0-rc.1 (pair with DD_AGENT_DIST_CHANNEL=beta)
   # Note: Specifying an invalid minor version will terminate the script.
   agent_minor_version=${DD_AGENT_MINOR_VERSION}
   # Handle pre-release versions like "35.0~rc.5" -> "35.0" or "27.1~viper~conflict~fix" -> "27.1"
-  clean_agent_minor_version=$(echo "${DD_AGENT_MINOR_VERSION}" | sed -E 's/-.*//g')
+  clean_agent_minor_version=$(echo "${DD_AGENT_MINOR_VERSION}" | sed -E 's/[-~].*//g')
   # remove the patch version if the minor version includes it (eg: 33.1 -> 33)
   agent_minor_version_without_patch="${clean_agent_minor_version%.*}"
   if [ "$clean_agent_minor_version" != "$agent_minor_version_without_patch" ]; then
@@ -159,7 +168,9 @@ if [ -z "$local_dmg_path" ]; then
         if [ "$agent_minor_version" = "$clean_agent_minor_version" ]; then
             dmg_version="7.${agent_minor_version_without_patch}.${agent_patch_version}-1"
         else
-            dmg_version="7.${agent_minor_version}-1"
+            # S3 DMG filenames use "-rc.N" while DD_AGENT_MINOR_VERSION takes "~rc.N"
+            # (matching deb/rpm convention), so normalise before building the URL.
+            dmg_version="7.$(echo "${agent_minor_version}" | tr '~' '-')-1"
         fi
     else
         dmg_version="7-latest"
