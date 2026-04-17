@@ -72,7 +72,7 @@
           },
           "return": {
             "locals": {
-              "~r0": {
+              "@return": {
                 "type": "main.bigStruct",
                 "fields": {
                   "x": {
@@ -160,7 +160,7 @@
           },
           "return": {
             "locals": {
-              "~r0": {
+              "@return": {
                 "type": "string",
                 "value": "hello"
               }

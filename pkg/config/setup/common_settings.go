@@ -361,6 +361,10 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.resources.limits.memory", "")
 	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.body_parsing_size_limit", "")
 
+	// ingress-nginx injection configuration
+	config.BindEnvAndSetDefault("admission_controller.appsec.nginx.init_image", "datadog/ingress-nginx-injection")
+	config.BindEnvAndSetDefault("admission_controller.appsec.nginx.module_mount_path", "/modules_mount")
+
 	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.enabled", false)
 	// list of kubernetes resources for which we collect metadata
 	// each resource is specified in the format `{group}/{version}/{resource}` or `{group}/{resource}`
@@ -812,6 +816,9 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("sbom.host.analyzers", []string{"os"})
 	config.BindEnvAndSetDefault("sbom.host.additional_directories", []string{})
 
+	// SBOM enrichment configuration
+	config.BindEnvAndSetDefault("sbom.enrichment.usage.enabled", false)
+
 	// Service discovery configuration
 	bindEnvAndSetLogsConfigKeys(config, "service_discovery.forwarder.")
 
@@ -1001,7 +1008,6 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("djm_config.enabled", false)
 
 	// Data Observability
-	config.BindEnvAndSetDefault("data_observability.query_actions.enabled", false)
 	bindEnvAndSetLogsConfigKeys(config, "data_observability.forwarder.")
 
 	// Reverse DNS Enrichment
@@ -1078,6 +1084,9 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("hostprofiler.additional_http_headers", map[string]string{})
 	config.BindEnvAndSetDefault("hostprofiler.ddprofiling.enabled", false)
 	config.BindEnvAndSetDefault("hostprofiler.ddprofiling.period", 0)
+	config.BindEnvAndSetDefault("hostprofiler.health_metrics.enabled", true)
+	config.BindEnvAndSetDefault("hostprofiler.health_metrics.target", "127.0.0.1:8889")
+	config.BindEnvAndSetDefault("hostprofiler.hpflare.port", 7778)
 }
 
 func agent(config pkgconfigmodel.Setup) {
@@ -1293,8 +1302,18 @@ func autoscaling(config pkgconfigmodel.Setup) {
 	// Cluster autoscaling product
 	config.BindEnvAndSetDefault("autoscaling.cluster.enabled", false)
 
+	// Spot scheduling
+	config.BindEnvAndSetDefault("autoscaling.cluster.spot.enabled", false)
+	config.BindEnvAndSetDefault("autoscaling.cluster.spot.defaults.percentage", 100)
+	config.BindEnvAndSetDefault("autoscaling.cluster.spot.defaults.min_on_demand_replicas", 0)
+	config.BindEnvAndSetDefault("autoscaling.cluster.spot.schedule_timeout", "1m")
+	config.BindEnvAndSetDefault("autoscaling.cluster.spot.fallback_duration", "2m")
+	config.BindEnvAndSetDefault("autoscaling.cluster.spot.rebalance_stabilization_period", "1m")
+
 	// Kubernetes actions
 	config.BindEnvAndSetDefault("kubeactions.enabled", false)
+	// TODO(kubeactions): Update hostnameEndpointPrefix to "kubeops-intake." once provisioned
+	bindEnvAndSetLogsConfigKeys(config, "kubeactions.forwarder.")
 }
 
 func fips(config pkgconfigmodel.Setup) {
@@ -1441,6 +1460,8 @@ func telemetry(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("telemetry.dogstatsd.aggregator_channel_latency_buckets", []string{})
 	// The histogram buckets use to track the time in nanoseconds it takes for a DogStatsD listeners to push data to the server
 	config.BindEnvAndSetDefault("telemetry.dogstatsd.listeners_channel_latency_buckets", []string{})
+	config.BindEnvAndSetDefault("telemetry.offlinereporter.enabled", false)
+	config.BindEnvAndSetDefault("telemetry.offlinereporter.heartbeat_interval", "5s")
 
 	// Agent Telemetry
 	config.BindEnvAndSetDefault("agent_telemetry.enabled", true)
@@ -1485,6 +1506,7 @@ func aggregator(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("aggregator_stop_timeout", 2)
 	config.BindEnvAndSetDefault("aggregator_buffer_size", 100)
 	config.BindEnvAndSetDefault("aggregator_use_tags_store", true)
+	config.BindEnvAndSetDefault("aggregator_tag_filter_cache_capacity", 1000)
 	config.BindEnvAndSetDefault("basic_telemetry_add_container_tags", false) // configure adding the agent container tags to the basic agent telemetry metrics (e.g. `datadog.agent.running`)
 	config.BindEnvAndSetDefault("aggregator_flush_metrics_and_serialize_in_parallel_chan_size", 200)
 	config.BindEnvAndSetDefault("aggregator_flush_metrics_and_serialize_in_parallel_buffer_size", 4000)
@@ -1811,6 +1833,9 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.match_threshold", 0.9)
 	// The sampler needs a larger tokenizer window than the auto-multiline labeler.
 	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.tokenizer_max_input_bytes", 2048)
+	// When true, logs containing critical severity keywords (FATAL, ERROR, PANIC, etc.)
+	// bypass the adaptive sampler and are never dropped.
+	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.protect_important_logs", true)
 
 	// Enable the legacy auto multiline detection (v1)
 	config.BindEnvAndSetDefault("logs_config.force_auto_multi_line_detection_v1", false)

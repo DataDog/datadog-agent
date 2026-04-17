@@ -12,5 +12,6 @@ go_test(
     name = "otel_test",
     srcs = ["gatewayusage_test.go"],
     embed = [":otel"],
+    gotags = ["test"],
     deps = ["@com_github_stretchr_testify//require"],
 )

@@ -269,6 +269,31 @@ AGENT_TEST_TAGS = AGENT_TAGS.union({"clusterchecks"})
 # List of tags to always remove when not building on Linux
 LINUX_ONLY_TAGS = {"netcgo", "systemd", "jetson", "linux_bpf", "nvml", "pcap", "podman", "trivy", "crio"}
 
+# List of tags to always remove when building on AIX
+AIX_EXCLUDE_TAGS = {
+    "cel",
+    "clusterchecks",
+    "containerd",
+    "cri",
+    "crio",
+    "docker",
+    "fargateprocess",
+    "jetson",
+    "jmx",
+    "kubeapiserver",
+    "kubelet",
+    "linux_bpf",
+    "netcgo",
+    "npm",
+    "nvml",
+    "orchestrator",
+    "pcap",
+    "podman",
+    "systemd",
+    "systemprobechecks",
+    "trivy",
+}
+
 # List of tags to always remove when building on Windows
 WINDOWS_EXCLUDE_TAGS = {
     "requirefips",
@@ -461,6 +486,9 @@ def filter_incompatible_tags(include, platform=None):
 
     if platform == "darwin":
         exclude = exclude.union(DARWIN_EXCLUDED_TAGS)
+
+    if platform == "aix":
+        exclude = exclude.union(AIX_EXCLUDE_TAGS)
 
     return get_build_tags(include, exclude)
 
