@@ -18,7 +18,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"golang.org/x/net/http/httpproxy"
 )
 
@@ -690,6 +689,18 @@ type options struct {
 	configDir string
 }
 
+// defaultConfigDir is the directory where datadog.yaml is read from by default.
+// It is populated by paths.init() via SetDefaultConfigDir to avoid an import
+// cycle between env and paths.
+var defaultConfigDir string
+
+// SetDefaultConfigDir registers the default directory where datadog.yaml is
+// looked up when WithConfigDir is not supplied. It is intended to be called by
+// the paths package at init time.
+func SetDefaultConfigDir(dir string) {
+	defaultConfigDir = dir
+}
+
 // WithConfigDir overrides the directory where datadog.yaml is read from.
 func WithConfigDir(dir string) Option {
 	return func(o *options) {
@@ -701,10 +712,11 @@ func WithConfigDir(dir string) Option {
 //
 //	defaults < config (datadog.yaml) < environment variables < option overrides
 //
-// By default, datadog.yaml is read from paths.AgentConfigDir.
+// By default, datadog.yaml is read from the directory registered via
+// SetDefaultConfigDir (populated by the paths package).
 // Use WithConfigDir to override the config directory (e.g. in tests).
 func Get(opts ...Option) *Env {
-	o := &options{configDir: paths.AgentConfigDir}
+	o := &options{configDir: defaultConfigDir}
 	for _, opt := range opts {
 		opt(o)
 	}

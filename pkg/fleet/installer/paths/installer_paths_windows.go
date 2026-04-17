@@ -89,6 +89,10 @@ func init() {
 	// This is important for experiments, as running the MSI may remove the registry keys.
 	// The daemon should expect to only read the paths from the registry, but there's no way to
 	// differentiate the two runtime environments here.
+
+	// Register the resolved config dir so subsequent env.Get() calls pick it up.
+	env.SetDefaultConfigDir(AgentConfigDir)
+
 	env := env.Get()
 
 	// OS paths
