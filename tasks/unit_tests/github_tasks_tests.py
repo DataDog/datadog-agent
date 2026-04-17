@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import json
+import os
 import unittest
 from dataclasses import dataclass
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, Mock, mock_open, patch
 
 from invoke.context import Context
 
@@ -704,3 +706,167 @@ class TestGetTeams(unittest.TestCase):
             _get_teams(changed_files, owners_file=self.CODEOWNERS_FILE, best_teams_only=False),
             ['@datadog/team-a', '@datadog/team-b', '@datadog/team-doc'],
         )
+
+
+def _fake_tag(name):
+    tag = MagicMock()
+    tag.name = name
+    return tag
+
+
+class TestLatestRshellSemverTag(unittest.TestCase):
+    def test_picks_highest_semver_and_excludes_prereleases(self):
+        fake_tags = [_fake_tag(n) for n in ["v0.0.9", "v0.0.10", "v0.0.11", "v1.0.0-rc1", "main"]]
+        with patch('tasks.libs.ciproviders.github_api.GithubAPI') as gh_mock:
+            gh_instance = MagicMock()
+            gh_instance._repository.get_tags.return_value = fake_tags
+            gh_mock.return_value = gh_instance
+            result = tasks.github_tasks._latest_rshell_semver_tag()
+        self.assertEqual(result, "v0.0.11")
+
+    def test_sorts_numerically_not_lexicographically(self):
+        # v0.0.9 > v0.0.11 as strings, but we want v0.0.11 as the higher version.
+        fake_tags = [_fake_tag(n) for n in ["v0.0.9", "v0.0.11"]]
+        with patch('tasks.libs.ciproviders.github_api.GithubAPI') as gh_mock:
+            gh_instance = MagicMock()
+            gh_instance._repository.get_tags.return_value = fake_tags
+            gh_mock.return_value = gh_instance
+            self.assertEqual(tasks.github_tasks._latest_rshell_semver_tag(), "v0.0.11")
+
+    def test_raises_when_no_semver_tags(self):
+        fake_tags = [_fake_tag("main"), _fake_tag("v1.0.0-rc1"), _fake_tag("not-a-tag")]
+        with patch('tasks.libs.ciproviders.github_api.GithubAPI') as gh_mock:
+            gh_instance = MagicMock()
+            gh_instance._repository.get_tags.return_value = fake_tags
+            gh_mock.return_value = gh_instance
+            with self.assertRaises(Exit):
+                tasks.github_tasks._latest_rshell_semver_tag()
+
+
+class TestBumpRshell(unittest.TestCase):
+    """Integration-ish tests: mock GithubAPI, ctx.run, and git helpers; verify flow."""
+
+    def _make_ctx(self, go_mod_json=None):
+        """Return a real invoke Context plus a Mock for its `run` method that serves canned
+        stdout per command. Using a real Context is required because the @task decorator
+        rejects non-Context first args.
+        """
+        ctx = Context()
+        go_mod_json = go_mod_json or {"Require": [], "Replace": []}
+
+        def run(cmd, *_args, **_kwargs):
+            result = MagicMock()
+            result.ok = True
+            if "go mod edit -json" in cmd:
+                result.stdout = json.dumps(go_mod_json)
+            elif "reno new" in cmd:
+                result.stdout = "Created new notes file in releasenotes/notes/bump-rshell-v0.0.11-abc.yaml\n"
+            elif "git diff --cached --quiet" in cmd:
+                result.ok = False  # non-zero exit = there ARE changes
+            else:
+                result.stdout = ""
+            return result
+
+        ctx.run = MagicMock(side_effect=run)
+        return ctx
+
+    def _patch_github_api(self, open_prs=None, closed_unmerged=None, merged=None, rshell_tags=None, created_pr=None):
+        """Return a patch/context that replaces GithubAPI with a mock serving these PRs/tags."""
+        open_prs = open_prs or []
+        closed_unmerged = closed_unmerged or []
+        merged = merged or []
+        rshell_tags = rshell_tags or [_fake_tag("v0.0.11")]
+
+        def gh_factory(*_args, **kwargs):
+            instance = MagicMock()
+            instance._auth.token = "fake-token"
+            if kwargs.get("repository") == "DataDog/rshell":
+                instance._repository.get_tags.return_value = rshell_tags
+            else:
+                instance._repository.get_pulls.return_value = open_prs + closed_unmerged + merged
+                if created_pr is not None:
+                    instance.create_pr.return_value = created_pr
+                else:
+                    new_pr = MagicMock()
+                    new_pr.number = 42
+                    new_pr.html_url = "https://github.com/DataDog/datadog-agent/pull/42"
+                    instance.create_pr.return_value = new_pr
+            return instance
+
+        return patch('tasks.libs.ciproviders.github_api.GithubAPI', side_effect=gh_factory)
+
+    def test_rejects_invalid_explicit_version(self):
+        ctx = Context()
+        for bad in ("v0.0", "v1.2.3-rc1", "0.0.11"):
+            with self.subTest(version=bad):
+                with self.assertRaises(Exit):
+                    tasks.github_tasks.bump_rshell(ctx, version=bad)
+
+    def test_noop_when_open_pr_exists(self):
+        open_pr = MagicMock(state="open", merged=False)
+        open_pr.html_url = "https://github.com/DataDog/datadog-agent/pull/999"
+        ctx = self._make_ctx()
+        with self._patch_github_api(open_prs=[open_pr]):
+            tasks.github_tasks.bump_rshell(ctx, version="v0.0.99")
+        # Nothing should have been done after classification — no git, no go, no tidy.
+        commands = [call.args[0] for call in ctx.run.call_args_list]
+        self.assertFalse(any(c.startswith(("go ", "git ", "dda ", "reno ")) for c in commands))
+
+    def test_noop_when_already_pinned(self):
+        ctx = self._make_ctx(go_mod_json={"Require": [{"Path": "github.com/DataDog/rshell", "Version": "v0.0.11"}]})
+        with patch.dict(os.environ, {"GITHUB_TOKEN": "t"}, clear=False):
+            with self._patch_github_api():
+                tasks.github_tasks.bump_rshell(ctx, version="v0.0.11")
+        # The task should return after the already-pinned check; `go get` / `dda inv tidy` never run.
+        commands = [call.args[0] for call in ctx.run.call_args_list]
+        self.assertFalse(any(c.startswith(("go get", "dda inv tidy", "reno new")) for c in commands))
+
+    def test_token_scrubbed_from_env_before_subprocess(self):
+        ctx = self._make_ctx(go_mod_json={"Require": [{"Path": "github.com/DataDog/rshell", "Version": "v0.0.11"}]})
+        with patch.dict(os.environ, {"GITHUB_TOKEN": "fake-token"}, clear=False):
+            with self._patch_github_api():
+                tasks.github_tasks.bump_rshell(ctx, version="v0.0.11")
+            # After main(), the token must no longer be readable from env.
+            self.assertNotIn("GITHUB_TOKEN", os.environ)
+
+    def test_reopens_closed_unmerged_pr(self):
+        closed_pr = MagicMock(state="closed", merged=False)
+        closed_pr.html_url = "https://github.com/DataDog/datadog-agent/pull/123"
+        ctx = self._make_ctx(go_mod_json={"Require": [{"Path": "github.com/DataDog/rshell", "Version": "v0.0.9"}]})
+        with (
+            patch.dict(os.environ, {"GITHUB_TOKEN": "t"}, clear=False),
+            patch('tasks.libs.common.git.check_clean_branch_state'),
+            patch('tasks.libs.common.utils.set_gitconfig_in_ci'),
+            patch('builtins.open', mock_open()),
+            self._patch_github_api(closed_unmerged=[closed_pr]),
+        ):
+            tasks.github_tasks.bump_rshell(ctx, version="v0.0.11")
+
+        # Reopen was called; no new PR was created for this branch.
+        closed_pr.edit.assert_called_once()
+        kwargs = closed_pr.edit.call_args.kwargs
+        self.assertEqual(kwargs["state"], "open")
+        self.assertIn("v0.0.11", kwargs["title"])
+
+    def test_happy_path_creates_pr_with_labels_and_review(self):
+        ctx = self._make_ctx(go_mod_json={"Require": [{"Path": "github.com/DataDog/rshell", "Version": "v0.0.9"}]})
+        new_pr = MagicMock()
+        new_pr.number = 42
+        new_pr.html_url = "https://github.com/DataDog/datadog-agent/pull/42"
+        with (
+            patch.dict(os.environ, {"GITHUB_TOKEN": "t"}, clear=False),
+            patch('tasks.libs.common.git.check_clean_branch_state'),
+            patch('tasks.libs.common.utils.set_gitconfig_in_ci'),
+            patch('builtins.open', mock_open()),
+            self._patch_github_api(created_pr=new_pr),
+        ):
+            tasks.github_tasks.bump_rshell(ctx, version="v0.0.11")
+
+        # Validate the key side-effects on the PR object returned by create_pr.
+        new_pr.create_review_request.assert_called_once()
+        review_kwargs = new_pr.create_review_request.call_args.kwargs
+        self.assertEqual(review_kwargs.get("team_reviewers"), ["action-platform"])
+
+        # Branch push happened with force.
+        run_cmds = [c.args[0] for c in ctx.run.call_args_list]
+        self.assertTrue(any("git push --force" in c and "bump-rshell-v0.0.11" in c for c in run_cmds))

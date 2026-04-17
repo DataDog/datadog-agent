@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from collections import Counter
 
 from invoke.context import Context
@@ -689,3 +690,205 @@ def check_permissions(
     MAX_BLOCKS = 50
     for idx in range(0, len(blocks), MAX_BLOCKS):
         client.chat_postMessage(channel=channel, blocks=blocks[idx : idx + MAX_BLOCKS], text=message)
+
+
+RSHELL_MODULE = "github.com/DataDog/rshell"
+_RSHELL_SEMVER_RE = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")
+
+
+def _latest_rshell_semver_tag():
+    """Return the highest `vX.Y.Z` tag on DataDog/rshell.
+
+    Uses the git tags API rather than `releases/latest` because tags are the
+    source of truth: a Release object only exists once release.yml has run
+    to completion.
+    """
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    rshell_gh = GithubAPI(repository="DataDog/rshell")
+    candidates = []
+    for tag in rshell_gh._repository.get_tags():
+        m = _RSHELL_SEMVER_RE.match(tag.name)
+        if m:
+            candidates.append((tag.name, tuple(int(g) for g in m.groups())))
+    if not candidates:
+        raise Exit(
+            color_message("No semver tags found on DataDog/rshell", Color.RED),
+            code=1,
+        )
+    return max(candidates, key=lambda pair: pair[1])[0]
+
+
+def _current_rshell_version(ctx):
+    """Return the rshell version pinned in go.mod's require block, or None."""
+    res = ctx.run("go mod edit -json", hide=True)
+    data = json.loads(res.stdout)
+    for req in data.get("Require") or []:
+        if req.get("Path") == RSHELL_MODULE:
+            return req.get("Version")
+    return None
+
+
+def _drop_rshell_replaces(ctx):
+    """Remove every rshell `replace` directive in go.mod, in every valid form.
+
+    Uses `go mod edit -dropreplace` (Go's own tool) rather than regex so we
+    handle single-line, versioned single-line, and block-form entries
+    uniformly.
+    """
+    res = ctx.run("go mod edit -json", hide=True)
+    data = json.loads(res.stdout)
+    for entry in data.get("Replace") or []:
+        old = entry.get("Old", {})
+        if old.get("Path") != RSHELL_MODULE:
+            continue
+        spec = RSHELL_MODULE
+        if old.get("Version"):
+            spec = f"{RSHELL_MODULE}@{old['Version']}"
+        ctx.run(f"go mod edit -dropreplace={spec}", hide=True)
+
+
+def _classify_rshell_prs(gh, branch):
+    """Return (open, closed_unmerged, merged) PRs for the given head branch."""
+    all_prs = list(gh._repository.get_pulls(state="all", head=f"DataDog:{branch}"))
+    open_prs = [p for p in all_prs if p.state == "open"]
+    closed_unmerged = [p for p in all_prs if p.state == "closed" and not p.merged]
+    merged = [p for p in all_prs if p.merged]
+    return open_prs, closed_unmerged, merged
+
+
+@task
+def bump_rshell(ctx, version=None, draft=True):
+    """
+    Bump github.com/DataDog/rshell and open a draft PR on datadog-agent.
+
+    With no --version flag, auto-discovers the latest semver tag on
+    DataDog/rshell. Explicit --version overrides that discovery (useful for
+    debugging or pinning to a non-latest release).
+
+    Invoked from DataDog/rshell's GitLab bump pipeline against a fresh clone of
+    datadog-agent. Expects GITHUB_TOKEN in the environment (minted upstream
+    via dd-octo-sts with contents:write + pull-requests:write on
+    DataDog/datadog-agent).
+    """
+    from tasks.libs.ciproviders.github_api import GithubAPI
+    from tasks.libs.common.git import check_clean_branch_state
+    from tasks.libs.common.utils import set_gitconfig_in_ci
+
+    if version is None:
+        version = _latest_rshell_semver_tag()
+        print(color_message(f"Auto-discovered latest rshell version: {version}", Color.BLUE))
+    elif not _RSHELL_SEMVER_RE.match(version):
+        raise Exit(
+            color_message(f"Invalid version {version!r}; expected vX.Y.Z", Color.RED),
+            code=1,
+        )
+    else:
+        print(color_message(f"Using explicit rshell version: {version}", Color.BLUE))
+
+    gh = GithubAPI()
+    branch = f"bump-rshell-{version}"
+
+    open_prs, closed_unmerged, merged_prs = _classify_rshell_prs(gh, branch)
+    if open_prs:
+        print(color_message(f"Open PR already exists: {open_prs[0].html_url}; nothing to do", Color.GREEN))
+        return
+    if merged_prs:
+        print(
+            color_message(
+                f"Prior PR merged ({merged_prs[0].html_url}); "
+                "proceeding — tree diff will decide if there's anything to do",
+                Color.BLUE,
+            )
+        )
+
+    # Scrub the token so `ctx.run` subprocesses (go, git, dda inv tidy) don't
+    # inherit a write-scoped credential. GithubAPI still holds its auth
+    # object; `git push` gets the token via the remote URL rewrite below.
+    os.environ.pop("GITHUB_TOKEN", None)
+
+    previous_version = _current_rshell_version(ctx)
+    print(color_message(f"Current pinned rshell version: {previous_version or '<none>'}", Color.BLUE))
+    if previous_version == version:
+        print(color_message(f"datadog-agent already pins rshell at {version}; nothing to do", Color.GREEN))
+        return
+
+    _drop_rshell_replaces(ctx)
+    ctx.run(f"go get {RSHELL_MODULE}@{version}")
+    ctx.run("dda inv tidy")
+
+    ctx.run("git add -A")
+    diff = ctx.run("git diff --cached --quiet", warn=True, hide=True)
+    if diff.ok:
+        print(
+            color_message(
+                f"No staged changes after bump; datadog-agent already resolves rshell to {version}",
+                Color.GREEN,
+            )
+        )
+        return
+
+    # Release note via reno.
+    res = ctx.run(f"reno new bump-rshell-{version}", hide=True)
+    note_path = res.stdout.strip().split()[-1]
+    with open(note_path, "w") as f:
+        f.write(
+            "---\n" "enhancements:\n" "  - |\n" f"    Bump ``rshell`` to {version} for the Private Action Runner.\n"
+        )
+    ctx.run(f"git add {note_path}")
+
+    set_gitconfig_in_ci(ctx)
+    try:
+        check_clean_branch_state(ctx, gh, branch)
+    except Exit as e:
+        if "already exists locally" not in str(e):
+            raise
+
+    ctx.run(f"git switch -c {branch}", warn=True, hide=True)
+    commit_msg = (
+        f"Bump rshell dependency from {previous_version} to {version}"
+        if previous_version
+        else f"Bump rshell dependency to {version}"
+    )
+    ctx.run(f'git commit -m "{commit_msg}" --no-verify')
+
+    # Wire the token into the remote URL for push auth (mirrors
+    # tasks/pipeline.py:693). `hide=True` keeps it out of invoke's output.
+    ctx.run(
+        f"git remote set-url origin " f"https://x-access-token:{gh._auth.token}@github.com/DataDog/datadog-agent.git",
+        hide=True,
+    )
+    # Force-push is safe: branch name is bot-exclusive.
+    ctx.run(f"git push --force -u origin {branch} --no-verify")
+
+    pr_title = f"[automated] Bump rshell to {version}"
+    pr_body = (
+        f"Automated bump of `{RSHELL_MODULE}` to "
+        f"[{version}](https://github.com/DataDog/rshell/releases/tag/{version}).\n"
+    )
+    if closed_unmerged:
+        pr = closed_unmerged[0]
+        print(color_message(f"Reopening prior closed PR: {pr.html_url}", Color.BLUE))
+        pr.edit(state="open", title=pr_title, body=pr_body)
+    else:
+        pr = gh.create_pr(
+            pr_title=pr_title,
+            pr_body=pr_body,
+            base_branch="main",
+            target_branch=branch,
+            draft=draft,
+        )
+        print(color_message(f"Opened {'draft ' if draft else ''}PR: {pr.html_url}", Color.GREEN))
+
+    from github import GithubException
+
+    for label in ("changelog/no-changelog", "ask-review"):
+        try:
+            gh.add_pr_label(pr.number, label)
+        except GithubException as e:
+            print(color_message(f"Warning: failed to add label {label!r}: {e}", Color.ORANGE))
+
+    try:
+        pr.create_review_request(team_reviewers=["action-platform"])
+    except GithubException as e:
+        print(color_message(f"Warning: failed to request review from @DataDog/action-platform: {e}", Color.ORANGE))
