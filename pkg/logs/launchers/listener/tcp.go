@@ -113,9 +113,9 @@ func NewTCPListener(pipelineProvider pipeline.Provider, source *sources.LogSourc
 		tailers:          []startstop.StartStoppable{},
 		connSem:          make(chan struct{}, maxConns),
 
-		stop:             make(chan struct{}, 1),
-		ctx:              ctx,
-		cancel:           cancel,
+		stop:   make(chan struct{}, 1),
+		ctx:    ctx,
+		cancel: cancel,
 	}, nil
 }
 
@@ -241,7 +241,7 @@ func (l *TCPListener) handleConnection(conn net.Conn) {
 		return
 	}
 
-	outputChan := l.pipelineProvider.NextPipelineChan()
+	outputChan, capacityMonitor := l.pipelineProvider.NextPipelineChanWithMonitor()
 	sourceHostAddr := extractIPFromAddr(conn.RemoteAddr().String())
 
 	t := tailer.NewStreamTailer(
@@ -252,6 +252,7 @@ func (l *TCPListener) handleConnection(conn net.Conn) {
 		l.frameSize,
 		l.idleTimeout,
 		sourceHostAddr,
+		capacityMonitor,
 	)
 	t.SetOnDone(func() { l.removeTailer(t) })
 	l.tailers = append(l.tailers, t)

@@ -83,7 +83,8 @@ func (l *UDPListener) startNewTailer() error {
 	if err != nil {
 		return err
 	}
-	l.tailer = tailer.NewDatagramTailer(l.source, conn, l.pipelineProvider.NextPipelineChan(), true, l.frameSize)
+	outputChan, capacityMonitor := l.pipelineProvider.NextPipelineChanWithMonitor()
+	l.tailer = tailer.NewDatagramTailer(l.source, conn, outputChan, true, l.frameSize, capacityMonitor)
 	l.tailer.SetOnError(func() { l.resetTailer() })
 	l.tailer.Start()
 	return nil

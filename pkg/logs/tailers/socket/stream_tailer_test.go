@@ -49,7 +49,7 @@ func TestStreamTailer_Unstructured_BasicMessages(t *testing.T) {
 	source := sources.NewLogSource("test", &config.LogsConfig{})
 	outputChan := make(chan *message.Message, 10)
 
-	tailer := NewStreamTailer(source, serverConn, outputChan, "", testFrameSize, 0, "")
+	tailer := NewStreamTailer(source, serverConn, outputChan, "", testFrameSize, 0, "", nil)
 	tailer.Start()
 
 	clientConn.Write([]byte("foo\n"))
@@ -74,7 +74,7 @@ func TestStreamTailer_Unstructured_ConnectionCloseCleansUp(t *testing.T) {
 	source := sources.NewLogSource("test", &config.LogsConfig{})
 	outputChan := make(chan *message.Message, 10)
 
-	tailer := NewStreamTailer(source, serverConn, outputChan, "", testFrameSize, 0, "")
+	tailer := NewStreamTailer(source, serverConn, outputChan, "", testFrameSize, 0, "", nil)
 	tailer.Start()
 
 	// Close client side, tailer should stop gracefully.
@@ -92,7 +92,7 @@ func TestStreamTailer_OnDoneCallbackFires(t *testing.T) {
 	source := sources.NewLogSource("test", &config.LogsConfig{})
 	outputChan := make(chan *message.Message, 10)
 
-	tailer := NewStreamTailer(source, serverConn, outputChan, "", testFrameSize, 0, "")
+	tailer := NewStreamTailer(source, serverConn, outputChan, "", testFrameSize, 0, "", nil)
 
 	done := make(chan struct{})
 	tailer.SetOnDone(func() { close(done) })
@@ -119,7 +119,7 @@ func TestStreamTailer_Unstructured_SourceHostTag(t *testing.T) {
 	source := sources.NewLogSource("test-source", logsConfig)
 	outputChan := make(chan *message.Message, 10)
 
-	tailer := NewStreamTailer(source, serverConn, outputChan, "", testFrameSize, 0, "192.168.1.100")
+	tailer := NewStreamTailer(source, serverConn, outputChan, "", testFrameSize, 0, "192.168.1.100", nil)
 	tailer.Start()
 
 	clientConn.Write([]byte("foo\n"))
@@ -144,7 +144,7 @@ func TestStreamTailer_Unstructured_SourceHostTagFlagDisabled(t *testing.T) {
 	outputChan := make(chan *message.Message, 10)
 
 	// Even though sourceHostAddr is set, the tag should not appear when disabled.
-	tailer := NewStreamTailer(source, serverConn, outputChan, "", testFrameSize, 0, "192.168.1.100")
+	tailer := NewStreamTailer(source, serverConn, outputChan, "", testFrameSize, 0, "192.168.1.100", nil)
 	tailer.Start()
 
 	clientConn.Write([]byte("foo\n"))
@@ -167,7 +167,7 @@ func TestStreamTailer_Syslog_NonTransparent(t *testing.T) {
 	source := sources.NewLogSource("test-syslog", &config.LogsConfig{Format: config.SyslogFormat})
 	outputChan := make(chan *message.Message, 10)
 
-	tailer := NewStreamTailer(source, serverConn, outputChan, config.SyslogFormat, testFrameSize, 0, "")
+	tailer := NewStreamTailer(source, serverConn, outputChan, config.SyslogFormat, testFrameSize, 0, "", nil)
 	tailer.Start()
 
 	clientConn.Write([]byte("<14>1 2003-10-11T22:14:15.003Z myhost myapp - - - Hello world\n"))
@@ -193,7 +193,7 @@ func TestStreamTailer_Syslog_OctetCounted(t *testing.T) {
 	source := sources.NewLogSource("test-syslog", &config.LogsConfig{Format: config.SyslogFormat})
 	outputChan := make(chan *message.Message, 10)
 
-	tailer := NewStreamTailer(source, serverConn, outputChan, config.SyslogFormat, testFrameSize, 0, "")
+	tailer := NewStreamTailer(source, serverConn, outputChan, config.SyslogFormat, testFrameSize, 0, "", nil)
 	tailer.Start()
 
 	syslogMsg := "<14>1 2003-10-11T22:14:15.003Z h app - - - Hi"
@@ -215,7 +215,7 @@ func TestStreamTailer_Syslog_NULFraming(t *testing.T) {
 	source := sources.NewLogSource("test-syslog", &config.LogsConfig{Format: config.SyslogFormat})
 	outputChan := make(chan *message.Message, 10)
 
-	tailer := NewStreamTailer(source, serverConn, outputChan, config.SyslogFormat, testFrameSize, 0, "")
+	tailer := NewStreamTailer(source, serverConn, outputChan, config.SyslogFormat, testFrameSize, 0, "", nil)
 	tailer.Start()
 
 	clientConn.Write([]byte("<14>1 2003-10-11T22:14:15.003Z myhost myapp - - - NUL hello\x00"))
@@ -241,7 +241,7 @@ func TestStreamTailer_Syslog_StructuredContentRendered(t *testing.T) {
 	source := sources.NewLogSource("test-syslog", &config.LogsConfig{Format: config.SyslogFormat})
 	outputChan := make(chan *message.Message, 10)
 
-	tailer := NewStreamTailer(source, serverConn, outputChan, config.SyslogFormat, testFrameSize, 0, "")
+	tailer := NewStreamTailer(source, serverConn, outputChan, config.SyslogFormat, testFrameSize, 0, "", nil)
 	tailer.Start()
 
 	clientConn.Write([]byte("<165>1 2003-10-11T22:14:15.003Z myhost evntslog - ID47 - Test msg\n"))
@@ -271,7 +271,7 @@ func TestStreamTailer_Syslog_SourceServiceOverride(t *testing.T) {
 	source := sources.NewLogSource("test-syslog", &config.LogsConfig{Format: config.SyslogFormat})
 	outputChan := make(chan *message.Message, 10)
 
-	tailer := NewStreamTailer(source, serverConn, outputChan, config.SyslogFormat, testFrameSize, 0, "")
+	tailer := NewStreamTailer(source, serverConn, outputChan, config.SyslogFormat, testFrameSize, 0, "", nil)
 	tailer.Start()
 
 	clientConn.Write([]byte("<14>1 2003-10-11T22:14:15.003Z myhost myapp - - - hello\n"))

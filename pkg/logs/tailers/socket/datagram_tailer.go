@@ -13,6 +13,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -31,15 +32,16 @@ const maxDatagramSize = 65535
 //
 // source_host tagging is only applied for UDP connections (not unixgram).
 type DatagramTailer struct {
-	source     *sources.LogSource
-	conn       net.PacketConn
-	outputChan chan *message.Message
-	isIPBased  bool
-	frameSize  int
-	decoder    decoder.Decoder
-	stop       chan struct{}
-	done       chan struct{}
-	onError    func() // called when tail() exits due to a transient read error; used by listeners to reset the connection
+	source          *sources.LogSource
+	conn            net.PacketConn
+	outputChan      chan *message.Message
+	isIPBased       bool
+	frameSize       int
+	decoder         decoder.Decoder
+	capacityMonitor *metrics.CapacityMonitor
+	stop            chan struct{}
+	done            chan struct{}
+	onError         func() // called when tail() exits due to a transient read error; used by listeners to reset the connection
 }
 
 // NewDatagramTailer returns a new DatagramTailer.
@@ -48,19 +50,20 @@ type DatagramTailer struct {
 // syslog, "" for unstructured).
 // isUDP controls whether source_host tagging is applied.
 // frameSize limits the read buffer for unstructured mode; use 0 for no limit.
-func NewDatagramTailer(source *sources.LogSource, conn net.PacketConn, outputChan chan *message.Message, isIPBased bool, frameSize int) *DatagramTailer {
+func NewDatagramTailer(source *sources.LogSource, conn net.PacketConn, outputChan chan *message.Message, isIPBased bool, frameSize int, capacityMonitor *metrics.CapacityMonitor) *DatagramTailer {
 	replSource := sources.NewReplaceableSource(source)
 	tailerInfo := status.NewInfoRegistry()
 
 	return &DatagramTailer{
-		source:     source,
-		conn:       conn,
-		outputChan: outputChan,
-		isIPBased:  isIPBased,
-		frameSize:  frameSize,
-		decoder:    decoder.NewDatagramDecoder(replSource, tailerInfo),
-		stop:       make(chan struct{}, 1),
-		done:       make(chan struct{}, 1),
+		source:          source,
+		conn:            conn,
+		outputChan:      outputChan,
+		isIPBased:       isIPBased,
+		frameSize:       frameSize,
+		decoder:         decoder.NewDatagramDecoder(replSource, tailerInfo),
+		capacityMonitor: capacityMonitor,
+		stop:            make(chan struct{}, 1),
+		done:            make(chan struct{}, 1),
 	}
 }
 
@@ -118,6 +121,7 @@ func (t *DatagramTailer) forwardMessages() {
 
 			output.Origin = origin
 			t.outputChan <- output
+			t.capacityMonitor.AddIngress(output)
 		}
 	}
 }
