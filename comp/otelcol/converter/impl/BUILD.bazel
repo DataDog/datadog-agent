@@ -8,6 +8,7 @@ go_library(
         "coreconfig.go",
         "extensions.go",
         "infraattributes.go",
+        "opamp.go",
         "prometheus.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/otelcol/converter/impl",
@@ -25,7 +26,10 @@ go_library(
 
 go_test(
     name = "impl_test",
-    srcs = ["converter_test.go"],
+    srcs = [
+        "converter_test.go",
+        "opamp_test.go",
+    ],
     data = glob(["testdata/**"]),
     embed = [":impl"],
     gotags = ["test"],
