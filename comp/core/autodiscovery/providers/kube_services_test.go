@@ -25,15 +25,15 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	providerTypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	acTelemetry "github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
 
 func TestParseKubeServiceAnnotations(t *testing.T) {
-	telemetry := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetry := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
 	telemetryStore := acTelemetry.NewStore(telemetry)
 
 	for _, tc := range []struct {
@@ -351,7 +351,7 @@ func TestInvalidateIfChanged(t *testing.T) {
 }
 
 func TestGetConfigErrors_KubeServices(t *testing.T) {
-	telemetry := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetry := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
 	telemetryStore := acTelemetry.NewStore(telemetry)
 
 	serviceWithErrors := v1.Service{
