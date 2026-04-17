@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/secret"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/webhook"
 	admprobe "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/probe"
+	clusterspot "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/spot"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
@@ -43,7 +44,7 @@ type ControllerContext struct {
 }
 
 // StartControllers starts the secret and webhook controllers
-func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa workload.PodPatcher, datadogConfig config.Component) ([]webhook.Webhook, error) {
+func StartControllers(ctx ControllerContext, datadogConfig config.Component, wmeta workloadmeta.Component, pp workload.PodPatcher, sh clusterspot.PodHandler) ([]webhook.Webhook, error) {
 	var webhooks []webhook.Webhook
 
 	if !datadogConfig.GetBool("admission_controller.enabled") {
@@ -97,7 +98,8 @@ func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa wo
 		notifChanWebhook,
 		webhookConfig,
 		wmeta,
-		pa,
+		pp,
+		sh,
 		datadogConfig,
 		ctx.Demultiplexer,
 		ctx.FilterStore,

@@ -89,6 +89,7 @@ import (
 	admissionpatch "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 	apidca "github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster"
+	clusterspot "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/spot"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/provider"
 	pkgclusterchecks "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
@@ -537,7 +538,7 @@ func start(log log.Component,
 	}
 
 	// Autoscaling Product
-	var pa workload.PodPatcher
+	var pp workload.PodPatcher
 	if config.GetBool("autoscaling.workload.enabled") {
 		if rcClient == nil {
 			return errors.New("Remote config is disabled or failed to initialize, remote config is a required dependency for autoscaling")
@@ -547,8 +548,8 @@ func start(log log.Component,
 			log.Error("Admission controller is disabled, vertical autoscaling requires the admission controller to be enabled. Vertical scaling will be disabled.")
 		}
 
-		if adapter, err := provider.StartWorkloadAutoscaling(mainCtx, clusterID, clusterName, le.IsLeader, apiCl, rcClient, wmeta, taggerComp, demultiplexer); err == nil {
-			pa = adapter
+		if patcher, err := provider.StartWorkloadAutoscaling(mainCtx, clusterID, clusterName, le.IsLeader, apiCl, rcClient, wmeta, taggerComp, demultiplexer); err == nil {
+			pp = patcher
 		} else {
 			return fmt.Errorf("Error while starting workload autoscaling: %v", err)
 		}
@@ -561,6 +562,15 @@ func start(log log.Component,
 
 		if err := cluster.StartClusterAutoscaling(mainCtx, clusterID, clusterName, le.IsLeader, apiCl, rcClient, demultiplexer); err != nil {
 			return fmt.Errorf("Error while starting cluster autoscaling: %w", err)
+		}
+	}
+
+	var sh clusterspot.PodHandler
+	if config.GetBool("autoscaling.cluster.spot.enabled") {
+		if scheduler, err := clusterspot.StartSpotScheduling(mainCtx, wmeta, apiCl, le.IsLeader); err == nil {
+			sh = scheduler
+		} else {
+			return fmt.Errorf("Error while starting spot scheduling: %w", err)
 		}
 	}
 
@@ -643,7 +653,7 @@ func start(log log.Component,
 			FilterStore:                  filterStore,
 		}
 
-		webhooks, err := admissionpkg.StartControllers(admissionCtx, wmeta, pa, datadogConfig)
+		webhooks, err := admissionpkg.StartControllers(admissionCtx, datadogConfig, wmeta, pp, sh)
 		// Ignore the error if it's related to the validatingwebhookconfigurations.
 		var syncInformerError *apiserver.SyncInformersError
 		if err != nil && !(errors.As(err, &syncInformerError) && syncInformerError.Name == apiserver.ValidatingWebhooksInformer) {
