@@ -142,34 +142,41 @@ func getReplicaSetByRevision(ctx context.Context, client kubernetes.Interface, d
 	// Loop over all ReplicaSets
 	for i, rs := range allReplicaSets.Items {
 		// Ensure that the owner of the ReplicaSet is the current deployment
-		if metav1.IsControlledBy(&rs, deployment) {
-			// Check and parse the revision from the "deployment.kubernetes.io/revision" annotation
-			if revision, ok := rs.Annotations[revisionAnnotation]; ok {
-				rev, err := strconv.ParseInt(revision, 10, 64)
-				if err != nil {
-					log.Errorf("failed to parse replicaset revision from %s", revision)
-					continue
-				}
+		if !metav1.IsControlledBy(&rs, deployment) {
+			continue
+		}
 
-				// if targetRevision is 0 then the user is requesting a rollback to the previous revision
-				if targetRevision == 0 {
-					// previousRevision < currentRevision < rev
-					if currentRevision < rev {
-						previousRevision = currentRevision
-						previousRevisionIndex = currentRevisionIndex
+		// Check and parse the revision from the "deployment.kubernetes.io/revision" annotation
+		revision, found := rs.Annotations[revisionAnnotation]
+		if !found {
+			log.Debugf("annotation \"%s\" is not present on the ReplicaSet", revisionAnnotation)
+			continue
+		}
 
-						currentRevision = rev
-						currentRevisionIndex = i
-					} else if previousRevision < rev {
-						// previousRevision < rev < currentRevision
-						previousRevision = rev
-						previousRevisionIndex = i
-					}
-				} else if targetRevision == rev {
-					// User supplied targetRevision was found, return early
-					return targetRevision, &allReplicaSets.Items[i], nil
-				}
+		// Parse the revision integer from the "deployment.kubernetes.io/revision" annotation
+		rev, err := strconv.ParseInt(revision, 10, 64)
+		if err != nil {
+			log.Errorf("failed to parse replicaset revision from %s", revision)
+			continue
+		}
+
+		// if targetRevision is 0 then the user is requesting a rollback to the previous revision
+		if targetRevision == 0 {
+			// previousRevision < currentRevision < rev
+			if currentRevision < rev {
+				previousRevision = currentRevision
+				previousRevisionIndex = currentRevisionIndex
+
+				currentRevision = rev
+				currentRevisionIndex = i
+			} else if previousRevision < rev {
+				// previousRevision < rev < currentRevision
+				previousRevision = rev
+				previousRevisionIndex = i
 			}
+		} else if targetRevision == rev {
+			// User supplied targetRevision was found, return early
+			return targetRevision, &allReplicaSets.Items[i], nil
 		}
 	}
 
@@ -210,6 +217,12 @@ func (r *RollbackDeploymentExecutor) Execute(ctx context.Context, action *kubeac
 			Message: err.Error(),
 		}
 	}
+
+	methodMsg := "user-specified"
+	if targetRevision == 0 {
+		methodMsg = "previous (default)"
+	}
+	log.Debugf("[KubeActions] Rolling back to %s revision %d", methodMsg, foundRevision)
 
 	// Delete pod-template-hash label from both the current Deployment Spec and ReplicaSet Spec Templates
 	// These labels interfere with equality evaluation and patching

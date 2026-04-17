@@ -15,11 +15,11 @@ import (
 
 // Action type constants
 const (
+	ActionTypeUnknown            = "unknown"
 	ActionTypeDeletePod          = "delete_pod"
 	ActionTypeRestartDeployment  = "restart_deployment"
 	ActionTypePatchDeployment    = "patch_deployment"
 	ActionTypeRollbackDeployment = "rollback_deployment"
-	ActionTypeUnknown            = "unknown"
 )
 
 // Execution status constants
