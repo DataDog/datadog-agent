@@ -96,7 +96,7 @@ func (s *eventSender) send(c observerdef.ActiveCorrelation) error {
 				Title:          c.Title,
 				Message:        datadog.PtrString(msg),
 				Category:       datadogV2.EVENTCATEGORY_CHANGE,
-				Tags:           []string{"source:agent-q-branch-observer", "pattern:" + c.Pattern},
+				Tags:           buildEventTags(c),
 				Timestamp:      datadog.PtrString(ts),
 				AggregationKey: datadog.PtrString(aggKey),
 				Attributes:     attrs,
@@ -112,6 +112,58 @@ func (s *eventSender) send(c observerdef.ActiveCorrelation) error {
 		}
 	}
 	return err
+}
+
+// buildEventTags returns the Datadog event tags for a correlation.
+// It always includes "source:agent-q-branch-observer" and "pattern:{pattern}".
+// It adds "anomaly_type:metric" and/or "anomaly_type:log" depending on which
+// anomaly types are present (log-derived metric anomalies count as log).
+// It also propagates "service:", "env:", and "host:" dimensions collected from
+// each anomaly's source tags and from Context.SplitTags (set by the log pattern
+// extractor for sub-clustered log series).
+func buildEventTags(c observerdef.ActiveCorrelation) []string {
+	hasMetric := false
+	hasLog := false
+	dimensionSet := make(map[string]struct{})
+
+	for _, a := range c.Anomalies {
+		if a.Type == observerdef.AnomalyTypeLog || isLogDerivedAnomaly(a) {
+			hasLog = true
+		} else {
+			hasMetric = true
+		}
+		// Propagate dimensional tags from the source series.
+		for _, t := range a.Source.Tags {
+			for _, prefix := range []string{"service:", "env:", "host:"} {
+				if strings.HasPrefix(t, prefix) {
+					dimensionSet[t] = struct{}{}
+					break
+				}
+			}
+		}
+		// For log-derived anomalies, dimensional info lives in Context.SplitTags
+		// (set by the log tagged pattern clusterer).
+		if a.Context != nil {
+			for _, k := range []string{"service", "env", "host"} {
+				if v, ok := a.Context.SplitTags[k]; ok {
+					dimensionSet[k+":"+v] = struct{}{}
+				}
+			}
+		}
+	}
+
+	tags := []string{"source:agent-q-branch-observer", "pattern:" + c.Pattern}
+	if hasMetric {
+		tags = append(tags, "anomaly_type:metric")
+	}
+	if hasLog {
+		tags = append(tags, "anomaly_type:log")
+	}
+	for t := range dimensionSet {
+		tags = append(tags, t)
+	}
+	sort.Strings(tags[2:]) // keep source and pattern first; sort the rest for determinism
+	return tags
 }
 
 // buildChangeAttributes constructs the change event attributes for a correlation.
