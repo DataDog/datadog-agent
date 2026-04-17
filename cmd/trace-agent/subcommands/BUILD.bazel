@@ -1,0 +1,8 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "subcommands",
+    srcs = ["params.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands",
+    visibility = ["//visibility:public"],
+)

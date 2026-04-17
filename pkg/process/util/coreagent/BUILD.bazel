@@ -1,0 +1,11 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "coreagent",
+    srcs = [
+        "coreagent_linux.go",
+        "coreagent_other.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/process/util/coreagent",
+    visibility = ["//visibility:public"],
+)

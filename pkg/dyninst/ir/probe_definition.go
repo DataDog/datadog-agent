@@ -23,6 +23,11 @@ type ProbeIDer interface {
 // can be used in a condition expression.
 const MaxStringLiteralLength = 255
 
+// MaxMapStringKeyLength is the maximum length of a string key for map
+// index expressions. The AES hash supports up to 8 parallel lanes,
+// processing 128 bytes per loop iteration for keys longer than 128 bytes.
+const MaxMapStringKeyLength = 512
+
 // ProbeDefinition abstracts the configuration of a probe.
 type ProbeDefinition interface {
 	ProbeIDer

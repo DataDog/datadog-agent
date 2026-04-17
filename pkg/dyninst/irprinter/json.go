@@ -380,6 +380,8 @@ func makeOperationMarshaler(
 			toMarshal = newWithKind(op)
 		case *ir.SliceBoundsCheckOp:
 			toMarshal = newWithKind(op)
+		case *ir.SwissMapLookupOp:
+			toMarshal = newWithKind(op)
 		case *ir.ConditionCheckOp:
 			toMarshal = newWithKind(op)
 		default:

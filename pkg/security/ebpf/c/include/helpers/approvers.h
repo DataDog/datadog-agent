@@ -84,6 +84,11 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_bind_sample(u32 pid, u
         return DISCARDED;
     }
 
+    // ignore kworkers
+    if (IS_KERNEL_THREAD(pid)) {
+        return DISCARDED;
+    }
+
     monitor_event_sample_total(EVENT_BIND);
 
     struct bind_connect_sample_key_t key;
@@ -119,6 +124,11 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_dns_sample(u32 pid) {
         return DISCARDED;
     }
 
+    // ignore kworkers
+    if (IS_KERNEL_THREAD(pid)) {
+        return DISCARDED;
+    }
+
     monitor_event_sample_total(EVENT_DNS);
 
     if (event_sampling_dns_rate > 0 && !global_limiter_allow(DNS_SAMPLE_LIMITER, event_sampling_dns_rate, 1)) {
@@ -140,6 +150,11 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_connect_sample(u32 pid
     }
 
     if (family != AF_INET && family != AF_INET6) {
+        return DISCARDED;
+    }
+
+    // ignore kworkers
+    if (IS_KERNEL_THREAD(pid)) {
         return DISCARDED;
     }
 
@@ -403,13 +418,15 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(struct den
         return DISCARDED;
     }
 
-    // Track total open events that hit the sampling logic
-    monitor_event_sample_total(EVENT_OPEN);
-
     u32 pid = bpf_get_current_pid_tgid() >> 32;
-    if (IS_KTHREAD(pid, pid)) {
+
+    // ignore kworkers
+    if (IS_KERNEL_THREAD(pid)) {
         return DISCARDED;
     }
+
+    // Track total open events that hit the sampling logic
+    monitor_event_sample_total(EVENT_OPEN);
 
     // Discard sampled open events from procfs, sysfs, cgroupfs, or devpts
     if (is_procfs(dentry) || is_sysfs(dentry) || is_cgroupfs(dentry) || is_cgroup2fs(dentry) || is_devpts(dentry)) {

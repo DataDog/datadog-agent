@@ -1,0 +1,11 @@
+receivers:
+    otlp:
+
+exporters:
+    datadog:
+
+service:
+    pipelines:
+        traces:
+            receivers: [otlp]
+            exporters: [datadog]

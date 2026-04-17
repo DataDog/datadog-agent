@@ -211,7 +211,7 @@ func (w *DatadogStatsWriter) writeAsyncForCtags(sp *pb.StatsPayload) {
 	for _, s := range sp.Stats {
 
 		// callback called by the buffer
-		fn := func(cTags []string, err error) {
+		fn := func(cTags []string, err error, _ *containertagsbuffer.DebugInfo) {
 			enrichStatsWithCtags(s, cTags, err)
 			wg.Done()
 		}

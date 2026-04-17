@@ -1,5 +1,8 @@
 .bazel:defs:
   needs: [ ]
+  id_tokens:
+    BUILDBARN_ID_TOKEN:
+      aud: buildbarn.us1.ddbuild.io
   variables:
     BAZELISK_HOME: "$XDG_CACHE_HOME/bazelisk" # not all bazelisk versions may honor $XDG_CACHE_HOME
 

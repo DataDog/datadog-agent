@@ -44,8 +44,16 @@ type Program struct {
 	Issues []ProbeIssue
 	// GoModuledataInfo is used to resolve types from interfaces.
 	GoModuledataInfo GoModuledataInfo
+	// GoMapHashInfo holds addresses of runtime hash secrets needed for
+	// swiss table map lookups. Zero values indicate the symbols were not
+	// found in DWARF (map index expressions will be unsupported).
+	GoMapHashInfo GoMapHashInfo
 	// CommonTypes store references to common types.
 	CommonTypes CommonTypes
+	// IsARM64 is true when the target binary is arm64. This determines which
+	// AES instruction semantics (x86 AESENC vs arm64 AESE+AESMC) the BPF
+	// hash emulation uses for swiss table map lookups.
+	IsARM64 bool
 }
 
 // GoModuledataInfo is information about the runtime-internal structure used to
@@ -63,6 +71,21 @@ type GoModuledataInfo struct {
 	//
 	// See https://github.com/golang/go/blob/5a56d884/src/runtime/symtab.go#L414
 	TypesOffset uint32
+}
+
+// GoMapHashInfo holds the addresses of runtime hash-related globals needed to
+// perform swiss table map lookups from BPF. These addresses are extracted from
+// DWARF during irgen and used by the loader to read the per-process hash
+// secrets at program load time.
+//
+// See pkg/dyninst/irgen/go_swiss_maps.md for details on the hash algorithms.
+type GoMapHashInfo struct {
+	// UseAeshashAddr is the address of runtime.useAeshash (bool).
+	// Determines whether the process uses AES-NI or wyhash for map hashing.
+	UseAeshashAddr uint64
+	// AeskeyschedAddr is the address of runtime.aeskeysched (uint8[128]).
+	// The per-process AES round key schedule, used when useAeshash is true.
+	AeskeyschedAddr uint64
 }
 
 // CommonTypes stores references to common types.

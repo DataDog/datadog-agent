@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "k8sutils",
+    srcs = ["k8s_user_session_context.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/utils/k8sutils",
+    visibility = ["//visibility:public"],
+    deps = ["@io_k8s_api//authentication/v1:authentication"],
+)

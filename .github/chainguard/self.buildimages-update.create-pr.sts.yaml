@@ -1,13 +1,13 @@
 ---
 issuer: https://token.actions.githubusercontent.com
 
-subject: repo:DataDog/datadog-agent:ref:refs/heads/main
+subject_pattern: repo:DataDog/datadog-agent:ref:refs/heads/(main|7\.[0-9]+\.x)
 
 claim_pattern:
   event_name: workflow_dispatch
-  ref: refs/heads/main
+  ref: refs/heads/(main|7\.[0-9]+\.x)
   ref_protected: "true"
-  job_workflow_ref: DataDog/datadog-agent/\.github/workflows/buildimages-update\.yml@refs/heads/main
+  job_workflow_ref: DataDog/datadog-agent/\.github/workflows/buildimages-update\.yml@refs/heads/(main|7\.[0-9]+\.x)
 
 permissions:
   contents: write

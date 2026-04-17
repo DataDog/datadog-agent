@@ -20,6 +20,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
@@ -55,7 +56,9 @@ func runTest(
 ) {
 	binPath := testprogs.MustGetBinary(t, caseName, cfg)
 	probeDefs := testprogs.MustGetProbeDefinitions(t, caseName)
-	probeDefs = slices.DeleteFunc(probeDefs, testprogs.HasIssueTag)
+	probeDefs = slices.DeleteFunc(probeDefs, func(p ir.ProbeDefinition) bool {
+		return testprogs.HasIssueTag(p, cfg)
+	})
 	obj, err := object.OpenElfFileWithDwarf(binPath)
 	require.NoError(t, err)
 	defer func() { _ = obj.Close() }()

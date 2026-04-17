@@ -609,13 +609,13 @@ func (m *mockContainerTagsBuffer) IsEnabled() bool {
 	return m.enabled
 }
 
-func (m *mockContainerTagsBuffer) AsyncEnrichment(containerID string, cb func([]string, error), _ int64) bool {
+func (m *mockContainerTagsBuffer) AsyncEnrichment(containerID string, cb func([]string, error, *containertagsbuffer.DebugInfo), _ int64) bool {
 	returnTags := m.returnTags[containerID]
 	var returnErr error
 	if retErrStr := m.returnErr[containerID]; retErrStr != "" {
 		returnErr = errors.New(retErrStr)
 	}
-	cb(returnTags, returnErr)
+	cb(returnTags, returnErr, nil)
 	return m.pending
 }
 

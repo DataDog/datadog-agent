@@ -1,0 +1,11 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "cri",
+    srcs = [
+        "common.go",
+        "metadata_no_cri.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/containers/cri",
+    visibility = ["//visibility:public"],
+)

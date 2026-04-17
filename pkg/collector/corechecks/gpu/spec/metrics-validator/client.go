@@ -10,6 +10,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadog"
@@ -50,8 +52,8 @@ func newMetricsClient(apiKey, appKey, site string) (*metricsClient, error) {
 	}, nil
 }
 
-func buildScalarQuery(name, query string) datadogV2.ScalarQuery {
-	q := datadogV2.NewMetricsScalarQuery(datadogV2.METRICSAGGREGATOR_AVG, datadogV2.METRICSDATASOURCE_METRICS, query)
+func buildScalarQuery(name, query string, aggregator datadogV2.MetricsAggregator) datadogV2.ScalarQuery {
+	q := datadogV2.NewMetricsScalarQuery(aggregator, datadogV2.METRICSDATASOURCE_METRICS, query)
 	q.SetName(name)
 	return datadogV2.MetricsScalarQueryAsScalarQuery(q)
 }
@@ -136,7 +138,7 @@ func splitScalarColumns(columns []datadogV2.ScalarColumn) ([]scalarResult, error
 func (c *metricsClient) queryDeviceCount(config gpuspec.GPUConfig, fromTS, toTS int64) (int, error) {
 	columns, err := c.runScalarQueries(
 		[]datadogV2.ScalarQuery{
-			buildScalarQuery("q0", fmt.Sprintf("avg:gpu.device.total{%s} by {gpu_uuid}", config.TagFilter())),
+			buildScalarQuery("q0", fmt.Sprintf("avg:gpu.device.total{%s} by {gpu_uuid}", config.TagFilter()), datadogV2.METRICSAGGREGATOR_AVG),
 		},
 		fromTS,
 		toTS,
@@ -148,39 +150,49 @@ func (c *metricsClient) queryDeviceCount(config gpuspec.GPUConfig, fromTS, toTS 
 	return len(columns), nil
 }
 
-func (c *metricsClient) queryExpectedMetricPresenceForGPUConfig(metricName string, expectedTags map[string]struct{}, queryFilter string, fromTS, toTS int64) ([]gpuspec.MetricObservation, error) {
-	query := fmt.Sprintf("avg:%s{%s}", metricName, queryFilter)
-	expectedTagNames := make([]string, 0, len(expectedTags))
-	for tag := range expectedTags {
-		expectedTagNames = append(expectedTagNames, tag)
-	}
-	if len(expectedTagNames) > 0 {
-		query = fmt.Sprintf("%s by {%s}", query, strings.Join(expectedTagNames, ","))
+func (c *metricsClient) queryExpectedMetricPresenceForGPUConfig(metricName string, expectedTags map[string]struct{}, queryFilter string, fromTS, toTS int64, queryMinMax bool) ([]gpuspec.MetricObservation, error) {
+	baseQuery := fmt.Sprintf("%s{%s}", metricName, queryFilter)
+
+	if len(expectedTags) > 0 {
+		baseQuery += fmt.Sprintf(" by {%s}", strings.Join(slices.Collect(maps.Keys(expectedTags)), ","))
 	}
 
-	columns, err := c.runScalarQueries([]datadogV2.ScalarQuery{buildScalarQuery("q0", query)}, fromTS, toTS)
+	queries := []datadogV2.ScalarQuery{buildScalarQuery("avg", "avg:"+baseQuery, datadogV2.METRICSAGGREGATOR_AVG)}
+	if queryMinMax {
+		// Requesting min/max allows us to check for values outside of the expected ranges. It's not helpful to validate metrics
+		// with discrete acceptable values, but we also can't reasonably query all possible values for a metric using the API.
+		queries = []datadogV2.ScalarQuery{
+			buildScalarQuery("min", "min:"+baseQuery, datadogV2.METRICSAGGREGATOR_MIN),
+			buildScalarQuery("max", "max:"+baseQuery, datadogV2.METRICSAGGREGATOR_MAX),
+		}
+	}
+
+	columns, err := c.runScalarQueries(queries, fromTS, toTS)
 	if err != nil {
 		return nil, fmt.Errorf("query expected metric presence for %s: %w", metricName, err)
 	}
 
 	observations := make([]gpuspec.MetricObservation, 0, len(columns))
 	for _, result := range columns {
-		value, found := result.values["q0"]
-		if !found || value == nil {
-			continue
-		}
-
-		observation := gpuspec.MetricObservation{
-			Name: metricName,
-			Tags: []string{},
-		}
-		for tag := range expectedTags {
-			if isNullishGroupValue(result.tags[tag]) {
+		for _, value := range result.values {
+			if value == nil {
 				continue
 			}
-			observation.Tags = append(observation.Tags, tag+":"+result.tags[tag])
+
+			observation := gpuspec.MetricObservation{
+				Name:  metricName,
+				Tags:  []string{},
+				Value: value,
+			}
+
+			for tag := range expectedTags {
+				if isNullishGroupValue(result.tags[tag]) {
+					continue
+				}
+				observation.Tags = append(observation.Tags, tag+":"+result.tags[tag])
+			}
+			observations = append(observations, observation)
 		}
-		observations = append(observations, observation)
 	}
 
 	return observations, nil

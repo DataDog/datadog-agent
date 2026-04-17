@@ -78,7 +78,7 @@ enum DeploymentType {
 /// Abstracts over both directory-based (exploded) and ZIP-based (packaged) deployments
 enum DeploymentFs {
     Directory(SubDirFs),
-    ZipArchive(UnverifiedZipArchive<cap_std::fs::File>),
+    ZipArchive(UnverifiedZipArchive),
 }
 
 impl DeploymentFs {
@@ -94,11 +94,7 @@ impl DeploymentFs {
             }
             DeploymentFs::ZipArchive(zip) => {
                 let path_str = path.as_ref().to_string_lossy();
-                let entry = zip.by_name(&path_str)?;
-                let mut reader = entry.verify(None)?;
-                let mut buf = Vec::new();
-                reader.read_to_end(&mut buf)?;
-                Ok(buf)
+                zip.read_file_to_vec(&path_str, None)
             }
         }
     }
@@ -856,6 +852,41 @@ http://java.sun.com/j2ee/dtds/application_1_2.dtd">
                 }
             }
         }
+    }
+
+    #[test]
+    fn test_extract_context_root_from_application_xml_from_zip_ear() {
+        use std::fs;
+        use std::io::Write;
+        use tempfile::TempDir;
+        use zip::ZipWriter;
+        use zip::write::SimpleFileOptions;
+
+        let app_xml = r#"<application>
+  <module>
+    <web>
+      <web-uri>myweb.war</web-uri>
+      <context-root>zip-ear-root</context-root>
+    </web>
+  </module>
+</application>"#;
+
+        let tmp_dir = TempDir::new().unwrap();
+        let ear_path = tmp_dir.path().join("test.ear");
+        let ear_file = fs::File::create(&ear_path).unwrap();
+        let mut writer = ZipWriter::new(ear_file);
+        let options =
+            SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+
+        writer.start_file(APPLICATION_XML_PATH, options).unwrap();
+        writer.write_all(app_xml.as_bytes()).unwrap();
+        writer.finish().unwrap();
+
+        let fs_root = SubDirFs::new(tmp_dir.path()).unwrap();
+        let mut deployment_fs = fs_from_deployment_path(&fs_root, Path::new("test.ear")).unwrap();
+
+        let result = extract_context_root_from_application_xml(&mut deployment_fs).unwrap();
+        assert_eq!(result, vec!["zip-ear-root".to_string()]);
     }
 
     /// test_weblogic_extract_service_names_for_jee_server tests all cases of

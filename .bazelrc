@@ -39,14 +39,17 @@ common:lint --aspects=@rules_rust//rust:defs.bzl%rust_clippy_aspect --output_gro
 common:lint --aspects=@rules_rust//rust:defs.bzl%rustfmt_aspect --output_groups=+rustfmt_checks
 
 # Linux config ---------------------------------------------------------------------------------------------------------
+common:linux --credential_helper=*.us1.ddbuild.io=%workspace%/bazel/tools/credential-helper
 common:linux --strategy=sandboxed
 
 # macOS config ---------------------------------------------------------------------------------------------------------
+common:macos --credential_helper=*.us1.ddbuild.io=%workspace%/bazel/tools/credential-helper
 common:macos --features=-macos_default_link_flags # https://github.com/bazelbuild/bazel/issues/23312
 common:macos --macos_minimum_os=12.0 # Keep in sync with https://docs.datadoghq.com/agent/supported_platforms/?tab=macos
 common:macos --strategy=sandboxed
 
 # Windows config -------------------------------------------------------------------------------------------------------
+common:windows --credential_helper=*.us1.ddbuild.io=%workspace%/bazel/tools/credential-helper.bat
 common:windows --strategy=standalone # Valid values are: [dynamic_worker, standalone, dynamic, remote, worker, local]
 # rules_python 1.9.0 transitions enable_runfiles to `true` for every py_ target on Windows. Pre-setting it here makes
 # that transition a no-op, so Bazel deduplicates python_win and avoids 2 concurrent MSBuild racing on shared resources.

@@ -1,0 +1,31 @@
+[
+  {
+    "service": "simple",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.mapIndexStringKey",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "probe": {
+          "id": "mapIndex_stringKey_template",
+          "location": {
+            "method": "main.mapIndexStringKey"
+          }
+        }
+      },
+      "type": "snapshot"
+    },
+    "timestamp": "[ts]",
+    "duration": "[duration]",
+    "message": "beta=200",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
+  }
+]

@@ -236,7 +236,7 @@
 /cmd/agent/dist/conf.d/win32_event_log.d/ @DataDog/windows-products
 /cmd/agent/dist/conf.d/windows_certificate.d/ @DataDog/windows-products
 /cmd/agent/install*.sh                  @DataDog/agent-build
-/cmd/agent/install_mac_os.sh            @DataDog/windows-products @DataDog/telemetry-onboarding
+/cmd/agent/macos/                       @DataDog/windows-products @DataDog/telemetry-onboarding
 /cmd/cluster-agent/                     @DataDog/container-platform
 /cmd/cluster-agent/subcommands/autoscalerlist   @DataDog/container-autoscaling @DataDog/container-integrations
 /cmd/cluster-agent-cloudfoundry/        @DataDog/agent-integrations

@@ -109,12 +109,12 @@ func (p *ImageVolumeProvider) InjectLibrary(pod *corev1.Pod, cfg LibraryConfig) 
 		},
 	})
 
-	patcher.AddVolumeMount(corev1.VolumeMount{
+	patcher.AddVolumeMountWithTarget(corev1.VolumeMount{
 		Name:      volumeName,
 		MountPath: asAbsPath(libraryPackagesDir) + "/" + cfg.Language,
 		SubPath:   librarySubPath,
 		ReadOnly:  true,
-	})
+	}, cfg.ContainerName)
 
 	return MutationResult{
 		Status: MutationStatusInjected,

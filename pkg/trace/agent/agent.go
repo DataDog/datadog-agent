@@ -606,15 +606,24 @@ func (a *Agent) writeChunks(p *writer.SampledChunks) {
 		return
 	}
 	// callback function to be executed once tags are resolved, or buffer times out
-	fn := func(cTags []string, err error) {
-		enrichTracesWithCtags(p, cTags, err)
+	fn := func(cTags []string, err error, debug *containertagsbuffer.DebugInfo) {
+		enrichTracesWithCtags(p, cTags, err, debug)
 		a.TraceWriter.WriteChunks(p)
 	}
 	a.ContainerTagsBuffer.AsyncEnrichment(p.TracerPayload.ContainerID, fn, int64(p.Size))
 }
 
 // enrichTracesWithCtags modifies the trace payload in-place by overriding container tags.
-func enrichTracesWithCtags(p *writer.SampledChunks, ctags []string, err error) {
+func enrichTracesWithCtags(p *writer.SampledChunks, ctags []string, err error, debug *containertagsbuffer.DebugInfo) {
+	if debug.HasData() {
+		p.TracerPayload.ContainerDebug = &pb.ContainerDebug{
+			Error:                debug.Error,
+			LatencyMs:            debug.LatencyMs,
+			WasBuffered:          debug.WasBuffered,
+			BufferMs:             debug.BufferMs,
+			BufferEvictionReason: debug.BufferEvictionReason,
+		}
+	}
 	if err != nil {
 		log.Debugf("Failed getting container tags post buffering for ID %s: %v", p.TracerPayload.ContainerID, err)
 		return
@@ -765,17 +774,26 @@ func (a *Agent) writeChunksV1(p *writer.SampledChunksV1) {
 		return
 	}
 	// callback function to be executed once tags are resolved, or buffer times out
-	fn := func(cTags []string, err error) {
-		enrichTracesWithCtagsV1(p, cTags, err)
+	fn := func(cTags []string, err error, debug *containertagsbuffer.DebugInfo) {
+		enrichTracesWithCtagsV1(p, cTags, err, debug)
 		a.TraceWriterV1.WriteChunksV1(p)
 	}
 	a.ContainerTagsBuffer.AsyncEnrichment(containerID, fn, int64(p.TracerPayload.Msgsize()))
 }
 
 // enrichTracesWithCtagsV1 modifies the trace payload in-place by overriding container tags.
-func enrichTracesWithCtagsV1(p *writer.SampledChunksV1, ctags []string, err error) {
+func enrichTracesWithCtagsV1(p *writer.SampledChunksV1, ctags []string, err error, debug *containertagsbuffer.DebugInfo) {
+	if debug.HasData() {
+		p.TracerPayload.ContainerDebug = &idx.ContainerDebug{
+			Error:                debug.Error,
+			LatencyMs:            debug.LatencyMs,
+			WasBuffered:          debug.WasBuffered,
+			BufferMs:             debug.BufferMs,
+			BufferEvictionReason: debug.BufferEvictionReason,
+		}
+	}
 	if err != nil {
-		log.Debugf("Failed getting container tags post buffering for ID %s: %v", p.TracerPayload.ContainerID, err)
+		log.Debugf("Failed getting container tags post buffering for ID %s: %v", p.TracerPayload.ContainerID(), err)
 		return
 	}
 	if len(ctags) == 0 {

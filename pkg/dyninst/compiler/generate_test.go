@@ -50,7 +50,9 @@ func testCorruptedLocationRecovery(t *testing.T, cfg testprogs.Config) {
 
 	binPath := testprogs.MustGetBinary(t, "simple", cfg)
 	probeDefs := testprogs.MustGetProbeDefinitions(t, "simple")
-	probeDefs = slices.DeleteFunc(probeDefs, testprogs.HasIssueTag)
+	probeDefs = slices.DeleteFunc(probeDefs, func(p ir.ProbeDefinition) bool {
+		return testprogs.HasIssueTag(p, cfg)
+	})
 	obj, err := object.OpenElfFileWithDwarf(binPath)
 	require.NoError(t, err)
 	defer func() { _ = obj.Close() }()

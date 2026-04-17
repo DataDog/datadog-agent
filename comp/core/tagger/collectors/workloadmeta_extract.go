@@ -538,10 +538,14 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*types.Ta
 func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.TagInfo {
 	task := ev.Entity.(*workloadmeta.ECSTask)
 
-	// ECS tasks are reported by a single collector (ECS), so they're always
-	// expected to be complete. We track this because we need it to determine
-	// if tags for the task's containers are complete.
-	c.entityCompleteness[task.EntityID] = ev.IsComplete
+	// ECS tasks are reported by a single collector (ECS). So they are always
+	// marked as complete by workloadmeta. However, the ECS collector can report
+	// incomplete data. It seems that this happens when the v4 metadata endpoint
+	// is not yet available when a task is created. This is infrequent, but when
+	// it happens, the ECS collector doesn't set a cluster name, so tags are
+	// incomplete.
+	ecsTaskIsComplete := ev.IsComplete && task.ClusterName != ""
+	c.entityCompleteness[task.EntityID] = ecsTaskIsComplete
 
 	taskTags := taglist.NewTagList()
 
@@ -607,7 +611,7 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 			OrchestratorCardTags: orch,
 			LowCardTags:          append(low, clusterLow...),
 			StandardTags:         standard,
-			IsComplete:           ev.IsComplete && containerComplete,
+			IsComplete:           ecsTaskIsComplete && containerComplete,
 		})
 	}
 
@@ -624,7 +628,7 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 			OrchestratorCardTags: orch,
 			LowCardTags:          append(low, clusterLow...),
 			StandardTags:         standard,
-			IsComplete:           ev.IsComplete,
+			IsComplete:           ecsTaskIsComplete,
 		})
 	}
 
@@ -642,7 +646,7 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 				OrchestratorCardTags: clusterOrch,
 				LowCardTags:          clusterLow,
 				StandardTags:         clusterStandard,
-				IsComplete:           ev.IsComplete,
+				IsComplete:           ecsTaskIsComplete,
 			})
 		}
 	}

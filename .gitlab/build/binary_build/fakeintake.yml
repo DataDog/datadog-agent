@@ -1,6 +1,7 @@
 ---
 build_fakeintake:
   stage: binary_build
+  timeout: 15m
   rules:
     - !reference [.except_mergequeue]
     - !reference [.on_fakeintake_changes]
