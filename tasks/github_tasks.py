@@ -860,8 +860,8 @@ def bump_rshell(ctx, version=None, draft=True):
     )
     ctx.run(f'git commit -m "{commit_msg}" --no-verify')
 
-    # Wire the token into the remote URL for push auth (mirrors
-    # tasks/pipeline.py:693). `hide=True` keeps it out of invoke's output.
+    # Wire the token into the remote URL for push auth. `hide=True`
+    # keeps it out of invoke's output.
     ctx.run(
         f"git remote set-url origin " f"https://x-access-token:{gh._auth.token}@github.com/DataDog/datadog-agent.git",
         hide=True,
@@ -890,7 +890,7 @@ def bump_rshell(ctx, version=None, draft=True):
 
     from github import GithubException
 
-    for label in ("changelog/no-changelog", "ask-review"):
+    for label in ("qa/no-code-change", "team/action-platform"):
         try:
             gh.add_pr_label(pr.number, label)
         except GithubException as e:
