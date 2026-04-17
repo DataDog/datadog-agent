@@ -4344,6 +4344,8 @@ core,k8s.io/client-go/listers/storage/v1beta1,Apache-2.0,Copyright 2014 The Kube
 core,k8s.io/client-go/listers/storagemigration/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/metadata,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/metadata/fake,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/client-go/metadata/metadatainformer,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/client-go/metadata/metadatalister,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/openapi,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/openapi/cached,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/pkg/apis/clientauthentication,Apache-2.0,Copyright 2014 The Kubernetes Authors.

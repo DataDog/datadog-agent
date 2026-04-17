@@ -47,6 +47,9 @@ func (s *NoopSampler) Flush() *message.Message {
 var tlmAdaptiveSamplerDropped = telemetry.NewCounter("logs_adaptive_sampler", "dropped",
 	[]string{"source"}, "Number of log messages dropped by the adaptive sampler")
 
+var tlmAdaptiveSamplerBytesDropped = telemetry.NewCounter("logs_adaptive_sampler", "bytes_dropped",
+	[]string{"source"}, "Number of bytes dropped by the adaptive sampler")
+
 var tlmAdaptiveSamplerKept = telemetry.NewCounter("logs_adaptive_sampler", "kept",
 	[]string{"source"}, "Number of log messages emitted by the adaptive sampler")
 
@@ -177,6 +180,7 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message
 			return msg
 		}
 		tlmAdaptiveSamplerDropped.Inc(s.source)
+		tlmAdaptiveSamplerBytesDropped.Add(float64(msg.RawDataLen), s.source)
 		return nil
 	}
 
