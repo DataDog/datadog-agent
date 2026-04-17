@@ -797,7 +797,7 @@ func (f *fakeProcessSubscriber) Start() {}
 func makeRedactorForManyFloats(arch string) jsonRedactor {
 	return redactor(
 		exactMatcher(
-			"/debugger/snapshot/captures/return/locals/onlyOnAmd64_16",
+			"/debugger/snapshot/captures/return/locals/@return/fields/onlyOnAmd64_16",
 		),
 		replacerFunc(func(v jsontext.Value) jsontext.Value {
 			// If we've already redacted this, don't do it again.
