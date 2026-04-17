@@ -12,9 +12,33 @@
 #include "queue.h"
 #include "chased_pointers_trie.h"
 
-// Sentinel value for nil_bit_idx indicating no nil bit should be set
-// (used by condition expressions which report nil via condition_eval_error).
-#define NIL_BIT_IDX_NONE 0xFFFFFFFF
+// Expression status values. Each expression gets EXPR_STATUS_BITS bits in the
+// expression status array at the start of event root data.
+#define EXPR_STATUS_BITS      2
+#define EXPR_STATUS_ABSENT    0  // evaluation failed (unknown reason)
+#define EXPR_STATUS_PRESENT   1  // evaluation succeeded
+#define EXPR_STATUS_NIL_DEREF 2  // nil pointer dereference
+#define EXPR_STATUS_OOB       3  // index out of bounds
+
+// Sentinel value for expr_status_idx indicating no status should be written
+// (used by condition expressions which report errors via condition_eval_error).
+#define EXPR_STATUS_IDX_NONE 0xFFFFFFFF
+
+// expr_status_write writes a status value into the packed expression status
+// array for the given expression index.
+static __always_inline void expr_status_write(
+    scratch_buf_t* buf,
+    buf_offset_t base_offset,
+    uint32_t expr_idx,
+    uint8_t status
+) {
+    uint32_t bit_offset = expr_idx * EXPR_STATUS_BITS;
+    buf_offset_t byte_offset = base_offset + bit_offset / 8;
+    uint32_t shift = bit_offset % 8;
+    if (!scratch_buf_bounds_check(&byte_offset, 1)) return;
+    uint8_t mask = ((1 << EXPR_STATUS_BITS) - 1) << shift;
+    (*buf)[byte_offset] = ((*buf)[byte_offset] & ~mask) | ((status & ((1 << EXPR_STATUS_BITS) - 1)) << shift);
+}
 
 const int32_t defaultCollectionSizeBytesLimit = 512;
 
@@ -358,6 +382,26 @@ sm_record_pointer(global_ctx_t* ctx, type_t type, target_ptr_t addr,
       .ttl = sm->pointer_chasing_ttl - (decrease_ttl ? 1 : 0),
   };
   return true;
+}
+
+// lookup_go_dict_type resolves a runtime type to its actual IR type ID
+// (without the pointer-to-pointee dereferencing that lookup_go_interface does).
+// Used by dict resolution where we need the type as declared, not the
+// interface-adjusted pointee.
+static type_t lookup_go_dict_type(uint32_t go_runtime_type) {
+  if (go_runtime_type == 0) {
+    return 0;
+  }
+  uint32_t idx = lookup_type_id_by_go_runtime_type(go_runtime_type);
+  uint32_t* got = bpf_map_lookup_elem(&go_runtime_types, &idx);
+  if (!got || *got != go_runtime_type) {
+    return 0;
+  }
+  uint32_t* type_id = bpf_map_lookup_elem(&go_runtime_type_direct_ids, &idx);
+  if (!type_id) {
+    return 0;
+  }
+  return *type_id;
 }
 
 static inline __attribute__((always_inline)) bool
@@ -779,7 +823,7 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
   case SM_OP_EXPR_SAVE: {
     uint32_t result_offset = sm_read_program_uint32(sm);
     uint32_t byte_len = sm_read_program_uint32(sm);
-    uint32_t bit_offset = sm_read_program_uint32(sm);
+    uint32_t expr_idx = sm_read_program_uint32(sm);
 
     // Save the result.
     copy_data(buf, sm->offset, sm->expr_results_offset + result_offset,
@@ -787,13 +831,8 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
 
     LOG(4, "copy data 0x%llx->0x%llx !%u", sm->offset, sm->expr_results_offset + result_offset, byte_len);
 
-    // Set the presence bit.
-    sm->buf_offset_0 = sm->expr_results_offset + bit_offset / 8;
-    bit_offset %= 8;
-    if (!scratch_buf_bounds_check(&sm->buf_offset_0, 1)) {
-      return 1;
-    }
-    (*buf)[sm->buf_offset_0] |= (1 << bit_offset);
+    // Write expression status = present.
+    expr_status_write(buf, sm->expr_results_offset, expr_idx, EXPR_STATUS_PRESENT);
 
     // Set the offset at the result data, for potential following process type functions.
     sm->offset = sm->expr_results_offset + result_offset;
@@ -919,20 +958,16 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     LOG(4, "EXPR_DEREFERENCE_PTR: starting");
     uint32_t bias = sm_read_program_uint32(sm);
     uint32_t byte_len = sm_read_program_uint32(sm);
-    uint32_t nil_bit_idx = sm_read_program_uint32(sm);
+    uint32_t expr_status_idx = sm_read_program_uint32(sm);
     buf_offset_t value_offset = sm->offset;
     if (!scratch_buf_bounds_check(&value_offset, sizeof(target_ptr_t))) {
       return 1;
     }
     target_ptr_t addr = *(target_ptr_t*)&((*buf)[value_offset]);
     if (addr == 0) {
-      // NULL pointer: set nil bit in presence bitset if applicable.
-      if (nil_bit_idx != NIL_BIT_IDX_NONE) {
-        buf_offset_t nil_byte_offset = sm->expr_results_offset + nil_bit_idx / 8;
-        uint32_t nil_bit = nil_bit_idx % 8;
-        if (scratch_buf_bounds_check(&nil_byte_offset, 1)) {
-          (*buf)[nil_byte_offset] |= (1 << nil_bit);
-        }
+      // NULL pointer: write nil-deref status.
+      if (expr_status_idx != EXPR_STATUS_IDX_NONE) {
+        expr_status_write(buf, sm->expr_results_offset, expr_status_idx, EXPR_STATUS_NIL_DEREF);
       }
       sm->condition_nil_deref = true;
       // Abort expression evaluation.
@@ -951,6 +986,33 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
       }
       return 0;
     }
+  } break;
+
+  case SM_OP_EXPR_SLICE_BOUNDS_CHECK: {
+    LOG(4, "EXPR_SLICE_BOUNDS_CHECK: starting");
+    uint32_t index = sm_read_program_uint32(sm);
+    uint32_t expr_status_idx = sm_read_program_uint32(sm);
+
+    // The slice header is [data_ptr (8 bytes), len (8 bytes)] at sm->offset.
+    // The len field is at a fixed offset of 8 (we only support 64-bit targets).
+    buf_offset_t len_off = sm->offset + 8;
+    if (!scratch_buf_bounds_check(&len_off, 8)) {
+      return 1;
+    }
+    int64_t slice_len = *(int64_t*)&((*buf)[len_off]);
+
+    if ((int64_t)index >= slice_len || slice_len < 0) {
+      LOG(3, "EXPR_SLICE_BOUNDS_CHECK: index %u >= len %lld, aborting", index, slice_len);
+      if (expr_status_idx != EXPR_STATUS_IDX_NONE) {
+        expr_status_write(buf, sm->expr_results_offset, expr_status_idx, EXPR_STATUS_OOB);
+      }
+      scratch_buf_set_len(buf, sm->expr_results_end_offset);
+      if (!sm_return(sm)) {
+        return 1;
+      }
+      return 0;
+    }
+    // Bounds check passed — data pointer is at sm->offset.
   } break;
 
   case SM_OP_PROCESS_POINTER: {
@@ -1129,6 +1191,131 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     if (!sm_record_go_interface_impl(ctx, r.go_runtime_type, r.addr)) {
       LOG(3, "enqueue: failed interface chase");
     }
+  } break;
+
+  case SM_OP_PROCESS_GO_DICT_TYPE: {
+    // Resolve a generic shape type parameter to its concrete type by
+    // reading the runtime dictionary. For entry probes, the dict pointer
+    // is read from a CPU register (captured via PT_REGS). For return
+    // probes, bit 7 of dict_register is set and the dict pointer is
+    // read from sm->saved_dict_ptr (restored from call context).
+    uint32_t dict_index = sm_read_program_uint32(sm);
+    uint8_t dict_register = sm_read_program_uint8(sm);
+    uint32_t output_offset = sm_read_program_uint32(sm);
+
+    // Compute absolute output position: event root start + offset.
+    // Use barrier_var to help the verifier track bounds.
+    buf_offset_t write_pos = sm->buf_offset_0;
+    barrier_var(write_pos);
+    write_pos += output_offset;
+    barrier_var(write_pos);
+
+    // Read the dict pointer: from saved state (return) or register (entry).
+    uint64_t dict_ptr = 0;
+    if (dict_register & 0x80) {
+      // Return probe: dict pointer was saved at entry time and restored
+      // from call context into sm->saved_dict_ptr by event.c.
+      dict_ptr = sm->saved_dict_ptr;
+    } else {
+      // Entry probe: read from the register value saved in PT_REGS.
+      struct pt_regs* regs = ctx->regs;
+      if (regs) {
+        switch (dict_register) {
+        case 0: dict_ptr = regs->DWARF_REGISTER(0); break;
+        case 1: dict_ptr = regs->DWARF_REGISTER(1); break;
+        case 2: dict_ptr = regs->DWARF_REGISTER(2); break;
+        case 3: dict_ptr = regs->DWARF_REGISTER(3); break;
+        case 4: dict_ptr = regs->DWARF_REGISTER(4); break;
+        case 5: dict_ptr = regs->DWARF_REGISTER(5); break;
+        case 6: dict_ptr = regs->DWARF_REGISTER(6); break;
+        case 7: dict_ptr = regs->DWARF_REGISTER(7); break;
+        case 8: dict_ptr = regs->DWARF_REGISTER(8); break;
+        case 9: dict_ptr = regs->DWARF_REGISTER(9); break;
+        case 10: dict_ptr = regs->DWARF_REGISTER(10); break;
+        case 11: dict_ptr = regs->DWARF_REGISTER(11); break;
+        case 12: dict_ptr = regs->DWARF_REGISTER(12); break;
+        case 13: dict_ptr = regs->DWARF_REGISTER(13); break;
+        case 14: dict_ptr = regs->DWARF_REGISTER(14); break;
+        case 15: dict_ptr = regs->DWARF_REGISTER(15); break;
+        default: break;
+        }
+      }
+    }
+    // Always stash for entry path: event.c reads this after the stack
+    // machine runs and stores it in the call context for return probes.
+    sm->saved_dict_ptr = dict_ptr;
+    LOG(4, "dict: reg=%d idx=%d ptr=%llx", dict_register, dict_index, dict_ptr);
+    if (dict_ptr == 0) {
+      LOG(3, "dict: null dict pointer from register %d", dict_register);
+      if (scratch_buf_bounds_check(&write_pos, sizeof(uint64_t))) {
+        *(uint64_t*)(&(*buf)[write_pos]) = 0;
+      }
+      break;
+    }
+
+    // Read dict[dict_index] from user memory.
+    uint64_t type_ptr = 0;
+    if (bpf_probe_read_user(&type_ptr, sizeof(uint64_t),
+                            (void*)(dict_ptr + (uint64_t)dict_index * sizeof(uint64_t)))) {
+      LOG(3, "dict: failed to read dict[%d] at %llx", dict_index, dict_ptr);
+      if (scratch_buf_bounds_check(&write_pos, sizeof(uint64_t))) {
+        *(uint64_t*)(&(*buf)[write_pos]) = 0;
+      }
+      break;
+    }
+
+    // Convert to runtime type offset.
+    uint64_t runtime_type = 0;
+    if (type_ptr != 0) {
+      runtime_type = go_runtime_type_from_ptr(type_ptr);
+    }
+    LOG(4, "dict: type_ptr=%llx runtime_type=%llx", type_ptr, runtime_type);
+
+    // Write the resolved runtime type offset at the designated position
+    // in the event root data.
+    if (scratch_buf_bounds_check(&write_pos, sizeof(uint64_t))) {
+      *(uint64_t*)(&(*buf)[write_pos]) = runtime_type;
+    }
+  } break;
+
+  case SM_OP_CALL_DICT_RESOLVED: {
+    // Dynamically dispatch to the concrete type's ProcessType function
+    // based on the dict-resolved runtime type. Falls back to the shape
+    // type's ProcessType if resolution fails.
+    uint32_t output_offset = sm_read_program_uint32(sm);
+    uint32_t fallback_pc = sm_read_program_uint32(sm);
+
+    // Read the resolved runtime type from the event root data.
+    // Use expr_results_offset as the base, not buf_offset_0, because
+    // ExprSave formerly clobbered buf_offset_0 for status tracking.
+    // expr_results_offset is set by PrepareEventRoot and not modified.
+    buf_offset_t read_pos = sm->expr_results_offset;
+    barrier_var(read_pos);
+    read_pos += output_offset;
+    barrier_var(read_pos);
+
+    uint32_t target_pc = fallback_pc;
+    if (scratch_buf_bounds_check(&read_pos, sizeof(uint64_t))) {
+      uint64_t runtime_type = *(uint64_t*)(&(*buf)[read_pos]);
+      if (runtime_type != 0 && runtime_type != (uint64_t)(-1)) {
+        type_t concrete_type = lookup_go_dict_type(runtime_type);
+        if (concrete_type != 0) {
+          const type_info_t* info;
+          if (get_type_info(concrete_type, &info) && info->enqueue_pc != 0) {
+            target_pc = info->enqueue_pc;
+          }
+        }
+      }
+    }
+
+    // Call: push return address and jump.
+    if (sm->pc_stack_pointer >= ENQUEUE_STACK_DEPTH) {
+      LOG(2, "dict_call: call stack limit reached");
+      return 1;
+    }
+    sm->pc_stack[sm->pc_stack_pointer] = sm->pc;
+    sm->pc_stack_pointer++;
+    sm->pc = target_pc;
   } break;
 
   case SM_OP_PROCESS_GO_HMAP: {

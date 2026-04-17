@@ -24,10 +24,10 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/process/containercheck/containercheckimpl"
-	"github.com/DataDog/datadog-agent/comp/process/hostinfo/hostinfoimpl"
-	"github.com/DataDog/datadog-agent/comp/process/processcheck/processcheckimpl"
+	hostinfomock "github.com/DataDog/datadog-agent/comp/process/hostinfo/mock"
+	processcheckimpl "github.com/DataDog/datadog-agent/comp/process/processcheck/impl"
 	"github.com/DataDog/datadog-agent/comp/process/runner"
-	"github.com/DataDog/datadog-agent/comp/process/submitter/submitterimpl"
+	submittermock "github.com/DataDog/datadog-agent/comp/process/submitter/mock"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
@@ -114,11 +114,11 @@ type Deps struct {
 func createDeps(t *testing.T, confOverrides map[string]interface{}, options ...fx.Option) Deps {
 	return fxutil.Test[Deps](t, fx.Options(
 		Module(),
-		submitterimpl.MockModule(),
-		hostinfoimpl.MockModule(),
+		submittermock.MockModule(),
+		hostinfomock.MockModule(),
 
 		// Checks
-		processcheckimpl.MockModule(),
+		fx.Provide(processcheckimpl.NewMock),
 		containercheckimpl.MockModule(),
 
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),

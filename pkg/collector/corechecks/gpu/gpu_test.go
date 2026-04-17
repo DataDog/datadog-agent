@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
-	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -25,10 +24,14 @@ import (
 	nvmlmock "github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia"
 	gpuspec "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/spec"
@@ -40,6 +43,37 @@ import (
 	mock_containers "github.com/DataDog/datadog-agent/pkg/process/util/containers/mocks"
 )
 
+func newMockContainerProvider(t *testing.T, pidToContainerID map[int]string) *mock_containers.MockContainerProvider {
+	t.Helper()
+
+	mockContainerProvider := mock_containers.NewMockContainerProvider(gomock.NewController(t))
+	if pidToContainerID != nil {
+		mockContainerProvider.EXPECT().GetPidToCid(gomock.Any()).Return(pidToContainerID).AnyTimes()
+	}
+	return mockContainerProvider
+}
+
+func newConfiguredGPUCheck(
+	t *testing.T,
+	fakeTagger tagger.Component,
+	wmeta workloadmeta.Component,
+	senderManager sender.SenderManager,
+	pidToContainerID map[int]string,
+) *Check {
+	t.Helper()
+
+	checkGeneric := newCheck(fakeTagger, testutil.GetTelemetryMock(t), wmeta)
+	check, ok := checkGeneric.(*Check)
+	require.True(t, ok)
+
+	WithGPUConfigEnabled(t)
+	check.containerProvider = newMockContainerProvider(t, pidToContainerID)
+	require.NoError(t, check.Configure(senderManager, integration.FakeConfigHash, []byte{}, []byte{}, "test", "provider"))
+	t.Cleanup(func() { check.Cancel() })
+
+	return check
+}
+
 func TestEmitNvmlMetrics(t *testing.T) {
 	// Create a mock sender
 	mockSender := mocksender.NewMockSender("gpu")
@@ -48,22 +82,7 @@ func TestEmitNvmlMetrics(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	wmetaMock := testutil.GetWorkloadMetaMockWithDefaultGPUs(t)
-	// Create check instance using mocks
-	checkGeneric := newCheck(
-		fakeTagger,
-		testutil.GetTelemetryMock(t),
-		wmetaMock,
-	)
-	check, ok := checkGeneric.(*Check)
-	require.True(t, ok)
-
-	// enable GPU check in configuration right before Configure
-	WithGPUConfigEnabled(t)
-	check.containerProvider = mock_containers.NewMockContainerProvider(gomock.NewController(t))
-	require.NoError(t, check.Configure(mocksender.CreateDefaultDemultiplexer(), integration.FakeConfigHash, []byte{}, []byte{}, "test", "provider"))
-	// we need to cancel the check to make sure all resources and async workers are released
-	// before deinitializing the mock library at test cleanup
-	t.Cleanup(func() { checkGeneric.Cancel() })
+	check := newConfiguredGPUCheck(t, fakeTagger, wmetaMock, mocksender.CreateDefaultDemultiplexer(), nil)
 
 	device1UUID := "gpu-uuid-1"
 	device2UUID := "gpu-uuid-2"
@@ -192,14 +211,7 @@ func TestRunDoesNotError(t *testing.T) {
 	)
 	wmetaMock := testutil.GetWorkloadMetaMockWithDefaultGPUs(t)
 
-	// Create check instance using mocks
-	checkGeneric := newCheck(
-		fakeTagger,
-		testutil.GetTelemetryMock(t),
-		wmetaMock,
-	)
-	check, ok := checkGeneric.(*Check)
-	require.True(t, ok)
+	check := newConfiguredGPUCheck(t, fakeTagger, wmetaMock, senderManager, nil)
 
 	// Add a container to the workload meta mock with GPU devices
 	wmetaMock.Set(&workloadmeta.Container{
@@ -218,17 +230,7 @@ func TestRunDoesNotError(t *testing.T) {
 		},
 	})
 
-	// Enable GPU check in configuration right before Configure
-	WithGPUConfigEnabled(t)
-
-	check.containerProvider = mock_containers.NewMockContainerProvider(gomock.NewController(t))
-	err := checkGeneric.Configure(senderManager, integration.FakeConfigHash, []byte{}, []byte{}, "test", "provider")
-	require.NoError(t, err)
-	// we need to cancel the check to make sure all resources and async workers are released
-	// before deinitializing the mock library at test cleanup
-	t.Cleanup(func() { checkGeneric.Cancel() })
-
-	require.NoError(t, checkGeneric.Run())
+	require.NoError(t, check.Run())
 }
 
 func TestCollectorsOnDeviceChanges(t *testing.T) {
@@ -267,19 +269,14 @@ func TestCollectorsOnDeviceChanges(t *testing.T) {
 		assert.Equal(t, expectedUUIDs, actualUUIDs)
 	}
 
-	// create check instance using mocks
-	iCheck := newCheck(taggerfxmock.SetupFakeTagger(t), testutil.GetTelemetryMock(t), testutil.GetWorkloadMetaMockWithDefaultGPUs(t))
-	check, ok := iCheck.(*Check)
-	require.True(t, ok)
-
-	// enable GPU check in configuration right before Configure
-	WithGPUConfigEnabled(t)
-
-	// configure check
-	check.containerProvider = mock_containers.NewMockContainerProvider(gomock.NewController(t))
-	require.NoError(t, check.Configure(mocksender.CreateDefaultDemultiplexer(), integration.FakeConfigHash, []byte{}, []byte{}, "test", "provider"))
+	check := newConfiguredGPUCheck(
+		t,
+		taggerfxmock.SetupFakeTagger(t),
+		testutil.GetWorkloadMetaMockWithDefaultGPUs(t),
+		mocksender.CreateDefaultDemultiplexer(),
+		nil,
+	)
 	require.Empty(t, check.collectors)
-	t.Cleanup(func() { check.Cancel() })
 
 	// do a first run and check that collectors have been created
 	require.NoError(t, check.Run())
@@ -381,21 +378,14 @@ func TestCollectorsOnMIGDeviceChanges(t *testing.T) {
 		assert.Equal(t, expectedUUIDs, actualUUIDs)
 	}
 
-	// Create check instance
-	iCheck := newCheck(taggerfxmock.SetupFakeTagger(t), testutil.GetTelemetryMock(t), testutil.GetWorkloadMetaMockWithDefaultGPUs(t))
-	check, ok := iCheck.(*Check)
-	require.True(t, ok)
-
-	// Enable GPU check and configure
-	WithGPUConfigEnabled(t)
-	mockCtrl := gomock.NewController(t)
-	mockContainerProvider := mock_containers.NewMockContainerProvider(mockCtrl)
-	// Expect GetPidToCid to be called and return an empty map (no processes)
-	mockContainerProvider.EXPECT().GetPidToCid(gomock.Any()).Return(map[int]string{}).AnyTimes()
-	check.containerProvider = mockContainerProvider
-	require.NoError(t, check.Configure(mocksender.CreateDefaultDemultiplexer(), integration.FakeConfigHash, []byte{}, []byte{}, "test", "provider"))
+	check := newConfiguredGPUCheck(
+		t,
+		taggerfxmock.SetupFakeTagger(t),
+		testutil.GetWorkloadMetaMockWithDefaultGPUs(t),
+		mocksender.CreateDefaultDemultiplexer(),
+		map[int]string{},
+	)
 	require.Empty(t, check.collectors)
-	t.Cleanup(func() { check.Cancel() })
 
 	// First run: MIG disabled, should have collectors for parent device only
 	require.NoError(t, check.Run())
@@ -446,10 +436,11 @@ func (m *mockCollector) DeviceUUID() string {
 }
 
 func mockMatchesTags(expectedTags []string) interface{} {
-	slices.Sort(expectedTags)
+	expectedTagsCopy := append([]string(nil), expectedTags...)
+	slices.Sort(expectedTagsCopy)
 	return mock.MatchedBy(func(tags []string) bool {
 		slices.Sort(tags)
-		return slices.Equal(tags, expectedTags)
+		return slices.Equal(tags, expectedTagsCopy)
 	})
 }
 
@@ -497,23 +488,7 @@ func TestTagsChangeBetweenRuns(t *testing.T) {
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
-	// Create check instance using mocks
-	checkGeneric := newCheck(
-		fakeTagger,
-		testutil.GetTelemetryMock(t),
-		testutil.GetWorkloadMetaMock(t),
-	)
-	check, ok := checkGeneric.(*Check)
-	require.True(t, ok)
-
-	// enable GPU check in configuration right before Configure
-	WithGPUConfigEnabled(t)
-	check.containerProvider = mock_containers.NewMockContainerProvider(gomock.NewController(t))
-	require.NoError(t, check.Configure(mocksender.CreateDefaultDemultiplexer(), integration.FakeConfigHash, []byte{}, []byte{}, "test", "provider"))
-	// we need to cancel the check to make sure all resources and async workers are released
-	// before deinitializing the mock library at test cleanup
-	t.Cleanup(func() { checkGeneric.Cancel() })
-
+	check := newConfiguredGPUCheck(t, fakeTagger, testutil.GetWorkloadMetaMock(t), mocksender.CreateDefaultDemultiplexer(), nil)
 	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMockAllFunctions(), testutil.WithDeviceCount(1))
 	ddnvml.WithMockNVML(t, nvmlMock)
 
@@ -571,20 +546,8 @@ func TestRunEmitsCorrectTags(t *testing.T) {
 	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMockAllFunctions(), testutil.WithDeviceCount(2))
 	ddnvml.WithMockNVML(t, nvmlMock)
 
-	checkGeneric := newCheck(
-		fakeTagger,
-		testutil.GetTelemetryMock(t),
-		wmetaMock,
-	)
-	check, ok := checkGeneric.(*Check)
-	require.True(t, ok)
-
+	check := newConfiguredGPUCheck(t, fakeTagger, wmetaMock, senderManager, nil)
 	mockSender := mocksender.NewMockSenderWithSenderManager(check.ID(), senderManager)
-	check.containerProvider = mock_containers.NewMockContainerProvider(gomock.NewController(t))
-	WithGPUConfigEnabled(t)
-
-	require.NoError(t, check.Configure(senderManager, integration.FakeConfigHash, []byte{}, []byte{}, "test", "provider"))
-	t.Cleanup(func() { check.Cancel() })
 
 	// Reset the collectors, use the mock ones only
 	check.collectors = nil
@@ -851,30 +814,13 @@ func TestDisabledCollectorsConfiguration(t *testing.T) {
 			fakeTagger := taggerfxmock.SetupFakeTagger(t)
 			wmetaMock := testutil.GetWorkloadMetaMockWithDefaultGPUs(t)
 
-			checkGeneric := newCheck(
-				fakeTagger,
-				testutil.GetTelemetryMock(t),
-				wmetaMock,
-			)
-			check, ok := checkGeneric.(*Check)
-			require.True(t, ok)
-
 			WithGPUConfigEnabled(t)
 			pkgconfigsetup.Datadog().SetWithoutSource("gpu.disabled_collectors", tt.disabledCollectors)
 			t.Cleanup(func() {
 				pkgconfigsetup.Datadog().SetWithoutSource("gpu.disabled_collectors", []string{})
 			})
 
-			check.containerProvider = mock_containers.NewMockContainerProvider(gomock.NewController(t))
-			err := check.Configure(
-				mocksender.CreateDefaultDemultiplexer(),
-				integration.FakeConfigHash,
-				[]byte{},
-				[]byte{},
-				"test",
-				"",
-			)
-			require.NoError(t, err)
+			check := newConfiguredGPUCheck(t, fakeTagger, wmetaMock, mocksender.CreateDefaultDemultiplexer(), nil)
 
 			// Verify the disabled collectors are correctly identified in the check struct
 			assert.Equal(t, len(tt.expected), len(check.disabledCollectors),
@@ -886,59 +832,23 @@ func TestDisabledCollectorsConfiguration(t *testing.T) {
 }
 
 func TestMetricsFollowSpec(t *testing.T) {
-	// required to emit gpu.devices.unhealthy metric
-	env.SetFeatures(t, env.KubernetesDevicePlugins)
+	// - KubernetesDevicePlugins required for gpu.device.unhealthy metric
+	// - NVML required to ensure the NVML workloadmeta collector starts up
+	env.SetFeatures(t, env.KubernetesDevicePlugins, env.NVML)
 
 	metricsSpec, err := gpuspec.LoadMetricsSpec()
 	require.NoError(t, err)
 	archFile, err := gpuspec.LoadArchitecturesSpec()
 	require.NoError(t, err)
 
-	// Build spec metric set for quick membership checks.
-	specMetrics := make(map[string]struct{}, len(metricsSpec.Metrics))
-	for name := range metricsSpec.Metrics {
-		specMetrics[name] = struct{}{}
-	}
+	configs := gpuspec.KnownGPUConfigs(archFile)
 
-	deviceModes := []gpuspec.DeviceMode{
-		gpuspec.DeviceModePhysical,
-		gpuspec.DeviceModeMIG,
-		gpuspec.DeviceModeVGPU,
-	}
-
-	for archName, archSpec := range archFile.Architectures {
-		t.Run("arch="+archName, func(t *testing.T) {
-			for _, mode := range deviceModes {
-				if !gpuspec.IsModeSupportedByArchitecture(archSpec, mode) {
-					continue
-				}
-
-				t.Run("mode="+string(mode), func(t *testing.T) {
-					emittedMetrics, knownTagValues := collectMetricSamples(t, archName, mode, archSpec)
-
-					t.Run("_emits_only_expected_metrics", func(t *testing.T) {
-						for metricName := range emittedMetrics {
-							assert.Contains(t, specMetrics, metricName, "metric emitted by check is missing from spec: %s", metricName)
-
-							metricSpec := metricsSpec.Metrics[metricName]
-							assert.True(t, metricSpec.SupportsArchitecture(archName), "metric %s emitted on unsupported architecture %s", metricName, archName)
-							assert.False(t, metricSpec.IsDeviceModeExplicitlyUnsupported(mode), "metric %s emitted on unsupported device mode %s", metricName, mode)
-						}
-					})
-
-					for name, m := range metricsSpec.Metrics {
-						if !m.SupportsArchitecture(archName) || !m.SupportsDeviceMode(mode) {
-							continue
-						}
-
-						t.Run(name, func(t *testing.T) {
-							metrics, found := emittedMetrics[name]
-							require.True(t, found, "spec metric is not emitted by check run: %s", name)
-							validateMetricTagsAgainstSpec(t, metricsSpec, name, m, metrics, knownTagValues)
-						})
-					}
-				})
-			}
+	for _, config := range configs {
+		testName := fmt.Sprintf("arch=%s/mode=%s", config.Architecture, config.DeviceMode)
+		t.Run(testName, func(t *testing.T) {
+			archSpec := archFile.Architectures[config.Architecture]
+			emittedMetrics, knownTagValues := collectMetricSamples(t, config, archSpec)
+			ValidateEmittedMetricsAgainstSpec(t, metricsSpec, config, emittedMetrics, knownTagValues)
 		})
 	}
 }
@@ -946,13 +856,13 @@ func TestMetricsFollowSpec(t *testing.T) {
 // collectMetricSamples runs the GPU check with a capability-driven mock
 // for the given architecture and device mode, then returns emitted metrics (without "gpu." prefix)
 // and their tags.
-func collectMetricSamples(t *testing.T, archName string, mode gpuspec.DeviceMode, archSpec gpuspec.ArchitectureSpec) (map[string][]metric, map[string]string) {
+func collectMetricSamples(t *testing.T, config gpuspec.GPUConfig, archSpec gpuspec.ArchitectureSpec) (map[string][]gpuspec.MetricObservation, map[string]string) {
 	t.Helper()
 
-	collectionSetup := setupMockCheckForMetricCollection(t, archName, mode, archSpec)
+	collectionSetup := setupMockCheckForMetricCollection(t, config, archSpec)
 	collectionSetup.runCollection()
 
-	return getEmittedGPUMetricsWithTags(collectionSetup.mockSender), collectionSetup.knownTagValues
+	return GetEmittedGPUMetrics(collectionSetup.mockSender), collectionSetup.knownTagValues
 }
 
 type metricCollectionSetup struct {
@@ -961,53 +871,7 @@ type metricCollectionSetup struct {
 	knownTagValues map[string]string
 }
 
-func setupMockCheckForMetricCollection(t *testing.T, archName string, mode gpuspec.DeviceMode, archSpec gpuspec.ArchitectureSpec) metricCollectionSetup {
-	t.Helper()
-	opts := gpuspec.BuildMockOptionsForArchAndMode(t, archName, mode, archSpec)
-
-	senderManager := mocksender.CreateDefaultDemultiplexer()
-	mockSender := mocksender.NewMockSenderWithSenderManager("gpu", senderManager)
-	mockSender.SetupAcceptAll()
-
-	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(opts...))
-
-	wmeta := testutil.GetWorkloadMetaMock(t)
-	for idx, uuid := range testutil.GPUUUIDs {
-		gpu := newMockWorkloadMetaGPU(uuid, idx, workloadmeta.GPUDeviceTypePhysical, "")
-		wmeta.Set(gpu)
-		fakeTagger.SetTags(
-			taggertypes.NewEntityID(taggertypes.GPU, uuid),
-			"spec-test",
-			gpuTagsFromWorkloadMetaGPU(gpu),
-			nil,
-			nil,
-			nil,
-		)
-	}
-	if mode == gpuspec.DeviceModeMIG {
-		for parentIdx, uuids := range testutil.MIGChildrenUUIDs {
-			parentUUID := testutil.GPUUUIDs[parentIdx]
-			for migIdx, uuid := range uuids {
-				gpu := newMockWorkloadMetaGPU(uuid, migIdx, workloadmeta.GPUDeviceTypeMIG, parentUUID)
-				wmeta.Set(gpu)
-				fakeTagger.SetTags(
-					taggertypes.NewEntityID(taggertypes.GPU, uuid),
-					"spec-test",
-					gpuTagsFromWorkloadMetaGPU(gpu),
-					nil,
-					nil,
-					nil,
-				)
-			}
-		}
-	}
-
-	pidToContainerID := map[int]string{
-		1:    "container-1",
-		1234: "container-1234",
-		5678: "container-5678",
-	}
+func seedContainersForPIDMapping(wmeta workloadmetamock.Mock, fakeTagger taggermock.Mock, pidToContainerID map[int]string) {
 	for _, containerID := range pidToContainerID {
 		wmeta.Set(&workloadmeta.Container{
 			EntityID: workloadmeta.EntityID{
@@ -1027,22 +891,35 @@ func setupMockCheckForMetricCollection(t *testing.T, archName string, mode gpusp
 			nil,
 		)
 	}
+}
 
-	checkGeneric := newCheck(fakeTagger, testutil.GetTelemetryMock(t), wmeta)
-	check, ok := checkGeneric.(*Check)
-	require.True(t, ok)
+func setupMockCheckForMetricCollection(t *testing.T, config gpuspec.GPUConfig, archSpec gpuspec.ArchitectureSpec) metricCollectionSetup {
+	t.Helper()
+	opts := gpuspec.BuildMockOptionsForConfig(t, config, archSpec)
 
-	WithGPUConfigEnabled(t)
-	mockContainerProvider := mock_containers.NewMockContainerProvider(gomock.NewController(t))
-	mockContainerProvider.EXPECT().GetPidToCid(gomock.Any()).Return(pidToContainerID).AnyTimes()
-	check.containerProvider = mockContainerProvider
-	require.NoError(t, check.Configure(senderManager, integration.FakeConfigHash, []byte{}, []byte{}, "test", "provider"))
-	t.Cleanup(func() { checkGeneric.Cancel() })
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	mockSender := mocksender.NewMockSenderWithSenderManager("gpu", senderManager)
+	mockSender.SetupAcceptAll()
+
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(opts...))
+
+	wmeta := testutil.GetWorkloadMetaMock(t)
+	SetupWorkloadmetaGPUs(t, wmeta, fakeTagger, config.DeviceMode, false)
+
+	pidToContainerID := map[int]string{
+		1:    "container-1",
+		1234: "container-1234",
+		5678: "container-5678",
+	}
+	seedContainersForPIDMapping(wmeta, fakeTagger, pidToContainerID)
+
+	check := newConfiguredGPUCheck(t, fakeTagger, wmeta, senderManager, pidToContainerID)
 
 	// process.core.usage/core.limit come from system-probe/eBPF collector. Provide deterministic
 	// cache data for every device shape used by the mode.
 	cacheDeviceUUIDs := []string{testutil.DefaultGpuUUID}
-	if mode == gpuspec.DeviceModeMIG {
+	if config.DeviceMode == gpuspec.DeviceModeMIG {
 		parentIdx := testutil.DevicesWithMIGChildren[0]
 		cacheDeviceUUIDs = append([]string{testutil.GPUUUIDs[parentIdx]}, testutil.MIGChildrenUUIDs[parentIdx]...)
 	}
@@ -1080,21 +957,21 @@ func setupMockCheckForMetricCollection(t *testing.T, archName string, mode gpusp
 	runCollection := func() {
 		// Some metrics require a second run to be collected, so we run it twice.
 		// XID events are injected between runs, after collectors have registered devices.
-		require.NoError(t, checkGeneric.Run())
-		if mode == gpuspec.DeviceModePhysical {
+		require.NoError(t, check.Run())
+		if config.DeviceMode == gpuspec.DeviceModePhysical {
 			require.NoError(t, check.deviceEvtGatherer.InjectEventsForTest(testutil.DefaultGpuUUID, []ddnvml.DeviceEventData{{
 				DeviceUUID: testutil.DefaultGpuUUID,
 				EventType:  nvml.EventTypeXidCriticalError,
 				EventData:  31,
 			}}))
 		}
+
 		mockSender.ResetCalls()
-		require.NoError(t, checkGeneric.Run())
+		require.NoError(t, check.Run())
 	}
 
 	// Known values are defined at the same place where the mock behavior/data is configured.
 	knownTagValues := map[string]string{
-		"gpu_device":         strings.ToLower(strings.ReplaceAll(testutil.DefaultGPUName, " ", "_")),
 		"gpu_vendor":         "nvidia",
 		"gpu_driver_version": testutil.DefaultNvidiaDriverVersion,
 		"type":               "31",
@@ -1106,128 +983,4 @@ func setupMockCheckForMetricCollection(t *testing.T, archName string, mode gpusp
 		runCollection:  runCollection,
 		knownTagValues: knownTagValues,
 	}
-}
-
-type metric struct {
-	name string
-	tags []string
-}
-
-func getEmittedGPUMetricsWithTags(mockSender *mocksender.MockSender) map[string][]metric {
-	metricsByName := make(map[string][]metric)
-
-	for _, call := range mockSender.Mock.Calls {
-		if call.Method != "GaugeWithTimestamp" && call.Method != "CountWithTimestamp" {
-			continue
-		}
-
-		if len(call.Arguments) == 0 {
-			continue
-		}
-
-		metricName, ok := call.Arguments.Get(0).(string)
-		if !ok || !strings.HasPrefix(metricName, "gpu.") {
-			continue
-		}
-
-		specMetricName := strings.TrimPrefix(metricName, "gpu.")
-		tags := []string{}
-		if len(call.Arguments) > 3 {
-			if callTags, ok := call.Arguments.Get(3).([]string); ok {
-				tags = append([]string(nil), callTags...)
-			}
-		}
-
-		metricsByName[specMetricName] = append(metricsByName[specMetricName], metric{
-			name: specMetricName,
-			tags: tags,
-		})
-	}
-
-	return metricsByName
-}
-
-func newMockWorkloadMetaGPU(uuid string, index int, deviceType workloadmeta.GPUDeviceType, parentUUID string) *workloadmeta.GPU {
-	gpu := &workloadmeta.GPU{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindGPU,
-			ID:   uuid,
-		},
-		EntityMeta: workloadmeta.EntityMeta{
-			Name: testutil.DefaultGPUName,
-		},
-		Vendor:             "nvidia",
-		Device:             testutil.DefaultGPUName,
-		DriverVersion:      testutil.DefaultNvidiaDriverVersion,
-		Index:              index,
-		DeviceType:         deviceType,
-		VirtualizationMode: "none",
-	}
-
-	if parentUUID != "" {
-		gpu.ParentGPUUUID = parentUUID
-	}
-
-	return gpu
-}
-
-func gpuTagsFromWorkloadMetaGPU(gpu *workloadmeta.GPU) []string {
-	return []string{
-		"gpu_uuid:" + gpu.ID,
-		"gpu_device:" + strings.ToLower(strings.ReplaceAll(gpu.Device, " ", "_")),
-		"gpu_vendor:" + strings.ToLower(gpu.Vendor),
-		"gpu_driver_version:" + gpu.DriverVersion,
-	}
-}
-
-func validateMetricTagsAgainstSpec(t *testing.T, spec *gpuspec.MetricsSpec, metricName string, metricSpec gpuspec.MetricSpec, emittedMetrics []metric, knownTagValues map[string]string) {
-	t.Helper()
-	require.NotEmpty(t, emittedMetrics, "metric %s has no emitted samples to validate tags", metricName)
-
-	requiredTags := make(map[string]struct{})
-	for _, tagsetName := range metricSpec.Tagsets {
-		tagsetSpec, ok := spec.Tagsets[tagsetName]
-		require.True(t, ok, "metric %s references unknown tagset %s", metricName, tagsetName)
-		for _, tag := range tagsetSpec.Tags {
-			requiredTags[tag] = struct{}{}
-		}
-	}
-	for _, tag := range metricSpec.CustomTags {
-		requiredTags[tag] = struct{}{}
-	}
-
-	for _, emittedMetric := range emittedMetrics {
-		tagsByKey := tagsToKeyValues(emittedMetric.tags)
-
-		// check that all required tags are present
-		for tag := range requiredTags {
-			require.Contains(t, tagsByKey, tag, "metric %s missing required tag key %s", metricName, tag)
-		}
-
-		// check that no unknown tags are present, and that all known tags have non-empty values. If the tag should have
-		// a specific value, check that the value is as expected.
-		for key, values := range tagsByKey {
-			_, allowed := requiredTags[key]
-			require.True(t, allowed, "metric %s has unknown tag key %s", metricName, key)
-
-			for _, value := range values {
-				require.NotEmpty(t, value, "metric %s has empty value for tag %s", metricName, key)
-				if expectedValue, ok := knownTagValues[key]; ok {
-					require.Equal(t, expectedValue, value, "metric %s has unexpected value for tag %s", metricName, key)
-				}
-			}
-		}
-	}
-}
-
-func tagsToKeyValues(tags []string) map[string][]string {
-	result := make(map[string][]string, len(tags))
-	for _, tag := range tags {
-		key, value, ok := strings.Cut(tag, ":")
-		if !ok || key == "" || value == "" {
-			continue
-		}
-		result[key] = append(result[key], value)
-	}
-	return result
 }

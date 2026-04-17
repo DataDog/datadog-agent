@@ -10,6 +10,7 @@ load(
 )
 load("@rules_pkg//pkg:rpm.bzl", "pkg_rpm")
 load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
+load("//bazel/rules:compression.bzl", "get_compression_level")
 load("//bazel/rules:dd_agent_pkg_mklink.bzl", "dd_agent_pkg_mklink")
 load("//compliance:package_licenses.bzl", "package_licenses")
 load("//packages/rules:package_naming.bzl", "package_name_variables")
@@ -53,7 +54,6 @@ pkg_filegroup(
         "//deps/msodbcsql18:all_files",
         "//deps/nfsiostat:all_files",
         "//deps/openscap:all_files",
-        "@freetds//:all_files",
         "@nghttp2//:all_files",
         "@xz//:all_files",
     ],
@@ -97,11 +97,10 @@ pkg_filegroup(
 pkg_tar(
     name = "whole_distro_tar",
     srcs = [":whole_distro"],
-    extension = "tar.xz",
     # TODO: account for pipeline injected compression level.
     # https://datadoghq.atlassian.net/browse/ABLD-364
-    # compression_threads COMPRESSION_THREADS
-    # compression_level COMPRESSION_LEVEL
+    compression_level = get_compression_level(),
+    extension = "tar.xz",
     owner = "0.0",
 )
 

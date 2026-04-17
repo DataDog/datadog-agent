@@ -24,6 +24,7 @@ type inventoryAgentSuite struct {
 }
 
 func TestInventoryAgentSuite(t *testing.T) {
+	t.Parallel()
 	e2e.Run(t, &inventoryAgentSuite{}, e2e.WithProvisioner(awshost.Provisioner()))
 }
 

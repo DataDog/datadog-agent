@@ -57,6 +57,7 @@ const (
 	deviceHostnamePrefix    = "device:"
 	checkDurationThreshold  = 30  // Thirty seconds
 	profileRefreshDelay     = 600 // Number of seconds after which a profile needs to be refreshed
+	bandwidthStateTTLChecks = 4   // Number of failed checks before bandwidth state entries are cleaned up
 )
 
 // SNMPTroubleshootingDocURL is the troubleshooting doc for unreachable devices (exported for tests).
@@ -349,7 +350,14 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 
 	d.submitTelemetryMetrics(sess, startTime, metricTags)
 	d.setDeviceHostExternalTags()
-	d.interfaceBandwidthState.RemoveExpiredBandwidthUsageRates(startTime.UnixNano())
+
+	// Use a TTL so bandwidth state entries survive transient check failures. Without this,
+	// a single failed check would clean up the last successful sample and require two more
+	// consecutive successes before emitting bandwidth metrics again. Entries that are not
+	// updated for more than bandwidthStateTTLChecks intervals are cleaned up to avoid
+	// producing misleading rates after prolonged outages.
+	bandwidthStateTTL := bandwidthStateTTLChecks * d.config.MinCollectionInterval
+	d.interfaceBandwidthState.RemoveExpiredBandwidthUsageRates(startTime.Add(-bandwidthStateTTL).UnixNano())
 
 	return checkErr
 }

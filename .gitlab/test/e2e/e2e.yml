@@ -58,6 +58,8 @@
     - export DD_ENV=nativetest # TODO: Remove after testing native instrumentation
     - export DD_CIVISIBILITY_ENABLED=true
     - export DD_CIVISIBILITY_AGENTLESS_ENABLED=true
+    - export DD_CIVISIBILITY_FLAKY_RETRY_ENABLED=false
+    - export DD_TAGS="gitlab.pipeline_source:${CI_PIPELINE_SOURCE}"
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
     # set the environment variables for the windows test signing
     - export WINDOWS_DDNPM_DRIVER=${WINDOWS_DDNPM_DRIVER:-$(dda inv release.get-release-json-value "dependencies::WINDOWS_DDNPM_DRIVER" --no-worktree)}
@@ -184,7 +186,7 @@ go_e2e_test_binaries:
     - go install github.com/DataDog/orchestrion
     - popd
     - dda inv -- -e new-e2e-tests.build-binaries --output-dir test-binaries -p $KUBERNETES_CPU_REQUEST --manifest-file-path manifest.json
-    - tar -cf test-binaries.tar.zst -I "zstd -T0" test-binaries
+    - tar c -I "zstd -T${KUBERNETES_CPU_REQUEST}" -f test-binaries.tar.zst test-binaries
   artifacts:
     expire_in: 1 week
     paths:
@@ -1070,6 +1072,14 @@ new-e2e-ssi-openshift:
     E2E_STACK_NAME_SUFFIX: openshift
     E2E_PRE_INITIALIZED: "true"
     EXTRA_PARAMS: "-c ddinfra:gcp/openshift/pullSecretPath=/tmp/crc-pull-secret.json"
+
+new-e2e-ssi-aks:
+  extends: .new-e2e_ssi_extra_distribution
+  variables:
+    E2E_PROVISIONER: aks
+    E2E_STACK_NAME_SUFFIX: aks
+    # Image volume is not supported on AKS in our current test setup.
+    EXTRA_PARAMS: "--skip TestSSISuite/TestInjectionMode/injection-mode-app-image-volume"
 
 .new-e2e_package_signing:
   variables:

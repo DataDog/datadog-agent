@@ -121,6 +121,7 @@ type deviceOptions struct {
 	processInfoCB      func(uuid string) ([]nvml.ProcessInfo, nvml.Return)
 	gpmSupported       *bool
 	unsupportedFields  map[uint32]struct{}
+	migChildCount      int
 }
 
 func (o deviceOptions) isMIGChild() bool {
@@ -149,10 +150,6 @@ func (o deviceOptions) hasUnsupportedField(fieldID uint32) bool {
 	}
 	_, found := o.unsupportedFields[fieldID]
 	return found
-}
-
-func (o deviceOptions) hasUnsupportedNVLinkFields() bool {
-	return o.hasUnsupportedField(nvml.FI_DEV_NVLINK_SPEED_MBPS_COMMON)
 }
 
 func (o deviceOptions) effectiveArchitecture() (nvml.DeviceArchitecture, int, int) {
@@ -221,7 +218,7 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 		},
 		GetNameFunc: func() (string, nvml.Return) {
 			if opts.isMIGChild() {
-				return "MIG " + DefaultGPUName, nvml.SUCCESS
+				return DefaultGPUName + " MIG 3g.40gb", nvml.SUCCESS
 			}
 			return DefaultGPUName, nvml.SUCCESS
 		},
@@ -259,6 +256,9 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 			if opts.isMIGChild() || opts.migDisabled {
 				return 0, nvml.SUCCESS
 			}
+			if opts.migChildCount > 0 {
+				return opts.migChildCount, nvml.SUCCESS
+			}
 			return MIGChildrenPerDevice[deviceIdx], nvml.SUCCESS
 		},
 		GetMigDeviceHandleByIndexFunc: func(index int) (nvml.Device, nvml.Return) {
@@ -291,7 +291,7 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 			return DefaultMemoryBusWidth, nvml.SUCCESS
 		},
 		GetMaxClockInfoFunc: func(clockType nvml.ClockType) (uint32, nvml.Return) {
-			if isMIGUnsupported {
+			if isMIGOrVGPUUnsupported {
 				return 0, nvml.ERROR_NOT_SUPPORTED
 			}
 			rate, ok := DefaultMaxClockRates[clockType]
@@ -376,8 +376,17 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 			}
 			return 0, 0, false, false, nvml.SUCCESS
 		},
+		GetRepairStatusFunc: func() (nvml.RepairStatus, nvml.Return) {
+			if isMIGOrVGPUUnsupported {
+				return nvml.RepairStatus{}, nvml.ERROR_NOT_SUPPORTED
+			}
+			if arch < nvml.DEVICE_ARCH_AMPERE {
+				return nvml.RepairStatus{}, nvml.ERROR_NOT_SUPPORTED
+			}
+			return nvml.RepairStatus{}, nvml.SUCCESS
+		},
 		GetNvLinkStateFunc: func(_ int) (nvml.EnableState, nvml.Return) {
-			if isMIGUnsupported || opts.hasUnsupportedNVLinkFields() {
+			if isMIGUnsupported {
 				return 0, nvml.ERROR_NOT_SUPPORTED
 			}
 			return nvml.FEATURE_ENABLED, nvml.SUCCESS
@@ -496,7 +505,7 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 		},
 		GetVirtualizationModeFunc: func() (nvml.GpuVirtualizationMode, nvml.Return) {
 			if opts.isVGPU() {
-				return nvml.GPU_VIRTUALIZATION_MODE_HOST_VGPU, nvml.SUCCESS
+				return nvml.GPU_VIRTUALIZATION_MODE_VGPU, nvml.SUCCESS
 			}
 			return nvml.GPU_VIRTUALIZATION_MODE_NONE, nvml.SUCCESS
 		},
@@ -575,6 +584,12 @@ func WithDeviceCount(count int) NvmlMockOption {
 	}
 }
 
+func WithMIGChildCount(count int) NvmlMockOption {
+	return func(o *nvmlMockOptions) {
+		o.deviceOptions.migChildCount = count
+	}
+}
+
 // WithEventSetCreate influences the definition of EventSetCreateFunc
 func WithEventSetCreate(eventSetCreate func() (nvml.EventSet, nvml.Return)) NvmlMockOption {
 	return func(o *nvmlMockOptions) {
@@ -616,7 +631,7 @@ var archNameToNVML = map[string]struct {
 	"hopper":  {nvml.DEVICE_ARCH_HOPPER, 9, 0},
 	"ada":     {nvml.DEVICE_ARCH_ADA, 8, 9},
 	"blackwell": {
-		nvml.DeviceArchitecture(10), // nvml.DEVICE_ARCH_BLACKWELL in newer go-nvml
+		nvml.DEVICE_ARCH_BLACKWELL,
 		10,
 		0,
 	},

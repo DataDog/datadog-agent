@@ -1,5 +1,6 @@
 exporters:
     otlphttp:
+        compression: zstd
         headers:
             dd-api-key: test-api-key
             dd-evp-origin: host-profiler
@@ -36,7 +37,7 @@ processors:
                 os.type:
                     enabled: false
 receivers:
-    hostprofiler:
+    profiling:
         symbol_uploader:
             enabled: false
     prometheus/dd-hp-internal:
@@ -51,7 +52,7 @@ receivers:
                     - PrometheusText0.0.4
                   static_configs:
                     - targets:
-                        - 127.0.0.1:8888
+                        - 127.0.0.1:8889
 service:
     pipelines:
         metrics:
@@ -73,4 +74,4 @@ service:
                 - resourcedetection/default
                 - resource/dd-profiler-internal-metadata
             receivers:
-                - hostprofiler
+                - profiling

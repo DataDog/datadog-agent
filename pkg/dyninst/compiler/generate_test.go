@@ -81,19 +81,21 @@ func testCorruptedLocationRecovery(t *testing.T, cfg testprogs.Config) {
 func corruptRegisterPieceSize(t *testing.T, program *ir.Program) bool {
 	t.Helper()
 	for _, probe := range program.Probes {
-		for _, event := range probe.Events {
-			for _, expr := range event.Type.Expressions {
-				for _, op := range expr.Expression.Operations {
-					locOp, ok := op.(*ir.LocationOp)
-					if !ok {
-						continue
-					}
-					for i := range locOp.Variable.Locations {
-						loc := &locOp.Variable.Locations[i]
-						for j := range loc.Pieces {
-							if _, ok := loc.Pieces[j].Op.(ir.Register); ok {
-								loc.Pieces[j].Size = 16
-								return true
+		for _, inst := range probe.Instances {
+			for _, event := range inst.Events {
+				for _, expr := range event.Type.Expressions {
+					for _, op := range expr.Expression.Operations {
+						locOp, ok := op.(*ir.LocationOp)
+						if !ok {
+							continue
+						}
+						for i := range locOp.Variable.Locations {
+							loc := &locOp.Variable.Locations[i]
+							for j := range loc.Pieces {
+								if _, ok := loc.Pieces[j].Op.(ir.Register); ok {
+									loc.Pieces[j].Size = 16
+									return true
+								}
 							}
 						}
 					}

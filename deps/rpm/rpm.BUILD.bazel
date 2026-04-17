@@ -1,5 +1,5 @@
 load("@@//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
-load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
@@ -125,10 +125,10 @@ cc_shared_library(
     name = "rpmio",
     deps = [":librpmio"],
     dynamic_deps = [
-        "@popt//:popt",
-        "@zlib//:z",
-        "@xz//:lzma",
-        "@bzip2//:bz2",
+        "@popt//:popt_pkg",
+        "@zlib//:z_pkg",
+        "@xz//:lzma_pkg",
+        "@bzip2//:bz2_pkg",
         "@openssl//:openssl_shared",
     ],
     user_link_flags = select({
@@ -259,25 +259,11 @@ cc_shared_library(
     name = "rpm",
     deps = [":librpm"],
     dynamic_deps = [
-        ":rpmio",
-        "@sqlite3//:sqlite3",
-        "@popt//:popt",
+        ":rpmio_pkg",
+        "@sqlite3//:sqlite3_pkg",
+        "@popt//:popt_pkg",
     ],
     visibility = ["//visibility:public"],
-)
-
-so_symlink(
-    name = "librpmio_files",
-    src = ":rpmio",
-    libname = "librpmio",
-    version = "9.4.0",
-)
-
-so_symlink(
-    name = "librpm_files",
-    src = ":rpm",
-    libname = "librpm",
-    version = "9.4.0",
 )
 
 dd_agent_expand_template(
@@ -314,12 +300,28 @@ pkg_files(
     prefix = "lib/rpm",
 )
 
+dd_cc_packaged(
+    name = "rpmio_pkg",
+    input = ":rpmio",
+    version = "9.4.0",
+    visibility = ["//visibility:public"],
+)
+
+dd_cc_packaged(
+    name = "rpm_pkg",
+    input = ":rpm",
+    version = "9.4.0",
+    installed_files = [
+        ":hdr_files",
+        ":misc_files",
+    ],
+    visibility = ["//visibility:public"],
+)
+
 pkg_filegroup(
     name = "all_files",
     srcs = [
         ":hdr_files",
-        ":librpmio_files",
-        ":librpm_files",
         ":misc_files",
     ],
     prefix = "embedded",

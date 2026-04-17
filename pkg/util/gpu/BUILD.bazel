@@ -1,0 +1,44 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "gpu",
+    srcs = [
+        "common.go",
+        "doc.go",
+        "nvml.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/gpu",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "@com_github_nvidia_go_nvml//pkg/nvml",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_nvidia_go_nvml//pkg/nvml",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "gpu_test",
+    srcs = [
+        "common_test.go",
+        "nvml_test.go",
+    ],
+    embed = [":gpu"],
+    gotags = ["test"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "@com_github_nvidia_go_nvml//pkg/nvml",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_nvidia_go_nvml//pkg/nvml",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)
