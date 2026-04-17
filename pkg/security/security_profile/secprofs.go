@@ -37,10 +37,10 @@ func (m *Manager) fetchSilentWorkloads() map[cgroupModel.WorkloadSelector][]*tag
 
 	for selector, profile := range m.profiles {
 		if !profile.LoadedInKernel.Load() {
-			profile.InstancesLock.Lock()
+			profile.InstancesLock.RLock()
 			instances := make([]*tags.Workload, len(profile.Instances))
 			copy(instances, profile.Instances)
-			profile.InstancesLock.Unlock()
+			profile.InstancesLock.RUnlock()
 			out[selector] = instances
 		}
 	}
@@ -297,19 +297,22 @@ func (m *Manager) FillProfileContextFromWorkloadID(id containerutils.WorkloadID,
 	defer m.profilesLock.RUnlock()
 
 	for _, profile := range m.profiles {
-		profile.InstancesLock.Lock()
+		profile.InstancesLock.RLock()
 		for _, instance := range profile.Instances {
 			instance.Lock()
 			if instance.GetWorkloadID() == id {
 				ctx.Name = profile.Metadata.Name
 				profileContext, ok := profile.GetVersionContext(imageTag)
-				if ok { // should always be the case
+				if ok {
 					ctx.Tags = profileContext.Tags
 				}
+				instance.Unlock()
+				profile.InstancesLock.RUnlock()
+				return
 			}
 			instance.Unlock()
 		}
-		profile.InstancesLock.Unlock()
+		profile.InstancesLock.RUnlock()
 	}
 }
 
