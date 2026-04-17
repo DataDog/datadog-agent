@@ -232,8 +232,8 @@ func (s *packageDDOTSuite) waitForUnitStableRunning(units ...string) {
 	for _, unit := range units {
 		require.Eventually(s.T(), func() bool {
 			cmd := fmt.Sprintf(
-				`state=$(systemctl show -p SubState --value %[1]s) && `+
-					`enter=$(systemctl show -p ActiveEnterTimestampMonotonic --value %[1]s) && `+
+				`state=$(systemctl show -p SubState %[1]s | cut -d= -f2) && `+
+					`enter=$(systemctl show -p ActiveEnterTimestampMonotonic %[1]s | cut -d= -f2) && `+
 					`now=$(awk '{printf "%%d", $1 * 1000000}' /proc/uptime) && `+
 					`[ "$state" = "running" ] && [ $((now - enter)) -gt %[2]d ]`,
 				unit, int64(minUnitStableDuration/time.Microsecond))
