@@ -118,8 +118,8 @@ func getResults(sess session.Session, requestOids []string, bulkMaxRepetitions u
 			return nil, fetchErr
 		}
 		results = getNextResults
-		if log.ShouldLog(log.DebugLvl) {
-			log.Debugf("fetch column: GetNext results: %v", gosnmplib.PacketAsString(results))
+		if log.ShouldLog(log.TraceLvl) {
+			log.Tracef("fetch column: GetNext results: %v", gosnmplib.PacketAsString(results))
 		}
 	} else {
 		getBulkResults, err := sess.GetBulk(requestOids, bulkMaxRepetitions)
@@ -129,8 +129,8 @@ func getResults(sess session.Session, requestOids []string, bulkMaxRepetitions u
 			return nil, fetchErr
 		}
 		results = getBulkResults
-		if log.ShouldLog(log.DebugLvl) {
-			log.Debugf("fetch column: GetBulk results: %v", gosnmplib.PacketAsString(results))
+		if log.ShouldLog(log.TraceLvl) {
+			log.Tracef("fetch column: GetBulk results: %v", gosnmplib.PacketAsString(results))
 		}
 	}
 	return results, nil
