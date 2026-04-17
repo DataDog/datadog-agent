@@ -1091,7 +1091,7 @@ func TestHandleStats(t *testing.T) {
 		cfg := newTestReceiverConfig()
 		cfg.ReceiverTimeoutDuration = 50 * time.Millisecond
 		rcv := newTestReceiverFromConfig(cfg)
-		mockProcessor := &mockStatsProcessor{processingLantency: 60 * time.Millisecond}
+		mockProcessor := &mockStatsProcessor{processingLantency: 500 * time.Millisecond}
 		rcv.statsProcessor = mockProcessor
 		mux := rcv.buildMux()
 		server := httptest.NewServer(mux)
