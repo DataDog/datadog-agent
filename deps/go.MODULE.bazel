@@ -168,6 +168,7 @@ use_repo(
     "com_github_datadog_datadog_agent_pkg_logs_processor",
     "com_github_datadog_datadog_agent_pkg_logs_sender",
     "com_github_datadog_datadog_agent_pkg_logs_sources",
+    "com_github_datadog_datadog_agent_pkg_logs_status_statusinterface",
     "com_github_datadog_datadog_agent_pkg_logs_status_utils",
     "com_github_datadog_datadog_agent_pkg_logs_types",
     "com_github_datadog_datadog_agent_pkg_logs_util_testutils",

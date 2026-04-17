@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "teststatsd",
+    srcs = ["statsd.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/trace/teststatsd",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_datadog_datadog_go_v5//statsd"],
+)
