@@ -213,7 +213,21 @@ func (p *testPKI) issueClientCert(t *testing.T) (certPath, keyPath string) {
 	return p.issueCert(t, "client", []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth})
 }
 
+// issueExpiredClientCert creates an already-expired client certificate signed
+// by the CA. The cert's NotAfter is in the past.
+func (p *testPKI) issueExpiredClientCert(t *testing.T) (certPath, keyPath string) {
+	t.Helper()
+	return p.issueCertWithValidity(t, "expired-client", []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+		time.Now().Add(-2*time.Hour), time.Now().Add(-time.Hour))
+}
+
 func (p *testPKI) issueCert(t *testing.T, prefix string, extKeyUsage []x509.ExtKeyUsage) (certPath, keyPath string) {
+	t.Helper()
+	return p.issueCertWithValidity(t, prefix, extKeyUsage,
+		time.Now().Add(-time.Hour), time.Now().Add(time.Hour))
+}
+
+func (p *testPKI) issueCertWithValidity(t *testing.T, prefix string, extKeyUsage []x509.ExtKeyUsage, notBefore, notAfter time.Time) (certPath, keyPath string) {
 	t.Helper()
 	p.serialNo++
 
@@ -223,8 +237,8 @@ func (p *testPKI) issueCert(t *testing.T, prefix string, extKeyUsage []x509.ExtK
 	template := &x509.Certificate{
 		SerialNumber: big.NewInt(p.serialNo),
 		Subject:      pkix.Name{CommonName: prefix},
-		NotBefore:    time.Now().Add(-time.Hour),
-		NotAfter:     time.Now().Add(time.Hour),
+		NotBefore:    notBefore,
+		NotAfter:     notAfter,
 		KeyUsage:     x509.KeyUsageDigitalSignature,
 		ExtKeyUsage:  extKeyUsage,
 		IPAddresses:  []net.IP{net.IPv4(127, 0, 0, 1)},
@@ -616,6 +630,56 @@ func TestTCPMTLSOptionalAcceptsNoClientCert(t *testing.T) {
 	fmt.Fprint(conn, "optional no cert\n")
 	msg := <-msgChan
 	assert.Equal(t, "optional no cert", string(msg.GetContent()))
+
+	listener.Stop()
+}
+
+func TestTCPMTLSRejectsExpiredClientCert(t *testing.T) {
+	pki := generateTestPKI(t)
+	serverCert, serverKey := pki.issueServerCert(t)
+	expiredCert, expiredKey := pki.issueExpiredClientCert(t)
+
+	pp := mock.NewMockProvider()
+
+	src := sources.NewLogSource("", &config.LogsConfig{
+		Port: tcpTestPort,
+		TLS: &config.TLSListenerConfig{
+			CertFile:   serverCert,
+			KeyFile:    serverKey,
+			CAFile:     pki.caPath,
+			ClientAuth: "required",
+		},
+	})
+
+	listener, err := NewTCPListener(pp, src, 9000)
+	require.NoError(t, err)
+	listener.Start()
+	require.NotNil(t, listener.listener)
+
+	clientTLSCert, err := tls.LoadX509KeyPair(expiredCert, expiredKey)
+	require.NoError(t, err)
+
+	conn, dialErr := tls.Dial("tcp", listener.listener.Addr().String(), &tls.Config{
+		InsecureSkipVerify: true, //nolint:gosec
+		Certificates:       []tls.Certificate{clientTLSCert},
+	})
+
+	if dialErr != nil {
+		assert.Contains(t, dialErr.Error(), "expired")
+	} else {
+		// TLS 1.3: server rejects after handshake; error surfaces on I/O.
+		defer conn.Close()
+		conn.SetDeadline(time.Now().Add(2 * time.Second)) //nolint:errcheck
+		_, writeErr := fmt.Fprint(conn, "should fail\n")
+		if writeErr == nil {
+			buf := make([]byte, 1)
+			_, readErr := conn.Read(buf)
+			require.Error(t, readErr, "server should reject expired client certificate")
+		}
+	}
+
+	time.Sleep(200 * time.Millisecond)
+	assert.Equal(t, 0, len(listener.tailers), "no tailer should exist for an expired client cert")
 
 	listener.Stop()
 }

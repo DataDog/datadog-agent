@@ -9,6 +9,8 @@ package nvidia
 
 import (
 	"fmt"
+	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
@@ -17,6 +19,17 @@ import (
 // SetStatsForTest replaces the cached stats. Intended for testing only.
 func (c *SystemProbeCache) SetStatsForTest(stats *model.GPUStats) {
 	c.stats = stats
+}
+
+// WithDeviceEventsSetWaitTimeoutForTest temporarily overrides the event wait
+// timeout used by the async gatherer worker, restoring the previous value on cleanup.
+func WithDeviceEventsSetWaitTimeoutForTest(t testing.TB, timeout time.Duration) {
+	t.Helper()
+	prev := eventSetWaitTimeout
+	eventSetWaitTimeout = timeout
+	t.Cleanup(func() {
+		eventSetWaitTimeout = prev
+	})
 }
 
 // InjectEventsForTest pushes events directly into the pending queue for a registered device.

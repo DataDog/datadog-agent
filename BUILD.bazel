@@ -15,21 +15,7 @@ exports_files(glob(
     allow_empty = True,
 ))
 
-# The list of go tags to be used by gazelle (keep in sync with conditional //go:build tags in migrated trees, e.g. pkg/util/kubernetes).
-ALL_BUILD_TAGS = [
-    "clusterchecks",
-    "docker",
-    "kubeapiserver",
-    "kubelet",
-    "local_debug",
-    "orchestrator",
-    "otlp",
-    "podman",
-    "seclmax",
-    "serverless",
-    "test",
-    "trivy",
-]
+# gazelle:proto disable
 
 # TODO(agent-build): remove below `gazelle:exclude` directives (automatically updates @bazelify_go_work//:go.work)
 # gazelle:exclude cmd
@@ -60,32 +46,25 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/core/healthprobe
 # gazelle:exclude comp/core/hostname/hostnameimpl
 # gazelle:exclude comp/core/hostname/remotehostnameimpl
-# gazelle:exclude comp/core/ipc
 # gazelle:exclude comp/core/ipc/fx
 # gazelle:exclude comp/core/ipc/fx-none
-# gazelle:exclude comp/core/ipc/httphelpers
 # gazelle:exclude comp/core/ipc/impl
 # gazelle:exclude comp/core/ipc/impl-none
 # gazelle:exclude comp/core/ipc/mock
 # gazelle:exclude comp/core/log/fx
 # gazelle:exclude comp/core/log/fx-systemprobe
 # gazelle:exclude comp/core/log/fx-trace
-# gazelle:exclude comp/core/log/impl
 # gazelle:exclude comp/core/log/impl-systemprobe
-# gazelle:exclude comp/core/log/impl-trace
 # gazelle:exclude comp/core/log/rust
 # gazelle:exclude comp/core/profiler
 # gazelle:exclude comp/core/remoteagent
 # gazelle:exclude comp/core/remoteagentregistry
-# gazelle:exclude comp/core/secrets/fx
 # gazelle:exclude comp/core/secrets/fx-noop
 # gazelle:exclude comp/core/settings
-# gazelle:exclude comp/core/status/statusimpl
 # gazelle:exclude comp/core/sysprobeconfig
 # gazelle:exclude comp/core/tagger/api
 # gazelle:exclude comp/core/tagger/collectors
 # gazelle:exclude comp/core/tagger/common
-# gazelle:exclude comp/core/tagger/def
 # gazelle:exclude comp/core/tagger/fx
 # gazelle:exclude comp/core/tagger/fx-dual
 # gazelle:exclude comp/core/tagger/fx-mock
@@ -135,7 +114,7 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/logonduration/fx
 # gazelle:exclude comp/logonduration/impl
 # gazelle:exclude comp/logs
-# gazelle:exclude comp/logs-library
+# gazelle:exclude comp/logs-library/pipeline
 # gazelle:exclude comp/metadata
 # gazelle:exclude comp/ndmtmp
 # gazelle:exclude comp/netflow/config
@@ -150,12 +129,12 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/networkpath
 # gazelle:exclude comp/notableevents/fx
 # gazelle:exclude comp/notableevents/impl
+# gazelle:exclude comp/offlinereporter
 # gazelle:exclude comp/otelcol/collector
 # gazelle:exclude comp/otelcol/collector-contrib/fx
 # gazelle:exclude comp/otelcol/collector-contrib/impl
 # gazelle:exclude comp/otelcol/converter/examples
 # gazelle:exclude comp/otelcol/converter/fx
-# gazelle:exclude comp/otelcol/converter/impl
 # gazelle:exclude comp/otelcol/ddflareextension/fx
 # gazelle:exclude comp/otelcol/ddflareextension/image
 # gazelle:exclude comp/otelcol/ddflareextension/impl
@@ -164,7 +143,14 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude comp/otelcol/dogtelextension/fx
 # gazelle:exclude comp/otelcol/dogtelextension/impl
 # gazelle:exclude comp/otelcol/logsagentpipeline
-# gazelle:exclude comp/otelcol/otlp
+# gazelle:exclude comp/otelcol/otlp/components/exporter
+# gazelle:exclude comp/otelcol/otlp/components/processor
+# gazelle:exclude comp/otelcol/otlp/configcheck
+# gazelle:exclude comp/otelcol/otlp/datatype
+# gazelle:exclude comp/otelcol/otlp/integrationtest
+# gazelle:exclude comp/otelcol/otlp/internal
+# gazelle:exclude comp/otelcol/otlp/testdata
+# gazelle:exclude comp/otelcol/otlp/testutil
 # gazelle:exclude comp/otelcol/status/fx
 # gazelle:exclude comp/otelcol/status/impl
 # gazelle:exclude comp/privateactionrunner/fx
@@ -416,14 +402,11 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/trace/pb
 # gazelle:exclude pkg/trace/remoteconfighandler
 # gazelle:exclude pkg/trace/telemetry
-# gazelle:exclude pkg/trace/teststatsd
 # gazelle:exclude pkg/trace/testutil
-# gazelle:exclude pkg/trace/timing
 # gazelle:exclude pkg/trace/transform
 # gazelle:exclude pkg/trace/writer
 # gazelle:exclude pkg/util/cloudproviders
 # gazelle:exclude pkg/util/clusteragent
-# gazelle:exclude pkg/util/compression
 # gazelle:exclude pkg/util/containerd
 # gazelle:exclude pkg/util/containers/cri
 # gazelle:exclude pkg/util/containers/metadata
@@ -445,7 +428,6 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude pkg/util/kubernetes/kubelet
 # gazelle:exclude pkg/util/kubernetes/apiserver/controllers
 # gazelle:exclude pkg/util/kubernetes/apiserver/leaderelection
-# gazelle:exclude pkg/util/log/setup
 # gazelle:exclude pkg/util/os
 # gazelle:exclude pkg/util/port
 # gazelle:exclude pkg/util/profiling
@@ -464,9 +446,64 @@ ALL_BUILD_TAGS = [
 # gazelle:exclude tools/host-profiler
 # gazelle:exclude tools/retry_file_dump
 # gazelle:exclude tools/windows
+
+# All custom build tags from tasks/build_tags.py ALL_TAGS, plus "test".
+# "test" is included so Gazelle analyzes test-only sources and generates their
+# deps. The go_build_tags Gazelle extension removes those files from go_library
+# and moves them into go_test targets; their deps remain in go_library (harmless
+# extra) and are accessible to go_test via embedding.
+_GAZELLE_BUILD_TAGS = [
+    "bundle_installer",
+    "cel",
+    "clusterchecks",
+    "consul",
+    "containerd",
+    "cri",
+    "crio",
+    "cws_instrumentation_injector_only",
+    "datadog.no_waf",
+    "docker",
+    "ec2",
+    "etcd",
+    "fargateprocess",
+    "goexperiment.systemcrypto",
+    "grpcnotrace",
+    "jetson",
+    "jmx",
+    "kubeapiserver",
+    "kubelet",
+    "linux_bpf",
+    "ncm",
+    "netcgo",
+    "netgo",
+    "no_dynamic_plugins",
+    "npm",
+    "nvml",
+    "oracle",
+    "orchestrator",
+    "osusergo",
+    "otlp",
+    "podman",
+    "python",
+    "requirefips",
+    "retrynotrace",
+    "seclmax",
+    "serverless",
+    "sharedlibrarycheck",
+    "systemd",
+    "systemprobechecks",
+    "test",
+    "trivy",
+    "trivy_no_javadb",
+    "wmi",
+    "zk",
+    "zlib",
+    "zstd",
+]
+
 gazelle(
     name = "gazelle",
-    build_tags = ALL_BUILD_TAGS,
+    build_tags = _GAZELLE_BUILD_TAGS,
     external = "static",  # don't use the network: https://github.com/bazel-contrib/bazel-gazelle/issues/1385
     extra_args = [
         "-build_file_name=BUILD.bazel",  # avoid BUILD/build mess: https://github.com/docker/desktop-feedback/issues/251
@@ -479,6 +516,7 @@ gazelle(
 gazelle_binary(
     name = "gazelle_binary",
     languages = DEFAULT_LANGUAGES + [
+        "//bazel/rules/go_build_tags:gazelle_extension",
         "//bazel/rules/go_stringer:gazelle_extension",
     ],
 )

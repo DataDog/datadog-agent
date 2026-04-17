@@ -47,7 +47,6 @@ const (
 )
 
 const (
-	apiHTTPHeaderKey          = "DD-Api-Key"
 	versionHTTPHeaderKey      = "DD-Agent-Version"
 	useragentHTTPHeaderKey    = "User-Agent"
 	arbitraryTagHTTPHeaderKey = "Allow-Arbitrary-Tag-Value"
@@ -541,7 +540,7 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.E
 				continue
 			}
 
-			for _, auth := range dr.GetAuthorizers() {
+			for idx := range dr.GetAuthorizers() {
 				t := transaction.NewHTTPTransaction()
 				t.Domain = drDomain
 				t.Endpoint = endpoint
@@ -550,7 +549,8 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.E
 				t.Kind = kind
 				t.StorableOnDisk = storableOnDisk
 				t.Destination = payload.Destination
-				auth.Authorize(t)
+				t.APIKeyIndex = uint(idx)
+				t.Resolver = dr
 				t.Headers.Set(versionHTTPHeaderKey, version.AgentVersion)
 				t.Headers.Set(useragentHTTPHeaderKey, "datadog-agent/"+version.AgentVersion)
 				if allowArbitraryTags {
