@@ -122,8 +122,6 @@ components_classic_style = [
     'comp/core/settings/settingsimpl',
     'comp/core/status/statusimpl',
     'comp/core/sysprobeconfig/sysprobeconfigimpl',
-    'comp/core/telemetry/telemetryimpl',
-    'comp/core/telemetry/noopsimpl',
     'comp/dogstatsd/pidmap/pidmapimpl',
     'comp/dogstatsd/serverDebug/serverdebugimpl',
     'comp/dogstatsd/status/statusimpl',
