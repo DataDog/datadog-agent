@@ -59,6 +59,7 @@ default/dpa-0
 Creation Timestamp: 0001-01-01 00:00:00 +0000 UTC
 Generation: 1
 Settings Timestamp: 0001-01-01 00:00:00 +0000 UTC
+Burstable: false
 
 ----------- PodAutoscaler Spec -----------
 Target Ref: {Deployment app-0 apps/v1}
