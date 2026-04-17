@@ -56,6 +56,7 @@ func computeValidation(apiKey, appKey, site string, lookbackSeconds int64) (orgV
 func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpuspec.GPUConfig, fromTS, toTS int64) (gpuConfigValidationResult, error) {
 	result := gpuConfigValidationResult{
 		Config: config,
+		State:  validationStateMissing,
 	}
 
 	expectedMetricsMap := gpuspec.ExpectedMetricsForConfig(specs, config)
