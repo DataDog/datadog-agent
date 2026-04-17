@@ -7,7 +7,6 @@ package rcprotocoltestimpl
 
 import (
 	"context"
-	"path"
 	"strconv"
 	"time"
 
@@ -31,7 +30,7 @@ type GrpcPingPonger struct {
 // NewGrpcPingPonger connects to the RC gRPC echo endpoint and returns a
 // GrpcPingPonger ready to exchange frames.
 func NewGrpcPingPonger(ctx context.Context, httpClient *api.HTTPClient, runCount uint64) (*GrpcPingPonger, error) {
-	conn, meta, err := newGrpcClient(ctx, "/api/v0.2/echo-test-grpc", httpClient)
+	conn, meta, err := newGrpcClient(ctx, httpClient)
 	if err != nil {
 		return nil, err
 	}
@@ -85,10 +84,7 @@ func (g *GrpcPingPonger) GracefulClose() {
 
 // newGrpcClient connects to the RC gRPC backend and returns a new connection
 // and the metadata to attach to the outgoing stream.
-//
-// The "endpointPath" specifies the resource path to connect to, which is
-// appended to the client baseURL.
-func newGrpcClient(_ context.Context, endpointPath string, httpClient *api.HTTPClient) (*grpc.ClientConn, metadata.MD, error) {
+func newGrpcClient(_ context.Context, httpClient *api.HTTPClient) (*grpc.ClientConn, metadata.MD, error) {
 	// Extract the TLS & Proxy configuration from the HTTP client.
 	transport, err := httpClient.Transport()
 	if err != nil {
@@ -100,8 +96,6 @@ func newGrpcClient(_ context.Context, endpointPath string, httpClient *api.HTTPC
 	if err != nil {
 		return nil, nil, err
 	}
-	// Append the specific path to the API resource.
-	url.Path = path.Join(url.Path, endpointPath)
 
 	// The request MUST include the same auth credentials as the plain HTTP
 	// requests.
@@ -111,10 +105,14 @@ func newGrpcClient(_ context.Context, endpointPath string, httpClient *api.HTTPC
 		meta[k] = v
 	}
 
-	log.Debugf("connecting to grpc endpoint %s", url.String())
+	// grpc.NewClient expects an authority (host or host:port), not a full
+	// URL.  The RPC method path (/datadog.config.RcEcho/RunEchoTest) is
+	// determined by the generated protobuf code.
+	target := url.Host
+	log.Debugf("connecting to grpc endpoint %s", target)
 
 	conn, err := grpc.NewClient(
-		url.String(),
+		target,
 		// Copy the User-Agent header to propagate the agent version.
 		grpc.WithUserAgent(headers.Get("User-Agent")),
 		// Respect any user-provided TLS config.
