@@ -9,6 +9,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"maps"
 	"sync"
 	"time"
 
@@ -61,7 +62,12 @@ func validateGPUConfig(client *metricsClient, metricsSpec *gpuspec.MetricsSpec, 
 		Config: config,
 	}
 
-	expectedMetricsMap := gpuspec.ExpectedMetricsForConfig(metricsSpec, config)
+	// We still query all tags and metrics, even if they're workload only and some live hosts won't have them.
+	// The relaxation happens in the render phase, where metrics/tags that are sometimes missing will not be reported
+	// as errors if they're workload-only.
+	expectedMetricsMap := gpuspec.ExpectedMetricsForConfig(metricsSpec, config, gpuspec.ValidationOptions{
+		WorkloadActive: true,
+	})
 
 	var err error
 	result.DeviceCount, err = client.queryDeviceCount(config, fromTS, toTS)
@@ -73,28 +79,23 @@ func validateGPUConfig(client *metricsClient, metricsSpec *gpuspec.MetricsSpec, 
 		result.State = validationStateMissing
 		return result, nil
 	}
-
-	expectedTagsByMetric, err := gpuspec.RequiredTagsByMetric(metricsSpec, expectedMetricsMap)
-	if err != nil {
-		return result, fmt.Errorf("derive required tags for %+v: %w", config, err)
-	}
-
 	observations := make(map[string][]gpuspec.MetricObservation, len(expectedMetricsMap))
-	expectedMetricNames := make([]string, 0, len(expectedMetricsMap))
-	for metricName := range expectedMetricsMap {
-		expectedMetricNames = append(expectedMetricNames, metricName)
-	}
 
 	var mu sync.Mutex
 	var group errgroup.Group
 	group.SetLimit(metricQueryConcurrency)
 
-	for _, metricName := range expectedMetricNames {
-		metricName := metricName
+	for metricName, metricSpec := range expectedMetricsMap {
 		group.Go(func() error {
 			prefixedMetricName := gpuspec.PrefixedMetricName(metricsSpec, metricName)
-			validatesValues := expectedMetricsMap[metricName].Validator != nil
-			metricObservations, err := client.queryExpectedMetricPresenceForGPUConfig(prefixedMetricName, expectedTagsByMetric[metricName], config.TagFilter(), fromTS, toTS, validatesValues)
+			validatesValues := metricSpec.Validator != nil
+			requiredTags, workloadOnlyTags, err := gpuspec.RequiredTagsForMetric(metricsSpec, metricSpec)
+			if err != nil {
+				return fmt.Errorf("derive required tags for %+v: %w", config, err)
+			}
+
+			maps.Copy(requiredTags, workloadOnlyTags) // include workload tags as required for the tag validation
+			metricObservations, err := client.queryExpectedMetricPresenceForGPUConfig(prefixedMetricName, requiredTags, config.TagFilter(), fromTS, toTS, validatesValues)
 			if err != nil {
 				return fmt.Errorf("query expected metric presence for %s: %w", metricName, err)
 			}
@@ -123,7 +124,9 @@ func validateGPUConfig(client *metricsClient, metricsSpec *gpuspec.MetricsSpec, 
 		}
 	}
 
-	result.DetailedResult, err = gpuspec.ValidateEmittedMetricsAgainstSpec(metricsSpec, config, observations, nil)
+	result.DetailedResult, err = gpuspec.ValidateEmittedMetricsAgainstSpec(metricsSpec, config, observations, nil, gpuspec.ValidationOptions{
+		WorkloadActive: true,
+	})
 	if err != nil {
 		return result, fmt.Errorf("validate observations for %+v: %w", config, err)
 	}
