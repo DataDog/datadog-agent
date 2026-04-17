@@ -1,0 +1,124 @@
+From 3e1264e8cd793b0851bca23f36c17a5fe3317462 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Hugo=20Beauz=C3=A9e-Luyssen?= <hugo@beauzee.fr>
+Date: Thu, 16 Apr 2026 16:20:52 +0200
+Subject: [PATCH] add --runtime-openssldir and --runtime-dir configure
+ parameters
+
+These allow decoupling the paths baked into the C binary from the
+installation prefix used at build time.  The usecase is building OpenSSL
+with Bazel: the sandbox prefix is a temporary directory, so OPENSSLDIR,
+ENGINESDIR, and MODULESDIR would otherwise point at paths that no longer
+exist at runtime.
+
+The new options keep the Makefile's OPENSSLDIR / ENGINESDIR / MODULESDIR
+unchanged (so `make install` still creates directories under the sandbox
+prefix) while routing new RUNTIME_* variants into the -D compile flags
+that get baked into the binary.
+
+Passing only --openssldir / --libdir continues to work exactly as before.
+---
+ Configurations/unix-Makefile.tmpl | 30 +++++++++++++++++++++++++++---
+ Configure                         | 25 +++++++++++++++++++++++++
+ 2 files changed, 52 insertions(+), 3 deletions(-)
+
+diff --git a/Configurations/unix-Makefile.tmpl b/Configurations/unix-Makefile.tmpl
+index 5bf397eba0..49c3b026bb 100644
+--- a/Configurations/unix-Makefile.tmpl
++++ b/Configurations/unix-Makefile.tmpl
+@@ -326,6 +326,18 @@ OPENSSLDIR={- #
+                            : catdir($prefix, $config{openssldir}))
+                       : catdir($prefix, "ssl");
+               $openssldir -}
++RUNTIME_OPENSSLDIR={- # RUNTIME_OPENSSLDIR: the OPENSSLDIR path baked into the C binary.
++                      # When --runtime-openssldir is given at configure time this can
++                      # differ from OPENSSLDIR (which is used only for `make install`),
++                      # allowing the binary to locate its config files at the real
++                      # system path even when built inside a sandbox (e.g. Bazel).
++                      our $runtime_openssldir =
++                          $config{runtime_openssldir} ?
++                              (file_name_is_absolute($config{runtime_openssldir}) ?
++                                   $config{runtime_openssldir}
++                                   : catdir($prefix, $config{runtime_openssldir}))
++                              : $openssldir;
++                      $runtime_openssldir -}
+ LIBDIR={- our $libdir = $config{libdir};
+           unless ($libdir) {
+               $libdir = "lib$target{multilib}";
+@@ -336,6 +348,18 @@ libdir={- file_name_is_absolute($libdir)
+           ? $libdir : '$(INSTALLTOP)/$(LIBDIR)' -}
+ ENGINESDIR=$(libdir)/engines-{- $sover_dirname -}
+ MODULESDIR=$(libdir)/ossl-modules
++# RUNTIMEDIR / runtimedir: base directory for runtime-loaded components.
++# Defaults to libdir but can be overridden with --runtime-dir at configure
++# time to decouple the C-binary's engine/module search path from the
++# installation prefix (e.g. when building inside a sandbox such as Bazel).
++# ENGINESDIR / MODULESDIR above are still used for `make install`; these
++# RUNTIME_* variants are only passed as -D flags to the C compiler.
++RUNTIMEDIR={- our $runtime_dir = $config{runtime_dir} || $libdir;
++               file_name_is_absolute($runtime_dir) ? "" : $runtime_dir -}
++runtimedir={- file_name_is_absolute($runtime_dir)
++               ? $runtime_dir : '$(INSTALLTOP)/$(RUNTIMEDIR)' -}
++RUNTIME_ENGINESDIR=$(runtimedir)/engines-{- $sover_dirname -}
++RUNTIME_MODULESDIR=$(runtimedir)/ossl-modules
+ 
+ # Convenience variable for those who want to set the rpath in shared
+ # libraries and applications
+@@ -450,9 +474,9 @@ LIB_CPPFLAGS={- our $lib_cppflags =
+                           @{$config{shared_cppflag}});
+                 join(' ', $lib_cppflags,
+                           (map { '-D'.$_ }
+-                               'OPENSSLDIR="\"$(OPENSSLDIR)\""',
+-                               'ENGINESDIR="\"$(ENGINESDIR)\""',
+-                               'MODULESDIR="\"$(MODULESDIR)\""'),
++                               'OPENSSLDIR="\"$(RUNTIME_OPENSSLDIR)\""',
++                               'ENGINESDIR="\"$(RUNTIME_ENGINESDIR)\""',
++                               'MODULESDIR="\"$(RUNTIME_MODULESDIR)\""'),
+                           '$(CNF_CPPFLAGS)', '$(CPPFLAGS)') -}
+ LIB_CFLAGS={- join(' ', $target{lib_cflags} || (),
+                         $target{shared_cflag} || (),
+diff --git a/Configure b/Configure
+index 499585438a..039340dc73 100755
+--- a/Configure
++++ b/Configure
+@@ -61,6 +61,23 @@ EOF
+ #               given with --prefix.
+ #               This becomes the value of OPENSSLDIR in Makefile and in C.
+ #               (Default: PREFIX/ssl)
++# --runtime-openssldir
++#               Runtime path for OpenSSL configuration files (openssl.cnf,
++#               certs/, etc.).  Sets OPENSSLDIR in the C binary only; the
++#               Makefile's OPENSSLDIR (used for `make install`) is still
++#               derived from --openssldir / PREFIX/ssl.  Useful when the
++#               build prefix is inside a sandbox (e.g. Bazel) but config
++#               files must be found at the real system path at runtime.
++#               Follows the same absolute/relative rules as --openssldir.
++#               (Default: same as OPENSSLDIR)
++# --runtime-dir Base directory for runtime-loaded components (engines/modules).
++#               Used to compute ENGINESDIR and MODULESDIR instead of the
++#               install libdir.  If it's an absolute path it is used as-is;
++#               if relative it is interpreted relative to PREFIX.  Useful when
++#               the build prefix lives inside a sandbox (e.g. Bazel) but the
++#               engines and modules must be found at the real system path at
++#               runtime.
++#               (Default: same as libdir)
+ # --banner=".." Output specified text instead of default completion banner
+ #
+ # -w            Don't wait after showing a Configure warning
+@@ -1046,6 +1063,14 @@ while (@argvcopy)
+                         {
+                         $config{openssldir}=$1;
+                         }
++                elsif (/^--runtime-openssldir=(.*)$/)
++                        {
++                        $config{runtime_openssldir}=$1;
++                        }
++                elsif (/^--runtime-dir=(.*)$/)
++                        {
++                        $config{runtime_dir}=$1;
++                        }
+                 elsif (/^--with-jitter-include=(.*)$/)
+                         {
+                         $withargs{jitter_include}=$1;
+-- 
+2.43.0
+
