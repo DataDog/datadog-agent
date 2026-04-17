@@ -13,11 +13,10 @@ import (
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/dynamic/dynamicinformer"
+	"k8s.io/client-go/metadata"
+	"k8s.io/client-go/metadata/metadatainformer"
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
@@ -32,6 +31,19 @@ const (
 	noResync      = 0
 )
 
+var namespaceGVR = schema.GroupVersionResource{Group: "", Version: "v1", Resource: "namespaces"}
+
+// workloadRefsByProfile maps profile name to the list of workload references
+// assigned to it. It is the return type of scanWorkloads.
+type workloadRefsByProfile map[string][]model.NamespacedObjectReference
+
+// Add merges all entries from other into w.
+func (w workloadRefsByProfile) Add(other workloadRefsByProfile) {
+	for profile, refs := range other {
+		w[profile] = append(w[profile], refs...)
+	}
+}
+
 // workloadInformer holds the informer state for a single workload resource.
 type workloadInformer struct {
 	gvkr   GroupVersionKindResource
@@ -39,48 +51,65 @@ type workloadInformer struct {
 	synced cache.InformerSynced
 }
 
-// WorkloadWatcher watches Kubernetes workloads for the profile label and
-// updates PodAutoscalerProfileInternal entries in the profile store with the
-// discovered workload references. The ProfileController reacts to those
-// updates and manages the DPA store entries.
+// WorkloadWatcher watches Kubernetes workloads and namespaces for the profile
+// label and updates PodAutoscalerProfileInternal entries in the profile store
+// with the discovered workload references. A single metadata-only informer
+// factory covers both workload resources and namespaces. Workload-level labels
+// take precedence over namespace-level labels. The ProfileController reacts to
+// those updates and manages the DPA store entries.
 type WorkloadWatcher struct {
-	profileStore *autoscaling.Store[model.PodAutoscalerProfileInternal]
-	isLeader     func() bool
+	profileStore      *autoscaling.Store[model.PodAutoscalerProfileInternal]
+	isLeader          func() bool
+	workloadResources []GroupVersionKindResource
 
-	informerFactory dynamicinformer.DynamicSharedInformerFactory
-	informers       []workloadInformer
+	informerFactory   metadatainformer.SharedInformerFactory
+	nsInformerFactory metadatainformer.SharedInformerFactory
+	informers         []workloadInformer
+
+	nsLister cache.GenericLister
+	nsSynced cache.InformerSynced
+
+	// profileControllerSynced must return true before the first reconcile, ensuring
+	// the profile store is populated before workload references are computed.
+	profileControllerSynced cache.InformerSynced
 
 	refreshPeriod time.Duration
 
 	hasSynced atomic.Bool
 }
 
-// NewWorkloadWatcher creates a new WorkloadWatcher. It creates a label-filtered
-// informer factory that only watches workloads with the profile label.
+// NewWorkloadWatcher creates a new WorkloadWatcher. It creates an unfiltered
+// metadata-only informer factory that watches all workload resources and
+// namespaces in the cluster. profileControllerSynced is waited on before the
+// first reconcile to ensure the profile store is populated.
 func NewWorkloadWatcher(
 	profileStore *autoscaling.Store[model.PodAutoscalerProfileInternal],
 	isLeader func() bool,
-	dynamicClient dynamic.Interface,
+	metadataClient metadata.Interface,
 	workloadResources []GroupVersionKindResource,
+	profileControllerSynced cache.InformerSynced,
 ) *WorkloadWatcher {
-	filteredFactory := dynamicinformer.NewFilteredDynamicSharedInformerFactory(
-		dynamicClient,
-		noResync,
-		metav1.NamespaceAll,
-		func(opts *metav1.ListOptions) {
-			opts.LabelSelector = model.ProfileLabelKey
-		},
-	)
+	factory := metadatainformer.NewSharedInformerFactory(metadataClient, noResync)
+
+	nsFactory := metadatainformer.NewFilteredSharedInformerFactory(metadataClient, noResync, metav1.NamespaceAll, func(opts *metav1.ListOptions) {
+		opts.LabelSelector = model.ProfileLabelKey
+	})
+	nsInformer := nsFactory.ForResource(namespaceGVR)
 
 	w := &WorkloadWatcher{
-		profileStore:    profileStore,
-		isLeader:        isLeader,
-		informerFactory: filteredFactory,
-		refreshPeriod:   refreshPeriod,
+		profileStore:            profileStore,
+		isLeader:                isLeader,
+		workloadResources:       workloadResources,
+		informerFactory:         factory,
+		nsInformerFactory:       nsFactory,
+		nsLister:                nsInformer.Lister(),
+		nsSynced:                nsInformer.Informer().HasSynced,
+		profileControllerSynced: profileControllerSynced,
+		refreshPeriod:           refreshPeriod,
 	}
 
 	for _, resource := range workloadResources {
-		inf := filteredFactory.ForResource(resource.GroupVersionResource)
+		inf := factory.ForResource(resource.GroupVersionResource)
 		w.informers = append(w.informers, workloadInformer{
 			gvkr:   resource,
 			lister: inf.Lister(),
@@ -102,13 +131,16 @@ func (w *WorkloadWatcher) HasSynced() bool {
 func (w *WorkloadWatcher) Run(ctx context.Context) {
 	log.Info("Starting workload watcher")
 	w.informerFactory.Start(ctx.Done())
+	w.nsInformerFactory.Start(ctx.Done())
 
-	syncFuncs := make([]cache.InformerSynced, 0, len(w.informers))
+	syncFuncs := make([]cache.InformerSynced, 0, len(w.informers)+2)
 	for _, inf := range w.informers {
 		syncFuncs = append(syncFuncs, inf.synced)
 	}
+	syncFuncs = append(syncFuncs, w.nsSynced)
+	syncFuncs = append(syncFuncs, w.profileControllerSynced)
 	if !cache.WaitForCacheSync(ctx.Done(), syncFuncs...) {
-		log.Error("Failed to sync informer caches")
+		log.Error("Failed to sync workload watcher caches")
 		return
 	}
 
@@ -132,12 +164,15 @@ func (w *WorkloadWatcher) Run(ctx context.Context) {
 	}
 }
 
-// reconcile scans all labeled workloads, groups them by profile name, and
-// updates the profile store with the discovered workload references.
+// reconcile scans all workloads, groups them by profile name using both
+// workload-level and namespace-level labels, and updates the profile store
+// with the discovered workload references.
 func (w *WorkloadWatcher) reconcile() {
-	workloadRefs := make(map[string][]model.NamespacedObjectReference)
+	labeledNamespaces := w.buildLabeledNamespaces()
+
+	workloadRefs := make(workloadRefsByProfile)
 	for _, inf := range w.informers {
-		w.scanWorkloads(inf.gvkr, inf.lister, workloadRefs)
+		workloadRefs.Add(w.scanWorkloads(inf.gvkr, inf.lister, labeledNamespaces))
 	}
 
 	w.profileStore.Update(func(pi model.PodAutoscalerProfileInternal) (model.PodAutoscalerProfileInternal, bool) {
@@ -146,45 +181,102 @@ func (w *WorkloadWatcher) reconcile() {
 	}, workloadWatcherStoreID)
 }
 
-// scanWorkloads iterates over workloads of a given kind and extracts those with
-// a profile label, grouping the results by profile name.
+// buildLabeledNamespaces returns a map of namespace name → profile name for
+// all namespaces that have the profile label and whose profile exists in the
+// profile store.
+func (w *WorkloadWatcher) buildLabeledNamespaces() map[string]string {
+	labeledNamespaces := make(map[string]string)
+
+	nsList, err := w.nsLister.List(labels.Everything())
+	if err != nil {
+		log.Debugf("Failed to list namespaces: %v", err)
+		return labeledNamespaces
+	}
+
+	for _, obj := range nsList {
+		nsMeta, ok := obj.(*metav1.PartialObjectMetadata)
+		if !ok {
+			continue
+		}
+		profileName := nsMeta.Labels[model.ProfileLabelKey]
+		if profileName == "" {
+			continue
+		}
+		if _, ok := w.profileStore.Get(profileName); !ok {
+			log.Debugf("Profile %s referenced by namespace %s not found, skipping", profileName, nsMeta.Name)
+			continue
+		}
+		labeledNamespaces[nsMeta.Name] = profileName
+	}
+	return labeledNamespaces
+}
+
+// scanWorkloads iterates over all workloads of a given kind, resolves the
+// profile for each one, and returns the resulting workloadRefsByProfile.
+// A workload with the profile label is assigned directly (workload-level).
+// Otherwise, if the workload's namespace carries the profile label, it is
+// assigned via namespace-level (unless opted out with profile=excluded).
+// Workload-level labels take precedence.
 func (w *WorkloadWatcher) scanWorkloads(
 	gvkr GroupVersionKindResource,
 	lister cache.GenericLister,
-	workloadRefs map[string][]model.NamespacedObjectReference,
-) {
-	// Informers already filtered by the label selector, so we can just list all objects.
+	labeledNamespaces map[string]string,
+) workloadRefsByProfile {
+	result := make(workloadRefsByProfile)
+
 	objects, err := lister.List(labels.Everything())
 	if err != nil {
 		log.Debugf("Failed to list objects %s, err: %v", gvkr.GroupVersionResource.String(), err)
-		return
+		return result
 	}
 
 	for _, obj := range objects {
-		// We're only using dynamic client
-		unstructuredObj, ok := obj.(*unstructured.Unstructured)
+		objMeta, ok := obj.(*metav1.PartialObjectMetadata)
 		if !ok {
 			continue
 		}
 
-		profileName, ok := unstructuredObj.GetLabels()[model.ProfileLabelKey]
-		if !ok || profileName == "" {
+		profileName, ok := w.resolveProfile(gvkr, objMeta, labeledNamespaces)
+		if !ok {
 			continue
 		}
 
-		if _, ok := w.profileStore.Get(profileName); !ok {
-			log.Debugf("Profile %s referenced by workload %s/%s/%s not found, skipping", profileName, gvkr.GroupVersionResource.Resource, unstructuredObj.GetNamespace(), unstructuredObj.GetName())
-			continue
-		}
-
-		workloadRefs[profileName] = append(workloadRefs[profileName], model.NamespacedObjectReference{
+		result[profileName] = append(result[profileName], model.NamespacedObjectReference{
 			GroupKind: schema.GroupKind{
 				Group: gvkr.GroupVersionResource.Group,
 				Kind:  gvkr.Kind,
 			},
 			Version:   gvkr.GroupVersionResource.Version,
-			Namespace: unstructuredObj.GetNamespace(),
-			Name:      unstructuredObj.GetName(),
+			Namespace: objMeta.Namespace,
+			Name:      objMeta.Name,
 		})
 	}
+
+	return result
+}
+
+// resolveProfile returns the profile name for a workload and whether the
+// workload should be assigned to a profile. Workload-level label takes
+// precedence over namespace-level.
+func (w *WorkloadWatcher) resolveProfile(
+	gvkr GroupVersionKindResource,
+	obj *metav1.PartialObjectMetadata,
+	labeledNamespaces map[string]string,
+) (string, bool) {
+	if profileName := obj.Labels[model.ProfileLabelKey]; profileName != "" {
+		if profileName == model.ProfileExcludedValue {
+			return "", false
+		}
+		if _, ok := w.profileStore.Get(profileName); !ok {
+			log.Debugf("Profile %s referenced by workload %s/%s/%s not found, skipping", profileName, gvkr.GroupVersionResource.Resource, obj.Namespace, obj.Name)
+			return "", false
+		}
+		return profileName, true
+	}
+
+	nsProfile, inLabeledNs := labeledNamespaces[obj.Namespace]
+	if !inLabeledNs {
+		return "", false
+	}
+	return nsProfile, true
 }

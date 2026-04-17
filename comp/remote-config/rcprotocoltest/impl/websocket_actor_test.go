@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package service
+package rcprotocoltestimpl
 
 import (
 	"context"
@@ -70,7 +70,7 @@ func TestWebSocketActor_upstream(t *testing.T) {
 			client, err := api.NewHTTPClient(api.Auth{}, agentConfig, url)
 			assert.NoError(err)
 
-			actor := NewWebSocketTestActor(client)
+			actor := newWebSocketTestActor(client)
 
 			// Wrap the callback to assert it is invoked.
 			// Signal calledCh before calling fn so that the the actor can
@@ -107,7 +107,7 @@ func TestPanicHandler(t *testing.T) {
 	client, err := api.NewHTTPClient(api.Auth{}, agentConfig, url)
 	assert.NoError(err)
 
-	actor := NewWebSocketTestActor(client)
+	actor := newWebSocketTestActor(client)
 
 	// Wrap the callback to assert it is invoked.
 	calledCh := make(chan struct{}, 1)
