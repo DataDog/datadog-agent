@@ -1,5 +1,10 @@
 # Per https://docs.datadoghq.com/security/workload_protection/setup/agent/linux/
+# Only enable workload protection
 runtime_security_config:
   enabled: true
-  remote_configuration:
-    enabled: true
+#   # Activity dump is currently being reworked and when it is enabled, it causes a lot of kernel events
+#   # By disabling it, we get more predictable results from the generated load.
+  activity_dump:
+    enabled: false
+remote_configuration:
+  enabled: false
