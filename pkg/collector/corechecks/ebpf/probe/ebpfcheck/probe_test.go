@@ -610,7 +610,7 @@ func TestLocalStorageMemoryUsage(t *testing.T) {
 		kspec, err := btf.LoadKernelSpec()
 		require.NoError(t, err)
 
-		u32Type, err := kspec.TypeByID(1)
+		u32Type, err := kspec.AnyTypeByName("unsigned int")
 		require.NoError(t, err)
 
 		testMap, err := ebpf.NewMap(&ebpf.MapSpec{
@@ -635,7 +635,7 @@ func TestLocalStorageMemoryUsage(t *testing.T) {
 		t.Cleanup(func() { _ = unix.Close(fd) })
 
 		var val uint32 = 1
-		err = testMap.Update(&fd, &val, ebpf.UpdateAny)
+		err = testMap.Update(unsafe.Pointer(&fd), unsafe.Pointer(&val), ebpf.UpdateAny)
 		require.NoError(t, err)
 
 		var result model.EBPFMapStats
@@ -650,7 +650,7 @@ func TestLocalStorageMemoryUsage(t *testing.T) {
 			return false
 		}, 5*time.Second, 500*time.Millisecond, "failed to find map")
 
-		assert.GreaterOrEqual(t, result.RSS, 8)
+		assert.GreaterOrEqual(t, result.RSS, uint64(8))
 		assert.Equal(t, result.RSS, result.MaxSize)
 	})
 }
