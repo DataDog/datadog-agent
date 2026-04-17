@@ -106,6 +106,9 @@ type LogsConfig struct {
 	// AutoMultiLineOptions provides detailed configuration for auto multi-line detection specific to this source.
 	// It maps to the 'auto_multi_line' key in the YAML configuration.
 	AutoMultiLineOptions *SourceAutoMultiLineOptions `mapstructure:"auto_multi_line" json:"auto_multi_line" yaml:"auto_multi_line"`
+	// ExperimentalAdaptiveSampling provides per-source overrides for the experimental adaptive sampler.
+	// It maps to the 'experimental_adaptive_sampling' key in the YAML configuration.
+	ExperimentalAdaptiveSampling *SourceAdaptiveSamplingOptions `mapstructure:"experimental_adaptive_sampling" json:"experimental_adaptive_sampling" yaml:"experimental_adaptive_sampling"`
 	// CustomSamples holds the raw string content of the 'auto_multi_line_detection_custom_samples' YAML block.
 	// Downstream code will be responsible for parsing this string.
 	AutoMultiLineSamples []*AutoMultilineSample   `mapstructure:"auto_multi_line_detection_custom_samples" json:"auto_multi_line_detection_custom_samples" yaml:"auto_multi_line_detection_custom_samples"`
@@ -144,6 +147,13 @@ type SourceAutoMultiLineOptions struct {
 
 	// TagAggregatedJSON allows to enable or disable the tagging of aggregated JSON logs for this source.
 	TagAggregatedJSON *bool `mapstructure:"tag_aggregated_json" json:"tag_aggregated_json" yaml:"tag_aggregated_json"`
+}
+
+// SourceAdaptiveSamplingOptions defines per-source overrides for the experimental adaptive sampler.
+// Additional per-source filters can be added here later.
+type SourceAdaptiveSamplingOptions struct {
+	// Enabled overrides the global adaptive sampling toggle for this source when set.
+	Enabled *bool `mapstructure:"enabled" json:"enabled" yaml:"enabled"`
 }
 
 // AutoMultilineSample defines a sample used to create auto multiline detection
