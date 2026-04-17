@@ -86,8 +86,15 @@ func NewCentOSBackend(target *types.Target, reposDir string, logger types.Logger
 		})
 	} else {
 		gpgKey := fmt.Sprintf("file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-%d", version)
-		baseURL := fmt.Sprintf("http://vault.centos.org/%s/os/$basearch/", release)
-		updatesURL := fmt.Sprintf("http://vault.centos.org/%s/updates/$basearch/", release)
+		var baseURL, updatesURL string
+		switch target.Uname.Machine {
+		case "x86_64":
+			baseURL = fmt.Sprintf("http://vault.centos.org/%s/os/$basearch/", release)
+			updatesURL = fmt.Sprintf("http://vault.centos.org/%s/updates/$basearch/", release)
+		default:
+			baseURL = fmt.Sprintf("http://vault.centos.org/altarch/%s/os/$basearch/", release)
+			updatesURL = fmt.Sprintf("http://vault.centos.org/altarch/%s/updates/$basearch/", release)
+		}
 		b.AppendRepository(repo.Repo{
 			Name:     fmt.Sprintf("C%s-base", release),
 			BaseURL:  baseURL,
