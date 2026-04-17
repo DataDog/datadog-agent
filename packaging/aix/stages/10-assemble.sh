@@ -78,8 +78,6 @@ log "Config example written to $STAGING/etc/datadog-agent/datadog.yaml.example"
 log "Installing default check configs"
 DIST_CONFD=/opt/datadog-agent/cmd/agent/dist/conf.d
 STAGING_CONFD="$STAGING/etc/datadog-agent/conf.d"
-# Remove and recreate to avoid stale entries from prior builds.
-rm -rf "$STAGING_CONFD"
 mkdir -p "$STAGING_CONFD"
 for check in cpu disk io load memory ntp uptime; do
     src="$DIST_CONFD/${check}.d/conf.yaml.default"
