@@ -879,7 +879,8 @@ type RootSamplingMergeState struct {
 // decoded (or converted). convertedFields.SamplingPriority must already reflect this span's
 // promoted _sampling_priority_v1 metric when present.
 func (st *RootSamplingMergeState) ReconcileSamplingPriorityAfterChunkSpan(convertedFields *SpanConvertedFields, spanParentID uint64) {
-	if spanParentID == 0 {
+	// Only set the root priority if it's not the "unset" value
+	if spanParentID == 0 && convertedFields.SamplingPriority != math.MinInt8 {
 		st.rootPriority = convertedFields.SamplingPriority
 		st.seenRoot = true
 		return
