@@ -266,6 +266,118 @@ func TestRunCommandBackendAllowedPathsRestrictsAccess(t *testing.T) {
 	assert.NotEqual(t, 0, result.ExitCode, "expected cat to fail because /var/log/postgres is outside the intersection")
 }
 
+// TestFilterAllowedCommandsMatrix pins every cell of the 3x3 grid
+// (backend in {nil, [], non-empty} x operator in {nil, [], non-empty}) with
+// four sub-cases splitting the non-empty x non-empty cell by the set
+// relationship between operator and backend. Twelve scenarios total. The
+// truth table is documented in the PR description; this is its executable
+// form.
+func TestFilterAllowedCommandsMatrix(t *testing.T) {
+	cases := []struct {
+		name     string
+		backend  []string
+		operator []string
+		want     []string // nil or empty both mean "nothing allowed"
+	}{
+		// Backend nil — fail-closed regardless of what the operator said.
+		{"backend nil, operator nil", nil, nil, nil},
+		{"backend nil, operator empty list", nil, []string{}, nil},
+		{"backend nil, operator set", nil, []string{"echo"}, nil},
+
+		// Backend explicit empty list — same outcome as nil.
+		{"backend empty list, operator nil", []string{}, nil, nil},
+		{"backend empty list, operator empty list", []string{}, []string{}, nil},
+		{"backend empty list, operator set", []string{}, []string{"echo"}, nil},
+
+		// Backend non-empty: the non-empty x non-empty cell splits into
+		// four sub-cases by set relationship.
+		{"backend set, operator nil (pass-through)",
+			[]string{"rshell:echo", "rshell:cat"}, nil,
+			[]string{"rshell:echo", "rshell:cat"}},
+		{"backend set, operator empty list (operator blocks all)",
+			[]string{"rshell:echo"}, []string{}, nil},
+		{"backend set, operator is superset of backend",
+			[]string{"rshell:echo", "rshell:cat"}, []string{"echo", "cat", "ls"},
+			[]string{"rshell:echo", "rshell:cat"}},
+		{"backend set, backend is superset of operator",
+			[]string{"rshell:echo", "rshell:cat", "rshell:ls"}, []string{"echo"},
+			[]string{"rshell:echo"}},
+		{"backend set, operator partial overlap",
+			[]string{"rshell:echo", "rshell:cat"}, []string{"cat", "ls"},
+			[]string{"rshell:cat"}},
+		{"backend set, operator disjoint",
+			[]string{"rshell:echo"}, []string{"cat"}, nil},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			handler := NewRunCommandHandler(nil, tc.operator)
+
+			got := handler.filterAllowedCommands(tc.backend)
+
+			if len(tc.want) == 0 {
+				assert.Empty(t, got)
+			} else {
+				assert.Equal(t, tc.want, got)
+			}
+		})
+	}
+}
+
+// TestFilterAllowedPathsMatrix is the paths analogue of
+// TestFilterAllowedCommandsMatrix. Twelve scenarios: the 3x3 grid with four
+// sub-cases for the non-empty x non-empty cell. Since path intersection is
+// sub-path-aware, "superset" / "subset" here mean one side's path is an
+// ancestor of the other.
+func TestFilterAllowedPathsMatrix(t *testing.T) {
+	cases := []struct {
+		name     string
+		backend  []string
+		operator []string
+		want     []string
+	}{
+		// Backend nil — fail-closed.
+		{"backend nil, operator nil", nil, nil, nil},
+		{"backend nil, operator empty list", nil, []string{}, nil},
+		{"backend nil, operator set", nil, []string{"/var/log"}, nil},
+
+		// Backend explicit empty list — same outcome as nil.
+		{"backend empty list, operator nil", []string{}, nil, nil},
+		{"backend empty list, operator empty list", []string{}, []string{}, nil},
+		{"backend empty list, operator set", []string{}, []string{"/var/log"}, nil},
+
+		// Backend non-empty: four sub-cases for the set relationship.
+		{"backend set, operator nil (pass-through)",
+			[]string{"/var/log", "/etc"}, nil,
+			[]string{"/var/log", "/etc"}},
+		{"backend set, operator empty list (operator blocks all)",
+			[]string{"/var/log"}, []string{}, nil},
+		{"backend set, operator is ancestor of backend (backend narrower)",
+			[]string{"/var/log/nginx"}, []string{"/var/log"},
+			[]string{"/var/log/nginx"}},
+		{"backend set, backend is ancestor of operator (operator narrower)",
+			[]string{"/var/log"}, []string{"/var/log/nginx"},
+			[]string{"/var/log/nginx"}},
+		{"backend set, operator partial overlap",
+			[]string{"/var/log", "/opt"}, []string{"/var/log", "/etc"},
+			[]string{"/var/log"}},
+		{"backend set, operator disjoint",
+			[]string{"/etc"}, []string{"/var/log"}, nil},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			handler := NewRunCommandHandler(tc.operator, nil)
+
+			got := handler.filterAllowedPaths(tc.backend)
+
+			if len(tc.want) == 0 {
+				assert.Empty(t, got)
+			} else {
+				assert.Equal(t, tc.want, got)
+			}
+		})
+	}
+}
+
 func TestNewRunCommandHandlerStoresAllowedPaths(t *testing.T) {
 	paths := []string{"/var/log", "/tmp"}
 
