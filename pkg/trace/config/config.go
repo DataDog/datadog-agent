@@ -683,7 +683,7 @@ func New() *AgentConfig {
 
 		TelemetryConfig: &TelemetryConfig{
 			Endpoints:               []*Endpoint{{Host: TelemetryEndpointPrefix + "datadoghq.com"}},
-			BatchSizeThresholdBytes: TelemetryDefaultMaxInflightBytes,
+			BatchSizeThresholdBytes: TelemetryDefaultBatchSizeThreshold,
 			MaxInflightMemoryBytes:  TelemetryDefaultMaxInflightBytes,
 		},
 		EVPProxy: EVPProxy{
