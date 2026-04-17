@@ -24,8 +24,10 @@ go_test(
     embed = [":walker"],
     gotags = [
         "test",
-        "trivy",
-    ],
+    ] + select({
+        "@platforms//os:linux": ["trivy"],
+        "//conditions:default": [],
+    }),
     deps = [
         "@com_github_aquasecurity_trivy//pkg/fanal/analyzer",
         "@com_github_aquasecurity_trivy//pkg/fanal/walker",
