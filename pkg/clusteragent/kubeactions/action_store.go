@@ -48,6 +48,7 @@ type ActionRecord struct {
 	ExecutedAt      int64 // Unix timestamp when action was executed
 	ReceivedAt      int64 // Unix timestamp when action was received by agent
 	ActionCreatedAt int64 // Unix timestamp from action.timestamp field
+	ClaimedAt       int64 // Unix timestamp when action was claimed by agent
 }
 
 // ActionStore tracks processed actions in-memory to prevent duplicate execution
@@ -102,19 +103,34 @@ func ValidateTimestamp(actionCreatedAt time.Time) error {
 	return nil
 }
 
-// WasExecuted checks if an action was already executed
-func (s *ActionStore) WasExecuted(key ActionKey) bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+// Claim tries to claim an action by key for execution. A successful claim populates the ActionRecord in the store with the claimed status and message,
+// and returns true. If the action was already claimed, it returns false.
+func (s *ActionStore) Claim(key ActionKey) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	_, exists := s.executed[key.String()]
-	return exists
+	if exists {
+		return false
+	}
+
+	// If it doesn't exist, we can claim it by adding it to the map
+	s.executed[key.String()] = ActionRecord{
+		Key:       key,
+		Status:    StatusClaimed,
+		Message:   "action claimed",
+		ClaimedAt: time.Now().Unix(),
+	}
+
+	return true
 }
 
 // MarkExecuted marks an action as executed with the given status and message
 func (s *ActionStore) MarkExecuted(key ActionKey, status, message string, executedAt int64, receivedAt int64, actionCreatedAt int64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	claimedAt := s.executed[key.String()].ClaimedAt
 
 	s.executed[key.String()] = ActionRecord{
 		Key:             key,
@@ -123,6 +139,7 @@ func (s *ActionStore) MarkExecuted(key ActionKey, status, message string, execut
 		ExecutedAt:      executedAt,
 		ReceivedAt:      receivedAt,
 		ActionCreatedAt: actionCreatedAt,
+		ClaimedAt:       claimedAt,
 	}
 }
 
@@ -184,7 +201,13 @@ func (s *ActionStore) cleanup() {
 		if ts == 0 {
 			ts = record.ExecutedAt
 		}
+		// If the action was created before the cutoff, or the action was claimed before the cutoff, delete it
+		ct := record.ClaimedAt
 		if ts > 0 && ts < cutoff {
+			delete(s.executed, key)
+			removed++
+		} else if ct > 0 && ct < cutoff {
+			log.Debugf("Cleaning up claimed but not executed action %s (claimed %d seconds ago)", key, time.Now().Unix()-ct)
 			delete(s.executed, key)
 			removed++
 		}
