@@ -3,12 +3,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
+
 // Package ssdeep implements the ssdeep fuzzy hashing algorithm via CGO, using a
 // precomputed lookup table for the FNV-based sum hash. The entire hot loop runs
 // in C with a single CGO call per Write, avoiding Go bounds-check overhead and
 // per-byte function call costs.
 //
 // Output is identical to glaslos/ssdeep v0.4.0 and the official ssdeep tool.
+//
+// For best performance use HashFD which reads and hashes the file entirely in C
+// with a single CGO boundary crossing.
 package ssdeep
 
 /*
@@ -20,16 +25,22 @@ import (
 	"errors"
 	"hash"
 	"math"
+	"os"
 	"unsafe"
 )
 
+// Errors returned by HashFD and Sum.
 var (
-	// Force allows hashing files smaller than 4096 bytes.
-	Force = false
+	ErrFileTooSmall = errors.New("ssdeep: file too small")
+	ErrFileTooLarge = errors.New("ssdeep: file exceeds max size")
+	ErrRead         = errors.New("ssdeep: read error")
+	ErrDigest       = errors.New("ssdeep: digest failed")
+	ErrArgs         = errors.New("ssdeep: invalid arguments")
+)
 
-	// ErrFileTooSmall is returned when Sum is called on < 4096 bytes of input
-	// and Force is false.
-	ErrFileTooSmall = errors.New("ssdeep: input too small for meaningful hash")
+var (
+	// Force calculates the hash on invalid input (files < 4096 bytes)
+	Force = false
 )
 
 var _ hash.Hash = &State{}
@@ -37,7 +48,7 @@ var _ hash.Hash = &State{}
 // State holds the CGO ssdeep computation state.
 type State struct {
 	cs       C.struct_ssdeep_state
-	written  uint64
+	written  int64
 	sumError error
 }
 
@@ -48,46 +59,49 @@ func New() *State {
 	return s
 }
 
-// Write feeds data into the hash. The entire buffer is processed in a single
-// CGO call — no per-byte crossing of the Go/C boundary.
-//
-// Buffers larger than math.MaxInt32 are split into safe-sized chunks to prevent
-// integer overflow on the C.int boundary.
+// Write feeds data into the hash. Large buffers are split into chunks to
+// prevent integer overflow when casting len(p) to C.int.
 func (s *State) Write(p []byte) (int, error) {
-	total := len(p)
+	if len(p) == 0 {
+		return 0, nil
+	}
+	total := 0
 	for len(p) > 0 {
 		chunk := len(p)
 		if chunk > math.MaxInt32 {
 			chunk = math.MaxInt32
 		}
-		C.ssdeep_update(&s.cs, (*C.uchar)(unsafe.Pointer(&p[0])), C.int(chunk))
+		rc := C.ssdeep_update(&s.cs, (*C.uchar)(unsafe.Pointer(&p[0])), C.int(chunk))
+		if rc != 0 {
+			s.sumError = errors.New("ssdeep: update failed")
+			return total, s.sumError
+		}
+		s.written += int64(chunk)
+		total += chunk
 		p = p[chunk:]
 	}
-	s.written += uint64(total)
 	return total, nil
 }
 
 // Sum appends the ssdeep digest to b. Returns b unchanged if the input was
-// too small (< 4096 bytes) and Force is false.
+// smaller than 4096 bytes and Force is false.
 func (s *State) Sum(b []byte) []byte {
 	if !Force && s.written < 4096 {
 		s.sumError = ErrFileTooSmall
 		return b
 	}
 	var buf [C.SSDEEP_MAX_RESULT]C.char
-	n := C.ssdeep_digest(&s.cs, &buf[0], C.int(len(buf)))
+	n := int(C.ssdeep_digest(&s.cs, &buf[0], C.int(len(buf))))
 	if n <= 0 {
 		return b
 	}
-	// Defensive clamp: n should never exceed buf size due to snprintf, but
-	// guard against it to prevent C.GoStringN from reading past the buffer.
-	if int(n) >= len(buf) {
-		n = C.int(len(buf) - 1)
+	if n >= int(C.SSDEEP_MAX_RESULT) {
+		n = int(C.SSDEEP_MAX_RESULT) - 1
 	}
-	return append(b, C.GoStringN(&buf[0], n)...)
+	return append(b, C.GoStringN(&buf[0], C.int(n))...)
 }
 
-// Err returns any error from the last Sum call (e.g., ErrFileTooSmall).
+// Err returns any error from the last Sum call (e.g. ErrFileTooSmall).
 func (s *State) Err() error {
 	return s.sumError
 }
@@ -101,10 +115,42 @@ func (s *State) Reset() {
 
 // BlockSize returns the minimum block size.
 func (s *State) BlockSize() int {
-	return C.BLOCK_MIN
+	return int(C.BLOCK_MIN)
 }
 
 // Size returns the hash output size.
 func (s *State) Size() int {
-	return C.SPAMSUM_LENGTH
+	return int(C.SPAMSUM_LENGTH)
+}
+
+// HashFD computes the ssdeep hash of an open file in a single CGO call.
+// The entire read+hash loop runs in C, crossing the Go/C boundary only once.
+// maxSize limits how many bytes will be read (0 = unlimited).
+// The file is read from its current offset; the caller should Seek(0,0) first
+// if needed.
+func HashFD(f *os.File, maxSize int64) (string, error) {
+	var buf [C.SSDEEP_MAX_RESULT]C.char
+
+	fd := C.int(f.Fd())
+	n := C.ssdeep_hash_fd(fd, C.int64_t(maxSize), &buf[0], C.int(len(buf)))
+
+	if n >= 0 {
+		if int(n) >= len(buf) {
+			n = C.int(len(buf) - 1)
+		}
+		return C.GoStringN(&buf[0], n), nil
+	}
+
+	switch n {
+	case C.SSDEEP_ERR_TOO_SMALL:
+		return "", ErrFileTooSmall
+	case C.SSDEEP_ERR_TOO_BIG:
+		return "", ErrFileTooLarge
+	case C.SSDEEP_ERR_READ:
+		return "", ErrRead
+	case C.SSDEEP_ERR_DIGEST:
+		return "", ErrDigest
+	default:
+		return "", ErrArgs
+	}
 }

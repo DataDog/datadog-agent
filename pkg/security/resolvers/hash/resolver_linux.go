@@ -21,8 +21,9 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/glaslos/ssdeep"
 	lru "github.com/hashicorp/golang-lru/v2"
+
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/hash/ssdeep"
 	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -510,41 +511,32 @@ func (resolver *Resolver) HashFileEvent(eventType model.EventType, cgroupID cont
 			}
 		}
 
-		// Compute SSDEEP if not found in cache
+		// Compute SSDEEP if not found in cache — single CGO call via HashFD
 		if !foundInCache {
-			// Seek back to the beginning of the file
 			if _, err := f.Seek(0, 0); err != nil {
 				hashResolverTelemetry.hashMiss.Inc(eventType.String(), model.FileOpenError.String())
 			} else {
-				ssdeepHasher := ssdeep.New()
-				limitedWriter := newSizeLimitedWriter(ssdeepHasher, int(resolver.opts.MaxFileSize))
-
-				buffer := resolver.bufferPool.Get()
-				_, err := io.CopyBuffer(limitedWriter, f, *buffer)
-				resolver.bufferPool.Put(buffer)
-
+				digest, err := ssdeep.HashFD(f, resolver.opts.MaxFileSize)
 				if err != nil {
-					if !errors.Is(err, ErrSizeLimitReached) {
+					switch {
+					case errors.Is(err, ssdeep.ErrFileTooLarge):
+						// file exceeded max size during read
+					case errors.Is(err, ssdeep.ErrFileTooSmall):
+						// file < 4096 bytes, ssdeep can't hash it
+					default:
 						hashResolverTelemetry.hashMiss.Inc(eventType.String(), model.FileOpenError.String())
 					}
-				} else {
-					digest := ssdeepHasher.Sum(nil)
-					if len(digest) > 0 {
-						var hashStr strings.Builder
-						hashStr.WriteString("ssdeep:")
-						hashStr.Write(digest)
-						ssdeepHashStr = hashStr.String()
+				} else if digest != "" {
+					ssdeepHashStr = "ssdeep:" + digest
 
-						// Cache the SSDEEP hash with the cheapest hash as key
-						if cheapestHash != "" {
-							ssdeepKey := SSDeepCacheKey{cheapHash: cheapestHash, inode: file.Inode, size: size}
-							resolver.ssdeepCache.Add(ssdeepKey, &SSDeepCacheEntry{ssdeepHash: ssdeepHashStr})
-						}
-
-						hashResolverTelemetry.hashCount.Inc(eventType.String(), model.SSDEEP.String())
-					} else {
-						hashResolverTelemetry.hashMiss.Inc(eventType.String(), model.HashFailed.String())
+					if cheapestHash != "" {
+						ssdeepKey := SSDeepCacheKey{cheapHash: cheapestHash, inode: file.Inode, size: size}
+						resolver.ssdeepCache.Add(ssdeepKey, &SSDeepCacheEntry{ssdeepHash: ssdeepHashStr})
 					}
+
+					hashResolverTelemetry.hashCount.Inc(eventType.String(), model.SSDEEP.String())
+				} else {
+					hashResolverTelemetry.hashMiss.Inc(eventType.String(), model.HashFailed.String())
 				}
 			}
 		} else {

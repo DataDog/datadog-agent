@@ -5,11 +5,19 @@
 #include <stdio.h>
 
 #define ROLLING_WINDOW  7
-#define BLOCK_MIN       3u  /* unsigned to prevent signed-shift UB */
+#define BLOCK_MIN       3u
 #define NUM_BLOCKHASHES 31
 #define SPAMSUM_LENGTH  64
 #define HASH_INIT       0x27
 #define SSDEEP_MAX_RESULT (SPAMSUM_LENGTH + SPAMSUM_LENGTH/2 + 20)
+#define SSDEEP_MIN_FILE_SIZE 4096
+
+// Return codes for ssdeep_hash_fd
+#define SSDEEP_ERR_ARGS      (-1)
+#define SSDEEP_ERR_READ      (-2)
+#define SSDEEP_ERR_TOO_BIG   (-3)
+#define SSDEEP_ERR_TOO_SMALL (-4)
+#define SSDEEP_ERR_DIGEST    (-5)
 
 struct blockhash_state {
     unsigned char hashString[SPAMSUM_LENGTH];
@@ -28,13 +36,12 @@ struct ssdeep_state {
     struct blockhash_state blocks[NUM_BLOCKHASHES];
 };
 
-/* Returns 0 on success, -1 if s is NULL. */
 int  ssdeep_init(struct ssdeep_state *s);
-
-/* Returns 0 on success, -1 on invalid arguments. */
 int  ssdeep_update(struct ssdeep_state *s, const unsigned char *data, int len);
-
-/* Returns digest length on success, -1 on error. */
 int  ssdeep_digest(const struct ssdeep_state *s, char *result, int result_len);
+
+// Single-call: read from fd, hash, produce digest. One CGO crossing.
+// Returns digest length on success, or a negative SSDEEP_ERR_* code.
+int  ssdeep_hash_fd(int fd, int64_t max_size, char *result, int result_len);
 
 #endif

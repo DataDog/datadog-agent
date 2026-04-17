@@ -5,6 +5,8 @@
 
 #include "ssdeep.h"
 #include <string.h>
+#include <unistd.h>
+#include <errno.h>
 
 #define HASH_PRIME 0x93
 
@@ -45,12 +47,12 @@ static inline unsigned char sum_hash(unsigned char c, unsigned char h) {
 }
 
 int ssdeep_init(struct ssdeep_state *s) {
-    if (!s)
+    if (s == NULL)
         return -1;
     memset(s, 0, sizeof(*s));
     s->iEnd = 1;
     for (int i = 0; i < NUM_BLOCKHASHES; i++) {
-        s->blocks[i].blockSize = BLOCK_MIN << i; /* BLOCK_MIN is unsigned */
+        s->blocks[i].blockSize = BLOCK_MIN << i;
         s->blocks[i].h1 = HASH_INIT;
         s->blocks[i].h2 = HASH_INIT;
         s->blocks[i].hashLen = 0;
@@ -63,12 +65,7 @@ static inline int is_start_block_full(const struct ssdeep_state *s) {
         && s->blocks[s->iStart + 1].hashLen >= SPAMSUM_LENGTH / 2;
 }
 
-int ssdeep_update(struct ssdeep_state *s, const unsigned char *data, int len) {
-    if (!s || (!data && len > 0) || len < 0)
-        return -1;
-    if (len == 0)
-        return 0;
-
+static void ssdeep_engine(struct ssdeep_state *s, const unsigned char *data, int len) {
     uint32_t rh1 = s->rh1, rh2 = s->rh2, rh3 = s->rh3, rn = s->rn;
 
     s->totalSize += (uint64_t)len;
@@ -81,6 +78,7 @@ int ssdeep_update(struct ssdeep_state *s, const unsigned char *data, int len) {
             s->blocks[i].h2 = sum_hash(b, s->blocks[i].h2);
         }
 
+        // Rolling hash (Adler-like)
         rh2 -= rh1;
         rh2 += ROLLING_WINDOW * (uint32_t)b;
         rh1 += (uint32_t)b;
@@ -104,8 +102,8 @@ int ssdeep_update(struct ssdeep_state *s, const unsigned char *data, int len) {
                 continue;
 
             if (block->hashLen == 0) {
-                struct blockhash_state *old = &s->blocks[s->iEnd - 1];
                 if (s->iEnd <= NUM_BLOCKHASHES - 1) {
+                    struct blockhash_state *old = &s->blocks[s->iEnd - 1];
                     struct blockhash_state *newb = &s->blocks[s->iEnd];
                     newb->h1 = old->h1;
                     newb->h2 = old->h2;
@@ -133,18 +131,22 @@ int ssdeep_update(struct ssdeep_state *s, const unsigned char *data, int len) {
     s->rh2 = rh2;
     s->rh3 = rh3;
     s->rn = rn;
+}
+
+int ssdeep_update(struct ssdeep_state *s, const unsigned char *data, int len) {
+    if (s == NULL || data == NULL || len < 0)
+        return -1;
+    ssdeep_engine(s, data, len);
     return 0;
 }
 
 int ssdeep_digest(const struct ssdeep_state *s, char *result, int result_len) {
-    if (!s || !result || result_len < SSDEEP_MAX_RESULT)
+    if (s == NULL || result == NULL || result_len < SSDEEP_MAX_RESULT)
         return -1;
 
     int i = s->iStart;
-    // Upper-bound i at NUM_BLOCKHASHES-1 to prevent UB from shifting
-    // past the bit width of uint32_t.
     while (i < NUM_BLOCKHASHES - 1 &&
-           (uint64_t)(BLOCK_MIN << i) * SPAMSUM_LENGTH < s->totalSize)
+           (uint64_t)((uint32_t)BLOCK_MIN << i) * SPAMSUM_LENGTH < s->totalSize)
         i++;
 
     if (i >= s->iEnd)
@@ -199,8 +201,48 @@ int ssdeep_digest(const struct ssdeep_state *s, char *result, int result_len) {
 
     int n = snprintf(result, result_len, "%u:%s:%s",
                      s->blocks[i].blockSize, buf1, buf2);
-    // Clamp to actual buffer size in case snprintf reports truncation.
+    if (n < 0)
+        return -1;
     if (n >= result_len)
         n = result_len - 1;
     return n;
+}
+
+#define READ_BUF_SIZE 32768
+
+int ssdeep_hash_fd(int fd, int64_t max_size, char *result, int result_len) {
+    if (fd < 0 || result == NULL || result_len < SSDEEP_MAX_RESULT)
+        return SSDEEP_ERR_ARGS;
+
+    struct ssdeep_state state;
+    ssdeep_init(&state);
+
+    unsigned char buf[READ_BUF_SIZE];
+    int64_t total = 0;
+
+    for (;;) {
+        ssize_t n = read(fd, buf, READ_BUF_SIZE);
+        if (n < 0) {
+            if (errno == EINTR)
+                continue;
+            return SSDEEP_ERR_READ;
+        }
+        if (n == 0)
+            break;
+
+        total += n;
+        if (max_size > 0 && total > max_size)
+            return SSDEEP_ERR_TOO_BIG;
+
+        ssdeep_engine(&state, buf, (int)n);
+    }
+
+    if (total < SSDEEP_MIN_FILE_SIZE)
+        return SSDEEP_ERR_TOO_SMALL;
+
+    int digest_len = ssdeep_digest(&state, result, result_len);
+    if (digest_len <= 0)
+        return SSDEEP_ERR_DIGEST;
+
+    return digest_len;
 }

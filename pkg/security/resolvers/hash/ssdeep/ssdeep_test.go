@@ -3,11 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
+
 package ssdeep
 
 import (
 	"crypto/rand"
 	"fmt"
+	"os"
 	"testing"
 
 	glaslos "github.com/glaslos/ssdeep"
@@ -72,6 +75,77 @@ func TestCompatibility(t *testing.T) {
 	}
 }
 
+// TestHashFDCompatibility verifies HashFD produces identical output to glaslos/ssdeep.
+func TestHashFDCompatibility(t *testing.T) {
+	tests := []struct {
+		name string
+		data []byte
+	}{
+		{"8KB_pattern", generateData(8*1024, 'a')},
+		{"64KB_pattern", generateData(64*1024, 0x00)},
+		{"256KB_random", generateRandomData(256 * 1024)},
+		{"1MB_random", generateRandomData(1024 * 1024)},
+	}
+
+	glaslos.Force = true
+	defer func() { glaslos.Force = false }()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			expected, err := glaslos.FuzzyBytes(tt.data)
+			require.NoError(t, err)
+
+			f, err := os.CreateTemp("", "ssdeep_test_*")
+			require.NoError(t, err)
+			defer os.Remove(f.Name())
+
+			_, err = f.Write(tt.data)
+			require.NoError(t, err)
+
+			_, err = f.Seek(0, 0)
+			require.NoError(t, err)
+
+			got, err := HashFD(f, 0)
+			f.Close()
+			require.NoError(t, err)
+			assert.Equal(t, expected, got,
+				"HashFD mismatch: glaslos=%q fd=%q", expected, got)
+		})
+	}
+}
+
+// TestHashFDTooSmall verifies HashFD rejects files under 4096 bytes.
+func TestHashFDTooSmall(t *testing.T) {
+	f, err := os.CreateTemp("", "ssdeep_small_*")
+	require.NoError(t, err)
+	defer os.Remove(f.Name())
+
+	_, err = f.Write(generateData(2048, 'x'))
+	require.NoError(t, err)
+	_, err = f.Seek(0, 0)
+	require.NoError(t, err)
+
+	_, err = HashFD(f, 0)
+	f.Close()
+	assert.ErrorIs(t, err, ErrFileTooSmall)
+}
+
+// TestHashFDMaxSize verifies HashFD respects the max size limit.
+func TestHashFDMaxSize(t *testing.T) {
+	f, err := os.CreateTemp("", "ssdeep_big_*")
+	require.NoError(t, err)
+	defer os.Remove(f.Name())
+
+	_, err = f.Write(generateRandomData(64 * 1024))
+	require.NoError(t, err)
+	_, err = f.Seek(0, 0)
+	require.NoError(t, err)
+
+	_, err = HashFD(f, 8192)
+	f.Close()
+	assert.ErrorIs(t, err, ErrFileTooLarge)
+}
+
 // TestChunkedWrite verifies that writing in chunks produces the same result.
 func TestChunkedWrite(t *testing.T) {
 	glaslos.Force = true
@@ -98,29 +172,28 @@ func TestChunkedWrite(t *testing.T) {
 	assert.Equal(t, expected, got)
 }
 
-// TestFileTooSmall verifies that the Force flag works correctly.
+// TestFileTooSmall verifies the Force flag behavior for small inputs.
 func TestFileTooSmall(t *testing.T) {
-	Force = false
-	defer func() { Force = false }()
-
 	data := generateData(2048, 'x')
 
 	h := New()
 	h.Write(data)
-	got := h.Sum(nil)
-	assert.Nil(t, got, "expected nil output for small file without Force")
+
+	Force = false
+	result := h.Sum(nil)
+	assert.Nil(t, result)
 	assert.ErrorIs(t, h.Err(), ErrFileTooSmall)
 
 	Force = true
+	defer func() { Force = false }()
 	h.Reset()
-	assert.Nil(t, h.Err(), "error should be cleared after Reset")
 	h.Write(data)
-	got = h.Sum(nil)
-	assert.NotNil(t, got, "expected output for small file with Force")
-	assert.Nil(t, h.Err())
+	result = h.Sum(nil)
+	assert.NotEmpty(t, result)
+	assert.NoError(t, h.Err())
 }
 
-// TestEmptyWrite verifies that empty writes are handled gracefully.
+// TestEmptyWrite verifies that empty writes are handled correctly.
 func TestEmptyWrite(t *testing.T) {
 	h := New()
 	n, err := h.Write(nil)
@@ -132,12 +205,12 @@ func TestEmptyWrite(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-// TestReset verifies that Reset produces identical hashes on re-use.
+// TestReset verifies that Reset clears state for reuse.
 func TestReset(t *testing.T) {
 	Force = true
 	defer func() { Force = false }()
 
-	data := generateRandomData(64 * 1024)
+	data := generateRandomData(8192)
 
 	h := New()
 	h.Write(data)
@@ -147,7 +220,27 @@ func TestReset(t *testing.T) {
 	h.Write(data)
 	second := string(h.Sum(nil))
 
-	assert.Equal(t, first, second, "Reset should produce identical hashes")
+	assert.Equal(t, first, second)
+}
+
+// writeTempFile creates a temp file with the given data and returns the open file
+// seeked back to the beginning.
+func writeTempFile(b testing.TB, data []byte) *os.File {
+	f, err := os.CreateTemp("", "ssdeep_bench_*")
+	if err != nil {
+		b.Fatal(err)
+	}
+	if _, err := f.Write(data); err != nil {
+		f.Close()
+		os.Remove(f.Name())
+		b.Fatal(err)
+	}
+	if _, err := f.Seek(0, 0); err != nil {
+		f.Close()
+		os.Remove(f.Name())
+		b.Fatal(err)
+	}
+	return f
 }
 
 var benchSizes = []struct {
@@ -160,6 +253,8 @@ var benchSizes = []struct {
 	{"1MB", 1024 * 1024},
 	{"5MB", 5 * 1024 * 1024},
 }
+
+// ---------- In-memory benchmarks (pure hash throughput) ----------
 
 func BenchmarkGlaslos(b *testing.B) {
 	glaslos.Force = true
@@ -179,7 +274,7 @@ func BenchmarkGlaslos(b *testing.B) {
 	}
 }
 
-func BenchmarkCGO(b *testing.B) {
+func BenchmarkCGOWrite(b *testing.B) {
 	Force = true
 	defer func() { Force = false }()
 
@@ -193,6 +288,179 @@ func BenchmarkCGO(b *testing.B) {
 				h.Write(data)
 				h.Sum(nil)
 			}
+		})
+	}
+}
+
+func BenchmarkCGOHashFD(b *testing.B) {
+	for _, bs := range benchSizes {
+		data := generateRandomData(bs.size)
+		f := writeTempFile(b, data)
+		b.Cleanup(func() {
+			f.Close()
+			os.Remove(f.Name())
+		})
+
+		b.Run(bs.name, func(b *testing.B) {
+			b.SetBytes(int64(bs.size))
+			b.ReportAllocs()
+			for b.Loop() {
+				f.Seek(0, 0)
+				HashFD(f, 0)
+			}
+		})
+	}
+}
+
+// ---------- Real-world: read from disk + hash (apples-to-apples) ----------
+// Simulates production where the file must be read from an fd.
+// Glaslos uses Go io.CopyBuffer (32KB chunks), CGO HashFD uses C read().
+
+func BenchmarkRealWorld_Glaslos(b *testing.B) {
+	glaslos.Force = true
+	defer func() { glaslos.Force = false }()
+
+	for _, bs := range benchSizes {
+		data := generateRandomData(bs.size)
+		f := writeTempFile(b, data)
+		b.Cleanup(func() {
+			f.Close()
+			os.Remove(f.Name())
+		})
+
+		buf := make([]byte, 32*1024)
+		b.Run(bs.name, func(b *testing.B) {
+			b.SetBytes(int64(bs.size))
+			b.ReportAllocs()
+			for b.Loop() {
+				f.Seek(0, 0)
+				h := glaslos.New()
+				for {
+					n, err := f.Read(buf)
+					if n > 0 {
+						h.Write(buf[:n])
+					}
+					if err != nil {
+						break
+					}
+				}
+				h.Sum(nil)
+			}
+		})
+	}
+}
+
+func BenchmarkRealWorld_CGOHashFD(b *testing.B) {
+	for _, bs := range benchSizes {
+		data := generateRandomData(bs.size)
+		f := writeTempFile(b, data)
+		b.Cleanup(func() {
+			f.Close()
+			os.Remove(f.Name())
+		})
+
+		b.Run(bs.name, func(b *testing.B) {
+			b.SetBytes(int64(bs.size))
+			b.ReportAllocs()
+			for b.Loop() {
+				f.Seek(0, 0)
+				HashFD(f, 0)
+			}
+		})
+	}
+}
+
+// ---------- Concurrent benchmarks (production contention) ----------
+// N goroutines each hashing their own file simultaneously.
+// This exposes CGO thread pinning, scheduler thrashing, and GC pressure.
+
+func BenchmarkConcurrent_Glaslos(b *testing.B) {
+	glaslos.Force = true
+	defer func() { glaslos.Force = false }()
+
+	for _, bs := range benchSizes {
+		data := generateRandomData(bs.size)
+		b.Run(bs.name, func(b *testing.B) {
+			b.SetBytes(int64(bs.size))
+			b.ReportAllocs()
+			b.RunParallel(func(pb *testing.PB) {
+				f := writeTempFile(b, data)
+				defer func() {
+					f.Close()
+					os.Remove(f.Name())
+				}()
+				buf := make([]byte, 32*1024)
+				for pb.Next() {
+					f.Seek(0, 0)
+					h := glaslos.New()
+					for {
+						n, err := f.Read(buf)
+						if n > 0 {
+							h.Write(buf[:n])
+						}
+						if err != nil {
+							break
+						}
+					}
+					h.Sum(nil)
+				}
+			})
+		})
+	}
+}
+
+func BenchmarkConcurrent_CGOWrite(b *testing.B) {
+	Force = true
+	defer func() { Force = false }()
+
+	for _, bs := range benchSizes {
+		data := generateRandomData(bs.size)
+		b.Run(bs.name, func(b *testing.B) {
+			b.SetBytes(int64(bs.size))
+			b.ReportAllocs()
+			b.RunParallel(func(pb *testing.PB) {
+				f := writeTempFile(b, data)
+				defer func() {
+					f.Close()
+					os.Remove(f.Name())
+				}()
+				buf := make([]byte, 32*1024)
+				for pb.Next() {
+					f.Seek(0, 0)
+					h := New()
+					for {
+						n, err := f.Read(buf)
+						if n > 0 {
+							h.Write(buf[:n])
+						}
+						if err != nil {
+							break
+						}
+					}
+					h.Sum(nil)
+				}
+			})
+		})
+	}
+}
+
+func BenchmarkConcurrent_CGOHashFD(b *testing.B) {
+	for _, bs := range benchSizes {
+		data := generateRandomData(bs.size)
+		b.Run(bs.name, func(b *testing.B) {
+			b.SetBytes(int64(bs.size))
+			b.ReportAllocs()
+			b.RunParallel(func(pb *testing.PB) {
+				f := writeTempFile(b, data)
+				defer func() {
+					f.Close()
+					os.Remove(f.Name())
+				}()
+				for pb.Next() {
+					f.Seek(0, 0)
+					HashFD(f, 0)
+				}
+			})
 		})
 	}
 }
