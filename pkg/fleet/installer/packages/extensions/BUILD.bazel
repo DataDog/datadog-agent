@@ -9,6 +9,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/extensions",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/fleet/installer/env",
         "//pkg/fleet/installer/errors",
         "//pkg/fleet/installer/oci",
         "//pkg/fleet/installer/paths",

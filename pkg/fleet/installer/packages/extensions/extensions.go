@@ -15,6 +15,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
@@ -24,14 +25,6 @@ import (
 
 // ExtensionsDBDir is the path to the extensions database, overridden in tests
 var ExtensionsDBDir = paths.RunPath
-
-// ExtensionRegistry holds per-extension registry override settings.
-type ExtensionRegistry struct {
-	URL      string
-	Auth     string
-	Username string
-	Password string
-}
 
 // ExtensionHooks is the interface for the extension hooks.
 type ExtensionHooks interface {
@@ -83,7 +76,7 @@ func DeletePackage(ctx context.Context, pkg string, isExperiment bool) (err erro
 // Install installs extensions for a package.
 // If overrides is non-nil, extensions whose name appears as a key will be
 // downloaded from the corresponding registry instead of the default one.
-func Install(ctx context.Context, downloader *oci.Downloader, url string, extensionsList []string, isExperiment bool, hooks ExtensionHooks, overrides map[string]ExtensionRegistry) (err error) {
+func Install(ctx context.Context, downloader *oci.Downloader, url string, extensionsList []string, isExperiment bool, hooks ExtensionHooks, overrides map[string]env.ExtensionRegistryOverride) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "extensions.install")
 	defer func() { span.Finish(err) }()
 	span.SetTag("extensions", strings.Join(extensionsList, ","))
@@ -438,7 +431,7 @@ func Save(ctx context.Context, pkg string, saveDir string, isExperiment bool) (e
 }
 
 // Restore restores the extensions after a package upgrade
-func Restore(ctx context.Context, downloader *oci.Downloader, pkg string, downloadURL string, saveDir string, isExperiment bool, hooks ExtensionHooks, overrides map[string]ExtensionRegistry) (err error) {
+func Restore(ctx context.Context, downloader *oci.Downloader, pkg string, downloadURL string, saveDir string, isExperiment bool, hooks ExtensionHooks, overrides map[string]env.ExtensionRegistryOverride) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "extensions.restore")
 	defer func() { span.Finish(err) }()
 	span.SetTag("package_name", pkg)

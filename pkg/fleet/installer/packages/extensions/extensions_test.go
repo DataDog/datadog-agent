@@ -157,7 +157,7 @@ func TestInstallGroupsByRegistry(t *testing.T) {
 	db.Close()
 
 	downloader := oci.NewDownloader(&env.Env{}, http.DefaultClient)
-	overrides := map[string]ExtensionRegistry{
+	overrides := map[string]env.ExtensionRegistryOverride{
 		"ddot": {
 			URL:      "custom.registry.com",
 			Auth:     "password",

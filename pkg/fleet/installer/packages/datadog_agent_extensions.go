@@ -31,28 +31,6 @@ func getCurrentAgentVersion() string {
 	return v + "-1"
 }
 
-// agentExtensionOverrides returns per-extension registry overrides for the
-// agent package from the already-parsed Env, converting to the type expected
-// by the extensions package.
-//
-//nolint:unused // Used in platform-specific files
-func agentExtensionOverrides(env *env.Env) map[string]extensionsPkg.ExtensionRegistry {
-	pkgOverrides := env.ExtensionRegistryOverrides[agentPackage]
-	if len(pkgOverrides) == 0 {
-		return nil
-	}
-	result := make(map[string]extensionsPkg.ExtensionRegistry, len(pkgOverrides))
-	for extName, o := range pkgOverrides {
-		result[extName] = extensionsPkg.ExtensionRegistry{
-			URL:      o.URL,
-			Auth:     o.Auth,
-			Username: o.Username,
-			Password: o.Password,
-		}
-	}
-	return result
-}
-
 // saveAgentExtensions saves the extensions of the Agent package by writing them to a file on disk.
 // the extensions can then be picked up by the restoreAgentExtensions function to restore them
 //
@@ -83,8 +61,8 @@ func restoreAgentExtensions(ctx HookContext, version string, experiment bool) er
 	env := env.Get()
 
 	storagePath := getExtensionStoragePath(ctx.PackagePath)
-	overrides := env.ExtensionRegistryOverrides[agentPackage]
 
+	overrides := env.ExtensionRegistryOverrides[agentPackage]
 	downloader := oci.NewDownloader(env, env.HTTPClient())
 	url := oci.PackageURL(env, agentPackage, version)
 	hooks := NewHooks(env, repository.NewRepositories(paths.PackagesPath, AsyncPreRemoveHooks))
@@ -118,7 +96,7 @@ func installAgentExtensions(ctx HookContext, version string, isExperiment bool) 
 	}
 
 	// install extensions
-	overrides := agentExtensionOverrides(env)
+	overrides := env.ExtensionRegistryOverrides[agentPackage]
 	downloader := oci.NewDownloader(env, env.HTTPClient())
 	url := oci.PackageURL(env, agentPackage, version)
 	hooks := NewHooks(env, repository.NewRepositories(paths.PackagesPath, AsyncPreRemoveHooks))

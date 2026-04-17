@@ -59,12 +59,6 @@ installer:
 	other := agentExts["other-ext"]
 	assert.Equal(t, "other.registry.com", other.URL)
 	assert.Empty(t, other.Auth)
-
-	// Verify conversion to ExtensionRegistry overrides map via agentExtensionOverrides
-	overrides := agentExtensionOverrides(e)
-	require.Len(t, overrides, 2)
-	assert.Equal(t, "custom.registry.com", overrides["ddot"].URL)
-	assert.Equal(t, "other.registry.com", overrides["other-ext"].URL)
 }
 
 func TestParseRegistryConfigNoExtensions(t *testing.T) {
@@ -79,7 +73,7 @@ installer:
 	e := env.Get(env.WithConfigDir(dir))
 
 	assert.Equal(t, "default.registry.com", e.RegistryOverride)
-	assert.Nil(t, e.ExtensionRegistryOverrides)
+	assert.Empty(t, e.ExtensionRegistryOverrides)
 }
 
 func TestInstallDDOTExtensionIfEnabled_Disabled(t *testing.T) {
