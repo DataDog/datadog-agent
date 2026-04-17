@@ -15,7 +15,9 @@ go_library(
     deps = [
         "//comp/core/config",
         "//comp/core/hostname/hostnameinterface",
+        "//comp/core/log/def",
         "//comp/otelcol/converter/def",
+        "//pkg/util/log/zap",
         "@io_opentelemetry_go_collector_confmap//:confmap",
         "@org_uber_go_zap//:zap",
     ],
@@ -39,5 +41,7 @@ go_test(
         "@io_opentelemetry_go_collector_confmap_provider_httpsprovider//:httpsprovider",
         "@io_opentelemetry_go_collector_confmap_provider_yamlprovider//:yamlprovider",
         "@org_uber_go_zap//:zap",
+        "@org_uber_go_zap//zapcore",
+        "@org_uber_go_zap//zaptest/observer",
     ],
 )

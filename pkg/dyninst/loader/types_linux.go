@@ -108,6 +108,16 @@ func opcodeByte(opcode compiler.Opcode) uint8 {
 		return 0x1f
 	case compiler.OpcodeExprSliceBoundsCheck:
 		return 0x20
+	case compiler.OpcodeSwissMapSetup:
+		return 0x21
+	case compiler.OpcodeSwissMapAesenc:
+		return 0x22
+	case compiler.OpcodeSwissMapHashFinish:
+		return 0x23
+	case compiler.OpcodeSwissMapProbe:
+		return 0x24
+	case compiler.OpcodeSwissMapCheckSlot:
+		return 0x25
 	default:
 		panic(fmt.Sprintf("unknown opcode: %s", opcode))
 	}
