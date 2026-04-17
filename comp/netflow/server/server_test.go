@@ -65,7 +65,7 @@ func replaceWithDummyFlowProcessor(server *Server) *dummyFlowProcessor {
 // testOptions is an fx collection of common dependencies for all tests
 var testOptions = fx.Options(
 	Module(),
-	nfconfig.MockModule(),
+	nfconfigmock.MockModule(),
 	forwardermock.MockModule(),
 	demultiplexerimpl.MockModule(),
 	defaultforwarder.MockModule(),
