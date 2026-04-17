@@ -47,6 +47,7 @@ go_test(
         "collector_windows_test.go",
     ],
     embed = [":systeminfo"],
+    gotags = ["test"],
     deps = select({
         "@rules_go//go/platform:darwin": [
             "@com_github_stretchr_testify//assert",

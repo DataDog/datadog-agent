@@ -10,6 +10,7 @@ go_library(
         "collector_darwin_kext.go",
         "collector_darwin_macports.go",
         "collector_darwin_pkg.go",
+        "collector_darwin_pkg_helper.go",
         "collector_darwin_sysext.go",
         "collector_nix.go",
         "collector_windows.go",
@@ -24,12 +25,12 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:darwin": [
+            "//pkg/util/log",
             "@com_github_mattn_go_sqlite3//:go-sqlite3",
-            "@org_golang_x_sync//singleflight",
         ],
         "@rules_go//go/platform:ios": [
+            "//pkg/util/log",
             "@com_github_mattn_go_sqlite3//:go-sqlite3",
-            "@org_golang_x_sync//singleflight",
         ],
         "@rules_go//go/platform:windows": [
             "//pkg/util/winutil",
@@ -45,6 +46,8 @@ go_library(
 go_test(
     name = "software_test",
     srcs = [
+        "collector_darwin_pkg_helper_test.go",
+        "collector_darwin_pkg_test.go",
         "collector_darwin_test.go",
         "collector_test.go",
         "collector_windows_test.go",
@@ -80,7 +83,6 @@ go_test(
             "//pkg/config/mock",
             "@com_github_stretchr_testify//require",
             "@org_golang_x_sys//windows/registry",
-            "@rules_go//go/runfiles",
         ],
         "//conditions:default": [],
     }),
