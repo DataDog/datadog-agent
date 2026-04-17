@@ -39,6 +39,7 @@ func runAgentSidekicks(ag component) error {
 	if err != nil {
 		return err
 	}
+	ag.Agent.Receiver.StartOPMFetch(ag.ctx, time.Second)
 
 	defer watchdog.LogOnPanic(ag.Statsd)
 

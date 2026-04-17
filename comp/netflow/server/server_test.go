@@ -28,7 +28,8 @@ import (
 
 	ndmtestutils "github.com/DataDog/datadog-agent/pkg/networkdevice/testutils"
 
-	nfconfig "github.com/DataDog/datadog-agent/comp/netflow/config"
+	nfconfig "github.com/DataDog/datadog-agent/comp/netflow/config/def"
+	nfconfigmock "github.com/DataDog/datadog-agent/comp/netflow/config/mock"
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib"
 )
 
@@ -64,7 +65,7 @@ func replaceWithDummyFlowProcessor(server *Server) *dummyFlowProcessor {
 // testOptions is an fx collection of common dependencies for all tests
 var testOptions = fx.Options(
 	Module(),
-	nfconfig.MockModule(),
+	nfconfigmock.MockModule(),
 	forwarderimpl.MockModule(),
 	demultiplexerimpl.MockModule(),
 	defaultforwarder.MockModule(),

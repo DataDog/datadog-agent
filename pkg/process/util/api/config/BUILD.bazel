@@ -12,6 +12,7 @@ go_test(
     name = "config_test",
     srcs = ["endpoint_test.go"],
     embed = [":config"],
+    gotags = ["test"],
     deps = [
         "//pkg/config/utils",
         "@com_github_stretchr_testify//assert",

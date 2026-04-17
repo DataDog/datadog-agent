@@ -120,6 +120,7 @@ go_test(
         "config_windows_test.go",
     ],
     embed = [":config"],
+    gotags = ["test"],
     deps = [
         "@com_github_stretchr_testify//assert",
         "@in_yaml_go_yaml_v2//:yaml",
