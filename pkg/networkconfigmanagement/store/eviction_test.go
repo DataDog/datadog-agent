@@ -178,6 +178,83 @@ func TestGetEvictableExceedingMax(t *testing.T) {
 	})
 }
 
+func TestEvictConfigs(t *testing.T) {
+	const noSizeLimit = int64(1 << 40) // 1 TB — effectively unlimited for unit tests
+
+	// metadataUUIDs returns the set of config UUIDs currently present in the metadata bucket.
+	metadataUUIDs := func(t *testing.T, cs *ConfigStore) map[string]bool {
+		t.Helper()
+		_, entries, err := cs.buildEvictionIndex()
+		require.NoError(t, err)
+		uuids := make(map[string]bool, len(entries))
+		for _, e := range entries {
+			uuids[e.ConfigUUID] = true
+		}
+		return uuids
+	}
+
+	t.Run("empty store returns no error", func(t *testing.T) {
+		cs := newTestConfigStore(t)
+		require.NoError(t, cs.evictConfigs(1, 5, noSizeLimit))
+	})
+
+	t.Run("no eviction when all devices are within the per-device cap", func(t *testing.T) {
+		cs := newTestConfigStore(t)
+		insertTestMetadata(t, cs, ConfigMetadata{ConfigUUID: "uuid-1", DeviceID: "device:10.0.0.1", LastAccessedAt: 100})
+		insertTestMetadata(t, cs, ConfigMetadata{ConfigUUID: "uuid-2", DeviceID: "device:10.0.0.1", LastAccessedAt: 200})
+
+		require.NoError(t, cs.evictConfigs(1, 3, noSizeLimit))
+
+		remaining := metadataUUIDs(t, cs)
+		assert.True(t, remaining["uuid-1"])
+		assert.True(t, remaining["uuid-2"])
+	})
+
+	t.Run("evicts oldest configs until device is within the per-device cap", func(t *testing.T) {
+		cs := newTestConfigStore(t)
+		insertTestMetadata(t, cs, ConfigMetadata{ConfigUUID: "uuid-oldest", DeviceID: "device:10.0.0.1", LastAccessedAt: 100})
+		insertTestMetadata(t, cs, ConfigMetadata{ConfigUUID: "uuid-middle", DeviceID: "device:10.0.0.1", LastAccessedAt: 200})
+		insertTestMetadata(t, cs, ConfigMetadata{ConfigUUID: "uuid-newest", DeviceID: "device:10.0.0.1", LastAccessedAt: 300})
+
+		require.NoError(t, cs.evictConfigs(1, 1, noSizeLimit))
+
+		remaining := metadataUUIDs(t, cs)
+		assert.False(t, remaining["uuid-oldest"], "oldest should have been evicted")
+		assert.False(t, remaining["uuid-middle"], "middle should have been evicted")
+		assert.True(t, remaining["uuid-newest"], "newest should be retained")
+	})
+
+	t.Run("pinned configs are preserved during per-device cap eviction", func(t *testing.T) {
+		cs := newTestConfigStore(t)
+		insertTestMetadata(t, cs, ConfigMetadata{ConfigUUID: "uuid-pinned", DeviceID: "device:10.0.0.1", LastAccessedAt: 100, IsPinned: true})
+		insertTestMetadata(t, cs, ConfigMetadata{ConfigUUID: "uuid-old", DeviceID: "device:10.0.0.1", LastAccessedAt: 200})
+		insertTestMetadata(t, cs, ConfigMetadata{ConfigUUID: "uuid-new", DeviceID: "device:10.0.0.1", LastAccessedAt: 300})
+
+		require.NoError(t, cs.evictConfigs(1, 1, noSizeLimit))
+
+		remaining := metadataUUIDs(t, cs)
+		assert.True(t, remaining["uuid-pinned"], "pinned config must not be evicted")
+		assert.False(t, remaining["uuid-old"], "oldest unpinned should be evicted")
+		assert.True(t, remaining["uuid-new"], "newest should be retained")
+	})
+
+	t.Run("size-based eviction evicts globally by LRU down to the minRetainedConfigs floor", func(t *testing.T) {
+		cs := newTestConfigStore(t)
+		insertTestMetadata(t, cs, ConfigMetadata{ConfigUUID: "uuid-oldest", DeviceID: "device:10.0.0.1", LastAccessedAt: 100})
+		insertTestMetadata(t, cs, ConfigMetadata{ConfigUUID: "uuid-middle", DeviceID: "device:10.0.0.1", LastAccessedAt: 200})
+		insertTestMetadata(t, cs, ConfigMetadata{ConfigUUID: "uuid-newest", DeviceID: "device:10.0.0.1", LastAccessedAt: 300})
+
+		// maxSize=0 always triggers size-based eviction (a bbolt DB is never 0 bytes).
+		// minRetainedConfigs=1 means the loop stops once the device is down to 1 config.
+		require.NoError(t, cs.evictConfigs(1, 10, 0))
+
+		remaining := metadataUUIDs(t, cs)
+		assert.False(t, remaining["uuid-oldest"], "oldest should have been evicted by global LRU")
+		assert.False(t, remaining["uuid-middle"], "middle should have been evicted by global LRU")
+		assert.True(t, remaining["uuid-newest"], "newest must be retained (minRetainedConfigs floor)")
+	})
+}
+
 func TestUpdateEvictionIndex(t *testing.T) {
 	t.Run("removes entry and decrements device count", func(t *testing.T) {
 		countMap := map[string]int{"device:10.0.0.1": 3}

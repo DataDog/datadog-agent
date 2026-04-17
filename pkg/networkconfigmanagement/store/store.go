@@ -85,6 +85,16 @@ func (cs *ConfigStore) Close() error {
 	return cs.db.Close()
 }
 
+// Size returns the size of the database file in bytes.
+func (cs *ConfigStore) Size() (int64, error) {
+	var size int64
+	err := cs.view(func(tx *bbolt.Tx) error {
+		size = tx.Size()
+		return nil
+	})
+	return size, err
+}
+
 // Base helper transaction functions for the DB
 
 // view wraps the bbolt View transaction with a read lock (for ease of use)
@@ -401,4 +411,46 @@ func updateEvictionIndex(configsPerDevice map[string]int, sortedEntries []*Confi
 	}
 
 	return configsPerDevice, remaining
+}
+
+// getEvictionCandidates builds the eviction index and returns a single ordered list of
+// config UUIDs to evict. Per-device cap violations come first, followed by global LRU
+// candidates (oldest first). LRU candidates are only collected when the DB size exceeds maxSize.
+func (cs *ConfigStore) getEvictionCandidates(minRetainedConfigs int, maxRetainedConfigs int, maxSize int64) ([]string, error) {
+	configsPerDevice, sortedEntries, err := cs.buildEvictionIndex()
+	if err != nil {
+		return nil, err
+	}
+
+	candidates := getEvictableExceedingMax(configsPerDevice, sortedEntries, maxRetainedConfigs)
+	for _, uuid := range candidates {
+		configsPerDevice, sortedEntries = updateEvictionIndex(configsPerDevice, sortedEntries, uuid)
+	}
+
+	size, err := cs.Size()
+	if err != nil {
+		return nil, err
+	}
+	if size > maxSize {
+		for {
+			candidate := getGlobalLRUCandidate(configsPerDevice, sortedEntries, minRetainedConfigs)
+			if candidate == "" {
+				break
+			}
+			candidates = append(candidates, candidate)
+			configsPerDevice, sortedEntries = updateEvictionIndex(configsPerDevice, sortedEntries, candidate)
+		}
+	}
+
+	return candidates, nil
+}
+
+// evictConfigs deletes the configs identified by the given UUIDs.
+func (cs *ConfigStore) evictConfigs(uuids []string) error {
+	for _, uuid := range uuids {
+		if err := cs.DeleteConfig(uuid); err != nil {
+			return err
+		}
+	}
+	return nil
 }
