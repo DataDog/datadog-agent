@@ -9,22 +9,26 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func TestInitExpectedSources(t *testing.T) {
 	tests := []struct {
-		name      string
-		agentType wmdef.AgentType
-		features  []env.Feature
-		expected  map[wmdef.Kind][]wmdef.Source
+		name            string
+		agentType       wmdef.AgentType
+		features        []env.Feature
+		envVars         map[string]string
+		configOverrides map[string]interface{}
+		expected        map[wmdef.Kind][]wmdef.Source
 	}{
 		{
-			name:      "not kubernetes",
+			name:      "not kubernetes and not ECS",
 			agentType: wmdef.NodeAgent,
-			features:  nil, // No kubernetes
+			features:  nil, // No kubernetes and not ECS
 			expected:  map[wmdef.Kind][]wmdef.Source{},
 		},
 		{
@@ -67,6 +71,54 @@ func TestInitExpectedSources(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:      "ECS EC2 on node agent with Docker runtime",
+			agentType: wmdef.NodeAgent,
+			features: []env.Feature{
+				env.ECSEC2,
+				env.Docker,
+			},
+			expected: map[wmdef.Kind][]wmdef.Source{
+				wmdef.KindContainer: {
+					wmdef.SourceNodeOrchestrator,
+					wmdef.SourceRuntime,
+				},
+			},
+		},
+		{
+			name:      "ECS Managed on node agent with containerd runtime",
+			agentType: wmdef.NodeAgent,
+			features: []env.Feature{
+				env.ECSManagedInstances,
+				env.Containerd,
+			},
+			expected: map[wmdef.Kind][]wmdef.Source{
+				wmdef.KindContainer: {
+					wmdef.SourceNodeOrchestrator,
+					wmdef.SourceRuntime,
+				},
+			},
+		},
+		{
+			name:      "ECS Fargate has no expected sources (single collector, so always complete)",
+			agentType: wmdef.NodeAgent,
+			features:  []env.Feature{env.ECSFargate},
+			expected:  map[wmdef.Kind][]wmdef.Source{},
+		},
+		{
+			name:      "ECS Managed in sidecar mode has no expected sources (single collector)",
+			agentType: wmdef.NodeAgent,
+			features: []env.Feature{
+				env.ECSManagedInstances,
+			},
+			envVars: map[string]string{
+				"AWS_EXECUTION_ENV": "AWS_ECS_MANAGED_INSTANCES",
+			},
+			configOverrides: map[string]interface{}{
+				"ecs_deployment_mode": "sidecar",
+			},
+			expected: map[wmdef.Kind][]wmdef.Source{},
+		},
 	}
 
 	for _, test := range tests {
@@ -75,9 +127,18 @@ func TestInitExpectedSources(t *testing.T) {
 				env.SetFeatures(t, test.features...)
 			}
 
-			result := initExpectedSources(test.agentType)
+			for k, v := range test.envVars {
+				t.Setenv(k, v)
+			}
 
-			assert.Equal(t, len(test.expected), len(result))
+			cfg := configmock.New(t)
+			for k, v := range test.configOverrides {
+				cfg.SetWithoutSource(k, v)
+			}
+
+			result := initExpectedSources(test.agentType, cfg)
+
+			require.Equal(t, len(test.expected), len(result))
 			for kind, expectedSources := range test.expected {
 				assert.ElementsMatch(t, expectedSources, result[kind])
 			}
