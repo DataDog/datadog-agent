@@ -1,4 +1,4 @@
-From 3e1264e8cd793b0851bca23f36c17a5fe3317462 Mon Sep 17 00:00:00 2001
+From 181ca6e76b0cc3a2bb0a5961da92513358d9a0ac Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Hugo=20Beauz=C3=A9e-Luyssen?= <hugo@beauzee.fr>
 Date: Thu, 16 Apr 2026 16:20:52 +0200
 Subject: [PATCH] add --runtime-openssldir and --runtime-dir configure
@@ -17,12 +17,12 @@ that get baked into the binary.
 
 Passing only --openssldir / --libdir continues to work exactly as before.
 ---
- Configurations/unix-Makefile.tmpl | 30 +++++++++++++++++++++++++++---
- Configure                         | 25 +++++++++++++++++++++++++
- 2 files changed, 52 insertions(+), 3 deletions(-)
+ Configurations/unix-Makefile.tmpl | 33 ++++++++++++++++++++++++++++---
+ Configure                         | 25 +++++++++++++++++++++++
+ 2 files changed, 55 insertions(+), 3 deletions(-)
 
 diff --git a/Configurations/unix-Makefile.tmpl b/Configurations/unix-Makefile.tmpl
-index 5bf397eba0..49c3b026bb 100644
+index 5bf397eba0..0506930e7e 100644
 --- a/Configurations/unix-Makefile.tmpl
 +++ b/Configurations/unix-Makefile.tmpl
 @@ -326,6 +326,18 @@ OPENSSLDIR={- #
@@ -44,17 +44,20 @@ index 5bf397eba0..49c3b026bb 100644
  LIBDIR={- our $libdir = $config{libdir};
            unless ($libdir) {
                $libdir = "lib$target{multilib}";
-@@ -336,6 +348,18 @@ libdir={- file_name_is_absolute($libdir)
+@@ -336,6 +348,21 @@ libdir={- file_name_is_absolute($libdir)
            ? $libdir : '$(INSTALLTOP)/$(LIBDIR)' -}
  ENGINESDIR=$(libdir)/engines-{- $sover_dirname -}
  MODULESDIR=$(libdir)/ossl-modules
-+# RUNTIMEDIR / runtimedir: base directory for runtime-loaded components.
-+# Defaults to libdir but can be overridden with --runtime-dir at configure
-+# time to decouple the C-binary's engine/module search path from the
-+# installation prefix (e.g. when building inside a sandbox such as Bazel).
-+# ENGINESDIR / MODULESDIR above are still used for `make install`; these
-+# RUNTIME_* variants are only passed as -D flags to the C compiler.
-+RUNTIMEDIR={- our $runtime_dir = $config{runtime_dir} || $libdir;
++# RUNTIMEDIR / runtimedir: runtime lib directory for engine/module lookup.
++# --runtime-dir acts as a prefix (same semantics as --prefix); LIBDIR is
++# appended automatically.  ENGINESDIR / MODULESDIR above are still used for
++# `make install`; these RUNTIME_* variants are only passed as -D flags.
++RUNTIMEDIR={- # When --runtime-dir is given it acts as a runtime prefix:
++               # LIBDIR is appended to form the runtime lib path, so callers
++               # pass the same value they would use for --prefix without a
++               # sandbox (e.g. --runtime-dir=/opt/datadog-agent/embedded).
++               our $runtime_dir = $config{runtime_dir}
++                   ? catdir($config{runtime_dir}, $libdir) : $libdir;
 +               file_name_is_absolute($runtime_dir) ? "" : $runtime_dir -}
 +runtimedir={- file_name_is_absolute($runtime_dir)
 +               ? $runtime_dir : '$(INSTALLTOP)/$(RUNTIMEDIR)' -}
@@ -63,7 +66,7 @@ index 5bf397eba0..49c3b026bb 100644
  
  # Convenience variable for those who want to set the rpath in shared
  # libraries and applications
-@@ -450,9 +474,9 @@ LIB_CPPFLAGS={- our $lib_cppflags =
+@@ -450,9 +477,9 @@ LIB_CPPFLAGS={- our $lib_cppflags =
                            @{$config{shared_cppflag}});
                  join(' ', $lib_cppflags,
                            (map { '-D'.$_ }
@@ -77,7 +80,7 @@ index 5bf397eba0..49c3b026bb 100644
  LIB_CFLAGS={- join(' ', $target{lib_cflags} || (),
                          $target{shared_cflag} || (),
 diff --git a/Configure b/Configure
-index 499585438a..039340dc73 100755
+index 499585438a..dc5e18b6a1 100755
 --- a/Configure
 +++ b/Configure
 @@ -61,6 +61,23 @@ EOF
@@ -93,14 +96,14 @@ index 499585438a..039340dc73 100755
 +#               files must be found at the real system path at runtime.
 +#               Follows the same absolute/relative rules as --openssldir.
 +#               (Default: same as OPENSSLDIR)
-+# --runtime-dir Base directory for runtime-loaded components (engines/modules).
-+#               Used to compute ENGINESDIR and MODULESDIR instead of the
-+#               install libdir.  If it's an absolute path it is used as-is;
-+#               if relative it is interpreted relative to PREFIX.  Useful when
-+#               the build prefix lives inside a sandbox (e.g. Bazel) but the
-+#               engines and modules must be found at the real system path at
-+#               runtime.
-+#               (Default: same as libdir)
++# --runtime-dir Runtime prefix for engine and module directories.  LIBDIR
++#               is appended to compute ENGINESDIR and MODULESDIR in the C
++#               binary; pass the same value you would pass to --prefix if
++#               there were no sandbox.  Useful when the build prefix lives
++#               inside a sandbox (e.g. Bazel) but engines and modules must
++#               be found at the real system path at runtime.
++#               (Default: same as PREFIX, i.e. LIBDIR is appended as for
++#               install paths)
  # --banner=".." Output specified text instead of default completion banner
  #
  # -w            Don't wait after showing a Configure warning
