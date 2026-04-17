@@ -140,7 +140,12 @@ func TestAllCollectorsWork(t *testing.T) {
 	// This test doesn't validate the results of the collectors, it only checks that they work with
 	// the basic mock, and we don't have any panics or anything.
 
-	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled(), testutil.WithCapabilities(testutil.Capabilities{GPM: true}), testutil.WithMockAllFunctions())
+	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
+		testutil.WithMIGDisabled(),
+		testutil.WithCapabilities(testutil.Capabilities{GPM: true}),
+		testutil.WithMockAllFunctions(),
+		testutil.WithArchitecture("blackwell")) // Ensure all functions are marked as supported
+
 	ddnvml.WithMockNVML(t, nvmlMock)
 	deviceCache := ddnvml.NewDeviceCache()
 	eventsGatherer := NewDeviceEventsGatherer()
@@ -186,41 +191,47 @@ func TestDisabledCollectors(t *testing.T) {
 		{
 			name:                   "no collectors disabled",
 			disabledCollectors:     []string{},
-			expectedCollectorCount: 5, // stateless, sampling, fields, gpm, device_events
-			expectedCollectorNames: []CollectorName{stateless, sampling, field, gpm, deviceEvents},
+			expectedCollectorCount: 6, // stateless, sampling, fields, gpm, device_events, nvlink
+			expectedCollectorNames: []CollectorName{stateless, sampling, field, gpm, deviceEvents, nvlink},
 		},
 		{
 			name:                   "disable gpm collector",
 			disabledCollectors:     []string{"gpm"},
-			expectedCollectorCount: 4,
-			expectedCollectorNames: []CollectorName{stateless, sampling, field, deviceEvents},
+			expectedCollectorCount: 5,
+			expectedCollectorNames: []CollectorName{stateless, sampling, field, deviceEvents, nvlink},
 			unexpectedNames:        []CollectorName{gpm},
 		},
 		{
 			name:                   "disable multiple collectors",
 			disabledCollectors:     []string{"gpm", "fields"},
-			expectedCollectorCount: 3,
-			expectedCollectorNames: []CollectorName{stateless, sampling, deviceEvents},
+			expectedCollectorCount: 4,
+			expectedCollectorNames: []CollectorName{stateless, sampling, deviceEvents, nvlink},
 			unexpectedNames:        []CollectorName{gpm, field},
 		},
 		{
 			name:                   "disable all collectors",
-			disabledCollectors:     []string{"stateless", "sampling", "fields", "gpm", "device_events"},
+			disabledCollectors:     []string{"stateless", "sampling", "fields", "gpm", "device_events", "nvlink"},
 			expectedCollectorCount: 0,
 			expectedCollectorNames: []CollectorName{},
 		},
 		{
 			name:                   "disable non-existent collector",
 			disabledCollectors:     []string{"non_existent"},
-			expectedCollectorCount: 5,
-			expectedCollectorNames: []CollectorName{stateless, sampling, field, gpm, deviceEvents},
+			expectedCollectorCount: 6,
+			expectedCollectorNames: []CollectorName{stateless, sampling, field, gpm, deviceEvents, nvlink},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup NVML mock
-			nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithDeviceCount(1), testutil.WithMIGDisabled(), testutil.WithCapabilities(testutil.Capabilities{GPM: true}), testutil.WithMockAllFunctions())
+			nvmlMock := testutil.GetBasicNvmlMockWithOptions(
+				testutil.WithDeviceCount(1),
+				testutil.WithMIGDisabled(),
+				testutil.WithCapabilities(testutil.Capabilities{GPM: true}),
+				testutil.WithMockAllFunctions(),
+				testutil.WithArchitecture("blackwell"),
+			)
 			ddnvml.WithMockNVML(t, nvmlMock)
 			deviceCache := ddnvml.NewDeviceCache()
 			devices, err := deviceCache.AllPhysicalDevices()
