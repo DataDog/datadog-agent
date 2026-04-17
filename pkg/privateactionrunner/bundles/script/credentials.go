@@ -7,15 +7,28 @@ package com_datadoghq_script
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+	"runtime"
 
 	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 
 const (
-	schemaIdV1 = "script-credentials-v1"
+	schemaIdV1                     = "script-credentials-v1"
+	privateActionRunnerRelativeDir = "private-action-runner"
 )
+
+func defaultScriptConfigPath() string {
+	filename := "script-config.yaml"
+	if runtime.GOOS == "windows" {
+		filename = "powershell-script-config.yaml"
+	}
+	return filepath.Join(defaultpaths.ConfPath, privateActionRunnerRelativeDir, filename)
+}
 
 type ScriptBundleConfig struct {
 	SchemaId                      string                                         `yaml:"schemaId"`
@@ -53,6 +66,16 @@ type RunPredefinedPowershellScriptConfig struct {
 func parseCredentials(credentials *privateconnection.PrivateCredentials) (*ScriptBundleConfig, error) {
 	tokens := credentials.AsTokenMap()
 	stringConfig := tokens["configFileLocation"] // ResolveConnectionInfoToCredential has loaded the content of the file
+
+	if stringConfig == "" {
+		// No credential path specified; fall back to the platform default location.
+		path := defaultScriptConfigPath()
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("no script config provided and could not read default config %s: %w", path, err)
+		}
+		stringConfig = string(data)
+	}
 
 	scriptConfig := &ScriptBundleConfig{}
 	err := yaml.Unmarshal([]byte(stringConfig), scriptConfig)
