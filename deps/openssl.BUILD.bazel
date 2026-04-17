@@ -94,7 +94,7 @@ configure_make(
         "@platforms//os:windows": [],
         "//conditions:default": [
             "--runtime-openssldir=$(INSTALL_DIR)/embedded/ssl",
-            "--runtime-dir=$(INSTALL_DIR)/embedded",
+            "--runtime-dir=$(INSTALL_DIR)/embedded/lib",
         ],
     }),
     env = select({
