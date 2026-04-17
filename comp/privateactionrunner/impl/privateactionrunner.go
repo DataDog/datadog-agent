@@ -130,8 +130,6 @@ func NewPrivateActionRunner(
 	}, nil
 }
 
-
-
 func (p *PrivateActionRunner) getRunnerConfig(ctx context.Context) (*parconfig.Config, error) {
 	persistedIdentity, err := enrollment.GetIdentityFromPreviousEnrollment(ctx, p.coreConfig)
 	if err != nil {
@@ -284,8 +282,8 @@ func (p *PrivateActionRunner) waitForStartup(ctx context.Context) error {
 func (p *PrivateActionRunner) shouldReenroll(ctx context.Context, identity *enrollment.PersistedIdentity) (bool, error) {
 	if flavor.GetFlavor() == flavor.ClusterAgent {
 		currentClusterID, err := clustername.GetClusterID()
-		if err != nil || currentClusterID == "" {
-			return false, fmt.Errorf("failed to get orchestrator cluster ID for cluster agent: %w", err)
+		if err != nil {
+			return false, fmt.Errorf("failed to get orch_cluster_id: %w", err)
 		}
 		if identity.OrchClusterID != currentClusterID {
 			p.logger.Infof("Saved identity orch_cluster_id does not match current cluster ID, re-enrolling")
