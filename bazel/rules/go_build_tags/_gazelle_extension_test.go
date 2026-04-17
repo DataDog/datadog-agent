@@ -32,6 +32,8 @@ func TestIsSystemTag(t *testing.T) {
 		"go1.17", "go1.21", "go1.24",
 		// special compiler/mode tags
 		"cgo", "gc", "gccgo", "ignore",
+		// Go 1.19 pseudo-constraint covering all non-Windows GOOS values
+		"unix",
 	} {
 		assert.True(t, isSystemTag(tag), "expected system tag: %s", tag)
 	}
