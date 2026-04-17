@@ -17,7 +17,7 @@ from invoke.context import Context
 from tasks.libs.common.color import color_message
 
 
-class LabelParts(NamedTuple):
+class Label(NamedTuple):
     """Component parts of a Bazel label."""
 
     repo: str | None
@@ -25,13 +25,13 @@ class LabelParts(NamedTuple):
     name: str | None
 
 
-def split_label(label: str) -> LabelParts:
+def split_label(label: str) -> Label:
     """Split a Bazel label into its component parts.
 
     The canonical format is ``@@repo//package/path:name``, where the repo
     prefix is optional and may carry one or two leading ``@`` characters.
 
-    Returns a :class:`LabelParts` namedtuple with:
+    Returns a :class:`Label` namedtuple with:
     - ``repo``: the repository name, or ``None`` when absent (main workspace).
     - ``package``: the package path (empty string ``""`` for root labels such
       as ``//:foo``).
@@ -61,7 +61,7 @@ def split_label(label: str) -> LabelParts:
         package = label
         name = None
 
-    return LabelParts(repo=repo, package=package, name=name)
+    return Label(repo=repo, package=package, name=name)
 
 
 def package_from_path(path: str) -> str:
