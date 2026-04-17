@@ -849,7 +849,10 @@ func TestMetricsFollowSpec(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			archSpec := specs.Architectures.Architectures[config.Architecture]
 			emittedMetrics, knownTagValues := collectMetricSamples(t, config, archSpec)
-			ValidateEmittedMetricsAgainstSpec(t, specs, config, emittedMetrics, knownTagValues)
+			validationOptions := gpuspec.ValidationOptions{
+				WorkloadActive: true,
+			}
+			ValidateEmittedMetricsAgainstSpec(t, specs, config, emittedMetrics, knownTagValues, validationOptions)
 		})
 	}
 }

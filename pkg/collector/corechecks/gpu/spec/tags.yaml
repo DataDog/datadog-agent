@@ -26,21 +26,23 @@ tags:
   gpu_host:
     regex: "^true$"
   pid:
-    regex: '^\d+(,\d+)*$' # multiple PIDs are supported and should be split by commas
+    regex: "^\\d+(,\\d+)*$" # multiple PIDs are supported and should be split by commas
   nspid:
-    regex: '^\d+(,\d+)*$' # multiple PIDs are supported and should be split by commas
+    regex: "^\\d+(,\\d+)*$" # multiple PIDs are supported and should be split by commas
   origin:
     regex: "^(driver|hardware)$"
   type:
-    regex: '^\d+$'
+    regex: "^\\d+$"
   kube_container_name: {}
   memory_location:
-    regex: "^(l1_cache|l2_cache|device_memory|register_file|texture_memory|texture_shm|cbu|sram)$"
-  nvlink_port: 
-    regex: '^\d+$'
-    
+    regex: "^(l1_cache|l2_cache|device_memory|register_file|texture_memory|texture_\
+      shm|cbu|sram)$"
+  nvlink_port:
+    regex: "^\\d+$"
+
 tagsets:
   container:
+    workload_only: true
     tags:
       - kube_container_name
   device:
@@ -56,6 +58,7 @@ tagsets:
       - gpu_parent_uuid
       - gpu_host
   process:
+    workload_only: true
     tags:
       - pid
       - nspid

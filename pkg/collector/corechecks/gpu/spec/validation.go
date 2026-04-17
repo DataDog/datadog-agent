@@ -7,6 +7,7 @@ package spec
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 )
@@ -15,6 +16,11 @@ import (
 type GPUConfig struct {
 	Architecture string     `json:"architecture"`
 	DeviceMode   DeviceMode `json:"device_mode"`
+}
+
+// ValidationOptions controls which spec failures should be enforced.
+type ValidationOptions struct {
+	WorkloadActive bool `json:"workload_active"`
 }
 
 // Equals checks if two GPU configs are equal.
@@ -67,6 +73,7 @@ type MetricStatus struct {
 }
 
 type TagSummary struct {
+	WorkloadOnly        bool     `json:"workload_only,omitempty"`
 	Found               int      `json:"found"`
 	Missing             int      `json:"missing"`
 	Unknown             int      `json:"unknown"`
@@ -139,15 +146,17 @@ func KnownGPUConfigs(specs *Specs) []GPUConfig {
 }
 
 // ExpectedMetricsForConfig returns the spec metric names expected for a GPU config.
-func ExpectedMetricsForConfig(specs *Specs, config GPUConfig) map[string]MetricSpec {
+func ExpectedMetricsForConfig(specs *Specs, config GPUConfig, options ValidationOptions) map[string]MetricSpec {
 	expected := make(map[string]MetricSpec)
 	for metricName, metricSpec := range specs.Metrics.Metrics {
 		if !metricSpec.SupportsConfig(config) {
 			continue
 		}
+		if metricSpec.WorkloadOnly && !options.WorkloadActive {
+			continue
+		}
 		expected[metricName] = metricSpec
 	}
-
 	return expected
 }
 
@@ -177,47 +186,56 @@ func TagsToKeyValues(tags []string) map[string][]string {
 }
 
 // RequiredTagsForMetric expands the required tags for a metric from tagsets and custom tags.
-func RequiredTagsForMetric(tagsSpec *TagsSpec, metricSpec MetricSpec) (map[string]TagSpec, error) {
+func RequiredTagsForMetric(tagsSpec *TagsSpec, metricSpec MetricSpec) (map[string]TagSpec, map[string]TagSpec, error) {
 	requiredTags := make(map[string]TagSpec)
+	workloadOnlyTags := make(map[string]TagSpec)
 	for _, tagsetName := range metricSpec.Tagsets {
 		tagsetSpec, ok := tagsSpec.Tagsets[tagsetName]
 		if !ok {
-			return nil, fmt.Errorf("unknown tagset %q", tagsetName)
+			return nil, nil, fmt.Errorf("unknown tagset %q", tagsetName)
 		}
-
+		targetMap := requiredTags
+		if tagsetSpec.WorkloadOnly {
+			targetMap = workloadOnlyTags
+		}
 		for _, tag := range tagsetSpec.Tags {
 			tagSpec, found := tagsSpec.Tags[tag]
 			if !found {
-				return nil, fmt.Errorf("tagset %s references unknown tag %s", tagsetName, tag)
+				return nil, nil, fmt.Errorf("tagset %s references unknown tag %s", tagsetName, tag)
 			}
-			requiredTags[tag] = tagSpec
+			targetMap[tag] = tagSpec
 		}
 	}
 
 	for _, tag := range metricSpec.CustomTags {
 		tagSpec, found := tagsSpec.Tags[tag]
 		if !found {
-			return nil, fmt.Errorf("unknown custom tag %q", tag)
+			return nil, nil, fmt.Errorf("unknown custom tag %q", tag)
 		}
 		requiredTags[tag] = tagSpec
 	}
 
-	return requiredTags, nil
+	return requiredTags, workloadOnlyTags, nil
 }
 
 // validateMetricTagsAgainstSpec validates emitted tags against the spec for a metric.
 // If knownTagValues is provided, matching keys are additionally checked for exact values.
-func validateMetricTagsAgainstSpec(tagsSpec *TagsSpec, metricSpec MetricSpec, metricSamples []MetricObservation, knownTagValues map[string]string) (map[string]*TagSummary, error) {
+func validateMetricTagsAgainstSpec(spec *Specs, metricSpec MetricSpec, metricSamples []MetricObservation, knownTagValues map[string]string, options ValidationOptions) (map[string]*TagSummary, error) {
 	tagResults := make(map[string]*TagSummary)
 
-	requiredTags, err := RequiredTagsForMetric(tagsSpec, metricSpec)
+	requiredTags, workloadOnlyTags, err := RequiredTagsForMetric(spec.Tags, metricSpec)
 	if err != nil {
 		return nil, fmt.Errorf("required tags failed: %w", err)
 	}
 
+	if options.WorkloadActive {
+		maps.Copy(requiredTags, workloadOnlyTags) // include workload tags as required for the tag validation
+	}
+
 	getTagSummary := func(tag string) *TagSummary {
 		if _, found := tagResults[tag]; !found {
-			tagResults[tag] = &TagSummary{}
+			_, workloadOnly := workloadOnlyTags[tag]
+			tagResults[tag] = &TagSummary{WorkloadOnly: workloadOnly}
 		}
 		return tagResults[tag]
 	}
@@ -257,7 +275,7 @@ func validateMetricTagsAgainstSpec(tagsSpec *TagsSpec, metricSpec MetricSpec, me
 }
 
 // ValidateEmittedMetricsAgainstSpec validates emitted metrics against the spec for a given GPU config.
-func ValidateEmittedMetricsAgainstSpec(specs *Specs, config GPUConfig, emittedMetrics map[string][]MetricObservation, knownTagValues map[string]string) (ValidationResult, error) {
+func ValidateEmittedMetricsAgainstSpec(specs *Specs, config GPUConfig, emittedMetrics map[string][]MetricObservation, knownTagValues map[string]string, options ValidationOptions) (ValidationResult, error) {
 	results := ValidationResult{
 		Metrics: make(map[string]*MetricStatus),
 	}
@@ -276,7 +294,7 @@ func ValidateEmittedMetricsAgainstSpec(specs *Specs, config GPUConfig, emittedMe
 	}
 
 	// Now, for all metrics that we would expect, validate each of them individually.
-	expectedMetrics := ExpectedMetricsForConfig(specs, config)
+	expectedMetrics := ExpectedMetricsForConfig(specs, config, options)
 	for metricName, metricSpec := range expectedMetrics {
 		metricSamples, found := emittedMetrics[metricName]
 		if !found {
@@ -284,7 +302,7 @@ func ValidateEmittedMetricsAgainstSpec(specs *Specs, config GPUConfig, emittedMe
 			continue
 		}
 
-		tagResults, err := validateMetricTagsAgainstSpec(specs.Tags, metricSpec, metricSamples, knownTagValues)
+		tagResults, err := validateMetricTagsAgainstSpec(specs, metricSpec, metricSamples, knownTagValues, options)
 		if err != nil {
 			return results, fmt.Errorf("validate metric tags for %s: %w", metricName, err)
 		}

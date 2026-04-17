@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"maps"
 	"sync"
 	"time"
 
@@ -59,7 +60,12 @@ func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpusp
 		State:  validationStateMissing,
 	}
 
-	expectedMetricsMap := gpuspec.ExpectedMetricsForConfig(specs, config)
+	// We still query all tags and metrics, even if they're workload only and some live hosts won't have them.
+	// The relaxation happens in the render phase, where metrics/tags that are sometimes missing will not be reported
+	// as errors if they're workload-only.
+	expectedMetricsMap := gpuspec.ExpectedMetricsForConfig(specs, config, gpuspec.ValidationOptions{
+		WorkloadActive: true,
+	})
 
 	var err error
 	result.DeviceCount, err = client.queryDeviceCount(config, fromTS, toTS)
@@ -79,15 +85,17 @@ func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpusp
 
 	for metricName, metricSpec := range expectedMetricsMap {
 		prefixedMetricName := gpuspec.PrefixedMetricName(specs, metricName)
-		expectedTags, err := gpuspec.RequiredTagsForMetric(specs.Tags, metricSpec)
+		validatesValues := metricSpec.Validator != nil
+		requiredTags, workloadOnlyTags, err := gpuspec.RequiredTagsForMetric(specs.Tags, metricSpec)
 		if err != nil {
 			return result, fmt.Errorf("derive required tags for %s: %w", metricName, err)
 		}
 
+		maps.Copy(requiredTags, workloadOnlyTags) // include workload tags as required for the tag validation
+
 		// Get the metric values
 		group.Go(func() error {
-			validatesValues := metricSpec.Validator != nil
-			metricObservations, err := client.queryExpectedMetricPresenceForGPUConfig(prefixedMetricName, expectedTags, config.TagFilter(), fromTS, toTS, validatesValues)
+			metricObservations, err := client.queryExpectedMetricPresenceForGPUConfig(prefixedMetricName, requiredTags, config.TagFilter(), fromTS, toTS, validatesValues)
 			if err != nil {
 				return fmt.Errorf("query expected metric presence for %s: %w", metricName, err)
 			}
@@ -103,7 +111,7 @@ func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpusp
 
 		// Also get tag values for the metric
 		group.Go(func() error {
-			metricTags, err := client.fetchMetricAllTags(prefixedMetricName, expectedTags, tagLookbackSeconds, config.TagFilter())
+			metricTags, err := client.fetchMetricAllTags(prefixedMetricName, requiredTags, tagLookbackSeconds, config.TagFilter())
 			if err != nil {
 				return fmt.Errorf("fetch metric tags for %s: %w", metricName, err)
 			}
@@ -157,7 +165,9 @@ func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpusp
 		}
 	}
 
-	result.DetailedResult, err = gpuspec.ValidateEmittedMetricsAgainstSpec(specs, config, observations, nil)
+	result.DetailedResult, err = gpuspec.ValidateEmittedMetricsAgainstSpec(specs, config, observations, nil, gpuspec.ValidationOptions{
+		WorkloadActive: true,
+	})
 	if err != nil {
 		allErrors = errors.Join(allErrors, fmt.Errorf("error validating emitted metrics against spec: %w", err))
 	}

@@ -4,6 +4,7 @@
 # - metrics.<metric_name>:
 #   - tagsets: list of tagset names declared in tags.yaml
 #   - custom_tags (optional): additional dynamic tag names declared in tags.yaml (e.g., memory_location)
+#   - workload_only (optional): true when the metric is only guaranteed while a workload is active
 #   - support:
 #       - unsupported_architectures: [<architecture_name>, ...] (the list of architectures that do not support the metric)
 #       - device_modes: {mig: bool, physical: bool, vgpu: bool} (a map describing whether each device mode supports the metric)
@@ -87,7 +88,7 @@ metrics:
     tagsets:
       - device
     validator:
-      values: [0, 1]
+      values: [ 0, 1 ]
     support:
       unsupported_architectures:
         - fermi
@@ -99,7 +100,7 @@ metrics:
     tagsets:
       - device
     validator:
-      values: [0, 1]
+      values: [ 0, 1 ]
     support:
       unsupported_architectures:
         - fermi
@@ -111,7 +112,7 @@ metrics:
     tagsets:
       - device
     validator:
-      values: [0, 1]
+      values: [ 0, 1 ]
     support:
       unsupported_architectures:
         - fermi
@@ -123,7 +124,7 @@ metrics:
     tagsets:
       - device
     validator:
-      values: [0, 1]
+      values: [ 0, 1 ]
     support:
       unsupported_architectures:
         - fermi
@@ -135,7 +136,7 @@ metrics:
     tagsets:
       - device
     validator:
-      values: [0, 1]
+      values: [ 0, 1 ]
     support:
       unsupported_architectures:
         - fermi
@@ -147,7 +148,7 @@ metrics:
     tagsets:
       - device
     validator:
-      values: [0, 1]
+      values: [ 0, 1 ]
     support:
       unsupported_architectures:
         - fermi
@@ -159,7 +160,7 @@ metrics:
     tagsets:
       - device
     validator:
-      values: [0, 1]
+      values: [ 0, 1 ]
     support:
       unsupported_architectures:
         - fermi
@@ -196,7 +197,7 @@ metrics:
     tagsets:
       - device
     validator:
-      values: [1]
+      values: [ 1 ]
     support:
       unsupported_architectures: []
       device_modes:
@@ -207,7 +208,7 @@ metrics:
     tagsets:
       - device
     validator:
-      values: [0, 1]
+      values: [ 0, 1 ]
     support:
       unsupported_architectures: []
       device_modes:
@@ -1260,6 +1261,7 @@ metrics:
         physical: true
         vgpu: false
   process.core.usage:
+    workload_only: true
     tagsets:
       - device
       - process
@@ -1275,6 +1277,7 @@ metrics:
         physical: true
         vgpu: true
   process.decoder_active:
+    workload_only: true
     tagsets:
       - device
       - process
@@ -1287,6 +1290,7 @@ metrics:
         physical: true
         vgpu: true
   process.dram_active:
+    workload_only: true
     tagsets:
       - device
       - process
@@ -1299,6 +1303,7 @@ metrics:
         physical: true
         vgpu: true
   process.encoder_active:
+    workload_only: true
     tagsets:
       - device
       - process
@@ -1311,6 +1316,7 @@ metrics:
         physical: true
         vgpu: true
   process.memory.usage:
+    workload_only: true
     tagsets:
       - device
       - process
@@ -1326,6 +1332,7 @@ metrics:
         physical: true
         vgpu: true
   process.sm_active:
+    workload_only: true
     tagsets:
       - device
       - process
@@ -1363,7 +1370,7 @@ metrics:
     tagsets:
       - device
     validator:
-      values: [0, 1]
+      values: [ 0, 1 ]
     support:
       unsupported_architectures:
         - fermi
@@ -1380,7 +1387,7 @@ metrics:
     tagsets:
       - device
     validator:
-      values: [0, 1]
+      values: [ 0, 1 ]
     support:
       unsupported_architectures:
         - fermi
