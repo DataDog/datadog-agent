@@ -202,18 +202,18 @@ func startSpanFromIDs(ctx context.Context, operationName string, traceID, parent
 
 // StartSpanFromContext starts a span using the context to find the parent span.
 func StartSpanFromContext(ctx context.Context, operationName string) (*Span, context.Context) {
-	ids, _ := getSpanIDsFromContext(ctx)
-	return startSpanFromIDs(ctx, operationName, ids.traceID, ids.spanID)
+	spanIDs, _ := getSpanIDsFromContext(ctx)
+	return startSpanFromIDs(ctx, operationName, spanIDs.traceID, spanIDs.spanID)
 }
 
 // EnvFromContext returns the environment variables for the context.
 func EnvFromContext(ctx context.Context) []string {
-	spanIDs, ok := getSpanIDsFromContext(ctx)
+	sIDs, ok := getSpanIDsFromContext(ctx)
 	if !ok {
 		return []string{}
 	}
 	return []string{
-		fmt.Sprintf("%s=%s", envTraceID, strconv.FormatUint(spanIDs.traceID, 10)),
-		fmt.Sprintf("%s=%s", envParentID, strconv.FormatUint(spanIDs.spanID, 10)),
+		fmt.Sprintf("%s=%s", envTraceID, strconv.FormatUint(sIDs.traceID, 10)),
+		fmt.Sprintf("%s=%s", envParentID, strconv.FormatUint(sIDs.spanID, 10)),
 	}
 }
