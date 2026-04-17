@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Fix the system-probe SELinux policy module failing to load on RHEL 7
+    with ``policydb module version 21 does not match my version range 4-19``.
+    The module is now compiled against modular policy version 19, which is
+    the highest version supported by RHEL 7 and is backward-compatible with
+    newer RHEL releases.
