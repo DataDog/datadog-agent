@@ -15,6 +15,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 	"unicode"
@@ -4495,4 +4496,160 @@ func TestConvertSpanDBNameMapping(t *testing.T) {
 			}
 		})
 	}
+}
+
+func setPayloadTagsTestSpans() []testutil.OTLPResourceSpan {
+	return []testutil.OTLPResourceSpan{{
+		LibName:    "libname",
+		LibVersion: "1.2",
+		Attributes: map[string]interface{}{
+			string(semconv.ContainerIDKey):        "cid",
+			string(semconv.ContainerImageNameKey): "img",
+		},
+		Spans: []*testutil.OTLPSpan{{
+			TraceID: [16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
+			Name:    "first",
+		}},
+	}}
+}
+
+func newPayloadTagsReceiver(t *testing.T, v2 bool) (*OTLPReceiver, <-chan *Payload) {
+	t.Helper()
+	cfg := NewTestConfig(t)
+	if !v2 {
+		cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
+	}
+	out := make(chan *Payload, 4)
+	rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	return rcv, out
+}
+
+func sendAndCollect(t *testing.T, rcv *OTLPReceiver, out <-chan *Payload, spans []testutil.OTLPResourceSpan) *pb.TracerPayload {
+	t.Helper()
+	rspans := testutil.NewOTLPTracesRequest(spans).Traces().ResourceSpans().At(0)
+	rcv.ReceiveResourceSpans(context.Background(), rspans, http.Header{}, nil)
+	select {
+	case p := <-out:
+		return p.TracerPayload
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("timed out waiting for payload")
+		return nil
+	}
+}
+
+func TestOTLPReceiverSetPayloadTags(t *testing.T) {
+	t.Run("appliesToV1Payload", func(t *testing.T) {
+		rcv, out := newPayloadTagsReceiver(t, false)
+		rcv.SetPayloadTags(map[string]string{
+			"_dd.pipeline_has_no_stats_connector": "true",
+			"custom.tag":                          "v",
+		})
+		tp := sendAndCollect(t, rcv, out, setPayloadTagsTestSpans())
+		require.Equal(t, map[string]string{
+			"_dd.pipeline_has_no_stats_connector": "true",
+			"custom.tag":                          "v",
+		}, unflatten(tp.Tags[tagOTLPCollectorTags]))
+		require.NotEmpty(t, tp.Tags[tagContainersTags], "container tags should still be set")
+	})
+
+	t.Run("appliesToV2Payload", func(t *testing.T) {
+		rcv, out := newPayloadTagsReceiver(t, true)
+		rcv.SetPayloadTags(map[string]string{
+			"_dd.pipeline_has_no_stats_connector": "true",
+			"custom.tag":                          "v",
+		})
+		tp := sendAndCollect(t, rcv, out, setPayloadTagsTestSpans())
+		require.Equal(t, map[string]string{
+			"_dd.pipeline_has_no_stats_connector": "true",
+			"custom.tag":                          "v",
+		}, unflatten(tp.Tags[tagOTLPCollectorTags]))
+		require.NotEmpty(t, tp.Tags[tagContainersTags], "container tags should still be set")
+	})
+
+	t.Run("nilAndEmptyClear", func(t *testing.T) {
+		for _, v2 := range []bool{false, true} {
+			rcv, out := newPayloadTagsReceiver(t, v2)
+			rcv.SetPayloadTags(map[string]string{"k": "v"})
+			tp := sendAndCollect(t, rcv, out, setPayloadTagsTestSpans())
+			require.Equal(t, "k:v", tp.Tags[tagOTLPCollectorTags])
+
+			rcv.SetPayloadTags(nil)
+			tp = sendAndCollect(t, rcv, out, setPayloadTagsTestSpans())
+			_, ok := tp.Tags[tagOTLPCollectorTags]
+			require.False(t, ok, "nil should clear prior tags (v2=%v)", v2)
+
+			rcv.SetPayloadTags(map[string]string{"k": "v"})
+			rcv.SetPayloadTags(map[string]string{})
+			tp = sendAndCollect(t, rcv, out, setPayloadTagsTestSpans())
+			_, ok = tp.Tags[tagOTLPCollectorTags]
+			require.False(t, ok, "empty map should clear prior tags (v2=%v)", v2)
+		}
+	})
+
+	t.Run("defensiveCopy", func(t *testing.T) {
+		for _, v2 := range []bool{false, true} {
+			rcv, out := newPayloadTagsReceiver(t, v2)
+			input := map[string]string{"k": "original"}
+			rcv.SetPayloadTags(input)
+			input["k"] = "mutated"
+			input["added"] = "late"
+			tp := sendAndCollect(t, rcv, out, setPayloadTagsTestSpans())
+			require.Equal(t, map[string]string{"k": "original"}, unflatten(tp.Tags[tagOTLPCollectorTags]), "v2=%v", v2)
+		}
+	})
+
+	t.Run("concurrent", func(t *testing.T) {
+		rcv, out := newPayloadTagsReceiver(t, true)
+		done := make(chan struct{})
+		go func() {
+			for {
+				select {
+				case <-done:
+					return
+				case <-out:
+				}
+			}
+		}()
+
+		var wg sync.WaitGroup
+		stop := make(chan struct{})
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			i := 0
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+				}
+				if i%3 == 0 {
+					rcv.SetPayloadTags(nil)
+				} else {
+					rcv.SetPayloadTags(map[string]string{
+						"k":         strconv.Itoa(i),
+						"iteration": strconv.Itoa(i),
+					})
+				}
+				i++
+			}
+		}()
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			spans := setPayloadTagsTestSpans()
+			for i := 0; i < 500; i++ {
+				rspans := testutil.NewOTLPTracesRequest(spans).Traces().ResourceSpans().At(0)
+				rcv.ReceiveResourceSpans(context.Background(), rspans, http.Header{}, nil)
+			}
+		}()
+
+		go func() {
+			time.Sleep(50 * time.Millisecond)
+			close(stop)
+		}()
+		wg.Wait()
+		close(done)
+	})
 }

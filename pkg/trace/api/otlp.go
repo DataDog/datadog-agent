@@ -67,6 +67,7 @@ type OTLPReceiver struct {
 	grpcMaxRecvMsgSize int
 	isStopped          atomic.Bool
 	mu                 sync.RWMutex
+	payloadTags        atomic.Pointer[map[string]string]
 }
 
 // NewOTLPReceiver returns a new OTLPReceiver which sends any incoming traces down the out channel.
@@ -258,6 +259,35 @@ func (o *OTLPReceiver) SetOTelAttributeTranslator(attrstrans *attributes.Transla
 	o.conf.OTLPReceiver.AttributesTranslator = attrstrans
 }
 
+const tagOTLPCollectorTags = "_dd.otlp_collector_tags"
+
+// SetPayloadTags replaces the tags flattened into TracerPayload.Tags
+// under the key _dd.otlp_collector_tags. Passing nil or an empty map
+// clears the entry. Safe for concurrent use; the input map is copied.
+func (o *OTLPReceiver) SetPayloadTags(tags map[string]string) {
+	if len(tags) == 0 {
+		o.payloadTags.Store(nil)
+		return
+	}
+	cp := make(map[string]string, len(tags))
+	for k, v := range tags {
+		cp[k] = v
+	}
+	o.payloadTags.Store(&cp)
+}
+
+func (o *OTLPReceiver) mergePayloadTags(dst map[string]string) map[string]string {
+	t := o.payloadTags.Load()
+	if t == nil || len(*t) == 0 {
+		return dst
+	}
+	if dst == nil {
+		dst = make(map[string]string, 1)
+	}
+	dst[tagOTLPCollectorTags] = flatten(*t).String()
+	return dst
+}
+
 // ReceiveResourceSpans processes the given rspans and returns the source that it identified from processing them.
 func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header, hostFromAttributesHandler attributes.HostFromAttributesHandler) (source.Source, error) {
 	o.mu.RLock()
@@ -385,6 +415,7 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 			tagContainersTags: containerTags,
 		}
 	}
+	p.TracerPayload.Tags = o.mergePayloadTags(p.TracerPayload.Tags)
 
 	o.out <- &p
 	return src
@@ -518,6 +549,7 @@ func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace
 			tagContainersTags: payloadTags.String(),
 		}
 	}
+	p.TracerPayload.Tags = o.mergePayloadTags(p.TracerPayload.Tags)
 
 	o.out <- &p
 	return src
