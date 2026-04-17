@@ -140,17 +140,17 @@ func WithSamplingPriority(ctx context.Context, priority int) context.Context {
 	return context.WithValue(ctx, samplingPriorityKey, priority)
 }
 
-func getServiceFromContext(ctx context.Context) string {
-	s, _ := ctx.Value(serviceKey).(string)
-	return s
+func getServiceFromContext(ctx context.Context) (string, bool) {
+	service, ok := ctx.Value(serviceKey).(string)
+	return service, ok
 }
 
-func getSamplingPriorityFromContext(ctx context.Context) *int {
-	p, ok := ctx.Value(samplingPriorityKey).(int)
+func getSamplingPriorityFromContext(ctx context.Context) (*int, bool) {
+	priority, ok := ctx.Value(samplingPriorityKey).(int)
 	if !ok {
-		return nil
+		return nil, false
 	}
-	return &p
+	return &priority, true
 }
 
 // StartSpanFromEnv starts a span using the environment variables to find the parent span.
@@ -193,8 +193,8 @@ func StartSpanFromIDs(ctx context.Context, operationName, traceID, parentID stri
 }
 
 func startSpanFromIDs(ctx context.Context, operationName string, traceID, parentID uint64) (*Span, context.Context) {
-	service := getServiceFromContext(ctx)
-	samplingPriority := getSamplingPriorityFromContext(ctx)
+	service, _ := getServiceFromContext(ctx)
+	samplingPriority, _ := getSamplingPriorityFromContext(ctx)
 	s := newSpan(operationName, parentID, traceID, service, samplingPriority)
 	ctx = setSpanIDsInContext(ctx, s)
 	return s, ctx
@@ -208,12 +208,12 @@ func StartSpanFromContext(ctx context.Context, operationName string) (*Span, con
 
 // EnvFromContext returns the environment variables for the context.
 func EnvFromContext(ctx context.Context) []string {
-	ids, ok := getSpanIDsFromContext(ctx)
+	spanIDs, ok := getSpanIDsFromContext(ctx)
 	if !ok {
 		return []string{}
 	}
 	return []string{
-		fmt.Sprintf("%s=%s", envTraceID, strconv.FormatUint(ids.traceID, 10)),
-		fmt.Sprintf("%s=%s", envParentID, strconv.FormatUint(ids.spanID, 10)),
+		fmt.Sprintf("%s=%s", envTraceID, strconv.FormatUint(spanIDs.traceID, 10)),
+		fmt.Sprintf("%s=%s", envParentID, strconv.FormatUint(spanIDs.spanID, 10)),
 	}
 }
