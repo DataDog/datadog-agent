@@ -276,15 +276,6 @@ def get_build_flags(
     if python_home_3:
         ldflags += f"-X {REPO_PATH}/pkg/collector/python.pythonHome3={python_home_3} "
 
-    # On AIX, libpython must be linked explicitly so that Python API symbols enter
-    # the XCOFF process-global symbol table at startup (required by C extension modules).
-    # Fall back to embedded_path when python_home_3 is not explicitly set, since on AIX
-    # Python is installed alongside rtloader under the same embedded prefix.
-    if sys.platform == 'aix':
-        aix_python_lib_path = python_home_3 or embedded_path
-        if aix_python_lib_path:
-            env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + f" -L{aix_python_lib_path}/lib -lpython3"
-
     # adding rtloader libs and headers to the env
     if rtloader_lib:
         if not headless_mode:
@@ -296,6 +287,19 @@ def get_build_flags(
         if sys.platform == "aix":
             env['LIBPATH'] = os.environ.get('LIBPATH', '') + f":{':'.join(rtloader_lib)}"  # AIX
         env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + f" -L{' -L '.join(rtloader_lib)}"
+
+    # On AIX, libpython must be linked explicitly so that Python API symbols enter
+    # the XCOFF process-global symbol table at startup (required by C extension modules).
+    # Fall back to embedded_path when python_home_3 is not explicitly set, since on AIX
+    # Python is installed alongside rtloader under the same embedded prefix.
+    # Must follow the rtloader block: that block also writes env['CGO_LDFLAGS'] from
+    # os.environ, so placing this before it would cause the python flag to be dropped.
+    if sys.platform == 'aix':
+        aix_python_lib_path = python_home_3 or embedded_path
+        if aix_python_lib_path:
+            env['CGO_LDFLAGS'] = (
+                env.get('CGO_LDFLAGS', os.environ.get('CGO_LDFLAGS', '')) + f" -L{aix_python_lib_path}/lib -lpython3"
+            )
 
     if sys.platform == 'win32':
         env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + ' -Wl,--allow-multiple-definition'
