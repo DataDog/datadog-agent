@@ -200,6 +200,7 @@ use_repo(
     "com_github_datadog_datadog_agent_pkg_trace_traceutil",
     "com_github_datadog_datadog_agent_pkg_util_aws_creds",
     "com_github_datadog_datadog_agent_pkg_util_backoff",
+    "com_github_datadog_datadog_agent_pkg_util_buf",
     "com_github_datadog_datadog_agent_pkg_util_cache",
     "com_github_datadog_datadog_agent_pkg_util_cgroups",
     "com_github_datadog_datadog_agent_pkg_util_common",
