@@ -26,6 +26,9 @@ const (
 	PatternNew
 	// PatternUpdated means an existing pattern's structure changed (more wildcards added)
 	PatternUpdated
+	// PatternTooLarge means the log exceeds the max template size and should be sent as a RawLog.
+	// No pattern is created; the caller must not dereference the returned (nil) pattern.
+	PatternTooLarge
 )
 
 // ClusterManager manages the clustering of TokenLists using hash-based bucketing.
@@ -61,6 +64,10 @@ type ClusterManager struct {
 	maxPatternsPerCluster int
 	// scanBudget limits CanMerge iterations per message in the full-scan loop. 0 = unlimited.
 	scanBudget int
+	// maxTemplateSizeBytes rejects logs whose raw token content exceeds this byte threshold,
+	// sending them as RawLog instead. 0 = unlimited. Prevents single huge logs (e.g. AWS
+	// instance metadata dumps) from bloating snapshot state with useless ~1MB templates.
+	maxTemplateSizeBytes int
 }
 
 // NewClusterManager creates a new ClusterManager.
@@ -78,7 +85,8 @@ func NewClusterManager() *ClusterManager {
 // saturatedThreshold: consecutive identical merges before pattern is marked saturated (0 = disabled).
 // maxPatternsPerCluster: per-cluster pattern cap; 0 = unlimited.
 // scanBudget: CanMerge iterations per message in the full-scan loop; 0 = unlimited.
-func NewClusterManagerWithConfig(firstWordProtection bool, firstWordMaxCardinality int, saturatedThreshold int, maxPatternsPerCluster int, scanBudget int) *ClusterManager {
+// maxTemplateSizeBytes: reject logs whose raw content exceeds this size; 0 = unlimited.
+func NewClusterManagerWithConfig(firstWordProtection bool, firstWordMaxCardinality int, saturatedThreshold int, maxPatternsPerCluster int, scanBudget int, maxTemplateSizeBytes int) *ClusterManager {
 	return &ClusterManager{
 		hashBuckets:             make(map[uint64][]*Cluster),
 		nextID:                  1,
@@ -87,6 +95,7 @@ func NewClusterManagerWithConfig(firstWordProtection bool, firstWordMaxCardinali
 		saturatedThreshold:      saturatedThreshold,
 		maxPatternsPerCluster:   maxPatternsPerCluster,
 		scanBudget:              scanBudget,
+		maxTemplateSizeBytes:    maxTemplateSizeBytes,
 	}
 }
 
@@ -114,6 +123,19 @@ func (cm *ClusterManager) Add(tokenList *token.TokenList) (*Pattern, PatternChan
 	if tokenList == nil || tokenList.IsEmpty() {
 		log.Errorf("Cluster Manager failed to add log: %v for patterning. Token list is empty or nil.", tokenList.String())
 		return nil, PatternNoChange, 0, 0
+	}
+
+	// Reject logs whose raw content exceeds the template size limit. A 1KB+ template is
+	// almost never reused (e.g. AWS metadata dumps), so storing it wastes snapshot bytes.
+	// The caller should send these as RawLog datums instead.
+	if cm.maxTemplateSizeBytes > 0 {
+		rawLen := 0
+		for i := range tokenList.Tokens {
+			rawLen += len(tokenList.Tokens[i].Value)
+		}
+		if rawLen > cm.maxTemplateSizeBytes {
+			return nil, PatternTooLarge, cm.patternCount, cm.estimatedBytes
+		}
 	}
 
 	// Lock the cluster manager to prevent concurrent access to the hash buckets. Current implementation is single-threaded on local pipeline, but we will eventually build a shared cluster manager across multiple pipelines.

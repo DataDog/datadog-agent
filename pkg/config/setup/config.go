@@ -1487,6 +1487,15 @@ func bindEnvAndSetLogsConfigKeys(config pkgconfigmodel.Setup, prefix string) {
 	config.BindEnvAndSetDefault("logs_config.patterns.saturation_threshold", 50)
 	config.BindEnvAndSetDefault("logs_config.patterns.max_patterns_per_cluster", 0)
 	config.BindEnvAndSetDefault("logs_config.patterns.pattern_scan_budget", 0)
+	// Logs whose raw token content exceeds this size (bytes) are sent as RawLog datums
+	// instead of being pattern-encoded. Prevents huge one-off logs (e.g. AWS instance
+	// metadata dumps) from bloating snapshot state with useless large templates.
+	// 0 = unlimited. Default: 1024 (1 KB).
+	config.BindEnvAndSetDefault("logs_config.patterns.max_template_bytes", 1024)
+	// When true, JSON logs bypass stateful encoding entirely and are sent as RawLog datums.
+	// Eliminates PreprocessJSON + tokenization + clustering cost for JSON-heavy workloads.
+	// Trade-off: no pattern compression for JSON logs; transport-level compression still applies.
+	config.BindEnvAndSetDefault("logs_config.patterns.json_as_raw", false)
 
 	config.BindEnvAndSetDefault("logs_config.tags.max_tag_count", 700)
 	config.BindEnvAndSetDefault("logs_config.tags.max_memory_bytes", 4*1024*1024)
