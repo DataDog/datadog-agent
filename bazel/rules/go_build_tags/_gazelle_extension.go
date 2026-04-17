@@ -276,7 +276,7 @@ func isSystemTag(tag string) bool {
 		return true
 	}
 	switch tag {
-	case "cgo", "gc", "gccgo", "ignore":
+	case "cgo", "gc", "gccgo", "ignore", "unix":
 		return true
 	}
 	return false
