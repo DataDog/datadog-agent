@@ -300,7 +300,6 @@ exports_files(glob(
 # gazelle:exclude pkg/logs/status/test_utils.go
 # gazelle:exclude pkg/logs/tailers
 # gazelle:exclude pkg/logs/util
-# gazelle:exclude pkg/metrics
 # gazelle:exclude pkg/network/config
 # gazelle:exclude pkg/network/containers
 # gazelle:exclude pkg/network/dns
