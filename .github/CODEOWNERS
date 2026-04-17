@@ -322,6 +322,12 @@
 /packages/macos                         @DataDog/agent-build @DataDog/windows-products
 /packages/windows                       @DataDog/agent-build @DataDog/windows-products
 
+# AIX
+/packaging/aix/                         @DataDog/agent-delivery
+/packaging/aix/stages/                  @DataDog/agent-build
+/packaging/aix/build.sh                 @DataDog/agent-build
+/packaging/aix/clean.sh                 @DataDog/agent-build
+
 # The following is managed by `dda inv lint-components` -- DO NOT EDIT
 # BEGIN COMPONENTS
 /comp @DataDog/agent-runtimes
