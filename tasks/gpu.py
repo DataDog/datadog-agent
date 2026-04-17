@@ -99,9 +99,6 @@ def update_metrics_allowlist(ctx, allowlist_path: str = DEFAULT_ALLOWLIST_PATH):
     Update the GPU metrics entries in the standard metric allowlist.
     """
     binary_path = build_binary(ctx, ALLOWLIST_PACKAGE, ALLOWLIST_BINARY, "allowlist updater")
-    command = (
-        f"{shlex.quote(binary_path)} "
-        f"--allowlist-path {shlex.quote(allowlist_path)}"
-    )
+    command = f"{shlex.quote(binary_path)} " f"--allowlist-path {shlex.quote(allowlist_path)}"
     print(f"== Updating GPU metric allowlist at {allowlist_path} ==")
     ctx.run(command)
