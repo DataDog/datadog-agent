@@ -1,0 +1,17 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Added new ``additional_metric_tags`` field to APM metrics payload to allow tracers to send
+    customer configured span derived primary tags.
+deprecations:
+  - |
+    The ``DD_APM_SPAN_DERIVED_PRIMARY_TAGS`` configuration option has been
+    removed. The agent no longer supports customer configurable span derived
+    primary tags. This feature is only available on tracers.
