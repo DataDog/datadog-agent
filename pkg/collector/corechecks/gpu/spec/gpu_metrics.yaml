@@ -86,6 +86,8 @@ metrics:
   clock.throttle_reasons.applications_clocks_setting:
     tagsets:
       - device
+    validator:
+      values: [0, 1]
     support:
       unsupported_architectures:
         - fermi
@@ -96,6 +98,8 @@ metrics:
   clock.throttle_reasons.display_clock_setting:
     tagsets:
       - device
+    validator:
+      values: [0, 1]
     support:
       unsupported_architectures:
         - fermi
@@ -106,6 +110,8 @@ metrics:
   clock.throttle_reasons.gpu_idle:
     tagsets:
       - device
+    validator:
+      values: [0, 1]
     support:
       unsupported_architectures:
         - fermi
@@ -116,6 +122,8 @@ metrics:
   clock.throttle_reasons.none:
     tagsets:
       - device
+    validator:
+      values: [0, 1]
     support:
       unsupported_architectures:
         - fermi
@@ -126,6 +134,8 @@ metrics:
   clock.throttle_reasons.sw_power_cap:
     tagsets:
       - device
+    validator:
+      values: [0, 1]
     support:
       unsupported_architectures:
         - fermi
@@ -136,6 +146,8 @@ metrics:
   clock.throttle_reasons.sw_thermal_slowdown:
     tagsets:
       - device
+    validator:
+      values: [0, 1]
     support:
       unsupported_architectures:
         - fermi
@@ -146,6 +158,8 @@ metrics:
   clock.throttle_reasons.sync_boost:
     tagsets:
       - device
+    validator:
+      values: [0, 1]
     support:
       unsupported_architectures:
         - fermi
@@ -158,6 +172,10 @@ metrics:
       - device
       - process
       - container
+    validator:
+      range:
+        min: 0
+        max: 1000000
     support:
       unsupported_architectures: []
       device_modes:
@@ -177,6 +195,8 @@ metrics:
   device.total:
     tagsets:
       - device
+    validator:
+      values: [1]
     support:
       unsupported_architectures: []
       device_modes:
@@ -186,6 +206,8 @@ metrics:
   device.unhealthy:
     tagsets:
       - device
+    validator:
+      values: [0, 1]
     support:
       unsupported_architectures: []
       device_modes:
@@ -404,6 +426,10 @@ metrics:
       - device
       - process
       - container
+    validator:
+      range:
+        min: 0
+        max: 1000000000000 # 1 TB (bytes)
     support:
       unsupported_architectures: []
       device_modes:
@@ -513,6 +539,10 @@ metrics:
   nvlink.errors.crc.data:
     tagsets:
       - device
+    validator:
+      range:
+        min: 0
+        max: 1000000000000000
     support:
       unsupported_architectures:
         - fermi
@@ -526,6 +556,10 @@ metrics:
   nvlink.errors.crc.flit:
     tagsets:
       - device
+    validator:
+      range:
+        min: 0
+        max: 1000000000000000
     support:
       unsupported_architectures:
         - fermi
@@ -557,6 +591,10 @@ metrics:
   nvlink.errors.ecc:
     tagsets:
       - device
+    validator:
+      range:
+        min: 0
+        max: 1000000000000000
     support:
       unsupported_architectures:
         - fermi
@@ -624,6 +662,10 @@ metrics:
   nvlink.errors.recovery:
     tagsets:
       - device
+    validator:
+      range:
+        min: 0
+        max: 1000000000000000
     support:
       unsupported_architectures:
         - fermi
@@ -637,6 +679,10 @@ metrics:
   nvlink.errors.replay:
     tagsets:
       - device
+    validator:
+      range:
+        min: 0
+        max: 1000000000000000
     support:
       unsupported_architectures:
         - fermi
@@ -732,9 +778,193 @@ metrics:
         mig: false
         physical: true
         vgpu: false
+  nvlink.plr.codes_loss:
+    tagsets:
+      - device
+    custom_tags:
+      - nvlink_port
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+        - ampere
+        - ada
+        - hopper
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  nvlink.plr.rx.code_err:
+    tagsets:
+      - device
+    custom_tags:
+      - nvlink_port
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+        - ampere
+        - ada
+        - hopper
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  nvlink.plr.rx.codes:
+    tagsets:
+      - device
+    custom_tags:
+      - nvlink_port
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+        - ampere
+        - ada
+        - hopper
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  nvlink.plr.rx.uncorrectable_code:
+    tagsets:
+      - device
+    custom_tags:
+      - nvlink_port
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+        - ampere
+        - ada
+        - hopper
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  nvlink.plr.tx.sync_events:
+    tagsets:
+      - device
+    custom_tags:
+      - nvlink_port
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+        - ampere
+        - ada
+        - hopper
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  nvlink.plr.tx.codes:
+    tagsets:
+      - device
+    custom_tags:
+      - nvlink_port
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+        - ampere
+        - ada
+        - hopper
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  nvlink.plr.tx.retry_codes:
+    tagsets:
+      - device
+    custom_tags:
+      - nvlink_port
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+        - ampere
+        - ada
+        - hopper
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  nvlink.plr.tx.retry_events:
+    tagsets:
+      - device
+    custom_tags:
+      - nvlink_port
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+        - ampere
+        - ada
+        - hopper
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  nvlink.plr.tx.retry_events_within_t_sec_max:
+    tagsets:
+      - device
+    custom_tags:
+      - nvlink_port
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+        - ampere
+        - ada
+        - hopper
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
   nvlink.speed:
     tagsets:
       - device
+    validator:
+      range:
+        min: 0
+        max: 5000000000000 # 5 TB/s (bytes/second)
     support:
       unsupported_architectures:
         - fermi
@@ -802,6 +1032,10 @@ metrics:
   nvlink.throughput.data.rx:
     tagsets:
       - device
+    validator:
+      range:
+        min: 0
+        max: 3000000000000 # 3 TB/s (bytes/second)
     support:
       unsupported_architectures:
         - fermi
@@ -815,6 +1049,10 @@ metrics:
   nvlink.throughput.data.tx:
     tagsets:
       - device
+    validator:
+      range:
+        min: 0
+        max: 3000000000000 # 3 TB/s (bytes/second)
     support:
       unsupported_architectures:
         - fermi
@@ -828,6 +1066,10 @@ metrics:
   nvlink.throughput.raw.rx:
     tagsets:
       - device
+    validator:
+      range:
+        min: 0
+        max: 3000000000000 # 3 TB/s (bytes/second)
     support:
       unsupported_architectures:
         - fermi
@@ -841,6 +1083,10 @@ metrics:
   nvlink.throughput.raw.tx:
     tagsets:
       - device
+    validator:
+      range:
+        min: 0
+        max: 3000000000000 # 3 TB/s (bytes/second)
     support:
       unsupported_architectures:
         - fermi
@@ -947,6 +1193,10 @@ metrics:
   pci.replay_counter:
     tagsets:
       - device
+    validator:
+      range:
+        min: 0
+        max: 1000000000000000
     support:
       unsupported_architectures:
         - fermi
@@ -957,6 +1207,10 @@ metrics:
   pci.throughput.rx:
     tagsets:
       - device
+    validator:
+      range:
+        min: 0
+        max: 300000000000 # 300 GB/s (bytes/second)
     support:
       unsupported_architectures:
         - fermi
@@ -967,6 +1221,10 @@ metrics:
   pci.throughput.tx:
     tagsets:
       - device
+    validator:
+      range:
+        min: 0
+        max: 300000000000 # 300 GB/s (bytes/second)
     support:
       unsupported_architectures:
         - fermi
@@ -1006,6 +1264,10 @@ metrics:
       - device
       - process
       - container
+    validator:
+      range:
+        min: 0
+        max: 1000000
     support:
       unsupported_architectures: []
       device_modes:
@@ -1053,6 +1315,10 @@ metrics:
       - device
       - process
       - container
+    validator:
+      range:
+        min: 0
+        max: 1000000000000 # 1 TB (bytes)
     support:
       unsupported_architectures: []
       device_modes:
@@ -1064,6 +1330,10 @@ metrics:
       - device
       - process
       - container
+    validator:
+      range:
+        min: 0
+        max: 100
     support:
       unsupported_architectures: []
       device_modes:
@@ -1073,6 +1343,10 @@ metrics:
   remapped_rows.correctable:
     tagsets:
       - device
+    validator:
+      range:
+        min: 0
+        max: 1000000000000000
     support:
       unsupported_architectures:
         - fermi
@@ -1088,6 +1362,8 @@ metrics:
   remapped_rows.failed:
     tagsets:
       - device
+    validator:
+      values: [0, 1]
     support:
       unsupported_architectures:
         - fermi
@@ -1103,6 +1379,8 @@ metrics:
   remapped_rows.pending:
     tagsets:
       - device
+    validator:
+      values: [0, 1]
     support:
       unsupported_architectures:
         - fermi
@@ -1118,6 +1396,10 @@ metrics:
   remapped_rows.uncorrectable:
     tagsets:
       - device
+    validator:
+      range:
+        min: 0
+        max: 1000000000000000
     support:
       unsupported_architectures:
         - fermi
@@ -1143,6 +1425,10 @@ metrics:
   sm_active:
     tagsets:
       - device
+    validator:
+      range:
+        min: 0
+        max: 100
     support:
       unsupported_architectures: []
       device_modes:
@@ -1186,6 +1472,10 @@ metrics:
   temperature:
     tagsets:
       - device
+    validator:
+      range:
+        min: 0
+        max: 100
     support:
       unsupported_architectures: []
       device_modes:

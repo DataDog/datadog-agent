@@ -9,6 +9,7 @@ package spec
 
 import (
 	"fmt"
+	"math"
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -72,6 +73,92 @@ func TestTagSpecUnmarshalYAML(t *testing.T) {
 		require.Error(t, err)
 		require.ErrorContains(t, err, `compile tag regex "["`)
 	})
+}
+
+func TestMetricValidatorValidate(t *testing.T) {
+	t.Run("range", func(t *testing.T) {
+		min := 0.0
+		max := 100.0
+		validator := &MetricValidator{
+			Range: &MetricValidatorRange{Min: &min, Max: &max},
+		}
+
+		require.NoError(t, validator.validateDefinition())
+		require.NoError(t, validator.Validate(0))
+		require.NoError(t, validator.Validate(100))
+		require.Error(t, validator.Validate(-1))
+		require.Error(t, validator.Validate(101))
+	})
+
+	t.Run("values", func(t *testing.T) {
+		validator := &MetricValidator{
+			Values: []float64{0, 1},
+		}
+
+		require.NoError(t, validator.validateDefinition())
+		require.NoError(t, validator.Validate(0))
+		require.NoError(t, validator.Validate(1))
+		require.Error(t, validator.Validate(2))
+	})
+}
+
+func TestMetricValidatorValidateDefinition(t *testing.T) {
+	rangeMinZero := 0.0
+	rangeMaxOne := 1.0
+	rangeMinInvalid := 10.0
+	rangeMaxInvalid := 5.0
+	nonFinite := math.NaN()
+
+	tests := []struct {
+		name      string
+		validator *MetricValidator
+	}{
+		{
+			name: "range min greater than max",
+			validator: &MetricValidator{
+				Range: &MetricValidatorRange{Min: &rangeMinInvalid, Max: &rangeMaxInvalid},
+			},
+		},
+		{
+			name:      "empty validator",
+			validator: &MetricValidator{},
+		},
+		{
+			name: "both range and values",
+			validator: &MetricValidator{
+				Range:  &MetricValidatorRange{Min: &rangeMinZero, Max: &rangeMaxOne},
+				Values: []float64{0, 1},
+			},
+		},
+		{
+			name: "non finite values",
+			validator: &MetricValidator{
+				Values: []float64{nonFinite},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Error(t, tt.validator.validateDefinition())
+		})
+	}
+}
+
+func TestMetricValidatorUnmarshalRejectsInvalidRange(t *testing.T) {
+	var validator MetricValidator
+
+	err := yaml.Unmarshal([]byte("range:\n  min: 10\n  max: 5\n"), &validator)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "metric validator range min 10 must be less than or equal to max 5")
+}
+
+func TestMetricValidatorUnmarshalRejectsNonFiniteValues(t *testing.T) {
+	var validator MetricValidator
+
+	err := yaml.Unmarshal([]byte("values: [.nan]\n"), &validator)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "metric validator values must be finite")
 }
 
 // TestMockCapabilitiesMatchArchitectureSpec ensures that for each architecture and supported device mode,

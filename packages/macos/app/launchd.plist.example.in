@@ -25,5 +25,9 @@
         <string>/opt/datadog-agent/logs/launchd.log</string>
         <key>ExitTimeOut</key>
         <integer>10</integer>
+        <key>UserName</key>
+        <string>_dd-agent</string>
+        <key>GroupName</key>
+        <string>daemon</string>
     </dict>
 </plist>

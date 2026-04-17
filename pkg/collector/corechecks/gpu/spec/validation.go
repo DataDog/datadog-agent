@@ -50,22 +50,20 @@ func NewGPUConfigFromTags(architecture, slicingMode, virtualizationMode string) 
 
 // MetricObservation is the normalized observation used by shared validation.
 type MetricObservation struct {
-	Name string
-	Tags []string
+	Name  string
+	Tags  []string
+	Value *float64
 }
 
-const (
-	ErrorMissing      = "missing"
-	ErrorUnknown      = "unknown"
-	ErrorUnsupported  = "unsupported"
-	ErrorInvalidValue = "invalid value"
-
-	maxInvalidValueSamples = 5
-)
+const maxInvalidValueSamplesPerMetric = 5
 
 type MetricStatus struct {
-	Errors     []string               `json:"errors"`
-	TagResults map[string]*TagSummary `json:"tag_results"`
+	Missing             int                    `json:"missing"`
+	Unknown             int                    `json:"unknown"`
+	Unsupported         int                    `json:"unsupported"`
+	InvalidValue        int                    `json:"invalid_value"`
+	InvalidValueSamples []string               `json:"invalid_value_samples,omitempty"`
+	TagResults          map[string]*TagSummary `json:"tag_results"`
 }
 
 type TagSummary struct {
@@ -79,7 +77,7 @@ type TagSummary struct {
 func (t *TagSummary) addInvalidValue(value string) {
 	t.InvalidValue++
 
-	if slices.Contains(t.InvalidValueSamples, value) || len(t.InvalidValueSamples) >= maxInvalidValueSamples {
+	if slices.Contains(t.InvalidValueSamples, value) || len(t.InvalidValueSamples) >= maxInvalidValueSamplesPerMetric {
 		return
 	}
 	t.InvalidValueSamples = append(t.InvalidValueSamples, value)
@@ -90,10 +88,10 @@ type ValidationResult struct {
 	Metrics map[string]*MetricStatus `json:"metrics"`
 }
 
-// HasFailures returns true when the result contains any missing, unknown, or tag-level failures.
+// HasFailures returns true when the result contains metric-level or tag-level failures.
 func (r *ValidationResult) HasFailures() bool {
 	for _, status := range r.Metrics {
-		if len(status.Errors) > 0 {
+		if status.Missing > 0 || status.Unknown > 0 || status.Unsupported > 0 || status.InvalidValue > 0 {
 			return true
 		}
 		for _, tagResult := range status.TagResults {
@@ -108,15 +106,18 @@ func (r *ValidationResult) HasFailures() bool {
 func (r *ValidationResult) getMetricStatus(metricName string) *MetricStatus {
 	if _, found := r.Metrics[metricName]; !found {
 		r.Metrics[metricName] = &MetricStatus{
-			Errors:     []string{},
 			TagResults: map[string]*TagSummary{},
 		}
 	}
 	return r.Metrics[metricName]
 }
 
-func (r *ValidationResult) addError(metricName string, err string) {
-	r.getMetricStatus(metricName).Errors = append(r.getMetricStatus(metricName).Errors, err)
+func (r *ValidationResult) addInvalidValue(metricName string, sample string) {
+	metricStatus := r.getMetricStatus(metricName)
+	metricStatus.InvalidValue++
+	if len(metricStatus.InvalidValueSamples) < maxInvalidValueSamplesPerMetric {
+		metricStatus.InvalidValueSamples = append(metricStatus.InvalidValueSamples, sample)
+	}
 }
 
 // KnownGPUConfigs returns all supported architecture + mode combinations.
@@ -265,29 +266,44 @@ func ValidateEmittedMetricsAgainstSpec(specs *Specs, config GPUConfig, emittedMe
 	for metricName := range emittedMetrics {
 		metricSpec, found := specs.Metrics.Metrics[metricName]
 		if !found {
-			results.addError(metricName, ErrorUnknown)
+			results.getMetricStatus(metricName).Unknown++
 			continue
 		}
 
 		if !metricSpec.SupportsConfig(config) {
-			results.addError(metricName, ErrorUnsupported)
+			results.getMetricStatus(metricName).Unsupported++
 		}
 	}
 
 	// Now, for all metrics that we would expect, validate each of them individually.
 	expectedMetrics := ExpectedMetricsForConfig(specs, config)
 	for metricName, metricSpec := range expectedMetrics {
-		if _, found := emittedMetrics[metricName]; !found {
-			results.addError(metricName, ErrorMissing)
+		metricSamples, found := emittedMetrics[metricName]
+		if !found {
+			results.getMetricStatus(metricName).Missing++
 			continue
 		}
 
-		tagResults, err := validateMetricTagsAgainstSpec(specs.Tags, metricSpec, emittedMetrics[metricName], knownTagValues)
+		tagResults, err := validateMetricTagsAgainstSpec(specs.Tags, metricSpec, metricSamples, knownTagValues)
 		if err != nil {
 			return results, fmt.Errorf("validate metric tags for %s: %w", metricName, err)
 		}
 
-		results.getMetricStatus(metricName).TagResults = tagResults
+		metricStatus := results.getMetricStatus(metricName)
+		metricStatus.TagResults = tagResults
+
+		if metricSpec.Validator == nil {
+			continue
+		}
+
+		for _, sample := range metricSamples {
+			if sample.Value == nil {
+				continue
+			}
+			if err := metricSpec.Validator.Validate(*sample.Value); err != nil {
+				results.addInvalidValue(metricName, err.Error())
+			}
+		}
 	}
 
 	return results, nil
