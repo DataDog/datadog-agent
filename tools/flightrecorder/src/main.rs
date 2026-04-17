@@ -3,11 +3,14 @@ static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
 mod archive;
 mod config;
+mod context_parquet;
 mod disk_tracker;
 mod framing;
 mod generated;
 mod heap_prof;
 mod janitor;
+#[cfg(feature = "s3")]
+mod s3_uploader;
 mod signal_files;
 pub mod telemetry;
 mod transport;
@@ -194,11 +197,52 @@ async fn main() -> Result<()> {
 
 pub async fn run(cfg: config::Config, tracker: Arc<disk_tracker::DiskTracker>) -> Result<()> {
     let flush_interval = Duration::from_secs(cfg.flush_interval_secs);
+    let s3_cancel = tokio_util::sync::CancellationToken::new();
+
+    // Initialize S3 uploader (if configured).
+    #[cfg(feature = "s3")]
+    let s3_upload_handle = if cfg.s3_enabled() {
+        let key_prefix = cfg.s3_key_prefix();
+        info!(
+            bucket = %cfg.s3_bucket,
+            region = %cfg.s3_region,
+            key_prefix = %key_prefix,
+            "S3 upload enabled"
+        );
+        let (uploader, handle) = s3_uploader::new_s3_uploader(
+            cfg.s3_bucket.clone(),
+            cfg.s3_region.clone(),
+            key_prefix,
+            tracker.clone(),
+        )
+        .await?;
+
+        tracker.set_upload_handle(handle.clone());
+
+        let sc = s3_cancel.clone();
+        tokio::spawn(async move { uploader.run(sc).await });
+
+        Some(handle)
+    } else {
+        info!("S3 upload disabled (no bucket configured)");
+        None
+    };
+
+    // Build context upload config (if S3 enabled).
+    #[cfg(feature = "s3")]
+    let ctx_upload_config = s3_upload_handle.map(|h| {
+        writers::context_writer::ContextUploadConfig {
+            upload_handle: h,
+            output_dir: std::path::PathBuf::from(&cfg.output_dir),
+        }
+    });
+    #[cfg(not(feature = "s3"))]
+    let ctx_upload_config: Option<writers::context_writer::ContextUploadConfig> = None;
 
     // Create shared context writer thread (serves both metrics and logs).
     let context_store = writers::context_store::ContextStore::new(&cfg.output_dir)?;
     let (mut ctx_handle, ctx_prod_metrics, ctx_prod_logs) =
-        writers::context_writer::ContextWriterHandle::spawn(context_store, 1024);
+        writers::context_writer::ContextWriterHandle::spawn(context_store, 1024, ctx_upload_config);
 
     // Create signal writers and spawn dedicated threads.
     let rotation_interval = Duration::from_secs(cfg.rotation_secs);
@@ -322,6 +366,9 @@ pub async fn run(cfg: config::Config, tracker: Arc<disk_tracker::DiskTracker>) -
     traces_handle.lock().unwrap().shutdown();
     // Context writer last — signal writers may have sent final context records.
     ctx_handle.shutdown();
+
+    // Cancel S3 uploader after all writers have flushed their final files.
+    s3_cancel.cancel();
 
     info!("flightrecorder stopped");
     Ok(())

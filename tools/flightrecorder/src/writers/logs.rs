@@ -253,7 +253,7 @@ mod tests {
         use super::super::context_writer::ContextWriterHandle;
         let dir = tempdir().unwrap();
         let store = ContextStore::new(dir.path()).unwrap();
-        let (_handle, _prod_m, prod_l) = ContextWriterHandle::spawn(store, 64);
+        let (_handle, _prod_m, prod_l) = ContextWriterHandle::spawn(store, 64, None);
         std::mem::forget(_handle);
         std::mem::forget(dir);
         prod_l

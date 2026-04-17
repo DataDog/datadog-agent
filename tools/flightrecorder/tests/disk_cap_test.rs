@@ -55,7 +55,7 @@ fn build_log_frame(n: usize) -> Vec<u8> {
 fn make_ctx_producer() -> flightrecorder::writers::context_writer::ContextProducer {
     let dir = tempdir().unwrap();
     let store = ContextStore::new(dir.path()).unwrap();
-    let (_handle, _prod_m, prod_l) = ContextWriterHandle::spawn(store, 64);
+    let (_handle, _prod_m, prod_l) = ContextWriterHandle::spawn(store, 64, None);
     std::mem::forget(_handle);
     std::mem::forget(dir);
     prod_l

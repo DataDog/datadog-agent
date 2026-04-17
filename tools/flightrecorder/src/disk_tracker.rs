@@ -16,10 +16,13 @@ use tracing::{info, warn};
 /// Tracks disk usage of signal files with in-memory accounting.
 ///
 /// Thread-safe: writer threads call `file_closed` concurrently, the janitor
-/// calls `delete_oldest` periodically.
+/// calls `delete_oldest` periodically. When S3 upload is enabled, file closures
+/// are forwarded to the S3 uploader for async upload.
 pub struct DiskTracker {
     max_bytes: u64,
     inner: Mutex<Inner>,
+    #[cfg(feature = "s3")]
+    upload_handle: Mutex<Option<crate::s3_uploader::S3UploadHandle>>,
 }
 
 struct Inner {
@@ -106,6 +109,8 @@ impl DiskTracker {
                 current_bytes: total_bytes,
                 files: deque,
             }),
+            #[cfg(feature = "s3")]
+            upload_handle: Mutex::new(None),
         })
     }
 
@@ -118,7 +123,15 @@ impl DiskTracker {
                 current_bytes: 0,
                 files: VecDeque::new(),
             }),
+            #[cfg(feature = "s3")]
+            upload_handle: Mutex::new(None),
         }
+    }
+
+    /// Set the S3 upload handle. Called once after the uploader is initialized.
+    #[cfg(feature = "s3")]
+    pub fn set_upload_handle(&self, handle: crate::s3_uploader::S3UploadHandle) {
+        *self.upload_handle.lock().unwrap() = Some(handle);
     }
 
     /// Record a newly closed Parquet file. Called by writer threads after
@@ -126,7 +139,23 @@ impl DiskTracker {
     pub fn file_closed(&self, path: PathBuf, size: u64) {
         let mut inner = self.inner.lock().unwrap();
         inner.current_bytes += size;
-        inner.files.push_back(TrackedFile { path, size });
+        inner.files.push_back(TrackedFile { path: path.clone(), size });
+        drop(inner);
+
+        // Fire-and-forget S3 upload (if configured).
+        #[cfg(feature = "s3")]
+        if let Some(handle) = self.upload_handle.lock().unwrap().as_ref() {
+            handle.try_send(crate::s3_uploader::UploadRequest { path, size });
+        }
+    }
+
+    /// Remove a file from tracking after successful S3 upload.
+    /// The local file has already been deleted by the uploader.
+    #[cfg(feature = "s3")]
+    pub fn file_uploaded(&self, path: &std::path::Path, size: u64) {
+        let mut inner = self.inner.lock().unwrap();
+        inner.current_bytes = inner.current_bytes.saturating_sub(size);
+        inner.files.retain(|f| f.path != path);
     }
 
     /// Return current disk usage in bytes.

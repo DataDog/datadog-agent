@@ -204,7 +204,7 @@ mod tests {
     /// the output dir (kept alive by the returned TempDir).
     fn make_ctx_producer(dir: &Path) -> ContextProducer {
         let store = ContextStore::new(dir).unwrap();
-        let (_handle, prod_m, _prod_l) = ContextWriterHandle::spawn(store, 64);
+        let (_handle, prod_m, _prod_l) = ContextWriterHandle::spawn(store, 64, None);
         std::mem::forget(_handle);
         prod_m
     }
@@ -273,7 +273,7 @@ mod tests {
 
         // Write contexts through the context writer thread.
         let store = ContextStore::new(dir.path()).unwrap();
-        let (mut ctx_handle, mut prod_m, _prod_l) = ContextWriterHandle::spawn(store, 64);
+        let (mut ctx_handle, mut prod_m, _prod_l) = ContextWriterHandle::spawn(store, 64, None);
         prod_m.try_send(ContextRecord { key: 100, name: "cpu.user".into(), tags_joined: "host:a|env:prod".into() });
         prod_m.try_send(ContextRecord { key: 200, name: "mem.usage".into(), tags_joined: "host:b".into() });
         // Give the context writer thread time to process.

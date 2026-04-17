@@ -74,4 +74,38 @@ pub struct Config {
     #[arg(long, env = const_format::concatcp!(ENV_PREFIX, "STATSD_PORT"),
         default_value_t = 8125)]
     pub statsd_port: u16,
+
+    /// S3 bucket for uploading signal files. Empty string disables S3 upload.
+    #[arg(long, env = const_format::concatcp!(ENV_PREFIX, "S3_BUCKET"),
+        default_value = "")]
+    pub s3_bucket: String,
+
+    /// AWS region for S3 uploads.
+    #[arg(long, env = const_format::concatcp!(ENV_PREFIX, "S3_REGION"),
+        default_value = "us-east-1")]
+    pub s3_region: String,
+
+    /// Kubernetes cluster name (from K8s downward API). Used as S3 key prefix.
+    #[arg(long, env = const_format::concatcp!(ENV_PREFIX, "KUBE_CLUSTER_NAME"),
+        default_value = "")]
+    pub kube_cluster_name: String,
+
+    /// Pod name (from K8s downward API). Used as S3 key prefix.
+    #[arg(long, env = const_format::concatcp!(ENV_PREFIX, "POD_NAME"),
+        default_value = "")]
+    pub pod_name: String,
+}
+
+impl Config {
+    /// Returns true if S3 upload is configured (bucket is non-empty).
+    pub fn s3_enabled(&self) -> bool {
+        !self.s3_bucket.is_empty()
+    }
+
+    /// Build the S3 key prefix: "{kube_cluster_name}/{pod_name}/".
+    pub fn s3_key_prefix(&self) -> String {
+        let cluster = if self.kube_cluster_name.is_empty() { "unknown" } else { &self.kube_cluster_name };
+        let pod = if self.pod_name.is_empty() { "unknown" } else { &self.pod_name };
+        format!("{cluster}/{pod}/")
+    }
 }

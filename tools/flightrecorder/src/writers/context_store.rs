@@ -106,6 +106,11 @@ impl ContextStore {
     pub fn flush(&mut self) -> Result<()> {
         self.file.flush().with_context(|| "flushing contexts.bin")
     }
+
+    /// Return the path to the contexts.bin file.
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
 }
 
 /// Read all context records from a `contexts.bin` file.
@@ -148,6 +153,48 @@ pub fn read_contexts_bin(path: &Path) -> Result<Vec<(u64, String, String)>> {
         results.push((context_key, name, tags));
     }
     Ok(results)
+}
+
+/// Read context records from `contexts.bin` starting at byte offset `from`.
+/// Returns the records and the new byte offset (end of data read).
+/// Used for incremental S3 uploads.
+pub fn read_contexts_bin_from(
+    path: &Path,
+    from: u64,
+) -> Result<(Vec<(u64, String, String)>, u64)> {
+    let data = std::fs::read(path).with_context(|| format!("reading {}", path.display()))?;
+    let total_len = data.len() as u64;
+    if from >= total_len {
+        return Ok((Vec::new(), total_len));
+    }
+    let mut results = Vec::new();
+    let mut pos = from as usize;
+    while pos < data.len() {
+        if pos + 8 > data.len() {
+            break; // truncated record at end — stop without error
+        }
+        let context_key = u64::from_le_bytes(data[pos..pos + 8].try_into().unwrap());
+        pos += 8;
+
+        if pos + 4 > data.len() { break; }
+        let name_len = u32::from_le_bytes(data[pos..pos + 4].try_into().unwrap()) as usize;
+        pos += 4;
+
+        if pos + name_len > data.len() { break; }
+        let name = String::from_utf8_lossy(&data[pos..pos + name_len]).into_owned();
+        pos += name_len;
+
+        if pos + 4 > data.len() { break; }
+        let tags_len = u32::from_le_bytes(data[pos..pos + 4].try_into().unwrap()) as usize;
+        pos += 4;
+
+        if pos + tags_len > data.len() { break; }
+        let tags = String::from_utf8_lossy(&data[pos..pos + tags_len]).into_owned();
+        pos += tags_len;
+
+        results.push((context_key, name, tags));
+    }
+    Ok((results, pos as u64))
 }
 
 #[cfg(test)]

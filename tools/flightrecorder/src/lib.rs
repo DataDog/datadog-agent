@@ -3,6 +3,8 @@ pub mod disk_tracker;
 pub mod framing;
 pub mod generated;
 pub mod heap_prof;
+#[cfg(feature = "s3")]
+pub mod s3_uploader;
 pub mod signal_files;
 pub mod telemetry;
 pub mod writers;

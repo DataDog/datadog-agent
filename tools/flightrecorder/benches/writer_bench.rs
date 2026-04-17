@@ -20,7 +20,7 @@ use flightrecorder::writers::thread::SignalWriter;
 fn make_ctx_producer() -> (ContextProducer, ContextProducer) {
     let dir = TempDir::new().unwrap();
     let store = ContextStore::new(dir.path()).unwrap();
-    let (_handle, prod_m, prod_l) = ContextWriterHandle::spawn(store, 64);
+    let (_handle, prod_m, prod_l) = ContextWriterHandle::spawn(store, 64, None);
     std::mem::forget(_handle);
     std::mem::forget(dir);
     (prod_m, prod_l)
