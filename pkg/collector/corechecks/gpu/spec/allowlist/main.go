@@ -89,9 +89,11 @@ func updateAllowlistEntries(entries []allowlistEntry) ([]allowlistEntry, error) 
 
 	updatedEntries := make([]allowlistEntry, 0, len(entries)+len(metricsSpec.Metrics))
 	existingPrefixes := make(map[string]struct{}, len(entries))
+	allMetricNames := make([]string, 0, len(entries)+len(metricsSpec.Metrics))
 	for _, entry := range entries {
 		updatedEntries = append(updatedEntries, entry)
 		existingPrefixes[entry.Prefix] = struct{}{}
+		allMetricNames = append(allMetricNames, entry.Prefix)
 	}
 
 	missingPrefixes := make([]string, 0, len(metricsSpec.Metrics))
@@ -101,14 +103,23 @@ func updateAllowlistEntries(entries []allowlistEntry) ([]allowlistEntry, error) 
 			continue
 		}
 		missingPrefixes = append(missingPrefixes, prefix)
+		allMetricNames = append(allMetricNames, prefix)
 	}
 
 	sort.Strings(missingPrefixes)
 	for _, prefix := range missingPrefixes {
+		// This is a manual maintenance flow with a small number of GPU metrics.
+		// Keep the prefix dedupe logic simple with an O(n^2) scan; performance is not a concern here.
+		if hasAnotherMetricAsPrefix(allMetricNames, prefix) {
+			continue
+		}
+
 		updatedEntries = append(updatedEntries, allowlistEntry{
 			Prefix:  prefix,
 			Origins: cloneOrigins(gpuMetricOrigins),
 		})
+
+		existingPrefixes[prefix] = struct{}{}
 	}
 
 	sort.Slice(updatedEntries, func(i, j int) bool {
@@ -152,4 +163,13 @@ func cloneOrigins(origins []originSpec) []originSpec {
 	cloned := make([]originSpec, len(origins))
 	copy(cloned, origins)
 	return cloned
+}
+
+func hasAnotherMetricAsPrefix(metricNames []string, candidate string) bool {
+	for _, metricName := range metricNames {
+		if strings.HasPrefix(candidate, metricName) && metricName != candidate {
+			return true
+		}
+	}
+	return false
 }
