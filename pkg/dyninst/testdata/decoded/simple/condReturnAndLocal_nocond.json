@@ -57,7 +57,7 @@
           },
           "return": {
             "locals": {
-              "~r0": {
+              "@return": {
                 "type": "int",
                 "value": "8"
               }
@@ -129,7 +129,7 @@
           },
           "return": {
             "locals": {
-              "~r0": {
+              "@return": {
                 "type": "int",
                 "value": "2"
               }
