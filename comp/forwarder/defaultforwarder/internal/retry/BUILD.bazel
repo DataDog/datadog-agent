@@ -24,6 +24,7 @@ go_library(
     deps = [
         "//comp/core/log/def",
         "//comp/core/telemetry/def",
+        "//comp/core/telemetry/impl",
         "//comp/forwarder/defaultforwarder/resolver",
         "//comp/forwarder/defaultforwarder/transaction",
         "//pkg/config/utils",
