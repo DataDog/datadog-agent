@@ -16,6 +16,7 @@ CACHE_VERSION = 2
 
 ENV_PASSHTROUGH = {
     'BAZELISK_HOME': "Runner-dependent cache path used by `bazelisk` to manage `bazel` installations",
+    'BUILDBARN_ID_TOKEN': "OIDC token used by the Bazel credential helper to authenticate against the Buildbarn remote cache",
     'CI': "dda and `bazel` rely on this to be able to tell whether they're running on CI and adapt behavior",
     'DD_CC': 'Points at c compiler',
     'DD_CXX': 'Points at c++ compiler',
