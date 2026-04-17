@@ -235,7 +235,7 @@ func TestRunDoesNotError(t *testing.T) {
 
 func TestCollectorsOnDeviceChanges(t *testing.T) {
 	// note: bump this when we'll add new collectors in nvidia.BuildCollectors
-	const numSupportedCollectorTypes = 5
+	const numSupportedCollectorTypes = 6
 
 	// mock up device count so that we can check when check collectors are created/destroyed
 	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
@@ -245,6 +245,7 @@ func TestCollectorsOnDeviceChanges(t *testing.T) {
 		}),
 		testutil.WithCapabilities(testutil.Capabilities{GPM: true}),
 		testutil.WithMIGDisabled(),
+		testutil.WithArchitecture("blackwell"),
 	)
 	ddnvml.WithMockNVML(t, nvmlMock)
 	curDeviceCount := atomic.Int32{}
@@ -342,6 +343,7 @@ func TestCollectorsOnMIGDeviceChanges(t *testing.T) {
 			return nil, nvml.SUCCESS
 		}),
 		testutil.WithCapabilities(testutil.Capabilities{GPM: true}),
+		testutil.WithArchitecture("blackwell"),
 	)
 	nvmlMock.DeviceGetCountFunc = func() (int, nvml.Return) { return 1, nvml.SUCCESS }
 	nvmlMock.DeviceGetHandleByIndexFunc = func(index int) (nvml.Device, nvml.Return) {
@@ -794,8 +796,8 @@ func TestDisabledCollectorsConfiguration(t *testing.T) {
 		},
 		{
 			name:               "disable all collectors",
-			disabledCollectors: []string{"stateless", "sampling", "fields", "gpm", "device_events"},
-			expected:           []string{"stateless", "sampling", "fields", "gpm", "device_events"},
+			disabledCollectors: []string{"stateless", "sampling", "fields", "gpm", "device_events", "nvlink"},
+			expected:           []string{"stateless", "sampling", "fields", "gpm", "device_events", "nvlink"},
 		},
 		{
 			name:               "no collectors disabled",
