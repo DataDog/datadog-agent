@@ -3,6 +3,8 @@ Schema generation tasks
 """
 
 import os
+import json
+import tempfile
 
 import yaml
 from invoke import task
@@ -10,6 +12,8 @@ from invoke.exceptions import Exit
 
 from tasks.schema.fixes import fix_schema
 from tasks.schema.template_parser import parse_template
+from tasks.schema.settings_source_analyzer import extract_imperative_code_hints
+from tasks.schema.codegen_init_settings import run_codegen
 
 SCHEMA_DIR = os.path.join("pkg", "config", "schema")
 CORE_TEMPLATE = os.path.join("pkg", "config", "config_template.yaml")
@@ -79,6 +83,26 @@ def generate(ctx, agent_bin, output_dir=SCHEMA_DIR):
     with open(sysprobe, "w") as f:
         yaml.safe_dump(sysprobe_schema, f)
 
-    print("Schema generation complete. Output files:")
-    print(f"  {core}")
-    print(f"  {sysprobe}")
+
+@task
+def hints(ctx):
+    # Extract hints, dump them to a temporary directory for debugging purposes
+    hints = extract_imperative_code_hints()
+    hints_tmp_file = tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, delete_on_close=False)
+    hints_tmp_file.file.write(json.dumps(hints))
+    print('hints file = %s' % (hints_tmp_file.name,))
+
+
+@task
+def codegen(ctx, schema_file, use_hints_order=False):
+    # `use_hints_order`` controls whether:
+    #   False: settings are output in order from core_schema.yaml
+    #   True:  settings are output in order from common_settings.go (easier to diff)
+
+    with open(schema_file) as f:
+        core_schema = yaml.safe_load(f)
+    hints = extract_imperative_code_hints()
+
+    tmpdir = tempfile.mkdtemp()
+    run_codegen(core_schema, hints, use_hints_order, tmpdir)
+    print("Codegen complete. Output dir: %s" % tmpdir)
