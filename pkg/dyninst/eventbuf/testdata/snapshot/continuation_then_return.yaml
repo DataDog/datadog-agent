@@ -1,0 +1,27 @@
+# Multi-fragment entry (two fragments) + single-fragment return. The entry
+# doesn't finalize until the return side completes the pair.
+config: {}
+ops:
+  - !add-fragment {key: k1, side: entry, seq: 0, final: false, expect_return: true, bytes: 100}
+  - !add-fragment {key: k1, side: entry, seq: 1, final: true, expect_return: true, bytes: 80}
+  - !add-fragment {key: k1, side: return, seq: 0, final: true, expect_return: false, bytes: 40}
+---
+op: !add-fragment {key: k1, side: entry, seq: 0, final: false, expect_return: true, bytes: 100}
+state:
+  budget_used: 100
+  bytes: 100
+  tree_size: 1
+---
+op: !add-fragment {key: k1, side: entry, seq: 1, final: true, expect_return: true, bytes: 80}
+state:
+  budget_used: 180
+  bytes: 180
+  tree_size: 1
+---
+op: !add-fragment {key: k1, side: return, seq: 0, final: true, expect_return: false, bytes: 40}
+readys:
+  - {key: k1, entry_frags: 2, entry_bytes: 180, return_frags: 1, return_bytes: 40}
+state:
+  budget_used: 0
+  bytes: 0
+  tree_size: 0

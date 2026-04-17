@@ -24,3 +24,13 @@ type DataItemHeader struct {
 	Length  uint32
 	Address uint64
 }
+type DropNotification struct {
+	Prog_id          uint32
+	Probe_id         uint32
+	Goid             uint64
+	Stack_byte_depth uint32
+	Drop_reason      uint8
+	X__padding       [1]uint8
+	Last_seq         uint16
+	Entry_ktime_ns   uint64
+}

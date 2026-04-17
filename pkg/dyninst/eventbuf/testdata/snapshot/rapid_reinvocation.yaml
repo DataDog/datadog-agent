@@ -1,0 +1,37 @@
+# Two invocations at the same (goid, depth, probeID) but different
+# EntryKtime (different keys in our test naming). Tree holds both
+# concurrently and each finalizes independently.
+config: {}
+ops:
+  - !add-fragment {key: k1, side: entry, seq: 0, final: true, expect_return: true, bytes: 64}
+  - !add-fragment {key: k2, side: entry, seq: 0, final: true, expect_return: true, bytes: 64}
+  - !add-fragment {key: k1, side: return, seq: 0, final: true, expect_return: false, bytes: 32}
+  - !add-fragment {key: k2, side: return, seq: 0, final: true, expect_return: false, bytes: 32}
+---
+op: !add-fragment {key: k1, side: entry, seq: 0, final: true, expect_return: true, bytes: 64}
+state:
+  budget_used: 64
+  bytes: 64
+  tree_size: 1
+---
+op: !add-fragment {key: k2, side: entry, seq: 0, final: true, expect_return: true, bytes: 64}
+state:
+  budget_used: 128
+  bytes: 128
+  tree_size: 2
+---
+op: !add-fragment {key: k1, side: return, seq: 0, final: true, expect_return: false, bytes: 32}
+readys:
+  - {key: k1, entry_frags: 1, entry_bytes: 64, return_frags: 1, return_bytes: 32}
+state:
+  budget_used: 64
+  bytes: 64
+  tree_size: 1
+---
+op: !add-fragment {key: k2, side: return, seq: 0, final: true, expect_return: false, bytes: 32}
+readys:
+  - {key: k2, entry_frags: 1, entry_bytes: 64, return_frags: 1, return_bytes: 32}
+state:
+  budget_used: 0
+  bytes: 0
+  tree_size: 0

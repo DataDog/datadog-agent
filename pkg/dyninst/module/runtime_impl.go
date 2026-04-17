@@ -18,7 +18,9 @@ import (
 	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/eventbuf"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/module/tombstone"
@@ -39,7 +41,9 @@ type runtimeImpl struct {
 	dispatcher               Dispatcher
 	logsFactory              erasedLogsUploaderFactory
 	procRuntimeIDbyProgramID *sync.Map
-	bufferedMessageTracker   *bufferedMessageTracker
+	// eventbufBudget is the per-process byte ceiling shared across all
+	// per-program sink buffers.
+	eventbufBudget *eventbuf.Budget
 	// tombstoneFilePath is the path to the tombstone file left behind to detect
 	// crashes while loading programs. If empty, tombstone files are not
 	// created.
@@ -211,8 +215,9 @@ func (rt *runtimeImpl) Load(
 			EntityID:    entityID,
 			ContainerID: containerID,
 		}),
-		tree:   rt.bufferedMessageTracker.newTree(),
-		probes: irProgram.Probes,
+		buffer:       eventbuf.NewBuffer(rt.eventbufBudget),
+		dropNotifyCh: make(chan output.DropNotification, dropNotifyChanSize),
+		probes:       irProgram.Probes,
 	}
 	rt.dispatcher.RegisterSink(programID, s)
 
@@ -260,6 +265,14 @@ func (l *loadedProgramImpl) Attach(
 
 func (l *loadedProgramImpl) RuntimeStats() []loader.RuntimeStats {
 	return l.loadedProgram.RuntimeStats()
+}
+
+func (l *loadedProgramImpl) DropNotifyLostAt() uint64 {
+	return l.loadedProgram.DropNotifyLostAt()
+}
+
+func (l *loadedProgramImpl) EvictBufferOlderThan(cutoffKtimeNs uint64) {
+	l.runtime.dispatcher.EvictOlderThan(l.programID, cutoffKtimeNs)
 }
 
 func (l *loadedProgramImpl) Close() error {

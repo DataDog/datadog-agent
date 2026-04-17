@@ -1,0 +1,38 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "eventbuf",
+    srcs = [
+        "buffer.go",
+        "doc.go",
+        "message.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/eventbuf",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/log",
+        "@//pkg/dyninst/output",
+        "@com_github_google_btree//:btree",
+    ],
+)
+
+go_test(
+    name = "eventbuf_test",
+    srcs = [
+        "budget_test.go",
+        "buffer_bench_test.go",
+        "buffer_test.go",
+        "message_test.go",
+        "property_test.go",
+        "snapshot_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":eventbuf"],
+    gotags = ["test"],
+    deps = [
+        "@//pkg/dyninst/output",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@in_yaml_go_yaml_v3//:yaml",
+    ],
+)

@@ -1,11 +1,27 @@
 # gazelle:ignore
 
+load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
 
 exports_files([
     "framing_linux.go",
     "framing_linux_test.go",
 ])
+
+# Source files all carry //go:build linux_bpf, so callers must propagate the
+# linux_bpf tag (e.g. via gotags on a go_library/go_test) to compile in this
+# package.
+go_library(
+    name = "output",
+    srcs = [
+        "doc.go",
+        "drop_notification.go",
+        "event.go",
+        "framing_linux.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/output",
+    visibility = ["//visibility:public"],
+)
 
 cgo_godefs(
     name = "framing_godefs",

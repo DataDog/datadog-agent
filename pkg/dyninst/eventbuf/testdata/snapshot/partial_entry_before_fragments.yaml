@@ -1,0 +1,28 @@
+# Out-of-order: PARTIAL_ENTRY(last_seq=1) arrives before any fragments.
+# The buffer creates an entry with entryExpected=2 and entryTruncated=true.
+# Fragments 0 and 1 arrive later and trigger finalize.
+config: {}
+ops:
+  - !note-partial {key: k1, side: entry, last_seq: 1}
+  - !add-fragment {key: k1, side: entry, seq: 0, final: false, expect_return: false, bytes: 50}
+  - !add-fragment {key: k1, side: entry, seq: 1, final: false, expect_return: false, bytes: 50}
+---
+op: !note-partial {key: k1, side: entry, last_seq: 1}
+state:
+  budget_used: 0
+  bytes: 0
+  tree_size: 1
+---
+op: !add-fragment {key: k1, side: entry, seq: 0, final: false, expect_return: false, bytes: 50}
+state:
+  budget_used: 50
+  bytes: 50
+  tree_size: 1
+---
+op: !add-fragment {key: k1, side: entry, seq: 1, final: false, expect_return: false, bytes: 50}
+readys:
+  - {key: k1, entry_frags: 2, entry_bytes: 100, return_frags: 0, return_bytes: 0, entry_truncated: true}
+state:
+  budget_used: 0
+  bytes: 0
+  tree_size: 0

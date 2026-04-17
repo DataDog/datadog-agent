@@ -271,6 +271,13 @@ var defaultRedactors = []jsonRedactor{
 			`[duration]ms`,
 		),
 	),
+	redactor(
+		prefixSuffixMatcher{"/debugger/snapshot/captures/", "/value"},
+		regexpStringReplacer(
+			`(?P<longString>\d+)x{10,}x+`,
+			`<${longString} byte string>`,
+		),
+	),
 }
 
 const mutexInternalsRegexp = `\{state: [[:digit:]]+, sema: [[:digit:]]+\}`

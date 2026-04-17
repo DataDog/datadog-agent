@@ -49,6 +49,11 @@ typedef struct pointers_queue_item {
 
 DEFINE_QUEUE(pointers, pointers_queue_item_t, 128);
 
+// Sentinel for stack_machine_t::last_submitted_seq meaning "no fragment
+// has been submitted yet for this probe invocation". continuation_seq is
+// uint16, so 0xFFFF can never collide with a real sequence number.
+#define LAST_SUBMITTED_SEQ_NONE ((uint16_t)0xFFFF)
+
 #define ENQUEUE_STACK_DEPTH 32
 typedef struct stack_machine {
   // Initialized on every entry point.
@@ -127,9 +132,26 @@ typedef struct stack_machine {
   //
   // continuation_seq: how many fragments have been submitted so far.
   uint16_t continuation_seq;
+  // continuation_seq of the last *successfully* submitted fragment, or
+  // LAST_SUBMITTED_SEQ_NONE if no fragment has been submitted yet. Used to
+  // fill last_seq on drop notifications so userspace knows exactly how
+  // many fragments to expect when it reconstructs a truncated event.
+  uint16_t last_submitted_seq;
+  // Set true when a mid-chase flush failed: some fragments reached
+  // userspace but a later fragment couldn't be written. probe_run checks
+  // this flag after chasing completes and, if set, sends a PARTIAL_*
+  // notification and skips the final submit rather than emit a fragment
+  // with a gap.
+  bool continuation_aborted;
   // Original probe invocation timestamp, shared across all continuation
   // fragments for correlation.
   uint64_t start_ns;
+  // Invocation ID. For entry / line / inlined / no-body probes, this is
+  // the probe's own start_ns. For return probes, it is the entry's
+  // start_ns, pulled from in_progress_calls via call_depths_delete. Drop
+  // notifications carry this so userspace can key them by the same
+  // invocation identifier as the main-channel fragments.
+  uint64_t entry_ktime_ns;
 
   // Temporary data, stored here to save on stack space.
   uint64_t value_0;
@@ -227,7 +249,9 @@ static stack_machine_t* stack_machine_ctx_load(const probe_params_t* probe_param
   stack_machine->pointers_queue.len = 0;
   stack_machine->saved_dict_ptr = 0;
   stack_machine->continuation_seq = 0;
-  // start_ns is set explicitly by probe_run before use.
+  stack_machine->last_submitted_seq = LAST_SUBMITTED_SEQ_NONE;
+  stack_machine->continuation_aborted = false;
+  // start_ns and entry_ktime_ns are set explicitly by probe_run before use.
   return stack_machine;
 }
 
