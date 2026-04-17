@@ -21,8 +21,9 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/glaslos/ssdeep"
 	lru "github.com/hashicorp/golang-lru/v2"
+
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/hash/ssdeep"
 	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
