@@ -20,9 +20,13 @@ import (
 	"time"
 )
 
-const spanKey = spanContextKey("span_context")
-
 type spanContextKey string
+
+const (
+	spanIDsKey          = spanContextKey("span_ids")
+	serviceKey          = spanContextKey("span_service")
+	samplingPriorityKey = spanContextKey("span_sampling_priority")
+)
 
 // Span represents a span.
 type Span struct {
@@ -40,7 +44,8 @@ func newSpan(
 ) *Span {
 	if traceID == 0 {
 		traceID = rand.Uint64()
-		if !headSamplingKeep(name, traceID) {
+		// Head sampling only applies when no explicit priority was propagated via ctx.
+		if samplingPriority == nil && !headSamplingKeep(name, traceID) {
 			traceID = dropTraceID
 		}
 	}
@@ -159,26 +164,21 @@ func (s *Span) setTag(key string, value interface{}) {
 	}
 }
 
-type spanContext struct {
-	traceID          uint64
-	spanID           uint64
-	service          string
-	samplingPriority *int
+type spanIDs struct {
+	traceID uint64
+	spanID  uint64
 }
 
-func getSpanContext(ctx context.Context) (spanContext, bool) {
-	sc, ok := ctx.Value(spanKey).(spanContext)
-	if !ok {
-		return spanContext{}, false
-	}
-	return sc, true
+func getSpanIDsFromContext(ctx context.Context) (spanIDs, bool) {
+	ids, ok := ctx.Value(spanIDsKey).(spanIDs)
+	return ids, ok
 }
 
 func setSpanIDsInContext(ctx context.Context, span *Span) context.Context {
-	sc, _ := getSpanContext(ctx)
-	sc.traceID = span.span.TraceID
-	sc.spanID = span.span.SpanID
-	return context.WithValue(ctx, spanKey, sc)
+	return context.WithValue(ctx, spanIDsKey, spanIDs{
+		traceID: span.span.TraceID,
+		spanID:  span.span.SpanID,
+	})
 }
 
 func getRootErrorType(err error) string {

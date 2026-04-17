@@ -586,3 +586,54 @@ func TestEnvFromContext_OnlyIDs(t *testing.T) {
 	assert.Contains(t, env, fmt.Sprintf("DATADOG_TRACE_ID=%d", s.span.TraceID))
 	assert.Contains(t, env, fmt.Sprintf("DATADOG_PARENT_ID=%d", s.span.SpanID))
 }
+
+func TestEnvFromContext_EmptyWhenNoSpanStarted(t *testing.T) {
+	// WithService / WithSamplingPriority create a spanContext with zero IDs;
+	// EnvFromContext must not emit zero-valued env vars, which would overwrite
+	// real inherited trace vars in child processes.
+	globalTracer = &tracer{spans: make(map[uint64]*Span)}
+
+	ctx := WithService(context.Background(), "custom")
+	assert.Empty(t, EnvFromContext(ctx))
+
+	ctx = WithSamplingPriority(context.Background(), 1)
+	assert.Empty(t, EnvFromContext(ctx))
+
+	ctx = WithService(context.Background(), "custom")
+	ctx = WithSamplingPriority(ctx, 1)
+	assert.Empty(t, EnvFromContext(ctx))
+}
+
+func TestWithSamplingPriority_OverridesHeadSampling(t *testing.T) {
+	// An explicit WithSamplingPriority > 0 must keep a root span even when its
+	// name matches a head-sampling rule that would otherwise drop it.
+	globalTracer = &tracer{spans: make(map[uint64]*Span)}
+	telem := newTelemetry(&http.Client{}, "api", "datad0g.com", "svc")
+
+	// "agent.startup" has rate 0.0 in samplingRates — without an override, all
+	// root spans with this name are head-dropped.
+	ctx := WithSamplingPriority(context.Background(), 2)
+	parent, _ := StartSpanFromContext(ctx, "agent.startup")
+	assert.NotEqual(t, uint64(dropTraceID), parent.span.TraceID,
+		"explicit keep priority must override head sampling")
+	parent.Finish(nil)
+
+	resTraces := telem.extractCompletedSpans()
+	require.Len(t, resTraces, 1)
+	require.Len(t, resTraces[0], 1)
+	assert.Equal(t, "agent.startup", resTraces[0][0].Name)
+	assert.Equal(t, 2.0, resTraces[0][0].Metrics["_sampling_priority_v1"])
+}
+
+func TestHeadSamplingStillAppliesWithoutExplicitPriority(t *testing.T) {
+	// Regression: without an explicit priority, the existing head-sampling
+	// behaviour is preserved — root spans matching a rate=0 rule are dropped.
+	globalTracer = &tracer{spans: make(map[uint64]*Span)}
+	telem := newTelemetry(&http.Client{}, "api", "datad0g.com", "svc")
+
+	parent, _ := StartSpanFromContext(context.Background(), "agent.startup")
+	assert.Equal(t, uint64(dropTraceID), parent.span.TraceID)
+	parent.Finish(nil)
+
+	assert.Empty(t, telem.extractCompletedSpans())
+}
