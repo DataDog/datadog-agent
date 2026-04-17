@@ -54,45 +54,38 @@
           tar xJf ${INSTALLER_INPUT_FILE} -C ${INSTALLER_INPUT_DIR}
 
           # Extract DDOT
-          DDOT_INPUT_FILE="${OMNIBUS_PACKAGE_DIR}datadog-agent-ddot-*${ARCH}.tar.xz"
-          if ls ${DDOT_INPUT_FILE} 1> /dev/null 2>&1; then
-            DDOT_INPUT_DIR="/tmp/input_ddot_${ARCH}"
-            DDOT_EXTENSION_DIR="/tmp/ddot_extension_${ARCH}"
-            mkdir -p ${DDOT_INPUT_DIR}
-            mkdir -p ${DDOT_EXTENSION_DIR}
-            echo "Extracting DDOT to temporary input dir $DDOT_INPUT_FILE -> $DDOT_INPUT_DIR"
-            tar xJf ${DDOT_INPUT_FILE} -C ${DDOT_INPUT_DIR}
-
-            # Copy DDOT binaries and config templates into extension directory structure
-            cp -r ${DDOT_INPUT_DIR}/opt/datadog-agent/* ${DDOT_EXTENSION_DIR}/
-            mkdir -p ${DDOT_EXTENSION_DIR}/etc
-            if [ -d ${DDOT_INPUT_DIR}/etc/datadog-agent ]; then
-              cp -r ${DDOT_INPUT_DIR}/etc/datadog-agent ${DDOT_EXTENSION_DIR}/etc/
+          DDOT_MATCHES=$(ls "${OMNIBUS_PACKAGE_DIR}datadog-agent-ddot-"*"${ARCH}.tar.xz" 2>/dev/null || true)
+          DDOT_INPUT_FILE=$(echo "${DDOT_MATCHES}" | head -1)
+          if [ -n "${DDOT_INPUT_FILE}" ]; then
+            if [ "$(echo "${DDOT_MATCHES}" | wc -l)" -gt 1 ]; then
+              echo "WARNING: multiple DDOT artifacts found, using ${DDOT_INPUT_FILE}"
             fi
-
+            DDOT_EXTENSION_DIR="/tmp/ddot_extension_${ARCH}"
+            mkdir -p "${DDOT_EXTENSION_DIR}/etc"
+            echo "Extracting DDOT ${DDOT_INPUT_FILE} -> ${DDOT_EXTENSION_DIR}"
+            tar xJf "${DDOT_INPUT_FILE}" --strip-components=2 -C "${DDOT_EXTENSION_DIR}" opt/
+            tar xJf "${DDOT_INPUT_FILE}" --strip-components=1 -C "${DDOT_EXTENSION_DIR}/etc" etc/ 2>/dev/null || true
             EXTRA_FLAGS="--configs ${INPUT_DIR}/etc/datadog-agent --installer ${INSTALLER_INPUT_DIR}/opt/datadog-packages/datadog-installer/${PACKAGE_VERSION}/bin/installer/installer --extension ddot=${DDOT_EXTENSION_DIR}"
           else
-            echo "DDOT artifact not found: ${DDOT_INPUT_FILE}, skipping DDOT extension"
+            echo "DDOT artifact not found, skipping DDOT extension"
             EXTRA_FLAGS="--configs ${INPUT_DIR}/etc/datadog-agent --installer ${INSTALLER_INPUT_DIR}/opt/datadog-packages/datadog-installer/${PACKAGE_VERSION}/bin/installer/installer"
           fi
 
           # Extract DDOT FIPS
-          DDOT_FIPS_INPUT_FILE="${OMNIBUS_PACKAGE_DIR}datadog-fips-agent-ddot-*${ARCH}.tar.xz"
-          if ls ${DDOT_FIPS_INPUT_FILE} 1> /dev/null 2>&1; then
-            DDOT_FIPS_INPUT_DIR="/tmp/input_ddot_fips_${ARCH}"
-            DDOT_FIPS_EXTENSION_DIR="/tmp/ddot_fips_extension_${ARCH}"
-            mkdir -p ${DDOT_FIPS_INPUT_DIR}
-            mkdir -p ${DDOT_FIPS_EXTENSION_DIR}
-            echo "Extracting DDOT FIPS to temporary input dir $DDOT_FIPS_INPUT_FILE -> $DDOT_FIPS_INPUT_DIR"
-            tar xJf ${DDOT_FIPS_INPUT_FILE} -C ${DDOT_FIPS_INPUT_DIR}
-            cp -r ${DDOT_FIPS_INPUT_DIR}/opt/datadog-agent/* ${DDOT_FIPS_EXTENSION_DIR}/
-            mkdir -p ${DDOT_FIPS_EXTENSION_DIR}/etc
-            if [ -d ${DDOT_FIPS_INPUT_DIR}/etc/datadog-agent ]; then
-              cp -r ${DDOT_FIPS_INPUT_DIR}/etc/datadog-agent ${DDOT_FIPS_EXTENSION_DIR}/etc/
+          DDOT_FIPS_MATCHES=$(ls "${OMNIBUS_PACKAGE_DIR}datadog-fips-agent-ddot-"*"${ARCH}.tar.xz" 2>/dev/null || true)
+          DDOT_FIPS_INPUT_FILE=$(echo "${DDOT_FIPS_MATCHES}" | head -1)
+          if [ -n "${DDOT_FIPS_INPUT_FILE}" ]; then
+            if [ "$(echo "${DDOT_FIPS_MATCHES}" | wc -l)" -gt 1 ]; then
+              echo "WARNING: multiple DDOT FIPS artifacts found, using ${DDOT_FIPS_INPUT_FILE}"
             fi
+            DDOT_FIPS_EXTENSION_DIR="/tmp/ddot_fips_extension_${ARCH}"
+            mkdir -p "${DDOT_FIPS_EXTENSION_DIR}/etc"
+            echo "Extracting DDOT FIPS ${DDOT_FIPS_INPUT_FILE} -> ${DDOT_FIPS_EXTENSION_DIR}"
+            tar xJf "${DDOT_FIPS_INPUT_FILE}" --strip-components=2 -C "${DDOT_FIPS_EXTENSION_DIR}" opt/
+            tar xJf "${DDOT_FIPS_INPUT_FILE}" --strip-components=1 -C "${DDOT_FIPS_EXTENSION_DIR}/etc" etc/ 2>/dev/null || true
             EXTRA_FLAGS="${EXTRA_FLAGS} --extension ddot-fips=${DDOT_FIPS_EXTENSION_DIR}"
           else
-            echo "DDOT FIPS artifact not found: ${DDOT_FIPS_INPUT_FILE}, skipping DDOT FIPS extension"
+            echo "DDOT FIPS artifact not found, skipping DDOT FIPS extension"
           fi
         fi
         if [ "${OCI_PRODUCT}" = "datadog-installer" ]; then
