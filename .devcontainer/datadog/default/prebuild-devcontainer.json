@@ -1,6 +1,6 @@
 {
     "name": "Datadog Agent Development Container",
-    "image": "registry.ddbuild.io/ci/datadog-agent-buildimages/dev-env-linux-workspace_test_only:v108208663-2a1b51e8",
+    "image": "registry.ddbuild.io/ci/datadog-agent-buildimages/dev-env-linux-workspace_test_only:v108272783-f44771d3",
     "overrideFeatureInstallOrder": [
         "./features/datadog-agent",
         "registry.ddbuild.io/workspaces/features/base"
