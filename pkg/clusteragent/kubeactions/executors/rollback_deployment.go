@@ -10,16 +10,17 @@ package executors
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"strconv"
+
 	"github.com/DataDog/agent-payload/v5/kubeactions"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
-	"strconv"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -231,7 +232,7 @@ func (r *RollbackDeploymentExecutor) Execute(ctx context.Context, action *kubeac
 	if apiequality.Semantic.DeepEqual(&replicaSetForRevision.Spec.Template, &currentDeployment.Spec.Template) {
 		return ExecutionResult{
 			Status:  StatusSuccess,
-			Message: fmt.Sprintf("current template already matches the previous revision %d", foundRevision),
+			Message: "current template already matches the previous revision" + strconv.FormatInt(foundRevision, 10),
 		}
 	}
 
@@ -247,7 +248,7 @@ func (r *RollbackDeploymentExecutor) Execute(ctx context.Context, action *kubeac
 
 	// Restore revision by patching the Deployment
 	if _, err = r.clientset.AppsV1().Deployments(namespace).Patch(ctx, name, patchType, patch, metav1.PatchOptions{}); err != nil {
-		msg := fmt.Sprintf("failed restoring revision %d: %v", foundRevision, err)
+		msg := "failed restoring revision " + strconv.FormatInt(foundRevision, 10) + ": " + err.Error()
 		log.Error(msg)
 		return ExecutionResult{
 			Status:  StatusFailed,
@@ -258,6 +259,6 @@ func (r *RollbackDeploymentExecutor) Execute(ctx context.Context, action *kubeac
 
 	return ExecutionResult{
 		Status:  StatusSuccess,
-		Message: fmt.Sprintf("successfully restored revision %d", foundRevision),
+		Message: "successfully restored revision " + strconv.FormatInt(foundRevision, 10),
 	}
 }
