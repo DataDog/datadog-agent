@@ -48,7 +48,7 @@ type IncrementOutputOffsetOp struct {
 // Expression evaluation operations.
 // These operations are executed in a chain, starting from prepare op, and ending
 // with a save op. Each intermediate op is allowed to return early to the caller,
-// resulting in unset presence bit, interpretted as evaluation failure.
+// leaving the expression status as absent (0).
 
 type ExprPrepareOp struct {
 	baseOp
@@ -77,9 +77,9 @@ type ExprReadRegisterOp struct {
 
 type ExprDereferencePtrOp struct {
 	baseOp
-	Bias      uint32
-	Len       uint32
-	NilBitIdx uint32
+	Bias          uint32
+	Len           uint32
+	ExprStatusIdx uint32 // expression index for writing nil-deref status; ^0 = none
 }
 
 // Special type processing ops, that evaluate data of a specific type (already
@@ -220,6 +220,52 @@ type ExprCmpEqBaseOp struct {
 type ExprCmpEqStringOp struct {
 	baseOp
 }
+
+type ExprSliceBoundsCheckOp struct {
+	baseOp
+	Index         uint32
+	ExprStatusIdx uint32 // expression index for writing OOB status; ^0 = none
+}
+
+// SwissMapSetupOp reads bytecode params, computes hash, initializes probe state.
+type SwissMapSetupOp struct {
+	baseOp
+	KeyData     []byte
+	IsStringKey bool
+	KeyByteSize uint8
+	ValByteSize uint32
+
+	SeedOffset        uint8
+	DirPtrOffset      uint8
+	DirLenOffset      uint8
+	GlobalShiftOffset uint8
+
+	CtrlOffset      uint8
+	SlotsOffset     uint8
+	SlotSize        uint16
+	KeyInSlotOffset uint8
+	ValInSlotOffset uint16
+
+	TableGroupsFieldOffset   uint8
+	GroupsDataFieldOffset    uint8
+	GroupsLenMaskFieldOffset uint8
+	GroupByteSize            uint16
+
+	HeaderByteSize uint32
+	ExprStatusIdx  uint32
+}
+
+// SwissMapAesencOp performs one AESENC round; replays via PC for remaining rounds.
+type SwissMapAesencOp struct{ baseOp }
+
+// SwissMapHashFinishOp handles AES hash phase transitions and finalization.
+type SwissMapHashFinishOp struct{ baseOp }
+
+// SwissMapProbeOp reads the control word at the current group and computes match bitsets.
+type SwissMapProbeOp struct{ baseOp }
+
+// SwissMapCheckSlotOp checks one H2-matching slot against the literal key.
+type SwissMapCheckSlotOp struct{ baseOp }
 
 type ConditionBeginOp struct {
 	baseOp

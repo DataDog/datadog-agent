@@ -53,7 +53,7 @@
           "lines": {
             "108": {
               "locals": {
-                "~r0": {
+                "@return": {
                   "type": "int",
                   "notCapturedReason": "unavailable"
                 },

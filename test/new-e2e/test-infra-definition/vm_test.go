@@ -76,8 +76,10 @@ func TestVMSuite(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		t.Log(tc.testName)
-		e2e.Run(t, tc.suite, e2e.WithProvisioner(tc.provisioner), e2e.WithSkipCoverage())
+		tc := tc
+		t.Run(tc.testName, func(t *testing.T) {
+			e2e.Run(t, tc.suite, e2e.WithProvisioner(tc.provisioner), e2e.WithSkipCoverage())
+		})
 	}
 }
 
