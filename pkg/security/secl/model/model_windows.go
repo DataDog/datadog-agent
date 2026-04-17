@@ -267,3 +267,6 @@ func (pc *ProcessCacheEntry) ParentScope() (eval.VariableScope, bool) {
 }
 
 func (e *Event) initPlatformPointerFields() {}
+
+// RecordCheckpoint is a no-op on Windows
+func (e *Event) RecordCheckpoint(_ string) {}
