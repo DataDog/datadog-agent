@@ -356,6 +356,12 @@ prebuilt_file(
 )
 
 prebuilt_file(
+    name = "installer_binary",
+    target_label = "@@//:bin/installer/installer",
+    target_name = "installer",
+)
+
+prebuilt_file(
     name = "privateactionrunner_binary",
     target_label = "@@//:bin/privateactionrunner/privateactionrunner",
     target_name = "privateactionrunner",
