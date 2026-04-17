@@ -57,7 +57,7 @@ type ManagerV2 struct {
 	hostname string
 
 	profiles     map[cgroupModel.WorkloadSelector]*profile.Profile
-	profilesLock sync.Mutex
+	profilesLock sync.RWMutex
 	pathsReducer *activity_tree.PathsReducer
 
 	eventFiltering map[eventFilteringEntry]*atomic.Uint64
@@ -302,8 +302,8 @@ func (m *ManagerV2) profileHasActiveInstances(prof *profile.Profile) bool {
 
 // persistAllProfiles encodes and persists all profiles to configured storage backends
 func (m *ManagerV2) persistAllProfiles() {
-	m.profilesLock.Lock()
-	defer m.profilesLock.Unlock()
+	m.profilesLock.RLock()
+	defer m.profilesLock.RUnlock()
 
 	for _, p := range m.profiles {
 		m.persistProfile(p)
@@ -894,8 +894,8 @@ func (m *ManagerV2) FillProfileContextFromWorkloadID(id containerutils.WorkloadI
 		return
 	}
 
-	m.profilesLock.Lock()
-	defer m.profilesLock.Unlock()
+	m.profilesLock.RLock()
+	defer m.profilesLock.RUnlock()
 
 	// Iterate through profiles and their instances to find matching workload
 	for _, prof := range m.profiles {
