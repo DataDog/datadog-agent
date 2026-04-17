@@ -93,10 +93,14 @@ func (t *Telemetry) extractCompletedSpans() traces {
 	}
 	ts := make(map[uint64][]*span)
 	for _, span := range spans {
-		span.span.Service = t.service
+		if span.span.Service == "" {
+			span.span.Service = t.service
+		}
 		span.span.Meta["env"] = t.env
 		span.span.Meta["version"] = version.AgentVersion
-		span.span.Metrics["_sampling_priority_v1"] = 2
+		if _, ok := span.span.Metrics["_sampling_priority_v1"]; !ok {
+			span.span.Metrics["_sampling_priority_v1"] = 2
+		}
 		ts[span.span.TraceID] = append(ts[span.span.TraceID], &span.span)
 	}
 	tracesArray := make([]trace, 0, len(ts))
@@ -116,11 +120,28 @@ func (t *Telemetry) sendCompletedSpans() {
 
 // SpanFromContext returns the span from the context if available.
 func SpanFromContext(ctx context.Context) (*Span, bool) {
-	spanIDs, ok := getSpanIDsFromContext(ctx)
+	sc, ok := getSpanContext(ctx)
 	if !ok {
 		return nil, false
 	}
-	return globalTracer.getSpan(spanIDs.spanID)
+	return globalTracer.getSpan(sc.spanID)
+}
+
+// WithService sets the service name on the context. Spans created from this context
+// (and child contexts) inherit the service unless overridden by another WithService call.
+func WithService(ctx context.Context, service string) context.Context {
+	sc, _ := getSpanContext(ctx)
+	sc.service = service
+	return context.WithValue(ctx, spanKey, sc)
+}
+
+// WithSamplingPriority sets the sampling priority on the context. Spans created from
+// this context (and child contexts) inherit the priority unless overridden by another
+// WithSamplingPriority call. When unset, a default of 2 (FORCE_KEEP) is stamped at flush.
+func WithSamplingPriority(ctx context.Context, priority int) context.Context {
+	sc, _ := getSpanContext(ctx)
+	sc.samplingPriority = &priority
+	return context.WithValue(ctx, spanKey, sc)
 }
 
 // StartSpanFromEnv starts a span using the environment variables to find the parent span.
@@ -163,25 +184,26 @@ func StartSpanFromIDs(ctx context.Context, operationName, traceID, parentID stri
 }
 
 func startSpanFromIDs(ctx context.Context, operationName string, traceID, parentID uint64) (*Span, context.Context) {
-	s := newSpan(operationName, parentID, traceID)
+	sc, _ := getSpanContext(ctx)
+	s := newSpan(operationName, parentID, traceID, sc.service, sc.samplingPriority)
 	ctx = setSpanIDsInContext(ctx, s)
 	return s, ctx
 }
 
 // StartSpanFromContext starts a span using the context to find the parent span.
 func StartSpanFromContext(ctx context.Context, operationName string) (*Span, context.Context) {
-	spanIDs, _ := getSpanIDsFromContext(ctx)
-	return startSpanFromIDs(ctx, operationName, spanIDs.traceID, spanIDs.spanID)
+	sc, _ := getSpanContext(ctx)
+	return startSpanFromIDs(ctx, operationName, sc.traceID, sc.spanID)
 }
 
 // EnvFromContext returns the environment variables for the context.
 func EnvFromContext(ctx context.Context) []string {
-	sIDs, ok := getSpanIDsFromContext(ctx)
+	sc, ok := getSpanContext(ctx)
 	if !ok {
 		return []string{}
 	}
 	return []string{
-		fmt.Sprintf("%s=%s", envTraceID, strconv.FormatUint(sIDs.traceID, 10)),
-		fmt.Sprintf("%s=%s", envParentID, strconv.FormatUint(sIDs.spanID, 10)),
+		fmt.Sprintf("%s=%s", envTraceID, strconv.FormatUint(sc.traceID, 10)),
+		fmt.Sprintf("%s=%s", envParentID, strconv.FormatUint(sc.spanID, 10)),
 	}
 }

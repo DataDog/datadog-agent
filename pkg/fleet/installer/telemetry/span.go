@@ -31,12 +31,21 @@ type Span struct {
 	finished atomic.Bool
 }
 
-func newSpan(name string, parentID, traceID uint64) *Span {
+func newSpan(
+	name string,
+	parentID uint64,
+	traceID uint64,
+	service string,
+	samplingPriority *int,
+) *Span {
 	if traceID == 0 {
 		traceID = rand.Uint64()
 		if !headSamplingKeep(name, traceID) {
 			traceID = dropTraceID
 		}
+	}
+	if samplingPriority != nil && *samplingPriority <= 0 {
+		traceID = dropTraceID
 	}
 	s := &Span{
 		span: span{
@@ -45,10 +54,14 @@ func newSpan(name string, parentID, traceID uint64) *Span {
 			SpanID:   rand.Uint64(),
 			Name:     name,
 			Resource: name,
+			Service:  service,
 			Start:    time.Now().UnixNano(),
 			Meta:     make(map[string]string),
 			Metrics:  make(map[string]float64),
 		},
+	}
+	if samplingPriority != nil {
+		s.span.Metrics["_sampling_priority_v1"] = float64(*samplingPriority)
 	}
 	if parentID == 0 {
 		s.SetTopLevel()
@@ -146,21 +159,26 @@ func (s *Span) setTag(key string, value interface{}) {
 	}
 }
 
-type spanIDs struct {
-	traceID uint64
-	spanID  uint64
+type spanContext struct {
+	traceID          uint64
+	spanID           uint64
+	service          string
+	samplingPriority *int
 }
 
-func getSpanIDsFromContext(ctx context.Context) (spanIDs, bool) {
-	sIDs, ok := ctx.Value(spanKey).(spanIDs)
+func getSpanContext(ctx context.Context) (spanContext, bool) {
+	sc, ok := ctx.Value(spanKey).(spanContext)
 	if !ok {
-		return spanIDs{}, false
+		return spanContext{}, false
 	}
-	return sIDs, true
+	return sc, true
 }
 
 func setSpanIDsInContext(ctx context.Context, span *Span) context.Context {
-	return context.WithValue(ctx, spanKey, spanIDs{traceID: span.span.TraceID, spanID: span.span.SpanID})
+	sc, _ := getSpanContext(ctx)
+	sc.traceID = span.span.TraceID
+	sc.spanID = span.span.SpanID
+	return context.WithValue(ctx, spanKey, sc)
 }
 
 func getRootErrorType(err error) string {
