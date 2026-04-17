@@ -95,7 +95,13 @@ OS_SPECIFIC_ENV_PASSTHROUGH = {
         'AGENT_DATA_PLANE_HASH_FIPS_LINUX_AMD64': 'Agent Data Plane Hash for FIPS Linux AMD64',
         'AGENT_DATA_PLANE_HASH_FIPS_LINUX_ARM64': 'Agent Data Plane Hash for FIPS Linux ARM64',
     },
-    'darwin': {},
+    'darwin': {
+        'APPLE_ACCOUNT': 'Apple developer account used for notarization',
+        'NOTARIZATION_ATTEMPTS': 'Number of retries for notarization steps',
+        'NOTARIZATION_PWD': 'App-specific password for notarization',
+        'NOTARIZATION_TIMEOUT': 'Timeout for xcrun notarytool wait',
+        'TEAM_ID': 'Apple developer team ID used for notarization',
+    },
 }
 
 

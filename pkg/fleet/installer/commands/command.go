@@ -44,6 +44,9 @@ const (
 	AnnotationHumanReadableErrors = "human-readable-errors"
 )
 
+// agentConfigDir is the directory containing datadog.yaml. Overridable in tests.
+var agentConfigDir = paths.AgentConfigDir
+
 type cmd struct {
 	t              *telemetry.Telemetry
 	span           *telemetry.Span
@@ -68,6 +71,7 @@ func setupStdoutLogger(_ *env.Env) {
 // newCmd creates a new command
 func newCmd(operation string) *cmd {
 	env := env.FromEnv()
+	applyDatadogYAMLRegistryConfig(env)
 	if !env.IsFromDaemon {
 		setupStdoutLogger(env)
 	}
@@ -149,6 +153,17 @@ type telemetryConfigFields struct {
 	Site   string `yaml:"site"`
 }
 
+type installerRegistryYAMLConfig struct {
+	Installer struct {
+		Registry struct {
+			URL      string `yaml:"url"`
+			Auth     string `yaml:"auth"`
+			Username string `yaml:"username"`
+			Password string `yaml:"password"`
+		} `yaml:"registry"`
+	} `yaml:"installer"`
+}
+
 // telemetryConfig is a best effort to get the API key / site from `datadog.yaml`.
 func telemetryConfig() telemetryConfigFields {
 	configPath := filepath.Join(paths.AgentConfigDir, "datadog.yaml")
@@ -182,6 +197,33 @@ func newTelemetry(env *env.Env) *telemetry.Telemetry {
 
 	t := telemetry.NewTelemetry(env.HTTPClient(), apiKey, site, "datadog-installer") // No sampling rules for commands
 	return t
+}
+
+// applyDatadogYAMLRegistryConfig reads installer.registry from datadog.yaml and
+// applies any values not already set by environment variables.
+func applyDatadogYAMLRegistryConfig(env *env.Env) {
+	configPath := filepath.Join(agentConfigDir, "datadog.yaml")
+	rawConfig, err := os.ReadFile(configPath)
+	if err != nil {
+		return
+	}
+	var config installerRegistryYAMLConfig
+	if err = yaml.Unmarshal(rawConfig, &config); err != nil {
+		return
+	}
+	r := config.Installer.Registry
+	if env.HasDefaultRegistryOverride() && r.Auth != "" {
+		env.RegistryOverride = r.URL
+	}
+	if env.HasDefaultRegistryAuthOverride() && r.Auth != "" {
+		env.RegistryAuthOverride = r.Auth
+	}
+	if env.HasDefaultRegistryUsername() && r.Username != "" {
+		env.RegistryUsername = r.Username
+	}
+	if env.HasDefaultRegistryPassword() && r.Password != "" {
+		env.RegistryPassword = r.Password
+	}
 }
 
 // RootCommands returns the root commands

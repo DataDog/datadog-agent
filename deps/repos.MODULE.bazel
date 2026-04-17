@@ -4,7 +4,7 @@ http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "ht
 
 http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_file")
 
-sqlite_ver = ("3", "50", "04")
+sqlite_ver = ("3", "53", "00")
 
 sqlite_amalgamation = "sqlite-amalgamation-{}00".format("".join(sqlite_ver))
 
@@ -14,16 +14,16 @@ http_archive(
         "BUILD.bazel": "//deps:sqlite3.BUILD.bazel",
         "LICENSE.md": "@sqlite3_license//file:LICENSE.md",
     },
-    sha256 = "1d3049dd0f830a025a53105fc79fd2ab9431aea99e137809d064d8ee8356b032",
+    sha256 = "bf3733d7c71b3ab0f6fd8a9ea0052ad87fa037d94333e14ce09878ba3492c3b0",
     strip_prefix = sqlite_amalgamation,
-    url = "https://www.sqlite.org/2025/{}.zip".format(sqlite_amalgamation),
+    url = "https://www.sqlite.org/2026/{}.zip".format(sqlite_amalgamation),
 )
 
 http_file(
     name = "sqlite3_license",
     downloaded_file_path = "LICENSE.md",
-    sha256 = "a7a58d6022c090c528e3167026167b3141d682efc6a3c188b473ba59f1788fc7",
-    urls = [url.format(".".join([v.lstrip("0") for v in sqlite_ver])) for url in (
+    sha256 = "ee6af51062b30d532991face5164136ae6f84e265ecf8abe89dc69dac45ca1e7",
+    urls = [url.format(".".join([v.replace("00", "0") for v in sqlite_ver])) for url in (
         "https://raw.githubusercontent.com/sqlite/sqlite/version-{}/LICENSE.md",
     )],
 )
@@ -107,12 +107,13 @@ http_archive(
     patch_strip = 1,
     patches = [
         "//deps/openssl:0001-Set-the-install-name-to-use-rpath-instead-of-absolut.patch",
+        "//deps/openssl:0002-OSSL_PARAM_BLD_push_octet_allow_NULL_buffer.patch",
     ],
-    sha256 = "b28c91532a8b65a1f983b4c28b7488174e4a01008e29ce8e69bd789f28bc2a89",
-    strip_prefix = "openssl-3.5.5",
+    sha256 = "deae7c80cba99c4b4f940ecadb3c3338b13cb77418409238e57d7f31f2a3b736",
+    strip_prefix = "openssl-3.5.6",
     urls = [
-        "https://dd-agent-omnibus.s3.amazonaws.com/bazel/openssl-3.5.5.tar.gz",
-        "https://www.openssl.org/source/openssl-3.5.5.tar.gz",
+        "https://dd-agent-omnibus.s3.amazonaws.com/bazel/openssl-3.5.6.tar.gz",
+        "https://www.openssl.org/source/openssl-3.5.6.tar.gz",
     ],
 )
 
