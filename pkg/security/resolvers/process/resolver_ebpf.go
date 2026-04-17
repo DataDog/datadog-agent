@@ -1647,7 +1647,15 @@ func (p *EBPFResolver) SyncCache(proc *process.Process) {
 		return
 	}
 
-	entry.IsKworker = filledProc.Ppid == 0 && filledProc.Pid != 1
+	entry.IsKworker = IsKworker(uint32(filledProc.Ppid), uint32(filledProc.Pid))
+
+	if entry.IsKworker {
+		value := uint8(1)
+		if err = p.pidIgnoredMap.Put(pid, value); err != nil {
+			seclog.Errorf("couldn't push pid_ignored entry to kernel space: %s", err)
+		}
+		return
+	}
 
 	// Phase 2: cache mutation under the lock.
 	p.Lock()
