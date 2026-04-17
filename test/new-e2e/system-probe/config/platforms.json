@@ -79,10 +79,10 @@
     "debian_11": {
       "os_name": "Debian GNU/Linux",
       "os_id": "debian",
-      "kernel": "5.10.0-35",
+      "kernel": "5.10.0-39",
       "os_version": "11",
       "image": "debian-11-generic-x86_64.qcow2.xz",
-      "image_version": "20251015_301103a6",
+      "image_version": "20260413_5fca70eb",
       "alt_version_names": [
         "bullseye"
       ]
@@ -360,10 +360,10 @@
     "debian_11": {
       "os_name": "Debian GNU/Linux",
       "os_id": "debian",
-      "kernel": "5.10.0-35",
+      "kernel": "5.10.0-39",
       "os_version": "11",
       "image": "debian-11-generic-arm64.qcow2.xz",
-      "image_version": "20251015_301103a6",
+      "image_version": "20260413_5fca70eb",
       "alt_version_names": [
         "bullseye"
       ]
