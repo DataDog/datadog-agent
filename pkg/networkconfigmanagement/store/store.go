@@ -323,7 +323,7 @@ func (cs *ConfigStore) DeleteConfig(key string) error {
 }
 
 // evictConfigs deletes the configs identified by the given UUIDs.
-func (cs *ConfigStore) evictConfigs(uuids []string) error {
+func (cs *ConfigStore) DeleteConfigs(uuids []string) error {
 	for _, uuid := range uuids {
 		if err := cs.DeleteConfig(uuid); err != nil {
 			return err
@@ -397,7 +397,7 @@ func getGlobalLRUCandidate(configsPerDevice map[string]int, sortedEntries []*Con
 	return ""
 }
 
-// after a config is evicted, update the eviction index
+// After a config is evicted, update the eviction index
 func updateEvictionIndex(configsPerDevice map[string]int, sortedEntries []*ConfigMetadata, key string) (map[string]int, []*ConfigMetadata) {
 
 	var remaining []*ConfigMetadata
@@ -415,7 +415,7 @@ func updateEvictionIndex(configsPerDevice map[string]int, sortedEntries []*Confi
 }
 
 // Identify the list of configs to evict in the next eviction round. This evicts configs exceeding the max per-device limit and the uses the LRU rule to reach the storage goal
-func (cs *ConfigStore) getEvictionCandidates(minRetainedConfigs int, maxRetainedConfigs int, maxSize int64) ([]string, error) {
+func (cs *ConfigStore) GetEvictionCandidates(minRetainedConfigs int, maxRetainedConfigs int, maxSize int64) ([]string, error) {
 	configsPerDevice, sortedEntries, err := cs.buildEvictionIndex()
 	if err != nil {
 		return nil, err
