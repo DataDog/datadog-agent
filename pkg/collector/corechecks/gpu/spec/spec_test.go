@@ -8,6 +8,8 @@
 package spec
 
 import (
+	"fmt"
+	"math"
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -16,6 +18,7 @@ import (
 
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
+	"go.yaml.in/yaml/v2"
 )
 
 func TestLoadSpecNotEmpty(t *testing.T) {
@@ -48,6 +51,92 @@ func TestLoadArchitecturesNotEmpty(t *testing.T) {
 	}
 }
 
+func TestMetricValidatorValidate(t *testing.T) {
+	t.Run("range", func(t *testing.T) {
+		min := 0.0
+		max := 100.0
+		validator := &MetricValidator{
+			Range: &MetricValidatorRange{Min: &min, Max: &max},
+		}
+
+		require.NoError(t, validator.validateDefinition())
+		require.NoError(t, validator.Validate(0))
+		require.NoError(t, validator.Validate(100))
+		require.Error(t, validator.Validate(-1))
+		require.Error(t, validator.Validate(101))
+	})
+
+	t.Run("values", func(t *testing.T) {
+		validator := &MetricValidator{
+			Values: []float64{0, 1},
+		}
+
+		require.NoError(t, validator.validateDefinition())
+		require.NoError(t, validator.Validate(0))
+		require.NoError(t, validator.Validate(1))
+		require.Error(t, validator.Validate(2))
+	})
+}
+
+func TestMetricValidatorValidateDefinition(t *testing.T) {
+	rangeMinZero := 0.0
+	rangeMaxOne := 1.0
+	rangeMinInvalid := 10.0
+	rangeMaxInvalid := 5.0
+	nonFinite := math.NaN()
+
+	tests := []struct {
+		name      string
+		validator *MetricValidator
+	}{
+		{
+			name: "range min greater than max",
+			validator: &MetricValidator{
+				Range: &MetricValidatorRange{Min: &rangeMinInvalid, Max: &rangeMaxInvalid},
+			},
+		},
+		{
+			name:      "empty validator",
+			validator: &MetricValidator{},
+		},
+		{
+			name: "both range and values",
+			validator: &MetricValidator{
+				Range:  &MetricValidatorRange{Min: &rangeMinZero, Max: &rangeMaxOne},
+				Values: []float64{0, 1},
+			},
+		},
+		{
+			name: "non finite values",
+			validator: &MetricValidator{
+				Values: []float64{nonFinite},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Error(t, tt.validator.validateDefinition())
+		})
+	}
+}
+
+func TestMetricValidatorUnmarshalRejectsInvalidRange(t *testing.T) {
+	var validator MetricValidator
+
+	err := yaml.Unmarshal([]byte("range:\n  min: 10\n  max: 5\n"), &validator)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "metric validator range min 10 must be less than or equal to max 5")
+}
+
+func TestMetricValidatorUnmarshalRejectsNonFiniteValues(t *testing.T) {
+	var validator MetricValidator
+
+	err := yaml.Unmarshal([]byte("values: [.nan]\n"), &validator)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "metric validator values must be finite")
+}
+
 // TestMockCapabilitiesMatchArchitectureSpec ensures that for each architecture and supported device mode,
 // the NVML mock configured from architectures.yaml returns API behavior that matches the capability flags
 // (gpm, unsupported_fields_by_device_mode). This validates that the mock actually applies the spec.
@@ -55,72 +144,62 @@ func TestMockCapabilitiesMatchArchitectureSpec(t *testing.T) {
 	archSpecFile, err := LoadArchitecturesSpec()
 	require.NoError(t, err)
 
-	deviceModes := []DeviceMode{
-		DeviceModePhysical,
-		DeviceModeMIG,
-		DeviceModeVGPU,
-	}
+	configs := KnownGPUConfigs(archSpecFile)
+	for _, config := range configs {
+		subtestName := fmt.Sprintf("arch=%s/mode=%s", config.Architecture, config.DeviceMode)
+		t.Run(subtestName, func(t *testing.T) {
+			archSpec := archSpecFile.Architectures[config.Architecture]
+			opts := BuildMockOptionsForConfig(t, config, archSpec)
 
-	for archName, archSpec := range archSpecFile.Architectures {
-		for _, mode := range deviceModes {
-			if !IsModeSupportedByArchitecture(archSpec, mode) {
-				continue
+			ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(opts...))
+
+			lib, err := ddnvml.GetSafeNvmlLib()
+			require.NoError(t, err, "should be able to get NVML lib")
+			dev, err := lib.DeviceGetHandleByIndex(0)
+			require.NoError(t, err, "should be able to get device 0")
+
+			// gpm -> GpmQueryDeviceSupport(): IsSupportedDevice 1 when enabled, 0 when disabled
+			support, err := dev.GpmQueryDeviceSupport()
+			require.NoError(t, err, "GpmQueryDeviceSupport should not report an error")
+			expected := uint32(0)
+			if archSpec.Capabilities.GPM {
+				expected = 1
+			}
+			if config.DeviceMode == DeviceModeVGPU {
+				// Mocks model vGPU as not supporting GPM collection even on architectures
+				// where physical devices support GPM.
+				expected = 0
+			}
+			assert.Equal(t, expected, support.IsSupportedDevice, "GpmQueryDeviceSupport.IsSupportedDevice should be %d when gpm=%v", expected, archSpec.Capabilities.GPM)
+
+			// Check also that GpmSampleGet returns NOT_SUPPORTED when GPM is not supported
+			var sample testutil.MockGpmSample
+			err = dev.GpmSampleGet(sample)
+			if archSpec.Capabilities.GPM && config.DeviceMode != DeviceModeVGPU {
+				require.NoError(t, err, "GpmSampleGet should not return an error")
+			} else {
+				require.Error(t, err, "GpmSampleGet should return an error")
+				require.True(t, ddnvml.IsUnsupported(err), "GpmSampleGet should return an API_UNSUPPORTED_ON_DEVICE error")
 			}
 
-			subtestName := "arch=" + archName + "/mode=" + string(mode)
-			t.Run(subtestName, func(t *testing.T) {
-				opts := BuildMockOptionsForArchAndMode(t, archName, mode, archSpec)
+			unsupportedIDs := UnsupportedFieldIDsForMode(t, archSpec, config.DeviceMode)
+			unsupportedSet := make(map[uint32]struct{}, len(unsupportedIDs))
+			for _, id := range unsupportedIDs {
+				unsupportedSet[id] = struct{}{}
+			}
 
-				ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(opts...))
-
-				lib, err := ddnvml.GetSafeNvmlLib()
-				require.NoError(t, err, "should be able to get NVML lib", archName, mode)
-				dev, err := lib.DeviceGetHandleByIndex(0)
-				require.NoError(t, err, "should be able to get device 0", archName, mode)
-
-				// gpm -> GpmQueryDeviceSupport(): IsSupportedDevice 1 when enabled, 0 when disabled
-				support, err := dev.GpmQueryDeviceSupport()
-				require.NoError(t, err, "GpmQueryDeviceSupport should not report an error")
-				expected := uint32(0)
-				if archSpec.Capabilities.GPM {
-					expected = 1
-				}
-				if mode == DeviceModeVGPU {
-					// Mocks model vGPU as not supporting GPM collection even on architectures
-					// where physical devices support GPM.
-					expected = 0
-				}
-				assert.Equal(t, expected, support.IsSupportedDevice, "GpmQueryDeviceSupport.IsSupportedDevice should be %d when gpm=%v", expected, archSpec.Capabilities.GPM)
-
-				// Check also that GpmSampleGet returns NOT_SUPPORTED when GPM is not supported
-				var sample testutil.MockGpmSample
-				err = dev.GpmSampleGet(sample)
-				if archSpec.Capabilities.GPM && mode != DeviceModeVGPU {
-					require.NoError(t, err, "GpmSampleGet should not return an error")
+			fieldValues := AllConfiguredNVMLFieldValues()
+			err = dev.GetFieldValues(fieldValues)
+			require.NoError(t, err, "GetFieldValues should not return an error")
+			for _, fv := range fieldValues {
+				_, isUnsupported := unsupportedSet[fv.FieldId]
+				if isUnsupported {
+					require.Equal(t, uint32(nvml.ERROR_NOT_SUPPORTED), fv.NvmlReturn, "field id %d should be unsupported", fv.FieldId)
 				} else {
-					require.Error(t, err, "GpmSampleGet should return an error")
-					require.True(t, ddnvml.IsUnsupported(err), "GpmSampleGet should return an API_UNSUPPORTED_ON_DEVICE error")
+					require.Equal(t, uint32(nvml.SUCCESS), fv.NvmlReturn, "field id %d should be supported", fv.FieldId)
 				}
-
-				unsupportedIDs := UnsupportedFieldIDsForMode(t, archSpec, mode)
-				unsupportedSet := make(map[uint32]struct{}, len(unsupportedIDs))
-				for _, id := range unsupportedIDs {
-					unsupportedSet[id] = struct{}{}
-				}
-
-				fieldValues := AllConfiguredNVMLFieldValues()
-				err = dev.GetFieldValues(fieldValues)
-				require.NoError(t, err, "GetFieldValues should not return an error")
-				for _, fv := range fieldValues {
-					_, isUnsupported := unsupportedSet[fv.FieldId]
-					if isUnsupported {
-						require.Equal(t, uint32(nvml.ERROR_NOT_SUPPORTED), fv.NvmlReturn, "field id %d should be unsupported", fv.FieldId)
-					} else {
-						require.Equal(t, uint32(nvml.SUCCESS), fv.NvmlReturn, "field id %d should be supported", fv.FieldId)
-					}
-				}
-			})
-		}
+			}
+		})
 	}
 }
 
@@ -136,7 +215,8 @@ func TestBuildMockOptionsCreatesCorrectDevices(t *testing.T) {
 		require.True(t, IsModeSupportedByArchitecture(arch, mode))
 
 		t.Run(string(mode), func(t *testing.T) {
-			opts := BuildMockOptionsForArchAndMode(t, archName, mode, arch)
+			config := GPUConfig{Architecture: archName, DeviceMode: mode}
+			opts := BuildMockOptionsForConfig(t, config, arch)
 			ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(opts...))
 
 			lib, err := ddnvml.GetSafeNvmlLib()

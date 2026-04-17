@@ -1,6 +1,6 @@
 """libacl"""
 
-load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@@//compliance/rules:ship_source_offer.bzl", "ship_source_offer")
 load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
@@ -166,7 +166,7 @@ cc_shared_library(
     name = "acl",
     deps = [":libacl"],
     dynamic_deps = [
-        "@attr//:attr",
+        "@attr//:attr_pkg",
     ],
     additional_linker_inputs = [
         "exports",
@@ -177,24 +177,24 @@ cc_shared_library(
     visibility = ["//visibility:public"],
 )
 
-so_symlink(
-    name = "lib_files",
-    src = ":acl",
-    libname = "libacl",
-    version = "1.1.2301",
-)
-
 pkg_files(
     name = "hdr_files",
     srcs = [":fixed_headers"],
     strip_prefix = strip_prefix.from_pkg("fixed"),
 )
 
+dd_cc_packaged(
+    name = "acl_pkg",
+    input = ":acl",
+    version = "1.1.2301",
+    installed_files = [":hdr_files"],
+    visibility = ["//visibility:public"],
+)
+
 pkg_filegroup(
     name = "all_files",
     srcs = [
         ":hdr_files",
-        ":lib_files",
     ],
     prefix = "embedded",
     visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],

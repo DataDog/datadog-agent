@@ -11,7 +11,9 @@ package clusterchecksimpl
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -46,6 +48,9 @@ type Payload struct {
 
 	// Cluster check status information
 	ClusterCheckStatus map[string]interface{} `json:"clustercheck_status,omitempty"`
+
+	// Cluster check integration status (execution status from CLC runners)
+	ClusterCheckIntegrationStatus map[string][]metadata `json:"clustercheck_integration_status,omitempty"`
 
 	// Unique identifier for this payload
 	UUID string `json:"uuid"`
@@ -176,12 +181,13 @@ func (cc *clusterChecksImpl) getPayload() *Payload {
 	// to prevent sending to backend when both identifiers are missing. Flares report is using
 	// getAsJSON.
 	payload := &Payload{
-		Clustername:          cc.clustername,
-		ClusterID:            cc.clusterID,
-		Timestamp:            time.Now().UnixNano(),
-		ClusterCheckMetadata: make(map[string][]metadata),
-		ClusterCheckStatus:   make(map[string]interface{}),
-		UUID:                 uuid.GetUUID(),
+		Clustername:                   cc.clustername,
+		ClusterID:                     cc.clusterID,
+		Timestamp:                     time.Now().UnixNano(),
+		ClusterCheckMetadata:          make(map[string][]metadata),
+		ClusterCheckStatus:            make(map[string]interface{}),
+		ClusterCheckIntegrationStatus: make(map[string][]metadata),
+		UUID:                          uuid.GetUUID(),
 	}
 
 	// Collect cluster check metadata
@@ -256,7 +262,8 @@ func (cc *clusterChecksImpl) collectClusterCheckMetadata(payload *Payload) {
 
 	// Process configs from all nodes
 	for _, node := range state.Nodes {
-		for _, config := range node.Configs {
+		for _, configResp := range node.Configs {
+			config := configResp.Config
 			checkName := config.Name
 			if checkName == "" {
 				continue
@@ -268,26 +275,58 @@ func (cc *clusterChecksImpl) collectClusterCheckMetadata(payload *Payload) {
 				initConfig = string(config.InitConfig)
 			}
 
-			checkMetadata := metadata{
-				"config.hash":     checkid.BuildID(checkName, config.IntDigest(), config.Instances[0], config.InitConfig),
-				"config.provider": config.Provider,
-				"config.source":   config.Source,
-				"init_config":     initConfig,
-				"node_name":       node.Name,
-				"status":          "DISPATCHED",
-				"errors":          "", // Empty for now, ready for future error tracking
-			}
+			// Create one metadata entry per instance (multi-instance configs
+			// produce multiple entries, matching node agent behavior).
+			for i, inst := range config.Instances {
+				var configHash interface{}
+				if i < len(configResp.InstanceIDs) {
+					configHash = configResp.InstanceIDs[i]
+				} else {
+					configHash = checkid.BuildID(checkName, config.IntDigest(), inst, config.InitConfig)
+				}
 
-			if len(config.Instances) > 0 {
-				instanceConfig, err := scrubber.ScrubYamlString(string(config.Instances[0]))
+				instanceConfig, err := scrubber.ScrubYamlString(string(inst))
 				if err != nil {
 					cc.log.Errorf("Could not scrub instance_config for cluster check %s: %s", checkName, err)
-					instanceConfig = string(config.Instances[0])
+					instanceConfig = string(inst)
 				}
-				checkMetadata["instance_config"] = instanceConfig
-			}
 
-			payload.ClusterCheckMetadata[checkName] = append(payload.ClusterCheckMetadata[checkName], checkMetadata)
+				// Append instance index to source, matching the node agent's
+				// loader format (e.g. "file:/etc/.../http_check.yaml[0]")
+				configSource := fmt.Sprintf("%s[%d]", config.Source, i)
+
+				checkMetadata := metadata{
+					"config.hash":     configHash,
+					"config.provider": config.Provider,
+					"config.source":   configSource,
+					"init_config":     initConfig,
+					"instance_config": instanceConfig,
+					"node_name":       node.Name,
+					"dispatch_status": "DISPATCHED",
+				}
+
+				payload.ClusterCheckMetadata[checkName] = append(payload.ClusterCheckMetadata[checkName], checkMetadata)
+			}
+		}
+
+		// Build integration status from runner stats for this node.
+		// Only include cluster checks (IsClusterCheck is set by updateRunnersStats
+		// when the check ID exists in the DCA's idToDigest map).
+		for statsID, s := range node.Stats {
+			if !s.IsClusterCheck || s.TotalRuns == 0 {
+				continue
+			}
+			checkName := strings.SplitN(statsID, ":", 2)[0]
+			status := "OK"
+			if s.LastExecFailed {
+				status = "ERROR"
+			}
+			statusEntry := metadata{
+				"config.hash": statsID,
+				"status":      status,
+				"errors":      s.LastError,
+			}
+			payload.ClusterCheckIntegrationStatus[checkName] = append(payload.ClusterCheckIntegrationStatus[checkName], statusEntry)
 		}
 	}
 
@@ -304,24 +343,25 @@ func (cc *clusterChecksImpl) collectClusterCheckMetadata(payload *Payload) {
 			initConfig = string(config.InitConfig)
 		}
 
-		checkMetadata := metadata{
-			"config.hash":     checkid.BuildID(checkName, config.IntDigest(), config.Instances[0], config.InitConfig),
-			"config.provider": config.Provider,
-			"config.source":   config.Source,
-			"init_config":     initConfig,
-			"status":          "DANGLING",
-			"errors":          "Check not assigned to any node",
-		}
+		for i, inst := range config.Instances {
+			configSource := fmt.Sprintf("%s[%d]", config.Source, i)
 
-		if len(config.Instances) > 0 {
-			instanceConfig, err := scrubber.ScrubYamlString(string(config.Instances[0]))
+			checkMetadata := metadata{
+				"config.hash":     checkid.BuildID(checkName, config.IntDigest(), inst, config.InitConfig),
+				"config.provider": config.Provider,
+				"config.source":   configSource,
+				"init_config":     initConfig,
+				"dispatch_status": "DANGLING",
+			}
+
+			instanceConfig, err := scrubber.ScrubYamlString(string(inst))
 			if err != nil {
 				cc.log.Errorf("Could not scrub instance_config for dangling cluster check %s: %s", checkName, err)
-				instanceConfig = string(config.Instances[0])
+				instanceConfig = string(inst)
 			}
 			checkMetadata["instance_config"] = instanceConfig
-		}
 
-		payload.ClusterCheckMetadata[checkName] = append(payload.ClusterCheckMetadata[checkName], checkMetadata)
+			payload.ClusterCheckMetadata[checkName] = append(payload.ClusterCheckMetadata[checkName], checkMetadata)
+		}
 	}
 }

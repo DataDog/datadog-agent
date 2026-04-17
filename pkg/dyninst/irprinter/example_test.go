@@ -96,10 +96,15 @@ func ExamplePrintJSON() {
 	//     "FirstModuledataAddr": "0xdeadbeef",
 	//     "TypesOffset": 1234
 	//   },
+	//   "GoMapHashInfo": {
+	//     "UseAeshashAddr": 0,
+	//     "AeskeyschedAddr": 0
+	//   },
 	//   "CommonTypes": {
 	//     "G": "4 StructureType runtime.g",
 	//     "M": "5 StructureType runtime.m"
-	//   }
+	//   },
+	//   "IsARM64": false
 	// }
 }
 
@@ -141,9 +146,11 @@ func ExamplePrintYAML() {
 	// MaxTypeID: 3
 	// Issues: []
 	// GoModuledataInfo: {FirstModuledataAddr: "0xdeadbeef", TypesOffset: 1234}
+	// GoMapHashInfo: {UseAeshashAddr: 0, AeskeyschedAddr: 0}
 	// CommonTypes:
 	//     G: 4 StructureType runtime.g
 	//     M: 5 StructureType runtime.m
+	// IsARM64: false
 }
 
 func constructExampleProgram() *ir.Program {

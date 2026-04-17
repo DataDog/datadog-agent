@@ -38,8 +38,8 @@ func WithGPUConfigEnabled(t testing.TB) {
 
 // GetEmittedGPUMetrics returns emitted GPU metrics from a mock sender keyed by
 // spec metric name without the "gpu." prefix.
-func GetEmittedGPUMetrics(mockSender *mocksender.MockSender) map[string][]gpuspec.EmittedMetric {
-	metricsByName := make(map[string][]gpuspec.EmittedMetric)
+func GetEmittedGPUMetrics(mockSender *mocksender.MockSender) map[string][]gpuspec.MetricObservation {
+	metricsByName := make(map[string][]gpuspec.MetricObservation)
 
 	for _, call := range mockSender.Mock.Calls {
 		if call.Method != "GaugeWithTimestamp" && call.Method != "CountWithTimestamp" {
@@ -62,37 +62,40 @@ func GetEmittedGPUMetrics(mockSender *mocksender.MockSender) map[string][]gpuspe
 				tags = append([]string(nil), callTags...)
 			}
 		}
+		var value *float64
+		if len(call.Arguments) > 1 {
+			if metricValue, ok := call.Arguments.Get(1).(float64); ok {
+				value = &metricValue
+			}
+		}
 
-		metricsByName[specMetricName] = append(metricsByName[specMetricName], gpuspec.EmittedMetric{
-			Name: specMetricName,
-			Tags: tags,
+		metricsByName[specMetricName] = append(metricsByName[specMetricName], gpuspec.MetricObservation{
+			Name:  specMetricName,
+			Tags:  tags,
+			Value: value,
 		})
 	}
 
 	return metricsByName
 }
 
-// ValidateEmittedMetricsAgainstSpec validates emitted metrics against the spec for a given architecture and device mode.
-func ValidateEmittedMetricsAgainstSpec(t *testing.T, metricsSpec *gpuspec.MetricsSpec, archName string, mode gpuspec.DeviceMode, emittedMetrics map[string][]gpuspec.EmittedMetric, knownTagValues map[string]string) {
-	t.Run("_emits_only_expected_metrics", func(t *testing.T) {
-		for metricName := range emittedMetrics {
-			assert.Contains(t, metricsSpec.Metrics, metricName, "metric emitted by check is missing from spec: %s", metricName)
+// ValidateEmittedMetricsAgainstSpec validates emitted metrics against the spec for a given GPU config.
+func ValidateEmittedMetricsAgainstSpec(t *testing.T, metricsSpec *gpuspec.MetricsSpec, config gpuspec.GPUConfig, emittedMetrics map[string][]gpuspec.MetricObservation, knownTagValues map[string]string) {
+	results, err := gpuspec.ValidateEmittedMetricsAgainstSpec(metricsSpec, config, emittedMetrics, knownTagValues)
+	require.NoError(t, err, "internal failure validating emitted metrics, likely a bug or inconsistency in the spec")
 
-			metricSpec := metricsSpec.Metrics[metricName]
-			assert.True(t, metricSpec.SupportsArchitecture(archName), "metric %s emitted on unsupported architecture %s", metricName, archName)
-			assert.False(t, metricSpec.IsDeviceModeExplicitlyUnsupported(mode), "metric %s emitted on unsupported device mode %s", metricName, mode)
-		}
-	})
+	for metricName, status := range results.Metrics {
+		t.Run(metricName, func(t *testing.T) {
+			assert.Zero(t, status.Missing, "metric %s missing in %d cases", metricName, status.Missing)
+			assert.Zero(t, status.Unknown, "metric %s unknown in %d cases", metricName, status.Unknown)
+			assert.Zero(t, status.Unsupported, "metric %s unsupported in %d cases", metricName, status.Unsupported)
+			assert.Zero(t, status.InvalidValue, "metric %s invalid in %d cases", metricName, status.InvalidValue)
 
-	for name, m := range metricsSpec.Metrics {
-		if !m.SupportsArchitecture(archName) || !m.SupportsDeviceMode(mode) {
-			continue
-		}
-
-		t.Run(name, func(t *testing.T) {
-			metrics, found := emittedMetrics[name]
-			require.True(t, found, "spec metric is not emitted by check run: %s", name)
-			gpuspec.ValidateMetricTagsAgainstSpec(t, metricsSpec, name, m, metrics, knownTagValues)
+			for tag, tagResult := range status.TagResults {
+				assert.Zero(t, tagResult.Missing, "metric %s: tag %s missing in %d cases", metricName, tag, tagResult.Missing)
+				assert.Zero(t, tagResult.Unknown, "metric %s: tag %s unknown in %d cases", metricName, tag, tagResult.Unknown)
+				assert.Zero(t, tagResult.InvalidValue, "metric %s: tag %s invalid in %d cases", metricName, tag, tagResult.InvalidValue)
+			}
 		})
 	}
 }

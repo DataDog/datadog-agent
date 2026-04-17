@@ -1122,7 +1122,7 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 
 	event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
 
-	if process.IsKThread(event.ProcessContext.PPid, event.ProcessContext.Pid) {
+	if process.IsKworker(event.ProcessContext.PPid, event.ProcessContext.Pid) {
 		return false
 	}
 
@@ -2128,7 +2128,7 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 	// event types enabled either by event handlers or by rules
 	requestedEventTypes := append([]eval.EventType{}, defaultEventTypes...)
 	requestedEventTypes = append(requestedEventTypes, ruleSetEventTypes...)
-	for eventType, handlers := range p.probe.eventHandlers {
+	for eventType, handlers := range p.probe.eventConsumers {
 		if len(handlers) == 0 {
 			continue
 		}
@@ -2443,7 +2443,7 @@ func (p *EBPFProbe) applyDefaultFilterPolicies() {
 
 		if !p.config.Probe.EnableKernelFilters {
 			mode = kfilters.PolicyModeNoFilter
-		} else if len(p.probe.eventHandlers[eventType]) > 0 {
+		} else if len(p.probe.eventConsumers[eventType]) > 0 {
 			mode = kfilters.PolicyModeAccept
 		} else {
 			mode = kfilters.PolicyModeDeny
