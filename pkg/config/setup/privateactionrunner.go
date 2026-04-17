@@ -6,10 +6,8 @@
 package setup
 
 import (
-	"path"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
@@ -38,19 +36,9 @@ const (
 	PARHttpAllowImdsEndpoint = "private_action_runner.http_allow_imds_endpoint"
 
 	// Restricted Shell
-	PARRestrictedShellAllowedPaths = "private_action_runner.restricted_shell_allowed_paths"
+	PARRestrictedShellAllowedPaths    = "private_action_runner.restricted_shell.allowed_paths"
+	PARRestrictedShellAllowedCommands = "private_action_runner.restricted_shell.allowed_commands"
 )
-
-const (
-	// Default allowed paths for restricted shell
-	defaultLogPath = "/var/log"
-
-	containerizedPathPrefix = "/host"
-)
-
-// parPathExists is the function used to check path existence. It defaults to
-// pathExists and can be overridden in tests.
-var parPathExists = pathExists
 
 // setupPrivateActionRunner registers all configuration keys for the private action runner
 func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
@@ -86,15 +74,23 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	})
 	config.BindEnvAndSetDefault(PARHttpAllowImdsEndpoint, false)
 
-	defaultPaths := []string{defaultLogPath}
-	if env.IsContainerized() {
-		for i, v := range defaultPaths {
-			hostPath := path.Join(containerizedPathPrefix, v)
-			defaultPaths[i] = hostPath
-		}
-	}
-	config.BindEnvAndSetDefault(PARRestrictedShellAllowedPaths, defaultPaths)
+	// Restricted shell allow-lists are opt-in restrictions layered on top of
+	// the backend-injected lists. When unset, the agent forwards the
+	// backend list unchanged (pass-through). When set to a non-empty list,
+	// the runtime takes the intersection. An explicit empty list blocks
+	// all access on its axis. Use IsConfigured to distinguish unset from
+	// empty, and avoid BindEnvAndSetDefault so the empty-vs-unset
+	// distinction survives.
+	config.BindEnv(PARRestrictedShellAllowedPaths) //nolint:forbidigo // intentional: no default so IsConfigured can detect unset
 	config.ParseEnvAsStringSlice(PARRestrictedShellAllowedPaths, func(s string) []string {
+		if s == "" {
+			return nil
+		}
+		return strings.Split(s, ",")
+	})
+
+	config.BindEnv(PARRestrictedShellAllowedCommands) //nolint:forbidigo // intentional: no default so IsConfigured can detect unset
+	config.ParseEnvAsStringSlice(PARRestrictedShellAllowedCommands, func(s string) []string {
 		if s == "" {
 			return nil
 		}

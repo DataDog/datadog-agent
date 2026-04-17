@@ -13,10 +13,12 @@ type RshellBundle struct {
 }
 
 // NewRshellBundle creates the rshell bundle with its registered actions.
-func NewRshellBundle(allowedPaths []string) types.Bundle {
+// operatorAllowedCommands is the optional operator-configured allowlist; nil
+// means no operator filtering (the backend-injected list is used as-is).
+func NewRshellBundle(allowedPaths []string, operatorAllowedCommands []string) types.Bundle {
 	return &RshellBundle{
 		actions: map[string]types.Action{
-			"runCommand": NewRunCommandHandler(allowedPaths),
+			"runCommand": NewRunCommandHandler(allowedPaths, operatorAllowedCommands),
 		},
 	}
 }

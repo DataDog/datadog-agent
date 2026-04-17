@@ -75,7 +75,7 @@ func (s *parK8sSuite) TestRshellHappyFlow() {
 	assert.Contains(s.T(), result.Outputs["stdout"], testDataContent)
 }
 
-// TestRshellBlockedPath verifies rshell blocks access to paths outside restricted_shell_allowed_paths.
+// TestRshellBlockedPath verifies rshell blocks access to paths outside restricted_shell.allowed_paths.
 func (s *parK8sSuite) TestRshellBlockedPath() {
 	taskID := uuid.New().String()
 	err := s.Env().FakeIntake.Client().EnqueuePARTask(taskID, runCommandAction, map[string]interface{}{

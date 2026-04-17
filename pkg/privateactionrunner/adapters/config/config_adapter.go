@@ -24,14 +24,19 @@ type Config struct {
 	Allowlist          []string
 	AllowIMDSEndpoint  bool
 	RShellAllowedPaths []string
-	DDHost             string
-	DDApiHost          string
-	Modes              []modes.Mode
-	OrgId              int64
-	PrivateKey         *ecdsa.PrivateKey
-	RunnerId           string
-	Urn                string
-	Tags               []observability.Tag
+	// RShellAllowedCommands is the operator-configured allowlist for rshell.
+	// nil means the operator did not configure one, so the runtime forwards
+	// whatever command set the backend injects (pass-through). A non-nil
+	// value is intersected with the backend's list at execution time.
+	RShellAllowedCommands []string
+	DDHost                string
+	DDApiHost             string
+	Modes                 []modes.Mode
+	OrgId                 int64
+	PrivateKey            *ecdsa.PrivateKey
+	RunnerId              string
+	Urn                   string
+	Tags                  []observability.Tag
 
 	// RemoteConfig related fields
 	DatadogSite string
