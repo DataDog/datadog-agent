@@ -10,6 +10,7 @@ package gops
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/shirou/gopsutil/v4/mem"
 	"github.com/shirou/gopsutil/v4/process"
@@ -95,7 +96,15 @@ func newProcessInfo(p *process.Process, totalMem float64) (*ProcessInfo, error) 
 
 	username, err := p.Username()
 	if err != nil {
-		return nil, err
+		// Fall back to the numeric UID string. This commonly happens for
+		// containerized processes whose UID does not exist in the host's
+		// /etc/passwd (e.g. a UID created inside a container image).
+		uids, uidErr := p.Uids()
+		if uidErr != nil || len(uids) == 0 {
+			username = ""
+		} else {
+			username = strconv.FormatUint(uint64(uids[0]), 10)
+		}
 	}
 
 	return &ProcessInfo{pid, ppid, name, memInfo.RSS, pctMem, memInfo.VMS, username}, nil
