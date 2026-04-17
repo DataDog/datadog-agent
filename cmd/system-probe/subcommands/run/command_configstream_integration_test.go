@@ -28,9 +28,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	configstreamconsumerimpl "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/impl"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
-	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagent/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -138,10 +138,10 @@ system_probe_config:
 		configstreamFxOptions(),
 	)
 	overrides := fx.Options(
-		fx.Replace(ipcComp),
-		fx.Replace(remoteagent.Component(&mockRAR{})),
+		fx.Decorate(func() ipc.Component { return ipcComp }),
 		fx.Decorate(func(p configstreamconsumerimpl.Params) configstreamconsumerimpl.Params {
 			p.ReadyTimeout = 2 * time.Second
+			p.SessionIDProvider = &mockRAR{}
 			return p
 		}),
 	)
