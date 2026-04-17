@@ -174,11 +174,19 @@ func (r *ringBuf[T]) swap() (swapResult[T], bool) {
 // the ring capacity. Returns the builder (which must be returned to the pool).
 type encodeFunc[T any] func(pool *builderPool, buf []T, tail, count, cap int) (*flatbuffers.Builder, error)
 
+// encodedChunk holds a FlatBuffers-encoded chunk ready for sending.
+type encodedChunk struct {
+	builder   *flatbuffers.Builder
+	chunkSize int
+	err       error // non-nil if encoding failed
+}
+
 // flushChunked swaps the ring, encodes items in chunks of maxChunkSize,
-// and sends each chunk via the transport. Returns (sent, error).
+// and sends each chunk via the transport. Returns the number of items sent.
 //
-// This is the single implementation of the swap → chunk → encode → send
-// pattern used by all signal types.
+// Encoding and sending are pipelined: a background goroutine encodes chunks
+// while the caller sends the previously encoded chunk. This overlaps encode
+// time with send time, roughly halving the drain duration for bursty workloads.
 func flushChunked[T any](
 	ring *ringBuf[T],
 	encode encodeFunc[T],
@@ -197,32 +205,57 @@ func flushChunked[T any](
 	counters.setBatchSize(signalType, sr.count)
 	counters.incFlushCycles()
 
-	sent := 0
-	for chunkStart := 0; chunkStart < sr.count; {
-		chunkSize := sr.count - chunkStart
-		if chunkSize > maxChunkSize {
-			chunkSize = maxChunkSize
-		}
-		chunkTail := (sr.tail + chunkStart) % sr.cap
+	// Count how many chunks we'll produce.
+	numChunks := (sr.count + maxChunkSize - 1) / maxChunkSize
 
-		builder, err := encode(pool, sr.buf, chunkTail, chunkSize, sr.cap)
-		if err != nil {
-			incDropped(uint64(chunkSize))
+	// Pipeline: encoder goroutine produces encoded chunks, this goroutine sends.
+	// Buffer size 1: the encoder can work one chunk ahead while we send.
+	ch := make(chan encodedChunk, 1)
+	go func() {
+		defer close(ch)
+		for chunkStart := 0; chunkStart < sr.count; {
+			chunkSize := sr.count - chunkStart
+			if chunkSize > maxChunkSize {
+				chunkSize = maxChunkSize
+			}
+			chunkTail := (sr.tail + chunkStart) % sr.cap
+
+			builder, err := encode(pool, sr.buf, chunkTail, chunkSize, sr.cap)
+			ch <- encodedChunk{builder: builder, chunkSize: chunkSize, err: err}
+			if err != nil {
+				return
+			}
+			chunkStart += chunkSize
+		}
+	}()
+
+	// Send encoded chunks as they arrive.
+	sent := 0
+	_ = numChunks // used only for documentation
+	for ec := range ch {
+		if ec.err != nil {
+			incDropped(uint64(ec.chunkSize))
 			break
 		}
-		data := builder.FinishedBytes()
+		data := ec.builder.FinishedBytes()
 		sendStart := time.Now()
 		sendErr := transport.Send(data)
 		counters.setSendDuration(time.Since(sendStart).Nanoseconds())
 		if sendErr != nil {
-			incDropped(uint64(chunkSize))
-			pool.put(builder)
+			incDropped(uint64(ec.chunkSize))
+			pool.put(ec.builder)
+			// Drain remaining chunks from the encoder and drop them.
+			for remaining := range ch {
+				incDropped(uint64(remaining.chunkSize))
+				if remaining.builder != nil {
+					pool.put(remaining.builder)
+				}
+			}
 			break
 		}
-		sent += chunkSize
+		sent += ec.chunkSize
 		counters.incBytesSent(uint64(len(data)), signalType)
-		pool.put(builder)
-		chunkStart += chunkSize
+		pool.put(ec.builder)
 	}
 	incSent(uint64(sent))
 	return sent

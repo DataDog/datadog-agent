@@ -86,18 +86,23 @@ func TestPipeline_BurstLogs_NoLatency(t *testing.T) {
 // - Burst: 30K logs in a tight loop (simulates container log dump)
 func TestPipeline_BurstLogs_WithLatency(t *testing.T) {
 	cases := []struct {
-		name       string
-		latency    time.Duration
-		ringCap    int
-		burstSize  int
-		expectDrop bool
+		name         string
+		latency      time.Duration
+		ringCap      int
+		burstSize    int
+		maxDropPct   float64 // max acceptable drop rate (0 = must be zero)
 	}{
-		{"1ms_latency_25K_ring_30K_burst", 1 * time.Millisecond, 25000, 30000, true},
-		{"500us_latency_25K_ring_30K_burst", 500 * time.Microsecond, 25000, 30000, true},
-		{"1ms_latency_50K_ring_30K_burst", 1 * time.Millisecond, 50000, 30000, false},
-		{"1ms_latency_25K_ring_20K_burst", 1 * time.Millisecond, 25000, 20000, false},
-		{"2ms_latency_25K_ring_50K_burst", 2 * time.Millisecond, 25000, 50000, true},
-		{"5ms_latency_25K_ring_30K_burst", 5 * time.Millisecond, 25000, 30000, true},
+		// With encode-ahead pipeline, moderate latencies with 30K burst
+		// into 25K ring may produce minor drops due to race timing.
+		{"1ms_latency_25K_ring_30K_burst", 1 * time.Millisecond, 25000, 30000, 10.0},
+		{"500us_latency_25K_ring_30K_burst", 500 * time.Microsecond, 25000, 30000, 10.0},
+		// Larger ring always absorbs the burst.
+		{"1ms_latency_50K_ring_30K_burst", 1 * time.Millisecond, 50000, 30000, 0},
+		// Burst fits within ring capacity.
+		{"1ms_latency_25K_ring_20K_burst", 1 * time.Millisecond, 25000, 20000, 0},
+		// Large burst overwhelms ring regardless of pipeline.
+		{"2ms_latency_25K_ring_50K_burst", 2 * time.Millisecond, 25000, 50000, 50.0},
+		{"5ms_latency_25K_ring_30K_burst", 5 * time.Millisecond, 25000, 30000, 10.0},
 	}
 
 	content := make([]byte, 400)
@@ -131,13 +136,9 @@ func TestPipeline_BurstLogs_WithLatency(t *testing.T) {
 				c.logsSent.Load(), c.logsDropped.Load(), dropRate, total,
 				transport.sends.Load(), transport.bytes.Load(), transport.maxFrame.Load())
 
-			if tc.expectDrop && c.logsDropped.Load() == 0 {
-				t.Errorf("expected drops with %s latency and %d burst into %d ring, but got 0",
-					tc.latency, tc.burstSize, tc.ringCap)
-			}
-			if !tc.expectDrop && c.logsDropped.Load() > 0 {
-				t.Errorf("expected 0 drops with %s latency and %d burst into %d ring, got %d (%.1f%%)",
-					tc.latency, tc.burstSize, tc.ringCap, c.logsDropped.Load(), dropRate)
+			if dropRate > tc.maxDropPct {
+				t.Errorf("drop rate %.1f%% exceeds max acceptable %.1f%% (latency=%s burst=%d ring=%d)",
+					dropRate, tc.maxDropPct, tc.latency, tc.burstSize, tc.ringCap)
 			}
 		})
 	}
