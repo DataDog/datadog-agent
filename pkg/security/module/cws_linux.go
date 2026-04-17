@@ -6,6 +6,7 @@
 package module
 
 import (
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
@@ -13,10 +14,17 @@ import (
 
 // UpdateEventMonitorOpts adapt the event monitor options
 func UpdateEventMonitorOpts(opts *eventmonitor.Opts, config *config.Config) {
-	opts.ProbeOpts.PathResolutionEnabled = true
-	opts.ProbeOpts.TTYFallbackEnabled = true
-	opts.ProbeOpts.SyscallsMonitorEnabled = config.Probe.SyscallsMonitorEnabled
-	opts.ProbeOpts.EBPFLessEnabled = config.RuntimeSecurity.EBPFLessEnabled
+	if config.RuntimeSecurity.IsRuntimeEnabled() {
+		opts.ProbeOpts.PathResolutionEnabled = true
+		opts.ProbeOpts.TTYFallbackEnabled = true
+		opts.ProbeOpts.SyscallsMonitorEnabled = config.Probe.SyscallsMonitorEnabled
+		opts.ProbeOpts.EBPFLessEnabled = config.RuntimeSecurity.EBPFLessEnabled
+	} else {
+		DisableRuntimeSecurity(config)
+		if pkgconfigsetup.Datadog().GetBool("sbom.enrichment.usage.enabled") {
+			opts.ProbeOpts.PathResolutionEnabled = true
+		}
+	}
 }
 
 // DisableRuntimeSecurity disables all the runtime security features
