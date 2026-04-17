@@ -148,7 +148,6 @@ type Manifest struct {
 }
 
 func getBinariesFromPackages(packages []string) ([]string, []string, error) {
-	binariesPath := "test-binaries.tar.zst"
 	manifestPath := "manifest.json"
 	extractPath := "test-binaries"
 
@@ -197,6 +196,23 @@ func getBinariesFromPackages(packages []string) ([]string, []string, error) {
 		}
 	}
 
+	// Check if all needed binaries are already present on disk
+	// (e.g. pre-downloaded from S3 by the invoke task)
+	allPresent := len(targetBinaries) > 0
+	for binaryName := range targetBinaries {
+		outPath := filepath.Join(extractPath, binaryName)
+		if _, err := os.Stat(outPath); os.IsNotExist(err) {
+			allPresent = false
+			break
+		}
+	}
+
+	if allPresent {
+		return binaries, matchedPackages, nil
+	}
+
+	// Fall back to extracting from local tarball
+	binariesPath := "test-binaries.tar.zst"
 	file, err := os.Open(binariesPath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to open archive: %v", err)

@@ -32614,6 +32614,10 @@ Issues:
         Kind: 7
         Message: return value selector (e.g., @return.r0) must be used for multi-value returns
 GoModuledataInfo: {FirstModuledataAddr: "0x1321d00", TypesOffset: 296}
+GoMapHashInfo:
+    UseAeshashAddr: "0x142984a"
+    AeskeyschedAddr: "0x142a920"
 CommonTypes:
     G: 23 StructureType runtime.g
     M: 30 StructureType runtime.m
+IsARM64: true

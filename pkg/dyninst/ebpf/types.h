@@ -109,6 +109,12 @@ typedef enum sm_opcode {
   SM_OP_CONDITION_BEGIN = 30,
   SM_OP_CALL_DICT_RESOLVED = 31,
   SM_OP_EXPR_SLICE_BOUNDS_CHECK = 32,
+  // Swiss map lookup opcodes (decomposed for verifier budget).
+  SM_OP_SWISS_MAP_SETUP = 33,
+  SM_OP_SWISS_MAP_AESENC = 34,
+  SM_OP_SWISS_MAP_HASH_FINISH = 35,
+  SM_OP_SWISS_MAP_PROBE = 36,
+  SM_OP_SWISS_MAP_CHECK_SLOT = 37,
 } sm_opcode_t;
 
 #ifdef DYNINST_DEBUG
@@ -180,6 +186,16 @@ static const char* op_code_name(sm_opcode_t op_code) {
     return "CALL_DICT_RESOLVED";
   case SM_OP_EXPR_SLICE_BOUNDS_CHECK:
     return "EXPR_SLICE_BOUNDS_CHECK";
+  case SM_OP_SWISS_MAP_SETUP:
+    return "SWISS_MAP_SETUP";
+  case SM_OP_SWISS_MAP_AESENC:
+    return "SWISS_MAP_AESENC";
+  case SM_OP_SWISS_MAP_HASH_FINISH:
+    return "SWISS_MAP_HASH_FINISH";
+  case SM_OP_SWISS_MAP_PROBE:
+    return "SWISS_MAP_PROBE";
+  case SM_OP_SWISS_MAP_CHECK_SLOT:
+    return "SWISS_MAP_CHECK_SLOT";
   default:
     break;
   }

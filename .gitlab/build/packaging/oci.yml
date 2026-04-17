@@ -29,13 +29,39 @@
         cp $OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID/*.oci.tar ${OUTPUT_DIR}
       fi
     - |
+      # Resolve a glob pattern to a single file path, printed on stdout.
+      # Prints a warning to stderr if more than one file matches.
+      # Usage: resolve_artifact LABEL PATTERN [EXCLUDE]
+      #   LABEL:   human-readable name for warning messages
+      #   PATTERN: glob string; pass it quoted to prevent expansion at the call site — ls receives it unquoted inside the function
+      #   EXCLUDE: optional grep -v filter (e.g. "ddot" to exclude ddot files)
+      # Returns 0 and prints the path if a file was found, returns 1 if not.
+      resolve_artifact() {
+        local label="$1" pattern="$2" exclude="${3:-}"
+        local matches first count
+        if [ -n "${exclude}" ]; then
+          matches=$(ls ${pattern} 2>/dev/null | grep -v "${exclude}" || true)
+        else
+          matches=$(ls ${pattern} 2>/dev/null || true)
+        fi
+        if [ -z "${matches}" ]; then
+          echo "ERROR: ${label} artifact not found (pattern: ${pattern})" >&2
+          return 1
+        fi
+        count=$(echo "${matches}" | wc -l)
+        first=$(echo "${matches}" | head -1)
+        if [ "${count}" -gt 1 ]; then
+          echo "WARNING: multiple ${label} artifacts found, using ${first}" >&2
+        fi
+        echo "${first}"
+      }
       for ARCH in "amd64" "arm64"; do
         if [ "${OCI_PRODUCT}" = "datadog-agent" ]; then
           # For main agent, exclude DDOT files since DDOT will be bundled as an extension
-          INPUT_FILE=$(ls ${OMNIBUS_PACKAGE_DIR}${OCI_PRODUCT}-*${ARCH}.tar.xz | grep -v ddot | head -1)
+          INPUT_FILE=$(resolve_artifact "agent" "${OMNIBUS_PACKAGE_DIR}${OCI_PRODUCT}-*${ARCH}.tar.xz" "ddot") || exit 1
         else
           # For other products (like datadog-agent-ddot), don't filter
-          INPUT_FILE=$(ls ${OMNIBUS_PACKAGE_DIR}${OCI_PRODUCT}-*${ARCH}.tar.xz | head -1)
+          INPUT_FILE=$(resolve_artifact "${OCI_PRODUCT}" "${OMNIBUS_PACKAGE_DIR}${OCI_PRODUCT}-*${ARCH}.tar.xz") || exit 1
         fi
         OUTPUT_FILE="$(basename -a -s .xz ${INPUT_FILE})"
         MERGED_FILE=$(basename -a $OMNIBUS_PACKAGE_DIR/*.tar.xz | head -n 1 | sed "s/-${ARCH}.tar.xz//").oci.tar
@@ -47,33 +73,35 @@
         tar xJf ${INPUT_FILE} -C ${INPUT_DIR}
         echo "Creating OCI layer -> ${OUTPUT_DIR}/${OUTPUT_FILE}"
         if [ "${OCI_PRODUCT}" = "datadog-agent" ]; then
-          INSTALLER_INPUT_FILE="${OMNIBUS_PACKAGE_DIR}datadog-installer-*${ARCH}.tar.xz"
+          INSTALLER_INPUT_FILE=$(resolve_artifact "installer" "${OMNIBUS_PACKAGE_DIR}datadog-installer-*${ARCH}.tar.xz") || exit 1
           INSTALLER_INPUT_DIR="/tmp/input_installer_${ARCH}"
           mkdir -p ${INSTALLER_INPUT_DIR}
           echo "Extracting installer to temporary input dir $INSTALLER_INPUT_FILE -> $INSTALLER_INPUT_DIR"
           tar xJf ${INSTALLER_INPUT_FILE} -C ${INSTALLER_INPUT_DIR}
 
           # Extract DDOT
-          DDOT_INPUT_FILE="${OMNIBUS_PACKAGE_DIR}datadog-agent-ddot-*${ARCH}.tar.xz"
-          if ls ${DDOT_INPUT_FILE} 1> /dev/null 2>&1; then
-            DDOT_INPUT_DIR="/tmp/input_ddot_${ARCH}"
+          if DDOT_INPUT_FILE=$(resolve_artifact "DDOT" "${OMNIBUS_PACKAGE_DIR}datadog-agent-ddot-*${ARCH}.tar.xz"); then
             DDOT_EXTENSION_DIR="/tmp/ddot_extension_${ARCH}"
-            mkdir -p ${DDOT_INPUT_DIR}
-            mkdir -p ${DDOT_EXTENSION_DIR}
-            echo "Extracting DDOT to temporary input dir $DDOT_INPUT_FILE -> $DDOT_INPUT_DIR"
-            tar xJf ${DDOT_INPUT_FILE} -C ${DDOT_INPUT_DIR}
-
-            # Copy DDOT binaries and config templates into extension directory structure
-            cp -r ${DDOT_INPUT_DIR}/opt/datadog-agent/* ${DDOT_EXTENSION_DIR}/
-            mkdir -p ${DDOT_EXTENSION_DIR}/etc
-            if [ -d ${DDOT_INPUT_DIR}/etc/datadog-agent ]; then
-              cp -r ${DDOT_INPUT_DIR}/etc/datadog-agent ${DDOT_EXTENSION_DIR}/etc/
-            fi
-
+            mkdir -p "${DDOT_EXTENSION_DIR}/etc"
+            echo "Extracting DDOT ${DDOT_INPUT_FILE} -> ${DDOT_EXTENSION_DIR}"
+            tar xJf "${DDOT_INPUT_FILE}" --strip-components=2 -C "${DDOT_EXTENSION_DIR}" opt/
+            tar xJf "${DDOT_INPUT_FILE}" --strip-components=1 -C "${DDOT_EXTENSION_DIR}/etc" etc/ 2>/dev/null || true
             EXTRA_FLAGS="--configs ${INPUT_DIR}/etc/datadog-agent --installer ${INSTALLER_INPUT_DIR}/opt/datadog-packages/datadog-installer/${PACKAGE_VERSION}/bin/installer/installer --extension ddot=${DDOT_EXTENSION_DIR}"
           else
-            echo "DDOT artifact not found: ${DDOT_INPUT_FILE}, skipping DDOT extension"
+            echo "DDOT artifact not found, skipping DDOT extension"
             EXTRA_FLAGS="--configs ${INPUT_DIR}/etc/datadog-agent --installer ${INSTALLER_INPUT_DIR}/opt/datadog-packages/datadog-installer/${PACKAGE_VERSION}/bin/installer/installer"
+          fi
+
+          # Extract DDOT FIPS
+          if DDOT_FIPS_INPUT_FILE=$(resolve_artifact "DDOT FIPS" "${OMNIBUS_PACKAGE_DIR}datadog-fips-agent-ddot-*${ARCH}.tar.xz"); then
+            DDOT_FIPS_EXTENSION_DIR="/tmp/ddot_fips_extension_${ARCH}"
+            mkdir -p "${DDOT_FIPS_EXTENSION_DIR}/etc"
+            echo "Extracting DDOT FIPS ${DDOT_FIPS_INPUT_FILE} -> ${DDOT_FIPS_EXTENSION_DIR}"
+            tar xJf "${DDOT_FIPS_INPUT_FILE}" --strip-components=2 -C "${DDOT_FIPS_EXTENSION_DIR}" opt/
+            tar xJf "${DDOT_FIPS_INPUT_FILE}" --strip-components=1 -C "${DDOT_FIPS_EXTENSION_DIR}/etc" etc/ 2>/dev/null || true
+            EXTRA_FLAGS="${EXTRA_FLAGS} --extension ddot-fips=${DDOT_FIPS_EXTENSION_DIR}"
+          else
+            echo "DDOT FIPS artifact not found, skipping DDOT FIPS extension"
           fi
         fi
         if [ "${OCI_PRODUCT}" = "datadog-installer" ]; then
@@ -114,6 +142,8 @@ agent_oci:
     - "installer-amd64-oci"
     - "datadog-otel-agent-x64"
     - "datadog-otel-agent-arm64"
+    - "datadog-otel-agent-x64-fips"
+    - "datadog-otel-agent-arm64-fips"
     - job: "agent_win_oci"
       optional: true
   variables:
