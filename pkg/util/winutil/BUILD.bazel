@@ -25,6 +25,12 @@ go_library(
         "wnet.go",
     ],
     cgo = True,
+    clinkopts = select({
+        "@rules_go//go/platform:windows": [
+            "-lnetapi32 -ladvapi32",
+        ],
+        "//conditions:default": [],
+    }),
     importpath = "github.com/DataDog/datadog-agent/pkg/util/winutil",
     target_compatible_with = ["@platforms//os:windows"],  # keep
     visibility = ["//visibility:public"],
