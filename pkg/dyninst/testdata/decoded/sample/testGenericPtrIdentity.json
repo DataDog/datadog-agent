@@ -68,7 +68,7 @@
           },
           "return": {
             "locals": {
-              "~r0": {
+              "@return": {
                 "type": "*main.smallStruct",
                 "address": "[addr]",
                 "fields": {
@@ -158,7 +158,7 @@
           },
           "return": {
             "locals": {
-              "~r0": {
+              "@return": {
                 "type": "*main.tinyStruct",
                 "address": "[addr]",
                 "fields": {
@@ -239,7 +239,7 @@
           },
           "return": {
             "locals": {
-              "~r0": {
+              "@return": {
                 "type": "*int",
                 "address": "[addr]",
                 "value": "42"

@@ -23,7 +23,7 @@
           {
             "function": "main.executeReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 378
+            "lineNumber": 384
           },
           {
             "function": "main.main",
@@ -58,7 +58,7 @@
           },
           "return": {
             "locals": {
-              "~r0": {
+              "@return": {
                 "type": "error",
                 "fields": {
                   "data": {
@@ -108,7 +108,7 @@
           {
             "function": "main.executeReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 379
+            "lineNumber": 385
           },
           {
             "function": "main.main",
@@ -143,7 +143,7 @@
           },
           "return": {
             "locals": {
-              "~r0": {
+              "@return": {
                 "type": "error",
                 "isNull": true
               }

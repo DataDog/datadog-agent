@@ -327,3 +327,302 @@ func BenchmarkParse(b *testing.B) {
 		})
 	}
 }
+
+// TestRewrite exhaustively covers the Rewrite function across all expression
+// types, confirming that:
+//   - leaves (RefExpr, LiteralExpr, UnsupportedExpr) are visited and can be
+//     replaced or left alone,
+//   - every branch node (GetMemberExpr, EqExpr, IndexExpr, LenExpr,
+//     IsEmptyExpr) recurses into each child and rebuilds only when a child
+//     changed,
+//   - the visit order is bottom-up (children visited before parents),
+//   - unhandled expression types cause a panic.
+func TestRewrite(t *testing.T) {
+	t.Run("nil rewriter preserves identity", func(t *testing.T) {
+		cases := []Expr{
+			&RefExpr{Ref: "x"},
+			&LiteralExpr{Value: int64(42)},
+			&UnsupportedExpr{Operation: "foo", Argument: nil},
+			&GetMemberExpr{Base: &RefExpr{Ref: "x"}, Member: "f"},
+			&EqExpr{Left: &RefExpr{Ref: "a"}, Right: &LiteralExpr{Value: int64(1)}},
+			&IndexExpr{Base: &RefExpr{Ref: "a"}, Index: &LiteralExpr{Value: int64(0)}},
+			&LenExpr{Operand: &RefExpr{Ref: "s"}},
+			&IsEmptyExpr{Operand: &RefExpr{Ref: "s"}},
+		}
+		for _, in := range cases {
+			out := Rewrite(in, func(Expr) Expr { return nil })
+			require.Samef(t, in, out, "expected identity for %T", in)
+		}
+	})
+
+	t.Run("rewrites RefExpr leaf", func(t *testing.T) {
+		in := &RefExpr{Ref: "x"}
+		out := Rewrite(in, func(e Expr) Expr {
+			if ref, ok := e.(*RefExpr); ok && ref.Ref == "x" {
+				return &RefExpr{Ref: "y"}
+			}
+			return nil
+		})
+		require.Equal(t, &RefExpr{Ref: "y"}, out)
+	})
+
+	t.Run("rewrites LiteralExpr leaf", func(t *testing.T) {
+		in := &LiteralExpr{Value: int64(1)}
+		out := Rewrite(in, func(e Expr) Expr {
+			if _, ok := e.(*LiteralExpr); ok {
+				return &LiteralExpr{Value: int64(2)}
+			}
+			return nil
+		})
+		require.Equal(t, &LiteralExpr{Value: int64(2)}, out)
+	})
+
+	t.Run("rewrites UnsupportedExpr leaf", func(t *testing.T) {
+		in := &UnsupportedExpr{Operation: "foo"}
+		out := Rewrite(in, func(e Expr) Expr {
+			if _, ok := e.(*UnsupportedExpr); ok {
+				return &RefExpr{Ref: "replaced"}
+			}
+			return nil
+		})
+		require.Equal(t, &RefExpr{Ref: "replaced"}, out)
+	})
+
+	t.Run("rewrites GetMemberExpr base, preserves member", func(t *testing.T) {
+		in := &GetMemberExpr{Base: &RefExpr{Ref: "a"}, Member: "f"}
+		out := Rewrite(in, func(e Expr) Expr {
+			if ref, ok := e.(*RefExpr); ok && ref.Ref == "a" {
+				return &RefExpr{Ref: "b"}
+			}
+			return nil
+		})
+		require.Equal(t, &GetMemberExpr{Base: &RefExpr{Ref: "b"}, Member: "f"}, out)
+	})
+
+	t.Run("rewrites both sides of EqExpr", func(t *testing.T) {
+		in := &EqExpr{Left: &RefExpr{Ref: "a"}, Right: &RefExpr{Ref: "b"}}
+		out := Rewrite(in, func(e Expr) Expr {
+			if ref, ok := e.(*RefExpr); ok {
+				return &RefExpr{Ref: ref.Ref + "!"}
+			}
+			return nil
+		})
+		require.Equal(t, &EqExpr{
+			Left:  &RefExpr{Ref: "a!"},
+			Right: &RefExpr{Ref: "b!"},
+		}, out)
+	})
+
+	t.Run("rewrites both sides of IndexExpr", func(t *testing.T) {
+		in := &IndexExpr{Base: &RefExpr{Ref: "a"}, Index: &LiteralExpr{Value: int64(0)}}
+		out := Rewrite(in, func(e Expr) Expr {
+			switch e := e.(type) {
+			case *RefExpr:
+				return &RefExpr{Ref: "b"}
+			case *LiteralExpr:
+				if v, ok := e.Value.(int64); ok {
+					return &LiteralExpr{Value: v + 1}
+				}
+			}
+			return nil
+		})
+		require.Equal(t, &IndexExpr{
+			Base:  &RefExpr{Ref: "b"},
+			Index: &LiteralExpr{Value: int64(1)},
+		}, out)
+	})
+
+	t.Run("rewrites LenExpr operand", func(t *testing.T) {
+		in := &LenExpr{Operand: &RefExpr{Ref: "s"}}
+		out := Rewrite(in, func(e Expr) Expr {
+			if ref, ok := e.(*RefExpr); ok && ref.Ref == "s" {
+				return &RefExpr{Ref: "t"}
+			}
+			return nil
+		})
+		require.Equal(t, &LenExpr{Operand: &RefExpr{Ref: "t"}}, out)
+	})
+
+	t.Run("rewrites IsEmptyExpr operand", func(t *testing.T) {
+		in := &IsEmptyExpr{Operand: &RefExpr{Ref: "s"}}
+		out := Rewrite(in, func(e Expr) Expr {
+			if ref, ok := e.(*RefExpr); ok && ref.Ref == "s" {
+				return &RefExpr{Ref: "t"}
+			}
+			return nil
+		})
+		require.Equal(t, &IsEmptyExpr{Operand: &RefExpr{Ref: "t"}}, out)
+	})
+
+	t.Run("preserves identity when children unchanged", func(t *testing.T) {
+		cases := []Expr{
+			&GetMemberExpr{Base: &RefExpr{Ref: "x"}, Member: "f"},
+			&EqExpr{Left: &RefExpr{Ref: "a"}, Right: &RefExpr{Ref: "b"}},
+			&IndexExpr{Base: &RefExpr{Ref: "a"}, Index: &LiteralExpr{Value: int64(0)}},
+			&LenExpr{Operand: &RefExpr{Ref: "s"}},
+			&IsEmptyExpr{Operand: &RefExpr{Ref: "s"}},
+		}
+		for _, in := range cases {
+			out := Rewrite(in, func(Expr) Expr { return nil })
+			require.Samef(t, in, out,
+				"unchanged subtree should not reallocate %T", in)
+		}
+	})
+
+	t.Run("rebuilds parent only when child changed", func(t *testing.T) {
+		base := &RefExpr{Ref: "a"}
+		in := &GetMemberExpr{Base: base, Member: "f"}
+		out := Rewrite(in, func(e Expr) Expr {
+			if ref, ok := e.(*RefExpr); ok && ref.Ref == "a" {
+				return &RefExpr{Ref: "b"}
+			}
+			return nil
+		}).(*GetMemberExpr)
+		require.NotSame(t, in, out)
+		require.NotSame(t, base, out.Base)
+		require.Equal(t, "f", out.Member)
+	})
+
+	t.Run("bottom-up visit order", func(t *testing.T) {
+		// Expression: len(a.f)
+		// Expected visit order: a (leaf), a.f (parent), len(...) (root)
+		in := &LenExpr{Operand: &GetMemberExpr{
+			Base:   &RefExpr{Ref: "a"},
+			Member: "f",
+		}}
+		var order []string
+		Rewrite(in, func(e Expr) Expr {
+			switch e := e.(type) {
+			case *RefExpr:
+				order = append(order, "ref:"+e.Ref)
+			case *GetMemberExpr:
+				order = append(order, "getmember:"+e.Member)
+			case *LenExpr:
+				order = append(order, "len")
+			}
+			return nil
+		})
+		require.Equal(t, []string{"ref:a", "getmember:f", "len"}, order)
+	})
+
+	t.Run("nested rewrite propagates through tree", func(t *testing.T) {
+		// eq(len(a.f), 3) -> eq(len(b.f), 3)
+		in := &EqExpr{
+			Left: &LenExpr{Operand: &GetMemberExpr{
+				Base:   &RefExpr{Ref: "a"},
+				Member: "f",
+			}},
+			Right: &LiteralExpr{Value: int64(3)},
+		}
+		out := Rewrite(in, func(e Expr) Expr {
+			if ref, ok := e.(*RefExpr); ok && ref.Ref == "a" {
+				return &RefExpr{Ref: "b"}
+			}
+			return nil
+		})
+		require.Equal(t, &EqExpr{
+			Left: &LenExpr{Operand: &GetMemberExpr{
+				Base:   &RefExpr{Ref: "b"},
+				Member: "f",
+			}},
+			Right: &LiteralExpr{Value: int64(3)},
+		}, out)
+	})
+
+	t.Run("replacement at root replaces entire tree", func(t *testing.T) {
+		in := &EqExpr{
+			Left:  &RefExpr{Ref: "a"},
+			Right: &LiteralExpr{Value: int64(1)},
+		}
+		out := Rewrite(in, func(e Expr) Expr {
+			if _, ok := e.(*EqExpr); ok {
+				return &LiteralExpr{Value: true}
+			}
+			return nil
+		})
+		require.Equal(t, &LiteralExpr{Value: true}, out)
+	})
+
+	t.Run("panics on unhandled expression type", func(t *testing.T) {
+		require.PanicsWithValue(t,
+			fmt.Sprintf("exprlang.Rewrite: unhandled expression type %T",
+				(*unknownExpr)(nil)),
+			func() {
+				Rewrite(&unknownExpr{}, func(Expr) Expr { return nil })
+			})
+	})
+}
+
+// unknownExpr is a test-only Expr type that the Rewrite switch does not
+// recognise; used to exercise the default panic.
+type unknownExpr struct{}
+
+// TestChildren covers the Children iterator: it visits every node bottom-up
+// (leaves before parents, root last), handles all node types, and supports
+// early termination via break.
+func TestChildren(t *testing.T) {
+	collect := func(root Expr) []Expr {
+		var out []Expr
+		for e := range Children(root) {
+			out = append(out, e)
+		}
+		return out
+	}
+
+	t.Run("yields single leaf", func(t *testing.T) {
+		in := &RefExpr{Ref: "x"}
+		require.Equal(t, []Expr{in}, collect(in))
+	})
+
+	t.Run("bottom-up traversal", func(t *testing.T) {
+		// eq(len(a.f), 3)
+		refA := &RefExpr{Ref: "a"}
+		gm := &GetMemberExpr{Base: refA, Member: "f"}
+		l := &LenExpr{Operand: gm}
+		lit := &LiteralExpr{Value: int64(3)}
+		root := &EqExpr{Left: l, Right: lit}
+
+		got := collect(root)
+		require.Equal(t, []Expr{refA, gm, l, lit, root}, got)
+	})
+
+	t.Run("visits IndexExpr base and index", func(t *testing.T) {
+		base := &RefExpr{Ref: "a"}
+		idx := &LiteralExpr{Value: int64(0)}
+		root := &IndexExpr{Base: base, Index: idx}
+		require.Equal(t, []Expr{base, idx, root}, collect(root))
+	})
+
+	t.Run("visits IsEmptyExpr operand", func(t *testing.T) {
+		op := &RefExpr{Ref: "s"}
+		root := &IsEmptyExpr{Operand: op}
+		require.Equal(t, []Expr{op, root}, collect(root))
+	})
+
+	t.Run("early break stops iteration", func(t *testing.T) {
+		// eq(ref(a), ref(b)) — break after first node.
+		in := &EqExpr{Left: &RefExpr{Ref: "a"}, Right: &RefExpr{Ref: "b"}}
+		var count int
+		for range Children(in) {
+			count++
+			break
+		}
+		require.Equal(t, 1, count)
+	})
+
+	t.Run("break after match skips remainder", func(t *testing.T) {
+		in := &EqExpr{Left: &RefExpr{Ref: "target"}, Right: &RefExpr{Ref: "other"}}
+		var visited []string
+		for e := range Children(in) {
+			if ref, ok := e.(*RefExpr); ok {
+				visited = append(visited, ref.Ref)
+				if ref.Ref == "target" {
+					break
+				}
+			}
+		}
+		require.Equal(t, []string{"target"}, visited)
+	})
+}
+
+func (*unknownExpr) expr() {}

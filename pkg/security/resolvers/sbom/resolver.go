@@ -699,7 +699,7 @@ func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEven
 	// replay any file accesses that arrived before the SBOM was ready
 	r.processPendingFileEvents(sbom)
 
-	seclog.Debugf("file '%s' accessed by '%s' in container '%s'", file.PathnameStr, pc.Process.Comm, sbom.ContainerID)
+	seclog.Tracef("file '%s' accessed by '%s' in container '%s'", file.PathnameStr, pc.Process.Comm, sbom.ContainerID)
 
 	pkg := sbom.data.files.queryFile(file.PathnameStr)
 	if pkg != nil {

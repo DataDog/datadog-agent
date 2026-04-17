@@ -15,6 +15,8 @@ exports_files(glob(
     allow_empty = True,
 ))
 
+# gazelle:proto disable
+
 # TODO(agent-build): remove below `gazelle:exclude` directives (automatically updates @bazelify_go_work//:go.work)
 # gazelle:exclude cmd
 # gazelle:exclude comp/agent
@@ -44,32 +46,25 @@ exports_files(glob(
 # gazelle:exclude comp/core/healthprobe
 # gazelle:exclude comp/core/hostname/hostnameimpl
 # gazelle:exclude comp/core/hostname/remotehostnameimpl
-# gazelle:exclude comp/core/ipc
 # gazelle:exclude comp/core/ipc/fx
 # gazelle:exclude comp/core/ipc/fx-none
-# gazelle:exclude comp/core/ipc/httphelpers
 # gazelle:exclude comp/core/ipc/impl
 # gazelle:exclude comp/core/ipc/impl-none
 # gazelle:exclude comp/core/ipc/mock
 # gazelle:exclude comp/core/log/fx
 # gazelle:exclude comp/core/log/fx-systemprobe
 # gazelle:exclude comp/core/log/fx-trace
-# gazelle:exclude comp/core/log/impl
 # gazelle:exclude comp/core/log/impl-systemprobe
-# gazelle:exclude comp/core/log/impl-trace
 # gazelle:exclude comp/core/log/rust
 # gazelle:exclude comp/core/profiler
 # gazelle:exclude comp/core/remoteagent
 # gazelle:exclude comp/core/remoteagentregistry
-# gazelle:exclude comp/core/secrets/fx
 # gazelle:exclude comp/core/secrets/fx-noop
 # gazelle:exclude comp/core/settings
-# gazelle:exclude comp/core/status/statusimpl
 # gazelle:exclude comp/core/sysprobeconfig
 # gazelle:exclude comp/core/tagger/api
 # gazelle:exclude comp/core/tagger/collectors
 # gazelle:exclude comp/core/tagger/common
-# gazelle:exclude comp/core/tagger/def
 # gazelle:exclude comp/core/tagger/fx
 # gazelle:exclude comp/core/tagger/fx-dual
 # gazelle:exclude comp/core/tagger/fx-mock
@@ -119,7 +114,7 @@ exports_files(glob(
 # gazelle:exclude comp/logonduration/fx
 # gazelle:exclude comp/logonduration/impl
 # gazelle:exclude comp/logs
-# gazelle:exclude comp/logs-library
+# gazelle:exclude comp/logs-library/pipeline
 # gazelle:exclude comp/metadata
 # gazelle:exclude comp/ndmtmp
 # gazelle:exclude comp/netflow/config
@@ -134,12 +129,12 @@ exports_files(glob(
 # gazelle:exclude comp/networkpath
 # gazelle:exclude comp/notableevents/fx
 # gazelle:exclude comp/notableevents/impl
+# gazelle:exclude comp/offlinereporter
 # gazelle:exclude comp/otelcol/collector
 # gazelle:exclude comp/otelcol/collector-contrib/fx
 # gazelle:exclude comp/otelcol/collector-contrib/impl
 # gazelle:exclude comp/otelcol/converter/examples
 # gazelle:exclude comp/otelcol/converter/fx
-# gazelle:exclude comp/otelcol/converter/impl
 # gazelle:exclude comp/otelcol/ddflareextension/fx
 # gazelle:exclude comp/otelcol/ddflareextension/image
 # gazelle:exclude comp/otelcol/ddflareextension/impl
@@ -148,7 +143,14 @@ exports_files(glob(
 # gazelle:exclude comp/otelcol/dogtelextension/fx
 # gazelle:exclude comp/otelcol/dogtelextension/impl
 # gazelle:exclude comp/otelcol/logsagentpipeline
-# gazelle:exclude comp/otelcol/otlp
+# gazelle:exclude comp/otelcol/otlp/components/exporter
+# gazelle:exclude comp/otelcol/otlp/components/processor
+# gazelle:exclude comp/otelcol/otlp/configcheck
+# gazelle:exclude comp/otelcol/otlp/datatype
+# gazelle:exclude comp/otelcol/otlp/integrationtest
+# gazelle:exclude comp/otelcol/otlp/internal
+# gazelle:exclude comp/otelcol/otlp/testdata
+# gazelle:exclude comp/otelcol/otlp/testutil
 # gazelle:exclude comp/otelcol/status/fx
 # gazelle:exclude comp/otelcol/status/impl
 # gazelle:exclude comp/privateactionrunner/fx
@@ -400,14 +402,11 @@ exports_files(glob(
 # gazelle:exclude pkg/trace/pb
 # gazelle:exclude pkg/trace/remoteconfighandler
 # gazelle:exclude pkg/trace/telemetry
-# gazelle:exclude pkg/trace/teststatsd
 # gazelle:exclude pkg/trace/testutil
-# gazelle:exclude pkg/trace/timing
 # gazelle:exclude pkg/trace/transform
 # gazelle:exclude pkg/trace/writer
 # gazelle:exclude pkg/util/cloudproviders
 # gazelle:exclude pkg/util/clusteragent
-# gazelle:exclude pkg/util/compression
 # gazelle:exclude pkg/util/containerd
 # gazelle:exclude pkg/util/containers/cri
 # gazelle:exclude pkg/util/containers/metadata
@@ -429,7 +428,6 @@ exports_files(glob(
 # gazelle:exclude pkg/util/kubernetes/kubelet
 # gazelle:exclude pkg/util/kubernetes/apiserver/controllers
 # gazelle:exclude pkg/util/kubernetes/apiserver/leaderelection
-# gazelle:exclude pkg/util/log/setup
 # gazelle:exclude pkg/util/os
 # gazelle:exclude pkg/util/port
 # gazelle:exclude pkg/util/profiling

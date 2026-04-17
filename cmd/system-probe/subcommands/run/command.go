@@ -179,7 +179,10 @@ func getSharedFxOption() fx.Option {
 		fx.Provide(func(config config.Component, statsd statsd.Component) (ddgostatsd.ClientInterface, error) {
 			return statsd.CreateForHostPort(configutils.GetBindHost(config), config.GetInt("dogstatsd_port"))
 		}),
-		remotehostnameimpl.Module(),
+		remotehostnameimpl.Module(
+			remotehostnameimpl.WithMaxAttempts(10),
+			remotehostnameimpl.WithMaxRetryDelay(15*time.Second),
+		),
 		configsyncimpl.Module(configsyncimpl.NewParams(configSyncTimeout, true, configSyncTimeout)),
 		remoteagentfx.Module(),
 		fxinstrumentation.Module(),

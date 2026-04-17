@@ -79,7 +79,7 @@
                     }
                   ]
                 },
-                "~r0": {
+                "@return": {
                   "type": "int",
                   "notCapturedReason": "unavailable"
                 }

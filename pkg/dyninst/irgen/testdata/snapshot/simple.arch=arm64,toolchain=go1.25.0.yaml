@@ -6733,9 +6733,9 @@ Types:
       ByteSize: 9
       ExprStatusArraySize: 1
       Expressions:
-        - Name: ~r0
+        - Name: '@return'
           Offset: 1
-          Kind: local
+          Kind: return
           Expression:
             Type: 7 BaseType int
             Operations:
@@ -7276,9 +7276,9 @@ Types:
       ExprStatusArraySize: 1
       DictEntries: [{DictIndex: 0, DictRegister: 0, Offset: 1}]
       Expressions:
-        - Name: ~r0
+        - Name: '@return'
           Offset: 9
-          Kind: local
+          Kind: return
           Expression:
             Type: 145 BaseType go.shape.int
             Operations:
@@ -7312,9 +7312,9 @@ Types:
       ExprStatusArraySize: 1
       DictEntries: [{DictIndex: 0, DictRegister: 0, Offset: 1}]
       Expressions:
-        - Name: ~r0
+        - Name: '@return'
           Offset: 9
-          Kind: local
+          Kind: return
           Expression:
             Type: 144 GoStringHeaderType go.shape.string
             Operations:
@@ -9163,9 +9163,9 @@ Types:
       ByteSize: 9
       ExprStatusArraySize: 1
       Expressions:
-        - Name: ~r0
+        - Name: '@return'
           Offset: 1
-          Kind: local
+          Kind: return
           Expression:
             Type: 127 GoMapType map[uint8]map[int]main.aStructNotUsedAsAnArgument
             Operations:

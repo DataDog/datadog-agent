@@ -623,7 +623,7 @@
           },
           "return": {
             "locals": {
-              "~r0": {
+              "@return": {
                 "type": "int",
                 "value": "99"
               }
@@ -1262,7 +1262,7 @@
           },
           "return": {
             "locals": {
-              "~r0": {
+              "@return": {
                 "type": "string",
                 "value": "large"
               }

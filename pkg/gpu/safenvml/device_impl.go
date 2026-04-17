@@ -7,9 +7,7 @@
 
 package safenvml
 
-import (
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
-)
+import "github.com/NVIDIA/go-nvml/pkg/nvml"
 
 // safeDeviceImpl implements the SafeDevice interface
 type safeDeviceImpl struct {
@@ -113,6 +111,15 @@ func (d *safeDeviceImpl) GetFieldValues(values []nvml.FieldValue) error {
 	}
 	ret := d.nvmlDevice.GetFieldValues(values)
 	return NewNvmlAPIErrorOrNil("GetFieldValues", ret)
+}
+
+//nolint:revive // Maintaining consistency with go-nvml API naming
+func (d *safeDeviceImpl) ReadWritePRM_v1(buffer *nvml.PRMTLV_v1) error {
+	if err := d.lib.lookup("nvmlDeviceReadWritePRM_v1"); err != nil {
+		return err
+	}
+	ret := d.nvmlDevice.ReadWritePRM_v1(buffer)
+	return NewNvmlAPIErrorOrNil("ReadWritePRM_v1", ret)
 }
 
 //nolint:revive // Maintaining consistency with go-nvml API naming

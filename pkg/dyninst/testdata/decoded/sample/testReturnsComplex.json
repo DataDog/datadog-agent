@@ -18,12 +18,12 @@
           {
             "function": "main.testReturnsComplex",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 140
+            "lineNumber": 146
           },
           {
             "function": "main.executeReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 400
+            "lineNumber": 407
           },
           {
             "function": "main.main",
@@ -50,13 +50,17 @@
         "captures": {
           "return": {
             "locals": {
-              "~r0": {
-                "type": "complex64",
-                "notCapturedReason": "unavailable"
-              },
-              "~r1": {
-                "type": "complex128",
-                "notCapturedReason": "unavailable"
+              "@return": {
+                "fields": {
+                  "r0": {
+                    "type": "complex64",
+                    "notCapturedReason": "unavailable"
+                  },
+                  "r1": {
+                    "type": "complex128",
+                    "notCapturedReason": "unavailable"
+                  }
+                }
               }
             }
           }

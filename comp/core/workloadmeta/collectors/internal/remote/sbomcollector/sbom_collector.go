@@ -80,7 +80,8 @@ func (s *stream) Recv() (interface{}, error) {
 }
 
 type streamHandler struct {
-	model.Reader
+	agentConfig       model.Reader
+	systemProbeConfig model.Reader
 }
 
 // workloadmetaEventFromSBOMEventSet converts the given SBOM message into a workloadmeta event
@@ -318,7 +319,7 @@ func NewCollector(ipc ipc.Component) (workloadmeta.CollectorProvider, error) {
 		Collector: &remote.GenericCollector{
 			CollectorID: collectorID,
 			// TODO(components): make sure StreamHandler uses the config component not pkg/config
-			StreamHandler: &streamHandler{Reader: pkgconfigsetup.SystemProbe()},
+			StreamHandler: &streamHandler{agentConfig: pkgconfigsetup.Datadog(), systemProbeConfig: pkgconfigsetup.SystemProbe()},
 			Catalog:       workloadmeta.NodeAgent,
 			IPC:           ipc,
 		},
@@ -341,13 +342,13 @@ func (s *streamHandler) Port() int {
 
 func (s *streamHandler) Address() string {
 	// SBOM collector service is on the command socket, not the main runtime security socket
-	cmdSocket := s.GetString("runtime_security_config.cmd_socket")
+	cmdSocket := s.systemProbeConfig.GetString("runtime_security_config.cmd_socket")
 	if cmdSocket != "" {
 		return cmdSocket
 	}
 
 	// If cmd_socket not explicitly set, derive it from main socket (adds "cmd-" prefix)
-	mainSocket := s.GetString("runtime_security_config.socket")
+	mainSocket := s.systemProbeConfig.GetString("runtime_security_config.socket")
 	if mainSocket == "" {
 		return ""
 	}
@@ -371,10 +372,10 @@ func (s *streamHandler) IsEnabled() bool {
 		return false
 	}
 
-	runtimeSecurityEnabled := s.Reader.GetBool("runtime_security_config.enabled")
-	runtimeSecuritySBOMEnabled := s.Reader.GetBool("runtime_security_config.sbom.enabled")
+	sbomEnrichmentEnabled := s.agentConfig.GetBool("sbom.enrichment.usage.enabled")
+	runtimeSecuritySBOMDisabled := s.systemProbeConfig.IsConfigured("runtime_security_config.sbom.enabled") && !s.systemProbeConfig.GetBool("runtime_security_config.sbom.enabled")
 
-	return runtimeSecurityEnabled && runtimeSecuritySBOMEnabled
+	return sbomEnrichmentEnabled && !runtimeSecuritySBOMDisabled
 }
 
 func (s *streamHandler) NewClient(cc grpc.ClientConnInterface) remote.GrpcClient {

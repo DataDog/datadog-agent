@@ -67,7 +67,7 @@
           },
           "return": {
             "locals": {
-              "~r0": {
+              "@return": {
                 "type": "lib.Box[string]",
                 "fields": {
                   "Value": {
