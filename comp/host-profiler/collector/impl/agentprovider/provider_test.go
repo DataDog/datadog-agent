@@ -250,6 +250,11 @@ func TestProvider(t *testing.T) {
 			agentConfig:  "provider/health-metrics-custom/agent.yaml",
 			expectedOTel: "provider/health-metrics-custom/otel.yaml",
 		},
+		{
+			name:         "hpflare-custom-port",
+			agentConfig:  "provider/hpflare-custom-port/agent.yaml",
+			expectedOTel: "provider/hpflare-custom-port/otel.yaml",
+		},
 	}
 
 	for _, tt := range tests {

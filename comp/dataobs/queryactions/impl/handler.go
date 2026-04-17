@@ -15,21 +15,28 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// dbCredentialAllowList defines the connection and authentication fields to copy
-// from an existing postgres instance config into a Data Observability query actions check.
-// This list must never include "remote_config_id", "db_type", "db_identifier", or "queries" —
-// those keys are set programmatically and auth fields copied via maps.Copy
-// would silently overwrite them.
-var dbCredentialAllowList = []string{
-	"host", "port", "username", "password", "dbname",
-	"ssl", "ssl_mode", "ssl_cert", "ssl_key", "ssl_root_cert",
-	"tls", "tls_verify", "tls_cert", "tls_key", "tls_ca_cert",
-	"aws", "managed_authentication",
+// activeConfigEntry stores the scheduled check config alongside the base postgres config
+// metadata and parsed instance, so that disabling can restore the original config.
+type activeConfigEntry struct {
+	checkConfig integration.Config
+	baseCfg     *integration.Config // the original matched postgres config for restoration
+	instance    map[string]any      // full parsed postgres instance for rebuilding
 }
 
-// isPostgresIntegration reports whether name is "postgres". Only postgres is currently supported.
-func isPostgresIntegration(name string) bool {
+// isSupportedIntegration reports whether name is a supported DB integration.
+// Currently only postgres is supported; mysql may be added in the future.
+func isSupportedIntegration(name string) bool {
 	return name == "postgres"
+}
+
+// instanceHasDOEnabled checks whether a parsed instance map has data_observability.enabled: true.
+func instanceHasDOEnabled(instance map[string]any) bool {
+	doSection, ok := instance["data_observability"].(map[string]any)
+	if !ok {
+		return false
+	}
+	enabled, _ := doSection["enabled"].(bool)
+	return enabled
 }
 
 // onRCUpdate handles DO_QUERY_ACTIONS RC product updates with a declarative config model.
@@ -61,7 +68,7 @@ func (c *component) onRCUpdate(updates map[string]state.RawConfig, applyStatus f
 
 		// Empty queries list signals all queries for this config should be removed
 		if len(payload.Queries) == 0 {
-			c.collectUnschedule(configID, &changes)
+			c.collectDisable(configID, &changes)
 			applyStatus(path, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 			continue
 		}
@@ -70,7 +77,7 @@ func (c *component) onRCUpdate(updates map[string]state.RawConfig, applyStatus f
 		if err != nil {
 			c.log.Warnf("No matching postgres config for %s: %v", configID, err)
 			applyStatus(path, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
-			c.collectUnschedule(configID, &changes)
+			c.collectDisable(configID, &changes)
 			continue
 		}
 
@@ -83,15 +90,22 @@ func (c *component) onRCUpdate(updates map[string]state.RawConfig, applyStatus f
 		if err != nil {
 			c.log.Errorf("Failed to build check config for %s: %v", configID, err)
 			applyStatus(path, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
-			c.collectUnschedule(configID, &changes)
+			c.collectDisable(configID, &changes)
 			continue
 		}
 
-		// Unschedule previous version before scheduling updated config
-		c.collectUnschedule(configID, &changes)
+		// Remove previous DO config version if this config_id was already active.
+		c.removeActiveConfig(configID, &changes)
+		// Unschedule the base file-provider config to prevent duplicate check execution.
+		// No-op in autodiscovery if the base config was already unscheduled by a prior update.
+		changes.Unschedule = append(changes.Unschedule, *baseCfg)
 
 		c.activeConfigsMu.Lock()
-		c.activeConfigs[configID] = checkConfig
+		c.activeConfigs[configID] = activeConfigEntry{
+			checkConfig: checkConfig,
+			baseCfg:     baseCfg,
+			instance:    instance,
+		}
 		c.activeConfigsMu.Unlock()
 		changes.Schedule = append(changes.Schedule, checkConfig)
 		c.log.Infof("Scheduled Data Observability query action check: %s (%d queries)", configID, len(payload.Queries))
@@ -109,16 +123,17 @@ func (c *component) onRCUpdate(updates map[string]state.RawConfig, applyStatus f
 	c.activeConfigsMu.Unlock()
 
 	for _, configID := range toUnschedule {
-		c.log.Infof("Config %s absent from RC snapshot, unscheduling", configID)
-		c.collectUnschedule(configID, &changes)
+		c.log.Infof("Config %s absent from RC snapshot, disabling", configID)
+		c.collectDisable(configID, &changes)
 	}
 
 	return changes
 }
 
-// collectUnschedule removes a config from activeConfigs and appends it to changes.Unschedule.
-// It is a no-op if configID is not currently active.
-func (c *component) collectUnschedule(configID string, changes *integration.ConfigChanges) {
+// removeActiveConfig removes a config from activeConfigs and adds the previous DO check
+// config to changes.Unschedule. Used before scheduling an updated DO config (where the
+// base config should NOT be restored). It is a no-op if configID is not currently active.
+func (c *component) removeActiveConfig(configID string, changes *integration.ConfigChanges) {
 	c.activeConfigsMu.Lock()
 	prev, existed := c.activeConfigs[configID]
 	if existed {
@@ -130,19 +145,39 @@ func (c *component) collectUnschedule(configID string, changes *integration.Conf
 		return
 	}
 
-	changes.Unschedule = append(changes.Unschedule, prev)
-	c.log.Infof("Unscheduled Data Observability query action check: %s", configID)
+	changes.Unschedule = append(changes.Unschedule, prev.checkConfig)
 }
 
-// findPostgresConfig finds a postgres config that matches the given identifier.
-// Returns the matching config and the already-parsed instance map to avoid re-parsing YAML in callers.
+// collectDisable removes a config from activeConfigs, unschedules the DO check config,
+// and re-schedules the original base postgres config to restore normal check behavior.
+// It is a no-op if configID is not currently active.
+func (c *component) collectDisable(configID string, changes *integration.ConfigChanges) {
+	c.activeConfigsMu.Lock()
+	prev, existed := c.activeConfigs[configID]
+	if existed {
+		delete(c.activeConfigs, configID)
+	}
+	c.activeConfigsMu.Unlock()
+
+	if !existed {
+		return
+	}
+
+	changes.Unschedule = append(changes.Unschedule, prev.checkConfig)
+	changes.Schedule = append(changes.Schedule, *prev.baseCfg)
+	c.log.Infof("Disabled Data Observability query actions for config: %s", configID)
+}
+
+// findPostgresConfig finds a postgres config that matches the given identifier and has
+// data_observability.enabled: true. Returns the matching config and the already-parsed
+// instance map to avoid re-parsing YAML in callers.
 func (c *component) findPostgresConfig(dbID *DBIdentifier) (*integration.Config, map[string]any, error) {
 	cfgs := c.ac.GetUnresolvedConfigs()
 
 	var lastParseErr error
 	for cfgIdx := range cfgs {
 		cfg := cfgs[cfgIdx]
-		if !isPostgresIntegration(cfg.Name) {
+		if !isSupportedIntegration(cfg.Name) {
 			continue
 		}
 
@@ -154,7 +189,7 @@ func (c *component) findPostgresConfig(dbID *DBIdentifier) (*integration.Config,
 				continue
 			}
 
-			if matchesIdentifier(instance, dbID) {
+			if matchesIdentifier(instance, dbID) && instanceHasDOEnabled(instance) {
 				return &cfg, instance, nil
 			}
 		}
@@ -162,48 +197,28 @@ func (c *component) findPostgresConfig(dbID *DBIdentifier) (*integration.Config,
 
 	if lastParseErr != nil {
 		// Surface the parse error so operators debug the postgres config YAML, not the RC identifier.
-		return nil, nil, fmt.Errorf("no postgres config found for identifier: type=%s, host=%s, dbname=%s; at least one postgres instance had a YAML parse error: %w",
-			dbID.Type, dbID.Host, dbID.DBName, lastParseErr)
+		return nil, nil, fmt.Errorf("no postgres config found for identifier: type=%s, host=%s; at least one postgres instance had a YAML parse error: %w",
+			dbID.Type, dbID.Host, lastParseErr)
 	}
-	return nil, nil, fmt.Errorf("no postgres config found for identifier: type=%s, host=%s, dbname=%s",
-		dbID.Type, dbID.Host, dbID.DBName)
-}
-
-// matchesDBName checks if an instance's dbname matches the RC identifier's dbname exactly.
-// Both must be equal; an empty RC dbname only matches instances that also have no dbname configured.
-func matchesDBName(instance map[string]any, dbID *DBIdentifier) bool {
-	instanceDBName, _ := instance["dbname"].(string)
-	return instanceDBName == dbID.DBName
+	return nil, nil, fmt.Errorf("no postgres config found for identifier: type=%s, host=%s",
+		dbID.Type, dbID.Host)
 }
 
 // matchesIdentifier checks if an instance matches the given DB identifier.
-// Matching is by host and dbname, regardless of hosting type.
+// Matching is by host only — per-query dbname fields handle database routing.
 func matchesIdentifier(instance map[string]any, dbID *DBIdentifier) bool {
 	host, _ := instance["host"].(string)
-	return host == dbID.Host && matchesDBName(instance, dbID)
+	return host == dbID.Host
 }
 
-// extractDBAuthFromInstance extracts credential fields from a parsed instance map using an allowlist.
-// The instance map comes from findPostgresConfig, which already parsed the YAML.
-func extractDBAuthFromInstance(instance map[string]any) map[string]any {
-	out := make(map[string]any)
-	for _, k := range dbCredentialAllowList {
-		if v, ok := instance[k]; ok {
-			out[k] = v
-		}
-	}
-	return out
-}
-
-// buildCheckConfig creates a check config for the do_query_actions check.
-// Returns an error if auth extraction or instance YAML serialization fails;
-// callers must report ApplyStateError to RC rather than scheduling the broken config.
+// buildCheckConfig creates a postgres check config with data_observability queries injected.
+// It clones the full matched postgres instance and adds the data_observability section.
+// Returns an error if YAML serialization fails; callers must report ApplyStateError to RC.
 func (c *component) buildCheckConfig(payload *DOQueryPayload, baseCfg *integration.Config, instance map[string]any, remoteConfigID string) (integration.Config, error) {
-	auth := extractDBAuthFromInstance(instance)
-
 	queries := make([]map[string]any, 0, len(payload.Queries))
 	for _, q := range payload.Queries {
 		qm := map[string]any{
+			"dbname":           q.DBName,
 			"monitor_id":       q.MonitorID,
 			"type":             q.Type,
 			"query":            q.Query,
@@ -226,20 +241,13 @@ func (c *component) buildCheckConfig(payload *DOQueryPayload, baseCfg *integrati
 		queries = append(queries, qm)
 	}
 
-	instanceFields := map[string]any{
-		"remote_config_id": remoteConfigID,
-		"db_type":          baseCfg.Name,
-		"db_identifier": map[string]any{
-			"host":   payload.DBIdentifier.Host,
-			"dbname": payload.DBIdentifier.DBName,
-		},
-		"queries": queries,
+	instanceFields := maps.Clone(instance)
+	instanceFields["data_observability"] = map[string]any{
+		"enabled":             true,
+		"collection_interval": 10,
+		"config_id":           remoteConfigID,
+		"queries":             queries,
 	}
-
-	// Copy auth fields into instance config. Auth fields from dbCredentialAllowList
-	// will overwrite any matching keys already set (none currently overlap).
-	// dbCredentialAllowList must not include "remote_config_id", "db_type", "db_identifier", or "queries".
-	maps.Copy(instanceFields, auth)
 
 	instanceYAML, err := yaml.Marshal(instanceFields)
 	if err != nil {
@@ -247,7 +255,7 @@ func (c *component) buildCheckConfig(payload *DOQueryPayload, baseCfg *integrati
 	}
 
 	return integration.Config{
-		Name:      "do_query_actions",
+		Name:      "postgres",
 		Source:    c.String(),
 		Provider:  baseCfg.Provider,
 		NodeName:  baseCfg.NodeName,
