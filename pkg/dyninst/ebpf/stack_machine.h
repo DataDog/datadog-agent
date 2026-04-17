@@ -2260,8 +2260,13 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
         // Scratch buffer is full. Flush it as a continuation fragment
         // and retry this item in the fresh buffer.
         if (!scratch_buf_flush_and_continue(
-                ctx->buf, &sm->continuation_seq, sm->start_ns)) {
-          // Ringbuf is full — stop chasing, submit what we have.
+                ctx->buf, &sm->continuation_seq,
+                &sm->last_submitted_seq, sm->start_ns,
+                sm->entry_ktime_ns)) {
+          // Ringbuf is full during a mid-chase flush. probe_run will send
+          // a PARTIAL_ENTRY/PARTIAL_RETURN notification and skip the final
+          // submit so userspace can emit the fragments already in flight.
+          sm->continuation_aborted = true;
           return 1;
         }
         sm_chase_pointer(ctx, *item);

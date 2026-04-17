@@ -251,6 +251,12 @@ type Event struct {
 	Return      output.FragmentedEvent
 	ServiceName string
 	ProcessTags string
+	// Truncated is true when the event is known to be incomplete: some
+	// fragments were dropped before reaching userspace. The decoder is still
+	// expected to emit whatever data is available; the sink surfaces the
+	// flag in the emitted snapshot JSON so users know the capture is not
+	// full.
+	Truncated bool
 }
 
 // firstFragment returns the first event from a FragmentedEvent. This is used
