@@ -65,7 +65,7 @@ func New(reqs Requires) Provides {
 		return Provides{Comp: &protocolTestComponent{}}
 	}
 
-	actor := newWebSocketTestActor(httpClient)
+	actor := newEchoTestActor(httpClient)
 
 	reqs.Lc.Append(compdef.Hook{
 		OnStart: func(_ context.Context) error {

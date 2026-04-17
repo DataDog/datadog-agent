@@ -37,6 +37,16 @@ if [ -n "$DD_REPO_URL" ]; then
     dmg_base_url=$DD_REPO_URL
 fi
 
+# Optional: path to a local DMG file to use instead of downloading
+local_dmg_path=
+if [ -n "$DD_DMG_PATH" ]; then
+    local_dmg_path="$DD_DMG_PATH"
+    if [ ! -f "$local_dmg_path" ]; then
+        printf "${RED}DD_DMG_PATH is set but file does not exist: %s${NC}\\n" "$local_dmg_path"
+        exit 1
+    fi
+fi
+
 # Root user detection
 if [ "$(echo "$UID")" = "0" ]; then
     sudo_cmd=''
@@ -82,7 +92,7 @@ fi
 # Version guard: this script is for Agent 7.79.0+
 if [ -n "$DD_AGENT_MINOR_VERSION" ] && [ "$agent_minor_version_without_patch" -lt 79 ]; then
     printf "${RED}This install script is for Agent 7.79.0 and later.
-For older versions, use install_mac_os_old.sh instead.
+For older versions, use install_mac_os_v1.sh instead.
 If you are downgrading from Agent >= 7.79.0, you must fully uninstall the Agent first:
     https://docs.datadoghq.com/agent/supported_platforms/osx/#uninstall-the-agent${NC}\n"
     exit 1
@@ -135,23 +145,25 @@ if [ "${macos_major_version}" -lt 12 ]; then
     exit 1
 fi
 
-# Determine version to download (always Agent 7)
+# Determine version to download (skipped when using a local DMG)
 dmg_version=
-if [ -n "$DD_AGENT_MINOR_VERSION" ]; then
-    if [ -z "$agent_patch_version" ]; then
-        agent_patch_version=$(find_latest_patch_version_for "7.${agent_minor_version_without_patch}")
-        if [ -z "$agent_patch_version" ] || [ "$agent_patch_version" -lt 0 ]; then
-            echo -e "${YELLOW}Warning: Failed to obtain latest patch version for Agent 7.${agent_minor_version_without_patch}. Defaulting to '0'.${NC}"
-            agent_patch_version=0
+if [ -z "$local_dmg_path" ]; then
+    if [ -n "$DD_AGENT_MINOR_VERSION" ]; then
+        if [ -z "$agent_patch_version" ]; then
+            agent_patch_version=$(find_latest_patch_version_for "7.${agent_minor_version_without_patch}")
+            if [ -z "$agent_patch_version" ] || [ "$agent_patch_version" -lt 0 ]; then
+                echo -e "${YELLOW}Warning: Failed to obtain latest patch version for Agent 7.${agent_minor_version_without_patch}. Defaulting to '0'.${NC}"
+                agent_patch_version=0
+            fi
         fi
-    fi
-    if [ "$agent_minor_version" = "$clean_agent_minor_version" ]; then
-        dmg_version="7.${agent_minor_version_without_patch}.${agent_patch_version}-1"
+        if [ "$agent_minor_version" = "$clean_agent_minor_version" ]; then
+            dmg_version="7.${agent_minor_version_without_patch}.${agent_patch_version}-1"
+        else
+            dmg_version="7.${agent_minor_version}-1"
+        fi
     else
-        dmg_version="7.${agent_minor_version}-1"
+        dmg_version="7-latest"
     fi
-else
-    dmg_version="7-latest"
 fi
 
 if [ -z "$apikey" ]; then
@@ -185,22 +197,6 @@ function cleanup() {
 }
 trap cleanup EXIT
 
-# Determine agent flavor to install
-if [ -z "$agent_dist_channel" ]; then
-    dmg_url_prefix="$dmg_base_url/datadog-agent-${dmg_version}"
-else
-    dmg_url_prefix="$dmg_base_url/$agent_dist_channel/datadog-agent-${dmg_version}"
-fi
-
-dmg_url="$dmg_url_prefix.$arch.dmg"  # favor architecture-specific DMG, if available
-if [ "$(curl --head --location --output /dev/null "${curl_retries[@]}" --silent --write-out '%{http_code}' "$dmg_url")" != 200 ]; then
-    dmg_url="$dmg_url_prefix.dmg"  # fallback to "universal" DMG
-    if [ "$arch" = arm64 ] && ! /usr/bin/pgrep oahd >/dev/null 2>&1; then
-        printf "${RED}Rosetta is needed to run datadog-agent on $arch.\nYou can install it by running the following command :\n/usr/sbin/softwareupdate --install-rosetta --agree-to-license${NC}\n"
-        exit 1
-    fi
-fi
-
 # Write configuration for the pkg's postinst to consume
 $sudo_cmd rm -rf "$install_staging_dir"
 $sudo_cmd mkdir -p "$install_staging_dir"
@@ -214,12 +210,32 @@ $sudo_cmd chmod 700 "$install_staging_dir"
 } | $sudo_cmd tee "$install_env_file" > /dev/null
 $sudo_cmd chmod 600 "$install_env_file"
 
-# Download and install
-printf "${BLUE}\n* Downloading datadog-agent ${dmg_version}\n${NC}"
-prepare_dmg_file $dmg_file
-if ! $sudo_cmd curl --fail --progress-bar "$dmg_url" "${curl_retries[@]}" --output $dmg_file; then
-    printf "${RED}Couldn't download the installer for macOS Agent version ${dmg_version}.${NC}\n"
-    exit 1;
+# Obtain the DMG (local path or download)
+if [ -n "$local_dmg_path" ]; then
+    printf "${BLUE}\n* Using local DMG: %s\n${NC}" "$local_dmg_path"
+    dmg_file="$local_dmg_path"
+else
+    if [ -z "$agent_dist_channel" ]; then
+        dmg_url_prefix="$dmg_base_url/datadog-agent-${dmg_version}"
+    else
+        dmg_url_prefix="$dmg_base_url/$agent_dist_channel/datadog-agent-${dmg_version}"
+    fi
+
+    dmg_url="$dmg_url_prefix.$arch.dmg"  # favor architecture-specific DMG, if available
+    if [ "$(curl --head --location --output /dev/null "${curl_retries[@]}" --silent --write-out '%{http_code}' "$dmg_url")" != 200 ]; then
+        dmg_url="$dmg_url_prefix.dmg"  # fallback to "universal" DMG
+        if [ "$arch" = arm64 ] && ! /usr/bin/pgrep oahd >/dev/null 2>&1; then
+            printf "${RED}Rosetta is needed to run datadog-agent on $arch.\nYou can install it by running the following command :\n/usr/sbin/softwareupdate --install-rosetta --agree-to-license${NC}\n"
+            exit 1
+        fi
+    fi
+
+    printf "${BLUE}\n* Downloading datadog-agent ${dmg_version}\n${NC}"
+    prepare_dmg_file $dmg_file
+    if ! $sudo_cmd curl --fail --progress-bar "$dmg_url" "${curl_retries[@]}" --output $dmg_file; then
+        printf "${RED}Couldn't download the installer for macOS Agent version ${dmg_version}.${NC}\n"
+        exit 1;
+    fi
 fi
 printf "${BLUE}\n* Installing datadog-agent, you might be asked for your sudo password...\n${NC}"
 $sudo_cmd hdiutil detach "/Volumes/datadog_agent" >/dev/null 2>&1 || true
