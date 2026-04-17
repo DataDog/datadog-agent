@@ -8,7 +8,7 @@
     - when: on_success
   script:
     - mkdir -p bin/flightrecorder
-    - cargo build --release --manifest-path tools/flightrecorder/Cargo.toml
+    - cargo build --release --features s3 --manifest-path tools/flightrecorder/Cargo.toml
     - cp tools/flightrecorder/target/release/flightrecorder bin/flightrecorder/flightrecorder
   variables:
     KUBERNETES_MEMORY_REQUEST: "8Gi"
