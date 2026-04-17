@@ -1,6 +1,7 @@
-import { useMemo, useRef, useEffect, useState } from 'react';
+import { useMemo, useRef, useEffect, useState, useCallback } from 'react';
 import * as d3 from 'd3';
 import type { ObserverState, ObserverActions } from '../hooks/useObserver';
+import { api } from '../api/client';
 import type { ScenarioInfo, ReportEvent } from '../api/client';
 import type { TimeRange, PhaseMarker } from './ChartWithAnomalyDetails';
 import { MAIN_TAG_FILTER_KEYS } from '../constants';
@@ -501,8 +502,26 @@ export function ReportsView({ state, actions, sidebarWidth, timeRange, onTimeRan
   const [timelineFocusedKey, setTimelineFocusedKey] = useState<string | null>(null);
   /** Which list rows show full message body (collapsed by default). */
   const [expandedRowKeys, setExpandedRowKeys] = useState<Set<string>>(() => new Set());
+  /** Send state per row key: 'idle' | 'sending' | 'sent' | 'error:<msg>' */
+  const [sendState, setSendState] = useState<Map<string, string>>(() => new Map());
   const reportRowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const initializedScenarioRef = useRef<string | null>(null);
+
+  const handleSendReport = useCallback(async (pattern: string, firstSeen: number, key: string) => {
+    setSendState((prev) => new Map(prev).set(key, 'sending'));
+    try {
+      await api.sendReport(pattern, firstSeen);
+      setSendState((prev) => new Map(prev).set(key, 'sent'));
+      setTimeout(() => setSendState((prev) => {
+        const next = new Map(prev);
+        if (next.get(key) === 'sent') next.set(key, 'idle');
+        return next;
+      }), 3000);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setSendState((prev) => new Map(prev).set(key, 'error:' + msg));
+    }
+  }, []);
 
   useEffect(() => {
     if (state.activeScenario && initializedScenarioRef.current !== state.activeScenario) {
@@ -699,6 +718,10 @@ export function ReportsView({ state, actions, sidebarWidth, timeRange, onTimeRan
                     const inView = !timeRange || (rep.lastUpdated >= timeRange.start && rep.firstSeen <= timeRange.end);
                     const isHi = activeReportIndex === idx;
                     const isExpanded = expandedRowKeys.has(rowKey);
+                    const rs = sendState.get(rowKey) ?? 'idle';
+                    const isSending = rs === 'sending';
+                    const isSent = rs === 'sent';
+                    const sendError = rs.startsWith('error:') ? rs.slice(6) : null;
                     return (
                       <div
                         key={rowKey}
@@ -712,29 +735,48 @@ export function ReportsView({ state, actions, sidebarWidth, timeRange, onTimeRan
                         onMouseEnter={() => setHoveredReportIndex(idx)}
                         onMouseLeave={() => setHoveredReportIndex(null)}
                       >
-                        <button
-                          type="button"
-                          onClick={() => toggleRowExpanded(rowKey)}
-                          className="w-full text-left px-4 py-2.5 flex items-start gap-2"
-                          aria-expanded={isExpanded}
-                        >
-                          <span className="mt-0.5 text-slate-500 tabular-nums w-4 flex-shrink-0 select-none" aria-hidden>
-                            {isExpanded ? '▼' : '▶'}
-                          </span>
-                          <span
-                            className="mt-1 w-2 h-2 rounded-full flex-shrink-0"
-                            style={{ backgroundColor: reportColor(rep.pattern) }}
-                          />
-                          <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-baseline gap-2">
-                              <span className="text-sm font-medium text-slate-100">{rep.title}</span>
-                              <span className="text-xs font-mono text-slate-500">{rep.formattedTime}</span>
+                        <div className="flex items-start">
+                          <button
+                            type="button"
+                            onClick={() => toggleRowExpanded(rowKey)}
+                            className="flex-1 min-w-0 text-left px-4 py-2.5 flex items-start gap-2"
+                            aria-expanded={isExpanded}
+                          >
+                            <span className="mt-0.5 text-slate-500 tabular-nums w-4 flex-shrink-0 select-none" aria-hidden>
+                              {isExpanded ? '▼' : '▶'}
+                            </span>
+                            <span
+                              className="mt-1 w-2 h-2 rounded-full flex-shrink-0"
+                              style={{ backgroundColor: reportColor(rep.pattern) }}
+                            />
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-baseline gap-2">
+                                <span className="text-sm font-medium text-slate-100">{rep.title}</span>
+                                <span className="text-xs font-mono text-slate-500">{rep.formattedTime}</span>
+                              </div>
+                              <div className="text-xs text-slate-500 font-mono mt-0.5 truncate" title={rep.pattern}>
+                                {rep.pattern}
+                              </div>
                             </div>
-                            <div className="text-xs text-slate-500 font-mono mt-0.5 truncate" title={rep.pattern}>
-                              {rep.pattern}
-                            </div>
-                          </div>
-                        </button>
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isSending}
+                            onClick={(e) => { e.stopPropagation(); handleSendReport(rep.pattern, rep.firstSeen, rowKey); }}
+                            title="Send to Datadog backend"
+                            className={`flex-shrink-0 self-center mr-3 px-2 py-1 rounded text-[10px] font-mono transition-colors ${
+                              isSent
+                                ? 'bg-green-700/40 text-green-300 cursor-default'
+                                : sendError
+                                ? 'bg-red-700/40 text-red-300 hover:bg-red-700/60'
+                                : isSending
+                                ? 'bg-slate-700 text-slate-400 cursor-wait'
+                                : 'bg-slate-700 text-slate-300 hover:bg-purple-700/60 hover:text-purple-200'
+                            }`}
+                          >
+                            {isSending ? '…' : isSent ? '✓ sent' : sendError ? '✗ retry' : 'send'}
+                          </button>
+                        </div>
                         {isExpanded && (
                           <div className="px-4 pb-3 flex gap-2">
                             <span className="w-4 flex-shrink-0" aria-hidden />
@@ -749,6 +791,9 @@ export function ReportsView({ state, actions, sidebarWidth, timeRange, onTimeRan
                                     </span>
                                   ))}
                                 </div>
+                              )}
+                              {sendError && (
+                                <p className="text-[10px] text-red-400 mt-2 font-mono">Send error: {sendError}</p>
                               )}
                             </div>
                           </div>

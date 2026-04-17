@@ -1616,6 +1616,42 @@ func (tb *TestBench) GetReportedEvents() []ReportedEvent {
 	return tb.reportedEvents
 }
 
+// SendReportedEvent finds the ReportedEvent matching pattern+firstSeen and
+// posts it to the Datadog backend, tagging it with source:observer-testbench,
+// the active scenario name, and the OS user.
+func (tb *TestBench) SendReportedEvent(pattern string, firstSeen int64) error {
+	tb.mu.RLock()
+	var found *ReportedEvent
+	for i := range tb.reportedEvents {
+		e := &tb.reportedEvents[i]
+		if e.Pattern == pattern && e.FirstSeen == firstSeen {
+			found = e
+			break
+		}
+	}
+	scenario := tb.loadedScenario
+	tb.mu.RUnlock()
+	storage := tb.getStorage()
+
+	if found == nil {
+		return fmt.Errorf("report not found: pattern=%q firstSeen=%d", pattern, firstSeen)
+	}
+
+	sender, err := newLiveEventSender(tb.config.Cfg, tb.config.Logger, storage)
+	if err != nil {
+		return err
+	}
+
+	extraTags := []string{"scenario:" + scenario}
+	if u := os.Getenv("USER"); u != "" {
+		extraTags = append(extraTags, "user:"+u)
+	} else if h, err := os.Hostname(); err == nil {
+		extraTags = append(extraTags, "user:"+h)
+	}
+
+	return sender.sendReportedEvent(*found, extraTags)
+}
+
 // errorLogMessages contains realistic error messages for the demo scenario.
 var errorLogMessages = []string{
 	"request timeout: upstream service did not respond within 30s",

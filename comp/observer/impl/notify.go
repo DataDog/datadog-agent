@@ -415,3 +415,93 @@ func (s *eventSender) sendCorrelationEvents(correlations []observerdef.ActiveCor
 		}
 	}
 }
+
+// newLiveEventSender creates an eventSender that always posts to the Datadog
+// API (ignoring observer.event_reporter.sending_enabled). Used for on-demand
+// sends from the testbench UI. Returns an error if api_key is not set.
+func newLiveEventSender(cfg config.Component, logger log.Component, storage observerdef.StorageReader) (*eventSender, error) {
+	apiKey := cfg.GetString("api_key")
+	if apiKey == "" {
+		return nil, errors.New("api_key is not set in configuration")
+	}
+	ctx := context.WithValue(
+		datadog.NewDefaultContext(context.Background()),
+		datadog.ContextAPIKeys,
+		map[string]datadog.APIKey{"apiKeyAuth": {Key: apiKey}},
+	)
+	return &eventSender{
+		api:     datadogV2.NewEventsApi(datadog.NewAPIClient(datadog.NewConfiguration())),
+		ctx:     ctx,
+		logger:  logger,
+		storage: storage,
+	}, nil
+}
+
+// sendReportedEvent posts a single ReportedEvent to the Datadog backend.
+// It replaces the original source tag with "source:observer-testbench" and
+// appends the provided extraTags (e.g. scenario and user).
+func (s *eventSender) sendReportedEvent(event ReportedEvent, extraTags []string) error {
+	// Rebuild tags: drop original source, replace with testbench source, add extras.
+	tags := []string{"source:observer-testbench"}
+	for _, t := range event.Tags {
+		if strings.HasPrefix(t, "source:") {
+			continue
+		}
+		tags = append(tags, t)
+	}
+	tags = append(tags, extraTags...)
+	sort.Strings(tags[1:]) // keep source:observer-testbench first
+
+	// Use current time: replay scenario timestamps are often hours/days old and
+	// the Datadog API rejects events with timestamps outside its acceptance window.
+	ts := time.Now().UTC().Format(time.RFC3339)
+	aggKey := "testbench:" + event.Pattern
+
+	s.logger.Infof("[observer] sending testbench event: pattern=%s title=%q", event.Pattern, event.Title)
+
+	if s.api == nil {
+		fmt.Printf("[dry-run] testbench event: pattern=%s title=%q tags=%v\n%s\n\n", event.Pattern, event.Title, tags, event.Message)
+		return nil
+	}
+
+	// EventPayload.Attributes is a required union field — omitting it causes a
+	// marshal error. Build a minimal ChangeEventCustomAttributes from the pattern.
+	name := event.Pattern
+	if len(name) > 128 {
+		name = name[:128]
+	}
+	changedResource := *datadogV2.NewChangeEventCustomAttributesChangedResource(
+		name,
+		datadogV2.CHANGEEVENTCUSTOMATTRIBUTESCHANGEDRESOURCETYPE_CONFIGURATION,
+	)
+	changeAttrs := *datadogV2.NewChangeEventCustomAttributes(changedResource)
+	changeAttrs.SetAuthor(*datadogV2.NewChangeEventCustomAttributesAuthor(
+		"datadog-agent-observer-testbench",
+		datadogV2.CHANGEEVENTCUSTOMATTRIBUTESAUTHORTYPE_AUTOMATION,
+	))
+	attrs := datadogV2.ChangeEventCustomAttributesAsEventPayloadAttributes(&changeAttrs)
+
+	payload := datadogV2.EventCreateRequestPayload{
+		Data: datadogV2.EventCreateRequest{
+			Type: datadogV2.EVENTCREATEREQUESTTYPE_EVENT,
+			Attributes: datadogV2.EventPayload{
+				Title:          event.Title,
+				Message:        datadog.PtrString(event.Message),
+				Category:       datadogV2.EVENTCATEGORY_CHANGE,
+				Tags:           tags,
+				Timestamp:      datadog.PtrString(ts),
+				AggregationKey: datadog.PtrString(aggKey),
+				Attributes:     attrs,
+			},
+		},
+	}
+	_, httpResp, err := s.api.CreateEvent(s.ctx, payload)
+	if err != nil && httpResp != nil {
+		body, readErr := io.ReadAll(httpResp.Body)
+		httpResp.Body.Close()
+		if readErr == nil {
+			return fmt.Errorf("API error (HTTP %d): %s", httpResp.StatusCode, string(body))
+		}
+	}
+	return err
+}
