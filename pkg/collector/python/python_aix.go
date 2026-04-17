@@ -55,10 +55,11 @@ package python
 // With -bE:python.exp, the agent exports the symbols and extensions load cleanly.
 
 /*
-#cgo LDFLAGS: -L${SRCDIR}/../../../embedded/lib -lpython3
-
 // Forward declaration — we do not include Python.h to avoid pulling in
 // the entire CPython header tree; Py_IsInitialized has a stable ABI.
+// -lpython3 is supplied via CGO_LDFLAGS by get_build_flags() in
+// tasks/libs/common/utils.py, using the correct embedded_path regardless
+// of where the source tree is located.
 extern int Py_IsInitialized(void);
 */
 import "C"
