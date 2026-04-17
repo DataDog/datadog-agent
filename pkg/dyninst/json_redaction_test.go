@@ -221,7 +221,7 @@ var defaultRedactors = []jsonRedactor{
 		replacerFunc(redactNonZeroAddress),
 	),
 	redactor(
-		exactMatcher(`/debugger/snapshot/captures/return/locals/~0r0/value`),
+		exactMatcher(`/debugger/snapshot/captures/return/locals/@return/value`),
 		regexpStringReplacer("0x[[:xdigit:]]+", "0x[addr]"),
 	),
 	redactor(
