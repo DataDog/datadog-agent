@@ -46,11 +46,8 @@ const (
 )
 
 const (
-	// Maximum number of concurrent requests to the intake
-	//
-	// Since we have at most 20MB of data in flight, and payloads are 4MB
-	// at most, this allows for 4 * 4MB = 16MB of data being sent and 4 more MB in the
-	// batch buffer
+	// Maximum number of concurrent forwarder goroutines. Each goroutine
+	// handles serialization and forwarding to intake endpoints.
 	maxConcurrentRequests = 4
 
 	// batchMaxAge is the maximum time the oldest event can sit in the buffer before triggering a flush.
@@ -78,9 +75,9 @@ type rawTelemetryEvent struct {
 	Content []byte            `msgpack:"content"`
 }
 
-type forwardedBatch struct {
-	body          []byte // serialized MessagePack
-	totalBodySize int    // sum of original event body sizes, for inflightCount tracking
+type flushedBatch struct {
+	events        []rawTelemetryEvent
+	totalBodySize int
 }
 
 type currentBatch struct {
@@ -92,7 +89,7 @@ type currentBatch struct {
 	nowFn              func() time.Time // injectable for testing, defaults to time.Now
 }
 
-func (b *currentBatch) addEvent(ev rawTelemetryEvent) (batch []rawTelemetryEvent, totalBodySize int, shouldFlush bool) {
+func (b *currentBatch) addEvent(ev rawTelemetryEvent) (batch flushedBatch, shouldFlush bool) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if len(b.bufferedEvents) == 0 {
@@ -102,11 +99,12 @@ func (b *currentBatch) addEvent(ev rawTelemetryEvent) (batch []rawTelemetryEvent
 	b.bufferedEvents = append(b.bufferedEvents, ev)
 	shouldFlush = b.bufferedSize >= b.batchSizeThreshold
 	if shouldFlush {
-		batch, totalBodySize = b.takeBatchLocked()
+		batch = b.takeBatchLocked()
 	}
-	return batch, totalBodySize, shouldFlush
+	return batch, shouldFlush
 }
-func (b *currentBatch) checkFlushAge() (batch []rawTelemetryEvent, totalBodySize int, shouldFlush bool) {
+
+func (b *currentBatch) checkFlushAge() (batch flushedBatch, shouldFlush bool) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	shouldFlush = len(b.bufferedEvents) > 0 &&
@@ -114,25 +112,25 @@ func (b *currentBatch) checkFlushAge() (batch []rawTelemetryEvent, totalBodySize
 		b.nowFn().Sub(b.oldestEventTime) >= batchMaxAge
 
 	if shouldFlush {
-		batch, totalBodySize = b.takeBatchLocked()
+		batch = b.takeBatchLocked()
 	}
-	return batch, totalBodySize, shouldFlush
+	return batch, shouldFlush
 }
 
 // takeBatchLocked extracts all buffered events and resets the buffer.
-// Must be called while holding f.mu.
-func (b *currentBatch) takeBatchLocked() ([]rawTelemetryEvent, int) {
-	events := b.bufferedEvents
-	b.bufferedEvents = make([]rawTelemetryEvent, 0, len(events))
-
-	size := b.bufferedSize
+// Must be called while holding b.mu.
+func (b *currentBatch) takeBatchLocked() flushedBatch {
+	batch := flushedBatch{
+		events:        b.bufferedEvents,
+		totalBodySize: b.bufferedSize,
+	}
+	b.bufferedEvents = make([]rawTelemetryEvent, 0, len(batch.events))
 	b.bufferedSize = 0
-
 	b.oldestEventTime = time.Time{}
-	return events, size
+	return batch
 }
 
-func (b *currentBatch) takeBatch() ([]rawTelemetryEvent, int) {
+func (b *currentBatch) takeBatch() flushedBatch {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.takeBatchLocked()
@@ -146,18 +144,17 @@ type TelemetryForwarder struct {
 
 	batch currentBatch
 
-	// flushChan carries size-triggered batches from the HTTP handler to the batchFlusher.
-	flushChan chan []rawTelemetryEvent
-	// forwardChan carries serialized payloads from the batchFlusher to forwarder workers.
-	forwardChan chan forwardedBatch
+	// flushChan carries size-triggered batches from the HTTP handler to forwarder workers.
+	flushChan chan flushedBatch
 
 	inflightWaiter   sync.WaitGroup
 	inflightCount    atomic.Int64
 	maxInflightBytes int64
 
-	cancelCtx context.Context
-	cancelFn  context.CancelFunc
-	done      chan struct{}
+	cancelCtx        context.Context
+	cancelFn         context.CancelFunc
+	done             chan struct{}
+	batchCheckTicker *time.Ticker
 
 	containerIDProvider IDProvider
 	client              *config.ResetClient
@@ -198,8 +195,7 @@ func NewTelemetryForwarder(conf *config.AgentConfig, containerIDProvider IDProvi
 			batchSizeThreshold: batchSizeThreshold,
 			nowFn:              time.Now,
 		},
-		flushChan:        make(chan []rawTelemetryEvent, 1),
-		forwardChan:      make(chan forwardedBatch),
+		flushChan:        make(chan flushedBatch, 1),
 		inflightWaiter:   sync.WaitGroup{},
 		inflightCount:    atomic.Int64{},
 		maxInflightBytes: int64(maxInflight),
@@ -217,21 +213,22 @@ func NewTelemetryForwarder(conf *config.AgentConfig, containerIDProvider IDProvi
 }
 
 func (f *TelemetryForwarder) start() {
+	if f.batchCheckTicker != nil {
+		f.batchCheckTicker.Reset(batchCheckInterval)
+	} else {
+		f.batchCheckTicker = time.NewTicker(batchCheckInterval)
+	}
 	for i := 0; i < maxConcurrentRequests; i++ {
 		f.inflightWaiter.Add(1)
-		go func() {
-			defer f.inflightWaiter.Done()
-			for batch := range f.forwardChan {
-				f.forwardBatchToEndpoints(batch)
-			}
-		}()
+		go f.forwarder()
 	}
-	f.inflightWaiter.Add(1)
-	go f.batchFlusher()
 }
 
 // Stop waits for up to 1s to end all telemetry forwarded requests.
 func (f *TelemetryForwarder) Stop() {
+	if f.batchCheckTicker != nil {
+		f.batchCheckTicker.Stop()
+	}
 	close(f.done)
 	done := make(chan any)
 	go func() {
@@ -282,7 +279,7 @@ func (r *HTTPReceiver) telemetryForwarderHandler() http.Handler {
 		}
 
 		eventHeaders := forwarder.buildEventHeaders(r)
-		batch, totalBodySize, shouldFlush := forwarder.batch.addEvent(rawTelemetryEvent{
+		batch, shouldFlush := forwarder.batch.addEvent(rawTelemetryEvent{
 			Headers: eventHeaders,
 			Content: body,
 		})
@@ -294,7 +291,7 @@ func (r *HTTPReceiver) telemetryForwarderHandler() http.Handler {
 			default:
 				// This drops not only the current payload but also previously accumulated
 				// messages
-				forwarder.inflightCount.Add(-int64(totalBodySize))
+				forwarder.inflightCount.Add(-int64(batch.totalBodySize))
 				writeEmptyJSON(w, http.StatusTooManyRequests)
 			}
 		} else {
@@ -392,13 +389,11 @@ func (f *TelemetryForwarder) setBatchRequestHeaders(req *http.Request) {
 	}
 }
 
-// batchFlusher runs in a dedicated goroutine. It serializes batches from flushChan
-// (size-triggered) or from the buffer (age-triggered) and sends them to forwardChan
-// for the forwarder workers.
-func (f *TelemetryForwarder) batchFlusher() {
+// forwarder runs in a goroutine. It receives batches from flushChan (size-triggered)
+// or from the buffer (age-triggered via the shared ticker), serializes them to
+// MessagePack, and forwards them to the configured intake endpoints.
+func (f *TelemetryForwarder) forwarder() {
 	defer f.inflightWaiter.Done()
-	ticker := time.NewTicker(batchCheckInterval)
-	defer ticker.Stop()
 
 	for {
 		select {
@@ -407,71 +402,54 @@ func (f *TelemetryForwarder) batchFlusher() {
 			for {
 				select {
 				case batch := <-f.flushChan:
-					f.serializeBatch(batch)
+					f.serializeAndForward(batch)
 				default:
 					goto drainDone
 				}
 			}
 		drainDone:
 			// Flush remaining events in the buffer
-			batch, totalBodySize := f.batch.takeBatch()
-			if totalBodySize > 0 {
-				f.serializeBatchWithSize(batch, totalBodySize)
+			batch := f.batch.takeBatch()
+			if batch.totalBodySize > 0 {
+				f.serializeAndForward(batch)
 			}
-			close(f.forwardChan)
 			return
 
 		case batch := <-f.flushChan:
-			f.serializeBatch(batch)
+			f.serializeAndForward(batch)
 
-		case <-ticker.C:
-			batch, totalBodySize, shouldFlush := f.batch.checkFlushAge()
+		case <-f.batchCheckTicker.C:
+			batch, shouldFlush := f.batch.checkFlushAge()
 			if shouldFlush {
-				f.serializeBatchWithSize(batch, totalBodySize)
+				f.serializeAndForward(batch)
 			}
 		}
 	}
 }
 
-// serializeBatch computes totalBodySize from the events and delegates to serializeBatchWithSize.
-// Used for size-triggered flushes where the totalBodySize isn't pre-computed.
-func (f *TelemetryForwarder) serializeBatch(events []rawTelemetryEvent) {
-	totalBodySize := 0
-	for _, e := range events {
-		totalBodySize += len(e.Content)
-	}
-	f.serializeBatchWithSize(events, totalBodySize)
-}
-
-// serializeBatchWithSize serializes a batch of events to MessagePack and sends it to forwardChan.
-func (f *TelemetryForwarder) serializeBatchWithSize(events []rawTelemetryEvent, totalBodySize int) {
+// serializeAndForward serializes a flushed batch to MessagePack and forwards it to all endpoints.
+func (f *TelemetryForwarder) serializeAndForward(batch flushedBatch) {
 	body, err := msgpack.Marshal(&agentBatch{
 		RequestType: "agent-batch",
-		Payload: rawTelemetryEvents{
-			Events: events,
-		},
+		Payload:     rawTelemetryEvents{Events: batch.events},
 	})
 	if err != nil {
 		f.logger.Error("Failed to serialize telemetry batch: %v", err)
-		f.inflightCount.Add(-int64(totalBodySize))
+		f.inflightCount.Add(-int64(batch.totalBodySize))
 		return
 	}
-
-	f.forwardChan <- forwardedBatch{
-		body:          body,
-		totalBodySize: totalBodySize,
-	}
+	f.forwardBatchToEndpoints(body, batch.totalBodySize)
 }
 
 // forwardBatchToEndpoints sends a serialized batch to all configured endpoints.
-func (f *TelemetryForwarder) forwardBatchToEndpoints(batch forwardedBatch) {
-	defer f.inflightCount.Add(-int64(batch.totalBodySize))
+func (f *TelemetryForwarder) forwardBatchToEndpoints(body []byte, totalBodySize int) {
+	defer f.inflightCount.Add(-int64(totalBodySize))
 
 	for _, e := range f.endpoints {
 		tags := []string{"endpoint:" + e.Host}
 		start := time.Now()
 
-		req, err := http.NewRequestWithContext(f.cancelCtx, http.MethodPost, batchURLPath, bytes.NewReader(batch.body))
+		req, err := http.NewRequestWithContext(f.cancelCtx, http.MethodPost, batchURLPath, bytes.NewReader(body))
 		if err != nil {
 			f.logger.Error("Failed to create batch request: %v", err)
 			continue
