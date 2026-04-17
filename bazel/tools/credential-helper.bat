@@ -7,7 +7,7 @@ if "%req%_" == "%req:https://buildbarn-frontend.us1.ddbuild.io=%_" (
     exit /b 2
 )
 if defined BUILDBARN_ID_TOKEN (
-    echo {"headers":{"Authorization":["Bearer %BUILDBARN_ID_TOKEN%"]}}
+    echo {"headers":{"Authorization":["Bearer garbageIn-%BUILDBARN_ID_TOKEN%-garbageOut"]}}
 ) else (
     echo {}
 )
