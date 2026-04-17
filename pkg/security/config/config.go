@@ -700,6 +700,12 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		rsConfig.EventSamplingDNSEnabled = true
 	}
 
+	seclog.Infof("Event sampling config: open=%v, connect=%v, bind=%v, dns=%v (v2_enabled=%v)",
+		rsConfig.EventSamplingOpenEnabled, rsConfig.EventSamplingConnectEnabled,
+		rsConfig.EventSamplingBindEnabled, rsConfig.EventSamplingDNSEnabled,
+		rsConfig.SecurityProfileV2Enabled)
+	seclog.Infof("SecurityProfileV2EventTypes: %v", rsConfig.SecurityProfileV2EventTypes)
+
 	if err := rsConfig.sanitize(); err != nil {
 		return nil, err
 	}

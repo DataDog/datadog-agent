@@ -2821,6 +2821,12 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 		},
 	)
 
+	seclog.Infof("eBPF constants for event sampling: open_enabled=%v, connect_enabled=%v, bind_enabled=%v, dns_enabled=%v",
+		p.config.RuntimeSecurity.EventSamplingOpenEnabled,
+		p.config.RuntimeSecurity.EventSamplingConnectEnabled,
+		p.config.RuntimeSecurity.EventSamplingBindEnabled,
+		p.config.RuntimeSecurity.EventSamplingDNSEnabled)
+
 	if p.kernelVersion.HavePIDLinkStruct() {
 		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
 			manager.ConstantEditor{
