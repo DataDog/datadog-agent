@@ -394,7 +394,6 @@ exports_files(glob(
 # gazelle:exclude pkg/trace/api
 # gazelle:exclude pkg/trace/containertags
 # gazelle:exclude pkg/trace/event
-# Stub: intermediate directory with unmigrated .go files.
 # gazelle:exclude pkg/trace/filters
 # gazelle:exclude pkg/trace/info
 # gazelle:exclude pkg/trace/otel
