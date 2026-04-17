@@ -7,27 +7,17 @@
 package flowaggregator
 
 import (
-	"encoding/json"
-	"net"
-	"strings"
-	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/netflow/topn"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
-
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	"github.com/DataDog/datadog-agent/comp/netflow/format"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-
-	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
 	"github.com/DataDog/datadog-agent/comp/netflow/config"
@@ -37,41 +27,26 @@ import (
 const flushFlowsToSendInterval = 10 * time.Second
 const metricPrefix = "datadog.netflow."
 
-// FlowAggregator is used for space and time aggregation of NetFlow flows
-type FlowAggregator struct {
-	flowIn                       chan *common.Flow
-	FlushConfig                  common.FlushConfig
-	rollupTrackerRefreshInterval time.Duration
-	flowAcc                      *flowAccumulator
-	sender                       sender.Sender
-	epForwarder                  eventplatform.Forwarder
-	stopChan                     chan struct{}
-	flushLoopDone                chan struct{}
-	runDone                      chan struct{}
-	receivedFlowCount            *atomic.Uint64
-	flushedFlowCount             *atomic.Uint64
-	hostname                     string
-	goflowPrometheusGatherer     prometheus.Gatherer
-	TimeNowFunction              func() time.Time // Allows to mock time in tests
-	NewTicker                    func(duration time.Duration) <-chan time.Time
+// StandardFlowAggregator is the concrete type for the standard (non-dedup) aggregator.
+type StandardFlowAggregator = FlowAggregator[FlowBatch]
 
-	lastSequencePerExporter   map[sequenceDeltaKey]uint32
-	lastSequencePerExporterMu sync.Mutex
+// DedupFlowAggregator is the concrete type for the deduplication aggregator.
+type DedupFlowAggregator = FlowAggregator[FlowGroupBatch]
 
-	flowFilter FlowFlushFilter
-	logger     log.Component
-}
+// FlowAggregatorRunner is the non-generic interface for running a FlowAggregator.
+// Used by external consumers (server, listener) that don't need to know the
+// accumulator's flush result type.
+type FlowAggregatorRunner interface {
+	Start()
+	Stop()
+	GetFlowInChan() chan *common.Flow
 
-type sequenceDeltaKey struct {
-	Namespace  string
-	ExporterIP string
-	FlowType   common.FlowType
-}
-
-type sequenceDeltaValue struct {
-	Delta        int64
-	LastSequence uint32
-	Reset        bool
+	// Testing helpers — allow tests to configure the aggregator without
+	// type-asserting to a concrete generic instantiation.
+	SetTimeNowFunction(fn func() time.Time)
+	SetFlushTickFrequency(d time.Duration)
+	GetFlushedFlowCount() *atomic.Uint64
+	GetFlowContextCount() int
 }
 
 // FlowFlushFilter is an interface that can be used to filter flows before they are sent to the EP Forwarder.
@@ -79,74 +54,151 @@ type FlowFlushFilter interface {
 	Filter(flushCtx common.FlushContext, flows []*common.Flow) []*common.Flow
 }
 
-// maxNegativeSequenceDiffToReset are thresholds used to detect sequence reset
-var maxNegativeSequenceDiffToReset = map[common.FlowType]int{
-	common.TypeSFlow5:   -1000,
-	common.TypeNetFlow5: -1000,
-	common.TypeNetFlow9: -100,
-	common.TypeIPFIX:    -100,
+// FlowAggregator is used for space and time aggregation of NetFlow flows.
+// The type parameter T is the flush result type from the accumulator:
+//   - FlowBatch for the standard path
+//   - FlowGroupBatch for the dedup path
+type FlowAggregator[T any] struct {
+	flowIn                       chan *common.Flow
+	FlushConfig                  common.FlushConfig
+	rollupTrackerRefreshInterval time.Duration
+	flowAcc                      FlowAccumulator[T]
+	submitter                    EPForwarder[T]
+	sender                       sender.Sender
+	stopChan                     chan struct{}
+	flushLoopDone                chan struct{}
+	runDone                      chan struct{}
+	receivedFlowCount            *atomic.Uint64
+	flushedFlowCount             *atomic.Uint64
+	goflowPrometheusGatherer     prometheus.Gatherer
+	TimeNowFunction              func() time.Time // Allows to mock time in tests
+	NewTicker                    func(duration time.Duration) <-chan time.Time
+	logger                       log.Component
 }
 
-// NewFlowAggregator returns a new FlowAggregator
-func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder, config *config.NetflowConfig, hostname string, logger log.Component, rdnsQuerier rdnsquerier.Component) *FlowAggregator {
-	flushConfig := common.FlushConfig{
-		FlowCollectionDuration: time.Duration(config.AggregatorFlushInterval) * time.Second,
-		FlushTickFrequency:     flushFlowsToSendInterval,
-	}
-
-	var topNFilter FlowFlushFilter = topn.NoopFilter{}
-	var flowScheduler FlowScheduler = ImmediateFlowScheduler{
-		flushConfig: flushConfig,
-	}
-	if config.AggregatorMaxFlowsPerPeriod > 0 {
-		topNFilter = topn.NewPerFlushFilter(int64(config.AggregatorMaxFlowsPerPeriod), flushConfig, sender, logger)
-		flowScheduler = JitterFlowScheduler{flushConfig: flushConfig}
-	}
-
-	flowContextTTL := time.Duration(config.AggregatorFlowContextTTL) * time.Second
-	rollupTrackerRefreshInterval := time.Duration(config.AggregatorRollupTrackerRefreshInterval) * time.Second
-	return &FlowAggregator{
-		flowIn:                       make(chan *common.Flow, config.AggregatorBufferSize),
-		flowAcc:                      newFlowAccumulator(flushConfig, flowScheduler, flowContextTTL, config.AggregatorPortRollupThreshold, config.AggregatorPortRollupDisabled, logger, rdnsQuerier),
+// newFlowAggregatorBase builds the shared fields for a FlowAggregator[T].
+func newFlowAggregatorBase[T any](flowAcc FlowAccumulator[T], submitter EPForwarder[T], flushConfig common.FlushConfig, rollupTrackerRefreshInterval time.Duration, bufferSize int, snd sender.Sender, logger log.Component) *FlowAggregator[T] {
+	return &FlowAggregator[T]{
+		flowIn:                       make(chan *common.Flow, bufferSize),
+		flowAcc:                      flowAcc,
+		submitter:                    submitter,
 		FlushConfig:                  flushConfig,
 		rollupTrackerRefreshInterval: rollupTrackerRefreshInterval,
-		sender:                       sender,
-		epForwarder:                  epForwarder,
+		sender:                       snd,
 		stopChan:                     make(chan struct{}),
 		runDone:                      make(chan struct{}),
 		flushLoopDone:                make(chan struct{}),
 		receivedFlowCount:            atomic.NewUint64(0),
 		flushedFlowCount:             atomic.NewUint64(0),
-		hostname:                     hostname,
 		goflowPrometheusGatherer:     prometheus.DefaultGatherer,
 		TimeNowFunction:              time.Now,
 		NewTicker:                    time.Tick,
-		lastSequencePerExporter:      make(map[sequenceDeltaKey]uint32),
 		logger:                       logger,
-		flowFilter:                   topNFilter,
 	}
 }
 
+// NewStandardFlowAggregator creates a FlowAggregator that flushes individual flows.
+// This is the standard (non-dedup) path with optional TopN filtering and jitter scheduling.
+func NewStandardFlowAggregator(snd sender.Sender, epForwarder eventplatform.Forwarder, conf *config.NetflowConfig, hostname string, logger log.Component, rdnsQuerier rdnsquerier.Component) *StandardFlowAggregator {
+	flushConfig := common.FlushConfig{
+		FlowCollectionDuration: time.Duration(conf.AggregatorFlushInterval) * time.Second,
+		FlushTickFrequency:     flushFlowsToSendInterval,
+	}
+
+	var topNFilter FlowFlushFilter = topn.NoopFilter{}
+	var flowScheduler FlowScheduler = ImmediateFlowScheduler{flushConfig: flushConfig}
+	if conf.AggregatorMaxFlowsPerPeriod > 0 {
+		topNFilter = topn.NewPerFlushFilter(int64(conf.AggregatorMaxFlowsPerPeriod), flushConfig, snd, logger)
+		flowScheduler = JitterFlowScheduler{flushConfig: flushConfig}
+	}
+
+	flowContextTTL := time.Duration(conf.AggregatorFlowContextTTL) * time.Second
+	rollupInterval := time.Duration(conf.AggregatorRollupTrackerRefreshInterval) * time.Second
+
+	acc := newStandardFlowAccumulator(flushConfig, flowScheduler, flowContextTTL, conf.AggregatorPortRollupThreshold, conf.AggregatorPortRollupDisabled, logger, rdnsQuerier)
+	submitter := &standardEPForwarder{
+		filter:      topNFilter,
+		seqTracker:  newSequenceTracker(snd, logger),
+		epForwarder: epForwarder,
+		hostname:    hostname,
+		logger:      logger,
+	}
+	return newFlowAggregatorBase[FlowBatch](acc, submitter, flushConfig, rollupInterval, conf.AggregatorBufferSize, snd, logger)
+}
+
+// NewDedupFlowAggregator creates a FlowAggregator that flushes grouped FlowGroups.
+// This is the deduplication path: flows sharing a 5-tuple are merged into a single
+// event with a reporters list. TopN filtering and jitter scheduling are disabled.
+func NewDedupFlowAggregator(snd sender.Sender, epForwarder eventplatform.Forwarder, conf *config.NetflowConfig, hostname string, logger log.Component, rdnsQuerier rdnsquerier.Component) *DedupFlowAggregator {
+	flushConfig := common.FlushConfig{
+		FlowCollectionDuration: time.Duration(conf.AggregatorFlushInterval) * time.Second,
+		FlushTickFrequency:     flushFlowsToSendInterval,
+	}
+
+	flowScheduler := ImmediateFlowScheduler{flushConfig: flushConfig}
+	flowContextTTL := time.Duration(conf.AggregatorFlowContextTTL) * time.Second
+	rollupInterval := time.Duration(conf.AggregatorRollupTrackerRefreshInterval) * time.Second
+
+	acc := newDedupFlowAccumulator(flushConfig, flowScheduler, flowContextTTL, conf.AggregatorPortRollupThreshold, conf.AggregatorPortRollupDisabled, logger, rdnsQuerier)
+	submitter := &dedupEPForwarder{
+		seqTracker:  newSequenceTracker(snd, logger),
+		epForwarder: epForwarder,
+		hostname:    hostname,
+		logger:      logger,
+	}
+	return newFlowAggregatorBase[FlowGroupBatch](acc, submitter, flushConfig, rollupInterval, conf.AggregatorBufferSize, snd, logger)
+}
+
+// NewFlowAggregator returns a FlowAggregatorRunner, selecting the standard or dedup
+// implementation based on the config. External consumers that don't need the type
+// parameter should use this constructor.
+func NewFlowAggregator(snd sender.Sender, epForwarder eventplatform.Forwarder, conf *config.NetflowConfig, hostname string, logger log.Component, rdnsQuerier rdnsquerier.Component) FlowAggregatorRunner {
+	if conf.DeduplicationEnabled {
+		return NewDedupFlowAggregator(snd, epForwarder, conf, hostname, logger, rdnsQuerier)
+	}
+	return NewStandardFlowAggregator(snd, epForwarder, conf, hostname, logger, rdnsQuerier)
+}
+
 // Start will start the FlowAggregator worker
-func (agg *FlowAggregator) Start() {
+func (agg *FlowAggregator[T]) Start() {
 	agg.logger.Info("Flow Aggregator started")
 	go agg.run()
 	agg.flushLoop() // blocking call
 }
 
 // Stop will stop running FlowAggregator
-func (agg *FlowAggregator) Stop() {
+func (agg *FlowAggregator[T]) Stop() {
 	close(agg.stopChan)
 	<-agg.flushLoopDone
 	<-agg.runDone
 }
 
 // GetFlowInChan returns flow input chan
-func (agg *FlowAggregator) GetFlowInChan() chan *common.Flow {
+func (agg *FlowAggregator[T]) GetFlowInChan() chan *common.Flow {
 	return agg.flowIn
 }
 
-func (agg *FlowAggregator) run() {
+// SetTimeNowFunction overrides the time source used by the aggregator.
+func (agg *FlowAggregator[T]) SetTimeNowFunction(fn func() time.Time) {
+	agg.TimeNowFunction = fn
+}
+
+// SetFlushTickFrequency overrides the flush tick interval.
+func (agg *FlowAggregator[T]) SetFlushTickFrequency(d time.Duration) {
+	agg.FlushConfig.FlushTickFrequency = d
+}
+
+// GetFlushedFlowCount returns the flushed flow counter.
+func (agg *FlowAggregator[T]) GetFlushedFlowCount() *atomic.Uint64 {
+	return agg.flushedFlowCount
+}
+
+// GetFlowContextCount returns the number of flow contexts currently tracked.
+func (agg *FlowAggregator[T]) GetFlowContextCount() int {
+	return agg.flowAcc.GetFlowContextCount()
+}
+
+func (agg *FlowAggregator[T]) run() {
 	for {
 		select {
 		case <-agg.stopChan:
@@ -155,85 +207,12 @@ func (agg *FlowAggregator) run() {
 			return
 		case flow := <-agg.flowIn:
 			agg.receivedFlowCount.Inc()
-			agg.flowAcc.add(flow)
+			agg.flowAcc.Add(flow)
 		}
 	}
 }
 
-func (agg *FlowAggregator) sendFlows(flows []*common.Flow, flushTime time.Time) {
-	for _, flow := range flows {
-		flowPayload := buildPayload(flow, agg.hostname, flushTime)
-
-		// Calling MarshalJSON directly as it's faster than calling json.Marshall
-		payloadBytes, err := flowPayload.MarshalJSON()
-		if err != nil {
-			agg.logger.Errorf("Error marshalling device metadata: %s", err)
-			continue
-		}
-		agg.logger.Tracef("flushed flow: %s", string(payloadBytes))
-
-		m := message.NewMessage(payloadBytes, nil, "", 0)
-		err = agg.epForwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeNetworkDevicesNetFlow)
-		if err != nil {
-			// at the moment, SendEventPlatformEventBlocking can only fail if the event type is invalid
-			agg.logger.Errorf("Error sending to event platform forwarder: %s", err)
-			continue
-		}
-	}
-}
-
-func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime time.Time) {
-	// exporterMap structure: map[NAMESPACE]map[EXPORTER_ID]metadata.NetflowExporter
-	exporterMap := make(map[string]map[string]metadata.NetflowExporter)
-
-	// orderedExporterIDs is used to build predictable metadata payload (consistent batches and orders)
-	// orderedExporterIDs structure: map[NAMESPACE][]EXPORTER_ID
-	orderedExporterIDs := make(map[string][]string)
-
-	for _, flow := range flows {
-		exporterIPAddress := format.IPAddr(flow.ExporterAddr)
-		if exporterIPAddress == "" || strings.HasPrefix(exporterIPAddress, "?") {
-			agg.logger.Errorf("Invalid exporter Addr: %s", exporterIPAddress)
-			continue
-		}
-		exporterID := flow.Namespace + ":" + exporterIPAddress + ":" + string(flow.FlowType)
-		if _, ok := exporterMap[flow.Namespace]; !ok {
-			exporterMap[flow.Namespace] = make(map[string]metadata.NetflowExporter)
-		}
-		if _, ok := exporterMap[flow.Namespace][exporterID]; ok {
-			// this exporter is already in the map, no need to reprocess it
-			continue
-		}
-		exporterMap[flow.Namespace][exporterID] = metadata.NetflowExporter{
-			ID:        exporterID,
-			IPAddress: exporterIPAddress,
-			FlowType:  string(flow.FlowType),
-		}
-		orderedExporterIDs[flow.Namespace] = append(orderedExporterIDs[flow.Namespace], exporterID)
-	}
-	for namespace, ids := range orderedExporterIDs {
-		var netflowExporters []metadata.NetflowExporter
-		for _, exporterID := range ids {
-			netflowExporters = append(netflowExporters, exporterMap[namespace][exporterID])
-		}
-		metadataPayloads := metadata.BatchPayloads(integrations.Netflow, namespace, "", flushTime, metadata.PayloadMetadataBatchSize, nil, nil, nil, nil, nil, netflowExporters, nil)
-		for _, payload := range metadataPayloads {
-			payloadBytes, err := json.Marshal(payload)
-			if err != nil {
-				agg.logger.Errorf("Error marshalling device metadata: %s", err)
-				continue
-			}
-			agg.logger.Debugf("netflow exporter metadata payload: %s", string(payloadBytes))
-			m := message.NewMessage(payloadBytes, nil, "", 0)
-			err = agg.epForwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeNetworkDevicesMetadata)
-			if err != nil {
-				agg.logger.Errorf("Error sending event platform event for netflow exporter metadata: %s", err)
-			}
-		}
-	}
-}
-
-func (agg *FlowAggregator) flushLoop() {
+func (agg *FlowAggregator[T]) flushLoop() {
 	flushFlowsToSendTicker := agg.NewTicker(agg.FlushConfig.FlushTickFrequency)
 	if flushFlowsToSendTicker == nil {
 		agg.logger.Debug("flushFlowsToSendInterval set to 0: will never flush automatically")
@@ -284,43 +263,24 @@ func (agg *FlowAggregator) flushLoop() {
 	}
 }
 
-// Flush flushes the aggregator
-func (agg *FlowAggregator) flush(ctx common.FlushContext) int {
-	flowsContexts := agg.flowAcc.getFlowContextCount()
-	flushTime := ctx.FlushTime
-	flowsToFlush := agg.flowAcc.flush(ctx)
+// flush flushes the accumulator and submits the result via the type-specific EP forwarder.
+func (agg *FlowAggregator[T]) flush(ctx common.FlushContext) int {
+	flowsContexts := agg.flowAcc.GetFlowContextCount()
+	result := agg.flowAcc.Flush(ctx)
+	flushCount := agg.submitter.Submit(result, ctx)
 
-	// apply filtering
-	flowsBeforeFilter := len(flowsToFlush)
-	flowsToFlush = agg.flowFilter.Filter(ctx, flowsToFlush)
-	numRowsFiltered := flowsBeforeFilter - len(flowsToFlush)
+	agg.emitFlushMetrics(flowsContexts, flushCount)
+	agg.flushedFlowCount.Add(uint64(flushCount))
+	return flushCount
+}
 
-	agg.logger.Debugf("Flushing %d flows to the forwarder, %d have been dropped by TopN filtering (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), numRowsFiltered, time.Since(flushTime).Milliseconds(), flowsContexts)
-
-	sequenceDeltaPerExporter := agg.getSequenceDelta(flowsToFlush)
-	for key, seqDelta := range sequenceDeltaPerExporter {
-		tags := []string{"device_namespace:" + key.Namespace, "exporter_ip:" + key.ExporterIP, "flow_type:" + string(key.FlowType)}
-		agg.sender.Count("datadog.netflow.aggregator.sequence.delta", float64(seqDelta.Delta), "", tags)
-		agg.sender.Gauge("datadog.netflow.aggregator.sequence.last", float64(seqDelta.LastSequence), "", tags)
-		if seqDelta.Reset {
-			agg.sender.Count("datadog.netflow.aggregator.sequence.reset", float64(1), "", tags)
-		}
-	}
-
-	// TODO: Add flush stats to agent telemetry e.g. aggregator newFlushCountStats()
-	if len(flowsToFlush) > 0 {
-		agg.sendFlows(flowsToFlush, ctx.FlushTime)
-	}
-	agg.sendExporterMetadata(flowsToFlush, ctx.FlushTime)
-
-	flushCount := len(flowsToFlush)
-
-	agg.sender.MonotonicCount("datadog.netflow.aggregator.hash_collisions", float64(agg.flowAcc.hashCollisionFlowCount.Load()), "", nil)
+func (agg *FlowAggregator[T]) emitFlushMetrics(flowsContexts int, flushCount int) {
+	agg.sender.MonotonicCount("datadog.netflow.aggregator.hash_collisions", float64(agg.flowAcc.HashCollisionCount().Load()), "", nil)
 	agg.sender.MonotonicCount("datadog.netflow.aggregator.flows_received", float64(agg.receivedFlowCount.Load()), "", nil)
 	agg.sender.Count("datadog.netflow.aggregator.flows_flushed", float64(flushCount), "", nil)
 	agg.sender.Gauge("datadog.netflow.aggregator.flows_contexts", float64(flowsContexts), "", nil)
-	agg.sender.Gauge("datadog.netflow.aggregator.port_rollup.current_store_size", float64(agg.flowAcc.portRollup.GetCurrentStoreSize()), "", nil)
-	agg.sender.Gauge("datadog.netflow.aggregator.port_rollup.new_store_size", float64(agg.flowAcc.portRollup.GetNewStoreSize()), "", nil)
+	agg.sender.Gauge("datadog.netflow.aggregator.port_rollup.current_store_size", float64(agg.flowAcc.PortRollup().GetCurrentStoreSize()), "", nil)
+	agg.sender.Gauge("datadog.netflow.aggregator.port_rollup.new_store_size", float64(agg.flowAcc.PortRollup().GetNewStoreSize()), "", nil)
 	agg.sender.Gauge("datadog.netflow.aggregator.input_buffer.capacity", float64(cap(agg.flowIn)), "", nil)
 	agg.sender.Gauge("datadog.netflow.aggregator.input_buffer.length", float64(len(agg.flowIn)), "", nil)
 
@@ -328,63 +288,14 @@ func (agg *FlowAggregator) flush(ctx common.FlushContext) int {
 	if err != nil {
 		agg.logger.Warnf("error submitting collector metrics: %s", err)
 	}
-
-	// We increase `flushedFlowCount` at the end to be sure that the metrics are submitted before hand.
-	// Tests will wait for `flushedFlowCount` to be increased before asserting the metrics.
-	agg.flushedFlowCount.Add(uint64(flushCount))
-	return len(flowsToFlush)
 }
 
-// getSequenceDelta return the delta of current sequence number compared to previously saved sequence number
-// Since we track per exporterIP, the returned delta is only accurate when for the specific exporterIP there is
-// only one NetFlow9/IPFIX observation domain, NetFlow5 engineType/engineId, sFlow agent/subagent.
-func (agg *FlowAggregator) getSequenceDelta(flowsToFlush []*common.Flow) map[sequenceDeltaKey]sequenceDeltaValue {
-	maxSequencePerExporter := make(map[sequenceDeltaKey]uint32)
-	for _, flow := range flowsToFlush {
-		key := sequenceDeltaKey{
-			Namespace:  flow.Namespace,
-			ExporterIP: net.IP(flow.ExporterAddr).String(),
-			FlowType:   flow.FlowType,
-		}
-		if flow.SequenceNum > maxSequencePerExporter[key] {
-			maxSequencePerExporter[key] = flow.SequenceNum
-		}
-	}
-	sequenceDeltaPerExporter := make(map[sequenceDeltaKey]sequenceDeltaValue)
-
-	agg.lastSequencePerExporterMu.Lock()
-	defer agg.lastSequencePerExporterMu.Unlock()
-	for key, seqnum := range maxSequencePerExporter {
-		lastSeq, prevExist := agg.lastSequencePerExporter[key]
-		delta := int64(0)
-		if prevExist {
-			delta = int64(seqnum) - int64(lastSeq)
-		}
-		maxNegSeqDiff := maxNegativeSequenceDiffToReset[key.FlowType]
-		reset := delta < int64(maxNegSeqDiff)
-		agg.logger.Debugf("[getSequenceDelta] key=%s, seqnum=%d, delta=%d, last=%d, reset=%t", key, seqnum, delta, agg.lastSequencePerExporter[key], reset)
-		seqDeltaValue := sequenceDeltaValue{LastSequence: seqnum}
-		if reset { // sequence reset
-			seqDeltaValue.Delta = int64(seqnum)
-			seqDeltaValue.Reset = reset
-			agg.lastSequencePerExporter[key] = seqnum
-		} else if delta < 0 {
-			seqDeltaValue.Delta = 0
-		} else {
-			seqDeltaValue.Delta = delta
-			agg.lastSequencePerExporter[key] = seqnum
-		}
-		sequenceDeltaPerExporter[key] = seqDeltaValue
-	}
-	return sequenceDeltaPerExporter
-}
-
-func (agg *FlowAggregator) rollupTrackersRefresh() {
+func (agg *FlowAggregator[T]) rollupTrackersRefresh() {
 	agg.logger.Debugf("Rollup tracker refresh: use new store as current store")
-	agg.flowAcc.portRollup.UseNewStoreAsCurrentStore()
+	agg.flowAcc.PortRollup().UseNewStoreAsCurrentStore()
 }
 
-func (agg *FlowAggregator) submitCollectorMetrics() error {
+func (agg *FlowAggregator[T]) submitCollectorMetrics() error {
 	promMetrics, err := agg.goflowPrometheusGatherer.Gather()
 	if err != nil {
 		return err

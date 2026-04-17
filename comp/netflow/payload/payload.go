@@ -45,6 +45,39 @@ type ObservationPoint struct {
 // AdditionalFields contains additional configured fields
 type AdditionalFields = map[string]any
 
+// ReporterPayload contains per-reporter observation data within a merged flow event.
+// All fields here are specific to how a single device observed the flow.
+type ReporterPayload struct {
+	FlowType         string           `json:"type"`
+	SamplingRate     uint64           `json:"sampling_rate"`
+	Direction        string           `json:"direction"`
+	Start            uint64           `json:"start"`
+	End              uint64           `json:"end"`
+	Bytes            uint64           `json:"bytes"`
+	Packets          uint64           `json:"packets"`
+	Device           Device           `json:"device"`
+	Exporter         Exporter         `json:"exporter"`
+	Ingress          ObservationPoint `json:"ingress"`
+	Egress           ObservationPoint `json:"egress"`
+	TCPFlags         []string         `json:"tcp_flags,omitempty"`
+	NextHop          NextHop          `json:"next_hop,omitempty"`
+	AdditionalFields AdditionalFields `json:"additional_fields,omitempty"`
+}
+
+// MergedFlowPayload is emitted when deduplication is enabled. The 5-tuple identity fields
+// are at the top level; all reporter-specific observations are in the Reporters list.
+// Reporters with Bytes == 0 and Packets == 0 are ghost reporters carried over from the
+// previous flush cycle as metadata — the platform should filter them for counting purposes.
+type MergedFlowPayload struct {
+	FlushTimestamp int64             `json:"flush_timestamp"`
+	EtherType      string            `json:"ether_type,omitempty"`
+	IPProtocol     string            `json:"ip_protocol"`
+	Source         Endpoint          `json:"source"`
+	Destination    Endpoint          `json:"destination"`
+	Host           string            `json:"host"`
+	Reporters      []ReporterPayload `json:"reporters"`
+}
+
 // FlowPayload contains network devices flows
 type FlowPayload struct {
 	FlushTimestamp   int64            `json:"flush_timestamp"`

@@ -13,6 +13,56 @@ import (
 	"github.com/DataDog/datadog-agent/comp/netflow/payload"
 )
 
+// buildMergedPayload builds a MergedFlowPayload from a group of reporter flows that share
+// the same 5-tuple. Flow-level fields (src/dst, protocol) are taken from the first reporter;
+// per-reporter fields (bytes, exporter, interfaces, etc.) populate the Reporters list.
+// Ghost reporters (Bytes == 0, Packets == 0) are included so the platform can use them as
+// metadata when assigning flow_role — they should not be counted.
+//
+// Callers must ensure reporters is non-empty; this function panics otherwise.
+func buildMergedPayload(reporters []*common.Flow, hostname string, flushTime time.Time) payload.MergedFlowPayload {
+	first := reporters[0]
+	p := payload.MergedFlowPayload{
+		FlushTimestamp: flushTime.UnixMilli(),
+		EtherType:      format.EtherType(first.EtherType),
+		IPProtocol:     format.IPProtocol(first.IPProtocol),
+		Source: payload.Endpoint{
+			IP:                 format.IPAddr(first.SrcAddr),
+			Port:               format.Port(first.SrcPort),
+			Mac:                format.MacAddress(first.SrcMac),
+			Mask:               format.CIDR(first.SrcAddr, first.SrcMask),
+			ReverseDNSHostname: first.SrcReverseDNSHostname,
+		},
+		Destination: payload.Endpoint{
+			IP:                 format.IPAddr(first.DstAddr),
+			Port:               format.Port(first.DstPort),
+			Mac:                format.MacAddress(first.DstMac),
+			Mask:               format.CIDR(first.DstAddr, first.DstMask),
+			ReverseDNSHostname: first.DstReverseDNSHostname,
+		},
+		Host: hostname,
+	}
+	for _, r := range reporters {
+		p.Reporters = append(p.Reporters, payload.ReporterPayload{
+			FlowType:     string(r.FlowType),
+			SamplingRate: r.SamplingRate,
+			Direction:    format.Direction(r.Direction),
+			Start:        r.StartTimestamp,
+			End:          r.EndTimestamp,
+			Bytes:        r.Bytes,
+			Packets:      r.Packets,
+			Device:       payload.Device{Namespace: r.Namespace},
+			Exporter:     payload.Exporter{IP: format.IPAddr(r.ExporterAddr)},
+			Ingress:      payload.ObservationPoint{Interface: payload.Interface{Index: r.InputInterface}},
+			Egress:       payload.ObservationPoint{Interface: payload.Interface{Index: r.OutputInterface}},
+			TCPFlags:     format.TCPFlags(r.TCPFlags),
+			NextHop:      payload.NextHop{IP: format.IPAddr(r.NextHop)},
+			AdditionalFields: r.AdditionalFields,
+		})
+	}
+	return p
+}
+
 func buildPayload(aggFlow *common.Flow, hostname string, flushTime time.Time) payload.FlowPayload {
 	return payload.FlowPayload{
 		// TODO: Implement Tos

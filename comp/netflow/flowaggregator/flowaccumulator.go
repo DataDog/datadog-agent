@@ -6,6 +6,7 @@
 package flowaggregator
 
 import (
+	"slices"
 	"sync"
 	"time"
 
@@ -18,6 +19,33 @@ import (
 
 var timeNow = time.Now
 
+// FlowBatch is the flush result type for the standard accumulator.
+type FlowBatch = []*common.Flow
+
+// FlowGroupBatch is the flush result type for the dedup accumulator.
+type FlowGroupBatch = []FlowGroup
+
+// FlowAccumulator accumulates incoming flows and flushes them on a schedule.
+// The type parameter T determines the shape of the flush result:
+//   - FlowBatch for standard (per-flow) mode
+//   - FlowGroupBatch for deduplication (per-5-tuple) mode
+type FlowAccumulator[T any] interface {
+	Add(*common.Flow)
+	Flush(common.FlushContext) T
+	GetFlowContextCount() int
+	PortRollup() *portrollup.EndpointPairPortRollupStore
+	HashCollisionCount() *atomic.Uint64
+}
+
+// FlowGroup represents all reporters for a single 5-tuple, as returned by the
+// dedup accumulator's Flush. Reporters observed data this cycle; GhostReporters
+// are 0-byte snapshots from the previous cycle included so the platform can use
+// them as metadata when assigning flow_role.
+type FlowGroup struct {
+	Reporters      []*common.Flow
+	GhostReporters []*common.Flow
+}
+
 // flowContext contains flow information and additional flush related data
 type flowContext struct {
 	flow                *common.Flow
@@ -25,14 +53,19 @@ type flowContext struct {
 	lastSuccessfulFlush time.Time
 }
 
-// flowAccumulator is used to accumulate aggregated flows
-type flowAccumulator struct {
+// ---------------------------------------------------------------------------
+// flowAccumulatorBase: shared state and helpers for both accumulator variants
+// ---------------------------------------------------------------------------
+
+// flowAccumulatorBase holds the fields and helper methods shared by both the
+// standard and dedup accumulator implementations.
+type flowAccumulatorBase struct {
 	flows map[uint64]flowContext
-	// mutex is needed to protect `flows` since `flowAccumulator.add()` and  `flowAccumulator.flush()`
+	// mutex is needed to protect `flows` since Add() and Flush()
 	// are called by different routines.
 	flowsMutex sync.Mutex
 
-	FlushConfig    common.FlushConfig
+	flushConfig    common.FlushConfig
 	flowContextTTL time.Duration
 	scheduler      FlowScheduler
 
@@ -46,11 +79,11 @@ type flowAccumulator struct {
 	rdnsQuerier rdnsquerier.Component
 }
 
-func newFlowAccumulator(flushConfig common.FlushConfig, flowScheduler FlowScheduler, aggregatorFlowContextTTL time.Duration, portRollupThreshold int, portRollupDisabled bool, logger log.Component, rdnsQuerier rdnsquerier.Component) *flowAccumulator {
-	return &flowAccumulator{
+func newFlowAccumulatorBase(flushConfig common.FlushConfig, flowScheduler FlowScheduler, flowContextTTL time.Duration, portRollupThreshold int, portRollupDisabled bool, logger log.Component, rdnsQuerier rdnsquerier.Component) flowAccumulatorBase {
+	return flowAccumulatorBase{
 		flows:                  make(map[uint64]flowContext),
-		FlushConfig:            flushConfig,
-		flowContextTTL:         aggregatorFlowContextTTL,
+		flushConfig:            flushConfig,
+		flowContextTTL:         flowContextTTL,
 		portRollup:             portrollup.NewEndpointPairPortRollupStore(portRollupThreshold),
 		portRollupThreshold:    portRollupThreshold,
 		portRollupDisabled:     portRollupDisabled,
@@ -61,36 +94,218 @@ func newFlowAccumulator(flushConfig common.FlushConfig, flowScheduler FlowSchedu
 	}
 }
 
-// flush will flush specific flow context (distinct hash) if nextFlush is reached
-// once a flow context is flushed nextFlush will be updated to the next flush time
+// GetFlowContextCount returns the number of flow contexts currently tracked.
+func (b *flowAccumulatorBase) GetFlowContextCount() int {
+	b.flowsMutex.Lock()
+	defer b.flowsMutex.Unlock()
+	return len(b.flows)
+}
+
+// PortRollup returns the port rollup store.
+func (b *flowAccumulatorBase) PortRollup() *portrollup.EndpointPairPortRollupStore {
+	return b.portRollup
+}
+
+// HashCollisionCount returns the hash collision counter.
+func (b *flowAccumulatorBase) HashCollisionCount() *atomic.Uint64 {
+	return b.hashCollisionFlowCount
+}
+
+// applyPortRollup rewrites ephemeral ports on the flow based on the port rollup store.
+// Must be called before computing any hash that depends on ports.
+func (b *flowAccumulatorBase) applyPortRollup(flowToAdd *common.Flow) {
+	if b.portRollupDisabled {
+		return
+	}
+	b.portRollup.Add(flowToAdd.SrcAddr, flowToAdd.DstAddr, uint16(flowToAdd.SrcPort), uint16(flowToAdd.DstPort))
+	ephemeralStatus := b.portRollup.IsEphemeral(flowToAdd.SrcAddr, flowToAdd.DstAddr, uint16(flowToAdd.SrcPort), uint16(flowToAdd.DstPort))
+	switch ephemeralStatus {
+	case portrollup.IsEphemeralSourcePort:
+		flowToAdd.SrcPort = portrollup.EphemeralPort
+	case portrollup.IsEphemeralDestPort:
+		flowToAdd.DstPort = portrollup.EphemeralPort
+	}
+}
+
+// accumulateInto merges flowToAdd's counters and metadata into an existing flow context.
+// Caller must hold flowsMutex.
+func (b *flowAccumulatorBase) accumulateInto(aggHash uint64, existing *common.Flow, flowToAdd *common.Flow) {
+	go b.detectHashCollision(aggHash, *existing, *flowToAdd)
+
+	existing.Bytes += flowToAdd.Bytes
+	existing.Packets += flowToAdd.Packets
+	existing.StartTimestamp = common.Min(existing.StartTimestamp, flowToAdd.StartTimestamp)
+	existing.EndTimestamp = common.Max(existing.EndTimestamp, flowToAdd.EndTimestamp)
+	existing.SequenceNum = common.Max(existing.SequenceNum, flowToAdd.SequenceNum)
+	existing.TCPFlags |= flowToAdd.TCPFlags
+
+	if flowToAdd.AdditionalFields != nil {
+		if existing.AdditionalFields == nil {
+			existing.AdditionalFields = make(common.AdditionalFields)
+		}
+		for field, value := range flowToAdd.AdditionalFields {
+			if _, ok := existing.AdditionalFields[field]; !ok {
+				existing.AdditionalFields[field] = value
+			}
+		}
+	}
+}
+
+func (b *flowAccumulatorBase) setSrcReverseDNSHostname(aggHash uint64, hostname string, acquireLock bool) {
+	if hostname == "" {
+		return
+	}
+
+	if acquireLock {
+		b.flowsMutex.Lock()
+		defer b.flowsMutex.Unlock()
+	}
+
+	aggFlow, ok := b.flows[aggHash]
+	if ok && aggFlow.flow != nil {
+		aggFlow.flow.SrcReverseDNSHostname = hostname
+	}
+}
+
+func (b *flowAccumulatorBase) setDstReverseDNSHostname(aggHash uint64, hostname string, acquireLock bool) {
+	if hostname == "" {
+		return
+	}
+
+	if acquireLock {
+		b.flowsMutex.Lock()
+		defer b.flowsMutex.Unlock()
+	}
+
+	aggFlow, ok := b.flows[aggHash]
+	if ok && aggFlow.flow != nil {
+		aggFlow.flow.DstReverseDNSHostname = hostname
+	}
+}
+
+func (b *flowAccumulatorBase) addRDNSEnrichment(aggHash uint64, srcAddr []byte, dstAddr []byte) {
+	err := b.rdnsQuerier.GetHostnameAsync(
+		srcAddr,
+		// Sync callback, lock is already held
+		func(hostname string) {
+			b.setSrcReverseDNSHostname(aggHash, hostname, false)
+		},
+		// Async callback will reacquire the lock
+		func(hostname string, err error) {
+			if err != nil {
+				b.logger.Debugf("Error resolving reverse DNS enrichment for source IP address: %v error: %v", srcAddr, err)
+				return
+			}
+			b.setSrcReverseDNSHostname(aggHash, hostname, true)
+		},
+	)
+	if err != nil {
+		b.logger.Debugf("Error requesting reverse DNS enrichment for source IP address: %v error: %v", srcAddr, err)
+	}
+
+	err = b.rdnsQuerier.GetHostnameAsync(
+		dstAddr,
+		// Sync callback, lock is held
+		func(hostname string) {
+			b.setDstReverseDNSHostname(aggHash, hostname, false)
+		},
+		// Async callback will reacquire the lock
+		func(hostname string, err error) {
+			if err != nil {
+				b.logger.Debugf("Error resolving reverse DNS enrichment for destination IP address: %v error: %v", dstAddr, err)
+				return
+			}
+			b.setDstReverseDNSHostname(aggHash, hostname, true)
+		},
+	)
+	if err != nil {
+		b.logger.Debugf("Error requesting reverse DNS enrichment for destination IP address: %v error: %v", dstAddr, err)
+	}
+}
+
+func (b *flowAccumulatorBase) detectHashCollision(hash uint64, existingFlow common.Flow, flowToAdd common.Flow) {
+	if !common.IsEqualPerReporterContext(existingFlow, flowToAdd) {
+		b.logger.Warnf("Hash collision for flows with hash `%d`: existingFlow=`%+v` flowToAdd=`%+v`", hash, existingFlow, flowToAdd)
+		b.hashCollisionFlowCount.Inc()
+	}
+}
+
+func isFlowCtxExpired(flowCtx flowContext, flowTTL time.Duration, now time.Time) bool {
+	flowExpiresAt := flowCtx.lastSuccessfulFlush.Add(flowTTL)
+	return now.After(flowExpiresAt)
+}
+
+// ---------------------------------------------------------------------------
+// standardFlowAccumulator — flush produces a flat list of flows
+// ---------------------------------------------------------------------------
+
+// standardFlowAccumulator implements FlowAccumulator[[]*common.Flow].
+// Each flow context flushes independently based on its scheduled nextFlush time.
+type standardFlowAccumulator struct {
+	flowAccumulatorBase
+}
+
+var _ FlowAccumulator[[]*common.Flow] = (*standardFlowAccumulator)(nil)
+
+func newStandardFlowAccumulator(flushConfig common.FlushConfig, flowScheduler FlowScheduler, flowContextTTL time.Duration, portRollupThreshold int, portRollupDisabled bool, logger log.Component, rdnsQuerier rdnsquerier.Component) *standardFlowAccumulator {
+	return &standardFlowAccumulator{
+		flowAccumulatorBase: newFlowAccumulatorBase(flushConfig, flowScheduler, flowContextTTL, portRollupThreshold, portRollupDisabled, logger, rdnsQuerier),
+	}
+}
+
+// Add accumulates a flow into the standard (per-reporter) accumulator.
+func (s *standardFlowAccumulator) Add(flowToAdd *common.Flow) {
+	s.logger.Tracef("Add new flow: %+v", flowToAdd)
+	s.applyPortRollup(flowToAdd)
+
+	s.flowsMutex.Lock()
+	defer s.flowsMutex.Unlock()
+
+	aggHash := flowToAdd.PerReporterHash()
+	aggFlow, ok := s.flows[aggHash]
+	if !ok {
+		s.flows[aggHash] = flowContext{
+			flow:      flowToAdd,
+			nextFlush: s.scheduler.ScheduleNewFlowFlush(timeNow()),
+		}
+		s.addRDNSEnrichment(aggHash, flowToAdd.SrcAddr, flowToAdd.DstAddr)
+		return
+	}
+	if aggFlow.flow == nil {
+		aggFlow.flow = flowToAdd
+		s.addRDNSEnrichment(aggHash, flowToAdd.SrcAddr, flowToAdd.DstAddr)
+	} else {
+		s.accumulateInto(aggHash, aggFlow.flow, flowToAdd)
+	}
+	s.flows[aggHash] = aggFlow
+}
+
+// Flush flushes flow contexts that are due, returning the flows to send.
+// Each context flushes independently based on its scheduled nextFlush time.
 //
-// flowContextTTL:
-// flowContextTTL defines the duration we should keep a specific flowContext in `flowAccumulator.flows`
-// after `lastSuccessfulFlush`. // Flow context in `flowAccumulator.flows` map will be deleted if `flowContextTTL`
+// flowContextTTL defines the duration we should keep a specific flowContext in `flows`
+// after `lastSuccessfulFlush`. Flow context will be deleted if `flowContextTTL`
 // is reached to avoid keeping flow context that are not seen anymore.
 // We need to keep flowContext (contains `nextFlush` and `lastSuccessfulFlush`) after flush
 // to be able to flush at regular interval (`flowFlushInterval`).
-// Example, after a flush, flowContext will have a new nextFlush, that will be the next flush time for new flows being added.
-func (f *flowAccumulator) flush(flushContext common.FlushContext) []*common.Flow {
-	f.flowsMutex.Lock()
-	defer f.flowsMutex.Unlock()
+func (s *standardFlowAccumulator) Flush(flushContext common.FlushContext) []*common.Flow {
+	s.flowsMutex.Lock()
+	defer s.flowsMutex.Unlock()
 
 	now := flushContext.FlushTime
 	var flowsToFlush []*common.Flow
 	var expiredFlowKeys []uint64
 
-	for key, flowCtx := range f.flows {
+	for key, flowCtx := range s.flows {
 		if flowCtx.flow == nil {
-			// nil means there's no data for this flow context. Check if it's expired
-			// since we're iterating through the map anyways.
-			if isFlowCtxExpired(flowCtx, f.flowContextTTL, now) {
+			if isFlowCtxExpired(flowCtx, s.flowContextTTL, now) {
 				expiredFlowKeys = append(expiredFlowKeys, key)
 			}
 
 			// Added to support legacy behavior. Keep the same cadence for flushes.
 			if !flowCtx.nextFlush.After(now) {
-				flowCtx.nextFlush = f.scheduler.RefreshFlushTime(flowCtx)
-				f.flows[key] = flowCtx
+				flowCtx.nextFlush = s.scheduler.RefreshFlushTime(flowCtx)
+				s.flows[key] = flowCtx
 			}
 
 			continue
@@ -104,165 +319,191 @@ func (f *flowAccumulator) flush(flushContext common.FlushContext) []*common.Flow
 
 		flowCtx.lastSuccessfulFlush = now
 		flowCtx.flow = nil
-		flowCtx.nextFlush = f.scheduler.RefreshFlushTime(flowCtx)
-		f.flows[key] = flowCtx
+		flowCtx.nextFlush = s.scheduler.RefreshFlushTime(flowCtx)
+		s.flows[key] = flowCtx
 	}
 
 	for _, key := range expiredFlowKeys {
-		delete(f.flows, key)
+		delete(s.flows, key)
 	}
 
 	return flowsToFlush
 }
 
-func isFlowCtxExpired(flowCtx flowContext, flowTTL time.Duration, now time.Time) bool {
-	flowExpiresAt := flowCtx.lastSuccessfulFlush.Add(flowTTL)
-	return now.After(flowExpiresAt)
+// ---------------------------------------------------------------------------
+// dedupFlowAccumulator — flush produces one FlowGroup per 5-tuple
+// ---------------------------------------------------------------------------
+
+// dedupFlowAccumulator implements FlowAccumulator[[]FlowGroup].
+// Flows are grouped by 5-tuple; when any reporter in a group is due, the entire
+// group flushes together as a single FlowGroup.
+type dedupFlowAccumulator struct {
+	flowAccumulatorBase
+
+	// fiveTupleGroups maps a DeduplicationHash to the set of full PerReporterHashes (one per
+	// reporter) that belong to that group.
+	fiveTupleGroups map[uint64][]uint64
+
+	// prevCycleReporters holds 0-byte snapshots of reporters from the most recent flush of
+	// each group. These are returned as GhostReporters in the next flush so the platform can
+	// use them as metadata for flow_role assignment. Keyed by DeduplicationHash.
+	prevCycleReporters map[uint64][]*common.Flow
 }
 
-func (f *flowAccumulator) add(flowToAdd *common.Flow) {
-	f.logger.Tracef("Add new flow: %+v", flowToAdd)
+// Compile-time assertion that dedupFlowAccumulator implements FlowAccumulator[[]FlowGroup].
+var _ FlowAccumulator[[]FlowGroup] = (*dedupFlowAccumulator)(nil)
 
-	if !f.portRollupDisabled {
-		// Handle port rollup
-		f.portRollup.Add(flowToAdd.SrcAddr, flowToAdd.DstAddr, uint16(flowToAdd.SrcPort), uint16(flowToAdd.DstPort))
-		ephemeralStatus := f.portRollup.IsEphemeral(flowToAdd.SrcAddr, flowToAdd.DstAddr, uint16(flowToAdd.SrcPort), uint16(flowToAdd.DstPort))
-		switch ephemeralStatus {
-		case portrollup.IsEphemeralSourcePort:
-			flowToAdd.SrcPort = portrollup.EphemeralPort
-		case portrollup.IsEphemeralDestPort:
-			flowToAdd.DstPort = portrollup.EphemeralPort
-		}
+func newDedupFlowAccumulator(flushConfig common.FlushConfig, flowScheduler FlowScheduler, flowContextTTL time.Duration, portRollupThreshold int, portRollupDisabled bool, logger log.Component, rdnsQuerier rdnsquerier.Component) *dedupFlowAccumulator {
+	return &dedupFlowAccumulator{
+		flowAccumulatorBase: newFlowAccumulatorBase(flushConfig, flowScheduler, flowContextTTL, portRollupThreshold, portRollupDisabled, logger, rdnsQuerier),
+		fiveTupleGroups:     make(map[uint64][]uint64),
+		prevCycleReporters:  make(map[uint64][]*common.Flow),
 	}
+}
 
-	f.flowsMutex.Lock()
-	defer f.flowsMutex.Unlock()
+// Add accumulates a flow into the dedup accumulator. New reporters joining an
+// existing 5-tuple group inherit the group's flush time so all reporters in the
+// group flush together.
+func (d *dedupFlowAccumulator) Add(flowToAdd *common.Flow) {
+	d.logger.Tracef("Add new flow: %+v", flowToAdd)
+	d.applyPortRollup(flowToAdd)
 
-	aggHash := flowToAdd.AggregationHash()
-	aggFlow, ok := f.flows[aggHash]
+	// Compute the dedup hash after port rollup so ephemeral port rewrites are reflected.
+	dedupHash := flowToAdd.DeduplicationHash()
+
+	d.flowsMutex.Lock()
+	defer d.flowsMutex.Unlock()
+
+	reporterHash := flowToAdd.PerReporterHash()
+	aggFlow, ok := d.flows[reporterHash]
 	if !ok {
-		nextFlush := f.scheduler.ScheduleNewFlowFlush(timeNow())
-		f.flows[aggHash] = flowContext{
+		// First time seeing this reporter. Schedule its flush, inheriting the
+		// group's existing schedule if one exists so all reporters flush together.
+		nextFlush := d.scheduler.ScheduleNewFlowFlush(timeNow())
+		for _, h := range d.fiveTupleGroups[dedupHash] {
+			if existingCtx, exists := d.flows[h]; exists {
+				nextFlush = existingCtx.nextFlush
+				break
+			}
+		}
+		d.fiveTupleGroups[dedupHash] = append(d.fiveTupleGroups[dedupHash], reporterHash)
+		d.flows[reporterHash] = flowContext{
 			flow:      flowToAdd,
 			nextFlush: nextFlush,
 		}
-		f.addRDNSEnrichment(aggHash, flowToAdd.SrcAddr, flowToAdd.DstAddr)
+		d.addRDNSEnrichment(reporterHash, flowToAdd.SrcAddr, flowToAdd.DstAddr)
 		return
 	}
 	if aggFlow.flow == nil {
-		// flowToAdd is for the same hash as an aggregated flow that has been flushed
 		aggFlow.flow = flowToAdd
-		f.addRDNSEnrichment(aggHash, flowToAdd.SrcAddr, flowToAdd.DstAddr)
+		d.addRDNSEnrichment(reporterHash, flowToAdd.SrcAddr, flowToAdd.DstAddr)
 	} else {
-		// use go routine for hash collision detection to avoid blocking critical path
-		go f.detectHashCollision(aggHash, *aggFlow.flow, *flowToAdd)
+		d.accumulateInto(reporterHash, aggFlow.flow, flowToAdd)
+	}
+	d.flows[reporterHash] = aggFlow
+}
 
-		// accumulate flowToAdd with existing flow(s) with same hash
-		aggFlow.flow.Bytes += flowToAdd.Bytes
-		aggFlow.flow.Packets += flowToAdd.Packets
-		aggFlow.flow.StartTimestamp = common.Min(aggFlow.flow.StartTimestamp, flowToAdd.StartTimestamp)
-		aggFlow.flow.EndTimestamp = common.Max(aggFlow.flow.EndTimestamp, flowToAdd.EndTimestamp)
-		aggFlow.flow.SequenceNum = common.Max(aggFlow.flow.SequenceNum, flowToAdd.SequenceNum)
-		aggFlow.flow.TCPFlags |= flowToAdd.TCPFlags
+// Flush flushes reporters in deduplication mode, returning one FlowGroup per 5-tuple.
+// A group flushes when any active reporter's nextFlush is due; all reporters in the group
+// flush together. GhostReporters are 0-byte snapshots from the previous flush cycle and
+// are included so the platform can use them as metadata for flow_role assignment.
+func (d *dedupFlowAccumulator) Flush(flushContext common.FlushContext) []FlowGroup {
+	d.flowsMutex.Lock()
+	defer d.flowsMutex.Unlock()
 
-		// keep first non-null value for custom fields
-		if flowToAdd.AdditionalFields != nil {
-			if aggFlow.flow.AdditionalFields == nil {
-				aggFlow.flow.AdditionalFields = make(common.AdditionalFields)
+	now := flushContext.FlushTime
+	var result []FlowGroup
+	var emptyGroups []uint64
+
+	for fiveTupleHash, reporterHashes := range d.fiveTupleGroups {
+		// Check if any active reporter in this group is due to flush.
+		groupReady := slices.ContainsFunc(reporterHashes, func(hash uint64) bool {
+			ctx, ok := d.flows[hash]
+			if !ok {
+				return false
+			} else if ctx.flow == nil {
+				return false
 			}
 
-			for field, value := range flowToAdd.AdditionalFields {
-				if _, ok := aggFlow.flow.AdditionalFields[field]; !ok {
-					aggFlow.flow.AdditionalFields[field] = value
+			return !ctx.nextFlush.After(now)
+		})
+		if !groupReady {
+			continue
+		}
+
+		var activeFlows []*common.Flow
+		var liveHashes []uint64
+
+		for _, hash := range reporterHashes {
+			ctx, ok := d.flows[hash]
+			if !ok {
+				continue
+			}
+
+			if ctx.flow == nil {
+				// Dead context: clean up if TTL expired, otherwise keep for scheduling.
+				if isFlowCtxExpired(ctx, d.flowContextTTL, now) {
+					delete(d.flows, hash)
+				} else {
+					if !ctx.nextFlush.After(now) {
+						ctx.nextFlush = d.scheduler.RefreshFlushTime(ctx)
+						d.flows[hash] = ctx
+					}
+					liveHashes = append(liveHashes, hash)
 				}
+				continue
 			}
+
+			liveHashes = append(liveHashes, hash)
+
+			// Once the group is ready, flush ALL reporters that have data — not just
+			// those individually due. This ensures reporters with slightly offset
+			// flush times (e.g. a late joiner) are still sent together for dedup.
+			flowCopy := *ctx.flow
+			activeFlows = append(activeFlows, &flowCopy)
+			ctx.lastSuccessfulFlush = now
+			ctx.flow = nil
+			ctx.nextFlush = d.scheduler.RefreshFlushTime(ctx)
+			d.flows[hash] = ctx
+		}
+
+		if len(activeFlows) > 0 {
+			result = append(result, FlowGroup{
+				Reporters:      activeFlows,
+				GhostReporters: d.prevCycleReporters[fiveTupleHash],
+			})
+			// Store 0-byte snapshots so they become GhostReporters on the next flush.
+			d.prevCycleReporters[fiveTupleHash] = zeroedSnapshots(activeFlows)
+		} else {
+			// No active reporters this cycle — discard stale ghost data so it
+			// doesn't accumulate indefinitely for groups with only dead contexts.
+			delete(d.prevCycleReporters, fiveTupleHash)
+		}
+
+		if len(liveHashes) == 0 {
+			emptyGroups = append(emptyGroups, fiveTupleHash)
+		} else {
+			d.fiveTupleGroups[fiveTupleHash] = liveHashes
 		}
 	}
-	f.flows[aggHash] = aggFlow
+
+	for _, key := range emptyGroups {
+		delete(d.fiveTupleGroups, key)
+		delete(d.prevCycleReporters, key)
+	}
+
+	return result
 }
 
-func (f *flowAccumulator) setSrcReverseDNSHostname(aggHash uint64, hostname string, acquireLock bool) {
-	if hostname == "" {
-		return
+// zeroedSnapshots returns copies of the given flows with Bytes and Packets set to zero.
+// These are stored as prevCycleReporters and surfaced as GhostReporters on the next flush.
+func zeroedSnapshots(flows []*common.Flow) []*common.Flow {
+	snapshots := make([]*common.Flow, len(flows))
+	for i, f := range flows {
+		cp := *f
+		cp.Bytes = 0
+		cp.Packets = 0
+		snapshots[i] = &cp
 	}
-
-	if acquireLock {
-		f.flowsMutex.Lock()
-		defer f.flowsMutex.Unlock()
-	}
-
-	aggFlow, ok := f.flows[aggHash]
-	if ok && aggFlow.flow != nil {
-		aggFlow.flow.SrcReverseDNSHostname = hostname
-	}
-}
-
-func (f *flowAccumulator) setDstReverseDNSHostname(aggHash uint64, hostname string, acquireLock bool) {
-	if hostname == "" {
-		return
-	}
-
-	if acquireLock {
-		f.flowsMutex.Lock()
-		defer f.flowsMutex.Unlock()
-	}
-
-	aggFlow, ok := f.flows[aggHash]
-	if ok && aggFlow.flow != nil {
-		aggFlow.flow.DstReverseDNSHostname = hostname
-	}
-}
-
-func (f *flowAccumulator) addRDNSEnrichment(aggHash uint64, srcAddr []byte, dstAddr []byte) {
-	err := f.rdnsQuerier.GetHostnameAsync(
-		srcAddr,
-		// Sync callback, lock is already held
-		func(hostname string) {
-			f.setSrcReverseDNSHostname(aggHash, hostname, false)
-		},
-		// Async callback will reacquire the lock
-		func(hostname string, err error) {
-			if err != nil {
-				f.logger.Debugf("Error resolving reverse DNS enrichment for source IP address: %v error: %v", srcAddr, err)
-				return
-			}
-			f.setSrcReverseDNSHostname(aggHash, hostname, true)
-		},
-	)
-	if err != nil {
-		f.logger.Debugf("Error requesting reverse DNS enrichment for source IP address: %v error: %v", srcAddr, err)
-	}
-
-	err = f.rdnsQuerier.GetHostnameAsync(
-		dstAddr,
-		// Sync callback, lock is held
-		func(hostname string) {
-			f.setDstReverseDNSHostname(aggHash, hostname, false)
-		},
-		// Async callback will reacquire the lock
-		func(hostname string, err error) {
-			if err != nil {
-				f.logger.Debugf("Error resolving reverse DNS enrichment for destination IP address: %v error: %v", dstAddr, err)
-				return
-			}
-			f.setDstReverseDNSHostname(aggHash, hostname, true)
-		},
-	)
-	if err != nil {
-		f.logger.Debugf("Error requesting reverse DNS enrichment for destination IP address: %v error: %v", dstAddr, err)
-	}
-}
-
-func (f *flowAccumulator) getFlowContextCount() int {
-	f.flowsMutex.Lock()
-	defer f.flowsMutex.Unlock()
-
-	return len(f.flows)
-}
-
-func (f *flowAccumulator) detectHashCollision(hash uint64, existingFlow common.Flow, flowToAdd common.Flow) {
-	if !common.IsEqualFlowContext(existingFlow, flowToAdd) {
-		f.logger.Warnf("Hash collision for flows with hash `%d`: existingFlow=`%+v` flowToAdd=`%+v`", hash, existingFlow, flowToAdd)
-		f.hashCollisionFlowCount.Inc()
-	}
+	return snapshots
 }

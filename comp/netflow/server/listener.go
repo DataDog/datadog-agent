@@ -22,7 +22,7 @@ type netflowListener struct {
 	flowCount *atomic.Int64
 }
 
-func startFlowListener(listenerConfig config.ListenerConfig, flowAgg *flowaggregator.FlowAggregator, logger log.Component) (*netflowListener, error) {
+func startFlowListener(listenerConfig config.ListenerConfig, flowAgg flowaggregator.FlowAggregatorRunner, logger log.Component) (*netflowListener, error) {
 	listenerAtomicErr := atomic.NewString("")
 	listenerFlowCount := atomic.NewInt64(0)
 

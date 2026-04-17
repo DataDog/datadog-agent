@@ -53,9 +53,9 @@ func singleListenerConfig(flowType common.FlowType, port uint16) *nfconfig.Netfl
 var flushTime, _ = time.Parse(time.RFC3339, "2019-02-18T16:00:06Z")
 
 var setTimeNow = fx.Invoke(func(c Component) {
-	c.(*Server).FlowAgg.TimeNowFunction = func() time.Time {
+	c.(*Server).FlowAgg.SetTimeNowFunction(func() time.Time {
 		return flushTime
-	}
+	})
 })
 
 func assertFlowEventsCount(t *testing.T, port uint16, srv *Server, packetData []byte, expectedEvents uint64) bool {

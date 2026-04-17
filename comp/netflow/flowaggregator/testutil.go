@@ -12,7 +12,7 @@ import (
 
 // WaitForFlowsToBeFlushed waits up to timeoutDuration for at least minEvents
 // flows to be flushed by the aggregator. It is intended for testing.
-func WaitForFlowsToBeFlushed(aggregator *FlowAggregator, timeoutDuration time.Duration, minEvents uint64) (uint64, error) {
+func WaitForFlowsToBeFlushed(aggregator FlowAggregatorRunner, timeoutDuration time.Duration, minEvents uint64) (uint64, error) {
 	timeout := time.After(timeoutDuration)
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
@@ -24,7 +24,7 @@ func WaitForFlowsToBeFlushed(aggregator *FlowAggregator, timeoutDuration time.Du
 			return 0, errors.New("timeout error waiting for events")
 		// Got a tick, we should check on doSomething()
 		case <-ticker.C:
-			events := aggregator.flushedFlowCount.Load()
+			events := aggregator.GetFlushedFlowCount().Load()
 			if events >= minEvents {
 				return events, nil
 			}
@@ -32,27 +32,20 @@ func WaitForFlowsToBeFlushed(aggregator *FlowAggregator, timeoutDuration time.Du
 	}
 }
 
-// WaitForFlowsToAccumulate waits up to timeoutDuration for at least minEvents
-// flows to be flushed by the aggregator. It is intended for testing.
-func WaitForFlowsToAccumulate(aggregator *FlowAggregator, timeoutDuration time.Duration, minFlows int) error {
+// WaitForFlowsToAccumulate waits up to timeoutDuration for at least minFlows
+// flows to be accumulated by the aggregator. It is intended for testing.
+func WaitForFlowsToAccumulate(aggregator FlowAggregatorRunner, timeoutDuration time.Duration, minFlows int) error {
 	timeout := time.After(timeoutDuration)
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
-	// Keep trying until we're timed out or got a result or got an error
 	for {
 		select {
-		// Got a timeout! fail with a timeout error
 		case <-timeout:
 			return errors.New("timeout error waiting for events")
-		// Got a tick, we should check on doSomething()
 		case <-ticker.C:
-			// more hacky mutex locking, need to verify that flows accumulated by reading shared memory
-			aggregator.flowAcc.flowsMutex.Lock()
-			if len(aggregator.flowAcc.flows) >= minFlows {
-				aggregator.flowAcc.flowsMutex.Unlock()
+			if aggregator.GetFlowContextCount() >= minFlows {
 				return nil
 			}
-			aggregator.flowAcc.flowsMutex.Unlock()
 		}
 	}
 }
@@ -60,7 +53,7 @@ func WaitForFlowsToAccumulate(aggregator *FlowAggregator, timeoutDuration time.D
 // SetAggregatorTicker sets up a mock ticker for the aggregator. It returns the channels that the aggregator will use
 // in its flushLoop. This implementation is tied to the order that the aggregator requests channels, if that changes
 // this is likely broken.
-func SetAggregatorTicker(agg *FlowAggregator) (chan time.Time, chan time.Time) {
+func SetAggregatorTicker[T any](agg *FlowAggregator[T]) (chan time.Time, chan time.Time) {
 	callCount := 0
 	flushChannel := make(chan time.Time)
 	rollupChannel := make(chan time.Time)
