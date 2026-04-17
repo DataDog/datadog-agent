@@ -12,5 +12,11 @@ if (-not (($acl = Get-Acl $diskCache).Access | Where-Object { -not $_.IsInherite
     Set-Acl $diskCache $acl
     Get-ChildItem $diskCache -Recurse | ForEach-Object { Set-Acl $_.FullName $acl }
 }
-& docker run --rm --env=BAZELISK_HOME --env=CI --env=XDG_CACHE_HOME --volume="${env:XDG_CACHE_HOME}:${env:XDG_CACHE_HOME}" $args
+& docker run --rm `
+    --env=BAZELISK_HOME `
+    --env=BUILDBARN_ID_TOKEN `
+    --env=CI `
+    --env=XDG_CACHE_HOME `
+    --volume="${env:XDG_CACHE_HOME}:${env:XDG_CACHE_HOME}" `
+    $args
 exit $LASTEXITCODE

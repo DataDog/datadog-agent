@@ -8,77 +8,25 @@ package rcprotocoltestimpl
 import (
 	"bytes"
 	"context"
-	"net/http"
+	"fmt"
+	"path"
 	"strconv"
+	"strings"
 	"time"
+
+	"github.com/gorilla/websocket"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/api"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
-	"github.com/gorilla/websocket"
 )
 
 // The server must transmit a PING or DATA frame at least once per
 // messageTimeout interval or the test times out.
 const messageTimeout = 5 * time.Minute
 
-// Max retry backoff for reconnect attempts after a non-fatal error
-const reconnectMaxDelay = 5 * time.Minute
-
-// RunEchoTest connects to the echo test endpoint ("/api/v0.2/echo-test") in the
-// Remote Config backend, upgrades the HTTP request to a WebSocket connection,
-// and exchanges a series of data frames to measure connectivity, delivery and
-// latency metrics.
-//
-// The server is expected to "drive" the test by sending frames of varying
-// configurations and waiting for the client to echo them back. The connection
-// is closed by the server upon test completion.
-//
-// The test continues as long as the connection remains open and the server
-// sends a frame at least once every 5 minutes, otherwise the test times out and
-// the connection is (ungracefully) closed.
-//
-// Cancel ctx to abort the test - the function will return after the next
-// message arrives (or times out).
-func RunEchoTest(ctx context.Context, client *api.HTTPClient) {
-	log.Debug("starting remote config websocket echo test")
-
-	reconnections := uint(0)
-	delay := 1 * time.Minute // start delay at 1 min
-	for {
-		n, err := runEchoLoop(ctx, client, reconnections)
-		if err == nil {
-			log.Debugf("remote config websocket test complete (%d data frames exchanged)", n)
-			return
-		}
-		if ctx.Err() != nil {
-			log.Debugf("remote config websocket test aborted: %s (%d data frames exchanged)", err, n)
-			return
-		}
-		reconnections++
-		delay += 1 * time.Minute
-		if delay > reconnectMaxDelay {
-			log.Debug("remote config websocket test failed after 5 reconnections")
-			return
-		}
-		log.Debugf("websocket echo test disconnected (reconnections=%d), retrying in %s: %s (%d data frames exchanged)", reconnections, delay, err, n)
-
-		// Check for test aborts during test
-		select {
-		case <-ctx.Done():
-			log.Debugf("remote config websocket test aborted during retry backoff")
-			return
-		case <-time.After(delay):
-		}
-	}
-}
-
-func runEchoLoop(ctx context.Context, client *api.HTTPClient, reconnections uint) (uint, error) {
-	extraHeaders := http.Header{
-		"X-Echo-Reconnections": []string{strconv.FormatUint(uint64(reconnections), 10)},
-		"X-Agent-UUID":         []string{uuid.GetUUID()},
-	}
-	conn, err := client.NewWebSocket(ctx, "/api/v0.2/echo-test", extraHeaders)
+func runEchoLoop(ctx context.Context, client *api.HTTPClient, runCount uint64) (uint, error) {
+	conn, err := newWebSocketClient(ctx, "/api/v0.2/echo-test", client, runCount)
 	if err != nil {
 		return 0, err
 	}
@@ -160,4 +108,59 @@ func gracefulAbort(conn *websocket.Conn) {
 		websocket.FormatCloseMessage(websocket.CloseGoingAway, "test cancel"),
 		time.Now().Add(time.Second),
 	)
+}
+
+// newWebSocketClient connects to the RC WebSocket backend and returns a new
+// WebSocket connection or a connection / handshake error.
+//
+// The "endpointPath" specifies the resource path to connect to, which is
+// appended to the client baseURL.
+func newWebSocketClient(ctx context.Context, endpointPath string, httpClient *api.HTTPClient, runCount uint64) (*websocket.Conn, error) {
+	// Extract the TLS & Proxy configuration from the HTTP client.
+	transport, err := httpClient.Transport()
+	if err != nil {
+		return nil, err
+	}
+
+	dialer := &websocket.Dialer{
+		HandshakeTimeout: 30 * time.Second,
+		TLSClientConfig:  transport.TLSClientConfig,
+		Proxy:            transport.Proxy,
+	}
+
+	// The WebSocket request MUST include the same auth credentials as the plain
+	// HTTP requests.
+	headers := httpClient.Headers()
+	// In addition to extra debug headers.
+	headers.Set("X-Echo-Run-Count", strconv.FormatUint(runCount, 10))
+	headers.Set("X-Agent-UUID", uuid.GetUUID())
+
+	// Parse the "base URL" the client uses to connect to RC.
+	url, err := httpClient.BaseURL()
+	if err != nil {
+		return nil, err
+	}
+	// Append the specific path to the WebSocket resource.
+	url.Path = path.Join(url.Path, endpointPath)
+	// Change the protocol to use websockets.
+	switch strings.ToLower(url.Scheme) {
+	case "http":
+		url.Scheme = "ws"
+	case "https":
+		url.Scheme = "wss"
+	}
+
+	log.Debugf("connecting to websocket endpoint %s", url.String())
+
+	// Send the HTTP request, wait for the upgrade response and then perform the
+	// WebSocket handshake.
+	conn, resp, err := dialer.DialContext(ctx, url.String(), headers)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open websocket connection: %s", err)
+	}
+	_ = resp.Body.Close()
+
+	log.Debug("websocket connected")
+
+	return conn, nil
 }

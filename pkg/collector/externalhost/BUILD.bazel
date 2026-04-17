@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "externalhost",
+    srcs = [
+        "doc.go",
+        "externalhost.go",
+        "payload.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/externalhost",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "externalhost_test",
+    srcs = ["externalhost_test.go"],
+    embed = [":externalhost"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

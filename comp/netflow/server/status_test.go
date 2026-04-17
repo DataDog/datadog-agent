@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/atomic"
 
-	nfconfig "github.com/DataDog/datadog-agent/comp/netflow/config"
+	nfconfig "github.com/DataDog/datadog-agent/comp/netflow/config/def"
 )
 
 func TestStatusProvider(t *testing.T) {

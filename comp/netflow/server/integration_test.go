@@ -33,7 +33,7 @@ import (
 	ndmtestutils "github.com/DataDog/datadog-agent/pkg/networkdevice/testutils"
 
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
-	nfconfig "github.com/DataDog/datadog-agent/comp/netflow/config"
+	nfconfig "github.com/DataDog/datadog-agent/comp/netflow/config/def"
 	"github.com/DataDog/datadog-agent/comp/netflow/flowaggregator"
 	"github.com/DataDog/datadog-agent/comp/netflow/testutil"
 )

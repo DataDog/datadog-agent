@@ -17,8 +17,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// Test client-side behaviour when the RC backend is not serving the WebSocket
-// echo endpoint (not listening, endpoint 404's or 500's).
+// Test client-side behaviour when the RC backend is not serving the echo
+// endpoint (not listening, endpoint 404's or 500's).
 func TestWebSocketActor_upstream(t *testing.T) {
 	t.Parallel()
 
@@ -70,16 +70,16 @@ func TestWebSocketActor_upstream(t *testing.T) {
 			client, err := api.NewHTTPClient(api.Auth{}, agentConfig, url)
 			assert.NoError(err)
 
-			actor := newWebSocketTestActor(client)
+			actor := newEchoTestActor(client)
 
 			// Wrap the callback to assert it is invoked.
 			// Signal calledCh before calling fn so that the the actor can
-			// cancel the context and the RunEchoTest retry loop will be unblocked
+			// cancel the context and the RunTransportTests preflight will be unblocked
 			calledCh := make(chan struct{}, 1)
 			fn := actor.fn
-			actor.fn = func(ctx context.Context, client *api.HTTPClient) {
+			actor.fn = func(ctx context.Context, client *api.HTTPClient, runCount uint64) {
 				calledCh <- struct{}{}
-				fn(ctx, client)
+				fn(ctx, client, runCount)
 			}
 
 			actor.Start()
@@ -107,11 +107,11 @@ func TestPanicHandler(t *testing.T) {
 	client, err := api.NewHTTPClient(api.Auth{}, agentConfig, url)
 	assert.NoError(err)
 
-	actor := newWebSocketTestActor(client)
+	actor := newEchoTestActor(client)
 
 	// Wrap the callback to assert it is invoked.
 	calledCh := make(chan struct{}, 1)
-	actor.fn = func(_ctx context.Context, _client *api.HTTPClient) {
+	actor.fn = func(_ctx context.Context, _client *api.HTTPClient, _runCount uint64) {
 		calledCh <- struct{}{}
 		panic("bananas!")
 	}

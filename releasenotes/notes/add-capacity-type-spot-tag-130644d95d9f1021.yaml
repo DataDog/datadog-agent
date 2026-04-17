@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    Added a ``capacity-type:spot`` host tag on AWS EC2 Spot instances. The tag
+    is collected from IMDS and added alongside the other EC2 instance info
+    host tags when ``collect_ec2_instance_info`` is enabled.
