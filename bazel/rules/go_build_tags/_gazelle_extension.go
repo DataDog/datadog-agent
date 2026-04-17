@@ -13,6 +13,10 @@
 // the test source files themselves. For example, if a test file is gated by
 // //go:build ec2, the extension adds "ec2" to gotags so rules_go does not
 // silently exclude the file, producing a test binary with no tests.
+//
+// Tags listed in knownLinuxOnlyTags (mirroring tasks/build_tags.py LINUX_ONLY_TAGS)
+// are injected only on Linux via a select() expression, matching the behaviour of
+// dda inv test which never passes those tags on non-Linux platforms.
 package go_build_tags
 
 import (
@@ -24,6 +28,7 @@ import (
 
 	"github.com/bazelbuild/bazel-gazelle/language"
 	"github.com/bazelbuild/bazel-gazelle/rule"
+	bzl "github.com/bazelbuild/buildtools/build"
 )
 
 const extName = "go_build_tags"
@@ -51,10 +56,12 @@ func (*lang) Kinds() map[string]rule.KindInfo {
 	}
 }
 
-// GenerateRules adds gotags = ["test"] to every go_test rule so that
-// rules_go's configuration transition propagates the "test" build tag to all
-// transitive library deps during test builds. It also adds any additional
-// user-defined build tags required by the test source files themselves.
+// GenerateRules adds gotags to every go_test rule. "test" is always included.
+// Additional user-defined build tags found in the test source files are split
+// into two buckets:
+//   - cross-platform tags are added directly to the list.
+//   - Linux-only tags (knownLinuxOnlyTags) are wrapped in a select() so they
+//     are only active on Linux, matching the behaviour of dda inv test.
 //
 // For AND expressions every tag is required, so all branches are collected.
 // For OR expressions the left branch is tried first; the right branch is only
@@ -65,12 +72,60 @@ func (*lang) GenerateRules(args language.GenerateArgs) language.GenerateResult {
 		if r.Kind() != "go_test" {
 			continue
 		}
-		addStringToListIfMissing(r, "gotags", "test")
+		alwaysTags := []string{"test"}
+		var linuxOnlyTags []string
 		for _, tag := range requiredSourceTags(r.AttrStrings("srcs"), args.Dir) {
-			addStringToListIfMissing(r, "gotags", tag)
+			if isLinuxOnlyTag(tag) {
+				linuxOnlyTags = appendIfMissing(linuxOnlyTags, tag)
+			} else {
+				alwaysTags = appendIfMissing(alwaysTags, tag)
+			}
 		}
+		setGoTags(r, alwaysTags, linuxOnlyTags)
 	}
 	return language.GenerateResult{}
+}
+
+// setGoTags sets the gotags attribute on r. When linuxOnlyTags is non-empty the
+// generated expression is:
+//
+//	alwaysTags + select({"@platforms//os:linux": linuxOnlyTags, "//conditions:default": []})
+//
+// so that only Linux Bazel builds compile the Linux-only gated source files.
+func setGoTags(r *rule.Rule, alwaysTags, linuxOnlyTags []string) {
+	if len(linuxOnlyTags) == 0 {
+		r.SetAttr("gotags", alwaysTags)
+		return
+	}
+	alwaysExprs := make([]bzl.Expr, len(alwaysTags))
+	for i, t := range alwaysTags {
+		alwaysExprs[i] = &bzl.StringExpr{Value: t}
+	}
+	linuxExprs := make([]bzl.Expr, len(linuxOnlyTags))
+	for i, t := range linuxOnlyTags {
+		linuxExprs[i] = &bzl.StringExpr{Value: t}
+	}
+	r.SetAttr("gotags", &bzl.BinaryExpr{
+		X:  &bzl.ListExpr{List: alwaysExprs},
+		Op: "+",
+		Y: &bzl.CallExpr{
+			X: &bzl.Ident{Name: "select"},
+			List: []bzl.Expr{
+				&bzl.DictExpr{
+					List: []*bzl.KeyValueExpr{
+						{
+							Key:   &bzl.StringExpr{Value: "@platforms//os:linux"},
+							Value: &bzl.ListExpr{List: linuxExprs},
+						},
+						{
+							Key:   &bzl.StringExpr{Value: "//conditions:default"},
+							Value: &bzl.ListExpr{},
+						},
+					},
+				},
+			},
+		},
+	})
 }
 
 // requiredSourceTags collects user-defined build tags from the //go:build
@@ -165,7 +220,30 @@ func walkPositive(expr constraint.Expr, tags *[]string) {
 	}
 }
 
-// isExcludedTag reports whether tag should not be injected into gotags.
+// isLinuxOnlyTag reports whether tag must only be injected into gotags on Linux.
+// This mirrors LINUX_ONLY_TAGS in tasks/build_tags.py: dda inv test never passes
+// these tags on non-Linux platforms, so including them unconditionally in gotags
+// would cause non-Linux Bazel builds to compile Linux-only test files.
+func isLinuxOnlyTag(tag string) bool {
+	_, ok := knownLinuxOnlyTags[tag]
+	return ok
+}
+
+// knownLinuxOnlyTags mirrors LINUX_ONLY_TAGS from tasks/build_tags.py (line 270).
+// Keep in sync when that set changes.
+var knownLinuxOnlyTags = map[string]struct{}{
+	"crio":      {},
+	"jetson":    {},
+	"linux_bpf": {},
+	"netcgo":    {},
+	"nvml":      {},
+	"pcap":      {},
+	"podman":    {},
+	"systemd":   {},
+	"trivy":     {},
+}
+
+// isExcludedTag reports whether tag should not be injected into gotags at all.
 // These are user-defined tags that require special infrastructure or build
 // contexts not available in the standard test environment.
 func isExcludedTag(tag string) bool {
@@ -223,12 +301,11 @@ var knownGOARCH = map[string]struct{}{
 	"s390x": {}, "sparc": {}, "sparc64": {}, "wasm": {},
 }
 
-func addStringToListIfMissing(r *rule.Rule, attr, value string) {
-	existing := r.AttrStrings(attr)
-	for _, s := range existing {
-		if s == value {
-			return
+func appendIfMissing(slice []string, s string) []string {
+	for _, existing := range slice {
+		if existing == s {
+			return slice
 		}
 	}
-	r.SetAttr(attr, append(existing, value))
+	return append(slice, s)
 }
