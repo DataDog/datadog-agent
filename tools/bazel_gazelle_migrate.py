@@ -35,7 +35,7 @@ def log(msg: str) -> None:
 
 
 def run(cmd: list[str], *, check: bool = True, capture: bool = False) -> subprocess.CompletedProcess:
-    kwargs: dict = dict(cwd=REPO_ROOT)
+    kwargs = {"cwd": REPO_ROOT}
     if capture:
         kwargs["capture_output"] = True
         kwargs["text"] = True
@@ -70,7 +70,7 @@ def remove_exclude_line(path: str) -> None:
     text = BUILD_BAZEL.read_text()
     target_line = f"# gazelle:exclude {path}"
     lines = text.splitlines(keepends=True)
-    new_lines = [l for l in lines if l.rstrip() != target_line]
+    new_lines = [line for line in lines if line.rstrip() != target_line]
     if len(new_lines) == len(lines):
         raise ValueError(f"Line not found in BUILD.bazel: {target_line!r}")
     BUILD_BAZEL.write_text("".join(new_lines))
@@ -113,7 +113,7 @@ def remove_added_exclude_lines(paths: list[str]) -> None:
     text = BUILD_BAZEL.read_text()
     target_lines = {f"# gazelle:exclude {p}" for p in paths}
     lines = text.splitlines(keepends=True)
-    BUILD_BAZEL.write_text("".join(l for l in lines if l.rstrip() not in target_lines))
+    BUILD_BAZEL.write_text("".join(line for line in lines if line.rstrip() not in target_lines))
 
 
 def get_subdirs(path: str) -> list[str]:
@@ -337,10 +337,7 @@ def try_migrate(path: str, test_targets: list[str]) -> tuple[bool, str]:
     # no BUILD.bazel yet (still gazelle-excluded) and adding sub-dir excludes
     # inside our package cannot fix that.  Fail fast with a clear message.
     all_failing = failing_packages_from_output(test_output)
-    unrelated = [
-        p for p in all_failing
-        if p != path and not p.startswith(path.rstrip("/") + "/")
-    ]
+    unrelated = [p for p in all_failing if p != path and not p.startswith(path.rstrip("/") + "/")]
     if unrelated:
         restore_exclude_line(path)
         log("  BLOCKED: migration requires package(s) outside this subtree that have no BUILD.bazel yet:")
@@ -389,7 +386,6 @@ def try_migrate(path: str, test_targets: list[str]) -> tuple[bool, str]:
 
     passed, _ = run_tests(test_targets)
     if passed:
-        excluded_note = ", ".join(newly_added_excludes)
         commit(path, new_files)
         return True, f"partial ({len(newly_added_excludes)} sub-dir(s) still excluded)"
 
