@@ -486,7 +486,12 @@ func (f *TelemetryForwarder) forwardBatchToEndpoints(batch forwardedBatch) {
 		_ = f.statsd.Timing("datadog.trace_agent.telemetry_proxy.roundtrip_ms", time.Since(start), tags, 1)
 		if err != nil {
 			_ = f.statsd.Count("datadog.trace_agent.telemetry_proxy.error", 1, tags, 1)
+			f.logger.Error("%v", err)
 			continue
+		}
+		if !(200 <= resp.StatusCode && resp.StatusCode < 300) {
+			_ = f.statsd.Count("datadog.trace_agent.telemetry_proxy.error", 1, tags, 1)
+			f.logger.Error("Received unexpected status code %v", resp.StatusCode)
 		}
 		_, _ = io.Copy(io.Discard, resp.Body)
 		resp.Body.Close()
