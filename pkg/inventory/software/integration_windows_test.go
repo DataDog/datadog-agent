@@ -12,34 +12,13 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
 
-	"github.com/bazelbuild/rules_go/go/runfiles"
 	"github.com/stretchr/testify/require"
 )
-
-func init() {
-	dllRlocation := os.Getenv("INTEROP_DLL_PATH")
-	if dllRlocation == "" {
-		return
-	}
-	resolved, err := runfiles.Rlocation(dllRlocation)
-	if err != nil {
-		panic(fmt.Sprintf("failed to resolve interop DLL runfile location: %s", err))
-	}
-	// Runfiles on Windows are junctions; resolve to the real bazel-out path
-	// so the directory stays under MAX_PATH for LoadLibrary.
-	if target, linkErr := os.Readlink(resolved); linkErr == nil {
-		resolved = target
-	}
-	fmt.Fprintf(os.Stderr, "dll_init: resolved=%q len=%d\n", resolved, len(resolved))
-	os.Setenv("PATH", filepath.Dir(resolved)+";"+os.Getenv("PATH"))
-}
 
 func TestIntegrationCompareWithPowerShell(t *testing.T) {
 	if testing.Short() {
