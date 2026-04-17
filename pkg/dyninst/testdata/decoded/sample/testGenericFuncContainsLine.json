@@ -57,7 +57,7 @@
                   "type": "go.shape.string",
                   "value": "b"
                 },
-                "~r0": {
+                "@return": {
                   "type": "bool",
                   "notCapturedReason": "unavailable"
                 }
@@ -148,7 +148,7 @@
                   "type": "int",
                   "value": "2"
                 },
-                "~r0": {
+                "@return": {
                   "type": "bool",
                   "notCapturedReason": "unavailable"
                 }
@@ -239,7 +239,7 @@
                   "type": "main.namedInt",
                   "value": "2"
                 },
-                "~r0": {
+                "@return": {
                   "type": "bool",
                   "notCapturedReason": "unavailable"
                 }
@@ -330,7 +330,7 @@
                   "type": "main.score",
                   "value": "20"
                 },
-                "~r0": {
+                "@return": {
                   "type": "bool",
                   "notCapturedReason": "unavailable"
                 }
@@ -417,7 +417,7 @@
                   "type": "main.celsius",
                   "value": "100"
                 },
-                "~r0": {
+                "@return": {
                   "type": "bool",
                   "notCapturedReason": "unavailable"
                 }

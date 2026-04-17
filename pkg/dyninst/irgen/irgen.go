@@ -519,6 +519,131 @@ type analyzedProbe struct {
 	isSnapshot bool
 }
 
+// cleanReturnNames computes display names for return variables used as field
+// names under @return in multi-return snapshots. For single returns, it returns
+// nil (the caller should use "@return" directly). For multiple returns, it
+// strips the leading ~ from compiler-generated names and resolves conflicts
+// with underscore prefixing.
+func cleanReturnNames(vars []*ir.Variable) map[*ir.Variable]string {
+	if len(vars) <= 1 {
+		return nil
+	}
+	// First pass: strip ~ prefix from each name, track which are compiler-generated.
+	type entry struct {
+		cleaned   string
+		generated bool // true if original name had ~ prefix
+	}
+	entries := make([]entry, len(vars))
+	for i, v := range vars {
+		if strings.HasPrefix(v.Name, "~") {
+			entries[i] = entry{cleaned: v.Name[1:], generated: true}
+		} else {
+			entries[i] = entry{cleaned: v.Name, generated: false}
+		}
+	}
+	// Collect all names that are taken (user-chosen names always win).
+	taken := make(map[string]bool, len(vars))
+	for _, e := range entries {
+		if !e.generated {
+			taken[e.cleaned] = true
+		}
+	}
+	// Second pass: resolve conflicts for generated names.
+	result := make(map[*ir.Variable]string, len(vars))
+	for i, v := range vars {
+		e := entries[i]
+		if e.generated {
+			name := e.cleaned
+			for taken[name] {
+				name = "_" + name
+			}
+			taken[name] = true
+			result[v] = name
+		} else {
+			taken[e.cleaned] = true
+			result[v] = e.cleaned
+		}
+	}
+	return result
+}
+
+// resolveReturnExpr resolves an expression referencing @return to the
+// corresponding return variable and rewrites the expression to target that
+// variable directly.
+//
+// For single returns, ref("@return") is rewritten to ref(varName).
+// For multiple returns, getmember(ref("@return"), "field") is matched against
+// displayNames and rewritten to ref(varName). A bare @return is rejected
+// since multi-value returns require a field selector, and referencing more
+// than one distinct field in the same expression is rejected since the
+// result must resolve to a single root variable.
+//
+// Returns the resolved variable, the rewritten expression, and an error
+// message if resolution fails.
+func resolveReturnExpr(
+	expr exprlang.Expr,
+	returnVars []*ir.Variable,
+	displayNames map[*ir.Variable]string,
+) (rootVar *ir.Variable, rewritten exprlang.Expr, errMsg string) {
+	if len(returnVars) == 1 {
+		v := returnVars[0]
+		rewritten = exprlang.Rewrite(expr, func(e exprlang.Expr) exprlang.Expr {
+			if ref, ok := e.(*exprlang.RefExpr); ok && ref.Ref == "@return" {
+				return &exprlang.RefExpr{Ref: v.Name}
+			}
+			return nil
+		})
+		return v, rewritten, ""
+	}
+
+	var matched *ir.Variable
+	for node := range exprlang.Children(expr) {
+		gme, ok := node.(*exprlang.GetMemberExpr)
+		if !ok {
+			continue
+		}
+		ref, ok := gme.Base.(*exprlang.RefExpr)
+		if !ok || ref.Ref != "@return" {
+			continue
+		}
+		var v *ir.Variable
+		for _, rv := range returnVars {
+			if displayNames[rv] == gme.Member {
+				v = rv
+				break
+			}
+		}
+		if v == nil {
+			errMsg = fmt.Sprintf(
+				"@return field %q does not match any return variable", gme.Member)
+			break
+		}
+		if matched != nil && matched != v {
+			errMsg = "expression references multiple @return fields"
+			break
+		}
+		matched = v
+	}
+	switch {
+	case errMsg != "":
+		return nil, nil, errMsg
+	case matched == nil:
+		return nil, nil, "return value selector (e.g., @return.r0) must be used for multi-value returns"
+	}
+	rewritten = exprlang.Rewrite(expr, func(e exprlang.Expr) exprlang.Expr {
+		gme, ok := e.(*exprlang.GetMemberExpr)
+		if !ok {
+			return nil
+		}
+		ref, ok := gme.Base.(*exprlang.RefExpr)
+		if !ok || ref.Ref != "@return" {
+			return nil
+		}
+		return &exprlang.RefExpr{Ref: matched.Name}
+	})
+	return matched, rewritten, ""
+}
+
 // extractRootVariableName extracts the root variable name from an expression.
 func extractRootVariableName(expr exprlang.Expr) (string, bool) {
 	const maxDepth = 30
@@ -664,6 +789,17 @@ func analyzeAllProbes(
 				}
 			}
 
+			// Pre-scan: collect return variables and compute display names.
+			var returnVars []*ir.Variable
+			if haveReturn {
+				for _, v := range inst.Subprogram.Variables {
+					if v.Role == ir.VariableRoleReturn {
+						returnVars = append(returnVars, v)
+					}
+				}
+			}
+			returnDisplayNames := cleanReturnNames(returnVars) // nil for 0 or 1 returns
+
 			// Process each variable.
 			for _, v := range inst.Subprogram.Variables {
 				var evKind ir.EventKind
@@ -685,7 +821,7 @@ func analyzeAllProbes(
 					// which would just require extending the next case to also be
 					// triggered for return variables.
 					evKind = ir.EventKindReturn
-					exprKind = ir.RootExpressionKindLocal
+					exprKind = ir.RootExpressionKindReturn
 
 				case len(inst.Events) == 1 &&
 					inst.Events[0].Kind == ir.EventKindLine:
@@ -709,9 +845,18 @@ func analyzeAllProbes(
 				// Capture expression probes only capture explicitly listed
 				// expressions (handled below), not all variables.
 				if isSnapshot && !isCaptureExpression {
+					// Compute the display name for this expression.
+					name := v.Name
+					if v.Role == ir.VariableRoleReturn {
+						if returnDisplayNames == nil {
+							name = "@return"
+						} else {
+							name = returnDisplayNames[v]
+						}
+					}
 					ap.expressions = append(ap.expressions, analyzedExpression{
 						expr:         &exprlang.RefExpr{Ref: v.Name},
-						dsl:          v.Name,
+						dsl:          name,
 						rootVariable: v,
 						eventKind:    evKind,
 						exprKind:     exprKind,
@@ -721,7 +866,8 @@ func analyzeAllProbes(
 					addRoot(v.Type.GetID(), budget)
 				}
 
-				// Match template segments to this variable.
+				// Match template segments to this variable by its original name.
+				// Named returns (e.g., "result") remain accessible by name.
 				//
 				// Note: there's no risk of picking the wrong variable due to
 				// shadowing, but there should be! In materializePending we ensure
@@ -754,6 +900,33 @@ func analyzeAllProbes(
 				delete(segmentRefs, v.Name)
 			}
 
+			// Handle @return references in template segments.
+			if segs, ok := segmentRefs["@return"]; ok && len(returnVars) > 0 {
+				for _, seg := range segs {
+					rv, rewritten, errMsg := resolveReturnExpr(
+						seg.segment.JSON, returnVars, returnDisplayNames,
+					)
+					if rv != nil {
+						ap.expressions = append(ap.expressions, analyzedExpression{
+							expr:         rewritten,
+							dsl:          seg.segment.DSL,
+							rootVariable: rv,
+							eventKind:    ir.EventKindReturn,
+							exprKind:     ir.RootExpressionKindTemplateSegment,
+							segment:      seg.segment,
+							segmentIdx:   seg.index,
+						})
+						addRoot(rv.Type.GetID(), budget)
+					} else {
+						ap.template.Segments[seg.index] = ir.InvalidSegment{
+							Error: errMsg,
+							DSL:   seg.segment.DSL,
+						}
+					}
+				}
+				delete(segmentRefs, "@return")
+			}
+
 			// Process capture expressions.
 			for _, ce := range probe.ProbeDefinition.GetCaptureExpressions() {
 				parsedExpr, err := exprlang.Parse(ce.GetJSON())
@@ -764,7 +937,15 @@ func analyzeAllProbes(
 				if !ok {
 					continue
 				}
-				rootVar := varByName[rootVarName]
+				// Handle @return references in capture expressions.
+				var rootVar *ir.Variable
+				if rootVarName == "@return" && len(returnVars) > 0 {
+					rootVar, parsedExpr, _ = resolveReturnExpr(
+						parsedExpr, returnVars, returnDisplayNames,
+					)
+				} else {
+					rootVar = varByName[rootVarName]
+				}
 				if rootVar == nil {
 					continue
 				}
@@ -863,7 +1044,21 @@ func analyzeAllProbes(
 						Message: "failed to extract root variable from condition",
 					}
 				}
-				rootVar := varByName[rootVarName]
+				var rootVar *ir.Variable
+				if rootVarName == "@return" && len(returnVars) > 0 {
+					var errMsg string
+					rootVar, condExpr, errMsg = resolveReturnExpr(
+						condExpr, returnVars, returnDisplayNames,
+					)
+					if rootVar == nil {
+						return nil, ir.Issue{
+							Kind:    ir.IssueKindConditionVariableUnavailable,
+							Message: errMsg,
+						}
+					}
+				} else {
+					rootVar = varByName[rootVarName]
+				}
 				if rootVar == nil {
 					return nil, ir.Issue{
 						Kind:    ir.IssueKindConditionVariableUnavailable,

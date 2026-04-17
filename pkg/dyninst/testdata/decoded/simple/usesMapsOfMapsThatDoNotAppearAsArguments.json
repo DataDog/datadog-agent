@@ -45,7 +45,7 @@
         "captures": {
           "return": {
             "locals": {
-              "~r0": {
+              "@return": {
                 "type": "map[uint8]map[int]main.aStructNotUsedAsAnArgument",
                 "size": "1",
                 "entries": [

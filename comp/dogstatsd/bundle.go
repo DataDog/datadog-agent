@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/status/statusimpl"
+	offlinereporterfx "github.com/DataDog/datadog-agent/comp/offlinereporter/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -19,6 +20,7 @@ import (
 // Bundle defines the fx options for this bundle.
 func Bundle(params server.Params) fxutil.BundleOptions {
 	return fxutil.Bundle(
+		offlinereporterfx.Module(),
 		serverdebugimpl.Module(),
 		replayfx.Module(),
 		pidmapimpl.Module(),
