@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Bump ``rshell`` to v0.0.12 for the Private Action Runner.
