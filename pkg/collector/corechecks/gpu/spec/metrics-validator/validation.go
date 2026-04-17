@@ -93,16 +93,16 @@ func validateGPUConfig(client *metricsClient, metricsSpec *gpuspec.MetricsSpec, 
 		metricName := metricName
 		group.Go(func() error {
 			prefixedMetricName := gpuspec.PrefixedMetricName(metricsSpec, metricName)
-			metricObservations, err := client.queryExpectedMetricPresenceForGPUConfig(prefixedMetricName, expectedTagsByMetric[metricName], config.TagFilter(), fromTS, toTS)
+			validatesValues := expectedMetricsMap[metricName].Validator != nil
+			metricObservations, err := client.queryExpectedMetricPresenceForGPUConfig(prefixedMetricName, expectedTagsByMetric[metricName], config.TagFilter(), fromTS, toTS, validatesValues)
 			if err != nil {
 				return fmt.Errorf("query expected metric presence for %s: %w", metricName, err)
 			}
-			for _, observation := range metricObservations {
-				observation.Name = metricName
-				mu.Lock()
-				observations[metricName] = append(observations[metricName], observation)
-				mu.Unlock()
-			}
+
+			mu.Lock()
+			observations[metricName] = append(observations[metricName], metricObservations...)
+			mu.Unlock()
+
 			return nil
 		})
 	}

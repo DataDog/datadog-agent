@@ -62,10 +62,17 @@ func GetEmittedGPUMetrics(mockSender *mocksender.MockSender) map[string][]gpuspe
 				tags = append([]string(nil), callTags...)
 			}
 		}
+		var value *float64
+		if len(call.Arguments) > 1 {
+			if metricValue, ok := call.Arguments.Get(1).(float64); ok {
+				value = &metricValue
+			}
+		}
 
 		metricsByName[specMetricName] = append(metricsByName[specMetricName], gpuspec.MetricObservation{
-			Name: specMetricName,
-			Tags: tags,
+			Name:  specMetricName,
+			Tags:  tags,
+			Value: value,
 		})
 	}
 
@@ -79,7 +86,11 @@ func ValidateEmittedMetricsAgainstSpec(t *testing.T, metricsSpec *gpuspec.Metric
 
 	for metricName, status := range results.Metrics {
 		t.Run(metricName, func(t *testing.T) {
-			assert.Empty(t, status.Errors, "metric %s has errors: %s", metricName, status.Errors)
+			assert.Zero(t, status.Missing, "metric %s missing in %d cases", metricName, status.Missing)
+			assert.Zero(t, status.Unknown, "metric %s unknown in %d cases", metricName, status.Unknown)
+			assert.Zero(t, status.Unsupported, "metric %s unsupported in %d cases", metricName, status.Unsupported)
+			assert.Zero(t, status.InvalidValue, "metric %s invalid in %d cases", metricName, status.InvalidValue)
+
 			for tag, tagResult := range status.TagResults {
 				assert.Zero(t, tagResult.Missing, "metric %s: tag %s missing in %d cases", metricName, tag, tagResult.Missing)
 				assert.Zero(t, tagResult.Unknown, "metric %s: tag %s unknown in %d cases", metricName, tag, tagResult.Unknown)
