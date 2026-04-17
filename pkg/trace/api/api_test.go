@@ -1086,7 +1086,7 @@ func TestHandleStats(t *testing.T) {
 	t.Run("timeout", func(t *testing.T) {
 		cfg := newTestReceiverConfig()
 		rcv := newTestReceiverFromConfig(cfg)
-		mockProcessor := &mockStatsProcessor{processingLantency: 1100 * time.Millisecond}
+		mockProcessor := &mockStatsProcessor{processingLantency: 2 * time.Second}
 		rcv.statsProcessor = mockProcessor
 		mux := rcv.buildMux()
 		server := httptest.NewServer(mux)
@@ -1106,7 +1106,7 @@ func TestHandleStats(t *testing.T) {
 		}
 		defer resp.Body.Close()
 
-		assert.Equal(t, resp.StatusCode, http.StatusRequestTimeout)
+		assert.Equal(t, http.StatusRequestTimeout, resp.StatusCode)
 	})
 }
 
