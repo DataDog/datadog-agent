@@ -4,10 +4,10 @@ go 1.25.6
 
 require (
 	dario.cat/mergo v1.0.2
-	github.com/DataDog/datadog-agent/pkg/util/option v0.76.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.76.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.76.0-rc.4
-	github.com/DataDog/datadog-agent/test/fakeintake v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/option v0.79.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.79.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.79.0-rc.1
+	github.com/DataDog/datadog-agent/test/fakeintake v0.79.0-rc.1
 	github.com/DataDog/datadog-api-client-go/v2 v2.56.0
 	github.com/Masterminds/semver/v3 v3.4.0
 	github.com/alessio/shellescape v1.4.2
@@ -62,14 +62,14 @@ require (
 require (
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
 	github.com/DataDog/agent-payload/v5 v5.0.189 // indirect
-	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.76.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/comp/netflow/payload v0.56.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/metrics v0.76.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/network/payload v0.0.0-20250128160050-7ac9ccd58c07 // indirect
-	github.com/DataDog/datadog-agent/pkg/networkpath/payload v0.0.0-20250128160050-7ac9ccd58c07 // indirect
-	github.com/DataDog/datadog-agent/pkg/proto v0.76.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/tagger/types v0.76.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.76.0-rc.4 // indirect
+	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.79.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/comp/netflow/payload v0.79.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/metrics v0.79.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/network/payload v0.79.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/networkpath/payload v0.79.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/proto v0.79.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/tagger/types v0.79.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.79.0-rc.1 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/zstd v1.5.7 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
