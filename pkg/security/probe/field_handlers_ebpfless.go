@@ -57,7 +57,7 @@ func (fh *EBPFLessFieldHandlers) ResolveProcessCacheEntry(ev *model.Event, _ fun
 	}
 
 	if ev.ProcessCacheEntry == nil {
-		ev.ProcessCacheEntry = model.GetPlaceholderProcessCacheEntry(ev.PIDContext.Pid, ev.PIDContext.Pid, false)
+		ev.ProcessCacheEntry = model.GetPlaceholderProcessCacheEntry(ev.PIDContext)
 		return ev.ProcessCacheEntry, false
 	}
 
