@@ -279,7 +279,7 @@ func NewBackend(target *types.Target, aptConfigDir string, logger types.Logger) 
 
 		rr := remoteRepo{
 			repoID:       repoID,
-			uri:          repo.URI,
+			uri:          overrideRepoURI(repo.URI, target),
 			distribution: repo.Distribution,
 			components:   components,
 			arch:         debArch,
@@ -302,6 +302,27 @@ func NewBackend(target *types.Target, aptConfigDir string, logger types.Logger) 
 	}
 
 	return backend, nil
+}
+
+func overrideRepoURI(uri string, target *types.Target) string {
+	parsedURL, err := url.Parse(uri)
+	if err != nil {
+		return uri
+	}
+
+	switch strings.ToLower(target.Distro.Display) {
+	case "debian":
+		if parsedURL.Host != "deb.debian.org" && parsedURL.Host != "security.debian.org" {
+			return uri
+		}
+		switch target.Distro.Release {
+		case "9", "10":
+			parsedURL.Host = "archive.debian.org"
+			return parsedURL.String()
+		}
+	}
+
+	return uri
 }
 
 func isSignedByUnreachableKey(repo *repository) bool {
