@@ -12,7 +12,7 @@ import (
 
 	"github.com/vishvananda/netns"
 
-	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	netnsutil "github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 )

@@ -7,7 +7,8 @@
 package telemetry
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	workqueuetelemetry "github.com/DataDog/datadog-agent/pkg/util/workqueue/telemetry"
 )
 
@@ -20,7 +21,7 @@ var commonOpts = telemetry.Options{NoDoubleUnderscoreSep: true}
 
 var (
 	// SBOMAttempts tracks sbom collection attempts.
-	SBOMAttempts = telemetry.NewCounterWithOpts(
+	SBOMAttempts = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
 		Subsystem,
 		"attempts",
 		[]string{"source", "type"},
@@ -28,7 +29,7 @@ var (
 		commonOpts,
 	)
 	// SBOMFailures tracks sbom collection attempts that fail.
-	SBOMFailures = telemetry.NewCounterWithOpts(
+	SBOMFailures = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
 		Subsystem,
 		"errors",
 		[]string{"source", "type", "reason"},
@@ -38,7 +39,7 @@ var (
 
 	// SBOMGenerationDuration measures the time that it takes to generate SBOMs
 	// in seconds.
-	SBOMGenerationDuration = telemetry.NewHistogramWithOpts(
+	SBOMGenerationDuration = telemetryimpl.GetCompatComponent().NewHistogramWithOpts(
 		Subsystem,
 		"generation_duration",
 		[]string{"source", "scan_type"},
@@ -48,7 +49,7 @@ var (
 	)
 
 	// SBOMExportSize is the size of the archive written on disk
-	SBOMExportSize = telemetry.NewHistogramWithOpts(
+	SBOMExportSize = telemetryimpl.GetCompatComponent().NewHistogramWithOpts(
 		Subsystem,
 		"export_size",
 		[]string{"source", "scan_ref"},
@@ -58,7 +59,7 @@ var (
 	)
 
 	// SBOMCacheDiskSize size in disk of the custom cache used for SBOM collection
-	SBOMCacheDiskSize = telemetry.NewGaugeWithOpts(
+	SBOMCacheDiskSize = telemetryimpl.GetCompatComponent().NewGaugeWithOpts(
 		Subsystem,
 		"cache_disk_size",
 		[]string{},
@@ -67,7 +68,7 @@ var (
 	)
 
 	// SBOMCacheHits number of cache hits during SBOM collection
-	SBOMCacheHits = telemetry.NewCounterWithOpts(
+	SBOMCacheHits = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
 		Subsystem,
 		"cache_hits_total",
 		[]string{},
@@ -76,7 +77,7 @@ var (
 	)
 
 	// SBOMCacheMisses number of cache misses during SBOM collection
-	SBOMCacheMisses = telemetry.NewCounterWithOpts(
+	SBOMCacheMisses = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
 		Subsystem,
 		"cache_misses_total",
 		[]string{},
@@ -85,7 +86,7 @@ var (
 	)
 
 	// SBOMComponentsFound is the number of components found in a SBOM
-	SBOMComponentsFound = telemetry.NewGaugeWithOpts(
+	SBOMComponentsFound = telemetryimpl.GetCompatComponent().NewGaugeWithOpts(
 		Subsystem,
 		"components_found",
 		[]string{"source", "type"},

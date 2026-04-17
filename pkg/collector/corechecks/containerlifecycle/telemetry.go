@@ -5,9 +5,12 @@
 
 package containerlifecycle
 
-import "github.com/DataDog/datadog-agent/pkg/telemetry"
+import (
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+)
 
-var emittedEvents = telemetry.NewCounterWithOpts(
+var emittedEvents = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
 	CheckName,
 	"emitted_events",
 	[]string{"event_type", "object_kind"},

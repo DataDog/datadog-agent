@@ -14,9 +14,8 @@ import (
 
 	"golang.org/x/sys/windows"
 
-	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry"
-
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -36,91 +35,91 @@ var (
 //
 //nolint:revive // TODO(WKIT) Fix revive linter
 var HandleTelemetry = struct {
-	numFlowCollisions     telemetry.Gauge
-	newFlowsSkippedMax    telemetry.Gauge
-	closedFlowsSkippedMax telemetry.Gauge
+	numFlowCollisions     telemetryComp.Gauge
+	newFlowsSkippedMax    telemetryComp.Gauge
+	closedFlowsSkippedMax telemetryComp.Gauge
 
-	numFlowStructs           telemetry.Gauge
-	peakNumFlowStructs       telemetry.Gauge
-	numFlowClosedStructs     telemetry.Gauge
-	peakNumFlowClosedStructs telemetry.Gauge
+	numFlowStructs           telemetryComp.Gauge
+	peakNumFlowStructs       telemetryComp.Gauge
+	numFlowClosedStructs     telemetryComp.Gauge
+	peakNumFlowClosedStructs telemetryComp.Gauge
 
-	openTableAdds      telemetry.Gauge
-	openTableRemoves   telemetry.Gauge
-	closedTableAdds    telemetry.Gauge
-	closedTableRemoves telemetry.Gauge
+	openTableAdds      telemetryComp.Gauge
+	openTableRemoves   telemetryComp.Gauge
+	closedTableAdds    telemetryComp.Gauge
+	closedTableRemoves telemetryComp.Gauge
 
-	noHandleFlows             telemetry.Gauge
-	noHandleFlowsPeak         telemetry.Gauge
-	numFlowsMissedMaxNoHandle telemetry.Gauge
-	numPacketsAfterClosed     telemetry.Gauge
+	noHandleFlows             telemetryComp.Gauge
+	noHandleFlowsPeak         telemetryComp.Gauge
+	numFlowsMissedMaxNoHandle telemetryComp.Gauge
+	numPacketsAfterClosed     telemetryComp.Gauge
 
-	classifyNoDirection       telemetry.Gauge
-	classifyMultipleRequest   telemetry.Gauge
-	classifyMultipleResponse  telemetry.Gauge
-	classifyResponseNoRequest telemetry.Gauge
+	classifyNoDirection       telemetryComp.Gauge
+	classifyMultipleRequest   telemetryComp.Gauge
+	classifyMultipleResponse  telemetryComp.Gauge
+	classifyResponseNoRequest telemetryComp.Gauge
 
-	noStateAtAleAuthConnect     telemetry.Gauge
-	noStateAtAleAuthRecv        telemetry.Gauge
-	noStateAtAleflowEstablished telemetry.Gauge
-	noStateAtAleEndpointClosure telemetry.Gauge
-	noStateAtInboundTransport   telemetry.Gauge
-	noStateAtOutboundTransport  telemetry.Gauge
+	noStateAtAleAuthConnect     telemetryComp.Gauge
+	noStateAtAleAuthRecv        telemetryComp.Gauge
+	noStateAtAleflowEstablished telemetryComp.Gauge
+	noStateAtAleEndpointClosure telemetryComp.Gauge
+	noStateAtInboundTransport   telemetryComp.Gauge
+	noStateAtOutboundTransport  telemetryComp.Gauge
 
-	httpTxnsCaptured      telemetry.Gauge
-	httpTxnsSkippedMax    telemetry.Gauge
-	httpNdisNonContiguous telemetry.Gauge
-	flowsIgnoredAsEtw     telemetry.Gauge
-	httpTxnNoLatency      telemetry.Gauge
-	httpTxnBatchedOnRead  telemetry.Gauge
+	httpTxnsCaptured      telemetryComp.Gauge
+	httpTxnsSkippedMax    telemetryComp.Gauge
+	httpNdisNonContiguous telemetryComp.Gauge
+	flowsIgnoredAsEtw     telemetryComp.Gauge
+	httpTxnNoLatency      telemetryComp.Gauge
+	httpTxnBatchedOnRead  telemetryComp.Gauge
 
-	ReadPacketsSkipped *telemetry.StatGaugeWrapper
-	readsRequested     telemetry.Gauge
-	readsCompleted     telemetry.Gauge
-	readsCancelled     telemetry.Gauge
+	ReadPacketsSkipped *telemetryComp.StatGaugeWrapper
+	readsRequested     telemetryComp.Gauge
+	readsCompleted     telemetryComp.Gauge
+	readsCancelled     telemetryComp.Gauge
 }{
-	telemetry.NewGauge(handleModuleName, "num_flow_collisions", []string{}, "Gauge measuring the number of flow collisions"),
-	telemetry.NewGauge(handleModuleName, "new_flows_skipped_max", []string{}, "Gauge measuring the maximum number of new flows skipped"),
-	telemetry.NewGauge(handleModuleName, "closed_flows_skipped_max", []string{}, "Gauge measuring the maximum number of closed flows skipped"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "num_flow_collisions", []string{}, "Gauge measuring the number of flow collisions"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "new_flows_skipped_max", []string{}, "Gauge measuring the maximum number of new flows skipped"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "closed_flows_skipped_max", []string{}, "Gauge measuring the maximum number of closed flows skipped"),
 
-	telemetry.NewGauge(handleModuleName, "num_flow_structs", []string{}, "Gauge measuring the number of flow structs"),
-	telemetry.NewGauge(handleModuleName, "peak_num_flow_structs", []string{}, "Gauge measuring the peak number of flow structs"),
-	telemetry.NewGauge(handleModuleName, "num_flow_closed_structs", []string{}, "Gauge measuring the number of closed flow structs"),
-	telemetry.NewGauge(handleModuleName, "peak_num_flow_closed_structs", []string{}, "Gauge measuring the peak number of closed flow structs"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "num_flow_structs", []string{}, "Gauge measuring the number of flow structs"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "peak_num_flow_structs", []string{}, "Gauge measuring the peak number of flow structs"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "num_flow_closed_structs", []string{}, "Gauge measuring the number of closed flow structs"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "peak_num_flow_closed_structs", []string{}, "Gauge measuring the peak number of closed flow structs"),
 
-	telemetry.NewGauge(handleModuleName, "open_table_adds", []string{}, "Gauge measuring the number of additions to the open table"),
-	telemetry.NewGauge(handleModuleName, "open_table_removes", []string{}, "Gauge measuring the number of removals from the open table"),
-	telemetry.NewGauge(handleModuleName, "closed_table_adds", []string{}, "Gauge measuring the number of additions to the closed table"),
-	telemetry.NewGauge(handleModuleName, "closed_table_removes", []string{}, "Gauge measuring the number of removals from the closed table"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "open_table_adds", []string{}, "Gauge measuring the number of additions to the open table"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "open_table_removes", []string{}, "Gauge measuring the number of removals from the open table"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "closed_table_adds", []string{}, "Gauge measuring the number of additions to the closed table"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "closed_table_removes", []string{}, "Gauge measuring the number of removals from the closed table"),
 
-	telemetry.NewGauge(handleModuleName, "no_handle_flows", []string{}, "Gauge measuring the number of no handle flows"),
-	telemetry.NewGauge(handleModuleName, "no_handle_flows_peak", []string{}, "Gauge measuring the peak number of no handle flows"),
-	telemetry.NewGauge(handleModuleName, "num_flows_missed_max_no_handle", []string{}, "Gauge measuring the max number of no handle missed flows"),
-	telemetry.NewGauge(handleModuleName, "num_packets_after_closed", []string{}, "Gauge measuring the number of packets after close"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "no_handle_flows", []string{}, "Gauge measuring the number of no handle flows"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "no_handle_flows_peak", []string{}, "Gauge measuring the peak number of no handle flows"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "num_flows_missed_max_no_handle", []string{}, "Gauge measuring the max number of no handle missed flows"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "num_packets_after_closed", []string{}, "Gauge measuring the number of packets after close"),
 
-	telemetry.NewGauge(handleModuleName, "classify_no_direction", []string{}, "Gauge measuring the number of no direction flows"),
-	telemetry.NewGauge(handleModuleName, "classify_multiple_request", []string{}, "Gauge measuring the number of multiple request flows"),
-	telemetry.NewGauge(handleModuleName, "classify_multiple_response", []string{}, "Gauge measuring the number of multiple response flows"),
-	telemetry.NewGauge(handleModuleName, "classify_response_no_request", []string{}, "Gauge measuring the number of no request flows"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "classify_no_direction", []string{}, "Gauge measuring the number of no direction flows"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "classify_multiple_request", []string{}, "Gauge measuring the number of multiple request flows"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "classify_multiple_response", []string{}, "Gauge measuring the number of multiple response flows"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "classify_response_no_request", []string{}, "Gauge measuring the number of no request flows"),
 
-	telemetry.NewGauge(handleModuleName, "no_state_at_ale_auth_connect", []string{}, "Gauge measuring the number of no request flows"),
-	telemetry.NewGauge(handleModuleName, "no_state_at_ale_auth_recv", []string{}, "Gauge measuring the number of no request flows"),
-	telemetry.NewGauge(handleModuleName, "no_state_at_ale_flow_established", []string{}, "Gauge measuring the number of no request flows"),
-	telemetry.NewGauge(handleModuleName, "no_state_at_ale_endpoint_closure", []string{}, "Gauge measuring the number of no request flows"),
-	telemetry.NewGauge(handleModuleName, "no_state_at_inbound_transport", []string{}, "Gauge measuring the number of no request flows"),
-	telemetry.NewGauge(handleModuleName, "no_state_at_outbound_transport", []string{}, "Gauge measuring the number of no request flows"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "no_state_at_ale_auth_connect", []string{}, "Gauge measuring the number of no request flows"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "no_state_at_ale_auth_recv", []string{}, "Gauge measuring the number of no request flows"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "no_state_at_ale_flow_established", []string{}, "Gauge measuring the number of no request flows"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "no_state_at_ale_endpoint_closure", []string{}, "Gauge measuring the number of no request flows"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "no_state_at_inbound_transport", []string{}, "Gauge measuring the number of no request flows"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "no_state_at_outbound_transport", []string{}, "Gauge measuring the number of no request flows"),
 
-	telemetry.NewGauge(handleModuleName, "http_txns_captured", []string{}, "Gauge measuring the number of http transactions captured"),
-	telemetry.NewGauge(handleModuleName, "http_txns_skipped_max", []string{}, "Gauge measuring the max number of http transactions skipped"),
-	telemetry.NewGauge(handleModuleName, "http_ndis_non_contiguous", []string{}, "Gauge measuring the number of non contiguous http ndis"),
-	telemetry.NewGauge(handleModuleName, "flows_ignored_as_etw", []string{}, "Gauge measuring the number of flows ignored as etw"),
-	telemetry.NewGauge(handleModuleName, "txn_zero_latency", []string{}, "Gauge measuring number of http transactions computed zero latency"),
-	telemetry.NewGauge(handleModuleName, "txn_batched_on_read", []string{}, "Gauge measuring number of http transactions computed zero latency"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "http_txns_captured", []string{}, "Gauge measuring the number of http transactions captured"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "http_txns_skipped_max", []string{}, "Gauge measuring the max number of http transactions skipped"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "http_ndis_non_contiguous", []string{}, "Gauge measuring the number of non contiguous http ndis"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "flows_ignored_as_etw", []string{}, "Gauge measuring the number of flows ignored as etw"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "txn_zero_latency", []string{}, "Gauge measuring number of http transactions computed zero latency"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "txn_batched_on_read", []string{}, "Gauge measuring number of http transactions computed zero latency"),
 
-	telemetry.NewStatGaugeWrapper(handleModuleName, "read_packets_skipped", []string{}, "Gauge measuring the number of read packets skipped"),
-	telemetry.NewGauge(handleModuleName, "reads_requested", []string{}, "Gauge measuring the number of reads requested"),
-	telemetry.NewGauge(handleModuleName, "reads_completed", []string{}, "Gauge measuring the number of reads completed"),
-	telemetry.NewGauge(handleModuleName, "reads_cancelled", []string{}, "Gauge measuring the number of reads_cancelled"),
+	telemetryComp.NewStatGaugeWrapper(telemetryimpl.GetCompatComponent(), handleModuleName, "read_packets_skipped", []string{}, "Gauge measuring the number of read packets skipped"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "reads_requested", []string{}, "Gauge measuring the number of reads requested"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "reads_completed", []string{}, "Gauge measuring the number of reads completed"),
+	telemetryimpl.GetCompatComponent().NewGauge(handleModuleName, "reads_cancelled", []string{}, "Gauge measuring the number of reads_cancelled"),
 }
 
 // Creates a buffer that Driver will use to verify proper versions are communicating
