@@ -837,6 +837,7 @@ func TestMetricsFollowSpec(t *testing.T) {
 	// - KubernetesDevicePlugins required for gpu.device.unhealthy metric
 	// - NVML required to ensure the NVML workloadmeta collector starts up
 	env.SetFeatures(t, env.KubernetesDevicePlugins, env.NVML)
+	nvidia.WithDeviceEventsSetWaitTimeoutForTest(t, time.Millisecond)
 
 	metricsSpec, err := gpuspec.LoadMetricsSpec()
 	require.NoError(t, err)
