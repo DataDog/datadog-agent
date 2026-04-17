@@ -53,7 +53,7 @@ cel_workload_exclude:
 	))
 
 	// Create provider with the filter
-	provider, err := NewProcessLogConfigProvider(nil, nil, nil, filter, nil)
+	provider, err := NewProcessLogConfigProvider(nil, nil, nil, filter, nil, nil)
 	require.NoError(t, err)
 
 	p, ok := provider.(*processLogConfigProvider)

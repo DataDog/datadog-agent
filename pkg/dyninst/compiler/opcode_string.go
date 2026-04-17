@@ -40,11 +40,17 @@ func _() {
 	_ = x[OpcodeConditionCheck-29]
 	_ = x[OpcodeConditionBegin-30]
 	_ = x[OpcodeCallDictResolved-31]
+	_ = x[OpcodeExprSliceBoundsCheck-32]
+	_ = x[OpcodeSwissMapSetup-33]
+	_ = x[OpcodeSwissMapAesenc-34]
+	_ = x[OpcodeSwissMapHashFinish-35]
+	_ = x[OpcodeSwissMapProbe-36]
+	_ = x[OpcodeSwissMapCheckSlot-37]
 }
 
-const _Opcode_name = "InvalidCallReturnIllegalIncrementOutputOffsetExprPrepareExprSaveExprDereferenceCfaExprReadRegisterExprDereferencePtrProcessPointerProcessSliceProcessArrayDataPrepProcessSliceDataPrepProcessSliceDataRepeatProcessStringProcessGoEmptyInterfaceProcessGoInterfaceProcessGoDictTypeProcessGoHmapProcessGoSwissMapProcessGoSwissMapGroupsChasePointersPrepareEventRootExprPushOffsetExprLoadLiteralExprReadStringExprCmpEqBaseExprCmpEqStringConditionCheckConditionBeginCallDictResolved"
+const _Opcode_name = "InvalidCallReturnIllegalIncrementOutputOffsetExprPrepareExprSaveExprDereferenceCfaExprReadRegisterExprDereferencePtrProcessPointerProcessSliceProcessArrayDataPrepProcessSliceDataPrepProcessSliceDataRepeatProcessStringProcessGoEmptyInterfaceProcessGoInterfaceProcessGoDictTypeProcessGoHmapProcessGoSwissMapProcessGoSwissMapGroupsChasePointersPrepareEventRootExprPushOffsetExprLoadLiteralExprReadStringExprCmpEqBaseExprCmpEqStringConditionCheckConditionBeginCallDictResolvedExprSliceBoundsCheckSwissMapSetupSwissMapAesencSwissMapHashFinishSwissMapProbeSwissMapCheckSlot"
 
-var _Opcode_index = [...]uint16{0, 7, 11, 17, 24, 45, 56, 64, 82, 98, 116, 130, 142, 162, 182, 204, 217, 240, 258, 275, 288, 305, 328, 341, 357, 371, 386, 400, 413, 428, 442, 456, 472}
+var _Opcode_index = [...]uint16{0, 7, 11, 17, 24, 45, 56, 64, 82, 98, 116, 130, 142, 162, 182, 204, 217, 240, 258, 275, 288, 305, 328, 341, 357, 371, 386, 400, 413, 428, 442, 456, 472, 492, 505, 519, 537, 550, 567}
 
 func (i Opcode) String() string {
 	idx := int(i) - 0

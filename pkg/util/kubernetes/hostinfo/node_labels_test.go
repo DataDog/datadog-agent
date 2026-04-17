@@ -64,7 +64,7 @@ func TestNodeInfo_GetNodeClusterNameLabel(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "clusterName label not set, AKS label set",
+			name: "clusterName label not set, AKS label unparsed",
 			mockClientFunc: func(ku *kubeUtilMock) {
 				ku.On("GetNodename").Return("node-name", nil)
 			},
@@ -73,6 +73,18 @@ func TestNodeInfo_GetNodeClusterNameLabel(t *testing.T) {
 			},
 			ctx:     context.Background(),
 			want:    "foo",
+			wantErr: false,
+		},
+		{
+			name: "clusterName label not set, AKS label parsed",
+			mockClientFunc: func(ku *kubeUtilMock) {
+				ku.On("GetNodename").Return("node-name", nil)
+			},
+			nodeLabels: map[string]string{
+				"kubernetes.azure.com/cluster": "MC_aks-kenafeh_aks-kenafeh-eu_westeurope",
+			},
+			ctx:     context.Background(),
+			want:    "aks-kenafeh-eu",
 			wantErr: false,
 		},
 		{

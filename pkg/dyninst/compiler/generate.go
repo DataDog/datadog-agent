@@ -40,7 +40,9 @@ type Program struct {
 	Types            []ir.Type
 	Throttlers       []Throttler
 	GoModuledataInfo ir.GoModuledataInfo
+	GoMapHashInfo    ir.GoMapHashInfo
 	CommonTypes      ir.CommonTypes
+	IsARM64          bool
 }
 
 type generator struct {
@@ -175,7 +177,9 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 		Types:            types,
 		Throttlers:       throttlers,
 		GoModuledataInfo: program.GoModuledataInfo,
+		GoMapHashInfo:    program.GoMapHashInfo,
 		CommonTypes:      program.CommonTypes,
+		IsARM64:          program.IsARM64,
 	}, nil
 }
 
@@ -312,9 +316,9 @@ func (g *generator) addConditionHandler(
 			ops = opsAfter
 		case *ir.DereferenceOp:
 			ops = append(ops, ExprDereferencePtrOp{
-				Bias:      op.Bias,
-				Len:       op.ByteSize,
-				NilBitIdx: ^uint32(0),
+				Bias:          op.Bias,
+				Len:           op.ByteSize,
+				ExprStatusIdx: ^uint32(0),
 			})
 		case *ir.ExprPushOffsetOp:
 			ops = append(ops, ExprPushOffsetOp{ByteSize: op.ByteSize})
@@ -326,6 +330,13 @@ func (g *generator) addConditionHandler(
 			ops = append(ops, ExprCmpEqBaseOp{ByteSize: op.ByteSize})
 		case *ir.ExprCmpEqStringOp:
 			ops = append(ops, ExprCmpEqStringOp{})
+		case *ir.SliceBoundsCheckOp:
+			ops = append(ops, ExprSliceBoundsCheckOp{
+				Index:         op.Index,
+				ExprStatusIdx: ^uint32(0), // conditions don't have per-expression status
+			})
+		case *ir.SwissMapLookupOp:
+			ops = append(ops, swissMapOps(op, ^uint32(0))...) // conditions don't have per-expression status
 		case *ir.ConditionCheckOp:
 			ops = append(ops, ConditionCheckOp{})
 		default:
@@ -401,9 +412,9 @@ func (g *generator) addExpressionHandler(injectionPC uint64, rootType *ir.EventR
 			}
 			lastOpSize = op.ByteSize
 			ops = append(ops, ExprDereferencePtrOp{
-				Bias:      op.Bias,
-				Len:       op.ByteSize,
-				NilBitIdx: 2*exprIdx + 1,
+				Bias:          op.Bias,
+				Len:           op.ByteSize,
+				ExprStatusIdx: exprIdx,
 			})
 		case *ir.ExprPushOffsetOp:
 			ops = append(ops, ExprPushOffsetOp{ByteSize: op.ByteSize})
@@ -415,6 +426,19 @@ func (g *generator) addExpressionHandler(injectionPC uint64, rootType *ir.EventR
 			ops = append(ops, ExprCmpEqBaseOp{ByteSize: op.ByteSize})
 		case *ir.ExprCmpEqStringOp:
 			ops = append(ops, ExprCmpEqStringOp{})
+		case *ir.SliceBoundsCheckOp:
+			// After the bounds check, the scratch still starts with the
+			// data pointer (8 bytes). Update lastOpSize so the following
+			// DereferenceOp sees a pointer-sized value.
+			lastOpSize = 8
+			ops = append(ops, ExprSliceBoundsCheckOp{
+				Index:         op.Index,
+				ExprStatusIdx: exprIdx,
+			})
+		case *ir.SwissMapLookupOp:
+			// The lookup writes the value element at sm->offset on success.
+			lastOpSize = op.ValByteSize
+			ops = append(ops, swissMapOps(op, exprIdx)...)
 		default:
 			panic(fmt.Sprintf("unexpected ir.Operation: %#v", op))
 		}
@@ -961,6 +985,37 @@ outer:
 	// Variable is not available, just return. Expression ops are allowed to "return early" on error.
 	ops = append(ops, ReturnOp{})
 	return ops, nil
+}
+
+// swissMapOps returns the 5-opcode sequence for a swiss map lookup.
+func swissMapOps(op *ir.SwissMapLookupOp, exprStatusIdx uint32) []Op {
+	return []Op{
+		SwissMapSetupOp{
+			KeyData:                  op.KeyData,
+			IsStringKey:              op.IsStringKey,
+			KeyByteSize:              op.KeyByteSize,
+			ValByteSize:              op.ValByteSize,
+			SeedOffset:               op.SeedOffset,
+			DirPtrOffset:             op.DirPtrOffset,
+			DirLenOffset:             op.DirLenOffset,
+			GlobalShiftOffset:        op.GlobalShiftOffset,
+			CtrlOffset:               op.CtrlOffset,
+			SlotsOffset:              op.SlotsOffset,
+			SlotSize:                 op.SlotSize,
+			KeyInSlotOffset:          op.KeyInSlotOffset,
+			ValInSlotOffset:          op.ValInSlotOffset,
+			TableGroupsFieldOffset:   op.TableGroupsFieldOffset,
+			GroupsDataFieldOffset:    op.GroupsDataFieldOffset,
+			GroupsLenMaskFieldOffset: op.GroupsLenMaskFieldOffset,
+			GroupByteSize:            op.GroupByteSize,
+			HeaderByteSize:           op.HeaderByteSize,
+			ExprStatusIdx:            exprStatusIdx,
+		},
+		SwissMapAesencOp{},
+		SwissMapHashFinishOp{},
+		SwissMapProbeOp{},
+		SwissMapCheckSlotOp{},
+	}
 }
 
 var errUnsupportedAddrLocationOp = errors.New("unsupported addr location op")

@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 const (
@@ -88,7 +89,7 @@ const (
 // AgentContainerContext is like model.ContainerContext, but without event based resolvers
 type AgentContainerContext struct {
 	ContainerID containerutils.ContainerID `json:"id,omitempty"`
-	CreatedAt   uint64                     `json:"created_at"`
+	CreatedAt   *utils.EasyjsonTime        `json:"created_at,omitempty"`
 }
 
 // CustomEventCommonFields represents the fields common to all custom events

@@ -8,6 +8,10 @@
     "platformCommit": "enabled",
     "packageRules": [
       {
+        "matchDepNames": ["*"],
+        "prPriority": -1
+      },
+      {
         "matchDepNames": ["integrations-core"],
         "changelogUrl": "https://github.com/DataDog/integrations-core/compare/{{currentDigest}}..{{newDigest}}",
         "schedule": ["* 2-6 * * 1,3"]
@@ -37,11 +41,8 @@
       },
       {
         "matchManagers": ["custom.regex"],
-        "minimumReleaseAge": null
-      },
-      {
-        "matchDepNames": ["protocolbuffers/protobuf"],
-        "minimumReleaseAge": "7 days"
+        "minimumReleaseAge": null,
+        "prPriority": 10
       },
       {
         "matchManagers": ["github-actions"],
@@ -129,6 +130,11 @@
       {
         "matchManagers": ["bazel-module"],
         "matchDepTypes": ["git_override"],
+        "enabled": false
+      },
+      {
+        "matchManagers": ["bundler"],
+        "matchDepNames": ["omnibus"],
         "enabled": false
       }
     ],
