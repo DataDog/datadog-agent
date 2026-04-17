@@ -96,22 +96,8 @@ export CGO_LDFLAGS="$CGO_LDFLAGS \
   -Wl,-blibpath:/opt/datadog-agent/rtloader:/opt/datadog-agent/embedded/lib:/opt/freeware/lib64:/opt/freeware/lib:/usr/lib:/lib"
 
 # ─── Step 3: Get commit hash ──────────────────────────────────────────────────
-#
-# AGENT_COMMIT may be pre-set by the caller (e.g. when the source was transferred
-# without the .git directory). If unset, resolve it from the local git repo.
 
-if [ -n "${AGENT_COMMIT:-}" ]; then
-    COMMIT=$AGENT_COMMIT
-    log "Using pre-set commit hash: $COMMIT"
-elif [ -d /opt/datadog-agent/.git ]; then
-    COMMIT=$(git -C /opt/datadog-agent rev-parse --short HEAD)
-    log "Resolved commit hash from .git: $COMMIT"
-else
-    log "ERROR: AGENT_COMMIT env var not set and /opt/datadog-agent/.git not found."
-    log "       Set AGENT_COMMIT to the short SHA of the source tree being built,"
-    log "       e.g.: AGENT_COMMIT=\$(git -C /path/to/repo rev-parse --short HEAD)"
-    exit 1
-fi
+COMMIT=$(git -C /opt/datadog-agent rev-parse --short HEAD)
 log "Building agent version $AGENT_VERSION at commit $COMMIT"
 
 # ─── Step 4: Build the agent binary ───────────────────────────────────────────

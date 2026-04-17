@@ -2,16 +2,15 @@
 # build.sh — top-level orchestrator for the AIX Datadog Agent BFF package build
 #
 # Usage:
-#   AGENT_VERSION=7.78.0 AGENT_BUILD=1 AGENT_COMMIT=abc1234 ./build.sh
+#   AGENT_VERSION=7.78.0 AGENT_BUILD=1 ./build.sh
 #
 # Required environment variables:
 #   AGENT_VERSION  — human-readable release version (e.g. 7.78.0)
 #   AGENT_BUILD    — build iteration / 4th VRMF digit (e.g. 1)
-#   AGENT_COMMIT   — short git SHA of the source tree (embedded in binary version string)
 #
-# The agent source must already be present at /opt/datadog-agent before running
-# this script. Transfer it from the build machine with:
-#   tar czf /tmp/dd-agent-src.tar.gz --exclude='.git' --exclude='bin' .
+# The agent source, including the full .git history, must already be present at
+# /opt/datadog-agent before running this script. Transfer it with:
+#   tar czf /tmp/dd-agent-src.tar.gz --exclude='bin' .
 #   scp /tmp/dd-agent-src.tar.gz aix-host:/tmp/
 #   ssh aix-host 'mkdir -p /opt/datadog-agent && gunzip -c /tmp/dd-agent-src.tar.gz | tar xf - -C /opt/datadog-agent'
 #
@@ -30,19 +29,11 @@ if [ -z "${AGENT_BUILD:-}" ]; then
     printf 'ERROR: AGENT_BUILD must be set (e.g. AGENT_BUILD=1)\n' >&2
     exit 1
 fi
-if [ -z "${AGENT_COMMIT:-}" ]; then
-    # Try to resolve from local .git if present
-    if [ -d /opt/datadog-agent/.git ]; then
-        AGENT_COMMIT=$(git -C /opt/datadog-agent rev-parse --short HEAD)
-        printf 'INFO: AGENT_COMMIT resolved from .git: %s\n' "$AGENT_COMMIT"
-    else
-        printf 'ERROR: AGENT_COMMIT must be set to the short SHA of the source tree\n' >&2
-        # shellcheck disable=SC2016  # literal $() is intentional in usage message
-        printf '       e.g.: AGENT_COMMIT=$(git rev-parse --short HEAD)\n' >&2
-        exit 1
-    fi
+if [ ! -d /opt/datadog-agent/.git ]; then
+    printf 'ERROR: /opt/datadog-agent/.git not found\n' >&2
+    printf '       The source tree must include full git history (do not use --exclude=.git when transferring)\n' >&2
+    exit 1
 fi
-export AGENT_COMMIT
 
 # ── Set PATH early so tool checks can find /opt/freeware and Go binaries ──────
 # env.sh sets PATH too, but it is sourced later (after tool checks).
@@ -148,7 +139,6 @@ BUILD_START=$(date '+%Y-%m-%dT%H:%M:%S')
 log "=== Datadog Agent AIX package build ==="
 log "    AGENT_VERSION = $AGENT_VERSION"
 log "    AGENT_BUILD   = $AGENT_BUILD"
-log "    AGENT_COMMIT  = $AGENT_COMMIT"
 log "    AGENT_VRMF    = $AGENT_VRMF"
 log "    BUILD_DIR     = $BUILD_DIR"
 log "    STAGING       = $STAGING"
