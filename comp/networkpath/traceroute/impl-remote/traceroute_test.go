@@ -17,8 +17,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	traceroutelib "github.com/DataDog/datadog-traceroute/traceroute"
-
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
@@ -156,23 +154,23 @@ func TestGetTracerouteInvalidJSON(t *testing.T) {
 func TestGetTracerouteStructuredError(t *testing.T) {
 	tests := []struct {
 		name         string
-		errorCode    traceroutelib.ErrorCode
+		errorCode    payload.TracerouteErrorCode
 		errorMessage string
-		expectedCode traceroutelib.ErrorCode
+		expectedCode payload.TracerouteErrorCode
 	}{
-		{"DNS error", traceroutelib.ErrCodeDNS, "Failed to resolve the host name.", traceroutelib.ErrCodeDNS},
-		{"timeout error", traceroutelib.ErrCodeTimeout, "The request timed out.", traceroutelib.ErrCodeTimeout},
-		{"connection refused", traceroutelib.ErrCodeConnRefused, "The connection was refused by the remote host.", traceroutelib.ErrCodeConnRefused},
-		{"host unreachable", traceroutelib.ErrCodeHostUnreach, "The remote host is unreachable.", traceroutelib.ErrCodeHostUnreach},
-		{"network unreachable", traceroutelib.ErrCodeNetUnreach, "The remote server network is unreachable.", traceroutelib.ErrCodeNetUnreach},
-		{"unknown error", traceroutelib.ErrCodeUnknown, "An unknown error occurred.", traceroutelib.ErrCodeUnknown},
+		{"DNS error", payload.TracerouteErrCodeDNS, "Failed to resolve the host name.", payload.TracerouteErrCodeDNS},
+		{"timeout error", payload.TracerouteErrCodeTimeout, "The request timed out.", payload.TracerouteErrCodeTimeout},
+		{"connection refused", payload.TracerouteErrCodeConnRefused, "The connection was refused by the remote host.", payload.TracerouteErrCodeConnRefused},
+		{"host unreachable", payload.TracerouteErrCodeHostUnreach, "The remote host is unreachable.", payload.TracerouteErrCodeHostUnreach},
+		{"network unreachable", payload.TracerouteErrCodeNetUnreach, "The remote server network is unreachable.", payload.TracerouteErrCodeNetUnreach},
+		{"unknown error", payload.TracerouteErrCodeUnknown, "An unknown error occurred.", payload.TracerouteErrCodeUnknown},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			hostnameComponent, _ := hostnameinterface.NewMock("test-agent-hostname")
 
-			errResp := traceroutelib.ErrorResponse{Code: tt.errorCode, Message: tt.errorMessage}
+			errResp := payload.TracerouteErrorResponse{Code: tt.errorCode, Message: tt.errorMessage}
 			jsonBytes, err := json.Marshal(errResp)
 			require.NoError(t, err)
 
@@ -198,7 +196,7 @@ func TestGetTracerouteStructuredError(t *testing.T) {
 			_, err = rt.Run(context.Background(), cfg)
 			require.Error(t, err)
 
-			var trErr *traceroutelib.TracerouteError
+			var trErr *payload.TracerouteError
 			require.ErrorAs(t, err, &trErr)
 			assert.Equal(t, tt.expectedCode, trErr.Code)
 			assert.Equal(t, tt.errorMessage, trErr.Message)
