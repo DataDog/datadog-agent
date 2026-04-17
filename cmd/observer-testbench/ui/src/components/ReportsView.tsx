@@ -530,10 +530,11 @@ export function ReportsView({ state, actions, sidebarWidth, timeRange, onTimeRan
       setHoveredReportIndex(null);
       setTimelineFocusedKey(null);
       setExpandedRowKeys(new Set());
+      setSendState(new Map());
     }
   }, [state.activeScenario]);
 
-  // Drop focus/expansion for reports that no longer exist (e.g. correlator rerun), not when only order/filter changes.
+  // Drop focus/expansion/send state for reports that no longer exist (e.g. correlator rerun), not when only order/filter changes.
   useEffect(() => {
     const validKeys = new Set(allReports.map(reportStableKey));
     setExpandedRowKeys((prev) => {
@@ -546,6 +547,15 @@ export function ReportsView({ state, actions, sidebarWidth, timeRange, onTimeRan
       return changed ? next : prev;
     });
     setTimelineFocusedKey((prev) => (prev && validKeys.has(prev) ? prev : null));
+    setSendState((prev) => {
+      let changed = false;
+      const next = new Map<string, string>();
+      for (const [k, v] of prev) {
+        if (validKeys.has(k)) next.set(k, v);
+        else changed = true;
+      }
+      return changed ? next : prev;
+    });
   }, [allReports]);
 
   const tagGroups = useMemo(() => {
@@ -761,7 +771,7 @@ export function ReportsView({ state, actions, sidebarWidth, timeRange, onTimeRan
                           </button>
                           <button
                             type="button"
-                            disabled={isSending}
+                            disabled={isSending || isSent}
                             onClick={(e) => { e.stopPropagation(); handleSendReport(rep.pattern, rep.firstSeen, rowKey); }}
                             title="Send to Datadog backend"
                             className={`flex-shrink-0 self-center mr-3 px-2 py-1 rounded text-[10px] font-mono transition-colors ${
