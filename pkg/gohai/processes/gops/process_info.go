@@ -94,18 +94,28 @@ func newProcessInfo(p *process.Process, totalMem float64) (*ProcessInfo, error) 
 
 	pctMem := 100. * float64(memInfo.RSS) / totalMem
 
-	username, err := p.Username()
-	if err != nil {
-		// Fall back to the numeric UID string. This commonly happens for
-		// containerized processes whose UID does not exist in the host's
-		// /etc/passwd (e.g. a UID created inside a container image).
-		uids, uidErr := p.Uids()
-		if uidErr != nil || len(uids) == 0 {
-			username = ""
-		} else {
-			username = strconv.FormatUint(uint64(uids[0]), 10)
-		}
-	}
+	username := resolveUsername(p)
 
 	return &ProcessInfo{pid, ppid, name, memInfo.RSS, pctMem, memInfo.VMS, username}, nil
+}
+
+// usernameProvider abstracts the gopsutil methods needed to resolve a username.
+type usernameProvider interface {
+	Username() (string, error)
+	Uids() ([]uint32, error)
+}
+
+// resolveUsername returns the username for a process. If the username lookup
+// fails (common for containerized processes whose UID doesn't exist in the
+// host's /etc/passwd), it falls back to the numeric UID string.
+func resolveUsername(p usernameProvider) string {
+	username, err := p.Username()
+	if err == nil {
+		return username
+	}
+	uids, uidErr := p.Uids()
+	if uidErr != nil || len(uids) == 0 {
+		return ""
+	}
+	return strconv.FormatUint(uint64(uids[0]), 10)
 }
