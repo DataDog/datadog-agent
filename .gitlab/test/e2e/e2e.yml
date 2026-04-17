@@ -94,6 +94,7 @@
     E2E_IMAGE_PULL_REGISTRY: 669783387624.dkr.ecr.us-east-1.amazonaws.com,us-central1-docker.pkg.dev
     E2E_IMAGE_PULL_USERNAME: AWS,_json_key
     PRE_BUILT_BINARIES_FLAG: "--use-prebuilt-binaries"
+    E2E_PREBUILD_S3_URI: "$S3_PERMANENT_ARTIFACTS_URI/e2e-pre-build/$CI_PIPELINE_ID"
     MAX_RETRIES_FLAG: "" # Empty by default, can be set to `--max-retries=3` for example to retry failed tests
     REMOTE_STACK_CLEANING: "true"
   script:
@@ -131,7 +132,8 @@
 
 .needs_new_e2e_template:
   - go_e2e_deps
-  - go_e2e_test_binaries
+  - job: go_e2e_test_binaries
+    artifacts: false
   - go_tools_deps
   - job: new-e2e-base-coverage
     optional: true
@@ -140,7 +142,8 @@ new-e2e-base-coverage:
   extends: .new_e2e_template
   needs:
     - go_e2e_deps
-    - go_e2e_test_binaries
+    - job: go_e2e_test_binaries
+      artifacts: false
     - go_tools_deps
     - agent_deb-x64-a7
   rules:
@@ -156,7 +159,8 @@ new-e2e-base:
   needs:
     - go_e2e_deps
     - go_tools_deps
-    - go_e2e_test_binaries
+    - job: go_e2e_test_binaries
+      artifacts: false
     - agent_deb-x64-a7
   rules:
     - !reference [.except_mergequeue]
@@ -168,7 +172,8 @@ new-e2e-base:
     EXTRA_PARAMS: --run TestAgentBaselineSuite
 
 # Build test binaries job that creates pre-compiled test binaries
-# This job runs early in the pipeline and creates artifacts that can be reused by test jobs
+# This job runs early in the pipeline and uploads per-package tarballs to S3
+# so that each test job can download only the binaries it needs.
 go_e2e_test_binaries:
   stage: binary_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
@@ -186,12 +191,7 @@ go_e2e_test_binaries:
     - go install github.com/DataDog/orchestrion
     - popd
     - dda inv -- -e new-e2e-tests.build-binaries --output-dir test-binaries -p $KUBERNETES_CPU_REQUEST --manifest-file-path manifest.json
-    - tar c -I "zstd -T${KUBERNETES_CPU_REQUEST}" -f test-binaries.tar.zst test-binaries
-  artifacts:
-    expire_in: 1 week
-    paths:
-      - test-binaries.tar.zst
-      - manifest.json
+    - dda inv -- -e new-e2e-tests.upload-binaries --output-dir test-binaries --manifest-file-path manifest.json --s3-base-uri $S3_PERMANENT_ARTIFACTS_URI/e2e-pre-build/$CI_PIPELINE_ID
   rules:
     - !reference [.except_mergequeue]
     - when: on_success

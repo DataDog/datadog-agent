@@ -991,11 +991,11 @@ func TestTryResolveMissingAncestor(t *testing.T) {
 			t.Fatal()
 		}
 
-		// Use a fake PID that does not exist in procfs. With ppid=0 the
-		// resolver tries to read /proc/<pid>/status which will fail, so
-		// the Ancestor should remain nil and reparentFailed should be
-		// incremented.
-		child := newFakeForkEvent(0, 99998, 100, resolver)
+		// Use a PID above pid_max (4,194,304) so it can never exist in procfs
+		// regardless of host state. With ppid=0 the resolver tries to read
+		// /proc/<pid>/status which will fail, so the Ancestor should remain
+		// nil and reparentFailed should be incremented.
+		child := newFakeForkEvent(0, 5_000_099, 100, resolver)
 
 		resolver.Lock()
 		resolver.entryCache[child.ProcessCacheEntry.Pid] = child.ProcessCacheEntry
