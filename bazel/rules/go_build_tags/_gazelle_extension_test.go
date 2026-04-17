@@ -89,14 +89,12 @@ func TestPositiveUserTags(t *testing.T) {
 			[]string{"ec2"},
 		},
 		{
-			// Only the left branch is needed to satisfy the OR; docker is not added.
-			"OR: left branch wins",
+			"OR: both branches collected",
 			"kubelet || docker",
-			[]string{"kubelet"},
+			[]string{"kubelet", "docker"},
 		},
 		{
-			// Left branch is a system tag (filtered to nothing), so fall through to right.
-			"OR: left is system tag, right is user tag",
+			"OR: system tag on left, user tag on right",
 			"linux || ec2",
 			[]string{"ec2"},
 		},
@@ -111,15 +109,14 @@ func TestPositiveUserTags(t *testing.T) {
 			[]string{"test"},
 		},
 		{
-			"AND+OR: OR already satisfied by prior AND branch",
+			"AND+OR: both OR branches collected, duplicate removed",
 			"ec2 && (ec2 || kubelet)",
-			[]string{"ec2"},
+			[]string{"ec2", "kubelet"},
 		},
 		{
-			// Left branch of the OR (docker) is taken; containerd is not added.
-			"AND+OR: OR not yet satisfied, left branch taken",
+			"AND+OR: both OR branches collected",
 			"trivy && (docker || containerd)",
-			[]string{"trivy", "docker"},
+			[]string{"trivy", "docker", "containerd"},
 		},
 		{
 			// npm is excluded (requires Windows npm kernel driver); windows is a system tag.
@@ -128,8 +125,8 @@ func TestPositiveUserTags(t *testing.T) {
 			nil,
 		},
 		{
-			// Left branch adds linux_bpf (linux is system tag, filtered); right branch not explored.
-			"cross-platform OR: left branch has user tag",
+			// npm is excluded; linux_bpf is the only user tag from either branch.
+			"cross-platform OR: both branches collected, excluded tag filtered",
 			"(linux && linux_bpf) || (windows && npm)",
 			[]string{"linux_bpf"},
 		},
@@ -174,10 +171,9 @@ func TestTagsFromFile(t *testing.T) {
 			[]string{"test", "ec2"},
 		},
 		{
-			// Left branch of the OR is taken; docker is not added.
-			"OR expression",
+			"OR expression: both branches collected",
 			"//go:build kubelet || docker\n\npackage foo\n",
-			[]string{"kubelet"},
+			[]string{"kubelet", "docker"},
 		},
 		{
 			"no build constraint",
@@ -226,8 +222,8 @@ func TestRequiredSourceTags(t *testing.T) {
 
 	got := requiredSourceTags([]string{"a.go", "b.go", "c.go", "d.go", "e.go"}, dir)
 
-	// ec2 from a.go; kubelet from b.go (left branch of OR, docker not added);
+	// ec2 from a.go; kubelet+docker from b.go (both OR branches);
 	// ec2 already seen from c.go (deduped); linux filtered (system tag);
 	// !serverless from e.go skipped (NOT)
-	assert.Equal(t, []string{"ec2", "kubelet"}, got)
+	assert.Equal(t, []string{"ec2", "kubelet", "docker"}, got)
 }

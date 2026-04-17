@@ -63,10 +63,11 @@ func (*lang) Kinds() map[string]rule.KindInfo {
 //   - Linux-only tags (knownLinuxOnlyTags) are wrapped in a select() so they
 //     are only active on Linux, matching the behaviour of dda inv test.
 //
-// For AND expressions every tag is required, so all branches are collected.
-// For OR expressions the left branch is tried first; the right branch is only
-// consulted if the left produced no user-defined tags (e.g. the left side is
-// entirely system tags). NOT sub-expressions are skipped.
+// Tags are collected from all positive sub-expressions of the constraint tree:
+// both AND and OR branches are fully traversed; NOT sub-expressions are skipped.
+// Collecting all OR branches is intentional: gotags drives a rules_go
+// configuration transition that propagates to all transitive library deps, so a
+// tag missing from gotags silently excludes library files that depend on it.
 func (*lang) GenerateRules(args language.GenerateArgs) language.GenerateResult {
 	for _, r := range args.OtherGen {
 		if r.Kind() != "go_test" {
@@ -204,18 +205,14 @@ func walkPositive(expr constraint.Expr, tags *[]string) {
 		walkPositive(e.X, tags)
 		walkPositive(e.Y, tags)
 	case *constraint.OrExpr:
-		// Satisfy the OR with as few tags as possible: recurse into the left
-		// branch first. Only fall through to the right if the left branch
-		// added no user-defined tags (e.g. the left side is entirely system
-		// tags such as "linux"). When the OR is already satisfied by a prior
-		// AND branch (e.g. ec2 && (ec2 || kubelet)), the left branch appends
-		// a duplicate which still advances len(*tags), so the right branch is
-		// naturally skipped; positiveUserTags removes the duplicate.
-		before := len(*tags)
+		// Collect from both branches. Skipping the right branch when the left
+		// already contributes tags under-collects: gotags drives a rules_go
+		// configuration transition that propagates to all transitive library
+		// deps, so a tag missing from gotags silently excludes the library
+		// files that need it, regardless of which OR branch is "active".
+		// positiveUserTags deduplicates the result.
 		walkPositive(e.X, tags)
-		if len(*tags) == before {
-			walkPositive(e.Y, tags)
-		}
+		walkPositive(e.Y, tags)
 		// constraint.NotExpr: skip
 	}
 }
