@@ -74,9 +74,9 @@ const nilvalue = "-"
 
 // RFC 5424 §6.3: PRINTUSASCII range and max name length for SD-ID / PARAM-NAME.
 const (
-	printUSASCIIMin = 33 // '!' — lower bound of PRINTUSASCII (%d33-126)
+	printUSASCIIMin = 33  // '!' — lower bound of PRINTUSASCII (%d33-126)
 	printUSASCIIMax = 126 // '~' — upper bound of PRINTUSASCII
-	maxSDNameLen    = 32 // max length for SD-ID and PARAM-NAME
+	maxSDNameLen    = 32  // max length for SD-ID and PARAM-NAME
 )
 
 // SyslogMessage is a parsed syslog message (RFC 5424 or RFC 3164/BSD).
