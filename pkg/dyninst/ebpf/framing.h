@@ -64,6 +64,14 @@ typedef struct di_event_header {
 
   // The timestamp of the event according to CLOCK_MONOTONIC.
   uint64_t ktime_ns;
+
+  // Invocation ID: for entry events, equals ktime_ns (the entry probe's own
+  // start_ns). For return events, equals the entry probe's ktime_ns (pulled
+  // from in_progress_calls at return time). Continuation fragments inherit
+  // the value from fragment 0. Userspace uses this to correlate entry and
+  // return for a single invocation, and to disambiguate rapid sequential
+  // calls with the same (goid, stack_byte_depth, probe_id).
+  uint64_t entry_ktime_ns;
 }
 // Use aligned attribute to ensure that the size of the structure is a multiple
 // of 8 bytes; the attribute leads to the compiler adding padding.

@@ -262,6 +262,11 @@ typedef struct call_depths_entry {
   uint32_t depth;
   uint32_t probe_id;
   uint64_t dict_ptr; // dictionary pointer for generic shape functions (0 if N/A)
+  // Timestamp of the entry event that established this call. Returned to the
+  // return probe via call_depths_delete and stamped as entry_ktime_ns on the
+  // return event header so userspace can correlate entry and return for the
+  // same invocation.
+  uint64_t entry_ktime_ns;
 } call_depths_entry_t;
 
 #define CALL_DEPTHS_SIZE 8
@@ -281,12 +286,14 @@ struct {
 } in_progress_calls SEC(".maps");
 
 static inline __attribute__((always_inline)) bool call_depths_insert(
-    call_depths_t* depths, uint32_t depth, uint32_t probe_id, uint64_t dict_ptr) {
+    call_depths_t* depths, uint32_t depth, uint32_t probe_id,
+    uint64_t dict_ptr, uint64_t entry_ktime_ns) {
   for (int i = 0; i < CALL_DEPTHS_SIZE; i++) {
     if (depths->depths[i].depth == 0 && depths->depths[i].probe_id == 0) {
       depths->depths[i].depth = depth;
       depths->depths[i].probe_id = probe_id;
       depths->depths[i].dict_ptr = dict_ptr;
+      depths->depths[i].entry_ktime_ns = entry_ktime_ns;
       return true;
     }
   }
@@ -295,16 +302,20 @@ static inline __attribute__((always_inline)) bool call_depths_insert(
 
 static inline __attribute__((always_inline)) bool call_depths_delete(
     call_depths_t* depths, uint32_t depth, uint32_t probe_id,
-    int* remaining, uint64_t* out_dict_ptr) {
+    int* remaining, uint64_t* out_dict_ptr, uint64_t* out_entry_ktime_ns) {
   bool found = false;
   for (int i = 0; i < CALL_DEPTHS_SIZE; i++) {
     if (depths->depths[i].depth == depth && depths->depths[i].probe_id == probe_id) {
       if (out_dict_ptr) {
         *out_dict_ptr = depths->depths[i].dict_ptr;
       }
+      if (out_entry_ktime_ns) {
+        *out_entry_ktime_ns = depths->depths[i].entry_ktime_ns;
+      }
       depths->depths[i].depth = 0;
       depths->depths[i].probe_id = 0;
       depths->depths[i].dict_ptr = 0;
+      depths->depths[i].entry_ktime_ns = 0;
       found = true;
     } else if (depths->depths[i].depth != 0 || depths->depths[i].probe_id != 0) {
       (*remaining)++;

@@ -102,6 +102,10 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
       .data_byte_len = sizeof(di_event_header_t),
       .stack_byte_len = 0, // set this if we collect stacks
       .ktime_ns = start_ns,
+      // Default to start_ns (the invocation ID for entry / line / inlined /
+      // no-body events). For return events, this is overwritten below with
+      // the value pulled from in_progress_calls.
+      .entry_ktime_ns = start_ns,
       .prog_id = prog_id,
       .probe_id = params->probe_id,
   };
@@ -128,7 +132,10 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
     }
     int remaining;
     uint64_t saved_dict_ptr = 0;
-    if (!call_depths_delete(depths, header->stack_byte_depth, params->probe_id, &remaining, &saved_dict_ptr)) {
+    uint64_t entry_ktime_ns = 0;
+    if (!call_depths_delete(
+            depths, header->stack_byte_depth, params->probe_id,
+            &remaining, &saved_dict_ptr, &entry_ktime_ns)) {
       // Somewhat common case where the goroutine has open calls, but it's not
       // this one.
       LOG(4, "failed to delete in_progress_calls %lld (%lld): %d",
@@ -138,6 +145,9 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
     // Restore the dict pointer saved at entry time so the stack machine
     // can resolve generic shape types on the return path.
     global_ctx.stack_machine->saved_dict_ptr = saved_dict_ptr;
+    // Stamp the entry's timestamp on the return event so userspace can
+    // correlate entry and return for the same invocation.
+    header->entry_ktime_ns = entry_ktime_ns;
     // If we're the last call for this goid, delete the entry.
     if (remaining == 0) {
       int ret = bpf_map_delete_elem(&in_progress_calls, &header->goid);
@@ -271,6 +281,7 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
     depths->depths[0].depth = header->stack_byte_depth;
     depths->depths[0].probe_id = params->probe_id;
     depths->depths[0].dict_ptr = global_ctx.stack_machine->saved_dict_ptr;
+    depths->depths[0].entry_ktime_ns = start_ns;
     int ret = bpf_map_update_elem(&in_progress_calls, &header->goid, depths, BPF_NOEXIST);
     if (ret != 0) {
       if (ret == -E2BIG) {
@@ -282,7 +293,7 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
           return;
         }
         if (!call_depths_insert(depths, header->stack_byte_depth, params->probe_id,
-                                global_ctx.stack_machine->saved_dict_ptr)) {
+                                global_ctx.stack_machine->saved_dict_ptr, start_ns)) {
           header->event_pairing_expectation = EVENT_PAIRING_EXPECTATION_CALL_COUNT_EXCEEDED;
         }
       }
