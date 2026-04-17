@@ -39,7 +39,7 @@ The Datadog Agent is a comprehensive monitoring and observability agent written 
 
 - `/packages/` - The declarations of what goes into each package we build for distribution.
 
-- `/omnibus/` - The legacy build system.
+- `/omnibus/` - The legacy build system. Still in used, but we are trying not to add to it.
 
 
 ## Development Workflow
