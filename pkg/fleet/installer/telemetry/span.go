@@ -20,10 +20,11 @@ import (
 	"time"
 )
 
+const spanKey = spanContextKey("span_context")
+
 type spanContextKey string
 
 const (
-	spanIDsKey          = spanContextKey("span_ids")
 	serviceKey          = spanContextKey("span_service")
 	samplingPriorityKey = spanContextKey("span_sampling_priority")
 )
@@ -170,15 +171,15 @@ type spanIDs struct {
 }
 
 func getSpanIDsFromContext(ctx context.Context) (spanIDs, bool) {
-	ids, ok := ctx.Value(spanIDsKey).(spanIDs)
-	return ids, ok
+	sIDs, ok := ctx.Value(spanKey).(spanIDs)
+	if !ok {
+		return spanIDs{}, false
+	}
+	return sIDs, true
 }
 
 func setSpanIDsInContext(ctx context.Context, span *Span) context.Context {
-	return context.WithValue(ctx, spanIDsKey, spanIDs{
-		traceID: span.span.TraceID,
-		spanID:  span.span.SpanID,
-	})
+	return context.WithValue(ctx, spanKey, spanIDs{traceID: span.span.TraceID, spanID: span.span.SpanID})
 }
 
 func getRootErrorType(err error) string {

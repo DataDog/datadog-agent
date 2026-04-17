@@ -120,11 +120,11 @@ func (t *Telemetry) sendCompletedSpans() {
 
 // SpanFromContext returns the span from the context if available.
 func SpanFromContext(ctx context.Context) (*Span, bool) {
-	ids, ok := getSpanIDsFromContext(ctx)
+	spanIDs, ok := getSpanIDsFromContext(ctx)
 	if !ok {
 		return nil, false
 	}
-	return globalTracer.getSpan(ids.spanID)
+	return globalTracer.getSpan(spanIDs.spanID)
 }
 
 // WithService sets the service name on the context. Spans created from this context
