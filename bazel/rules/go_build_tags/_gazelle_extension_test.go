@@ -45,6 +45,15 @@ func TestIsSystemTag(t *testing.T) {
 	}
 }
 
+func TestIsLinuxOnlyTag(t *testing.T) {
+	for _, tag := range []string{"crio", "jetson", "linux_bpf", "netcgo", "nvml", "pcap", "podman", "systemd", "trivy"} {
+		assert.True(t, isLinuxOnlyTag(tag), "expected linux-only tag: %s", tag)
+	}
+	for _, tag := range []string{"ec2", "kubelet", "docker", "test", "npm"} {
+		assert.False(t, isLinuxOnlyTag(tag), "expected non-linux-only tag: %s", tag)
+	}
+}
+
 func TestIsExcludedTag(t *testing.T) {
 	assert.True(t, isExcludedTag("npm"), "npm must be excluded: requires Windows npm kernel driver")
 	assert.False(t, isExcludedTag("ec2"), "ec2 must not be excluded")
