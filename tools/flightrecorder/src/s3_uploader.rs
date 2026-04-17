@@ -1,8 +1,9 @@
 //! Async S3 upload task for Parquet signal files.
 //!
-//! Receives upload requests via a bounded mpsc channel and uploads files to S3
-//! with retry. After successful upload, the local file is deleted and the
-//! DiskTracker is notified. The entire module is behind `#[cfg(feature = "s3")]`.
+//! Uses the `object_store` crate for lightweight S3 uploads without the full
+//! AWS SDK. Receives upload requests via a bounded mpsc channel and uploads
+//! files with retry. After successful upload, the local file is deleted and
+//! the DiskTracker is notified.
 
 #![cfg(feature = "s3")]
 
@@ -11,8 +12,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Result;
-use aws_sdk_s3::primitives::ByteStream;
-use aws_sdk_s3::Client;
+use object_store::aws::AmazonS3Builder;
+use object_store::path::Path as ObjectPath;
+use object_store::{ObjectStore, ObjectStoreExt};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
@@ -51,34 +53,35 @@ impl S3UploadHandle {
     }
 }
 
-/// Async S3 upload task. Receives file paths, uploads them, deletes local copies.
+/// Async S3 upload task.
 pub struct S3Uploader {
     rx: mpsc::Receiver<UploadRequest>,
-    client: Client,
-    bucket: String,
+    store: Arc<dyn ObjectStore>,
     key_prefix: String,
     tracker: Arc<DiskTracker>,
 }
 
 /// Create a new S3 uploader and its send handle.
-pub async fn new_s3_uploader(
+///
+/// Uses the `object_store` AmazonS3Builder which reads credentials from the
+/// standard AWS credential chain (env vars, instance profile, shared credentials).
+pub fn new_s3_uploader(
     bucket: String,
     region: String,
     key_prefix: String,
     tracker: Arc<DiskTracker>,
 ) -> Result<(S3Uploader, S3UploadHandle)> {
-    let config = aws_config::defaults(aws_config::BehaviorVersion::latest())
-        .region(aws_sdk_s3::config::Region::new(region))
-        .load()
-        .await;
-    let client = Client::new(&config);
+    let store = AmazonS3Builder::from_env()
+        .with_bucket_name(&bucket)
+        .with_region(&region)
+        .build()
+        .map_err(|e| anyhow::anyhow!("failed to create S3 client: {e}"))?;
 
     let (tx, rx) = mpsc::channel(CHANNEL_CAPACITY);
 
     let uploader = S3Uploader {
         rx,
-        client,
-        bucket,
+        store: Arc::new(store),
         key_prefix,
         tracker,
     };
@@ -90,16 +93,11 @@ pub async fn new_s3_uploader(
 impl S3Uploader {
     /// Run the upload loop until cancelled.
     pub async fn run(mut self, cancel: CancellationToken) {
-        info!(
-            bucket = %self.bucket,
-            key_prefix = %self.key_prefix,
-            "S3 uploader started"
-        );
+        info!(key_prefix = %self.key_prefix, "S3 uploader started");
 
         loop {
             let request = tokio::select! {
                 _ = cancel.cancelled() => {
-                    // Drain remaining requests on shutdown.
                     while let Ok(req) = self.rx.try_recv() {
                         self.upload_file(req).await;
                     }
@@ -131,9 +129,10 @@ impl S3Uploader {
         };
 
         let key = format!("{}{}", self.key_prefix, filename);
+        let object_path = ObjectPath::from(key.as_str());
 
         for attempt in 0..MAX_RETRIES {
-            match self.try_upload(&request.path, &key).await {
+            match self.try_upload(&request.path, &object_path).await {
                 Ok(()) => {
                     info!(
                         path = %request.path.display(),
@@ -141,7 +140,6 @@ impl S3Uploader {
                         size_mb = request.size / (1024 * 1024),
                         "S3 upload succeeded"
                     );
-                    // Delete local file and update tracker.
                     if let Err(e) = std::fs::remove_file(&request.path) {
                         warn!(
                             path = %request.path.display(),
@@ -172,19 +170,15 @@ impl S3Uploader {
         );
     }
 
-    async fn try_upload(&self, path: &std::path::Path, key: &str) -> Result<()> {
-        let body = ByteStream::from_path(path)
+    async fn try_upload(&self, local_path: &std::path::Path, key: &ObjectPath) -> Result<()> {
+        let data = tokio::fs::read(local_path)
             .await
             .map_err(|e| anyhow::anyhow!("reading file for S3 upload: {e}"))?;
 
-        self.client
-            .put_object()
-            .bucket(&self.bucket)
-            .key(key)
-            .body(body)
-            .send()
+        self.store
+            .put(key, data.into())
             .await
-            .map_err(|e| anyhow::anyhow!("S3 PutObject: {e}"))?;
+            .map_err(|e| anyhow::anyhow!("S3 put: {e}"))?;
 
         Ok(())
     }

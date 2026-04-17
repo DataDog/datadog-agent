@@ -214,8 +214,7 @@ pub async fn run(cfg: config::Config, tracker: Arc<disk_tracker::DiskTracker>) -
             cfg.s3_region.clone(),
             key_prefix,
             tracker.clone(),
-        )
-        .await?;
+        )?;
 
         tracker.set_upload_handle(handle.clone());
 
