@@ -23,10 +23,10 @@ go_library(
     ],
     deps = [
         "//comp/core/log/def",
+        "//comp/core/telemetry/def",
         "//comp/forwarder/defaultforwarder/resolver",
         "//comp/forwarder/defaultforwarder/transaction",
         "//pkg/config/utils",
-        "//comp/core/telemetry/def",
         "//pkg/util/common",
         "//pkg/util/filesystem",
         "@com_github_hashicorp_go_multierror//:go-multierror",
