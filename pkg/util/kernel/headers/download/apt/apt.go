@@ -315,10 +315,12 @@ func overrideRepoURI(uri string, target *types.Target) string {
 		if parsedURL.Host != "deb.debian.org" && parsedURL.Host != "security.debian.org" {
 			return uri
 		}
-		switch target.Distro.Release {
-		case "9", "10":
-			parsedURL.Host = "archive.debian.org"
-			return parsedURL.String()
+		if v, ok := target.OSRelease["VERSION_ID"]; ok {
+			switch v {
+			case "9", "10":
+				parsedURL.Host = "archive.debian.org"
+				return parsedURL.String()
+			}
 		}
 	}
 
