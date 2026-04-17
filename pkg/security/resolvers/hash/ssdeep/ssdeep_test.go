@@ -86,7 +86,6 @@ func TestChunkedWrite(t *testing.T) {
 	expected, err := glaslos.FuzzyBytes(data)
 	require.NoError(t, err)
 
-	// Write in 4KB chunks
 	h := New()
 	for i := 0; i < len(data); i += 4096 {
 		end := i + 4096
@@ -97,6 +96,58 @@ func TestChunkedWrite(t *testing.T) {
 	}
 	got := string(h.Sum(nil))
 	assert.Equal(t, expected, got)
+}
+
+// TestFileTooSmall verifies that the Force flag works correctly.
+func TestFileTooSmall(t *testing.T) {
+	Force = false
+	defer func() { Force = false }()
+
+	data := generateData(2048, 'x')
+
+	h := New()
+	h.Write(data)
+	got := h.Sum(nil)
+	assert.Nil(t, got, "expected nil output for small file without Force")
+	assert.ErrorIs(t, h.Err(), ErrFileTooSmall)
+
+	Force = true
+	h.Reset()
+	assert.Nil(t, h.Err(), "error should be cleared after Reset")
+	h.Write(data)
+	got = h.Sum(nil)
+	assert.NotNil(t, got, "expected output for small file with Force")
+	assert.Nil(t, h.Err())
+}
+
+// TestEmptyWrite verifies that empty writes are handled gracefully.
+func TestEmptyWrite(t *testing.T) {
+	h := New()
+	n, err := h.Write(nil)
+	assert.Equal(t, 0, n)
+	assert.NoError(t, err)
+
+	n, err = h.Write([]byte{})
+	assert.Equal(t, 0, n)
+	assert.NoError(t, err)
+}
+
+// TestReset verifies that Reset produces identical hashes on re-use.
+func TestReset(t *testing.T) {
+	Force = true
+	defer func() { Force = false }()
+
+	data := generateRandomData(64 * 1024)
+
+	h := New()
+	h.Write(data)
+	first := string(h.Sum(nil))
+
+	h.Reset()
+	h.Write(data)
+	second := string(h.Sum(nil))
+
+	assert.Equal(t, first, second, "Reset should produce identical hashes")
 }
 
 var benchSizes = []struct {

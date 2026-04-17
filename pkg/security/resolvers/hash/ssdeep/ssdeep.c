@@ -44,15 +44,18 @@ static inline unsigned char sum_hash(unsigned char c, unsigned char h) {
     return sum_table[h][c & 0x3f];
 }
 
-void ssdeep_init(struct ssdeep_state *s) {
+int ssdeep_init(struct ssdeep_state *s) {
+    if (!s)
+        return -1;
     memset(s, 0, sizeof(*s));
     s->iEnd = 1;
     for (int i = 0; i < NUM_BLOCKHASHES; i++) {
-        s->blocks[i].blockSize = BLOCK_MIN << i;
+        s->blocks[i].blockSize = BLOCK_MIN << i; /* BLOCK_MIN is unsigned */
         s->blocks[i].h1 = HASH_INIT;
         s->blocks[i].h2 = HASH_INIT;
         s->blocks[i].hashLen = 0;
     }
+    return 0;
 }
 
 static inline int is_start_block_full(const struct ssdeep_state *s) {
@@ -60,7 +63,12 @@ static inline int is_start_block_full(const struct ssdeep_state *s) {
         && s->blocks[s->iStart + 1].hashLen >= SPAMSUM_LENGTH / 2;
 }
 
-void ssdeep_update(struct ssdeep_state *s, const unsigned char *data, int len) {
+int ssdeep_update(struct ssdeep_state *s, const unsigned char *data, int len) {
+    if (!s || (!data && len > 0) || len < 0)
+        return -1;
+    if (len == 0)
+        return 0;
+
     uint32_t rh1 = s->rh1, rh2 = s->rh2, rh3 = s->rh3, rn = s->rn;
 
     s->totalSize += (uint64_t)len;
@@ -68,13 +76,11 @@ void ssdeep_update(struct ssdeep_state *s, const unsigned char *data, int len) {
     for (int di = 0; di < len; di++) {
         unsigned char b = data[di];
 
-        // Update block hashes via lookup table
         for (int i = s->iStart; i < s->iEnd; i++) {
             s->blocks[i].h1 = sum_hash(b, s->blocks[i].h1);
             s->blocks[i].h2 = sum_hash(b, s->blocks[i].h2);
         }
 
-        // Rolling hash (Adler-like)
         rh2 -= rh1;
         rh2 += ROLLING_WINDOW * (uint32_t)b;
         rh1 += (uint32_t)b;
@@ -84,7 +90,6 @@ void ssdeep_update(struct ssdeep_state *s, const unsigned char *data, int len) {
             rn = 0;
         rh3 = (rh3 << 5) ^ (uint32_t)b;
 
-        // Check for block boundary
         uint32_t rh = rh1 + rh2 + rh3;
         if (rh == 0xFFFFFFFFu)
             continue;
@@ -93,7 +98,6 @@ void ssdeep_update(struct ssdeep_state *s, const unsigned char *data, int len) {
         if ((rh + 1) % BLOCK_MIN)
             continue;
 
-        // Boundary hit — process affected blocks
         for (int i = s->iStart; i < s->iEnd; i++) {
             struct blockhash_state *block = &s->blocks[i];
             if (rh % block->blockSize != (block->blockSize - 1))
@@ -129,14 +133,18 @@ void ssdeep_update(struct ssdeep_state *s, const unsigned char *data, int len) {
     s->rh2 = rh2;
     s->rh3 = rh3;
     s->rn = rn;
+    return 0;
 }
 
 int ssdeep_digest(const struct ssdeep_state *s, char *result, int result_len) {
-    if (result_len < SSDEEP_MAX_RESULT)
+    if (!s || !result || result_len < SSDEEP_MAX_RESULT)
         return -1;
 
     int i = s->iStart;
-    while ((uint64_t)((uint32_t)BLOCK_MIN << i) * SPAMSUM_LENGTH < s->totalSize)
+    // Upper-bound i at NUM_BLOCKHASHES-1 to prevent UB from shifting
+    // past the bit width of uint32_t.
+    while (i < NUM_BLOCKHASHES - 1 &&
+           (uint64_t)(BLOCK_MIN << i) * SPAMSUM_LENGTH < s->totalSize)
         i++;
 
     if (i >= s->iEnd)
@@ -144,7 +152,6 @@ int ssdeep_digest(const struct ssdeep_state *s, char *result, int result_len) {
     while (i > s->iStart && s->blocks[i].hashLen < SPAMSUM_LENGTH / 2)
         i--;
 
-    // Copy block data to avoid modifying the const state
     unsigned char buf1[SPAMSUM_LENGTH + 1];
     unsigned char buf2[SPAMSUM_LENGTH + 1];
     int len1, len2;
@@ -190,6 +197,10 @@ int ssdeep_digest(const struct ssdeep_state *s, char *result, int result_len) {
     buf1[len1] = '\0';
     buf2[len2] = '\0';
 
-    return snprintf(result, result_len, "%u:%s:%s",
-                    s->blocks[i].blockSize, buf1, buf2);
+    int n = snprintf(result, result_len, "%u:%s:%s",
+                     s->blocks[i].blockSize, buf1, buf2);
+    // Clamp to actual buffer size in case snprintf reports truncation.
+    if (n >= result_len)
+        n = result_len - 1;
+    return n;
 }
