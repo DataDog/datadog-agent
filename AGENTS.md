@@ -87,7 +87,6 @@ dda inv system-probe.build
 bazel build //packages/agent/linux:debian
 
 # Keep BUILD.bazel files in sync with go dependencies
-bazel run //:gazelle
 dda inv tidy
 ```
 

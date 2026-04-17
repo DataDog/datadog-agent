@@ -30,7 +30,6 @@ packages/
 │   └── BUILD.bazel      ← deb + rpm targets (skeleton — components TODO)
 ├── macos/               ← macOS .app bundle components
 │   └── app/
-├── python3/             ← Python packaging helpers
 ├── debian/              ← Shared Debian packaging assets (/etc layout)
 ├── redhat/              ← Shared RPM packaging assets (/etc layout)
 ├── windows/             ← Windows-specific packaging components
