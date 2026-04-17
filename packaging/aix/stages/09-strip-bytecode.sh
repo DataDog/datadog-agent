@@ -90,6 +90,7 @@ log "Bytecode compilation complete"
 
 log "Recording .pyc/.pyo files to $EMBEDDED_DESTDIR/.pyc_compiled_files.txt"
 find "$EMBEDDED_DESTDIR" \( -name "*.pyc" -o -name "*.pyo" \) -print \
+    | sed "s|^$STAGING||" \
     > "$EMBEDDED_DESTDIR/.pyc_compiled_files.txt"
 log "Recorded $(wc -l < "$EMBEDDED_DESTDIR/.pyc_compiled_files.txt") .pyc files"
 
