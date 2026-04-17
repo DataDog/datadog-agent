@@ -41,6 +41,7 @@ func ConvertToIdx(payload *pb.TracerPayload, originPayloadVersion string) *idx.I
 		spanConvertedFields.TraceIDLower = tidLower
 		chunkAttrs := convertAttributesMap(chunk.Tags, stringTable)
 		idxSpans := make([]*idx.InternalSpan, len(chunk.Spans))
+		var rootSampling idx.RootSamplingMergeState
 		for spanIndex, span := range chunk.Spans {
 			spanAttrs := make(map[uint32]*idx.AnyValue, len(span.Meta)+len(span.Metrics)+len(span.MetaStruct))
 			for k, v := range span.Meta {
@@ -53,12 +54,14 @@ func ConvertToIdx(payload *pb.TracerPayload, originPayloadVersion string) *idx.I
 					},
 				}
 			}
+			var spanSamplingMetric *float64
 			for k, v := range span.Metrics {
 				if isPromotedTag(k) {
 					continue
 				}
 				if k == "_sampling_priority_v1" {
-					spanConvertedFields.SamplingPriority = int32(v)
+					vv := v
+					spanSamplingMetric = &vv
 				}
 				spanAttrs[stringTable.Add(k)] = &idx.AnyValue{
 					Value: &idx.AnyValue_DoubleValue{
@@ -76,6 +79,10 @@ func ConvertToIdx(payload *pb.TracerPayload, originPayloadVersion string) *idx.I
 					},
 				}
 			}
+			if spanSamplingMetric != nil {
+				spanConvertedFields.SamplingPriority = int32(*spanSamplingMetric)
+			}
+			rootSampling.ReconcileSamplingPriorityAfterChunkSpan(spanConvertedFields, span.ParentID)
 			spanLinks := make([]*idx.SpanLink, len(span.SpanLinks))
 			for spanLinkIndex, link := range span.SpanLinks {
 				linkTraceID := make([]byte, 16)

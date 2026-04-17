@@ -866,6 +866,30 @@ func NewSpanConvertedFields() *SpanConvertedFields {
 	}
 }
 
+// RootSamplingMergeState tracks the trace-chunk sampling priority while merging spans. The root span
+// (parent_id == 0) owns _sampling_priority_v1 for the chunk; non-root spans must not overwrite it
+// once a root has been seen. This is applied between spans—see ApplyPromotedFields for the final
+// copy onto InternalTraceChunk.
+type RootSamplingMergeState struct {
+	rootPriority int32
+	seenRoot     bool
+}
+
+// ReconcileSamplingPriorityAfterChunkSpan updates convertedFields after one span of a chunk has been
+// decoded (or converted). convertedFields.SamplingPriority must already reflect this span's
+// promoted _sampling_priority_v1 metric when present.
+func (st *RootSamplingMergeState) ReconcileSamplingPriorityAfterChunkSpan(convertedFields *SpanConvertedFields, spanParentID uint64) {
+	if spanParentID == 0 {
+		st.rootPriority = convertedFields.SamplingPriority
+		st.seenRoot = true
+		return
+	}
+	if st.seenRoot {
+		// We know the root span's priority so override the convertedFields.SamplingPriority
+		convertedFields.SamplingPriority = st.rootPriority
+	}
+}
+
 // ChunkConvertedFields is used to collect fields from v4 chunks that have been promoted to the tracer payload level
 type ChunkConvertedFields struct {
 	EnvRef          uint32
@@ -927,7 +951,8 @@ func (tp *InternalTracerPayload) UnmarshalMsgConverted(bts []byte) (o []byte, er
 	return
 }
 
-// ApplyPromotedFields applies span promoted fields to the chunk, copying chunk promoted fields to chunkConvertedFields
+// ApplyPromotedFields applies span promoted fields to the chunk, copying chunk promoted fields to chunkConvertedFields.
+// Per-span sampling priority merging (root vs non-root) is handled by RootSamplingMergeState before this runs.
 func (c *InternalTraceChunk) ApplyPromotedFields(convertedFields *SpanConvertedFields, chunkConvertedFields *ChunkConvertedFields) {
 	tid := make([]byte, 16)
 	binary.BigEndian.PutUint64(tid[8:], convertedFields.TraceIDLower)
@@ -970,6 +995,7 @@ func (c *InternalTraceChunk) UnmarshalMsgConverted(bts []byte, chunkConvertedFie
 		c.Spans = make([]*InternalSpan, numSpans)
 	}
 	convertedFields := NewSpanConvertedFields()
+	var rootSampling RootSamplingMergeState
 	for i := range c.Spans {
 		if msgp.IsNil(bts) {
 			bts, err = msgp.ReadNilBytes(bts)
@@ -985,6 +1011,7 @@ func (c *InternalTraceChunk) UnmarshalMsgConverted(bts []byte, chunkConvertedFie
 				err = msgp.WrapError(err, i)
 				return
 			}
+			rootSampling.ReconcileSamplingPriorityAfterChunkSpan(convertedFields, c.Spans[i].ParentID())
 		}
 	}
 	c.ApplyPromotedFields(convertedFields, chunkConvertedFields)
