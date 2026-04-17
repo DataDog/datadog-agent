@@ -7,16 +7,16 @@ go 1.25.0
 // for more details.
 
 require (
-	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.61.0
-	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip v0.61.0
-	github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.71.0
-	github.com/DataDog/datadog-agent/pkg/proto v0.74.1
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.61.0
-	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.61.0
-	github.com/DataDog/datadog-agent/pkg/util/log v0.73.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.72.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.73.0-rc.5
+	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.79.0-rc.1
+	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip v0.79.0-rc.1
+	github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd v0.79.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.79.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/proto v0.79.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.79.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.79.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/log v0.79.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.79.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.79.0-rc.1
 	github.com/DataDog/datadog-go/v5 v5.8.3
 	github.com/DataDog/sketches-go v1.4.8 // indirect
 	github.com/Microsoft/go-winio v0.6.2
@@ -44,15 +44,15 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.72.0-rc.5
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.72.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/api v0.72.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/config/env v0.72.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.72.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/template v0.72.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/trace/log v0.77.0-devel.0.20260211235139-a5361978c2b6
-	github.com/DataDog/datadog-agent/pkg/trace/stats v0.77.0-devel.0.20260211235139-a5361978c2b6
-	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.77.0-devel.0.20260211235139-a5361978c2b6
+	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.79.0-rc.1
+	github.com/DataDog/datadog-agent/comp/core/telemetry v0.79.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/api v0.79.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/config/env v0.79.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.79.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/template v0.79.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/trace/log v0.79.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/trace/stats v0.79.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.79.0-rc.1
 	github.com/go-viper/mapstructure/v2 v2.5.0
 	github.com/shirou/gopsutil/v4 v4.26.3
 	go.opentelemetry.io/collector/component/componenttest v0.150.0
@@ -72,14 +72,14 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/def v0.73.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/model v0.77.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.72.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.73.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/option v0.72.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system v0.72.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.72.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.72.2 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.79.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/model v0.79.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.79.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.79.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/option v0.79.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system v0.79.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.79.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.79.0-rc.1 // indirect
 	github.com/DataDog/go-sqllexer v0.2.1 // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/zstd v1.5.7 // indirect
