@@ -728,6 +728,28 @@ infrastructure_mode: end_user_device
 
 }
 
+func TestNetworkPathFiltersEndUserDeviceModeAppendsUser(t *testing.T) {
+	datadogYaml := `
+infrastructure_mode: end_user_device
+network_path:
+  collector:
+    filters:
+      - match_ip: 0.0.0.0/0
+        type: include
+`
+	config := confFromYAML(t, datadogYaml)
+	applyInfrastructureModeOverrides(config)
+	filters := config.Get("network_path.collector.filters")
+	require.NotNil(t, filters)
+
+	filtersList, ok := filters.([]map[string]string)
+	require.True(t, ok, "filters should be []map[string]string, got %T", filters)
+
+	last := filtersList[len(filtersList)-1]
+	assert.Equal(t, "0.0.0.0/0", last["match_ip"], "user filter should be appended last")
+	assert.Equal(t, "include", last["type"])
+}
+
 func TestUsePodmanLogsAndDockerPathOverride(t *testing.T) {
 	// If use_podman_logs is true and docker_path_override is set, the config should return an error
 	datadogYaml := `
