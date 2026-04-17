@@ -165,6 +165,7 @@ message KubernetesPodOwner {
   string kind = 1;
   string name = 2;
   string id = 3;
+  string group = 4;
 }
 
 message OrchestratorContainer {
