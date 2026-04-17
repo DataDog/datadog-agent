@@ -276,6 +276,15 @@ def get_build_flags(
     if python_home_3:
         ldflags += f"-X {REPO_PATH}/pkg/collector/python.pythonHome3={python_home_3} "
 
+    # On AIX, libpython must be linked explicitly so that Python API symbols enter
+    # the XCOFF process-global symbol table at startup (required by C extension modules).
+    # Fall back to embedded_path when python_home_3 is not explicitly set, since on AIX
+    # Python is installed alongside rtloader under the same embedded prefix.
+    if sys.platform == 'aix':
+        aix_python_lib_path = python_home_3 or embedded_path
+        if aix_python_lib_path:
+            env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + f" -L{aix_python_lib_path}/lib -lpython3"
+
     # adding rtloader libs and headers to the env
     if rtloader_lib:
         if not headless_mode:
@@ -307,7 +316,7 @@ def get_build_flags(
         ldflags += "-s -w -linkmode=external "
         extldflags += "-static "
     elif rtloader_lib:
-        if sys.platform != "aix":  # AIX uses full-path linking in pkg/collector/python/init.go
+        if sys.platform != "aix":  # -r sets ELF RPATH; not valid for AIX XCOFF
             ldflags += f"-r {':'.join(rtloader_lib)} "
 
     if os.environ.get("DELVE"):
