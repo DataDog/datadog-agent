@@ -21,6 +21,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 )
 
+// profileHashInput is used to compute a hash that covers both the profile
+// template spec and the annotations that are forwarded to generated DPAs
+// (currently the PreviewAnnotation). Including the annotation ensures that
+// toggling preview features (e.g. burstable) triggers a DPA reconcile even
+// when the template spec itself has not changed.
+type profileHashInput struct {
+	Template datadoghq.DatadogPodAutoscalerTemplate `json:"template"`
+	Preview  string                                 `json:"preview,omitempty"`
+}
+
 const (
 	// ProfileLabelKey is the label key used to associate a workload with a profile
 	// and to mark generated DPAs as profile-managed. Setting this label to
@@ -77,9 +87,14 @@ type PodAutoscalerProfileInternal struct {
 	// validationError holds the validation error if the profile is invalid
 	validationError error
 
+	// previewAnnotation holds the raw value of the preview annotation from the profile
+	// (e.g. `{"burstable":true}`), forwarded transparently to all generated DPA resources.
+	previewAnnotation string
+
 	// computed fields
 
-	// templateHash is a deterministic hash of the template for change detection
+	// templateHash is a deterministic hash of the template AND forwarded annotations
+	// so that toggling preview features triggers a DPA reconcile.
 	templateHash string
 
 	// workloads holds the list of workload references discovered by the WorkloadWatcher
@@ -105,8 +120,15 @@ func NewPodAutoscalerProfileInternal(profile *datadoghq.DatadogPodAutoscalerClus
 func (p *PodAutoscalerProfileInternal) UpdateFromProfile(profile *datadoghq.DatadogPodAutoscalerClusterProfile) error {
 	p.generation = profile.Generation
 	p.template = &profile.Spec.Template
+	p.previewAnnotation = profile.Annotations[PreviewAnnotationKey]
 
-	hash, err := autoscaling.ObjectHash(&profile.Spec.Template)
+	// Include the preview annotation in the hash so that toggling preview
+	// features (e.g. burstable) triggers a DPA reconcile even when the
+	// template spec is unchanged.
+	hash, err := autoscaling.ObjectHash(profileHashInput{
+		Template: profile.Spec.Template,
+		Preview:  profile.Annotations[PreviewAnnotationKey],
+	})
 	if err != nil {
 		return err
 	}
@@ -158,6 +180,11 @@ func (p *PodAutoscalerProfileInternal) TemplateHash() string { return p.template
 
 // Valid returns whether the profile template is valid.
 func (p *PodAutoscalerProfileInternal) Valid() bool { return p.valid }
+
+// PreviewAnnotation returns the raw value of the preview annotation from the profile
+// (e.g. `{"burstable":true}`), forwarded transparently to all generated DPA resources.
+// Returns empty string when no preview annotation is set on the profile.
+func (p *PodAutoscalerProfileInternal) PreviewAnnotation() string { return p.previewAnnotation }
 
 // Workloads returns the list of workload references associated with this profile.
 func (p *PodAutoscalerProfileInternal) Workloads() map[string]NamespacedObjectReference {

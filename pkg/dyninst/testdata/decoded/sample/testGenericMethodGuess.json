@@ -67,7 +67,7 @@
           },
           "return": {
             "locals": {
-              "~r0": {
+              "@return": {
                 "type": "bool",
                 "value": "true"
               }
@@ -150,7 +150,7 @@
           },
           "return": {
             "locals": {
-              "~r0": {
+              "@return": {
                 "type": "bool",
                 "value": "false"
               }
