@@ -11,7 +11,7 @@ from tasks.libs.common.utils import get_metric_origin
 
 # Increase this value to force an update to the cache key, invalidating existing
 # caches and forcing a rebuild
-CACHE_VERSION = 2
+CACHE_VERSION = 3
 
 
 ENV_PASSHTROUGH = {
