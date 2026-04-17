@@ -1466,7 +1466,7 @@ func sizeContainerDebug(cd *idx.ContainerDebug) int {
 	}
 	if cd.WasBuffered {
 		size += sizeTag(fieldCDWasBuffered, wireVarint)
-		size += 1 // bool is 1 byte
+		size++ // bool is 1 byte
 	}
 	if cd.BufferMs != 0 {
 		size += sizeTag(fieldCDBufferMs, wireVarint)

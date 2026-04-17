@@ -357,14 +357,6 @@ func debugFromError(err error) *DebugInfo {
 	return &DebugInfo{Error: err.Error()}
 }
 
-// debugIfNotable returns the debug info only if it has notable data, nil otherwise.
-func debugIfNotable(d *DebugInfo) *DebugInfo {
-	if d.HasData() {
-		return d
-	}
-	return nil
-}
-
 type tagResult struct {
 	tags    []string
 	err     error
