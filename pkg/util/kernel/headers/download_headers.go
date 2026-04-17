@@ -127,7 +127,7 @@ func (h *headerDownloader) getHeaderDownloadBackend(target *types.Target, reposD
 			backend, err = rpm.NewRedHatBackend(target, reposDir, logger)
 		}
 	case "rocky":
-		backend, err = rpm.NewRedHatBackend(target, reposDir, logger)
+		backend, err = rpm.NewRockyBackend(target, reposDir, logger)
 	case "centos":
 		backend, err = rpm.NewCentOSBackend(target, reposDir, logger)
 	case "opensuse", "opensuse-leap", "opensuse-tumbleweed", "opensuse-tumbleweed-kubic":
