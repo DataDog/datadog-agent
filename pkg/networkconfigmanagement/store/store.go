@@ -322,16 +322,25 @@ func (cs *ConfigStore) DeleteConfig(key string) error {
 	})
 }
 
+// evictConfigs deletes the configs identified by the given UUIDs.
+func (cs *ConfigStore) evictConfigs(uuids []string) error {
+	for _, uuid := range uuids {
+		if err := cs.DeleteConfig(uuid); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // hashConfig returns a SHA-256 hash of the config content as a string
 func hashConfig(raw string) string {
 	hash := sha256.Sum256([]byte(raw))
 	return hex.EncodeToString(hash[:])
 }
 
-// buildEvictionIndex scans the metadata bucket and returns:
+// build organized data structures used to identify evictable configs
 // configsPerDevice: map of deviceID -> total number of configs stored for that device
 // sortedEntries: all ConfigMetadata pointers sorted by LastAccessedAt ascending (oldest first)
-// Both structures are built in a single view transaction for a consistent snapshot.
 func (cs *ConfigStore) buildEvictionIndex() (configsPerDevice map[string]int, entries []*ConfigMetadata, err error) {
 	configsPerDevice = make(map[string]int)
 
@@ -357,10 +366,7 @@ func (cs *ConfigStore) buildEvictionIndex() (configsPerDevice map[string]int, en
 	return configsPerDevice, entries, nil
 }
 
-// getEvictableExceedingMax returns UUIDs of configs to evict due to the per-device cap N.
-// For each device whose total config count exceeds N, evict the oldest evictable configs.
-// This function should be called first before calling for the global LRU candidate.
-// It does not mutate the index; call updateEvictionIndex with the returned UUIDs to apply changes.
+// find the configs that exceed the per-device storage cap
 func getEvictableExceedingMax(configsPerDevice map[string]int, sortedEntries []*ConfigMetadata, maxRetainedConfigs int) []string {
 	var evictable []string
 	pendingEvictions := make(map[string]int)
@@ -378,10 +384,7 @@ func getEvictableExceedingMax(configsPerDevice map[string]int, sortedEntries []*
 	return evictable
 }
 
-// getGlobalLRUCandidate returns the UUID of the single oldest evictable config (rule 3).
-// A config is evictable if it is: 1) not pinned, 2) its device exceeds minRetainedConfigs.
-// Returns an empty string if no evictable config exists.
-// It does not mutate the index; call updateEvictionIndex with the returned UUID to apply changes.
+// Identify the next LRU candidate using the eviction index
 func getGlobalLRUCandidate(configsPerDevice map[string]int, sortedEntries []*ConfigMetadata, minRetainedConfigs int) string {
 	for _, entry := range sortedEntries {
 		if entry.IsPinned {
@@ -394,9 +397,7 @@ func getGlobalLRUCandidate(configsPerDevice map[string]int, sortedEntries []*Con
 	return ""
 }
 
-// updateEvictionIndex removes a single config key from both index data structures.
-// Both the updated configsPerDevice map and sortedEntries slice are returned to make
-// it explicit that both structures are outputs of this operation.
+// after a config is evicted, update the eviction index
 func updateEvictionIndex(configsPerDevice map[string]int, sortedEntries []*ConfigMetadata, key string) (map[string]int, []*ConfigMetadata) {
 
 	var remaining []*ConfigMetadata
@@ -413,9 +414,7 @@ func updateEvictionIndex(configsPerDevice map[string]int, sortedEntries []*Confi
 	return configsPerDevice, remaining
 }
 
-// getEvictionCandidates builds the eviction index and returns a single ordered list of
-// config UUIDs to evict. Per-device cap violations come first, followed by global LRU
-// candidates (oldest first). LRU candidates are only collected when the DB size exceeds maxSize.
+// Identify the list of configs to evict in the next eviction round. This evicts configs exceeding the max per-device limit and the uses the LRU rule to reach the storage goal
 func (cs *ConfigStore) getEvictionCandidates(minRetainedConfigs int, maxRetainedConfigs int, maxSize int64) ([]string, error) {
 	configsPerDevice, sortedEntries, err := cs.buildEvictionIndex()
 	if err != nil {
@@ -443,14 +442,4 @@ func (cs *ConfigStore) getEvictionCandidates(minRetainedConfigs int, maxRetained
 	}
 
 	return candidates, nil
-}
-
-// evictConfigs deletes the configs identified by the given UUIDs.
-func (cs *ConfigStore) evictConfigs(uuids []string) error {
-	for _, uuid := range uuids {
-		if err := cs.DeleteConfig(uuid); err != nil {
-			return err
-		}
-	}
-	return nil
 }
