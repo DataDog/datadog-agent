@@ -817,9 +817,9 @@ func TestDisabledCollectorsConfiguration(t *testing.T) {
 			wmetaMock := testutil.GetWorkloadMetaMockWithDefaultGPUs(t)
 
 			WithGPUConfigEnabled(t)
-			pkgconfigsetup.Datadog().SetWithoutSource("gpu.disabled_collectors", tt.disabledCollectors)
+			pkgconfigsetup.Datadog().SetInTest("gpu.disabled_collectors", tt.disabledCollectors)
 			t.Cleanup(func() {
-				pkgconfigsetup.Datadog().SetWithoutSource("gpu.disabled_collectors", []string{})
+				pkgconfigsetup.Datadog().SetInTest("gpu.disabled_collectors", []string{})
 			})
 
 			check := newConfiguredGPUCheck(t, fakeTagger, wmetaMock, mocksender.CreateDefaultDemultiplexer(), nil)

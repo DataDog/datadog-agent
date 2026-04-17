@@ -420,8 +420,8 @@ func TestDispatchFourConfigsTwoNodes(t *testing.T) {
 
 func TestDanglingConfig(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("cluster_checks.unscheduled_check_threshold", 1)
-	mockConfig.SetWithoutSource("cluster_checks.node_expiration_timeout", 1)
+	mockConfig.SetInTest("cluster_checks.unscheduled_check_threshold", 1)
+	mockConfig.SetInTest("cluster_checks.node_expiration_timeout", 1)
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	dispatcher := newDispatcher(fakeTagger)
 	config := integration.Config{
@@ -527,7 +527,7 @@ func TestPatchConfiguration(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("cluster_name", "testing")
+	mockConfig.SetInTest("cluster_name", "testing")
 	clustername.ResetClusterName()
 
 	dispatcher := newDispatcher(fakeTagger)
@@ -566,7 +566,7 @@ func TestPatchEndpointsConfiguration(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("cluster_name", "testing")
+	mockConfig.SetInTest("cluster_name", "testing")
 	clustername.ResetClusterName()
 
 	dispatcher := newDispatcher(fakeTagger)
@@ -606,8 +606,8 @@ func TestExtraTags(t *testing.T) {
 			fakeTagger := taggerfxmock.SetupFakeTagger(t)
 			mockConfig := configmock.New(t)
 			fakeTagger.SetGlobalTags(tc.extraTagsConfig, []string{}, []string{}, []string{})
-			mockConfig.SetWithoutSource("cluster_name", tc.clusterNameConfig)
-			mockConfig.SetWithoutSource("cluster_checks.cluster_tag_name", tc.tagNameConfig)
+			mockConfig.SetInTest("cluster_name", tc.clusterNameConfig)
+			mockConfig.SetInTest("cluster_checks.cluster_tag_name", tc.tagNameConfig)
 
 			clustername.ResetClusterName()
 			dispatcher := newDispatcher(fakeTagger)
@@ -694,7 +694,7 @@ func (d *dummyClientStruct) GetRunnerWorkers(IP string) (types.Workers, error) {
 func TestUpdateRunnersStats(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("cluster_checks.rebalance_with_utilization", true)
+	mockConfig.SetInTest("cluster_checks.rebalance_with_utilization", true)
 
 	dispatcher := newDispatcher(fakeTagger)
 	status := types.NodeStatus{LastChange: 10}

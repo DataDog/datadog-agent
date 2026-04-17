@@ -262,7 +262,7 @@ func TestCheckEvents_PauseContainers(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			defaultExcludePauseContainers := mockConfig.GetBool("exclude_pause_container")
-			mockConfig.SetWithoutSource("exclude_pause_container", test.excludePauseContainers)
+			mockConfig.SetInTest("exclude_pause_container", test.excludePauseContainers)
 
 			// Create a new subscriber for each test case so it picks up the correct config value
 			sub := createEventSubscriber("subscriberTestPauseContainers", containerdutil.ContainerdItf(itf), nil, pauseFilter)
@@ -296,7 +296,7 @@ func TestCheckEvents_PauseContainers(t *testing.T) {
 				assert.Len(t, flushed, 2) // delete task + delete container
 			}
 
-			mockConfig.SetWithoutSource("exclude_pause_container", defaultExcludePauseContainers)
+			mockConfig.SetInTest("exclude_pause_container", defaultExcludePauseContainers)
 		})
 	}
 }

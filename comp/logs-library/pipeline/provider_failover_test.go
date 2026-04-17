@@ -64,8 +64,8 @@ func createMockSender() sender.PipelineComponent {
 // createTestProviderWithFailover creates a test provider with failover enabled
 func createTestProviderWithFailover(t *testing.T, numberOfPipelines int) *provider {
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("logs_config.pipeline_failover.enabled", true)
-	cfg.SetWithoutSource("logs_config.message_channel_size", 10)
+	cfg.SetInTest("logs_config.pipeline_failover.enabled", true)
+	cfg.SetInTest("logs_config.message_channel_size", 10)
 
 	endpoints := config.NewMockEndpointsWithOptions([]config.Endpoint{config.NewMockEndpoint()}, map[string]interface{}{
 		"use_http": true,

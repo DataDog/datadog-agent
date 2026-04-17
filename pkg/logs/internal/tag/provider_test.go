@@ -33,14 +33,14 @@ func TestProviderExpectedTags(t *testing.T) {
 	}()
 
 	tags := []string{"tag1:value1", "tag2", "tag3"}
-	m.SetWithoutSource("tags", tags)
-	defer m.SetWithoutSource("tags", nil)
+	m.SetInTest("tags", tags)
+	defer m.SetInTest("tags", nil)
 
-	m.SetWithoutSource("logs_config.tagger_warmup_duration", "2")
+	m.SetInTest("logs_config.tagger_warmup_duration", "2")
 
 	expectedTagsDuration := 5 * time.Second
-	m.SetWithoutSource("logs_config.expected_tags_duration", "5s")
-	defer m.SetWithoutSource("logs_config.expected_tags_duration", 0)
+	m.SetInTest("logs_config.expected_tags_duration", "5s")
+	defer m.SetInTest("logs_config.expected_tags_duration", 0)
 
 	p := newProviderWithClock(types.NewEntityID(types.ContainerID, "foo"), clock, fakeTagger)
 	pp := p.(*provider)

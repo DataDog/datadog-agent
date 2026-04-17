@@ -523,7 +523,7 @@ func newFixture(t *testing.T, enabled bool) *testFixture {
 	logComp := logmock.New(t)
 
 	configComp := config.NewMock(t)
-	configComp.SetWithoutSource("logon_duration.enabled", enabled)
+	configComp.SetInTest("logon_duration.enabled", enabled)
 
 	sysprobeConfigComp := fxutil.Test[sysprobeconfig.Component](t, sysprobeconfigimpl.MockModule())
 

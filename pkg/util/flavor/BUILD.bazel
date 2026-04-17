@@ -18,7 +18,7 @@ go_test(
     name = "flavor_test",
     srcs = ["flavor_test.go"],
     embed = [":flavor"],
-    # keep: pkg/config/nodetreemodel SetWithoutSource; OS tags for platform-specific flavor tests
+    # keep: pkg/config/nodetreemodel SetInTest; OS tags for platform-specific flavor tests
     gotags = ["test"] + select({
         "@platforms//os:linux": ["linux"],
         "@platforms//os:macos": ["darwin"],

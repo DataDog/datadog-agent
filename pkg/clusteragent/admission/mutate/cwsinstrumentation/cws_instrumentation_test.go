@@ -479,11 +479,11 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.include", tt.args.include)
-			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.exclude", tt.args.exclude)
-			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.mode", string(tt.args.cwsInstrumentationMode))
-			mockConfig.SetWithoutSource("cluster_agent.service_account_name", tt.args.serviceAccountName)
-			mockConfig.SetWithoutSource("kube_resources_namespace", tt.args.ns)
+			mockConfig.SetInTest("admission_controller.cws_instrumentation.include", tt.args.include)
+			mockConfig.SetInTest("admission_controller.cws_instrumentation.exclude", tt.args.exclude)
+			mockConfig.SetInTest("admission_controller.cws_instrumentation.mode", string(tt.args.cwsInstrumentationMode))
+			mockConfig.SetInTest("cluster_agent.service_account_name", tt.args.serviceAccountName)
+			mockConfig.SetInTest("kube_resources_namespace", tt.args.ns)
 
 			var initialCommand string
 			if tt.args.exec != nil {
@@ -833,19 +833,19 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 			wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
 
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.include", tt.args.include)
-			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.exclude", tt.args.exclude)
-			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.image_name", tt.args.cwsInjectorImageName)
-			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.image_tag", tt.args.cwsInjectorImageTag)
-			mockConfig.SetWithoutSource("admission_controller.container_registry", commonRegistry)
+			mockConfig.SetInTest("admission_controller.cws_instrumentation.include", tt.args.include)
+			mockConfig.SetInTest("admission_controller.cws_instrumentation.exclude", tt.args.exclude)
+			mockConfig.SetInTest("admission_controller.cws_instrumentation.image_name", tt.args.cwsInjectorImageName)
+			mockConfig.SetInTest("admission_controller.cws_instrumentation.image_tag", tt.args.cwsInjectorImageTag)
+			mockConfig.SetInTest("admission_controller.container_registry", commonRegistry)
 			if tt.args.cwsInjectorContainerRegistry != "" {
-				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.container_registry", tt.args.cwsInjectorContainerRegistry)
+				mockConfig.SetInTest("admission_controller.cws_instrumentation.container_registry", tt.args.cwsInjectorContainerRegistry)
 			}
-			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.init_resources.cpu", "")
-			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.init_resources.memory", "")
-			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.mode", string(tt.args.cwsInjectorMode))
-			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.remote_copy.mount_volume", tt.args.cwsInjectorMountVolumeForRemoteCopy)
-			mockConfig.SetWithoutSource("cluster_agent.service_account_name", tt.args.cwsInjectorServiceAccountName)
+			mockConfig.SetInTest("admission_controller.cws_instrumentation.init_resources.cpu", "")
+			mockConfig.SetInTest("admission_controller.cws_instrumentation.init_resources.memory", "")
+			mockConfig.SetInTest("admission_controller.cws_instrumentation.mode", string(tt.args.cwsInjectorMode))
+			mockConfig.SetInTest("admission_controller.cws_instrumentation.remote_copy.mount_volume", tt.args.cwsInjectorMountVolumeForRemoteCopy)
+			mockConfig.SetInTest("cluster_agent.service_account_name", tt.args.cwsInjectorServiceAccountName)
 
 			ci, err := NewCWSInstrumentation(wmeta, mockConfig)
 			if err != nil {
@@ -1025,8 +1025,8 @@ func Test_initCWSInitContainerResources(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.init_resources.cpu", tt.cpu)
-			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.init_resources.memory", tt.mem)
+			mockConfig.SetInTest("admission_controller.cws_instrumentation.init_resources.cpu", tt.cpu)
+			mockConfig.SetInTest("admission_controller.cws_instrumentation.init_resources.memory", tt.mem)
 
 			got, err := parseCWSInitContainerResources()
 			if err != nil && !tt.wantErr {

@@ -18,7 +18,7 @@ import (
 func TestUnsupportedPlatformGetIPCServerPath(t *testing.T) {
 	t.Run("unsupported platform misconfigured", func(t *testing.T) {
 		cfg := configmock.New(t)
-		cfg.SetWithoutSource("agent_ipc.use_socket", true)
+		cfg.SetInTest("agent_ipc.use_socket", true)
 
 		_, enabled := GetIPCServerPath()
 		require.False(t, enabled)
@@ -28,7 +28,7 @@ func TestUnsupportedPlatformGetIPCServerPath(t *testing.T) {
 func TestUnsupportedPlatformGetListener(t *testing.T) {
 	t.Run("unsupported platform misconfigured", func(t *testing.T) {
 		cfg := configmock.New(t)
-		cfg.SetWithoutSource("agent_ipc.use_socket", true)
+		cfg.SetInTest("agent_ipc.use_socket", true)
 
 		res, err := GetListener("localhost:5009")
 		require.NoError(t, err)

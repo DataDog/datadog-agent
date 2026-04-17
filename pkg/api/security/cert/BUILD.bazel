@@ -26,7 +26,7 @@ go_test(
         "cert_getter_test.go",
     ],
     embed = [":cert"],
-    gotags = ["test"],  # keep: pkg/config/nodetreemodel SetWithoutSource / assert_testonly
+    gotags = ["test"],  # keep: pkg/config/nodetreemodel SetInTest / assert_testonly
     deps = [
         "//pkg/config/mock",
         "//pkg/config/model",

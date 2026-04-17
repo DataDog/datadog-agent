@@ -30,7 +30,7 @@ import (
 func TestNewComponent(t *testing.T) {
 	testDir := t.TempDir()
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("run_path", testDir)
+	mockConfig.SetInTest("run_path", testDir)
 
 	mockLifecycle := compdef.NewTestLifecycle(t)
 	mockLogger := logmock.New(t)
@@ -268,9 +268,9 @@ func TestRequestScan(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			testDir := t.TempDir()
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("run_path", testDir)
+			mockConfig.SetInTest("run_path", testDir)
 			for key, value := range tt.configContent {
-				mockConfig.SetWithoutSource(key, value)
+				mockConfig.SetInTest(key, value)
 			}
 
 			mockLifecycle := compdef.NewTestLifecycle(t)
@@ -561,7 +561,7 @@ func TestProcessScanRequest(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			testDir := t.TempDir()
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("run_path", testDir)
+			mockConfig.SetInTest("run_path", testDir)
 
 			mockLifecycle := compdef.NewTestLifecycle(t)
 			mockLogger := logmock.New(t)
@@ -674,7 +674,7 @@ func TestCacheIsLoaded(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			testDir := t.TempDir()
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("run_path", testDir)
+			mockConfig.SetInTest("run_path", testDir)
 
 			err := persistentcache.Write(cacheKey, tt.cacheContent)
 			assert.NoError(t, err)
@@ -768,7 +768,7 @@ func TestWriteCache(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			testDir := t.TempDir()
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("run_path", testDir)
+			mockConfig.SetInTest("run_path", testDir)
 
 			mockLifecycle := compdef.NewTestLifecycle(t)
 			mockLogger := logmock.New(t)
@@ -891,8 +891,8 @@ func TestQueueDueScans(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			testDir := t.TempDir()
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("run_path", testDir)
-			mockConfig.SetWithoutSource("network_devices.default_scan.enabled", true)
+			mockConfig.SetInTest("run_path", testDir)
+			mockConfig.SetInTest("network_devices.default_scan.enabled", true)
 
 			mockLifecycle := compdef.NewTestLifecycle(t)
 			mockLogger := logmock.New(t)

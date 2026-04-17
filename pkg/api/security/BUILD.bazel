@@ -17,7 +17,7 @@ go_test(
     name = "security_test",
     srcs = ["security_test.go"],
     embed = [":security"],
-    gotags = ["test"],  # keep: pkg/config/nodetreemodel SetWithoutSource / assert_testonly
+    gotags = ["test"],  # keep: pkg/config/nodetreemodel SetInTest / assert_testonly
     deps = select({
         "@rules_go//go/platform:aix": [
             "//pkg/config/mock",

@@ -10,11 +10,12 @@ package profile
 import (
 	"bufio"
 	"bytes"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
@@ -36,7 +37,7 @@ func SetConfdPathAndCleanProfiles() {
 	if !pathExists(file) {
 		file, _ = filepath.Abs(filepath.Join(".", "internal", "test", "conf.d"))
 	}
-	pkgconfigsetup.Datadog().SetWithoutSource("confd_path", file)
+	pkgconfigsetup.Datadog().SetInTest("confd_path", file)
 }
 
 // FixtureProfileDefinitionMap returns a fixture of ProfileConfigMap with `f5-big-ip` profile

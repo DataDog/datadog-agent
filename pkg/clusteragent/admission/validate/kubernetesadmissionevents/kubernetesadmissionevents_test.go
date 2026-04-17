@@ -53,7 +53,7 @@ func compareText(expected, actual event.Event) bool {
 func TestKubernetesAdmissionEvents(t *testing.T) {
 	// Mock Datadog Config
 	datadogConfigMock := config.NewMock(t)
-	datadogConfigMock.SetWithoutSource("admission_controller.kubernetes_admission_events.enabled", true)
+	datadogConfigMock.SetInTest("admission_controller.kubernetes_admission_events.enabled", true)
 
 	tests := []struct {
 		name                    string
