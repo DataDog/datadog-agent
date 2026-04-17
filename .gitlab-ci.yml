@@ -54,7 +54,14 @@
   - cmd/systray/**/*
   - cmd/otel-agent/**/*
 
-# Windows-specific comp/, tools, omnibus, containers, tasks, and cross-cutting (27 paths)
+# Bazel build system paths - single source of truth for all Bazel-related change detection.
+# Covers MODULE.bazel, MODULE.bazel.lock, BUILD.bazel, REPO.bazel, .bazelrc, .bazelversion.
+.bazel_paths: &bazel_paths
+  - "*.bazel*"
+  - deps/**/*
+  - bazel/**/*
+
+# Windows-specific comp/, tools, omnibus, containers, tasks, and cross-cutting paths
 .windows_path_2: &windows_path_2
   # Windows-specific comp/ components
   - comp/systray/**/*
@@ -73,13 +80,9 @@
   - tools/windows/**/*
 
   # Build/packaging
-  - .bazel*
-  - MODULE.bazel*
   - omnibus/**/*
   - packages/**/*
-  - deps/**/*
   - rtloader/**/*
-  - bazel/**/*
 
   # Windows containers
   - Dockerfiles/agent/windows/**/*
@@ -136,6 +139,9 @@ include:
           compare_to: main
       - changes:
           paths: *windows_path_3
+          compare_to: main
+      - changes:
+          paths: *bazel_paths
           compare_to: main
       - when: never
 
@@ -320,7 +326,6 @@ variables:
   # Start vault variables
   AGENT_API_KEY_ORG2: agent-api-key-org-2 # agent-devx
   AGENT_APP_KEY_ORG2: agent-app-key-org-2 # agent-devx
-  AGENT_GITHUB_APP: agent-github-app # agent-devx
   AGENT_QA_E2E: agent-qa-e2e # agent-devx
   ATLASSIAN_WRITE: atlassian-write # agent-devx
   CODECOV: codecov # agent-devx
@@ -329,8 +334,6 @@ variables:
   E2E_AZURE: e2e-azure # agent-devx
   E2E_GCP: e2e-gcp # agent-devx
   INSTALL_SCRIPT_API_KEY_ORG2: install-script-api-key-org-2 # agent-devx
-  MACOS_GITHUB_APP_1: macos-github-app-one # agent-devx
-  MACOS_GITHUB_APP_2: macos-github-app-two # agent-devx
   MACOS_APPLE_APPLICATION_SIGNING: apple-application-signing # agent-delivery
   MACOS_APPLE_DEVELOPER_ACCOUNT: apple-developer-account # agent-delivery
   MACOS_APPLE_INSTALLER_SIGNING: apple-installer-signing # agent-delivery
@@ -455,7 +458,7 @@ variables:
 # Paths that impact the final build artifacts (rpm, deb, docker images, etc.)
 # Used to conditionally skip expensive tests like SMP when only non-artifact files change
 # like documentation, CI config, e2e tests.
-.artifacts_build_impacting_paths: &artifacts_build_impacting_paths
+.on_smp_trigger_paths: &on_smp_trigger_paths
   paths:
     # agent source code
     - go.mod
@@ -467,13 +470,7 @@ variables:
     - rtloader/**/*
     # Build system
     - tasks/**/*.py
-    - deps/**/*
     - omnibus/**/*
-    - .bazelrc
-    - .bazelversion
-    - bazel/**/*
-    - BUILD.bazel
-    - MODULE.bazel
     - release.json
     # SMP regression detector experiments
     - test/regression/**/*
@@ -519,6 +516,11 @@ workflow:
         SKIP_WINDOWS: "false"
     - changes:
         paths: *windows_path_3
+        compare_to: main
+      variables:
+        SKIP_WINDOWS: "false"
+    - changes:
+        paths: *bazel_paths
         compare_to: main
       variables:
         SKIP_WINDOWS: "false"
@@ -657,13 +659,21 @@ workflow:
 .on_dev_branches_with_artifact_changes:
   - !reference [.on_dev_branches]
   - changes:
-      <<: *artifacts_build_impacting_paths
+      <<: *on_smp_trigger_paths
+      compare_to: $COMPARE_TO_BRANCH
+  - changes:
+      paths: *bazel_paths
       compare_to: $COMPARE_TO_BRANCH
 
 .on_dev_branches_with_artifact_changes_manual:
   - !reference [.on_dev_branches]
   - changes:
-      <<: *artifacts_build_impacting_paths
+      <<: *on_smp_trigger_paths
+      compare_to: $COMPARE_TO_BRANCH
+    when: manual
+    allow_failure: true
+  - changes:
+      paths: *bazel_paths
       compare_to: $COMPARE_TO_BRANCH
     when: manual
     allow_failure: true
@@ -1368,7 +1378,7 @@ workflow:
         - "**/*.m"
       compare_to: $COMPARE_TO_BRANCH
 
-.on_packaging_change:
+.on_macos_change:
   - !reference [.except_mergequeue] # The prerequisites are not run in the mergequeue pipeline so we need to skip this rule
   - changes:
       paths:
@@ -1376,6 +1386,9 @@ workflow:
         - .gitlab-ci.yml
         - release.json
         - .gitlab/build/package_build/**/*
+      compare_to: $COMPARE_TO_BRANCH
+  - changes:
+      paths: *bazel_paths
       compare_to: $COMPARE_TO_BRANCH
 
 .on_go-version_change:

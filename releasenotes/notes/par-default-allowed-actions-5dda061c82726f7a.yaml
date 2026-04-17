@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    The Private Action Runner default enabled actions now include
+    ``runNetworkPath`` and ``runCommand``.
