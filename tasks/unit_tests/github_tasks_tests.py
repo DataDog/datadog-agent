@@ -763,6 +763,8 @@ class TestBumpRshell(unittest.TestCase):
                 result.stdout = "Created new notes file in releasenotes/notes/bump-rshell-v0.0.11-abc.yaml\n"
             elif "git diff --cached --quiet" in cmd:
                 result.ok = False  # non-zero exit = there ARE changes
+            elif "git --no-pager diff --name-only HEAD" in cmd:
+                result.stdout = "0"  # `check_uncommitted_changes` precondition: clean tree
             else:
                 result.stdout = ""
             return result
@@ -802,15 +804,26 @@ class TestBumpRshell(unittest.TestCase):
                 with self.assertRaises(Exit):
                     tasks.github_tasks.bump_rshell(ctx, version=bad)
 
+    def test_aborts_if_working_tree_is_dirty(self):
+        ctx = Context()
+        # Mock check_uncommitted_changes to say the tree is dirty.
+        ctx.run = MagicMock(
+            return_value=MagicMock(stdout="3", ok=True)  # wc -l reports 3 modified files
+        )
+        with self.assertRaises(Exit):
+            tasks.github_tasks.bump_rshell(ctx, version="v0.0.11")
+
     def test_noop_when_open_pr_exists(self):
         open_pr = MagicMock(state="open", merged=False)
         open_pr.html_url = "https://github.com/DataDog/datadog-agent/pull/999"
         ctx = self._make_ctx()
         with self._patch_github_api(open_prs=[open_pr]):
             tasks.github_tasks.bump_rshell(ctx, version="v0.0.99")
-        # Nothing should have been done after classification — no git, no go, no tidy.
+        # No MUTATION commands should have run after classification. The
+        # pre-flight uncommitted-changes check is read-only and is fine.
+        mutations = ("go get", "git add", "git commit", "git push", "git switch", "dda inv tidy", "reno new")
         commands = [call.args[0] for call in ctx.run.call_args_list]
-        self.assertFalse(any(c.startswith(("go ", "git ", "dda ", "reno ")) for c in commands))
+        self.assertFalse(any(c.startswith(mutations) for c in commands))
 
     def test_noop_when_already_pinned(self):
         ctx = self._make_ctx(go_mod_json={"Require": [{"Path": "github.com/DataDog/rshell", "Version": "v0.0.11"}]})
@@ -835,7 +848,7 @@ class TestBumpRshell(unittest.TestCase):
         ctx = self._make_ctx(go_mod_json={"Require": [{"Path": "github.com/DataDog/rshell", "Version": "v0.0.9"}]})
         with (
             patch.dict(os.environ, {"GITHUB_TOKEN": "t"}, clear=False),
-            patch('tasks.libs.common.git.check_clean_branch_state'),
+            patch('tasks.libs.common.git.check_uncommitted_changes', return_value=False),
             patch('tasks.libs.common.utils.set_gitconfig_in_ci'),
             patch('builtins.open', mock_open()),
             self._patch_github_api(closed_unmerged=[closed_pr]),
@@ -855,7 +868,7 @@ class TestBumpRshell(unittest.TestCase):
         new_pr.html_url = "https://github.com/DataDog/datadog-agent/pull/42"
         with (
             patch.dict(os.environ, {"GITHUB_TOKEN": "t"}, clear=False),
-            patch('tasks.libs.common.git.check_clean_branch_state'),
+            patch('tasks.libs.common.git.check_uncommitted_changes', return_value=False),
             patch('tasks.libs.common.utils.set_gitconfig_in_ci'),
             patch('builtins.open', mock_open()),
             self._patch_github_api(created_pr=new_pr),

@@ -772,7 +772,7 @@ def bump_rshell(ctx, version=None, draft=True):
     DataDog/datadog-agent).
     """
     from tasks.libs.ciproviders.github_api import GithubAPI
-    from tasks.libs.common.git import check_clean_branch_state
+    from tasks.libs.common.git import check_uncommitted_changes
     from tasks.libs.common.utils import set_gitconfig_in_ci
 
     if version is None:
@@ -785,6 +785,18 @@ def bump_rshell(ctx, version=None, draft=True):
         )
     else:
         print(color_message(f"Using explicit rshell version: {version}", Color.BLUE))
+
+    # Precondition: clean working tree. We force-push later, so stale local or
+    # remote branches are fine — but unrelated uncommitted changes would get
+    # swept into the bump commit by `git add -A`.
+    if check_uncommitted_changes(ctx):
+        raise Exit(
+            color_message(
+                "There are uncommitted changes in your repository. " "Please commit or stash them before trying again.",
+                Color.RED,
+            ),
+            code=1,
+        )
 
     gh = GithubAPI()
     branch = f"bump-rshell-{version}"
@@ -838,13 +850,9 @@ def bump_rshell(ctx, version=None, draft=True):
     ctx.run(f"git add {note_path}")
 
     set_gitconfig_in_ci(ctx)
-    try:
-        check_clean_branch_state(ctx, gh, branch)
-    except Exit as e:
-        if "already exists locally" not in str(e):
-            raise
-
-    ctx.run(f"git switch -c {branch}", warn=True, hide=True)
+    # `-C` (capital) creates or resets; handles a stale local branch from a
+    # prior partial run without needing a separate precondition check.
+    ctx.run(f"git switch -C {branch}", hide=True)
     commit_msg = (
         f"Bump rshell dependency from {previous_version} to {version}"
         if previous_version
