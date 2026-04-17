@@ -23,6 +23,7 @@ const (
 	maxBufferDuration = 8 * time.Second
 	// 5M is an order of magnitude less then trace-agent binary in memory
 	maxSizeForNoLimit = int64(5_000_000)
+	maxDebugErrorLen  = 100
 
 	metricMemoryUsage      = "datadog.trace_agent.tag_buffer.memory_usage"
 	metricPayloadsPending  = "datadog.trace_agent.tag_buffer.pending_payloads"
@@ -275,20 +276,14 @@ func (p *containerTagsBuffer) AsyncEnrichment(containerID string, applyResult fu
 	}
 	now := startTime
 	if p.deniedContainers.shouldDeny(now, containerID) {
-		debug := &DebugInfo{BufferEvictionReason: "denied", LatencyMs: time.Since(startTime).Milliseconds()}
-		if err != nil {
-			debug.Error = err.Error()
-		}
+		debug := &DebugInfo{BufferEvictionReason: "denied", LatencyMs: time.Since(startTime).Milliseconds(), Error: truncateError(err)}
 		applyResult(ctags, err, debug)
 		return false
 	}
 
 	enoughMemory, releasePayloadSize := p.registerMemory(payloadSize)
 	if !enoughMemory {
-		debug := &DebugInfo{BufferEvictionReason: "max_size", LatencyMs: time.Since(startTime).Milliseconds()}
-		if err != nil {
-			debug.Error = err.Error()
-		}
+		debug := &DebugInfo{BufferEvictionReason: "max_size", LatencyMs: time.Since(startTime).Milliseconds(), Error: truncateError(err)}
 		applyResult(ctags, err, debug)
 		releasePayloadSize()
 		return false
@@ -322,9 +317,7 @@ func (p *containerTagsBuffer) AsyncEnrichment(containerID string, applyResult fu
 			if res.expired {
 				debug.BufferEvictionReason = "expired"
 			}
-			if res.err != nil {
-				debug.Error = res.err.Error()
-			}
+			debug.Error = truncateError(res.err)
 			applyResult(res.tags, res.err, debug)
 			return
 		case <-p.exit:
@@ -337,9 +330,7 @@ func (p *containerTagsBuffer) AsyncEnrichment(containerID string, applyResult fu
 				BufferEvictionReason: "hard_timeout",
 				LatencyMs:            time.Since(startTime).Milliseconds(),
 				BufferMs:             time.Since(bufferStart).Milliseconds(),
-			}
-			if err != nil {
-				debug.Error = err.Error()
+				Error:                truncateError(err),
 			}
 			applyResult(ctags, err, debug)
 			p.hitHardTimeLimit.Add(1)
@@ -354,7 +345,18 @@ func debugFromError(err error) *DebugInfo {
 	if err == nil {
 		return nil
 	}
-	return &DebugInfo{Error: err.Error()}
+	return &DebugInfo{Error: truncateError(err)}
+}
+
+func truncateError(err error) string {
+	if err == nil {
+		return ""
+	}
+	msg := err.Error()
+	if len(msg) > maxDebugErrorLen {
+		return msg[:maxDebugErrorLen]
+	}
+	return msg
 }
 
 type tagResult struct {
