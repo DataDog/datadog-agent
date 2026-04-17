@@ -28,7 +28,9 @@ go_library(
         "@gazelle//rule",
         # buildtools is a transitive dep of @gazelle//rule; we need it directly
         # for bzl.Expr types used to generate select() expressions in gotags.
-        "@@gazelle++go_deps+com_github_bazelbuild_buildtools//build:build",
+        # Declared in deps/go.MODULE.bazel with an alias to avoid clashing with
+        # the http_archive buildifier repository.
+        "@com_github_bazelbuild_buildtools_go//build",
     ],
 )
 

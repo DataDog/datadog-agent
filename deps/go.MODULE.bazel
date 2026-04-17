@@ -9,6 +9,22 @@ go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
 use_repo_rule("//bazel/repo:bazelify_go_work.bzl", "bazelify_go_work")(name = "bazelify_go_work")
 
 go_deps.from_file(go_work = "@bazelify_go_work//:go.work")
+
+# buildtools is a dep of the Gazelle extension at //bazel/rules/go_build_tags.
+# It is not in any module in the go.work so must be declared explicitly.
+# We alias it to avoid conflicting with the com_github_bazelbuild_buildtools
+# apparent name already claimed by the http_archive buildifier binary.
+go_deps.module(
+    path = "github.com/bazelbuild/buildtools",
+    sum = "h1:PmoVmwzAnGb0iCjulb7Mgsaqw2Wj36LQJ8VyYaFe/ak=",
+    version = "v0.0.0-20260211083412-859bfffeef82",
+)
+use_repo(
+    go_deps,
+    # buildtools Go packages, aliased to avoid clash with the http_archive buildifier repository.
+    com_github_bazelbuild_buildtools_go = "com_github_bazelbuild_buildtools",
+)
+
 go_deps.gazelle_override(
     directives = [
         "gazelle:proto disable",
