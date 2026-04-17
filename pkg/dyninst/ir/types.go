@@ -442,6 +442,8 @@ const (
 	RootExpressionKindArgument
 	// RootExpressionKindLocal corresponds to a local variable of the event.
 	RootExpressionKindLocal
+	// RootExpressionKindReturn corresponds to a return value of the event.
+	RootExpressionKindReturn
 	// RootExpressionKindTemplateSegment means that this expression is part of a
 	// template segment.
 	RootExpressionKindTemplateSegment
@@ -456,6 +458,8 @@ func (k RootExpressionKind) String() string {
 		return "argument"
 	case RootExpressionKindLocal:
 		return "local"
+	case RootExpressionKindReturn:
+		return "return"
 	case RootExpressionKindTemplateSegment:
 		return "template_segment"
 	case RootExpressionKindCaptureExpression:
