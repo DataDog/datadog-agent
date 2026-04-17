@@ -19,9 +19,11 @@ import (
 )
 
 const (
-	envTraceID         = "DATADOG_TRACE_ID"
-	envParentID        = "DATADOG_PARENT_ID"
-	telemetrySubdomain = "instrumentation-telemetry-intake"
+	envTraceID          = "DATADOG_TRACE_ID"
+	envParentID         = "DATADOG_PARENT_ID"
+	envService          = "DATADOG_SERVICE"
+	envSamplingPriority = "DATADOG_SAMPLING_PRIORITY"
+	telemetrySubdomain  = "instrumentation-telemetry-intake"
 )
 
 // Telemetry handles the telemetry for fleet components.
@@ -154,7 +156,17 @@ func getSamplingPriorityFromContext(ctx context.Context) (*int, bool) {
 }
 
 // StartSpanFromEnv starts a span using the environment variables to find the parent span.
+// It also reads DATADOG_SERVICE and DATADOG_SAMPLING_PRIORITY from the environment and
+// applies them to the context so the created span (and its children) inherit them.
 func StartSpanFromEnv(ctx context.Context, operationName string) (*Span, context.Context) {
+	if service, ok := os.LookupEnv(envService); ok {
+		ctx = WithService(ctx, service)
+	}
+	if priorityStr, ok := os.LookupEnv(envSamplingPriority); ok {
+		if priority, err := strconv.Atoi(priorityStr); err == nil {
+			ctx = WithSamplingPriority(ctx, priority)
+		}
+	}
 	traceID, parentID := extractIDsFromEnv()
 	return StartSpanFromIDs(ctx, operationName, traceID, parentID)
 }
@@ -207,13 +219,22 @@ func StartSpanFromContext(ctx context.Context, operationName string) (*Span, con
 }
 
 // EnvFromContext returns the environment variables for the context.
+// Service and sampling priority are included when set on the context so child
+// processes can inherit them via StartSpanFromEnv.
 func EnvFromContext(ctx context.Context) []string {
 	sIDs, ok := getSpanIDsFromContext(ctx)
 	if !ok {
 		return []string{}
 	}
-	return []string{
+	env := []string{
 		fmt.Sprintf("%s=%s", envTraceID, strconv.FormatUint(sIDs.traceID, 10)),
 		fmt.Sprintf("%s=%s", envParentID, strconv.FormatUint(sIDs.spanID, 10)),
 	}
+	if service, ok := getServiceFromContext(ctx); ok && service != "" {
+		env = append(env, fmt.Sprintf("%s=%s", envService, service))
+	}
+	if priority, ok := getSamplingPriorityFromContext(ctx); ok {
+		env = append(env, fmt.Sprintf("%s=%d", envSamplingPriority, *priority))
+	}
+	return env
 }

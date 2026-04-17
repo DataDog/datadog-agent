@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"testing"
 
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
@@ -573,20 +574,6 @@ func TestWithSamplingPriority_DoesNotAffectService(t *testing.T) {
 	assert.Equal(t, 1.0, resTraces[0][0].Metrics["_sampling_priority_v1"])
 }
 
-func TestEnvFromContext_OnlyIDs(t *testing.T) {
-	// Service and sampling priority are context-only; env propagation stays ID-only.
-	globalTracer = &tracer{spans: make(map[uint64]*Span)}
-
-	ctx := WithService(context.Background(), "custom")
-	ctx = WithSamplingPriority(ctx, 1)
-	s, ctx := StartSpanFromContext(ctx, "parent")
-
-	env := EnvFromContext(ctx)
-	assert.Len(t, env, 2)
-	assert.Contains(t, env, fmt.Sprintf("DATADOG_TRACE_ID=%d", s.span.TraceID))
-	assert.Contains(t, env, fmt.Sprintf("DATADOG_PARENT_ID=%d", s.span.SpanID))
-}
-
 func TestEnvFromContext_EmptyWhenNoSpanStarted(t *testing.T) {
 	// WithService / WithSamplingPriority create a spanContext with zero IDs;
 	// EnvFromContext must not emit zero-valued env vars, which would overwrite
@@ -622,6 +609,124 @@ func TestWithSamplingPriority_OverridesHeadSampling(t *testing.T) {
 	require.Len(t, resTraces, 1)
 	require.Len(t, resTraces[0], 1)
 	assert.Equal(t, "agent.startup", resTraces[0][0].Name)
+	assert.Equal(t, 2.0, resTraces[0][0].Metrics["_sampling_priority_v1"])
+}
+
+func TestEnvFromContext_IncludesServiceAndPriority(t *testing.T) {
+	globalTracer = &tracer{spans: make(map[uint64]*Span)}
+
+	ctx := WithService(context.Background(), "custom")
+	ctx = WithSamplingPriority(ctx, 1)
+	s, ctx := StartSpanFromContext(ctx, "parent")
+
+	env := EnvFromContext(ctx)
+	assert.Contains(t, env, fmt.Sprintf("DATADOG_TRACE_ID=%d", s.span.TraceID))
+	assert.Contains(t, env, fmt.Sprintf("DATADOG_PARENT_ID=%d", s.span.SpanID))
+	assert.Contains(t, env, "DATADOG_SERVICE=custom")
+	assert.Contains(t, env, "DATADOG_SAMPLING_PRIORITY=1")
+}
+
+func TestEnvFromContext_EmptyServiceNotEmitted(t *testing.T) {
+	globalTracer = &tracer{spans: make(map[uint64]*Span)}
+
+	ctx := WithService(context.Background(), "")
+	_, ctx = StartSpanFromContext(ctx, "parent")
+
+	env := EnvFromContext(ctx)
+	for _, e := range env {
+		assert.NotContains(t, e, "DATADOG_SERVICE=")
+	}
+}
+
+func TestStartSpanFromEnv_ReadsServiceAndPriority(t *testing.T) {
+	globalTracer = &tracer{spans: make(map[uint64]*Span)}
+	telem := newTelemetry(&http.Client{}, "api", "datad0g.com", "default-service")
+
+	os.Setenv(envTraceID, "100")
+	os.Setenv(envParentID, "200")
+	os.Setenv(envService, "from-env")
+	os.Setenv(envSamplingPriority, "1")
+	defer os.Unsetenv(envTraceID)
+	defer os.Unsetenv(envParentID)
+	defer os.Unsetenv(envService)
+	defer os.Unsetenv(envSamplingPriority)
+
+	span, _ := StartSpanFromEnv(context.Background(), "child")
+	span.Finish(nil)
+
+	resTraces := telem.extractCompletedSpans()
+	require.Len(t, resTraces, 1)
+	require.Len(t, resTraces[0], 1)
+	assert.Equal(t, "from-env", resTraces[0][0].Service)
+	assert.Equal(t, 1.0, resTraces[0][0].Metrics["_sampling_priority_v1"])
+}
+
+func TestCrossProcessRoundTrip_ServiceAndPriority(t *testing.T) {
+	globalTracer = &tracer{spans: make(map[uint64]*Span)}
+	telem := newTelemetry(&http.Client{}, "api", "datad0g.com", "default-service")
+
+	// Parent process: sets service + priority, starts a span, emits env vars.
+	ctx := WithService(context.Background(), "parent-svc")
+	ctx = WithSamplingPriority(ctx, 1)
+	parent, ctx := StartSpanFromContext(ctx, "parent")
+	envVars := EnvFromContext(ctx)
+
+	// Simulated child process: reads env vars, starts its own span.
+	for _, kv := range envVars {
+		parts := strings.SplitN(kv, "=", 2)
+		os.Setenv(parts[0], parts[1])
+		defer os.Unsetenv(parts[0])
+	}
+	child, _ := StartSpanFromEnv(context.Background(), "child")
+	child.Finish(nil)
+	parent.Finish(nil)
+
+	resTraces := telem.extractCompletedSpans()
+	require.Len(t, resTraces, 1)
+	require.Len(t, resTraces[0], 2)
+	for _, s := range resTraces[0] {
+		assert.Equal(t, "parent-svc", s.Service)
+		assert.Equal(t, 1.0, s.Metrics["_sampling_priority_v1"])
+	}
+}
+
+func TestCrossProcessRoundTrip_DropPropagatesViaPriorityEnv(t *testing.T) {
+	globalTracer = &tracer{spans: make(map[uint64]*Span)}
+	telem := newTelemetry(&http.Client{}, "api", "datad0g.com", "svc")
+
+	// Parent: priority=0 short-circuits locally via dropTraceID. Env vars still emitted.
+	ctx := WithSamplingPriority(context.Background(), 0)
+	parent, ctx := StartSpanFromContext(ctx, "parent")
+	envVars := EnvFromContext(ctx)
+	assert.Contains(t, envVars, "DATADOG_SAMPLING_PRIORITY=0")
+
+	// Child reads env — inherits traceID=dropTraceID AND priority=0.
+	for _, kv := range envVars {
+		parts := strings.SplitN(kv, "=", 2)
+		os.Setenv(parts[0], parts[1])
+		defer os.Unsetenv(parts[0])
+	}
+	child, _ := StartSpanFromEnv(context.Background(), "child")
+	child.Finish(nil)
+	parent.Finish(nil)
+
+	assert.Equal(t, uint64(dropTraceID), child.span.TraceID)
+	assert.Empty(t, telem.extractCompletedSpans())
+}
+
+func TestStartSpanFromEnv_MalformedPriorityIgnored(t *testing.T) {
+	globalTracer = &tracer{spans: make(map[uint64]*Span)}
+	telem := newTelemetry(&http.Client{}, "api", "datad0g.com", "svc")
+
+	os.Setenv(envSamplingPriority, "not-a-number")
+	defer os.Unsetenv(envSamplingPriority)
+
+	span, _ := StartSpanFromEnv(context.Background(), "op")
+	span.Finish(nil)
+
+	resTraces := telem.extractCompletedSpans()
+	require.Len(t, resTraces, 1)
+	// Malformed priority is ignored → default of 2 stamped at flush.
 	assert.Equal(t, 2.0, resTraces[0][0].Metrics["_sampling_priority_v1"])
 }
 
