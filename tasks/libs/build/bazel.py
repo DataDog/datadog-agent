@@ -15,6 +15,7 @@ from invoke import Exit
 from invoke.context import Context
 
 from tasks.libs.common.color import color_message
+from tasks.libs.common.utils import get_repo_root
 
 
 class Label(NamedTuple):
@@ -56,7 +57,7 @@ def split_label(label: str) -> Label:
     colon_idx = label.find(':')
     if colon_idx >= 0:
         package = label[:colon_idx]
-        name = label[colon_idx + 1:]
+        name = label[colon_idx + 1 :]
     else:
         package = label
         name = None
@@ -73,7 +74,6 @@ def package_from_path(path: str) -> str:
 
     Forward slashes are always used in the result, regardless of OS.
     """
-    from tasks.libs.common.utils import get_repo_root  # avoid top-level circular import risk
 
     # Normalise backslashes to forward slashes before constructing Path so
     # that Windows-style separators are treated as directory separators on all
