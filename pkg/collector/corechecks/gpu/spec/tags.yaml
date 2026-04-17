@@ -36,7 +36,9 @@ tags:
   kube_container_name: {}
   memory_location:
     regex: "^(l1_cache|l2_cache|device_memory|register_file|texture_memory|texture_shm|cbu|sram)$"
-
+  nvlink_port: 
+    regex: '^\d+$'
+    
 tagsets:
   container:
     tags:
