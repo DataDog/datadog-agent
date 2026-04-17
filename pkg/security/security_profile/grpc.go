@@ -267,7 +267,7 @@ func (m *ManagerV2) SaveSecurityProfile(params *api.SecurityProfileSaveParams) (
 // listSecurityProfilesCommon is the shared implementation for listing security profiles
 func listSecurityProfilesCommon(
 	cfg *config.Config,
-	profilesLock *sync.Mutex,
+	profilesLock *sync.RWMutex,
 	profiles map[cgroupModel.WorkloadSelector]*profile.Profile,
 	resolver *ktime.Resolver,
 	_ *api.SecurityProfileListParams,
@@ -280,8 +280,8 @@ func listSecurityProfilesCommon(
 
 	var out api.SecurityProfileListMessage
 
-	profilesLock.Lock()
-	defer profilesLock.Unlock()
+	profilesLock.RLock()
+	defer profilesLock.RUnlock()
 
 	for _, p := range profiles {
 		msg := p.ToSecurityProfileMessage(resolver)
@@ -294,7 +294,7 @@ func listSecurityProfilesCommon(
 // saveSecurityProfileCommon is the shared implementation for saving a security profile
 func saveSecurityProfileCommon(
 	cfg *config.Config,
-	profilesLock *sync.Mutex,
+	profilesLock *sync.RWMutex,
 	profiles map[cgroupModel.WorkloadSelector]*profile.Profile,
 	params *api.SecurityProfileSaveParams,
 ) (*api.SecurityProfileSaveMessage, error) {
@@ -311,9 +311,9 @@ func saveSecurityProfileCommon(
 		}, nil
 	}
 
-	profilesLock.Lock()
+	profilesLock.RLock()
 	p := profiles[selector]
-	profilesLock.Unlock()
+	profilesLock.RUnlock()
 
 	if p == nil {
 		return &api.SecurityProfileSaveMessage{

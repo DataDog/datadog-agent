@@ -133,7 +133,7 @@ type Manager struct {
 	securityProfileMap         *ebpf.Map
 	securityProfileSyscallsMap *ebpf.Map
 
-	profilesLock        sync.Mutex
+	profilesLock        sync.RWMutex
 	profiles            map[cgroupModel.WorkloadSelector]*profile.Profile
 	evictedVersionsLock sync.Mutex
 	evictedVersions     []cgroupModel.WorkloadSelector
@@ -491,8 +491,8 @@ func (m *Manager) SendStats() error {
 
 	// SecProfile stats
 	if m.config.RuntimeSecurity.SecurityProfileEnabled {
-		m.profilesLock.Lock()
-		defer m.profilesLock.Unlock()
+		m.profilesLock.RLock()
+		defer m.profilesLock.RUnlock()
 		m.pendingCacheLock.Lock()
 		defer m.pendingCacheLock.Unlock()
 

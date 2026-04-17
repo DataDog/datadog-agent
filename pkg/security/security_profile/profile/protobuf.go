@@ -63,8 +63,8 @@ func secDumpProtoToProfile(p *Profile, ad *adprotov1.SecDump) {
 
 // EncodeSecDumpProtobuf encodes a Profile to its SecDump protobuf binary representation
 func (p *Profile) EncodeSecDumpProtobuf() (*bytes.Buffer, error) {
-	p.Lock()
-	defer p.Unlock()
+	p.RLock()
+	defer p.RUnlock()
 
 	pad := profileToSecDumpProto(p)
 	defer pad.ReturnToVTPool()
@@ -177,8 +177,8 @@ func profileToSecurityProfileProto(p *Profile) (*adprotov1.SecurityProfile, erro
 
 // EncodeSecurityProfileProtobuf encodes a Profile to its SecurityProfile protobuf binary representation
 func (p *Profile) EncodeSecurityProfileProtobuf() (*bytes.Buffer, error) {
-	p.Lock()
-	defer p.Unlock()
+	p.RLock()
+	defer p.RUnlock()
 
 	profileProto, err := profileToSecurityProfileProto(p)
 	if err != nil {

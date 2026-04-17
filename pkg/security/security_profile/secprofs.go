@@ -30,8 +30,8 @@ import (
 // fetchSilentWorkloads returns the list of workloads for which we haven't received any profile
 func (m *Manager) fetchSilentWorkloads() map[cgroupModel.WorkloadSelector][]*tags.Workload {
 
-	m.profilesLock.Lock()
-	defer m.profilesLock.Unlock()
+	m.profilesLock.RLock()
+	defer m.profilesLock.RUnlock()
 
 	out := make(map[cgroupModel.WorkloadSelector][]*tags.Workload)
 
@@ -69,10 +69,9 @@ func (m *Manager) LookupEventInProfiles(event *model.Event) {
 		tags = event.ProcessContext.Process.ContainerContext.Tags
 		selector, err := cgroupModel.NewWorkloadSelector(utils.GetTagValue("image_name", tags), "*")
 		if err == nil {
-			// lookup profile
-			m.profilesLock.Lock()
+			m.profilesLock.RLock()
 			profile = m.profiles[selector]
-			m.profilesLock.Unlock()
+			m.profilesLock.RUnlock()
 			imageTag = utils.GetTagValue("image_tag", tags)
 			if imageTag == "" {
 				imageTag = "latest"
@@ -89,10 +88,9 @@ func (m *Manager) LookupEventInProfiles(event *model.Event) {
 		}
 		selector, err := cgroupModel.NewWorkloadSelector(utils.GetTagValue("service", tags), "*")
 		if err == nil {
-			// lookup profile
-			m.profilesLock.Lock()
+			m.profilesLock.RLock()
 			profile = m.profiles[selector]
-			m.profilesLock.Unlock()
+			m.profilesLock.RUnlock()
 			imageTag = utils.GetTagValue("version", tags)
 			if imageTag == "" {
 				imageTag = "latest"
@@ -268,8 +266,8 @@ func (m *Manager) FillProfileContextFromWorkloadID(id containerutils.WorkloadID,
 		return
 	}
 
-	m.profilesLock.Lock()
-	defer m.profilesLock.Unlock()
+	m.profilesLock.RLock()
+	defer m.profilesLock.RUnlock()
 
 	for _, profile := range m.profiles {
 		profile.InstancesLock.Lock()
@@ -481,9 +479,9 @@ func (m *Manager) onWorkloadDeletedEvent(workload *tags.Workload) {
 		Image: workload.Selector.Image,
 		Tag:   "*",
 	}
-	m.profilesLock.Lock()
+	m.profilesLock.RLock()
 	p := m.profiles[selector]
-	m.profilesLock.Unlock()
+	m.profilesLock.RUnlock()
 	if p == nil {
 		// nothing to do, leave
 		return

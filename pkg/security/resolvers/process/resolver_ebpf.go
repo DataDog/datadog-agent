@@ -215,10 +215,93 @@ func (p *EBPFResolver) tryReparentFromProcfs(entry *model.ProcessCacheEntry, cal
 // Only ancestors within tryReparentMaxForkDepth fork levels are checked
 // (exec transitions do not count toward the depth).
 func (p *EBPFResolver) TryReparentFromProcfs(entry *model.ProcessCacheEntry, callpathTag string, newEntryCb func(*model.ProcessCacheEntry, error)) {
+	type childItem struct {
+		child     *model.ProcessCacheEntry
+		exitedPid uint32
+	}
+
+	// Phase 1: walk the ancestor chain under the lock. Collect children of
+	// exited ancestors that need reparenting, and resolve any broken ancestor
+	// links (rare — these stay under the lock because they mutate the chain
+	// the walk depends on).
+	p.Lock()
+	var items []childItem
+	var prev *model.ProcessCacheEntry
+	forkDepth := 0
+	iterations := 0
+	for pc := entry; pc != nil && pc.Pid != 1; prev, pc = pc, pc.Ancestor {
+		iterations++
+		if iterations > tryReparentMaxIterations {
+			break
+		}
+
+		if prev != nil && pc.Pid != prev.Pid {
+			forkDepth++
+
+			if !pc.ExitTime.IsZero() {
+				for _, child := range pc.Children {
+					items = append(items, childItem{child: child, exitedPid: pc.Pid})
+				}
+			}
+		}
+
+		if pc.Ancestor == nil {
+			if p.tryResolveMissingAncestor(pc, callpathTag, newEntryCb) == nil {
+				break
+			}
+		}
+
+		if forkDepth > tryReparentMaxForkDepth {
+			break
+		}
+	}
+	p.Unlock()
+
+	if len(items) == 0 {
+		return
+	}
+
+	// Phase 2: read each child's current ppid from procfs without holding
+	// the lock to avoid blocking event processing.
+	const (
+		ppidSkip   = iota
+		ppidFailed
+		ppidReady
+	)
+	type ppidResult struct {
+		ppid   uint32
+		status int
+	}
+	results := make([]ppidResult, len(items))
+	for i, item := range items {
+		proc, err := process.NewProcess(int32(item.child.Pid))
+		if err != nil {
+			continue
+		}
+		newPPid, err := proc.Ppid()
+		if err != nil {
+			continue
+		}
+		newPPidU32 := uint32(newPPid)
+		if newPPidU32 == 0 || newPPidU32 == item.exitedPid {
+			results[i] = ppidResult{status: ppidFailed}
+			continue
+		}
+		results[i] = ppidResult{ppid: newPPidU32, status: ppidReady}
+	}
+
+	// Phase 3: apply reparenting under the lock.
 	p.Lock()
 	defer p.Unlock()
-
-	p.tryReparentFromProcfs(entry, callpathTag, newEntryCb)
+	for i, item := range items {
+		switch results[i].status {
+		case ppidSkip:
+		case ppidFailed:
+			p.reparentFailedStats[callpathTag].Inc()
+		case ppidReady:
+			p.reparentTo(item.child, results[i].ppid, callpathTag, newEntryCb)
+		}
+	}
 }
 
 // TryReparentFromProcfsLocked is like TryReparentFromProcfs but assumes the
@@ -1547,27 +1630,53 @@ func (p *EBPFResolver) cacheFlush(ctx context.Context) {
 
 // SyncCache snapshots /proc for the provided pid.
 func (p *EBPFResolver) SyncCache(proc *process.Process) {
-	p.Lock()
-	defer p.Unlock()
-
+	// Phase 1: I/O-heavy work (procfs reads, eBPF map lookups, etc.)
+	// performed without holding the process cache lock to avoid blocking
+	// event processing during the initial snapshot.
 	filledProc, err := utils.GetFilledProcess(proc)
 	if err != nil {
 		seclog.Tracef("unable to get a filled process for %d: %v", proc.Pid, err)
 		return
 	}
 
-	// ignore kworker/kthreads
-	if IsKworker(uint32(filledProc.Ppid), uint32(filledProc.Pid)) {
-		value := uint8(1)
-		if err = p.pidIgnoredMap.Put(uint32(filledProc.Pid), value); err != nil {
-			seclog.Errorf("couldn't push pid_ignored entry to kernel space: %s", err)
-		}
+	pid := uint32(proc.Pid)
+	entry := p.NewProcessCacheEntry(model.PIDContext{Pid: pid, Tid: pid})
+
+	if err := p.enrichEventFromProcfs(entry, proc, filledProc); err != nil {
+		seclog.Trace(err)
 		return
 	}
 
-	if entry := p.newEntryFromProcfs(proc, filledProc, 0, model.ProcessCacheEntryFromSnapshot, nil); entry != nil {
-		p.syncKernelMaps(entry)
+	entry.IsKworker = filledProc.Ppid == 0 && filledProc.Pid != 1
+
+	// Phase 2: cache mutation under the lock.
+	p.Lock()
+	defer p.Unlock()
+
+	parent := p.entryCache[entry.PPid]
+	if parent != nil {
+		if parent.Equals(entry) {
+			entry.SetForkParent(parent)
+		} else if prev := p.entryCache[pid]; prev != nil {
+			entry.SetExecParent(prev)
+		} else {
+			entry.SetExecParent(parent)
+		}
+	} else if pid == 1 {
+		entry.SetAsExec()
+	} else {
+		seclog.Debugf("unable to set the type of process, not pid 1, no parent in cache: %+v", entry)
 	}
+
+	if p.userSessionResolver != nil {
+		p.userSessionResolver.HandleSSHUserSessionFromPCE(entry)
+	}
+
+	p.insertEntry(entry, model.CGroupContext{}, model.ProcessCacheEntryFromSnapshot)
+
+	seclog.Tracef("New process cache entry added: %s %s %d/%d", entry.Comm, entry.FileEvent.PathnameStr, pid, entry.FileEvent.Inode)
+
+	p.syncKernelMaps(entry)
 }
 
 func (p *EBPFResolver) syncKernelMaps(entry *model.ProcessCacheEntry) {

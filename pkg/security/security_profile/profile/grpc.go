@@ -25,8 +25,8 @@ import (
 
 // ToSecurityActivityDumpMessage returns a pointer to a SecurityActivityDumpMessage
 func (p *Profile) ToSecurityActivityDumpMessage(timeout time.Duration, storageRequests map[config.StorageFormat][]config.StorageRequest) *api.ActivityDumpMessage {
-	p.Lock()
-	defer p.Unlock()
+	p.RLock()
+	defer p.RUnlock()
 	var storage []*api.StorageRequestMessage
 	for _, requests := range storageRequests {
 		for _, request := range requests {
@@ -141,8 +141,8 @@ func NewProfileFromActivityDumpMessage(msg *api.ActivityDumpMessage) (*Profile, 
 
 // ToSecurityProfileMessage returns a SecurityProfileMessage filled with the content of the current Security Profile
 func (p *Profile) ToSecurityProfileMessage(timeResolver *ktime.Resolver) *api.SecurityProfileMessage {
-	p.Lock()
-	defer p.Unlock()
+	p.RLock()
+	defer p.RUnlock()
 
 	// construct the list of image tags for this profile
 	imageTags := ""
@@ -197,8 +197,8 @@ func (p *Profile) ToSecurityProfileMessage(timeResolver *ktime.Resolver) *api.Se
 		msg.EventTypes = append(msg.EventTypes, evt.String())
 	}
 
-	p.InstancesLock.Lock()
-	defer p.InstancesLock.Unlock()
+	p.InstancesLock.RLock()
+	defer p.InstancesLock.RUnlock()
 	for _, inst := range p.Instances {
 		msg.Instances = append(msg.Instances, &api.InstanceMessage{
 			ContainerID: string(inst.GCroupCacheEntry.GetContainerID()),

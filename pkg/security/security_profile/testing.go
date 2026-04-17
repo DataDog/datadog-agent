@@ -35,8 +35,8 @@ func (m *Manager) FakeDumpOverweight(name string) {
 
 // ListAllProfileStates list all profiles and their versions (debug purpose only)
 func (m *Manager) ListAllProfileStates() {
-	m.profilesLock.Lock()
-	defer m.profilesLock.Unlock()
+	m.profilesLock.RLock()
+	defer m.profilesLock.RUnlock()
 	for _, profile := range m.profiles {
 		profile.ListAllVersionStates()
 	}
@@ -44,8 +44,8 @@ func (m *Manager) ListAllProfileStates() {
 
 // GetProfile returns a profile by its selector
 func (m *Manager) GetProfile(selector cgroupModel.WorkloadSelector) *profile.Profile {
-	m.profilesLock.Lock()
-	defer m.profilesLock.Unlock()
+	m.profilesLock.RLock()
+	defer m.profilesLock.RUnlock()
 
 	// check if this workload had a Security Profile
 	return m.profiles[selector]
