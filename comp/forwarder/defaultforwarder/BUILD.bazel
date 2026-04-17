@@ -41,7 +41,7 @@ go_library(
         "//pkg/config/utils",
         "//pkg/orchestrator/model",
         "//pkg/status/health",
-        "//pkg/telemetry",
+        "//comp/core/telemetry/def",
         "//pkg/util/backoff",
         "//pkg/util/filesystem",
         "//pkg/util/fxutil",

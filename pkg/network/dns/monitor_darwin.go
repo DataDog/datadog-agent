@@ -8,6 +8,8 @@
 package dns
 
 import (
+	"github.com/google/gopacket/layers"
+
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/filter"
