@@ -8,6 +8,7 @@
 package output
 
 import (
+	"fmt"
 	"testing"
 	"unsafe"
 
@@ -222,9 +223,16 @@ func TestEventIterator(t *testing.T) {
 				header.Data_byte_len = uint32(totalSize)
 				return &header
 			}(),
-			expectedStack:      fullStack,
-			expectedDataItems:  []DataItem{fullItems[0]},
-			expectDataItemsErr: []string{"", `not enough bytes to read data item \(8 bytes\): 108 < 112`},
+			expectedStack:     fullStack,
+			expectedDataItems: []DataItem{fullItems[0]},
+			expectDataItemsErr: []string{"", fmt.Sprintf(
+				`not enough bytes to read data item \(8 bytes\): %d < %d`,
+				eventHeaderSize+int(fullHeader.Stack_byte_len)+
+					2*dataItemHeaderSize+nextMultipleOf8(int(fullItems[0].header.Length))+4,
+				eventHeaderSize+int(fullHeader.Stack_byte_len)+
+					2*dataItemHeaderSize+nextMultipleOf8(int(fullItems[0].header.Length))+
+					int(fullItems[1].header.Length),
+			)},
 		},
 		{
 			name: "one valid data item, one truncated data item header",
