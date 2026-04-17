@@ -102,7 +102,9 @@ func newGrpcClient(_ context.Context, httpClient *api.HTTPClient) (*grpc.ClientC
 	headers := httpClient.Headers()
 	meta := metadata.MD{}
 	for k, v := range headers {
-		meta[k] = v
+		// md.Set lowercases the key, which is required for valid
+		// HTTP/2 header names and correct gRPC metadata handling.
+		meta.Set(k, v...)
 	}
 
 	// grpc.NewClient expects an authority (host or host:port), not a full
