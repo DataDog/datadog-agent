@@ -110,7 +110,7 @@ func GetInstanceInfo(ctx context.Context) ([]string, error) {
 		if isSpot, err := isSpotInstance(ctx); err != nil {
 			log.Debugf("could not determine spot instance status: %v", err)
 		} else if isSpot {
-			tags = append(tags, fmt.Sprintf("%s:spot", capacityTypeTagName))
+			tags = append(tags, capacityTypeTagName+":spot")
 		}
 	}
 
