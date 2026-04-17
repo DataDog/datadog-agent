@@ -45,6 +45,7 @@ def _send_launch_event(cfg, run_id, image, episode_pairs, mode, gensim_sha):
         f"mode:{mode}",
         f"gensim_sha:{gensim_sha}",
         f"user:{user}",
+        "source:agent-q-branch-gensim",
     ]
     for ep_name, scen_name, _ in episode_pairs:
         tags.append(f"episode:{ep_name}")
