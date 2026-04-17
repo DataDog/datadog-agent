@@ -133,16 +133,16 @@ include:
       # - !reference [.except_skip_windows] Should be the rule but it is not working so we need to explicitly write the rule. See https://gitlab.com/gitlab-org/gitlab/-/issues/434157
       - changes:
           paths: *windows_path
-          compare_to: main
+          compare_to: 7.79.x
       - changes:
           paths: *windows_path_2
-          compare_to: main
+          compare_to: 7.79.x
       - changes:
           paths: *windows_path_3
-          compare_to: main
+          compare_to: 7.79.x
       - changes:
           paths: *bazel_paths
-          compare_to: main
+          compare_to: 7.79.x
       - when: never
 
 default:
