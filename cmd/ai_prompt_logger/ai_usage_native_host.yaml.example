@@ -11,6 +11,7 @@
 #   ai-prompt-logger-native-host --config=/path/to/ai_usage_native_host.yaml
 
 # Base URL of the Agent trace receiver (same role as DD_TRACE_AGENT_URL).
+# Use http:// only (local receiver is plain HTTP; this host has no TLS client).
 trace_agent_url: "http://localhost:8126"
 
 # EVP proxy API version (same role as DD_EVP_PROXY_API_VERSION).

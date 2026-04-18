@@ -10,6 +10,7 @@ If no path is provided, defaults to <repo-root>/target/release/ai-prompt-logger-
 (repo root is three parents above this script; .exe on Windows). Any extra arguments are forwarded
 to the host (e.g. --config=...).
 """
+
 import json
 import struct
 import subprocess
@@ -59,9 +60,9 @@ def test_send_usage_event(proc):
     )
     print(f'  Response: {json.dumps(response, indent=2)}')
 
-    assert response['type'] == 'SEND_USAGE_EVENT_RESULT', (
-        f'Expected SEND_USAGE_EVENT_RESULT, got {response.get("type")}'
-    )
+    assert (
+        response['type'] == 'SEND_USAGE_EVENT_RESULT'
+    ), f'Expected SEND_USAGE_EVENT_RESULT, got {response.get("type")}'
     assert 'success' in response, 'Missing success field'
     print(f'  ✓ SEND_USAGE_EVENT shape OK (success={response["success"]})')
     return response
@@ -76,11 +77,7 @@ def main():
         host_path = Path(sys.argv[1])
         extra_args = sys.argv[2:]
     else:
-        exe_name = (
-            'ai-prompt-logger-native-host.exe'
-            if sys.platform == 'win32'
-            else 'ai-prompt-logger-native-host'
-        )
+        exe_name = 'ai-prompt-logger-native-host.exe' if sys.platform == 'win32' else 'ai-prompt-logger-native-host'
         repo_root = Path(__file__).resolve().parents[3]
         host_path = repo_root / 'target' / 'release' / exe_name
         extra_args = []

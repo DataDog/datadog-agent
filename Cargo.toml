@@ -50,7 +50,8 @@ tonic-build = "0.14"
 tonic-prost = "0.14"
 tonic-prost-build = "0.14"
 tonic-reflection = "0.14"
-ureq = { version = "2.10", features = ["json"] }
+# default-features off: avoid rustls/ring/webpki (ISC + CDLA) for cargo-deny; HTTP-only client.
+ureq = { version = "2.10", default-features = false, features = ["json"] }
 uzers = "0.12"
 walkdir = "2"
 saphyr-parser = "0.0.6"

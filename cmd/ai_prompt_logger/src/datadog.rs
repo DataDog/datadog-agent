@@ -39,7 +39,8 @@ impl DatadogClient {
     /// 2. `{install_root}/etc/`
     ///
     /// YAML keys (defaults match the Agent trace receiver):
-    /// - `trace_agent_url` (default `http://localhost:8126`)
+    /// - `trace_agent_url` (default `http://localhost:8126`; use **http** only — the local trace
+    ///   receiver is plain HTTP and this binary has no TLS client)
     /// - `evp_proxy_api_version` (default `2`)
     /// - `logs_evp_subdomain` (default `http-intake.logs`)
     ///
@@ -238,10 +239,8 @@ impl AiUsageEvent {
 /// Prefers an extension-provided override (from managed storage) when present,
 /// falls back to the OS hostname via libc syscall.
 pub fn resolve_hostname(override_hostname: Option<&str>) -> String {
-    if let Some(h) = override_hostname {
-        if !h.is_empty() {
-            return h.to_string();
-        }
+    if let Some(h) = override_hostname.filter(|s| !s.is_empty()) {
+        return h.to_string();
     }
     hostname::get()
         .ok()
