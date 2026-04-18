@@ -14,7 +14,7 @@ from pathlib import Path
 
 try:
     from optimum.exporters.onnx import main_export
-    from transformers import AutoTokenizer, AutoModelForSequenceClassification
+    from transformers import AutoModelForSequenceClassification, AutoTokenizer
 except ImportError:
     print("Please install: pip install optimum[exporters] transformers torch")
     sys.exit(1)
@@ -60,7 +60,7 @@ def verify_sentiment_labels():
     print(f"\nVerifying sentiment model labels: {model_id}")
 
     model = AutoModelForSequenceClassification.from_pretrained(model_id)
-    tokenizer = AutoTokenizer.from_pretrained(model_id)
+    AutoTokenizer.from_pretrained(model_id)
 
     labels = model.config.id2label
     print(f"Labels: {labels}")
