@@ -10,17 +10,20 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	_ "net/http/pprof" // activate pprof profiling
 	"os"
 	"os/signal"
 	"os/user"
+	"strconv"
 	"syscall"
 	"time"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
@@ -29,6 +32,9 @@ import (
 	autoexit "github.com/DataDog/datadog-agent/comp/agent/autoexit/def"
 	autoexitfx "github.com/DataDog/datadog-agent/comp/agent/autoexit/fx"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
+	configstreamconsumerfx "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/fx"
+	configstreamconsumerimpl "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/impl"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
 	delegatedauthnoopfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-noop"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
@@ -42,6 +48,7 @@ import (
 	pid "github.com/DataDog/datadog-agent/comp/core/pid/def"
 	pidfx "github.com/DataDog/datadog-agent/comp/core/pid/fx"
 	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
+	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagent/def"
 	remoteagentfx "github.com/DataDog/datadog-agent/comp/core/remoteagent/fx-systemprobe"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
@@ -74,7 +81,6 @@ import (
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
-	systemprobeconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/coredump"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -93,7 +99,8 @@ type spLiteExecCmd struct {
 	Env  []string
 }
 
-const configPrefix = systemprobeconfig.Namespace + "."
+// configPrefix is the system-probe config namespace (avoids importing pkg/system-probe/config and its setup dependency cycle).
+const configPrefix = "system_probe_config."
 
 type cliParams struct {
 	*command.GlobalParams
@@ -114,7 +121,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Short: "Run the System Probe",
 		Long:  `Runs the system-probe in the foreground`,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			return fxutil.OneShot(run,
+			opts := []fx.Option{
 				fx.Invoke(func(_ log.Component) {
 					ddruntime.SetMaxProcs()
 				}),
@@ -122,7 +129,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath))),
 				fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
 				getSharedFxOption(),
-			)
+			}
+			if isConfigstreamEnabled(globalParams.DatadogConfFilePath()) {
+				opts = append(opts, configstreamFxOptions())
+			}
+			return fxutil.OneShot(run, opts...)
 		},
 	}
 	runCmd.Flags().StringVarP(&cliParams.pidfilePath, "pid", "p", "", "path to the pidfile")
@@ -190,6 +201,68 @@ func getSharedFxOption() fx.Option {
 		rdnsquerierfx.Module(),
 		npcollectorimpl.Module(),
 	)
+}
+
+// configstreamFxOptions returns FX options for the config stream consumer.
+// Only include this when remote_agent.configstream.enabled is true.
+func configstreamFxOptions() fx.Option {
+	return fx.Options(
+		// Expose config.Component as model.Writer for the config stream consumer to write remote config into.
+		fx.Provide(func(c config.Component) model.Writer {
+			return c
+		}),
+		// SessionIDProvider from RAR: only system-probe's remote agent implements this.
+		fx.Provide(func(ra remoteagent.Component) configstreamconsumerimpl.SessionIDProvider {
+			if ra == nil {
+				return nil
+			}
+			if p, ok := ra.(configstreamconsumerimpl.SessionIDProvider); ok {
+				return p
+			}
+			return nil
+		}),
+		fx.Provide(func(c config.Component, deps struct {
+			fx.In
+			SessionProvider configstreamconsumerimpl.SessionIDProvider `optional:"true"`
+		}) configstreamconsumerimpl.Params {
+			host := c.GetString("cmd_host")
+			port := c.GetInt("cmd_port")
+			if port <= 0 {
+				port = 5001
+			}
+			return configstreamconsumerimpl.Params{
+				ClientName:        "system-probe",
+				CoreAgentAddress:  net.JoinHostPort(host, strconv.Itoa(port)),
+				SessionIDProvider: deps.SessionProvider,
+			}
+		}),
+		configstreamconsumerfx.Module(),
+		// Trigger instantiation; OnStart handles the blocking wait internally.
+		fx.Invoke(func(_ configstreamconsumer.Component) {}),
+	)
+}
+
+// isConfigstreamEnabled does a lightweight pre-FX check of whether config stream is enabled in the YAML config.
+// The default is false, matching the BindEnvAndSetDefault in pkg/config/setup/config.go.
+func isConfigstreamEnabled(configPath string) bool {
+	if configPath == "" {
+		return false
+	}
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return false
+	}
+	var cfg struct {
+		RemoteAgent struct {
+			ConfigStream struct {
+				Enabled bool `yaml:"enabled"`
+			} `yaml:"configstream"`
+		} `yaml:"remote_agent"`
+	}
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return false
+	}
+	return cfg.RemoteAgent.ConfigStream.Enabled
 }
 
 // run starts the main loop.
