@@ -27,11 +27,18 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
+	configstreamconsumerfx "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/fx"
 	configstreamconsumerimpl "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/impl"
+	delegatedauthnoopfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-noop"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
-	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	systemprobeloggerfx "github.com/DataDog/datadog-agent/comp/core/log/fx-systemprobe"
+	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -96,8 +103,9 @@ func setupMockConfigStreamServer(t *testing.T, ipcComp *ipcmock.IPCMock) (addr s
 	return addr, events, cleanup
 }
 
-// TestRunBlocksUntilConfigStreamSnapshot verifies that system-probe startup does not complete
-// until the config stream sends a snapshot, by running the real FX graph with a mock config stream server.
+// TestRunBlocksUntilConfigStreamSnapshot verifies that FX startup does not complete until the config
+// stream consumer receives a snapshot. Uses a minimal FX graph to avoid heavyweight components
+// (workloadmeta, remote tagger, RC client) that spam logs and stall in CI.
 func TestRunBlocksUntilConfigStreamSnapshot(t *testing.T) {
 	ipcComp := ipcmock.New(t)
 	serverAddr, events, cleanup := setupMockConfigStreamServer(t, ipcComp)
@@ -110,7 +118,6 @@ func TestRunBlocksUntilConfigStreamSnapshot(t *testing.T) {
 	datadogPath := filepath.Join(tmpDir, "datadog.yaml")
 	sysprobePath := filepath.Join(tmpDir, "system_probe.yaml")
 
-	// Config so system-probe uses our mock server and does not start the real probe.
 	datadogYaml := fmt.Sprintf(`
 cmd_host: %s
 cmd_port: %s
@@ -127,30 +134,39 @@ system_probe_config:
 `
 	require.NoError(t, os.WriteFile(sysprobePath, []byte(sysprobeYaml), 0600))
 
-	baseOpts := fx.Options(
+	opts := fx.Options(
 		fx.Supply(config.NewAgentParams(datadogPath)),
 		fx.Supply(sysprobeconfigimpl.NewParams(
 			sysprobeconfigimpl.WithSysProbeConfFilePath(sysprobePath),
 			sysprobeconfigimpl.WithFleetPoliciesDirPath(""),
 		)),
-		fx.Supply(pidimpl.NewParams("")),
-		getSharedFxOption(),
-		configstreamFxOptions(),
-	)
-	overrides := fx.Options(
-		fx.Decorate(func() ipc.Component { return ipcComp }),
-		fx.Decorate(func(p configstreamconsumerimpl.Params) configstreamconsumerimpl.Params {
-			p.ReadyTimeout = 10 * time.Second
-			p.SessionIDProvider = &mockRAR{}
-			return p
+		config.Module(),
+		delegatedauthnoopfx.Module(),
+		secretsnoopfx.Module(),
+		sysprobeconfigimpl.Module(),
+		fx.Supply(log.ForDaemon("SP", "log_file", "")),
+		systemprobeloggerfx.Module(),
+		telemetryimpl.Module(),
+		fx.Provide(func() ipc.Component { return ipcComp }),
+		fx.Provide(func(c config.Component) model.Writer { return c }),
+		fx.Provide(func() configstreamconsumerimpl.Params {
+			return configstreamconsumerimpl.Params{
+				ClientName:        "system-probe",
+				CoreAgentAddress:  serverAddr,
+				SessionIDProvider: &mockRAR{},
+				ReadyTimeout:      10 * time.Second,
+			}
 		}),
+		configstreamconsumerfx.Module(),
 	)
-	opts := fx.Options(baseOpts, overrides)
+
+	// testRun is injected by FX; the consumer's OnStart blocks until a snapshot arrives.
+	testRun := func(_ configstreamconsumer.Component) error { return nil }
 
 	t.Run("startup_completes_after_snapshot", func(t *testing.T) {
 		done := make(chan error, 1)
 		go func() {
-			done <- fxutil.OneShot(run, opts)
+			done <- fxutil.OneShot(testRun, opts)
 		}()
 
 		// Startup should still be blocking (no snapshot yet).
@@ -173,12 +189,10 @@ system_probe_config:
 			},
 		}
 
-		// run() should complete (startSystemProbe returns ErrNotEnabled then 5s sleep + stopApp).
-		// Use a generous timeout: CI is slower and stopApp() with heavyweight components adds ~25s.
 		select {
 		case err := <-done:
 			require.NoError(t, err)
-		case <-time.After(120 * time.Second):
+		case <-time.After(30 * time.Second):
 			t.Fatal("run did not complete after sending snapshot")
 		}
 	})
