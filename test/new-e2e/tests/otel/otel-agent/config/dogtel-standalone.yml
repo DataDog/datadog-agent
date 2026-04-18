@@ -1,0 +1,59 @@
+extensions:
+  dogtel:
+    enable_tagger_server: true
+    tagger_server_port: 15555
+    tagger_server_addr: "0.0.0.0"
+    enable_metadata_collection: true
+  pprof:
+  health_check:
+  zpages:
+    endpoint: "localhost:55679"
+  ddflare:
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+exporters:
+  datadog:
+    metrics:
+      resource_attributes_as_tags: true
+    api:
+      key: ${env:DD_API_KEY}
+    sending_queue:
+      batch:
+
+processors:
+  infraattributes:
+    cardinality: 2
+
+connectors:
+  datadog/connector:
+    traces:
+      compute_stats_by_span_kind: true
+      compute_top_level_by_span_kind: true
+      peer_tags_aggregation: true
+
+service:
+  extensions: [dogtel, pprof, health_check, zpages, ddflare]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [infraattributes]
+      exporters: [datadog/connector]
+    traces/send:
+      receivers: [otlp]
+      processors: [infraattributes]
+      exporters: [datadog]
+    metrics:
+      receivers: [otlp, datadog/connector]
+      processors: [infraattributes]
+      exporters: [datadog]
+    logs:
+      receivers: [otlp]
+      processors: [infraattributes]
+      exporters: [datadog]
