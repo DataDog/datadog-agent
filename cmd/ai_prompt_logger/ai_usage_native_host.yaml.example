@@ -1,0 +1,24 @@
+# Runtime settings for the AI usage Chrome native messaging host. The Agent installs the
+# host binary; this file configures how it reaches the local Agent (trace receiver / EVP).
+#
+# Install the active file as `ai_usage_native_host.yaml` in the same configuration
+# directory your platform uses for the Agent (typically alongside `datadog.yaml`).
+#
+# Copy this example to `ai_usage_native_host.yaml` in that directory, or edit after install.
+#
+# You can also point the host at this file explicitly (same idea as `agent run -c` /
+# `system-probe --config`):
+#   ai-prompt-logger-native-host --config=/path/to/ai_usage_native_host.yaml
+
+# Base URL of the Agent trace receiver (same role as DD_TRACE_AGENT_URL).
+trace_agent_url: "http://localhost:8126"
+
+# EVP proxy API version (same role as DD_EVP_PROXY_API_VERSION).
+evp_proxy_api_version: 2
+
+# Logs intake subdomain header (same role as DD_LOGS_EVP_SUBDOMAIN).
+logs_evp_subdomain: "http-intake.logs"
+
+# Chrome extension ID for Native Messaging host registration. When the installer exposes
+# DD_AI_USAGE_CHROME_EXTENSION_ID, that value is applied here; otherwise set below.
+# chrome_extension_id: ""

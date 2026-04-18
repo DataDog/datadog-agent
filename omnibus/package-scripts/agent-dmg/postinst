@@ -107,6 +107,10 @@ if [ ! -e "$CONF_DIR/datadog.yaml" ]; then
     sed -E 's/^api_key:$/api_key: APIKEY/' $CONF_DIR/datadog.yaml.example > $CONF_DIR/datadog.yaml
 fi
 
+if [ ! -f "$CONF_DIR/ai_usage_native_host.yaml" ] && [ -f "$CONF_DIR/ai_usage_native_host.yaml.example" ]; then
+    cp "$CONF_DIR/ai_usage_native_host.yaml.example" "$CONF_DIR/ai_usage_native_host.yaml"
+fi
+
 # Read configuration written by the install script (if present).
 # When the pkg is installed via GUI Installer or MDM (no install script),
 # this file won't exist and the config is left as-is for the admin to configure.
@@ -118,6 +122,16 @@ if [ -f "$INSTALL_ENV_FILE" ]; then
     dd_gui_menu=$(grep '^DD_GUI_APP_MENU_ENABLED=' "$INSTALL_ENV_FILE" | cut -d= -f2-)
     dd_install_method=$(grep '^DD_INSTALL_METHOD=' "$INSTALL_ENV_FILE" | cut -d= -f2-)
     dd_install_version=$(grep '^DD_INSTALL_SCRIPT_VERSION=' "$INSTALL_ENV_FILE" | cut -d= -f2-)
+    dd_ai_usage_chrome_extension_id=$(grep '^DD_AI_USAGE_CHROME_EXTENSION_ID=' "$INSTALL_ENV_FILE" | cut -d= -f2-)
+
+    if [ -n "$dd_ai_usage_chrome_extension_id" ] && [ -f "$CONF_DIR/ai_usage_native_host.yaml" ]; then
+        if grep -qE '^[[:space:]]*#?[[:space:]]*chrome_extension_id:' "$CONF_DIR/ai_usage_native_host.yaml"; then
+            sed -i '' "s/^# *chrome_extension_id:.*/chrome_extension_id: $dd_ai_usage_chrome_extension_id/" "$CONF_DIR/ai_usage_native_host.yaml"
+            sed -i '' "s/^chrome_extension_id:.*/chrome_extension_id: $dd_ai_usage_chrome_extension_id/" "$CONF_DIR/ai_usage_native_host.yaml"
+        else
+            printf '\nchrome_extension_id: %s\n' "$dd_ai_usage_chrome_extension_id" >> "$CONF_DIR/ai_usage_native_host.yaml"
+        fi
+    fi
 
     if [ -n "$dd_api_key" ]; then
         sed -i '' "s/^api_key:.*/api_key: $dd_api_key/" "$CONF_DIR/datadog.yaml"
@@ -157,6 +171,45 @@ find $CONF_DIR -type f -exec chmod 660 {} \;
 #      so the replacement file retains _dd-agent access.
 find "$CONF_DIR" -type d -exec chmod +a "user:_dd-agent allow read,write,readattr,writeattr,readextattr,writeextattr,readsecurity,list,search,add_file,add_subdirectory,file_inherit,directory_inherit" {} \;
 find "$CONF_DIR" -type f -exec chmod +a "user:_dd-agent allow read,write,readattr,writeattr,readextattr,writeextattr,readsecurity" {} \;
+
+# Chrome NativeMessagingHosts for AI usage native host (per-user)
+CHROME_EXT_ID=""
+if [ -f "$INSTALL_ENV_FILE" ]; then
+    CHROME_EXT_ID=$(grep '^DD_AI_USAGE_CHROME_EXTENSION_ID=' "$INSTALL_ENV_FILE" | cut -d= -f2- || true)
+fi
+if [ -z "$CHROME_EXT_ID" ] && [ -f "$CONF_DIR/ai_usage_native_host.yaml" ]; then
+    CHROME_EXT_ID=$(awk '/^chrome_extension_id:/{sub(/^[^:]*:[[:space:]]*/, ""); gsub(/["'\'']/, ""); print; exit}' "$CONF_DIR/ai_usage_native_host.yaml")
+fi
+CHROME_EXT_ID=$(echo "$CHROME_EXT_ID" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+# Launcher passes --config like `agent run -c` / `system-probe --config` (Chrome does not pass argv).
+NATIVE_HOST_BIN="$INSTALL_DIR/embedded/bin/run_ai_usage_native_host.sh"
+NM_HOST_NAME="com.ai_prompt_logger.native_host"
+if [ -n "$CHROME_EXT_ID" ] && [ -f "$NATIVE_HOST_BIN" ]; then
+    echo "# Installing Chrome NativeMessagingHosts for AI usage native host"
+    for user_home in /Users/*; do
+        [ -d "$user_home" ] || continue
+        u=$(basename "$user_home")
+        [ "$u" = "Shared" ] && continue
+        id -u "$u" >/dev/null 2>&1 || continue
+        nmh_dir="$user_home/Library/Application Support/Google/Chrome/NativeMessagingHosts"
+        sudo -u "$u" mkdir -p "$nmh_dir"
+        manifest="$nmh_dir/${NM_HOST_NAME}.json"
+        sudo -u "$u" tee "$manifest" >/dev/null <<EOF
+{
+  "name": "${NM_HOST_NAME}",
+  "description": "Datadog AI usage native messaging host",
+  "path": "${NATIVE_HOST_BIN}",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://${CHROME_EXT_ID}/"
+  ]
+}
+EOF
+        sudo -u "$u" chmod 644 "$manifest"
+    done
+elif [ -n "$CHROME_EXT_ID" ]; then
+    echo "WARNING: AI usage native host launcher missing at $NATIVE_HOST_BIN; skipping Chrome manifest install"
+fi
 
 # `datadog-agent` command line
 mkdir -vp /usr/local/bin

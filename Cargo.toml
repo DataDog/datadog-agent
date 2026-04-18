@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
+    "cmd/ai_prompt_logger",
     "comp/core/log/rust",
     "pkg/discovery/module/rust",
     "pkg/procmgr/rust",
@@ -15,10 +16,12 @@ rust-version = "1.91"
 anyhow = "1.0.98"
 cap-std = "4.0"
 caps = "0.5"
+chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4.5", features = ["derive"] }
 elf = "0.8.0"
 glob-match = "0.2"
 http-body-util = "0.1"
+hostname = "0.4"
 hyper = "1"
 hyper-util = { version = "0.1", default-features = false, features = ["http1", "server", "tokio"] }
 log = "0.4"
@@ -47,6 +50,7 @@ tonic-build = "0.14"
 tonic-prost = "0.14"
 tonic-prost-build = "0.14"
 tonic-reflection = "0.14"
+ureq = { version = "2.10", features = ["json"] }
 uzers = "0.12"
 walkdir = "2"
 saphyr-parser = "0.0.6"

@@ -278,6 +278,11 @@ build do
   if osx_target?
     command_on_repo_root "bazelisk run #{bazel_flags} -- //packages/macos/app:install --destdir=#{install_dir}", :live_stream => Omnibus.logger.live_stream(:info)
 
+    command_on_repo_root "bazelisk run #{bazel_flags} -- //cmd/ai_prompt_logger:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+    copy "cmd/ai_prompt_logger/ai_usage_native_host.yaml.example", "#{install_dir}/etc/ai_usage_native_host.yaml.example"
+    copy "cmd/ai_prompt_logger/run_ai_usage_native_host.sh", "#{install_dir}/embedded/bin/run_ai_usage_native_host.sh"
+    command "chmod 0755 #{install_dir}/embedded/bin/run_ai_usage_native_host.sh"
+
     # Systray GUI
     app_temp_dir = "#{install_dir}/Datadog Agent.app/Contents"
     mkdir "#{app_temp_dir}/MacOS"
