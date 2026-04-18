@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "workflowjsonschema",
+    srcs = ["validator.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/workflowjsonschema",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_hashicorp_go_multierror//:go-multierror",
+        "@com_github_santhosh_tekuri_jsonschema_v5//:jsonschema",
+    ],
+)

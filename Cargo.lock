@@ -521,6 +521,7 @@ version = "1.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "843fba2746e448b37e26a819579957415c8cef339bf08564fe8b7ddbd959573c"
 dependencies = [
+ "crc32fast",
  "miniz_oxide",
  "zlib-rs",
 ]
@@ -1436,6 +1437,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
 
 [[package]]
+name = "rawzip"
+version = "0.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9d9575f44c8cf85bc843ad666dcdf20d05a7753772bef56eb2a5140282b32150"
+
+[[package]]
 name = "rayon"
 version = "1.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1735,6 +1742,7 @@ dependencies = [
  "dd-agent-log",
  "dircpy",
  "elf",
+ "flate2",
  "glob-match",
  "http-body-util",
  "hyper",
@@ -1747,6 +1755,7 @@ dependencies = [
  "nom",
  "normalize-path",
  "phf",
+ "rawzip",
  "rmp-serde",
  "saphyr-parser",
  "scopeguard",

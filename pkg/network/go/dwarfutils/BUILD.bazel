@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "dwarfutils",
+    srcs = [
+        "compile_unit.go",
+        "entry.go",
+        "type_finder.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/go/dwarfutils",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_go_delve_delve//pkg/dwarf",
+        "@com_github_go_delve_delve//pkg/dwarf/godwarf",
+    ],
+)
