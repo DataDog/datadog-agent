@@ -1,0 +1,6 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+# gazelle:exclude hashicorp
+# gazelle:ignore backend.go
+# gazelle:ignore backend_test.go
+# gazelle:ignore main.go

@@ -18,6 +18,7 @@ go_test(
         "command_windows_test.go",
     ],
     embed = [":command"],
+    gotags = ["test"],
     deps = select({
         "@rules_go//go/platform:aix": [
             "@com_github_stretchr_testify//assert",
