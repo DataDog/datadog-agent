@@ -1,8 +1,8 @@
 """The trace loader."""
 
-# gazelle:ignore main_nix.go
-# gazelle:ignore memory_darwin.go
-# gazelle:ignore memory_linux.go
+# gazelle:exclude main_nix.go
+# gazelle:exclude memory_darwin.go
+# gazelle:exclude memory_linux.go
 
 load(
     "@rules_pkg//pkg:mappings.bzl",

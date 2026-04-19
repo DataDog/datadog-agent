@@ -1,4 +1,4 @@
 # gazelle:exclude hashicorp
-# gazelle:ignore backend.go
-# gazelle:ignore backend_test.go
-# gazelle:ignore main.go
+# gazelle:exclude backend.go
+# gazelle:exclude backend_test.go
+# gazelle:exclude main.go
