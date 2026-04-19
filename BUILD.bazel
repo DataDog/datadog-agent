@@ -371,10 +371,7 @@ exports_files(glob(
 # gazelle:exclude pkg/security/generators
 # gazelle:exclude pkg/security/metrics
 # gazelle:exclude pkg/security/module
-# gazelle:exclude pkg/security/probe
 # gazelle:exclude pkg/security/process_list
-# gazelle:exclude pkg/security/proto
-# gazelle:exclude pkg/security/ptracer
 # gazelle:exclude pkg/security/rconfig
 # gazelle:exclude pkg/security/reporter
 # gazelle:exclude pkg/security/resolvers
