@@ -124,6 +124,7 @@ def _get_environment_for_cache(env: dict[str, str]) -> dict:
         'GOPRIVATE',
         'GOPROXY',
         'HOME',
+        'INTEGRATIONS_CORE_VERSION',
         'JARSIGN_JAR',
         'LD_PRELOAD',
         'LOCALAPPDATA',
