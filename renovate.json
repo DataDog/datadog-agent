@@ -78,7 +78,8 @@
           "go.opentelemetry.io/**",
           "github.com/open-telemetry/opentelemetry-collector-contrib/**",
           "github.com/spf13/cast",
-          "github.com/mailru/easyjson"
+          "github.com/mailru/easyjson",
+          "github.com/docker/docker"
         ],
         "enabled": false
       },
