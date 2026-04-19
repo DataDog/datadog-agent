@@ -1,23 +1,20 @@
 # gazelle:ignore
-
-# gazelle:exclude selftests
+# gazelle:exclude config
+# gazelle:exclude constantfetch
+# gazelle:exclude constantfetch/btfhub
+# gazelle:exclude eventstream
+# gazelle:exclude eventstream/reorderer
+# gazelle:exclude eventstream/ringbuffer
+# gazelle:exclude kfilters
 # gazelle:exclude monitors
 # gazelle:exclude monitors/approver
-# gazelle:exclude monitors/discarder
 # gazelle:exclude monitors/cgroups
+# gazelle:exclude monitors/discarder
 # gazelle:exclude monitors/dns
 # gazelle:exclude monitors/eventsample
 # gazelle:exclude monitors/syscalls
+# gazelle:exclude procfs
+# gazelle:exclude selftests
 # gazelle:exclude testdata
 # gazelle:exclude testdata/fuzz
 # gazelle:exclude testdata/fuzz/FuzzHandleEvent
-# gazelle:exclude eventstream
-# gazelle:exclude eventstream/ringbuffer
-# gazelle:exclude eventstream/reorderer
-# gazelle:exclude config
-# gazelle:exclude sysctl
-# gazelle:exclude managerhelper
-# gazelle:exclude kfilters
-# gazelle:exclude procfs
-# gazelle:exclude constantfetch
-# gazelle:exclude constantfetch/btfhub
