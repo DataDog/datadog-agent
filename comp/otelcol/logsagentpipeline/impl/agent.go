@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package logsagentpipelineimpl implements the logsagentpipeline component.
+// Package logsagentpipelineimpl implements the logs agent pipeline component for the OTel collector.
 package logsagentpipelineimpl
 
 import (

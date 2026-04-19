@@ -5,19 +5,27 @@
 
 //go:build test
 
-package forwarderimpl
+// Package mock provides a mock for the forwarder component.
+package mock
 
 import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
-	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder"
+	forwarder "github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/golang/mock/gomock"
 	"go.uber.org/fx"
 )
 
-func getMockForwarder(t testing.TB) forwarder.MockComponent {
+// MockComponent is the type for mock components.
+// It is a gomock-generated mock of EventPlatformForwarder.
+type MockComponent interface {
+	forwarder.Component
+	EXPECT() *eventplatformimpl.MockEventPlatformForwarderMockRecorder
+}
+
+func getMockForwarder(t testing.TB) MockComponent {
 	ctrl := gomock.NewController(t)
 	return eventplatformimpl.NewMockEventPlatformForwarder(ctrl)
 }
@@ -28,6 +36,6 @@ func MockModule() fxutil.Module {
 		fx.Provide(
 			getMockForwarder,
 			// Provide the mock as the primary component as well
-			func(c forwarder.MockComponent) forwarder.Component { return c },
+			func(c MockComponent) forwarder.Component { return c },
 		))
 }
