@@ -27,7 +27,7 @@ from pathlib import Path
 # REPO_ROOT = Path(__file__).resolve().parent.parent
 REPO_ROOT = Path(".")
 BUILD_BAZEL = REPO_ROOT / "BUILD.bazel"
-DEFAULT_TEST_TARGETS = ["//pkg/trace/...", "//pkg/tagger/...", "//pkg/util/..."]
+DEFAULT_TEST_TARGETS = ["//cmd/...", "//comp/...", "//pkg/..."]
 
 
 def log(msg: str) -> None:
