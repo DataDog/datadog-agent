@@ -126,12 +126,12 @@ var programs = map[string]struct{}{
 	udpRecvMsgPre5190Return:   {},
 	udpv6RecvMsgPre5190Return: {},
 	// Protocol classification socket filters
-	probes.ProtocolClassifierEntrySocketFilter:       {},
-	probes.ProtocolClassifierTLSClientSocketFilter:   {},
-	probes.ProtocolClassifierTLSServerSocketFilter:   {},
-	probes.ProtocolClassifierQueuesSocketFilter:      {},
-	probes.ProtocolClassifierDBsSocketFilter:         {},
-	probes.ProtocolClassifierGRPCSocketFilter:        {},
+	probes.ProtocolClassifierEntrySocketFilter:     {},
+	probes.ProtocolClassifierTLSClientSocketFilter: {},
+	probes.ProtocolClassifierTLSServerSocketFilter: {},
+	probes.ProtocolClassifierQueuesSocketFilter:    {},
+	probes.ProtocolClassifierDBsSocketFilter:       {},
+	probes.ProtocolClassifierGRPCSocketFilter:      {},
 }
 
 func enableProgram(enabled map[string]struct{}, name string) {

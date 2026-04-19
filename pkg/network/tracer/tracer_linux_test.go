@@ -2474,7 +2474,6 @@ func testConfig() *config.Config {
 		cfg.ProtocolClassificationEnabled = false
 	}
 
-
 	// prebuilt on 5.18+ does not support UDPv6
 	if isPrebuilt(cfg) && kv >= kernel.VersionCode(5, 18, 0) {
 		cfg.CollectUDPv6Conns = false
