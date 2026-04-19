@@ -7,12 +7,46 @@ package valuestore
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"sort"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// OIDNotFoundError is returned when an OID cannot be found in the value store
+type OIDNotFoundError struct {
+	OID   string
+	Index string // optional, empty if not applicable
+}
+
+func (e *OIDNotFoundError) Error() string {
+	if e.Index == "" {
+		return fmt.Sprintf("OID %s not found", e.OID)
+	}
+	return fmt.Sprintf("OID %s index %s not found", e.OID, e.Index)
+}
+
+// ListOIDs formats a list of *OIDNotFoundErrors concisely for debug logging.
+// The output will simply be a space-separated list of OIDs, with '#<index>'
+// appended to any that were missing an index, e.g. [1.2.3 1.2.4#22 1.4.5]
+func ListOIDs(errs []*OIDNotFoundError) string {
+	var b strings.Builder
+	b.WriteString("[")
+	for i, err := range errs {
+		b.WriteString(err.OID)
+		if err.Index != "" {
+			b.WriteString("#" + err.Index)
+		}
+		if i < len(errs)-1 {
+			b.WriteString(" ")
+		}
+	}
+	b.WriteString("]")
+	return b.String()
+}
 
 // ColumnResultValuesType is used to store results fetched for column oids
 // Structure: map[<COLUMN OIDS AS STRING>]map[<ROW INDEX>]ResultValue
@@ -43,7 +77,7 @@ func (v *ResultValueStore) ContainsScalarValue(oid string) bool {
 func (v *ResultValueStore) GetScalarValue(oid string) (ResultValue, error) {
 	value, ok := v.ScalarValues[oid]
 	if !ok {
-		return ResultValue{}, fmt.Errorf("value for Scalar OID `%s` not found in results", oid)
+		return ResultValue{}, &OIDNotFoundError{OID: oid}
 	}
 	return value, nil
 }
@@ -61,7 +95,7 @@ func (v *ResultValueStore) ContainsColumnValues(oid string) bool {
 func (v *ResultValueStore) GetColumnValues(oid string) (map[string]ResultValue, error) {
 	values, ok := v.ColumnValues[oid]
 	if !ok {
-		return nil, fmt.Errorf("value for Column OID `%s` not found in results", oid)
+		return nil, &OIDNotFoundError{OID: oid}
 	}
 	retValues := make(map[string]ResultValue, len(values))
 	maps.Copy(retValues, values)
@@ -73,11 +107,11 @@ func (v *ResultValueStore) GetColumnValues(oid string) (map[string]ResultValue, 
 func (v *ResultValueStore) getColumnValue(oid string, index string) (ResultValue, error) {
 	values, ok := v.ColumnValues[oid]
 	if !ok {
-		return ResultValue{}, fmt.Errorf("value for Column OID `%s` not found in results", oid)
+		return ResultValue{}, &OIDNotFoundError{OID: oid}
 	}
 	value, ok := values[index]
 	if !ok {
-		return ResultValue{}, fmt.Errorf("value for Column OID `%s` and index `%s` not found in results", oid, index)
+		return ResultValue{}, &OIDNotFoundError{OID: oid, Index: index}
 	}
 	return value, nil
 }
@@ -102,6 +136,9 @@ func (v *ResultValueStore) GetColumnIndexes(columnOid string) ([]string, error) 
 	indexesMap := make(map[string]struct{})
 	metricValues, err := v.GetColumnValues(columnOid)
 	if err != nil {
+		if errors.Is(err, &OIDNotFoundError{}) {
+			return nil, err
+		}
 		return nil, fmt.Errorf("error getting column value oid=%s: %s", columnOid, err)
 	}
 	for fullIndex := range metricValues {

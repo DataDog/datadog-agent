@@ -51,7 +51,7 @@ func Test_getScalarValueFromSymbol(t *testing.T) {
 			values:        mockValues,
 			symbol:        profiledefinition.SymbolConfig{OID: "1.2.3.99", Name: "mySymbol"},
 			expectedValue: valuestore.ResultValue{},
-			expectedError: "value for Scalar OID `1.2.3.99` not found in results",
+			expectedError: "OID 1.2.3.99 not found",
 		},
 		{
 			name:   "extract value pattern error",
@@ -235,7 +235,7 @@ func Test_getColumnValueFromSymbol(t *testing.T) {
 			values:         mockValues,
 			symbol:         profiledefinition.SymbolConfig{OID: "1.2.3.99", Name: "mySymbol"},
 			expectedValues: nil,
-			expectedError:  "value for Column OID `1.2.3.99` not found in results",
+			expectedError:  "OID 1.2.3.99 not found",
 		},
 		{
 			name:   "invalid extract value pattern",
@@ -609,7 +609,7 @@ metric_tags:
 			},
 			expectedTags: []string(nil),
 			expectedLogs: []logCount{
-				{"[DEBUG] getTagsFromMetricTagConfigList: error getting column value: value for Column OID `1.2.3.4.8.1.2`", 1},
+				{"[DEBUG] getTagsFromMetricTagConfigList: missing OIDs: [1.2.3.4.8.1.2]", 1},
 			},
 		},
 		{
@@ -799,7 +799,7 @@ metric_tags:
 			logs := b.String()
 
 			for _, aLogCount := range tt.expectedLogs {
-				assert.Equal(t, aLogCount.count, strings.Count(logs, aLogCount.log), logs)
+				assert.Equal(t, aLogCount.count, strings.Count(logs, aLogCount.log), "%q\n%q", aLogCount.log, logs)
 			}
 		})
 	}
@@ -1087,7 +1087,7 @@ func Test_getContantMetricValues(t *testing.T) {
 			values:         &valuestore.ResultValueStore{},
 			expectedValues: map[string]valuestore.ResultValue{},
 			expectedLogs: []logCount{
-				{"error getting column value", 1},
+				{"missing OIDs: [1.2.3]", 1},
 			},
 		},
 		{
