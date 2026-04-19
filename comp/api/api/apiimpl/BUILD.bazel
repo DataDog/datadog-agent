@@ -1,0 +1,10 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+# gazelle:exclude internal/agent
+# gazelle:ignore api.go
+# gazelle:ignore api_mock.go
+# gazelle:ignore api_test.go
+# gazelle:ignore server.go
+# gazelle:ignore server_cmd.go
+# gazelle:ignore server_test.go
+# gazelle:ignore server_ipc.go
