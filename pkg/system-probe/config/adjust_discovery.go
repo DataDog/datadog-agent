@@ -27,6 +27,10 @@ func adjustDiscovery(cfg model.Config) {
 		return
 	}
 
+	// Enable USM so that newUSMMonitor starts on Linux (gated on ServiceMonitoringEnabled).
+	// Windows bypasses this gate via NewWindowsMonitor, but Linux requires it.
+	cfg.Set(smNS("enabled"), true, model.SourceAgentRuntime)
+
 	// Discovery mode only needs HTTP + TLS probes for service map topology.
 	// Force-disable application-level protocols regardless of explicit config,
 	// to keep the eBPF surface minimal and avoid capturing data we won't use.
