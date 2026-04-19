@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/forwarderimpl"
+	forwardermock "github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/mock"
 	rdnsquerierfxmock "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx-mock"
 
 	ndmtestutils "github.com/DataDog/datadog-agent/pkg/networkdevice/testutils"
@@ -66,7 +66,7 @@ func replaceWithDummyFlowProcessor(server *Server) *dummyFlowProcessor {
 var testOptions = fx.Options(
 	Module(),
 	nfconfigmock.MockModule(),
-	forwarderimpl.MockModule(),
+	forwardermock.MockModule(),
 	demultiplexerimpl.MockModule(),
 	defaultforwarder.MockModule(),
 	core.MockBundle(),
