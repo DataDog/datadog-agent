@@ -44,7 +44,8 @@ const (
 
 const (
 	// Default allowed paths for restricted shell
-	defaultLogPath = "/var/log"
+	defaultLogPath        = "/var/log"
+	defaultWindowsLogPath = `C:\ProgramData\Datadog\logs`
 
 	containerizedPathPrefix = "/host"
 )
@@ -88,7 +89,9 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault(PARHttpAllowImdsEndpoint, false)
 
 	var defaultPaths []string
-	if runtime.GOOS != "windows" {
+	if runtime.GOOS == "windows" {
+		defaultPaths = []string{defaultWindowsLogPath}
+	} else {
 		defaultPaths = []string{defaultLogPath}
 		if env.IsContainerized() {
 			for i, v := range defaultPaths {
