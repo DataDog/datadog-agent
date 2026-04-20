@@ -109,9 +109,7 @@ func TestPullWithV1Parser(t *testing.T) {
 			// This is only needed because of the workaround about the empty
 			// runtime documented in the parseTaskContainers function. Remove
 			// this when the workaround is no longer needed.
-			storedContainer, err := c.store.GetContainer(containerID)
-			require.NoError(t, err)
-			assert.Empty(t, storedContainer.Runtime)
+			assert.Empty(t, container.Runtime)
 		})
 	}
 
