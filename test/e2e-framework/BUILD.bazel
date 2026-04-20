@@ -6,8 +6,6 @@ load("@rules_go//go:def.bzl", "go_library")
 # gazelle:exclude components/activedirectory
 # gazelle:exclude components/command
 # gazelle:exclude components/datadog/agent/helm
-# gazelle:exclude components/datadog/agentparams
-# gazelle:exclude components/datadog/agentparams/filepermissions
 # gazelle:exclude components/datadog/agentparams/msi
 # gazelle:exclude components/datadog/agentwithoperatorparams
 # gazelle:exclude components/datadog/apps
@@ -30,7 +28,6 @@ load("@rules_go//go:def.bzl", "go_library")
 # gazelle:exclude components/datadog/csi-driver
 # gazelle:exclude components/datadog/dockeragentparams
 # gazelle:exclude components/datadog/dogstatsd-standalone
-# gazelle:exclude components/datadog/ecsagentparams
 # gazelle:exclude components/datadog/fakeintake
 # gazelle:exclude components/datadog/kubernetesagentparams
 # gazelle:exclude components/datadog/operator

@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+# gazelle:exclude aggregator
+# gazelle:exclude cmd
+# gazelle:exclude docs
+# gazelle:exclude server
+
+go_library(
+    name = "fakeintake",
+    srcs = ["doc.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/fakeintake",
+    visibility = ["//visibility:public"],
+)

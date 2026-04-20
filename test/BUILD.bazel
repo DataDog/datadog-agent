@@ -1,12 +1,6 @@
 """test"""
 
 # gazelle:exclude benchmarks
-# gazelle:exclude fakeintake/aggregator
-# gazelle:exclude fakeintake/client
-# gazelle:exclude fakeintake/cmd
-# gazelle:exclude fakeintake/doc.go
-# gazelle:exclude fakeintake/docs
-# gazelle:exclude fakeintake/server
 # gazelle:exclude files
 # gazelle:exclude integration
 # gazelle:exclude otel
