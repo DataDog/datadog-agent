@@ -6,6 +6,7 @@
 package syslog
 
 import (
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -28,7 +29,7 @@ func TestParseCEFLEEF_CEF_Basic(t *testing.T) {
 	assert.Equal(t, "1.0", header.DeviceVersion)
 	assert.Equal(t, "100", header.EventID)
 	assert.Equal(t, "worm successfully stopped", header.Name)
-	assert.Equal(t, "10", header.Severity)
+	assert.Equal(t, 10, header.Severity)
 
 	assert.Equal(t, "src=10.0.0.1 dst=2.1.2.2 spt=1232", string(rawExt))
 	assert.Equal(t, "10.0.0.1", ext["src"])
@@ -132,7 +133,8 @@ func TestParseCEFLEEF_LEEF20_CaretDelimiter(t *testing.T) {
 	assert.Equal(t, "10.0.1.8", ext["src"])
 	assert.Equal(t, "10.0.0.5", ext["dst"])
 	assert.Equal(t, "5", ext["sev"])
-	_ = header
+	assert.Equal(t, "Lancope", header.DeviceVendor)
+	assert.Equal(t, "41", header.EventID)
 }
 
 func TestParseCEFLEEF_LEEF20_HexDelimiter(t *testing.T) {
@@ -156,6 +158,9 @@ func TestParseCEFLEEF_LEEF_EmptyExtension(t *testing.T) {
 	header, ext, _, ok := ParseCEFLEEF(msg)
 	require.True(t, ok)
 	assert.Equal(t, "LEEF", header.Format)
+	assert.Equal(t, "Vendor", header.DeviceVendor)
+	assert.Equal(t, "Product", header.DeviceProduct)
+	assert.Equal(t, "100", header.EventID)
 	assert.Nil(t, ext)
 }
 
@@ -169,6 +174,17 @@ func TestParseCEFLEEF_LEEF20_TooFewPipes(t *testing.T) {
 	msg := []byte("LEEF:2.0|Vendor|Product|1.0|100")
 	_, _, _, ok := ParseCEFLEEF(msg)
 	assert.False(t, ok)
+}
+
+func TestParseCEFLEEF_LEEF_VersionNoDot(t *testing.T) {
+	// LEEF:2 (no dot) falls through to LEEF-1 (5-pipe) behavior.
+	// This documents the current behavior: version "2" is not treated as 2.x.
+	msg := []byte("LEEF:2|Vendor|Product|1.0|100|src=10.0.0.1\tdst=10.0.0.2")
+	header, ext, _, ok := ParseCEFLEEF(msg)
+	require.True(t, ok)
+	assert.Equal(t, "2", header.Version)
+	assert.Equal(t, "10.0.0.1", ext["src"])
+	assert.Equal(t, "10.0.0.2", ext["dst"])
 }
 
 // ---------------------------------------------------------------------------
@@ -287,6 +303,13 @@ func TestParseCEFExtension_TrailingSpacesLastValue(t *testing.T) {
 	assert.Equal(t, "10.0.0.1", result["src"])
 }
 
+func TestParseCEFExtension_MultipleSpacesBetweenPairs(t *testing.T) {
+	ext := []byte("a=1  b=2")
+	result := parseCEFExtension(ext)
+	assert.Equal(t, "1", result["a"])
+	assert.Equal(t, "2", result["b"])
+}
+
 // ---------------------------------------------------------------------------
 // LEEF extension parsing
 // ---------------------------------------------------------------------------
@@ -397,6 +420,33 @@ func TestUnescapeCEFValue(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// parseCEFSeverity
+// ---------------------------------------------------------------------------
+
+func TestParseCEFSeverity_NumericInRange(t *testing.T) {
+	for i := 0; i <= 10; i++ {
+		result := parseCEFSeverity(strconv.Itoa(i))
+		assert.Equal(t, i, result)
+	}
+}
+
+func TestParseCEFSeverity_NumericOutOfRange(t *testing.T) {
+	assert.Equal(t, "11", parseCEFSeverity("11"))
+	assert.Equal(t, "-1", parseCEFSeverity("-1"))
+	assert.Equal(t, "999", parseCEFSeverity("999"))
+}
+
+func TestParseCEFSeverity_StringLabel(t *testing.T) {
+	assert.Equal(t, "Low", parseCEFSeverity("Low"))
+	assert.Equal(t, "High", parseCEFSeverity("High"))
+	assert.Equal(t, "Unknown", parseCEFSeverity("Unknown"))
+}
+
+func TestParseCEFSeverity_Empty(t *testing.T) {
+	assert.Nil(t, parseCEFSeverity(""))
+}
+
+// ---------------------------------------------------------------------------
 // BuildSIEMFields
 // ---------------------------------------------------------------------------
 
@@ -409,7 +459,7 @@ func TestBuildSIEMFields_CEF(t *testing.T) {
 		DeviceVersion: "1.0",
 		EventID:       "100",
 		Name:          "Attack",
-		Severity:      "10",
+		Severity:      10,
 	}
 	ext := map[string]string{"src": "1.2.3.4"}
 	fields := BuildSIEMFields(header, ext)
@@ -421,7 +471,7 @@ func TestBuildSIEMFields_CEF(t *testing.T) {
 	assert.Equal(t, "1.0", fields["device_version"])
 	assert.Equal(t, "100", fields["event_id"])
 	assert.Equal(t, "Attack", fields["name"])
-	assert.Equal(t, "10", fields["severity"])
+	assert.Equal(t, 10, fields["severity"])
 	assert.Equal(t, map[string]string{"src": "1.2.3.4"}, fields["extension"])
 }
 
@@ -443,4 +493,26 @@ func TestBuildSIEMFields_LEEF(t *testing.T) {
 	assert.False(t, hasSev)
 	_, hasExt := fields["extension"]
 	assert.False(t, hasExt)
+}
+
+// ---------------------------------------------------------------------------
+// Benchmarks
+// ---------------------------------------------------------------------------
+
+func BenchmarkParseCEFLEEF_CEF(b *testing.B) {
+	input := []byte("CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|10|src=10.0.0.1 dst=2.1.2.2 spt=1232")
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		ParseCEFLEEF(input)
+	}
+}
+
+func BenchmarkParseCEFLEEF_LEEF(b *testing.B) {
+	input := []byte("LEEF:1.0|Microsoft|MSExchange|2013 SP1|15345|src=10.0.1.7\tdst=10.0.0.5\tsev=5")
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		ParseCEFLEEF(input)
+	}
 }
