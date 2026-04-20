@@ -2140,7 +2140,11 @@ func TestPushEvents(t *testing.T) {
 	}
 }
 
-func TestIsComplete_Kubernetes(t *testing.T) {
+// TestHandleEvents_completeness verifies that IsComplete is set correctly on
+// events dispatched to subscribers. This only tests the wiring. The
+// per-environment expected-sources logic is covered by unit tests in
+// completeness_test.go.
+func TestHandleEvents_completeness(t *testing.T) {
 	// Enable Kubernetes and Containerd features to simulate a Kubernetes environment
 	env.SetFeatures(t, env.Kubernetes, env.Containerd)
 
@@ -2228,105 +2232,6 @@ func TestIsComplete_Kubernetes(t *testing.T) {
 					Type:       wmdef.EventTypeSet,
 					Entity:     container,
 					IsComplete: true, // Both runtime and kubelet reported
-				},
-			},
-		},
-		{
-			Events: []wmdef.Event{
-				{
-					Type:       wmdef.EventTypeSet,
-					Entity:     pod,
-					IsComplete: false, // Only kubelet reported, kubemetadata not yet
-				},
-			},
-		},
-		{
-			Events: []wmdef.Event{
-				{
-					Type:       wmdef.EventTypeSet,
-					Entity:     pod,
-					IsComplete: true, // Both kubelet and kubemetadata reported
-				},
-			},
-		},
-	}
-
-	assert.Equal(t, expected, actual)
-}
-
-// This test checks completeness in Kubernetes environments when the container
-// runtime is not accessible
-func TestIsComplete_KubernetesContainerRuntimeNotAccessible(t *testing.T) {
-	// Set Kubernetes feature, but no container runtime
-	env.SetFeatures(t, env.Kubernetes)
-
-	s := newWorkloadmetaObject(t)
-
-	container := &wmdef.Container{
-		EntityID: wmdef.EntityID{
-			Kind: wmdef.KindContainer,
-			ID:   "test-container",
-		},
-	}
-
-	pod := &wmdef.KubernetesPod{
-		EntityID: wmdef.EntityID{
-			Kind: wmdef.KindKubernetesPod,
-			ID:   "test-pod",
-		},
-	}
-
-	ch := s.Subscribe(dummySubscriber, wmdef.NormalPriority, nil)
-	var actual []wmdef.EventBundle
-
-	doneCh := make(chan struct{})
-	go func() {
-		for bundle := range ch {
-			close(bundle.Ch)
-			actual = append(actual, wmdef.EventBundle{Events: bundle.Events})
-		}
-		close(doneCh)
-	}()
-
-	// Container reported by kubelet (complete because container runtime not
-	// accessible so will not report)
-	s.handleEvents([]wmdef.CollectorEvent{
-		{
-			Type:   wmdef.EventTypeSet,
-			Source: wmdef.SourceNodeOrchestrator,
-			Entity: container,
-		},
-	})
-
-	// Pod reported by kubelet only (incomplete)
-	s.handleEvents([]wmdef.CollectorEvent{
-		{
-			Type:   wmdef.EventTypeSet,
-			Source: wmdef.SourceNodeOrchestrator,
-			Entity: pod,
-		},
-	})
-
-	// Pod also reported by kubemetadata (now complete)
-	s.handleEvents([]wmdef.CollectorEvent{
-		{
-			Type:   wmdef.EventTypeSet,
-			Source: wmdef.SourceClusterOrchestrator,
-			Entity: pod,
-		},
-	})
-
-	s.Unsubscribe(ch)
-	<-doneCh
-
-	expected := []wmdef.EventBundle{
-		{}, // Initial empty bundle
-		{
-			Events: []wmdef.Event{
-				{
-					Type:       wmdef.EventTypeSet,
-					Entity:     container,
-					IsComplete: true, // Kubelet reported, container runtime not expected to report
 				},
 			},
 		},

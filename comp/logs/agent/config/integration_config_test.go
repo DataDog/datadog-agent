@@ -88,6 +88,13 @@ func TestAutoMultilineEnabled(t *testing.T) {
 
 }
 
+func TestExperimentalAdaptiveSamplingOptionsDecode(t *testing.T) {
+	cfg := decode(`{"experimental_adaptive_sampling":{"enabled":true}}`)
+	require.NotNil(t, cfg.ExperimentalAdaptiveSampling)
+	require.NotNil(t, cfg.ExperimentalAdaptiveSampling.Enabled)
+	assert.True(t, *cfg.ExperimentalAdaptiveSampling.Enabled)
+}
+
 func TestAutoMultiLineStatus(t *testing.T) {
 	t.Run("per-source false overrides global true", func(t *testing.T) {
 		mockConfig := config.NewMock(t)
