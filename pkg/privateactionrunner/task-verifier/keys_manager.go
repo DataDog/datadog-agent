@@ -14,19 +14,15 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"os"
 	"sync"
 
+	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
-
-type KeysManager interface {
-	Start(ctx context.Context)
-	GetKey(keyId string) types.DecodedKey
-	WaitForReady()
-}
 
 type keysManager struct {
 	rcClient               rcclient.Client
@@ -37,7 +33,20 @@ type keysManager struct {
 	firstCallbackCompleted bool
 }
 
+// noOpKeysManager satisfies KeysManager without requiring Remote Config.
+// WaitForReady returns immediately. Used when DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION=true.
+type noOpKeysManager struct{}
+
+func (n *noOpKeysManager) Start(_ context.Context)          {}
+func (n *noOpKeysManager) GetKey(_ string) types.DecodedKey { return nil }
+func (n *noOpKeysManager) WaitForReady()                    {}
+
+// NewKeyManager returns a KeysManager appropriate for the current environment.
+// When DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION=true, a no-op manager is returned.
 func NewKeyManager(rcClient rcclient.Client) KeysManager {
+	if os.Getenv(app.InternalSkipTaskVerificationEnvVar) == "true" {
+		return &noOpKeysManager{}
+	}
 	return &keysManager{
 		stopChan: make(chan bool),
 		keys:     make(map[string]types.DecodedKey),

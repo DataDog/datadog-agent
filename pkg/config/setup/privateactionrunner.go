@@ -19,6 +19,7 @@ const (
 
 	// Identity / enrollment configuration
 	PARSelfEnroll           = "private_action_runner.self_enroll"
+	PARApiKeyOnlyEnrollment = "private_action_runner.api_key_only_enrollment"
 	PARIdentityFilePath     = "private_action_runner.identity_file_path"
 	PARIdentityUseK8sSecret = "private_action_runner.identity_use_k8s_secret"
 	PARIdentitySecretName   = "private_action_runner.identity_secret_name"
@@ -26,9 +27,10 @@ const (
 	PARUrn                  = "private_action_runner.urn"
 
 	// General config
-	PARTaskConcurrency    = "private_action_runner.task_concurrency"
-	PARTaskTimeoutSeconds = "private_action_runner.task_timeout_seconds"
-	PARActionsAllowlist   = "private_action_runner.actions_allowlist"
+	PARTaskConcurrency       = "private_action_runner.task_concurrency"
+	PARTaskTimeoutSeconds    = "private_action_runner.task_timeout_seconds"
+	PARActionsAllowlist      = "private_action_runner.actions_allowlist"
+	PARDefaultActionsEnabled = "private_action_runner.default_actions_enabled"
 
 	// HTTP Action related
 	PARHttpTimeoutSeconds    = "private_action_runner.http_timeout_seconds"
@@ -60,6 +62,7 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 
 	// Identity / enrollment configuration
 	config.BindEnvAndSetDefault(PARSelfEnroll, true)
+	config.BindEnvAndSetDefault(PARApiKeyOnlyEnrollment, false)
 	config.BindEnvAndSetDefault(PARIdentityFilePath, "")
 	config.BindEnvAndSetDefault(PARIdentityUseK8sSecret, true)
 	config.BindEnvAndSetDefault(PARIdentitySecretName, "private-action-runner-identity")
@@ -70,6 +73,7 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault(PARTaskConcurrency, 5)
 	config.BindEnvAndSetDefault(PARTaskTimeoutSeconds, 60)
 	config.BindEnvAndSetDefault(PARActionsAllowlist, []string{})
+	config.BindEnvAndSetDefault(PARDefaultActionsEnabled, true)
 	config.ParseEnvAsStringSlice(PARActionsAllowlist, func(s string) []string {
 		return strings.Split(s, ",")
 	})

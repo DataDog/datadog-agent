@@ -106,6 +106,9 @@ type LogsConfig struct {
 	// AutoMultiLineOptions provides detailed configuration for auto multi-line detection specific to this source.
 	// It maps to the 'auto_multi_line' key in the YAML configuration.
 	AutoMultiLineOptions *SourceAutoMultiLineOptions `mapstructure:"auto_multi_line" json:"auto_multi_line" yaml:"auto_multi_line"`
+	// ExperimentalAdaptiveSampling provides per-source overrides for the experimental adaptive sampler.
+	// It maps to the 'experimental_adaptive_sampling' key in the YAML configuration.
+	ExperimentalAdaptiveSampling *SourceAdaptiveSamplingOptions `mapstructure:"experimental_adaptive_sampling" json:"experimental_adaptive_sampling" yaml:"experimental_adaptive_sampling"`
 	// CustomSamples holds the raw string content of the 'auto_multi_line_detection_custom_samples' YAML block.
 	// Downstream code will be responsible for parsing this string.
 	AutoMultiLineSamples []*AutoMultilineSample   `mapstructure:"auto_multi_line_detection_custom_samples" json:"auto_multi_line_detection_custom_samples" yaml:"auto_multi_line_detection_custom_samples"`
@@ -146,6 +149,13 @@ type SourceAutoMultiLineOptions struct {
 	TagAggregatedJSON *bool `mapstructure:"tag_aggregated_json" json:"tag_aggregated_json" yaml:"tag_aggregated_json"`
 }
 
+// SourceAdaptiveSamplingOptions defines per-source overrides for the experimental adaptive sampler.
+// Additional per-source filters can be added here later.
+type SourceAdaptiveSamplingOptions struct {
+	// Enabled overrides the global adaptive sampling toggle for this source when set.
+	Enabled *bool `mapstructure:"enabled" json:"enabled" yaml:"enabled"`
+}
+
 // AutoMultilineSample defines a sample used to create auto multiline detection
 // rules
 type AutoMultilineSample struct {
@@ -168,6 +178,8 @@ type AutoMultilineSample struct {
 type TLSListenerConfig struct {
 	CertFile      string `mapstructure:"cert_file" json:"cert_file" yaml:"cert_file"`
 	KeyFile       string `mapstructure:"key_file" json:"key_file" yaml:"key_file"`
+	CAFile        string `mapstructure:"ca_file" json:"ca_file" yaml:"ca_file"`
+	ClientAuth    string `mapstructure:"client_auth" json:"client_auth" yaml:"client_auth"`
 	MinTLSVersion string `mapstructure:"min_tls_version" json:"min_tls_version" yaml:"min_tls_version"`
 }
 
@@ -178,9 +190,15 @@ func (t *TLSListenerConfig) BuildTLSConfig(ctx context.Context) (*tls.Config, er
 	if err != nil {
 		return nil, err
 	}
+	clientAuth, err := parseClientAuth(t.ClientAuth)
+	if err != nil {
+		return nil, err
+	}
 	cfg := &tlsutil.ServerConfig{
 		CertFile:   t.CertFile,
 		KeyFile:    t.KeyFile,
+		CAFile:     t.CAFile,
+		ClientAuth: clientAuth,
 		MinVersion: minVer,
 	}
 	return cfg.BuildTLSConfig(ctx)
@@ -198,6 +216,21 @@ func parseTLSVersion(v string) (uint16, error) {
 		return 0, fmt.Errorf("unrecognized min_tls_version %q; valid values: tlsv1.2, tlsv1.3", v)
 	}
 	return ver, nil
+}
+
+var validClientAuthModes = map[string]tls.ClientAuthType{
+	"":         tls.NoClientCert,
+	"none":     tls.NoClientCert,
+	"optional": tls.VerifyClientCertIfGiven,
+	"required": tls.RequireAndVerifyClientCert,
+}
+
+func parseClientAuth(s string) (tls.ClientAuthType, error) {
+	auth, ok := validClientAuthModes[strings.ToLower(s)]
+	if !ok {
+		return 0, fmt.Errorf("unrecognized client_auth %q; valid values: none, optional, required", s)
+	}
+	return auth, nil
 }
 
 // StringSliceField is a custom type for unmarshalling comma-separated string values or typical yaml fields into a slice of strings.
@@ -248,8 +281,8 @@ func (c *LogsConfig) Dump(multiline bool) string {
 		fmt.Fprintf(&b, ws("Port: %d,"), c.Port)
 		fmt.Fprintf(&b, ws("IdleTimeout: %#v,"), c.IdleTimeout)
 		if c.TLS != nil {
-			fmt.Fprintf(&b, ws("TLS: {CertFile: %#v, KeyFile: %#v, MinTLSVersion: %#v},"),
-				c.TLS.CertFile, c.TLS.KeyFile, c.TLS.MinTLSVersion)
+			fmt.Fprintf(&b, ws("TLS: {CertFile: %#v, KeyFile: %#v, CAFile: %#v, ClientAuth: %#v, MinTLSVersion: %#v},"),
+				c.TLS.CertFile, c.TLS.KeyFile, c.TLS.CAFile, c.TLS.ClientAuth, c.TLS.MinTLSVersion)
 		}
 	case UDPType:
 		fmt.Fprintf(&b, ws("Port: %d,"), c.Port)
@@ -452,6 +485,13 @@ func (c *LogsConfig) validateTLS() error {
 	}
 	if _, err := parseTLSVersion(c.TLS.MinTLSVersion); err != nil {
 		return err
+	}
+	auth, err := parseClientAuth(c.TLS.ClientAuth)
+	if err != nil {
+		return err
+	}
+	if tlsutil.ClientAuthRequiresVerification(auth) && c.TLS.CAFile == "" {
+		return fmt.Errorf("tls client_auth %q requires ca_file to be set", c.TLS.ClientAuth)
 	}
 	tlsutil.WarnKeyFilePermissions(c.TLS.KeyFile)
 	return nil

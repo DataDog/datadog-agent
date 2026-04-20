@@ -235,7 +235,7 @@ func TestRunDoesNotError(t *testing.T) {
 
 func TestCollectorsOnDeviceChanges(t *testing.T) {
 	// note: bump this when we'll add new collectors in nvidia.BuildCollectors
-	const numSupportedCollectorTypes = 5
+	const numSupportedCollectorTypes = 6
 
 	// mock up device count so that we can check when check collectors are created/destroyed
 	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
@@ -245,6 +245,7 @@ func TestCollectorsOnDeviceChanges(t *testing.T) {
 		}),
 		testutil.WithCapabilities(testutil.Capabilities{GPM: true}),
 		testutil.WithMIGDisabled(),
+		testutil.WithArchitecture("blackwell"),
 	)
 	ddnvml.WithMockNVML(t, nvmlMock)
 	curDeviceCount := atomic.Int32{}
@@ -342,6 +343,7 @@ func TestCollectorsOnMIGDeviceChanges(t *testing.T) {
 			return nil, nvml.SUCCESS
 		}),
 		testutil.WithCapabilities(testutil.Capabilities{GPM: true}),
+		testutil.WithArchitecture("blackwell"),
 	)
 	nvmlMock.DeviceGetCountFunc = func() (int, nvml.Return) { return 1, nvml.SUCCESS }
 	nvmlMock.DeviceGetHandleByIndexFunc = func(index int) (nvml.Device, nvml.Return) {
@@ -794,8 +796,8 @@ func TestDisabledCollectorsConfiguration(t *testing.T) {
 		},
 		{
 			name:               "disable all collectors",
-			disabledCollectors: []string{"stateless", "sampling", "fields", "gpm", "device_events"},
-			expected:           []string{"stateless", "sampling", "fields", "gpm", "device_events"},
+			disabledCollectors: []string{"stateless", "sampling", "fields", "gpm", "device_events", "nvlink"},
+			expected:           []string{"stateless", "sampling", "fields", "gpm", "device_events", "nvlink"},
 		},
 		{
 			name:               "no collectors disabled",
@@ -835,31 +837,22 @@ func TestMetricsFollowSpec(t *testing.T) {
 	// - KubernetesDevicePlugins required for gpu.device.unhealthy metric
 	// - NVML required to ensure the NVML workloadmeta collector starts up
 	env.SetFeatures(t, env.KubernetesDevicePlugins, env.NVML)
+	nvidia.WithDeviceEventsSetWaitTimeoutForTest(t, time.Millisecond)
 
-	metricsSpec, err := gpuspec.LoadMetricsSpec()
+	specs, err := gpuspec.LoadSpecs()
 	require.NoError(t, err)
-	archFile, err := gpuspec.LoadArchitecturesSpec()
-	require.NoError(t, err)
 
-	deviceModes := []gpuspec.DeviceMode{
-		gpuspec.DeviceModePhysical,
-		gpuspec.DeviceModeMIG,
-		gpuspec.DeviceModeVGPU,
-	}
+	configs := gpuspec.KnownGPUConfigs(specs)
 
-	for archName, archSpec := range archFile.Architectures {
-		t.Run("arch="+archName, func(t *testing.T) {
-			for _, mode := range deviceModes {
-				if !gpuspec.IsModeSupportedByArchitecture(archSpec, mode) {
-					continue
-				}
-
-				t.Run("mode="+string(mode), func(t *testing.T) {
-					emittedMetrics, knownTagValues := collectMetricSamples(t, archName, mode, archSpec)
-
-					ValidateEmittedMetricsAgainstSpec(t, metricsSpec, archName, mode, emittedMetrics, knownTagValues)
-				})
+	for _, config := range configs {
+		testName := fmt.Sprintf("arch=%s/mode=%s", config.Architecture, config.DeviceMode)
+		t.Run(testName, func(t *testing.T) {
+			archSpec := specs.Architectures.Architectures[config.Architecture]
+			emittedMetrics, knownTagValues := collectMetricSamples(t, config, archSpec)
+			validationOptions := gpuspec.ValidationOptions{
+				WorkloadActive: true,
 			}
+			ValidateEmittedMetricsAgainstSpec(t, specs, config, emittedMetrics, knownTagValues, validationOptions)
 		})
 	}
 }
@@ -867,10 +860,10 @@ func TestMetricsFollowSpec(t *testing.T) {
 // collectMetricSamples runs the GPU check with a capability-driven mock
 // for the given architecture and device mode, then returns emitted metrics (without "gpu." prefix)
 // and their tags.
-func collectMetricSamples(t *testing.T, archName string, mode gpuspec.DeviceMode, archSpec gpuspec.ArchitectureSpec) (map[string][]gpuspec.EmittedMetric, map[string]string) {
+func collectMetricSamples(t *testing.T, config gpuspec.GPUConfig, archSpec gpuspec.ArchitectureSpec) (map[string][]gpuspec.MetricObservation, map[string]string) {
 	t.Helper()
 
-	collectionSetup := setupMockCheckForMetricCollection(t, archName, mode, archSpec)
+	collectionSetup := setupMockCheckForMetricCollection(t, config, archSpec)
 	collectionSetup.runCollection()
 
 	return GetEmittedGPUMetrics(collectionSetup.mockSender), collectionSetup.knownTagValues
@@ -904,9 +897,9 @@ func seedContainersForPIDMapping(wmeta workloadmetamock.Mock, fakeTagger taggerm
 	}
 }
 
-func setupMockCheckForMetricCollection(t *testing.T, archName string, mode gpuspec.DeviceMode, archSpec gpuspec.ArchitectureSpec) metricCollectionSetup {
+func setupMockCheckForMetricCollection(t *testing.T, config gpuspec.GPUConfig, archSpec gpuspec.ArchitectureSpec) metricCollectionSetup {
 	t.Helper()
-	opts := gpuspec.BuildMockOptionsForArchAndMode(t, archName, mode, archSpec)
+	opts := gpuspec.BuildMockOptionsForConfig(t, config, archSpec)
 
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	mockSender := mocksender.NewMockSenderWithSenderManager("gpu", senderManager)
@@ -916,7 +909,7 @@ func setupMockCheckForMetricCollection(t *testing.T, archName string, mode gpusp
 	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(opts...))
 
 	wmeta := testutil.GetWorkloadMetaMock(t)
-	SetupWorkloadmetaGPUs(t, wmeta, fakeTagger, mode, false)
+	SetupWorkloadmetaGPUs(t, wmeta, fakeTagger, config.DeviceMode, false)
 
 	pidToContainerID := map[int]string{
 		1:    "container-1",
@@ -930,7 +923,7 @@ func setupMockCheckForMetricCollection(t *testing.T, archName string, mode gpusp
 	// process.core.usage/core.limit come from system-probe/eBPF collector. Provide deterministic
 	// cache data for every device shape used by the mode.
 	cacheDeviceUUIDs := []string{testutil.DefaultGpuUUID}
-	if mode == gpuspec.DeviceModeMIG {
+	if config.DeviceMode == gpuspec.DeviceModeMIG {
 		parentIdx := testutil.DevicesWithMIGChildren[0]
 		cacheDeviceUUIDs = append([]string{testutil.GPUUUIDs[parentIdx]}, testutil.MIGChildrenUUIDs[parentIdx]...)
 	}
@@ -969,7 +962,7 @@ func setupMockCheckForMetricCollection(t *testing.T, archName string, mode gpusp
 		// Some metrics require a second run to be collected, so we run it twice.
 		// XID events are injected between runs, after collectors have registered devices.
 		require.NoError(t, check.Run())
-		if mode == gpuspec.DeviceModePhysical {
+		if config.DeviceMode == gpuspec.DeviceModePhysical {
 			require.NoError(t, check.deviceEvtGatherer.InjectEventsForTest(testutil.DefaultGpuUUID, []ddnvml.DeviceEventData{{
 				DeviceUUID: testutil.DefaultGpuUUID,
 				EventType:  nvml.EventTypeXidCriticalError,

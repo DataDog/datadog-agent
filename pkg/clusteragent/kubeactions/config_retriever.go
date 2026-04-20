@@ -8,6 +8,8 @@
 package kubeactions
 
 import (
+	"sync"
+
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -21,6 +23,10 @@ type RcClient interface {
 type ConfigRetriever struct {
 	processor *ActionProcessor
 	isLeader  func() bool
+
+	mu      sync.Mutex
+	stopped bool
+	wg      sync.WaitGroup
 }
 
 // NewConfigRetriever creates a new ConfigRetriever and subscribes to K8S_ACTIONS
@@ -28,6 +34,7 @@ func NewConfigRetriever(processor *ActionProcessor, isLeader func() bool, rcClie
 	cr := &ConfigRetriever{
 		processor: processor,
 		isLeader:  isLeader,
+		stopped:   false,
 	}
 
 	rcClient.SubscribeIgnoreExpiration(state.ProductK8SActions, cr.actionsCallback)
@@ -46,6 +53,14 @@ func (cr *ConfigRetriever) actionsCallback(update map[string]state.RawConfig, ap
 		return
 	}
 
+	cr.mu.Lock()
+	defer cr.mu.Unlock()
+
+	if cr.stopped {
+		log.Infof("[KubeActions] Config retriever stopped, skipping config update")
+		return
+	}
+
 	for configKey, rawConfig := range update {
 		log.Infof("[KubeActions] Processing config: key=%s, id=%s, version=%d, size=%d bytes",
 			configKey, rawConfig.Metadata.ID, rawConfig.Metadata.Version, len(rawConfig.Config))
@@ -59,18 +74,25 @@ func (cr *ConfigRetriever) actionsCallback(update map[string]state.RawConfig, ap
 			continue
 		}
 
-		err := cr.processor.Process(configKey, rawConfig)
-		if err != nil {
-			log.Errorf("[KubeActions] Error processing actions for %s: %v", configKey, err)
-			applyStateCallback(configKey, state.ApplyStatus{
-				State: state.ApplyStateError,
-				Error: err.Error(),
-			})
-		} else {
-			log.Infof("[KubeActions] Successfully processed actions for config %s", configKey)
-			applyStateCallback(configKey, state.ApplyStatus{
-				State: state.ApplyStateAcknowledged,
-			})
-		}
+		// ACK immediately on receipt — execution results are reported via EVP
+		applyStateCallback(configKey, state.ApplyStatus{
+			State: state.ApplyStateAcknowledged,
+		})
+
+		cr.wg.Add(1)
+		go func(ck string, rc state.RawConfig) {
+			defer cr.wg.Done()
+			err := cr.processor.Process(ck, rc)
+			if err != nil {
+				log.Errorf("[KubeActions] Error processing actions for %s: %v", ck, err)
+			}
+		}(configKey, rawConfig)
 	}
+}
+
+func (cr *ConfigRetriever) Stop() {
+	cr.mu.Lock()
+	cr.stopped = true
+	cr.mu.Unlock()
+	cr.wg.Wait()
 }

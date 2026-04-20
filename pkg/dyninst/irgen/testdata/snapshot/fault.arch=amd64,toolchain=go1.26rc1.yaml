@@ -296,7 +296,7 @@ Types:
       ID: 120
       Name: Probe[main.callMe]
       ByteSize: 41
-      PresenceBitsetSize: 1
+      ExprStatusArraySize: 1
       Expressions:
         - Name: s1
           Offset: 1
@@ -1536,6 +1536,8 @@ Types:
 MaxTypeID: 121
 Issues: []
 GoModuledataInfo: {FirstModuledataAddr: "0x5bb320", TypesOffset: 296}
+GoMapHashInfo: {UseAeshashAddr: "0x5e836a", AeskeyschedAddr: "0x5e8a20"}
 CommonTypes:
     G: 23 StructureType runtime.g
     M: 30 StructureType runtime.m
+IsARM64: false

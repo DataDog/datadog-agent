@@ -100,6 +100,40 @@ func TestDefaultSourceValueIsSourceFromConfig(t *testing.T) {
 	assert.Equal(t, "bar", origin.Source())
 }
 
+func TestMappedSourceTakesPriority(t *testing.T) {
+	t.Run("mapped overrides config source", func(t *testing.T) {
+		cfg := &config.LogsConfig{Source: "config_source"}
+		source := sources.NewLogSource("", cfg)
+		origin := NewOrigin(source)
+		origin.SetMappedSource("mapped_source")
+		assert.Equal(t, "mapped_source", origin.Source())
+	})
+
+	t.Run("mapped overrides parser source", func(t *testing.T) {
+		cfg := &config.LogsConfig{}
+		source := sources.NewLogSource("", cfg)
+		origin := NewOrigin(source)
+		origin.SetSource("parser_source")
+		origin.SetMappedSource("mapped_source")
+		assert.Equal(t, "mapped_source", origin.Source())
+	})
+
+	t.Run("config source used when no mapped source", func(t *testing.T) {
+		cfg := &config.LogsConfig{Source: "config_source"}
+		source := sources.NewLogSource("", cfg)
+		origin := NewOrigin(source)
+		assert.Equal(t, "config_source", origin.Source())
+	})
+
+	t.Run("parser source used as final fallback", func(t *testing.T) {
+		cfg := &config.LogsConfig{}
+		source := sources.NewLogSource("", cfg)
+		origin := NewOrigin(source)
+		origin.SetSource("parser_source")
+		assert.Equal(t, "parser_source", origin.Source())
+	})
+}
+
 func TestDefaultServiceValueIsServiceFromConfig(t *testing.T) {
 	var cfg *config.LogsConfig
 	var source *sources.LogSource
