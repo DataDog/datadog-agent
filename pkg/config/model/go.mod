@@ -2,6 +2,13 @@ module github.com/DataDog/datadog-agent/pkg/config/model
 
 go 1.25.0
 
+require github.com/spf13/cast v1.10.0
+
+require (
+	github.com/google/go-cmp v0.7.0 // indirect
+	github.com/rogpeppe/go-internal v1.14.1 // indirect
+)
+
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
 replace (
@@ -180,11 +187,4 @@ replace (
 	github.com/DataDog/datadog-agent/test/fakeintake => ../../../test/fakeintake
 	github.com/DataDog/datadog-agent/test/new-e2e => ../../../test/new-e2e
 	github.com/DataDog/datadog-agent/test/otel => ../../../test/otel
-)
-
-require github.com/spf13/cast v1.10.0
-
-require (
-	github.com/google/go-cmp v0.7.0 // indirect
-	github.com/rogpeppe/go-internal v1.14.1 // indirect
 )
