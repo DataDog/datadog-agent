@@ -404,6 +404,8 @@ def eval_combinations(
         build_testbench(ctx)
         build_scorer(ctx)
 
+    if seed is not None:
+        seed = int(seed)
     if seed is None:
         seed = random.randint(0, 2**32 - 1)
 
@@ -655,6 +657,8 @@ def eval_bayesian(
         print(color_message(f"Error: locked components not in active set: {', '.join(sorted(not_active))}", Color.RED))
         return
 
+    if seed is not None:
+        seed = int(seed)
     if seed is None:
         seed = random.randint(0, 2**32 - 1)
 
@@ -752,7 +756,7 @@ def eval_bayesian(
         return score
 
     optuna.logging.set_verbosity(optuna.logging.WARNING)
-    sampler = optuna.samplers.TPESampler(seed=int(seed) if seed is not None else None)
+    sampler = optuna.samplers.TPESampler(seed=seed)
     study = optuna.create_study(direction="maximize", sampler=sampler)
     study.optimize(objective, n_trials=n_trials)
 
@@ -973,6 +977,8 @@ def eval_pipeline(
     if not _prepare_eval_output_dir(output_dir, overwrite=overwrite):
         return
 
+    if seed is not None:
+        seed = int(seed)
     if seed is None:
         seed = random.randint(0, 2**32 - 1)
 
@@ -1305,6 +1311,8 @@ def eval_component(
         print(color_message(f"Error: cannot force-disable the evaluated component '{component}'", Color.RED))
         return
 
+    if seed is not None:
+        seed = int(seed)
     if seed is None:
         seed = random.randint(0, 2**32 - 1)
 
