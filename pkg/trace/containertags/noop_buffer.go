@@ -20,6 +20,6 @@ func (n *NoOpTagsBuffer) Stop() {}
 func (n *NoOpTagsBuffer) IsEnabled() bool { return false }
 
 // AsyncEnrichment returns false as no enrichment is pending
-func (n *NoOpTagsBuffer) AsyncEnrichment(string, func([]string, error), int64) bool {
+func (n *NoOpTagsBuffer) AsyncEnrichment(string, func([]string, error, *DebugInfo), int64) bool {
 	return false
 }
