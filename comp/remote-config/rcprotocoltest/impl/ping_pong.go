@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"path"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/api"
@@ -111,7 +112,12 @@ func runWebSocketTestWithALPN(ctx context.Context, httpClient *api.HTTPClient, r
 
 	n, err := runEchoLoopWithALPN(ctx, httpClient, runCount)
 	if err != nil {
-		log.Debugf("websocket echo test with ALPN failed: %s (%d data frames exchanged)", err, n)
+		// Check if this is the expected "no TLS" skip case vs an actual failure.
+		if strings.Contains(err.Error(), "ALPN websocket test requires TLS") {
+			log.Debugf("websocket echo test with ALPN skipped: %s", err)
+		} else {
+			log.Debugf("websocket echo test with ALPN failed: %s (%d data frames exchanged)", err, n)
+		}
 		return
 	}
 	log.Debugf("websocket echo test with ALPN complete (%d data frames exchanged)", n)

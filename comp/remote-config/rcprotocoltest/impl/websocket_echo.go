@@ -243,13 +243,14 @@ func newWebSocketClientWithALPN(ctx context.Context, endpointPath string, httpCl
 	if err != nil {
 		return nil, err
 	}
-	url.Path = path.Join(url.Path, endpointPath)
-	switch strings.ToLower(url.Scheme) {
-	case "http":
-		url.Scheme = "ws"
-	case "https":
-		url.Scheme = "wss"
+
+	// ALPN requires TLS, so this test cannot run with plain HTTP.
+	if strings.ToLower(url.Scheme) == "http" {
+		return nil, fmt.Errorf("ALPN websocket test requires TLS (remote_configuration.no_tls must be false)")
 	}
+
+	url.Path = path.Join(url.Path, endpointPath)
+	url.Scheme = "wss"
 
 	log.Debugf("connecting to websocket endpoint %s with ALPN dd-rc-v1", url.String())
 
