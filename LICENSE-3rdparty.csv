@@ -426,6 +426,7 @@ core,github.com/ProtonMail/go-crypto/openpgp/x448,BSD-3-Clause,Copyright (c) 200
 core,github.com/Showmax/go-fqdn,Apache-2.0,Copyright since 2015 Showmax s.r.o
 core,github.com/StackExchange/wmi,MIT,Copyright (c) 2013 Stack Exchange
 core,github.com/VictoriaMetrics/easyproto,Apache-2.0,"Copyright 2023-2024 VictoriaMetrics, Inc"
+core,github.com/VividCortex/ewma,MIT,"Copyright (c) 2013 VividCortex | Copyright (c) 2013 VividCortex, Inc. All rights reserved"
 core,github.com/acobaugh/osrelease,BSD-3-Clause,Copyright 2017 Andrew Cobaugh
 core,github.com/alecthomas/participle,MIT,Copyright (C) 2017 Alec Thomas
 core,github.com/alecthomas/participle/lexer,MIT,Copyright (C) 2017 Alec Thomas
@@ -447,7 +448,9 @@ core,github.com/aquasecurity/go-version/pkg/semver,Apache-2.0,Copyright (c) 2020
 core,github.com/aquasecurity/go-version/pkg/version,Apache-2.0,Copyright (c) 2020 Teppei Fukuda (knqyf263)
 core,github.com/aquasecurity/jfather,MIT,Copyright (c) 2022 Liam Galvin
 core,github.com/aquasecurity/trivy-db/pkg/db,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
+core,github.com/aquasecurity/trivy-db/pkg/ecosystem,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/aquasecurity/trivy-db/pkg/log,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
+core,github.com/aquasecurity/trivy-db/pkg/override,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/aquasecurity/trivy-db/pkg/types,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/aquasecurity/trivy-db/pkg/utils,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/aquasecurity/trivy-db/pkg/utils/ints,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
@@ -457,6 +460,7 @@ core,github.com/aquasecurity/trivy-db/pkg/vulnsrc/alpine,Apache-2.0,Copyright 20
 core,github.com/aquasecurity/trivy-db/pkg/vulnsrc/amazon,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/aquasecurity/trivy-db/pkg/vulnsrc/azure,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/aquasecurity/trivy-db/pkg/vulnsrc/azure/oval,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
+core,github.com/aquasecurity/trivy-db/pkg/vulnsrc/bucket,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/aquasecurity/trivy-db/pkg/vulnsrc/chainguard,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/aquasecurity/trivy-db/pkg/vulnsrc/debian,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/aquasecurity/trivy-db/pkg/vulnsrc/oracle-oval,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
@@ -838,6 +842,8 @@ core,github.com/cespare/xxhash/v2,MIT,Copyright (c) 2016 Caleb Spare
 core,github.com/charlievieth/strcase,MIT,Copyright 2024 Charlie Vieth
 core,github.com/charlievieth/strcase/internal/bytealg,MIT,Copyright 2024 Charlie Vieth
 core,github.com/charlievieth/strcase/internal/tables,MIT,Copyright 2024 Charlie Vieth
+core,github.com/cheggaaa/pb/v3,BSD-3-Clause,"Copyright (c) 2012-2024, Sergey Cherepanov"
+core,github.com/cheggaaa/pb/v3/termutil,BSD-3-Clause,"Copyright (c) 2012-2024, Sergey Cherepanov"
 core,github.com/chrusty/protoc-gen-jsonschema,Apache-2.0,Copyright (c) 2017 The Authors
 core,github.com/cihub/seelog,BSD-3-Clause,"Copyright (c) 2012, Cloud Instruments Co., Ltd. <info@cin.io>"
 core,github.com/cihub/seelog/archive,BSD-3-Clause,"Copyright (c) 2012, Cloud Instruments Co., Ltd. <info@cin.io>"
@@ -1554,6 +1560,7 @@ core,github.com/jmespath/go-jmespath,Apache-2.0,Copyright 2015 James Saryerwinni
 core,github.com/jmoiron/sqlx,MIT,"Copyright (c) 2013, Jason Moiron"
 core,github.com/jmoiron/sqlx/reflectx,MIT,"Copyright (c) 2013, Jason Moiron"
 core,github.com/jonboulle/clockwork,Apache-2.0,Copyright 2014 Nell Boulle
+core,github.com/josephburnett/jd/v2,MIT,Copyright (c) 2016 Joseph Burnett
 core,github.com/josharian/intern,MIT,Copyright (c) 2019 Josh Bleecher Snyder
 core,github.com/jpillora/backoff,MIT,Copyright (c) 2017 Jaime Pillora
 core,github.com/json-iterator/go,MIT,Copyright (c) 2016 json-iterator
@@ -3481,7 +3488,6 @@ core,google.golang.org/protobuf/types/known/timestamppb,BSD-3-Clause,Copyright (
 core,google.golang.org/protobuf/types/known/wrapperspb,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/types/pluginpb,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,gopkg.in/Knetic/govaluate.v3,MIT,"Copyright (c) 2014-2016 George Lester | abrander (panic-finding testing tool) | benpaxton (fix for missing type checks during literal elide process) | bgaifullin (lifting restriction on complex/struct types) | dpaolella (exposure of variables used in an expression) | iasci (ternary operator) | oxtoacart (parameter structures, deferred parameter retrieval) | prashantv (optimization of bools) | vjeantet (regex support) | wmiller848 (bitwise operators) | xfennec (fix for dates being parsed in the current Location)"
-core,gopkg.in/cheggaaa/pb.v1,BSD-3-Clause,"Copyright (c) 2012-2015, Sergey Cherepanov"
 core,gopkg.in/evanphx/json-patch.v4,BSD-3-Clause,"Copyright (c) 2014, Evan Phoenix"
 core,gopkg.in/inf.v0,BSD-3-Clause,Copyright (c) 2012 Péter Surányi. Portions Copyright (c) 2009 The Go Authors. All rights reserved.
 core,gopkg.in/ini.v1,Apache-2.0,Copyright 2014 Unknwon
