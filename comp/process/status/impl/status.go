@@ -16,8 +16,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	processStatus "github.com/DataDog/datadog-agent/pkg/process/util/status"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
 type dependencies struct {
@@ -82,15 +83,21 @@ func (s statusProvider) populateStatus() map[string]interface{} {
 	} else {
 
 		// Get expVar server address
-		ipcAddr, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+		// ipc_address is deprecated in favor of cmd_host, but we still need to support it
+		ipcKey := "cmd_host"
+		if s.config.IsSet("ipc_address") {
+			log.Warn("ipc_address is deprecated, use cmd_host instead")
+			ipcKey = "ipc_address"
+		}
+		ipcAddr, err := system.IsLocalAddress(s.config.GetString(ipcKey))
 		if err != nil {
-			status["error"] = err.Error()
+			status["error"] = fmt.Sprintf("%s: %s", ipcKey, err)
 			return status
 		}
 
 		port := s.config.GetInt("process_config.expvar_port")
 		if port <= 0 {
-			port = pkgconfigsetup.DefaultProcessExpVarPort
+			port = 6062 // DefaultProcessExpVarPort
 		}
 		url = fmt.Sprintf("http://%s:%d/debug/vars", ipcAddr, port)
 	}
