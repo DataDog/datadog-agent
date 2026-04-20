@@ -1,0 +1,8 @@
+# gazelle:exclude internal/agent
+# gazelle:exclude api.go
+# gazelle:exclude api_mock.go
+# gazelle:exclude api_test.go
+# gazelle:exclude server.go
+# gazelle:exclude server_cmd.go
+# gazelle:exclude server_test.go
+# gazelle:exclude server_ipc.go

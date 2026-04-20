@@ -689,6 +689,24 @@ def check_supports_python_version(check_dir, python):
         return False
 
 
+def _load_manifest_platform_overrides(integrations_dir):
+    """
+    Read [overrides.manifest.platforms] from <integrations_dir>/.ddev/config.toml.
+
+    Returns a mapping of integration folder -> list of supported platform strings
+    (e.g. "linux", "windows", "mac_os"). Used as a fallback for integrations that
+    no longer ship a manifest.json.
+    """
+    import toml
+
+    config_path = os.path.join(integrations_dir, '.ddev', 'config.toml')
+    if not os.path.isfile(config_path):
+        return {}
+    with open(config_path) as f:
+        config = toml.load(f)
+    return config.get('overrides', {}).get('manifest', {}).get('platforms', {}) or {}
+
+
 @task
 def collect_integrations(_, integrations_dir, python_version, target_os, excluded):
     """
@@ -698,6 +716,7 @@ def collect_integrations(_, integrations_dir, python_version, target_os, exclude
     """
     import json
 
+    manifest_overrides = _load_manifest_platform_overrides(integrations_dir)
     integrations = []
 
     for entry in os.listdir(integrations_dir):
@@ -707,21 +726,24 @@ def collect_integrations(_, integrations_dir, python_version, target_os, exclude
 
         manifest_file_path = os.path.join(int_path, "manifest.json")
 
-        # If there is no manifest file, then we should assume the folder does not
-        # contain a working check and move onto the next
-        if not os.path.exists(manifest_file_path):
-            continue
+        if os.path.exists(manifest_file_path):
+            with open(manifest_file_path) as f:
+                manifest = json.load(f)
 
-        with open(manifest_file_path) as f:
-            manifest = json.load(f)
+            # Figure out whether the integration is supported on the target OS
+            if target_os == 'mac_os':
+                tag = 'Supported OS::macOS'
+            else:
+                tag = f'Supported OS::{target_os.capitalize()}'
 
-        # Figure out whether the integration is supported on the target OS
-        if target_os == 'mac_os':
-            tag = 'Supported OS::macOS'
+            if tag not in manifest['tile']['classifier_tags']:
+                continue
+        elif entry in manifest_overrides:
+            # No manifest.json; fall back to .ddev/config.toml [overrides.manifest.platforms]
+            if target_os not in manifest_overrides[entry]:
+                continue
         else:
-            tag = f'Supported OS::{target_os.capitalize()}'
-
-        if tag not in manifest['tile']['classifier_tags']:
+            # No manifest file and no override -> assume the folder is not a working check
             continue
 
         if not check_supports_python_version(int_path, python_version):

@@ -91,6 +91,24 @@ func (s *testInstallExeSuite) TestInstallAgentPackage() {
 		WithExperimentVersionEqual("")
 
 	wincommonagent.TestAgentHasNoWorldWritablePaths(s.T(), s.Env().RemoteHost)
+
+	// Verify that config files contain template comments from the .example files
+	// (WINA-2040: fleet install should backfill example templates into configs)
+	configDir := `C:\ProgramData\Datadog`
+	configContent, err := s.Env().RemoteHost.ReadFile(consts.ConfigPath)
+	s.Require().NoError(err, "failed to read datadog.yaml")
+	configStr := string(configContent)
+	s.Assert().Contains(configStr, "api_key", "datadog.yaml should contain api_key")
+	s.Assert().Contains(configStr, "## Basic Configuration ##", "datadog.yaml should contain template section banners from datadog.yaml.example")
+	s.Assert().Contains(configStr, "## @param site", "datadog.yaml should contain @param annotations from datadog.yaml.example")
+
+	securityContent, err := s.Env().RemoteHost.ReadFile(configDir + `\security-agent.yaml`)
+	s.Require().NoError(err, "failed to read security-agent.yaml")
+	s.Assert().Contains(string(securityContent), "## Runtime Security configuration ##", "security-agent.yaml should contain template section banners from security-agent.yaml.example")
+
+	systemProbeContent, err := s.Env().RemoteHost.ReadFile(configDir + `\system-probe.yaml`)
+	s.Require().NoError(err, "failed to read system-probe.yaml")
+	s.Assert().Contains(string(systemProbeContent), "## System Probe Configuration ##", "system-probe.yaml should contain template section banners from system-probe.yaml.example")
 }
 
 // TestInstallAgentFails asserts various system state when the installer fails to install the Agent package (it's not available)

@@ -559,7 +559,9 @@ def _compute_build_size(ctx, build_exclude=None, flavor=AgentFlavor.base):
     return statinfo.st_size
 
 
-def compute_config_build_tags(targets="all", build_include=None, build_exclude=None, flavor=AgentFlavor.base.name):
+def compute_config_build_tags(
+    targets="all", build_include=None, build_exclude=None, flavor=AgentFlavor.base.name, platform=None
+):
     flavor = AgentFlavor[flavor]
 
     if targets == "all":
@@ -574,9 +576,9 @@ def compute_config_build_tags(targets="all", build_include=None, build_exclude=N
     if build_include is None:
         build_include = []
         for target in targets:
-            build_include.extend(get_default_build_tags(build=target, flavor=flavor))
+            build_include.extend(get_default_build_tags(build=target, flavor=flavor, platform=platform))
     else:
-        build_include = filter_incompatible_tags(build_include.split(","))
+        build_include = filter_incompatible_tags(build_include.split(","), platform=platform)
 
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
     use_tags = get_build_tags(build_include, build_exclude)
