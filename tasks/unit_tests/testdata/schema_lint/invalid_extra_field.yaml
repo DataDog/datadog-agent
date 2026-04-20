@@ -1,0 +1,27 @@
+properties:
+  good_setting:
+    node_type: setting
+    type: string
+    default: ok
+  bad_setting:
+    node_type: setting
+    type: string
+    default: bad
+    unknown_field: this_is_not_allowed
+  bad_section:
+    node_type: section
+    properties:
+      child:
+        node_type: setting
+        type: number
+        default: 0
+    unknown_section_field: not_allowed
+  bad_visibility:
+    node_type: setting
+    type: string
+    default: x
+    visibility: super_public
+  bad_type_enum:
+    node_type: setting
+    type: not_a_real_type
+    default: x
