@@ -161,6 +161,13 @@ func postInstallDatadogAgentDDOTOCI(ctx HookContext) (err error) {
 		return fmt.Errorf("failed to restart stable unit: %s", err)
 	}
 
+	// Restart procmgrd so it picks up the new DDOT config file.
+	// dd-procmgrd does not watch the config directory; it requires an
+	// explicit reload or restart to detect new process definitions.
+	if err := restartProcmgrd(ctx); err != nil {
+		log.Warnf("failed to restart procmgrd: %s", err)
+	}
+
 	return nil
 }
 
@@ -204,6 +211,11 @@ func postInstallDatadogAgentDDOTDEBRPM(ctx HookContext) (err error) {
 	}
 	if err := agentDDOTService.EnableStable(ctx); err != nil {
 		return fmt.Errorf("failed to install stable unit: %s", err)
+	}
+
+	// Restart procmgrd so it picks up the new DDOT config file.
+	if err := restartProcmgrd(ctx); err != nil {
+		log.Warnf("failed to restart procmgrd: %s", err)
 	}
 
 	return nil
@@ -380,6 +392,14 @@ func removeDDOTProcessConfig(packageType PackageType) {
 	if err := os.Remove(dest); err != nil && !os.IsNotExist(err) {
 		log.Warnf("failed to remove DDOT process config %s: %s", dest, err)
 	}
+}
+
+const procmgrdUnit = "datadog-agent-procmgrd.service"
+
+// restartProcmgrd restarts the dd-procmgrd systemd unit so it reloads its
+// config directory and picks up newly added or removed process definitions.
+func restartProcmgrd(ctx HookContext) error {
+	return systemd.RestartUnit(ctx, procmgrdUnit)
 }
 
 // modifyDDOTUnitFileForBackwardsCompatibility modifies the systemd unit file to remove "/ext/ddot" from paths
