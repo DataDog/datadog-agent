@@ -1,0 +1,19 @@
+properties:
+  bad_type_value:
+    node_type: setting
+    type: invalid_type
+    default: hello
+  array_no_items:
+    node_type: setting
+    type: array
+    default: []
+  valid_array:
+    node_type: setting
+    type: array
+    items:
+      type: string
+    default: []
+  valid_string:
+    node_type: setting
+    type: string
+    default: ok
