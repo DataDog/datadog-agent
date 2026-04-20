@@ -181,6 +181,25 @@ func TestConfigListEndpoint(t *testing.T) {
 		},
 	}
 
+	// a key with only a default value must be excluded from the response so that IsConfigured() remains false on the receiving sub agent
+	t.Run("defaults_not_sent", func(t *testing.T) {
+		cfg, server, _ := getConfigServer(t, api.AuthorizedSet{"my.config.value": {}})
+
+		cfg.SetDefault("my.config.value", "default_value")
+
+		resp, err := server.Client().Get(server.URL + "/")
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+
+		data, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+
+		var configValues map[string]interface{}
+		require.NoError(t, json.Unmarshal(data, &configValues))
+		assert.NotContains(t, configValues, "my.config.value", "default-only values must not be sent via config sync")
+	})
+
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
 			cfg, server, _ := getConfigServer(t, test.authorizedConfigs)
@@ -205,7 +224,10 @@ func TestConfigListEndpoint(t *testing.T) {
 
 				expectedValues := make(map[string]interface{})
 				for key := range test.authorizedConfigs {
-					expectedValues[key] = cfg.Get(key)
+					// Only configured (non-default) values are included in the response
+					if cfg.IsConfigured(key) {
+						expectedValues[key] = cfg.Get(key)
+					}
 				}
 
 				assert.Equal(t, expectedValues, configValues)
