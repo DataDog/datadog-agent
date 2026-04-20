@@ -32,6 +32,8 @@ type Attributes struct {
 	Client                actionsclientpb.Client                          `json:"client"`
 	OrgId                 int64                                           `json:"org_id"`
 	JobId                 string                                          `json:"job_id"`
+	TraceId               string                                          `json:"trace_id"`
+	SpanId                string                                          `json:"span_id"`
 	SignedEnvelope        *privateactionspb.RemoteConfigSignatureEnvelope `json:"signed_envelope"`
 	ConnectionInfo        *privateactionspb.ConnectionInfo                `json:"connection_info"`
 }

@@ -114,7 +114,7 @@ func (n *WorkflowRunner) RunTask(
 	go n.startHeartbeat(heartbeatCtx, task, logger)
 
 	ctx = telemetry.WithService(ctx, observability.ParService)
-	span, ctx := telemetry.StartSpanFromContext(ctx, observability.ActionRunOperation)
+	span, ctx := telemetry.StartSpanFromIDs(ctx, observability.ActionRunOperation, task.Data.Attributes.TraceId, task.Data.Attributes.SpanId)
 	span.SetResourceName(fqn)
 	span.SetTag("task_id", task.Data.ID)
 	defer func() { span.Finish(err) }()
