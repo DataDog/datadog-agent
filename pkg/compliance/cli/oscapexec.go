@@ -8,12 +8,12 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"syscall"
 
+	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/syndtr/gocapability/capability"
 	"golang.org/x/sys/unix"
 )
@@ -52,9 +52,9 @@ func RunOscapExec(args []string) error {
 }
 
 func getOSCAPIODefaultBinPath() (string, error) {
-	here, err := filepath.EvalSymlinks("/proc/self/exe")
+	here, err := executable.Folder()
 	if err != nil {
-		return "", errors.New("can't find own executable")
+		return "", err
 	}
 
 	binPath := filepath.Join(here, "..", "..", "embedded", "bin", "oscap-io")
