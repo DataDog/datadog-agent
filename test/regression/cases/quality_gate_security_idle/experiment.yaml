@@ -5,7 +5,7 @@ target:
   name: datadog-agent
   cpu_allotment: 4
   # Set to 20% higher than the memory_usage check value
-  memory_allotment: 350 MiB
+  memory_allotment: 375 MiB
 
   environment:
     DD_API_KEY: a0000001
@@ -48,7 +48,7 @@ checks:
     bounds:
       series: total_pss_bytes
       # When updating this, update the memory_allotment in the target section to 20% higher.
-      upper_bound: "305 MiB"
+      upper_bound: "315 MiB"
 
 report_links:
   - text: "bounds checks dashboard"

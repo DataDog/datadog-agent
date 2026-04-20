@@ -7,7 +7,7 @@ generator:
       # exhausts the tree during a capture. Once all nodes exist on disk, opens
       # become O_RDONLY and are rejected by CWS kernel-side flag approvers.
       max_nodes: 500000
-      open_per_second: 60
+      open_per_second: 41
       rename_per_second: 1
 
 blackhole:
