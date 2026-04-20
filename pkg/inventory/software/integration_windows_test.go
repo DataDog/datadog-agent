@@ -91,7 +91,7 @@ func TestIntegrationCompareWithPowerShell(t *testing.T) {
 			}
 			reader := csv.NewReader(bytes.NewReader(csvBytes))
 			records, err := reader.ReadAll()
-			require.NoError(t, err, "Failed to parse CSV output:\nstdout:\n%s\nstderr:\n%s", string(csvBytes), stderr.String())
+			require.NoError(t, err, "Failed to parse CSV output:\nstdout:\n%s\nstderr:\n%s", stdout.String(), stderr.String())
 
 			// Skip header row and build map
 			for i := 1; i < len(records); i++ {
@@ -300,7 +300,7 @@ func TestIntegrationMSStoreApps(t *testing.T) {
 	}
 	if len(jsonBytes) > 0 {
 		err = json.Unmarshal(jsonBytes, &psApps)
-		require.NoError(t, err, "Failed to parse JSON output:\nstdout:\n%s\nstderr:\n%s", string(jsonBytes), stderr.String())
+		require.NoError(t, err, "Failed to parse JSON output:\nstdout:\n%s\nstderr:\n%s", stdout.String(), stderr.String())
 	}
 	// Build map: productCode -> []Entry
 	psInventory := []Entry{}
