@@ -20,14 +20,11 @@ exports_files(glob(
 # TODO(agent-build): remove below `gazelle:exclude` directives (automatically updates @bazelify_go_work//:go.work)
 # gazelle:exclude comp/agent
 # gazelle:exclude comp/aggregator
-# gazelle:exclude comp/api/api/apiimpl
 # gazelle:exclude comp/api/api/utils
 # gazelle:exclude comp/api/authtoken
 # gazelle:exclude comp/api/bundle.go
 # gazelle:exclude comp/api/bundle_test.go
 # gazelle:exclude comp/api/commonendpoints
-# gazelle:exclude comp/api/grpcserver
-# gazelle:exclude comp/autoscaling
 # gazelle:exclude comp/checks
 # gazelle:exclude comp/collector
 # gazelle:exclude comp/connectivitychecker/checker
