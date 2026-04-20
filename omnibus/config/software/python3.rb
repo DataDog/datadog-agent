@@ -1,6 +1,6 @@
 name "python3"
 
-default_version "3.13.12"
+default_version "3.13.13"
 
 unless windows?
   build do
