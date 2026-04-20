@@ -57,6 +57,7 @@ def set_buildtags(
         build_include=build_include,
         build_exclude=build_exclude,
         flavor=flavor,
+        platform="linux",
     )
 
     if not os.path.exists(PLUGIN_DIR):
