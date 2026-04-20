@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "ecs",
+    srcs = [
+        "ecs.go",
+        "session-manager-plugin.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/ecs",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_aws_aws_sdk_go_v2//aws",
+        "@com_github_aws_aws_sdk_go_v2_config//:config",
+        "@com_github_aws_aws_sdk_go_v2_service_ecs//:ecs",
+        "@com_github_aws_session_manager_plugin//src/config",
+        "@com_github_aws_session_manager_plugin//src/datachannel",
+        "@com_github_aws_session_manager_plugin//src/log",
+        "@com_github_aws_session_manager_plugin//src/message",
+        "@com_github_aws_session_manager_plugin//src/retry",
+        "@com_github_aws_session_manager_plugin//src/sessionmanagerplugin/session",
+        "@com_github_cenkalti_backoff_v5//:backoff",
+        "@com_github_google_uuid//:uuid",
+    ],
+)

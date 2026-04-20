@@ -454,7 +454,6 @@ exports_files(glob(
 # gazelle:exclude pkg/util/tmplvar
 # gazelle:exclude pkg/windowsdriver
 # gazelle:exclude tasks
-# gazelle:exclude test
 # gazelle:exclude tools/NamedPipeCmd
 # gazelle:exclude tools/agent_QA
 # gazelle:exclude tools/ci
@@ -481,6 +480,7 @@ _GAZELLE_BUILD_TAGS = [
     "cws_instrumentation_injector_only",
     "datadog.no_waf",
     "docker",
+    "e2eunit",
     "ec2",
     "etcd",
     "fargateprocess",
