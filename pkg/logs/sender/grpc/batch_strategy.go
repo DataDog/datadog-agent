@@ -12,11 +12,11 @@ import (
 	"github.com/benbjohnson/clock"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/DataDog/agent-payload/v5/statefulpb"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs-library/sender"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -72,6 +72,7 @@ type batchStrategy struct {
 	lastTimestamp     int64  // milliseconds since epoch
 	lastPatternID     uint64 // pattern identifier
 	lastTagsDictIndex uint64 // dictionary index of tag string
+	lastServiceDictID uint64 // dictionary index of the service field
 
 	// Telemetry
 	pipelineMonitor metrics.PipelineMonitor
@@ -232,6 +233,17 @@ func (s *batchStrategy) applyDeltaEncoding(logDatum *statefulpb.Log) {
 			}
 		}
 	}
+
+	// Service delta encoding (only for dict-index encoded services)
+	if service := logDatum.Service; service != nil {
+		if dictIndex := service.GetDictIndex(); dictIndex != 0 {
+			if dictIndex == s.lastServiceDictID {
+				logDatum.Service = nil // omit unchanged service
+			} else {
+				s.lastServiceDictID = dictIndex
+			}
+		}
+	}
 }
 
 // Mostly copy/pasted from batch.go
@@ -276,6 +288,7 @@ func (s *batchStrategy) flushBuffer(outputChan chan *message.Payload) {
 	s.lastTimestamp = 0
 	s.lastPatternID = 0
 	s.lastTagsDictIndex = 0
+	s.lastServiceDictID = 0
 
 	s.sendMessagesWithDatums(messagesMetadata, grpcDatums, outputChan)
 }
