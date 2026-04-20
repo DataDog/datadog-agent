@@ -360,6 +360,28 @@ func Test_fetchColumnOidsBatch_truncatedResponse_reducesBatchSize(t *testing.T) 
 	assert.Equal(t, 1, batchSizeOptimizer.lastSuccessfulBatchSize)
 }
 
+func Test_fetchColumnOidsBatch_truncatedResponseAtBatchSizeOne_returnsError(t *testing.T) {
+	sess := session.CreateMockSession()
+
+	// Device keeps truncating even at batch size 1: returns 0 varbinds for
+	// the single requested OID. The fetch must terminate with an error
+	// rather than retrying indefinitely.
+	truncatedPacket := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{},
+	}
+	sess.On("GetBulk", []string{"1.1.1"}, checkconfig.DefaultBulkMaxRepetitions).Return(&truncatedPacket, nil)
+
+	oids := []string{"1.1.1"}
+	batchSizeOptimizer := newOidBatchSizeOptimizer(snmpGetBulk, 1)
+
+	columnValues, err := fetchColumnOidsWithBatching(sess, oids, batchSizeOptimizer, checkconfig.DefaultBulkMaxRepetitions, useGetBulk)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "response truncated")
+	assert.Nil(t, columnValues)
+	assert.Equal(t, 1, batchSizeOptimizer.batchSize)
+	sess.AssertNumberOfCalls(t, "GetBulk", 1)
+}
+
 func Test_fetchColumnOidsBatch_usingGetBulkAndGetNextFallback(t *testing.T) {
 	sess := session.CreateMockSession()
 	// When using snmp v2+, we will try GetBulk first and fallback using GetNext
