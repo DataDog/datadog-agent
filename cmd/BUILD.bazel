@@ -14,7 +14,6 @@
 # gazelle:exclude secrethelper
 # gazelle:exclude security-agent
 # gazelle:exclude serverless-init
-# gazelle:exclude system-probe
 # gazelle:exclude systray
 # gazelle:exclude testdata
 # gazelle:exclude trace-agent

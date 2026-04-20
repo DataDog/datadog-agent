@@ -1,1 +1,24 @@
 # gazelle:ignore
+
+# Xazelle:exclude subcommands
+# gazelle:exclude subcommands/config
+# gazelle:exclude subcommands/runtime
+# gazelle:exclude subcommands/compliance
+# gazelle:exclude subcommands/usm
+# gazelle:exclude subcommands/usm/debug_scripts
+# gazelle:exclude subcommands/usm/debug_scripts/usm_leak_detector
+# gazelle:exclude subcommands/usm/debug_scripts/usm_leak_detector/backends
+# gazelle:exclude subcommands/run
+# gazelle:exclude subcommands/ebpf
+# gazelle:exclude subcommands/ebpf/testdata
+# gazelle:exclude subcommands/modrestart
+# gazelle:exclude subcommands/coverage
+# gazelle:exclude subcommands/debug
+# gazelle:exclude common
+# gazelle:exclude api
+# gazelle:exclude api/debug
+# gazelle:exclude command
+# gazelle:exclude windows
+# gazelle:exclude windows/service
+# gazelle:exclude modules
+# gazelle:exclude windows_resources
