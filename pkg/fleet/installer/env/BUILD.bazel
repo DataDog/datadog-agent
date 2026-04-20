@@ -2,14 +2,11 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "env",
-    srcs = [
-        "config.go",
-        "env.go",
-    ],
+    srcs = ["env.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/env",
     visibility = ["//visibility:public"],
     deps = [
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
         "@org_golang_x_net//http/httpproxy",
     ],
 )
