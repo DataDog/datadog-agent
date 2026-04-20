@@ -218,13 +218,14 @@ func (r *LogParquetReader) forEachLegacyLog(filePath string, fn func(recorderdef
 // forEachNewFormatLog reads a logs-*.parquet file written by the new pipeline,
 // calling fn for each log entry.
 //
-// Only two columns have fixed semantics:
-//   - content   (BYTE_ARRAY) → LogData.Content
-//   - timestamp_ns (INT64)   → LogData.TimestampMs (divided by 1e6)
+// Schema (3 columns):
+//   - context_key  (INT64/uint64) → look up name + tags in shared contexts.parquet
+//   - content      (BYTE_ARRAY)   → LogData.Content
+//   - timestamp_ns (INT64)        → LogData.TimestampMs (divided by 1e6)
 //
-// Every other BYTE_ARRAY column becomes a tag in "column_name:value" form.
-// This schema-agnostic approach means new columns added by the writer are
-// automatically included as tags without any reader changes.
+// Context metadata (tags, hostname, source) is loaded once from contexts.parquet
+// in the same directory and looked up per row. Tags slices are shared from the
+// context map and must not be mutated by fn.
 //
 // Uses file.ColumnChunkReader.ReadBatch directly (bypassing pqarrow) to avoid the
 // arrow-go v18 double-configureDict bug on multi-row-group dict-encoded columns.
@@ -243,31 +244,21 @@ func (r *LogParquetReader) forEachNewFormatLog(filePath string, fn func(recorder
 	}
 	defer pf.Close()
 
-	s := pf.MetaData().Schema
-	numCols := s.NumColumns()
+	contexts, err := readContextsFile(filepath.Join(filepath.Dir(filePath), "contexts.parquet"))
+	if err != nil {
+		pkglog.Warnf("Failed to load contexts for %s: %v", filePath, err)
+		return nil
+	}
 
+	s := pf.MetaData().Schema
+	ctxKeyIdx := findParquetColIdx(pf, "context_key")
 	contentIdx := findParquetColIdx(pf, "content")
 	tsIdx := findParquetColIdx(pf, "timestamp_ns")
 
-	// Classify every column as content, timestamp, or a tag column.
-	type tagColMeta struct {
-		idx    int
-		name   string
-		maxDef int16
+	var ctxKeyMaxDef, contentMaxDef, tsMaxDef int16
+	if ctxKeyIdx >= 0 {
+		ctxKeyMaxDef = s.Column(ctxKeyIdx).MaxDefinitionLevel()
 	}
-	var tagColsMeta []tagColMeta
-	for i := 0; i < numCols; i++ {
-		if i == contentIdx || i == tsIdx {
-			continue
-		}
-		tagColsMeta = append(tagColsMeta, tagColMeta{
-			idx:    i,
-			name:   s.Column(i).Name(),
-			maxDef: s.Column(i).MaxDefinitionLevel(),
-		})
-	}
-
-	var contentMaxDef, tsMaxDef int16
 	if contentIdx >= 0 {
 		contentMaxDef = s.Column(contentIdx).MaxDefinitionLevel()
 	}
@@ -280,6 +271,21 @@ func (r *LogParquetReader) forEachNewFormatLog(filePath string, fn func(recorder
 		numRows := int(rgReader.NumRows())
 		if numRows == 0 {
 			continue
+		}
+
+		// Read context_key.
+		var ctxKeyBuf []int64
+		var ctxKeyDef []int16
+		if ctxKeyIdx >= 0 {
+			if col, colErr := rgReader.Column(ctxKeyIdx); colErr == nil {
+				if cr, ok := col.(*file.Int64ColumnChunkReader); ok {
+					ctxKeyBuf = make([]int64, numRows)
+					ctxKeyDef = make([]int16, numRows)
+					if _, _, colErr = cr.ReadBatch(int64(numRows), ctxKeyBuf, ctxKeyDef, nil); colErr != nil {
+						ctxKeyBuf, ctxKeyDef = nil, nil
+					}
+				}
+			}
 		}
 
 		// Read timestamp_ns.
@@ -312,34 +318,16 @@ func (r *LogParquetReader) forEachNewFormatLog(filePath string, fn func(recorder
 			}
 		}
 
-		// Read all tag columns (any BYTE_ARRAY column that is not content/timestamp).
-		type tagColData struct {
-			tagColMeta
-			buf []parquet.ByteArray
-			def []int16
-			vi  int
-		}
-		tagCols := make([]tagColData, 0, len(tagColsMeta))
-		for _, meta := range tagColsMeta {
-			col, colErr := rgReader.Column(meta.idx)
-			if colErr != nil {
-				continue
-			}
-			cr, ok := col.(*file.ByteArrayColumnChunkReader)
-			if !ok {
-				continue // skip non-BYTE_ARRAY columns (e.g. int, bool)
-			}
-			buf := make([]parquet.ByteArray, numRows)
-			def := make([]int16, numRows)
-			if _, _, colErr = cr.ReadBatch(int64(numRows), buf, def, nil); colErr != nil {
-				continue
-			}
-			tagCols = append(tagCols, tagColData{tagColMeta: meta, buf: buf, def: def})
-		}
-
-		tsVI, contentVI := 0, 0
+		ctxVI, tsVI, contentVI := 0, 0, 0
 
 		for i := 0; i < numRows; i++ {
+			ctxNull := ctxKeyBuf == nil || ctxKeyDef[i] < ctxKeyMaxDef
+			var ctxKey uint64
+			if !ctxNull {
+				ctxKey = uint64(ctxKeyBuf[ctxVI])
+				ctxVI++
+			}
+
 			var tsMs int64
 			if tsBuf != nil && tsDef[i] >= tsMaxDef {
 				tsMs = tsBuf[tsVI] / 1_000_000
@@ -354,21 +342,30 @@ func (r *LogParquetReader) forEachNewFormatLog(filePath string, fn func(recorder
 				contentVI++
 			}
 
-			var tags []string
-			for j := range tagCols {
-				tc := &tagCols[j]
-				if tc.def[i] >= tc.maxDef {
-					if v := string(tc.buf[tc.vi]); v != "" {
-						tags = append(tags, tc.name+":"+v)
-					}
-					tc.vi++
+			if ctxNull {
+				continue
+			}
+			entry, ok := contexts[ctxKey]
+			if !ok {
+				continue
+			}
+
+			// Extract Hostname and Source from the pre-built tags slice.
+			var hostname, source string
+			for _, tag := range entry.Tags {
+				if strings.HasPrefix(tag, "host:") {
+					hostname = tag[len("host:"):]
+				} else if strings.HasPrefix(tag, "source:") {
+					source = tag[len("source:"):]
 				}
 			}
 
 			if err := fn(recorderdef.LogData{
+				Source:      source,
+				Hostname:    hostname,
 				TimestampMs: tsMs,
 				Content:     content,
-				Tags:        tags,
+				Tags:        entry.Tags, // shared; fn must not mutate
 			}); err != nil {
 				return err
 			}
