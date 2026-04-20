@@ -97,8 +97,8 @@ func FuzzParseCEFLEEF(f *testing.F) {
 		if header.Format != "CEF" && header.Format != "LEEF" {
 			t.Errorf("unexpected format %q", header.Format)
 		}
-		// Extension size must be bounded linearly by input size.
-		if len(ext) > len(data) {
+		// Every key=value pair costs at least 2 bytes (key + '=').
+		if len(ext)*2 > len(data) {
 			t.Errorf("extension has %d keys for %d-byte input", len(ext), len(data))
 		}
 		// For CEF, every extension key must consist of valid key characters.
@@ -111,9 +111,14 @@ func FuzzParseCEFLEEF(f *testing.F) {
 				}
 			}
 		}
-		// Idempotence: re-parsing should not panic.
-		// (We can't check bit-identical headers because unescaping is lossy
-		// with respect to the raw bytes, but the round-trip must not crash.)
-		ParseCEFLEEF(data)
+		// Determinism: re-parsing identical input must produce the same header.
+		// SIEMHeader is all-string fields, so == works directly.
+		h2, _, _, ok2 := ParseCEFLEEF(data)
+		if !ok2 {
+			t.Fatal("re-parse returned ok=false for previously ok input")
+		}
+		if h2 != header {
+			t.Errorf("non-deterministic header: first=%+v second=%+v", header, h2)
+		}
 	})
 }
