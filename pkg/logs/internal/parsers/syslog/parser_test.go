@@ -416,13 +416,10 @@ func TestSyslogParser_SIEMParsingDisabled(t *testing.T) {
 func TestSyslogParser_MalformedSyslogDoesNotExtractSIEM(t *testing.T) {
 	parser := NewParser(true)
 	// Malformed PRI (non-digit) followed by valid CEF — syslog parse fails,
-	// so the err == nil gate must prevent CEF extraction.
+	// so the original message is returned unmodified. No CEF extraction occurs.
 	input := newTestMessage([]byte(`<abc>CEF:0|V|P|1.0|100|N|5|src=1.2.3.4`))
 	result, err := parser.Parse(input)
 	require.Error(t, err)
-
-	rendered, rerr := result.Render()
-	require.NoError(t, rerr)
-	assert.Contains(t, string(rendered), `"message"`)
-	assert.NotContains(t, string(rendered), `"siem"`)
+	assert.Same(t, input, result)
+	assert.Equal(t, `<abc>CEF:0|V|P|1.0|100|N|5|src=1.2.3.4`, string(result.GetContent()))
 }
