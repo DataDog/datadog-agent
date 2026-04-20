@@ -35,10 +35,6 @@ const (
 // and can be overridden in tests.
 var statFn = os.Stat
 
-// rshellCommandPrefix is the namespace prefix the rshell interpreter expects
-// on every allowed-command name (e.g. "rshell:cat").
-const rshellCommandPrefix = "rshell:"
-
 // RunCommandHandler implements the runCommand action.
 //
 // Both allow-lists follow the same pattern: the operator list is stored as a
@@ -79,11 +75,10 @@ func NewRunCommandHandler(operatorAllowedPaths []string, operatorAllowedCommands
 		h.operatorCommandsFilterEnabled = true
 		h.operatorAllowedCommands = make(map[string]struct{}, len(operatorAllowedCommands))
 		for _, c := range operatorAllowedCommands {
-			bare := strings.TrimPrefix(c, rshellCommandPrefix)
-			if bare == "" {
+			if c == "" {
 				continue
 			}
-			h.operatorAllowedCommands[bare] = struct{}{}
+			h.operatorAllowedCommands[c] = struct{}{}
 		}
 	}
 	return h
@@ -105,8 +100,7 @@ func (h *RunCommandHandler) filterAllowedCommands(backendAllowed []string) []str
 	}
 	filtered := make([]string, 0, len(backendAllowed))
 	for _, c := range backendAllowed {
-		bare := strings.TrimPrefix(c, rshellCommandPrefix)
-		if _, ok := h.operatorAllowedCommands[bare]; ok {
+		if _, ok := h.operatorAllowedCommands[c]; ok {
 			filtered = append(filtered, c)
 		}
 	}
@@ -142,7 +136,7 @@ func (h *RunCommandHandler) filterAllowedPaths(backendAllowed []string) []string
 type RunCommandInputs struct {
 	Command         string   `json:"command"`
 	AllowedCommands []string `json:"allowedCommands"`
-	AllowedPaths    []string `json:"allowedPaths,omitempty"`
+	AllowedPaths    []string `json:"allowedPaths"`
 }
 
 // RunCommandOutputs defines the outputs for the runCommand action.

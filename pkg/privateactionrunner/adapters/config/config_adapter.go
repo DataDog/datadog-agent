@@ -21,13 +21,9 @@ import (
 
 type Config struct {
 	ActionsAllowlist   map[string]sets.Set[string] // map of allowed bundle IDs to a set of allowed action names
-	Allowlist          []string
-	AllowIMDSEndpoint  bool
-	RShellAllowedPaths []string
-	// RShellAllowedCommands is the operator-configured allowlist for rshell.
-	// nil means the operator did not configure one, so the runtime forwards
-	// whatever command set the backend injects (pass-through). A non-nil
-	// value is intersected with the backend's list at execution time.
+	Allowlist             []string
+	AllowIMDSEndpoint     bool
+	RShellAllowedPaths    []string
 	RShellAllowedCommands []string
 	DDHost                string
 	DDApiHost             string

@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
@@ -80,8 +81,9 @@ func TestRunCommandDisallowedCommandBlocked(t *testing.T) {
 }
 
 func TestRunCommandOperatorIntersectionAllows(t *testing.T) {
-	// Operator allowed "echo"; backend allowed "echo" and "cat" — echo should run.
-	handler := NewRunCommandHandler(nil, []string{"echo"})
+	// Operator allowed "rshell:echo"; backend allowed "rshell:echo" and
+	// "rshell:cat" — echo should run.
+	handler := NewRunCommandHandler(nil, []string{"rshell:echo"})
 
 	out, err := handler.Run(context.Background(),
 		makeTask("echo hi", []string{"rshell:echo", "rshell:cat"}), nil)
@@ -93,9 +95,9 @@ func TestRunCommandOperatorIntersectionAllows(t *testing.T) {
 }
 
 func TestRunCommandOperatorIntersectionBlocksDisjoint(t *testing.T) {
-	// Operator allowed "cat" only; backend allowed "echo". Intersection is
-	// empty, so echo is rejected even though the backend approved it.
-	handler := NewRunCommandHandler(nil, []string{"cat"})
+	// Operator allowed "rshell:cat" only; backend allowed "rshell:echo".
+	// Intersection is empty, so echo is rejected.
+	handler := NewRunCommandHandler(nil, []string{"rshell:cat"})
 
 	out, err := handler.Run(context.Background(),
 		makeTask("echo hi", []string{"rshell:echo"}), nil)
@@ -120,19 +122,6 @@ func TestRunCommandOperatorEmptyListBlocksEverything(t *testing.T) {
 	assert.Contains(t, result.Stderr, "command not allowed")
 }
 
-func TestRunCommandOperatorAcceptsPrefixedNames(t *testing.T) {
-	// Operator wrote "rshell:echo" instead of bare "echo" — still works.
-	handler := NewRunCommandHandler(nil, []string{"rshell:echo"})
-
-	out, err := handler.Run(context.Background(),
-		makeTask("echo hi", []string{"rshell:echo"}), nil)
-
-	require.NoError(t, err)
-	result := out.(*RunCommandOutputs)
-	assert.Equal(t, 0, result.ExitCode)
-	assert.Equal(t, "hi\n", result.Stdout)
-}
-
 func TestFilterAllowedCommandsNilOperatorPassesThrough(t *testing.T) {
 	handler := NewRunCommandHandler(nil, nil)
 
@@ -142,7 +131,7 @@ func TestFilterAllowedCommandsNilOperatorPassesThrough(t *testing.T) {
 }
 
 func TestFilterAllowedCommandsIntersection(t *testing.T) {
-	handler := NewRunCommandHandler(nil, []string{"echo", "ls"})
+	handler := NewRunCommandHandler(nil, []string{"rshell:echo", "rshell:ls"})
 
 	got := handler.filterAllowedCommands([]string{"rshell:echo", "rshell:cat", "rshell:ls"})
 
@@ -172,7 +161,7 @@ func TestFilterAllowedPathsOperatorUnsetPassesThrough(t *testing.T) {
 func TestFilterAllowedCommandsNilBackendBlocksAll(t *testing.T) {
 	// Same principle for commands: no backend list → rshell blocks all,
 	// regardless of what the operator configured.
-	handler := NewRunCommandHandler(nil, []string{"echo", "cat"})
+	handler := NewRunCommandHandler(nil, []string{"rshell:echo", "rshell:cat"})
 
 	got := handler.filterAllowedCommands(nil)
 
@@ -209,7 +198,7 @@ func TestRunCommandBackendAllowedPathsRestrictsAccess(t *testing.T) {
 	// End-to-end: operator allows /var/log, backend lists only /tmp so
 	// reading /var/log/syslog must fail because /var/log is absent from
 	// the backend side of the intersection.
-	handler := NewRunCommandHandler([]string{"/var/log"}, []string{"cat"})
+	handler := NewRunCommandHandler([]string{"/var/log"}, []string{"rshell:cat"})
 
 	task := makeTaskWithPaths("cat /var/log/syslog",
 		[]string{"rshell:cat"}, []string{"/tmp"})
@@ -237,12 +226,12 @@ func TestFilterAllowedCommandsMatrix(t *testing.T) {
 		// Backend nil — fail-closed regardless of what the operator said.
 		{"backend nil, operator nil", nil, nil, nil},
 		{"backend nil, operator empty list", nil, []string{}, nil},
-		{"backend nil, operator set", nil, []string{"echo"}, nil},
+		{"backend nil, operator set", nil, []string{"rshell:echo"}, nil},
 
 		// Backend explicit empty list — same outcome as nil.
 		{"backend empty list, operator nil", []string{}, nil, nil},
 		{"backend empty list, operator empty list", []string{}, []string{}, nil},
-		{"backend empty list, operator set", []string{}, []string{"echo"}, nil},
+		{"backend empty list, operator set", []string{}, []string{"rshell:echo"}, nil},
 
 		// Backend non-empty: the non-empty x non-empty cell splits into
 		// four sub-cases by set relationship.
@@ -252,16 +241,16 @@ func TestFilterAllowedCommandsMatrix(t *testing.T) {
 		{"backend set, operator empty list (operator blocks all)",
 			[]string{"rshell:echo"}, []string{}, nil},
 		{"backend set, operator is superset of backend",
-			[]string{"rshell:echo", "rshell:cat"}, []string{"echo", "cat", "ls"},
+			[]string{"rshell:echo", "rshell:cat"}, []string{"rshell:echo", "rshell:cat", "rshell:ls"},
 			[]string{"rshell:echo", "rshell:cat"}},
 		{"backend set, backend is superset of operator",
-			[]string{"rshell:echo", "rshell:cat", "rshell:ls"}, []string{"echo"},
+			[]string{"rshell:echo", "rshell:cat", "rshell:ls"}, []string{"rshell:echo"},
 			[]string{"rshell:echo"}},
 		{"backend set, operator partial overlap",
-			[]string{"rshell:echo", "rshell:cat"}, []string{"cat", "ls"},
+			[]string{"rshell:echo", "rshell:cat"}, []string{"rshell:cat", "rshell:ls"},
 			[]string{"rshell:cat"}},
 		{"backend set, operator disjoint",
-			[]string{"rshell:echo"}, []string{"cat"}, nil},
+			[]string{"rshell:echo"}, []string{"rshell:cat"}, nil},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -341,9 +330,9 @@ func TestNewRunCommandHandlerStoresAllowedPaths(t *testing.T) {
 }
 
 func TestNewRshellBundleUsesConfiguredAllowedPaths(t *testing.T) {
-	paths := []string{"/var/log", "/tmp"}
+	cfg := &config.Config{RShellAllowedPaths: []string{"/var/log", "/tmp"}}
 
-	bundle := NewRshellBundle(paths, nil)
+	bundle := NewRshellBundle(cfg)
 	action := bundle.GetAction("runCommand")
 
 	handler, ok := action.(*RunCommandHandler)
