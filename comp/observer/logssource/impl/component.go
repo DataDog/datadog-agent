@@ -10,6 +10,7 @@ package logssourceimpl
 
 import (
 	"context"
+	"time"
 
 	"go.uber.org/fx"
 
@@ -21,13 +22,18 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 	logssource "github.com/DataDog/datadog-agent/comp/observer/logssource/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	containerLauncher "github.com/DataDog/datadog-agent/pkg/logs/launchers/container"
+	filelauncher "github.com/DataDog/datadog-agent/pkg/logs/launchers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
+	fileTailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
+	"github.com/DataDog/datadog-agent/pkg/logs/util/opener"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -84,8 +90,28 @@ func NewComponent(deps Requires) (Provides, error) {
 	pipeline := newObserverPipeline(deps.Config, processingRules, deps.Hostname, observerHandle)
 	logSources := sources.NewLogSources()
 	tracker := tailers.NewTailerTracker()
+
+	fingerprintCfg, err := logsconfig.GlobalFingerprintConfig(deps.Config)
+	if err != nil {
+		deps.Log.Warnf("observer logssource: invalid fingerprint config, proceeding with defaults: %v", err)
+		fingerprintCfg = &types.FingerprintConfig{}
+	}
+	fileOpener := opener.NewFileOpener()
+	fileLauncher := filelauncher.NewLauncher(
+		deps.Config.GetInt("logs_config.open_files_limit"),
+		filelauncher.DefaultSleepDuration,
+		deps.Config.GetBool("logs_config.validate_pod_container_id"),
+		time.Duration(deps.Config.GetFloat64("logs_config.file_scan_period")*float64(time.Second)),
+		deps.Config.GetString("logs_config.file_wildcard_selection_mode"),
+		flare.NewFlareController(),
+		deps.Tagger,
+		fileOpener,
+		fileTailer.NewFingerprinter(*fingerprintCfg, fileOpener),
+	)
+
 	launcher := containerLauncher.NewLauncher(logSources, option.New(wmeta), deps.Tagger)
 	launchersMgr := launchers.NewLaunchers(logSources, pipeline, deps.Auditor, tracker)
+	launchersMgr.AddLauncher(fileLauncher)
 	launchersMgr.AddLauncher(launcher)
 	sp := newSourceProvider(wmeta, logSources, pauseFilter)
 
