@@ -167,6 +167,10 @@ func updateMetadataEntries(entries map[string]metadataEntry, cfg config) (map[st
 	}
 
 	for metricName, metricSpec := range specs.Metrics.Metrics {
+		if metricSpec.Metadata == nil {
+			return nil, fmt.Errorf("metric %q missing metadata", metricName)
+		}
+
 		prefixedMetricName := gpuspec.PrefixedMetricName(specs, metricName)
 		entry, found := entries[prefixedMetricName]
 		if !found {
@@ -183,7 +187,7 @@ func updateMetadataEntries(entries map[string]metadataEntry, cfg config) (map[st
 		var err error
 		entry.UnitName, entry.PerUnitName, err = splitUnit(metricSpec.Metadata.Unit)
 		if err != nil {
-			return nil, fmt.Errorf("split unit: %w", metricSpec.Metadata.Unit, err)
+			return nil, fmt.Errorf("split unit: %w", err)
 		}
 
 		entry.MetricType = metricSpec.Metadata.MetricType
