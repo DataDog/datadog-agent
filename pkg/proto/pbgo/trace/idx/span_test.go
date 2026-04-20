@@ -6,10 +6,34 @@
 package idx
 
 import (
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
+
+// TestReconcileSamplingPriorityAfterChunkSpan_preservesChildWhenRootHasNoSamplingMetric documents a
+// regression: ReconcileSamplingPriorityAfterChunkSpan treats every parent_id==0 span as authoritative,
+// including when the root never set _sampling_priority_v1 (SpanConvertedFields still at initial
+// math.MinInt8). A later child that did set the metric must not be forced back to PriorityNone.
+//
+// This fails until root spans without an explicit sampling decision are not pinned as the chunk owner.
+func TestReconcileSamplingPriorityAfterChunkSpan_preservesChildWhenRootHasNoSamplingMetric(t *testing.T) {
+	cf := NewSpanConvertedFields()
+	assert.Equal(t, int32(math.MinInt8), cf.SamplingPriority, "sanity: NewSpanConvertedFields matches PriorityNone sentinel")
+
+	var st RootSamplingMergeState
+	// Root span decoded first: no _sampling_priority_v1 on the span, so promoted priority stays unset.
+	st.ReconcileSamplingPriorityAfterChunkSpan(cf, 0)
+
+	// Non-root span carries an explicit decision (e.g. PriorityAutoKeep == 1).
+	const childPriority = int32(1)
+	cf.SamplingPriority = childPriority
+	st.ReconcileSamplingPriorityAfterChunkSpan(cf, 1)
+
+	assert.Equal(t, childPriority, cf.SamplingPriority,
+		"child _sampling_priority_v1 must remain when the root never set the metric (v04/v05 converted paths have no chunk-level priority fallback)")
+}
 
 func TestUnmarshalStreamingString(t *testing.T) {
 	t.Run("new string", func(t *testing.T) {
