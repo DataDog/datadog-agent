@@ -10,11 +10,15 @@ import (
 	"context"
 	"expvar"
 	"fmt"
+	"strings"
 	"time"
 
 	cfgcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggertags "github.com/DataDog/datadog-agent/comp/core/tagger/tags"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
 	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
@@ -46,6 +50,7 @@ type Dependencies struct {
 	Hostname              hostname.Component
 	Cfg                   cfgcomp.Component
 	Logger                log.Component
+	Tagger                option.Option[tagger.Component]
 }
 
 // Provides defines the output of the rcservice component.
@@ -113,7 +118,7 @@ func newRemoteConfigService(deps Dependencies) (rcservice.Component, error) {
 		"Remote Config",
 		baseRawURL,
 		deps.Hostname.GetSafe(context.Background()),
-		getHostTags(deps.Cfg),
+		getTags(deps.Cfg, deps.Tagger),
 		deps.DdRcTelemetryReporter,
 		version.AgentVersion,
 		options...,
@@ -142,7 +147,7 @@ func newRemoteConfigService(deps Dependencies) (rcservice.Component, error) {
 	return configService, nil
 }
 
-func getHostTags(config cfgcomp.Component) func() []string {
+func getTags(config cfgcomp.Component, taggerOpt option.Option[tagger.Component]) func() []string {
 	return func() []string {
 		// Host tags are cached on host, but we add a timeout to avoid blocking the RC request
 		// if the host tags are not available yet and need to be fetched. They will be fetched
@@ -150,6 +155,24 @@ func getHostTags(config cfgcomp.Component) func() []string {
 		ctx, cc := context.WithTimeout(context.Background(), time.Second)
 		defer cc()
 		hostTags := hosttags.Get(ctx, true, config)
-		return append(hostTags.System, hostTags.GoogleCloudPlatform...)
+		tags := append(hostTags.System, hostTags.GoogleCloudPlatform...)
+
+		// On ECS Fargate, the task_arn tag is not part of host tags but is
+		// needed for RC predicate targeting. Fetch it from the tagger's global
+		// tags at orchestrator cardinality.
+		if taggerComp, ok := taggerOpt.Get(); ok {
+			globalTags, err := taggerComp.GlobalTags(taggertypes.OrchestratorCardinality)
+			if err == nil {
+				taskARNPrefix := taggertags.TaskARN + ":"
+				for _, t := range globalTags {
+					if strings.HasPrefix(t, taskARNPrefix) {
+						tags = append(tags, t)
+						break
+					}
+				}
+			}
+		}
+
+		return tags
 	}
 }

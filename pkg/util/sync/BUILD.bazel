@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "sync",
+    srcs = [
+        "pool.go",
+        "testutil.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/sync",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/telemetry",
+        "//pkg/util/funcs",
+    ],
+)

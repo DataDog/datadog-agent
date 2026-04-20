@@ -19,7 +19,9 @@ import (
 	"github.com/DataDog/rshell/interp"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -98,7 +100,8 @@ func (h *RunCommandHandler) Run(
 	}
 	defer runner.Close()
 
-	runErr := runner.Run(ctx, prog)
+	// Spans emitted by rshell inherit the rshell service via context.
+	runErr := runner.Run(telemetry.WithService(ctx, observability.RshellService), prog)
 	exitCode := 0
 	if runErr != nil {
 		var es interp.ExitStatus
