@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"os"
 	"path"
-	"path/filepath"
 	"strings"
 
 	"mvdan.cc/sh/v3/syntax"
@@ -42,14 +41,16 @@ const rshellCommandPrefix = "rshell:"
 
 // RunCommandHandler implements the runCommand action.
 //
-// Both allow-lists follow the same pattern: nil means the operator did not
-// configure the axis, so the backend list is used verbatim. A non-nil
-// (possibly empty) list means the operator opted in to restricting further.
+// Both allow-lists follow the same pattern: the operator list is stored as a
+// set for O(1) lookup, and the filter functions do plain string-equality
+// intersection with the backend list. Nil means the operator did not
+// configure the axis (backend list passes through); an empty list means the
+// operator explicitly restricts to nothing.
 type RunCommandHandler struct {
 	// operatorAllowedPaths is the operator's filesystem allowlist from
-	// datadog.yaml. Nil when the operator did not configure the key.
-	operatorAllowedPaths []string
-	// operatorPathsFilterEnabled distinguishes "unset" (nil slice, no
+	// datadog.yaml. Populated only when filtering is enabled.
+	operatorAllowedPaths map[string]struct{}
+	// operatorPathsFilterEnabled distinguishes "unset" (nil map, no
 	// filtering) from "empty list" (operator explicitly allowed nothing).
 	operatorPathsFilterEnabled bool
 	// operatorAllowedCommands is the set of bare command names the
@@ -66,7 +67,13 @@ func NewRunCommandHandler(operatorAllowedPaths []string, operatorAllowedCommands
 	h := &RunCommandHandler{}
 	if operatorAllowedPaths != nil {
 		h.operatorPathsFilterEnabled = true
-		h.operatorAllowedPaths = operatorAllowedPaths
+		h.operatorAllowedPaths = make(map[string]struct{}, len(operatorAllowedPaths))
+		for _, p := range operatorAllowedPaths {
+			if p == "" {
+				continue
+			}
+			h.operatorAllowedPaths[p] = struct{}{}
+		}
 	}
 	if operatorAllowedCommands != nil {
 		h.operatorCommandsFilterEnabled = true
@@ -106,14 +113,9 @@ func (h *RunCommandHandler) filterAllowedCommands(backendAllowed []string) []str
 	return filtered
 }
 
-// filterAllowedPaths returns the effective filesystem allowlist given the
-// per-task paths from the backend.
-//
-// Mirrors filterAllowedCommands: the backend is the authoritative gate. A
-// nil backend list (field absent) returns nil — rshell then blocks every
-// filesystem access. When the operator did not configure its own list, the
-// backend list passes through unchanged. Otherwise the two are intersected
-// using sub-path-aware narrowing.
+// filterAllowedPaths is the paths analogue of filterAllowedCommands. Both
+// do plain string-equality intersection — paths must be spelled identically
+// on the backend and in datadog.yaml to be admitted.
 func (h *RunCommandHandler) filterAllowedPaths(backendAllowed []string) []string {
 	if backendAllowed == nil {
 		return nil
@@ -121,57 +123,13 @@ func (h *RunCommandHandler) filterAllowedPaths(backendAllowed []string) []string
 	if !h.operatorPathsFilterEnabled {
 		return backendAllowed
 	}
-	var result []string
-	seen := make(map[string]struct{})
-	for _, b := range backendAllowed {
-		bClean := filepath.Clean(b)
-		for _, a := range h.operatorAllowedPaths {
-			aClean := filepath.Clean(a)
-			narrower, ok := narrowerPath(aClean, bClean)
-			if !ok {
-				continue
-			}
-			if _, dup := seen[narrower]; dup {
-				continue
-			}
-			seen[narrower] = struct{}{}
-			result = append(result, narrower)
+	filtered := make([]string, 0, len(backendAllowed))
+	for _, p := range backendAllowed {
+		if _, ok := h.operatorAllowedPaths[p]; ok {
+			filtered = append(filtered, p)
 		}
 	}
-	return result
-}
-
-// narrowerPath returns the more-restrictive of a and b if one is equal to or
-// an ancestor of the other, and false otherwise. Inputs are assumed to be
-// [filepath.Clean]ed already.
-func narrowerPath(a, b string) (string, bool) {
-	if a == b {
-		return a, true
-	}
-	if isUnderOrEqual(b, a) {
-		// b is under a — b is narrower.
-		return b, true
-	}
-	if isUnderOrEqual(a, b) {
-		// a is under b — a is narrower.
-		return a, true
-	}
-	return "", false
-}
-
-// isUnderOrEqual reports whether child is equal to, or a descendant of,
-// parent. The trailing-separator check avoids prefix-sibling false positives
-// (e.g. "/var/logger" must not be considered under "/var/log").
-func isUnderOrEqual(child, parent string) bool {
-	if child == parent {
-		return true
-	}
-	sep := string(filepath.Separator)
-	p := parent
-	if !strings.HasSuffix(p, sep) {
-		p += sep
-	}
-	return strings.HasPrefix(child, p)
+	return filtered
 }
 
 // RunCommandInputs defines the inputs for the runCommand action.
@@ -211,8 +169,8 @@ func (h *RunCommandHandler) Run(
 
 	effectiveAllowedCommands := h.filterAllowedCommands(inputs.AllowedCommands)
 	effectiveAllowedPaths := h.filterAllowedPaths(inputs.AllowedPaths)
-	log.Debugf("rshell runCommand: command=%q backendAllowedCommands=%v effectiveAllowedCommands=%v backendAllowedPaths=%v effectiveAllowedPaths=%v operatorAllowedPaths=%v",
-		inputs.Command, inputs.AllowedCommands, effectiveAllowedCommands, inputs.AllowedPaths, effectiveAllowedPaths, h.operatorAllowedPaths)
+	log.Debugf("rshell runCommand: command=%q backendAllowedCommands=%v effectiveAllowedCommands=%v backendAllowedPaths=%v effectiveAllowedPaths=%v",
+		inputs.Command, inputs.AllowedCommands, effectiveAllowedCommands, inputs.AllowedPaths, effectiveAllowedPaths)
 
 	prog, err := syntax.NewParser().Parse(strings.NewReader(inputs.Command), "")
 	if err != nil {

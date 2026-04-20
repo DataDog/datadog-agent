@@ -189,20 +189,12 @@ func TestFilterAllowedPathsExplicitEmptyBackendBlocksAll(t *testing.T) {
 	assert.Empty(t, got)
 }
 
-func TestFilterAllowedPathsBackendNarrowerWins(t *testing.T) {
-	handler := NewRunCommandHandler([]string{"/var/log"}, nil)
+func TestFilterAllowedPathsIntersection(t *testing.T) {
+	handler := NewRunCommandHandler([]string{"/var/log", "/tmp"}, nil)
 
-	got := handler.filterAllowedPaths([]string{"/var/log/nginx"})
+	got := handler.filterAllowedPaths([]string{"/var/log", "/etc", "/tmp"})
 
-	assert.Equal(t, []string{"/var/log/nginx"}, got)
-}
-
-func TestFilterAllowedPathsOperatorNarrowerWins(t *testing.T) {
-	handler := NewRunCommandHandler([]string{"/var/log/nginx"}, nil)
-
-	got := handler.filterAllowedPaths([]string{"/var/log"})
-
-	assert.Equal(t, []string{"/var/log/nginx"}, got)
+	assert.Equal(t, []string{"/var/log", "/tmp"}, got)
 }
 
 func TestFilterAllowedPathsDisjointDropped(t *testing.T) {
@@ -213,57 +205,20 @@ func TestFilterAllowedPathsDisjointDropped(t *testing.T) {
 	assert.Empty(t, got)
 }
 
-func TestFilterAllowedPathsPrefixSiblingNotOverlap(t *testing.T) {
-	// "/var/logger" must not be considered under "/var/log".
-	handler := NewRunCommandHandler([]string{"/var/log"}, nil)
-
-	got := handler.filterAllowedPaths([]string{"/var/logger"})
-
-	assert.Empty(t, got)
-}
-
-func TestFilterAllowedPathsMultiPath(t *testing.T) {
-	handler := NewRunCommandHandler([]string{"/var/log"}, nil)
-
-	got := handler.filterAllowedPaths([]string{"/var/log/nginx", "/var/log/postgres", "/etc/passwd"})
-
-	assert.Equal(t, []string{"/var/log/nginx", "/var/log/postgres"}, got)
-}
-
-func TestFilterAllowedPathsNormalizesSlashes(t *testing.T) {
-	// Trailing slashes and duplicated separators on either side should not
-	// affect the ancestor check.
-	handler := NewRunCommandHandler([]string{"/var/log/"}, nil)
-
-	got := handler.filterAllowedPaths([]string{"/var//log/nginx"})
-
-	assert.Equal(t, []string{"/var/log/nginx"}, got)
-}
-
-func TestFilterAllowedPathsDedupes(t *testing.T) {
-	// When both operator and backend list the same path, and the backend
-	// also lists a subpath of it, we should not emit the shared ancestor
-	// twice.
-	handler := NewRunCommandHandler([]string{"/var/log", "/var/log"}, nil)
-
-	got := handler.filterAllowedPaths([]string{"/var/log/nginx"})
-
-	assert.Equal(t, []string{"/var/log/nginx"}, got)
-}
-
 func TestRunCommandBackendAllowedPathsRestrictsAccess(t *testing.T) {
-	// End-to-end: operator allows /var/log, backend restricts to
-	// /var/log/nginx; reading /var/log/postgres must fail.
+	// End-to-end: operator allows /var/log, backend lists only /tmp so
+	// reading /var/log/syslog must fail because /var/log is absent from
+	// the backend side of the intersection.
 	handler := NewRunCommandHandler([]string{"/var/log"}, []string{"cat"})
 
-	task := makeTaskWithPaths("cat /var/log/postgres/query.log",
-		[]string{"rshell:cat"}, []string{"/var/log/nginx"})
+	task := makeTaskWithPaths("cat /var/log/syslog",
+		[]string{"rshell:cat"}, []string{"/tmp"})
 
 	out, err := handler.Run(context.Background(), task, nil)
 
 	require.NoError(t, err)
 	result := out.(*RunCommandOutputs)
-	assert.NotEqual(t, 0, result.ExitCode, "expected cat to fail because /var/log/postgres is outside the intersection")
+	assert.NotEqual(t, 0, result.ExitCode, "expected cat to fail because /var/log is not in the backend list")
 }
 
 // TestFilterAllowedCommandsMatrix pins every cell of the 3x3 grid
@@ -324,10 +279,8 @@ func TestFilterAllowedCommandsMatrix(t *testing.T) {
 }
 
 // TestFilterAllowedPathsMatrix is the paths analogue of
-// TestFilterAllowedCommandsMatrix. Twelve scenarios: the 3x3 grid with four
-// sub-cases for the non-empty x non-empty cell. Since path intersection is
-// sub-path-aware, "superset" / "subset" here mean one side's path is an
-// ancestor of the other.
+// TestFilterAllowedCommandsMatrix. Twelve scenarios with the same shape:
+// path intersection is plain string equality, identical to commands.
 func TestFilterAllowedPathsMatrix(t *testing.T) {
 	cases := []struct {
 		name     string
@@ -351,12 +304,12 @@ func TestFilterAllowedPathsMatrix(t *testing.T) {
 			[]string{"/var/log", "/etc"}},
 		{"backend set, operator empty list (operator blocks all)",
 			[]string{"/var/log"}, []string{}, nil},
-		{"backend set, operator is ancestor of backend (backend narrower)",
-			[]string{"/var/log/nginx"}, []string{"/var/log"},
-			[]string{"/var/log/nginx"}},
-		{"backend set, backend is ancestor of operator (operator narrower)",
-			[]string{"/var/log"}, []string{"/var/log/nginx"},
-			[]string{"/var/log/nginx"}},
+		{"backend set, operator is superset of backend",
+			[]string{"/var/log", "/tmp"}, []string{"/var/log", "/tmp", "/etc"},
+			[]string{"/var/log", "/tmp"}},
+		{"backend set, backend is superset of operator",
+			[]string{"/var/log", "/tmp", "/etc"}, []string{"/var/log"},
+			[]string{"/var/log"}},
 		{"backend set, operator partial overlap",
 			[]string{"/var/log", "/opt"}, []string{"/var/log", "/etc"},
 			[]string{"/var/log"}},
@@ -383,7 +336,8 @@ func TestNewRunCommandHandlerStoresAllowedPaths(t *testing.T) {
 
 	handler := NewRunCommandHandler(paths, nil)
 
-	assert.Equal(t, paths, handler.operatorAllowedPaths)
+	assert.Equal(t, map[string]struct{}{"/var/log": {}, "/tmp": {}}, handler.operatorAllowedPaths)
+	assert.True(t, handler.operatorPathsFilterEnabled)
 }
 
 func TestNewRshellBundleUsesConfiguredAllowedPaths(t *testing.T) {
@@ -394,7 +348,7 @@ func TestNewRshellBundleUsesConfiguredAllowedPaths(t *testing.T) {
 
 	handler, ok := action.(*RunCommandHandler)
 	require.True(t, ok)
-	assert.Equal(t, paths, handler.operatorAllowedPaths)
+	assert.Equal(t, map[string]struct{}{"/var/log": {}, "/tmp": {}}, handler.operatorAllowedPaths)
 }
 
 func mockStatFn(existing map[string]bool) func(string) (os.FileInfo, error) {
