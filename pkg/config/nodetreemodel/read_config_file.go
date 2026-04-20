@@ -190,7 +190,7 @@ func loadYamlInto(dest *nodeImpl, source model.Source, inData map[string]interfa
 				//    setting_name_1:      # no value -> nil in Go
 				//    setting name_2: 1234
 				if value != nil {
-					if converted, err := convertToDefaultType(value, schemaChild.Get()); err == nil {
+					if converted, err := model.ConvertToDefaultType(value, schemaChild.Get()); err == nil {
 						value = converted
 					}
 					// normalize YAML v2 map[interface{}]interface{} to map[string]interface{}

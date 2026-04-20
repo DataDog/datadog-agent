@@ -13,12 +13,12 @@ func SetTree(cfg model.ReaderWriter, key string, value interface{}, source model
 	valueMap, ok := value.(map[string]interface{})
 	if !ok {
 		// not a map, assign to the leaf setting
-		cfg.Set(key, value, source)
+		cfg.Set(key, coerceToDefaultType(cfg, key, value), source)
 		return
 	}
 	if cfg.IsSetting(key) {
 		// the value is a map, but the config says this key is a setting
-		cfg.Set(key, value, source)
+		cfg.Set(key, coerceToDefaultType(cfg, key, value), source)
 		return
 	}
 	// otherwise recursively assign subfield settings
@@ -26,4 +26,17 @@ func SetTree(cfg model.ReaderWriter, key string, value interface{}, source model
 		subkey := key + "." + k
 		SetTree(cfg, subkey, v, source)
 	}
+}
+
+// coerceToDefaultType casts value to the type already stored at key so Set doesn't have to coerce and warn
+func coerceToDefaultType(cfg model.Reader, key string, value interface{}) interface{} {
+	existing := cfg.Get(key)
+	if existing == nil {
+		return value
+	}
+	converted, err := model.ConvertToDefaultType(value, existing)
+	if err != nil {
+		return value
+	}
+	return converted
 }

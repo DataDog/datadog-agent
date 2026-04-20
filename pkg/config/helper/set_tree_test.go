@@ -71,3 +71,52 @@ func TestSetTree(t *testing.T) {
 	assert.Equal(t, 65432, ntmCfg.GetInt("network_path.collector.input_chan_size"))
 	assert.Equal(t, 16, ntmCfg.GetInt("network_path.collector.workers"))
 }
+
+// recordingReaderWriter records the value of the most recent Set call
+type recordingReaderWriter struct {
+	model.ReaderWriter
+	lastSetKey   string
+	lastSetValue interface{}
+}
+
+func (r *recordingReaderWriter) Set(key string, value interface{}, source model.Source) {
+	r.lastSetKey = key
+	r.lastSetValue = value
+	r.ReaderWriter.Set(key, value, source)
+}
+
+// TestSetTreeCoercesJSONFloatToDeclaredIntType verifies a JSON-decoded float64 is coerced to the declared int type before Set
+func TestSetTreeCoercesJSONFloatToDeclaredIntType(t *testing.T) {
+	_, ntmCfg := constructBothConfigs("", func(cfg model.Setup) {
+		cfg.BindEnvAndSetDefault("network_path.collector.workers", 0)
+	})
+
+	rec := &recordingReaderWriter{ReaderWriter: ntmCfg}
+
+	SetTree(rec, "network_path.collector.workers", float64(16), model.SourceLocalConfigProcess)
+
+	assert.IsType(t, int(0), rec.lastSetValue,
+		"SetTree should pre-coerce value to declared default type before Set(); got %T", rec.lastSetValue)
+	assert.Equal(t, 16, rec.lastSetValue)
+	assert.Equal(t, 16, ntmCfg.GetInt("network_path.collector.workers"))
+}
+
+// TestSetTreeCoercesJSONFloatInNestedMap verifies pre-coercion through the nested-map recursion path
+func TestSetTreeCoercesJSONFloatInNestedMap(t *testing.T) {
+	_, ntmCfg := constructBothConfigs("", func(cfg model.Setup) {
+		cfg.BindEnvAndSetDefault("network_path.collector.input_chan_size", 0)
+		cfg.BindEnvAndSetDefault("network_path.collector.workers", 0)
+	})
+
+	rec := &recordingReaderWriter{ReaderWriter: ntmCfg}
+
+	SetTree(rec, "network_path.collector", map[string]interface{}{
+		"input_chan_size": float64(65432),
+		"workers":         float64(16),
+	}, model.SourceLocalConfigProcess)
+
+	assert.IsType(t, int(0), rec.lastSetValue,
+		"SetTree should pre-coerce nested-map leaf values; got %T", rec.lastSetValue)
+	assert.Equal(t, 65432, ntmCfg.GetInt("network_path.collector.input_chan_size"))
+	assert.Equal(t, 16, ntmCfg.GetInt("network_path.collector.workers"))
+}

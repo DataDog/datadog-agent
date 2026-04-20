@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "config_overrides.go",
         "config_overrides_test_helpers.go",
+        "convert.go",
         "doc.go",
         "stringify.go",
         "types.go",
@@ -12,4 +13,5 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/config/model",
     visibility = ["//visibility:public"],
+    deps = ["@com_github_spf13_cast//:cast"],
 )

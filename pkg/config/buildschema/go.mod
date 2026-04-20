@@ -4,6 +4,8 @@ go 1.25.0
 
 require github.com/DataDog/datadog-agent/pkg/config/model v0.77.2
 
+require github.com/spf13/cast v1.10.0 // indirect
+
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
 replace (
