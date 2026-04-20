@@ -21,12 +21,13 @@ import (
 )
 
 // observerPipeline is a pipeline.Provider that forwards log messages to the
-// observer and discards them — no network sender.
+// observer — no network sender.
 type observerPipeline struct {
-	proc       *processor.Processor
-	inputChan  chan *message.Message
-	outputChan chan *message.Message
-	drainDone  chan struct{}
+	proc           *processor.Processor
+	inputChan      chan *message.Message
+	outputChan     chan *message.Message
+	drainDone      chan struct{}
+	observerHandle observer.Handle
 }
 
 func newObserverPipeline(
@@ -45,18 +46,18 @@ func newObserverPipeline(
 		inputChan,
 		outputChan,
 		processingRules,
-		processor.JSONEncoder,
+		processor.PassthroughEncoder,
 		diagnostic.NewBufferedMessageReceiver(nil, hostname),
 		hostname,
 		pipelineMonitor,
 		pipelineID,
-		observerHandle,
 	)
 	return &observerPipeline{
-		proc:       proc,
-		inputChan:  inputChan,
-		outputChan: outputChan,
-		drainDone:  make(chan struct{}),
+		proc:           proc,
+		inputChan:      inputChan,
+		outputChan:     outputChan,
+		drainDone:      make(chan struct{}),
+		observerHandle: observerHandle,
 	}
 }
 
@@ -67,7 +68,7 @@ func (p *observerPipeline) start() {
 	go func() {
 		defer close(p.drainDone)
 		for msg := range p.outputChan {
-			_ = msg
+			p.observerHandle.ObserveLog(msg)
 		}
 	}()
 	p.proc.Start()

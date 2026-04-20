@@ -59,7 +59,7 @@ type logssourceComponent struct{}
 // The component is a no-op when any of these are true:
 //   - the observer is unavailable
 //   - workloadmeta is unavailable
-//   - logs_enabled is true (the real logs agent feeds the observer instead)
+//   - logs_enabled is true (anomaly detection is only for non-log-management customers)
 func NewComponent(deps Requires) (Provides, error) {
 	obs, obsOk := deps.Observer.Get()
 	wmeta, wmetaOk := deps.WMeta.Get()

@@ -33,7 +33,6 @@ import (
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	integrationsimpl "github.com/DataDog/datadog-agent/comp/logs/integrations/impl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
-	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -84,9 +83,8 @@ type dependencies struct {
 	Auditor            auditor.Component
 	WMeta              option.Option[workloadmeta.Component]
 	SchedulerProviders []schedulers.Scheduler `group:"log-agent-scheduler"`
-	Tagger             tagger.Component
-	Compression        logscompression.Component
-	Observer           option.Option[observer.Component]
+	Tagger      tagger.Component
+	Compression logscompression.Component
 }
 
 type provides struct {
@@ -123,8 +121,7 @@ type logAgent struct {
 	wmeta                     option.Option[workloadmeta.Component]
 	schedulerProviders        []schedulers.Scheduler
 	integrationsLogs          integrations.Component
-	compression               logscompression.Component
-	observerHandle            observer.Handle
+	compression logscompression.Component
 
 	// make sure this is done only once, when we're ready
 	prepareSchedulers sync.Once
@@ -149,12 +146,6 @@ func newLogsAgent(deps dependencies) provides {
 
 		integrationsLogs := integrationsimpl.NewLogsIntegration()
 
-		// Initialize observer handle if observer component is available
-		var observerHandle observer.Handle
-		if obs, ok := deps.Observer.Get(); ok {
-			observerHandle = obs.GetHandle("logs")
-		}
-
 		logsAgent := &logAgent{
 			log:                deps.Log,
 			config:             deps.Config,
@@ -169,9 +160,8 @@ func newLogsAgent(deps dependencies) provides {
 			wmeta:              deps.WMeta,
 			schedulerProviders: deps.SchedulerProviders,
 			integrationsLogs:   integrationsLogs,
-			tagger:             deps.Tagger,
-			compression:        deps.Compression,
-			observerHandle:     observerHandle,
+			tagger:      deps.Tagger,
+			compression: deps.Compression,
 		}
 		deps.Lc.Append(fx.Hook{
 			OnStart: logsAgent.start,
