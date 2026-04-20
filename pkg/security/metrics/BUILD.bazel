@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "metrics",
+    srcs = [
+        "compat_telemetry.go",
+        "metrics.go",
+        "metrics_windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/metrics",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/telemetry"],
+)

@@ -12,9 +12,9 @@ import (
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/legacy"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/program"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 // ProgramBuilder provides methods for creating filter programs with shared dependencies
@@ -46,7 +46,7 @@ func (b *ProgramBuilder) CreateLegacyProgram(id workloadfilter.FilterIdentifier,
 	name := id.GetFilterName()
 
 	var initErrors []error
-	filter, err := containers.NewFilter(containers.GlobalFilter, include, exclude)
+	filter, err := legacy.NewFilter(legacy.GlobalFilter, include, exclude)
 	if err != nil {
 		initErrors = append(initErrors, err)
 		b.logger.Warnf("Failed to create filter '%s': %v", name, err)

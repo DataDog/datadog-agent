@@ -1019,7 +1019,8 @@ func TestGenerateTemplatesV1(t *testing.T) {
 
 			c := &ControllerV1{}
 			c.config = tt.configFunc(mockConfig)
-			c.webhooks = c.generateWebhooks(mockConfig, wmeta, nil, nil, nil)
+			filterStore := newFilterStoreFromConfig(t, mockConfig)
+			c.webhooks = c.generateWebhooks(mockConfig, wmeta, nil, nil, nil, filterStore)
 			c.generateTemplates()
 
 			assert.EqualValues(t, tt.want(), c.mutatingWebhookTemplates)
@@ -1265,6 +1266,7 @@ func (f *fixtureV1) createController() (*ControllerV1, informers.SharedInformerF
 		nil,
 		datadogConfig,
 		nil,
+		newFilterStoreFromConfig(f.t, datadogConfig),
 	), factory
 }
 

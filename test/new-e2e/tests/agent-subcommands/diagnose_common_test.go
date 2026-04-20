@@ -184,15 +184,20 @@ func (v *baseDiagnoseSuite) TestDiagnoseVerbose() {
 }
 
 func (v *baseDiagnoseSuite) TestDiagnoseJSON() {
-	diagnose := getDiagnoseOutput(v, agentclient.WithArgs([]string{"-v", "--json"}))
-	diagnoseResult := unmarshalDiagnose(diagnose)
-	assert.NotNil(v.T(), diagnoseResult)
+	// Retry to tolerate transient timeouts
+	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
+		diagnose := getDiagnoseOutput(v, agentclient.WithArgs([]string{"-v", "--json"}))
+		diagnoseResult := unmarshalDiagnose(diagnose)
+		if !assert.NotNil(c, diagnoseResult) {
+			return
+		}
 
-	summary := diagnoseResult.Summary
+		summary := diagnoseResult.Summary
 
-	// Verify that verbose mode displays extra information such as 'PASS' for successful checks
-	assert.Equal(v.T(), summary.Success, summary.Total, "Expected to have the same number of 'PASS' as the number of checks (%v), but was %v", summary.Total, summary.Success)
-	assert.Contains(v.T(), diagnose, "connectivity-datadog-core-endpoints")
+		// Verify that verbose mode displays extra information such as 'PASS' for successful checks
+		assert.Equal(c, summary.Success, summary.Total, "Expected to have the same number of 'PASS' as the number of checks (%v), but was %v", summary.Total, summary.Success)
+		assert.Contains(c, diagnose, "connectivity-datadog-core-endpoints")
+	}, 2*time.Minute, 15*time.Second, "diagnose reported a transient endpoint failure that did not clear on retry")
 }
 
 func (v *baseDiagnoseSuite) AssertOutputNotError(diagnose string) {

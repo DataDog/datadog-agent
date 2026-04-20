@@ -27,7 +27,6 @@ go_library(
         "//comp/forwarder/defaultforwarder/transaction",
         "//pkg/config/utils",
         "//pkg/telemetry",
-        "//pkg/util/common",
         "//pkg/util/filesystem",
         "@com_github_hashicorp_go_multierror//:go-multierror",
         "@org_golang_google_protobuf//proto",
@@ -50,6 +49,7 @@ go_test(
     embed = [":retry"],
     gotags = ["test"],  # keep
     deps = [
+        "//comp/core/log/def",
         "//comp/core/log/mock",
         "//comp/forwarder/defaultforwarder/resolver",
         "//comp/forwarder/defaultforwarder/transaction",
@@ -57,5 +57,6 @@ go_test(
         "//pkg/util/filesystem",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@org_golang_google_protobuf//proto",
     ],
 )
