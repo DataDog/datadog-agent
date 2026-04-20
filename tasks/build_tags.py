@@ -77,7 +77,7 @@ ALL_TAGS = {
     "zstd",
     "cel",
     "cws_instrumentation_injector_only",  # used for building cws-instrumentation with only the injector code
-    "remove_all_sd",  # remove all discovery provider from prometheusreceiver components 
+    "remove_all_sd",  # remove all discovery provider from prometheusreceiver components
 }.union(COMMON_TAGS)
 
 ### Tag inclusion lists
