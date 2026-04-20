@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func registerUSMCommonEndpoints(nt *networkTracer, httpMux *module.Router) {
+func registerUSMCommonEndpoints(nt *networkTracerModule, httpMux *module.Router) {
 	httpMux.HandleFunc("/debug/http_monitoring", func(w http.ResponseWriter, req *http.Request) {
 		if !coreconfig.SystemProbe().GetBool("service_monitoring_config.http.enabled") {
 			writeDisabledProtocolMessage("http", w)
