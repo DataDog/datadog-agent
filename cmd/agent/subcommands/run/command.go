@@ -149,7 +149,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/networkpath"
 	"github.com/DataDog/datadog-agent/comp/otelcol"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
-	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
+	logsagentpipeline "github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/def"
 	otelagentStatusfx "github.com/DataDog/datadog-agent/comp/otelcol/status/fx"
 	parStatusImpl "github.com/DataDog/datadog-agent/comp/privateactionrunner/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/process"

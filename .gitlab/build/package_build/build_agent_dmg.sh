@@ -2,10 +2,6 @@
 
 set -eo pipefail
 
-# Ensure the build keychain is destroyed on exit (normal, signal, or timeout).
-# This makes cleanup self-contained so it works from both CI and Bazel.
-trap 'security delete-keychain "$KEYCHAIN_NAME" 2>/dev/null || true' 0 1 2 3 15
-
 if [ "${SIGN:-false}" = true ]; then
     echo "Signing enabled"
 else
@@ -42,17 +38,12 @@ if [ "${SIGN:-false}" = true ]; then
     TEAM_ID=$("$CI_PROJECT_DIR/tools/ci/fetch_secret.sh" "$MACOS_APPLE_DEVELOPER_ACCOUNT" team-id) || exit $?; export TEAM_ID
     APPLE_ACCOUNT=$("$CI_PROJECT_DIR/tools/ci/fetch_secret.sh" "$MACOS_APPLE_DEVELOPER_ACCOUNT" user) || exit $?; export APPLE_ACCOUNT
 
-    # Remove any stale keychain left over from a previous failed/timed-out job.
-    security delete-keychain "$KEYCHAIN_NAME" 2>/dev/null || true
-
     # Create temporary build keychain
     security create-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN_NAME"
 
-    # Disable auto-lock entirely: the keychain is ephemeral and destroyed in
-    # after_script, so there is no security benefit to auto-locking.  The
-    # previous 1-hour timeout could cause errSecInternalComponent if the
-    # omnibus build took longer than expected before reaching the signing step.
-    security set-keychain-settings "$KEYCHAIN_NAME"
+    # Let the keychain stay unlocked for 1 hour, otherwise the OS might lock
+    # it again after a period of inactivity.
+    security set-keychain-settings -lut 3600 "$KEYCHAIN_NAME"
 
     # Add the build keychain to the list of active keychains
     security list-keychains -d user -s "$KEYCHAIN_NAME" "login.keychain"

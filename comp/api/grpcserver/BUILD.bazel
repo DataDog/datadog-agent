@@ -1,0 +1,2 @@
+# gazelle:exclude fx-agent
+# gazelle:exclude impl-agent
