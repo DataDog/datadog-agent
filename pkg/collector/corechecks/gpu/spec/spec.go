@@ -12,15 +12,18 @@ import (
 	"fmt"
 	"math"
 
+	"regexp"
+
 	"go.yaml.in/yaml/v2"
 )
 
 const (
 	metricsSpecFile       = "gpu_metrics.yaml"
 	architecturesSpecFile = "architectures.yaml"
+	tagsSpecFile          = "tags.yaml"
 )
 
-//go:embed gpu_metrics.yaml architectures.yaml
+//go:embed gpu_metrics.yaml architectures.yaml tags.yaml
 var embeddedSpecs embed.FS
 
 // DeviceMode identifies the GPU device operating mode in the spec.
@@ -42,21 +45,57 @@ var AllDeviceModes = []DeviceMode{
 // MetricsSpec is the YAML metric specification.
 type MetricsSpec struct {
 	MetricPrefix string                `yaml:"metric_prefix"`
-	Tagsets      map[string]TagsetSpec `yaml:"tagsets"`
 	Metrics      map[string]MetricSpec `yaml:"metrics"`
+}
+
+// TagsSpec is the YAML tags specification.
+type TagsSpec struct {
+	Tags    map[string]TagSpec    `yaml:"tags"`
+	Tagsets map[string]TagsetSpec `yaml:"tagsets"`
+}
+
+// TagSpec defines validation metadata for a reusable tag.
+type TagSpec struct {
+	Regex *regexp.Regexp `yaml:"-"`
+}
+
+// UnmarshalYAML compiles the optional regex when the tag spec is decoded.
+func (s *TagSpec) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var raw struct {
+		Regex string `yaml:"regex,omitempty"`
+	}
+
+	if err := unmarshal(&raw); err != nil {
+		return fmt.Errorf("unmarshal tag spec: %w", err)
+	}
+
+	if raw.Regex == "" {
+		s.Regex = nil
+		return nil
+	}
+
+	compiled, err := regexp.Compile(raw.Regex)
+	if err != nil {
+		return fmt.Errorf("compile tag regex %q: %w", raw.Regex, err)
+	}
+
+	s.Regex = compiled
+	return nil
 }
 
 // TagsetSpec defines a reusable tagset.
 type TagsetSpec struct {
-	Tags []string `yaml:"tags"`
+	Tags         []string `yaml:"tags"`
+	WorkloadOnly bool     `yaml:"workload_only,omitempty"`
 }
 
 // MetricSpec is a metric definition without the name (name is the map key).
 type MetricSpec struct {
-	Tagsets    []string          `yaml:"tagsets"`
-	CustomTags []string          `yaml:"custom_tags,omitempty"`
-	Support    MetricSupportSpec `yaml:"support"`
-	Validator  *MetricValidator  `yaml:"validator,omitempty"`
+	Tagsets      []string          `yaml:"tagsets"`
+	CustomTags   []string          `yaml:"custom_tags,omitempty"`
+	WorkloadOnly bool              `yaml:"workload_only,omitempty"`
+	Support      MetricSupportSpec `yaml:"support"`
+	Validator    *MetricValidator  `yaml:"validator,omitempty"`
 }
 
 // MetricValidatorRange defines an inclusive numeric range validator.
@@ -158,6 +197,13 @@ type ArchitecturesSpec struct {
 	Architectures map[string]ArchitectureSpec `yaml:"architectures"`
 }
 
+// Specs bundles all GPU spec files used by validation and tests.
+type Specs struct {
+	Metrics       *MetricsSpec
+	Tags          *TagsSpec
+	Architectures *ArchitecturesSpec
+}
+
 // ArchitectureCapabilities defines capabilities and unsupported fields.
 type ArchitectureCapabilities struct {
 	GPM                           bool                                `yaml:"gpm"`
@@ -226,6 +272,21 @@ func LoadMetricsSpec() (*MetricsSpec, error) {
 	return &parsed, nil
 }
 
+// LoadTagsSpec loads the canonical GPU tags specification file.
+func LoadTagsSpec() (*TagsSpec, error) {
+	data, err := embeddedSpecs.ReadFile(tagsSpecFile)
+	if err != nil {
+		return nil, fmt.Errorf("read tags spec %q: %w", tagsSpecFile, err)
+	}
+
+	var parsed TagsSpec
+	if err := yaml.Unmarshal(data, &parsed); err != nil {
+		return nil, fmt.Errorf("unmarshal tags spec %q: %w", tagsSpecFile, err)
+	}
+
+	return &parsed, nil
+}
+
 // LoadArchitecturesSpec loads the canonical GPU architectures specification file.
 func LoadArchitecturesSpec() (*ArchitecturesSpec, error) {
 	data, err := embeddedSpecs.ReadFile(architecturesSpecFile)
@@ -239,4 +300,28 @@ func LoadArchitecturesSpec() (*ArchitecturesSpec, error) {
 	}
 
 	return &parsed, nil
+}
+
+// LoadSpecs loads all canonical GPU specification files.
+func LoadSpecs() (*Specs, error) {
+	metrics, err := LoadMetricsSpec()
+	if err != nil {
+		return nil, fmt.Errorf("load metrics spec: %w", err)
+	}
+
+	tags, err := LoadTagsSpec()
+	if err != nil {
+		return nil, fmt.Errorf("load tags spec: %w", err)
+	}
+
+	architectures, err := LoadArchitecturesSpec()
+	if err != nil {
+		return nil, fmt.Errorf("load architectures spec: %w", err)
+	}
+
+	return &Specs{
+		Metrics:       metrics,
+		Tags:          tags,
+		Architectures: architectures,
+	}, nil
 }
