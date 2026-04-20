@@ -66,8 +66,8 @@ type Tracer struct {
 	// windows event handle for stopping the closed connection event loop
 	hStopClosedLoopEvent windows.Handle
 
-	processCache  *processCache
-	vpnClassifier *VPNClassifier
+	processCache        *processCache
+	interfaceClassifier *InterfaceClassifier
 }
 
 // NewTracer returns an initialized tracer struct
@@ -124,7 +124,7 @@ func NewTracer(config *config.Config, telemetry telemetry.Component, _ statsd.Cl
 		destExcludes:         filter.ParseConnectionFilters(config.ExcludedDestinationConnections),
 		hStopClosedLoopEvent: stopEvent,
 	}
-	tr.vpnClassifier = NewVPNClassifier()
+	tr.interfaceClassifier = NewInterfaceClassifier()
 
 	if config.EnableProcessEventMonitoring {
 		if tr.processCache, err = newProcessCache(config.MaxProcessesTracked); err != nil {
@@ -189,8 +189,8 @@ func (t *Tracer) Stop() {
 		_ = t.usmMonitor.Stop()
 	}
 	t.reverseDNS.Close()
-	if t.vpnClassifier != nil {
-		t.vpnClassifier.Close()
+	if t.interfaceClassifier != nil {
+		t.interfaceClassifier.Close()
 	}
 
 	windows.SetEvent(t.hStopClosedLoopEvent)
@@ -380,34 +380,17 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 }
 
 func (t *Tracer) addInterfaceInfo(c *network.ConnectionStats) {
-	if t.vpnClassifier == nil || c.InterfaceIndex == 0 {
+	if t.interfaceClassifier == nil || c.InterfaceIndex == 0 {
 		return
 	}
-	result := t.vpnClassifier.Classify(c.InterfaceIndex)
+	result := t.interfaceClassifier.Classify(c.InterfaceIndex)
 	if result.InterfaceName == "" {
-		log.Debugf("interface_classifier: ifIndex=%d not found in cache", c.InterfaceIndex)
 		return
 	}
-
-	// Always add interface tags
 	c.Tags = append(c.Tags,
 		intern.GetByString("interface_name:"+result.InterfaceName),
 		intern.GetByString("interface_type:"+result.InterfaceType),
-		intern.GetByString(fmt.Sprintf("interface_index:%d", c.InterfaceIndex)),
 	)
-	if result.IsPhysical {
-		c.Tags = append(c.Tags, intern.GetByString("interface_physical:true"))
-	} else {
-		c.Tags = append(c.Tags, intern.GetByString("interface_physical:false"))
-	}
-
-	// Add VPN tags when interface is classified as VPN
-	if result.IsVPN {
-		log.Debugf("interface_classifier: ifIndex=%d tagged as vpn_name:%s vpn_type:%s", c.InterfaceIndex, result.VPNName, result.VPNType)
-		c.Tags = append(c.Tags,
-			intern.GetByString("is_vpn:true"),
-			intern.GetByString("vpn_name:"+result.VPNName),
-			intern.GetByString("vpn_type:"+result.VPNType),
-		)
-	}
+	log.Debugf("interface_classifier: pid=%d ifIndex=%d tagged interface_name=%q interface_type=%q",
+		c.Pid, c.InterfaceIndex, result.InterfaceName, result.InterfaceType)
 }
