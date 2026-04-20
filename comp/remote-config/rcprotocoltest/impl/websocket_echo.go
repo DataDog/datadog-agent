@@ -25,8 +25,18 @@ import (
 // messageTimeout interval or the test times out.
 const messageTimeout = 5 * time.Minute
 
+// ALPNMode specifies the ALPN protocol mode for WebSocket connections.
+type ALPNMode int
+
+const (
+	// ALPN_Default uses no ALPN protocol negotiation.
+	ALPN_Default ALPNMode = 0
+	// ALPN_DD_RC uses the dd-rc-v1 ALPN protocol.
+	ALPN_DD_RC ALPNMode = 1
+)
+
 func runEchoLoopWithALPN(ctx context.Context, client *api.HTTPClient, runCount uint64) (uint, error) {
-	conn, err := newWebSocketClientWithALPN(ctx, "/api/v0.2/echo-test", client, runCount)
+	conn, err := newWebSocketClient(ctx, "/api/v0.2/echo-test", client, runCount, ALPN_DD_RC)
 	if err != nil {
 		return 0, err
 	}
@@ -81,7 +91,7 @@ func runEchoLoopWithALPN(ctx context.Context, client *api.HTTPClient, runCount u
 }
 
 func runEchoLoop(ctx context.Context, client *api.HTTPClient, runCount uint64) (uint, error) {
-	conn, err := newWebSocketClient(ctx, "/api/v0.2/echo-test", client, runCount)
+	conn, err := newWebSocketClient(ctx, "/api/v0.2/echo-test", client, runCount, ALPN_Default)
 	if err != nil {
 		return 0, err
 	}
@@ -170,16 +180,39 @@ func gracefulAbort(conn *websocket.Conn) {
 //
 // The "endpointPath" specifies the resource path to connect to, which is
 // appended to the client baseURL.
-func newWebSocketClient(ctx context.Context, endpointPath string, httpClient *api.HTTPClient, runCount uint64) (*websocket.Conn, error) {
+//
+// The "alpnMode" specifies the ALPN protocol mode. Use ALPN_Default for no ALPN
+// or ALPN_DD_RC for dd-rc-v1 ALPN protocol.
+func newWebSocketClient(ctx context.Context, endpointPath string, httpClient *api.HTTPClient, runCount uint64, alpnMode ALPNMode) (*websocket.Conn, error) {
 	// Extract the TLS & Proxy configuration from the HTTP client.
 	transport, err := httpClient.Transport()
 	if err != nil {
 		return nil, err
 	}
 
+	tlsConfig := transport.TLSClientConfig
+
+	// Parse the "base URL" the client uses to connect to RC.
+	url, err := httpClient.BaseURL()
+	if err != nil {
+		return nil, err
+	}
+
+	// Handle ALPN if requested.
+	if alpnMode == ALPN_DD_RC {
+		// ALPN requires TLS, so this test cannot run with plain HTTP.
+		if strings.ToLower(url.Scheme) == "http" {
+			return nil, fmt.Errorf("ALPN websocket test requires TLS (remote_configuration.no_tls must be false)")
+		}
+
+		// Clone and configure TLS for ALPN.
+		tlsConfig = tlsConfig.Clone()
+		tlsConfig.NextProtos = []string{"dd-rc-v1"}
+	}
+
 	dialer := &websocket.Dialer{
 		HandshakeTimeout: 30 * time.Second,
-		TLSClientConfig:  transport.TLSClientConfig,
+		TLSClientConfig:  tlsConfig,
 		Proxy:            transport.Proxy,
 	}
 
@@ -190,11 +223,6 @@ func newWebSocketClient(ctx context.Context, endpointPath string, httpClient *ap
 	headers.Set("X-Echo-Run-Count", strconv.FormatUint(runCount, 10))
 	headers.Set("X-Agent-UUID", uuid.GetUUID())
 
-	// Parse the "base URL" the client uses to connect to RC.
-	url, err := httpClient.BaseURL()
-	if err != nil {
-		return nil, err
-	}
 	// Append the specific path to the WebSocket resource.
 	url.Path = path.Join(url.Path, endpointPath)
 	// Change the protocol to use websockets.
@@ -205,7 +233,11 @@ func newWebSocketClient(ctx context.Context, endpointPath string, httpClient *ap
 		url.Scheme = "wss"
 	}
 
-	log.Debugf("connecting to websocket endpoint %s", url.String())
+	logMsg := fmt.Sprintf("connecting to websocket endpoint %s", url.String())
+	if alpnMode == ALPN_DD_RC {
+		logMsg += " with ALPN dd-rc-v1"
+	}
+	log.Debug(logMsg)
 
 	// Send the HTTP request, wait for the upgrade response and then perform the
 	// WebSocket handshake.
@@ -215,52 +247,11 @@ func newWebSocketClient(ctx context.Context, endpointPath string, httpClient *ap
 	}
 	_ = resp.Body.Close()
 
-	log.Debug("websocket connected")
-
-	return conn, nil
-}
-
-func newWebSocketClientWithALPN(ctx context.Context, endpointPath string, httpClient *api.HTTPClient, runCount uint64) (*websocket.Conn, error) {
-	transport, err := httpClient.Transport()
-	if err != nil {
-		return nil, err
+	logMsg = "websocket connected"
+	if alpnMode == ALPN_DD_RC {
+		logMsg += " with ALPN dd-rc-v1"
 	}
-
-	tlsConfig := transport.TLSClientConfig.Clone()
-	tlsConfig.NextProtos = []string{"dd-rc-v1"}
-
-	dialer := &websocket.Dialer{
-		HandshakeTimeout: 30 * time.Second,
-		TLSClientConfig:  tlsConfig,
-		Proxy:            transport.Proxy,
-	}
-
-	headers := httpClient.Headers()
-	headers.Set("X-Echo-Run-Count", strconv.FormatUint(runCount, 10))
-	headers.Set("X-Agent-UUID", uuid.GetUUID())
-
-	url, err := httpClient.BaseURL()
-	if err != nil {
-		return nil, err
-	}
-
-	// ALPN requires TLS, so this test cannot run with plain HTTP.
-	if strings.ToLower(url.Scheme) == "http" {
-		return nil, fmt.Errorf("ALPN websocket test requires TLS (remote_configuration.no_tls must be false)")
-	}
-
-	url.Path = path.Join(url.Path, endpointPath)
-	url.Scheme = "wss"
-
-	log.Debugf("connecting to websocket endpoint %s with ALPN dd-rc-v1", url.String())
-
-	conn, resp, err := dialer.DialContext(ctx, url.String(), headers)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open websocket connection: %s", err)
-	}
-	_ = resp.Body.Close()
-
-	log.Debug("websocket connected with ALPN dd-rc-v1")
+	log.Debug(logMsg)
 
 	return conn, nil
 }
