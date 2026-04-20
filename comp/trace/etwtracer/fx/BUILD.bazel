@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fx",
+    srcs = [
+        "fx.go",
+        "fx_other.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/trace/etwtracer/fx",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/fxutil",
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "//comp/trace/etwtracer/impl",
+        ],
+        "//conditions:default": [],
+    }),
+)
