@@ -78,10 +78,9 @@ func persistIdentityToFile(cfg configModel.Reader, result *Result) error {
 	}
 
 	jsonData, err := json.Marshal(PersistedIdentity{
-		PrivateKey:    base64.RawURLEncoding.EncodeToString(marshalledPrivateKey),
-		URN:           result.URN,
-		Hostname:      result.Hostname,
-		OrchClusterID: result.OrchClusterID,
+		PrivateKey: base64.RawURLEncoding.EncodeToString(marshalledPrivateKey),
+		URN:        result.URN,
+		Hostname:   result.Hostname,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to marshal identity content to JSON: %w", err)
