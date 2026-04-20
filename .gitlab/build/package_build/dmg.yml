@@ -29,6 +29,9 @@
      - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/
        variables:
          SIGN: true  # for `main` and release branches
+     - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$/
+       variables:
+         SIGN: true  # for release and RC tags (CI_COMMIT_BRANCH is unset on tag pipelines)
      - if: $CI_COMMIT_BRANCH =~ /notarization/
        variables:
          SIGN: true  # for branches with "notarization" in their name - should we need to tune it
