@@ -19,16 +19,12 @@ exports_files(glob(
 
 # TODO(agent-build): remove below `gazelle:exclude` directives (automatically updates @bazelify_go_work//:go.work)
 # gazelle:exclude cmd
-# gazelle:exclude comp/agent
 # gazelle:exclude comp/aggregator
-# gazelle:exclude comp/api/api/apiimpl
 # gazelle:exclude comp/api/api/utils
 # gazelle:exclude comp/api/authtoken
 # gazelle:exclude comp/api/bundle.go
 # gazelle:exclude comp/api/bundle_test.go
 # gazelle:exclude comp/api/commonendpoints
-# gazelle:exclude comp/api/grpcserver
-# gazelle:exclude comp/autoscaling
 # gazelle:exclude comp/checks
 # gazelle:exclude comp/collector
 # gazelle:exclude comp/connectivitychecker/checker
@@ -38,7 +34,6 @@ exports_files(glob(
 # gazelle:exclude comp/core/agenttelemetry/impl
 # gazelle:exclude comp/core/autodiscovery
 # gazelle:exclude comp/core/configstream
-# gazelle:exclude comp/core/configsync
 # gazelle:exclude comp/core/diagnose
 # gazelle:exclude comp/core/flare/flareimpl
 # gazelle:exclude comp/core/flare/helpers
@@ -48,9 +43,6 @@ exports_files(glob(
 # gazelle:exclude comp/core/hostname/remotehostnameimpl
 # gazelle:exclude comp/core/ipc/fx
 # gazelle:exclude comp/core/ipc/fx-none
-# gazelle:exclude comp/core/ipc/impl
-# gazelle:exclude comp/core/ipc/impl-none
-# gazelle:exclude comp/core/ipc/mock
 # gazelle:exclude comp/core/log/fx
 # gazelle:exclude comp/core/log/fx-systemprobe
 # gazelle:exclude comp/core/log/fx-trace
@@ -75,7 +67,6 @@ exports_files(glob(
 # gazelle:exclude comp/core/tagger/impl-dual
 # gazelle:exclude comp/core/tagger/impl-noop
 # gazelle:exclude comp/core/tagger/impl-optional-remote
-# gazelle:exclude comp/core/tagger/impl-remote
 # gazelle:exclude comp/core/tagger/k8s_metadata
 # gazelle:exclude comp/core/tagger/kubetags
 # gazelle:exclude comp/core/tagger/mock
@@ -90,7 +81,10 @@ exports_files(glob(
 # gazelle:exclude comp/filterlist
 # gazelle:exclude comp/fleetstatus/fx
 # gazelle:exclude comp/fleetstatus/impl
-# gazelle:exclude comp/forwarder
+# gazelle:exclude comp/forwarder/connectionsforwarder
+# gazelle:exclude comp/forwarder/eventplatform
+# gazelle:exclude comp/forwarder/eventplatformreceiver
+# gazelle:exclude comp/forwarder/orchestrator/orchestratorimpl
 # gazelle:exclude comp/haagent/fx
 # gazelle:exclude comp/haagent/helpers
 # gazelle:exclude comp/haagent/impl
@@ -164,7 +158,13 @@ exports_files(glob(
 # gazelle:exclude comp/rdnsquerier/impl-none
 # gazelle:exclude comp/rdnsquerier/mock
 # gazelle:exclude comp/remote-config
-# gazelle:exclude comp/serializer
+# gazelle:exclude comp/serializer/logscompression/fx
+# gazelle:exclude comp/serializer/logscompression/fx-mock
+# gazelle:exclude comp/serializer/logscompression/impl
+# gazelle:exclude comp/serializer/metricscompression/fx
+# gazelle:exclude comp/serializer/metricscompression/fx-mock
+# gazelle:exclude comp/serializer/metricscompression/fx-otel
+# gazelle:exclude comp/serializer/metricscompression/impl
 # gazelle:exclude comp/snmpscan
 # gazelle:exclude comp/snmpscanmanager/fx
 # gazelle:exclude comp/snmpscanmanager/impl
@@ -283,16 +283,21 @@ exports_files(glob(
 # gazelle:exclude pkg/kubestatemetrics
 # gazelle:exclude pkg/languagedetection
 # gazelle:exclude pkg/logonduration
-# gazelle:exclude pkg/logs/client
+# gazelle:exclude pkg/logs/client/http
+# gazelle:exclude pkg/logs/client/tcp
 # gazelle:exclude pkg/logs/diagnostic
-# gazelle:exclude pkg/logs/internal
+# gazelle:exclude pkg/logs/internal/decoder
+# gazelle:exclude pkg/logs/internal/framer
+# gazelle:exclude pkg/logs/internal/parsers
+# gazelle:exclude pkg/logs/internal/tag
+# gazelle:exclude pkg/logs/internal/util/adlistener
+# gazelle:exclude pkg/logs/internal/util/containersorpods
 # gazelle:exclude pkg/logs/launchers
 # gazelle:exclude pkg/logs/message
 # gazelle:exclude pkg/logs/pipeline
 # gazelle:exclude pkg/logs/processor
 # gazelle:exclude pkg/logs/schedulers
 # gazelle:exclude pkg/logs/sender
-# gazelle:exclude pkg/logs/service
 # gazelle:exclude pkg/logs/sources
 # gazelle:exclude pkg/logs/status/builder.go
 # gazelle:exclude pkg/logs/status/status.go
@@ -445,7 +450,6 @@ exports_files(glob(
 # gazelle:exclude pkg/util/os
 # gazelle:exclude pkg/util/port
 # gazelle:exclude pkg/util/profiling
-# gazelle:exclude pkg/util/sync
 # gazelle:exclude pkg/util/tags
 # gazelle:exclude pkg/util/tmplvar
 # gazelle:exclude pkg/windowsdriver
