@@ -99,6 +99,7 @@ _VALID_MODES = ("record-parquet", "live-anomaly-detection", "live-and-record")
         "debug": "Enable Pulumi debug logging",
         "skip_build": "Skip episode image building (use cached ECR images from a previous run)",
         "send_dd_event": "Send a Datadog event when the run is submitted (default: true)",
+        "disable_logs_agent": "Disable log collection in the Helm values for the gensim Datadog Agent (default: false)",
     }
 )
 def submit_gensim_eks(
@@ -115,6 +116,7 @@ def submit_gensim_eks(
     config_path: str | None = None,
     skip_build: bool = False,
     send_dd_event: bool = True,
+    disable_logs_agent: bool = False,
 ) -> None:
     """
     Submit a gensim evaluation run to an EKS cluster.
@@ -131,6 +133,7 @@ def submit_gensim_eks(
         inv aws.eks.gensim.submit --image=docker.io/datadog/agent-dev:my-tag --episodes=authcore-pgbouncer:pool-saturation
         inv aws.eks.gensim.submit --image=... --episode-manifest=./gensim-eval-scenarios.json
         inv aws.eks.gensim.submit --image=... --episodes=... --mode=live-anomaly-detection
+        inv aws.eks.gensim.submit --image=... --episodes=... --disable-logs-agent
     """
     from pydantic_core._pydantic_core import ValidationError
 
@@ -332,6 +335,7 @@ def submit_gensim_eks(
         "gensim:imageRegistry": ecr_registry,
         "gensim:episodeDataDir": str(gensim_repo_path),
         "gensim:mode": mode,
+        "gensim:disableLogsAgent": disable_logs_agent,
         # Datadog keys -- must be explicit since install_agent=False
         "ddagent:apiKey": _get_api_key(local_config),
         "ddagent:appKey": _get_app_key(local_config),
