@@ -2619,13 +2619,14 @@ func TestProcessSID(t *testing.T) {
 	defer test.Close()
 
 	t.Run("sid-updated-after-setsid", func(t *testing.T) {
+		cmd := exec.Command(shPath, "-c", "true")
 		test.WaitSignalFromRule(t, func() error {
-			cmd := exec.Command(shPath, "-c", "true")
 			cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 			cmd.Env = []string{sidTestEnv + "=1"}
 			return cmd.Run()
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_sid_after_setsid")
+			fmt.Printf("ProcessContext is %+v\n", event.ProcessContext)
 			assert.Equal(t, event.ProcessContext.Pid, event.ProcessContext.SID, "after setsid, SID should equal PID (process is session leader)")
 			assert.NotZero(t, event.ProcessContext.SID, "SID should not be zero")
 		}, "test_sid_after_setsid")
