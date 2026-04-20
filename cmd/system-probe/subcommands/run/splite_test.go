@@ -107,6 +107,16 @@ func TestMaybeSPLite(t *testing.T) {
 			fakeBinary: false,
 			expectNil:  true,
 		},
+		{
+			name: "rust library overrides splite",
+			overrides: map[string]interface{}{
+				"discovery.use_system_probe_lite": true,
+				"discovery.use_rust_library":      true,
+				"discovery.enabled":               true,
+			},
+			fakeBinary: true,
+			expectNil:  true,
+		},
 	}
 
 	for _, tc := range tests {
