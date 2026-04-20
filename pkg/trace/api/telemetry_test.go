@@ -665,7 +665,10 @@ func TestBatchAgeTriggeredFlush(t *testing.T) {
 
 	// Use injectable clock to control time
 	fakeNow := time.Now()
+	recv.telemetryForwarder.batch.mu.Lock()
 	recv.telemetryForwarder.batch.nowFn = func() time.Time { return fakeNow }
+	recv.telemetryForwarder.batch.mu.Unlock()
+
 	recv.telemetryForwarder.start()
 
 	mux := recv.buildMux()
@@ -678,7 +681,9 @@ func TestBatchAgeTriggeredFlush(t *testing.T) {
 	assert.Equal(t, 200, recordedStatusCode(rec))
 
 	// Advance the clock past batchMaxAge
+	recv.telemetryForwarder.batch.mu.Lock()
 	fakeNow = fakeNow.Add(31 * time.Second)
+	recv.telemetryForwarder.batch.mu.Unlock()
 
 	// Wait for the ticker to fire and flush
 	require.Eventually(t, func() bool {
