@@ -138,6 +138,7 @@ func validateExpression(expr string) *CheckResult {
 
 	result.Valid = true
 	result.Fields = rule.GetFields()
+	sort.Strings(result.Fields)
 
 	eventType, err := rule.GetEventType()
 	if err != nil {
@@ -378,6 +379,12 @@ func serializableConstants() map[string]interface{} {
 			out[k] = e.Value
 		case *eval.BoolEvaluator:
 			out[k] = e.Value
+		case *eval.StringArrayEvaluator:
+			out[k] = e.Values
+		case *eval.IntArrayEvaluator:
+			out[k] = e.Values
+		case *eval.BoolArrayEvaluator:
+			out[k] = e.Values
 		case int, int64, string, bool, float64:
 			out[k] = v
 		}

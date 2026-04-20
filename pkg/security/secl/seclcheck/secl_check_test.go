@@ -239,7 +239,7 @@ func TestSerializableConstants(t *testing.T) {
 	for k, v := range consts {
 		assert.NotEmpty(t, k)
 		switch v.(type) {
-		case int, string, bool, float64:
+		case int, string, bool, float64, []string, []int, []bool:
 			// ok
 		default:
 			t.Errorf("constant %s has non-serializable type %T", k, v)
@@ -255,7 +255,7 @@ func TestCloseEnough(t *testing.T) {
 		{"name", "name", true},
 		{"name", "nme", true},   // 1 deletion
 		{"name", "naem", true},  // 1 transposition-ish (edit dist 2)
-		{"name", "nmae", true},  // edit dist 2
+		{"name", "nmae", true},  //nolint:misspell // edit dist 2
 		{"name", "xyz", false},  // too different
 		{"name", "n", false},    // too short
 		{"file", "flie", true},  // swap
