@@ -5,7 +5,7 @@ target:
   name: datadog-agent
   cpu_allotment: 4
   # Set to 20% higher than the memory_usage check value
-  memory_allotment: 335 MiB
+  memory_allotment: 350 MiB
 
   environment:
     DD_API_KEY: a0000001
