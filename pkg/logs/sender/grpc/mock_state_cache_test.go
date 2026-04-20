@@ -53,7 +53,7 @@ func TestBuildTagSet_CacheCorrectness(t *testing.T) {
 	assert.True(t, isNew1, "first call must create a new dict entry")
 	assert.NotEmpty(t, tagStr1, "allTagsString must be non-empty")
 	assert.Contains(t, tagStr1, "hostname:host-1")
-	assert.Contains(t, tagStr1, "service:svc-a")
+	assert.NotContains(t, tagStr1, "service:svc-a")
 	assert.Contains(t, tagStr1, "ddsource:src-a")
 
 	// Verify cache is populated (internal state)
@@ -88,9 +88,8 @@ func TestBuildTagSet_CacheCorrectness(t *testing.T) {
 	tagSet4, tagStr4, _, _ := mt.buildTagSet(msg4)
 
 	require.NotNil(t, tagSet4)
-	assert.Contains(t, tagStr4, "service:svc-b", "new service must appear in tag string")
-	assert.NotContains(t, tagStr4, "service:svc-a", "old service must not appear after service change")
-	assert.NotEqual(t, tagStr3, tagStr4, "service change must produce a different allTagsString")
+	assert.NotContains(t, tagStr4, "service:svc-b", "service must not be encoded in the joined tag string")
+	assert.Equal(t, tagStr3, tagStr4, "service change must not change the joined tag string")
 
 	// ── Case 5: source change causes cache miss ───────────────────────────────
 	origin3 := makeTestOrigin("svc-b", "src-b", []string{"env:test"})
