@@ -237,7 +237,7 @@
 /cmd/agent/dist/conf.d/win32_event_log.d/ @DataDog/windows-products
 /cmd/agent/dist/conf.d/windows_certificate.d/ @DataDog/windows-products
 /cmd/agent/install*.sh                  @DataDog/agent-build
-/cmd/agent/install_mac_os.sh            @DataDog/windows-products @DataDog/telemetry-onboarding
+/cmd/agent/macos/                       @DataDog/windows-products @DataDog/telemetry-onboarding
 /cmd/cluster-agent/                     @DataDog/container-platform
 /cmd/cluster-agent/subcommands/autoscalerlist   @DataDog/container-autoscaling @DataDog/container-integrations
 /cmd/cluster-agent-cloudfoundry/        @DataDog/agent-integrations
@@ -394,6 +394,7 @@
 /comp/logonduration @DataDog/windows-products
 /comp/networkdeviceconfig @DataDog/ndm-integrations
 /comp/notableevents @DataDog/windows-products
+/comp/offlinereporter @DataDog/agent-metric-pipelines
 /comp/privateactionrunner @DataDog/action-platform
 /comp/publishermetadatacache @DataDog/windows-products
 /comp/rdnsquerier @DataDog/ndm-integrations
@@ -801,6 +802,7 @@
 /test/e2e-framework/components/datadog/agent/ecs.go     @DataDog/ecs-experiences
 /test/e2e-framework/components/datadog/agent/ecsFargate.go @DataDog/ecs-experiences
 /test/e2e-framework/components/datadog/ecsagentparams/  @DataDog/ecs-experiences
+/test/e2e-framework/components/datadog/otel-standalone/ @DataDog/opentelemetry-agent
 /test/e2e-framework/components/windows/                @DataDog/windows-products
 /test/fakeintake/                              @DataDog/agent-devx
 /test/fakeintake/aggregator/ndmAggregator.go @DataDog/network-device-monitoring-core

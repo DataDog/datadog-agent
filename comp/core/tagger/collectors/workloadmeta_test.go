@@ -2608,12 +2608,27 @@ func TestHandleContainer_IsComplete(t *testing.T) {
 		EntityMeta: workloadmeta.EntityMeta{
 			Name: "test-task",
 		},
+		ClusterName: "test-cluster",
+	}
+
+	// ecsTaskWithoutClusterName simulates the v1 fallback case, where the ECS
+	// collector reports a task without ClusterName because the v4 metadata
+	// endpoint was not yet available.
+	ecsTaskWithoutClusterName := &workloadmeta.ECSTask{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindECSTask,
+			ID:   taskARN,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: "test-task",
+		},
 	}
 
 	tests := []struct {
 		name                string
 		features            []env.Feature
 		container           workloadmeta.Container
+		ecsTask             *workloadmeta.ECSTask
 		parentInStore       bool // "parent" means pod or ECS task
 		parentIsComplete    bool
 		containerIsComplete bool
@@ -2672,17 +2687,19 @@ func TestHandleContainer_IsComplete(t *testing.T) {
 			name:                "ECS EC2: container incomplete",
 			features:            []env.Feature{env.ECSEC2},
 			container:           ecsContainer,
+			ecsTask:             ecsTask,
 			parentInStore:       true,
 			parentIsComplete:    true,
 			containerIsComplete: false,
 			expectedIsComplete:  false,
 		},
 		{
-			name:                "ECS EC2: container complete but task incomplete",
+			name:                "ECS EC2: task without cluster name is incomplete",
 			features:            []env.Feature{env.ECSEC2},
 			container:           ecsContainer,
+			ecsTask:             ecsTaskWithoutClusterName,
 			parentInStore:       true,
-			parentIsComplete:    false,
+			parentIsComplete:    true,
 			containerIsComplete: true,
 			expectedIsComplete:  false,
 		},
@@ -2690,6 +2707,7 @@ func TestHandleContainer_IsComplete(t *testing.T) {
 			name:                "ECS EC2: both container and task complete",
 			features:            []env.Feature{env.ECSEC2},
 			container:           ecsContainer,
+			ecsTask:             ecsTask,
 			parentInStore:       true,
 			parentIsComplete:    true,
 			containerIsComplete: true,
@@ -2733,10 +2751,10 @@ func TestHandleContainer_IsComplete(t *testing.T) {
 						IsComplete: test.parentIsComplete,
 					})
 				case workloadmeta.KindECSTask:
-					wmeta.Set(ecsTask)
+					wmeta.Set(test.ecsTask)
 					collector.handleECSTask(workloadmeta.Event{
 						Type:       workloadmeta.EventTypeSet,
-						Entity:     ecsTask,
+						Entity:     test.ecsTask,
 						IsComplete: test.parentIsComplete,
 					})
 				}

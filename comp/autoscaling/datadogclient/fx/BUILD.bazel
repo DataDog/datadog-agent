@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fx",
+    srcs = ["fx.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/fx",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/autoscaling/datadogclient/def",
+        "//comp/autoscaling/datadogclient/impl",
+        "//pkg/util/fxutil",
+        "//pkg/util/option",
+        "@org_uber_go_fx//:fx",
+    ],
+)

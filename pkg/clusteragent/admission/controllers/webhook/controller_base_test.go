@@ -49,6 +49,7 @@ func TestNewController(t *testing.T) {
 		getV1Cfg(t),
 		wmeta,
 		nil,
+		nil,
 		datadogConfig,
 		nil,
 	)
@@ -65,6 +66,7 @@ func TestNewController(t *testing.T) {
 		make(<-chan struct{}),
 		getV1beta1Cfg(t),
 		wmeta,
+		nil,
 		nil,
 		datadogConfig,
 		nil,
