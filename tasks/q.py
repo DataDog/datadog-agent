@@ -752,7 +752,7 @@ def eval_bayesian(
         return score
 
     optuna.logging.set_verbosity(optuna.logging.WARNING)
-    sampler = optuna.samplers.TPESampler(seed=seed)
+    sampler = optuna.samplers.TPESampler(seed=int(seed) if seed is not None else None)
     study = optuna.create_study(direction="maximize", sampler=sampler)
     study.optimize(objective, n_trials=n_trials)
 
