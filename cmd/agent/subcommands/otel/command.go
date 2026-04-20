@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package ddot implements 'agent ddot'.
-package ddot
+// Package otel implements 'agent otel'.
+package otel
 
 import (
 	"context"
@@ -24,16 +24,17 @@ import (
 	pkgversion "github.com/DataDog/datadog-agent/pkg/version"
 )
 
+// extensionName is the name of the extension in the agent OCI package.
 const extensionName = "ddot"
 
 // Commands returns a slice of subcommands for the 'agent' command.
 func Commands(_ *command.GlobalParams) []*cobra.Command {
-	ddotCmd := &cobra.Command{
-		Use:   "ddot [command]",
+	otelCmd := &cobra.Command{
+		Use:   "otel [command]",
 		Short: "Manage the DDOT installation",
 	}
-	ddotCmd.AddCommand(installCommand(), removeCommand())
-	return []*cobra.Command{ddotCmd}
+	otelCmd.AddCommand(installCommand(), removeCommand())
+	return []*cobra.Command{otelCmd}
 }
 
 func installCommand() *cobra.Command {
@@ -54,10 +55,10 @@ environment variable (docker, gcr, or password).
 
 Examples:
   # Standard Datadog registry, version inferred from installed agent
-  datadog-agent ddot install
+  datadog-agent otel install
 
   # Custom BYOC registry, version inferred from installed agent
-  DD_INSTALLER_REGISTRY_AUTH=gcr datadog-agent ddot install --registry registry.example.com`,
+  DD_INSTALLER_REGISTRY_AUTH=gcr datadog-agent otel install --registry us-central1-docker.pkg.dev/myproject/byoc`,
 		Args: cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			url, err := resolvePackageURL(explicitURL, registry)
@@ -84,7 +85,7 @@ func removeCommand() *cobra.Command {
 		Long: `Remove the DDOT installation.
 
 Example:
-  datadog-agent ddot remove`,
+  datadog-agent otel remove`,
 		Args: cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			i, err := newInstallerExec()

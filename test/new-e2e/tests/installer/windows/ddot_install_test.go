@@ -28,7 +28,7 @@ type testDDOTExtensionSubcommand struct {
 }
 
 // TestDDOTExtensionViaSubcommand verifies that the DDOT extension can be installed
-// using the 'datadog-agent extension install' subcommand, and that purge removes it.
+// using the 'datadog-agent otel install' subcommand, and that remove removes it.
 func TestDDOTExtensionViaSubcommand(t *testing.T) {
 	e2e.Run(t, &testDDOTExtensionSubcommand{},
 		e2e.WithProvisioner(
@@ -49,13 +49,13 @@ func (s *testDDOTExtensionSubcommand) TestInstallDDOTSubcommand() {
 		HasARunningDatadogInstallerService().
 		HasARunningDatadogAgentService()
 
-	// Install the ddot extension via the new 'datadog-agent extension install' subcommand.
+	// Install the ddot extension via the new 'datadog-agent otel install' subcommand.
 	// Use the registry install path (same as the MSI install path) to locate agent.exe reliably.
 	installPath, err := windowsagent.GetInstallPathFromRegistry(s.Env().RemoteHost)
 	s.Require().NoError(err)
 	agentExe := installPath + `\bin\agent.exe`
 	agentPackageURL := "oci://" + consts.PipelineOCIRegistry + "/agent-package:pipeline-" + s.Env().Environment.PipelineID()
-	cmd := fmt.Sprintf(`& "%s" ddot install --url %s`, agentExe, agentPackageURL)
+	cmd := fmt.Sprintf(`& "%s" otel install --url %s`, agentExe, agentPackageURL)
 	output, err = s.Env().RemoteHost.Execute(cmd)
 	s.Require().NoErrorf(err, "failed to install ddot extension via subcommand: %s", output)
 
@@ -69,7 +69,7 @@ func (s *testDDOTExtensionSubcommand) TestInstallDDOTSubcommand() {
 	s.Require().NoError(s.WaitForServicesWithBackoff("Running", []string{"datadog-otel-agent"}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second))))
 
 	// Remove the ddot extension and verify the service stops and files are cleaned up.
-	cmd = fmt.Sprintf(`& "%s" ddot remove`, agentExe)
+	cmd = fmt.Sprintf(`& "%s" otel remove`, agentExe)
 	output, err = s.Env().RemoteHost.Execute(cmd)
 	s.Require().NoErrorf(err, "failed to remove ddot extension via subcommand: %s", output)
 	s.Require().Host(s.Env().RemoteHost).NoDirExists(ddotExtDir, "ddot extension should be removed after remove command")

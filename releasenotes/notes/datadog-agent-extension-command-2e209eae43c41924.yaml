@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Adds ``datadog-agent ddot`` command to install/remove DDOT from an OCI package.
+    Adds ``datadog-agent otel`` command to install/remove DDOT from an OCI package.

@@ -202,9 +202,9 @@ func (s *packageDDOTSuite) TestInstallDDOTSubcommand() {
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
 	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit)
 
-	// Install the ddot extension via the new datadog-agent ddot subcommand.
+	// Install the ddot extension via the new datadog-agent otel subcommand.
 	agentPackageURL := "oci://installtesting.datad0g.com.internal.dda-testing.com/agent-package:pipeline-" + os.Getenv("E2E_PIPELINE_ID")
-	s.host.Run("sudo datadog-agent ddot install --url " + agentPackageURL)
+	s.host.Run("sudo datadog-agent otel install --url " + agentPackageURL)
 
 	// Wait until DDOT is continuously stable running.
 	// DDOT unit is not stable running until the core agent fully restarts and config sync is ready.
@@ -218,7 +218,7 @@ func (s *packageDDOTSuite) TestInstallDDOTSubcommand() {
 	s.host.Run("sudo grep -q 'otelcollector:' /etc/datadog-agent/datadog.yaml")
 
 	// Remove the ddot extension and verify the service stops.
-	s.host.Run("sudo datadog-agent ddot remove")
+	s.host.Run("sudo datadog-agent otel remove")
 	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit)
 	state = s.host.State()
 	state.AssertUnitsDead(ddotUnit)
