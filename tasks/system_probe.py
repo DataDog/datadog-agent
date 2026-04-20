@@ -94,6 +94,12 @@ RUST_BINARIES = [
     "pkg/discovery/module/rust",
 ]
 
+# Rust static libraries that must be installed next to the Go source so cgo can
+# link against them. Maps source package -> install destination directory.
+RUST_STATIC_LIBS = {
+    "pkg/discovery/module/rust": "pkg/discovery/module/rust",
+}
+
 
 def get_ebpf_build_dir(arch: Arch) -> Path:
     return Path("pkg/ebpf/bytecode/build") / arch.kmt_arch  # Use KMT arch names for compatibility with CI
@@ -1239,6 +1245,14 @@ def build_rust_binaries(ctx: Context, arch: Arch, output_dir: Path | None = None
 
         install_dest = output_dir / source_path if output_dir else Path(source_path)
         bazel(ctx, "run", *platform_flags, "--", f"@//{source_path}:install", f"--destdir={install_dest}")
+
+    # Install Rust static libraries that cgo needs to find at link time. These
+    # always land in the source tree (alongside the Go files) rather than in
+    # `output_dir`, because cgo LDFLAGS reference them via ${SRCDIR}.
+    for source_path, lib_dest in RUST_STATIC_LIBS.items():
+        if packages and not any(source_path.startswith(package) for package in packages):
+            continue
+        bazel(ctx, "run", *platform_flags, "--", f"@//{source_path}:install_libs", f"--destdir={lib_dest}")
 
 
 _BAZEL_CWS_BALOUM_TARGETS = {

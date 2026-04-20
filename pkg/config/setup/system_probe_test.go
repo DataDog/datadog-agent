@@ -85,3 +85,25 @@ func TestDiscoveryUseSystemProbeLite(t *testing.T) {
 		assert.True(t, cfg.GetBool("discovery.use_system_probe_lite"))
 	})
 }
+
+func TestDiscoveryUseRustLibrary(t *testing.T) {
+	t.Run("disabled by default", func(t *testing.T) {
+		cfg := newEmptyMockConf(t)
+		InitSystemProbeConfig(cfg)
+		assert.False(t, cfg.GetBool("discovery.use_rust_library"))
+	})
+
+	t.Run("enabled from env var", func(t *testing.T) {
+		t.Setenv("DD_DISCOVERY_USE_RUST_LIBRARY", "true")
+		cfg := newEmptyMockConf(t)
+		InitSystemProbeConfig(cfg)
+		assert.True(t, cfg.GetBool("discovery.use_rust_library"))
+	})
+
+	t.Run("enabled from config", func(t *testing.T) {
+		cfg := newEmptyMockConf(t)
+		InitSystemProbeConfig(cfg)
+		cfg.SetWithoutSource("discovery.use_rust_library", true)
+		assert.True(t, cfg.GetBool("discovery.use_rust_library"))
+	})
+}

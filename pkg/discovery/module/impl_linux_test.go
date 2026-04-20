@@ -62,12 +62,23 @@ type testDiscoveryModule struct {
 
 func setupGoDiscoveryModule(t *testing.T) *testDiscoveryModule {
 	t.Helper()
+	return setupInProcessDiscoveryModule(t, false)
+}
+
+func setupRustLibraryDiscoveryModule(t *testing.T) *testDiscoveryModule {
+	t.Helper()
+	return setupInProcessDiscoveryModule(t, true)
+}
+
+func setupInProcessDiscoveryModule(t *testing.T, useRustLibrary bool) *testDiscoveryModule {
+	t.Helper()
 
 	mux := gorillamux.NewRouter()
 
 	mod, err := NewDiscoveryModule(nil, module.FactoryDependencies{})
 	require.NoError(t, err)
 	discovery := mod.(*discovery)
+	discovery.config.UseRustLibrary = useRustLibrary
 
 	discovery.Register(module.NewRouter(string(config.DiscoveryModule), mux))
 	t.Cleanup(discovery.Close)
@@ -166,6 +177,9 @@ func TestDiscovery(t *testing.T) {
 	})
 	t.Run("rust", func(t *testing.T) {
 		suite.Run(t, &discoveryTestSuite{setupModule: setupRustDiscoveryModule, expectedImplementation: "system-probe-lite"})
+	})
+	t.Run("rust-library", func(t *testing.T) {
+		suite.Run(t, &discoveryTestSuite{setupModule: setupRustLibraryDiscoveryModule, expectedImplementation: "system-probe"})
 	})
 }
 
