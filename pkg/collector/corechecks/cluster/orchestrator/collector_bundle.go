@@ -505,6 +505,7 @@ func newBuiltinCRDConfigs() []builtinCRDConfig {
 		newBuiltinCRDConfig(datadogAPIGroup, "datadogmonitors", isOOTBCRDEnabled, "v1alpha1"),
 		newBuiltinCRDConfig(datadogAPIGroup, "datadogmetrics", isOOTBCRDEnabled, "v1alpha1"),
 		newBuiltinCRDConfig(datadogAPIGroup, "datadogpodautoscalers", isOOTBCRDEnabled, "v1alpha2"),
+		newBuiltinCRDConfig(datadogAPIGroup, "datadogpodautoscalerclusterprofiles", isOOTBCRDEnabled, "v1alpha2"),
 		newBuiltinCRDConfig(datadogAPIGroup, "datadogagents", isOOTBCRDEnabled, "v2alpha1"),
 
 		// Argo resources

@@ -20,7 +20,7 @@ skip_transitive_dependency_licensing true
 
 dependency "cacerts"
 
-default_version "3.5.5"
+default_version "3.5.6"
 
 relative_path "openssl-#{version}"
 
