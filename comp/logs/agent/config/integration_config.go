@@ -104,9 +104,10 @@ type LogsConfig struct {
 	ProcessRawMessage *bool `mapstructure:"process_raw_message" json:"process_raw_message" yaml:"process_raw_message"`
 
 	// SIEMParsing enables CEF/LEEF header detection and extraction within syslog
-	// message bodies. When true (the default), syslog messages whose body starts
-	// with "CEF:" or "LEEF:" are parsed into structured SIEM fields. Set to false
-	// to skip this detection and treat the message body as plain text.
+	// message bodies. When true (the default once syslog ingestion is wired up),
+	// syslog messages whose body starts with "CEF:" or "LEEF:" are parsed into
+	// structured SIEM fields. Set to false to skip this detection and treat the
+	// message body as plain text. See IsSIEMParsingEnabled() for nil handling.
 	SIEMParsing *bool `mapstructure:"siem_parsing" json:"siem_parsing" yaml:"siem_parsing"`
 
 	AutoMultiLine               *bool   `mapstructure:"auto_multi_line_detection" json:"auto_multi_line_detection" yaml:"auto_multi_line_detection"`

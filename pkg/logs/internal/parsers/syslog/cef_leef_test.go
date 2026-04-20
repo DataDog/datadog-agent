@@ -6,6 +6,7 @@
 package syslog
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -205,6 +206,7 @@ func TestParseCEFLEEF_LEEF_VersionNoDot(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "2", header.Version)
 	assert.Equal(t, "Vendor", header.DeviceVendor)
+	assert.Equal(t, "1.0", header.DeviceVersion)
 	assert.Equal(t, "10.0.0.1", ext["src"])
 	assert.Equal(t, "10.0.0.2", ext["dst"])
 }
@@ -532,7 +534,14 @@ func BenchmarkParseCEFLEEF_Malformed(b *testing.B) {
 }
 
 func BenchmarkParseCEFLEEF_LargeExtension(b *testing.B) {
-	ext := strings.Repeat("key0=value0 ", 64)
+	var sb strings.Builder
+	for i := 0; i < 64; i++ {
+		if i > 0 {
+			sb.WriteByte(' ')
+		}
+		fmt.Fprintf(&sb, "key%d=value%d", i, i)
+	}
+	ext := sb.String()
 	input := []byte("CEF:0|V|P|1.0|100|N|5|" + ext)
 	b.ReportAllocs()
 	b.ResetTimer()

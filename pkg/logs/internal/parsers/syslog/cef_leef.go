@@ -98,6 +98,8 @@ func parseLEEF(msg []byte) (SIEMHeader, map[string]string, []byte, bool) {
 		if d, valid := parseLEEFDelimiter(fields[5]); valid {
 			delimiter = d
 		}
+		// Invalid or empty delimiter field falls back to tab. This handles
+		// malformed v2 messages gracefully rather than rejecting them outright.
 	default:
 		// LEEF 1.x: 5 pipe-delimited fields. Unrecognized versions (e.g. "2a")
 		// are routed here rather than silently assumed to be v2.
@@ -109,7 +111,7 @@ func parseLEEF(msg []byte) (SIEMHeader, map[string]string, []byte, bool) {
 
 	header := SIEMHeader{
 		Format:        "LEEF",
-		Version:       fields[0],
+		Version:       unescapeCEFHeader(fields[0]),
 		DeviceVendor:  unescapeCEFHeader(fields[1]),
 		DeviceProduct: unescapeCEFHeader(fields[2]),
 		DeviceVersion: unescapeCEFHeader(fields[3]),
@@ -212,6 +214,8 @@ func parseCEFExtension(ext []byte) map[string]string {
 
 // parseLEEFExtension parses LEEF extension key-value pairs separated by
 // the given delimiter. Within each pair, the first '=' splits key from value.
+// LEEF values are returned verbatim; the spec is non-prescriptive about
+// in-value escaping, unlike CEF which defines \=, \\, \n, and \r sequences.
 func parseLEEFExtension(ext []byte, delimiter byte) map[string]string {
 	if len(ext) == 0 {
 		return nil
