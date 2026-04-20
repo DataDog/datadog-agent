@@ -27,60 +27,76 @@ Note: `quality_gate_security_idle` has `generator: []` (no load generator). Ther
 
 Run `pup auth status`. If expired, run `pup auth login`. If auth fails entirely, note that Datadog MCP tools are available as a fallback for read-only queries.
 
-## Step 3: Query SMP metrics from both experiments
+## Step 3: Identify the latest job for each experiment and query it exclusively
 
-Query SMP metrics from both `security_base` (loaded) and `security_idle` (baseline). The `experiment:` tag filter disambiguates the two experiments. Run all queries in parallel:
+SMP runs multiple replicas per experiment; each is tagged with a unique `job_id`. Pin the analysis to one specific run by finding the latest `job_id` per experiment and filtering on it. This avoids time-window heuristics and the 300 s rollup gap-fill that deflates means when a short capture only partially occupies a bucket.
+
+### 3a. List jobs grouped by `job_id`
+
+Run grouped queries over the last 1 day (widen to 2d, then 7d only if nothing is returned). These are **inventory-only** — do not use their values, only their `job_id` scopes and timestamps:
 
 ```bash
-# security_base — open-only (primary signal)
-pup metrics query --query 'avg:single_machine_performance.regression_detector.capture.datadog.runtime_security.perf_buffer.events.write{event_type:open,variant:comparison,experiment:quality_gate_security_base}.as_rate()' --from 7d --to now
+# security_base — jobs
+pup metrics query --query 'avg:single_machine_performance.regression_detector.capture.datadog.runtime_security.perf_buffer.events.write{event_type:open,variant:comparison,experiment:quality_gate_security_base} by {job_id}.as_rate()' --from 1d --to now
 
-# security_base — all file activity (context)
-pup metrics query --query 'avg:single_machine_performance.regression_detector.capture.datadog.runtime_security.perf_buffer.events.write{category:file_activity,variant:comparison,experiment:quality_gate_security_base}.as_rate()' --from 7d --to now
+# security_idle — jobs
+pup metrics query --query 'avg:single_machine_performance.regression_detector.capture.datadog.runtime_security.perf_buffer.events.write{event_type:open,variant:comparison,experiment:quality_gate_security_idle} by {job_id}.as_rate()' --from 1d --to now
+```
 
-# security_idle — open-only (background noise floor)
-pup metrics query --query 'avg:single_machine_performance.regression_detector.capture.datadog.runtime_security.perf_buffer.events.write{event_type:open,variant:comparison,experiment:quality_gate_security_idle}.as_rate()' --from 7d --to now
+For each returned series, read its `scope` (contains `job_id:<UUID>`) and its `pointlist`. Null-safe: drop points whose value is `None`. Per job, record the timestamp of the **last non-zero point**. The `job_id` with the most recent last-non-zero timestamp is "the latest job" for that experiment.
 
-# security_idle — all file activity (background noise floor)
-pup metrics query --query 'avg:single_machine_performance.regression_detector.capture.datadog.runtime_security.perf_buffer.events.write{category:file_activity,variant:comparison,experiment:quality_gate_security_idle}.as_rate()' --from 7d --to now
+### 3b. Re-query each latest `job_id` exclusively
+
+Add `job_id:<UUID>` to the tag filter. Use `--from 1h` so the API returns **20-second** interval data — fine enough that rollup gap-fill inside the capture window does not dilute the mean. If the latest job's last-non-zero timestamp is older than ~45 min, widen: `--from 2h` (30 s interval) or `--from 3h` (60 s). Do not widen past 3h.
+
+Run in parallel:
+
+```bash
+# security_base — latest job
+pup metrics query --query 'avg:single_machine_performance.regression_detector.capture.datadog.runtime_security.perf_buffer.events.write{event_type:open,variant:comparison,experiment:quality_gate_security_base,job_id:<BASE_UUID>}.as_rate()' --from 1h --to now
+pup metrics query --query 'avg:single_machine_performance.regression_detector.capture.datadog.runtime_security.perf_buffer.events.write{category:file_activity,variant:comparison,experiment:quality_gate_security_base,job_id:<BASE_UUID>}.as_rate()' --from 1h --to now
+
+# security_idle — latest job
+pup metrics query --query 'avg:single_machine_performance.regression_detector.capture.datadog.runtime_security.perf_buffer.events.write{event_type:open,variant:comparison,experiment:quality_gate_security_idle,job_id:<IDLE_UUID>}.as_rate()' --from 1h --to now
+pup metrics query --query 'avg:single_machine_performance.regression_detector.capture.datadog.runtime_security.perf_buffer.events.write{category:file_activity,variant:comparison,experiment:quality_gate_security_idle,job_id:<IDLE_UUID>}.as_rate()' --from 1h --to now
 ```
 
 The `.as_rate()` modifier guarantees the result is in events/sec. Both this metric and the production metric are type `rate` (statsd_interval=10), so `.as_rate()` is a no-op today — but it documents intent and protects against metadata changes.
 
-SMP runs are intermittent (a few runs per week). Extract the timestamps from the pointlist to identify run windows. If no data is returned, widen to `--from 14d` or `--from 30d`.
+Compute `mean` over **non-zero, non-null** points only. Record the `job_id`, the first and last non-zero timestamps (capture window), the interval returned, and the data points count. Do not include min/max in the report.
 
-**Fallback**: If the `security_idle` experiment has not yet run (no data returned), proceed with the existing 3-way comparison (lading vs security_base vs production) and note that idle baseline data is pending. The noise model in Step 7 falls back to the inferred approach.
+### 3c. Sanity checks
 
-## Step 4: Query production metric scoped to SMP run windows
+- If fewer than ~5 non-zero points come back for a latest job, the capture may be in flight or interrupted. Try the second-most-recent `job_id` and report both so the reviewer can judge.
+- If the `security_base` and `security_idle` latest `job_id`s ran more than 24 h apart, flag the staleness — background noise floor drifts over time.
+- Never fall back to wider windows with coarser rollups (≥300 s intervals) as a substitute — rollup gap-fill deflates per-job means when a capture only partially occupies a bucket.
 
-For each SMP run window found in Step 3, query production data over the matching time range. Use the SMP pointlist timestamps to determine `--from` and `--to`. Run all four queries in parallel:
+### 3d. Anti-pattern (why `job_id` is authoritative)
+
+Do **not** identify runs by time heuristics (contiguous non-zero clusters, gap-detection, "last N minutes"). A single SMP run at 20 s resolution still contains transient zero buckets that masquerade as run boundaries once rolled up, and multiple replicas of the same experiment run concurrently, so any time-slice may contain overlapping jobs. The `job_id` tag is the only authoritative grouping for a single run.
+
+## Step 4: Query production metric (weekly mean)
+
+Query production data over the last 7 days to get the weekly mean. Run both queries in parallel:
 
 ```bash
-# Primary — open-only, window-matched
-pup metrics query --query 'avg:datadog.runtime_security.perf_buffer.events.write{event_type:open}.as_rate()' --from <smp_window_start> --to <smp_window_end>
+# Primary — open-only, weekly mean
+pup metrics query --query 'avg:datadog.runtime_security.perf_buffer.events.write{event_type:open}.as_rate()' --from 7d --to now
 
-# Context — all file activity, window-matched
-pup metrics query --query 'avg:datadog.runtime_security.perf_buffer.events.write{category:file_activity}.as_rate()' --from <smp_window_start> --to <smp_window_end>
-
-# Primary — open-only, 24h baseline
-pup metrics query --query 'avg:datadog.runtime_security.perf_buffer.events.write{event_type:open}.as_rate()' --from 1d --to now
-
-# Context — all file activity, 24h baseline
-pup metrics query --query 'avg:datadog.runtime_security.perf_buffer.events.write{category:file_activity}.as_rate()' --from 1d --to now
+# Context — all file activity, weekly mean
+pup metrics query --query 'avg:datadog.runtime_security.perf_buffer.events.write{category:file_activity}.as_rate()' --from 7d --to now
 ```
-
-If SMP data spans a short window (e.g. a single hourly point), expand the production query slightly (±30min) to get enough data points for comparison.
 
 All queries use `.as_rate()` so every value in the comparison chain is in the same unit (events/sec):
 - Lading config: `open_per_second` × 1 = events/sec
 - SMP captured: `.as_rate()` → events/sec
 - Production: `.as_rate()` → events/sec
 
-Compute mean/min/max from both the window-matched and 24h pointlist values.
+Compute the mean from the weekly pointlist values. Do not include min/max in the report.
 
 ## Step 5: Compare and analyze
 
-Perform a comparison using **time-aligned** data. The primary comparison uses `event_type:open` values only.
+The primary comparison uses `event_type:open` values only.
 
 All values must be in **events/sec** (guaranteed by `.as_rate()` on metric queries, and by the explain-lading-config breakdown for lading).
 
@@ -92,8 +108,7 @@ All values must be in **events/sec** (guaranteed by `.as_rate()` on metric queri
 | SMP — security_idle (open) | from Step 3 | Background open noise with CWS, no generator |
 | SMP — security_base (open) | from Step 3 | Open rate with generator running |
 | Generator contribution | computed | security_base - security_idle |
-| Org2 per-host avg (open, SMP window) | from Step 4 | production `event_type:open` `.as_rate()` during the same minutes SMP was running |
-| Org2 per-host avg (open, 24h) | from Step 4 | broader context showing diurnal range |
+| Org2 per-host avg (open, weekly) | from Step 4 | production `event_type:open` `.as_rate()` weekly mean |
 
 **Supplementary context** (not used for tuning decisions):
 
@@ -101,15 +116,12 @@ All values must be in **events/sec** (guaranteed by `.as_rate()` on metric queri
 |--------|---------------------|-------------|
 | SMP — security_idle (all file activity) | from Step 3 | idle `category:file_activity` — background noise floor |
 | SMP — security_base (all file activity) | from Step 3 | loaded `category:file_activity` |
-| Org2 per-host avg (all file activity, SMP window) | from Step 4 | production `category:file_activity` |
+| Org2 per-host avg (all file activity, weekly) | from Step 4 | production `category:file_activity` weekly mean |
 
 Analysis:
-- **Idle baseline check**: The `security_idle` open rate captures background noise from always-on VFS hooks. Record this value — it is the noise floor subtracted in the tuning model.
-- **Generator contribution check**: `generator_contribution = security_base_open - security_idle_open` should approximately equal `open_per_second` (the lading-configured rate). If they diverge, the generator is not behaving as configured.
-- **Production validity check**: Compare the SMP `security_base` open rate against the org2 per-host open average *during the same time window*. If they diverge, the experiment is not measuring what org2 sees.
-- Compare the lading effective open rate (`open_per_second`) against both the window-matched org2 open rate and the 24h context
-- The 24h query is supplementary context (diurnal range), not the modeling target — the org2 per-host open average is the primary comparison
-- If the org2 open rate differs from the SMP security_base open rate, flag the gap and suggest specific `open_per_second` changes
+- **Idle baseline check**: The `security_idle` open rate captures background noise from always-on VFS hooks. Record this value as the noise floor.
+- **Generator contribution check**: `generator_contribution = security_base_open - security_idle_open` reflects the generator's observable effect on CWS. Note that this need not equal `open_per_second` — one lading syscall can produce multiple CWS events (and vice versa).
+- **Production validity check**: Compare the SMP `security_base` open rate against the org2 per-host weekly open average. If they diverge, flag the gap.
 - Note the `category:file_activity` totals for reference
 
 ## Step 6: Output report
@@ -117,33 +129,22 @@ Analysis:
 Print a markdown report answering "does the lading config reflect the production open workload?" with these sections:
 
 1. **Lading config** — configured open rate (`open_per_second` × 1 = events/sec)
-2. **SMP Idle Baseline (security_idle)** — open rate and file activity with CWS but no generator, with timestamps of each run window
-3. **SMP Loaded (security_base)** — open rate and file activity with CWS and generator, with timestamps of each run window
-4. **Generator Contribution** — delta between security_base and security_idle for open events (this isolates the generator's effect)
-5. **Org2 per-host avg (open, SMP window)** — org2 per-host open rate during the same time windows SMP ran
-6. **Org2 per-host avg (open, 24h)** — supplementary context (mean, median, min, max, diurnal pattern)
+2. **SMP Idle Baseline (security_idle, latest job `<IDLE_UUID>`)** — open rate and file activity with CWS but no generator, showing the job_id, capture window (first → last non-zero timestamps), interval, and data points count
+3. **SMP Loaded (security_base, latest job `<BASE_UUID>`)** — open rate and file activity with CWS and generator, showing the job_id, capture window, interval, and data points count
+4. **Generator Contribution** — delta between security_base and security_idle for open events (between the two latest jobs)
+5. **Org2 per-host avg (open, weekly)** — production open rate weekly mean
 
 Followed by a supplementary note showing `category:file_activity` totals from both SMP experiments and production for reference.
 
-Followed by a one-line assessment: match, mismatch, or insufficient data. If security_idle data is not yet available, note this and fall back to the 3-way comparison.
+Followed by a one-line assessment: match, mismatch, or insufficient data.
 
 ## Step 7: Propose lading config changes
 
 If a mismatch was found, propose concrete changes to `test/regression/cases/quality_gate_security_base/lading/lading.yaml`:
 
-1. **Select the target** — use the **production open mean during the SMP run window** (Step 4, window-matched `event_type:open` query) as the target. This is the open rate production experiences during the hours the SMP experiment actually executes. Do not use the 24h mean, median, or overnight trough — those mix in time periods the experiment never runs during.
-
-2. **Compute target rates using the additive noise model** — all values are in events/sec (from `.as_rate()` queries and the lading config breakdown). Background open noise is now directly measured from the `security_idle` experiment rather than inferred:
-   ```
-   background_open_noise (events/sec) = security_idle_open_mean   # directly measured
-   new_lading_open_rate (events/sec)  = production_open_target - background_open_noise
-   new_open_per_second                = new_lading_open_rate
-   ```
-   **Fallback** (if security_idle data is not yet available): infer background noise as `smp_open_mean - current_open_per_second`.
-
-   Do not use a multiplicative model (config × amplification_factor) — the amplification ratio conflates lading-generated events with background noise and does not hold when the config changes. Do not ignore background noise and set lading rate equal to the production target directly.
-
+1. **Target**: the production open weekly mean from Step 4.
+2. **Direction of change**: adjust `open_per_second` up or down to push `security_base_open` toward the target. Do not assume a 1:1 mapping between lading syscalls and CWS events — the security-agent can observe multiple kernel events per lading operation (e.g. a single rename may surface more than two events) and may dedupe or filter others. Treat the lading-to-CWS ratio as empirical, derived from the specific `job_id` used in Step 3b — cite the job_id alongside the ratio so the tuning decision is traceable.
 3. **Show the diff** — print the exact YAML change (old value → new value) for `open_per_second`. Do not adjust `rename_per_second` — rename events are not the primary signal.
 4. **Offer to apply** — ask whether to edit the lading config file directly.
 
-If data was insufficient (e.g. no SMP points), offer to re-query with a wider time range before proposing changes.
+If data was insufficient (e.g. the latest job had too few non-zero points), offer to use the second-most-recent `job_id` before proposing changes. Do not fall back to wider time windows with coarser rollups.
