@@ -834,11 +834,11 @@ require (
 	go.opentelemetry.io/collector/consumer v1.58.0
 	go.opentelemetry.io/collector/consumer/consumererror v0.152.0 // indirect
 	go.opentelemetry.io/collector/consumer/consumererror/xconsumererror v0.152.0 // indirect
-	go.opentelemetry.io/collector/consumer/consumertest v0.152.0 // indirect
+	go.opentelemetry.io/collector/consumer/consumertest v0.152.0
 	go.opentelemetry.io/collector/consumer/xconsumer v0.152.0
-	go.opentelemetry.io/collector/exporter/exporterhelper v0.152.0 // indirect
+	go.opentelemetry.io/collector/exporter/exporterhelper v0.152.0
 	go.opentelemetry.io/collector/exporter/exporterhelper/xexporterhelper v0.152.0 // indirect
-	go.opentelemetry.io/collector/exporter/exportertest v0.152.0 // indirect
+	go.opentelemetry.io/collector/exporter/exportertest v0.152.0
 	go.opentelemetry.io/collector/exporter/nopexporter v0.152.0 // indirect
 	go.opentelemetry.io/collector/exporter/otlphttpexporter v0.152.0
 	go.opentelemetry.io/collector/exporter/xexporter v0.152.0 // indirect
@@ -865,7 +865,7 @@ require (
 	go.opentelemetry.io/collector/processor/xprocessor v0.152.0
 	go.opentelemetry.io/collector/receiver/nopreceiver v0.152.0 // indirect
 	go.opentelemetry.io/collector/receiver/receiverhelper v0.152.0 // indirect
-	go.opentelemetry.io/collector/receiver/receivertest v0.152.0 // indirect
+	go.opentelemetry.io/collector/receiver/receivertest v0.152.0
 	go.opentelemetry.io/collector/receiver/xreceiver v0.152.0
 	go.opentelemetry.io/collector/scraper v0.152.0 // indirect
 	go.opentelemetry.io/collector/scraper/scraperhelper v0.152.0 // indirect

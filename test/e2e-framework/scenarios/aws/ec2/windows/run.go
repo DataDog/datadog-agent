@@ -15,13 +15,13 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	compos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/windows/defender"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/windows/fipsmode"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/windows/testsigning"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	fakeintakescenario "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/outputs"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/windows/defender"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/windows/fipsmode"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/windows/testsigning"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )

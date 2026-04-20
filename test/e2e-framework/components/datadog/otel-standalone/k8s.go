@@ -47,10 +47,10 @@ type AppOption func(*appConfig)
 
 // appConfig holds the accumulated application-level options.
 type appConfig struct {
-	extraEnvVars      corev1.EnvVarArray
-	extraVolumes      corev1.VolumeArray
-	extraVolumeMounts corev1.VolumeMountArray
-	k8sSecrets        []appSecretSpec
+	extraEnvVars        corev1.EnvVarArray
+	extraVolumes        corev1.VolumeArray
+	extraVolumeMounts   corev1.VolumeMountArray
+	k8sSecrets          []appSecretSpec
 	skipDefaultHostname bool
 }
 
