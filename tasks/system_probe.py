@@ -1709,6 +1709,19 @@ def save_build_outputs(ctx, destfile):
             outfiles.append(relpath)
             count += 1
 
+        # Include Rust static libraries (built by build_rust_binaries) so that
+        # downstream jobs running `build-sysprobe-binary` — which does not
+        # invoke bazel — can still link cgo code that references them.
+        for _, lib_dest in RUST_STATIC_LIBS.items():
+            for afile in glob.glob(os.path.join(lib_dest, "*.a")):
+                relpath = os.path.relpath(afile)
+                filedir, _ = os.path.split(relpath)
+                outdir = os.path.join(stagedir, filedir)
+                os.makedirs(outdir, exist_ok=True)
+                shutil.copy2(afile, outdir)
+                outfiles.append(relpath)
+                count += 1
+
         if count == 0:
             raise Exit(message="no build outputs captured")
         ctx.run(f"tar -C {stagedir} -cJf {absdest} .")
