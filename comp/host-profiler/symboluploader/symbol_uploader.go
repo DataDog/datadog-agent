@@ -230,7 +230,7 @@ func (d *DatadogSymbolUploader) UploadSymbols(execMeta *reporter.ExecutableMetad
 	if ok {
 		slog.Debug("Skipping symbol upload",
 			slog.String("reason", "already_uploaded"),
-			slog.String("path", execMeta.Mapping.Path.String()))
+			slog.String("path", execMeta.Mapping.Path))
 		return
 	}
 
@@ -254,7 +254,7 @@ func (d *DatadogSymbolUploader) UploadSymbols(execMeta *reporter.ExecutableMetad
 	default:
 		slog.Warn("Skipping symbol upload",
 			slog.String("reason", "upload_queue_full"),
-			slog.String("file", execMeta.Mapping.Path.String()),
+			slog.String("file", execMeta.Mapping.Path),
 			slog.String("file_id", mf.FileID.StringNoQuotes()))
 	}
 }
@@ -364,7 +364,7 @@ func (d *DatadogSymbolUploader) getSymbolsFromDisk(execMeta *reporter.Executable
 	elfSymbols, err := symbol.NewElfFromMapping(execMeta.Mapping, mf.GnuBuildID, mf.GoBuildID, mf.FileID, execMeta.Process)
 	if err != nil {
 		slog.Debug("Skipping symbol upload for executable",
-			slog.String("path", execMeta.Mapping.Path.String()),
+			slog.String("path", execMeta.Mapping.Path),
 			slog.String("error", err.Error()))
 		return nil
 	}
