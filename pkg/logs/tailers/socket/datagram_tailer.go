@@ -10,6 +10,7 @@ import (
 	"net"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/utils/ipfilter"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -39,6 +40,7 @@ type DatagramTailer struct {
 	frameSize       int
 	decoder         decoder.Decoder
 	capacityMonitor *metrics.CapacityMonitor
+	ipFilter        *ipfilter.Filter
 	stop            chan struct{}
 	done            chan struct{}
 	onError         func() // called when tail() exits due to a transient read error; used by listeners to reset the connection
@@ -88,6 +90,12 @@ func (t *DatagramTailer) Stop() {
 // Identifier returns a unique identifier for this tailer.
 func (t *DatagramTailer) Identifier() string {
 	return fmt.Sprintf("datagram:%s", t.conn.LocalAddr())
+}
+
+// SetIPFilter sets an optional IP filter applied to incoming datagrams.
+// Datagrams from denied addresses are silently dropped. Must be called before Start.
+func (t *DatagramTailer) SetIPFilter(f *ipfilter.Filter) {
+	t.ipFilter = f
 }
 
 // SetOnError registers a callback invoked when the read loop exits
@@ -150,6 +158,11 @@ func (t *DatagramTailer) tail() {
 				return
 			}
 			if n == 0 {
+				continue
+			}
+
+			if t.ipFilter != nil && !t.ipFilter.Allow(addr) {
+				metrics.TlmListenerIPDenied.Inc("udp")
 				continue
 			}
 
