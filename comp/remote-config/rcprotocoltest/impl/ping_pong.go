@@ -110,14 +110,20 @@ func runWebSocketTestWithALPN(ctx context.Context, httpClient *api.HTTPClient, r
 		}
 	}()
 
+	// ALPN requires TLS, check if TLS is enabled before running test.
+	baseURL, err := httpClient.BaseURL()
+	if err != nil {
+		log.Debugf("websocket echo test with ALPN failed to get base URL: %s", err)
+		return
+	}
+	if strings.ToLower(baseURL.Scheme) == "http" {
+		log.Debug("websocket echo test with ALPN skipped: TLS is disabled")
+		return
+	}
+
 	n, err := runEchoLoopWithALPN(ctx, httpClient, runCount)
 	if err != nil {
-		// Check if this is the expected "no TLS" skip case vs an actual failure.
-		if strings.Contains(err.Error(), "ALPN websocket test requires TLS") {
-			log.Debugf("websocket echo test with ALPN skipped: %s", err)
-		} else {
-			log.Debugf("websocket echo test with ALPN failed: %s (%d data frames exchanged)", err, n)
-		}
+		log.Debugf("websocket echo test with ALPN failed: %s (%d data frames exchanged)", err, n)
 		return
 	}
 	log.Debugf("websocket echo test with ALPN complete (%d data frames exchanged)", n)
