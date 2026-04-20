@@ -93,6 +93,10 @@ func (c *configEndpoint) getAllConfigValuesHandler(w http.ResponseWriter, r *htt
 	log.Debugf("config endpoint received a request from '%s' for all authorized config values", r.RemoteAddr)
 	allValues := make(map[string]interface{}, len(c.authorizedConfigPaths))
 	for key := range c.authorizedConfigPaths {
+		// only send values that were explicitly configured above defaults as to not break IsConfigured for the sub-agent
+		if !c.cfg.IsConfigured(key) {
+			continue
+		}
 		if key == "logs_config.additional_endpoints" {
 			entries, err := encodeInterfaceSliceToStringMap(c.cfg, key)
 			if err != nil {

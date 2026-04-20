@@ -1396,6 +1396,7 @@ api_key:
 #   obfuscation:
 
 #     # @param credit_cards - custom object - optional
+#     # Obfuscation rules for credit card numbers found in trace span values.
 #
 #     credit_cards:
 
@@ -1419,6 +1420,7 @@ api_key:
 #         - client_id
 
 #     # @param elasticsearch - custom object - optional
+#     # Obfuscation rules for Elasticsearch query bodies in trace spans.
 #
 #     elasticsearch:
 
@@ -1443,6 +1445,7 @@ api_key:
 #         - val1
 
 #     # @param opensearch - custom object - optional
+#     # Obfuscation rules for OpenSearch query bodies in trace spans.
 #
 #     opensearch:
 
@@ -1467,6 +1470,7 @@ api_key:
 #         - val1
 
 #     # @param http - custom object - optional
+#     # Obfuscation rules for HTTP URLs and query strings in trace spans.
 #
 #     http:
 
@@ -1483,6 +1487,7 @@ api_key:
 #       remove_paths_with_digits: false
 
 #     # @param memcached - custom object - optional
+#     # Obfuscation rules for Memcached command strings in trace spans.
 #
 #     memcached:
 
@@ -1501,6 +1506,7 @@ api_key:
 #       keep_command: false
 
 #     # @param mongodb - custom object - optional
+#     # Obfuscation rules for MongoDB query documents in trace spans.
 #
 #     mongodb:
 
@@ -1525,6 +1531,7 @@ api_key:
 #         - val1
 
 #     # @param redis - custom object - optional
+#     # Obfuscation rules for Redis command arguments in trace spans.
 #
 #     redis:
 
@@ -1541,6 +1548,7 @@ api_key:
 #       remove_all_args: false
 
 #     # @param valkey - custom object - optional
+#     # Obfuscation rules for Valkey command arguments in trace spans.
 #
 #     valkey:
 
@@ -1563,6 +1571,7 @@ api_key:
 #     remove_stack_traces: false
 
 #     # @param sql_exec_plan - custom object - optional
+#     # Obfuscation rules for SQL query execution plan JSON in trace spans.
 #
 #     sql_exec_plan:
 
@@ -1587,6 +1596,8 @@ api_key:
 #         - val1
 
 #     # @param sql_exec_plan_normalize - custom object - optional
+#     # Obfuscation rules for SQL query execution plan JSON, including cost and row estimates.
+#     # Produces a normalized execution plan in trace spans.
 #
 #     sql_exec_plan_normalize:
 
@@ -1612,6 +1623,7 @@ api_key:
 #         - val1
 
 #     # @param cache - custom object - optional
+#     # Controls caching of obfuscated statements to improve performance.
 #
 #     cache:
 
@@ -1968,21 +1980,25 @@ api_key:
 
 #     # @param container - integer - optional - default: 10
 #     # @env DD_PROCESS_CONFIG_INTERVALS_CONTAINER - integer - optional - default: 10
+#     # The interval in seconds at which the container check runs.
 #
 #     container: 10
 
 #     # @param container_realtime - integer - optional - default: 2
 #     # @env DD_PROCESS_CONFIG_INTERVALS_CONTAINER_REALTIME - integer - optional - default: 2
+#     # The interval in seconds at which the real-time container check runs.
 #
 #     container_realtime: 2
 
 #     # @param process - integer - optional - default: 10
 #     # @env DD_PROCESS_CONFIG_INTERVALS_PROCESS - integer - optional - default: 10
+#     # The interval in seconds at which the process check runs.
 #
 #     process: 10
 
 #     # @param process_realtime - integer - optional - default: 2
 #     # @env DD_PROCESS_CONFIG_INTERVALS_PROCESS_REALTIME - integer - optional - default: 2
+#     # The interval in seconds at which the real-time process check runs.
 #
 #     process_realtime: 2
 
@@ -2280,6 +2296,7 @@ api_key:
 #   enabled: false
 
 #   # @param host - custom object - optional
+#   # Configuration for scanning the host filesystem for software vulnerabilities.
 #
 #   host:
 
@@ -2291,11 +2308,13 @@ api_key:
 {{- if (eq .OS "linux") }}
 
 #   # @param container_image - custom object - optional
+#   # Configuration for scanning container images for software vulnerabilities.
 #
 #   container_image:
 
 #     # @param enabled - boolean - optional - default: false
 #     # @env DD_SBOM_CONTAINER_IMAGE_ENABLED - boolean - optional - default: false
+#     # Set to true to enable container image vulnerability scanning.
 #
 #     enabled: false
 
@@ -4081,6 +4100,7 @@ api_key:
 
 #       # @param enabled - boolean - optional - default: false
 #       # @env DD_NETWORK_DEVICES_AUTODISCOVERY_PING_ENABLED - boolean - optional - default: false
+#       # Set to true to enable ICMP ping checks for autodiscovered SNMP devices.
 #
 #       enabled: false
 
@@ -4840,6 +4860,7 @@ api_key:
 #       sampling_percentage: 100
 
 #     # @param infra_attributes - custom object - optional
+#     # Controls whether infrastructure attributes (host tags, container tags) are attached to OTLP traces ingested by the Agent.
 #
 #     infra_attributes:
 

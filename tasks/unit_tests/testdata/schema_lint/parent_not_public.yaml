@@ -1,0 +1,29 @@
+properties:
+  private_section:
+    node_type: section
+    properties:
+      public_child:
+        node_type: setting
+        type: string
+        default: hello
+        description: A public child under a non-public section.
+        visibility: public
+  no_visibility_section:
+    node_type: section
+    properties:
+      another_public:
+        node_type: setting
+        type: boolean
+        default: false
+        description: Another public child.
+        visibility: public
+  public_section_no_desc:
+    node_type: section
+    visibility: public
+    properties:
+      child:
+        node_type: setting
+        type: number
+        default: 0
+        description: Child under public section without description.
+        visibility: public

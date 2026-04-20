@@ -1,0 +1,18 @@
+properties:
+  with_default:
+    node_type: setting
+    type: string
+    default: present
+  with_platform_default:
+    node_type: setting
+    type: number
+    platform_default:
+      other: 0
+  no_default:
+    node_type: setting
+    type: string
+  excepted_no_default:
+    node_type: setting
+    type: string
+    tags:
+      - TODO:fix-no-default

@@ -95,7 +95,6 @@ def is_node_section(node):
 class Parser:
     def __init__(self):
         self.current_title = ""
-        self.order = 0
         self.trackorder = collections.defaultdict(list)
         self.parents = []
         self.previous_name = ""
@@ -145,10 +144,8 @@ class Parser:
         tags = node.get("tags", [])
         if self.template_section != "":
             tags.append(f"template_section:{self.template_section}")
-        tags.append(f"template_section_order:{self.order}")
         node["tags"] = tags
 
-        self.order += 1
         self.trackorder['.'.join(self.parents)].append(name)
 
     def handle_template_section(self, line):
@@ -230,7 +227,7 @@ def reorder_it(schema, currpath, trackorder):
         raise RuntimeError(f'*** key:{currkey} missing: {missing_from_want}')
     # If there are missing from `havekeys` that's okay. These are *undocumented* keys that are
     # defined in setup.go but not in the config_template.yaml
-    missing_from_have = set(havekeys) - set(useorder)
+    missing_from_have = sorted(set(havekeys) - set(useorder))
     # Iterate the keys in order seen in config_template.yaml
     for k in useorder:
         item = obj[k]
@@ -251,7 +248,7 @@ def parse_template(tmpl, schema):
     with open(tmpl) as f:
         template = f.read()
 
-    # fix the one edge case or the API key not being formated like the rest of the template
+    # fix the one edge case of the API key not being formated like the rest of the template
     template = template.replace("\napi_key:\n", "\n# api_key: \"\"\n")
 
     parser = Parser()
