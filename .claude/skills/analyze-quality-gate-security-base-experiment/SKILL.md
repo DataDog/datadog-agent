@@ -47,23 +47,42 @@ For each returned series, read its `scope` (contains `job_id:<UUID>`) and its `p
 
 ### 3b. Re-query each latest `job_id` exclusively
 
-Add `job_id:<UUID>` to the tag filter. Use `--from 1h` so the API returns **20-second** interval data — fine enough that rollup gap-fill inside the capture window does not dilute the mean. If the latest job's last-non-zero timestamp is older than ~45 min, widen: `--from 2h` (30 s interval) or `--from 3h` (60 s). Do not widen past 3h.
+Add `job_id:<UUID>` to the tag filter. Pin the query window to the job itself — not a relative range like `--from 1h`. Using a relative range is non-deterministic across runs: it shifts with wall-clock time, and the API rollup may include or exclude an edge bucket depending on where "now" lands, producing different pointlists and different means for the same `job_id`.
+
+From Step 3a you have the first and last non-zero epoch-ms (`FIRST_MS`, `LAST_MS`) for each latest `job_id`. Derive a deterministic window:
+
+```bash
+FROM_TS=$(( FIRST_MS / 1000 - 60 ))   # 1 minute of padding before
+TO_TS=$((   LAST_MS  / 1000 + 60 ))   # 1 minute of padding after
+```
+
+Pass these as absolute Unix seconds to `pup`. The window width should stay under ~1 h so the API still returns 20-second interval data.
 
 Run in parallel:
 
 ```bash
 # security_base — latest job
-pup metrics query --query 'avg:single_machine_performance.regression_detector.capture.datadog.runtime_security.perf_buffer.events.write{event_type:open,variant:comparison,experiment:quality_gate_security_base,job_id:<BASE_UUID>}.as_rate()' --from 1h --to now
-pup metrics query --query 'avg:single_machine_performance.regression_detector.capture.datadog.runtime_security.perf_buffer.events.write{category:file_activity,variant:comparison,experiment:quality_gate_security_base,job_id:<BASE_UUID>}.as_rate()' --from 1h --to now
+pup metrics query --query 'avg:single_machine_performance.regression_detector.capture.datadog.runtime_security.perf_buffer.events.write{event_type:open,variant:comparison,experiment:quality_gate_security_base,job_id:<BASE_UUID>}.as_rate()' --from "$BASE_FROM_TS" --to "$BASE_TO_TS"
+pup metrics query --query 'avg:single_machine_performance.regression_detector.capture.datadog.runtime_security.perf_buffer.events.write{category:file_activity,variant:comparison,experiment:quality_gate_security_base,job_id:<BASE_UUID>}.as_rate()' --from "$BASE_FROM_TS" --to "$BASE_TO_TS"
 
 # security_idle — latest job
-pup metrics query --query 'avg:single_machine_performance.regression_detector.capture.datadog.runtime_security.perf_buffer.events.write{event_type:open,variant:comparison,experiment:quality_gate_security_idle,job_id:<IDLE_UUID>}.as_rate()' --from 1h --to now
-pup metrics query --query 'avg:single_machine_performance.regression_detector.capture.datadog.runtime_security.perf_buffer.events.write{category:file_activity,variant:comparison,experiment:quality_gate_security_idle,job_id:<IDLE_UUID>}.as_rate()' --from 1h --to now
+pup metrics query --query 'avg:single_machine_performance.regression_detector.capture.datadog.runtime_security.perf_buffer.events.write{event_type:open,variant:comparison,experiment:quality_gate_security_idle,job_id:<IDLE_UUID>}.as_rate()' --from "$IDLE_FROM_TS" --to "$IDLE_TO_TS"
+pup metrics query --query 'avg:single_machine_performance.regression_detector.capture.datadog.runtime_security.perf_buffer.events.write{category:file_activity,variant:comparison,experiment:quality_gate_security_idle,job_id:<IDLE_UUID>}.as_rate()' --from "$IDLE_FROM_TS" --to "$IDLE_TO_TS"
 ```
 
 The `.as_rate()` modifier guarantees the result is in events/sec. Both this metric and the production metric are type `rate` (statsd_interval=10), so `.as_rate()` is a no-op today — but it documents intent and protects against metadata changes.
 
-Compute `mean` over **non-zero, non-null** points only. Record the `job_id`, the first and last non-zero timestamps (capture window), the interval returned, and the data points count. Do not include min/max in the report.
+Compute `mean` over **non-zero, non-null** points only. Record the `job_id`, the first and last non-zero timestamps (capture window), the interval returned, the data points count, and the raw sum used for the mean.
+
+When reporting `capture_first_ts` / `capture_last_ts`, do not compute ISO strings by hand — use the shell:
+
+```bash
+date -u -r $(( MS / 1000 )) +%Y-%m-%dT%H:%M:%SZ
+```
+
+Always print the raw epoch-ms alongside the ISO string so the reader can verify the conversion.
+
+Do not include min/max in the report.
 
 ### 3c. Sanity checks
 
@@ -129,8 +148,8 @@ Analysis:
 Print a markdown report answering "does the lading config reflect the production open workload?" with these sections:
 
 1. **Lading config** — configured open rate (`open_per_second` × 1 = events/sec)
-2. **SMP Idle Baseline (security_idle, latest job `<IDLE_UUID>`)** — open rate and file activity with CWS but no generator, showing the job_id, capture window (first → last non-zero timestamps), interval, and data points count
-3. **SMP Loaded (security_base, latest job `<BASE_UUID>`)** — open rate and file activity with CWS and generator, showing the job_id, capture window, interval, and data points count
+2. **SMP Idle Baseline (security_idle, latest job `<IDLE_UUID>`)** — open rate and file activity with CWS but no generator, showing the job_id, capture window (first → last non-zero epoch-ms with ISO derived via `date -u -r`), interval, data points count, and the mean expressed as `sum=<S> / n=<N> = <mean>` so the reader can reproduce the arithmetic without trusting the model
+3. **SMP Loaded (security_base, latest job `<BASE_UUID>`)** — open rate and file activity with CWS and generator, showing the job_id, capture window (epoch-ms + `date -u -r` derived ISO), interval, data points count, and the mean expressed as `sum=<S> / n=<N> = <mean>`
 4. **Generator Contribution** — delta between security_base and security_idle for open events (between the two latest jobs)
 5. **Org2 per-host avg (open, weekly)** — production open rate weekly mean
 
