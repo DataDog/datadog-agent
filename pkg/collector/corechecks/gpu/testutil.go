@@ -42,10 +42,16 @@ func GetEmittedGPUMetrics(mockSender *mocksender.MockSender) map[string][]gpuspe
 	metricsByName := make(map[string][]gpuspec.MetricObservation)
 
 	for _, call := range mockSender.Mock.Calls {
-		if call.Method != "GaugeWithTimestamp" && call.Method != "CountWithTimestamp" {
+		metricType := ""
+		switch call.Method {
+		case "GaugeWithTimestamp":
+			metricType = "gauge"
+		case "CountWithTimestamp":
+			metricType = "counter"
+		default: 
 			continue
 		}
-
+		
 		if len(call.Arguments) == 0 {
 			continue
 		}
@@ -70,9 +76,10 @@ func GetEmittedGPUMetrics(mockSender *mocksender.MockSender) map[string][]gpuspe
 		}
 
 		metricsByName[specMetricName] = append(metricsByName[specMetricName], gpuspec.MetricObservation{
-			Name:  specMetricName,
-			Tags:  tags,
-			Value: value,
+			Name:       specMetricName,
+			MetricType: metricType,
+			Tags:       tags,
+			Value:      value,
 		})
 	}
 
@@ -89,6 +96,7 @@ func ValidateEmittedMetricsAgainstSpec(t *testing.T, specs *gpuspec.Specs, confi
 			assert.Zero(t, status.Missing, "metric %s missing in %d cases", metricName, status.Missing)
 			assert.Zero(t, status.Unknown, "metric %s unknown in %d cases", metricName, status.Unknown)
 			assert.Zero(t, status.Unsupported, "metric %s unsupported in %d cases", metricName, status.Unsupported)
+			assert.Zero(t, status.WrongType, "metric %s wrong type in %d cases", metricName, status.WrongType)
 			assert.Zero(t, status.InvalidValue, "metric %s invalid in %d cases", metricName, status.InvalidValue)
 
 			for tag, tagResult := range status.TagResults {
