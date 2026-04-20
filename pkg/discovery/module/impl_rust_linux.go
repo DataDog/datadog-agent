@@ -13,6 +13,7 @@ package module
 import "C"
 
 import (
+	"errors"
 	"math"
 	"unsafe"
 
@@ -20,6 +21,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/discovery/model"
 	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 )
+
+// errRustLibraryPanicked is returned when libdd_discovery caught a Rust panic
+// at the FFI boundary and returned NULL. Surfacing this as an error lets
+// handleServices log the failure and return 500 rather than silently replying
+// with an empty payload.
+var errRustLibraryPanicked = errors.New("libdd_discovery returned NULL (panic caught at FFI boundary)")
 
 // rustGetServices invokes the Rust library with the given PID lists and
 // copies the response into Go-owned memory.
@@ -29,7 +36,7 @@ func rustGetServices(params core.Params) (*model.ServicesResponse, error) {
 
 	result := C.dd_discovery_get_services(newPidsPtr, newPidsLen, hbPidsPtr, hbPidsLen)
 	if result == nil {
-		return &model.ServicesResponse{Services: make([]model.Service, 0)}, nil
+		return nil, errRustLibraryPanicked
 	}
 	defer C.dd_discovery_free(result)
 

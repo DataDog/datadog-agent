@@ -25,6 +25,14 @@ func shouldExecSPLite(sysprobeConfig sysprobeconfig.Component, cfg *sysconfigtyp
 		return false
 	}
 
+	// The in-process Rust-library backend is mutually exclusive with the
+	// system-probe-lite subprocess: if the user opted into
+	// `discovery.use_rust_library`, keep running in-process so that flag can
+	// take effect.
+	if sysprobeConfig.GetBool("discovery.use_rust_library") {
+		return false
+	}
+
 	// Don't exec system-probe-lite if an external system-probe is managing things
 	if cfg.ExternalSystemProbe {
 		return false
