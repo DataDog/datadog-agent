@@ -225,6 +225,12 @@ func postInstallDatadogAgentDDOTDEBRPM(ctx HookContext) (err error) {
 // All the steps are allowed to fail
 func preRemoveDatadogAgentDDOT(ctx HookContext) error {
 	removeDDOTProcessConfig(ctx.PackageType)
+	// Restart procmgrd so it detects the removed config and stops the DDOT
+	// process. Without this, procmgrd would keep supervising otel-agent
+	// from its in-memory state until the agent service is restarted.
+	if err := restartProcmgrd(ctx); err != nil {
+		log.Warnf("failed to restart procmgrd after removing DDOT config: %s", err)
+	}
 
 	err := agentDDOTService.StopExperiment(ctx)
 	if err != nil {
