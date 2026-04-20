@@ -2,5 +2,9 @@
     "id": "datadog-agent",
     "version": "0.0.1",
     "name": "Datadog Agent Development Environment",
-    "description": "Configures the Datadog Agent development environment for the bits user, cleaning the base image for it to work in workspaces."
+    "description": "Configures the Datadog Agent development environment for the bits user, cleaning the base image for it to work in workspaces.",
+    "installsAfter": ["registry.ddbuild.io/workspaces/features/base"],
+    "postCreateCommand": {
+        "datadog-agent": "/opt/doghome/devcontainer/features/datadog-agent/lifecycle/postCreate.sh"
+    }
 }
