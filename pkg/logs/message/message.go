@@ -163,6 +163,11 @@ func (m *MessageContent) GetStructuredAttribute(path string) (string, bool) {
 	if m.State != StateStructured {
 		return "", false
 	}
+
+	if ag, ok := m.structuredContent.(AttributeGetter); ok {
+		return ag.GetAttribute(path)
+	}
+
 	bsc, ok := m.structuredContent.(*BasicStructuredContent)
 	if !ok || bsc == nil {
 		return "", false
@@ -277,6 +282,31 @@ func (m *MessageContent) SetRendered(content []byte) {
 func (m *MessageContent) SetEncoded(content []byte) {
 	m.content = content
 	m.State = StateEncoded
+}
+
+// EnsureRendered prepares the message for encoding. For FullEncoder messages
+// this is a no-op because EncodeFull handles rendering internally. For other
+// structured messages it calls Render()+SetRendered(). For unstructured
+// messages it simply promotes the state to StateRendered.
+func (m *MessageContent) EnsureRendered() error {
+	switch m.State {
+	case StateRendered, StateEncoded:
+		return nil
+	case StateUnstructured:
+		m.State = StateRendered
+		return nil
+	case StateStructured:
+		if _, ok := m.structuredContent.(FullEncoder); ok {
+			return nil
+		}
+		rendered, err := m.structuredContent.Render()
+		if err != nil {
+			return err
+		}
+		m.SetRendered(rendered)
+		return nil
+	}
+	return nil
 }
 
 // ParsingExtra ships extra information parsers want to make available
@@ -399,6 +429,35 @@ type StructuredContent interface {
 	Render() ([]byte, error)
 	GetContent() []byte
 	SetContent([]byte)
+}
+
+// AttributeGetter is an optional interface that StructuredContent
+// implementations can satisfy to support dot-path attribute lookups
+// (e.g. "syslog.hostname") without requiring a BasicStructuredContent
+// type assertion. Used by GetStructuredAttribute for processing rules.
+type AttributeGetter interface {
+	GetAttribute(path string) (string, bool)
+}
+
+// FullEncoder is an optional interface that StructuredContent implementations
+// can satisfy to produce the complete transport-envelope JSON in a single
+// serialization pass. Implementations call Render() internally to obtain the
+// inner JSON, then wrap it in the transport envelope.
+type FullEncoder interface {
+	EncodeFull(status string, timestamp int64,
+		hostname, service, source, tags string) ([]byte, error)
+}
+
+// GetFullEncoder returns the FullEncoder implementation if the underlying
+// structured content supports single-pass encoding. Works on both
+// StateStructured and StateRendered messages since structuredContent is
+// preserved across rendering.
+func (m *MessageContent) GetFullEncoder() (FullEncoder, bool) {
+	if m.structuredContent == nil {
+		return nil, false
+	}
+	fe, ok := m.structuredContent.(FullEncoder)
+	return fe, ok
 }
 
 // BasicStructuredContent is used by tailers creating structured logs
