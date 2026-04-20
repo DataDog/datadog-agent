@@ -850,6 +850,8 @@ def rpath_edit(ctx, install_path, target_rpath_dd_folder, platform="linux"):
         file, file_type = line.split(":")
         file_type = file_type.strip()
 
+        modified = False
+
         if platform == "linux":
             if file_type not in ["application/x-executable", "inode/symlink", "application/x-sharedlib"]:
                 continue
@@ -869,15 +871,26 @@ def rpath_edit(ctx, install_path, target_rpath_dd_folder, platform="linux"):
             # if a dylib ID use our installation path we replace it with @rpath instead
             if install_path in dylib_id_paths:
                 _replace_dylib_id_paths_with_rpath(ctx, dylib_id_paths, install_path, file)
+                modified = True
 
             # if a dylib use our installation path we replace it with @rpath instead
             if install_path in dylib_paths:
                 _replace_dylib_paths_with_rpath(ctx, dylib_paths, install_path, file)
+                modified = True
 
         # if a binary has an rpath that use our installation path we are patching it
         if install_path in binary_rpath:
             new_rpath = os.path.relpath(target_rpath_dd_folder, os.path.dirname(file))
             _patch_binary_rpath(ctx, new_rpath, install_path, binary_rpath, platform, file)
+            modified = True
+
+        if modified and platform != "linux":
+            # Re-sign with an ad-hoc signature after install_name_tool modifications,
+            # which invalidate any existing code signature. On arm64 Macs, macOS
+            # enforces valid signatures at the kernel level (SIGKILL on tainted pages).
+            # When SIGN_MAC=true, the Developer ID signing in datadog-agent-finalize.rb
+            # overwrites these ad-hoc signatures afterward.
+            ctx.run(f"codesign --sign - --force {file}")
 
 
 @task
