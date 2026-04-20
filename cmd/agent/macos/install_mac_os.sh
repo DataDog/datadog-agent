@@ -177,11 +177,6 @@ if [ -z "$local_dmg_path" ]; then
     fi
 fi
 
-if [ -z "$apikey" ]; then
-    printf "${RED}API key not available in DD_API_KEY environment variable.${NC}\n"
-    exit 1
-fi
-
 function on_error() {
     printf "${RED}
 It looks like you hit an issue when trying to install the Agent.
@@ -213,7 +208,7 @@ $sudo_cmd rm -rf "$install_staging_dir"
 $sudo_cmd mkdir -p "$install_staging_dir"
 $sudo_cmd chmod 700 "$install_staging_dir"
 {
-    echo "DD_API_KEY=$apikey"
+    [ -n "$apikey" ] && echo "DD_API_KEY=$apikey"
     [ -n "$site" ] && echo "DD_SITE=$site"
     [ "$gui_app_menu_enabled" = true ] && echo "DD_GUI_APP_MENU_ENABLED=true"
     echo "DD_INSTALL_METHOD=install_script_mac"
